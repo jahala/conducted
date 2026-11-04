@@ -1,0 +1,122 @@
+import { expect, test } from "bun:test";
+import {
+	classifyToolUse,
+	isInsideAny,
+	modeAfterPlan,
+	permissionModeFor,
+	type ToolUseFacts,
+	toPermissionResult,
+	toPlanResult,
+} from "./permissions.ts";
+
+const facts = (over: Partial<ToolUseFacts>): ToolUseFacts => ({
+	toolName: "Bash",
+	input: {},
+	resolvedEditPath: null,
+	allowedRoots: ["/work/app"],
+	requireToolApproval: true,
+	autoApproveEdits: false,
+	sessionLive: true,
+	...over,
+});
+
+test("plan mode wins over approvals, approvals over bypass", () => {
+	expect(permissionModeFor({ planMode: true, requireToolApproval: true })).toBe("plan");
+	expect(permissionModeFor({ planMode: false, requireToolApproval: true })).toBe("default");
+	expect(permissionModeFor({ planMode: false, requireToolApproval: false })).toBe(
+		"bypassPermissions",
+	);
+});
+
+test("a sibling folder with a shared prefix is not inside the root", () => {
+	expect(isInsideAny("/work/app-other/x.ts", ["/work/app"])).toBe(false);
+	expect(isInsideAny("/work/app/src/x.ts", ["/work/app"])).toBe(true);
+	expect(isInsideAny("/work/app", ["/work/app/"])).toBe(true);
+});
+
+test("an edit outside the allowed folders is denied with the folders named", () => {
+	const verdict = classifyToolUse(
+		facts({
+			toolName: "Edit",
+			input: { file_path: "/work/app-other/x.ts" },
+			resolvedEditPath: "/work/app-other/x.ts",
+		}),
+	);
+	expect(verdict.kind).toBe("deny");
+	if (verdict.kind === "deny") expect(verdict.message).toContain("/work/app");
+});
+
+test("an edit without a path, or with an unresolvable path, is denied", () => {
+	expect(classifyToolUse(facts({ toolName: "Write", input: {} })).kind).toBe("deny");
+	expect(
+		classifyToolUse(
+			facts({ toolName: "Write", input: { file_path: "/x" }, resolvedEditPath: null }),
+		).kind,
+	).toBe("deny");
+});
+
+test("the check order: plan exit, app tool, dead session, approvals off, auto edits, ask", () => {
+	expect(classifyToolUse(facts({ toolName: "ExitPlanMode" })).kind).toBe("exit_plan_mode");
+	expect(
+		classifyToolUse(facts({ toolName: "mcp__conducted__DiffComment", sessionLive: false })).kind,
+	).toBe("allow");
+	expect(classifyToolUse(facts({ sessionLive: false })).kind).toBe("deny");
+	expect(classifyToolUse(facts({ requireToolApproval: false })).kind).toBe("allow");
+	const edit = {
+		toolName: "Edit",
+		input: { file_path: "/work/app/a.ts" },
+		resolvedEditPath: "/work/app/a.ts",
+	};
+	expect(classifyToolUse(facts({ ...edit, autoApproveEdits: true })).kind).toBe("allow");
+	expect(classifyToolUse(facts(edit)).kind).toBe("ask");
+	expect(classifyToolUse(facts({})).kind).toBe("ask");
+});
+
+test("answers map to SDK results", () => {
+	const input = { command: "ls" };
+	const always = toPermissionResult("Bash", input, {
+		kind: "tool_approval",
+		decision: "always_allow",
+	});
+	expect(always.result).toMatchObject({
+		behavior: "allow",
+		updatedPermissions: [
+			{ type: "addRules", destination: "localSettings", rules: [{ toolName: "Bash" }] },
+		],
+	});
+	const edits = toPermissionResult("Edit", input, {
+		kind: "tool_approval",
+		decision: "allow_edits_for_session",
+	});
+	expect(edits.enableAutoApproveEdits).toBe(true);
+	const denied = toPermissionResult("Bash", input, {
+		kind: "tool_approval",
+		decision: "deny",
+		message: "no",
+	});
+	expect(denied.result).toEqual({ behavior: "deny", message: "no" });
+	const withdrawn = toPermissionResult("Bash", input, { kind: "withdrawn" });
+	expect(withdrawn.result.behavior).toBe("deny");
+});
+
+test("plan approval returns to the normal mode, rejection interrupts with the feedback", () => {
+	const approved = toPlanResult(
+		{ plan: "p" },
+		{ kind: "plan_approval", approved: true },
+		{ requireToolApproval: false },
+		"/plans/p.md",
+	);
+	expect(approved.nextMode).toBe("bypassPermissions");
+	expect(approved.result).toMatchObject({
+		behavior: "allow",
+		updatedInput: { plan: "p", planFilePath: "/plans/p.md" },
+		updatedPermissions: [{ type: "setMode", mode: "bypassPermissions", destination: "session" }],
+	});
+	const rejected = toPlanResult(
+		{},
+		{ kind: "plan_approval", approved: false, feedback: "less scope" },
+		{ requireToolApproval: true },
+	);
+	expect(rejected.result).toEqual({ behavior: "deny", message: "less scope", interrupt: true });
+	expect(modeAfterPlan({ requireToolApproval: true })).toBe("default");
+});
