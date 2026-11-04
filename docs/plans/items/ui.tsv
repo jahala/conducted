@@ -1,0 +1,1015 @@
+id	kind	item	research	status
+NAV-01	region	Title bar row with traffic-light clearance and a drag region	ui-map 1.1	covered
+NAV-01	region	Header areas of every screen are window drag regions	ui-map 1.1	covered
+NAV-01	control	'Toggle left sidebar' button in the window controls row	ui-map 1.1, 4.1	covered
+NAV-02	control	'Go back' and 'Go forward' buttons in the window controls row	ui-map 1.1, 4.1	covered
+NAV-01	region	Left sidebar: resizable, collapsible, width remembered, min and max	ui-map 1.1	covered
+NAV-01	rule	Sidebar width is written to the saved panel layout (shell does not do it yet)	ui-map 1.1	partly
+NAV-01	region	Centre panel with a minimum width	ui-map 1.1	covered
+NAV-10	region	Right panel (about 35 percent, collapsible)	ui-map 1.1	covered
+NAV-10	region	Right panel is a vertical group: git panel over scripts and terminal panel	ui-map 1.1	covered
+NAV-01	rule	Right-panel layout is saved per workspace	ui-map 1.1	covered
+NAV-12	setting	Left and right panel open state kept as two settings	ui-map 1.1	covered
+NAV-12	shortcut	Cmd+B toggles the left sidebar, Cmd+Alt+B toggles the right sidebar	ui-map 1.1, 5.4	covered
+NAV-12	action	Zen mode closes both panels and restores them	ui-map 1.1	covered
+APP-05	region	One toast area mounted once at the root	ui-map 1.1	covered
+NAV-14	rule	Root listeners for menu events and deep links feed the command dispatcher	ui-map 1.1	partly
+NAV-15	rule	Terminals and browser previews stay alive when the user switches tabs	ui-map 1.1, 8	missing
+NAV-01	rule	Cmd+A selects only inside text fields, never the whole UI	ui-map 5.4	missing
+NAV-03	control	Sidebar nav 'Dashboard' row, shown only with the Dashboard setting	ui-map 1.2, 4.3	partly
+NAV-03	control	Sidebar nav 'Home' row	ui-map 4.3	covered
+NAV-03	control	Sidebar nav 'Create' row	ui-map 4.3	covered
+NAV-03	control	Sidebar nav 'Search' row that opens the palette	ui-map 4.3	covered
+NAV-03	region	Workspace list grouped by status or by project	ui-map 1.2	covered
+RC-02	setting	Remote Control allowed (replaced by the per-chat claude.ai Remote Control switch, D019)	ui-map 1.2	missing
+NAV-02	view	Route tree: root, main layout with sidebar, full-page group without	ui-map 2	covered
+APP-04	view	Landing page '/' with logo and add-project block	ui-map 2	covered
+PRJ-01	control	Landing 'Open project' button	ui-map 2	covered
+PRJ-02	control	Landing 'Open GitHub project' button	ui-map 2	missing
+PRJ-03	control	Landing 'Quick start' button	ui-map 2	missing
+NAV-02	rule	'/' restores the last route and last workspace and skips archived ones	ui-map 2	covered
+NAV-10	view	Workspace route with the tab strip, chat and panels	ui-map 2	covered
+NAV-02	rule	URL state: active tab type, chat id, terminal id	ui-map 2	covered
+NAV-02	rule	URL state: file path, file mode, content mode, line, comment id, browser URL	ui-map 2	covered
+NAV-02	rule	URL state: git panel tab and diff scope	ui-map 2	covered
+NAV-02	rule	URL state: which PR the PR tab shows	ui-map 2	partly
+NAV-02	rule	With no search set, restore the last active search for that workspace	ui-map 2	covered
+NAV-02	rule	Route repair: leave a workspace or chat that was deleted or archived and go Home	services-map 6	missing
+NAV-05	view	Home: card grid of all workspaces	ui-map 2	covered
+NAV-05	control	Home search box	ui-map 2	covered
+NAV-05	control	Home filter by project	ui-map 2	covered
+NAV-05	control	Home active or archived toggle	ui-map 2	covered
+NAV-05	control	Home sort	ui-map 2	covered
+NAV-05	menu	Home 'Display' menu choosing which fields show on cards	ui-map 2	covered
+NAV-05	region	Home pinned group	ui-map 2	covered
+NAV-05	rule	Home pages by 50 with 'Show more'	ui-map 2	covered
+NAV-05	state	Home empty state 'No matching workspaces'	ui-map 2, 7.2	covered
+NAV-05	control	Home empty state 'Create a workspace' and 'Clear filters' buttons	ui-map 2	covered
+NAV-05	state	Home loading skeleton and error with retry	ui-map 2, 7	covered
+NAV-06	view	Dashboard: Kanban with five columns	ui-map 2	covered
+NAV-06	action	Drag a card to change its status (card menu for keyboard)	ui-map 2	covered
+NAV-06	control	Dashboard project filter chips (top 5 plus a more menu)	ui-map 2	covered
+NAV-06	state	Dashboard empty state with 'New workspace'	ui-map 2	covered
+NAV-06	setting	Dashboard is gated by the 'Dashboard' setting and explains it when off	ui-map 2	covered
+WS-01	view	Full-page '/create' flow: repo, create from, prompt, model, plan mode, section	ui-map 2, 3.9	covered
+WS-11	control	'Add to backlog' and 'Start' buttons on the create flow	ui-map 3.9	missing
+WS-11	message	Toast 'Added to backlog'	ui-map 3.9	missing
+WS-01	view	New workspace as a dialog (default) and as a page (setting 'New workspace page')	ui-map 3.9	partly
+SET-02	view	Settings route '/settings/*' with redirect to General	ui-map 2, 6	covered
+NAV-02	view	Repo settings routes '/settings/repos/$repoId/$page'	ui-map 2	partly
+APP-03	view	Diagnostics route with introduction text	ui-map 2	covered
+APP-03	view	Diagnostics: shell, PATH and environment capture with values hashed except a safe list	ui-map 2	covered
+APP-03	action	Diagnostics: copy redacted report	ui-map 2	covered
+APP-03	action	Diagnostics: copy full report (asks first)	ui-map 2	covered
+APP-03	action	Diagnostics: create a new chat with the redacted report attached	ui-map 2	covered
+APP-03	action	Diagnostics: 'Copy logs (may include personal data)'	ui-map 2	covered
+APP-03	action	Diagnostics: 'Restart'	ui-map 2	covered
+APP-02	view	First-run onboarding with three steps	ui-map 2, 7.1	covered
+APP-02	control	Onboarding 'Exit onboarding' and 'Continue' (Enter), Down arrow cycles steps	ui-map 7.1	covered
+APP-02	region	Onboarding right-hand visual per step (Conductor plays videos; we draw static illustrations)	ui-map 7.1	partly
+CLOUD-08	view	Cloud onboarding: 'Workspaces now run in the cloud', connect GitHub, 'Skip'	ui-map 2, 7.1	missing
+APP-04	state	Route error screen 'Something went wrong!' with 'Try again'	ui-map 7.4	covered
+APP-04	state	Not-found screen 'Not Found'	ui-map 7.4	covered
+NAV-10	state	Workspace load states: 'Error loading workspace', 'Workspace not found', archived	ui-map 7.4, 3.2	covered
+NAV-03	control	'Settings' entry reachable from the sidebar footer (Conductor has it in the account menu)	ui-map 4.2	missing
+NAV-03	shortcut	Home row shows Cmd+Shift+H, Create row Cmd+N, Search row Cmd+K	ui-map 4.3	covered
+NAV-03	rule	Hover shortcut hint on each nav row, read from the live key binding	ui-map 4.3	partly
+NAV-16	state	Draft marker on the Create row when the new-workspace draft is not empty	ui-map 4.3	missing
+NAV-04	region	'Pinned' section: collapsible, shows a count when collapsed	ui-map 4.4	covered
+NAV-04	state	Pinned drop target 'Drag a workspace here'	ui-map 4.4, 7.2	covered
+NAV-04	region	User sections with name, emoji, collapse and count	ui-map 4.5	covered
+NAV-04	control	Section header action 'Create in section'	ui-map 4.5, 5.3	covered
+NAV-04	menu	Section row actions menu with rename	ui-map 4.5	covered
+NAV-04	control	'New section...' (sidebar background menu and workspace menu)	ui-map 4.5, 5.3	covered
+NAV-04	action	'Delete section' returns its workspaces to the main list	ui-map 4.5	covered
+NAV-04	action	Drag workspaces between sections	ui-map 4.5	covered
+NAV-04	message	Errors 'Couldn't move workspace', 'Couldn't reorder section', 'Couldn't delete section'	ui-map 4.5	covered
+NAV-03	region	Main list grouped by status (done, in review, in progress, backlog, canceled)	ui-map 4.7	covered
+NAV-03	region	Main list grouped by project, each group collapsible	ui-map 4.7	covered
+NAV-03	control	'+' create-workspace action on each project group header	ui-map 4.7	partly
+NAV-03	state	Sidebar loading state 'Loading workspaces'	ui-map 4, 7.3	covered
+NAV-03	state	Sidebar error state with retry	ui-map 4, 7.4	covered
+APP-04	state	Sidebar empty: no projects ('Add a project to get started.')	ui-map 7.2	covered
+APP-04	state	Sidebar empty: projects but no workspaces ('Create your first workspace...')	ui-map 7.2	covered
+PRJ-01	control	Sidebar footer 'Add project...' button and menu	ui-map 4.8	covered
+PRJ-01	shortcut	Cmd+Alt+A 'Add repository'	ui-map 4.8, 5.4	covered
+APP-06	region	Update notice in the sidebar footer	ui-map 4.8	covered
+APP-08	region	macOS version warning with a dismiss button in the sidebar footer	ui-map 1.3, 4.8	missing
+APP-07	region	'Resources' table (Name, CPU, Mem) grouped by workspace	ui-map 4.8	covered
+APP-07	control	Resources: sortable columns	ui-map 4.8	covered
+APP-07	action	Resources: 'Copy resource usage'	ui-map 4.8	covered
+APP-07	setting	Resources table shown only with 'Show sidebar resource usage'	ui-map 4.8	covered
+NAV-03	menu	'View options' menu (sort icon, 'Sort workspaces')	ui-map 4	covered
+NAV-03	control	View options: group by Status or Project	ui-map 4	covered
+NAV-03	control	View options: filter by project, searchable from 5 repos	ui-map 4	covered
+NAV-03	control	View options: sort by Updated or Created, hidden when manual order is on	ui-map 4	covered
+NAV-03	region	Workspace row status icon (unread dot, typing, waiting, setting-up, alert, branch glyph)	ui-map 4, 3.8	covered
+NAV-03	rule	Optional status matrix animation on the row icon (setting 'Workspace status matrix')	ui-map 3.8	partly
+NAV-03	rule	Row name from user-set name, PR title, branch or directory	ui-map 4	covered
+PRJ-05	rule	Repo avatar sources: emoji, uploaded icon, favicon, owner avatar, letter	ui-map 4	partly
+NAV-03	rule	Line counts (+/-) on the row, always coloured with 'Colored sidebar diffs'	ui-map 4	partly
+NAV-11	region	Unread dot on the row	ui-map 4	covered
+NAV-03	region	Relative time on the row	ui-map 4	covered
+NAV-03	state	Row subtitles 'Review plan', 'Need permission', 'Answer question'	ui-map 3.8	covered
+NAV-03	state	Row subtitles 'Planning...', 'Working...', 'Cancelling...', 'Waiting...'	ui-map 3.8	covered
+NAV-03	state	Row subtitles 'Initializing...', 'Initialization failed', 'Setting up...', 'Archiving...'	ui-map 3.8	covered
+NAV-03	region	Row badges 'Draft' and 'Archive workspace'	ui-map 4	covered
+CLOUD-09	region	Row badge 'Forwarding ports'	ui-map 4, 3.7	missing
+NAV-03	shortcut	Cmd+1 to Cmd+9 switch to workspace N	ui-map 4	covered
+NAV-03	shortcut	Cmd+Alt+ArrowUp and ArrowDown go to previous and next workspace	ui-map 4	covered
+NAV-11	shortcut	Hover key R toggles read state	ui-map 4, 5.4	covered
+NAV-04	shortcut	Hover key P toggles pin	ui-map 4, 5.4	covered
+NAV-10	menu	Right-click on a row opens the Workspace actions menu	ui-map 4	covered
+NAV-03	rule	Row is a link to the workspace route with focus ring and truncating names	ui-map 4	covered
+NAV-16	control	'Open draft' marker (tooltip 'Draft') on a workspace row that has a draft	inventory aria_label #98, test_id #12	missing
+NAV-04	action	Drag a workspace into a section	ui-map 4	covered
+NAV-04	action	Drag a workspace into Pinned	ui-map 4	covered
+NAV-04	action	Reorder workspaces by drag when 'Arrange workspaces manually' is on	ui-map 4	covered
+NAV-04	rule	While dragging: grabbing cursor and links ignore pointer events	ui-map 4	covered
+NAV-04	action	Keyboard alternative to dragging: 'Move to section' in the row menu	ui-map 4	covered
+NAV-03	rule	Archived workspaces are not listed in the sidebar	ui-map 4	covered
+NAV-05	action	Reach archived workspaces from Home with the archive filter	ui-map 4	covered
+NAV-08	action	Palette 'View archived workspaces' and the 'Archived' group	ui-map 4, 5.1	covered
+NAV-13	action	Passport lists archived workspaces	ui-map 4	covered
+WS-06	action	Archived card action 'Unarchive workspace'	ui-map 4	covered
+WS-06	action	Archived card action 'Clear & unarchive'	ui-map 4	missing
+NAV-05	action	Archived card actions 'Open in Finder' and 'Copy path'	ui-map 4	covered
+NAV-13	view	Passport dialog with world map and place names	ui-map 4	covered
+NAV-13	region	Passport labels 'CITIES VISITED', '[NOT VISITED]', '[ARCHIVED]', '[CLICK TO OPEN]'	ui-map 4	covered
+NAV-13	rule	Workspaces are named after places and plotted on the map	ui-map 4	covered
+NAV-13	control	Map zoom, graticule, sphere and focusable markers	ui-map 4	covered
+NAV-08	view	Command palette opens with Cmd+K as one overlay mounted once	ui-map 1.1, 5.1	covered
+NAV-08	tab	Palette tabs: all, workspaces, projects, actions, settings	ui-map 5.1	covered
+NAV-08	shortcut	Tab and Shift+Tab cycle the palette tabs	ui-map 5.1	covered
+NAV-08	rule	Palette placeholder text changes per tab	ui-map 5.1	covered
+NAV-08	shortcut	Cmd+E edits and Cmd+Backspace deletes the highlighted item (sections, snippets)	ui-map 5.1	partly
+NAV-08	region	Palette chat history search results group	ui-map 5.1	covered
+NAV-08	region	Palette group 'Chats in this workspace'	ui-map 5.1	partly
+NAV-08	region	Palette groups 'Recent workspaces', 'Workspaces', 'Archived', 'Projects'	ui-map 5.1	covered
+NAV-08	action	Palette workspace actions 'File picker' and 'Search in files'	ui-map 5.1	covered
+NAV-08	action	Palette workspace actions 'Show changes', 'Show uncommitted changes', 'Show all files', 'Show checks'	ui-map 5.1	covered
+NAV-08	action	Palette workspace action 'Link issue'	ui-map 5.1	covered
+NAV-08	action	Palette workspace action 'Copy URL'	ui-map 5.1	covered
+NAV-08	action	Palette workspace action 'Move to section' with sub-page 'Search sections...' and 'Remove from section'	ui-map 5.1	partly
+NAV-08	action	Palette workspace actions 'Create PR', 'Open pull request', 'Merge PR', 'Ready for review', 'Fix errors'	ui-map 5.1	covered
+NAV-08	action	Palette workspace action 'Archive workspace'	ui-map 5.1	covered
+NAV-08	action	Palette actions 'Create workspace', 'Create section', 'Add project'	ui-map 5.1	covered
+COMP-09	action	Palette actions 'Create snippet' and 'Edit snippets'	ui-map 5.1	missing
+NAV-08	action	Palette actions 'Toggle theme', 'Toggle left sidebar', 'Toggle right sidebar', 'Toggle zen mode'	ui-map 5.1	covered
+APP-09	action	Palette action 'Send feedback'	ui-map 5.1	partly
+NAV-08	action	Palette actions 'Show keyboard shortcuts', 'Check for updates', 'Open changelog', 'Passport'	ui-map 5.1	covered
+NAV-08	action	Palette navigation 'Go to next unread', 'Settings', 'View archived workspaces', 'Open documentation'	ui-map 5.1	covered
+NAV-08	region	Palette settings group: every settings page	ui-map 5.1	covered
+NAV-08	region	Palette settings group: agent provider entries	ui-map 5.1	partly
+NAV-08	region	Palette 'Open in' group listing installed apps, default marked by its shortcut	ui-map 5.1	partly
+NAV-08	state	Palette empty state 'No results found' and loading spinner	ui-map 5.1	covered
+PRJ-02	dialog	'Clone GitHub repo' dialog: Repository URL, Location, Browse, Recent repos	ui-map 5.2, 3.9	missing
+PRJ-03	dialog	'Create project' dialog: Project name, Parent folder, Template	ui-map 5.2, 3.9	missing
+PRJ-03	dialog	'Create a private GitHub repo?' dialog with owner picker, name check and git init step	ui-map 5.2, 3.9	missing
+PR-08	dialog	'Switch branch?' warning with 'Switch anyway' when an agent is running in the stack view	ui-map 5.2	missing
+CHAT-15	dialog	'Reset chat?' dialog	ui-map 5.2, 3.3	covered
+REV-03	dialog	'Discard comment?' dialog with Keep editing and Discard	ui-map 5.2, 3.6	covered
+REV-06	dialog	'Discard file changes?' and 'Discard changes?' confirm	ui-map 5.2	covered
+SET-02	dialog	'Change root path?' confirm when the app data folder is changed	ui-map 5.2	partly
+CLOUD-09	dialog	'Pause port forwarding?' dialog	ui-map 5.2	missing
+NAV-04	dialog	'Delete section' confirm	ui-map 5.2	covered
+SET-07	dialog	'Remove repository' confirm	ui-map 5.2	covered
+SET-02	dialog	'Disconnect <service>?' confirm for GitHub token and Linear	ui-map 5.2	partly
+SET-08	dialog	'Sync agent configs' dialog	ui-map 5.2, 6	partly
+SET-09	dialog	Agent 'Providers' and 'Custom provider' dialogs	ui-map 5.2	partly
+SET-02	dialog	'GitHub', 'GitHub account' and 'Connect GitHub' dialogs	ui-map 5.2	covered
+NAV-09	dialog	'Keyboard shortcuts' dialog with 'Search shortcuts...'	ui-map 5.2, 5.4	covered
+APP-09	dialog	'Feedback' dialog: message, email, drop images, 'Include recent app logs'	ui-map 5.2	missing
+COMP-09	dialog	'Create snippet' and 'Edit snippets' dialogs: name, keyword, prompt	ui-map 5.2	missing
+NAV-04	dialog	Section create or edit dialog (name, emoji)	ui-map 5.2	covered
+PR-10	dialog	'Link pull request' dialog with 'PR URL or number' (internal menu in Conductor)	ui-map 5.2, 3.10	missing
+PR-07	dialog	'Edit PR title' dialog	ui-map 5.2	covered
+NAV-10	dialog	'Rename workspace' and 'Rename chat' dialogs	ui-map 5.2	covered
+SET-05	dialog	'MCP status' dialog	ui-map 5.2	covered
+NAV-13	dialog	'Conductor Passport' dialog	ui-map 5.2	covered
+APP-06	dialog	Update confirm dialog that waits for idle agents	ui-map 5.2	covered
+APP-08	dialog	Confirm for a wrong-CPU (Rosetta) build	ui-map 5.2, 7.4	missing
+COMP-02	menu	Popover: model picker	ui-map 5.2	covered
+COMP-07	menu	Popover: '+' menu in the composer	ui-map 5.2	covered
+CLOUD-09	menu	Popover: 'Forward ports'	ui-map 5.2	missing
+APP-07	menu	Popover: Resources	ui-map 5.2	covered
+NAV-03	menu	Popover: View options	ui-map 5.2	covered
+CHAT-01	menu	Popover: chat history	ui-map 5.2	covered
+CHAT-14	menu	Popover: context usage hover card	ui-map 5.2	covered
+CHAT-14	menu	Popover: turn tooltip with time and tokens	ui-map 5.2	covered
+REV-01	menu	Popover: PR status details (aria 'PR status details')	ui-map 5.2	missing
+PRJ-05	menu	Repo icon picker: 'Icons', 'Emoji', 'Favicon', 'Upload', 'Search emoji', 'Remove emoji'	ui-map 5.2	missing
+NAV-04	menu	Emoji picker for sections	ui-map 5.2, 4.5	partly
+WS-08	menu	Popover: Open in menu	ui-map 5.2	covered
+NAV-10	menu	Workspace actions: Mark as read or unread	ui-map 5.3, 3.1	covered
+NAV-10	menu	Workspace actions: Pin or Unpin	ui-map 3.1	covered
+NAV-10	menu	Workspace actions: Set status (Backlog, In progress, In review, Done, Canceled)	ui-map 3.1	covered
+NAV-10	menu	Workspace actions: Move to section and 'New section...'	ui-map 3.1	covered
+NAV-10	menu	Workspace actions: Rename	ui-map 3.1	covered
+NAV-10	menu	Workspace actions: Copy link (Cmd+Shift+C)	ui-map 3.1	covered
+NAV-10	menu	Workspace actions: Archive (Cmd+Shift+A) or Unarchive	ui-map 3.1	covered
+WS-11	menu	Workspace actions: 'Start' for unstarted workspaces	ui-map 3.1	missing
+CHAT-01	menu	Chat tab menu: Mark as read or unread	ui-map 5.3, 3.2	partly
+CHAT-01	menu	Chat tab menu: Rename chat	ui-map 3.2	covered
+CHAT-16	menu	Chat tab menu: Fork to new tab (Cmd+Alt+Enter)	ui-map 3.2	covered
+CHAT-17	menu	Chat tab menu: Copy concise transcript (Cmd+Alt+C) and Copy full transcript	ui-map 3.2	covered
+CHAT-01	menu	Chat tab menu: Copy link	ui-map 3.2	covered
+CHAT-01	menu	Chat tab menu: Close tab (Cmd+W) and Close others	ui-map 3.2	covered
+REV-06	menu	File row menu: View, Attach in chat, Copy path, Copy relative path, Discard changes	ui-map 5.3	covered
+PR-04	menu	PR header menu: Copy link, Copy number	ui-map 5.3	missing
+REV-08	menu	File editor right-click menu: Cut, Copy, Paste with key hints	ui-map 5.3	missing
+NAV-10	menu	Branch name in the header: Copy (C) and Rename (R)	ui-map 5.3	covered
+CHAT-06	menu	Message right-click menu: Copy message	ui-map 5.3	missing
+CHAT-12	menu	Plan right-click menu: Copy plan	ui-map 5.3	missing
+CHAT-06	menu	Error right-click menu: Copy error, Copy details	ui-map 5.3	missing
+PRJ-05	menu	Repo icon right-click: 'Change repository icon'	ui-map 5.3	missing
+APP-05	rule	Menus open from the keyboard, close on scroll, support submenus	ui-map 5.3, 8	covered
+APP-05	shortcut	Digits 1 to 9 pick a menu item	ui-map 5.4	missing
+NAV-07	rule	Command registry with id, key, configurable flag, category and scope	ui-map 5.4	covered
+NAV-14	rule	Key listener turns key presses into command ids by scope (chat input, terminal, diff, dialog)	ui-map 5.4	missing
+NAV-14	rule	Command handlers register with a priority per focus area	ui-map 8	missing
+NAV-09	setting	Key overrides saved as a setting	ui-map 5.4	covered
+NAV-07	rule	Conflict check for commands sharing a scope	ui-map 5.4	covered
+COMP-01	rule	Send-key mode swaps the four Enter bindings	ui-map 5.4	covered
+NAV-14	rule	Key hints follow the user's rebinds	ui-map 8, 5.4	partly
+NAV-14	rule	Menu bar accelerators come from the registry and update on rebind	ui-map 5.4	partly
+NAV-09	dialog	Dialog to list, search and rebind shortcuts (one recorder and one list shared with Settings)	ui-map 5.2, 5.4	covered
+NAV-09	rule	Reserved keys (Cmd+, Cmd+Q) cannot be rebound	ui-map 5.4	covered
+NAV-08	shortcut	Cmd+K command palette	ui-map 5.4	covered
+SET-06	shortcut	Cmd+Alt+T toggle theme	ui-map 5.4	covered
+NAV-09	shortcut	Cmd+Alt+/ shortcuts help	ui-map 5.4	covered
+SET-02	shortcut	Cmd+, settings (fixed)	ui-map 5.4	covered
+PLAT-15	shortcut	Cmd+Q quit (fixed)	ui-map 5.4	covered
+SET-02	shortcut	Cmd+F search settings	ui-map 5.4	covered
+APP-05	shortcut	Cmd+Enter confirms a dialog	ui-map 5.4	covered
+APP-03	shortcut	Cmd+Escape closes diagnostics	ui-map 5.4	covered
+APP-09	shortcut	Cmd+Alt+F send feedback (fixed)	ui-map 5.4	partly
+APP-03	shortcut	Cmd+Alt+I open debug tools (fixed)	ui-map 5.4	covered
+APP-03	shortcut	Open sidecar logs (unbound, because Cmd+Shift+L belongs to Pull latest)	ui-map 5.4	missing
+APP-03	shortcut	Cmd+Shift+I open app log viewer	ui-map 5.4	covered
+CHAT-08	shortcut	Ctrl+O toggles expanding all tool calls	ui-map 5.4	covered
+NAV-12	shortcut	Cmd+J toggle terminal panel	ui-map 5.4	covered
+NAV-12	shortcut	Cmd+. toggle zen mode	ui-map 5.4	covered
+SET-06	shortcut	Cmd++ or Cmd+= zoom in, Cmd+- zoom out, Cmd+0 reset zoom	ui-map 5.4	covered
+NAV-02	shortcut	Cmd+[ navigate back and Cmd+] navigate forward	ui-map 5.4	covered
+NAV-05	shortcut	Cmd+Shift+H go to Home	ui-map 5.4	covered
+NAV-10	shortcut	Previous and next tab (Ctrl+Shift+Tab, Cmd+Shift+[, Cmd+Alt+ArrowLeft and mirrors)	ui-map 5.4	covered
+NAV-10	shortcut	Cmd+W close tab	ui-map 5.4	covered
+NAV-10	shortcut	Cmd+Shift+T reopen closed tab	ui-map 5.4	covered
+REV-07	shortcut	Cmd+P quick open file	ui-map 5.4	covered
+REV-07	shortcut	Cmd+Shift+F search in files	ui-map 5.4	covered
+WS-01	shortcut	Cmd+N create new workspace	ui-map 5.4	covered
+WS-11	shortcut	Alt+Enter add to backlog	ui-map 5.4	partly
+WS-11	shortcut	Cmd+Enter start workspace from backlog (fixed)	ui-map 5.4	partly
+WS-01	shortcut	Tab and Shift+Tab move between create-form fields	ui-map 5.4	covered
+WS-02	shortcut	Cmd+I toggles the create-from picker	ui-map 5.4	covered
+WS-05	shortcut	Cmd+Shift+A archive workspace	ui-map 5.4	covered
+WS-08	shortcut	Cmd+O open in default app, Cmd+Shift+O open the Open in menu	ui-map 5.4	covered
+CLOUD-12	shortcut	Cmd+Alt+O open cloud workspace remotely in an app	ui-map 5.4	missing
+PLAT-16	shortcut	Cmd+Shift+C copy workspace link	ui-map 5.4	covered
+RUN-01	shortcut	Cmd+R start or stop the action	ui-map 5.4	covered
+CLOUD-09	shortcut	Cmd+Y toggle port forwarding	ui-map 5.4	missing
+REV-08	shortcut	Cmd+E toggle file edit mode	ui-map 5.4	covered
+PR-02	shortcut	Cmd+Shift+P create PR	ui-map 5.4	covered
+GIT-05	shortcut	Cmd+Shift+Y commit and push	ui-map 5.4	covered
+GIT-06	shortcut	Cmd+Shift+L pull latest from main	ui-map 5.4	covered
+PR-06	shortcut	Cmd+Shift+M merge PR	ui-map 5.4	covered
+PR-05	shortcut	Cmd+Shift+X fix errors	ui-map 5.4	covered
+PR-07	shortcut	Cmd+Shift+G open PR	ui-map 5.4	covered
+REV-05	shortcut	Cmd+Shift+R start review	ui-map 5.4	covered
+REV-08	shortcut	Cmd+F find in file	ui-map 5.4	covered
+REV-01	shortcut	Cmd+Alt+U show uncommitted changes	ui-map 5.4	covered
+CHAT-01	shortcut	Cmd+T new chat tab	ui-map 5.4	covered
+COMP-01	shortcut	Enter submits, Shift+Enter inserts a new line	ui-map 5.4	covered
+CHAT-03	shortcut	Cmd+Enter submits with the opposite follow-up behaviour	ui-map 5.4	covered
+COMP-07	shortcut	Cmd+Shift+V pastes copied files as paths	ui-map 5.4	covered
+COMP-01	shortcut	Cmd+L focuses the chat input	ui-map 5.4	covered
+COMP-03	shortcut	Shift+Tab toggles plan mode while typing	ui-map 5.4	covered
+CHAT-12	shortcut	Cmd+Shift+Enter approves the plan	ui-map 5.4	covered
+CHAT-11	shortcut	Enter approves a tool request, Cmd+Enter is the alternate approval, Backspace denies	ui-map 5.4	covered
+CHAT-05	shortcut	Cmd+Shift+Backspace cancels the agent	ui-map 5.4	covered
+PR-09	shortcut	Cmd+I link issue	ui-map 5.4	covered
+COMP-07	shortcut	Cmd+U add attachment	ui-map 5.4	covered
+COMP-02	shortcut	Cmd+/ opens the model picker	ui-map 5.4	covered
+COMP-02	shortcut	Cmd+Shift+E toggles Fast mode	ui-map 5.4	covered
+COMP-02	shortcut	Cmd+Shift+/ cycles the effort level	ui-map 5.4	covered
+COMP-02	shortcut	Cmd+Ctrl+1 to 5 select favourite model N ('loadout')	ui-map 5.4	partly
+NAV-11	shortcut	Cmd+Alt+L next chat needing attention	ui-map 5.4	covered
+CHAT-17	shortcut	Cmd+F search chat, Cmd+G next match, Cmd+Shift+G previous match, Cmd+Alt+J scroll to match	ui-map 5.4	covered
+CHAT-17	shortcut	Cmd+Alt+C copy concise transcript	ui-map 5.4	covered
+CHAT-16	shortcut	Cmd+Alt+Enter fork chat to new tab	ui-map 5.4	covered
+COMP-09	shortcut	Cmd+; insert snippet	ui-map 5.4	missing
+COMP-08	shortcut	Ctrl+Shift+D toggle speech to text	ui-map 5.4	covered
+REV-01	shortcut	Cmd+Shift+D open diff view	ui-map 5.4	covered
+REV-02	shortcut	ArrowUp and ArrowDown move between files in the diff	ui-map 5.4	covered
+REV-03	shortcut	Cmd+Alt+K previous comment, Cmd+Alt+J next comment in the diff	ui-map 5.4	covered
+REV-02	shortcut	Ctrl+V toggles a file as viewed	ui-map 5.4	covered
+RUN-06	shortcut	Cmd+T new terminal tab and Cmd+W close terminal tab while the terminal has focus	ui-map 5.4	covered
+RUN-03	shortcut	Cmd+Shift+B open localhost URL	ui-map 5.4	covered
+RUN-06	shortcut	Cmd+F find in terminal	ui-map 5.4	covered
+REV-08	shortcut	Video player: Space or K play and pause	ui-map 5.4	partly
+REV-08	shortcut	Video player: J back 10 seconds, L forward 10 seconds	ui-map 5.4	partly
+REV-08	shortcut	Video player: ArrowLeft or comma previous frame, ArrowRight or period next frame	ui-map 5.4	partly
+REV-08	shortcut	Video player: less-than slows down, greater-than speeds up playback	ui-map 5.4	partly
+REV-08	shortcut	Video player: M mute and F fullscreen	ui-map 5.4	partly
+SET-02	shortcut	Escape closes settings	ui-map 5.4	covered
+APP-02	shortcut	ArrowDown next onboarding slide, Enter continue onboarding	ui-map 5.4	covered
+CLOUD-08	shortcut	Enter continues cloud onboarding	ui-map 5.4	missing
+NAV-10	shortcut	Cmd+D splits the tab	ui-map 3.2	covered
+WS-02	shortcut	Cmd+Shift+N create workspace from a PR, branch or issue	ui-map 5.4	covered
+CHAT-04	shortcut	Queue keys: Enter save or steer, Cmd+Enter save and steer, E edit, Backspace delete, Escape cancel edit	ui-map 5.4	covered
+CHAT-12	shortcut	Cmd+Shift+Enter also submits typed plan feedback	ui-map 5.4	covered
+COMP-10	shortcut	Cmd+Enter saves the goal in the Codex goal bar	ui-map 5.4	missing
+CHAT-10	shortcut	Question keys: ArrowLeft, ArrowRight, 0, 1 to 9, Enter	ui-map 5.4	covered
+REV-08	shortcut	Cmd+S saves the edited file	ui-map 5.4	covered
+RUN-06	shortcut	Terminal keys: Cmd+Shift+T, Shift+Enter, Cmd+K, Cmd+Backspace, Cmd+Left/Right, Alt+Left/Right	ui-map 5.4	covered
+NAV-14	rule	One command registry feeds menus, palette and shortcut dialog, wired through the dispatcher	structure-map 3.2	partly
+WS-08	menu	Open in editor or terminal (about 35 apps)	structure-map 5	covered
+CHAT-19	action	Notifications, sounds and dock badge	structure-map 5	covered
+APP-06	action	Updates that wait until agents are idle	structure-map 5	covered
+CLOUD-15	region	Cloud workspace header shows 'Conductor Cloud' badge, status, CPU, memory, disk, 'Low disk' and 'Agent cost'	ui-map 3.1	missing
+CLOUD-15	action	Cloud workspace 'Restart' action	ui-map 3.1	missing
+NAV-10	region	Breadcrumb in the workspace header: repo icon and name, branch	ui-map 3.1	covered
+NAV-10	control	Target branch picker ('Target branch') in the header	ui-map 3.1	covered
+GIT-09	action	Branch name menu: Copy and Rename (rename branch through git)	ui-map 5.3	partly
+NAV-10	control	Workspace name with 'Rename workspace'	ui-map 3.1	covered
+NAV-10	menu	'Workspace actions' menu button	ui-map 3.1	covered
+NAV-10	control	Directory name chip that copies the folder path	ui-map 3.1	partly
+WS-08	control	'Open in...' app button in the header	ui-map 3.1, 3.10	covered
+NAV-10	rule	PR and git buttons move into the header when the right panel is closed	ui-map 3.1	covered
+NAV-10	control	'Toggle right sidebar' button in the header	ui-map 3.1	covered
+NAV-11	action	Mark workspace as read or unread (API needs a markUnread action)	ui-map 3.1	partly
+NAV-10	control	Tab types with icon and close button; middle click closes	ui-map 3.2	covered
+NAV-10	region	Chat tab: status icon, title, unread dot, fixed width	ui-map 3.2	covered
+NAV-10	region	Terminal tabs 'Terminal N' with 'Close terminal N'	ui-map 3.2	covered
+CLOUD-09	region	Terminal tab shows a cloud host icon	ui-map 3.2	missing
+NAV-10	tab	File tab	ui-map 3.2	covered
+NAV-10	tab	Comment tab 'Comment by <author>'	ui-map 3.2	covered
+NAV-10	tab	PR tab 'PR #N'	ui-map 3.2	covered
+NAV-10	tab	Browser tab labelled with the URL host	ui-map 3.2	covered
+CLOUD-16	tab	Cloud desktop tab with 'Reconnect' and notices 'You need edit access to use the cloud desktop' and 'Cloud desktop is available in cloud workspaces'	ui-map 3.2	missing
+NAV-10	menu	'+' new tab menu: 'New chat', 'Browser', 'Local terminal'	ui-map 3.2	covered
+NAV-10	menu	'+' menu: 'New chat, same files' (when it shows and what it does is unverified)	ui-map 3.2	partly
+CLOUD-09	menu	'+' menu: 'Cloud terminal'	ui-map 3.2	missing
+NAV-10	rule	New tab buttons disable at the tab limit; 'Tab Freak Mode' raises the limit to 10	ui-map 3.2	covered
+CHAT-01	control	'View chat history' button	ui-map 3.2	covered
+CHAT-01	state	Chat history 'Loading chats' and 'No open chats' with 'New chat'	ui-map 3.2	covered
+NAV-10	rule	Split panes with the 'Split tabs' setting	ui-map 3.2	covered
+NAV-10	action	Drag tabs between groups or to an edge, with a drag ghost	ui-map 3.2	covered
+RUN-06	action	Drag a terminal from the right panel into the centre	ui-map 3.2	partly
+RUN-06	rule	'Big terminal mode' creates terminals in the centre and runs the preset command	ui-map 3.2	partly
+NAV-10	state	Error card 'This chat tab failed to render'	ui-map 3.2	covered
+NAV-10	state	Error card 'Tabs failed to load' with Retry	ui-map 3.2	covered
+WS-06	state	Archived text 'Workspace archived. Unarchive this workspace to view files, terminals, and browser previews.'	ui-map 3.2	covered
+CHAT-06	region	Chat tab content: message list and composer	ui-map 3.2	covered
+REV-08	region	File tab content: diff mode or edit mode	ui-map 3.2	covered
+REV-02	menu	Diff options 'Unified view', 'Split view', 'Entire file'	ui-map 3.2	covered
+REV-08	control	Edit mode with CodeMirror and find and replace bar (Replace, Replace All, Previous, Next)	ui-map 3.2	covered
+REV-08	control	'Toggle file edit mode'	ui-map 3.2	covered
+REV-08	view	Markdown preview	ui-map 3.2	covered
+REV-08	view	SVG preview with 'View raw SVG code' and 'View rendered SVG'	ui-map 3.2	covered
+REV-08	view	Image preview	ui-map 3.2	covered
+REV-08	view	PDF preview	ui-map 3.2	covered
+REV-08	view	CSV preview	ui-map 3.2	covered
+REV-08	view	Video preview	ui-map 3.2	covered
+REV-02	menu	'View options': 'Hide whitespace changes' and 'Wrap lines'	ui-map 3.2	covered
+REV-08	state	Banner 'File changed on disk' with 'Discard my edits' and 'Keep mine'	ui-map 3.2	covered
+REV-08	rule	Poll the open file's modified time so 'changed on disk' shows early	services-map 2.5.2	partly
+REV-03	state	Comment tab 'Loading comment...' and 'Comment not found'	ui-map 3.2	covered
+PR-07	control	PR tab: editable 'PR title'	ui-map 3.2	covered
+PR-07	region	PR tab: 'Description'	ui-map 3.2	covered
+PR-07	region	PR tab: 'Activity'	ui-map 3.2	covered
+PR-07	region	PR tab: Checks, Review and Merge sections	ui-map 3.2	covered
+PR-07	control	PR tab: 'Open on GitHub'	ui-map 3.2	covered
+RUN-04	control	Browser tab: 'Reload', 'Open in browser', 'Port and path' picker	ui-map 3.2	covered
+RUN-04	state	Browser tab 'Starting preview...'	ui-map 3.2	covered
+RUN-05	action	Browser tab annotation overlay and 'Add to chat'	ui-map 3.2	covered
+RUN-04	setting	Setting 'In-app browser preview'	ui-map 3.2	covered
+NAV-10	state	Empty tab group with 'New chat', 'Browser', 'Local terminal'	ui-map 3.2	covered
+CHAT-01	rule	A local workspace with no chat creates one automatically	ui-map 3.2	covered
+CHAT-06	region	Message list: virtualised, one item per turn, history header and footer	ui-map 3.3, frontend 5	covered
+CHAT-06	control	Sticky 'Scroll to bottom' button	ui-map 3.3	covered
+CHAT-06	state	Per-turn error boundary 'This chat turn failed to render'	ui-map 3.3	covered
+CHAT-06	region	User message with attachments and mention chips	ui-map 3.3	covered
+CHAT-06	region	'Sent via' or 'Sent from another session' label on a user message	ui-map 3.3	partly
+CHAT-15	action	Hover action on a user message to revert	ui-map 3.3	covered
+CHAT-02	state	'Message not sent' with Retry and Discard	ui-map 3.3	partly
+CHAT-04	state	'Editing queued message' banner with Cancel	ui-map 3.3	partly
+CHAT-06	region	Assistant text rendered as Markdown	ui-map 3.3	covered
+CHAT-06	setting	Markdown 'Tufte' style also applies to assistant text	ui-map 3.3	partly
+CHAT-24	region	Mermaid diagrams with 'Rendering diagram...', 'Expand diagram', 'Copy Mermaid source', zoom in, zoom out, reset	ui-map 3.3	partly
+CHAT-06	region	Callouts Note, Tip, Important, Warning, Caution	ui-map 3.3	covered
+CHAT-06	region	Code blocks with a copy button	ui-map 3.3	covered
+CHAT-06	region	Images in assistant text	ui-map 3.3	covered
+CHAT-24	region	Video player in assistant text	ui-map 3.3	partly
+CHAT-09	region	Collapsible 'Thinking' card	ui-map 3.3	covered
+CHAT-17	control	Chat search 'Find in messages and thinking'	ui-map 3.3	covered
+CHAT-06	control	Turn footer 'Copy final message' and 'Copy summary'	ui-map 3.3	covered
+CHAT-14	region	Turn footer hover card: start to end time, Fast mode, tokens Input, Output, Cache read, Cache write	ui-map 3.3	partly
+CHAT-16	menu	Turn more menu: 'Fork to new tab'	ui-map 3.3	covered
+CHAT-21	menu	Turn more menu: 'Fork to new workspace'	ui-map 3.3	partly
+CHAT-15	menu	Turn more menu: 'Reset chat'	ui-map 3.3	covered
+CHAT-17	menu	Turn more menu: copy options	ui-map 3.3	covered
+REV-09	region	File-change summary with 'Open diff' under a turn	ui-map 3.3	covered
+CHAT-15	dialog	Reset dialog: 'Reset chat?', 'Later messages will be deleted.', 'Also reset files', Cancel, Reset (Cmd+Enter)	ui-map 3.3	covered
+CHAT-06	message	Banner 'Interrupted by user'	ui-map 3.3	covered
+CHAT-06	message	Banners 'Chat history compacted' and 'Compacting...'	ui-map 3.3	covered
+CHAT-06	message	Banner 'Claude Code session limit reached'	ui-map 3.3	covered
+CHAT-06	message	Banners 'Authentication required', 'ChatGPT login expired', 'Codex authentication required', 'Cursor API key required'	ui-map 3.3	covered
+COMP-07	message	Banner 'Image too large' (5MB)	ui-map 3.3	covered
+CHAT-06	message	'This message could not be displayed.'	ui-map 3.3	covered
+NAV-11	control	'Next unread' button in the chat	ui-map 3.3	covered
+CHAT-06	state	Empty chat starters	ui-map 3.3	covered
+APP-04	state	Composer bar 'This workspace is archived.' with 'Unarchive'	ui-map 3.3	covered
+CHAT-08	region	Edit and Write cards: 'Open in editor', 'Edit', diff body	ui-map 3.3	covered
+CHAT-08	message	Edit card retry note 'Claude Code has to retry the file edit...'	inventory text R@8750078	covered
+CHAT-09	region	Todo card: 'No todos', 'Todo started', 'Todo completed'	ui-map 3.3	covered
+CHAT-20	region	Task cards: 'Task created', 'Task details' with Status, Subject, Blocked by, Blocks, 'No tasks'	ui-map 3.3	partly
+CHAT-08	region	Glob card, 'List files' card	ui-map 3.3	covered
+CHAT-08	region	Bash card with 'Clear output', 'Formatted' and 'Raw' toggle, 'Input:'	ui-map 3.3	covered
+CHAT-12	region	Plan cards 'Enter plan mode' and 'Propose plan'	ui-map 3.3	covered
+CHAT-08	region	'Skill activated' card and 'Slash command' card	ui-map 3.3	covered
+CHAT-08	region	App tool cards 'Workspace diff', 'Review comments', 'Code review comments', 'Get terminal output', 'User input'	ui-map 3.3	covered
+CHAT-20	region	'Node REPL' card	ui-map 3.3	missing
+CHAT-08	region	'Subagent' card	ui-map 3.3	covered
+CHAT-20	region	Image cards 'Preview image' and 'Loading image' (image view, image generation)	ui-map 3.3	missing
+CHAT-20	region	'Search tools' card	ui-map 3.3	missing
+CHAT-20	region	'Start monitor' and 'Stop task' cards	ui-map 3.3	missing
+CHAT-20	region	Cards for 'schedule wakeup' and 'send message' tools	frontend 5	missing
+CHAT-08	rule	Unknown tools fall back to a generic card	ui-map 3.3	covered
+CHAT-11	region	Approval card titles by tool ('run this command?', 'make these changes?', 'run this agent?', 'do this search?', 'fetch this page?', 'run this tool?')	ui-map 3.3	covered
+CLOUD-14	region	Approval title '...on your Mac?' for a run-local-command request	ui-map 3.3	missing
+CHAT-11	region	Approval card shows the tool card or the decision reason	ui-map 3.3	covered
+CHAT-11	region	Approval badge 'Subagent'	ui-map 3.3	partly
+CHAT-11	control	Approval buttons 'Yes' (Enter) and 'No' (Backspace)	ui-map 3.3	covered
+CHAT-11	control	Approval secondary button 'Yes for this session', 'Allow all edits during this session' or 'Yes always' (Cmd+Enter)	ui-map 3.3	covered
+CHAT-11	control	Approval optional third button 'allow with suggested rules'	sessions-and-chats Q/A/P	missing
+CHAT-11	region	'Network access' card with Deny and Approve	ui-map 3.3	covered
+CLOUD-14	control	'Always allow local commands' choice	ui-map 3.3	missing
+CHAT-12	control	Plan bar 'Sending to <chat>' picker	ui-map 3.3	partly
+CHAT-12	control	Plan bar 'Copy'	ui-map 3.3	covered
+CHAT-12	control	Plan bar 'Hand off' (tooltip 'Send plan to a new chat for implementation')	ui-map 3.3	covered
+CHAT-12	control	Plan bar 'Approve' (Cmd+Shift+Enter, 'Execute plan in current chat')	ui-map 3.3	covered
+CHAT-12	control	Plan feedback box rejects the plan	ui-map 3.3	covered
+NAV-03	state	Sidebar status text 'Review plan'	ui-map 3.3	covered
+CHAT-10	view	Question wizard: one page per question, header, options with descriptions	ui-map 3.3	covered
+CHAT-10	control	Question multi-select	ui-map 3.3	covered
+CHAT-10	control	Question secret input (masked answer)	ui-map 3.3	missing
+CHAT-10	control	Question 'Other...' free text (key 0)	ui-map 3.3	covered
+CHAT-10	control	Question previous and next with arrow keys, number keys, Enter submits, 'Cancel agent'	ui-map 3.3	covered
+CHAT-10	rule	Answers return as 'question / answer / (Skipped)'	ui-map 3.3	covered
+CHAT-13	region	Progress tracker: bar, steps, text blocks, current step with '2/5'	ui-map 3.3	covered
+CHAT-14	region	Context wheel shown above 70 percent or always (setting)	ui-map 3.3	covered
+CHAT-14	region	Context hover card: window used, token breakdown, model, effort, service tier	ui-map 3.3	covered
+CHAT-14	message	Context notes 'Context window size not yet available.' and 'Context usage is unavailable for Cursor.'	ui-map 3.3	covered
+CHAT-15	action	Revert to a checkpoint from a user message	frontend 5	covered
+CHAT-16	message	'Unable to fork chat' when the turn has no checkpoint	frontend 5	covered
+REV-09	rule	'Turn' diff scope in the Changes tab	ui-map 3.3	covered
+CHAT-17	control	Search in chat with next, previous and 'Scroll to current match'	ui-map 3.3	covered
+CHAT-28	region	Usage popover lists account rows: login method, organization, email, plan, and Codex limits	inventory label #300-304	missing
+CHAT-30	message	Dismissible warning 'Fast mode is disabled because extra usage is out of credits.' with 'Add credit'	inventory aria_label #64	missing
+CHAT-25	control	'Table of contents' strip of turn ticks with a jump list of turn summaries	inventory aria_label #65	missing
+CHAT-26	region	Empty chat shelves 'Add chat transcripts:' and 'Add plans:' with 'New chat in <directory>.'	inventory label #340-341	missing
+CHAT-27	message	'Something went wrong, retrying n/m' with 'Retry now' and 'Retry in new chat'	inventory label #342	missing
+CHAT-29	view	Attachment viewer for images and videos with 'Copy image', 'Download file' and open in default app	inventory label #343, #462	missing
+CHAT-23	action	'Run' button on shell code blocks with live output, status icon, exit code, 'Stop command' and 'Clear output'	inventory text R@8061041	missing
+CHAT-22	region	Codex inline visualization frame with 'Open' and notice 'Visualization is outside the workspace:'	inventory text R@9498625	missing
+CHAT-04	region	Queue box above the composer (listbox 'Queued messages')	ui-map 3.4	covered
+CHAT-04	control	Queue header status label, 'Resume' when paused, 'Collapse queue' and 'Expand queue'	ui-map 3.4	covered
+CHAT-04	region	Queue row with attachment thumbs ('Queued attachments') and preview text	ui-map 3.4	covered
+CHAT-04	control	Queue row actions: Edit or 'Save edit', Steer, Delete	ui-map 3.4	covered
+CHAT-04	shortcut	Queue row keys: E, Backspace, Enter, Escape, Cmd+Enter 'Save and steer'	ui-map 3.4	covered
+CHAT-04	message	Queue errors: failed to delete, reorder, resume, retry or steer a queued message	ui-map 3.4	covered
+CHAT-04	action	Reorder queued messages by drag ('Reorder')	ui-map 3.4	covered
+CHAT-03	setting	Setting 'Follow-up behavior'	ui-map 3.4	covered
+COMP-01	control	Send button states 'Send message', 'Queue message', 'Save edit'	ui-map 3.4	covered
+CHAT-03	rule	Cmd+Enter sends with the opposite follow-up behaviour	ui-map 3.4	covered
+CHAT-04	message	OpenCode and Pi show that steering is not supported	frontend 5	covered
+CHAT-03	state	A steer that the agent has not read yet is shown as pending	frontend 5	covered
+COMP-01	region	Message editor with placeholder 'Write something ...' and aria label 'composer'	ui-map 3.5	covered
+COMP-01	rule	Draft per chat kept across restarts	ui-map 3.5	covered
+COMP-04	rule	'@' mentions files and directories with fuzzy search	ui-map 3.5	covered
+COMP-04	rule	'@' mentions plans	ui-map 3.5	partly
+COMP-04	rule	'@' item 'Attach current terminal output'	ui-map 3.5	partly
+COMP-04	rule	'@' linked directories and 'Select working directories'	ui-map 3.5	partly
+COMP-04	rule	'@' file search before a workspace exists (new-workspace composer)	frontend 3	partly
+COMP-05	rule	'#' mentions pull requests and issues and writes a PR context file	ui-map 3.5	covered
+COMP-06	rule	'/' lists built-in commands, project commands and a 'Skills' group	ui-map 3.5	covered
+COMP-09	rule	Snippet trigger in the editor	ui-map 3.5	missing
+COMP-06	action	Slash '/clear'	ui-map 3.5	covered
+COMP-06	action	Slash '/restart'	ui-map 3.5	partly
+COMP-06	action	Slash '/add-dir' opens the link directories dialog	ui-map 3.5	partly
+COMP-06	action	Slash '/personality' (Codex)	ui-map 3.5	partly
+COMP-10	action	Slash '/goal' (Codex)	ui-map 3.5	missing
+COMP-06	action	Slash '/mcp-status' opens the MCP status dialog	ui-map 3.5	partly
+COMP-06	action	Slash '/mcp', '/agents', '/hooks', '/memory', '/permissions', '/plugins' open the embedded terminal	ui-map 3.5	covered
+COMP-06	action	Slash '/compact'	ui-map 3.5	partly
+COMP-06	action	Slash '/ultracode' (Claude)	ui-map 3.5	partly
+COMP-06	action	Slash '/plan'	ui-map 3.5	partly
+COMP-06	action	Slash '/fast'	ui-map 3.5	partly
+COMP-06	message	Terminal-effect bar texts ('Run /x in the embedded terminal', 'Complete /x below, then click done', 'Terminal command finished. Refresh to use the updated config here')	ui-map 3.5	covered
+COMP-10	region	Codex goal bar with 'Goal' field, 'Save goal', 'Pause goal', 'Resume goal', 'Edit goal', 'Clear goal'	ui-map 3.5	missing
+COMP-07	menu	'+' menu: 'Link issue' (Cmd+I)	ui-map 3.5	covered
+WS-07	menu	'+' menu: 'Link workspaces'	ui-map 3.5	covered
+COMP-03	menu	'+' menu: 'Plan mode' and 'Exit plan mode' (Shift+Tab)	ui-map 3.5	covered
+COMP-07	menu	'+' menu: 'Add attachment' (Cmd+U)	ui-map 3.5	covered
+COMP-09	menu	'+' menu: 'Add snippet' and 'Insert snippet' (Cmd+;)	ui-map 3.5	missing
+COMP-09	control	Snippet picker with 'Search snippets...', loading state and 'Create snippet'	inventory aria_label #67, #152	missing
+COMP-02	control	Model picker opens with Cmd+/	ui-map 3.5	covered
+COMP-02	region	Favourite models ('loadouts'), up to five, reorder, 'Add models', 'Edit'	ui-map 3.5	covered
+COMP-02	menu	Model picker 'Agent' submenu: Claude Code, Codex, Cursor	ui-map 3.5	covered
+COMP-02	menu	Model picker 'Agent' submenu: OpenCode, Pi	ui-map 3.5	covered
+COMP-02	menu	Model picker 'Model' submenu with 'Search models' and 'No models found'	ui-map 3.5	covered
+COMP-02	menu	Model picker 'Effort' submenu, 'Not supported for this model'	ui-map 3.5	covered
+COMP-02	control	'Fast' toggle in the model picker	ui-map 3.5	covered
+COMP-02	message	'Opens in new chat' when switching agent in a started chat, with mid-chat switch warnings	ui-map 3.5	covered
+COMP-03	control	Chip 'Auto-accept edits' (tooltip 'Disable auto-accept edits')	ui-map 3.5	covered
+CHAT-14	control	Context wheel in the composer toolbar	ui-map 3.5	covered
+COMP-01	control	MCP status button in the composer toolbar and 'More composer actions' menu	ui-map 3.5	partly
+COMP-08	control	Speech to text: waveform, 'Stop recording', 'Transcribing...', setting 'Voice mode'	ui-map 3.5	covered
+COMP-01	menu	'More composer actions' menu on narrow layouts	ui-map 3.5	covered
+COMP-01	control	Send, Queue and Save button	ui-map 3.5	covered
+CHAT-05	control	Stop button (tooltip 'Cancel')	ui-map 3.5	covered
+COMP-07	action	Attachments by file picker, drag and drop, and paste	ui-map 3.5	covered
+COMP-07	action	'Paste copied files as paths'	ui-map 3.5	covered
+COMP-07	setting	Pasted text over 5000 characters becomes an attachment (setting)	ui-map 3.5	covered
+COMP-07	rule	Images over 5MB fail with a message	ui-map 3.5	covered
+COMP-07	rule	Sending waits until the workspace is initialised and says so	services-map 5A.6.2	partly
+COMP-07	rule	PDF attachments are a kind of their own	services-map 5A.6.1	partly
+COMP-01	rule	Composer minimises when a content tab is open	ui-map 3.5	covered
+COMP-01	rule	New-workspace form reuses the same editor and toolbar	ui-map 3.5, 3.9	partly
+REV-06	tab	Git panel tab 'All files'	ui-map 3.6	covered
+REV-01	tab	Git panel tab 'Changes' with count badge	ui-map 3.6	covered
+PR-04	tab	Git panel tab 'Checks'	ui-map 3.6	covered
+REV-10	tab	Git panel tab 'Artifacts' listing files in the workspace .context folder (setting 'Show Artifacts tab')	services-map 5A.5.1	missing
+CLOUD-16	tab	Git panel tab 'Desktop' for cloud workspaces	ui-map 3.6	missing
+REV-05	control	'Review' button (tooltip 'Get an AI code review', Cmd+Shift+R)	ui-map 3.6	covered
+REV-05	control	Review split item 'Edit before sending'	ui-map 3.6	covered
+REV-05	action	Review starts a new chat	ui-map 3.6	covered
+GIT-04	state	Header 'Merged' with no action	ui-map 3.6	covered
+GIT-17	action	After merge, 'Continue' makes a new branch from the target, keeps the chats and attaches 'Branch continued.md'	inventory text R@2213837	missing
+GIT-04	state	Header 'In merge queue'	ui-map 3.6	covered
+GIT-04	state	Header 'Changes' with 'Create PR' (Cmd+Shift+P)	ui-map 3.6	covered
+GIT-04	state	Header 'Working...' with no action	ui-map 3.6	covered
+GIT-04	state	Header 'Uncommitted changes' with 'Commit and push' (Cmd+Shift+Y)	ui-map 3.6	covered
+GIT-04	state	Header 'Behind by N commit(s)' with Pull (Cmd+Shift+L)	ui-map 3.6	covered
+GIT-04	state	Header 'Ahead by N commit(s)' with Push	ui-map 3.6	covered
+GIT-04	state	Header 'Incompatible with remote' or 'Remote branch was rebased' with Resolve	ui-map 3.6	covered
+GIT-04	state	Header 'Merge conflicts' with 'Resolve'	ui-map 3.6	covered
+GIT-04	state	Header 'PR changes requested' with 'Add all comments to chat'	ui-map 3.6	covered
+GIT-04	state	Header 'Draft PR open' with 'Ready for review'	ui-map 3.6	covered
+GIT-04	state	Header 'N / M checks failed, K pending' with 'Fix errors' (Cmd+Shift+X)	ui-map 3.6	covered
+GIT-04	state	Header 'N checks pending...' with automerge button	ui-map 3.6	covered
+GIT-04	state	Header 'PR review required' with 'Approve' or waiting text	ui-map 3.6	covered
+GIT-04	state	Header 'Blocked from merging'	ui-map 3.6	covered
+GIT-04	state	Header 'Ready to merge' with 'Merge' (Cmd+Shift+M) named by merge method, and 'Merge stack'	ui-map 3.6	covered
+GIT-04	state	Header stack blocked message	ui-map 3.6	covered
+GIT-04	state	Header 'Unable to merge'	ui-map 3.6	covered
+GIT-04	state	Header 'Loading PR info...' and 'Checking mergeability...'	ui-map 3.6	covered
+GIT-04	state	Header 'No internet connection' with Retry	ui-map 3.6	covered
+GIT-04	state	Header 'GitHub access required' with Retry	ui-map 3.6	covered
+GIT-04	state	Header 'PR info unavailable' with Retry	ui-map 3.6	covered
+PR-07	control	'Open PR' (Cmd+Shift+G)	ui-map 3.6	covered
+PR-02	action	'Create PR' sends the agent a message with written instructions	ui-map 3.6	covered
+PR-07	control	Inline editing of 'PR title' and 'PR description' with Save and Discard	ui-map 3.6	covered
+GIT-17	state	Detached HEAD in the header offers 'Continue' on a new branch	services-map 3.1	missing
+GIT-14	state	Header and PR actions for a repo with no GitHub remote	services-map 3.7.7	missing
+REV-06	region	File tree with file icons, virtualised	ui-map 3.6	covered
+REV-06	menu	Row menu: 'View', 'Attach in chat', 'Copy path', 'Copy relative path', 'Discard changes'	ui-map 3.6	covered
+REV-07	dialog	Quick open (Cmd+P, 'Open file picker')	ui-map 3.6	covered
+REV-07	dialog	Search in files (Cmd+Shift+F) with Match case, Whole word, Regular expression	ui-map 3.6	covered
+REV-06	control	'Filter files' box	ui-map 3.6	covered
+REV-10	region	Artifacts list in pages with 'Loading artifacts...' and a notice when some files are left out	services-map 5A.5.1	missing
+REV-10	action	Artifacts: hover 'Attach to chat' and 'Upload files'	services-map 5A.5.1	missing
+REV-10	region	Artifacts: cards for a preview URL and a forwarded port in the same list	inventory text R@3989871	missing
+REV-10	setting	Setting 'Show Artifacts tab' (on by default)	ui-map 6	missing
+REV-01	region	Changed file list with status, +/- lines, conflict badge	ui-map 3.6	covered
+REV-02	control	'Viewed' checkbox on a changed file (Ctrl+V)	ui-map 3.6	covered
+REV-01	control	'Filter changed files'	ui-map 3.6	covered
+REV-01	control	'Show flat list' and 'Show folder hierarchy'	ui-map 3.6	covered
+REV-01	menu	Diff scope menu: 'Current branch'	ui-map 3.6	covered
+REV-01	menu	Diff scope: 'Target branch' with 'Select target branch...'	ui-map 3.6	covered
+REV-01	menu	Diff scope: 'All changes'	ui-map 3.6	covered
+REV-01	menu	Diff scope: 'Uncommitted changes' (Cmd+Alt+U, 'N files changed')	ui-map 3.6	covered
+REV-01	menu	Diff scope: per-commit entries with message, short hash, author, date	ui-map 3.6	covered
+REV-09	menu	Diff scope: per turn	ui-map 3.6	covered
+REV-01	control	Back button returns to 'All changes'	ui-map 3.6	covered
+PR-08	region	Stack view: 'Stack PRs', 'Current', '(trunk)', 'gt restack', 'Checkout this branch', 'Ready for review'	ui-map 3.6	covered
+REV-01	state	Empty: 'Changes appear here.'	ui-map 3.6	covered
+REV-01	state	Empty: 'No git status'	ui-map 3.6	covered
+REV-01	state	Empty: 'Finish rebasing or merging to see changes'	ui-map 3.6	covered
+REV-01	state	Empty: 'No files match this filter'	ui-map 3.6	covered
+REV-01	message	Note 'Some untracked files are not shown.'	ui-map 3.6	covered
+REV-01	action	Click a file opens a file tab in diff mode	ui-map 3.6	covered
+REV-02	shortcut	ArrowUp and ArrowDown move between files	ui-map 3.6	covered
+REV-03	shortcut	Cmd+Alt+J and Cmd+Alt+K move between comments	ui-map 3.6	covered
+REV-01	shortcut	Cmd+Shift+D opens the diff view	ui-map 3.6	covered
+PR-04	region	Checks tab: PR header and Git status block	ui-map 3.6	covered
+PR-04	region	Checks list with states Running, Failed, Cancelled, Pending	ui-map 3.6	covered
+PR-04	state	Check state 'Waiting'	ui-map 3.6	partly
+PR-04	view	Check logs with 'Couldn't load the logs.' and expired-log text	ui-map 3.6, 3.7	covered
+PR-04	action	'Re-run failed checks'	ui-map 3.6	covered
+PR-04	action	'Queue checks'	ui-map 3.6	partly
+PR-04	region	Deployments with states Deployed, Failed, Deploying, Pending, Inactive and provider icons	ui-map 3.6	covered
+PR-04	region	PR comments with Resolved and Outdated markers and 'Resolve'	ui-map 3.6	covered
+PR-04	action	Comments: 'Add to chat' and 'Add all to chat'	ui-map 3.6	covered
+PR-04	action	Comments: 'Hide' (stored or local, still to decide)	ui-map 3.6	partly
+PR-06	region	Reviewers with Approved, Changes requested, Commented, Dismissed, Awaiting review	ui-map 3.6	covered
+PR-06	action	'Request review'	ui-map 3.6	partly
+PR-06	action	Add or remove reviewers	services-map 3.7.5	missing
+PR-06	state	Buttons show progress while a PR action is pending	services-map 5B.1.7	missing
+PR-06	state	'Review required' marker	ui-map 3.6	covered
+REV-02	region	Diff viewer (unified and split)	ui-map 3.6	covered
+REV-03	control	Inline comment box 'Add a comment for the AI'	ui-map 3.6	covered
+REV-03	region	Comment card with author 'You', 'Edit comment', 'Delete comment'	ui-map 3.6	covered
+REV-03	region	'Suggested change' block	ui-map 3.6	covered
+REV-03	rule	Dismiss and re-anchor comments as lines move; edit rewrites the comment file	services-map 5A.7	partly
+REV-03	rule	The agent reads comments through the GetDiffComments and DiffComment tools	ui-map 3.6	covered
+REV-02	message	Warning 'Only whitespace changes found' with 'Show whitespace changes'	ui-map 3.6	covered
+REV-02	message	Warning 'Binary file changed'	ui-map 3.6	covered
+REV-02	message	Warning 'Updating diff'	ui-map 3.6	covered
+REV-02	control	'Dismiss diff rendering warning'	ui-map 3.6	covered
+REV-02	rule	Viewed files across the diff; viewed mark resets on change	ui-map 3.6	covered
+REV-02	state	Diff 'Failed to open editor' failure text	ui-map 7.4	partly
+REV-11	action	Conflict hunks in the diff: 'Accept current change', 'Accept incoming change', 'Accept both'	inventory label #197-199	missing
+REV-04	action	Sync review comments with GitHub after a PR poll shows a change	services-map 5A.7.3	partly
+RUN-01	view	Scripts panel with tabs Setup, Run, Terminal N, Ports	ui-map 3.7	covered
+RUN-06	shortcut	Panel collapses; Cmd+J 'Toggle terminal panel'	ui-map 3.7	covered
+WS-03	state	Setup: 'Running setup script...'	ui-map 3.7	covered
+WS-03	state	Setup: 'Setup script failed' with a 'fix it?' prompt sent to the chat	ui-map 3.7	covered
+WS-03	state	Setup: 'Cancelled setup script'	ui-map 3.7	covered
+WS-03	state	Setup: 'Detecting setup script...'	ui-map 3.7	covered
+WS-03	state	Setup: 'Stopping setup script...'	ui-map 3.7	covered
+WS-03	state	Setup empty: 'No setup script output' and 'Setup script output will appear here after running setup.'	ui-map 3.7	covered
+WS-03	control	Setup 'Add setup script' with 'Ask agent' or 'Add manually'	ui-map 3.7	covered
+WS-03	message	Setup 'Couldn't load the logs.' and 'No logs were recorded, or they have expired.'	ui-map 3.7	covered
+WS-03	rule	A second setup start is refused while one is running (Retry cannot be pressed twice)	services-map 5A.1.2	partly
+WS-01	state	Failed workspace state with 'Retry setup' and 'Recover prompt'	ui-map 3.7, 3.9	partly
+RUN-01	control	Run: action select ('Select task')	ui-map 3.7	covered
+RUN-01	control	Run button 'Run <label>', 'Run <label> again', 'Stop <label>', 'Starting...', 'Stopping...'	ui-map 3.7	covered
+RUN-02	control	'Start spotlight' in the Run tab	ui-map 3.7	covered
+RUN-01	shortcut	Cmd+R start or stop action	ui-map 3.7	covered
+RUN-01	state	Run empty: 'Run tests or a development server to test changes in this workspace'	ui-map 3.7	covered
+RUN-01	control	Run empty: 'Add action', 'Add action manually', 'Configure actions'	ui-map 3.7	covered
+RUN-01	dialog	Add-action dialog: 'Action name'	ui-map 3.7	covered
+CLOUD-09	control	Add-action dialog field 'Can run in' (Terminal, Cloud, Local)	ui-map 3.7	missing
+RUN-01	control	Add-action dialog icon picker with 'Search icons' and 'No icons found'	ui-map 3.7	covered
+RUN-01	rule	Run actions with args, working directory with variables, default and hide flags	services-map 5A.1.6	partly
+RUN-06	view	Terminal tabs with xterm	ui-map 3.7	covered
+RUN-06	control	'New terminal' (Cmd+T)	ui-map 3.7	covered
+RUN-06	control	'Close terminal' (Cmd+W)	ui-map 3.7	covered
+RUN-06	control	'Find in terminal' (Cmd+F)	ui-map 3.7	covered
+RUN-06	message	'Maximum N terminals allowed'	ui-map 3.7	covered
+RUN-06	dialog	Confirm 'Open this terminal link?' with Cancel and Open	services-map 5A.4.10	missing
+RUN-06	action	Restart a finished shell with a divider line; cold restore replays saved screen	services-map 5A.4.6	missing
+RUN-06	state	Terminal states: starting, running, ended, failed to start	services-map 5A.4.1	partly
+RUN-06	rule	Repo-level terminal and terminal with a starting command	services-map 5A.4.9	missing
+CLOUD-09	tab	Cloud and Local host tabs in the terminal panel	ui-map 3.7	missing
+CLOUD-11	state	File-sync states 'Sync files is off', 'Sync folder unavailable', 'Sync files failed', 'Local terminal unavailable'	ui-map 3.7	missing
+RUN-03	tab	Ports tab	ui-map 3.7	covered
+RUN-03	control	'Open' button and 'Choose preview URL'	ui-map 3.7	covered
+RUN-03	rule	Preview URL sources: Run tab URL, ports in output, repo 'Preview URLs' template	ui-map 3.7	covered
+RUN-03	shortcut	'Open localhost URL' (Cmd+Shift+B)	ui-map 3.7	covered
+RUN-03	action	A detected app (browser, Electron) can be activated instead of opened	ui-map 3.7	missing
+RUN-03	rule	Skip a port block whose first port is already busy	services-map 5A.3.1	partly
+RUN-03	rule	Ports list shows process names and app icons	services-map 5A.3.2	missing
+RUN-02	setting	Setting 'Use spotlight testing' shows 'Start spotlight' in the Run tab	ui-map 3.7	covered
+RUN-02	rule	Spotlight restores the pre-spotlight state on stop and heals after a crash at startup	ui-map 3.7	partly
+RUN-02	rule	Spotlight opens the repository terminal	services-map 5A.2.2	missing
+CLOUD-09	control	Port forwarding popover: 'Forward ports', 'Ports detected', 'Ports unavailable'	ui-map 3.7	missing
+CLOUD-09	control	'Remote port' input, 'Forward port', 'Add port', 'Cancel forwarding port'	ui-map 3.7	missing
+CLOUD-09	control	'Forward to localhost' and 'Auto-forwarding'	ui-map 3.7	missing
+CLOUD-09	control	Shared preview URL: 'Select a port to share via a URL...', 'Preview URL', 'Copy preview URL', move up and down	ui-map 3.7	missing
+CLOUD-09	control	'Start forwarding' (Cmd+Y) and 'Waiting for ports'	ui-map 3.7	missing
+CLOUD-09	setting	Connections: 'Exclusive port forwarding' and 'Forwarding strategies'	ui-map 6	missing
+CLOUD-09	setting	Connections: 'Manual overrides' (remote to local ports)	ui-map 6	missing
+SET-02	message	Port 22 is rejected as reserved for SSH	ui-map 3.7	covered
+WS-09	rule	Session status order: needs plan response, needs permission, needs input, working, cancelling, waiting, idle	ui-map 3.8	covered
+WS-09	state	Lifecycle labels 'Setting up' and 'Failed'	ui-map 3.8	covered
+WS-11	state	Lifecycle label 'Unstarted'	ui-map 3.8	missing
+WS-09	state	Git and PR labels in order: Merged, In merge queue, Ready to merge, Draft pull request, Merge conflict, Checks failing, Checks running, Pull request open	ui-map 3.8	covered
+WS-09	state	Labels 'Local workspace' and 'Ready (has branch)'	ui-map 3.8	partly
+NAV-06	rule	Kanban status colours	ui-map 3.8	covered
+WS-01	action	Entry points to create a workspace: sidebar Create, 'Create in section', repo '+', Home, Dashboard, palette	ui-map 3.9	covered
+WS-01	rule	Deep links with path, branch and prompt prefill the create flow	ui-map 3.9	partly
+WS-01	view	'New workspace' dialog ('Draft the first message, then create and send it.')	ui-map 3.9	missing
+WS-01	control	Repo picker ('Switch repo', 'Repository on <host>', 'Add repository') with its states	ui-map 3.9	partly
+WS-02	control	'Create from' toggle (default branch, branch, PR, issue)	ui-map 3.9	covered
+WS-02	control	'Create from' list of pull requests	ui-map 3.9	partly
+WS-02	control	'Create from' list of branches	ui-map 3.9	covered
+WS-02	control	'Create from' list of issues (Linear, GitHub)	ui-map 3.9	partly
+WS-01	control	Target branch picker on the create form	ui-map 3.9	covered
+WS-01	control	Prompt editor ('What do you want to work on?' or 'Describe what you want to build')	ui-map 3.9	covered
+WS-01	control	Model picker, plan mode and attachments in the create form	ui-map 3.9	partly
+WS-01	control	Section picker 'Create in section' with 'No matching sections'	ui-map 3.9, 7.2	partly
+WS-01	control	Button 'Create workspace' or 'Create'	ui-map 3.9	covered
+WS-01	message	Toast 'Creating workspace...' and the failure toast	ui-map 3.9	partly
+WS-01	action	'Recover prompt' restores a failed draft	ui-map 3.9	covered
+WS-01	message	Friendly message when two branch names clash (a and a/b)	services-map 3.1	missing
+WS-01	rule	Git work after submit: fetch, worktree, names, setup	frontend 6	covered
+PRJ-01	control	'Open project' in the Add project menu	ui-map 3.9	covered
+PRJ-01	region	'Recents' group of recently opened project folders in the Add project menu	inventory text R@10176291	missing
+PRJ-02	rule	Clone with owner and repo picker from GitHub	services-map 3.2, 3.9	missing
+PR-09	dialog	Link issue dialog: 'Connect Linear', 'Search issues...', 'No open issues found'	ui-map 3.10	missing
+PR-11	rule	Issues list is disabled when there is no GitHub remote or access	services-map 5B.8.2	missing
+PR-11	action	A GitHub issue or PR becomes a context file in the workspace	services-map 5B.8.3	missing
+PR-09	rule	Linear issue context carries comments and times	services-map 5B.8.1	partly
+WS-07	dialog	Link workspaces and directories: 'Select working directories', 'Link a directory or workspace'	ui-map 3.10	missing
+SET-05	dialog	MCP status: 'MCP status', 'No MCP servers configured.', 'Refresh MCP status', logs	ui-map 3.10	covered
+SET-05	state	MCP server status shows an error reason when a server failed	services-map 5B.6	partly
+CHAT-10	rule	Local questions and approvals wait without a timeout	sessions-and-chats Q/A/P	covered
+CHAT-11	state	Codex requests show a 'timed out' state after 300 seconds	sessions-and-chats Q/A/P	partly
+CHAT-11	rule	Only one interaction per chat is open; a new message or cancel withdraws it	sessions-and-chats Q/A/P	covered
+CHAT-11	region	Codex permission request card (grant or decline)	sessions-and-chats Q/A/P	covered
+CHAT-11	region	Codex MCP form card (accept or decline)	sessions-and-chats Q/A/P	covered
+COMP-03	rule	Claude starts in bypass mode and switches live for approvals or plan mode	sessions-and-chats Q/A/P	covered
+CHAT-08	region	Registry cards: ask-user-question, bash, bash-output, diff-comment, edit, multi-edit, glob, grep, ls, read, write, web, skill, slash-command, sub-agent, thinking, todo	frontend 5	covered
+CHAT-08	region	Context7 and Linear MCP cards	frontend 5	covered
+CHAT-08	region	Card for Codex collaborating-agent tool calls	frontend 5	covered
+CHAT-08	region	Update-progress tool call shows nothing in the list (the tracker shows it)	frontend 5	covered
+CHAT-07	rule	Sub-agent messages are grouped under the parent tool call	frontend 5	covered
+CHAT-07	rule	Incremental turn builder tells the list how turns changed	frontend 5	covered
+CHAT-06	rule	Only the tail turn re-renders while streaming	frontend 5	covered
+SET-01	rule	Settings layers: default, user file, repo shared, workspace shared, repo local, plus the remote default-branch copy	services-map 4.2.1	partly
+SET-02	view	Settings layout: left nav, content, 'Back' and Esc to leave	ui-map 6	covered
+SET-02	control	Settings search box 'Search settings' (Cmd+F)	ui-map 6	covered
+SET-02	rule	Fuzzy search over labels, descriptions and keywords, top 30, arrows and Enter	ui-map 6, 8	partly
+SET-02	rule	A search result opens its page and highlights the setting	ui-map 6	partly
+SET-02	rule	Deep link to one setting	ui-map 6	covered
+SET-01	rule	One declarative registry: tab, key, scopes, title, description, search terms	ui-map 6, 9	covered
+SET-02	control	Scopes user and workspace with 'reset to repo settings.toml' actions	ui-map 6	covered
+SET-02	control	Repo picker in the Repositories group of the settings nav	ui-map 6	covered
+SET-02	state	'/settings/repos' with no repo shows a 'pick a project' state	ui-map 6	partly
+SET-02	view	Settings groups: Personal (General, Account, Appearance, Keyboard shortcuts, Default models, Git, Connections)	ui-map 6	covered
+SET-02	view	Settings group Agents and environment (Agents, Environment)	ui-map 6	covered
+SET-02	view	Settings group Repositories (Scripts, Actions, Prompts, Misc)	ui-map 6	covered
+SET-02	view	Settings group More (Experimental, Advanced) and the Big terminal rows	ui-map 6	covered
+SET-02	state	Settings page not found with a link to General	ui-map 6	covered
+SET-02	state	Settings page skeleton and error with Retry	ui-map 7.3, 7.4	covered
+SET-02	message	'Can't save setting because your settings file is invalid' with 'Overwrite file'	services-map 4.2.1	partly
+SET-02	message	Notice listing settings-file entries that were dropped (bad TOML, unknown key, wrong type)	services-map 4.2.1	partly
+RC-04	view	Remote Control settings page: default per new chat, keep the Mac awake while a remote session is connected (replaces the phone relay page)	ui-map 6	missing
+SET-02	control	General: 'Send messages with' (Enter, Cmd+Enter, Custom)	ui-map 6	partly
+CHAT-03	control	General: 'Follow-up behavior'	ui-map 6	covered
+CHAT-19	control	General: 'Agent notifications'	ui-map 6	covered
+CHAT-19	control	General: 'Completion sound' (Conductor has about 25 themed sounds; we ship two until we make our own)	ui-map 6	partly
+PLAT-24	control	General: 'Full disk access permissions' status and button to open the macOS privacy pane	ui-map 6	partly
+NAV-04	control	General: 'Arrange workspaces manually'	ui-map 6	covered
+COMP-07	control	General: 'Auto-convert long text'	ui-map 6	covered
+SET-01	control	General: 'I'm not absolutely right, thank you very much' (behaviour still to be read from the bundle)	ui-map 6	missing
+CHAT-14	control	General: 'Always show context usage'	ui-map 6	covered
+PLAT-21	control	General: 'Caffeinate while agents are running' (off below 10 percent battery)	ui-map 6	partly
+APP-06	control	General: 'Restart automatically on update'	ui-map 6	covered
+REV-10	control	General: 'Show Artifacts tab'	ui-map 6	missing
+CHAT-08	control	General: 'Don't collapse tool calls' (Garry Mode)	ui-map 6	partly
+SET-08	control	General: 'Sync agent configs'	ui-map 6	missing
+SET-02	view	Account page: GitHub and Linear parts (no sign-in, billing or profile)	ui-map 6	partly
+SET-02	control	Account: 'Enterprise data privacy' row with a list of what it controls	ui-map 6	partly
+AGENT-04	control	Account page row 'Claude Code tool approvals'	ui-map 6	partly
+AGENT-08	control	Account page row 'Codex tool approvals'	ui-map 6	partly
+PR-01	control	Account: GitHub through the gh CLI	ui-map 6	covered
+PR-01	control	Account: GitHub personal access token field (Keychain)	ui-map 6	covered
+PR-01	message	Token field warns 'That doesn't look like a GitHub token. Are you sure?'	inventory text R@11048106	missing
+PR-09	control	Account: Linear connection and key	ui-map 6	covered
+SET-06	control	Appearance: 'Colored sidebar diffs'	ui-map 6	covered
+SET-06	control	Appearance: 'Code ligatures'	ui-map 6	covered
+SET-06	control	Appearance: Theme (Light, Dark, System)	ui-map 6	covered
+SET-06	rule	Appearance settings are applied to the document before first paint	ui-map 6, 8	missing
+SET-06	control	Appearance: low-contrast dark mode	ui-map 6	partly
+PLAT-23	control	Appearance: app zoom slider (one range, a way to zoom the webview)	ui-map 6	partly
+SET-06	control	Appearance: accessible colours (Default, Deuteranopia/Protanopia, Tritanopia)	ui-map 6	partly
+SET-06	control	Appearance: code theme	ui-map 6	covered
+SET-06	control	Appearance: mono font (Default or Custom)	ui-map 6	covered
+SET-06	control	Appearance: Markdown style (Default, Tufte)	ui-map 6	covered
+SET-06	control	Appearance: terminal font and size	ui-map 6	covered
+RUN-06	control	Appearance/Experimental: 'New tab preset' for the command in a new terminal tab	ui-map 6	covered
+SET-06	region	Appearance: live code preview	ui-map 6	covered
+SET-06	region	Appearance: terminal preview block	ui-map 6	partly
+COMP-02	control	Default models: 'Default model'	ui-map 6	covered
+COMP-02	control	Default models: 'Codex personality' and 'Claude output style'	ui-map 6	covered
+REV-05	control	Default models: 'Review model'	ui-map 6	covered
+COMP-03	control	Default models: 'Default to plan mode in new chats'	ui-map 6	covered
+COMP-02	control	Default models: fast mode, effort and thinking level for default and review	services-map 4.2.4	covered
+COMP-02	control	Default models: which models show in the picker (visible provider models)	services-map 4.2.4	partly
+SIDE-14	rule	Model catalog cache with a stated lifetime	services-map 4.2.3	partly
+CLOUD-17	control	Git settings: 'Git identity' name and email for cloud commits	ui-map 6	missing
+SET-07	control	Git: 'Branch new workspaces from' (repo)	ui-map 6	covered
+SET-07	control	Git: 'Remote origin' (repo)	ui-map 6	covered
+PR-07	control	Git: 'Open pull requests in'	ui-map 6	covered
+PR-02	control	Git: 'Include link to workspace in PR description' (default off)	ui-map 6	partly
+WS-01	control	Git: branch name prefix (GitHub username, Custom, None)	ui-map 6	covered
+WS-04	control	Git: 'Automatically rename new branches'	ui-map 6	covered
+WS-04	control	Git: 'Rename workspace when branch is named'	ui-map 6	covered
+WS-05	control	Git: 'Delete branch on archive' (user and repo)	ui-map 6	covered
+WS-05	control	Git: 'Archive on merge' (user and repo)	ui-map 6	covered
+PR-06	control	Git: 'Automerge'	ui-map 6	covered
+PR-06	control	Git: 'Treat optional checks as blocking'	ui-map 6	covered
+GIT-06	control	Git: 'Set upstream on plain git push' (one home on the Git page)	ui-map 6	partly
+PR-08	control	Git: 'Use GitHub stacked PRs'	ui-map 6	covered
+PR-08	control	Git: Graphite stack support (one positive setting, one home)	ui-map 6	partly
+RUN-03	control	Connections: workspace port range and reserved ports	ui-map 3.7	partly
+SET-03	view	Agents page with cards for Claude Code, Codex, Cursor, OpenCode and Pi	ui-map 6	covered
+SET-12	control	Agents: 'Use Claude Code with Chrome' switch	ui-map 6	missing
+SET-03	control	Agents: provider search 'Search providers' and 'No providers match'	ui-map 6, 7.2	covered
+SET-03	dialog	Agents: CLI sign-in and 'Paste code from Claude'	ui-map 6	covered
+SET-03	dialog	Agents: Codex ChatGPT device-code sign-in (Personal or Business)	ui-map 6	covered
+SET-03	message	Sign-in flow can show the 'claude setup-token' command	ui-map 6	partly
+SET-09	control	Agents: 'Claude Code subscription' token field	inventory label #428	missing
+SET-09	control	Agents: 'Anthropic API key' and 'Use the key from this Mac'	ui-map 6	missing
+SET-09	control	Agents: Amazon Bedrock form (API key or access key ID, secret, session token, region, test model)	inventory label #428-433	missing
+SET-09	control	Agents: Vertex project and provider choice	services-map 4.2.3	missing
+SET-09	control	Agents: Codex 'API key' or 'ChatGPT' account, 'OpenAI API key'	inventory label #469-475	missing
+SET-09	control	Agents: 'Cursor API key'	inventory label #469-475	missing
+SET-09	control	Agents: 'Custom provider' with optional workspace ID	ui-map 6	missing
+SET-10	view	OpenCode provider catalogue: about 90 providers, each with the environment variable for its key	inventory label #45-136	missing
+SET-10	control	OpenCode per-provider keys and 'Filter models'	ui-map 6	missing
+SET-12	control	Agents: 'Claude settings' JSON editor	ui-map 6	missing
+SET-12	control	Agents: 'Codex config' editor	ui-map 6	missing
+SET-03	state	Agent card states 'Loaded from env', 'API key configured', 'Validation failed', 'Recommended'	ui-map 6	covered
+SET-03	control	OpenCode and Pi executable paths	ui-map 6	partly
+SET-03	message	Red text 'This version can return empty ACP turns in Conductor.' with an 'Update' button	inventory text R@10985659	missing
+SET-03	control	Install, update, re-download and remove an agent program from the Agents page (D021)	ui-map 6, 7.4	missing
+SET-03	state	Agent download progress, failure with Retry, and 'use the program on my PATH' choice (D021)	ui-map 7.4	missing
+SET-05	region	MCP servers list with status and logs	ui-map 3.10	covered
+SET-05	control	MCP servers filter and 'No matching MCP servers.'	ui-map 7.2	partly
+SET-04	view	Environment page summary	ui-map 6	covered
+SET-04	region	Variables table: Name, Value, 'Locally overwritten', 'Not set'	ui-map 6	covered
+SET-04	state	'No variables set' with 'Add a variable...'	ui-map 6, 7.2	covered
+SET-04	control	Add a variable form	ui-map 6	covered
+SET-11	control	Add-variable form suggests well-known names (proxy, Anthropic, Bedrock, Vertex, Codex, Cursor, OpenAI keys) with one-line meanings	inventory description #106-123	missing
+SET-04	region	Env files list and 'Cancel adding env file'	ui-map 6	covered
+SET-07	control	Files to copy: glob preview, 'Detecting files to copy...', .worktreeinclude	ui-map 6	covered
+SET-04	state	Banner to import local variables, dismissible	services-map 4.2.3	covered
+SET-04	rule	Environment file holds names only; values live in the Keychain	services-map 4.2.4	partly
+CLOUD-05	control	Environment: variable scopes for local and cloud contexts	services-map 4.2.8	missing
+SET-07	view	Repository scripts page summary	ui-map 6	covered
+WS-03	control	Scripts: 'Setup script'	ui-map 6	covered
+WS-05	control	Scripts: 'Archive script'	ui-map 6	covered
+RUN-01	control	Scripts: 'Run script' and run mode	ui-map 6	covered
+SET-07	view	Actions page: custom actions list	ui-map 6	covered
+SET-07	action	Action row: Show or Hide, Edit, Delete	ui-map 6	covered
+SET-07	action	Action row: Reset to the shared version	ui-map 6	partly
+SET-07	state	'No custom actions yet. Add one to get started.'	ui-map 6, 7.2	covered
+RUN-02	control	Actions: 'Use spotlight testing'	ui-map 6	covered
+SET-07	control	Prompts: general preferences (instructions at chat start)	ui-map 6	covered
+SET-07	control	Prompts for Review, Create PR, Fix errors, Resolve conflicts, Rename branch	ui-map 6	covered
+CHAT-02	rule	The general preferences text reaches the agent with each message	frontend 3	partly
+SET-07	control	Misc: 'Icon'	ui-map 6	covered
+PRJ-05	dialog	Change repository icon picker: 'Search emoji', 'Remove emoji', emoji, favicon, upload	inventory aria_label #143-144	missing
+SET-07	region	Misc: root path and workspaces path (read-only)	ui-map 6	covered
+RUN-03	control	Misc: 'Preview URLs' template	ui-map 6	covered
+SET-07	control	Misc: 'Files to copy'	ui-map 6	covered
+SET-07	dialog	Misc: 'Remove repository'	ui-map 6	covered
+AGENT-04	setting	Experimental: 'Auto permission mode'	ui-map 6	covered
+RUN-06	setting	Experimental: 'Big terminal mode' with preset and custom commands	ui-map 6	covered
+WS-01	setting	Experimental: 'New workspace page'	ui-map 6	covered
+NAV-10	setting	Experimental: 'Tab Freak Mode' and 'Split tabs'	ui-map 6	covered
+CHAT-16	setting	Experimental: 'Fork chat to new tab'	ui-map 6	covered
+RUN-04	setting	Experimental: 'In-app browser preview'	ui-map 6	covered
+CHAT-14	setting	Experimental: 'Show agent cost' for local runs	ui-map 6	partly
+NAV-03	setting	Experimental: 'Workspace status matrix for local workspaces'	ui-map 6	covered
+RUN-01	setting	Auto-run after setup (one home on the repo scripts page)	ui-map 6	partly
+NAV-06	setting	Experimental: 'Dashboard'	ui-map 6	covered
+COMP-08	setting	Experimental: 'Voice mode'	ui-map 6	covered
+APP-07	setting	Experimental: 'Show sidebar resource usage'	ui-map 6	covered
+PLAT-23	setting	Experimental: 'Sidebar transparency' (window vibrancy and a translucent sidebar surface)	ui-map 6	partly
+PRJ-01	setting	Advanced: root directory	ui-map 6	covered
+SET-03	setting	Advanced: Claude Code, Codex and OpenCode executable paths	ui-map 6	covered
+SET-13	rule	Executable path overrides also apply to terminals and scripts through one PATH prefix	services-map 5A.8.2	missing
+SET-03	setting	Advanced: Cursor and Pi executable paths	ui-map 6	partly
+PLAT-08	setting	Advanced: terminal scrollback limit	ui-map 6	covered
+CLOUD-14	setting	Advanced: 'Remote execution MCP' and 'Always allow local commands'	ui-map 6	missing
+CLOUD-11	setting	Advanced: 'Enable file sync in new cloud workspaces'	ui-map 6	missing
+CLOUD-17	view	Cloud settings page: GitHub token for the cloud, cloud environment variables, MCP servers for the sandbox, image extras, build status	ui-map 6	missing
+CLOUD-17	setting	Which model key the Worker uses for cloud runs	services-map 4.2.7	missing
+CLOUD-17	rule	Whether cloud workspaces may run while data privacy mode is on	services-map 4.1.2	missing
+NAV-01	setting	Panel layout state: left_panel_visible, right_panel_visible, left_panel_width	services-map 4.2.3	covered
+NAV-03	setting	Sidebar state: group by, sort by, repo filter	services-map 4.2.3	covered
+REV-02	setting	Diff state: split view, wrap lines, hide whitespace changes	services-map 4.2.3	covered
+PR-07	setting	State: PR activity sort order, last clone directory, default 'Open in', recent-first order	services-map 4.2.3	covered
+APP-02	rule	One onboarding step key for one flow	services-map 4.2.3	partly
+APP-06	rule	'What's new' notice after an update uses the last-seen announcement key	services-map 4.2.3	partly
+APP-10	rule	Callouts (coach marks): dismissible hints that remember dismissal	ui-map 7.1	missing
+APP-10	action	'Reset callout dismissals' in settings	ui-map 7.1	missing
+APP-02	rule	Onboarding steps: what the app does, agents found, add a project	ui-map 7.1	covered
+APP-02	state	Onboarding error toast 'Couldn't finish setup. Please try again.'	ui-map 7.1	covered
+APP-02	view	Onboarding agents step: detect, version, sign-in, none installed	ui-map 6	covered
+APP-02	view	Onboarding project step: add a first project, skip allowed	ui-map 3.9, 7.1	covered
+APP-02	rule	First launch routes to onboarding when no project exists	ui-map 2	covered
+CLOUD-08	control	Optional 'Set up cloud' onboarding step	cloud-and-remote Part 1	missing
+CLOUD-08	message	Send-button tooltip 'Send this message to set up your cloud computer'	ui-map 7.1	missing
+NAV-06	state	Dashboard column empty states	ui-map 7.2	covered
+CHAT-06	state	Chat 'No messages yet'	ui-map 7.2	covered
+CHAT-09	state	Todo 'No todos'	ui-map 7.2	covered
+CHAT-13	state	'No tasks' empty state (panel not yet identified)	ui-map 7.2	missing
+SET-03	state	Providers 'No providers match your search.'	ui-map 7.2	covered
+COMP-02	state	Models 'No models found'	ui-map 7.2	covered
+APP-04	state	Repos 'No repositories found' and 'Add a project to get started.'	ui-map 7.2	covered
+REV-08	state	'Empty CSV' and 'Preview not available'	ui-map 7.2	covered
+PR-07	state	'No description' on a PR	ui-map 7.2	covered
+PR-04	state	'No logs available.'	ui-map 7.2	covered
+RUN-03	state	'No local servers running. Start your dev server...'	ui-map 7.2	covered
+APP-04	region	Shared empty-state layout	ui-map 7.2, 8	covered
+APP-05	rule	Empty state has a tone (neutral or failed) and an optional icon	ui-map 8	partly
+APP-05	rule	Loading indicator kinds: working, typing, waiting, setting-up	ui-map 7.3	partly
+APP-04	rule	Loading, error-with-retry and ready wrapper (LoadableView)	ui-map 7.3, 7.4	covered
+APP-04	state	Skeleton blocks and status role with aria labels	ui-map 7.3	covered
+APP-08	view	Start-up loading screen 'Starting Conductor'	ui-map 7.3	missing
+APP-08	view	Full-screen 'Database from a newer version' with an Update button	ui-map 7.4	partly
+APP-08	view	Full-screen 'Wrong version of Conductor for this Mac' (Intel build on Apple silicon)	ui-map 7.4	missing
+APP-08	view	Full-screen 'Failed to start agents' with copy diagnostics and Retry	ui-map 7.4	partly
+APP-08	message	Dismissible macOS version warning	inventory aria_label #93	missing
+CHAT-06	state	Agent program and sign-in problems shown inline in the chat	ui-map 7.4, 3.3	covered
+APP-05	rule	Toasts have success, error and warning variants	ui-map 7.4	covered
+APP-05	rule	Workspace-scoped toast that only shows while that workspace is open	ui-map 7.4	missing
+WS-01	message	Toast 'Failed to create workspace'	ui-map 7.4	covered
+GIT-01	message	Toast 'Xcode license is not accepted' for 15 seconds with a 'Run for me' action	inventory label #196, description #17	missing
+GIT-01	message	Friendly text when SSH is blocked and HTTPS also fails	services-map 3.6.1	partly
+RUN-04	message	Toast 'Couldn't open browser tab'	ui-map 7.4	covered
+APP-01	rule	Local logs for unhandled errors	services-map 5B.11.3	partly
+WS-06	dialog	Unarchive asks for a branch name and reports 'uncommitted changes could not be recovered'	services-map 1.4	partly
+SIDE-10	message	Toast when the login-shell environment could not be captured	services-map 5A.8.3	missing
+APP-01	rule	Dock badge follows the unread count	services-map 5B.2.6	partly
+APP-01	rule	Clicking a notification opens the right workspace	services-map 5B.2.5	partly
+APP-01	rule	Quit asks whether agents are idle	services-map 5B.4.1	partly
+APP-11	rule	One serial queue per key, single-flight dedupe and latest-wins guard so a late answer never changes state	services-map 1.5	missing
+NAV-17	action	Deep link opens a browser tab in a workspace (URL and workspace id)	inventory description #258-260	missing
+NAV-17	action	Deep link starts a workspace from a base64 plan	inventory description #265-268	missing
+NAV-17	action	Deep link opens a workspace	native-and-sidecar-map A8	covered
+NAV-17	action	Deep link opens a settings page	services-map 5B.2.5	missing
+NAV-17	message	Deep link that turns on an experimental setting shows 'Enabled setting: <name>' with 'Go to setting'	inventory label #476	missing
+APP-03	region	Diagnostics introduction, environment report and actions row	ui-map 2	covered
+APP-06	region	Update notice 'Will automatically restart when all agents are idle', 'Restart when idle', 'See changes'	ui-map 1.3	covered
+APP-03	action	Open sidecar logs from the app	ui-map 5.4	covered
+APP-05	rule	Button variants (default, destructive, outline, secondary, ghost, link) and sizes	ui-map 8	partly
+APP-13	control	Toggle and ToggleGroup for segmented choices	ui-map 8	missing
+APP-13	control	One copy button with a short 'Copied' state	ui-map 8	missing
+NAV-07	rule	Key-cap hint component reads the live binding of a command	ui-map 8	partly
+APP-05	region	Dialog, tooltip, popover, hover card, context menu	ui-map 8	covered
+APP-13	dialog	Alert dialog for confirm and destructive actions	ui-map 8	missing
+APP-05	menu	Dropdown menu with checkbox and radio items	ui-map 8	partly
+APP-12	control	Select	ui-map 8	missing
+APP-12	control	Input, Textarea and Label sized to their input with visible focus	ui-map 8	missing
+APP-12	control	Checkbox	ui-map 8	missing
+APP-12	control	Switch (for the on and off settings)	ui-map 8	missing
+APP-12	control	Slider (for app zoom)	ui-map 8	missing
+APP-13	region	Card and Separator	ui-map 8	missing
+APP-13	region	Collapsible	ui-map 8	missing
+APP-13	region	Table	ui-map 8	missing
+APP-13	region	Alert (default and destructive) for banners	ui-map 8	missing
+APP-13	region	Truncated text with middle truncation and copy	ui-map 8	missing
+APP-13	region	Search-highlight text for settings search and the palette	ui-map 8	missing
+APP-05	region	Tabs, panel header and resizable panels	ui-map 8	covered
+APP-05	region	Icon set (more icons for status, git, tool cards) and a licensed file-icon set	ui-map 8	partly
+APP-15	rule	One shared fuzzy matcher for settings search, the palette and pickers	ui-map 6, 8	missing
+APP-14	rule	Search-highlight colour with AA contrast	ui-map 8	missing
+APP-14	rule	Link style in Markdown and PR text	ui-map 8	missing
+APP-14	rule	Sixteen terminal colours, light and dark, with AA checks	ui-map 8	missing
+APP-14	rule	Low-contrast dark mode tokens	ui-map 8	missing
+APP-14	rule	Colour-vision variants of the danger, success and warning colours	ui-map 8	missing
+APP-14	rule	Translucent sidebar surface for the vibrancy setting	ui-map 8	missing
+APP-14	rule	Contrast guard checks every theme combination	ui-map 8	partly
+APP-05	rule	Surface, text, border, focus and danger tokens, single accent, light and dark themes	ui-map 8	covered
+APP-05	rule	Fonts: system UI and system mono stacks (design choice; Tufte style needs a serif decision)	ui-map 8	partly
+CHAT-24	rule	Mermaid dependency added with a licence check	ui-map 8	partly
+NAV-14	rule	A hook registers a handler for a command id with a priority	ui-map 8	partly
+NAV-15	rule	Long-lived DOM surface layer for terminals and webviews	ui-map 8, 9	partly
+APP-01	rule	Start-up sequence has one home and wires dock badge, deep links, update checks and heal steps	services-map 6	partly
+CLOUD-09	message	Local versus cloud terminal notices and 'connection lost' text for cloud setup scripts	ui-map 3.7	missing
+CLOUD-10	message	Toast 'Port 22 is reserved for SSH and cannot be forwarded here'	ui-map 7.4	missing
+CLOUD-03	state	'Waiting for workspace' while a cloud workspace starts	inventory text	missing
+CLOUD-03	state	Cloud 'Workspace unavailable' with 'Reconnect'	ui-map 7.4	missing
+CLOUD-11	action	Opening a cloud file downloads it with a 'Downloading file' toast, then 'Saved to' with a 'Downloads' button that reveals it	inventory text R@9626830	missing
+WS-11	control	Create button has two modes: 'Create' runs the normal flow, 'Start' begins a saved workspace	inventory label #370-371	missing
+WS-11	control	'Add to backlog' saves a workspace without making a worktree (aria label)	inventory aria_label #83	missing
+WS-11	rule	Backlog workspaces are gated by an unstarted-workspaces setting in Conductor	ui-map 6	missing
+SET-08	rule	Sync dialog has three categories: 'MCP servers', 'Slash commands', 'Skills'	inventory description #250-252	missing
+SET-08	state	Sync dialog shows a diff step and a list of failures	inventory description #175	missing
+APP-09	message	Success toast 'Thanks for making Conductor better.' (ours opens the project issue page)	inventory description #269	missing
+APP-09	action	Send feedback command from palette and app menu opens the feedback dialog	ui-map 5.1	missing
+PRJ-03	message	Quick start repo-name checks 'This repository already exists.' and 'Repository name is available.'	inventory text R@1957512	missing
+APP-02	rule	Onboarding agents step installs and updates the agent programs for the user (D021)	ui-map 6	partly
+GIT-12	rule	Branch list, commits on a branch and switching branch (fetch, checkout, fast-forward only)	services-map 3.3.3, 3.6.6	missing
+GIT-15	action	Open a diff in an external tool	services-map 5A.5.3	missing
+PR-12	rule	A stack branch catches up after GitHub rewrites it (guarded rebase)	services-map 3.8.3	missing
+PR-08	message	Stack sync errors: install-the-extension error and abort markers	services-map 3.8.2	partly
+WS-04	rule	Branch rename after the first message: how the new name is produced	services-map 3.11	partly
+COMP-08	state	Dictation states idle, connecting, recording, processing; newest attempt wins	services-map 5B.3.1	partly
+COMP-08	message	Dictation errors: microphone denied, unavailable	services-map 5B.3.1	partly
+SET-07	action	Hide a shared action for this user only	services-map 5A.1.6	missing
+WS-03	rule	Files to copy: .worktreeinclude, file_include_globs, default .env*, 256 KiB cap	services-map 3.1, 5A.5.5	partly
+CHAT-04	rule	Failed first send can be retried or discarded (API actions)	ui-map 3.3	partly
+NAV-07	rule	Missing registry commands: select loadout 1 to 5, insert snippet, save goal, open sidecar logs, forward ports	ui-map 5.4	partly
+SET-09	rule	Provider keys are stripped from the agent environment unless the provider is 'custom'	services-map 4.2.8	partly
+PLAT-28	rule	The app downloads the official Claude Code and Codex releases, verifies them and keeps them up to date	ui-map 6, 7.4	missing
+AGENT-13	rule	Codex goal state reaches the goal bar through protocol calls	ui-map 3.5	missing
+CHAT-18	state	A chat resumes after an app restart or sidecar reconnect without losing events	sessions 8	covered
+CHAT-18	state	A turn cut off by a crash is shown as 'interrupted' (adds information, D008)	sessions 8	covered
+PR-03	rule	PR status refreshes in the background, batched, paused while offline or rate limited	services-map 3.7	covered
+PR-03	rule	PR state in the header and sidebar updates after a poll shows a change	services-map 5B.1.2	partly
+PRJ-04	rule	Repo settings file in the project (.conducted/settings.toml) is shared by scripts, files to copy and prompts pages	services-map 4.2	covered
+PRJ-04	rule	Repo settings edited outside the app show up after the window regains focus	services-map 2.5.2	partly
+RUN-07	rule	The agent can read a terminal's output through the GetTerminalOutput tool	claude-runner 4.2	covered
+RUN-07	rule	Output of an ended run falls back to saved terminal history	services-map 5A.1.3	partly
+RUN-08	rule	Spotlight helper script copies workspace changes into the repo root and restores them on stop	native-and-sidecar-map C3	covered
+WS-10	rule	Removing a repository deletes its workspaces and chats; failed or half-created local workspaces are cleaned up at startup	services-map 3.10, 2.3.1	covered

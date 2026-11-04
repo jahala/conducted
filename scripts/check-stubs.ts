@@ -17,7 +17,8 @@ const SKIP = new Set(["node_modules", "dist", "target", "gen", ".vite"]);
 const EXTENSIONS = /\.(ts|tsx|rs|sh)$/;
 // notImplemented("<ID>") | not_implemented!("<ID>") | not_implemented "<ID>"
 const PLACEHOLDER = /not_?[iI]mplemented!?\s*\(?\s*"([A-Z]+-\d{2})"/g;
-const ROW = /^\|\s*([A-Z]+-\d{2})\s*\|.*\|\s*(stub|done)\s*\|\s*$/;
+// ID | Feature | Owner | Research | P | Status | Needs (the Needs cell may be empty)
+const ROW = /^\|\s*([A-Z]+-\d{2})\s*\|(?:[^|]*\|){4}\s*(stub|done)\s*\|(?:[^|]*\|)?\s*$/;
 
 function* files(dir: string): Generator<string> {
 	for (const name of readdirSync(dir)) {

@@ -60,7 +60,7 @@ Commands outside the Platform interface:
 
 How the Rust shell (`sidecar.rs`, PLAT-09) starts the sidecar, and what the sidecar (`packages/sidecar`) expects. Both sides follow this list.
 
-Command: `conducted-sidecar sidecar` (logger: `conducted-sidecar logger`).
+Command: `conducted-sidecar sidecar`. The separate logger mode goes when SIDE-18 is built (D026).
 
 Environment the Rust shell sets:
 
@@ -70,11 +70,11 @@ Environment the Rust shell sets:
 | `CONDUCTED_OUTBOX_ROOT`                          | Folder for the write-ahead event log (SIDE-06).                            |
 | `CONDUCTED_LOG_DIR`                              | Folder for sidecar log files.                                              |
 | `CONDUCTED_BIN_DIR`                              | Folder holding `checkpointer.sh`, `git-busy-check.sh`, `spotlighter.sh`.   |
-| `CONDUCTED_APP_VERSION`                          | The app version, for logs and the health check.                            |
-| `CONDUCTED_LOGGER_TOKEN`, `CONDUCTED_LOGGER_DIR` | Logger mode only: the bearer token and the log folder.                     |
+| `CONDUCTED_APP_VERSION`                          | The app version, for logs.                                                 |
+| `CONDUCTED_LOGGER_TOKEN`, `CONDUCTED_LOGGER_DIR` | Logger mode only; removed with it (D026).                                  |
 
 The sidecar never reads the database, so it gets no database path.
 
-Handshake: the sidecar prints one line `SOCKET_PATH=<path>` on stdout once its Unix socket listens. Logger mode prints `LOGGER_PORT=<port>`. Everything else on stdout and stderr is log output.
+Handshake: the sidecar prints one line `SOCKET_PATH=<path>` on stdout once its Unix socket listens. Everything else on stdout and stderr is log output, which the Rust shell writes into the app log files with a sidecar tag (D026).
 
-Environment the sidecar sets for each agent process: `CONDUCTED_WORKSPACE_PATH`, `CONDUCTED_ROOT_PATH`, `CONDUCTED_DEFAULT_BRANCH`, `CONDUCTED_PORT`, `CONDUCTED_SESSION_ID`, and `CONDUCTED_APP_TOOLS_TOKEN` for the app-tools bridge. `spotlighter.sh` also needs `CONDUCTED_CHECKPOINTER_PATH`, `CONDUCTED_WATCHEXEC_PATH` and `CONDUCTED_ROOT_PATH`; `watchexec` is not bundled yet (RUN-08).
+Environment the sidecar sets for each agent process: `CONDUCTED_WORKSPACE_PATH`, `CONDUCTED_ROOT_PATH`, `CONDUCTED_DEFAULT_BRANCH`, `CONDUCTED_PORT`, `CONDUCTED_SESSION_ID`, and `CONDUCTED_APP_TOOLS_TOKEN` for the app-tools bridge. `spotlighter.sh` also needs `CONDUCTED_CHECKPOINTER_PATH`, `CONDUCTED_WATCHEXEC_PATH` and `CONDUCTED_ROOT_PATH`; the app downloads and updates `watchexec` (PLAT-35, D024).
