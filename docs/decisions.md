@@ -97,3 +97,16 @@ Why: an automatic retry could bill the same work twice, or run the same edits tw
 Context: dependency review flags GHSA-wrw7-89jp-8q8g in glib 0.18.5. glib is in the lockfile only through Tauri's Linux toolkit (gtk 0.18). The app ships for macOS, and the macOS build does not compile glib.
 Chosen: `allow-ghsas` for this one advisory in `.github/workflows/dependency-review.yml`, with the reason beside it.
 Why: the advisory cannot reach a shipped build, and the fix depends on Tauri moving to a newer gtk-rs. Revisit when Tauri updates, or before any Linux build.
+
+## D018. A cloud option on the user's own Cloudflare account (2026-11-04)
+
+Replaces D004 for cloud workspaces. Team features (organizations, shared workspaces, routines, workspace chat) stay out.
+Context: the owner wants workspaces that keep running when the Mac sleeps. Cloudflare's Sandbox SDK runs isolated Linux containers with git, a shell and files, and Cloudflare documents running Claude Code, Codex, OpenCode and Pi in them.
+Chosen: an optional cloud host for workspaces, deployed by each user to their own Cloudflare account (Workers Paid, 5 US dollars a month plus usage), with their own model key. We host nothing. The UI reaches git, shell, files, terminals and the sidecar through a `Host` interface, local or cloud. The details and a spike with a kill criterion are in `docs/plans/cloud-and-remote.md`.
+Why: no servers, billing or user data on our side, and the sidecar already runs anywhere its I/O is passed in.
+
+## D019. Claude Remote Control for Conducted's chats (2026-11-04)
+
+Context: Claude Code's Remote Control lets claude.ai/code and the Claude mobile app follow and steer a running session. Anthropic documents it for interactive sessions with a claude.ai login; the Agent SDK ships an `@alpha` bridge API for it. Conductor does not offer it.
+Chosen: support it for Claude chats, chosen per chat. A spike decides between letting Claude Code connect itself and our own bridge through the alpha API, and drops the feature if neither works without undocumented protocols.
+Why: following and steering agents from a phone is a large part of running several of them at once.

@@ -232,3 +232,22 @@ Priority: **1** = the first working slice (add a repo, create a workspace, chat 
 | APP-05 | Design system: components and tokens             | D/ui                   | ui-map 8       | 1   | stub   |
 | APP-06 | Update notice and restart when idle              | D/features/updates     | ui-map 1.3     | 3   | stub   |
 | APP-07 | Resource usage table                             | D/features/sidebar     | ui-map 1.3     | 3   | stub   |
+
+## Planned: cloud workspaces and Remote Control (CLOUD, RC)
+
+Approved in principle (D018, D019). Not scaffolded yet: these rows get placeholders and the status `stub` when their spike confirms the design in [cloud-and-remote.md](cloud-and-remote.md). `pnpm stubs` ignores the status `planned`.
+
+| ID       | Feature                                                                                                           | Owner                      | Research                   | P   | Status  |
+| -------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------- | -------------------------- | --- | ------- |
+| CLOUD-01 | Host interface: each workspace reaches git, shell, files, terminals and its sidecar through a local or cloud host | D/core                     | cloud-and-remote.md Part 1 | 1   | planned |
+| CLOUD-02 | Cloud spike: one Claude turn in a Cloudflare sandbox, driven from the desktop app                                 | apps/cloud                 | cloud-and-remote.md Part 1 | 1   | planned |
+| CLOUD-03 | The user's Worker and one Durable Object per workspace: routes, state, keep-alive, relay                          | apps/cloud                 | cloud-and-remote.md Part 1 | 2   | planned |
+| CLOUD-04 | Sandbox image with git, gh, the agent programs and our sidecar                                                    | apps/cloud                 | cloud-and-remote.md Part 1 | 2   | planned |
+| CLOUD-05 | Secrets stay outside the sandbox: the outbound handler swaps in the model key and GitHub token                    | apps/cloud                 | cloud-and-remote.md Part 1 | 2   | planned |
+| CLOUD-06 | Keep work across sandbox restarts                                                                                 | apps/cloud                 | cloud-and-remote.md Part 1 | 2   | planned |
+| CLOUD-07 | Pair the desktop app with the user's Worker                                                                       | D/core, apps/cloud         | cloud-and-remote.md Part 1 | 2   | planned |
+| CLOUD-08 | Deploy flow for the user's Cloudflare account                                                                     | apps/cloud, D/features     | cloud-and-remote.md Part 1 | 2   | planned |
+| CLOUD-09 | Cloud terminals, run scripts and previews                                                                         | D/core, apps/cloud         | cloud-and-remote.md Part 1 | 3   | planned |
+| RC-01    | Remote Control spike: path A, then path B                                                                         | S/runners/claude           | cloud-and-remote.md Part 2 | 2   | planned |
+| RC-02    | Per-chat Remote Control switch and connection status                                                              | D/features/chat, S/session | cloud-and-remote.md Part 2 | 2   | planned |
+| RC-03    | Accept input from claude.ai: messages, approvals, interrupts, with who sent each                                  | S/session, D/core          | cloud-and-remote.md Part 2 | 2   | planned |

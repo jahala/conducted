@@ -58,7 +58,7 @@ Out: organizations, sign-in to a Conductor-style service, cloud workspaces and s
 2. **Our own neutral message format.** Every runner translates into it, Claude included. Conductor borrowed Claude's format and then needed a second renderer for Codex.
 3. **One event log.** A session's history lives in `session_events` only. There is no second message table. Migration 0001 states each table's lifetime, and the data-lifetime job (DATA-02) enforces it.
 4. **The sidecar writes the backup before sending** each event (a real write-ahead log). Conductor's outbox is best-effort.
-5. **No cloud seam.** Conductor's "host" abstraction exists for cloud machines. A local-only app does not need it. If cloud work is ever wanted, it gets its own plan.
+5. **No cloud seam.** Conductor's "host" abstraction exists for cloud machines. A local-only app does not need it. If cloud work is ever wanted, it gets its own plan. (Replaced 2026-11-04 by D018: see [cloud-and-remote.md](cloud-and-remote.md).)
 6. **Licensed or open libraries only.** The chat list uses an open-source virtualiser instead of the commercial `VirtuosoMessageList`. Every dependency's licence is checked when it is added.
 7. **Agent programs come from the user's machine first.** The app finds installed `claude`, `codex`, `cursor-agent`, `opencode` and `pi` on the captured login-shell `PATH`. A download manager like Conductor's stays a stub with a spec, because it needs a hosted release feed.
 8. **Behaviour, not code.** Nothing is copied from Conductor's bundles: no code, no prompt text, no assets (city lists, sounds, videos, icons). Specs describe what happens, in our words.

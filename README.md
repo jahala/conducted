@@ -16,6 +16,8 @@
 
 It runs locally and needs no account. The agents run with your own installed tools and subscriptions.
 
+Planned next ([plan](docs/plans/cloud-and-remote.md)): cloud workspaces that keep working while your Mac sleeps, on your own Cloudflare account, and opening any Claude chat on your phone through Claude's Remote Control.
+
 ## How it is built
 
 ```
