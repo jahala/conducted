@@ -212,6 +212,11 @@ export interface AppInfo {
 	/** "dev" while running under `tauri dev`. */
 	channel: "dev" | "release";
 	health(): Promise<Result<void, AppError>>;
+	/**
+	 * Null when the database schema is one this app knows. Otherwise the versions, and startup
+	 * stops with a "database is newer than this app" screen (PLAT-17).
+	 */
+	dbVersionWarning(): Promise<Result<{ databaseVersion: number; appVersion: number } | null>>;
 	onDeepLink(listener: (url: string) => void): Unsubscribe;
 	onQuitRequested(listener: () => void): Unsubscribe;
 	quit(): Promise<void>;

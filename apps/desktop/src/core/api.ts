@@ -30,15 +30,26 @@ import type {
 	WorkspaceId,
 } from "@conducted/shared";
 import type {
+	BranchCommit,
 	ChatView,
+	DiagnosticsCapture,
 	DiffComment,
+	EnvScope,
+	EnvVarView,
+	FileContent,
+	GitHubAccess,
 	GitState,
 	KanbanStatus,
+	McpServerView,
+	PrActivityEntry,
 	Repo,
 	RepoConfig,
 	Section,
 	Session,
+	SetupView,
+	StackEntryView,
 	Terminal,
+	TerminalConnection,
 	Workspace,
 	WorkspaceStatus,
 } from "./model.ts";
@@ -74,9 +85,39 @@ export interface FileDiff {
 	tooLarge: boolean;
 }
 
+/** A file or folder in the workspace, relative to its root. */
+export interface FileEntry {
+	path: string;
+	isDirectory: boolean;
+}
+
+/** One line of a file that matches a content search. */
+export interface ContentMatch {
+	path: string;
+	line: number;
+	column: number;
+	/** The text of the matching line. */
+	preview: string;
+}
+
+export interface ContentSearchOptions {
+	matchCase: boolean;
+	wholeWord: boolean;
+	regex: boolean;
+}
+
+/** The error codes `Actions.files.write` can fail with. */
+export type FileWriteErrorCode = "changed_on_disk" | "missing" | "permission" | "other";
+
 export interface RunState {
 	actions: { id: string; label: string; command: string }[];
-	running: { actionId: string; terminalId: TerminalId; url: string | null }[];
+	running: {
+		actionId: string;
+		terminalId: TerminalId;
+		url: string | null;
+		/** Where the run is: waiting for the setup script to finish, or past it. */
+		phase: "starting" | "waiting_for_setup" | "running" | "stopping";
+	}[];
 	spotlight: { active: boolean; terminalId: TerminalId | null };
 	detectedPorts: number[];
 }
@@ -92,12 +133,16 @@ export interface CommandEntry {
 	category: string;
 	/** Display form, e.g. "⌘⇧P". Null when unbound. */
 	shortcut: string | null;
+	/** Display form of the shortcut the command ships with. Null when it ships unbound. */
+	defaultShortcut: string | null;
 	enabled: boolean;
 }
 
 export interface UpdateStatus {
 	state: "idle" | "checking" | "available" | "downloading" | "ready_when_idle" | "error";
 	version: string | null;
+	/** Where the release notes for `version` are. Null when none are published. */
+	notesUrl: string | null;
 	error: string | null;
 }
 
@@ -131,7 +176,7 @@ export interface Queries {
 	useGitState(workspaceId: WorkspaceId): Loadable<GitState>;
 	useChangedFiles(workspaceId: WorkspaceId, scope: DiffScope): Loadable<ChangedFile[]>;
 	useFileDiff(workspaceId: WorkspaceId, path: string, scope: DiffScope): Loadable<FileDiff>;
-	useFileTree(workspaceId: WorkspaceId): Loadable<{ path: string; isDirectory: boolean }[]>;
+	useFileTree(workspaceId: WorkspaceId): Loadable<FileEntry[]>;
 	useDiffComments(workspaceId: WorkspaceId): Loadable<DiffComment[]>;
 	useTerminals(workspaceId: WorkspaceId): Loadable<Terminal[]>;
 	useRunState(workspaceId: WorkspaceId): Loadable<RunState>;
@@ -141,6 +186,42 @@ export interface Queries {
 	useSlashCommands(sessionId: SessionId): Loadable<SlashCommand[]>;
 	useCommands(): CommandEntry[];
 	useUpdateStatus(): UpdateStatus;
+	/** Commits on the workspace branch that are not on the target branch yet, newest first. */
+	useBranchCommits(workspaceId: WorkspaceId): Loadable<BranchCommit[]>;
+	/** Branch names of the repository, for the target branch picker. */
+	useBranches(repoId: RepoId): Loadable<string[]>;
+	/** The log text of one check run of the workspace's pull request. */
+	useCheckLog(workspaceId: WorkspaceId, checkName: string): Loadable<string>;
+	/** Commits, reviews, comments and status changes of the workspace's pull request. */
+	usePullRequestActivity(workspaceId: WorkspaceId): Loadable<PrActivityEntry[]>;
+	/** The stacked-PR chain the workspace's pull request belongs to, in order from trunk. */
+	useStack(workspaceId: WorkspaceId): Loadable<StackEntryView[]>;
+	/** A file read from the workspace folder, for the file viewer. */
+	useFileContent(workspaceId: WorkspaceId, path: string): Loadable<FileContent>;
+	/** The live connection to one terminal's process. */
+	useTerminalConnection(id: TerminalId): Loadable<TerminalConnection>;
+	/** The state of the workspace's setup script, for the Setup tab. */
+	useSetupState(workspaceId: WorkspaceId): Loadable<SetupView>;
+	/** Environment variables of one scope. Values are not included. */
+	useEnvVars(scope: EnvScope): Loadable<EnvVarView[]>;
+	/** Whether the `gh` command is installed and signed in. */
+	useGitHubAccess(): Loadable<GitHubAccess>;
+	/** Names of the apps on this Mac that the "Open in" menu can use. */
+	useInstalledApps(): Loadable<string[]>;
+	/** The MCP servers of one chat and their status. */
+	useMcpServers(sessionId: SessionId): Loadable<McpServerView[]>;
+	/** What the diagnostics screen shows about the app, the machine and the agents. */
+	useDiagnostics(): Loadable<DiagnosticsCapture>;
+	/** Files and folders of the workspace whose path fuzzy-matches the query. */
+	useFileSearch(workspaceId: WorkspaceId, query: string): Loadable<FileEntry[]>;
+	/** Lines in the workspace's files that match the query. */
+	useContentSearch(
+		workspaceId: WorkspaceId,
+		query: string,
+		options: ContentSearchOptions,
+	): Loadable<ContentMatch[]>;
+	/** Chats of the workspace that were closed and can be reopened. */
+	useClosedSessions(workspaceId: WorkspaceId): Loadable<Session[]>;
 }
 
 // ---------------------------------------------------------------- actions
@@ -193,6 +274,8 @@ export interface Actions {
 		forkFrom: Act<[id: SessionId, turnId: TurnId], Session>;
 		saveDraft: (id: SessionId, draft: Draft) => void;
 		copyTranscript: Act<[id: SessionId, detail: "concise" | "full"]>;
+		/** Starts a new chat that carries out an approved plan ("Hand off"). */
+		startFromPlan: Act<[id: SessionId, planText: string], Session>;
 		queue: {
 			edit: Act<[messageId: MessageId, text: string]>;
 			remove: Act<[messageId: MessageId]>;
@@ -253,6 +336,28 @@ export interface Actions {
 		create: Act<[workspaceId: WorkspaceId], Terminal>;
 		close: Act<[id: TerminalId]>;
 	};
+	files: {
+		/**
+		 * Saves a file. Fails with code "changed_on_disk" (a FileWriteErrorCode) when the file changed
+		 * since `expectedModifiedAt`.
+		 */
+		write: Act<
+			[workspaceId: WorkspaceId, path: string, text: string, expectedModifiedAt: number],
+			{ modifiedAt: number }
+		>;
+		/** Puts files from the workspace into the active chat's composer. */
+		attachToChat: Act<[workspaceId: WorkspaceId, paths: string[]]>;
+		/** Opens a file in the app's file tab, as a diff or in the editor. */
+		open: Act<[workspaceId: WorkspaceId, path: string, mode: "diff" | "edit", scope: DiffScope]>;
+	};
+	mcp: {
+		/** Asks the agent to check its MCP servers again. */
+		refresh: Act<[sessionId: SessionId]>;
+	};
+	attachments: {
+		/** Copies files into app storage for a chat and returns where the copies are. */
+		add: Act<[sessionId: SessionId, paths: string[]], string[]>;
+	};
 	settings: {
 		set: Act<[key: string, value: unknown]>;
 		setEnvVar: Act<[name: string, value: string, scope: { repoId: RepoId } | "global"]>;
@@ -271,5 +376,10 @@ export interface Actions {
 		installUpdate: Act;
 		exportLogs: Act<[], string>;
 		openUrl: Act<[url: string]>;
+		/** Shows the system folder dialog. The result is null when the user cancels. */
+		pickFolder: Act<[title: string], string | null>;
+		recheckGitHubAccess: Act;
+		/** Writes the redacted diagnostics report to a file and starts a chat with it attached. */
+		createDiagnosticsChat: Act<[workspaceId: WorkspaceId]>;
 	};
 }

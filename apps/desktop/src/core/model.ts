@@ -8,6 +8,7 @@ import type {
 	FileChange,
 	Interaction,
 	LiveState,
+	Progress,
 	SessionConfig,
 } from "@conducted/protocol";
 import type {
@@ -16,6 +17,7 @@ import type {
 	InteractionId,
 	MessageId,
 	RepoId,
+	Result,
 	SectionId,
 	SessionId,
 	TerminalId,
@@ -49,6 +51,10 @@ export interface RepoConfig {
 	copyFiles: string[];
 	previewUrlTemplate: string | null;
 	spotlightTesting: boolean;
+	/** Start the repository's default run action once the setup script has finished. */
+	autoRunAfterSetup: boolean;
+	/** Name of the git remote this repository uses for fetch, push and pull requests. Null when it has none. */
+	remoteName: string | null;
 	prompts: {
 		general: string | null;
 		codeReview: string | null;
@@ -121,6 +127,8 @@ export interface DiffComment {
 	endLine: number | null;
 	body: string;
 	author: { kind: "user" | "agent" | "github"; name: string | null };
+	/** Which side of a split diff the comment is anchored to: removed lines or added lines. */
+	side: "deletions" | "additions";
 	threadId: string | null;
 	replyToId: CommentId | null;
 	suggestion: string | null;
@@ -201,8 +209,12 @@ export interface ChatView {
 	liveState: LiveState;
 	queued: QueuedMessage[];
 	openInteraction: { interactionId: InteractionId; interaction: Interaction } | null;
-	progress: { title?: string; steps: { label: string; status: string }[] } | null;
+	progress: ProgressView | null;
 }
+
+/** The agent's progress tracker for a chat (shape owned by @conducted/protocol). */
+export type ProgressView = Progress;
+export type { ProgressBlock, ProgressStepStatus } from "@conducted/protocol";
 
 // ---------------------------------------------------------------- git and PR state
 
@@ -222,6 +234,8 @@ export interface CheckRun {
 	url: string | null;
 	startedAt: number | null;
 	completedAt: number | null;
+	/** The repository's branch protection requires this check to pass before merging. */
+	required: boolean;
 }
 
 export interface PullRequest {
@@ -236,7 +250,106 @@ export interface PullRequest {
 	inMergeQueue: boolean;
 	autoMergeEnabled: boolean;
 	baseBranch: string;
+	authorLogin: string | null;
+	/** The signed-in GitHub user opened this PR. They cannot approve it. */
+	viewerDidAuthor: boolean;
+	/** The signed-in user has write, maintain or admin permission on the repository. */
+	viewerCanMerge: boolean;
+	/** The repository's preferred merge method: squash first, then rebase, then merge commit. */
+	mergeMethod: "squash" | "rebase" | "merge";
+	reviewers: ReviewerView[];
+	deployments: DeploymentView[];
+	/** Milliseconds since the Unix epoch. */
+	updatedAt: number;
 }
+
+export type ReviewerState =
+	| "approved"
+	| "changes_requested"
+	| "commented"
+	| "dismissed"
+	| "awaiting";
+
+export interface ReviewerView {
+	login: string;
+	avatarUrl: string | null;
+	state: ReviewerState;
+}
+
+export type DeploymentProvider =
+	| "vercel"
+	| "cloudflare"
+	| "netlify"
+	| "render"
+	| "railway"
+	| "fly"
+	| "amplify"
+	| "heroku"
+	| "github_pages"
+	| "other";
+
+export type DeploymentState = "pending" | "deploying" | "deployed" | "failed" | "inactive";
+
+export interface DeploymentView {
+	environment: string;
+	provider: DeploymentProvider;
+	state: DeploymentState;
+	url: string | null;
+	updatedAt: number;
+}
+
+/** One commit on the workspace branch that is not on the target branch yet. */
+export interface BranchCommit {
+	sha: string;
+	shortSha: string;
+	subject: string;
+	authorName: string;
+	/** Milliseconds since the Unix epoch. */
+	at: number;
+}
+
+/** One member of a stacked-PR chain, in order from trunk. */
+export interface StackEntryView {
+	number: number;
+	title: string;
+	branch: string;
+	state: "open" | "draft" | "merged" | "closed";
+	isCurrent: boolean;
+	needsRestack: boolean;
+}
+
+/** One entry of the PR tab's activity list, built from the GitHub data the services fetch. */
+export type PrActivityEntry =
+	| { kind: "commit"; id: string; at: number; sha: string; subject: string; authorName: string }
+	| {
+			kind: "review";
+			id: string;
+			at: number;
+			authorLogin: string;
+			state: "approved" | "changes_requested" | "commented" | "dismissed";
+			body: string;
+	  }
+	| {
+			kind: "comment";
+			id: string;
+			at: number;
+			authorLogin: string;
+			body: string;
+			/** Set for review thread comments. */
+			filePath: string | null;
+			line: number | null;
+			commentId: string | null;
+	  }
+	| {
+			kind: "status";
+			id: string;
+			at: number;
+			change: "ready_for_review" | "merged" | "closed" | "reopened";
+	  };
+
+/** The tabs of the Git panel. The workspace URL stores the active one. */
+export const GIT_PANEL_TABS = ["files", "changes", "checks"] as const;
+export type GitPanelTab = (typeof GIT_PANEL_TABS)[number];
 
 /** Everything the Git panel header needs. Computed by services/git.ts. */
 export interface GitState {
@@ -251,6 +364,8 @@ export interface GitState {
 	pullRequest: PullRequest | null;
 	/** Why PR info is missing, when it is. */
 	pullRequestUnavailable: "none" | "offline" | "no_github_access" | "not_github" | "loading" | null;
+	/** The list of untracked files was cut off because the repository has too many of them. */
+	untrackedFilesTruncated: boolean;
 }
 
 // ---------------------------------------------------------------- derived workspace status
@@ -282,3 +397,108 @@ export type WorkspaceStatus =
 				| "changes"
 				| "clean";
 	  };
+
+// ---------------------------------------------------------------- files, terminals, setup
+
+/** What the file viewer gets when it reads a file from the workspace folder. */
+export type FileContent =
+	| { kind: "text"; text: string; modifiedAt: number; sizeBytes: number }
+	| {
+			kind: "binary";
+			sizeBytes: number;
+			modifiedAt: number;
+			/** A URL the webview may load for images, PDF and video. Null when none can be made. */
+			previewUrl: string | null;
+	  }
+	| { kind: "too_large"; sizeBytes: number }
+	| { kind: "missing" };
+
+export type TerminalUnsubscribe = () => void;
+
+/**
+ * What a terminal view needs from the services: input, resize, output, exit, and saved history.
+ * Screens may not reach the Platform, so the services hand the view this narrow object.
+ */
+export interface TerminalConnection {
+	/** Saved scrollback to replay before live output. Empty for a new terminal. */
+	history: Uint8Array;
+	/** The terminal's process ended. Input and resize are no longer possible. */
+	ended: { exitCode: number | null } | null;
+	write(data: string): Promise<Result<void>>;
+	resize(cols: number, rows: number): Promise<Result<void>>;
+	/** Output chunks. Call `ack` with the byte count once a chunk has been written to the screen. */
+	onData(listener: (chunk: Uint8Array) => void): TerminalUnsubscribe;
+	ack(bytes: number): void;
+	onExit(listener: (exitCode: number | null) => void): TerminalUnsubscribe;
+}
+
+export type SetupState =
+	| "idle"
+	| "detecting"
+	| "running"
+	| "stopping"
+	| "completed"
+	| "failed"
+	| "cancelled";
+
+/** The state of a workspace's setup script, for the Setup tab. */
+export interface SetupView {
+	state: SetupState;
+	hasScript: boolean;
+	exitCode: number | null;
+	/** The live terminal while running. */
+	terminalId: TerminalId | null;
+	log: "live" | "saved" | "missing" | "expired";
+	/** Set when a quit or crash ended the run, e.g. "The app quit while setup was running." */
+	interruptedReason: string | null;
+}
+
+// ---------------------------------------------------------------- settings and diagnostics
+
+export type EnvScope = "global" | { repoId: RepoId };
+
+/**
+ * One variable row for the Environment page. The value is not in the row: the page asks for it on
+ * reveal, so it does not sit in screen state by default.
+ */
+export interface EnvVarView {
+	name: string;
+	scope: EnvScope;
+	hasValue: boolean;
+	/** In a repository scope: a global variable of the same name is replaced here. */
+	overridesGlobal: boolean;
+	/** In the global scope: a repository replaces it for that repository. */
+	overriddenInRepos: number;
+}
+
+/** The GitHub status the Account page shows, from the `gh` command. */
+export type GitHubAccess =
+	| { state: "gh_missing" }
+	| { state: "signed_out" }
+	| { state: "unknown"; reason: "offline" | "check_failed" }
+	| { state: "signed_in"; login: string; host: string; scopes: string[]; usesToken: boolean };
+
+/** One MCP server row for the list and the status dialog. */
+export interface McpServerView {
+	name: string;
+	/** Where the server was configured: the user's agent config or the project's. */
+	source: "user" | "project";
+	transport: "stdio" | "http" | "sse";
+	status: "connected" | "needs_auth" | "failed" | "pending" | "disabled";
+	toolCount: number | null;
+	error: string | null;
+	/** Last lines of the server's log, newest last. Empty when none were captured. */
+	logTail: string[];
+}
+
+/** What the diagnostics screen captures about the app, the machine and the agents. */
+export interface DiagnosticsCapture {
+	app: { version: string; channel: "dev" | "release" };
+	os: { name: string; version: string; arch: string };
+	shell: string;
+	path: string;
+	env: Record<string, string>;
+	agents: { name: string; installed: boolean; version: string | null; path: string | null }[];
+	sidecar: { running: boolean; logPath: string | null };
+	capturedAt: number;
+}
