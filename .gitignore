@@ -1,0 +1,12 @@
+# Dependencies and build output
+node_modules/
+dist/
+target/
+*.tsbuildinfo
+.vite/
+
+# Local scratch space, including code extracted from Conductor for research.
+# Never commit it: it is another company's code.
+.context/
+
+.DS_Store
