@@ -1,0 +1,20 @@
+{
+	"name": "conducted",
+	"private": true,
+	"type": "module",
+	"packageManager": "pnpm@9.15.9",
+	"scripts": {
+		"dev": "pnpm --filter @conducted/desktop tauri dev",
+		"typecheck": "pnpm -r --parallel typecheck",
+		"lint": "biome check .",
+		"format": "biome format --write .",
+		"test": "pnpm -r test",
+		"stubs": "bun scripts/check-stubs.ts",
+		"check": "pnpm typecheck && pnpm lint && pnpm test && pnpm stubs"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.6.5",
+		"@types/bun": "^1.4.4",
+		"typescript": "^7.0.2"
+	}
+}
