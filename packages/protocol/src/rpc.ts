@@ -18,6 +18,7 @@ import {
 } from "./ids.ts";
 import { zInteractionAnswer, zInteractionRequest } from "./interactions.ts";
 import { zLiveState } from "./live-state.ts";
+import { zProgress } from "./progress.ts";
 import { zEffort, zSessionConfig, zWorkspaceContext } from "./session-config.ts";
 
 export interface MethodSpec<P extends z.ZodType, R extends z.ZodType> {
@@ -142,7 +143,8 @@ export const appToSidecarRequests = {
 				.object({
 					fiveHourUsedPercent: z.number().optional(),
 					sevenDayUsedPercent: z.number().optional(),
-					resetsAt: z.number().optional(),
+					fiveHourResetsAt: z.number().optional(),
+					sevenDayResetsAt: z.number().optional(),
 				})
 				.optional(),
 		}),
@@ -175,6 +177,17 @@ export const appToSidecarRequests = {
 		z.object({ url: z.string().optional(), code: z.string().optional(), instructions: z.string() }),
 	),
 	/** The PATH and shell captured from the user's login shell. */
+	/** Whether the sidecar is alive and its write-ahead log is usable. The Rust launcher polls it. */
+	getHealth: method(
+		empty,
+		z.object({
+			pid: z.number().int(),
+			startedAt: z.number(),
+			sessions: z.number().int().nonnegative(),
+			pendingEvents: z.number().int().nonnegative(),
+			outboxHealthy: z.boolean(),
+		}),
+	),
 	getShellEnv: method(
 		z.object({ workspacePath: z.string() }),
 		z.object({ shell: z.string(), path: z.string() }),
@@ -203,13 +216,7 @@ export const sidecarToAppNotifications = {
 	/** The agent's own session id became known (first turn) or changed (fork). */
 	agentSessionId: z.object({ sessionId: zSessionId, agentSessionId: z.string() }),
 	/** The UpdateProgress tool was called. The UI shows it above the composer. */
-	progress: z.object({
-		sessionId: zSessionId,
-		title: z.string().optional(),
-		steps: z.array(
-			z.object({ label: z.string(), status: z.enum(["pending", "in_progress", "done", "failed"]) }),
-		),
-	}),
+	progress: z.object({ sessionId: zSessionId, progress: zProgress }),
 	agentInstallsChanged: z.object({ agents: z.array(zAgentInstall) }),
 } as const;
 

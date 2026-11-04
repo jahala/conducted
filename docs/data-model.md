@@ -41,6 +41,9 @@ Generated from the migrations by `bun scripts/guards/data-model.ts --write`. `pn
 | Sidecar log buffer | memory | 64 MiB, oldest dropped first. | SIDE-18 |
 | Terminal scrollback | app data `terminal-history/` | 14 days after the terminal ends, and at most 50 MB in total, oldest first. | PLAT-08 |
 | Draft attachments | app data `draft-attachments/` | 7 days for drafts never sent. | DATA-02 |
+| Composer drafts | app data `drafts/<session>.json` | 30 days without an edit, and when the chat is deleted. | DATA-02 |
+| Setup script logs | app data `setup-logs/<workspace>.log` | Removed with the workspace. | WS-10 |
+| "Viewed" ticks in the diff | app data `viewed-files/<workspace>.json` | Removed with the workspace. | WS-10 |
 | Turn snapshots | `refs/conducted/checkpoints/*` in each repo | Removed when their chat is deleted, and 30 days after their workspace is archived. | DATA-06 |
 | Archive snapshots | `refs/conducted/archive/<workspace>` in each repo | Until the workspace is deleted. | WS-10 |
 | Worktrees | the workspaces folder | Removed when the workspace is archived. | WS-05 |

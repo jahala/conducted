@@ -3,6 +3,8 @@ export * from "./events.ts";
 export * from "./ids.ts";
 export * from "./interactions.ts";
 export * from "./live-state.ts";
+export * from "./mentions.ts";
+export * from "./progress.ts";
 export * from "./rpc.ts";
 export * from "./session-config.ts";
 export * from "./tools.ts";

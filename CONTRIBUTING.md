@@ -8,6 +8,7 @@ Thanks for your interest. Conducted is early: most of the app is a scaffold of p
 2. Pick a backlog id. Write the failing test named under "Test first" in the file header, then make it pass.
 3. Remove the feature's placeholders and set its backlog row to `done` in the same change.
 4. Run the gates locally:
+
    ```bash
    pnpm install
    pnpm check                     # typecheck, lint, tests, placeholders vs backlog

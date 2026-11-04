@@ -33,27 +33,27 @@ Priority: **1** = the first working slice (add a repo, create a workspace, chat 
 
 ## Sidecar core (SIDE)
 
-| ID      | Feature                                                                        | Owner         | Research                  | P   | Status |
-| ------- | ------------------------------------------------------------------------------ | ------------- | ------------------------- | --- | ------ |
-| SIDE-01 | Entry point and modes                                                          | S/main.ts     | native-and-sidecar-map B1 | 1   | stub   |
-| SIDE-02 | JSON-RPC server over a Unix socket, NDJSON, re-attach on reconnect             | S/rpc         | sessions 0, 10            | 1   | stub   |
-| SIDE-03 | Session manager: per-session queue, duplicate guard, idle after flush          | S/session     | sessions 2                | 1   | stub   |
-| SIDE-04 | Turn lifecycle and stale-run guard                                             | S/session     | sessions 2                | 1   | stub   |
-| SIDE-05 | Event batching and live-state notifications                                    | S/session     | sessions 5                | 1   | stub   |
-| SIDE-06 | Write-ahead event log: write before send, ack, replay on reconnect             | S/outbox      | sessions 5                | 1   | stub   |
-| SIDE-07 | Process manager: leases, 30-minute idle stop, warm pool of 2                   | S/process     | sessions 3                | 2   | stub   |
-| SIDE-08 | Checkpoints: start before first write, end with file summary                   | S/checkpoints | sessions 7                | 1   | stub   |
-| SIDE-09 | Prompt assembly: first-message instruction, mentions, attachments, preferences | S/prompt      | claude-runner 5           | 1   | stub   |
-| SIDE-10 | Login-shell environment capture with provider secrets removed                  | S/shell-env   | native-and-sidecar-map B3 | 1   | stub   |
-| SIDE-11 | Interactions: one open per session, withdrawn on cancel or new message         | S/session     | claude-runner 3           | 1   | stub   |
-| SIDE-12 | App tools as an in-process MCP server (for Claude)                             | S/tools       | claude-runner 4           | 2   | stub   |
-| SIDE-13 | App tools over a socket bridge (for Codex and ACP agents)                      | S/tools       | claude-runner 4.3         | 2   | stub   |
-| SIDE-14 | Model catalog per agent                                                        | S/models      | other-runners 5           | 1   | stub   |
-| SIDE-15 | Agent detection, versions and sign-in flows                                    | S/models      | other-runners 5           | 1   | stub   |
-| SIDE-16 | Slash commands and MCP server listing                                          | S/models      | claude-runner 7           | 2   | stub   |
-| SIDE-17 | Context and plan usage                                                         | S/models      | claude-runner 7           | 2   | stub   |
-| SIDE-18 | Logger mode                                                                    | S/logging     | native-and-sidecar-map B5 | 3   | stub   |
-| SIDE-19 | Parent watchdog and graceful shutdown                                          | S/main.ts     | sessions 8                | 1   | stub   |
+| ID      | Feature                                                                        | Owner                        | Research                  | P   | Status |
+| ------- | ------------------------------------------------------------------------------ | ---------------------------- | ------------------------- | --- | ------ |
+| SIDE-01 | Entry point and modes                                                          | S/main.ts                    | native-and-sidecar-map B1 | 1   | stub   |
+| SIDE-02 | JSON-RPC server over a Unix socket, NDJSON, re-attach on reconnect             | S/rpc                        | sessions 0, 10            | 1   | stub   |
+| SIDE-03 | Session manager: per-session queue, duplicate guard, idle after flush          | S/session                    | sessions 2                | 1   | stub   |
+| SIDE-04 | Turn lifecycle and stale-run guard                                             | S/session                    | sessions 2                | 1   | stub   |
+| SIDE-05 | Event batching and live-state notifications                                    | S/session                    | sessions 5                | 1   | stub   |
+| SIDE-06 | Write-ahead event log: write before send, ack, replay on reconnect             | S/outbox                     | sessions 5                | 1   | stub   |
+| SIDE-07 | Process manager: leases, 30-minute idle stop, warm pool of 2                   | S/process                    | sessions 3                | 2   | stub   |
+| SIDE-08 | Checkpoints: start before first write, end with file summary                   | S/checkpoints                | sessions 7                | 1   | stub   |
+| SIDE-09 | Prompt assembly: first-message instruction, mentions, attachments, preferences | S/prompt                     | claude-runner 5           | 1   | stub   |
+| SIDE-10 | Login-shell environment capture with provider secrets removed                  | S/shell-env                  | native-and-sidecar-map B3 | 1   | stub   |
+| SIDE-11 | Interactions: one open per session, withdrawn on cancel or new message         | S/session                    | claude-runner 3           | 1   | stub   |
+| SIDE-12 | App tools as an in-process MCP server (for Claude)                             | S/tools                      | claude-runner 4           | 2   | stub   |
+| SIDE-13 | App tools over a socket bridge (for Codex and ACP agents)                      | S/tools                      | claude-runner 4.3         | 2   | stub   |
+| SIDE-14 | Model catalog per agent                                                        | S/models                     | other-runners 5           | 1   | stub   |
+| SIDE-15 | Agent detection, versions and sign-in flows                                    | S/models                     | other-runners 5           | 1   | stub   |
+| SIDE-16 | Slash commands and MCP server listing                                          | S/models                     | claude-runner 7           | 2   | stub   |
+| SIDE-17 | Context and plan usage                                                         | S/models                     | claude-runner 7           | 2   | stub   |
+| SIDE-18 | Logger mode                                                                    | S/logging                    | native-and-sidecar-map B5 | 3   | stub   |
+| SIDE-19 | Parent watchdog and graceful shutdown                                          | S/watchdog.ts, S/shutdown.ts | sessions 8                | 1   | stub   |
 
 ## Agent runners (AGENT)
 

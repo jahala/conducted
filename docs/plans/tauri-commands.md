@@ -9,6 +9,7 @@ Dialogs, clipboard, opening URLs, notifications permission and the SQL database 
 | Platform method                                  | Command                                                                      | Rust module         | Events emitted                         |
 | ------------------------------------------------ | ---------------------------------------------------------------------------- | ------------------- | -------------------------------------- |
 | `app.health`                                     | `health`                                                                     | lib.rs              |                                        |
+| `app.dbVersionWarning`                           | `db_version_check`                                                           | db.rs               |                                        |
 | `app.version`, `app.channel`                     | `app_info`                                                                   | lib.rs              |                                        |
 | `app.onQuitRequested`, `app.quit`                | `app_quit`                                                                   | lib.rs              | `app://quit-requested`                 |
 | `app.onDeepLink`                                 | (plugin)                                                                     | deep_link.rs        | `app://deep-link`                      |
@@ -50,3 +51,30 @@ Dialogs, clipboard, opening URLs, notifications permission and the SQL database 
 | `updater.check`, `.install`, `.relaunch`         | `updater_check`, `updater_install`, `updater_relaunch`                       | updater.rs          | `updater://status`                     |
 | (attachments)                                    | `attachment_materialize`, `image_resize`                                     | attachments.rs      |                                        |
 | (menu)                                           | `menu_set_shortcuts`                                                         | menu.rs             | `menu://command` (payload: command id) |
+
+Commands outside the Platform interface:
+
+- `notification_take_pending`: returns notification clicks that arrived before the web view was ready, so a click that launches the app is not lost.
+
+## Sidecar launch
+
+How the Rust shell (`sidecar.rs`, PLAT-09) starts the sidecar, and what the sidecar (`packages/sidecar`) expects. Both sides follow this list.
+
+Command: `conducted-sidecar sidecar` (logger: `conducted-sidecar logger`).
+
+Environment the Rust shell sets:
+
+| Variable                                         | Meaning                                                                    |
+| ------------------------------------------------ | -------------------------------------------------------------------------- |
+| `CONDUCTED_PARENT_PID`                           | The app's process id. The sidecar exits when its parent changes (SIDE-19). |
+| `CONDUCTED_OUTBOX_ROOT`                          | Folder for the write-ahead event log (SIDE-06).                            |
+| `CONDUCTED_LOG_DIR`                              | Folder for sidecar log files.                                              |
+| `CONDUCTED_BIN_DIR`                              | Folder holding `checkpointer.sh`, `git-busy-check.sh`, `spotlighter.sh`.   |
+| `CONDUCTED_APP_VERSION`                          | The app version, for logs and the health check.                            |
+| `CONDUCTED_LOGGER_TOKEN`, `CONDUCTED_LOGGER_DIR` | Logger mode only: the bearer token and the log folder.                     |
+
+The sidecar never reads the database, so it gets no database path.
+
+Handshake: the sidecar prints one line `SOCKET_PATH=<path>` on stdout once its Unix socket listens. Logger mode prints `LOGGER_PORT=<port>`. Everything else on stdout and stderr is log output.
+
+Environment the sidecar sets for each agent process: `CONDUCTED_WORKSPACE_PATH`, `CONDUCTED_ROOT_PATH`, `CONDUCTED_DEFAULT_BRANCH`, `CONDUCTED_PORT`, `CONDUCTED_SESSION_ID`, and `CONDUCTED_APP_TOOLS_TOKEN` for the app-tools bridge. `spotlighter.sh` also needs `CONDUCTED_CHECKPOINTER_PATH`, `CONDUCTED_WATCHEXEC_PATH` and `CONDUCTED_ROOT_PATH`; `watchexec` is not bundled yet (RUN-08).
