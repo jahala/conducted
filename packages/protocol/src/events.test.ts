@@ -10,7 +10,7 @@ const config = {
 	planMode: false,
 	requireToolApproval: false,
 	additionalDirectories: [],
-	appTools: { diffComments: true, progressUpdates: false },
+	appTools: { diffComments: true, progressUpdates: false, setTargetBranch: true },
 };
 
 test("a user message event round-trips through the schema", () => {

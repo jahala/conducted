@@ -30,6 +30,30 @@ export const CANONICAL_TOOLS = [
 	"exit_plan_mode",
 	"skill",
 	"slash_command",
+	/** The agent creates a task in its task list. */
+	"task_create",
+	/** The agent reads one task. */
+	"task_get",
+	/** The agent lists its tasks. */
+	"task_list",
+	/** The agent changes a task: status, subject or what it blocks. */
+	"task_update",
+	/** The agent stops a background task it started. */
+	"task_stop",
+	/** The agent starts watching a command's output in the background. */
+	"monitor",
+	/** The agent looks at an image file. */
+	"image_view",
+	/** The agent generates an image. */
+	"image_generation",
+	/** The agent runs JavaScript in a Node REPL. */
+	"node_repl",
+	/** The agent searches for tools it can load. */
+	"tool_search",
+	/** The agent asks to be woken up later, for example to check on a long job. */
+	"schedule_wakeup",
+	/** The agent sends a message to another chat. */
+	"send_message",
 	"app_tool",
 	"mcp",
 	"unknown",
@@ -48,6 +72,10 @@ export const READ_ONLY_TOOLS: ReadonlySet<CanonicalTool> = new Set([
 	"todo",
 	"enter_plan_mode",
 	"ask_user_question",
+	"task_get",
+	"task_list",
+	"image_view",
+	"tool_search",
 ]);
 
 /**

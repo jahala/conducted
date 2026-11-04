@@ -19,6 +19,8 @@ export type TerminalId = Brand<string, "TerminalId">;
 export type CommentId = Brand<string, "CommentId">;
 export type AttachmentId = Brand<string, "AttachmentId">;
 export type SectionId = Brand<string, "SectionId">;
+/** A saved prompt snippet (COMP-09). */
+export type SnippetId = Brand<string, "SnippetId">;
 
 /** Agent families the app can drive. ACP covers OpenCode and Pi. */
 export const AGENT_KINDS = ["claude", "codex", "cursor", "acp"] as const;
@@ -27,3 +29,11 @@ export type AgentKind = (typeof AGENT_KINDS)[number];
 /** ACP agents the app knows how to launch. */
 export const ACP_AGENTS = ["opencode", "pi"] as const;
 export type AcpAgent = (typeof ACP_AGENTS)[number];
+
+/**
+ * Programs the app downloads, verifies, updates and prunes for the user (D021, D024). The user may
+ * choose a copy of their own instead in settings. ACP adapters (OpenCode, Pi) are not in this list:
+ * the sidecar installs those.
+ */
+export const MANAGED_PROGRAMS = ["claude", "codex", "gh", "watchexec"] as const;
+export type ManagedProgram = (typeof MANAGED_PROGRAMS)[number];

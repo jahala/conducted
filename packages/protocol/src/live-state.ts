@@ -29,6 +29,25 @@ export const zLiveState = z.object({
 		.optional(),
 	/** False after the provider refused fast mode for this account. */
 	fastModeAvailable: z.boolean(),
+	/**
+	 * Set while the turn waits on a blocking read of a background task's output, in milliseconds
+	 * since the epoch. The chat shows how long it has waited.
+	 */
+	waitingSince: z.number().optional(),
+	/**
+	 * Set while the agent retries a failed request by itself, for the "retrying n of m" line.
+	 * Cleared when the retry succeeds or the turn ends.
+	 */
+	retry: z
+		.object({
+			attempt: z.number().int().positive(),
+			maxAttempts: z.number().int().positive(),
+			/** When the next attempt starts, in milliseconds since the epoch, when the agent says. */
+			nextAttemptAt: z.number().optional(),
+			/** The error that caused the retry, in plain words. */
+			error: z.string().optional(),
+		})
+		.optional(),
 });
 export type LiveState = z.infer<typeof zLiveState>;
 

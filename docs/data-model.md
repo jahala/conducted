@@ -23,13 +23,16 @@ Generated from the migrations by `bun scripts/guards/data-model.ts --write`. `pn
 | `session_live_state` | Last known live state per chat, so a restart can show it before the sidecar answers. | one row per session. | 0001_init.sql |
 | `queued_messages` | Follow-up messages typed while the agent works. | sent and cancelled rows are removed once their user_message event is stored. | 0001_init.sql |
 | `diff_comments` | Review comments on the workspace diff, from the user, an agent, or GitHub. | deleted with the workspace. | 0001_init.sql |
-| `attachments` | Files attached to messages or drafts. The file itself lives under the app data folder. | draft attachments older than 7 days are removed with their files. | 0001_init.sql |
-| `terminals` | Terminal tabs and script runs. Scrollback lives in files written by the Rust shell. | ended terminals older than 14 days are removed with their scrollback files. | 0001_init.sql |
+| `attachments` | Files attached to messages or drafts. The file itself lives under the app data folder. Rebuilt in 0004 with the pdf and review kinds and the link to a review comment. | draft attachments older than 7 days are removed with their files. | 0001_init.sql, rebuilt in 0004_review_states_backlog_snippets_keys.sql |
+| `terminals` | Terminal tabs and script runs of a workspace, and the one terminal of each repository. Scrollback lives in files written by the Rust shell. Rebuilt in 0004 for repository terminals. | ended terminals older than 14 days are removed with their scrollback files. | 0001_init.sql, rebuilt in 0004_review_states_backlog_snippets_keys.sql |
 | `sections` | Sidebar sections. | until the user deletes them. | 0001_init.sql |
 | `section_members` | Which workspaces sit in which section. | removed with the section or the workspace. | 0001_init.sql |
 | `favorite_models` | Saved model choices for the model picker. | until removed. | 0001_init.sql |
 | `settings` | App settings, keyed by the settings registry (apps/desktop/src/core/registries/settings.ts). Repo-scoped values use the key "repo:<repoId>:<key>". | fixed set of keys. | 0001_init.sql |
 | `env_vars` | Environment variables passed to agents and scripts. Values are stored in the macOS Keychain; this table holds only the names and where they apply. | until the user removes the variable, which also removes its Keychain entry (SET-04). | 0001_init.sql |
+| `backlog_workspaces` | A workspace saved to the backlog: the prompt and settings to start it later, with no worktree, branch or port yet. Starting it creates the workspace row with the same id and removes this one. | until the user starts or deletes it; removed with its repository. | 0004_review_states_backlog_snippets_keys.sql |
+| `snippets` | Prompt snippets, private to this Mac (D025). | until the user deletes the snippet. | 0004_review_states_backlog_snippets_keys.sql |
+| `provider_keys` | Provider keys the user gave an agent on the Agents page (D033). The values are stored in the macOS Keychain; this table holds only where each key goes. acp_agent is '' for agents that are not ACP agents. source 'this_mac' means the key is read from the Mac's environment, so no Keychain entry exists. | until the user removes the key, which also removes its Keychain entry. | 0004_review_states_backlog_snippets_keys.sql |
 <!-- /generated:tables -->
 
 ## Stores outside the database
@@ -42,6 +45,8 @@ Generated from the migrations by `bun scripts/guards/data-model.ts --write`. `pn
 | Terminal scrollback | app data `terminal-history/` | 14 days after the terminal ends, and at most 50 MB in total, oldest first. | PLAT-08 |
 | Draft attachments | app data `draft-attachments/` | 7 days for drafts never sent. | DATA-02 |
 | Composer drafts | app data `drafts/<session>.json` | 30 days without an edit, and when the chat is deleted. | DATA-02 |
+| Cached changes and PR info | app data `git-cache/changes/<workspace>.json` and `git-cache/pr-info/<workspace>.json` | 25 MB for changes and 5 MB for PR info in total; the oldest files go first. Removed with the workspace. | DATA-07 |
+| Terminal shell integration | app data `terminal-shell-integration/zsh/` | Four small files, rewritten at every app start. | RUN-09 |
 | Setup script logs | app data `setup-logs/<workspace>.log` | Removed with the workspace. | WS-10 |
 | "Viewed" ticks in the diff | app data `viewed-files/<workspace>.json` | Removed with the workspace. | WS-10 |
 | Turn snapshots | `refs/conducted/checkpoints/*` in each repo | Removed when their chat is deleted, and 30 days after their workspace is archived. | DATA-06 |
