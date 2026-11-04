@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: read
+  # Lets the action post its summary on the PR when it finds something.
+  pull-requests: write
 
 jobs:
   review:
@@ -18,3 +20,8 @@ jobs:
         with:
           fail-on-severity: moderate
           comment-summary-in-pr: on-failure
+          # GHSA-wrw7-89jp-8q8g: glib 0.18 (unsound iterator). glib reaches the lockfile only
+          # through Tauri's Linux toolkit (gtk 0.18); the macOS build does not compile it
+          # (`cargo tree -i glib --target aarch64-apple-darwin` is empty). Remove this line when
+          # Tauri moves to a fixed gtk-rs. See decision D017.
+          allow-ghsas: GHSA-wrw7-89jp-8q8g

@@ -174,7 +174,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		liveState: {
 			setLiveState: (p) => sessions.applyLiveState(p.sessionId, p.liveState),
 			setAgentSessionId: (p) => sessions.setAgentSessionId(p.sessionId, p.agentSessionId),
-			setProgress: (p) => sessions.setProgress(p.sessionId, p.title, p.steps),
+			setProgress: (p) => sessions.setProgress(p.sessionId, p.progress),
 		},
 		agentCatalog: { setAgentInstalls: (p) => agentCatalog.setInstalls(p.agents) },
 		workspaceDiff: {

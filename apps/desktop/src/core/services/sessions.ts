@@ -27,6 +27,7 @@ import type {
 	InteractionAnswer,
 	InteractionRequest,
 	LiveState,
+	Progress,
 	SessionConfig,
 	SessionEvent,
 	WorkspaceContext,
@@ -255,11 +256,8 @@ export class SessionsService implements AgentMessenger {
 		return notImplemented("CHAT-02");
 	}
 
-	setProgress(
-		_sessionId: SessionId,
-		_title: string | undefined,
-		_steps: { label: string; status: string }[],
-	): void {
+	/** Replaces the chat's progress tracker. An update with no blocks clears it. */
+	setProgress(_sessionId: SessionId, _progress: Progress): void {
 		notImplemented("CHAT-13");
 	}
 

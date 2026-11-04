@@ -91,3 +91,9 @@ Why: cancel stays cheap when the agent cooperates. The first AGENT-02 test must 
 Context: an agent turn costs money, and a turn that got no answer may still have been billed.
 Chosen: all turns go through the sidecar's session manager. A turn interrupted by a crash is marked `interrupted` and shown; only the user can send it again.
 Why: an automatic retry could bill the same work twice, or run the same edits twice.
+
+## D017. Allow the glib advisory that only affects Linux builds (2026-11-04)
+
+Context: dependency review flags GHSA-wrw7-89jp-8q8g in glib 0.18.5. glib is in the lockfile only through Tauri's Linux toolkit (gtk 0.18). The app ships for macOS, and the macOS build does not compile glib.
+Chosen: `allow-ghsas` for this one advisory in `.github/workflows/dependency-review.yml`, with the reason beside it.
+Why: the advisory cannot reach a shipped build, and the fix depends on Tauri moving to a newer gtk-rs. Revisit when Tauri updates, or before any Linux build.
