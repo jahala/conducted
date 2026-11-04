@@ -1,0 +1,79 @@
+/**
+ * @feature NAV-10 Tab content
+ * Owns: showing the content of the open tab: chat, terminal, file, review comment, pull request or browser
+ * preview, each from its own feature.
+ * Behaviour: ui-map.md 3.2 (tab content by type; empty group shows New chat, Browser, Local terminal; error
+ * cards "This chat tab failed to render").
+ * Our design choice: each tab sits in its own boundary keyed by the tab's identity, so a crash in one tab
+ * clears when the user opens another. Long-lived DOM (terminals, browser previews) should move to a surface
+ * layer outside tab content (ui-map.md 8); until then switching tabs remounts them.
+ * Must handle: no tab open (EmptyTabGroup); a file tab without a path (treated as no tab, see active-tab.ts);
+ * a terminal that has exited; a browser tab with an unreachable URL (BrowserTab's own state).
+ * Test first: search { tab: "pr" } renders the PR tab area; {} renders the empty tab group.
+ */
+import type { WorkspaceId } from "@conducted/shared";
+import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
+import { BrowserTab } from "../browser-preview/BrowserTab.tsx";
+import { ChatPane } from "../chat/ChatPane.tsx";
+import { FileTab } from "../file-viewer/FileTab.tsx";
+import { PrTab } from "../pr/PrTab.tsx";
+import { TerminalView } from "../terminal/TerminalView.tsx";
+import { activeTabKey, resolveActiveTab } from "./active-tab.ts";
+import { CommentTab } from "./CommentTab.tsx";
+import { EmptyTabGroup } from "./EmptyTabGroup.tsx";
+import type { WorkspaceSearch } from "./workspace-search.ts";
+
+export interface TabContentProps {
+	workspaceId: WorkspaceId;
+	search: WorkspaceSearch;
+	onSearchChange: (patch: Partial<WorkspaceSearch>) => void;
+}
+
+export function TabContent({ workspaceId, search, onSearchChange }: TabContentProps) {
+	const tab = resolveActiveTab(search);
+	const key = activeTabKey(tab);
+	switch (tab.kind) {
+		case "session":
+			return (
+				<NotBuiltYet area="Chat" resetKey={key}>
+					<ChatPane workspaceId={workspaceId} sessionId={tab.sessionId} />
+				</NotBuiltYet>
+			);
+		case "terminal":
+			return (
+				<NotBuiltYet area="Terminal" resetKey={key}>
+					<TerminalView terminalId={tab.terminalId} />
+				</NotBuiltYet>
+			);
+		case "file":
+			return (
+				<NotBuiltYet area="File" resetKey={key}>
+					<FileTab workspaceId={workspaceId} path={tab.path} mode={tab.mode} scope={tab.scope} />
+				</NotBuiltYet>
+			);
+		case "comment":
+			return (
+				<NotBuiltYet area="Review comment" resetKey={key}>
+					<CommentTab workspaceId={workspaceId} commentId={tab.commentId} />
+				</NotBuiltYet>
+			);
+		case "pr":
+			return (
+				<NotBuiltYet area="Pull request" resetKey={key}>
+					<PrTab workspaceId={workspaceId} />
+				</NotBuiltYet>
+			);
+		case "browser":
+			return (
+				<NotBuiltYet area="Browser" resetKey={key}>
+					<BrowserTab workspaceId={workspaceId} url={tab.url} />
+				</NotBuiltYet>
+			);
+		case "none":
+			return (
+				<NotBuiltYet area="Tabs" resetKey={key}>
+					<EmptyTabGroup workspaceId={workspaceId} onSearchChange={onSearchChange} />
+				</NotBuiltYet>
+			);
+	}
+}

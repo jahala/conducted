@@ -1,0 +1,43 @@
+name: Bug report
+description: Something Conducted does wrong, or differently than the docs say.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did Conducted do, and what did you expect instead?
+      placeholder: |
+        Expected: ...
+        Actual:   ...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: The smallest set of steps that shows the problem.
+      placeholder: |
+        1. Add a project
+        2. Create a workspace
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Conducted version
+      placeholder: "From Settings > Advanced, or the About window"
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      placeholder: "macOS version, chip, agent and its version (e.g. Claude Code 2.x)"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: From the Diagnostics page ("Copy redacted report"). Check it holds nothing private.
+      render: text

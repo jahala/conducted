@@ -1,0 +1,48 @@
+/**
+ * @feature NAV-08 Global overlay host
+ * Owns: mounting whichever window-level overlay is open (command palette, shortcuts dialog, Passport, quick
+ * open, search in files), once, at the root of the app.
+ * Behaviour: ui-map.md 5.1 (the palette is a dialog mounted once), 3.10 (quick open and search in files),
+ * 1.1 (global overlays are mounted once at the root).
+ * Our design choice: an overlay is mounted only while it is open. Its state resets on every open, and an
+ * unbuilt overlay shows a small card with a close button instead of an empty frame.
+ * Must handle: Escape or outside click closes (the overlay calls onOpenChange(false)); opening a second overlay
+ * replaces the first; an overlay that is not built yet can still be dismissed.
+ * Test first: show("passport") mounts only the Passport overlay; close() unmounts it.
+ */
+import type { WorkspaceId } from "@conducted/shared";
+import { useParams } from "@tanstack/react-router";
+import type { ComponentType } from "react";
+import { CommandPalette } from "../features/palette/CommandPalette.tsx";
+import { QuickOpen } from "../features/palette/QuickOpen.tsx";
+import { SearchInFiles } from "../features/palette/SearchInFiles.tsx";
+import { ShortcutsDialog } from "../features/palette/ShortcutsDialog.tsx";
+import { PassportDialog } from "../features/passport/PassportDialog.tsx";
+import { NotBuiltYet } from "../ui/not-built-yet.tsx";
+import type { OverlayProps } from "../ui/overlay-props.ts";
+import { type OverlayId, useOverlayStore } from "./overlay-store.ts";
+
+const overlays: Record<OverlayId, { area: string; Component: ComponentType<OverlayProps> }> = {
+	palette: { area: "Command palette", Component: CommandPalette },
+	shortcuts: { area: "Keyboard shortcuts", Component: ShortcutsDialog },
+	passport: { area: "Passport", Component: PassportDialog },
+	"quick-open": { area: "Quick open", Component: QuickOpen },
+	"search-files": { area: "Search in files", Component: SearchInFiles },
+};
+
+export function GlobalOverlays() {
+	const open = useOverlayStore((state) => state.open);
+	const close = useOverlayStore((state) => state.close);
+	const { workspaceId } = useParams({ strict: false });
+	if (open === null) return null;
+	const { area, Component } = overlays[open];
+	return (
+		<NotBuiltYet area={area} variant="overlay" onDismiss={close} resetKey={open}>
+			<Component
+				open
+				onOpenChange={(next) => (next ? undefined : close())}
+				workspaceId={(workspaceId as WorkspaceId | undefined) ?? null}
+			/>
+		</NotBuiltYet>
+	);
+}

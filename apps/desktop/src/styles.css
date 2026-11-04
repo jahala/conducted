@@ -1,0 +1,158 @@
+/**
+ * @feature APP-05 Design tokens
+ * Owns: every colour, font, size, radius and motion value the UI may use, in light and dark.
+ * Behaviour: ui-map.md 8 (Conductor uses Tailwind v4 tokens as CSS variables; names and values here are ours).
+ * Our design choices:
+ *  - Neutrals plus one accent. The accent marks the one primary action or the one thing to look at.
+ *  - Danger, warning and success colours carry function only (errors, caution, done).
+ *  - No default Tailwind palette, type scale or radii are kept, so only these tokens exist.
+ *  - Light and dark come from the OS through `light-dark()`. `data-theme="light|dark"` on <html> forces one.
+ *  - Two font families: the system UI stack and a monospace stack. No font files ship with the app.
+ *  - Hierarchy comes from size and weight first. Only three weights exist.
+ * Contrast is checked by src/ui/tokens.test.ts (text 4.5:1, focus ring 3:1).
+ */
+@import "tailwindcss";
+
+:root {
+	color-scheme: light dark;
+}
+:root[data-theme="light"] {
+	color-scheme: light;
+}
+:root[data-theme="dark"] {
+	color-scheme: dark;
+}
+
+@theme {
+	--color-*: initial;
+	--font-*: initial;
+	--text-*: initial;
+	--font-weight-*: initial;
+	--radius-*: initial;
+	--shadow-*: initial;
+	--ease-*: initial;
+
+	/* Surfaces: canvas is the main work area, surface is side panels, raised is menus and dialogs. */
+	--color-canvas: light-dark(#ffffff, #121214);
+	--color-surface: light-dark(#f5f5f7, #1a1a1e);
+	--color-raised: light-dark(#ffffff, #202026);
+	--color-hover: light-dark(#ececf0, #25252b);
+	--color-active: light-dark(#e3e3e8, #2e2e35);
+	--color-overlay: light-dark(rgb(16 16 24 / 0.35), rgb(0 0 0 / 0.55));
+
+	/* Lines. `border` is decorative. `border-strong` marks input edges and meets 3:1. */
+	--color-border: light-dark(#e2e2e7, #2a2a30);
+	--color-border-strong: light-dark(#8e8e99, #6a6a76);
+
+	/* Text. All three meet 4.5:1 on canvas, surface, hover and active. */
+	--color-fg: light-dark(#16161a, #f2f2f5);
+	--color-fg-muted: light-dark(#4f4f5a, #b0b0bb);
+	--color-fg-subtle: light-dark(#62626d, #9696a2);
+
+	/* The one accent. `on-accent` is the text colour on top of it. `focus` is the keyboard ring. */
+	--color-accent: light-dark(#4a3fdb, #8f87ff);
+	--color-accent-hover: light-dark(#3e33c4, #a39cff);
+	--color-on-accent: light-dark(#ffffff, #0e0e12);
+	--color-focus: light-dark(#4a3fdb, #8f87ff);
+
+	/* Function only. `danger` is text and icons. `danger-solid` is a filled button. */
+	--color-danger: light-dark(#c0262d, #ff7a7f);
+	--color-danger-solid: light-dark(#c0262d, #d63b43);
+	--color-on-danger: #ffffff;
+	--color-warning: light-dark(#8a5a00, #e8b04a);
+	--color-success: light-dark(#1b7a3e, #5fd38a);
+
+	/* Two families. */
+	--font-sans:
+		ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial,
+		sans-serif;
+	--font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+	/* A fixed type scale. Nothing outside these sizes. */
+	--text-xs: 0.75rem;
+	--text-xs--line-height: 1rem;
+	--text-sm: 0.8125rem;
+	--text-sm--line-height: 1.25rem;
+	--text-base: 0.875rem;
+	--text-base--line-height: 1.375rem;
+	--text-lg: 1.0625rem;
+	--text-lg--line-height: 1.5rem;
+	--text-xl: 1.375rem;
+	--text-xl--line-height: 1.75rem;
+	--text-2xl: 2rem;
+	--text-2xl--line-height: 2.25rem;
+	--font-weight-normal: 400;
+	--font-weight-medium: 500;
+	--font-weight-semibold: 600;
+
+	--radius-sm: 4px;
+	--radius-md: 6px;
+	--radius-lg: 10px;
+	--radius-full: 9999px;
+
+	--shadow-popover: 0 8px 24px rgb(0 0 0 / 0.18), 0 0 0 1px light-dark(#e2e2e7, #2a2a30);
+
+	/* Motion is short. Reduced motion turns it off below. */
+	--ease-out: cubic-bezier(0.2, 0, 0, 1);
+	--default-transition-duration: 120ms;
+	--default-transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Layout constants for the macOS overlay title bar (window uses titleBarStyle Overlay). */
+:root {
+	/* Room for the three traffic-light buttons, which sit at the window's top left. */
+	--traffic-lights-clearance: 5rem;
+	--titlebar-height: 2.75rem;
+	/* Width of the sidebar, back and forward buttons that float next to the traffic lights. */
+	--shell-controls-width: calc(var(--traffic-lights-clearance) + 6.5rem);
+}
+
+@layer base {
+	html,
+	body,
+	#root {
+		height: 100%;
+	}
+	body {
+		background: var(--color-canvas);
+		color: var(--color-fg);
+		font-family: var(--font-sans);
+		font-size: var(--text-base);
+		line-height: var(--text-base--line-height);
+		-webkit-font-smoothing: antialiased;
+		/* A desktop app does not scroll the window or select chrome text. */
+		overflow: hidden;
+		-webkit-user-select: none;
+		user-select: none;
+	}
+	/* Content people read or copy stays selectable. */
+	.selectable,
+	input,
+	textarea,
+	[contenteditable="true"] {
+		-webkit-user-select: text;
+		user-select: text;
+	}
+	/* Keyboard focus is always visible. */
+	:focus-visible {
+		outline: 2px solid var(--color-focus);
+		outline-offset: 2px;
+	}
+	::placeholder {
+		color: var(--color-fg-subtle);
+	}
+	button:not(:disabled) {
+		cursor: default;
+	}
+}
+
+/* Outside any @layer on purpose: unlayered rules beat Tailwind's layered utilities without !important. */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms;
+		animation-iteration-count: 1;
+		transition-duration: 0.01ms;
+	}
+}

@@ -1,0 +1,27 @@
+# Dependency review: blocks PRs that add vulnerable dependencies or ones with a disallowed
+# licence. Free on public repos; private repos need GitHub Advanced Security.
+name: dependency review
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  # Lets the action post its summary on the PR when it finds something.
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7.0.1
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # ratchet:actions/dependency-review-action@v5.0.0
+        with:
+          fail-on-severity: moderate
+          comment-summary-in-pr: on-failure
+          # GHSA-wrw7-89jp-8q8g: glib 0.18 (unsound iterator). glib reaches the lockfile only
+          # through Tauri's Linux toolkit (gtk 0.18); the macOS build does not compile it
+          # (`cargo tree -i glib --target aarch64-apple-darwin` is empty). Remove this line when
+          # Tauri moves to a fixed gtk-rs. See decision D017.
+          allow-ghsas: GHSA-wrw7-89jp-8q8g

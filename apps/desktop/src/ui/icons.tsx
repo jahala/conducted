@@ -1,0 +1,66 @@
+/**
+ * @feature APP-05 Icons
+ * Owns: the small set of 16px line icons the shell uses. They inherit the text colour.
+ * Behaviour: ui-map.md 8 (Conductor uses Lucide and Material file icons).
+ * Our design choice: a few hand-drawn line icons instead of an icon library. A file-type icon set for the
+ * file tree is a separate decision for the git-panel owner.
+ * Must handle: decorative by default (aria-hidden); the button that holds an icon carries the accessible name.
+ * Test first: every icon renders an svg with aria-hidden.
+ */
+import type { SVGProps } from "react";
+
+function Icon({ d, ...rest }: SVGProps<SVGSVGElement> & { d: string }) {
+	return (
+		<svg
+			viewBox="0 0 16 16"
+			width="16"
+			height="16"
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.5"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+			aria-hidden="true"
+			{...rest}
+		>
+			<path d={d} />
+		</svg>
+	);
+}
+
+type P = SVGProps<SVGSVGElement>;
+
+export const SidebarLeftIcon = (p: P) => <Icon d="M2.5 3.5h11v9h-11zM6 3.5v9" {...p} />;
+export const SidebarRightIcon = (p: P) => <Icon d="M2.5 3.5h11v9h-11zM10 3.5v9" {...p} />;
+export const ArrowLeftIcon = (p: P) => <Icon d="M13 8H3M7 4L3 8l4 4" {...p} />;
+export const ArrowRightIcon = (p: P) => <Icon d="M3 8h10M9 4l4 4-4 4" {...p} />;
+export const PlusIcon = (p: P) => <Icon d="M8 3v10M3 8h10" {...p} />;
+export const CloseIcon = (p: P) => <Icon d="M4 4l8 8M12 4l-8 8" {...p} />;
+export const ChevronDownIcon = (p: P) => <Icon d="M4 6l4 4 4-4" {...p} />;
+export const ChevronRightIcon = (p: P) => <Icon d="M6 4l4 4-4 4" {...p} />;
+export const SearchIcon = (p: P) => (
+	<Icon d="M7 12A5 5 0 1 0 7 2a5 5 0 0 0 0 10zM14 14l-3.5-3.5" {...p} />
+);
+export const HomeIcon = (p: P) => (
+	<Icon d="M2.5 7.5L8 3l5.5 4.5M4 6.5v6.5h3v-3.5h2V13h3V6.5" {...p} />
+);
+export const FolderPlusIcon = (p: P) => (
+	<Icon d="M2 4.5h4l1.5 1.5H14v6.5H2zM8 8v3M6.5 9.5h3" {...p} />
+);
+export const ChatIcon = (p: P) => <Icon d="M2.5 3.5h11v7.5H7l-3 2.5V11H2.5z" {...p} />;
+export const TerminalIcon = (p: P) => (
+	<Icon d="M2.5 3.5h11v9h-11zM5 6.5l2 1.5-2 1.5M8.5 10h2.5" {...p} />
+);
+export const FileIcon = (p: P) => <Icon d="M4 2.5h5l3 3v8H4zM9 2.5v3h3" {...p} />;
+export const GlobeIcon = (p: P) => (
+	<Icon
+		d="M8 14A6 6 0 1 0 8 2a6 6 0 0 0 0 12zM2 8h12M8 2c2 2 2 10 0 12M8 2c-2 2-2 10 0 12"
+		{...p}
+	/>
+);
+export const PullRequestIcon = (p: P) => (
+	<Icon
+		d="M4.5 4.5a1.25 1.25 0 1 0 0-.01zM4.5 11.5a1.25 1.25 0 1 0 0-.01zM4.5 5.75v4.5M11.5 11.5a1.25 1.25 0 1 0 0-.01zM11.5 10.25V6.5a2 2 0 0 0-2-2H8M9.5 3l-1.5 1.5L9.5 6"
+		{...p}
+	/>
+);

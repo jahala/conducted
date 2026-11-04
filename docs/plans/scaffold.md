@@ -1,6 +1,6 @@
 # Plan: scaffold a local-only app with Conductor's features
 
-Status: proposed, waiting for a go (2026-11-04).
+Status: approved 2026-11-04. Repo: github.com/jahala/conducted. Working name: Conducted.
 Source of truth for behaviour: [docs/research/conductor/structure-map.md](../research/conductor/structure-map.md) and the docs it links.
 
 ## Goal
@@ -21,26 +21,30 @@ A scaffold is made of placeholders, and this one is approved as such. To keep th
 ```ts
 // packages/shared/src/not-implemented.ts
 export class NotImplemented extends Error {
-  constructor(readonly featureId: string) { super(`Not implemented: ${featureId}`) }
+	constructor(readonly featureId: string) {
+		super(`Not implemented: ${featureId}`);
+	}
 }
-export const notImplemented = (featureId: string): never => { throw new NotImplemented(featureId) }
+export const notImplemented = (featureId: string): never => {
+	throw new NotImplemented(featureId);
+};
 ```
 
 Rust uses one matching error variant. No silent defaults, no fake data, no `TODO` comments. The stub check (definition of done, step 4) is the guard.
 
 ## What is real code in the scaffold, and what is a stub
 
-| Real now | Stub with a spec |
-|---|---|
-| Monorepo, build, lint, typecheck and test config | All service bodies |
-| Tauri config, plugin list, capability file, window setup | All Tauri command bodies except a health check |
-| The shared protocol: Zod schemas for every RPC method, event and live state | All sidecar logic (session manager, runners, tools) |
-| Our neutral agent-message schema and canonical tool names | Agent translators |
-| The Platform interface (the one door to Rust) | Its Tauri implementation, except the health check |
-| The database schema as migration 0001 | Repository query bodies |
-| The command and settings registries (entries, keys, labels) | Their handlers |
-| App shell layout, routes and empty states | Feature components beyond their props and layout boxes |
-| The stub check script | |
+| Real now                                                                    | Stub with a spec                                       |
+| --------------------------------------------------------------------------- | ------------------------------------------------------ |
+| Monorepo, build, lint, typecheck and test config                            | All service bodies                                     |
+| Tauri config, plugin list, capability file, window setup                    | All Tauri command bodies except a health check         |
+| The shared protocol: Zod schemas for every RPC method, event and live state | All sidecar logic (session manager, runners, tools)    |
+| Our neutral agent-message schema and canonical tool names                   | Agent translators                                      |
+| The Platform interface (the one door to Rust)                               | Its Tauri implementation, except the health check      |
+| The database schema as migration 0001                                       | Repository query bodies                                |
+| The command and settings registries (entries, keys, labels)                 | Their handlers                                         |
+| App shell layout, routes and empty states                                   | Feature components beyond their props and layout boxes |
+| The stub check script                                                       |                                                        |
 
 ## Scope
 
@@ -52,7 +56,7 @@ Out: organizations, sign-in to a Conductor-style service, cloud workspaces and s
 
 1. **Same stack as Conductor**: Tauri 2 with a thin Rust shell, React with TanStack Router and Query and zustand, and a TypeScript sidecar on Bun. The research maps onto it file by file, and the agent SDKs are TypeScript.
 2. **Our own neutral message format.** Every runner translates into it, Claude included. Conductor borrowed Claude's format and then needed a second renderer for Codex.
-3. **One event log.** A session's history lives in `session_events` only. There is no second message table, and pruning is defined in migration 0001 (data lifetime from day one).
+3. **One event log.** A session's history lives in `session_events` only. There is no second message table. Migration 0001 states each table's lifetime, and the data-lifetime job (DATA-02) enforces it.
 4. **The sidecar writes the backup before sending** each event (a real write-ahead log). Conductor's outbox is best-effort.
 5. **No cloud seam.** Conductor's "host" abstraction exists for cloud machines. A local-only app does not need it. If cloud work is ever wanted, it gets its own plan.
 6. **Licensed or open libraries only.** The chat list uses an open-source virtualiser instead of the commercial `VirtuosoMessageList`. Every dependency's licence is checked when it is added.
@@ -62,7 +66,7 @@ Out: organizations, sign-in to a Conductor-style service, cloud workspaces and s
 ## Repository layout
 
 ```
-app/                         (root, name to be decided)
+conducted/
 ├── package.json  pnpm-workspace.yaml  tsconfig.base.json  biome.json
 ├── CLAUDE.md                project brief and test strategy
 ├── docs/plans/backlog.md    every feature ID, owner files, acceptance test
@@ -137,7 +141,7 @@ The ESLint-style boundary rules from Conductor are copied as Biome rules or a sm
    - UI core (`core/`, `platform/` implementation, `app/`)
    - UI features: sidebar, workspace, chat, composer, palette
    - UI features: git panel, diff, files, PR, terminal, scripts, settings, onboarding, diagnostics, and the UI kit
-   Checkpoint: each worker's folder typechecks on its own.
+     Checkpoint: each worker's folder typechecks on its own.
 3. **Integration and review** (me): full checks, stub check, open the window and screenshot the shell, re-read every file against the backlog and research.
 
 ## Kill criteria

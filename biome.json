@@ -1,0 +1,218 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.6.5/schema.json",
+	"vcs": {
+		"enabled": true,
+		"clientKind": "git",
+		"useIgnoreFile": true
+	},
+	"files": {
+		"ignoreUnknown": false,
+		"includes": [
+			"**",
+			"!**/node_modules",
+			"!**/dist",
+			"!**/target",
+			"!.context",
+			"!docs/research",
+			"!docs/data-model.md"
+		]
+	},
+	"formatter": {
+		"enabled": true,
+		"indentStyle": "tab",
+		"lineWidth": 100
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"preset": "recommended",
+			"nursery": {
+				"noFloatingPromises": "error"
+			}
+		}
+	},
+	"javascript": {
+		"formatter": {
+			"quoteStyle": "double"
+		}
+	},
+	"assist": {
+		"enabled": true,
+		"actions": {
+			"source": {
+				"organizeImports": "on"
+			}
+		}
+	},
+	"overrides": [
+		{
+			"includes": ["packages/shared/**"],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": {
+							"level": "error",
+							"options": {
+								"patterns": [
+									{
+										"group": ["@conducted/**"],
+										"message": "packages/shared depends on nothing of ours."
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"includes": ["packages/protocol/**"],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": {
+							"level": "error",
+							"options": {
+								"patterns": [
+									{
+										"group": [
+											"@conducted/sidecar",
+											"@conducted/sidecar/**",
+											"@conducted/desktop",
+											"@conducted/desktop/**",
+											"**/apps/**"
+										],
+										"message": "packages/protocol may use only shared and zod."
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"includes": ["packages/sidecar/**"],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": {
+							"level": "error",
+							"options": {
+								"patterns": [
+									{
+										"group": ["@conducted/desktop", "@conducted/desktop/**", "**/apps/**"],
+										"message": "The sidecar never imports the desktop app."
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"includes": ["apps/desktop/src/platform/**"],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": {
+							"level": "error",
+							"options": {
+								"patterns": [
+									{
+										"group": [
+											"../core",
+											"../core/**",
+											"../features/**",
+											"../ui/**",
+											"../app/**",
+											"../../core/**",
+											"../../features/**",
+											"../../ui/**",
+											"../../app/**"
+										],
+										"message": "src/platform implements the Platform interface and depends on nothing above it."
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"includes": ["apps/desktop/src/core/**"],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": {
+							"level": "error",
+							"options": {
+								"patterns": [
+									{
+										"group": ["@tauri-apps/**"],
+										"message": "Only src/platform may import Tauri. Use the Platform interface."
+									},
+									{
+										"group": ["**/features/**", "**/ui/**", "**/app/**"],
+										"message": "core holds services; screens depend on core, never the other way."
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"includes": ["apps/desktop/src/features/**", "apps/desktop/src/ui/**"],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": {
+							"level": "error",
+							"options": {
+								"patterns": [
+									{
+										"group": ["@tauri-apps/**"],
+										"message": "Only src/platform may import Tauri. Use the Platform interface."
+									},
+									{
+										"group": ["**/core/db/**", "**/core/db"],
+										"message": "Screens get data from services, never from the database."
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"includes": ["apps/desktop/src/app/**", "apps/desktop/src/main.tsx"],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": {
+							"level": "error",
+							"options": {
+								"patterns": [
+									{
+										"group": ["@tauri-apps/**"],
+										"message": "Only src/platform may import Tauri. Use the Platform interface."
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		}
+	],
+	"css": {
+		"parser": {
+			"tailwindDirectives": true
+		}
+	}
+}
