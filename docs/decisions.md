@@ -262,3 +262,15 @@ Chosen:
 - Worktree removal moves the folder to the Trash.
 - Our own deep-link scheme (`conducted`), update feed and signing key. Release builds run the sidecar from Tauri's `externalBin`.
   Why: simpler storage with stated lifetimes, and names that are ours.
+
+## D039. How the first overnight build runs (2026-11-04)
+
+Context: the owner set a goal for the night and is away until morning.
+Chosen:
+
+- Builders and fixers: OpenCode with DeepSeek V4.1 Flash (`deepseek/deepseek-flash`), one fresh worker per feature, through a pleach cast in `.context/overnight/pleach.config.ts` that passes the key by name.
+- Work is planned in steps and batches by `scripts/overnight/plan-batches.ts` (`docs/plans/batches.md`). CI runs once per step on GitHub; no tests and no Rust builds run on the Mac. Each node passes only the quick gate `scripts/overnight/node-gate.ts`.
+- pleach's enforced red-green phases are not used: they need a test run per node. The step's CI run and the batch audit stand in for them.
+- Money: the night's spend is measured from the DeepSeek balance at the start (20.99 USD), and no step starts once it passes 15 USD.
+- The step-1 sidecar, data and git features gained the dependencies they have in fact (for example SIDE-03 needs SIDE-02), so they build in order instead of against each other's empty code.
+  Why: the owner asked for batches, CI on GitHub only, and DeepSeek Flash.

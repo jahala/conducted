@@ -1,0 +1,13 @@
+# Changes to these paths need a review from the code owner. They are the contracts every part of
+# the app depends on (docs/architecture.md); a change starts as an issue labelled `contract`.
+* @jahala
+
+/packages/protocol/          @jahala
+/packages/shared/            @jahala
+/apps/desktop/src/platform/platform.ts @jahala
+/apps/desktop/src/core/model.ts        @jahala
+/apps/desktop/src/core/api.ts          @jahala
+/apps/desktop/src-tauri/migrations/    @jahala
+/docs/plans/tauri-commands.md          @jahala
+/docs/decisions.md                     @jahala
+/.github/                              @jahala

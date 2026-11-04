@@ -7,6 +7,7 @@
  *                                         prints what it would create or change on GitHub
  *   bun scripts/issues/sync.ts --apply    creates labels, milestones, epics and feature issues,
  *                                         updates generated text, links sub-issues and blockers
+ *   bun scripts/issues/sync.ts --apply --only A-01,B-02   the same, for those ids only
  *   bun scripts/issues/sync.ts --check    fails when a done row's issue is open, or a closed
  *                                         issue's row is not done (CI)
  *
@@ -22,7 +23,6 @@ import {
 	type Item,
 	issueTitle,
 	labelsOf,
-	MARKER,
 	milestoneOf,
 	type OwningFile,
 	parseBacklog,
@@ -39,7 +39,11 @@ const draftDir = join(root, ".context/issues-draft");
 
 // ---------------------------------------------------------------- read the sources
 
-const rows = parseBacklog(readFileSync(join(root, "docs/plans/backlog.md"), "utf8"));
+const allRows = parseBacklog(readFileSync(join(root, "docs/plans/backlog.md"), "utf8"));
+/** `--only A-01,B-02` limits the run to those ids and their epics (for a small first batch). */
+const onlyArg = process.argv[process.argv.indexOf("--only") + 1];
+const only = process.argv.includes("--only") && onlyArg ? new Set(onlyArg.split(",")) : null;
+const rows = only ? allRows.filter((r) => only.has(r.id)) : allRows;
 
 const items = new Map<string, Item[]>();
 const itemsDir = join(root, "docs/plans/items");
@@ -63,7 +67,7 @@ function walk(dir: string): void {
 }
 for (const top of ["apps", "packages", "bin"]) walk(join(root, top));
 
-const unknownItems = [...items.keys()].filter((id) => !rows.some((r) => r.id === id));
+const unknownItems = [...items.keys()].filter((id) => !allRows.some((r) => r.id === id));
 if (unknownItems.length > 0) {
 	console.error(`Item map names ids missing from the backlog: ${unknownItems.join(", ")}`);
 	process.exit(1);
@@ -71,18 +75,35 @@ if (unknownItems.length > 0) {
 
 // ---------------------------------------------------------------- GitHub calls
 
+/**
+ * Runs gh. GitHub limits how fast content is created ("secondary rate limit"): such a refusal is
+ * retried after a pause that doubles each time, up to five times. Any other failure stops the run.
+ */
 function gh(args: string[], input?: string): string {
-	const run = Bun.spawnSync(["gh", ...args], {
-		stdin: input === undefined ? "ignore" : new TextEncoder().encode(input),
-		stdout: "pipe",
-		stderr: "pipe",
-	});
-	if (run.exitCode !== 0) {
-		console.error(`gh ${args.slice(0, 3).join(" ")} failed:\n${run.stderr.toString()}`);
+	for (let attempt = 0; ; attempt++) {
+		const run = Bun.spawnSync(["gh", ...args], {
+			stdin: input === undefined ? "ignore" : new TextEncoder().encode(input),
+			stdout: "pipe",
+			stderr: "pipe",
+		});
+		if (run.exitCode === 0) return run.stdout.toString();
+		const error = run.stderr.toString();
+		const limited = /secondary rate limit|abuse|HTTP 403|HTTP 429|was submitted too quickly/i.test(
+			error,
+		);
+		if (limited && attempt < 5) {
+			const pause = 60_000 * 2 ** attempt;
+			console.error(`GitHub asked to slow down; waiting ${pause / 1000} s`);
+			Bun.sleepSync(pause);
+			continue;
+		}
+		console.error(`gh ${args.slice(0, 3).join(" ")} failed:\n${error}`);
 		process.exit(1);
 	}
-	return run.stdout.toString();
 }
+
+/** One content-creating call per second keeps well under GitHub's creation limits. */
+const pace = () => Bun.sleepSync(1_000);
 
 interface RemoteIssue {
 	number: number;
@@ -271,7 +292,10 @@ for (const epic of epics)
 	]);
 
 // Pass 2: refresh bodies with issue numbers, then link sub-issues and blockers.
-const linked = (query: string) => JSON.parse(gh(["api", "graphql", "-f", `query=${query}`]));
+const linked = (query: string) => {
+	if (query.startsWith("mutation")) pace();
+	return JSON.parse(gh(["api", "graphql", "-f", `query=${query}`]));
+};
 for (const row of rows) {
 	const issue = remote.get(row.id);
 	const epic = remote.get(epicKey(row.epic));
