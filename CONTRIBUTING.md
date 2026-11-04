@@ -30,3 +30,7 @@ See [CLAUDE.md](./CLAUDE.md) for the layout, the file header, and the rules the 
 ## Bigger changes
 
 Changes to the shared contracts (`packages/protocol`, `packages/shared`, `apps/desktop/src/platform/platform.ts`, `apps/desktop/src/core/{model,api}.ts`) touch every part of the app. Open an issue first so we can agree on the shape.
+
+## License
+
+By contributing, you agree your work is licensed under the project's [MIT License](./LICENSE).

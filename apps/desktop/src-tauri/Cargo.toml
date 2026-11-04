@@ -3,6 +3,8 @@ name = "conducted"
 version = "0.1.0"
 description = "Run coding agents in parallel, each in its own git worktree"
 authors = ["Jan Hallvard Larsen"]
+license = "MIT"
+repository = "https://github.com/jahala/conducted"
 edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -31,6 +33,8 @@ tauri-plugin-clipboard-manager = "2.5.0"
 tauri-plugin-deep-link = "2.6.3"
 tauri-plugin-window-state = "2.5.0"
 thiserror = "2.0.21"
+portable-pty = "0.9.0"
+alacritty_terminal = "0.26.0"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
