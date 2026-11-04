@@ -67,6 +67,8 @@ export function workspaceEnv(
 ): Record<string, string> {
 	return {
 		CONDUCTED_SESSION_ID: sessionId,
+		CONDUCTED_WORKSPACE_ID: workspace.workspaceId,
+		CONDUCTED_WORKSPACE_NAME: workspace.workspaceName,
 		CONDUCTED_WORKSPACE_PATH: workspace.workspacePath,
 		CONDUCTED_ROOT_PATH: workspace.repoRootPath,
 		CONDUCTED_DEFAULT_BRANCH: workspace.targetBranch,

@@ -14,6 +14,10 @@
  * a file restores it from the merge base or checkpoint and cannot be undone (the UI confirms).
  * Our design choice: the header is a pure function in status/git-header.ts, so every surface that
  * shows the state agrees. This service only gathers its inputs.
+ * Fetching (GIT-13, services-map.md 3.0.2 and 3.3.4): the app never fetches on a timer. After a
+ * changes refresh it compares the PR's base and head commits with the local remote-tracking refs,
+ * fetches only when they differ, and at most once per 60 seconds for one repository and branch. A
+ * base that is a local stack parent is never fetched. Two callers asking at once share one fetch.
  * Test first: stateOf merges the polled snapshot with PR info from the GitHub service.
  */
 import { notImplemented, type Result, type WorkspaceId } from "@conducted/shared";
@@ -23,6 +27,7 @@ import type { ChangedFile, DiffScope } from "../api.ts";
 import type { GitRunner } from "../git/runner.ts";
 import type { ChangesSnapshot } from "../git/status.ts";
 import type { GitState } from "../model.ts";
+import type { GitCache } from "./git-cache.ts";
 import type { AgentMessenger } from "./sessions.ts";
 
 export interface WorkspaceGitEntry {
@@ -46,8 +51,43 @@ export interface WorkspaceGitContext {
 	branch: string;
 }
 
+/** Least time between two fetches of one repository and branch (GIT-13, services-map.md 3.0.2). */
+export const FETCH_MIN_GAP_MS = 60_000;
+
+/** The commits GitHub reports for a pull request, and what the local refs hold (GIT-13). */
+export interface FetchStaleness {
+	/** The commit the PR's base branch is at on GitHub. */
+	prBaseOid: string;
+	/** The commit the PR's head branch is at on GitHub. */
+	prHeadOid: string;
+	/** `refs/remotes/<remote>/<target>` in this repository. Null when the ref does not exist. */
+	localBaseOid: string | null;
+	/** The branch's upstream, `refs/remotes/<remote>/<branch>`. Null when it has none. */
+	upstreamOid: string | null;
+	/** The diff target is a branch of the same stack, so its remote ref says nothing. */
+	baseIsLocalStackParent: boolean;
+}
+
+export type FetchDecision =
+	| { fetch: false; reason: "in_sync" | "too_soon" | "stack_parent" }
+	| { fetch: true; refspecs: readonly string[] };
+
+/**
+ * Whether to fetch now. `lastFetchedAt` is the time of the last fetch for the same repository and
+ * branch, or null when there was none. Pure: the caller reads the refs and the clock.
+ */
+export function decideFetch(
+	_staleness: FetchStaleness,
+	_lastFetchedAt: number | null,
+	_now: number,
+): FetchDecision {
+	return notImplemented("GIT-13");
+}
+
 export interface GitServiceDeps {
 	git: GitRunner;
+	/** The last snapshot of each workspace, shown before the first poll answers (DATA-07). */
+	cache: GitCache;
 	/** Looks up folders and branch names for a workspace. Fails for unknown ids. */
 	contextOf: (workspaceId: WorkspaceId) => Promise<Result<WorkspaceGitContext>>;
 	agent: AgentMessenger;
@@ -57,6 +97,8 @@ export interface GitServiceDeps {
 export class GitService {
 	readonly store: StoreApi<GitServiceState>;
 	readonly #deps: GitServiceDeps;
+	/** When each repository and branch was last fetched, keyed by root path and branch. */
+	readonly #lastFetchAt = new Map<string, number>();
 
 	constructor(deps: GitServiceDeps) {
 		this.#deps = deps;
@@ -100,6 +142,19 @@ export class GitService {
 		return notImplemented("REV-01");
 	}
 
+	/**
+	 * Fetches the PR's base and head branches when the local remote-tracking refs are behind them,
+	 * at most once per `FETCH_MIN_GAP_MS` for one repository and branch, then refreshes the
+	 * workspace. `fetched` is false when `decideFetch` said not to.
+	 */
+	fetchIfStale(
+		_workspaceId: WorkspaceId,
+		_pullRequestOids: Pick<FetchStaleness, "prBaseOid" | "prHeadOid">,
+	): Promise<Result<{ fetched: boolean }>> {
+		void this.#lastFetchAt;
+		return notImplemented("GIT-13");
+	}
+
 	/** Backs `Actions.git.setViewed`. */
 	setViewed(_workspaceId: WorkspaceId, _path: string, _viewed: boolean): Promise<Result<void>> {
 		return notImplemented("REV-02");
@@ -138,5 +193,20 @@ export class GitService {
 	/** Backs `Actions.git.renameBranch`. */
 	renameBranch(_workspaceId: WorkspaceId, _name: string): Promise<Result<void>> {
 		return notImplemented("GIT-09");
+	}
+
+	/** Backs `Actions.git.switchBranch`. Has its own lock, apart from the other git actions. */
+	switchBranch(_workspaceId: WorkspaceId, _branch: string): Promise<Result<void>> {
+		return notImplemented("GIT-12");
+	}
+
+	/** Backs `Actions.git.continueOnNewBranch`, and tells the open chat that the branch changed. */
+	continueOnNewBranch(_workspaceId: WorkspaceId, _name: string | null): Promise<Result<void>> {
+		return notImplemented("GIT-17");
+	}
+
+	/** Backs `Actions.git.openInDiffTool`. */
+	openInDiffTool(_workspaceId: WorkspaceId, _path: string): Promise<Result<void>> {
+		return notImplemented("GIT-15");
 	}
 }

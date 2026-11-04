@@ -35,6 +35,7 @@ export function appToolsMcpEntry(input: {
 	const args = ["app-tools-mcp", "--session-id", input.sessionId, "--socket", input.socketPath];
 	if (input.appTools.diffComments) args.push("--enable-diff-comments");
 	if (input.appTools.progressUpdates) args.push("--enable-progress");
+	if (input.appTools.setTargetBranch) args.push("--enable-set-target-branch");
 	return {
 		name: APP_TOOL_SERVER,
 		command: input.sidecarExecutable,
@@ -55,13 +56,14 @@ export function parseAppToolsMcpArgs(
 ): { ok: true; value: AppToolsMcpArgs } | { ok: false; message: string } {
 	let sessionId: string | undefined;
 	let socketPath: string | undefined;
-	const appTools = { diffComments: false, progressUpdates: false };
+	const appTools = { diffComments: false, progressUpdates: false, setTargetBranch: false };
 	for (let i = 0; i < argv.length; i++) {
 		const arg = argv[i];
 		if (arg === "--session-id") sessionId = argv[++i];
 		else if (arg === "--socket") socketPath = argv[++i];
 		else if (arg === "--enable-diff-comments") appTools.diffComments = true;
 		else if (arg === "--enable-progress") appTools.progressUpdates = true;
+		else if (arg === "--enable-set-target-branch") appTools.setTargetBranch = true;
 		else return { ok: false, message: `Unknown argument: ${arg}` };
 	}
 	if (!sessionId) return { ok: false, message: "Missing --session-id" };

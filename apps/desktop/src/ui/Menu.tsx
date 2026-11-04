@@ -1,7 +1,10 @@
 /**
  * @feature APP-05 Menu
  * Owns: dropdown menus (workspace actions, view options, open in), built on the radix DropdownMenu.
- * Behaviour: ui-map.md 8 (DropdownMenu parts), 3.1 (Workspace actions menu).
+ * Behaviour: ui-map.md 8 (DropdownMenu parts), 3.1 (Workspace actions menu); ui-dimensions.md 4 (content: 4px
+ * padding, 8px radius, 1px ring, shadow-md, at least 128px wide; item: 8px by 6px padding, 8px gap, 6px radius,
+ * text-sm, 16px icon in muted colour; shortcut hint: text-xs, widest tracking, muted, 16px left padding;
+ * separator: 1px with 4px margins, bleeding 4px each side).
  * Must handle: type-ahead and arrow keys (radix), a destructive item, an item with a shortcut hint,
  * disabled items, separators between groups, closing on Escape and on outside click.
  * Test first: opening the trigger lists the items; choosing one calls onSelect and closes the menu.
@@ -9,7 +12,6 @@
 import { DropdownMenu as Radix } from "radix-ui";
 import type { ComponentProps, ReactNode } from "react";
 import { cn } from "./cn.ts";
-import { Kbd } from "./Kbd.tsx";
 
 export const Menu = Radix.Root;
 export const MenuTrigger = Radix.Trigger;
@@ -25,7 +27,7 @@ export function MenuContent({
 			<Radix.Content
 				sideOffset={sideOffset}
 				className={cn(
-					"z-50 min-w-48 rounded-lg bg-raised p-1 text-sm text-fg shadow-popover",
+					"z-50 min-w-32 rounded-lg bg-raised p-1 text-sm text-fg shadow-popover",
 					className,
 				)}
 				{...rest}
@@ -52,16 +54,24 @@ export function MenuItem({
 	return (
 		<Radix.Item
 			className={cn(
-				"flex h-8 items-center gap-2 rounded-md px-2 outline-none",
+				"flex items-center gap-2 rounded-md px-2 py-1.5 outline-none",
 				"data-[highlighted]:bg-hover data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
 				destructive && "text-danger",
 				className,
 			)}
 			{...rest}
 		>
-			{icon ? <span className="flex size-4 items-center justify-center">{icon}</span> : null}
+			{icon ? (
+				<span
+					className={cn("flex size-4 items-center justify-center", !destructive && "text-fg-muted")}
+				>
+					{icon}
+				</span>
+			) : null}
 			<span className="flex-1 truncate">{children}</span>
-			{shortcut ? <Kbd>{shortcut}</Kbd> : null}
+			{shortcut ? (
+				<span className="pl-4 text-xs tracking-widest text-fg-muted">{shortcut}</span>
+			) : null}
 		</Radix.Item>
 	);
 }

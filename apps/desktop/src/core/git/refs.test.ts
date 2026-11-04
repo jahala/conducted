@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { archiveRef, checkpointRef, sessionCheckpointRefPrefix, turnCheckpointId } from "./refs.ts";
+import {
+	archiveRef,
+	checkpointRef,
+	sessionCheckpointRefPrefix,
+	syncedBaselineRef,
+	turnCheckpointId,
+} from "./refs.ts";
 
 describe("checkpoint refs", () => {
 	it("builds the ref of a turn checkpoint", () => {
@@ -14,5 +20,8 @@ describe("checkpoint refs", () => {
 	});
 	it("pins an archived workspace under its own ref", () => {
 		expect(archiveRef("w1")).toBe("refs/conducted/archive/w1");
+	});
+	it("keeps the stack sync baseline in a per-worktree ref", () => {
+		expect(syncedBaselineRef("abc")).toBe("refs/worktree/conducted/synced/abc");
 	});
 });

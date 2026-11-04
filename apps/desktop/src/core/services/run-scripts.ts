@@ -107,4 +107,9 @@ export class RunScriptsService {
 	stopAll(): Promise<Result<void>> {
 		return notImplemented("RUN-01");
 	}
+
+	/** Backs `Actions.run.activateApp`. */
+	activateApp(_workspaceId: WorkspaceId, _port: number): Promise<Result<void>> {
+		return notImplemented("RUN-03");
+	}
 }

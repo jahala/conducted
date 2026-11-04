@@ -11,6 +11,11 @@
  * in dependency order and some stores do not exist yet.
  * Our design choice: the remote is derived from `target_branch` because migration 0001 has no
  * remote column. Stores are passed as getters so construction order does not matter.
+ * One home for the remote (DATA-09): the repo setting `remote_name` ("Remote origin" on the Git
+ * page) is the only source. `remoteNameOf` reads `RepoConfig.remoteName` from the repo store; an
+ * empty name means "origin". Once it is built, `gitContext` and `prContext` take their remote
+ * from it and `remoteOf` goes away. A repo whose config is not loaded yet returns the error code
+ * `repo_config_unloaded`, never a guessed name.
  * Test first: gitContext for a workspace targeting "upstream/dev" has remote "upstream".
  */
 import type { SessionConfig, WorkspaceContext } from "@conducted/protocol";
@@ -41,6 +46,8 @@ export interface Lookups {
 	workspace(id: WorkspaceId): Result<Workspace>;
 	repoOf(id: WorkspaceId): Result<Repo>;
 	workspaceOfSession(id: SessionId): Result<Workspace>;
+	/** The git remote of the workspace's repository, from the repo setting (DATA-09). */
+	remoteNameOf(id: WorkspaceId): Result<string>;
 	gitContext(id: WorkspaceId): Result<WorkspaceGitContext>;
 	prContext(id: WorkspaceId): Result<PrWorkspaceContext>;
 	/** What the sidecar needs to place a chat on disk. */
@@ -81,6 +88,7 @@ export function createLookups(sources: LookupSources): Lookups {
 		workspace,
 		repoOf,
 		workspaceOfSession,
+		remoteNameOf: () => notImplemented("DATA-09"),
 		gitContext(id) {
 			const ws = workspace(id);
 			if (!ws.ok) return ws;
@@ -112,6 +120,8 @@ export function createLookups(sources: LookupSources): Lookups {
 			const repo = repoOf(id);
 			if (!repo.ok) return repo;
 			return ok({
+				workspaceId: id,
+				workspaceName: ws.value.directoryName,
 				workspacePath: ws.value.path,
 				repoRootPath: repo.value.rootPath,
 				targetBranch: ws.value.targetBranch,

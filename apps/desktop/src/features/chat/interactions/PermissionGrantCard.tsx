@@ -4,8 +4,10 @@
  * sandbox allows.
  * Behaviour: other-runners.md 4 (Codex permission grants), ui-map.md 3.3 ('Network access' card
  * with Deny and Approve).
- * Must handle: Scope shown in plain words (files, network, command); Approve and Deny only, no
- * 'always'; the interaction is withdrawn; a double click sends one answer.
+ * Must handle: The reason, each requested path with its access (read, write, deny) and the
+ * network request shown in plain words; Approve for this turn or for the session, and Deny; the
+ * request expires after 300 seconds (`expiresAt`) and then shows that it timed out; the
+ * interaction is withdrawn; a double click sends one answer.
  * Test first: Approve calls sessions.answer with kind permission_grant and granted true.
  */
 

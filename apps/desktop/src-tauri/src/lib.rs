@@ -4,8 +4,25 @@
 //! Command names and events: docs/plans/tauri-commands.md. Each module registers its commands
 //! here in `generate_handler!` and its shared state with `.manage(...)`. State is created once
 //! and handed to commands through `tauri::State`, so no module keeps global variables.
+//!
+//! @feature PLAT-27 Startup hardening: file limit, panics in the log, one instance
+//! Owns: the three things `run` does before the window opens: raise the open-file limit, send Rust
+//! panics to the app log, and allow one running copy of the app.
+//! Behaviour: docs/research/conductor/native-and-sidecar-map.md A2 (`lib.rs` raises the
+//! file-descriptor limit and installs a panic hook) and A5 ("Failed to raise file descriptor
+//! limit").
+//! Must handle: a limit that cannot be raised (a logged warning, the app still starts); a limit
+//! already above the wanted one (left alone); a panic on any thread (message, location and a
+//! backtrace go to the log before the process ends; with `panic = "abort"` in release builds the
+//! hook is the only record); a second launch (the first window comes to the front and the second
+//! process exits, which needs `tauri-plugin-single-instance` in Cargo.toml and in `run`); a panic
+//! while the log is not ready (printed to stderr).
+//! Our design choice: the research shows no single-instance guard in Conductor. We add one because
+//! two copies would share one database and one sidecar socket folder.
+//! Test first: `raise_file_limit` returns a soft limit at least as high as the one before the call.
 
 pub mod attachments;
+pub mod binaries;
 pub mod db;
 pub mod deep_link;
 pub mod error;
@@ -14,6 +31,7 @@ pub mod files;
 pub mod keychain;
 pub mod logger;
 pub mod menu;
+pub mod navigation;
 pub mod notifications;
 pub mod open_with;
 pub mod pty;
@@ -27,6 +45,21 @@ pub mod updater;
 use error::CommandResult;
 use serde::Serialize;
 use tauri::AppHandle;
+
+/// Raises the soft limit of open files towards the hard limit. Returns the new soft limit.
+pub fn raise_file_limit() -> CommandResult<u64> {
+    not_implemented!("PLAT-27")
+}
+
+/// Sends panics to the app log (`logger.rs`) instead of only to stderr.
+pub fn install_panic_hook(_app: &AppHandle) -> CommandResult<()> {
+    not_implemented!("PLAT-27")
+}
+
+/// Makes a second launch focus the first window and exit.
+pub fn guard_single_instance(_app: &AppHandle) -> CommandResult<()> {
+    not_implemented!("PLAT-27")
+}
 
 /// Liveness check used by the UI at startup and by the scaffold's smoke test.
 #[tauri::command]

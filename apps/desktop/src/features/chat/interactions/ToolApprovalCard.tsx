@@ -6,9 +6,11 @@
  * command?', 'make these changes?', 'fetch this page?'; shows the tool card or the decision reason;
  * buttons 'Yes' (Enter), 'Yes for this session' or 'Yes always' (Cmd+Enter), 'No' (Backspace)),
  * claude-runner.md 3.2.
- * Our design choice: Our decisions are allow, allow_edits_for_session, always_allow and deny (see
- * the protocol). The secondary button label depends on the tool: edits offer 'Allow all edits
- * during this session', commands offer 'Always allow'. 'No' can carry a short message to the agent.
+ * Our design choice: Our decisions are allow, allow_edits_for_session, allow_with_suggested_rules,
+ * always_allow and deny (see the protocol). The secondary button label depends on the tool: edits
+ * offer 'Allow all edits during this session', commands offer 'Always allow'. A third button allows
+ * with the rules the agent suggests, shown only when the request has `suggestedRules`. A request
+ * from a sub-agent (`subAgentId`) shows a 'Subagent' badge. 'No' can carry a short message.
  * Must handle: A blocked path outside the workspace (show the path and say so); the tool input is
  * long (collapsed with 'Show all'); the interaction is withdrawn (card disappears); keyboard
  * shortcuts only fire when the card has focus or the composer is empty, never while typing a

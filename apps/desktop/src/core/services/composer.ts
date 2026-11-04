@@ -16,12 +16,19 @@
  * drafts table. Attachment rows use the existing `attachments` table.
  * Test first: classifyAttachment("shot.PNG") is "image" and convertsToAttachment(6000 chars) is true.
  */
-import { notImplemented, type Result, type SessionId, type WorkspaceId } from "@conducted/shared";
+import {
+	notImplemented,
+	type Result,
+	type SessionId,
+	type SnippetId,
+	type TurnId,
+	type WorkspaceId,
+} from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform } from "../../platform/platform.ts";
-import type { Draft } from "../api.ts";
+import type { Draft, SnippetInput } from "../api.ts";
 import type { Repositories } from "../db/repositories.ts";
-import type { Attachment } from "../model.ts";
+import type { Attachment, Snippet } from "../model.ts";
 
 export const PASTE_ATTACHMENT_MIN_LINES = 90;
 export const PASTE_ATTACHMENT_MIN_CHARS = 5_000;
@@ -175,5 +182,43 @@ export class ComposerService {
 	/** Clears the draft after a successful send. */
 	clearDraft(_sessionId: SessionId): Promise<Result<void>> {
 		return notImplemented("COMP-01");
+	}
+
+	/** Backs `Actions.attachments.addChatTranscript`. */
+	addChatTranscript(_sessionId: SessionId, _fromSessionId: SessionId): Promise<Result<string>> {
+		return notImplemented("CHAT-26");
+	}
+
+	/** Backs `Actions.attachments.addPlan`. */
+	addPlan(
+		_sessionId: SessionId,
+		_plan: { sessionId: SessionId; turnId: TurnId },
+	): Promise<Result<string>> {
+		return notImplemented("CHAT-26");
+	}
+
+	/** Backs `Actions.attachments.addTerminalOutput`. */
+	addTerminalOutput(_sessionId: SessionId): Promise<Result<string>> {
+		return notImplemented("COMP-04");
+	}
+
+	/** Backs `Actions.attachments.addText`, for example a terminal selection. */
+	addText(_sessionId: SessionId, _fileName: string, _text: string): Promise<Result<string>> {
+		return notImplemented("RUN-06");
+	}
+
+	/** Backs `Actions.snippets.create`. A keyword another snippet uses is refused. */
+	createSnippet(_input: SnippetInput): Promise<Result<Snippet>> {
+		return notImplemented("COMP-09");
+	}
+
+	/** Backs `Actions.snippets.update`. */
+	updateSnippet(_id: SnippetId, _input: SnippetInput): Promise<Result<void>> {
+		return notImplemented("COMP-09");
+	}
+
+	/** Backs `Actions.snippets.remove`. */
+	removeSnippet(_id: SnippetId): Promise<Result<void>> {
+		return notImplemented("COMP-09");
 	}
 }

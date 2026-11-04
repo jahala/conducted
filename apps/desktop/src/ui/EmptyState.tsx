@@ -38,10 +38,8 @@ export function EmptyState({
 			)}
 		>
 			{icon ? <div className="text-fg-subtle">{icon}</div> : null}
-			<h2 className={cn("font-semibold text-fg", compact ? "text-base" : "text-xl")}>{title}</h2>
-			{body ? (
-				<p className={cn("max-w-prose text-fg-muted", compact ? "text-sm" : "text-base")}>{body}</p>
-			) : null}
+			<h2 className={cn("font-medium text-fg", compact ? "text-base" : "text-xl")}>{title}</h2>
+			{body ? <p className="max-w-prose text-sm text-fg-muted">{body}</p> : null}
 			{action ? <div className={cn(compact ? "mt-1" : "mt-3")}>{action}</div> : null}
 		</section>
 	);

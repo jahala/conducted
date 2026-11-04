@@ -680,6 +680,20 @@ const SETTINGS_TABLE = [
 		type: "bool",
 		default: false,
 	},
+	// Our design choice: empty means the remote named origin; the research gives no default. This is the one home of a repo's remote name (DATA-09).
+	{
+		key: "remote_name",
+		page: "git",
+		scopes: ["repo"],
+		title: "Remote origin",
+		description: "Where should we push, pull, and create PRs?",
+		searchTerms: ["remote", "origin", "upstream", "push", "pull", "fork"],
+		tomlKey: "git.remote_name",
+		fileLayers: "user-and-repo",
+		feature: "DATA-09",
+		type: "string",
+		default: "",
+	},
 	// Our design choice: off, as the research gives no default.
 	{
 		key: "archive_on_merge",
@@ -1106,6 +1120,18 @@ const SETTINGS_TABLE = [
 		description: "Create workspaces on a full page instead of a dialog.",
 		searchTerms: ["create", "new workspace", "page", "dialog"],
 		feature: "WS-01",
+		type: "bool",
+		default: false,
+	},
+	{
+		key: "local_git_forge_enabled",
+		page: "experimental",
+		scopes: ["user"],
+		title: "Add projects without GitHub",
+		description:
+			"Let projects with no GitHub remote show their own commits and merge state in place of a pull request.",
+		searchTerms: ["github", "local", "git", "remote", "pull request"],
+		feature: "GIT-14",
 		type: "bool",
 		default: false,
 	},

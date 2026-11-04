@@ -13,6 +13,8 @@
 
 export const CHECKPOINT_REF_PREFIX = "refs/conducted/checkpoints/";
 export const ARCHIVE_REF_PREFIX = "refs/conducted/archive/";
+/** Per-worktree refs that remember the tip a stack branch last synced to (PR-12). */
+export const SYNCED_REF_PREFIX = "refs/worktree/conducted/synced/";
 
 export type CheckpointPhase = "start" | "end";
 
@@ -43,3 +45,6 @@ export const checkpointRef = (checkpointId: string): string =>
 
 /** The ref that keeps an archived workspace's last commit reachable. */
 export const archiveRef = (workspaceId: string): string => `${ARCHIVE_REF_PREFIX}${workspaceId}`;
+
+/** The baseline ref for one branch, remote and remote identity, named by the hash of that tuple. */
+export const syncedBaselineRef = (tupleHash: string): string => `${SYNCED_REF_PREFIX}${tupleHash}`;

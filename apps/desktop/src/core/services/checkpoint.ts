@@ -22,7 +22,7 @@
 import type { FileChange } from "@conducted/protocol";
 import { notImplemented, type Result, type SessionId, type TurnId } from "@conducted/shared";
 import type { GitRunner } from "../git/runner.ts";
-import type { Session } from "../model.ts";
+import type { Session, Workspace } from "../model.ts";
 
 export interface CheckpointServiceDeps {
 	git: GitRunner;
@@ -79,5 +79,10 @@ export class CheckpointService {
 	/** Backs `Actions.sessions.forkFrom`. */
 	forkFrom(_sessionId: SessionId, _turnId: TurnId): Promise<Result<Session>> {
 		return notImplemented("CHAT-16");
+	}
+
+	/** Backs `Actions.sessions.forkToWorkspace`. */
+	forkToWorkspace(_sessionId: SessionId, _turnId: TurnId): Promise<Result<Workspace>> {
+		return notImplemented("CHAT-21");
 	}
 }

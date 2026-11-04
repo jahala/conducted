@@ -12,11 +12,12 @@
  * inset, so the header component only fills the row.
  * Must handle: right panel collapsed (the header's toggle button reopens it; the header receives
  * `rightPanelOpen` and `toggleRightPanel`); window narrower than both minimums; the scripts panel collapsing to
- * its tab row.
+ * its 32px tab row (ui/layout-sizes.ts).
  * Test first: renders all four slots; toggleRightPanel hides and shows the right panel.
  */
 import type { WorkspaceId } from "@conducted/shared";
 import { type ReactNode, useState } from "react";
+import { scriptsPanelCollapsedSize } from "../../ui/layout-sizes.ts";
 import { ResizableGroup, ResizablePanel, ResizeHandle, usePanelRef } from "../../ui/resizable.tsx";
 import { TitleBarInset } from "../../ui/TitleBarInset.tsx";
 
@@ -97,7 +98,7 @@ export function WorkspaceLayout({
 							defaultSize="50%"
 							minSize="20%"
 							collapsible
-							collapsedSize="36px"
+							collapsedSize={scriptsPanelCollapsedSize}
 						>
 							<div className="h-full min-h-0">{scriptsPanel}</div>
 						</ResizablePanel>

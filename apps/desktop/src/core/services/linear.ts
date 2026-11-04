@@ -14,7 +14,7 @@
  * change: a `Platform.http` group would replace the curl adapter.
  * Test first: a 401 moves the state to "key rejected" and a second call makes no request.
  */
-import { notImplemented, type Result } from "@conducted/shared";
+import { notImplemented, type Result, type WorkspaceId } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform } from "../../platform/platform.ts";
 
@@ -66,7 +66,8 @@ export class LinearService {
 		this.store = createStore<LinearState>(() => ({ connection: "unknown", myIssues: [] }));
 	}
 
-	setApiKey(_key: string): Promise<Result<void>> {
+	/** Backs `Actions.accounts.setLinearKey`. Null removes the key from the Keychain. */
+	setApiKey(_key: string | null): Promise<Result<void>> {
 		void this.#deps;
 		return notImplemented("PR-09");
 	}
@@ -81,6 +82,11 @@ export class LinearService {
 
 	/** Writes the context file for an issue into a workspace and returns its path. */
 	attachAsContext(_issue: LinearIssue, _workspacePath: string): Promise<Result<string>> {
+		return notImplemented("PR-09");
+	}
+
+	/** Backs `Actions.issues.attachToWorkspace` for Linear issues. Returns the file path. */
+	attachToWorkspace(_workspaceId: WorkspaceId, _issueId: string): Promise<Result<string>> {
 		return notImplemented("PR-09");
 	}
 }

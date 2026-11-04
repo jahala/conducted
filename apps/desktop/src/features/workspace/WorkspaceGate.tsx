@@ -31,7 +31,10 @@ export function WorkspaceGate({
 
 	const unarchive = async () => {
 		setUnarchiving(true);
-		const result = await actions.workspaces.unarchive(workspaceId);
+		const result = await actions.workspaces.unarchive(workspaceId, {
+			branchName: null,
+			clearChats: false,
+		});
 		setUnarchiving(false);
 		if (!result.ok)
 			toast.error("Couldn't unarchive the workspace", { description: result.error.message });

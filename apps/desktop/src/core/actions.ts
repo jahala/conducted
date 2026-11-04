@@ -26,13 +26,18 @@ export function createActions(
 			clone: (url, parentDir) => services.repo.clone(url, parentDir),
 			createFromTemplate: (name, parentDir, template) =>
 				services.repo.createFromTemplate(name, parentDir, template),
+			createGitHubRepo: (repoId, input) => services.repo.createGitHubRepo(repoId, input),
 			remove: (repoId) => services.repo.remove(repoId),
 			updateConfig: (repoId, config) => services.repo.updateConfig(repoId, config),
+			setIcon: (repoId, icon) => services.repo.setIcon(repoId, icon),
+			resetRunAction: (repoId, actionId) => services.repo.resetRunAction(repoId, actionId),
+			setRunActionHidden: (repoId, actionId, hidden) =>
+				services.repo.setRunActionHidden(repoId, actionId, hidden),
 		},
 		workspaces: {
 			create: (input) => services.workspace.create(input),
 			archive: (id, options) => services.workspace.archive(id, options),
-			unarchive: (id) => services.workspace.unarchive(id),
+			unarchive: (id, options) => services.workspace.unarchive(id, options),
 			remove: (id) => services.workspace.remove(id),
 			rename: (id, name) => services.workspace.rename(id, name),
 			setPinned: (id, pinned) => services.workspace.setPinned(id, pinned),
@@ -41,6 +46,13 @@ export function createActions(
 			setLinkedPaths: (id, paths) => services.workspace.setLinkedPaths(id, paths),
 			openIn: (id, appName) => services.workspace.openIn(id, appName),
 			markRead: (id) => services.sessions.markAllRead(id),
+			markUnread: (id) => services.sessions.markWorkspaceUnread(id),
+			setActiveSession: (id, sessionId) => services.workspace.setActiveSession(id, sessionId),
+			retrySetup: (id) => services.workspace.retrySetup(id),
+			recoverPrompt: (id) => services.workspace.recoverPrompt(id),
+			addToBacklog: (input) => services.workspace.addToBacklog(input),
+			startFromBacklog: (id) => services.workspace.startFromBacklog(id),
+			removeFromBacklog: (id) => services.workspace.removeFromBacklog(id),
 		},
 		sections: {
 			create: (name, emoji) => services.sections.create(name, emoji),
@@ -65,7 +77,22 @@ export function createActions(
 			forkFrom: (id, turnId) => services.checkpoint.forkFrom(id, turnId),
 			saveDraft: (id, draft) => services.composer.saveDraft(id, draft),
 			copyTranscript: (id, detail) => services.sessions.copyTranscript(id, detail),
-			startFromPlan: (id, planText) => services.sessions.startFromPlan(id, planText),
+			startFromPlan: (id, planText, target) =>
+				services.sessions.startFromPlan(id, planText, target),
+			markRead: (id) => services.sessions.markRead(id),
+			markUnread: (id) => services.sessions.markUnread(id),
+			retryFailedSend: (id, messageId) => services.sessions.retryFailedSend(id, messageId),
+			discardFailedSend: (id, messageId) => services.sessions.discardFailedSend(id, messageId),
+			retryInNewChat: (id, turnId) => services.sessions.retryInNewChat(id, turnId),
+			restartAgent: (id) => services.sessions.restartAgent(id),
+			compact: (id) => services.sessions.compact(id),
+			setAutoApproveEdits: (id, enabled) => services.sessions.setAutoApproveEdits(id, enabled),
+			setAcpOption: (id, optionId, value) => services.sessions.setAcpOption(id, optionId, value),
+			forkToWorkspace: (id, turnId) => services.checkpoint.forkToWorkspace(id, turnId),
+			goal: {
+				set: (id, objective) => services.sessions.setGoal(id, objective),
+				change: (id, action) => services.sessions.changeGoal(id, action),
+			},
 			queue: {
 				edit: (messageId, text) => services.followUpQueue.edit(messageId, text),
 				remove: (messageId) => services.followUpQueue.remove(messageId),
@@ -82,6 +109,10 @@ export function createActions(
 			renameBranch: (workspaceId, name) => services.git.renameBranch(workspaceId, name),
 			discardFile: (workspaceId, path) => services.git.discardFile(workspaceId, path),
 			setViewed: (workspaceId, path, viewed) => services.git.setViewed(workspaceId, path, viewed),
+			switchBranch: (workspaceId, branch) => services.git.switchBranch(workspaceId, branch),
+			continueOnNewBranch: (workspaceId, name) =>
+				services.git.continueOnNewBranch(workspaceId, name),
+			openInDiffTool: (workspaceId, path) => services.git.openInDiffTool(workspaceId, path),
 		},
 		pullRequests: {
 			create: (workspaceId) => services.github.create(workspaceId),
@@ -94,6 +125,16 @@ export function createActions(
 			updateTitleAndBody: (workspaceId, title, body) =>
 				services.github.updateTitleAndBody(workspaceId, title, body),
 			requestAiReview: (workspaceId, extra) => services.review.requestAiReview(workspaceId, extra),
+			requestReview: (workspaceId, logins) => services.github.requestReview(workspaceId, logins),
+			removeReviewRequest: (workspaceId, login) =>
+				services.github.removeReviewRequest(workspaceId, login),
+			link: (workspaceId, urlOrNumber) => services.github.linkPullRequest(workspaceId, urlOrNumber),
+		},
+		issues: {
+			attachToWorkspace: (workspaceId, issue) =>
+				issue.provider === "linear"
+					? services.linear.attachToWorkspace(workspaceId, issue.id)
+					: services.github.attachIssueToWorkspace(workspaceId, issue),
 		},
 		comments: {
 			add: (workspaceId, file, line, endLine, body) =>
@@ -101,6 +142,8 @@ export function createActions(
 			edit: (id, body) => services.review.edit(id, body),
 			remove: (id) => services.review.remove(id),
 			setResolved: (id, resolved) => services.review.setResolved(id, resolved),
+			setHidden: (id, hidden) => services.review.setHidden(id, hidden),
+			markAllReady: (workspaceId) => services.review.markAllReady(workspaceId),
 			sendToChat: (workspaceId, ids) => services.review.sendToChat(workspaceId, ids),
 		},
 		run: {
@@ -108,9 +151,13 @@ export function createActions(
 			stop: (workspaceId, actionId) => services.runScripts.stop(workspaceId, actionId),
 			startSpotlight: (workspaceId) => services.spotlight.start(workspaceId),
 			stopSpotlight: (workspaceId) => services.spotlight.stop(workspaceId),
+			activateApp: (workspaceId, port) => services.runScripts.activateApp(workspaceId, port),
 		},
 		terminals: {
-			create: (workspaceId) => services.terminals.create(workspaceId),
+			create: (workspaceId, options) => services.terminals.create(workspaceId, options),
+			openForRepo: (repoId) => services.terminals.openForRepo(repoId),
+			restart: (id) => services.terminals.restart(id),
+			runCommand: (workspaceId, command) => services.terminals.runCommand(workspaceId, command),
 			close: (id) => services.terminals.close(id),
 		},
 		files: {
@@ -120,12 +167,31 @@ export function createActions(
 				services.composer.attachFilesToActiveChat(workspaceId, paths),
 			open: (workspaceId, path, mode, scope) =>
 				services.workspaceFiles.open(workspaceId, path, mode, scope),
+			resolveConflicts: (workspaceId, path, choices) =>
+				services.workspaceFiles.resolveConflicts(workspaceId, path, choices),
+		},
+		artifacts: {
+			loadMore: (workspaceId) => services.workspaceFiles.loadMoreArtifacts(workspaceId),
+			upload: (workspaceId, paths) => services.workspaceFiles.uploadArtifacts(workspaceId, paths),
 		},
 		mcp: {
 			refresh: (sessionId) => services.mcp.refreshSession(sessionId),
 		},
 		attachments: {
 			add: (sessionId, paths) => services.composer.addAttachments(sessionId, paths),
+			addChatTranscript: (sessionId, fromSessionId) =>
+				services.composer.addChatTranscript(sessionId, fromSessionId),
+			addPlan: (sessionId, plan) => services.composer.addPlan(sessionId, plan),
+			addTerminalOutput: (sessionId) => services.composer.addTerminalOutput(sessionId),
+			addText: (sessionId, fileName, text) => services.composer.addText(sessionId, fileName, text),
+			copyImage: (path) => services.system.copyImage(path),
+			saveAs: (path) => services.system.saveAs(path),
+			openExternally: (path) => services.system.openExternally(path),
+		},
+		snippets: {
+			create: (input) => services.composer.createSnippet(input),
+			update: (id, input) => services.composer.updateSnippet(id, input),
+			remove: (id) => services.composer.removeSnippet(id),
 		},
 		settings: {
 			set: (key, value) => services.settings.set(key, value),
@@ -134,7 +200,23 @@ export function createActions(
 		},
 		agents: {
 			login: (agent, acpAgent) => services.agentCatalog.login(agent, acpAgent),
+			finishLogin: (loginId, code) => services.agentCatalog.finishLogin(loginId, code),
+			cancelLogin: (loginId) => services.agentCatalog.cancelLogin(loginId),
 			refresh: () => services.agentCatalog.refresh(),
+			setProviderKey: (key, value) => services.agentCatalog.setProviderKey(key, value),
+			removeProviderKey: (key) => services.agentCatalog.removeProviderKey(key),
+			saveConfigFile: (agent, text, expectedModifiedAt) =>
+				services.agentCatalog.saveConfigFile(agent, text, expectedModifiedAt),
+			syncConfigs: (from, categories) => services.agentCatalog.syncConfigs(from, categories),
+		},
+		programs: {
+			install: (program) => services.system.installProgram(program),
+			redownload: (program) => services.system.redownloadProgram(program),
+			remove: (program) => services.system.removeProgram(program),
+		},
+		accounts: {
+			setGitHubToken: (token) => services.github.setToken(token),
+			setLinearKey: (key) => services.linear.setApiKey(key),
 		},
 		app: {
 			runCommand: (commandId) => services.commands.run(commandId),
@@ -148,6 +230,11 @@ export function createActions(
 			pickFolder: async (title) => ok(await platform.dialogs.pickFolder({ title })),
 			recheckGitHubAccess: () => services.github.recheckAccess(),
 			createDiagnosticsChat: (workspaceId) => services.sessions.createDiagnosticsChat(workspaceId),
+			copyText: (text) => services.system.copyText(text),
+			sendFeedback: (input) => services.system.sendFeedback(input),
+			openSidecarLogs: () => services.system.openSidecarLogs(),
+			openFullDiskAccessSettings: () => services.system.openFullDiskAccessSettings(),
+			runXcodeLicenseFix: () => services.system.runXcodeLicenseFix(),
 		},
 	};
 }

@@ -40,6 +40,19 @@
  *   useMcpServers                      -> services.mcp.store
  *   useDiagnostics                     -> query over the captured environment and agent installs
  *   useClosedSessions                  -> services.sessions.store (sessions with closedAt set)
+ *   useBacklogWorkspaces               -> services.workspace.store (backlog rows)
+ *   useIssues, usePullRequestList      -> query over services.github (GitHub) and services.linear (Linear)
+ *   useRepoFileSearch                  -> query over services.workspaceFiles, rooted at the main clone
+ *   useArtifacts                       -> services.workspaceFiles (pages of the .context folder)
+ *   usePlans                           -> services.sessions.store (plan approvals in stored events)
+ *   useSnippets                        -> services.composer.store (snippets)
+ *   useAgentPrograms                   -> services.system.store (program statuses and user paths)
+ *   useProviderKeys, useAgentProviders, useAcpConfigOptions -> services.agentCatalog
+ *   useAgentConfigFile, useConfigSyncPreview -> query over services.agentCatalog (agent config files)
+ *   useGitHubOwners, useGitHubRepos, useRepoNameCheck -> query over services.github (gh api)
+ *   useLinearAccess                    -> services.linear.store (access)
+ *   useRepoTerminals                   -> services.terminals.store (repository terminals)
+ *   useSystemInfo, useFullDiskAccess   -> query over Platform.system, through services.system
  * Test first: useWorkspaces returns "ready" with the rows a test database holds.
  */
 import { notImplemented } from "@conducted/shared";
@@ -86,6 +99,26 @@ export const useDiagnostics: Queries["useDiagnostics"] = () => notImplemented("A
 export const useFileSearch: Queries["useFileSearch"] = () => notImplemented("REV-07");
 export const useContentSearch: Queries["useContentSearch"] = () => notImplemented("REV-07");
 export const useClosedSessions: Queries["useClosedSessions"] = () => notImplemented("CHAT-01");
+export const useBacklogWorkspaces: Queries["useBacklogWorkspaces"] = () => notImplemented("WS-11");
+export const useIssues: Queries["useIssues"] = () => notImplemented("PR-11");
+export const usePullRequestList: Queries["usePullRequestList"] = () => notImplemented("PR-11");
+export const useRepoFileSearch: Queries["useRepoFileSearch"] = () => notImplemented("COMP-04");
+export const useArtifacts: Queries["useArtifacts"] = () => notImplemented("REV-10");
+export const usePlans: Queries["usePlans"] = () => notImplemented("CHAT-26");
+export const useSnippets: Queries["useSnippets"] = () => notImplemented("COMP-09");
+export const useAgentPrograms: Queries["useAgentPrograms"] = () => notImplemented("PLAT-28");
+export const useProviderKeys: Queries["useProviderKeys"] = () => notImplemented("SET-09");
+export const useAgentProviders: Queries["useAgentProviders"] = () => notImplemented("SET-10");
+export const useAcpConfigOptions: Queries["useAcpConfigOptions"] = () => notImplemented("AGENT-17");
+export const useAgentConfigFile: Queries["useAgentConfigFile"] = () => notImplemented("SET-12");
+export const useConfigSyncPreview: Queries["useConfigSyncPreview"] = () => notImplemented("SET-08");
+export const useGitHubOwners: Queries["useGitHubOwners"] = () => notImplemented("PRJ-02");
+export const useGitHubRepos: Queries["useGitHubRepos"] = () => notImplemented("PRJ-02");
+export const useRepoNameCheck: Queries["useRepoNameCheck"] = () => notImplemented("PRJ-03");
+export const useLinearAccess: Queries["useLinearAccess"] = () => notImplemented("PR-09");
+export const useRepoTerminals: Queries["useRepoTerminals"] = () => notImplemented("RUN-06");
+export const useSystemInfo: Queries["useSystemInfo"] = () => notImplemented("PLAT-32");
+export const useFullDiskAccess: Queries["useFullDiskAccess"] = () => notImplemented("PLAT-24");
 
 /** All mutations, grouped by area. Each returns a Result and never throws for expected failures. */
 export const useActions = (): Actions => useServices().actions;

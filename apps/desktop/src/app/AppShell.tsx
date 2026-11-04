@@ -4,9 +4,10 @@
  * the current route renders. The workspace route adds its own right panel (see features/workspace/WorkspaceLayout).
  * Behaviour: ui-map.md 1.1 (three regions; the right panel belongs to the workspace route, which holds the
  * horizontal group "right-panel-layout"), 4 (sidebar), 1.3 (status areas).
- * Our design choice: the sidebar is sized in pixels (default 280, min 220, max 420) and keeps its width when the
- * window resizes. The centre has a minimum width so the chat stays usable. The window uses an overlay title bar,
- * so the top 44px of the sidebar is an empty drag strip under the floating window controls.
+ * The sidebar is sized in pixels with Conductor's sizes (default 256, min 192, max 480; ui-dimensions.md 3, in
+ * ui/layout-sizes.ts) and keeps its width when the window resizes.
+ * Our design choice: the centre has a minimum width so the chat stays usable. The window uses an overlay title
+ * bar, so the top 40px of the sidebar is an empty drag strip under the floating window controls.
  * Must handle: collapsed sidebar (the `--shell-left-inset` variable tells headers to leave room for the
  * controls); sidebar and centre fail separately, each inside <NotBuiltYet>; the sidebar stays mounted while
  * collapsed so its state survives; panel sizes are not yet saved (layout-persistence.ts, NAV-01).
@@ -16,6 +17,7 @@
 import { Outlet } from "@tanstack/react-router";
 import { type CSSProperties, useState } from "react";
 import { Sidebar } from "../features/sidebar/Sidebar.tsx";
+import { sidebarSize } from "../ui/layout-sizes.ts";
 import { NotBuiltYet } from "../ui/not-built-yet.tsx";
 import { ResizableGroup, ResizablePanel, ResizeHandle, usePanelRef } from "../ui/resizable.tsx";
 import { ShellControls } from "./ShellControls.tsx";
@@ -42,11 +44,11 @@ export function AppShell() {
 				<ResizablePanel
 					id="sidebar"
 					panelRef={sidebarRef}
-					defaultSize="280px"
-					minSize="220px"
-					maxSize="420px"
+					defaultSize={sidebarSize.default}
+					minSize={sidebarSize.min}
+					maxSize={sidebarSize.max}
 					collapsible
-					collapsedSize="0px"
+					collapsedSize={sidebarSize.collapsed}
 					groupResizeBehavior="preserve-pixel-size"
 					onResize={(size) => setSidebarOpen(size.inPixels > 0)}
 				>

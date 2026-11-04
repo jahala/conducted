@@ -22,7 +22,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform } from "../../platform/platform.ts";
 import type { Repositories } from "../db/repositories.ts";
 import type { GitRunner } from "../git/runner.ts";
-import type { Repo, RepoConfig } from "../model.ts";
+import type { Repo, RepoConfig, RepoIconChoice } from "../model.ts";
 import type { SettingsService } from "./settings.ts";
 
 export interface RepoState {
@@ -95,11 +95,30 @@ export class RepoService {
 		return notImplemented("PRJ-04");
 	}
 
-	setIcon(_repoId: RepoId, _icon: string | null): Promise<Result<void>> {
-		return notImplemented("SET-07");
+	/** Backs `Actions.projects.setIcon`. A file is checked (PNG, JPEG, GIF, WebP or SVG, under 10 MB) and copied. */
+	setIcon(_repoId: RepoId, _icon: RepoIconChoice): Promise<Result<void>> {
+		return notImplemented("PRJ-05");
 	}
 
 	setHidden(_repoId: RepoId, _hidden: boolean): Promise<Result<void>> {
 		return notImplemented("PRJ-01");
+	}
+
+	/** Backs `Actions.projects.createGitHubRepo`. Undoes the earlier steps when a later one fails. */
+	createGitHubRepo(
+		_repoId: RepoId,
+		_input: { owner: string; name: string; isPrivate: boolean },
+	): Promise<Result<string>> {
+		return notImplemented("PRJ-03");
+	}
+
+	/** Backs `Actions.projects.resetRunAction`. */
+	resetRunAction(_repoId: RepoId, _actionId: string): Promise<Result<void>> {
+		return notImplemented("SET-07");
+	}
+
+	/** Backs `Actions.projects.setRunActionHidden`. Writes the local settings layer only. */
+	setRunActionHidden(_repoId: RepoId, _actionId: string, _hidden: boolean): Promise<Result<void>> {
+		return notImplemented("SET-07");
 	}
 }

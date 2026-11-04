@@ -7,14 +7,19 @@
  * Must handle: building is cheap and does no I/O, so `db.transaction((tx) => createRepositories(
  * tx, deps))` is the normal way to touch two tables atomically; the handle passed in decides
  * which transaction the statements join.
- * Test first: createRepositories returns an object with all thirteen repositories.
+ * Test first: createRepositories returns an object with all sixteen repositories.
  */
 import type { Database } from "../../platform/platform.ts";
 import { type AttachmentRepository, createAttachmentRepository } from "./attachments.ts";
+import {
+	type BacklogWorkspaceRepository,
+	createBacklogWorkspaceRepository,
+} from "./backlog-workspaces.ts";
 import type { RepositoryDeps } from "./deps.ts";
 import { createDiffCommentRepository, type DiffCommentRepository } from "./diff-comments.ts";
 import { createEnvVarRepository, type EnvVarRepository } from "./env-vars.ts";
 import { createFavoriteModelRepository, type FavoriteModelRepository } from "./favorite-models.ts";
+import { createProviderKeyRepository, type ProviderKeyRepository } from "./provider-keys.ts";
 import { createQueuedMessageRepository, type QueuedMessageRepository } from "./queued-messages.ts";
 import { createRepoRepository, type RepoRepository } from "./repos.ts";
 import { createSectionRepository, type SectionRepository } from "./sections.ts";
@@ -25,6 +30,7 @@ import {
 } from "./session-live-state.ts";
 import { createSessionRepository, type SessionRepository } from "./sessions.ts";
 import { createSettingsRepository, type SettingsRepository } from "./settings.ts";
+import { createSnippetRepository, type SnippetRepository } from "./snippets.ts";
 import { createTerminalRepository, type TerminalRepository } from "./terminals.ts";
 import { createWorkspaceRepository, type WorkspaceRepository } from "./workspaces.ts";
 
@@ -44,6 +50,9 @@ export interface Repositories {
 	favoriteModels: FavoriteModelRepository;
 	settings: SettingsRepository;
 	envVars: EnvVarRepository;
+	backlogWorkspaces: BacklogWorkspaceRepository;
+	snippets: SnippetRepository;
+	providerKeys: ProviderKeyRepository;
 }
 
 export function createRepositories(db: Database, deps: RepositoryDeps): Repositories {
@@ -61,5 +70,8 @@ export function createRepositories(db: Database, deps: RepositoryDeps): Reposito
 		favoriteModels: createFavoriteModelRepository(db, deps),
 		settings: createSettingsRepository(db, deps),
 		envVars: createEnvVarRepository(db, deps),
+		backlogWorkspaces: createBacklogWorkspaceRepository(db, deps),
+		snippets: createSnippetRepository(db, deps),
+		providerKeys: createProviderKeyRepository(db, deps),
 	};
 }

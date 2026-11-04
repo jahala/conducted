@@ -31,15 +31,15 @@ describe("Button", () => {
 		expect(button.getAttribute("data-variant")).toBe(variant);
 	});
 
-	it("gives the primary variant the accent and no other variant", () => {
+	it("gives the primary variant the primary fill and no other variant", () => {
 		render(
 			<>
 				<Button variant="primary">A</Button>
 				<Button variant="secondary">B</Button>
 			</>,
 		);
-		expect(screen.getByRole("button", { name: "A" }).className).toContain("bg-accent");
-		expect(screen.getByRole("button", { name: "B" }).className).not.toContain("bg-accent");
+		expect(screen.getByRole("button", { name: "A" }).className).toContain("bg-primary-fill");
+		expect(screen.getByRole("button", { name: "B" }).className).not.toContain("bg-primary-fill");
 	});
 
 	it("does not submit a form unless asked", () => {

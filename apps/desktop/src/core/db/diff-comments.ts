@@ -2,8 +2,9 @@
  * @feature DATA-01 Repository for the diff_comments table
  * Owns: review comments on a workspace diff, from the user, an agent or GitHub.
  * Behaviour: services-map.md 2.3.5 (diff_comments: create or sync from GitHub, resolve thread,
- * delete comments GitHub no longer has). Our table has resolved and outdated flags instead of
- * Conductor's state column.
+ * delete comments GitHub no longer has). The review state (REV-12) is its own column since
+ * migration 0004; resolved and outdated stay flags. A comment on the pull request itself has
+ * location 'pull_request' and an empty file_path, which the model shows as a null file path.
  * Must handle: a sync from GitHub upserts by id and must not undo a local resolve; threads are
  * resolved together; the sync delete only touches author_kind 'github' rows and receives the ids
  * to keep as a JSON list (no giant IN clause); replies point to their parent by reply_to_id.
@@ -11,7 +12,7 @@
  */
 import { type CommentId, notImplemented, type Result, type WorkspaceId } from "@conducted/shared";
 import type { Database } from "../../platform/platform.ts";
-import type { DiffComment } from "../model.ts";
+import type { DiffComment, ReviewCommentState } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
 import { fromFlag, toFlag } from "./row-codec.ts";
 
@@ -24,6 +25,7 @@ export interface DiffCommentRow {
 	body: string;
 	author_kind: "user" | "agent" | "github";
 	author_name: string | null;
+	author_avatar_url: string | null;
 	side: "deletions" | "additions";
 	thread_id: string | null;
 	reply_to_id: CommentId | null;
@@ -31,6 +33,8 @@ export interface DiffCommentRow {
 	remote_url: string | null;
 	resolved: number;
 	outdated: number;
+	state: ReviewCommentState;
+	location: "file" | "pull_request";
 	created_at: number;
 	updated_at: number;
 }
@@ -38,11 +42,12 @@ export interface DiffCommentRow {
 export const diffCommentFromRow = (row: DiffCommentRow): DiffComment => ({
 	id: row.id,
 	workspaceId: row.workspace_id,
-	filePath: row.file_path,
+	filePath: row.location === "pull_request" ? null : row.file_path,
 	line: row.line,
 	endLine: row.end_line,
 	body: row.body,
-	author: { kind: row.author_kind, name: row.author_name },
+	author: { kind: row.author_kind, name: row.author_name, avatarUrl: row.author_avatar_url },
+	state: row.state,
 	side: row.side,
 	threadId: row.thread_id,
 	replyToId: row.reply_to_id,
@@ -58,12 +63,13 @@ export const diffCommentFromRow = (row: DiffCommentRow): DiffComment => ({
 export const diffCommentToParams = (comment: DiffComment): readonly unknown[] => [
 	comment.id,
 	comment.workspaceId,
-	comment.filePath,
+	comment.filePath ?? "",
 	comment.line,
 	comment.endLine,
 	comment.body,
 	comment.author.kind,
 	comment.author.name,
+	comment.author.avatarUrl,
 	comment.side,
 	comment.threadId,
 	comment.replyToId,
@@ -71,14 +77,18 @@ export const diffCommentToParams = (comment: DiffComment): readonly unknown[] =>
 	comment.remoteUrl,
 	toFlag(comment.resolved),
 	toFlag(comment.outdated),
+	comment.state,
+	comment.filePath === null ? "pull_request" : "file",
 	comment.createdAt,
 	comment.updatedAt,
 ];
 
 const COLUMNS = `id, workspace_id, file_path, line, end_line, body, author_kind, author_name,
-	side, thread_id, reply_to_id, suggestion, remote_url, resolved, outdated, created_at, updated_at`;
+	author_avatar_url, side, thread_id, reply_to_id, suggestion, remote_url, resolved, outdated,
+	state, location, created_at, updated_at`;
 
-const VALUES = "$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17";
+const VALUES =
+	"$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20";
 
 /** Every statement the repository runs. Parameters are `$1..$n` in order of first appearance. */
 export const DIFF_COMMENTS_SQL = {
@@ -100,9 +110,11 @@ export const DIFF_COMMENTS_SQL = {
 		ON CONFLICT (id) DO UPDATE SET
 			body = excluded.body, suggestion = excluded.suggestion, line = excluded.line,
 			end_line = excluded.end_line, outdated = excluded.outdated,
-			remote_url = excluded.remote_url, updated_at = excluded.updated_at`,
+			remote_url = excluded.remote_url, author_avatar_url = excluded.author_avatar_url,
+			updated_at = excluded.updated_at`,
 	setBody: "UPDATE diff_comments SET body = $1, suggestion = $2, updated_at = $3 WHERE id = $4",
 	setResolved: "UPDATE diff_comments SET resolved = $1, updated_at = $2 WHERE id = $3",
+	setState: "UPDATE diff_comments SET state = $1, updated_at = $2 WHERE id = $3",
 	setThreadResolved: `UPDATE diff_comments SET resolved = $1, updated_at = $2
 		WHERE workspace_id = $3 AND thread_id = $4`,
 	setOutdated: "UPDATE diff_comments SET outdated = $1, updated_at = $2 WHERE id = $3",
@@ -140,7 +152,7 @@ export interface DiffCommentRepository {
 	get(id: CommentId): Promise<Result<DiffComment | null>>;
 	/** DIFF_COMMENTS_SQL.countOpen: comments neither resolved nor outdated. */
 	countOpen(workspaceId: WorkspaceId): Promise<Result<number>>;
-	/** DIFF_COMMENTS_SQL.insert with resolved=false and outdated=false. */
+	/** DIFF_COMMENTS_SQL.insert with resolved=false, outdated=false and state "pending". */
 	add(input: NewDiffComment): Promise<Result<DiffComment>>;
 	/**
 	 * DIFF_COMMENTS_SQL.upsertRemote for each comment, then DIFF_COMMENTS_SQL.deleteRemoteNotIn
@@ -152,6 +164,8 @@ export interface DiffCommentRepository {
 	setBody(id: CommentId, body: string, suggestion: string | null): Promise<Result<void>>;
 	/** DIFF_COMMENTS_SQL.setResolved. */
 	setResolved(id: CommentId, resolved: boolean): Promise<Result<void>>;
+	/** DIFF_COMMENTS_SQL.setState: hide, mark ready, reviewed or superseded (REV-12). */
+	setState(id: CommentId, state: ReviewCommentState): Promise<Result<void>>;
 	/** DIFF_COMMENTS_SQL.setThreadResolved. Resolves or reopens the whole thread. */
 	setThreadResolved(
 		workspaceId: WorkspaceId,
@@ -180,6 +194,7 @@ export function createDiffCommentRepository(
 		syncRemote: async () => notImplemented("DATA-01"),
 		setBody: async () => notImplemented("DATA-01"),
 		setResolved: async () => notImplemented("DATA-01"),
+		setState: async () => notImplemented("REV-12"),
 		setThreadResolved: async () => notImplemented("DATA-01"),
 		setOutdated: async () => notImplemented("DATA-01"),
 		setRemoteUrl: async () => notImplemented("DATA-01"),

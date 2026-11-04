@@ -1,8 +1,11 @@
 import { expect, test } from "bun:test";
 import type { WorkspaceContext } from "@conducted/protocol";
+import type { WorkspaceId } from "@conducted/shared";
 import { buildWorkspaceInstruction, splitTargetBranch } from "./workspace-instruction.ts";
 
 const base: WorkspaceContext = {
+	workspaceId: "w1" as WorkspaceId,
+	workspaceName: "lisbon",
 	workspacePath: "/work/my tree",
 	repoRootPath: "/repos/app",
 	targetBranch: "origin/main",

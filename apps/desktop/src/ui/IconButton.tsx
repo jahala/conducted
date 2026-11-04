@@ -1,7 +1,8 @@
 /**
  * @feature APP-05 IconButton
  * Owns: a square button that holds only an icon. It always has an accessible name and a tooltip.
- * Behaviour: ui-map.md 8 (icon sizes of the Conductor button), 1.1 ("Toggle left sidebar", "Go back").
+ * Behaviour: ui-map.md 1.1 ("Toggle left sidebar", "Go back"); ui-dimensions.md 6.1 (icon buttons are square:
+ * xs 24px, sm 28px, md 32px; lg follows the 44px button).
  * Must handle: `label` is required and doubles as aria-label and tooltip text; `shortcut` shows a keycap in the
  * tooltip; pressed state for toggles (aria-pressed); disabled shows no tooltip.
  * Test first: exposes the label as its accessible name.
@@ -19,6 +20,13 @@ export interface IconButtonProps extends Omit<ButtonProps, "children" | "aria-la
 	pressed?: boolean;
 }
 
+const squareWidth: Record<NonNullable<ButtonProps["size"]>, string> = {
+	xs: "w-6",
+	sm: "w-7",
+	md: "w-8",
+	lg: "w-11",
+};
+
 export function IconButton({
 	label,
 	icon,
@@ -35,7 +43,7 @@ export function IconButton({
 			size={size}
 			aria-label={label}
 			aria-pressed={pressed}
-			className={cn("px-0", size === "sm" ? "w-7" : size === "lg" ? "w-10" : "w-8", className)}
+			className={cn("px-0", squareWidth[size], className)}
 			{...rest}
 		>
 			{icon}

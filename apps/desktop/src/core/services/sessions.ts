@@ -34,9 +34,11 @@ import type {
 } from "@conducted/protocol";
 import {
 	type InteractionId,
+	type MessageId,
 	notImplemented,
 	type Result,
 	type SessionId,
+	type TurnId,
 	type WorkspaceId,
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
@@ -191,8 +193,15 @@ export class SessionsService implements AgentMessenger {
 		return notImplemented("CHAT-02");
 	}
 
-	/** Backs `Actions.sessions.startFromPlan`: a new chat in the same workspace that carries out the plan. */
-	startFromPlan(_id: SessionId, _planText: string): Promise<Result<Session>> {
+	/**
+	 * Backs `Actions.sessions.startFromPlan`: the chosen chat, or a new chat in the same workspace
+	 * when `target` is null, carries out the plan.
+	 */
+	startFromPlan(
+		_id: SessionId,
+		_planText: string,
+		_target: SessionId | null,
+	): Promise<Result<Session>> {
 		return notImplemented("CHAT-12");
 	}
 
@@ -280,5 +289,59 @@ export class SessionsService implements AgentMessenger {
 	/** Backs `useDraft` through the composer service; kept here so the view model has one source. */
 	draftOf(_sessionId: SessionId): Draft {
 		return notImplemented("COMP-01");
+	}
+
+	// ---- read state, failed sends and agent controls (Actions.sessions)
+
+	markRead(_id: SessionId): Promise<Result<void>> {
+		return notImplemented("NAV-11");
+	}
+
+	markUnread(_id: SessionId): Promise<Result<void>> {
+		return notImplemented("NAV-11");
+	}
+
+	/** Backs `Actions.workspaces.markUnread`: the workspace's newest chat becomes unread. */
+	markWorkspaceUnread(_workspaceId: WorkspaceId): Promise<Result<void>> {
+		return notImplemented("NAV-11");
+	}
+
+	retryFailedSend(_id: SessionId, _messageId: MessageId): Promise<Result<void>> {
+		return notImplemented("CHAT-02");
+	}
+
+	discardFailedSend(_id: SessionId, _messageId: MessageId): Promise<Result<void>> {
+		return notImplemented("CHAT-02");
+	}
+
+	retryInNewChat(_id: SessionId, _turnId: TurnId): Promise<Result<Session>> {
+		return notImplemented("CHAT-27");
+	}
+
+	/** /restart: `resetAgent`, then warm the agent again with resume. */
+	restartAgent(_id: SessionId): Promise<Result<void>> {
+		return notImplemented("COMP-06");
+	}
+
+	compact(_id: SessionId): Promise<Result<void>> {
+		return notImplemented("AGENT-14");
+	}
+
+	setAutoApproveEdits(_id: SessionId, _enabled: boolean): Promise<Result<void>> {
+		return notImplemented("AGENT-04");
+	}
+
+	/** Sets the option through the sidecar and stores the new choice in the chat's `acpConfig`. */
+	setAcpOption(_id: SessionId, _optionId: string, _value: string | boolean): Promise<Result<void>> {
+		return notImplemented("AGENT-17");
+	}
+
+	/** The goal bar's Save. An empty objective is refused with "Enter a goal first." */
+	setGoal(_id: SessionId, _objective: string): Promise<Result<void>> {
+		return notImplemented("COMP-10");
+	}
+
+	changeGoal(_id: SessionId, _action: "pause" | "resume" | "clear"): Promise<Result<void>> {
+		return notImplemented("COMP-10");
 	}
 }
