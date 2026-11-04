@@ -1,8 +1,3 @@
-import { z } from "zod";
-import { zAgentMessage } from "./agent-message.ts";
-import { zCheckpointId, zEventId, zMessageId, zTurnId } from "./ids.ts";
-import { zSessionConfig } from "./session-config.ts";
-
 /**
  * The durable events of a chat, in the order they happened. The UI stores each one in the
  * `session_events` table (idempotent on eventId) and then acknowledges it, and the sidecar keeps
@@ -11,6 +6,10 @@ import { zSessionConfig } from "./session-config.ts";
  * Our design choices: one log instead of two, and an explicit turnEnded event so a turn cut off
  * by a crash can be found and closed at startup.
  */
+import { z } from "zod";
+import { zAgentMessage } from "./agent-message.ts";
+import { zCheckpointId, zEventId, zMessageId, zTurnId } from "./ids.ts";
+import { zSessionConfig } from "./session-config.ts";
 
 export const zFileChange = z.object({
 	path: z.string(),

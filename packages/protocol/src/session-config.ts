@@ -1,11 +1,11 @@
-import { z } from "zod";
-import { zAcpAgent, zAgentKind } from "./ids.ts";
-
 /**
  * The settings a chat runs with. Sent with every message; the sidecar applies changes live
  * when the agent allows it and restarts the agent with resume when it does not.
  * Research: sessions.md section 2 step 3, claude-runner.md section 1.5.
  */
+import { z } from "zod";
+import { zAcpAgent, zAgentKind } from "./ids.ts";
+
 export const zEffort = z.enum(["low", "medium", "high", "xhigh", "max"]);
 export type Effort = z.infer<typeof zEffort>;
 

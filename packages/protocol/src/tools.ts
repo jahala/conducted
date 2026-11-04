@@ -1,3 +1,7 @@
+/**
+ * Tool names shared by every runner and the chat UI: canonical tool kinds, which of them are
+ * read-only, and the tools this app gives to agents.
+ */
 import { z } from "zod";
 
 /**

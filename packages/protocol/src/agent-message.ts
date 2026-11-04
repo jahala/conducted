@@ -1,7 +1,3 @@
-import { z } from "zod";
-import { zAgentKind, zToolUseId } from "./ids.ts";
-import { zCanonicalTool } from "./tools.ts";
-
 /**
  * Our neutral agent-message format. Every runner (Claude, Codex, Cursor, ACP) translates its
  * agent's output into these items, so the chat UI has a single renderer.
@@ -10,6 +6,9 @@ import { zCanonicalTool } from "./tools.ts";
  * common dialect and needed a second renderer for Codex. Our design choice: a format we own.
  * `raw` keeps the agent's original payload for debugging and future re-translation.
  */
+import { z } from "zod";
+import { zAgentKind, zToolUseId } from "./ids.ts";
+import { zCanonicalTool } from "./tools.ts";
 
 export const zTextItem = z.object({ kind: z.literal("text"), text: z.string() });
 

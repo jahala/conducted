@@ -1,12 +1,11 @@
-import { z } from "zod";
-import { zInteractionId, zSessionId, zToolUseId } from "./ids.ts";
-
 /**
  * Moments where an agent waits for the user. The sidecar sends one request kind,
  * `requestInteraction`, and the UI answers it. Only one interaction per session is open at a
  * time. Cancelling or sending a new message withdraws it.
  * Research: sessions-and-chats.md "Questions, approvals and plans", claude-runner.md section 3.
  */
+import { z } from "zod";
+import { zInteractionId, zSessionId, zToolUseId } from "./ids.ts";
 
 export const zQuestion = z.object({
 	header: z.string().optional(),

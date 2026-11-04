@@ -5,12 +5,15 @@
 	"packageManager": "pnpm@9.15.9",
 	"scripts": {
 		"dev": "pnpm --filter @conducted/desktop tauri dev",
-		"typecheck": "pnpm -r --parallel typecheck",
-		"lint": "biome check .",
+		"typecheck": "pnpm -r --parallel typecheck && tsc -p scripts",
+		"lint": "biome check . && shellcheck bin/*.sh",
 		"format": "biome format --write .",
-		"test": "pnpm -r test",
+		"test": "bun scripts/with-run-dir.ts pnpm run test:all",
+		"test:all": "pnpm -r test && bun test scripts",
+		"guards": "bun scripts/guards/run.ts",
 		"stubs": "bun scripts/check-stubs.ts",
-		"check": "pnpm typecheck && pnpm lint && pnpm test && pnpm stubs"
+		"check": "pnpm typecheck && pnpm lint && pnpm test && pnpm guards && pnpm stubs",
+		"release": "bun scripts/release.ts"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.6.5",

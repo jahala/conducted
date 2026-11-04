@@ -1,3 +1,10 @@
+/**
+ * The JSON-RPC contract between the desktop UI and the sidecar.
+ * Transport: one JSON-RPC 2.0 message per line (NDJSON) over the sidecar's Unix socket,
+ * relayed by the Rust shell (`rpc_to_sidecar` command, `rpc_from_sidecar` event).
+ * Both sides parse every message with these schemas.
+ * Research: frontend.md 3c, sessions.md section 10. Method names are ours.
+ */
 import { z } from "zod";
 import { zSessionEvent } from "./events.ts";
 import {
@@ -12,14 +19,6 @@ import {
 import { zInteractionAnswer, zInteractionRequest } from "./interactions.ts";
 import { zLiveState } from "./live-state.ts";
 import { zEffort, zSessionConfig, zWorkspaceContext } from "./session-config.ts";
-
-/**
- * The JSON-RPC contract between the desktop UI and the sidecar.
- * Transport: one JSON-RPC 2.0 message per line (NDJSON) over the sidecar's Unix socket,
- * relayed by the Rust shell (`rpc_to_sidecar` command, `rpc_from_sidecar` event).
- * Both sides parse every message with these schemas.
- * Research: frontend.md 3c, sessions.md section 10. Method names are ours.
- */
 
 export interface MethodSpec<P extends z.ZodType, R extends z.ZodType> {
 	params: P;

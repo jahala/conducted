@@ -32,7 +32,7 @@ impl Serialize for CommandError {
 
 pub type CommandResult<T> = Result<T, CommandError>;
 
-/// Placeholder for an unbuilt command body. Usage: `not_implemented!("PLAT-07")`.
+/// Placeholder for an unbuilt command body. Usage: `not_implemented!("<ID>")` with a backlog id.
 #[macro_export]
 macro_rules! not_implemented {
     ($id:literal) => {

@@ -33,7 +33,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm exec biome ci .
+      - run: shellcheck bin/*.sh
       - run: pnpm test
+      - name: Guards (docs, data model, migrations, headers, markers, versions)
+        run: pnpm guards
       - name: Placeholders match the backlog
         run: pnpm stubs
 

@@ -74,13 +74,14 @@ Priority: **1** = the first working slice (add a repo, create a workspace, chat 
 
 ## Data layer (DATA)
 
-| ID      | Feature                                                                                          | Owner           | Research                          | P   | Status |
-| ------- | ------------------------------------------------------------------------------------------------ | --------------- | --------------------------------- | --- | ------ |
-| DATA-01 | One repository module per table                                                                  | D/core/db       | services-map 2.3                  | 1   | stub   |
-| DATA-02 | Data lifetime job: cut old tool outputs, compact archived chats, remove old drafts and terminals | D/core/db       | services-map 2.7                  | 2   | stub   |
-| DATA-03 | Startup repair: close turns cut off by a crash, reset stale working state                        | D/core/db       | services-map 6                    | 1   | stub   |
-| DATA-04 | Event ingest: store each event in order, then acknowledge                                        | D/core/sidecar  | sessions-and-chats "What happens" | 1   | stub   |
-| DATA-05 | Settings store and `.conducted/settings.toml` read and write                                     | D/core/services | services-map 4.2                  | 1   | stub   |
+| ID      | Feature                                                                                                               | Owner           | Research                          | P   | Status |
+| ------- | --------------------------------------------------------------------------------------------------------------------- | --------------- | --------------------------------- | --- | ------ |
+| DATA-01 | One repository module per table                                                                                       | D/core/db       | services-map 2.3                  | 1   | stub   |
+| DATA-02 | Data lifetime job: cut old tool outputs, compact archived chats, remove old drafts and terminals                      | D/core/db       | services-map 2.7                  | 2   | stub   |
+| DATA-03 | Startup repair: close turns cut off by a crash, reset stale working state                                             | D/core/db       | services-map 6                    | 1   | stub   |
+| DATA-04 | Event ingest: store each event in order, then acknowledge                                                             | D/core/sidecar  | sessions-and-chats "What happens" | 1   | stub   |
+| DATA-05 | Settings store and `.conducted/settings.toml` read and write                                                          | D/core/services | services-map 4.2                  | 1   | stub   |
+| DATA-06 | Prune turn snapshots: remove a chat's checkpoint refs when it is deleted, and 30 days after its workspace is archived | D/core/services | data-model.md                     | 2   | stub   |
 
 ## Projects and workspaces (PRJ, WS)
 

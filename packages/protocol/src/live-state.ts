@@ -1,12 +1,12 @@
-import { z } from "zod";
-import { zInteractionId, zMessageId } from "./ids.ts";
-import { zInteraction } from "./interactions.ts";
-
 /**
  * A chat's live state. Status is only idle or working; everything else is a separate flag.
  * The sidecar reports "idle" only after the turn's last event has been sent.
  * Research: sessions.md section 2 "Status and state literals".
  */
+import { z } from "zod";
+import { zInteractionId, zMessageId } from "./ids.ts";
+import { zInteraction } from "./interactions.ts";
+
 export const zSessionStatus = z.enum(["idle", "working"]);
 export type SessionStatus = z.infer<typeof zSessionStatus>;
 

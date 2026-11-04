@@ -1,0 +1,75 @@
+/**
+ * Runs a command in a temp folder the run owns, and fails if the command leaves anything there.
+ *
+ * - The run gets `$TMPDIR/conducted-runs/<run id>/`, with an `owner.pid` file naming this process.
+ * - `TMPDIR` (and `TMP`, `TEMP`) point into it, so every temp file a test makes lands there.
+ * - When the command ends, the folder must be empty apart from `owner.pid`. Anything else is listed
+ *   and the run fails. The folder is then removed either way.
+ * - Folders left by a run that was killed (its recorded process is gone) are removed first.
+ *
+ * Usage: bun scripts/with-run-dir.ts <command> [args...]
+ */
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+const OWNER = "owner.pid";
+const base = join(process.env.TMPDIR ?? tmpdir(), "conducted-runs");
+
+function alive(pid: number): boolean {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+/** Removes run folders whose owner process no longer exists. Returns how many were removed. */
+export function removeDeadRuns(dir: string): number {
+	if (!existsSync(dir)) return 0;
+	let removed = 0;
+	for (const name of readdirSync(dir)) {
+		const owner = join(dir, name, OWNER);
+		const pid = existsSync(owner) ? Number(readFileSync(owner, "utf8")) : Number.NaN;
+		if (!Number.isInteger(pid) || !alive(pid)) {
+			rmSync(join(dir, name), { recursive: true, force: true });
+			removed += 1;
+		}
+	}
+	return removed;
+}
+
+/** Lists what a run left in its folder, ignoring the owner file. */
+export function leftovers(runDir: string): string[] {
+	return readdirSync(runDir).filter((name) => name !== OWNER);
+}
+
+if (import.meta.main) {
+	const command = process.argv.slice(2);
+	if (command.length === 0) {
+		console.error("Usage: bun scripts/with-run-dir.ts <command> [args...]");
+		process.exit(64);
+	}
+	mkdirSync(base, { recursive: true });
+	const cleaned = removeDeadRuns(base);
+	if (cleaned > 0)
+		console.log(`Removed ${cleaned} folder(s) left by earlier runs that were killed.`);
+
+	const runDir = join(base, `${Date.now()}-${process.pid}`);
+	mkdirSync(runDir);
+	writeFileSync(join(runDir, OWNER), String(process.pid));
+	const env = { ...process.env, TMPDIR: `${runDir}/`, TMP: runDir, TEMP: runDir };
+
+	const child = Bun.spawnSync(command, { env, stdio: ["inherit", "inherit", "inherit"] });
+	const left = leftovers(runDir);
+	rmSync(runDir, { recursive: true, force: true });
+
+	if (left.length > 0) {
+		console.error(`\nThe run left ${left.length} item(s) in its temp folder:`);
+		for (const name of left.slice(0, 20)) console.error(`  ${name}`);
+		console.error("Every test must remove what it creates.");
+		process.exit(child.exitCode === 0 ? 1 : (child.exitCode ?? 1));
+	}
+	process.exit(child.exitCode ?? 1);
+}

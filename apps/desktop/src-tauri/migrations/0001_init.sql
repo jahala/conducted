@@ -174,6 +174,8 @@ CREATE TABLE sections (
   collapsed   INTEGER NOT NULL DEFAULT 0,
   created_at  INTEGER NOT NULL
 );
+
+-- Which workspaces sit in which section. Lifetime: removed with the section or the workspace.
 CREATE TABLE section_members (
   section_id    TEXT NOT NULL REFERENCES sections(id) ON DELETE CASCADE,
   workspace_id  TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
@@ -197,7 +199,8 @@ CREATE TABLE settings (
 );
 
 -- Environment variables passed to agents and scripts. Values are stored in the macOS
--- Keychain; this table holds only the names and where they apply.
+-- Keychain; this table holds only the names and where they apply. Lifetime: until the user
+-- removes the variable, which also removes its Keychain entry (SET-04).
 CREATE TABLE env_vars (
   name          TEXT NOT NULL,
   scope         TEXT NOT NULL CHECK (scope IN ('global','repo')),

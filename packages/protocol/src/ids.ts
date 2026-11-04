@@ -1,3 +1,6 @@
+/**
+ * Zod schemas for the branded ids and agent kinds defined in @conducted/shared.
+ */
 import type {
 	CheckpointId,
 	CommentId,

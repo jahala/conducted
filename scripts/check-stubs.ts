@@ -15,7 +15,7 @@ const ROOT = join(import.meta.dir, "..");
 const SCAN = ["apps", "packages", "bin"];
 const SKIP = new Set(["node_modules", "dist", "target", "gen", ".vite"]);
 const EXTENSIONS = /\.(ts|tsx|rs|sh)$/;
-// notImplemented("X-01") | not_implemented!("X-01") | not_implemented "X-01"
+// notImplemented("<ID>") | not_implemented!("<ID>") | not_implemented "<ID>"
 const PLACEHOLDER = /not_?[iI]mplemented!?\s*\(?\s*"([A-Z]+-\d{2})"/g;
 const ROW = /^\|\s*([A-Z]+-\d{2})\s*\|.*\|\s*(stub|done)\s*\|\s*$/;
 
