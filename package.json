@@ -8,7 +8,7 @@
 		"typecheck": "pnpm -r --parallel typecheck && tsc -p scripts",
 		"lint": "biome check . && shellcheck bin/*.sh",
 		"format": "biome format --write .",
-		"test": "bun scripts/with-run-dir.ts pnpm run test:all",
+		"test": "bun scripts/check-runtime.ts && bun scripts/with-run-dir.ts pnpm run test:all",
 		"test:all": "pnpm -r test && bun test scripts",
 		"guards": "bun scripts/guards/run.ts",
 		"stubs": "bun scripts/check-stubs.ts",
