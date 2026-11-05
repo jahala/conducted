@@ -34,6 +34,7 @@ export const useFileTree: Queries["useFileTree"] = (workspaceId) => {
 	return { state: "ready", data: query.data };
 };
 export const useFileContent: Queries["useFileContent"] = () => notImplemented("REV-08");
+<<<<<<< HEAD
 export const useFileSearch: Queries["useFileSearch"] = (workspaceId, query) => {
 	const workspaceFiles = useServices().services.workspaceFiles;
 	const trimmed = query.trim();
@@ -85,4 +86,9 @@ export const useContentSearch: Queries["useContentSearch"] = (workspaceId, query
 	return { state: "ready", data: result.data };
 };
 export const useRepoFileSearch: Queries["useRepoFileSearch"] = () => notImplemented("COMP-04");
+=======
+export const useFileSearch: Queries["useFileSearch"] = () => notImplemented("REV-07");
+export const useContentSearch: Queries["useContentSearch"] = () => notImplemented("REV-07");
+export const useRepoFileSearch: Queries["useRepoFileSearch"] = () => notImplemented("SIDE-22");
+>>>>>>> node/comp.04
 export const useArtifacts: Queries["useArtifacts"] = () => notImplemented("REV-10");
