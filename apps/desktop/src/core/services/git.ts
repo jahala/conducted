@@ -1,13 +1,16 @@
 /**
  * @feature GIT-02 Git service: polling change state; GIT-06 Push and pull; GIT-13 Fetch on demand,
  * at most once a minute
+ * @feature GIT-07 Resolve conflicts, done by the agent on request
  * Owns: polling each shown workspace's git state at the requested depth, the four-slot limiter,
- * and the last error per workspace. Also the two write actions that move a branch across the
- * remote: push, including the first push's upstream setup, and pull latest from the target, which
- * fetches, rechecks under the lock, fast-forwards or hands the work to the agent.
+ * and the last error per workspace. Also the write actions that move a branch across the remote:
+ * push, including the first push's upstream setup; pull latest from the target, which fetches,
+ * rechecks under the lock, fast-forwards or hands the work to the agent; and resolve conflicts,
+ * which reads the rebase or merge choice from pull.rebase and sends the instruction to the agent.
  * Behaviour: services-map.md 3.3.1 (schedule, depths, staleness, concurrency) and 3.3.3 (a
  * cheaper poll reads only the local branch, and an answer for a branch that has since changed is
- * dropped); 3.6.1 (push, upstream, first push, no force) and 3.6.4 (pull latest from target).
+ * dropped); 3.6.1 (push, upstream, first push, no force), 3.6.4 (pull latest from target, and
+ * rebase or merge by `pull.rebase`) and 3.7.6 (conflict resolution goes to the agent).
  * Must handle: every watched workspace polls every 5 s at the deepest depth any watcher asked
  * for; a result younger than 0.9 of the interval is reused; at most four refreshes at once
  * (the limiter runs foreground requests first, and every caller today is foreground); an answer
@@ -18,8 +21,9 @@
  * one write at a time per workspace; a push to a known upstream does not set it again; a first
  * push writes both branch keys and the remote-tracking ref; a dirty or diverged tree goes to the
  * agent; the user's own pull.rebase and pull.ff choose how a pull proceeds; a pull with nothing new
- * changes nothing; and a second push or pull while one runs joins the first instead of starting
- * another.
+ * changes nothing; a second push or pull while one runs joins the first instead of starting
+ * another; a resolve-conflicts request uses the repository prompt when it has one, and a config
+ * read failure is returned instead of guessing a strategy.
  * Also: GIT-13 decides when the pull request's base or head is newer than the local refs and
  * fetches it at most once a minute for one repository and branch.
  * Not built yet: only the visible workspace polling fast.
@@ -92,7 +96,12 @@ import {
 	remoteTargetRef,
 } from "../git/status.ts";
 import type { GitState } from "../model.ts";
-import { commitAndPushInstruction, reconcileInstruction } from "./agent-instructions.ts";
+import {
+	commitAndPushInstruction,
+	pullRebaseStrategy,
+	reconcileInstruction,
+	resolveConflictsInstruction,
+} from "./agent-instructions.ts";
 import type { GitCache } from "./git-cache.ts";
 import type { WorkspacePrEntry } from "./github.ts";
 import type { AgentMessenger } from "./sessions.ts";
@@ -146,12 +155,9 @@ export const MAX_CONCURRENT_REFRESHES = 4;
 /** Shown when a pull finds nothing to bring in. */
 export const PULL_UP_TO_DATE_MESSAGE = "Pulled latest changes. You're up to date!";
 
-/** `pull.rebase` values git treats as "rebase the local commits". */
-const REBASE_TRUE = new Set(["true", "yes", "on", "1", "merges", "interactive", "preserve"]);
-
 /** Whether the user's own `pull.rebase` asks for a rebase. Missing or false values mean merge. */
 export const pullUsesRebase = (value: string | null): boolean =>
-	REBASE_TRUE.has(value?.trim().toLowerCase() ?? "");
+	pullRebaseStrategy(value ?? "") === "rebase";
 
 /** How a pull that cannot fast-forward proceeds: rebase, merge, or only a fast-forward. */
 export type PullStrategy = "rebase" | "merge" | "ff_only";
@@ -373,6 +379,8 @@ export interface GitServiceDeps {
 	/** Looks up folders and branch names for a workspace. Fails for unknown ids. */
 	contextOf: (workspaceId: WorkspaceId) => Promise<Result<WorkspaceGitContext>>;
 	agent: AgentMessenger;
+	/** The repository's Resolve conflicts prompt, or null when it has none. */
+	promptFor?: (workspaceId: WorkspaceId) => Promise<Result<string | null>>;
 	now: () => number;
 	/** Moves a discarded new file to the Trash, and stores the viewed marks. */
 	fs: Pick<FileSystem, "trash" | "readText" | "writeTextAtomic" | "mkdirp" | "stat" | "paths">;
@@ -1141,9 +1149,52 @@ export class GitService {
 		return sent.ok ? ok(undefined) : err(sent.error);
 	}
 
-	/** Backs `Actions.git.resolveConflicts`: sends the agent the resolve instruction. */
-	resolveConflicts(_workspaceId: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("GIT-07");
+	/**
+	 * Backs `Actions.git.resolveConflicts`: reads `pull.rebase`, then sends the agent the rebase or
+	 * merge instruction. An unset config means merge (services-map 3.6.4, 3.7.6).
+	 */
+	async resolveConflicts(workspaceId: WorkspaceId): Promise<Result<void>> {
+		const context = await this.#deps.contextOf(workspaceId);
+		if (!context.ok) return context;
+		const found = context.value;
+		const strategy = await this.#pullRebaseStrategy(found.workspacePath);
+		if (!strategy.ok) return strategy;
+		const custom =
+			this.#deps.promptFor === undefined
+				? ok<string | null>(null)
+				: await this.#deps.promptFor(workspaceId);
+		if (!custom.ok) return custom;
+
+		const remote = found.remote.trim();
+		const prefix = `${remote}/`;
+		const targetBranch =
+			remote.length > 0 && found.targetBranch.startsWith(prefix)
+				? found.targetBranch.slice(prefix.length)
+				: found.targetBranch;
+		const text = resolveConflictsInstruction({
+			remote,
+			targetBranch,
+			branch: found.branch,
+			customPrompt: custom.value,
+			strategy: strategy.value,
+		});
+		const sent = await this.#deps.agent.sendInstruction(workspaceId, text);
+		return sent.ok ? ok(undefined) : err(sent.error);
+	}
+
+	/** Reads `pull.rebase`; an unset key (exit 1) means merge, any other failure is returned. */
+	async #pullRebaseStrategy(cwd: string): Promise<Result<"rebase" | "merge">> {
+		const result = await this.#deps.git.run(configPullRebase(), { cwd });
+		if (!result.ok) return result;
+		if (result.value.exitCode === 0) return ok(pullRebaseStrategy(result.value.stdout));
+		if (result.value.exitCode === 1) return ok("merge");
+		return err(
+			appError(
+				"git_failed",
+				result.value.stderr.trim() ||
+					`git config pull.rebase exited with code ${result.value.exitCode}`,
+			),
+		);
 	}
 
 	/**
