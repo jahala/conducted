@@ -35,7 +35,6 @@ Batches in one step run side by side. A step starts when every batch of the step
 
 - APP-05 Design system: components and tokens
 
-
 ## Step 2
 
 ### s2-sidecar (sidecar, 6)
@@ -70,7 +69,6 @@ Batches in one step run side by side. A step starts when every batch of the step
 - NAV-01 App shell: three resizable regions, persisted sizes
 - RUN-06 Terminal tabs: xterm, find, big terminal mode
 
-
 ## Step 3
 
 ### s3-rust (rust, 2)
@@ -95,7 +93,6 @@ Batches in one step run side by side. A step starts when every batch of the step
 - REV-01 Changes list and diff scopes (branch, target, uncommitted, per commit)
 - SET-03 Agents page: install status, versions, sign-in
 
-
 ## Step 4
 
 ### s4-sidecar (sidecar, 3)
@@ -117,7 +114,6 @@ Batches in one step run side by side. A step starts when every batch of the step
 - NAV-14 Shortcut and menu dispatcher
 - REV-02 Diff viewer: unified, split, whitespace, viewed files
 
-
 ## Step 5
 
 ### s5-sidecar (sidecar, 2)
@@ -136,7 +132,6 @@ Batches in one step run side by side. A step starts when every batch of the step
 - CHAT-06 Message list: virtualised, one item per turn, only the tail re-renders
 - CHAT-10 Question card
 - NAV-02 Routes and per-workspace URL state
-
 
 ## Step 6
 

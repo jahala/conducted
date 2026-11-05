@@ -19,7 +19,7 @@
  * Test first: with an overlay that renames a workspace and an action that fails, the derived state shows
  * the new name while the action runs and the old name after it fails; the Result carries the error.
  */
-import { type IdSource, notImplemented, type Result } from "@conducted/shared";
+import type { IdSource, Result } from "@conducted/shared";
 
 export interface OptimisticRun<S, R> {
 	/** Applied on top of the canonical state while the action runs. Must be pure. */
@@ -39,6 +39,62 @@ export interface OptimisticStore<S> {
 	subscribe(listener: () => void): () => void;
 }
 
-export function createOptimisticStore<S>(_initial: S, _ids: IdSource): OptimisticStore<S> {
-	return notImplemented("APP-11");
+export function createOptimisticStore<S>(initial: S, ids: IdSource): OptimisticStore<S> {
+	let canonicalState = initial;
+	let revision = 0;
+	const overlays = new Map<string, (state: S) => S>();
+	const listeners = new Set<() => void>();
+
+	const read = (): S => {
+		let state = canonicalState;
+		for (const update of overlays.values()) state = update(state);
+		return state;
+	};
+
+	const notify = (): void => {
+		for (const listener of [...listeners]) listener();
+	};
+
+	return {
+		read,
+		canonical: () => canonicalState,
+		setCanonical: (next) => {
+			canonicalState = next;
+			revision += 1;
+			notify();
+		},
+		subscribe: (listener) => {
+			listeners.add(listener);
+			return () => {
+				listeners.delete(listener);
+			};
+		},
+		async run<R>(input: OptimisticRun<S, R>): Promise<Result<S, R>> {
+			// A throwing update is a programmer error: stop before the action starts and apply nothing.
+			input.update(read());
+
+			const id = ids.uuid();
+			const startedAt = revision;
+			overlays.set(id, input.update);
+			notify();
+
+			let result: Result<S, R>;
+			try {
+				result = await input.action();
+			} catch (error) {
+				overlays.delete(id);
+				notify();
+				throw error;
+			}
+
+			overlays.delete(id);
+			// A push or a newer action replaced the canonical state while this action ran. Keep it.
+			if (result.ok && revision === startedAt) {
+				canonicalState = result.value;
+				revision += 1;
+			}
+			notify();
+			return result;
+		},
+	};
 }

@@ -16,7 +16,6 @@
  * Test first: two calls with key "merge:w1" while the first is pending run the task once and resolve to the
  * same value; a third call after they finish runs it again.
  */
-import { notImplemented } from "@conducted/shared";
 
 export interface SingleFlight<K extends string = string> {
 	run<T>(key: K, task: () => Promise<T>): Promise<T>;
@@ -25,5 +24,27 @@ export interface SingleFlight<K extends string = string> {
 }
 
 export function createSingleFlight<K extends string = string>(): SingleFlight<K> {
-	return notImplemented("APP-11");
+	const flights = new Map<K, Promise<unknown>>();
+
+	return {
+		run<T>(key: K, task: () => Promise<T>): Promise<T> {
+			const existing = flights.get(key);
+			if (existing !== undefined) return existing as Promise<T>;
+
+			let result: Promise<T>;
+			try {
+				result = Promise.resolve(task());
+			} catch (error) {
+				result = Promise.reject(error);
+			}
+
+			flights.set(key, result);
+			const clear = (): void => {
+				if (flights.get(key) === result) flights.delete(key);
+			};
+			void result.then(clear, clear);
+			return result;
+		},
+		isRunning: (key) => flights.has(key),
+	};
 }
