@@ -6,7 +6,9 @@
  * watchdog), 5A.1.4 (run mode, set by "run_script_mode"), 5A.1.5 (run history), 5A.1.6
  * (user-defined actions, default action and quoted args), ui-map.md 3.7 (Run tab: Run, Stop,
  * Starting, Stopping; the shortcut is "workspace.toggleRun"). Auto-run uses the repository
- * setting "auto_run_after_setup".
+ * setting "auto_run_after_setup". RUN-03: services-map.md 5A.3.2 (listening ports of the
+ * workspace's processes, a 10 second timeout) and ui-map.md 3.7 (Ports tab, activating a detected
+ * app).
  * Must handle: starting an action stops the workspace's running one first (one process per
  * workspace); run mode "exclusive" also stops running actions of other workspaces of the same
  * repository; a start request while setup is still running waits for setup, then starts; every
@@ -15,15 +17,19 @@
  * watchdog, and a stop that is not confirmed is returned to the caller and kept as the
  * workspace's outcome until the next start; quitting the app closes all runs; "run after setup"
  * starts the default action when setup succeeded; run output is not saved to disk. Run history is
- * the last 20 action ids per workspace, kept in local storage so it survives a restart.
+ * the last 20 action ids per workspace, kept in local storage so it survives a restart. Port
+ * scanning (RUN-03) starts when a run starts and stops when it ends; an older scan never replaces
+ * a newer one; a failed scan is reported to the log; activating a port with no owning macOS app
+ * returns an error rather than opening it silently.
  * Our design choice: the terminal service owns the process; this service owns the rules around
  * it. Run history is in local storage, not in the settings table.
  * Our design choice: setup runs with no `userEnv` for now. SET-04 owns the settings and Keychain
  * variables; until that service is wired here, no extra variables are passed rather than a
  * made-up set.
  * Built now: `runSetup` and `stopAll` (WS-03 and RUN-01), `runArchive` (WS-05), which runs the
- * repository's archive script once through the shell before the worktree is removed, and the run
- * actions above (RUN-01). One RUN-03 path is still a placeholder.
+ * repository's archive script once through the shell before the worktree is removed, the run
+ * actions above (RUN-01), and the RUN-03 paths: polling the workspace's listening ports into
+ * `detectedPorts`, and activating the macOS app that owns a port.
  * Test first: starting an action while another runs in the same workspace stops the first.
  */
 import {
@@ -36,16 +42,18 @@ import {
 	type WorkspaceId,
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
-import { createLatestWins } from "../async/latest-wins.ts";
 import type { FileSystem, Platform } from "../../platform/platform.ts";
 import type { RunState } from "../api.ts";
 import { binDir, setupLogFile } from "../app-paths.ts";
+import { createLatestWins } from "../async/latest-wins.ts";
 import type { Repo, RepoConfig, RunAction, SetupView, Workspace } from "../model.ts";
 import type { PortService } from "./ports.ts";
 import { buildScriptEnv, STOP_WATCHDOG_MS, type TerminalsService } from "./terminals.ts";
 
 export { STOP_WATCHDOG_MS };
 export const RUN_HISTORY_LIMIT = 20;
+/** How often a workspace's listening ports are read while its run is active. */
+export const PORT_POLL_INTERVAL_MS = 5_000;
 
 /** Local storage key prefix for one workspace's run history. */
 export const RUN_HISTORY_STORAGE_PREFIX = "conducted.run-history:";
@@ -109,6 +117,8 @@ export interface RunScriptsState {
 	history: Readonly<Record<string, readonly string[]>>;
 	/** A stop the terminal service could not confirm, kept until the next start. */
 	outcomes: Readonly<Record<string, "stop-unconfirmed">>;
+	/** The last failed port scan per workspace, for the Ports tab to show. */
+	portErrors: Readonly<Record<string, AppError>>;
 	/** A saved history that could not be read or written, for the Run tab to show. */
 	historyError: AppError | null;
 }
@@ -197,6 +207,8 @@ export class RunScriptsService {
 	readonly #portScans = createLatestWins<WorkspaceId>();
 	/** The next port scan timer per workspace. */
 	readonly #portTimers = new Map<WorkspaceId, ReturnType<typeof setTimeout>>();
+	/** The folder whose processes belong to each workspace being scanned. */
+	readonly #portPaths = new Map<WorkspaceId, string>();
 
 	constructor(deps: RunScriptsServiceDeps) {
 		this.#deps = deps;
@@ -206,6 +218,7 @@ export class RunScriptsService {
 			phases: {},
 			history: saved.history,
 			outcomes: {},
+			portErrors: {},
 			historyError: saved.error,
 		}));
 	}
@@ -473,6 +486,7 @@ export class RunScriptsService {
 	clearRuns(workspaceId: WorkspaceId): void {
 		this.#pending.delete(workspaceId);
 		this.#processes.delete(workspaceId);
+		this.#stopPortPolling(workspaceId, true);
 		this.#launching.delete(workspaceId);
 		this.#attempts.delete(workspaceId);
 		this.#lastRunIds.delete(workspaceId);
@@ -484,9 +498,11 @@ export class RunScriptsService {
 			delete phases[workspaceId];
 			const outcomes = { ...state.outcomes };
 			delete outcomes[workspaceId];
+			const portErrors = { ...state.portErrors };
+			delete portErrors[workspaceId];
 			const history = { ...state.history };
 			delete history[workspaceId];
-			return { ...state, byWorkspace, phases, outcomes, history };
+			return { ...state, byWorkspace, phases, outcomes, portErrors, history };
 		});
 	}
 
@@ -501,6 +517,9 @@ export class RunScriptsService {
 		this.#processes.clear();
 		this.#pending.clear();
 		this.#launching.clear();
+		for (const workspaceId of [...this.#portTimers.keys()]) {
+			this.#stopPortPolling(workspaceId, false);
+		}
 		for (const workspaceId of this.#attempts.keys()) this.#nextAttempt(workspaceId);
 		const closed = await Promise.all(terminalIds.map((id) => this.#deps.terminals.close(id)));
 		for (const result of closed) {
@@ -509,9 +528,144 @@ export class RunScriptsService {
 		return ok(undefined);
 	}
 
-	/** Backs `Actions.run.activateApp`. */
-	activateApp(_workspaceId: WorkspaceId, _port: number): Promise<Result<void>> {
-		return notImplemented("RUN-03");
+	/**
+	 * Reads the workspace's listening ports once and stores them in the run state. The poll timer
+	 * and `RunScriptsService.activateApp` use this same read.
+	 */
+	async refreshPorts(workspaceId: WorkspaceId, workspacePath: string): Promise<Result<void>> {
+		const ports = this.#deps.ports;
+		if (ports === undefined) return ok(undefined);
+		const ticket = this.#portScans.begin(workspaceId);
+		const listed = await ports.listListening(workspaceId, workspacePath);
+		if (!this.#portScans.isLatest(ticket)) {
+			this.#portScans.settle(ticket);
+			return ok(undefined);
+		}
+		this.#portScans.settle(ticket);
+		if (!listed.ok) {
+			this.#deps.log?.(
+				"warn",
+				`The listening ports of workspace ${workspaceId} could not be read: ${listed.error.message}`,
+			);
+			this.#setPortError(workspaceId, listed.error);
+			return listed;
+		}
+		this.#setPortError(workspaceId, null);
+		this.#setDetectedPorts(
+			workspaceId,
+			listed.value.map((entry) => ({
+				port: entry.port,
+				pid: entry.pid,
+				processName: entry.command,
+				appName: entry.appName,
+			})),
+		);
+		return ok(undefined);
+	}
+
+	/** Backs `Actions.run.activateApp`: brings the macOS app that owns the port to the front. */
+	async activateApp(workspaceId: WorkspaceId, port: number): Promise<Result<void>> {
+		const workspace = await this.#deps.workspaceFor(workspaceId);
+		if (!workspace.ok) return workspace;
+		const ports = this.#deps.ports;
+		if (ports === undefined) {
+			return err(
+				appError(
+					"ports_unavailable",
+					"The port cannot be activated because port detection is off.",
+				),
+			);
+		}
+		const listed = await ports.listListening(workspaceId, workspace.value.path);
+		if (!listed.ok) return listed;
+		const target = listed.value.find((entry) => entry.port === port);
+		if (target === undefined) {
+			return err(appError("port_not_found", `Nothing is listening on port ${port}.`));
+		}
+		if (target.appName === null) {
+			return err(appError("app_not_detected", `No app owns port ${port}.`));
+		}
+		const shell = this.#deps.shell;
+		if (shell === undefined) {
+			return err(
+				appError(
+					"app_activate_failed",
+					"The app cannot be activated because the shell was not provided.",
+				),
+			);
+		}
+		const activated = await shell.run({
+			program: "open",
+			args: ["-a", target.appName],
+			cwd: workspace.value.path,
+		});
+		if (!activated.ok) return activated;
+		if (activated.value.exitCode !== 0) {
+			return err(
+				appError(
+					"app_activate_failed",
+					`The app could not be activated: ${activated.value.stderr.trim() || `open exited ${activated.value.exitCode}`}`,
+				),
+			);
+		}
+		return ok(undefined);
+	}
+
+	/** Stores the last failed port scan for a workspace, or clears it after a good scan. */
+	#setPortError(workspaceId: WorkspaceId, error: AppError | null): void {
+		this.store.setState((state) => {
+			if (error === null) {
+				if (state.portErrors[workspaceId] === undefined) return state;
+				const portErrors = { ...state.portErrors };
+				delete portErrors[workspaceId];
+				return { ...state, portErrors };
+			}
+			return { ...state, portErrors: { ...state.portErrors, [workspaceId]: error } };
+		});
+	}
+
+	/** Stores one workspace's detected ports, replacing the list the Ports tab shows. */
+	#setDetectedPorts(workspaceId: WorkspaceId, detected: RunState["detectedPorts"]): void {
+		this.store.setState((state) => {
+			const current = state.byWorkspace[workspaceId] ?? emptyRunState();
+			return {
+				...state,
+				byWorkspace: {
+					...state.byWorkspace,
+					[workspaceId]: { ...current, detectedPorts: detected },
+				},
+			};
+		});
+	}
+
+	/** Starts the port poll for a running workspace. A second call keeps the first timer. */
+	#startPortPolling(workspaceId: WorkspaceId, workspacePath: string): void {
+		if (this.#deps.ports === undefined) return;
+		this.#portPaths.set(workspaceId, workspacePath);
+		if (this.#portTimers.has(workspaceId)) return;
+		const tick = (): void => {
+			const path = this.#portPaths.get(workspaceId);
+			if (path === undefined) return;
+			void this.refreshPorts(workspaceId, path);
+			this.#portTimers.set(workspaceId, setTimeout(tick, PORT_POLL_INTERVAL_MS));
+		};
+		this.#portTimers.set(workspaceId, setTimeout(tick, PORT_POLL_INTERVAL_MS));
+		void this.refreshPorts(workspaceId, workspacePath);
+	}
+
+	/** Stops the port poll and, when asked, clears the list the Ports tab shows. */
+	#stopPortPolling(workspaceId: WorkspaceId, clearPorts: boolean): void {
+		const timer = this.#portTimers.get(workspaceId);
+		if (timer !== undefined) {
+			clearTimeout(timer);
+			this.#portTimers.delete(workspaceId);
+		}
+		this.#portPaths.delete(workspaceId);
+		this.#portScans.invalidate(workspaceId);
+		if (clearPorts) {
+			this.#setDetectedPorts(workspaceId, []);
+			this.#setPortError(workspaceId, null);
+		}
 	}
 
 	async #afterSetup(workspaceId: WorkspaceId, succeeded: boolean): Promise<Result<void>> {
@@ -635,12 +789,14 @@ export class RunScriptsService {
 		this.#processes.set(workspaceId, process);
 		this.#recordHistory(workspaceId, action.id);
 		this.#setPhase(workspaceId, attempt, "running");
+		this.#startPortPolling(workspaceId, workspace.path);
 
 		const settle = (_code: number | null): void => {
 			if (!this.#isCurrent(workspaceId, attempt)) return;
 			const current = this.#processes.get(workspaceId);
 			if (current?.terminalId !== process.terminalId) return;
 			this.#processes.delete(workspaceId);
+			this.#stopPortPolling(workspaceId, true);
 			this.#clearOutcome(workspaceId);
 			this.#setPhase(workspaceId, attempt, "stopped");
 		};
@@ -677,6 +833,7 @@ export class RunScriptsService {
 			this.#setPhase(workspaceId, attempt, "stopping");
 		}
 		this.#processes.delete(workspaceId);
+		this.#stopPortPolling(workspaceId, true);
 		const stopped = await this.#deps.terminals.stop(process.terminalId);
 		if (this.#isCurrent(workspaceId, attempt)) {
 			this.#setPhase(workspaceId, attempt, "stopped");

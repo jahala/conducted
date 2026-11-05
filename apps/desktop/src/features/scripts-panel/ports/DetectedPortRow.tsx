@@ -1,9 +1,10 @@
 /**
  * @feature RUN-03 Detected port row
- * Owns: one listening port with its Open in browser and Open in preview actions.
- * Behaviour: ui-map.md 3.7 (Ports tab; the in-app browser setting decides where Open goes).
+ * Owns: one listening port with its Open in browser, Open in preview and Activate app actions.
+ * Behaviour: ui-map.md 3.7 (Ports tab; the in-app browser setting decides where Open goes; a
+ * detected app can be activated instead of opened).
  * Must handle: the workspace's own port marked, the in-app preview unavailable when the setting is
- * off, and copy of the URL.
+ * off, activating only when an app owns the port, and copy of the URL.
  * Test first: with the in-app browser setting off, only the system browser action shows.
  */
 import { Badge } from "../../../ui/Badge.tsx";
@@ -17,6 +18,8 @@ export interface DetectedPortRowProps {
 	onOpenInBrowser: () => void;
 	onOpenInPreview: () => void;
 	onCopyUrl: () => void;
+	/** Brings the macOS app that owns the port to the front, when it has one. */
+	onActivateApp?: () => void;
 	/** The program behind the port, when the process list knows it. */
 	processName?: string;
 	/** The macOS application that owns the process, when there is one. */
@@ -30,6 +33,7 @@ export function DetectedPortRow({
 	onOpenInBrowser,
 	onOpenInPreview,
 	onCopyUrl,
+	onActivateApp,
 	processName,
 	appName,
 }: DetectedPortRowProps) {
@@ -52,6 +56,14 @@ export function DetectedPortRow({
 				<Button variant="ghost" size="xs" title={url} onClick={onCopyUrl}>
 					Copy URL
 				</Button>
+				{appName !== null && appName !== undefined && onActivateApp !== undefined ? (
+					<Button variant="outline" size="xs" onClick={onActivateApp} title={appName}>
+						<span className="inline-flex items-center gap-1.5">
+							<EyeIcon />
+							Activate {appName}
+						</span>
+					</Button>
+				) : null}
 				<Button variant="outline" size="xs" onClick={onOpenInBrowser} title={url}>
 					<span className="inline-flex items-center gap-1.5">
 						<GlobeIcon />

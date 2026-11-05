@@ -5,7 +5,8 @@
  * dev server and it'll show up here."; "Open localhost URL" Cmd+Shift+B). Port forwarding to a
  * cloud machine is left out.
  * Data: useRunState (detectedPorts), useWorkspace (the workspace's own port), useSetting (in-app
- * browser preview), useActions (system browser and clipboard).
+ * browser preview), useActions (system browser, clipboard and app activation), and the run
+ * service's port errors.
  * Children: DetectedPortRow.
  * Must handle: no ports (designed empty state), a port that closes while listed (row disappears
  * without flicker), the workspace's reserved port marked, and ports owned by other workspaces
@@ -14,6 +15,8 @@
  */
 import type { WorkspaceId } from "@conducted/shared";
 import { useNavigate } from "@tanstack/react-router";
+import { useStore } from "zustand";
+import { useServices } from "../../../core/context.tsx";
 import { useActions, useRunState, useSetting, useWorkspace } from "../../../core/hooks.ts";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { Spinner } from "../../../ui/Spinner.tsx";
@@ -30,6 +33,8 @@ export function PortsTab({ workspaceId }: PortsTabProps) {
 	const inAppPreview = useSetting<boolean>("experimental_in_app_browser_preview");
 	const actions = useActions();
 	const navigate = useNavigate();
+	const runService = useServices().services.runScripts;
+	const portError = useStore(runService.store, (state) => state.portErrors[workspaceId]);
 
 	if (run.state === "loading" || workspace.state === "loading") {
 		return (
@@ -42,7 +47,13 @@ export function PortsTab({ workspaceId }: PortsTabProps) {
 		return <EmptyState title="Ports are unavailable" body={run.error.message} tone="failed" />;
 	}
 	if (workspace.state === "error") {
-		return <EmptyState title="Ports are unavailable" body={workspace.error.message} tone="failed" />;
+		return (
+			<EmptyState title="Ports are unavailable" body={workspace.error.message} tone="failed" />
+		);
+	}
+
+	if (portError !== undefined) {
+		return <EmptyState title="Ports are unavailable" body={portError.message} tone="failed" />;
 	}
 
 	const workspacePort = workspace.data.port;
@@ -72,6 +83,13 @@ export function PortsTab({ workspaceId }: PortsTabProps) {
 		})();
 	};
 
+	const activateApp = (port: number): void => {
+		void (async () => {
+			const activated = await actions.run.activateApp(workspaceId, port);
+			if (!activated.ok) toastError("Couldn't activate the app", activated.error);
+		})();
+	};
+
 	if (ports.length === 0) {
 		return (
 			<EmptyState
@@ -94,6 +112,7 @@ export function PortsTab({ workspaceId }: PortsTabProps) {
 					onOpenInBrowser={() => openInBrowser(entry.port)}
 					onOpenInPreview={() => openInPreview(entry.port)}
 					onCopyUrl={() => copyUrl(entry.port)}
+					onActivateApp={entry.appName === null ? undefined : () => activateApp(entry.port)}
 				/>
 			))}
 		</div>

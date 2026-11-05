@@ -16,13 +16,7 @@
  * timeout. Port 22 stays reserved for SSH and is never given to a workspace.
  * Test first: allocatePort with 55000 and 55010 taken returns 55020.
  */
-import {
-	appError,
-	err,
-	ok,
-	type Result,
-	type WorkspaceId,
-} from "@conducted/shared";
+import { appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
 import type { Platform } from "../../platform/platform.ts";
 import { createKeyedQueue } from "../async/serial-queue.ts";
 import type { Repositories } from "../db/repositories.ts";
@@ -100,8 +94,8 @@ function parseListening(output: string): ListeningEntry[] {
 	return entries;
 }
 
-/** Parses `lsof -F pn` cwd output into pid to working folder. */
-function parseCwds(output: string): Map<number, string> {
+/** Parses `lsof -F pn` output into pid to path, for a working folder or an executable. */
+function parsePidPaths(output: string): Map<number, string> {
 	const cwds = new Map<number, string>();
 	let pid = 0;
 	for (const line of output.split("\n")) {
@@ -121,7 +115,7 @@ function parseCwds(output: string): Map<number, string> {
 /** The app bundle name in an executable path, or null for a plain process. */
 function appNameFor(path: string): string | null {
 	const match = /\/([^/]+)\.app\/Contents\/MacOS\//.exec(path);
-	return match === null ? null : match[1];
+	return match?.[1] ?? null;
 }
 
 /** True when `folder` is `root` or sits inside it. */
@@ -220,33 +214,25 @@ export class PortService {
 				),
 			);
 		}
-		return ok(parseCwds(run.value.stdout));
+		return ok(parsePidPaths(run.value.stdout));
 	}
 
 	async #executablePaths(): Promise<Result<Map<number, string>>> {
 		const run = await this.#deps.platform.shell.run({
-			program: "ps",
-			args: ["-axo", "pid=,comm="],
+			program: "lsof",
+			args: ["-nP", "-a", "-d", "txt", "-F", "pn"],
 			cwd: "/",
 			timeoutMs: LSOF_TIMEOUT_MS,
 		});
 		if (!run.ok) return run;
-		if (run.value.exitCode !== 0) {
+		if (run.value.exitCode !== 0 && run.value.exitCode !== 1) {
 			return err(
 				appError(
 					"ports_unavailable",
-					`The process names could not be read: ${run.value.stderr.trim() || `ps exited ${run.value.exitCode}`}`,
+					`The process paths could not be read: ${run.value.stderr.trim() || `lsof exited ${run.value.exitCode}`}`,
 				),
 			);
 		}
-		const paths = new Map<number, string>();
-		for (const line of run.value.stdout.split("\n")) {
-			const match = /^\s*(\d+)\s+(.+)$/.exec(line);
-			if (match === null) continue;
-			const pid = Number(match[1]);
-			if (!Number.isInteger(pid) || pid <= 0) continue;
-			paths.set(pid, match[2].trim());
-		}
-		return ok(paths);
+		return ok(parsePidPaths(run.value.stdout));
 	}
 }

@@ -5,8 +5,8 @@
  * Behaviour: ui-map.md 3.7 ("Open", "Choose preview URL"; sources: the Run tab's URL, ports
  * detected from output, the repository's Preview URLs template; "Open localhost URL" Cmd+Shift+B);
  * the in-app browser setting decides whether Open uses the browser tab or the system browser.
- * Must handle: no URLs, duplicate URLs from different sources (shown once), an unreachable port
- * (still listed, marked), and the chosen default being remembered per workspace.
+ * Must handle: no URLs, duplicate URLs from different sources (shown once), and a caller that
+ * offers a default choice among several URLs.
  * Test first: two sources giving the same URL show one entry.
  */
 import { Button } from "../../../ui/Button.tsx";
@@ -30,7 +30,8 @@ export interface PreviewUrlMenuProps {
 	urls: { label: string; url: string; source: "run_output" | "detected_port" | "template" }[];
 	defaultUrl: string | null;
 	onOpen: (url: string) => void;
-	onSetDefault: (url: string) => void;
+	/** When provided, the menu lets the caller choose which URL Open uses by default. */
+	onSetDefault?: (url: string) => void;
 }
 
 export function PreviewUrlMenu({ urls, defaultUrl, onOpen, onSetDefault }: PreviewUrlMenuProps) {
@@ -83,7 +84,7 @@ export function PreviewUrlMenu({ urls, defaultUrl, onOpen, onSetDefault }: Previ
 							</MenuItem>
 						))
 					)}
-					{entries.length > 1 ? (
+					{entries.length > 1 && onSetDefault !== undefined ? (
 						<>
 							<MenuSeparator />
 							<MenuSub>
