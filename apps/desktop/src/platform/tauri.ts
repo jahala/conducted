@@ -263,6 +263,7 @@ export const COMMANDS = {
 	keychainDelete: "keychain_delete",
 	notify: "notify",
 	setDockBadge: "set_dock_badge",
+	notificationTakePending: "notification_take_pending",
 	revealInFinder: "reveal_in_finder",
 	openWith: "open_with",
 	installedApps: "installed_apps",
@@ -841,12 +842,53 @@ export function createTauriKeychain(bindings: TauriBindings): Keychain {
 	};
 }
 
-/** `notify { title, body, deepLink }` (after a permission check with plugin-notification), `set_dock_badge { count }`, event `notification://clicked`. */
-export function createTauriNotifications(_bindings: TauriBindings): Notifications {
+/**
+ * `notify { request: { title, body, deepLink } }` (the Rust command checks the notification
+ * permission), `set_dock_badge { count }`, `notification_take_pending`. The `notification://clicked`
+ * event wakes the UI, which then drains the queue so a click that arrived before the listener is
+ * not lost.
+ */
+export function createTauriNotifications(bindings: TauriBindings): Notifications {
+	const takePending = async (): Promise<string[] | null> => {
+		const result = await invokeResult<string[]>(bindings, COMMANDS.notificationTakePending);
+		if (result.ok) return result.value;
+		console.error(`Could not read pending notification clicks: ${result.error.message}`);
+		return null;
+	};
+
+	const drain = async (
+		listener: (deepLink: string) => void,
+		active: () => boolean,
+	): Promise<void> => {
+		const links = await takePending();
+		if (links === null || !active()) return;
+		for (const link of links) {
+			if (link.length > 0) listener(link);
+		}
+	};
+
 	return {
-		notify: () => notImplemented("PLAT-11"),
-		setDockBadge: () => notImplemented("PLAT-11"),
-		onClicked: () => notImplemented("PLAT-11"),
+		notify: async (input) => {
+			const result = await invokeResult<void>(bindings, COMMANDS.notify, {
+				request: { title: input.title, body: input.body, deepLink: input.deepLink },
+			});
+			if (!result.ok) throw result.error;
+		},
+		setDockBadge: async (count) => {
+			const result = await invokeResult<void>(bindings, COMMANDS.setDockBadge, { count });
+			if (!result.ok) throw result.error;
+		},
+		onClicked: (listener) => {
+			let active = true;
+			const unsubscribe = onEvent(bindings, EVENTS.notificationClicked, () => {
+				void drain(listener, () => active);
+			});
+			void drain(listener, () => active);
+			return () => {
+				active = false;
+				unsubscribe();
+			};
+		},
 	};
 }
 
