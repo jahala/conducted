@@ -164,6 +164,7 @@ pub fn run() {
             pty::pty_kill,
             pty::pty_ack,
             pty::pty_screen_text,
+            pty::pty_screen_snapshot,
             terminal_history::pty_load_history,
             sidecar::sidecar_ensure_started,
             sidecar::sidecar_send,
