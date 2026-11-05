@@ -21,7 +21,12 @@ import { cn } from "../../ui/cn.ts";
 import { ChevronDownIcon, ChevronRightIcon } from "../../ui/icons.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { useNow } from "./use-now.ts";
-import { draggedWorkspace, useWorkspaceDrag, WORKSPACE_DRAG_MIME } from "./use-workspace-drag.ts";
+import {
+	draggedWorkspace,
+	useWorkspaceDrag,
+	useWorkspaceDragActive,
+	WORKSPACE_DRAG_MIME,
+} from "./use-workspace-drag.ts";
 import { WorkspaceRow } from "./WorkspaceRow.tsx";
 
 export interface PinnedSectionProps {
@@ -57,7 +62,9 @@ export function PinnedSection({
 		onError: toastError,
 	});
 
-	const isDragging = dragging || drag.state.draggingId !== null;
+	// A drag that starts in the main list or a section also shows an empty Pinned as a drop target.
+	const dragInAnyList = useWorkspaceDragActive();
+	const isDragging = dragging || dragInAnyList || drag.state.draggingId !== null;
 	if (workspaces.length === 0 && !isDragging) return null;
 
 	const repoById = new Map(
