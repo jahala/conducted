@@ -16,7 +16,6 @@
  * Test first: three tasks queued on key "a" run in order even when the first is slowest; a failing first
  * task does not stop the second.
  */
-import { notImplemented } from "@conducted/shared";
 
 export interface KeyedQueue<K extends string = string> {
 	/** Runs `task` after every task already queued on `key`. Resolves or rejects with the task's outcome. */
@@ -27,6 +26,45 @@ export interface KeyedQueue<K extends string = string> {
 	activeKeys(): number;
 }
 
+/** A tail that never rejects, so the next task always starts even when this one failed. */
+const settle = (task: Promise<unknown>): Promise<void> =>
+	task.then(
+		() => undefined,
+		() => undefined,
+	);
+
 export function createKeyedQueue<K extends string = string>(): KeyedQueue<K> {
-	return notImplemented("APP-11");
+	const tails = new Map<K, Promise<void>>();
+
+	const enqueue = <T>(key: K, after: Promise<void>, task: () => Promise<T>): Promise<T> => {
+		const result = after.then(task, task);
+		const tail = settle(result);
+		tails.set(key, tail);
+		const clear = (): void => {
+			if (tails.get(key) === tail) tails.delete(key);
+		};
+		void result.then(clear, clear);
+		return result;
+	};
+
+	return {
+		run: (key, task) => enqueue(key, tails.get(key) ?? Promise.resolve(), task),
+		runBarrier: (keys, task) => {
+			const unique = [...new Set(keys)];
+			if (unique.length === 0) return task();
+			const before = unique.map((key) => tails.get(key) ?? Promise.resolve());
+			const after = Promise.all(before).then(() => undefined);
+			const result = after.then(task, task);
+			const tail = settle(result);
+			for (const key of unique) tails.set(key, tail);
+			const clear = (): void => {
+				for (const key of unique) {
+					if (tails.get(key) === tail) tails.delete(key);
+				}
+			};
+			void result.then(clear, clear);
+			return result;
+		},
+		activeKeys: () => tails.size,
+	};
 }
