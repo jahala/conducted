@@ -67,6 +67,14 @@ async function setup(runScripts: RunAction[] = [dev]): Promise<{
 		runScripts,
 	});
 	if (!updated.ok) throw new Error(updated.error.message);
+	// A new workspace is still initializing, and the panel then opens on Setup. These cases start from a
+	// workspace that finished setting up.
+	test.container.services.workspace.store.setState((state) => ({
+		workspacesById: {
+			...state.workspacesById,
+			[workspace.id]: { ...workspace, state: "ready" },
+		},
+	}));
 	return { test, workspace };
 }
 
@@ -105,6 +113,26 @@ describe("RUN-01 scripts panel", () => {
 		expect(screen.getByRole("tab", { name: "Run" }).getAttribute("aria-selected")).toBe("true");
 		expect(screen.getByRole("tab", { name: "Setup" }).getAttribute("aria-selected")).toBe("false");
 		expect(screen.queryByRole("button", { name: "Add manually" })).toBeNull();
+	});
+
+	it("opens on the Setup tab while the workspace is still initializing", async () => {
+		const { test, workspace } = await setup();
+		test.container.services.workspace.store.setState((state) => ({
+			workspacesById: {
+				...state.workspacesById,
+				[workspace.id]: { ...workspace, state: "initializing" },
+			},
+		}));
+		render(
+			<ServicesProvider container={test.container}>
+				<ScriptsPanel workspaceId={workspace.id} />
+			</ServicesProvider>,
+		);
+
+		expect((await screen.findByRole("tab", { name: "Setup" })).getAttribute("aria-selected")).toBe(
+			"true",
+		);
+		expect(screen.queryByRole("button", { name: "Run Dev server" })).toBeNull();
 	});
 
 	it("opens on the Setup tab when the repository has no run actions", async () => {

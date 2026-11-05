@@ -33,12 +33,13 @@ vi.mock("./resizable.tsx", async (importOriginal) => {
 	const { createElement } = await import("react");
 	return {
 		...actual,
-		ResizableGroup: (props: ResizableGroupProps) => {
-			recorded.groups.push(props);
+		// React calls a component with no props to read its stack frame when another component throws.
+		ResizableGroup: (props: ResizableGroupProps | undefined) => {
+			if (props !== undefined) recorded.groups.push(props);
 			return createElement(actual.ResizableGroup, props);
 		},
-		ResizablePanel: (props: ResizablePanelProps) => {
-			recorded.panels.push(props);
+		ResizablePanel: (props: ResizablePanelProps | undefined) => {
+			if (props !== undefined) recorded.panels.push(props);
 			return createElement(actual.ResizablePanel, props);
 		},
 	};
