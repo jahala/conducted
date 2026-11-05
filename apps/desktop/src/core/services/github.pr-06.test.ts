@@ -253,6 +253,70 @@ describe("PR-06 pull request write actions", () => {
 	});
 });
 
+describe("PR-06 the header follows a write at once", () => {
+	it("polls the workspace after a merge, while the merge still shows as running", async () => {
+		let pendingWhenPolled: PullRequestAction | null | undefined;
+		let service: GithubService | undefined;
+		const git = new FakeGitRunner((command) => {
+			if (command.program === "git" && command.args[0] === "remote") {
+				pendingWhenPolled = service?.pendingAction(workspaceId);
+			}
+			return defaultAnswer(command);
+		});
+		service = makeService(git);
+
+		expect(await service.merge(workspaceId)).toEqual(ok(undefined));
+
+		const args = commandArgs(git);
+		const mergedAt = args.findIndex((entry) => entry[0] === "pr" && entry[1] === "merge");
+		const polledAt = args.findIndex((entry) => entry[0] === "remote" && entry[1] === "get-url");
+		expect(mergedAt).toBeGreaterThanOrEqual(0);
+		expect(polledAt).toBeGreaterThan(mergedAt);
+		expect(pendingWhenPolled).toBe("merging");
+		expect(service.pendingAction(workspaceId)).toBeNull();
+	});
+
+	it("does not poll after a write that failed", async () => {
+		const git = new FakeGitRunner((command) => {
+			if (command.program === "gh" && command.args[0] === "pr" && command.args[1] === "ready") {
+				return gitOutput("", "pull request is closed", 1);
+			}
+			return defaultAnswer(command);
+		});
+		const service = makeService(git);
+
+		expect((await service.markReady(workspaceId)).ok).toBe(false);
+		expect(commandArgs(git).some((entry) => entry[0] === "remote")).toBe(false);
+	});
+});
+
+describe("PR-06 the base move shares the write runner", () => {
+	it("maps a refused base move the way every other write is mapped", async () => {
+		const git = new FakeGitRunner((command) => {
+			if (
+				command.program === "gh" &&
+				command.args[1] === "view" &&
+				command.args.includes("state")
+			) {
+				return gitOutput('"OPEN"\n');
+			}
+			if (command.program === "gh" && command.args[0] === "pr" && command.args[1] === "edit") {
+				return gitOutput("", "HTTP 401: Bad credentials (https://api.github.com/graphql)", 1);
+			}
+			return defaultAnswer(command);
+		});
+		const service = makeService(git);
+
+		const result = await service.moveOpenPullRequestBase(workspaceId, "develop");
+
+		expect(!result.ok && result.error.code).toBe("github_failed");
+		expect(!result.ok && result.error.message).toBe(
+			"GitHub denied the request. Sign in again with `gh auth login`, or update your token on the Account page.",
+		);
+		expect(commandArgs(git)).toContainEqual(["pr", "edit", "12", "--base", "develop"]);
+	});
+});
+
 interface PendingCase {
 	label: string;
 	expected: PullRequestAction;

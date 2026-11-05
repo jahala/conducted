@@ -94,4 +94,30 @@ describe("RUN-03 port service through the container", () => {
 			test.container.services.runScripts.store.getState().byWorkspace[workspace.id]?.detectedPorts,
 		).toEqual([{ port: 3000, pid: 101, processName: "node", appName: "Google Chrome" }]);
 	});
+
+	it.each([
+		["-iTCP", "The listening ports could not be read: lsof: bad flag"],
+		["cwd", "The process folders could not be read: lsof: bad flag"],
+		["txt", "The process paths could not be read: lsof: bad flag"],
+	])("names the %s scan when lsof fails, and reads exit 1 as no match", async (scan, message) => {
+		const test = createTestContainer();
+		containers.push(test);
+		const repo = await seedRepo(test.container);
+		const workspace = await seedWorkspace(test.container, { repoId: repo.id });
+		test.memory.controls.scriptShell((command) => {
+			if (command.program !== "lsof") return null;
+			if (command.args.includes(scan)) {
+				return ok({ exitCode: 2, stdout: "", stderr: "lsof: bad flag\n" });
+			}
+			// Every other scan matches nothing: lsof exits 1 with no output.
+			return ok({ exitCode: 1, stdout: "", stderr: "" });
+		});
+
+		const listed = await test.container.services.ports.listListening(workspace.id, workspace.path);
+
+		expect(listed).toEqual({
+			ok: false,
+			error: expect.objectContaining({ code: "ports_unavailable", message }),
+		});
+	});
 });

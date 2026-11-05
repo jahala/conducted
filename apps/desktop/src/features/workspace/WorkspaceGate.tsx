@@ -8,8 +8,8 @@
  * place so the window does not jump. A workspace id nobody knows gets its own not-found card.
  * Must handle: loading; a load error; a workspace id with no row ("Workspace not found" with the deleted
  * hint); archived; a workspace in "initializing" or "failed" state (shown by the header and Git panel,
- * tabs stay usable); unarchive that needs a branch name; a restore that lost uncommitted changes (a
- * warning, because the workspace is ready by then and this gate no longer shows the notice).
+ * tabs stay usable); unarchive that needs a branch name; a refused branch name (shown under the
+ * field). The toasts for a failure and for lost uncommitted changes come from `runUnarchive`.
  * Test first: an archived workspace shows "Workspace archived"; a ready one renders its children.
  */
 import type { WorkspaceId } from "@conducted/shared";
@@ -17,9 +17,8 @@ import { type ReactNode, useState } from "react";
 import { useActions, useWorkspace } from "../../core/hooks.ts";
 import { EmptyState } from "../../ui/EmptyState.tsx";
 import { LoadableView } from "../../ui/LoadableView.tsx";
-import { toast, toastError } from "../../ui/Toast.tsx";
 import { ArchivedNotice } from "./ArchivedNotice.tsx";
-import { unarchiveWorkspace } from "./workspace-actions.ts";
+import { runUnarchive } from "./workspace-actions.ts";
 
 export function WorkspaceGate({
 	workspaceId,
@@ -37,26 +36,13 @@ export function WorkspaceGate({
 	const unarchive = async (branchName: string | null) => {
 		setUnarchiving(true);
 		try {
-			const result = await unarchiveWorkspace(actions, workspaceId, branchName);
+			const result = await runUnarchive(actions, workspaceId, { branchName, clearChats: false });
 			if (!result.ok) {
 				setBranchError(branchName === null ? null : result.error.message);
-				toastError("Couldn't unarchive the workspace", result.error);
 				return;
 			}
-			if (result.value.needsBranchName) {
-				setBranchNameRequired(true);
-				return;
-			}
-			setBranchNameRequired(false);
-			setBranchError(null);
-			if (result.value.uncommittedChangesLost) {
-				toast.warning("Uncommitted changes couldn't be recovered.");
-			}
-		} catch (caught) {
-			toastError(
-				"Couldn't unarchive the workspace",
-				caught instanceof Error ? caught : { message: String(caught) },
-			);
+			setBranchNameRequired(result.value.needsBranchName);
+			if (!result.value.needsBranchName) setBranchError(null);
 		} finally {
 			setUnarchiving(false);
 		}

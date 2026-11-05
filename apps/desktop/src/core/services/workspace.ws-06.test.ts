@@ -64,6 +64,9 @@ interface HarnessOptions {
 	branchCreateFails?: boolean;
 	restoreFails?: boolean;
 	clearChatsFails?: boolean;
+	rollbackStateFails?: boolean;
+	finishFails?: boolean;
+	worktreeRemoveFails?: boolean;
 	existingPaths?: ReadonlySet<string>;
 	settings?: Record<string, unknown>;
 }
@@ -112,6 +115,13 @@ function harness(options: HarnessOptions = {}) {
 				? ok({ exitCode: 1, stdout: "", stderr: "worktree add failed" })
 				: ok({ exitCode: 0, stdout: "", stderr: "" });
 		}
+		if (
+			options.worktreeRemoveFails === true &&
+			command.args[0] === "worktree" &&
+			(command.args[1] === "remove" || command.args[1] === "prune")
+		) {
+			return ok({ exitCode: 1, stdout: "", stderr: "folder is locked" });
+		}
 		if (command.args[0] === "branch" && command.args[1] === "-D") {
 			replies.push("delete");
 			return ok({ exitCode: 0, stdout: "", stderr: "" });
@@ -131,6 +141,9 @@ function harness(options: HarnessOptions = {}) {
 		},
 		async transitionState(id: WorkspaceId, from: Workspace["state"], to: Workspace["state"]) {
 			transitions.push({ id, from, to });
+			if (options.rollbackStateFails === true && from === "initializing" && to === "archived") {
+				return err(appError("db_busy", "database is locked"));
+			}
 			const row = rows.find((candidate) => candidate.id === id);
 			if (row === undefined || row.state !== from) return ok(false);
 			row.state = to;
@@ -141,6 +154,7 @@ function harness(options: HarnessOptions = {}) {
 			input: { branch: string; directoryName: string; path: string },
 		) {
 			finished.push({ id, ...input });
+			if (options.finishFails === true) return err(appError("db_busy", "disk is full"));
 			const row = rows.find((candidate) => candidate.id === id);
 			if (row === undefined || row.state !== "initializing") return ok(false);
 			row.state = "ready";
@@ -447,6 +461,41 @@ describe("WS-06 unarchive failure", () => {
 		expect(
 			h.git.calls.some((call) => sameArgs(call.command, ["branch", "-D", "--", "feature/oslo"])),
 		).toBe(true);
+	});
+});
+
+describe("WS-06 rollback failures are reported", () => {
+	it("names a state that could not go back to archived, and keeps the store on initializing", async () => {
+		const h = harness({ worktreeAddFails: true, rollbackStateFails: true });
+
+		const result = await h.service.unarchive("w1" as WorkspaceId, {
+			branchName: null,
+			clearChats: false,
+		});
+
+		expect(result.ok).toBe(false);
+		if (result.ok) return;
+		expect(result.error.message).toMatch(
+			/ The workspace could not be set back to archived and stays initializing: database is locked$/,
+		);
+		expect(h.rows[0]?.state).toBe("initializing");
+		expect(h.service.store.getState().workspacesById["w1" as WorkspaceId]?.state).toBe(
+			"initializing",
+		);
+	});
+
+	it("names a re-added folder that could not be removed after the row update failed", async () => {
+		const h = harness({ finishFails: true, worktreeRemoveFails: true });
+
+		const result = await h.service.unarchive("w1" as WorkspaceId, {
+			branchName: null,
+			clearChats: false,
+		});
+
+		expect(result.ok).toBe(false);
+		if (result.ok) return;
+		expect(result.error.message).toContain('The folder "/worktrees/oslo" also stays:');
+		expect(h.rows[0]?.state).toBe("archived");
 	});
 });
 

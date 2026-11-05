@@ -3,8 +3,9 @@
  * Owns: the split Open button's menu: the list of URLs the workspace can be opened at, with the
  * first as default.
  * Behaviour: ui-map.md 3.7 ("Open", "Choose preview URL"; sources: the Run tab's URL, ports
- * detected from output, the repository's Preview URLs template; "Open localhost URL" Cmd+Shift+B);
- * the in-app browser setting decides whether Open uses the browser tab or the system browser.
+ * detected from output, the repository's Preview URLs template; "Open localhost URL" Cmd+Shift+B).
+ * The menu hands the chosen URL to `onOpen`; the Run tab passes `useUrlOpeners`, so the in-app
+ * browser setting decides whether it opens in the browser tab or the system browser.
  * Must handle: no URLs, duplicate URLs from different sources (shown once), and a caller that
  * offers a default choice among several URLs.
  * Test first: two sources giving the same URL show one entry.

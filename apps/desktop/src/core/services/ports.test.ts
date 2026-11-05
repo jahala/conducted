@@ -4,14 +4,9 @@
  * Test first: allocatePort with 55000 and 55010 taken returns 55020.
  */
 import { describe, expect, it } from "vitest";
-import {
-	allocatePort,
-	expandPreviewUrl,
-	PORT_BASE,
-	PORT_BLOCK_SIZE,
-	PORT_MAX,
-	RESERVED_PORTS,
-} from "./ports.ts";
+import { allocatePort, expandPreviewUrl, PORT_BASE, PORT_BLOCK_SIZE, PORT_MAX } from "./ports.ts";
+
+const SSH_PORT = 22;
 
 describe("RUN-03 allocatePort", () => {
 	it("starts at 55000", () => {
@@ -35,9 +30,14 @@ describe("RUN-03 allocatePort", () => {
 	});
 
 	it("never gives port 22, which is reserved for SSH", () => {
-		expect(RESERVED_PORTS.has(22)).toBe(true);
-		const chosen = allocatePort(new Set());
-		expect(chosen.ok && RESERVED_PORTS.has(chosen.value)).toBe(false);
+		// Hand out every block the allocator has, then check that none of them holds port 22.
+		const given = new Set<number>();
+		for (let next = allocatePort(given); next.ok; next = allocatePort(given)) given.add(next.value);
+		expect(given.size).toBe((PORT_MAX - PORT_BASE) / PORT_BLOCK_SIZE);
+		const holdsSsh = [...given].some(
+			(start) => start <= SSH_PORT && SSH_PORT < start + PORT_BLOCK_SIZE,
+		);
+		expect(holdsSsh).toBe(false);
 	});
 });
 
