@@ -17,9 +17,12 @@
 //!   the plugin keeps. It is read with a read-only connection, so the check never creates or
 //!   changes the file.
 //! - No database file yet: state `fresh`. A file without the table: state `fresh`.
-//! - A row with `success = 0` means a migration failed half way: state `failed_migration`.
 //! - A database version above `app_schema_version()`: state `database_newer`, with a message that
-//!   tells the user to update the app. The app does not offer to migrate down.
+//!   tells the user to update the app. The app does not offer to migrate down. This is checked
+//!   before failed rows, so a newer database with a failed row still asks for an update.
+//! - A row with `success = 0` means a migration failed half way: state `failed_migration`. The
+//!   plugin's migrator refuses such a database on every start, so the message says a restart will
+//!   not help, and names the file to restore from a backup and asks the user to report it.
 //! - Never edit an applied migration; add a new numbered file and a new entry in `migrations()`.
 //!
 //! Our design choice: no down-migrations and no rollback table. Conductor keeps a
@@ -199,25 +202,15 @@ fn read_error(path: &Path, error: rusqlite::Error) -> CommandError {
     }
 }
 
-/// Turns the facts from the file into the state the UI acts on.
-pub fn classify(app_version: i64, facts: DatabaseFacts) -> DbVersionCheck {
+/// Turns the facts from the file at `database` into the state the UI acts on. A newer database
+/// wins over a failed row: a newer app may have left that row, and only updating can help then.
+pub fn classify(app_version: i64, facts: DatabaseFacts, database: &Path) -> DbVersionCheck {
     if !facts.exists || !facts.has_migration_table {
         return DbVersionCheck {
             state: DbVersionState::Fresh,
             app_version,
             db_version: None,
             message: None,
-        };
-    }
-    if facts.failed_migration {
-        return DbVersionCheck {
-            state: DbVersionState::FailedMigration,
-            app_version,
-            db_version: facts.db_version,
-            message: Some(
-                "A database upgrade did not finish, so the app cannot use this database. Restart the app to try again."
-                    .to_string(),
-            ),
         };
     }
     let db_version = facts.db_version.unwrap_or(0);
@@ -228,6 +221,17 @@ pub fn classify(app_version: i64, facts: DatabaseFacts) -> DbVersionCheck {
             db_version: Some(db_version),
             message: Some(format!(
                 "This database was written by a newer version of Conducted (schema version {db_version}); this app supports up to version {app_version}. Update Conducted to open it."
+            )),
+        };
+    }
+    if facts.failed_migration {
+        return DbVersionCheck {
+            state: DbVersionState::FailedMigration,
+            app_version,
+            db_version: facts.db_version,
+            message: Some(format!(
+                "A database upgrade did not finish, so Conducted cannot open its database. Restarting will not fix it. Quit Conducted and restore {} from a backup, such as Time Machine, or report this problem.",
+                database.display()
             )),
         };
     }
@@ -247,7 +251,7 @@ pub async fn db_version_check(app: AppHandle) -> CommandResult<DbVersionCheck> {
     let app_version = app_schema_version();
     blocking("db_check_failed", move || {
         let facts = read_database_facts(&path)?;
-        Ok(classify(app_version, facts))
+        Ok(classify(app_version, facts, &path))
     })
     .await
 }
@@ -315,7 +319,7 @@ mod tests {
 
     fn check(path: &Path) -> DbVersionCheck {
         let facts = read_database_facts(path).expect("read database facts");
-        classify(app_schema_version(), facts)
+        classify(app_schema_version(), facts, path)
     }
 
     #[test]
@@ -367,7 +371,7 @@ mod tests {
 
         assert!(!facts.exists);
         assert_eq!(
-            classify(app_schema_version(), facts).state,
+            classify(app_schema_version(), facts, database.path()).state,
             DbVersionState::Fresh
         );
         assert!(!database.path().exists());
@@ -386,7 +390,7 @@ mod tests {
         assert!(facts.exists);
         assert!(!facts.has_migration_table);
         assert_eq!(
-            classify(app_schema_version(), facts).state,
+            classify(app_schema_version(), facts, database.path()).state,
             DbVersionState::Fresh
         );
     }
@@ -404,6 +408,45 @@ mod tests {
                 .message
                 .as_deref()
                 .is_some_and(|message| message.contains("did not finish")),
+            "{:?}",
+            result.message
+        );
+    }
+
+    #[test]
+    fn plat_17_a_failed_migration_names_an_action_that_can_fix_it() {
+        let database = TempDatabase::with_migrations(&[(1, true), (2, false)]);
+
+        let result = check(database.path());
+
+        // The plugin's migrator refuses a half-applied migration on every start, so a restart
+        // cannot help. The message points at the file to restore and says to report the problem.
+        let message = result.message.expect("a failed migration has a message");
+        assert!(!message.contains("Restart the app"), "{message}");
+        assert!(message.contains("Restarting will not fix it"), "{message}");
+        assert!(message.contains("from a backup"), "{message}");
+        assert!(message.contains("report this problem"), "{message}");
+        assert!(
+            message.contains(&database.path().display().to_string()),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn plat_17_a_newer_database_with_a_failed_row_asks_for_an_update() {
+        let newer = app_schema_version() + 1;
+        let database =
+            TempDatabase::with_migrations(&[(1, true), (newer, true), (newer + 1, false)]);
+
+        let result = check(database.path());
+
+        assert_eq!(result.state, DbVersionState::DatabaseNewer);
+        assert_eq!(result.db_version, Some(newer));
+        assert!(
+            result
+                .message
+                .as_deref()
+                .is_some_and(|message| message.contains("Update Conducted")),
             "{:?}",
             result.message
         );

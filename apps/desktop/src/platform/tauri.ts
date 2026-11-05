@@ -549,14 +549,24 @@ export async function createTauriDatabase(
 /**
  * The same database, opened on its first statement instead of now. Startup asks the Rust shell
  * whether the database is newer before any service touches it, so the plugin's migrator must not
- * run while the Platform is built. A failed load reaches each call as its `AppError`.
+ * run while the Platform is built. A failed load reaches each call waiting on it as its `AppError`,
+ * and is then forgotten, so the next statement (after the startup screen's Retry) loads again.
  */
 export function createLazyTauriDatabase(
 	bindings: Pick<TauriBindings, "sql"> = realTauriBindings,
 	options: TauriDatabaseOptions = {},
 ): Database {
 	let opened: Promise<Result<Database>> | null = null;
-	const open = (): Promise<Result<Database>> => (opened ??= createTauriDatabase(bindings, options));
+	const open = (): Promise<Result<Database>> => {
+		if (opened !== null) return opened;
+		const attempt = createTauriDatabase(bindings, options).then((result) => {
+			// A failed load must not stay cached, or a file locked at startup fails every statement.
+			if (!result.ok && opened === attempt) opened = null;
+			return result;
+		});
+		opened = attempt;
+		return attempt;
+	};
 	const handle = async (): Promise<Database> => {
 		const result = await open();
 		if (!result.ok) throw result.error;
