@@ -44,7 +44,6 @@
 //! within the grace period and delivers `shell://done` with the code `shell_cancelled`.
 
 use std::collections::HashMap;
-<<<<<<< HEAD
 use std::io::{Read, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::process::{CommandExt, ExitStatusExt};
@@ -52,21 +51,11 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Mutex, MutexGuard};
-=======
-use std::io::Read;
-use std::path::Path;
-use std::process::{Command, Stdio};
-use std::sync::Mutex;
->>>>>>> node/plat.04
 use std::thread;
 use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
-<<<<<<< HEAD
 use tauri::{AppHandle, Emitter, Manager, State};
-=======
-use tauri::{AppHandle, Manager, State};
->>>>>>> node/plat.04
 
 use crate::error::{CommandError, CommandResult};
 use crate::not_implemented;
@@ -173,7 +162,6 @@ pub struct ShellState {
     pub login_env: tauri::async_runtime::Mutex<Option<LoginEnv>>,
 }
 
-<<<<<<< HEAD
 /// Bytes a reader thread kept and whether it stopped at the limit.
 #[derive(Default)]
 struct Captured {
@@ -582,7 +570,8 @@ fn shell_done(
 async fn captured_env(state: &State<'_, ShellState>) -> CommandResult<HashMap<String, String>> {
     let login = shell_login_env(state.clone()).await?;
     Ok(login.vars)
-=======
+}
+
 /// One way to ask a login shell for its environment.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CaptureCommand {
@@ -819,7 +808,6 @@ pub fn start_background_capture(app: AppHandle) {
         let state = app.state::<ShellState>();
         let _ = shell_login_env(state).await;
     });
->>>>>>> node/plat.04
 }
 
 /// Checks that `program` is on the list of programs the web view may start.
@@ -924,13 +912,7 @@ pub fn capture_login_env() -> CommandResult<LoginEnv> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn error_code(error: CommandError) -> String {
-        match error {
-            CommandError::Failed { code, .. } => code.to_string(),
-            other => other.to_string(),
-        }
-    }
+    use std::io::BufRead;
 
     #[test]
     fn plat_04_capture_uses_per_shell_flags_and_a_delimiter() {
@@ -1045,12 +1027,6 @@ mod tests {
         assert_eq!(login.shell, FALLBACK_SHELL);
         assert!(!login.path.is_empty());
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::io::BufRead;
 
     fn test_env() -> HashMap<String, String> {
         let mut env = HashMap::new();
