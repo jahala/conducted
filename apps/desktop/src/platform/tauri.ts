@@ -364,17 +364,47 @@ export function createTauriAppInfo(
 			await invokeResult(bindings, COMMANDS.appQuit);
 		},
 		resourceUsage: () => notImplemented("PLAT-14"),
-		writeLog: () => notImplemented("PLAT-18"),
-		setLogLevel: () => notImplemented("PLAT-18"),
-		exportLogs: () => notImplemented("PLAT-18"),
+		writeLog: (level, message, data) => {
+			const safe = serialisableLogData(data);
+			const args =
+				safe === undefined
+					? { record: { level, message } }
+					: { record: { level, message, data: safe } };
+			void bindings.invoke(COMMANDS.logWrite, args).catch((error: unknown) => {
+				console.error("Could not write an app log line", error);
+			});
+		},
+		setLogLevel: async (level) => {
+			const result = await invokeResult<void>(bindings, COMMANDS.logSetLevel, { level });
+			if (!result.ok) throw result.error;
+		},
+		exportLogs: () => invokeResult<string>(bindings, COMMANDS.logsExport),
 		setQuitHandlerReady: () => notImplemented("PLAT-15"),
 	};
+}
+
+/**
+ * Data passed to `log_write` must survive Tauri's serialiser. A value that cannot be turned
+ * into JSON is replaced by a marker, so `writeLog` never throws.
+ */
+function serialisableLogData(data: unknown): unknown {
+	if (data === undefined) return undefined;
+	try {
+		return JSON.parse(JSON.stringify(data)) as unknown;
+	} catch {
+		return "[unserialisable]";
+	}
+}
+
+/** The log sink for Rust calls that happen inside the UI, such as the slow SQLite statement log. */
+export function createAppLogSink(app: Pick<AppInfo, "writeLog">) {
+	return (level: "warn", message: string, data: unknown) => app.writeLog(level, message, data);
 }
 
 export interface TauriDatabaseOptions {
 	/** A statement at or above this many milliseconds is logged. Defaults to 1000. */
 	slowMs?: number;
-	/** Where slow statements go, when a caller has a log sink. PLAT-18 will pass `app.writeLog`. */
+	/** Where slow statements go. The Platform passes `app.writeLog`. */
 	log?: (level: "warn", message: string, data: unknown) => void;
 }
 
@@ -1061,9 +1091,7 @@ export async function createTauriPlatform(
 	if (!paths.ok) return paths;
 
 	const app = createTauriAppInfo(bindings, info.value);
-	// The slow-statement log stays off until PLAT-18 builds app.writeLog. Wiring the placeholder
-	// here would throw on every slow query, and swallowing that error would be a fake success.
-	const database = await createTauriDatabase(bindings);
+	const database = await createTauriDatabase(bindings, { log: createAppLogSink(app) });
 	if (!database.ok) return database;
 
 	const platform: Platform = {
