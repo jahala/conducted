@@ -16,30 +16,46 @@
  * shell and production passes Bun.spawn.
  */
 import type { AppError, Result } from "@conducted/shared";
-import { notImplemented } from "@conducted/shared";
+import { ok } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
+import { parseEnvDump, stripProviderSecrets } from "./env.ts";
 
 export const PRIMARY_CAPTURE_TIMEOUT_MS = 5_000;
 export const FALLBACK_CAPTURE_TIMEOUT_MS = 3_000;
+
+/** The plain login shell used when the user's shell is unknown or the first attempt fails. */
+export const FALLBACK_SHELL = "/bin/zsh";
+
+/** Shells whose flags are known, so the first attempt may use them. */
+const KNOWN_SHELLS = new Set(["zsh", "bash", "fish"]);
 
 export interface CaptureCommand {
 	command: string;
 	args: string[];
 }
 
+function shellName(shellPath: string): string {
+	return shellPath.split("/").pop() ?? shellPath;
+}
+
+function captureScript(marker: string): string {
+	return `printf '%s' '${marker}'; env -0; printf '%s' '${marker}'`;
+}
+
 /** The login-shell command that prints the environment between two markers. */
 export function captureCommandFor(shellPath: string, marker: string): CaptureCommand {
-	const script = `printf '%s' '${marker}'; env -0; printf '%s' '${marker}'`;
-	const name = shellPath.split("/").pop() ?? shellPath;
+	const script = captureScript(marker);
+	const name = shellName(shellPath);
 	if (name === "fish") return { command: shellPath, args: ["-i", "-l", "-c", script] };
-	return { command: shellPath, args: ["-ilc", script] };
+	if (name === "zsh" || name === "bash") return { command: shellPath, args: ["-ilc", script] };
+	return fallbackCaptureCommand(marker);
 }
 
 /** The fallback when the primary attempt fails: a plain login zsh. */
 export function fallbackCaptureCommand(marker: string): CaptureCommand {
 	return {
-		command: "/bin/zsh",
-		args: ["-lc", `printf '%s' '${marker}'; env -0; printf '%s' '${marker}'`],
+		command: FALLBACK_SHELL,
+		args: ["-lc", captureScript(marker)],
 	};
 }
 
@@ -64,6 +80,9 @@ export interface ShellEnvProvider {
 }
 
 export class LoginShellEnvProvider implements ShellEnvProvider {
+	private cached: CapturedShellEnv | undefined;
+	private inFlight: Promise<Result<CapturedShellEnv, AppError>> | undefined;
+
 	constructor(
 		protected readonly deps: {
 			spawnText: SpawnText;
@@ -76,10 +95,67 @@ export class LoginShellEnvProvider implements ShellEnvProvider {
 	) {}
 
 	get(): Promise<Result<CapturedShellEnv, AppError>> {
-		return notImplemented("SIDE-10");
+		if (this.cached !== undefined) return Promise.resolve(ok(this.cached));
+		return this.captureOnce();
 	}
 
+	/** Captures again and replaces the cache. A failure leaves no cache behind, so the next call retries. */
 	refresh(): Promise<Result<CapturedShellEnv, AppError>> {
-		return notImplemented("SIDE-10");
+		this.cached = undefined;
+		return this.captureOnce();
+	}
+
+	/** Two callers at once share one capture, so a slow login shell is started only once. */
+	private captureOnce(): Promise<Result<CapturedShellEnv, AppError>> {
+		if (this.inFlight !== undefined) return this.inFlight;
+		const run = this.capture().then((result) => {
+			if (result.ok) this.cached = result.value;
+			return result;
+		});
+		const settled = run.finally(() => {
+			if (this.inFlight === settled) this.inFlight = undefined;
+		});
+		this.inFlight = settled;
+		return settled;
+	}
+
+	private async capture(): Promise<Result<CapturedShellEnv, AppError>> {
+		if (KNOWN_SHELLS.has(shellName(this.deps.shellPath))) {
+			const primary = await this.attempt(
+				this.deps.shellPath,
+				PRIMARY_CAPTURE_TIMEOUT_MS,
+				(marker) => captureCommandFor(this.deps.shellPath, marker),
+			);
+			if (primary.ok) return primary;
+			this.deps.logger.warn("The login shell could not be captured; trying the fallback", {
+				code: primary.error.code,
+			});
+		}
+
+		const fallback = await this.attempt(FALLBACK_SHELL, FALLBACK_CAPTURE_TIMEOUT_MS, (marker) =>
+			fallbackCaptureCommand(marker),
+		);
+		if (!fallback.ok) {
+			this.deps.logger.error("Could not capture the login-shell environment", {
+				code: fallback.error.code,
+				message: fallback.error.message,
+			});
+		}
+		return fallback;
+	}
+
+	private async attempt(
+		shell: string,
+		timeoutMs: number,
+		command: (marker: string) => CaptureCommand,
+	): Promise<Result<CapturedShellEnv, AppError>> {
+		const marker = this.deps.newMarker();
+		const spawned = await this.deps.spawnText(command(marker), { timeoutMs });
+		if (!spawned.ok) return spawned;
+		const parsed = parseEnvDump(spawned.value, marker);
+		if (!parsed.ok) return parsed;
+		const env = stripProviderSecrets(parsed.value);
+		this.deps.logger.debug("Captured the login-shell environment", { shell });
+		return ok({ shell, path: env.PATH ?? "", env });
 	}
 }

@@ -129,6 +129,6 @@ export function createSidecarNotificationHandlers(
 		agentConfigChanged: () => notImplemented("SIDE-20"),
 		interactionClosed: () => notImplemented("CHAT-11"),
 		goalChanged: () => notImplemented("COMP-10"),
-		shellEnvFailed: () => notImplemented("SIDE-10"),
+		shellEnvFailed: () => notImplemented("CHAT-18"),
 	};
 }
