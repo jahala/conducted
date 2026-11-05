@@ -9,7 +9,7 @@ const context: ComparisonContext = {
 };
 const turn = { kind: "turn", sessionId: "s1" as SessionId, turnId: "t1" as TurnId } as const;
 
-describe("resolveComparison", () => {
+describe("REV-01 resolveComparison", () => {
 	it("compares the merge base to the working tree for the branch scope", () => {
 		expect(resolveComparison({ kind: "branch" }, context)).toEqual({
 			ok: true,
@@ -54,7 +54,7 @@ describe("resolveComparison", () => {
 	});
 });
 
-describe("isTooLargeToRender", () => {
+describe("REV-01 isTooLargeToRender", () => {
 	it("limits by size and by changed lines", () => {
 		expect(isTooLargeToRender(10, 10)).toBe(false);
 		expect(isTooLargeToRender(3 * 1024 * 1024, 1)).toBe(true);

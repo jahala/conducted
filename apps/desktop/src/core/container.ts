@@ -344,6 +344,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		contextOf: (id) => ready(lookups.gitContext(id)),
 		agent: sessions,
 		now: () => clock.now(),
+		fs: platform.fs,
 	});
 	const github = new GithubService({
 		git: gitRunner,

@@ -481,7 +481,8 @@ async function untrackedFile(
 	return ok({ path, status: "added", linesAdded: lines.value, linesRemoved: 0, binary: false });
 }
 
-async function readUntracked(
+/** The untracked files of a worktree, with their line counts and the truncation flag. */
+export async function readUntracked(
 	runner: GitRunner,
 	cwd: string,
 ): Promise<Result<{ files: FileChange[]; truncated: boolean }>> {

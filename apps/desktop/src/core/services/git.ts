@@ -26,11 +26,37 @@ import {
 	type WorkspaceId,
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
-import type { Unsubscribe } from "../../platform/platform.ts";
+import type { FileSystem, Unsubscribe } from "../../platform/platform.ts";
 import type { ChangedFile, DiffScope } from "../api.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
+import {
+	catFileExists,
+	diffNameStatus,
+	diffNumstat,
+	diffWorkingTree,
+	mergeBase,
+	removeCached,
+	restoreFromSource,
+	restoreStaged,
+	showCommitNameStatus,
+	showCommitNumstat,
+	showRefVerify,
+	statusPorcelain,
+} from "../git/commands.ts";
+import { type ComparisonContext, resolveComparison } from "../git/diff.ts";
+import { checkpointRef, turnCheckpointId } from "../git/refs.ts";
 import type { GitRunner } from "../git/runner.ts";
-import { type ChangesSnapshot, diffTargetOf, refreshWorkspaceChanges } from "../git/status.ts";
+import {
+	type ChangesSnapshot,
+	diffTargetOf,
+	mergeChanges,
+	parseConflictedPaths,
+	parseNameStatus,
+	parseNumstat,
+	readUntracked,
+	refreshWorkspaceChanges,
+	remoteTargetRef,
+} from "../git/status.ts";
 import type { GitState } from "../model.ts";
 import type { GitCache } from "./git-cache.ts";
 import type { AgentMessenger } from "./sessions.ts";
@@ -165,6 +191,8 @@ export interface GitServiceDeps {
 	contextOf: (workspaceId: WorkspaceId) => Promise<Result<WorkspaceGitContext>>;
 	agent: AgentMessenger;
 	now: () => number;
+	/** Moves a discarded new file to the Trash. Optional until every caller passes it. */
+	fs?: Pick<FileSystem, "trash">;
 }
 
 export class GitService {
@@ -316,25 +344,122 @@ export class GitService {
 	}
 
 	/** Backs `useChangedFiles`. */
-	changedFiles(_workspaceId: WorkspaceId, _scope: DiffScope): Promise<Result<ChangedFile[]>> {
-		return notImplemented("REV-01");
+	async changedFiles(workspaceId: WorkspaceId, scope: DiffScope): Promise<Result<ChangedFile[]>> {
+		const resolved = await this.resolveScope(workspaceId, scope);
+		if (!resolved.ok) return resolved;
+		const { cwd, from, to } = resolved.value;
+		const git = this.#deps.git;
+
+		const [nameStatusText, numstatText] = await Promise.all([
+			git.stdout(
+				scope.kind === "commit" ? showCommitNameStatus(scope.sha) : diffNameStatus(from, to),
+				{ cwd },
+			),
+			git.stdout(scope.kind === "commit" ? showCommitNumstat(scope.sha) : diffNumstat(from, to), {
+				cwd,
+			}),
+		]);
+		if (!nameStatusText.ok) return nameStatusText;
+		if (!numstatText.ok) return numstatText;
+
+		const changes = mergeChanges(
+			parseNameStatus(nameStatusText.value),
+			parseNumstat(numstatText.value),
+		);
+
+		let conflicted = new Set<string>();
+		if (to === null) {
+			const porcelain = await git.stdout(statusPorcelain(), { cwd });
+			if (!porcelain.ok) return porcelain;
+			conflicted = new Set(parseConflictedPaths(porcelain.value));
+		}
+
+		const files: ChangedFile[] = changes.map((change) => ({
+			...change,
+			conflicted: conflicted.has(change.path),
+			viewed: false,
+		}));
+
+		if (to === null) {
+			const untracked = await readUntracked(git, cwd);
+			if (!untracked.ok) return untracked;
+			for (const change of untracked.value.files) {
+				files.push({ ...change, conflicted: false, viewed: false });
+			}
+		}
+		return ok(files);
 	}
 
 	/** Resolves a diff scope to the folder and the two refs to compare (see git/diff.ts). */
-	resolveScope(
-		_workspaceId: WorkspaceId,
-		_scope: DiffScope,
+	async resolveScope(
+		workspaceId: WorkspaceId,
+		scope: DiffScope,
 	): Promise<Result<{ cwd: string; from: string; to: string | null }>> {
-		return notImplemented("REV-01");
+		const found = await this.#deps.contextOf(workspaceId);
+		if (!found.ok) return found;
+		const context = found.value;
+		const cwd = context.workspacePath;
+		const branch = context.branch.length > 0 ? context.branch : "HEAD";
+		const targetRef =
+			context.targetBranch.length > 0 ? remoteTargetRef(context.targetBranch, context.remote) : "";
+
+		let mergeBaseWithTarget: string | null = null;
+		let mergeBaseWithScopeTarget: string | null = null;
+		if (scope.kind === "branch") {
+			mergeBaseWithTarget = await this.#mergeBase(cwd, targetRef, branch);
+		} else if (scope.kind === "target") {
+			mergeBaseWithScopeTarget = await this.#mergeBase(
+				cwd,
+				remoteTargetRef(scope.branch, context.remote),
+				branch,
+			);
+		}
+
+		const turnCheckpoints =
+			scope.kind === "turn"
+				? {
+						startExists: await this.#refExists(
+							cwd,
+							checkpointRef(turnCheckpointId(scope.sessionId, scope.turnId, "start")),
+						),
+						endExists: await this.#refExists(
+							cwd,
+							checkpointRef(turnCheckpointId(scope.sessionId, scope.turnId, "end")),
+						),
+					}
+				: { startExists: false, endExists: false };
+
+		const comparisonContext: ComparisonContext = {
+			mergeBaseWithTarget,
+			mergeBaseWithScopeTarget,
+			turnCheckpoints,
+		};
+		const comparison = resolveComparison(scope, comparisonContext);
+		if (!comparison.ok) return comparison;
+		return ok({ cwd, from: comparison.value.from, to: comparison.value.to });
+	}
+
+	async #mergeBase(cwd: string, targetRef: string, branch: string): Promise<string | null> {
+		if (targetRef.length === 0) return null;
+		const result = await this.#deps.git.stdout(mergeBase(targetRef, branch), { cwd });
+		return result.ok && result.value.length > 0 ? result.value : null;
+	}
+
+	async #refExists(cwd: string, ref: string): Promise<boolean> {
+		const result = await this.#deps.git.run(showRefVerify(ref), { cwd });
+		return result.ok && result.value.exitCode === 0;
 	}
 
 	/** Backs the `getWorkspaceDiff` agent tool: the diff against the merge base, or its stat. */
-	agentDiff(
-		_workspaceId: WorkspaceId,
-		_file: string | undefined,
-		_statOnly: boolean,
+	async agentDiff(
+		workspaceId: WorkspaceId,
+		file: string | undefined,
+		statOnly: boolean,
 	): Promise<Result<string>> {
-		return notImplemented("REV-01");
+		const resolved = await this.resolveScope(workspaceId, { kind: "branch" });
+		if (!resolved.ok) return resolved;
+		const { cwd, from } = resolved.value;
+		return this.#deps.git.stdout(diffWorkingTree(from, statOnly, file), { cwd });
 	}
 
 	/**
@@ -356,8 +481,36 @@ export class GitService {
 	}
 
 	/** Backs `Actions.git.discardFile`. */
-	discardFile(_workspaceId: WorkspaceId, _path: string): Promise<Result<void>> {
-		return notImplemented("REV-01");
+	async discardFile(workspaceId: WorkspaceId, path: string): Promise<Result<void>> {
+		const found = await this.#deps.contextOf(workspaceId);
+		if (!found.ok) return found;
+		const cwd = found.value.workspacePath;
+		const resolved = await this.resolveScope(workspaceId, { kind: "branch" });
+		if (!resolved.ok) return resolved;
+		const from = resolved.value.from;
+		const changes = await this.changedFiles(workspaceId, { kind: "branch" });
+		if (!changes.ok) return changes;
+		const entry = changes.value.find((file) => file.path === path);
+		const source = entry?.oldPath ?? path;
+		const exists = await this.#deps.git.run(catFileExists(`${from}:${source}`), { cwd });
+		const inBase = exists.ok && exists.value.exitCode === 0;
+
+		return this.#deps.git.withWorktreeLock(cwd, async () => {
+			if (!inBase) {
+				// A file the branch added: unstage it, then move the new file to the Trash.
+				const unstage = await this.#deps.git.runChecked(restoreStaged(path), { cwd });
+				if (!unstage.ok) return unstage;
+				if (this.#deps.fs === undefined) return ok(undefined);
+				return this.#deps.fs.trash(`${cwd}/${path}`);
+			}
+			const restore = await this.#deps.git.runChecked(restoreFromSource(from, source), { cwd });
+			if (!restore.ok) return restore;
+			if (entry?.oldPath !== undefined && entry.oldPath !== path) {
+				const remove = await this.#deps.git.runChecked(removeCached(path), { cwd });
+				if (!remove.ok) return remove;
+			}
+			return ok(undefined);
+		});
 	}
 
 	/** Backs `Actions.git.commitAndPush`: sends the agent the commit instruction. */

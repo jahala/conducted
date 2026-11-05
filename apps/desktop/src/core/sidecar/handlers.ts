@@ -110,7 +110,14 @@ export function createSidecarRequestHandlers(ports: SidecarHandlerPorts): Sideca
 			const stored = await ports.ingest.ingest(envelope);
 			return { persisted: stored.ok };
 		},
-		getWorkspaceDiff: () => notImplemented("REV-01"),
+		getWorkspaceDiff: async (params) => {
+			const result = await ports.workspaceDiff.diffForSession(
+				params.sessionId,
+				params.file,
+				params.statOnly,
+			);
+			return { diff: result.ok ? result.value : result.error.message };
+		},
 		getDiffComments: () => notImplemented("REV-03"),
 		addDiffComments: () => notImplemented("REV-03"),
 		getTerminalOutput: () => notImplemented("RUN-07"),
