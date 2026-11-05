@@ -15,10 +15,10 @@ import {
 	RouterProvider,
 } from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
+import { AppShell } from "../app/AppShell.tsx";
+import { AppProviders, createQueryClient } from "../app/providers.tsx";
 import type { Container } from "../core/container.ts";
 import { ServicesProvider } from "../core/context.tsx";
-import { AppShell } from "./AppShell.tsx";
-import { AppProviders, createQueryClient } from "./providers.tsx";
 
 /** Text the centre route shows, for a test to wait on. */
 export const CENTRE_ROUTE_TEXT = "centre route";

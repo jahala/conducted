@@ -76,7 +76,6 @@
 		"apps/desktop/src/features/chat/ChatBanner.test.tsx": 1,
 		"apps/desktop/src/features/chat/ChatBlockView.test.tsx": 5,
 		"apps/desktop/src/features/chat/ChatPane.nav-11.test.tsx": 4,
-		"apps/desktop/src/features/chat/ChatPane.test.tsx": 4,
 		"apps/desktop/src/features/chat/CodeBlock.test.tsx": 1,
 		"apps/desktop/src/features/chat/ExternalLink.test.tsx": 1,
 		"apps/desktop/src/features/chat/MessageList.chat-27.test.tsx": 2,

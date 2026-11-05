@@ -15,10 +15,10 @@ import type { WorkspaceId } from "@conducted/shared";
 import { cleanup, render } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mountShell } from "../app/shell-test-render.tsx";
 import { saveSetting } from "../app/shell-test-support.ts";
 import { WorkspaceLayout } from "../features/workspace/WorkspaceLayout.tsx";
 import { createTestContainer } from "../test/container.ts";
+import { mountShell } from "../test/shell.tsx";
 import { appShellGroupId, centreMinSize, sidebarSize } from "./layout-sizes.ts";
 import type { ResizableGroupProps, ResizablePanelProps } from "./resizable.tsx";
 
@@ -27,6 +27,7 @@ const recorded = vi.hoisted(() => ({
 	panels: [] as ResizablePanelProps[],
 }));
 
+// seam: NAV-01 jsdom has no layout, so the real panels render and this wrapper only records their size props.
 vi.mock("./resizable.tsx", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("./resizable.tsx")>();
 	const { createElement } = await import("react");
