@@ -228,6 +228,7 @@ export function createTauriDatabase(): Promise<Result<Database>> {
 	return notImplemented("PLAT-02");
 }
 
+<<<<<<< HEAD
 /** Payload of `shell://done`, as shell.rs sends it. */
 interface ShellDonePayload {
 	id: string;
@@ -296,6 +297,21 @@ export function createTauriShell(bindings: TauriBindings): Shell {
 			};
 		},
 		loginEnv: () => notImplemented("PLAT-04"),
+=======
+/** `shell_run { command }`, `shell_start { command }` + `shell_cancel { id }` + event `shell://done`, `shell_login_env`. */
+export function createTauriShell(bindings: TauriBindings): Shell {
+	return {
+		run: () => notImplemented("PLAT-03"),
+		start: () => notImplemented("PLAT-03"),
+		loginEnv: async () => {
+			const result = await invokeResult<{ shell: string; path: string }>(
+				bindings,
+				COMMANDS.shellLoginEnv,
+			);
+			if (!result.ok) throw result.error;
+			return result.value;
+		},
+>>>>>>> node/plat.04
 	};
 }
 
