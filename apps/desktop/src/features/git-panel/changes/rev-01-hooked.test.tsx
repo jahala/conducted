@@ -1,4 +1,4 @@
-import { NotImplemented, type WorkspaceId } from "@conducted/shared";
+import type { WorkspaceId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearCommandHandlers, runCommandHandlers } from "../../../app/command-dispatcher.ts";
@@ -191,9 +191,9 @@ describe("REV-01 changes tab", () => {
 });
 
 describe("REV-01 diff scope menu", () => {
-	it("keeps the menu working when the branch list is not built yet", async () => {
+	it("keeps the menu working when the branch list fails to load", async () => {
 		state.workspace = { state: "ready", data: { repoId: "r1" } as Workspace };
-		state.branchesThrow = new NotImplemented("WS-02");
+		state.branchesThrow = new Error("The branch list could not be read.");
 		vi.spyOn(console, "error").mockImplementation(() => undefined);
 		render(
 			<DiffScopeMenu workspaceId={workspaceId} scope={{ kind: "branch" }} onChange={vi.fn()} />,
@@ -203,7 +203,7 @@ describe("REV-01 diff scope menu", () => {
 		fireEvent.keyDown(trigger, { key: "Enter" });
 		const sub = await screen.findByRole("menuitem", { name: "Target branch" });
 		fireEvent.keyDown(sub, { key: "ArrowRight" });
-		expect(await screen.findByText(/Not built yet: WS-02/)).toBeTruthy();
+		expect(await screen.findByText("This part failed to load.")).toBeTruthy();
 		expect(screen.getByRole("menuitemradio", { name: /Uncommitted changes/ })).toBeTruthy();
 	});
 

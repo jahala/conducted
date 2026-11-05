@@ -1,15 +1,18 @@
 /**
  * @feature WS-01 Create-workspace page
- * Owns: the full-page "new workspace" flow at /create: repository picker, "create from" (default branch or
- * branch), first message editor with a model field and plan mode, section picker, and the "Create workspace"
- * button.
- * Behaviour: ui-map.md 3.9 (New workspace flow; "Draft the first message, then create and send it.").
+ * @feature WS-02 Create from a branch, PR or issue
+ * Owns: the full-page "new workspace" flow at /create: repository picker, the toggleable "create from"
+ * picker (default branch, an existing local branch, a pull request or an issue), first message editor with a
+ * model field and plan mode, section picker, and the "Create workspace" button.
+ * Behaviour: ui-map.md 3.9 (New workspace flow; "Draft the first message, then create and send it."), 5.4
+ * (Cmd+I toggles the create-from picker).
  * Our design choice: the page keeps the first message in a plain textarea until the composer editor can be
- * reused outside a chat; attachments wait for COMP-07. Pull request and issue bases wait for WS-02.
+ * reused outside a chat; attachments wait for COMP-07.
  * Must handle: no project yet (point to "Add a project"); a failed create keeps the draft with Retry setup
  * and Recover prompt; creation warnings are toasted; an empty prompt creates the workspace without a chat;
- * "Create from" a branch with no branch name is refused with a message under the field; a second press while
- * a create or a retry runs does nothing.
+ * "Create from" a branch with no branch name is refused with a message under the field; a pull request that
+ * was not loaded and an issue that was not picked are refused with a message; a second press while a create
+ * or a retry runs does nothing.
  * Test first: submitting with a repository and a prompt calls workspaces.create with that input and navigates to
  * the new workspace; a failed create offers Retry setup and Recover prompt.
  */
@@ -21,8 +24,15 @@ import { useStore } from "zustand";
 import type { NewWorkspaceInput } from "../core/api.ts";
 import { createSingleFlight } from "../core/async/single-flight.ts";
 import { useServices } from "../core/context.tsx";
-import { useActions, useRepos, useSetting } from "../core/hooks.ts";
-import type { Section } from "../core/model.ts";
+import {
+	useActions,
+	useBranches,
+	useIssues,
+	usePullRequestList,
+	useRepos,
+	useSetting,
+} from "../core/hooks.ts";
+import type { IssueView, PullRequestSummary, Section } from "../core/model.ts";
 import { FIRST_CHAT_APP_TOOLS } from "../core/services/workspace.ts";
 import { AddProjectButton } from "../features/sidebar/AddProjectButton.tsx";
 import { Button } from "../ui/Button.tsx";
@@ -30,8 +40,10 @@ import { EmptyState } from "../ui/EmptyState.tsx";
 import { Input, Label, Textarea } from "../ui/Input.tsx";
 import { Select } from "../ui/Select.tsx";
 import { toast, toastError } from "../ui/Toast.tsx";
+import { useCommandHandler } from "./command-dispatcher.ts";
 
-type FromKind = "default" | "branch";
+type FromKind = "default" | "branch" | "pull_request" | "issue";
+type IssueProvider = IssueView["provider"];
 
 export function CreateWorkspacePage(_props: Record<string, never>) {
 	const actions = useActions();
@@ -52,7 +64,12 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 
 	const [repoId, setRepoId] = useState<RepoId | null>(null);
 	const [fromKind, setFromKind] = useState<FromKind>("default");
+	const [pickerOpen, setPickerOpen] = useState(true);
 	const [branchName, setBranchName] = useState("");
+	const [showBranchList, setShowBranchList] = useState(false);
+	const [selectedPullRequest, setSelectedPullRequest] = useState<PullRequestSummary | null>(null);
+	const [issueProvider, setIssueProvider] = useState<IssueProvider>("github");
+	const [selectedIssue, setSelectedIssue] = useState<IssueView | null>(null);
 	const [prompt, setPrompt] = useState("");
 	const [model, setModel] = useState(defaultModel);
 	const [planMode, setPlanMode] = useState(defaultPlanMode);
@@ -68,6 +85,11 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	useEffect(() => {
 		if (repoId === null && readyRepos[0] !== undefined) setRepoId(readyRepos[0].id);
 	}, [repoId, readyRepos]);
+
+	useCommandHandler("workspace.toggleCreateFromPicker", "modal", () => {
+		setPickerOpen((open) => !open);
+		return true;
+	});
 
 	// A "Create in section" link on the sidebar names the section in the URL.
 	const sectionFromSearch = search.section ?? "";
@@ -120,10 +142,29 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	const branchMissing = fromKind === "branch" && branchName.trim() === "";
 
 	const submit = async () => {
-		if (selectedRepo === undefined) return;
+		if (selectedRepo === undefined) {
+			toast.error("No repository selected");
+			return;
+		}
 		if (branchMissing) {
 			setBranchTouched(true);
 			return;
+		}
+		let from: NewWorkspaceInput["from"] = { kind: "default" };
+		if (fromKind === "branch") from = { kind: "branch", name: branchName.trim() };
+		if (fromKind === "pull_request") {
+			if (selectedPullRequest === null) {
+				toast.error("Could not load that pull request");
+				return;
+			}
+			from = { kind: "pull_request", number: selectedPullRequest.number };
+		}
+		if (fromKind === "issue") {
+			if (selectedIssue === null) {
+				toast.error("Could not load that issue");
+				return;
+			}
+			from = { kind: "issue", provider: selectedIssue.provider, id: selectedIssue.id };
 		}
 		await flight.run("create", async () => {
 			setFailedId(null);
@@ -141,8 +182,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 			};
 			const input: NewWorkspaceInput = {
 				repoId: selectedRepo.id,
-				from:
-					fromKind === "branch" ? { kind: "branch", name: branchName.trim() } : { kind: "default" },
+				from,
 				prompt,
 				attachmentPaths: [],
 				config,
@@ -196,7 +236,10 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	];
 
 	return (
-		<div className="mx-auto flex h-full w-full max-w-2xl flex-col gap-6 overflow-y-auto p-8">
+		<div
+			data-command-scope="dialog"
+			className="mx-auto flex h-full w-full max-w-2xl flex-col gap-6 overflow-y-auto p-8"
+		>
 			<header className="flex flex-col gap-1">
 				<h1 className="text-2xl font-medium text-fg">New workspace</h1>
 				<p className="text-sm text-fg-muted">Draft the first message, then create and send it.</p>
@@ -215,40 +258,110 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 						id="create-workspace-repo"
 						value={selectedRepo.id}
 						options={readyRepos.map((repo) => ({ value: repo.id, label: repo.name }))}
-						onValueChange={(value) => setRepoId(value as RepoId)}
+						onValueChange={(value) => {
+							setRepoId(value as RepoId);
+							setSelectedPullRequest(null);
+							setSelectedIssue(null);
+							setShowBranchList(false);
+						}}
 						disabled={busy}
 					/>
 				</div>
 
-				<div className="flex flex-col gap-1.5">
-					<Label htmlFor="create-workspace-from">Create from</Label>
-					<Select<FromKind>
-						id="create-workspace-from"
-						value={fromKind}
-						options={[
-							{ value: "default", label: `Default branch (${selectedRepo.defaultBranch})` },
-							{ value: "branch", label: "Branch" },
-						]}
-						onValueChange={setFromKind}
-						disabled={busy}
-					/>
-				</div>
-
-				{fromKind === "branch" ? (
-					<div className="flex flex-col gap-1.5">
-						<Label htmlFor="create-workspace-branch">Branch name</Label>
-						<Input
-							id="create-workspace-branch"
-							value={branchName}
-							onChange={(event) => setBranchName(event.target.value)}
-							placeholder={selectedRepo.defaultBranch}
+				<div className="flex flex-col gap-3">
+					<div className="flex items-center justify-between gap-3">
+						{pickerOpen ? (
+							<Label htmlFor="create-workspace-from">Create from</Label>
+						) : (
+							<span className="text-sm font-medium leading-none text-fg">Create from</span>
+						)}
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							aria-label="Show or hide the create-from picker"
+							aria-expanded={pickerOpen}
+							aria-controls="create-from-picker"
 							disabled={busy}
-							{...(branchTouched && branchMissing
-								? { error: "Enter the branch to start from." }
-								: {})}
-						/>
+							onClick={() => setPickerOpen((open) => !open)}
+						>
+							{pickerOpen ? "Hide sources" : "Show sources"}
+						</Button>
 					</div>
-				) : null}
+
+					{pickerOpen ? (
+						<div id="create-from-picker" className="flex flex-col gap-3">
+							<Select<FromKind>
+								id="create-workspace-from"
+								value={fromKind}
+								options={[
+									{ value: "default", label: `Default branch (${selectedRepo.defaultBranch})` },
+									{ value: "branch", label: "Branch" },
+									{ value: "pull_request", label: "Pull request" },
+									{ value: "issue", label: "Issue" },
+								]}
+								onValueChange={setFromKind}
+								disabled={busy}
+							/>
+
+							{fromKind === "branch" ? (
+								<div className="flex flex-col gap-2">
+									<Label htmlFor="create-workspace-branch">Branch name</Label>
+									<Input
+										id="create-workspace-branch"
+										value={branchName}
+										onChange={(event) => setBranchName(event.target.value)}
+										placeholder={selectedRepo.defaultBranch}
+										disabled={busy}
+										{...(branchTouched && branchMissing
+											? { error: "Enter the branch to start from." }
+											: {})}
+									/>
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										aria-expanded={showBranchList}
+										aria-controls="create-branch-list"
+										disabled={busy}
+										onClick={() => setShowBranchList((shown) => !shown)}
+									>
+										Browse branches
+									</Button>
+									{showBranchList ? (
+										<BranchList
+											id="create-branch-list"
+											repoId={selectedRepo.id}
+											selected={branchName}
+											onPick={setBranchName}
+										/>
+									) : null}
+								</div>
+							) : null}
+
+							{fromKind === "pull_request" ? (
+								<PullRequestPicker
+									repoId={selectedRepo.id}
+									selected={selectedPullRequest}
+									onPick={setSelectedPullRequest}
+								/>
+							) : null}
+
+							{fromKind === "issue" ? (
+								<IssuePicker
+									repoId={selectedRepo.id}
+									provider={issueProvider}
+									onProviderChange={(provider) => {
+										setIssueProvider(provider);
+										setSelectedIssue(null);
+									}}
+									selected={selectedIssue}
+									onPick={setSelectedIssue}
+								/>
+							) : null}
+						</div>
+					) : null}
+				</div>
 
 				<div className="flex flex-col gap-1.5">
 					<Label htmlFor="create-workspace-prompt">First message</Label>
@@ -336,6 +449,172 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 					</Button>
 				</div>
 			</form>
+		</div>
+	);
+}
+
+const pickerRowClass =
+	"flex w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left text-sm text-fg transition-colors hover:bg-hover aria-selected:bg-active";
+
+function BranchList({
+	id,
+	repoId,
+	selected,
+	onPick,
+}: {
+	id: string;
+	repoId: RepoId;
+	selected: string;
+	onPick: (branch: string) => void;
+}) {
+	const branches = useBranches(repoId);
+	if (branches.state === "loading") {
+		return <p className="px-2 py-1 text-xs text-fg-muted">Loading branches…</p>;
+	}
+	if (branches.state === "error") {
+		return <p className="px-2 py-1 text-xs text-danger">{branches.error.message}</p>;
+	}
+	if (branches.data.length === 0) {
+		return <p className="px-2 py-1 text-xs text-fg-muted">No branches found.</p>;
+	}
+	return (
+		<div
+			id={id}
+			role="listbox"
+			aria-label="Branches"
+			className="flex max-h-48 flex-col overflow-y-auto rounded-md border border-border p-1"
+		>
+			{branches.data.map((branch) => (
+				<button
+					key={branch}
+					type="button"
+					role="option"
+					aria-selected={branch === selected}
+					className={pickerRowClass}
+					onClick={() => onPick(branch)}
+				>
+					{branch}
+				</button>
+			))}
+		</div>
+	);
+}
+
+function PullRequestPicker({
+	repoId,
+	selected,
+	onPick,
+}: {
+	repoId: RepoId;
+	selected: PullRequestSummary | null;
+	onPick: (pullRequest: PullRequestSummary) => void;
+}) {
+	const [query, setQuery] = useState("");
+	const pullRequests = usePullRequestList(repoId, query);
+	return (
+		<div className="flex flex-col gap-2">
+			<Label htmlFor="create-workspace-pr-search">Search pull requests</Label>
+			<Input
+				id="create-workspace-pr-search"
+				value={query}
+				onChange={(event) => setQuery(event.target.value)}
+				placeholder="Number, title, branch or author"
+			/>
+			{pullRequests.state === "loading" ? (
+				<p className="px-2 py-1 text-xs text-fg-muted">Loading pull requests…</p>
+			) : pullRequests.state === "error" ? (
+				<p className="px-2 py-1 text-xs text-danger">{pullRequests.error.message}</p>
+			) : pullRequests.data.length === 0 ? (
+				<p className="px-2 py-1 text-xs text-fg-muted">No open pull requests found.</p>
+			) : (
+				<div
+					role="listbox"
+					aria-label="Pull requests"
+					className="flex max-h-48 flex-col overflow-y-auto rounded-md border border-border p-1"
+				>
+					{pullRequests.data.map((pullRequest) => (
+						<button
+							key={pullRequest.number}
+							type="button"
+							role="option"
+							aria-selected={selected?.number === pullRequest.number}
+							className={pickerRowClass}
+							onClick={() => onPick(pullRequest)}
+						>
+							<span className="font-medium">
+								#{pullRequest.number} {pullRequest.title}
+							</span>
+							<span className="text-xs text-fg-muted">{pullRequest.branch}</span>
+						</button>
+					))}
+				</div>
+			)}
+		</div>
+	);
+}
+
+function IssuePicker({
+	repoId,
+	provider,
+	onProviderChange,
+	selected,
+	onPick,
+}: {
+	repoId: RepoId;
+	provider: IssueProvider;
+	onProviderChange: (provider: IssueProvider) => void;
+	selected: IssueView | null;
+	onPick: (issue: IssueView) => void;
+}) {
+	const [query, setQuery] = useState("");
+	const issues = useIssues(repoId, provider, query);
+	return (
+		<div className="flex flex-col gap-2">
+			<Select<IssueProvider>
+				aria-label="Issue provider"
+				value={provider}
+				options={[
+					{ value: "github", label: "GitHub" },
+					{ value: "linear", label: "Linear" },
+				]}
+				onValueChange={onProviderChange}
+			/>
+			<Label htmlFor="create-workspace-issue-search">Search issues</Label>
+			<Input
+				id="create-workspace-issue-search"
+				value={query}
+				onChange={(event) => setQuery(event.target.value)}
+				placeholder="Identifier or title"
+			/>
+			{issues.state === "loading" ? (
+				<p className="px-2 py-1 text-xs text-fg-muted">Loading issues…</p>
+			) : issues.state === "error" ? (
+				<p className="px-2 py-1 text-xs text-danger">{issues.error.message}</p>
+			) : issues.data.length === 0 ? (
+				<p className="px-2 py-1 text-xs text-fg-muted">No open issues found.</p>
+			) : (
+				<div
+					role="listbox"
+					aria-label="Issues"
+					className="flex max-h-48 flex-col overflow-y-auto rounded-md border border-border p-1"
+				>
+					{issues.data.map((issue) => (
+						<button
+							key={`${issue.provider}:${issue.id}`}
+							type="button"
+							role="option"
+							aria-selected={selected?.id === issue.id && selected.provider === issue.provider}
+							className={pickerRowClass}
+							onClick={() => onPick(issue)}
+						>
+							<span className="font-medium">
+								{issue.identifier} {issue.title}
+							</span>
+							<span className="text-xs text-fg-muted">{issue.state}</span>
+						</button>
+					))}
+				</div>
+			)}
 		</div>
 	);
 }

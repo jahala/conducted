@@ -429,6 +429,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 		sessions,
 		ports,
 		repoConfig: (repoId) => repo.loadConfig(repoId),
+		github: {
+			pullRequestByNumber: (remoteUrl, number) => github.pullRequestByNumber(remoteUrl, number),
+		},
 		scripts: runScripts,
 		checkpointerPath: checkpointerScript(paths),
 		setting,
