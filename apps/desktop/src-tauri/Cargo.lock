@@ -670,11 +670,8 @@ dependencies = [
  "muda",
  "nucleo-matcher",
  "portable-pty",
-<<<<<<< HEAD
- "rusqlite",
-=======
  "reqwest",
->>>>>>> node/plat.30
+ "rusqlite",
  "security-framework",
  "serde",
  "serde_json",
