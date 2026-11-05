@@ -28,6 +28,7 @@
 //! - The check resolves symlinks and `..` first, so a link inside a root cannot lead out of it.
 //! - A path outside every root fails with `fs_out_of_scope` and names the path.
 //! - The roots come from the app (workspaces change at run time), so the list is a parameter.
+//!
 //! The same change sets the limits that live in `capabilities/default.json`: the shell plugin
 //! scopes (bash, kill, which, open, the sidecar), and the opener and HTTP URL scopes (the hosts the
 //! app calls, `localhost`, and the schemes of IDE links such as `vscode://` and `linear://`; see
