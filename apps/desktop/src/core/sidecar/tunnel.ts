@@ -35,6 +35,7 @@ import { appError, err, ok, type Result } from "@conducted/shared";
 import {
 	createJSONRPCErrorResponse,
 	createJSONRPCNotification,
+	createJSONRPCRequest,
 	JSONRPCClient,
 	JSONRPCErrorException,
 	type JSONRPCResponse,
@@ -135,6 +136,8 @@ export class SidecarTunnel implements SidecarClient {
 	#restartUnsubscribe: Unsubscribe | null = null;
 	/** Bumped on every restart, so a closed pending request can be told apart from a send failure. */
 	#generation = 0;
+	/** The id of the next outgoing request. The library matches answers by this id. */
+	#nextRequestId = 0;
 	/** Lines that arrived before the first endpoint was built, replayed once it exists. */
 	#inbound: unknown[] = [];
 	readonly #reconnectedListeners = new Set<() => void>();
@@ -198,19 +201,29 @@ export class SidecarTunnel implements SidecarClient {
 		}
 
 		const generation = this.#generation;
+		const requestId = ++this.#nextRequestId;
 		let rejectTimeout: ((cause: unknown) => void) | null = null;
 		const timeout = new Promise<never>((_resolve, reject) => {
 			rejectTimeout = reject;
 		});
 		const timeoutMs = rpcTimeoutFor(method);
 		const cancelTimer = this.#deps.setTimer(() => {
+			// Reject first so the race reports rpc_timeout, then drop the pending entry so a late
+			// answer is not kept in the library's map.
 			rejectTimeout?.(new RpcTimeoutError(timeoutMs));
+			endpoint.client.receive(
+				createJSONRPCErrorResponse(
+					requestId,
+					LIBRARY_CONNECTION_CLOSED_CODE,
+					"The request timed out.",
+				),
+			);
 		}, timeoutMs);
 
 		try {
 			const response = (await Promise.race([
 				Promise.resolve(
-					endpoint.requestAdvanced({ jsonrpc: "2.0", method, params: parsed.data }, undefined),
+					endpoint.requestAdvanced(createJSONRPCRequest(requestId, method, parsed.data), undefined),
 				),
 				timeout,
 			])) as JSONRPCResponse;
@@ -402,7 +415,14 @@ export class SidecarTunnel implements SidecarClient {
 		}
 		this.#endpoint = this.#buildEndpoint();
 		this.#drainInbound();
-		for (const listener of this.#reconnectedListeners) listener();
+		for (const listener of this.#reconnectedListeners) {
+			try {
+				listener();
+			} catch (cause) {
+				// One listener must not reject #ready and break every later request.
+				this.#deps.log("error", "A sidecar reconnect listener failed", cause);
+			}
+		}
 		return ok(undefined);
 	}
 }

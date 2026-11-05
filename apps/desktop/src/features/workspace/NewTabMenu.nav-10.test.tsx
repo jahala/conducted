@@ -92,6 +92,13 @@ describe("NAV-10 NewTabMenu", () => {
 		expect(screen.getByText("Close a tab before opening another.")).toBeTruthy();
 	});
 
+	it("disables Browser until the workspace has a port", async () => {
+		state.workspace = { state: "ready", data: { port: 0 } } as Loadable<Workspace>;
+		await openMenu();
+		const item = await screen.findByRole("menuitem", { name: "Browser" });
+		expect(item.getAttribute("aria-disabled")).toBe("true");
+	});
+
 	it("starts a chat from the recent chat's config when asked for the same files", async () => {
 		state.sessions = {
 			state: "ready",

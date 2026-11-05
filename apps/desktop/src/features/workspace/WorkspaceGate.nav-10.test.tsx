@@ -4,7 +4,8 @@
  * Test first: an archived workspace shows "This workspace is archived"; a ready one renders its
  * children.
  */
-import { cleanup, render, screen } from "@testing-library/react";
+import { appError } from "@conducted/shared";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "../../test/dom-polyfills.ts";
 import type { Loadable } from "../../core/api.ts";
@@ -40,13 +41,27 @@ describe("NAV-10 WorkspaceGate", () => {
 		expect(screen.getByText("content")).toBeTruthy();
 	});
 
-	it("explains a workspace that cannot be opened", () => {
+	it("explains a workspace id that matches no row", () => {
 		state.workspace = {
 			state: "error",
-			error: { code: "workspace_unknown", message: "Workspace not found" },
+			error: appError("workspace_unknown", "That workspace no longer exists."),
 		};
 		render(<WorkspaceGate workspaceId={id}>content</WorkspaceGate>);
-		expect(screen.getByText("Error loading workspace")).toBeTruthy();
 		expect(screen.getByText("Workspace not found")).toBeTruthy();
+		expect(screen.getByText(/may have been deleted/i)).toBeTruthy();
+		expect(screen.queryByText("content")).toBeNull();
+	});
+
+	it("unarchives from the notice", async () => {
+		state.workspace = { state: "ready", data: { id, state: "archived" } as Workspace };
+		state.unarchive.mockResolvedValue({ ok: true, value: undefined });
+		render(<WorkspaceGate workspaceId={id}>content</WorkspaceGate>);
+		fireEvent.click(screen.getByRole("button", { name: "Unarchive" }));
+		await waitFor(() =>
+			expect(state.unarchive).toHaveBeenCalledWith(id, {
+				branchName: null,
+				clearChats: false,
+			}),
+		);
 	});
 });

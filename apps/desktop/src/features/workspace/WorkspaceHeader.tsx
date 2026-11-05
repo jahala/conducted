@@ -6,8 +6,9 @@
  * workspace' and 'Workspace actions', directory chip and 'Open in...' button, right edge 'Toggle
  * right sidebar'), 5.3 (branch name menu: Copy, Rename).
  * Our design choice: Follow, avatars and cloud status are cloud features and are left out. The
- * target branch is chosen through a small dialog because the branch list belongs to WS-02. The
- * header starts after <TitleBarInset> and is a window drag region owned by the layout.
+ * target branch is chosen through the shared name dialog because the branch list belongs to WS-02.
+ * The header starts after <TitleBarInset> and is a window drag region owned by the layout. The
+ * branch menu advertises and handles its C and R keys.
  * Must handle: Loading and error (small inline states, the rest of the screen stays); placeholder
  * branch name (shown muted until the first message renames it); a long name truncates; archived
  * workspace (no Open in); a folder path that copies; the toggle button reflects rightPanelOpen.
@@ -15,13 +16,11 @@
  * rightPanelOpen.
  */
 import type { RepoId, WorkspaceId } from "@conducted/shared";
-import { useEffect, useId, useState } from "react";
+import { useState } from "react";
 import { useActions, useRepos, useWorkspace } from "../../core/hooks.ts";
 import { Button } from "../../ui/Button.tsx";
 import { ContextMenu, ContextMenuItem } from "../../ui/ContextMenu.tsx";
 import { cn } from "../../ui/cn.ts";
-import { Dialog, DialogContent, DialogFooter } from "../../ui/Dialog.tsx";
-import { Input } from "../../ui/Input.tsx";
 import { ChevronDownIcon, FolderPlusIcon, PencilIcon, SidebarRightIcon } from "../../ui/icons.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { toastError } from "../../ui/Toast.tsx";
@@ -29,6 +28,7 @@ import { OpenInMenu } from "../open-in/OpenInMenu.tsx";
 import { RenameDialog } from "./RenameDialog.tsx";
 import { WorkspaceActionsMenu } from "./WorkspaceActionsMenu.tsx";
 import type { RightPanelControls } from "./WorkspaceLayout.tsx";
+import { WorkspaceRenameDialog } from "./WorkspaceRenameDialog.tsx";
 
 export interface WorkspaceHeaderProps {
 	repoId: RepoId;
@@ -43,8 +43,6 @@ export function WorkspaceHeader({ repoId, workspaceId, controls }: WorkspaceHead
 	const [renamingWorkspace, setRenamingWorkspace] = useState(false);
 	const [renamingBranch, setRenamingBranch] = useState(false);
 	const [targetOpen, setTargetOpen] = useState(false);
-	const [target, setTarget] = useState("");
-	const targetInputId = useId();
 
 	const data = workspace.state === "ready" ? workspace.data : null;
 	const repo = repos.state === "ready" ? repos.data.find((item) => item.id === repoId) : undefined;
@@ -52,26 +50,13 @@ export function WorkspaceHeader({ repoId, workspaceId, controls }: WorkspaceHead
 	const name = data?.displayName ?? data?.prTitle ?? data?.branch ?? data?.directoryName ?? "";
 	const branch = data?.branch ?? "";
 
-	useEffect(() => {
-		if (data !== null) setTarget(data.targetBranch);
-	}, [data]);
-
 	const copy = (title: string, text: string) => {
 		void actions.app.copyText(text).then((result) => {
 			if (!result.ok) toastError(title, result.error);
 		});
 	};
 
-	const saveTarget = async () => {
-		const next = target.trim();
-		if (next === "" || data === null) return;
-		const result = await actions.workspaces.setTargetBranch(workspaceId, next);
-		if (!result.ok) {
-			toastError("Couldn't change the target branch", result.error);
-			return;
-		}
-		setTargetOpen(false);
-	};
+	const saveTarget = (next: string) => actions.workspaces.setTargetBranch(workspaceId, next);
 
 	if (workspace.state === "loading") {
 		return (
@@ -107,12 +92,26 @@ export function WorkspaceHeader({ repoId, workspaceId, controls }: WorkspaceHead
 			<ContextMenu
 				items={
 					<>
-						<ContextMenuItem onSelect={() => copy("Couldn't copy the branch", branch)}>
+						<ContextMenuItem
+							shortcut="C"
+							onSelect={() => copy("Couldn't copy the branch", branch)}
+							onKeyDown={(event) => {
+								if (event.key.toLowerCase() !== "c") return;
+								event.preventDefault();
+								copy("Couldn't copy the branch", branch);
+							}}
+						>
 							Copy
 						</ContextMenuItem>
 						<ContextMenuItem
 							disabled={archived || branch === ""}
+							shortcut="R"
 							onSelect={() => setRenamingBranch(true)}
+							onKeyDown={(event) => {
+								if (event.key.toLowerCase() !== "r" || archived || branch === "") return;
+								event.preventDefault();
+								setRenamingBranch(true);
+							}}
 						>
 							Rename
 						</ContextMenuItem>
@@ -131,14 +130,7 @@ export function WorkspaceHeader({ repoId, workspaceId, controls }: WorkspaceHead
 				</button>
 			</ContextMenu>
 
-			<Button
-				variant="ghost"
-				size="sm"
-				onClick={() => {
-					setTarget(data?.targetBranch ?? "");
-					setTargetOpen(true);
-				}}
-			>
+			<Button variant="ghost" size="sm" onClick={() => setTargetOpen(true)}>
 				Target branch: {data?.targetBranch ?? ""}
 				<ChevronDownIcon />
 			</Button>
@@ -157,7 +149,7 @@ export function WorkspaceHeader({ repoId, workspaceId, controls }: WorkspaceHead
 				>
 					<PencilIcon />
 				</Button>
-				<WorkspaceActionsMenu workspaceId={workspaceId} surface="dropdown">
+				<WorkspaceActionsMenu workspaceId={workspaceId}>
 					<Button variant="ghost" size="sm" className="w-7 px-0" aria-label="Workspace actions">
 						<ChevronDownIcon />
 					</Button>
@@ -194,65 +186,27 @@ export function WorkspaceHeader({ repoId, workspaceId, controls }: WorkspaceHead
 				</Button>
 			</div>
 
-			<RenameDialog
+			<WorkspaceRenameDialog
+				workspaceId={workspaceId}
 				open={renamingWorkspace}
 				onOpenChange={setRenamingWorkspace}
-				title="Rename workspace"
-				initialName={data?.displayName ?? name}
-				onSubmit={async (next) => {
-					const result = await actions.workspaces.rename(workspaceId, next);
-					if (!result.ok) throw new Error(result.error.message);
-				}}
 			/>
 			<RenameDialog
 				open={renamingBranch}
 				onOpenChange={setRenamingBranch}
 				title="Rename branch"
 				initialName={branch}
-				onSubmit={async (next) => {
-					const result = await actions.git.renameBranch(workspaceId, next);
-					if (!result.ok) throw new Error(result.error.message);
-				}}
+				onSubmit={(next) => actions.git.renameBranch(workspaceId, next)}
 			/>
-			<Dialog open={targetOpen} onOpenChange={setTargetOpen}>
-				<DialogContent
-					title="Target branch"
-					onConfirm={() => void saveTarget()}
-					className="max-w-md"
-					size="md"
-				>
-					<label
-						htmlFor={targetInputId}
-						className="flex flex-col gap-1.5 text-sm font-medium text-fg"
-					>
-						Branch
-						<Input
-							id={targetInputId}
-							autoFocus
-							value={target}
-							onChange={(event) => setTarget(event.target.value)}
-							onKeyDown={(event) => {
-								if (event.key === "Enter") {
-									event.preventDefault();
-									void saveTarget();
-								}
-							}}
-						/>
-					</label>
-					<DialogFooter>
-						<Button variant="ghost" onClick={() => setTargetOpen(false)}>
-							Cancel
-						</Button>
-						<Button
-							variant="default"
-							disabled={target.trim().length === 0}
-							onClick={() => void saveTarget()}
-						>
-							Save
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+			<RenameDialog
+				open={targetOpen}
+				onOpenChange={setTargetOpen}
+				title="Target branch"
+				initialName={data?.targetBranch ?? ""}
+				fieldLabel="Branch"
+				submitLabel="Save"
+				onSubmit={saveTarget}
+			/>
 		</div>
 	);
 }

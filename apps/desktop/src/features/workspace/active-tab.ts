@@ -13,6 +13,7 @@
  */
 import type { CommentId, SessionId, TerminalId } from "@conducted/shared";
 import type { DiffScope } from "../../core/api.ts";
+import type { TabDescriptor } from "./tab-layout.ts";
 import { parseDiffScope, type WorkspaceSearch } from "./workspace-search.ts";
 
 export type ActiveTab =
@@ -57,8 +58,8 @@ export function resolveActiveTab(search: WorkspaceSearch): ActiveTab {
 	}
 }
 
-/** Changes when a different tab is open. A failed tab uses it to try again. */
-export function activeTabKey(tab: ActiveTab): string {
+/** The one ref string a tab is named by. No tab open has no ref. */
+export function tabRef(tab: ActiveTab): string | null {
 	switch (tab.kind) {
 		case "session":
 			return `session:${tab.sessionId}`;
@@ -68,10 +69,71 @@ export function activeTabKey(tab: ActiveTab): string {
 			return `file:${tab.path}`;
 		case "comment":
 			return `comment:${tab.commentId}`;
+		case "pr":
+			return "pr";
 		case "browser":
 			return `browser:${tab.url}`;
-		case "pr":
 		case "none":
-			return tab.kind;
+			return null;
+	}
+}
+
+/** Changes when a different tab is open. A failed tab uses it to try again. */
+export function activeTabKey(tab: ActiveTab): string {
+	return tabRef(tab) ?? "none";
+}
+
+/** The inverse of the descriptor: a split pane opens the tab the strip found. */
+export function activeTabFromDescriptor(tab: TabDescriptor): ActiveTab {
+	switch (tab.kind) {
+		case "session":
+			return tab.sessionId === undefined
+				? { kind: "none" }
+				: { kind: "session", sessionId: tab.sessionId };
+		case "terminal":
+			return tab.terminalId === undefined
+				? { kind: "none" }
+				: { kind: "terminal", terminalId: tab.terminalId };
+		case "file":
+			return {
+				kind: "file",
+				path: tab.ref.slice("file:".length),
+				mode: tab.mode ?? "diff",
+				scope: tab.scope ?? { kind: "branch" },
+				line: tab.line ?? null,
+			};
+		case "comment":
+			return { kind: "comment", commentId: tab.ref.slice("comment:".length) as CommentId };
+		case "pr":
+			return { kind: "pr" };
+		case "browser":
+			return { kind: "browser", url: tab.ref.slice("browser:".length) };
+	}
+}
+
+/** The search params that open a tab. One inverse of resolveActiveTab. */
+export function searchPatchFor(tab: ActiveTab): Partial<WorkspaceSearch> {
+	switch (tab.kind) {
+		case "session":
+			return { tab: "session", sessionId: tab.sessionId };
+		case "terminal":
+			return { tab: "terminal", terminalId: tab.terminalId };
+		case "file":
+			return { tab: "file", path: tab.path };
+		case "comment":
+			return { tab: "comment", commentId: tab.commentId };
+		case "pr":
+			return { tab: "pr" };
+		case "browser":
+			return { tab: "browser", browserUrl: tab.url };
+		case "none":
+			return {
+				tab: undefined,
+				sessionId: undefined,
+				terminalId: undefined,
+				path: undefined,
+				commentId: undefined,
+				browserUrl: undefined,
+			};
 	}
 }

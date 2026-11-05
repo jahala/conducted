@@ -12,7 +12,7 @@ import type { Loadable } from "../../core/api.ts";
 import type { Session, Workspace } from "../../core/model.ts";
 
 const state = vi.hoisted(() => {
-	const snapshot = { sections: [] };
+	const snapshot = { sections: [] as { id: string; name: string }[] };
 	const sectionsStore = {
 		getState: () => snapshot,
 		getInitialState: () => snapshot,
@@ -22,8 +22,18 @@ const state = vi.hoisted(() => {
 	return {
 		workspace: { state: "ready", data: { pinnedAt: null, state: "ready" } } as Loadable<Workspace>,
 		sessions: { state: "ready", data: [] } as Loadable<Session[]>,
-		setPinned: vi.fn(),
 		sectionsStore,
+		snapshot,
+		setPinned: vi.fn(),
+		markRead: vi.fn(),
+		markUnread: vi.fn(),
+		setKanbanStatus: vi.fn(),
+		rename: vi.fn(),
+		archive: vi.fn(),
+		unarchive: vi.fn(),
+		place: vi.fn(),
+		createSection: vi.fn(),
+		copyText: vi.fn(),
 	};
 });
 
@@ -33,15 +43,15 @@ vi.mock("../../core/hooks.ts", () => ({
 	useActions: () => ({
 		workspaces: {
 			setPinned: state.setPinned,
-			markRead: vi.fn(),
-			markUnread: vi.fn(),
-			setKanbanStatus: vi.fn(),
-			rename: vi.fn(),
-			archive: vi.fn(),
-			unarchive: vi.fn(),
+			markRead: state.markRead,
+			markUnread: state.markUnread,
+			setKanbanStatus: state.setKanbanStatus,
+			rename: state.rename,
+			archive: state.archive,
+			unarchive: state.unarchive,
 		},
-		sections: { place: vi.fn(), create: vi.fn() },
-		app: { copyText: vi.fn() },
+		sections: { place: state.place, create: state.createSection },
+		app: { copyText: state.copyText },
 	}),
 }));
 
@@ -55,7 +65,7 @@ const workspaceId = "w1" as WorkspaceId;
 
 const openMenu = async () => {
 	render(
-		<WorkspaceActionsMenu workspaceId={workspaceId} surface="dropdown">
+		<WorkspaceActionsMenu workspaceId={workspaceId}>
 			<button type="button">Actions</button>
 		</WorkspaceActionsMenu>,
 	);
@@ -66,8 +76,24 @@ const openMenu = async () => {
 };
 
 beforeEach(() => {
-	state.setPinned.mockReset();
-	state.setPinned.mockResolvedValue({ ok: true, value: undefined });
+	for (const fn of [
+		state.setPinned,
+		state.markRead,
+		state.markUnread,
+		state.setKanbanStatus,
+		state.rename,
+		state.archive,
+		state.unarchive,
+		state.place,
+		state.createSection,
+		state.copyText,
+	]) {
+		fn.mockReset();
+		fn.mockResolvedValue({ ok: true, value: undefined });
+	}
+	state.snapshot.sections = [];
+	state.sessions = { state: "ready", data: [] };
+	state.workspace = { state: "ready", data: { pinnedAt: null, state: "ready" } as Workspace };
 });
 
 afterEach(cleanup);
@@ -93,9 +119,99 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 		expect(screen.queryByRole("menuitem", { name: "Rename" })).toBeNull();
 	});
 
-	it("shows the status items", async () => {
+	it("marks the workspace as read when it is unread", async () => {
+		state.workspace = { state: "ready", data: { pinnedAt: null, state: "ready" } as Workspace };
+		state.sessions = {
+			state: "ready",
+			data: [{ id: "s1", unreadCount: 2 } as Session],
+		};
+		await openMenu();
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Mark as read" }));
+		await waitFor(() => expect(state.markRead).toHaveBeenCalledWith(workspaceId));
+	});
+
+	it("marks the workspace as unread when all chats are read", async () => {
+		state.workspace = { state: "ready", data: { pinnedAt: null, state: "ready" } as Workspace };
+		state.sessions = {
+			state: "ready",
+			data: [{ id: "s1", unreadCount: 0 } as Session],
+		};
+		await openMenu();
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Mark as unread" }));
+		await waitFor(() => expect(state.markUnread).toHaveBeenCalledWith(workspaceId));
+	});
+
+	it("sets the status from the submenu", async () => {
 		state.workspace = { state: "ready", data: { pinnedAt: null, state: "ready" } as Workspace };
 		await openMenu();
-		expect(screen.getByRole("menuitem", { name: "Set status" })).toBeTruthy();
+		const trigger = await screen.findByRole("menuitem", { name: "Set status" });
+		fireEvent.keyDown(trigger, { key: "ArrowRight" });
+		fireEvent.click(await screen.findByRole("menuitem", { name: "In progress" }));
+		await waitFor(() =>
+			expect(state.setKanbanStatus).toHaveBeenCalledWith(workspaceId, "in_progress"),
+		);
+	});
+
+	it("moves the workspace to a section", async () => {
+		state.workspace = { state: "ready", data: { pinnedAt: null, state: "ready" } as Workspace };
+		state.snapshot.sections = [{ id: "sec1", name: "Today" }];
+		await openMenu();
+		const trigger = await screen.findByRole("menuitem", { name: "Move to section" });
+		fireEvent.keyDown(trigger, { key: "ArrowRight" });
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Today" }));
+		await waitFor(() => expect(state.place).toHaveBeenCalledWith(workspaceId, "sec1", 0));
+	});
+
+	it("renames the workspace from the shared dialog", async () => {
+		state.workspace = {
+			state: "ready",
+			data: { pinnedAt: null, state: "ready", displayName: "Old" } as Workspace,
+		};
+		await openMenu();
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Rename" }));
+		const field = await screen.findByRole("textbox", { name: "Name" });
+		fireEvent.change(field, { target: { value: "New name" } });
+		fireEvent.click(screen.getByRole("button", { name: "Rename" }));
+		await waitFor(() => expect(state.rename).toHaveBeenCalledWith(workspaceId, "New name"));
+	});
+
+	it("creates a new section", async () => {
+		state.workspace = { state: "ready", data: { pinnedAt: null, state: "ready" } as Workspace };
+		await openMenu();
+		const trigger = await screen.findByRole("menuitem", { name: "Move to section" });
+		fireEvent.keyDown(trigger, { key: "ArrowRight" });
+		fireEvent.click(await screen.findByRole("menuitem", { name: "New section..." }));
+		const field = await screen.findByRole("textbox", { name: "Name" });
+		fireEvent.change(field, { target: { value: "Later" } });
+		fireEvent.click(screen.getByRole("button", { name: "Rename" }));
+		await waitFor(() => expect(state.createSection).toHaveBeenCalledWith("Later", null));
+	});
+
+	it("copies a deep link", async () => {
+		state.workspace = { state: "ready", data: { pinnedAt: null, state: "ready" } as Workspace };
+		await openMenu();
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Copy link" }));
+		await waitFor(() => expect(state.copyText).toHaveBeenCalledWith("conducted://workspace?id=w1"));
+	});
+
+	it("archives a workspace", async () => {
+		state.workspace = { state: "ready", data: { pinnedAt: null, state: "ready" } as Workspace };
+		await openMenu();
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Archive" }));
+		await waitFor(() =>
+			expect(state.archive).toHaveBeenCalledWith(workspaceId, { deleteBranch: false }),
+		);
+	});
+
+	it("unarchives an archived workspace", async () => {
+		state.workspace = { state: "ready", data: { pinnedAt: null, state: "archived" } as Workspace };
+		await openMenu();
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Unarchive" }));
+		await waitFor(() =>
+			expect(state.unarchive).toHaveBeenCalledWith(workspaceId, {
+				branchName: null,
+				clearChats: false,
+			}),
+		);
 	});
 });

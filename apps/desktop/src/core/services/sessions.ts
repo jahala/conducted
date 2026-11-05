@@ -17,8 +17,10 @@
  * interaction, takes back the messages the sidecar dropped and returns an in-flight send to the
  * draft; a sidecar that refuses the cancel changes nothing; cancelAll reaches every working chat
  * of a workspace and no idle one; a live state from the sidecar is shown as it arrives and an
- * open interaction in it becomes the chat's card; a chat the sidecar lost gets every open turn
- * closed as `interrupted` and an idle live state, while its agent session id stays for resume.
+ * open interaction in it becomes the chat's card, while a live state without one withdraws the
+ * card; a chat the sidecar lost gets every open turn closed as `interrupted` in one transaction
+ * and an idle live state, while its agent session id stays for resume and a failed live-state
+ * write is returned.
  * Our design choice: a chat starts with no title; the title generator fills it only once
  * (`setTitleIfEmpty`), so a name the user typed is never overwritten.
  * Our design choice: the pending send lives in memory until the sidecar stores its `user_message`
@@ -64,8 +66,9 @@ import {
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Database } from "../../platform/platform.ts";
 import type { Draft, NewWorkspaceInput } from "../api.ts";
+import { interruptedTurnEvent } from "../db/repair.ts";
 import type { Repositories } from "../db/repositories.ts";
-import { executeStatement, selectRows, stringifyJson } from "../db/row-codec.ts";
+import { executeStatement, inTransaction, selectRows, stringifyJson } from "../db/row-codec.ts";
 import type { ChatView, Session } from "../model.ts";
 import type { SidecarClient } from "../sidecar/tunnel.ts";
 import type { ComposerService } from "./composer.ts";
@@ -163,6 +166,11 @@ function compareNewest(a: Session, b: Session): number {
 export interface SessionsServiceDeps {
 	db: Database;
 	repositories: () => Repositories;
+	/**
+	 * Builds repositories on a transaction handle, so several appends commit or roll back together.
+	 * The composition root passes the same factory it gives `EventIngest`.
+	 */
+	repositoriesOn: (db: Database) => Repositories;
 	sidecar: Pick<SidecarClient, "request" | "notify">;
 	composer: Pick<
 		ComposerService,
@@ -1028,23 +1036,38 @@ export class SessionsService implements AgentMessenger {
 
 	// ---- called by the sidecar side (core/sidecar) ----
 
-	/** Shows the sidecar's live state. A new state replaces the one before it. */
-	applyLiveState(sessionId: SessionId, liveState: LiveState): void {
+	/**
+	 * Shows the sidecar's live state. A new state replaces the one before it. An interaction the
+	 * new state no longer carries is settled as withdrawn, so a stale card never stays on screen.
+	 */
+	async applyLiveState(sessionId: SessionId, liveState: LiveState): Promise<Result<void>> {
 		const at = this.#deps.now();
+		const previous = this.store.getState().openInteractions[sessionId];
+		const nextOpen = liveState.openInteraction;
 		this.store.setState((state) => {
 			const next: Partial<SessionsState> = {
 				liveStates: { ...state.liveStates, [sessionId]: liveState },
 			};
-			const open = liveState.openInteraction;
-			if (open !== undefined) {
-				next.openInteractions = {
-					...state.openInteractions,
-					[sessionId]: { interactionId: open.interactionId, interaction: open.interaction },
+			const openInteractions = { ...state.openInteractions };
+			let changed = false;
+			if (nextOpen !== undefined) {
+				openInteractions[sessionId] = {
+					interactionId: nextOpen.interactionId,
+					interaction: nextOpen.interaction,
 				};
+				changed = true;
+			} else if (openInteractions[sessionId] !== undefined) {
+				delete openInteractions[sessionId];
+				changed = true;
 			}
+			if (changed) next.openInteractions = openInteractions;
 			return next;
 		});
-		void this.#deps.repositories().liveStates.upsert(sessionId, liveState, at);
+		if (previous !== undefined && previous.interactionId !== nextOpen?.interactionId) {
+			this.#settleInteraction(previous.interactionId, { kind: "withdrawn" });
+		}
+		const written = await this.#deps.repositories().liveStates.upsert(sessionId, liveState, at);
+		return written.ok ? ok(undefined) : err(written.error);
 	}
 
 	applyStoredEvent(
@@ -1124,29 +1147,37 @@ export class SessionsService implements AgentMessenger {
 		notImplemented("CHAT-13");
 	}
 
-	/** Closes every turn the sidecar lost: appends `turn_ended` with outcome "interrupted". */
+	/**
+	 * Closes every turn the sidecar lost: appends `turn_ended` with outcome "interrupted" in one
+	 * transaction, then writes the idle live state. The store shows the events only after they
+	 * committed, and a failed live-state write is returned rather than hidden.
+	 */
 	async markInterrupted(sessionId: SessionId): Promise<Result<void>> {
-		const repositories = this.#deps.repositories();
-		const open = await repositories.sessionEvents.findInterruptedTurns();
+		const open = await this.#deps.repositories().sessionEvents.findInterruptedTurns(sessionId);
 		if (!open.ok) return open;
-		for (const turn of open.value) {
-			if (turn.sessionId !== sessionId) continue;
-			const at = this.#deps.now();
-			const event: SessionEvent = {
-				type: "turn_ended",
-				eventId: this.#deps.newId() as EventId,
-				at,
-				turnId: turn.turnId,
-				outcome: "interrupted",
-			};
-			const appended = await repositories.sessionEvents.append(sessionId, event, at);
-			if (!appended.ok) return appended;
-			if (appended.value.kind === "appended") {
-				this.applyStoredEvent(sessionId, appended.value.idx, event, at);
-			}
+		const at = this.#deps.now();
+		const appended = await inTransaction(
+			this.#deps.db,
+			"Closing turns cut off by a crash",
+			async (tx) => {
+				const repositories = this.#deps.repositoriesOn(tx);
+				const stored: { idx: number; event: SessionEvent }[] = [];
+				for (const turn of open.value) {
+					const event = interruptedTurnEvent(turn.turnId, this.#deps.newId() as EventId, at);
+					const result = await repositories.sessionEvents.append(sessionId, event, at);
+					if (!result.ok) return err(result.error);
+					if (result.value.kind === "appended") {
+						stored.push({ idx: result.value.idx, event });
+					}
+				}
+				return ok(stored);
+			},
+		);
+		if (!appended.ok) return appended;
+		for (const entry of appended.value) {
+			this.applyStoredEvent(sessionId, entry.idx, entry.event, at);
 		}
-		this.applyLiveState(sessionId, idleLiveState);
-		return ok(undefined);
+		return this.applyLiveState(sessionId, idleLiveState);
 	}
 
 	// ---- called by the views ----

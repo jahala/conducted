@@ -1,6 +1,6 @@
 /**
  * @feature NAV-10 Workspace screen
- * Owns: assembling the workspace route: header, tab strip, tab content, Git panel and Scripts panel inside the
+ * Owns: assembling the workspace route: header, centre content, Git panel and Scripts panel inside the
  * workspace layout, and passing the URL search state down.
  * Behaviour: ui-map.md 3 (the workspace screen), 3.1 (header), 3.2 (tab strip and content), 3.6 (right panel
  * top), 3.7 (right panel bottom).
@@ -11,7 +11,7 @@
  * Must handle: switching workspaces (all regions reset); the right panel closed (header shows the toggle, see
  * WorkspaceHeader); archived workspace (the gate shows the notice, panels explain themselves); search state
  * is the URL's, changes go through onSearchChange.
- * Test first: renders the header, tab strip, content, Git panel and Scripts panel regions for a workspace id.
+ * Test first: renders the header, centre content, Git panel and Scripts panel regions for a workspace id.
  */
 import type { RepoId, WorkspaceId } from "@conducted/shared";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
@@ -44,7 +44,6 @@ export function WorkspaceScreen({
 					<WorkspaceHeader repoId={repoId} workspaceId={workspaceId} controls={controls} />
 				</NotBuiltYet>
 			)}
-			tabStrip={null}
 			content={
 				<NotBuiltYet area="Workspace" resetKey={workspaceId}>
 					<WorkspaceGate workspaceId={workspaceId}>

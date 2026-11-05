@@ -1,18 +1,20 @@
 /**
  * @feature NAV-10 Tab layout model
  * Owns: The pure model of the centre: which tabs exist, which group holds them, and the operations
- * on it (open, close, move, split).
+ * on it (close, move, split).
  * Behaviour: ui-map.md 3.2 and 8 (the centre is a tree of tab groups; tabs drag between groups or
  * to an edge to split; the active tab picks its right neighbour on close, else its left).
- * Our design choice: Plain functions over an immutable tree, no store inside. The service layer
- * saves the tree per workspace. The shape here is ours; Conductor's is not verified.
- * Must handle: closing the active tab picks its right neighbour, else its left; moving a tab to its
- * own group is a no-op; splitting a group with one tab is refused; the same tab is never in two
- * groups; reopening the last closed tab restores its group.
+ * Our design choice: Plain functions over an immutable tree, no store inside. The shape here is
+ * ours; Conductor's is not verified. Only the split tree's non-main groups are saved in the
+ * component; the open chats and terminals themselves stay in their own stores.
+ * Must handle: closing the active tab picks its right neighbour, else its left; moving a tab within
+ * its group reorders it and makes it active; splitting a group with one tab is refused; the same tab
+ * is never in two groups; a tab that no longer exists is pruned from the tree.
  * Test first: closeTab on the middle of three tabs makes the third tab active.
  */
 
 import type { SessionId, TerminalId } from "@conducted/shared";
+import type { DiffScope } from "../../core/api.ts";
 import type { WorkspaceStatus } from "../../core/model.ts";
 import type { WorkspaceTabKind } from "./workspace-search.ts";
 
@@ -27,6 +29,10 @@ export interface TabDescriptor {
 	unread?: boolean;
 	/** A chat tab's status icon. */
 	status?: WorkspaceStatus | null;
+	/** A file tab's view, scope and line, so a split pane opens the same view. */
+	mode?: "diff" | "edit";
+	scope?: DiffScope;
+	line?: number | null;
 }
 
 export interface TabGroup {
@@ -47,11 +53,9 @@ export interface SplitGroup {
 export type TabGroupNode = TabGroup | SplitGroup;
 
 export type TabAction =
-	| { type: "open"; tab: TabDescriptor; groupId: string }
 	| { type: "close"; ref: string }
 	| { type: "move"; ref: string; toGroupId: string; index: number }
-	| { type: "split"; ref: string; groupId: string; edge: "left" | "right" | "top" | "bottom" }
-	| { type: "activate"; groupId: string; ref: string };
+	| { type: "split"; ref: string; groupId: string; edge: "left" | "right" | "top" | "bottom" };
 
 /** A layout with one empty group. The root is always a group or a split of groups. */
 export function emptyLayout(groupId = "group-main"): TabGroup {
@@ -94,7 +98,8 @@ export function neighbourAfterClose(
 	return remaining[Math.min(index, remaining.length - 1)] ?? null;
 }
 
-function withGroup(
+/** Replaces one group in the tree, returning the same tree when the id is not present. */
+export function withGroup(
 	node: TabGroupNode,
 	id: string,
 	update: (group: TabGroup) => TabGroup,
@@ -109,8 +114,9 @@ function withGroup(
 	return changed ? { ...node, children } : node;
 }
 
-/** Removes an empty group. A split with one child collapses into that child. */
+/** Removes a split group. The main group stays, even when it is empty, so the centre keeps its strip. */
 function removeGroup(node: TabGroupNode, id: string): TabGroupNode {
+	if (id === "group-main") return node;
 	if (node.kind === "group") return node;
 	let changed = false;
 	const kept: TabGroupNode[] = [];
@@ -128,6 +134,55 @@ function removeGroup(node: TabGroupNode, id: string): TabGroupNode {
 	}
 	const sizes = kept.map(() => 1 / kept.length);
 	return { ...node, children: kept, sizes };
+}
+
+/** Removes one split group. The main group is never removed. */
+export function closeGroup(node: TabGroupNode, id: string): TabGroupNode {
+	if (id === "group-main") return node;
+	return removeGroup(node, id);
+}
+
+/**
+ * Drops tabs that no longer exist from every group, and removes a split group left empty. The main
+ * group is kept even when empty, so the centre still has its own strip.
+ */
+export function pruneLayout(
+	node: TabGroupNode,
+	liveRefs: ReadonlySet<string>,
+	mainGroupId = "group-main",
+): TabGroupNode {
+	if (node.kind === "group") {
+		if (node.id !== mainGroupId && node.tabs.every((tab) => !liveRefs.has(tab.ref))) return node;
+		const tabs = node.tabs.filter((tab) => liveRefs.has(tab.ref));
+		const activeRef = tabs.some((tab) => tab.ref === node.activeRef)
+			? node.activeRef
+			: (tabs[0]?.ref ?? null);
+		return { ...node, tabs, activeRef };
+	}
+	let changed = false;
+	const children: TabGroupNode[] = [];
+	for (const child of node.children) {
+		if (child.kind === "group") {
+			if (child.id !== mainGroupId && child.tabs.every((tab) => !liveRefs.has(tab.ref))) {
+				changed = true;
+				continue;
+			}
+			const next = pruneLayout(child, liveRefs, mainGroupId);
+			if (next !== child) changed = true;
+			children.push(next);
+			continue;
+		}
+		const next = pruneLayout(child, liveRefs, mainGroupId);
+		if (next !== child) changed = true;
+		children.push(next);
+	}
+	if (!changed) return node;
+	if (children.length === 1) {
+		const only = children[0];
+		if (only !== undefined) return only;
+	}
+	if (children.length === 0) return node;
+	return { ...node, children, sizes: children.map(() => 1 / children.length) };
 }
 
 /** Removes the given tab from its group and picks a neighbour when it was active. */
@@ -248,28 +303,8 @@ export function applyTabAction({
 	action: TabAction;
 }): TabGroupNode {
 	switch (action.type) {
-		case "open": {
-			const existing = findTabGroup(layout, action.tab.ref);
-			if (existing !== null) {
-				return withGroup(layout, existing.id, (group) => ({
-					...group,
-					tabs: group.tabs.map((tab) => (tab.ref === action.tab.ref ? action.tab : tab)),
-					activeRef: action.tab.ref,
-				}));
-			}
-			const target = listGroups(layout).find((group) => group.id === action.groupId);
-			if (target === undefined) return layout;
-			return withGroup(layout, target.id, (group) =>
-				insertTab(group, action.tab, group.tabs.length),
-			);
-		}
 		case "close":
 			return removeTab(layout, action.ref);
-		case "activate":
-			return withGroup(layout, action.groupId, (group) => {
-				if (!group.tabs.some((tab) => tab.ref === action.ref)) return group;
-				return { ...group, activeRef: action.ref };
-			});
 		case "move": {
 			const source = findTabGroup(layout, action.ref);
 			const target = listGroups(layout).find((group) => group.id === action.toGroupId);

@@ -10,10 +10,13 @@
  * close its turn as interrupted, show idle, keep the agent session id so the next message
  * resumes); the sidecar is alive and still working (adopt its live state and wait for events);
  * two resume runs at once collapse into one; a status request that fails is reported in the
- * result and never guessed at.
+ * result and never guessed at; a live-state notification that arrives while the status request
+ * is in flight wins over the older status answer; a failed live-state write is reported in the
+ * result.
  * Our design choice: the app never guesses. A chat is either confirmed `working` by the sidecar
  * or it is closed as interrupted. Startup repair (core/db/repair.ts) already did the same for the
- * stored side before this runs.
+ * stored side before this runs, so at startup the working list is empty and the reconnect run is
+ * the one that finds lost chats.
  * Test first: a chat the UI shows as working, which the sidecar reports as unknown, ends with a
  * turn_ended event with outcome "interrupted" and an idle live state.
  */
@@ -30,11 +33,13 @@ export interface ResumeReport {
 
 export interface SessionResumeDeps {
 	sidecar: Pick<SidecarClient, "request">;
-	/** Chats the UI believes are working, from memory and from stored live states. */
+	/** Chats the UI believes are working, from the in-memory live-state store. */
 	workingSessionIds: () => Promise<SessionId[]>;
+	/** The live state the UI currently shows, so an older status answer can be dropped. */
+	liveStateOf: (sessionId: SessionId) => LiveState | undefined;
 	/** Lets the sessions service show the adopted live state and the interrupted turn. */
 	apply: {
-		adoptLiveState(sessionId: SessionId, liveState: LiveState): void;
+		adoptLiveState(sessionId: SessionId, liveState: LiveState): Promise<Result<void>>;
 		markInterrupted(sessionId: SessionId): Promise<Result<void>>;
 	};
 }
@@ -57,7 +62,10 @@ export class SessionResume {
 		const working = await this.#deps.workingSessionIds();
 
 		for (const sessionId of working) {
+			const before = this.#deps.liveStateOf(sessionId);
 			const status = await this.#deps.sidecar.request("getSessionStatus", { sessionId });
+			// A notification that landed during the request is newer than this answer, so drop it.
+			if (this.#deps.liveStateOf(sessionId) !== before) continue;
 			if (!status.ok) {
 				report.failed.push({ sessionId, message: status.error.message });
 				continue;
@@ -76,8 +84,9 @@ export class SessionResume {
 				});
 				continue;
 			}
-			this.#deps.apply.adoptLiveState(sessionId, liveState);
-			report.adopted.push(sessionId);
+			const adopted = await this.#deps.apply.adoptLiveState(sessionId, liveState);
+			if (adopted.ok) report.adopted.push(sessionId);
+			else report.failed.push({ sessionId, message: adopted.error.message });
 		}
 
 		return ok(report);

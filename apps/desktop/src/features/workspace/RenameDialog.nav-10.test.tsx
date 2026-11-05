@@ -4,6 +4,7 @@
  * Test first: Submitting 'Fix login' calls onSubmit('Fix login'); an empty field disables the submit
  * button.
  */
+import { appError, err, ok } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "../../test/dom-polyfills.ts";
@@ -13,7 +14,7 @@ afterEach(cleanup);
 
 describe("NAV-10 RenameDialog", () => {
 	it("submits the typed name", async () => {
-		const onSubmit = vi.fn(async () => {});
+		const onSubmit = vi.fn(async () => ok(undefined));
 		const onOpenChange = vi.fn();
 		render(
 			<RenameDialog
@@ -38,7 +39,7 @@ describe("NAV-10 RenameDialog", () => {
 				onOpenChange={vi.fn()}
 				title="Rename workspace"
 				initialName="Old name"
-				onSubmit={vi.fn(async () => {})}
+				onSubmit={vi.fn(async () => ok(undefined))}
 			/>,
 		);
 		fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
@@ -49,7 +50,7 @@ describe("NAV-10 RenameDialog", () => {
 		);
 	});
 
-	it("keeps the dialog open and shows the failure", async () => {
+	it("keeps the dialog open and shows the Result's failure", async () => {
 		const onOpenChange = vi.fn();
 		render(
 			<RenameDialog
@@ -57,13 +58,46 @@ describe("NAV-10 RenameDialog", () => {
 				onOpenChange={onOpenChange}
 				title="Rename workspace"
 				initialName="Old name"
-				onSubmit={async () => {
-					throw new Error("The name is taken.");
-				}}
+				onSubmit={async () => err(appError("db.conflict", "The name is taken."))}
 			/>,
 		);
 		fireEvent.click(screen.getByRole("button", { name: "Rename" }));
 		expect(await screen.findByText("The name is taken.")).toBeTruthy();
 		expect(onOpenChange).not.toHaveBeenCalledWith(false);
+	});
+
+	it("submits on Enter and closes on Escape", async () => {
+		const onSubmit = vi.fn(async () => ok(undefined));
+		const onOpenChange = vi.fn();
+		render(
+			<RenameDialog
+				open
+				onOpenChange={onOpenChange}
+				title="Rename workspace"
+				initialName="Old name"
+				onSubmit={onSubmit}
+			/>,
+		);
+		const field = screen.getByRole("textbox", { name: "Name" });
+		fireEvent.keyDown(field, { key: "Enter" });
+		await waitFor(() => expect(onSubmit).toHaveBeenCalledWith("Old name"));
+		fireEvent.keyDown(field, { key: "Escape" });
+		expect(onOpenChange).toHaveBeenCalledWith(false);
+	});
+
+	it("selects the current name on open so typing replaces it", () => {
+		render(
+			<RenameDialog
+				open
+				onOpenChange={vi.fn()}
+				title="Rename workspace"
+				initialName="Old name"
+				onSubmit={vi.fn(async () => ok(undefined))}
+			/>,
+		);
+		const field = screen.getByRole("textbox", { name: "Name" }) as HTMLInputElement;
+		fireEvent.focus(field);
+		expect(field.selectionStart).toBe(0);
+		expect(field.selectionEnd).toBe("Old name".length);
 	});
 });

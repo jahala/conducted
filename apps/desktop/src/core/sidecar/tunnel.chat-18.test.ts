@@ -147,6 +147,9 @@ describe("CHAT-18 tunnel", () => {
 		const h = harness();
 		await h.tunnel.start();
 
+		expect(rpcTimeoutFor("getSessionStatus")).not.toBe(rpcTimeoutFor("cancel"));
+		expect(rpcTimeoutFor("getSessionStatus")).toBe(5_000);
+
 		const pending = h.tunnel.request("getSessionStatus", { sessionId });
 		await vi.waitFor(() => expect(h.fake.sent).toHaveLength(1));
 		expect(h.timers.pending().map((timer) => timer.ms)).toEqual([
@@ -173,6 +176,27 @@ describe("CHAT-18 tunnel", () => {
 		});
 		await vi.waitFor(() => expect(listener).toHaveBeenCalledTimes(1));
 		expect(h.fake.transport.ensureStarted).toHaveBeenCalledTimes(2);
+	});
+
+	it("keeps serving requests when a reconnect listener throws", async () => {
+		const h = harness();
+		await h.tunnel.start();
+		h.fake.setResponder((message) =>
+			h.fake.emitLine(JSON.stringify({ jsonrpc: "2.0", id: message.id, result: { known: false } })),
+		);
+		h.tunnel.onReconnected(() => {
+			throw new Error("the listener failed");
+		});
+
+		h.fake.emitRestart();
+		const result = await h.tunnel.request("getSessionStatus", { sessionId });
+
+		expect(result).toEqual(ok({ known: false }));
+		expect(h.log).toHaveBeenCalledWith(
+			"error",
+			"A sidecar reconnect listener failed",
+			expect.anything(),
+		);
 	});
 
 	it("answers a sidecar request for an unknown method with -32601", async () => {

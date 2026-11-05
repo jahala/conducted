@@ -51,7 +51,7 @@ describe("CHAT-18 sidecar handlers", () => {
 	});
 
 	it("shows the live state the sidecar reports", async () => {
-		const setLiveState = vi.fn();
+		const setLiveState = vi.fn(async () => ok(undefined));
 		const handlers = createSidecarNotificationHandlers(
 			ports({ liveState: { setLiveState } as never }),
 		);
@@ -60,6 +60,17 @@ describe("CHAT-18 sidecar handlers", () => {
 		await handlers.liveState(params);
 
 		expect(setLiveState).toHaveBeenCalledWith(params);
+	});
+
+	it("throws when the live state could not be shown, so the tunnel logs it", async () => {
+		const setLiveState = vi.fn(async () => err(appError("db.failed", "The write failed")));
+		const handlers = createSidecarNotificationHandlers(
+			ports({ liveState: { setLiveState } as never }),
+		);
+
+		await expect(handlers.liveState({ sessionId, liveState: idleLiveState })).rejects.toThrow(
+			"The write failed",
+		);
 	});
 
 	it("records the agent's own session id", async () => {
@@ -74,6 +85,17 @@ describe("CHAT-18 sidecar handlers", () => {
 		expect(setAgentSessionId).toHaveBeenCalledWith(params);
 	});
 
+	it("throws when the agent session id could not be stored, so the tunnel logs it", async () => {
+		const setAgentSessionId = vi.fn(async () => err(appError("db.failed", "The write failed")));
+		const handlers = createSidecarNotificationHandlers(
+			ports({ liveState: { setAgentSessionId } as never }),
+		);
+
+		await expect(
+			handlers.agentSessionId({ sessionId, agentSessionId: "agent-42" }),
+		).rejects.toThrow("The write failed");
+	});
+
 	it("updates the agent catalog when the installed agents change", async () => {
 		const setAgentInstalls = vi.fn();
 		const handlers = createSidecarNotificationHandlers(
@@ -86,7 +108,7 @@ describe("CHAT-18 sidecar handlers", () => {
 		expect(setAgentInstalls).toHaveBeenCalledWith({ agents });
 	});
 
-	it("reports a failed login-shell capture to the caller", async () => {
+	it("passes a failed login-shell capture to the shell environment port", async () => {
 		const captureFailed = vi.fn();
 		const handlers = createSidecarNotificationHandlers(ports({ shellEnv: { captureFailed } }));
 		const params = {

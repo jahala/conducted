@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
 import { createRepositories, type Repositories } from "../db/repositories.ts";
 import { sampleSession, userMessageEvent } from "../db/test-fixtures.ts";
-import { SessionResume } from "./resume.ts";
+import { SessionResume, type SessionResumeDeps } from "./resume.ts";
 
 const must = <T>(result: { ok: true; value: T } | { ok: false; error: unknown }): T => {
 	if (!result.ok) throw new Error(JSON.stringify(result.error));
@@ -37,6 +37,7 @@ interface Harness {
 
 const harness = async (
 	request: (method: string, params: { sessionId: SessionId }) => Promise<unknown>,
+	overrides: Partial<SessionResumeDeps["apply"]> = {},
 ): Promise<Harness> => {
 	const test = createTestContainer();
 	open = test;
@@ -62,16 +63,18 @@ const harness = async (
 		),
 	);
 	must(await test.container.services.sessions.start());
-	test.container.services.sessions.applyLiveState(session.id, working);
+	await test.container.services.sessions.applyLiveState(session.id, working);
 
 	const sidecar = { request: vi.fn(request) };
 	const sessions = test.container.services.sessions;
 	const resume = new SessionResume({
 		sidecar: sidecar as never,
 		workingSessionIds: async () => [session.id],
+		liveStateOf: (sessionId) => sessions.store.getState().liveStates[sessionId],
 		apply: {
 			adoptLiveState: (sessionId, liveState) => sessions.applyLiveState(sessionId, liveState),
 			markInterrupted: (sessionId) => sessions.markInterrupted(sessionId),
+			...overrides,
 		},
 	});
 	return { test, repositories, sessionId: session.id, sidecar, resume };
@@ -169,5 +172,49 @@ describe("CHAT-18 resume after restart", () => {
 		release?.(ok({ known: false }));
 		await Promise.all([first, second]);
 		expect(h.sidecar.request).toHaveBeenCalledTimes(1);
+	});
+
+	it("drops a status answer that a live-state notification made stale", async () => {
+		let release: ((value: unknown) => void) | undefined;
+		const h = await harness(
+			async () =>
+				new Promise((resolve) => {
+					release = resolve;
+				}),
+		);
+		const sessions = h.test.container.services.sessions;
+
+		const running = h.resume.resume();
+		await vi.waitFor(() => expect(h.sidecar.request).toHaveBeenCalledTimes(1));
+
+		const newer: LiveState = { ...idleLiveState };
+		await sessions.applyLiveState(h.sessionId, newer);
+		release?.(ok({ known: false }));
+
+		const result = await running;
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.interrupted).toEqual([]);
+		expect(sessions.store.getState().liveStates[h.sessionId]).toEqual(newer);
+		const turns = must(
+			await h.repositories.sessionEvents.listByTurn(h.sessionId, "turn-1" as TurnId),
+		);
+		expect(turns.some((stored) => stored.event.type === "turn_ended")).toBe(false);
+	});
+
+	it("reports a failed live-state write instead of calling the chat adopted", async () => {
+		const h = await harness(async () => ok({ known: true, liveState: working }), {
+			adoptLiveState: async () => err(appError("db.failed", "The live state was not stored")),
+		});
+
+		const result = await h.resume.resume();
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.adopted).toEqual([]);
+		expect(result.value.failed).toEqual([
+			{ sessionId: h.sessionId, message: "The live state was not stored" },
+		]);
 	});
 });

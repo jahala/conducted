@@ -1,7 +1,7 @@
 /**
  * @feature NAV-10 Workspace layout
- * Owns: tests for the four-slot frame and the right panel toggle.
- * Test first: renders all four slots; toggleRightPanel hides and shows the right panel.
+ * Owns: tests for the three-slot frame and the right panel toggle.
+ * Test first: renders all three slots; toggleRightPanel hides and shows the right panel.
  */
 import type { WorkspaceId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -24,7 +24,6 @@ const renderLayout = () =>
 					Toggle right panel
 				</button>
 			)}
-			tabStrip={<p>tabs</p>}
 			content={<p>content</p>}
 			gitPanel={<p>git</p>}
 			scriptsPanel={<p>scripts</p>}
@@ -32,9 +31,9 @@ const renderLayout = () =>
 	);
 
 describe("NAV-10 WorkspaceLayout", () => {
-	it("renders all four slots and the right panel", () => {
+	it("renders all three slots and the right panel", () => {
 		renderLayout();
-		for (const text of ["tabs", "content", "git", "scripts"]) {
+		for (const text of ["content", "git", "scripts"]) {
 			expect(screen.getByText(text)).toBeTruthy();
 		}
 		expect(screen.getByRole("complementary", { name: "Changes and scripts" })).toBeTruthy();

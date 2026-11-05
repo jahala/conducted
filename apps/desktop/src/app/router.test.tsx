@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createStore } from "zustand/vanilla";
 import type { Container } from "../core/container.ts";
 import { ServicesProvider } from "../core/context.tsx";
-import type { Repo } from "../core/model.ts";
+import type { Repo, Workspace } from "../core/model.ts";
 import { RepoService, type RepoServiceDeps } from "../core/services/repo.ts";
 import "../test/dom-polyfills.ts";
 import { useOverlayStore } from "./overlay-store.ts";
@@ -29,8 +29,37 @@ function repo(id: string): Repo {
 	};
 }
 
+function workspace(id: string, repoId: string): Workspace {
+	return {
+		id: id as Workspace["id"],
+		repoId: repoId as Workspace["repoId"],
+		directoryName: id,
+		path: `/repos/${id}`,
+		branch: `jahala/${id}`,
+		branchIsPlaceholder: false,
+		displayName: null,
+		targetBranch: "origin/main",
+		state: "ready",
+		kanbanStatus: "in_progress",
+		port: 55_000,
+		pinnedAt: null,
+		notes: null,
+		linkedPaths: [],
+		prNumber: null,
+		prTitle: null,
+		prDescription: null,
+		archiveCommit: null,
+		archivedAt: null,
+		activeSessionId: null,
+		filesCopied: null,
+		lastActivityAt: 0,
+		createdAt: 0,
+		updatedAt: 0,
+	};
+}
+
 /** The sidebar reads the repo and workspace stores; the shell reads the sidebar settings. */
-function testContainer(repos: Repo[] = []): Container {
+function testContainer(repos: Repo[] = [], workspaces: Workspace[] = []): Container {
 	const settings = {
 		store: createStore<{ values: Record<string, unknown> }>(() => ({ values: {} })),
 		get: (key: string): unknown =>
@@ -51,25 +80,50 @@ function testContainer(repos: Repo[] = []): Container {
 	});
 	const workspaceStore = createStore(() => ({
 		loaded: true,
-		workspacesById: {},
+		workspacesById: Object.fromEntries(workspaces.map((row) => [row.id, row])),
 		setup: {},
 		archiving: {},
+	}));
+	const sectionsStore = createStore(() => ({ loaded: true, sections: [] }));
+	const sessionsStore = createStore(() => ({
+		loaded: true,
+		sessions: {},
+		byWorkspace: {},
+		liveStates: {},
+		cancelling: {},
+		events: {},
+		progress: {},
+		sending: {},
+		openInteractions: {},
+		viewingSessionId: null,
+	}));
+	const terminalsStore = createStore(() => ({
+		byWorkspace: {},
+		byRepo: {},
+		errors: {},
+		connections: {},
 	}));
 	return {
 		services: {
 			repo: repoService,
 			workspace: { store: workspaceStore },
+			sections: { store: sectionsStore },
+			sessions: { store: sessionsStore },
+			terminals: {
+				store: terminalsStore,
+				loadWorkspace: async () => ({ ok: true, value: undefined }),
+			},
+			review: { store: createStore(() => ({ byWorkspace: {} })) },
 			settings,
-			sections: { store: createStore(() => ({ loaded: true, sections: [] })) },
 		},
 		actions: {},
 	} as unknown as Container;
 }
 
-async function openApp(path: string, repos: Repo[] = []) {
+async function openContainerApp(path: string, container: Container) {
 	const router = createAppRouter(createMemoryHistory({ initialEntries: [path] }));
 	render(
-		<ServicesProvider container={testContainer(repos)}>
+		<ServicesProvider container={container}>
 			<AppProviders client={createQueryClient(() => {})}>
 				<RouterProvider router={router} />
 			</AppProviders>
@@ -77,6 +131,10 @@ async function openApp(path: string, repos: Repo[] = []) {
 	);
 	await router.load();
 	return router;
+}
+
+async function openApp(path: string, repos: Repo[] = [], workspaces: Workspace[] = []) {
+	return openContainerApp(path, testContainer(repos, workspaces));
 }
 
 describe("app shell", () => {
@@ -133,12 +191,21 @@ describe("routes", () => {
 	});
 
 	it("shows the workspace screen with its regions", async () => {
-		await openApp("/repository/r1/workspace/w1?tab=pr");
+		const project = repo("r1");
+		const seeded = workspace("w1", project.id);
+		await openApp(`/repository/${project.id}/workspace/${seeded.id}?tab=pr`, [project], [seeded]);
 		const main = await screen.findByRole("main");
 		expect(await within(main).findByText("Git panel")).toBeTruthy();
 		expect(within(main).getByText("Scripts")).toBeTruthy();
-		// The fixture has no workspace rows, so the centre explains that the workspace is missing.
-		expect(within(main).getByText("Error loading workspace")).toBeTruthy();
+		expect(await within(main).findByRole("tablist", { name: "Workspace tabs" })).toBeTruthy();
+		expect(within(main).getByRole("tab", { name: "PR" })).toBeTruthy();
+		expect(within(main).getByRole("button", { name: seeded.branch })).toBeTruthy();
+	});
+
+	it("explains when the workspace is missing", async () => {
+		await openApp("/repository/r1/workspace/w1?tab=pr");
+		const main = await screen.findByRole("main");
+		expect(await within(main).findByText("Workspace not found")).toBeTruthy();
 	});
 
 	it("ignores a bad tab in the workspace URL instead of failing", async () => {

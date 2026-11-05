@@ -7,16 +7,19 @@
  * terminal'; the tab limit; 'View chat history'), 5.4 (previous, next, close and reopen shortcuts).
  * Our design choice: The open chats and workspace terminals are the tabs. A file, comment, PR or
  * browser tab is the tab the URL names, so the URL stays the one source of truth for the open tab.
- * The tab limit is five, or ten with Tab Freak Mode.
+ * The tab limit is five, or ten with Tab Freak Mode. A browser URL that does not parse is shown as-is.
  * Must handle: Many tabs (scroll); at the tab limit (new-tab menu disabled); closing the active tab
- * opens its neighbour; error card 'Tabs failed to load' with Retry; reopening the last closed chat.
+ * opens its neighbour while closing another keeps the current tab; error card 'Tabs failed to load'
+ * with Retry; reopening the last closed chat; a split group's tabs are left out of the main strip.
  * Test first: Closing the active middle tab selects the tab to its right; at the limit the '+'
  * menu is disabled.
  */
+import { idleLiveState } from "@conducted/protocol";
 import type { WorkspaceId } from "@conducted/shared";
 import { useRef, useState } from "react";
 import { useStore } from "zustand";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
+import { createSingleFlight } from "../../core/async/single-flight.ts";
 import { useServices } from "../../core/context.tsx";
 import {
 	useActions,
@@ -25,23 +28,29 @@ import {
 	useTerminals,
 	useWorkspace,
 } from "../../core/hooks.ts";
-import type { Session, Terminal } from "../../core/model.ts";
+import type { DiffComment, Session, Terminal } from "../../core/model.ts";
+import { deriveWorkspaceStatus } from "../../core/status/workspace-status.ts";
 import { Button } from "../../ui/Button.tsx";
 import { EmptyState } from "../../ui/EmptyState.tsx";
 import { toastError } from "../../ui/Toast.tsx";
-import { resolveActiveTab } from "./active-tab.ts";
+import { activeTabFromDescriptor, resolveActiveTab, searchPatchFor, tabRef } from "./active-tab.ts";
 import { ChatHistoryButton } from "./ChatHistoryButton.tsx";
 import { NewTabMenu } from "./NewTabMenu.tsx";
 import { TabContextMenu } from "./TabContextMenu.tsx";
 import { TabItem } from "./TabItem.tsx";
 import { neighbourAfterClose, type TabDescriptor } from "./tab-layout.ts";
+import { useNewTab } from "./useNewTab.tsx";
 import type { WorkspaceSearch } from "./workspace-search.ts";
 
 export interface TabStripProps {
 	workspaceId: WorkspaceId;
 	search: WorkspaceSearch;
 	onSearchChange: (patch: Partial<WorkspaceSearch>) => void;
+	/** Tabs that a split pane owns, so the main strip does not show them too. */
+	excludeRefs?: ReadonlySet<string>;
 }
+
+const NO_COMMENTS: readonly DiffComment[] = [];
 
 const hostOf = (url: string): string => {
 	try {
@@ -51,28 +60,48 @@ const hostOf = (url: string): string => {
 	}
 };
 
+/** How a comment's author is shown in the tab title. */
+function commentAuthor(comment: DiffComment | undefined): string | null {
+	if (comment === undefined) return null;
+	if (comment.author.name !== null && comment.author.name.trim() !== "") {
+		return comment.author.name;
+	}
+	return comment.author.kind === "user" ? "You" : comment.author.kind;
+}
+
 /** The tab the URL names, when it is a file, comment, PR or browser tab. */
-export function specialTab(search: WorkspaceSearch, prNumber: number | null): TabDescriptor | null {
+export function specialTab(
+	search: WorkspaceSearch,
+	prNumber: number | null,
+	comments: readonly DiffComment[],
+): TabDescriptor | null {
 	const tab = resolveActiveTab(search);
+	const ref = tabRef(tab);
+	if (ref === null) return null;
 	switch (tab.kind) {
 		case "file":
 			return {
 				kind: "file",
-				ref: `file:${tab.path}`,
+				ref,
 				title: tab.path,
+				mode: tab.mode,
+				scope: tab.scope,
+				line: tab.line,
 			};
-		case "comment":
+		case "comment": {
+			const author = commentAuthor(comments.find((comment) => comment.id === tab.commentId));
 			return {
 				kind: "comment",
-				ref: `comment:${tab.commentId}`,
-				title: "Comment",
+				ref,
+				title: author === null ? "Comment" : `Comment by ${author}`,
 			};
+		}
 		case "pr":
-			return { kind: "pr", ref: "pr", title: prNumber === null ? "PR" : `PR #${prNumber}` };
+			return { kind: "pr", ref, title: prNumber === null ? "PR" : `PR #${prNumber}` };
 		case "browser":
 			return {
 				kind: "browser",
-				ref: `browser:${tab.url}`,
+				ref,
 				title: hostOf(tab.url),
 			};
 		default:
@@ -80,14 +109,33 @@ export function specialTab(search: WorkspaceSearch, prNumber: number | null): Ta
 	}
 }
 
-export function chatTabs(sessions: readonly Session[]): TabDescriptor[] {
-	return sessions.map((session) => ({
-		kind: "session",
-		ref: `session:${session.id}`,
-		title: session.title ?? "New chat",
-		sessionId: session.id,
-		unread: session.unreadCount > 0,
-	}));
+export function chatTabs(
+	sessions: readonly Session[],
+	liveStates: Record<string, typeof idleLiveState> = {},
+	cancelling: Record<string, boolean> = {},
+): TabDescriptor[] {
+	return sessions.map((session) => {
+		const status = deriveWorkspaceStatus({
+			state: "ready",
+			settingUp: false,
+			chats: [
+				{
+					liveState: liveStates[session.id] ?? idleLiveState,
+					cancelling: cancelling[session.id] === true,
+					closed: false,
+				},
+			],
+			git: null,
+		});
+		return {
+			kind: "session",
+			ref: tabRef({ kind: "session", sessionId: session.id }) ?? "",
+			title: session.title ?? "New chat",
+			sessionId: session.id,
+			unread: session.unreadCount > 0,
+			status,
+		};
+	});
 }
 
 export function terminalTabs(terminals: readonly Terminal[]): TabDescriptor[] {
@@ -95,7 +143,7 @@ export function terminalTabs(terminals: readonly Terminal[]): TabDescriptor[] {
 		.filter((terminal) => terminal.kind === "terminal")
 		.map((terminal, index) => ({
 			kind: "terminal",
-			ref: `terminal:${terminal.id}`,
+			ref: tabRef({ kind: "terminal", terminalId: terminal.id }) ?? "",
 			title: terminal.title || `Terminal ${index + 1}`,
 			terminalId: terminal.id,
 		}));
@@ -107,35 +155,24 @@ export function buildTabs({
 	terminals,
 	search,
 	prNumber,
+	comments = NO_COMMENTS,
+	liveStates,
+	cancelling,
 }: {
 	sessions: readonly Session[];
 	terminals: readonly Terminal[];
 	search: WorkspaceSearch;
 	prNumber: number | null;
+	comments?: readonly DiffComment[];
+	liveStates?: Record<string, typeof idleLiveState>;
+	cancelling?: Record<string, boolean>;
 }): TabDescriptor[] {
-	const special = specialTab(search, prNumber);
+	const special = specialTab(search, prNumber, comments);
 	return [
-		...chatTabs(sessions),
+		...chatTabs(sessions, liveStates, cancelling),
 		...terminalTabs(terminals),
 		...(special === null ? [] : [special]),
 	];
-}
-
-function patchFor(tab: TabDescriptor): Partial<WorkspaceSearch> {
-	switch (tab.kind) {
-		case "session":
-			return { tab: "session", sessionId: tab.sessionId };
-		case "terminal":
-			return { tab: "terminal", terminalId: tab.terminalId };
-		case "file":
-			return { tab: "file", path: tab.ref.slice("file:".length) };
-		case "comment":
-			return { tab: "comment", commentId: tab.ref.slice("comment:".length) };
-		case "pr":
-			return { tab: "pr" };
-		case "browser":
-			return { tab: "browser", browserUrl: tab.ref.slice("browser:".length) };
-	}
 }
 
 const NOTHING: Partial<WorkspaceSearch> = {
@@ -147,7 +184,7 @@ const NOTHING: Partial<WorkspaceSearch> = {
 	browserUrl: undefined,
 };
 
-export function TabStrip({ workspaceId, search, onSearchChange }: TabStripProps) {
+export function TabStrip({ workspaceId, search, onSearchChange, excludeRefs }: TabStripProps) {
 	const actions = useActions();
 	const services = useServices();
 	const sessions = useSessions(workspaceId);
@@ -155,8 +192,15 @@ export function TabStrip({ workspaceId, search, onSearchChange }: TabStripProps)
 	const workspace = useWorkspace(workspaceId);
 	const tabFreakMode = useSetting<boolean>("experimental_tab_freak_mode");
 	const liveStates = useStore(services.services.sessions.store, (state) => state.liveStates);
+	const cancelling = useStore(services.services.sessions.store, (state) => state.cancelling);
+	const comments = useStore(
+		services.services.review.store,
+		(state) => state.byWorkspace[workspaceId] ?? NO_COMMENTS,
+	);
 	const lastClosed = useRef<TabDescriptor | null>(null);
 	const [retrying, setRetrying] = useState(false);
+	const retryFlight = useRef(createSingleFlight()).current;
+	const newTab = useNewTab({ workspaceId, onSearchChange });
 
 	const limit = tabFreakMode ? 10 : 5;
 	const openSessions = sessions.state === "ready" ? sessions.data : [];
@@ -167,35 +211,15 @@ export function TabStrip({ workspaceId, search, onSearchChange }: TabStripProps)
 		terminals: openTerminals,
 		search,
 		prNumber,
-	}).map((tab) => {
-		if (tab.kind !== "session" || tab.sessionId === undefined) return tab;
-		const live = liveStates[tab.sessionId];
-		const status =
-			live?.openInteraction !== undefined
-				? ({ kind: "agent", label: "needs_answer" } as const)
-				: live?.status === "working"
-					? ({ kind: "agent", label: "working" } as const)
-					: null;
-		return { ...tab, status };
-	});
+		comments,
+		liveStates,
+		cancelling,
+	}).filter((tab) => excludeRefs === undefined || !excludeRefs.has(tab.ref));
 
-	const activeTab = resolveActiveTab(search);
-	const activeRef =
-		activeTab.kind === "session"
-			? `session:${activeTab.sessionId}`
-			: activeTab.kind === "terminal"
-				? `terminal:${activeTab.terminalId}`
-				: activeTab.kind === "file"
-					? `file:${activeTab.path}`
-					: activeTab.kind === "comment"
-						? `comment:${activeTab.commentId}`
-						: activeTab.kind === "pr"
-							? "pr"
-							: activeTab.kind === "browser"
-								? `browser:${activeTab.url}`
-								: null;
+	const activeRef = tabRef(resolveActiveTab(search));
 
-	const select = (tab: TabDescriptor) => onSearchChange(patchFor(tab));
+	const select = (tab: TabDescriptor) =>
+		onSearchChange(searchPatchFor(activeTabFromDescriptor(tab)));
 	const showNeighbour = (tab: TabDescriptor) => {
 		const neighbour = neighbourAfterClose(tabs, tab.ref);
 		if (neighbour === null) onSearchChange(NOTHING);
@@ -203,7 +227,6 @@ export function TabStrip({ workspaceId, search, onSearchChange }: TabStripProps)
 	};
 
 	const close = async (tab: TabDescriptor) => {
-		lastClosed.current = tab;
 		if (tab.kind === "session" && tab.sessionId !== undefined) {
 			const result = await actions.sessions.close(tab.sessionId);
 			if (!result.ok) {
@@ -218,7 +241,8 @@ export function TabStrip({ workspaceId, search, onSearchChange }: TabStripProps)
 				return;
 			}
 		}
-		showNeighbour(tab);
+		lastClosed.current = tab;
+		if (tab.ref === activeRef) showNeighbour(tab);
 	};
 
 	const go = (offset: number) => {
@@ -251,23 +275,10 @@ export function TabStrip({ workspaceId, search, onSearchChange }: TabStripProps)
 	const active = tabs.find((tab) => tab.ref === activeRef) ?? null;
 	const closable = openSessions.length + terminalTabs(openTerminals).length;
 	const atTabLimit = closable >= limit;
-	const creating = useRef(false);
 
 	useCommandHandler("chat.newTab", "base", () => {
-		if (atTabLimit || creating.current) return false;
-		creating.current = true;
-		void (async () => {
-			try {
-				const created = await services.services.sessions.createFromDefaults(workspaceId);
-				if (!created.ok) {
-					toastError("Couldn't start a chat", created.error);
-					return;
-				}
-				onSearchChange({ tab: "session", sessionId: created.value.id });
-			} finally {
-				creating.current = false;
-			}
-		})();
+		if (atTabLimit) return false;
+		void newTab.newChat(false);
 		return true;
 	});
 	useCommandHandler("tab.previous", "base", () => {
@@ -288,18 +299,18 @@ export function TabStrip({ workspaceId, search, onSearchChange }: TabStripProps)
 		return true;
 	});
 
-	const retry = async () => {
-		if (retrying) return;
-		setRetrying(true);
-		try {
-			const chats = await services.services.sessions.start();
-			const opened = await services.services.terminals.loadWorkspace(workspaceId);
-			if (!chats.ok) toastError("Couldn't load the chats", chats.error);
-			if (!opened.ok) toastError("Couldn't load the terminals", opened.error);
-		} finally {
-			setRetrying(false);
-		}
-	};
+	const retry = () =>
+		retryFlight.run(`workspace:${workspaceId}:retry`, async () => {
+			setRetrying(true);
+			try {
+				const chats = await services.services.sessions.start();
+				const opened = await services.services.terminals.loadWorkspace(workspaceId);
+				if (!chats.ok) toastError("Couldn't load the chats", chats.error);
+				if (!opened.ok) toastError("Couldn't load the terminals", opened.error);
+			} finally {
+				setRetrying(false);
+			}
+		});
 
 	const failed =
 		(sessions.state === "error" && sessions.error) ||
@@ -342,6 +353,9 @@ export function TabStrip({ workspaceId, search, onSearchChange }: TabStripProps)
 						onDragStart={(event) => {
 							event.dataTransfer.setData("application/x-conducted-tab", tab.ref);
 							event.dataTransfer.effectAllowed = "move";
+							if (typeof event.dataTransfer.setDragImage === "function") {
+								event.dataTransfer.setDragImage(event.currentTarget, 0, 0);
+							}
 						}}
 					/>
 				);
