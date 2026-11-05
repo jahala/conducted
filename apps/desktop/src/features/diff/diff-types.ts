@@ -14,6 +14,12 @@ import type { CommentId } from "@conducted/shared";
 /** The side of a diff a line number belongs to. Matches the renderer's own naming. */
 export type DiffSide = "deletions" | "additions";
 
+/** The colour theme the renderer draws with; `type` selects the matching default. */
+export interface DiffTheme {
+	name: string;
+	type: "light" | "dark";
+}
+
 export interface DiffPreferences {
 	layout: "unified" | "split";
 	/** Show the whole file with changes marked, not only the changed hunks. */

@@ -17,6 +17,7 @@
  * Test first: a workspace watched at depth full runs its poll immediately and again once the
  * interval has passed.
  */
+import type { FileChange } from "@conducted/protocol";
 import {
 	type AppError,
 	appError,
@@ -29,6 +30,7 @@ import {
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { FileSystem, Unsubscribe } from "../../platform/platform.ts";
 import type { ChangedFile, DiffScope } from "../api.ts";
+import { viewedFilesFile } from "../app-paths.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
 import {
 	catFileExists,
@@ -189,8 +191,20 @@ export interface GitServiceDeps {
 	contextOf: (workspaceId: WorkspaceId) => Promise<Result<WorkspaceGitContext>>;
 	agent: AgentMessenger;
 	now: () => number;
-	/** Moves a discarded new file to the Trash. */
-	fs: Pick<FileSystem, "trash">;
+	/** Moves a discarded new file to the Trash, and stores the viewed marks when it can. */
+	fs: Pick<FileSystem, "trash"> &
+		Partial<Pick<FileSystem, "readText" | "writeTextAtomic" | "mkdirp" | "stat" | "paths">>;
+}
+
+/** One file's viewed mark, together with the version of the file it was made on. */
+interface ViewedMark {
+	viewed: boolean;
+	fingerprint: string;
+}
+
+interface ViewedFile {
+	version: 1;
+	marks: Record<string, ViewedMark>;
 }
 
 export class GitService {
@@ -201,6 +215,9 @@ export class GitService {
 	readonly #watchers = new Map<string, Watcher>();
 	readonly #latest = createLatestWins<string>();
 	readonly #limiter = createRefreshLimiter();
+	/** Viewed marks per workspace and path. Loaded from the file on first use. */
+	readonly #viewed = new Map<string, ViewedMark>();
+	readonly #viewedLoaded = new Set<string>();
 
 	constructor(deps: GitServiceDeps) {
 		this.#deps = deps;
@@ -352,11 +369,11 @@ export class GitService {
 		if (!compared.ok) return compared;
 
 		const conflicted = new Set(compared.value.conflictedPaths);
+		const files = await this.#applyViewed(workspaceId, cwd, compared.value.files);
 		return ok(
-			compared.value.files.map((change) => ({
+			files.map((change) => ({
 				...change,
 				conflicted: conflicted.has(change.path),
-				viewed: false,
 			})),
 		);
 	}
@@ -372,11 +389,12 @@ export class GitService {
 		]);
 		if (!nameStatusText.ok) return nameStatusText;
 		if (!numstatText.ok) return numstatText;
-		return ok(
-			mergeChanges(parseNameStatus(nameStatusText.value), parseNumstat(numstatText.value)).map(
-				(change) => ({ ...change, conflicted: false, viewed: false }),
-			),
+		const files = await this.#applyViewed(
+			workspaceId,
+			cwd,
+			mergeChanges(parseNameStatus(nameStatusText.value), parseNumstat(numstatText.value)),
 		);
+		return ok(files.map((change) => ({ ...change, conflicted: false })));
 	}
 
 	/** Resolves a diff scope to the folder and the two refs to compare (see git/diff.ts). */
@@ -507,9 +525,87 @@ export class GitService {
 		return notImplemented("GIT-13");
 	}
 
-	/** Backs `Actions.git.setViewed`. */
-	setViewed(_workspaceId: WorkspaceId, _path: string, _viewed: boolean): Promise<Result<void>> {
-		return notImplemented("REV-02");
+	/** Backs `Actions.git.setViewed`. The mark resets when the file's modified time changes. */
+	async setViewed(workspaceId: WorkspaceId, path: string, viewed: boolean): Promise<Result<void>> {
+		const found = await this.#deps.contextOf(workspaceId);
+		if (!found.ok) return found;
+		await this.#loadViewed(workspaceId);
+		const key = this.#viewedKey(workspaceId, path);
+		this.#viewed.set(key, {
+			viewed,
+			fingerprint: await this.#viewedFingerprint(found.value.workspacePath, path),
+		});
+		return this.#saveViewed(workspaceId);
+	}
+
+	#viewedKey(workspaceId: WorkspaceId, path: string): string {
+		return `${String(workspaceId)}\u0000${path}`;
+	}
+
+	async #viewedFingerprint(cwd: string, path: string): Promise<string> {
+		const stat = this.#deps.fs.stat;
+		if (stat === undefined) return "";
+		const result = await stat(`${cwd}/${path}`);
+		return result.ok ? `${result.value.modifiedAt}:${result.value.size}` : "";
+	}
+
+	async #loadViewed(workspaceId: WorkspaceId): Promise<void> {
+		const key = String(workspaceId);
+		if (this.#viewedLoaded.has(key)) return;
+		this.#viewedLoaded.add(key);
+		const { readText, paths } = this.#deps.fs;
+		if (readText === undefined || paths === undefined) return;
+		const read = await readText(viewedFilesFile(paths, key));
+		if (!read.ok) return;
+		try {
+			const parsed = JSON.parse(read.value) as Partial<ViewedFile>;
+			for (const [path, mark] of Object.entries(parsed.marks ?? {})) {
+				if (typeof mark?.viewed === "boolean" && typeof mark.fingerprint === "string") {
+					this.#viewed.set(this.#viewedKey(workspaceId, path), mark);
+				}
+			}
+		} catch {
+			// A damaged file is a cache miss; the user simply sees no viewed marks.
+		}
+	}
+
+	async #saveViewed(workspaceId: WorkspaceId): Promise<Result<void>> {
+		const { mkdirp, writeTextAtomic, paths } = this.#deps.fs;
+		if (mkdirp === undefined || writeTextAtomic === undefined || paths === undefined) {
+			return ok(undefined);
+		}
+		const prefix = `${String(workspaceId)}\u0000`;
+		const marks: Record<string, ViewedMark> = {};
+		for (const [key, mark] of this.#viewed) {
+			if (mark.viewed && key.startsWith(prefix)) marks[key.slice(prefix.length)] = mark;
+		}
+		const file = viewedFilesFile(paths, String(workspaceId));
+		const folder = file.slice(0, file.lastIndexOf("/"));
+		const made = await mkdirp(folder);
+		if (!made.ok) return made;
+		const body: ViewedFile = { version: 1, marks };
+		return writeTextAtomic(file, JSON.stringify(body));
+	}
+
+	async #applyViewed(
+		workspaceId: WorkspaceId,
+		cwd: string,
+		files: readonly FileChange[],
+	): Promise<(FileChange & { viewed: boolean })[]> {
+		await this.#loadViewed(workspaceId);
+		return Promise.all(
+			files.map(async (file) => {
+				const key = this.#viewedKey(workspaceId, file.path);
+				const mark = this.#viewed.get(key);
+				if (mark === undefined) return { ...file, viewed: false };
+				const fingerprint = await this.#viewedFingerprint(cwd, file.path);
+				if (mark.fingerprint !== fingerprint) {
+					this.#viewed.delete(key);
+					return { ...file, viewed: false };
+				}
+				return { ...file, viewed: mark.viewed };
+			}),
+		);
 	}
 
 	/** Backs `Actions.git.discardFile`. */
