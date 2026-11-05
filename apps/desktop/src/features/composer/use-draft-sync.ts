@@ -5,9 +5,10 @@
  * Behaviour: ui-map.md 3.5 (draft per session kept in a store), frontend.md 4 (drafts live in local
  * storage and survive restarts).
  * Our design choice: Saves through useActions().sessions.saveDraft, which is synchronous from the
- * screen's side. Restores the draft once per chat, then the editor is the source of truth. Edits
- * before the restore finishes are not written, so a chat switch cannot save the previous chat's
- * attachments into the new one. Attachments are remembered per chat.
+ * screen's side. Restores the draft once per chat, then the editor is the source of truth. An
+ * update event marks the chat as typed in, so the previous chat's text left in the editor is not
+ * mistaken for typing. Edits before the restore finishes are not written, so a chat switch cannot
+ * save the previous chat's attachments into the new one. Attachments are remembered per chat.
  * Must handle: Switching chats before the pause ends (save the old chat's draft first); a send
  * clears the draft; an empty editor removes the draft; typing before the restore arrives (keep it,
  * and do not overwrite it with the saved text); a draft for a closed chat is cleaned up by the
@@ -73,12 +74,14 @@ export function useDraftSync({
 	const attachmentsBySession = useRef(new Map<string, readonly string[]>());
 	const lastSavedAttachments = useRef(new Map<string, string>());
 	const restoredSession = useRef<SessionId | null>(null);
+	const typedSinceRestore = useRef(false);
 	const restore = useRef(onRestore);
 	restore.current = onRestore;
 
 	useEffect(() => {
 		if (editor === null) return;
 		const persist = () => {
+			typedSinceRestore.current = true;
 			if (restoredSession.current !== sessionId) return;
 			const paths = attachmentsBySession.current.get(sessionId) ?? [];
 			lastSavedAttachments.current.set(sessionId, keyOf(paths));
@@ -97,6 +100,7 @@ export function useDraftSync({
 		if (editor === null) return;
 		let cancelled = false;
 		restoredSession.current = null;
+		typedSinceRestore.current = false;
 		const load = async () => {
 			const result = await composer.loadDraft(sessionId);
 			if (cancelled) return;
@@ -106,8 +110,7 @@ export function useDraftSync({
 				return;
 			}
 			const draft = result.value;
-			const typedSince = editor.getText().length > 0;
-			if (!typedSince && editor.getText() !== draft.text) {
+			if (!typedSinceRestore.current && editor.getText() !== draft.text) {
 				editor.commands.setContent(draftToContent(draft.text), { emitUpdate: false });
 			}
 			attachmentsBySession.current.set(sessionId, draft.attachmentPaths);

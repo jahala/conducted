@@ -137,12 +137,12 @@ describe("SIDE-10 login-shell capture", () => {
 	test("an unknown shell skips straight to the 3 second fallback", async () => {
 		const { spawnText, calls } = recordingSpawn(() => ok(dump("M1", { PATH: "/bin" })));
 
-		const result = await provider("/bin/tcsh", spawnText).get();
+		const result = await provider("/bin/tcsh", spawnText).get("/work/lisbon");
 
 		expect(result.ok).toBe(true);
 		expect(calls).toHaveLength(1);
 		expect(calls[0]?.timeoutMs).toBe(FALLBACK_CAPTURE_TIMEOUT_MS);
-		expect(calls[0]?.command).toEqual(fallbackCaptureCommand("M1"));
+		expect(calls[0]?.command).toEqual(fallbackCaptureCommand("M1", "/work/lisbon"));
 	});
 
 	test("a failure is not cached, so the next call tries again", async () => {

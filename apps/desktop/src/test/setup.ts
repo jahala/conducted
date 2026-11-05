@@ -2,7 +2,8 @@
  * @feature COMP-01 Composer
  * Owns: The layout methods TipTap and ProseMirror read when the editor scrolls the caret into view.
  * Behaviour: test support only.
- * Must handle: importing this file twice is harmless; it never replaces a method jsdom has.
+ * Must handle: importing this file twice is harmless; it never replaces a method jsdom has; a
+ * file that runs without a DOM (node environment) has no Range or Text, so nothing here throws.
  * Test first: not applicable.
  *
  * jsdom has no layout: Range and text nodes have no getClientRects or getBoundingClientRect.
@@ -25,21 +26,25 @@ const zeroRectList = (): DOMRectList => {
 	return Object.assign(rects, { item: (index: number) => rects[index] ?? null });
 };
 
-const range = Range.prototype;
-if (typeof range.getClientRects !== "function") {
-	range.getClientRects = zeroRectList;
-}
-if (typeof range.getBoundingClientRect !== "function") {
-	range.getBoundingClientRect = zeroRect;
+if (typeof Range !== "undefined") {
+	const range = Range.prototype;
+	if (typeof range.getClientRects !== "function") {
+		range.getClientRects = zeroRectList;
+	}
+	if (typeof range.getBoundingClientRect !== "function") {
+		range.getBoundingClientRect = zeroRect;
+	}
 }
 
-const text = Text.prototype as unknown as {
-	getClientRects?: () => DOMRectList;
-	getBoundingClientRect?: () => DOMRect;
-};
-if (typeof text.getClientRects !== "function") {
-	text.getClientRects = zeroRectList;
-}
-if (typeof text.getBoundingClientRect !== "function") {
-	text.getBoundingClientRect = zeroRect;
+if (typeof Text !== "undefined") {
+	const text = Text.prototype as unknown as {
+		getClientRects?: () => DOMRectList;
+		getBoundingClientRect?: () => DOMRect;
+	};
+	if (typeof text.getClientRects !== "function") {
+		text.getClientRects = zeroRectList;
+	}
+	if (typeof text.getBoundingClientRect !== "function") {
+		text.getBoundingClientRect = zeroRect;
+	}
 }

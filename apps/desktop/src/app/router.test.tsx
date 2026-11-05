@@ -122,7 +122,7 @@ describe("routes", () => {
 
 	it("shows a designed screen for an unknown address", async () => {
 		await openApp("/nowhere");
-		expect(await screen.findByRole("heading", { name: "That page does not exist" })).toBeTruthy();
+		expect(await screen.findByRole("heading", { name: "Not Found" })).toBeTruthy();
 		expect(screen.getByRole("link", { name: "Go to Home" }).getAttribute("href")).toBe(
 			"/all-workspaces",
 		);

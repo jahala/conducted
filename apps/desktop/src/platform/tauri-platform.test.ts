@@ -441,8 +441,8 @@ describe("PLAT-02 Tauri database", () => {
 		});
 		let selects = 0;
 		const raw = fakeSql({
-			execute: async () => {
-				value = 2;
+			execute: async (sql) => {
+				if (sql.startsWith("INSERT")) value = 2;
 				return { rowsAffected: 1 };
 			},
 			select: async <Rows>(): Promise<Rows> => {

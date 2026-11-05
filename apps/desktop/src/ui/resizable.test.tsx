@@ -90,20 +90,28 @@ describe("NAV-01 resizable panels", () => {
 	it("writes a group's layout to the store after the library changes it", () => {
 		const save = vi.fn();
 		const groupRef = createRef<GroupImperativeHandle>();
+		// jsdom has no layout, so every panel measures zero and the library defers the group's layout
+		// until it has a size (react-resizable-panels' defaultLayoutDeferred). Give the panels the
+		// height a mounted group has, so this test exercises the library's real layout change path.
+		const height = vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(600);
 
-		render(
-			<PanelLayoutProvider store={{ load: () => null, save }}>
-				<ResizableGroup id="workspace-right-panels-w1" groupRef={groupRef} orientation="vertical">
-					<ResizablePanel id="left">left</ResizablePanel>
-					<ResizeHandle />
-					<ResizablePanel id="right">right</ResizablePanel>
-				</ResizableGroup>
-			</PanelLayoutProvider>,
-		);
+		try {
+			render(
+				<PanelLayoutProvider store={{ load: () => null, save }}>
+					<ResizableGroup id="workspace-right-panels-w1" groupRef={groupRef} orientation="vertical">
+						<ResizablePanel id="left">left</ResizablePanel>
+						<ResizeHandle />
+						<ResizablePanel id="right">right</ResizablePanel>
+					</ResizableGroup>
+				</PanelLayoutProvider>,
+			);
 
-		act(() => {
-			groupRef.current?.setLayout({ left: 40, right: 60 });
-		});
+			act(() => {
+				groupRef.current?.setLayout({ left: 40, right: 60 });
+			});
+		} finally {
+			height.mockRestore();
+		}
 
 		expect(save).toHaveBeenCalledWith("workspace-right-panels-w1", { left: 40, right: 60 });
 	});
