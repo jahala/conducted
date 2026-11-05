@@ -11,6 +11,7 @@
  * Test first: formatQuestionAnswers for one multi-select question with two answers lists the
  * question and both answers on indented lines under item 1.
  */
+import type { AppError } from "@conducted/shared";
 import type { DiffCommentView } from "./types.ts";
 
 export function formatQuestionAnswers(
@@ -35,6 +36,15 @@ export function formatQuestionAnswers(
 
 export const QUESTION_WITHDRAWN_TEXT =
 	"The user dismissed the question. Carry on without it, or ask again later if it still matters.";
+
+/** Why a question failed, whether asking again helps, and what the agent should do next. */
+export function formatQuestionFailure(error: AppError): string {
+	const retry = error.code !== "no_session_callbacks";
+	const action = retry
+		? "Call AskUserQuestion once more if the question is still relevant."
+		: "Continue without the answer.";
+	return `AskUserQuestion failed: ${error.message} (${error.code}).\nRetry: ${retry ? "yes" : "no"}.\n${action}`;
+}
 
 export function formatDiffComments(comments: readonly DiffCommentView[]): string {
 	if (comments.length === 0) return "There are no review comments on the diff.";

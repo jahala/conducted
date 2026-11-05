@@ -13,7 +13,6 @@
  * answers "Progress cleared."
  */
 import { zProgress } from "@conducted/protocol";
-import { notImplemented } from "@conducted/shared";
 import type { z } from "zod";
 import type { ToolContext, ToolDefinition, ToolResult } from "./types.ts";
 
@@ -33,10 +32,17 @@ export const updateProgressTool: ToolDefinition<typeof updateProgressShape> = {
 	idempotent: true,
 	alwaysLoad: true,
 	enabledBy: "progressUpdates",
-	execute(
-		_args: z.infer<z.ZodObject<typeof updateProgressShape>>,
-		_context: ToolContext,
+	async execute(
+		args: z.infer<z.ZodObject<typeof updateProgressShape>>,
+		context: ToolContext,
 	): Promise<ToolResult> {
-		return notImplemented("SIDE-12");
+		context.backend.updateProgress(context.sessionId, {
+			title: args.title,
+			blocks: args.blocks,
+		});
+		return {
+			text: args.blocks.length === 0 ? "Progress cleared." : "Progress updated.",
+			isError: false,
+		};
 	},
 };

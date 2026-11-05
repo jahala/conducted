@@ -11,9 +11,11 @@
  * name, and a branch the agent has not fetched yet (the message says to run git fetch).
  * Test first: execute() with "origin/main" returns an error result that asks for "main".
  */
-import { notImplemented } from "@conducted/shared";
 import { z } from "zod";
 import type { ToolContext, ToolDefinition, ToolResult } from "./types.ts";
+
+/** The prefix the agent is asked to leave off, and what to pass instead. */
+const ORIGIN_PREFIX = "origin/";
 
 export const setTargetBranchShape = {
 	branch: z.string().min(1).describe("The branch name on origin, without the 'origin/' prefix."),
@@ -27,10 +29,19 @@ export const setTargetBranchTool: ToolDefinition<typeof setTargetBranchShape> = 
 	readOnly: false,
 	idempotent: true,
 	enabledBy: "setTargetBranch",
-	execute(
-		_args: z.infer<z.ZodObject<typeof setTargetBranchShape>>,
-		_context: ToolContext,
+	async execute(
+		args: z.infer<z.ZodObject<typeof setTargetBranchShape>>,
+		context: ToolContext,
 	): Promise<ToolResult> {
-		return notImplemented("SIDE-12");
+		if (args.branch.startsWith(ORIGIN_PREFIX)) {
+			const branch = args.branch.slice(ORIGIN_PREFIX.length);
+			return {
+				text: `Pass the branch name without the "${ORIGIN_PREFIX}" prefix, for example "${branch}".`,
+				isError: true,
+			};
+		}
+		const result = await context.backend.setTargetBranch(context.sessionId, args.branch);
+		if (!result.ok) return { text: result.error.message, isError: true };
+		return { text: result.value.message, isError: !result.value.ok };
 	},
 };
