@@ -1,6 +1,14 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { type ContractHarness, PLATFORM_CONTRACT_CASES, runPlatformContract } from "./contract.ts";
+import {
+	CASE_METHODS,
+	type ContractHarness,
+	HANDLE_METHODS,
+	methodsWithoutCoverage,
+	PLATFORM_CONTRACT_CASES,
+	runPlatformContract,
+	UNCOVERED_METHODS,
+} from "./contract.ts";
 import { createMemoryPlatform } from "./memory.ts";
 import type { Database, Platform } from "./platform.ts";
 
@@ -87,5 +95,93 @@ describe("PLAT-01 platform contract coverage", () => {
 		for (const controlsCase of controlsCases) {
 			expect(skipped.some((name) => name.startsWith(`${controlsCase.id}:`))).toBe(true);
 		}
+	});
+});
+
+function memoryPlatform(): Platform {
+	let idCounter = 0;
+	return createMemoryPlatform({
+		clock: { now: () => 0 },
+		ids: { uuid: () => `id-${++idCounter}` },
+		database: unusedDatabase,
+	}).platform;
+}
+
+const methodsOf = (platform: Platform): string[] =>
+	Object.entries(platform).flatMap(([group, value]) =>
+		Object.entries(value as object)
+			.filter(([, member]) => typeof member === "function")
+			.map(([name]) => `${group}.${name}`),
+	);
+
+describe("PLAT-01 platform contract method coverage", () => {
+	it("names every Platform method in a case or in the uncovered list", () => {
+		const all = [...methodsOf(memoryPlatform()), ...HANDLE_METHODS];
+		expect(methodsWithoutCoverage(all)).toEqual([]);
+	});
+
+	it("flags a method that has neither a case nor a reason", () => {
+		const all = ["fs.readText", "fs.invented", "pty.handle.invented"];
+		expect(
+			methodsWithoutCoverage(all, { "fs.read": ["fs.readText"] }, { "pty.handle.invented": "x" }),
+		).toEqual(["fs.invented"]);
+	});
+
+	it("lists no method that a case already covers, and none that does not exist", () => {
+		const all = new Set([...methodsOf(memoryPlatform()), ...HANDLE_METHODS]);
+		const covered = new Set(Object.values(CASE_METHODS).flat());
+		expect(Object.keys(UNCOVERED_METHODS).filter((method) => covered.has(method))).toEqual([]);
+		expect(Object.keys(UNCOVERED_METHODS).filter((method) => !all.has(method))).toEqual([]);
+		expect([...covered].filter((method) => !all.has(method))).toEqual([]);
+	});
+
+	it("has a method list for every case and a case for every method list", () => {
+		const ids = PLATFORM_CONTRACT_CASES.map((testCase) => testCase.id).sort();
+		expect(Object.keys(CASE_METHODS).sort()).toEqual(ids);
+	});
+
+	it("lists the methods of the handles that spawn, start and download return", async () => {
+		const platform = memoryPlatform();
+		const pty = await platform.pty.spawn({ cwd: "/", cols: 80, rows: 24 });
+		if (!pty.ok) throw new Error(pty.error.message);
+		const running = platform.shell.start({ program: "/bin/true", args: [], cwd: "/" });
+		const download = platform.http.download({
+			url: "https://example.invalid/x",
+			destinationPath: "/x",
+		});
+		const listed = HANDLE_METHODS.map((name) => name.split(".").slice(-1)[0]).sort();
+		const actual = [
+			...Object.keys(pty.value).filter((key) => typeof (pty.value as never)[key] === "function"),
+			...Object.keys(running).filter((key) => typeof (running as never)[key] === "function"),
+			...Object.keys(download).filter((key) => typeof (download as never)[key] === "function"),
+		].sort();
+		expect(listed).toEqual(actual);
+	});
+
+	it("fails a case that did not call a method it names", async () => {
+		const failures: string[] = [];
+		const bodies: (() => Promise<void>)[] = [];
+		const harness: ContractHarness = {
+			describe: (_name, body) => {
+				body();
+			},
+			it: (name, body) => {
+				if (name.startsWith("app.version:")) bodies.push(body);
+			},
+			assert: (condition, message) => {
+				if (!condition) failures.push(message);
+			},
+		};
+		runPlatformContract(
+			harness,
+			"memory",
+			async () => ({ platform: memoryPlatform(), root: "/root", cleanup: async () => {} }),
+			{ controls: true, methods: { "app.version": ["app.health"] } },
+		);
+		expect(bodies).toHaveLength(1);
+		await bodies[0]?.();
+		expect(failures).toEqual([
+			"app.version did not call app.health, which CASE_METHODS says it does",
+		]);
 	});
 });

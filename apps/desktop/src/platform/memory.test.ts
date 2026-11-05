@@ -1,66 +1,20 @@
 // @vitest-environment node
 import { DatabaseSync } from "node:sqlite";
+import { ok } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
-import { type ContractHarness, runPlatformContract } from "./contract.ts";
+import { vitestContractHarness } from "../test/contract-harness.ts";
+import { createNodeQueuedDatabase } from "../test/node-sql.ts";
+import { runPlatformContract } from "./contract.ts";
 import { createMemoryPlatform } from "./memory.ts";
-import type { Database } from "./platform.ts";
-
-const bind = (params: readonly unknown[] = []): Record<string, unknown> =>
-	Object.fromEntries(params.map((value, index) => [`$${index + 1}`, value]));
-
-/** A thin adapter over node:sqlite. The stand-in gets a real database, never a fake. */
-function createDatabase(db: DatabaseSync): Database {
-	let tail: Promise<unknown> = Promise.resolve();
-	const database: Database = {
-		execute: async (sql, params = []) => {
-			const result = db.prepare(sql).run(bind(params) as never);
-			return {
-				rowsAffected: Number(result.changes),
-				lastInsertId: Number(result.lastInsertRowid),
-			};
-		},
-		select: async <Row>(sql: string, params: readonly unknown[] = []) =>
-			db.prepare(sql).all(bind(params) as never) as unknown as Row[],
-		transaction: async <T>(work: (db: Database) => Promise<T>): Promise<T> => {
-			const run = async (): Promise<T> => {
-				db.exec("BEGIN IMMEDIATE");
-				try {
-					const value = await work(database);
-					db.exec("COMMIT");
-					return value;
-				} catch (error) {
-					db.exec("ROLLBACK");
-					throw error;
-				}
-			};
-			const result = tail.then(run, run);
-			tail = result.catch(() => undefined);
-			return result;
-		},
-	};
-	return database;
-}
-
-const harness: ContractHarness = {
-	describe: (name, body) => {
-		describe(name, body);
-	},
-	it: (name, body) => {
-		it(name, body);
-	},
-	skip: (name, reason) => {
-		it.skip(`${name} (${reason})`, () => {});
-	},
-	assert: (condition, message) => {
-		expect(condition, message).toBe(true);
-	},
-};
 
 let caseNumber = 0;
 let contractIdCounter = 0;
 
+const SCRIPTED_SHELL =
+	"the stand-in answers shell commands from a script and starts no process, so this case would read the script back; the Node-backed Tauri run starts real processes, and the stand-in's own pass-through is tested below";
+
 runPlatformContract(
-	harness,
+	vitestContractHarness,
 	"memory",
 	async () => {
 		caseNumber++;
@@ -71,7 +25,7 @@ runPlatformContract(
 			ids: {
 				uuid: () => `00000000-0000-4000-8000-${String(++contractIdCounter).padStart(12, "0")}`,
 			},
-			database: createDatabase(db),
+			database: createNodeQueuedDatabase(db),
 			version: "0.0.0-test",
 			channel: "dev",
 			home: `/memory/${caseNumber}/home`,
@@ -92,7 +46,16 @@ runPlatformContract(
 			},
 		};
 	},
-	{ controls: true },
+	{
+		controls: true,
+		skips: {
+			"shell.run-stdout": SCRIPTED_SHELL,
+			"shell.run-nonzero": SCRIPTED_SHELL,
+			"shell.run-cwd-env-stdin": SCRIPTED_SHELL,
+			"shell.run-timeout": SCRIPTED_SHELL,
+			"shell.no-shell-string": SCRIPTED_SHELL,
+		},
+	},
 );
 
 let nextId = 0;
@@ -103,7 +66,7 @@ function freshPlatform() {
 	const memory = createMemoryPlatform({
 		clock: { now: () => 42 },
 		ids: { uuid: () => `uuid-${++nextId}` },
-		database: createDatabase(db),
+		database: createNodeQueuedDatabase(db),
 	});
 	return { memory, db };
 }
@@ -119,6 +82,46 @@ describe("PLAT-01 in-memory Platform", () => {
 			});
 			expect(result.ok).toBe(false);
 			if (!result.ok) expect(result.error.code).toBe("shell_unscripted");
+		} finally {
+			db.close();
+		}
+	});
+
+	it("hands the script the command exactly as given and records it", async () => {
+		const { db, memory } = freshPlatform();
+		try {
+			const seen: unknown[] = [];
+			memory.controls.scriptShell((command) => {
+				seen.push(command);
+				return ok({ exitCode: 0, stdout: "", stderr: "" });
+			});
+			const command = {
+				program: "/bin/echo",
+				args: ["two words", "$HOME", "'quoted'"],
+				cwd: "/work",
+				env: { A: "1" },
+				stdin: "in\n",
+				timeoutMs: 30,
+			};
+			await memory.platform.shell.run(command);
+			expect(seen).toEqual([command]);
+			expect(memory.controls.shellCalls).toEqual([command]);
+		} finally {
+			db.close();
+		}
+	});
+
+	it("tries the newest script first and falls back to older ones", async () => {
+		const { db, memory } = freshPlatform();
+		try {
+			memory.controls.scriptShell(() => ok({ exitCode: 0, stdout: "older", stderr: "" }));
+			memory.controls.scriptShell((command) =>
+				command.program === "/bin/echo" ? ok({ exitCode: 0, stdout: "newer", stderr: "" }) : null,
+			);
+			const echo = await memory.platform.shell.run({ program: "/bin/echo", args: [], cwd: "/" });
+			const other = await memory.platform.shell.run({ program: "/bin/ls", args: [], cwd: "/" });
+			expect(echo.ok && echo.value.stdout).toBe("newer");
+			expect(other.ok && other.value.stdout).toBe("older");
 		} finally {
 			db.close();
 		}

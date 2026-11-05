@@ -58,7 +58,7 @@ Rules every test follows:
 - **Fakes behave like the real thing.** An id source hands out a new id on every call, never a constant. The night's most repeated test bug was a fake that gave every turn the same id.
 - **Screens are tested over the real container.** Use `createTestContainer` from `apps/desktop/src/test/container.ts`, and `seedRepo` and `seedWorkspace` to put data in it, instead of a hand-built object cast to `Container`. Tests that need a real database use `openTestDatabase` from `apps/desktop/src/test/sqlite.ts`.
 - **jsdom has no layout.** `apps/desktop/src/test/setup.ts` adds the layout methods editors call (`getClientRects` and the like). Do not stub them per test.
-- **Stand-ins are checked against the real thing.** The in-memory Platform passes the same contract test as the Tauri Platform (PLAT-01).
+- **Stand-ins are checked against the real thing.** The in-memory Platform and `createTauriPlatform` over Node-backed bindings (`src/test/tauri-node-bindings.ts`) pass the same contract cases (PLAT-01). Each run lists the cases it cannot run, with a reason, and every Platform method is named by a case or listed as uncovered. `openTestDatabase` runs the app's own statement queue (`platform/queued-database.ts`), so a statement that waits on its own transaction hangs in a test as it does in the app.
 - **Wait for the event, never a fixed time.** A timeout catches a hang; it is not a way to wait.
 - **Time and ids are inputs.** Pass a `Clock` and an `IdSource`.
 - **No shared fixed resources.** No fixed ports, names or paths. Temporary folders come from the run's own folder (see below).
