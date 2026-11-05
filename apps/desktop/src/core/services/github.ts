@@ -1,8 +1,8 @@
 /**
  * @feature PR-01 GitHub service: access, health, merge and the personal access token
  * Owns: probing `gh` access (`gh auth status`, the user's login, the git protocol), the access
- * health store, reading and writing the personal access token, and merging a workspace's pull
- * request.
+ * health store, reading and writing the personal access token, merging a workspace's pull
+ * request, and moving an open pull request's base when the target branch changes (GIT-08).
  * Behaviour: services-map.md 3.9 (auth probes, method resolution, health), 5B.1.11 (failure
  * classes; only unauthorized breaks access), 5B.1.7 (merge method and dedupe), ui-map.md 6
  * (Account: GitHub through the `gh` CLI or a personal access token).
@@ -16,7 +16,7 @@
  * access state.
  * Our design choice: access is the user's own `gh auth login`, or the personal access token the
  * user saved on the Account page (D029). The token is kept in the Keychain and given to `gh` as
- * GH_TOKEN; nothing is brokered per session. Polling, the other write actions and the stack
+ * GH_TOKEN; nothing is brokered per session. Polling, the remaining write actions and the stack
  * catch-up belong to other features (PR-03, PR-05, PR-06, PR-08, PR-10, PR-12).
  * Test first: two merge calls at once send one `gh pr merge`.
  */
@@ -39,7 +39,9 @@ import {
 	configGetGitProtocol,
 	type MergeMethod,
 	prCreateWeb,
+	prEdit,
 	prMerge,
+	prViewState,
 	repoMergeMethodsQuery,
 } from "../git/gh-commands.ts";
 import { failedCommandError, type GitRunner, isSuccessfulExit } from "../git/runner.ts";
@@ -718,6 +720,43 @@ export class GithubService {
 		_body: string,
 	): Promise<Result<void>> {
 		return notImplemented("PR-06");
+	}
+
+	/**
+	 * GIT-08: moves the base of the workspace's open pull request. Returns false when there is no
+	 * open pull request, so the caller can fall back to the local fetch and reset.
+	 */
+	async moveOpenPullRequestBase(
+		workspaceId: WorkspaceId,
+		branch: string,
+	): Promise<Result<boolean>> {
+		const context = await this.#deps.contextOf(workspaceId);
+		if (!context.ok) return err(context.error);
+		const found = context.value;
+		if (found.prNumber === null) return ok(false);
+
+		const settings = await this.#ghSettings();
+		if (!settings.ok) return err(settings.error);
+		const runOptions = this.#runOptions(settings.value, found.workspacePath);
+
+		const state = prViewState(found.prNumber);
+		const stateResult = await this.#deps.git.run(state, runOptions);
+		if (!stateResult.ok) return err(stateResult.error);
+		await this.recordGhResult(stateResult.value);
+		if (!isSuccessfulExit(state, stateResult.value.exitCode)) {
+			return err(failedCommandError(state, stateResult.value));
+		}
+		const current = stateResult.value.stdout.trim().replace(/^"|"$/g, "");
+		if (current !== "OPEN") return ok(false);
+
+		const command = prEdit(found.prNumber, { base: branch });
+		const edited = await this.#deps.git.run(command, runOptions);
+		if (!edited.ok) return err(edited.error);
+		await this.recordGhResult(edited.value);
+		if (!isSuccessfulExit(command, edited.value.exitCode)) {
+			return err(failedCommandError(command, edited.value));
+		}
+		return ok(true);
 	}
 
 	/** Runs `gh stack sync` for a stacked branch. */

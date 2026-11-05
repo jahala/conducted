@@ -120,6 +120,8 @@ const makeService = (fs: ReturnType<typeof fakeFs>["fs"]): GitService =>
 		agent: {} as never,
 		now: () => 0,
 		fs,
+		setIntendedTargetBranch: async () => ok(undefined),
+		moveOpenPullRequestBase: async () => ok(false),
 	});
 
 describe("REV-02 viewed files", () => {

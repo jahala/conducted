@@ -124,7 +124,12 @@ export function createSidecarRequestHandlers(ports: SidecarHandlerPorts): Sideca
 		getDiffComments: () => notImplemented("REV-03"),
 		addDiffComments: () => notImplemented("REV-03"),
 		getTerminalOutput: () => notImplemented("RUN-07"),
-		setTargetBranch: () => notImplemented("GIT-08"),
+		setTargetBranch: async (params) => {
+			const result = await ports.targetBranch.setForSession(params.sessionId, params.branch);
+			return result.ok
+				? { ok: true, message: `The target branch is now ${params.branch}.` }
+				: { ok: false, message: result.error.message };
+		},
 	};
 }
 

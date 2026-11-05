@@ -112,6 +112,8 @@ function makeService(
 			stat: async () => err(appError("fs_not_found", "missing")),
 			paths: { home: "", appData: "", temp: "", resources: "" },
 		},
+		setIntendedTargetBranch: async () => ok(undefined),
+		moveOpenPullRequestBase: async () => ok(false),
 	});
 }
 
