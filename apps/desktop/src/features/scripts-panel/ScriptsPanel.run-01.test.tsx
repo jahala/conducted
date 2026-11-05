@@ -67,6 +67,10 @@ async function setup(runScripts: RunAction[] = [dev]): Promise<{
 		runScripts,
 	});
 	if (!updated.ok) throw new Error(updated.error.message);
+	// The Setup tab reads the workspace's chats, which the app loads when the sessions service
+	// starts; the panel waits on "Loading setup" until it has.
+	const started = await test.container.services.sessions.start();
+	if (!started.ok) throw new Error(started.error.message);
 	// A new workspace is still initializing, and the panel then opens on Setup. These cases start from a
 	// workspace that finished setting up.
 	test.container.services.workspace.store.setState((state) => ({
