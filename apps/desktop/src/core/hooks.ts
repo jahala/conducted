@@ -56,15 +56,70 @@
  * Test first: useActions returns the action table of the container it is given. The test for a
  * hook body lives with the feature that implements it (for example NAV-03 for useWorkspaces).
  */
-import { notImplemented } from "@conducted/shared";
+import { idleLiveState } from "@conducted/protocol";
+import { notImplemented, type WorkspaceId } from "@conducted/shared";
+import { useMemo } from "react";
+import { useStore } from "zustand";
 import type { Actions, Queries } from "./api.ts";
 import { useServices } from "./context.tsx";
+import type { SessionsState } from "./services/sessions.ts";
+import { deriveWorkspaceStatus } from "./status/workspace-status.ts";
+
+/**
+ * A stable summary of the chat facts that change a workspace's status. Subscribing to this string
+ * avoids re-rendering a sidebar row for every streamed event that cannot change the status.
+ */
+function chatsSignature(state: SessionsState, workspaceId: WorkspaceId): string {
+	const ids = state.byWorkspace[workspaceId];
+	if (ids === undefined) return "";
+	return ids
+		.map((id) => {
+			const session = state.sessions[id];
+			const live = state.liveStates[id];
+			return [
+				id,
+				session?.closedAt == null ? "0" : "1",
+				state.cancelling[id] === true ? "1" : "0",
+				live?.status ?? "",
+				live?.openInteraction?.interaction.kind ?? "",
+				live?.backgroundTasks.length ?? 0,
+			].join(":");
+		})
+		.join("|");
+}
 
 export const useRepos: Queries["useRepos"] = () => notImplemented("PRJ-01");
 export const useRepoConfig: Queries["useRepoConfig"] = () => notImplemented("PRJ-04");
 export const useWorkspaces: Queries["useWorkspaces"] = () => notImplemented("NAV-03");
 export const useWorkspace: Queries["useWorkspace"] = () => notImplemented("WS-01");
-export const useWorkspaceStatus: Queries["useWorkspaceStatus"] = () => notImplemented("WS-09");
+
+export const useWorkspaceStatus: Queries["useWorkspaceStatus"] = (workspaceId) => {
+	const container = useServices();
+	const { workspace, sessions: sessionService, git, github } = container.services;
+	const state = useStore(workspace.store, (s) => s.workspacesById[workspaceId]?.state);
+	const settingUp = useStore(workspace.store, (s) => s.setup[workspaceId] === "running");
+	const chatsKey = useStore(sessionService.store, (s) => chatsSignature(s, workspaceId));
+	const gitEntry = useStore(git.store, (s) => s.byWorkspace[workspaceId]);
+	const prEntry = useStore(github.store, (s) => s.byWorkspace[workspaceId]);
+
+	// chatsKey, gitEntry and prEntry are dependencies: they re-run this when the stores change.
+	return useMemo(() => {
+		if (state === undefined) return null;
+		const sessions = sessionService.store.getState();
+		const chats = (sessions.byWorkspace[workspaceId] ?? []).map((id) => ({
+			liveState: sessions.liveStates[id] ?? idleLiveState,
+			cancelling: sessions.cancelling[id] === true,
+			closed: sessions.sessions[id]?.closedAt != null,
+		}));
+		return deriveWorkspaceStatus({
+			state,
+			settingUp,
+			chats,
+			git: git.stateOf(workspaceId),
+		});
+	}, [workspaceId, state, settingUp, chatsKey, gitEntry, prEntry, sessionService, git]);
+};
+
 export const useSections: Queries["useSections"] = () => notImplemented("NAV-04");
 export const useSessions: Queries["useSessions"] = () => notImplemented("CHAT-01");
 export const useChat: Queries["useChat"] = () => notImplemented("CHAT-07");
