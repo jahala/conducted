@@ -1,0 +1,188 @@
+import { describe, expect, test } from "bun:test";
+import {
+	appToSidecarNotifications,
+	appToSidecarRequests,
+	type ModelInfo,
+} from "@conducted/protocol";
+import { appError, type EventId, err, ok, type SessionId } from "@conducted/shared";
+import { buildHandlers, type HandlerDeps } from "./handlers.ts";
+
+const model: ModelInfo = {
+	id: "claude-sonnet",
+	label: "Sonnet",
+	status: "picker",
+	isNew: false,
+	isDefault: true,
+	efforts: [],
+	defaultEffort: "medium",
+	effortAxis: "effort",
+	liveEffortChange: false,
+	supportsFastMode: false,
+};
+
+function deps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
+	return {
+		sessions: {
+			sendMessage: async () => ({ deliveredAs: "new_turn" }),
+			cancel: async () => ({ wasWorking: false, droppedMessageIds: [] }),
+			warmAgent: async () => ({}),
+			resetAgent: async () => ({}),
+			updateConfig: async () => ({ applied: "live" }),
+			getSessionStatus: async () => ({ known: true }),
+			answerInteraction: async () => ({ accepted: true, superseded: false }),
+			liveStateOf: () => undefined,
+			onAppAttached: () => {},
+			shutdown: async () => {},
+		},
+		outbox: {
+			open: async () => ok([]),
+			append: async () => ok([]),
+			acknowledge: async () => ok(undefined),
+			pending: () => [],
+			sessionsWithPending: () => [],
+			sweepIdle: async () => ok(0),
+		},
+		models: {
+			list: async () => ok([model]),
+			validate: async () => ok(model),
+			invalidate: () => {},
+		},
+		agents: {
+			detectAll: async () => [{ agent: "claude", installed: true }],
+			startLogin: async () => ok({ loginId: "login-1", instructions: "Sign in" }),
+			finishLogin: async () => ok({ outcome: "signed_in" as const }),
+			cancelLogin: async () => ok(undefined),
+		},
+		slashCommands: { list: async () => ok([]) },
+		mcpServers: { list: async () => ok([]) },
+		usage: {
+			contextUsage: async () => ok({ usedTokens: 1, windowTokens: 2, rateLimits: [] }),
+		},
+		shellEnv: {
+			get: async () => ok({ shell: "/bin/zsh", path: "/usr/bin", env: {} }),
+			refresh: async () => ok({ shell: "/bin/zsh", path: "/usr/bin", env: {} }),
+		},
+		setLogLevel: () => {},
+		...overrides,
+	};
+}
+
+describe("SIDE-02 handler tables", () => {
+	test("SIDE-02 the request and notification keys equal the protocol tables", () => {
+		const handlers = buildHandlers(deps());
+		expect(Object.keys(handlers.requests).sort()).toEqual(Object.keys(appToSidecarRequests).sort());
+		expect(Object.keys(handlers.notifications).sort()).toEqual(
+			Object.keys(appToSidecarNotifications).sort(),
+		);
+	});
+});
+
+describe("SIDE-02 handler wiring", () => {
+	test("SIDE-02 listModels is answered by the model catalog", async () => {
+		const handlers = buildHandlers(deps());
+		await expect(handlers.requests.listModels({ agent: "claude" })).resolves.toEqual(
+			ok({ models: [model] }),
+		);
+	});
+
+	test("SIDE-02 listModels forwards the agent and its ACP provider to the catalog", async () => {
+		const asked: { agent: string; acpAgent?: string }[] = [];
+		const handlers = buildHandlers(
+			deps({
+				models: {
+					list: async (agent, acpAgent) => {
+						asked.push({ agent, acpAgent });
+						return ok([]);
+					},
+					validate: async () => err(appError("model_unknown", "missing")),
+					invalidate: () => {},
+				},
+			}),
+		);
+		await handlers.requests.listModels({ agent: "acp", acpAgent: "opencode" });
+		expect(asked).toEqual([{ agent: "acp", acpAgent: "opencode" }]);
+	});
+
+	test("SIDE-02 listModels keeps agent_not_installed as an error value", async () => {
+		const handlers = buildHandlers(
+			deps({
+				models: {
+					list: async () => err(appError("agent_not_installed", "codex is missing")),
+					validate: async () => err(appError("agent_not_installed", "codex is missing")),
+					invalidate: () => {},
+				},
+			}),
+		);
+		const listed = await handlers.requests.listModels({ agent: "codex" });
+		expect("ok" in listed && listed.ok === false).toBe(true);
+		if ("ok" in listed && listed.ok === false) {
+			expect(listed.error.code).toBe("agent_not_installed");
+		}
+	});
+
+	test("SIDE-02 a session request is passed to the session manager", async () => {
+		const calls: string[] = [];
+		const handlers = buildHandlers(
+			deps({
+				sessions: {
+					...deps().sessions,
+					cancel: async (params) => {
+						calls.push(params.sessionId);
+						return { wasWorking: true, droppedMessageIds: [] };
+					},
+				},
+			}),
+		);
+		await expect(
+			handlers.requests.cancel({ sessionId: "session-1" as SessionId }),
+		).resolves.toEqual({
+			wasWorking: true,
+			droppedMessageIds: [],
+		});
+		expect(calls).toEqual(["session-1"]);
+	});
+
+	test("SIDE-02 eventPersisted acknowledges the event in the outbox", async () => {
+		const acknowledged: string[] = [];
+		const handlers = buildHandlers(
+			deps({
+				outbox: {
+					...deps().outbox,
+					acknowledge: async (sessionId, eventId) => {
+						acknowledged.push(`${sessionId}:${eventId}`);
+						return ok(undefined);
+					},
+				},
+			}),
+		);
+		await handlers.notifications.eventPersisted({
+			sessionId: "session-1" as SessionId,
+			eventId: "event-1" as EventId,
+		});
+		expect(acknowledged).toEqual(["session-1:event-1"]);
+	});
+
+	test("SIDE-02 setLogLevel changes the root logger", async () => {
+		const levels: string[] = [];
+		const handlers = buildHandlers(deps({ setLogLevel: (level) => levels.push(level) }));
+		await handlers.notifications.setLogLevel({ level: "debug" });
+		expect(levels).toEqual(["debug"]);
+	});
+
+	test("SIDE-02 getShellEnv returns the captured shell and path", async () => {
+		const handlers = buildHandlers(deps());
+		await expect(handlers.requests.getShellEnv({ workspacePath: "/work/app" })).resolves.toEqual(
+			ok({ shell: "/bin/zsh", path: "/usr/bin" }),
+		);
+	});
+
+	test("SIDE-02 a method owned by another feature answers not implemented", async () => {
+		const handlers = buildHandlers(deps());
+		await expect(
+			handlers.requests.compact({ sessionId: "session-1" as SessionId }),
+		).rejects.toMatchObject({
+			name: "NotImplemented",
+			featureId: "AGENT-14",
+		});
+	});
+});
