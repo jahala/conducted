@@ -1528,7 +1528,7 @@ mod tests {
 
     #[test]
     fn plat_09_shutdown_stops_a_running_sidecar() {
-        let child = Command::new("sleep")
+        let mut child = Command::new("sleep")
             .arg("30")
             .process_group(0)
             .spawn()
