@@ -58,7 +58,7 @@
  */
 import { idleLiveState } from "@conducted/protocol";
 import { notImplemented, type WorkspaceId } from "@conducted/shared";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useStore } from "zustand";
 import type { Actions, Queries } from "./api.ts";
 import { useServices } from "./context.tsx";
@@ -129,7 +129,17 @@ export const useChangedFiles: Queries["useChangedFiles"] = () => notImplemented(
 export const useFileDiff: Queries["useFileDiff"] = () => notImplemented("REV-02");
 export const useFileTree: Queries["useFileTree"] = () => notImplemented("REV-06");
 export const useDiffComments: Queries["useDiffComments"] = () => notImplemented("REV-03");
-export const useTerminals: Queries["useTerminals"] = () => notImplemented("RUN-06");
+export const useTerminals: Queries["useTerminals"] = (workspaceId) => {
+	const service = useServices().services.terminals;
+	const terminals = useStore(service.store, (state) => state.byWorkspace[workspaceId]);
+	const error = useStore(service.store, (state) => state.errors[`w:${workspaceId}`]);
+	useEffect(() => {
+		if (terminals === undefined) void service.loadWorkspace(workspaceId);
+	}, [service, workspaceId, terminals]);
+	if (error !== undefined) return { state: "error", error };
+	if (terminals === undefined) return { state: "loading" };
+	return { state: "ready", data: [...terminals] };
+};
 export const useRunState: Queries["useRunState"] = () => notImplemented("RUN-01");
 export const useSetting: Queries["useSetting"] = <T>(_key: string): T => notImplemented("SET-01");
 export const useAgentInstalls: Queries["useAgentInstalls"] = () => notImplemented("SET-03");
@@ -144,8 +154,14 @@ export const usePullRequestActivity: Queries["usePullRequestActivity"] = () =>
 	notImplemented("PR-07");
 export const useStack: Queries["useStack"] = () => notImplemented("PR-08");
 export const useFileContent: Queries["useFileContent"] = () => notImplemented("REV-08");
-export const useTerminalConnection: Queries["useTerminalConnection"] = () =>
-	notImplemented("RUN-06");
+export const useTerminalConnection: Queries["useTerminalConnection"] = (id) => {
+	const service = useServices().services.terminals;
+	const connection = useStore(service.store, (state) => state.connections[id]);
+	useEffect(() => {
+		if (connection === undefined) void service.ensureConnection(id);
+	}, [service, id, connection]);
+	return connection ?? { state: "loading" };
+};
 export const useSetupState: Queries["useSetupState"] = () => notImplemented("WS-03");
 export const useEnvVars: Queries["useEnvVars"] = () => notImplemented("SET-04");
 export const useGitHubAccess: Queries["useGitHubAccess"] = () => notImplemented("PR-01");
@@ -172,7 +188,17 @@ export const useGitHubOwners: Queries["useGitHubOwners"] = () => notImplemented(
 export const useGitHubRepos: Queries["useGitHubRepos"] = () => notImplemented("PRJ-02");
 export const useRepoNameCheck: Queries["useRepoNameCheck"] = () => notImplemented("PRJ-03");
 export const useLinearAccess: Queries["useLinearAccess"] = () => notImplemented("PR-09");
-export const useRepoTerminals: Queries["useRepoTerminals"] = () => notImplemented("RUN-06");
+export const useRepoTerminals: Queries["useRepoTerminals"] = (repoId) => {
+	const service = useServices().services.terminals;
+	const terminals = useStore(service.store, (state) => state.byRepo[repoId]);
+	const error = useStore(service.store, (state) => state.errors[`r:${repoId}`]);
+	useEffect(() => {
+		if (terminals === undefined) void service.loadRepo(repoId);
+	}, [service, repoId, terminals]);
+	if (error !== undefined) return { state: "error", error };
+	if (terminals === undefined) return { state: "loading" };
+	return { state: "ready", data: [...terminals] };
+};
 export const useSystemInfo: Queries["useSystemInfo"] = () => notImplemented("PLAT-32");
 export const useFullDiskAccess: Queries["useFullDiskAccess"] = () => notImplemented("PLAT-24");
 

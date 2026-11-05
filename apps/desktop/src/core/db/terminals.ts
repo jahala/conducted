@@ -140,7 +140,8 @@ export function createTerminalRepository(db: Database, deps: RepositoryDeps): Te
 	return {
 		listByWorkspace: (workspaceId) =>
 			list(TERMINALS_SQL.listByWorkspace, [workspaceId], "Listing terminals"),
-		listByRepo: async () => notImplemented("RUN-06"),
+		listByRepo: (repoId) =>
+			list(TERMINALS_SQL.listByRepo, [repoId], "Listing repository terminals"),
 		listActive: () => list(TERMINALS_SQL.listActive, [], "Listing open terminals"),
 		get: async (id) => {
 			const rows = await selectRows<TerminalRow>(db, TERMINALS_SQL.get, [id], "Reading a terminal");

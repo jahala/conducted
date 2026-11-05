@@ -266,6 +266,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		platform,
 		repos: repositories,
 		maxPerWorkspace: () => terminalLimit(setting<boolean>("experimental_tab_freak_mode")),
+		now: () => clock.now(),
 	});
 	const composer = new ComposerService({
 		platform,

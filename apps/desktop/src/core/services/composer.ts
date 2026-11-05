@@ -18,6 +18,7 @@
  */
 import {
 	notImplemented,
+	ok,
 	type Result,
 	type SessionId,
 	type SnippetId,
@@ -27,6 +28,7 @@ import {
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform } from "../../platform/platform.ts";
 import type { Draft, SnippetInput } from "../api.ts";
+import { draftAttachmentsDir } from "../app-paths.ts";
 import type { Repositories } from "../db/repositories.ts";
 import type { Attachment, Snippet } from "../model.ts";
 
@@ -108,6 +110,13 @@ export function classifyAttachment(fileName: string): AttachmentClass {
 /** True when pasted text is long enough to become an attachment instead of staying in the editor. */
 export const convertsToAttachment = (text: string): boolean =>
 	text.length > PASTE_ATTACHMENT_MIN_CHARS || text.split("\n").length > PASTE_ATTACHMENT_MIN_LINES;
+
+/** Keeps a file name inside the staging folder. A name without an extension gets `.txt`. */
+export function attachmentFileName(name: string): string {
+	const cleaned = name.replace(/[/\\]/g, "-").replace(/\.\./g, "-").trim();
+	const base = cleaned.length === 0 ? "terminal-selection" : cleaned;
+	return base.includes(".") ? base : `${base}.txt`;
+}
 
 export interface ComposerState {
 	/** Drafts loaded so far. A missing entry means "not loaded yet", not "empty". */
@@ -203,8 +212,47 @@ export class ComposerService {
 	}
 
 	/** Backs `Actions.attachments.addText`, for example a terminal selection. */
-	addText(_sessionId: SessionId, _fileName: string, _text: string): Promise<Result<string>> {
-		return notImplemented("RUN-06");
+	async addText(sessionId: SessionId, fileName: string, text: string): Promise<Result<string>> {
+		const name = attachmentFileName(fileName);
+		const fs = this.#deps.platform.fs;
+		const folder = draftAttachmentsDir(fs.paths, sessionId);
+		const made = await fs.mkdirp(folder);
+		if (!made.ok) return made;
+
+		let path = `${folder}/${name}`;
+		let suffix = 1;
+		while (await fs.exists(path)) {
+			const dot = name.lastIndexOf(".");
+			const stem = dot === -1 ? name : name.slice(0, dot);
+			const extension = dot === -1 ? "" : name.slice(dot);
+			path = `${folder}/${stem}-${suffix}${extension}`;
+			suffix += 1;
+		}
+
+		const written = await fs.writeTextAtomic(path, text);
+		if (!written.ok) return written;
+		const added = await this.#deps.repos.attachments.addDraft({
+			sessionId,
+			kind: "text",
+			originalName: name,
+			path,
+			commentId: null,
+		});
+		if (!added.ok) return added;
+
+		const draft = this.store.getState().drafts[sessionId];
+		if (draft !== undefined) {
+			this.store.setState((state) => ({
+				drafts: {
+					...state.drafts,
+					[sessionId]: {
+						...draft,
+						attachmentPaths: [...draft.attachmentPaths, path],
+					},
+				},
+			}));
+		}
+		return ok(path);
 	}
 
 	/** Backs `Actions.snippets.create`. A keyword another snippet uses is refused. */
