@@ -369,3 +369,9 @@ Found:
 - umbel #169: two opencode workers spawned at the same moment without a database lock, so there was no retry to see. #170: `prune --prefix --repo` removed 227 dead sessions of this repository and kept live ones. #168: `logs` prints `<timestamp> <event>`. But `read` fails on a finished pleach worker, because the export runs in the removed worktree (reported on #168).
   Chosen: slice 2 runs on the fixed tools. The night's workarounds stay where a fix is not proven: workers write their final message to a file, and the conductor merges conflicting nodes by hand when a land is refused.
   Why: what the trial proved is used, and what it did not prove keeps its workaround.
+
+## D051. Every slice ends with a hardening pass (2026-11-05)
+
+Context: the first slice's hardening found bugs that would have broken real use: the first message of every chat deadlocked, every installed agent showed as not installed, and no shortcut or menu worked because the dispatcher was never mounted. The batch audits during the build had not caught them, because each audit sees one batch, not how the parts work together. The owner asked to repeat the pass after slice 2.
+Chosen: when the last step of a slice merges, five fresh Sonnet workers harden the code by area, as after slice 1: Rust shell, sidecar, desktop core, desktop UI, tests and scripts. Besides the rules in docs/engineering.md, each judges whether the code is built at the right size: neither over-engineered (abstractions, options or layers nothing needs yet; a general solution where one case exists) nor under-engineered (missing error paths, missing limits, shortcuts that will not hold at real size). Each fixes what it finds in its area, in one PR per area, and lists the rest for its owners. The slice's report follows the hardening.
+Why: the foundation is checked after every slice, while what was just built is still small enough to change.
