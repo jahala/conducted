@@ -138,7 +138,12 @@ export function createSidecarRequestHandlers(ports: SidecarHandlerPorts): Sideca
 			if (result.ok) return result.value;
 			return { output: result.error.message, source: "", running: false };
 		},
-		setTargetBranch: () => notImplemented("GIT-08"),
+		setTargetBranch: async (params) => {
+			const result = await ports.targetBranch.setForSession(params.sessionId, params.branch);
+			return result.ok
+				? { ok: true, message: `The target branch is now ${params.branch}.` }
+				: { ok: false, message: result.error.message };
+		},
 	};
 }
 

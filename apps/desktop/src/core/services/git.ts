@@ -16,9 +16,11 @@
  * Also: GIT-13 decides when the pull request's base or head is newer than the local refs and
  * fetches it at most once a minute for one repository and branch.
  * Our design choice: this class exposes snapshots only. The Git header state machine and the
- * merge with pull request info belong to GIT-04, the git actions (push, pull, retarget, rename,
+ * merge with pull request info belong to GIT-04, the remaining git actions (push, pull, rename,
  * discard and the rest) belong to their own features, and the restart cache belongs to DATA-07.
- * Their placeholders stay here until those features build them.
+ * Their placeholders stay here until those features build them. Changing the target branch is here
+ * (GIT-08): it stores the intended branch, moves an open pull request's base, or fetches and
+ * resets a clean branch still at the old target.
  * Test first: a workspace watched at depth full runs its poll immediately and again once the
  * interval has passed.
  */
@@ -42,14 +44,19 @@ import {
 	catFileExists,
 	diffWorkingTree,
 	fetch,
+	fetchBranchRefspec,
 	mergeBase,
 	removeCached,
+	resetHard,
 	restoreFromSource,
 	restoreStaged,
+	revParse,
+	revParseHead,
 	revParseVerify,
 	showCommitNameStatus,
 	showCommitNumstat,
 	showRefVerify,
+	statusPorcelainAll,
 } from "../git/commands.ts";
 import { type ComparisonContext, resolveComparison } from "../git/diff.ts";
 import { checkpointRef, turnCheckpointId } from "../git/refs.ts";
@@ -65,8 +72,11 @@ import {
 	remoteTargetRef,
 } from "../git/status.ts";
 import type { GitState } from "../model.ts";
+import { commitAndPushInstruction } from "./agent-instructions.ts";
 import type { GitCache } from "./git-cache.ts";
+import type { WorkspacePrEntry } from "./github.ts";
 import type { AgentMessenger } from "./sessions.ts";
+import { isSafeRefName } from "./workspace.ts";
 
 const DEPTH_RANK: Readonly<Record<PollDepth, number>> = { metadata: 0, uncommitted: 1, full: 2 };
 
@@ -281,6 +291,23 @@ export interface GitServiceDeps {
 	now: () => number;
 	/** Moves a discarded new file to the Trash, and stores the viewed marks. */
 	fs: Pick<FileSystem, "trash" | "readText" | "writeTextAtomic" | "mkdirp" | "stat" | "paths">;
+	/** Stores the intended target branch and updates the loaded workspace row (GIT-08). */
+	setIntendedTargetBranch: (workspaceId: WorkspaceId, branch: string) => Promise<Result<void>>;
+	/** Moves an open pull request's base; false when there is no open pull request (GIT-08). */
+	moveOpenPullRequestBase: (workspaceId: WorkspaceId, branch: string) => Promise<Result<boolean>>;
+}
+
+/**
+ * A branch name that can be fetched and used as a pull request base: refs and a leading remote
+ * name are removed. The target as the user entered it is what the workspace stores.
+ */
+export function branchNameWithoutRemote(branch: string, remote: string): string {
+	const heads = /^refs\/heads\/(.+)$/.exec(branch);
+	if (heads?.[1] !== undefined) return heads[1];
+	const remotes = /^refs\/remotes\/[^/]+\/(.+)$/.exec(branch);
+	if (remotes?.[1] !== undefined) return remotes[1];
+	if (remote.length > 0 && branch.startsWith(`${remote}/`)) return branch.slice(remote.length + 1);
+	return branch;
 }
 
 /** One file's viewed mark, together with the version of the file it was made on. */
@@ -443,9 +470,33 @@ export class GitService {
 		}));
 	}
 
-	/** Backs `useGitState`: the snapshot merged with PR info from the GitHub service. */
-	stateOf(_workspaceId: WorkspaceId): GitState | null {
-		return notImplemented("GIT-04");
+	/**
+	 * Backs `useGitState`: the polled snapshot merged with the PR entry the caller read from the
+	 * GitHub service. Returns null until the first poll has stored a snapshot.
+	 */
+	stateOf(workspaceId: WorkspaceId, prEntry?: WorkspacePrEntry): GitState | null {
+		const snapshot = this.store.getState().byWorkspace[String(workspaceId)]?.snapshot ?? null;
+		if (snapshot === null) return null;
+		const changedFiles = snapshot.files.length;
+		return {
+			branch: snapshot.branch ?? "",
+			uncommittedFiles: changedFiles,
+			changedFiles,
+			linesAdded: snapshot.files.reduce((total, file) => total + file.linesAdded, 0),
+			linesRemoved: snapshot.files.reduce((total, file) => total + file.linesRemoved, 0),
+			hasConflicts: snapshot.conflictedPaths.length > 0,
+			operation: snapshot.operation,
+			sync: snapshot.sync,
+			pullRequest: prEntry?.pullRequest ?? null,
+			pullRequestUnavailable:
+				prEntry === undefined
+					? "loading"
+					: prEntry.unavailable === "no_pr"
+						? "none"
+						: prEntry.unavailable,
+			untrackedFilesTruncated: snapshot.untrackedTruncated,
+			pendingPullRequestAction: null,
+		};
 	}
 
 	/** Backs `useChangedFiles`. */
@@ -833,8 +884,18 @@ export class GitService {
 	}
 
 	/** Backs `Actions.git.commitAndPush`: sends the agent the commit instruction. */
-	commitAndPush(_workspaceId: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("GIT-05");
+	async commitAndPush(workspaceId: WorkspaceId): Promise<Result<void>> {
+		const context = await this.#deps.contextOf(workspaceId);
+		if (!context.ok) return context;
+		const found = context.value;
+		const text = commitAndPushInstruction({
+			remote: found.remote,
+			targetBranch: found.targetBranch,
+			branch: found.branch,
+			customPrompt: null,
+		});
+		const sent = await this.#deps.agent.sendInstruction(workspaceId, text);
+		return sent.ok ? ok(undefined) : sent;
 	}
 
 	/** Backs `Actions.git.pull`. Fast-forward when the tree is clean, otherwise asks the agent. */
@@ -852,9 +913,101 @@ export class GitService {
 		return notImplemented("GIT-07");
 	}
 
-	/** Backs `Actions.workspaces.setTargetBranch` and the `setTargetBranch` agent tool. */
-	setTargetBranch(_workspaceId: WorkspaceId, _branch: string): Promise<Result<void>> {
-		return notImplemented("GIT-08");
+	/**
+	 * Backs `Actions.workspaces.setTargetBranch`. Stores the chosen target, then moves an open pull
+	 * request's base. Without an open pull request it fetches the new target and resets the branch
+	 * only when the tree is clean and still at the old target (services-map 3.11).
+	 */
+	async setTargetBranch(workspaceId: WorkspaceId, branch: string): Promise<Result<void>> {
+		const found = await this.#deps.contextOf(workspaceId);
+		if (!found.ok) return found;
+		const context = found.value;
+		const requested = branch.trim();
+		if (!isSafeRefName(requested)) {
+			return err(
+				appError("workspace_branch_invalid", `"${requested}" can't be used as a Git branch name.`),
+			);
+		}
+
+		const stored = await this.#deps.setIntendedTargetBranch(workspaceId, requested);
+		if (!stored.ok) return stored;
+
+		const branchName = branchNameWithoutRemote(requested, context.remote);
+		const moved = await this.#deps.moveOpenPullRequestBase(workspaceId, branchName);
+		if (!moved.ok) return moved;
+		if (moved.value) return ok(undefined);
+
+		return this.#deps.git.withWorktreeAndRepoLocks(
+			context.workspacePath,
+			context.repoRootPath,
+			async (): Promise<Result<void>> => {
+				const fetched = await this.#deps.git.runChecked(
+					fetchBranchRefspec(context.remote, branchName),
+					{ cwd: context.workspacePath },
+				);
+				if (!fetched.ok) return fetched;
+
+				const clean = await this.#deps.git.stdout(statusPorcelainAll(), {
+					cwd: context.workspacePath,
+				});
+				if (!clean.ok) return clean;
+				if (clean.value.length > 0) return ok(undefined);
+
+				const oldTarget = context.targetBranch;
+				if (oldTarget.length === 0) return ok(undefined);
+				const oldRef = remoteTargetRef(oldTarget, context.remote);
+				const oldExists = await this.#refExists(context.workspacePath, oldRef);
+				if (!oldExists.ok) return oldExists;
+				if (!oldExists.value) return ok(undefined);
+
+				const [head, oldSha] = await Promise.all([
+					this.#deps.git.stdout(revParseHead(), { cwd: context.workspacePath }),
+					this.#deps.git.stdout(revParse(oldRef), { cwd: context.workspacePath }),
+				]);
+				if (!head.ok) return head;
+				if (!oldSha.ok) return oldSha;
+				if (head.value !== oldSha.value) return ok(undefined);
+
+				const newRef = remoteTargetRef(requested, context.remote);
+				const newExists = await this.#refExists(context.workspacePath, newRef);
+				if (!newExists.ok) return newExists;
+				if (!newExists.value) return ok(undefined);
+
+				const reset = await this.#deps.git.runChecked(resetHard(newRef), {
+					cwd: context.workspacePath,
+				});
+				return reset.ok ? ok(undefined) : reset;
+			},
+		);
+	}
+
+	/**
+	 * Backs the `setTargetBranch` agent tool: checks the branch is on the remote and stores it. It
+	 * does not rebase or change an open pull request (claude-runner.md 4.2, SIDE-12).
+	 */
+	async setTargetBranchFromAgent(workspaceId: WorkspaceId, branch: string): Promise<Result<void>> {
+		const found = await this.#deps.contextOf(workspaceId);
+		if (!found.ok) return found;
+		const context = found.value;
+		const requested = branch.trim();
+		if (!isSafeRefName(requested)) {
+			return err(
+				appError("workspace_branch_invalid", `"${requested}" can't be used as a Git branch name.`),
+			);
+		}
+		const branchName = branchNameWithoutRemote(requested, context.remote);
+		const ref = remoteTargetRef(branchName, context.remote);
+		const exists = await this.#refExists(context.workspacePath, ref);
+		if (!exists.ok) return exists;
+		if (!exists.value) {
+			return err(
+				appError(
+					"target_branch_missing",
+					`The branch "${branchName}" is not on ${context.remote}. Run git fetch ${context.remote} ${branchName} first.`,
+				),
+			);
+		}
+		return this.#deps.setIntendedTargetBranch(workspaceId, branchName);
 	}
 
 	/** Backs `Actions.git.renameBranch`. */

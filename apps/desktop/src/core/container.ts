@@ -253,7 +253,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		targetBranch: {
 			setForSession: async (sessionId, branch) => {
 				const found = lookups.workspaceOfSession(sessionId);
-				return found.ok ? git.setTargetBranch(found.value.id, branch) : found;
+				return found.ok ? git.setTargetBranchFromAgent(found.value.id, branch) : found;
 			},
 		},
 		shellEnv: {
@@ -401,6 +401,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 		agent: sessions,
 		now: () => clock.now(),
 		fs: platform.fs,
+		setIntendedTargetBranch: (id, branch) => workspace.setIntendedTargetBranch(id, branch),
+		moveOpenPullRequestBase: (id, branch) => github.moveOpenPullRequestBase(id, branch),
 	});
 	const github = new GithubService({
 		git: gitRunner,

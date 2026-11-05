@@ -14,7 +14,8 @@
  */
 import { zSessionConfig } from "@conducted/protocol";
 import {
-	notImplemented,
+	err,
+	ok,
 	type RepoId,
 	type Result,
 	type SectionId,
@@ -23,7 +24,16 @@ import {
 import type { Database } from "../../platform/platform.ts";
 import type { BacklogWorkspace } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
-import { parseJsonColumn, parseStringList, stringifyJson } from "./row-codec.ts";
+import {
+	collectResults,
+	executeExisting,
+	executeStatement,
+	executeVoid,
+	parseJsonColumn,
+	parseStringList,
+	selectRows,
+	stringifyJson,
+} from "./row-codec.ts";
 
 export interface BacklogWorkspaceRow {
 	id: WorkspaceId;
@@ -133,16 +143,83 @@ export interface BacklogWorkspaceRepository {
 }
 
 export function createBacklogWorkspaceRepository(
-	_db: Database,
-	_deps: RepositoryDeps,
+	db: Database,
+	deps: RepositoryDeps,
 ): BacklogWorkspaceRepository {
+	const now = (): number => deps.clock.now();
+	const list = async (
+		sql: string,
+		params: readonly unknown[],
+		what: string,
+	): Promise<Result<BacklogWorkspace[]>> => {
+		const rows = await selectRows<BacklogWorkspaceRow>(db, sql, params, what);
+		return rows.ok ? collectResults(rows.value.map(backlogWorkspaceFromRow)) : err(rows.error);
+	};
+	const find = async (
+		sql: string,
+		params: readonly unknown[],
+		what: string,
+	): Promise<Result<BacklogWorkspace | null>> => {
+		const rows = await selectRows<BacklogWorkspaceRow>(db, sql, params, what);
+		if (!rows.ok) return err(rows.error);
+		const row = rows.value[0];
+		return row === undefined ? ok(null) : backlogWorkspaceFromRow(row);
+	};
 	return {
-		list: async () => notImplemented("DATA-08"),
-		listByRepo: async () => notImplemented("DATA-08"),
-		get: async () => notImplemented("DATA-08"),
-		create: async () => notImplemented("DATA-08"),
-		update: async () => notImplemented("DATA-08"),
-		setSection: async () => notImplemented("DATA-08"),
-		delete: async () => notImplemented("DATA-08"),
+		list: () => list(BACKLOG_WORKSPACES_SQL.list, [], "Listing backlog workspaces"),
+		listByRepo: (repoId) =>
+			list(
+				BACKLOG_WORKSPACES_SQL.listByRepo,
+				[repoId],
+				"Listing a repository's backlog workspaces",
+			),
+		get: (id) => find(BACKLOG_WORKSPACES_SQL.get, [id], "Reading a backlog workspace"),
+		create: async (input) => {
+			const at = now();
+			const entry: BacklogWorkspace = {
+				id: deps.ids.uuid() as WorkspaceId,
+				repoId: input.repoId,
+				displayName: input.displayName,
+				prompt: input.prompt,
+				attachmentPaths: [...input.attachmentPaths],
+				config: input.config,
+				sectionId: input.sectionId,
+				createdAt: at,
+				updatedAt: at,
+			};
+			const params = backlogWorkspaceToParams(entry);
+			if (!params.ok) return err(params.error);
+			const written = await executeStatement(
+				db,
+				BACKLOG_WORKSPACES_SQL.insert,
+				params.value,
+				"Creating a backlog workspace",
+			);
+			return written.ok ? ok(entry) : err(written.error);
+		},
+		update: async (id, patch) => {
+			const attachmentPaths = stringifyJson(
+				patch.attachmentPaths,
+				"backlog_workspaces.attachment_paths",
+			);
+			if (!attachmentPaths.ok) return err(attachmentPaths.error);
+			const config = stringifyJson(patch.config, "backlog_workspaces.config");
+			if (!config.ok) return err(config.error);
+			return executeExisting(
+				db,
+				BACKLOG_WORKSPACES_SQL.update,
+				[patch.displayName, patch.prompt, attachmentPaths.value, config.value, now(), id],
+				"Updating a backlog workspace",
+			);
+		},
+		setSection: (id, sectionId) =>
+			executeExisting(
+				db,
+				BACKLOG_WORKSPACES_SQL.setSection,
+				[sectionId, now(), id],
+				"Moving a backlog workspace",
+			),
+		delete: (id) =>
+			executeVoid(db, BACKLOG_WORKSPACES_SQL.delete, [id], "Removing a backlog workspace"),
 	};
 }

@@ -1,10 +1,11 @@
 /**
  * @feature WS-01 Workspace service: create, set up, archive, unarchive, delete
  * Owns: the list of workspaces and their lifecycle as far as it is built: creating a worktree and
- * its first chat, running the setup script, and archiving a workspace.
+ * its first chat, running the setup script, archiving a workspace, and storing the intended target
+ * branch (GIT-08).
  * Behaviour: frontend.md 6 (creation, naming, setup, archive), services-map.md 2.4.1 (state
  * machine), 3.1 (create), 3.2 and 5A.1.2 (setup), 3.10 (archive and unarchive), 3.11 (branch
- * rename), ui-map.md 3.9 and 3.1.
+ * rename and the stored target branch), ui-map.md 3.9 and 3.1.
  * Must handle: state moves initializing -> ready (or failed), each guarded so a stale step cannot
  * move a workspace that already changed; the directory name is a unique place name for the repo
  * and the branch is prefix + name, suffixed -v1, -v2 when taken; a branch, prefix or remote name
@@ -1291,6 +1292,21 @@ export class WorkspaceService {
 		const written = await this.#deps.repos.workspaces.setPinned(id, pinnedAt);
 		if (!written.ok) return written;
 		this.#upsert({ ...found.value, pinnedAt, updatedAt: this.#deps.now() });
+		return ok(undefined);
+	}
+
+	/**
+	 * GIT-08: stores the workspace's intended target branch and keeps the loaded row in step. The
+	 * git work that follows (the open PR's base, or a fetch and reset) belongs to the GitService.
+	 */
+	async setIntendedTargetBranch(id: WorkspaceId, targetBranch: string): Promise<Result<void>> {
+		const found = await this.#deps.repos.workspaces.get(id);
+		if (!found.ok) return found;
+		if (found.value === null)
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		const written = await this.#deps.repos.workspaces.setTargetBranch(id, targetBranch);
+		if (!written.ok) return written;
+		this.#upsert({ ...found.value, targetBranch, updatedAt: this.#deps.now() });
 		return ok(undefined);
 	}
 

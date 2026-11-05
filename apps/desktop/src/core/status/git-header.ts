@@ -1,7 +1,8 @@
 /**
  * @feature GIT-04 Git panel header state machine
  * Owns: the one rule that turns git and PR state into the header's title, tone and main action.
- * The Git panel header only renders the result; the command palette reads the same action ids.
+ * The Git panel header only renders the result; its button maps each action id to a command, so
+ * the palette and the header offer the same actions.
  * Behaviour: ui-map.md 3.6, table "Header status chip and action"; services-map.md 3.5 to 3.7 (what
  * each action does). Commit, conflict fixes and PR creation are sent to the agent as chat messages
  * (structure-map.md section 6, point 5). Only pull, push, ready, merge, approve and auto-merge run
@@ -13,7 +14,7 @@
  *
  *   kind                  when                                         title                       main action
  *   merged                PR state merged                              Merged                      none
- *   in_merge_queue        PR is in the merge queue                     the queue state text        none
+ *   in_merge_queue        PR is in the merge queue                     In merge queue              none
  *   working               agent working and no PR                      Working...                  none
  *   conflicts             conflicted files, or merge/rebase underway,  Merge conflicts             Resolve (agent)
  *                         or PR mergeable is "conflicting"
@@ -32,13 +33,14 @@
  *   checks_failing        any check failure                            N / M checks failed         Fix errors (agent)
  *                                                                      (plus ", K pending" if any)
  *   checks_pending        any check pending or running                 N checks pending...         Auto-merge toggle, only if
- *                                                                                                  the setting is on and the
- *                                                                                                  repository allows it
+ *                                                                                                  the setting is on, the forge
+ *                                                                                                  is GitHub and the viewer may
+ *                                                                                                  merge
  *   review_required       reviewDecision review_required               PR review required          Approve if the viewer may,
  *                                                                                                  otherwise a waiting note
- *   blocked               mergeable unknown for good, or required      Blocked from merging        none
- *                         checks missing
- *   checking_mergeability mergeable "unknown", PR open                 Checking mergeability...    none
+ *   blocked               mergeable unknown after checks reported,     Blocked from merging        none
+ *                         or a required check was skipped
+ *   checking_mergeability mergeable "unknown", no checks reported yet  Checking mergeability...    none
  *   stack_blocked         PR is in a stack and a lower PR is not ready A message naming the        none
  *                                                                      blocking PR
  *   ready_to_merge        mergeable, checks pass, no review needed     Ready to merge              Merge (label from the merge
@@ -48,12 +50,13 @@
  *   unable                closed PR, or no rule above applies          Unable to merge             none
  *   clean                 no PR, no changes, nothing to push or pull   No changes                  none
  *
- * Optional checks: when treatOptionalChecksAsBlocking is on, a failed check with `required: false`
- * counts as failing, so the Merge action stays hidden (ui-map.md 6, Git page).
+ * Optional checks: when treatOptionalChecksAsBlocking is on, a failed or pending check with
+ * `required: false` counts as blocking, so the Merge action stays hidden (ui-map.md 6, Git page).
  * Pluralisation: "1 commit", "2 commits". The title never shows "0".
  *
  * Must handle: PR info missing while local state is fine (still show local actions), the
- * local-git forge with no GitHub remote (a synthesised PR, so no Approve, no auto-merge), a
+ * local-git forge with no GitHub remote (a synthesised PR, so no Approve, no auto-merge; Merge
+ * is still the agent instruction of services-map.md 3.7.7), a
  * viewer who authored the PR (`viewerDidAuthor`: cannot approve it), a viewer without write access
  * (`viewerCanMerge` false: no Merge), an agent working while files are uncommitted (`working` wins
  * only when there is no PR), a branch with no upstream (ahead counts every local commit, push is
@@ -67,8 +70,8 @@
  * action id, plus the order cases (conflicts beats uncommitted, uncommitted beats behind), and
  * "uncommitted files and no PR" gives the action "commit_and_push".
  */
-import { notImplemented } from "@conducted/shared";
-import type { GitState } from "../model.ts";
+import type { CheckRun, GitState, PullRequest } from "../model.ts";
+import { hasMergeConflict, isActivePullRequest, reviewIsBlocking } from "./pull-request-status.ts";
 
 export type GitHeaderActionId =
 	| "create_pr"
@@ -139,7 +142,262 @@ export interface GitHeaderInputs {
 	stack: { size: number; blockedReason: string | null } | null;
 }
 
+function action(
+	id: GitHeaderActionId,
+	label: string,
+	waitingNote: string | null = null,
+): GitHeaderAction {
+	return { id, label, waitingNote };
+}
+
+function commitCount(count: number): string {
+	return `${count} commit${count === 1 ? "" : "s"}`;
+}
+
+function checkCount(count: number): string {
+	return `${count} check${count === 1 ? "" : "s"}`;
+}
+
+/** GitHub's button text for each merge method. */
+function mergeLabel(method: PullRequest["mergeMethod"]): string {
+	switch (method) {
+		case "squash":
+			return "Squash and merge";
+		case "rebase":
+			return "Rebase and merge";
+		case "merge":
+			return "Create a merge commit";
+	}
+}
+
+/** Required checks always count. Optional ones count only when the setting says so. */
+function countsAsBlocking(check: CheckRun, treatOptionalChecksAsBlocking: boolean): boolean {
+	return check.required || treatOptionalChecksAsBlocking;
+}
+
+function failingChecks(
+	pullRequest: PullRequest,
+	treatOptionalChecksAsBlocking: boolean,
+): CheckRun[] {
+	return pullRequest.checks.filter(
+		(check) =>
+			countsAsBlocking(check, treatOptionalChecksAsBlocking) &&
+			(check.state === "failure" || check.state === "cancelled"),
+	);
+}
+
+function pendingChecks(
+	pullRequest: PullRequest,
+	treatOptionalChecksAsBlocking: boolean,
+): CheckRun[] {
+	return pullRequest.checks.filter(
+		(check) =>
+			countsAsBlocking(check, treatOptionalChecksAsBlocking) &&
+			(check.state === "pending" || check.state === "waiting" || check.state === "running"),
+	);
+}
+
+/** A required check that GitHub skipped, which keeps the pull request from merging. */
+function hasSkippedRequiredCheck(pullRequest: PullRequest): boolean {
+	return pullRequest.checks.some((check) => check.required && check.state === "skipped");
+}
+
 /** The state machine of ui-map.md 3.6. First matching row wins, in the order of the table above. */
-export function computeGitHeader(_inputs: GitHeaderInputs): GitHeader {
-	return notImplemented("GIT-04");
+export function computeGitHeader(inputs: GitHeaderInputs): GitHeader {
+	const { git, agentWorking, forge, automergeSettingOn, treatOptionalChecksAsBlocking, stack } =
+		inputs;
+	const pullRequest = git.pullRequest;
+	const active = isActivePullRequest(pullRequest) ? pullRequest : null;
+	const canUseGithub = forge === "github";
+
+	if (pullRequest?.state === "merged") {
+		return { kind: "merged", title: "Merged", tone: "done", action: null };
+	}
+	if (active?.inMergeQueue === true) {
+		return { kind: "in_merge_queue", title: "In merge queue", tone: "busy", action: null };
+	}
+	if (agentWorking && pullRequest === null) {
+		return { kind: "working", title: "Working...", tone: "busy", action: null };
+	}
+	if (hasMergeConflict(git, pullRequest)) {
+		return {
+			kind: "conflicts",
+			title: "Merge conflicts",
+			tone: "danger",
+			action: action("resolve", "Resolve"),
+		};
+	}
+	if (git.uncommittedFiles > 0) {
+		return {
+			kind: "uncommitted",
+			title: "Uncommitted changes",
+			tone: "attention",
+			action: action("commit_and_push", "Commit and push"),
+		};
+	}
+	if ((git.sync.ahead > 0 && git.sync.behind > 0) || git.sync.rewritten) {
+		return {
+			kind: "diverged",
+			title: git.sync.rewritten ? "Remote branch was rebased" : "Incompatible with remote",
+			tone: "danger",
+			action: action("resolve", "Resolve"),
+		};
+	}
+	if (git.sync.behind > 0 && git.sync.ahead === 0) {
+		return {
+			kind: "behind",
+			title: `Behind by ${commitCount(git.sync.behind)}`,
+			tone: "attention",
+			action: action("pull", "Pull"),
+		};
+	}
+	if (git.sync.ahead > 0 && git.sync.behind === 0) {
+		return {
+			kind: "ahead",
+			title: `Ahead by ${commitCount(git.sync.ahead)}`,
+			tone: "attention",
+			action: action("push", "Push"),
+		};
+	}
+
+	if (pullRequest === null) {
+		switch (git.pullRequestUnavailable) {
+			case "loading":
+				return { kind: "loading", title: "Loading PR info...", tone: "busy", action: null };
+			case "offline":
+				return {
+					kind: "offline",
+					title: "No internet connection",
+					tone: "attention",
+					action: action("retry", "Retry"),
+				};
+			case "no_github_access":
+				return {
+					kind: "github_access",
+					title: "GitHub access required",
+					tone: "danger",
+					action: action("retry", "Retry"),
+				};
+			case null:
+				return {
+					kind: "pr_unavailable",
+					title: "PR info unavailable",
+					tone: "danger",
+					action: action("retry", "Retry"),
+				};
+			case "none":
+			case "not_github":
+				break;
+		}
+		if (git.changedFiles > 0) {
+			return {
+				kind: "changes",
+				title: "Changes",
+				tone: "neutral",
+				action: action("create_pr", "Create PR"),
+			};
+		}
+		return { kind: "clean", title: "No changes", tone: "neutral", action: null };
+	}
+
+	// A closed pull request has no action left.
+	if (active === null) {
+		return { kind: "unable", title: "Unable to merge", tone: "danger", action: null };
+	}
+
+	const failing = failingChecks(active, treatOptionalChecksAsBlocking);
+	const pending = pendingChecks(active, treatOptionalChecksAsBlocking);
+
+	if (active.reviewDecision === "changes_requested") {
+		return {
+			kind: "changes_requested",
+			title: "PR changes requested",
+			tone: "attention",
+			action: action("add_comments_to_chat", "Add all comments to chat"),
+		};
+	}
+	if (active.state === "draft") {
+		return {
+			kind: "draft_pr",
+			title: "Draft PR open",
+			tone: "neutral",
+			action: canUseGithub ? action("ready_for_review", "Ready for review") : null,
+		};
+	}
+	if (failing.length > 0) {
+		const pendingNote = pending.length > 0 ? `, ${pending.length} pending` : "";
+		return {
+			kind: "checks_failing",
+			title: `${failing.length} / ${active.checks.length} checks failed${pendingNote}`,
+			tone: "danger",
+			action: action("fix_errors", "Fix errors"),
+		};
+	}
+	if (pending.length > 0) {
+		return {
+			kind: "checks_pending",
+			title: `${checkCount(pending.length)} pending...`,
+			tone: "busy",
+			action:
+				automergeSettingOn && canUseGithub && active.viewerCanMerge
+					? action(
+							"toggle_automerge",
+							active.autoMergeEnabled ? "Disable auto-merge" : "Enable auto-merge",
+						)
+					: null,
+		};
+	}
+	if (active.reviewDecision === "review_required") {
+		const canApprove = canUseGithub && active.viewerCanMerge && !active.viewerDidAuthor;
+		return {
+			kind: "review_required",
+			title: "PR review required",
+			tone: "attention",
+			action: action("approve", "Approve", canApprove ? null : "Waiting for a reviewer"),
+		};
+	}
+
+	// Our model has no mergeStateStatus. A mergeability that is still unknown after checks have
+	// reported, or a skipped required check, is what GitHub calls blocked.
+	if (
+		hasSkippedRequiredCheck(active) ||
+		(active.mergeable === "unknown" && active.checks.length > 0)
+	) {
+		return { kind: "blocked", title: "Blocked from merging", tone: "attention", action: null };
+	}
+	if (active.mergeable === "unknown") {
+		return {
+			kind: "checking_mergeability",
+			title: "Checking mergeability...",
+			tone: "busy",
+			action: null,
+		};
+	}
+	if (stack !== null && stack.blockedReason !== null) {
+		return { kind: "stack_blocked", title: stack.blockedReason, tone: "danger", action: null };
+	}
+
+	const ready =
+		active.state === "open" &&
+		active.mergeable === "mergeable" &&
+		!reviewIsBlocking(active) &&
+		failing.length === 0 &&
+		pending.length === 0;
+	if (ready) {
+		const inStack = stack !== null && stack.size > 1;
+		const mergeAction =
+			active.viewerCanMerge === false
+				? null
+				: inStack
+					? action("merge_stack", "Merge stack")
+					: action("merge", mergeLabel(active.mergeMethod));
+		return {
+			kind: "ready_to_merge",
+			title: "Ready to merge",
+			tone: "success",
+			action: mergeAction,
+		};
+	}
+
+	return { kind: "unable", title: "Unable to merge", tone: "danger", action: null };
 }

@@ -13,18 +13,11 @@
  * Test first: providerKeyToParams turns a null acpAgent into '', and providerKeyFromRow turns
  * it back.
  */
-import {
-	type AcpAgent,
-	type AgentKind,
-	appError,
-	err,
-	notImplemented,
-	ok,
-	type Result,
-} from "@conducted/shared";
+import { type AcpAgent, type AgentKind, appError, err, ok, type Result } from "@conducted/shared";
 import type { Database } from "../../platform/platform.ts";
 import type { ProviderKeyView } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
+import { executeVoid, selectRows } from "./row-codec.ts";
 
 export interface ProviderKeyRow {
 	agent: AgentKind;
@@ -114,14 +107,57 @@ export interface ProviderKeyRepository {
 }
 
 export function createProviderKeyRepository(
-	_db: Database,
-	_deps: RepositoryDeps,
+	db: Database,
+	deps: RepositoryDeps,
 ): ProviderKeyRepository {
+	const now = (): number => deps.clock.now();
+	const list = async (
+		sql: string,
+		params: readonly unknown[],
+		what: string,
+	): Promise<Result<ProviderKey[]>> => {
+		const rows = await selectRows<ProviderKeyRow>(db, sql, params, what);
+		return rows.ok ? ok(rows.value.map(providerKeyFromRow)) : err(rows.error);
+	};
 	return {
-		list: async () => notImplemented("DATA-08"),
-		listForAgent: async () => notImplemented("DATA-08"),
-		get: async () => notImplemented("DATA-08"),
-		set: async () => notImplemented("DATA-08"),
-		delete: async () => notImplemented("DATA-08"),
+		list: () => list(PROVIDER_KEYS_SQL.list, [], "Listing provider keys"),
+		listForAgent: (agent, acpAgent) =>
+			list(
+				PROVIDER_KEYS_SQL.listForAgent,
+				[agent, acpAgent ?? ""],
+				"Listing an agent's provider keys",
+			),
+		get: async (name) => {
+			const rows = await selectRows<ProviderKeyRow>(
+				db,
+				PROVIDER_KEYS_SQL.get,
+				[name.agent, name.acpAgent ?? "", name.provider, name.envVar],
+				"Reading a provider key",
+			);
+			if (!rows.ok) return err(rows.error);
+			const row = rows.value[0];
+			return ok(row === undefined ? null : providerKeyFromRow(row));
+		},
+		set: async (name, value) => {
+			const key: ProviderKey = {
+				agent: name.agent,
+				acpAgent: name.acpAgent,
+				provider: name.provider,
+				envVar: name.envVar,
+				source: value.source,
+				keychainRef: value.source === "entered" ? value.keychainRef : null,
+				updatedAt: now(),
+			};
+			const params = providerKeyToParams(key);
+			if (!params.ok) return err(params.error);
+			return executeVoid(db, PROVIDER_KEYS_SQL.upsert, params.value, "Saving a provider key");
+		},
+		delete: (name) =>
+			executeVoid(
+				db,
+				PROVIDER_KEYS_SQL.delete,
+				[name.agent, name.acpAgent ?? "", name.provider, name.envVar],
+				"Removing a provider key",
+			),
 	};
 }

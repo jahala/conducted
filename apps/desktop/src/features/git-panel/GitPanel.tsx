@@ -14,10 +14,11 @@
  * `scope`, `onScopeChange` and `onOpenFile`. A prop that is left out means the panel keeps that
  * value in its own state (and, without `onOpenFile`, cannot open a file tab).
  * Must handle: git state loading (skeleton header), git state error with retry, no git status
- * because a rebase or merge is underway (the Changes tab says so), the commands "Create PR" and
- * "Show uncommitted changes" handled only while the panel is mounted, through the command
- * dispatcher so a rebind applies, one review request at a time per workspace, and a workspace
- * switch mid-request (the old request's result does not touch the new workspace's dialog).
+ * because a rebase or merge is underway (the Changes tab says so), the commands "Create PR",
+ * "Commit and push" and "Show uncommitted changes" handled only while the panel is mounted,
+ * through the command dispatcher so a rebind applies, one review request at a time per workspace,
+ * and a workspace switch mid-request (the old request's result does not touch the new workspace's
+ * dialog).
  * Test first: with a GitState of two uncommitted files the header reads "Uncommitted changes" and
  * the main action is "Commit and push".
  */
@@ -202,6 +203,12 @@ export function GitPanel({
 	// as the header's Create PR button instead of a service that has no workspace to act on.
 	useCommandHandler("git.createPr", "area", () => {
 		void runAction("create_pr");
+		return true;
+	});
+
+	// Cmd+Shift+Y reaches the same action as the header's Commit and push button.
+	useCommandHandler("git.commitAndPush", "area", () => {
+		void runAction("commit_and_push");
 		return true;
 	});
 
