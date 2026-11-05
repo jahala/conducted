@@ -12,6 +12,10 @@
  *                                                         set rows to done in <tree>'s backlog,
  *                                                         refusing an id with placeholders left
  *   bun scripts/overnight/drive.ts balance                print the DeepSeek balance in USD
+ *   bun scripts/overnight/drive.ts audit-prompt <batch-id> <findings-file>
+ *                                                         the read-only audit agent's prompt
+ *   bun scripts/overnight/drive.ts fixer-prompt <ID,ID> <log-file>
+ *                                                         a fixer's prompt for one failure group
  *
  * Working files go to .context/overnight/ (git-ignored).
  */
@@ -32,7 +36,7 @@ export const READ_FIRST = `Read these first, in order, before you change anythin
 4. The research sections your issue cites, in docs/research/conductor/.`;
 
 export const RULES = `Rules:
-- Change only the files your issue owns, plus new test files next to them. If you need anything outside them, finish what you can and say so in your final message.
+- Change only the files your issue owns, plus new test files next to them. Never edit docs/plans/backlog.md or any other doc outside your owning files: the conductor marks your feature done after CI passes. If you need anything outside them, finish what you can and say so in your final message.
 - Never edit a shared contract: packages/protocol, packages/shared, apps/desktop/src/platform/platform.ts, apps/desktop/src/core/model.ts, apps/desktop/src/core/api.ts, apps/desktop/src-tauri/migrations. If the feature cannot be built without a contract change, stop and say exactly what change is needed.
 - Tests first: write tests for the checklist items, then build until the code would make them pass. Name your feature id in every describe title, for example describe("{ID} ..."). In Rust, start each #[test] function name with the id in snake case, for example fn {SNAKE}_runs_a_command().
 - Remove every notImplemented("{ID}") / not_implemented!("{ID}") placeholder for your feature, and only those.
@@ -67,6 +71,61 @@ function backlog(at: string): BacklogRow[] {
 function issueMap(): Map<string, number> {
 	const path = join(work, "issues.json");
 	return new Map(Object.entries(JSON.parse(readFileSync(path, "utf8")) as Record<string, number>));
+}
+
+export function auditPrompt(
+	batchId: string,
+	features: BacklogRow[],
+	issues: Map<string, number>,
+	findings: string,
+): string {
+	const list = features.map(
+		(f) =>
+			`- ${f.id} ${f.title} (gh issue view ${issues.get(f.id) ?? "?"} --repo jahala/conducted)`,
+	);
+	return [
+		`You are auditing batch ${batchId} of Conducted, a macOS app for running coding agents in parallel. The batch's features were just built by other agents and CI is green. You change no files except your findings file.`,
+		"",
+		READ_FIRST.replace(
+			'3. Your GitHub issue (command below): its checklist, owning files, "Test first" lines and blockers.',
+			'3. Each feature\'s GitHub issue (listed below): its checklist, owning files and "Test first" lines.',
+		),
+		"",
+		"The features:",
+		...list,
+		"",
+		"For each feature, check and report:",
+		"1. Does it look and behave like Conductor (D020, D022), per its issue and the research it cites?",
+		"2. Do the specs (file headers, issue checklist) and the code agree?",
+		"3. Does every checklist item have a real test that would fail without the feature? Name items with no test.",
+		"4. Is any logic duplicated, within the batch or with existing code? Name both places.",
+		"5. Was anything skipped or left half done (a placeholder removed without the behaviour, a test that asserts nothing)?",
+		"",
+		`Write your findings to ${findings} as a Markdown list grouped by feature id. Each finding: the file and line, what is wrong, and what would fix it. Write "none" for a clean feature. Do not edit any other file, do not run git commit or git push, and do not run the test suite. Finish with a one-line summary: how many findings per feature.`,
+	].join("\n");
+}
+
+export function fixerPrompt(ids: string[], log: string): string {
+	return [
+		`You are fixing one group of failures in Conducted, a macOS app for running coding agents in parallel (repo jahala/conducted). Features: ${ids.join(", ")}.`,
+		"",
+		READ_FIRST.replace(
+			"3. Your GitHub issue (command below)",
+			'3. The GitHub issues of these features (gh issue list --repo jahala/conducted --search "<id> in:title")',
+		),
+		"",
+		"What failed (from CI or from the batch audit):",
+		"",
+		"```",
+		log.slice(0, 12_000),
+		"```",
+		"",
+		RULES.replaceAll("{ID}", ids[0] ?? "").replaceAll(
+			"{SNAKE}",
+			(ids[0] ?? "").toLowerCase().replace("-", "_"),
+		),
+		"- Fix the cause, not the symptom. Never delete, skip or loosen a failing test: make the code right, or fix a test that asserts the wrong thing and say why.",
+	].join("\n");
 }
 
 const [command, ...args] = process.argv.slice(2);
@@ -149,9 +208,22 @@ if (command === "issues") {
 		balance_infos: { currency: string; total_balance: string }[];
 	};
 	console.log(body.balance_infos.find((b) => b.currency === "USD")?.total_balance ?? "unknown");
+} else if (command === "audit-prompt") {
+	const [batchId, findings] = args;
+	const rows = backlog(root).filter((r) => r.status !== "planned" && r.priority === 1);
+	const batch = planBatches(rows).find((b) => b.id === batchId);
+	if (!batch || !findings) throw new Error("Usage: audit-prompt <batch-id> <findings-file>");
+	const onlyAt = args.indexOf("--only");
+	const only = onlyAt === -1 ? null : new Set((args[onlyAt + 1] ?? "").split(","));
+	const features = batch.features.filter((f) => !only || only.has(f.id));
+	console.log(auditPrompt(batch.id, features, issueMap(), findings));
+} else if (command === "fixer-prompt") {
+	const [ids, logFile] = args;
+	if (!ids || !logFile) throw new Error("Usage: fixer-prompt <ID,ID> <log-file>");
+	console.log(fixerPrompt(ids.split(","), readFileSync(logFile, "utf8")));
 } else {
 	console.error(
-		"Usage: drive.ts issues | plan <batch> [--only IDS] | step <n> | mark-done <tree> <IDS> | balance",
+		"Usage: drive.ts issues | plan <batch> [--only IDS] | step <n> | mark-done <tree> <IDS> | balance | audit-prompt <batch> <file> | fixer-prompt <IDS> <log>",
 	);
 	process.exit(64);
 }
