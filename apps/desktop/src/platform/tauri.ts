@@ -364,6 +364,7 @@ export function createTauriAppInfo(
 			await invokeResult(bindings, COMMANDS.appQuit);
 		},
 		resourceUsage: () => notImplemented("PLAT-14"),
+<<<<<<< HEAD
 		writeLog: (level, message, data) => {
 			const safe = serialisableLogData(data);
 			const args =
@@ -380,6 +381,15 @@ export function createTauriAppInfo(
 		},
 		exportLogs: () => invokeResult<string>(bindings, COMMANDS.logsExport),
 		setQuitHandlerReady: () => notImplemented("PLAT-15"),
+=======
+		writeLog: () => notImplemented("PLAT-18"),
+		setLogLevel: () => notImplemented("PLAT-18"),
+		exportLogs: () => notImplemented("PLAT-18"),
+		setQuitHandlerReady: async () => {
+			const result = await invokeResult(bindings, COMMANDS.setQuitHandlerReady);
+			if (!result.ok) throw result.error;
+		},
+>>>>>>> node/plat.15
 	};
 }
 
@@ -1002,7 +1012,7 @@ export function createTauriUpdater(_bindings: TauriBindings): Updater {
  * Webview API: `onDragDropEvent`, `setZoom`. Commands: `window_set_vibrancy { enabled }`,
  * `window_set_traffic_lights { x, y }`, `window_toggle_inspector`.
  */
-export function createTauriWindow(_bindings: TauriBindings): AppWindow {
+export function createTauriWindow(bindings: TauriBindings): AppWindow {
 	return {
 		isFocused: () => notImplemented("PLAT-31"),
 		onFocusChanged: () => notImplemented("PLAT-31"),
@@ -1011,7 +1021,10 @@ export function createTauriWindow(_bindings: TauriBindings): AppWindow {
 		setVibrancy: () => notImplemented("PLAT-23"),
 		setTrafficLightPosition: () => notImplemented("PLAT-23"),
 		setTheme: () => notImplemented("PLAT-23"),
-		toggleInspector: () => notImplemented("PLAT-15"),
+		toggleInspector: async () => {
+			const result = await invokeResult(bindings, COMMANDS.windowToggleInspector);
+			if (!result.ok) throw result.error;
+		},
 	};
 }
 

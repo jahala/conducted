@@ -43,7 +43,7 @@ pub mod speech;
 pub mod terminal_history;
 pub mod updater;
 
-use error::CommandResult;
+use error::{CommandError, CommandResult};
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
 
@@ -110,6 +110,33 @@ async fn app_quit(app: AppHandle, state: State<'_, sidecar::SidecarState>) -> Co
     Ok(())
 }
 
+/// Tells the menu the UI listens for quit requests. A quit asked for earlier is delivered now.
+#[tauri::command]
+async fn set_quit_handler_ready(
+    app: AppHandle,
+    state: State<'_, menu::MenuState>,
+) -> CommandResult<()> {
+    menu::mark_quit_handler_ready(&app, state.inner())
+}
+
+/// Opens or closes the main window's web inspector. The `devtools` feature keeps this available in
+/// release builds too.
+#[tauri::command]
+fn window_toggle_inspector(app: AppHandle) -> CommandResult<()> {
+    let Some(window) = app.get_webview_window("main") else {
+        return Err(CommandError::Failed {
+            code: "window_missing",
+            message: "The main window is not open.".to_string(),
+        });
+    };
+    if window.is_devtools_open() {
+        window.close_devtools();
+    } else {
+        window.open_devtools();
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -135,6 +162,16 @@ pub fn run() {
         .manage(resource_usage::ResourceUsageState::default())
         .manage(menu::MenuState::default())
         .manage(logger::LoggerState::default())
+        .menu(|app| {
+            let state = app.state::<menu::MenuState>();
+            menu::build_menu(app, state.inner())
+        })
+        .on_menu_event(|app, event| {
+            let item_id = event.id().0.as_str();
+            if let Err(error) = menu::handle_menu_event(app, item_id) {
+                eprintln!("could not route the menu item {item_id}: {error}");
+            }
+        })
         .setup(|app| {
             let logger_state = app.state::<logger::LoggerState>();
             logger::start_writer(app.handle(), &logger_state)?;
@@ -146,6 +183,8 @@ pub fn run() {
             health,
             app_info,
             app_quit,
+            set_quit_handler_ready,
+            window_toggle_inspector,
             db::db_version_check,
             logger::log_write,
             logger::log_set_level,
