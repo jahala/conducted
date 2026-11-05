@@ -6,7 +6,7 @@
  * 6 and 5.1 (fuzzy matches in settings and the palette).
  * Our design choice: matching ignores case and treats the query as plain text, so a search for "a." or
  * "(beta)" never fails because those characters mean something in a regular expression. Every match is
- * marked, not just the first. The marks use the highlight surface and foreground tokens, which meet AA.
+ * marked, not just the first. The marks use the search-highlight tokens, which meet AA.
  * Must handle: an empty query; a query that does not match; several matches; regular-expression symbols;
  * text that keeps its original case.
  * Test first: every case-insensitive match is wrapped in a marked element and the text itself is unchanged.
@@ -52,7 +52,7 @@ export function HighlightedText({ text, query, className }: HighlightedTextProps
 				part.match ? (
 					<mark
 						key={part.start}
-						className={cn("rounded-xs bg-highlight-surface px-0.5 text-highlight-fg")}
+						className={cn("rounded-xs bg-search-highlight px-0.5 text-search-highlight-fg")}
 					>
 						{part.text}
 					</mark>

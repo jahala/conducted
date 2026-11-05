@@ -10,13 +10,14 @@
  *  - Danger, warning, success and info carry function only.
  *  - No default Tailwind palette, type scale, weights, radii, shadows or easings are kept.
  *  - Light and dark come from the OS through `light-dark()`. `data-theme="light|dark"` on <html> forces one.
- *    `data-contrast="low"` on <html> switches dark mode to its low-contrast set (APP-14 sets the attribute).
+ *    `data-contrast="low"` switches dark mode to its low-contrast set, `data-color-vision` picks a
+ *    colour-vision palette and `data-vibrancy="on"` makes the sidebar surfaces translucent (APP-14).
  *  - Two font families, Geist and Geist Mono, bundled from their official SIL OFL release
  *    (assets/fonts/OFL.txt). The terminal keeps its own Menlo-first list (RUN-06).
  *  - Hierarchy comes from size and weight first. Five weights exist: 350, 400, 450, 500, 600.
- *  - Where a measured colour fails WCAG AA, the nearest passing value in the same hue replaces it. Each one
- *    is listed in docs/design.md.
- * Contrast is checked by src/ui/tokens.test.ts (text 4.5:1, marks 3:1), in all three colour sets.
+ *  - Where a measured colour fails WCAG AA, the nearest passing value in the same hue replaces it.
+ * Contrast is checked by src/ui/tokens.test.ts (text 4.5:1, marks 3:1) and by src/ui/app-14.test.tsx for every
+ * theme and colour-vision combination, including the sixteen terminal colours.
  */
 @import "tailwindcss";
 
@@ -64,6 +65,8 @@
 	--color-canvas: light-dark(#ffffff, #141110);
 	--color-panel: light-dark(#fdfcfc, #1c1917);
 	--color-surface: light-dark(#fafaf9, #211e1c);
+	/* Sidebar and header surfaces at 60% over the window, used when the vibrancy setting is on. */
+	--color-sidebar-translucent: light-dark(#fafaf999, #211e1c99);
 	--color-muted: light-dark(#fafaf9, #211e1c);
 	--color-raised: light-dark(#ffffff, #2c2826);
 	/* hover is a 5% tint, so it works on every surface. active is the selected segmented tab. */
@@ -100,6 +103,9 @@
 	--color-focus: light-dark(#2c2826, #bcb6b3);
 	--color-highlight-surface: light-dark(#faf7f5, #2a1e1d);
 	--color-highlight-fg: light-dark(#594545, #f3ece7);
+	/* Search matches use the same measured highlight pair as Conductor's search-highlight text. */
+	--color-search-highlight: light-dark(#faf7f5, #2a1e1d);
+	--color-search-highlight-fg: light-dark(#594545, #f3ece7);
 
 	/* Function only. danger is text and icons; danger-solid is a filled button. */
 	--color-danger: light-dark(#dc2828, #f87272);
@@ -131,23 +137,25 @@
 	--color-diff-removed-marker: color-mix(in srgb, var(--color-diff-removed) 60%, transparent);
 	--color-diff-removed-word: color-mix(in srgb, var(--color-diff-removed) 20%, transparent);
 
-	/* Terminal ANSI colours, as measured. Their AA check is part of APP-14. */
-	--color-term-black: light-dark(#2c2826, #47423e);
+	/* Terminal ANSI colours. Light values that fell under 3:1 on the light terminal background take the
+	   nearest passing value in the same hue; the rest are Conductor's measured values. The two blacks are
+	   background slots, but they are raised in dark mode so a program that prints them stays readable. */
+	--color-term-black: light-dark(#2c2826, #736b64);
 	--color-term-red: light-dark(#dc2828, #f87272);
-	--color-term-green: light-dark(#16a249, #4ade80);
-	--color-term-yellow: light-dark(#ffdc2e, #ffea80);
+	--color-term-green: light-dark(#12853c, #4ade80);
+	--color-term-yellow: light-dark(#a28700, #ffea80);
 	--color-term-blue: light-dark(#2463eb, #61a6fa);
 	--color-term-magenta: light-dark(#cb00eb, #e852ff);
 	--color-term-cyan: light-dark(#098dae, #3ed8ef);
-	--color-term-white: #eae8e6;
+	--color-term-white: light-dark(#8f8780, #eae8e6);
 	--color-term-bright-black: light-dark(#766f6b, #a5a09c);
 	--color-term-bright-red: light-dark(#ef4343, #fca6a6);
-	--color-term-bright-green: light-dark(#21c45d, #85efac);
-	--color-term-bright-yellow: light-dark(#ffe561, #fff1ad);
+	--color-term-bright-green: light-dark(#1ca74f, #85efac);
+	--color-term-bright-yellow: light-dark(#ac8f00, #fff1ad);
 	--color-term-bright-blue: light-dark(#3c83f6, #91c3fd);
 	--color-term-bright-magenta: light-dark(#e014ff, #f08fff);
-	--color-term-bright-cyan: light-dark(#07b6d5, #7bebf9);
-	--color-term-bright-white: light-dark(#f3f2f1, #ffffff);
+	--color-term-bright-cyan: light-dark(#069fba, #7bebf9);
+	--color-term-bright-white: light-dark(#968e86, #ffffff);
 
 	/* Two families. */
 	--font-sans: "Geist", system-ui, sans-serif;
@@ -228,11 +236,46 @@
 	--color-canvas: light-dark(#ffffff, #1f1c1a);
 	--color-panel: light-dark(#fdfcfc, #24211e);
 	--color-surface: light-dark(#fafaf9, #292623);
+	--color-sidebar-translucent: light-dark(#fafaf999, #29262399);
 	--color-muted: light-dark(#fafaf9, #2f2b28);
+	--color-raised: light-dark(#ffffff, #37322f);
+	--color-active: light-dark(#eae9e8, #37322f);
 	--color-fg: light-dark(#2c2826, #c5c2be);
+	--color-fg-muted: light-dark(#6e6867, #ada9a5);
+	--color-fg-subtle: light-dark(#6e6867, #ada9a5);
+	--color-border-strong: light-dark(#14100f73, #ffffff5c);
 	--color-primary-fill: light-dark(#2c2826, #c5c2be);
 	--color-highlight-surface: light-dark(#faf7f5, #3f3331);
 	--color-highlight-fg: light-dark(#594545, #e3dad3);
+	--color-search-highlight: light-dark(#faf7f5, #3f3331);
+	--color-search-highlight-fg: light-dark(#594545, #e3dad3);
+}
+
+/* Colour-vision palettes. Only the function colours change: success and added colours become blue, and
+   for protanopia and deuteranopia danger and removed colours become orange. Research leaves warning amber,
+   which stays distinct from both in every palette. */
+:root[data-color-vision="protanopia-deuteranopia"] {
+	--color-success: light-dark(#2463eb, #61a6fa);
+	--color-git-added: light-dark(#2463eb, #61a6fa);
+	--color-diff-added: light-dark(#2463eb, #61a6fa);
+	--color-status-review: light-dark(#2463eb, #61a6fa);
+	--color-danger: light-dark(#b7430a, #fb923c);
+	--color-danger-solid: #b7430a;
+	--color-git-removed: light-dark(#b7430a, #fb923c);
+	--color-diff-removed: light-dark(#b7430a, #fb923c);
+}
+
+:root[data-color-vision="tritanopia"] {
+	--color-success: light-dark(#2463eb, #61a6fa);
+	--color-git-added: light-dark(#2463eb, #61a6fa);
+	--color-diff-added: light-dark(#2463eb, #61a6fa);
+	--color-status-review: light-dark(#2463eb, #61a6fa);
+}
+
+/* The vibrancy setting paints the window behind the sidebar. Its surfaces then use the translucent token,
+   which follows the low-contrast set above. */
+:root[data-vibrancy="on"] {
+	--color-surface: var(--color-sidebar-translucent);
 }
 
 /* Durations and layout sizes that are not on the spacing scale. Panel sizes that the resizable panels
