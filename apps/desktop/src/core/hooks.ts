@@ -60,18 +60,12 @@ import { idleLiveState } from "@conducted/protocol";
 import { notImplemented, type WorkspaceId } from "@conducted/shared";
 import { useMemo, useSyncExternalStore } from "react";
 import { useStore } from "zustand";
-<<<<<<< HEAD
 import { useStoreWithEqualityFn } from "zustand/traditional";
-import type { Actions, Queries } from "./api.ts";
-import { useServices } from "./context.tsx";
-import type { GitState } from "./model.ts";
-import type { WorkspaceGitEntry } from "./services/git.ts";
-import type { WorkspacePrEntry } from "./services/github.ts";
-=======
 import type { Actions, Loadable, Queries } from "./api.ts";
 import { useServices } from "./context.tsx";
-import type { Session } from "./model.ts";
->>>>>>> node/chat.01
+import type { GitState, Session } from "./model.ts";
+import type { WorkspaceGitEntry } from "./services/git.ts";
+import type { WorkspacePrEntry } from "./services/github.ts";
 import type { SessionsState } from "./services/sessions.ts";
 import { type ChatStatusInput, deriveWorkspaceStatus } from "./status/workspace-status.ts";
 
