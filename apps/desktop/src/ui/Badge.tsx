@@ -1,7 +1,8 @@
 /**
  * @feature APP-05 Badge
  * Owns: a small label for states such as "Draft" or "Archived". It is neutral unless it carries function.
- * Behaviour: ui-map.md 8 (Badge variants), 4 (row badges: Draft, Archive workspace).
+ * Behaviour: ui-map.md 8 (Badge variants), 4 (row badges: Draft, Archive workspace); ui-dimensions.md 6.2
+ * (8px by 2px padding, mono uppercase text-xs with 0.6px tracking, 6px radius, 1px border).
  * Our design choice: only neutral, danger, warning and success tones. No decorative colours.
  * Must handle: text truncates; the tone is never the only signal (the text says the state).
  * Test first: renders its text with the tone class.
@@ -22,7 +23,7 @@ export function Badge({ tone = "neutral", children }: { tone?: BadgeTone; childr
 	return (
 		<span
 			className={cn(
-				"inline-flex h-5 items-center rounded-sm border px-1.5 text-xs font-medium",
+				"inline-flex items-center rounded-md border px-2 py-0.5 font-mono text-xs uppercase tracking-wider",
 				toneClass[tone],
 			)}
 		>

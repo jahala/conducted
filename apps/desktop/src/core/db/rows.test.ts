@@ -123,6 +123,9 @@ describe("workspaces", () => {
 		"pr_description",
 		"archive_commit",
 		"setup_log_path",
+		"archived_at",
+		"active_session_id",
+		"files_copied",
 		"last_activity_at",
 		"created_at",
 		"updated_at",
@@ -306,6 +309,7 @@ describe("diff comments", () => {
 				"body",
 				"author_kind",
 				"author_name",
+				"author_avatar_url",
 				"side",
 				"thread_id",
 				"reply_to_id",
@@ -313,6 +317,8 @@ describe("diff comments", () => {
 				"remote_url",
 				"resolved",
 				"outdated",
+				"state",
+				"location",
 				"created_at",
 				"updated_at",
 			],
@@ -320,7 +326,41 @@ describe("diff comments", () => {
 		);
 		expect(row.resolved).toBe(1);
 		expect(row.outdated).toBe(0);
+		expect(row.location).toBe("file");
 		expect(diffCommentFromRow(row)).toEqual(sampleComment);
+	});
+
+	it("stores a pull request comment with no file as location pull_request", () => {
+		const prComment = { ...sampleComment, filePath: null, line: null, endLine: null };
+		const params = diffCommentToParams(prComment);
+		expect(params[2]).toBe("");
+		expect(params[17]).toBe("pull_request");
+		const row = rowFrom<Parameters<typeof diffCommentFromRow>[0]>(
+			[
+				"id",
+				"workspace_id",
+				"file_path",
+				"line",
+				"end_line",
+				"body",
+				"author_kind",
+				"author_name",
+				"author_avatar_url",
+				"side",
+				"thread_id",
+				"reply_to_id",
+				"suggestion",
+				"remote_url",
+				"resolved",
+				"outdated",
+				"state",
+				"location",
+				"created_at",
+				"updated_at",
+			],
+			params,
+		);
+		expect(diffCommentFromRow(row)).toEqual(prComment);
 	});
 });
 
@@ -328,7 +368,17 @@ describe("attachments", () => {
 	it("round-trips and keeps message id and time as columns only", () => {
 		const params = attachmentToParams(sampleAttachment);
 		const row = rowFrom<Parameters<typeof attachmentFromRow>[0]>(
-			["id", "session_id", "message_id", "kind", "original_name", "path", "is_draft", "created_at"],
+			[
+				"id",
+				"session_id",
+				"message_id",
+				"kind",
+				"original_name",
+				"path",
+				"is_draft",
+				"comment_id",
+				"created_at",
+			],
 			params,
 		);
 		const { messageId: _m, createdAt: _c, ...model } = sampleAttachment;
@@ -344,18 +394,21 @@ describe("terminals", () => {
 			[
 				"id",
 				"workspace_id",
+				"repo_id",
 				"kind",
 				"title",
 				"cwd",
 				"cols",
 				"rows",
+				"start_command",
+				"screen_state",
 				"started_at",
 				"ended_at",
 				"exit_code",
 			],
 			params,
 		);
-		const { cols: _c, rows: _r, ...model } = sampleTerminal;
+		const { cols: _c, rows: _r, screenState: _s, ...model } = sampleTerminal;
 		expect(terminalFromRow(row)).toEqual(model);
 		expect(row.cols).toBe(120);
 	});
@@ -483,7 +536,7 @@ describe("repair and lifetime helpers", () => {
 });
 
 describe("createRepositories", () => {
-	it("returns all thirteen repositories", () => {
+	it("returns all sixteen repositories", () => {
 		const unused = {} as never;
 		const repositories = createRepositories(unused, unused);
 		expect(Object.keys(repositories).sort()).toEqual(
@@ -501,6 +554,9 @@ describe("createRepositories", () => {
 				"favoriteModels",
 				"settings",
 				"envVars",
+				"backlogWorkspaces",
+				"snippets",
+				"providerKeys",
 			].sort(),
 		);
 	});

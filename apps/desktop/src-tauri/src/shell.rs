@@ -1,5 +1,6 @@
 //! @feature PLAT-03 Shell commands: run, start, cancel
 //! @feature PLAT-04 Capture the login-shell PATH at startup
+//! @feature PLAT-29 Limit the paths, programs and links the webview can reach
 //!
 //! Owns: running one-shot programs for the UI (git, gh, scripts) with a timeout and a cancel that
 //! kills the whole process group, and capturing the user's login-shell PATH once.
@@ -24,6 +25,14 @@
 //! - The table of running processes is shared by many commands at once. It sits behind a mutex
 //!   that is never held across an await or a blocking wait.
 //! - The first `shell_login_env` call and the startup warm-up share one capture.
+//!
+//! Scope (PLAT-29, native-and-sidecar-map.md A3): the first version of `shell_run` and
+//! `shell_start` runs any program. `check_program_allowed` is the check both call first. It
+//! compares the program's name (the file name, after resolving a bare name on PATH) with a list
+//! the app builds: the programs the UI runs (git, gh, the shell for repository scripts, kill,
+//! which, open, caffeinate, pmset, lsof) and the managed agent programs. A program outside the list
+//! fails with `shell_program_not_allowed` and names it. The file scope and URL scopes are in
+//! `files.rs`.
 //!
 //! Our design choice: the id for `shell_start` comes from the UI. The captured environment is the
 //! base of every run and `ShellCommandRequest::env` is layered on top, as the Platform comment says.
@@ -124,6 +133,11 @@ pub struct ShellState {
     /// Result of the one login-shell capture. The async mutex is held while capturing, so
     /// concurrent first callers wait for the same result.
     pub login_env: tauri::async_runtime::Mutex<Option<LoginEnv>>,
+}
+
+/// Checks that `program` is on the list of programs the web view may start.
+pub fn check_program_allowed(_program: &str, _allowed: &[&str]) -> CommandResult<()> {
+    not_implemented!("PLAT-29")
 }
 
 /// Runs a program to completion and returns its output.

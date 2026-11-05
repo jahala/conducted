@@ -5,10 +5,12 @@
  * Research: sessions.md section 5, sessions-and-chats.md "How chats are stored".
  * Our design choices: one log instead of two, and an explicit turnEnded event so a turn cut off
  * by a crash can be found and closed at startup.
+ * A turn the agent starts by itself, such as a background task waking Claude up (AGENT-15), has no
+ * user_message: its first event is an agent event with a new turnId.
  */
 import { z } from "zod";
 import { zAgentMessage } from "./agent-message.ts";
-import { zCheckpointId, zEventId, zMessageId, zTurnId } from "./ids.ts";
+import { zCheckpointId, zEventId, zMessageId, zSessionId, zTurnId } from "./ids.ts";
 import { zSessionConfig } from "./session-config.ts";
 
 export const zFileChange = z.object({
@@ -23,6 +25,16 @@ export type FileChange = z.infer<typeof zFileChange>;
 
 const base = { eventId: zEventId, at: z.number() };
 
+/**
+ * Who sent a user message that was not typed in this app. claude_ai: through Remote Control
+ * (D019). other_chat: another chat's agent, through its send-message tool.
+ */
+export const zUserMessageSender = z.discriminatedUnion("kind", [
+	z.object({ kind: z.literal("claude_ai") }),
+	z.object({ kind: z.literal("other_chat"), sessionId: zSessionId }),
+]);
+export type UserMessageSender = z.infer<typeof zUserMessageSender>;
+
 export const zUserMessageEvent = z.object({
 	...base,
 	type: z.literal("user_message"),
@@ -31,8 +43,14 @@ export const zUserMessageEvent = z.object({
 	/** The text the user typed, before the sidecar adds instructions or expands mentions. */
 	text: z.string(),
 	attachmentPaths: z.array(z.string()),
-	delivery: z.enum(["new_turn", "steer"]),
+	/**
+	 * new_turn: the message started this turn. steer: it was pushed into the running turn.
+	 * plan_feedback: the user's feedback when answering a plan approval, kept so the chat shows it.
+	 */
+	delivery: z.enum(["new_turn", "steer", "plan_feedback"]),
 	config: zSessionConfig,
+	/** Who sent the message, when it was not typed in this app. */
+	sender: zUserMessageSender.optional(),
 });
 
 export const zAgentEvent = z.object({

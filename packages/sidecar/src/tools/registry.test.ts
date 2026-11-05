@@ -8,18 +8,19 @@ test("every protocol tool name has a definition under its own name", () => {
 
 test("switches remove tools, and the bridge list leaves out AskUserQuestion", () => {
 	const off = enabledTools(
-		{ diffComments: false, progressUpdates: false },
+		{ diffComments: false, progressUpdates: false, setTargetBranch: false },
 		{ includeAskUserQuestion: true },
 	);
 	expect(off.map((tool) => tool.name)).not.toContain("UpdateProgress");
 	expect(off.map((tool) => tool.name)).not.toContain("GetDiffComments");
+	expect(off.map((tool) => tool.name)).not.toContain("SetTargetBranch");
 	const all = enabledTools(
-		{ diffComments: true, progressUpdates: true },
+		{ diffComments: true, progressUpdates: true, setTargetBranch: true },
 		{ includeAskUserQuestion: true },
 	);
 	expect(all.map((tool) => tool.name)).toEqual([...APP_TOOLS]);
 	const bridged = enabledTools(
-		{ diffComments: true, progressUpdates: true },
+		{ diffComments: true, progressUpdates: true, setTargetBranch: true },
 		{ includeAskUserQuestion: false },
 	);
 	expect(bridged.map((tool) => tool.name)).not.toContain("AskUserQuestion");

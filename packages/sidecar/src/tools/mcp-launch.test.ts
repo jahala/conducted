@@ -7,7 +7,7 @@ const entryInput = {
 	sessionId: "s1" as SessionId,
 	socketPath: "/tmp/x/s",
 	token: "secret-token",
-	appTools: { diffComments: true, progressUpdates: false },
+	appTools: { diffComments: true, progressUpdates: false, setTargetBranch: false },
 };
 
 test("the token goes in the environment and never in the arguments", () => {
@@ -26,7 +26,7 @@ test("the arguments written for the helper parse back to the same values", () =>
 		value: {
 			sessionId: "s1" as SessionId,
 			socketPath: "/tmp/x/s",
-			appTools: { diffComments: true, progressUpdates: false },
+			appTools: { diffComments: true, progressUpdates: false, setTargetBranch: false },
 		},
 	});
 });

@@ -1,17 +1,39 @@
 /**
  * @feature APP-05 Design tokens
- * Owns: every colour, font, size, radius and motion value the UI may use, in light and dark.
- * Behaviour: ui-map.md 8 (Conductor uses Tailwind v4 tokens as CSS variables; names and values here are ours).
- * Our design choices:
- *  - Neutrals plus one accent. The accent marks the one primary action or the one thing to look at.
- *  - Danger, warning and success colours carry function only (errors, caution, done).
- *  - No default Tailwind palette, type scale or radii are kept, so only these tokens exist.
+ * Owns: every colour, font, size, weight, radius, shadow and motion value the UI may use, in light, dark
+ * and low-contrast dark, plus the layout sizes that are not on the 4px spacing scale.
+ * Behaviour: research/conductor/ui-dimensions.md 10 ("Tokens to adopt"), D022 and D023. The values are
+ * Conductor's measured values, stored under our own names. No stylesheet or asset is copied from Conductor.
+ * Rules:
+ *  - Neutrals are one warm grey ramp plus one clay accent. The accent marks the thing to look at (active tab
+ *    underline, focused input, unread). Primary buttons use the near-black `primary-fill`, as Conductor does.
+ *  - Danger, warning, success and info carry function only.
+ *  - No default Tailwind palette, type scale, weights, radii, shadows or easings are kept.
  *  - Light and dark come from the OS through `light-dark()`. `data-theme="light|dark"` on <html> forces one.
- *  - Two font families: the system UI stack and a monospace stack. No font files ship with the app.
- *  - Hierarchy comes from size and weight first. Only three weights exist.
- * Contrast is checked by src/ui/tokens.test.ts (text 4.5:1, focus ring 3:1).
+ *    `data-contrast="low"` on <html> switches dark mode to its low-contrast set (APP-14 sets the attribute).
+ *  - Two font families, Geist and Geist Mono, bundled from their official SIL OFL release
+ *    (assets/fonts/OFL.txt). The terminal keeps its own Menlo-first list (RUN-06).
+ *  - Hierarchy comes from size and weight first. Five weights exist: 350, 400, 450, 500, 600.
+ *  - Where a measured colour fails WCAG AA, the nearest passing value in the same hue replaces it. Each one
+ *    is listed in docs/design.md.
+ * Contrast is checked by src/ui/tokens.test.ts (text 4.5:1, marks 3:1), in all three colour sets.
  */
 @import "tailwindcss";
+
+@font-face {
+	font-family: "Geist";
+	src: url("./assets/fonts/Geist-Variable.woff2") format("woff2");
+	font-weight: 100 900;
+	font-style: normal;
+	font-display: swap;
+}
+@font-face {
+	font-family: "Geist Mono";
+	src: url("./assets/fonts/GeistMono-Variable.woff2") format("woff2");
+	font-weight: 100 900;
+	font-style: normal;
+	font-display: swap;
+}
 
 :root {
 	color-scheme: light dark;
@@ -23,88 +45,228 @@
 	color-scheme: dark;
 }
 
-@theme {
+/* `static` emits every variable, so values read at runtime (terminal colours) exist even when no class uses them. */
+@theme static {
 	--color-*: initial;
 	--font-*: initial;
 	--text-*: initial;
 	--font-weight-*: initial;
+	--tracking-*: initial;
 	--radius-*: initial;
 	--shadow-*: initial;
 	--ease-*: initial;
 
-	/* Surfaces: canvas is the main work area, surface is side panels, raised is menus and dialogs. */
-	--color-canvas: light-dark(#ffffff, #121214);
-	--color-surface: light-dark(#f5f5f7, #1a1a1e);
-	--color-raised: light-dark(#ffffff, #202026);
-	--color-hover: light-dark(#ececf0, #25252b);
-	--color-active: light-dark(#e3e3e8, #2e2e35);
-	--color-overlay: light-dark(rgb(16 16 24 / 0.35), rgb(0 0 0 / 0.55));
+	/* One spacing step is 4px. */
+	--spacing: 0.25rem;
 
-	/* Lines. `border` is decorative. `border-strong` marks input edges and meets 3:1. */
-	--color-border: light-dark(#e2e2e7, #2a2a30);
-	--color-border-strong: light-dark(#8e8e99, #6a6a76);
+	/* Surfaces. canvas: centre panel. panel: right panel. surface: sidebar, headers, tab strips.
+	   muted: composer, user bubble, code blocks. raised: menus, popovers, dialogs, cards. */
+	--color-canvas: light-dark(#ffffff, #141110);
+	--color-panel: light-dark(#fdfcfc, #1c1917);
+	--color-surface: light-dark(#fafaf9, #211e1c);
+	--color-muted: light-dark(#fafaf9, #211e1c);
+	--color-raised: light-dark(#ffffff, #2c2826);
+	/* hover is a 5% tint, so it works on every surface. active is the selected segmented tab. */
+	--color-hover: light-dark(#14100f0d, #ffffff0d);
+	--color-active: light-dark(#eae9e8, #312e2c);
+	--color-overlay: #00000080;
 
-	/* Text. All three meet 4.5:1 on canvas, surface, hover and active. */
-	--color-fg: light-dark(#16161a, #f2f2f5);
-	--color-fg-muted: light-dark(#4f4f5a, #b0b0bb);
-	--color-fg-subtle: light-dark(#62626d, #9696a2);
+	/* Lines. border and separator are decorative. border-strong marks input edges and meets 3:1. */
+	--color-border: light-dark(#eae8e6, #ffffff1a);
+	--color-separator: light-dark(#eae8e6, #2c2826);
+	--color-border-strong: light-dark(#14100f73, #ffffff58);
+	--color-popover-ring: light-dark(#211e1c0d, #ffffff1a);
 
-	/* The one accent. `on-accent` is the text colour on top of it. `focus` is the keyboard ring. */
-	--color-accent: light-dark(#4a3fdb, #8f87ff);
-	--color-accent-hover: light-dark(#3e33c4, #a39cff);
-	--color-on-accent: light-dark(#ffffff, #0e0e12);
-	--color-focus: light-dark(#4a3fdb, #8f87ff);
+	/* Text. fg, fg-muted and fg-subtle meet 4.5:1 on every surface above, hover and active included. */
+	--color-fg: light-dark(#2c2826, #eae8e6);
+	--color-fg-muted: light-dark(#6e6867, #a5a09c);
+	--color-fg-subtle: light-dark(#6e6867, #a09a97);
+	--color-sidebar-fg: light-dark(#14100fb3, #ffffffe6);
+	--color-sidebar-fg-muted: light-dark(#14100f99, #ffffff99);
 
-	/* Function only. `danger` is text and icons. `danger-solid` is a filled button. */
-	--color-danger: light-dark(#c0262d, #ff7a7f);
-	--color-danger-solid: light-dark(#c0262d, #d63b43);
+	/* Fills that carry text. The primary button is primary-fill with canvas-coloured text. */
+	--color-primary-fill: light-dark(#2c2826, #eae8e6);
+	--color-check: light-dark(#413030, #f3f2f1);
+	--color-on-check: light-dark(#f3f2f1, #2c2826);
+	--color-switch-on: light-dark(#2c2826, #eae8e6);
+	--color-switch-thumb: light-dark(#ffffff, #2c2826);
+
+	/* The one accent, a clay tint. on-accent is text on it. focus is the keyboard ring. */
+	--color-accent: light-dark(#a2827d, #cca694);
+	--color-accent-hover: light-dark(#96746f, #ddc1b1);
+	--color-on-accent: light-dark(#14100f, #141110);
+	--color-unread: light-dark(#a2827d, #cca694);
+	--color-link: light-dark(#8d6964, #cca694);
+	--color-focus: light-dark(#2c2826, #bcb6b3);
+	--color-highlight-surface: light-dark(#faf7f5, #2a1e1d);
+	--color-highlight-fg: light-dark(#594545, #f3ece7);
+
+	/* Function only. danger is text and icons; danger-solid is a filled button. */
+	--color-danger: light-dark(#dc2828, #f87272);
+	--color-danger-solid: light-dark(#dc2828, #c62828);
 	--color-on-danger: #ffffff;
-	--color-warning: light-dark(#8a5a00, #e8b04a);
-	--color-success: light-dark(#1b7a3e, #5fd38a);
+	--color-warning: light-dark(#9a6700, #d29922);
+	--color-warning-surface: light-dark(#faf7f5, #413030);
+	--color-warning-fg: light-dark(#594545, #f3ece7);
+	--color-warning-border: light-dark(#e9d9ce, #594545);
+	--color-success: light-dark(#12853c, #4ade80);
+	--color-info: light-dark(#0c9adc, #3c83f6);
+
+	/* Workspace status marks. They sit on sidebar rows, so they meet 3:1 on the hover tint too. */
+	--color-status-backlog: #8e8885;
+	--color-status-progress: light-dark(#a28700, #ffdc2e);
+	--color-status-review: light-dark(#169e47, #4ade80);
+	--color-status-done: light-dark(#a2827d, #cca694);
+	--color-status-canceled: light-dark(#8f8884, #a5a09c);
+
+	/* Git counts and diff lines. Diff fills mix the base at 10% (line), 60% (marker) and 20% (changed word). */
+	--color-git-added: light-dark(#12853c, #4ade80);
+	--color-git-removed: light-dark(#dc2828, #f87272);
+	--color-diff-added: #1bc559;
+	--color-diff-added-line: color-mix(in srgb, var(--color-diff-added) 10%, transparent);
+	--color-diff-added-marker: color-mix(in srgb, var(--color-diff-added) 60%, transparent);
+	--color-diff-added-word: color-mix(in srgb, var(--color-diff-added) 20%, transparent);
+	--color-diff-removed: #e60000;
+	--color-diff-removed-line: color-mix(in srgb, var(--color-diff-removed) 10%, transparent);
+	--color-diff-removed-marker: color-mix(in srgb, var(--color-diff-removed) 60%, transparent);
+	--color-diff-removed-word: color-mix(in srgb, var(--color-diff-removed) 20%, transparent);
+
+	/* Terminal ANSI colours, as measured. Their AA check is part of APP-14. */
+	--color-term-black: light-dark(#2c2826, #47423e);
+	--color-term-red: light-dark(#dc2828, #f87272);
+	--color-term-green: light-dark(#16a249, #4ade80);
+	--color-term-yellow: light-dark(#ffdc2e, #ffea80);
+	--color-term-blue: light-dark(#2463eb, #61a6fa);
+	--color-term-magenta: light-dark(#cb00eb, #e852ff);
+	--color-term-cyan: light-dark(#098dae, #3ed8ef);
+	--color-term-white: #eae8e6;
+	--color-term-bright-black: light-dark(#766f6b, #a5a09c);
+	--color-term-bright-red: light-dark(#ef4343, #fca6a6);
+	--color-term-bright-green: light-dark(#21c45d, #85efac);
+	--color-term-bright-yellow: light-dark(#ffe561, #fff1ad);
+	--color-term-bright-blue: light-dark(#3c83f6, #91c3fd);
+	--color-term-bright-magenta: light-dark(#e014ff, #f08fff);
+	--color-term-bright-cyan: light-dark(#07b6d5, #7bebf9);
+	--color-term-bright-white: light-dark(#f3f2f1, #ffffff);
 
 	/* Two families. */
-	--font-sans:
-		ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial,
-		sans-serif;
-	--font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+	--font-sans: "Geist", system-ui, sans-serif;
+	--font-mono: "Geist Mono", ui-monospace, monospace;
 
-	/* A fixed type scale. Nothing outside these sizes. */
+	/* Conductor's type scale. text-sm is the 14px body. text-code is the 13px diff and file text. */
+	--text-3xs: 0.625rem;
+	--text-3xs--line-height: 0.75rem;
+	--text-3xs--letter-spacing: 0.04em;
+	--text-2xs: 0.6875rem;
+	--text-2xs--line-height: 0.875rem;
+	--text-2xs--letter-spacing: 0.02em;
 	--text-xs: 0.75rem;
 	--text-xs--line-height: 1rem;
-	--text-sm: 0.8125rem;
+	--text-xs--letter-spacing: 0.01em;
+	--text-sm: 0.875rem;
 	--text-sm--line-height: 1.25rem;
-	--text-base: 0.875rem;
-	--text-base--line-height: 1.375rem;
-	--text-lg: 1.0625rem;
-	--text-lg--line-height: 1.5rem;
-	--text-xl: 1.375rem;
+	--text-sm--letter-spacing: 0;
+	--text-code: 0.8125rem;
+	--text-code--line-height: 1.25rem;
+	--text-base: 1rem;
+	--text-base--line-height: 1.5rem;
+	--text-base--letter-spacing: -0.01em;
+	--text-lg: 1.125rem;
+	--text-lg--line-height: 1.75rem;
+	--text-lg--letter-spacing: -0.016em;
+	--text-xl: 1.25rem;
 	--text-xl--line-height: 1.75rem;
-	--text-2xl: 2rem;
-	--text-2xl--line-height: 2.25rem;
+	--text-xl--letter-spacing: -0.02em;
+	--text-2xl: 1.5rem;
+	--text-2xl--line-height: 2rem;
+	--text-2xl--letter-spacing: -0.024em;
+
+	/* light: tab list and composer text. book: outline and ghost buttons, sidebar names. */
+	--font-weight-light: 350;
 	--font-weight-normal: 400;
+	--font-weight-book: 450;
 	--font-weight-medium: 500;
 	--font-weight-semibold: 600;
 
+	--tracking-tight: -0.025em;
+	--tracking-normal: 0.14px;
+	--tracking-wide: 0.025px;
+	--tracking-wider: 0.6px;
+	--tracking-widest: 1.44px;
+
+	--radius-xs: 2px;
 	--radius-sm: 4px;
 	--radius-md: 6px;
-	--radius-lg: 10px;
+	--radius-lg: 8px;
+	--radius-xl: 12px;
+	--radius-2xl: 16px;
 	--radius-full: 9999px;
 
-	--shadow-popover: 0 8px 24px rgb(0 0 0 / 0.18), 0 0 0 1px light-dark(#e2e2e7, #2a2a30);
+	/* xs: chips and the composer. popover: menus, popovers, tooltips. dialog, palette, toast as named. */
+	--shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+	--shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+	--shadow-popover:
+		0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1),
+		0 0 0 1px var(--color-popover-ring);
+	--shadow-dialog: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+	--shadow-palette: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+	--shadow-toast: 0 4px 12px rgb(0 0 0 / 0.1);
 
 	/* Motion is short. Reduced motion turns it off below. */
-	--ease-out: cubic-bezier(0.2, 0, 0, 1);
-	--default-transition-duration: 120ms;
-	--default-transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+	--ease-in: cubic-bezier(0.4, 0, 1, 1);
+	--ease-out: cubic-bezier(0, 0, 0.2, 1);
+	--ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+	--ease-spring: cubic-bezier(0.25, 1, 0.5, 1);
+	--ease-soft: cubic-bezier(0.25, 0.1, 0.25, 1);
+	--default-transition-duration: 150ms;
+	--default-transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Layout constants for the macOS overlay title bar (window uses titleBarStyle Overlay). */
+/* Low-contrast dark mode replaces these values in dark only. The light halves repeat the main set
+   (tokens.test.ts checks they match). */
+:root[data-contrast="low"] {
+	--color-canvas: light-dark(#ffffff, #1f1c1a);
+	--color-panel: light-dark(#fdfcfc, #24211e);
+	--color-surface: light-dark(#fafaf9, #292623);
+	--color-muted: light-dark(#fafaf9, #2f2b28);
+	--color-fg: light-dark(#2c2826, #c5c2be);
+	--color-primary-fill: light-dark(#2c2826, #c5c2be);
+	--color-highlight-surface: light-dark(#faf7f5, #3f3331);
+	--color-highlight-fg: light-dark(#594545, #e3dad3);
+}
+
+/* Durations and layout sizes that are not on the spacing scale. Panel sizes that the resizable panels
+   need in script live in src/ui/layout-sizes.ts. */
 :root {
-	/* Room for the three traffic-light buttons, which sit at the window's top left. */
-	--traffic-lights-clearance: 5rem;
-	--titlebar-height: 2.75rem;
+	--duration-popover: 100ms;
+	--duration-dialog: 200ms;
+	--duration-palette-in: 180ms;
+	--duration-palette-out: 130ms;
+	--duration-composer: 200ms;
+
+	/* Room for the three traffic-light buttons at the window's top left. */
+	--traffic-lights-clearance: 66px;
+	/* The title bar row. Every panel header and the centre tab strip share this height. */
+	--titlebar-height: 2.5rem;
 	/* Width of the sidebar, back and forward buttons that float next to the traffic lights. */
 	--shell-controls-width: calc(var(--traffic-lights-clearance) + 6.5rem);
+
+	--chat-column-width: 56rem;
+	--chat-gutter: 28px;
+	--user-bubble-width: 36rem;
+	--user-bubble-width-wide: 48rem;
+	--composer-min-height: 152px;
+	--composer-editor-min-height: 88px;
+	--composer-editor-max-height: 188px;
+	--tab-width-chat: 11rem;
+	--tab-width: 8rem;
+	--tab-width-min: 5rem;
+	--tab-width-max: 10rem;
+	--palette-width: 36rem;
+	--palette-max-height: 500px;
+	--toast-width: 356px;
+	--settings-nav-width: 16rem;
+	--settings-content-width: 56rem;
 }
 
 @layer base {
@@ -117,8 +279,11 @@
 		background: var(--color-canvas);
 		color: var(--color-fg);
 		font-family: var(--font-sans);
-		font-size: var(--text-base);
-		line-height: var(--text-base--line-height);
+		font-size: var(--text-sm);
+		line-height: var(--text-sm--line-height);
+		font-feature-settings:
+			"rlig" 1,
+			"calt" 1;
 		-webkit-font-smoothing: antialiased;
 		/* A desktop app does not scroll the window or select chrome text. */
 		overflow: hidden;
@@ -133,7 +298,7 @@
 		-webkit-user-select: text;
 		user-select: text;
 	}
-	/* Keyboard focus is always visible. */
+	/* Keyboard focus is always visible, on buttons too (D023). */
 	:focus-visible {
 		outline: 2px solid var(--color-focus);
 		outline-offset: 2px;
@@ -143,6 +308,11 @@
 	}
 	button:not(:disabled) {
 		cursor: default;
+	}
+	/* Scrollbars: 8px, no track, a thumb in fg at 20%. */
+	* {
+		scrollbar-width: thin;
+		scrollbar-color: color-mix(in srgb, var(--color-fg) 20%, transparent) transparent;
 	}
 }
 

@@ -60,6 +60,12 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0003_diff_comment_side.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 4,
+            description: "review_states_backlog_snippets_keys",
+            sql: include_str!("../migrations/0004_review_states_backlog_snippets_keys.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

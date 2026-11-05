@@ -35,10 +35,10 @@ import {
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform } from "../../platform/platform.ts";
-import type { NewWorkspaceInput } from "../api.ts";
+import type { Draft, NewWorkspaceInput, UnarchiveOutcome } from "../api.ts";
 import type { Repositories } from "../db/repositories.ts";
 import type { GitRunner } from "../git/runner.ts";
-import type { KanbanStatus, Session, Workspace } from "../model.ts";
+import type { BacklogWorkspace, KanbanStatus, Session, Workspace } from "../model.ts";
 
 export interface PlaceNames {
 	/** A place name that is not in `taken`. */
@@ -150,7 +150,10 @@ export class WorkspaceService {
 	}
 
 	/** Backs `Actions.workspaces.unarchive`. */
-	unarchive(_id: WorkspaceId): Promise<Result<void>> {
+	unarchive(
+		_id: WorkspaceId,
+		_options: { branchName: string | null; clearChats: boolean },
+	): Promise<Result<UnarchiveOutcome>> {
 		return notImplemented("WS-06");
 	}
 
@@ -196,5 +199,35 @@ export class WorkspaceService {
 		if (workspace === undefined)
 			return err(appError("workspace_unknown", "That workspace no longer exists."));
 		return this.#deps.platform.opener.openWith(appName, workspace.path);
+	}
+
+	/** Backs `Actions.workspaces.setActiveSession`. */
+	setActiveSession(_id: WorkspaceId, _sessionId: SessionId): Promise<Result<void>> {
+		return notImplemented("NAV-02");
+	}
+
+	/** Backs `Actions.workspaces.retrySetup`. A second call while setup runs is ignored. */
+	retrySetup(_id: WorkspaceId): Promise<Result<void>> {
+		return notImplemented("WS-01");
+	}
+
+	/** Backs `Actions.workspaces.recoverPrompt`. */
+	recoverPrompt(_id: WorkspaceId): Promise<Result<Draft>> {
+		return notImplemented("WS-01");
+	}
+
+	/** Backs `Actions.workspaces.addToBacklog`. */
+	addToBacklog(_input: NewWorkspaceInput): Promise<Result<BacklogWorkspace>> {
+		return notImplemented("WS-11");
+	}
+
+	/** Backs `Actions.workspaces.startFromBacklog`: the normal create flow, keeping the id. */
+	startFromBacklog(_id: WorkspaceId): Promise<Result<Workspace>> {
+		return notImplemented("WS-11");
+	}
+
+	/** Backs `Actions.workspaces.removeFromBacklog`. */
+	removeFromBacklog(_id: WorkspaceId): Promise<Result<void>> {
+		return notImplemented("WS-11");
 	}
 }

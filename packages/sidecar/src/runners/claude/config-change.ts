@@ -36,7 +36,8 @@ export function classifyConfigChange(prev: SessionConfig, next: SessionConfig): 
 		prev.fastMode !== next.fastMode ||
 		!sameList(prev.additionalDirectories, next.additionalDirectories) ||
 		prev.appTools.diffComments !== next.appTools.diffComments ||
-		prev.appTools.progressUpdates !== next.appTools.progressUpdates;
+		prev.appTools.progressUpdates !== next.appTools.progressUpdates ||
+		prev.appTools.setTargetBranch !== next.appTools.setTargetBranch;
 	if (restart) return { kind: "restart", live };
 	if (live.model || live.effort || live.permissionMode) return { kind: "live", live };
 	return { kind: "none", live };

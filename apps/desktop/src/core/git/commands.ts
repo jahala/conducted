@@ -157,6 +157,76 @@ export const revListCount = (range: string): GitCommand => git(["rev-list", "--c
 export const logRange = (range: string): GitCommand =>
 	git(["log", range, "--format=%H|%s|%an|%ae|%at"]);
 
+// ---------------------------------------------------------------- local-git forge (3.7.7)
+
+/**
+ * Predicts whether merging `branch` into `target` would conflict, without touching any worktree.
+ * Exit 1 means conflicts, which is an answer and not a failure. Any conflict stage line in the
+ * output (`<mode> <oid> <1|2|3>\t<path>`) also means conflicts.
+ */
+export const mergeTreeWriteTree = (target: string, branch: string): GitCommand =>
+	git(["merge-tree", "--write-tree", "--no-messages", target, branch], { okExitCodes: PROBE });
+
+// ---------------------------------------------------------------- catching up a stack branch (3.8.3)
+
+/** The branch HEAD names. Exit 128 means a detached HEAD. */
+export const symbolicRefHead = (): GitCommand =>
+	git(["symbolic-ref", "HEAD"], { okExitCodes: [0, 128] });
+/** The full ref name of the upstream, for example `refs/remotes/origin/main`. */
+export const upstreamFullName = (): GitCommand =>
+	git(["rev-parse", "--symbolic-full-name", "@{u}"], { okExitCodes: [0, 128] });
+/** Hashes the text given on stdin, to make an identity out of a remote URL. */
+export const hashObjectStdin = (text: string): GitCommand =>
+	git(["hash-object", "--stdin"], { stdin: text });
+/**
+ * Applies `verify` and `update` lines in one transaction, which makes a compare-and-swap on a ref.
+ * Each instruction is one line, for example `update <ref> <new> <old>`.
+ */
+export const updateRefStdin = (instructions: readonly string[]): GitCommand =>
+	git(["update-ref", "--stdin"], { stdin: `${instructions.join("\n")}\n` });
+/** Every commit the ref has pointed to, newest first. */
+export const reflogHashes = (ref: string): GitCommand =>
+	git(["reflog", "show", "--format=%H", ref]);
+/** Empty output means a clean tree, with untracked files counted. */
+export const statusPorcelainAll = (): GitCommand =>
+	git(["status", "--porcelain=v1", "--untracked-files=all"]);
+/** Ignored paths, collapsed to their top folder, NUL separated. */
+export const lsFilesIgnoredNul = (): GitCommand =>
+	git(["ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "-z"]);
+/** Paths that `to` adds compared with `from`, NUL separated. */
+export const diffTreeAddedNul = (from: string, to: string): GitCommand =>
+	git([
+		"diff-tree",
+		"--no-commit-id",
+		"--name-only",
+		"--no-renames",
+		"--diff-filter=A",
+		"-r",
+		"-z",
+		from,
+		to,
+	]);
+/**
+ * Replays the local commits onto the upstream tip. The caller passes `GIT_SEQUENCE_EDITOR` in the
+ * run options: a script that checks the rebase still starts from the state it was planned on.
+ */
+export const rebaseOntoUpstream = (upstreamOid: string, localOid: string): GitCommand =>
+	git(
+		[
+			"rebase",
+			"--interactive",
+			"--no-autostash",
+			"--no-update-refs",
+			"--no-autosquash",
+			"--no-rebase-merges",
+			"--no-fork-point",
+			"--onto",
+			upstreamOid,
+			localOid,
+		],
+		{ retryOnLock: false },
+	);
+
 // ---------------------------------------------------------------- diffs (3.4)
 
 export const showFileAt = (ref: string, path: string): GitCommand =>

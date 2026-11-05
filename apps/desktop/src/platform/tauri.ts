@@ -28,19 +28,25 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
 	AppInfo,
+	AppMenu,
+	AppWindow,
+	AttachmentFiles,
 	Clipboard,
 	Database,
 	Dialogs,
 	FileSearch,
 	FileSystem,
+	Http,
 	Keychain,
 	Notifications,
 	Opener,
 	Platform,
+	Programs,
 	Pty,
 	Shell,
 	SidecarTransport,
 	Speech,
+	SystemFacts,
 	Updater,
 } from "./platform.ts";
 
@@ -66,6 +72,15 @@ export const COMMANDS = {
 	resourceUsage: "resource_usage",
 	logWrite: "log_write",
 	logsExport: "logs_export",
+	logSetLevel: "log_set_level",
+	setQuitHandlerReady: "set_quit_handler_ready",
+	systemInfo: "system_info",
+	networkStatus: "network_status",
+	fullDiskAccessCheck: "full_disk_access_check",
+	fullDiskAccessOpenSettings: "full_disk_access_open_settings",
+	windowSetVibrancy: "window_set_vibrancy",
+	windowSetTrafficLights: "window_set_traffic_lights",
+	windowToggleInspector: "window_toggle_inspector",
 	dbVersionCheck: "db_version_check",
 	shellRun: "shell_run",
 	shellStart: "shell_start",
@@ -81,12 +96,14 @@ export const COMMANDS = {
 	searchListTree: "search_list_tree",
 	searchFuzzy: "search_fuzzy",
 	searchGrep: "search_grep",
+	searchListArtifacts: "search_list_artifacts",
 	ptySpawn: "pty_spawn",
 	ptyWrite: "pty_write",
 	ptyResize: "pty_resize",
 	ptyKill: "pty_kill",
 	ptyAck: "pty_ack",
 	ptyScreenText: "pty_screen_text",
+	ptyScreenSnapshot: "pty_screen_snapshot",
 	ptyLoadHistory: "pty_load_history",
 	sidecarEnsureStarted: "sidecar_ensure_started",
 	sidecarSend: "sidecar_send",
@@ -106,9 +123,20 @@ export const COMMANDS = {
 	updaterCheck: "updater_check",
 	updaterInstall: "updater_install",
 	updaterRelaunch: "updater_relaunch",
+	updaterInstalledUpdate: "updater_installed_update",
 	attachmentMaterialize: "attachment_materialize",
 	imageResize: "image_resize",
 	menuSetShortcuts: "menu_set_shortcuts",
+	programsState: "programs_state",
+	programInstall: "program_install",
+	programRedownload: "program_redownload",
+	programRemove: "program_remove",
+	programsPrefetch: "programs_prefetch",
+	programsVerificationErrors: "programs_verification_errors",
+	programsSyncPathOverrides: "programs_sync_path_overrides",
+	httpFetch: "http_fetch",
+	httpDownload: "http_download",
+	httpCancel: "http_cancel",
 } as const;
 
 /** Events emitted by the Rust shell. */
@@ -122,6 +150,9 @@ export const EVENTS = {
 	notificationClicked: "notification://clicked",
 	updaterStatus: "updater://status",
 	menuCommand: "menu://command",
+	networkChanged: "network://changed",
+	programsStatus: "programs://status",
+	programsVerificationErrors: "programs://verification-errors",
 } as const;
 
 // ---------------------------------------------------------------- errors (real)
@@ -166,7 +197,7 @@ export async function checkHealth(bindings: Pick<TauriBindings, "invoke">): Prom
 
 // ---------------------------------------------------------------- groups (placeholders)
 
-/** `app_info` -> `{ version, channel }`; `app_quit`; `resource_usage`; `log_write`; `logs_export`. Events: quit, deep link. */
+/** `app_info` -> `{ version, channel }`; `app_quit`; `resource_usage`; `log_write`; `log_set_level { level }`; `logs_export`; `set_quit_handler_ready`. Events: quit, deep link. */
 export function createTauriAppInfo(
 	bindings: TauriBindings,
 	info: { version: string; channel: "dev" | "release" },
@@ -181,7 +212,9 @@ export function createTauriAppInfo(
 		quit: () => notImplemented("PLAT-02"),
 		resourceUsage: () => notImplemented("PLAT-14"),
 		writeLog: () => notImplemented("PLAT-18"),
+		setLogLevel: () => notImplemented("PLAT-18"),
 		exportLogs: () => notImplemented("PLAT-18"),
+		setQuitHandlerReady: () => notImplemented("PLAT-15"),
 	};
 }
 
@@ -220,16 +253,17 @@ export function createTauriFileSystem(
 	};
 }
 
-/** `search_list_tree { root }`, `search_fuzzy { root, query, limit }`, `search_grep { root, query, options }`. */
+/** `search_list_tree { root }`, `search_fuzzy { root, query, limit }`, `search_grep { root, query, options }`, `search_list_artifacts { workspacePath, cursor, limit }`. */
 export function createTauriFileSearch(_bindings: TauriBindings): FileSearch {
 	return {
 		listTree: () => notImplemented("PLAT-06"),
+		listArtifacts: () => notImplemented("REV-10"),
 		fuzzyMatch: () => notImplemented("PLAT-06"),
 		grep: () => notImplemented("PLAT-06"),
 	};
 }
 
-/** `pty_spawn { options, onData: Channel }`, `pty_write { id, data }`, `pty_resize`, `pty_kill`, `pty_ack { id, bytes }`, `pty_screen_text { id, maxLines }`, `pty_load_history { terminalId }`, event `pty://exit`. */
+/** `pty_spawn { options, onData: Channel }`, `pty_write { id, data }`, `pty_resize`, `pty_kill`, `pty_ack { id, bytes }`, `pty_screen_text { id, maxLines }`, `pty_screen_snapshot { id }`, `pty_load_history { terminalId }`, event `pty://exit`. */
 export function createTauriPty(_bindings: TauriBindings): Pty {
 	return {
 		spawn: () => notImplemented("PLAT-07"),
@@ -266,11 +300,12 @@ export function createTauriNotifications(_bindings: TauriBindings): Notification
 	};
 }
 
-/** plugin-dialog: `open({ directory: true })`, `open({ multiple })`, `ask`. */
+/** plugin-dialog: `open({ directory: true })`, `open({ multiple })`, `save`, `ask`. */
 export function createTauriDialogs(): Dialogs {
 	return {
 		pickFolder: () => notImplemented("PLAT-02"),
 		pickFiles: () => notImplemented("PLAT-02"),
+		pickSavePath: () => notImplemented("PLAT-02"),
 		confirm: () => notImplemented("PLAT-02"),
 	};
 }
@@ -303,12 +338,85 @@ export function createTauriSpeech(_bindings: TauriBindings): Speech {
 	};
 }
 
-/** `updater_check`, `updater_install`, `updater_relaunch`, event `updater://status`. */
+/** `updater_check`, `updater_install`, `updater_relaunch`, `updater_installed_update`, event `updater://status`. */
 export function createTauriUpdater(_bindings: TauriBindings): Updater {
 	return {
 		check: () => notImplemented("PLAT-13"),
 		install: () => notImplemented("PLAT-13"),
 		relaunch: () => notImplemented("PLAT-13"),
+		installedUpdate: () => notImplemented("PLAT-13"),
+	};
+}
+
+/**
+ * Window API: `isFocused`, `onFocusChanged` (`tauri://focus`, `tauri://blur`), `setTheme`.
+ * Webview API: `onDragDropEvent`, `setZoom`. Commands: `window_set_vibrancy { enabled }`,
+ * `window_set_traffic_lights { x, y }`, `window_toggle_inspector`.
+ */
+export function createTauriWindow(_bindings: TauriBindings): AppWindow {
+	return {
+		isFocused: () => notImplemented("PLAT-31"),
+		onFocusChanged: () => notImplemented("PLAT-31"),
+		onFileDrop: () => notImplemented("PLAT-33"),
+		setZoom: () => notImplemented("PLAT-23"),
+		setVibrancy: () => notImplemented("PLAT-23"),
+		setTrafficLightPosition: () => notImplemented("PLAT-23"),
+		setTheme: () => notImplemented("PLAT-23"),
+		toggleInspector: () => notImplemented("PLAT-15"),
+	};
+}
+
+/** `menu_set_shortcuts { shortcuts }`, event `menu://command` (payload: command id). */
+export function createTauriMenu(_bindings: TauriBindings): AppMenu {
+	return {
+		setShortcuts: () => notImplemented("PLAT-33"),
+		onCommand: () => notImplemented("PLAT-33"),
+	};
+}
+
+/** `system_info`, `network_status`, event `network://changed`, `full_disk_access_check`, `full_disk_access_open_settings`. */
+export function createTauriSystem(_bindings: TauriBindings): SystemFacts {
+	return {
+		info: () => notImplemented("PLAT-32"),
+		isOnline: () => notImplemented("PLAT-26"),
+		onNetworkChanged: () => notImplemented("PLAT-26"),
+		hasFullDiskAccess: () => notImplemented("PLAT-24"),
+		openFullDiskAccessSettings: () => notImplemented("PLAT-24"),
+	};
+}
+
+/** `attachment_materialize { sourcePath, destinationPath, resizeImage }`, `image_resize { sourcePath, destinationPath }`. */
+export function createTauriAttachments(_bindings: TauriBindings): AttachmentFiles {
+	return {
+		materialize: () => notImplemented("PLAT-33"),
+		resizeImage: () => notImplemented("PLAT-33"),
+	};
+}
+
+/**
+ * `programs_state`, `program_install { program }`, `program_redownload { program }`,
+ * `program_remove { program }`, `programs_prefetch`, `programs_verification_errors`,
+ * `programs_sync_path_overrides { overrides }`, events `programs://status` and
+ * `programs://verification-errors`.
+ */
+export function createTauriPrograms(_bindings: TauriBindings): Programs {
+	return {
+		statuses: () => notImplemented("PLAT-28"),
+		onStatus: () => notImplemented("PLAT-28"),
+		install: () => notImplemented("PLAT-28"),
+		redownload: () => notImplemented("PLAT-28"),
+		remove: () => notImplemented("PLAT-28"),
+		prefetchForUpdate: () => notImplemented("PLAT-28"),
+		verificationErrors: () => notImplemented("PLAT-34"),
+		syncPathOverrides: () => notImplemented("SET-13"),
+	};
+}
+
+/** `http_fetch { request }`, `http_download { url, destinationPath, expectedSha256, onProgress: Channel }`, `http_cancel { id }`. */
+export function createTauriHttp(_bindings: TauriBindings): Http {
+	return {
+		fetch: () => notImplemented("PLAT-30"),
+		download: () => notImplemented("PLAT-30"),
 	};
 }
 

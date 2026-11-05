@@ -9,16 +9,18 @@
  * list request for an agent that is not installed returns an Err with the sidecar's code
  * `agentNotInstalled`; slow model lists (ACP) must not block the picker's other agents; only the
  * newest answer for a key wins (a late answer for an older request is dropped); a sign-in flow
- * returns instructions and optionally a URL and code, and never stores a token itself.
+ * returns instructions and optionally a URL, a user code or a terminal command, ends with
+ * finishLogin or cancelLogin, and a key an agent hands back (Cursor) goes only to the Keychain.
  * Our design choice: the catalogue caches per agent key in memory only. Nothing about models is
  * saved to disk.
  * Test first: two requests for one agent key, answered out of order, leave the newer answer.
  */
-import type { AgentInstall, ModelInfo, SlashCommand } from "@conducted/protocol";
+import type { AgentInstall, AgentLogin, ModelInfo, SlashCommand } from "@conducted/protocol";
 import type { AcpAgent, AgentKind, Result, SessionId } from "@conducted/shared";
 import { notImplemented } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
-import type { Loadable } from "../api.ts";
+import type { Loadable, ProviderKeyRef } from "../api.ts";
+import type { AgentConfigFile, ConfigSyncCategory, ConfigSyncResult } from "../model.ts";
 import type { SidecarClient } from "../sidecar/tunnel.ts";
 
 export interface AgentCatalogState {
@@ -70,10 +72,50 @@ export class AgentCatalogService {
 	}
 
 	/** Backs `Actions.agents.login`. */
-	login(
-		_agent: AgentKind,
-		_acpAgent?: AcpAgent,
-	): Promise<Result<{ url?: string; code?: string; instructions: string }>> {
+	login(_agent: AgentKind, _acpAgent?: AcpAgent): Promise<Result<AgentLogin>> {
 		return notImplemented("SET-03");
+	}
+
+	/** Backs `Actions.agents.finishLogin`. A key Cursor hands back goes to the Keychain, never to the store. */
+	finishLogin(
+		_loginId: string,
+		_code?: string,
+	): Promise<Result<{ outcome: "signed_in" | "failed" | "cancelled"; message: string | null }>> {
+		return notImplemented("SET-03");
+	}
+
+	/** Backs `Actions.agents.cancelLogin`. */
+	cancelLogin(_loginId: string): Promise<Result<void>> {
+		return notImplemented("SET-03");
+	}
+
+	/** Backs `Actions.agents.setProviderKey`. */
+	setProviderKey(
+		_key: ProviderKeyRef,
+		_value: { kind: "entered"; value: string } | { kind: "this_mac" },
+	): Promise<Result<void>> {
+		return notImplemented("SET-09");
+	}
+
+	/** Backs `Actions.agents.removeProviderKey`. Also removes the Keychain entry. */
+	removeProviderKey(_key: ProviderKeyRef): Promise<Result<void>> {
+		return notImplemented("SET-09");
+	}
+
+	/** Backs `Actions.agents.saveConfigFile`. */
+	saveConfigFile(
+		_agent: AgentConfigFile["agent"],
+		_text: string,
+		_expectedModifiedAt: number | null,
+	): Promise<Result<void>> {
+		return notImplemented("SET-12");
+	}
+
+	/** Backs `Actions.agents.syncConfigs`. */
+	syncConfigs(
+		_from: "claude" | "codex",
+		_categories: readonly ConfigSyncCategory[],
+	): Promise<Result<ConfigSyncResult>> {
+		return notImplemented("SET-08");
 	}
 }

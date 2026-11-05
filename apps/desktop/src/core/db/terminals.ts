@@ -1,26 +1,37 @@
 /**
  * @feature DATA-01 Repository for the terminals table
- * Owns: terminal tabs and script runs (setup, run, spotlight) of a workspace. Scrollback files
- * are written by the Rust shell and not touched here.
+ * Owns: terminal tabs and script runs (setup, run, spotlight) of a workspace, and the one
+ * terminal of each repository (workspace_id null, repo_id set; migration 0004). Scrollback files
+ * are written by the Rust shell and not touched here; the screen state for a restore is a JSON
+ * column.
  * Behaviour: services-map.md 2.3.5 (terminal_sessions: upsert, delete) and 5A (terminals).
  * Must handle: marking ended is compare-and-set on ended_at IS NULL, so the first exit report
  * wins; a crash leaves rows with ended_at NULL, which startup repair closes (repair.ts); ended
  * terminals older than 14 days are removed with their files by the lifetime job (lifetime.ts).
  * Test first: markEnded twice keeps the first exit code.
  */
-import { notImplemented, type Result, type TerminalId, type WorkspaceId } from "@conducted/shared";
+import {
+	notImplemented,
+	type RepoId,
+	type Result,
+	type TerminalId,
+	type WorkspaceId,
+} from "@conducted/shared";
 import type { Database } from "../../platform/platform.ts";
 import type { Terminal } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
 
 export interface TerminalRow {
 	id: TerminalId;
-	workspace_id: WorkspaceId;
+	workspace_id: WorkspaceId | null;
+	repo_id: RepoId | null;
 	kind: "terminal" | "setup" | "run" | "spotlight";
 	title: string;
 	cwd: string;
 	cols: number;
 	rows: number;
+	start_command: string | null;
+	screen_state: string | null;
 	started_at: number;
 	ended_at: number | null;
 	exit_code: number | null;
@@ -29,40 +40,50 @@ export interface TerminalRow {
 export const terminalFromRow = (row: TerminalRow): Terminal => ({
 	id: row.id,
 	workspaceId: row.workspace_id,
+	repoId: row.repo_id,
 	kind: row.kind,
 	title: row.title,
 	cwd: row.cwd,
+	startCommand: row.start_command,
 	startedAt: row.started_at,
 	endedAt: row.ended_at,
 	exitCode: row.exit_code,
 });
 
-/** The model has no size, both numbers are columns written at insert. */
-export type TerminalInsert = Terminal & { cols: number; rows: number };
+/** The model has no size or screen state; they are columns written at insert. */
+export type TerminalInsert = Terminal & { cols: number; rows: number; screenState: string | null };
 
 /** Parameters for TERMINALS_SQL.insert, in column order. */
 export const terminalToParams = (terminal: TerminalInsert): readonly unknown[] => [
 	terminal.id,
 	terminal.workspaceId,
+	terminal.repoId,
 	terminal.kind,
 	terminal.title,
 	terminal.cwd,
 	terminal.cols,
 	terminal.rows,
+	terminal.startCommand,
+	terminal.screenState,
 	terminal.startedAt,
 	terminal.endedAt,
 	terminal.exitCode,
 ];
 
-const COLUMNS = "id, workspace_id, kind, title, cwd, cols, rows, started_at, ended_at, exit_code";
+const COLUMNS = `id, workspace_id, repo_id, kind, title, cwd, cols, rows, start_command,
+	screen_state, started_at, ended_at, exit_code`;
 
 /** Every statement the repository runs. Parameters are `$1..$n` in order of first appearance. */
 export const TERMINALS_SQL = {
 	listByWorkspace: `SELECT ${COLUMNS} FROM terminals WHERE workspace_id = $1
 		ORDER BY started_at, id`,
+	listByRepo: `SELECT ${COLUMNS} FROM terminals WHERE repo_id = $1 ORDER BY started_at, id`,
 	listActive: `SELECT ${COLUMNS} FROM terminals WHERE ended_at IS NULL ORDER BY started_at, id`,
 	get: `SELECT ${COLUMNS} FROM terminals WHERE id = $1`,
-	insert: `INSERT INTO terminals (${COLUMNS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+	insert: `INSERT INTO terminals (${COLUMNS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+		$11, $12, $13)`,
+	getScreenState: "SELECT screen_state FROM terminals WHERE id = $1",
+	setScreenState: "UPDATE terminals SET screen_state = $1 WHERE id = $2",
 	setTitle: "UPDATE terminals SET title = $1 WHERE id = $2",
 	setSize: "UPDATE terminals SET cols = $1, rows = $2 WHERE id = $3",
 	markEnded:
@@ -71,7 +92,10 @@ export const TERMINALS_SQL = {
 } as const;
 
 /** What a caller supplies to record a new terminal. The repository adds id and start time. */
-export type NewTerminal = Pick<Terminal, "workspaceId" | "kind" | "title" | "cwd"> & {
+export type NewTerminal = Pick<
+	Terminal,
+	"workspaceId" | "repoId" | "kind" | "title" | "cwd" | "startCommand"
+> & {
 	cols: number;
 	rows: number;
 };
@@ -79,6 +103,8 @@ export type NewTerminal = Pick<Terminal, "workspaceId" | "kind" | "title" | "cwd
 export interface TerminalRepository {
 	/** TERMINALS_SQL.listByWorkspace, oldest first. */
 	listByWorkspace(workspaceId: WorkspaceId): Promise<Result<Terminal[]>>;
+	/** TERMINALS_SQL.listByRepo: the repository terminal and its earlier runs. */
+	listByRepo(repoId: RepoId): Promise<Result<Terminal[]>>;
 	/** TERMINALS_SQL.listActive: terminals with no end time. */
 	listActive(): Promise<Result<Terminal[]>>;
 	/** TERMINALS_SQL.get. A missing terminal is `ok(null)`. */
@@ -89,6 +115,10 @@ export interface TerminalRepository {
 	setTitle(id: TerminalId, title: string): Promise<Result<void>>;
 	/** TERMINALS_SQL.setSize. */
 	setSize(id: TerminalId, cols: number, rows: number): Promise<Result<void>>;
+	/** TERMINALS_SQL.getScreenState: the saved JSON snapshot. `ok(null)` when none is saved. */
+	getScreenState(id: TerminalId): Promise<Result<string | null>>;
+	/** TERMINALS_SQL.setScreenState, written when a terminal ends or the app quits. */
+	setScreenState(id: TerminalId, json: string | null): Promise<Result<void>>;
 	/** TERMINALS_SQL.markEnded. `ok(false)` when it had already ended. */
 	markEnded(id: TerminalId, endedAt: number, exitCode: number | null): Promise<Result<boolean>>;
 	/** TERMINALS_SQL.delete. The caller trashes the scrollback file. */
@@ -98,11 +128,14 @@ export interface TerminalRepository {
 export function createTerminalRepository(_db: Database, _deps: RepositoryDeps): TerminalRepository {
 	return {
 		listByWorkspace: async () => notImplemented("DATA-01"),
+		listByRepo: async () => notImplemented("RUN-06"),
 		listActive: async () => notImplemented("DATA-01"),
 		get: async () => notImplemented("DATA-01"),
 		start: async () => notImplemented("DATA-01"),
 		setTitle: async () => notImplemented("DATA-01"),
 		setSize: async () => notImplemented("DATA-01"),
+		getScreenState: async () => notImplemented("PLAT-08"),
+		setScreenState: async () => notImplemented("PLAT-08"),
 		markEnded: async () => notImplemented("DATA-01"),
 		delete: async () => notImplemented("DATA-01"),
 	};

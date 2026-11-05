@@ -59,4 +59,17 @@ Each one fails a check when it is broken.
 | `pnpm dev`                                                                     | Run the app (`tauri dev`, port 1420)                         | Manual checks                   |
 | `pnpm release <x.y.z> [--go]`                                                  | Dry run, or bump, check, commit and tag                      | Releases                        |
 
-Measured times are added once the suite is complete.
+## When tests run
+
+Measured on GitHub's runners, 2026-11-04, about 970 tests. Checks run on GitHub, not on the owner's Mac.
+
+| Moment                                     | Command                                                                                                                       | Runs                                                                                                              | Time                                                                                              |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| 1. Every ready pull request                | CI: `pnpm typecheck`, `biome ci`, shellcheck, `pnpm test`, `pnpm guards`, `pnpm stubs`; Rust `fmt`, `clippy`, `test` on macOS | everything fast, every time                                                                                       | push to verdict about 1.5 min; `pnpm test` 16 to 26 s; Rust job 72 to 75 s warm, about 4 min cold |
+| 2. A pull request that touches heavy tests | none yet                                                                                                                      | view screenshots, end-to-end on a Mac runner, real-agent contract tests (planned, `docs/plans/parallel-build.md`) | not measured                                                                                      |
+| 3. The main line after each merge          | CI on push to `main`                                                                                                          | the same as moment 1                                                                                              | the same                                                                                          |
+| 4. A release                               | `pnpm release <x.y.z>` on a clean checkout                                                                                    | all of the above, then the tag                                                                                    | not measured                                                                                      |
+
+- Every test is fast today, so every run is a full run. Changed-only runs, fixture caches and shared workers wait until the suite takes over 30 seconds.
+- `pnpm test` first checks the runtime: Node's major version must match `.node-version`, and Bun's minor must match `.bun-version`. Rust is pinned in `apps/desktop/src-tauri/rust-toolchain.toml`. CI reads the same files.
+- A flaky test gets a root cause: no retry, no skip, no looser assertion.

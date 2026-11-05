@@ -13,15 +13,68 @@
  * used; a request for output when nothing matches returns a plain sentence the agent can read
  * ("No run script is active"), not an error; script files are never written to disk (the command
  * goes to the shell as arguments).
+ * Shell integration (RUN-09, native-and-sidecar-map.md A5 and D1, services-map.md 5A.4.6): an
+ * interactive terminal starts zsh with `ZDOTDIR` pointing at a folder of four small files
+ * (`.zshenv`, `.zprofile`, `.zshrc`, `.zlogin`) that source the user's own dotfiles first and then
+ * print OSC 633 markers: a program started, a command finished (with its exit code), and the
+ * prompt. The service reads the markers from the output to keep `runningProgram` per terminal. The
+ * files are rewritten at every app start so an update reaches existing installs; the user's own
+ * `ZDOTDIR` is passed on in a second variable and restored by the shim; a shell that is not zsh,
+ * and every script terminal, start without the shim; a marker split across two output chunks is
+ * still read; output with a marker still reaches the screen unchanged.
  * Our design choice: environment variables are named CONDUCTED_*. Scripts run as
  * `<login shell> -l -c <script>` with the captured login environment, not from a temp file.
  * Test first: buildScriptEnv sets CONDUCTED_PORT and CONDUCTED_WORKSPACE_PATH from the workspace.
  */
-import { notImplemented, type Result, type TerminalId, type WorkspaceId } from "@conducted/shared";
+import {
+	notImplemented,
+	type RepoId,
+	type Result,
+	type TerminalId,
+	type WorkspaceId,
+} from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform, PtyHandle } from "../../platform/platform.ts";
 import type { Repositories } from "../db/repositories.ts";
 import type { Terminal, Workspace } from "../model.ts";
+
+/** The files of the zsh shim, in the order zsh reads them. */
+export const ZSH_INTEGRATION_FILE_NAMES = [".zshenv", ".zprofile", ".zshrc", ".zlogin"] as const;
+
+/** What a terminal's shell told us through an OSC 633 marker. */
+export type ShellIntegrationEvent =
+	| { kind: "program_start"; program: string }
+	| { kind: "command_done"; exitCode: number | null }
+	| { kind: "prompt" };
+
+/** The text of each shim file, by file name. */
+export function zshIntegrationFiles(): Readonly<
+	Record<(typeof ZSH_INTEGRATION_FILE_NAMES)[number], string>
+> {
+	return notImplemented("RUN-09");
+}
+
+/**
+ * Environment that starts zsh with the shim: `ZDOTDIR` is the shim folder, and the user's own
+ * `ZDOTDIR` (or null when unset) travels in a second variable so the shim can restore it.
+ */
+export function shellIntegrationEnv(
+	_shimDir: string,
+	_userZdotdir: string | null,
+): Readonly<Record<string, string>> {
+	return notImplemented("RUN-09");
+}
+
+/**
+ * Finds the markers in one chunk of terminal output. `carry` is the unfinished marker left by the
+ * previous chunk (empty at first); the returned `carry` goes into the next call.
+ */
+export function scanShellIntegration(
+	_carry: string,
+	_chunk: string,
+): { events: ShellIntegrationEvent[]; carry: string } {
+	return notImplemented("RUN-09");
+}
 
 export interface ScriptEnvInput {
 	workspace: Pick<Workspace, "id" | "directoryName" | "path" | "port" | "targetBranch">;
@@ -70,6 +123,8 @@ export interface ScriptRun {
 export interface TerminalsState {
 	loaded: boolean;
 	byWorkspace: Readonly<Record<string, readonly Terminal[]>>;
+	/** The program a terminal is running right now, by terminal id. Null: the shell is at its prompt. */
+	runningProgram: Readonly<Record<string, string | null>>;
 }
 
 export interface TerminalsServiceDeps {
@@ -86,7 +141,11 @@ export class TerminalsService {
 
 	constructor(deps: TerminalsServiceDeps) {
 		this.#deps = deps;
-		this.store = createStore<TerminalsState>(() => ({ loaded: false, byWorkspace: {} }));
+		this.store = createStore<TerminalsState>(() => ({
+			loaded: false,
+			byWorkspace: {},
+			runningProgram: {},
+		}));
 	}
 
 	start(): Promise<Result<void>> {
@@ -95,8 +154,13 @@ export class TerminalsService {
 		return notImplemented("RUN-06");
 	}
 
+	/** Writes the zsh shim files into `zshIntegrationDir`. Runs at every app start. */
+	installShellIntegration(): Promise<Result<void>> {
+		return notImplemented("RUN-09");
+	}
+
 	/** Backs `Actions.terminals.create`: an interactive login shell in the workspace folder. */
-	create(_workspaceId: WorkspaceId): Promise<Result<Terminal>> {
+	create(_workspaceId: WorkspaceId, _options?: { command?: string }): Promise<Result<Terminal>> {
 		return notImplemented("RUN-06");
 	}
 
@@ -134,5 +198,20 @@ export class TerminalsService {
 	/** Kills every live terminal and stamps `ended_at`. Runs on quit. */
 	killAll(): Promise<Result<void>> {
 		return notImplemented("RUN-06");
+	}
+
+	/** Backs `Actions.terminals.openForRepo`. One terminal per repository, created the first time. */
+	openForRepo(_repoId: RepoId): Promise<Result<Terminal>> {
+		return notImplemented("RUN-06");
+	}
+
+	/** Backs `Actions.terminals.restart`. */
+	restart(_id: TerminalId): Promise<Result<void>> {
+		return notImplemented("RUN-06");
+	}
+
+	/** Backs `Actions.terminals.runCommand`: the Run button on a chat code block. */
+	runCommand(_workspaceId: WorkspaceId, _command: string): Promise<Result<Terminal>> {
+		return notImplemented("CHAT-23");
 	}
 }

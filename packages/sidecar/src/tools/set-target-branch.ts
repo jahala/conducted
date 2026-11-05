@@ -4,7 +4,8 @@
  * Behaviour: research/conductor/claude-runner.md section 4.2: takes a branch name without the
  * "origin/" prefix, checks that the branch exists on origin, does not rebase or change an open
  * pull request. In Conductor the sidecar only verifies; here the app verifies and stores (the
- * protocol request setTargetBranch).
+ * protocol request setTargetBranch). Offered only when the chat's appTools.setTargetBranch switch is
+ * on, as Conductor offers it by a runner flag.
  * Must handle: a name with an "origin/" prefix (refused with a hint), a branch that does not
  * exist on origin (the app answers ok false and the message goes back to the agent), an empty
  * name, and a branch the agent has not fetched yet (the message says to run git fetch).
@@ -25,6 +26,7 @@ export const setTargetBranchTool: ToolDefinition<typeof setTargetBranchShape> = 
 	inputShape: setTargetBranchShape,
 	readOnly: false,
 	idempotent: true,
+	enabledBy: "setTargetBranch",
 	execute(
 		_args: z.infer<z.ZodObject<typeof setTargetBranchShape>>,
 		_context: ToolContext,

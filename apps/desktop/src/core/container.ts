@@ -37,8 +37,10 @@ import { FavoriteModelsService } from "./services/favorite-models.ts";
 import { FileDiffService } from "./services/file-diff.ts";
 import { FollowUpQueue } from "./services/follow-up-queue.ts";
 import { GitService } from "./services/git.ts";
+import { createGitCache } from "./services/git-cache.ts";
 import { GithubService } from "./services/github.ts";
 import { createCurlLinearHttp, LinearService } from "./services/linear.ts";
+import { LocalGitForge } from "./services/local-git-forge.ts";
 import { McpService } from "./services/mcp.ts";
 import { NotificationService, type SoundPlayer } from "./services/notifications.ts";
 import { PortService } from "./services/ports.ts";
@@ -49,6 +51,7 @@ import { SectionsService } from "./services/sections.ts";
 import { SessionsService } from "./services/sessions.ts";
 import { SettingsService, type TomlCodec } from "./services/settings.ts";
 import { SpotlightService } from "./services/spotlight.ts";
+import { SystemService } from "./services/system.ts";
 import { TerminalsService, terminalLimit } from "./services/terminals.ts";
 import { UpdatesService } from "./services/updates.ts";
 import { type PlaceNames, WorkspaceService } from "./services/workspace.ts";
@@ -85,6 +88,7 @@ export interface Services {
 	linear: LinearService;
 	git: GitService;
 	github: GithubService;
+	localGitForge: LocalGitForge;
 	checkpoint: CheckpointService;
 	fileDiff: FileDiffService;
 	workspaceFiles: WorkspaceFilesService;
@@ -98,6 +102,7 @@ export interface Services {
 	terminals: TerminalsService;
 	notifications: NotificationService;
 	updates: UpdatesService;
+	system: SystemService;
 	commands: CommandRunner;
 }
 
@@ -189,15 +194,23 @@ export function createContainer(inputs: ContainerInputs): Container {
 				if (!found.ok) return found;
 				const comments = await review.listForAgent(found.value.id, file);
 				if (!comments.ok) return comments;
+				// The diff tool lists comments on lines of the diff. Pull request comments without a
+				// file (REV-13) have no place there, so they are left out.
 				return ok(
-					comments.value.map((c) => ({
-						file: c.filePath,
-						line: c.line ?? 1,
-						...(c.endLine === null ? {} : { endLine: c.endLine }),
-						body: c.body,
-						author: c.author.kind,
-						resolved: c.resolved,
-					})),
+					comments.value.flatMap((c) =>
+						c.filePath === null
+							? []
+							: [
+									{
+										file: c.filePath,
+										line: c.line ?? 1,
+										...(c.endLine === null ? {} : { endLine: c.endLine }),
+										body: c.body,
+										author: c.author.kind,
+										resolved: c.resolved,
+									},
+								],
+					),
 				);
 			},
 			addForSession: async (sessionId, comments) => {
@@ -323,20 +336,29 @@ export function createContainer(inputs: ContainerInputs): Container {
 		http: createCurlLinearHttp(platform.shell),
 		keychain: platform.keychain,
 	});
+	const gitCache = createGitCache({ fs: platform.fs });
 	const git = new GitService({
 		git: gitRunner,
+		cache: gitCache,
 		contextOf: (id) => ready(lookups.gitContext(id)),
 		agent: sessions,
 		now: () => clock.now(),
 	});
 	const github = new GithubService({
 		git: gitRunner,
+		cache: gitCache,
 		agent: sessions,
 		contextOf: (id) => ready(lookups.prContext(id)),
 		onMerged: (id, prNumber) => {
 			void workspace.onPullRequestMerged(id, prNumber);
 		},
 		now: () => clock.now(),
+	});
+	const localGitForge = new LocalGitForge({
+		git: gitRunner,
+		agent: sessions,
+		contextOf: (id) => ready(lookups.gitContext(id)),
+		enabled: () => setting<boolean>("local_git_forge_enabled"),
 	});
 	const checkpoint = new CheckpointService({
 		git: gitRunner,
@@ -371,6 +393,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 			Object.values(sessions.store.getState().liveStates).some((live) => live.status === "working"),
 		setting,
 	});
+	const system = new SystemService({ platform, setting });
 	const commands = new CommandRunner({
 		handlers: () => createCommandHandlers(services),
 		context: () => ({ hasWorkspace: false, hasOpenPr: false, hasOpenChat: false }),
@@ -387,6 +410,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		linear,
 		git,
 		github,
+		localGitForge,
 		checkpoint,
 		fileDiff,
 		workspaceFiles,
@@ -400,6 +424,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		terminals,
 		notifications,
 		updates,
+		system,
 		commands,
 	};
 	const actions = createActions(services, platform);
@@ -420,6 +445,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		{ name: "terminals", phase: "services", fatal: false, run: () => terminals.start() },
 		{ name: "chats", phase: "services", fatal: true, run: () => sessions.start() },
 		{ name: "github access", phase: "services", fatal: false, run: () => github.checkAccess() },
+		{ name: "programs", phase: "services", fatal: false, run: () => system.start() },
 		{ name: "sidecar", phase: "sidecar", fatal: false, run: () => tunnel.start() },
 		{ name: "resume chats", phase: "sidecar", fatal: false, run: () => resume.resume() },
 		{

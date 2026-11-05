@@ -21,8 +21,8 @@
  *    interrupt, with the user's feedback as the message
  * Test first: classifyToolUse for Edit on "/work/app-other/x.ts" with root "/work/app" is a deny
  * whose message names the allowed folders.
- * Our design choice: no "auto" permission mode and no "allow with suggested rules" answer. The
- * protocol's decision set is allow, allow_edits_for_session, always_allow and deny.
+ *  - allow_with_suggested_rules: allow, and apply the permission rules the SDK suggested with the
+ *    request (D020: Conductor offers this third button)
  */
 import type {
 	PermissionMode,
@@ -30,6 +30,7 @@ import type {
 	PermissionUpdate,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { InteractionAnswer, SessionConfig } from "@conducted/protocol";
+import { notImplemented } from "@conducted/shared";
 import { APP_TOOL_NAME_PREFIX } from "./constants.ts";
 
 export function permissionModeFor(
@@ -153,6 +154,8 @@ export function toPermissionResult(
 		}
 		case "allow":
 			return { result: { behavior: "allow", updatedInput: input }, enableAutoApproveEdits: false };
+		case "allow_with_suggested_rules":
+			return notImplemented("AGENT-04");
 	}
 }
 

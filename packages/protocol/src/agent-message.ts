@@ -33,10 +33,15 @@ export const zToolCallItem = z.object({
 export const zToolResultItem = z.object({
 	kind: z.literal("tool_result"),
 	toolUseId: zToolUseId,
-	/** Plain-text output. Large outputs are cut by the runner and `truncated` is set. */
+	/**
+	 * Plain-text output. A large output keeps its start and its end, so a final error survives;
+	 * the runner cuts the middle, notes the cut in the text and sets `truncated`.
+	 */
 	output: z.string(),
 	isError: z.boolean(),
 	truncated: z.boolean(),
+	/** Length of the whole output in characters before it was cut. Set when `truncated` is true. */
+	originalLength: z.number().int().nonnegative().optional(),
 	parentToolUseId: zToolUseId.optional(),
 });
 
@@ -60,6 +65,12 @@ export const zUsageItem = z.object({
 	costUsd: z.number().nonnegative().optional(),
 	contextUsedTokens: z.number().int().nonnegative().optional(),
 	contextWindowTokens: z.number().int().positive().optional(),
+	/** The model the agent reports it used, which may differ from the one asked for. */
+	model: z.string().optional(),
+	/** True when the turn ran in fast mode, as the agent reports it. */
+	fastMode: z.boolean().optional(),
+	/** The provider's service tier for the turn, when the agent reports one. */
+	serviceTier: z.string().optional(),
 });
 
 export const zNoticeItem = z.object({
@@ -69,8 +80,15 @@ export const zNoticeItem = z.object({
 	text: z.string(),
 });
 
+/** Error codes both sides know. Runners may also send codes of their own. */
+export const AGENT_ERROR_CODES = {
+	/** The agent is not signed in or its sign-in expired. The chat offers to sign in. */
+	authRequired: "agent_auth_required",
+} as const;
+
 export const zErrorItem = z.object({
 	kind: z.literal("error"),
+	/** A stable code, for example one of AGENT_ERROR_CODES. */
 	code: z.string(),
 	message: z.string(),
 	retryable: z.boolean(),

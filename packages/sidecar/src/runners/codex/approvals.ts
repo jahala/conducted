@@ -31,6 +31,8 @@ export function decisionForApproval(answer: InteractionAnswer): CodexCommandDeci
 	if (answer.kind !== "tool_approval") return "decline";
 	switch (answer.decision) {
 		case "allow":
+		// Codex requests carry no suggested rules, so the card never offers this; it allows once.
+		case "allow_with_suggested_rules":
 			return "accept";
 		case "allow_edits_for_session":
 		case "always_allow":

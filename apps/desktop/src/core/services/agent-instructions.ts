@@ -66,3 +66,10 @@ export const reconcileInstruction = (
 		dirty: boolean;
 	},
 ): string => notImplemented("GIT-04");
+
+/**
+ * "Merge into target" for a repository with no GitHub remote: ask the agent to merge the branch
+ * into the target branch in the main clone, as a fast-forward when possible (GIT-14).
+ */
+export const mergeIntoTargetInstruction = (_input: InstructionBase): string =>
+	notImplemented("GIT-14");

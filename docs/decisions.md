@@ -110,3 +110,167 @@ Why: no servers, billing or user data on our side, and the sidecar already runs 
 Context: Claude Code's Remote Control lets claude.ai/code and the Claude mobile app follow and steer a running session. Anthropic documents it for interactive sessions with a claude.ai login; the Agent SDK ships an `@alpha` bridge API for it. Conductor does not offer it.
 Chosen: support it for Claude chats, chosen per chat. A spike decides between letting Claude Code connect itself and our own bridge through the alpha API, and drops the feature if neither works without undocumented protocols.
 Why: following and steering agents from a phone is a large part of running several of them at once.
+
+## D020. Match Conductor in everything the user sees or does (2026-11-04)
+
+Context: a coverage check found 131 places where the scaffold differs from Conductor on purpose. Most are internal; a few change what the user sees, such as agents not being installed for the user, one approval choice missing, and queued follow-ups kept after a cancel.
+Chosen: everything visible on screen and every action the user can take matches Conductor. Internals may differ only where they fix a documented Conductor problem (for example D006, D007, D008), and each such difference has a decision entry. Visible differences found by the check are put back. A visible difference stays only when it adds information without removing any (D008's "interrupted" turns), and is listed here.
+Why: the goal is Conductor's product, rebuilt; its internals are free to improve.
+
+## D021. Install and update agent programs for the user (2026-11-04)
+
+Replaces D009.
+Context: Conductor downloads, verifies and updates its own copies of Claude Code and Codex, so they work without the user installing anything. D009 used only what was installed on the user's PATH.
+Chosen: the app downloads the official releases of the agent programs from their vendors, verifies them, keeps them up to date, and removes old versions. A copy on the user's PATH is used when the user chooses it in settings, or when a download is not possible.
+Why: D020. A first run that works without a terminal is part of the product.
+
+## D022. The visual design matches Conductor's (2026-11-04)
+
+Context: D020 covers what the user sees. The owner asked for the same look as well: colours, fonts, sizes, spacing, padding, radii and motion.
+Chosen: our design tokens take Conductor's measured values (`docs/research/conductor/ui-dimensions.md`), in light and dark. We store the values in our own token file; we do not copy Conductor's stylesheet or assets (D002). One rule stays ours: text and controls meet WCAG AA contrast. Where a measured pair falls short, we adjust that one value and list it in `docs/design.md`.
+Why: a rebuild that looks the same is easier to compare and to switch to. Accessibility is not traded for likeness.
+
+## D023. The design values we take from Conductor, and the four we change (2026-11-04)
+
+Context: `docs/research/conductor/ui-dimensions.md` measured Conductor's design values for D022.
+Chosen:
+
+- Fonts: Geist for the interface and Geist Mono for code, taken from their official open-licence (SIL OFL) release and bundled with the app, never from Conductor's bundle. The terminal keeps Menlo first.
+- Weights: 350, 400, 450, 500 and 600, as Conductor uses them.
+- Type scale names follow Conductor's (`text-sm` is the 14px body size), so measured values carry over one to one.
+- Colours: Conductor's values, light and dark, except the pairs that fail WCAG AA. Those take the nearest passing value in the same hue, listed in `docs/design.md`.
+- Focus: every control keeps a visible focus ring. Conductor turns it off on buttons; ours stays on.
+  Why: likeness where it costs nothing, accessibility where Conductor falls short.
+
+## D024. `gh` and `watchexec` are installed and updated like the agent programs (2026-11-04)
+
+Extends D021.
+Context: Conductor ships its own `gh` (with the `gh stack` extension that "Sync stack" runs) and `watchexec` (which Spotlight runs), so pull requests and Spotlight work on a Mac that has neither. D021 named only the agent programs, and the scaffold used `gh` from the user's PATH.
+Chosen by the owner: the app downloads the official releases of `gh` and `watchexec`, verifies them, keeps them up to date and removes old versions, through the same program manager as the agent programs (PLAT-28, PLAT-35). By D020 this also covers the `gh stack` extension. A copy on the user's PATH is used when the user chooses it in settings, or when a download is not possible.
+Why: D020. GitHub features and Spotlight then work on a first run without a terminal.
+
+## D025. What stays out (2026-11-04)
+
+Context: D004, D018 and D019 say which team and hosted features stay out. The coverage check found more behaviours that only work with Conductor's own service or accounts.
+Chosen: these are not built.
+
+- The Muse Code agent and its protocol. It needs Conductor's partner account, and Conductor itself hides it behind an internal flag.
+- The Help menu items Best Practices and Submit a Prompt, which open Conductor's website and prompt programme.
+- The phone relay: pairing a phone, the paired device list and requests relayed from a phone. Remote control is D019's claude.ai route.
+- Conductor's hosted computers and its cloud backend (the computer tools, the multiplexed websocket, standby sandboxes). Our cloud is D018's.
+- Sharing prompt snippets ("Visible to"). Snippets stay private to the Mac.
+- Organisation policies, staff and developer tools (internal mode, the app-actions bridge, the inspector opened through AppleScript, test hooks), analytics and crash reporting, and GitHub App sign-in.
+  The item-level list is in `docs/plans/items/README.md`.
+  Why: each needs a service, an account or a partner agreement that we do not have. None of them changes what a user can do with their own Mac and agents.
+
+## D026. One log: sidecar log lines go to the Rust shell's log files (2026-11-04)
+
+Context: the Rust shell writes the app's log files (PLAT-18). The sidecar also had a logger mode with its own HTTP server, ring buffer and discovery file (SIDE-18), and nothing started it. Conductor runs such a server.
+Chosen by the owner: one log. The sidecar writes its log lines to stderr, one JSON object per line. The Rust launcher (PLAT-09) writes them into the app log files with a sidecar tag. The level changes at runtime through `setLogLevel`. The logger mode, its HTTP routes and its variables are removed (SIDE-18).
+Why: one home for logs, one export, and one fewer process and port. The user sees the same logs and the same "Open sidecar logs" command.
+
+## D027. Script and agent variables use only `CONDUCTED_*` names (2026-11-04)
+
+Context: Conductor gives setup scripts, run scripts and agents variables named `CONDUCTOR_*` (workspace name, path, root path, default branch, port and others). Ours are named `CONDUCTED_*`. A script copied from a Conductor repository would read empty values.
+Chosen by the owner: only `CONDUCTED_*`. No `CONDUCTOR_*` names are set, and there is no alias. This is a visible difference that stays, added to D020's list.
+Why: the names are ours, and an alias would be a compatibility shim kept forever. Renaming the variables in a script is a one-time change.
+
+## D028. The sidecar has no HTTP server and no health route (2026-11-04)
+
+Context: Conductor's sidecar serves one HTTP health route on 127.0.0.1, guarded by a bearer token that the shell passes on stdin. Our protocol had a `getHealth` method that nothing calls.
+Chosen: the sidecar listens only on its Unix socket. A sidecar process that is alive and connected counts as healthy; the restart loop is D013's. `getHealth` is removed from the protocol (PLAT-09).
+Why: the socket is private to the user's account, so a port and a token add an attack surface and nothing else. The user sees the same failure screen when the sidecar is down.
+
+## D029. GitHub access goes through `gh` with the user's own sign-in (2026-11-04)
+
+Context: Conductor hands each agent session a fresh GitHub token from a broker (wrapper scripts and a socket), and offers GitHub App sign-in through its service.
+Chosen: the app and the agents call `gh` (D024), signed in with the user's own `gh` login, or with the personal access token the user enters on the Account page, kept in the Keychain and given to `gh` as `GH_TOKEN`. There is no token broker and no per-session token. The `gh_auth_method` setting keeps Conductor's values `cli` and `pat` (services-map 3.9); `conductor-app` is not offered. GitHub App sign-in stays out (D025).
+Why: both sign-in ways the user sees stay. A broker exists to refresh tokens from Conductor's service, which we do not have.
+
+## D030. Chat titles and branch names come from a short run of the user's own agent (2026-11-04)
+
+Context: Conductor asks its hosted summarizer for chat titles, and runs branch-name prompts through a throwaway agent session. We have no hosted service.
+Chosen: one sidecar call, `runUtilityPrompt { agent, model, prompt, cwd }`, returns plain text (SIDE-24). It covers Conductor's ACP and Cursor one-shot calls for every agent.
+
+- It uses the chat's own agent and the cheapest model in its catalog. If that agent is not signed in, the call fails and nothing is written.
+- The run is not in the chat list, writes no events, takes no checkpoints, has its tools off and closes at once. The prompt text is ours.
+- A chat title is asked after the first answer of a new chat; a branch name after the first message of a workspace (WS-04). Both are skipped when the user named the chat or branch, a PR is linked, the branch changed, or the answer is empty or equals the placeholder. A name clash retries once with a suffix.
+- On failure the placeholder stays and a log line is written. The app never resends the call (D016).
+- The "AI generated chat titles" switch turns the call off, so the chat text never leaves the user's own agent.
+- First test: the call leaves no event rows, no checkpoint refs and no chat-list entry.
+  Why: the user sees titles and branch names as in Conductor, without a hosted service, and the cost stays on the user's own agent account.
+
+## D031. Sidecar wire and storage details that differ from Conductor (2026-11-04)
+
+Context: file headers record these choices; none changes what the user sees.
+Chosen:
+
+- The write-ahead log (D007) accepts acknowledgements in any order, names its files from the UTF-8 session id, sweeps idle files after 30 days, and is required at start: a bad outbox stops the sidecar.
+- Checkpoint refs live under `refs/conducted/checkpoints/`.
+- `user_message` events have no `state`. There is no `queryError` or `sessionStatusNotification`: live state and D008's `turn_ended` carry both. `turnId` is required, and `sequence` replaces `notificationIndex`.
+- Our own JSON-RPC error codes, `-32001` to `-32005`.
+- Interactions are not stored as events; their effect shows as tool calls (D005, D006). ACP turns get a `session_started` notice in place of a synthetic init message.
+  Why: each fixes an ordering, naming or loss problem that D006 to D008 describe, at no cost to the user.
+
+## D032. One session manager for every folder (2026-11-04)
+
+Context: Conductor keeps one agent host per workspace folder, keys processes by agent, session, folder and a config hash, and builds a session's config once.
+Chosen: one session manager serves every folder. The process key is agent plus session, and the runner decides when a restart is needed. The config arrives with every message and is applied by the runner. A config change during a turn waits until the turn ends, which is what Conductor's user sees too (claude-runner 1.5). One MCP bridge serves the sidecar run, with one token per chat. Runners are declared interfaces with capability flags, report their own model lists (SIDE-14) and their own sign-in state (SIDE-15), and the session manager owns status. Listening ports are read with `lsof`. The cloud seam is the Host interface (CLOUD-01).
+Why: fewer moving parts and one place that decides what runs, with the same behaviour on screen.
+
+## D033. Provider keys: one strip list, and each key reaches only its agent (2026-11-04)
+
+Context: Conductor strips provider keys from the captured login-shell environment with one list per agent, then adds the keys the user entered. The credential forms are put back (SET-09).
+Chosen: one strip list removes every provider key from the captured environment (SIDE-10). Keys entered in the forms are stored in the Keychain (PLAT-10). Each runner receives only the keys of its own provider (SIDE-21), and a key from the Mac's environment only when the user picks "Use the key from this Mac".
+Why: the same result per agent with one rule, and no key reaches an agent that should not have it.
+
+## D034. Startup repair keeps cut-off workspaces, marked failed (2026-11-04)
+
+Context: at startup Conductor deletes local workspaces left half-created, and opens a workspace whose setup was cut off as ready.
+Chosen: half-created workspaces stay in the list as failed with Retry, and a cut-off setup shows as failed with its log (DATA-03). This is a visible difference that stays, added to D020's list.
+Why: it adds information and removes none, like D008's interrupted turns. The user can see what went wrong and retry, or delete.
+
+## D035. Linear uses a personal API key (2026-11-04)
+
+Context: Conductor signs in to Linear with an account token that its service refreshes.
+Chosen: the user pastes a personal Linear API key, kept in the Keychain; a rejected key shows "key rejected" (PR-09). This is a visible difference that stays, added to D020's list.
+Why: the account flow needs a registered app and a hosted callback, which we do not have.
+
+## D036. Rewind marks events; we prune checkpoint refs (2026-11-04)
+
+Context: Conductor's rewind deletes chat rows after a point, and keeps checkpoint refs.
+Chosen: rewind marks events `reverted_at` and keeps them (D006). Checkpoint refs of a deleted chat are removed, and those of an archived workspace 30 days after archiving (DATA-06).
+Why: a rewind can be inspected later, and refs do not pile up in the user's repository.
+
+## D037. Changing the workspaces folder keeps existing data (2026-11-04)
+
+Context: when the user changes the workspaces root folder, Conductor asks "Change root path?" and then wipes repos, workspaces, chats, events, attachments and comments from its database.
+Chosen: the same confirmation, and the new folder applies to new worktrees. Existing workspaces and chats stay where they are. This is a visible difference that stays, added to D020's list.
+Why: it removes no information, and the wipe destroys work the user may still need.
+
+## D038. Smaller storage, update and packaging choices (2026-11-04)
+
+Context: file headers and `docs/data-model.md` record these; none changes what the user sees.
+Chosen:
+
+- Draft staging is swept after 7 days, not 30. The update check runs hourly and on window focus, not every 60 and 300 seconds.
+- The workspace port is stored in `workspaces.port` and stays the same across restarts.
+- No `cache.db`, no shared local-storage layer: small UI stores are listed with their lifetimes in `docs/data-model.md`. The Rust shell never reads the database; the UI passes settings in.
+- No `conductor.json` migration, no `deprecated_at` on settings (unknown keys are dropped), no worktree layout version (`storage_version`). Repo scripts, prompts and file globs live in `.conducted/settings.toml` and repo-scoped settings, and shared repo settings are read from the checkout.
+- "Setting up" is an in-memory state of an `initializing` workspace. The board status is one stored value; an empty value means automatic.
+- Each statement sets `updated_at` itself, in milliseconds, in place of triggers.
+- Worktree removal moves the folder to the Trash.
+- Our own deep-link scheme (`conducted`), update feed and signing key. Release builds run the sidecar from Tauri's `externalBin`.
+  Why: simpler storage with stated lifetimes, and names that are ours.
+
+## D039. How the first overnight build runs (2026-11-04)
+
+Context: the owner set a goal for the night and is away until morning.
+Chosen:
+
+- Builders and fixers: OpenCode with DeepSeek V4.1 Flash (`deepseek/deepseek-flash`), one fresh worker per feature, through a pleach cast in `.context/overnight/pleach.config.ts` that passes the key by name.
+- Work is planned in steps and batches by `scripts/overnight/plan-batches.ts` (`docs/plans/batches.md`). CI runs once per step on GitHub; no tests and no Rust builds run on the Mac. Each node passes only the quick gate `scripts/overnight/node-gate.ts`.
+- pleach's enforced red-green phases are not used: they need a test run per node. The step's CI run and the batch audit stand in for them.
+- Money: the night's spend is measured from the DeepSeek balance at the start (20.99 USD), and no step starts once it passes 15 USD.
+- The step-1 sidecar, data and git features gained the dependencies they have in fact (for example SIDE-03 needs SIDE-02), so they build in order instead of against each other's empty code.
+  Why: the owner asked for batches, CI on GitHub only, and DeepSeek Flash.

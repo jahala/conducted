@@ -7,7 +7,8 @@
  * 'Execute plan in current chat'); a feedback box can reject the plan; sidebar text 'Review plan'),
  * claude-runner.md 3.5.
  * Our design choice: 'Approve' is the one primary button. 'Hand off' calls
- * useActions().sessions.startFromPlan(sessionId, planText).
+ * useActions().sessions.startFromPlan(sessionId, planText, target), where target is the chat picked
+ * in 'Sending to <chat>', or null for a new chat.
  * Must handle: Very long plan (scrolls, collapsed to a few lines with 'Show all'); feedback empty
  * (Reject disabled); plan file path present (a link to open the file); the interaction is
  * withdrawn; Approve sets plan mode off for the next turn.

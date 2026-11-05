@@ -53,22 +53,7 @@ End-to-end journeys (about 8, run on the self-hosted Mac runner, nightly and in 
 
 ## 3. One issue per feature
 
-- A script creates one issue per backlog id from `docs/plans/backlog.md`. It can run again safely: issues are matched by id.
-- **Labels:**
-  - `area:` (rust, sidecar, runners, core, chat, git, review, run, settings, app);
-  - `priority:` (1, 2, 3);
-  - `size:`;
-  - `good first issue`.
-- **Milestones:**
-  - "First slice" (priority 1),
-  - "Daily use" (priority 2),
-  - "Polish" (priority 3).
-- **Dependencies:** a new backlog column, `Needs`, lists the ids a feature waits for. The issue shows them as "Blocked by", so people only pick work that can start.
-- **One home for each fact:**
-  - The backlog holds the spec: id, owner folder, research, priority, needs.
-  - The issue holds the discussion, the assignee and the open or closed state.
-  - A check fails when a `done` row's issue is still open, or a closed issue's row is not `done`.
-- A GitHub project board shows the milestones and who is on what.
+Moved to its own plan: [github-issues.md](github-issues.md).
 
 ## 4. Rules for working in parallel
 

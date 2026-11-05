@@ -53,7 +53,7 @@ describe("WorkspaceGate", () => {
 		render(<WorkspaceGate workspaceId={id}>content</WorkspaceGate>);
 		expect(screen.queryByText("content")).toBeNull();
 		fireEvent.click(screen.getByRole("button", { name: "Unarchive" }));
-		expect(state.unarchive).toHaveBeenCalledWith(id);
+		expect(state.unarchive).toHaveBeenCalledWith(id, { branchName: null, clearChats: false });
 	});
 });
 

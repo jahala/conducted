@@ -41,12 +41,26 @@ export function parseTables(sql: string, migration: string): TableInfo[] {
 	return tables;
 }
 
+/** Every table once: a table rebuilt by a later migration shows its latest definition. */
 export function readTables(root: string): TableInfo[] {
 	const dir = join(root, MIGRATIONS_DIR);
-	return readdirSync(dir)
-		.filter((name) => name.endsWith(".sql"))
-		.sort()
-		.flatMap((name) => parseTables(read(join(dir, name)), name));
+	const latest = new Map<string, TableInfo>();
+	const order: string[] = [];
+	for (const name of readdirSync(dir)
+		.filter((n) => n.endsWith(".sql"))
+		.sort()) {
+		for (const table of parseTables(read(join(dir, name)), name)) {
+			const earlier = latest.get(table.name);
+			if (!earlier) order.push(table.name);
+			latest.set(
+				table.name,
+				earlier
+					? { ...table, migration: `${earlier.migration.split(",")[0]}, rebuilt in ${name}` }
+					: table,
+			);
+		}
+	}
+	return order.map((name) => latest.get(name) as TableInfo);
 }
 
 export function renderTables(tables: TableInfo[]): string {

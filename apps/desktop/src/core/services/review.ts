@@ -52,9 +52,10 @@ export class ReviewService {
 		return notImplemented("REV-03");
 	}
 
+	/** A null file makes a comment on the pull request itself (REV-13). */
 	add(
 		_workspaceId: WorkspaceId,
-		_file: string,
+		_file: string | null,
 		_line: number | null,
 		_endLine: number | null,
 		_body: string,
@@ -111,5 +112,15 @@ export class ReviewService {
 		_extraInstructions: string | null,
 	): Promise<Result<Session>> {
 		return notImplemented("REV-05");
+	}
+
+	/** Backs `Actions.comments.setHidden`. */
+	setHidden(_id: CommentId, _hidden: boolean): Promise<Result<void>> {
+		return notImplemented("REV-12");
+	}
+
+	/** Backs `Actions.comments.markAllReady`. */
+	markAllReady(_workspaceId: WorkspaceId): Promise<Result<void>> {
+		return notImplemented("REV-12");
 	}
 }

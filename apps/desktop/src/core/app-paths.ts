@@ -57,3 +57,15 @@ export const contextDir = (workspacePath: string): string => join(workspacePath,
 /** Which files of a workspace's diff the user ticked as "Viewed" (one JSON file per workspace). */
 export const viewedFilesFile = (paths: AppPaths, workspaceId: string): string =>
 	join(paths.appData, "viewed-files", `${workspaceId}.json`);
+
+/** Folder with the zsh files that make a terminal report its running program (RUN-09). */
+export const zshIntegrationDir = (paths: AppPaths): string =>
+	join(paths.appData, "terminal-shell-integration", "zsh");
+
+/** The last changed-file list of one workspace, so a restart can paint at once (DATA-07). */
+export const changesCacheFile = (paths: AppPaths, workspaceId: string): string =>
+	join(paths.appData, "git-cache", "changes", `${workspaceId}.json`);
+
+/** The last pull request information of one workspace (DATA-07). */
+export const prInfoCacheFile = (paths: AppPaths, workspaceId: string): string =>
+	join(paths.appData, "git-cache", "pr-info", `${workspaceId}.json`);

@@ -1,17 +1,21 @@
 /**
  * The app's domain types, shared by services (src/core) and screens (src/features).
- * Rows mirror migrations/0001_init.sql after parsing; view models are what screens render.
+ * Rows mirror the migrations (0001 to 0004) after parsing; view models are what screens render.
  * Screens never read the database: they get these types from services through hooks.
  */
 import type {
 	AgentItem,
+	CodexGoal,
 	FileChange,
 	Interaction,
 	LiveState,
 	Progress,
 	SessionConfig,
+	UserMessageSender,
 } from "@conducted/protocol";
 import type {
+	AcpAgent,
+	AgentKind,
 	AttachmentId,
 	CommentId,
 	InteractionId,
@@ -20,11 +24,13 @@ import type {
 	Result,
 	SectionId,
 	SessionId,
+	SnippetId,
 	TerminalId,
 	ToolUseId,
 	TurnId,
 	WorkspaceId,
 } from "@conducted/shared";
+import type { ProgramStatus } from "../platform/platform.ts";
 
 // ---------------------------------------------------------------- stored entities
 
@@ -41,10 +47,34 @@ export interface Repo {
 	updatedAt: number;
 }
 
+/** A repository icon the user picks. A file is copied into app storage; null removes the icon. */
+export type RepoIconChoice =
+	| { kind: "emoji"; emoji: string }
+	| { kind: "file"; path: string }
+	| null;
+
+/** One run action of a repository (the Run button and the actions menu). */
+export interface RunAction {
+	id: string;
+	label: string;
+	command: string;
+	/** Arguments added after the command, each quoted. */
+	args: string[];
+	/** The folder it runs in. May contain $NAME variables from the run environment. Null: the workspace folder. */
+	cwd: string | null;
+	/** The action the Run button and "run after setup" start. Without one, the first action is the default. */
+	isDefault: boolean;
+	/** Hidden for this user only. The shared settings file still lists it. */
+	hidden: boolean;
+	icon: string | null;
+	/** Where it is defined: the shared repo file, this Mac only, or a local change to a shared one. */
+	origin: "shared" | "local" | "changed_locally";
+}
+
 /** Per-repo configuration from `.conducted/settings.toml` (shared) merged with local settings. */
 export interface RepoConfig {
 	setupScript: string | null;
-	runScripts: { id: string; label: string; command: string }[];
+	runScripts: RunAction[];
 	runMode: "concurrent" | "exclusive";
 	archiveScript: string | null;
 	/** Files copied from the main clone into each new worktree, e.g. ".env". */
@@ -87,7 +117,31 @@ export interface Workspace {
 	prTitle: string | null;
 	prDescription: string | null;
 	archiveCommit: string | null;
+	/** When the workspace was archived. Archive-based lifetimes count from it (DATA-02, DATA-06). */
+	archivedAt: number | null;
+	/** The chat tab that was open last, restored after a restart. */
+	activeSessionId: SessionId | null;
+	/** How many files were copied into the new worktree during setup, for the Setup tab. */
+	filesCopied: number | null;
 	lastActivityAt: number;
+	createdAt: number;
+	updatedAt: number;
+}
+
+/**
+ * A workspace saved to the backlog: everything needed to start it later, but no worktree, branch
+ * or port yet (WS-11). Starting it creates the workspace with the same id.
+ */
+export interface BacklogWorkspace {
+	id: WorkspaceId;
+	repoId: RepoId;
+	/** The name the user gave it, shown in the sidebar. Null: the first line of the prompt. */
+	displayName: string | null;
+	/** The first message for the first chat. */
+	prompt: string;
+	attachmentPaths: string[];
+	config: SessionConfig;
+	sectionId: SectionId | null;
 	createdAt: number;
 	updatedAt: number;
 }
@@ -119,14 +173,35 @@ export interface QueuedMessage {
 	lastError: string | null;
 }
 
+/**
+ * Where a review comment is in its life. draft: being written. pending: saved, not yet in a chat.
+ * ready_for_review: added to the composer. reviewed: sent to the agent with a message. hidden:
+ * dismissed by the user; a GitHub comment stays hidden after the next sync. superseded: replaced
+ * by a newer review of the same workspace.
+ */
+export type ReviewCommentState =
+	| "draft"
+	| "pending"
+	| "ready_for_review"
+	| "reviewed"
+	| "hidden"
+	| "superseded";
+
 export interface DiffComment {
 	id: CommentId;
 	workspaceId: WorkspaceId;
-	filePath: string;
+	/** Null for a comment on the pull request itself, with no file (REV-13). */
+	filePath: string | null;
 	line: number | null;
 	endLine: number | null;
 	body: string;
-	author: { kind: "user" | "agent" | "github"; name: string | null };
+	author: {
+		kind: "user" | "agent" | "github";
+		name: string | null;
+		/** The GitHub author's avatar image, shown beside the comment. */
+		avatarUrl: string | null;
+	};
+	state: ReviewCommentState;
 	/** Which side of a split diff the comment is anchored to: removed lines or added lines. */
 	side: "deletions" | "additions";
 	threadId: string | null;
@@ -142,18 +217,26 @@ export interface DiffComment {
 export interface Attachment {
 	id: AttachmentId;
 	sessionId: SessionId | null;
-	kind: "file" | "image" | "text";
+	/** review: a review comment written to a file for the agent; `commentId` names the comment. */
+	kind: "file" | "image" | "pdf" | "text" | "review";
 	originalName: string;
 	path: string;
 	isDraft: boolean;
+	/** The review comment this attachment carried, so the app knows which messages sent it. */
+	commentId: CommentId | null;
 }
 
 export interface Terminal {
 	id: TerminalId;
-	workspaceId: WorkspaceId;
+	/** The workspace it belongs to. Null for a repository terminal (one per repository). */
+	workspaceId: WorkspaceId | null;
+	/** Set for a repository terminal, which runs in the main clone. Null for a workspace terminal. */
+	repoId: RepoId | null;
 	kind: "terminal" | "setup" | "run" | "spotlight";
 	title: string;
 	cwd: string;
+	/** A command typed into the shell when it starts, for example a "big terminal" preset. */
+	startCommand: string | null;
 	startedAt: number;
 	endedAt: number | null;
 	exitCode: number | null;
@@ -166,6 +249,17 @@ export interface Section {
 	position: number;
 	collapsed: boolean;
 	workspaceIds: WorkspaceId[];
+}
+
+/** A saved prompt the user inserts with its keyword or from the snippet picker (COMP-09). */
+export interface Snippet {
+	id: SnippetId;
+	name: string;
+	/** Typed after the snippet trigger to insert it. Null: only the picker inserts it. */
+	keyword: string | null;
+	prompt: string;
+	createdAt: number;
+	updatedAt: number;
 }
 
 // ---------------------------------------------------------------- chat view models
@@ -190,7 +284,17 @@ export type ChatBlock =
 /** One turn: the user's message and everything the agent did in reply. */
 export interface ChatTurn {
 	turnId: TurnId;
-	userMessage: { messageId: MessageId; text: string; attachmentPaths: string[]; at: number };
+	/** user: the user's message started it. agent: the agent started it by itself (AGENT-15). */
+	startedBy: "user" | "agent";
+	/** Null for a turn the agent started by itself. */
+	userMessage: {
+		messageId: MessageId;
+		text: string;
+		attachmentPaths: string[];
+		at: number;
+		/** Who sent it, when it was not typed in this app (the "Sent via" label). */
+		sender: UserMessageSender | null;
+	} | null;
 	/** Messages steered into this turn while it ran. */
 	steers: { messageId: MessageId; text: string; at: number; consumed: boolean }[];
 	blocks: ChatBlock[];
@@ -199,7 +303,19 @@ export interface ChatTurn {
 	changes: FileChange[];
 	outcome: "running" | "success" | "error" | "cancelled" | "interrupted";
 	error: string | null;
-	usage: { costUsd: number | null; inputTokens: number; outputTokens: number } | null;
+	/** When the turn started and ended, in milliseconds since the epoch. Null end while it runs. */
+	startedAt: number;
+	endedAt: number | null;
+	usage: {
+		costUsd: number | null;
+		inputTokens: number;
+		outputTokens: number;
+		cacheReadTokens: number;
+		cacheWriteTokens: number;
+		/** Whether the turn ran in fast mode, when the agent reports it. */
+		fastMode: boolean | null;
+		model: string | null;
+	} | null;
 	reverted: boolean;
 }
 
@@ -208,8 +324,17 @@ export interface ChatView {
 	turns: ChatTurn[];
 	liveState: LiveState;
 	queued: QueuedMessage[];
-	openInteraction: { interactionId: InteractionId; interaction: Interaction } | null;
+	openInteraction: {
+		interactionId: InteractionId;
+		interaction: Interaction;
+		/** When the agent stops waiting, for Codex requests. Null: no limit. */
+		expiresAt: number | null;
+		/** The agent stopped waiting before the user answered. The card says it timed out. */
+		timedOut: boolean;
+	} | null;
 	progress: ProgressView | null;
+	/** The Codex goal of the chat, for the goal bar. Null when it has none or is not Codex. */
+	goal: CodexGoal | null;
 }
 
 /** The agent's progress tracker for a chat (shape owned by @conducted/protocol). */
@@ -226,7 +351,15 @@ export interface BranchSync {
 	hasUpstream: boolean;
 }
 
-export type CheckState = "pending" | "running" | "success" | "failure" | "cancelled" | "skipped";
+/** waiting: the check is queued behind something, such as a required approval or a free runner. */
+export type CheckState =
+	| "pending"
+	| "waiting"
+	| "running"
+	| "success"
+	| "failure"
+	| "cancelled"
+	| "skipped";
 
 export interface CheckRun {
 	name: string;
@@ -326,6 +459,7 @@ export type PrActivityEntry =
 			id: string;
 			at: number;
 			authorLogin: string;
+			authorAvatarUrl: string | null;
 			state: "approved" | "changes_requested" | "commented" | "dismissed";
 			body: string;
 	  }
@@ -334,6 +468,7 @@ export type PrActivityEntry =
 			id: string;
 			at: number;
 			authorLogin: string;
+			authorAvatarUrl: string | null;
 			body: string;
 			/** Set for review thread comments. */
 			filePath: string | null;
@@ -366,13 +501,29 @@ export interface GitState {
 	pullRequestUnavailable: "none" | "offline" | "no_github_access" | "not_github" | "loading" | null;
 	/** The list of untracked files was cut off because the repository has too many of them. */
 	untrackedFilesTruncated: boolean;
+	/** A pull request action that is running, so its button shows progress. Null when none is. */
+	pendingPullRequestAction: PullRequestAction | null;
 }
+
+/** The pull request actions a button can start. A second press while one runs is ignored. */
+export type PullRequestAction =
+	| "merging"
+	| "enabling_auto_merge"
+	| "disabling_auto_merge"
+	| "marking_ready"
+	| "approving"
+	| "requesting_review"
+	| "updating"
+	| "syncing_stack";
 
 // ---------------------------------------------------------------- derived workspace status
 
 /** What the sidebar, Home cards and tabs show. Produced by core/status/workspace-status.ts. */
 export type WorkspaceStatus =
-	| { kind: "lifecycle"; label: "initializing" | "setting_up" | "failed" | "archiving" }
+	| {
+			kind: "lifecycle";
+			label: "unstarted" | "initializing" | "setting_up" | "failed" | "archiving";
+	  }
 	| {
 			kind: "agent";
 			label:
@@ -446,6 +597,8 @@ export interface SetupView {
 	state: SetupState;
 	hasScript: boolean;
 	exitCode: number | null;
+	/** How many files were copied into the worktree before the script ran. Null when unknown. */
+	filesCopied: number | null;
 	/** The live terminal while running. */
 	terminalId: TerminalId | null;
 	log: "live" | "saved" | "missing" | "expired";
@@ -501,4 +654,139 @@ export interface DiagnosticsCapture {
 	agents: { name: string; installed: boolean; version: string | null; path: string | null }[];
 	sidecar: { running: boolean; logPath: string | null };
 	capturedAt: number;
+}
+
+// ---------------------------------------------------------------- GitHub, Linear and issues
+
+/** An issue that can start a workspace or be attached as context (WS-02, PR-09, PR-11). */
+export interface IssueView {
+	provider: "github" | "linear";
+	/** The provider's id. GitHub: the issue number as text. Linear: its id. */
+	id: string;
+	/** What the user sees, for example "#42" or "ENG-12". */
+	identifier: string;
+	title: string;
+	url: string;
+	state: string;
+	/** The branch name the provider suggests, when it has one (Linear). */
+	branchName: string | null;
+	updatedAt: number;
+}
+
+/** A pull request of a repository, for the "Create from" list (WS-02). */
+export interface PullRequestSummary {
+	number: number;
+	title: string;
+	/** The head branch. */
+	branch: string;
+	authorLogin: string | null;
+	authorAvatarUrl: string | null;
+	state: "open" | "draft" | "merged" | "closed";
+	updatedAt: number;
+}
+
+/** A GitHub account or organisation the user may create or clone repositories under (PRJ-02, PRJ-03). */
+export interface GitHubOwner {
+	login: string;
+	kind: "user" | "organization";
+	avatarUrl: string | null;
+}
+
+/** A GitHub repository, for the clone picker. */
+export interface GitHubRepoSummary {
+	owner: string;
+	name: string;
+	description: string | null;
+	isPrivate: boolean;
+	cloneUrl: string;
+	updatedAt: number;
+}
+
+/** Whether a repository name is free under an owner, for the quick start form. */
+export type RepoNameCheck = "available" | "taken" | "invalid";
+
+/** The Linear status the Account page shows (D035: a personal API key). */
+export type LinearAccess =
+	| { state: "signed_out" }
+	| { state: "key_rejected" }
+	| { state: "unknown"; reason: "offline" | "check_failed" }
+	| { state: "signed_in"; name: string; organization: string | null };
+
+// ---------------------------------------------------------------- composer sources
+
+/** A plan an agent proposed in this workspace, for "@" and "Add plans" (COMP-04, CHAT-26). */
+export interface PlanEntry {
+	sessionId: SessionId;
+	sessionTitle: string | null;
+	turnId: TurnId;
+	/** The plan's first heading or first line. */
+	title: string;
+	at: number;
+}
+
+/** One entry of the Artifacts tab: a file in the workspace's `.context` folder (REV-10). */
+export interface ArtifactEntry {
+	/** Relative to the `.context` folder. */
+	path: string;
+	isDirectory: boolean;
+	sizeBytes: number;
+	modifiedAt: number;
+}
+
+export interface ArtifactsView {
+	entries: ArtifactEntry[];
+	/** True while more pages are left to load. */
+	hasMore: boolean;
+	/** How many files the list leaves out (build output, dependency folders, large files). */
+	omitted: number;
+}
+
+// ---------------------------------------------------------------- agents and their programs
+
+/** A managed program and the user's choice for it, for the Agents and Advanced pages (D021, D024). */
+export interface AgentProgramView {
+	status: ProgramStatus;
+	/** The path the user chose in settings instead of the managed copy. Null: the managed copy. */
+	userPath: string | null;
+}
+export type { ProgramState, ProgramStatus, SystemInfo } from "../platform/platform.ts";
+
+/** One provider key of an agent on the Agents page. The value itself stays in the Keychain. */
+export interface ProviderKeyView {
+	agent: AgentKind;
+	acpAgent: AcpAgent | null;
+	/** The provider, for example "anthropic", "bedrock" or an OpenCode provider id. */
+	provider: string;
+	/** The environment variable the key is given to the agent as, for example ANTHROPIC_API_KEY. */
+	envVar: string;
+	/** entered: typed on the page and kept in the Keychain. this_mac: read from the Mac's environment. Null: not set. */
+	source: "entered" | "this_mac" | null;
+}
+
+/** An agent's own settings file, for the editors on the Agents page (SET-12). */
+export interface AgentConfigFile {
+	agent: "claude" | "codex";
+	/** For example ~/.claude/settings.json or ~/.codex/config.toml. */
+	path: string;
+	/** The file's text. Empty when the file does not exist yet. */
+	text: string;
+	exists: boolean;
+	modifiedAt: number | null;
+}
+
+/** What "Sync agent configs" can copy between Claude Code and Codex (SET-08). */
+export type ConfigSyncCategory = "mcp_servers" | "slash_commands" | "skills";
+
+/** One change the sync would make, shown in its diff step. */
+export interface ConfigSyncChange {
+	category: ConfigSyncCategory;
+	name: string;
+	change: "add" | "update";
+	/** A short text diff of the entry, for the review step. */
+	diff: string;
+}
+
+export interface ConfigSyncResult {
+	applied: number;
+	failures: { category: ConfigSyncCategory; name: string; message: string }[];
 }

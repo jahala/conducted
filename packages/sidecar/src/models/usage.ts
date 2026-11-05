@@ -9,14 +9,14 @@
  *  - an unknown session: RPC_ERRORS.sessionUnknown
  *  - an agent without context usage (capabilities.contextUsage false): the result is an error value
  *    the UI shows as "not available", never zero
- *  - plan usage unavailable (API key, Bedrock, Vertex): the plan field is omitted
+ *  - plan usage unavailable (API key, Bedrock, Vertex): the rate limit list is empty
  *  - utilization is a percentage from 0 to 100 and may be null: a null window is omitted
- * Test first: planUsageFromSdk with only a five-hour window returns that percentage and its reset
- * time in milliseconds, and no seven-day field.
+ * Test first: rateLimitsFromSdk with only a five-hour window returns that one limit with its
+ * percentage and its reset time in milliseconds.
  * Each window reports its own reset time.
  */
 import type { SDKControlGetUsageResponse } from "@anthropic-ai/claude-agent-sdk";
-import type { appToSidecarRequests, ResultOf } from "@conducted/protocol";
+import type { appToSidecarRequests, RateLimit, ResultOf } from "@conducted/protocol";
 import type { SessionId } from "@conducted/shared";
 import { type AppError, notImplemented, type Result } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
@@ -24,22 +24,25 @@ import type { Logger } from "../logging/logger.ts";
 export const PLAN_USAGE_TIMEOUT_MS = 10_000;
 
 export type ContextUsageResult = ResultOf<(typeof appToSidecarRequests)["getContextUsage"]>;
-export type PlanUsage = NonNullable<ContextUsageResult["plan"]>;
 
-export function planUsageFromSdk(response: SDKControlGetUsageResponse): PlanUsage | undefined {
-	if (!response.rate_limits_available || !response.rate_limits) return undefined;
-	const plan: PlanUsage = {};
-	const five = response.rate_limits.five_hour;
-	const seven = response.rate_limits.seven_day;
-	if (five && five.utilization !== null) {
-		plan.fiveHourUsedPercent = five.utilization;
-		if (five.resets_at !== null) plan.fiveHourResetsAt = Date.parse(five.resets_at);
+/** The two Claude plan windows, in the order the usage popover lists them. */
+const CLAUDE_WINDOWS = [
+	{ key: "five_hour", label: "5-hour limit", windowMinutes: 5 * 60 },
+	{ key: "seven_day", label: "Weekly limit", windowMinutes: 7 * 24 * 60 },
+] as const;
+
+/** The Claude SDK's plan usage as rate limits. A window with no utilization is left out. */
+export function rateLimitsFromSdk(response: SDKControlGetUsageResponse): RateLimit[] {
+	if (!response.rate_limits_available || !response.rate_limits) return [];
+	const limits: RateLimit[] = [];
+	for (const { key, label, windowMinutes } of CLAUDE_WINDOWS) {
+		const window = response.rate_limits[key];
+		if (!window || window.utilization === null) continue;
+		const limit: RateLimit = { label, usedPercent: window.utilization, windowMinutes };
+		if (window.resets_at !== null) limit.resetsAt = Date.parse(window.resets_at);
+		limits.push(limit);
 	}
-	if (seven && seven.utilization !== null) {
-		plan.sevenDayUsedPercent = seven.utilization;
-		if (seven.resets_at !== null) plan.sevenDayResetsAt = Date.parse(seven.resets_at);
-	}
-	return Object.keys(plan).length === 0 ? undefined : plan;
+	return limits;
 }
 
 export interface UsageReader {

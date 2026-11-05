@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import type { WorkspaceContext } from "@conducted/protocol";
-import type { SessionId } from "@conducted/shared";
+import type { SessionId, WorkspaceId } from "@conducted/shared";
 import { buildAgentEnv, parseEnvDump, stripProviderSecrets } from "./env.ts";
 
 const M = "@@MARK@@";
@@ -29,6 +29,8 @@ test("stripProviderSecrets removes provider keys and exported functions only", (
 
 test("user overrides win and may re-add a provider key", () => {
 	const workspace: WorkspaceContext = {
+		workspaceId: "w1" as WorkspaceId,
+		workspaceName: "lisbon",
 		workspacePath: "/w",
 		repoRootPath: "/r",
 		targetBranch: "origin/main",
@@ -44,4 +46,6 @@ test("user overrides win and may re-add a provider key", () => {
 	expect(env.ANTHROPIC_API_KEY).toBe("mine");
 	expect(env.CONDUCTED_PORT).toBe("5100");
 	expect(env.CONDUCTED_SESSION_ID).toBe("s1");
+	expect(env.CONDUCTED_WORKSPACE_ID).toBe("w1");
+	expect(env.CONDUCTED_WORKSPACE_NAME).toBe("lisbon");
 });

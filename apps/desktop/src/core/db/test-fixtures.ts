@@ -2,7 +2,7 @@
  * @feature DATA-01 Sample values for the repository tests
  * Owns: one valid example of every stored entity, shared by rows.test.ts and schema.test.ts so
  * the two tests agree on what a good row looks like.
- * Behaviour: migration 0001 and the models in core/model.ts.
+ * Behaviour: migrations 0001 to 0004 and the models in core/model.ts.
  * Must handle: nothing at runtime. Only test files import this module.
  * Test first: not applicable, it holds data only.
  */
@@ -42,7 +42,7 @@ export const sessionConfig: Session["config"] = {
 	planMode: false,
 	requireToolApproval: true,
 	additionalDirectories: ["/tmp/extra"],
-	appTools: { diffComments: true, progressUpdates: false },
+	appTools: { diffComments: true, progressUpdates: false, setTargetBranch: true },
 };
 
 export const sampleRepo: Repo = {
@@ -77,6 +77,9 @@ export const sampleWorkspace: Workspace & { setupLogPath: string | null } = {
 	prTitle: "Add repositories",
 	prDescription: null,
 	archiveCommit: null,
+	archivedAt: null,
+	activeSessionId: null,
+	filesCopied: 3,
 	lastActivityAt: 3000,
 	createdAt: 1000,
 	updatedAt: 3000,
@@ -153,7 +156,12 @@ export const sampleComment: DiffComment = {
 	line: 10,
 	endLine: 12,
 	body: "Rename this",
-	author: { kind: "github", name: "octocat" },
+	author: {
+		kind: "github",
+		name: "octocat",
+		avatarUrl: "https://avatars.githubusercontent.com/u/583231",
+	},
+	state: "hidden",
 	side: "deletions",
 	threadId: "thread-1",
 	replyToId: null,
@@ -172,16 +180,24 @@ export const sampleAttachment: Attachment & { messageId: string | null; createdA
 	originalName: "shot.png",
 	path: "/data/draft-attachments/chat-1/shot.png",
 	isDraft: true,
+	commentId: null,
 	messageId: null,
 	createdAt: 1000,
 };
 
-export const sampleTerminal: Terminal & { cols: number; rows: number } = {
+export const sampleTerminal: Terminal & {
+	cols: number;
+	rows: number;
+	screenState: string | null;
+} = {
 	id: "term-1" as TerminalId,
 	workspaceId,
+	repoId: null,
 	kind: "run",
 	title: "dev server",
 	cwd: "/code/workspaces/oslo",
+	startCommand: "bun dev",
+	screenState: null,
 	startedAt: 1000,
 	endedAt: null,
 	exitCode: null,

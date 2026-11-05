@@ -9,7 +9,13 @@
  * moves forward; deleting cascades to sessions, comments, terminals and section members.
  * Test first: workspaceFromRow returns an error Result when linked_paths is not a JSON list.
  */
-import { notImplemented, type RepoId, type Result, type WorkspaceId } from "@conducted/shared";
+import {
+	notImplemented,
+	type RepoId,
+	type Result,
+	type SessionId,
+	type WorkspaceId,
+} from "@conducted/shared";
 import type { Database } from "../../platform/platform.ts";
 import type { KanbanStatus, Workspace, WorkspaceState } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
@@ -35,6 +41,9 @@ export interface WorkspaceRow {
 	pr_description: string | null;
 	archive_commit: string | null;
 	setup_log_path: string | null;
+	archived_at: number | null;
+	active_session_id: SessionId | null;
+	files_copied: number | null;
 	last_activity_at: number;
 	created_at: number;
 	updated_at: number;
@@ -70,6 +79,9 @@ export function workspaceFromRow(row: WorkspaceRow): Result<Workspace> {
 			prTitle: row.pr_title,
 			prDescription: row.pr_description,
 			archiveCommit: row.archive_commit,
+			archivedAt: row.archived_at,
+			activeSessionId: row.active_session_id,
+			filesCopied: row.files_copied,
 			lastActivityAt: row.last_activity_at,
 			createdAt: row.created_at,
 			updatedAt: row.updated_at,
@@ -103,6 +115,9 @@ export function workspaceToParams(workspace: WorkspaceInsert): Result<readonly u
 			workspace.prDescription,
 			workspace.archiveCommit,
 			workspace.setupLogPath,
+			workspace.archivedAt,
+			workspace.activeSessionId,
+			workspace.filesCopied,
 			workspace.lastActivityAt,
 			workspace.createdAt,
 			workspace.updatedAt,
@@ -112,7 +127,8 @@ export function workspaceToParams(workspace: WorkspaceInsert): Result<readonly u
 
 const COLUMNS = `id, repo_id, directory_name, path, branch, branch_is_placeholder, display_name,
 	target_branch, state, kanban_status, port, pinned_at, notes, linked_paths, pr_number, pr_title,
-	pr_description, archive_commit, setup_log_path, last_activity_at, created_at, updated_at`;
+	pr_description, archive_commit, setup_log_path, archived_at, active_session_id, files_copied,
+	last_activity_at, created_at, updated_at`;
 
 /** Every statement the repository runs. Parameters are `$1..$n` in order of first appearance. */
 export const WORKSPACES_SQL = {
@@ -125,10 +141,10 @@ export const WORKSPACES_SQL = {
 	listDirectoryNames: "SELECT directory_name FROM workspaces WHERE repo_id = $1",
 	listPorts: "SELECT port FROM workspaces",
 	insert: `INSERT INTO workspaces (${COLUMNS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-		$11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)`,
+		$11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)`,
 	transitionState: "UPDATE workspaces SET state = $1, updated_at = $2 WHERE id = $3 AND state = $4",
-	markArchived: `UPDATE workspaces SET state = 'archived', archive_commit = $1, updated_at = $2
-		WHERE id = $3 AND state = 'archiving'`,
+	markArchived: `UPDATE workspaces SET state = 'archived', archive_commit = $1, archived_at = $2,
+		updated_at = $2 WHERE id = $3 AND state = 'archiving'`,
 	setKanbanStatus: "UPDATE workspaces SET kanban_status = $1, updated_at = $2 WHERE id = $3",
 	setDisplayName: "UPDATE workspaces SET display_name = $1, updated_at = $2 WHERE id = $3",
 	setBranch: `UPDATE workspaces SET branch = $1, branch_is_placeholder = $2, updated_at = $3
@@ -142,6 +158,8 @@ export const WORKSPACES_SQL = {
 	clearPullRequest: `UPDATE workspaces SET pr_number = NULL, pr_title = NULL,
 		pr_description = NULL, updated_at = $1 WHERE id = $2`,
 	setSetupLogPath: "UPDATE workspaces SET setup_log_path = $1, updated_at = $2 WHERE id = $3",
+	setActiveSession: "UPDATE workspaces SET active_session_id = $1 WHERE id = $2",
+	setFilesCopied: "UPDATE workspaces SET files_copied = $1, updated_at = $2 WHERE id = $3",
 	touchActivity: "UPDATE workspaces SET last_activity_at = MAX(last_activity_at, $1) WHERE id = $2",
 	delete: "DELETE FROM workspaces WHERE id = $1",
 } as const;
@@ -190,7 +208,10 @@ export interface WorkspaceRepository {
 		from: WorkspaceState,
 		to: WorkspaceState,
 	): Promise<Result<boolean>>;
-	/** WORKSPACES_SQL.markArchived. Only applies to a workspace in `archiving`; `ok(false)` otherwise. */
+	/**
+	 * WORKSPACES_SQL.markArchived, with archived_at and updated_at from the clock. Only applies to a
+	 * workspace in `archiving`; `ok(false)` otherwise.
+	 */
 	markArchived(id: WorkspaceId, archiveCommit: string | null): Promise<Result<boolean>>;
 	/** WORKSPACES_SQL.setKanbanStatus. */
 	setKanbanStatus(id: WorkspaceId, status: KanbanStatus): Promise<Result<void>>;
@@ -215,6 +236,10 @@ export interface WorkspaceRepository {
 	clearPullRequest(id: WorkspaceId): Promise<Result<void>>;
 	/** WORKSPACES_SQL.setSetupLogPath. */
 	setSetupLogPath(id: WorkspaceId, path: string | null): Promise<Result<void>>;
+	/** WORKSPACES_SQL.setActiveSession: the chat tab to reopen after a restart. */
+	setActiveSession(id: WorkspaceId, sessionId: SessionId | null): Promise<Result<void>>;
+	/** WORKSPACES_SQL.setFilesCopied, after setup copied files into the new worktree. */
+	setFilesCopied(id: WorkspaceId, count: number): Promise<Result<void>>;
 	/** WORKSPACES_SQL.touchActivity. Moves last_activity_at forward only, never back. */
 	touchActivity(id: WorkspaceId, at: number): Promise<Result<void>>;
 	/** WORKSPACES_SQL.delete. The database cascades to sessions, comments and terminals. */
@@ -247,6 +272,8 @@ export function createWorkspaceRepository(
 		setPullRequest: async () => notImplemented("DATA-01"),
 		clearPullRequest: async () => notImplemented("DATA-01"),
 		setSetupLogPath: async () => notImplemented("DATA-01"),
+		setActiveSession: async () => notImplemented("NAV-02"),
+		setFilesCopied: async () => notImplemented("WS-03"),
 		touchActivity: async () => notImplemented("DATA-01"),
 		delete: async () => notImplemented("DATA-01"),
 	};

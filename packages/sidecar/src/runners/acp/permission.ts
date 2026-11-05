@@ -35,6 +35,8 @@ export function permissionResponseFor(
 			break;
 		case "allow_edits_for_session":
 		case "always_allow":
+		// The agent's own "always" option is the rule it suggests.
+		case "allow_with_suggested_rules":
 			chosen = byKind("allow_always") ?? byKind("allow_once");
 			break;
 		case "deny":

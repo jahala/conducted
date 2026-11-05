@@ -7,7 +7,10 @@
  * tested by passing a different implementation.
  */
 import type {
+	AcpConfigOption,
 	AgentInstall,
+	AgentLogin,
+	AgentProvider,
 	FileChange,
 	InteractionAnswer,
 	ModelInfo,
@@ -20,34 +23,55 @@ import type {
 	AppError,
 	CommentId,
 	InteractionId,
+	ManagedProgram,
 	MessageId,
 	RepoId,
 	Result,
 	SectionId,
 	SessionId,
+	SnippetId,
 	TerminalId,
 	TurnId,
 	WorkspaceId,
 } from "@conducted/shared";
 import type {
+	AgentConfigFile,
+	AgentProgramView,
+	ArtifactsView,
+	BacklogWorkspace,
 	BranchCommit,
 	ChatView,
+	ConfigSyncCategory,
+	ConfigSyncChange,
+	ConfigSyncResult,
 	DiagnosticsCapture,
 	DiffComment,
 	EnvScope,
 	EnvVarView,
 	FileContent,
 	GitHubAccess,
+	GitHubOwner,
+	GitHubRepoSummary,
 	GitState,
+	IssueView,
 	KanbanStatus,
+	LinearAccess,
 	McpServerView,
+	PlanEntry,
 	PrActivityEntry,
+	ProviderKeyView,
+	PullRequestSummary,
 	Repo,
 	RepoConfig,
+	RepoIconChoice,
+	RepoNameCheck,
+	RunAction,
 	Section,
 	Session,
 	SetupView,
+	Snippet,
 	StackEntryView,
+	SystemInfo,
 	Terminal,
 	TerminalConnection,
 	Workspace,
@@ -109,8 +133,17 @@ export interface ContentSearchOptions {
 /** The error codes `Actions.files.write` can fail with. */
 export type FileWriteErrorCode = "changed_on_disk" | "missing" | "permission" | "other";
 
+/** A port something listens on in the workspace's range, with the program behind it. */
+export interface DetectedPort {
+	port: number;
+	pid: number;
+	processName: string;
+	/** The macOS app that owns the process, such as a browser or an Electron app. Null for a plain process. */
+	appName: string | null;
+}
+
 export interface RunState {
-	actions: { id: string; label: string; command: string }[];
+	actions: RunAction[];
 	running: {
 		actionId: string;
 		terminalId: TerminalId;
@@ -119,7 +152,7 @@ export interface RunState {
 		phase: "starting" | "waiting_for_setup" | "running" | "stopping";
 	}[];
 	spotlight: { active: boolean; terminalId: TerminalId | null };
-	detectedPorts: number[];
+	detectedPorts: DetectedPort[];
 }
 
 export interface Draft {
@@ -144,6 +177,40 @@ export interface UpdateStatus {
 	/** Where the release notes for `version` are. Null when none are published. */
 	notesUrl: string | null;
 	error: string | null;
+}
+
+/** What happened when an archived workspace came back, so the screen can ask or warn. */
+export interface UnarchiveOutcome {
+	/** The old branch name is taken now; call again with `branchName`. Nothing changed yet. */
+	needsBranchName: boolean;
+	/** The worktree came back, but uncommitted changes saved at archive time could not be restored. */
+	uncommittedChangesLost: boolean;
+}
+
+/** For each conflict in a file, top to bottom: keep the current side, the incoming side, or both. */
+export type ConflictChoice = "current" | "incoming" | "both";
+
+/** Names one provider key of an agent (see ProviderKeyView). */
+export interface ProviderKeyRef {
+	agent: AgentKind;
+	acpAgent: AcpAgent | null;
+	provider: string;
+	envVar: string;
+}
+
+/** What the feedback form sends. Ours opens the project's issue page with the text filled in. */
+export interface FeedbackInput {
+	message: string;
+	email: string | null;
+	imagePaths: string[];
+	/** Attach the recent app logs, with secrets removed. */
+	includeLogs: boolean;
+}
+
+export interface SnippetInput {
+	name: string;
+	keyword: string | null;
+	prompt: string;
 }
 
 export interface NewWorkspaceInput {
@@ -222,6 +289,49 @@ export interface Queries {
 	): Loadable<ContentMatch[]>;
 	/** Chats of the workspace that were closed and can be reopened. */
 	useClosedSessions(workspaceId: WorkspaceId): Loadable<Session[]>;
+	/** Workspaces saved to the backlog, not started yet. */
+	useBacklogWorkspaces(): Loadable<BacklogWorkspace[]>;
+	/** Open issues of a repository's GitHub project or of the user's Linear workspace, filtered by the query. */
+	useIssues(repoId: RepoId, provider: IssueView["provider"], query: string): Loadable<IssueView[]>;
+	/** Open pull requests of the repository, filtered by the query, for "Create from". */
+	usePullRequestList(repoId: RepoId, query: string): Loadable<PullRequestSummary[]>;
+	/** Files of the repository's main clone whose path fuzzy-matches the query, before a workspace exists. */
+	useRepoFileSearch(repoId: RepoId, query: string): Loadable<FileEntry[]>;
+	/** The Artifacts tab: files in the workspace's `.context` folder. */
+	useArtifacts(workspaceId: WorkspaceId): Loadable<ArtifactsView>;
+	/** Plans agents proposed in the workspace's chats, newest first. */
+	usePlans(workspaceId: WorkspaceId): Loadable<PlanEntry[]>;
+	/** The user's prompt snippets. */
+	useSnippets(): Loadable<Snippet[]>;
+	/** The programs the app downloads and keeps up to date, with the user's choice for each. */
+	useAgentPrograms(): Loadable<AgentProgramView[]>;
+	/** The provider keys of an agent, without their values. */
+	useProviderKeys(agent: AgentKind, acpAgent?: AcpAgent): Loadable<ProviderKeyView[]>;
+	/** The providers an agent can use and the variables for their keys. */
+	useAgentProviders(agent: AgentKind, acpAgent?: AcpAgent): Loadable<AgentProvider[]>;
+	/** An ACP chat's own options beyond the model. Empty for other agents. */
+	useAcpConfigOptions(sessionId: SessionId): Loadable<AcpConfigOption[]>;
+	/** Claude's settings file or Codex's config file, for the editors on the Agents page. */
+	useAgentConfigFile(agent: AgentConfigFile["agent"]): Loadable<AgentConfigFile>;
+	/** What "Sync agent configs" would change, copying from one agent to the other. */
+	useConfigSyncPreview(
+		from: "claude" | "codex",
+		categories: readonly ConfigSyncCategory[],
+	): Loadable<ConfigSyncChange[]>;
+	/** The GitHub accounts and organisations the user can clone from or create repositories under. */
+	useGitHubOwners(): Loadable<GitHubOwner[]>;
+	/** Repositories of a GitHub owner (the user's own when null), filtered by the query. */
+	useGitHubRepos(owner: string | null, query: string): Loadable<GitHubRepoSummary[]>;
+	/** Whether a repository name is free under an owner, for the quick start form. */
+	useRepoNameCheck(owner: string, name: string): Loadable<RepoNameCheck>;
+	/** Whether a Linear key is set and accepted. */
+	useLinearAccess(): Loadable<LinearAccess>;
+	/** The terminals of a repository's main clone (the repository terminal and its earlier runs). */
+	useRepoTerminals(repoId: RepoId): Loadable<Terminal[]>;
+	/** The macOS version and CPU, for the old-system and wrong-build warnings. */
+	useSystemInfo(): Loadable<SystemInfo>;
+	/** Whether the app has Full Disk Access. */
+	useFullDiskAccess(): Loadable<boolean>;
 }
 
 // ---------------------------------------------------------------- actions
@@ -233,13 +343,27 @@ export interface Actions {
 		addLocal: Act<[path: string], Repo>;
 		clone: Act<[url: string, parentDir: string], Repo>;
 		createFromTemplate: Act<[name: string, parentDir: string, template: string], Repo>;
+		/** Creates a GitHub repository for a local project and pushes it. Returns the repository URL. */
+		createGitHubRepo: Act<
+			[repoId: RepoId, input: { owner: string; name: string; isPrivate: boolean }],
+			string
+		>;
 		remove: Act<[repoId: RepoId]>;
 		updateConfig: Act<[repoId: RepoId, config: RepoConfig]>;
+		setIcon: Act<[repoId: RepoId, icon: RepoIconChoice]>;
+		/** Drops this Mac's change to a shared run action, so the shared version applies again. */
+		resetRunAction: Act<[repoId: RepoId, actionId: string]>;
+		/** Hides or shows a run action for this user only. */
+		setRunActionHidden: Act<[repoId: RepoId, actionId: string, hidden: boolean]>;
 	};
 	workspaces: {
 		create: Act<[input: NewWorkspaceInput], Workspace>;
 		archive: Act<[id: WorkspaceId, options: { deleteBranch: boolean }]>;
-		unarchive: Act<[id: WorkspaceId]>;
+		/** `clearChats` is "Clear & unarchive": the chats are removed before the workspace comes back. */
+		unarchive: Act<
+			[id: WorkspaceId, options: { branchName: string | null; clearChats: boolean }],
+			UnarchiveOutcome
+		>;
 		remove: Act<[id: WorkspaceId]>;
 		rename: Act<[id: WorkspaceId, name: string]>;
 		setPinned: Act<[id: WorkspaceId, pinned: boolean]>;
@@ -248,6 +372,18 @@ export interface Actions {
 		setLinkedPaths: Act<[id: WorkspaceId, paths: string[]]>;
 		openIn: Act<[id: WorkspaceId, appName: string]>;
 		markRead: Act<[id: WorkspaceId]>;
+		markUnread: Act<[id: WorkspaceId]>;
+		/** Remembers the open chat tab, so it is open again after a restart. */
+		setActiveSession: Act<[id: WorkspaceId, sessionId: SessionId]>;
+		/** Runs setup again for a workspace whose setup or creation failed. */
+		retrySetup: Act<[id: WorkspaceId]>;
+		/** The first message of a workspace whose creation failed, so the user can send it again. */
+		recoverPrompt: Act<[id: WorkspaceId], Draft>;
+		/** Saves a workspace without making a worktree. */
+		addToBacklog: Act<[input: NewWorkspaceInput], BacklogWorkspace>;
+		/** Starts a backlog workspace: worktree, setup, and the first message. */
+		startFromBacklog: Act<[id: WorkspaceId], Workspace>;
+		removeFromBacklog: Act<[id: WorkspaceId]>;
 	};
 	sections: {
 		create: Act<[name: string, emoji: string | null], Section>;
@@ -274,8 +410,34 @@ export interface Actions {
 		forkFrom: Act<[id: SessionId, turnId: TurnId], Session>;
 		saveDraft: (id: SessionId, draft: Draft) => void;
 		copyTranscript: Act<[id: SessionId, detail: "concise" | "full"]>;
-		/** Starts a new chat that carries out an approved plan ("Hand off"). */
-		startFromPlan: Act<[id: SessionId, planText: string], Session>;
+		/**
+		 * Sends an approved plan to a chat that carries it out ("Hand off"): the chosen one, or a new
+		 * chat when `target` is null. Returns that chat.
+		 */
+		startFromPlan: Act<[id: SessionId, planText: string, target: SessionId | null], Session>;
+		markRead: Act<[id: SessionId]>;
+		markUnread: Act<[id: SessionId]>;
+		/** Sends a message that failed to send ("Message not sent") again. */
+		retryFailedSend: Act<[id: SessionId, messageId: MessageId]>;
+		/** Drops a message that failed to send, and puts its text back in the composer. */
+		discardFailedSend: Act<[id: SessionId, messageId: MessageId]>;
+		/** Retries a failed turn's message in a new chat of the same workspace. */
+		retryInNewChat: Act<[id: SessionId, turnId: TurnId], Session>;
+		/** Stops the agent and starts it again with the chat's history (/restart). */
+		restartAgent: Act<[id: SessionId]>;
+		/** Asks the agent to summarise its context now (/compact). */
+		compact: Act<[id: SessionId]>;
+		/** Turns auto-approval of file edits on or off for the live chat. */
+		setAutoApproveEdits: Act<[id: SessionId, enabled: boolean]>;
+		/** Sets one of an ACP chat's own options. */
+		setAcpOption: Act<[id: SessionId, optionId: string, value: string | boolean]>;
+		/** Creates a workspace from a turn's checkpoint and moves a copy of the chat there. */
+		forkToWorkspace: Act<[id: SessionId, turnId: TurnId], Workspace>;
+		/** The Codex goal bar and /goal. */
+		goal: {
+			set: Act<[id: SessionId, objective: string]>;
+			change: Act<[id: SessionId, action: "pause" | "resume" | "clear"]>;
+		};
 		queue: {
 			edit: Act<[messageId: MessageId, text: string]>;
 			remove: Act<[messageId: MessageId]>;
@@ -294,6 +456,15 @@ export interface Actions {
 		renameBranch: Act<[workspaceId: WorkspaceId, name: string]>;
 		discardFile: Act<[workspaceId: WorkspaceId, path: string]>;
 		setViewed: Act<[workspaceId: WorkspaceId, path: string, viewed: boolean]>;
+		/** Fetches, checks out another branch and fast-forwards it. */
+		switchBranch: Act<[workspaceId: WorkspaceId, branch: string]>;
+		/**
+		 * "Continue" after a merge or from a detached HEAD: a new branch from the target (or from
+		 * HEAD), keeping the chats. Null name: a generated one.
+		 */
+		continueOnNewBranch: Act<[workspaceId: WorkspaceId, name: string | null]>;
+		/** Opens the file's diff in the external diff tool chosen in settings. */
+		openInDiffTool: Act<[workspaceId: WorkspaceId, path: string]>;
 	};
 	pullRequests: {
 		/** Asks the agent to open the PR, with written instructions. */
@@ -308,12 +479,25 @@ export interface Actions {
 		updateTitleAndBody: Act<[workspaceId: WorkspaceId, title: string, body: string]>;
 		/** Starts a new chat that reviews the workspace diff. */
 		requestAiReview: Act<[workspaceId: WorkspaceId, extraInstructions: string | null], Session>;
+		/** Asks these GitHub users for a review. */
+		requestReview: Act<[workspaceId: WorkspaceId, logins: string[]]>;
+		removeReviewRequest: Act<[workspaceId: WorkspaceId, login: string]>;
+		/** Links an existing pull request by its URL or number. */
+		link: Act<[workspaceId: WorkspaceId, urlOrNumber: string]>;
+	};
+	issues: {
+		/** Writes the issue as a context file in the workspace and returns its path. */
+		attachToWorkspace: Act<
+			[workspaceId: WorkspaceId, issue: Pick<IssueView, "provider" | "id">],
+			string
+		>;
 	};
 	comments: {
+		/** A null file makes a comment on the pull request itself. */
 		add: Act<
 			[
 				workspaceId: WorkspaceId,
-				file: string,
+				file: string | null,
 				line: number | null,
 				endLine: number | null,
 				body: string,
@@ -323,6 +507,10 @@ export interface Actions {
 		edit: Act<[id: CommentId, body: string]>;
 		remove: Act<[id: CommentId]>;
 		setResolved: Act<[id: CommentId, resolved: boolean]>;
+		/** Hides a comment, or brings it back. A hidden GitHub comment stays hidden after a sync. */
+		setHidden: Act<[id: CommentId, hidden: boolean]>;
+		/** Marks every pending comment of the workspace ready for review. */
+		markAllReady: Act<[workspaceId: WorkspaceId]>;
 		/** Puts the open comments into the active chat's composer. */
 		sendToChat: Act<[workspaceId: WorkspaceId, ids: CommentId[]]>;
 	};
@@ -331,9 +519,18 @@ export interface Actions {
 		stop: Act<[workspaceId: WorkspaceId, actionId: string]>;
 		startSpotlight: Act<[workspaceId: WorkspaceId]>;
 		stopSpotlight: Act<[workspaceId: WorkspaceId]>;
+		/** Brings the app that listens on a detected port to the front, instead of opening a new window. */
+		activateApp: Act<[workspaceId: WorkspaceId, port: number]>;
 	};
 	terminals: {
-		create: Act<[workspaceId: WorkspaceId], Terminal>;
+		/** `command` is typed into the new shell when it starts. */
+		create: Act<[workspaceId: WorkspaceId, options?: { command?: string }], Terminal>;
+		/** Opens the repository's terminal in its main clone, creating it the first time. */
+		openForRepo: Act<[repoId: RepoId], Terminal>;
+		/** Starts a new shell in a terminal whose shell has ended, below a divider line. */
+		restart: Act<[id: TerminalId]>;
+		/** Runs a shell code block from the chat in a new terminal and returns it. */
+		runCommand: Act<[workspaceId: WorkspaceId, command: string], Terminal>;
 		close: Act<[id: TerminalId]>;
 	};
 	files: {
@@ -349,6 +546,17 @@ export interface Actions {
 		attachToChat: Act<[workspaceId: WorkspaceId, paths: string[]]>;
 		/** Opens a file in the app's file tab, as a diff or in the editor. */
 		open: Act<[workspaceId: WorkspaceId, path: string, mode: "diff" | "edit", scope: DiffScope]>;
+		/**
+		 * Resolves the conflicts of a file with one choice per conflict, saves it, and stages it when
+		 * no conflict markers remain.
+		 */
+		resolveConflicts: Act<[workspaceId: WorkspaceId, path: string, choices: ConflictChoice[]]>;
+	};
+	artifacts: {
+		/** Loads the next page of the Artifacts tab. */
+		loadMore: Act<[workspaceId: WorkspaceId]>;
+		/** Copies files into the workspace's `.context` folder. */
+		upload: Act<[workspaceId: WorkspaceId, paths: string[]]>;
 	};
 	mcp: {
 		/** Asks the agent to check its MCP servers again. */
@@ -357,6 +565,24 @@ export interface Actions {
 	attachments: {
 		/** Copies files into app storage for a chat and returns where the copies are. */
 		add: Act<[sessionId: SessionId, paths: string[]], string[]>;
+		/** Attaches another chat's transcript as a file. Fails for a chat with no messages. */
+		addChatTranscript: Act<[sessionId: SessionId, fromSessionId: SessionId], string>;
+		/** Attaches a plan an agent proposed as a file. */
+		addPlan: Act<[sessionId: SessionId, plan: Pick<PlanEntry, "sessionId" | "turnId">], string>;
+		/** Attaches the current output of the workspace's terminal as a file. */
+		addTerminalOutput: Act<[sessionId: SessionId], string>;
+		/** Attaches text as a file, for example a terminal selection. */
+		addText: Act<[sessionId: SessionId, fileName: string, text: string], string>;
+		copyImage: Act<[path: string]>;
+		/** Saves a copy where the user picks. Null when the user cancels. */
+		saveAs: Act<[path: string], string | null>;
+		/** Opens the file in its default macOS app. */
+		openExternally: Act<[path: string]>;
+	};
+	snippets: {
+		create: Act<[input: SnippetInput], Snippet>;
+		update: Act<[id: SnippetId, input: SnippetInput]>;
+		remove: Act<[id: SnippetId]>;
 	};
 	settings: {
 		set: Act<[key: string, value: unknown]>;
@@ -364,11 +590,40 @@ export interface Actions {
 		removeEnvVar: Act<[name: string, scope: { repoId: RepoId } | "global"]>;
 	};
 	agents: {
-		login: Act<
-			[agent: AgentKind, acpAgent?: AcpAgent],
-			{ url?: string; code?: string; instructions: string }
+		login: Act<[agent: AgentKind, acpAgent?: AcpAgent], AgentLogin>;
+		/** Waits for a sign-in to end. A key the agent hands back is stored in the Keychain. */
+		finishLogin: Act<
+			[loginId: string, code?: string],
+			{ outcome: "signed_in" | "failed" | "cancelled"; message: string | null }
 		>;
+		cancelLogin: Act<[loginId: string]>;
 		refresh: Act;
+		/** Stores a key typed on the page, or uses the one from this Mac's environment. */
+		setProviderKey: Act<
+			[key: ProviderKeyRef, value: { kind: "entered"; value: string } | { kind: "this_mac" }]
+		>;
+		removeProviderKey: Act<[key: ProviderKeyRef]>;
+		/** Saves an agent's own settings file. Fails with "changed_on_disk" when it changed since it was read. */
+		saveConfigFile: Act<
+			[agent: AgentConfigFile["agent"], text: string, expectedModifiedAt: number | null]
+		>;
+		/** Copies MCP servers, slash commands or skills from one agent's config to the other's. */
+		syncConfigs: Act<
+			[from: "claude" | "codex", categories: ConfigSyncCategory[]],
+			ConfigSyncResult
+		>;
+	};
+	programs: {
+		/** Downloads and installs a program. Also the Retry after a failed download. */
+		install: Act<[program: ManagedProgram]>;
+		redownload: Act<[program: ManagedProgram]>;
+		remove: Act<[program: ManagedProgram]>;
+	};
+	accounts: {
+		/** Stores the GitHub token `gh` uses (D029), or removes it with null. */
+		setGitHubToken: Act<[token: string | null]>;
+		/** Stores the personal Linear API key (D035), or removes it with null. */
+		setLinearKey: Act<[key: string | null]>;
 	};
 	app: {
 		runCommand: Act<[commandId: string]>;
@@ -381,5 +636,11 @@ export interface Actions {
 		recheckGitHubAccess: Act;
 		/** Writes the redacted diagnostics report to a file and starts a chat with it attached. */
 		createDiagnosticsChat: Act<[workspaceId: WorkspaceId]>;
+		copyText: Act<[text: string]>;
+		sendFeedback: Act<[input: FeedbackInput]>;
+		openSidecarLogs: Act;
+		openFullDiskAccessSettings: Act;
+		/** Opens a terminal that runs the Xcode licence command, when git is blocked by it. */
+		runXcodeLicenseFix: Act;
 	};
 }

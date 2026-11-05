@@ -10,7 +10,7 @@ const base: SessionConfig = {
 	planMode: false,
 	requireToolApproval: false,
 	additionalDirectories: ["/a"],
-	appTools: { diffComments: true, progressUpdates: false },
+	appTools: { diffComments: true, progressUpdates: false, setTargetBranch: false },
 };
 
 test("no change, live change and restart change", () => {
@@ -35,7 +35,9 @@ test("a restart change wins over live changes and still reports them", () => {
 
 test("tool switches need a restart", () => {
 	expect(
-		classifyConfigChange(base, { ...base, appTools: { diffComments: true, progressUpdates: true } })
-			.kind,
+		classifyConfigChange(base, {
+			...base,
+			appTools: { diffComments: true, progressUpdates: true, setTargetBranch: false },
+		}).kind,
 	).toBe("restart");
 });

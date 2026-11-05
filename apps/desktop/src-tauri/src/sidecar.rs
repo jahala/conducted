@@ -1,4 +1,7 @@
 //! @feature PLAT-09 Sidecar launcher: spawn, socket relay, restart, parent watchdog
+//! @feature SIDE-22 Slash command cache that works before a chat starts
+//! @feature SIDE-23 Sidecar packaging: version flag, one program per CPU
+//! @feature AGENT-18 Bundled skill that teaches agents the app
 //!
 //! Owns: starting the Bun-compiled sidecar program, relaying its newline-delimited JSON between
 //! its Unix socket and the webview, restarting it when it dies, and making sure it never outlives
@@ -48,6 +51,15 @@
 //! needs `bundle.externalBin` in tauri.conf.json, which requires the compiled file to exist at
 //! build time, so it is added when the sidecar build exists. In development
 //! `CONDUCTED_SIDECAR_BIN` points at a binary or a wrapper script.
+//!
+//! Folders for the sidecar (see "Sidecar launch" in docs/plans/tauri-commands.md):
+//! - SIDE-22: `completions_dir` is a folder in the app data folder, created at mode 0700, passed as
+//!   `CONDUCTED_COMPLETIONS_DIR`. The sidecar keeps its slash-command snapshots there.
+//! - AGENT-18: `skill_plugin_dir` is the bundled skill folder inside the app's resources, passed as
+//!   `CONDUCTED_SKILL_PLUGIN_DIR`. A dev run without a bundle gets no variable, not an empty one.
+//! - SIDE-23: `check_binary_version` runs `<sidecar> --version` before the first start and fails
+//!   with `sidecar_version_mismatch` when the answer is not this app's version. A release build runs
+//!   the CPU's file from `bundle.externalBin`.
 //!
 //! Test first: with a fake sidecar script that prints `SOCKET_PATH=...` and echoes lines,
 //! `sidecar_send("a")` produces `sidecar://line` with `a`; killing the script emits
@@ -150,6 +162,29 @@ impl Default for SidecarState {
             }),
         }
     }
+}
+
+/// Environment variable that tells the sidecar where to keep its slash-command snapshots.
+pub const ENV_COMPLETIONS_DIR: &str = "CONDUCTED_COMPLETIONS_DIR";
+/// Environment variable that tells the sidecar where the bundled skill folder is.
+pub const ENV_SKILL_PLUGIN_DIR: &str = "CONDUCTED_SKILL_PLUGIN_DIR";
+
+/// The folder for the sidecar's saved slash-command lists. Created when missing.
+pub fn completions_dir(_app: &AppHandle) -> CommandResult<PathBuf> {
+    not_implemented!("SIDE-22")
+}
+
+/// The bundled skill folder, or `None` when the build has none (a dev run).
+pub fn skill_plugin_dir(_app: &AppHandle) -> CommandResult<Option<PathBuf>> {
+    not_implemented!("AGENT-18")
+}
+
+/// Runs `<binary> --version` and checks that it names `app_version`.
+pub async fn check_binary_version(
+    _binary: &std::path::Path,
+    _app_version: &str,
+) -> CommandResult<()> {
+    not_implemented!("SIDE-23")
 }
 
 /// Finds the sidecar program: `CONDUCTED_SIDECAR_BIN` when set, otherwise the bundled one in

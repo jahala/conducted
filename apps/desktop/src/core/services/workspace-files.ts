@@ -17,7 +17,7 @@
  */
 import { notImplemented, type Result, type WorkspaceId } from "@conducted/shared";
 import type { FileSearch, FileSystem, GrepMatch, TreeEntry } from "../../platform/platform.ts";
-import type { DiffScope } from "../api.ts";
+import type { ConflictChoice, DiffScope } from "../api.ts";
 
 export interface WorkspaceFilesServiceDeps {
 	fs: FileSystem;
@@ -80,5 +80,24 @@ export class WorkspaceFilesService {
 		_expectedModifiedAt: number,
 	): Promise<Result<{ modifiedAt: number }>> {
 		return notImplemented("REV-08");
+	}
+
+	/** Backs `Actions.files.resolveConflicts`. Malformed markers fail without changing the file. */
+	resolveConflicts(
+		_workspaceId: WorkspaceId,
+		_path: string,
+		_choices: readonly ConflictChoice[],
+	): Promise<Result<void>> {
+		return notImplemented("REV-11");
+	}
+
+	/** Backs `Actions.artifacts.loadMore`. */
+	loadMoreArtifacts(_workspaceId: WorkspaceId): Promise<Result<void>> {
+		return notImplemented("REV-10");
+	}
+
+	/** Backs `Actions.artifacts.upload`. */
+	uploadArtifacts(_workspaceId: WorkspaceId, _paths: readonly string[]): Promise<Result<void>> {
+		return notImplemented("REV-10");
 	}
 }

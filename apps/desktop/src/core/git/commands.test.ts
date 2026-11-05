@@ -51,4 +51,24 @@ describe("git command catalogue", () => {
 		expect(c.branchRename(null, "new").args).toEqual(["branch", "-m", "new"]);
 		expect(c.branchRename("old", "new").args).toEqual(["branch", "-m", "old", "new"]);
 	});
+
+	it("treats exit 1 of the merge probe as an answer and keeps both branch names separate", () => {
+		const cmd = c.mergeTreeWriteTree("main", "me/--oslo");
+		expect(cmd.args).toEqual(["merge-tree", "--write-tree", "--no-messages", "main", "me/--oslo"]);
+		expect(cmd.okExitCodes).toEqual([0, 1]);
+	});
+
+	it("catches a stack branch up with a rebase that never autostashes or rewrites other refs", () => {
+		const cmd = c.rebaseOntoUpstream("up", "local");
+		expect(cmd.args.slice(0, 2)).toEqual(["rebase", "--interactive"]);
+		expect(cmd.args).toContain("--no-autostash");
+		expect(cmd.args).toContain("--no-update-refs");
+		expect(cmd.args.slice(-3)).toEqual(["--onto", "up", "local"]);
+		expect(cmd.retryOnLock).toBe(false);
+	});
+
+	it("writes a compare-and-swap as one line per instruction on stdin", () => {
+		const cmd = c.updateRefStdin(["verify refs/x old", "update refs/x new old"]);
+		expect(cmd.stdin).toBe("verify refs/x old\nupdate refs/x new old\n");
+	});
 });

@@ -10,7 +10,13 @@
  * than 7 days are removed by the lifetime job (lifetime.ts), not here.
  * Test first: attachDrafts only changes drafts of the same chat and leaves other chats alone.
  */
-import { type AttachmentId, notImplemented, type Result, type SessionId } from "@conducted/shared";
+import {
+	type AttachmentId,
+	type CommentId,
+	notImplemented,
+	type Result,
+	type SessionId,
+} from "@conducted/shared";
 import type { Database } from "../../platform/platform.ts";
 import type { Attachment } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
@@ -20,10 +26,11 @@ export interface AttachmentRow {
 	id: AttachmentId;
 	session_id: SessionId | null;
 	message_id: string | null;
-	kind: "file" | "image" | "text";
+	kind: Attachment["kind"];
 	original_name: string;
 	path: string;
 	is_draft: number;
+	comment_id: CommentId | null;
 	created_at: number;
 }
 
@@ -34,6 +41,7 @@ export const attachmentFromRow = (row: AttachmentRow): Attachment => ({
 	originalName: row.original_name,
 	path: row.path,
 	isDraft: fromFlag(row.is_draft),
+	commentId: row.comment_id,
 });
 
 /** The model has no message id or time, both columns are written at insert. */
@@ -48,10 +56,12 @@ export const attachmentToParams = (attachment: AttachmentInsert): readonly unkno
 	attachment.originalName,
 	attachment.path,
 	toFlag(attachment.isDraft),
+	attachment.commentId,
 	attachment.createdAt,
 ];
 
-const COLUMNS = "id, session_id, message_id, kind, original_name, path, is_draft, created_at";
+const COLUMNS =
+	"id, session_id, message_id, kind, original_name, path, is_draft, comment_id, created_at";
 
 /** Every statement the repository runs. Parameters are `$1..$n` in order of first appearance. */
 export const ATTACHMENTS_SQL = {
@@ -60,7 +70,9 @@ export const ATTACHMENTS_SQL = {
 	listDraftsBySession: `SELECT ${COLUMNS} FROM attachments WHERE session_id = $1 AND is_draft = 1
 		ORDER BY created_at, id`,
 	listByMessage: `SELECT ${COLUMNS} FROM attachments WHERE message_id = $1 ORDER BY created_at, id`,
-	insert: `INSERT INTO attachments (${COLUMNS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+	insert: `INSERT INTO attachments (${COLUMNS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+	/** The attachments that carried a review comment, so the app knows which messages sent it. */
+	listByComment: `SELECT ${COLUMNS} FROM attachments WHERE comment_id = $1 ORDER BY created_at, id`,
 	setPath: "UPDATE attachments SET path = $1 WHERE id = $2",
 	/** `$3` is a JSON list of attachment ids. Only drafts of the given chat are touched. */
 	attachDrafts: `UPDATE attachments SET message_id = $1, is_draft = 0
@@ -73,7 +85,10 @@ export const ATTACHMENTS_SQL = {
 } as const;
 
 /** What a caller supplies to add a draft attachment. The repository adds id and time. */
-export type NewAttachment = Pick<Attachment, "sessionId" | "kind" | "originalName" | "path">;
+export type NewAttachment = Pick<
+	Attachment,
+	"sessionId" | "kind" | "originalName" | "path" | "commentId"
+>;
 
 export interface AttachmentRepository {
 	/** ATTACHMENTS_SQL.get. A missing attachment is `ok(null)`. */
@@ -84,6 +99,8 @@ export interface AttachmentRepository {
 	listDraftsBySession(sessionId: SessionId): Promise<Result<Attachment[]>>;
 	/** ATTACHMENTS_SQL.listByMessage. */
 	listByMessage(messageId: string): Promise<Result<Attachment[]>>;
+	/** ATTACHMENTS_SQL.listByComment. */
+	listByComment(commentId: CommentId): Promise<Result<Attachment[]>>;
 	/** ATTACHMENTS_SQL.insert with is_draft=true. */
 	addDraft(input: NewAttachment): Promise<Result<Attachment>>;
 	/** ATTACHMENTS_SQL.setPath, after a file finished copying into the staging folder. */
@@ -111,6 +128,7 @@ export function createAttachmentRepository(
 		listBySession: async () => notImplemented("DATA-01"),
 		listDraftsBySession: async () => notImplemented("DATA-01"),
 		listByMessage: async () => notImplemented("DATA-01"),
+		listByComment: async () => notImplemented("REV-12"),
 		addDraft: async () => notImplemented("DATA-01"),
 		setPath: async () => notImplemented("DATA-01"),
 		attachDrafts: async () => notImplemented("DATA-01"),

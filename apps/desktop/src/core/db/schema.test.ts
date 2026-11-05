@@ -16,6 +16,12 @@ import type {
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { AttachmentRow } from "./attachments.ts";
 import { ATTACHMENTS_SQL, attachmentFromRow, attachmentToParams } from "./attachments.ts";
+import type { BacklogWorkspaceRow } from "./backlog-workspaces.ts";
+import {
+	BACKLOG_WORKSPACES_SQL,
+	backlogWorkspaceFromRow,
+	backlogWorkspaceToParams,
+} from "./backlog-workspaces.ts";
 import type { DiffCommentRow } from "./diff-comments.ts";
 import { DIFF_COMMENTS_SQL, diffCommentFromRow, diffCommentToParams } from "./diff-comments.ts";
 import type { EnvVarRow } from "./env-vars.ts";
@@ -27,6 +33,8 @@ import {
 	favoriteModelToParams,
 } from "./favorite-models.ts";
 import { ageCutoff, LIFETIME_SQL, MS_PER_DAY } from "./lifetime.ts";
+import type { ProviderKeyRow } from "./provider-keys.ts";
+import { PROVIDER_KEYS_SQL, providerKeyFromRow, providerKeyToParams } from "./provider-keys.ts";
 import type { QueuedMessageRow } from "./queued-messages.ts";
 import {
 	QUEUED_MESSAGES_SQL,
@@ -49,6 +57,8 @@ import {
 import type { SessionRow } from "./sessions.ts";
 import { SESSIONS_SQL, sessionFromRow, sessionToParams } from "./sessions.ts";
 import { SETTINGS_SQL, settingToParams } from "./settings.ts";
+import type { SnippetRow } from "./snippets.ts";
+import { SNIPPETS_SQL, snippetFromRow, snippetToParams } from "./snippets.ts";
 import type { TerminalRow } from "./terminals.ts";
 import { TERMINALS_SQL, terminalFromRow, terminalToParams } from "./terminals.ts";
 import {
@@ -91,6 +101,9 @@ const ALL_SQL: Record<string, Record<string, string>> = {
 	FAVORITE_MODELS_SQL,
 	SETTINGS_SQL,
 	ENV_VARS_SQL,
+	BACKLOG_WORKSPACES_SQL,
+	SNIPPETS_SQL,
+	PROVIDER_KEYS_SQL,
 	LIFETIME_SQL,
 	REPAIR_SQL,
 };
@@ -207,7 +220,7 @@ describe("round trips through real tables", () => {
 		expect(createdAt).toBe(1000);
 
 		run(TERMINALS_SQL.insert, terminalToParams(sampleTerminal));
-		const { cols, rows: height, ...terminal } = sampleTerminal;
+		const { cols, rows: height, screenState: _screen, ...terminal } = sampleTerminal;
 		expect(terminalFromRow(one<TerminalRow>(TERMINALS_SQL.get, [sampleTerminal.id]))).toEqual(
 			terminal,
 		);
@@ -465,7 +478,7 @@ describe("diff comments and attachments", () => {
 			diffCommentToParams({
 				...sampleComment,
 				id: "mine" as never,
-				author: { kind: "user", name: null },
+				author: { kind: "user", name: null, avatarUrl: null },
 			}),
 		);
 		expect(run(DIFF_COMMENTS_SQL.deleteRemoteNotIn, [workspaceId, "[]"])).toBe(1);
@@ -770,5 +783,103 @@ describe("lifetime statements", () => {
 		expect(
 			rows(LIFETIME_SQL.filterExistingSessionIds, [JSON.stringify([sessionId, "gone"])]),
 		).toEqual([expect.objectContaining({ id: sessionId })]);
+	});
+});
+
+describe("the tables of migration 0004", () => {
+	it("backlog workspaces round-trip and go with their repo", () => {
+		run(REPOS_SQL.insert, repoToParams(sampleRepo));
+		const entry = {
+			id: workspaceId,
+			repoId,
+			displayName: null,
+			prompt: "Add a retry to the uploader",
+			attachmentPaths: ["/tmp/a.png"],
+			config: sampleSession.config,
+			sectionId: null,
+			createdAt: 10,
+			updatedAt: 20,
+		};
+		run(BACKLOG_WORKSPACES_SQL.insert, must(backlogWorkspaceToParams(entry)));
+		expect(
+			must(
+				backlogWorkspaceFromRow(
+					one<BacklogWorkspaceRow>(BACKLOG_WORKSPACES_SQL.get, [workspaceId]),
+				),
+			),
+		).toEqual(entry);
+		expect(rows(BACKLOG_WORKSPACES_SQL.listByRepo, [repoId])).toHaveLength(1);
+		run(REPOS_SQL.delete, [repoId]);
+		expect(rows(BACKLOG_WORKSPACES_SQL.list)).toHaveLength(0);
+	});
+
+	it("a backlog workspace with a config that is not a SessionConfig is an error", () => {
+		run(REPOS_SQL.insert, repoToParams(sampleRepo));
+		run(BACKLOG_WORKSPACES_SQL.insert, [workspaceId, repoId, null, "p", "[]", "{}", null, 1, 1]);
+		const row = one<BacklogWorkspaceRow>(BACKLOG_WORKSPACES_SQL.get, [workspaceId]);
+		expect(backlogWorkspaceFromRow(row)).toMatchObject({ ok: false });
+	});
+
+	it("snippets round-trip, and only a keyword that is set must be unique", () => {
+		const snippet = {
+			id: "sn-1" as never,
+			name: "Review",
+			keyword: "rev",
+			prompt: "Review this change.",
+			createdAt: 1,
+			updatedAt: 2,
+		};
+		run(SNIPPETS_SQL.insert, snippetToParams(snippet));
+		expect(snippetFromRow(one<SnippetRow>(SNIPPETS_SQL.getByKeyword, ["rev"]))).toEqual(snippet);
+		expect(() =>
+			run(SNIPPETS_SQL.insert, snippetToParams({ ...snippet, id: "sn-2" as never })),
+		).toThrow();
+		const plain = { ...snippet, keyword: null };
+		run(SNIPPETS_SQL.insert, snippetToParams({ ...plain, id: "sn-3" as never }));
+		run(SNIPPETS_SQL.insert, snippetToParams({ ...plain, id: "sn-4" as never }));
+		expect(rows(SNIPPETS_SQL.list)).toHaveLength(3);
+		expect(run(SNIPPETS_SQL.delete, ["sn-1"])).toBe(1);
+	});
+
+	it("provider keys: a null acpAgent is stored as an empty string, and an upsert leaves one row", () => {
+		const key = {
+			agent: "claude",
+			acpAgent: null,
+			provider: "anthropic",
+			envVar: "ANTHROPIC_API_KEY",
+			source: "entered",
+			keychainRef: "keychain-1",
+			updatedAt: 5,
+		} as const;
+		run(PROVIDER_KEYS_SQL.upsert, must(providerKeyToParams(key)));
+		run(PROVIDER_KEYS_SQL.upsert, must(providerKeyToParams({ ...key, keychainRef: "keychain-2" })));
+		const stored = rows<ProviderKeyRow>(PROVIDER_KEYS_SQL.list);
+		expect(stored).toHaveLength(1);
+		expect(stored[0]?.acp_agent).toBe("");
+		expect(providerKeyFromRow(stored[0] as ProviderKeyRow)).toEqual({
+			...key,
+			keychainRef: "keychain-2",
+		});
+		expect(rows(PROVIDER_KEYS_SQL.listForAgent, ["claude", ""])).toHaveLength(1);
+		expect(run(PROVIDER_KEYS_SQL.delete, ["claude", "", "anthropic", "ANTHROPIC_API_KEY"])).toBe(1);
+	});
+
+	it("a provider key needs a Keychain reference exactly when its source is entered", () => {
+		const base = {
+			agent: "codex",
+			acpAgent: null,
+			provider: "openai",
+			envVar: "OPENAI_API_KEY",
+			updatedAt: 1,
+		} as const;
+		expect(providerKeyToParams({ ...base, source: "entered", keychainRef: null })).toMatchObject({
+			ok: false,
+		});
+		expect(providerKeyToParams({ ...base, source: "this_mac", keychainRef: "k" })).toMatchObject({
+			ok: false,
+		});
+		expect(providerKeyToParams({ ...base, source: "this_mac", keychainRef: null })).toMatchObject({
+			ok: true,
+		});
 	});
 });
