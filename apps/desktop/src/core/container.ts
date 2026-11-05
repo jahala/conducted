@@ -429,6 +429,12 @@ export function createContainer(inputs: ContainerInputs): Container {
 		repos: repositories,
 		git: gitRunner,
 		agent: sessions,
+		customPromptOf: async (id) => {
+			const found = lookups.repoOf(id);
+			if (!found.ok) return found;
+			const config = await repo.loadConfig(found.value.id);
+			return config.ok ? ok(config.value.prompts.codeReview) : config;
+		},
 		startReviewChat: (id, text) => sessions.startReviewChat(id, text),
 	});
 	const spotlight = new SpotlightService({

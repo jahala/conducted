@@ -2,10 +2,10 @@
  * @feature CHAT-01 Sessions service: the chat list; CHAT-02 Send a message as a new turn; CHAT-05
  * Cancel a turn
  * Owns: the list of chats per workspace, their stored live state and events in memory, the
- * create, close, reopen, rename, set-title-if-empty, delete and open paths, sending a user
- * message as a new turn or a steer, and cancelling a turn: pausing the follow-up queue,
- * withdrawing the open interaction, removing only the pending sends the sidecar dropped, and
- * putting a send that was still in flight back in the composer draft.
+ * create, close, reopen, rename, set-title-if-empty, delete and open paths, starting a review chat
+ * with the review model, sending a user message as a new turn or a steer, and cancelling a turn:
+ * pausing the follow-up queue, withdrawing the open interaction, removing only the pending sends
+ * the sidecar dropped, and putting a send that was still in flight back in the composer draft.
  * Behaviour: services-map.md 2.3.3 (session operations), 2.2 (the sessions table), 2.3.4
  * (composer outbox: restore to draft), ui-map.md 3.2, sessions-and-chats.md "What happens when
  * you send a message" and "While the agent is working" (cancel), sessions.md 6.
@@ -20,7 +20,9 @@
  * open interaction in it becomes the chat's card, while a live state without one withdraws the
  * card; a chat the sidecar lost gets every open turn closed as `interrupted` in one transaction
  * and an idle live state, while its agent session id stays for resume and a failed live-state
- * write is returned.
+ * write is returned; a review chat uses the review model, fast mode and effort from settings,
+ * falls back to the default chat model when no review model is set, and does not start when a
+ * review setting cannot be used.
  * Our design choice: a chat starts with no title; the title generator fills it only once
  * (`setTitleIfEmpty`), so a name the user typed is never overwritten.
  * Our design choice: the pending send lives in memory until the sidecar stores its `user_message`
@@ -48,6 +50,7 @@ import {
 	type SessionConfig,
 	type SessionEvent,
 	type WorkspaceContext,
+	zEffort,
 } from "@conducted/protocol";
 import {
 	type AppError,
@@ -152,6 +155,41 @@ function canonicalJson(value: unknown): string {
 /** Compares two chat configs by value, whatever order their keys were written in. */
 function sameConfig(a: SessionConfig, b: SessionConfig): boolean {
 	return canonicalJson(a) === canonicalJson(b);
+}
+
+/** The config of a review chat: the review model, fast mode and effort, on the default config. */
+function reviewConfigFrom(
+	base: SessionConfig,
+	setting: <T>(key: string) => T,
+): Result<SessionConfig> {
+	const model = setting<string>("review_model").trim();
+	const effortKey =
+		base.agent === "codex"
+			? "review_codex_thinking_level"
+			: base.agent === "claude"
+				? "review_claude_effort_level"
+				: null;
+	const effortSetting = effortKey === null ? "" : setting<string>(effortKey).trim();
+	let effort = base.effort;
+	if (effortSetting.length > 0) {
+		const parsed = zEffort.safeParse(effortSetting);
+		if (!parsed.success) {
+			return err(
+				appError(
+					"setting_invalid",
+					`The review effort level "${effortSetting}" is not one a chat can use. Pick another in Settings.`,
+					parsed.error,
+				),
+			);
+		}
+		effort = parsed.data;
+	}
+	return ok({
+		...base,
+		model: model.length > 0 ? model : base.model,
+		effort,
+		fastMode: setting<boolean>("review_fast_mode"),
+	});
 }
 
 /** Open chats are listed newest first, by the last message and then by creation time. */
@@ -1077,8 +1115,15 @@ export class SessionsService implements AgentMessenger {
 	}
 
 	/** Starts a chat with the review model and sends `text`. Used by the AI review. */
-	startReviewChat(_workspaceId: WorkspaceId, _text: string): Promise<Result<Session>> {
-		return notImplemented("REV-05");
+	async startReviewChat(workspaceId: WorkspaceId, text: string): Promise<Result<Session>> {
+		const base = await this.#deps.defaultConfig(workspaceId);
+		if (!base.ok) return base;
+		const config = reviewConfigFrom(base.value, this.#deps.setting);
+		if (!config.ok) return config;
+		const created = await this.create(workspaceId, config.value);
+		if (!created.ok) return created;
+		const sent = await this.send(created.value.id, text, [], "auto");
+		return sent.ok ? created : sent;
 	}
 
 	// ---- called by the sidecar side (core/sidecar) ----
