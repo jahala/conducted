@@ -11,10 +11,30 @@ import { useMemo } from "react";
 import { useStore } from "zustand";
 import type { ChangedFile, DiffScope, FileDiff, Loadable, Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
-import type { BranchCommit } from "../model.ts";
+import type { BranchCommit, GitState } from "../model.ts";
 import { useSetting } from "./settings.ts";
 
-export const useGitState: Queries["useGitState"] = () => notImplemented("GIT-04");
+export const useGitState: Queries["useGitState"] = (workspaceId) => {
+	const { services } = useServices();
+	const entry = useStore(services.git.store, (state) => state.byWorkspace[workspaceId]);
+	const prEntry = useStore(services.github.store, (state) => state.byWorkspace[workspaceId]);
+	return useMemo<Loadable<GitState>>(() => {
+		if (entry === undefined || (entry.snapshot === null && entry.error === null)) {
+			return { state: "loading" };
+		}
+		if (entry.snapshot === null) {
+			return {
+				state: "error",
+				error: appError(
+					entry.error?.code ?? "git_failed",
+					entry.error?.message ?? "The git state could not be read.",
+				),
+			};
+		}
+		const state = services.git.stateOf(workspaceId, prEntry);
+		return state === null ? { state: "loading" } : { state: "ready", data: state };
+	}, [services.git, workspaceId, entry, prEntry]);
+};
 const changedFilesKey = (workspaceId: WorkspaceId, scope: DiffScope) =>
 	["git", "workspace", workspaceId, "changes", scope] as const;
 
