@@ -265,6 +265,8 @@ pub fn run() {
         .manage(menu::MenuState::default())
         .manage(logger::LoggerState::default())
         .setup(|app| {
+            let logger_state = app.state::<logger::LoggerState>();
+            logger::start_writer(app.handle(), &logger_state)?;
             navigation::install_guard(app.handle())?;
             shell::start_background_capture(app.handle().clone());
             Ok(())
@@ -276,6 +278,7 @@ pub fn run() {
             app_quit,
             db::db_version_check,
             logger::log_write,
+            logger::log_set_level,
             logger::logs_export,
             resource_usage::resource_usage,
             shell::shell_run,
