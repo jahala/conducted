@@ -1,7 +1,8 @@
 /**
  * @feature NAV-08 Global overlay host
  * Owns: mounting whichever window-level overlay is open (command palette, shortcuts dialog, Passport, quick
- * open, search in files), once, at the root of the app.
+ * open, search in files), once, at the root of the app, and registering the Cmd+P and Cmd+Shift+F
+ * commands that show quick open and search in files.
  * Behaviour: ui-map.md 5.1 (the palette is a dialog mounted once), 3.10 (quick open and search in files),
  * 1.1 (global overlays are mounted once at the root).
  * Our design choice: an overlay is mounted only while it is open. Its state resets on every open, and an
@@ -20,6 +21,7 @@ import { ShortcutsDialog } from "../features/palette/ShortcutsDialog.tsx";
 import { PassportDialog } from "../features/passport/PassportDialog.tsx";
 import { NotBuiltYet } from "../ui/not-built-yet.tsx";
 import type { OverlayProps } from "../ui/overlay-props.ts";
+import { useCommandHandler } from "./command-dispatcher.ts";
 import { type OverlayId, useOverlayStore } from "./overlay-store.ts";
 
 const overlays: Record<OverlayId, { area: string; Component: ComponentType<OverlayProps> }> = {
@@ -32,8 +34,17 @@ const overlays: Record<OverlayId, { area: string; Component: ComponentType<Overl
 
 export function GlobalOverlays() {
 	const open = useOverlayStore((state) => state.open);
+	const show = useOverlayStore((state) => state.show);
 	const close = useOverlayStore((state) => state.close);
 	const { workspaceId } = useParams({ strict: false });
+	useCommandHandler("nav.quickOpenFile", "base", () => {
+		show("quick-open");
+		return true;
+	});
+	useCommandHandler("nav.searchInFiles", "base", () => {
+		show("search-files");
+		return true;
+	});
 	if (open === null) return null;
 	const { area, Component } = overlays[open];
 	return (
