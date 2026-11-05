@@ -2872,3 +2872,14 @@ SIDE-06	rule	Compare apps/desktop/src/core/git/refs.ts with packages/sidecar/src
 RUN-01	rule	TerminalsService.runScript, TerminalsService.outputFor and RunScriptsService.stopWorkspace are still notImplemented, so creating a workspace with a setup script and Cancel cannot run the real path; add RUN-01 and RUN-07 to WS-03's blockers and build them there, including the real TerminalsService test with a fake PTY (moved from WS-03 by the step-6 audit).	docs/reports/audits/step-6	missing
 PR-02	rule	Move SETUP_FIX_PROMPT, ADD_SETUP_PROMPT and the log-tail wording into agent-instructions.ts; PR-02 owns that file and is being edited in parallel (moved from WS-03 by the step-6 audit).	docs/reports/audits/step-6	missing
 SET-07	rule	The two "Files to copy" checklist items need FilesToCopyField, which is still notImplemented("SET-07") (moved from WS-03 by the step-6 audit).	docs/reports/audits/step-6	missing
+SIDE-21	rule	Resume cannot warm adopted or interrupted chats because the composition root builds no agent launch (launchFor, provider keys and environment); once SIDE-21 supplies it, call warmAgent with resume for those chats (moved from CHAT-18 by the step-7 audit).	docs/reports/audits/step-7	missing
+CHAT-06	rule	No test renders TurnItem for an interrupted turn; that screen is owned by CHAT-06 (moved from CHAT-18 by the step-7 audit).	docs/reports/audits/step-7	missing
+NAV-02	rule	A store for the top tab bar state, closed-tab persistence and a recent-workspace list are not built (moved from NAV-10 by the step-7 audit).	docs/reports/audits/step-7	missing
+NAV-03	rule	Right-click on a sidebar row opens the workspace actions menu (moved from NAV-10 by the step-7 audit).	docs/reports/audits/step-7	missing
+CHAT-01	rule	Use RenameDialog in TabContextMenu and delete its own dialog (moved from NAV-10 by the step-7 audit).	docs/reports/audits/step-7	missing
+GIT-04	rule	Move them into the header when the right panel is closed (moved from NAV-10 by the step-7 audit).	docs/reports/audits/step-7	missing
+RUN-06	rule	Drag a terminal from the right panel into the centre (moved from NAV-10 by the step-7 audit).	docs/reports/audits/step-7	missing
+RUN-06	rule	The UI that opens terminals.openForRepo (moved from NAV-10 by the step-7 audit).	docs/reports/audits/step-7	missing
+RUN-06	rule	The terminal-side action that calls composer.addText (moved from NAV-10 by the step-7 audit).	docs/reports/audits/step-7	missing
+RUN-06	rule	Report the composer failure in the terminal UI (moved from NAV-10 by the step-7 audit).	docs/reports/audits/step-7	missing
+COMP-01	rule	Composer minimises when a content tab is open (moved from NAV-10 by the step-7 audit).	docs/reports/audits/step-7	missing
