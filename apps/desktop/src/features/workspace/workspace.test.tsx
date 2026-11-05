@@ -49,7 +49,10 @@ describe("WorkspaceGate", () => {
 
 	it("shows the archived notice and unarchives on request", () => {
 		state.workspace = { state: "ready", data: ws("archived") };
-		state.unarchive.mockResolvedValue({ ok: true, value: undefined });
+		state.unarchive.mockResolvedValue({
+			ok: true,
+			value: { needsBranchName: false, uncommittedChangesLost: false },
+		});
 		render(<WorkspaceGate workspaceId={id}>content</WorkspaceGate>);
 		expect(screen.queryByText("content")).toBeNull();
 		fireEvent.click(screen.getByRole("button", { name: "Unarchive" }));

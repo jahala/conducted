@@ -1,8 +1,13 @@
 /**
+<<<<<<< HEAD
  * @feature WS-01 Worktree creation and removal; WS-05 archive snapshot and pin
  * @feature WS-02 Create from a branch, PR or issue
  * Owns: the git steps that create a workspace's worktree, set it up, and remove it again; the base
  * branch fetch and commit resolution, including a commit already resolved by the caller; the
+=======
+ * @feature WS-01 Worktree creation and removal; WS-05 archive snapshot and pin; WS-06 unarchive
+ * Owns: the git steps that create a workspace's worktree, set it up, and remove it again; the
+>>>>>>> node/ws.06
  * archive snapshot, its discard repair, the HEAD pin, and the removal fallback; plus the rule that
  * makes a branch or folder name unique.
  * Behaviour: services-map.md 3.1 (workspace create), 3.13 (worktree-level config), 3.10 (archive
@@ -24,6 +29,8 @@ import type { FileSystem } from "../../platform/platform.ts";
 import { contextDir } from "../app-paths.ts";
 import {
 	addUpdatedPaths,
+	branchCreate,
+	checkpointerRestore,
 	commitEmptyInitial,
 	configGetLocal,
 	configGetWorktree,
@@ -37,6 +44,7 @@ import {
 	revParseHead,
 	showRefVerify,
 	updateRef,
+	worktreeAddExistingBranch,
 	worktreeAddNewBranch,
 	worktreeList,
 	worktreePrune,
@@ -470,6 +478,95 @@ export async function pinArchiveHead(
 		cwd: worktreePath,
 	});
 	return pinned.ok ? ok(head.value) : pinned;
+}
+
+/** The branches `git worktree list --porcelain` reports, as full ref names. */
+export function worktreeBranches(porcelain: string): string[] {
+	return porcelain
+		.split("\n")
+		.map((line) => line.trim())
+		.filter((line) => line.startsWith("branch "))
+		.map((line) => line.slice("branch ".length));
+}
+
+export interface BranchState {
+	exists: boolean;
+	tip: string | null;
+	/** True when another worktree has the branch checked out (services-map 3.10). */
+	checkedOutElsewhere: boolean;
+}
+
+/** Reads what unarchive needs to classify a branch: its existence, tip and checkout (3.10). */
+export async function readBranchState(
+	runner: GitRunner,
+	repoRootPath: string,
+	branch: string,
+): Promise<Result<BranchState>> {
+	const found = await runner.run(showRefVerify(`refs/heads/${branch}`), { cwd: repoRootPath });
+	if (!found.ok) return found;
+	const exists = found.value.exitCode === 0;
+	let tip: string | null = null;
+	if (exists) {
+		const resolved = await runner.stdout(revParse(`refs/heads/${branch}`), { cwd: repoRootPath });
+		if (!resolved.ok) return resolved;
+		tip = resolved.value === "" ? null : resolved.value;
+	}
+	const listed = await runner.stdout(worktreeList(), { cwd: repoRootPath });
+	if (!listed.ok) return listed;
+	return ok({
+		exists,
+		tip,
+		checkedOutElsewhere: worktreeBranches(listed.value).includes(`refs/heads/${branch}`),
+	});
+}
+
+export interface AddWorktreeOnBranchInput {
+	repoRootPath: string;
+	worktreePath: string;
+	branch: string;
+	/** The commit a missing branch is created from. Null reuses an existing branch. */
+	createFrom: string | null;
+}
+
+/** Adds a worktree on an existing branch, or creates the branch from `createFrom` first (3.10). */
+export async function addWorktreeOnBranch(
+	runner: GitRunner,
+	input: AddWorktreeOnBranchInput,
+): Promise<Result<void>> {
+	if (input.createFrom !== null) {
+		const created = await runner.runChecked(branchCreate(input.branch, input.createFrom), {
+			cwd: input.repoRootPath,
+		});
+		if (!created.ok) return created;
+	}
+	const added = await runner.runChecked(
+		worktreeAddExistingBranch(input.worktreePath, input.branch),
+		{ cwd: input.repoRootPath },
+	);
+	return added.ok ? ok(undefined) : added;
+}
+
+/** Restores the archive checkpoint; the caller treats a failure as a notice, not a failed restore. */
+export async function restoreArchiveCheckpoint(
+	runner: GitRunner,
+	checkpointerPath: string,
+	workspaceId: string,
+	worktreePath: string,
+): Promise<Result<void>> {
+	const restored = await runner.run(
+		checkpointerRestore(checkpointerPath, archiveCheckpointId(workspaceId)),
+		{ cwd: worktreePath },
+	);
+	if (!restored.ok) return restored;
+	if (restored.value.exitCode !== 0) {
+		return err(
+			appError(
+				"archive_restore_failed",
+				restored.value.stderr.trim() || "Couldn't restore the saved uncommitted changes.",
+			),
+		);
+	}
+	return ok(undefined);
 }
 
 /** Removes the worktree, falling back to the Trash and `worktree prune` (services-map 3.10). */
