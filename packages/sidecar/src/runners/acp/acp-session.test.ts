@@ -22,6 +22,9 @@ import type {
 } from "@conducted/protocol";
 import {
 	type AppError,
+	appError,
+	err,
+	notImplemented,
 	ok,
 	type Result,
 	type SessionId,
@@ -60,32 +63,52 @@ const baseConfig: SessionConfig = {
 
 class FakeClient implements AcpClient {
 	readonly setConfigCalls: { optionId: string; value: string | boolean }[] = [];
+	readonly openSessionCalls: { resumeSessionId?: string }[] = [];
 	cancelled = false;
 	closed = false;
 	how: OpenedAcpSession["how"] = "new";
+	acpSessionId = "acp-session-1";
 	configOptions: SessionConfigOption[] = [];
 	promptCalls = 0;
-	private resolvePrompt: ((result: Result<StopReason, AppError>) => void) | null = null;
+	private readonly promptResolvers: ((result: Result<StopReason, AppError>) => void)[] = [];
 	private closeListeners: ((reason: string) => void)[] = [];
 
 	async connect(): Promise<Result<{ agentVersion: string | undefined }, AppError>> {
 		return ok({ agentVersion: "1.2.3" });
 	}
 
-	async openSession(): Promise<Result<OpenedAcpSession, AppError>> {
-		return ok({ acpSessionId: "acp-session-1", how: this.how, configOptions: this.configOptions });
+	async openSession(
+		options: Parameters<AcpClient["openSession"]>[0],
+	): Promise<Result<OpenedAcpSession, AppError>> {
+		this.openSessionCalls.push(
+			options.resumeSessionId === undefined ? {} : { resumeSessionId: options.resumeSessionId },
+		);
+		return ok({
+			acpSessionId: this.acpSessionId,
+			how: this.how,
+			configOptions: this.configOptions,
+		});
 	}
 
 	prompt(): Promise<Result<StopReason, AppError>> {
 		this.promptCalls += 1;
 		return new Promise<Result<StopReason, AppError>>((resolve) => {
-			this.resolvePrompt = resolve;
+			this.promptResolvers.push(resolve);
 		});
 	}
 
-	finishPrompt(stopReason: StopReason = "end_turn"): void {
-		this.resolvePrompt?.(ok(stopReason));
-		this.resolvePrompt = null;
+	finishPrompt(stopReason: StopReason = "end_turn", index = this.promptResolvers.length - 1): void {
+		const resolve = this.promptResolvers[index];
+		if (resolve === undefined) return;
+		this.promptResolvers[index] = () => {};
+		resolve(ok(stopReason));
+	}
+
+	failPrompt(error: AppError, index = this.promptResolvers.length - 1): void {
+		const resolve = this.promptResolvers[index];
+		if (resolve === undefined) return;
+		this.promptResolvers[index] = () => {};
+		resolve(err(error));
 	}
 
 	cancel(): void {
@@ -136,6 +159,16 @@ class FakeTranslator {
 		this.buffer = "";
 		this.thinking = "";
 		return items.length === 0 ? [] : [{ agent: "acp", items }];
+	}
+}
+
+class ThrowingTranslator {
+	push(): AgentMessage[] {
+		return notImplemented("AGENT-12");
+	}
+
+	flush(): AgentMessage[] {
+		return notImplemented("AGENT-12");
 	}
 }
 
@@ -268,6 +301,254 @@ describe("AGENT-11 ACP session", () => {
 		expect(texts).toEqual([{ kind: "text", text: "ab" }]);
 	});
 
+	test("a second turn started while the first is starting is refused", async () => {
+		const client = new FakeClient();
+		const session = makeSession(client);
+
+		const first = session.runTurn(turnInput(), callbacks());
+		const second = await session.runTurn(turnInput(), callbacks());
+
+		expect(second.kind).toBe("error");
+		if (second.kind === "error") expect(second.message).toContain("already running");
+		await waitFor(() => client.promptCalls === 1, "the first prompt");
+		session.handleUpdate(textChunk("one"));
+		client.finishPrompt("end_turn");
+		expect(await first).toEqual({ kind: "success" });
+	});
+
+	test("a late reply to a cancelled prompt does not settle the new turn", async () => {
+		const client = new FakeClient();
+		const session = makeSession(client);
+
+		const first = session.runTurn(turnInput(), callbacks());
+		await waitFor(() => client.promptCalls === 1, "the first prompt");
+		await session.cancel();
+		expect(await first).toEqual({ kind: "cancelled" });
+
+		const second = session.runTurn(turnInput(), callbacks());
+		await waitFor(() => client.promptCalls === 2, "the second prompt");
+		client.finishPrompt("cancelled", 0);
+		await new Promise((resolve) => setTimeout(resolve, 5));
+		const stillPending = await Promise.race([
+			second.then(() => "settled" as const),
+			new Promise<"pending">((resolve) => setTimeout(() => resolve("pending"), 5)),
+		]);
+		expect(stillPending).toBe("pending");
+
+		session.handleUpdate(textChunk("new turn"));
+		client.finishPrompt("end_turn", 1);
+		expect(await second).toEqual({ kind: "success" });
+	});
+
+	test("a child that dies mid-turn is resumed by the next turn", async () => {
+		const client = new FakeClient();
+		const session = makeSession(client);
+
+		const first = session.runTurn(turnInput(), callbacks());
+		await waitFor(() => client.promptCalls === 1, "the first prompt");
+		client.exit("The agent stopped");
+		const failed = await first;
+		expect(failed.kind).toBe("error");
+		if (failed.kind === "error") expect(failed.message).toContain("The agent stopped");
+
+		client.how = "resumed";
+		const second = session.runTurn(turnInput(), callbacks());
+		await waitFor(() => client.promptCalls === 2, "the second prompt");
+
+		expect(client.openSessionCalls[1]).toEqual({ resumeSessionId: "acp-session-1" });
+		session.handleUpdate(textChunk("again"));
+		client.finishPrompt("end_turn", 1);
+		expect(await second).toEqual({ kind: "success" });
+	});
+
+	test("a fresh chat whose child dies between turns warns that history was not restored", async () => {
+		const client = new FakeClient();
+		const session = makeSession(client);
+
+		const first = session.runTurn(turnInput(), callbacks());
+		await waitFor(() => client.promptCalls === 1, "the first prompt");
+		session.handleUpdate(textChunk("first"));
+		client.finishPrompt("end_turn", 0);
+		expect(await first).toEqual({ kind: "success" });
+
+		client.exit("The agent stopped");
+		await new Promise((resolve) => setTimeout(resolve, 5));
+		client.how = "new";
+		const recorded = callbacks();
+		const second = session.runTurn(turnInput(), recorded);
+		await waitFor(() => client.promptCalls === 2, "the second prompt");
+
+		expect(client.openSessionCalls[1]).toEqual({ resumeSessionId: "acp-session-1" });
+		const notices = recorded.messages.flatMap((message) =>
+			message.items.filter((item) => item.kind === "notice"),
+		);
+		expect(
+			notices.some(
+				(item) => item.kind === "notice" && item.text.includes("history was not restored"),
+			),
+		).toBe(true);
+		client.finishPrompt("cancelled", 1);
+		expect(await second).toEqual({ kind: "cancelled" });
+	});
+
+	test("a config change during a turn is applied before the next prompt", async () => {
+		const client = new FakeClient();
+		const session = makeSession(client, {
+			configOptions: [
+				{
+					type: "select",
+					id: "model",
+					name: "Model",
+					category: "model",
+					currentValue: "one",
+					options: [
+						{ value: "one", name: "One" },
+						{ value: "two", name: "Two" },
+					],
+				},
+			],
+		});
+		const first = session.runTurn(turnInput(), callbacks());
+		await waitFor(() => client.promptCalls === 1, "the first prompt");
+
+		expect(await session.applyConfig({ ...baseConfig, model: "two" })).toBe("applied");
+		expect(client.setConfigCalls).toEqual([]);
+
+		session.handleUpdate(textChunk("first"));
+		client.finishPrompt("end_turn", 0);
+		await first;
+
+		const second = session.runTurn(
+			{ ...turnInput(), config: { ...baseConfig, model: "two" } },
+			callbacks(),
+		);
+		await waitFor(() => client.promptCalls === 2, "the second prompt");
+		expect(client.setConfigCalls).toEqual([{ optionId: "model", value: "two" }]);
+		session.handleUpdate(textChunk("second"));
+		client.finishPrompt("end_turn", 1);
+		await second;
+	});
+
+	test("a translation placeholder surfaces as an error instead of an empty turn", async () => {
+		const client = new FakeClient();
+		const session = new AcpSession(
+			{
+				adapter,
+				connectClient: async () => client,
+				translator: new ThrowingTranslator() as unknown as AcpTranslator,
+				mcpServers: [],
+				logger: createLogger({
+					sink: () => {},
+					clock: { now: () => 0 },
+					level: "debug",
+					scope: "test:acp-session",
+				}),
+			},
+			startOptions(),
+		);
+		const outcome = session.runTurn(turnInput(), callbacks());
+		await waitFor(() => client.promptCalls === 1, "the prompt");
+
+		session.handleUpdate(textChunk("x"));
+		const failed = await outcome;
+		expect(failed.kind).toBe("error");
+		if (failed.kind === "error") expect(failed.message).toContain("Not implemented: AGENT-12");
+
+		const later = await session.runTurn(turnInput(), callbacks());
+		expect(later.kind).toBe("error");
+		if (later.kind === "error") expect(later.message).toContain("output error");
+		await session.dispose();
+	});
+
+	test("a url-mode elicitation is declined and a form with no fields is declined", async () => {
+		const client = new FakeClient();
+		const session = makeSession(client, {
+			start: { ...startOptions(), config: { ...baseConfig, requireToolApproval: true } },
+		});
+		const outcome = session.runTurn(
+			{ ...turnInput(), config: { ...baseConfig, requireToolApproval: true } },
+			callbacks(),
+		);
+		await waitFor(() => client.promptCalls === 1, "the prompt");
+
+		const url = {
+			mode: "url",
+			sessionId: "acp-session-1",
+			message: "Open this",
+			url: "https://example.com",
+			elicitationId: "one",
+		} as unknown as CreateElicitationRequest;
+		expect(await session.requestElicitation(url)).toEqual({ action: "decline" });
+
+		const empty = {
+			mode: "form",
+			sessionId: "acp-session-1",
+			message: "Nothing to fill",
+			requestedSchema: { type: "object", properties: {} },
+		} as unknown as CreateElicitationRequest;
+		expect(await session.requestElicitation(empty)).toEqual({ action: "decline" });
+
+		client.finishPrompt("cancelled");
+		await outcome;
+	});
+
+	test("an elicitation form shows its message, applies defaults and declines bad answers", async () => {
+		const client = new FakeClient();
+		const session = makeSession(client, {
+			start: { ...startOptions(), config: { ...baseConfig, requireToolApproval: true } },
+		});
+		const seen: Interaction[] = [];
+		let answers: string[][] = [];
+		const recorded = callbacks(async (interaction) => {
+			seen.push(interaction);
+			return { kind: "question", answers };
+		});
+		const outcome = session.runTurn(
+			{ ...turnInput(), config: { ...baseConfig, requireToolApproval: true } },
+			recorded,
+		);
+		await waitFor(() => client.promptCalls === 1, "the prompt");
+		const form = (properties: Record<string, unknown>, required: string[]) =>
+			({
+				mode: "form",
+				sessionId: "acp-session-1",
+				message: "Tell us who you are",
+				requestedSchema: { type: "object", properties, required },
+			}) as unknown as CreateElicitationRequest;
+		const name = { type: "string", title: "Your name" };
+		const count = { type: "integer", title: "How many" };
+
+		answers = [[], []];
+		expect(
+			await session.requestElicitation(form({ name: { ...name, default: "guest" }, count }, [])),
+		).toEqual({ action: "accept", content: { name: "guest" } });
+
+		const shown = seen[seen.length - 1];
+		expect(shown?.kind === "question" ? shown.questions[0]?.question : "").toContain(
+			"Tell us who you are",
+		);
+
+		answers = [[]];
+		expect(await session.requestElicitation(form({ name }, ["name"]))).toEqual({
+			action: "decline",
+		});
+
+		answers = [["not a number"]];
+		expect(await session.requestElicitation(form({ count }, ["count"]))).toEqual({
+			action: "decline",
+		});
+
+		answers = [["maybe"]];
+		expect(
+			await session.requestElicitation(
+				form({ agree: { type: "boolean", title: "Agree" } }, ["agree"]),
+			),
+		).toEqual({ action: "decline" });
+
+		client.finishPrompt("cancelled");
+		await outcome;
+	});
+
 	test("a turn with no visible content is an error naming the adapter and its command", async () => {
 		const client = new FakeClient();
 		const session = makeSession(client);
@@ -281,6 +562,22 @@ describe("AGENT-11 ACP session", () => {
 		if (result.kind !== "error") return;
 		expect(result.message).toContain("OpenCode");
 		expect(result.message).toContain("opencode");
+	});
+
+	test("a bare internal error is replaced by the agent's last output", async () => {
+		const client = new FakeClient();
+		const session = makeSession(client);
+		const outcome = session.runTurn(turnInput(), callbacks());
+		await waitFor(() => client.promptCalls === 1, "the prompt");
+
+		session.handleUpdate(textChunk("the provider said no"));
+		client.failPrompt(appError("acp_internal", "Internal error"));
+
+		expect(await outcome).toEqual({
+			kind: "error",
+			message: "the provider said no",
+			retryable: false,
+		});
 	});
 
 	test("steering is refused with the typed error", async () => {

@@ -153,10 +153,12 @@ export class AgentProcessManager implements ProcessManager {
 	async sweep(): Promise<void> {
 		const now = this.deps.clock.now();
 		for (const key of selectIdleToStop(this.liveViews(), now)) {
-			await this.stopEntry(key, "idle timeout");
+			await this.stopEntry(key, "idle timeout", (entry) => this.isStillIdle(entry, now));
 		}
 		for (const key of selectWarmToEvict(this.liveViews())) {
-			await this.stopEntry(key, "warm cap");
+			await this.stopEntry(key, "warm cap", () =>
+				selectWarmToEvict(this.liveViews()).includes(key),
+			);
 		}
 	}
 
@@ -249,19 +251,38 @@ export class AgentProcessManager implements ProcessManager {
 	private liveViews(): ProcessEntryView[] {
 		return [...this.entries.values()]
 			.filter((entry) => entry.state === "live")
-			.map((entry) => ({
-				key: entry.key,
-				retention: entry.retention,
-				activeLeases: entry.activeLeases,
-				busy: entry.busy,
-				hasBackgroundTasks: entry.hasBackgroundTasks,
-				lastIdleAt: entry.lastIdleAt,
-			}));
+			.map((entry) => this.viewOf(entry));
 	}
 
-	private async stopEntry(key: string, reason: string): Promise<void> {
+	private viewOf(entry: ProcessEntry): ProcessEntryView {
+		return {
+			key: entry.key,
+			retention: entry.retention,
+			activeLeases: entry.activeLeases,
+			busy: entry.busy,
+			hasBackgroundTasks: entry.hasBackgroundTasks,
+			lastIdleAt: entry.lastIdleAt,
+		};
+	}
+
+	private isStillIdle(entry: ProcessEntry, now: number): boolean {
+		return selectIdleToStop([this.viewOf(entry)], now).length > 0;
+	}
+
+	/**
+	 * Stops one entry only when it is still eligible. The check and the removal happen in one
+	 * synchronous step, so a claim that landed while an earlier dispose was awaited is not
+	 * disposed under its new lease.
+	 */
+	private async stopEntry(
+		key: string,
+		reason: string,
+		stillEligible: (entry: ProcessEntry) => boolean,
+	): Promise<void> {
 		const entry = this.entries.get(key);
 		if (entry === undefined) return;
+		if (entry.disconnected || entry.state !== "live") return;
+		if (!stillEligible(entry)) return;
 		entry.disconnected = true;
 		this.entries.delete(key);
 		await this.disposeEntry(entry, reason);

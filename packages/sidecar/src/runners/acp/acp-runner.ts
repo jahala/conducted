@@ -9,8 +9,9 @@
  * Must handle:
  *  - detect(): program missing gives null; a version below the adapter's minimum is logged with the
  *    adapter and its minimum (the real version is still returned, so the detector can report it)
- *  - start(): one child per chat through StdioAcpClient; the app tools MCP server is passed to
- *    session/new when the caller supplies it
+ *  - start(): one child per chat through StdioAcpClient; the app tools MCP servers are passed to
+ *    session/new when the caller supplies them, and the client keeps only the transports the agent
+ *    advertised
  *  - listModels() and listSlashCommands(): owned by AGENT-12
  *  - capabilities: interrupt true (session/cancel), steer false, resumeAt false, liveConfig true
  *    (model and options between turns), slashCommands true, mcpServers true (the app tools server),
@@ -63,7 +64,7 @@ export class AcpRunner implements Runner {
 		resumeAt: false,
 		liveConfig: true,
 		slashCommands: true,
-		mcpServers: false,
+		mcpServers: true,
 		contextUsage: true,
 	};
 
@@ -98,9 +99,11 @@ export class AcpRunner implements Runner {
 
 	async start(options: StartOptions): Promise<AgentSession> {
 		const logger = this.deps.logger.child(ACP_LOG_TAG);
-		const executablePath =
-			(await this.deps.findExecutable(this.deps.adapter.command.executable, options.env)) ?? "";
-		if (executablePath === "") {
+		const executablePath = await this.deps.findExecutable(
+			this.deps.adapter.command.executable,
+			options.env,
+		);
+		if (executablePath === null) {
 			throw new Error(
 				`The ${this.deps.adapter.displayName} agent could not start (${this.deps.adapter.command.executable}). Install it, or repair its path in Settings.`,
 			);
@@ -127,6 +130,7 @@ export class AcpRunner implements Runner {
 					requestElicitation: (request) =>
 						session?.requestElicitation(request) ?? Promise.resolve({ action: "cancel" }),
 					beforeWrite: () => session?.beforeWrite() ?? Promise.resolve(),
+					lastOutput: () => session?.lastOutput() ?? "",
 				},
 			});
 			const connected = await client.connect();

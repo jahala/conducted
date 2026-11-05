@@ -6,7 +6,7 @@
  * session/load, for a resume id.
  */
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -49,17 +49,22 @@ interface Bridge {
 	child: AcpChild;
 	connection: AgentConnection;
 	stopped: () => boolean;
+	exit(): void;
+	stderr(text: string): void;
 }
 
 interface AgentOptions {
 	loadSession?: boolean;
 	resume?: boolean;
 	close?: boolean;
+	mcpCapabilities?: { http?: boolean; sse?: boolean };
 	onInitialize?(params: InitializeRequest): void;
 	onNew?(params: NewSessionRequest): void;
 	onResume?(params: ResumeSessionRequest): void;
 	onLoad?(): void;
-	onPrompt?(): { stopReason: "end_turn" | "cancelled" };
+	onPrompt?():
+		| { stopReason: "end_turn" | "cancelled" }
+		| Promise<{ stopReason: "end_turn" | "cancelled" }>;
 	onSetConfig?(): void;
 	onSetMode?(): void;
 	onClose?(): void;
@@ -70,6 +75,8 @@ function makeBridge(options: AgentOptions = {}): Bridge {
 	const toAgent = new TransformStream<Uint8Array, Uint8Array>();
 	const toChild = new TransformStream<Uint8Array, Uint8Array>();
 	let stopped = false;
+	const stderrListeners: ((text: string) => void)[] = [];
+	const exitListeners: ((exitCode: number | null, signal: string | null) => void)[] = [];
 	const app = createAgentApp({ name: "fake-agent" })
 		.onRequest(AGENT_METHODS.initialize, ({ params }) => {
 			options.onInitialize?.(params);
@@ -77,6 +84,9 @@ function makeBridge(options: AgentOptions = {}): Bridge {
 				protocolVersion: 1,
 				agentCapabilities: {
 					loadSession: options.loadSession ?? true,
+					...(options.mcpCapabilities === undefined
+						? {}
+						: { mcpCapabilities: options.mcpCapabilities }),
 					sessionCapabilities: {
 						resume: (options.resume ?? true) ? {} : null,
 						close: (options.close ?? true) ? {} : null,
@@ -134,13 +144,24 @@ function makeBridge(options: AgentOptions = {}): Bridge {
 	const child: AcpChild = {
 		stdin: toAgent.writable,
 		stdout: toChild.readable,
-		onStderr: () => {},
-		onExit: () => {},
+		onStderr: (listener) => stderrListeners.push(listener),
+		onExit: (listener) => exitListeners.push(listener),
 		stop: async () => {
 			stopped = true;
 		},
 	};
-	return { child, connection, stopped: () => stopped };
+	return {
+		child,
+		connection,
+		stopped: () => stopped,
+		exit: () => {
+			connection.close();
+			for (const listener of [...exitListeners]) listener(1, null);
+		},
+		stderr: (text) => {
+			for (const listener of [...stderrListeners]) listener(text);
+		},
+	};
 }
 
 function makeClient(
@@ -148,6 +169,7 @@ function makeClient(
 	options: {
 		cwd: string;
 		beforeWrite?: () => Promise<void>;
+		lastOutput?: () => string;
 		requestPermission?: (request: RequestPermissionRequest) => Promise<{
 			outcome: { outcome: "cancelled" };
 		}>;
@@ -171,6 +193,7 @@ function makeClient(
 				options.requestPermission ?? (async () => ({ outcome: { outcome: "cancelled" as const } })),
 			requestElicitation: async (_request: CreateElicitationRequest) => ({ action: "decline" }),
 			...(options.beforeWrite === undefined ? {} : { beforeWrite: options.beforeWrite }),
+			...(options.lastOutput === undefined ? {} : { lastOutput: options.lastOutput }),
 		},
 	});
 }
@@ -213,6 +236,82 @@ describe("AGENT-11 ACP client", () => {
 		expect(opened.value.acpSessionId).toBe("old-session");
 		expect(resumed).toBe(true);
 		expect(loaded).toBe(false);
+		await client.close();
+	});
+
+	test("a resume id falls back to session/load when resume is not advertised", async () => {
+		let loaded = false;
+		const bridge = makeBridge({
+			resume: false,
+			loadSession: true,
+			onLoad: () => {
+				loaded = true;
+			},
+		});
+		const client = makeClient(bridge, { cwd: workspace });
+
+		const opened = await client.openSession({
+			cwd: workspace,
+			additionalDirectories: [],
+			resumeSessionId: "old-session",
+			mcpServers: [],
+		});
+
+		expect(opened.ok).toBe(true);
+		if (!opened.ok) return;
+		expect(opened.value.how).toBe("loaded");
+		expect(loaded).toBe(true);
+		await client.close();
+	});
+
+	test("a resume id starts a new session when neither resume nor load is advertised", async () => {
+		const bridge = makeBridge({ resume: false, loadSession: false });
+		const client = makeClient(bridge, { cwd: workspace });
+
+		const opened = await client.openSession({
+			cwd: workspace,
+			additionalDirectories: [],
+			resumeSessionId: "old-session",
+			mcpServers: [],
+		});
+
+		expect(opened.ok).toBe(true);
+		if (!opened.ok) return;
+		expect(opened.value.how).toBe("new");
+		expect(opened.value.acpSessionId).toBe("new-session");
+		await client.close();
+	});
+
+	test("only MCP transports the agent advertises reach session/new", async () => {
+		const stdio = { name: "conducted", command: "/sidecar", args: [], env: [] };
+		const http = {
+			type: "http" as const,
+			name: "remote",
+			url: "https://example.com",
+			headers: [],
+		};
+		const sse = {
+			type: "sse" as const,
+			name: "events",
+			url: "https://example.com/sse",
+			headers: [],
+		};
+		let seen: NewSessionRequest | undefined;
+		const bridge = makeBridge({
+			mcpCapabilities: { http: true },
+			onNew: (params) => {
+				seen = params;
+			},
+		});
+		const client = makeClient(bridge, { cwd: workspace });
+
+		await client.openSession({
+			cwd: workspace,
+			additionalDirectories: [],
+			mcpServers: [stdio, http, sse],
+		});
+
+		expect(seen?.mcpServers).toEqual([stdio, http]);
 		await client.close();
 	});
 
@@ -332,6 +431,41 @@ describe("AGENT-11 ACP client", () => {
 		await client.close();
 	});
 
+	test("a symlinked folder cannot carry a write outside the workspace", async () => {
+		const outside = await mkdtemp(join(tmpdir(), "conducted-acp-outside-"));
+		const link = join(workspace, "escape-link");
+		await symlink(outside, link);
+		const bridge = makeBridge();
+		const client = makeClient(bridge, { cwd: workspace });
+		await client.connect();
+		await client.openSession({ cwd: workspace, additionalDirectories: [], mcpServers: [] });
+
+		await expect(
+			requestFromAgent(bridge.connection, CLIENT_METHODS.fs_write_text_file, {
+				sessionId: "new-session",
+				path: join(link, "new", "file.txt"),
+				content: "escaped",
+			} satisfies WriteTextFileRequest),
+		).rejects.toThrow();
+		await expect(readFile(join(outside, "new", "file.txt"), "utf8")).rejects.toThrow();
+		await client.close();
+	});
+
+	test("a relative path is refused", async () => {
+		const bridge = makeBridge();
+		const client = makeClient(bridge, { cwd: workspace });
+		await client.connect();
+		await client.openSession({ cwd: workspace, additionalDirectories: [], mcpServers: [] });
+
+		await expect(
+			requestFromAgent(bridge.connection, CLIENT_METHODS.fs_read_text_file, {
+				sessionId: "new-session",
+				path: "relative.txt",
+			} satisfies ReadTextFileRequest),
+		).rejects.toThrow();
+		await client.close();
+	});
+
 	test("a write waits for beforeWrite and lands in an extra folder", async () => {
 		const extra = join(workspace, "extra");
 		let wroteAfterCheckpoint = false;
@@ -388,6 +522,67 @@ describe("AGENT-11 ACP client", () => {
 		if (connected.ok) return;
 		expect(connected.error.message).toContain("OpenCode agent could not start");
 		expect(connected.error.message).toContain("Install it");
+	});
+
+	test("a child exit fails pending requests and reports the close", async () => {
+		const bridge = makeBridge({ onPrompt: () => new Promise(() => {}) });
+		const client = makeClient(bridge, { cwd: workspace });
+		let reason = "";
+		client.onClose((text) => {
+			reason = text;
+		});
+		await client.connect();
+		await client.openSession({ cwd: workspace, additionalDirectories: [], mcpServers: [] });
+
+		const pending = client.prompt("new-session", [{ type: "text", text: "hello" }]);
+		await new Promise((resolve) => setTimeout(resolve, 5));
+		bridge.exit();
+
+		const result = await pending;
+		expect(result.ok).toBe(false);
+		expect(reason).toContain("stopped");
+		expect((await client.prompt("new-session", [{ type: "text", text: "again" }])).ok).toBe(false);
+	});
+
+	test("the stderr tail replaces a bare Internal error", async () => {
+		const bridge = makeBridge({
+			onPrompt: () => {
+				throw new Error("Internal error");
+			},
+		});
+		const client = makeClient(bridge, { cwd: workspace });
+		await client.connect();
+		await client.openSession({ cwd: workspace, additionalDirectories: [], mcpServers: [] });
+		bridge.stderr("the provider said no");
+
+		const result = await client.prompt("new-session", [{ type: "text", text: "hello" }]);
+
+		expect(result.ok).toBe(false);
+		if (result.ok) return;
+		expect(result.error.code).toBe("acp_internal");
+		expect(result.error.message).toBe("the provider said no");
+		await client.close();
+	});
+
+	test("the last agent output replaces a bare Internal error", async () => {
+		const bridge = makeBridge({
+			onPrompt: () => {
+				throw new Error("Internal error");
+			},
+		});
+		const client = makeClient(bridge, {
+			cwd: workspace,
+			lastOutput: () => "the provider said no",
+		});
+		await client.connect();
+		await client.openSession({ cwd: workspace, additionalDirectories: [], mcpServers: [] });
+
+		const result = await client.prompt("new-session", [{ type: "text", text: "hello" }]);
+
+		expect(result.ok).toBe(false);
+		if (result.ok) return;
+		expect(result.error.message).toBe("the provider said no");
+		await client.close();
 	});
 
 	test("failures become plain messages for sign-in, credits, rate limits and internal errors", () => {

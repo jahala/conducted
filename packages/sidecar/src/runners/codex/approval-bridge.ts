@@ -6,17 +6,20 @@
  * thread: approvalPolicy and sandbox are set at thread/start and can be overridden per turn).
  * Must handle:
  *  - each handler uses the callbacks of the turn that is running; a request between turns
- *    declines a command or file approval, cancels a form, and fails a permission approval
+ *    declines a command or file approval, cancels a form, and fails a question or permission
+ *    approval
  *  - the abort of a turn (interrupt) resolves waiting requests as cancel, which the broker does
  *    by answering "withdrawn"
  *  - one interaction at a time is enforced by the broker; handlers just await it
  *  - a permission grant and an MCP form expire after 300 seconds; command and file approvals and
  *    questions wait for the user
  *  - the question tool (`item/tool/requestUserInput`): each question's options become labels,
- *    answers are returned keyed by question id
+ *    answers are returned keyed by question id; more than four questions are asked in groups of
+ *    four, and a question with more options than a card can show is refused, not trimmed
+ *  - a question answered with a withdrawal or another kind fails the request, so Codex never
+ *    reads it as the user answering nothing
  *  - each consent's final outcome (declined, cancelled, unavailable, timeout) is logged with the
- *    CodexMcpConsent tag, emitted as a codex.mcpConsentOutcome AgentMessage, and reported to
- *    onConsentOutcome so the caller can close the card
+ *    CodexMcpConsent tag and emitted as a codex.mcpConsentOutcome AgentMessage
  * Test first: a command approval request opens a tool_approval interaction named Bash with the
  * command text, and an "allow" answer returns { decision: "accept" }.
  */
@@ -51,11 +54,6 @@ export interface CodexApprovalBridgeDeps {
 	logger: Logger;
 	/** Schedules the consent timeout. Tests replace it; production uses setTimeout. */
 	scheduleTimeout?: ScheduleTimeout;
-	/**
-	 * The consent ended with an outcome the app should hear about. The event itself goes out as a
-	 * codex.mcpConsentOutcome AgentMessage; this callback lets the wiring feature close the card.
-	 */
-	onConsentOutcome?(outcome: CodexConsentOutcome, method: string): void;
 }
 
 export class CodexApprovalBridge {
@@ -83,7 +81,7 @@ export class CodexApprovalBridge {
 	private async commandApproval(params: unknown): Promise<unknown> {
 		const plan = planCommandApproval(params);
 		if (plan === null) {
-			this.deps.logger.warn("CodexMcpConsent: a command approval named no item; declining");
+			this.deps.logger.warn("CodexApprovalBridge: a command approval named no item; declining");
 			return { decision: "decline" };
 		}
 		const callbacks = this.deps.callbacks();
@@ -95,7 +93,7 @@ export class CodexApprovalBridge {
 	private async fileChangeApproval(params: unknown): Promise<unknown> {
 		const plan = planFileChangeApproval(params);
 		if (plan === null) {
-			this.deps.logger.warn("CodexMcpConsent: a file-change approval named no item; declining");
+			this.deps.logger.warn("CodexApprovalBridge: a file-change approval named no item; declining");
 			return { decision: "decline" };
 		}
 		const callbacks = this.deps.callbacks();
@@ -107,20 +105,32 @@ export class CodexApprovalBridge {
 	private async toolUserInput(params: unknown): Promise<unknown> {
 		const plan = planToolUserInput(params);
 		if (plan === null) {
-			this.deps.logger.warn("CodexMcpConsent: a user-input request carried no questions");
-			return { answers: {} };
+			this.deps.logger.warn("CodexApprovalBridge: a user-input request carried no questions");
+			throw new Error("Codex asked for user input without a question.");
+		}
+		if (plan.kind === "refused") {
+			this.deps.logger.warn("CodexApprovalBridge: cannot show a Codex question faithfully", {
+				reason: plan.reason,
+			});
+			throw new Error(plan.reason);
 		}
 		const callbacks = this.deps.callbacks();
-		if (callbacks === undefined) return { answers: {} };
-		const asked = await this.ask(callbacks, plan.interaction, false);
-		return plan.reply(asked.answer);
+		if (callbacks === undefined) {
+			throw new Error("Codex asked a question, but no turn is active.");
+		}
+		const answers: InteractionAnswer[] = [];
+		for (const group of plan.groups) {
+			const asked = await this.ask(callbacks, group.interaction, false);
+			answers.push(asked.answer);
+		}
+		return plan.reply(answers);
 	}
 
 	private async mcpElicitation(params: unknown): Promise<unknown> {
 		const method = CODEX_SERVER_REQUESTS.mcpElicitation;
 		const plan = planMcpElicitation(params);
 		if (plan === null) {
-			this.deps.logger.warn("CodexMcpConsent: an elicitation request had no mode; declining");
+			this.deps.logger.warn("CodexApprovalBridge: an elicitation request had no mode; declining");
 			return { action: "decline", content: null, _meta: null };
 		}
 		const callbacks = this.deps.callbacks();
@@ -146,7 +156,9 @@ export class CodexApprovalBridge {
 		const method = CODEX_SERVER_REQUESTS.permissionsApproval;
 		const plan = planPermissionApproval(params);
 		if (plan === null) {
-			this.deps.logger.warn("CodexMcpConsent: a permission request had no body; declining");
+			this.deps.logger.warn(
+				"CodexApprovalBridge: a permission request asked for nothing; declining",
+			);
 			return { permissions: {}, scope: "turn" };
 		}
 		const callbacks = this.deps.callbacks();
@@ -166,35 +178,24 @@ export class CodexApprovalBridge {
 		interaction: Interaction,
 		withTimeout: boolean,
 	): Promise<Asked> {
-		this.deps.logger.debug("CodexMcpConsent: asking the user", { kind: interaction.kind });
+		this.deps.logger.debug("CodexApprovalBridge: asking the user", { kind: interaction.kind });
 		const pending = callbacks.requestInteraction(interaction);
-		if (!withTimeout) {
-			const outcome = await settled(pending);
-			return handled(outcome, this.deps.logger);
-		}
+		const answer = settled(pending);
+		if (!withTimeout) return handled(await answer, this.deps.logger);
 		let cancel = () => {};
 		const timeout = new Promise<"timeout">((resolve) => {
 			const schedule = this.deps.scheduleTimeout ?? scheduleWithSetTimeout;
 			cancel = schedule(() => resolve("timeout"), CODEX_INTERACTION_TIMEOUT_MS);
 		});
 		const first = await Promise.race([
-			pending.then(
-				(answer) => ({ kind: "answer" as const, answer }),
-				() => ({ kind: "failed" as const }),
-			),
+			answer.then((outcome) => ({ kind: "settled" as const, outcome })),
 			timeout.then(() => ({ kind: "timeout" as const })),
 		]);
 		cancel();
 		if (first.kind === "timeout") {
 			return { answer: { kind: "withdrawn" }, timedOut: true, unavailable: false };
 		}
-		if (first.kind === "failed") {
-			this.deps.logger.warn(
-				"CodexMcpConsent: the app could not answer; treating it as unavailable",
-			);
-			return { answer: { kind: "withdrawn" }, timedOut: false, unavailable: true };
-		}
-		return { answer: first.answer, timedOut: false, unavailable: false };
+		return handled(first.outcome, this.deps.logger);
 	}
 
 	private reportOutcome(
@@ -218,7 +219,6 @@ export class CodexApprovalBridge {
 	): void {
 		this.deps.logger.info("CodexMcpConsent: consent request ended", { outcome, method });
 		callbacks?.onMessage(consentOutcomeMessage(outcome));
-		this.deps.onConsentOutcome?.(outcome, method);
 	}
 }
 
@@ -238,7 +238,7 @@ function handled(
 	if (outcome.kind === "answer") {
 		return { answer: outcome.answer, timedOut: false, unavailable: false };
 	}
-	logger.warn("CodexMcpConsent: the app could not answer; treating it as unavailable");
+	logger.warn("CodexApprovalBridge: the app could not answer; treating it as unavailable");
 	return { answer: { kind: "withdrawn" }, timedOut: false, unavailable: true };
 }
 

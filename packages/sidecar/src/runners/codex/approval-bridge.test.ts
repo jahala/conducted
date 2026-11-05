@@ -66,9 +66,12 @@ function callbacks(answer: (interaction: Interaction) => Promise<InteractionAnsw
 	return { value, interactions };
 }
 
-function logger(records: LogRecord[]) {
+function logger(records: LogRecord[], onRecord?: (record: LogRecord) => void) {
 	return createLogger({
-		sink: (record) => records.push(record),
+		sink: (record) => {
+			records.push(record);
+			onRecord?.(record);
+		},
 		clock: { now: () => 0 },
 		level: "info",
 		scope: "test:codex-approvals",
@@ -80,23 +83,37 @@ function makeBridge(options: {
 	callbacks?: () => TurnCallbacks | undefined;
 	records?: LogRecord[];
 	schedule?: (run: () => void, ms: number) => () => void;
-	outcomes?: CodexConsentOutcome[];
 	client?: FakeClient;
 }) {
 	const client = options.client ?? new FakeClient();
 	const records = options.records ?? [];
-	const outcomes = options.outcomes ?? [];
+	const outcomes: CodexConsentOutcome[] = [];
+	const messages: AgentMessage[] = [];
+	const current =
+		options.callbacks ??
+		(() => callbacks(options.answer ?? (async () => ({ kind: "withdrawn" }))).value);
 	const bridge = new CodexApprovalBridge({
 		client,
-		callbacks:
-			options.callbacks ??
-			(() => callbacks(options.answer ?? (async () => ({ kind: "withdrawn" }))).value),
-		logger: logger(records),
+		callbacks: () => {
+			const callbacksForTurn = current();
+			if (callbacksForTurn === undefined) return undefined;
+			return {
+				...callbacksForTurn,
+				onMessage: (message) => {
+					messages.push(message);
+					callbacksForTurn.onMessage(message);
+				},
+			};
+		},
+		logger: logger(records, (record) => {
+			if (record.message !== "CodexMcpConsent: consent request ended") return;
+			const outcome = record.data?.outcome;
+			if (typeof outcome === "string") outcomes.push(outcome as CodexConsentOutcome);
+		}),
 		...(options.schedule === undefined ? {} : { scheduleTimeout: options.schedule }),
-		onConsentOutcome: (outcome) => outcomes.push(outcome),
 	});
 	bridge.register();
-	return { bridge, client, records, outcomes };
+	return { bridge, client, records, outcomes, messages };
 }
 
 const commandParams = {
@@ -208,6 +225,75 @@ describe("AGENT-08 approval bridge", () => {
 		expect(records.some((record) => record.message.includes("CodexMcpConsent"))).toBe(false);
 	});
 
+	test("more than four questions open one card at a time", async () => {
+		const made = callbacks(async (interaction) => {
+			if (interaction.kind !== "question") throw new Error("expected a question");
+			return {
+				kind: "question",
+				answers: interaction.questions.map((question) => [question.question]),
+			};
+		});
+		const { client } = makeBridge({ callbacks: () => made.value });
+		const questions = Array.from({ length: 6 }, (_, index) => ({
+			id: `q${index + 1}`,
+			header: `Question ${index + 1}`,
+			question: `What is ${index + 1}?`,
+			isOther: true,
+			isSecret: false,
+			options: null,
+		}));
+		const reply = await client.invoke(CODEX_SERVER_REQUESTS.toolUserInput, { questions });
+		expect(made.interactions).toHaveLength(2);
+		expect(made.interactions[0]).toMatchObject({ kind: "question" });
+		expect(reply).toEqual({
+			answers: {
+				q1: { answers: ["What is 1?"] },
+				q2: { answers: ["What is 2?"] },
+				q3: { answers: ["What is 3?"] },
+				q4: { answers: ["What is 4?"] },
+				q5: { answers: ["What is 5?"] },
+				q6: { answers: ["What is 6?"] },
+			},
+		});
+	});
+
+	test("a question with more options than a card can show is refused, not trimmed", async () => {
+		const { client, records } = makeBridge({
+			answer: async () => ({ kind: "question", answers: [["a"]] }),
+		});
+		const pending = client.invoke(CODEX_SERVER_REQUESTS.toolUserInput, {
+			questions: [
+				{
+					id: "pick",
+					question: "Which one?",
+					options: [{ label: "a" }, { label: "b" }, { label: "c" }, { label: "d" }, { label: "e" }],
+				},
+			],
+		});
+		await expect(pending).rejects.toThrow(
+			"A Codex question offers 5 options, but a card shows four at most.",
+		);
+		expect(
+			records.some((record) => record.message.includes("cannot show a Codex question faithfully")),
+		).toBe(true);
+	});
+
+	test("a withdrawn answer to user input fails the request instead of sending empty answers", async () => {
+		const { client } = makeBridge({ answer: async () => ({ kind: "withdrawn" }) });
+		const pending = client.invoke(CODEX_SERVER_REQUESTS.toolUserInput, {
+			questions: [{ id: "pick", question: "Which one?" }],
+		});
+		await expect(pending).rejects.toThrow("The user did not answer the Codex question.");
+	});
+
+	test("with no callback a question fails instead of sending empty answers", async () => {
+		const { client } = makeBridge({ callbacks: () => undefined });
+		const pending = client.invoke(CODEX_SERVER_REQUESTS.toolUserInput, {
+			questions: [{ id: "pick", question: "Which one?" }],
+		});
+		await expect(pending).rejects.toThrow("Codex asked a question, but no turn is active.");
+	});
+
 	test("an MCP form is shown as a card and accepted with its content", async () => {
 		const { client } = makeBridge({
 			answer: async () => ({
@@ -274,24 +360,14 @@ describe("AGENT-08 approval bridge", () => {
 		expect(outcomes).toEqual(["user_declined"]);
 	});
 
-	test("a declined form is emitted as a codex.mcpConsentOutcome event", async () => {
-		const messages: AgentMessage[] = [];
+	test("a declined form is emitted as a notice, not a chat error", async () => {
 		const made = callbacks(async () => ({ kind: "mcp_form", action: "decline" }));
-		const { client } = makeBridge({
-			callbacks: () => ({ ...made.value, onMessage: (message) => messages.push(message) }),
-		});
+		const { client, messages } = makeBridge({ callbacks: () => made.value });
 		await client.invoke(CODEX_SERVER_REQUESTS.mcpElicitation, formParams);
 		expect(messages).toEqual([
 			{
 				agent: "codex",
-				items: [
-					{
-						kind: "error",
-						code: "codex_mcp_consent",
-						message: "[codex-mcp-consent] user_declined",
-						retryable: false,
-					},
-				],
+				items: [{ kind: "notice", notice: "info", text: "[codex-mcp-consent] user_declined" }],
 				raw: { event: "codex.mcpConsentOutcome", outcome: "user_declined" },
 			},
 		]);

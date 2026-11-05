@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentMessage } from "@conducted/protocol";
+import type { SelfStartedTurnEnd } from "../../session/self-started-turns.ts";
 import { SelfStartedTurnTracker } from "./self-started-turns.ts";
 
 function stateMessage(state: "idle" | "running" | "requires_action"): SDKMessage {
@@ -43,20 +44,36 @@ function textMessage(text: string): SDKMessage {
 	} as unknown as SDKMessage;
 }
 
+/** Translates assistant text the way the real translator does; every other message yields none. */
+function translate(message: SDKMessage): AgentMessage[] {
+	if (message.type !== "assistant") return [];
+	const content = message.message.content;
+	if (typeof content === "string")
+		return [{ agent: "claude", items: [{ kind: "text", text: content }] }];
+	const text = content.map((block) => (block.type === "text" ? block.text : "")).join("");
+	return text === "" ? [] : [{ agent: "claude", items: [{ kind: "text", text }] }];
+}
+
 function harness() {
 	const changes: boolean[] = [];
+	const ends: (SelfStartedTurnEnd | undefined)[] = [];
 	const messages: AgentMessage[] = [];
 	let ownTurn = false;
 	const tracker = new SelfStartedTurnTracker({
 		callbacks: {
-			onInProgressChanged: (inProgress) => changes.push(inProgress),
+			onInProgressChanged: (inProgress, end) => {
+				changes.push(inProgress);
+				ends.push(end);
+			},
 			onMessage: (message) => messages.push(message),
 		},
 		ownTurnOpen: () => ownTurn,
+		translate,
 	});
 	return {
 		tracker,
 		changes,
+		ends,
 		messages,
 		openOwnTurn: () => {
 			ownTurn = true;
@@ -75,6 +92,7 @@ describe("AGENT-15 self-started turns", () => {
 		h.tracker.onSdkMessage(stateMessage("idle"));
 
 		expect(h.changes).toEqual([true, false]);
+		expect(h.ends).toEqual([undefined, { outcome: "success" }]);
 	});
 
 	test("AGENT-15 repeated states are not reported again", () => {
@@ -98,7 +116,16 @@ describe("AGENT-15 self-started turns", () => {
 		expect(h.changes).toEqual([]);
 	});
 
-	test("AGENT-15 a result ends work the CLI started, but a mini result is no boundary", () => {
+	test("AGENT-15 a result ends work the CLI started as success", () => {
+		const h = harness();
+
+		h.tracker.onSdkMessage(stateMessage("running"));
+		h.tracker.onSdkMessage(resultMessage());
+		expect(h.changes).toEqual([true, false]);
+		expect(h.ends).toEqual([undefined, { outcome: "success" }]);
+	});
+
+	test("AGENT-15 a mini result is no boundary", () => {
 		const h = harness();
 
 		h.tracker.onSdkMessage(stateMessage("running"));
@@ -119,13 +146,24 @@ describe("AGENT-15 self-started turns", () => {
 		expect(h.changes).toEqual([]);
 	});
 
-	test("AGENT-15 the stream ending while in progress reports not in progress", () => {
+	test("AGENT-15 the stream ending cleanly while in progress reports interrupted", () => {
 		const h = harness();
 
 		h.tracker.onSdkMessage(stateMessage("running"));
 		h.tracker.onStreamEnded();
 
 		expect(h.changes).toEqual([true, false]);
+		expect(h.ends).toEqual([undefined, { outcome: "interrupted" }]);
+	});
+
+	test("AGENT-15 a stream that threw reports an error with its message", () => {
+		const h = harness();
+
+		h.tracker.onSdkMessage(stateMessage("running"));
+		h.tracker.onStreamEnded(new Error("the CLI exited"));
+
+		expect(h.changes).toEqual([true, false]);
+		expect(h.ends).toEqual([undefined, { outcome: "error", error: "the CLI exited" }]);
 	});
 
 	test("AGENT-15 dispose stops every later report", () => {
@@ -139,8 +177,31 @@ describe("AGENT-15 self-started turns", () => {
 		expect(h.changes).toEqual([true]);
 	});
 
-	test("AGENT-15 messages of ordinary work are left to the turn callbacks", () => {
+	test("AGENT-15 messages of work the CLI started are translated and forwarded", () => {
 		const h = harness();
+
+		h.tracker.onSdkMessage(stateMessage("running"));
+		h.tracker.onSdkMessage(textMessage("background task done"));
+
+		expect(h.messages).toEqual([
+			{ agent: "claude", items: [{ kind: "text", text: "background task done" }] },
+		]);
+	});
+
+	test("AGENT-15 a message before the state report opens the work and is forwarded", () => {
+		const h = harness();
+
+		h.tracker.onSdkMessage(textMessage("late wake"));
+		h.tracker.onSdkMessage(stateMessage("idle"));
+
+		expect(h.changes).toEqual([true, false]);
+		expect(h.ends).toEqual([undefined, { outcome: "success" }]);
+		expect(h.messages).toHaveLength(1);
+	});
+
+	test("AGENT-15 messages of a turn of ours are left to the turn callbacks", () => {
+		const h = harness();
+		h.openOwnTurn();
 
 		h.tracker.onSdkMessage(textMessage("hello"));
 

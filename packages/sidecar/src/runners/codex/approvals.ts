@@ -20,7 +20,11 @@
  *    session; "not granted" returns an empty profile (our design choice: the binding has no
  *    separate decline value)
  *  - an MCP form in a mode we cannot show (url mode) is declined without opening a card
- *  - the question tool: option labels become the answers, keyed by the question's id
+ *  - the question tool: option labels become the answers, keyed by the question's id; more than
+ *    four questions are asked in groups of four, because a card shows four at most
+ *  - a question answered with a withdrawal or another kind is refused, never sent back as an
+ *    empty answer, so Codex does not read it as the user answering nothing; a question with more
+ *    than four options is refused with a logged reason instead of dropping an option silently
  * Test first: decisionForApproval({ kind: "tool_approval", decision: "allow_edits_for_session" })
  * is "acceptForSession" and a withdrawn answer is "cancel".
  */
@@ -128,11 +132,29 @@ export interface CodexUserInputReply {
 	answers: Record<string, { answers: string[] }>;
 }
 
+/** One card's worth of questions, at most four, with the ids to key the answers by. */
+export interface CodexQuestionGroup {
+	interaction: Extract<Interaction, { kind: "question" }>;
+	ids: string[];
+}
+
+export type CodexUserInputPlan =
+	| {
+			kind: "ask";
+			groups: CodexQuestionGroup[];
+			reply(answers: InteractionAnswer[]): CodexUserInputReply;
+	  }
+	| { kind: "refused"; reason: string };
+
+const MAX_QUESTIONS_PER_CARD = 4;
+const MAX_OPTIONS_PER_QUESTION = 4;
+
 /**
- * The user-input tool as a question. Each question keeps its id so the answer can be sent back
- * under that id. Null when the request carries no questions.
+ * The user-input tool as one or more question cards. Each question keeps its id so the answer can
+ * be sent back under that id. Null when the request carries no questions. A question offering
+ * more options than a card can show is refused, so an option is never dropped silently.
  */
-export function planToolUserInput(params: unknown): CodexApprovalPlan<CodexUserInputReply> | null {
+export function planToolUserInput(params: unknown): CodexUserInputPlan | null {
 	const request = asRecord(params);
 	const list = Array.isArray(request?.questions) ? request.questions : [];
 	const questions: {
@@ -161,34 +183,61 @@ export function planToolUserInput(params: unknown): CodexApprovalPlan<CodexUserI
 				});
 			}
 		}
+		if (options.length > MAX_OPTIONS_PER_QUESTION) {
+			return {
+				kind: "refused",
+				reason: `A Codex question offers ${options.length} options, but a card shows four at most.`,
+			};
+		}
 		questions.push({
 			id,
 			...(header === null || header === "" ? {} : { header }),
 			question: text,
-			options: options.slice(0, 4),
+			options,
 			secret: question?.isSecret === true,
 		});
 	}
 	if (questions.length === 0) return null;
-	const shown = questions.slice(0, 4);
+
+	const groups: CodexQuestionGroup[] = [];
+	for (let start = 0; start < questions.length; start += MAX_QUESTIONS_PER_CARD) {
+		const chunk = questions.slice(start, start + MAX_QUESTIONS_PER_CARD);
+		groups.push({
+			ids: chunk.map((question) => question.id),
+			interaction: {
+				kind: "question",
+				questions: chunk.map((question) => ({
+					...(question.header === undefined ? {} : { header: question.header }),
+					question: question.question,
+					options: question.options,
+					multiSelect: false,
+					secret: question.secret,
+				})),
+			},
+		});
+	}
+
 	return {
-		interaction: {
-			kind: "question",
-			questions: shown.map((question) => ({
-				...(question.header === undefined ? {} : { header: question.header }),
-				question: question.question,
-				options: question.options,
-				multiSelect: false,
-				secret: question.secret,
-			})),
-		},
-		reply: (answer) => {
-			const chosen = answer.kind === "question" ? answer.answers : [];
-			const answers: Record<string, { answers: string[] }> = {};
-			for (const [index, question] of shown.entries()) {
-				answers[question.id] = { answers: chosen[index] ?? [] };
+		kind: "ask",
+		groups,
+		reply: (answers) => {
+			if (answers.length !== groups.length) {
+				throw new Error("The user did not answer every group of Codex questions.");
 			}
-			return { answers };
+			const combined: Record<string, { answers: string[] }> = {};
+			for (let index = 0; index < groups.length; index += 1) {
+				const group = groups[index];
+				const answer = answers[index];
+				if (group === undefined || answer === undefined || answer.kind !== "question") {
+					throw new Error("The user did not answer the Codex question.");
+				}
+				for (let questionIndex = 0; questionIndex < group.ids.length; questionIndex += 1) {
+					const id = group.ids[questionIndex];
+					if (id === undefined) continue;
+					combined[id] = { answers: answer.answers[questionIndex] ?? [] };
+				}
+			}
+			return { answers: combined };
 		},
 	};
 }
@@ -239,7 +288,8 @@ export interface CodexPermissionReply {
 
 /**
  * A permission request as a permission grant. The card shows the reason, each requested path and
- * whether Codex asks to read, write or deny it, and the network switch.
+ * whether Codex asks to read, write or deny it, and the network switch. Null when the request
+ * asks for no path and no network: a card that asks for nothing could only approve nothing.
  */
 export function planPermissionApproval(
 	params: unknown,
@@ -247,16 +297,19 @@ export function planPermissionApproval(
 	const request = asRecord(params);
 	if (request === null) return null;
 	const permissions = asRecord(request.permissions);
+	if (permissions === null) return null;
+	const paths = permissionPaths(permissions);
+	const network = networkRequested(permissions);
+	if (paths.length === 0 && !network) return null;
 	const requested = permissionProfile(permissions);
 	const reason = readString(request, "reason");
-	const description = reason ?? "Codex asks for file-system or network access beyond its sandbox.";
 	return {
 		interaction: {
 			kind: "permission_grant",
-			description,
+			description: reason ?? "",
 			...(reason === null ? {} : { reason }),
-			paths: permissionPaths(permissions),
-			network: networkRequested(permissions),
+			paths,
+			network,
 		},
 		reply: (answer) =>
 			permissionGranted(answer)
@@ -275,19 +328,21 @@ export type CodexConsentOutcome =
 	| "user_declined"
 	| "user_canceled"
 	| "interaction_unavailable"
-	| "timeout"
-	| "agent_cancelled";
+	| "timeout";
 
-/** The non-terminal event Conductor shows for a consent outcome: `[codex-mcp-consent] <outcome>`. */
+/**
+ * The non-terminal event Conductor shows for a consent outcome: `[codex-mcp-consent] <outcome>`.
+ * A notice, not an error: a user declining a consent is normal, and an error item would show the
+ * chat as broken.
+ */
 export function consentOutcomeMessage(outcome: CodexConsentOutcome): AgentMessage {
 	return {
 		agent: "codex",
 		items: [
 			{
-				kind: "error",
-				code: "codex_mcp_consent",
-				message: `[codex-mcp-consent] ${outcome}`,
-				retryable: false,
+				kind: "notice",
+				notice: "info",
+				text: `[codex-mcp-consent] ${outcome}`,
 			},
 		],
 		raw: { event: "codex.mcpConsentOutcome", outcome },

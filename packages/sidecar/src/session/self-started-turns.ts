@@ -7,14 +7,16 @@
  * `runners/claude/self-started-turns.ts`.
  * Must handle: work that starts while a turn of ours runs (ignored: the turn owns the state); work
  * that starts on an idle chat (working, with no user message); the end (events flushed, then idle,
- * as in `turn.ts`); a user message that arrives during such work (it queues or steers like any
- * message to a working chat, and the queued messages are drained after the end); a chat that was
- * reset (a late report is dropped, by the run guard); the process manager (`markBusy` and
- * `markIdle` follow the live state).
+ * with the outcome the runner reports); a chat that was reset (a late report is dropped, by the run
+ * guard); the process manager (`markBusy` and `markIdle` follow the live state).
+ * A user message that arrives during such work belongs to the manager's queue (SIDE-03); this class
+ * does not receive it or start anything from it.
  * Our design choice: the stored events of such a turn end with `turn_ended` like any turn (D008),
- * and have no `user_message` before them.
+ * and have no `user_message` before them. A stream that ends without a result is `interrupted`; a
+ * stream that throws is `error` with the message; only a real result is `success`.
  * Test first: `onInProgressChanged(id, true)` on an idle chat publishes working; `false` after the
- * flush publishes idle, and nothing is published for a chat with a turn of ours open.
+ * flush publishes idle and a `turn_ended` with the reported outcome, and nothing is published for a
+ * chat with a turn of ours open.
  */
 import type { AgentMessage, SessionEvent } from "@conducted/protocol";
 import type { Clock, EventId, IdSource, SessionId, TurnId } from "@conducted/shared";
@@ -30,6 +32,12 @@ interface ActiveTurn {
 	readonly turnId: TurnId;
 	readonly run: RunNumber;
 }
+
+/** How a self-started turn ended, as the runner reports it. */
+export type SelfStartedTurnEnd =
+	| { readonly outcome: "success" }
+	| { readonly outcome: "interrupted" }
+	| { readonly outcome: "error"; readonly error: string };
 
 export class SelfStartedTurns {
 	private readonly active = new Map<SessionId, ActiveTurn>();
@@ -51,7 +59,11 @@ export class SelfStartedTurns {
 	) {}
 
 	/** The runner reports that the agent started (true) or stopped (false) working by itself. */
-	async onInProgressChanged(sessionId: SessionId, inProgress: boolean): Promise<void> {
+	async onInProgressChanged(
+		sessionId: SessionId,
+		inProgress: boolean,
+		end?: SelfStartedTurnEnd,
+	): Promise<void> {
 		if (inProgress) {
 			if (this.active.has(sessionId)) return;
 			if (this.deps.liveState.get(sessionId).status === "working") return;
@@ -65,7 +77,8 @@ export class SelfStartedTurns {
 		this.active.delete(sessionId);
 		// A chat that was reset has a stale run number; its live state is already gone.
 		if (!this.deps.runGuard.isCurrent(turn.run)) return;
-		await this.finish(turn);
+		// A caller that omits the end has proved nothing about success, so do not claim it.
+		await this.finish(turn, end ?? { outcome: "interrupted" });
 	}
 
 	/** One message of such a turn. */
@@ -116,13 +129,14 @@ export class SelfStartedTurns {
 		this.mark("markBusy", sessionId);
 	}
 
-	private async finish(turn: ActiveTurn): Promise<void> {
+	private async finish(turn: ActiveTurn, end: SelfStartedTurnEnd): Promise<void> {
 		const event: SessionEvent = {
 			type: "turn_ended",
 			eventId: this.deps.ids.uuid() as EventId,
 			at: this.deps.clock.now(),
 			turnId: turn.turnId,
-			outcome: "success",
+			outcome: end.outcome,
+			...(end.outcome === "error" ? { error: end.error } : {}),
 		};
 		this.deps.publisher.publish(turn.sessionId, event);
 
@@ -137,7 +151,9 @@ export class SelfStartedTurns {
 		}
 
 		try {
-			await this.deps.liveState.update(turn.sessionId, (live) => endTurn(live));
+			await this.deps.liveState.update(turn.sessionId, (live) =>
+				endTurn(live, end.outcome === "error" ? end.error : undefined),
+			);
 		} catch (cause) {
 			this.deps.logger.warn("Could not report the chat idle", {
 				sessionId: turn.sessionId,

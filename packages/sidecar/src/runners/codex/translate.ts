@@ -1,7 +1,8 @@
 /**
  * @feature AGENT-07 Codex: translate items to the neutral format
  * Owns: mapping Codex's thread items and notifications to AgentMessage values, and tagging the
- * items of a sub-agent's child thread with the collaboration call that started it.
+ * tool calls and tool results of a sub-agent's child thread with the collaboration call that
+ * started it.
  * Behaviour: research/conductor/other-runners.md section 3 "Codex dialect" and 2.1 (sub-agents run
  * as child threads and their items are re-emitted under the parent). Conductor keeps Codex's own
  * item format and the UI needs a second renderer; we translate instead. Items seen in the
@@ -21,12 +22,14 @@
  *    app_tool; the result text comes from the MCP result content, the error message when the call
  *    has an error
  *  - dynamicToolCall: tool_call mcp, tool_result from its content items
- *  - collabAgentToolCall: tool_call sub_agent; the receiver thread ids are remembered so items of
- *    those child threads carry parentToolUseId; the result summarises the agents' states
+ *  - collabAgentToolCall: tool_call sub_agent; the receiver thread ids are remembered so the tool
+ *    calls and tool results of those child threads carry parentToolUseId; the result summarises
+ *    the agents' states
  *  - webSearch: tool_call web_search, tool_result with the result JSON
  *  - imageView: tool_call image_view, tool_result with the path
  *  - imageGeneration: tool_call image_generation; the image is copied by the injected stager when
- *    one is supplied, otherwise its original path is kept; a copy failure is logged
+ *    one is supplied, otherwise its original path is kept; a copy failure is logged; an item with
+ *    no saved image becomes an error result
  *  - subAgentActivity: notice "info" with the status (our design choice: the neutral format has no
  *    sub-agent status event)
  *  - contextCompaction and thread/compacted: notice "compacted"
@@ -37,8 +40,8 @@
  * Must handle: a tool call that starts and completes (one tool_call on start, one tool_result on
  * completion, same toolUseId = item id), items that arrive only as completed (both emitted
  * together), unknown item types (debug log, no throw), output cut with truncateOutput, a sub-agent
- * whose child thread items arrive interleaved with the parent's, and a failed image copy (logged,
- * original path kept).
+ * whose child thread's tool items arrive interleaved with the parent's, and a failed image copy
+ * (logged, original path kept).
  * Test first: a completed commandExecution item with exit code 1 yields a tool_call(bash) and a
  * tool_result with isError true, same toolUseId.
  * Our design choice: the stager is a parameter because the translator has no workspace path; when
@@ -133,7 +136,7 @@ export class CodexTranslator {
 					phase,
 					record,
 					parentToolUseId,
-					"bash",
+					canonicalToolFor("commandExecution"),
 					"commandExecution",
 					{ command: readString(record, "command"), cwd: readString(record, "cwd") },
 					(source) => {
@@ -149,7 +152,7 @@ export class CodexTranslator {
 					phase,
 					record,
 					parentToolUseId,
-					"edit",
+					canonicalToolFor("fileChange"),
 					"fileChange",
 					{ changes: readArray(record, "changes") },
 					(source) => {
@@ -160,8 +163,7 @@ export class CodexTranslator {
 			case "mcpToolCall": {
 				const server = readString(record, "server") ?? "";
 				const tool = readString(record, "tool") ?? "";
-				const canonical =
-					toolForCodexItem("mcpToolCall", server === "" ? undefined : server) ?? "mcp";
+				const canonical = canonicalToolFor("mcpToolCall", server === "" ? undefined : server);
 				return this.emitTool(
 					phase,
 					record,
@@ -187,7 +189,7 @@ export class CodexTranslator {
 					phase,
 					record,
 					parentToolUseId,
-					"mcp",
+					canonicalToolFor("dynamicToolCall"),
 					readString(record, "tool") ?? "dynamicToolCall",
 					readValue(record, "arguments"),
 					(source) => {
@@ -204,7 +206,7 @@ export class CodexTranslator {
 					phase,
 					record,
 					parentToolUseId,
-					"sub_agent",
+					canonicalToolFor("collabAgentToolCall"),
 					readString(record, "tool") ?? "collabAgentToolCall",
 					{
 						prompt: readString(record, "prompt"),
@@ -225,7 +227,7 @@ export class CodexTranslator {
 					phase,
 					record,
 					parentToolUseId,
-					"web_search",
+					canonicalToolFor("webSearch"),
 					"webSearch",
 					{ query: readString(record, "query") },
 					(source) => {
@@ -242,7 +244,7 @@ export class CodexTranslator {
 					phase,
 					record,
 					parentToolUseId,
-					toolForCodexItem("imageView", undefined) ?? "unknown",
+					canonicalToolFor("imageView"),
 					"imageView",
 					{ path },
 					() => ({ output: path, isError: false }),
@@ -253,7 +255,7 @@ export class CodexTranslator {
 					phase,
 					record,
 					parentToolUseId,
-					toolForCodexItem("imageGeneration", undefined) ?? "unknown",
+					canonicalToolFor("imageGeneration"),
 					"imageGeneration",
 					{
 						revisedPrompt: readString(record, "revisedPrompt"),
@@ -360,7 +362,10 @@ export class CodexTranslator {
 			return { output: `Image generation failed: ${type}`, isError: true };
 		}
 		const savedPath = readString(record, "savedPath");
-		if (savedPath === null || savedPath === "") return { output: "", isError: false };
+		if (savedPath === null || savedPath === "") {
+			this.deps.logger.warn("Image generation finished without a saved image", { itemId });
+			return { output: "Image generation finished without an image.", isError: true };
+		}
 		const stager = this.deps.stageImage;
 		if (stager === undefined) return { output: savedPath, isError: false };
 		try {
@@ -374,6 +379,10 @@ export class CodexTranslator {
 			return { output: savedPath, isError: false };
 		}
 	}
+}
+
+function canonicalToolFor(type: string, server?: string): CanonicalTool {
+	return toolForCodexItem(type, server) ?? "unknown";
 }
 
 function agentMessage(record: Record<string, unknown>, items: AgentItem[]): AgentMessage {

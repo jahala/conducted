@@ -42,6 +42,7 @@ import {
 	type FileSystemCapabilities,
 	type InitializeResponse,
 	type LoadSessionResponse,
+	type McpCapabilities,
 	type NewSessionResponse,
 	ndJsonStream,
 	type RequestPermissionRequest,
@@ -53,7 +54,7 @@ import {
 } from "@agentclientprotocol/sdk";
 import { type AppError, appError, err, ok, type Result } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
-import { messageOf } from "../../util/errors.ts";
+import { isMissingFile, messageOf } from "../../util/errors.ts";
 import type { AcpAdapter } from "./adapters/adapter.ts";
 import { ACP_AGENT_METHODS, ACP_CLIENT_METHODS } from "./methods.ts";
 
@@ -91,6 +92,8 @@ export interface AcpClientHandlers {
 	requestElicitation(request: CreateElicitationRequest): Promise<CreateElicitationResponse>;
 	/** Runs before the first file write, so the start checkpoint exists. */
 	beforeWrite?(): Promise<void>;
+	/** The last agent text, used to replace a bare "Internal error". */
+	lastOutput?(): string;
 }
 
 export interface OpenedAcpSession {
@@ -142,9 +145,7 @@ export function describeAcpFailure(
 		code === -32000 ||
 		/sign.?in|not signed in|unauthori[sz]ed|authentication required/.test(lower)
 	) {
-		const methods = (context.authMethods ?? [])
-			.map((method) => method)
-			.filter((method) => method !== "");
+		const methods = (context.authMethods ?? []).filter((method) => method !== "");
 		const how = methods.length > 0 ? ` Sign-in methods: ${methods.join(", ")}.` : "";
 		return {
 			code: "acp_auth_required",
@@ -199,6 +200,23 @@ function failureCode(cause: unknown): number | undefined {
 /** True when the failure may go away if the user tries the same turn again. */
 export function isRetryableAcpCode(code: string): boolean {
 	return code === "acp_rate_limit";
+}
+
+/**
+ * Keeps only the MCP servers the agent advertised. Stdio is part of the baseline, so it always
+ * stays; HTTP and SSE are offered only when the agent's initialize result names them.
+ */
+export function selectMcpServersByCapability(
+	servers: readonly unknown[],
+	capabilities: McpCapabilities | undefined,
+): unknown[] {
+	return servers.filter((server) => {
+		if (typeof server !== "object" || server === null) return true;
+		const transport = (server as { type?: unknown }).type;
+		if (transport === "http") return capabilities?.http === true;
+		if (transport === "sse") return capabilities?.sse === true;
+		return true;
+	});
 }
 
 interface Opened {
@@ -259,7 +277,10 @@ export class StdioAcpClient implements AcpClient {
 		const base = {
 			cwd: options.cwd,
 			additionalDirectories: [...options.additionalDirectories],
-			mcpServers: [...options.mcpServers],
+			mcpServers: selectMcpServersByCapability(
+				options.mcpServers,
+				this.agentCapabilities?.mcpCapabilities,
+			),
 		} as {
 			cwd: string;
 			additionalDirectories: string[];
@@ -635,15 +656,23 @@ export class StdioAcpClient implements AcpClient {
 		return [...new Set(real)];
 	}
 
+	/**
+	 * Resolves the deepest ancestor that exists, then appends the rest. A symlink in an existing
+	 * ancestor is followed, so a write cannot escape the workspace through it.
+	 */
 	private async realTarget(target: string): Promise<string> {
-		try {
-			return await realpath(target);
-		} catch {
+		let existing = target;
+		const rest: string[] = [];
+		while (true) {
 			try {
-				const parent = await realpath(dirname(target));
-				return join(parent, basename(target));
-			} catch {
-				return resolve(target);
+				const real = await realpath(existing);
+				return rest.length === 0 ? real : join(real, ...rest.reverse());
+			} catch (cause) {
+				if (!isMissingFile(cause)) throw cause;
+				const parent = dirname(existing);
+				if (parent === existing) return resolve(target);
+				rest.push(basename(existing));
+				existing = parent;
 			}
 		}
 	}
@@ -653,6 +682,7 @@ export class StdioAcpClient implements AcpClient {
 			adapter: this.deps.adapter,
 			authMethods: this.authMethods,
 			stderrTail: this.stderrTail,
+			lastOutput: this.deps.handlers.lastOutput?.(),
 		});
 		return appError(described.code, described.message, cause);
 	}
