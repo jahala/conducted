@@ -22,6 +22,7 @@ vi.mock("../../core/hooks.ts", () => ({
 	useWorkspaceStatus: () => null,
 	useSetting: () => false,
 	useLiveShortcut: () => null,
+	useDiffComments: () => ({ state: "ready", data: [] }),
 	useActions: () => ({
 		git: {},
 		pullRequests: { requestAiReview: state.requestAiReview },
@@ -64,12 +65,12 @@ const choose = (name: string | RegExp) =>
 	fireEvent.mouseDown(screen.getByRole("tab", { name }), { button: 0 });
 
 describe("REV-01 git panel with unbuilt tabs", () => {
-	it("keeps the header and tab strip when the Checks tab is not built, and recovers", () => {
+	it("keeps the header and tab strip when moving to the Checks tab, and recovers", () => {
 		render(<GitPanel workspaceId={"w1" as WorkspaceId} />);
 		expect(screen.getByText("changes body")).toBeTruthy();
 
 		choose("Checks");
-		expect(screen.getByText(/Not built yet: PR-04/)).toBeTruthy();
+		expect(screen.getByText("No pull request yet.")).toBeTruthy();
 		expect(screen.getByRole("tab", { name: /Changes/ })).toBeTruthy();
 		expect(screen.getAllByText("Uncommitted changes").length).toBeGreaterThan(0);
 

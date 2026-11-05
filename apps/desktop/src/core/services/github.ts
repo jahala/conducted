@@ -999,6 +999,22 @@ export function parseGraphqlBudget(text: string): Result<number | null> {
 	return ok(typeof remaining === "number" ? remaining : null);
 }
 
+/** The workflow run and job ids in a check's details URL, or null when it has no job. */
+export function parseCheckJob(detailsUrl: string | null): { runId: string; jobId: string } | null {
+	if (detailsUrl === null) return null;
+	const match = /\/actions\/runs\/(\d+)\/job\/(\d+)/.exec(detailsUrl);
+	const runId = match?.[1];
+	const jobId = match?.[2];
+	return runId === undefined || jobId === undefined ? null : { runId, jobId };
+}
+
+/** The last `maxLines` lines of a log, the part a failed job shows (services-map 3.7.5). */
+export function checkLogTail(text: string, maxLines = 1000): string {
+	const lines = text.split("\n");
+	if (lines.length <= maxLines) return text;
+	return lines.slice(lines.length - maxLines).join("\n");
+}
+
 export class GithubService {
 	readonly store: StoreApi<GithubState>;
 	readonly #deps: GithubServiceDeps;
@@ -1835,6 +1851,54 @@ export class GithubService {
 
 	rerunFailedChecks(_workspaceId: WorkspaceId): Promise<Result<void>> {
 		return notImplemented("PR-05");
+	}
+
+	/**
+	 * The log of one check job, the last 1000 lines. Reads the job id from the check's details URL;
+	 * a check that is not a workflow job (an external status context) has no log.
+	 */
+	async readCheckLog(workspaceId: WorkspaceId, detailsUrl: string | null): Promise<Result<string>> {
+		const job = parseCheckJob(detailsUrl);
+		if (job === null) {
+			return err(appError("github_check_no_job", "No logs available."));
+		}
+		const context = await this.#deps.contextOf(workspaceId);
+		if (!context.ok) return err(context.error);
+		const settings = await this.#ghSettings();
+		if (!settings.ok) return err(settings.error);
+		const runOptions = this.#runOptions(settings.value, context.value.workspacePath);
+
+		// `--allow-escape-sequences` keeps the log's colours. An older gh does not know the flag,
+		// so the same call is retried without it.
+		const read = async (
+			allowEscape: boolean,
+		): Promise<Result<{ output: ShellOutput; ok: boolean }>> => {
+			const command: GitCommand = {
+				program: "gh",
+				args: [
+					"api",
+					`repos/{owner}/{repo}/actions/jobs/${job.jobId}/logs`,
+					...(allowEscape ? ["--allow-escape-sequences"] : []),
+				],
+				retryOnLock: false,
+			};
+			const result = await this.#deps.git.run(command, runOptions);
+			if (!result.ok) return err(result.error);
+			await this.recordGhResult(result.value);
+			return ok({ output: result.value, ok: isSuccessfulExit(command, result.value.exitCode) });
+		};
+
+		let answer = await read(true);
+		if (!answer.ok) return err(answer.error);
+		const text = `${answer.value.output.stderr}\n${answer.value.output.stdout}`;
+		if (!answer.value.ok && /unknown flag: --allow-escape-sequences/i.test(text)) {
+			answer = await read(false);
+			if (!answer.ok) return err(answer.error);
+		}
+		if (!answer.value.ok) {
+			return err(appError("github_check_log_failed", "Couldn't load the logs."));
+		}
+		return ok(checkLogTail(answer.value.output.stdout));
 	}
 
 	markReady(_workspaceId: WorkspaceId): Promise<Result<void>> {
