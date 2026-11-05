@@ -197,8 +197,17 @@ pub fn run() {
         .expect("error while building Conducted")
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
+                // Commands started with `shell_start` run in their own process groups, so they
+                // would outlive the app. End them before the sidecar.
+                shell::terminate_all(
+                    &app.state::<shell::ShellState>().running,
+                    std::time::Duration::from_millis(shell::KILL_GRACE_MS),
+                );
                 let state = app.state::<sidecar::SidecarState>();
-                let _ = tauri::async_runtime::block_on(sidecar::shutdown(&state));
+                // The app is closing, so only stderr is left to report a failed stop.
+                if let Err(error) = tauri::async_runtime::block_on(sidecar::shutdown(&state)) {
+                    eprintln!("could not stop the sidecar on exit: {error}");
+                }
             }
         });
 }
