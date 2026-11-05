@@ -2,24 +2,73 @@
  * @feature PR-04 Reviewers list
  * Owns: the reviewers block of the Checks tab. Each reviewer with a state, and the review summary.
  * Behaviour: ui-map.md 3.6, "Checks" paragraph (states Approved, Changes requested, Commented,
- * Dismissed, Awaiting review; "Request review"; "Review required"); services-map.md 3.7.5
- * (reviewers are edited with `gh pr edit --add-reviewer`).
- * Must handle: no reviewers requested, a team reviewer (shown by slug), the viewer being the PR
- * author (cannot approve), the request-review action failing (toast), and a long list (first ten,
- * then "show all").
+ * Dismissed, Awaiting review; "Review required").
+ * Must handle: no reviewers requested, a long list (the first ten, then a "show all" control), and
+ * the review decision the PR reports.
  * Test first: reviewers [approved, awaiting] render both states and the summary says review
  * required when reviewDecision is review_required.
  */
-import { notImplemented } from "@conducted/shared";
-import type { ReviewerView } from "../../../core/model.ts";
+import { useState } from "react";
+import type { PullRequest, ReviewerState, ReviewerView } from "../../../core/model.ts";
+import { Button } from "../../../ui/Button.tsx";
 
 export interface ReviewersListProps {
 	reviewers: ReviewerView[];
-	reviewDecision: "approved" | "changes_requested" | "review_required" | null;
+	reviewDecision: PullRequest["reviewDecision"];
 	canRequestReview: boolean;
 	onRequestReview: (login: string) => void;
 }
 
-export function ReviewersList(_props: ReviewersListProps): never {
-	return notImplemented("PR-04");
+const STATE_LABEL: Readonly<Record<ReviewerState, string>> = {
+	approved: "Approved",
+	changes_requested: "Changes requested",
+	commented: "Commented",
+	dismissed: "Dismissed",
+	awaiting: "Awaiting review",
+};
+
+const DECISION_LABEL: Readonly<Record<NonNullable<PullRequest["reviewDecision"]>, string>> = {
+	approved: "Approved",
+	changes_requested: "Changes requested",
+	review_required: "Review required",
+};
+
+export function reviewerStateLabel(state: ReviewerState): string {
+	return STATE_LABEL[state];
+}
+
+export function ReviewersList({ reviewers, reviewDecision, canRequestReview }: ReviewersListProps) {
+	const [showAll, setShowAll] = useState(false);
+	const visible = showAll ? reviewers : reviewers.slice(0, 10);
+	const decision = reviewDecision === null ? null : DECISION_LABEL[reviewDecision];
+
+	return (
+		<section aria-label="Reviewers" className="px-2 py-2">
+			<div className="flex items-center justify-between gap-2">
+				<h3 className="text-sm font-medium text-fg">Reviewers</h3>
+				{decision === null ? null : <span className="text-xs text-fg-muted">{decision}</span>}
+			</div>
+			{reviewers.length === 0 ? (
+				<p className="mt-1 text-xs text-fg-muted">
+					{canRequestReview
+						? "No reviewers requested. Ask for a review on GitHub."
+						: "No reviewers requested."}
+				</p>
+			) : (
+				<ul className="mt-1 space-y-1">
+					{visible.map((reviewer) => (
+						<li key={reviewer.login} className="flex items-center gap-2">
+							<span className="min-w-0 flex-1 truncate text-sm text-fg">{reviewer.login}</span>
+							<span className="text-xs text-fg-muted">{STATE_LABEL[reviewer.state]}</span>
+						</li>
+					))}
+				</ul>
+			)}
+			{reviewers.length > 10 && !showAll ? (
+				<Button variant="link" size="xs" onClick={() => setShowAll(true)}>
+					Show all {reviewers.length}
+				</Button>
+			) : null}
+		</section>
+	);
 }
