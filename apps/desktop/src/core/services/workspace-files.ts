@@ -13,6 +13,7 @@
  * call, in addition to whatever the Rust side checks.
  * Test first: readFile("../outside") returns an Err with code `path_outside_workspace`.
  */
+<<<<<<< HEAD
 import {
 	appError,
 	err,
@@ -21,9 +22,21 @@ import {
 	type Result,
 	type WorkspaceId,
 } from "@conducted/shared";
+=======
+import { appError, notImplemented, ok, type Result, type WorkspaceId } from "@conducted/shared";
+>>>>>>> node/rev.07
 import type { FileSearch, FileSystem, GrepMatch, TreeEntry } from "../../platform/platform.ts";
 import type { ConflictChoice, DiffScope, FileEntry } from "../api.ts";
 import { workspaceRelativePath } from "./git.ts";
+
+/** The search stops here, and the dialog tells the user to refine the query. */
+const GREP_MATCH_LIMIT = 200;
+
+/** A path as the UI shows it: relative to the root that was searched. */
+function relativeTo(root: string, path: string): string {
+	const prefix = root.endsWith("/") ? root : `${root}/`;
+	return path.startsWith(prefix) ? path.slice(prefix.length) : path;
+}
 
 export interface WorkspaceFilesServiceDeps {
 	fs: FileSystem;
@@ -79,6 +92,7 @@ export class WorkspaceFilesService {
 		workspaceId: WorkspaceId,
 		query: string,
 		limit: number,
+<<<<<<< HEAD
 	): Promise<Result<FileEntry[]>> {
 		const root = await this.#rootOf(workspaceId);
 		if (!root.ok) return root;
@@ -88,14 +102,49 @@ export class WorkspaceFilesService {
 		const found = await this.#deps.search.fuzzyMatch(root.value, trimmed, count);
 		if (!found.ok) return found;
 		return ok(toEntries(root.value, found.value));
+=======
+	): Promise<Result<TreeEntry[]>> {
+		const trimmed = query.trim();
+		if (trimmed.length < 2) return ok([]);
+		const roots = await this.#deps.rootsOf(workspaceId);
+		if (!roots.ok) return roots;
+		const root = roots.value[0];
+		if (root === undefined) {
+			return {
+				ok: false,
+				error: appError("workspace_root_missing", "The workspace has no folder to search."),
+			};
+		}
+		const found = await this.#deps.search.fuzzyMatch(root, trimmed, Math.max(0, limit));
+		if (!found.ok) return found;
+		return ok(found.value.map((entry) => ({ ...entry, path: relativeTo(root, entry.path) })));
+>>>>>>> node/rev.07
 	}
 
-	grep(
-		_workspaceId: WorkspaceId,
-		_query: string,
-		_options: { caseSensitive: boolean; wholeWord: boolean; regex: boolean },
+	async grep(
+		workspaceId: WorkspaceId,
+		query: string,
+		options: { caseSensitive: boolean; wholeWord: boolean; regex: boolean },
 	): Promise<Result<GrepMatch[]>> {
-		return notImplemented("REV-07");
+		const trimmed = query.trim();
+		if (trimmed.length < 2) return ok([]);
+		const roots = await this.#deps.rootsOf(workspaceId);
+		if (!roots.ok) return roots;
+		const root = roots.value[0];
+		if (root === undefined) {
+			return {
+				ok: false,
+				error: appError("workspace_root_missing", "The workspace has no folder to search."),
+			};
+		}
+		const found = await this.#deps.search.grep(root, trimmed, {
+			caseSensitive: options.caseSensitive,
+			wholeWord: options.wholeWord,
+			regex: options.regex,
+			limit: GREP_MATCH_LIMIT,
+		});
+		if (!found.ok) return found;
+		return ok(found.value.map((match) => ({ ...match, path: relativeTo(root, match.path) })));
 	}
 
 	async readFile(
