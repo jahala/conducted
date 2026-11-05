@@ -1,5 +1,6 @@
 /**
  * @feature PR-02 Written instructions the app sends to the agent
+<<<<<<< HEAD
  * @feature GIT-05 Commit and push, done by the agent on request
  * Owns now: the text of the "create a pull request" request, the "reconcile with the target"
  * request (GIT-04) and the "commit and push" request (GIT-05). The other requests (resolve
@@ -8,6 +9,14 @@
  * Behaviour: structure-map.md section 6 pattern 5 (delegate risky git work to the agent),
  * services-map.md 3.5 (commit and push is an agent instruction), 3.6.4 (reconcile messages),
  * 3.7.1 (create PR steps), ui-map.md 3.6.
+=======
+ * Owns now: the text of the "create a pull request" and "reconcile with the target" requests. The
+ * other requests (commit and push, resolve conflicts, fix failing checks, review the diff, rename
+ * the branch, merge into the target) are placeholders owned by GIT-05, GIT-07, PR-05, REV-05,
+ * WS-04 and GIT-14.
+ * Behaviour: structure-map.md section 6 pattern 5 (delegate risky git work to the agent),
+ * services-map.md 3.7.1 (create PR steps) and 3.6.4 (reconcile messages), ui-map.md 3.6.
+>>>>>>> node/git.06
  * Must handle: a per-repo custom prompt (`RepoConfig.prompts`) is added to the built-in text,
  * never silently replaces it; the target branch and remote names are inserted as given (they are
  * quoted by the agent's own tools, not by us); a PR template, when the repo has one, is named in
@@ -115,6 +124,7 @@ export const reconcileInstruction = (
 		dirty: boolean;
 	},
 ): string => {
+<<<<<<< HEAD
 	const remote = input.remote.trim();
 	const remoteTarget = remote.length === 0 ? input.targetBranch : `${remote}/${input.targetBranch}`;
 	const steps: string[] = [];
@@ -137,12 +147,32 @@ export const reconcileInstruction = (
 	}
 
 	const intro = `Reconcile the branch \`${input.branch}\` with \`${remoteTarget}\`.`;
+=======
+	const remoteTarget = `${input.remote}/${input.targetBranch}`;
+	const steps: string[] = [];
+	if (input.dirty) {
+		steps.push("Commit the uncommitted changes with a clear message.");
+	}
+	if (input.strategy === "rebase") {
+		steps.push(`Rebase the branch onto \`${remoteTarget}\`.`);
+		steps.push("Update the remote with `git push --force-with-lease`, never a plain force push.");
+	} else {
+		steps.push(`Merge \`${remoteTarget}\` into the branch.`);
+		steps.push("Push the branch.");
+	}
+
+	const intro = `Bring the branch \`${input.branch}\` up to date with \`${remoteTarget}\`.`;
+>>>>>>> node/git.06
 	const numbered = steps.map((step, index) => `${index + 1}. ${step}`).join("\n");
 	const builtIn = `${intro}\n\n${numbered}`;
 	const custom = input.customPrompt?.trim() ?? "";
 	return custom.length === 0
 		? builtIn
+<<<<<<< HEAD
 		: `${builtIn}\n\nRepository instructions for Reconcile:\n${custom}`;
+=======
+		: `${builtIn}\n\nRepository instructions for Pull latest:\n${custom}`;
+>>>>>>> node/git.06
 };
 
 /**
