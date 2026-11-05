@@ -48,7 +48,7 @@ function makeRunner(options: {
 		spawn: options.spawn ?? (async () => err(appError("spawn_failed", "not used"))),
 		random: () => 0,
 		sleep: async () => {},
-		appToolsConfigArgs: () => [],
+		appToolsConfig: () => ({ args: [], env: {} }),
 	});
 }
 
