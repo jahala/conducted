@@ -279,6 +279,17 @@ describe("APP-01 container", () => {
 		expect(dispose).toHaveBeenCalledTimes(1);
 		expect(harness.memory.controls.dispose()).toBe(0);
 	});
+
+	it("stops the settings service, releasing its focus listener and reload timer", async () => {
+		const harness = build();
+		stubStartup(harness);
+		const stop = vi.spyOn(harness.container.services.settings, "stop");
+
+		await harness.container.start();
+		await harness.container.stop();
+
+		expect(stop).toHaveBeenCalledTimes(1);
+	});
 });
 
 describe("APP-01 after start", () => {

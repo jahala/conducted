@@ -175,7 +175,13 @@ describe("WS-01 createWorktree", () => {
 	it("makes an empty initial commit when the repository has no HEAD", async () => {
 		const { git, calls } = makeRunner((command, cwd) => {
 			if (matches(command, "git", ["rev-parse", "HEAD"]))
-				return cwd === "/repo" ? output(128, "", "fatal: ambiguous argument") : output(0, "abc");
+				return cwd === "/repo"
+					? output(
+							128,
+							"",
+							"fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tree.",
+						)
+					: output(0, "abc");
 			if (starts(command, "git", ["fetch"])) return output(0);
 			if (matches(command, "git", ["rev-parse", "refs/remotes/origin/main"]))
 				return output(0, "abc");

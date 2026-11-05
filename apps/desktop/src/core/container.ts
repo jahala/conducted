@@ -14,9 +14,10 @@
  * steps it wires the dock badge, notification clicks, the hourly update check, the quit guard and
  * the Spotlight heal; deep links have one subscriber, the command dispatcher (NAV-14), which is
  * mounted with the app root, so this file does not listen for them a second time; `stop`
- * removes those listeners, stops the update timer, kills terminals and runs, disposes the repo
- * service and detaches from the sidecar; the database-version check happens before `start` (see
- * the proposed `Platform.app.dbVersionWarning`); after the sidecar reconnects, chats are resumed.
+ * removes those listeners, stops the settings reload listener and its timer, stops the update
+ * timer, kills terminals and runs, disposes the repo service and detaches from the sidecar; the
+ * database-version check happens before `start` (see the proposed `Platform.app.dbVersionWarning`);
+ * after the sidecar reconnects, chats are resumed.
  * Our design choice: one `createContainer` function with every dependency as a parameter. There
  * is no module-level singleton, so tests build as many containers as they like. The timers here
  * are the only global clock use in core; they sit in the root, the edge of the program.
@@ -619,6 +620,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 			detachReconnect?.();
 			detachReconnect = null;
 			for (const cleanup of cleanups.splice(0)) cleanup();
+			settings.stop();
 			if (updateTimer !== null) {
 				clearInterval(updateTimer);
 				updateTimer = null;
