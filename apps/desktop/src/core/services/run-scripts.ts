@@ -30,17 +30,18 @@ import {
 	type AppError,
 	appError,
 	err,
-	notImplemented,
 	ok,
 	type Result,
 	type TerminalId,
 	type WorkspaceId,
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
+import { createLatestWins } from "../async/latest-wins.ts";
 import type { FileSystem, Platform } from "../../platform/platform.ts";
 import type { RunState } from "../api.ts";
 import { binDir, setupLogFile } from "../app-paths.ts";
 import type { Repo, RepoConfig, RunAction, SetupView, Workspace } from "../model.ts";
+import type { PortService } from "./ports.ts";
 import { buildScriptEnv, STOP_WATCHDOG_MS, type TerminalsService } from "./terminals.ts";
 
 export { STOP_WATCHDOG_MS };
@@ -138,6 +139,13 @@ export interface RunScriptsServiceDeps {
 	 * of the setup path may leave it out, and archive then reports that it cannot run.
 	 */
 	shell?: Pick<Platform["shell"], "run">;
+	/**
+	 * RUN-03's port service. The composition root supplies it; a test of another path may leave
+	 * it out, and no ports are then listed.
+	 */
+	ports?: Pick<PortService, "listListening">;
+	/** Receives a failed port scan so a detection problem is not silent. */
+	log?: (level: "warn" | "info", message: string) => void;
 }
 
 interface RunProcess {
@@ -185,6 +193,10 @@ export class RunScriptsService {
 	#attemptCounter = 0;
 	/** A counter per workspace, for the last started run. */
 	readonly #lastRunIds = new Map<WorkspaceId, number>();
+	/** The newest port scan per workspace, so an older answer cannot replace it. */
+	readonly #portScans = createLatestWins<WorkspaceId>();
+	/** The next port scan timer per workspace. */
+	readonly #portTimers = new Map<WorkspaceId, ReturnType<typeof setTimeout>>();
 
 	constructor(deps: RunScriptsServiceDeps) {
 		this.#deps = deps;
