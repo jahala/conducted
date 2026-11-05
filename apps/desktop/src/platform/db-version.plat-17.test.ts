@@ -1,5 +1,6 @@
 import { ok } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
+import { DATABASE_PRAGMAS, type SqlDatabase } from "./queued-database.ts";
 import {
 	COMMANDS,
 	createLazyTauriDatabase,
@@ -123,5 +124,55 @@ describe("PLAT-17 database opening", () => {
 		});
 
 		await expect(db.execute("PRAGMA user_version")).rejects.toEqual(failure);
+	});
+
+	it("PLAT-17 tries the load again after a failed one, so Retry can open the database", async () => {
+		const failure = { code: "sql_load_failed", message: "the database is locked" };
+		const statements: string[] = [];
+		const opened: SqlDatabase = {
+			execute: async (sql) => {
+				statements.push(sql);
+				return { rowsAffected: 0 };
+			},
+			select: async <Rows>(): Promise<Rows> => [] as unknown as Rows,
+		};
+		let loads = 0;
+		const db = createLazyTauriDatabase({
+			sql: {
+				load: async () => {
+					loads += 1;
+					if (loads === 1) throw failure;
+					return opened;
+				},
+			},
+		});
+
+		await expect(db.execute("PRAGMA user_version")).rejects.toEqual(failure);
+		await expect(db.execute("SELECT 1")).resolves.toEqual({ rowsAffected: 0 });
+		await db.execute("SELECT 2");
+
+		expect(loads).toBe(2);
+		expect(statements).toEqual([...DATABASE_PRAGMAS, "SELECT 1", "SELECT 2"]);
+	});
+
+	it("PLAT-17 shares one failed load between statements that wait on it together", async () => {
+		const failure = { code: "sql_load_failed", message: "the database is locked" };
+		let loads = 0;
+		const db = createLazyTauriDatabase({
+			sql: {
+				load: async () => {
+					loads += 1;
+					throw failure;
+				},
+			},
+		});
+
+		const together = await Promise.allSettled([db.execute("SELECT 1"), db.execute("SELECT 2")]);
+
+		expect(together).toEqual([
+			{ status: "rejected", reason: failure },
+			{ status: "rejected", reason: failure },
+		]);
+		expect(loads).toBe(1);
 	});
 });
