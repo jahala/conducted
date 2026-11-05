@@ -3,13 +3,15 @@
  * Owns: the MCP server entry that Codex and ACP agents are given so they can reach the app tools.
  * It is the sidecar program itself, started in "app-tools-mcp" mode.
  * Behaviour: research/conductor/other-runners.md section 2.1 (Codex gets the tools as a stdio MCP
- * server named conductor, launched through `--config mcp_servers.<name>.command/args/env`) and
- * claude-runner.md section 4.3 (the helper gets the session id and socket as arguments and the
- * token in its environment, never on the command line).
+ * server named conducted, launched through `--config mcp_servers.<name>.command/args`) and
+ * claude-runner.md section 4.3 (the helper gets the session id, socket and workspace directory as
+ * arguments and the token in its environment, never on the command line).
  * Must handle: a token in the environment only (a command line is visible to every process), the
  * server name from APP_TOOL_SERVER, the tool switches passed as flags, and a sidecar path with
  * spaces (kept as one argument).
  * Test first: appToolsMcpEntry never puts the token in args, and puts it in env.
+ * Our design choice: the Codex app-server receives the token in its child environment instead of a
+ * config value, so the token never appears in a command line.
  */
 import { APP_TOOL_SERVER, type SessionConfig } from "@conducted/protocol";
 import type { SessionId } from "@conducted/shared";
@@ -29,10 +31,19 @@ export function appToolsMcpEntry(input: {
 	sidecarExecutable: string;
 	sessionId: SessionId;
 	socketPath: string;
+	workspaceDir: string;
 	token: string;
 	appTools: SessionConfig["appTools"];
 }): McpStdioEntry {
-	const args = ["app-tools-mcp", "--session-id", input.sessionId, "--socket", input.socketPath];
+	const args = [
+		"app-tools-mcp",
+		"--session-id",
+		input.sessionId,
+		"--socket",
+		input.socketPath,
+		"--workspace-dir",
+		input.workspaceDir,
+	];
 	if (input.appTools.diffComments) args.push("--enable-diff-comments");
 	if (input.appTools.progressUpdates) args.push("--enable-progress");
 	if (input.appTools.setTargetBranch) args.push("--enable-set-target-branch");
@@ -44,9 +55,26 @@ export function appToolsMcpEntry(input: {
 	};
 }
 
+/** The `--config` arguments Codex needs for the app tools server, and the child environment. */
+export function codexMcpConfig(entry: McpStdioEntry): {
+	args: string[];
+	env: Record<string, string>;
+} {
+	return {
+		args: [
+			"--config",
+			`mcp_servers.${entry.name}.command=${entry.command}`,
+			"--config",
+			`mcp_servers.${entry.name}.args=${JSON.stringify(entry.args)}`,
+		],
+		env: entry.env,
+	};
+}
+
 export interface AppToolsMcpArgs {
 	sessionId: SessionId;
 	socketPath: string;
+	workspaceDir: string;
 	appTools: SessionConfig["appTools"];
 }
 
@@ -56,11 +84,13 @@ export function parseAppToolsMcpArgs(
 ): { ok: true; value: AppToolsMcpArgs } | { ok: false; message: string } {
 	let sessionId: string | undefined;
 	let socketPath: string | undefined;
+	let workspaceDir: string | undefined;
 	const appTools = { diffComments: false, progressUpdates: false, setTargetBranch: false };
 	for (let i = 0; i < argv.length; i++) {
 		const arg = argv[i];
 		if (arg === "--session-id") sessionId = argv[++i];
 		else if (arg === "--socket") socketPath = argv[++i];
+		else if (arg === "--workspace-dir") workspaceDir = argv[++i];
 		else if (arg === "--enable-diff-comments") appTools.diffComments = true;
 		else if (arg === "--enable-progress") appTools.progressUpdates = true;
 		else if (arg === "--enable-set-target-branch") appTools.setTargetBranch = true;
@@ -68,5 +98,9 @@ export function parseAppToolsMcpArgs(
 	}
 	if (!sessionId) return { ok: false, message: "Missing --session-id" };
 	if (!socketPath) return { ok: false, message: "Missing --socket" };
-	return { ok: true, value: { sessionId: sessionId as SessionId, socketPath, appTools } };
+	if (!workspaceDir) return { ok: false, message: "Missing --workspace-dir" };
+	return {
+		ok: true,
+		value: { sessionId: sessionId as SessionId, socketPath, workspaceDir, appTools },
+	};
 }

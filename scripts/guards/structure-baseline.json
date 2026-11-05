@@ -70,6 +70,6 @@
 	},
 	"unwired-deps": {
 		"apps/desktop/src/core/container.ts": 5,
-		"packages/sidecar/src/modes/sidecar-mode.ts": 10
+		"packages/sidecar/src/modes/sidecar-mode.ts": 9
 	}
 }
