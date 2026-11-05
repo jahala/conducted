@@ -131,7 +131,11 @@ export const useFileTree: Queries["useFileTree"] = () => notImplemented("REV-06"
 export const useDiffComments: Queries["useDiffComments"] = () => notImplemented("REV-03");
 export const useTerminals: Queries["useTerminals"] = () => notImplemented("RUN-06");
 export const useRunState: Queries["useRunState"] = () => notImplemented("RUN-01");
-export const useSetting: Queries["useSetting"] = <T>(_key: string): T => notImplemented("SET-01");
+export const useSetting: Queries["useSetting"] = <T>(key: string): T => {
+	const { services } = useServices();
+	const stored = useStore(services.settings.store, (s) => s.values[key]);
+	return (stored === undefined || stored === null ? services.settings.get<T>(key) : stored) as T;
+};
 export const useAgentInstalls: Queries["useAgentInstalls"] = () => notImplemented("SET-03");
 export const useModels: Queries["useModels"] = () => notImplemented("COMP-02");
 export const useSlashCommands: Queries["useSlashCommands"] = () => notImplemented("COMP-06");

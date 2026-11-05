@@ -28,7 +28,7 @@ const must = (key: string): SettingDef => {
 	return def;
 };
 
-describe("setting table", () => {
+describe("SET-01 setting table", () => {
 	it("has unique keys", () => {
 		expect(new Set(SETTING_KEYS).size).toBe(SETTING_KEYS.length);
 	});
@@ -113,7 +113,7 @@ describe("setting table", () => {
 	});
 });
 
-describe("lookups", () => {
+describe("SET-01 lookups", () => {
 	it("finds a setting by key and returns undefined for an unknown key", () => {
 		expect(getSettingDef("branch_prefix_type")?.page).toBe("git");
 		expect(getSettingDef("nope")).toBeUndefined();
@@ -153,7 +153,7 @@ describe("lookups", () => {
 	});
 });
 
-describe("searchSettings", () => {
+describe("SET-01 searchSettings", () => {
 	it("ranks title matches before other matches", () => {
 		const found = searchSettings("branch");
 		expect(found.length).toBeGreaterThan(1);
@@ -183,7 +183,7 @@ describe("searchSettings", () => {
 	});
 });
 
-describe("coerceSettingValue", () => {
+describe("SET-01 coerceSettingValue", () => {
 	it("accepts bool values and the strings true and false", () => {
 		const def = must("notifications_enabled");
 		expect(coerceSettingValue(def, true)).toEqual({ ok: true, value: true });
@@ -253,5 +253,58 @@ describe("coerceSettingValue", () => {
 			expect(coerceSettingValue(def, null), def.key).toEqual({ ok: true, value: null });
 		}
 		expect(coerceSettingValue(must("wrap_lines"), undefined).ok).toBe(false);
+	});
+});
+
+describe("SET-01 checklist", () => {
+	it("offers the absolute-right strip control on the General page, off by default", () => {
+		const def = must("not_absolutely_right");
+		expect(def.page).toBe("general");
+		expect(def.type).toBe("bool");
+		expect(def.default).toBe(false);
+		expect(def.title).toBe("I'm not absolutely right, thank you very much");
+		expect(def.description).toContain("absolutely right");
+		expect(searchSettings("absolutely").map((s) => s.key)).toContain("not_absolutely_right");
+	});
+
+	it("lets the pull request open target be github, linear or graphite", () => {
+		const def = must("pull_request_open_target");
+		expect(def.type).toBe("enum");
+		expect(def.default).toBe("github");
+		expect(def.type === "enum" && def.options.map((o) => o.value)).toEqual([
+			"github",
+			"linear",
+			"graphite",
+		]);
+	});
+
+	it("says which file layers may set each setting", () => {
+		const userOnly = must("default_model");
+		expect(userOnly.tomlKey).toBe("models.default");
+		expect(userOnly.fileLayers).toBe("user");
+		expect(userOnly.scopes).not.toContain("repo");
+
+		const repoShared = must("delete_branch_on_archive");
+		expect(repoShared.fileLayers).toBe("user-and-repo");
+		expect(repoShared.scopes).toContain("repo");
+
+		expect(isFileBacked(must("message_send_key"))).toBe(false);
+	});
+
+	it("declares every field the settings pages and search need", () => {
+		for (const def of SETTINGS) {
+			expect(def.key.length, def.key).toBeGreaterThan(0);
+			expect(SETTING_PAGES, def.key).toContain(def.page);
+			expect(def.scopes.length, def.key).toBeGreaterThan(0);
+			expect(def.title.length, def.key).toBeGreaterThan(0);
+			expect(def.description.length, def.key).toBeGreaterThan(0);
+			expect(Array.isArray(def.searchTerms), def.key).toBe(true);
+		}
+	});
+
+	it("can preload a default for every key", () => {
+		for (const key of SETTING_KEYS) {
+			expect(defaultValueOf(key), key).not.toBeUndefined();
+		}
 	});
 });
