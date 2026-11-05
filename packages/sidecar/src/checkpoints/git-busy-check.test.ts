@@ -148,6 +148,10 @@ describe("GIT-11 git-busy-check.sh", () => {
 		const linked = join(base, "linked worktree");
 		gitOk(repo, "worktree", "add", "-q", "-b", "linked", linked, "main");
 
+		writeFileSync(join(linked, "shared.txt"), "linked\n");
+		gitOk(linked, "add", "shared.txt");
+		gitOk(linked, "commit", "-q", "-m", "linked change");
+
 		expect(git(linked, "merge", "other").code).not.toBe(0);
 
 		expect(check(linked)).toEqual({ code: 0, out: "busy:merge", err: "" });
