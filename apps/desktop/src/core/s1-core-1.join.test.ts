@@ -198,6 +198,7 @@ describe("s1-core-1 join", () => {
 	it("DATA-06 prunes a deleted chat's checkpoint refs through the chat service", async () => {
 		const test = createTestContainer();
 		try {
+			must(await test.container.platform.fs.mkdirp("/code/join-data-06"));
 			const repo = await seedRepo(test.container, { rootPath: "/code/join-data-06" });
 			const workspace = await seedWorkspace(test.container, {
 				repoId: repo.id,

@@ -89,6 +89,12 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 	),
 	c(
 		"fs",
+		"dot-segments",
+		"a path with . and .. names the file it resolves to",
+		"Writing through `inner/./../note.txt` writes `note.txt` next to `inner`; exists and readText agree on the resolved path, and nothing lands inside `inner`.",
+	),
+	c(
+		"fs",
 		"trash",
 		"trash removes from the folder without deleting for good",
 		"After trash the path no longer exists; on the Tauri side the item is in the macOS Trash.",
@@ -600,6 +606,21 @@ const STEPS: Record<string, ContractStep> = {
 		const sub = entries.find((entry) => entry.path.endsWith("sub"));
 		ctx.assert(file !== undefined && !file.isDirectory, "b.txt is a file");
 		ctx.assert(sub?.isDirectory === true, "sub is a folder");
+	},
+
+	"fs.dot-segments": async (ctx) => {
+		const folder = ctx.path("dots");
+		expectOk(ctx, await ctx.platform.fs.mkdirp(joinPath(folder, "inner")), "mkdirp");
+		const spelled = joinPath(folder, "inner/./../note.txt");
+		const resolved = joinPath(folder, "note.txt");
+		expectOk(ctx, await ctx.platform.fs.writeTextAtomic(spelled, "dots"), "writeTextAtomic");
+		ctx.assert(await ctx.platform.fs.exists(resolved), "the file is at the resolved path");
+		const read = expectOk(ctx, await ctx.platform.fs.readText(resolved), "readText");
+		ctx.assert(read === "dots", `readText returned ${JSON.stringify(read)}`);
+		ctx.assert(
+			!(await ctx.platform.fs.exists(joinPath(folder, "inner/note.txt"))),
+			"the file landed inside inner",
+		);
 	},
 
 	"fs.trash": async (ctx) => {
@@ -1488,6 +1509,7 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 	"fs.exists-stat": ["fs.writeTextAtomic", "fs.mkdirp", "fs.exists", "fs.stat"],
 	"fs.mkdirp-idempotent": ["fs.mkdirp", "fs.exists"],
 	"fs.read-dir": ["fs.mkdirp", "fs.writeTextAtomic", "fs.readDir"],
+	"fs.dot-segments": ["fs.mkdirp", "fs.writeTextAtomic", "fs.exists", "fs.readText"],
 	"fs.trash": ["fs.mkdirp", "fs.writeTextAtomic", "fs.trash", "fs.exists"],
 	"db.roundtrip": ["db.execute", "db.select"],
 	"db.rows-affected": ["db.execute"],

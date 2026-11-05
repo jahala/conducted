@@ -1,11 +1,12 @@
 /**
  * @feature DATA-06 Prune turn snapshots
  * Tests removing a deleted chat's checkpoint refs, the 30-day archive prune counted from
- * archived_at, and the real container wiring that reaches both paths.
+ * archived_at, and the real container wiring that reaches both paths, including a chat whose
+ * project folder is gone.
  */
 import { type Clock, ok, type SessionId, type WorkspaceId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
-import { createTestContainer, seedRepo } from "../../test/container.ts";
+import { createTestContainer, seedRepo, seedWorkspace } from "../../test/container.ts";
 import { FakeGitRunner, gitOutput } from "../../test/fake-git-runner.ts";
 import { createRepositories } from "../db/repositories.ts";
 import { sampleSession } from "../db/test-fixtures.ts";
@@ -275,6 +276,7 @@ describe("DATA-06 deleting a chat through the real container", () => {
 	it("prunes the deleted chat's refs before the row goes", async () => {
 		const test = createTestContainer();
 		try {
+			must(await test.container.platform.fs.mkdirp(REPO_ROOT));
 			const repo = await seedRepo(test.container, { rootPath: REPO_ROOT });
 			const repos = createRepositories(test.database, {
 				clock: { now: () => BASE },
@@ -327,6 +329,32 @@ describe("DATA-06 deleting a chat through the real container", () => {
 				(command) => command.program === "git" && command.args.includes("for-each-ref"),
 			);
 			expect(listing?.cwd).toBe(REPO_ROOT);
+		} finally {
+			test.close();
+		}
+	});
+
+	it("deletes a chat whose project folder is gone without running git", async () => {
+		const test = createTestContainer();
+		try {
+			// The project folder was never created: it is gone, and its refs went with it.
+			const repo = await seedRepo(test.container, { rootPath: "/code/moved-away" });
+			const workspace = await seedWorkspace(test.container, {
+				repoId: repo.id,
+				path: "/code/moved-away/worktree",
+			});
+			const chat = must(
+				await test.container.services.sessions.create(workspace.id, sampleSession.config),
+			);
+
+			const callsBefore = test.memory.controls.shellCalls.length;
+			await expect(test.container.services.sessions.delete(chat.id)).resolves.toEqual({
+				ok: true,
+				value: undefined,
+			});
+			expect(test.container.services.sessions.store.getState().sessions[chat.id]).toBeUndefined();
+			const deleteCalls = test.memory.controls.shellCalls.slice(callsBefore);
+			expect(deleteCalls.filter((call) => call.program === "git")).toEqual([]);
 		} finally {
 			test.close();
 		}

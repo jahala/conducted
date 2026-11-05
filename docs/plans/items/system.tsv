@@ -1820,7 +1820,7 @@ APP-01	startup	After start, wire notification clicks to open the right workspace
 APP-01	startup	After start, wire deep link handling.	services-map 6	missing
 APP-01	startup	After start, wire update checks.	services-map 6	missing
 APP-01	startup	After start, wire the quit handler that waits for agents.	services-map 6	missing
-APP-01	startup	After start, heal Spotlight state left by a crash.	services-map 6	missing
+APP-01	startup	After start, heal Spotlight state left by a crash.	services-map 6	covered
 PLAT-02	command	The app exposes a grouped set of custom Tauri commands, listed in docs/plans/tauri-commands.md.	frontend 3a	covered
 PLAT-09	command	A command starts the sidecar if it is not running.	frontend 3a	covered
 PLAT-18	command	A command returns the sidecar log path.	frontend 3a	covered
