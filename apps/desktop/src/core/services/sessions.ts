@@ -17,9 +17,10 @@
  * Test first: a send holds the pending message in memory before it reaches the sidecar, and a late
  * config write leaves the newer stored choice in place.
  *
- * The cancel, interaction, progress and unread paths live in the same service but belong to
- * CHAT-05, CHAT-10, CHAT-13, CHAT-18 and NAV-11. They are placeholders until those features build
- * them. The chat view (turns built from stored events) belongs to CHAT-07.
+ * The cancel, progress and unread paths live in the same service but belong to CHAT-05, CHAT-13,
+ * CHAT-18 and NAV-11. They are placeholders until those features build them. The chat view (turns
+ * built from stored events) belongs to CHAT-07. The interaction paths (answer, requestInteraction)
+ * belong to CHAT-10.
  */
 import {
 	type AgentLaunch,
@@ -197,6 +198,9 @@ export class SessionsService implements AgentMessenger {
 	readonly #deps: SessionsServiceDeps;
 	/** The last turn list built per chat, so unchanged turns keep their identity. */
 	readonly #turns = new Map<string, ChatView["turns"]>();
+	/** Resolvers for the sidecar's open interaction requests, keyed by interaction id. */
+	readonly #interactionResolvers = new Map<string, (answer: InteractionAnswer) => void>();
+	readonly #interactionPromises = new Map<string, Promise<InteractionAnswer>>();
 
 	constructor(deps: SessionsServiceDeps) {
 		this.#deps = deps;
@@ -677,17 +681,77 @@ export class SessionsService implements AgentMessenger {
 	}
 
 	/** Backs `Actions.sessions.answer`. A superseded answer is not an error. */
-	answer(
-		_id: SessionId,
-		_interactionId: InteractionId,
-		_answer: InteractionAnswer,
+	async answer(
+		sessionId: SessionId,
+		interactionId: InteractionId,
+		answer: InteractionAnswer,
 	): Promise<Result<void>> {
-		return notImplemented("CHAT-10");
+		const result = await this.#deps.sidecar.request("answerInteraction", {
+			sessionId,
+			interactionId,
+			answer,
+		});
+		if (!result.ok) return result;
+		if (result.value.accepted) this.#settleInteraction(interactionId, answer);
+		else if (result.value.superseded) {
+			this.#settleInteraction(interactionId, { kind: "withdrawn" });
+		}
+		return ok(undefined);
 	}
 
 	/** Called by the `requestInteraction` handler. Resolves when the user answers or it is withdrawn. */
-	requestInteraction(_request: InteractionRequest): Promise<InteractionAnswer> {
-		return notImplemented("CHAT-10");
+	requestInteraction(request: InteractionRequest): Promise<InteractionAnswer> {
+		const existing = this.#interactionPromises.get(request.interactionId);
+		if (existing !== undefined) {
+			this.#showInteraction(request);
+			return existing;
+		}
+
+		const open = this.store.getState().openInteractions[request.sessionId];
+		if (open !== undefined && open.interactionId !== request.interactionId) {
+			this.#settleInteraction(open.interactionId, { kind: "withdrawn" });
+		}
+
+		let resolve!: (answer: InteractionAnswer) => void;
+		const promise = new Promise<InteractionAnswer>((settle) => {
+			resolve = settle;
+		});
+		this.#interactionResolvers.set(request.interactionId, resolve);
+		this.#interactionPromises.set(request.interactionId, promise);
+		this.#showInteraction(request);
+		return promise;
+	}
+
+	/** Shows one open interaction per chat, replacing the card that was there before. */
+	#showInteraction(request: InteractionRequest): void {
+		this.store.setState((state) => ({
+			openInteractions: {
+				...state.openInteractions,
+				[request.sessionId]: {
+					interactionId: request.interactionId,
+					interaction: request.interaction,
+				},
+			},
+		}));
+	}
+
+	/** Answers the sidecar's open request and removes the card. A stale id is ignored. */
+	#settleInteraction(interactionId: InteractionId, answer: InteractionAnswer): void {
+		const resolve = this.#interactionResolvers.get(interactionId);
+		if (resolve === undefined) return;
+		this.#interactionResolvers.delete(interactionId);
+		this.#interactionPromises.delete(interactionId);
+		this.store.setState((state) => {
+			const openInteractions = { ...state.openInteractions };
+			let changed = false;
+			for (const [sessionId, open] of Object.entries(openInteractions)) {
+				if (open.interactionId !== interactionId) continue;
+				delete openInteractions[sessionId];
+				changed = true;
+			}
+			return changed ? { openInteractions } : {};
+		});
+		resolve(answer);
 	}
 
 	/**
@@ -847,6 +911,10 @@ export class SessionsService implements AgentMessenger {
 		event: SessionEvent,
 		receivedAt: number,
 	): void {
+		const closedInteractionId =
+			event.type === "turn_ended"
+				? (this.store.getState().openInteractions[sessionId]?.interactionId ?? null)
+				: null;
 		this.store.setState((state) => {
 			const loaded = state.events[sessionId];
 			const duplicate = loaded?.some((stored) => stored.idx === idx) ?? false;
@@ -885,6 +953,9 @@ export class SessionsService implements AgentMessenger {
 			}
 			return next;
 		});
+		if (closedInteractionId !== null) {
+			this.#settleInteraction(closedInteractionId, { kind: "withdrawn" });
+		}
 	}
 
 	async setAgentSessionId(sessionId: SessionId, agentSessionId: string): Promise<Result<void>> {
