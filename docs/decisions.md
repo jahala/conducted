@@ -312,3 +312,9 @@ Chosen: one fresh fixer per feature, or per group of files, sorts each finding:
 Fixers that share a file never run at once. The composition root (`modes/sidecar-mode.ts`) is fixed last, by one fixer, with the wiring the others asked for.
 
 Why: every finding ends in a fix, an owner or a visible row, and none is lost in a chat log.
+
+## D044. Biome's React rules are switched on by name (2026-11-05)
+
+Context: two features (WS-09, COMP-01) passed their node gate's `pnpm lint` and then failed it on the step branch, both on `useExhaustiveDependencies`. The same commit passed lint inside a worktree under `.git/` (where pleach puts its worktrees) and failed outside it. Biome switches its React rules on only when it detects React, and it does not detect it from inside `.git/`.
+Chosen: `biome.json` turns the React domain on by name (`linter.domains.react: "recommended"`). Checked on the known case: with the setting, the same file fails lint inside `.git/` too.
+Why: a gate must check the same rules wherever it runs.
