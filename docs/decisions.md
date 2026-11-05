@@ -358,3 +358,22 @@ Context: the first overnight build's audits returned about 280 MUST findings in 
 Several of these had no rule in the docs, and agents read only the docs and their issue. Screen tests also kept failing because each hand-built a partial container.
 Chosen: `docs/engineering.md` states each pattern as a rule. `docs/architecture.md` lists the shared helpers to use before writing one. A shared `createTestContainer` and `openTestDatabase` replace hand-built test containers and five copies of a SQLite adapter. The builder and fixer prompts in `scripts/overnight/drive.ts` repeat the rules, and the audit prompt checks headers and each rule by name.
 Why: the agents start from the docs, so the docs must name what the audits were catching. The prompt carries it too, because a rule in a doc nobody quotes drifts. Nothing checks the header rule by script yet; the audit does.
+
+## D053. A test quality review before slice 2's second step (2026-11-05)
+
+Context: the owner asked for professional tests with no theater. Five Sonnet reviewers read every test file of slice 1 and slice 2's first step (448 files) against the code it tests. Each file got a verdict (REAL, WEAK or THEATER) and each finding names the mutation the tests would miss. A new coverage workflow measured main for the first time: desktop 86.9% lines and 75.2% branches, sidecar 90.6% lines, Rust 69.9% lines.
+Found: 224 files REAL, 219 WEAK and 5 THEATER. Pure logic is tested well, and the seams between parts are not. Line coverage hides it: a screen with a theater test shows 100%. Two confirmed bugs mean no chat can run on main: the sidecar exits at start, because a startup step calls a SIDE-13 placeholder that throws, and every send fails, because the container passes no agent launch (SIDE-21).
+Chosen: the plan is [docs/plans/test-quality.md](plans/test-quality.md), and the reports are in [docs/reports/test-quality/](reports/test-quality/). Guards, test kit fixes, the UI fix batch and the theater rewrites land between slice 2's first and second steps, so the step-2 builders inherit them. SIDE-21 builds first in step 2, accepted by a real-container test that sends one message. The test work uses Sonnet workers on the subscription. DeepSeek builds only the features that own a fix.
+Why: the bugs that hurt most lived where parts meet, and each new step adds more parts. Fixing the test kit before the next build stops every new feature from copying the weak patterns.
+
+## D054. Done means reachable through the real composition root (2026-11-05)
+
+Context: the slice-1 hardening found the dispatcher was never mounted. The test review found the same class again, more widely. The container passes no `launchFor`, `repoConfig` or `defaultConfig`. Nothing calls `GitService.watch` or `GithubService.watch`, and `onMerged` is never wired. Ten UI components are built and tested, but nothing imports them. Each feature's own tests passed, because each test supplied the missing part itself.
+Chosen: a feature is done when its code runs from the real composition root (`core/container.ts` or the sidecar's `sidecar-mode.ts`), with one test over `createTestContainer` or the real sidecar host. Two guards hold this (docs/plans/test-quality.md, batch 4a). Guard 5 fails on code whose only importers are tests. Guard 6 compares what each composition root passes with each service's `Deps` type, and an optional dependency left out needs an `// unwired: <ID>` marker naming a stub row. Builder and audit prompts carry the rule.
+Why: a part that only tests call is not a feature, and an audit of one batch cannot see what the composition root forgot.
+
+## D055. Guard baselines may only shrink, and there are no known-red marks (2026-11-05)
+
+Context: the new test-quality guards flag hundreds of existing violations, and the plan's first draft also proposed marking real failing tests as expected to fail (`it.fails`, `test.failing`) until their owner builds.
+Chosen: each guard reads a committed baseline of today's violations per file. A guard fails when a count rises, and also when the baseline is higher than the real count, so every fix lowers the file. There are no expected-failure marks. A test that fails because the product is broken lands in the same change as its fix, or is the acceptance test of the feature build that owns the fix, written test first in that build.
+Why: a baseline that can only fall lets the guards start today without hiding anything new. An expected-failure mark is a skip by another name, which the project's rules and weeder (T3) refuse.
