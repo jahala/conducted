@@ -19,7 +19,7 @@ export const COPY_PREVIEW_LIMIT = 50;
 
 /** True for a path that would leave the repository root. */
 export function isOutsideRepository(pattern: string): boolean {
-	const trimmed = pattern.trim();
+	const trimmed = pattern.trim().replace(/^!+/, "");
 	if (trimmed === "") return false;
 	if (trimmed.startsWith("/") || trimmed.startsWith("~/")) return true;
 	return trimmed.split(/[\\/]/).some((part) => part === "..");
@@ -33,12 +33,7 @@ export interface FilesToCopyFieldProps {
 	onChange: (patterns: string[]) => void;
 }
 
-export function FilesToCopyField({
-	patterns,
-	matches,
-	source,
-	onChange,
-}: FilesToCopyFieldProps) {
+export function FilesToCopyField({ patterns, matches, source, onChange }: FilesToCopyFieldProps) {
 	const [draft, setDraft] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const inputId = useId();
@@ -123,7 +118,9 @@ export function FilesToCopyField({
 				</p>
 			) : null}
 
-			{matches?.state === "ready" ? <MatchPreview paths={matches.paths} patterns={patterns} /> : null}
+			{matches?.state === "ready" ? (
+				<MatchPreview paths={matches.paths} patterns={patterns} />
+			) : null}
 		</div>
 	);
 }
@@ -132,7 +129,9 @@ function MatchPreview({ paths, patterns }: { paths: string[]; patterns: string[]
 	if (paths.length === 0) {
 		return (
 			<p className="text-sm text-fg-muted">
-				{patterns.length === 0 ? "No files are copied into new workspaces." : "No files match these patterns."}
+				{patterns.length === 0
+					? "No files are copied into new workspaces."
+					: "No files match these patterns."}
 			</p>
 		);
 	}

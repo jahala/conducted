@@ -99,11 +99,25 @@ export function RepoPromptsPage({ repoId }: { repoId: RepoId }) {
 		});
 	}, [ready]);
 
+	const textOrNull = (text: string): string | null => (text.trim() === "" ? null : text);
+
+	/** Every prompt as the fields show it, so saving one never drops text typed in another. */
+	const promptsFromDrafts = (): RepoConfig["prompts"] => ({
+		general: textOrNull(drafts.general),
+		codeReview: textOrNull(drafts.codeReview),
+		createPr: textOrNull(drafts.createPr),
+		fixErrors: textOrNull(drafts.fixErrors),
+		resolveConflicts: textOrNull(drafts.resolveConflicts),
+		renameBranch: textOrNull(drafts.renameBranch),
+	});
+
 	const savePrompt = async (key: PromptKey, text: string | null) => {
 		if (value.state !== "ready") return;
+		const prompts = promptsFromDrafts();
+		prompts[key] = text;
 		const next: RepoConfig = {
 			...value.data,
-			prompts: { ...value.data.prompts, [key]: text },
+			prompts,
 		};
 		const saved = await actions.projects.updateConfig(repoId, next);
 		if (!saved.ok) {
@@ -177,8 +191,8 @@ export function RepoPromptsPage({ repoId }: { repoId: RepoId }) {
 									/>
 									{text.length > PROMPT_LENGTH_WARNING ? (
 										<p className="text-xs text-warning">
-											These instructions are long. Very long prompts cost more and can crowd out
-											the task.
+											These instructions are long. Very long prompts cost more and can crowd out the
+											task.
 										</p>
 									) : null}
 									{errors[field.key] !== undefined ? (

@@ -66,10 +66,7 @@ export function ActionList({
 							{item.canReset ? <Badge tone="warning">Edited here</Badge> : null}
 							{item.hidden ? <Badge>Hidden</Badge> : null}
 						</div>
-						<code
-							title={item.command}
-							className="truncate font-mono text-xs text-fg-muted"
-						>
+						<code title={item.command} className="truncate font-mono text-xs text-fg-muted">
 							{item.command}
 						</code>
 					</div>
@@ -92,11 +89,7 @@ export function ActionList({
 							</Button>
 						) : null}
 						{item.source === "personal" ? (
-							<Button
-								size="xs"
-								variant="outlineDestructive"
-								onClick={() => onDelete(item.id)}
-							>
+							<Button size="xs" variant="outlineDestructive" onClick={() => onDelete(item.id)}>
 								Delete
 							</Button>
 						) : null}

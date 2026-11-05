@@ -118,7 +118,11 @@ export function AddActionDialog({
 		<Dialog
 			open={open}
 			onOpenChange={(next) => {
-				if (!next) setDraft({ ...EMPTY_DRAFT });
+				if (!next) {
+					setDraft({ ...EMPTY_DRAFT });
+					setError(null);
+					lastKey.current = "";
+				}
 				onOpenChange(next);
 			}}
 		>
@@ -171,9 +175,7 @@ export function AddActionDialog({
 							<span className="flex size-8 items-center justify-center rounded-md bg-muted text-fg-muted">
 								<ActionIcon name={draft.icon} />
 							</span>
-							<span className="text-xs text-fg-muted">
-								{draft.icon ?? "The default play icon"}
-							</span>
+							<span className="text-xs text-fg-muted">{draft.icon ?? "The default play icon"}</span>
 						</div>
 						<ActionIconPicker
 							selected={draft.icon}

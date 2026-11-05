@@ -88,11 +88,7 @@ export function RemoveRepoDialog({
 					<Button variant="ghost" disabled={busy} onClick={() => onOpenChange(false)}>
 						Cancel
 					</Button>
-					<Button
-						variant="destructive"
-						loading={busy}
-						onClick={() => void confirm()}
-					>
+					<Button variant="destructive" loading={busy} onClick={() => void confirm()}>
 						Remove repository
 					</Button>
 				</DialogFooter>

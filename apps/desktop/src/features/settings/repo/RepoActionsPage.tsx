@@ -18,27 +18,23 @@
  */
 import type { RepoId } from "@conducted/shared";
 import { useEffect, useState } from "react";
-import { useActions, useRepoConfig } from "../../../core/hooks.ts";
 import { useServices } from "../../../core/context.tsx";
+import { useActions, useRepoConfig } from "../../../core/hooks.ts";
 import type { RepoConfig, RunAction } from "../../../core/model.ts";
-import {
-	actionIdsEqual,
-	actionLabel,
-	normalizeActionId,
-} from "../../../core/services/settings.ts";
 import { readHiddenRunActions } from "../../../core/services/repo.ts";
+import { actionIdsEqual, actionLabel, normalizeActionId } from "../../../core/services/settings.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { LoadableView } from "../../../ui/LoadableView.tsx";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
 import { Switch } from "../../../ui/Switch.tsx";
 import { toastError } from "../../../ui/Toast.tsx";
-import { ActionList, type ActionListItem } from "./ActionList.tsx";
 import {
-	AddActionDialog,
 	type ActionDraft,
+	AddActionDialog,
 	draftForAction,
 } from "../../scripts-panel/run/AddActionDialog.tsx";
+import { ActionList, type ActionListItem } from "./ActionList.tsx";
 
 const EMPTY_DRAFT: ActionDraft = {
 	id: null,
@@ -80,11 +76,11 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 
 	const toggleHidden = async (id: string, hidden: boolean) => {
 		if (value.state !== "ready") return;
-		const action = value.data.runScripts.find((candidate) => candidate.id === id);
+		const action = value.data.runScripts.find((candidate) => actionIdsEqual(candidate.id, id));
 		if (action === undefined) return;
 		if (action.origin === "local") {
 			const next = value.data.runScripts.map((candidate) =>
-				candidate.id === id ? { ...candidate, hidden } : candidate,
+				actionIdsEqual(candidate.id, id) ? { ...candidate, hidden } : candidate,
 			);
 			await save({ ...value.data, runScripts: next });
 			return;
@@ -104,7 +100,7 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 
 	const edit = (id: string) => {
 		if (value.state !== "ready") return;
-		const action = value.data.runScripts.find((candidate) => candidate.id === id);
+		const action = value.data.runScripts.find((candidate) => actionIdsEqual(candidate.id, id));
 		if (action === undefined) return;
 		setDraft(draftForAction(action));
 		setDialogOpen(true);
@@ -121,17 +117,17 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 		const existing =
 			nextDraft.id === null
 				? undefined
-				: config.runScripts.find((candidate) => candidate.id === nextDraft.id);
+				: config.runScripts.find((candidate) => actionIdsEqual(candidate.id, nextDraft.id ?? ""));
 		const id = nextDraft.id ?? normalizeActionId(nextDraft.name);
 		const origin: RunAction["origin"] =
-			existing === undefined
-				? "local"
-				: existing.origin === "local"
-					? "local"
-					: "changed_locally";
+			existing === undefined ? "local" : existing.origin === "local" ? "local" : "changed_locally";
+		const typedName = nextDraft.name.trim();
 		const action: RunAction = {
 			id,
-			label: actionLabel(id),
+			label:
+				nextDraft.id !== null && normalizeActionId(nextDraft.name) !== id
+					? typedName
+					: actionLabel(id),
 			command: nextDraft.command.trim(),
 			args: [],
 			cwd: nextDraft.cwd.trim() === "" ? null : nextDraft.cwd.trim(),
@@ -144,11 +140,11 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 			existing === undefined
 				? [...config.runScripts, action]
 				: config.runScripts.map((candidate) =>
-						candidate.id === existing.id ? action : candidate,
+						actionIdsEqual(candidate.id, existing.id) ? action : candidate,
 					);
 		if (action.isDefault) {
 			runScripts = runScripts.map((candidate) => {
-				if (candidate.id === action.id || !candidate.isDefault) return candidate;
+				if (actionIdsEqual(candidate.id, action.id) || !candidate.isDefault) return candidate;
 				return {
 					...candidate,
 					isDefault: false,
@@ -165,14 +161,14 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 		if (value.state !== "ready") return;
 		await save({
 			...value.data,
-			runScripts: value.data.runScripts.filter((candidate) => candidate.id !== id),
+			runScripts: value.data.runScripts.filter((candidate) => !actionIdsEqual(candidate.id, id)),
 		});
 	};
 
 	const setDefault = async (id: string) => {
 		if (value.state !== "ready") return;
 		const runScripts = value.data.runScripts.map((candidate) => {
-			const isDefault = candidate.id === id;
+			const isDefault = actionIdsEqual(candidate.id, id);
 			if (candidate.isDefault === isDefault) return candidate;
 			return {
 				...candidate,
@@ -223,8 +219,7 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 					const items: ActionListItem[] = config.runScripts.map((action) => {
 						const shared = action.origin !== "local";
 						const hidden =
-							action.hidden ||
-							(shared && hiddenIds.some((id) => actionIdsEqual(id, action.id)));
+							action.hidden || (shared && hiddenIds.some((id) => actionIdsEqual(id, action.id)));
 						return {
 							id: action.id,
 							label: action.label,
@@ -278,8 +273,8 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 								<div>
 									<p className="text-sm font-medium text-fg">Use Spotlight testing</p>
 									<p className="text-sm text-fg-muted">
-										Replace Run with Spotlight for this repository so workspace changes are
-										tested in the repository root.
+										Replace Run with Spotlight for this repository so workspace changes are tested
+										in the repository root.
 									</p>
 								</div>
 								<Switch

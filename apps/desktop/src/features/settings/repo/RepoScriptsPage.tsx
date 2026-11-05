@@ -27,8 +27,8 @@ import { useEffect, useState } from "react";
 import { useActions, useRepoConfig } from "../../../core/hooks.ts";
 import type { RepoConfig } from "../../../core/model.ts";
 import { Button } from "../../../ui/Button.tsx";
-import { LoadableView } from "../../../ui/LoadableView.tsx";
 import { Label, Textarea } from "../../../ui/Input.tsx";
+import { LoadableView } from "../../../ui/LoadableView.tsx";
 import { Select } from "../../../ui/Select.tsx";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
 import { Switch } from "../../../ui/Switch.tsx";
@@ -73,30 +73,60 @@ export function RepoScriptsPage({ repoId }: { repoId: RepoId }) {
 		setSaveError(null);
 	};
 
+	/** The saved config with the two text drafts, so a save never drops text typed in the other field. */
+	const withDrafts = (config: RepoConfig): RepoConfig => ({
+		...config,
+		setupScript: setupScript.trim() === "" ? null : setupScript,
+		archiveScript: archiveScript.trim() === "" ? null : archiveScript,
+	});
+
+	const textOrNull = (text: string): string | null => (text.trim() === "" ? null : text);
+
 	const saveText = (field: "setupScript" | "archiveScript", text: string) => {
 		if (value.state !== "ready") return;
-		const next = text.trim() === "" ? null : text;
-		if (value.data[field] === next) return;
-		void save({ ...value.data, [field]: next });
+		const next: RepoConfig = {
+			...value.data,
+			setupScript: textOrNull(field === "setupScript" ? text : setupScript),
+			archiveScript: textOrNull(field === "archiveScript" ? text : archiveScript),
+		};
+		if (
+			next.setupScript === value.data.setupScript &&
+			next.archiveScript === value.data.archiveScript
+		) {
+			return;
+		}
+		void save(next);
 	};
 
 	const setRunMode = (runMode: RepoConfig["runMode"]) => {
-		if (value.state !== "ready" || value.data.runMode === runMode) return;
-		void save({ ...value.data, runMode });
+		if (value.state !== "ready") return;
+		const next = { ...withDrafts(value.data), runMode };
+		if (
+			value.data.runMode === runMode &&
+			next.setupScript === value.data.setupScript &&
+			next.archiveScript === value.data.archiveScript
+		) {
+			return;
+		}
+		void save(next);
 	};
 
 	const setAutoRun = (autoRunAfterSetup: boolean) => {
-		if (value.state !== "ready" || value.data.autoRunAfterSetup === autoRunAfterSetup) return;
-		void save({ ...value.data, autoRunAfterSetup });
+		if (value.state !== "ready") return;
+		const next = { ...withDrafts(value.data), autoRunAfterSetup };
+		if (
+			value.data.autoRunAfterSetup === autoRunAfterSetup &&
+			next.setupScript === value.data.setupScript &&
+			next.archiveScript === value.data.archiveScript
+		) {
+			return;
+		}
+		void save(next);
 	};
 
 	const retry = () => {
 		if (value.state !== "ready") return;
-		void save({
-			...value.data,
-			setupScript: setupScript.trim() === "" ? null : setupScript,
-			archiveScript: archiveScript.trim() === "" ? null : archiveScript,
-		});
+		void save(withDrafts(value.data));
 	};
 
 	return (
@@ -104,8 +134,8 @@ export function RepoScriptsPage({ repoId }: { repoId: RepoId }) {
 			<div className="flex flex-col gap-1">
 				<h1 className="text-2xl font-medium text-fg">Scripts</h1>
 				<p className="text-sm text-fg-muted">
-					Repository scripts run around a workspace's life: setup when it is created, archive
-					before it is archived.
+					Repository scripts run around a workspace's life: setup when it is created, archive before
+					it is archived.
 				</p>
 			</div>
 
@@ -166,9 +196,7 @@ export function RepoScriptsPage({ repoId }: { repoId: RepoId }) {
 
 						<div className="flex items-center justify-between gap-4 border-t border-border pt-4">
 							<div>
-								<p className="text-sm font-medium text-fg">
-									Start the default action after setup
-								</p>
+								<p className="text-sm font-medium text-fg">Start the default action after setup</p>
 								<p className="text-sm text-fg-muted">
 									Start the repository's default action once the setup script has finished.
 								</p>
@@ -182,7 +210,9 @@ export function RepoScriptsPage({ repoId }: { repoId: RepoId }) {
 
 						<div className="rounded-md bg-muted p-3 text-xs text-fg-muted">
 							<p className="font-medium text-fg">Variables in scripts</p>
-							<p className="mt-1 font-mono">{SCRIPT_VARIABLES.map((name) => `$${name}`).join("  ")}</p>
+							<p className="mt-1 font-mono">
+								{SCRIPT_VARIABLES.map((name) => `$${name}`).join("  ")}
+							</p>
 						</div>
 
 						{saveError !== null ? (

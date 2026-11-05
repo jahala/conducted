@@ -12,13 +12,19 @@
  * Children: FilesToCopyField, RemoveRepoDialog.
  * Must handle: root path and workspaces path shown read-only with the warning not to move them; a
  * preview URL template validated with the workspace port variable; a remote name saved to the
- * personal settings file; files to copy as patterns; an icon saved as an emoji; and removal that
- * also removes workspaces (confirm with the count).
+ * personal settings file; files to copy as patterns; an icon choice sent to the repository icon
+ * service (PRJ-05); and removal that also removes workspaces (confirm with the count).
  * Test first: removing a repository with two workspaces asks for confirmation naming the count.
  */
 import type { RepoId } from "@conducted/shared";
 import { useEffect, useState } from "react";
-import { useActions, useRepoConfig, useRepos, useSetting, useWorkspaces } from "../../../core/hooks.ts";
+import {
+	useActions,
+	useRepoConfig,
+	useRepos,
+	useSetting,
+	useWorkspaces,
+} from "../../../core/hooks.ts";
 import type { RepoConfig } from "../../../core/model.ts";
 import { expandPreviewUrl } from "../../../core/services/ports.ts";
 import { Button } from "../../../ui/Button.tsx";
@@ -76,7 +82,10 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 
 	const saveRemote = () => {
 		if (config.state !== "ready") return;
-		const next = remote.trim() === "" ? null : remote.trim();
+		const trimmed = remote.trim();
+		// "origin" is the shown default when the file names no remote, so it is not a change.
+		if (trimmed === (config.data.remoteName ?? "origin")) return;
+		const next = trimmed === "" ? null : trimmed;
 		if (next === config.data.remoteName) return;
 		void save({ ...config.data, remoteName: next });
 	};
@@ -96,7 +105,8 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 		if (!saved.ok) toastError("Couldn't save the repository icon", saved.error);
 	};
 
-	const repoValue = repos.state === "ready" ? repos.data.find((entry) => entry.id === repoId) : undefined;
+	const repoValue =
+		repos.state === "ready" ? repos.data.find((entry) => entry.id === repoId) : undefined;
 	const workspaceCount =
 		workspaces.state === "ready"
 			? workspaces.data.filter((workspace) => workspace.repoId === repoId).length
@@ -282,7 +292,8 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 								</div>
 							)}
 						</LoadableView>
-					)}
+					)
+				}
 			</LoadableView>
 		</div>
 	);

@@ -137,18 +137,13 @@ export function readHiddenRunActions(repoId: RepoId): Result<readonly string[]> 
 		);
 	}
 	if (!Array.isArray(parsed) || !parsed.every((entry) => typeof entry === "string")) {
-		return err(
-			appError("hidden_actions_invalid", "The saved hidden actions are not readable."),
-		);
+		return err(appError("hidden_actions_invalid", "The saved hidden actions are not readable."));
 	}
 	return ok(parsed);
 }
 
 /** Saves the ids of the shared run actions this user hid for one repository. */
-export function writeHiddenRunActions(
-	repoId: RepoId,
-	actionIds: readonly string[],
-): Result<void> {
+export function writeHiddenRunActions(repoId: RepoId, actionIds: readonly string[]): Result<void> {
 	const store = hiddenRunActionsStorage();
 	if (!store.ok) return store;
 	try {
