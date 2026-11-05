@@ -1,30 +1,25 @@
 /**
- * @feature GIT-02 Parsing git output and refreshing a workspace's change state
+ * @feature GIT-02 Parsing git output and refreshing a workspace's change state; GIT-03 Branch sync
  * Owns: pure parsers for the text git prints (name-status, numstat, porcelain status, rev-list
- * counts, commit log, worktree list), and the refresh pipeline that runs the polling commands.
+ * counts, commit log, worktree list), the refresh pipeline that runs the polling commands, and
+ * the ahead/behind/rewritten calculation against the upstream and the target.
  * Behaviour: services-map.md 3.0.5 (how output is parsed), 3.3 (polling commands and schedule),
- * 3.6.4 (ahead and behind), 3.7.7 and 3.15 (minimal command set).
+ * 3.6.4 (ahead and behind), 3.7.7 and 3.15 (minimal command set), 3.8.3 (rewritten remote).
  * Must handle: C-style quoted paths; rename lines in both numstat forms (`a => b` and
  * `dir/{a => b}/f`); binary files (`-` counts); a branch with no upstream (probe exits 128);
  * a detached HEAD (empty `branch --show-current`); no merge base (empty file list plus an error
  * field, never a throw); more than 100 untracked files (listed up to the cap, flagged truncated);
  * untracked files over 300 KB (counted as 501 lines, not read); a failed untracked count, sync
- * probe, distance or log is returned as an error, never a clean-looking zero; a stale answer for
- * a branch that changed while the read ran must be dropped by the caller.
+ * probe, reflog, distance or log is returned as an error, never a clean-looking zero; a diverged
+ * branch whose local tip is absent from its upstream's reflog is flagged rewritten; a stale
+ * answer for a branch that changed while the read ran must be dropped by the caller.
  * Our design choice: the parsers return values or a Result and never throw, and the pipeline
  * gets its runner as a parameter. The refresh interval (5 s for the visible workspace) belongs
  * to services/git.ts.
  * Test first: parseNumstat reads `src/{a => b}/x.ts` as a rename to `src/b/x.ts`.
  */
 import type { FileChange } from "@conducted/protocol";
-import {
-	appError,
-	err,
-	notImplemented,
-	ok,
-	type Result,
-	type WorkspaceId,
-} from "@conducted/shared";
+import { appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
 import type { BranchSync } from "../model.ts";
 import {
 	branchShowCurrent,
@@ -35,11 +30,13 @@ import {
 	logRange,
 	lsFilesUntracked,
 	mergeBase,
+	reflogHashes,
 	revListCount,
 	revListLeftRightCount,
 	revParseGitPath,
 	revParseHeadAndUpstream,
 	statusPorcelain,
+	upstreamFullName,
 } from "./commands.ts";
 import type { GitRunner } from "./runner.ts";
 
@@ -403,17 +400,78 @@ export interface BranchSyncInput {
 	targetRef: string;
 }
 
+/** True when `tip` is one of the values the upstream ref has pointed at (services-map 3.8.3). */
+async function upstreamTipSeen(
+	runner: GitRunner,
+	cwd: string,
+	tip: string,
+): Promise<Result<boolean>> {
+	const upstream = await runner.stdout(upstreamFullName(), { cwd });
+	if (!upstream.ok) return upstream;
+	if (upstream.value.length === 0) return ok(false);
+	const reflog = await runner.stdout(reflogHashes(upstream.value), { cwd });
+	if (!reflog.ok) return reflog;
+	// `git reflog show` prints one hash per line and nothing when the ref has no reflog yet.
+	return ok(reflog.value.split("\n").some((hash) => hash.trim() === tip));
+}
+
 /**
  * Computes ahead and behind against the upstream and against the target (services-map 3.3.2
- * steps 8 and 9, 3.6.4), and whether the remote branch was rewritten: both sides have commits
- * and the local tip is not in the reflog of the remote-tracking ref. A branch with no upstream
- * returns `hasUpstream: false` and zero counts, not an error.
+ * steps 8 and 9, 3.6.4), and whether the remote branch was rewritten. A branch counts as
+ * rewritten when it has diverged (commits on both sides) and the local tip is not in the reflog
+ * of the remote-tracking ref (services-map 3.8.3). A branch with no upstream returns
+ * `hasUpstream: false` and zero counts, not an error.
  */
-export function refreshBranchSync(
-	_runner: GitRunner,
-	_input: BranchSyncInput,
+export async function refreshBranchSync(
+	runner: GitRunner,
+	input: BranchSyncInput,
 ): Promise<Result<{ sync: BranchSync; behindTarget: number }>> {
-	return notImplemented("GIT-03");
+	const cwd = input.workspacePath;
+	const [refs, behindTarget] = await Promise.all([
+		runner.run(revParseHeadAndUpstream(), { cwd }),
+		readBehindTarget(runner, cwd, input.targetRef),
+	]);
+	if (!refs.ok) return refs;
+	if (!behindTarget.ok) return behindTarget;
+
+	if (refs.value.exitCode === 128) {
+		return ok({ sync: emptySync(), behindTarget: behindTarget.value });
+	}
+	if (refs.value.exitCode !== 0) {
+		return err(
+			appError(
+				"git_failed",
+				refs.value.stderr.trim() || `git rev-parse exited with code ${refs.value.exitCode}`,
+			),
+		);
+	}
+
+	const [headOid, upstreamOid] = refs.value.stdout
+		.trim()
+		.split("\n")
+		.filter((line) => line.length > 0);
+	if (headOid === undefined || upstreamOid === undefined) {
+		return err(appError("git_parse", "Unexpected rev-parse HEAD @{u} output."));
+	}
+
+	const counts = await runner.stdout(revListLeftRightCount(upstreamOid, headOid), { cwd });
+	if (!counts.ok) return counts;
+	const parsed = parseLeftRightCount(counts.value);
+	if (!parsed.ok) return parsed;
+
+	const ahead = parsed.value.right;
+	const behind = parsed.value.left;
+	let rewritten = false;
+	if (ahead > 0 && behind > 0) {
+		const seen = await upstreamTipSeen(runner, cwd, headOid);
+		if (!seen.ok) return seen;
+		rewritten = !seen.value;
+	}
+
+	return ok({
+		sync: { ahead, behind, rewritten, hasUpstream: true },
+		behindTarget: behindTarget.value,
+	});
 }
 
 const emptySync = (): BranchSync => ({
@@ -538,41 +596,6 @@ export async function readUntracked(
 	return ok({ files, truncated: all.length > UNTRACKED_FILE_CAP, total: all.length });
 }
 
-/**
- * Reads how far the branch is ahead of and behind its upstream (services-map 3.3.2 step 8).
- * Exit 128 is the one normal "no upstream" answer; every other failure is returned.
- */
-async function readUpstreamSync(runner: GitRunner, cwd: string): Promise<Result<BranchSync>> {
-	const refs = await runner.run(revParseHeadAndUpstream(), { cwd });
-	if (!refs.ok) return refs;
-	if (refs.value.exitCode === 128) return ok(emptySync());
-	if (refs.value.exitCode !== 0) {
-		return err(
-			appError(
-				"git_failed",
-				refs.value.stderr.trim() || `git rev-parse exited with code ${refs.value.exitCode}`,
-			),
-		);
-	}
-	const [headOid, upstreamOid] = refs.value.stdout
-		.trim()
-		.split("\n")
-		.filter((line) => line.length > 0);
-	if (headOid === undefined || upstreamOid === undefined) {
-		return err(appError("git_parse", "Unexpected rev-parse HEAD @{u} output."));
-	}
-	const counts = await runner.stdout(revListLeftRightCount(upstreamOid, headOid), { cwd });
-	if (!counts.ok) return counts;
-	const parsed = parseLeftRightCount(counts.value);
-	if (!parsed.ok) return parsed;
-	return ok({
-		ahead: parsed.value.right,
-		behind: parsed.value.left,
-		rewritten: false,
-		hasUpstream: true,
-	});
-}
-
 /** How many commits the target has that the branch lacks (services-map 3.3.2 step 9). */
 async function readBehindTarget(
 	runner: GitRunner,
@@ -675,13 +698,11 @@ async function readChanges(
 	const compared = await readComparedChanges(runner, cwd, from, null);
 	if (!compared.ok) return compared;
 
-	const [sync, behindTarget, commits] = await Promise.all([
-		readUpstreamSync(runner, cwd),
-		readBehindTarget(runner, cwd, targetRef),
+	const [sync, commits] = await Promise.all([
+		refreshBranchSync(runner, { workspacePath: cwd, targetRef }),
 		readCommits(runner, cwd, targetRef),
 	]);
 	if (!sync.ok) return sync;
-	if (!behindTarget.ok) return behindTarget;
 	if (!commits.ok) return commits;
 
 	return ok({
@@ -694,8 +715,8 @@ async function readChanges(
 		conflictedPaths: compared.value.conflictedPaths,
 		untrackedTruncated: compared.value.untrackedTruncated,
 		commits: commits.value,
-		sync: sync.value,
-		behindTarget: behindTarget.value,
+		sync: sync.value.sync,
+		behindTarget: sync.value.behindTarget,
 	});
 }
 
