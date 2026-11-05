@@ -110,7 +110,14 @@ export function createSidecarRequestHandlers(ports: SidecarHandlerPorts): Sideca
 			const stored = await ports.ingest.ingest(envelope);
 			return { persisted: stored.ok };
 		},
-		getWorkspaceDiff: () => notImplemented("REV-01"),
+		getWorkspaceDiff: async (params) => {
+			const result = await ports.workspaceDiff.diffForSession(
+				params.sessionId,
+				params.file,
+				params.statOnly,
+			);
+			return { diff: result.ok ? result.value : result.error.message };
+		},
 		getDiffComments: () => notImplemented("REV-03"),
 		addDiffComments: () => notImplemented("REV-03"),
 		getTerminalOutput: () => notImplemented("RUN-07"),
@@ -130,7 +137,9 @@ export function createSidecarNotificationHandlers(
 		liveState: () => notImplemented("CHAT-18"),
 		agentSessionId: () => notImplemented("CHAT-02"),
 		progress: () => notImplemented("CHAT-13"),
-		agentInstallsChanged: () => notImplemented("SET-03"),
+		agentInstallsChanged: async (params) => {
+			ports.agentCatalog.setAgentInstalls(params);
+		},
 		agentConfigChanged: () => notImplemented("SIDE-20"),
 		interactionClosed: () => notImplemented("CHAT-11"),
 		goalChanged: () => notImplemented("COMP-10"),

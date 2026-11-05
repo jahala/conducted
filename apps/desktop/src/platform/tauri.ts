@@ -761,13 +761,17 @@ export function createTauriPty(bindings: TauriBindings): Pty {
 }
 
 /** `sidecar_ensure_started`, `sidecar_send { line }`, `sidecar_log_path`, events `sidecar://line` and `sidecar://restart`. */
-export function createTauriSidecar(_bindings: TauriBindings): SidecarTransport {
+export function createTauriSidecar(bindings: TauriBindings): SidecarTransport {
 	return {
-		ensureStarted: () => notImplemented("PLAT-09"),
-		send: () => notImplemented("PLAT-09"),
-		onLine: () => notImplemented("PLAT-09"),
-		onRestart: () => notImplemented("PLAT-09"),
-		logPath: () => notImplemented("PLAT-09"),
+		ensureStarted: () => invokeResult<void>(bindings, COMMANDS.sidecarEnsureStarted),
+		send: (line) => invokeResult<void>(bindings, COMMANDS.sidecarSend, { line }),
+		onLine: (listener) => onEvent<string>(bindings, EVENTS.sidecarLine, listener),
+		onRestart: (listener) => onEvent<unknown>(bindings, EVENTS.sidecarRestart, () => listener()),
+		logPath: async () => {
+			const result = await invokeResult<string>(bindings, COMMANDS.sidecarLogPath);
+			if (!result.ok) throw result.error;
+			return result.value;
+		},
 	};
 }
 

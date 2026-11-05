@@ -344,6 +344,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		contextOf: (id) => ready(lookups.gitContext(id)),
 		agent: sessions,
 		now: () => clock.now(),
+		fs: platform.fs,
 	});
 	const github = new GithubService({
 		git: gitRunner,
@@ -399,8 +400,20 @@ export function createContainer(inputs: ContainerInputs): Container {
 	});
 	const system = new SystemService({ platform, setting });
 	const commands = new CommandRunner({
-		handlers: () => createCommandHandlers(services),
-		context: () => ({ hasWorkspace: false, hasOpenPr: false, hasOpenChat: false }),
+		handlers: () =>
+			createCommandHandlers(services, {
+				pickFolder: (title) => platform.dialogs.pickFolder({ title }),
+			}),
+		context: () => {
+			const workspaces = workspace.store.getState().workspacesById;
+			const viewingSessionId = sessions.store.getState().viewingSessionId;
+			const pullRequests = github.store.getState().byWorkspace;
+			return {
+				hasWorkspace: Object.keys(workspaces).length > 0,
+				hasOpenPr: Object.values(pullRequests).some((entry) => entry.pullRequest !== null),
+				hasOpenChat: viewingSessionId !== null,
+			};
+		},
 	});
 
 	const services: Services = {

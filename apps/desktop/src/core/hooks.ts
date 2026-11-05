@@ -27,6 +27,8 @@
  *   useSetting                         -> services.settings.store
  *   useAgentInstalls, useModels, useSlashCommands -> services.agentCatalog.store
  *   useCommands                        -> toCommandEntries over the command runner's enabled flags
+ *   useShortcutOverrides               -> keybinding_overrides_v1 through useSetting
+ *   useLiveShortcut                    -> liveShortcut over those overrides
  *   useUpdateStatus                    -> services.updates.store
  *   useBranchCommits, useBranches      -> query over services.git (log of the branch, branch list)
  *   useCheckLog                        -> query over services.github (log of one check run)
@@ -57,13 +59,21 @@
  * hook body lives with the feature that implements it (for example NAV-03 for useWorkspaces).
  */
 import { idleLiveState } from "@conducted/protocol";
-import { notImplemented, type WorkspaceId } from "@conducted/shared";
+import { type AppError, appError, notImplemented, type WorkspaceId } from "@conducted/shared";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { useStore } from "zustand";
 import { useStoreWithEqualityFn } from "zustand/traditional";
-import type { Actions, Draft, Loadable, Queries } from "./api.ts";
+import type { Actions, ChangedFile, DiffScope, Draft, Loadable, Queries } from "./api.ts";
 import { useServices } from "./context.tsx";
-import type { GitState, Repo, Session } from "./model.ts";
+import type { BranchCommit, ChatView, GitState, Repo, Session } from "./model.ts";
+import {
+	liveShortcut,
+	parseShortcutOverrides,
+	type ShortcutOverrides,
+	toCommandEntries,
+} from "./registries/commands.ts";
+import { agentKey } from "./services/agent-catalog.ts";
 import type { WorkspaceGitEntry } from "./services/git.ts";
 import { toGitHubAccessView, type WorkspacePrEntry } from "./services/github.ts";
 import type { SessionsState } from "./services/sessions.ts";
@@ -177,7 +187,17 @@ function sessionsOf(
 	return { state: "ready", data };
 }
 
-export const useRepoConfig: Queries["useRepoConfig"] = () => notImplemented("PRJ-04");
+export const useRepoConfig: Queries["useRepoConfig"] = (repoId) => {
+	const service = useServices().services.repo;
+	const config = useStore(service.store, (state) => state.configs[repoId]);
+	const error = useStore(service.store, (state) => state.configErrors?.[repoId]);
+	useEffect(() => {
+		if (config === undefined) void service.loadConfig(repoId);
+	}, [service, repoId, config]);
+	if (error !== undefined) return { state: "error", error };
+	if (config === undefined) return { state: "loading" };
+	return { state: "ready", data: config };
+};
 export const useWorkspaces: Queries["useWorkspaces"] = () => notImplemented("NAV-03");
 export const useWorkspace: Queries["useWorkspace"] = () => notImplemented("WS-01");
 
@@ -210,7 +230,23 @@ export const useSessions: Queries["useSessions"] = (workspaceId) => {
 	const state = useSessionSlice((value) => value);
 	return sessionsOf(state, workspaceId, false);
 };
-export const useChat: Queries["useChat"] = () => notImplemented("CHAT-07");
+export const useChat: Queries["useChat"] = (sessionId) => {
+	const services = useServices();
+	const sessions = services.services.sessions;
+	const state = useSessionSlice((value) => value);
+	useStore(services.services.followUpQueue.store, (queue) => queue.bySession[sessionId]);
+
+	return useMemo<Loadable<ChatView>>(() => {
+		if (state.loadError != null) return { state: "error", error: state.loadError };
+		if (!state.loaded) return { state: "loading" };
+		if (state.sessions[sessionId] === undefined) {
+			return { state: "error", error: appError("session_unknown", "That chat no longer exists.") };
+		}
+		if (state.events[sessionId] === undefined) return { state: "loading" };
+		const data = sessions.chatView(sessionId);
+		return data === null ? { state: "loading" } : { state: "ready", data };
+	}, [state, sessionId, sessions]);
+};
 const EMPTY_DRAFT: Draft = { text: "", attachmentPaths: [] };
 
 export const useDraft: Queries["useDraft"] = (sessionId) => {
@@ -222,7 +258,25 @@ export const useDraft: Queries["useDraft"] = (sessionId) => {
 	return draft ?? EMPTY_DRAFT;
 };
 export const useGitState: Queries["useGitState"] = () => notImplemented("GIT-04");
-export const useChangedFiles: Queries["useChangedFiles"] = () => notImplemented("REV-01");
+const changedFilesKey = (workspaceId: WorkspaceId, scope: DiffScope) =>
+	["git", "workspace", workspaceId, "changes", scope] as const;
+
+export const useChangedFiles: Queries["useChangedFiles"] = (workspaceId, scope) => {
+	const git = useServices().services.git;
+	const query = useQuery<ChangedFile[], AppError>({
+		queryKey: changedFilesKey(workspaceId, scope),
+		queryFn: async () => {
+			const result = await git.changedFiles(workspaceId, scope);
+			if (!result.ok) throw result.error;
+			return result.value;
+		},
+		staleTime: 0,
+		refetchInterval: 5_000,
+	});
+	if (query.isError && query.error !== null) return { state: "error", error: query.error };
+	if (query.data === undefined) return { state: "loading" };
+	return { state: "ready", data: query.data };
+};
 export const useFileDiff: Queries["useFileDiff"] = () => notImplemented("REV-02");
 export const useFileTree: Queries["useFileTree"] = () => notImplemented("REV-06");
 export const useDiffComments: Queries["useDiffComments"] = () => notImplemented("REV-03");
@@ -243,12 +297,78 @@ export const useSetting: Queries["useSetting"] = <T>(key: string): T => {
 	const stored = useStore(services.settings.store, (s) => s.values[key]);
 	return (stored === undefined || stored === null ? services.settings.get<T>(key) : stored) as T;
 };
-export const useAgentInstalls: Queries["useAgentInstalls"] = () => notImplemented("SET-03");
-export const useModels: Queries["useModels"] = () => notImplemented("COMP-02");
+export const useAgentInstalls: Queries["useAgentInstalls"] = () => {
+	const store = useServices().services.agentCatalog.store;
+	return useStore(store, (state) => state.installs);
+};
+export const useModels: Queries["useModels"] = (agent, acpAgent) => {
+	const service = useServices().services.agentCatalog;
+	const key = agentKey(agent, acpAgent);
+	const models = useStore(service.store, (state) => state.models[key]);
+	useEffect(() => {
+		if (models === undefined) void service.loadModels(agent, acpAgent);
+	}, [service, agent, acpAgent, models]);
+	return models ?? { state: "loading" };
+};
 export const useSlashCommands: Queries["useSlashCommands"] = () => notImplemented("COMP-06");
-export const useCommands: Queries["useCommands"] = () => notImplemented("NAV-07");
+/**
+ * The saved key bindings and, when the text cannot be read, the reason. A screen that can show a
+ * notice reads `error` instead of leaving the user with defaults that do not match what they saved.
+ */
+export function useShortcutOverrides(): { overrides: ShortcutOverrides; error: AppError | null } {
+	const stored = useSetting<string>("keybinding_overrides_v1");
+	return useMemo(() => {
+		const parsed = parseShortcutOverrides(stored);
+		return parsed.ok
+			? { overrides: parsed.value, error: null }
+			: { overrides: {}, error: parsed.error };
+	}, [stored]);
+}
+export const useCommands: Queries["useCommands"] = () => {
+	const { services } = useServices();
+	const { overrides } = useShortcutOverrides();
+	return useMemo(
+		() => toCommandEntries((id) => services.commands.isEnabled(id), overrides),
+		[services, overrides],
+	);
+};
+/**
+ * Display form of a command's live first binding, for a key-cap hint. Follows the saved overrides.
+ * Null when the command is unknown or unbound.
+ */
+export function useLiveShortcut(commandId: string): string | null {
+	const { overrides } = useShortcutOverrides();
+	return useMemo(() => liveShortcut(commandId, overrides), [commandId, overrides]);
+}
 export const useUpdateStatus: Queries["useUpdateStatus"] = () => notImplemented("APP-06");
-export const useBranchCommits: Queries["useBranchCommits"] = () => notImplemented("REV-01");
+export const useBranchCommits: Queries["useBranchCommits"] = (workspaceId) => {
+	const git = useServices().services.git;
+	const entry = useStore(git.store, (state) => state.byWorkspace[workspaceId]);
+	return useMemo<Loadable<BranchCommit[]>>(() => {
+		if (entry === undefined || (entry.snapshot === null && entry.error === null)) {
+			return { state: "loading" };
+		}
+		if (entry.snapshot === null) {
+			return {
+				state: "error",
+				error: appError(
+					entry.error?.code ?? "git_failed",
+					entry.error?.message ?? "The branch's commits could not be read.",
+				),
+			};
+		}
+		return {
+			state: "ready",
+			data: entry.snapshot.commits.map((commit) => ({
+				sha: commit.hash,
+				shortSha: commit.hash.slice(0, 7),
+				subject: commit.subject,
+				authorName: commit.authorName,
+				at: commit.authoredAt * 1000,
+			})),
+		};
+	}, [entry]);
+};
 export const useBranches: Queries["useBranches"] = () => notImplemented("WS-02");
 export const useCheckLog: Queries["useCheckLog"] = () => notImplemented("PR-04");
 export const usePullRequestActivity: Queries["usePullRequestActivity"] = () =>

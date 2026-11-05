@@ -166,7 +166,7 @@ describe("SIDE-02 JSON-RPC peer: calls from the app", () => {
 		const peer = sidePeer({
 			cancel: async () => {
 				const { notImplemented } = await import("@conducted/shared");
-				return notImplemented("SIDE-03");
+				return notImplemented("SIDE-02");
 			},
 		});
 		peer.attach(side);
@@ -174,7 +174,7 @@ describe("SIDE-02 JSON-RPC peer: calls from the app", () => {
 		const failure = await rejectionOf(
 			appSide.peer.request("cancel", { sessionId: sid("session-1") }),
 		);
-		expect(failure).toMatchObject({ code: -32001, data: { featureId: "SIDE-03" } });
+		expect(failure).toMatchObject({ code: -32001, data: { featureId: "SIDE-02" } });
 	});
 
 	test("SIDE-02 an expected failure uses our own error code", async () => {

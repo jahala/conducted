@@ -7,18 +7,22 @@ import {
 	COMMANDS,
 	type CommandDef,
 	commandsByCategory,
+	effectiveShortcuts,
 	findShortcutConflicts,
 	formatShortcut,
 	getCommand,
+	liveShortcut,
 	parseShortcut,
+	parseShortcutOverrides,
 	toCommandEntries,
+	withShortcutOverrides,
 } from "./commands.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const backlog = readFileSync(resolve(here, "../../../../../docs/plans/backlog.md"), "utf8");
 const backlogIds = new Set(backlog.match(/^\| [A-Z]+-\d+/gm)?.map((row) => row.slice(2)) ?? []);
 
-describe("command table", () => {
+describe("NAV-07 command table", () => {
 	it("has unique ids", () => {
 		const ids = COMMANDS.map((c) => c.id);
 		expect(new Set(ids).size).toBe(ids.length);
@@ -62,9 +66,52 @@ describe("command table", () => {
 		expect(getCommand("chat.newLine")?.defaultShortcuts).toEqual(["Shift+Enter"]);
 		expect(getCommand("chat.submitOpposite")?.defaultShortcuts).toEqual(["Cmd+Enter"]);
 	});
+
+	it("gives every command the fields the registry promises", () => {
+		for (const command of COMMANDS) {
+			expect(command.id, "id").toMatch(/^[a-z][a-zA-Z0-9]*(\.[a-zA-Z0-9]+)+$/);
+			expect(command.title.trim(), `${command.id} title`).not.toBe("");
+			expect(COMMAND_CATEGORIES, `${command.id} category`).toContain(command.category);
+			expect(typeof command.configurable, `${command.id} configurable`).toBe("boolean");
+			expect(command.scope.trim(), `${command.id} scope`).not.toBe("");
+			expect(backlogIds.has(command.feature), `${command.id} feature`).toBe(true);
+		}
+	});
+
+	it("registers the loadout, snippet, goal, sidecar log and port forwarding commands", () => {
+		const loadouts = [1, 2, 3, 4, 5].map((n) => getCommand(`chat.selectLoadout${n}`));
+		expect(loadouts.map((command) => command?.defaultShortcuts)).toEqual([
+			["Cmd+Ctrl+1"],
+			["Cmd+Ctrl+2"],
+			["Cmd+Ctrl+3"],
+			["Cmd+Ctrl+4"],
+			["Cmd+Ctrl+5"],
+		]);
+		expect(loadouts.every((command) => command?.category === "Chat")).toBe(true);
+		expect(loadouts.every((command) => command?.feature === "COMP-02")).toBe(true);
+
+		expect(getCommand("chat.insertSnippet")).toMatchObject({
+			defaultShortcuts: ["Cmd+;"],
+			scope: "chat-input",
+			feature: "COMP-09",
+		});
+		expect(getCommand("chat.saveGoal")).toMatchObject({
+			defaultShortcuts: ["Cmd+Enter"],
+			scope: "chat-goal",
+			feature: "COMP-10",
+		});
+		expect(getCommand("app.openSidecarLogs")).toMatchObject({
+			defaultShortcuts: [],
+			feature: "APP-03",
+		});
+		expect(getCommand("workspace.togglePortForwarding")).toMatchObject({
+			defaultShortcuts: ["Cmd+Y"],
+			feature: "CLOUD-10",
+		});
+	});
 });
 
-describe("getCommand and commandsByCategory", () => {
+describe("NAV-07 getCommand and commandsByCategory", () => {
 	it("returns undefined for an unknown id", () => {
 		expect(getCommand("no.such.command")).toBeUndefined();
 	});
@@ -82,7 +129,7 @@ describe("getCommand and commandsByCategory", () => {
 	});
 });
 
-describe("parseShortcut and formatShortcut", () => {
+describe("NAV-07 parseShortcut and formatShortcut", () => {
 	const cases: [string, string][] = [
 		["Cmd+Shift+P", "⌘⇧P"],
 		["Cmd+Alt+/", "⌥⌘/"],
@@ -155,7 +202,64 @@ describe("parseShortcut and formatShortcut", () => {
 	});
 });
 
-describe("findShortcutConflicts", () => {
+describe("NAV-07 shortcut overrides", () => {
+	it("treats empty text as no overrides and rejects malformed text", () => {
+		expect(parseShortcutOverrides("")).toEqual({ ok: true, value: {} });
+		expect(parseShortcutOverrides("   ")).toEqual({ ok: true, value: {} });
+		const broken = parseShortcutOverrides("{");
+		expect(broken.ok).toBe(false);
+		if (!broken.ok) expect(broken.error.code).toBe("shortcut_overrides_invalid");
+		for (const bad of [
+			'["Cmd+K"]',
+			'"Cmd+K"',
+			"null",
+			'{"workspace.create": "Cmd+K"}',
+			'{"a": [1]}',
+		]) {
+			const result = parseShortcutOverrides(bad);
+			expect(result.ok, bad).toBe(false);
+		}
+	});
+
+	it("reads a valid object from the setting text", () => {
+		expect(parseShortcutOverrides('{"workspace.create":["Cmd+Shift+K"],"app.quit":[]}')).toEqual({
+			ok: true,
+			value: { "workspace.create": ["Cmd+Shift+K"], "app.quit": [] },
+		});
+	});
+
+	it("replaces the shortcuts of a configurable command and respects an empty list", () => {
+		const overrides = { "workspace.create": ["Cmd+Shift+K"], "view.zoomIn": [] };
+		const create = getCommand("workspace.create");
+		const zoomIn = getCommand("view.zoomIn");
+		if (create === undefined || zoomIn === undefined) throw new Error("commands missing");
+		expect(effectiveShortcuts(create, overrides)).toEqual(["Cmd+Shift+K"]);
+		expect(effectiveShortcuts(zoomIn, overrides)).toEqual([]);
+		expect(effectiveShortcuts(create, {})).toEqual(["Cmd+N"]);
+	});
+
+	it("never rebinds a fixed command", () => {
+		const quit = getCommand("app.quit");
+		if (quit === undefined) throw new Error("quit missing");
+		expect(effectiveShortcuts(quit, { "app.quit": ["Cmd+Shift+K"] })).toEqual(["Cmd+Q"]);
+	});
+
+	it("checks conflicts against the overridden table", () => {
+		const applied = withShortcutOverrides(COMMANDS, { "workspace.create": ["Cmd+K"] });
+		const found = findShortcutConflicts(applied);
+		expect(found.some((pair) => pair.ids.includes("workspace.create"))).toBe(true);
+	});
+
+	it("reads the live binding for a key-cap hint", () => {
+		expect(liveShortcut("workspace.create", {})).toBe("⌘N");
+		expect(liveShortcut("workspace.create", { "workspace.create": ["Cmd+Shift+K"] })).toBe("⌘⇧K");
+		expect(liveShortcut("workspace.create", { "workspace.create": [] })).toBeNull();
+		expect(liveShortcut("app.quit", { "app.quit": ["Cmd+Shift+K"] })).toBe("⌘Q");
+		expect(liveShortcut("no.such.command", {})).toBeNull();
+	});
+});
+
+describe("NAV-07 findShortcutConflicts", () => {
 	const make = (id: string, scope: CommandDef["scope"], shortcuts: string[]): CommandDef => ({
 		id,
 		title: id,
@@ -181,7 +285,7 @@ describe("findShortcutConflicts", () => {
 	});
 });
 
-describe("toCommandEntries", () => {
+describe("NAV-07 toCommandEntries", () => {
 	it("maps the display shortcut, the null shortcut and the enabled flag", () => {
 		const entries = toCommandEntries((id) => id !== "workspace.create");
 		expect(entries).toHaveLength(COMMANDS.length);
@@ -203,5 +307,21 @@ describe("toCommandEntries", () => {
 	it("shows the first shortcut when a command has several", () => {
 		const entry = toCommandEntries(() => true).find((e) => e.id === "tab.next");
 		expect(entry?.shortcut).toBe("⌃⇥");
+	});
+
+	it("takes the live binding from the overrides and keeps the shipped one for reset", () => {
+		const entry = toCommandEntries(() => true, {
+			"workspace.create": ["Cmd+Shift+K"],
+		}).find((e) => e.id === "workspace.create");
+		expect(entry?.shortcut).toBe("⌘⇧K");
+		expect(entry?.defaultShortcut).toBe("⌘N");
+	});
+
+	it("reports an unbound command when the user clears its binding", () => {
+		const entry = toCommandEntries(() => true, { "workspace.create": [] }).find(
+			(e) => e.id === "workspace.create",
+		);
+		expect(entry?.shortcut).toBeNull();
+		expect(entry?.defaultShortcut).toBe("⌘N");
 	});
 });

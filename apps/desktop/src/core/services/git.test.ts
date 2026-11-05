@@ -104,6 +104,7 @@ function makeService(
 		contextOf: options.contextOf ?? (async () => ok(context())),
 		agent: {} as never,
 		now: options.now ?? (() => Date.now()),
+		fs: { trash: async () => ok(undefined) },
 	});
 }
 

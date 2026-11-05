@@ -45,7 +45,7 @@ pub mod updater;
 
 use error::CommandResult;
 use serde::Serialize;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager, State};
 
 /// Raises the soft limit of open files towards the hard limit. Returns the new soft limit.
 pub fn raise_file_limit() -> CommandResult<u64> {
@@ -101,9 +101,11 @@ fn app_info(app: AppHandle) -> CommandResult<AppInfoPayload> {
 }
 
 /// Quits the app now. The UI calls this after it handled `app://quit-requested` (confirmed with
-/// the user and flushed its work), so nothing here asks again.
+/// the user and flushed its work), so nothing here asks again. The sidecar is stopped first, so it
+/// cannot outlive the app.
 #[tauri::command]
-fn app_quit(app: AppHandle) -> CommandResult<()> {
+async fn app_quit(app: AppHandle, state: State<'_, sidecar::SidecarState>) -> CommandResult<()> {
+    sidecar::shutdown(&state).await?;
     app.exit(0);
     Ok(())
 }
@@ -134,6 +136,7 @@ pub fn run() {
         .manage(menu::MenuState::default())
         .manage(logger::LoggerState::default())
         .setup(|app| {
+            navigation::install_guard(app.handle())?;
             shell::start_background_capture(app.handle().clone());
             Ok(())
         })
@@ -190,6 +193,12 @@ pub fn run() {
             attachments::image_resize,
             menu::menu_set_shortcuts,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Conducted");
+        .build(tauri::generate_context!())
+        .expect("error while building Conducted")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                let state = app.state::<sidecar::SidecarState>();
+                let _ = tauri::async_runtime::block_on(sidecar::shutdown(&state));
+            }
+        });
 }

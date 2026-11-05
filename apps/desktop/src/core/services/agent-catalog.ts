@@ -1,23 +1,28 @@
 /**
  * @feature SET-03 Agent catalogue: installs, models, slash commands, sign-in
  * Owns: what the sidecar says about agents: which are installed and signed in, the model list per
- * agent, the slash commands of a workspace, and starting a sign-in flow.
+ * agent, the slash commands of a workspace, and starting a sign-in flow. Also the display name
+ * and catalogue key that the Agents page and the model picker share.
  * Behaviour: other-runners.md 5 (model catalog, detection), claude-runner.md 7 (slash commands),
  * services-map.md 5B.5 (model catalog and favourites), ui-map.md 6 (Agents page states).
- * Must handle: the sidecar is not up yet (the state stays "loading", requests wait for the
- * tunnel); an `agentInstallsChanged` notification replaces the list without a request; a model
+ * Must handle: the sidecar is not up yet (the install list stays "loading" until the request
+ * answers, and a request that fails shows its error); an `agentInstallsChanged` notification
+ * replaces the list without a request; a model
  * list request for an agent that is not installed returns an Err with the sidecar's code
  * `agentNotInstalled`; slow model lists (ACP) must not block the picker's other agents; only the
- * newest answer for a key wins (a late answer for an older request is dropped); a sign-in flow
- * returns instructions and optionally a URL, a user code or a terminal command, ends with
- * finishLogin or cancelLogin, and a key an agent hands back (Cursor) goes only to the Keychain.
+ * newest answer for an install list wins (a late answer for an older request is dropped); a
+ * sign-in flow returns instructions and optionally a URL, a user code or a terminal command, ends
+ * with finishLogin or cancelLogin. A key an agent hands back (Cursor) has no Keychain home until
+ * SET-09 builds it, so this service refuses the outcome instead of dropping the secret on the
+ * floor.
  * Our design choice: the catalogue caches per agent key in memory only. Nothing about models is
  * saved to disk.
- * Test first: two requests for one agent key, answered out of order, leave the newer answer.
+ * Test first: two refreshes of the install list, answered out of order, leave the newer answer;
+ * two model lists for one agent key, answered out of order, leave the newer answer.
  */
 import type { AgentInstall, AgentLogin, ModelInfo, SlashCommand } from "@conducted/protocol";
 import type { AcpAgent, AgentKind, Result, SessionId } from "@conducted/shared";
-import { notImplemented } from "@conducted/shared";
+import { appError, err, notImplemented, ok } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Loadable, ProviderKeyRef } from "../api.ts";
 import type { AgentConfigFile, ConfigSyncCategory, ConfigSyncResult } from "../model.ts";
@@ -33,6 +38,16 @@ export interface AgentCatalogState {
 export const agentKey = (agent: AgentKind, acpAgent?: AcpAgent): string =>
 	acpAgent === undefined ? agent : `${agent}:${acpAgent}`;
 
+/** The name the user sees. ACP agents share one agent kind but keep their own names. */
+export function agentDisplayName(choice: { agent: AgentKind; acpAgent?: AcpAgent }): string {
+	if (choice.agent === "claude") return "Claude Code";
+	if (choice.agent === "codex") return "Codex";
+	if (choice.agent === "cursor") return "Cursor";
+	if (choice.acpAgent === "pi") return "Pi";
+	if (choice.acpAgent === "opencode") return "OpenCode";
+	return "ACP agent";
+}
+
 export interface AgentCatalogServiceDeps {
 	sidecar: Pick<SidecarClient, "request">;
 	/** Workspace folder of a chat, for slash commands. */
@@ -42,6 +57,10 @@ export interface AgentCatalogServiceDeps {
 export class AgentCatalogService {
 	readonly store: StoreApi<AgentCatalogState>;
 	readonly #deps: AgentCatalogServiceDeps;
+	/** The newest model request per agent key. An older answer never changes the store. */
+	readonly #modelRequests = new Map<string, number>();
+	/** The newest install request. An older answer that arrives late changes nothing. */
+	#installRequest = 0;
 
 	constructor(deps: AgentCatalogServiceDeps) {
 		this.#deps = deps;
@@ -53,18 +72,48 @@ export class AgentCatalogService {
 	}
 
 	/** Backs `Actions.agents.refresh`. */
-	refresh(): Promise<Result<void>> {
-		void this.#deps;
-		return notImplemented("SET-03");
+	async refresh(): Promise<Result<void>> {
+		const request = ++this.#installRequest;
+		const result = await this.#deps.sidecar.request("getAgentInstalls", {});
+		if (request !== this.#installRequest) return ok(undefined);
+		if (!result.ok) {
+			this.store.setState({ installs: { state: "error", error: result.error } });
+			return result;
+		}
+		this.store.setState({ installs: { state: "ready", data: result.value.agents } });
+		return ok(undefined);
 	}
 
-	/** Called by the notification handler. */
-	setInstalls(_agents: AgentInstall[]): void {
-		notImplemented("SET-03");
+	/** Called by the notification handler. It is newer truth than any request in flight. */
+	setInstalls(agents: AgentInstall[]): void {
+		this.#installRequest += 1;
+		this.store.setState({ installs: { state: "ready", data: agents } });
 	}
 
-	loadModels(_agent: AgentKind, _acpAgent?: AcpAgent): Promise<Result<ModelInfo[]>> {
-		return notImplemented("COMP-02");
+	async loadModels(agent: AgentKind, acpAgent?: AcpAgent): Promise<Result<ModelInfo[]>> {
+		const key = agentKey(agent, acpAgent);
+		const request = (this.#modelRequests.get(key) ?? 0) + 1;
+		this.#modelRequests.set(key, request);
+		this.store.setState((state) => ({
+			models: { ...state.models, [key]: { state: "loading" } },
+		}));
+		const result = await this.#deps.sidecar.request(
+			"listModels",
+			acpAgent === undefined ? { agent } : { agent, acpAgent },
+		);
+		if (this.#modelRequests.get(key) !== request) {
+			return result.ok ? ok(result.value.models) : err(result.error);
+		}
+		if (!result.ok) {
+			this.store.setState((state) => ({
+				models: { ...state.models, [key]: { state: "error", error: result.error } },
+			}));
+			return err(result.error);
+		}
+		this.store.setState((state) => ({
+			models: { ...state.models, [key]: { state: "ready", data: result.value.models } },
+		}));
+		return ok(result.value.models);
 	}
 
 	loadSlashCommands(_sessionId: SessionId): Promise<Result<SlashCommand[]>> {
@@ -72,21 +121,35 @@ export class AgentCatalogService {
 	}
 
 	/** Backs `Actions.agents.login`. */
-	login(_agent: AgentKind, _acpAgent?: AcpAgent): Promise<Result<AgentLogin>> {
-		return notImplemented("SET-03");
+	async login(agent: AgentKind, acpAgent?: AcpAgent): Promise<Result<AgentLogin>> {
+		return this.#deps.sidecar.request("startAgentLogin", { agent, acpAgent });
 	}
 
-	/** Backs `Actions.agents.finishLogin`. A key Cursor hands back goes to the Keychain, never to the store. */
-	finishLogin(
-		_loginId: string,
-		_code?: string,
+	/** Backs `Actions.agents.finishLogin`. A key Cursor hands back is refused, never stored. */
+	async finishLogin(
+		loginId: string,
+		code?: string,
 	): Promise<Result<{ outcome: "signed_in" | "failed" | "cancelled"; message: string | null }>> {
-		return notImplemented("SET-03");
+		const result = await this.#deps.sidecar.request("finishAgentLogin", {
+			loginId,
+			...(code === undefined ? {} : { code }),
+		});
+		if (!result.ok) return result;
+		if (result.value.apiKey !== undefined) {
+			return err(
+				appError(
+					"agent_key_not_stored",
+					"This agent signs in with an API key, and storing that key is not built yet. Enter the key in the agent's own settings.",
+				),
+			);
+		}
+		return ok({ outcome: result.value.outcome, message: result.value.message ?? null });
 	}
 
 	/** Backs `Actions.agents.cancelLogin`. */
-	cancelLogin(_loginId: string): Promise<Result<void>> {
-		return notImplemented("SET-03");
+	async cancelLogin(loginId: string): Promise<Result<void>> {
+		const result = await this.#deps.sidecar.request("cancelAgentLogin", { loginId });
+		return result.ok ? ok(undefined) : result;
 	}
 
 	/** Backs `Actions.agents.setProviderKey`. */

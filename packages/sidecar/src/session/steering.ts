@@ -42,6 +42,7 @@ export type SteerFallback =
 export type SteerFailure =
 	| { kind: "no_active_turn"; sessionIdle: boolean }
 	| { kind: "reverted" }
+	| { kind: "unsupported" }
 	| { kind: "cancelled" }
 	| { kind: "other"; message: string };
 
@@ -52,6 +53,7 @@ export function resolveSteerFailure(failure: SteerFailure): SteerFallback {
 				? { action: "new_turn" }
 				: { action: "fail", reason: "The chat has no running turn to steer." };
 		case "reverted":
+		case "unsupported":
 			return { action: "queue" };
 		case "cancelled":
 			return { action: "drop" };

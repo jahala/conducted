@@ -7,7 +7,7 @@
  * default scope.
  * Test first: with a commit scope the bar shows the subject and clicking Back calls onBack.
  */
-import { notImplemented } from "@conducted/shared";
+import { ArrowLeftIcon } from "../../../ui/icons.tsx";
 
 export interface ScopeBackBarProps {
 	/** Short text naming the narrowed scope, e.g. a commit subject. */
@@ -15,6 +15,20 @@ export interface ScopeBackBarProps {
 	onBack: () => void;
 }
 
-export function ScopeBackBar(_props: ScopeBackBarProps): never {
-	return notImplemented("REV-01");
+export function ScopeBackBar({ label, onBack }: ScopeBackBarProps) {
+	return (
+		<div className="flex h-8 shrink-0 items-center gap-2 border-b border-separator px-2">
+			<button
+				type="button"
+				onClick={onBack}
+				className="flex items-center gap-1.5 rounded-sm px-1 py-0.5 text-xs text-fg-muted hover:bg-hover hover:text-fg"
+			>
+				<ArrowLeftIcon className="size-3.5" />
+				All changes
+			</button>
+			<span className="min-w-0 flex-1 truncate text-xs text-fg-subtle" title={label}>
+				{label}
+			</span>
+		</div>
+	);
 }

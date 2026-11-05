@@ -6,7 +6,8 @@
  * options: current branch, target branch, uncommitted, per commit, per turn).
  * Must handle: a turn whose end checkpoint does not exist yet (compare to the working tree);
  * a turn with no start checkpoint (the chat gave no restore point, so no comparison);
- * a branch scope without a merge base (no comparison, with a reason); binary files.
+ * a branch scope without a merge base (no comparison, with a reason); a root commit (compare
+ * against git's empty tree); binary files.
  * Our design choice: the merge base is looked up by the caller and passed in, so this module is
  * pure. The comparison for the "branch" and "target" scopes is merge base against the working tree.
  * Test first: a turn scope with no end checkpoint compares start to the working tree.
@@ -28,7 +29,15 @@ export interface ComparisonContext {
 	mergeBaseWithScopeTarget: string | null;
 	/** Whether the refs of the turn's start and end checkpoints exist in the repository. */
 	turnCheckpoints: { startExists: boolean; endExists: boolean };
+	/**
+	 * Whether a commit scope has a parent. Omitted means it does. A root commit compares against
+	 * git's empty tree, because `<sha>^` names nothing.
+	 */
+	commitParentExists?: boolean;
 }
+
+/** Git's empty tree. A root commit's whole tree is a change against it. */
+const EMPTY_TREE_SHA = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 
 export function resolveComparison(
 	scope: DiffScope,
@@ -48,7 +57,10 @@ export function resolveComparison(
 		case "uncommitted":
 			return ok({ from: "HEAD", to: null });
 		case "commit":
-			return ok({ from: `${scope.sha}^`, to: scope.sha });
+			return ok({
+				from: context.commitParentExists === false ? EMPTY_TREE_SHA : `${scope.sha}^`,
+				to: scope.sha,
+			});
 		case "turn": {
 			if (!context.turnCheckpoints.startExists) {
 				return err(appError("no_checkpoint", "This turn has no restore point to compare with."));

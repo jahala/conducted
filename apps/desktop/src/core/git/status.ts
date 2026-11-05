@@ -481,7 +481,8 @@ async function untrackedFile(
 	return ok({ path, status: "added", linesAdded: lines.value, linesRemoved: 0, binary: false });
 }
 
-async function readUntracked(
+/** The untracked files of a worktree, with their line counts and the truncation flag. */
+export async function readUntracked(
 	runner: GitRunner,
 	cwd: string,
 ): Promise<Result<{ files: FileChange[]; truncated: boolean }>> {
@@ -575,6 +576,52 @@ interface SnapshotParts {
 	operation: GitOperation;
 }
 
+/** The changed files between two points, with the working-tree extras when `to` is null. */
+export interface ComparedChanges {
+	files: FileChange[];
+	conflictedPaths: string[];
+	untrackedTruncated: boolean;
+}
+
+/**
+ * Reads a diff between two points. `to` null means the working tree, which adds the conflicted
+ * paths and the untracked files (services-map 3.3.2 steps 1 to 3).
+ *
+ * One home for the merge rules, so the polling snapshot and the Changes tab cannot drift on
+ * renames, binary files or conflicts.
+ */
+export async function readComparedChanges(
+	runner: GitRunner,
+	cwd: string,
+	from: string,
+	to: string | null,
+): Promise<Result<ComparedChanges>> {
+	const [nameStatus, numstat] = await Promise.all([
+		runner.stdout(diffNameStatus(from, to), { cwd }),
+		runner.stdout(diffNumstat(from, to), { cwd }),
+	]);
+	if (!nameStatus.ok) return nameStatus;
+	if (!numstat.ok) return numstat;
+
+	const files = mergeChanges(parseNameStatus(nameStatus.value), parseNumstat(numstat.value));
+	if (to !== null) {
+		return ok({ files, conflictedPaths: [], untrackedTruncated: false });
+	}
+
+	const [porcelain, untracked] = await Promise.all([
+		runner.stdout(statusPorcelain(), { cwd }),
+		readUntracked(runner, cwd),
+	]);
+	if (!porcelain.ok) return porcelain;
+	if (!untracked.ok) return untracked;
+
+	return ok({
+		files: [...files, ...untracked.value.files],
+		conflictedPaths: parseConflictedPaths(porcelain.value),
+		untrackedTruncated: untracked.value.truncated,
+	});
+}
+
 async function readChanges(
 	runner: GitRunner,
 	cwd: string,
@@ -582,16 +629,8 @@ async function readChanges(
 	parts: SnapshotParts,
 	targetRef: string,
 ): Promise<Result<ChangesSnapshot>> {
-	const [nameStatus, numstat, porcelain, untracked] = await Promise.all([
-		runner.stdout(diffNameStatus(from), { cwd }),
-		runner.stdout(diffNumstat(from), { cwd }),
-		runner.stdout(statusPorcelain(), { cwd }),
-		readUntracked(runner, cwd),
-	]);
-	if (!nameStatus.ok) return nameStatus;
-	if (!numstat.ok) return numstat;
-	if (!porcelain.ok) return porcelain;
-	if (!untracked.ok) return untracked;
+	const compared = await readComparedChanges(runner, cwd, from, null);
+	if (!compared.ok) return compared;
 
 	const [sync, behindTarget, commits] = await Promise.all([
 		readUpstreamSync(runner, cwd),
@@ -604,12 +643,9 @@ async function readChanges(
 
 	return ok({
 		...parts,
-		files: [
-			...mergeChanges(parseNameStatus(nameStatus.value), parseNumstat(numstat.value)),
-			...untracked.value.files,
-		],
-		conflictedPaths: parseConflictedPaths(porcelain.value),
-		untrackedTruncated: untracked.value.truncated,
+		files: compared.value.files,
+		conflictedPaths: compared.value.conflictedPaths,
+		untrackedTruncated: compared.value.untrackedTruncated,
 		commits: commits.value,
 		sync: sync.value,
 		behindTarget: behindTarget.value,
