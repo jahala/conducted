@@ -10,7 +10,10 @@
  * Test first: submitting with text calls onSend with that text, and submitting empty calls it
  * with null.
  */
-import { notImplemented } from "@conducted/shared";
+import { useState } from "react";
+import { Button } from "../../ui/Button.tsx";
+import { Dialog, DialogContent, DialogFooter } from "../../ui/Dialog.tsx";
+import { Textarea } from "../../ui/Input.tsx";
 
 export interface ReviewPromptDialogProps {
 	open: boolean;
@@ -18,6 +21,35 @@ export interface ReviewPromptDialogProps {
 	onSend: (extraInstructions: string | null) => void;
 }
 
-export function ReviewPromptDialog(_props: ReviewPromptDialogProps): never {
-	return notImplemented("REV-01");
+export function ReviewPromptDialog({ open, onOpenChange, onSend }: ReviewPromptDialogProps) {
+	const [text, setText] = useState("");
+
+	const send = () => {
+		const trimmed = text.trim();
+		onSend(trimmed.length === 0 ? null : trimmed);
+	};
+
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent
+				title="Edit before sending"
+				description="Add instructions for the review. Leave it empty to use the prompt as it is."
+				onConfirm={send}
+			>
+				<Textarea
+					value={text}
+					onChange={(event) => setText(event.target.value)}
+					placeholder="Extra instructions for the review"
+					aria-label="Extra instructions"
+					rows={6}
+				/>
+				<DialogFooter>
+					<Button variant="outline" onClick={() => onOpenChange(false)}>
+						Cancel
+					</Button>
+					<Button onClick={send}>Send</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
 }

@@ -9,8 +9,10 @@
  * tabs with the arrow keys, and an archived workspace (tabs disabled).
  * Test first: with changedCount 3 the Changes tab shows the badge "3".
  */
-import { notImplemented } from "@conducted/shared";
 import type { GitPanelTab } from "../../core/model.ts";
+import { Badge } from "../../ui/Badge.tsx";
+import { Tabs, TabsList, TabsTrigger } from "../../ui/Tabs.tsx";
+import { ReviewButton } from "./ReviewButton.tsx";
 
 export interface GitPanelTabsProps {
 	active: GitPanelTab;
@@ -22,6 +24,44 @@ export interface GitPanelTabsProps {
 	onReviewWithEdit: () => void;
 }
 
-export function GitPanelTabs(_props: GitPanelTabsProps): never {
-	return notImplemented("REV-01");
+const countLabel = (count: number): string => (count > 99 ? "99+" : String(count));
+
+export function GitPanelTabs({
+	active,
+	onSelect,
+	changedCount,
+	checksFailing,
+	reviewDisabled,
+	onReview,
+	onReviewWithEdit,
+}: GitPanelTabsProps) {
+	return (
+		<Tabs value={active} onValueChange={(value) => onSelect(value as GitPanelTab)}>
+			<div className="flex shrink-0 items-center justify-between gap-2 border-b border-separator pr-2">
+				<TabsList className="border-b-0">
+					<TabsTrigger value="files">All files</TabsTrigger>
+					<TabsTrigger value="changes">
+						Changes
+						{changedCount > 0 ? <Badge>{countLabel(changedCount)}</Badge> : null}
+					</TabsTrigger>
+					<TabsTrigger value="checks">
+						Checks
+						{checksFailing ? (
+							<span
+								role="img"
+								aria-label="A check failed"
+								className="size-1.5 rounded-full bg-danger"
+							/>
+						) : null}
+					</TabsTrigger>
+				</TabsList>
+				<ReviewButton
+					disabled={reviewDisabled}
+					disabledReason={reviewDisabled ? "A review is already running." : null}
+					onReview={onReview}
+					onReviewWithEdit={onReviewWithEdit}
+				/>
+			</div>
+		</Tabs>
+	);
 }

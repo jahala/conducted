@@ -306,6 +306,18 @@ export const diffAgainstRef = (
 		...(path === undefined ? [] : ["--", path]),
 	]);
 
+/** The branch's changes against the merge base, including uncommitted work (services-map 3.4.6). */
+export const diffWorkingTree = (base: string, statOnly: boolean, path?: string): GitCommand =>
+	git([
+		"diff",
+		"--no-ext-diff",
+		"--no-textconv",
+		"--no-color",
+		...(statOnly ? ["--stat"] : []),
+		base,
+		...(path === undefined ? [] : ["--", `:(literal)${path}`]),
+	]);
+
 // ---------------------------------------------------------------- push and pull (3.6)
 
 export const pushHeadTo = (remote: string, remoteBranch: string): GitCommand =>

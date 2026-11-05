@@ -57,13 +57,14 @@
  * hook body lives with the feature that implements it (for example NAV-03 for useWorkspaces).
  */
 import { idleLiveState } from "@conducted/protocol";
-import { notImplemented, type WorkspaceId } from "@conducted/shared";
+import { type AppError, appError, notImplemented, type WorkspaceId } from "@conducted/shared";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { useStore } from "zustand";
 import { useStoreWithEqualityFn } from "zustand/traditional";
-import type { Actions, Draft, Loadable, Queries } from "./api.ts";
+import type { Actions, ChangedFile, DiffScope, Draft, Loadable, Queries } from "./api.ts";
 import { useServices } from "./context.tsx";
-import type { GitState, Repo, Session } from "./model.ts";
+import type { BranchCommit, GitState, Repo, Session } from "./model.ts";
 import type { WorkspaceGitEntry } from "./services/git.ts";
 import { toGitHubAccessView, type WorkspacePrEntry } from "./services/github.ts";
 import type { SessionsState } from "./services/sessions.ts";
@@ -222,7 +223,25 @@ export const useDraft: Queries["useDraft"] = (sessionId) => {
 	return draft ?? EMPTY_DRAFT;
 };
 export const useGitState: Queries["useGitState"] = () => notImplemented("GIT-04");
-export const useChangedFiles: Queries["useChangedFiles"] = () => notImplemented("REV-01");
+const changedFilesKey = (workspaceId: WorkspaceId, scope: DiffScope) =>
+	["git", "workspace", workspaceId, "changes", scope] as const;
+
+export const useChangedFiles: Queries["useChangedFiles"] = (workspaceId, scope) => {
+	const git = useServices().services.git;
+	const query = useQuery<ChangedFile[], AppError>({
+		queryKey: changedFilesKey(workspaceId, scope),
+		queryFn: async () => {
+			const result = await git.changedFiles(workspaceId, scope);
+			if (!result.ok) throw result.error;
+			return result.value;
+		},
+		staleTime: 0,
+		refetchInterval: 5_000,
+	});
+	if (query.isError && query.error !== null) return { state: "error", error: query.error };
+	if (query.data === undefined) return { state: "loading" };
+	return { state: "ready", data: query.data };
+};
 export const useFileDiff: Queries["useFileDiff"] = () => notImplemented("REV-02");
 export const useFileTree: Queries["useFileTree"] = () => notImplemented("REV-06");
 export const useDiffComments: Queries["useDiffComments"] = () => notImplemented("REV-03");
@@ -248,7 +267,34 @@ export const useModels: Queries["useModels"] = () => notImplemented("COMP-02");
 export const useSlashCommands: Queries["useSlashCommands"] = () => notImplemented("COMP-06");
 export const useCommands: Queries["useCommands"] = () => notImplemented("NAV-07");
 export const useUpdateStatus: Queries["useUpdateStatus"] = () => notImplemented("APP-06");
-export const useBranchCommits: Queries["useBranchCommits"] = () => notImplemented("REV-01");
+export const useBranchCommits: Queries["useBranchCommits"] = (workspaceId) => {
+	const git = useServices().services.git;
+	const entry = useStore(git.store, (state) => state.byWorkspace[workspaceId]);
+	return useMemo<Loadable<BranchCommit[]>>(() => {
+		if (entry === undefined || (entry.snapshot === null && entry.error === null)) {
+			return { state: "loading" };
+		}
+		if (entry.snapshot === null) {
+			return {
+				state: "error",
+				error: appError(
+					entry.error?.code ?? "git_failed",
+					entry.error?.message ?? "The branch's commits could not be read.",
+				),
+			};
+		}
+		return {
+			state: "ready",
+			data: entry.snapshot.commits.map((commit) => ({
+				sha: commit.hash,
+				shortSha: commit.hash.slice(0, 7),
+				subject: commit.subject,
+				authorName: commit.authorName,
+				at: commit.authoredAt * 1000,
+			})),
+		};
+	}, [entry]);
+};
 export const useBranches: Queries["useBranches"] = () => notImplemented("WS-02");
 export const useCheckLog: Queries["useCheckLog"] = () => notImplemented("PR-04");
 export const usePullRequestActivity: Queries["usePullRequestActivity"] = () =>
