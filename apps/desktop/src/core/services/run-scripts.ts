@@ -17,11 +17,19 @@
  * it. Run history is kept in memory plus the `settings` table is not used for it.
  * Test first: starting an action while another runs in the same workspace stops the first.
  */
-import { notImplemented, type Result, type WorkspaceId } from "@conducted/shared";
+import {
+	err,
+	notImplemented,
+	ok,
+	type Result,
+	type TerminalId,
+	type WorkspaceId,
+} from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
+import type { FileSystem } from "../../platform/platform.ts";
 import type { RunState } from "../api.ts";
-import type { RepoConfig } from "../model.ts";
-import type { TerminalsService } from "./terminals.ts";
+import type { Repo, RepoConfig, SetupView, Workspace } from "../model.ts";
+import { buildScriptEnv, type TerminalsService } from "./terminals.ts";
 
 /** Milliseconds a stop request waits for the process to exit before it reports "not confirmed". */
 export const STOP_WATCHDOG_MS = 20_000;
@@ -53,15 +61,32 @@ export interface RunScriptsState {
 	history: Readonly<Record<string, readonly string[]>>;
 }
 
+/** The most output lines kept in a setup log. */
+export const SETUP_LOG_LINES = 20_000;
+
+/** What one setup run leaves behind for the Setup tab. */
+export interface SetupRunResult {
+	exitCode: number | null;
+	terminalId: TerminalId | null;
+	logPath: string | null;
+	log: SetupView["log"];
+}
+
 export interface RunScriptsServiceDeps {
-	terminals: Pick<TerminalsService, "runScript" | "stop" | "outputFor">;
+	terminals: Pick<TerminalsService, "runScript" | "close" | "stop" | "outputFor">;
 	/** Config of the repository a workspace belongs to. */
 	configFor: (workspaceId: WorkspaceId) => Promise<Result<RepoConfig>>;
+	/** The workspace and its project, for the folder and the script variables. */
+	workspaceFor: (workspaceId: WorkspaceId) => Promise<Result<Workspace>>;
+	repoFor: (workspaceId: WorkspaceId) => Promise<Result<Repo>>;
+	fs: Pick<FileSystem, "writeTextAtomic"> & { paths: FileSystem["paths"] };
 }
 
 export class RunScriptsService {
 	readonly store: StoreApi<RunScriptsState>;
 	readonly #deps: RunScriptsServiceDeps;
+	readonly #running = new Map<WorkspaceId, Promise<Result<SetupRunResult>>>();
+	readonly #lastTerminal = new Map<WorkspaceId, TerminalId>();
 
 	constructor(deps: RunScriptsServiceDeps) {
 		this.#deps = deps;
@@ -80,8 +105,64 @@ export class RunScriptsService {
 	}
 
 	/** Runs the repo's setup script in a terminal of kind "setup". Backs the workspace service. */
-	runSetup(_workspaceId: WorkspaceId): Promise<Result<{ exitCode: number | null }>> {
-		return notImplemented("WS-03");
+	runSetup(workspaceId: WorkspaceId): Promise<Result<SetupRunResult>> {
+		const existing = this.#running.get(workspaceId);
+		if (existing !== undefined) return existing;
+		const run = this.#runSetup(workspaceId).finally(() => {
+			this.#running.delete(workspaceId);
+		});
+		this.#running.set(workspaceId, run);
+		return run;
+	}
+
+	async #runSetup(workspaceId: WorkspaceId): Promise<Result<SetupRunResult>> {
+		const config = await this.#deps.configFor(workspaceId);
+		if (!config.ok) return config;
+		const script = config.value.setupScript?.trim() ?? "";
+		if (script === "") {
+			return ok({ exitCode: null, terminalId: null, logPath: null, log: "missing" });
+		}
+
+		const workspace = await this.#deps.workspaceFor(workspaceId);
+		if (!workspace.ok) return workspace;
+		const repo = await this.#deps.repoFor(workspaceId);
+		if (!repo.ok) return repo;
+
+		const old = this.#lastTerminal.get(workspaceId);
+		if (old !== undefined) {
+			await this.#deps.terminals.close(old);
+			this.#lastTerminal.delete(workspaceId);
+		}
+
+		const env = buildScriptEnv({
+			workspace: workspace.value,
+			repoRootPath: repo.value.rootPath,
+			defaultBranch: repo.value.defaultBranch,
+			userEnv: {},
+		});
+		const started = await this.#deps.terminals.runScript({
+			workspaceId,
+			kind: "setup",
+			title: "Setup",
+			command: script,
+			cwd: workspace.value.path,
+			env,
+		});
+		if (!started.ok) return started;
+		this.#lastTerminal.set(workspaceId, started.value.terminalId);
+
+		const exitCode = await started.value.exit;
+		const logPath = `${this.#deps.fs.paths.temp}/conducted-setup-${workspaceId}.log`;
+		const transcript = await this.#deps.terminals.outputFor(workspaceId, "auto", SETUP_LOG_LINES);
+		const wrote = transcript.ok
+			? await this.#deps.fs.writeTextAtomic(logPath, transcript.value.output)
+			: err(transcript.error);
+		return ok({
+			exitCode,
+			terminalId: started.value.terminalId,
+			logPath: wrote.ok ? logPath : null,
+			log: wrote.ok ? "saved" : "missing",
+		});
 	}
 
 	/** Runs the repo's archive script before a workspace is archived. */

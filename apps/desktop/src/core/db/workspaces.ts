@@ -431,7 +431,13 @@ export function createWorkspaceRepository(db: Database, deps: RepositoryDeps): W
 				"Saving a setup log path",
 			),
 		setActiveSession: async () => notImplemented("NAV-02"),
-		setFilesCopied: async () => notImplemented("WS-03"),
+		setFilesCopied: (id, count) =>
+			executeExisting(
+				db,
+				WORKSPACES_SQL.setFilesCopied,
+				[count, now(), id],
+				"Saving the copied file count",
+			),
 		touchActivity: (id, at) =>
 			executeVoid(db, WORKSPACES_SQL.touchActivity, [at, id], "Touching workspace activity"),
 		delete: (id) => executeVoid(db, WORKSPACES_SQL.delete, [id], "Removing a workspace"),

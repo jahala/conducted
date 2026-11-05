@@ -7,12 +7,12 @@
  */
 import { idleLiveState } from "@conducted/protocol";
 import { appError, notImplemented, type WorkspaceId } from "@conducted/shared";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useStore } from "zustand";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 import type { Loadable, Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
-import type { GitState, Workspace } from "../model.ts";
+import type { GitState, SetupView, Workspace } from "../model.ts";
 import type { WorkspaceGitEntry } from "../services/git.ts";
 import type { WorkspacePrEntry } from "../services/github.ts";
 import type { SessionsState } from "../services/sessions.ts";
@@ -123,4 +123,49 @@ export const useWorkspaceStatus: Queries["useWorkspaceStatus"] = (workspaceId) =
 
 export const useInstalledApps: Queries["useInstalledApps"] = () => notImplemented("WS-08");
 export const useBacklogWorkspaces: Queries["useBacklogWorkspaces"] = () => notImplemented("WS-11");
-export const useSetupState: Queries["useSetupState"] = () => notImplemented("WS-03");
+export const useSetupState: Queries["useSetupState"] = (workspaceId) => {
+	const container = useServices();
+	const workspaceStore = container.services.workspace.store;
+	const repoStore = container.services.repo.store;
+	const loaded = useStore(workspaceStore, (state) => state.loaded);
+	const workspace = useStore(workspaceStore, (state) => state.workspacesById[workspaceId]);
+	const run = useStore(workspaceStore, (state) => state.setupRuns?.[workspaceId]);
+	const config = useStore(repoStore, (state) =>
+		workspace === undefined ? undefined : state.configs[workspace.repoId],
+	);
+	const configError = useStore(repoStore, (state) =>
+		workspace === undefined ? undefined : state.configErrors?.[workspace.repoId],
+	);
+
+	useEffect(() => {
+		if (workspace !== undefined && config === undefined && configError === undefined) {
+			void container.services.repo.loadConfig(workspace.repoId);
+		}
+	}, [container, workspace, config, configError]);
+
+	return useMemo<Loadable<SetupView>>(() => {
+		if (!loaded) return { state: "loading" };
+		if (workspace === undefined) {
+			return {
+				state: "error",
+				error: appError("workspace_unknown", "That workspace no longer exists."),
+			};
+		}
+		if (config === undefined) {
+			if (configError !== undefined) return { state: "error", error: configError };
+			return { state: "loading" };
+		}
+		return {
+			state: "ready",
+			data: {
+				state: run?.state ?? "idle",
+				hasScript: config.setupScript !== null && config.setupScript.trim() !== "",
+				exitCode: run?.exitCode ?? null,
+				filesCopied: workspace.filesCopied,
+				terminalId: run?.terminalId ?? null,
+				log: run?.log ?? "missing",
+				interruptedReason: run?.interruptedReason ?? null,
+			},
+		};
+	}, [loaded, workspace, run, config, configError]);
+};
