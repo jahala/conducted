@@ -123,7 +123,15 @@ export function createSidecarRequestHandlers(ports: SidecarHandlerPorts): Sideca
 		},
 		getDiffComments: () => notImplemented("REV-03"),
 		addDiffComments: () => notImplemented("REV-03"),
-		getTerminalOutput: () => notImplemented("RUN-07"),
+		getTerminalOutput: async (params) => {
+			const result = await ports.terminalOutput.outputForSession(
+				params.sessionId,
+				params.source,
+				params.maxLines,
+			);
+			if (result.ok) return result.value;
+			return { output: result.error.message, source: "", running: false };
+		},
 		setTargetBranch: () => notImplemented("GIT-08"),
 	};
 }
