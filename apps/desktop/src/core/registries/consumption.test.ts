@@ -63,15 +63,12 @@ const KNOWN_UNUSED_SETTINGS: readonly string[] = [
 
 /** Commands of a done feature that no handler or caller names yet. */
 const KNOWN_UNUSED_COMMANDS: readonly string[] = [
-	"chat.cycleEffort",
-	"chat.openModelPicker",
 	"chat.question.focusOther",
 	"chat.question.next",
 	"chat.question.previous",
 	"chat.question.selectOption",
 	"dialog.confirm",
 	"review.nextFile",
-	"review.openDiff",
 	"review.previousFile",
 	"review.showChanges",
 	"review.toggleViewed",
