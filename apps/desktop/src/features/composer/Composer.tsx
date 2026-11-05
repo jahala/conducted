@@ -1,7 +1,7 @@
 /**
  * @feature COMP-01 Composer
  * Owns: The message box at the bottom of a chat: editor, toolbar (plus menu, model picker, mode
- * chips, MCP status) and the send or stop button.
+ * chips, ACP options, context wheel, MCP status) and the send or stop button.
  * Behaviour: ui-map.md 3.5 (Composer: TipTap editor, placeholder, toolbar, send or queue button,
  * stop button), 3.4 (send button icon and tooltip switch between 'Send message', 'Queue message'
  * and 'Save edit').
@@ -40,11 +40,8 @@ import { WrenchIcon } from "../../ui/icons.tsx";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { toastError } from "../../ui/Toast.tsx";
-<<<<<<< HEAD
-import { AcpOptions } from "./AcpOptions.tsx";
-=======
 import { ContextWheel } from "../chat/ContextWheel.tsx";
->>>>>>> node/chat.14
+import { AcpOptions } from "./AcpOptions.tsx";
 import { ComposerEditor } from "./ComposerEditor.tsx";
 import { buildComposerExtensions } from "./composer-extensions.ts";
 import { ModeChips } from "./ModeChips.tsx";

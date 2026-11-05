@@ -50,12 +50,9 @@
  * Read state is NAV-11's: mark a chat or a workspace read or unread, and remember the chat on
  * screen for notifications.
  * SIDE-20 owns `applyAgentConfig`, which stores a config the agent changed by itself.
-<<<<<<< HEAD
  * AGENT-17 owns `loadAcpConfigOptions`, `setAcpOption` and the `acpConfigOptions` part of the
  * store: an ACP chat's own options beyond the model, fetched and kept per chat.
-=======
  * COMP-06 owns `restartAgent`: reset the sidecar's session and warm the agent again with resume.
->>>>>>> node/comp.06
  */
 import {
 	type AcpConfigOption,
@@ -1721,7 +1718,7 @@ export class SessionsService implements AgentMessenger {
 			sessionId: id,
 			config: session.config,
 			workspace: workspace.value,
-			launch: launchFor(session),
+			launch: await launchFor(session),
 			...(session.agentSessionId === null
 				? {}
 				: { resume: { agentSessionId: session.agentSessionId } }),
