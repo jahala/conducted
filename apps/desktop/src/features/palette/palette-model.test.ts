@@ -277,7 +277,8 @@ describe("NAV-08 palette model", () => {
 		});
 		expect(labels(groups, "Chats in this workspace")).toEqual(["Fix the login form"]);
 		expect(labels(groups, "Open in")).toEqual(["Finder", "Cursor"]);
-		const cursor = groups.flatMap((group) => group.items).find((item) => item.label === "Cursor");
+		const openIn = groups.find((group) => group.heading === "Open in");
+		const cursor = openIn?.items.find((item) => item.label === "Cursor");
 		expect(cursor?.shortcut).toBe("⌘O");
 	});
 

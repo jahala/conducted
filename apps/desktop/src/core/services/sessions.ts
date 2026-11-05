@@ -51,6 +51,7 @@
  * screen for notifications.
  * SIDE-20 owns `applyAgentConfig`, which stores a config the agent changed by itself.
 <<<<<<< HEAD
+<<<<<<< HEAD
  * AGENT-17 owns `loadAcpConfigOptions`, `setAcpOption` and the `acpConfigOptions` part of the
  * store: an ACP chat's own options beyond the model, fetched and kept per chat.
  * SIDE-21 owns the launch every send and warm carries (`launchFor`: a launch that cannot be built
@@ -60,6 +61,11 @@
 =======
  * COMP-06 owns `restartAgent`: reset the sidecar's session and warm the agent again with resume.
 >>>>>>> node/comp.06
+=======
+ * AGENT-17 owns `loadAcpConfigOptions`, `setAcpOption` and the `acpConfigOptions` part of the
+ * store: an ACP chat's own options beyond the model, fetched and kept per chat.
+ * COMP-06 owns `restartAgent`: reset the sidecar's session and warm the agent again with resume.
+>>>>>>> node/join.s1-ui-1
  */
 import {
 	type AcpConfigOption,
@@ -1732,7 +1738,7 @@ export class SessionsService implements AgentMessenger {
 			sessionId: id,
 			config: session.config,
 			workspace: workspace.value,
-			launch: launchFor(session),
+			launch: await launchFor(session),
 			...(session.agentSessionId === null
 				? {}
 				: { resume: { agentSessionId: session.agentSessionId } }),

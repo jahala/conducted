@@ -9,15 +9,22 @@
  * Must handle: IME composition (Enter must not send); Shift+Enter line break; undo and redo
  * (StarterKit's UndoRedo); the draft text is saved on a short pause (use-draft-sync.ts); screen
  * reader name 'composer'.
- * Moved: `@` file mentions, `#` PR and issue mentions, `/` slash commands, paste of files and
- * images, and long pasted text becoming an attachment belong to COMP-04, COMP-05, COMP-06 and
- * COMP-07.
+ * The composer passes the trigger extensions here: `@` file mentions (COMP-04) and `/` slash
+ * commands (COMP-06). Without them the editor is plain text, as it was before those triggers.
+ * Moved: `#` PR and issue mentions (COMP-05), paste of files and images, and long pasted text
+ * becoming an attachment (COMP-07).
  * Test first: Typing 'hello' and pressing Enter calls onSubmit('submit') with the text 'hello';
  * Shift+Enter inserts a line break instead.
  */
 
 import type { SessionId } from "@conducted/shared";
-import { type Editor, EditorContent, useEditor, useEditorState } from "@tiptap/react";
+import {
+	type Editor,
+	EditorContent,
+	type Extensions,
+	useEditor,
+	useEditorState,
+} from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import type { KeyboardEvent } from "react";
 import { useEffect } from "react";
@@ -31,7 +38,29 @@ export interface ComposerEditorProps {
 	sendWith?: SendWith;
 	/** The editor, for the composer to read its text and to restore a draft. */
 	onEditorReady?: (editor: Editor | null) => void;
+	/** The trigger extensions the composer supplies (COMP-04, COMP-06). Default: plain text. */
+	extensions?: Extensions;
 }
+
+/** Plain text with no marks: the editor's own extensions when the caller supplies none. */
+const plainExtensions: Extensions = [
+	StarterKit.configure({
+		blockquote: false,
+		bold: false,
+		bulletList: false,
+		code: false,
+		codeBlock: false,
+		heading: false,
+		horizontalRule: false,
+		italic: false,
+		link: false,
+		listItem: false,
+		listKeymap: false,
+		orderedList: false,
+		strike: false,
+		underline: false,
+	}),
+];
 
 export function ComposerEditor({
 	sessionId,
@@ -39,27 +68,11 @@ export function ComposerEditor({
 	onSubmit,
 	sendWith = "enter",
 	onEditorReady,
+	extensions,
 }: ComposerEditorProps) {
 	const editor = useEditor(
 		{
-			extensions: [
-				StarterKit.configure({
-					blockquote: false,
-					bold: false,
-					bulletList: false,
-					code: false,
-					codeBlock: false,
-					heading: false,
-					horizontalRule: false,
-					italic: false,
-					link: false,
-					listItem: false,
-					listKeymap: false,
-					orderedList: false,
-					strike: false,
-					underline: false,
-				}),
-			],
+			extensions: extensions ?? plainExtensions,
 			content: "",
 			editorProps: {
 				attributes: {
@@ -71,7 +84,7 @@ export function ComposerEditor({
 				},
 			},
 		},
-		[sessionId],
+		[sessionId, extensions],
 	);
 
 	const empty = useEditorState({
