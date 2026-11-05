@@ -90,7 +90,6 @@ import type {
 	Session,
 	Workspace,
 } from "../model.ts";
-import { allocatePort } from "./ports.ts";
 import type { SetupRunResult } from "./run-scripts.ts";
 
 export interface PlaceNames {
@@ -658,8 +657,8 @@ export interface WorkspaceServiceDeps {
 	placeNames: PlaceNames;
 	sessions: WorkspaceSessionsPort;
 	/**
-	 * RUN-03's port service. The composition root still passes it, but creation picks its block
-	 * from the stored workspaces because RUN-03's allocator is not built yet.
+	 * RUN-03's port service. Creation asks it for the workspace's block, so the stored ports and
+	 * the ports already listening on this Mac are both respected.
 	 */
 	ports?: { allocateForNewWorkspace(): Promise<Result<number>> };
 	/** The repository's effective config, for the remote name. Supplied by the composition root. */
@@ -805,9 +804,16 @@ export class WorkspaceService {
 		);
 		if (!branch.ok) return branch;
 
-		const ports = await this.#deps.repos.workspaces.listPorts();
-		if (!ports.ok) return ports;
-		const port = allocatePort(new Set(ports.value));
+		const portService = this.#deps.ports;
+		if (portService === undefined) {
+			return err(
+				appError(
+					"ports_unavailable",
+					"A workspace port cannot be chosen because the port service is not available.",
+				),
+			);
+		}
+		const port = await portService.allocateForNewWorkspace();
 		if (!port.ok) return port;
 
 		const worktreePath = worktreeFolderFor(root, repo.name, folder.value);

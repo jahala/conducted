@@ -346,7 +346,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		toml: inputs.toml,
 		git: gitRunner,
 	});
-	const ports = new PortService({ platform });
+	const ports = new PortService({ platform, repos: repositories });
 	const terminals = new TerminalsService({
 		platform,
 		repos: repositories,
@@ -411,6 +411,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 		repoFor: async (workspaceId) => lookups.repoOf(workspaceId),
 		fs: platform.fs,
 		shell: platform.shell,
+		ports,
+		log,
 	});
 	const repo: RepoService = new RepoService({
 		platform,

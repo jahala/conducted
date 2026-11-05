@@ -17,6 +17,8 @@
  */
 import type { TerminalId, WorkspaceId } from "@conducted/shared";
 import { useState } from "react";
+import { useStore } from "zustand";
+import { useServices } from "../../core/context.tsx";
 import {
 	useActions,
 	useRunState,
@@ -41,6 +43,8 @@ export function ScriptsPanel({ workspaceId }: { workspaceId: WorkspaceId }) {
 	const run = useRunState(workspaceId);
 	const tabFreakMode = useSetting<boolean>("experimental_tab_freak_mode");
 	const actions = useActions();
+	const runService = useServices().services.runScripts;
+	const portError = useStore(runService.store, (state) => state.portErrors[workspaceId]);
 	const [picked, setPicked] = useState<ScriptsPanelTabId | null>(null);
 	const [collapsed, setCollapsed] = useState(false);
 
@@ -57,7 +61,8 @@ export function ScriptsPanel({ workspaceId }: { workspaceId: WorkspaceId }) {
 	const runActions =
 		run.state === "ready" ? run.data.actions.filter((action) => !action.hidden) : [];
 	const runActive = run.state === "ready" && run.data.running.length > 0;
-	const showPorts = run.state === "ready" && run.data.detectedPorts.length > 0;
+	const showPorts =
+		run.state === "ready" && (run.data.detectedPorts.length > 0 || portError !== undefined);
 	const starting =
 		workspace.state === "ready" && workspace.data.state === "initializing"
 			? true
