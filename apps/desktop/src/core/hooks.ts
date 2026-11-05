@@ -61,9 +61,9 @@ import { notImplemented, type WorkspaceId } from "@conducted/shared";
 import { useMemo } from "react";
 import { useStore } from "zustand";
 import { useStoreWithEqualityFn } from "zustand/traditional";
-import type { Actions, Queries } from "./api.ts";
+import type { Actions, Loadable, Queries } from "./api.ts";
 import { useServices } from "./context.tsx";
-import type { GitState } from "./model.ts";
+import type { GitState, Repo } from "./model.ts";
 import type { WorkspaceGitEntry } from "./services/git.ts";
 import { toGitHubAccessView, type WorkspacePrEntry } from "./services/github.ts";
 import type { SessionsState } from "./services/sessions.ts";
@@ -131,7 +131,19 @@ function gitStateOf(
 	};
 }
 
-export const useRepos: Queries["useRepos"] = () => notImplemented("PRJ-01");
+export const useRepos: Queries["useRepos"] = () => {
+	const repo = useServices().services.repo;
+	return useStore(repo.store, (state): Loadable<Repo[]> => {
+		if (!state.loaded) return { state: "loading" };
+		if (state.error !== undefined && state.error !== null) {
+			return { state: "error", error: state.error };
+		}
+		const data = state.order
+			.map((id) => state.reposById[id])
+			.filter((row): row is Repo => row !== undefined);
+		return { state: "ready", data };
+	});
+};
 export const useRepoConfig: Queries["useRepoConfig"] = () => notImplemented("PRJ-04");
 export const useWorkspaces: Queries["useWorkspaces"] = () => notImplemented("NAV-03");
 export const useWorkspace: Queries["useWorkspace"] = () => notImplemented("WS-01");
