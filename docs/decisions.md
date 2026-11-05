@@ -324,3 +324,9 @@ Why: a gate must check the same rules wherever it runs.
 Context: step 2's audits returned about 140 findings, and fixing every one cost a fixer per feature and most of an hour. Many were test gaps and wording that do not change behaviour.
 Chosen: each audit marks every finding MUST (a bug, a false header claim, a banned pattern, duplicated logic, an unsafe read or write) or LATER (everything else). Fixers handle every MUST. LATER findings are committed unchanged in `docs/reports/audits/` beside the step's PR, so a later contributor can take them up. A MOVE line from a fixer that names a backlog id becomes a checklist item on that feature, added by script; one without an owner goes to the morning report.
 Why: the night's money and time go to behaviour, and nothing an audit found is lost.
+
+## D046. The night stops after step 5 (2026-11-05)
+
+Context: the night had a 15 USD DeepSeek ceiling and a 07:00 stop. After step 4 it had spent 12.3 USD at 04:56. Step 5 (10 features) fit under both: its builds cost about 1 USD and it merged before 06:30. A sixth step would cost about 2 to 3 USD more, past the ceiling, and could not finish its audit and CI rounds before 07:00.
+Chosen: step 5 is the night's last. The 10 remaining first-slice features stay open for the next run, which regenerates the batches (`bun scripts/overnight/plan-batches.ts --write`).
+Why: the stop rules come before the goal's "done when". A half-built step would leave an unmerged branch and unclosed issues.
