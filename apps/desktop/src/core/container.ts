@@ -350,6 +350,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		toml: inputs.toml,
 		git: gitRunner,
 	});
+<<<<<<< HEAD
 	/**
 	 * Builds how one chat's agent starts (SIDE-21): the program the user chose, the provider, the
 	 * Environment page's variables and the provider keys that belong to that agent. Secrets come
@@ -449,6 +450,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 		};
 	};
 	const ports = new PortService({ platform });
+=======
+	const ports = new PortService({ platform, repos: repositories });
+>>>>>>> node/run.03
 	const terminals = new TerminalsService({
 		platform,
 		repos: repositories,
@@ -538,6 +542,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 		repoFor: async (workspaceId) => lookups.repoOf(workspaceId),
 		fs: platform.fs,
 		shell: platform.shell,
+		ports,
+		log,
 	});
 	const repo: RepoService = new RepoService({
 		platform,
