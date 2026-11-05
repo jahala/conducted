@@ -134,6 +134,7 @@ pub fn run() {
         .manage(menu::MenuState::default())
         .manage(logger::LoggerState::default())
         .setup(|app| {
+            navigation::install_guard(app.handle())?;
             shell::start_background_capture(app.handle().clone());
             Ok(())
         })
