@@ -12,7 +12,6 @@
  */
 import {
 	err,
-	notImplemented,
 	ok,
 	type RepoId,
 	type Result,
