@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Conducted uses the microphone when you dictate a message.</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>Conducted lets coding agents read and write files in your Desktop folder.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>Conducted lets coding agents read and write files in your Documents folder.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>Conducted lets coding agents read and write files in your Downloads folder.</string>
+</dict>
+</plist>
