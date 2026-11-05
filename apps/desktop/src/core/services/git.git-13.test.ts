@@ -301,8 +301,14 @@ describe("GIT-13 fetchIfStale", () => {
 		let now = start;
 		let attempts = 0;
 		const { runner } = fetchRunner();
+		// FakeGitRunner is a class, so a spread would drop its methods: each one is passed on.
 		const failing: GitRunner = {
-			...runner,
+			run: (command, options) => runner.run(command, options),
+			stdout: (command, options) => runner.stdout(command, options),
+			start: (command, options) => runner.start(command, options),
+			withWorktreeLock: (worktreePath, work) => runner.withWorktreeLock(worktreePath, work),
+			withWorktreeAndRepoLocks: (worktreePath, repoPath, work) =>
+				runner.withWorktreeAndRepoLocks(worktreePath, repoPath, work),
 			runChecked: async (command, options) => {
 				const result = await runner.runChecked(command, options as GitRunOptions);
 				if (command.args[0] !== "fetch") return result;
