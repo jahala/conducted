@@ -149,8 +149,24 @@ export function createSidecarRequestHandlers(ports: SidecarHandlerPorts): Sideca
 			}
 			return { diff: result.value };
 		},
-		getDiffComments: () => notImplemented("REV-03"),
-		addDiffComments: () => notImplemented("REV-03"),
+		getDiffComments: async (params) => {
+			const result = await ports.diffComments.forSession(params.sessionId, params.file);
+			if (!result.ok) {
+				throw new JSONRPCErrorException(result.error.message, RPC_ERRORS.internalError, {
+					appErrorCode: result.error.code,
+				});
+			}
+			return { comments: result.value };
+		},
+		addDiffComments: async (params) => {
+			const result = await ports.diffComments.addForSession(params.sessionId, params.comments);
+			if (!result.ok) {
+				throw new JSONRPCErrorException(result.error.message, RPC_ERRORS.internalError, {
+					appErrorCode: result.error.code,
+				});
+			}
+			return { added: result.value };
+		},
 		getTerminalOutput: async (params) => {
 			const result = await ports.terminalOutput.outputForSession(
 				params.sessionId,
