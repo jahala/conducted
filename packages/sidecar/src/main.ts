@@ -13,9 +13,6 @@
  * Our design choice: the entry only dispatches. All behaviour lives in modes/, so tests call the
  * mode functions without starting a process.
  */
-import { runAppToolsMcpMode } from "./modes/app-tools-mcp-mode.ts";
-import { runLoggerMode } from "./modes/logger-mode.ts";
-import { runSidecarMode } from "./modes/sidecar-mode.ts";
 import { printVersion, VERSION_FLAG } from "./packaging.ts";
 
 export const MODES = ["sidecar", "logger", "app-tools-mcp"] as const;
@@ -61,9 +58,12 @@ if (import.meta.main) {
 		process.argv,
 		process.env,
 		{
-			sidecar: runSidecarMode,
-			logger: runLoggerMode,
-			"app-tools-mcp": runAppToolsMcpMode,
+			sidecar: async (env, args) =>
+				(await import("./modes/sidecar-mode.ts")).runSidecarMode(env, args),
+			logger: async (env, args) =>
+				(await import("./modes/logger-mode.ts")).runLoggerMode(env, args),
+			"app-tools-mcp": async (env, args) =>
+				(await import("./modes/app-tools-mcp-mode.ts")).runAppToolsMcpMode(env, args),
 		},
 		(text) => process.stderr.write(text),
 	);
