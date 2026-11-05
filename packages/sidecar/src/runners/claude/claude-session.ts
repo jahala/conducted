@@ -29,6 +29,8 @@
  *    never runs in bypassPermissions; an effort change that needs a restart restarts the process
  *    before the message is sent
  *  - an approved plan records the permission mode the CLI switched to
+ *  - a plan mode the agent chose (an init that reports "plan", or an EnterPlanMode call) updates the
+ *    session config and reports it through onConfigChanged; an approved plan reports leaving it
  *  - steer() pushes a fresh user message into the open turn and reports when the transcript mirror
  *    shows the agent read it (AGENT-05); with no open turn it throws NoActiveTurnError
  * Test first: with a scripted query function that yields init, assistant text and a result for
@@ -464,6 +466,7 @@ export class ClaudeSession implements AgentSession {
 
 	private handleMessage(message: SDKMessage): void {
 		this.noteSessionId(message);
+		this.notePlanMode(message);
 		const callbacks = this.callbacks;
 		const tasks = this.backgroundTasks.handle(message);
 		if (tasks !== null) callbacks?.onBackgroundTasks(tasks);
@@ -472,6 +475,37 @@ export class ClaudeSession implements AgentSession {
 		for (const agentMessage of this.deps.translator.translate(message)) {
 			callbacks.onMessage(agentMessage);
 		}
+	}
+
+	/**
+	 * The agent can enter plan mode by itself. An init message that reports plan mode, or an
+	 * EnterPlanMode call, tells the app so its stored config stays true.
+	 */
+	private notePlanMode(message: SDKMessage): void {
+		if (
+			message.type === "system" &&
+			message.subtype === "init" &&
+			message.permissionMode === "plan"
+		) {
+			// The CLI is already in plan mode, so only the bookkeeping is updated.
+			this.appliedPermissionMode = "plan";
+			this.changePlanMode(true);
+			return;
+		}
+		if (message.type !== "assistant" || message.parent_tool_use_id != null) return;
+		for (const block of message.message.content) {
+			if (block.type === "tool_use" && block.name === "EnterPlanMode") {
+				this.appliedPermissionMode = "plan";
+				this.changePlanMode(true);
+			}
+		}
+	}
+
+	/** Records a plan mode the agent chose and tells the app, once per change. */
+	private changePlanMode(planMode: boolean): void {
+		if (this.config.planMode === planMode) return;
+		this.config = { ...this.config, planMode };
+		this.start.onConfigChanged?.(this.config, planMode ? "entered_plan_mode" : "left_plan_mode");
 	}
 
 	/** Reports the agent's own session id once, so the app can store it for resume. */
@@ -610,9 +644,11 @@ export class ClaudeSession implements AgentSession {
 
 	/**
 	 * Switches the live process's permission mode and records it, so a plan approval leaves the
-	 * session knowing the mode the CLI is in. The app notice for that approval is SIDE-20.
+	 * session knowing the mode the CLI is in. Leaving plan mode here is a change the agent made,
+	 * so the app is told after an approved plan.
 	 */
 	private async applyPermissionMode(mode: PermissionMode): Promise<void> {
+		if (mode !== "plan") this.changePlanMode(false);
 		if (this.appliedPermissionMode === mode) return;
 		const query = this.query;
 		if (query === null) return;

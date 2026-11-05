@@ -11,9 +11,15 @@
  * adopted status and any open interaction, and a failed live-state write is thrown so the tunnel
  * logs it; `agentSessionId` stores the agent's own session id so the next message resumes, and a
  * failed write is thrown so the tunnel logs it; `agentInstallsChanged` updates the agent catalog;
+<<<<<<< HEAD
  * `interactionClosed` marks a timed-out card and settles the pending request; `shellEnvFailed`
  * logs the folder, kind and message; a failed workspace diff becomes error text the agent can
  * read instead of a crash.
+=======
+ * `agentConfigChanged` stores the config the agent chose and a failed write is thrown so the
+ * tunnel logs it; `shellEnvFailed` logs the folder, kind and message; a failed workspace diff
+ * becomes error text the agent can read instead of a crash.
+>>>>>>> node/side.20
  * Our design choice: handlers receive ports (small interfaces), not services, so each can be
  * tested with a plain object. Errors the agent should read go into the normal result as text.
  * Test first: a deliverEvent request for a stored event answers persisted true and sends the ack.
@@ -61,6 +67,13 @@ export interface AgentCatalogPort {
 	setAgentInstalls(params: SidecarToAppNotificationParams<"agentInstallsChanged">): void;
 }
 
+export interface AgentConfigPort {
+	/** Stores a config the agent changed by itself, for example plan mode. */
+	setAgentConfig(
+		params: SidecarToAppNotificationParams<"agentConfigChanged">,
+	): Promise<Result<void>>;
+}
+
 export interface WorkspaceDiffPort {
 	/** The diff the user sees, against the merge base, for the workspace of this chat. */
 	diffForSession(
@@ -103,6 +116,7 @@ export interface SidecarHandlerPorts {
 	ingest: IngestPort;
 	liveState: LiveStatePort;
 	agentCatalog: AgentCatalogPort;
+	agentConfig: AgentConfigPort;
 	workspaceDiff: WorkspaceDiffPort;
 	diffComments: DiffCommentsPort;
 	terminalOutput: TerminalOutputPort;
@@ -158,10 +172,20 @@ export function createSidecarNotificationHandlers(
 		agentInstallsChanged: async (params) => {
 			ports.agentCatalog.setAgentInstalls(params);
 		},
+<<<<<<< HEAD
 		agentConfigChanged: () => notImplemented("SIDE-20"),
 		interactionClosed: async (params) => {
 			ports.interactions.closed(params);
 		},
+=======
+		agentConfigChanged: async (params) => {
+			const written = await ports.agentConfig.setAgentConfig(params);
+			if (!written.ok) {
+				throw new Error(`Could not store the chat's config: ${written.error.message}`);
+			}
+		},
+		interactionClosed: () => notImplemented("CHAT-11"),
+>>>>>>> node/side.20
 		goalChanged: () => notImplemented("COMP-10"),
 		shellEnvFailed: async (params) => {
 			ports.shellEnv.captureFailed(params);

@@ -996,6 +996,35 @@ describe("SIDE-03 prompt, settings and warming", () => {
 		).toEqual(ok({ applied: "live" }));
 		expect(h.processes.disconnected).toContain("claude:session-1");
 	});
+
+	test("SIDE-20 a config the agent changed reaches the app with its reason", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams());
+		const onConfigChanged = h.runners.get("claude")?.started[0]?.onConfigChanged;
+		expect(onConfigChanged).toBeDefined();
+		const entered = baseConfig({ planMode: true });
+		const left = baseConfig({ planMode: false });
+
+		onConfigChanged?.(entered, "entered_plan_mode");
+		onConfigChanged?.(left, "left_plan_mode");
+
+		expect(h.app.notifications).toContainEqual({
+			method: "agentConfigChanged",
+			params: {
+				sessionId: sid("session-1"),
+				config: entered,
+				reason: "entered_plan_mode",
+			},
+		});
+		expect(h.app.notifications).toContainEqual({
+			method: "agentConfigChanged",
+			params: {
+				sessionId: sid("session-1"),
+				config: left,
+				reason: "left_plan_mode",
+			},
+		});
+	});
 });
 
 describe("SIDE-03 session map and agent identity", () => {
