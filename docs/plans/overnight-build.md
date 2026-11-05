@@ -45,8 +45,10 @@ for each step:
   4. if CI is red: group the failures by feature, and give each group to a
      fresh fixer agent with the CI log; push; CI again. At most 2 fix rounds;
      then the failing features are taken out of the step and quarantined
-  5. audit: one fresh audit agent per batch reviews the batch; its findings go
-     to fresh fixer agents, one per finding group; push; CI again
+  5. audit: one fresh audit agent per batch reviews the batch and marks each
+     finding MUST or LATER (D045); MUST findings go to fresh fixer agents, one
+     per finding group; LATER findings are committed in docs/reports/audits/;
+     push; CI again
   6. merge on green. Before the first CI run the step branch sets each finished
      feature's backlog row to done, and the PR body closes their issues with
      `Closes #N` lines (D041); sync.ts --check confirms; pleach clean
