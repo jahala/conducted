@@ -51,6 +51,21 @@ describe("APP-05 Menu scroll and digit keys", () => {
 		expect(screen.queryByRole("menu")).not.toBeNull();
 	});
 
+	it("is named by the caller's aria-label rather than its trigger", async () => {
+		render(
+			<Menu>
+				<MenuTrigger asChild>
+					<button type="button">More</button>
+				</MenuTrigger>
+				<MenuContent aria-label="Open in">
+					<MenuItem>Finder</MenuItem>
+				</MenuContent>
+			</Menu>,
+		);
+		fireEvent.keyDown(screen.getByRole("button", { name: "More" }), { key: "Enter" });
+		expect(await screen.findByRole("menu", { name: "Open in" })).toBeTruthy();
+	});
+
 	it("does not pick a parent item from a digit pressed in a submenu", async () => {
 		const onFirst = vi.fn();
 		const onNested = vi.fn();

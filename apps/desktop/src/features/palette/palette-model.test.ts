@@ -170,6 +170,22 @@ describe("NAV-08 palette model", () => {
 		]);
 	});
 
+	it("filters the command groups by the query like every other group", () => {
+		const input = {
+			tab: "all" as const,
+			workspaces: [workspace("w1", "r1")],
+			repos: [],
+			commands: commands(),
+			currentWorkspaceId: "w1",
+		};
+		const updates = buildPaletteGroups({ ...input, query: "check for updates" });
+		expect(labels(updates, "Actions")).toEqual(["Check for updates"]);
+		expect(labels(updates, "Workspace actions")).toEqual([]);
+		expect(labels(updates, "Navigation")).toEqual([]);
+
+		expect(buildPaletteGroups({ ...input, query: "zzzzzz" })).toEqual([]);
+	});
+
 	it("lists every settings page and agent provider on the settings tab", () => {
 		const groups = buildPaletteGroups({
 			tab: "settings",

@@ -171,11 +171,10 @@ function workspaceItem(workspace: Workspace, reposById: ReadonlyMap<string, Repo
 	};
 }
 
-function commandGroup(
-	heading: string,
+function commandItems(
 	specs: readonly CommandSpec[],
 	commandsById: ReadonlyMap<string, CommandEntry>,
-): PaletteGroup | null {
+): PaletteItem[] {
 	const items: PaletteItem[] = [];
 	for (const spec of specs) {
 		const entry = commandsById.get(spec.commandId);
@@ -188,10 +187,10 @@ function commandGroup(
 			disabled: !entry.enabled,
 		});
 	}
-	return items.length === 0 ? null : { heading, items };
+	return items;
 }
 
-function settingsGroup(): PaletteGroup {
+function settingsItems(): PaletteItem[] {
 	const pageItems: PaletteItem[] = SETTING_PAGES.filter(
 		(page): page is Exclude<SettingPage, "state"> => page !== "state",
 	).map((page) => ({
@@ -208,7 +207,7 @@ function settingsGroup(): PaletteGroup {
 		shortcut: null,
 		disabled: false,
 	}));
-	return { heading: "Settings", items: [...pageItems, ...providerItems] };
+	return [...pageItems, ...providerItems];
 }
 
 function groupOrdered(groups: PaletteGroup[]): PaletteGroup[] {
@@ -272,17 +271,11 @@ export function buildPaletteGroups(props: PaletteInput): PaletteGroup[] {
 	);
 
 	if (props.currentWorkspaceId !== null) {
-		const workspaceActions = commandGroup("Workspace actions", WORKSPACE_ACTIONS, commandsById);
-		if (workspaceActions !== null) groups.push(workspaceActions);
+		addGroup("Workspace actions", commandItems(WORKSPACE_ACTIONS, commandsById));
 	}
-	const actions = commandGroup("Actions", ACTIONS, commandsById);
-	if (actions !== null) groups.push(actions);
-	const navigation = commandGroup("Navigation", NAVIGATION, commandsById);
-	if (navigation !== null) groups.push(navigation);
-
-	const settings = settingsGroup();
-	const rankedSettings = rankItems(settings.items, query);
-	if (rankedSettings.length > 0) groups.push({ heading: settings.heading, items: rankedSettings });
+	addGroup("Actions", commandItems(ACTIONS, commandsById));
+	addGroup("Navigation", commandItems(NAVIGATION, commandsById));
+	addGroup("Settings", settingsItems());
 
 	if (props.installedApps !== undefined && props.installedApps.length > 0) {
 		const defaultShortcut = commandsById.get("workspace.openIn")?.shortcut ?? null;

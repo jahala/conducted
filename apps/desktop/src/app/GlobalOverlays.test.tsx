@@ -6,7 +6,7 @@
  * Test first: show("palette") then show("passport") leaves only "passport" open; Cmd+K opens the palette.
  */
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { ServicesProvider } from "../core/context.tsx";
 import { createTestContainer } from "../test/container.ts";
@@ -44,11 +44,12 @@ describe("NAV-08 GlobalOverlays", () => {
 		useOverlayStore.getState().show("palette");
 		expect(await screen.findByPlaceholderText("Type a command or search...")).toBeTruthy();
 
-		useOverlayStore.getState().show("passport");
+		// Outside act(), React renders a store change only after this code yields; act() renders it now.
+		act(() => useOverlayStore.getState().show("passport"));
 		expect(screen.queryByPlaceholderText("Type a command or search...")).toBeNull();
 		expect(useOverlayStore.getState().open).toBe("passport");
 
-		useOverlayStore.getState().close();
+		act(() => useOverlayStore.getState().close());
 		expect(useOverlayStore.getState().open).toBeNull();
 	});
 

@@ -1,9 +1,10 @@
 /**
  * @feature NAV-14 Shortcut and menu dispatcher
  * Owns: turning key presses, menu picks and deep links into command ids, and handing each command to the
- * right handler. Three hooks: `useCommandDispatcher` mounts the root listeners once; `useCommandHandler`
+ * right handler. Four hooks: `useCommandDispatcher` mounts the root listeners once; `useCommandHandler`
  * lets a screen register a handler for one command id with a priority; `useRunCommandHandlers` lets a
- * screen run a command's handlers, as a slash command does for /plan and /fast.
+ * screen run a command's handlers, as a slash command does for /plan and /fast; `useScopeKeyDown` lets
+ * a focus-trapping dialog run its own scope's keys before its trap takes them.
  * Behaviour: ui-map.md 5.4 (shortcuts by scope), 8 ("Kn(commandId, handler, opts)" registers a handler with a
  * priority; a hint component reads the live binding so tooltips follow rebinds), 1.1 (root listeners for
  * menu events and deep links); structure-map.md 3.2 (one registry feeds menus, palette and shortcuts).
@@ -18,7 +19,8 @@
  * command (the higher priority runs; a handler that returns false passes the command on); a handler
  * that unmounts (its registration is removed); a command that is disabled (neither a key press nor a
  * menu pick runs it, and the key press is not swallowed); a menu pick for an id the registry does not
- * know (reported, not thrown).
+ * know (reported, not thrown); a modal's focus trap that takes Tab and Shift+Tab before the root
+ * listener sees them (the modal runs its own scope's keys first through `useScopeKeyDown`).
  * Our design choice: priorities are three named levels (`base`, `area`, `modal`), not numbers. A terminal
  * or diff area registers at `area`; a dialog registers at `modal`, so it wins while it is open.
  * Our design choice: a focus area marks itself with `data-command-scope="chat-input"` (or several scope
@@ -563,11 +565,37 @@ export interface CommandDispatcherOptions {
 	onDeepLink?: (url: string) => void;
 }
 
-/** Mounts the key, menu and deep-link listeners once, at the root of the app. */
+/**
+ * Looks a key press up and runs its command, the way the root key listener does. With `onlyScope`,
+ * only that scope's bindings count, and only while the scope is active. True means a command took the
+ * key and the event's default was prevented.
+ */
+export type DispatchKey = (event: KeyboardEvent, onlyScope?: CommandScope | null) => boolean;
+
+const DispatchKeyContext = createContext<DispatchKey | null>(null);
+
+/**
+ * Lets a layer that traps focus run its own scope's keys before the trap sees them. A modal dialog's
+ * focus trap takes Tab and Shift+Tab to move focus before the event reaches the root listener, so the
+ * command palette, whose scope binds those keys, calls this from its own keydown handler and stops
+ * the event when it returns true. Without a dispatcher above, it takes no key.
+ */
+export function useScopeKeyDown(scope: CommandScope): (event: KeyboardEvent) => boolean {
+	const dispatchKey = useContext(DispatchKeyContext);
+	return useCallback(
+		(event: KeyboardEvent) => (dispatchKey === null ? false : dispatchKey(event, scope)),
+		[dispatchKey, scope],
+	);
+}
+
+/**
+ * Mounts the key, menu and deep-link listeners once, at the root of the app. Returns the key lookup
+ * the root listener uses, so `CommandDispatcher` can hand it to `useScopeKeyDown`.
+ */
 export function useCommandDispatcher(
 	registry: CommandRegistry = defaultRegistry,
 	options: CommandDispatcherOptions = {},
-): void {
+): DispatchKey {
 	const { services, platform } = useServices();
 	const { overrides } = useShortcutOverrides();
 	const sendKey = useSetting<string>("message_send_key");
@@ -593,9 +621,9 @@ export function useCommandDispatcher(
 		[registry, services, platform],
 	);
 
-	useEffect(() => {
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.defaultPrevented) return;
+	const dispatchKey = useCallback<DispatchKey>(
+		(event, onlyScope = null) => {
+			if (event.defaultPrevented) return false;
 			const press: KeyPress = {
 				key: event.key,
 				metaKey: event.metaKey,
@@ -605,17 +633,26 @@ export function useCommandDispatcher(
 				isComposing: event.isComposing,
 				repeat: event.repeat,
 			};
-			const scopes = scopesForTarget(event.target, useOverlayStore.getState().open);
-			if (composerOwnsKey(press, scopes, sendKeyMode)) return;
+			const active = scopesForTarget(event.target, useOverlayStore.getState().open);
+			const scopes = onlyScope === null ? active : active.filter((scope) => scope === onlyScope);
+			if (composerOwnsKey(press, scopes, sendKeyMode)) return false;
 			const commandId = commandForKeyPress(press, scopes, bindings, sendKeyMode);
-			if (commandId === null) return;
-			if (!deps.isEnabled(commandId)) return;
+			if (commandId === null) return false;
+			if (!deps.isEnabled(commandId)) return false;
 			event.preventDefault();
 			dispatchCommand(commandId, deps);
+			return true;
+		},
+		[bindings, deps, sendKeyMode],
+	);
+
+	useEffect(() => {
+		const onKeyDown = (event: KeyboardEvent) => {
+			dispatchKey(event);
 		};
 		document.addEventListener("keydown", onKeyDown);
 		return () => document.removeEventListener("keydown", onKeyDown);
-	}, [bindings, deps, sendKeyMode]);
+	}, [dispatchKey]);
 
 	useEffect(() => {
 		void platform.menu.setShortcuts(accelerators).then((result) => {
@@ -653,6 +690,8 @@ export function useCommandDispatcher(
 			}),
 		[deps, onDeepLink, platform],
 	);
+
+	return dispatchKey;
 }
 
 export interface CommandDispatcherProps extends CommandDispatcherOptions {
@@ -677,8 +716,12 @@ export function CommandDispatcher({
 	const [created] = useState(createCommandRegistry);
 	const outer = useContext(CommandRegistryContext);
 	const registry = provided ?? outer ?? created;
-	useCommandDispatcher(registry, options);
-	return createElement(CommandRegistryContext.Provider, { value: registry }, children);
+	const dispatchKey = useCommandDispatcher(registry, options);
+	return createElement(
+		CommandRegistryContext.Provider,
+		{ value: registry },
+		createElement(DispatchKeyContext.Provider, { value: dispatchKey }, children),
+	);
 }
 
 /**
