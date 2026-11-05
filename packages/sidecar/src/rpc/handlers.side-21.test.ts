@@ -26,6 +26,8 @@ const deps = (): HandlerDeps => ({
 		setAutoApproveEdits: async () => ({}),
 		getSessionStatus: async () => ({ known: false }),
 		answerInteraction: async () => ({ accepted: false, superseded: true }),
+		listAcpConfigOptions: async () => ok({ options: [] }),
+		setAcpConfigOption: async () => ok({ options: [] }),
 		liveStateOf: () => undefined,
 		onAppAttached: () => {},
 		shutdown: async () => {},

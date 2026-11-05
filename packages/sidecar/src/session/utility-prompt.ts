@@ -16,9 +16,9 @@
  * module starts a normal `AgentSession` with every app tool off and an auto-deny interaction
  * callback. If that proves too heavy for an agent, add an optional `runOnce` to `Runner` then.
  * Our design choice: the session gets a minimal workspace context built from the prompt's folder;
- * runners only read its path. Until SIDE-21 lands, `launch` is accepted but not applied: the
- * runner gets the captured login shell alone, so the launch's environment and provider keys do
- * not reach it yet. Applying them belongs to SIDE-21 (`runners/launch-env.ts`).
+ * runners only read its path. The launch's environment and provider keys are folded in through
+ * the one builder in `runners/launch-env.ts`, so a utility prompt sees the same settings as the
+ * chat it names.
  * Test first: a call returns the agent's text items, refuses every interaction and disposes the
  * session.
  */
@@ -34,6 +34,7 @@ import type { AppError, Clock, IdSource, Result, SessionId, WorkspaceId } from "
 import { appError, err, ok } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
 import type { AppToSidecarRequestParams, AppToSidecarRequestResult } from "../rpc/types.ts";
+import { agentProviders, buildAgentEnvironment } from "../runners/launch-env.ts";
 import type { RunnerRegistry } from "../runners/registry.ts";
 import type { AgentSession, TurnCallbacks, TurnOutcome } from "../runners/runner.ts";
 import type { ShellEnvProvider } from "../shell-env/capture.ts";
@@ -81,14 +82,6 @@ export class AgentUtilityPromptRunner implements UtilityPromptRunner {
 			return err(runnerResult.error);
 		}
 
-		// SIDE-21 will merge the launch's environment and keys here; until then the runner gets
-		// the captured login shell alone.
-		const env = await this.deps.shellEnv.get(params.cwd);
-		if (!env.ok) {
-			this.logFailure(params, startedAt, env.error.message);
-			return err(env.error);
-		}
-
 		const sessionId = this.deps.ids.uuid() as SessionId;
 		const workspaceId = this.deps.ids.uuid() as WorkspaceId;
 		const config = utilityConfig(params, model);
@@ -101,6 +94,26 @@ export class AgentUtilityPromptRunner implements UtilityPromptRunner {
 			placeholderBranch: false,
 			port: 1,
 		};
+
+		const captured = await this.deps.shellEnv.get(params.cwd);
+		if (!captured.ok) {
+			this.logFailure(params, startedAt, captured.error.message);
+			return err(captured.error);
+		}
+		const env = buildAgentEnvironment({
+			agent: params.agent,
+			sessionId,
+			workspace,
+			base: captured.value.env,
+			launch: params.launch,
+			ownKeyNames: agentProviders(params.agent, params.acpAgent).flatMap(
+				(provider) => provider.keyEnvVars,
+			),
+		});
+		if (!env.ok) {
+			this.logFailure(params, startedAt, env.error.message);
+			return err(env.error);
+		}
 
 		let collected = "";
 		const callbacks: TurnCallbacks = {
@@ -128,7 +141,7 @@ export class AgentUtilityPromptRunner implements UtilityPromptRunner {
 				sessionId,
 				config,
 				workspace,
-				env: env.value.env,
+				env: env.value,
 			});
 			const outcome = await this.runWithTimeout(agent, params.prompt, config, callbacks);
 			if (!outcome.ok) {
