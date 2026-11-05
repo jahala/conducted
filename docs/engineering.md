@@ -66,6 +66,7 @@ Rules every test follows:
 - **Release what you hold:** timers, processes, sockets, file handles.
 - **Test at real size.** Anything that lists or loops is tested at the size it meets in use: a chat with 20,000 events, a sidebar with 300 workspaces, a diff of 5,000 files.
 - **A guard proves it can fail.** A check that reads source text includes a sample it must flag.
+- **Four guards watch the shape of tests** (`scripts/guards/test-shapes.ts`): tests that cannot fail, tests that mock the thing they test, stand-ins defined outside `src/test/`, and real time or leaked state. Each compares per-file counts with `scripts/guards/test-shapes-baseline.json`. A count may not rise, and the baseline must fall with every fix: run `bun scripts/guards/test-shapes.ts --write-baseline` after a fix, and `--list` to see every site. A mock that is a real seam carries `// seam: <ID> <reason>` on the line above.
 
 ## A run leaves nothing behind
 

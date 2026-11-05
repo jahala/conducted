@@ -675,8 +675,8 @@ PLAT-28	command	Binary manager command that requests an install of an agent prog
 PLAT-28	command	Binary manager command that downloads an agent program again.	native-and-sidecar-map A2	missing
 PLAT-28	command	Binary manager command that removes an installed agent program.	native-and-sidecar-map A2	missing
 PLAT-28	command	Binary manager command that prefetches agent programs in the background.	native-and-sidecar-map A2	missing
-SIDE-21	command	Binary manager command that records a user-chosen agent program path override.	native-and-sidecar-map A2	missing
-SIDE-21	command	sync_agent_path_overrides mirrors a user-chosen executable into the overrides folder; the settings exist but no code path does.	native-and-sidecar-map A2	partly
+PLAT-28	command	Binary manager command that records a user-chosen agent program path override.	native-and-sidecar-map A2	missing
+PLAT-28	command	sync_agent_path_overrides mirrors a user-chosen executable into the overrides folder; the settings exist but no code path does.	native-and-sidecar-map A2	partly
 PLAT-13	command	check_for_updates checks for a new app version.	native-and-sidecar-map A2	covered
 PLAT-13	command	get_installed_manual_update returns the update that was just installed so its release notes can be shown.	native-and-sidecar-map A2	partly
 PLAT-11	command	send_native_notification shows a macOS notification.	native-and-sidecar-map A2	covered
@@ -914,7 +914,7 @@ PLAT-28	store	The agent-binaries folder holds downloaded agent programs.	native-
 PLAT-28	store	The .meta folder holds per-install metadata for agent programs.	native-and-sidecar-map D1	missing
 PLAT-28	store	The acp-providers folder holds downloaded ACP adapters.	native-and-sidecar-map D1	missing
 PLAT-28	store	The bin folder holds PATH shims for agent programs.	native-and-sidecar-map D1	missing
-SIDE-21	store	The bin-overrides folder holds user-chosen agent programs.	native-and-sidecar-map D1	missing
+PLAT-28	store	The bin-overrides folder holds user-chosen agent programs.	native-and-sidecar-map D1	missing
 PLAT-28	store	The .bin-source-markers.json file records where each bin entry came from.	native-and-sidecar-map D1	missing
 RUN-09	store	The terminal-shell-integration/zsh folder holds the shim files.	native-and-sidecar-map D1	missing
 PLAT-20	store	The draft-attachments folder holds attachments of unsent drafts.	native-and-sidecar-map D1	covered
@@ -3040,3 +3040,6 @@ COMP-07	rule	5 MB image refusal: the Rust limit is 4.5 MiB after resize; refusin
 APP-03	rule	Help > Diagnostics menu item: needs `app.openDiagnostics` in the command registry and a handler	docs/reports/audits/s2-step-1	missing
 APP-03	rule	Debug menu item handler: `app.openDebugTools` has no command-runner handler; it should call `platform.window.toggleInspector()`	docs/reports/audits/s2-step-1	missing
 PLAT-33	rule	Menu accelerators and menu clicks in the live app: `createTauriMenu.setShortcuts` and `onCommand` still call `notImplemented("PLAT-33")`	docs/reports/audits/s2-step-1	missing
+SET-04	integration	The Environment page's variables reach a running agent: SET-04 adds them to the agent launch that SIDE-21 builds (global variables, then the repository's of the same name), and an idle agent restarts with resume when they change.	native-and-sidecar-map B4	missing
+SIDE-21	integration	The managed agent copy joins the program order (Settings path, managed copy, then PATH) when PLAT-28 installs it; until then the order is Settings path, then PATH.	other-runners 5	missing
+SIDE-21	integration	The desktop composition root (core/container.ts) passes launchFor to SessionsService and ChatTitlesService, built from the saved settings: program paths, provider and base URL, and provider keys from the Keychain. Accepted by a test over createTestContainer that sends one message and sees the launch in the sidecar request, with no chat_launch_missing (D054).	claude-runner 1.2	missing
