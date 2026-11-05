@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as c from "./commands.ts";
 
-describe("git command catalogue", () => {
+describe("GIT-01 git command catalogue", () => {
 	it("treats exit code 1 of a verify probe as a normal answer", () => {
 		expect(c.revParseVerify("refs/heads/x").okExitCodes).toEqual([0, 1]);
 		expect(c.showRefVerify("refs/heads/x").okExitCodes).toEqual([0, 1]);
@@ -70,5 +70,41 @@ describe("git command catalogue", () => {
 	it("writes a compare-and-swap as one line per instruction on stdin", () => {
 		const cmd = c.updateRefStdin(["verify refs/x old", "update refs/x new old"]);
 		expect(cmd.stdin).toBe("verify refs/x old\nupdate refs/x new old\n");
+	});
+
+	it("reads the identity git gives commits, for the agent", () => {
+		expect(c.configUserName().args).toEqual(["config", "--get", "user.name"]);
+		expect(c.configUserEmail().args).toEqual(["config", "--get", "user.email"]);
+	});
+
+	it("restores a discarded file to its committed state", () => {
+		expect(c.discardFileChanges("src/a b.ts").args).toEqual([
+			"restore",
+			"--source=HEAD",
+			"--worktree",
+			"--staged",
+			"--",
+			"src/a b.ts",
+		]);
+	});
+
+	it("shows the current branch from its merge base to HEAD", () => {
+		expect(c.currentBranchDiffNameStatus("mb").args).toEqual([
+			"diff",
+			"-M",
+			"--no-ext-diff",
+			"--no-textconv",
+			"--name-status",
+			"mb",
+			"HEAD",
+		]);
+		expect(c.currentBranchDiffNumstat("mb").args.at(-1)).toBe("HEAD");
+	});
+
+	it("shows all changes from the merge base to the working tree", () => {
+		const cmd = c.allChangesDiffNameStatus("mb");
+		expect(cmd.args.at(-1)).toBe("mb");
+		expect(cmd.args).not.toContain("HEAD");
+		expect(c.allChangesDiffNumstat("mb").args.at(-1)).toBe("mb");
 	});
 });
