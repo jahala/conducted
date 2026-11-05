@@ -23,7 +23,7 @@ function Missing({ id }: { id: string }): never {
 	return notImplemented(id);
 }
 
-describe("NotBuiltYet", () => {
+describe("APP-04 NotBuiltYet", () => {
 	it("shows the feature id of a placeholder", () => {
 		render(
 			<NotBuiltYet area="Chat">
@@ -91,7 +91,7 @@ describe("NotBuiltYet", () => {
 	});
 });
 
-describe("ErrorBoundary", () => {
+describe("APP-04 ErrorBoundary", () => {
 	it("shows the fallback with the error and clears it on reset", () => {
 		const log = vi.spyOn(console, "error").mockImplementation(() => {});
 		flaky.shouldThrow = true;
@@ -143,7 +143,7 @@ describe("ErrorBoundary", () => {
 	});
 });
 
-describe("LoadableView", () => {
+describe("APP-04 LoadableView", () => {
 	const view = (value: Loadable<string[]>, onRetry?: () => void) =>
 		render(
 			<LoadableView
