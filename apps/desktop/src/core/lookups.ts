@@ -23,6 +23,8 @@ import {
 	type Effort,
 	type SessionConfig,
 	type WorkspaceContext,
+	zClaudeOutputStyle,
+	zCodexPersonality,
 	zEffort,
 } from "@conducted/protocol";
 import {
@@ -188,7 +190,14 @@ export function parseEffortSetting(key: string, value: string): Result<Effort> {
 
 /**
  * The config a new chat starts with: the default model and effort from settings, plan mode and
- * tool approvals from settings, and the workspace's linked folders as additional directories.
+ * tool approvals from settings, the workspace's linked folders as additional directories, and the
+ * chat options the settings offer (AGENT-16): Claude's output style and Chrome switch, Codex's
+ * personality and tool approval policy. Each runner reads only its own fields, so a chat that later
+ * changes agent keeps them. Settings are read when the chat is created, so a change reaches new
+ * chats and leaves existing ones as they are. Codex's sandbox has no setting; the runner uses full
+ * access, as Conductor does.
+ * Our design choice: the Codex tool approval setting "Always approve" is Codex's `never` policy;
+ * "Default" sends no policy, so Codex follows the tool approvals switch.
  */
 export function defaultSessionConfig(
 	workspaceId: WorkspaceId,
@@ -203,6 +212,8 @@ export function defaultSessionConfig(
 	const effortSetting = setting<string>("default_claude_effort_level") || "high";
 	const effort = parseEffortSetting("default_claude_effort_level", effortSetting);
 	if (!effort.ok) return effort;
+	const options = chatOptionSettings(setting);
+	if (!options.ok) return options;
 	return ok({
 		agent: "claude",
 		model: model.length > 0 ? model : "default",
@@ -212,5 +223,48 @@ export function defaultSessionConfig(
 		requireToolApproval: setting<boolean>("tool_approvals_enabled"),
 		additionalDirectories: workspace.value.linkedPaths,
 		appTools: { diffComments: true, progressUpdates: true, setTargetBranch: true },
+		...options.value,
 	});
+}
+
+/**
+ * The AGENT-16 chat options from settings. A setting at its "model default" value adds nothing; a
+ * value no chat can use (for example one typed into settings.toml) is an error that names the
+ * setting, never a quiet default.
+ */
+function chatOptionSettings(
+	setting: <T>(key: string) => T,
+): Result<
+	Pick<
+		SessionConfig,
+		"claudeOutputStyle" | "claudeInChrome" | "codexPersonality" | "codexApprovalPolicy"
+	>
+> {
+	const styleValue = setting<string>("default_claude_personality");
+	const outputStyle = zClaudeOutputStyle.safeParse(styleValue);
+	if (!outputStyle.success) return optionInvalid("default_claude_personality", styleValue);
+	const personalityValue = setting<string>("default_codex_personality");
+	const personality =
+		personalityValue === "" ? undefined : zCodexPersonality.safeParse(personalityValue);
+	if (personality !== undefined && !personality.success) {
+		return optionInvalid("default_codex_personality", personalityValue);
+	}
+	return ok({
+		...(outputStyle.data === "default" ? {} : { claudeOutputStyle: outputStyle.data }),
+		...(setting<boolean>("chrome_mode_enabled") ? { claudeInChrome: true } : {}),
+		...(personality === undefined ? {} : { codexPersonality: personality.data }),
+		...(setting<string>("codex_tool_approval_policy") === "always_approve"
+			? { codexApprovalPolicy: "never" as const }
+			: {}),
+	});
+}
+
+function optionInvalid(key: string, value: string): Result<never> {
+	const title = getSettingDef(key)?.title ?? key;
+	return err(
+		appError(
+			"setting_invalid",
+			`The value "${value}" for "${title}" is not one a chat can use. Pick another in Settings.`,
+		),
+	);
 }

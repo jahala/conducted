@@ -9,6 +9,9 @@
  *  - detect(): `claude` not on PATH gives null; `claude --version` that hangs gives an error value
  *    after 5 s, reported as installed without a version by the detector
  *  - start() with a missing workspace folder: an error that names the folder
+ *  - start() runs the program the chat's launch names (SIDE-21, `findAgentProgram`): the user's
+ *    path, else the copy on the login-shell PATH; a user path that cannot run is an error that
+ *    names it; a `.js` path starts through node
  *  - listModels(): from supportedModels() of a throwaway metadata query; efforts from
  *    supportedEffortLevels, fast mode from supportsFastMode; the default effort is the middle of
  *    the list when the SDK gives none
@@ -35,6 +38,7 @@ import { appError } from "@conducted/shared";
 import { parseVersion, VERSION_PROBE_TIMEOUT_MS } from "../../models/agent-detection.ts";
 import { AGENT_NOT_INSTALLED } from "../../models/catalog.ts";
 import type { RunnerCommonDeps } from "../deps.ts";
+import { findAgentProgram } from "../launch-env.ts";
 import type {
 	AgentSession,
 	McpServerView,
@@ -127,10 +131,14 @@ export class ClaudeRunner implements Runner {
 				realPath: resolved,
 			});
 		}
-		const executablePath = await this.deps.findExecutable("claude", options.env);
-		if (executablePath === null) {
-			throw claudeNotInstalled();
-		}
+		const program = await findAgentProgram({
+			agent: "claude",
+			name: "claude",
+			executablePath: options.executablePath,
+			env: options.env,
+			findExecutable: this.deps.findExecutable,
+		});
+		if (!program.ok) throw program.error;
 		const start =
 			resolved === requested
 				? options
@@ -143,7 +151,15 @@ export class ClaudeRunner implements Runner {
 				: typeof source.fresh === "function"
 					? source.fresh()
 					: source;
-		return new ClaudeSession({ ...this.deps, executablePath, translator }, start);
+		return new ClaudeSession(
+			{
+				...this.deps,
+				executablePath: program.value.path,
+				viaRuntime: program.value.viaRuntime,
+				translator,
+			},
+			start,
+		);
 	}
 
 	async listModels(): Promise<ModelInfo[]> {

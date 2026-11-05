@@ -51,6 +51,10 @@
  * SIDE-20 owns `applyAgentConfig`, which stores a config the agent changed by itself.
  * AGENT-17 owns `loadAcpConfigOptions`, `setAcpOption` and the `acpConfigOptions` part of the
  * store: an ACP chat's own options beyond the model, fetched and kept per chat.
+ * SIDE-21 owns the launch every send and warm carries (`launchFor`: a launch that cannot be built
+ * fails the send with its reason and keeps the message for Retry), and `warm`, which starts a
+ * chat's agent with its launch and resume token for the ACP options and for a chat the sidecar
+ * lost (`sidecar/resume.ts`).
  */
 import {
 	type AcpConfigOption,
@@ -258,10 +262,10 @@ export interface SessionsServiceDeps {
 	/**
 	 * How to start the chat's agent, from the composition root. A send fails with a clear error
 	 * when it is missing: building a launch here would drop the provider keys and the program path.
-	 * A Promise is accepted because the launch reads the saved environment and keys from the
-	 * database and the Keychain.
+	 * It reads the saved environment and keys from the database and the Keychain, and a read that
+	 * fails is an error value the send or warm hands on.
 	 */
-	launchFor?: (session: Session) => AgentLaunch | Promise<AgentLaunch>;
+	launchFor?: (session: Session) => Promise<Result<AgentLaunch>>;
 	/**
 	 * Removes a chat's checkpoint refs before its row is deleted (DATA-06). The composition root
 	 * supplies it; a harness without it still deletes chats and leaves the refs alone.
@@ -682,10 +686,17 @@ export class SessionsService implements AgentMessenger {
 		if (!workspace.ok) return workspace;
 		const last = await this.#deps.repositories().sessionEvents.lastIdx(session.id);
 		if (!last.ok) return last;
+		const launch = await launchFor(session);
 
 		if (this.#cancelVersionOf(session.id) !== cancelVersion) {
 			await this.#restoreDroppedToDraft(session.id, [pending]);
 			return err(appError("cancelled", "The message was cancelled before it was sent."));
+		}
+		// A launch that cannot be built (a Keychain value gone, a list that cannot be read) keeps
+		// the message for Retry, with the reason, as a refused send does.
+		if (!launch.ok) {
+			this.#addFailed(session.id, { ...pending, error: launch.error });
+			return launch;
 		}
 
 		const firstMessage = last.value === null;
@@ -700,7 +711,7 @@ export class SessionsService implements AgentMessenger {
 			firstMessage,
 			config: session.config,
 			workspace: workspace.value,
-			launch: await launchFor(session),
+			launch: launch.value,
 			...(session.agentSessionId === null
 				? {}
 				: { resume: { agentSessionId: session.agentSessionId } }),
@@ -1701,7 +1712,7 @@ export class SessionsService implements AgentMessenger {
 
 		const ticket = this.#acpOptionRequests.begin(id);
 		this.#setAcpOptions(id, { state: "loading" });
-		const warmed = await this.#warmForAcpOptions(session);
+		const warmed = await this.#warm(session);
 		if (!this.#acpOptionRequests.isLatest(ticket)) {
 			return warmed.ok ? ok([]) : warmed;
 		}
@@ -1756,20 +1767,35 @@ export class SessionsService implements AgentMessenger {
 	}
 
 	/**
-	 * Starts the chat's agent without a turn, so it can report its options. When the composition
-	 * root has no launch settings yet (SIDE-21), the chat may already be live, so it is asked
-	 * directly and the sidecar's answer decides.
+	 * Starts the chat's agent without a turn, with its launch and resume token, so it can report
+	 * its options (AGENT-17) or resume after the sidecar lost it (SIDE-21). With no launch settings,
+	 * or a launch that cannot be built, nothing is started and the reason is returned.
 	 */
-	async #warmForAcpOptions(session: Session): Promise<Result<void>> {
+	async warm(id: SessionId): Promise<Result<void>> {
+		const found = await this.#session(id);
+		if (!found.ok) return found;
+		return this.#warm(found.value);
+	}
+
+	async #warm(session: Session): Promise<Result<void>> {
 		const launchFor = this.#deps.launchFor;
-		if (launchFor === undefined) return ok(undefined);
+		if (launchFor === undefined) {
+			return err(
+				appError(
+					"chat_launch_missing",
+					"The chat cannot start its agent because no launch settings were provided.",
+				),
+			);
+		}
 		const workspace = await this.#workspaceContext(session.workspaceId);
 		if (!workspace.ok) return workspace;
+		const launch = await launchFor(session);
+		if (!launch.ok) return launch;
 		const warmed = await this.#deps.sidecar.request("warmAgent", {
 			sessionId: session.id,
 			config: session.config,
 			workspace: workspace.value,
-			launch: await launchFor(session),
+			launch: launch.value,
 			...(session.agentSessionId === null
 				? {}
 				: { resume: { agentSessionId: session.agentSessionId } }),

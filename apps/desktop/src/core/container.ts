@@ -335,6 +335,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		apply: {
 			adoptLiveState: (sessionId, liveState) => sessions.applyLiveState(sessionId, liveState),
 			markInterrupted: (sessionId) => sessions.markInterrupted(sessionId),
+			warm: (sessionId) => sessions.warm(sessionId),
 		},
 	});
 
@@ -351,14 +352,18 @@ export function createContainer(inputs: ContainerInputs): Container {
 		git: gitRunner,
 	});
 	/**
-	 * Builds how one chat's agent starts (SIDE-21): the program the user chose, the provider, the
-	 * Environment page's variables and the provider keys that belong to that agent. Secrets come
-	 * from the Keychain; a key chosen from the Mac is skipped because the app cannot read it.
+	 * Builds how one chat's agent starts (SIDE-21): the program the user chose, the provider and its
+	 * region or project, the Environment page's variables (a repository's replacing the global one
+	 * of the same name) and the provider keys that belong to that agent. Secrets come from the
+	 * Keychain; a key chosen from the Mac is skipped because the app cannot read it. A list that
+	 * cannot be read, or a saved value the Keychain cannot give back, fails the launch with a message
+	 * that names it, so the send or warm that asked shows it instead of starting without it.
 	 */
-	const launchFor = async (session: Session): Promise<AgentLaunch> => {
+	const launchFor = async (session: Session): Promise<Result<AgentLaunch>> => {
 		const env: Record<string, string> = {};
 		const providerKeys: AgentLaunch["providerKeys"] = {};
 		const workspace = lookups.workspace(session.workspaceId);
+		if (!workspace.ok) return workspace;
 		const providerSetting =
 			session.config.agent === "claude"
 				? "claude_provider"
@@ -382,53 +387,80 @@ export function createContainer(inputs: ContainerInputs): Container {
 			// OpenCode and Pi choose a provider in their own config, so every stored key may apply.
 			return defaultProvider === null || provider.toLowerCase() === defaultProvider;
 		};
-		const readSecret = async (ref: string): Promise<string | null> => {
+		const readSecret = async (ref: string, name: string): Promise<Result<string>> => {
 			const read = await platform.keychain.get(ref);
 			if (!read.ok) {
-				log("warn", `Could not read a saved secret: ${read.error.message}`);
-				return null;
+				return err(
+					appError(
+						"launch_secret_unreadable",
+						`The value of ${name} could not be read from the Keychain: ${read.error.message}`,
+						read.error,
+					),
+				);
 			}
-			return read.value;
+			if (read.value === null) {
+				return err(
+					appError(
+						"launch_secret_missing",
+						`The value of ${name} is missing from the Keychain. Enter it again in Settings.`,
+					),
+				);
+			}
+			return ok(read.value);
 		};
-		if (workspace.ok) {
-			const listed = await repositories.envVars.listForRepo(workspace.value.repoId);
-			if (!listed.ok) {
-				log("warn", `Could not read the environment variables: ${listed.error.message}`);
-			} else {
-				for (const entry of listed.value) {
-					const value = await readSecret(entry.keychainRef);
-					if (value === null) {
-						log("warn", `The value of ${entry.name} is missing from the Keychain.`);
-					} else {
-						env[entry.name] = value;
-					}
-				}
-			}
-			const keys = await repositories.providerKeys.listForAgent(
-				session.config.agent,
-				session.config.acpAgent ?? null,
+		// Claude reads its Bedrock region and Vertex project from these variables. They go in first,
+		// so a variable of the same name on the Environment page wins.
+		if (session.config.agent === "claude" && chosenProvider === "bedrock") {
+			const region = setting<string>("bedrock_region").trim();
+			if (region !== "") env.AWS_REGION = region;
+		}
+		if (session.config.agent === "claude" && chosenProvider === "vertex") {
+			const project = setting<string>("vertex_project_id").trim();
+			if (project !== "") env.ANTHROPIC_VERTEX_PROJECT_ID = project;
+		}
+		const listed = await repositories.envVars.listForRepo(workspace.value.repoId);
+		if (!listed.ok) {
+			return err(
+				appError(
+					"launch_variables_unreadable",
+					`The environment variables could not be read: ${listed.error.message}`,
+					listed.error,
+				),
 			);
-			if (!keys.ok) {
-				log("warn", `Could not read the provider keys: ${keys.error.message}`);
-			} else {
-				for (const key of keys.value) {
-					if (!providerAllowed(key.provider)) continue;
-					if (key.source === "this_mac") {
-						platform.app.writeLog(
-							"debug",
-							`The key for ${key.envVar} is chosen from this Mac, which the app cannot read yet.`,
-						);
-						continue;
-					}
-					if (key.keychainRef === null) continue;
-					const value = await readSecret(key.keychainRef);
-					if (value === null) {
-						log("warn", `The value of ${key.envVar} is missing from the Keychain.`);
-					} else {
-						providerKeys[key.envVar] = { value, source: "entered" };
-					}
-				}
+		}
+		// Rows come in name order, global before repository, so a repository's value replaces the
+		// global one. Its Keychain value missing is an error, never the global value instead.
+		for (const entry of listed.value) {
+			const value = await readSecret(entry.keychainRef, entry.name);
+			if (!value.ok) return value;
+			env[entry.name] = value.value;
+		}
+		const keys = await repositories.providerKeys.listForAgent(
+			session.config.agent,
+			session.config.acpAgent ?? null,
+		);
+		if (!keys.ok) {
+			return err(
+				appError(
+					"launch_keys_unreadable",
+					`The provider keys could not be read: ${keys.error.message}`,
+					keys.error,
+				),
+			);
+		}
+		for (const key of keys.value) {
+			if (!providerAllowed(key.provider)) continue;
+			if (key.source === "this_mac") {
+				platform.app.writeLog(
+					"debug",
+					`The key for ${key.envVar} is chosen from this Mac, which the app cannot read yet.`,
+				);
+				continue;
 			}
+			if (key.keychainRef === null) continue;
+			const value = await readSecret(key.keychainRef, key.envVar);
+			if (!value.ok) return value;
+			providerKeys[key.envVar] = { value: value.value, source: "entered" };
 		}
 		const executableKey =
 			session.config.agent === "claude"
@@ -441,12 +473,12 @@ export function createContainer(inputs: ContainerInputs): Container {
 		const executablePath = executableKey === null ? "" : setting<string>(executableKey).trim();
 		const provider =
 			chosenProvider === undefined || chosenProvider === "" ? undefined : chosenProvider;
-		return {
+		return ok({
 			env,
 			providerKeys,
 			...(executablePath === "" ? {} : { executablePath }),
 			...(provider === undefined ? {} : { provider }),
-		};
+		});
 	};
 	const ports = new PortService({ platform });
 	const terminals = new TerminalsService({

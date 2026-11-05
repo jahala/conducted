@@ -1151,3 +1151,108 @@ describe("SIDE-03 real pipeline on one shared queue", () => {
 		await h.manager.shutdown("signal");
 	});
 });
+
+describe("SIDE-21 a changed launch restarts the agent only when the chat is free", () => {
+	const withVariable = (value: string) => ({ env: { SETTING: value }, providerKeys: {} });
+	const warmParams = (launchValue: ReturnType<typeof withVariable>) => ({
+		sessionId: sid("session-1"),
+		config: baseConfig(),
+		workspace: workspace("/work/alpha"),
+		launch: launchValue,
+	});
+
+	test("SIDE-21 a change while a turn runs restarts nothing; the next idle message restarts with resume", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams({ launch: withVariable("one") }));
+		const runner = h.runners.get("claude") as FakeRunner;
+		const first = h.processes.agents.values().next().value as FakeAgentSession;
+
+		await h.manager.warmAgent(warmParams(withVariable("two")));
+		expect(runner.started).toHaveLength(1);
+		expect(first.disposeCalls).toBe(0);
+
+		await h.turns.last().succeed();
+		await h.manager.sendMessage(
+			sendParams({
+				messageId: mid("message-2"),
+				turnId: tid("turn-2"),
+				firstMessage: false,
+				launch: withVariable("two"),
+				resume: { agentSessionId: "agent-1" },
+			}),
+		);
+
+		expect(first.disposeCalls).toBe(1);
+		expect(runner.started).toHaveLength(2);
+		expect(runner.started[1]?.env.SETTING).toBe("two");
+		expect(runner.started[1]?.resume).toEqual({ agentSessionId: "agent-1" });
+	});
+
+	test("SIDE-21 background tasks keep the agent; the first request after they end restarts it", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams({ launch: withVariable("one") }));
+		await h.turns.last().succeed();
+		const runner = h.runners.get("claude") as FakeRunner;
+		h.liveState.set(sid("session-1"), {
+			...h.liveState.get(sid("session-1")),
+			backgroundTasks: [{ id: "task-1", kind: "shell", description: "npm run dev" }],
+		});
+
+		await h.manager.warmAgent(warmParams(withVariable("two")));
+		expect(runner.started).toHaveLength(1);
+
+		h.liveState.set(sid("session-1"), {
+			...h.liveState.get(sid("session-1")),
+			backgroundTasks: [],
+		});
+		await h.manager.warmAgent(warmParams(withVariable("two")));
+
+		expect(runner.started).toHaveLength(2);
+		expect(runner.started[1]?.env.SETTING).toBe("two");
+	});
+
+	test("SIDE-21 a launch changed and changed back while the chat worked restarts nothing", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams({ launch: withVariable("one") }));
+		const runner = h.runners.get("claude") as FakeRunner;
+
+		await h.manager.warmAgent(warmParams(withVariable("two")));
+		await h.turns.last().succeed();
+		await h.manager.warmAgent(warmParams(withVariable("one")));
+
+		expect(runner.started).toHaveLength(1);
+		expect(h.processes.disconnected).toEqual([]);
+	});
+
+	test("SIDE-21 the program path of the chat's launch reaches the runner's start", async () => {
+		const h = harness();
+
+		await h.manager.sendMessage(
+			sendParams({ launch: { env: {}, providerKeys: {}, executablePath: "/opt/claude/claude" } }),
+		);
+
+		const runner = h.runners.get("claude") as FakeRunner;
+		expect(runner.started[0]?.executablePath).toBe("/opt/claude/claude");
+	});
+
+	test("SIDE-21 an ACP chat's environment holds only the keys of its own providers", async () => {
+		const h = harness({ runners: [new FakeRunner("acp")] });
+
+		await h.manager.sendMessage(
+			sendParams({
+				config: baseConfig({ agent: "acp", acpAgent: "opencode", model: "one" }),
+				launch: {
+					env: {},
+					providerKeys: {
+						OPENROUTER_API_KEY: { value: "or-secret", source: "entered" },
+						CURSOR_API_KEY: { value: "cursor-secret", source: "entered" },
+					},
+				},
+			}),
+		);
+
+		const runner = h.runners.get("acp") as FakeRunner;
+		expect(runner.started[0]?.env.OPENROUTER_API_KEY).toBe("or-secret");
+		expect(runner.started[0]?.env.CURSOR_API_KEY).toBeUndefined();
+	});
+});

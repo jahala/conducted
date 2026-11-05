@@ -6,6 +6,8 @@
  * Queueing, status, checkpoints, events and the write-ahead log live once in session/, above
  * the runners.
  * AGENT-17 adds two ACP-only optional methods for a chat's config options beyond the model.
+ * SIDE-21 adds the program the user chose (`StartOptions.executablePath`), which each runner starts
+ * through `findAgentProgram` in launch-env.ts.
  * Our design choices: messages arrive already translated into the neutral AgentMessage format,
  * and capabilities are declared up front instead of discovered by catching "not supported".
  */
@@ -71,6 +73,12 @@ export interface StartOptions {
 	workspace: WorkspaceContext;
 	/** Captured login-shell environment with provider secrets removed. */
 	env: Readonly<Record<string, string>>;
+	/**
+	 * The program the user chose in Settings, from the chat's launch (SIDE-21). Missing: the user
+	 * chose none, so the runner takes the managed copy, then the login-shell PATH copy
+	 * (`findAgentProgram` in launch-env.ts).
+	 */
+	executablePath?: string;
 	resume?: { agentSessionId: string; atNativeMessageId?: string };
 	/**
 	 * The agent changed the chat's own settings, for example by entering plan mode. The session

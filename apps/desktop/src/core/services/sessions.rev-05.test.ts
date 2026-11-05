@@ -66,7 +66,7 @@ const harness = (
 		},
 		queue: { enqueue: vi.fn(), release: vi.fn(), pauseOnCancel: vi.fn() },
 		notifications: { onLiveStateChanged: vi.fn() },
-		launchFor: () => ({ env: {}, providerKeys: {} }),
+		launchFor: async () => ok({ env: {}, providerKeys: {} }),
 		workspaceContextOf: async () => ok(workspace),
 		defaultConfig: async () => ok(options.baseConfig ?? sampleSession.config),
 		setting: <T>(key: string) => settings[key] as T,

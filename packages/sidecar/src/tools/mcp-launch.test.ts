@@ -3,6 +3,7 @@ import type { SessionId } from "@conducted/shared";
 import {
 	appToolsMcpEntry,
 	BRIDGE_TOKEN_ENV,
+	codexConfigDefinesServer,
 	codexMcpConfig,
 	parseAppToolsMcpArgs,
 } from "./mcp-launch.ts";
@@ -48,6 +49,20 @@ describe("SIDE-13 app tools MCP launch", () => {
 		expect(config.env[BRIDGE_TOKEN_ENV]).toBe("secret-token");
 	});
 
+	test("SIDE-13 Codex is told to pass the token variable on to the helper, by name only", () => {
+		const config = codexMcpConfig(appToolsMcpEntry(entryInput));
+
+		expect(config.args).toEqual([
+			"--config",
+			'mcp_servers.conducted.command="/Applications/Conducted.app/bin/sidecar bin"',
+			"--config",
+			`mcp_servers.conducted.args=${JSON.stringify(appToolsMcpEntry(entryInput).args)}`,
+			"--config",
+			'mcp_servers.conducted.env_vars=["CONDUCTED_APP_TOOLS_TOKEN"]',
+		]);
+		expect(config.env).toEqual({ CONDUCTED_APP_TOOLS_TOKEN: "secret-token" });
+	});
+
 	test("SIDE-13 missing and unknown arguments are reported", () => {
 		expect(parseAppToolsMcpArgs(["--socket", "/s"])).toEqual({
 			ok: false,
@@ -56,5 +71,30 @@ describe("SIDE-13 app tools MCP launch", () => {
 		expect(parseAppToolsMcpArgs(["--session-id", "s", "--socket", "/s", "--unknown"]).ok).toBe(
 			false,
 		);
+	});
+});
+
+describe("SIDE-13 a Codex config that already defines the reserved server name", () => {
+	test.each([
+		["a table", '[mcp_servers.conducted]\nurl = "http://localhost:9/mcp"'],
+		["a quoted table", '[mcp_servers."conducted"]\ncommand = "x"'],
+		["a sub-table", '[mcp_servers.conducted.env]\nA = "1"'],
+		["a dotted key", 'mcp_servers.conducted.command = "x"'],
+		["an inline table in [mcp_servers]", '[mcp_servers]\nconducted = { command = "x" }'],
+		["a table with a comment after it", "[mcp_servers.conducted] # mine"],
+	])("%s is found", (_kind, text) => {
+		expect(codexConfigDefinesServer(text, "conducted")).toBe(true);
+	});
+
+	test.each([
+		["a longer name", '[mcp_servers.conductedx]\nurl = "x"'],
+		["the name inside another server", '[mcp_servers.other]\nconducted = "x"'],
+		["a commented-out table", '# [mcp_servers.conducted]\nmodel = "o3"'],
+		[
+			"a nested array line and another table",
+			'args = [\n["conducted"],\n]\n[profiles.conducted]\nx = 1',
+		],
+	])("%s is not", (_kind, text) => {
+		expect(codexConfigDefinesServer(text, "conducted")).toBe(false);
 	});
 });

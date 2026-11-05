@@ -216,7 +216,7 @@ describe("SIDE-13 socket bridge", () => {
 		const { bridge, socketPath } = await makeBridge();
 		const sessionId = "session-a" as SessionId;
 		const token = bridge.registerSession(sessionId, ALL_TOOLS);
-		bridge.unregisterSession(sessionId);
+		bridge.unregisterSession(sessionId, token);
 
 		const answer = await call(socketPath, {
 			authToken: token,
@@ -226,6 +226,31 @@ describe("SIDE-13 socket bridge", () => {
 		});
 
 		expect(zBridgeResponse.parse(answer)).toEqual({ ok: false, error: "Unauthorized" });
+	});
+
+	test("SIDE-13 a late release of an older token leaves the chat's newer token valid", async () => {
+		const { bridge, socketPath } = await makeBridge();
+		const sessionId = "session-a" as SessionId;
+		const older = bridge.registerSession(sessionId, ALL_TOOLS);
+		const newer = bridge.registerSession(sessionId, ALL_TOOLS);
+		bridge.unregisterSession(sessionId, older);
+
+		const answer = await call(socketPath, {
+			authToken: newer,
+			sessionId,
+			toolName: "GetWorkspaceDiff",
+			args: {},
+		});
+
+		expect(zBridgeResponse.parse(answer)).toMatchObject({ ok: true });
+	});
+
+	test("SIDE-13 the endpoint is null before start and after stop", async () => {
+		const { bridge, socketPath } = await makeBridge();
+
+		expect(bridge.currentEndpoint).toEqual({ socketPath });
+		await bridge.stop();
+		expect(bridge.currentEndpoint).toBeNull();
 	});
 
 	test("SIDE-13 each chat gets its own token, and registering again replaces it", async () => {

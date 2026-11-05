@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createStore } from "zustand/vanilla";
 import { createLookups, defaultSessionConfig } from "./lookups.ts";
 import type { Repo, RepoConfig, Session, Workspace } from "./model.ts";
+import { getSettingDef } from "./registries/settings.ts";
 import type { RepoState } from "./services/repo.ts";
 import type { SessionsState } from "./services/sessions.ts";
 import type { WorkspaceState } from "./services/workspace.ts";
@@ -270,10 +271,11 @@ describe("PR-02 custom prompt from the loaded repo config", () => {
 });
 
 describe("defaultSessionConfig", () => {
+	// An unset key reads as its registry default, as the real settings service answers.
 	const settingsOf =
 		(values: Record<string, unknown>) =>
 		<T>(key: string): T =>
-			(values[key] ?? "") as T;
+			(values[key] ?? getSettingDef(key)?.default ?? "") as T;
 
 	it("takes the effort level from settings", () => {
 		const result = defaultSessionConfig(
@@ -296,5 +298,46 @@ describe("defaultSessionConfig", () => {
 	it("fails for an unknown workspace", () => {
 		const result = defaultSessionConfig("nope" as WorkspaceId, makeLookups(), settingsOf({}));
 		expect(result).toMatchObject({ ok: false, error: { code: "workspace_unknown" } });
+	});
+
+	it("AGENT-16 carries the chat options the settings choose", () => {
+		const result = defaultSessionConfig(
+			"w1" as WorkspaceId,
+			makeLookups(),
+			settingsOf({
+				default_claude_personality: "concise",
+				chrome_mode_enabled: true,
+				default_codex_personality: "friendly",
+				codex_tool_approval_policy: "always_approve",
+			}),
+		);
+		expect(result).toMatchObject({
+			ok: true,
+			value: {
+				claudeOutputStyle: "concise",
+				claudeInChrome: true,
+				codexPersonality: "friendly",
+				codexApprovalPolicy: "never",
+			},
+		});
+	});
+
+	it("AGENT-16 leaves the chat options out at their defaults", () => {
+		const result = defaultSessionConfig("w1" as WorkspaceId, makeLookups(), settingsOf({}));
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.claudeOutputStyle).toBeUndefined();
+		expect(result.value.claudeInChrome).toBeUndefined();
+		expect(result.value.codexPersonality).toBeUndefined();
+		expect(result.value.codexApprovalPolicy).toBeUndefined();
+	});
+
+	it("AGENT-16 refuses an output style no chat can use instead of dropping it", () => {
+		const result = defaultSessionConfig(
+			"w1" as WorkspaceId,
+			makeLookups(),
+			settingsOf({ default_claude_personality: "shouty" }),
+		);
+		expect(result).toMatchObject({ ok: false, error: { code: "setting_invalid" } });
 	});
 });

@@ -71,7 +71,11 @@ const open: TestDatabase[] = [];
 const harness = (
 	store: TestDatabase,
 	reply: (method: string, params: Record<string, unknown>) => Promise<Result<unknown>>,
+	launch: { launchFor: SessionsServiceDeps["launchFor"] } = {
+		launchFor: async () => ok({ env: {}, providerKeys: {} }),
+	},
 ): Harness => {
+	const { launchFor } = launch;
 	let next = 0;
 	const calls: Call[] = [];
 	const repositories = createRepositories(store.database, {
@@ -111,7 +115,7 @@ const harness = (
 			store: { getState: () => ({ bySession: {}, pausedSessionIds: {} }) },
 		},
 		notifications: { onLiveStateChanged: () => {} },
-		launchFor: () => ({ env: {}, providerKeys: {} }),
+		...(launchFor === undefined ? {} : { launchFor }),
 		workspaceContextOf: async () => ok(workspace),
 		defaultConfig: async () => ok(acpConfig()),
 		setting: () => "",
@@ -295,5 +299,41 @@ describe("AGENT-17 ACP chat options service", () => {
 		expect(h.calls.map((call) => call.method)).toEqual(["setAcpConfigOption"]);
 		const stored = must(await h.repositories.sessions.get(id));
 		expect(stored?.config.acpConfig).toEqual({ thought_level: "medium" });
+	});
+});
+
+describe("AGENT-17 and SIDE-21 an ACP chat's options need its launch", () => {
+	it("AGENT-17 with no launch settings the load fails with the reason and asks the sidecar nothing", async () => {
+		const store = database();
+		open.push(store);
+		const h = harness(store, async () => ok({}), { launchFor: undefined });
+		const id = await seedChat(h, acpConfig());
+
+		const loaded = await h.service.loadAcpConfigOptions(id);
+
+		expect(loaded).toMatchObject({ ok: false, error: { code: "chat_launch_missing" } });
+		expect(h.calls).toEqual([]);
+		expect(h.service.store.getState().acpConfigOptions?.[id]).toMatchObject({
+			state: "error",
+			error: { code: "chat_launch_missing" },
+		});
+	});
+
+	it("SIDE-21 a launch that cannot be built fails the load with its reason and starts nothing", async () => {
+		const store = database();
+		open.push(store);
+		const h = harness(store, async () => ok({}), {
+			launchFor: async () =>
+				err(appError("launch_secret_missing", "The value of OPENAI_API_KEY is missing.")),
+		});
+		const id = await seedChat(h, acpConfig());
+
+		const loaded = await h.service.loadAcpConfigOptions(id);
+
+		expect(loaded).toMatchObject({
+			ok: false,
+			error: { code: "launch_secret_missing", message: "The value of OPENAI_API_KEY is missing." },
+		});
+		expect(h.calls).toEqual([]);
 	});
 });

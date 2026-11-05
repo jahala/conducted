@@ -9,8 +9,12 @@
  * Must handle:
  *  - socket folder and file are private (mode 0700 and 0600), created per sidecar run, removed on
  *    stop(); a stale folder from a crashed run is left to the OS temp cleaner, never reused
- *  - registerSession(sessionId, appTools) returns the token for that chat; unregisterSession
- *    invalidates it (chat reset, agent restart, shutdown)
+ *  - registerSession(sessionId, appTools) returns the token for that chat, replacing an older
+ *    one; unregisterSession(sessionId, token) invalidates it when the agent session that holds it
+ *    is disposed (chat reset, agent restart, idle stop; the runners call it through their session's
+ *    dispose), and leaves a newer token of the same chat alone; stop() drops every token
+ *  - `currentEndpoint` is null before start() and after stop(), so a caller can refuse to hand out
+ *    an entry with no socket behind it
  *  - a tool that is off for the chat (appTools switches) answers with an error line, and
  *    AskUserQuestion is never offered over the bridge
  *  - tokens are compared in constant time
@@ -137,8 +141,15 @@ export class AppToolsBridge {
 		return token;
 	}
 
-	unregisterSession(sessionId: SessionId): void {
+	/** Invalidates the chat's token, unless a newer start already replaced it. */
+	unregisterSession(sessionId: SessionId, token: string): void {
+		if (this.sessions.get(sessionId)?.token !== token) return;
 		this.sessions.delete(sessionId);
+	}
+
+	/** Where the helper connects, or null while the bridge is not listening. */
+	get currentEndpoint(): BridgeEndpoint | null {
+		return this.endpoint;
 	}
 
 	async stop(): Promise<void> {

@@ -17,8 +17,8 @@
  * callback. If that proves too heavy for an agent, add an optional `runOnce` to `Runner` then.
  * Our design choice: the session gets a minimal workspace context built from the prompt's folder;
  * runners only read its path. The launch's environment and provider keys are folded in through
- * the one builder in `runners/launch-env.ts`, so a utility prompt sees the same settings as the
- * chat it names.
+ * the one builder in `runners/launch-env.ts`, and its program path reaches the runner, so a utility
+ * prompt sees the same settings as the chat it names.
  * Test first: a call returns the agent's text items, refuses every interaction and disposes the
  * session.
  */
@@ -34,7 +34,7 @@ import type { AppError, Clock, IdSource, Result, SessionId, WorkspaceId } from "
 import { appError, err, ok } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
 import type { AppToSidecarRequestParams, AppToSidecarRequestResult } from "../rpc/types.ts";
-import { agentProviders, buildAgentEnvironment } from "../runners/launch-env.ts";
+import { buildAgentEnvironment } from "../runners/launch-env.ts";
 import type { RunnerRegistry } from "../runners/registry.ts";
 import type { AgentSession, TurnCallbacks, TurnOutcome } from "../runners/runner.ts";
 import type { ShellEnvProvider } from "../shell-env/capture.ts";
@@ -102,13 +102,11 @@ export class AgentUtilityPromptRunner implements UtilityPromptRunner {
 		}
 		const env = buildAgentEnvironment({
 			agent: params.agent,
+			...(params.acpAgent === undefined ? {} : { acpAgent: params.acpAgent }),
 			sessionId,
 			workspace,
 			base: captured.value.env,
 			launch: params.launch,
-			ownKeyNames: agentProviders(params.agent, params.acpAgent).flatMap(
-				(provider) => provider.keyEnvVars,
-			),
 		});
 		if (!env.ok) {
 			this.logFailure(params, startedAt, env.error.message);
@@ -142,6 +140,9 @@ export class AgentUtilityPromptRunner implements UtilityPromptRunner {
 				config,
 				workspace,
 				env: env.value,
+				...(params.launch.executablePath === undefined
+					? {}
+					: { executablePath: params.launch.executablePath }),
 			});
 			const outcome = await this.runWithTimeout(agent, params.prompt, config, callbacks);
 			if (!outcome.ok) {

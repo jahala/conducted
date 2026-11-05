@@ -8,9 +8,10 @@
  * turn or background task, otherwise at its next request), claude-runner.md 1.2.
  * Must handle: the same launch in a different key order (same fingerprint); a launch with secrets
  * (the fingerprint is a hash, never the values, and is safe to log); a first launch (no previous
- * fingerprint: nothing to restart); a change while a turn runs or background tasks exist (restart
- * at the next turn, not now); a change on an idle chat (restart now, with resume); a change that
- * only reorders keys (none).
+ * fingerprint: nothing to restart); a change while a turn runs or background tasks exist (not now:
+ * the session manager asks again at each later request and restarts once both are over); a change
+ * on an idle chat (restart now, with resume); a change that only reorders keys, or a change back to
+ * the running launch (none). The session manager (`session/manager.ts`) is the one caller.
  * Our design choice: the fingerprint is per chat, because the process key is agent plus session
  * (D032), not per workspace folder as in Conductor.
  * Test first: two launches that differ only in the order of their environment keys have equal
@@ -19,6 +20,7 @@
 import { createHash } from "node:crypto";
 import type { AgentLaunch } from "@conducted/protocol";
 
+/** "restart_next_turn": not now, because the chat is busy; a later request asks again. */
 export type LaunchChange = "none" | "restart_now" | "restart_next_turn";
 
 export interface LaunchChangeInput {

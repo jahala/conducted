@@ -5,11 +5,13 @@
  * Test first: detect() parses "codex-cli 0.154.0" to version "0.154.0".
  */
 import { describe, expect, test } from "bun:test";
-import type { AppError, Result } from "@conducted/shared";
+import type { SessionConfig, WorkspaceContext } from "@conducted/protocol";
+import type { AppError, Result, SessionId, WorkspaceId } from "@conducted/shared";
 import { appError, err, ok } from "@conducted/shared";
 import { createLogger } from "../../logging/logger.ts";
 import { FakeChild, type JsonRpcMessage } from "../../test-support/fake-child.ts";
 import type { ProbeCommand } from "../deps.ts";
+import type { TurnCallbacks } from "../runner.ts";
 import type { JsonRpcChild, SpawnJsonRpcChild } from "./app-server-client.ts";
 import { CodexRunner } from "./codex-runner.ts";
 
@@ -26,6 +28,7 @@ function makeRunner(options: {
 	spawn?: SpawnJsonRpcChild;
 	probe?: ProbeCommand;
 	findExecutable?: (name: string) => Promise<string | null>;
+	released?: string[];
 }): CodexRunner {
 	return new CodexRunner({
 		logger: logger(),
@@ -48,7 +51,13 @@ function makeRunner(options: {
 		spawn: options.spawn ?? (async () => err(appError("spawn_failed", "not used"))),
 		random: () => 0,
 		sleep: async () => {},
-		appToolsConfig: () => ({ args: [], env: {} }),
+		appToolsConfig: async (start) => ({
+			args: [],
+			env: {},
+			release: () => {
+				options.released?.push(start.sessionId);
+			},
+		}),
 	});
 }
 
@@ -387,5 +396,95 @@ describe("SIDE-16 Codex MCP server listing", () => {
 
 		expect(cursors).toEqual([null, "page-2"]);
 		expect(servers.map((server) => server.name)).toEqual(["first", "second"]);
+	});
+});
+
+describe("SIDE-21 and SIDE-13 a Codex chat's program and app tools token", () => {
+	const config: SessionConfig = {
+		agent: "codex",
+		model: "gpt-5",
+		effort: "medium",
+		fastMode: false,
+		planMode: false,
+		requireToolApproval: false,
+		additionalDirectories: [],
+		appTools: { diffComments: false, progressUpdates: false, setTargetBranch: false },
+	};
+	const workspace: WorkspaceContext = {
+		workspaceId: "w1" as WorkspaceId,
+		workspaceName: "lisbon",
+		workspacePath: "/work/lisbon",
+		repoRootPath: "/work/lisbon",
+		targetBranch: "origin/main",
+		placeholderBranch: false,
+		port: 5100,
+	};
+	const callbacks: TurnCallbacks = {
+		onMessage: () => {},
+		requestInteraction: () => Promise.reject(new Error("No interaction is expected.")),
+		onAgentSessionId: () => {},
+		onBackgroundTasks: () => {},
+		beforeFirstWrite: async () => {},
+		onFastModeUnavailable: () => {},
+	};
+
+	test("SIDE-21 the program path from the chat's launch is the one Codex starts", async () => {
+		const commands: string[] = [];
+		const runner = makeRunner({
+			findExecutable: async (name) => (name === "codex" ? "/usr/local/bin/codex" : name),
+			spawn: async (options) => {
+				commands.push(options.command);
+				return err(appError("spawn_failed", "scripted"));
+			},
+		});
+
+		const session = await runner.start({
+			sessionId: "s1" as SessionId,
+			config,
+			workspace,
+			env: { PATH: "/usr/local/bin" },
+			executablePath: "/opt/codex/bin/codex",
+		});
+		const outcome = await session.runTurn(
+			{ text: "hello", attachmentPaths: [], config },
+			callbacks,
+		);
+		await session.dispose();
+
+		expect(outcome.kind).toBe("error");
+		expect(commands).toEqual(["/opt/codex/bin/codex"]);
+	});
+
+	test("SIDE-21 a chosen program that cannot run is an error that names it", async () => {
+		const runner = makeRunner({
+			findExecutable: async (name) => (name === "codex" ? "/usr/local/bin/codex" : null),
+		});
+
+		const started = runner.start({
+			sessionId: "s1" as SessionId,
+			config,
+			workspace,
+			env: { PATH: "/usr/local/bin" },
+			executablePath: "/opt/missing/codex",
+		});
+
+		await expect(started).rejects.toMatchObject({ code: "agent_program_invalid" });
+	});
+
+	test("SIDE-13 disposing the session gives the chat's app tools token back once", async () => {
+		const released: string[] = [];
+		const runner = makeRunner({ released });
+
+		const session = await runner.start({
+			sessionId: "s1" as SessionId,
+			config,
+			workspace,
+			env: { PATH: "/usr/local/bin" },
+		});
+		expect(released).toEqual([]);
+		await session.dispose();
+		await session.dispose();
+
+		expect(released).toEqual(["s1"]);
 	});
 });

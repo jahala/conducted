@@ -49,7 +49,6 @@ describe("SIDE-21 agent environment", () => {
 						OPENAI_API_KEY: { value: "sk-openai-secret", source: "entered" },
 					},
 				}),
-				ownKeyNames: ["OPENAI_API_KEY"],
 			}),
 		);
 
@@ -65,7 +64,6 @@ describe("SIDE-21 agent environment", () => {
 				workspace,
 				base: { PATH: "/bin" },
 				launch: launch(),
-				ownKeyNames: ["ANTHROPIC_API_KEY"],
 			}),
 		);
 
@@ -91,7 +89,6 @@ describe("SIDE-21 agent environment", () => {
 				workspace,
 				base: { ANTHROPIC_API_KEY: "from-the-shell" },
 				launch: launch({ env: { ANTHROPIC_API_KEY: "from-the-user" } }),
-				ownKeyNames: ["ANTHROPIC_API_KEY"],
 			}),
 		);
 
@@ -109,7 +106,6 @@ describe("SIDE-21 agent environment", () => {
 					env: { ANTHROPIC_API_KEY: "from-the-user" },
 					providerKeys: { ANTHROPIC_API_KEY: { value: "from-the-key", source: "entered" } },
 				}),
-				ownKeyNames: ["ANTHROPIC_API_KEY"],
 			}),
 		);
 
@@ -126,7 +122,6 @@ describe("SIDE-21 agent environment", () => {
 				launch: launch({
 					providerKeys: { CURSOR_API_KEY: { value: "from-the-mac", source: "this_mac" } },
 				}),
-				ownKeyNames: ["CURSOR_API_KEY"],
 			}),
 		);
 
@@ -141,7 +136,6 @@ describe("SIDE-21 agent environment", () => {
 				workspace,
 				base: { PATH: "/bin" },
 				launch: launch({ provider: "bedrock" }),
-				ownKeyNames: ["ANTHROPIC_API_KEY"],
 			}),
 		);
 
@@ -156,7 +150,6 @@ describe("SIDE-21 agent environment", () => {
 			workspace,
 			base: {},
 			launch: launch({ provider: "mystery" }),
-			ownKeyNames: [],
 		});
 
 		expect(result.ok).toBe(false);
@@ -171,11 +164,90 @@ describe("SIDE-21 agent environment", () => {
 				workspace,
 				base: {},
 				launch: launch({ provider: "bedrock" }),
-				ownKeyNames: ["OPENAI_API_KEY"],
 			}),
 		);
 
 		expect(env.CLAUDE_CODE_USE_BEDROCK).toBeUndefined();
+	});
+});
+
+describe("SIDE-21 the agent's own keys and base URL", () => {
+	test("SIDE-21 an OpenCode chat gets the keys of the providers OpenCode reads, and no other", () => {
+		const env = must(
+			buildAgentEnvironment({
+				agent: "acp",
+				acpAgent: "opencode",
+				sessionId,
+				workspace,
+				base: {},
+				launch: launch({
+					providerKeys: {
+						OPENROUTER_API_KEY: { value: "or-secret", source: "entered" },
+						CURSOR_API_KEY: { value: "cursor-secret", source: "entered" },
+					},
+				}),
+			}),
+		);
+
+		expect(env.OPENROUTER_API_KEY).toBe("or-secret");
+		expect(env.CURSOR_API_KEY).toBeUndefined();
+	});
+
+	test("SIDE-21 the base URL reaches Codex as OPENAI_BASE_URL and Claude as ANTHROPIC_BASE_URL", () => {
+		const codex = must(
+			buildAgentEnvironment({
+				agent: "codex",
+				sessionId,
+				workspace,
+				base: {},
+				launch: launch({ baseUrl: "https://proxy.example/v1" }),
+			}),
+		);
+		const claude = must(
+			buildAgentEnvironment({
+				agent: "claude",
+				sessionId,
+				workspace,
+				base: {},
+				launch: launch({ baseUrl: " https://proxy.example/anthropic " }),
+			}),
+		);
+
+		expect(codex.OPENAI_BASE_URL).toBe("https://proxy.example/v1");
+		expect(codex.ANTHROPIC_BASE_URL).toBeUndefined();
+		expect(claude.ANTHROPIC_BASE_URL).toBe("https://proxy.example/anthropic");
+		expect(claude.OPENAI_BASE_URL).toBeUndefined();
+	});
+
+	test("SIDE-21 the base URL setting wins over a user variable of the same name", () => {
+		const env = must(
+			buildAgentEnvironment({
+				agent: "codex",
+				sessionId,
+				workspace,
+				base: {},
+				launch: launch({
+					env: { OPENAI_BASE_URL: "https://from-the-environment-page" },
+					baseUrl: "https://from-the-setting",
+				}),
+			}),
+		);
+
+		expect(env.OPENAI_BASE_URL).toBe("https://from-the-setting");
+	});
+
+	test("SIDE-21 a base URL for an agent with no such variable is an error value", () => {
+		const result = buildAgentEnvironment({
+			agent: "acp",
+			acpAgent: "pi",
+			sessionId,
+			workspace,
+			base: {},
+			launch: launch({ baseUrl: "https://proxy.example" }),
+		});
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.code).toBe("base_url_unsupported");
 	});
 });
 

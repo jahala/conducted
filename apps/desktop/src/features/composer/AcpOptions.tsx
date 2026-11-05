@@ -6,15 +6,20 @@
  * 5B.5.4. The agent's options are fetched per chat, the saved choices are applied when the chat is
  * reloaded, and one choice is set through the chat service.
  * Must handle: options still loading, a fetch that fails ("Couldn't load saved model options"),
- * saved values the agent no longer offers ("Some saved model options could not be loaded. Choose
- * those options again."), a set that fails (an error toast), and agents other than ACP, which
- * render nothing.
+ * saved values that did not load ("Some saved model options could not be loaded. Choose those
+ * options again."), a set that fails (an error toast), and agents other than ACP, which render
+ * nothing. Each control shows the agent's own value, so a saved choice that did not load is never
+ * shown as chosen.
+ * Our design choice: the sidecar applies every saved choice the agent takes before it lists the
+ * options, and skips one the agent no longer offers or refuses (runners/acp/acp-session.ts). So
+ * this file does not judge a saved value itself: a saved choice did not load when its option is gone
+ * or shows another value. The rule of what an agent accepts stays in the sidecar.
  * Our design choice: each option is one toolbar control, a menu for a select and a switch button
  * for a boolean, so the composer keeps the same shape as the other chat controls.
  * Test first: a saved option value the agent no longer offers shows the "choose those options
  * again" message.
  */
-import type { AcpConfigOption, SessionConfig } from "@conducted/protocol";
+import type { AcpConfigOption } from "@conducted/protocol";
 import type { SessionId } from "@conducted/shared";
 import { useEffect, useRef } from "react";
 import { useStore } from "zustand";
@@ -35,39 +40,18 @@ export interface AcpOptionsProps {
 	sessionId: SessionId;
 }
 
-/** Saved values the agent no longer offers, by option id, in the saved config's order. */
+/** The saved choices that did not load, by option id: the option is gone or shows another value. */
 export function missingSavedOptions(
 	options: readonly AcpConfigOption[],
 	saved: Readonly<Record<string, string | boolean>> | undefined,
 ): string[] {
 	if (saved === undefined) return [];
-	const missing: string[] = [];
-	for (const [optionId, value] of Object.entries(saved)) {
-		const option = options.find((entry) => entry.id === optionId);
-		if (option === undefined) {
-			missing.push(optionId);
-			continue;
-		}
-		if (option.value.kind === "switch") {
-			if (typeof value !== "boolean") missing.push(optionId);
-			continue;
-		}
-		if (
-			typeof value !== "string" ||
-			!option.value.choices.some((choice) => choice.value === value)
-		) {
-			missing.push(optionId);
-		}
-	}
-	return missing;
-}
-
-function currentValue(option: AcpConfigOption, config: SessionConfig): string | boolean {
-	const saved = config.acpConfig?.[option.id];
-	if (option.value.kind === "switch") {
-		return typeof saved === "boolean" ? saved : option.value.current;
-	}
-	return typeof saved === "string" ? saved : option.value.current;
+	return Object.entries(saved)
+		.filter(([optionId, value]) => {
+			const option = options.find((entry) => entry.id === optionId);
+			return option === undefined || option.value.current !== value;
+		})
+		.map(([optionId]) => optionId);
 }
 
 export function AcpOptions({ sessionId }: AcpOptionsProps) {
@@ -119,7 +103,7 @@ export function AcpOptions({ sessionId }: AcpOptionsProps) {
 	return (
 		<div className="flex items-center gap-1">
 			{load.data.map((option) => {
-				const value = currentValue(option, config);
+				const value = option.value.current;
 				if (option.value.kind === "switch") {
 					const on = value === true;
 					return (
