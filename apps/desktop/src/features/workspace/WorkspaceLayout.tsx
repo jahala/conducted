@@ -47,10 +47,13 @@ export function WorkspaceLayout({
 	const [rightPanelOpen, setRightPanelOpen] = useState(true);
 
 	const toggleRightPanel = () => {
+		const next = !rightPanelOpen;
 		const panel = rightRef.current;
-		if (!panel) return;
-		if (panel.isCollapsed()) panel.expand();
-		else panel.collapse();
+		if (panel) {
+			if (next) panel.expand();
+			else panel.collapse();
+		}
+		setRightPanelOpen(next);
 	};
 
 	return (
@@ -83,7 +86,11 @@ export function WorkspaceLayout({
 				collapsedSize="0%"
 				onResize={(size) => setRightPanelOpen(size.inPixels > 0)}
 			>
-				<aside aria-label="Changes and scripts" className="h-full bg-surface">
+				<aside
+					aria-label="Changes and scripts"
+					data-right-panel-open={rightPanelOpen}
+					className="h-full bg-surface"
+				>
 					<ResizableGroup
 						id={`workspace-right-panels-${workspaceId}`}
 						orientation="vertical"

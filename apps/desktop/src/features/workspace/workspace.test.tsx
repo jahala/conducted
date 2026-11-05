@@ -37,7 +37,7 @@ describe("WorkspaceGate", () => {
 	it("explains a workspace that cannot be opened", () => {
 		state.workspace = { state: "error", error: appError("not_found", "Workspace not found") };
 		render(<WorkspaceGate workspaceId={id}>content</WorkspaceGate>);
-		expect(screen.getByText("Couldn't open this workspace")).toBeTruthy();
+		expect(screen.getByText("Error loading workspace")).toBeTruthy();
 		expect(screen.getByText("Workspace not found")).toBeTruthy();
 	});
 
