@@ -1,22 +1,35 @@
 /**
  * @feature AGENT-11 ACP client and runner (runner)
  * Owns: tests for capabilities, finding the adapter program and passing the app tools MCP server
- * to session/new.
+ * to session/new, and AGENT-12's model and command listing and adapter hooks.
  * Test first: capabilities.steer is false for both adapters.
  */
 import { describe, expect, test } from "bun:test";
+import { join } from "node:path";
 import {
 	AGENT_METHODS,
 	agent as createAgentApp,
 	type NewSessionRequest,
 	ndJsonStream,
+	type SessionConfigOption,
+	type SessionNotification,
 } from "@agentclientprotocol/sdk";
 import type { AgentMessage, SessionConfig } from "@conducted/protocol";
-import { type AppError, err, ok, type SessionId, type WorkspaceId } from "@conducted/shared";
-import { createLogger } from "../../logging/logger.ts";
+import {
+	type AppError,
+	appError,
+	type Clock,
+	err,
+	type IdSource,
+	ok,
+	type Result,
+	type SessionId,
+	type WorkspaceId,
+} from "@conducted/shared";
+import { createLogger, type Logger } from "../../logging/logger.ts";
 import type { AgentSession, StartOptions, TurnCallbacks } from "../runner.ts";
-import type { AcpChild } from "./acp-client.ts";
-import { AcpRunner, isVersionBelow } from "./acp-runner.ts";
+import type { AcpChild, AcpClient, AcpClientHandlers } from "./acp-client.ts";
+import { AcpRunner, type AcpRunnerDeps, isVersionBelow } from "./acp-runner.ts";
 import type { AcpAdapter } from "./adapters/adapter.ts";
 import { ACP_ADAPTERS } from "./adapters/registry.ts";
 import type { AcpTranslator } from "./translate.ts";
@@ -29,7 +42,7 @@ const fakeAdapter: AcpAdapter = {
 	minimumVersion: "1.16.2",
 	toolNameHints: {},
 	waitForModelCatalogMs: 0,
-	permissionEnv: (requireApproval) => ({ FAKE_APPROVAL: requireApproval ? "ask" : "allow" }),
+	permissionEnv: (requireApproval) => ok({ FAKE_APPROVAL: requireApproval ? "ask" : "allow" }),
 };
 
 const config: SessionConfig = {
@@ -108,7 +121,7 @@ function makeRunner(
 	});
 }
 
-function callbacks(): TurnCallbacks {
+function callbacks(overrides: Partial<TurnCallbacks> = {}): TurnCallbacks {
 	return {
 		onMessage: (_message: AgentMessage) => {},
 		requestInteraction: async () => ({ kind: "withdrawn" }),
@@ -116,6 +129,7 @@ function callbacks(): TurnCallbacks {
 		onBackgroundTasks: () => {},
 		beforeFirstWrite: async () => {},
 		onFastModeUnavailable: () => {},
+		...overrides,
 	};
 }
 
@@ -206,6 +220,244 @@ describe("AGENT-11 ACP runner", () => {
 		await session.runTurn({ text: "hello", attachmentPaths: [], config }, callbacks());
 
 		expect(seen.value?.mcpServers).toEqual([appTools]);
+		await session.dispose();
+	});
+});
+
+function fakeLogger(): Logger {
+	const fake: Logger = {
+		error: () => {},
+		warn: () => {},
+		info: () => {},
+		debug: () => {},
+		child: () => fake,
+		setLevel: () => {},
+	};
+	return fake;
+}
+
+const clock: Clock = { now: () => 0 };
+let nextId = 1;
+const ids: IdSource = {
+	uuid: () => {
+		const id = `00000000-0000-4000-8000-${String(nextId).padStart(12, "0")}`;
+		nextId += 1;
+		return id;
+	},
+};
+
+const modelOptions: SessionConfigOption[] = [
+	{
+		type: "select",
+		id: "model",
+		name: "Model",
+		category: "model",
+		currentValue: "m2",
+		options: [
+			{ value: "m1", name: "Model One" },
+			{ value: "m2", name: "Model Two" },
+		],
+	},
+];
+
+const reviewedCommands: SessionNotification["update"] = {
+	sessionUpdate: "available_commands_update",
+	availableCommands: [
+		{ name: "review", description: "Review the diff", input: { hint: "<path>" } },
+	],
+};
+
+interface FakeClientOptions {
+	configOptions?: SessionConfigOption[];
+	connect?: Result<{ agentVersion: string | undefined }, AppError>;
+	open?: Result<
+		{ acpSessionId: string; how: "new"; configOptions: SessionConfigOption[] },
+		AppError
+	>;
+	afterOpen?: (handlers: AcpClientHandlers) => void;
+	onClose?: () => void;
+}
+
+function fakeClient(
+	options: FakeClientOptions,
+	handlersRef: { handlers?: AcpClientHandlers },
+): AcpClient {
+	const connected = options.connect ?? ok({ agentVersion: "1.18.18" });
+	const opened =
+		options.open ??
+		ok({
+			acpSessionId: "acp-1",
+			how: "new" as const,
+			configOptions: options.configOptions ?? modelOptions,
+		});
+	return {
+		connect: async () => connected,
+		openSession: async () => {
+			if (opened.ok && options.afterOpen !== undefined && handlersRef.handlers !== undefined) {
+				options.afterOpen(handlersRef.handlers);
+			}
+			return opened;
+		},
+		prompt: async () => ok("end_turn"),
+		cancel: () => {},
+		setConfigOption: async () => ok(undefined),
+		setMode: async () => ok(undefined),
+		onClose: () => {},
+		close: async () => {
+			options.onClose?.();
+		},
+	};
+}
+
+function makeListingRunner(options: FakeClientOptions = {}): {
+	runner: AcpRunner;
+	closed: () => number;
+	handlers: () => AcpClientHandlers | undefined;
+} {
+	let closeCount = 0;
+	const handlersRef: { handlers?: AcpClientHandlers } = {};
+	const deps: AcpRunnerDeps = {
+		adapter: ACP_ADAPTERS.opencode,
+		spawn: async () => err(appError("spawn_failed", "The test never starts an agent process.")),
+		createClient: ({ handlers }) => {
+			handlersRef.handlers = handlers;
+			return fakeClient(
+				{
+					...options,
+					onClose: () => {
+						closeCount += 1;
+						options.onClose?.();
+					},
+				},
+				handlersRef,
+			);
+		},
+		logger: fakeLogger(),
+		clock,
+		ids,
+		probe: async () => ok({ stdout: "1.18.18", stderr: "", exitCode: 0 }),
+		findExecutable: async () => "/fake/opencode",
+	};
+	return {
+		runner: new AcpRunner(deps),
+		closed: () => closeCount,
+		handlers: () => handlersRef.handlers,
+	};
+}
+
+describe("AGENT-12 ACP model and command listing", () => {
+	test("models are mapped from the model config option and the session is closed", async () => {
+		const { runner, closed } = makeListingRunner();
+		const models = await runner.listModels();
+		expect(models.map((model) => model.id)).toEqual(["m1", "m2"]);
+		expect(models.map((model) => model.isDefault)).toEqual([false, true]);
+		expect(closed()).toBe(1);
+	});
+
+	test("a model option that arrives after session/new is still used", async () => {
+		const { runner } = makeListingRunner({
+			configOptions: [],
+			afterOpen: (handlers) => {
+				queueMicrotask(() => {
+					handlers.onSessionUpdate({
+						sessionId: "acp-1",
+						update: { sessionUpdate: "config_option_update", configOptions: modelOptions },
+					} as SessionNotification);
+				});
+			},
+		});
+		const models = await runner.listModels();
+		expect(models.map((model) => model.id)).toEqual(["m1", "m2"]);
+	});
+
+	test("a session that cannot open is an error, and the client is still closed", async () => {
+		const { runner, closed } = makeListingRunner({
+			open: err(appError("acp_open_failed", "OpenCode refused the session.")),
+		});
+		await expect(runner.listModels()).rejects.toMatchObject({ code: "acp_open_failed" });
+		expect(closed()).toBe(1);
+	});
+
+	test("slash commands come from the available commands update", async () => {
+		const { runner } = makeListingRunner({
+			afterOpen: (handlers) => {
+				handlers.onSessionUpdate({
+					sessionId: "acp-1",
+					update: reviewedCommands,
+				} as SessionNotification);
+			},
+		});
+		expect(await runner.listSlashCommands("/tmp/work")).toEqual([
+			{ name: "review", description: "Review the diff", argumentHint: "<path>" },
+		]);
+	});
+});
+
+describe("AGENT-12 ACP runner adapter hooks", () => {
+	test("start applies session storage and prefixes the agent session id", async () => {
+		const captured: { env?: Readonly<Record<string, string>> } = {};
+		const handlersRef: { handlers?: AcpClientHandlers } = {};
+		const runner = new AcpRunner({
+			adapter: ACP_ADAPTERS.opencode,
+			spawn: async () => err(appError("spawn_failed", "The test never starts an agent process.")),
+			createClient: ({ env, handlers }) => {
+				captured.env = env;
+				handlersRef.handlers = handlers;
+				return fakeClient({}, handlersRef);
+			},
+			logger: fakeLogger(),
+			clock,
+			ids,
+			probe: async () => ok({ stdout: "1.18.18", stderr: "", exitCode: 0 }),
+			findExecutable: async () => "/fake/opencode",
+		});
+		const seen: string[] = [];
+		const session = await runner.start(startOptions);
+		await session.runTurn(
+			{ text: "hello", attachmentPaths: [], config },
+			callbacks({ onAgentSessionId: (agentSessionId) => seen.push(agentSessionId) }),
+		);
+
+		expect(captured.env?.OPENCODE_DB).toBe(
+			join("/workspace", ".context", "opencode", "opencode.db"),
+		);
+		expect(seen).toEqual(["opencode-acp-1"]);
+		await session.dispose();
+	});
+
+	test("start refuses an unknown slash command before it reaches the agent", async () => {
+		const handlersRef: { handlers?: AcpClientHandlers } = {};
+		const runner = new AcpRunner({
+			adapter: ACP_ADAPTERS.opencode,
+			spawn: async () => err(appError("spawn_failed", "The test never starts an agent process.")),
+			createClient: ({ handlers }) => {
+				handlersRef.handlers = handlers;
+				return fakeClient(
+					{
+						afterOpen: (openHandlers) => {
+							openHandlers.onSessionUpdate({
+								sessionId: "acp-1",
+								update: reviewedCommands,
+							} as SessionNotification);
+						},
+					},
+					handlersRef,
+				);
+			},
+			logger: fakeLogger(),
+			clock,
+			ids,
+			probe: async () => ok({ stdout: "1.18.18", stderr: "", exitCode: 0 }),
+			findExecutable: async () => "/fake/opencode",
+		});
+		const session = await runner.start(startOptions);
+		const outcome = await session.runTurn(
+			{ text: "/deploy now", attachmentPaths: [], config },
+			callbacks(),
+		);
+
+		expect(outcome.kind).toBe("error");
+		if (outcome.kind === "error") expect(outcome.message).toContain("does not know the command");
 		await session.dispose();
 	});
 });

@@ -43,7 +43,7 @@ const adapter: AcpAdapter = {
 	minimumVersion: "1.16.2",
 	toolNameHints: {},
 	waitForModelCatalogMs: 0,
-	permissionEnv: () => ({}),
+	permissionEnv: () => ok({}),
 };
 
 const baseConfig: SessionConfig = {
