@@ -123,6 +123,7 @@ function makeService(
 			stat: async () => err(appError("fs_not_found", "missing")),
 			paths: { home: "", appData: "", temp: "", resources: "" },
 		},
+		renameWorkspaceBranch: async () => ok(undefined),
 		setIntendedTargetBranch: async (id, branch) => {
 			if (options.storeResult !== undefined && !options.storeResult.ok) return options.storeResult;
 			stored.push({ id, branch });

@@ -78,6 +78,7 @@ function makeService(
 		contextOf,
 		agent,
 		now: () => 1_000,
+		renameWorkspaceBranch: async () => ok(undefined),
 		setIntendedTargetBranch: async () => ok(undefined),
 		moveOpenPullRequestBase: async () => ok(false),
 		fs: {

@@ -193,6 +193,7 @@ function makeService(
 		cache: {} as never,
 		contextOf: options.contextOf ?? (async () => ok(context())),
 		agent: {} as never,
+		renameWorkspaceBranch: async () => ok(undefined),
 		setIntendedTargetBranch: async () => ok(undefined),
 		moveOpenPullRequestBase: async () => ok(false),
 		now: options.now ?? (() => start),

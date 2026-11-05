@@ -43,14 +43,8 @@ import type { FileSystem, Keychain, ShellOutput, Unsubscribe } from "../../platf
 import { createLatestWins } from "../async/latest-wins.ts";
 import { createSingleFlight, type SingleFlight } from "../async/single-flight.ts";
 import {
-	type GitCommand,
-	lsFiles,
-	remoteGetUrl,
-	revParseHead,
-	statusPorcelainAll,
-} from "../git/commands.ts";
-import {
 	configGet,
+	type GitCommand,
 	lsFiles,
 	remoteGetUrl,
 	revParseHead,
@@ -904,11 +898,6 @@ export function parsePrBatchAnswer(text: string): Result<PrBatchAnswer> {
 
 /** Required check names are not part of the poll answer, so no check is marked required here. */
 const NO_REQUIRED_CHECKS: ReadonlySet<string> = new Set();
-
-const parseTimestamp = (value: string): number | null => {
-	const at = Date.parse(value);
-	return Number.isNaN(at) ? null : at;
-};
 
 /** The GraphQL budget out of `gh api rate_limit`. Null means the host does not rate limit. */
 export function parseGraphqlBudget(text: string): Result<number | null> {
