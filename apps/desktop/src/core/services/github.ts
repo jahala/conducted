@@ -1,10 +1,11 @@
 /**
  * @feature PR-01 GitHub service: access, health, merge and the personal access token
  * Owns: probing `gh` access (`gh auth status`, the user's login, the git protocol), the access
- * health store, reading and writing the personal access token, and merging a workspace's pull
- * request.
+ * health store, reading and writing the personal access token, merging a workspace's pull
+ * request, and polling each watched workspace's pull request in a batch.
  * Behaviour: services-map.md 3.9 (auth probes, method resolution, health), 5B.1.11 (failure
- * classes; only unauthorized breaks access), 5B.1.7 (merge method and dedupe), ui-map.md 6
+ * classes; only unauthorized breaks access), 5B.1.7 (merge method and dedupe), 3.7.2 and 5B.1.2
+ * to 5B.1.4 (the PR poll, its cadence, skip rules and rate-limit gate), ui-map.md 6
  * (Account: GitHub through the `gh` CLI or a personal access token).
  * Must handle: `gh` missing, signed out, unauthorized, offline, an SSO requirement and a missing
  * scope, with the failure class kept on the access state; only unauthorized marks access broken;
@@ -16,11 +17,13 @@
  * access state.
  * Our design choice: access is the user's own `gh auth login`, or the personal access token the
  * user saved on the Account page (D029). The token is kept in the Keychain and given to `gh` as
- * GH_TOKEN; nothing is brokered per session. Polling, the other write actions and the stack
- * catch-up belong to other features (PR-03, PR-05, PR-06, PR-08, PR-10, PR-12).
+ * GH_TOKEN; nothing is brokered per session. The poll schedule and gate are pure functions in
+ * pr-polling.ts; `watch` owns the timers. The other write actions and the stack catch-up belong
+ * to other features (PR-05, PR-06, PR-08, PR-10, PR-12).
  * Test first: two merge calls at once send one `gh pr merge`.
  */
 import {
+	type AppError,
 	appError,
 	err,
 	notImplemented,
@@ -32,12 +35,21 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Keychain, Unsubscribe } from "../../platform/platform.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
 import { createSingleFlight, type SingleFlight } from "../async/single-flight.ts";
-import { lsFiles, remoteGetUrl, revParseHead, statusPorcelainAll } from "../git/commands.ts";
 import {
+	configGet,
+	lsFiles,
+	remoteGetUrl,
+	revParseHead,
+	revParseVerify,
+	statusPorcelainAll,
+} from "../git/commands.ts";
+import {
+	apiRateLimit,
 	apiUserLogin,
 	authStatus,
 	configGetGitProtocol,
 	type MergeMethod,
+	prBatchQuery,
 	prCreateWeb,
 	prMerge,
 	repoMergeMethodsQuery,
@@ -47,7 +59,26 @@ import type { GitHubAccess as GitHubAccessView, IssueView, PullRequest } from ".
 import { createPrInstruction } from "./agent-instructions.ts";
 import type { GitCache } from "./git-cache.ts";
 import { buildDeepLink } from "./notifications.ts";
-import type { PollRole } from "./pr-polling.ts";
+import {
+	closedPrIsShown,
+	type GraphqlPullRequestNode,
+	headBranchFromUpstream,
+	type PullRequestExtras,
+	rawFromGraphql,
+	reconcileMergeable,
+	toDeployments,
+	toPullRequest,
+	toReviewers,
+} from "./pr-mapping.ts";
+import {
+	createRateLimitGate,
+	NO_PR_MEMORY_MS,
+	type PollRole,
+	type RateLimitGate,
+	requestedInterval,
+	shouldQueryPr,
+	updatePolling,
+} from "./pr-polling.ts";
 import type { AgentMessenger } from "./sessions.ts";
 
 /** The paths GitHub reads a pull request template from, in the order the research lists them. */
@@ -372,6 +403,84 @@ export interface GithubServiceDeps {
 	probeCwd: string;
 }
 
+interface PollWatcher {
+	readonly roles: Map<PollRole, number>;
+	stopped: boolean;
+	timer: ReturnType<typeof setTimeout> | null;
+}
+
+interface PrBatchResponse {
+	data?: {
+		repository?: {
+			viewerPermission?: string | null;
+			squashMergeAllowed?: boolean;
+			rebaseMergeAllowed?: boolean;
+			mergeCommitAllowed?: boolean;
+			pr0ByNumber?: GraphqlPullRequestNode | null;
+			pr0ByBranch?: { nodes?: readonly GraphqlPullRequestNode[] | null } | null;
+		} | null;
+	};
+}
+
+/** One parsed batched PR answer: the PR node, and the repository facts the poll needs. */
+export interface PrBatchAnswer {
+	node: GraphqlPullRequestNode | null;
+	viewerCanMerge: boolean;
+	mergeMethod: "squash" | "rebase" | "merge";
+}
+
+/** Reads `gh api graphql` output. A bad answer is an error, never an empty PR. */
+export function parsePrBatchAnswer(text: string): Result<PrBatchAnswer> {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(text);
+	} catch {
+		return err(appError("github_bad_answer", "GitHub's answer was not JSON."));
+	}
+	if (typeof parsed !== "object" || parsed === null) {
+		return err(appError("github_bad_answer", "GitHub's answer was not a JSON object."));
+	}
+	const repository = (parsed as PrBatchResponse).data?.repository;
+	if (repository === undefined || repository === null) {
+		return err(appError("github_bad_answer", "GitHub's answer had no repository."));
+	}
+	const permission = repository.viewerPermission ?? "";
+	return ok({
+		node: repository.pr0ByNumber ?? repository.pr0ByBranch?.nodes?.[0] ?? null,
+		viewerCanMerge: permission === "ADMIN" || permission === "MAINTAIN" || permission === "WRITE",
+		mergeMethod:
+			repository.squashMergeAllowed === true
+				? "squash"
+				: repository.rebaseMergeAllowed === true
+					? "rebase"
+					: "merge",
+	});
+}
+
+/** Required check names are not part of the poll answer, so no check is marked required here. */
+const NO_REQUIRED_CHECKS: ReadonlySet<string> = new Set();
+
+const parseTimestamp = (value: string): number | null => {
+	const at = Date.parse(value);
+	return Number.isNaN(at) ? null : at;
+};
+
+/** The GraphQL budget out of `gh api rate_limit`. Null means the host does not rate limit. */
+export function parseGraphqlBudget(text: string): Result<number | null> {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(text);
+	} catch {
+		return err(appError("github_bad_answer", "GitHub's rate-limit answer was not JSON."));
+	}
+	if (typeof parsed !== "object" || parsed === null) {
+		return err(appError("github_bad_answer", "GitHub's rate-limit answer was not an object."));
+	}
+	const remaining = (parsed as { resources?: { graphql?: { remaining?: unknown } } }).resources
+		?.graphql?.remaining;
+	return ok(typeof remaining === "number" ? remaining : null);
+}
+
 export class GithubService {
 	readonly store: StoreApi<GithubState>;
 	readonly #deps: GithubServiceDeps;
@@ -379,10 +488,25 @@ export class GithubService {
 	readonly #flights: SingleFlight<string>;
 	/** Only the newest access check may write `access`; an older one that ends late is dropped. */
 	readonly #accessChecks = createLatestWins();
+	/** One timer per watched workspace, shared by every role watching it. */
+	readonly #pollWatchers = new Map<string, PollWatcher>();
+	/** Only the newest poll may write a workspace's entry. */
+	readonly #pollLatest = createLatestWins<string>();
+	/** When a "this branch has no PR" answer stops being reused. */
+	readonly #noPrUntil = new Map<string, number>();
+	/** When each watched workspace last asked GitHub, for the interval check. */
+	readonly #lastPolledAt = new Map<string, number>();
+	/** The head commit of the last PR shown, for the UNKNOWN mergeability guard. */
+	readonly #headByWorkspace = new Map<string, string>();
+	readonly #rateGate: RateLimitGate;
 
 	constructor(deps: GithubServiceDeps) {
 		this.#deps = deps;
 		this.#flights = createSingleFlight<string>();
+		this.#rateGate = createRateLimitGate({
+			readRemaining: () => this.#readRateLimit(),
+			now: () => this.#deps.now(),
+		});
 		this.store = createStore<GithubState>(() => ({
 			access: { status: "unknown" },
 			health: {
@@ -535,12 +659,239 @@ export class GithubService {
 		return settings.ok ? settings.value.authMethod : "cli";
 	}
 
-	watch(_workspaceId: WorkspaceId, _role: PollRole): Unsubscribe {
-		return notImplemented("PR-03");
+	/**
+	 * Polls one workspace's pull request until the returned function is called. Every role watching
+	 * the workspace shares one timer; the smallest requested interval wins.
+	 */
+	watch(workspaceId: WorkspaceId, role: PollRole): Unsubscribe {
+		const key = String(workspaceId);
+		const existing = this.#pollWatchers.get(key);
+		const watcher: PollWatcher = existing ?? {
+			roles: new Map<PollRole, number>(),
+			stopped: false,
+			timer: null,
+		};
+		watcher.roles.set(role, (watcher.roles.get(role) ?? 0) + 1);
+		if (existing === undefined) {
+			this.#pollWatchers.set(key, watcher);
+			void this.#pollTick(workspaceId, watcher);
+		}
+		return () => this.#stopWatching(key, role);
 	}
 
-	pollNow(_workspaceId: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("PR-03");
+	/** Polls one workspace once. A newer poll's answer wins if two overlap. */
+	async pollNow(workspaceId: WorkspaceId): Promise<Result<void>> {
+		const key = String(workspaceId);
+		const ticket = this.#pollLatest.begin(key);
+		const result = await this.#pollWorkspace(workspaceId);
+		const latest = this.#pollLatest.isLatest(ticket);
+		this.#pollLatest.settle(ticket);
+		this.#lastPolledAt.set(key, this.#deps.now());
+		if (!latest) return ok(undefined);
+		if (!result.ok) {
+			this.#recordPollFailure(workspaceId, result.error);
+			return err(result.error);
+		}
+		this.store.setState((state) => ({
+			byWorkspace: { ...state.byWorkspace, [key]: result.value },
+		}));
+		return ok(undefined);
+	}
+
+	#stopWatching(key: string, role: PollRole): void {
+		const watcher = this.#pollWatchers.get(key);
+		if (watcher === undefined) return;
+		const count = (watcher.roles.get(role) ?? 0) - 1;
+		if (count > 0) watcher.roles.set(role, count);
+		else watcher.roles.delete(role);
+		if (watcher.roles.size > 0) return;
+		watcher.stopped = true;
+		if (watcher.timer !== null) clearTimeout(watcher.timer);
+		this.#pollWatchers.delete(key);
+		this.#pollLatest.invalidate(key);
+	}
+
+	async #pollTick(workspaceId: WorkspaceId, watcher: PollWatcher): Promise<void> {
+		if (watcher.stopped) return;
+		const key = String(workspaceId);
+		const pr = this.store.getState().byWorkspace[key]?.pullRequest ?? null;
+		const subscriptions = [...watcher.roles].map(([role]) => ({
+			role,
+			intervalMs: requestedInterval(
+				role,
+				pr === null
+					? null
+					: {
+							mergeStateStatus: pr.mergeable === "unknown" ? "UNKNOWN" : null,
+							merged: pr.state === "merged",
+						},
+			),
+		}));
+		const remaining = await this.#rateGate.remaining();
+		const decision = updatePolling(subscriptions, remaining);
+		if (
+			decision.poll &&
+			this.#deps.now() - (this.#lastPolledAt.get(key) ?? 0) >= decision.intervalMs
+		) {
+			await this.pollNow(workspaceId);
+		}
+		if (watcher.stopped) return;
+		watcher.timer = setTimeout(() => {
+			void this.#pollTick(workspaceId, watcher);
+		}, decision.intervalMs);
+	}
+
+	async #pollWorkspace(workspaceId: WorkspaceId): Promise<Result<WorkspacePrEntry>> {
+		const context = await this.#deps.contextOf(workspaceId);
+		if (!context.ok) return err(context.error);
+		const found = context.value;
+		const key = String(workspaceId);
+		const now = this.#deps.now();
+		const remembered = this.#noPrUntil.get(key);
+		if (found.prNumber === null && remembered !== undefined && now < remembered) {
+			return ok({ pullRequest: null, unavailable: "no_pr", fetchedAt: now });
+		}
+
+		const upstream = await this.#upstreamBranch(found);
+		if (!upstream.ok) return err(upstream.error);
+		const headBranch = upstream.value?.branch ?? found.branch;
+		const pushRemote = upstream.value?.remote ?? found.remote;
+		const pushed = await this.#branchPushed(found.workspacePath, pushRemote, headBranch);
+		if (!pushed.ok) return err(pushed.error);
+		if (!shouldQueryPr(pushed.value, found.prNumber)) {
+			this.#noPrUntil.set(key, now + NO_PR_MEMORY_MS);
+			return ok({ pullRequest: null, unavailable: "no_pr", fetchedAt: now });
+		}
+
+		const settings = await this.#ghSettings();
+		if (!settings.ok) return err(settings.error);
+		const command = prBatchQuery([{ headBranch, prNumber: found.prNumber }]);
+		const response = await this.#deps.git.run(
+			command,
+			this.#runOptions(settings.value, found.workspacePath),
+		);
+		if (!response.ok) return err(response.error);
+		await this.recordGhResult(response.value);
+		if (!isSuccessfulExit(command, response.value.exitCode)) {
+			return err(failedCommandError(command, response.value));
+		}
+		const answer = parsePrBatchAnswer(response.value.stdout);
+		if (!answer.ok) return err(answer.error);
+		if (answer.value.node === null) {
+			this.#noPrUntil.set(key, now + NO_PR_MEMORY_MS);
+			return ok({ pullRequest: null, unavailable: "no_pr", fetchedAt: now });
+		}
+		this.#noPrUntil.delete(key);
+		return this.#toWorkspaceEntry(key, found, answer.value, now);
+	}
+
+	#toWorkspaceEntry(
+		key: string,
+		found: PrWorkspaceContext,
+		answer: PrBatchAnswer,
+		now: number,
+	): Result<WorkspacePrEntry> {
+		const node = answer.node;
+		if (node === null) {
+			return err(appError("github_bad_answer", "GitHub's answer had no pull request."));
+		}
+		const raw = rawFromGraphql(node);
+		const headBranch = raw.headRefName ?? found.branch;
+		const state: PullRequest["state"] =
+			raw.state === "MERGED"
+				? "merged"
+				: raw.state === "CLOSED"
+					? "closed"
+					: raw.isDraft
+						? "draft"
+						: "open";
+		if (!closedPrIsShown(state, found.branch, headBranch)) {
+			return ok({ pullRequest: null, unavailable: "no_pr", fetchedAt: now });
+		}
+		const updatedAt =
+			raw.updatedAt === null || raw.updatedAt === undefined ? null : parseTimestamp(raw.updatedAt);
+		if (updatedAt === null) {
+			return err(
+				appError("github_bad_answer", "GitHub did not say when the pull request changed."),
+			);
+		}
+		const previous = this.store.getState().byWorkspace[key]?.pullRequest ?? null;
+		const sameHead = previous !== null && this.#headByWorkspace.get(key) === raw.headRefOid;
+		const extras: PullRequestExtras = {
+			authorLogin: raw.author?.login ?? null,
+			viewerCanMerge: answer.viewerCanMerge,
+			mergeMethod: answer.mergeMethod,
+			reviewers: toReviewers(raw),
+			deployments: toDeployments(raw.deployments ?? []),
+			updatedAt,
+		};
+		const pr = toPullRequest(raw, extras, NO_REQUIRED_CHECKS);
+		pr.mergeable = reconcileMergeable(previous?.mergeable ?? null, pr.mergeable, sameHead);
+		this.#headByWorkspace.set(key, raw.headRefOid);
+		return ok({ pullRequest: pr, unavailable: "none", fetchedAt: now });
+	}
+
+	/** The remote and branch as pushed, from the branch's configured upstream. */
+	async #upstreamBranch(
+		context: PrWorkspaceContext,
+	): Promise<Result<{ remote: string; branch: string } | null>> {
+		const options = { cwd: context.workspacePath };
+		const remote = await this.#deps.git.stdout(
+			configGet(`branch.${context.branch}.remote`),
+			options,
+		);
+		if (!remote.ok) return err(remote.error);
+		const merge = await this.#deps.git.stdout(configGet(`branch.${context.branch}.merge`), options);
+		if (!merge.ok) return err(merge.error);
+		const branch = headBranchFromUpstream(remote.value, merge.value);
+		return ok(branch === null ? null : { remote: remote.value.trim(), branch });
+	}
+
+	async #branchPushed(cwd: string, remote: string, branch: string): Promise<Result<boolean>> {
+		if (remote.trim().length === 0 || branch.trim().length === 0) return ok(false);
+		const result = await this.#deps.git.stdout(revParseVerify(`refs/remotes/${remote}/${branch}`), {
+			cwd,
+		});
+		if (!result.ok) return err(result.error);
+		return ok(result.value.trim().length > 0);
+	}
+
+	/**
+	 * Reads the GraphQL budget left for the gate. Null means "unknown", which polls at the normal
+	 * rate; a failed probe is not a reason to invent a number.
+	 */
+	async #readRateLimit(): Promise<number | null> {
+		const settings = await this.#ghSettings();
+		if (!settings.ok) return null;
+		const command = apiRateLimit();
+		const result = await this.#deps.git.run(command, this.#runOptions(settings.value));
+		if (!result.ok) return null;
+		await this.recordGhResult(result.value);
+		if (!isSuccessfulExit(command, result.value.exitCode)) return null;
+		const budget = parseGraphqlBudget(result.value.stdout);
+		// A malformed probe leaves the budget unknown, so polling keeps its normal rate.
+		return budget.ok ? budget.value : null;
+	}
+
+	#recordPollFailure(workspaceId: WorkspaceId, error: AppError): void {
+		const key = String(workspaceId);
+		const previous = this.store.getState().byWorkspace[key];
+		const offline =
+			error.code === "process_spawn" ||
+			error.code === "shell_timeout" ||
+			classifyGhFailure(error.message) === "offline";
+		const unavailable: WorkspacePrEntry["unavailable"] =
+			error.code === "github_not_github" ? "not_github" : offline ? "offline" : "no_github_access";
+		this.store.setState((state) => ({
+			byWorkspace: {
+				...state.byWorkspace,
+				[key]: {
+					pullRequest: previous?.pullRequest ?? null,
+					unavailable,
+					fetchedAt: this.#deps.now(),
+				},
+			},
+		}));
 	}
 
 	/** Backs `Actions.pullRequests.create`: asks the agent to open the PR. */

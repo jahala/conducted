@@ -57,9 +57,16 @@ fragment PrFields on PullRequest {
   mergeStateStatus
   reviewDecision
   baseRefName
+  baseRef { target { oid } }
   headRefName
   headRefOid
+  createdAt
+  updatedAt
+  author { login avatarUrl }
   viewerDidAuthor
+  viewerLatestReview { state commit { oid } }
+  reviewRequests(first: 20) { nodes { requestedReviewer { ... on User { login avatarUrl } ... on Team { slug avatarUrl } } } }
+  latestReviews(first: 20) { nodes { author { login avatarUrl } state submittedAt } }
   autoMergeRequest { enabledAt }
   mergeQueueEntry { state position }
   headRef {
@@ -71,6 +78,14 @@ fragment PrFields on PullRequest {
               ... on CheckRun { name status conclusion detailsUrl startedAt completedAt checkSuite { workflowRun { workflow { name } } } }
               ... on StatusContext { context state targetUrl }
             }
+          }
+        }
+        deployments(first: 20, orderBy: { field: CREATED_AT, direction: DESC }) {
+          nodes {
+            environment
+            createdAt
+            updatedAt
+            latestStatus { state environmentUrl createdAt updatedAt }
           }
         }
       }
@@ -104,7 +119,10 @@ export const prBatchQuery = (lookups: readonly PrLookup[]): GitCommand => {
   viewer { login }
   rateLimit { cost remaining }
   repository(owner: $owner, name: $repo) {
-    viewerPermission${aliases}
+    viewerPermission
+    squashMergeAllowed
+    rebaseMergeAllowed
+    mergeCommitAllowed${aliases}
   }
 }
 ${PR_FIELDS_FRAGMENT}`;
