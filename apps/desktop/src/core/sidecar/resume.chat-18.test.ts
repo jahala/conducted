@@ -131,6 +131,8 @@ describe("CHAT-18 resume after restart", () => {
 		expect(state.openInteractions[h.sessionId]).toEqual({
 			interactionId: "i1",
 			interaction,
+			expiresAt: null,
+			timedOut: false,
 		});
 		const turns = must(
 			await h.repositories.sessionEvents.listByTurn(h.sessionId, "turn-1" as TurnId),

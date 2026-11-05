@@ -1,0 +1,223 @@
+/**
+ * Tests for CHAT-11: the tool approval card asks about one tool call and sends the user's choice.
+ */
+import type { Interaction, InteractionAnswer } from "@conducted/protocol";
+import {
+	appError,
+	err,
+	type InteractionId,
+	ok,
+	type SessionId,
+	type ToolUseId,
+} from "@conducted/shared";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import "../../../test/dom-polyfills.ts";
+import { ServicesProvider } from "../../../core/context.tsx";
+import { createTestContainer, type TestContainer } from "../../../test/container.ts";
+import { ToolApprovalCard } from "./ToolApprovalCard.tsx";
+
+const sessionId = "s1" as SessionId;
+const interactionId = "i1" as InteractionId;
+
+type ToolApproval = Extract<Interaction, { kind: "tool_approval" }>;
+type ToolApprovalAnswer = Extract<InteractionAnswer, { kind: "tool_approval" }>;
+
+const request = (changes: Partial<ToolApproval> = {}): ToolApproval => ({
+	kind: "tool_approval",
+	toolUseId: "tu1" as ToolUseId,
+	toolName: "Bash",
+	input: { command: "ls -la" },
+	...changes,
+});
+
+let test: TestContainer;
+let answer: ReturnType<typeof vi.fn>;
+
+const renderCard = (changes: Partial<ToolApproval> = {}) =>
+	render(
+		<ServicesProvider container={test.container}>
+			<ToolApprovalCard
+				sessionId={sessionId}
+				interactionId={interactionId}
+				request={request(changes)}
+			/>
+		</ServicesProvider>,
+	);
+
+const card = () => screen.getByRole("group", { name: "Tool approval" });
+
+const sent = () => answer.mock.calls[0]?.[2] as ToolApprovalAnswer | undefined;
+
+beforeEach(() => {
+	test = createTestContainer();
+	answer = vi.fn(async () => ok(undefined));
+	test.container.actions.sessions.answer = answer as typeof test.container.actions.sessions.answer;
+});
+
+afterEach(() => {
+	cleanup();
+	test.close();
+});
+
+describe("CHAT-11 tool approval card", () => {
+	it("calls sessions.answer with allow when Enter is pressed on a bash approval", async () => {
+		renderCard();
+
+		fireEvent.keyDown(card(), { key: "Enter" });
+
+		await waitFor(() =>
+			expect(answer).toHaveBeenCalledWith(sessionId, interactionId, {
+				kind: "tool_approval",
+				decision: "allow",
+			}),
+		);
+	});
+
+	it("sends deny when Backspace is pressed", async () => {
+		renderCard();
+
+		fireEvent.keyDown(card(), { key: "Backspace" });
+
+		await waitFor(() =>
+			expect(answer).toHaveBeenCalledWith(sessionId, interactionId, {
+				kind: "tool_approval",
+				decision: "deny",
+			}),
+		);
+	});
+
+	it("offers Yes always for a command and sends it on Cmd+Enter", async () => {
+		renderCard();
+
+		expect(screen.getByRole("button", { name: "Yes always" })).toBeTruthy();
+		fireEvent.keyDown(card(), { key: "Enter", metaKey: true });
+
+		await waitFor(() => expect(sent()?.decision).toBe("always_allow"));
+	});
+
+	it("offers the edits choice for an edit and sends it on Cmd+Enter", async () => {
+		renderCard({ toolName: "Edit", input: { file_path: "src/a.ts" } });
+
+		expect(
+			screen.getByRole("button", { name: "Allow all edits during this session" }),
+		).toBeTruthy();
+		fireEvent.keyDown(card(), { key: "Enter", metaKey: true });
+
+		await waitFor(() => expect(sent()?.decision).toBe("allow_edits_for_session"));
+	});
+
+	it("titles the card by the tool", () => {
+		const cases: Array<[string, string]> = [
+			["Bash", "Do you want to run this command?"],
+			["RunLocalCommand", "Do you want to run this command on your Mac?"],
+			["Edit", "Do you want to make these changes?"],
+			["Task", "Do you want to run this agent?"],
+			["WebSearch", "Do you want to do this search?"],
+			["WebFetch", "Do you want to fetch this page?"],
+			["CustomTool", "Do you want to run this tool?"],
+		];
+
+		for (const [toolName, title] of cases) {
+			const { unmount } = renderCard({ toolName });
+			expect(screen.getByText(title)).toBeTruthy();
+			unmount();
+		}
+	});
+
+	it("shows the tool input and the decision reason", () => {
+		renderCard({ reason: "Needs to inspect the folder." });
+
+		expect(screen.getByText("ls -la")).toBeTruthy();
+		expect(screen.getByText("Needs to inspect the folder.")).toBeTruthy();
+	});
+
+	it("marks a request from a sub-agent", () => {
+		renderCard({ subAgentId: "agent-2" });
+
+		expect(screen.getByText("Subagent")).toBeTruthy();
+	});
+
+	it("names a blocked path outside the workspace", () => {
+		renderCard({ blockedPath: "/etc/hosts" });
+
+		expect(screen.getByText(/outside this workspace/)).toBeTruthy();
+		expect(screen.getByText("/etc/hosts")).toBeTruthy();
+	});
+
+	it("offers the suggested rules as a third choice", async () => {
+		renderCard({ suggestedRules: ["Allow npm test in this project"] });
+
+		expect(screen.getByText("Allow npm test in this project")).toBeTruthy();
+		fireEvent.click(screen.getByRole("button", { name: "Allow with suggested rules" }));
+
+		await waitFor(() => expect(sent()?.decision).toBe("allow_with_suggested_rules"));
+	});
+
+	it("carries the deny message back to the agent", async () => {
+		renderCard();
+
+		fireEvent.change(screen.getByLabelText("Message to the agent"), {
+			target: { value: "Do not touch that folder." },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "No" }));
+
+		await waitFor(() =>
+			expect(answer).toHaveBeenCalledWith(sessionId, interactionId, {
+				kind: "tool_approval",
+				decision: "deny",
+				message: "Do not touch that folder.",
+			}),
+		);
+	});
+
+	it("ignores Enter while the user types the deny message", () => {
+		renderCard();
+		const message = screen.getByLabelText("Message to the agent");
+
+		fireEvent.keyDown(message, { key: "Enter" });
+
+		expect(answer).not.toHaveBeenCalled();
+	});
+
+	it("sends only one answer when a button is clicked twice", async () => {
+		renderCard();
+		const no = screen.getByRole("button", { name: "No" });
+
+		fireEvent.click(no);
+		fireEvent.click(no);
+
+		await waitFor(() => expect(answer).toHaveBeenCalledTimes(1));
+		await Promise.resolve();
+		expect(answer).toHaveBeenCalledTimes(1);
+	});
+
+	it("shows what was chosen after the answer", async () => {
+		renderCard();
+
+		fireEvent.click(screen.getByRole("button", { name: "Yes" }));
+
+		expect(await screen.findByText("Allowed")).toBeTruthy();
+	});
+
+	it("comes back with a retry message when the answer cannot be sent", async () => {
+		answer
+			.mockResolvedValueOnce(err(appError("sidecar_down", "The sidecar is not running.")))
+			.mockResolvedValueOnce(ok(undefined));
+		renderCard();
+
+		fireEvent.click(screen.getByRole("button", { name: "Yes" }));
+
+		expect(await screen.findByText("Could not send the answer. Try again.")).toBeTruthy();
+		fireEvent.click(screen.getByRole("button", { name: "Yes" }));
+		await waitFor(() => expect(answer).toHaveBeenCalledTimes(2));
+	});
+
+	it("collapses a long tool input behind Show all", () => {
+		renderCard({ input: { command: "x".repeat(600) } });
+
+		expect(screen.getByRole("button", { name: "Show all" })).toBeTruthy();
+		fireEvent.click(screen.getByRole("button", { name: "Show all" }));
+		expect(screen.getByRole("button", { name: "Show less" })).toBeTruthy();
+	});
+});
