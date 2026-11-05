@@ -944,9 +944,13 @@ export class WorkspaceService {
 		return this.#deps.platform.opener.openWith(appName, workspace.path);
 	}
 
-	/** Backs `Actions.workspaces.setActiveSession`. */
-	setActiveSession(_id: WorkspaceId, _sessionId: SessionId): Promise<Result<void>> {
-		return notImplemented("NAV-02");
+	/** Backs `Actions.workspaces.setActiveSession`: remembers the chat tab for the next launch. */
+	async setActiveSession(id: WorkspaceId, sessionId: SessionId): Promise<Result<void>> {
+		const written = await this.#deps.repos.workspaces.setActiveSession(id, sessionId);
+		if (!written.ok) return written;
+		const current = this.store.getState().workspacesById[id];
+		if (current !== undefined) this.#upsert({ ...current, activeSessionId: sessionId });
+		return ok(undefined);
 	}
 
 	/** Backs `Actions.workspaces.retrySetup`. A second call while setup runs is ignored. */

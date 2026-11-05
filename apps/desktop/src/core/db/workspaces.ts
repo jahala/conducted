@@ -430,7 +430,13 @@ export function createWorkspaceRepository(db: Database, deps: RepositoryDeps): W
 				[path, now(), id],
 				"Saving a setup log path",
 			),
-		setActiveSession: async () => notImplemented("NAV-02"),
+		setActiveSession: (id, sessionId) =>
+			executeExisting(
+				db,
+				WORKSPACES_SQL.setActiveSession,
+				[sessionId, id],
+				"Saving the active chat",
+			),
 		setFilesCopied: (id, count) =>
 			executeExisting(
 				db,

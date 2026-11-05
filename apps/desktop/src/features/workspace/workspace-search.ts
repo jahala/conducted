@@ -1,10 +1,10 @@
 /**
  * @feature NAV-02 Workspace URL state
- * Owns: the search params of the workspace route (which tab is open, which file, which diff scope) and the
- * codec that turns a DiffScope into a URL string and back. The URL is the single source of truth for the
- * open tab, so reload, back and forward all land on the same view.
- * Behaviour: ui-map.md 2 (search params carry the active tab; with none set the route restores the last
- * active search for that workspace), 3.2 (tab types), 3.6 (git panel tabs and diff scopes).
+ * Owns: the search params of the workspace route (which tab is open, which file, which diff scope, which
+ * pull request the PR tab shows) and the codec that turns a DiffScope into a URL string and back. The URL is
+ * the single source of truth for the open tab, so reload, back and forward all land on the same view.
+ * Behaviour: ui-map.md 2 (search params carry the active tab; with none set the route restores the chat tab
+ * that workspace had open last), 3.2 (tab types), 3.6 (git panel tabs and diff scopes).
  * Our design choice: shorter names than Conductor's `activeTabType`/`specialTab*` set, one `tab` kind
  * (session, terminal, file, comment, pr, browser; the cloud desktop tab is out of scope), and the diff scope as
  * one string ("branch", "uncommitted", "target:main", "commit:abc123", "turn:<session>:<turn>").
@@ -48,6 +48,8 @@ export const zWorkspaceSearch = z.object({
 	line: lenient(z.number().int().positive()),
 	commentId: lenient(looseString),
 	browserUrl: lenient(looseString),
+	/** Which pull request the PR tab shows. The URL parser may hand it over as text. */
+	pr: lenient(z.coerce.number().int().positive()),
 	gitTab: lenient(z.enum(GIT_PANEL_TABS)),
 	scope: lenient(looseString),
 });
