@@ -34,10 +34,18 @@
  */
 import type { SessionEvent, SessionEventEnvelope } from "@conducted/protocol";
 import type { AppError, Clock, EventId, Result, SessionId } from "@conducted/shared";
-import { notImplemented } from "@conducted/shared";
+import { appError, err, ok } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
 import type { KeyedSerialQueue } from "../session/serial-queue.ts";
-import type { OutboxStorage } from "./outbox-file.ts";
+import {
+	fileNameFor,
+	OUTBOX_FILE_VERSION,
+	type OutboxEntry,
+	type OutboxFile,
+	type OutboxStorage,
+	sessionIdFromFileName,
+	zOutboxFile,
+} from "./outbox-file.ts";
 
 export const MAX_PENDING_PER_SESSION = 20_000;
 export const IDLE_FILE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
@@ -60,7 +68,17 @@ export interface EventOutbox {
 	sweepIdle(): Promise<Result<number, AppError>>;
 }
 
+interface ChatState {
+	sessionId: SessionId;
+	nextSequence: number;
+	pending: OutboxEntry[];
+	updatedAt: number;
+	durabilityUncertain: boolean;
+}
+
 export class FileEventOutbox implements EventOutbox {
+	private states = new Map<SessionId, ChatState>();
+
 	constructor(
 		protected readonly deps: {
 			storage: OutboxStorage;
@@ -70,30 +88,212 @@ export class FileEventOutbox implements EventOutbox {
 		},
 	) {}
 
-	open(): Promise<Result<SessionId[], AppError>> {
-		return notImplemented("SIDE-06");
+	async open(): Promise<Result<SessionId[], AppError>> {
+		this.states = new Map();
+		const cleaned = await this.deps.storage.cleanTempFiles();
+		if (!cleaned.ok) return err(cleaned.error);
+		const listed = await this.deps.storage.list();
+		if (!listed.ok) return err(listed.error);
+		for (const fileName of listed.value) {
+			const sessionId = sessionIdFromFileName(fileName);
+			if (sessionId === null) continue;
+			const text = await this.deps.storage.read(fileName);
+			if (!text.ok) return err(text.error);
+			if (text.value === null) continue;
+			const loaded = this.parseFile(fileName, sessionId, text.value);
+			if (!loaded.ok) return err(loaded.error);
+			this.states.set(loaded.value.sessionId as SessionId, loaded.value);
+		}
+		return ok(this.sessionsWithPending());
 	}
 
-	append(
-		_sessionId: SessionId,
-		_events: readonly SessionEvent[],
+	async append(
+		sessionId: SessionId,
+		events: readonly SessionEvent[],
 	): Promise<Result<SessionEventEnvelope[], AppError>> {
-		return notImplemented("SIDE-06");
+		if (events.length === 0) return ok([]);
+		return this.deps.queue.run(sessionId, async () => {
+			const current = this.states.get(sessionId);
+			const base: ChatState = current ?? {
+				sessionId,
+				nextSequence: 0,
+				pending: [],
+				updatedAt: 0,
+				durabilityUncertain: false,
+			};
+			if (base.pending.length + events.length > MAX_PENDING_PER_SESSION) {
+				return err(
+					appError(
+						"outbox_full",
+						`The event log for this chat holds its limit of ${MAX_PENDING_PER_SESSION} unconfirmed events. The app has not confirmed events for too long.`,
+					),
+				);
+			}
+			const at = this.deps.clock.now();
+			const entries: OutboxEntry[] = events.map((event, index) => ({
+				eventId: event.eventId,
+				sequence: base.nextSequence + index,
+				event,
+				persistedAt: at,
+			}));
+			const next: ChatState = {
+				sessionId,
+				nextSequence: base.nextSequence + entries.length,
+				pending: [...base.pending, ...entries],
+				updatedAt: at,
+				durabilityUncertain: false,
+			};
+			const wasUncertain = base.durabilityUncertain;
+			const written = await this.writeFile(next);
+			if (!written.ok) {
+				// A failed atomic write may have renamed the file without its directory fsync, so
+				// the chat's durability is uncertain until a later write succeeds.
+				if (current !== undefined) current.durabilityUncertain = true;
+				this.deps.logger.warn("The event log write failed; this chat's durability is uncertain", {
+					sessionId,
+					reason: written.error.message,
+				});
+				return err(written.error);
+			}
+			if (wasUncertain) {
+				this.deps.logger.info("The event log is durable again", { sessionId });
+			}
+			this.states.set(sessionId, next);
+			return ok(
+				entries.map((entry) => ({
+					sessionId,
+					sequence: entry.sequence,
+					event: entry.event,
+				})),
+			);
+		});
 	}
 
-	acknowledge(_sessionId: SessionId, _eventId: EventId): Promise<Result<void, AppError>> {
-		return notImplemented("SIDE-06");
+	async acknowledge(sessionId: SessionId, eventId: EventId): Promise<Result<void, AppError>> {
+		return this.deps.queue.run(sessionId, async () => {
+			const current = this.states.get(sessionId);
+			if (current === undefined) return ok(undefined);
+			const index = current.pending.findIndex((entry) => entry.eventId === eventId);
+			// An unknown id is a replayed acknowledgement, not an error.
+			if (index < 0) return ok(undefined);
+			const next: ChatState = {
+				sessionId,
+				nextSequence: current.nextSequence,
+				pending: [...current.pending.slice(0, index), ...current.pending.slice(index + 1)],
+				updatedAt: this.deps.clock.now(),
+				durabilityUncertain: false,
+			};
+			const written = await this.writeFile(next);
+			if (!written.ok) {
+				current.durabilityUncertain = true;
+				this.deps.logger.warn("The event log write failed; this chat's durability is uncertain", {
+					sessionId,
+					reason: written.error.message,
+				});
+				return err(written.error);
+			}
+			if (current.durabilityUncertain) {
+				this.deps.logger.info("The event log is durable again", { sessionId });
+			}
+			this.states.set(sessionId, next);
+			return ok(undefined);
+		});
 	}
 
-	pending(_sessionId: SessionId): readonly SessionEventEnvelope[] {
-		return notImplemented("SIDE-06");
+	pending(sessionId: SessionId): readonly SessionEventEnvelope[] {
+		const state = this.states.get(sessionId);
+		if (state === undefined) return [];
+		return state.pending.map((entry) => ({
+			sessionId,
+			sequence: entry.sequence,
+			event: entry.event,
+		}));
 	}
 
 	sessionsWithPending(): SessionId[] {
-		return notImplemented("SIDE-06");
+		const sessions: SessionId[] = [];
+		for (const state of this.states.values()) {
+			if (state.pending.length > 0) sessions.push(state.sessionId);
+		}
+		return sessions;
 	}
 
-	sweepIdle(): Promise<Result<number, AppError>> {
-		return notImplemented("SIDE-06");
+	async sweepIdle(): Promise<Result<number, AppError>> {
+		const now = this.deps.clock.now();
+		let moved = 0;
+		for (const state of [...this.states.values()]) {
+			if (state.pending.length > 0) continue;
+			if (now - state.updatedAt <= IDLE_FILE_RETENTION_MS) continue;
+			const removed = await this.deps.storage.moveToTrash(fileNameFor(state.sessionId));
+			if (!removed.ok) return err(removed.error);
+			this.states.delete(state.sessionId);
+			moved += 1;
+		}
+		return ok(moved);
+	}
+
+	private async writeFile(state: ChatState): Promise<Result<void, AppError>> {
+		const file: OutboxFile = {
+			version: OUTBOX_FILE_VERSION,
+			sessionId: state.sessionId,
+			nextSequence: state.nextSequence,
+			pending: state.pending,
+			updatedAt: state.updatedAt,
+		};
+		return this.deps.storage.writeAtomic(fileNameFor(state.sessionId), JSON.stringify(file));
+	}
+
+	private parseFile(
+		fileName: string,
+		sessionId: string,
+		text: string,
+	): Result<ChatState, AppError> {
+		const corrupt = (reason: string): Result<ChatState, AppError> =>
+			err(
+				appError(
+					"outbox_corrupt",
+					`The event log ${fileName} is unreadable (${reason}). It was kept for inspection.`,
+				),
+			);
+		let raw: unknown;
+		try {
+			raw = JSON.parse(text);
+		} catch {
+			return corrupt("not JSON");
+		}
+		const parsed = zOutboxFile.safeParse(raw);
+		if (!parsed.success) {
+			const version =
+				typeof raw === "object" && raw !== null && "version" in raw
+					? (raw as { version?: unknown }).version
+					: undefined;
+			if (typeof version === "number" && version > 1) {
+				return corrupt(`version ${version} is newer than this app`);
+			}
+			return corrupt("wrong shape");
+		}
+		if (parsed.data.sessionId !== sessionId) {
+			return corrupt("the file name and the session id disagree");
+		}
+		let previous = -1;
+		for (const entry of parsed.data.pending) {
+			if (entry.eventId !== entry.event.eventId) {
+				return corrupt("an entry's event id disagrees with its event");
+			}
+			if (entry.sequence <= previous) {
+				return corrupt("the sequence numbers are not strictly increasing");
+			}
+			if (entry.sequence >= parsed.data.nextSequence) {
+				return corrupt("an entry's sequence is beyond nextSequence");
+			}
+			previous = entry.sequence;
+		}
+		return ok({
+			sessionId: parsed.data.sessionId as SessionId,
+			nextSequence: parsed.data.nextSequence,
+			pending: [...parsed.data.pending].sort((left, right) => left.sequence - right.sequence),
+			updatedAt: parsed.data.updatedAt,
+			durabilityUncertain: false,
+		});
 	}
 }

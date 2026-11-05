@@ -17,7 +17,6 @@
  * 3 times in sequence order and the outbox is empty afterwards.
  */
 import type { SessionId } from "@conducted/shared";
-import { notImplemented } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
 import type { SidecarToApp } from "../rpc/types.ts";
 import type { EventOutbox } from "./event-outbox.ts";
@@ -26,6 +25,9 @@ import type { EventOutbox } from "./event-outbox.ts";
 export const REPLAY_TIMEOUT_MS = 10_000;
 
 export class OutboxReplayer {
+	private all: Promise<void> | null = null;
+	private readonly sessions = new Map<SessionId, Promise<void>>();
+
 	constructor(
 		protected readonly deps: {
 			outbox: EventOutbox;
@@ -36,10 +38,67 @@ export class OutboxReplayer {
 
 	/** Replays every chat with pending events. Resolves when done or when the app went away. */
 	replayAll(): Promise<void> {
-		return notImplemented("SIDE-06");
+		if (this.all !== null) return this.all;
+		const run = (async () => {
+			try {
+				for (const sessionId of this.deps.outbox.sessionsWithPending()) {
+					await this.replaySession(sessionId);
+				}
+			} finally {
+				this.all = null;
+			}
+		})();
+		this.all = run;
+		return run;
 	}
 
-	replaySession(_sessionId: SessionId): Promise<void> {
-		return notImplemented("SIDE-06");
+	replaySession(sessionId: SessionId): Promise<void> {
+		const running = this.sessions.get(sessionId);
+		if (running !== undefined) return running;
+		const run = this.runSession(sessionId).finally(() => {
+			if (this.sessions.get(sessionId) === run) this.sessions.delete(sessionId);
+		});
+		this.sessions.set(sessionId, run);
+		return run;
+	}
+
+	private async runSession(sessionId: SessionId): Promise<void> {
+		for (const envelope of this.deps.outbox.pending(sessionId)) {
+			if (!this.deps.app.connected) {
+				this.deps.logger.debug("No app is attached; the event log waits for the next connection", {
+					sessionId,
+				});
+				return;
+			}
+			const delivered = await this.deps.app.request("deliverEvent", envelope, {
+				timeoutMs: REPLAY_TIMEOUT_MS,
+			});
+			if (!delivered.ok) {
+				if (this.deps.app.connected) {
+					this.deps.logger.warn("Replay stopped before the app acknowledged an event", {
+						sessionId,
+						eventId: envelope.event.eventId,
+						reason: delivered.error.message,
+					});
+				}
+				return;
+			}
+			if (!delivered.value.persisted) {
+				this.deps.logger.debug("The app did not store a replayed event; it stays in the log", {
+					sessionId,
+					eventId: envelope.event.eventId,
+				});
+				return;
+			}
+			const acknowledged = await this.deps.outbox.acknowledge(sessionId, envelope.event.eventId);
+			if (!acknowledged.ok) {
+				this.deps.logger.warn("A replayed event could not leave the log", {
+					sessionId,
+					eventId: envelope.event.eventId,
+					reason: acknowledged.error.message,
+				});
+				return;
+			}
+		}
 	}
 }

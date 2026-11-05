@@ -13,6 +13,9 @@
  * Test first: fileNameFor("a/b") contains no slash, and decodes back to "a/b".
  * Our design choice: the name is base64url of the UTF-8 id, and the file holds the full
  * SessionEvent (validated with the protocol schema), so a replay needs nothing else.
+ * Our design choice: the file also holds updatedAt, the last write or acknowledgement. The sweep
+ * needs it to find a chat with nothing pending that has been idle for 30 days, including after a
+ * restart. A file's modification time would do as well, but the storage port has no stat call.
  * Data lifetime: see event-outbox.ts.
  */
 import { zEventId, zSessionEvent, zSessionId } from "@conducted/protocol";
@@ -36,6 +39,8 @@ export const zOutboxFile = z.object({
 	/** The sequence number the next event gets. Never goes down, even when pending is empty. */
 	nextSequence: z.number().int().nonnegative(),
 	pending: z.array(zOutboxEntry),
+	/** When the file was last written, in ms since the epoch. Used by the 30-day sweep. */
+	updatedAt: z.number(),
 });
 export type OutboxFile = z.infer<typeof zOutboxFile>;
 
