@@ -41,6 +41,7 @@ import { useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { useServices } from "../core/context.tsx";
 import { canOpenWorkspace } from "../core/workspace-open.ts";
+import { NextUnreadController } from "../features/chat/NextUnreadButton.tsx";
 import { DashboardScreen } from "../features/dashboard/DashboardScreen.tsx";
 import { DiagnosticsScreen } from "../features/diagnostics/DiagnosticsScreen.tsx";
 import { HomeScreen } from "../features/home/HomeScreen.tsx";
@@ -141,6 +142,7 @@ function RootLayout() {
 	return (
 		<CommandDispatcher>
 			<NavigationShortcuts />
+			<NextUnreadController />
 			<RouteLocationPersistence />
 			<Outlet />
 			<GlobalOverlays />

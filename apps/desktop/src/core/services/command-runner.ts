@@ -60,14 +60,20 @@ const NO_WORKSPACE_NEEDED: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Commands that jump to a chat, so they work even when the screen shows no chat. The next-chat
+ * command is global: from Home or a terminal tab it opens the next chat that needs the user.
+ */
+const NO_OPEN_CHAT_NEEDED: ReadonlySet<string> = new Set(["chat.nextNeedingAttention"]);
+
+/**
  * The context flag a command needs before it can run. `null` means it can always run.
- * Our design choice: the requirement follows the command's id prefix, with the create-flow
- * commands exempt, so the registry needs no second table to keep in step.
+ * Our design choice: the requirement follows the command's id prefix, with the create-flow and
+ * next-chat commands exempt, so the registry needs no second table to keep in step.
  */
 export function commandRequirement(id: string): keyof CommandContext | null {
 	if (id.startsWith("pr.")) return "hasOpenPr";
 	if (id === "chat.newTab") return "hasWorkspace";
-	if (id.startsWith("chat.")) return "hasOpenChat";
+	if (id.startsWith("chat.") && !NO_OPEN_CHAT_NEEDED.has(id)) return "hasOpenChat";
 	if (id.startsWith("workspace.") && !NO_WORKSPACE_NEEDED.has(id)) return "hasWorkspace";
 	for (const prefix of ["git.", "review.", "terminal.", "sidebar."]) {
 		if (id.startsWith(prefix)) return "hasWorkspace";

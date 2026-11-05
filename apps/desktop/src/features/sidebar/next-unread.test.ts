@@ -2,11 +2,12 @@
  * @feature NAV-11 Next unread
  * Owns: the tests for choosing the next chat that needs the user.
  * Behaviour: ui-map.md 3.3, 5.1, 5.4.
- * Test first: with one chat waiting for permission and one merely unread, the waiting chat comes first.
+ * Test first: with two chats in one workspace, one waiting and one merely unread, the waiting chat
+ * comes first.
  */
 import type { SessionId, WorkspaceId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
-import type { Session, Workspace, WorkspaceStatus } from "../../core/model.ts";
+import type { Session, Workspace } from "../../core/model.ts";
 import { chooseNextUnread, type UnreadCandidate } from "./next-unread.ts";
 
 const workspace = (id: string, over: Partial<Workspace> = {}): Workspace =>
@@ -32,41 +33,41 @@ const chat = (id: string, workspaceId: string, over: Partial<Session> = {}): Ses
 const candidate = (
 	id: string,
 	sessions: Session[],
-	status: WorkspaceStatus | null = null,
+	waitingSessionIds: SessionId[] = [],
 	over: Partial<Workspace> = {},
 ): UnreadCandidate => ({
 	workspace: workspace(id, over),
-	status,
 	sessions,
+	waitingSessionIds: new Set(waitingSessionIds),
 });
 
-const needsPermission: WorkspaceStatus = { kind: "agent", label: "needs_permission" };
-
 describe("NAV-11 chooseNextUnread", () => {
-	it("puts a chat waiting for permission before a merely unread chat", () => {
+	it("picks the waiting chat, not the merely unread chat in the same workspace", () => {
 		const target = chooseNextUnread({
 			candidates: [
-				candidate("w-unread", [chat("s-unread", "w-unread", { unreadCount: 1 })], null),
-				candidate("w-waiting", [chat("s-waiting", "w-waiting")], needsPermission),
+				candidate(
+					"w1",
+					[
+						chat("s-unread", "w1", { unreadCount: 1, updatedAt: 100 }),
+						chat("s-waiting", "w1", { unreadCount: 1, updatedAt: 200 }),
+					],
+					["s-waiting" as SessionId],
+				),
+			],
+			current: null,
+		});
+		expect(target).toEqual({ workspaceId: "w1", sessionId: "s-waiting" });
+	});
+
+	it("puts a chat waiting for permission before a merely unread chat in another workspace", () => {
+		const target = chooseNextUnread({
+			candidates: [
+				candidate("w-unread", [chat("s-unread", "w-unread", { unreadCount: 1 })]),
+				candidate("w-waiting", [chat("s-waiting", "w-waiting")], ["s-waiting" as SessionId]),
 			],
 			current: null,
 		});
 		expect(target).toEqual({ workspaceId: "w-waiting", sessionId: "s-waiting" });
-	});
-
-	it("counts plan review and a question as waiting too", () => {
-		for (const label of ["needs_plan_review", "needs_answer"] as const) {
-			const target = chooseNextUnread({
-				candidates: [
-					candidate("w-waiting", [chat("s-waiting", "w-waiting")], {
-						kind: "agent",
-						label,
-					}),
-				],
-				current: null,
-			});
-			expect(target).toEqual({ workspaceId: "w-waiting", sessionId: "s-waiting" });
-		}
 	});
 
 	it("returns null when nothing needs the user", () => {
@@ -94,7 +95,7 @@ describe("NAV-11 chooseNextUnread", () => {
 		expect(
 			chooseNextUnread({
 				candidates: [
-					candidate("w-old", [chat("s-old", "w-old", { unreadCount: 3 })], null, {
+					candidate("w-old", [chat("s-old", "w-old", { unreadCount: 3 })], [], {
 						state: "archived",
 					}),
 				],
@@ -121,27 +122,20 @@ describe("NAV-11 chooseNextUnread", () => {
 	it("chooses the oldest waiting chat first", () => {
 		const target = chooseNextUnread({
 			candidates: [
-				candidate("w-new", [chat("s-new", "w-new", { updatedAt: 900 })], needsPermission),
-				candidate("w-old", [chat("s-old", "w-old", { updatedAt: 100 })], needsPermission),
+				candidate("w-new", [chat("s-new", "w-new", { updatedAt: 900 })], ["s-new" as SessionId]),
+				candidate("w-old", [chat("s-old", "w-old", { updatedAt: 100 })], ["s-old" as SessionId]),
 			],
 			current: null,
 		});
 		expect(target).toEqual({ workspaceId: "w-old", sessionId: "s-old" });
 	});
 
-	it("targets the active chat of a waiting workspace when no chat is unread", () => {
+	it("targets a waiting chat even when it has no unread count", () => {
 		const target = chooseNextUnread({
-			candidates: [
-				candidate(
-					"w1",
-					[chat("s-first", "w1", { updatedAt: 100 }), chat("s-active", "w1", { updatedAt: 200 })],
-					needsPermission,
-					{ activeSessionId: "s-active" as SessionId },
-				),
-			],
+			candidates: [candidate("w1", [chat("s-waiting", "w1")], ["s-waiting" as SessionId])],
 			current: null,
 		});
-		expect(target).toEqual({ workspaceId: "w1", sessionId: "s-active" });
+		expect(target).toEqual({ workspaceId: "w1", sessionId: "s-waiting" });
 	});
 
 	it("starts again at the first chat when the current chat is not a target", () => {

@@ -13,7 +13,8 @@ afterEach(cleanup);
 describe("NAV-11 UnreadDot", () => {
 	it("renders an element named Unread when there is something new", () => {
 		render(<UnreadDot unread />);
-		expect(screen.getByRole("img", { name: "Unread" })).toBeTruthy();
+		const dot = screen.getByRole("img", { name: "Unread" });
+		expect(dot.className).toContain("bg-unread");
 	});
 
 	it("renders nothing when everything is read", () => {

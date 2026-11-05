@@ -207,6 +207,20 @@ function reviewConfigFrom(
 	});
 }
 
+/**
+ * True when a chat is blocked on the user right now: it has a card the user must answer, either in
+ * the app's own map or in the live state the sidecar sent.
+ */
+export function sessionWaitsForUser(
+	state: Pick<SessionsState, "openInteractions" | "liveStates">,
+	sessionId: SessionId,
+): boolean {
+	return (
+		state.openInteractions[sessionId] !== undefined ||
+		state.liveStates[sessionId]?.openInteraction !== undefined
+	);
+}
+
 /** Open chats are listed newest first, by the last message and then by creation time. */
 function compareNewest(a: Session, b: Session): number {
 	const aAt = a.lastUserMessageAt ?? a.createdAt;
@@ -1155,28 +1169,42 @@ export class SessionsService implements AgentMessenger {
 	 * still wait for the user, so the dot disappears only when nothing needs attention.
 	 */
 	async markAllRead(workspaceId: WorkspaceId): Promise<Result<void>> {
-		const state = this.store.getState();
+		const ids = Object.values(this.store.getState().sessions)
+			.filter((session) => session.workspaceId === workspaceId && session.unreadCount > 0)
+			.map((session) => session.id);
 		const cleared: SessionId[] = [];
-		for (const session of Object.values(state.sessions)) {
-			if (session.workspaceId !== workspaceId || session.unreadCount <= 0) continue;
-			const waits =
-				state.openInteractions[session.id] !== undefined ||
-				state.liveStates[session.id]?.openInteraction !== undefined;
-			if (waits) continue;
-			const result = await this.#deps.repositories().sessions.clearUnread(session.id);
+		for (const id of ids) {
+			// Read the state again: an interaction may have opened while an earlier write ran.
+			const current = this.store.getState();
+			const session = current.sessions[id];
+			if (session === undefined || session.unreadCount <= 0) continue;
+			if (sessionWaitsForUser(current, id)) continue;
+			const result = await this.#deps.repositories().sessions.clearUnread(id);
 			if (!result.ok) return result;
-			cleared.push(session.id);
+			cleared.push(id);
 		}
-		if (cleared.length > 0) {
-			this.store.setState((current) => {
-				const sessions = { ...current.sessions };
-				for (const id of cleared) {
-					const session = sessions[id];
-					if (session !== undefined) sessions[id] = { ...session, unreadCount: 0 };
-				}
-				return { sessions };
-			});
-		}
+		if (cleared.length === 0) return ok(undefined);
+
+		// A new agent message may have raised the count while the writes above were in flight.
+		// The database is the newest word, so take each chat's count from it instead of writing 0.
+		const listed = await this.#deps.repositories().sessions.listByWorkspace(workspaceId, {
+			includeClosed: true,
+		});
+		if (!listed.ok) return listed;
+		const stored = new Map(listed.value.map((session) => [session.id, session.unreadCount]));
+		this.store.setState((current) => {
+			const sessions = { ...current.sessions };
+			let changed = false;
+			for (const id of cleared) {
+				const session = sessions[id];
+				const unreadCount = stored.get(id);
+				if (session === undefined || unreadCount === undefined) continue;
+				if (session.unreadCount === unreadCount) continue;
+				sessions[id] = { ...session, unreadCount };
+				changed = true;
+			}
+			return changed ? { sessions } : {};
+		});
 		return ok(undefined);
 	}
 

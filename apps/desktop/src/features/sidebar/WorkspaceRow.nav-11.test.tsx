@@ -1,8 +1,9 @@
 /**
  * @feature NAV-11 Unread state
- * Owns: the test for the hover key R that toggles a workspace's read state.
- * Behaviour: ui-map.md 4 ("hover keys R read").
- * Test first: with the pointer on an unread row, R marks the workspace read; R again marks it unread.
+ * Owns: the tests for the hover key that toggles a workspace's read state.
+ * Behaviour: ui-map.md 4 ("hover keys R read"), 5.4 (a rebind changes the key).
+ * Test first: with the pointer on an unread row and nothing focused, the live binding marks the
+ * workspace read; the shipped key stops working after a rebind.
  */
 import type { SessionConfig } from "@conducted/protocol";
 import {
@@ -12,7 +13,7 @@ import {
 	createRouter,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Container } from "../../core/container.ts";
@@ -59,41 +60,75 @@ function renderRow(container: Container, row: ReactNode) {
 	);
 }
 
+function setReadBinding(container: Container, key: string): void {
+	container.services.settings.store.setState((state) => ({
+		values: {
+			...state.values,
+			keybinding_overrides_v1: JSON.stringify({ "sidebar.toggleRead": [key] }),
+		},
+	}));
+}
+
+async function unreadWorkspace(container: Container) {
+	const repo = await seedRepo(container);
+	const workspace = await seedWorkspace(container, { repoId: repo.id });
+	await container.services.sessions.start();
+	const session = must(await container.services.sessions.create(workspace.id, CONFIG));
+	must(await container.services.sessions.markUnread(session.id));
+	renderRow(
+		container,
+		<WorkspaceRow
+			workspace={workspace}
+			repo={repo}
+			selected={false}
+			shortcutIndex={null}
+			now={workspace.lastActivityAt}
+		/>,
+	);
+	const link = await screen.findByRole("link");
+	return { link, session };
+}
+
 afterEach(cleanup);
 
 describe("NAV-11 workspace row read key", () => {
-	it("toggles the hovered workspace read and unread with R", async () => {
+	it("toggles the hovered workspace read and unread without focus", async () => {
 		const test = createTestContainer();
 		try {
-			const repo = await seedRepo(test.container);
-			const workspace = await seedWorkspace(test.container, { repoId: repo.id });
-			const session = must(await test.container.services.sessions.create(workspace.id, CONFIG));
-			must(await test.container.services.sessions.markUnread(session.id));
-
-			renderRow(
-				test.container,
-				<WorkspaceRow
-					workspace={workspace}
-					repo={repo}
-					selected={false}
-					shortcutIndex={null}
-					now={workspace.lastActivityAt}
-				/>,
-			);
-			const link = await screen.findByRole("link");
+			const { link, session } = await unreadWorkspace(test.container);
 			fireEvent.mouseEnter(link);
-			fireEvent.keyDown(link, { key: "r" });
+			// The key event goes to the document, as it does in the app when nothing is focused.
+			fireEvent.keyDown(document.body, { key: "r" });
 			await waitFor(() =>
 				expect(
 					test.container.services.sessions.store.getState().sessions[session.id]?.unreadCount,
 				).toBe(0),
 			);
 
-			fireEvent.keyDown(link, { key: "r" });
+			fireEvent.keyDown(document.body, { key: "r" });
 			await waitFor(() =>
 				expect(
 					test.container.services.sessions.store.getState().sessions[session.id]?.unreadCount,
 				).toBe(1),
+			);
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("follows a rebind of the toggle-read command", async () => {
+		const test = createTestContainer();
+		try {
+			const { link, session } = await unreadWorkspace(test.container);
+			act(() => setReadBinding(test.container, "X"));
+			fireEvent.mouseEnter(link);
+
+			fireEvent.keyDown(document.body, { key: "x" });
+			await waitFor(() =>
+				expect(
+					test.container.services.sessions.store.getState().sessions[session.id]?.unreadCount,
+				).toBe(0),
 			);
 		} finally {
 			await test.container.stop();

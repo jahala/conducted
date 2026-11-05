@@ -134,4 +134,63 @@ describe("NAV-11 sessions read state", () => {
 			test.close();
 		}
 	});
+
+	it("lets two overlapping mark-read calls settle without a late overwrite", async () => {
+		const test = createTestContainer();
+		try {
+			const workspace = await seedWorkspace(test.container);
+			const session = must(await test.container.services.sessions.create(workspace.id, CONFIG));
+			must(await test.container.services.sessions.markUnread(session.id));
+
+			const [first, second] = await Promise.all([
+				test.container.services.sessions.markAllRead(workspace.id),
+				test.container.services.sessions.markAllRead(workspace.id),
+			]);
+
+			expect(first.ok).toBe(true);
+			expect(second.ok).toBe(true);
+			expect(
+				test.container.services.sessions.store.getState().sessions[session.id]?.unreadCount,
+			).toBe(0);
+			expect(await storedUnread(test.container, session.id)).toBe(0);
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("keeps a count a new message raised while the workspace was being marked read", async () => {
+		const test = createTestContainer();
+		try {
+			const workspace = await seedWorkspace(test.container);
+			const session = must(await test.container.services.sessions.create(workspace.id, CONFIG));
+			must(await test.container.services.sessions.markUnread(session.id));
+
+			const db = test.container.platform.db;
+			const execute = db.execute.bind(db);
+			let armed = true;
+			db.execute = async (sql, params = []) => {
+				const result = await execute(sql, params);
+				if (armed && sql.includes("UPDATE sessions SET unread_count = 0")) {
+					armed = false;
+					// An agent message arrives after the clear but before the store is told.
+					await execute(
+						"UPDATE sessions SET unread_count = unread_count + 1 WHERE id = $1",
+						params,
+					);
+				}
+				return result;
+			};
+
+			must(await test.container.services.sessions.markAllRead(workspace.id));
+
+			expect(
+				test.container.services.sessions.store.getState().sessions[session.id]?.unreadCount,
+			).toBe(1);
+			expect(await storedUnread(test.container, session.id)).toBe(1);
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
 });
