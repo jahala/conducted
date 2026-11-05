@@ -32,6 +32,7 @@ describe("GIT-12 through the real container", () => {
 			});
 
 			harness.memory.controls.scriptShell((command) => {
+				if (command.program === "stat") return output("", "", 1);
 				const args = argv(command);
 				if (args[0] === "fetch") return output();
 				if (args[0] === "branch" && args[1]?.startsWith("--format")) {

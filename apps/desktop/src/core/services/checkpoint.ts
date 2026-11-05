@@ -11,26 +11,16 @@
  * Must handle: a turn with no start checkpoint (the chat gave no restore point: revert and fork
  * are disabled with a reason); refs that are not written yet when the turn just ended (wait a
  * short time, then say "not ready"); more than 200 changed files (the end event omits the list,
-<<<<<<< HEAD
  * so compute it from the refs, capped); restoring needs a clean git state, and a command that
  * cannot start, a non-zero exit or any stderr fails the revert without a retry; revert restores
  * first and only then marks later events as reverted, so a failed restore changes nothing, and
  * says "No changes or conversation history have been reverted" when restore fails; fork starts
  * a new chat whose agent resumes the old history only up to the chosen turn; the original chat
  * is untouched; refs are removed only by the two prune methods (when a chat is deleted, and 30
- * days after its workspace was archived), never by revert or fork; pruning one chat never
- * touches another chat's refs, even when ids share a prefix.
-=======
- * so compute it from the refs, capped); restoring needs a clean git state (exit 101 and 102 are
- * explained, not retried); revert marks later events as reverted in the same step, and says
- * "No changes or conversation history have been reverted" when restore fails; fork starts a new
- * chat whose agent resumes the old history only up to the chosen turn; the original chat is
- * untouched; refs are removed only by the two prune methods (when a chat is deleted, and 30 days
- * after its workspace was archived), never by revert or fork; the archive prune counts from
+ * days after its workspace was archived), never by revert or fork; the archive prune counts from
  * `archived_at`, not from a later edit of the archived workspace; pruning one chat never touches
  * another chat's refs, even when ids share a prefix. The archive prune runs from the startup
  * checkpoint-pruning step; the chat prune runs when the chat is deleted.
->>>>>>> 97394747ee127d6f451612376ce69f2deaa69b21
  * The per-turn change list is read with the checkpointer's own diff, so it includes untracked
  * files and honours the repository's ignore rules like the checkpoint itself. It is cached per
  * chat and turn; every caller gets its own copy of the list, so one caller's change cannot reach
@@ -49,15 +39,12 @@ import {
 	type SessionId,
 	type TurnId,
 } from "@conducted/shared";
-<<<<<<< HEAD
-import type { SessionEventRepository } from "../db/session-events.ts";
-import { checkpointerDiff, checkpointerRestore, showRefVerify } from "../git/commands.ts";
-import { checkpointRef, turnCheckpointId } from "../git/refs.ts";
-=======
 import { ageCutoff } from "../db/lifetime.ts";
 import type { Repositories } from "../db/repositories.ts";
+import type { SessionEventRepository } from "../db/session-events.ts";
 import {
 	checkpointerDiff,
+	checkpointerRestore,
 	forEachRefNames,
 	showRefVerify,
 	updateRefDelete,
@@ -68,7 +55,6 @@ import {
 	sessionCheckpointRefPrefix,
 	turnCheckpointId,
 } from "../git/refs.ts";
->>>>>>> 97394747ee127d6f451612376ce69f2deaa69b21
 import type { GitRunner } from "../git/runner.ts";
 import { mergeChanges, parseNameStatus, parseNumstat } from "../git/status.ts";
 import type { Session, Workspace } from "../model.ts";
@@ -104,30 +90,38 @@ interface CachedTurnChanges {
 	bytes: number;
 }
 
-export interface CheckpointServiceDeps {
+interface CheckpointBaseDeps {
 	git: GitRunner;
 	checkpointerPath: string;
 	/** Folder of the workspace a chat belongs to. */
 	workspacePathOf: (sessionId: SessionId) => Promise<Result<string>>;
-<<<<<<< HEAD
+	/** Waits between checkpoint ref checks. Tests pass one that resolves at once. */
+	sleep?: (ms: number) => Promise<void>;
+}
+
+/** Everything a revert needs: the chat's stored and in-memory event logs, and the clock. */
+export interface CheckpointServiceDeps extends CheckpointBaseDeps {
 	/** The chat's stored event log, so a revert marks later events in the same step. */
 	events: Pick<SessionEventRepository, "markRevertedFromTurn">;
 	/** Marks the open chat's in-memory events, so the turn list hides them without a reload. */
 	markViewReverted: (sessionId: SessionId, turnId: TurnId, at: number) => void;
 	/** Reads the "Also reset files" preference. */
 	setting: <T>(key: string) => T;
-	now: () => number;
-=======
 	/**
 	 * Repository reads for the archive prune. The composition root supplies them; when they are
 	 * missing `pruneArchived` returns a clear error rather than guessing which chats to inspect.
 	 */
 	repositories?: () => Repositories;
+	/** The current time in milliseconds. The revert and the archive prune both count from it. */
+	now: () => number;
+}
+
+/** The subset the ref-pruning paths need. They never touch a chat's event log. */
+export interface CheckpointPruneDeps extends CheckpointBaseDeps {
+	/** Repository reads for the archive prune. */
+	repositories?: () => Repositories;
 	/** The current time in milliseconds. The archive prune counts 30 days from it. */
 	now?: () => number;
->>>>>>> 97394747ee127d6f451612376ce69f2deaa69b21
-	/** Waits between checkpoint ref checks. Tests pass one that resolves at once. */
-	sleep?: (ms: number) => Promise<void>;
 }
 
 const defaultSleep = (ms: number): Promise<void> =>
@@ -136,13 +130,13 @@ const defaultSleep = (ms: number): Promise<void> =>
 	});
 
 export class CheckpointService {
-	readonly #deps: CheckpointServiceDeps;
+	readonly #deps: CheckpointServiceDeps | CheckpointPruneDeps;
 	readonly #sleep: (ms: number) => Promise<void>;
 	/** Turn change lists by chat and turn. Insertion order is the eviction order. */
 	readonly #turnChanges = new Map<string, CachedTurnChanges>();
 	#turnChangesBytes = 0;
 
-	constructor(deps: CheckpointServiceDeps) {
+	constructor(deps: CheckpointServiceDeps | CheckpointPruneDeps) {
 		this.#deps = deps;
 		this.#sleep = deps.sleep ?? defaultSleep;
 	}
@@ -373,7 +367,15 @@ export class CheckpointService {
 	 * start checkpoint is refused before anything changes.
 	 */
 	async revertTo(sessionId: SessionId, turnId: TurnId): Promise<Result<void>> {
-		const folder = await this.#deps.workspacePathOf(sessionId);
+		const deps = this.#deps;
+		if (!("events" in deps)) {
+			return err(
+				appError("checkpoint_unwired", "Reverting a chat is not wired to the chat store."),
+			);
+		}
+		const { events, markViewReverted, setting, now } = deps;
+
+		const folder = await deps.workspacePathOf(sessionId);
 		if (!folder.ok) return folder;
 		const cwd = folder.value;
 		const startId = turnCheckpointId(sessionId, turnId, "start");
@@ -382,7 +384,7 @@ export class CheckpointService {
 		if (!present.ok) return present;
 		if (!present.value) return err(appError("checkpoint_missing", CHECKPOINT_MISSING_MESSAGE));
 
-		if (this.#deps.setting<boolean>("reset_chat_also_reset_files")) {
+		if (setting<boolean>("reset_chat_also_reset_files")) {
 			const restored = await this.#deps.git.withWorktreeLock(cwd, () =>
 				this.#deps.git.run(checkpointerRestore(this.#deps.checkpointerPath, startId), { cwd }),
 			);
@@ -394,10 +396,10 @@ export class CheckpointService {
 			}
 		}
 
-		const at = this.#deps.now();
-		const marked = await this.#deps.events.markRevertedFromTurn(sessionId, turnId, at);
+		const at = now();
+		const marked = await events.markRevertedFromTurn(sessionId, turnId, at);
 		if (!marked.ok) return marked;
-		this.#deps.markViewReverted(sessionId, turnId, at);
+		markViewReverted(sessionId, turnId, at);
 		return ok(undefined);
 	}
 

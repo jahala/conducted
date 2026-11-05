@@ -508,13 +508,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 		git: gitRunner,
 		checkpointerPath: checkpointerScript(paths),
 		workspacePathOf: (sessionId) => ready(lookups.workspacePathOfSession(sessionId)),
-<<<<<<< HEAD
 		events: repositories.sessionEvents,
 		markViewReverted: (sessionId, turnId, at) => sessions.markReverted(sessionId, turnId, at),
 		setting,
-=======
 		repositories: () => repositories,
->>>>>>> 97394747ee127d6f451612376ce69f2deaa69b21
 		now: () => clock.now(),
 	});
 	const fileDiff = new FileDiffService({
