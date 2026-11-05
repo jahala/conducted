@@ -44,6 +44,7 @@ import type {
 	Programs,
 	Pty,
 	Shell,
+	ShellOutput,
 	SidecarTransport,
 	Speech,
 	SystemFacts,
@@ -227,11 +228,73 @@ export function createTauriDatabase(): Promise<Result<Database>> {
 	return notImplemented("PLAT-02");
 }
 
-/** `shell_run { command }`, `shell_start { command }` + `shell_cancel { id }` + event `shell://done`, `shell_login_env`. */
-export function createTauriShell(_bindings: TauriBindings): Shell {
+/** Payload of `shell://done`, as shell.rs sends it. */
+interface ShellDonePayload {
+	id: string;
+	output: ShellOutput | null;
+	error: { code: string; message: string } | null;
+}
+
+/** `shell_run { command }`, `shell_start { id, command }` + `shell_cancel { id }` + event `shell://done`, `shell_login_env`. */
+export function createTauriShell(bindings: TauriBindings): Shell {
+	const pending = new Map<string, (result: Result<ShellOutput>) => void>();
+	let listening: Promise<void> | null = null;
+
+	const listen = (): Promise<void> => {
+		listening ??= bindings
+			.listen<ShellDonePayload>(EVENTS.shellDone, (payload) => {
+				const resolve = pending.get(payload.id);
+				if (!resolve) return;
+				pending.delete(payload.id);
+				if (payload.error) {
+					resolve(err(appError(payload.error.code, payload.error.message)));
+					return;
+				}
+				if (!payload.output) {
+					resolve(
+						err(
+							appError(
+								"shell_done_incomplete",
+								"The shell command ended without an output or an error.",
+							),
+						),
+					);
+					return;
+				}
+				resolve(ok(payload.output));
+			})
+			.then(() => undefined);
+		return listening;
+	};
+
 	return {
-		run: () => notImplemented("PLAT-03"),
-		start: () => notImplemented("PLAT-03"),
+		run: (command) => invokeResult<ShellOutput>(bindings, COMMANDS.shellRun, { command }),
+		start: (command) => {
+			const id = crypto.randomUUID();
+			const done = (async (): Promise<Result<ShellOutput>> => {
+				try {
+					await listen();
+				} catch (error) {
+					return err(toAppError(error));
+				}
+				const answer = new Promise<Result<ShellOutput>>((resolve) => {
+					pending.set(id, resolve);
+				});
+				const started = await invokeResult<void>(bindings, COMMANDS.shellStart, { id, command });
+				if (!started.ok) {
+					pending.delete(id);
+					return started;
+				}
+				return answer;
+			})();
+			return {
+				id,
+				done,
+				cancel: async () => {
+					await invokeResult(bindings, COMMANDS.shellCancel, { id });
+				},
+			};
+		},
 		loginEnv: () => notImplemented("PLAT-04"),
 	};
 }
