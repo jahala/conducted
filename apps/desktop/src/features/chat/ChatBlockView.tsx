@@ -16,7 +16,16 @@ import { ThinkingBlock } from "./ThinkingBlock.tsx";
 import { TodoBlock } from "./TodoBlock.tsx";
 import { ToolCard } from "./tools/ToolCard.tsx";
 
-export function ChatBlockView({ block, sessionId }: { block: ChatBlock; sessionId: SessionId }) {
+export function ChatBlockView({
+	block,
+	sessionId,
+	onRetry,
+}: {
+	block: ChatBlock;
+	sessionId: SessionId;
+	/** Resends the last message, for a retryable error block. */
+	onRetry?: () => void;
+}) {
 	switch (block.kind) {
 		case "text":
 			return <AssistantText text={block.text} />;
@@ -28,6 +37,6 @@ export function ChatBlockView({ block, sessionId }: { block: ChatBlock; sessionI
 			return <TodoBlock item={block.item} />;
 		case "notice":
 		case "error":
-			return <ChatBanner block={block} />;
+			return <ChatBanner block={block} onRetry={onRetry} />;
 	}
 }
