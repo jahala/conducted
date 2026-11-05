@@ -880,9 +880,16 @@ export function createTauriDialogs(bindings: TauriBindings = realTauriBindings):
 export function createTauriOpener(bindings: TauriBindings = realTauriBindings): Opener {
 	return {
 		openUrl: (url) => requireBinding(bindings.opener, "opener").openUrl(url),
-		revealInFinder: () => notImplemented("PLAT-19"),
-		openWith: () => notImplemented("PLAT-19"),
-		installedApps: () => notImplemented("PLAT-19"),
+		revealInFinder: async (path) => {
+			const result = await invokeResult<void>(bindings, COMMANDS.revealInFinder, { path });
+			if (!result.ok) throw result.error;
+		},
+		openWith: (appName, path) => invokeResult<void>(bindings, COMMANDS.openWith, { appName, path }),
+		installedApps: async () => {
+			const result = await invokeResult<string[]>(bindings, COMMANDS.installedApps);
+			if (!result.ok) throw result.error;
+			return result.value;
+		},
 	};
 }
 
