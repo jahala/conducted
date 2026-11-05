@@ -7,14 +7,16 @@
  * launcher (PLAT-09) calls `--version` to check that the bundled sidecar matches the app.
  * Must handle: `--version` anywhere else than the first argument (not a flag, so the usage message
  * applies); a version that is empty (an error value, no guess); an unknown CPU (an error value that
- * names the CPU); the Tauri file name, which is the program name plus the Rust target triple.
+ * names the CPU); the Tauri file name, which is the program name plus the Rust target triple; the
+ * Rust shell's copy of the program name (one constant on each side, compared by a contract test).
  * Our design choice: one compiled program per CPU, named for Tauri's `externalBin` rule
- * (`conducted-sidecar-<triple>`). The release build (PLAT-25) builds both and the bundle step
- * (`tauri.conf.json` `bundle.externalBin`) is added once these files exist, because Tauri refuses
- * to build when a listed file is missing.
+ * (`conducted-sidecar-<triple>`). The package `build` script runs this file and compiles both CPUs
+ * into `apps/desktop/src-tauri/binaries`; PLAT-25 adds `bundle.externalBin` to `tauri.conf.json`,
+ * because Tauri refuses to build when a listed file is missing.
  * Test first: `versionLine("0.1.0")` is `conducted-sidecar 0.1.0`, and `externalBinName` for the
  * arm64 target is `conducted-sidecar-aarch64-apple-darwin`.
  */
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { appError, err, ok, type Result } from "@conducted/shared";
 import packageJson from "../../../package.json" with { type: "json" };
@@ -76,10 +78,37 @@ export function compileArguments(target: SidecarTarget, outDir: string): readonl
 	];
 }
 
+/**
+ * Builds one program per CPU into `outDir`. `run` performs one command line and returns its exit
+ * code. Stops at the first failure and returns that code, or 0 when every CPU was built.
+ */
+export function buildAllTargets(outDir: string, run: (argv: readonly string[]) => number): number {
+	for (const target of SIDECAR_TARGETS) {
+		const code = run(compileArguments(target, outDir));
+		if (code !== 0) return code;
+	}
+	return 0;
+}
+
 /** Prints the version on stdout and returns the exit code. The caller exits with it. */
 export function printVersion(writeOut: (text: string) => void): number {
 	const line = versionLine(SIDECAR_VERSION);
 	if (!line.ok) return 1;
 	writeOut(`${line.value}\n`);
 	return 0;
+}
+
+if (import.meta.main) {
+	const outDir = join(import.meta.dir, "../../../apps/desktop/src-tauri/binaries");
+	mkdirSync(outDir, { recursive: true });
+	process.exit(
+		buildAllTargets(outDir, (argv) => {
+			const child = Bun.spawnSync([...argv], {
+				stdin: "inherit",
+				stdout: "inherit",
+				stderr: "inherit",
+			});
+			return child.exitCode ?? 1;
+		}),
+	);
 }

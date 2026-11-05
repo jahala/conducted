@@ -96,7 +96,10 @@ interface Script {
 	emit(message: SDKMessage): void;
 }
 
-function scriptedQuery(respond?: (message: SDKUserMessage, script: Script) => void): {
+function scriptedQuery(
+	respond?: (message: SDKUserMessage, script: Script) => void,
+	options: { setPermissionModeError?: Error } = {},
+): {
 	query: QueryFunction;
 	script: Script;
 } {
@@ -135,6 +138,7 @@ function scriptedQuery(respond?: (message: SDKUserMessage, script: Script) => vo
 			return undefined;
 		},
 		setPermissionMode: async (mode: PermissionMode) => {
+			if (options.setPermissionModeError !== undefined) throw options.setPermissionModeError;
 			script.actions.permissionModes.push(mode);
 		},
 		setModel: async (model?: string) => {
@@ -390,7 +394,7 @@ interface Process {
 /** A query function that starts a fresh stream for every process, so a respawn is visible. */
 function multiProcessQuery(
 	onPrompt?: (message: SDKUserMessage, process: Process, index: number) => void,
-	options: { closeOnAbort?: boolean } = {},
+	options: { closeOnAbort?: boolean; models?: SdkModelInfo[] } = {},
 ): { query: QueryFunction; processes: Process[] } {
 	const processes: Process[] = [];
 	const closeOnAbort = options.closeOnAbort ?? true;
@@ -429,7 +433,7 @@ function multiProcessQuery(
 			setPermissionMode: async () => {},
 			setModel: async () => {},
 			applyFlagSettings: async () => {},
-			supportedModels: async () => [],
+			supportedModels: async () => options.models ?? [],
 			supportedCommands: async () => [],
 			getContextUsage: async () => ({ totalTokens: 0, maxTokens: 0 }),
 		} as unknown as Query;
@@ -890,6 +894,106 @@ describe("AGENT-02 Claude session", () => {
 			);
 
 			expect(result).toMatchObject({ behavior: "allow" });
+			await session.dispose();
+		});
+
+		test("AGENT-04 a failed live permission sync ends the turn before the message", async () => {
+			const { query, script } = scriptedQuery(
+				(user, s) => {
+					s.emit(resultMessage(String(user.uuid)));
+				},
+				{ setPermissionModeError: new Error("the mode switch was refused") },
+			);
+			const session = new ClaudeSession(makeDeps({ query }), start());
+
+			const outcome = await session.runTurn(
+				{ ...turnInput(), config: { ...config(), requireToolApproval: true } },
+				callbacks([]),
+			);
+
+			expect(outcome.kind).toBe("error");
+			if (outcome.kind === "error") {
+				expect(outcome.message).toContain("the mode switch was refused");
+				expect(outcome.retryable).toBe(false);
+			}
+			expect(script.prompts).toHaveLength(0);
+			await session.dispose();
+		});
+
+		test("AGENT-04 a deferred effort change the model cannot apply live restarts before the turn", async () => {
+			const { query, processes } = multiProcessQuery(
+				(message, process) => {
+					process.stream.push(init());
+					process.stream.push(resultMessage(String(message.uuid)));
+				},
+				{
+					models: [
+						{
+							value: "claude-sonnet-5",
+							displayName: "Sonnet",
+							description: "",
+							supportsEffort: false,
+						},
+					],
+				},
+			);
+			let turnCount = 0;
+			const session = new ClaudeSession(
+				makeDeps({
+					query,
+					newUuid: () => {
+						turnCount += 1;
+						return `turn-${turnCount}`;
+					},
+				}),
+				start(),
+			);
+			await session.warm();
+
+			const outcome = await session.runTurn(
+				{ ...turnInput(), config: { ...config(), effort: "low" } },
+				callbacks([]),
+			);
+
+			expect(outcome).toEqual({ kind: "success" });
+			expect(processes).toHaveLength(2);
+			expect(processes[1]?.options?.effort).toBe("low");
+			await session.dispose();
+		});
+
+		test("AGENT-04 an approved plan records the permission mode the CLI switched to", async () => {
+			const planConfig = { ...config(), planMode: true, requireToolApproval: true };
+			const { query, script } = scriptedQuery();
+			const session = new ClaudeSession(
+				makeDeps({
+					query,
+					createCanUseTool: (deps) => new ClaudePermissionHandler(deps).canUseTool,
+				}),
+				{ ...start(), config: planConfig },
+			);
+			const turn = session.runTurn(
+				{ ...turnInput(), config: planConfig },
+				callbacks([], {
+					requestInteraction: async () => ({ kind: "plan_approval", approved: true }),
+				}),
+			);
+			await until(() => script.prompts.length === 1);
+
+			const approved = await script.options?.canUseTool?.(
+				"ExitPlanMode",
+				{ plan: "Change one file" },
+				{ signal: new AbortController().signal, toolUseID: "tool-1", requestId: "request-1" },
+			);
+
+			expect(approved).toMatchObject({ behavior: "allow" });
+			expect(script.actions.permissionModes).toEqual(["plan", "default"]);
+			script.emit(resultMessage(String(script.prompts[0]?.uuid)));
+			expect(await turn).toEqual({ kind: "success" });
+
+			await session.applyConfig({ ...planConfig, planMode: false });
+
+			// The approval's switch is already recorded, so the next sync does not re-send it.
+			expect(script.actions.permissionModes).toEqual(["plan", "default"]);
 			await session.dispose();
 		});
 

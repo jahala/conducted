@@ -31,20 +31,34 @@ import type { RunnerCommonDeps } from "../deps.ts";
 import type { AgentSession, Runner, RunnerCapabilities, StartOptions } from "../runner.ts";
 import { ClaudeSession, type ClaudeSessionDeps } from "./claude-session.ts";
 import { CLAUDE_SETTING_SOURCES } from "./constants.ts";
+import type { ClaudeTranslator } from "./translate.ts";
+
+/** Builds the translator a new ClaudeSession owns, so two chats never share its state. */
+export type ClaudeTranslatorFactory = () => ClaudeTranslator;
 
 export type ClaudeRunnerDeps = RunnerCommonDeps &
-	Pick<
-		ClaudeSessionDeps,
-		| "query"
-		| "translator"
-		| "appTools"
-		| "hasTranscript"
-		| "realPath"
-		| "newUuid"
-		| "scheduler"
-		| "createCanUseTool"
-		| "createMcpServers"
-	>;
+	Omit<
+		Pick<
+			ClaudeSessionDeps,
+			| "query"
+			| "translator"
+			| "appTools"
+			| "hasTranscript"
+			| "realPath"
+			| "newUuid"
+			| "scheduler"
+			| "createCanUseTool"
+			| "createMcpServers"
+		>,
+		"translator"
+	> & {
+		/**
+		 * A translator for one chat, or a template whose fresh() builds each chat's translator.
+		 * The composition root passes an instance or a factory; either way every session gets its
+		 * own state.
+		 */
+		translator: ClaudeTranslator | ClaudeTranslatorFactory;
+	};
 
 export class ClaudeRunner implements Runner {
 	readonly agent = "claude" as const;
@@ -107,7 +121,15 @@ export class ClaudeRunner implements Runner {
 			resolved === requested
 				? options
 				: { ...options, workspace: { ...options.workspace, workspacePath: resolved } };
-		return new ClaudeSession({ ...this.deps, executablePath }, start);
+		// One translator per chat. A template is cloned so its state belongs to this session.
+		const source = this.deps.translator;
+		const translator =
+			typeof source === "function"
+				? source()
+				: typeof source.fresh === "function"
+					? source.fresh()
+					: source;
+		return new ClaudeSession({ ...this.deps, executablePath, translator }, start);
 	}
 
 	async listModels(): Promise<ModelInfo[]> {

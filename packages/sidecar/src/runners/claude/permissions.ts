@@ -14,17 +14,20 @@
  *    then our own app tools are allowed; then a chat that is no longer live is denied; then
  *    "approvals off" allows; then auto-approved edits allow; else ask the user
  *  - an edit tool without a path in its input: denied with a message that names the missing field
+ *  - an edit target that does not exist yet resolves through its nearest existing ancestor, so a
+ *    new file in a new subfolder is allowed; a relative target resolves against the workspace
  *  - a path that equals an allowed root, or sits below it; "/work/app-other" is not inside
  *    "/work/app"
  *  - always_allow adds a rule for the tool to the project's local settings; allow_edits_for_session
  *    turns on auto-approval of edits for the rest of the chat
+ *  - allow_with_suggested_rules: allow, and apply the permission rules the SDK suggested with the
+ *    request (D020: Conductor offers this third button)
  *  - plan approved: switch to the mode the chat would have had without plan mode; rejected: deny and
  *    interrupt, with the user's feedback as the message
  * Test first: classifyToolUse for Edit on "/work/app-other/x.ts" with root "/work/app" is a deny
  * whose message names the allowed folders.
- *  - allow_with_suggested_rules: allow, and apply the permission rules the SDK suggested with the
- *    request (D020: Conductor offers this third button)
  */
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import type {
 	PermissionMode,
 	PermissionResult,
@@ -62,6 +65,31 @@ export function editTargetPath(toolName: string, input: Record<string, unknown>)
 	return typeof value === "string" && value !== "" ? value : null;
 }
 
+/**
+ * Resolves an edit target to a real absolute path. `realPath` fails for a file that does not
+ * exist yet, so the nearest existing ancestor is resolved and the missing part is appended.
+ * A relative target is resolved against the workspace folder, not the sidecar's own folder.
+ */
+export async function resolveEditPath(
+	target: string,
+	workspacePath: string,
+	realPath: (path: string) => Promise<string | null>,
+): Promise<string | null> {
+	const absolute = isAbsolute(target) ? resolve(target) : resolve(workspacePath, target);
+	const direct = await realPath(absolute);
+	if (direct !== null) return direct;
+	let current = absolute;
+	const rest: string[] = [];
+	for (;;) {
+		const parent = dirname(current);
+		if (parent === current) return null;
+		rest.unshift(basename(current));
+		current = parent;
+		const resolved = await realPath(current);
+		if (resolved !== null) return join(resolved, ...rest);
+	}
+}
+
 /** True when `path` equals a root or sits below it. Both must already be real, absolute paths. */
 export function isInsideAny(path: string, roots: readonly string[]): boolean {
 	return roots.some((root) => {
@@ -79,7 +107,10 @@ export type ToolVerdict =
 export interface ToolUseFacts {
 	toolName: string;
 	input: Record<string, unknown>;
-	/** The edit target after resolving symlinks, or null when it could not be resolved. */
+	/**
+	 * The edit target after resolving symlinks, or through its nearest existing ancestor when the
+	 * file does not exist yet. Null when it could not be resolved at all.
+	 */
 	resolvedEditPath: string | null;
 	/** Workspace folder and additional directories, after resolving symlinks. */
 	allowedRoots: readonly string[];

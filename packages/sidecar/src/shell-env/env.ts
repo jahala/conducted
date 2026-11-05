@@ -30,6 +30,7 @@ export const STRIPPED_ENV_NAMES: readonly string[] = [
 	"CODEX_API_KEY",
 	"CURSOR_API_KEY",
 	"OPENAI_API_KEY",
+	/** The Rust shell sets it for its own capture; the sidecar keeps it only so both lists match. */
 	"CONDUCTED_CWD",
 ];
 

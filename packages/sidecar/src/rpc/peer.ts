@@ -97,8 +97,11 @@ export class RpcPeer implements SidecarToApp {
 	private endpoint: JSONRPCServerAndClient | null = null;
 	private readonly attachListeners = new Set<() => void>();
 	private readonly detachListeners = new Set<() => void>();
+	private readonly logger: Logger;
 
-	constructor(protected readonly deps: RpcPeerDeps) {}
+	constructor(protected readonly deps: RpcPeerDeps) {
+		this.logger = deps.logger.child("FrontendRpcTunnel");
+	}
 
 	get connected(): boolean {
 		return this.transport !== null;
@@ -134,7 +137,7 @@ export class RpcPeer implements SidecarToApp {
 		try {
 			transport.close();
 		} catch (cause) {
-			this.deps.logger.warn("Closing the app connection failed", { reason: messageOf(cause) });
+			this.logger.warn("Closing the app connection failed", { reason: messageOf(cause) });
 		}
 		for (const listener of this.detachListeners) listener();
 	}
@@ -175,7 +178,7 @@ export class RpcPeer implements SidecarToApp {
 						]);
 			const validated = sidecarToAppRequests[method].result.safeParse(await timedOut);
 			if (!validated.success) {
-				this.deps.logger.error("The app answered with a result that does not match its schema", {
+				this.logger.error("The app answered with a result that does not match its schema", {
 					method,
 					issues: validated.error.issues,
 				});
@@ -204,7 +207,7 @@ export class RpcPeer implements SidecarToApp {
 		if (endpoint === null) return false;
 		const parsed = sidecarToAppNotifications[method].safeParse(params);
 		if (!parsed.success) {
-			this.deps.logger.warn("Refused to send a notification whose params are not valid", {
+			this.logger.warn("Refused to send a notification whose params are not valid", {
 				method,
 				issues: parsed.error.issues,
 			});
@@ -214,7 +217,7 @@ export class RpcPeer implements SidecarToApp {
 			endpoint.notify(method, parsed.data, undefined as never);
 			return true;
 		} catch (cause) {
-			this.deps.logger.warn("Sending a notification failed", {
+			this.logger.warn("Sending a notification failed", {
 				method,
 				reason: messageOf(cause),
 			});
@@ -235,7 +238,7 @@ export class RpcPeer implements SidecarToApp {
 	private buildEndpoint(transport: RpcTransport): JSONRPCServerAndClient {
 		const server = new JSONRPCServer({
 			errorListener: (message, data) => {
-				this.deps.logger.warn(message, { error: messageOf(data) });
+				this.logger.warn(message, { error: messageOf(data) });
 			},
 		});
 		server.mapErrorToJSONRPCErrorResponse = (id, error) => {
@@ -247,7 +250,7 @@ export class RpcPeer implements SidecarToApp {
 		});
 		const endpoint = new JSONRPCServerAndClient(server, client, {
 			errorListener: (message, data) => {
-				this.deps.logger.warn(message, { error: messageOf(data) });
+				this.logger.warn(message, { error: messageOf(data) });
 			},
 		});
 		this.registerRequestHandlers(endpoint);
@@ -276,7 +279,7 @@ export class RpcPeer implements SidecarToApp {
 				const payload = unwrapHandlerValue(output);
 				const validated = spec.result.safeParse(payload);
 				if (!validated.success) {
-					this.deps.logger.error("A handler returned a result that does not match its schema", {
+					this.logger.error("A handler returned a result that does not match its schema", {
 						method,
 						issues: validated.error.issues,
 					});
@@ -322,7 +325,7 @@ export class RpcPeer implements SidecarToApp {
 		if (this.transport !== transport) return;
 		for (const decoded of decoder.push(chunk)) {
 			if (!decoded.ok) {
-				this.deps.logger.warn("A line from the app could not be decoded", {
+				this.logger.warn("A line from the app could not be decoded", {
 					code: decoded.error.code,
 					reason: decoded.error.message,
 				});
@@ -331,7 +334,7 @@ export class RpcPeer implements SidecarToApp {
 			void endpoint
 				.receiveAndSend(decoded.value, undefined as never, undefined as never)
 				.catch((cause: unknown) => {
-					this.deps.logger.warn("A message from the app could not be handled", {
+					this.logger.warn("A message from the app could not be handled", {
 						reason: messageOf(cause),
 					});
 				});

@@ -6,7 +6,7 @@ import {
 } from "@conducted/protocol";
 import { appError, type InteractionId, type SessionId, systemClock } from "@conducted/shared";
 import { JSONRPCClient, JSONRPCServer, JSONRPCServerAndClient } from "json-rpc-2.0";
-import { createLogger } from "../logging/logger.ts";
+import { createLogger, type LogRecord } from "../logging/logger.ts";
 import { encodeLine, LineDecoder } from "./ndjson.ts";
 import { RpcPeer, type RpcTransport } from "./peer.ts";
 import type { AppToSidecarHandlers, AppToSidecarNotificationHandlers } from "./types.ts";
@@ -221,6 +221,35 @@ describe("SIDE-02 JSON-RPC peer: calls from the app", () => {
 		appSide.peer.notify("eventPersisted", {});
 		await new Promise((resolve) => setTimeout(resolve, 5));
 		expect(calls).toEqual([]);
+	});
+});
+
+describe("SIDE-02 JSON-RPC peer: logging", () => {
+	test("SIDE-02 server and client errors are logged under the FrontendRpcTunnel tag", async () => {
+		const { side, app } = transportPair();
+		const records: LogRecord[] = [];
+		const logger = createLogger({
+			sink: (record) => records.push(record),
+			clock: systemClock,
+			level: "warn",
+			scope: "rpc-test",
+		});
+		const peer = new RpcPeer({
+			handlers: requestHandlers(),
+			notificationHandlers: notificationHandlers(),
+			logger,
+		});
+		peer.attach(side);
+
+		app.writeLine("not json\n");
+		app.writeLine('{"hello":"world"}\n');
+		await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+		expect(records.length).toBeGreaterThanOrEqual(3);
+		expect(records.every((record) => record.scope === "rpc-test:FrontendRpcTunnel")).toBe(true);
+		expect(records.some((record) => record.message.includes("could not be decoded"))).toBe(true);
+		expect(records.some((record) => record.message.includes("invalid JSON-RPC"))).toBe(true);
+		expect(records.some((record) => record.message.includes("could not be handled"))).toBe(true);
 	});
 });
 

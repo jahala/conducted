@@ -320,12 +320,64 @@ describe("AGENT-03 Claude translation", () => {
 		expect(messages[0]?.items[0]).toMatchObject({ kind: "notice", notice: "rate_limit" });
 	});
 
-	test("the session start notice is emitted once", () => {
+	test("a second init means a respawn and resets the start notice and cost baseline", () => {
 		const t = translator();
 		expect(t.translate(system("init", { model: "claude" }))[0]?.items).toEqual([
 			{ kind: "notice", notice: "session_started", text: "Session started" },
 		]);
-		expect(t.translate(system("init", { model: "claude" }))).toEqual([]);
+		expect(t.translate(result({ total_cost_usd: 5 }))[0]?.items[0]).toMatchObject({
+			kind: "usage",
+			costUsd: 5,
+		});
+		expect(t.translate(system("init", { model: "claude" }))[0]?.items).toEqual([
+			{ kind: "notice", notice: "session_started", text: "Session started" },
+		]);
+		expect(t.translate(result({ total_cost_usd: 0.5 }))[0]?.items[0]).toMatchObject({
+			kind: "usage",
+			costUsd: 0.5,
+		});
+	});
+
+	test("a respawn clears the dropped TodoWrite ids of the previous process", () => {
+		const t = translator();
+		t.translate(system("init", { model: "claude" }));
+		t.translate(
+			assistant([
+				{
+					type: "tool_use",
+					id: "todo-1",
+					name: "TodoWrite",
+					input: { todos: [{ content: "Write tests", status: "pending" }] },
+				},
+			]),
+		);
+		// The old process never delivered the result; the new one must not inherit the id.
+		t.translate(system("init", { model: "claude" }));
+		expect(t.translate(user([toolResult("todo-1", "Todo updated")]))[0]?.items).toEqual([
+			{
+				kind: "tool_result",
+				toolUseId: "todo-1" as ToolUseId,
+				output: "Todo updated",
+				isError: false,
+				truncated: false,
+			},
+		]);
+	});
+
+	test("fresh() gives a translator whose state belongs to one chat", () => {
+		const first = translator();
+		first.translate(system("init", { model: "claude" }));
+		first.translate(result({ total_cost_usd: 5 }));
+
+		const second = first.fresh();
+
+		expect(second.translate(system("init", { model: "claude" }))[0]?.items).toEqual([
+			{ kind: "notice", notice: "session_started", text: "Session started" },
+		]);
+		expect(second.translate(result({ total_cost_usd: 0.5 }))[0]?.items[0]).toMatchObject({
+			kind: "usage",
+			costUsd: 0.5,
+		});
 	});
 
 	test("stream deltas, thinking tokens and task progress are dropped", () => {

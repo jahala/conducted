@@ -22,9 +22,13 @@
  *  - a late message from a cancelled turn must not reach the next turn's callbacks
  *  - dispose(): close the input queue, abort, wait for exit (SIGTERM, SIGKILL after 5 s by the SDK)
  *  - AskUserQuestion, tool approval and ExitPlanMode go through TurnCallbacks.requestInteraction
- *  - applyConfig sends a model change with setModel, an effort change with applyFlagSettings when
- *    the model supports it (else a restart), and a plan or approvals change with setPermissionMode;
- *    a change during a turn waits for the next turn
+ *  - applyConfig sends a plan or approvals change with setPermissionMode first, then a model change
+ *    with setModel, then an effort change with applyFlagSettings when the model supports it (else a
+ *    restart); a change during a turn waits for the next turn
+ *  - a live config sync that fails before a turn ends that turn with an error the app sees, so it
+ *    never runs in bypassPermissions; an effort change that needs a restart restarts the process
+ *    before the message is sent
+ *  - an approved plan records the permission mode the CLI switched to
  * Owned by later features: steer() is AGENT-05; while it is unbuilt it returns notImplemented with
  * its own id. The session header only promises what this feature builds.
  * Test first: with a scripted query function that yields init, assistant text and a result for
@@ -187,13 +191,7 @@ export class ClaudeSession implements AgentSession {
 		try {
 			await this.ensureStarted();
 		} catch (cause) {
-			const message = messageOf(cause);
-			this.deps.logger.error("The Claude session could not start", {
-				sessionId: this.sessionId,
-				message,
-			});
-			this.finishTurn();
-			return { kind: "error", message, retryable: false };
+			return this.failStart(cause);
 		}
 
 		// A cancel or dispose during the start settled the turn and must not send the message.
@@ -203,14 +201,34 @@ export class ClaudeSession implements AgentSession {
 			return outcome;
 		}
 
-		// A config change deferred while the last turn ran is applied before this message.
+		// A config change deferred while the last turn ran is applied before this message. A
+		// failure must end the turn: the process is still in bypassPermissions until the mode
+		// switch succeeds.
+		let restart: boolean;
 		try {
-			await this.syncLiveConfig();
+			restart = await this.syncLiveConfig();
 		} catch (cause) {
-			this.deps.logger.warn("Could not apply the Claude config live", {
-				sessionId: this.sessionId,
-				message: messageOf(cause),
-			});
+			return this.failConfigSync(cause);
+		}
+		if (restart) {
+			// The new effort only takes effect in a new process. The next process starts with the
+			// current model and effort, and the permission mode is applied live again below.
+			this.stopProcess();
+			try {
+				await this.ensureStarted();
+			} catch (cause) {
+				return this.failStart(cause);
+			}
+			if (generation !== this.generation || this.turnSettled) {
+				const outcome = await turn.promise;
+				this.finishTurn();
+				return outcome;
+			}
+			try {
+				await this.syncLiveConfig();
+			} catch (cause) {
+				return this.failConfigSync(cause);
+			}
 		}
 
 		const uuid = this.deps.newUuid();
@@ -462,6 +480,35 @@ export class ClaudeSession implements AgentSession {
 		turn?.resolve(final);
 	}
 
+	/** Ends the turn because the process could not start, and gives the cause to the app. */
+	private failStart(cause: unknown): TurnOutcome {
+		const message = messageOf(cause);
+		this.deps.logger.error("The Claude session could not start", {
+			sessionId: this.sessionId,
+			message,
+		});
+		this.finishTurn();
+		return { kind: "error", message, retryable: false };
+	}
+
+	/**
+	 * Ends the turn because its new settings could not be applied live. The process would still run
+	 * in the old mode, so the message is not sent and the app sees the error.
+	 */
+	private failConfigSync(cause: unknown): TurnOutcome {
+		const message = messageOf(cause);
+		this.deps.logger.error("Could not apply the Claude config live", {
+			sessionId: this.sessionId,
+			message,
+		});
+		this.finishTurn();
+		return {
+			kind: "error",
+			message: `Could not apply the Claude settings, so the message was not sent: ${message}`,
+			retryable: false,
+		};
+	}
+
 	private finishTurn(): void {
 		this.turnOpen = false;
 		this.callbacks = null;
@@ -506,6 +553,9 @@ export class ClaudeSession implements AgentSession {
 		const query = this.query;
 		if (query === null) return false;
 		const config = this.config;
+		// The permission mode goes first: it is the setting that must never be left at the old
+		// value, and an effort restart below still needs it applied to the new process.
+		await this.applyPermissionMode(permissionModeFor(config));
 		if (this.appliedModel !== config.model) {
 			await query.setModel(config.model);
 			this.appliedModel = config.model;
@@ -515,12 +565,19 @@ export class ClaudeSession implements AgentSession {
 			await query.applyFlagSettings({ effortLevel: effortSetting(config.effort) });
 			this.appliedEffort = config.effort;
 		}
-		const mode = permissionModeFor(config);
-		if (this.appliedPermissionMode !== mode) {
-			await query.setPermissionMode(mode);
-			this.appliedPermissionMode = mode;
-		}
 		return false;
+	}
+
+	/**
+	 * Switches the live process's permission mode and records it, so a plan approval leaves the
+	 * session knowing the mode the CLI is in. The app notice for that approval is SIDE-20.
+	 */
+	private async applyPermissionMode(mode: PermissionMode): Promise<void> {
+		if (this.appliedPermissionMode === mode) return;
+		const query = this.query;
+		if (query === null) return;
+		await query.setPermissionMode(mode);
+		this.appliedPermissionMode = mode;
 	}
 
 	/** True when the model reports that it can change effort without a new process. */
@@ -560,9 +617,7 @@ export class ClaudeSession implements AgentSession {
 			callbacks: () => this.callbacks ?? undefined,
 			realPath: (path) => this.deps.realPath(path),
 			isSessionLive: () => !this.disposed && this.query !== null,
-			setPermissionMode: async (mode) => {
-				await this.query?.setPermissionMode(mode);
-			},
+			setPermissionMode: (mode) => this.applyPermissionMode(mode),
 			autoApproveEditsOverride: () => this.autoApproveEditsOverride,
 		};
 	}

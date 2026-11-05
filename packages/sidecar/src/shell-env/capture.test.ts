@@ -1,14 +1,17 @@
 import { describe, expect, test } from "bun:test";
-import type { Result } from "@conducted/shared";
-import { err, ok } from "@conducted/shared";
+import type { AppError, Result } from "@conducted/shared";
+import { appError, err, ok } from "@conducted/shared";
 import { createLogger } from "../logging/logger.ts";
 import {
 	type CaptureCommand,
 	captureCommandFor,
+	classifyShellEnvFailure,
 	FALLBACK_CAPTURE_TIMEOUT_MS,
 	fallbackCaptureCommand,
 	LoginShellEnvProvider,
 	PRIMARY_CAPTURE_TIMEOUT_MS,
+	type ShellEnvFailure,
+	type ShellEnvFailureKind,
 	type SpawnText,
 } from "./capture.ts";
 
@@ -204,5 +207,110 @@ describe("SIDE-10 login-shell capture", () => {
 		expect(a.ok).toBe(true);
 		expect(b.ok).toBe(true);
 		expect(calls).toBe(1);
+	});
+
+	test("runs the login shell in the folder it was asked about", () => {
+		const cmd = captureCommandFor("/bin/zsh", "MK", "/work/lisbon");
+		expect(cmd.args[1]).toBe(
+			"cd '/work/lisbon' || exit 1; printf '%s' 'MK'; env -0; printf '%s' 'MK'",
+		);
+		expect(fallbackCaptureCommand("MK", "/work/lisbon").args[1]).toBe(
+			"cd '/work/lisbon' || exit 1; printf '%s' 'MK'; env -0; printf '%s' 'MK'",
+		);
+	});
+
+	test("quotes a folder whose name contains an apostrophe", () => {
+		const cmd = captureCommandFor("/bin/zsh", "MK", "/work/it's here");
+		expect(cmd.args[1]).toBe(
+			"cd '/work/it'\\''s here' || exit 1; printf '%s' 'MK'; env -0; printf '%s' 'MK'",
+		);
+	});
+
+	test("caches per folder and captures each folder on its own", async () => {
+		const { spawnText, calls } = recordingSpawn(() => ok(dump("M1", { PATH: "/bin" })));
+		const subject = provider("/bin/zsh", spawnText, () => "M1");
+
+		await subject.get("/work/a");
+		await subject.get("/work/b");
+		await subject.get("/work/a");
+
+		expect(calls).toHaveLength(2);
+		expect(calls[0]?.command.args[1]).toContain("cd '/work/a'");
+		expect(calls[1]?.command.args[1]).toContain("cd '/work/b'");
+	});
+
+	test("a failure in one folder leaves the other folder's cache alone", async () => {
+		const { spawnText, calls } = recordingSpawn((call) =>
+			call.command.args[1]?.includes("/work/b")
+				? err(appError("shell_capture_failed", "no shell here"))
+				: ok(dump("M1", { PATH: "/bin" })),
+		);
+		const subject = provider("/bin/zsh", spawnText, () => "M1");
+
+		expect((await subject.get("/work/a")).ok).toBe(true);
+		expect((await subject.get("/work/b")).ok).toBe(false);
+		expect((await subject.get("/work/a")).ok).toBe(true);
+		expect(calls).toHaveLength(3);
+	});
+});
+
+describe("SIDE-10 capture failure notification", () => {
+	test("notifies once with the folder, kind and message after both attempts fail", async () => {
+		const notices: ShellEnvFailure[] = [];
+		const { spawnText, calls } = recordingSpawn(() =>
+			err(appError("shell_timeout", "The login shell timed out")),
+		);
+		const subject = new LoginShellEnvProvider({
+			spawnText,
+			shellPath: "/bin/zsh",
+			newMarker: markers("M1", "M2"),
+			logger,
+			notifyFailure: (failure) => notices.push(failure),
+		});
+
+		const result = await subject.get("/work/lisbon");
+
+		expect(result.ok).toBe(false);
+		expect(calls).toHaveLength(2);
+		expect(notices).toEqual([
+			{
+				folder: "/work/lisbon",
+				kind: "timeout",
+				message: "The login shell timed out",
+			},
+		]);
+	});
+
+	test("does not notify when the fallback succeeds", async () => {
+		const notices: ShellEnvFailure[] = [];
+		const { spawnText } = recordingSpawn((call) =>
+			call.timeoutMs === PRIMARY_CAPTURE_TIMEOUT_MS
+				? err(appError("shell_capture_failed", "the primary shell refused"))
+				: ok(dump("M2", { PATH: "/bin" })),
+		);
+		const subject = new LoginShellEnvProvider({
+			spawnText,
+			shellPath: "/bin/zsh",
+			newMarker: markers("M1", "M2"),
+			logger,
+			notifyFailure: (failure) => notices.push(failure),
+		});
+
+		expect((await subject.get("/work/a")).ok).toBe(true);
+		expect(notices).toEqual([]);
+	});
+
+	test("classifies the failure kind from the attempt's error", () => {
+		const cases: [AppError, ShellEnvFailureKind][] = [
+			[appError("shell_timeout", "The shell hung"), "timeout"],
+			[appError("probe_failed", "The command timed out after 5000 ms"), "timeout"],
+			[appError("shell_not_found", "zsh is missing"), "shell_not_found"],
+			[appError("spawn_failed", "spawn /bin/zsh ENOENT"), "shell_not_found"],
+			[appError("shell_capture_failed", "/bin/zsh exited with 1"), "unknown"],
+		];
+
+		expect(cases.map(([error]) => classifyShellEnvFailure(error))).toEqual(
+			cases.map(([, kind]) => kind),
+		);
 	});
 });

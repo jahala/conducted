@@ -14,9 +14,11 @@
  *  5. build the runners, process manager, session manager, interaction broker, publisher and the
  *     app tools backend and bridge
  *  6. listen on the Unix socket (rpc/server.ts) and print SOCKET_PATH=<path> as one line on stdout
- *  7. start the parent watchdog (watchdog.ts), install signal handlers, install the
- *     uncaughtException and unhandledRejection handlers (log, do not exit), and ask the agent
- *     detector for the current list; a detection failure is logged and never fails the start
+ *  7. start the parent watchdog (watchdog.ts: the parent check and the idle sweep run on separate
+ *     2-second timers), install one SIGINT and one SIGTERM handler that logs under SIGNAL and
+ *     starts the graceful shutdown, install the uncaughtException and unhandledRejection handlers
+ *     (log, do not exit), and ask the agent detector for the current list; a detection failure is
+ *     logged and never fails the start
  *  8. when the app attaches: replay the write-ahead log, resend the open interaction, and send
  *     agentInstallsChanged if detection changed
  * Must handle: a second sidecar already running for the same app (the launcher kills orphans; the
@@ -97,7 +99,7 @@ import type { Runner } from "../runners/runner.ts";
 import { BatchingEventPublisher } from "../session/event-batcher.ts";
 import { SessionInteractionBroker } from "../session/interactions.ts";
 import { LiveStateStore } from "../session/live-state.ts";
-import { DefaultSessionManager } from "../session/manager.ts";
+import { DefaultSessionManager, type ShutdownReason } from "../session/manager.ts";
 import { KeyedSerialQueue } from "../session/serial-queue.ts";
 import { LoginShellEnvProvider } from "../shell-env/capture.ts";
 import { runShutdownSteps, type ShutdownReport, type ShutdownStep } from "../shutdown.ts";
@@ -272,6 +274,111 @@ export async function refreshAgentInstalls(deps: {
 	}
 }
 
+/** The log tag Conductor uses for the signal handlers. */
+export const SIGNAL_LOG_TAG = "SIGNAL";
+
+export type ShutdownSignal = "SIGINT" | "SIGTERM";
+
+/** The narrow process surface the signal handlers need, so a test passes a fake. */
+export interface SignalPort {
+	on(signal: ShutdownSignal, listener: () => void): void;
+	off(signal: ShutdownSignal, listener: () => void): void;
+}
+
+export const processSignals: SignalPort = {
+	on: (signal, listener) => process.on(signal, listener),
+	off: (signal, listener) => process.off(signal, listener),
+};
+
+/**
+ * One handler per signal. Each logs the signal under the SIGNAL tag and starts the graceful
+ * shutdown, so an operator can see which signal arrived (sessions.md 8).
+ */
+export function installSignalHandlers(
+	logger: Logger,
+	signals: SignalPort,
+	onSignal: (signal: ShutdownSignal) => void,
+): () => void {
+	const signalLogger = logger.child(SIGNAL_LOG_TAG);
+	const installed: { signal: ShutdownSignal; listener: () => void }[] = [];
+	for (const signal of ["SIGINT", "SIGTERM"] as const) {
+		const listener = (): void => {
+			signalLogger.info(`${signal} received; shutting down`, { signal });
+			onSignal(signal);
+		};
+		signals.on(signal, listener);
+		installed.push({ signal, listener });
+	}
+	return () => {
+		for (const { signal, listener } of installed) signals.off(signal, listener);
+	};
+}
+
+/** The real shutdown operations, passed in so a test runs the same list startSidecarHost runs. */
+export interface ShutdownEffects {
+	stopAgents(reason: ShutdownReason): Promise<void>;
+	flushEvents(): Promise<void>;
+	closeSocket(): Promise<void>;
+	closeAppToolsBridge(): Promise<void>;
+}
+
+/**
+ * The production shutdown steps in the order the sidecar runs them: stop the agents (no
+ * checkpoint), flush the events the app has not confirmed, close the socket, then the app tools
+ * bridge. Flushing is the outbox's only shutdown work: our write-ahead log has no handle to close
+ * (D007, SIDE-06). There is no HTTP server (D028) and no logger close.
+ */
+export function createShutdownSteps(
+	reason: ShutdownReason,
+	effects: ShutdownEffects,
+): ShutdownStep[] {
+	return [
+		{ name: "stop agents", run: () => effects.stopAgents(reason), limitMs: 10_000 },
+		{ name: "flush events", run: () => effects.flushEvents(), limitMs: 10_000 },
+		{ name: "close socket", run: () => effects.closeSocket(), limitMs: 5_000 },
+		{ name: "close app tools bridge", run: () => effects.closeAppToolsBridge(), limitMs: 5_000 },
+	];
+}
+
+export interface ShutdownCoordinatorDeps {
+	logger: Logger;
+	effects: ShutdownEffects;
+	runShutdown(steps: readonly ShutdownStep[]): Promise<ShutdownReport>;
+	/** Stops what must not run during shutdown: the watchdog, the attach listener, the signals. */
+	beforeShutdown(): void;
+	finish(code: number): void;
+}
+
+/**
+ * Runs the shutdown sequence once. A second request (a signal after the parent died, or two
+ * signals) is ignored while the first is running.
+ */
+export class ShutdownCoordinator {
+	private finished = false;
+
+	constructor(protected readonly deps: ShutdownCoordinatorDeps) {}
+
+	get isFinished(): boolean {
+		return this.finished;
+	}
+
+	async shutdown(reason: ShutdownReason): Promise<void> {
+		if (this.finished) return;
+		this.finished = true;
+		try {
+			this.deps.beforeShutdown();
+			const report = await this.deps.runShutdown(createShutdownSteps(reason, this.deps.effects));
+			if (report.failed.length > 0) {
+				this.deps.logger.warn("Some shutdown steps failed", { failed: report.failed });
+			}
+		} catch (cause) {
+			this.deps.logger.error("The shutdown sequence failed", { reason: messageOf(cause) });
+		} finally {
+			this.deps.finish(0);
+		}
+	}
+}
+
 const defaultIo: SidecarModeIo = {
 	writeError: (text) => process.stderr.write(text),
 	writeOut: (text) => process.stdout.write(text),
@@ -397,8 +504,18 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 	const runShutdown = (steps: readonly ShutdownStep[]): Promise<ShutdownReport> =>
 		runShutdownSteps(steps, {
 			logger,
-			timeout: (ms) =>
-				new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), ms)),
+			timeout: (ms) => {
+				let timer: ReturnType<typeof setTimeout> | undefined;
+				const done = new Promise<"timeout">((resolve) => {
+					timer = setTimeout(() => resolve("timeout"), ms);
+				});
+				return {
+					done,
+					cancel: () => {
+						if (timer !== undefined) clearTimeout(timer);
+					},
+				};
+			},
 		});
 
 	const outbox = new FileEventOutbox({
@@ -538,7 +655,6 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 	if (!swept.ok) logger.warn("Old outbox files were not swept", { reason: swept.error.message });
 	writeOut(`${handshakeLine(socketPath)}\n`);
 
-	let finished = false;
 	let finish: (code: number) => void = () => {};
 	const done = new Promise<number>((resolve) => {
 		finish = resolve;
@@ -548,7 +664,29 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 			logger.warn("Replaying the write-ahead log failed", { reason: messageOf(cause) });
 		});
 	});
-	const watchdog = new ParentWatchdog({
+	let watchdog: ParentWatchdog | null = null;
+	let removeSignalHandlers: () => void = () => {};
+	const coordinator = new ShutdownCoordinator({
+		logger,
+		effects: {
+			stopAgents: (reason) => sessions.shutdown(reason),
+			flushEvents: async () => {
+				for (const sessionId of outbox.sessionsWithPending()) {
+					await publisher.flush(sessionId);
+				}
+			},
+			closeSocket: () => server.close(),
+			closeAppToolsBridge: () => bridge.stop(),
+		},
+		runShutdown: (steps) => runShutdown(steps),
+		beforeShutdown: () => {
+			watchdog?.stop();
+			unsubscribeAttach();
+			removeSignalHandlers();
+		},
+		finish: (code) => finish(code),
+	});
+	watchdog = new ParentWatchdog({
 		scheduler: {
 			every: (ms, fn) => {
 				const timer = setInterval(fn, ms);
@@ -559,44 +697,13 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 		currentParentPid: () => process.ppid,
 		processes,
 		onParentGone: () => {
-			void shutdown("parent_gone");
+			void coordinator.shutdown("parent_gone");
 		},
 		logger,
 	});
-
-	const shutdown = async (reason: "signal" | "parent_gone" | "app_quit"): Promise<void> => {
-		if (finished) return;
-		finished = true;
-		watchdog.stop();
-		unsubscribeAttach();
-		process.off("SIGINT", onSignal);
-		process.off("SIGTERM", onSignal);
-		const steps: ShutdownStep[] = [
-			{ name: "stop agents", run: () => sessions.shutdown(reason), limitMs: 10_000 },
-			{
-				name: "flush events",
-				run: async () => {
-					for (const sessionId of outbox.sessionsWithPending()) {
-						await publisher.flush(sessionId);
-					}
-				},
-				limitMs: 10_000,
-			},
-			{ name: "close socket", run: () => server.close(), limitMs: 5_000 },
-			{ name: "close app tools bridge", run: () => bridge.stop(), limitMs: 5_000 },
-		];
-		const report = await runShutdown(steps);
-		if (report.failed.length > 0) {
-			logger.warn("Some shutdown steps failed", { failed: report.failed });
-		}
-		finish(0);
-	};
-
-	const onSignal = (): void => {
-		void shutdown("signal");
-	};
-	process.on("SIGINT", onSignal);
-	process.on("SIGTERM", onSignal);
+	removeSignalHandlers = installSignalHandlers(logger, processSignals, () => {
+		void coordinator.shutdown("signal");
+	});
 	watchdog.start();
 	void refreshAgentInstalls({ agents, logger });
 	return done;
@@ -893,7 +1000,7 @@ function createRunnerRegistry(input: {
 				...common,
 				query: (params) => sdkQuery(params as Parameters<typeof sdkQuery>[0]),
 				appTools: input.appTools,
-				translator: new ClaudeTranslator({ logger: input.logger }),
+				translator: () => new ClaudeTranslator({ logger: input.logger }),
 				hasTranscript: input.hasTranscript,
 				realPath,
 				newUuid: () => randomUUID(),

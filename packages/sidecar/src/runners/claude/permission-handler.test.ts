@@ -131,6 +131,32 @@ describe("AGENT-04 Claude permission handler", () => {
 		expect(interactions).toHaveLength(0);
 	});
 
+	test("a new file in a new subfolder is allowed and asks", async () => {
+		const realPath = async (path: string): Promise<string | null> =>
+			path === "/work/app" ? path : null;
+		const { handler, interactions } = harness({ realPath });
+
+		const result = await handler.canUseTool(
+			"Write",
+			{ file_path: "/work/app/src/new/deep/a.ts" },
+			toolOptions(),
+		);
+
+		expect(result?.behavior).toBe("allow");
+		expect(interactions[0]).toMatchObject({ kind: "tool_approval", toolName: "Write" });
+	});
+
+	test("a relative edit target resolves against the workspace", async () => {
+		const realPath = async (path: string): Promise<string | null> =>
+			path === "/work/app" ? path : null;
+		const { handler, interactions } = harness({ realPath });
+
+		const result = await handler.canUseTool("Write", { file_path: "src/new.ts" }, toolOptions());
+
+		expect(result?.behavior).toBe("allow");
+		expect(interactions).toHaveLength(1);
+	});
+
 	test("an edit inside the workspace asks and is allowed", async () => {
 		const { handler, interactions } = harness();
 
@@ -309,6 +335,18 @@ describe("AGENT-04 Claude permission handler", () => {
 		expect(result?.behavior).toBe("allow");
 		expect(interactions).toHaveLength(0);
 		expect(modes).toEqual(["default"]);
+	});
+
+	test("leaving plan mode while the mode is already auto approves without asking", async () => {
+		const { handler, interactions, modes } = harness({
+			config: { planMode: false, requireToolApproval: true, autoPermissionMode: true },
+		});
+
+		const result = await handler.canUseTool("ExitPlanMode", { plan: "p" }, toolOptions());
+
+		expect(result?.behavior).toBe("allow");
+		expect(interactions).toHaveLength(0);
+		expect(modes).toEqual(["auto"]);
 	});
 
 	test("aborting while waiting denies the call", async () => {

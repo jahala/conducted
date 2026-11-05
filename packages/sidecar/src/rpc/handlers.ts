@@ -84,8 +84,8 @@ export function buildHandlers(deps: HandlerDeps): {
 				return cancelled.ok ? ok({}) : cancelled;
 			},
 			listAgentProviders: async () => notImplemented("SIDE-21"),
-			getShellEnv: async () => {
-				const captured = await deps.shellEnv.get();
+			getShellEnv: async (params) => {
+				const captured = await deps.shellEnv.get(params.workspacePath);
 				if (!captured.ok) return captured;
 				return ok({ shell: captured.value.shell, path: captured.value.path });
 			},

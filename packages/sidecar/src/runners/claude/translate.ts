@@ -25,15 +25,23 @@
  *  - `raw` keeps the original message so a later translator version can re-read old events
  * Must handle:
  *  - a tool_result for a dropped TodoWrite call (state in the translator, not a global)
- *  - sub-agent messages (parent_tool_use_id set) keep the link on both call and result
+ *  - sub-agent messages (parent_tool_use_id set) keep the link on call and result
  *  - unknown message types and unknown content blocks: ignored with a debug log, never a throw
- *  - the same SDK message translated twice gives the same items (no hidden counters, except the
- *    cost baseline, which the caller owns)
+ *  - translating the same message twice can differ: the translator keeps per-chat state, and a
+ *    second init means the process respawned, which resets that state
  *  - a message with several blocks keeps them in display order in one AgentMessage
  * Test first: an assistant message with a text block and a Bash tool_use yields one AgentMessage
  * whose items are [text, tool_call(bash)] with the tool_use id as toolUseId.
- * Our design choice: a result's speed stays in its raw payload because the neutral usage item has
- * no speed field. The session-limit and rate-limit error codes let the chat word their banners.
+ * Our design choice: one translator belongs to one chat; ClaudeRunner gives each ClaudeSession its
+ * own. Its state is the ids of dropped TodoWrite results, the last reported cost and whether this
+ * process's start notice was emitted. A second init resets the cost baseline and the dropped ids,
+ * then emits the start notice again. A result's speed stays in its raw payload because the neutral
+ * usage item has no speed field. Whether a result is foreign (its user message was not ours) is
+ * decided in turn-tracker.ts; a foreign result still yields a usage item here. `raw` keeps the
+ * whole SDK message, including uncut tool output, until the lifetime job removes it. The
+ * session_state_changed message only disarms the watchdog here; its in-progress report belongs to
+ * AGENT-15 (self-started-turns.ts). The session-limit and rate-limit error codes let the chat word
+ * their banners.
  */
 import type {
 	SDKAssistantMessage,
@@ -63,13 +71,7 @@ type SystemMessage = Extract<SDKMessage, { type: "system" }>;
 type UserMessage = SDKUserMessage | SDKUserMessageReplay;
 
 /** Frames with no item of their own, kept whole in `raw` for a later translator. */
-const RAW_PASSTHROUGH_TYPES = new Set([
-	"active_goal",
-	"post_turn_summary",
-	"session_metadata",
-	"autocompact_state",
-]);
-const RAW_PASSTHROUGH_SUBTYPES = new Set([
+const RAW_PASSTHROUGH_FRAMES = new Set([
 	"active_goal",
 	"post_turn_summary",
 	"session_metadata",
@@ -93,6 +95,14 @@ export class ClaudeTranslator {
 	};
 
 	constructor(protected readonly deps: { logger: Logger }) {}
+
+	/**
+	 * A translator for one chat, with its own state and the same logger. Each ClaudeSession calls
+	 * this, so two chats never share the cost baseline or the dropped TodoWrite ids.
+	 */
+	fresh(): ClaudeTranslator {
+		return new ClaudeTranslator(this.deps);
+	}
 
 	/** Returns the messages to emit for one SDK message, in order. May be empty. */
 	translate(message: SDKMessage): AgentMessage[] {
@@ -203,12 +213,13 @@ export class ClaudeTranslator {
 
 	private system(message: SystemMessage): AgentMessage[] {
 		const subtype = (message as { subtype?: unknown }).subtype;
-		if (typeof subtype === "string" && RAW_PASSTHROUGH_SUBTYPES.has(subtype)) {
+		if (typeof subtype === "string" && RAW_PASSTHROUGH_FRAMES.has(subtype)) {
 			return [this.agentMessage(message, [])];
 		}
 		switch (message.subtype) {
 			case "init":
-				if (this.state.sessionStartedReported) return [];
+				// The SDK sends init once per process, so a second one means the process respawned.
+				if (this.state.sessionStartedReported) this.resetProcessState();
 				this.state.sessionStartedReported = true;
 				return [this.notice(message, "session_started", "Session started")];
 			case "compact_boundary":
@@ -262,7 +273,7 @@ export class ClaudeTranslator {
 
 	private other(message: SDKMessage): AgentMessage[] {
 		const type = (message as { type?: unknown }).type;
-		if (typeof type === "string" && RAW_PASSTHROUGH_TYPES.has(type)) {
+		if (typeof type === "string" && RAW_PASSTHROUGH_FRAMES.has(type)) {
 			return [this.agentMessage(message, [])];
 		}
 		if (typeof type === "string" && DROPPED_TYPES.has(type)) return [];
@@ -270,6 +281,12 @@ export class ClaudeTranslator {
 			type: typeof type === "string" ? type : undefined,
 		});
 		return [];
+	}
+
+	/** A new process reports its cost from zero and starts a new TodoWrite lifetime. */
+	private resetProcessState(): void {
+		this.state.droppedToolUses.clear();
+		this.state.lastReportedCostUsd = 0;
 	}
 
 	private assistantError(error: string, text: string): Extract<AgentItem, { kind: "error" }> {

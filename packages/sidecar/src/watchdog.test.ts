@@ -62,17 +62,17 @@ function makeWatchdog(options: WatchdogOptions = {}): {
 }
 
 describe("SIDE-19 parent watchdog", () => {
-	test("SIDE-19 starts a tick every 2 seconds and stop cancels it", () => {
+	test("SIDE-19 starts the parent check and the sweep on separate 2-second timers, and stop cancels both", () => {
 		const { watchdog, scheduler } = makeWatchdog();
 		watchdog.start();
 		watchdog.start();
-		expect(scheduler.active().map((entry) => entry.ms)).toEqual([2000]);
+		expect(scheduler.active().map((entry) => entry.ms)).toEqual([2000, 2000]);
 		watchdog.stop();
 		expect(scheduler.active()).toEqual([]);
-		expect(scheduler.cancellations).toBe(1);
+		expect(scheduler.cancellations).toBe(2);
 	});
 
-	test("SIDE-19 a changed parent pid shuts down once and sweeps nothing", async () => {
+	test("SIDE-19 a changed parent pid shuts down once and sweeps nothing", () => {
 		let parentPid = 100;
 		let gone = 0;
 		let sweeps = 0;
@@ -88,8 +88,8 @@ describe("SIDE-19 parent watchdog", () => {
 		});
 
 		parentPid = 1;
-		await watchdog.tick();
-		await watchdog.tick();
+		watchdog.checkParent();
+		watchdog.checkParent();
 
 		expect(gone).toBe(1);
 		expect(sweeps).toBe(0);
@@ -100,7 +100,7 @@ describe("SIDE-19 parent watchdog", () => {
 		).toBe(true);
 	});
 
-	test("SIDE-19 the idle sweep runs on every tick while the parent stays", async () => {
+	test("SIDE-19 the idle sweep runs on every sweep while the parent stays", async () => {
 		let sweeps = 0;
 		let gone = 0;
 		const { watchdog } = makeWatchdog({
@@ -113,14 +113,14 @@ describe("SIDE-19 parent watchdog", () => {
 			},
 		});
 
-		await watchdog.tick();
-		await watchdog.tick();
+		await watchdog.sweep();
+		await watchdog.sweep();
 
 		expect(sweeps).toBe(2);
 		expect(gone).toBe(0);
 	});
 
-	test("SIDE-19 a sweep that throws is logged and the next tick still sweeps", async () => {
+	test("SIDE-19 a sweep that throws is logged and the next sweep still runs", async () => {
 		let calls = 0;
 		const { watchdog, records } = makeWatchdog({
 			sweep: async () => {
@@ -129,8 +129,8 @@ describe("SIDE-19 parent watchdog", () => {
 			},
 		});
 
-		await watchdog.tick();
-		await watchdog.tick();
+		await watchdog.sweep();
+		await watchdog.sweep();
 
 		expect(calls).toBe(2);
 		expect(
@@ -143,7 +143,7 @@ describe("SIDE-19 parent watchdog", () => {
 		).toBe(true);
 	});
 
-	test("SIDE-19 a tick that arrives while the sweep still runs is skipped", async () => {
+	test("SIDE-19 a sweep that starts while another still runs is skipped", async () => {
 		let calls = 0;
 		let release = () => {};
 		const gate = new Promise<void>((resolve) => {
@@ -156,31 +156,57 @@ describe("SIDE-19 parent watchdog", () => {
 			},
 		});
 
-		const first = watchdog.tick();
+		const first = watchdog.sweep();
 		await Promise.resolve();
-		const second = watchdog.tick();
+		const second = watchdog.sweep();
 		expect(calls).toBe(1);
 
 		release();
 		await Promise.all([first, second]);
-		await watchdog.tick();
+		await watchdog.sweep();
 		expect(calls).toBe(2);
 	});
 
-	test("SIDE-19 no tick runs after stop", async () => {
-		let sweeps = 0;
+	test("SIDE-19 a hung sweep never stops the parent check", () => {
+		let parentPid = 100;
+		let gone = 0;
 		const { watchdog, scheduler } = makeWatchdog({
+			currentParentPid: () => parentPid,
+			sweep: () => new Promise<void>(() => {}),
+			onParentGone: () => {
+				gone += 1;
+			},
+		});
+
+		watchdog.start();
+		scheduler.fire();
+		parentPid = 1;
+		scheduler.fire();
+
+		expect(gone).toBe(1);
+	});
+
+	test("SIDE-19 no check or sweep runs after stop", async () => {
+		let sweeps = 0;
+		let checks = 0;
+		const { watchdog, scheduler } = makeWatchdog({
+			currentParentPid: () => {
+				checks += 1;
+				return 100;
+			},
 			sweep: async () => {
 				sweeps += 1;
 			},
 		});
 
 		watchdog.start();
-		await watchdog.tick();
+		await watchdog.sweep();
+		watchdog.checkParent();
 		watchdog.stop();
 		scheduler.fire();
 		await Promise.resolve();
 
 		expect(sweeps).toBe(1);
+		expect(checks).toBe(1);
 	});
 });

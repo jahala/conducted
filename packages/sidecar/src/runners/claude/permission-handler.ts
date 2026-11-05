@@ -8,9 +8,12 @@
  * approval; "withdrawn" (cancel or a new message) denies. When the chat already left plan mode
  * while approvals are on, an ExitPlanMode call is approved without asking.
  * Must handle:
- *  - the real path of an edit target is resolved before classification; an unresolvable path is
- *    denied by classifyToolUse as outside the allowed folders
+ *  - the real path of an edit target is resolved before classification; a new file is resolved
+ *    through its nearest existing ancestor, a relative path against the workspace folder, and a
+ *    path that cannot be resolved at all is denied as outside the allowed folders
  *  - ExitPlanMode input without a plan string: denied with a message, not a crash
+ *  - the no-click plan exit applies in the normal modes reached with approvals on: "default" and
+ *    "auto"; the plan still asks when the chat is in plan mode
  *  - the abort signal fires while waiting: the call denies as withdrawn
  *  - the answer kind does not match the question: treated as withdrawn
  *  - approval granted with "allow_edits_for_session": later edit calls skip the question
@@ -33,7 +36,7 @@ import {
 	EDIT_TOOLS,
 	editTargetPath,
 	modeAfterPlan,
-	permissionModeFor,
+	resolveEditPath,
 	type ToolVerdict,
 	toPermissionResult,
 	toPlanResult,
@@ -42,7 +45,10 @@ import {
 export interface PermissionHandlerDeps {
 	/** The config of the chat, read at call time because it can change live. */
 	config(): Pick<SessionConfig, "requireToolApproval" | "planMode" | "autoPermissionMode">;
-	/** Workspace folder plus additional directories, as given (resolved inside the handler). */
+	/**
+	 * Workspace folder plus additional directories, as given (resolved inside the handler). The
+	 * first entry is the workspace, which a relative edit target is resolved against.
+	 */
 	allowedDirectories(): readonly string[];
 	callbacks(): TurnCallbacks | undefined;
 	realPath(path: string): Promise<string | null>;
@@ -50,7 +56,8 @@ export interface PermissionHandlerDeps {
 	setPermissionMode(mode: PermissionMode): Promise<void>;
 	/**
 	 * The app's auto-accept edits control for this chat (AGENT-04). undefined leaves the answer
-	 * based grant alone; true or false is an explicit choice that wins.
+	 * based grant alone; true or false is an explicit choice that wins. An explicit false keeps
+	 * asking even after an earlier "allow edits for the session" answer, until the app turns it on.
 	 */
 	autoApproveEditsOverride?(): boolean | undefined;
 }
@@ -93,13 +100,17 @@ export class ClaudePermissionHandler {
 		input: Record<string, unknown>,
 		config: Pick<SessionConfig, "requireToolApproval" | "planMode" | "autoPermissionMode">,
 	): Promise<ToolVerdict> {
+		const allowedDirectories = this.deps.allowedDirectories();
 		let resolvedEditPath: string | null = null;
 		if (EDIT_TOOLS.has(toolName)) {
 			const target = editTargetPath(toolName, input);
-			resolvedEditPath = target === null ? null : await this.deps.realPath(target);
+			resolvedEditPath =
+				target === null
+					? null
+					: await resolveEditPath(target, allowedDirectories[0] ?? "", this.deps.realPath);
 		}
 		const allowedRoots = await Promise.all(
-			this.deps.allowedDirectories().map(async (directory) => {
+			allowedDirectories.map(async (directory) => {
 				return (await this.deps.realPath(directory)) ?? directory;
 			}),
 		);
@@ -121,8 +132,8 @@ export class ClaudePermissionHandler {
 		options: Parameters<CanUseTool>[2],
 	): Promise<PermissionResult> {
 		const nextMode = modeAfterPlan(config);
-		// The agent left plan mode while the chat is already in the normal mode: nothing to ask.
-		if (permissionModeFor(config) === "default") {
+		// The agent left plan mode while the chat already did, in default or auto mode: no click.
+		if (!config.planMode && config.requireToolApproval) {
 			await this.deps.setPermissionMode(nextMode);
 			return {
 				behavior: "allow",

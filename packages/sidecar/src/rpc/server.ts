@@ -1,7 +1,8 @@
 /**
  * @feature SIDE-02 JSON-RPC over a Unix socket
  * Owns: the Unix socket listener. It accepts the Rust shell's connection, wraps it as an
- * RpcTransport and attaches it to the RpcPeer, and prints the handshake line for the launcher.
+ * RpcTransport and attaches it to the RpcPeer. It also formats the handshake line the launcher
+ * reads; modes/sidecar-mode.ts prints it once the socket is listening.
  * Behaviour: research/conductor/native-and-sidecar-map.md A6 step 3 and 5 (the sidecar prints
  * SOCKET_PATH=<path>, listens on $TMPDIR/<name>-<pid>.sock, and Rust connects) and sessions.md
  * section 8 (the app can reconnect to a living sidecar).
