@@ -130,7 +130,9 @@ export function createSidecarNotificationHandlers(
 		liveState: () => notImplemented("CHAT-18"),
 		agentSessionId: () => notImplemented("CHAT-02"),
 		progress: () => notImplemented("CHAT-13"),
-		agentInstallsChanged: () => notImplemented("SET-03"),
+		agentInstallsChanged: async (params) => {
+			ports.agentCatalog.setAgentInstalls(params);
+		},
 		agentConfigChanged: () => notImplemented("SIDE-20"),
 		interactionClosed: () => notImplemented("CHAT-11"),
 		goalChanged: () => notImplemented("COMP-10"),
