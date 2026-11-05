@@ -1,7 +1,8 @@
 /**
  * @feature PLAT-01 In-memory Platform for tests
  * Owns: a complete `Platform` that keeps everything in memory, plus handles ("controls") that let
- * a test script what the outside world does: shell answers, sidecar lines, clicks, deep links.
+ * a test script what the outside world does: shell answers, sidecar lines, clicks, deep links and
+ * window focus.
  * Behaviour: services-map.md 1.1 (the Platform object is the only boundary, so a stand-in is
  * possible); docs/plans/scaffold.md decision on tests that "never mock what they test".
  * Must handle: it passes the Platform contract (contract.ts), the same list the Tauri implementation
@@ -101,6 +102,8 @@ export interface MemoryPlatformControls {
 	emitNotificationClick(deepLink: string): void;
 	emitDeepLink(url: string): void;
 	emitQuitRequested(): void;
+	/** Changes the window's focus and tells every focus listener. */
+	emitWindowFocus(focused: boolean): void;
 	/** Notifications shown and the last dock badge. */
 	readonly notificationsShown: readonly { title: string; body: string; deepLink?: string }[];
 	readonly dockBadge: number | null;
@@ -259,6 +262,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	let holdNextStart = false;
 	let systemInfo: SystemInfo = { osVersion: "15.0", machineArch: "arm64", buildArch: "arm64" };
 	let systemInfoFailure: string | null = null;
+	let windowFocused = true;
 
 	const sidecarLineListeners = new Set<ValueListener<string>>();
 	const sidecarRestartListeners = new Set<ValueListener<void>>();
@@ -755,7 +759,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	};
 
 	const appWindow: AppWindow = {
-		isFocused: async () => true,
+		isFocused: async () => windowFocused,
 		onFocusChanged: (listener) => listen(focusListeners, listener),
 		onFileDrop: (listener) => listen(fileDropListeners, listener),
 		setZoom: async () => ok(undefined),
@@ -919,6 +923,10 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		emitNotificationClick: (deepLink) => emit(notificationClickListeners, deepLink),
 		emitDeepLink: (url) => emit(deepLinkListeners, url),
 		emitQuitRequested: () => emit(quitListeners, undefined),
+		emitWindowFocus: (focused) => {
+			windowFocused = focused;
+			emit(focusListeners, focused);
+		},
 		get notificationsShown() {
 			return notificationsShown;
 		},

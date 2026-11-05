@@ -46,6 +46,7 @@ import {
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { Image } from "@tauri-apps/api/image";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
 	writeImage as writeClipboardImage,
 	writeText as writeClipboardText,
@@ -118,9 +119,16 @@ export interface TauriOpenerBindings {
 	openUrl(url: string): Promise<void>;
 }
 
+export interface TauriWindowBindings {
+	isFocused(): Promise<boolean>;
+	listen<T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn>;
+}
+
 export interface TauriBindings {
 	invoke<T>(command: string, args?: Record<string, unknown>): Promise<T>;
 	listen<T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn>;
+	/** The current window. Focus events arrive on it, not on the app-wide event bus. */
+	window?: TauriWindowBindings;
 	/** tauri-plugin-sql, present on the real bindings and in a test that opens a database. */
 	sql?: { load(path: string): Promise<SqlDatabase> };
 	/** tauri-plugin-dialog. */
@@ -158,6 +166,11 @@ async function decodeImageToRgba(
 export const realTauriBindings: TauriBindings = {
 	invoke: (command, args) => invoke(command, args),
 	listen: (event, handler) => listen(event, (e) => handler(e.payload as never)),
+	window: {
+		isFocused: () => getCurrentWindow().isFocused(),
+		listen: (event, handler) =>
+			getCurrentWindow().listen(event, (e) => handler(e.payload as never)),
+	},
 	sql: { load: (path) => Sql.load(path) as Promise<SqlDatabase> },
 	dialog: {
 		open: (options) => openDialog(options) as Promise<string | string[] | null>,
@@ -189,8 +202,12 @@ function requireBinding<T>(value: T | undefined, name: string): T {
  * Listens for an event and returns an unsubscribe function straight away. A listener that resolves
  * after the caller unsubscribed is released at once, so no listener leaks.
  */
+interface EventSource {
+	listen<T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn>;
+}
+
 function onEvent<T>(
-	bindings: Pick<TauriBindings, "listen">,
+	bindings: EventSource,
 	event: string,
 	handler: (payload: T) => void,
 ): () => void {
@@ -296,8 +313,10 @@ export const COMMANDS = {
 	httpCancel: "http_cancel",
 } as const;
 
-/** Events emitted by the Rust shell. */
+/** Events emitted by the Rust shell and by Tauri's own window. */
 export const EVENTS = {
+	windowFocus: "tauri://focus",
+	windowBlur: "tauri://blur",
 	quitRequested: "app://quit-requested",
 	deepLink: "app://deep-link",
 	shellDone: "shell://done",
@@ -928,10 +947,19 @@ export function createTauriUpdater(_bindings: TauriBindings): Updater {
  * Webview API: `onDragDropEvent`, `setZoom`. Commands: `window_set_vibrancy { enabled }`,
  * `window_set_traffic_lights { x, y }`, `window_toggle_inspector`.
  */
-export function createTauriWindow(_bindings: TauriBindings): AppWindow {
+export function createTauriWindow(bindings: TauriBindings): AppWindow {
+	const currentWindow = (): TauriWindowBindings => requireBinding(bindings.window, "window");
 	return {
-		isFocused: () => notImplemented("PLAT-31"),
-		onFocusChanged: () => notImplemented("PLAT-31"),
+		isFocused: () => currentWindow().isFocused(),
+		onFocusChanged: (listener) => {
+			const window = currentWindow();
+			const stopFocus = onEvent(window, EVENTS.windowFocus, () => listener(true));
+			const stopBlur = onEvent(window, EVENTS.windowBlur, () => listener(false));
+			return () => {
+				stopFocus();
+				stopBlur();
+			};
+		},
 		onFileDrop: () => notImplemented("PLAT-33"),
 		setZoom: () => notImplemented("PLAT-23"),
 		setVibrancy: () => notImplemented("PLAT-23"),

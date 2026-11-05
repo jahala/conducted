@@ -356,6 +356,13 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 	),
 	c(
 		"window",
+		"focus-events",
+		"focus and blur reach a subscriber",
+		"onFocusChanged reports true on focus and false on blur, and stops reporting after unsubscribe.",
+		"controls",
+	),
+	c(
+		"window",
 		"setters",
 		"window setters resolve",
 		"setZoom, setVibrancy, setTrafficLightPosition and setTheme resolve without an error.",
@@ -427,6 +434,7 @@ export interface ContractControls {
 	emitSidecarLine?(line: string): void;
 	emitSidecarRestart?(): void;
 	emitNotificationClick?(deepLink: string): void;
+	emitWindowFocus?(focused: boolean): void;
 	readonly dockBadge?: number | null;
 	readonly clipboardText?: string | null;
 	readonly sidecarSent?: readonly string[];
@@ -1255,6 +1263,21 @@ const STEPS: Record<string, ContractStep> = {
 	"window.is-focused": async (ctx) => {
 		const focused = await ctx.platform.window.isFocused();
 		ctx.assert(typeof focused === "boolean", `isFocused returned ${String(focused)}`);
+	},
+
+	"window.focus-events": async (ctx) => {
+		const emit = ctx.controls?.emitWindowFocus;
+		ctx.assert(emit !== undefined, "the controls do not expose emitWindowFocus");
+		if (emit === undefined) return;
+		const seen: boolean[] = [];
+		const stop = ctx.platform.window.onFocusChanged((focused) => seen.push(focused));
+		emit(true);
+		emit(false);
+		ctx.assert(seen.join(",") === "true,false", `the listener saw ${seen.join(",")}`);
+		ctx.assert(!(await ctx.platform.window.isFocused()), "isFocused kept the old focus");
+		stop();
+		emit(true);
+		ctx.assert(seen.length === 2, "a listener kept running after it was removed");
 	},
 
 	"window.setters": async (ctx) => {
