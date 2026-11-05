@@ -8,6 +8,14 @@ import { checkDocs } from "./docs.ts";
 import type { Problem } from "./lib.ts";
 import { checkMigrations } from "./migrations.ts";
 import { checkHeaders, checkMarkers } from "./source-rules.ts";
+import {
+	checkMigrationList,
+	checkPlaceholderTests,
+	checkShellPrograms,
+	checkTauriCommands,
+	checkTestOnlyExports,
+	checkUnwiredDeps,
+} from "./structure.ts";
 import { checkTestScripts } from "./test-scripts.ts";
 import {
 	checkMockingTheThing,
@@ -28,6 +36,12 @@ const guards: [string, (root: string) => Problem[] | Promise<Problem[]>][] = [
 	["versions", checkVersions],
 	["test-scripts", checkTestScripts],
 	["workflows", checkWorkflows],
+	["commands", checkTauriCommands],
+	["programs", checkShellPrograms],
+	["migration-list", checkMigrationList],
+	["placeholder-tests", checkPlaceholderTests],
+	["test-only-exports", checkTestOnlyExports],
+	["unwired-deps", checkUnwiredDeps],
 	["tests-cannot-fail", checkTestsCannotFail],
 	["mocking-the-thing", checkMockingTheThing],
 	["stand-in-home", checkStandInHome],

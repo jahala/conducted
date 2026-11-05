@@ -87,7 +87,7 @@ use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 
 use crate::error::{CommandError, CommandResult};
 use crate::logger;
@@ -267,7 +267,7 @@ fn check_version_blocking(binary: &Path, app_version: &str) -> CommandResult<()>
 /// Finds the sidecar program: `CONDUCTED_SIDECAR_BIN` when set, otherwise the bundled one in
 /// `<resources>/bin/` (or beside the app executable for a release build). Fails with
 /// `sidecar_binary_missing`.
-pub fn resolve_binary(app: &AppHandle) -> CommandResult<PathBuf> {
+pub fn resolve_binary<R: Runtime>(app: &AppHandle<R>) -> CommandResult<PathBuf> {
     let mut candidates = Vec::new();
     if let Some(explicit) = explicit_sidecar_bin() {
         candidates.push(explicit);
@@ -553,8 +553,8 @@ pub fn launch_environment(
 
 /// Spawns the process, performs the handshake and connects the socket. The caller starts the relay
 /// threads, so only one start runs at a time while the state lock is held.
-pub async fn start_process(
-    app: &AppHandle,
+pub async fn start_process<R: Runtime>(
+    app: &AppHandle<R>,
     binary: &Path,
     generation: u64,
 ) -> CommandResult<StartedSidecar> {
@@ -577,8 +577,8 @@ pub struct StartedSidecar {
     pub log: Arc<Mutex<File>>,
 }
 
-fn blocking_start(
-    app: &AppHandle,
+fn blocking_start<R: Runtime>(
+    app: &AppHandle<R>,
     binary: &Path,
     _generation: u64,
 ) -> CommandResult<StartedSidecar> {
@@ -629,7 +629,7 @@ fn is_folder_variable(key: &str) -> bool {
     key.ends_with("_DIR") || key.ends_with("_ROOT")
 }
 
-fn app_data_dir(app: &AppHandle) -> CommandResult<PathBuf> {
+fn app_data_dir<R: Runtime>(app: &AppHandle<R>) -> CommandResult<PathBuf> {
     app.path()
         .app_data_dir()
         .map_err(|error| CommandError::Failed {
@@ -845,7 +845,7 @@ fn log_line_with_cap(log: &Arc<Mutex<File>>, stream: &str, line: &str, max_bytes
 }
 
 /// The newest sidecar log, used to keep the failure screen useful when a start fails.
-fn latest_log_path(app: &AppHandle) -> Option<PathBuf> {
+fn latest_log_path<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
     let data_dir = app_data_dir(app).ok()?;
     let mut files = logger::sidecar_log_files(&data_dir.join("logs"));
     files.sort_by_key(|entry| std::cmp::Reverse(entry.1));
@@ -860,7 +860,10 @@ fn now_ms() -> i64 {
 }
 
 /// Starts one process and makes it the current one. The caller holds the state lock.
-async fn start_locked(app: &AppHandle, inner: &mut SidecarInner) -> CommandResult<SidecarHandle> {
+async fn start_locked<R: Runtime>(
+    app: &AppHandle<R>,
+    inner: &mut SidecarInner,
+) -> CommandResult<SidecarHandle> {
     let binary = resolve_binary(app)?;
     let version = app.package_info().version.to_string();
     check_binary_version(&binary, &version).await?;
@@ -877,6 +880,18 @@ async fn start_locked(app: &AppHandle, inner: &mut SidecarInner) -> CommandResul
             return Err(error);
         }
     };
+    attach_relay(app, inner, started, generation)
+}
+
+/// Makes a connected process the running one: starts the reader that turns socket lines into
+/// `sidecar://line`, the writer that drains `sidecar_send`, and the supervisor that waits for the
+/// process to end, then announces `sidecar://ready`. The caller holds the state lock.
+fn attach_relay<R: Runtime>(
+    app: &AppHandle<R>,
+    inner: &mut SidecarInner,
+    started: StartedSidecar,
+    generation: u64,
+) -> CommandResult<SidecarHandle> {
     let reader_stream = match started.stream.try_clone() {
         Ok(stream) => stream,
         Err(error) => {
@@ -913,7 +928,12 @@ async fn start_locked(app: &AppHandle, inner: &mut SidecarInner) -> CommandResul
     Ok(handle)
 }
 
-fn spawn_reader(app: AppHandle, generation: u64, mut stream: UnixStream, log: Arc<Mutex<File>>) {
+fn spawn_reader<R: Runtime>(
+    app: AppHandle<R>,
+    generation: u64,
+    mut stream: UnixStream,
+    log: Arc<Mutex<File>>,
+) {
     thread::spawn(move || {
         let mut framer = LineFramer::new(MAX_LINE_BYTES);
         let mut buffer = [0u8; 64 * 1024];
@@ -965,7 +985,7 @@ fn spawn_writer(mut stream: UnixStream, receiver: Receiver<String>) {
     });
 }
 
-fn spawn_supervisor(app: AppHandle, generation: u64, mut child: Child) {
+fn spawn_supervisor<R: Runtime>(app: AppHandle<R>, generation: u64, mut child: Child) {
     thread::spawn(move || {
         let exit_code = match child.wait() {
             Ok(status) => status.code(),
@@ -999,8 +1019,8 @@ fn claim_exit(inner: &mut SidecarInner, generation: u64) -> Option<u32> {
 
 /// Handles the end of a process: drops the report when `generation` is not the newest, emits
 /// `sidecar://restart`, and schedules the next start according to the restart policy.
-pub async fn on_process_ended(
-    app: &AppHandle,
+pub async fn on_process_ended<R: Runtime>(
+    app: &AppHandle<R>,
     state: &SidecarState,
     generation: u64,
     reason: SidecarExitReason,
@@ -1088,8 +1108,8 @@ pub async fn shutdown(state: &SidecarState) -> CommandResult<()> {
 
 /// Starts the sidecar if it is not running. Returns when the socket is connected.
 #[tauri::command]
-pub async fn sidecar_ensure_started(
-    app: AppHandle,
+pub async fn sidecar_ensure_started<R: Runtime>(
+    app: AppHandle<R>,
     state: State<'_, SidecarState>,
 ) -> CommandResult<()> {
     let mut inner = state.inner.lock().await;
@@ -1179,6 +1199,76 @@ mod tests {
     impl Drop for TempDir {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+
+    /// A relay attached to a stand-in sidecar over a mock app: a socket pair for the sidecar's
+    /// end and a `sleep` process in its own group for the sidecar itself. It stops the process on
+    /// drop, so a failed assertion leaves nothing running.
+    struct AttachedRelay {
+        app: tauri::App<tauri::test::MockRuntime>,
+        handle: SidecarHandle,
+        sidecar_end: UnixStream,
+        ready: Receiver<()>,
+        lines: Receiver<String>,
+        _folder: TempDir,
+    }
+
+    impl AttachedRelay {
+        fn new() -> Self {
+            use tauri::Listener;
+            let folder = TempDir::new();
+            let app = tauri::test::mock_app();
+            app.manage(SidecarState::default());
+            let (ready_sender, ready) = mpsc::channel::<()>();
+            app.handle().listen(EVENT_READY, move |_| {
+                let _ = ready_sender.send(());
+            });
+            let (line_sender, lines) = mpsc::channel::<String>();
+            app.handle().listen(EVENT_LINE, move |event| {
+                let _ = line_sender.send(event.payload().to_string());
+            });
+            let (relay_end, sidecar_end) = UnixStream::pair().expect("make a socket pair");
+            let child = Command::new("sleep")
+                .arg("30")
+                .process_group(0)
+                .spawn()
+                .expect("start a stand-in sidecar");
+            let log_path = folder.path().join("sidecar.log");
+            let log = Arc::new(Mutex::new(open_log_file(&log_path).expect("open the log")));
+            let started = StartedSidecar {
+                pid: child.id(),
+                socket_path: folder.path().join("relay.sock"),
+                log_path,
+                stream: relay_end,
+                child,
+                log,
+            };
+            let handle = {
+                let state = app.state::<SidecarState>();
+                tauri::async_runtime::block_on(async {
+                    let mut inner = state.inner.lock().await;
+                    attach_relay(app.handle(), &mut inner, started, 1)
+                })
+                .expect("the relay attaches")
+            };
+            Self {
+                app,
+                handle,
+                sidecar_end,
+                ready,
+                lines,
+                _folder: folder,
+            }
+        }
+    }
+
+    impl Drop for AttachedRelay {
+        fn drop(&mut self) {
+            let state = self.app.state::<SidecarState>();
+            if let Err(error) = tauri::async_runtime::block_on(shutdown(&state)) {
+                eprintln!("could not stop the stand-in sidecar: {error}");
+            }
         }
     }
 
@@ -1587,6 +1677,45 @@ mod tests {
     #[test]
     fn plat_09_a_start_announces_ready_on_the_documented_event() {
         assert_eq!(EVENT_READY, "sidecar://ready");
+        let relay = AttachedRelay::new();
+        relay
+            .ready
+            .recv_timeout(Duration::from_secs(5))
+            .expect("attaching the relay announces sidecar://ready");
+    }
+
+    #[test]
+    fn plat_09_the_relay_carries_lines_both_ways() {
+        let mut relay = AttachedRelay::new();
+        relay
+            .ready
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the relay is up");
+
+        // A line the sidecar writes reaches the window on sidecar://line, as a JSON string.
+        writeln!(relay.sidecar_end, "{{\"jsonrpc\":\"2.0\"}}").expect("the sidecar writes a line");
+        let heard = relay
+            .lines
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the line reaches the window");
+        assert_eq!(heard, "\"{\\\"jsonrpc\\\":\\\"2.0\\\"}\"");
+
+        // A line the window sends reaches the sidecar's socket, one line per message.
+        relay
+            .handle
+            .outgoing
+            .send("from the window".to_string())
+            .expect("queue a line for the sidecar");
+        relay
+            .sidecar_end
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .expect("set a read timeout");
+        let mut reader = BufReader::new(&relay.sidecar_end);
+        let mut received = String::new();
+        reader
+            .read_line(&mut received)
+            .expect("the sidecar reads a line");
+        assert_eq!(received, "from the window\n");
     }
 
     #[test]

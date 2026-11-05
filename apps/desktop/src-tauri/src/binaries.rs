@@ -70,7 +70,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 
 use crate::error::{CommandError, CommandResult};
 use crate::not_implemented;
@@ -250,13 +250,22 @@ pub fn start_verification(app: AppHandle) {
     }
     thread::spawn(move || {
         let result = launch_verification(&app);
-        app.state::<BinariesState>().finish(&result);
-        if let Ok(errors) = &result
-            && let Err(error) = app.emit(EVENT_VERIFICATION_ERRORS, errors)
-        {
-            eprintln!("could not report the programs that failed verification: {error}");
-        }
+        report_verification(&app, &result);
     });
+}
+
+/// Keeps the launch result for the command and, when the check ran, tells the window which
+/// programs failed. A check that could not run emits nothing: the command returns its error.
+fn report_verification<R: Runtime>(
+    app: &AppHandle<R>,
+    result: &CommandResult<Vec<VerificationError>>,
+) {
+    app.state::<BinariesState>().finish(result);
+    if let Ok(errors) = result
+        && let Err(error) = app.emit(EVENT_VERIFICATION_ERRORS, errors)
+    {
+        eprintln!("could not report the programs that failed verification: {error}");
+    }
 }
 
 /// Runs the launch check against the app's resource and data folders.
@@ -805,6 +814,105 @@ mod tests {
 
         assert!(state.claim_run(), "the first caller starts the check");
         assert!(!state.claim_run(), "a later caller does not start it again");
+    }
+
+    #[test]
+    fn plat_34_the_event_name_is_the_one_the_platform_listens_for() {
+        let adapter = Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/platform/tauri.ts");
+        let source = fs::read_to_string(&adapter).expect("read the Tauri adapter");
+        // The adapter names this key twice: once in COMMANDS (the command) and once in EVENTS (the
+        // event this test is about), so the search starts at the EVENTS map.
+        let events = source
+            .split_once("export const EVENTS = {")
+            .map(|(_, rest)| rest)
+            .expect("the adapter declares its EVENTS map");
+        let listened = events
+            .lines()
+            .find_map(|line| {
+                line.trim()
+                    .strip_prefix("programsVerificationErrors:")
+                    .map(|rest| {
+                        rest.trim()
+                            .trim_end_matches(',')
+                            .trim_matches('"')
+                            .to_string()
+                    })
+            })
+            .expect("the adapter's EVENTS names programsVerificationErrors");
+        assert_eq!(listened, EVENT_VERIFICATION_ERRORS);
+        assert_eq!(EVENT_VERIFICATION_ERRORS, "programs://verification-errors");
+    }
+
+    /// A mock app with the launch state managed, and a channel that receives every payload sent on
+    /// the verification event.
+    fn app_listening_for_the_event() -> (
+        tauri::App<tauri::test::MockRuntime>,
+        std::sync::mpsc::Receiver<String>,
+    ) {
+        use tauri::Listener;
+        let app = tauri::test::mock_app();
+        app.manage(BinariesState::default());
+        let (sender, events) = std::sync::mpsc::channel::<String>();
+        app.handle()
+            .listen(EVENT_VERIFICATION_ERRORS, move |event| {
+                let _ = sender.send(event.payload().to_string());
+            });
+        (app, events)
+    }
+
+    #[test]
+    fn plat_34_a_finished_check_emits_the_failed_programs_on_that_event() {
+        let (app, events) = app_listening_for_the_event();
+        let failure = VerificationError {
+            program: ManagedProgram::Gh,
+            message: "the bundled gh exited with 3".to_string(),
+        };
+
+        report_verification(app.handle(), &Ok(vec![failure.clone()]));
+
+        let payload = events
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the failed program is announced");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&payload).expect("the payload is JSON");
+        assert_eq!(
+            parsed,
+            serde_json::json!([{"program": "gh", "message": "the bundled gh exited with 3"}])
+        );
+        assert_eq!(
+            app.state::<BinariesState>()
+                .snapshot()
+                .expect("the command reads the same result"),
+            vec![failure]
+        );
+    }
+
+    #[test]
+    fn plat_34_a_check_that_could_not_run_emits_nothing_and_keeps_its_error() {
+        let (app, events) = app_listening_for_the_event();
+
+        report_verification(
+            app.handle(),
+            &Err(CommandError::Failed {
+                code: "binary_copy_failed",
+                message: "Could not copy the bundled programs.".to_string(),
+            }),
+        );
+        // Events arrive in the order they were sent, so if the report had emitted anything it
+        // would come before this marker.
+        app.handle()
+            .emit(EVENT_VERIFICATION_ERRORS, "marker")
+            .expect("emit the marker");
+
+        let first = events
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the marker arrives");
+        assert_eq!(first, "\"marker\"");
+        let error = app
+            .state::<BinariesState>()
+            .snapshot()
+            .expect_err("the command hands the failure on");
+        assert_eq!(error_code(error), "binary_copy_failed");
     }
 
     #[test]

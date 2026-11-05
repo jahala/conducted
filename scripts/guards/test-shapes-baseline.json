@@ -3,8 +3,6 @@
 		"apps/desktop/src-tauri/release/bundle.test.ts": 2,
 		"apps/desktop/src-tauri/src/files.rs": 2,
 		"apps/desktop/src-tauri/src/menu.rs": 1,
-		"apps/desktop/src-tauri/src/shell.rs": 1,
-		"apps/desktop/src-tauri/src/sidecar.rs": 1,
 		"apps/desktop/src/app/query-options.test.ts": 5,
 		"apps/desktop/src/core/container.github.test.ts": 1,
 		"apps/desktop/src/core/db/schema.test.ts": 1,

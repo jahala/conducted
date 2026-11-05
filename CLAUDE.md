@@ -42,24 +42,26 @@ Each one fails a check when it is broken.
 - **Every table states its lifetime** (`pnpm guards`).
 - **Version files agree** (`pnpm guards`).
 - **Files are trashed, never deleted with `rm`** in scripts (`pnpm guards`).
+- **The Rust command list, the program allowlist and the migration list match the TypeScript that uses them** (`pnpm guards`). A command with no handler carries its backlog id in a comment in `COMMANDS`.
+- **Structure baselines only shrink** (D055): `scripts/guards/structure-baseline.json` counts tests that assert placeholders, exports only tests use, and optional dependencies a composition root leaves out unmarked (`// unwired: <ID>`). A fix lowers the baseline in the same change.
 - **A run leaves nothing behind:** `pnpm test` fails if anything is left in the run's temp folder.
 
 ## Commands and tests
 
-| Command                                                                        | What                                                                    | When                               |
-| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------- | ---------------------------------- |
-| `pnpm install`                                                                 | Install everything                                                      | After pulling                      |
-| `pnpm typecheck`                                                               | TypeScript in every package and in `scripts/`                           | Every change                       |
-| `pnpm lint`                                                                    | Biome (lint, format, boundaries) and shellcheck                         | Every change                       |
-| `pnpm test`                                                                    | Unit tests (bun test, Vitest) inside a run-owned temp folder            | Every change to code with logic    |
-| `pnpm -r test:coverage`                                                        | Coverage of the desktop and the sidecar. Reports numbers, no thresholds | On GitHub only (coverage workflow) |
-| `pnpm guards`                                                                  | Docs, data model, migrations, headers, markers, versions, test shapes   | Every change                       |
-| `pnpm build`                                                                   | The web UI build that ships inside the app                              | Every change to the UI             |
-| `pnpm stubs`                                                                   | Placeholders against the backlog                                        | Every change                       |
-| `pnpm check`                                                                   | All of the above, stopping at the first failure                         | Before a PR                        |
-| `cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test` | Rust, in `apps/desktop/src-tauri`                                       | Every Rust change                  |
-| `pnpm dev`                                                                     | Run the app (`tauri dev`, port 1420)                                    | Manual checks                      |
-| `pnpm release <x.y.z> [--go]`                                                  | Dry run, or bump, check, commit and tag                                 | Releases                           |
+| Command                                                                        | What                                                                             | When                               |
+| ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- | ---------------------------------- |
+| `pnpm install`                                                                 | Install everything                                                               | After pulling                      |
+| `pnpm typecheck`                                                               | TypeScript in every package and in `scripts/`                                    | Every change                       |
+| `pnpm lint`                                                                    | Biome (lint, format, boundaries) and shellcheck                                  | Every change                       |
+| `pnpm test`                                                                    | Unit tests (bun test, Vitest) inside a run-owned temp folder                     | Every change to code with logic    |
+| `pnpm -r test:coverage`                                                        | Coverage of the desktop and the sidecar. Reports numbers, no thresholds          | On GitHub only (coverage workflow) |
+| `pnpm guards`                                                                  | Docs, data model, migrations, headers, markers, versions, structure, test shapes | Every change                       |
+| `pnpm build`                                                                   | The web UI build that ships inside the app                                       | Every change to the UI             |
+| `pnpm stubs`                                                                   | Placeholders against the backlog                                                 | Every change                       |
+| `pnpm check`                                                                   | All of the above, stopping at the first failure                                  | Before a PR                        |
+| `cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test` | Rust, in `apps/desktop/src-tauri`                                                | Every Rust change                  |
+| `pnpm dev`                                                                     | Run the app (`tauri dev`, port 1420)                                             | Manual checks                      |
+| `pnpm release <x.y.z> [--go]`                                                  | Dry run, or bump, check, commit and tag                                          | Releases                           |
 
 ## When tests run
 
