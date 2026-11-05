@@ -69,6 +69,7 @@ import type {
 	FileSearch,
 	FileStat,
 	FileSystem,
+	GrepMatch,
 	Http,
 	Keychain,
 	Notifications,
@@ -85,6 +86,7 @@ import type {
 	Speech,
 	SystemFacts,
 	SystemInfo,
+	TreeEntry,
 	Updater,
 } from "./platform.ts";
 
@@ -688,12 +690,14 @@ export function createTauriFileSystem(
 }
 
 /** `search_list_tree { root }`, `search_fuzzy { root, query, limit }`, `search_grep { root, query, options }`, `search_list_artifacts { workspacePath, cursor, limit }`. */
-export function createTauriFileSearch(_bindings: TauriBindings): FileSearch {
+export function createTauriFileSearch(bindings: TauriBindings): FileSearch {
 	return {
-		listTree: () => notImplemented("PLAT-06"),
+		listTree: (root) => invokeResult<TreeEntry[]>(bindings, COMMANDS.searchListTree, { root }),
 		listArtifacts: () => notImplemented("REV-10"),
-		fuzzyMatch: () => notImplemented("PLAT-06"),
-		grep: () => notImplemented("PLAT-06"),
+		fuzzyMatch: (root, query, limit) =>
+			invokeResult<TreeEntry[]>(bindings, COMMANDS.searchFuzzy, { root, query, limit }),
+		grep: (root, query, options) =>
+			invokeResult<GrepMatch[]>(bindings, COMMANDS.searchGrep, { root, query, options }),
 	};
 }
 
