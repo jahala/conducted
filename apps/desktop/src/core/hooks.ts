@@ -58,12 +58,12 @@
  */
 import { idleLiveState } from "@conducted/protocol";
 import { notImplemented, type WorkspaceId } from "@conducted/shared";
-import { useMemo } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { useStore } from "zustand";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 import type { Actions, Loadable, Queries } from "./api.ts";
 import { useServices } from "./context.tsx";
-import type { GitState, Repo } from "./model.ts";
+import type { GitState, Repo, Session } from "./model.ts";
 import type { WorkspaceGitEntry } from "./services/git.ts";
 import { toGitHubAccessView, type WorkspacePrEntry } from "./services/github.ts";
 import type { SessionsState } from "./services/sessions.ts";
@@ -144,6 +144,39 @@ export const useRepos: Queries["useRepos"] = () => {
 		return { state: "ready", data };
 	});
 };
+
+/** Reads one slice of a service's store and re-renders when it changes. */
+function useSessionSlice<T>(select: (state: SessionsState) => T): T {
+	const services = useServices();
+	const store = services.services.sessions.store;
+	return useSyncExternalStore(
+		store.subscribe,
+		() => select(store.getState()),
+		() => select(store.getState()),
+	);
+}
+
+function sessionsOf(
+	state: SessionsState,
+	workspaceId: string,
+	closed: boolean,
+): Loadable<Session[]> {
+	if (state.loadError != null) return { state: "error", error: state.loadError };
+	if (!state.loaded) return { state: "loading" };
+	if (closed) {
+		const data = Object.values(state.sessions)
+			.filter((session) => session.workspaceId === workspaceId && session.closedAt !== null)
+			.sort((a, b) => (b.closedAt ?? 0) - (a.closedAt ?? 0));
+		return { state: "ready", data };
+	}
+	const ids = state.byWorkspace[workspaceId] ?? [];
+	const data = ids.flatMap((id) => {
+		const session = state.sessions[id];
+		return session === undefined ? [] : [session];
+	});
+	return { state: "ready", data };
+}
+
 export const useRepoConfig: Queries["useRepoConfig"] = () => notImplemented("PRJ-04");
 export const useWorkspaces: Queries["useWorkspaces"] = () => notImplemented("NAV-03");
 export const useWorkspace: Queries["useWorkspace"] = () => notImplemented("WS-01");
@@ -173,7 +206,10 @@ export const useWorkspaceStatus: Queries["useWorkspaceStatus"] = (workspaceId) =
 };
 
 export const useSections: Queries["useSections"] = () => notImplemented("NAV-04");
-export const useSessions: Queries["useSessions"] = () => notImplemented("CHAT-01");
+export const useSessions: Queries["useSessions"] = (workspaceId) => {
+	const state = useSessionSlice((value) => value);
+	return sessionsOf(state, workspaceId, false);
+};
 export const useChat: Queries["useChat"] = () => notImplemented("CHAT-07");
 export const useDraft: Queries["useDraft"] = () => notImplemented("COMP-01");
 export const useGitState: Queries["useGitState"] = () => notImplemented("GIT-04");
@@ -220,7 +256,10 @@ export const useMcpServers: Queries["useMcpServers"] = () => notImplemented("SET
 export const useDiagnostics: Queries["useDiagnostics"] = () => notImplemented("APP-03");
 export const useFileSearch: Queries["useFileSearch"] = () => notImplemented("REV-07");
 export const useContentSearch: Queries["useContentSearch"] = () => notImplemented("REV-07");
-export const useClosedSessions: Queries["useClosedSessions"] = () => notImplemented("CHAT-01");
+export const useClosedSessions: Queries["useClosedSessions"] = (workspaceId) => {
+	const state = useSessionSlice((value) => value);
+	return sessionsOf(state, workspaceId, true);
+};
 export const useBacklogWorkspaces: Queries["useBacklogWorkspaces"] = () => notImplemented("WS-11");
 export const useIssues: Queries["useIssues"] = () => notImplemented("PR-11");
 export const usePullRequestList: Queries["usePullRequestList"] = () => notImplemented("PR-11");
