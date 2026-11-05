@@ -642,16 +642,13 @@ name = "conducted"
 version = "0.1.0"
 dependencies = [
  "alacritty_terminal",
-<<<<<<< HEAD
  "globset",
  "grep-matcher",
  "grep-regex",
  "grep-searcher",
  "ignore",
- "nucleo-matcher",
-=======
  "muda",
->>>>>>> node/plat.15
+ "nucleo-matcher",
  "portable-pty",
  "security-framework",
  "serde",

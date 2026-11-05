@@ -364,7 +364,6 @@ export function createTauriAppInfo(
 			await invokeResult(bindings, COMMANDS.appQuit);
 		},
 		resourceUsage: () => notImplemented("PLAT-14"),
-<<<<<<< HEAD
 		writeLog: (level, message, data) => {
 			const safe = serialisableLogData(data);
 			const args =
@@ -380,16 +379,10 @@ export function createTauriAppInfo(
 			if (!result.ok) throw result.error;
 		},
 		exportLogs: () => invokeResult<string>(bindings, COMMANDS.logsExport),
-		setQuitHandlerReady: () => notImplemented("PLAT-15"),
-=======
-		writeLog: () => notImplemented("PLAT-18"),
-		setLogLevel: () => notImplemented("PLAT-18"),
-		exportLogs: () => notImplemented("PLAT-18"),
 		setQuitHandlerReady: async () => {
 			const result = await invokeResult(bindings, COMMANDS.setQuitHandlerReady);
 			if (!result.ok) throw result.error;
 		},
->>>>>>> node/plat.15
 	};
 }
 
