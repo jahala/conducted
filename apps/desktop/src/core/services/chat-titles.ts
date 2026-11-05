@@ -43,7 +43,7 @@ export interface ChatTitleServiceDeps {
 	/** The cheapest model of an agent's catalog, or null when the catalog is empty. */
 	cheapestModel: (session: Session) => string | null;
 	/** How to start the chat's agent: program path, environment and keys (SIDE-21). */
-	launchFor: (session: Session) => AgentLaunch;
+	launchFor: (session: Session) => AgentLaunch | Promise<AgentLaunch>;
 	/** One line for a call that failed. */
 	log: (level: "warn" | "info", message: string) => void;
 }
@@ -87,7 +87,7 @@ export class ChatTitleService {
 			prompt: chatTitlePrompt(firstMessage, input.firstAnswer.trim()),
 			cwd: input.workspace.path,
 			fastMode: input.session.config.fastMode,
-			launch: this.#deps.launchFor(input.session),
+			launch: await this.#deps.launchFor(input.session),
 		});
 		if (!asked.ok) {
 			this.#deps.log("warn", "Failed to generate LLM session title");
@@ -118,7 +118,7 @@ export class ChatTitleService {
 			prompt: branchNamePrompt(firstMessage, input.customPrompt ?? null),
 			cwd: input.workspace.path,
 			fastMode: input.session.config.fastMode,
-			launch: this.#deps.launchFor(input.session),
+			launch: await this.#deps.launchFor(input.session),
 		});
 		if (!asked.ok) {
 			this.#deps.log("warn", "Failed to generate a branch name");

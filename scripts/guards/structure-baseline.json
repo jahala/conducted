@@ -19,21 +19,8 @@
 		"apps/desktop/src/core/async/optimistic.ts": 1,
 		"apps/desktop/src/core/db/sections.ts": 1,
 		"apps/desktop/src/core/fuzzy.ts": 1,
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> node/ws.06
-		"apps/desktop/src/core/git/commands.ts": 12,
-		"apps/desktop/src/core/git/gh-commands.ts": 2,
-=======
-		"apps/desktop/src/core/git/commands.ts": 13,
-=======
-		"apps/desktop/src/core/git/commands.ts": 12,
->>>>>>> node/join.s1-core-2
+		"apps/desktop/src/core/git/commands.ts": 11,
 		"apps/desktop/src/core/git/gh-commands.ts": 1,
-		"apps/desktop/src/core/git/status.ts": 1,
->>>>>>> node/pr.06
 		"apps/desktop/src/core/hooks/git.ts": 1,
 		"apps/desktop/src/core/hooks/sections.ts": 1,
 		"apps/desktop/src/core/hooks/system.ts": 1,
@@ -78,10 +65,6 @@
 	},
 	"unwired-deps": {
 		"apps/desktop/src/core/container.ts": 4,
-<<<<<<< HEAD
 		"packages/sidecar/src/modes/sidecar-mode.ts": 9
-=======
-		"packages/sidecar/src/modes/sidecar-mode.ts": 10
->>>>>>> node/ws.04
 	}
 }

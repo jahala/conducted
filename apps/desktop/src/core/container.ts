@@ -53,14 +53,9 @@ import { KeyedMutex } from "./git/locks.ts";
 import { ShellGitRunner } from "./git/runner.ts";
 import { createLookups, defaultSessionConfig, type Lookups } from "./lookups.ts";
 import type { Session } from "./model.ts";
-<<<<<<< HEAD
-import { AgentCatalogService } from "./services/agent-catalog.ts";
-import { CHECKPOINT_PRUNE_AFTER_DAYS, CheckpointService } from "./services/checkpoint.ts";
-=======
 import { AgentCatalogService, agentKey } from "./services/agent-catalog.ts";
 import { ChatTitleService } from "./services/chat-titles.ts";
-import { CheckpointService } from "./services/checkpoint.ts";
->>>>>>> node/ws.04
+import { CHECKPOINT_PRUNE_AFTER_DAYS, CheckpointService } from "./services/checkpoint.ts";
 import { CommandRunner, createCommandHandlers } from "./services/command-runner.ts";
 import { ComposerService } from "./services/composer.ts";
 import { FavoriteModelsService } from "./services/favorite-models.ts";
@@ -360,9 +355,6 @@ export function createContainer(inputs: ContainerInputs): Container {
 		toml: inputs.toml,
 		git: gitRunner,
 	});
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
 	/**
 	 * Builds how one chat's agent starts (SIDE-21): the program the user chose, the provider, the
 	 * Environment page's variables and the provider keys that belong to that agent. Secrets come
@@ -461,28 +453,6 @@ export function createContainer(inputs: ContainerInputs): Container {
 			...(provider === undefined ? {} : { provider }),
 		};
 	};
-=======
-=======
->>>>>>> node/join.s1-core-2
-	const agentExecutablePath = (session: Session): string | undefined => {
-		let key: string | undefined;
-		if (session.config.agent === "claude") key = "claude_executable_path";
-		else if (session.config.agent === "codex") key = "codex_executable_path";
-		else if (session.config.acpAgent === "opencode") key = "opencode_executable_path";
-		if (key === undefined) return undefined;
-		const path = setting<string>(key).trim();
-		return path === "" ? undefined : path;
-	};
-	// SIDE-21 adds the Environment page's variables and the user's provider keys to this launch.
-	// Until then the agent uses its own sign-in and the program at the setting or on the PATH.
-	const launchFor = (session: Session): AgentLaunch => {
-		const executablePath = agentExecutablePath(session);
-		return {
-			env: {},
-			providerKeys: {},
-			...(executablePath === undefined ? {} : { executablePath }),
-		};
-	};
 	const chatTitles = new ChatTitleService({
 		sidecar: client,
 		titlesEnabled: () =>
@@ -504,15 +474,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		launchFor,
 		log,
 	});
-<<<<<<< HEAD
->>>>>>> node/ws.04
-	const ports = new PortService({ platform });
-=======
 	const ports = new PortService({ platform, repos: repositories });
->>>>>>> node/run.03
-=======
-	const ports = new PortService({ platform, repos: repositories });
->>>>>>> node/join.s1-core-2
 	const terminals = new TerminalsService({
 		platform,
 		repos: repositories,
@@ -582,8 +544,6 @@ export function createContainer(inputs: ContainerInputs): Container {
 		workspaceContextOf: (id) => ready(lookups.sidecarContext(id, undefined)),
 		defaultConfig: (id) => ready(defaultSessionConfig(id, lookups, setting)),
 		launchFor,
-<<<<<<< HEAD
-=======
 		onFirstMessage: async (session, text) => {
 			const renamed = await workspace.renameBranchAfterFirstMessage(session.id, text);
 			if (!renamed.ok) {
@@ -591,7 +551,6 @@ export function createContainer(inputs: ContainerInputs): Container {
 			}
 		},
 		log,
->>>>>>> node/ws.04
 		setting,
 		now: () => clock.now(),
 		newId: () => ids.uuid(),
@@ -631,20 +590,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 		sessions,
 		ports,
 		repoConfig: (repoId) => repo.loadConfig(repoId),
-<<<<<<< HEAD
-<<<<<<< HEAD
-		github: {
-			pullRequestByNumber: (remoteUrl, number) => github.pullRequestByNumber(remoteUrl, number),
-		},
-=======
-		branchNames: chatTitles,
->>>>>>> node/ws.04
-=======
 		github: {
 			pullRequestByNumber: (remoteUrl, number) => github.pullRequestByNumber(remoteUrl, number),
 		},
 		branchNames: chatTitles,
->>>>>>> node/join.s1-core-2
 		scripts: runScripts,
 		checkpointerPath: checkpointerScript(paths),
 		setting,
