@@ -4,8 +4,8 @@
  * with resume.
  * Behaviour: research/conductor/claude-runner.md section 1.5, config policy table: model and
  * effort are live control requests; plan mode, approvals and the auto permission mode derive the
- * permission mode (live); fast mode, extra directories and the tool switches need a respawn with
- * --resume; a change during a turn waits for the next turn.
+ * permission mode (live); output style, ultracode, Chrome, fast mode, extra directories and the
+ * tool switches need a respawn with --resume; a change during a turn waits for the next turn.
  * Must handle: no change at all (nothing to do), a mix of live and restart changes (restart wins,
  * since the restart picks up everything), additional directories compared as sets in order of
  * appearance, and an agent or ACP adapter change (never handled here: the manager disposes the
@@ -16,6 +16,7 @@
  * session falls back to a restart (AGENT-02).
  */
 import type { SessionConfig } from "@conducted/protocol";
+import { claudeRestartNeeded } from "./launch-settings.ts";
 
 export type ConfigChangeKind = "none" | "live" | "restart";
 
@@ -36,6 +37,7 @@ export function classifyConfigChange(prev: SessionConfig, next: SessionConfig): 
 	};
 	const restart =
 		prev.fastMode !== next.fastMode ||
+		claudeRestartNeeded(prev, next) ||
 		!sameList(prev.additionalDirectories, next.additionalDirectories) ||
 		prev.appTools.diffComments !== next.appTools.diffComments ||
 		prev.appTools.progressUpdates !== next.appTools.progressUpdates ||

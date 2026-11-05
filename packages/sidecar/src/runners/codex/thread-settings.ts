@@ -7,14 +7,12 @@
  * and 6 (the Codex personality and tool approval settings).
  * Must handle: `codexApprovalPolicy` missing (derived from `requireToolApproval`: `on-request` when
  * on, `never` when off); `codexSandboxMode` missing (`danger-full-access`, as Conductor does);
- * `codexPersonality` missing (the model's own tone, nothing sent); a change of any of the three
- * between turns (reported so the session applies it; see `CodexSession.applyConfig`); Codex's
- * `on-failure` policy, which the app-server shapes in `protocol.ts` do not list yet (AGENT-06 checks
- * the generated bindings before it is sent).
+ * `codexPersonality` missing or `none` (the model's own tone, nothing sent); a change of any of
+ * the three between turns (reported so the session re-opens the thread with the new options; see
+ * `CodexSession.applyConfig`).
  * Test first: with `requireToolApproval` on and no explicit policy, the policy is `on-request`.
  */
 import type { SessionConfig } from "@conducted/protocol";
-import { notImplemented } from "@conducted/shared";
 
 export interface CodexThreadSettings {
 	approvalPolicy: NonNullable<SessionConfig["codexApprovalPolicy"]>;
@@ -24,11 +22,26 @@ export interface CodexThreadSettings {
 }
 
 /** The three Codex options a config asks for, with the defaults filled in. */
-export function codexThreadSettings(_config: SessionConfig): CodexThreadSettings {
-	return notImplemented("AGENT-16");
+export function codexThreadSettings(config: SessionConfig): CodexThreadSettings {
+	return {
+		approvalPolicy:
+			config.codexApprovalPolicy ?? (config.requireToolApproval ? "on-request" : "never"),
+		sandbox: config.codexSandboxMode ?? "danger-full-access",
+		// "none" and a missing value both mean Codex should use the model's own tone.
+		personality:
+			config.codexPersonality === undefined || config.codexPersonality === "none"
+				? undefined
+				: config.codexPersonality,
+	};
 }
 
 /** True when `next` differs from `prev` in a Codex option. */
-export function codexSettingsChanged(_prev: SessionConfig, _next: SessionConfig): boolean {
-	return notImplemented("AGENT-16");
+export function codexSettingsChanged(prev: SessionConfig, next: SessionConfig): boolean {
+	const before = codexThreadSettings(prev);
+	const after = codexThreadSettings(next);
+	return (
+		before.approvalPolicy !== after.approvalPolicy ||
+		before.sandbox !== after.sandbox ||
+		before.personality !== after.personality
+	);
 }

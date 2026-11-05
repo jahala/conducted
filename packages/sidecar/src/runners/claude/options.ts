@@ -10,7 +10,9 @@
  *    own id has a transcript on disk resumes that transcript, so a fork request for it is ignored;
  *    a fork or rewind for an id with no transcript yet passes resume, sessionId, resumeSessionAt
  *    and forkSession true
- *  - model, effort, thinking: model id from the config; effort passed as is; thinking summarized
+ *  - model, effort, thinking: model id from the config; effort and thinking from launch-settings.ts
+ *  - settings, extraArgs: output style, fast mode and ultracode from launch-settings.ts, and the
+ *    Chrome flag
  *  - permissionMode: always "bypassPermissions" at start, then set live (permissions.ts)
  *  - systemPrompt: preset claude_code, plus the progress guidance when progressUpdates is on
  *  - settingSources, maxTurns, disallowedTools, toolAliases: constants.ts
@@ -27,7 +29,6 @@
  * transcript they hold resume and no sessionId.
  */
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
-import type { Effort } from "@conducted/protocol";
 import { buildClaudeSystemPrompt } from "../../prompt/system-additions.ts";
 import type { StartOptions } from "../runner.ts";
 import {
@@ -38,6 +39,12 @@ import {
 	CLAUDE_SETTING_SOURCES,
 	CLAUDE_TOOL_ALIASES,
 } from "./constants.ts";
+import {
+	claudeEffortOption,
+	claudeExtraArguments,
+	claudeSettingsOption,
+	claudeThinkingOption,
+} from "./launch-settings.ts";
 
 export interface ClaudeOptionsInput {
 	start: StartOptions;
@@ -63,8 +70,10 @@ export function buildClaudeOptions(input: ClaudeOptionsInput): Options {
 		cwd: input.start.workspace.workspacePath,
 		env: { ...input.start.env, ...CLAUDE_LAUNCH_ENV },
 		model: config.model,
-		effort: effortOption(config.effort),
-		thinking: thinkingOption(config.effort),
+		effort: claudeEffortOption(config.effort),
+		thinking: claudeThinkingOption(config.effort),
+		settings: claudeSettingsOption(config),
+		extraArgs: claudeExtraArguments(config),
 		// The process starts bypassing checks and the real mode is switched live (permissions.ts).
 		permissionMode: "bypassPermissions",
 		allowDangerouslySkipPermissions: true,
@@ -105,25 +114,4 @@ function sessionChoice(
 	}
 	// Resuming an id with no transcript would fail the start, so a new session claims our id.
 	return { sessionId: start.sessionId };
-}
-
-/**
- * The SDK's effort names are ours, except the levels Claude reads from its settings or does not
- * support. "ultracode" is carried by the settings JSON (AGENT-16), so no effort flag is sent.
- */
-function effortOption(effort: Effort): Options["effort"] | undefined {
-	switch (effort) {
-		case "none":
-		case "ultracode":
-			return undefined;
-		case "ultra":
-			return "max";
-		default:
-			return effort;
-	}
-}
-
-function thinkingOption(effort: Effort): Options["thinking"] {
-	if (effort === "none") return { type: "disabled" };
-	return { type: "adaptive", display: "summarized" };
 }

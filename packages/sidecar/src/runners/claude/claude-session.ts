@@ -72,6 +72,7 @@ import { ClaudeBackgroundTasks } from "./background-tasks.ts";
 import { type CheckpointGate, createCheckpointHook } from "./checkpoint-hook.ts";
 import { classifyConfigChange } from "./config-change.ts";
 import { INTERRUPT_GRACE_MS } from "./constants.ts";
+import { claudeEffortOption } from "./launch-settings.ts";
 import { buildClaudeOptions } from "./options.ts";
 import type { PermissionHandlerDeps } from "./permission-handler.ts";
 import { permissionModeFor } from "./permissions.ts";
@@ -744,15 +745,8 @@ export class ClaudeSession implements AgentSession {
 
 /** The SDK's effort setting for a chat effort; null clears it. */
 function effortSetting(effort: Effort): "low" | "medium" | "high" | "xhigh" | "max" | null {
-	switch (effort) {
-		case "none":
-		case "ultracode":
-			return null;
-		case "ultra":
-			return "max";
-		default:
-			return effort;
-	}
+	const option = claudeEffortOption(effort);
+	return typeof option === "string" ? option : null;
 }
 
 /** A function that runs once; later calls share the first promise. */
