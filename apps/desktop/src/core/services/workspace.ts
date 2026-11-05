@@ -28,9 +28,14 @@
  * refusal, the screen's discard confirmation and the screen that shows the branch-delete warning
  * are not built; the service refuses a busy checkout and accepts `discardGitOperationState` from
  * a caller that has already asked.
- * Not built yet (placeholders): unarchive, delete to the Trash, the branch auto rename,
- * `markRead` and the base from a pull request or issue. `classifyUnarchive` is their decision
- * rule and has no caller until WS-06.
+ * Built now (WS-06): unarchive. It classifies the branch as gone, taken, moved or fine, re-adds
+ * the worktree (creating a missing branch from the archive commit), restores the archive
+ * checkpoint, and sets the branch, folder, path and ready state while clearing the archive time.
+ * A branch open in another worktree or moved since the archive returns `needsBranchName` and
+ * changes nothing. A checkpoint restore that fails only sets `uncommittedChangesLost`. A worktree
+ * that cannot be restored rolls the state back to archived.
+ * Not built yet (placeholders): delete to the Trash, the branch auto rename, `markRead` and the
+ * base from a pull request or issue.
  * Our design choice: creation is split in two so the sidebar shows the workspace at once
  * (`initializing`) and the slow git work happens after the row exists. Place names come from our
  * own tiered source in this file (`createPlaceNames`, D002), which the composition root should
@@ -40,7 +45,8 @@
  * them, and the create page reads them back after the action returns. The composition root
  * supplies the repository config reader; the default-config reader remains optional until the
  * composition root passes it.
- * Test first: classifyUnarchive returns "branchTaken" when the branch is checked out elsewhere.
+ * Test first: unarchive re-adds the worktree on the same branch, restores the archive checkpoint,
+ * and clears the archive time; a branch checked out elsewhere asks for a new name.
  */
 import type { SessionConfig } from "@conducted/protocol";
 import {
@@ -74,12 +80,15 @@ import {
 import { apiUserLogin } from "../git/gh-commands.ts";
 import type { GitRunner } from "../git/runner.ts";
 import {
+	addWorktreeOnBranch,
 	branchNameIsTaken,
 	createWorktree,
 	nextFreeName,
 	pinArchiveHead,
 	prepareWorktree,
+	readBranchState,
 	removeWorktree,
+	restoreArchiveCheckpoint,
 	saveArchiveSnapshot,
 } from "../git/worktree.ts";
 import type {
@@ -317,6 +326,14 @@ export const CHAT_CREATION_FAILED_MESSAGE =
 /** Shown when the default branch prefix needs a GitHub login that `gh` did not return. */
 export const GITHUB_LOGIN_MISSING_MESSAGE =
 	"No GitHub login was found, so the new branch has no username prefix.";
+
+/** Shown when the branch a caller asked to restore is already open in another worktree. */
+export const BRANCH_CHECKED_OUT_MESSAGE =
+	"That branch is checked out elsewhere. Choose another branch name.";
+
+/** Shown when an archived workspace has no commit to recreate its missing branch from. */
+export const ARCHIVE_COMMIT_MISSING_MESSAGE =
+	"This workspace has no saved commit, so its missing branch cannot be restored.";
 
 export type UnarchiveCase = "happy" | "branchDeleted" | "branchTaken" | "branchDiverged";
 
@@ -1265,12 +1282,169 @@ export class WorkspaceService {
 		return ok(undefined);
 	}
 
-	/** Backs `Actions.workspaces.unarchive`. */
-	unarchive(
-		_id: WorkspaceId,
-		_options: { branchName: string | null; clearChats: boolean },
+	/**
+	 * Backs `Actions.workspaces.unarchive`: re-adds the worktree and restores the archive snapshot.
+	 * A branch that is gone is recreated from the archive commit. A branch that is checked out
+	 * elsewhere or has moved gives `needsBranchName` and changes nothing, so the screen can ask
+	 * for a new name. A checkpoint restore that fails only sets `uncommittedChangesLost`.
+	 */
+	async unarchive(
+		id: WorkspaceId,
+		options: { branchName: string | null; clearChats: boolean },
 	): Promise<Result<UnarchiveOutcome>> {
-		return notImplemented("WS-06");
+		const found = await this.#deps.repos.workspaces.get(id);
+		if (!found.ok) return found;
+		const workspace = found.value;
+		if (workspace === null) {
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		}
+		if (workspace.state !== "archived") {
+			return err(appError("workspace_not_archived", "This workspace is not archived."));
+		}
+
+		const repoFound = await this.#deps.repos.repos.get(workspace.repoId);
+		if (!repoFound.ok) return repoFound;
+		const repo = repoFound.value;
+		if (repo === null) return err(appError("repo_unknown", "That project no longer exists."));
+
+		const current = await readBranchState(this.#deps.git, repo.rootPath, workspace.branch);
+		if (!current.ok) return current;
+		const kind = classifyUnarchive({
+			branchExists: current.value.exists,
+			checkedOutElsewhere: current.value.checkedOutElsewhere,
+			branchTip: current.value.tip,
+			archiveCommit: workspace.archiveCommit,
+		});
+
+		let branch = workspace.branch;
+		let createFrom: string | null = null;
+
+		if (options.branchName !== null) {
+			branch = options.branchName;
+			if (!isSafeRefName(branch)) return err(invalidRefNameError(branch));
+			const chosen = await readBranchState(this.#deps.git, repo.rootPath, branch);
+			if (!chosen.ok) return chosen;
+			if (chosen.value.checkedOutElsewhere) {
+				return err(appError("branch_checked_out_elsewhere", BRANCH_CHECKED_OUT_MESSAGE));
+			}
+			if (chosen.value.exists) {
+				return err(appError("branch_exists", `A branch named "${branch}" already exists.`));
+			}
+			if (workspace.archiveCommit === null) {
+				return err(appError("archive_commit_missing", ARCHIVE_COMMIT_MISSING_MESSAGE));
+			}
+			createFrom = workspace.archiveCommit;
+		} else if (kind === "branchTaken" || kind === "branchDiverged") {
+			return ok({ needsBranchName: true, uncommittedChangesLost: false });
+		} else if (kind === "branchDeleted") {
+			if (workspace.archiveCommit === null) {
+				return err(appError("archive_commit_missing", ARCHIVE_COMMIT_MISSING_MESSAGE));
+			}
+			createFrom = workspace.archiveCommit;
+		}
+
+		const listed = await this.#deps.repos.workspaces.listByRepo(repo.id);
+		if (!listed.ok) return listed;
+		const others = listed.value.filter((row) => row.id !== id);
+		const root = expandHome(
+			this.#deps.setting<string>("conducted_root_path"),
+			this.#deps.platform.fs.paths.home,
+		);
+		let directoryName = workspace.directoryName;
+		let worktreePath = workspace.path;
+		const pathFree = !(await this.#deps.platform.fs.exists(worktreePath));
+		const nameTaken = others.some((row) => row.directoryName === directoryName);
+		if (!pathFree || nameTaken) {
+			const taken = new Set(others.map((row) => row.directoryName));
+			if (!pathFree) taken.add(directoryName);
+			const picked = await nextFreeName(directoryName, async (candidate) => {
+				if (taken.has(candidate)) return true;
+				return this.#deps.platform.fs.exists(worktreeFolderFor(root, repo.name, candidate));
+			});
+			if (!picked.ok) return picked;
+			directoryName = picked.value;
+			worktreePath = worktreeFolderFor(root, repo.name, directoryName);
+		}
+
+		const moved = await this.#deps.repos.workspaces.transitionState(id, "archived", "initializing");
+		if (!moved.ok) return moved;
+		if (!moved.value) {
+			return err(appError("workspace_not_archived", "This workspace is not archived."));
+		}
+		this.#upsert({ ...workspace, state: "initializing", updatedAt: this.#deps.now() });
+
+		const cleanUpBranch = async (): Promise<string | null> => {
+			if (createFrom === null) return null;
+			const removed = await this.#deps.git.runChecked(branchDeleteForce(branch), {
+				cwd: repo.rootPath,
+			});
+			return removed.ok ? null : removed.error.message;
+		};
+
+		const alsoStays = async (message: string): Promise<string> =>
+			(await cleanUpBranch()) === null
+				? message
+				: `${message} The new branch "${branch}" also stays.`;
+
+		const added = await this.#deps.git.withWorktreeAndRepoLocks(worktreePath, repo.rootPath, () =>
+			addWorktreeOnBranch(this.#deps.git, {
+				repoRootPath: repo.rootPath,
+				worktreePath,
+				branch,
+				createFrom,
+			}),
+		);
+		if (!added.ok) {
+			const message = await alsoStays(added.error.message);
+			await this.#deps.repos.workspaces.transitionState(id, "initializing", "archived");
+			this.#upsert(workspace);
+			return err(appError(added.error.code, message, added.error));
+		}
+
+		const restored = await restoreArchiveCheckpoint(
+			this.#deps.git,
+			this.#deps.checkpointerPath,
+			id,
+			worktreePath,
+		);
+		const uncommittedChangesLost = !restored.ok;
+
+		const finished = await this.#deps.repos.workspaces.finishUnarchive(id, {
+			branch,
+			directoryName,
+			path: worktreePath,
+		});
+		if (!finished.ok || !finished.value) {
+			await removeWorktree(this.#deps.git, this.#deps.platform.fs, {
+				repoRootPath: repo.rootPath,
+				worktreePath,
+			});
+			const message = await alsoStays(
+				finished.ok ? "This workspace could not be restored." : finished.error.message,
+			);
+			await this.#deps.repos.workspaces.transitionState(id, "initializing", "archived");
+			this.#upsert(workspace);
+			return finished.ok
+				? err(appError("workspace_not_archived", message))
+				: err(appError(finished.error.code, message, finished.error));
+		}
+
+		this.#upsert({
+			...workspace,
+			branch,
+			directoryName,
+			path: worktreePath,
+			state: "ready",
+			archivedAt: null,
+			updatedAt: this.#deps.now(),
+		});
+
+		if (options.clearChats) {
+			const cleared = await this.#deps.sessions.deleteAll(id);
+			if (!cleared.ok) return cleared;
+		}
+
+		return ok({ needsBranchName: false, uncommittedChangesLost });
 	}
 
 	/** Backs `Actions.workspaces.setLinkedPaths`: extra folders agents may read and edit. */

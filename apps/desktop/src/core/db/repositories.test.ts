@@ -171,6 +171,37 @@ describe("DATA-01 workspaces repository", () => {
 		});
 	});
 
+	it("finishes an unarchive with the restored branch, folder and path, and clears the archive time", async () => {
+		seedWorkspace();
+		must(await repositories.workspaces.transitionState(workspaceId, "ready", "archiving"));
+		must(await repositories.workspaces.markArchived(workspaceId, "abc123"));
+		must(await repositories.workspaces.transitionState(workspaceId, "archived", "initializing"));
+		now = 7000;
+		expect(
+			await repositories.workspaces.finishUnarchive(workspaceId, {
+				branch: "feature/restored",
+				directoryName: "oslo-v1",
+				path: "/code/workspaces/Project/oslo-v1",
+			}),
+		).toEqual({ ok: true, value: true });
+		expect(must(await repositories.workspaces.get(workspaceId))).toMatchObject({
+			state: "ready",
+			branch: "feature/restored",
+			directoryName: "oslo-v1",
+			path: "/code/workspaces/Project/oslo-v1",
+			archivedAt: null,
+			archiveCommit: "abc123",
+			updatedAt: 7000,
+		});
+		expect(
+			await repositories.workspaces.finishUnarchive(workspaceId, {
+				branch: "feature/again",
+				directoryName: "oslo-v2",
+				path: "/code/workspaces/Project/oslo-v2",
+			}),
+		).toEqual({ ok: true, value: false });
+	});
+
 	it("moves activity forward only", async () => {
 		seedWorkspace();
 		now = 2000;

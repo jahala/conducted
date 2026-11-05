@@ -173,6 +173,8 @@ export const WORKSPACES_SQL = {
 	setSetupLogPath: "UPDATE workspaces SET setup_log_path = $1, updated_at = $2 WHERE id = $3",
 	setActiveSession: "UPDATE workspaces SET active_session_id = $1 WHERE id = $2",
 	setFilesCopied: "UPDATE workspaces SET files_copied = $1, updated_at = $2 WHERE id = $3",
+	finishUnarchive: `UPDATE workspaces SET state = 'ready', branch = $1, directory_name = $2,
+		path = $3, archived_at = NULL, updated_at = $4 WHERE id = $5 AND state = 'initializing'`,
 	touchActivity: "UPDATE workspaces SET last_activity_at = MAX(last_activity_at, $1) WHERE id = $2",
 	delete: "DELETE FROM workspaces WHERE id = $1",
 } as const;
@@ -262,6 +264,15 @@ export interface WorkspaceRepository {
 	setActiveSession(id: WorkspaceId, sessionId: SessionId | null): Promise<Result<void>>;
 	/** WORKSPACES_SQL.setFilesCopied, after setup copied files into the new worktree. */
 	setFilesCopied(id: WorkspaceId, count: number): Promise<Result<void>>;
+	/**
+	 * WORKSPACES_SQL.finishUnarchive: makes the restored worktree the workspace's branch, folder and
+	 * path, sets it ready and clears archived_at. Only applies while the row is `initializing`;
+	 * `ok(false)` otherwise.
+	 */
+	finishUnarchive(
+		id: WorkspaceId,
+		input: { branch: string; directoryName: string; path: string },
+	): Promise<Result<boolean>>;
 	/** WORKSPACES_SQL.touchActivity. Moves last_activity_at forward only, never back. */
 	touchActivity(id: WorkspaceId, at: number): Promise<Result<void>>;
 	/** WORKSPACES_SQL.delete. The database cascades to sessions, comments and terminals. */
@@ -436,6 +447,15 @@ export function createWorkspaceRepository(db: Database, deps: RepositoryDeps): W
 				[sessionId, id],
 				"Saving the active chat",
 			),
+		finishUnarchive: async (id, input) => {
+			const written = await executeStatement(
+				db,
+				WORKSPACES_SQL.finishUnarchive,
+				[input.branch, input.directoryName, input.path, now(), id],
+				"Restoring a workspace",
+			);
+			return written.ok ? ok(written.value > 0) : err(written.error);
+		},
 		setFilesCopied: (id, count) =>
 			executeExisting(
 				db,
