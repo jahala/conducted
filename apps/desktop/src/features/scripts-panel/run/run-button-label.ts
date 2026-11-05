@@ -15,11 +15,10 @@
  *   spotlight action, stopped   -> "Start spotlight"      click: start spotlight
  *   spotlight action, running   -> "Stop spotlight"       click: stop spotlight
  * Starting a task stops the workspace's previous one (services-map.md 5A.1.3, step 2).
- * Must handle: an empty label (use the action id), a stop not confirmed after 20 seconds (text
- * "Stop not confirmed", the process may still run), and a start while setup is still running.
+ * Must handle: an empty label (use the action id), and a stop that did not confirm (the caller
+ * shows the terminal service's "Stop not confirmed" message and this model returns to Run again).
  * Test first: phase "running" for action "Dev server" gives "Stop Dev server" with click "stop".
  */
-import { notImplemented } from "@conducted/shared";
 
 export type RunPhase = "stopped" | "starting" | "waiting_for_setup" | "running" | "stopping";
 
@@ -30,9 +29,39 @@ export interface RunButtonModel {
 }
 
 export function runButtonModel(
-	_action: { id: string; label: string; isSpotlight: boolean },
-	_phase: RunPhase,
-	_hasRunBefore: boolean,
+	action: { id: string; label: string; isSpotlight: boolean },
+	phase: RunPhase,
+	hasRunBefore: boolean,
 ): RunButtonModel {
-	return notImplemented("RUN-01");
+	const label = action.label.trim() === "" ? action.id : action.label;
+
+	if (action.isSpotlight) {
+		if (phase === "running") {
+			return { label: "Stop spotlight", disabled: false, click: "stop_spotlight" };
+		}
+		if (phase === "starting" || phase === "waiting_for_setup") {
+			return { label: "Starting...", disabled: true, click: null };
+		}
+		if (phase === "stopping") {
+			return { label: "Stopping...", disabled: true, click: null };
+		}
+		return { label: "Start spotlight", disabled: false, click: "start_spotlight" };
+	}
+
+	switch (phase) {
+		case "starting":
+			return { label: "Starting...", disabled: true, click: null };
+		case "waiting_for_setup":
+			return { label: "Waiting for setup", disabled: false, click: "stop" };
+		case "running":
+			return { label: `Stop ${label}`, disabled: false, click: "stop" };
+		case "stopping":
+			return { label: "Stopping...", disabled: true, click: null };
+		case "stopped":
+			return {
+				label: hasRunBefore ? `Run ${label} again` : `Run ${label}`,
+				disabled: false,
+				click: "start",
+			};
+	}
 }
