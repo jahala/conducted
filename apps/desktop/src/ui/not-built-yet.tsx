@@ -10,7 +10,7 @@
  * close button. The `inline` variant is one line of small text, for footers and toolbars.
  * Must handle: a NotImplemented error shows its feature id; any other error shows a generic card and is
  * logged; a new `resetKey` clears the error; `overlay` without `onDismiss` still renders (no close button).
- * Test first: a child that calls notImplemented("CHAT-06") renders "Not built yet: CHAT-06".
+ * Test first: a child that calls notImplemented for a feature renders "Not built yet: <id>".
  */
 import { NotImplemented } from "@conducted/shared";
 import { Component, type ErrorInfo, type ReactNode } from "react";

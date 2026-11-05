@@ -28,24 +28,32 @@ export function ChatPane({
 }) {
 	return (
 		<div className="flex h-full min-h-0 flex-col">
-			<div className="min-h-0 flex-1">
+			<div data-region="messages" className="min-h-0 flex-1">
 				<NotBuiltYet area="Messages" resetKey={sessionId}>
 					<MessageList sessionId={sessionId} workspaceId={workspaceId} />
 				</NotBuiltYet>
 			</div>
 			<div className="flex shrink-0 flex-col gap-2 px-3 pb-3">
-				<NotBuiltYet area="Agent request" variant="inline" resetKey={sessionId}>
-					<InteractionDock sessionId={sessionId} />
-				</NotBuiltYet>
-				<NotBuiltYet area="Progress" variant="inline" resetKey={sessionId}>
-					<ProgressTracker sessionId={sessionId} />
-				</NotBuiltYet>
-				<NotBuiltYet area="Queue" variant="inline" resetKey={sessionId}>
-					<QueueBox sessionId={sessionId} />
-				</NotBuiltYet>
-				<NotBuiltYet area="Composer" resetKey={sessionId}>
-					<Composer workspaceId={workspaceId} sessionId={sessionId} />
-				</NotBuiltYet>
+				<div data-region="agent-request">
+					<NotBuiltYet area="Agent request" variant="inline" resetKey={sessionId}>
+						<InteractionDock sessionId={sessionId} />
+					</NotBuiltYet>
+				</div>
+				<div data-region="progress">
+					<NotBuiltYet area="Progress" variant="inline" resetKey={sessionId}>
+						<ProgressTracker sessionId={sessionId} />
+					</NotBuiltYet>
+				</div>
+				<div data-region="queue">
+					<NotBuiltYet area="Queue" variant="inline" resetKey={sessionId}>
+						<QueueBox sessionId={sessionId} />
+					</NotBuiltYet>
+				</div>
+				<div data-region="composer">
+					<NotBuiltYet area="Composer" resetKey={sessionId}>
+						<Composer workspaceId={workspaceId} sessionId={sessionId} />
+					</NotBuiltYet>
+				</div>
 			</div>
 		</div>
 	);
