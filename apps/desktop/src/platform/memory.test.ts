@@ -48,6 +48,9 @@ const harness: ContractHarness = {
 	it: (name, body) => {
 		it(name, body);
 	},
+	skip: (name, reason) => {
+		it.skip(`${name} (${reason})`, () => {});
+	},
 	assert: (condition, message) => {
 		expect(condition, message).toBe(true);
 	},
@@ -55,31 +58,39 @@ const harness: ContractHarness = {
 
 let caseNumber = 0;
 
-runPlatformContract(harness, "memory", async () => {
-	caseNumber++;
-	const db = new DatabaseSync(":memory:");
-	db.exec("PRAGMA foreign_keys = ON");
-	const memory = createMemoryPlatform({
-		clock: { now: () => 1_700_000_000_000 + caseNumber },
-		ids: { uuid: () => `00000000-0000-4000-8000-${String(caseNumber).padStart(12, "0")}` },
-		database: createDatabase(db),
-		version: "0.0.0-test",
-		channel: "dev",
-		home: `/memory/${caseNumber}/home`,
-		appData: `/memory/${caseNumber}/app-data`,
-		temp: `/memory/${caseNumber}/temp`,
-		resources: `/memory/${caseNumber}/resources`,
-	});
-	return {
-		platform: memory.platform,
-		controls: memory.controls,
-		root: `/memory/${caseNumber}/root`,
-		cleanup: async () => {
-			memory.controls.dispose();
-			db.close();
-		},
-	};
-});
+runPlatformContract(
+	harness,
+	"memory",
+	async () => {
+		caseNumber++;
+		const db = new DatabaseSync(":memory:");
+		db.exec("PRAGMA foreign_keys = ON");
+		const memory = createMemoryPlatform({
+			clock: { now: () => 1_700_000_000_000 + caseNumber },
+			ids: { uuid: () => `00000000-0000-4000-8000-${String(caseNumber).padStart(12, "0")}` },
+			database: createDatabase(db),
+			version: "0.0.0-test",
+			channel: "dev",
+			home: `/memory/${caseNumber}/home`,
+			appData: `/memory/${caseNumber}/app-data`,
+			temp: `/memory/${caseNumber}/temp`,
+			resources: `/memory/${caseNumber}/resources`,
+		});
+		return {
+			platform: memory.platform,
+			controls: memory.controls,
+			root: `/memory/${caseNumber}/root`,
+			cleanup: async () => {
+				try {
+					expect(memory.controls.dispose()).toBe(0);
+				} finally {
+					db.close();
+				}
+			},
+		};
+	},
+	{ controls: true },
+);
 
 let nextId = 0;
 
@@ -111,13 +122,13 @@ describe("PLAT-01 in-memory Platform", () => {
 		}
 	});
 
-	it("dispose throws while a listener is still attached", () => {
+	it("dispose reports listeners that are still attached", () => {
 		const { db, memory } = freshPlatform();
 		try {
 			const unsubscribe = memory.platform.sidecar.onLine(() => {});
-			expect(() => memory.controls.dispose()).toThrow(/listener/);
+			expect(memory.controls.dispose()).toBe(1);
 			unsubscribe();
-			expect(() => memory.controls.dispose()).not.toThrow();
+			expect(memory.controls.dispose()).toBe(0);
 		} finally {
 			db.close();
 		}

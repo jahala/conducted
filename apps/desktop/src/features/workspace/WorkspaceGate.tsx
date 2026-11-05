@@ -15,7 +15,7 @@ import type { WorkspaceId } from "@conducted/shared";
 import { type ReactNode, useState } from "react";
 import { useActions, useWorkspace } from "../../core/hooks.ts";
 import { LoadableView } from "../../ui/LoadableView.tsx";
-import { toast } from "../../ui/Toast.tsx";
+import { toastError } from "../../ui/Toast.tsx";
 import { ArchivedNotice } from "./ArchivedNotice.tsx";
 
 export function WorkspaceGate({
@@ -36,8 +36,7 @@ export function WorkspaceGate({
 			clearChats: false,
 		});
 		setUnarchiving(false);
-		if (!result.ok)
-			toast.error("Couldn't unarchive the workspace", { description: result.error.message });
+		if (!result.ok) toastError("Couldn't unarchive the workspace", result.error);
 	};
 
 	return (

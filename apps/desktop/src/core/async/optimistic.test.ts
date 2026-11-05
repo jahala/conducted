@@ -80,6 +80,31 @@ describe("APP-11 optimistic overlay", () => {
 		expect(store.read()).toEqual({ name: "server" });
 	});
 
+	it("applies both overlapping successes, so the newest result wins", async () => {
+		const store = createOptimisticStore({ name: "old", starred: false }, ids());
+		const first = deferred<Result<{ name: string; starred: boolean }, string>>();
+		const second = deferred<Result<{ name: string; starred: boolean }, string>>();
+
+		const firstRun = store.run({
+			update: (state) => ({ ...state, name: "renamed" }),
+			action: () => first.promise,
+		});
+		const secondRun = store.run({
+			update: (state) => ({ ...state, starred: true }),
+			action: () => second.promise,
+		});
+
+		first.resolve({ ok: true, value: { name: "renamed", starred: false } });
+		await firstRun;
+		expect(store.canonical()).toEqual({ name: "renamed", starred: false });
+		expect(store.read()).toEqual({ name: "renamed", starred: true });
+
+		second.resolve({ ok: true, value: { name: "renamed", starred: true } });
+		await secondRun;
+		expect(store.canonical()).toEqual({ name: "renamed", starred: true });
+		expect(store.read()).toEqual({ name: "renamed", starred: true });
+	});
+
 	it("keeps a newer canonical state that arrives before the action ends", async () => {
 		const store = createOptimisticStore({ name: "old" }, ids());
 		const gate = deferred<Result<{ name: string }, string>>();

@@ -11,13 +11,14 @@
  * Result; a sent row is deleted once its user_message event is stored (queue lifetime).
  * Test first: claimNext twice in a row returns two different rows, then nothing.
  */
-import { err, type MessageId, ok, type Result, type SessionId } from "@conducted/shared";
+import { appError, err, type MessageId, ok, type Result, type SessionId } from "@conducted/shared";
 import type { Database } from "../../platform/platform.ts";
 import type { QueuedMessage } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
 import {
 	collectResults,
 	executeStatement,
+	executeVoid,
 	inTransaction,
 	parseStringList,
 	selectRows,
@@ -158,7 +159,8 @@ export interface QueuedMessageRepository {
 	setDelivery(id: MessageId, delivery: QueuedMessage["delivery"]): Promise<Result<boolean>>;
 	/**
 	 * QUEUED_MESSAGES_SQL.setPosition for each id, giving positions 1..n in the given order, in
-	 * one transaction.
+	 * one transaction. The list must name every waiting message of the chat exactly once, so a
+	 * partial list cannot leave the other rows with colliding positions; otherwise `db.conflict`.
 	 */
 	reorder(sessionId: SessionId, orderedIds: readonly MessageId[]): Promise<Result<void>>;
 	/** QUEUED_MESSAGES_SQL.deleteUnlessSending, for the user cancelling. `ok(false)` if sending. */
@@ -174,15 +176,6 @@ export function createQueuedMessageRepository(
 	deps: RepositoryDeps,
 ): QueuedMessageRepository {
 	const now = (): number => deps.clock.now();
-	const write = async (
-		target: Database,
-		sql: string,
-		params: readonly unknown[],
-		what: string,
-	): Promise<Result<void>> => {
-		const result = await executeStatement(target, sql, params, what);
-		return result.ok ? ok(undefined) : err(result.error);
-	};
 	return {
 		listBySession: async (sessionId) => {
 			const rows = await selectRows<QueuedMessageRow>(
@@ -285,6 +278,27 @@ export function createQueuedMessageRepository(
 		},
 		reorder: async (sessionId, orderedIds) =>
 			inTransaction(db, "Reordering queued messages", async (tx) => {
+				const current = await selectRows<QueuedMessageRow>(
+					tx,
+					QUEUED_MESSAGES_SQL.listBySession,
+					[sessionId],
+					"Listing queued messages to reorder",
+				);
+				if (!current.ok) return err(current.error);
+				const waiting = current.value.filter((row) => row.state === "waiting").map((row) => row.id);
+				const given = new Set(orderedIds);
+				if (
+					given.size !== orderedIds.length ||
+					given.size !== waiting.length ||
+					!waiting.every((id) => given.has(id))
+				) {
+					return err(
+						appError(
+							"db.conflict",
+							"Reordering a queue needs every waiting message of that chat, each once.",
+						),
+					);
+				}
 				const at = now();
 				for (const [index, id] of orderedIds.entries()) {
 					const written = await executeStatement(
@@ -306,8 +320,8 @@ export function createQueuedMessageRepository(
 			);
 			return written.ok ? ok(written.value > 0) : err(written.error);
 		},
-		remove: (id) => write(db, QUEUED_MESSAGES_SQL.delete, [id], "Removing a queued message"),
+		remove: (id) => executeVoid(db, QUEUED_MESSAGES_SQL.delete, [id], "Removing a queued message"),
 		clear: (sessionId) =>
-			write(db, QUEUED_MESSAGES_SQL.deleteBySession, [sessionId], "Clearing the queue"),
+			executeVoid(db, QUEUED_MESSAGES_SQL.deleteBySession, [sessionId], "Clearing the queue"),
 	};
 }

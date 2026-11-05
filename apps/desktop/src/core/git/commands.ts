@@ -240,6 +240,9 @@ export const rebaseOntoUpstream = (upstreamOid: string, localOid: string): GitCo
 
 export const showFileAt = (ref: string, path: string): GitCommand =>
 	git(["show", "--no-ext-diff", "--no-textconv", `${ref}:${path}`], { okExitCodes: [0, 128] });
+/** The committed settings of a repository, read from a ref instead of the checkout (DATA-05). */
+export const showSettingsFileAt = (ref: string): GitCommand =>
+	showFileAt(ref, ".conducted/settings.toml");
 export const diffFilePatch = (
 	from: string,
 	to: string | null,

@@ -19,6 +19,7 @@ import {
 	sampleSession,
 	sampleWorkspace,
 	sessionId,
+	turnEndedEvent,
 	userMessageEvent,
 	workspaceId,
 } from "./test-fixtures.ts";
@@ -255,6 +256,31 @@ describe("DATA-01 workspaces repository", () => {
 		expect(must(await repositories.workspaces.get(workspaceId))?.prNumber).toBeNull();
 	});
 
+	it("reports a missing workspace from every setter", async () => {
+		seedWorkspace();
+		const missing = "missing" as WorkspaceId;
+		const writes = [
+			() => repositories.workspaces.setKanbanStatus(missing, "in_progress"),
+			() => repositories.workspaces.setDisplayName(missing, "Name"),
+			() => repositories.workspaces.setBranch(missing, "b", false),
+			() => repositories.workspaces.setTargetBranch(missing, "origin/main"),
+			() => repositories.workspaces.setPinned(missing, null),
+			() => repositories.workspaces.setNotes(missing, "note"),
+			() => repositories.workspaces.setLinkedPaths(missing, []),
+			() =>
+				repositories.workspaces.setPullRequest(missing, {
+					number: 1,
+					title: null,
+					description: null,
+				}),
+			() => repositories.workspaces.clearPullRequest(missing),
+			() => repositories.workspaces.setSetupLogPath(missing, null),
+		];
+		for (const write of writes) {
+			expect(await write()).toMatchObject({ ok: false, error: { code: "db.not_found" } });
+		}
+	});
+
 	it("returns an error when a stored linked_paths column is not a list", async () => {
 		seedWorkspace();
 		raw
@@ -461,7 +487,7 @@ describe("DATA-01 live state and events repositories", () => {
 		).toBeNull();
 	});
 
-	it("marks a turn reverted without deleting it and finds interrupted turns", async () => {
+	it("marks a turn reverted without deleting it and finds only live interrupted turns", async () => {
 		seedAll();
 		must(await repositories.sessionEvents.append(sessionId, userMessageEvent("e1", "t1", 10), 100));
 		must(
@@ -476,9 +502,14 @@ describe("DATA-01 live state and events repositories", () => {
 		).toBe(2);
 		const stored = must(await repositories.sessionEvents.listFrom(sessionId, 0, 10));
 		expect(stored.map((event) => event.revertedAt)).toEqual([500, 500]);
+		expect(must(await repositories.sessionEvents.findInterruptedTurns())).toEqual([]);
+
+		must(await repositories.sessionEvents.append(sessionId, userMessageEvent("e3", "t2", 12), 102));
 		expect(must(await repositories.sessionEvents.findInterruptedTurns())).toEqual([
-			{ sessionId, turnId: "t1" },
+			{ sessionId, turnId: "t2" },
 		]);
+		must(await repositories.sessionEvents.append(sessionId, turnEndedEvent("e4", "t2", 13), 103));
+		expect(must(await repositories.sessionEvents.findInterruptedTurns())).toEqual([]);
 	});
 });
 
@@ -536,6 +567,37 @@ describe("DATA-01 queued messages repository", () => {
 
 		must(await repositories.queuedMessages.reorder(sessionId, ["q2" as MessageId]));
 		expect(must(await repositories.queuedMessages.get("q2" as MessageId))?.position).toBe(1);
+	});
+
+	it("refuses a reorder that leaves waiting messages out, so positions stay unique", async () => {
+		seedAll();
+		for (const id of ["q1", "q2", "q3"]) {
+			must(
+				await repositories.queuedMessages.enqueue({
+					...sampleQueued,
+					id: id as MessageId,
+				}),
+			);
+		}
+		expect(
+			await repositories.queuedMessages.reorder(sessionId, ["q3" as MessageId, "q1" as MessageId]),
+		).toMatchObject({ ok: false, error: { code: "db.conflict" } });
+		const positions: number[] = [];
+		for (const id of ["q1", "q2", "q3"]) {
+			positions.push(must(await repositories.queuedMessages.get(id as MessageId))?.position ?? 0);
+		}
+		expect(positions).toEqual([1, 2, 3]);
+
+		must(
+			await repositories.queuedMessages.reorder(sessionId, [
+				"q3" as MessageId,
+				"q1" as MessageId,
+				"q2" as MessageId,
+			]),
+		);
+		expect(
+			must(await repositories.queuedMessages.listBySession(sessionId)).map((m) => m.id),
+		).toEqual(["q3", "q1", "q2"]);
 	});
 });
 

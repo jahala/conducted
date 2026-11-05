@@ -12,6 +12,7 @@ import {
 	isXcodeLicenseError,
 	LOCK_WARM_TIMEOUT_MESSAGE,
 	LOCK_WARM_TIMEOUT_MS,
+	PROCESS_SPAWN_CODE,
 	QUOTE_PATH_OFF_ARGS,
 	SHELL_TIMEOUT_CODE,
 	ShellGitRunner,
@@ -76,18 +77,25 @@ const makeShell = (
 const makeRunner = (shell: Shell) => {
 	const logs: { level: "warn" | "info"; message: string }[] = [];
 	const sleeps: number[] = [];
+	const warmWaits: (() => void)[] = [];
 	const locks = new KeyedMutex();
 	const runner = new ShellGitRunner({
 		shell,
 		locks,
-		sleep: async (ms) => {
+		sleep: (ms) => {
+			if (ms === LOCK_WARM_TIMEOUT_MS) {
+				return new Promise<void>((resolve) => {
+					warmWaits.push(resolve);
+				});
+			}
 			sleeps.push(ms);
+			return Promise.resolve();
 		},
 		log: (level, message) => {
 			logs.push({ level, message });
 		},
 	});
-	return { runner, logs, sleeps, locks };
+	return { runner, logs, sleeps, locks, warmWaits };
 };
 
 describe("GIT-01 isGitLockError", () => {
@@ -251,6 +259,22 @@ describe("GIT-01 ShellGitRunner", () => {
 		expect(shell.calls).toHaveLength(1);
 	});
 
+	it("leaves an internal script's arguments alone and does not retry its lock error", async () => {
+		const shell = makeShell(async () =>
+			ok(out(1, "", "fatal: Unable to create '/r/.git/index.lock': File exists.")),
+		);
+		const { runner, sleeps } = makeRunner(shell.shell);
+
+		await runner.run({ program: "/b/checkpointer.sh", args: ["save", "--id", "x"] }, { cwd: "/w" });
+
+		expect(shell.calls[0]).toMatchObject({
+			program: "/b/checkpointer.sh",
+			args: ["save", "--id", "x"],
+		});
+		expect(sleeps).toEqual([]);
+		expect(shell.calls).toHaveLength(1);
+	});
+
 	it("retries a blocked network git command once over HTTPS", async () => {
 		let calls = 0;
 		const shell = makeShell(async () => {
@@ -321,7 +345,7 @@ describe("GIT-01 ShellGitRunner", () => {
 			{ cwd: "/w" },
 		);
 		expect(spawnResult.ok).toBe(false);
-		if (!spawnResult.ok) expect(spawnResult.error.code).toBe("git_spawn");
+		if (!spawnResult.ok) expect(spawnResult.error.code).toBe(PROCESS_SPAWN_CODE);
 
 		const timeout = makeShell(async () => err(appError(SHELL_TIMEOUT_CODE, "timed out")));
 		const timeoutResult = await makeRunner(timeout.shell).runner.run(
@@ -350,6 +374,42 @@ describe("GIT-01 ShellGitRunner", () => {
 		await expect(running.done).resolves.toEqual(ok(out(143)));
 	});
 
+	it("turns a start failure into process_spawn and keeps a start timeout", async () => {
+		const spawn = makeShell(
+			async () => ok(out(0)),
+			() => ({
+				id: "git-spawn",
+				done: Promise.resolve(err(appError("shell_spawn_failed", "spawn git ENOENT"))),
+				cancel: async () => undefined,
+			}),
+		);
+		const spawnRunning = await makeRunner(spawn.shell).runner.start(
+			{ program: "gh", args: ["pr", "list"] },
+			{ cwd: "/w" },
+		);
+		await expect(spawnRunning.done).resolves.toMatchObject({
+			ok: false,
+			error: { code: PROCESS_SPAWN_CODE, message: "spawn git ENOENT" },
+		});
+
+		const timeout = makeShell(
+			async () => ok(out(0)),
+			() => ({
+				id: "git-timeout",
+				done: Promise.resolve(err(appError(SHELL_TIMEOUT_CODE, "timed out"))),
+				cancel: async () => undefined,
+			}),
+		);
+		const timedRunning = await makeRunner(timeout.shell).runner.start(
+			{ program: "git", args: ["status"], timeoutMs: 10 },
+			{ cwd: "/w" },
+		);
+		await expect(timedRunning.done).resolves.toMatchObject({
+			ok: false,
+			error: { code: SHELL_TIMEOUT_CODE, message: "timed out" },
+		});
+	});
+
 	it("runs a fetch without taking the repo lock", async () => {
 		const shellGate = deferred();
 		const repoGate = deferred();
@@ -359,9 +419,9 @@ describe("GIT-01 ShellGitRunner", () => {
 			await shellGate.promise;
 			return ok(out(0));
 		});
-		const { runner } = makeRunner(shell.shell);
+		const { runner, locks } = makeRunner(shell.shell);
 
-		const hold = runner.withRepoLock("/r", () => repoGate.promise);
+		const hold = locks.run(repoLockKey("/r"), () => repoGate.promise);
 		const fetchRun = runner.run(fetch("origin", ["main"]), { cwd: "/w" });
 		await flush();
 		expect(started).toBe(true);
@@ -392,29 +452,27 @@ describe("GIT-01 ShellGitRunner", () => {
 	});
 
 	it("logs a warning when a lock is waited on for 10 seconds and still runs the action", async () => {
-		vi.useFakeTimers();
-		try {
-			const shell = makeShell(async () => ok(out(0)));
-			const { runner, logs } = makeRunner(shell.shell);
-			const gate = deferred();
-			const first = runner.withWorktreeLock("/w", () => gate.promise);
-			let ran = false;
-			const second = runner.withWorktreeLock("/w", async () => {
-				ran = true;
-			});
+		const shell = makeShell(async () => ok(out(0)));
+		const { runner, logs, warmWaits } = makeRunner(shell.shell);
+		const gate = deferred();
+		const first = runner.withWorktreeLock("/w", () => gate.promise);
+		let ran = false;
+		const second = runner.withWorktreeLock("/w", async () => {
+			ran = true;
+		});
 
-			await vi.advanceTimersByTimeAsync(LOCK_WARM_TIMEOUT_MS);
+		await flush();
+		expect(warmWaits).toHaveLength(2);
+		for (const resolve of warmWaits) resolve();
+		await flush();
 
-			expect(logs).toContainEqual({ level: "warn", message: LOCK_WARM_TIMEOUT_MESSAGE });
-			expect(ran).toBe(false);
+		expect(logs).toContainEqual({ level: "warn", message: LOCK_WARM_TIMEOUT_MESSAGE });
+		expect(ran).toBe(false);
 
-			gate.resolve();
-			await first;
-			await second;
-			expect(ran).toBe(true);
-		} finally {
-			vi.useRealTimers();
-		}
+		gate.resolve();
+		await first;
+		await second;
+		expect(ran).toBe(true);
 	});
 });
 

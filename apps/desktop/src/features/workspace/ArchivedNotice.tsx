@@ -21,7 +21,7 @@ export function ArchivedNotice({ onUnarchive, busy }: ArchivedNoticeProps) {
 			title="This workspace is archived"
 			body="Unarchive it to view files, terminals and browser previews."
 			action={
-				<Button variant="primary" loading={busy} onClick={onUnarchive}>
+				<Button variant="default" loading={busy} onClick={onUnarchive}>
 					Unarchive
 				</Button>
 			}

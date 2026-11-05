@@ -111,10 +111,13 @@ export const SESSION_EVENTS_SQL = {
 			SELECT MIN(idx) FROM session_events
 			WHERE session_id = $2 AND turn_id = $3 AND type = 'user_message')`,
 	/**
-	 * Turns that have a user message but no turn_ended event, in log order. Our design choice: a
-	 * steer message carries the turn id of the turn it steers, so it does not start a second turn.
+	 * Turns that have a user message but no turn_ended event, in log order. Reverted turns are
+	 * history, not work cut off by a crash, so they are left out. An event with no turn is not a
+	 * turn either. Our design choice: a steer message carries the turn id of the turn it steers,
+	 * so it does not start a second turn.
 	 */
 	findInterruptedTurns: `SELECT session_id, turn_id FROM session_events
+		WHERE reverted_at IS NULL AND turn_id IS NOT NULL
 		GROUP BY session_id, turn_id
 		HAVING SUM(type = 'user_message') > 0 AND SUM(type = 'turn_ended') = 0
 		ORDER BY session_id, MIN(idx)`,

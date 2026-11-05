@@ -6,11 +6,11 @@
  * Sizes are Conductor's: xs 24px, sm 28px, md 32px (its default), lg 44px.
  * `default` is the near-black fill (near-white in dark) with weight 500. The clay accent is not a button
  * colour (ui-dimensions.md 2.1). `secondary` is the muted-surface button, `outline` the transparent one with a
- * strong border, `ghost` the quiet one (both weight 450), `link` the text-only one. `primary` and `danger` are
- * our earlier names for `default` and `destructive`.
+ * strong border, `ghost` the quiet one (both weight 450), `link` the text-only one.
  * Our design choice (D023): the keyboard focus ring stays on. Conductor turns it off on buttons.
- * Must handle: disabled (no hover colour), loading (spinner, blocks clicks, keeps width), keyboard focus ring,
- * `type` defaults to "button" so a button inside a form never submits by accident.
+ * Must handle: disabled (no hover colour), loading (spinner, blocks clicks, keeps width and keeps its own
+ * accessible name, reports `aria-busy`), keyboard focus ring, `type` defaults to "button" so a button inside a
+ * form never submits by accident.
  * Test first: renders each variant with its own class and a loading button is disabled.
  */
 import type { ButtonHTMLAttributes, Ref } from "react";
@@ -24,9 +24,7 @@ export type ButtonVariant =
 	| "outlineDestructive"
 	| "secondary"
 	| "ghost"
-	| "link"
-	| "primary"
-	| "danger";
+	| "link";
 export type ButtonSize = "xs" | "sm" | "md" | "lg";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -46,8 +44,6 @@ export const buttonVariantClass: Record<ButtonVariant, string> = {
 	secondary: "bg-surface font-medium text-fg hover:bg-hover active:bg-active",
 	ghost: "bg-transparent font-book text-fg/90 hover:bg-hover hover:text-fg active:bg-active",
 	link: "bg-transparent font-medium text-fg/70 underline-offset-4 hover:text-fg hover:underline",
-	primary: "bg-primary-fill font-medium text-canvas hover:opacity-90",
-	danger: "bg-danger-solid font-medium text-on-danger hover:opacity-90",
 };
 
 export const buttonSizeClass: Record<ButtonSize, string> = {
@@ -91,14 +87,15 @@ export function Button({
 			type={type}
 			data-variant={variant}
 			disabled={disabled || loading}
+			aria-busy={loading || undefined}
 			className={buttonClassName({ variant, size, className })}
 			{...rest}
 		>
-			<span className={cn("inline-flex items-center gap-[inherit]", loading && "invisible")}>
+			<span className={cn("inline-flex items-center gap-[inherit]", loading && "opacity-0")}>
 				{children}
 			</span>
 			{loading ? (
-				<span className="absolute inset-0 flex items-center justify-center">
+				<span aria-hidden="true" className="absolute inset-0 flex items-center justify-center">
 					<Spinner size="sm" label="Working" />
 				</span>
 			) : null}

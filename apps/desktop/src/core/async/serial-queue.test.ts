@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createKeyedQueue } from "./serial-queue.ts";
+import { createKeyedQueue, persistThenAck } from "./serial-queue.ts";
 
 const deferred = <T = void>() => {
 	let resolve!: (value: T) => void;
@@ -149,6 +149,73 @@ describe("APP-11 serial queue", () => {
 	it("runs a barrier with no keys at once", async () => {
 		const queue = createKeyedQueue();
 		await expect(queue.runBarrier([], async () => "now")).resolves.toBe("now");
+	});
+
+	it("returns a rejection from a barrier with no keys that throws synchronously", async () => {
+		const queue = createKeyedQueue();
+		await expect(
+			queue.runBarrier([], () => {
+				throw new Error("sync boom");
+			}),
+		).rejects.toThrow("sync boom");
+	});
+
+	it("acknowledges a session event only after it is persisted, in queue order", async () => {
+		const queue = createKeyedQueue();
+		const gate = deferred();
+		const log: string[] = [];
+
+		const first = persistThenAck(
+			queue,
+			"session-1",
+			async () => {
+				log.push("persist:start");
+				await gate.promise;
+				log.push("persist:end");
+				return { ok: true as const, value: undefined };
+			},
+			async () => {
+				log.push("ack");
+			},
+		);
+		const second = persistThenAck(
+			queue,
+			"session-1",
+			async () => {
+				log.push("second:persist");
+				return { ok: true as const, value: undefined };
+			},
+			async () => {
+				log.push("second:ack");
+			},
+		);
+
+		await flush();
+		expect(log).toEqual(["persist:start"]);
+
+		gate.resolve();
+		await expect(Promise.all([first, second])).resolves.toEqual([
+			{ ok: true, value: undefined },
+			{ ok: true, value: undefined },
+		]);
+		expect(log).toEqual(["persist:start", "persist:end", "ack", "second:persist", "second:ack"]);
+	});
+
+	it("does not acknowledge an event when persisting fails", async () => {
+		const queue = createKeyedQueue();
+		let acked = false;
+
+		const result = await persistThenAck(
+			queue,
+			"session-1",
+			async () => ({ ok: false as const, error: "disk full" }),
+			async () => {
+				acked = true;
+			},
+		);
+
+		expect(result).toEqual({ ok: false, error: "disk full" });
+		expect(acked).toBe(false);
 	});
 
 	it("drops idle keys from activeKeys", async () => {

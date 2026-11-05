@@ -12,7 +12,14 @@ import { err, ok, type RepoId, type Result } from "@conducted/shared";
 import type { Database } from "../../platform/platform.ts";
 import type { Repo } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
-import { executeStatement, fromFlag, inTransaction, selectRows, toFlag } from "./row-codec.ts";
+import {
+	executeStatement,
+	executeVoid,
+	fromFlag,
+	inTransaction,
+	selectRows,
+	toFlag,
+} from "./row-codec.ts";
 
 export interface RepoRow {
 	id: RepoId;
@@ -167,15 +174,20 @@ export function createRepoRepository(db: Database, deps: RepositoryDeps): RepoRe
 				return written.ok ? ok(repo) : err(written.error);
 			}),
 		setName: async (id, name) =>
-			write(db, REPOS_SQL.setName, [name, now(), id], "Renaming a repository"),
+			executeVoid(db, REPOS_SQL.setName, [name, now(), id], "Renaming a repository"),
 		setDefaultBranch: async (id, branch) =>
-			write(db, REPOS_SQL.setDefaultBranch, [branch, now(), id], "Changing a repository branch"),
+			executeVoid(
+				db,
+				REPOS_SQL.setDefaultBranch,
+				[branch, now(), id],
+				"Changing a repository branch",
+			),
 		setRemoteUrl: async (id, url) =>
-			write(db, REPOS_SQL.setRemoteUrl, [url, now(), id], "Changing a repository remote"),
+			executeVoid(db, REPOS_SQL.setRemoteUrl, [url, now(), id], "Changing a repository remote"),
 		setIcon: async (id, icon) =>
-			write(db, REPOS_SQL.setIcon, [icon, now(), id], "Changing a repository icon"),
+			executeVoid(db, REPOS_SQL.setIcon, [icon, now(), id], "Changing a repository icon"),
 		setHidden: async (id, hidden) =>
-			write(db, REPOS_SQL.setHidden, [toFlag(hidden), now(), id], "Hiding a repository"),
+			executeVoid(db, REPOS_SQL.setHidden, [toFlag(hidden), now(), id], "Hiding a repository"),
 		reorder: async (orderedIds) =>
 			inTransaction(db, "Reordering repositories", async (tx) => {
 				const at = now();
@@ -190,16 +202,6 @@ export function createRepoRepository(db: Database, deps: RepositoryDeps): RepoRe
 				}
 				return ok(undefined);
 			}),
-		delete: async (id) => write(db, REPOS_SQL.delete, [id], "Removing a repository"),
+		delete: async (id) => executeVoid(db, REPOS_SQL.delete, [id], "Removing a repository"),
 	};
 }
-
-const write = async (
-	db: Database,
-	sql: string,
-	params: readonly unknown[],
-	what: string,
-): Promise<Result<void>> => {
-	const result = await executeStatement(db, sql, params, what);
-	return result.ok ? ok(undefined) : err(result.error);
-};

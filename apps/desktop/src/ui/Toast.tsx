@@ -7,9 +7,9 @@
  * 8px gap, 8px radius, 1px border, 13px text, title weight 500).
  * Our design choice: toasts report an outcome. Anything the user must act on gets a designed state or a card.
  * The workspace-scoped toast keeps its workspace id beside the toast, so switching workspace dismisses it.
- * Must handle: error toasts stay long enough to read, success toasts are short, the host sits at the bottom
- * right and never covers the composer's send button, `role="status"` for screen readers (sonner); a
- * workspace-scoped toast is hidden while another workspace is open and removed when the user leaves.
+ * Must handle: the host sits at the bottom right; `role="status"` for screen readers (sonner); a
+ * workspace-scoped toast is hidden while another workspace is open and removed when the user leaves or the
+ * toast closes on its own.
  * Test first: toast.error("x") shows "x" in the host; a workspace-scoped toast for a closed workspace does not.
  */
 import type { WorkspaceId } from "@conducted/shared";
@@ -54,6 +54,23 @@ export function setCurrentWorkspace(workspaceId: WorkspaceId | null): void {
 	useWorkspaceToastStore.getState().setOpen(workspaceId);
 }
 
+/** Ids of the workspace toasts that have not closed yet. */
+export function workspaceToastIds(): string[] {
+	return Object.keys(useWorkspaceToastStore.getState().owned);
+}
+
+/**
+ * Show an error toast with a failure's plain-language message as its description. Screens call this with the
+ * `Result` error, so the `Result` to toast path lives in one place.
+ */
+export function toastError(
+	title: string,
+	error: { message: string },
+	options?: ExternalToast,
+): string | number {
+	return toast.error(title, { ...options, description: error.message });
+}
+
 /**
  * Show a toast only while `workspaceId` is the open workspace. Before a workspace is set the toast is shown,
  * so an unwired host behaves like a plain toast rather than hiding the message.
@@ -67,9 +84,14 @@ export function workspaceToast(
 	if (open !== null && open !== workspaceId) return null;
 	const id = claim(workspaceId);
 	const onDismiss = options?.onDismiss;
+	const onAutoClose = options?.onAutoClose;
 	toast(message, {
 		...options,
 		id,
+		onAutoClose: (closed) => {
+			release(String(closed.id));
+			onAutoClose?.(closed);
+		},
 		onDismiss: (dismissed) => {
 			release(String(dismissed.id));
 			onDismiss?.(dismissed);

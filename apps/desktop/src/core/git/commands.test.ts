@@ -107,4 +107,13 @@ describe("GIT-01 git command catalogue", () => {
 		expect(cmd.args).not.toContain("HEAD");
 		expect(c.allChangesDiffNumstat("mb").args.at(-1)).toBe("mb");
 	});
+
+	it("reads the committed shared settings file from a ref", () => {
+		expect(c.showSettingsFileAt("origin/main").args).toEqual([
+			"show",
+			"--no-ext-diff",
+			"--no-textconv",
+			"origin/main:.conducted/settings.toml",
+		]);
+	});
 });

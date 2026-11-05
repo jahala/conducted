@@ -5,13 +5,18 @@
  * Behaviour: services-map.md 3.0 (shell doors, timeouts, locking model, retry on git's own lock
  * errors), 3.6.2 (HTTPS fallback), 3.15 (the shell door in a remake).
  * Must handle: a process that ran but exited non-zero is a normal `Ok` (callers read the exit
- * code); a process that could not start or timed out is an `Err` (code `git_spawn` or
- * `shell_timeout`); retries on `index.lock` and "cannot lock ref" at 50, 100 and 200 ms; one
+ * code); a process that could not start is an `Err` with code `process_spawn`, and a timeout
+ * keeps `shell_timeout`; retries on `index.lock` and "cannot lock ref" at 50, 100 and 200 ms; one
  * HTTPS retry when SSH is blocked and the command is marked `network`; the repo lock is taken
- * inside the worktree lock; a lock that is held longer than 10 s is logged, never aborted; the
- * caller can cancel by dropping the result (a late answer must not change state).
+ * inside the worktree lock, and it cannot be taken any other way; a lock waited on longer than
+ * 10 s is logged through the injected `sleep`, never aborted; the caller can cancel by dropping
+ * the result (a late answer must not change state).
  * Our design choice: every command is `{ program, args }`, never a shell string, so there is no
  * quoting layer. `-c core.quotePath=false` is added for the program `git` only.
+ * Xcode licence: this file detects the error and describes the toast (`xcodeLicenseToast`).
+ * Showing it and running the accept-licence command belong to GIT-16 (its screen and
+ * `services/system.ts`), so no call site is built here. A blocked SSH network returns
+ * `git_ssh_blocked`; GIT-16 shows that message.
  * Test first: a command that fails once with "index.lock: File exists" is retried and then
  * returns its second result.
  */
@@ -25,6 +30,8 @@ export const LOCK_WARM_TIMEOUT_MS = 10_000;
 export const LOCK_WARM_TIMEOUT_MESSAGE = "[git-lock] Git operation exceeded warm timeout";
 /** Error code returned when a command exceeds its `timeoutMs`. */
 export const SHELL_TIMEOUT_CODE = "shell_timeout";
+/** Error code for a program that could not start, whichever program it is. */
+export const PROCESS_SPAWN_CODE = "process_spawn";
 /** Config that keeps git from escaping non-ASCII and control characters in paths. */
 export const QUOTE_PATH_OFF_ARGS = ["-c", "core.quotePath=false"] as const;
 
@@ -101,11 +108,11 @@ export interface GitRunner {
 	/** Output of `runChecked` with trailing whitespace removed. */
 	stdout(command: GitCommand, options: GitRunOptions): Promise<Result<string>>;
 	/** Starts the command and returns a handle. Work that waits for the user cancels through it. */
-	start?(command: GitCommand, options: GitRunOptions): Promise<RunningGitCommand>;
+	start(command: GitCommand, options: GitRunOptions): Promise<RunningGitCommand>;
+	/** Holds the worktree lock. Most write actions need only this. */
 	withWorktreeLock<T>(worktreePath: string, work: () => Promise<T>): Promise<T>;
-	withRepoLock<T>(repoRootPath: string, work: () => Promise<T>): Promise<T>;
 	/** Holds the worktree lock, then the repo lock inside it, in that order. */
-	withWorktreeAndRepoLocks?<T>(
+	withWorktreeAndRepoLocks<T>(
 		worktreePath: string,
 		repoRootPath: string,
 		work: () => Promise<T>,
@@ -124,14 +131,14 @@ export interface ShellGitRunnerDeps {
 export const isSuccessfulExit = (command: GitCommand, exitCode: number): boolean =>
 	(command.okExitCodes ?? [0]).includes(exitCode);
 
-/** Keeps timeouts and cancels as they are; a program that could not start becomes `git_spawn`. */
+/** Keeps timeouts, cancels and output limits as they are; a program that could not start becomes `process_spawn`. */
 export const gitShellError = (error: AppError): AppError =>
 	error.code === SHELL_TIMEOUT_CODE ||
 	error.code === "shell_cancelled" ||
 	error.code === "shell_output_too_large" ||
-	error.code === "git_spawn"
+	error.code === PROCESS_SPAWN_CODE
 		? error
-		: appError("git_spawn", error.message, error);
+		: appError(PROCESS_SPAWN_CODE, error.message, error);
 
 export class ShellGitRunner implements GitRunner {
 	readonly #deps: ShellGitRunnerDeps;
@@ -185,16 +192,14 @@ export class ShellGitRunner implements GitRunner {
 		return this.#withLock(worktreeLockKey(worktreePath), work);
 	}
 
-	withRepoLock<T>(repoRootPath: string, work: () => Promise<T>): Promise<T> {
-		return this.#withLock(repoLockKey(repoRootPath), work);
-	}
-
 	withWorktreeAndRepoLocks<T>(
 		worktreePath: string,
 		repoRootPath: string,
 		work: () => Promise<T>,
 	): Promise<T> {
-		return this.withWorktreeLock(worktreePath, () => this.withRepoLock(repoRootPath, work));
+		return this.withWorktreeLock(worktreePath, () =>
+			this.#withLock(repoLockKey(repoRootPath), work),
+		);
 	}
 
 	#shouldTryHttps(command: GitCommand, result: Result<ShellOutput>): boolean {
@@ -267,17 +272,16 @@ export class ShellGitRunner implements GitRunner {
 	/** Runs `work` under `key`, warning if the wait beats the warm timeout. It never aborts. */
 	async #withLock<T>(key: string, work: () => Promise<T>): Promise<T> {
 		let acquired = false;
-		const timer = setTimeout(() => {
+		const slow = this.#deps.sleep(LOCK_WARM_TIMEOUT_MS).then(() => {
 			if (!acquired) this.#deps.log("warn", LOCK_WARM_TIMEOUT_MESSAGE);
-		}, LOCK_WARM_TIMEOUT_MS);
+		});
 		try {
 			return await this.#deps.locks.run(key, async () => {
 				acquired = true;
-				clearTimeout(timer);
 				return work();
 			});
 		} finally {
-			clearTimeout(timer);
+			void slow;
 		}
 	}
 }

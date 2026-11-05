@@ -1,23 +1,27 @@
 /**
  * @feature PLAT-01 Platform contract: one list of behaviours both implementations must show
  * Owns: the list of behaviours of the Platform interface (as data) and the function that turns
- * the list into tests. The in-memory stand-in (memory.ts) and the Tauri implementation (tauri.ts)
- * must both pass it, so a service tested on the stand-in behaves the same on the real thing.
+ * the list into tests. Any implementation must pass it: today that is the in-memory stand-in
+ * (memory.ts). The Tauri implementation (tauri.ts) is checked against it by the planned
+ * end-to-end job (docs/plans/parallel-build.md), so until that job runs the contract proves the
+ * stand-in alone, not the real Platform.
  * Behaviour: services-map.md 1.1 (Platform object), native-and-sidecar-map.md A2 (what each
  * Rust command promises), docs/plans/tauri-commands.md.
  * Must handle: every case builds its own Platform and cleans it up, even when the case fails (no
  * temp folders, scratch databases or processes left behind); cases that need a real operating
  * system (pty, keychain, trash) are marked `needs: "os"` so the stand-in may run them against its
- * own model while the Tauri run uses a scratch folder; no case waits a fixed time (they wait for
- * events); a case that needs the sidecar uses a loopback echo child, never a real agent.
- * Our design choice: the harness (`describe`, `it`, `assert`) is passed in, so this file imports
- * no test framework and can sit in `src/`. Cases are plain data, so a missing group shows up as a
- * missing case in review.
+ * own model while the Tauri run uses a scratch folder; a case that needs scripted outside events
+ * (a click, a dialog answer, a crashed sidecar) is marked `needs: "controls"`, so a factory
+ * without controls skips it explicitly; no case waits a fixed time (they wait for events); a case
+ * that needs the sidecar uses a loopback echo child, never a real agent.
+ * Our design choice: the harness (`describe`, `it`, `skip`, `assert`) is passed in, so this file
+ * imports no test framework and can sit in `src/`. Cases are plain data, and a coverage test
+ * fails when a `Platform` group has no case, so a new group cannot be forgotten.
  * Test first: the in-memory Platform passes "fs: write then read returns the same text".
  */
 import { type AppError, appError, err, ok, type Result } from "@conducted/shared";
 import type { ShellScript } from "./memory.ts";
-import type { Platform, Unsubscribe } from "./platform.ts";
+import type { Platform, ProgramStatus, SpeechEvent, Unsubscribe } from "./platform.ts";
 
 export type ContractGroup = keyof Platform;
 
@@ -28,8 +32,8 @@ export interface ContractCase {
 	title: string;
 	/** What must hold, in one or two sentences. */
 	behaviour: string;
-	/** "os" cases need a real operating system on the Tauri side. */
-	needs: "none" | "os";
+	/** "os" cases need a real operating system on the Tauri side; "controls" cases need scripted outside events. */
+	needs: "none" | "os" | "controls";
 }
 
 const c = (
@@ -186,6 +190,12 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"os",
 	),
 	c(
+		"fileSearch",
+		"list-artifacts",
+		"listArtifacts pages the .context folder",
+		"Files under .context are listed newest first; a page returns at most `limit` entries and a next cursor while more remain.",
+	),
+	c(
 		"pty",
 		"spawn-echo",
 		"spawn, write, read output",
@@ -238,7 +248,7 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"restart-signal",
 		"onRestart fires when the process exits",
 		"Killing the child calls onRestart listeners once.",
-		"os",
+		"controls",
 	),
 	c(
 		"keychain",
@@ -252,18 +262,21 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"badge",
 		"dock badge accepts a count and null",
 		"setDockBadge(3) then setDockBadge(null) both resolve; the stand-in records the last value.",
+		"controls",
 	),
 	c(
 		"notifications",
 		"click",
 		"a click calls onClicked with the deep link",
 		"Clicking a notification that carried deepLink X calls listeners with X; listeners stop after unsubscribe.",
+		"controls",
 	),
 	c(
 		"clipboard",
 		"write-text",
 		"writeText stores text",
 		"writeText resolves; the stand-in exposes the last text.",
+		"controls",
 	),
 	c("app", "health", "health is Ok", "health() returns Ok when the shell is up."),
 	c(
@@ -278,6 +291,121 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"version and channel are set",
 		"version is a non-empty string and channel is dev or release.",
 	),
+	c(
+		"dialogs",
+		"pick-folder",
+		"pickFolder returns the chosen folder or null",
+		"A scripted folder answer comes back exactly; a cancelled dialog returns null.",
+		"controls",
+	),
+	c(
+		"dialogs",
+		"pick-files",
+		"pickFiles returns the chosen files",
+		"The files the user picks come back in the order given.",
+		"controls",
+	),
+	c(
+		"dialogs",
+		"confirm",
+		"confirm returns the user's answer",
+		"A scripted yes returns true and a scripted no returns false.",
+		"controls",
+	),
+	c(
+		"opener",
+		"installed-apps",
+		"installedApps lists app names",
+		"The result is a list of non-empty application names.",
+		"os",
+	),
+	c(
+		"speech",
+		"available",
+		"available reports support",
+		"available() returns a boolean and never throws.",
+		"os",
+	),
+	c(
+		"speech",
+		"stop-ends",
+		"stop ends dictation",
+		"After start and stop, the listener receives an `ended` event.",
+		"os",
+	),
+	c(
+		"updater",
+		"check",
+		"check returns an update or null",
+		"check() resolves Ok with null or with an update that has a version.",
+	),
+	c(
+		"updater",
+		"installed-update",
+		"installedUpdate returns the update that just ran or null",
+		"installedUpdate() resolves Ok with null or with an update that has a version.",
+	),
+	c(
+		"window",
+		"is-focused",
+		"isFocused returns a boolean",
+		"isFocused() resolves a boolean and never throws.",
+	),
+	c(
+		"window",
+		"setters",
+		"window setters resolve",
+		"setZoom, setVibrancy, setTrafficLightPosition and setTheme resolve without an error.",
+		"os",
+	),
+	c(
+		"menu",
+		"set-shortcuts",
+		"setShortcuts applies accepted accelerators",
+		"A valid shortcut is listed as applied and a rejected one is reported.",
+	),
+	c(
+		"system",
+		"info",
+		"info reports the macOS version and architectures",
+		"osVersion is a version string; machineArch and buildArch are arm64 or x86_64.",
+	),
+	c(
+		"system",
+		"online-and-access",
+		"isOnline and hasFullDiskAccess return booleans",
+		"Both calls resolve booleans and never throw.",
+	),
+	c(
+		"attachments",
+		"materialize",
+		"materialize copies a file into app storage",
+		"The destination exists afterwards with the same text and byte size.",
+	),
+	c(
+		"attachments",
+		"resize-image",
+		"resizeImage copies and reports the result",
+		"The destination exists and the returned file names it.",
+	),
+	c(
+		"programs",
+		"install-status",
+		"install makes a program ready",
+		"After install, statuses() reports the program as ready with a path, and onStatus fired.",
+	),
+	c(
+		"programs",
+		"remove-status",
+		"remove takes a program back to missing",
+		"After remove, statuses() reports the program as missing and clears its path.",
+	),
+	c(
+		"http",
+		"invalid-url",
+		"fetch with an invalid URL is an Err",
+		"An invalid URL returns Err with a message, not an exception.",
+	),
 ];
 
 /**
@@ -288,6 +416,11 @@ export interface ContractControls {
 	scriptShell?(script: ShellScript): void;
 	holdNextStart?(): void;
 	queuePtyExit?(code: number | null): void;
+	queueDialogAnswers?(answers: {
+		folder?: string | null;
+		files?: string[];
+		confirm?: boolean;
+	}): void;
 	emitSidecarLine?(line: string): void;
 	emitSidecarRestart?(): void;
 	emitNotificationClick?(deepLink: string): void;
@@ -310,6 +443,8 @@ export interface ContractContext {
 export interface ContractHarness {
 	describe(name: string, body: () => void): void;
 	it(name: string, body: () => Promise<void>): void;
+	/** Marks a case as not runnable for this factory. Required when `options.controls` is false. */
+	skip?(name: string, reason: string): void;
 	assert(condition: boolean, message: string): void;
 }
 
@@ -780,6 +915,43 @@ const STEPS: Record<string, ContractStep> = {
 		);
 	},
 
+	"fileSearch.list-artifacts": async (ctx) => {
+		const workspace = ctx.path("artifacts-workspace");
+		const context = joinPath(workspace, ".context");
+		expectOk(ctx, await ctx.platform.fs.mkdirp(joinPath(context, "nested")), "mkdirp");
+		expectOk(
+			ctx,
+			await ctx.platform.fs.writeTextAtomic(joinPath(context, "one.json"), "1"),
+			"write one.json",
+		);
+		expectOk(
+			ctx,
+			await ctx.platform.fs.writeTextAtomic(joinPath(context, "nested/two.png"), "2"),
+			"write two.png",
+		);
+		const first = expectOk(
+			ctx,
+			await ctx.platform.fileSearch.listArtifacts(workspace, { cursor: null, limit: 1 }),
+			"first listArtifacts page",
+		);
+		ctx.assert(first.entries.length === 1, `the first page had ${first.entries.length} entries`);
+		ctx.assert(first.nextCursor !== null, "the first page had no next cursor");
+		const second = expectOk(
+			ctx,
+			await ctx.platform.fileSearch.listArtifacts(workspace, {
+				cursor: first.nextCursor,
+				limit: 10,
+			}),
+			"second listArtifacts page",
+		);
+		ctx.assert(second.entries.length === 1, `the second page had ${second.entries.length} entries`);
+		ctx.assert(second.nextCursor === null, "the second page had a next cursor");
+		ctx.assert(
+			second.entries[0]?.path.startsWith(`${context}/`) === true,
+			"an entry was outside the .context folder",
+		);
+	},
+
 	"pty.spawn-echo": async (ctx) => {
 		const handle = expectOk(
 			ctx,
@@ -864,7 +1036,7 @@ const STEPS: Record<string, ContractStep> = {
 			},
 			"pty exit after kill",
 		);
-		ctx.assert(typeof code === "number" || code === null, "onExit reported no code");
+		ctx.assert(code === null || code !== 0, `a killed process reported exit ${String(code)}`);
 		await handle.write("after kill\n");
 	},
 
@@ -910,15 +1082,16 @@ const STEPS: Record<string, ContractStep> = {
 	},
 
 	"sidecar.restart-signal": async (ctx) => {
-		if (ctx.controls?.emitSidecarRestart === undefined) {
-			ctx.assert(false, "this factory must expose emitSidecarRestart for the restart case");
-			return;
-		}
+		const emit = ctx.controls?.emitSidecarRestart;
+		ctx.assert(emit !== undefined, "the controls do not expose emitSidecarRestart");
+		if (emit === undefined) return;
 		const events: number[] = [];
 		const unsubscribe = ctx.platform.sidecar.onRestart(() => events.push(1));
-		ctx.controls.emitSidecarRestart();
+		emit();
 		ctx.assert(events.length === 1, `onRestart fired ${events.length} times`);
 		unsubscribe();
+		emit();
+		ctx.assert(events.length === 1, "a listener fired after unsubscribe");
 	},
 
 	"keychain.roundtrip": async (ctx) => {
@@ -940,35 +1113,36 @@ const STEPS: Record<string, ContractStep> = {
 
 	"notifications.badge": async (ctx) => {
 		await ctx.platform.notifications.setDockBadge(3);
+		ctx.assert(
+			ctx.controls?.dockBadge === 3,
+			`the stand-in recorded ${String(ctx.controls?.dockBadge)}`,
+		);
 		await ctx.platform.notifications.setDockBadge(null);
-		if (ctx.controls?.dockBadge !== undefined) {
-			ctx.assert(ctx.controls.dockBadge === null, "the stand-in kept an old badge");
-		}
+		ctx.assert(ctx.controls?.dockBadge === null, "the stand-in kept an old badge");
 	},
 
 	"notifications.click": async (ctx) => {
-		if (ctx.controls?.emitNotificationClick === undefined) {
-			const unsubscribe = ctx.platform.notifications.onClicked(() => {});
-			unsubscribe();
-			return;
-		}
+		const emit = ctx.controls?.emitNotificationClick;
+		ctx.assert(emit !== undefined, "the controls do not expose emitNotificationClick");
+		if (emit === undefined) return;
 		const received: string[] = [];
 		const unsubscribe = ctx.platform.notifications.onClicked((deepLink) => received.push(deepLink));
-		ctx.controls.emitNotificationClick("conducted://workspace/1");
+		emit("conducted://workspace/1");
 		ctx.assert(
 			received.length === 1 && received[0] === "conducted://workspace/1",
 			`onClicked received ${JSON.stringify(received)}`,
 		);
 		unsubscribe();
-		ctx.controls.emitNotificationClick("conducted://workspace/2");
+		emit("conducted://workspace/2");
 		ctx.assert(received.length === 1, "a listener fired after unsubscribe");
 	},
 
 	"clipboard.write-text": async (ctx) => {
 		await ctx.platform.clipboard.writeText("copied text");
-		if (ctx.controls?.clipboardText !== undefined) {
-			ctx.assert(ctx.controls.clipboardText === "copied text", "clipboard kept another value");
-		}
+		ctx.assert(
+			ctx.controls?.clipboardText === "copied text",
+			`clipboard kept ${JSON.stringify(ctx.controls?.clipboardText)}`,
+		);
 	},
 
 	"app.health": async (ctx) => {
@@ -994,7 +1168,214 @@ const STEPS: Record<string, ContractStep> = {
 			`the channel is ${ctx.platform.app.channel}`,
 		);
 	},
+
+	"dialogs.pick-folder": async (ctx) => {
+		ctx.controls?.queueDialogAnswers?.({ folder: "/picked/folder" });
+		const folder = await ctx.platform.dialogs.pickFolder({ title: "Pick a folder" });
+		ctx.assert(folder === "/picked/folder", `pickFolder returned ${JSON.stringify(folder)}`);
+		ctx.controls?.queueDialogAnswers?.({ folder: null });
+		const cancelled = await ctx.platform.dialogs.pickFolder({ title: "Pick a folder" });
+		ctx.assert(cancelled === null, `a cancelled dialog returned ${JSON.stringify(cancelled)}`);
+	},
+
+	"dialogs.pick-files": async (ctx) => {
+		ctx.controls?.queueDialogAnswers?.({ files: ["/a.txt", "/b.txt"] });
+		const files = await ctx.platform.dialogs.pickFiles({ title: "Pick files", multiple: true });
+		ctx.assert(
+			files.length === 2 && files[0] === "/a.txt" && files[1] === "/b.txt",
+			`pickFiles returned ${JSON.stringify(files)}`,
+		);
+	},
+
+	"dialogs.confirm": async (ctx) => {
+		ctx.controls?.queueDialogAnswers?.({ confirm: true });
+		const yes = await ctx.platform.dialogs.confirm({
+			title: "Confirm",
+			message: "Continue?",
+			okLabel: "Yes",
+		});
+		ctx.assert(yes === true, "confirm did not return the scripted yes");
+		ctx.controls?.queueDialogAnswers?.({ confirm: false });
+		const no = await ctx.platform.dialogs.confirm({
+			title: "Confirm",
+			message: "Continue?",
+			okLabel: "Yes",
+		});
+		ctx.assert(no === false, "confirm did not return the scripted no");
+	},
+
+	"opener.installed-apps": async (ctx) => {
+		const apps = await ctx.platform.opener.installedApps();
+		ctx.assert(Array.isArray(apps), "installedApps did not return a list");
+		ctx.assert(
+			apps.every((name) => name.length > 0),
+			`installedApps returned an empty name: ${JSON.stringify(apps)}`,
+		);
+	},
+
+	"speech.available": async (ctx) => {
+		const available = await ctx.platform.speech.available();
+		ctx.assert(typeof available === "boolean", `available returned ${String(available)}`);
+	},
+
+	"speech.stop-ends": async (ctx) => {
+		const events: SpeechEvent[] = [];
+		const started = await ctx.platform.speech.start((event) => events.push(event));
+		expectOk(ctx, started, "speech.start");
+		await ctx.platform.speech.stop();
+		ctx.assert(
+			events.some((event) => event.kind === "ended"),
+			`speech.stop sent ${JSON.stringify(events)}`,
+		);
+	},
+
+	"updater.check": async (ctx) => {
+		const value = expectOk(ctx, await ctx.platform.updater.check(), "updater.check");
+		ctx.assert(
+			value === null || value.version.length > 0,
+			`check returned ${JSON.stringify(value)}`,
+		);
+	},
+
+	"updater.installed-update": async (ctx) => {
+		const value = expectOk(
+			ctx,
+			await ctx.platform.updater.installedUpdate(),
+			"updater.installedUpdate",
+		);
+		ctx.assert(
+			value === null || value.version.length > 0,
+			`installedUpdate returned ${JSON.stringify(value)}`,
+		);
+	},
+
+	"window.is-focused": async (ctx) => {
+		const focused = await ctx.platform.window.isFocused();
+		ctx.assert(typeof focused === "boolean", `isFocused returned ${String(focused)}`);
+	},
+
+	"window.setters": async (ctx) => {
+		expectOk(ctx, await ctx.platform.window.setZoom(1.25), "setZoom");
+		expectOk(ctx, await ctx.platform.window.setVibrancy(true), "setVibrancy");
+		expectOk(
+			ctx,
+			await ctx.platform.window.setTrafficLightPosition(12, 12),
+			"setTrafficLightPosition",
+		);
+		await ctx.platform.window.setTheme(null);
+	},
+
+	"menu.set-shortcuts": async (ctx) => {
+		const result = expectOk(
+			ctx,
+			await ctx.platform.menu.setShortcuts([
+				{ commandId: "palette.open", accelerator: "CmdOrCtrl+Shift+P" },
+				{ commandId: "chat.new", accelerator: null },
+			]),
+			"menu.setShortcuts",
+		);
+		ctx.assert(
+			result.applied.includes("palette.open"),
+			`applied was ${JSON.stringify(result.applied)}`,
+		);
+		ctx.assert(result.rejected.length === 0, `rejected was ${JSON.stringify(result.rejected)}`);
+	},
+
+	"system.info": async (ctx) => {
+		const info = await ctx.platform.system.info();
+		ctx.assert(/^\d+\./.test(info.osVersion), `osVersion was ${JSON.stringify(info.osVersion)}`);
+		ctx.assert(
+			info.machineArch === "arm64" || info.machineArch === "x86_64",
+			`machineArch was ${info.machineArch}`,
+		);
+		ctx.assert(
+			info.buildArch === "arm64" || info.buildArch === "x86_64",
+			`buildArch was ${info.buildArch}`,
+		);
+	},
+
+	"system.online-and-access": async (ctx) => {
+		const online = await ctx.platform.system.isOnline();
+		ctx.assert(typeof online === "boolean", `isOnline returned ${String(online)}`);
+		const access = await ctx.platform.system.hasFullDiskAccess();
+		ctx.assert(typeof access === "boolean", `hasFullDiskAccess returned ${String(access)}`);
+	},
+
+	"attachments.materialize": async (ctx) => {
+		const source = ctx.path("attachments/source.txt");
+		const destination = ctx.path("attachments/destination.txt");
+		const text = "copied attachment";
+		expectOk(ctx, await ctx.platform.fs.writeTextAtomic(source, text), "write source");
+		const file = expectOk(
+			ctx,
+			await ctx.platform.attachments.materialize(source, destination, { resizeImage: false }),
+			"materialize",
+		);
+		ctx.assert(file.path === destination, `materialize returned ${file.path}`);
+		ctx.assert(
+			file.sizeBytes === new TextEncoder().encode(text).length,
+			`sizeBytes was ${file.sizeBytes}`,
+		);
+		ctx.assert(
+			expectOk(ctx, await ctx.platform.fs.readText(destination), "read destination") === text,
+			"the copy holds different text",
+		);
+	},
+
+	"attachments.resize-image": async (ctx) => {
+		const source = ctx.path("attachments/image.png");
+		const destination = ctx.path("attachments/image-small.png");
+		expectOk(ctx, await ctx.platform.fs.writeTextAtomic(source, "pixels"), "write source");
+		const file = expectOk(
+			ctx,
+			await ctx.platform.attachments.resizeImage(source, destination),
+			"resizeImage",
+		);
+		ctx.assert(file.path === destination, `resizeImage returned ${file.path}`);
+		ctx.assert(await ctx.platform.fs.exists(destination), "the resized copy is missing");
+	},
+
+	"programs.install-status": async (ctx) => {
+		const events: ProgramStatus[] = [];
+		const unsubscribe = ctx.platform.programs.onStatus((status) => events.push(status));
+		expectOk(ctx, await ctx.platform.programs.install("claude"), "install");
+		unsubscribe();
+		const statuses = expectOk(ctx, await ctx.platform.programs.statuses(), "statuses");
+		const claude = statuses.find((status) => status.program === "claude");
+		ctx.assert(claude?.state === "ready", `claude state was ${claude?.state}`);
+		ctx.assert(claude?.path !== null, "the ready status has no path");
+		ctx.assert(
+			events.some((status) => status.program === "claude" && status.state === "ready"),
+			"onStatus did not report the install",
+		);
+	},
+
+	"programs.remove-status": async (ctx) => {
+		expectOk(ctx, await ctx.platform.programs.install("codex"), "install");
+		expectOk(ctx, await ctx.platform.programs.remove("codex"), "remove");
+		const statuses = expectOk(ctx, await ctx.platform.programs.statuses(), "statuses");
+		const codex = statuses.find((status) => status.program === "codex");
+		ctx.assert(codex?.state === "missing", `codex state was ${codex?.state}`);
+		ctx.assert(codex?.path === null, `codex path was ${String(codex?.path)}`);
+	},
+
+	"http.invalid-url": async (ctx) => {
+		const error = expectErr(
+			ctx,
+			await ctx.platform.http.fetch({ url: "not a url", method: "GET" }),
+			"fetch with an invalid URL",
+		);
+		ctx.assert(error.message.length > 0, "the error has no message");
+	},
 };
+
+export interface ContractOptions {
+	/**
+	 * True when the factory exposes the scripted controls these cases need. A real platform passes
+	 * false, and cases marked `needs: "controls"` are then skipped explicitly.
+	 */
+	controls: boolean;
+}
 
 /**
  * Registers one test per case. Each test builds a fresh platform with `create`, runs the case's
@@ -1004,14 +1385,26 @@ export function runPlatformContract(
 	harness: ContractHarness,
 	kind: "memory" | "tauri",
 	create: () => Promise<PlatformUnderTest>,
+	options: ContractOptions,
 ): void {
+	const hasControls = options.controls;
 	harness.describe(`PLAT-01 platform contract (${kind})`, () => {
 		for (const testCase of PLATFORM_CONTRACT_CASES) {
 			const step = STEPS[testCase.id];
-			harness.it(`${testCase.id}: ${testCase.title}`, async () => {
-				if (step === undefined) {
-					throw new Error(`No steps are registered for contract case ${testCase.id}.`);
+			if (step === undefined) {
+				throw new Error(`No steps are registered for contract case ${testCase.id}.`);
+			}
+			const title = `${testCase.id}: ${testCase.title}`;
+			if (testCase.needs === "controls" && !hasControls) {
+				if (harness.skip === undefined) {
+					throw new Error(
+						`The ${kind} harness cannot skip ${testCase.id}, which needs scripted controls.`,
+					);
 				}
+				harness.skip(title, "needs scripted controls");
+				continue;
+			}
+			harness.it(title, async () => {
 				const underTest = await create();
 				const context: ContractContext = {
 					platform: underTest.platform,

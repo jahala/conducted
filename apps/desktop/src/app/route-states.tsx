@@ -18,7 +18,7 @@ export function NotFoundScreen() {
 				title="That page does not exist"
 				body="The address may be old, or the workspace may have been removed."
 				action={
-					<Link to="/all-workspaces" className={buttonClassName({ variant: "primary" })}>
+					<Link to="/all-workspaces" className={buttonClassName({ variant: "default" })}>
 						Go to Home
 					</Link>
 				}
@@ -36,7 +36,7 @@ export function RouteErrorScreen({ error, reset }: { error: Error; reset: () => 
 				body={error.message}
 				action={
 					<div className="flex gap-2">
-						<Button variant="primary" onClick={reset}>
+						<Button variant="default" onClick={reset}>
 							Try again
 						</Button>
 						<Button variant="secondary" onClick={() => window.location.assign("/")}>

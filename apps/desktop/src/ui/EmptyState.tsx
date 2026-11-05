@@ -13,7 +13,7 @@ import { cn } from "./cn.ts";
 export interface EmptyStateProps {
 	title: string;
 	body?: string;
-	/** Usually one <Button variant="primary">. */
+	/** Usually one <Button variant="default">. */
 	action?: ReactNode;
 	icon?: ReactNode;
 	compact?: boolean;

@@ -24,6 +24,7 @@ import type { Attachment } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
 import {
 	executeStatement,
+	executeVoid,
 	fromFlag,
 	inTransaction,
 	selectRows,
@@ -140,15 +141,6 @@ export function createAttachmentRepository(
 		const rows = await selectRows<AttachmentRow>(db, sql, params, what);
 		return rows.ok ? ok(rows.value.map(attachmentFromRow)) : err(rows.error);
 	};
-	const write = async (
-		target: Database,
-		sql: string,
-		params: readonly unknown[],
-		what: string,
-	): Promise<Result<void>> => {
-		const result = await executeStatement(target, sql, params, what);
-		return result.ok ? ok(undefined) : err(result.error);
-	};
 	return {
 		get: async (id) => {
 			const rows = await selectRows<AttachmentRow>(
@@ -199,7 +191,7 @@ export function createAttachmentRepository(
 				});
 			}),
 		setPath: (id, path) =>
-			write(db, ATTACHMENTS_SQL.setPath, [path, id], "Saving an attachment path"),
+			executeVoid(db, ATTACHMENTS_SQL.setPath, [path, id], "Saving an attachment path"),
 		attachDrafts: async (sessionId, messageId, ids) => {
 			const json = stringifyJson(ids, "attachments.ids");
 			if (!json.ok) return err(json.error);

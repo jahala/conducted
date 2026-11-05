@@ -2,23 +2,24 @@
  * @feature DATA-05 Settings store and settings files
  * Owns: reading and writing settings from their layers (registry default, the `settings` table,
  * `~/.conducted/settings.toml`, `.conducted/settings.toml`, `.conducted/settings.local.toml`),
- * deciding the effective value, and the environment variables whose values live in the Keychain.
+ * deciding the effective value, and parsing the environment variable tables of a settings file
+ * (names and markers). The Keychain values behind those names belong to SET-04.
  * Behaviour: services-map.md 4.2.1 (layers and precedence), 4.2.2 (scopes), 4.2.4 (settings.toml
- * schema, named actions, env var sections), 4.2.8 (env vars and secrets), ui-map.md 6,
- * 5A.1.6 (named actions and their ids), 2.5.2 (config reload on focus and every 30 s).
+ * schema, named actions, env var sections), ui-map.md 6, 5A.1.6 (named actions and their ids),
+ * 2.5.2 (config reload on focus and every 30 s).
  * Must handle: precedence from lowest to highest is default, table, user file, remote default
  * branch, repo shared file, workspace shared file, repo local file; a key whose registry entry has
  * no repo scope ignores repo layers; an invalid TOML file never overwrites silently (the write
  * returns an Err with code `settings_file_invalid` and the UI offers "overwrite"); unknown keys,
- * wrong types and unsupported values are dropped and reported, never thrown; writes to the repo
- * shared file are refused in the UI (it is committed to git), personal repo edits go to the local
- * file; the local file is excluded from git through `info/exclude`; writes keep keys sorted and add
- * a `$schema` line; a settings write shows in the store at once (optimistic) and rolls back if the
- * file write fails; two writes to one file run one after the other; env var values never reach
- * a log or the `settings` table.
+ * wrong types and unsupported values are dropped and reported, never thrown; a later write does
+ * not undo an earlier one that failed; writes keep unknown entries, sorted keys and a `$schema`
+ * line; a settings write shows in the store at once (optimistic) and rolls back if the file write
+ * fails; two writes to one file run one after the other; values of sensitive settings are redacted
+ * before they reach a log.
  * Our design choice: file-backed keys (the ones with a `tomlKey` in the registry) live only in
  * TOML files; every other key lives in the `settings` table. There is no legacy `conductor.json`
- * migration. The TOML parser is passed in (`TomlCodec`) so tests and the app can differ.
+ * migration. The TOML parser is passed in (`TomlCodec`) so tests and the app can differ. Per-user
+ * hidden action ids belong to SET-07's file store, not to a settings file.
  * Test first: a repo shared value beats the user file for a repo-scoped key, and is ignored for a
  * user-only key.
  */
@@ -26,10 +27,14 @@ import { appError, err, notImplemented, ok, type RepoId, type Result } from "@co
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform } from "../../platform/platform.ts";
 import { localSettingsFile, sharedSettingsFile, userSettingsFile } from "../app-paths.ts";
+import { createKeyedQueue, type KeyedQueue } from "../async/serial-queue.ts";
 import type { Repositories } from "../db/repositories.ts";
+import { showSettingsFileAt, symbolicRefRemoteHead } from "../git/commands.ts";
+import type { GitRunner } from "../git/runner.ts";
 import {
 	coerceSettingValue,
 	getSettingDef,
+	SETTINGS,
 	type SettingDef,
 	type SettingValue,
 	tomlKeys,
@@ -62,6 +67,8 @@ export interface ResolvedSetting {
 	source: SettingLayer | "default";
 	/** True only for a managed or feature-flag layer. This app has neither, so it is always false. */
 	isLocked: boolean;
+	/** Entries one of the layer files could not use. Present only when there are some. */
+	dropped?: readonly DroppedSetting[];
 }
 
 const REPO_LAYERS: ReadonlySet<SettingLayer> = new Set([
@@ -171,17 +178,46 @@ export const settingsSchemaUrl = (scope: "user" | "repo"): string =>
 
 export type ActionTarget = "local" | "cloud";
 
-/** One named action from `[scripts.run.<id>]`, in our own shape. */
+/**
+ * One named action from `[scripts.run.<id>]`, in our own shape. Every field except `id` and
+ * `command` is absent when the layer that supplied the action did not set it, so a later layer
+ * that changes only `command` keeps the earlier layer's other fields.
+ */
 export interface SettingAction {
 	id: string;
 	command: string;
+	args?: readonly string[];
+	/** Only a string is set in a file; null in the resolved shape means the workspace folder. */
+	cwd?: string | null;
+	isDefault?: boolean;
+	hidden?: boolean;
+	icon?: string | null;
+	availableIn?: readonly ActionTarget[];
+}
+
+/** A merged action with the research defaults filled in. */
+export interface ResolvedSettingAction {
+	id: string;
+	command: string;
 	args: readonly string[];
-	/** Null means the workspace folder. */
 	cwd: string | null;
 	isDefault: boolean;
 	hidden: boolean;
 	icon: string | null;
 	availableIn: readonly ActionTarget[];
+}
+
+/** Fills the defaults the research gives an action when no layer said otherwise. */
+export function resolveSettingAction(action: SettingAction): ResolvedSettingAction {
+	return {
+		...action,
+		args: action.args ?? [],
+		cwd: action.cwd ?? null,
+		isDefault: action.isDefault ?? false,
+		hidden: action.hidden ?? false,
+		icon: action.icon ?? null,
+		availableIn: action.availableIn ?? ["local", "cloud"],
+	};
 }
 
 /**
@@ -211,7 +247,7 @@ export function actionLabel(id: string): string {
 const capitalize = (word: string): string => word.charAt(0).toUpperCase() + word.slice(1);
 
 /** A legacy single run script becomes the default local action named "run". */
-export function legacyRunAction(command: string): SettingAction {
+export function legacyRunAction(command: string): ResolvedSettingAction {
 	return {
 		id: "run",
 		command,
@@ -229,11 +265,13 @@ function parseActionTargets(
 	file: string,
 	key: string,
 	dropped: DroppedSetting[],
-): readonly ActionTarget[] | null {
-	if (value === undefined) return ["local", "cloud"];
+	preserved: PreservedEntry[],
+): readonly ActionTarget[] | null | undefined {
+	if (value === undefined) return undefined;
 	const single = (input: unknown): ActionTarget | null => {
 		if (input === "local" || input === "cloud") return input;
 		dropped.push({ file, key, reason: "unsupported-value" });
+		preserved.push({ path: key, value });
 		return null;
 	};
 	if (Array.isArray(value)) {
@@ -254,54 +292,67 @@ function parseAction(
 	raw: unknown,
 	file: string,
 	dropped: DroppedSetting[],
+	preserved: PreservedEntry[],
 ): SettingAction | null {
+	const path = `scripts.run.${id}`;
 	if (!isRecord(raw)) {
-		dropped.push({ file, key: `scripts.run.${id}`, reason: "wrong-type" });
+		dropped.push({ file, key: path, reason: "wrong-type" });
+		preserved.push({ path, value: raw });
 		return null;
 	}
 	const command = raw["command"];
 	if (typeof command !== "string") {
-		dropped.push({ file, key: `scripts.run.${id}.command`, reason: "wrong-type" });
+		dropped.push({ file, key: `${path}.command`, reason: "wrong-type" });
+		preserved.push({ path, value: raw });
 		return null;
 	}
-	const args: string[] = [];
+	const action: SettingAction = { id, command };
 	const rawArgs = raw["args"];
 	if (rawArgs !== undefined) {
 		if (Array.isArray(rawArgs) && rawArgs.every((entry) => typeof entry === "string")) {
-			for (const entry of rawArgs) args.push(entry);
+			action.args = [...rawArgs];
 		} else {
-			dropped.push({ file, key: `scripts.run.${id}.args`, reason: "wrong-type" });
+			dropped.push({ file, key: `${path}.args`, reason: "wrong-type" });
+			preserved.push({ path: `${path}.args`, value: rawArgs });
 		}
 	}
 	const options = raw["options"];
 	const rawCwd = isRecord(options) ? options["cwd"] : undefined;
-	let cwd: string | null = null;
-	if (typeof rawCwd === "string") cwd = rawCwd;
+	if (typeof rawCwd === "string") action.cwd = rawCwd;
 	else if (rawCwd !== undefined) {
-		dropped.push({ file, key: `scripts.run.${id}.options.cwd`, reason: "wrong-type" });
+		dropped.push({ file, key: `${path}.options.cwd`, reason: "wrong-type" });
+		preserved.push({ path: `${path}.options.cwd`, value: rawCwd });
 	}
 	const rawDefault = raw["default"];
-	const isDefault = typeof rawDefault === "boolean" ? rawDefault : false;
-	if (rawDefault !== undefined && typeof rawDefault !== "boolean") {
-		dropped.push({ file, key: `scripts.run.${id}.default`, reason: "wrong-type" });
+	if (typeof rawDefault === "boolean") action.isDefault = rawDefault;
+	else if (rawDefault !== undefined) {
+		dropped.push({ file, key: `${path}.default`, reason: "wrong-type" });
+		preserved.push({ path: `${path}.default`, value: rawDefault });
 	}
 	const rawHide = raw["hide"];
-	const hidden = typeof rawHide === "boolean" ? rawHide : false;
-	if (rawHide !== undefined && typeof rawHide !== "boolean") {
-		dropped.push({ file, key: `scripts.run.${id}.hide`, reason: "wrong-type" });
+	if (typeof rawHide === "boolean") action.hidden = rawHide;
+	else if (rawHide !== undefined) {
+		dropped.push({ file, key: `${path}.hide`, reason: "wrong-type" });
+		preserved.push({ path: `${path}.hide`, value: rawHide });
 	}
 	const rawIcon = raw["icon"];
-	const icon = typeof rawIcon === "string" ? rawIcon : null;
-	if (rawIcon !== undefined && typeof rawIcon !== "string") {
-		dropped.push({ file, key: `scripts.run.${id}.icon`, reason: "wrong-type" });
+	if (typeof rawIcon === "string") action.icon = rawIcon;
+	else if (rawIcon !== undefined) {
+		dropped.push({ file, key: `${path}.icon`, reason: "wrong-type" });
+		preserved.push({ path: `${path}.icon`, value: rawIcon });
 	}
 	const availableIn = parseActionTargets(
 		raw["available_in"],
 		file,
-		`scripts.run.${id}.available_in`,
+		`${path}.available_in`,
 		dropped,
+		preserved,
 	);
-	if (availableIn === null) return null;
+	if (availableIn === null) {
+		preserved.push({ path, value: raw });
+		return null;
+	}
+	if (availableIn !== undefined) action.availableIn = availableIn;
 	const allowed = new Set([
 		"command",
 		"args",
@@ -313,28 +364,33 @@ function parseAction(
 	]);
 	for (const key of Object.keys(raw)) {
 		if (!allowed.has(key)) {
-			dropped.push({ file, key: `scripts.run.${id}.${key}`, reason: "unknown-key" });
+			dropped.push({ file, key: `${path}.${key}`, reason: "unknown-key" });
+			preserved.push({ path: `${path}.${key}`, value: raw[key] });
 		}
 	}
-	return {
-		id,
-		command,
-		args,
-		cwd,
-		isDefault,
-		hidden,
-		icon,
-		availableIn,
-	};
+	return action;
+}
+
+/** Copies only the fields a later layer actually set, so an unset field keeps its earlier value. */
+function patchAction(previous: SettingAction, action: SettingAction): SettingAction {
+	const merged: SettingAction = { ...previous };
+	if (action.command !== undefined) merged.command = action.command;
+	if (action.args !== undefined) merged.args = action.args;
+	if (action.cwd !== undefined) merged.cwd = action.cwd;
+	if (action.isDefault !== undefined) merged.isDefault = action.isDefault;
+	if (action.hidden !== undefined) merged.hidden = action.hidden;
+	if (action.icon !== undefined) merged.icon = action.icon;
+	if (action.availableIn !== undefined) merged.availableIn = action.availableIn;
+	return merged;
 }
 
 /**
  * Merges action layers per id. Later layers win field-by-field; an action keeps the position it
- * first appeared at. Comparison is case-insensitive.
+ * first appeared at. Comparison is case-insensitive. The result has the research defaults filled.
  */
 export function mergeSettingActions(
 	layers: readonly (readonly SettingAction[] | undefined)[],
-): SettingAction[] {
+): ResolvedSettingAction[] {
 	const byId = new Map<string, SettingAction>();
 	for (const layer of layers) {
 		if (layer === undefined) continue;
@@ -346,31 +402,30 @@ export function mergeSettingActions(
 			}
 			const previous = byId.get(existingKey);
 			if (previous === undefined) continue;
-			byId.set(existingKey, {
-				...previous,
-				...action,
-				id: existingKey,
-			});
+			byId.set(existingKey, patchAction(previous, action));
 		}
 	}
-	return [...byId.values()];
+	return [...byId.values()].map(resolveSettingAction);
 }
 
 /** Parses `scripts.run` (a string or a table) and the legacy top-level `tasks` table. */
 function parseActionSection(
 	raw: unknown,
 	file: string,
+	key: string,
 	dropped: DroppedSetting[],
+	preserved: PreservedEntry[],
 ): { actions: SettingAction[]; legacyRun: string | null } {
 	if (raw === undefined) return { actions: [], legacyRun: null };
 	if (typeof raw === "string") return { actions: [legacyRunAction(raw)], legacyRun: raw };
 	if (!isRecord(raw)) {
-		dropped.push({ file, key: "scripts.run", reason: "wrong-type" });
+		dropped.push({ file, key, reason: "wrong-type" });
+		preserved.push({ path: key, value: raw });
 		return { actions: [], legacyRun: null };
 	}
 	const actions: SettingAction[] = [];
 	for (const [id, value] of Object.entries(raw)) {
-		const action = parseAction(id, value, file, dropped);
+		const action = parseAction(id, value, file, dropped, preserved);
 		if (action !== null) actions.push(action);
 	}
 	return { actions, legacyRun: null };
@@ -414,25 +469,31 @@ function parseEnvVars(
 	raw: unknown,
 	file: string,
 	dropped: DroppedSetting[],
+	preserved: PreservedEntry[],
+	name: string,
 ): Record<string, FileEnvVar> {
 	const result: Record<string, FileEnvVar> = {};
 	if (raw === undefined) return result;
 	if (!isRecord(raw)) {
-		dropped.push({ file, key: "environment_variables", reason: "wrong-type" });
+		dropped.push({ file, key: name, reason: "wrong-type" });
+		preserved.push({ path: name, value: raw });
 		return result;
 	}
 	const take = (value: unknown, scope: EnvVarScope, prefix: string): void => {
 		if (!isRecord(value)) {
 			dropped.push({ file, key: prefix, reason: "wrong-type" });
+			preserved.push({ path: prefix, value });
 			return;
 		}
 		for (const [name, entry] of Object.entries(value)) {
 			if (!ENV_VAR_NAME.test(name)) {
 				dropped.push({ file, key: `${prefix}.${name}`, reason: "unsupported-value" });
+				preserved.push({ path: `${prefix}.${name}`, value: entry });
 				continue;
 			}
 			if (typeof entry !== "string") {
 				dropped.push({ file, key: `${prefix}.${name}`, reason: "wrong-type" });
+				preserved.push({ path: `${prefix}.${name}`, value: entry });
 				continue;
 			}
 			let marker: EnvVarMarker = "value";
@@ -450,23 +511,34 @@ function parseEnvVars(
 	const topLevel: Record<string, unknown> = {};
 	for (const [key, entry] of Object.entries(raw)) {
 		if (key === "local" || key === "cloud") {
-			take(entry, key, `environment_variables.${key}`);
+			take(entry, key, `${name}.${key}`);
 		} else {
 			topLevel[key] = entry;
 		}
 	}
-	take(topLevel, "all", "environment_variables");
+	take(topLevel, "all", name);
 	return result;
 }
 
 // ---------------------------------------------------------------- file shapes
 
-export type DroppedReason = "unreadable-file" | "unknown-key" | "wrong-type" | "unsupported-value";
+export type DroppedReason =
+	| "unreadable-file"
+	| "invalid-file"
+	| "unknown-key"
+	| "wrong-type"
+	| "unsupported-value";
 
 export interface DroppedSetting {
 	file: string;
 	key: string;
 	reason: DroppedReason;
+}
+
+/** A raw entry of a settings file that this service does not understand, kept for the next write. */
+export interface PreservedEntry {
+	path: string;
+	value: unknown;
 }
 
 export interface SettingsWarning {
@@ -480,6 +552,8 @@ export interface SettingsFileContents {
 	actions: Record<string, SettingAction>;
 	envVars: Record<string, FileEnvVar>;
 	dropped: DroppedSetting[];
+	/** Entries the reader could not use. The writer puts them back so a save never destroys them. */
+	preserved: PreservedEntry[];
 }
 
 const TOML_KEY_TO_SETTING: Readonly<Record<string, string>> = tomlKeys();
@@ -490,6 +564,7 @@ const emptyContents = (file: string): SettingsFileContents => ({
 	actions: {},
 	envVars: {},
 	dropped: [],
+	preserved: [],
 });
 
 function dropReasonFromError(message: string): DroppedReason {
@@ -515,15 +590,31 @@ export function parseSettingsDocument(
 
 	const scripts = document["scripts"];
 	const run = isRecord(scripts) ? scripts["run"] : undefined;
-	const fromRun = parseActionSection(run, file, contents.dropped);
-	const fromTasks = parseActionSection(document["tasks"], file, contents.dropped);
+	const fromRun = parseActionSection(
+		run,
+		file,
+		"scripts.run",
+		contents.dropped,
+		contents.preserved,
+	);
+	const fromTasks = parseActionSection(
+		document["tasks"],
+		file,
+		"tasks",
+		contents.dropped,
+		contents.preserved,
+	);
 	const legacyRun = fromRun.legacyRun ?? fromTasks.legacyRun;
 	for (const action of [...fromRun.actions, ...fromTasks.actions]) {
 		contents.actions[action.id] = action;
 	}
 
-	const envRaw = document["environment_variables"] ?? document["environmentVariables"];
-	contents.envVars = parseEnvVars(envRaw, file, contents.dropped);
+	const envName =
+		document["environment_variables"] !== undefined
+			? "environment_variables"
+			: "environmentVariables";
+	const envRaw = document[envName];
+	contents.envVars = parseEnvVars(envRaw, file, contents.dropped, contents.preserved, envName);
 
 	for (const leaf of leaves(document, "")) {
 		const path = leaf.path;
@@ -544,11 +635,13 @@ export function parseSettingsDocument(
 		const key = TOML_KEY_TO_SETTING[path];
 		if (key === undefined) {
 			contents.dropped.push({ file, key: path, reason: "unknown-key" });
+			contents.preserved.push({ path, value: leaf.value });
 			continue;
 		}
 		const def = getSettingDef(key);
 		if (def === undefined) {
 			contents.dropped.push({ file, key: path, reason: "unknown-key" });
+			contents.preserved.push({ path, value: leaf.value });
 			continue;
 		}
 		const coerced = coerceSettingValue(def, leaf.value);
@@ -558,6 +651,7 @@ export function parseSettingsDocument(
 				key: path,
 				reason: dropReasonFromError(coerced.error.message),
 			});
+			contents.preserved.push({ path, value: leaf.value });
 			continue;
 		}
 		contents.values[def.key] = coerced.value;
@@ -569,7 +663,18 @@ export function parseSettingsDocument(
 	return contents;
 }
 
-/** Builds the document a settings file gets on write: a schema line and no unknown keys. */
+/** Drops the raw entries that a write of `tomlKey` replaces, so an old invalid value cannot win. */
+function withoutPreserved(
+	preserved: readonly PreservedEntry[],
+	tomlKey: string | undefined,
+): PreservedEntry[] {
+	if (tomlKey === undefined) return [...preserved];
+	return preserved.filter(
+		(entry) => entry.path !== tomlKey && !entry.path.startsWith(`${tomlKey}.`),
+	);
+}
+
+/** Builds the document a settings file gets on write: a schema line, known entries and raw ones. */
 export function buildSettingsDocument(
 	contents: SettingsFileContents,
 	scope: "user" | "repo",
@@ -584,12 +689,12 @@ export function buildSettingsDocument(
 	if (Object.keys(contents.actions).length > 0) {
 		for (const action of Object.values(contents.actions)) {
 			const table: Record<string, unknown> = { command: action.command };
-			if (action.args.length > 0) table["args"] = [...action.args];
-			if (action.cwd !== null) table["options"] = { cwd: action.cwd };
-			if (action.isDefault) table["default"] = true;
-			if (action.icon !== null) table["icon"] = action.icon;
-			if (action.hidden) table["hide"] = true;
-			table["available_in"] = [...action.availableIn];
+			if (action.args !== undefined && action.args.length > 0) table["args"] = [...action.args];
+			if (action.cwd !== undefined && action.cwd !== null) table["options"] = { cwd: action.cwd };
+			if (action.isDefault === true) table["default"] = true;
+			if (action.icon !== undefined && action.icon !== null) table["icon"] = action.icon;
+			if (action.hidden === true) table["hide"] = true;
+			if (action.availableIn !== undefined) table["available_in"] = [...action.availableIn];
 			setTomlPath(document, `scripts.run.${action.id}`, table);
 		}
 	}
@@ -625,6 +730,10 @@ export function buildSettingsDocument(
 		parent["cloud"] = { ...envGroups.cloud };
 		document["environment_variables"] = parent;
 	}
+	for (const entry of contents.preserved) {
+		if (entry.path === "$schema") continue;
+		setTomlPath(document, entry.path, entry.value);
+	}
 	return sortForWrite(document, "") as Record<string, unknown>;
 }
 
@@ -641,7 +750,6 @@ export interface SettingsState {
 }
 
 export type SettingsPlatform = Pick<Platform, "fs" | "keychain" | "app"> & {
-	shell?: Pick<Platform["shell"], "run">;
 	window?: Pick<Platform["window"], "onFocusChanged">;
 };
 
@@ -649,6 +757,21 @@ export interface SettingsServiceDeps {
 	platform: SettingsPlatform;
 	repos: Pick<Repositories, "settings" | "envVars">;
 	toml: TomlCodec;
+	/** The GIT-01 runner. The remote default-branch layer reads through it. */
+	git?: Pick<GitRunner, "stdout">;
+	/** Serial queue shared with the rest of the app. One queue per service when none is passed. */
+	queue?: KeyedQueue<string>;
+}
+
+/** One row of `list`: the key, its effective value and the layer that supplied it. */
+export interface ListedSetting {
+	key: string;
+	value: SettingValue;
+	source: SettingLayer | "default";
+}
+
+interface PendingWrite {
+	value: SettingValue;
 }
 
 export interface SetOptions {
@@ -667,12 +790,15 @@ const RELOAD_INTERVAL_MS = 30_000;
 export class SettingsService {
 	readonly store: StoreApi<SettingsState>;
 	readonly #deps: SettingsServiceDeps;
-	readonly #writeChains = new Map<string, Promise<unknown>>();
+	readonly #writes: KeyedQueue<string>;
+	/** Writes that are visible in the store but not yet on disk, by setting key. */
+	readonly #pending = new Map<string, PendingWrite>();
 	#unsubscribeFocus: (() => void) | null = null;
 	#reloadTimer: ReturnType<typeof setInterval> | null = null;
 
 	constructor(deps: SettingsServiceDeps) {
 		this.#deps = deps;
+		this.#writes = deps.queue ?? createKeyedQueue<string>();
 		this.store = createStore<SettingsState>(() => ({
 			loaded: false,
 			values: {},
@@ -722,9 +848,16 @@ export class SettingsService {
 			}
 			dropped.push(...file.value.dropped);
 		} else {
-			dropped.push({ file: userFile, key: userFile, reason: "unreadable-file" });
+			dropped.push({
+				file: userFile,
+				key: userFile,
+				reason: file.error.code === "settings_file_invalid" ? "invalid-file" : "unreadable-file",
+			});
 			warnings.push({ code: "settings_load_failed", message: SETTINGS_LOAD_FAILED_MESSAGE });
 		}
+
+		// A write that has not reached disk yet still wins over the older file text.
+		for (const [key, pending] of this.#pending) values[key] = pending.value;
 
 		this.store.setState({ loaded: true, values, dropped, warnings });
 		return ok(undefined);
@@ -749,31 +882,78 @@ export class SettingsService {
 		if (def === undefined) return err(appError("setting_unknown", `Unknown setting "${key}".`));
 
 		const layers: LayerValue[] = [];
+		const dropped: DroppedSetting[] = [];
 		const fromTable = this.store.getState().values[key];
 		if (fromTable !== undefined && fromTable !== null) {
 			layers.push({ layer: "table", value: fromTable });
 		}
 		if (def.tomlKey !== undefined) {
 			const userLayer = await this.#layerValue(this.#userFile(), def);
-			if (userLayer !== null) layers.push({ layer: "user-file", value: userLayer });
+			dropped.push(...userLayer.dropped);
+			if (userLayer.value !== null) layers.push({ layer: "user-file", value: userLayer.value });
 
 			if (def.scopes.includes("repo") && def.fileLayers === "user-and-repo") {
 				const remote = await this.#remoteLayer(repoRootPath, def);
-				if (remote !== null) layers.push({ layer: "repo-remote", value: remote });
+				dropped.push(...remote.dropped);
+				if (remote.value !== null) layers.push({ layer: "repo-remote", value: remote.value });
 
 				const shared = await this.#layerValue(sharedSettingsFile(repoRootPath), def);
-				if (shared !== null) layers.push({ layer: "repo-shared", value: shared });
+				dropped.push(...shared.dropped);
+				if (shared.value !== null) layers.push({ layer: "repo-shared", value: shared.value });
 
 				if (workspacePath !== null) {
 					const workspace = await this.#layerValue(sharedSettingsFile(workspacePath), def);
-					if (workspace !== null) layers.push({ layer: "workspace-shared", value: workspace });
+					dropped.push(...workspace.dropped);
+					if (workspace.value !== null) {
+						layers.push({ layer: "workspace-shared", value: workspace.value });
+					}
 				}
 
 				const local = await this.#layerValue(localSettingsFile(repoRootPath), def);
-				if (local !== null) layers.push({ layer: "repo-local", value: local });
+				dropped.push(...local.dropped);
+				if (local.value !== null) layers.push({ layer: "repo-local", value: local.value });
 			}
 		}
-		return ok(resolveSetting(def, layers));
+		const resolved = resolveSetting(def, layers);
+		return ok(dropped.length === 0 ? resolved : { ...resolved, dropped });
+	}
+
+	/** Every registry setting with its effective user-level value and the layer that supplied it. */
+	list(): ListedSetting[] {
+		const values = this.store.getState().values;
+		return SETTINGS.map((def) => {
+			const stored = values[def.key];
+			if (stored !== undefined && stored !== null) {
+				return {
+					key: def.key,
+					value: stored,
+					source: def.tomlKey === undefined ? "table" : "user-file",
+				};
+			}
+			return {
+				key: def.key,
+				value: def.type === "string-list" ? [...def.default] : def.default,
+				source: "default",
+			};
+		});
+	}
+
+	/** Removes a setting: a table row is deleted, a file-backed key is removed from the user file. */
+	async delete(key: string): Promise<Result<void>> {
+		const def = getSettingDef(key);
+		if (def === undefined) return err(appError("setting_unknown", `Unknown setting "${key}".`));
+		if (def.tomlKey !== undefined) {
+			return this.#setInFile(this.#userFile(), "user", def, null, false, key);
+		}
+		return this.#deleteInTable(def);
+	}
+
+	/**
+	 * Resets one repository's personal value, so the repo shared file (or a higher layer) supplies
+	 * it again. The button in the UI is "Reset to your repo's settings.toml".
+	 */
+	async resetForRepo(repoRootPath: string, key: string): Promise<Result<void>> {
+		return this.setForRepo(repoRootPath, key, null);
 	}
 
 	/** Backs `Actions.settings.set`. Validates with the registry, then writes to the right place. */
@@ -898,56 +1078,66 @@ export class SettingsService {
 		}
 	}
 
-	async #layerValue(file: string, def: SettingDef): Promise<SettingValue | null> {
+	async #layerValue(
+		file: string,
+		def: SettingDef,
+	): Promise<{ value: SettingValue | null; dropped: DroppedSetting[] }> {
 		const result = await this.readSettingsFile(file);
-		if (!result.ok) return null;
-		if (def.tomlKey === undefined) return null;
+		if (!result.ok) {
+			const reason =
+				result.error.code === "settings_file_invalid" ? "invalid-file" : "unreadable-file";
+			return { value: null, dropped: [{ file, key: file, reason }] };
+		}
+		if (def.tomlKey === undefined) return { value: null, dropped: result.value.dropped };
 		const value = result.value.values[def.key];
-		return value === undefined ? null : value;
+		return { value: value === undefined ? null : value, dropped: result.value.dropped };
 	}
 
-	async #remoteLayer(repoRootPath: string, def: SettingDef): Promise<SettingValue | null> {
-		const shell = this.#deps.platform.shell;
-		if (shell === undefined || def.tomlKey === undefined) return null;
-		const head = await shell.run({
-			program: "git",
-			args: ["-C", repoRootPath, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"],
-			cwd: repoRootPath,
-		});
-		if (!head.ok || head.value.exitCode !== 0) return null;
-		const branch = head.value.stdout.trim().replace(/^refs\/remotes\//, "");
-		if (branch === "") return null;
-		const show = await shell.run({
-			program: "git",
-			args: ["-C", repoRootPath, "show", `${branch}:.conducted/settings.toml`],
-			cwd: repoRootPath,
-		});
-		if (!show.ok || show.value.exitCode !== 0) return null;
-		const parsed = this.#deps.toml.parse(show.value.stdout);
-		if (!parsed.ok) return null;
-		const contents = parseSettingsDocument(parsed.value, `${branch}:.conducted/settings.toml`);
+	async #remoteLayer(
+		repoRootPath: string,
+		def: SettingDef,
+	): Promise<{ value: SettingValue | null; dropped: DroppedSetting[] }> {
+		const git = this.#deps.git;
+		if (git === undefined || def.tomlKey === undefined) return { value: null, dropped: [] };
+		const head = await git.stdout(symbolicRefRemoteHead("origin"), { cwd: repoRootPath });
+		if (!head.ok) return { value: null, dropped: [] };
+		const branch = head.value.replace(/^refs\/remotes\//, "");
+		if (branch === "") return { value: null, dropped: [] };
+		const file = `${branch}:.conducted/settings.toml`;
+		const shown = await git.stdout(showSettingsFileAt(branch), { cwd: repoRootPath });
+		if (!shown.ok) return { value: null, dropped: [] };
+		const parsed = this.#deps.toml.parse(shown.value);
+		if (!parsed.ok) {
+			return { value: null, dropped: [{ file, key: file, reason: "invalid-file" }] };
+		}
+		const contents = parseSettingsDocument(parsed.value, file);
 		const value = contents.values[def.key];
-		return value === undefined ? null : value;
-	}
-
-	#enqueue(file: string, work: () => Promise<Result<void>>): Promise<Result<void>> {
-		const previous = this.#writeChains.get(file) ?? Promise.resolve();
-		const next = previous.then(work, work);
-		this.#writeChains.set(file, next);
-		void next.finally(() => {
-			if (this.#writeChains.get(file) === next) this.#writeChains.delete(file);
-		});
-		return next;
+		return { value: value === undefined ? null : value, dropped: contents.dropped };
 	}
 
 	async #setInTable(def: SettingDef, value: SettingValue): Promise<Result<void>> {
 		const previous = this.store.getState().values[def.key];
-		this.#setValue(def.key, value);
+		const pending = this.#beginWrite(def.key, value);
 		const written = await this.#deps.repos.settings.set(def.key, value);
 		if (!written.ok) {
-			this.#restoreValue(def.key, previous);
+			this.#rollback(def.key, pending, previous);
 			return err(appError("setting_save_failed", SETTINGS_SAVE_FAILED_MESSAGE, written.error));
 		}
+		this.#finishWrite(def.key, pending);
+		this.#logSaved(def.key, value);
+		return ok(undefined);
+	}
+
+	async #deleteInTable(def: SettingDef): Promise<Result<void>> {
+		const previous = this.store.getState().values[def.key];
+		const pending = this.#beginWrite(def.key, null);
+		const written = await this.#deps.repos.settings.delete(def.key);
+		if (!written.ok) {
+			this.#rollback(def.key, pending, previous);
+			return err(appError("setting_save_failed", SETTINGS_SAVE_FAILED_MESSAGE, written.error));
+		}
+		this.#finishWrite(def.key, pending);
+		this.#logSaved(def.key, null);
 		return ok(undefined);
 	}
 
@@ -960,8 +1150,8 @@ export class SettingsService {
 		key: string,
 	): Promise<Result<void>> {
 		const previous = this.store.getState().values[key];
-		this.#setValue(key, value);
-		return this.#enqueue(file, async () => {
+		const pending = this.#beginWrite(key, value);
+		return this.#writes.run(file, async () => {
 			const existing = await this.readSettingsFile(file);
 			let contents: SettingsFileContents;
 			if (existing.ok) {
@@ -969,7 +1159,7 @@ export class SettingsService {
 			} else if (overwrite) {
 				contents = emptyContents(file);
 			} else {
-				this.#restoreValue(key, previous);
+				this.#rollback(key, pending, previous);
 				return err(
 					appError(
 						"settings_file_invalid",
@@ -985,26 +1175,54 @@ export class SettingsService {
 			} else {
 				contents.values[key] = value;
 			}
+			contents.preserved = withoutPreserved(contents.preserved, def.tomlKey);
 			const document = buildSettingsDocument(contents, scope);
 			const text = this.#deps.toml.stringify(document);
 			const written = await this.#deps.platform.fs.writeTextAtomic(file, text);
 			if (!written.ok) {
-				this.#restoreValue(key, previous);
+				this.#rollback(key, pending, previous);
 				return err(appError("setting_save_failed", SETTINGS_SAVE_FAILED_MESSAGE, written.error));
 			}
+			this.#finishWrite(key, pending);
+			this.#logSaved(key, value);
 			return ok(undefined);
 		});
+	}
+
+	#beginWrite(key: string, value: SettingValue): PendingWrite {
+		const pending = { value };
+		this.#pending.set(key, pending);
+		this.#setValue(key, value);
+		return pending;
+	}
+
+	/** Clears a pending marker only when no newer write has replaced it. */
+	#finishWrite(key: string, pending: PendingWrite): void {
+		if (this.#pending.get(key) === pending) this.#pending.delete(key);
+	}
+
+	/**
+	 * Puts the earlier value back only when this call still owns the store's value. If a later call
+	 * already showed its own value, that value stays and the later write decides the outcome.
+	 */
+	#rollback(key: string, pending: PendingWrite, previous: SettingValue | undefined): void {
+		if (this.#pending.get(key) !== pending) return;
+		this.#pending.delete(key);
+		const values = { ...this.store.getState().values };
+		if (previous === undefined) delete values[key];
+		else values[key] = previous;
+		this.store.setState({ values });
 	}
 
 	#setValue(key: string, value: SettingValue): void {
 		this.store.setState({ values: { ...this.store.getState().values, [key]: value } });
 	}
 
-	#restoreValue(key: string, previous: SettingValue | undefined): void {
-		const values = { ...this.store.getState().values };
-		if (previous === undefined) delete values[key];
-		else values[key] = previous;
-		this.store.setState({ values });
+	#logSaved(key: string, value: SettingValue): void {
+		this.#deps.platform.app.writeLog("info", "Settings value saved", {
+			key,
+			value: redactSettingForLog(key, value),
+		});
 	}
 
 	async #ensureGitExclude(repoRootPath: string): Promise<Result<void>> {

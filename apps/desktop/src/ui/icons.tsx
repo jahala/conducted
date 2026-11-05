@@ -62,7 +62,7 @@ export const GlobeIcon = (p: P) => (
 );
 export const PullRequestIcon = (p: P) => (
 	<Icon
-		d="M4.5 4.5a1.25 1.25 0 1 0 0-.01zM4.5 11.5a1.25 1.25 0 1 0 0-.01zM4.5 5.75v4.5M11.5 11.5a1.25 1.25 0 1 0 0-.01zM11.5 10.25V6.5a2 2 0 0 0-2-2H8M9.5 3l-1.5 1.5L9.5 6"
+		d="M6.5 8h5M9.5 6l2 2-2 2M4.5 4.5a1.25 1.25 0 1 0 0-.01zM4.5 11.5a1.25 1.25 0 1 0 0-.01zM4.5 5.75v4.5"
 		{...p}
 	/>
 );
@@ -99,7 +99,7 @@ export const GitCommitIcon = (p: P) => (
 );
 export const GitMergeIcon = (p: P) => (
 	<Icon
-		d="M4.5 4.5a1.25 1.25 0 1 0 0-.01zM4.5 11.5a1.25 1.25 0 1 0 0-.01zM4.5 5.75v4.5M11.5 11.5a1.25 1.25 0 1 0 0-.01zM11.5 10.25V8a3 3 0 0 0-3-3H8"
+		d="M4.5 5.75v4.5M4.5 4.5a1.25 1.25 0 1 0 0-.01zM4.5 11.5a1.25 1.25 0 1 0 0-.01zM11.5 11.5a1.25 1.25 0 1 0 0-.01zM4.5 8c0 2.25 2 3.5 4.5 3.5h1.25"
 		{...p}
 	/>
 );
@@ -107,7 +107,7 @@ export const PencilIcon = (p: P) => (
 	<Icon d="M10.5 2.5l3 3-7.5 7.5-3.5.5.5-3.5zM8.5 4.5l3 3" {...p} />
 );
 export const FileTextIcon = (p: P) => (
-	<Icon d="M4 2.5h5l3 3v8H4zM9 2.5v3h3M6 8h4M6 10.5h4" {...p} />
+	<Icon d="M4 2.5h5l3 3v8H4V2.5zM9 2.5v3h3M6 8h4M6 10.5h4" {...p} />
 );
 export const ListTodoIcon = (p: P) => (
 	<Icon d="M6 4.5h7M6 8h7M6 11.5h7M2.5 4.5l1 1 1.5-1.5M2.5 8l1 1L5 7.5M2.5 11.5l1 1L5 11" {...p} />

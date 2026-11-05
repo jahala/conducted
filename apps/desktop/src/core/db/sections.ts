@@ -16,6 +16,7 @@ import type { Section } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
 import {
 	executeStatement,
+	executeVoid,
 	fromFlag,
 	inTransaction,
 	selectRows,
@@ -158,15 +159,6 @@ export interface SectionRepository {
 
 export function createSectionRepository(db: Database, deps: RepositoryDeps): SectionRepository {
 	const now = (): number => deps.clock.now();
-	const write = async (
-		target: Database,
-		sql: string,
-		params: readonly unknown[],
-		what: string,
-	): Promise<Result<void>> => {
-		const result = await executeStatement(target, sql, params, what);
-		return result.ok ? ok(undefined) : err(result.error);
-	};
 	return {
 		list: async () => {
 			const sections = await selectRows<SectionRow>(db, SECTIONS_SQL.list, [], "Listing sections");
@@ -206,15 +198,15 @@ export function createSectionRepository(db: Database, deps: RepositoryDeps): Sec
 				return written.ok ? ok(section) : err(written.error);
 			}),
 		rename: (id, name, emoji) =>
-			write(db, SECTIONS_SQL.rename, [name, emoji, id], "Renaming a section"),
+			executeVoid(db, SECTIONS_SQL.rename, [name, emoji, id], "Renaming a section"),
 		setCollapsed: (id, collapsed) =>
-			write(db, SECTIONS_SQL.setCollapsed, [toFlag(collapsed), id], "Collapsing a section"),
+			executeVoid(db, SECTIONS_SQL.setCollapsed, [toFlag(collapsed), id], "Collapsing a section"),
 		reorder: async (orderedIds) => {
 			const json = stringifyJson(orderedIds, "sections.ids");
 			if (!json.ok) return err(json.error);
-			return write(db, SECTIONS_SQL.reorder, [json.value], "Reordering sections");
+			return executeVoid(db, SECTIONS_SQL.reorder, [json.value], "Reordering sections");
 		},
-		delete: (id) => write(db, SECTIONS_SQL.delete, [id], "Removing a section"),
+		delete: (id) => executeVoid(db, SECTIONS_SQL.delete, [id], "Removing a section"),
 		moveWorkspace: async (workspaceId, toSectionId, position) =>
 			inTransaction(db, "Moving a workspace to a section", async (tx) => {
 				const removed = await executeStatement(
@@ -235,14 +227,14 @@ export function createSectionRepository(db: Database, deps: RepositoryDeps): Sec
 				return added.ok ? ok(undefined) : err(added.error);
 			}),
 		removeWorkspace: (sectionId, workspaceId) =>
-			write(
+			executeVoid(
 				db,
 				SECTIONS_SQL.removeMember,
 				[sectionId, workspaceId],
 				"Removing a workspace from a section",
 			),
 		removeWorkspaceEverywhere: (workspaceId) =>
-			write(
+			executeVoid(
 				db,
 				SECTIONS_SQL.removeFromAllSections,
 				[workspaceId],

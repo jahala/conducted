@@ -7,7 +7,9 @@
  * the widths Conductor uses: sm 384, md 448, lg 512 (the default), xl 576, 2xl 672, 3xl 768, 4xl 896.
  * Must handle: a title is required (radix needs it for screen readers; `hideTitle` keeps it off screen),
  * focus is trapped and returns to the trigger, Escape and the overlay close it, `Cmd+Enter` calls `onConfirm`
- * when one is given (ui-map.md 5.4), long content scrolls inside the dialog.
+ * whenever the dialog is open, including while focus is in a child field such as a textarea (ui-map.md 5.4
+ * lists it as one dialog-level shortcut and gives no input-focus exception), long content scrolls inside the
+ * dialog.
  * Test first: opening shows the title and description; Escape calls onOpenChange(false); Cmd+Enter confirms.
  */
 import { Dialog as Radix, VisuallyHidden } from "radix-ui";

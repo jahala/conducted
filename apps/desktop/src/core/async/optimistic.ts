@@ -7,15 +7,17 @@
  * folding the updates over the canonical state, runs the action, then replaces the canonical state with the
  * action's result and drops the update; a cancelled action throws AbortError; used by the workspace and
  * repository services).
- * Our design choice: failure is a value. The action returns a `Result`; on `ok: false` the overlay is
- * dropped and the error is returned, and nothing throws. Several overlays can be pending at once; each
- * is dropped by its own id, so one failing action does not undo another's update. Ids come from an
- * `IdSource` and time is not needed.
- * Must handle: two overlays pending, the first failing (the second stays); an action that succeeds after a
- * newer canonical state arrived from a push (the newer state is kept and the overlay is dropped);
- * an update that throws (a programmer error: the run stops before the action starts and nothing is
- * applied); an action that never ends (the overlay stays until the caller's timeout drops it); the
- * derived state being computed again from canonical state plus overlays, never patched in place.
+ * Our design choice: an expected action failure is a value. The action returns a `Result`; on
+ * `ok: false` the overlay is dropped and the error is returned without throwing. A rejected action, or
+ * an update that throws, is a programmer error or a broken transport and rejects the returned promise.
+ * Several overlays can be pending at once; each is dropped by its own id, so one failing action does not
+ * undo another's update. Ids come from an `IdSource` and time is not needed.
+ * Must handle: two overlays pending, the first failing (the second stays); two actions succeeding while
+ * both overlays are pending (the newest success wins); an action that succeeds after a newer canonical
+ * state arrived from a push (the newer state is kept and the overlay is dropped); an update that throws
+ * (a programmer error: the promise rejects before the action starts and nothing is applied); an action
+ * that never ends (its overlay stays pending until the action settles); the derived state being computed
+ * again from canonical state plus overlays, never patched in place.
  * Test first: with an overlay that renames a workspace and an action that fails, the derived state shows
  * the new name while the action runs and the old name after it fails; the Result carries the error.
  */
@@ -35,13 +37,17 @@ export interface OptimisticStore<S> {
 	canonical(): S;
 	/** Replaces the canonical state, for example from a push. Pending overlays stay on top. */
 	setCanonical(next: S): void;
+	/**
+	 * Starts the action with its overlay. Returns the action's Result. A throwing update or a rejecting
+	 * action rejects the returned promise; those are programmer errors, not expected failures.
+	 */
 	run<R>(input: OptimisticRun<S, R>): Promise<Result<S, R>>;
 	subscribe(listener: () => void): () => void;
 }
 
 export function createOptimisticStore<S>(initial: S, ids: IdSource): OptimisticStore<S> {
 	let canonicalState = initial;
-	let revision = 0;
+	let pushRevision = 0;
 	const overlays = new Map<string, (state: S) => S>();
 	const listeners = new Set<() => void>();
 
@@ -60,7 +66,7 @@ export function createOptimisticStore<S>(initial: S, ids: IdSource): OptimisticS
 		canonical: () => canonicalState,
 		setCanonical: (next) => {
 			canonicalState = next;
-			revision += 1;
+			pushRevision += 1;
 			notify();
 		},
 		subscribe: (listener) => {
@@ -74,7 +80,7 @@ export function createOptimisticStore<S>(initial: S, ids: IdSource): OptimisticS
 			input.update(read());
 
 			const id = ids.uuid();
-			const startedAt = revision;
+			const startedAtPush = pushRevision;
 			overlays.set(id, input.update);
 			notify();
 
@@ -88,10 +94,10 @@ export function createOptimisticStore<S>(initial: S, ids: IdSource): OptimisticS
 			}
 
 			overlays.delete(id);
-			// A push or a newer action replaced the canonical state while this action ran. Keep it.
-			if (result.ok && revision === startedAt) {
+			// Compare with pushes only. An overlapping action's result is not a newer source of truth,
+			// so the newest action success wins and the canonical state keeps both changes.
+			if (result.ok && pushRevision === startedAtPush) {
 				canonicalState = result.value;
-				revision += 1;
 			}
 			notify();
 			return result;

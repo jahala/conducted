@@ -1,8 +1,8 @@
 /**
  * @feature DATA-01 Helpers for reading and writing rows
  * Owns: the small pure functions every row mapper uses for JSON columns, 0/1 flags and lists of
- * results, and the three helpers that run a statement and turn an expected database failure into
- * an error Result instead of a throw.
+ * results, and the helpers that run a statement and turn an expected database failure into an
+ * error Result instead of a throw.
  * Behaviour: migration 0001 conventions (JSON columns hold data checked by packages/protocol,
  * booleans are integers), and the repository rule that a unique clash is `db.conflict` while a
  * missing foreign row is `db.foreign_key`.
@@ -117,6 +117,31 @@ export async function executeStatement(
 	} catch (cause) {
 		return err(databaseError(cause, what));
 	}
+}
+
+/** Runs one INSERT, UPDATE or DELETE and returns nothing. Zero rows is still a success. */
+export async function executeVoid(
+	db: Database,
+	sql: string,
+	params: readonly unknown[],
+	what: string,
+): Promise<Result<void>> {
+	const result = await executeStatement(db, sql, params, what);
+	return result.ok ? ok(undefined) : err(result.error);
+}
+
+/** Runs a write that must change a row. Zero rows means the row is gone: `db.not_found`. */
+export async function executeExisting(
+	db: Database,
+	sql: string,
+	params: readonly unknown[],
+	what: string,
+): Promise<Result<void>> {
+	const result = await executeStatement(db, sql, params, what);
+	if (!result.ok) return err(result.error);
+	return result.value > 0
+		? ok(undefined)
+		: err(appError("db.not_found", `${what}: the row no longer exists`));
 }
 
 /** Runs several statements in one transaction. The work returns its own Result. */

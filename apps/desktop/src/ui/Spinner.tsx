@@ -3,9 +3,13 @@
  * Owns: the one loading indicator, in the four kinds Conductor shows: working, typing, waiting and setting-up.
  * Behaviour: ui-map.md 7.3 (loading regions use role="status" and an aria-label such as "Loading workspaces";
  * the loader has types working, typing, waiting and setting-up).
+ * Our design choice: ui-map 7.3 names the four kinds but not their shapes, so each one reads differently.
+ * `working` is one turning arc on a plain track. `waiting` is the same arc on a dashed track, turning slowly.
+ * `setting-up` carries two arcs. `typing` is three pulsing dots.
  * Must handle: a label is always present for screen readers; size follows the surrounding text unless set;
- * reduced motion stops the turn and the dots' pulse (styles.css switches animation off).
- * Test first: renders role="status" with the label, and exposes its kind.
+ * reduced motion stops the turn; the typing dots' pulse runs once at 0.01ms, so they sit still
+ * (styles.css switches animation off).
+ * Test first: renders role="status" with the label, and each kind draws a different visible shape.
  */
 import { cn } from "./cn.ts";
 
@@ -60,6 +64,7 @@ export function Spinner({ label, kind = "working", size = "md", className }: Spi
 						stroke="currentColor"
 						strokeOpacity="0.25"
 						strokeWidth="3"
+						strokeDasharray={kind === "waiting" ? "2 3" : undefined}
 					/>
 					<path
 						d="M21 12a9 9 0 0 0-9-9"
@@ -67,6 +72,14 @@ export function Spinner({ label, kind = "working", size = "md", className }: Spi
 						strokeWidth="3"
 						strokeLinecap="round"
 					/>
+					{kind === "setting-up" ? (
+						<path
+							d="M3 12a9 9 0 0 0 9 9"
+							stroke="currentColor"
+							strokeWidth="3"
+							strokeLinecap="round"
+						/>
+					) : null}
 				</svg>
 			)}
 		</span>

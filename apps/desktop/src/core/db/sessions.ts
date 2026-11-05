@@ -16,6 +16,7 @@ import type { RepositoryDeps } from "./deps.ts";
 import {
 	collectResults,
 	executeStatement,
+	executeVoid,
 	inTransaction,
 	parseJsonColumn,
 	selectRows,
@@ -170,15 +171,6 @@ export interface SessionRepository {
 
 export function createSessionRepository(db: Database, deps: RepositoryDeps): SessionRepository {
 	const now = (): number => deps.clock.now();
-	const write = async (
-		target: Database,
-		sql: string,
-		params: readonly unknown[],
-		what: string,
-	): Promise<Result<void>> => {
-		const result = await executeStatement(target, sql, params, what);
-		return result.ok ? ok(undefined) : err(result.error);
-	};
 	return {
 		listByWorkspace: async (workspaceId, options) => {
 			const rows = await selectRows<SessionRow>(
@@ -223,7 +215,8 @@ export function createSessionRepository(db: Database, deps: RepositoryDeps): Ses
 				);
 				return written.ok ? ok(session) : err(written.error);
 			}),
-		setTitle: (id, title) => write(db, SESSIONS_SQL.setTitle, [title, now(), id], "Titling a chat"),
+		setTitle: (id, title) =>
+			executeVoid(db, SESSIONS_SQL.setTitle, [title, now(), id], "Titling a chat"),
 		setTitleIfEmpty: async (id, title) => {
 			const written = await executeStatement(
 				db,
@@ -236,10 +229,15 @@ export function createSessionRepository(db: Database, deps: RepositoryDeps): Ses
 		setConfig: async (id, config) => {
 			const json = stringifyJson(config, "sessions.config");
 			if (!json.ok) return err(json.error);
-			return write(db, SESSIONS_SQL.setConfig, [json.value, now(), id], "Saving a chat config");
+			return executeVoid(
+				db,
+				SESSIONS_SQL.setConfig,
+				[json.value, now(), id],
+				"Saving a chat config",
+			);
 		},
 		setAgentSessionId: (id, agentSessionId) =>
-			write(
+			executeVoid(
 				db,
 				SESSIONS_SQL.setAgentSessionId,
 				[agentSessionId, now(), id],
@@ -255,9 +253,10 @@ export function createSessionRepository(db: Database, deps: RepositoryDeps): Ses
 			return written.ok ? ok(undefined) : err(written.error);
 		},
 		recordUserMessage: (id, at) =>
-			write(db, SESSIONS_SQL.recordUserMessage, [at, id], "Recording a user message"),
-		incrementUnread: (id) => write(db, SESSIONS_SQL.incrementUnread, [id], "Marking a chat unread"),
-		clearUnread: (id) => write(db, SESSIONS_SQL.clearUnread, [id], "Marking a chat read"),
+			executeVoid(db, SESSIONS_SQL.recordUserMessage, [at, id], "Recording a user message"),
+		incrementUnread: (id) =>
+			executeVoid(db, SESSIONS_SQL.incrementUnread, [id], "Marking a chat unread"),
+		clearUnread: (id) => executeVoid(db, SESSIONS_SQL.clearUnread, [id], "Marking a chat read"),
 		clearWorkspaceUnread: async (workspaceId) => {
 			const rows = await selectRows<{ id: SessionId }>(
 				db,
@@ -279,13 +278,14 @@ export function createSessionRepository(db: Database, deps: RepositoryDeps): Ses
 				: err(rows.error);
 		},
 		pauseQueue: (id, at) =>
-			write(db, SESSIONS_SQL.pauseQueue, [at, id], "Pausing the follow-up queue"),
-		resumeQueue: (id) => write(db, SESSIONS_SQL.resumeQueue, [id], "Resuming the follow-up queue"),
+			executeVoid(db, SESSIONS_SQL.pauseQueue, [at, id], "Pausing the follow-up queue"),
+		resumeQueue: (id) =>
+			executeVoid(db, SESSIONS_SQL.resumeQueue, [id], "Resuming the follow-up queue"),
 		close: async (id) => {
 			const written = await executeStatement(db, SESSIONS_SQL.close, [now(), id], "Closing a chat");
 			return written.ok ? ok(written.value > 0) : err(written.error);
 		},
-		reopen: (id) => write(db, SESSIONS_SQL.reopen, [now(), id], "Reopening a chat"),
-		delete: (id) => write(db, SESSIONS_SQL.delete, [id], "Removing a chat"),
+		reopen: (id) => executeVoid(db, SESSIONS_SQL.reopen, [now(), id], "Reopening a chat"),
+		delete: (id) => executeVoid(db, SESSIONS_SQL.delete, [id], "Removing a chat"),
 	};
 }

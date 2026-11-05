@@ -23,6 +23,7 @@ import type { DiffComment, ReviewCommentState } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
 import {
 	executeStatement,
+	executeVoid,
 	fromFlag,
 	inTransaction,
 	selectRows,
@@ -199,15 +200,6 @@ export function createDiffCommentRepository(
 	deps: RepositoryDeps,
 ): DiffCommentRepository {
 	const now = (): number => deps.clock.now();
-	const write = async (
-		target: Database,
-		sql: string,
-		params: readonly unknown[],
-		what: string,
-	): Promise<Result<void>> => {
-		const result = await executeStatement(target, sql, params, what);
-		return result.ok ? ok(undefined) : err(result.error);
-	};
 	const list = async (
 		sql: string,
 		params: readonly unknown[],
@@ -298,14 +290,14 @@ export function createDiffCommentRepository(
 				return removed.ok ? ok(undefined) : err(removed.error);
 			}),
 		setBody: (id, body, suggestion) =>
-			write(
+			executeVoid(
 				db,
 				DIFF_COMMENTS_SQL.setBody,
 				[body, suggestion, now(), id],
 				"Editing a review comment",
 			),
 		setResolved: (id, resolved) =>
-			write(
+			executeVoid(
 				db,
 				DIFF_COMMENTS_SQL.setResolved,
 				[toFlag(resolved), now(), id],
@@ -313,21 +305,21 @@ export function createDiffCommentRepository(
 			),
 		setState: async () => notImplemented("REV-12"),
 		setThreadResolved: (workspaceId, threadId, resolved) =>
-			write(
+			executeVoid(
 				db,
 				DIFF_COMMENTS_SQL.setThreadResolved,
 				[toFlag(resolved), now(), workspaceId, threadId],
 				"Resolving a comment thread",
 			),
 		setOutdated: (id, outdated) =>
-			write(
+			executeVoid(
 				db,
 				DIFF_COMMENTS_SQL.setOutdated,
 				[toFlag(outdated), now(), id],
 				"Marking a comment outdated",
 			),
 		setRemoteUrl: (id, url) =>
-			write(db, DIFF_COMMENTS_SQL.setRemoteUrl, [url, now(), id], "Saving a comment link"),
-		delete: (id) => write(db, DIFF_COMMENTS_SQL.delete, [id], "Removing a review comment"),
+			executeVoid(db, DIFF_COMMENTS_SQL.setRemoteUrl, [url, now(), id], "Saving a comment link"),
+		delete: (id) => executeVoid(db, DIFF_COMMENTS_SQL.delete, [id], "Removing a review comment"),
 	};
 }

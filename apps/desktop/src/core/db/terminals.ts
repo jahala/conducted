@@ -22,7 +22,7 @@ import {
 import type { Database } from "../../platform/platform.ts";
 import type { Terminal } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
-import { executeStatement, inTransaction, selectRows } from "./row-codec.ts";
+import { executeStatement, executeVoid, inTransaction, selectRows } from "./row-codec.ts";
 
 export interface TerminalRow {
 	id: TerminalId;
@@ -137,15 +137,6 @@ export function createTerminalRepository(db: Database, deps: RepositoryDeps): Te
 		const rows = await selectRows<TerminalRow>(db, sql, params, what);
 		return rows.ok ? ok(rows.value.map(terminalFromRow)) : err(rows.error);
 	};
-	const write = async (
-		target: Database,
-		sql: string,
-		params: readonly unknown[],
-		what: string,
-	): Promise<Result<void>> => {
-		const result = await executeStatement(target, sql, params, what);
-		return result.ok ? ok(undefined) : err(result.error);
-	};
 	return {
 		listByWorkspace: (workspaceId) =>
 			list(TERMINALS_SQL.listByWorkspace, [workspaceId], "Listing terminals"),
@@ -195,9 +186,10 @@ export function createTerminalRepository(db: Database, deps: RepositoryDeps): Te
 					exitCode: terminal.exitCode,
 				});
 			}),
-		setTitle: (id, title) => write(db, TERMINALS_SQL.setTitle, [title, id], "Titling a terminal"),
+		setTitle: (id, title) =>
+			executeVoid(db, TERMINALS_SQL.setTitle, [title, id], "Titling a terminal"),
 		setSize: (id, cols, rows) =>
-			write(db, TERMINALS_SQL.setSize, [cols, rows, id], "Resizing a terminal"),
+			executeVoid(db, TERMINALS_SQL.setSize, [cols, rows, id], "Resizing a terminal"),
 		getScreenState: async () => notImplemented("PLAT-08"),
 		setScreenState: async () => notImplemented("PLAT-08"),
 		markEnded: async (id, endedAt, exitCode) => {
@@ -209,6 +201,6 @@ export function createTerminalRepository(db: Database, deps: RepositoryDeps): Te
 			);
 			return written.ok ? ok(written.value > 0) : err(written.error);
 		},
-		delete: (id) => write(db, TERMINALS_SQL.delete, [id], "Removing a terminal"),
+		delete: (id) => executeVoid(db, TERMINALS_SQL.delete, [id], "Removing a terminal"),
 	};
 }

@@ -4,14 +4,15 @@
  * a test script what the outside world does: shell answers, sidecar lines, clicks, deep links.
  * Behaviour: services-map.md 1.1 (the Platform object is the only boundary, so a stand-in is
  * possible); docs/plans/scaffold.md decision on tests that "never mock what they test".
- * Must handle: it passes the same contract as the Tauri implementation (contract.ts), so a
- * service test on it is a statement about the real app; time and ids come from the options,
- * never from globals; every listener it hands out can be removed, and `dispose()` checks that none
- * is left (a leaked listener is a test failure); the database is a real SQLite passed in by the
- * test (for example a thin adapter over `node:sqlite`), because a fake database would test the
- * fake; the shell answers only what a test scripted, and an unscripted command is an `Err` with
- * code `shell_unscripted`, never a made-up success; the file system keeps text only, with
- * folders as path prefixes.
+ * Must handle: it passes the Platform contract (contract.ts), the same list the Tauri implementation
+ * must pass once the planned end-to-end job runs it (docs/plans/parallel-build.md). Until then the
+ * contract proves the stand-in alone, so a service test on it describes the stand-in's behaviour.
+ * Time and ids come from the options, never from globals; every listener it hands out can be
+ * removed, and `dispose()` returns the number still attached so a test can assert that none leaked;
+ * the database is a real SQLite passed in by the test (for example a thin adapter over
+ * `node:sqlite`), because a fake database would test the fake; the shell answers only what a test
+ * scripted, and an unscripted command is an `Err` with code `shell_unscripted`, never a made-up
+ * success; the file system keeps text only, with folders as path prefixes.
  * Our design choice: the stand-in is a factory returning the Platform together with its controls,
  * so production code cannot reach the controls through the Platform type.
  * Test first: the contract case "fs: write then read returns the same text" passes on it.
@@ -106,8 +107,8 @@ export interface MemoryPlatformControls {
 	readonly secrets: Map<string, string>;
 	/** Log lines written through `app.writeLog`. */
 	readonly logs: readonly { level: string; message: string }[];
-	/** Throws when a listener handed out by the Platform was never unsubscribed. */
-	dispose(): void;
+	/** Returns the number of listeners handed out by the Platform that were never unsubscribed. */
+	dispose(): number;
 }
 
 export interface MemoryPlatform {
@@ -579,7 +580,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 				state.rows = rows;
 			},
 			kill: async () => {
-				finishPty(state, 0);
+				finishPty(state, 143);
 			},
 			onData: (listener) => listen(state.dataListeners, listener),
 			ack: () => {},
@@ -924,13 +925,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		get logs() {
 			return logs;
 		},
-		dispose: () => {
-			if (activeListeners.size > 0) {
-				throw new Error(
-					`The memory Platform still has ${activeListeners.size} listener(s) that were never unsubscribed.`,
-				);
-			}
-		},
+		dispose: () => activeListeners.size,
 	};
 
 	const platform: Platform = {
