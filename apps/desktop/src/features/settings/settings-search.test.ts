@@ -34,6 +34,24 @@ describe("SET-02 settings search", () => {
 		expect(ranked.map((entry) => entry.key)).toEqual(["title", "description", "keyword"]);
 	});
 
+	it("lists every matching setting before any matching command", () => {
+		const ranked = searchSettings(
+			[
+				setting({ key: "zoom_level_v2", title: "App zoom" }),
+				setting({ key: "command:view.zoomIn", title: "Zoom in", page: "key-bindings" }),
+				setting({ key: "command:view.zoomOut", title: "Zoom out", page: "key-bindings" }),
+				setting({ key: "terminal", title: "Terminal size", keywords: ["zoom"] }),
+			],
+			"zoom",
+			3,
+		);
+		expect(ranked.map((entry) => entry.key)).toEqual([
+			"zoom_level_v2",
+			"terminal",
+			"command:view.zoomIn",
+		]);
+	});
+
 	it("returns nothing for a blank query or a limit of zero", () => {
 		expect(searchSettings(index, "   ", 30)).toEqual([]);
 		expect(searchSettings(index, "zoom", 0)).toEqual([]);

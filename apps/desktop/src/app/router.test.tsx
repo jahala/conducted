@@ -102,7 +102,7 @@ describe("app shell", () => {
 		await screen.findByRole("heading", { name: "Run agents side by side" });
 		fireEvent.click(screen.getByRole("button", { name: "Search" }));
 		expect(useOverlayStore.getState().open).toBe("palette");
-		expect(await screen.findByText("Command palette")).toBeTruthy();
+		expect(await screen.findByRole("dialog", { name: "Command palette" })).toBeTruthy();
 		fireEvent.click(screen.getByRole("button", { name: "Close" }));
 		expect(useOverlayStore.getState().open).toBeNull();
 	});

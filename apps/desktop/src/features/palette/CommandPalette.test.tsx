@@ -7,7 +7,7 @@
  */
 import { ok } from "@conducted/shared";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useOverlayStore } from "../../app/overlay-store.ts";
 import { AppProviders, createQueryClient } from "../../app/providers.tsx";
@@ -175,15 +175,17 @@ describe("NAV-08 CommandPalette", () => {
 		fireEvent.change(mounted.input, { target: { value: "move to section" } });
 		fireEvent.click(await screen.findByText("Move to section"));
 		const sections = await screen.findByPlaceholderText("Search sections...");
-		const row = await screen.findByText("Ideas");
+		// The sidebar lists the section too, so look for its row inside the palette only.
+		const palette = within(screen.getByRole("dialog", { name: "Command palette" }));
+		const row = await palette.findByText("Ideas");
 		fireEvent.pointerMove(row);
-		return { ...mounted, section: created.value, sections };
+		return { ...mounted, section: created.value, sections, palette };
 	}
 
 	it("opens the section sub-page from Move to section", async () => {
-		const { sections } = await openSectionsPage();
+		const { sections, palette } = await openSectionsPage();
 		expect(sections).toBeTruthy();
-		expect(screen.getByText("Ideas")).toBeTruthy();
+		expect(palette.getByText("Ideas")).toBeTruthy();
 	});
 
 	it("edits the highlighted section with Cmd+E pressed into the root dispatcher", async () => {

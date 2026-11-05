@@ -10,7 +10,7 @@
  * Must handle: type-ahead and arrow keys (radix), a destructive item, an item with a shortcut hint, disabled
  * items, separators between groups, checkbox and radio items that report their change, a submenu, a menu that
  * closes when the page scrolls, digits 1 to 9 that activate the matching enabled item, closing on Escape and on
- * outside click.
+ * outside click, a caller's aria-label naming the menu in place of the trigger's label.
  * Test first: opening the trigger lists the items; choosing one calls onSelect and closes the menu.
  */
 import { DropdownMenu as Radix } from "radix-ui";
@@ -209,6 +209,10 @@ export function useMenuContentBehaviour(
 	return { contentRef: setContentRef, onKeyDown: handleKeyDown };
 }
 
+/**
+ * The dropdown's content. Radix names the menu after its trigger with aria-labelledby, which hides
+ * an aria-label the caller passes; a caller's aria-label names the menu instead.
+ */
 export function MenuContent({
 	className,
 	sideOffset = 6,
@@ -217,6 +221,8 @@ export function MenuContent({
 	...rest
 }: ComponentProps<typeof Radix.Content>) {
 	const behaviour = useMenuContentBehaviour(ref, onKeyDown);
+	const labelledBy =
+		rest["aria-label"] === undefined ? {} : { "aria-labelledby": rest["aria-labelledby"] };
 
 	return (
 		<Radix.Portal>
@@ -226,6 +232,7 @@ export function MenuContent({
 				onKeyDown={behaviour.onKeyDown}
 				className={cn(menuContentClass, className)}
 				{...rest}
+				{...labelledBy}
 			/>
 		</Radix.Portal>
 	);

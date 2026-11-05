@@ -7,6 +7,9 @@
  * archived, projects, chats, workspace actions, actions, navigation, settings and open-in; empty
  * "No results found"; loading spinner in the heading), 5.4 (Cmd+E edits and Cmd+Backspace deletes a
  * highlighted section).
+ * Our design choice: the palette's own keys (Tab, Shift+Tab, Cmd+E, Cmd+Backspace, or the user's
+ * rebinds) run from the palette's keydown handler through the dispatcher's useScopeKeyDown, so the
+ * dialog's focus trap cannot take Shift+Tab to move focus out of the search box.
  * Our design choice: the items come from palette-model.ts and the live command registry. The screen
  * routes a chosen item by its id prefix. A command runs the way its shortcut would: a screen's own
  * handler first, then the service-level runner. Choosing a project opens the new-workspace page with
@@ -24,7 +27,11 @@ import type { SectionId, WorkspaceId } from "@conducted/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { Command } from "cmdk";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useCommandHandler, useRunCommandHandlers } from "../../app/command-dispatcher.ts";
+import {
+	useCommandHandler,
+	useRunCommandHandlers,
+	useScopeKeyDown,
+} from "../../app/command-dispatcher.ts";
 import { useOverlayStore } from "../../app/overlay-store.ts";
 import { createLatestWins } from "../../core/async/latest-wins.ts";
 import { useServices } from "../../core/context.tsx";
@@ -72,6 +79,7 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 	const defaultOpenIn = useSetting<string>("default_open_in");
 	const showOverlay = useOverlayStore((state) => state.show);
 	const runCommand = useRunCommandHandlers();
+	const paletteKeyDown = useScopeKeyDown("palette");
 
 	const [tab, setTab] = useState<PaletteTab>("all");
 	const [query, setQuery] = useState("");
@@ -340,6 +348,14 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 			shouldFilter={false}
 			value={selectedId ?? ""}
 			onValueChange={setSelectedId}
+			onKeyDown={(event) => {
+				// The dialog's focus trap would take Shift+Tab in the search box to move focus, so the
+				// palette's own keys run here, before the trap sees them.
+				if (paletteKeyDown(event.nativeEvent)) {
+					event.preventDefault();
+					event.stopPropagation();
+				}
+			}}
 			overlayClassName="fixed inset-0 z-40 bg-overlay"
 			contentClassName="fixed left-1/2 top-[max(2rem,calc(50%-250px))] z-50 flex w-(--palette-width) max-w-[calc(100%-2rem)] -translate-x-1/2 flex-col overflow-hidden rounded-md border border-border bg-raised text-fg shadow-palette"
 		>
