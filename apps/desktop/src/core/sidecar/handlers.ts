@@ -11,15 +11,10 @@
  * adopted status and any open interaction, and a failed live-state write is thrown so the tunnel
  * logs it; `agentSessionId` stores the agent's own session id so the next message resumes, and a
  * failed write is thrown so the tunnel logs it; `agentInstallsChanged` updates the agent catalog;
-<<<<<<< HEAD
- * `interactionClosed` marks a timed-out card and settles the pending request; `shellEnvFailed`
- * logs the folder, kind and message; a failed workspace diff becomes error text the agent can
- * read instead of a crash.
-=======
  * `agentConfigChanged` stores the config the agent chose and a failed write is thrown so the
- * tunnel logs it; `shellEnvFailed` logs the folder, kind and message; a failed workspace diff
- * becomes error text the agent can read instead of a crash.
->>>>>>> node/side.20
+ * tunnel logs it; `interactionClosed` marks a timed-out card and settles the pending request;
+ * `shellEnvFailed` logs the folder, kind and message; a failed workspace diff becomes error text
+ * the agent can read instead of a crash.
  * Our design choice: handlers receive ports (small interfaces), not services, so each can be
  * tested with a plain object. Errors the agent should read go into the normal result as text.
  * Test first: a deliverEvent request for a stored event answers persisted true and sends the ack.
@@ -172,20 +167,15 @@ export function createSidecarNotificationHandlers(
 		agentInstallsChanged: async (params) => {
 			ports.agentCatalog.setAgentInstalls(params);
 		},
-<<<<<<< HEAD
-		agentConfigChanged: () => notImplemented("SIDE-20"),
-		interactionClosed: async (params) => {
-			ports.interactions.closed(params);
-		},
-=======
 		agentConfigChanged: async (params) => {
 			const written = await ports.agentConfig.setAgentConfig(params);
 			if (!written.ok) {
 				throw new Error(`Could not store the chat's config: ${written.error.message}`);
 			}
 		},
-		interactionClosed: () => notImplemented("CHAT-11"),
->>>>>>> node/side.20
+		interactionClosed: async (params) => {
+			ports.interactions.closed(params);
+		},
 		goalChanged: () => notImplemented("COMP-10"),
 		shellEnvFailed: async (params) => {
 			ports.shellEnv.captureFailed(params);
