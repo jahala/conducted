@@ -291,3 +291,9 @@ Chosen:
 - A checklist item that another feature owns (a screen, a runner, the composition root) moves to that feature in `docs/plans/items/` before the row turns `done`. When the move leaves wiring undone, the conductor adds an item for it to the feature that owns the wiring.
 - A red CI run caused by the conductor's own process does not count as a feature's fix round.
   Why: one record of what is done (the backlog), issues closed by the merge that finishes them, and no "done" that hides unbuilt items.
+
+## D042. A composition root built beside its modules gets an integration fix (2026-11-05)
+
+Context: in step 2, SIDE-01 (the sidecar's composition root) was built in parallel with the modules it composes. Each node passed its gate alone, but the merged batch failed typecheck, because three modules had changed their constructor inputs. pleach's land gate refused the whole batch.
+Chosen: the conductor merges the batch's verified branches in a scratch worktree and gives the typecheck output to one fresh fixer for the composition root. It changes only the composition root and its test. The conductor runs every feature's gate on the result before the step branch takes it.
+Why: the composition root depends on every module's inputs, so making it wait for all of them would hold it back to the last step. One integration fix per step costs less.
