@@ -98,7 +98,11 @@ function TabBody({
 		case "comment":
 			return (
 				<NotBuiltYet area="Review comment" resetKey={key}>
-					<CommentTab workspaceId={workspaceId} commentId={tab.commentId} />
+					<CommentTab
+						workspaceId={workspaceId}
+						commentId={tab.commentId}
+						onOpenComment={(commentId) => onSearchChange({ tab: "comment", commentId })}
+					/>
 				</NotBuiltYet>
 			);
 		case "pr":

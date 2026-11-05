@@ -545,6 +545,11 @@ export function createContainer(inputs: ContainerInputs): Container {
 		repos: repositories,
 		git: gitRunner,
 		agent: sessions,
+		fs: platform.fs,
+		workspacePathOf: async (id) => {
+			const found = lookups.workspace(id);
+			return found.ok ? ok(found.value.path) : found;
+		},
 		customPromptOf: async (id) => {
 			const found = lookups.repoOf(id);
 			if (!found.ok) return found;
