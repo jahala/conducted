@@ -9,17 +9,12 @@
  */
 import { type AppError, notImplemented } from "@conducted/shared";
 import { useQuery } from "@tanstack/react-query";
-<<<<<<< HEAD
-import type { FileEntry, Queries } from "../api.ts";
-import { useServices } from "../context.tsx";
-=======
 import type { ContentMatch, FileEntry, Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
 
 /** Both dialogs wait for a second character, and the picker shows the best 50 names. */
 const MIN_QUERY_LENGTH = 2;
 const QUICK_OPEN_LIMIT = 50;
->>>>>>> node/rev.07
 
 export const useFileTree: Queries["useFileTree"] = (workspaceId) => {
 	const service = useServices().services.workspaceFiles;

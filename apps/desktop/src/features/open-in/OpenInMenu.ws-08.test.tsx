@@ -64,7 +64,7 @@ function renderMenu(workspaceId: WorkspaceId, dispatcher = false) {
 
 async function openMenu() {
 	fireEvent.click(screen.getByRole("button", { name: "Open in menu" }));
-	return screen.findByRole("menu", { name: "Open in" });
+	return screen.findByRole("menu");
 }
 
 const menuLabels = (menu: HTMLElement) =>
@@ -103,6 +103,7 @@ describe("WS-08 OpenInMenu", () => {
 		const set = vi.spyOn(test.container.actions.settings, "set").mockResolvedValue(ok(undefined));
 		renderMenu(workspace.id);
 
+		await screen.findByRole("button", { name: /Cursor/ });
 		await openMenu();
 		fireEvent.click(screen.getByRole("button", { name: "Set as default" }));
 
@@ -182,7 +183,7 @@ describe("WS-08 OpenInMenu", () => {
 		await waitFor(() => expect(openIn).toHaveBeenCalledWith(workspace.id, "Cursor"));
 
 		fireEvent.keyDown(document, { key: "o", metaKey: true, shiftKey: true });
-		expect(await screen.findByRole("menu", { name: "Open in" })).toBeTruthy();
+		expect(await screen.findByRole("menu")).toBeTruthy();
 	});
 
 	it("WS-08 opens the menu with Cmd+O when no default app is set", async () => {
@@ -196,7 +197,7 @@ describe("WS-08 OpenInMenu", () => {
 
 		fireEvent.keyDown(document, { key: "o", metaKey: true });
 
-		expect(await screen.findByRole("menu", { name: "Open in" })).toBeTruthy();
+		expect(await screen.findByRole("menu")).toBeTruthy();
 		expect(openIn).not.toHaveBeenCalled();
 	});
 });

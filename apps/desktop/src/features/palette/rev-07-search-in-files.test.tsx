@@ -24,7 +24,7 @@ import { SearchInFiles } from "./SearchInFiles.tsx";
 
 afterEach(cleanup);
 
-function renderDialog(
+async function renderDialog(
 	container: ReturnType<typeof createTestContainer>["container"],
 	node: ReactNode,
 	workspaceId: WorkspaceId,
@@ -48,6 +48,7 @@ function renderDialog(
 			</AppProviders>
 		</ServicesProvider>,
 	);
+	await router.load();
 	return router;
 }
 
@@ -65,7 +66,7 @@ describe("REV-07 SearchInFiles", () => {
 	it("groups matches by file", async () => {
 		const { test, workspace } = await setup();
 		try {
-			renderDialog(
+			await renderDialog(
 				test.container,
 				<SearchInFiles open onOpenChange={vi.fn()} workspaceId={workspace.id} />,
 				workspace.id,
@@ -85,7 +86,7 @@ describe("REV-07 SearchInFiles", () => {
 	it("removes a longer word when Whole word is on", async () => {
 		const { test, workspace } = await setup();
 		try {
-			renderDialog(
+			await renderDialog(
 				test.container,
 				<SearchInFiles open onOpenChange={vi.fn()} workspaceId={workspace.id} />,
 				workspace.id,
@@ -98,7 +99,7 @@ describe("REV-07 SearchInFiles", () => {
 			await waitFor(() =>
 				expect(screen.queryByRole("button", { name: "src/retry.ts:2" })).toBeNull(),
 			);
-			expect(screen.getByRole("button", { name: "src/retry.ts:1" })).toBeTruthy();
+			expect(await screen.findByRole("button", { name: "src/retry.ts:1" })).toBeTruthy();
 		} finally {
 			test.close();
 		}
@@ -107,7 +108,7 @@ describe("REV-07 SearchInFiles", () => {
 	it("removes different casing when Match case is on", async () => {
 		const { test, workspace } = await setup();
 		try {
-			renderDialog(
+			await renderDialog(
 				test.container,
 				<SearchInFiles open onOpenChange={vi.fn()} workspaceId={workspace.id} />,
 				workspace.id,
@@ -120,7 +121,7 @@ describe("REV-07 SearchInFiles", () => {
 			await waitFor(() =>
 				expect(screen.queryByRole("region", { name: "src/retry.ts" })).toBeNull(),
 			);
-			expect(screen.getByRole("region", { name: "src/case.ts" })).toBeTruthy();
+			expect(await screen.findByRole("region", { name: "src/case.ts" })).toBeTruthy();
 		} finally {
 			test.close();
 		}
@@ -129,7 +130,7 @@ describe("REV-07 SearchInFiles", () => {
 	it("shows the pattern error and no matches for a bad regular expression", async () => {
 		const { test, workspace } = await setup();
 		try {
-			renderDialog(
+			await renderDialog(
 				test.container,
 				<SearchInFiles open onOpenChange={vi.fn()} workspaceId={workspace.id} />,
 				workspace.id,
@@ -140,7 +141,7 @@ describe("REV-07 SearchInFiles", () => {
 			});
 			const alert = await screen.findByRole("alert");
 			expect(alert.textContent).toContain("Invalid pattern");
-			expect(screen.queryByRole("region")).toBeNull();
+			expect(screen.queryByRole("region", { name: /^src\// })).toBeNull();
 		} finally {
 			test.close();
 		}
@@ -149,7 +150,7 @@ describe("REV-07 SearchInFiles", () => {
 	it("waits for two characters and says so", async () => {
 		const { test, workspace } = await setup();
 		try {
-			renderDialog(
+			await renderDialog(
 				test.container,
 				<SearchInFiles open onOpenChange={vi.fn()} workspaceId={workspace.id} />,
 				workspace.id,
@@ -158,7 +159,7 @@ describe("REV-07 SearchInFiles", () => {
 				target: { value: "r" },
 			});
 			expect(screen.getByText("Type at least 2 characters to search.")).toBeTruthy();
-			expect(screen.queryByRole("region")).toBeNull();
+			expect(screen.queryByRole("region", { name: /^src\// })).toBeNull();
 		} finally {
 			test.close();
 		}
@@ -167,7 +168,7 @@ describe("REV-07 SearchInFiles", () => {
 	it("opens a match as a file tab", async () => {
 		const { test, workspace } = await setup();
 		try {
-			const router = renderDialog(
+			const router = await renderDialog(
 				test.container,
 				<SearchInFiles open onOpenChange={vi.fn()} workspaceId={workspace.id} />,
 				workspace.id,

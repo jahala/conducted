@@ -1,19 +1,19 @@
 /**
- * @feature REV-06 Workspace files: tree, quick open, read and write
- * Owns: listing a workspace's files, fuzzy file search, and reading and saving a file for the
- * viewer and editor.
- * Behaviour: services-map.md 5A.5 (transport pattern, UI queries), ui-map.md 3.6 (All files tab,
- * quick open). The tab polls `tree` because JS file watchers do nothing under CEF
- * (services-map.md 5A.9).
+ * @feature REV-06 Workspace files: tree, quick open, search, read and write
+ * Owns: listing a workspace's files, fuzzy file search, content search, and reading and saving a
+ * file for the viewer and editor.
+ * Behaviour: services-map.md 5A.5 (transport pattern, UI queries, minimum search length 2, polling
+ * the tree), ui-map.md 3.6 (All files tab, quick open, search in files). The tab polls `tree`
+ * because JS file watchers do nothing under CEF (services-map.md 5A.9).
  * Must handle: paths outside the workspace folder (and its linked folders) are refused before any
  * file is read or written; the tree respects `.gitignore` (done by the Rust search commands); a
- * blank quick-open query returns no rows; saving writes atomically and refuses when the file
- * changed on disk since it was opened (returns a conflict Err with the new modified time).
+ * query under two characters returns no rows; a bad regular expression returns the platform's
+ * pattern error; saving writes atomically and refuses when the file changed on disk since it was
+ * opened (returns a conflict Err with the new modified time).
  * Our design choice: the base path check compares resolved paths in TypeScript before every file
  * call, in addition to whatever the Rust side checks.
  * Test first: readFile("../outside") returns an Err with code `path_outside_workspace`.
  */
-<<<<<<< HEAD
 import {
 	appError,
 	err,
@@ -22,21 +22,12 @@ import {
 	type Result,
 	type WorkspaceId,
 } from "@conducted/shared";
-=======
-import { appError, notImplemented, ok, type Result, type WorkspaceId } from "@conducted/shared";
->>>>>>> node/rev.07
 import type { FileSearch, FileSystem, GrepMatch, TreeEntry } from "../../platform/platform.ts";
 import type { ConflictChoice, DiffScope, FileEntry } from "../api.ts";
 import { workspaceRelativePath } from "./git.ts";
 
 /** The search stops here, and the dialog tells the user to refine the query. */
 const GREP_MATCH_LIMIT = 200;
-
-/** A path as the UI shows it: relative to the root that was searched. */
-function relativeTo(root: string, path: string): string {
-	const prefix = root.endsWith("/") ? root : `${root}/`;
-	return path.startsWith(prefix) ? path.slice(prefix.length) : path;
-}
 
 export interface WorkspaceFilesServiceDeps {
 	fs: FileSystem;
@@ -54,7 +45,8 @@ interface ResolvedPath {
 
 const trimRoot = (root: string): string => (root === "/" ? "" : root.replace(/\/+$/, ""));
 
-const toRelative = (root: string, path: string): string | null => {
+/** A path as the UI shows it: relative to the root that was searched, or null when outside it. */
+const relativeTo = (root: string, path: string): string | null => {
 	const base = trimRoot(root);
 	if (base === "") return path.startsWith("/") ? path.slice(1) : path;
 	if (path === base) return "";
@@ -65,7 +57,7 @@ const toRelative = (root: string, path: string): string | null => {
 const toEntries = (root: string, entries: readonly TreeEntry[]): FileEntry[] => {
 	const result: FileEntry[] = [];
 	for (const entry of entries) {
-		const relative = toRelative(root, entry.path);
+		const relative = relativeTo(root, entry.path);
 		if (relative === null || relative.length === 0) continue;
 		result.push({ path: relative, isDirectory: entry.isDirectory });
 	}
@@ -92,33 +84,15 @@ export class WorkspaceFilesService {
 		workspaceId: WorkspaceId,
 		query: string,
 		limit: number,
-<<<<<<< HEAD
 	): Promise<Result<FileEntry[]>> {
-		const root = await this.#rootOf(workspaceId);
-		if (!root.ok) return root;
 		const trimmed = query.trim();
 		const count = Math.max(0, Math.floor(limit));
-		if (trimmed.length === 0 || count === 0) return ok([]);
+		if (trimmed.length < 2 || count === 0) return ok([]);
+		const root = await this.#rootOf(workspaceId);
+		if (!root.ok) return root;
 		const found = await this.#deps.search.fuzzyMatch(root.value, trimmed, count);
 		if (!found.ok) return found;
 		return ok(toEntries(root.value, found.value));
-=======
-	): Promise<Result<TreeEntry[]>> {
-		const trimmed = query.trim();
-		if (trimmed.length < 2) return ok([]);
-		const roots = await this.#deps.rootsOf(workspaceId);
-		if (!roots.ok) return roots;
-		const root = roots.value[0];
-		if (root === undefined) {
-			return {
-				ok: false,
-				error: appError("workspace_root_missing", "The workspace has no folder to search."),
-			};
-		}
-		const found = await this.#deps.search.fuzzyMatch(root, trimmed, Math.max(0, limit));
-		if (!found.ok) return found;
-		return ok(found.value.map((entry) => ({ ...entry, path: relativeTo(root, entry.path) })));
->>>>>>> node/rev.07
 	}
 
 	async grep(
@@ -144,7 +118,12 @@ export class WorkspaceFilesService {
 			limit: GREP_MATCH_LIMIT,
 		});
 		if (!found.ok) return found;
-		return ok(found.value.map((match) => ({ ...match, path: relativeTo(root, match.path) })));
+		const matches: GrepMatch[] = [];
+		for (const match of found.value) {
+			const relative = relativeTo(root, match.path);
+			if (relative !== null) matches.push({ ...match, path: relative });
+		}
+		return ok(matches);
 	}
 
 	async readFile(

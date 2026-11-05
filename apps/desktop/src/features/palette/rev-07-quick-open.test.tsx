@@ -23,7 +23,7 @@ import { QuickOpen } from "./QuickOpen.tsx";
 
 afterEach(cleanup);
 
-function renderDialog(
+async function renderDialog(
 	container: ReturnType<typeof createTestContainer>["container"],
 	node: ReactNode,
 	workspaceId: WorkspaceId,
@@ -47,6 +47,7 @@ function renderDialog(
 			</AppProviders>
 		</ServicesProvider>,
 	);
+	await router.load();
 	return router;
 }
 
@@ -57,7 +58,7 @@ describe("REV-07 QuickOpen", () => {
 			const workspace = await seedWorkspace(test.container, { path: "/code/workspaces/quick" });
 			test.memory.controls.files.set(`${workspace.path}/src/app/AppShell.tsx`, "export {};\n");
 			const onOpenChange = vi.fn();
-			const router = renderDialog(
+			const router = await renderDialog(
 				test.container,
 				<QuickOpen open onOpenChange={onOpenChange} workspaceId={workspace.id} />,
 				workspace.id,
@@ -85,7 +86,7 @@ describe("REV-07 QuickOpen", () => {
 			const workspace = await seedWorkspace(test.container, { path: "/code/workspaces/arrows" });
 			test.memory.controls.files.set(`${workspace.path}/src/alpha.ts`, "a\n");
 			test.memory.controls.files.set(`${workspace.path}/src/alphabet.ts`, "b\n");
-			const router = renderDialog(
+			const router = await renderDialog(
 				test.container,
 				<QuickOpen open onOpenChange={vi.fn()} workspaceId={workspace.id} />,
 				workspace.id,
@@ -113,7 +114,7 @@ describe("REV-07 QuickOpen", () => {
 					"x\n",
 				);
 			}
-			renderDialog(
+			await renderDialog(
 				test.container,
 				<QuickOpen open onOpenChange={vi.fn()} workspaceId={workspace.id} />,
 				workspace.id,
@@ -128,10 +129,10 @@ describe("REV-07 QuickOpen", () => {
 		}
 	});
 
-	it("explains that there is no workspace to search", () => {
+	it("explains that there is no workspace to search", async () => {
 		const test = createTestContainer();
 		try {
-			renderDialog(
+			await renderDialog(
 				test.container,
 				<QuickOpen open onOpenChange={vi.fn()} workspaceId={null} />,
 				"none" as WorkspaceId,

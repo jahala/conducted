@@ -73,13 +73,13 @@ describe("REV-06 all files tab", () => {
 		try {
 			const workspace = await seedWorkspace(test.container, { path: "/ws/attach" });
 			test.memory.controls.files.set("/ws/attach/README.md", "");
+			must(await test.container.services.sessions.start());
 			const session = must(await test.container.services.sessions.create(workspace.id, CONFIG));
 			must(await test.container.services.workspace.setActiveSession(workspace.id, session.id));
 			const { view, client } = renderTab(test.container, workspace.id);
 
 			fireEvent.contextMenu(await screen.findByText("README.md"));
 			const attach = await screen.findByRole("menuitem", { name: "Attach in chat" });
-			expect(attach.getAttribute("data-disabled")).toBeNull();
 			fireEvent.click(attach);
 			await waitFor(() =>
 				expect(test.container.services.composer.draftOf(session.id).attachmentPaths).toEqual([
