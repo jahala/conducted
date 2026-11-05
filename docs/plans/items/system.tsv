@@ -570,10 +570,10 @@ AGENT-11	interaction	ACP elicitation supports the form mode only	other-runners 4
 AGENT-09	rule	Cursor has no approvals	other-runners 4	covered
 SIDE-14	rule	Each agent has a static model table with picker, gated and deprecated flags; ours has each runner report its own list	other-runners 5	covered
 SIDE-14	rule	Each agent has a default model; ours has default_model setting and a default effort but no default model id in the catalog	other-runners 5	partly
-SIDE-14	operation	Codex models are listed through model/list with hidden ones dropped	other-runners 5	covered
-SIDE-14	operation	ACP models are listed from the model config option	other-runners 5	covered
-SIDE-14	timeout	The ACP model list waits 15 seconds and is capped at 90 seconds	other-runners 5	covered
-SIDE-14	rule	The Cursor model catalog is static	other-runners 5	covered
+AGENT-06	operation	Codex models are listed through model/list with hidden ones dropped	other-runners 5	covered
+AGENT-12	operation	ACP models are listed from the model config option	other-runners 5	covered
+AGENT-12	timeout	The ACP model list waits 15 seconds and is capped at 90 seconds	other-runners 5	covered
+AGENT-09	rule	The Cursor model catalog is static	other-runners 5	covered
 AGENT-17	operation	ACP per-session config options are fetched, the model is synced and options are set	other-runners 5	missing
 SIDE-03	rule	Option changes are serialised on the lifecycle queue and deferred while a turn runs	other-runners 5	covered
 SIDE-15	rule	Claude account info shows whether the user is signed in	other-runners 5	covered
@@ -896,7 +896,7 @@ GIT-10	timeout	Checkpointer temp index folders older than 60 minutes with a dead
 GIT-10	script	checkpointer exit codes are 0, 1, 101, 102, 103 and 143.	native-and-sidecar-map C1	covered
 GIT-11	script	git-busy-check prints clean when git is idle.	native-and-sidecar-map C2	covered
 GIT-11	script	git-busy-check prints busy:rebase, busy:merge, busy:squash-merge, busy:cherry-pick or busy:revert.	native-and-sidecar-map C2	covered
-GIT-11	script	git-busy-check exits 0 when clean and 2 when busy.	native-and-sidecar-map C2	covered
+GIT-11	script	git-busy-check exits 0 after printing a state, 2 for a missing folder or a non-repository, and 64 for a wrong command line.	native-and-sidecar-map C2	covered
 RUN-08	script	spotlighter.sh requires its environment variables.	native-and-sidecar-map C3	covered
 RUN-08	script	spotlighter.sh runs watchexec once per change batch.	native-and-sidecar-map C3	covered
 RUN-08	script	spotlighter.sh saves a checkpoint then restores it into the repo root.	native-and-sidecar-map C3	covered
@@ -1383,7 +1383,7 @@ REV-01	git	A commit's changed files come from show with name-status.	services-ma
 REV-01	git	A commit's line counts come from show with numstat.	services-map 3.4.4	covered
 PR-08	git	PR and stack range diffs check both commit ids, fetch any missing, find the merge base and diff the range, returning resolved or unresolved.	services-map 3.4.5	partly
 SIDE-12	tool	The agent's get-diff tool saves a checkpoint, then runs git diff against it.	services-map 3.4.6	covered
-GIT-11	message	The get-diff tool returns a busy text when git is busy.	services-map 3.4.6	covered
+SIDE-12	message	The get-diff tool returns a busy text when git is busy.	services-map 3.4.6	covered
 GIT-05	rule	Commit and push is an instruction sent to the agent, not a direct commit by the app.	services-map 3.5	covered
 GIT-05	git	The app commits directly only for the empty initial commit.	services-map 3.5	covered
 GIT-06	git	Push first looks up the branch's upstream.	services-map 3.6.1	covered
@@ -1746,14 +1746,14 @@ APP-01	startup	The quit handler asks isSafeToQuit before quitting for an update.
 PLAT-15	integration	A menu item checks for updates manually.	services-map 5B.4.2	covered
 PLAT-17	startup	The app stops at startup when the database is newer than the app.	services-map 5B.4.4	covered
 PLAT-17	startup	The app reports when an Intel build runs on Apple silicon (Rosetta).	services-map 5B.4.4	missing
-SIDE-14	rule	The model schema carries harness versions, presets, model status (picker, gated, hidden, deprecated), isNew, effort labels and provider overrides.	services-map 5B.5.1	partly
+COMP-02	rule	The model schema carries harness versions, presets, model status (picker, gated, hidden, deprecated), isNew, effort labels and provider overrides.	services-map 5B.5.1	partly
 CLOUD-03	rule	The model sync registry serves local and cloud hosts.	services-map 5B.5.1	covered
 COMP-02	rule	The model picker lists models by harness.	services-map 5B.5.1	covered
 CLOUD-04	rule	Cloud workspaces get their own model list.	services-map 5B.5.1	covered
 COMP-02	rule	Default model per agent covers default_model, review_model, fast mode and effort.	services-map 5B.5.2	covered
 COMP-02	rule	A picker value is either a built-in agent or an ACP agent.	services-map 5B.5.2	covered
 COMP-02	operation	Favourite models are written as a diff in one transaction and deduped.	services-map 5B.5.3	covered
-SIDE-14	operation	Codex, ACP and Cursor model lists come through the sidecar.	services-map 5B.5.4	covered
+SIDE-02	operation	Codex, ACP and Cursor model lists come through the sidecar.	services-map 5B.5.4	covered
 AGENT-17	rule	ACP session config options are fetched, set and kept per chat.	services-map 5B.5.4	partly
 SET-05	state	Each MCP server shows a per-session status: connected, failed, needs auth, pending or disabled.	services-map 5B.6	covered
 SET-05	rule	MCP status carries server info, error, scope and tool list.	services-map 5B.6	partly
@@ -1960,11 +1960,11 @@ SIDE-15	rpc	Ask for the installed versions of the agent programs (ours is getAge
 SIDE-11	rpc	App answers a question card from the agent (ours is answerInteraction).	inventory:rpc answerUserQuestion	covered
 RUN-05	rpc	Start a small proxy that adds the page-annotation toolbar to the in-app browser preview; ours does this in the app, not the sidecar.	inventory:rpc startAgentationProxy	covered
 RUN-03	rpc	List the ports that listen on localhost; ours reads them with lsof in the shell instead of asking the sidecar (deliberate, shell owns it).	inventory:rpc listLocalhostPorts	covered
-SIDE-14	rpc	List the models of an ACP agent (ours is listModels).	inventory:rpc listAcpModels	covered
+SIDE-02	rpc	List the models of an ACP agent (ours is listModels).	inventory:rpc listAcpModels	covered
 AGENT-17	rpc	Fetch the per-chat config options of an ACP agent beyond the model.	inventory:rpc fetchAcpSessionConfigOptions	missing
 AGENT-17	rpc	Tell an ACP agent which model a chat uses when a saved chat is reloaded.	inventory:rpc syncAcpSessionModel	missing
 AGENT-17	rpc	Set one config option of an ACP session.	inventory:rpc setAcpSessionConfigOption	missing
-SIDE-14	rpc	List the Codex models (ours is listModels).	inventory:rpc listCodexModels	covered
+SIDE-02	rpc	List the Codex models (ours is listModels).	inventory:rpc listCodexModels	covered
 SIDE-24	rpc	Run one short prompt through an ACP agent for a chat title or branch name, then discard the session.	inventory:rpc acpOneShotPrompt	missing
 SIDE-24	rpc	Run one short prompt through the Cursor agent for a chat title or branch name, then discard the session.	inventory:rpc cursorOneShotPrompt	missing
 RC-01	rpc	Start Remote Control for a chat so claude.ai can drive it (a different mechanism than Conductor's phone relay).	inventory:rpc remoteControlStart	covered
@@ -2297,8 +2297,8 @@ COMP-02	command	Slash /fast toggles Fast mode through the same config update as 
 AGENT-13	rpc	The Codex goal bar saves, pauses, resumes, edits and clears the thread goal; the protocol and sidecar have no goal calls.	ui-map 3.5	missing
 SIDE-15	capability	The Agent submenu lists Claude Code, Codex and Cursor as detected by the sidecar.	ui-map 3.5	covered
 AGENT-12	capability	The Agent submenu also lists OpenCode and Pi over ACP.	ui-map 3.5	covered
-SIDE-14	rpc	The model submenu lists the models of the chosen agent with search and a No models found state.	ui-map 3.5	covered
-SIDE-14	rpc	The effort submenu shows the levels each model supports and Not supported for this model otherwise.	ui-map 3.5	covered
+COMP-02	rpc	The model submenu lists the models of the chosen agent with search and a No models found state.	ui-map 3.5	covered
+COMP-02	rpc	The effort submenu shows the levels each model supports and Not supported for this model otherwise.	ui-map 3.5	covered
 COMP-02	rpc	The Fast toggle changes the chat's fast-mode config field.	ui-map 3.5	covered
 AGENT-04	capability	The Auto-accept edits chip sets the chat's permission mode to accept edits.	ui-map 3.5	covered
 SIDE-16	rpc	An MCP status button in the composer opens the MCP status dialog; the toolbar spec omits it.	ui-map 3.5	partly
@@ -2345,7 +2345,7 @@ GIT-12	git	Diff scope lists each branch commit with message, short hash, author 
 SIDE-08	git	Diff scope can show the changes of one agent turn from its checkpoints.	ui-map 3.6, 3.3	covered
 PR-08	git	The stack view shows Stack PRs with Current and trunk, gt restack, Checkout this branch and Ready for review.	ui-map 3.6	covered
 GIT-02	state	With no git status the Changes tab shows a No git status empty state.	ui-map 3.6	covered
-GIT-11	state	While a rebase or merge is in progress the Changes tab asks the user to finish it first.	ui-map 3.6	covered
+REV-01	state	While a rebase or merge is in progress the Changes tab asks the user to finish it first.	ui-map 3.6	covered
 GIT-02	message	A note says some untracked files are not shown when the untracked list is cut.	ui-map 3.6	covered
 PR-03	state	The Checks tab lists checks with states Running, Failed, Cancelled and Pending.	ui-map 3.6	covered
 PR-03	state	A check can be Waiting; our check state type has no waiting value.	ui-map 3.6	partly
@@ -2447,12 +2447,12 @@ PLAT-10	integration	An optional GitHub personal access token is stored in the Ke
 PR-09	integration	The Linear connection is made with an API key and used to list issues.	ui-map 6 Account	covered
 PLAT-23	integration	Theme Light, Dark or System follows the macOS appearance and sets the window theme; nothing sets data-theme yet.	ui-map 6 Appearance	partly
 PLAT-23	integration	App zoom sets the webview zoom; ranges differ (50 to 200 percent or 0.5 to 3) and the Platform has no zoom call.	ui-map 6 Appearance	partly
-SIDE-14	store	Default model setting picks the model new chats start with.	ui-map 6 Default models	covered
+COMP-02	store	Default model setting picks the model new chats start with.	ui-map 6 Default models	covered
 AGENT-16	store	The Codex personality setting is passed to Codex sessions.	ui-map 6 Default models	partly
 AGENT-16	store	The Claude output style setting is passed to Claude sessions.	ui-map 6 Default models	partly
 AGENT-04	store	Default to plan mode in new chats sets the starting permission mode.	ui-map 6 Default models	covered
 AGENT-16	store	Fast mode, effort level and thinking level have defaults for chats and for reviews.	services-map 4.2.4	partly
-SIDE-14	store	visible_provider_models decides which models the picker shows; no page row names its screen.	services-map 4.2.4	partly
+COMP-02	store	visible_provider_models decides which models the picker shows; no page row names its screen.	services-map 4.2.4	partly
 SIDE-14	store	The model catalog is cached; where it is kept and for how long is not stated.	services-map 4.2.3	partly
 CLOUD-17	store	Git identity gives the name and email used for commits in cloud workspaces.	ui-map 6 Git	missing
 WS-01	git	Branch new workspaces from (repo) picks the base branch for new worktrees.	ui-map 6 Git	covered
@@ -2655,7 +2655,7 @@ SIDE-05	rule	A batch also ends at any notification that changes live state or se
 SIDE-05	rule	A notification above 80 percent of 1 MiB is shrunk: long fields keep a head and a tail with a note giving the original size, cut by binary search so the largest piece that fits survives; structured fields become a small stub.	inventory:sidecar @310453	missing
 SIDE-08	timeout	checkpointer.sh output and error are each kept up to 64 KiB for the log line.	inventory:sidecar @310397	missing
 SIDE-15	rpc	A sign-in returns a login id, a login URL, a user code and a verification URL; later calls finish or cancel it.	other-runners 5; inventory:sidecar @4708	missing
-SIDE-14	store	Model entries carry what the picker shows: short label, new badge, wire name, alias, status (picker, gated, hidden, deprecated), provider family, effort axis label and level labels, default effort and model, fork model, fast-mode default, thinking budgets, live effort switch, the minimum agent version and the agents it fits.	services-map 5B; inventory:sidecar @5402	missing
+COMP-02	store	Model entries carry what the picker shows: short label, new badge, wire name, alias, status (picker, gated, hidden, deprecated), provider family, effort axis label and level labels, default effort and model, fork model, fast-mode default, thinking budgets, live effort switch, the minimum agent version and the agents it fits.	services-map 5B; inventory:sidecar @5402	missing
 AGENT-13	rule	A goal carries an objective, a status and a token budget; a message starting with /goal (pause, resume, clear, or an objective) becomes the matching call.	inventory:sidecar @311516	missing
 AGENT-05	rpc	A live-state update can carry only the pending steers.	inventory:sidecar @37146	missing
 SIDE-17	store	Codex usage carries named rate limits with a primary and a secondary window (used percent, window length, reset time) and token counts with the context window.	inventory:sidecar @37146	missing
@@ -2681,3 +2681,5 @@ DATA-06	rule	The 30-day prune counts from archived_at.	services-map 2.7	missing
 DATA-03	rule	The repair report acts on workspaces left in archiving.	services-map 6	missing
 DATA-05	rule	Config files reload on window focus, a remote default-branch settings layer is read, and docs/data-model.md lists the global settings.toml and the Keychain key names.	services-map 4.2	missing
 GIT-02	rule	diffTargetOf picks the diff target by a fixed precedence, and sidebar rows get line counts.	services-map 3.3	missing
+SIDE-01	rule	The composition root builds the model catalog with the system clock and calls its invalidate() from the agent detector's onChanged, before agentInstallsChanged is sent, because a new agent version can add models.	other-runners 5	missing
+SIDE-02	rpc	listModels is answered by the model catalog's list(); an agent that is not installed answers agentNotInstalled.	other-runners 5	missing

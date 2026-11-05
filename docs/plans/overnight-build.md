@@ -46,12 +46,13 @@ for each step:
      then the failing features are taken out of the step and quarantined
   5. audit: one fresh audit agent per batch reviews the batch; its findings go
      to fresh fixer agents, one per finding group; push; CI again
-  6. merge on green; the PR sets each finished feature's backlog row to done;
-     pnpm issues sync closes their issues; pleach clean
+  6. merge on green. Before the first CI run the step branch sets each finished
+     feature's backlog row to done, and the PR body closes their issues with
+     `Closes #N` lines (D041); sync.ts --check confirms; pleach clean
   7. check the money spent; stop on any kill criterion, else the next step
 ```
 
-The backlog is the one record of what is done. Issues are a view of it: the sync closes an issue when its row turns `done`.
+The backlog is the one record of what is done. Issues are a view of it: the merge that turns a row `done` closes its issue, and `sync.ts --check` fails when the two disagree.
 
 ### What every agent reads first
 

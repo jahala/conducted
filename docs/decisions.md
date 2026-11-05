@@ -280,3 +280,14 @@ Chosen:
 Context: `plan-batches.ts` counts dependency steps among the features still open. Once a step's features are done, the remaining ones move up.
 Chosen: after each step merges, the conductor regenerates `docs/plans/batches.md` from the open first-slice features and runs its step 1, which is exactly the work whose dependencies are all done. Batch ids therefore describe the night's current state, not a fixed schedule.
 Why: one rule for "what is ready", with no second list to keep in sync.
+
+## D041. How a step's PR finishes its features (2026-11-05)
+
+Context: the first step's CI failed on "Placeholders match the backlog", because the finished rows were still `stub` while their placeholders were gone. `pnpm stubs` requires both to change in the same PR. The sync script never closes issues, by design. The batch audit also found checklist items that belong to features not built yet.
+Chosen:
+
+- Before the step's first CI run, the conductor sets each finished feature's backlog row to `done` on the step branch (`drive.ts mark-done`). A feature taken out of the step goes back to `stub` with its placeholders.
+- The step PR's body carries one `Closes #N` line per finished feature, so the merge closes the issues. `sync.ts --check` then confirms that rows and issues agree.
+- A checklist item that another feature owns (a screen, a runner, the composition root) moves to that feature in `docs/plans/items/` before the row turns `done`. When the move leaves wiring undone, the conductor adds an item for it to the feature that owns the wiring.
+- A red CI run caused by the conductor's own process does not count as a feature's fix round.
+  Why: one record of what is done (the backlog), issues closed by the merge that finishes them, and no "done" that hides unbuilt items.
