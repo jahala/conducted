@@ -1,4 +1,5 @@
 /**
+<<<<<<< HEAD
  * @feature WS-01 Workspace service: create, set up, archive, unarchive, delete
 <<<<<<< HEAD
  * @feature WS-02 Create from a branch, PR or issue
@@ -16,6 +17,18 @@
  * Behaviour: frontend.md 6 (creation, naming, setup, archive), services-map.md 2.4.1 (state
  * machine), 3.1 (create), 3.2 and 5A.1.2 (setup), 3.10 (archive and unarchive), 3.11 (branch
  * rename, the first-message rename and the stored target branch), ui-map.md 3.9, 3.1 and 6 Git.
+=======
+ * @feature WS-01 Workspace service: create, set up, archive, unarchive, delete; WS-10 Delete a
+ * workspace
+ * Owns: the list of workspaces and their lifecycle as far as it is built: creating a worktree and
+ * its first chat, running the setup script, archiving a workspace, deleting one or all of a
+ * repository's workspaces, storing the intended target branch (GIT-08), and saving a renamed
+ * branch (GIT-09).
+ * Behaviour: frontend.md 6 (creation, naming, setup, archive), services-map.md 2.3.1 (workspace
+ * delete), 2.4.1 (state machine), 3.1 (create), 3.2 and 5A.1.2 (setup), 3.10 (archive, unarchive
+ * and delete), 3.11 (branch rename and the stored target branch), 3.16 (archive refs), ui-map.md
+ * 3.9 and 3.1.
+>>>>>>> node/ws.10
  * Must handle: state moves initializing -> ready (or failed), each guarded so a stale step cannot
  * move a workspace that already changed; the directory name is a unique place name for the repo
  * and the branch is prefix + name, suffixed -v1, -v2 when taken; a branch, prefix or remote name
@@ -27,12 +40,19 @@
  * ignored); creations run one at a time; a repository config that cannot be read for the remote
  * name stops creation with its error, while a failed read of the file list or the default config
  * is shown as a warning.
+<<<<<<< HEAD
  * Built now (WS-04): the first-message rename runs only when `auto_rename_new_branches` is on and
  * the workspace still has its placeholder branch. It is skipped when a pull request is linked,
  * the branch has already changed (in the row or in git), the suggestion is empty or failed, or
  * no suggester is wired. The suggestion is combined with the branch prefix, a name clash takes
  * the next `-vN` suffix, and `auto_rename_workspace_on_branch_name_set` renames the workspace to
  * the new branch name unless the user set a name.
+=======
+ * Built now (WS-10): delete a workspace by id and every workspace of a repository. It cancels the
+ * workspace's chats, stops its processes, removes its worktree and archive ref, moves its setup log
+ * and viewed-files file to the Trash, deletes its chats with their attachment files, then deletes
+ * the row and forgets it in the store. A repository removal stops every workspace's processes first.
+>>>>>>> node/ws.10
  * Built now (WS-05): archive. It refuses while a chat is running, stops a setup or run process
  * that is still running and clears the workspace's run state, cancels the remaining chats, saves
  * the archive snapshot, reads the branch git reports (a detached HEAD or a failed read stops the
@@ -44,6 +64,7 @@
  * refusal, the screen's discard confirmation and the screen that shows the branch-delete warning
  * are not built; the service refuses a busy checkout and accepts `discardGitOperationState` from
  * a caller that has already asked.
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
  * Not built yet (placeholders): unarchive, delete to the Trash, the branch auto rename and
@@ -62,6 +83,11 @@
  * Not built yet (placeholders): delete to the Trash, the branch auto rename, `markRead` and the
  * base from a pull request or issue.
 >>>>>>> node/ws.06
+=======
+ * Not built yet (placeholders): unarchive, the branch auto rename,
+ * `markRead` and the base from a pull request or issue. `classifyUnarchive` is their decision
+ * rule and has no caller until WS-06.
+>>>>>>> node/ws.10
  * Our design choice: creation is split in two so the sidebar shows the workspace at once
  * (`initializing`) and the slow git work happens after the row exists. Place names come from our
  * own tiered source in this file (`createPlaceNames`, D002), which the composition root should
@@ -97,7 +123,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import { globToRegExp } from "../../platform/glob.ts";
 import type { Platform } from "../../platform/platform.ts";
 import type { Draft, NewWorkspaceInput, UnarchiveOutcome } from "../api.ts";
-import { setupLogFile } from "../app-paths.ts";
+import { setupLogFile, viewedFilesFile } from "../app-paths.ts";
 import { createKeyedQueue } from "../async/serial-queue.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
 import type { ArchivingWorkspace } from "../db/repair.ts";
@@ -108,11 +134,18 @@ import {
 	fetch,
 	lsFiles,
 	lsFilesIgnoredNul,
+<<<<<<< HEAD
 	revParse,
 	revParseVerify,
 } from "../git/commands.ts";
 import { apiUserLogin } from "../git/gh-commands.ts";
 import { renameBranchInWorktree } from "../git/rename.ts";
+=======
+	updateRefDelete,
+} from "../git/commands.ts";
+import { apiUserLogin } from "../git/gh-commands.ts";
+import { archiveRef } from "../git/refs.ts";
+>>>>>>> node/ws.10
 import type { GitRunner } from "../git/runner.ts";
 import {
 	addWorktreeOnBranch,
@@ -749,6 +782,8 @@ export interface WorkspaceServiceDeps {
 		): Promise<Result<SetupRunResult>>;
 		runArchive(workspaceId: WorkspaceId): Promise<Result<void>>;
 		stopWorkspace(workspaceId: WorkspaceId): Promise<Result<void>>;
+		/** Stops every workspace of a repository, used before the repository is removed. */
+		stopAllForRepository(workspaceIds: readonly WorkspaceId[]): Promise<Result<void>>;
 		/** Forgets a workspace's run state after its processes are stopped. */
 		clearRuns(workspaceId: WorkspaceId): void;
 	};
@@ -766,6 +801,8 @@ export class WorkspaceService {
 	readonly #createQueue = createKeyedQueue();
 	/** A second archive of one workspace joins the first, so its steps never run twice at once. */
 	readonly #archives = createSingleFlight<string>();
+	/** A second delete of one workspace joins the first, so its files are not trashed twice. */
+	readonly #removals = createSingleFlight<string>();
 	/** Bumped by every start and cancel, so an older run cannot change the state after them. */
 	readonly #setupNonces = new Map<WorkspaceId, number>();
 	/** The nonce of a start that has not reached its first await yet, so a second one is ignored. */
@@ -1721,13 +1758,120 @@ export class WorkspaceService {
 	}
 
 	/** Backs `Actions.workspaces.remove`. */
-	remove(_id: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("WS-10");
+	remove(id: WorkspaceId): Promise<Result<void>> {
+		return this.#removals.run(`remove:${id}`, () => this.#removeNow(id, false));
 	}
 
 	/** Removes every workspace of a repository. Used when the repository is removed. */
-	removeWorkspacesOf(_repoId: RepoId): Promise<Result<void>> {
-		return notImplemented("WS-10");
+	async removeWorkspacesOf(repoId: RepoId): Promise<Result<void>> {
+		const listed = await this.#deps.repos.workspaces.listByRepo(repoId);
+		if (!listed.ok) return listed;
+		const ids = listed.value.map((workspace) => workspace.id);
+		if (ids.length === 0) return ok(undefined);
+		const stopped = await this.#deps.scripts.stopAllForRepository(ids);
+		if (!stopped.ok) return stopped;
+		for (const id of ids) {
+			const removed = await this.#removals.run(`remove:${id}`, () => this.#removeNow(id, true));
+			if (!removed.ok) return removed;
+		}
+		return ok(undefined);
+	}
+
+	/**
+	 * Deletes one workspace. Everything that can refuse runs before the first irreversible step:
+	 * cancelling chats, stopping processes and removing the worktree. The archive ref and the app
+	 * data files go next, then the chats and the row. A step that fails leaves the rest for a retry.
+	 */
+	async #removeNow(id: WorkspaceId, processesStopped: boolean): Promise<Result<void>> {
+		const found = await this.#deps.repos.workspaces.get(id);
+		if (!found.ok) return found;
+		const workspace = found.value;
+		// Deleting a workspace that is already gone changes nothing.
+		if (workspace === null) return ok(undefined);
+
+		const repo = await this.#deps.repos.repos.get(workspace.repoId);
+		if (!repo.ok) return repo;
+		if (repo.value === null) {
+			return err(appError("repo_unknown", "That project no longer exists."));
+		}
+		const repoRootPath = repo.value.rootPath;
+
+		const cancelled = await this.#deps.sessions.cancelAll(id);
+		if (!cancelled.ok) return cancelled;
+
+		if (!processesStopped) {
+			const stopped = await this.#deps.scripts.stopWorkspace(id);
+			if (!stopped.ok) return stopped;
+		}
+
+		if (await this.#deps.platform.fs.exists(workspace.path)) {
+			const removed = await removeWorktree(this.#deps.git, this.#deps.platform.fs, {
+				repoRootPath,
+				worktreePath: workspace.path,
+			});
+			if (!removed.ok) return removed;
+		}
+
+		// The archive ref keeps the last commit reachable until the workspace itself is deleted.
+		if (await this.#deps.platform.fs.exists(repoRootPath)) {
+			const archiveDeleted = await this.#deps.git.runChecked(updateRefDelete(archiveRef(id)), {
+				cwd: repoRootPath,
+			});
+			if (!archiveDeleted.ok) return archiveDeleted;
+		}
+
+		const setupLog = await this.#trashIfPresent(setupLogFile(this.#deps.platform.fs.paths, id));
+		if (!setupLog.ok) return setupLog;
+		const viewed = await this.#trashIfPresent(viewedFilesFile(this.#deps.platform.fs.paths, id));
+		if (!viewed.ok) return viewed;
+
+		const chats = await this.#deps.sessions.deleteAll(id);
+		if (!chats.ok) return chats;
+
+		const deleted = await this.#deps.repos.workspaces.delete(id);
+		if (!deleted.ok) return deleted;
+
+		this.#deps.scripts.clearRuns(id);
+		this.#forgetWorkspace(id);
+		return ok(undefined);
+	}
+
+	/** Moves an app data file to the Trash, and treats a missing file as nothing to do. */
+	async #trashIfPresent(path: string): Promise<Result<void>> {
+		const exists = await this.#deps.platform.fs.exists(path);
+		if (!exists) return ok(undefined);
+		return this.#deps.platform.fs.trash(path);
+	}
+
+	/** Forgets a deleted workspace and every in-memory value kept for it. */
+	#forgetWorkspace(id: WorkspaceId): void {
+		this.store.setState((state) => {
+			const workspacesById = { ...state.workspacesById };
+			delete workspacesById[id];
+			const setup = { ...state.setup };
+			delete setup[id];
+			const setupRuns = { ...(state.setupRuns ?? {}) };
+			delete setupRuns[id];
+			const archiving = { ...state.archiving };
+			delete archiving[id];
+			const archiveWarnings = { ...(state.archiveWarnings ?? {}) };
+			delete archiveWarnings[id];
+			const warnings = { ...(state.warnings ?? {}) };
+			delete warnings[id];
+			const failedFirstInputs = { ...(state.failedFirstInputs ?? {}) };
+			delete failedFirstInputs[id];
+			return {
+				...state,
+				workspacesById,
+				setup,
+				setupRuns,
+				archiving,
+				archiveWarnings,
+				warnings,
+				failedFirstInputs,
+				lastFailedCreate: state.lastFailedCreate?.id === id ? null : state.lastFailedCreate,
+			};
+		});
 	}
 
 	/**
