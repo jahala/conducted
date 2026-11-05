@@ -7,7 +7,8 @@
  * with the review model, sending a user message as a new turn or a steer, cancelling a turn:
  * pausing the follow-up queue, withdrawing the open interaction, removing only the pending sends
  * the sidecar dropped, and putting a send that was still in flight back in the composer draft,
- * and starting a failed turn's message again in a new chat of the same workspace.
+ * starting a failed turn's message again in a new chat of the same workspace, and handing a plan
+ * to a chosen chat or a new one.
  * Behaviour: services-map.md 2.3.3 (session operations), 2.2 (the sessions table), 2.3.4
  * (composer outbox: restore to draft), ui-map.md 3.2, sessions-and-chats.md "What happens when
  * you send a message" and "While the agent is working" (cancel), sessions.md 6.
@@ -1160,14 +1161,34 @@ export class SessionsService implements AgentMessenger {
 
 	/**
 	 * Backs `Actions.sessions.startFromPlan`: the chosen chat, or a new chat in the same workspace
-	 * when `target` is null, carries out the plan.
+	 * when `target` is null, carries out the plan. A new chat starts with plan mode off, because
+	 * the plan is already written and hand-off means implementation. A target in another workspace
+	 * is refused.
 	 */
-	startFromPlan(
-		_id: SessionId,
-		_planText: string,
-		_target: SessionId | null,
+	async startFromPlan(
+		id: SessionId,
+		planText: string,
+		target: SessionId | null,
 	): Promise<Result<Session>> {
-		return notImplemented("CHAT-12");
+		const found = await this.#session(id);
+		if (!found.ok) return found;
+		const origin = found.value;
+		const text = planText.trim();
+		if (text.length === 0) {
+			return err(appError("chat_plan_empty", "The plan has no text to send."));
+		}
+		if (target === null) {
+			const base = await this.#deps.defaultConfig(origin.workspaceId);
+			if (!base.ok) return base;
+			return this.#createAndSend(origin.workspaceId, { ...base.value, planMode: false }, text, []);
+		}
+		const targetSession = await this.#session(target);
+		if (!targetSession.ok) return targetSession;
+		if (targetSession.value.workspaceId !== origin.workspaceId) {
+			return err(appError("chat_plan_target_invalid", "That chat belongs to another workspace."));
+		}
+		const sent = await this.send(target, text, [], "auto");
+		return sent.ok ? ok(targetSession.value) : sent;
 	}
 
 	/** Backs `Actions.app.createDiagnosticsChat`: saves the redacted report and starts a chat with it attached. */
