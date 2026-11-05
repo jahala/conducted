@@ -107,6 +107,7 @@ import {
 	type ShutdownReason,
 } from "../session/manager.ts";
 import { KeyedSerialQueue } from "../session/serial-queue.ts";
+import { AgentUtilityPromptRunner } from "../session/utility-prompt.ts";
 import {
 	FALLBACK_SHELL,
 	LoginShellEnvProvider,
@@ -590,6 +591,13 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 	const shellEnv = createShellEnvProvider(env, logger, (failure) => {
 		app.notify("shellEnvFailed", failure);
 	});
+	const utilityPrompt = new AgentUtilityPromptRunner({
+		runners,
+		shellEnv,
+		clock,
+		ids,
+		logger,
+	});
 	const agents = new DefaultAgentDetector({
 		runners,
 		shellEnv,
@@ -634,6 +642,7 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 		mcpServers: new RunnerMcpServerLister({ runners, logger }),
 		usage: new SessionUsageReader({ logger }),
 		shellEnv,
+		utilityPrompt,
 		setLogLevel: (level) => logger.setLevel(level),
 	});
 	const peer = new RpcPeer({

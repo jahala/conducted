@@ -6,22 +6,30 @@
  * Behaviour: other-runners.md 2.2 (one-shot prompts through a throwaway session), services-map.md
  * 2.4 and 5B (title and branch-name prompts), 3.11 (the branch is renamed once after the first
  * message). The decision is D030 in docs/decisions.md.
- * Must handle: a chat or branch the user named (skip); a linked pull request, or a branch that
- * already changed (skip the branch name); an empty answer, or one equal to the placeholder (keep the
+ * Must handle: a chat the user named or a branch that already changed (skip); a linked pull
+ * request (skip the branch name); an empty answer, or one equal to the placeholder (keep the
  * placeholder); an agent that is not signed in (the call fails, nothing is written); the privacy
- * switch for AI generated titles, and data privacy mode (no call at all, so the chat text never
- * leaves the user's own agent); a branch-name clash (retry once with a suffix); a failure (the
- * placeholder stays, one log line, no resend: D016); the cheapest model of the chat's own agent
- * (from its catalog).
+ * switch for AI generated titles (no call at all, so the chat text never leaves the user's own
+ * agent); a failure (the placeholder stays and one log line is written; the app never resends the
+ * call, D016); the cheapest model of the chat's own agent (from its catalog); the `<none>` escape
+ * hatch a branch prompt may return.
+ * The branch's prefix, its clash retry and the rename itself belong to WS-04.
  * Our design choice: the switch reaches the service as a function, because the settings registry
  * has no key for "AI generated chat titles" yet. The prompt text is ours, not Conductor's (D002).
  * Test first: with `titlesEnabled` returning false, `suggestChatTitle` returns `ok(null)` and
  * sends no request to the sidecar.
  */
 import type { AgentLaunch } from "@conducted/protocol";
-import { notImplemented, type Result } from "@conducted/shared";
+import { type AcpAgent, appError, err, ok, type Result } from "@conducted/shared";
 import type { Session, Workspace } from "../model.ts";
 import type { SidecarClient } from "../sidecar/tunnel.ts";
+
+/** The name the chat list shows until a title is generated. */
+export const DEFAULT_CHAT_TITLE = "New chat";
+/** What a branch prompt replies when the task suggests no name. */
+export const NO_BRANCH_NAME = "<none>";
+export const MAX_CHAT_TITLE_LENGTH = 80;
+export const MAX_BRANCH_NAME_LENGTH = 30;
 
 export interface ChatTitleServiceDeps {
 	sidecar: Pick<SidecarClient, "request">;
@@ -31,6 +39,8 @@ export interface ChatTitleServiceDeps {
 	cheapestModel: (session: Session) => string | null;
 	/** How to start the chat's agent: program path, environment and keys (SIDE-21). */
 	launchFor: (session: Session) => AgentLaunch;
+	/** One line for a call that failed. */
+	log: (level: "warn" | "info", message: string) => void;
 }
 
 /** What the title call needs from the chat. */
@@ -50,13 +60,142 @@ export class ChatTitleService {
 	}
 
 	/** The new title, or `ok(null)` when the call was skipped or gave nothing usable. */
-	suggestChatTitle(_input: ChatTitleInput): Promise<Result<string | null>> {
-		void this.#deps;
-		return notImplemented("SIDE-24");
+	async suggestChatTitle(input: ChatTitleInput): Promise<Result<string | null>> {
+		if (!this.#deps.titlesEnabled()) return ok(null);
+		if (input.session.title !== null) return ok(null);
+		const answer = input.firstAnswer.trim();
+		if (answer === "" || isPlaceholderTitle(answer)) return ok(null);
+		const firstMessage = input.firstUserMessage.trim();
+		if (firstMessage === "") return ok(null);
+
+		const model = this.#deps.cheapestModel(input.session);
+		if (model === null) {
+			this.#deps.log("warn", "Failed to generate LLM session title");
+			return err(appError("utility_model_missing", "No model is available to name this chat."));
+		}
+
+		const asked = await this.#deps.sidecar.request("runUtilityPrompt", {
+			...agentRef(input.session),
+			model,
+			prompt: chatTitlePrompt(firstMessage, input.firstAnswer.trim()),
+			cwd: input.workspace.path,
+			fastMode: input.session.config.fastMode,
+			launch: this.#deps.launchFor(input.session),
+		});
+		if (!asked.ok) {
+			this.#deps.log("warn", "Failed to generate LLM session title");
+			return err(asked.error);
+		}
+		return ok(cleanChatTitle(asked.value.text));
 	}
 
 	/** The new branch name without the user's prefix, or `ok(null)` when skipped. */
-	suggestBranchName(_input: Omit<ChatTitleInput, "firstAnswer">): Promise<Result<string | null>> {
-		return notImplemented("SIDE-24");
+	async suggestBranchName(
+		input: Omit<ChatTitleInput, "firstAnswer">,
+	): Promise<Result<string | null>> {
+		if (!this.#deps.titlesEnabled()) return ok(null);
+		if (!input.workspace.branchIsPlaceholder) return ok(null);
+		if (input.workspace.prNumber !== null) return ok(null);
+		const firstMessage = input.firstUserMessage.trim();
+		if (firstMessage === "") return ok(null);
+
+		const model = this.#deps.cheapestModel(input.session);
+		if (model === null) {
+			this.#deps.log("warn", "Failed to generate a branch name");
+			return err(appError("utility_model_missing", "No model is available to name this branch."));
+		}
+
+		const asked = await this.#deps.sidecar.request("runUtilityPrompt", {
+			...agentRef(input.session),
+			model,
+			prompt: branchNamePrompt(firstMessage),
+			cwd: input.workspace.path,
+			fastMode: input.session.config.fastMode,
+			launch: this.#deps.launchFor(input.session),
+		});
+		if (!asked.ok) {
+			this.#deps.log("warn", "Failed to generate a branch name");
+			return err(asked.error);
+		}
+		return ok(cleanBranchName(asked.value.text, input.workspace.branch));
 	}
+}
+
+function agentRef(session: Session): {
+	agent: Session["config"]["agent"];
+	acpAgent?: AcpAgent;
+} {
+	return {
+		agent: session.config.agent,
+		...(session.config.acpAgent === undefined ? {} : { acpAgent: session.config.acpAgent }),
+	};
+}
+
+function chatTitlePrompt(firstMessage: string, firstAnswer: string): string {
+	return [
+		"Write a short title for this chat.",
+		"Use at most six words. Reply with the title only, without quotes or a full stop.",
+		"",
+		"The user's first message:",
+		firstMessage,
+		"",
+		"The agent's first answer:",
+		firstAnswer,
+	].join("\n");
+}
+
+function branchNamePrompt(firstMessage: string): string {
+	return [
+		"Write a short git branch name for this task.",
+		"Use lowercase words joined by hyphens, at most 30 characters, with no prefix.",
+		`Reply with the name only. If the task suggests no clear name, reply ${NO_BRANCH_NAME}.`,
+		"",
+		"The user's first message:",
+		firstMessage,
+	].join("\n");
+}
+
+function firstNonEmptyLine(text: string): string | null {
+	for (const line of text.split("\n")) {
+		const trimmed = line.trim();
+		if (trimmed !== "") return trimmed;
+	}
+	return null;
+}
+
+function stripWrappingQuotes(text: string): string {
+	return text
+		.replace(/^["'`]+/, "")
+		.replace(/["'`]+$/, "")
+		.trim();
+}
+
+function isPlaceholderTitle(title: string): boolean {
+	return title.toLowerCase() === DEFAULT_CHAT_TITLE.toLowerCase();
+}
+
+function cleanChatTitle(raw: string): string | null {
+	const line = firstNonEmptyLine(raw);
+	if (line === null) return null;
+	const title = stripWrappingQuotes(line);
+	if (title === "" || isPlaceholderTitle(title)) return null;
+	return title.length > MAX_CHAT_TITLE_LENGTH
+		? title.slice(0, MAX_CHAT_TITLE_LENGTH).trimEnd()
+		: title;
+}
+
+function cleanBranchName(raw: string, placeholder: string): string | null {
+	const line = firstNonEmptyLine(raw);
+	if (line === null) return null;
+	if (line.toLowerCase() === NO_BRANCH_NAME) return null;
+	let name = stripWrappingQuotes(line)
+		.toLowerCase()
+		.replace(/[^a-z0-9._/-]+/g, "-")
+		.replace(/-{2,}/g, "-")
+		.replace(/^[-./]+|[-./]+$/g, "");
+	if (name.length > MAX_BRANCH_NAME_LENGTH) {
+		name = name.slice(0, MAX_BRANCH_NAME_LENGTH).replace(/[-./]+$/g, "");
+	}
+	if (name === "" || name === placeholder.toLowerCase()) return null;
+	return name;
 }
