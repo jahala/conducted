@@ -8,9 +8,55 @@
  * Test first: A read call with a result shows the relative path; clicking it sets tab=file and path
  * in the URL.
  */
-import { notImplemented } from "@conducted/shared";
+import {
+	asRecord,
+	FileLink,
+	numberField,
+	ToolCardFrame,
+	textField,
+	textLines,
+	toolStatus,
+} from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
-export function ReadCard(_props: ToolCardProps): never {
-	return notImplemented("CHAT-08");
+const EXCERPT_LINES = 20;
+
+export function ReadCard({ call, defaultExpanded }: ToolCardProps) {
+	const input = asRecord(call.item.input);
+	const path = textField(input, "file_path", "path") ?? "";
+	const offset = numberField(input, "offset");
+	const limit = numberField(input, "limit");
+	const output = call.result?.output ?? "";
+	const lines = textLines(output);
+	const excerpt = lines.slice(0, EXCERPT_LINES);
+	const range =
+		offset === null
+			? null
+			: limit === null
+				? `from line ${offset}`
+				: `lines ${offset}-${offset + limit - 1}`;
+	return (
+		<ToolCardFrame
+			title="Read"
+			summary={range === null ? path : `${path} · ${range}`}
+			status={toolStatus(call)}
+			expandAll={defaultExpanded}
+			body={
+				<div className="flex flex-col gap-2">
+					<FileLink path={path} />
+					{excerpt.length > 0 ? (
+						<pre className="max-h-64 overflow-auto whitespace-pre font-mono text-xs text-fg-muted">
+							{excerpt.join("\n")}
+						</pre>
+					) : null}
+					{lines.length > excerpt.length ? (
+						<p className="text-xs text-fg-subtle">and {lines.length - excerpt.length} more lines</p>
+					) : null}
+					{call.result?.truncated ? (
+						<p className="text-xs text-fg-subtle">Output was cut; the start and end are shown.</p>
+					) : null}
+				</div>
+			}
+		/>
+	);
 }

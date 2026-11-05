@@ -11,4 +11,6 @@ import type { ToolCallView } from "../../../core/model.ts";
 export interface ToolCardProps {
 	call: ToolCallView;
 	sessionId: SessionId;
+	/** Garry mode, passed down so a nested sub-agent card expands the same way. */
+	defaultExpanded?: boolean;
 }

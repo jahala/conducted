@@ -6,9 +6,51 @@
  * formatted JSON with a Raw toggle; very large output (cut); an error result.
  * Test first: A call named mcp__linear__get_issue renders 'linear' and 'get_issue'.
  */
-import { notImplemented } from "@conducted/shared";
+import { useState } from "react";
+import { formatJson, ToolCardFrame, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
-export function McpCard(_props: ToolCardProps): never {
-	return notImplemented("CHAT-08");
+function splitName(rawName: string): { server: string; tool: string } {
+	const parts = rawName.split("__");
+	if (parts.length >= 3 && parts[0] === "mcp") {
+		return { server: parts[1] ?? rawName, tool: parts.slice(2).join("__") };
+	}
+	return { server: rawName, tool: "" };
+}
+
+export function McpCard({ call, defaultExpanded }: ToolCardProps) {
+	const [raw, setRaw] = useState(false);
+	const { server, tool } = splitName(call.item.rawName);
+	const output = call.result?.output ?? "";
+	return (
+		<ToolCardFrame
+			title={server}
+			summary={tool}
+			status={toolStatus(call)}
+			expandAll={defaultExpanded}
+			body={
+				<div className="flex flex-col gap-2">
+					<pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-sm bg-surface p-2 font-mono text-xs text-fg-muted">
+						{raw
+							? formatJson(call.item.input)
+							: (JSON.stringify(call.item.input) ?? String(call.item.input))}
+					</pre>
+					{output.length > 0 ? (
+						<pre className="max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-fg">
+							{output}
+						</pre>
+					) : null}
+				</div>
+			}
+			footer={
+				<button
+					type="button"
+					onClick={() => setRaw(!raw)}
+					className="text-xs font-medium text-fg-muted hover:text-fg"
+				>
+					{raw ? "Formatted" : "Raw"}
+				</button>
+			}
+		/>
+	);
 }
