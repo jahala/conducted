@@ -11,8 +11,10 @@
  * Must handle:
  *  - detect(): program missing gives null; a version below the adapter's minimum is logged with the
  *    adapter and its minimum (the real version is still returned, so the detector can report it)
- *  - start(): one child per chat through StdioAcpClient; an agent older than the adapter's minimum
- *    is refused with an AgentUpdateNeededError before a child starts; the app tools MCP servers are
+ *  - start(): one child per chat through StdioAcpClient, running the program the chat's launch
+ *    names (SIDE-21, `findAgentProgram`: the user's path, else the copy on the login-shell PATH; a
+ *    user path that cannot run is an error that names it); an agent older than the adapter's
+ *    minimum is refused with an AgentUpdateNeededError before a child starts; the app tools MCP servers are
  *    passed to session/new when the caller supplies them, and the client keeps only the transports
  *    the agent advertised; the adapter's environment, session storage and prompt check are applied
  *  - listModels(): the throwaway session is always closed, also on error and on timeout; the model
@@ -36,6 +38,7 @@ import type { ModelInfo } from "@conducted/protocol";
 import { appError, err, ok } from "@conducted/shared";
 import { parseVersion, VERSION_PROBE_TIMEOUT_MS } from "../../models/agent-detection.ts";
 import type { RunnerCommonDeps } from "../deps.ts";
+import { findAgentProgram } from "../launch-env.ts";
 import type { AgentSession, Runner, RunnerCapabilities, StartOptions } from "../runner.ts";
 import {
 	type AcpClient,
@@ -64,8 +67,11 @@ class AgentUpdateNeededError extends Error {
 export type AcpRunnerDeps = RunnerCommonDeps & {
 	adapter: AcpAdapter;
 	spawn: SpawnAcpChild;
-	/** Builds the app tools MCP servers for a chat. Missing: no app tools are offered. */
-	appToolsServers?(options: StartOptions): readonly unknown[];
+	/**
+	 * Builds the app tools MCP servers for a chat, and the release that ends the chat's bridge token
+	 * when the session is disposed (SIDE-13). Missing: no app tools are offered.
+	 */
+	appToolsServers?(options: StartOptions): Promise<AcpAppTools>;
 	/** Overrides the translator; a test injection point the composition root leaves out. */
 	translator?(options: { adapter: AcpAdapter; logger: RunnerCommonDeps["logger"] }): AcpTranslator;
 	/** Makes a client for a chat or a throwaway session; the composition root leaves it out. */
@@ -76,6 +82,12 @@ export type AcpRunnerDeps = RunnerCommonDeps & {
 		handlers: AcpClientHandlers;
 	}): AcpClient;
 };
+
+/** The app tools MCP servers for one ACP session. */
+export interface AcpAppTools {
+	servers: readonly unknown[];
+	release(): void;
+}
 
 /** True when a version is older than a minimum, comparing numeric parts. */
 export function isVersionBelow(version: string, minimum: string | undefined): boolean {
@@ -115,6 +127,11 @@ export class AcpRunner implements Runner {
 		this.lastEnv = env;
 		const path = await this.deps.findExecutable(this.deps.adapter.command.executable, env);
 		if (path === null) return null;
+		return { path, version: await this.readVersion(path, env) };
+	}
+
+	/** The program's version, or "" when the probe fails. A version below the minimum is logged. */
+	private async readVersion(path: string, env: Readonly<Record<string, string>>): Promise<string> {
 		const probed = await this.deps.probe(path, this.deps.adapter.versionArgs, {
 			env,
 			timeoutMs: VERSION_PROBE_TIMEOUT_MS,
@@ -124,7 +141,7 @@ export class AcpRunner implements Runner {
 				adapter: this.deps.adapter.id,
 				code: probed.error.code,
 			});
-			return { path, version: "" };
+			return "";
 		}
 		const version = parseVersion(probed.value.stdout || probed.value.stderr) ?? "";
 		if (version !== "" && isVersionBelow(version, this.deps.adapter.minimumVersion)) {
@@ -134,18 +151,25 @@ export class AcpRunner implements Runner {
 				minimumVersion: this.deps.adapter.minimumVersion,
 			});
 		}
-		return { path, version };
+		return version;
 	}
 
 	async start(options: StartOptions): Promise<AgentSession> {
 		const logger = this.deps.logger.child(ACP_LOG_TAG);
-		const detected = await this.detect(options.env);
-		if (detected === null) {
-			throw new Error(
-				`The ${this.deps.adapter.displayName} agent could not start (${this.deps.adapter.command.executable}). Install it, or repair its path in Settings.`,
-			);
-		}
-		const executablePath = detected.path;
+		this.lastEnv = options.env;
+		const program = await findAgentProgram({
+			agent: "acp",
+			name: this.deps.adapter.command.executable,
+			executablePath: options.executablePath,
+			env: options.env,
+			findExecutable: this.deps.findExecutable,
+		});
+		if (!program.ok) throw program.error;
+		const executablePath = program.value.path;
+		const detected = {
+			path: executablePath,
+			version: await this.readVersion(executablePath, options.env),
+		};
 		if (
 			detected.version !== "" &&
 			isVersionBelow(detected.version, this.deps.adapter.minimumVersion)
@@ -204,13 +228,15 @@ export class AcpRunner implements Runner {
 				storage?.sessionIdPrefix,
 			);
 		};
+		const appTools = (await this.deps.appToolsServers?.(options)) ?? null;
 		session = new AcpSession(
 			{
 				adapter: this.deps.adapter,
 				connectClient,
 				translator,
-				mcpServers: this.deps.appToolsServers?.(options) ?? [],
+				mcpServers: appTools?.servers ?? [],
 				logger,
+				...(appTools === null ? {} : { onDispose: () => appTools.release() }),
 			},
 			options,
 		);

@@ -45,13 +45,7 @@ const isNamed = (text: string): boolean => source.includes(`"${text}"`);
 
 /** Settings of a done feature that no code reads yet. The settings pages (SET-02, SET-06) wire them. */
 const KNOWN_UNUSED_SETTINGS: readonly string[] = [
-	"bedrock_region",
 	"big_terminal_custom_commands",
-	"claude_provider",
-	"codex_provider",
-	"codex_tool_approval_policy",
-	"default_claude_personality",
-	"default_codex_personality",
 	"default_codex_thinking_level",
 	"experimental_auto_permission_mode",
 	"experimental_new_workspace_page",
@@ -59,7 +53,6 @@ const KNOWN_UNUSED_SETTINGS: readonly string[] = [
 	"internal_workspace_status_matrix",
 	"last_clone_directory",
 	"using_split_view",
-	"vertex_project_id",
 	"wrap_lines",
 ];
 

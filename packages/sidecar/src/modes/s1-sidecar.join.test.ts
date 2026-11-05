@@ -1,18 +1,22 @@
 /**
  * @feature SIDE-13, SIDE-21, AGENT-16, AGENT-17 the s1-sidecar batch joined
- * Owns: one integration test per feature of the batch, driven through the session manager and the
- * handlers that the sidecar composition root builds. It proves that the options, the launch
- * settings, the ACP choices and the app tools bridge all reach the live path.
- * Behaviour: modes/sidecar-mode.ts (builds the manager and buildHandlers), runners/claude/options.ts,
- * runners/acp/acp-session.ts, runners/launch-env.ts, process/launch-fingerprint.ts, tools/socket-bridge.ts.
+ * Owns: the integration tests of the batch, driven through `composeSidecar`, the function the
+ * sidecar's composition root (`startSidecarHost`) builds the host with. They prove that the chat
+ * options, the launch settings, the ACP choices and the app tools bridge reach the live path, for
+ * Claude, Codex and ACP chats.
+ * Behaviour: modes/sidecar-mode.ts (composeSidecar and the runner registry it builds),
+ * runners/claude/options.ts, runners/codex/codex-runner.ts, runners/acp/acp-session.ts,
+ * runners/launch-env.ts, process/launch-fingerprint.ts, tools/socket-bridge.ts, tools/mcp-launch.ts.
  * Test first: this file.
- * Our design choice: the runners are real and only their outside world is scripted, so a removed
- * wiring line fails here. The stand-ins come from test-support (FakeApp, FakeProcesses,
- * FakePublisher, FakeInteractions); the scripted SDK query and ACP agent are plain functions.
+ * Our design choice: everything the composition root builds is real; only the outside world is
+ * scripted through `SidecarPorts`: the SDK's query, the Codex and ACP child processes, the program
+ * lookup, the login-shell capture, the checkpoint script and the file reads. So a wiring line
+ * removed from the root fails here. The app is FakeApp and the outbox storage MemoryStorage, both
+ * from test-support. The last test starts the real sidecar process.
  */
 import { afterEach, describe, expect, test } from "bun:test";
 import { type ChildProcess, spawn } from "node:child_process";
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -20,38 +24,40 @@ import { fileURLToPath } from "node:url";
 import {
 	AGENT_METHODS,
 	agent as createAgentApp,
+	type NewSessionRequest,
 	ndJsonStream,
 	type SessionConfigOption,
 } from "@agentclientprotocol/sdk";
 import type { Options, Query, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import type {
 	AcpConfigOption,
-	ModelInfo,
+	AgentLaunch,
 	SessionConfig,
 	WorkspaceContext,
 } from "@conducted/protocol";
-import { cryptoIds, ok, type SessionId, systemClock, type WorkspaceId } from "@conducted/shared";
-import { createLogger, type Logger } from "../logging/logger.ts";
-import { buildHandlers, type HandlerDeps } from "../rpc/handlers.ts";
+import {
+	appError,
+	cryptoIds,
+	err,
+	type MessageId,
+	ok,
+	type SessionId,
+	systemClock,
+	type TurnId,
+	type WorkspaceId,
+} from "@conducted/shared";
+import { createLogger, type Logger, type LogRecord } from "../logging/logger.ts";
 import type { AcpChild } from "../runners/acp/acp-client.ts";
-import { AcpRunner } from "../runners/acp/acp-runner.ts";
-import { ACP_ADAPTERS } from "../runners/acp/adapters/registry.ts";
-import { ClaudeRunner } from "../runners/claude/claude-runner.ts";
-import { ClaudeTranslator } from "../runners/claude/translate.ts";
-import type { RunnerRegistry } from "../runners/registry.ts";
-import { MapRunnerRegistry } from "../runners/registry.ts";
-import { LiveStateStore } from "../session/live-state.ts";
-import { DefaultSessionManager } from "../session/manager.ts";
-import { KeyedSerialQueue } from "../session/serial-queue.ts";
+import type { JsonRpcChild } from "../runners/codex/app-server-client.ts";
 import { FakeApp } from "../test-support/fake-app.ts";
+import { FakeChild, type JsonRpcMessage } from "../test-support/fake-child.ts";
 import { FakeInteractions } from "../test-support/fake-interactions.ts";
-import { FakeProcesses } from "../test-support/fake-processes.ts";
-import { FakePublisher } from "../test-support/fake-publisher.ts";
+import { MemoryStorage } from "../test-support/memory-storage.ts";
 import { RpcAppToolBackend } from "../tools/backend.ts";
 import { appToolsMcpEntry, BRIDGE_TOKEN_ENV } from "../tools/mcp-launch.ts";
 import { callBridgeOverSocket } from "../tools/mcp-stdio-server.ts";
 import { AppToolsBridge } from "../tools/socket-bridge.ts";
-import { createScheduler, PARENT_PID_ENV } from "./sidecar-mode.ts";
+import { composeSidecar, PARENT_PID_ENV, type SidecarComposition } from "./sidecar-mode.ts";
 
 const cleanups: (() => Promise<void>)[] = [];
 
@@ -94,11 +100,11 @@ function baseConfig(over: Partial<SessionConfig> = {}): SessionConfig {
 	};
 }
 
-function logger(): Logger {
+function logger(records: LogRecord[] = []): Logger {
 	return createLogger({
-		sink: () => {},
+		sink: (record) => records.push(record),
 		clock: systemClock,
-		level: "error",
+		level: "warn",
 		scope: "s1-sidecar-join",
 	});
 }
@@ -117,87 +123,93 @@ const unwrap = <T>(value: unknown): T => {
 	return value as T;
 };
 
-const model: ModelInfo = {
-	id: "sonnet",
-	label: "Sonnet",
-	status: "picker",
-	isNew: false,
-	isDefault: true,
-	efforts: [],
-	defaultEffort: "medium",
-	effortAxis: "effort",
-	liveEffortChange: false,
-	supportsFastMode: false,
-};
-
-interface Harness {
-	manager: DefaultSessionManager;
-	handlers: ReturnType<typeof buildHandlers>;
-	app: FakeApp;
-	processes: FakeProcesses;
-	log: Logger;
+/** What the scripted outside world saw. */
+interface Seen {
+	claudeOptions: { options: Options }[];
+	codexSpawns: {
+		command: string;
+		args: readonly string[];
+		env: Readonly<Record<string, string>>;
+	}[];
+	codexChildren: FakeChild[];
+	acpNewSessions: NewSessionRequest[];
+	logs: LogRecord[];
+	/** Resolves when the next Codex app server is spawned. */
+	nextCodexSpawn(): Promise<void>;
 }
 
-/** The manager and handlers the sidecar composition root builds, with scripted agents. */
-function harness(runners: RunnerRegistry): Harness {
+interface Harness {
+	host: SidecarComposition;
+	handlers: SidecarComposition["handlers"]["requests"];
+	app: FakeApp;
+	seen: Seen;
+	home: string;
+}
+
+/**
+ * The host the composition root builds, over scripted outside-world ports. The login shell has
+ * `HOME` in the workspace folder, so a Codex config a test writes there is the user's own.
+ */
+async function harness(
+	folder: string,
+	options: { acpOptions?: SessionConfigOption[]; files?: Map<string, string> } = {},
+): Promise<Harness> {
 	const app = new FakeApp();
-	const log = logger();
-	const processes = new FakeProcesses(systemClock);
-	const publisher = new FakePublisher();
-	const interactions = new FakeInteractions();
-	const shellEnv = {
-		get: async () => ok({ shell: "/bin/zsh", path: "/usr/bin", env: { PATH: "/usr/bin" } }),
-		refresh: async () => ok({ shell: "/bin/zsh", path: "/usr/bin", env: { PATH: "/usr/bin" } }),
+	const home = path.join(folder, "home");
+	const spawnWaiters: (() => void)[] = [];
+	const seen: Seen = {
+		claudeOptions: [],
+		codexSpawns: [],
+		codexChildren: [],
+		acpNewSessions: [],
+		logs: [],
+		nextCodexSpawn: () => new Promise<void>((resolve) => spawnWaiters.push(resolve)),
 	};
-	const manager = new DefaultSessionManager({
-		app,
-		runners,
-		processes,
-		checkpoints: {
-			start: async () => ({}),
-			end: async () => ({}),
+	const captured = { shell: "/bin/zsh", path: "/usr/bin", env: { PATH: "/usr/bin", HOME: home } };
+	const host = composeSidecar(
+		{ binDir: BIN_DIR, outboxRoot: path.join(folder, "outbox"), logDir: path.join(folder, "log") },
+		{
+			app,
+			query: scriptedQuery(seen.claudeOptions),
+			spawnCodex: async (spawned) => {
+				seen.codexSpawns.push(spawned);
+				const child = scriptedCodex();
+				seen.codexChildren.push(child);
+				for (const wake of spawnWaiters.splice(0)) wake();
+				return ok(child satisfies JsonRpcChild);
+			},
+			spawnAcp: scriptedAcp(options.acpOptions ?? [], seen.acpNewSessions),
+			// As on a Mac without Cursor's SDK; no test here starts a Cursor chat.
+			loadCursorSdk: async () =>
+				err(appError("cursor_sdk_missing", "Cursor's SDK is not installed.")),
+			probe: async (command) =>
+				ok({ stdout: command.endsWith("opencode") ? "1.18.18" : "1.0.0", stderr: "", exitCode: 0 }),
+			// Every program is on the PATH, and a path the user chose is taken as it is.
+			findExecutable: async (name) => (name.includes("/") ? name : `/usr/bin/${name}`),
+			shellEnv: { get: async () => ok(captured), refresh: async () => ok(captured) },
+			runCheckpointer: async () => ({ exitCode: 1, stdout: "", stderr: "not a repository" }),
+			outboxStorage: new MemoryStorage(),
+			makeTempDir: (prefix) => mkdtemp(path.join(tmpdir(), prefix)),
+			readText: async (file) => ok(options.files?.get(file) ?? null),
+			sidecarExecutable: "/Applications/Conducted.app/Contents/MacOS/sidecar",
+			hasTranscript: async () => false,
+			newToken: () => randomBytes(32).toString("base64url"),
+			clock: systemClock,
+			ids: cryptoIds,
+			logger: logger(seen.logs),
 		},
-		prompt: { assemble: async (input) => ok(input.text) },
-		shellEnv,
-		publisher,
-		liveState: new LiveStateStore({ app, flushed: async () => {} }),
-		interactions,
-		queue: new KeyedSerialQueue(),
-		clock: systemClock,
-		ids: cryptoIds,
-		logger: log,
+	);
+	const started = await host.bridge.start();
+	if (!started.ok) throw new Error(started.error.message);
+	// The same order the host's shutdown runs: agents, unconfirmed events, then the bridge.
+	cleanups.push(async () => {
+		await host.sessions.shutdown("app_quit");
+		for (const sessionId of host.outbox.sessionsWithPending()) {
+			await host.publisher.flush(sessionId);
+		}
+		await host.bridge.stop();
 	});
-	const deps: HandlerDeps = {
-		sessions: manager,
-		outbox: {
-			open: async () => ok([]),
-			append: async () => ok([]),
-			acknowledge: async () => ok(undefined),
-			pending: () => [],
-			sessionsWithPending: () => [],
-			sweepIdle: async () => ok(0),
-		},
-		models: {
-			list: async () => ok([]),
-			validate: async () => ok(model),
-			invalidate: () => {},
-		},
-		agents: {
-			detectAll: async () => [],
-			startLogin: async () => ok({ loginId: "login-1", instructions: "Sign in" }),
-			finishLogin: async () => ok({ outcome: "signed_in" }),
-			cancelLogin: async () => ok(undefined),
-		},
-		slashCommands: { list: async () => ok([]) },
-		mcpServers: { list: async () => ok([]) },
-		usage: {
-			contextUsage: async () => ok({ usedTokens: 0, windowTokens: 1, rateLimits: [] }),
-		},
-		shellEnv,
-		utilityPrompt: { run: async () => ok({ text: "" }) },
-		setLogLevel: () => {},
-	};
-	return { manager, handlers: buildHandlers(deps), app, processes, log };
+	return { host, handlers: host.handlers.requests, app, seen, home };
 }
 
 /** A Claude SDK stream that stays open until the session is stopped. */
@@ -235,89 +247,124 @@ const sessionOptions = (captured: { options: Options }[]): Options[] =>
 		.map((entry) => entry.options)
 		.filter((options) => options.env?.CONDUCTED_SESSION_ID !== undefined);
 
-function claudeRunner(captured: { options: Options }[]): ClaudeRunner {
-	const log = logger();
-	return new ClaudeRunner({
-		logger: log,
-		clock: systemClock,
-		ids: cryptoIds,
-		probe: async () => ok({ stdout: "", stderr: "", exitCode: 0 }),
-		findExecutable: async () => "/bin/claude",
-		query: scriptedQuery(captured),
-		appTools: new RpcAppToolBackend({
-			app: new FakeApp(),
-			interactions: new FakeInteractions(),
-			logger: log,
-		}),
-		translator: () => new ClaudeTranslator({ logger: log }),
-		hasTranscript: async () => false,
-		realPath: async (target) => target,
-		newUuid: () => randomUUID(),
-		scheduler: createScheduler(),
-		createCanUseTool: () => (async () => ({ behavior: "allow", updatedInput: {} })) as never,
-		createMcpServers: () => ({}),
-	});
+/** A Codex app server that answers the handshake, starts a thread and completes every turn. */
+function scriptedCodex(): FakeChild {
+	const child = new FakeChild();
+	const answer = (message: JsonRpcMessage, result: unknown): void => {
+		queueMicrotask(() => child.emit({ jsonrpc: "2.0", id: message.id, result }));
+	};
+	child.onWrite = (message) => {
+		if (message.id === undefined) return;
+		if (message.method === "initialize") answer(message, { serverVersion: "0.154.0" });
+		else if (message.method === "thread/start") {
+			answer(message, { thread: { id: "thread-1" }, model: "gpt-5" });
+		} else if (message.method === "turn/start") {
+			answer(message, { turn: { id: "turn-1", status: "inProgress", error: null } });
+			queueMicrotask(() =>
+				child.emit({
+					jsonrpc: "2.0",
+					method: "turn/completed",
+					params: {
+						threadId: "thread-1",
+						turn: { id: "turn-1", status: "completed", error: null },
+					},
+				}),
+			);
+		} else answer(message, {});
+	};
+	return child;
 }
 
-function acpRunner(configOptions: SessionConfigOption[]): AcpRunner {
-	const log = logger();
+/** An ACP agent in memory that offers `configOptions` and records each session/new. */
+function scriptedAcp(
+	configOptions: SessionConfigOption[],
+	newSessions: NewSessionRequest[],
+): () => Promise<ReturnType<typeof ok<AcpChild>>> {
 	const current = { options: configOptions };
-	return new AcpRunner({
-		logger: log,
-		clock: systemClock,
-		ids: cryptoIds,
-		probe: async () => ok({ stdout: "1.18.18", stderr: "", exitCode: 0 }),
-		findExecutable: async () => "/bin/opencode",
-		adapter: ACP_ADAPTERS.opencode,
-		spawn: async () => {
-			const toAgent = new TransformStream<Uint8Array, Uint8Array>();
-			const toChild = new TransformStream<Uint8Array, Uint8Array>();
-			const app = createAgentApp({ name: "join" })
-				.onRequest(AGENT_METHODS.initialize, () => ({
-					protocolVersion: 1,
-					agentCapabilities: { sessionCapabilities: { close: {} } },
-					agentInfo: { name: "join", version: "1.18.18" },
-				}))
-				.onRequest(AGENT_METHODS.session_new, () => ({
-					sessionId: "acp-session-1",
-					configOptions: current.options,
-				}))
-				.onRequest(AGENT_METHODS.session_set_config_option, ({ params }) => {
-					const value = (params as { value?: unknown }).value;
-					const configId = (params as { configId?: string }).configId;
-					current.options = current.options.map((option) => {
-						if (option.id !== configId) return option;
-						if (option.type === "boolean" && typeof value === "boolean") {
-							return { ...option, currentValue: value };
-						}
-						if (option.type === "select" && typeof value === "string") {
-							return { ...option, currentValue: value };
-						}
-						return option;
-					});
-					return { configOptions: current.options };
-				})
-				.onRequest(AGENT_METHODS.session_prompt, () => ({ stopReason: "end_turn" }))
-				.onRequest(AGENT_METHODS.session_close, () => ({}));
-			app.connect(ndJsonStream(toChild.writable, toAgent.readable));
-			return ok({
-				stdin: toAgent.writable,
-				stdout: toChild.readable,
-				onStderr: () => {},
-				onExit: () => {},
-				stop: async () => {},
-			} satisfies AcpChild);
-		},
-	});
+	return async () => {
+		const toAgent = new TransformStream<Uint8Array, Uint8Array>();
+		const toChild = new TransformStream<Uint8Array, Uint8Array>();
+		const app = createAgentApp({ name: "join" })
+			.onRequest(AGENT_METHODS.initialize, () => ({
+				protocolVersion: 1,
+				agentCapabilities: { sessionCapabilities: { close: {} } },
+				agentInfo: { name: "join", version: "1.18.18" },
+			}))
+			.onRequest(AGENT_METHODS.session_new, ({ params }) => {
+				newSessions.push(params as NewSessionRequest);
+				return { sessionId: "acp-session-1", configOptions: current.options };
+			})
+			.onRequest(AGENT_METHODS.session_set_config_option, ({ params }) => {
+				const value = (params as { value?: unknown }).value;
+				const configId = (params as { configId?: string }).configId;
+				current.options = current.options.map((option) => {
+					if (option.id !== configId) return option;
+					if (option.type === "boolean" && typeof value === "boolean") {
+						return { ...option, currentValue: value };
+					}
+					if (option.type === "select" && typeof value === "string") {
+						return { ...option, currentValue: value };
+					}
+					return option;
+				});
+				return { configOptions: current.options };
+			})
+			.onRequest(AGENT_METHODS.session_prompt, () => ({ stopReason: "end_turn" }))
+			.onRequest(AGENT_METHODS.session_close, () => ({}));
+		app.connect(ndJsonStream(toChild.writable, toAgent.readable));
+		return ok({
+			stdin: toAgent.writable,
+			stdout: toChild.readable,
+			onStderr: () => {},
+			onExit: () => {},
+			stop: async () => {},
+		} satisfies AcpChild);
+	};
 }
+
+/** Calls an app tool over the bridge socket with a token, as the helper process does. */
+async function callTool(
+	host: SidecarComposition,
+	sessionId: SessionId,
+	token: string,
+): Promise<unknown> {
+	const endpoint = host.bridge.currentEndpoint;
+	if (endpoint === null) throw new Error("The bridge is not listening.");
+	return JSON.parse(
+		await callBridgeOverSocket(
+			endpoint.socketPath,
+			JSON.stringify({ authToken: token, sessionId, toolName: "GetWorkspaceDiff", args: {} }),
+		),
+	);
+}
+
+function sendParams(
+	folder: string,
+	config: SessionConfig,
+	launch: AgentLaunch = { env: {}, providerKeys: {} },
+) {
+	return {
+		sessionId: "session-1" as SessionId,
+		messageId: "message-1" as MessageId,
+		turnId: "turn-1" as TurnId,
+		text: "hello",
+		attachmentPaths: [],
+		delivery: "new_turn" as const,
+		firstMessage: false,
+		config,
+		workspace: workspaceFor(folder),
+		launch,
+	};
+}
+
+const codexConfigArg = (args: readonly string[], key: string): string | undefined =>
+	args.find((arg) => arg.startsWith(`mcp_servers.conducted.${key}=`));
 
 describe("s1-sidecar join the batch through the composition root", () => {
 	test("AGENT-16 the chat's output style, effort and Chrome reach the Claude session", async () => {
 		const folder = await workspaceFolder();
-		const captured: { options: Options }[] = [];
-		const h = harness(
-			new MapRunnerRegistry([{ selector: { agent: "claude" }, runner: claudeRunner(captured) }]),
-		);
+		const h = await harness(folder);
+		const captured = h.seen.claudeOptions;
 		const config = baseConfig({
 			effort: "ultra",
 			fastMode: true,
@@ -325,7 +372,7 @@ describe("s1-sidecar join the batch through the composition root", () => {
 			claudeInChrome: true,
 		});
 		try {
-			await h.handlers.requests.warmAgent({
+			await h.handlers.warmAgent({
 				sessionId: "session-1" as SessionId,
 				config,
 				workspace: workspaceFor(folder),
@@ -338,46 +385,41 @@ describe("s1-sidecar join the batch through the composition root", () => {
 			expect(options[0]?.settings).toEqual({ outputStyle: "concise", fastMode: true });
 			expect(options[0]?.extraArgs).toEqual({ chrome: null });
 		} finally {
-			await h.manager.shutdown("app_quit");
+			await h.host.sessions.shutdown("app_quit");
 		}
 	});
 
 	test("AGENT-17 the ACP chat options are listed and set through the handlers", async () => {
 		const folder = await workspaceFolder();
-		const h = harness(
-			new MapRunnerRegistry([
+		const h = await harness(folder, {
+			acpOptions: [
 				{
-					selector: { agent: "acp", acpAgent: "opencode" },
-					runner: acpRunner([
-						{
-							type: "select",
-							id: "model",
-							name: "Model",
-							category: "model",
-							currentValue: "one",
-							options: [
-								{ value: "one", name: "One" },
-								{ value: "two", name: "Two" },
-							],
-						},
-						{
-							type: "select",
-							id: "thought_level",
-							name: "Thought level",
-							currentValue: "medium",
-							options: [
-								{ value: "low", name: "Low" },
-								{ value: "medium", name: "Medium" },
-								{ value: "high", name: "High" },
-							],
-						},
-					]),
+					type: "select",
+					id: "model",
+					name: "Model",
+					category: "model",
+					currentValue: "one",
+					options: [
+						{ value: "one", name: "One" },
+						{ value: "two", name: "Two" },
+					],
 				},
-			]),
-		);
+				{
+					type: "select",
+					id: "thought_level",
+					name: "Thought level",
+					currentValue: "medium",
+					options: [
+						{ value: "low", name: "Low" },
+						{ value: "medium", name: "Medium" },
+						{ value: "high", name: "High" },
+					],
+				},
+			],
+		});
 		const config = baseConfig({ agent: "acp", acpAgent: "opencode", model: "one" });
 		try {
-			await h.handlers.requests.warmAgent({
+			await h.handlers.warmAgent({
 				sessionId: "session-1" as SessionId,
 				config,
 				workspace: workspaceFor(folder),
@@ -385,14 +427,14 @@ describe("s1-sidecar join the batch through the composition root", () => {
 			});
 
 			const listed = unwrap<{ options: AcpConfigOption[] }>(
-				await h.handlers.requests.listAcpConfigOptions({
+				await h.handlers.listAcpConfigOptions({
 					sessionId: "session-1" as SessionId,
 				}),
 			);
 			expect(listed.options.map((option) => option.id)).toEqual(["thought_level"]);
 
 			const changed = unwrap<{ options: AcpConfigOption[] }>(
-				await h.handlers.requests.setAcpConfigOption({
+				await h.handlers.setAcpConfigOption({
 					sessionId: "session-1" as SessionId,
 					optionId: "thought_level",
 					value: "high",
@@ -408,18 +450,16 @@ describe("s1-sidecar join the batch through the composition root", () => {
 				],
 			});
 		} finally {
-			await h.manager.shutdown("app_quit");
+			await h.host.sessions.shutdown("app_quit");
 		}
 	});
 
 	test("SIDE-21 the launch's variables and own provider key fill the runner environment", async () => {
 		const folder = await workspaceFolder();
-		const captured: { options: Options }[] = [];
-		const h = harness(
-			new MapRunnerRegistry([{ selector: { agent: "claude" }, runner: claudeRunner(captured) }]),
-		);
+		const h = await harness(folder);
+		const captured = h.seen.claudeOptions;
 		try {
-			await h.handlers.requests.warmAgent({
+			await h.handlers.warmAgent({
 				sessionId: "session-1" as SessionId,
 				config: baseConfig(),
 				workspace: workspaceFor(folder),
@@ -441,16 +481,14 @@ describe("s1-sidecar join the batch through the composition root", () => {
 			expect(env.CONDUCTED_SESSION_ID).toBe("session-1");
 			expect(env.CONDUCTED_WORKSPACE_PATH).toBe(folder);
 		} finally {
-			await h.manager.shutdown("app_quit");
+			await h.host.sessions.shutdown("app_quit");
 		}
 	});
 
 	test("SIDE-21 a changed launch restarts the idle agent with the new environment", async () => {
 		const folder = await workspaceFolder();
-		const captured: { options: Options }[] = [];
-		const h = harness(
-			new MapRunnerRegistry([{ selector: { agent: "claude" }, runner: claudeRunner(captured) }]),
-		);
+		const h = await harness(folder);
+		const captured = h.seen.claudeOptions;
 		const params = {
 			sessionId: "session-1" as SessionId,
 			config: baseConfig(),
@@ -461,8 +499,8 @@ describe("s1-sidecar join the batch through the composition root", () => {
 			},
 		};
 		try {
-			await h.handlers.requests.warmAgent(params);
-			await h.handlers.requests.warmAgent({
+			await h.handlers.warmAgent(params);
+			await h.handlers.warmAgent({
 				...params,
 				launch: { env: { SETTING_VALUE: "two" }, providerKeys: {} },
 			});
@@ -472,7 +510,7 @@ describe("s1-sidecar join the batch through the composition root", () => {
 			expect(((options[0]?.env ?? {}) as Record<string, string>).SETTING_VALUE).toBe("one");
 			expect(((options[1]?.env ?? {}) as Record<string, string>).SETTING_VALUE).toBe("two");
 		} finally {
-			await h.manager.shutdown("app_quit");
+			await h.host.sessions.shutdown("app_quit");
 		}
 	});
 
@@ -528,6 +566,139 @@ describe("s1-sidecar join the batch through the composition root", () => {
 		} finally {
 			await bridge.stop();
 		}
+	});
+
+	test("SIDE-21 SIDE-13 a Codex chat starts the launch's program with the app tools server from the root", async () => {
+		const folder = await workspaceFolder();
+		const h = await harness(folder);
+		const spawned = h.seen.nextCodexSpawn();
+
+		const sent = await h.handlers.sendMessage(
+			sendParams(folder, baseConfig({ agent: "codex", model: "gpt-5" }), {
+				env: {},
+				providerKeys: {},
+				executablePath: "/opt/codex/bin/codex",
+			}),
+		);
+		await spawned;
+
+		expect(unwrap<{ deliveredAs: string }>(sent)).toEqual({ deliveredAs: "new_turn" });
+		const spawn = h.seen.codexSpawns[0];
+		expect(spawn?.command).toBe("/opt/codex/bin/codex");
+		expect(codexConfigArg(spawn?.args ?? [], "command")).toBe(
+			'mcp_servers.conducted.command="/Applications/Conducted.app/Contents/MacOS/sidecar"',
+		);
+		expect(codexConfigArg(spawn?.args ?? [], "env_vars")).toBe(
+			'mcp_servers.conducted.env_vars=["CONDUCTED_APP_TOOLS_TOKEN"]',
+		);
+		const token = spawn?.env[BRIDGE_TOKEN_ENV] ?? "";
+		expect(token).not.toBe("");
+		expect((spawn?.args ?? []).join(" ")).not.toContain(token);
+		expect(await callTool(h.host, "session-1" as SessionId, token)).toMatchObject({ ok: true });
+
+		await h.handlers.resetAgent({ sessionId: "session-1" as SessionId });
+
+		expect(await callTool(h.host, "session-1" as SessionId, token)).toEqual({
+			ok: false,
+			error: "Unauthorized",
+		});
+	});
+
+	test("SIDE-13 an ACP chat's session/new carries the app tools server and its token from the root", async () => {
+		const folder = await workspaceFolder();
+		const h = await harness(folder, {
+			acpOptions: [
+				{
+					type: "select",
+					id: "model",
+					name: "Model",
+					category: "model",
+					currentValue: "one",
+					options: [{ value: "one", name: "One" }],
+				},
+			],
+		});
+
+		await h.handlers.warmAgent({
+			sessionId: "session-1" as SessionId,
+			config: baseConfig({ agent: "acp", acpAgent: "opencode", model: "one" }),
+			workspace: workspaceFor(folder),
+			launch: { env: {}, providerKeys: {} },
+		});
+		await h.handlers.listAcpConfigOptions({ sessionId: "session-1" as SessionId });
+
+		// The model list opens a throwaway session with no servers; the chat's own session has ours.
+		const chatSession = h.seen.acpNewSessions.find((request) => request.mcpServers.length > 0);
+		const server = chatSession?.mcpServers[0] as {
+			name: string;
+			command: string;
+			args: string[];
+			env: { name: string; value: string }[];
+		};
+		expect(server.name).toBe("conducted");
+		expect(server.command).toBe("/Applications/Conducted.app/Contents/MacOS/sidecar");
+		expect(server.args.slice(0, 3)).toEqual(["app-tools-mcp", "--session-id", "session-1"]);
+		const token = server.env.find((entry) => entry.name === BRIDGE_TOKEN_ENV)?.value ?? "";
+		expect(await callTool(h.host, "session-1" as SessionId, token)).toMatchObject({ ok: true });
+
+		await h.handlers.resetAgent({ sessionId: "session-1" as SessionId });
+
+		expect(await callTool(h.host, "session-1" as SessionId, token)).toEqual({
+			ok: false,
+			error: "Unauthorized",
+		});
+	});
+
+	test("SIDE-13 a Codex config of the user's that defines the reserved name keeps our server out", async () => {
+		const folder = await workspaceFolder();
+		const userConfig = path.join(folder, "home", ".codex", "config.toml");
+		const h = await harness(folder, {
+			files: new Map([[userConfig, '[mcp_servers.conducted]\nurl = "http://localhost:9/mcp"\n']]),
+		});
+		const spawned = h.seen.nextCodexSpawn();
+
+		await h.handlers.sendMessage(
+			sendParams(folder, baseConfig({ agent: "codex", model: "gpt-5" })),
+		);
+		await spawned;
+
+		expect(h.seen.codexSpawns[0]?.args).toEqual(["app-server", "--listen", "stdio://"]);
+		expect(h.seen.codexSpawns[0]?.env[BRIDGE_TOKEN_ENV]).toBeUndefined();
+		expect(
+			h.seen.logs.some((record) => record.level === "warn" && record.data?.file === userConfig),
+		).toBe(true);
+	});
+
+	test("SIDE-13 with the bridge down a Codex chat does not start without its tools", async () => {
+		const folder = await workspaceFolder();
+		const h = await harness(folder);
+		await h.host.bridge.stop();
+
+		const sent = await h.handlers.sendMessage(
+			sendParams(folder, baseConfig({ agent: "codex", model: "gpt-5" })),
+		);
+
+		expect("ok" in sent && sent.ok).toBe(false);
+		expect(h.seen.codexSpawns).toEqual([]);
+		expect(
+			h.seen.logs.some((record) => String(record.data?.message).includes("app tools bridge")),
+		).toBe(true);
+	});
+
+	test("SIDE-21 a Claude chat runs the program its launch names", async () => {
+		const folder = await workspaceFolder();
+		const h = await harness(folder);
+
+		await h.handlers.warmAgent({
+			sessionId: "session-1" as SessionId,
+			config: baseConfig(),
+			workspace: workspaceFor(folder),
+			launch: { env: {}, providerKeys: {}, executablePath: "/opt/claude/cli.js" },
+		});
+
+		const options = sessionOptions(h.seen.claudeOptions);
+		expect(options[0]?.pathToClaudeCodeExecutable).toBe("/opt/claude/cli.js");
+		expect(options[0]?.executable).toBe("node");
 	});
 
 	test("SIDE-13 the real sidecar host starts its bridge folder and removes it on stop", async () => {

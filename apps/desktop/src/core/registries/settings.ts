@@ -854,6 +854,19 @@ const SETTINGS_TABLE = [
 			{ value: "always_approve", label: "Always approve" },
 		],
 	},
+	// Our design choice: off by default, as the research gives none. No settings file key, as in the research.
+	{
+		key: "chrome_mode_enabled",
+		page: "agents",
+		scopes: ["user"],
+		title: "Use Claude Code with Chrome",
+		description:
+			"Start Claude with its Chrome browser tools in new chats. A change restarts a running Claude chat at its next message.",
+		searchTerms: ["claude", "chrome", "browser"],
+		feature: "AGENT-16",
+		type: "bool",
+		default: false,
+	},
 	// Our design choice: empty means the standard Claude sign-in.
 	{
 		key: "claude_provider",

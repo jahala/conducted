@@ -3,9 +3,12 @@
  * Owns: the Claude half of the chat options: the effort and thinking options, the settings JSON
  * (output style, fast mode, ultracode) and the Chrome flag, taken from a chat's `SessionConfig`.
  * Behaviour: claude-runner.md 1.2 (option table: effort `none` is omitted and `ultra` becomes
- * `max`, thinking can be disabled, adaptive or on with a budget, a settings JSON carries the output
- * style, fast mode and ultracode, `--chrome` is an extra argument) and 1.5 (output style,
- * ultracode, Chrome and fast mode restart Claude with resume).
+ * `max`, a settings JSON carries the output style, fast mode and ultracode, `--chrome` is an extra
+ * argument) and 1.5 (output style, ultracode, Chrome and fast mode restart Claude with resume).
+ * Thinking is disabled for effort `none` and adaptive otherwise. Conductor also has a fixed-budget
+ * mode for models without adaptive thinking; it is not built here, because the start options do
+ * not say whether the chat's model is adaptive and the research gives no budget. It stays an open
+ * AGENT-16 item in docs/plans/items/system.tsv.
  * Must handle: effort `none` (no effort option, thinking disabled); effort `ultra` (sent as `max`);
  * effort `ultracode` (not sent as an effort; the settings JSON carries it, which is how Claude reads
  * it); output style `default` or missing (not written to the settings JSON); a settings JSON with

@@ -70,6 +70,8 @@ class FakeClient implements AcpClient {
 	how: OpenedAcpSession["how"] = "new";
 	acpSessionId = "acp-session-1";
 	configOptions: SessionConfigOption[] = [];
+	/** Option ids whose session/set_config_option the agent answers with an error. */
+	readonly refusedOptions = new Set<string>();
 	promptCalls = 0;
 	private readonly promptResolvers: ((result: Result<StopReason, AppError>) => void)[] = [];
 	private closeListeners: ((reason: string) => void)[] = [];
@@ -116,8 +118,15 @@ class FakeClient implements AcpClient {
 		this.cancelled = true;
 	}
 
-	async setConfigOption(_id: string, optionId: string, value: string | boolean) {
+	async setConfigOption(
+		_id: string,
+		optionId: string,
+		value: string | boolean,
+	): Promise<Result<void, AppError>> {
 		this.setConfigCalls.push({ optionId, value });
+		if (this.refusedOptions.has(optionId)) {
+			return err(appError("acp_request_failed", `The agent refused ${optionId}.`));
+		}
 		return ok(undefined);
 	}
 
@@ -858,6 +867,75 @@ describe("AGENT-11 ACP session", () => {
 			{ optionId: "thought_level", value: "high" },
 			{ optionId: "web_search", value: true },
 		]);
+	});
+
+	test("AGENT-17 a saved option the agent refuses is skipped, keeps the agent's value, and the chat opens", async () => {
+		const client = new FakeClient();
+		client.configOptions = [
+			{
+				type: "select",
+				id: "thought_level",
+				name: "Thought level",
+				currentValue: "medium",
+				options: [
+					{ value: "medium", name: "Medium" },
+					{ value: "high", name: "High" },
+				],
+			},
+			{ type: "boolean", id: "web_search", name: "Web search", currentValue: false },
+		];
+		client.refusedOptions.add("thought_level");
+		const session = makeSession(client, { configOptions: client.configOptions });
+		const config: SessionConfig = {
+			...baseConfig,
+			acpConfig: { thought_level: "high", web_search: true },
+		};
+
+		const listed = await session.listAcpConfigOptions(config);
+
+		expect(listed.ok).toBe(true);
+		if (!listed.ok) return;
+		expect(listed.value.map((option) => [option.id, option.value.current])).toEqual([
+			["thought_level", "medium"],
+			["web_search", true],
+		]);
+		expect(client.setConfigCalls).toEqual([
+			{ optionId: "thought_level", value: "high" },
+			{ optionId: "web_search", value: true },
+		]);
+	});
+
+	test("AGENT-17 a refused saved option does not fail the turn", async () => {
+		const client = new FakeClient();
+		client.configOptions = [
+			{
+				type: "select",
+				id: "thought_level",
+				name: "Thought level",
+				currentValue: "medium",
+				options: [
+					{ value: "medium", name: "Medium" },
+					{ value: "high", name: "High" },
+				],
+			},
+		];
+		client.refusedOptions.add("thought_level");
+		const session = makeSession(client, { configOptions: client.configOptions });
+
+		const outcome = session.runTurn(
+			{
+				text: "hello",
+				attachmentPaths: [],
+				config: { ...baseConfig, acpConfig: { thought_level: "high" } },
+			},
+			callbacks(),
+		);
+		await waitFor(() => client.promptCalls === 1, "the prompt");
+		session.handleUpdate(textChunk("done"));
+		client.finishPrompt("end_turn");
+
+		expect(await outcome).toEqual({ kind: "success" });
+		expect(client.setConfigCalls).toEqual([{ optionId: "thought_level", value: "high" }]);
 	});
 
 	test("AGENT-17 sets one option and returns every option", async () => {

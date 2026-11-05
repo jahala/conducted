@@ -9,6 +9,12 @@ describe("SIDE-01 error helpers", () => {
 		expect(messageOf(undefined)).toBe("undefined");
 	});
 
+	test("SIDE-21 messageOf reads a thrown AppError's message, as runners throw one from start", () => {
+		expect(
+			messageOf({ code: "agent_program_invalid", message: "The program at /x cannot run." }),
+		).toBe("The program at /x cannot run.");
+	});
+
 	test("SIDE-01 isAppError accepts a code and a message, and refuses look-alikes", () => {
 		expect(isAppError({ code: "x", message: "y" })).toBe(true);
 		expect(isAppError({ code: "x" })).toBe(false);

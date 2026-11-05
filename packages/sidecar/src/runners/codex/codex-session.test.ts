@@ -536,6 +536,54 @@ describe("AGENT-16 Codex thread options", () => {
 		expect(paramsOf(client, "turn/start")).toMatchObject({ personality: "pragmatic" });
 	});
 
+	test("Claude's ultracode effort is refused before Codex starts, and Codex levels pass as they are", async () => {
+		const refusedClient = new FakeClient();
+		const refused = await makeSession(refusedClient).runTurn(
+			turnInput("hello", { ...baseConfig, effort: "ultracode" }),
+			callbacks(),
+		);
+
+		expect(refused).toEqual({
+			kind: "error",
+			message: "Codex has no Ultracode effort level. Choose another effort level for this chat.",
+			retryable: false,
+		});
+		expect(refusedClient.methods()).toEqual([]);
+
+		const client = new FakeClient();
+		answerThreadStart(client);
+		answerCompletedTurn(client);
+		const passed = await makeSession(client).runTurn(
+			turnInput("hello", { ...baseConfig, effort: "ultra" }),
+			callbacks(),
+		);
+
+		expect(passed).toEqual({ kind: "success" });
+		expect(paramsOf(client, "turn/start")).toMatchObject({ effort: "ultra" });
+	});
+
+	test("the personality none and an explicit approval policy and sandbox reach thread/start", async () => {
+		const client = new FakeClient();
+		answerThreadStart(client);
+		answerCompletedTurn(client);
+		const chosen: SessionConfig = {
+			...baseConfig,
+			codexPersonality: "none",
+			codexApprovalPolicy: "untrusted",
+			codexSandboxMode: "workspace-write",
+		};
+
+		expect(await makeSession(client).runTurn(turnInput("hello", chosen), callbacks())).toEqual({
+			kind: "success",
+		});
+
+		expect(paramsOf(client, "thread/start")).toMatchObject({
+			personality: "none",
+			approvalPolicy: "untrusted",
+			sandbox: "workspace-write",
+		});
+	});
+
 	test("a personality change re-opens the thread with the new tone", async () => {
 		const client = new FakeClient();
 		answerThreadStart(client);

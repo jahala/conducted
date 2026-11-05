@@ -7,8 +7,9 @@
  * "unknown" for a chat it lost; a turn cut off by a crash has no end event, so the app repairs
  * it), sessions-and-chats.md "How chats are stored".
  * Must handle: the sidecar restarted (every chat the UI thinks is working is "unknown" there:
- * close its turn as interrupted, show idle, keep the agent session id so the next message
- * resumes); the sidecar is alive and still working (adopt its live state and wait for events);
+ * close its turn as interrupted, show idle, keep the agent session id, and warm its agent with the
+ * chat's launch and that id so it resumes before the next message; SIDE-21 builds the launch, and a
+ * warm that fails is reported in the result); the sidecar is alive and still working (adopt its live state and wait for events);
  * two resume runs at once collapse into one, except that a run asked for after a reconnect
  * waits for the run in flight and then runs afresh (the run in flight asked a connection that is
  * gone, so its answers say nothing about the new one); a status request that fails is reported in the
@@ -18,7 +19,7 @@
  * Our design choice: the app never guesses. A chat is either confirmed `working` by the sidecar
  * or it is closed as interrupted. Startup repair (core/db/repair.ts) already did the same for the
  * stored side before this runs, so at startup the working list is empty and the reconnect run is
- * the one that finds lost chats.
+ * the one that finds lost chats. An adopted chat is not warmed: the sidecar still runs its agent.
  * Test first: a chat the UI shows as working, which the sidecar reports as unknown, ends with a
  * turn_ended event with outcome "interrupted" and an idle live state.
  */
@@ -43,6 +44,8 @@ export interface SessionResumeDeps {
 	apply: {
 		adoptLiveState(sessionId: SessionId, liveState: LiveState): Promise<Result<void>>;
 		markInterrupted(sessionId: SessionId): Promise<Result<void>>;
+		/** Starts the chat's agent with its launch and stored resume token (SIDE-21). */
+		warm(sessionId: SessionId): Promise<Result<void>>;
 	};
 }
 
@@ -93,8 +96,13 @@ export class SessionResume {
 			}
 			if (!status.value.known) {
 				const marked = await this.#deps.apply.markInterrupted(sessionId);
-				if (marked.ok) report.interrupted.push(sessionId);
-				else report.failed.push({ sessionId, message: marked.error.message });
+				if (!marked.ok) {
+					report.failed.push({ sessionId, message: marked.error.message });
+					continue;
+				}
+				report.interrupted.push(sessionId);
+				const warmed = await this.#deps.apply.warm(sessionId);
+				if (!warmed.ok) report.failed.push({ sessionId, message: warmed.error.message });
 				continue;
 			}
 			const liveState = status.value.liveState;

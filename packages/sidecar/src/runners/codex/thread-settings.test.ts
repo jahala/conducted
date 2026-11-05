@@ -6,7 +6,7 @@
  */
 import { describe, expect, test } from "bun:test";
 import type { SessionConfig } from "@conducted/protocol";
-import { codexSettingsChanged, codexThreadSettings } from "./thread-settings.ts";
+import { codexEffort, codexSettingsChanged, codexThreadSettings } from "./thread-settings.ts";
 
 function config(overrides: Partial<SessionConfig> = {}): SessionConfig {
 	return {
@@ -82,5 +82,20 @@ describe("AGENT-16 Codex settings change rule", () => {
 	test("a change to another setting is not a Codex option change", () => {
 		expect(codexSettingsChanged(config(), config({ model: "gpt-5-mini" }))).toBe(false);
 		expect(codexSettingsChanged(config(), config({ effort: "high" }))).toBe(false);
+	});
+});
+
+describe("AGENT-16 the effort levels Codex accepts", () => {
+	test("every Codex level passes as it is", () => {
+		for (const effort of ["none", "low", "medium", "high", "xhigh", "max", "ultra"] as const) {
+			expect(codexEffort(effort)).toEqual({ ok: true, value: effort });
+		}
+	});
+
+	test("Claude's ultracode is an error value that asks for another level", () => {
+		const result = codexEffort("ultracode");
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.code).toBe("codex_effort_unsupported");
 	});
 });

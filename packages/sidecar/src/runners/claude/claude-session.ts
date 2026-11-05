@@ -90,6 +90,8 @@ export type QueryFunction = (params: {
 export interface ClaudeSessionDeps {
 	query: QueryFunction;
 	executablePath: string;
+	/** True when `executablePath` is a `.js` file that starts through node (SIDE-21). */
+	viaRuntime?: boolean;
 	appTools: AppToolBackend;
 	logger: Logger;
 	/** Turns SDK messages into our neutral format (AGENT-03). */
@@ -418,6 +420,7 @@ export class ClaudeSession implements AgentSession {
 		const options = buildClaudeOptions({
 			start: { ...start, config: this.config },
 			executablePath: this.deps.executablePath,
+			viaRuntime: this.deps.viaRuntime === true,
 			hasTranscript,
 			canUseTool: this.deps.createCanUseTool(this.permissionDeps()),
 			hooks: { PreToolUse: [createCheckpointHook(gate)] },

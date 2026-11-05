@@ -204,4 +204,44 @@ describe("AGENT-17 ACP chat options in the composer", () => {
 			test.close();
 		}
 	});
+
+	it("says some saved options must be chosen again when the agent refused them", async () => {
+		const { test, session, wrapper } = await setup({ acpConfig: { thought_level: "low" } });
+		try {
+			test.container.services.sessions.store.setState({
+				acpConfigOptions: {
+					[session.id]: { state: "ready", data: [thoughtLevel("medium")] },
+				},
+			});
+			const warning = vi.spyOn(toast, "warning").mockImplementation(() => "toast-id");
+			render(<AcpOptions sessionId={session.id} />, { wrapper });
+			await waitFor(() =>
+				expect(warning).toHaveBeenCalledWith(
+					"Some saved model options could not be loaded. Choose those options again.",
+				),
+			);
+			expect(screen.getByRole("button", { name: "Thought level: Medium" })).toBeTruthy();
+		} finally {
+			test.close();
+		}
+	});
+
+	it("does not warn when every saved choice loaded", async () => {
+		const { test, session, wrapper } = await setup({
+			acpConfig: { thought_level: "high", web_search: true },
+		});
+		try {
+			test.container.services.sessions.store.setState({
+				acpConfigOptions: {
+					[session.id]: { state: "ready", data: [thoughtLevel("high"), webSearch(true)] },
+				},
+			});
+			const warning = vi.spyOn(toast, "warning").mockImplementation(() => "toast-id");
+			render(<AcpOptions sessionId={session.id} />, { wrapper });
+			expect(screen.getByRole("button", { name: "Thought level: High" })).toBeTruthy();
+			expect(warning).not.toHaveBeenCalled();
+		} finally {
+			test.close();
+		}
+	});
 });

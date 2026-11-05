@@ -9,7 +9,9 @@
  * supported; cancel sends session/cancel, sets a flag and resolves every open permission and
  * question as cancelled; the ACP session id is stored as the agent session id; model changes
  * use session/set_config_option on the option with category "model". AGENT-17 adds the chat's
- * other config options: list them, apply saved values, and set one between turns.
+ * other config options: list them, apply saved values, and set one between turns. Telling the
+ * agent which model a reloaded chat uses is part of the same reconcile step, which runs before the
+ * options are listed and before the first prompt.
  * Must handle:
  *  - steer(): SteerNotSupportedError("acp"); the manager queues the message
  *  - each prompt carries a turn token; an answer to an earlier prompt is dropped, so a late reply
@@ -23,6 +25,10 @@
  *    declined (a withdrawn form is cancelled)
  *  - config changes while a turn runs are deferred to the next turn; model and options are live
  *    between turns, while a change of additional folders needs a restart
+ *  - a saved option the agent no longer offers, or one the agent refuses to set, is skipped with a
+ *    log line and the chat still opens; the option keeps the agent's own value, so the listed
+ *    options show the app which saved choices did not load (the model is not skipped: a model the
+ *    agent refuses fails the turn)
  *  - OpenCode: after session/new wait up to adapter.waitForModelCatalogMs for the model option
  *    before the first prompt, else the turn fails with a sign-in hint
  *  - the first prompt of a resumed session whose resume fell back to a new session is flagged to the
@@ -34,6 +40,7 @@
  *  - an error from the translator ends the turn with an error that names it, and later turns fail
  *    instead of hanging
  *  - contextUsage from the last usage_update
+ *  - dispose runs the runner's onDispose once, which gives the app tools token back (SIDE-13)
  * Test first: with an in-memory client, runTurn buffers two text chunks, then a stop reason of
  * end_turn flushes one text message and resolves success.
  */
@@ -88,6 +95,8 @@ export interface AcpSessionDeps {
 	/** The app tools MCP servers to pass to session/new. */
 	mcpServers: readonly unknown[];
 	logger: Logger;
+	/** Runs once when the session is disposed: the runner gives the app tools token back. */
+	onDispose?: () => void;
 }
 
 type SessionEvent =
@@ -123,6 +132,8 @@ export class AcpSession implements AgentSession {
 	private resumeSessionId: string | undefined;
 	private readonly events = new AsyncQueue<SessionEvent>();
 	private stopGeneration = 0;
+	/** True once onDispose ran, so a second dispose does not run it again. */
+	private released = false;
 	private resumeWarningPending = false;
 	private usage: { usedTokens: number; windowTokens: number } | null = null;
 	private lastText = "";
@@ -457,7 +468,14 @@ export class AcpSession implements AgentSession {
 		this.client = null;
 		this.opened = null;
 		this.events.close();
-		if (client !== null) await client.close();
+		try {
+			if (client !== null) await client.close();
+		} finally {
+			if (!this.released) {
+				this.released = true;
+				this.deps.onDispose?.();
+			}
+		}
 	}
 
 	/** Runs before a file write so the start checkpoint exists. */
@@ -780,14 +798,28 @@ export class AcpSession implements AgentSession {
 
 		for (const [optionId, value] of Object.entries(config.acpConfig ?? {})) {
 			const option = this.configOptions.find((entry) => entry.id === optionId);
-			// A saved value the agent no longer offers is skipped, not sent: the UI tells the user
-			// to choose again and the chat still opens.
-			if (option === undefined || isModelOption(option) || !optionAcceptsValue(option, value)) {
+			if (option !== undefined && isModelOption(option)) continue;
+			// A saved value the agent no longer offers is not sent, and one the agent refuses is
+			// skipped too. Either way the option keeps the agent's value, which is how the app sees
+			// that the saved choice did not load and asks the user to choose again.
+			if (option === undefined || !optionAcceptsValue(option, value)) {
+				this.deps.logger.warn("A saved ACP option is no longer offered; skipped", {
+					adapter: this.deps.adapter.id,
+					optionId,
+				});
 				continue;
 			}
 			if (option.currentValue === value) continue;
 			const changed = await client.setConfigOption(opened.acpSessionId, optionId, value);
-			if (!changed.ok) return { ok: false, error: changed.error };
+			if (!changed.ok) {
+				this.deps.logger.warn("The ACP agent refused a saved option; skipped", {
+					adapter: this.deps.adapter.id,
+					optionId,
+					code: changed.error.code,
+					message: changed.error.message,
+				});
+				continue;
+			}
 			this.refreshOptions(client, optionId, value);
 		}
 		return { ok: true };
