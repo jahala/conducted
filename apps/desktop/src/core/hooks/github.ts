@@ -18,7 +18,33 @@ import {
 	toGitHubAccessView,
 } from "../services/github.ts";
 
-export const useCheckLog: Queries["useCheckLog"] = () => notImplemented("PR-04");
+export const useCheckLog: Queries["useCheckLog"] = (workspaceId, checkName) => {
+	const { services } = useServices();
+	const entry = useStore(services.github.store, (state) => state.byWorkspace[workspaceId]);
+	const pullRequest = entry?.pullRequest ?? null;
+	const check = pullRequest?.checks.find((candidate) => candidate.name === checkName) ?? null;
+	const url = check?.url ?? null;
+	const result = useQuery<string, AppError>({
+		queryKey: ["github", "check-log", workspaceId, checkName, url],
+		enabled: check !== null,
+		// A finished check's log does not change, so reopening the row reuses the first answer.
+		staleTime: Number.POSITIVE_INFINITY,
+		queryFn: async () => {
+			const found = await services.github.readCheckLog(workspaceId, url);
+			if (!found.ok) throw found.error;
+			return found.value;
+		},
+	});
+	if (entry === undefined || (entry.pullRequest === null && entry.unavailable === "loading")) {
+		return { state: "loading" };
+	}
+	if (check === null) {
+		return { state: "error", error: appError("github_check_missing", "No logs available.") };
+	}
+	if (result.isError && result.error !== null) return { state: "error", error: result.error };
+	if (result.data === undefined) return { state: "loading" };
+	return { state: "ready", data: result.data };
+};
 export const usePullRequestActivity: Queries["usePullRequestActivity"] = () =>
 	notImplemented("PR-07");
 export const useStack: Queries["useStack"] = () => notImplemented("PR-08");
