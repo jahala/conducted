@@ -60,6 +60,7 @@ import {
 	parseNameStatus,
 	parseNumstat,
 	readComparedChanges,
+	readOperation,
 	refreshWorkspaceChanges,
 	remoteTargetRef,
 } from "../git/status.ts";
@@ -184,6 +185,9 @@ export interface WorkspaceGitContext {
 
 /** Least time between two fetches of one repository and branch (GIT-13, services-map.md 3.0.2). */
 export const FETCH_MIN_GAP_MS = 60_000;
+
+/** What the agent-facing diff says while a merge or rebase is open (services-map.md 3.4.6). */
+export const AGENT_DIFF_BUSY_MESSAGE = "Cannot fetch diff: merge or rebase in progress.";
 
 /** The commits GitHub reports for a pull request, and what the local refs hold (GIT-13). */
 export interface FetchStaleness {
@@ -539,7 +543,10 @@ export class GitService {
 		return ok(result.value.exitCode === 0);
 	}
 
-	/** Backs the `getWorkspaceDiff` agent tool: the diff against the merge base, or its stat. */
+	/**
+	 * Backs the `getWorkspaceDiff` agent tool: the diff against the merge base, or its stat. A merge
+	 * or rebase in progress is a `git_busy` error, because the diff would be half-written.
+	 */
 	async agentDiff(
 		workspaceId: WorkspaceId,
 		file: string | undefined,
@@ -548,6 +555,9 @@ export class GitService {
 		const resolved = await this.resolveScope(workspaceId, { kind: "branch" });
 		if (!resolved.ok) return resolved;
 		const { cwd, from } = resolved.value;
+		const operation = await readOperation(this.#deps.git, cwd);
+		if (!operation.ok) return operation;
+		if (operation.value !== "none") return err(appError("git_busy", AGENT_DIFF_BUSY_MESSAGE));
 		return this.#deps.git.stdout(diffWorkingTree(from, statOnly, file), { cwd });
 	}
 

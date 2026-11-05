@@ -8,14 +8,18 @@
  * message). The decision is D030 in docs/decisions.md.
  * Must handle: a chat the user named or a branch that already changed (skip); a linked pull
  * request (skip the branch name); an empty answer, or one equal to the placeholder (keep the
- * placeholder); an agent that is not signed in (the call fails, nothing is written); the privacy
- * switch for AI generated titles (no call at all, so the chat text never leaves the user's own
- * agent); a failure (the placeholder stays and one log line is written; the app never resends the
- * call, D016); the cheapest model of the chat's own agent (from its catalog); the `<none>` escape
- * hatch a branch prompt may return.
+ * placeholder); an agent that is not signed in (the call fails, nothing is written); a failure
+ * (the placeholder stays and one log line is written; the app never resends the call, D016); the
+ * `<none>` escape hatch a branch prompt may return.
+ * The privacy switch, the cheapest model, the launch and the sidecar client arrive as injected
+ * functions. When `titlesEnabled` is false this file sends no request, so the chat text never
+ * leaves the user's own agent.
  * The branch's prefix, its clash retry and the rename itself belong to WS-04.
- * Our design choice: the switch reaches the service as a function, because the settings registry
- * has no key for "AI generated chat titles" yet. The prompt text is ours, not Conductor's (D002).
+ * Our design choice: this service does no settings, catalogue or launch work. Building it belongs
+ * to APP-01 (`core/container.ts`): the "AI generated chat titles" key and the
+ * `enterprise_data_privacy` consumer belong to SET-02, the launch to SIDE-21, the first-answer
+ * call site to CHAT-01/CHAT-02, and the branch call site to WS-04. The prompt text is ours, not
+ * Conductor's (D002).
  * Test first: with `titlesEnabled` returning false, `suggestChatTitle` returns `ok(null)` and
  * sends no request to the sidecar.
  */
@@ -48,7 +52,7 @@ export interface ChatTitleInput {
 	session: Session;
 	workspace: Workspace;
 	firstUserMessage: string;
-	/** The agent's first answer, cut to what fits a short prompt. */
+	/** The agent's first answer; the title prompt carries it whole. */
 	firstAnswer: string;
 }
 

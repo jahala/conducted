@@ -41,7 +41,7 @@ export const getWorkspaceDiffTool: ToolDefinition<typeof getWorkspaceDiffShape> 
 		if (!result.ok) {
 			if (result.error.code === "git_busy") {
 				return {
-					text: "Cannot fetch diff: a merge or rebase is in progress.",
+					text: "Cannot fetch diff: merge or rebase in progress.",
 					isError: true,
 				};
 			}

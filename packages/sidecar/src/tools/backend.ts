@@ -64,6 +64,13 @@ export const DIFF_REQUEST_TIMEOUT_MS = 20_000;
 /** What every call says when the app is not attached. */
 export const APP_NOT_CONNECTED_MESSAGE = "The app is not connected; try again in a moment.";
 
+/** The app's error code, carried as data on the JSON-RPC failure the app answers with. */
+function appErrorCodeOf(cause: unknown): string | undefined {
+	if (typeof cause !== "object" || cause === null || !("appErrorCode" in cause)) return undefined;
+	const code = (cause as { appErrorCode?: unknown }).appErrorCode;
+	return typeof code === "string" ? code : undefined;
+}
+
 export class RpcAppToolBackend implements AppToolBackend {
 	constructor(
 		protected readonly deps: {
@@ -82,7 +89,11 @@ export class RpcAppToolBackend implements AppToolBackend {
 			{ sessionId, file: options.file, statOnly: options.statOnly },
 			{ timeoutMs: DIFF_REQUEST_TIMEOUT_MS },
 		);
-		return result.ok ? ok(result.value.diff) : result;
+		if (result.ok) return ok(result.value.diff);
+		const recorded = appErrorCodeOf(result.error.cause);
+		return recorded === undefined
+			? result
+			: err(appError(recorded, result.error.message, result.error));
 	}
 
 	async getDiffComments(
@@ -120,7 +131,12 @@ export class RpcAppToolBackend implements AppToolBackend {
 	}
 
 	updateProgress(sessionId: SessionId, update: ProgressUpdate): void {
-		this.deps.app.notify("progress", { sessionId, progress: update });
+		const sent = this.deps.app.notify("progress", { sessionId, progress: update });
+		if (!sent) {
+			this.deps.logger.debug("A progress update was dropped because the app did not accept it.", {
+				sessionId,
+			});
+		}
 	}
 
 	async askQuestions(

@@ -1,7 +1,7 @@
 /**
  * @feature AGENT-02 Claude: Agent SDK in streaming-input mode, resume, fork
  * Owns: the Runner for Claude Code: finding the program, its version and sign-in state, starting a
- * ClaudeSession, listing models and slash commands.
+ * ClaudeSession, listing models, slash commands and MCP servers.
  * Behaviour: research/conductor/claude-runner.md sections 1 and 7 and decision 7 in
  * docs/plans/scaffold.md. Provider routing and the `claude auth status --json` call belong to
  * SIDE-21 (runners/launch-env.ts) and SIDE-15 (models/agent-detection.ts).
@@ -13,22 +13,36 @@
  *    supportedEffortLevels, fast mode from supportsFastMode; the default effort is the middle of
  *    the list when the SDK gives none
  *  - listSlashCommands(): from supportedCommands() of a throwaway metadata query; the throwaway
- *    query is always ended, even on error
+ *    query is always ended, even on error; a command the SDK marks builtin is ours, one named
+ *    "mcp__…" is MCP, a namespaced one is a plugin command, and any other is a project command
+ *    (the SDK does not tell project, user and plugin commands apart)
+ *  - listMcpServers(): from mcpServerStatus() of the same throwaway query; its scope, transport,
+ *    error text and tool names are kept
  *  - capabilities are fixed: steer, interrupt, resumeAt, liveConfig, slashCommands, mcpServers and
  *    contextUsage are all supported
  * Test first: detect() with a findExecutable that returns null resolves to null without probing.
  */
 import type {
+	McpServerStatusConfig,
 	Query,
 	SDKUserMessage,
+	McpServerStatus as SdkMcpServerStatus,
 	ModelInfo as SdkModelInfo,
+	SlashCommand as SdkSlashCommand,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { Effort, ModelInfo } from "@conducted/protocol";
 import { appError } from "@conducted/shared";
 import { parseVersion, VERSION_PROBE_TIMEOUT_MS } from "../../models/agent-detection.ts";
 import { AGENT_NOT_INSTALLED } from "../../models/catalog.ts";
 import type { RunnerCommonDeps } from "../deps.ts";
-import type { AgentSession, Runner, RunnerCapabilities, StartOptions } from "../runner.ts";
+import type {
+	AgentSession,
+	McpServerView,
+	Runner,
+	RunnerCapabilities,
+	RunnerSlashCommand,
+	StartOptions,
+} from "../runner.ts";
 import { ClaudeSession, type ClaudeSessionDeps } from "./claude-session.ts";
 import { CLAUDE_SETTING_SOURCES } from "./constants.ts";
 import type { ClaudeTranslator } from "./translate.ts";
@@ -143,18 +157,23 @@ export class ClaudeRunner implements Runner {
 		}
 	}
 
-	async listSlashCommands(
-		workspacePath: string,
-	): Promise<{ name: string; description: string; argumentHint?: string }[]> {
+	async listSlashCommands(workspacePath: string): Promise<RunnerSlashCommand[]> {
 		const executablePath = await this.requireExecutable();
 		const metadata = this.metadataQuery(executablePath, workspacePath);
 		try {
 			const commands = await metadata.query.supportedCommands();
-			return commands.map((command) => ({
-				name: command.name,
-				description: command.description,
-				...(command.argumentHint === "" ? {} : { argumentHint: command.argumentHint }),
-			}));
+			return commands.map(toRunnerSlashCommand);
+		} finally {
+			metadata.end();
+		}
+	}
+
+	async listMcpServers(workspacePath: string): Promise<McpServerView[]> {
+		const executablePath = await this.requireExecutable();
+		const metadata = this.metadataQuery(executablePath, workspacePath);
+		try {
+			const servers = await metadata.query.mcpServerStatus();
+			return servers.map(toMcpServerView);
 		} finally {
 			metadata.end();
 		}
@@ -200,6 +219,82 @@ function claudeNotInstalled() {
 		AGENT_NOT_INSTALLED,
 		"Claude Code was not found. Install it in settings and try again.",
 	);
+}
+
+/**
+ * The SDK marks only its own commands as builtin. A project, user or plugin command is unmarked,
+ * and the SDK does not say which of those three it is, so each is reported as a project command.
+ */
+function toRunnerSlashCommand(command: SdkSlashCommand): RunnerSlashCommand {
+	const entry: RunnerSlashCommand = {
+		name: command.name,
+		description: command.description,
+		source: slashCommandSource(command),
+		kind: "command",
+	};
+	if (command.argumentHint !== "") entry.argumentHint = command.argumentHint;
+	return entry;
+}
+
+function slashCommandSource(command: SdkSlashCommand): NonNullable<RunnerSlashCommand["source"]> {
+	if (command.name.startsWith("mcp__")) return "mcp";
+	if (command.builtin === true) return "builtin";
+	if (command.name.includes(":")) return "plugin";
+	return "project";
+}
+
+function toMcpServerView(server: SdkMcpServerStatus): McpServerView {
+	const view: McpServerView = {
+		name: server.name,
+		status: mcpStatus(server.status),
+	};
+	if (server.tools !== undefined) {
+		view.toolCount = server.tools.length;
+		view.tools = server.tools.map((tool) => tool.name);
+	}
+	if (server.error !== undefined) view.error = server.error;
+	const transport = mcpTransport(server.config);
+	if (transport !== undefined) view.transport = transport;
+	const scope = mcpScope(server.scope, server.source);
+	if (scope !== undefined) view.scope = scope;
+	return view;
+}
+
+function mcpStatus(status: SdkMcpServerStatus["status"]): McpServerView["status"] {
+	switch (status) {
+		case "connected":
+			return "connected";
+		case "failed":
+			return "failed";
+		case "needs-auth":
+			return "needs_auth";
+		case "pending":
+			return "pending";
+		case "disabled":
+			return "disabled";
+	}
+}
+
+function mcpTransport(config: McpServerStatusConfig | undefined): McpServerView["transport"] {
+	if (config === undefined) return undefined;
+	switch (config.type) {
+		case "stdio":
+		case undefined:
+			return "stdio";
+		case "http":
+		case "claudeai-proxy":
+			return "http";
+		case "sse":
+			return "sse";
+		case "sdk":
+			return undefined;
+	}
+}
+
+function mcpScope(scope: string | undefined, source: string | undefined): McpServerView["scope"] {
+	if (source === "plugin" || scope === "plugin") return "plugin";
+	if (scope === "user" || scope === "project" || scope === "local") return scope;
+	return undefined;
 }
 
 const EFFORT_LEVELS: ReadonlySet<string> = new Set([

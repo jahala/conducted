@@ -640,7 +640,7 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 		agents,
 		slashCommands: new RunnerSlashCommandLister({ runners, logger }),
 		mcpServers: new RunnerMcpServerLister({ runners, logger }),
-		usage: new SessionUsageReader({ logger }),
+		usage: new SessionUsageReader({ logger, sessions }),
 		shellEnv,
 		utilityPrompt,
 		setLogLevel: (level) => logger.setLevel(level),

@@ -443,6 +443,19 @@ export class DefaultSessionManager implements SessionManager {
 		return this.deps.liveState.get(sessionId);
 	}
 
+	/**
+	 * The chat's live agent and whether its runner reports context usage, for the usage reader
+	 * (SIDE-17). Null agent when the chat is known but no agent is running.
+	 */
+	find(sessionId: SessionId): { agent: AgentSession | null; contextUsage: boolean } | undefined {
+		const state = this.sessions.get(sessionId);
+		if (state === undefined) return undefined;
+		return {
+			agent: state.agent,
+			contextUsage: state.runner?.capabilities.contextUsage ?? false,
+		};
+	}
+
 	onAppAttached(): void {
 		for (const sessionId of this.sessions.keys()) {
 			const request = this.deps.interactions.openRequest(sessionId);

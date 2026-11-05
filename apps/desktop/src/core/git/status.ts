@@ -438,7 +438,7 @@ const pathExists = async (
  * Checks the names git keeps in its directory while a multi-step operation is open. A lookup that
  * fails is returned, so an unreadable git directory never reads as "no operation".
  */
-async function readOperation(runner: GitRunner, cwd: string): Promise<Result<GitOperation>> {
+export async function readOperation(runner: GitRunner, cwd: string): Promise<Result<GitOperation>> {
 	const markers = await Promise.all(
 		OPERATION_MARKERS.map(async (marker): Promise<Result<string | null>> => {
 			const path = await runner.stdout(revParseGitPath(marker), { cwd });

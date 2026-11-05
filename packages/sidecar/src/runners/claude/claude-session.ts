@@ -31,6 +31,9 @@
  *  - an approved plan records the permission mode the CLI switched to
  *  - steer() pushes a fresh user message into the open turn and reports when the transcript mirror
  *    shows the agent read it (AGENT-05); with no open turn it throws NoActiveTurnError
+ *  - planUsage() asks the SDK's experimental usage request without the behavior scan and converts
+ *    the response with the SIDE-17 model; with no live process it reports no limits, and a refusal
+ *    is passed to the caller
  * Test first: with a scripted query function that yields init, assistant text and a result for
  * the pushed uuid, runTurn emits the text message and resolves with success.
  * Our design choice: the SDK's query function is a constructor parameter (Conductor does this
@@ -46,9 +49,10 @@ import type {
 	SDKMessage,
 	SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { Effort, SessionConfig } from "@conducted/protocol";
+import type { Effort, RateLimit, SessionConfig } from "@conducted/protocol";
 import type { SessionId } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
+import { rateLimitsFromSdk } from "../../models/usage.ts";
 import type { AppToolBackend } from "../../tools/backend.ts";
 import { AsyncQueue } from "../../util/async-queue.ts";
 import { messageOf } from "../../util/errors.ts";
@@ -342,6 +346,15 @@ export class ClaudeSession implements AgentSession {
 			});
 			return null;
 		}
+	}
+
+	async planUsage(): Promise<RateLimit[]> {
+		const query = this.query;
+		if (query === null) return [];
+		const usage = await query.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({
+			skipBehaviors: true,
+		});
+		return rateLimitsFromSdk(usage);
 	}
 
 	async dispose(): Promise<void> {

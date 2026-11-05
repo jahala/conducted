@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { APP_TOOLS } from "@conducted/protocol";
 import type { AppError, Result, SessionId } from "@conducted/shared";
-import { appError, err, ok } from "@conducted/shared";
+import { appError, err, notImplemented, ok } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
 import type { SidecarToApp } from "../rpc/types.ts";
 import type { InteractionBroker } from "../session/interactions.ts";
@@ -25,14 +25,16 @@ import { updateProgressTool } from "./update-progress.ts";
 
 const sessionId = "s1" as SessionId;
 
-function testLogger(warnings: string[] = []): Logger {
+function testLogger(warnings: string[] = [], debugMessages: string[] = []): Logger {
 	const logger: Logger = {
 		error: () => {},
 		warn: (message) => {
 			warnings.push(message);
 		},
 		info: () => {},
-		debug: () => {},
+		debug: (message) => {
+			debugMessages.push(message);
+		},
 		child: () => logger,
 		setLevel: () => {},
 	};
@@ -199,6 +201,22 @@ describe("SIDE-12 the app tools reach Claude as an in-process MCP server", () =>
 		expect(result.isError).toBe(true);
 		expect(result.content[0]?.text).toBe("the backend exploded");
 		expect(warnings).toEqual(["An app tool failed"]);
+	});
+
+	test("a NotImplemented placeholder names its feature id in the error text", async () => {
+		const config = createAppToolsServer({
+			sessionId,
+			appTools: { diffComments: false, progressUpdates: false, setTargetBranch: false },
+			backend: makeBackend({
+				async getWorkspaceDiff() {
+					throw notImplemented("REV-03");
+				},
+			}).backend,
+			logger: testLogger(),
+		});
+		const result = await toolNamed(registeredTools(config), "GetWorkspaceDiff").handler({}, {});
+		expect(result.isError).toBe(true);
+		expect(result.content[0]?.text).toContain("REV-03");
 	});
 });
 
@@ -478,6 +496,41 @@ describe("SIDE-12 the backend over the app connection", () => {
 		]);
 	});
 
+	test("a timed out diff is an error result for the tool", async () => {
+		const app = fakeApp({
+			request: async () => err(appError("rpc_timeout", "The getWorkspaceDiff request timed out.")),
+		});
+		const backend = new RpcAppToolBackend({
+			app,
+			interactions: noInteractions(),
+			logger: testLogger(),
+		});
+		const result = await getWorkspaceDiffTool.execute({}, context(backend));
+		expect(result.isError).toBe(true);
+		expect(result.text).toContain("timed out");
+	});
+
+	test("a busy diff keeps the app's git_busy code and the busy text", async () => {
+		const app = fakeApp({
+			request: async () =>
+				err(
+					appError("rpc_error_-32603", "Cannot fetch diff: merge or rebase in progress.", {
+						appErrorCode: "git_busy",
+					}),
+				),
+		});
+		const backend = new RpcAppToolBackend({
+			app,
+			interactions: noInteractions(),
+			logger: testLogger(),
+		});
+		const result = await getWorkspaceDiffTool.execute({}, context(backend));
+		expect(result).toEqual({
+			text: "Cannot fetch diff: merge or rebase in progress.",
+			isError: true,
+		});
+	});
+
 	test("progress goes to the app as one progress notification", () => {
 		const notifications: { method: string; params: unknown }[] = [];
 		const app = fakeApp({
@@ -494,6 +547,23 @@ describe("SIDE-12 the backend over the app connection", () => {
 		backend.updateProgress(sessionId, { title: "Work", blocks: [] });
 		expect(notifications).toEqual([
 			{ method: "progress", params: { sessionId, progress: { title: "Work", blocks: [] } } },
+		]);
+	});
+
+	test("a progress update with no app connected is dropped and logged", () => {
+		const debugMessages: string[] = [];
+		const app = fakeApp({
+			connected: false,
+			notify: () => false,
+		});
+		const backend = new RpcAppToolBackend({
+			app,
+			interactions: noInteractions(),
+			logger: testLogger([], debugMessages),
+		});
+		backend.updateProgress(sessionId, { title: "Work", blocks: [] });
+		expect(debugMessages).toEqual([
+			"A progress update was dropped because the app did not accept it.",
 		]);
 	});
 });

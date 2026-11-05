@@ -13,7 +13,7 @@ import {
 	type SessionId,
 	type ToolUseId,
 } from "@conducted/shared";
-import { createLogger, type LogRecord } from "../logging/logger.ts";
+import { createLogger, type LogLevel, type LogRecord } from "../logging/logger.ts";
 import type { RunnerRegistry, RunnerSelector } from "../runners/registry.ts";
 import type {
 	AgentSession,
@@ -146,11 +146,11 @@ function shellEnv(): ShellEnvProvider {
 	};
 }
 
-function logger(records: LogRecord[]) {
+function logger(records: LogRecord[], level: LogLevel = "debug") {
 	return createLogger({
 		sink: (record) => records.push(record),
 		clock: { now: () => 100 },
-		level: "debug",
+		level,
 		scope: "utility-prompt-test",
 	});
 }
@@ -196,6 +196,7 @@ function runner(
 		startError?: unknown;
 		records?: LogRecord[];
 		timeoutMs?: number;
+		level?: LogLevel;
 	} = {},
 ) {
 	const fake = new FakeRunner(behavior, options.startError);
@@ -205,7 +206,7 @@ function runner(
 		shellEnv: shellEnv(),
 		clock: { now: () => 100 },
 		ids: ids(),
-		logger: logger(records),
+		logger: logger(records, options.level),
 		timeoutMs: options.timeoutMs,
 	});
 	return { fake, service, records };
@@ -267,7 +268,7 @@ describe("SIDE-24 utility prompt success", () => {
 		]);
 	});
 
-	test("SIDE-24 writes no events, takes no checkpoints and publishes no live state", async () => {
+	test("SIDE-24 collects only text and ignores background tasks and agent session ids", async () => {
 		const { fake, service } = runner(async (callbacks) => {
 			callbacks.onMessage(textMessage("title"));
 			callbacks.onBackgroundTasks([{ id: "bg", kind: "other", description: "work" }], 100);
@@ -280,14 +281,14 @@ describe("SIDE-24 utility prompt success", () => {
 		expect(fake.disposals).toBe(1);
 	});
 
-	test("SIDE-24 logs the phase and duration without the launch secrets", async () => {
+	test("SIDE-24 logs a completed call at info with its phase and duration", async () => {
 		const records: LogRecord[] = [];
 		const { service } = runner(
 			async (callbacks) => {
 				callbacks.onMessage(textMessage("A title"));
 				return { kind: "success" };
 			},
-			{ records },
+			{ records, level: "info" },
 		);
 
 		await service.run(
@@ -301,6 +302,7 @@ describe("SIDE-24 utility prompt success", () => {
 
 		const finished = records.find((record) => record.data?.phase === "completed");
 		expect(finished).toBeDefined();
+		expect(finished?.level).toBe("info");
 		expect(typeof finished?.data?.durationMs).toBe("number");
 		expect(JSON.stringify(records)).not.toContain("sk-secret");
 		expect(JSON.stringify(records)).not.toContain("not-a-secret");

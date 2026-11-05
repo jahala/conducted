@@ -102,6 +102,18 @@ describe("SIDE-17 context usage of a chat", () => {
 		if (!result.ok) expect(result.error.code).toBe("session_unknown");
 	});
 
+	test("SIDE-17 a known chat with no live agent is an error, never zero", async () => {
+		const { logger } = testLogger();
+		const source: UsageSessionSource = {
+			find: () => ({ agent: null, contextUsage: false }),
+		};
+		const reader = new SessionUsageReader({ logger, sessions: source });
+
+		const result = await reader.contextUsage(sessionId);
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.code).toBe("context_usage_unavailable");
+	});
+
 	test("SIDE-17 an agent without context usage is an error, never zero", async () => {
 		const { logger } = testLogger();
 		let asked = false;
@@ -182,7 +194,7 @@ describe("SIDE-17 context usage of a chat", () => {
 	});
 
 	test("SIDE-17 plan usage is given up after the ten second hang guard", async () => {
-		const { logger } = testLogger();
+		const { logger, records } = testLogger();
 		const waits: number[] = [];
 		let release: () => void = () => {};
 		const hanging = new Promise<RateLimit[]>((resolve) => {
@@ -213,7 +225,18 @@ describe("SIDE-17 context usage of a chat", () => {
 			ok: true,
 			value: { usedTokens: 10, windowTokens: 100, rateLimits: [] },
 		});
+		expect(
+			records.some(
+				(record) => record.level === "debug" && record.message.includes("Plan usage timed out"),
+			),
+		).toBe(true);
+
 		release();
+		await hanging;
+		expect(result).toEqual({
+			ok: true,
+			value: { usedTokens: 10, windowTokens: 100, rateLimits: [] },
+		});
 	});
 
 	test("SIDE-17 a failed live query is an error value, not zero usage", async () => {
