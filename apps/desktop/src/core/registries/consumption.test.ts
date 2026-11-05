@@ -49,7 +49,6 @@ const KNOWN_UNUSED_SETTINGS: readonly string[] = [
 	"default_codex_thinking_level",
 	"experimental_auto_permission_mode",
 	"experimental_new_workspace_page",
-	"experimental_sidebar_transparency",
 	"internal_workspace_status_matrix",
 	"last_clone_directory",
 	"using_split_view",
@@ -69,7 +68,6 @@ const KNOWN_UNUSED_COMMANDS: readonly string[] = [
 	"dialog.confirm",
 	"review.nextFile",
 	"review.previousFile",
-	"review.showChanges",
 	"review.toggleViewed",
 	"terminal.clear",
 	"terminal.close",
@@ -82,7 +80,6 @@ const KNOWN_UNUSED_COMMANDS: readonly string[] = [
 	"terminal.wordBack",
 	"terminal.wordForward",
 	"view.toggleTerminalPanel",
-	"workspace.moveToSection",
 ];
 
 describe("registry entries are used", () => {

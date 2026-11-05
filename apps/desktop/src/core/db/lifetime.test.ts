@@ -278,7 +278,11 @@ describe("DATA-02 data lifetime", () => {
 		});
 
 		must(await runStep(h, "cut-tool-outputs"));
-		expect((await readEvent(h.deps.db, "s1", "old")).content).not.toContain("y");
+		// The old event keeps only its own cut output: nothing of the young event leaks into it.
+		const old = JSON.parse((await readEvent(h.deps.db, "s1", "old")).content) as {
+			message: { items: unknown[] };
+		};
+		expect(old.message.items).toEqual([{ ...toolResult("x".repeat(10)), truncated: true }]);
 		expect((await readEvent(h.deps.db, "s1", "new")).content).toContain("y".repeat(50));
 	});
 
@@ -286,7 +290,10 @@ describe("DATA-02 data lifetime", () => {
 		const h = harness();
 		await insertRepo(h.deps.db, "r1", NOW);
 		await insertWorkspace(h.deps.db, { id: "w1", repoId: "r1" });
+		// "live" is a chat whose draft is old; "recent" is a chat whose draft is young; "gone" has
+		// no chat any more.
 		await insertSession(h.deps.db, "live", "w1", NOW);
+		await insertSession(h.deps.db, "recent", "w1", NOW);
 
 		const fs = h.deps.fs;
 		h.setNow(NOW - 31 * DAY);

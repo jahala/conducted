@@ -89,10 +89,10 @@ const KEEP_FINAL_TEXT_EVENT = `(
  */
 export const LIFETIME_SQL = {
 	/**
-	 * Cuts tool results longer than `$1` characters in agent events received before `$2`, at most
-	 * `$3` events per call, sets `compacted_at` to `$4` and sets `truncated` so the card says so.
-	 * A cut result is exactly `$1` long, so it is not picked again and repeated calls end with zero
-	 * rows changed.
+	 * Cuts tool results longer than `$1` characters, sets `compacted_at` to `$2` and sets
+	 * `truncated` so the card says so. Only agent events received before `$3` are cut, at most `$4`
+	 * per call. A cut result is exactly `$1` long, so it is not picked again and repeated calls end
+	 * with zero rows changed.
 	 */
 	cutToolOutputs: `UPDATE session_events
 		SET content = json_set(content, '$.message.items', (
@@ -103,14 +103,14 @@ export const LIFETIME_SQL = {
 					substr(json_extract(item.value, '$.output'), 1, $1), '$.truncated', json('true'))
 				ELSE item.value END) ORDER BY item.key)
 			FROM json_each(session_events.content, '$.message.items') AS item)),
-			compacted_at = $4
+			compacted_at = $2
 		WHERE rowid IN (
 			SELECT e.rowid FROM session_events e
-			WHERE e.type = 'agent' AND e.received_at < $2 AND length(e.content) > $1
+			WHERE e.type = 'agent' AND e.received_at < $3 AND length(e.content) > $1
 				AND EXISTS (SELECT 1 FROM json_each(e.content, '$.message.items') AS i
 					WHERE json_extract(i.value, '$.kind') = 'tool_result'
 						AND length(json_extract(i.value, '$.output')) > $1)
-			ORDER BY e.rowid LIMIT $3)`,
+			ORDER BY e.rowid LIMIT $4)`,
 
 	/**
 	 * Turns not yet compacted whose workspace was archived before `$1` (the archive time is the
@@ -405,7 +405,7 @@ const cutToolOutputs: LifetimeStep = {
 			const updated = await executeStatement(
 				db,
 				LIFETIME_SQL.cutToolOutputs,
-				[limits.toolOutputMaxBytes, cutoff, LIFETIME_BATCH_SIZE, now],
+				[limits.toolOutputMaxBytes, now, cutoff, LIFETIME_BATCH_SIZE],
 				"Cutting old tool outputs",
 			);
 			if (!updated.ok) return updated;

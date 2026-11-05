@@ -38,13 +38,17 @@ afterEach(() => {
 interface Harness {
 	bindings: TauriBindings;
 	calls: { command: string; args?: Record<string, unknown> }[];
-	/** Sends one progress message through the Channel the download call received. */
+	/**
+	 * Sends one progress message through the Channel the download call received, wrapped with its
+	 * order number as the Rust side's Channel sends it.
+	 */
 	sendProgress(message: Progress): void;
 }
 
 function harness(answer: (command: string) => unknown): Harness {
 	const calls: Harness["calls"] = [];
 	let channelId: number | null = null;
+	let nextIndex = 0;
 	const bindings: TauriBindings = {
 		invoke: async <T>(command: string, args?: Record<string, unknown>): Promise<T> => {
 			calls.push({ command, args });
@@ -61,7 +65,7 @@ function harness(answer: (command: string) => unknown): Harness {
 		calls,
 		sendProgress: (message) => {
 			if (channelId === null) throw new Error("No Channel was passed to the download call.");
-			callbacks.get(channelId)?.(message);
+			callbacks.get(channelId)?.({ index: nextIndex++, message });
 		},
 	};
 }

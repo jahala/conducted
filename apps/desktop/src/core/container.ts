@@ -595,6 +595,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 			if (!repository.ok) return repository;
 			if (repository.value === null)
 				return err(appError("repo_unknown", "That project was removed."));
+			// The refs live in the project's repository. A project folder that is gone took them
+			// with it, and git cannot run there, so the chat is deleted with nothing to prune.
+			if (!(await platform.fs.exists(repository.value.rootPath))) return ok(0);
 			return checkpoint.pruneForChat(sessionId, repository.value.rootPath);
 		},
 		workspaceContextOf: (id) => ready(lookups.sidecarContext(id, undefined)),

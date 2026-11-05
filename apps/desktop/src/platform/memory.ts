@@ -16,7 +16,8 @@
  * success; a cancelled `shell.start` ends with Err `shell_cancelled`, as shell.rs reports it; a
  * queued dialog answer is used only by the dialog kind it was queued for; an unreadable
  * `listArtifacts` cursor is an Err; `app.writeLog` keeps the level and message, not the data; the
- * file system keeps text only, with folders as path prefixes.
+ * file system keeps text only, with folders as path prefixes, and resolves `.` and `..` in a path
+ * the way the real one does.
  * Our design choice: the stand-in is a factory returning the Platform together with its controls,
  * so production code cannot reach the controls through the Platform type.
  * Test first: the contract case "fs: write then read returns the same text" passes on it.
@@ -132,9 +133,22 @@ export interface MemoryPlatform {
 
 // ---------------------------------------------------------------- paths
 
+/**
+ * Collapses repeated slashes and resolves `.` and `..` by spelling, as the real file system does,
+ * so `/a/b/../c` and `/a/c` name the same file. A `..` at the top of an absolute path stays at `/`.
+ */
 const normalizePath = (path: string): string => {
-	const trimmed = path.replace(/\/+/g, "/").replace(/\/$/, "");
-	return trimmed === "" ? "/" : trimmed;
+	const absolute = path.startsWith("/");
+	const parts: string[] = [];
+	for (const part of path.split("/")) {
+		if (part === "" || part === ".") continue;
+		if (part !== "..") parts.push(part);
+		else if (parts.length > 0 && parts.at(-1) !== "..") parts.pop();
+		else if (!absolute) parts.push(part);
+	}
+	const joined = parts.join("/");
+	if (joined === "") return "/";
+	return absolute ? `/${joined}` : joined;
 };
 
 const parentPath = (path: string): string => {
