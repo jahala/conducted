@@ -17,6 +17,12 @@ import {
 	checkUnwiredDeps,
 } from "./structure.ts";
 import { checkTestScripts } from "./test-scripts.ts";
+import {
+	checkMockingTheThing,
+	checkStandInHome,
+	checkTestsCannotFail,
+	checkTimeAndLeaks,
+} from "./test-shapes.ts";
 import { checkVersions } from "./versions.ts";
 import { checkWorkflows } from "./workflows.ts";
 
@@ -36,6 +42,10 @@ const guards: [string, (root: string) => Problem[] | Promise<Problem[]>][] = [
 	["placeholder-tests", checkPlaceholderTests],
 	["test-only-exports", checkTestOnlyExports],
 	["unwired-deps", checkUnwiredDeps],
+	["tests-cannot-fail", checkTestsCannotFail],
+	["mocking-the-thing", checkMockingTheThing],
+	["stand-in-home", checkStandInHome],
+	["time-and-leaks", checkTimeAndLeaks],
 ];
 
 let failed = 0;
