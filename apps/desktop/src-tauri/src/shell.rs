@@ -847,16 +847,20 @@ pub async fn shell_start(
 
     if let Err(error) = register_running(&state.running, id.clone(), pid) {
         let mut rejected = child;
-        let _ = tauri::async_runtime::spawn_blocking(move || {
+        // The caller returns the duplicate-id error at once, so this cleanup runs detached.
+        // Dropping the handle leaves it running; the task needs no result.
+        drop(tauri::async_runtime::spawn_blocking(move || {
             terminate_group(pid);
             let _ = rejected.wait();
-        });
+        }));
         return Err(error);
     }
 
     let stdin = command.stdin.take();
     let timeout_ms = command.timeout_ms;
-    let _ = tauri::async_runtime::spawn_blocking(move || {
+    // `shell_start` already returns once the process is registered. The result reaches the UI as a
+    // `shell://done` event, so the task runs detached and its handle is dropped on purpose.
+    drop(tauri::async_runtime::spawn_blocking(move || {
         let result = drive_with_limit(child, stdin, timeout_ms, MAX_OUTPUT_BYTES);
         let state = app.state::<ShellState>();
         let cancelled = remove_finished(&state.running, &id);
@@ -864,7 +868,7 @@ pub async fn shell_start(
         if let Ok(json) = serde_json::to_string(&done) {
             let _ = app.emit_str(EVENT_DONE, json);
         }
-    });
+    }));
     Ok(())
 }
 
