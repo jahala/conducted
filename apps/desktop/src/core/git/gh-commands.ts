@@ -250,6 +250,29 @@ export const jobLogs = (jobId: string): GitCommand =>
 export const checkRunAnnotations = (checkRunUrl: string): GitCommand =>
 	gh(["api", `${checkRunUrl}/annotations`, "--paginate", "--jq", 'map(.message) | join("\\n\\n")']);
 
+// ---------------------------------------------------------------- clone pickers (PRJ-02)
+
+/** The organisations the signed-in user belongs to, one login per line. */
+export const githubUserOrganizations = (): GitCommand =>
+	gh(["api", "user/orgs", "--paginate", "--jq", ".[].login"], { timeoutMs: 15_000 });
+/** One owner's repositories, most recently updated first. */
+export const githubOwnerRepositories = (owner: string): GitCommand =>
+	gh(
+		[
+			"repo",
+			"list",
+			owner,
+			"--limit",
+			"100",
+			"--json",
+			"name,owner,description,isPrivate,url,sshUrl,updatedAt",
+		],
+		{ timeoutMs: 15_000 },
+	);
+/** Clones a repository through the user's own `gh` sign-in. */
+export const githubRepoClone = (url: string, destination: string): GitCommand =>
+	gh(["repo", "clone", url, destination], { network: true });
+
 // ---------------------------------------------------------------- stacks and Graphite (PR-08)
 
 export const stackSync = (): GitCommand => gh(["stack", "sync"], { network: true });
