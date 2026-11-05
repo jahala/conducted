@@ -1,40 +1,10 @@
-<<<<<<< HEAD
-import type { SessionId } from "@conducted/shared";
-import { ok } from "@conducted/shared";
-import { describe, expect, it } from "vitest";
-import { SessionsService, type SessionsServiceDeps } from "./sessions.ts";
-
-describe("AGENT-04 session edit auto-approval", () => {
-	it("sends setAutoApproveEdits to the sidecar for the chat", async () => {
-		const calls: { method: string; params: unknown }[] = [];
-		const deps = {
-			sidecar: {
-				request: async (method: string, params: unknown) => {
-					calls.push({ method, params });
-					return ok({});
-				},
-				notify: async () => ok(undefined),
-			},
-		} as unknown as SessionsServiceDeps;
-		const service = new SessionsService(deps);
-
-		const result = await service.setAutoApproveEdits("s1" as SessionId, true);
-
-		expect(result).toEqual(ok(undefined));
-		expect(calls).toEqual([
-			{
-				method: "setAutoApproveEdits",
-				params: { sessionId: "s1", enabled: true },
-			},
-		]);
-=======
 // @vitest-environment node
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { idleLiveState } from "@conducted/protocol";
-import { ok } from "@conducted/shared";
+import { ok, type SessionId } from "@conducted/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "../../platform/platform.ts";
 import { REPOS_SQL, repoToParams } from "../db/repos.ts";
@@ -320,6 +290,31 @@ describe("CHAT-01 default session config", () => {
 			ok: false,
 			error: { code: "workspace_unknown" },
 		});
->>>>>>> node/chat.01
+	});
+});
+
+describe("AGENT-04 session edit auto-approval", () => {
+	it("sends setAutoApproveEdits to the sidecar for the chat", async () => {
+		const calls: { method: string; params: unknown }[] = [];
+		const deps = {
+			sidecar: {
+				request: async (method: string, params: unknown) => {
+					calls.push({ method, params });
+					return ok({});
+				},
+				notify: async () => ok(undefined),
+			},
+		} as unknown as SessionsServiceDeps;
+		const service = new SessionsService(deps);
+
+		const result = await service.setAutoApproveEdits("s1" as SessionId, true);
+
+		expect(result).toEqual(ok(undefined));
+		expect(calls).toEqual([
+			{
+				method: "setAutoApproveEdits",
+				params: { sessionId: "s1", enabled: true },
+			},
+		]);
 	});
 });
