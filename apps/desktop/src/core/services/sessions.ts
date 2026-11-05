@@ -252,8 +252,10 @@ export interface SessionsServiceDeps {
 	/**
 	 * How to start the chat's agent, from the composition root. A send fails with a clear error
 	 * when it is missing: building a launch here would drop the provider keys and the program path.
+	 * A Promise is accepted because the launch reads the saved environment and keys from the
+	 * database and the Keychain.
 	 */
-	launchFor?: (session: Session) => AgentLaunch;
+	launchFor?: (session: Session) => AgentLaunch | Promise<AgentLaunch>;
 	/** Folders and branch facts the sidecar needs to place a chat on disk. */
 	workspaceContextOf: (workspaceId: WorkspaceId) => Promise<Result<WorkspaceContext>>;
 	/** Default config for a new chat, from settings and the last used model. */
@@ -679,7 +681,7 @@ export class SessionsService implements AgentMessenger {
 			firstMessage,
 			config: session.config,
 			workspace: workspace.value,
-			launch: launchFor(session),
+			launch: await launchFor(session),
 			...(session.agentSessionId === null
 				? {}
 				: { resume: { agentSessionId: session.agentSessionId } }),
@@ -1711,7 +1713,7 @@ export class SessionsService implements AgentMessenger {
 			sessionId: session.id,
 			config: session.config,
 			workspace: workspace.value,
-			launch: launchFor(session),
+			launch: await launchFor(session),
 			...(session.agentSessionId === null
 				? {}
 				: { resume: { agentSessionId: session.agentSessionId } }),

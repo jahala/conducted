@@ -2,7 +2,9 @@
  * @feature SIDE-03 Session manager: per-session queue, duplicate guard, idle after flush
  * Owns: every chat the sidecar knows about, and the app's requests about them: sendMessage,
  * cancel, warmAgent, resetAgent, updateConfig, setAutoApproveEdits, getSessionStatus,
- * answerInteraction, and the ACP chat options of a live chat (AGENT-17).
+ * answerInteraction, and the ACP chat options of a live chat (AGENT-17). It also builds each
+ * agent's environment from the chat's launch settings and restarts an idle agent when they change
+ * (SIDE-21).
  * Behaviour: research/conductor/sessions.md sections 2, 3 and 6, sessions-and-chats.md "What
  * happens when you send a message" and "While the agent is working", other-runners.md section 2.4
  * (steering policy). Conductor splits this over a server (`CJi`), a host (`PFe`) and a send
@@ -58,6 +60,7 @@ import type {
 import { appError, err, ok } from "@conducted/shared";
 import type { CheckpointService } from "../checkpoints/checkpoint-service.ts";
 import type { Logger } from "../logging/logger.ts";
+import { launchFingerprint } from "../process/launch-fingerprint.ts";
 import type { ProcessManager } from "../process/process-manager.ts";
 import { processKey } from "../process/process-manager.ts";
 import type { PromptAssembler } from "../prompt/assemble.ts";
@@ -71,6 +74,7 @@ import {
 	SteerNotSupportedError,
 	SteerRevertedError,
 } from "../runners/errors.ts";
+import { agentProviders, buildAgentEnvironment } from "../runners/launch-env.ts";
 import type { RunnerRegistry } from "../runners/registry.ts";
 import type {
 	AgentConfigChangeReason,
@@ -181,6 +185,10 @@ interface SessionState {
 	config: SessionConfig;
 	workspace: WorkspaceContext;
 	launch: AgentLaunch;
+	/** The fingerprint the running agent was started with. Null when no agent runs. */
+	agentLaunchFingerprint: string | null;
+	/** A changed launch waits here until no turn runs, then restarts the agent. */
+	launchRestartPending: boolean;
 	resume: ResumeParams;
 	agent: AgentSession | null;
 	agentConfig: SessionConfig | null;
@@ -244,6 +252,7 @@ export class DefaultSessionManager implements SessionManager {
 				return ok({ deliveredAs });
 			}
 
+			await this.restartForLaunchChange(state);
 			state.duplicates.markInFlight(params.messageId);
 			const setup = new AbortController();
 			state.setup = setup;
@@ -338,6 +347,7 @@ export class DefaultSessionManager implements SessionManager {
 		return this.deps.queue.run(queueKey(params.sessionId), async () => {
 			const state = this.ensureSession(params);
 			if (state.activeTurn !== null) return ok({});
+			await this.restartForLaunchChange(state);
 			const runnerResult = this.runnerFor(params.config);
 			if (!runnerResult.ok) {
 				this.deps.logger.warn("Could not warm the agent", {
@@ -360,9 +370,18 @@ export class DefaultSessionManager implements SessionManager {
 			state.config = config;
 			await this.replaceAgentIfKindChanged(state, config);
 
-			const env = await this.deps.shellEnv.get(params.workspace.workspacePath);
-			if (!env.ok) {
+			const captured = await this.deps.shellEnv.get(params.workspace.workspacePath);
+			if (!captured.ok) {
 				this.deps.logger.warn("Could not warm the agent without the login-shell environment", {
+					sessionId: state.sessionId,
+					code: captured.error.code,
+					message: captured.error.message,
+				});
+				return ok({});
+			}
+			const env = this.agentEnvironment(state, config, params.workspace, captured.value.env);
+			if (!env.ok) {
+				this.deps.logger.warn("Could not warm the agent with the chat's launch settings", {
 					sessionId: state.sessionId,
 					code: env.error.code,
 					message: env.error.message,
@@ -373,7 +392,7 @@ export class DefaultSessionManager implements SessionManager {
 			const key = processKey(config.agent, config.acpAgent, state.sessionId);
 			try {
 				await this.deps.processes.ensureWarm(key, () =>
-					this.startAgent(state, runnerResult.value, config, params.workspace, env.value.env),
+					this.startAgent(state, runnerResult.value, config, params.workspace, env.value),
 				);
 			} catch (cause) {
 				this.deps.logger.warn("Warming the agent failed", {
@@ -614,6 +633,8 @@ export class DefaultSessionManager implements SessionManager {
 				config: params.config,
 				workspace: params.workspace,
 				launch: params.launch,
+				agentLaunchFingerprint: null,
+				launchRestartPending: false,
 				resume: params.resume,
 				agent: null,
 				agentConfig: null,
@@ -632,10 +653,51 @@ export class DefaultSessionManager implements SessionManager {
 		} else {
 			state.config = params.config;
 			state.workspace = params.workspace;
+			const nextFingerprint = launchFingerprint(params.launch);
 			state.launch = params.launch;
+			// A changed program, environment or key restarts the idle agent and waits for a
+			// running one. The first launch of a chat has no running agent to restart.
+			if (
+				state.agent !== null &&
+				state.agentLaunchFingerprint !== null &&
+				state.agentLaunchFingerprint !== nextFingerprint
+			) {
+				state.launchRestartPending = true;
+			}
 			if (params.resume !== undefined) state.resume = params.resume;
 		}
 		return state;
+	}
+
+	/**
+	 * Restarts an idle agent whose launch settings changed, keeping its resume token. A working
+	 * chat waits: the pending flag stays until a turn ends and a later request checks again.
+	 */
+	private async restartForLaunchChange(state: SessionState): Promise<void> {
+		if (!state.launchRestartPending || state.agent === null) return;
+		if (state.activeTurn !== null || this.liveStatus(state.sessionId) === "working") return;
+		state.launchRestartPending = false;
+		await this.disposeAgent(state, state.agentConfig ?? state.config, true);
+	}
+
+	/** The environment a chat's agent starts with, from the capture and the chat's launch. */
+	private agentEnvironment(
+		state: SessionState,
+		config: SessionConfig,
+		workspace: WorkspaceContext,
+		base: Readonly<Record<string, string>>,
+	): Result<Record<string, string>> {
+		const ownKeyNames = agentProviders(config.agent, config.acpAgent).flatMap(
+			(provider) => provider.keyEnvVars,
+		);
+		return buildAgentEnvironment({
+			agent: config.agent,
+			sessionId: state.sessionId,
+			workspace,
+			base,
+			launch: state.launch,
+			ownKeyNames,
+		});
 	}
 
 	private configRefused(state: SessionState): boolean {
@@ -951,6 +1013,8 @@ export class DefaultSessionManager implements SessionManager {
 		state.agent = agent;
 		state.agentConfig = config;
 		state.runner = runner;
+		state.agentLaunchFingerprint = launchFingerprint(state.launch);
+		state.launchRestartPending = false;
 		if (state.autoApproveEdits) agent.setAutoApproveEdits?.(true);
 		return agent;
 	}
@@ -976,11 +1040,13 @@ export class DefaultSessionManager implements SessionManager {
 		config: SessionConfig,
 		workspace: WorkspaceContext,
 	): Promise<Result<{ agent: AgentSession; lease: { release(): void } }, AppError>> {
-		const env = await this.deps.shellEnv.get(workspace.workspacePath);
+		const captured = await this.deps.shellEnv.get(workspace.workspacePath);
+		if (!captured.ok) return err(captured.error);
+		const env = this.agentEnvironment(state, config, workspace, captured.value.env);
 		if (!env.ok) return err(env.error);
 		const key = processKey(config.agent, config.acpAgent, state.sessionId);
 		const start = (): Promise<AgentSession> =>
-			this.startAgent(state, runner, config, workspace, env.value.env);
+			this.startAgent(state, runner, config, workspace, env.value);
 
 		try {
 			const lease = await this.deps.processes.claimActive(key, start);
@@ -1004,6 +1070,8 @@ export class DefaultSessionManager implements SessionManager {
 		state.agent = null;
 		state.agentConfig = null;
 		state.runner = null;
+		state.agentLaunchFingerprint = null;
+		state.launchRestartPending = false;
 		if (!keepResume) {
 			state.agentSessionId = null;
 			state.resume = undefined;

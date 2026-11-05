@@ -68,7 +68,7 @@
 		"packages/sidecar/src/session/self-started-turns.ts": 1
 	},
 	"unwired-deps": {
-		"apps/desktop/src/core/container.ts": 5,
+		"apps/desktop/src/core/container.ts": 4,
 		"packages/sidecar/src/modes/sidecar-mode.ts": 9
 	}
 }
