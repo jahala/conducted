@@ -9,12 +9,13 @@ import {
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ServicesProvider } from "../core/context.tsx";
+import { createTestContainer } from "../test/container.ts";
 import "../test/dom-polyfills.ts";
 import { setCurrentWorkspace, toast, workspaceToast, workspaceToastIds } from "../ui/Toast.tsx";
 import { AppShell } from "./AppShell.tsx";
 import { AppProviders, createQueryClient } from "./providers.tsx";
 import { createAppRouter } from "./router.tsx";
-import { createShellContainer, type ShellFixture } from "./shell-test-support.ts";
+import { createShellContainer, type ShellFixture, saveSetting } from "./shell-test-support.ts";
 
 /** A route component that throws, to prove the centre's boundary keeps the shell. */
 function BrokenCentre(): never {
@@ -160,5 +161,93 @@ describe("NAV-01 app shell", () => {
 		field.dispatchEvent(fieldEvent);
 		expect(fieldEvent.defaultPrevented).toBe(false);
 		field.remove();
+	});
+});
+
+describe("NAV-01 saved sidebar state at launch", () => {
+	async function openUnstartedApp(test: ReturnType<typeof createTestContainer>) {
+		const router = createAppRouter(createMemoryHistory({ initialEntries: ["/"] }));
+		render(
+			<ServicesProvider container={test.container}>
+				<AppProviders client={createQueryClient(() => {})}>
+					<RouterProvider router={router} />
+				</AppProviders>
+			</ServicesProvider>,
+		);
+		await router.load();
+	}
+
+	/** The title-bar inset the shell root sets for the headers inside it. */
+	const shellInset = (): string => {
+		let node: HTMLElement | null = screen.getByRole("complementary", { name: "Sidebar" });
+		while (node !== null && node.style.getPropertyValue("--shell-left-inset") === "") {
+			node = node.parentElement;
+		}
+		if (node === null) throw new Error("The shell root does not set the title-bar inset.");
+		return node.style.getPropertyValue("--shell-left-inset");
+	};
+
+	it("draws no sidebar until the settings are loaded, then applies a saved collapsed sidebar", async () => {
+		const test = createTestContainer();
+		try {
+			await saveSetting(test.database, "left_panel_visible", false);
+			await openUnstartedApp(test);
+
+			expect(screen.queryByRole("complementary", { name: "Sidebar" })).toBeNull();
+			expect(screen.queryByRole("button", { name: "Hide sidebar" })).toBeNull();
+
+			await act(async () => {
+				await test.container.services.settings.start();
+			});
+
+			expect(await screen.findByRole("button", { name: "Show sidebar" })).toBeTruthy();
+			expect(screen.queryByRole("button", { name: "Hide sidebar" })).toBeNull();
+			expect(shellInset()).toBe("var(--shell-controls-width)");
+		} finally {
+			cleanup();
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("applies a saved open sidebar after the settings are loaded", async () => {
+		const test = createTestContainer();
+		try {
+			await saveSetting(test.database, "left_panel_visible", true);
+			await saveSetting(test.database, "left_panel_width", 300);
+			await openUnstartedApp(test);
+
+			await act(async () => {
+				await test.container.services.settings.start();
+			});
+
+			expect(await screen.findByRole("button", { name: "Hide sidebar" })).toBeTruthy();
+			expect(shellInset()).toBe("0px");
+		} finally {
+			cleanup();
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("writes nothing back to the settings when it applies the saved state", async () => {
+		const test = createTestContainer();
+		try {
+			await saveSetting(test.database, "left_panel_visible", false);
+			await openUnstartedApp(test);
+			await act(async () => {
+				await test.container.services.settings.start();
+			});
+			await screen.findByRole("button", { name: "Show sidebar" });
+
+			const rows = await test.database.select<{ key: string; value: string }>(
+				"SELECT key, value FROM settings ORDER BY key",
+			);
+			expect(rows).toEqual([{ key: "left_panel_visible", value: "false" }]);
+		} finally {
+			cleanup();
+			await test.container.stop();
+			test.close();
+		}
 	});
 });

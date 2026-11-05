@@ -131,15 +131,16 @@ export function ScriptsPanel({ workspaceId }: { workspaceId: WorkspaceId }) {
 				onCloseTerminal={closeTerminal}
 				onToggleCollapsed={() => setCollapsed((value) => !value)}
 			/>
-			<div className={collapsed ? "hidden" : "min-h-0 flex-1"}>
-				<div className={active.kind === "setup" ? "h-full" : "hidden"}>
+			{/* The hidden attribute, not a class: the bodies stay mounted and a test can tell which one shows. */}
+			<div hidden={collapsed} className="min-h-0 flex-1">
+				<div hidden={active.kind !== "setup"} className="h-full">
 					<SetupTab workspaceId={workspaceId} />
 				</div>
-				<div className={active.kind === "run" ? "h-full" : "hidden"}>
+				<div hidden={active.kind !== "run"} className="h-full">
 					<RunTab workspaceId={workspaceId} />
 				</div>
 				{showPorts ? (
-					<div className={active.kind === "ports" ? "h-full" : "hidden"}>
+					<div hidden={active.kind !== "ports"} className="h-full">
 						<PortsTab workspaceId={workspaceId} />
 					</div>
 				) : null}

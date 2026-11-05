@@ -165,7 +165,10 @@ export function WorkspaceRow({ workspace, repo, selected, shortcutIndex, now }: 
 				{relativeTime(workspace.lastActivityAt, now)}
 			</time>
 			{shortcutIndex === null || liveShortcut === null ? null : (
-				<span className="hidden shrink-0 group-hover:inline-flex group-focus-visible:inline-flex">
+				<span
+					aria-hidden="true"
+					className="hidden shrink-0 group-hover:inline-flex group-focus-visible:inline-flex"
+				>
 					<Kbd>{liveShortcut}</Kbd>
 				</span>
 			)}
