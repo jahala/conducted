@@ -9,8 +9,8 @@
  * line (kept as is; the app caps the text).
  * Test first: execute() without maxLines asks the backend for 1000 lines.
  */
-import { notImplemented } from "@conducted/shared";
 import { z } from "zod";
+import { formatTerminalOutput } from "./format.ts";
 import type { ToolContext, ToolDefinition, ToolResult } from "./types.ts";
 
 /** Lines returned when the agent does not say. From the research. */
@@ -36,10 +36,15 @@ export const getTerminalOutputTool: ToolDefinition<typeof getTerminalOutputShape
 	inputShape: getTerminalOutputShape,
 	readOnly: true,
 	idempotent: true,
-	execute(
-		_args: z.infer<z.ZodObject<typeof getTerminalOutputShape>>,
-		_context: ToolContext,
+	async execute(
+		args: z.infer<z.ZodObject<typeof getTerminalOutputShape>>,
+		context: ToolContext,
 	): Promise<ToolResult> {
-		return notImplemented("SIDE-12");
+		const result = await context.backend.getTerminalOutput(context.sessionId, {
+			source: args.source ?? "auto",
+			maxLines: args.maxLines ?? DEFAULT_TERMINAL_LINES,
+		});
+		if (!result.ok) return { text: result.error.message, isError: true };
+		return { text: formatTerminalOutput(result.value), isError: false };
 	},
 };

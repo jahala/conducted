@@ -15,9 +15,9 @@
 import type {
 	AppTool,
 	SessionConfig,
-	sidecarToAppNotifications,
 	zDiffCommentInput,
 	zDiffCommentView,
+	zProgress,
 	zQuestion,
 } from "@conducted/protocol";
 import type { SessionId } from "@conducted/shared";
@@ -29,10 +29,7 @@ export type ToolShape = z.ZodRawShape;
 export type Question = z.infer<typeof zQuestion>;
 export type DiffCommentInput = z.infer<typeof zDiffCommentInput>;
 export type DiffCommentView = z.infer<typeof zDiffCommentView>;
-export type ProgressUpdate = Omit<
-	z.infer<(typeof sidecarToAppNotifications)["progress"]>,
-	"sessionId"
->;
+export type ProgressUpdate = z.infer<typeof zProgress>;
 
 export interface ToolResult {
 	text: string;
