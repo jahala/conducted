@@ -56,13 +56,13 @@
  * Test first: useActions returns the action table of the container it is given. The test for a
  * hook body lives with the feature that implements it (for example NAV-03 for useWorkspaces).
  */
-<<<<<<< HEAD
 import { idleLiveState } from "@conducted/protocol";
 import { notImplemented, type WorkspaceId } from "@conducted/shared";
-import { useMemo } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { useStore } from "zustand";
-import type { Actions, Queries } from "./api.ts";
+import type { Actions, Loadable, Queries } from "./api.ts";
 import { useServices } from "./context.tsx";
+import type { Session } from "./model.ts";
 import type { SessionsState } from "./services/sessions.ts";
 import { deriveWorkspaceStatus } from "./status/workspace-status.ts";
 
@@ -87,13 +87,7 @@ function chatsSignature(state: SessionsState, workspaceId: WorkspaceId): string 
 			].join(":");
 		})
 		.join("|");
-=======
-import { notImplemented } from "@conducted/shared";
-import { useSyncExternalStore } from "react";
-import type { Actions, Loadable, Queries } from "./api.ts";
-import { useServices } from "./context.tsx";
-import type { Session } from "./model.ts";
-import type { SessionsState } from "./services/sessions.ts";
+}
 
 /** Reads one slice of a service's store and re-renders when it changes. */
 function useSessionSlice<T>(select: (state: SessionsState) => T): T {
@@ -125,7 +119,6 @@ function sessionsOf(
 		return session === undefined ? [] : [session];
 	});
 	return { state: "ready", data };
->>>>>>> node/chat.01
 }
 
 export const useRepos: Queries["useRepos"] = () => notImplemented("PRJ-01");
