@@ -283,6 +283,65 @@ describe("SIDE-14 model catalog", () => {
 		expect(calls).toBe(2);
 	});
 
+	test("an older discovery that finishes last does not overwrite the newer list in the cache", async () => {
+		const firstGate = deferred<ModelInfo[]>();
+		const secondGate = deferred<ModelInfo[]>();
+		let calls = 0;
+		const catalog = catalogWith(
+			[
+				{
+					selector: { agent: "claude" },
+					listModels: () => {
+						calls += 1;
+						return calls === 1 ? firstGate.promise : secondGate.promise;
+					},
+				},
+			],
+			fakeClock().clock,
+		);
+
+		const oldCall = catalog.list("claude");
+		catalog.invalidate();
+		const newCall = catalog.list("claude");
+		secondGate.resolve([otherModel]);
+		expect(await newCall).toEqual({ ok: true, value: [otherModel] });
+		firstGate.resolve([baseModel]);
+		expect(await oldCall).toEqual({ ok: true, value: [baseModel] });
+
+		expect(await catalog.list("claude")).toEqual({ ok: true, value: [otherModel] });
+		expect(calls).toBe(2);
+	});
+
+	test("an older discovery that finishes does not remove the newer discovery from the single flight", async () => {
+		const firstGate = deferred<ModelInfo[]>();
+		const secondGate = deferred<ModelInfo[]>();
+		let calls = 0;
+		const catalog = catalogWith(
+			[
+				{
+					selector: { agent: "claude" },
+					listModels: () => {
+						calls += 1;
+						return calls === 1 ? firstGate.promise : secondGate.promise;
+					},
+				},
+			],
+			fakeClock().clock,
+		);
+
+		const oldCall = catalog.list("claude");
+		catalog.invalidate();
+		const newCall = catalog.list("claude");
+		firstGate.resolve([baseModel]);
+		await oldCall;
+		const sharing = catalog.list("claude");
+		secondGate.resolve([otherModel]);
+
+		expect(await sharing).toEqual({ ok: true, value: [otherModel] });
+		expect(await newCall).toEqual({ ok: true, value: [otherModel] });
+		expect(calls).toBe(2);
+	});
+
 	test("caches each ACP adapter separately", async () => {
 		const calls = new Map<string, number>();
 		const count = (agent: string) => {

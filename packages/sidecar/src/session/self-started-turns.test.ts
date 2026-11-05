@@ -1,105 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import type {
-	AgentMessage,
-	LiveState,
-	SessionEvent,
-	SidecarToAppNotification,
-	SidecarToAppRequest,
-} from "@conducted/protocol";
+import type { AgentMessage, LiveState } from "@conducted/protocol";
 import { idleLiveState } from "@conducted/protocol";
-import type { AppError, Result, SessionId } from "@conducted/shared";
-import { ok } from "@conducted/shared";
+import type { SessionId } from "@conducted/shared";
 import { createLogger } from "../logging/logger.ts";
-import type { ProcessManager } from "../process/process-manager.ts";
-import type {
-	SidecarToApp,
-	SidecarToAppNotificationParams,
-	SidecarToAppRequestParams,
-	SidecarToAppRequestResult,
-} from "../rpc/types.ts";
-import type { AgentSession } from "../runners/runner.ts";
-import type { EventPublisher } from "./event-batcher.ts";
+import { FakeApp } from "../test-support/fake-app.ts";
+import { FakeProcesses } from "../test-support/fake-processes.ts";
+import { FakePublisher } from "../test-support/fake-publisher.ts";
 import { beginTurn, LiveStateStore } from "./live-state.ts";
 import { RunGuard, type RunNumber } from "./run-guard.ts";
 import { SelfStartedTurns } from "./self-started-turns.ts";
 
 const sid = (value: string) => value as SessionId;
-
-class FakeApp implements SidecarToApp {
-	connected = true;
-	readonly notifications: { method: SidecarToAppNotification; params: unknown }[] = [];
-
-	async request<K extends SidecarToAppRequest>(
-		_method: K,
-		_params: SidecarToAppRequestParams<K>,
-	): Promise<Result<SidecarToAppRequestResult<K>, AppError>> {
-		return ok({} as SidecarToAppRequestResult<K>);
-	}
-
-	notify<K extends SidecarToAppNotification>(
-		method: K,
-		params: SidecarToAppNotificationParams<K>,
-	): boolean {
-		if (!this.connected) return false;
-		this.notifications.push({ method, params });
-		return true;
-	}
-
-	onAttach(_listener: () => void): () => void {
-		return () => {};
-	}
-
-	onDetach(_listener: () => void): () => void {
-		return () => {};
-	}
-}
-
-class FakePublisher implements EventPublisher {
-	readonly events: { sessionId: SessionId; event: SessionEvent }[] = [];
-	readonly order: string[];
-
-	constructor(order: string[]) {
-		this.order = order;
-	}
-
-	publish(sessionId: SessionId, event: SessionEvent): void {
-		this.events.push({ sessionId, event });
-		this.order.push(`event:${event.type}`);
-	}
-
-	async flush(_sessionId: SessionId): Promise<void> {
-		this.order.push("flush");
-	}
-
-	onWriteFailure(_listener: (sessionId: SessionId, message: string) => void): void {}
-}
-
-class FakeProcesses implements ProcessManager {
-	readonly busy: string[] = [];
-	readonly idle: string[] = [];
-
-	async claimActive(_key: string, _start: () => Promise<AgentSession>): Promise<never> {
-		throw new Error("not used by this test");
-	}
-
-	async ensureWarm(_key: string, _start: () => Promise<AgentSession>): Promise<void> {}
-
-	markBusy(key: string): void {
-		this.busy.push(key);
-	}
-
-	markIdle(key: string): void {
-		this.idle.push(key);
-	}
-
-	setBackgroundTasks(_key: string, _hasTasks: boolean): void {}
-
-	async disconnect(_key: string): Promise<void> {}
-
-	async sweep(): Promise<void> {}
-
-	async stopAll(): Promise<void> {}
-}
 
 function agentMessage(text: string): AgentMessage {
 	return { agent: "claude", items: [{ kind: "text", text }] };
@@ -173,6 +84,25 @@ describe("AGENT-15 self-started turns host side", () => {
 		expect(h.liveState.get(sessionId).status).toBe("working");
 		expect(h.publisher.events).toEqual([]);
 		expect(h.processes.busy).toEqual([]);
+	});
+
+	test("AGENT-15 while a turn of ours runs, a start, a message and an end report change nothing at all", async () => {
+		const h = harness();
+		const sessionId = sid("s1");
+		await h.liveState.update(sessionId, beginTurn);
+		const orderBefore = [...h.order];
+
+		await h.turns.onInProgressChanged(sessionId, true);
+		h.turns.onMessage(sessionId, agentMessage("ours"));
+		await h.turns.onInProgressChanged(sessionId, false, { outcome: "success" });
+
+		expect(h.liveState.get(sessionId).status).toBe("working");
+		expect(h.publisher.events).toEqual([]);
+		expect(h.publisher.flushed).toEqual([]);
+		expect(h.order).toEqual(orderBefore);
+		expect(h.processes.busy).toEqual([]);
+		expect(h.processes.idle).toEqual([]);
+		expect(h.settled).toEqual([]);
 	});
 
 	test("AGENT-15 the messages are stored under one system turn that ends with turn_ended", async () => {

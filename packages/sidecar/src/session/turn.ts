@@ -81,6 +81,8 @@ export interface TurnDeps {
 	onAgentSessionId(agentSessionId: string): void;
 	/** Called after idle was published so the manager can start the next queued message. */
 	onTurnSettled(run: RunNumber): void;
+	/** The agent reported its background work: true while any task is open. */
+	onBackgroundTasks(hasTasks: boolean): void;
 }
 
 interface PostTurn {
@@ -291,6 +293,7 @@ export class Turn {
 			onAgentSessionId: (agentSessionId) => this.deps.onAgentSessionId(agentSessionId),
 			onBackgroundTasks: (tasks, waitingSince) => {
 				if (!this.deps.runGuard.isCurrent(run)) return;
+				this.deps.onBackgroundTasks(tasks.length > 0);
 				void this.updateLive((live) =>
 					setWaitingSince(setBackgroundTasks(live, tasks), waitingSince),
 				);

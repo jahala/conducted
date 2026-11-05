@@ -53,3 +53,52 @@ describe("AGENT-02 async queue", () => {
 		expect(await first.next()).toEqual({ value: undefined, done: true });
 	});
 });
+
+/** Resolves with "hung" when the promise has not settled after a second, so a lost wake-up fails fast. */
+async function settledOrHung<T>(promise: Promise<T>): Promise<T | "hung"> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const hung = new Promise<"hung">((resolve) => {
+		timer = setTimeout(() => resolve("hung"), 1000);
+	});
+	try {
+		return await Promise.race([promise, hung]);
+	} finally {
+		if (timer !== undefined) clearTimeout(timer);
+	}
+}
+
+describe("AGENT-02 async queue wake-ups", () => {
+	test("close wakes a consumer that is already waiting, and the queue then reports done", async () => {
+		const queue = new AsyncQueue<number>();
+		const iterator = queue[Symbol.asyncIterator]();
+		const waiting = iterator.next();
+
+		queue.close();
+
+		expect(await settledOrHung(waiting)).toEqual({ value: undefined, done: true });
+		expect(await iterator.next()).toEqual({ value: undefined, done: true });
+	});
+
+	test("a push goes straight to a waiting consumer and is not delivered twice", async () => {
+		const queue = new AsyncQueue<number>();
+		const iterator = queue[Symbol.asyncIterator]();
+		const waiting = iterator.next();
+
+		queue.push(7);
+
+		expect(await settledOrHung(waiting)).toEqual({ value: 7, done: false });
+		queue.push(8);
+		queue.close();
+		expect(await iterator.next()).toEqual({ value: 8, done: false });
+		expect(await iterator.next()).toEqual({ value: undefined, done: true });
+	});
+
+	test("closing twice wakes nobody a second time and keeps buffered values readable", async () => {
+		const queue = new AsyncQueue<string>();
+		queue.push("kept");
+		queue.close();
+		queue.close();
+
+		expect(await collect(queue)).toEqual(["kept"]);
+	});
+});

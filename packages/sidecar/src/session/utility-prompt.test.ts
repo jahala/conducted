@@ -431,3 +431,43 @@ describe("SIDE-24 utility prompt configuration", () => {
 		expect(workspace.repoRootPath).toBe("/work/alpha");
 	});
 });
+
+describe("SIDE-24 utility prompt log lines", () => {
+	const secretLaunch = {
+		env: { PRIVATE_SETTING: "not-a-secret-value" },
+		providerKeys: { ANTHROPIC_API_KEY: { value: "sk-secret-value", source: "entered" as const } },
+	};
+	const allowed = new Set(["agent", "phase", "durationMs", "reason"]);
+
+	test("SIDE-24 a call logs only its agent, phase, duration and reason, whether it succeeds, fails or times out", async () => {
+		const records: LogRecord[] = [];
+		const succeeding = runner(
+			async (callbacks) => {
+				callbacks.onMessage(textMessage("A title"));
+				return { kind: "success" };
+			},
+			{ records },
+		);
+		const failing = runner(
+			async () => ({ kind: "error", message: "The agent stopped", retryable: false }),
+			{
+				records,
+			},
+		);
+		const timing = runner(() => new Promise<TurnOutcome>(() => {}), { records, timeoutMs: 5 });
+
+		await succeeding.service.run(params({ launch: secretLaunch }));
+		await failing.service.run(params({ launch: secretLaunch }));
+		await timing.service.run(params({ launch: secretLaunch }));
+
+		const phases = records.map((record) => record.data?.phase);
+		expect(phases).toEqual(["started", "completed", "started", "failed", "started", "failed"]);
+		for (const record of records) {
+			for (const name of Object.keys(record.data ?? {})) expect(allowed.has(name)).toBe(true);
+		}
+		const text = JSON.stringify(records);
+		expect(text).not.toContain("sk-secret-value");
+		expect(text).not.toContain("not-a-secret-value");
+		expect(text).not.toContain("Name this chat");
+	});
+});
