@@ -21,8 +21,9 @@
  * of a workspace and no idle one; a live state from the sidecar is shown as it arrives and an
  * open interaction in it becomes the chat's card, while a live state without one withdraws the
  * card; a chat the sidecar lost gets every open turn closed as `interrupted` in one transaction
- * and an idle live state, while its agent session id stays for resume and a failed live-state
- * write is returned; a review chat uses the review model, fast mode and effort from settings,
+ * and an idle live state with no finished notice, while its agent session id stays for resume and
+ * a failed live-state write is returned; a review chat uses the review model, fast mode and effort
+ * from settings,
  * falls back to the default chat model when no review model is set, and does not start when a
  * review setting cannot be used.
  * Our design choice: a chat starts with no title; the title generator fills it only once
@@ -1251,7 +1252,11 @@ export class SessionsService implements AgentMessenger {
 	 * Shows the sidecar's live state. A new state replaces the one before it. An interaction the
 	 * new state no longer carries is settled as withdrawn, so a stale card never stays on screen.
 	 */
-	async applyLiveState(sessionId: SessionId, liveState: LiveState): Promise<Result<void>> {
+	async applyLiveState(
+		sessionId: SessionId,
+		liveState: LiveState,
+		options: { notify?: boolean } = {},
+	): Promise<Result<void>> {
 		const at = this.#deps.now();
 		const previous = this.store.getState().openInteractions[sessionId];
 		const nextOpen = liveState.openInteraction;
@@ -1280,6 +1285,7 @@ export class SessionsService implements AgentMessenger {
 		if (previous !== undefined && previous.interactionId !== nextOpen?.interactionId) {
 			this.#settleInteraction(previous.interactionId, { kind: "withdrawn" });
 		}
+		if (options.notify !== false) this.#deps.notifications.onLiveStateChanged(sessionId);
 		const written = await this.#deps.repositories().liveStates.upsert(sessionId, liveState, at);
 		return written.ok ? ok(undefined) : err(written.error);
 	}
@@ -1410,7 +1416,7 @@ export class SessionsService implements AgentMessenger {
 		for (const entry of appended.value) {
 			this.applyStoredEvent(sessionId, entry.idx, entry.event, at);
 		}
-		return this.applyLiveState(sessionId, idleLiveState);
+		return this.applyLiveState(sessionId, idleLiveState, { notify: false });
 	}
 
 	// ---- called by the views ----
