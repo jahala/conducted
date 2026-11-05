@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "../../test/dom-polyfills.ts";
 import type { Loadable } from "../../core/api.ts";
 import type { Session, Workspace } from "../../core/model.ts";
+import { toast } from "../../ui/Toast.tsx";
 
 const state = vi.hoisted(() => {
 	const snapshot = { sections: [] as { id: string; name: string }[] };
@@ -20,7 +21,10 @@ const state = vi.hoisted(() => {
 		setState: () => {},
 	};
 	return {
-		workspace: { state: "ready", data: { pinnedAt: null, state: "ready" } } as Loadable<Workspace>,
+		workspace: {
+			state: "ready",
+			data: { pinnedAt: null, directoryName: "quiet-meadow", state: "ready" },
+		} as Loadable<Workspace>,
 		sessions: { state: "ready", data: [] } as Loadable<Session[]>,
 		sectionsStore,
 		snapshot,
@@ -93,34 +97,49 @@ beforeEach(() => {
 	}
 	state.snapshot.sections = [];
 	state.sessions = { state: "ready", data: [] };
-	state.workspace = { state: "ready", data: { pinnedAt: null, state: "ready" } as Workspace };
+	state.workspace = {
+		state: "ready",
+		data: { pinnedAt: null, directoryName: "quiet-meadow", state: "ready" } as Workspace,
+	};
 });
 
 afterEach(cleanup);
 
 describe("NAV-10 WorkspaceActionsMenu", () => {
 	it("pins an unpinned workspace", async () => {
-		state.workspace = { state: "ready", data: { pinnedAt: null, state: "ready" } as Workspace };
+		state.workspace = {
+			state: "ready",
+			data: { pinnedAt: null, directoryName: "quiet-meadow", state: "ready" } as Workspace,
+		};
 		await openMenu();
 		fireEvent.click(await screen.findByRole("menuitem", { name: /^Pin/ }));
 		await waitFor(() => expect(state.setPinned).toHaveBeenCalledWith(workspaceId, true));
 	});
 
 	it("reads Unpin for a pinned workspace", async () => {
-		state.workspace = { state: "ready", data: { pinnedAt: 10, state: "ready" } as Workspace };
+		state.workspace = {
+			state: "ready",
+			data: { pinnedAt: 10, directoryName: "quiet-meadow", state: "ready" } as Workspace,
+		};
 		await openMenu();
 		expect(await screen.findByRole("menuitem", { name: /^Unpin/ })).toBeTruthy();
 	});
 
 	it("offers Unarchive instead of Rename for an archived workspace", async () => {
-		state.workspace = { state: "ready", data: { pinnedAt: null, state: "archived" } as Workspace };
+		state.workspace = {
+			state: "ready",
+			data: { pinnedAt: null, directoryName: "quiet-meadow", state: "archived" } as Workspace,
+		};
 		await openMenu();
 		expect(await screen.findByRole("menuitem", { name: "Unarchive" })).toBeTruthy();
 		expect(screen.queryByRole("menuitem", { name: "Rename" })).toBeNull();
 	});
 
 	it("marks the workspace as read when it is unread", async () => {
-		state.workspace = { state: "ready", data: { pinnedAt: null, state: "ready" } as Workspace };
+		state.workspace = {
+			state: "ready",
+			data: { pinnedAt: null, directoryName: "quiet-meadow", state: "ready" } as Workspace,
+		};
 		state.sessions = {
 			state: "ready",
 			data: [{ id: "s1", unreadCount: 2 } as Session],
@@ -131,7 +150,10 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 	});
 
 	it("marks the workspace as unread when all chats are read", async () => {
-		state.workspace = { state: "ready", data: { pinnedAt: null, state: "ready" } as Workspace };
+		state.workspace = {
+			state: "ready",
+			data: { pinnedAt: null, directoryName: "quiet-meadow", state: "ready" } as Workspace,
+		};
 		state.sessions = {
 			state: "ready",
 			data: [{ id: "s1", unreadCount: 0 } as Session],
@@ -142,7 +164,10 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 	});
 
 	it("sets the status from the submenu", async () => {
-		state.workspace = { state: "ready", data: { pinnedAt: null, state: "ready" } as Workspace };
+		state.workspace = {
+			state: "ready",
+			data: { pinnedAt: null, directoryName: "quiet-meadow", state: "ready" } as Workspace,
+		};
 		await openMenu();
 		const trigger = await screen.findByRole("menuitem", { name: "Set status" });
 		fireEvent.keyDown(trigger, { key: "ArrowRight" });
@@ -153,7 +178,10 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 	});
 
 	it("moves the workspace to a section", async () => {
-		state.workspace = { state: "ready", data: { pinnedAt: null, state: "ready" } as Workspace };
+		state.workspace = {
+			state: "ready",
+			data: { pinnedAt: null, directoryName: "quiet-meadow", state: "ready" } as Workspace,
+		};
 		state.snapshot.sections = [{ id: "sec1", name: "Today" }];
 		await openMenu();
 		const trigger = await screen.findByRole("menuitem", { name: "Move to section" });
@@ -165,7 +193,12 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 	it("renames the workspace from the shared dialog", async () => {
 		state.workspace = {
 			state: "ready",
-			data: { pinnedAt: null, state: "ready", displayName: "Old" } as Workspace,
+			data: {
+				pinnedAt: null,
+				directoryName: "quiet-meadow",
+				state: "ready",
+				displayName: "Old",
+			} as Workspace,
 		};
 		await openMenu();
 		fireEvent.click(await screen.findByRole("menuitem", { name: "Rename" }));
@@ -176,26 +209,35 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 	});
 
 	it("creates a new section", async () => {
-		state.workspace = { state: "ready", data: { pinnedAt: null, state: "ready" } as Workspace };
+		state.workspace = {
+			state: "ready",
+			data: { pinnedAt: null, directoryName: "quiet-meadow", state: "ready" } as Workspace,
+		};
 		await openMenu();
 		const trigger = await screen.findByRole("menuitem", { name: "Move to section" });
 		fireEvent.keyDown(trigger, { key: "ArrowRight" });
 		fireEvent.click(await screen.findByRole("menuitem", { name: "New section..." }));
 		const field = await screen.findByRole("textbox", { name: "Name" });
 		fireEvent.change(field, { target: { value: "Later" } });
-		fireEvent.click(screen.getByRole("button", { name: "Rename" }));
+		fireEvent.click(screen.getByRole("button", { name: "Create" }));
 		await waitFor(() => expect(state.createSection).toHaveBeenCalledWith("Later", null));
 	});
 
 	it("copies a deep link", async () => {
-		state.workspace = { state: "ready", data: { pinnedAt: null, state: "ready" } as Workspace };
+		state.workspace = {
+			state: "ready",
+			data: { pinnedAt: null, directoryName: "quiet-meadow", state: "ready" } as Workspace,
+		};
 		await openMenu();
 		fireEvent.click(await screen.findByRole("menuitem", { name: /^Copy link/ }));
 		await waitFor(() => expect(state.copyText).toHaveBeenCalledWith("conducted://workspace?id=w1"));
 	});
 
 	it("archives a workspace", async () => {
-		state.workspace = { state: "ready", data: { pinnedAt: null, state: "ready" } as Workspace };
+		state.workspace = {
+			state: "ready",
+			data: { pinnedAt: null, directoryName: "quiet-meadow", state: "ready" } as Workspace,
+		};
 		await openMenu();
 		fireEvent.click(await screen.findByRole("menuitem", { name: /^Archive/ }));
 		await waitFor(() =>
@@ -204,7 +246,10 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 	});
 
 	it("unarchives an archived workspace", async () => {
-		state.workspace = { state: "ready", data: { pinnedAt: null, state: "archived" } as Workspace };
+		state.workspace = {
+			state: "ready",
+			data: { pinnedAt: null, directoryName: "quiet-meadow", state: "archived" } as Workspace,
+		};
 		await openMenu();
 		fireEvent.click(await screen.findByRole("menuitem", { name: "Unarchive" }));
 		await waitFor(() =>
@@ -213,5 +258,58 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 				clearChats: false,
 			}),
 		);
+	});
+
+	it("lists the statuses in board order", async () => {
+		await openMenu();
+		fireEvent.keyDown(await screen.findByRole("menuitem", { name: "Set status" }), {
+			key: "ArrowRight",
+		});
+		await screen.findByRole("menuitemradio", { name: "Backlog" });
+		expect(screen.getAllByRole("menuitemradio").map((item) => item.textContent)).toEqual([
+			"Backlog",
+			"In progress",
+			"In review",
+			"Done",
+			"Canceled",
+		]);
+	});
+
+	it("shows the failure's message when an action returns a failed Result", async () => {
+		const toasted = vi.spyOn(toast, "error").mockReturnValue("t");
+		try {
+			state.setPinned.mockResolvedValue({
+				ok: false,
+				error: { code: "db", message: "The database is locked." },
+			});
+			await openMenu();
+			fireEvent.click(await screen.findByRole("menuitem", { name: /^Pin/ }));
+			await waitFor(() =>
+				expect(toasted).toHaveBeenCalledWith("Couldn't pin the workspace", {
+					description: "The database is locked.",
+				}),
+			);
+		} finally {
+			toasted.mockRestore();
+		}
+	});
+
+	it("shows a toast when an action is not built yet and throws", async () => {
+		const toasted = vi.spyOn(toast, "error").mockReturnValue("t");
+		try {
+			state.markUnread.mockImplementation(() => {
+				throw new Error("Not built yet: NAV-11");
+			});
+			state.sessions = { state: "ready", data: [{ id: "s1", unreadCount: 0 } as Session] };
+			await openMenu();
+			fireEvent.click(await screen.findByRole("menuitem", { name: /^Mark as unread/ }));
+			await waitFor(() =>
+				expect(toasted).toHaveBeenCalledWith("Couldn't mark the workspace as unread", {
+					description: "Not built yet: NAV-11",
+				}),
+			);
+		} finally {
+			toasted.mockRestore();
+		}
 	});
 });

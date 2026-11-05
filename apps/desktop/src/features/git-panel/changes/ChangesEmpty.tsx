@@ -6,8 +6,9 @@
  * read), "operation_in_progress" (finish the rebase or merge to see changes), "filter_no_match"
  * (no file matches the filter, with a clear-filter action), "untracked_truncated" (a note under a
  * non-empty list: some untracked files are not shown).
- * Must handle: each reason has its own text and at most one action, and the note variant sits
- * below the list without hiding it.
+ * Must handle: each reason has its own text and at most one action, "no_git_status" showing the
+ * error's own message when the caller has one, and the note variant sitting below the list without
+ * hiding it.
  * Test first: reason "filter_no_match" shows a clear-filter button that calls onClearFilter.
  */
 import { Button } from "../../../ui/Button.tsx";
@@ -25,6 +26,8 @@ export interface ChangesEmptyProps {
 	/** The git operation underway, for the "operation_in_progress" text. */
 	operation?: "rebase" | "merge" | "cherry_pick" | "revert";
 	onClearFilter?: () => void;
+	/** The error's own words, for "no_git_status". Without it the generic text shows. */
+	message?: string;
 }
 
 const operationLabel: Record<NonNullable<ChangesEmptyProps["operation"]>, string> = {
@@ -34,7 +37,7 @@ const operationLabel: Record<NonNullable<ChangesEmptyProps["operation"]>, string
 	revert: "revert",
 };
 
-export function ChangesEmpty({ reason, operation, onClearFilter }: ChangesEmptyProps) {
+export function ChangesEmpty({ reason, operation, onClearFilter, message }: ChangesEmptyProps) {
 	if (reason === "untracked_truncated") {
 		return (
 			<p role="note" className="px-3 py-2 text-xs text-fg-muted">
@@ -62,7 +65,7 @@ export function ChangesEmpty({ reason, operation, onClearFilter }: ChangesEmptyP
 				compact
 				tone="failed"
 				title="No git status"
-				body="The repository could not be read. Try again from the Git panel."
+				body={message ?? "The repository could not be read."}
 			/>
 		);
 	}

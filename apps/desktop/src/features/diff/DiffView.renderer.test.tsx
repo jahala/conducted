@@ -55,6 +55,24 @@ describe("REV-02 DiffView with the real renderer", () => {
 		);
 	});
 
+	it("passes the no-ligatures rule into the drawn diff when the setting is off", async () => {
+		const { container } = render(
+			<DiffView
+				diff={diff}
+				preferences={{ ...preferences, ligatures: false }}
+				forceRender={false}
+				onForceRender={() => {}}
+			/>,
+		);
+		const host = container.querySelector("diffs-container");
+		await waitFor(
+			() => {
+				expect(host?.shadowRoot?.innerHTML ?? "").toContain("font-variant-ligatures: none");
+			},
+			{ timeout: 8_000 },
+		);
+	});
+
 	it("hides a whitespace-only change through the renderer's own parser", () => {
 		const theme = { name: "pierre-light", type: "light" as const };
 		const hidden = toDiffOptions({ ...preferences, hideWhitespaceChanges: true }, theme);

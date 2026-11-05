@@ -7,8 +7,9 @@
  * waiting or setting-up), attention shows an accent dot, danger shows an alert mark, a settled workspace a
  * branch glyph, and success a quiet dot. The optional animated "status matrix" for working local workspaces is
  * left out (WS-09).
- * Must handle: the icon is decorative, the status text beside it is the accessible name; an unknown status
- * (null) shows the branch glyph.
+ * Must handle: a row that prints the status text beside the icon passes `decorative`, so 300 rows
+ * are not 300 live regions; without it an active status is announced as a status role; an unknown
+ * status (null) shows the branch glyph.
  * Test first: renders a status role for an active status and an aria-hidden mark otherwise.
  */
 import type { WorkspaceStatus } from "../../core/model.ts";
@@ -23,13 +24,22 @@ function spinnerKind(status: WorkspaceStatus | null): SpinnerKind {
 	return "working";
 }
 
-export function WorkspaceStatusIcon({ status }: { status: WorkspaceStatus | null }) {
+export function WorkspaceStatusIcon({
+	status,
+	decorative = false,
+}: {
+	status: WorkspaceStatus | null;
+	/** True when the status text is printed beside the icon, so the icon adds nothing to announce. */
+	decorative?: boolean;
+}) {
 	const { text, tone } = statusText(status);
 	switch (tone) {
-		case "active":
-			return (
+		case "active": {
+			const spinner = (
 				<Spinner label={text} kind={spinnerKind(status)} size="sm" className="text-fg-muted" />
 			);
+			return decorative ? <span aria-hidden="true">{spinner}</span> : spinner;
+		}
 		case "attention":
 			return <span aria-hidden="true" className="size-2 rounded-full bg-accent" />;
 		case "danger":

@@ -84,6 +84,32 @@ describe("APP-05 workspace toasts", () => {
 		expect(await screen.findByText("No route workspace")).toBeTruthy();
 	});
 
+	it("does not show a workspace toast while another workspace is open", async () => {
+		render(<Toaster workspaceId={"w2" as WorkspaceId} />);
+		let shown: string | null = "unset";
+		act(() => {
+			shown = workspaceToast("w1" as WorkspaceId, "For w1 only");
+		});
+		expect(shown).toBeNull();
+		expect(screen.queryByText("For w1 only")).toBeNull();
+		expect(workspaceToastIds()).toEqual([]);
+	});
+
+	it("dismisses a workspace toast when the user moves to another workspace", async () => {
+		render(<Toaster />);
+		setCurrentWorkspace("w1" as WorkspaceId);
+		act(() => {
+			workspaceToast("w1" as WorkspaceId, "Leaving w1", { duration: 60_000 });
+		});
+		expect(await screen.findByText("Leaving w1")).toBeTruthy();
+		expect(workspaceToastIds()).toHaveLength(1);
+		act(() => {
+			setCurrentWorkspace("w2" as WorkspaceId);
+		});
+		await waitFor(() => expect(screen.queryByText("Leaving w1")).toBeNull());
+		expect(workspaceToastIds()).toEqual([]);
+	});
+
 	it("releases the workspace claim when the toast auto-closes", async () => {
 		render(<Toaster />);
 		act(() => {

@@ -14,8 +14,10 @@
  * /settings/user/general). Repository pages have their own route, `/settings/repos/$repoId/$page`, and pass
  * the page to the settings screen as `repo:<repoId>:<page>`. The workspace param is `$workspaceId`, not
  * `$localWorkspaceId`, because there are no cloud workspaces.
- * Must handle: an unknown address (NotFoundScreen); a screen that throws (RouteErrorScreen with retry); a
- * changed workspace id resets a failed screen (resetKey); invalid search values are dropped (see
+ * Must handle: an unknown address (NotFoundScreen); an error outside every screen's own boundary
+ * (RouteErrorScreen with retry; a screen that throws is caught by its <NotBuiltYet>, which shows a short
+ * card and clears on the next route key); the key, menu and deep-link listeners mounted once at the root
+ * (CommandDispatcher); a changed workspace id resets a failed screen (resetKey); invalid search values are dropped (see
  * workspace-search.ts); navigation never reloads the page; a workspace or chat that was deleted or archived
  * sends the route Home instead of drawing a dead screen; a bare workspace address reopens that workspace's
  * stored chat tab; "/" reopens the last workspace route and falls back to a ready one; the Go back and Go
@@ -49,7 +51,7 @@ import { type WorkspaceSearch, zWorkspaceSearch } from "../features/workspace/wo
 import { NotBuiltYet } from "../ui/not-built-yet.tsx";
 import { AppShell } from "./AppShell.tsx";
 import { CreateWorkspacePage } from "./CreateWorkspacePage.tsx";
-import { useCommandHandler } from "./command-dispatcher.ts";
+import { CommandDispatcher, useCommandHandler } from "./command-dispatcher.ts";
 import { FullPage } from "./FullPage.tsx";
 import { GlobalOverlays } from "./GlobalOverlays.tsx";
 import { NoWorkspaceSelected } from "./NoWorkspaceSelected.tsx";
@@ -137,12 +139,12 @@ function RestoreLastLocation() {
 
 function RootLayout() {
 	return (
-		<>
+		<CommandDispatcher>
 			<NavigationShortcuts />
 			<RouteLocationPersistence />
 			<Outlet />
 			<GlobalOverlays />
-		</>
+		</CommandDispatcher>
 	);
 }
 

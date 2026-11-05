@@ -33,9 +33,12 @@ export function WorkspaceGate({
 
 	const unarchive = async () => {
 		setUnarchiving(true);
-		const result = await unarchiveWorkspace(actions, workspaceId);
-		setUnarchiving(false);
-		if (!result.ok) toastError("Couldn't unarchive the workspace", result.error);
+		try {
+			const result = await unarchiveWorkspace(actions, workspaceId);
+			if (!result.ok) toastError("Couldn't unarchive the workspace", result.error);
+		} finally {
+			setUnarchiving(false);
+		}
 	};
 
 	if (workspace.state === "error" && workspace.error.code === "workspace_unknown") {

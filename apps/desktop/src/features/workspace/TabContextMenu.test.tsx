@@ -115,12 +115,13 @@ describe("CHAT-01 chat tab context menu", () => {
 		);
 	});
 
-	it("closes the chat and its tab", async () => {
+	it("reports 'Close tab' to the tab strip, which closes the chat", async () => {
 		const onClose = vi.fn();
 		await openMenu({ onClose });
 		fireEvent.click(await screen.findByRole("menuitem", { name: /Close tab/ }));
-		await waitFor(() => expect(state.close).toHaveBeenCalledWith(sessionId));
 		expect(onClose).toHaveBeenCalledTimes(1);
+		// The strip closes the chat; closing here too would close it twice.
+		expect(state.close).not.toHaveBeenCalled();
 	});
 
 	it("closes the other tabs", async () => {

@@ -135,6 +135,10 @@ const dropOn = (
 	fireEvent(element, event);
 };
 
+/** True when `first` comes before `second` in the page. */
+const precedes = (first: HTMLElement, second: HTMLElement) =>
+	(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+
 const withRect = (element: HTMLElement) => {
 	vi.spyOn(element, "getBoundingClientRect").mockReturnValue({
 		left: 0,
@@ -178,8 +182,9 @@ describe("NAV-10 SplitPanes", () => {
 		const centre = screen.getByTestId("split-centre");
 		withRect(centre);
 		dropOn(centre, "session:two", { clientX: 5, clientY: 50 });
-		expect(screen.getByRole("region", { name: "Split pane: Two" })).toBeTruthy();
+		const pane = screen.getByRole("region", { name: "Split pane: Two" });
 		expect(document.querySelector('[data-direction="row"]')).not.toBeNull();
+		expect(precedes(pane, screen.getByText("content"))).toBe(true);
 	});
 
 	it("splits on the right edge", () => {
@@ -187,8 +192,9 @@ describe("NAV-10 SplitPanes", () => {
 		const centre = screen.getByTestId("split-centre");
 		withRect(centre);
 		dropOn(centre, "session:two", { clientX: 95, clientY: 50 });
-		expect(screen.getByRole("region", { name: "Split pane: Two" })).toBeTruthy();
+		const pane = screen.getByRole("region", { name: "Split pane: Two" });
 		expect(document.querySelector('[data-direction="row"]')).not.toBeNull();
+		expect(precedes(screen.getByText("content"), pane)).toBe(true);
 	});
 
 	it("splits on the top edge", () => {
@@ -196,8 +202,9 @@ describe("NAV-10 SplitPanes", () => {
 		const centre = screen.getByTestId("split-centre");
 		withRect(centre);
 		dropOn(centre, "session:two", { clientX: 50, clientY: 5 });
-		expect(screen.getByRole("region", { name: "Split pane: Two" })).toBeTruthy();
+		const pane = screen.getByRole("region", { name: "Split pane: Two" });
 		expect(document.querySelector('[data-direction="column"]')).not.toBeNull();
+		expect(precedes(pane, screen.getByText("content"))).toBe(true);
 	});
 
 	it("splits on the bottom edge", () => {
@@ -205,8 +212,9 @@ describe("NAV-10 SplitPanes", () => {
 		const centre = screen.getByTestId("split-centre");
 		withRect(centre);
 		dropOn(centre, "session:two", { clientX: 50, clientY: 95 });
-		expect(screen.getByRole("region", { name: "Split pane: Two" })).toBeTruthy();
+		const pane = screen.getByRole("region", { name: "Split pane: Two" });
 		expect(document.querySelector('[data-direction="column"]')).not.toBeNull();
+		expect(precedes(screen.getByText("content"), pane)).toBe(true);
 	});
 
 	it("moves a tab dropped on another group's strip", () => {

@@ -46,6 +46,14 @@ describe("REV-02 toDiffOptions", () => {
 		);
 	});
 
+	it("switches ligatures off in the renderer only when the setting is off", () => {
+		const theme = { name: "pierre-light", type: "light" as const };
+		expect(toDiffOptions(preferences, theme).unsafeCSS).toBeUndefined();
+		expect(toDiffOptions({ ...preferences, ligatures: false }, theme).unsafeCSS).toContain(
+			"font-variant-ligatures: none",
+		);
+	});
+
 	it("keeps a named theme", () => {
 		expect(toDiffOptions(preferences, { name: "catppuccin-mocha", type: "dark" }).theme).toBe(
 			"catppuccin-mocha",

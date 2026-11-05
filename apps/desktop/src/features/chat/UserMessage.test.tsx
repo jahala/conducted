@@ -1,4 +1,12 @@
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { appError, err, ok } from "@conducted/shared";
+import {
+	createMemoryHistory,
+	createRootRoute,
+	createRoute,
+	createRouter,
+	RouterProvider,
+} from "@tanstack/react-router";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatTurn } from "../../core/model.ts";
 import { renderWithRouter } from "../../test/render-with-router.tsx";
@@ -6,7 +14,10 @@ import { renderWithRouter } from "../../test/render-with-router.tsx";
 const state = vi.hoisted(() => ({
 	copyText: vi.fn(),
 	revertTo: vi.fn(),
+	toastError: vi.fn(),
 }));
+
+vi.mock("../../ui/Toast.tsx", () => ({ toastError: state.toastError }));
 
 vi.mock("../../core/hooks.ts", () => ({
 	useActions: () => ({
@@ -21,7 +32,25 @@ afterEach(() => {
 	cleanup();
 	state.copyText.mockReset();
 	state.revertTo.mockReset();
+	state.toastError.mockReset();
 });
+
+/** Like `renderWithRouter`, but hands back the router so a test can read the URL state after a click. */
+async function renderInRouter(ui: React.ReactNode) {
+	const rootRoute = createRootRoute();
+	const route = createRoute({
+		getParentRoute: () => rootRoute,
+		path: "/",
+		component: () => <>{ui}</>,
+	});
+	const router = createRouter({
+		routeTree: rootRoute.addChildren([route]),
+		history: createMemoryHistory({ initialEntries: ["/?sessionId=s1"] }),
+	});
+	render(<RouterProvider router={router} />);
+	await router.load();
+	return router;
+}
 
 const sessionId = "s1" as Parameters<typeof UserMessage>[0]["sessionId"];
 
@@ -117,5 +146,59 @@ describe("CHAT-06 user message", () => {
 		);
 		expect(await screen.findByRole("button", { name: "src/app.ts" })).toBeTruthy();
 		expect(screen.getByRole("button", { name: "PR #12" })).toBeTruthy();
+	});
+
+	it("opens the PR tab on the number the chip names, keeping the rest of the URL", async () => {
+		const router = await renderInRouter(
+			<UserMessage turn={turn({ text: "Check ⟦pr:12⟧" })} sessionId={sessionId} />,
+		);
+		fireEvent.click(await screen.findByRole("button", { name: "PR #12" }));
+		await waitFor(() =>
+			expect(router.state.location.search).toMatchObject({ tab: "pr", pr: 12, sessionId: "s1" }),
+		);
+	});
+
+	it("opens the file tab for a file chip", async () => {
+		const router = await renderInRouter(
+			<UserMessage turn={turn({ text: "See ⟦file:src/app.ts⟧" })} sessionId={sessionId} />,
+		);
+		fireEvent.click(await screen.findByRole("button", { name: "src/app.ts" }));
+		await waitFor(() =>
+			expect(router.state.location.search).toMatchObject({
+				tab: "file",
+				path: "src/app.ts",
+				fileMode: "diff",
+			}),
+		);
+	});
+
+	it("tells the user when the chat could not be reset", async () => {
+		const error = appError("not_found", "No checkpoint.");
+		state.revertTo.mockResolvedValue(err(error));
+		renderWithRouter(<UserMessage turn={turn()} sessionId={sessionId} />);
+		fireEvent.click(await screen.findByRole("button", { name: "Revert to before this message" }));
+		await waitFor(() =>
+			expect(state.toastError).toHaveBeenCalledWith("Couldn't reset the chat", error),
+		);
+		expect(state.revertTo).toHaveBeenCalledWith(sessionId, "t1");
+	});
+
+	it("tells the user when the message could not be copied", async () => {
+		const error = appError("clipboard", "The clipboard is busy.");
+		state.copyText.mockResolvedValue(err(error));
+		renderWithRouter(<UserMessage turn={turn()} sessionId={sessionId} />);
+		fireEvent.contextMenu(await screen.findByText("Hello there"));
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Copy message" }));
+		await waitFor(() =>
+			expect(state.toastError).toHaveBeenCalledWith("Couldn't copy the message", error),
+		);
+	});
+
+	it("stays quiet when a reset works", async () => {
+		state.revertTo.mockResolvedValue(ok(undefined));
+		renderWithRouter(<UserMessage turn={turn()} sessionId={sessionId} />);
+		fireEvent.click(await screen.findByRole("button", { name: "Revert to before this message" }));
+		await waitFor(() => expect(state.revertTo).toHaveBeenCalledTimes(1));
+		expect(state.toastError).not.toHaveBeenCalled();
 	});
 });

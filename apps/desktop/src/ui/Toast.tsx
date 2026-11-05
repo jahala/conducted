@@ -49,9 +49,18 @@ const useWorkspaceToastStore = create<WorkspaceToastState>()((set, get) => ({
 		}),
 }));
 
-/** Tell the toast host which workspace is open. `Toaster` does this when it receives `workspaceId`. */
+/**
+ * Tell the toast host which workspace is open, and dismiss the workspace toasts that belong to any other one.
+ * `Toaster` does this when it receives `workspaceId`; the app shell does it on every route change.
+ */
 export function setCurrentWorkspace(workspaceId: WorkspaceId | null): void {
-	useWorkspaceToastStore.getState().setOpen(workspaceId);
+	const { setOpen, owned, release } = useWorkspaceToastStore.getState();
+	setOpen(workspaceId);
+	for (const [id, owner] of Object.entries(owned)) {
+		if (owner === workspaceId) continue;
+		toast.dismiss(id);
+		release(id);
+	}
 }
 
 /** Ids of the workspace toasts that have not closed yet. */
@@ -106,19 +115,10 @@ export interface ToasterProps {
 }
 
 export function Toaster({ workspaceId }: ToasterProps = {}) {
-	const setOpen = useWorkspaceToastStore((state) => state.setOpen);
-	const owned = useWorkspaceToastStore((state) => state.owned);
-	const release = useWorkspaceToastStore((state) => state.release);
-
 	useEffect(() => {
 		if (workspaceId === undefined) return;
-		setOpen(workspaceId ?? null);
-		for (const [id, owner] of Object.entries(owned)) {
-			if (owner === workspaceId) continue;
-			toast.dismiss(id);
-			release(id);
-		}
-	}, [workspaceId, owned, release, setOpen]);
+		setCurrentWorkspace(workspaceId);
+	}, [workspaceId]);
 
 	return (
 		<Sonner

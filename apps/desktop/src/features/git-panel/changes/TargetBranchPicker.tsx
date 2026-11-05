@@ -4,9 +4,9 @@
  * branch, and by the header to change the workspace's target branch (GIT-08).
  * Behaviour: ui-map.md 3.6 ("Select target branch..."); services-map.md 3.6.6 (remote branch list,
  * newest first, without HEAD) and 3.11 (retarget).
- * Must handle: loading the branch list (it fetches), offline (use cached remote branches and say
- * so), no match for the query, the current target marked, and branches checked out in another
- * worktree (shown, not selectable as a checkout target).
+ * Must handle: loading the branch list (it fetches), a list that failed to load (the error's own
+ * message shows), no match for the query, and the current target marked. Branches checked out in
+ * another worktree and cached remote branches while offline come with GIT-08.
  * Test first: typing "rel" narrows ["main", "release/1"] to the second entry.
  */
 import { useId, useState } from "react";
@@ -18,7 +18,8 @@ export interface TargetBranchPickerProps {
 	current: string;
 	onSelect: (branch: string) => void;
 	loading: boolean;
-	offline: boolean;
+	/** Why the list could not be loaded, or null. */
+	error: string | null;
 }
 
 export function TargetBranchPicker({
@@ -26,7 +27,7 @@ export function TargetBranchPicker({
 	current,
 	onSelect,
 	loading,
-	offline,
+	error,
 }: TargetBranchPickerProps) {
 	const [query, setQuery] = useState("");
 	const listId = useId();
@@ -48,9 +49,9 @@ export function TargetBranchPicker({
 					className="w-full bg-transparent text-sm text-fg outline-none placeholder:text-fg-subtle"
 				/>
 			</div>
-			{offline ? (
-				<p className="px-2 pt-2 text-xs text-fg-subtle">
-					Offline: showing the branches from the last fetch.
+			{error !== null ? (
+				<p role="alert" className="px-2 pt-2 text-xs text-danger">
+					Couldn't load the branches. {error}
 				</p>
 			) : null}
 			<div
@@ -63,7 +64,7 @@ export function TargetBranchPicker({
 					<p role="status" className="px-2 py-2 text-sm text-fg-subtle">
 						Loading branches
 					</p>
-				) : matches.length === 0 ? (
+				) : error !== null ? null : matches.length === 0 ? (
 					<p className="px-2 py-2 text-sm text-fg-muted">No branches match</p>
 				) : (
 					matches.map((branch) => (

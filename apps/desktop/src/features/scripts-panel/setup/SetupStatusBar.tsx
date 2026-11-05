@@ -4,8 +4,9 @@
  * action (Stop, Run again, Ask agent to fix).
  * Behaviour: ui-map.md 3.7, "Setup" paragraph (state texts: running, failed, cancelled, detecting,
  * stopping).
- * Must handle: an exit code shown for failures, an interrupted-by-quit note, the action disabled
- * while a request is in flight, and a long reason text (two lines, expandable).
+ * Must handle: an exit code shown for failures, an interrupted-by-quit note, the actions disabled
+ * while a request is in flight, "Ask agent to fix" disabled when there is no chat to send to
+ * (Stop and Run again do not need one), and a long reason text (cut to two lines).
  * Test first: kind "running" shows a Stop action and kind "completed" shows Run again.
  */
 import type { ReactNode } from "react";
@@ -18,6 +19,8 @@ export interface SetupStatusBarProps {
 	exitCode: number | null;
 	interruptedReason: string | null;
 	busy: boolean;
+	/** False when there is no chat to send the fix request to. */
+	canAskAgent?: boolean;
 	onStop: () => void;
 	onRunAgain: () => void;
 	onAskAgentToFix: () => void;
@@ -37,6 +40,7 @@ export function SetupStatusBar({
 	exitCode,
 	interruptedReason,
 	busy,
+	canAskAgent = true,
 	onStop,
 	onRunAgain,
 	onAskAgentToFix,
@@ -65,7 +69,12 @@ export function SetupStatusBar({
 					</Button>
 				) : null}
 				{actions.askAgentToFix ? (
-					<Button variant="outline" size="xs" disabled={busy} onClick={onAskAgentToFix}>
+					<Button
+						variant="outline"
+						size="xs"
+						disabled={busy || !canAskAgent}
+						onClick={onAskAgentToFix}
+					>
 						Ask agent to fix
 					</Button>
 				) : null}

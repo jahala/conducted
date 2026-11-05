@@ -5,6 +5,7 @@
  * Must handle: No results; results without titles (show the address); many results (first 8).
  * Test first: A web_search call shows the query and one row per result.
  */
+import { ExternalLink } from "../../ExternalLink.tsx";
 import {
 	asRecord,
 	ToolCardFrame,
@@ -62,15 +63,13 @@ export function WebSearchCard({ call, defaultExpanded }: ToolCardProps) {
 										{result.title}
 									</span>
 								) : (
-									<a
+									<ExternalLink
 										key={key}
-										href={result.url}
-										target="_blank"
-										rel="noreferrer"
+										url={result.url}
 										className="truncate text-xs text-link hover:underline"
 									>
 										{result.title.length > 0 ? result.title : result.url}
-									</a>
+									</ExternalLink>
 								),
 						)}
 					</div>

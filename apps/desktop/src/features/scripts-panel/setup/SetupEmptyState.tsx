@@ -5,8 +5,8 @@
  * Behaviour: ui-map.md 3.7, "Setup" paragraph ("Add setup script" with "Ask agent" or "Add
  * manually"; text about running commands when a workspace is created to install dependencies; the
  * empty output text).
- * Must handle: "Ask agent" being disabled without a chat, "Add manually" opening the repository
- * Scripts settings page, and a shared script file that is read-only.
+ * Must handle: "Ask agent" being disabled without a chat, and "Add manually" opening the
+ * repository settings pages.
  * Test first: with no script, both actions show; with a script that has not run, neither does.
  */
 import { Button } from "../../../ui/Button.tsx";

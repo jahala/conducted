@@ -40,7 +40,7 @@ export interface DiffViewProps {
 	renderGutterUtility?: (
 		getHoveredLine: () => { lineNumber: number; side: DiffSide } | undefined,
 	) => ReactNode;
-	/** Scrolls to and highlights this comment, e.g. when opened from the Checks tab. */
+	/** Scrolls to this comment, e.g. when opened from the Checks tab. */
 	focusCommentId?: CommentId | null;
 	/** True when the user overrides the large-file guard. */
 	forceRender: boolean;
@@ -124,10 +124,12 @@ export function DiffView({
 		className: "conducted-diff",
 	};
 
+	// Whether the diff may be drawn does not depend on the warning being on screen: dismissing the
+	// "too large" notice, or an "updating" notice taking its place, must not draw the huge file.
 	const cannotRender =
-		visibleWarning === "binary" ||
-		visibleWarning === "too_large" ||
-		(visibleWarning === "updating" && diff.oldText === null && diff.newText === null);
+		diff.binary ||
+		(diff.tooLarge && !forceRender) ||
+		(updating && diff.oldText === null && diff.newText === null);
 
 	const oldFile = diff.oldText === null ? null : { name: diff.path, contents: diff.oldText };
 	const newFile = diff.newText === null ? null : { name: diff.path, contents: diff.newText };

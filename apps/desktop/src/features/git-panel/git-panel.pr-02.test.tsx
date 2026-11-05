@@ -30,6 +30,7 @@ vi.mock("../../core/hooks.ts", () => ({
 	useGitState: () => state.git,
 	useWorkspaceStatus: () => null,
 	useSetting: () => false,
+	useLiveShortcut: () => null,
 	useActions: () => ({
 		git: { commitAndPush: vi.fn() },
 		pullRequests: { create: state.create, requestAiReview: vi.fn() },

@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { appError, err } from "@conducted/shared";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatTurn } from "../../core/model.ts";
 
@@ -6,7 +7,10 @@ const state = vi.hoisted(() => ({
 	copyText: vi.fn(),
 	forkFrom: vi.fn(),
 	revertTo: vi.fn(),
+	toastError: vi.fn(),
 }));
+
+vi.mock("../../ui/Toast.tsx", () => ({ toastError: state.toastError }));
 
 vi.mock("../../core/hooks.ts", () => ({
 	useActions: () => ({
@@ -18,10 +22,11 @@ vi.mock("../../core/hooks.ts", () => ({
 const { TurnFooter } = await import("./TurnFooter.tsx");
 
 beforeEach(() => {
-	for (const fn of Object.values(state)) {
+	for (const fn of [state.copyText, state.forkFrom, state.revertTo]) {
 		fn.mockReset();
 		fn.mockResolvedValue({ ok: true, value: undefined });
 	}
+	state.toastError.mockReset();
 });
 afterEach(cleanup);
 
@@ -93,5 +98,47 @@ describe("CHAT-06 turn footer", () => {
 		fireEvent.keyDown(trigger, { key: "Enter" });
 		const reset = await screen.findByRole("menuitem", { name: "Reset chat" });
 		expect(reset.getAttribute("aria-disabled")).toBe("true");
+	});
+
+	async function openMenu() {
+		const trigger = screen.getByRole("button", { name: "More turn actions" });
+		trigger.focus();
+		fireEvent.keyDown(trigger, { key: "Enter" });
+	}
+
+	it("tells the user when a reset fails", async () => {
+		const error = appError("git_failed", "The checkpoint is gone.");
+		state.revertTo.mockResolvedValue(err(error));
+		render(<TurnFooter turn={turn({ startCheckpointId: "c1" })} sessionId={sessionId} />);
+		await openMenu();
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Reset chat" }));
+		await waitFor(() =>
+			expect(state.toastError).toHaveBeenCalledWith("Couldn't reset the chat", error),
+		);
+	});
+
+	it("tells the user when a fork fails", async () => {
+		const error = appError("git_failed", "Cannot fork.");
+		state.forkFrom.mockResolvedValue(err(error));
+		render(<TurnFooter turn={turn({ endCheckpointId: "c2" })} sessionId={sessionId} />);
+		await openMenu();
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Fork to new tab" }));
+		await waitFor(() =>
+			expect(state.toastError).toHaveBeenCalledWith("Couldn't fork the chat", error),
+		);
+	});
+
+	it("tells the user when a copy from the menu fails, and gives Fork a reason when disabled", async () => {
+		const error = appError("clipboard", "The clipboard is busy.");
+		state.copyText.mockResolvedValue(err(error));
+		render(<TurnFooter turn={turn()} sessionId={sessionId} />);
+		await openMenu();
+		const fork = await screen.findByRole("menuitem", { name: "Fork to new tab" });
+		expect(fork.getAttribute("aria-disabled")).toBe("true");
+		expect(fork.getAttribute("title")).toBe("This turn has no checkpoint to fork from.");
+		fireEvent.click(screen.getByRole("menuitem", { name: "Copy summary" }));
+		await waitFor(() =>
+			expect(state.toastError).toHaveBeenCalledWith("Couldn't copy the text", error),
+		);
 	});
 });

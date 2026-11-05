@@ -23,9 +23,12 @@ vi.mock("../../core/hooks.ts", () => ({
 	useLiveShortcut: (commandId: string) => (commandId === "workspace.switch2" ? "⌃2" : null),
 }));
 
-const { WorkspaceRow, relativeTime, workspaceName } = await import("./WorkspaceRow.tsx");
+const { WorkspaceRow, relativeTime } = await import("./WorkspaceRow.tsx");
 
 afterEach(cleanup);
+
+// The workspace helper below was last active at 1_000.
+const NOW = 1_000;
 
 function repo(): Repo {
 	return {
@@ -101,6 +104,7 @@ describe("NAV-03 WorkspaceRow", () => {
 				repo={repo()}
 				selected={false}
 				shortcutIndex={null}
+				now={NOW}
 			/>,
 		);
 		expect(await screen.findByText("Fix the login flow")).toBeTruthy();
@@ -110,7 +114,13 @@ describe("NAV-03 WorkspaceRow", () => {
 		hooks.status = null;
 		hooks.sessions = { state: "ready", data: [{ unreadCount: 2 } as Session] };
 		renderRow(
-			<WorkspaceRow workspace={workspace()} repo={repo()} selected={false} shortcutIndex={null} />,
+			<WorkspaceRow
+				workspace={workspace()}
+				repo={repo()}
+				selected={false}
+				shortcutIndex={null}
+				now={NOW}
+			/>,
 		);
 		expect(await screen.findByRole("img", { name: "Unread" })).toBeTruthy();
 	});
@@ -118,7 +128,9 @@ describe("NAV-03 WorkspaceRow", () => {
 	it("shows the status subtitle and marks the selected row", async () => {
 		hooks.status = { kind: "agent", label: "needs_permission" };
 		hooks.sessions = { state: "ready", data: [] };
-		renderRow(<WorkspaceRow workspace={workspace()} repo={repo()} selected shortcutIndex={1} />);
+		renderRow(
+			<WorkspaceRow workspace={workspace()} repo={repo()} selected shortcutIndex={1} now={NOW} />,
+		);
 		expect(await screen.findByText("Need permission")).toBeTruthy();
 		const link = screen.getByRole("link");
 		expect(link.getAttribute("aria-current")).toBe("page");
@@ -128,21 +140,55 @@ describe("NAV-03 WorkspaceRow", () => {
 		hooks.status = null;
 		hooks.sessions = { state: "ready", data: [] };
 		renderRow(
-			<WorkspaceRow workspace={workspace()} repo={repo()} selected={false} shortcutIndex={2} />,
+			<WorkspaceRow
+				workspace={workspace()}
+				repo={repo()}
+				selected={false}
+				shortcutIndex={2}
+				now={NOW}
+			/>,
 		);
 		expect(await screen.findByText("⌃2")).toBeTruthy();
 		expect(screen.queryByText("⌘2")).toBeNull();
 	});
 });
 
-describe("NAV-03 row helpers", () => {
-	it("falls back from the user's name to the PR title, branch and folder", () => {
-		expect(workspaceName(workspace({ displayName: "Mine" }))).toBe("Mine");
-		expect(workspaceName(workspace({ prTitle: "A pull request" }))).toBe("A pull request");
-		expect(workspaceName(workspace())).toBe("fix-login");
-		expect(workspaceName(workspace({ branch: "" }))).toBe("quiet-meadow");
+describe("NAV-03 row status", () => {
+	it("prints the status text and leaves the spinner out of the live regions", async () => {
+		hooks.status = { kind: "agent", label: "working" };
+		hooks.sessions = { state: "ready", data: [] };
+		renderRow(
+			<WorkspaceRow
+				workspace={workspace()}
+				repo={repo()}
+				selected={false}
+				shortcutIndex={null}
+				now={NOW}
+			/>,
+		);
+		expect(await screen.findByText("Working…")).toBeTruthy();
+		expect(screen.queryByRole("status")).toBeNull();
 	});
+});
 
+describe("NAV-03 row time", () => {
+	it("shows how long ago from the time the list gives it", async () => {
+		hooks.status = null;
+		hooks.sessions = { state: "ready", data: [] };
+		renderRow(
+			<WorkspaceRow
+				workspace={workspace()}
+				repo={repo()}
+				selected={false}
+				shortcutIndex={null}
+				now={1_000 + 5 * 60_000}
+			/>,
+		);
+		expect((await screen.findByRole("link")).querySelector("time")?.textContent).toBe("5m");
+	});
+});
+
+describe("NAV-03 row helpers", () => {
 	it("gives a short relative time", () => {
 		const now = 1_000_000;
 		expect(relativeTime(now - 5_000, now)).toBe("now");

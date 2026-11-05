@@ -4,8 +4,8 @@
  * rows from the model built by changed-file-tree.ts and tracks which row is selected.
  * Behaviour: ui-map.md 3.6, Changes paragraph (status, +/- lines, Viewed checkbox, conflict badge).
  * Must handle: thousands of files (windowed rendering), a selection that survives list updates
- * while the same path exists, keyboard selection with arrows, and folders collapsing and
- * expanding (the collapse set comes from the parent).
+ * while the same path exists, keyboard selection with arrows that scrolls the selected row into
+ * view, and folders collapsing and expanding (the collapse set comes from the parent).
  * Test first: with 5,000 files only the visible window of rows is in the DOM.
  */
 import { useEffect, useRef, useState } from "react";
@@ -87,7 +87,26 @@ export function ChangedFileList({
 					: paths.length - 1
 				: Math.min(paths.length - 1, Math.max(0, current + delta));
 		const path = paths[next];
-		if (path !== undefined) onSelect(path);
+		if (path === undefined) return;
+		onSelect(path);
+		scrollRowIntoView(path);
+	};
+
+	// The list is windowed, so a row below the window is not in the DOM to scroll to. This moves the
+	// scroll position by arithmetic: just far enough that the row's slot is inside the viewport.
+	const scrollRowIntoView = (path: string) => {
+		const element = containerRef.current;
+		if (element === null) return;
+		const index = nodes.findIndex((node) => node.kind === "file" && node.file.path === path);
+		if (index < 0) return;
+		const top = index * CHANGED_FILE_ROW_HEIGHT;
+		const bottom = top + CHANGED_FILE_ROW_HEIGHT;
+		let next = element.scrollTop;
+		if (top < next) next = top;
+		else if (bottom > next + viewportHeight) next = bottom - viewportHeight;
+		if (next === element.scrollTop) return;
+		element.scrollTop = next;
+		setScrollTop(next);
 	};
 
 	return (

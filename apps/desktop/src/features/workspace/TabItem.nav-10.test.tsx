@@ -55,4 +55,45 @@ describe("NAV-10 TabItem", () => {
 		);
 		expect(screen.getByRole("img", { name: "Unread" })).toBeTruthy();
 	});
+
+	it("selects on Enter and Space when the tab itself has focus", () => {
+		const onSelect = vi.fn();
+		render(<TabItem tab={tab} active={false} onSelect={onSelect} onClose={vi.fn()} />);
+		const item = screen.getByRole("tab", { name: "Fix login" });
+		fireEvent.keyDown(item, { key: "Enter" });
+		fireEvent.keyDown(item, { key: " " });
+		expect(onSelect).toHaveBeenCalledTimes(2);
+	});
+
+	it("leaves Enter on the close button to the button, so it can close the tab", () => {
+		const onSelect = vi.fn();
+		render(<TabItem tab={tab} active={false} onSelect={onSelect} onClose={vi.fn()} />);
+		// fireEvent returns false when a handler called preventDefault, which would cancel the click.
+		const notPrevented = fireEvent.keyDown(
+			screen.getByRole("button", { name: "Close Fix login" }),
+			{
+				key: "Enter",
+			},
+		);
+		expect(notPrevented).toBe(true);
+		expect(onSelect).not.toHaveBeenCalled();
+	});
+
+	it("shows the full title as a tooltip and reports a drag", () => {
+		const onDragStart = vi.fn();
+		render(
+			<TabItem
+				tab={tab}
+				active={false}
+				onSelect={vi.fn()}
+				onClose={vi.fn()}
+				onDragStart={onDragStart}
+			/>,
+		);
+		const item = screen.getByRole("tab", { name: "Fix login" });
+		expect(item.getAttribute("title")).toBe("Fix login");
+		expect(item.getAttribute("draggable")).toBe("true");
+		fireEvent.dragStart(item);
+		expect(onDragStart).toHaveBeenCalledTimes(1);
+	});
 });

@@ -5,7 +5,7 @@
  * Behaviour: ui-map.md 3.6, Changes paragraph. Row menu: "Copy path", "Copy relative path",
  * "Discard changes".
  * Must handle: renamed files (show old path and new path), binary files (no line counts, a
- * "binary" tag), conflicted files, a deleted file (no preview), a long path (middle truncation
+ * "binary" tag), conflicted files, a long path (middle truncation
  * from TruncatedText), discard asking for confirmation because it cannot be undone, and the
  * optional Viewed checkbox (shown only when the parent passes onToggleViewed) not opening the
  * file.

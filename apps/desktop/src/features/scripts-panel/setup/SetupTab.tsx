@@ -8,8 +8,9 @@
  * Data: useSetupState (shaped by setup-state.ts), useWorkspace, useSessions, useActions().
  * Children: SetupStatusBar, SetupEmptyState, terminal/TerminalView for live output.
  * Must handle: every SetupTabKind in setup-state.ts, Stop while running, "Run setup again" after a
- * failure, the fix action sending the failure log to the chat, a log that fails to load ("Couldn't
- * load the logs", with Retry), and an archived workspace.
+ * failure (it needs no chat), the fix action sending the failure log to the chat, a saved log
+ * that fails to load (the error's own message, with Retry), a Run again that fails for a reason
+ * other than the script failing (that reason shows in the toast), and an archived workspace.
  * Our design choice: "Add manually" opens the repository pages of Settings, because the per-repo
  * Scripts page has no route of its own yet.
  * Test first: kind "failed" shows the failure log and a fix action that calls the chat action once.
@@ -19,7 +20,11 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServices } from "../../../core/context.tsx";
 import { useActions, useSessions, useSetupState, useWorkspace } from "../../../core/hooks.ts";
-import { SETUP_FAILED_MESSAGE } from "../../../core/services/workspace.ts";
+import type { SetupView } from "../../../core/model.ts";
+import {
+	SETUP_FAILED_MESSAGE,
+	SETUP_LOG_MISSING_MESSAGE,
+} from "../../../core/services/workspace.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { Spinner } from "../../../ui/Spinner.tsx";
@@ -27,7 +32,7 @@ import { toast, toastError } from "../../../ui/Toast.tsx";
 import { TerminalView } from "../../terminal/TerminalView.tsx";
 import { SetupEmptyState } from "./SetupEmptyState.tsx";
 import { SetupStatusBar } from "./SetupStatusBar.tsx";
-import { SETUP_TAB_TEXT, setupTabKind } from "./setup-state.ts";
+import { SETUP_TAB_TEXT, type SetupTabKind, setupTabKind } from "./setup-state.ts";
 
 /** How many lines of the setup log the fix request carries. */
 export const SETUP_LOG_TAIL_LINES = 200;
@@ -52,33 +57,73 @@ export interface SetupTabProps {
 	workspaceId: WorkspaceId;
 }
 
+/** What the output area says when there is no terminal and no saved log to show. */
+function noOutputText(kind: SetupTabKind, log: SetupView["log"]): string {
+	if (log === "expired") return SETUP_LOG_MISSING_MESSAGE;
+	if (kind === "detecting") return SETUP_TAB_TEXT.detecting.body ?? NO_OUTPUT;
+	return NO_OUTPUT;
+}
+
+const NO_OUTPUT = "No setup output was recorded.";
+
+type SavedLog =
+	| { kind: "loading" }
+	| { kind: "text"; text: string }
+	| { kind: "error"; error: { message: string } };
+
+function SavedLogBody({ log, onRetry }: { log: SavedLog; onRetry: () => void }) {
+	if (log.kind === "loading") return <Spinner label="Loading the setup log" />;
+	if (log.kind === "error") {
+		return (
+			<div className="flex flex-col items-center gap-2">
+				<p className="text-sm font-medium text-fg">{SETUP_TAB_TEXT.log_missing.title}</p>
+				<p className="text-sm text-fg-muted">{log.error.message}</p>
+				<Button variant="outline" size="sm" onClick={onRetry}>
+					Retry
+				</Button>
+			</div>
+		);
+	}
+	return (
+		<pre className="max-h-full w-full overflow-auto whitespace-pre-wrap text-left text-code text-fg-muted">
+			{log.text}
+		</pre>
+	);
+}
+
 export function SetupTab({ workspaceId }: SetupTabProps) {
 	const setup = useSetupState(workspaceId);
 	const workspace = useWorkspace(workspaceId);
 	const sessions = useSessions(workspaceId);
 	const actions = useActions();
 	const navigate = useNavigate();
-	const services = useServices();
+	const workspaceService = useServices().services.workspace;
 	const [busy, setBusy] = useState(false);
-	const [logText, setLogText] = useState<string | null | undefined>(undefined);
+	const [log, setLog] = useState<SavedLog>({ kind: "loading" });
+	const [logAttempt, setLogAttempt] = useState(0);
 	const savedLog = setup.state === "ready" ? setup.data.log : null;
 	const savedTerminal = setup.state === "ready" ? setup.data.terminalId : null;
 
+	// The cleanup flag drops an answer that arrives after the workspace or the log has changed.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: logAttempt is the Retry trigger.
 	useEffect(() => {
 		let active = true;
+		setLog({ kind: "loading" });
 		if (savedLog !== "saved" || savedTerminal !== null) {
-			setLogText(undefined);
 			return () => {
 				active = false;
 			};
 		}
-		void services.services.workspace.readSetupLog(workspaceId).then((result) => {
-			if (active) setLogText(result.ok ? result.value : null);
+		void workspaceService.readSetupLog(workspaceId).then((result) => {
+			if (!active) return;
+			setLog(
+				result.ok ? { kind: "text", text: result.value } : { kind: "error", error: result.error },
+			);
 		});
 		return () => {
 			active = false;
 		};
-	}, [services, workspaceId, savedLog, savedTerminal]);
+	}, [workspaceService, workspaceId, savedLog, savedTerminal, logAttempt]);
 
 	if (setup.state === "loading" || workspace.state === "loading" || sessions.state === "loading") {
 		return (
@@ -112,7 +157,7 @@ export function SetupTab({ workspaceId }: SetupTabProps) {
 
 	const run = async (
 		work: () => Promise<Result<unknown>>,
-		onFailure: (error: { message: string }) => void,
+		onFailure: (error: { code: string; message: string }) => void,
 	): Promise<void> => {
 		setBusy(true);
 		try {
@@ -135,13 +180,18 @@ export function SetupTab({ workspaceId }: SetupTabProps) {
 	const runAgain = (): void => {
 		void run(
 			() => actions.workspaces.retrySetup(workspaceId),
-			() => toast.error(SETUP_FAILED_MESSAGE),
+			// The script failing has its own words. Any other reason (a missing workspace, a database
+			// error) is shown as it is.
+			(error) =>
+				error.code === "setup_failed"
+					? toast.error(SETUP_FAILED_MESSAGE)
+					: toastError("Couldn't run setup again", error),
 		);
 	};
 
 	const stop = (): void => {
 		void run(
-			() => services.services.workspace.cancelSetup(workspaceId),
+			() => workspaceService.cancelSetup(workspaceId),
 			(error) => toastError("Couldn't stop the setup script", error),
 		);
 	};
@@ -153,7 +203,7 @@ export function SetupTab({ workspaceId }: SetupTabProps) {
 			async () => {
 				let log: string | null = null;
 				if (view.log === "saved") {
-					const read = await services.services.workspace.readSetupLog(workspaceId);
+					const read = await workspaceService.readSetupLog(workspaceId);
 					if (read.ok) {
 						log = read.value;
 					} else {
@@ -182,7 +232,8 @@ export function SetupTab({ workspaceId }: SetupTabProps) {
 					kind={kind}
 					exitCode={view.exitCode}
 					interruptedReason={view.interruptedReason}
-					busy={busy || archived || (kind === "failed" && !canSendToChat)}
+					busy={busy || archived}
+					canAskAgent={canSendToChat}
 					onStop={stop}
 					onRunAgain={runAgain}
 					onAskAgentToFix={askAgentToFix}
@@ -223,21 +274,9 @@ export function SetupTab({ workspaceId }: SetupTabProps) {
 			{showStatus && !showOutput ? (
 				<div className="flex min-h-0 flex-1 items-center justify-center px-6 text-center">
 					{view.log === "saved" ? (
-						logText === undefined ? (
-							<Spinner label="Loading the setup log" />
-						) : logText === null ? (
-							<p className="text-sm text-fg-muted">
-								{SETUP_TAB_TEXT.log_missing.body ?? "No logs were recorded, or they have expired."}
-							</p>
-						) : (
-							<pre className="max-h-full w-full overflow-auto whitespace-pre-wrap text-left text-code text-fg-muted">
-								{logText}
-							</pre>
-						)
+						<SavedLogBody log={log} onRetry={() => setLogAttempt((attempt) => attempt + 1)} />
 					) : (
-						<p className="text-sm text-fg-muted">
-							{SETUP_TAB_TEXT.log_missing.body ?? "No setup output was recorded."}
-						</p>
+						<p className="text-sm text-fg-muted">{noOutputText(kind, view.log)}</p>
 					)}
 				</div>
 			) : null}

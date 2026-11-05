@@ -9,6 +9,7 @@ import type { Container } from "../../core/container.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import { ComposerService, type ComposerServiceDeps } from "../../core/services/composer.ts";
 import type { FileStat, FileSystem, Platform } from "../../platform/platform.ts";
+import { toast } from "../../ui/Toast.tsx";
 import { useDraftSync } from "./use-draft-sync.ts";
 
 const paths = { home: "/home", appData: "/app", temp: "/tmp", resources: "/res" };
@@ -245,6 +246,21 @@ describe("COMP-01 useDraftSync", () => {
 			text: "typed before restore",
 			attachmentPaths: ["/b.png"],
 		});
+	});
+
+	it("tells the user when the saved draft cannot be read", async () => {
+		const toastSpy = vi.spyOn(toast, "error").mockImplementation(() => "toast-id");
+		const session = "chat-a" as SessionId;
+		const { files, wrapper } = harness();
+		files.set(draftFile(paths, session), "{ not json");
+		const editor = fakeEditor();
+		renderHook(() => useDraftSync({ sessionId: session, editor: editor as unknown as Editor }), {
+			wrapper,
+		});
+		await waitFor(() =>
+			expect(toastSpy).toHaveBeenCalledWith("Couldn't restore the draft", expect.anything()),
+		);
+		toastSpy.mockRestore();
 	});
 
 	it("saves an attachment change to the current chat", async () => {

@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { ShortcutOverrides } from "../../core/registries/commands.ts";
 import type { GitHeader as GitHeaderModel } from "../../core/status/git-header.ts";
 import "../../test/dom-polyfills.ts";
 import { GitHeader } from "./GitHeader.tsx";
@@ -7,7 +8,20 @@ import { GitPanelTabs } from "./GitPanelTabs.tsx";
 import { ReviewButton } from "./ReviewButton.tsx";
 import { ReviewPromptDialog } from "./ReviewPromptDialog.tsx";
 
-afterEach(cleanup);
+const keys = vi.hoisted(() => ({ overrides: {} as Record<string, readonly string[]> }));
+
+vi.mock("../../core/hooks.ts", async () => {
+	const registry = await import("../../core/registries/commands.ts");
+	return {
+		useLiveShortcut: (commandId: string) =>
+			registry.liveShortcut(commandId, keys.overrides as ShortcutOverrides),
+	};
+});
+
+afterEach(() => {
+	cleanup();
+	keys.overrides = {};
+});
 
 const mergeModel: GitHeaderModel = {
 	kind: "ready_to_merge",
@@ -25,6 +39,20 @@ describe("REV-01 git header", () => {
 		fireEvent.click(button);
 		expect(onAction).toHaveBeenCalledTimes(1);
 		expect(onAction).toHaveBeenCalledWith("merge");
+	});
+
+	it("shows the user's own key binding on the button", () => {
+		keys.overrides = { "pr.merge": ["Cmd+Shift+K"] };
+		render(<GitHeader model={mergeModel} onAction={vi.fn()} />);
+		const button = screen.getByRole("button", { name: /Merge/ });
+		expect(button.textContent).toContain("K");
+		expect(button.textContent).not.toContain("M⌘");
+		expect(button.textContent).not.toMatch(/⇧⌘M/);
+	});
+
+	it("shows the title once", () => {
+		render(<GitHeader model={mergeModel} onAction={vi.fn()} />);
+		expect(screen.getAllByText("Ready to merge")).toHaveLength(1);
 	});
 
 	it("lets the button be used again after a failed action", async () => {

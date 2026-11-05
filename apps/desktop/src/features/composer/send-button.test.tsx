@@ -1,9 +1,34 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "../../test/dom-polyfills.ts";
+import { createStore } from "zustand/vanilla";
+import type { Container } from "../../core/container.ts";
+import { ServicesProvider } from "../../core/context.tsx";
+import type { SettingsState } from "../../core/services/settings.ts";
 import { SendButton, type SendButtonProps } from "./SendButton.tsx";
 
 afterEach(cleanup);
+
+/**
+ * The tooltip only reads the saved key bindings, so the container holds just the settings store.
+ * (`createTestContainer` needs a node environment and cannot be used under jsdom.)
+ * `keybindings` is the saved `keybinding_overrides_v1` text.
+ */
+const wrapperWith = (keybindings = "") => {
+	const settings = createStore<SettingsState>(() => ({
+		loaded: true,
+		values: { keybinding_overrides_v1: keybindings },
+		dropped: [],
+		warnings: [],
+	}));
+	const container = {
+		services: { settings: { store: settings, get: () => keybindings } },
+	} as unknown as Container;
+	return ({ children }: { children: ReactNode }) => (
+		<ServicesProvider container={container}>{children}</ServicesProvider>
+	);
+};
 
 const props = (over: Partial<SendButtonProps> = {}): SendButtonProps => ({
 	state: "send",
@@ -17,50 +42,64 @@ const props = (over: Partial<SendButtonProps> = {}): SendButtonProps => ({
 
 describe("COMP-01 SendButton", () => {
 	it("reads 'Send message' when the agent is idle", () => {
-		render(<SendButton {...props()} />);
+		render(<SendButton {...props()} />, { wrapper: wrapperWith() });
 		expect(screen.getByRole("button", { name: "Send message" })).toBeTruthy();
 		expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
 	});
 
 	it("reads 'Queue message' while the agent works and shows the Stop button", () => {
-		render(<SendButton {...props({ state: "queue", working: true })} />);
+		render(<SendButton {...props({ state: "queue", working: true })} />, {
+			wrapper: wrapperWith(),
+		});
 		expect(screen.getByRole("button", { name: "Queue message" })).toBeTruthy();
 		expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy();
 	});
 
 	it("reads 'Save edit' while a queued message is edited", () => {
-		render(<SendButton {...props({ state: "save" })} />);
+		render(<SendButton {...props({ state: "save" })} />, { wrapper: wrapperWith() });
 		expect(screen.getByRole("button", { name: "Save edit" })).toBeTruthy();
 	});
 
 	it("is disabled when there is nothing to send", () => {
-		render(<SendButton {...props({ disabled: true })} />);
+		render(<SendButton {...props({ disabled: true })} />, { wrapper: wrapperWith() });
 		expect(
 			(screen.getByRole("button", { name: "Send message" }) as HTMLButtonElement).disabled,
 		).toBe(true);
 	});
 
 	it("shows the send shortcut for the send mode", async () => {
-		const { unmount } = render(<SendButton {...props({ sendWith: "enter" })} />);
+		const { unmount } = render(<SendButton {...props({ sendWith: "enter" })} />, {
+			wrapper: wrapperWith(),
+		});
 		fireEvent.focus(screen.getByRole("button", { name: "Send message" }));
 		expect(await screen.findByText("↵")).toBeTruthy();
 		unmount();
 
-		render(<SendButton {...props({ sendWith: "mod_enter" })} />);
+		render(<SendButton {...props({ sendWith: "mod_enter" })} />, { wrapper: wrapperWith() });
 		fireEvent.focus(screen.getByRole("button", { name: "Send message" }));
 		expect(await screen.findByText("⌘↵")).toBeTruthy();
 	});
 
 	it("shows the cancel shortcut from the command registry", async () => {
-		render(<SendButton {...props({ working: true })} />);
+		render(<SendButton {...props({ working: true })} />, { wrapper: wrapperWith() });
 		fireEvent.focus(screen.getByRole("button", { name: "Cancel" }));
 		expect(await screen.findByText("⌘⇧⌫")).toBeTruthy();
+	});
+
+	it("shows the rebound cancel shortcut, not the shipped one", async () => {
+		const wrapper = wrapperWith(JSON.stringify({ "chat.cancelAgent": ["Cmd+Alt+K"] }));
+		render(<SendButton {...props({ working: true })} />, { wrapper });
+		fireEvent.focus(screen.getByRole("button", { name: "Cancel" }));
+		expect(await screen.findByText("⌥⌘K")).toBeTruthy();
+		expect(screen.queryByText("⌘⇧⌫")).toBeNull();
 	});
 
 	it("sends and stops through the callbacks", () => {
 		const onSend = vi.fn();
 		const onStop = vi.fn();
-		render(<SendButton {...props({ working: true, onSend, onStop })} />);
+		render(<SendButton {...props({ working: true, onSend, onStop })} />, {
+			wrapper: wrapperWith(),
+		});
 		fireEvent.click(screen.getByRole("button", { name: "Send message" }));
 		fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 		expect(onSend).toHaveBeenCalledTimes(1);

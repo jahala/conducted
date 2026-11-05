@@ -6,11 +6,11 @@
  * main list, footer). The window controls row is the floating <ShellControls> in app/. The organization
  * switcher is cloud only and is left out.
  * Our design choice: each region fails on its own inside <NotBuiltYet>, so a missing hook shows one line of text,
- * not a broken sidebar. The footer shows only things that exist: the update notice appears when an update is
- * waiting, the resource table when its setting is on. Settings is in the footer because the account menu that
- * holds it in Conductor is a cloud feature we leave out.
+ * not a broken sidebar. A footer region whose feature is not built (the update notice, APP-06, and the
+ * resource table, APP-07) shows its one-line "Not built yet" note until it is. Settings is in the footer
+ * because the account menu that holds it in Conductor is a cloud feature we leave out.
  * Must handle: sidebar narrower than a row's content (names truncate); no projects (empty state in the list
- * region); loading and error in the list region; footer regions are hidden when they have nothing to show.
+ * region); loading and error in the list region.
  * Test first: renders the navigation rows and, with no projects, the "No projects yet" empty state.
  */
 import { Link } from "@tanstack/react-router";

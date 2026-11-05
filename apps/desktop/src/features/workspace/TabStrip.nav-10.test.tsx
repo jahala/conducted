@@ -9,7 +9,7 @@
 import type { SessionId, WorkspaceId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from "vitest";
 import "../../test/dom-polyfills.ts";
 import { CommandRegistryProvider, createCommandRegistry } from "../../app/command-dispatcher.ts";
 import type { Loadable } from "../../core/api.ts";
@@ -148,7 +148,18 @@ beforeEach(() => {
 	}
 });
 
-afterEach(cleanup);
+// React warns about a missing list key once per file, so every test checks for it, not one.
+let consoleErrors: MockInstance<typeof console.error>;
+beforeEach(() => {
+	consoleErrors = vi.spyOn(console, "error").mockImplementation(() => {});
+});
+
+afterEach(() => {
+	const keyWarnings = consoleErrors.mock.calls.filter((call) => String(call[0]).includes("key"));
+	consoleErrors.mockRestore();
+	cleanup();
+	expect(keyWarnings).toEqual([]);
+});
 
 describe("NAV-10 TabStrip", () => {
 	it("selects the tab to its right when the active middle tab closes", async () => {
@@ -332,5 +343,53 @@ describe("NAV-10 TabStrip", () => {
 		await waitFor(() => expect(onSearchChange).toHaveBeenCalled());
 		registry.run("tab.reopenClosed");
 		await waitFor(() => expect(state.reopen).toHaveBeenCalledWith("one"));
+	});
+
+	it("renders sessions, terminals and a file tab together", () => {
+		state.sessions = { state: "ready", data: [session("one", "One")] };
+		state.terminals = {
+			state: "ready",
+			data: [
+				{ id: "t1", kind: "terminal", title: "Terminal 1" },
+				{ id: "t2", kind: "terminal", title: "Terminal 2" },
+			],
+		};
+		renderStrip({ search: { tab: "file", path: "a.ts" } });
+		expect(screen.getAllByRole("tab")).toHaveLength(4);
+	});
+
+	it("closes the chat once when 'Close tab' is chosen from its menu", async () => {
+		state.sessions = { state: "ready", data: [session("one", "One"), session("two", "Two")] };
+		const onSearchChange = vi.fn();
+		renderStrip({ search: { tab: "session", sessionId: "one" }, onSearchChange });
+		fireEvent.contextMenu(screen.getByRole("tab", { name: "One" }));
+		fireEvent.click(await screen.findByRole("menuitem", { name: /Close tab/ }));
+		await waitFor(() => expect(onSearchChange).toHaveBeenCalled());
+		expect(state.close).toHaveBeenCalledTimes(1);
+		expect(state.close).toHaveBeenCalledWith("one");
+	});
+
+	it("closes the other chats and keeps the chosen one with 'Close others'", async () => {
+		state.sessions = {
+			state: "ready",
+			data: [session("one", "One"), session("two", "Two"), session("three", "Three")],
+		};
+		const onSearchChange = vi.fn();
+		renderStrip({ search: { tab: "session", sessionId: "one" }, onSearchChange });
+		fireEvent.contextMenu(screen.getByRole("tab", { name: "Two" }));
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Close others" }));
+		await waitFor(() => expect(state.close).toHaveBeenCalledTimes(2));
+		expect(state.close.mock.calls.map((call) => call[0]).sort()).toEqual(["one", "three"]);
+		await waitFor(() =>
+			expect(onSearchChange).toHaveBeenCalledWith({ tab: "session", sessionId: "two" }),
+		);
+	});
+
+	it("disables 'Close others' when it is the only tab", async () => {
+		state.sessions = { state: "ready", data: [session("one", "One")] };
+		renderStrip({ search: { tab: "session", sessionId: "one" } });
+		fireEvent.contextMenu(screen.getByRole("tab", { name: "One" }));
+		const item = await screen.findByRole("menuitem", { name: "Close others" });
+		expect(item.getAttribute("aria-disabled")).toBe("true");
 	});
 });

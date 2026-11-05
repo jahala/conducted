@@ -9,7 +9,8 @@
  * update event marks the chat as typed in, so the previous chat's text left in the editor is not
  * mistaken for typing. Edits before the restore finishes are not written, so a chat switch cannot
  * save the previous chat's attachments into the new one. Attachments are remembered per chat.
- * Must handle: Switching chats before the pause ends (save the old chat's draft first); a send
+ * Must handle: a saved draft that cannot be read (the user is told; later typing saves again);
+ * Switching chats before the pause ends (save the old chat's draft first); a send
  * clears the draft; an empty editor removes the draft; typing before the restore arrives (keep it,
  * and do not overwrite it with the saved text); a draft for a closed chat is cleaned up by the
  * data-lifetime job.
@@ -23,6 +24,7 @@ import { useEffect, useRef } from "react";
 import type { Draft } from "../../core/api.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions } from "../../core/hooks.ts";
+import { toastError } from "../../ui/Toast.tsx";
 
 export interface DraftSyncProps {
 	sessionId: SessionId;
@@ -105,7 +107,8 @@ export function useDraftSync({
 			const result = await composer.loadDraft(sessionId);
 			if (cancelled) return;
 			if (!result.ok) {
-				// Let later typing save again; the unreadable file is left as it is.
+				// Tell the user the saved draft is lost, then let later typing save again.
+				toastError("Couldn't restore the draft", result.error);
 				restoredSession.current = sessionId;
 				return;
 			}

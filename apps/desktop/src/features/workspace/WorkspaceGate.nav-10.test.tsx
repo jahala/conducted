@@ -52,6 +52,14 @@ describe("NAV-10 WorkspaceGate", () => {
 		expect(screen.queryByText("content")).toBeNull();
 	});
 
+	it("shows any other load error with its own message, not the not-found card", () => {
+		state.workspace = { state: "error", error: appError("db", "The database is locked.") };
+		render(<WorkspaceGate workspaceId={id}>content</WorkspaceGate>);
+		expect(screen.getByText("Error loading workspace")).toBeTruthy();
+		expect(screen.getByText("The database is locked.")).toBeTruthy();
+		expect(screen.queryByText("Workspace not found")).toBeNull();
+	});
+
 	it("unarchives from the notice", async () => {
 		state.workspace = { state: "ready", data: { id, state: "archived" } as Workspace };
 		state.unarchive.mockResolvedValue({ ok: true, value: undefined });

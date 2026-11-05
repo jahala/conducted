@@ -13,12 +13,12 @@
  * a card whose expansion changes while it is on screen.
  * Test first: a done card starts collapsed and shows its body after the toggle is clicked.
  */
-import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useState } from "react";
 import type { ToolCallView } from "../../../core/model.ts";
 import { cn } from "../../../ui/cn.ts";
 import { ChevronDownIcon, ChevronRightIcon, WrenchIcon } from "../../../ui/icons.tsx";
 import { Spinner } from "../../../ui/Spinner.tsx";
+import { useWorkspaceLinks } from "../workspace-links.ts";
 
 export type ToolStatus = "running" | "done" | "error";
 
@@ -98,21 +98,12 @@ export function FileLink({
 	mode?: "diff" | "edit";
 	children?: ReactNode;
 }) {
-	const navigate = useNavigate();
+	const links = useWorkspaceLinks();
 	return (
 		<button
 			type="button"
 			title={path}
-			onClick={() => {
-				void navigate({
-					search: ((previous: Record<string, unknown>) => ({
-						...previous,
-						tab: "file",
-						path,
-						fileMode: mode,
-					})) as never,
-				});
-			}}
+			onClick={() => links.openFile(path, mode)}
 			className="max-w-full truncate rounded-xs font-mono text-xs text-link hover:underline"
 		>
 			{children ?? path}
