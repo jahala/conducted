@@ -436,6 +436,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		db: platform.db,
 		repositories: () => repositories,
 		repositoriesOn: (tx) => createRepositories(tx, repositoryDeps),
+		fs: platform.fs,
 		sidecar: client,
 		composer,
 		queue: followUpQueue,

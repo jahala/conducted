@@ -1,15 +1,22 @@
 /**
  * @feature CHAT-01 Sessions service: the chat list; CHAT-02 Send a message as a new turn; CHAT-05
- * Cancel a turn; CHAT-27 Retry a failed turn in a new chat
+ * Cancel a turn; CHAT-27 Retry a failed turn in a new chat; WS-10 Delete a workspace's chats
  * Owns: the list of chats per workspace, their stored live state and events in memory, the
+<<<<<<< HEAD
  * create, close, reopen, rename, set-title-if-empty, delete and open paths, starting a review chat
  * with the review model, sending a user message as a new turn or a steer, running the composition
  * root's first-message hook (WS-04's branch rename), cancelling a turn:
+=======
+ * create, close, reopen, rename, set-title-if-empty, delete and open paths, deleting every chat
+ * of a workspace with its attachment files and drafts, starting a review chat with the review
+ * model, sending a user message as a new turn or a steer, cancelling a turn:
+>>>>>>> node/ws.10
  * pausing the follow-up queue, withdrawing the open interaction, removing only the pending sends
  * the sidecar dropped, and putting a send that was still in flight back in the composer draft,
  * and starting a failed turn's message again in a new chat of the same workspace.
- * Behaviour: services-map.md 2.3.3 (session operations), 2.2 (the sessions table), 2.3.4
- * (composer outbox: restore to draft), ui-map.md 3.2, sessions-and-chats.md "What happens when
+ * Behaviour: services-map.md 2.3.1 (workspace delete deletes its chats), 2.3.3 (session
+ * operations), 2.2 (the sessions table), 2.3.4 (composer outbox: restore to draft), ui-map.md
+ * 3.2, sessions-and-chats.md "What happens when
  * you send a message" and "While the agent is working" (cancel), sessions.md 6.
  * Must handle: a closed chat stays in history and leaves the open list; a reopened chat returns to
  * the open list; an empty title is refused; stored events load once, in `idx` order; a message is
@@ -19,7 +26,9 @@
  * caller saw, so a late answer cannot overwrite a newer choice; a cancel withdraws the open
  * interaction, takes back the messages the sidecar dropped and returns an in-flight send to the
  * draft; a sidecar that refuses the cancel changes nothing; cancelAll reaches every working chat
- * of a workspace and no idle one; a live state from the sidecar is shown as it arrives and an
+ * of a workspace and no idle one; deleting a workspace's chats moves their attachment files and
+ * drafts to the Trash before the rows go, and a missing file is nothing to do; a live state from
+ * the sidecar is shown as it arrives and an
  * open interaction in it becomes the chat's card, while a live state without one withdraws the
  * card; a chat the sidecar lost gets every open turn closed as `interrupted` in one transaction
  * and an idle live state, while its agent session id stays for resume and a failed live-state
@@ -72,7 +81,7 @@ import {
 	type WorkspaceId,
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
-import type { Database } from "../../platform/platform.ts";
+import type { Database, FileSystem } from "../../platform/platform.ts";
 import type { Draft, NewWorkspaceInput } from "../api.ts";
 import { fireAndForget } from "../async/fire-and-forget.ts";
 import { createKeyedQueue, type KeyedQueue } from "../async/serial-queue.ts";
@@ -238,6 +247,8 @@ export interface SessionsServiceDeps {
 	 * The composition root passes the same factory it gives `EventIngest`.
 	 */
 	repositoriesOn: (db: Database) => Repositories;
+	/** Moves attachment files to the Trash when a chat is deleted. */
+	fs: Pick<FileSystem, "exists" | "trash">;
 	sidecar: Pick<SidecarClient, "request" | "notify">;
 	composer: Pick<
 		ComposerService,
@@ -1245,8 +1256,31 @@ export class SessionsService implements AgentMessenger {
 	}
 
 	/** Deletes the chats, events and attachment files of a workspace that is being removed. */
-	deleteAll(_workspaceId: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("WS-10");
+	async deleteAll(workspaceId: WorkspaceId): Promise<Result<void>> {
+		const listed = await this.#deps.repositories().sessions.listByWorkspace(workspaceId, {
+			includeClosed: true,
+		});
+		if (!listed.ok) return listed;
+		for (const session of listed.value) {
+			const attachments = await this.#deps.repositories().attachments.listBySession(session.id);
+			if (!attachments.ok) return attachments;
+			for (const attachment of attachments.value) {
+				const trashed = await this.#trashIfPresent(attachment.path);
+				if (!trashed.ok) return trashed;
+			}
+			const draft = await this.#deps.composer.clearDraft(session.id);
+			if (!draft.ok) return draft;
+			const removed = await this.delete(session.id);
+			if (!removed.ok) return removed;
+		}
+		return ok(undefined);
+	}
+
+	/** Moves a file to the Trash, and treats a missing file as nothing to do. */
+	async #trashIfPresent(path: string): Promise<Result<void>> {
+		const exists = await this.#deps.fs.exists(path);
+		if (!exists) return ok(undefined);
+		return this.#deps.fs.trash(path);
 	}
 
 	/** Starts a chat with the review model and sends `text`. Used by the AI review. */
