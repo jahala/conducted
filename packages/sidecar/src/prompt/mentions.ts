@@ -1,10 +1,10 @@
 /**
  * @feature SIDE-09 Prompt assembly: mentions
- * Owns: the text form of "@" file mentions and "#" pull-request mentions inside a message, and
- * their expansion into what the agent reads.
+ * Owns: the text form of "@" file mentions and "#" pull-request mentions inside a message, their
+ * expansion into what the agent reads, and the stub file a pull-request mention points at.
  * Behaviour: research/conductor/sessions.md section 9 "Message enrichment" and claude-runner.md
- * section 5 item 4 (file mentions are resolved to paths; a pull-request mention becomes a link to a
- * stub file `.context/pull-requests/<n>.md` that is written once and never overwritten).
+ * section 5 item 4 (file mentions are resolved to paths; a pull-request mention becomes a link to
+ * a stub file `.context/pull-requests/<n>.md` that is written once and never overwritten).
  * Must handle: several mentions in one message, a mention at the start or end, a path that
  * contains spaces, text that only looks like a mention (an unterminated token stays as typed),
  * the same pull request mentioned twice (one stub), and a stub that already exists (kept, because
@@ -24,6 +24,8 @@ export interface PullRequestMention {
 export interface ExpandedMentions {
 	text: string;
 	pullRequests: PullRequestMention[];
+	/** Paths named by valid file tokens, in order, once each. */
+	filePaths: string[];
 }
 
 /** Where the stub for a pull request lives, relative to the workspace folder. */
@@ -32,19 +34,40 @@ export function pullRequestStubPath(number: number): string {
 }
 
 export function expandMentions(text: string): ExpandedMentions {
-	const seen = new Set<number>();
+	const seenPullRequests = new Set<number>();
+	const seenFiles = new Set<string>();
 	const pullRequests: PullRequestMention[] = [];
+	const filePaths: string[] = [];
 	const expanded = text.replace(MENTION_TOKEN, (token, kind: string, value: string) => {
 		if (kind === "file") {
-			return value === "" ? token : value;
+			if (value === "") return token;
+			if (!seenFiles.has(value)) {
+				seenFiles.add(value);
+				filePaths.push(value);
+			}
+			return value;
 		}
 		const number = Number(value);
 		if (!Number.isInteger(number) || number <= 0) return token;
-		if (!seen.has(number)) {
-			seen.add(number);
+		if (!seenPullRequests.has(number)) {
+			seenPullRequests.add(number);
 			pullRequests.push({ number });
 		}
 		return `[pull request ${number}](${pullRequestStubPath(number)})`;
 	});
-	return { text: expanded, pullRequests };
+	return { text: expanded, pullRequests, filePaths };
+}
+
+/** The file paths named by mentions inside a text, such as a review-comment attachment. */
+export function fileMentionPaths(text: string): string[] {
+	return expandMentions(text).filePaths;
+}
+
+/** The small markdown stub a pull-request mention links to. */
+export function buildPullRequestStub(number: number, repositoryFullName?: string): string {
+	const lines = [`# Pull request #${number}`];
+	if (repositoryFullName !== undefined && repositoryFullName.trim() !== "") {
+		lines.push("", `GitHub URL: https://github.com/${repositoryFullName.trim()}/pull/${number}`);
+	}
+	return `${lines.join("\n")}\n`;
 }
