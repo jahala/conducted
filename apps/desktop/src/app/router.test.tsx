@@ -132,13 +132,13 @@ describe("routes", () => {
 		expect(screen.getByRole("complementary", { name: "Sidebar" })).toBeTruthy();
 	});
 
-	it("shows the workspace screen with every region", async () => {
+	it("shows the workspace screen with its regions", async () => {
 		await openApp("/repository/r1/workspace/w1?tab=pr");
 		const main = await screen.findByRole("main");
 		expect(await within(main).findByText("Git panel")).toBeTruthy();
 		expect(within(main).getByText("Scripts")).toBeTruthy();
-		expect(within(main).getByText("Tabs: Not built yet: NAV-10")).toBeTruthy();
-		expect(within(main).getByText("Workspace header: Not built yet: NAV-10")).toBeTruthy();
+		// The fixture has no workspace rows, so the centre explains that the workspace is missing.
+		expect(within(main).getByText("Error loading workspace")).toBeTruthy();
 	});
 
 	it("ignores a bad tab in the workspace URL instead of failing", async () => {

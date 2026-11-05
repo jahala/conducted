@@ -6,9 +6,9 @@
  * 3.2 (archived workspace).
  * Our design choice: the gate wraps only the centre content. The header, tab strip and right panel stay in place
  * so the window does not jump.
- * Must handle: loading; error with "Try again" (also for an id that matches nothing: the hook returns an error
- * state, never throws); archived;
- * a workspace in "initializing" or "failed" state (shown by the header and Git panel, tabs stay usable).
+ * Must handle: loading; an error, including for an id that matches nothing (the hook returns an error
+ * state, never throws); archived; a workspace in "initializing" or "failed" state (shown by the
+ * header and Git panel, tabs stay usable).
  * Test first: an archived workspace shows "This workspace is archived"; a ready one renders its children.
  */
 import type { WorkspaceId } from "@conducted/shared";
@@ -43,7 +43,7 @@ export function WorkspaceGate({
 		<LoadableView
 			value={workspace}
 			loadingLabel="Loading workspace"
-			errorTitle="Couldn't open this workspace"
+			errorTitle="Error loading workspace"
 		>
 			{(data) =>
 				data.state === "archived" ? (

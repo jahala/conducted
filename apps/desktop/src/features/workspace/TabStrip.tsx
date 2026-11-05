@@ -4,20 +4,37 @@
  * browser previews, with the '+' menu and chat history.
  * Behaviour: ui-map.md 3.2 (tab types with icon and close button; middle click closes; chat tab
  * fixed width with status icon, title and unread dot; '+' menu 'New chat', 'Browser', 'Local
- * terminal'; the tab limit; 'View chat history').
- * Our design choice: The tab limit is a setting; the default is not verified (ui-map.md 10) and
- * must be chosen when the setting is built. Tabs scroll sideways when they do not fit. The cloud
- * desktop tab is left out.
- * Must handle: Many tabs (scroll, keep the active tab in view); at the tab limit (new-tab buttons
- * disabled with a reason); closing the active tab opens its neighbour; closing the last chat (a new
- * chat is created for local workspaces); error card 'Tabs failed to load' with Retry; archived
- * workspace (no tabs); reopen closed tab.
- * Test first: Closing the active middle tab selects the tab to its right; at the limit the '+' menu
- * is disabled.
+ * terminal'; the tab limit; 'View chat history'), 5.4 (previous, next, close and reopen shortcuts).
+ * Our design choice: The open chats and workspace terminals are the tabs. A file, comment, PR or
+ * browser tab is the tab the URL names, so the URL stays the one source of truth for the open tab.
+ * The tab limit is five, or ten with Tab Freak Mode.
+ * Must handle: Many tabs (scroll); at the tab limit (new-tab menu disabled); closing the active tab
+ * opens its neighbour; error card 'Tabs failed to load' with Retry; reopening the last closed chat.
+ * Test first: Closing the active middle tab selects the tab to its right; at the limit the '+'
+ * menu is disabled.
  */
-
 import type { WorkspaceId } from "@conducted/shared";
-import { notImplemented } from "@conducted/shared";
+import { useRef, useState } from "react";
+import { useStore } from "zustand";
+import { useCommandHandler } from "../../app/command-dispatcher.ts";
+import { useServices } from "../../core/context.tsx";
+import {
+	useActions,
+	useSessions,
+	useSetting,
+	useTerminals,
+	useWorkspace,
+} from "../../core/hooks.ts";
+import type { Session, Terminal } from "../../core/model.ts";
+import { Button } from "../../ui/Button.tsx";
+import { EmptyState } from "../../ui/EmptyState.tsx";
+import { toastError } from "../../ui/Toast.tsx";
+import { resolveActiveTab } from "./active-tab.ts";
+import { ChatHistoryButton } from "./ChatHistoryButton.tsx";
+import { NewTabMenu } from "./NewTabMenu.tsx";
+import { TabContextMenu } from "./TabContextMenu.tsx";
+import { TabItem } from "./TabItem.tsx";
+import { neighbourAfterClose, type TabDescriptor } from "./tab-layout.ts";
 import type { WorkspaceSearch } from "./workspace-search.ts";
 
 export interface TabStripProps {
@@ -26,6 +43,336 @@ export interface TabStripProps {
 	onSearchChange: (patch: Partial<WorkspaceSearch>) => void;
 }
 
-export function TabStrip(_props: TabStripProps): never {
-	return notImplemented("NAV-10");
+const hostOf = (url: string): string => {
+	try {
+		return new URL(url).host;
+	} catch {
+		return url;
+	}
+};
+
+/** The tab the URL names, when it is a file, comment, PR or browser tab. */
+export function specialTab(search: WorkspaceSearch, prNumber: number | null): TabDescriptor | null {
+	const tab = resolveActiveTab(search);
+	switch (tab.kind) {
+		case "file":
+			return {
+				kind: "file",
+				ref: `file:${tab.path}`,
+				title: tab.path,
+			};
+		case "comment":
+			return {
+				kind: "comment",
+				ref: `comment:${tab.commentId}`,
+				title: "Comment",
+			};
+		case "pr":
+			return { kind: "pr", ref: "pr", title: prNumber === null ? "PR" : `PR #${prNumber}` };
+		case "browser":
+			return {
+				kind: "browser",
+				ref: `browser:${tab.url}`,
+				title: hostOf(tab.url),
+			};
+		default:
+			return null;
+	}
+}
+
+export function chatTabs(sessions: readonly Session[]): TabDescriptor[] {
+	return sessions.map((session) => ({
+		kind: "session",
+		ref: `session:${session.id}`,
+		title: session.title ?? "New chat",
+		sessionId: session.id,
+		unread: session.unreadCount > 0,
+	}));
+}
+
+export function terminalTabs(terminals: readonly Terminal[]): TabDescriptor[] {
+	return terminals
+		.filter((terminal) => terminal.kind === "terminal")
+		.map((terminal, index) => ({
+			kind: "terminal",
+			ref: `terminal:${terminal.id}`,
+			title: terminal.title || `Terminal ${index + 1}`,
+			terminalId: terminal.id,
+		}));
+}
+
+/** The open tabs in reading order: chats, then terminals, then the tab the URL names. */
+export function buildTabs({
+	sessions,
+	terminals,
+	search,
+	prNumber,
+}: {
+	sessions: readonly Session[];
+	terminals: readonly Terminal[];
+	search: WorkspaceSearch;
+	prNumber: number | null;
+}): TabDescriptor[] {
+	const special = specialTab(search, prNumber);
+	return [
+		...chatTabs(sessions),
+		...terminalTabs(terminals),
+		...(special === null ? [] : [special]),
+	];
+}
+
+function patchFor(tab: TabDescriptor): Partial<WorkspaceSearch> {
+	switch (tab.kind) {
+		case "session":
+			return { tab: "session", sessionId: tab.sessionId };
+		case "terminal":
+			return { tab: "terminal", terminalId: tab.terminalId };
+		case "file":
+			return { tab: "file", path: tab.ref.slice("file:".length) };
+		case "comment":
+			return { tab: "comment", commentId: tab.ref.slice("comment:".length) };
+		case "pr":
+			return { tab: "pr" };
+		case "browser":
+			return { tab: "browser", browserUrl: tab.ref.slice("browser:".length) };
+	}
+}
+
+const NOTHING: Partial<WorkspaceSearch> = {
+	tab: undefined,
+	sessionId: undefined,
+	terminalId: undefined,
+	path: undefined,
+	commentId: undefined,
+	browserUrl: undefined,
+};
+
+export function TabStrip({ workspaceId, search, onSearchChange }: TabStripProps) {
+	const actions = useActions();
+	const services = useServices();
+	const sessions = useSessions(workspaceId);
+	const terminals = useTerminals(workspaceId);
+	const workspace = useWorkspace(workspaceId);
+	const tabFreakMode = useSetting<boolean>("experimental_tab_freak_mode");
+	const liveStates = useStore(services.services.sessions.store, (state) => state.liveStates);
+	const lastClosed = useRef<TabDescriptor | null>(null);
+	const [retrying, setRetrying] = useState(false);
+
+	const limit = tabFreakMode ? 10 : 5;
+	const openSessions = sessions.state === "ready" ? sessions.data : [];
+	const openTerminals = terminals.state === "ready" ? terminals.data : [];
+	const prNumber = workspace.state === "ready" ? workspace.data.prNumber : null;
+	const tabs = buildTabs({
+		sessions: openSessions,
+		terminals: openTerminals,
+		search,
+		prNumber,
+	}).map((tab) => {
+		if (tab.kind !== "session" || tab.sessionId === undefined) return tab;
+		const live = liveStates[tab.sessionId];
+		const status =
+			live?.openInteraction !== undefined
+				? ({ kind: "agent", label: "needs_answer" } as const)
+				: live?.status === "working"
+					? ({ kind: "agent", label: "working" } as const)
+					: null;
+		return { ...tab, status };
+	});
+
+	const activeTab = resolveActiveTab(search);
+	const activeRef =
+		activeTab.kind === "session"
+			? `session:${activeTab.sessionId}`
+			: activeTab.kind === "terminal"
+				? `terminal:${activeTab.terminalId}`
+				: activeTab.kind === "file"
+					? `file:${activeTab.path}`
+					: activeTab.kind === "comment"
+						? `comment:${activeTab.commentId}`
+						: activeTab.kind === "pr"
+							? "pr"
+							: activeTab.kind === "browser"
+								? `browser:${activeTab.url}`
+								: null;
+
+	const select = (tab: TabDescriptor) => onSearchChange(patchFor(tab));
+	const showNeighbour = (tab: TabDescriptor) => {
+		const neighbour = neighbourAfterClose(tabs, tab.ref);
+		if (neighbour === null) onSearchChange(NOTHING);
+		else select(neighbour);
+	};
+
+	const close = async (tab: TabDescriptor) => {
+		lastClosed.current = tab;
+		if (tab.kind === "session" && tab.sessionId !== undefined) {
+			const result = await actions.sessions.close(tab.sessionId);
+			if (!result.ok) {
+				toastError("Couldn't close the chat", result.error);
+				return;
+			}
+		}
+		if (tab.kind === "terminal" && tab.terminalId !== undefined) {
+			const result = await actions.terminals.close(tab.terminalId);
+			if (!result.ok) {
+				toastError("Couldn't close the terminal", result.error);
+				return;
+			}
+		}
+		showNeighbour(tab);
+	};
+
+	const go = (offset: number) => {
+		if (tabs.length === 0) return;
+		const index = tabs.findIndex((tab) => tab.ref === activeRef);
+		const next = index === -1 ? tabs[0] : tabs[(index + offset + tabs.length) % tabs.length];
+		if (next !== undefined) select(next);
+	};
+
+	const reopen = async (): Promise<boolean> => {
+		const tab = lastClosed.current;
+		if (tab === null) return false;
+		if (tab.kind === "session" && tab.sessionId !== undefined) {
+			const result = await actions.sessions.reopen(tab.sessionId);
+			if (!result.ok) {
+				toastError("Couldn't reopen the chat", result.error);
+				return true;
+			}
+		}
+		if (tab.kind === "terminal" && !tabs.some((current) => current.ref === tab.ref)) {
+			toastError("Couldn't reopen the terminal", {
+				message: "That terminal has ended. Open a new one from the + menu.",
+			});
+			return true;
+		}
+		select(tab);
+		return true;
+	};
+
+	const active = tabs.find((tab) => tab.ref === activeRef) ?? null;
+	const closable = openSessions.length + terminalTabs(openTerminals).length;
+	const atTabLimit = closable >= limit;
+	const creating = useRef(false);
+
+	useCommandHandler("chat.newTab", "base", () => {
+		if (atTabLimit || creating.current) return false;
+		creating.current = true;
+		void (async () => {
+			try {
+				const created = await services.services.sessions.createFromDefaults(workspaceId);
+				if (!created.ok) {
+					toastError("Couldn't start a chat", created.error);
+					return;
+				}
+				onSearchChange({ tab: "session", sessionId: created.value.id });
+			} finally {
+				creating.current = false;
+			}
+		})();
+		return true;
+	});
+	useCommandHandler("tab.previous", "base", () => {
+		go(-1);
+		return true;
+	});
+	useCommandHandler("tab.next", "base", () => {
+		go(1);
+		return true;
+	});
+	useCommandHandler("tab.close", "base", () => {
+		if (active === null) return false;
+		void close(active);
+		return true;
+	});
+	useCommandHandler("tab.reopenClosed", "base", () => {
+		void reopen();
+		return true;
+	});
+
+	const retry = async () => {
+		if (retrying) return;
+		setRetrying(true);
+		try {
+			const chats = await services.services.sessions.start();
+			const opened = await services.services.terminals.loadWorkspace(workspaceId);
+			if (!chats.ok) toastError("Couldn't load the chats", chats.error);
+			if (!opened.ok) toastError("Couldn't load the terminals", opened.error);
+		} finally {
+			setRetrying(false);
+		}
+	};
+
+	const failed =
+		(sessions.state === "error" && sessions.error) ||
+		(terminals.state === "error" && terminals.error) ||
+		false;
+
+	if (failed) {
+		return (
+			<div className="flex h-10 items-center border-b border-separator px-4">
+				<EmptyState
+					compact
+					tone="failed"
+					title="Tabs failed to load"
+					body={failed.message}
+					action={
+						<Button variant="secondary" size="sm" loading={retrying} onClick={() => void retry()}>
+							Retry
+						</Button>
+					}
+				/>
+			</div>
+		);
+	}
+
+	const loading = sessions.state === "loading" || terminals.state === "loading";
+
+	return (
+		<div
+			role="tablist"
+			aria-label="Workspace tabs"
+			className="flex h-10 shrink-0 items-center gap-2 overflow-x-auto border-b border-separator bg-surface px-4"
+		>
+			{tabs.map((tab) => {
+				const item = (
+					<TabItem
+						tab={tab}
+						active={tab.ref === activeRef}
+						onSelect={() => select(tab)}
+						onClose={() => void close(tab)}
+						onDragStart={(event) => {
+							event.dataTransfer.setData("application/x-conducted-tab", tab.ref);
+							event.dataTransfer.effectAllowed = "move";
+						}}
+					/>
+				);
+				const session =
+					tab.kind === "session" && tab.sessionId !== undefined
+						? openSessions.find((candidate) => candidate.id === tab.sessionId)
+						: undefined;
+				if (session === undefined) return item;
+				return (
+					<TabContextMenu
+						key={tab.ref}
+						sessionId={session.id}
+						session={session}
+						workspaceId={workspaceId}
+						onClose={() => void close(tab)}
+					>
+						<div className="flex shrink-0">{item}</div>
+					</TabContextMenu>
+				);
+			})}
+			{loading && tabs.length === 0 ? (
+				<span role="status" className="px-2 text-xs text-fg-subtle">
+					Loading tabs
+				</span>
+			) : null}
+			<NewTabMenu
+				workspaceId={workspaceId}
+				atTabLimit={atTabLimit}
+				onSearchChange={onSearchChange}
+			/>
+			<ChatHistoryButton workspaceId={workspaceId} onSearchChange={onSearchChange} />
+		</div>
+	);
 }

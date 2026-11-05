@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { activeTabKey, resolveActiveTab } from "./active-tab.ts";
 
-describe("resolveActiveTab", () => {
+describe("NAV-10 resolveActiveTab", () => {
 	it("opens a file in diff mode on the branch scope by default", () => {
 		expect(resolveActiveTab({ tab: "file", path: "a.ts" })).toEqual({
 			kind: "file",
@@ -34,7 +34,7 @@ describe("resolveActiveTab", () => {
 	});
 });
 
-describe("activeTabKey", () => {
+describe("NAV-10 activeTabKey", () => {
 	it("differs between two terminals and is stable for one", () => {
 		const a = resolveActiveTab({ tab: "terminal", terminalId: "t1" });
 		const b = resolveActiveTab({ tab: "terminal", terminalId: "t2" });
