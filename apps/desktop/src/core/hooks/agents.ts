@@ -1,6 +1,7 @@
 /**
  * @feature DATA-01 Query hook contract for screens
- * Owns: the agent-catalog hooks: installs, models, slash commands, providers and config files.
+ * Owns: the agent-catalog hooks: installs, models, slash commands, providers and config files,
+ * and the ACP chat options hook (AGENT-17).
  * Behaviour: services-map.md 2.5; core/hooks.ts states the contract.
  * Must handle: a model list that has not loaded, a catalog entry that is missing.
  * Test first: the test for a hook body lives with the feature that implements it.
@@ -28,6 +29,13 @@ export const useModels: Queries["useModels"] = (agent, acpAgent) => {
 export const useSlashCommands: Queries["useSlashCommands"] = () => notImplemented("COMP-06");
 export const useProviderKeys: Queries["useProviderKeys"] = () => notImplemented("SET-09");
 export const useAgentProviders: Queries["useAgentProviders"] = () => notImplemented("SET-10");
-export const useAcpConfigOptions: Queries["useAcpConfigOptions"] = () => notImplemented("AGENT-17");
+export const useAcpConfigOptions: Queries["useAcpConfigOptions"] = (sessionId) => {
+	const service = useServices().services.sessions;
+	const options = useStore(service.store, (state) => state.acpConfigOptions?.[sessionId]);
+	useEffect(() => {
+		if (options === undefined) void service.loadAcpConfigOptions(sessionId);
+	}, [service, sessionId, options]);
+	return options ?? { state: "loading" };
+};
 export const useAgentConfigFile: Queries["useAgentConfigFile"] = () => notImplemented("SET-12");
 export const useConfigSyncPreview: Queries["useConfigSyncPreview"] = () => notImplemented("SET-08");

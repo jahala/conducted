@@ -31,6 +31,8 @@ function deps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
 			setAutoApproveEdits: async () => ({}),
 			getSessionStatus: async () => ({ known: true }),
 			answerInteraction: async () => ({ accepted: true, superseded: false }),
+			listAcpConfigOptions: async () => ({ options: [] }),
+			setAcpConfigOption: async () => ({ options: [] }),
 			liveStateOf: () => undefined,
 			onAppAttached: () => {},
 			shutdown: async () => {},
@@ -164,6 +166,50 @@ describe("SIDE-02 handler wiring", () => {
 			}),
 		).resolves.toEqual({});
 		expect(calls).toEqual([{ sessionId: "session-1", enabled: true }]);
+	});
+
+	test("AGENT-17 listAcpConfigOptions is passed to the session manager", async () => {
+		const calls: string[] = [];
+		const handlers = buildHandlers(
+			deps({
+				sessions: {
+					...deps().sessions,
+					listAcpConfigOptions: async (params) => {
+						calls.push(params.sessionId);
+						return { options: [] };
+					},
+				},
+			}),
+		);
+
+		await expect(
+			handlers.requests.listAcpConfigOptions({ sessionId: "session-1" as SessionId }),
+		).resolves.toEqual({ options: [] });
+		expect(calls).toEqual(["session-1"]);
+	});
+
+	test("AGENT-17 setAcpConfigOption is passed to the session manager", async () => {
+		const calls: { sessionId: string; optionId: string; value: string | boolean }[] = [];
+		const handlers = buildHandlers(
+			deps({
+				sessions: {
+					...deps().sessions,
+					setAcpConfigOption: async (params) => {
+						calls.push(params);
+						return { options: [] };
+					},
+				},
+			}),
+		);
+
+		await expect(
+			handlers.requests.setAcpConfigOption({
+				sessionId: "session-1" as SessionId,
+				optionId: "thought_level",
+				value: "high",
+			}),
+		).resolves.toEqual({ options: [] });
+		expect(calls).toEqual([{ sessionId: "session-1", optionId: "thought_level", value: "high" }]);
 	});
 
 	test("SIDE-02 eventPersisted acknowledges the event in the outbox", async () => {

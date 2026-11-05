@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type {
+	AcpConfigOption,
 	InteractionRequest,
 	LiveState,
 	ModelInfo,
@@ -142,6 +143,12 @@ class FakeAgentSession implements AgentSession {
 	disposeCalls = 0;
 	readonly appliedConfigs: SessionConfig[] = [];
 	readonly autoApprove: boolean[] = [];
+	listedOptions: AcpConfigOption[] = [];
+	readonly setOptionCalls: {
+		optionId: string;
+		value: string | boolean;
+		config: SessionConfig;
+	}[] = [];
 
 	constructor(readonly sessionId: SessionId) {}
 
@@ -175,6 +182,39 @@ class FakeAgentSession implements AgentSession {
 
 	setAutoApproveEdits(enabled: boolean): void {
 		this.autoApprove.push(enabled);
+	}
+
+	async listAcpConfigOptions(
+		_config: SessionConfig,
+		onAgentSessionId?: (agentSessionId: string) => void,
+	): Promise<Result<AcpConfigOption[], AppError>> {
+		onAgentSessionId?.("acp-session-1");
+		return ok(this.listedOptions);
+	}
+
+	async setAcpConfigOption(
+		optionId: string,
+		value: string | boolean,
+		config: SessionConfig,
+		onAgentSessionId?: (agentSessionId: string) => void,
+	): Promise<Result<AcpConfigOption[], AppError>> {
+		onAgentSessionId?.("acp-session-1");
+		this.setOptionCalls.push({ optionId, value, config });
+		this.listedOptions = this.listedOptions.map((option) =>
+			option.id !== optionId
+				? option
+				: {
+						...option,
+						value:
+							option.value.kind === "switch"
+								? { kind: "switch", current: value === true }
+								: {
+										...option.value,
+										current: typeof value === "string" ? value : option.value.current,
+									},
+					},
+		);
+		return ok(this.listedOptions);
 	}
 }
 
@@ -481,6 +521,94 @@ function sendParams(
 		...overrides,
 	};
 }
+
+describe("AGENT-17 ACP chat options", () => {
+	test("AGENT-17 lists the options an ACP chat's live agent reports", async () => {
+		const h = harness({ runners: [new FakeRunner("acp")] });
+		const config = baseConfig({ agent: "acp", acpAgent: "opencode", model: "one" });
+		await h.manager.sendMessage(sendParams({ config }));
+		await h.turns.last().succeed();
+		const agent = h.processes.agents.values().next().value as FakeAgentSession;
+		const options: AcpConfigOption[] = [
+			{
+				id: "thought_level",
+				name: "Thought level",
+				value: {
+					kind: "select",
+					current: "high",
+					choices: [{ value: "high", name: "High" }],
+				},
+			},
+		];
+		agent.listedOptions = options;
+
+		const listed = await h.manager.listAcpConfigOptions({ sessionId: sid("session-1") });
+
+		expect(listed).toEqual(ok({ options }));
+		expect(h.app.notifications).toContainEqual({
+			method: "agentSessionId",
+			params: { sessionId: sid("session-1"), agentSessionId: "acp-session-1" },
+		});
+	});
+
+	test("AGENT-17 sets one option and keeps it in the chat's config", async () => {
+		const h = harness({ runners: [new FakeRunner("acp")] });
+		const config = baseConfig({ agent: "acp", acpAgent: "opencode", model: "one" });
+		await h.manager.sendMessage(sendParams({ config }));
+		await h.turns.last().succeed();
+		const agent = h.processes.agents.values().next().value as FakeAgentSession;
+		agent.listedOptions = [
+			{
+				id: "thought_level",
+				name: "Thought level",
+				value: {
+					kind: "select",
+					current: "medium",
+					choices: [
+						{ value: "medium", name: "Medium" },
+						{ value: "high", name: "High" },
+					],
+				},
+			},
+		];
+
+		const changed = await h.manager.setAcpConfigOption({
+			sessionId: sid("session-1"),
+			optionId: "thought_level",
+			value: "high",
+		});
+		const second = await h.manager.setAcpConfigOption({
+			sessionId: sid("session-1"),
+			optionId: "thought_level",
+			value: "high",
+		});
+
+		expect("ok" in changed && changed.ok).toBe(true);
+		expect("ok" in second && second.ok).toBe(true);
+		expect(agent.setOptionCalls[0]).toEqual({
+			optionId: "thought_level",
+			value: "high",
+			config: baseConfig({ agent: "acp", acpAgent: "opencode", model: "one" }),
+		});
+		expect(agent.setOptionCalls[1]?.config.acpConfig).toEqual({ thought_level: "high" });
+	});
+
+	test("AGENT-17 refuses an option change while a reply is running", async () => {
+		const h = harness({ runners: [new HangingRunner("acp")] });
+		const config = baseConfig({ agent: "acp", acpAgent: "opencode", model: "one" });
+		await h.manager.sendMessage(sendParams({ config }));
+
+		const changed = await h.manager.setAcpConfigOption({
+			sessionId: sid("session-1"),
+			optionId: "thought_level",
+			value: "high",
+		});
+
+		expect("ok" in changed && !changed.ok).toBe(true);
+		if ("ok" in changed && !changed.ok) expect(changed.error.code).toBe("acp_options_busy");
+		await h.manager.cancel({ sessionId: sid("session-1") });
+	});
+});
 
 describe("SIDE-03 duplicate guard and queue", () => {
 	test("SIDE-03 two sends with one message id start one turn and repeat the delivery", async () => {
