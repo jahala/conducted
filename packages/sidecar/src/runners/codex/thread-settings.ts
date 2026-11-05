@@ -7,9 +7,9 @@
  * and 6 (the Codex personality and tool approval settings).
  * Must handle: `codexApprovalPolicy` missing (derived from `requireToolApproval`: `on-request` when
  * on, `never` when off); `codexSandboxMode` missing (`danger-full-access`, as Conductor does);
- * `codexPersonality` missing or `none` (the model's own tone, nothing sent); a change of any of
- * the three between turns (reported so the session re-opens the thread with the new options; see
- * `CodexSession.applyConfig`).
+ * `codexPersonality` missing (the model's own tone, nothing sent) and every listed value,
+ * including `none`, sent as it is; a change of any of the three between turns (reported so the
+ * session re-opens the thread with the new options; see `CodexSession.applyConfig`).
  * Test first: with `requireToolApproval` on and no explicit policy, the policy is `on-request`.
  */
 import type { SessionConfig } from "@conducted/protocol";
@@ -27,11 +27,7 @@ export function codexThreadSettings(config: SessionConfig): CodexThreadSettings 
 		approvalPolicy:
 			config.codexApprovalPolicy ?? (config.requireToolApproval ? "on-request" : "never"),
 		sandbox: config.codexSandboxMode ?? "danger-full-access",
-		// "none" and a missing value both mean Codex should use the model's own tone.
-		personality:
-			config.codexPersonality === undefined || config.codexPersonality === "none"
-				? undefined
-				: config.codexPersonality,
+		personality: config.codexPersonality,
 	};
 }
 

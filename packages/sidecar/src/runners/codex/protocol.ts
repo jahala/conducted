@@ -105,7 +105,6 @@ export interface CodexTurnStartParams {
 	model?: string | null;
 	effort?: string | null;
 	approvalPolicy?: CodexApprovalPolicy | null;
-	sandbox?: CodexSandboxMode | null;
 	personality?: CodexPersonality | null;
 }
 

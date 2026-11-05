@@ -516,10 +516,9 @@ describe("AGENT-16 Codex thread options", () => {
 			approvalPolicy: "on-request",
 			sandbox: "danger-full-access",
 		});
-		expect(paramsOf(client, "turn/start")).toMatchObject({
-			approvalPolicy: "on-request",
-			sandbox: "danger-full-access",
-		});
+		expect(paramsOf(client, "turn/start")).toMatchObject({ approvalPolicy: "on-request" });
+		// The sandbox is a thread option; turn/start has no field with that name.
+		expect(paramsOf(client, "turn/start")).not.toHaveProperty("sandbox");
 	});
 
 	test("the chosen personality reaches the thread and the turn", async () => {

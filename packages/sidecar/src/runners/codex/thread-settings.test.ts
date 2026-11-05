@@ -51,22 +51,20 @@ describe("AGENT-16 Codex thread settings", () => {
 		);
 	});
 
-	test("a missing or none personality sends nothing, the other tones are kept", () => {
+	test("a missing personality sends nothing and every chosen tone is kept", () => {
 		expect(codexThreadSettings(config()).personality).toBeUndefined();
-		expect(codexThreadSettings(config({ codexPersonality: "none" })).personality).toBeUndefined();
-		expect(codexThreadSettings(config({ codexPersonality: "pragmatic" })).personality).toBe(
-			"pragmatic",
-		);
-		expect(codexThreadSettings(config({ codexPersonality: "friendly" })).personality).toBe(
-			"friendly",
-		);
+		for (const personality of ["none", "pragmatic", "friendly"] as const) {
+			expect(codexThreadSettings(config({ codexPersonality: personality })).personality).toBe(
+				personality,
+			);
+		}
 	});
 });
 
 describe("AGENT-16 Codex settings change rule", () => {
-	test("the defaults mean no change and none equals a missing personality", () => {
+	test("the defaults mean no change, and none is a real choice", () => {
 		expect(codexSettingsChanged(config(), config())).toBe(false);
-		expect(codexSettingsChanged(config(), config({ codexPersonality: "none" }))).toBe(false);
+		expect(codexSettingsChanged(config(), config({ codexPersonality: "none" }))).toBe(true);
 		expect(codexSettingsChanged(config(), config({ codexSandboxMode: "danger-full-access" }))).toBe(
 			false,
 		);
