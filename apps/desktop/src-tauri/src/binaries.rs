@@ -820,7 +820,13 @@ mod tests {
     fn plat_34_the_event_name_is_the_one_the_platform_listens_for() {
         let adapter = Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/platform/tauri.ts");
         let source = fs::read_to_string(&adapter).expect("read the Tauri adapter");
-        let listened = source
+        // The adapter names this key twice: once in COMMANDS (the command) and once in EVENTS (the
+        // event this test is about), so the search starts at the EVENTS map.
+        let events = source
+            .split_once("export const EVENTS = {")
+            .map(|(_, rest)| rest)
+            .expect("the adapter declares its EVENTS map");
+        let listened = events
             .lines()
             .find_map(|line| {
                 line.trim()
