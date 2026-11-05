@@ -1,7 +1,8 @@
 //! @feature PLAT-15 App menu with accelerators from the command registry
 //!
 //! Owns: the macOS menu bar. Every custom item sends its command id to the UI; the shell does not
-//! run any of them. Accelerators come from the UI's command registry, so a rebinding shows here.
+//! run any of them. Accelerators come from the UI's command registry, so re-binding an item shows
+//! here unless its key is fixed.
 //!
 //! Behaviour: docs/research/conductor/native-and-sidecar-map.md A5 (Menus: App, View and Help
 //! items, Edit and Window from the defaults, Quit sends `quit_requested` so the UI can confirm and
@@ -18,6 +19,10 @@
 //!   ignored on purpose, because the registry has many more commands than the menu. Accelerators
 //!   use Tauri's syntax (`CmdOrCtrl+Shift+O`). Invalid ones are reported in `rejected` and the
 //!   item keeps its old accelerator. `None` removes the accelerator.
+//! - Cmd+Q and Cmd+, are fixed keys (ui-map 5.4): a binding for `app.quit` or `app.openSettings`
+//!   is reported in `rejected` and the item keeps its accelerator.
+//! - Two bindings that name the same menu item in one call: the first one is applied and the
+//!   later ones are reported in `rejected`, so the report matches what the menu received.
 //! - Menu handles are kept in `MenuState` so a later call can change an accelerator. Calls come
 //!   from the UI at any time, so the table sits behind a mutex.
 //! - A Quit chosen before the UI listens is held in `QuitGate` and delivered when
@@ -27,9 +32,12 @@
 //! Our design choice: ids follow the registry's dot style (`view.toggleLeftSidebar`). The Help
 //! items keep Conductor's semantic names (`help.*`) while the registry names the same actions
 //! `app.*`; `menu_set_shortcuts` maps those registry ids onto the Help items, and a Help click
-//! emits the registry's command id so the command dispatcher can run it. We leave out Conductor's
-//! "Best Practices", "Submit a Prompt" and "Send Feedback" items because they point at its hosted
-//! services. "Documentation" and "Changelog" stay as UI commands that open our docs.
+//! emits the registry's command id. The handler for each id lives with the feature that owns the
+//! command. We leave out Conductor's "Best Practices", "Submit a Prompt" and "Send Feedback"
+//! items because they point at its hosted services. "Documentation" and "Changelog" stay as UI
+//! commands that open our docs. "Diagnostics" is left out until APP-03 adds the
+//! `app.openDiagnostics` registry command and its handler, because a menu item that emits an id
+//! nothing runs is worse than no item (D041).
 //!
 //! Our design choice: Close Window in the Window menu sends the active tab's close command
 //! (`tab.close`, Cmd+W). Conductor rewires the system item; this keeps Cmd+W with the web view and
@@ -124,12 +132,6 @@ pub const MENU_ITEMS: &[MenuItemSpec] = &[
         default_accelerator: None,
     },
     MenuItemSpec {
-        id: "help.diagnostics",
-        label: "Diagnostics...",
-        menu: "Help",
-        default_accelerator: None,
-    },
-    MenuItemSpec {
         id: "help.toggleInspector",
         label: "Debug",
         menu: "Help",
@@ -142,9 +144,11 @@ const MENU_ID_ALIASES: &[(&str, &str)] = &[
     ("app.showShortcuts", "help.keyboardShortcuts"),
     ("app.openDocumentation", "help.documentation"),
     ("app.openChangelog", "help.changelog"),
-    ("app.openDiagnostics", "help.diagnostics"),
     ("app.openDebugTools", "help.toggleInspector"),
 ];
+
+/// Menu items whose key the user cannot change (ui-map 5.4). A binding for one is refused.
+const FIXED_MENU_IDS: &[&str] = &["app.quit", "app.openSettings"];
 
 /// One binding from the UI's command registry.
 #[derive(Debug, Clone, Deserialize)]
@@ -240,22 +244,37 @@ pub struct ShortcutPlan {
 /// caller, so the rule is tested without a window.
 pub fn plan_shortcuts(shortcuts: &[MenuShortcut]) -> ShortcutPlan {
     let mut plan = ShortcutPlan::default();
+    let mut planned_items: Vec<&'static str> = Vec::new();
     for shortcut in shortcuts {
         let Some(menu_id) = menu_id_for_command(&shortcut.command_id) else {
             continue;
         };
+        if FIXED_MENU_IDS.contains(&menu_id) {
+            plan.rejected.push(shortcut.command_id.clone());
+            continue;
+        }
+        if planned_items.contains(&menu_id) {
+            plan.rejected.push(shortcut.command_id.clone());
+            continue;
+        }
         match &shortcut.accelerator {
-            None => plan.applied.push(PlannedShortcut {
-                command_id: shortcut.command_id.clone(),
-                menu_id,
-                change: ShortcutChange::Clear,
-            }),
-            Some(value) => match value.parse::<muda::Accelerator>() {
-                Ok(_) => plan.applied.push(PlannedShortcut {
+            None => {
+                planned_items.push(menu_id);
+                plan.applied.push(PlannedShortcut {
                     command_id: shortcut.command_id.clone(),
                     menu_id,
-                    change: ShortcutChange::Set(value.clone()),
-                }),
+                    change: ShortcutChange::Clear,
+                });
+            }
+            Some(value) => match value.parse::<muda::Accelerator>() {
+                Ok(_) => {
+                    planned_items.push(menu_id);
+                    plan.applied.push(PlannedShortcut {
+                        command_id: shortcut.command_id.clone(),
+                        menu_id,
+                        change: ShortcutChange::Set(value.clone()),
+                    });
+                }
                 Err(_) => plan.rejected.push(shortcut.command_id.clone()),
             },
         }
@@ -388,11 +407,10 @@ pub fn build_menu(app: &AppHandle, state: &MenuState) -> tauri::Result<Menu<Wry>
         Submenu::with_id_and_items(app, WINDOW_SUBMENU_ID, "Window", true, &window_items)?;
 
     let help_separator = PredefinedMenuItem::separator(app)?;
-    let help_items: [&dyn IsMenuItem<Wry>; 6] = [
+    let help_items: [&dyn IsMenuItem<Wry>; 5] = [
         &handles["help.keyboardShortcuts"],
         &handles["help.documentation"],
         &handles["help.changelog"],
-        &handles["help.diagnostics"],
         &help_separator,
         &handles["help.toggleInspector"],
     ];
@@ -402,10 +420,11 @@ pub fn build_menu(app: &AppHandle, state: &MenuState) -> tauri::Result<Menu<Wry>
         [&app_menu, &edit_menu, &view_menu, &window_menu, &help_menu];
     let menu = Menu::with_items(app, &menu_items)?;
 
+    // A poisoned lock still holds the handles; recover them instead of failing startup.
     let mut stored = state
         .items
         .lock()
-        .expect("the menu state is locked only while the menu is built");
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     *stored = handles;
 
     Ok(menu)
@@ -449,10 +468,11 @@ pub async fn menu_set_shortcuts(
     shortcuts: Vec<MenuShortcut>,
 ) -> CommandResult<MenuShortcutReport> {
     let plan = plan_shortcuts(&shortcuts);
-    let items = state.items.lock().map_err(|_| CommandError::Failed {
-        code: "menu_state_poisoned",
-        message: "The menu state was left locked by a failed call.".to_string(),
-    })?;
+    // A poisoned lock still holds the handles; apply the plan instead of failing the call.
+    let items = state
+        .items
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
 
     for planned in &plan.applied {
         let item = items
@@ -511,7 +531,6 @@ mod tests {
                 "help.keyboardShortcuts",
                 "help.documentation",
                 "help.changelog",
-                "help.diagnostics",
                 "help.toggleInspector",
             ]
         );
@@ -542,10 +561,6 @@ mod tests {
         assert_eq!(
             route_for("help.changelog"),
             MenuRoute::Command("app.openChangelog")
-        );
-        assert_eq!(
-            route_for("help.diagnostics"),
-            MenuRoute::Command("app.openDiagnostics")
         );
         assert_eq!(
             route_for("help.toggleInspector"),
@@ -591,14 +606,55 @@ mod tests {
             Some("help.keyboardShortcuts")
         );
         assert_eq!(
-            menu_id_for_command("app.openDiagnostics"),
-            Some("help.diagnostics")
-        );
-        assert_eq!(
             menu_id_for_command("app.openDebugTools"),
             Some("help.toggleInspector")
         );
         assert_eq!(menu_id_for_command("chat.submit"), None);
+    }
+
+    #[test]
+    fn plat_15_every_alias_names_a_menu_item() {
+        for (registry_id, menu_id) in MENU_ID_ALIASES {
+            assert!(
+                MENU_ITEMS.iter().any(|spec| spec.id == *menu_id),
+                "{registry_id} points at the missing menu item {menu_id}"
+            );
+        }
+    }
+
+    #[test]
+    fn plat_15_the_fixed_keys_cannot_be_rebound_or_cleared() {
+        let plan = plan_shortcuts(&[
+            shortcut("app.quit", Some("CmdOrCtrl+Shift+Q")),
+            shortcut("app.openSettings", Some("CmdOrCtrl+Shift+,")),
+            shortcut("app.openSettings", None),
+        ]);
+        assert_eq!(plan.applied, Vec::<PlannedShortcut>::new());
+        assert_eq!(
+            plan.rejected,
+            vec![
+                "app.quit".to_string(),
+                "app.openSettings".to_string(),
+                "app.openSettings".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn plat_15_one_item_changes_once_per_call() {
+        let plan = plan_shortcuts(&[
+            shortcut("app.showShortcuts", Some("CmdOrCtrl+Alt+/")),
+            shortcut("help.keyboardShortcuts", Some("CmdOrCtrl+Alt+K")),
+        ]);
+        assert_eq!(
+            plan.applied,
+            vec![PlannedShortcut {
+                command_id: "app.showShortcuts".to_string(),
+                menu_id: "help.keyboardShortcuts",
+                change: ShortcutChange::Set("CmdOrCtrl+Alt+/".to_string()),
+            }]
+        );
+        assert_eq!(plan.rejected, vec!["help.keyboardShortcuts".to_string()]);
     }
 
     #[test]

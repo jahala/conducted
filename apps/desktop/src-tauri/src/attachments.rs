@@ -14,14 +14,16 @@
 //!   lies under `<app data>/draft-attachments/` and fails with `attachment_bad_destination`
 //!   otherwise, so a path from the webview cannot write elsewhere.
 //! - The copy is atomic: write to a temp file beside the destination, then rename. A failed copy
-//!   removes its temp file.
+//!   removes its temp file. The source is checked before the destination folders are made, so a
+//!   refused source leaves nothing behind.
 //! - The source is copied, never moved. A source that is a folder fails with
 //!   `attachment_is_directory`. A missing source fails with `attachment_missing`.
 //! - A destination that exists is not overwritten: fail with `attachment_exists`.
 //! - Images are detected from file contents, not the extension. A file named `.png` that is not an
 //!   image is copied as is and reported with `is_image: false`.
 //! - Resizing keeps the aspect ratio, honours EXIF orientation, flattens transparency onto white
-//!   when it re-encodes as JPEG, and never enlarges. An animated GIF is copied as is.
+//!   when it re-encodes as JPEG, and never enlarges. An animated GIF is copied as is and reported
+//!   with `is_image: false`, because it is not a still image.
 //! - If the image is still over `MAX_IMAGE_BYTES` after quality 0.7, fail with
 //!   `attachment_too_large` instead of sending something the agent will reject.
 //! - Decoding runs on the blocking pool because large images take real time. Memory use is bounded
@@ -238,7 +240,6 @@ fn materialize_into(
     draft_root: &Path,
 ) -> CommandResult<MaterializedAttachment> {
     let reported_path = destination.to_string_lossy().into_owned();
-    let target = prepare_destination(destination, draft_root)?;
 
     let metadata = match fs::metadata(source) {
         Ok(metadata) => metadata,
@@ -263,6 +264,9 @@ fn materialize_into(
     }
 
     let image = probe_image(source)?;
+
+    let target = prepare_destination(destination, draft_root)?;
+
     let Some(image) = image else {
         copy_atomic(source, &target)?;
         return Ok(MaterializedAttachment {
@@ -522,8 +526,9 @@ mod tests {
     use image::{Delay, DynamicImage, Frame, ImageFormat, Rgb, RgbImage, Rgba, RgbaImage};
 
     use super::{
-        JPEG_QUALITIES, MAX_PIXEL_DIMENSION, MAX_SOURCE_BYTES, MaterializedAttachment, encode_jpeg,
-        encode_jpeg_within_limit, flatten_on_white, materialize_into, write_bytes_atomic,
+        JPEG_QUALITIES, MAX_IMAGE_BYTES, MAX_PIXEL_DIMENSION, MAX_SOURCE_BYTES,
+        MaterializedAttachment, encode_jpeg, encode_jpeg_within_limit, flatten_on_white,
+        materialize_into, write_bytes_atomic,
     };
     use crate::error::CommandError;
 
@@ -576,6 +581,44 @@ mod tests {
         RgbaImage::from_pixel(width, height, Rgba(colour))
             .save_with_format(path, ImageFormat::Png)
             .expect("write png");
+    }
+
+    /// Writes a PNG of pseudo-random pixels. Its high entropy keeps the file large at any
+    /// dimension, so the byte limit can be tested without crossing the pixel limit.
+    fn write_noise_png(path: &Path, width: u32, height: u32) {
+        let image = RgbImage::from_fn(width, height, |x, y| {
+            let mut value = x.wrapping_mul(0x9e37_79b9) ^ y.wrapping_mul(0x85eb_ca6b);
+            value ^= value >> 16;
+            value = value.wrapping_mul(0x21f0_aaad);
+            value ^= value >> 15;
+            value = value.wrapping_mul(0x735a_2d97);
+            value ^= value >> 15;
+            Rgb([value as u8, (value >> 8) as u8, (value >> 16) as u8])
+        });
+        image
+            .save_with_format(path, ImageFormat::Png)
+            .expect("write noise png");
+    }
+
+    /// Every file and folder under `root`, so a test can prove a refusal added none.
+    fn entries_under(root: &Path) -> Vec<PathBuf> {
+        let mut found = Vec::new();
+        collect_entries(root, &mut found);
+        found.sort();
+        found
+    }
+
+    fn collect_entries(path: &Path, found: &mut Vec<PathBuf>) {
+        let Ok(entries) = fs::read_dir(path) else {
+            return;
+        };
+        for entry in entries {
+            let path = entry.expect("entry").path();
+            if path.is_dir() {
+                collect_entries(&path, found);
+            }
+            found.push(path);
+        }
     }
 
     fn assert_code(error: CommandError, code: &str) {
@@ -679,6 +722,55 @@ mod tests {
     }
 
     #[test]
+    fn plat_20_materialize_shrinks_an_image_over_the_byte_limit() {
+        let folder = TempDir::new();
+        let source = folder.path().join("noisy.png");
+        write_noise_png(&source, 1500, 1500);
+        let source_bytes = fs::metadata(&source).expect("source metadata").len();
+        assert!(
+            source_bytes > MAX_IMAGE_BYTES,
+            "the source is {source_bytes} bytes, not over the limit"
+        );
+        let destination = folder.destination("noisy.png");
+        let draft_root = folder.draft_root();
+
+        let result =
+            materialize_into(&source, &destination, true, &draft_root).expect("materialize");
+
+        assert!(result.resized, "the byte limit alone forces a resize");
+        assert!(result.is_image);
+        assert_eq!(result.width, Some(1500));
+        assert_eq!(result.height, Some(1500));
+        assert!(result.size_bytes <= MAX_IMAGE_BYTES);
+        assert!(result.size_bytes < source_bytes);
+        assert_eq!(
+            fs::metadata(&destination).expect("copy").len(),
+            result.size_bytes
+        );
+    }
+
+    #[test]
+    fn plat_20_materialize_refuses_an_image_that_stays_too_large() {
+        let folder = TempDir::new();
+        let source = folder.path().join("noisy-large.png");
+        write_noise_png(&source, 4000, 4000);
+        let destination = folder.destination("noisy-large.png");
+        let draft_root = folder.draft_root();
+
+        let error = materialize_into(&source, &destination, true, &draft_root)
+            .expect_err("noise stays over the limit at both qualities");
+
+        assert_code(error, "attachment_too_large");
+        assert!(!destination.exists());
+        let parent = destination.parent().expect("parent");
+        assert_eq!(
+            entries_under(parent),
+            Vec::<PathBuf>::new(),
+            "a failed resize leaves no destination and no temp file"
+        );
+    }
+
+    #[test]
     fn plat_20_materialize_does_not_shrink_an_image_when_resize_is_false() {
         let folder = TempDir::new();
         let source = folder.path().join("wide.png");
@@ -755,12 +847,18 @@ mod tests {
         let source = folder.path().join("missing.txt");
         let destination = folder.destination("missing.txt");
         let draft_root = folder.draft_root();
+        let before = entries_under(&draft_root);
 
         let error = materialize_into(&source, &destination, false, &draft_root)
             .expect_err("missing source fails");
 
         assert_code(error, "attachment_missing");
         assert!(!destination.exists());
+        assert_eq!(
+            entries_under(&draft_root),
+            before,
+            "the refusal leaves nothing behind"
+        );
     }
 
     #[test]
@@ -770,11 +868,18 @@ mod tests {
         fs::create_dir(&source).expect("create source folder");
         let destination = folder.destination("folder");
         let draft_root = folder.draft_root();
+        let before = entries_under(&draft_root);
 
         let error = materialize_into(&source, &destination, false, &draft_root)
             .expect_err("folder source fails");
 
         assert_code(error, "attachment_is_directory");
+        assert!(!destination.exists());
+        assert_eq!(
+            entries_under(&draft_root),
+            before,
+            "the refusal leaves nothing behind"
+        );
     }
 
     #[test]
@@ -880,12 +985,18 @@ mod tests {
         file.set_len(MAX_SOURCE_BYTES + 1).expect("grow source");
         let destination = folder.destination("huge.bin");
         let draft_root = folder.draft_root();
+        let before = entries_under(&draft_root);
 
         let error = materialize_into(&source, &destination, false, &draft_root)
             .expect_err("huge source fails");
 
         assert_code(error, "attachment_too_large");
         assert!(!destination.exists());
+        assert_eq!(
+            entries_under(&draft_root),
+            before,
+            "the refusal leaves nothing behind"
+        );
     }
 
     #[test]
@@ -919,6 +1030,7 @@ mod tests {
             materialize_into(&source, &destination, true, &draft_root).expect("materialize");
 
         assert!(!result.resized);
+        assert!(!result.is_image, "an animated GIF is not a still image");
         assert_eq!(result.width, Some(8000));
         assert_eq!(result.height, Some(2));
         assert_eq!(fs::read(&destination).expect("copy"), original);
