@@ -126,7 +126,7 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 			data: [{ id: "s1", unreadCount: 2 } as Session],
 		};
 		await openMenu();
-		fireEvent.click(await screen.findByRole("menuitem", { name: "Mark as read" }));
+		fireEvent.click(await screen.findByRole("menuitem", { name: /^Mark as read/ }));
 		await waitFor(() => expect(state.markRead).toHaveBeenCalledWith(workspaceId));
 	});
 
@@ -137,7 +137,7 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 			data: [{ id: "s1", unreadCount: 0 } as Session],
 		};
 		await openMenu();
-		fireEvent.click(await screen.findByRole("menuitem", { name: "Mark as unread" }));
+		fireEvent.click(await screen.findByRole("menuitem", { name: /^Mark as unread/ }));
 		await waitFor(() => expect(state.markUnread).toHaveBeenCalledWith(workspaceId));
 	});
 
@@ -146,7 +146,7 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 		await openMenu();
 		const trigger = await screen.findByRole("menuitem", { name: "Set status" });
 		fireEvent.keyDown(trigger, { key: "ArrowRight" });
-		fireEvent.click(await screen.findByRole("menuitem", { name: "In progress" }));
+		fireEvent.click(await screen.findByRole("menuitemradio", { name: "In progress" }));
 		await waitFor(() =>
 			expect(state.setKanbanStatus).toHaveBeenCalledWith(workspaceId, "in_progress"),
 		);
@@ -190,14 +190,14 @@ describe("NAV-10 WorkspaceActionsMenu", () => {
 	it("copies a deep link", async () => {
 		state.workspace = { state: "ready", data: { pinnedAt: null, state: "ready" } as Workspace };
 		await openMenu();
-		fireEvent.click(await screen.findByRole("menuitem", { name: "Copy link" }));
+		fireEvent.click(await screen.findByRole("menuitem", { name: /^Copy link/ }));
 		await waitFor(() => expect(state.copyText).toHaveBeenCalledWith("conducted://workspace?id=w1"));
 	});
 
 	it("archives a workspace", async () => {
 		state.workspace = { state: "ready", data: { pinnedAt: null, state: "ready" } as Workspace };
 		await openMenu();
-		fireEvent.click(await screen.findByRole("menuitem", { name: "Archive" }));
+		fireEvent.click(await screen.findByRole("menuitem", { name: /^Archive/ }));
 		await waitFor(() =>
 			expect(state.archive).toHaveBeenCalledWith(workspaceId, { deleteBranch: false }),
 		);

@@ -14,6 +14,12 @@ import { createRepositories, type Repositories } from "../db/repositories.ts";
 import { sampleSession, userMessageEvent } from "../db/test-fixtures.ts";
 import { SessionResume } from "./resume.ts";
 
+// DATA-02 owns the lifetime job and is not built yet; its startup step is unrelated to resume.
+vi.mock("../db/lifetime.ts", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../db/lifetime.ts")>();
+	return { ...actual, runDataLifetimeJob: async () => ({ ok: true, value: undefined }) };
+});
+
 const must = <T>(result: { ok: true; value: T } | { ok: false; error: unknown }): T => {
 	if (!result.ok) throw new Error(JSON.stringify(result.error));
 	return result.value;

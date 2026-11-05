@@ -208,7 +208,21 @@ export function SplitPanes({ workspaceId, search, onSearchChange }: SplitPanesPr
 		}
 	};
 
-	const mainPane = (
+	const mainPaneBody = (
+		<div className="flex h-full min-h-0 flex-col">
+			<TabStrip
+				workspaceId={workspaceId}
+				search={search}
+				onSearchChange={onSearchChange}
+				excludeRefs={hiddenRefs}
+			/>
+			<div className="min-h-0 flex-1">
+				<TabContent workspaceId={workspaceId} search={search} onSearchChange={onSearchChange} />
+			</div>
+		</div>
+	);
+
+	const mainPane = splitEnabled ? (
 		// biome-ignore lint/a11y/noStaticElementInteractions: the group is the drop target for a tab dragged from its strip.
 		<div
 			data-testid="split-centre"
@@ -218,18 +232,10 @@ export function SplitPanes({ workspaceId, search, onSearchChange }: SplitPanesPr
 			}}
 			onDrop={dropOnGroup}
 		>
-			<div className="flex h-full min-h-0 flex-col">
-				<TabStrip
-					workspaceId={workspaceId}
-					search={search}
-					onSearchChange={onSearchChange}
-					excludeRefs={hiddenRefs}
-				/>
-				<div className="min-h-0 flex-1">
-					<TabContent workspaceId={workspaceId} search={search} onSearchChange={onSearchChange} />
-				</div>
-			</div>
+			{mainPaneBody}
 		</div>
+	) : (
+		<div className="flex min-w-0 flex-1 flex-col">{mainPaneBody}</div>
 	);
 
 	const renderGroup = (group: TabGroup): ReactNode => {

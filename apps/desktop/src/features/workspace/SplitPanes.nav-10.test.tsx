@@ -6,7 +6,7 @@
  * the new one.
  */
 import type { SessionId, WorkspaceId } from "@conducted/shared";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "../../test/dom-polyfills.ts";
@@ -119,13 +119,20 @@ const dropOn = (
 	ref: string,
 	coords: { clientX?: number; clientY?: number } = {},
 ) => {
-	fireEvent.drop(element, {
-		...coords,
-		dataTransfer: {
+	// jsdom has no DragEvent, so the drop carries its coordinates on a MouseEvent instead.
+	const event = new MouseEvent("drop", {
+		bubbles: true,
+		cancelable: true,
+		clientX: coords.clientX ?? 0,
+		clientY: coords.clientY ?? 0,
+	});
+	Object.defineProperty(event, "dataTransfer", {
+		value: {
 			getData: () => ref,
 			types: ["application/x-conducted-tab"],
 		},
 	});
+	fireEvent(element, event);
 };
 
 const withRect = (element: HTMLElement) => {
@@ -249,7 +256,9 @@ describe("NAV-10 SplitPanes", () => {
 			withRegistry: true,
 			search: { tab: "session", sessionId: "one" },
 		});
-		expect(registry.run("tab.split")).toBe(true);
+		act(() => {
+			expect(registry.run("tab.split")).toBe(true);
+		});
 		expect(screen.getByRole("region", { name: "Split pane: One" })).toBeTruthy();
 	});
 
