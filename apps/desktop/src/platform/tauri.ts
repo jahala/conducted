@@ -75,6 +75,7 @@ import type {
 	SidecarTransport,
 	Speech,
 	SystemFacts,
+	SystemInfo,
 	Updater,
 } from "./platform.ts";
 
@@ -941,9 +942,9 @@ export function createTauriMenu(_bindings: TauriBindings): AppMenu {
 }
 
 /** `system_info`, `network_status`, event `network://changed`, `full_disk_access_check`, `full_disk_access_open_settings`. */
-export function createTauriSystem(_bindings: TauriBindings): SystemFacts {
+export function createTauriSystem(bindings: TauriBindings): SystemFacts {
 	return {
-		info: () => notImplemented("PLAT-32"),
+		info: () => bindings.invoke<SystemInfo>(COMMANDS.systemInfo),
 		isOnline: () => notImplemented("PLAT-26"),
 		onNetworkChanged: () => notImplemented("PLAT-26"),
 		hasFullDiskAccess: () => notImplemented("PLAT-24"),

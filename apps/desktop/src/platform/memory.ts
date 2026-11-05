@@ -55,6 +55,7 @@ import type {
 	Speech,
 	SpeechEvent,
 	SystemFacts,
+	SystemInfo,
 	TreeEntry,
 	Unsubscribe,
 	Updater,
@@ -83,6 +84,10 @@ export interface MemoryPlatformControls {
 	holdNextStart(): void;
 	/** The exit code of the next PTY spawned with a `command`. Null means a signal ended it. */
 	queuePtyExit(code: number | null): void;
+	/** Changes what `system.info` reports, for a test about a Mac other than the default. */
+	setSystemInfo(info: SystemInfo): void;
+	/** Makes the next `system.info` calls fail with this message. */
+	failSystemInfo(message: string): void;
 	/** Every command given to `shell.run` and `shell.start`, in order. */
 	readonly shellCalls: readonly ShellCommand[];
 	/** Text files by absolute path. Reading and writing through `fs` use this map. */
@@ -252,6 +257,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	let dockBadge: number | null = null;
 	let clipboardText: string | null = null;
 	let holdNextStart = false;
+	let systemInfo: SystemInfo = { osVersion: "15.0", machineArch: "arm64", buildArch: "arm64" };
+	let systemInfoFailure: string | null = null;
 
 	const sidecarLineListeners = new Set<ValueListener<string>>();
 	const sidecarRestartListeners = new Set<ValueListener<void>>();
@@ -765,7 +772,10 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	};
 
 	const system: SystemFacts = {
-		info: async () => ({ osVersion: "15.0", machineArch: "arm64", buildArch: "arm64" }),
+		info: async () => {
+			if (systemInfoFailure !== null) throw new Error(systemInfoFailure);
+			return systemInfo;
+		},
 		isOnline: async () => true,
 		onNetworkChanged: (listener) => listen(networkListeners, listener),
 		hasFullDiskAccess: async () => true,
@@ -889,6 +899,13 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		},
 		queuePtyExit: (code) => {
 			ptyExitCodes.push(code);
+		},
+		setSystemInfo: (info) => {
+			systemInfo = info;
+			systemInfoFailure = null;
+		},
+		failSystemInfo: (message) => {
+			systemInfoFailure = message;
 		},
 		get shellCalls() {
 			return shellCalls;
