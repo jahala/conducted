@@ -12,7 +12,10 @@
  * the database is a real SQLite passed in by the test (for example a thin adapter over
  * `node:sqlite`), because a fake database would test the fake; the shell answers only what a test
  * scripted, and an unscripted command is an `Err` with code `shell_unscripted`, never a made-up
- * success; the file system keeps text only, with folders as path prefixes.
+ * success; a cancelled `shell.start` ends with Err `shell_cancelled`, as shell.rs reports it; a
+ * queued dialog answer is used only by the dialog kind it was queued for; an unreadable
+ * `listArtifacts` cursor is an Err; `app.writeLog` keeps the level and message, not the data; the
+ * file system keeps text only, with folders as path prefixes.
  * Our design choice: the stand-in is a factory returning the Platform together with its controls,
  * so production code cannot reach the controls through the Platform type.
  * Test first: the contract case "fs: write then read returns the same text" passes on it.
@@ -78,7 +81,7 @@ export interface MemoryPlatformControls {
 	scriptShell(script: ShellScript): void;
 	/** Makes the next `shell.start` stay running until the caller cancels it. */
 	holdNextStart(): void;
-	/** The exit code of the next PTY spawned with a `command`. Null means no exit. */
+	/** The exit code of the next PTY spawned with a `command`. Null means a signal ended it. */
 	queuePtyExit(code: number | null): void;
 	/** Every command given to `shell.run` and `shell.start`, in order. */
 	readonly shellCalls: readonly ShellCommand[];
@@ -433,7 +436,12 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		entries.sort(
 			(left, right) => right.modifiedAt - left.modifiedAt || left.path.localeCompare(right.path),
 		);
-		const start = paging.cursor === null ? 0 : Number.parseInt(paging.cursor, 10) || 0;
+		let start = 0;
+		if (paging.cursor !== null) {
+			start = /^\d+$/.test(paging.cursor) ? Number.parseInt(paging.cursor, 10) : -1;
+			if (start < 0)
+				return err(appError("invalid_cursor", `${paging.cursor} is not a page cursor.`));
+		}
 		const page = entries.slice(start, start + paging.limit);
 		const nextCursor = start + paging.limit < entries.length ? String(start + paging.limit) : null;
 		return ok({ entries: page, nextCursor, omitted: 0 });
@@ -475,6 +483,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		}
 		const base = normalizePath(root);
 		const matches: { path: string; line: number; column: number; preview: string }[] = [];
+		if (grepOptions.limit <= 0) return ok(matches);
 		for (const [file, text] of files) {
 			if (!file.startsWith(`${base}/`)) continue;
 			const relative = file.slice(base.length + 1);
@@ -633,7 +642,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 				id: ids.uuid(),
 				done,
 				cancel: async () => {
-					settle(ok({ exitCode: 143, stdout: "", stderr: "" }));
+					// Rust reports a cancelled run as this error, not as an exit code (shell.rs).
+					settle(err(appError("shell_cancelled", "The command was cancelled.")));
 				},
 			};
 			return running;
@@ -685,11 +695,19 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		onClicked: (listener) => listen(notificationClickListeners, listener),
 	};
 
+	/** Takes the oldest queued answer that has the field, so a call never eats another kind's answer. */
+	const takeAnswer = (
+		field: "folder" | "files" | "confirm",
+	): { folder?: string | null; files?: string[]; confirm?: boolean } | undefined => {
+		const index = dialogAnswers.findIndex((answer) => field in answer);
+		return index < 0 ? undefined : dialogAnswers.splice(index, 1)[0];
+	};
+
 	const dialogs: Dialogs = {
-		pickFolder: async () => dialogAnswers.shift()?.folder ?? null,
-		pickFiles: async () => dialogAnswers.shift()?.files ?? [],
+		pickFolder: async () => takeAnswer("folder")?.folder ?? null,
+		pickFiles: async () => takeAnswer("files")?.files ?? [],
 		pickSavePath: async () => null,
-		confirm: async () => dialogAnswers.shift()?.confirm ?? false,
+		confirm: async () => takeAnswer("confirm")?.confirm ?? false,
 	};
 
 	const opener: Opener = {
@@ -853,14 +871,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		onQuitRequested: (listener) => listen(quitListeners, listener),
 		quit: async () => {},
 		resourceUsage: async () => [],
-		writeLog: (level, message, data) => {
-			if (data !== undefined) {
-				try {
-					JSON.stringify(data);
-				} catch {
-					// A value that cannot be serialised must not break logging.
-				}
-			}
+		// The data argument is not kept, so a value that cannot be serialised cannot break logging.
+		writeLog: (level, message) => {
 			logs.push({ level, message });
 		},
 		setLogLevel: async () => {},

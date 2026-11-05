@@ -140,6 +140,9 @@ function makeService(options: { withWindow?: boolean; repo?: Repo | null } = {})
 		async get(id: RepoId) {
 			return ok(repo !== null && id === repo.id ? repo : null);
 		},
+		async delete() {
+			return ok(undefined);
+		},
 	} as unknown as RepoRepository;
 
 	const service = new RepoService({
@@ -326,6 +329,21 @@ describe("PRJ-04 repo config reads", () => {
 		must(await slowLoad);
 
 		expect(ctx.config()?.setupScript).toBe("new");
+	});
+
+	it("does not bring a removed project back when its config read ends late", async () => {
+		const ctx = makeService();
+		write(ctx.files, sharedPath, { scripts: { setup: "old" } });
+
+		const held = ctx.holdNextRead(localPath);
+		const slowLoad = ctx.service.loadConfig(repoId);
+		await held.started;
+
+		must(await ctx.service.remove(repoId));
+		held.release();
+		await slowLoad;
+
+		expect(ctx.config()).toBeUndefined();
 	});
 
 	it("does not write a value that still matches the shared file", async () => {

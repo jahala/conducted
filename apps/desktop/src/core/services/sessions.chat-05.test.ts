@@ -327,6 +327,37 @@ describe("CHAT-05 cancel a turn", () => {
 		expect(state.failedSends?.[session.id] ?? []).toEqual([]);
 	});
 
+	it("restores a dropped in-flight message to the draft once, not again when its send returns", async () => {
+		seedWorkspace();
+		const h = harness();
+		const session = must(await h.service.create(workspaceId, sampleSession.config));
+		let draft = { text: "other", attachmentPaths: [] as string[] };
+		h.composer.loadDraft.mockImplementation(async () => ok(draft));
+		h.composer.saveDraft.mockImplementation((_id: unknown, next: typeof draft) => {
+			draft = next;
+		});
+		let finishSend: ((value: unknown) => void) | undefined;
+		h.replyTo(async (method) => {
+			if (method === "cancel") {
+				const sent = sendMessageCalls(h.calls)[0]?.params.messageId;
+				return ok({ wasWorking: true, droppedMessageIds: [sent] });
+			}
+			return new Promise((resolve) => {
+				finishSend = resolve;
+			});
+		});
+
+		const sending = h.service.send(session.id, "Fix login", [], "auto");
+		await vi.waitFor(() => expect(sendMessageCalls(h.calls)).toHaveLength(1));
+		expect(await h.service.cancel(session.id)).toEqual(ok(undefined));
+		finishSend?.(ok({ deliveredAs: "new_turn" }));
+		expect(await sending).toMatchObject({ ok: false, error: { code: "cancelled" } });
+
+		expect(h.composer.saveDraft).toHaveBeenCalledTimes(1);
+		expect(draft.text).toBe("Fix login\n\nother");
+		expect(h.service.store.getState().sending[session.id]).toEqual([]);
+	});
+
 	it("does not pause the queue or lose the pending send when the sidecar refuses the cancel", async () => {
 		seedWorkspace();
 		const h = harness();

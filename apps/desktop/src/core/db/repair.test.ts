@@ -245,6 +245,67 @@ describe("DATA-03 startup repair resets stale working state", () => {
 		expect(second.liveStatesReset).toBe(0);
 	});
 
+	it("clears an open question and background tasks that an idle row kept from before the crash", async () => {
+		run(REPOS_SQL.insert, repoToParams(sampleRepo));
+		insertWorkspace(sampleWorkspace.id, "ready", null);
+		run(SESSIONS_SQL.insert, must(sessionToParams(sampleSession)));
+		run(
+			SESSIONS_SQL.insert,
+			must(sessionToParams({ ...sampleSession, id: "chat-2" as SessionId, title: "Second" })),
+		);
+		run(
+			SESSION_LIVE_STATE_SQL.upsert,
+			must(
+				liveStateToParams(
+					sessionId,
+					{
+						...idleLiveState,
+						openInteraction: {
+							interactionId: "i1" as never,
+							interaction: { kind: "plan_approval", plan: "Change the parser" },
+							since: 4,
+						},
+					},
+					5,
+				),
+			),
+		);
+		run(
+			SESSION_LIVE_STATE_SQL.upsert,
+			must(
+				liveStateToParams(
+					"chat-2" as SessionId,
+					{
+						...idleLiveState,
+						backgroundTasks: [{ id: "task-1", kind: "shell", description: "npm test" }],
+					},
+					5,
+				),
+			),
+		);
+
+		const report = must(await runStartupRepair(deps()));
+		expect(report.liveStatesReset).toBe(2);
+		const live = rows<{ live_state: string }>(SESSION_LIVE_STATE_SQL.listAll);
+		expect(live.map((row) => JSON.parse(row.live_state))).toEqual([idleLiveState, idleLiveState]);
+	});
+
+	it("resets a row whose stored live state is not JSON", async () => {
+		run(REPOS_SQL.insert, repoToParams(sampleRepo));
+		insertWorkspace(sampleWorkspace.id, "ready", null);
+		run(SESSIONS_SQL.insert, must(sessionToParams(sampleSession)));
+		run("INSERT INTO session_live_state (session_id, live_state, updated_at) VALUES ($1, $2, $3)", [
+			sessionId,
+			"{broken",
+			5,
+		]);
+
+		const report = must(await runStartupRepair(deps()));
+		expect(report.liveStatesReset).toBe(1);
+		const live = rows<{ live_state: string }>(SESSION_LIVE_STATE_SQL.listAll);
+		expect(live.map((row) => JSON.parse(row.live_state))).toEqual([idleLiveState]);
+	});
+
 	it("resets a row whose stored status cannot be read", async () => {
 		run(REPOS_SQL.insert, repoToParams(sampleRepo));
 		insertWorkspace(sampleWorkspace.id, "ready", null);

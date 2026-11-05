@@ -164,4 +164,68 @@ describe("DATA-01 createActions", () => {
 			).toEqual([sample.path]);
 		}
 	});
+	it("reaches exactly one service or platform call from every action", async () => {
+		const calls: RecordedCall[] = [];
+		const actions = createActions(recordingTree(calls) as Services, recordingTree(calls) as never);
+		const leaves: { name: string; run: () => unknown }[] = [];
+		const collect = (node: object, path: string): void => {
+			for (const [key, value] of Object.entries(node)) {
+				const name = `${path}.${key}`;
+				if (typeof value === "function") {
+					leaves.push({
+						name,
+						run: () => (value as (...args: unknown[]) => unknown)({}, {}, {}, {}, {}),
+					});
+				} else if (value !== null && typeof value === "object") {
+					collect(value, name);
+				}
+			}
+		};
+		collect(actions, "actions");
+		expect(leaves.length).toBeGreaterThan(100);
+
+		for (const leaf of leaves) {
+			calls.length = 0;
+			await leaf.run();
+			expect(calls.length, leaf.name).toBe(1);
+		}
+	});
+
+	it("returns an Err when the link opener or the folder picker rejects", async () => {
+		const refusing = {
+			opener: {
+				openUrl: async () => {
+					throw new Error("no handler for that scheme");
+				},
+			},
+			dialogs: {
+				pickFolder: async () => {
+					throw new Error("the dialog could not open");
+				},
+			},
+		};
+		const actions = createActions({} as Services, refusing as never);
+
+		await expect(actions.app.openUrl("weird://x")).resolves.toMatchObject({
+			ok: false,
+			error: { code: "open_url_failed" },
+		});
+		await expect(actions.app.pickFolder("Pick")).resolves.toMatchObject({
+			ok: false,
+			error: { code: "pick_folder_failed" },
+		});
+	});
+
+	it("returns the chosen folder and null when the picker is cancelled", async () => {
+		const answers: (string | null)[] = ["/code/app", null];
+		const platform = {
+			opener: { openUrl: async () => {} },
+			dialogs: { pickFolder: async () => answers.shift() ?? null },
+		};
+		const actions = createActions({} as Services, platform as never);
+
+		await expect(actions.app.pickFolder("Pick")).resolves.toEqual(ok("/code/app"));
+		await expect(actions.app.pickFolder("Pick")).resolves.toEqual(ok(null));
+		await expect(actions.app.openUrl("https://example.com")).resolves.toEqual(ok(undefined));
+	});
 });

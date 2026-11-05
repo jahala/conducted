@@ -1,33 +1,31 @@
 /**
  * @feature WS-01 Workspace service: create, set up, archive, unarchive, delete
- * Owns: the list of workspaces and their lifecycle: creating a worktree and its first chat,
- * running the setup script, renaming the placeholder branch, archiving, restoring and deleting.
+ * Owns: the list of workspaces and their lifecycle as far as it is built: creating a worktree and
+ * its first chat, and running the setup script.
  * Behaviour: frontend.md 6 (creation, naming, setup, archive), services-map.md 2.4.1 (state
  * machine), 3.1 (create), 3.2 and 5A.1.2 (setup), 3.10 (archive and unarchive), 3.11 (branch
  * rename), ui-map.md 3.9 and 3.1.
- * Must handle: state moves initializing -> ready (or failed), ready -> archiving -> archived, and
- * archived -> initializing -> ready on unarchive, each guarded so a stale step cannot move a
- * workspace that already changed; the directory name is a unique place name for the repo and the
- * branch is prefix + name, suffixed -v1, -v2 when taken; creation fetches the base, falls back to
- * the cached remote ref offline and tells the user; copying the repo's files (for example
- * `.env`) is part of creation; setup runs in a terminal with the workspace variables and its
- * result decides ready or failed (a failed setup keeps the workspace, with a retry); archiving
- * refuses while a chat is working (offers cancel), takes a checkpoint, pins HEAD under the
- * archive ref, runs the archive script, removes the worktree, optionally deletes the branch (never
- * the default branch); unarchive classifies the old branch (deleted, taken, diverged, fine) and
- * picks a branch name, then restores the saved state; delete removes the worktree folder to the
- * Trash and the rows; the auto rename of the placeholder branch happens once, after the first
- * message, and never when the user named the branch; `markRead` clears unread on all chats of the
- * workspace.
+ * Must handle: state moves initializing -> ready (or failed), each guarded so a stale step cannot
+ * move a workspace that already changed; the directory name is a unique place name for the repo
+ * and the branch is prefix + name, suffixed -v1, -v2 when taken; a branch, prefix or remote name
+ * that git could read as an option or refuses is rejected before any git call; creation fetches
+ * the base, falls back to the cached remote ref offline and tells the user; copying the repo's
+ * files (for example `.env`) is part of creation and never overwrites a file already in the
+ * worktree; setup runs in a terminal with the workspace variables and its result decides ready or
+ * failed (a failed setup keeps the workspace, with a retry; a second retry while one runs is
+ * ignored); creations run one at a time; a repo config or default-config read that fails is shown
+ * as a warning, never hidden.
+ * Not built yet (placeholders): archive, unarchive, delete to the Trash, the branch auto rename,
+ * `markRead`, pinning and the base from a pull request or issue. `classifyUnarchive` is their
+ * decision rule and has no caller until WS-06.
  * Our design choice: creation is split in two so the sidebar shows the workspace at once
  * (`initializing`) and the slow git work happens after the row exists. Place names come from our
  * own tiered source in this file (`createPlaceNames`, D002), which the composition root should
  * pass in place of any other list. Creation copies the repository's included files, counts the
- * worktree files, then runs setup in a terminal; a pull-request or issue base waits for WS-02.
- * Warnings and the first message of a failed creation live in the service's
- * in-memory store: the contract's `Workspace` row has no field for them, and the create page reads
- * them back after the action returns. Calls to `repoConfig` and `defaultConfig` are optional
- * because the composition root passes them in a later wiring change.
+ * worktree files, then runs setup in a terminal. Warnings and the first message of a failed
+ * creation live in the service's in-memory store: the contract's `Workspace` row has no field for
+ * them, and the create page reads them back after the action returns. Calls to `repoConfig` and
+ * `defaultConfig` are optional because the composition root passes them in a later wiring change.
  * Test first: classifyUnarchive returns "branchTaken" when the branch is checked out elsewhere.
  */
 import type { SessionConfig } from "@conducted/protocol";
@@ -49,6 +47,7 @@ import { globToRegExp } from "../../platform/glob.ts";
 import type { Platform } from "../../platform/platform.ts";
 import type { Draft, NewWorkspaceInput, UnarchiveOutcome } from "../api.ts";
 import { setupLogFile } from "../app-paths.ts";
+import { createKeyedQueue } from "../async/serial-queue.ts";
 import type { Repositories } from "../db/repositories.ts";
 import { lsFiles, lsFilesIgnoredNul } from "../git/commands.ts";
 import { apiUserLogin } from "../git/gh-commands.ts";
@@ -455,6 +454,8 @@ async function copyFile(
 		warnings.push(`Skipped ${displayPath}: larger than 256 KiB.`);
 		return ok(undefined);
 	}
+	// A file already in the worktree may hold the user's edits (a retry runs this copy again).
+	if (await deps.fs.exists(target)) return ok(undefined);
 	const parent = target.slice(0, target.lastIndexOf("/"));
 	const made = await deps.fs.mkdirp(parent);
 	if (!made.ok) return made;
@@ -494,6 +495,30 @@ async function copyDirectory(
 	return ok(undefined);
 }
 
+/**
+ * True when git accepts `name` as a branch name (or a remote name) and no git or gh command can
+ * read it as an option. A name that starts with `-` is refused for that reason.
+ */
+export function isSafeRefName(name: string): boolean {
+	if (name === "" || name === "@" || name.startsWith("-") || name.startsWith("/")) return false;
+	if (name.endsWith("/") || name.endsWith(".") || name.includes("..") || name.includes("//")) {
+		return false;
+	}
+	if (name.includes("@{")) return false;
+	for (const char of name) {
+		const code = char.charCodeAt(0);
+		if (code <= 0x20 || code === 0x7f || "~^:?*[\\".includes(char)) return false;
+	}
+	return !name.split("/").some((part) => part.startsWith(".") || part.endsWith(".lock"));
+}
+
+/** The message for a branch, prefix or remote name that git would refuse. */
+export const invalidRefNameError = (name: string): AppError =>
+	appError(
+		"workspace_branch_invalid",
+		`"${name}" can't be used as a Git branch or remote name. Check the branch prefix in settings.`,
+	);
+
 /** Resolves `NewWorkspaceInput.from` to the branch the worktree starts from. */
 export function baseBranchFor(
 	defaultBranch: string,
@@ -502,9 +527,9 @@ export function baseBranchFor(
 	if (from.kind === "default") return ok(defaultBranch);
 	if (from.kind === "branch") {
 		const name = from.name.trim();
-		return name === ""
-			? err(appError("workspace_base_missing", "Choose the branch to start from."))
-			: ok(name);
+		if (name === "")
+			return err(appError("workspace_base_missing", "Choose the branch to start from."));
+		return isSafeRefName(name) ? ok(name) : err(invalidRefNameError(name));
 	}
 	return err(
 		appError(
@@ -602,7 +627,8 @@ export class WorkspaceService {
 	readonly store: StoreApi<WorkspaceState>;
 	readonly #deps: WorkspaceServiceDeps;
 
-	#createQueue: Promise<void> = Promise.resolve();
+	/** Creates pick a folder name, branch and port from one read, so they run one at a time. */
+	readonly #createQueue = createKeyedQueue();
 	/** Bumped by every start and cancel, so an older run cannot change the state after them. */
 	readonly #setupNonces = new Map<WorkspaceId, number>();
 	/** The nonce of a start that has not reached its first await yet, so a second one is ignored. */
@@ -630,11 +656,17 @@ export class WorkspaceService {
 		}
 		const workspacesById: Record<string, Workspace> = {};
 		const setupRuns: Record<string, SetupRun> = {};
+		let logError: AppError | null = null;
 		for (const workspace of listed.value) {
 			workspacesById[workspace.id] = workspace;
 			if (workspace.state !== "failed" && workspace.state !== "ready") continue;
 			const logPath = await this.#deps.repos.workspaces.getSetupLogPath(workspace.id);
-			if (!logPath.ok || logPath.value === null) continue;
+			if (!logPath.ok) {
+				// The workspace still loads; the caller hears that its setup log could not be found.
+				logError ??= logPath.error;
+				continue;
+			}
+			if (logPath.value === null) continue;
 			const saved = await this.#deps.platform.fs.exists(logPath.value);
 			// The exit code and the interrupted reason are not stored, so the load leaves both
 			// null rather than inventing a value from the workspace state.
@@ -653,19 +685,14 @@ export class WorkspaceService {
 			workspacesById,
 			setupRuns,
 		}));
-		return ok(undefined);
+		return logError === null ? ok(undefined) : err(logError);
 	}
 
 	/** Backs `Actions.workspaces.create`: row first, then worktree, setup, and the first chat. */
 	create(input: NewWorkspaceInput): Promise<Result<Workspace>> {
-		// Creates pick a folder name, branch and port from one read. Running them one at a time
-		// keeps two clicks from choosing the same values before either row exists.
-		const run = this.#createQueue.then(() => this.#createNow(input));
-		this.#createQueue = run.then(
-			() => undefined,
-			() => undefined,
-		);
-		return run;
+		// Running creates one at a time keeps two clicks from choosing the same values before
+		// either row exists.
+		return this.#createQueue.run("create", () => this.#createNow(input));
 	}
 
 	async #createNow(input: NewWorkspaceInput): Promise<Result<Workspace>> {
@@ -676,7 +703,9 @@ export class WorkspaceService {
 
 		const target = baseBranchFor(repo.defaultBranch, input.from);
 		if (!target.ok) return target;
-		const remote = await this.#remoteFor(repo);
+		const remoteRead = await this.#remoteFor(repo);
+		if (!remoteRead.ok) return remoteRead;
+		const remote = remoteRead.value.name;
 
 		const root = expandHome(
 			this.#deps.setting<string>("conducted_root_path"),
@@ -693,6 +722,7 @@ export class WorkspaceService {
 		if (!folder.ok) return folder;
 
 		const warnings: string[] = [];
+		if (remoteRead.value.warning !== null) warnings.push(remoteRead.value.warning);
 		const prefixType = this.#deps.setting<string>("branch_prefix_type");
 		const login = prefixType === "github_username" ? await this.#githubLogin(repo.rootPath) : null;
 		if (prefixType === "github_username" && login === null) {
@@ -703,7 +733,9 @@ export class WorkspaceService {
 			this.#deps.setting<string>("branch_prefix_custom"),
 			login,
 		);
-		const branch = await nextFreeName(`${prefix}${folder.value}`, (candidate) =>
+		const branchBase = `${prefix}${folder.value}`;
+		if (!isSafeRefName(branchBase)) return err(invalidRefNameError(branchBase));
+		const branch = await nextFreeName(branchBase, (candidate) =>
 			branchNameIsTaken(this.#deps.git, {
 				repoRootPath: repo.rootPath,
 				remote,
@@ -744,13 +776,7 @@ export class WorkspaceService {
 		await this.#placeInSection(materialised.value.workspace, input.sectionId);
 
 		if (wantsChat) {
-			const chatInput = await this.#firstChatInput(materialised.value.workspace.id, input);
-			const chat = await this.#deps.sessions.createFirstChat(
-				materialised.value.workspace.id,
-				chatInput,
-			);
-			if (chat.ok) this.#forgetFirstInput(materialised.value.workspace.id);
-			else this.#addWarnings(materialised.value.workspace.id, [CHAT_CREATION_FAILED_MESSAGE]);
+			await this.#startFirstChat(materialised.value.workspace.id, input);
 		} else {
 			this.#forgetFirstInput(materialised.value.workspace.id);
 		}
@@ -895,7 +921,8 @@ export class WorkspaceService {
 			// exit code of 0, or no script to run, counts as success.
 			const succeeded = run.scriptFound ? exitCode === 0 : true;
 			if (!run.scriptFound) {
-				await this.#deps.repos.workspaces.setSetupLogPath(workspaceId, null);
+				const cleared = await this.#deps.repos.workspaces.setSetupLogPath(workspaceId, null);
+				if (!cleared.ok) return cleared;
 			}
 			this.#setSetupRun(workspaceId, {
 				state: succeeded ? "completed" : "failed",
@@ -944,8 +971,8 @@ export class WorkspaceService {
 			stopped = err(appError("setup_stop_failed", "Couldn't stop the setup script.", cause));
 		}
 		this.#setSetupRun(workspaceId, { state: "cancelled", exitCode: null, terminalId: null });
-		await this.#finishSetup(workspaceId, false);
-		return stopped;
+		const finished = await this.#finishSetup(workspaceId, false);
+		return stopped.ok ? finished : stopped;
 	}
 
 	/** Moves the workspace row to ready or failed after a setup run ends. */
@@ -1088,22 +1115,23 @@ export class WorkspaceService {
 			"initializing",
 		);
 		if (!moved.ok) return moved;
+		// Another retry moved the row first, so its run does the work.
+		if (!moved.value) return ok(undefined);
 		const initializing = { ...workspace, state: "initializing" as const };
 		this.#upsert({ ...initializing, updatedAt: this.#deps.now() });
 
 		const remote = await this.#remoteFor(repo);
-		const materialised = await this.#materialise(initializing, repo, remote);
+		if (!remote.ok) return this.#fail(initializing, remote.error);
+		const materialised = await this.#materialise(initializing, repo, remote.value.name);
 		if (!materialised.ok) return materialised;
-		this.#addWarnings(id, materialised.value.warnings);
+		this.#addWarnings(id, [
+			...(remote.value.warning === null ? [] : [remote.value.warning]),
+			...materialised.value.warnings,
+		]);
 
 		// A failed creation kept its first message, so a successful retry can start the chat.
 		const firstInput = this.store.getState().failedFirstInputs?.[id];
-		if (firstInput !== undefined) {
-			const chatInput = await this.#firstChatInput(id, firstInput);
-			const chat = await this.#deps.sessions.createFirstChat(id, chatInput);
-			if (chat.ok) this.#forgetFirstInput(id);
-			else this.#addWarnings(id, [CHAT_CREATION_FAILED_MESSAGE]);
-		}
+		if (firstInput !== undefined) await this.#startFirstChat(id, firstInput);
 		return ok(undefined);
 	}
 
@@ -1174,37 +1202,59 @@ export class WorkspaceService {
 	}
 
 	/**
-	 * The remote the repository's config picks, or "origin" when the config is empty or cannot be
-	 * read (ui-map 6 Git, services-map 3.1).
+	 * The remote the repository's config picks, or "origin" when the config names none
+	 * (ui-map 6 Git, services-map 3.1). A config that cannot be read still gives "origin", with a
+	 * warning that says so. A configured name git would refuse is an error.
 	 */
-	async #remoteFor(repo: Repo): Promise<string> {
+	async #remoteFor(repo: Repo): Promise<Result<{ name: string; warning: string | null }>> {
 		const configured =
 			this.#deps.repoConfig === undefined ? null : await this.#deps.repoConfig(repo.id);
-		if (configured?.ok === true) {
-			const name = configured.value.remoteName?.trim() ?? "";
-			if (name !== "") return name;
+		if (configured === null) return ok({ name: "origin", warning: null });
+		if (!configured.ok) {
+			return ok({
+				name: "origin",
+				warning: `Couldn't read the repository's settings, so the remote "origin" is used: ${configured.error.message}`,
+			});
 		}
-		return "origin";
+		const name = configured.value.remoteName?.trim() ?? "";
+		if (name === "") return ok({ name: "origin", warning: null });
+		return isSafeRefName(name) ? ok({ name, warning: null }) : err(invalidRefNameError(name));
+	}
+
+	/**
+	 * Starts the first chat. The first message is forgotten only when the chat exists; any failure
+	 * leaves it for Retry and Recover and adds a warning for the page.
+	 */
+	async #startFirstChat(workspaceId: WorkspaceId, input: NewWorkspaceInput): Promise<void> {
+		const chatInput = await this.#firstChatInput(workspaceId, input);
+		if (!chatInput.ok) {
+			this.#addWarnings(workspaceId, [CHAT_CREATION_FAILED_MESSAGE]);
+			return;
+		}
+		const chat = await this.#deps.sessions.createFirstChat(workspaceId, chatInput.value);
+		if (chat.ok) this.#forgetFirstInput(workspaceId);
+		else this.#addWarnings(workspaceId, [CHAT_CREATION_FAILED_MESSAGE]);
 	}
 
 	/**
 	 * The first chat's config: the app's one default-config rule, with the user's model and plan
-	 * mode changes on top. Without the injected rule the page's config stands.
+	 * mode changes on top. Without the injected rule the page's config stands. When the rule
+	 * cannot be read the chat is not started with a guessed config.
 	 */
 	async #firstChatInput(
 		workspaceId: WorkspaceId,
 		input: NewWorkspaceInput,
-	): Promise<NewWorkspaceInput> {
-		const defaults =
-			this.#deps.defaultConfig === undefined ? null : await this.#deps.defaultConfig(workspaceId);
-		if (defaults === null || !defaults.ok) return input;
+	): Promise<Result<NewWorkspaceInput>> {
+		if (this.#deps.defaultConfig === undefined) return ok(input);
+		const defaults = await this.#deps.defaultConfig(workspaceId);
+		if (!defaults.ok) return defaults;
 		const requested = input.config;
 		const config: SessionConfig = {
 			...defaults.value,
 			model: requested.model.trim() === "" ? defaults.value.model : requested.model.trim(),
 			planMode: requested.planMode,
 		};
-		return { ...input, config };
+		return ok({ ...input, config });
 	}
 
 	/** Puts a new workspace in the chosen section, and warns when that fails (ui-map 7.2). */

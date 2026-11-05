@@ -1,7 +1,7 @@
 import type { RepoId, SessionId, WorkspaceId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import { createStore } from "zustand/vanilla";
-import { createLookups, remoteOf } from "./lookups.ts";
+import { createLookups, defaultSessionConfig, remoteOf } from "./lookups.ts";
 import type { Repo, RepoConfig, Session, Workspace } from "./model.ts";
 import type { RepoState } from "./services/repo.ts";
 import type { SessionsState } from "./services/sessions.ts";
@@ -176,5 +176,35 @@ describe("PR-02 custom prompt from the loaded repo config", () => {
 		);
 
 		expect(result).toMatchObject({ ok: true, value: { customPrompt: null } });
+	});
+});
+
+describe("defaultSessionConfig", () => {
+	const settingsOf =
+		(values: Record<string, unknown>) =>
+		<T>(key: string): T =>
+			(values[key] ?? "") as T;
+
+	it("takes the effort level from settings", () => {
+		const result = defaultSessionConfig(
+			"w1" as WorkspaceId,
+			makeLookups(),
+			settingsOf({ default_claude_effort_level: "max", default_model: "opus" }),
+		);
+		expect(result).toMatchObject({ ok: true, value: { effort: "max", model: "opus" } });
+	});
+
+	it("refuses an effort level a chat cannot use instead of passing it on", () => {
+		const result = defaultSessionConfig(
+			"w1" as WorkspaceId,
+			makeLookups(),
+			settingsOf({ default_claude_effort_level: "turbo" }),
+		);
+		expect(result).toMatchObject({ ok: false, error: { code: "setting_invalid" } });
+	});
+
+	it("fails for an unknown workspace", () => {
+		const result = defaultSessionConfig("nope" as WorkspaceId, makeLookups(), settingsOf({}));
+		expect(result).toMatchObject({ ok: false, error: { code: "workspace_unknown" } });
 	});
 });

@@ -15,9 +15,12 @@
  * the Spotlight heal; deep links have one subscriber, the command dispatcher (NAV-14), which is
  * mounted with the app root, so this file does not listen for them a second time; `stop`
  * removes those listeners, stops the settings reload listener and its timer, stops the update
- * timer, kills terminals and runs, disposes the repo service and detaches from the sidecar; the
+ * timer, disposes the repo service, kills terminals and runs, waits for chat events that are
+ * being stored, and detaches from the sidecar; every stop step runs even when an earlier one
+ * fails (the failure is logged), and a `stop` that comes during `start` lets the running
+ * step finish, ends the start before it wires anything new, and then tears down; the
  * database-version check happens before `start` (see the proposed `Platform.app.dbVersionWarning`);
- * after the sidecar reconnects, chats are resumed.
+ * after the sidecar reconnects, chats are resumed (after the run already in flight, if any).
  * Our design choice: one `createContainer` function with every dependency as a parameter. There
  * is no module-level singleton, so tests build as many containers as they like. The timers here
  * are the only global clock use in core; they sit in the root, the edge of the program.
@@ -31,6 +34,7 @@ import {
 	type IdSource,
 	ok,
 	type Result,
+	type SessionId,
 	type WorkspaceId,
 } from "@conducted/shared";
 import type { Platform } from "../platform/platform.ts";
@@ -145,7 +149,10 @@ export interface Container {
 	 * second call returns the first call's result and ignores its own `onProgress`.
 	 */
 	start(onProgress?: (progress: StartProgress) => void): Promise<Result<StartReport>>;
-	/** Stops terminals and runs and detaches from the sidecar. Safe to call twice. */
+	/**
+	 * Stops listeners and timers, kills terminals and runs, lets stored-event writes finish and
+	 * detaches from the sidecar. Every step runs; a step that fails is logged. Safe to call twice.
+	 */
 	stop(): Promise<void>;
 }
 
@@ -265,6 +272,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 			const handle = setTimeout(callback, ms);
 			return () => clearTimeout(handle);
 		},
+		clock,
+		random: Math.random,
 	});
 	const resume = new SessionResume({
 		sidecar: client,
@@ -273,7 +282,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		workingSessionIds: async () =>
 			Object.entries(sessions.store.getState().liveStates)
 				.filter(([, live]) => live.status === "working")
-				.map(([id]) => id as never),
+				.map(([id]) => id as SessionId),
 		liveStateOf: (sessionId) => sessions.store.getState().liveStates[sessionId],
 		apply: {
 			adoptLiveState: (sessionId, liveState) => sessions.applyLiveState(sessionId, liveState),
@@ -519,6 +528,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 	const cleanups: (() => void)[] = [];
 	let updateTimer: ReturnType<typeof setInterval> | null = null;
 	let wired = false;
+	let stopped = false;
+
+	const stoppedError = () =>
+		appError("container_stopped", "The app stopped while it was starting.");
 
 	const updateDockBadge = (): void => {
 		const workspaces = new Map<WorkspaceId, Pick<Workspace, "state">>();
@@ -558,6 +571,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 			const healed = await spotlight.healAfterCrash(project.rootPath);
 			if (!healed.ok) warnings.push({ step: "spotlight", message: healed.error.message });
 		}
+		// `stop` ran during the heal and already cleaned what was wired above. Wire nothing more.
+		if (stopped) return;
 
 		updateTimer = setInterval(() => {
 			void updates.check().then((outcome) => {
@@ -601,6 +616,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 	): Promise<Result<StartReport>> => {
 		const warnings: StartReport["warnings"] = [];
 		for (const step of steps) {
+			if (stopped) return err(stoppedError());
 			onProgress?.({ step: step.name, phase: step.phase });
 			const result = await step.run();
 			if (result.ok) continue;
@@ -610,13 +626,15 @@ export function createContainer(inputs: ContainerInputs): Container {
 				);
 			warnings.push({ step: step.name, message: result.error.message });
 		}
+		if (stopped) return err(stoppedError());
 		detachReconnect = tunnel.onReconnected(() => {
-			void resume.resume().then((outcome) => {
+			void resume.resumeAfterReconnect().then((outcome) => {
 				if (!outcome.ok)
 					log("warn", `Resuming chats after reconnect failed: ${outcome.error.message}`);
 			});
 		});
 		await wireAfterStart(warnings);
+		if (stopped) return err(stoppedError());
 		return ok({ warnings });
 	};
 
@@ -631,18 +649,52 @@ export function createContainer(inputs: ContainerInputs): Container {
 			return started;
 		},
 		async stop() {
-			detachReconnect?.();
-			detachReconnect = null;
-			for (const cleanup of cleanups.splice(0)) cleanup();
-			settings.stop();
-			if (updateTimer !== null) {
-				clearInterval(updateTimer);
+			stopped = true;
+			// Every step runs, in this order, even when an earlier one fails: a half-stopped app
+			// would keep listeners and the sidecar connection alive.
+			const step = async (name: string, run: () => unknown): Promise<void> => {
+				try {
+					const outcome = await run();
+					if (isFailedResult(outcome)) {
+						log("warn", `Stopping ${name} failed: ${outcome.error.message}`);
+					}
+				} catch (cause) {
+					const message = cause instanceof Error ? cause.message : String(cause);
+					log("warn", `Stopping ${name} failed: ${message}`);
+				}
+			};
+			// A start in progress finishes its current step and then ends (it checks `stopped`). The
+			// teardown below waits for that, so what the step registered is released too.
+			await step("the start in progress", () => started?.then(noop, noop));
+			await step("the reconnect listener", () => {
+				detachReconnect?.();
+				detachReconnect = null;
+			});
+			for (const cleanup of cleanups.splice(0)) await step("a listener", cleanup);
+			await step("settings", () => settings.stop());
+			await step("the update timer", () => {
+				if (updateTimer !== null) clearInterval(updateTimer);
 				updateTimer = null;
-			}
-			await terminals.killAll();
-			await runScripts.stopAll();
-			repo.dispose();
-			tunnel.stop();
+			});
+			await step("the repo service", () => repo.dispose());
+			await step("terminals", () => terminals.killAll());
+			await step("run scripts", () => runScripts.stopAll());
+			// Events the sidecar sent before the tunnel closes are written first, so none is lost.
+			await step("chat event writes", () => ingest.idle());
+			await step("the sidecar connection", () => tunnel.stop());
 		},
 	};
+}
+
+const noop = (): void => {};
+
+/** True for a `Result` that failed. Used for stop steps, which return a Result or nothing. */
+function isFailedResult(value: unknown): value is { ok: false; error: { message: string } } {
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		"ok" in value &&
+		value.ok === false &&
+		"error" in value
+	);
 }

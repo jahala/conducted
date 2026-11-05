@@ -733,7 +733,11 @@ describe("lifetime statements", () => {
 			rows<{ session_id: string; turn_id: string }>(LIFETIME_SQL.findCompactableTurns, [5000, 10]);
 		expect(find()).toHaveLength(0);
 
-		run("UPDATE workspaces SET state = 'archived', updated_at = 1000 WHERE id = $1", [workspaceId]);
+		// A later edit of the archived workspace must not restart the 90-day count.
+		run(
+			"UPDATE workspaces SET state = 'archived', archived_at = 1000, updated_at = 9000000 WHERE id = $1",
+			[workspaceId],
+		);
 		const turns = find();
 		expect(turns.map((turn) => turn.turn_id)).toEqual(["t1", "t2"]);
 		for (const turn of turns) {

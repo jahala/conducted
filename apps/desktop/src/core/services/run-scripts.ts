@@ -18,6 +18,8 @@
  * Our design choice: setup runs with no `userEnv` for now. SET-04 owns the settings and Keychain
  * variables; until that service is wired here, no extra variables are passed rather than a
  * made-up set.
+ * Built now (WS-03): `runSetup` and `stopAll` for the setup terminal. Everything else above is
+ * RUN-01 and still a placeholder.
  * Test first: starting an action while another runs in the same workspace stops the first.
  */
 import {
@@ -217,8 +219,18 @@ export class RunScriptsService {
 		return notImplemented("RUN-01");
 	}
 
-	stopAll(): Promise<Result<void>> {
-		return notImplemented("RUN-01");
+	/**
+	 * Closes the terminals this service started. Setup is the only script it runs so far, so those
+	 * are the only ones to close. The container calls this when the app stops.
+	 */
+	async stopAll(): Promise<Result<void>> {
+		const terminalIds = [...this.#lastTerminal.values()];
+		this.#lastTerminal.clear();
+		const closed = await Promise.all(terminalIds.map((id) => this.#deps.terminals.close(id)));
+		for (const result of closed) {
+			if (!result.ok) return result;
+		}
+		return ok(undefined);
 	}
 
 	/** Backs `Actions.run.activateApp`. */

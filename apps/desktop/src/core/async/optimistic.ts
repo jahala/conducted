@@ -13,7 +13,8 @@
  * Several overlays can be pending at once; each is dropped by its own id, so one failing action does not
  * undo another's update. Ids come from an `IdSource` and time is not needed.
  * Must handle: two overlays pending, the first failing (the second stays); two actions succeeding while
- * both overlays are pending (the newest success wins); an action that succeeds after a newer canonical
+ * both overlays are pending (the result of the action that started last wins, even when the older
+ * action finishes after it); an action that succeeds after a newer canonical
  * state arrived from a push (the newer state is kept and the overlay is dropped); an update that throws
  * (a programmer error: the promise rejects before the action starts and nothing is applied); an action
  * that never ends (its overlay stays pending until the action settles); the derived state being computed
@@ -48,6 +49,8 @@ export interface OptimisticStore<S> {
 export function createOptimisticStore<S>(initial: S, ids: IdSource): OptimisticStore<S> {
 	let canonicalState = initial;
 	let pushRevision = 0;
+	let startedActions = 0;
+	let appliedAction = 0;
 	const overlays = new Map<string, (state: S) => S>();
 	const listeners = new Set<() => void>();
 
@@ -81,6 +84,8 @@ export function createOptimisticStore<S>(initial: S, ids: IdSource): OptimisticS
 
 			const id = ids.uuid();
 			const startedAtPush = pushRevision;
+			startedActions += 1;
+			const order = startedActions;
 			overlays.set(id, input.update);
 			notify();
 
@@ -94,10 +99,11 @@ export function createOptimisticStore<S>(initial: S, ids: IdSource): OptimisticS
 			}
 
 			overlays.delete(id);
-			// Compare with pushes only. An overlapping action's result is not a newer source of truth,
-			// so the newest action success wins and the canonical state keeps both changes.
-			if (result.ok && pushRevision === startedAtPush) {
+			// A push after the start wins. So does the result of an action that started later and
+			// has already finished: an older answer that arrives late is dropped.
+			if (result.ok && pushRevision === startedAtPush && order > appliedAction) {
 				canonicalState = result.value;
+				appliedAction = order;
 			}
 			notify();
 			return result;

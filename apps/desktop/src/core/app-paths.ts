@@ -3,7 +3,8 @@
  * Owns: the folder layout under the app data folder, as pure functions of `Platform.fs.paths`, so
  * every service and the data-lifetime job agree on where drafts, attachments and logs live.
  * Behaviour: services-map.md 5A.6.2 (draft staging folder, sweep of old drafts), 5A.1.2 (setup log).
- * Must handle: ids and names that contain path separators (callers pass ids, never user text).
+ * Callers pass ids from the id source, never user text, so no name here holds a path separator.
+ * Nothing in this file checks that; a caller that passed user text would escape the folder.
  * Our design choice: drafts are JSON files, one per chat, because migration 0001 has no drafts
  * table. A new table would need a new migration; files need none.
  * Test first: draftFile joins appData, "drafts" and "<sessionId>.json" with single slashes.

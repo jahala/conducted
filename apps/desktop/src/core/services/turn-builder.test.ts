@@ -320,6 +320,18 @@ describe("CHAT-07 turn builder", () => {
 		});
 	});
 
+	it("adds a pending steer to the running turn instead of making a new turn", () => {
+		const turns = buildTurns(
+			stored([user("turn-1", "message-1", "start", 100)]),
+			live({ status: "working" }),
+			[{ messageId: "message-steer" as MessageId, text: "also this", at: 200, delivery: "steer" }],
+		);
+		expect(turns).toHaveLength(1);
+		expect(must(turns[0], "the turn").steers).toEqual([
+			{ messageId: "message-steer", text: "also this", at: 200, consumed: false },
+		]);
+	});
+
 	it("does not show a pending send twice once its event is stored", () => {
 		const events = [...simpleTurn("turn-1", "sent", 100), ...simpleTurn("turn-2", "arrived", 200)];
 

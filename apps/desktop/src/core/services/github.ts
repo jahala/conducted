@@ -11,8 +11,9 @@
  * GH_TOKEN is passed only when the resolved method is pat; a merge is pinned to the local HEAD
  * and refused when HEAD cannot be read; the merge method follows the repo's allowed methods
  * (squash, then rebase, then merge); two merge calls at once send one `gh pr merge`; a token that
- * does not look like one is a warning the caller can confirm, not a refusal; every `gh` result
- * updates the health store.
+ * does not look like one is a warning the caller can confirm, not a refusal, but an empty one is
+ * refused; every `gh` result updates the health store; only the newest access check writes the
+ * access state.
  * Our design choice: access is the user's own `gh auth login`, or the personal access token the
  * user saved on the Account page (D029). The token is kept in the Keychain and given to `gh` as
  * GH_TOKEN; nothing is brokered per session. Polling, the other write actions and the stack
@@ -29,6 +30,7 @@ import {
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Keychain, Unsubscribe } from "../../platform/platform.ts";
+import { createLatestWins } from "../async/latest-wins.ts";
 import { createSingleFlight, type SingleFlight } from "../async/single-flight.ts";
 import { lsFiles, remoteGetUrl, revParseHead, statusPorcelainAll } from "../git/commands.ts";
 import {
@@ -287,6 +289,13 @@ export function toGitHubAccessView(access: GithubAccess): GitHubAccessView {
 	}
 }
 
+/** The access a probe that could not run means: no `gh` program, or a check that failed. */
+function accessFromProbeError(code: string): GithubAccess {
+	return code === "process_spawn"
+		? { status: "gh_missing" }
+		: { status: "unknown", reason: "check_failed" };
+}
+
 /** The access state a failed probe means. Only the failure class changes the answer. */
 function accessFromFailure(text: string): GithubAccess {
 	const failure = classifyGhFailure(text);
@@ -368,6 +377,8 @@ export class GithubService {
 	readonly #deps: GithubServiceDeps;
 	/** Makes each PR action run once while it is in flight (services-map 5B.1.7). */
 	readonly #flights: SingleFlight<string>;
+	/** Only the newest access check may write `access`; an older one that ends late is dropped. */
+	readonly #accessChecks = createLatestWins();
 
 	constructor(deps: GithubServiceDeps) {
 		this.#deps = deps;
@@ -387,30 +398,38 @@ export class GithubService {
 
 	/** Runs `gh auth status` and `gh api user`, reads the git protocol, and updates `access`. */
 	async checkAccess(): Promise<Result<GithubAccess>> {
+		const ticket = this.#accessChecks.begin("access");
+		const probed = await this.#probeAccess();
+		const latest = this.#accessChecks.isLatest(ticket);
+		this.#accessChecks.settle(ticket);
+		// A newer check started while this one ran, so its answer owns the store.
+		if (!latest) return ok(this.store.getState().access);
+		this.#setAccess(probed.ok ? probed.value : { status: "unknown", reason: "check_failed" });
+		return probed;
+	}
+
+	/** The probes of `checkAccess`. They read the machine and return the access; the store is the caller's. */
+	async #probeAccess(): Promise<Result<GithubAccess>> {
 		const settings = await this.#ghSettings();
-		if (!settings.ok) {
-			this.#setAccess({ status: "unknown", reason: "check_failed" });
-			return err(settings.error);
-		}
+		if (!settings.ok) return err(settings.error);
 		const runOptions = this.#runOptions(settings.value);
 		const auth = await this.#deps.git.run(authStatus(), runOptions);
-		if (!auth.ok) return ok(this.#setAccessFromProbeError(auth.error.code));
+		if (!auth.ok) return ok(accessFromProbeError(auth.error.code));
 
 		const authText = `${auth.value.stderr}\n${auth.value.stdout}`;
 		await this.recordGhResult(auth.value);
-		if (auth.value.exitCode !== 0) return ok(this.#setAccess(accessFromFailure(authText)));
-		if (!/logged in to /i.test(authText)) return ok(this.#setAccess({ status: "signed_out" }));
+		if (auth.value.exitCode !== 0) return ok(accessFromFailure(authText));
+		if (!/logged in to /i.test(authText)) return ok({ status: "signed_out" });
 
 		const parsed = parseAuthStatus(authText);
 		const user = await this.#deps.git.run(apiUserLogin(), runOptions);
-		if (!user.ok) return ok(this.#setAccessFromProbeError(user.error.code));
+		if (!user.ok) return ok(accessFromProbeError(user.error.code));
 		await this.recordGhResult(user.value);
 		if (user.value.exitCode !== 0) {
-			return ok(this.#setAccess(accessFromFailure(`${user.value.stderr}\n${user.value.stdout}`)));
+			return ok(accessFromFailure(`${user.value.stderr}\n${user.value.stdout}`));
 		}
 		const login = user.value.stdout.trim();
-		if (login.length === 0)
-			return ok(this.#setAccess({ status: "unknown", reason: "check_failed" }));
+		if (login.length === 0) return ok({ status: "unknown", reason: "check_failed" });
 
 		const protocol = await this.#deps.git.run(configGetGitProtocol(), runOptions);
 		let gitProtocol: string | null = null;
@@ -420,16 +439,14 @@ export class GithubService {
 			gitProtocol = protocol.value.exitCode === 0 && value.length > 0 ? value : null;
 		}
 
-		return ok(
-			this.#setAccess({
-				status: "ok",
-				login,
-				host: parsed.host ?? "github.com",
-				scopes: parsed.scopes,
-				usesToken: settings.value.env !== undefined,
-				gitProtocol,
-			}),
-		);
+		return ok({
+			status: "ok",
+			login,
+			host: parsed.host ?? "github.com",
+			scopes: parsed.scopes,
+			usesToken: settings.value.env !== undefined,
+			gitProtocol,
+		});
 	}
 
 	/** Backs `Actions.app.recheckGitHubAccess`: runs the access probes again and updates the store. */
@@ -479,14 +496,6 @@ export class GithubService {
 	#setAccess(access: GithubAccess): GithubAccess {
 		this.store.setState({ access });
 		return access;
-	}
-
-	#setAccessFromProbeError(code: string): GithubAccess {
-		return this.#setAccess(
-			code === "process_spawn"
-				? { status: "gh_missing" }
-				: { status: "unknown", reason: "check_failed" },
-		);
 	}
 
 	#runOptions(settings: GhCallSettings, cwd = this.#deps.probeCwd) {
@@ -762,8 +771,12 @@ export class GithubService {
 				),
 			);
 		}
-		return token === null
-			? keychain.delete(GH_PAT_KEYCHAIN_KEY)
-			: keychain.set(GH_PAT_KEYCHAIN_KEY, token.trim());
+		if (token === null) return keychain.delete(GH_PAT_KEYCHAIN_KEY);
+		const trimmed = token.trim();
+		// An empty token would reach `gh` as an empty GH_TOKEN and break a working sign-in.
+		if (trimmed === "") {
+			return err(appError("github_token_empty", "Enter a token, or clear the saved one."));
+		}
+		return keychain.set(GH_PAT_KEYCHAIN_KEY, trimmed);
 	}
 }

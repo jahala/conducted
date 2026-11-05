@@ -228,6 +228,15 @@ describe("NAV-07 shortcut overrides", () => {
 		});
 	});
 
+	it("keeps an id named like a prototype key as plain data", () => {
+		const parsed = parseShortcutOverrides('{"__proto__":["Cmd+K"],"app.quit":["Cmd+Q"]}');
+		expect(parsed.ok).toBe(true);
+		if (!parsed.ok) return;
+		expect(Object.getPrototypeOf(parsed.value)).toBe(Object.prototype);
+		expect(Object.keys(parsed.value).sort()).toEqual(["__proto__", "app.quit"]);
+		expect(parsed.value["app.quit"]).toEqual(["Cmd+Q"]);
+	});
+
 	it("replaces the shortcuts of a configurable command and respects an empty list", () => {
 		const overrides = { "workspace.create": ["Cmd+Shift+K"], "view.zoomIn": [] };
 		const create = getCommand("workspace.create");
@@ -276,6 +285,20 @@ describe("NAV-07 findShortcutConflicts", () => {
 			make("b", "global", ["Shift+Cmd+K"]),
 		]);
 		expect(found).toEqual([{ ids: ["a", "b"], scope: "global", shortcut: "⌘⇧K" }]);
+	});
+
+	it("pairs every later holder of a slot with the first one", () => {
+		const base = COMMANDS.find((c) => c.configurable && c.scope === "global");
+		if (base === undefined) throw new Error("no command to copy");
+		const table: CommandDef[] = ["x.one", "x.two", "x.three"].map((id) => ({
+			...base,
+			id,
+			defaultShortcuts: ["Cmd+Alt+Shift+9"],
+		}));
+		expect(findShortcutConflicts(table).map((conflict) => conflict.ids)).toEqual([
+			["x.one", "x.two"],
+			["x.one", "x.three"],
+		]);
 	});
 
 	it("allows the same keys in different scopes", () => {

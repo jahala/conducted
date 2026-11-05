@@ -122,12 +122,12 @@ describe("GIT-02 parseLeftRightCount", () => {
 });
 
 describe("GIT-02 parseCommitLog", () => {
-	it("keeps a subject that contains the separator", () => {
-		const [commit] = parseCommitLog("abc|fix a|b bug|Ann|ann@x.io|1700000000\n");
+	it("keeps a subject and an author name that contain a pipe", () => {
+		const [commit] = parseCommitLog("abc\x1ffix a|b bug\x1fAnn | Co\x1fann@x.io\x1f1700000000\n");
 		expect(commit).toEqual({
 			hash: "abc",
 			subject: "fix a|b bug",
-			authorName: "Ann",
+			authorName: "Ann | Co",
 			authorEmail: "ann@x.io",
 			authoredAt: 1700000000,
 		});
@@ -186,6 +186,8 @@ interface Fixture {
 	numstat?: string;
 	porcelain?: string;
 	untracked?: string[];
+	/** Untracked paths that git reports as binary (`-` counts). */
+	binaryUntracked?: string[];
 	fileSizes?: Record<string, number>;
 	markers?: string[];
 	upstream?: { head: string; upstream: string } | null;
@@ -234,7 +236,9 @@ function changesRunner(fixture: Fixture = {}): {
 		}
 		if (first === "diff" && command.args.includes("--no-index")) {
 			const path = command.args.at(-1) ?? "";
-			return ok(output(`3\t0\t${path}\n`));
+			return ok(
+				output(fixture.binaryUntracked?.includes(path) ? `-\t-\t${path}\n` : `3\t0\t${path}\n`),
+			);
 		}
 		if (first === "diff" && command.args.includes("--numstat")) {
 			return ok(output(fixture.numstat ?? ""));
@@ -335,12 +339,12 @@ describe("GIT-02 full changes refresh", () => {
 		const { runner } = changesRunner({
 			nameStatus: "M\ta.ts\n",
 			numstat: "2\t1\ta.ts\n",
-			porcelain: "UU\tconflict.ts\n",
+			porcelain: "UU conflict.ts\n",
 			untracked: ["new.ts"],
 			upstream: { head: "head-oid", upstream: "upstream-oid" },
 			aheadBehind: "1\t3",
 			targetCount: "2",
-			log: "abc|fix a|b bug|Ann|ann@x.io|1700000000\n",
+			log: "abc\x1ffix a|b bug\x1fAnn\x1fann@x.io\x1f1700000000\n",
 		});
 
 		const result = await refreshWorkspaceChanges(runner, input("full"));
@@ -442,6 +446,16 @@ describe("GIT-02 full changes refresh", () => {
 		).toBe(true);
 	});
 
+	it("marks an untracked binary file as binary with no line count", async () => {
+		const { runner } = changesRunner({ untracked: ["logo.png"], binaryUntracked: ["logo.png"] });
+		const result = await refreshWorkspaceChanges(runner, input("full"));
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.files).toEqual([
+			{ path: "logo.png", status: "added", linesAdded: 0, linesRemoved: 0, binary: true },
+		]);
+	});
+
 	it("keeps a NUL-separated path that contains a newline in one piece", async () => {
 		const { runner } = changesRunner({ untracked: ["line\nbreak.ts"] });
 		const result = await refreshWorkspaceChanges(runner, input("full"));
@@ -482,6 +496,29 @@ describe("GIT-02 full changes refresh", () => {
 });
 
 describe("GIT-02 failed polls are reported, not shown as a clean branch", () => {
+	it("returns the error when a git directory marker cannot be checked", async () => {
+		const { runner } = changesRunner({
+			fail: (command) =>
+				command.program === "stat" && command.args.at(-1)?.startsWith("/git/") === true,
+		});
+		const result = await refreshWorkspaceChanges(runner, input("uncommitted"));
+		expect(result.ok).toBe(false);
+	});
+
+	it("returns the error when the git path of a marker cannot be read", async () => {
+		const { runner } = changesRunner({
+			fail: (command) => command.args[0] === "rev-parse" && command.args[1] === "--git-path",
+		});
+		const result = await refreshWorkspaceChanges(runner, input("full"));
+		expect(result.ok).toBe(false);
+	});
+
+	it("reads a merge in progress from the marker files", async () => {
+		const { runner } = changesRunner({ markers: ["MERGE_HEAD"] });
+		const result = await refreshWorkspaceChanges(runner, input("uncommitted"));
+		expect(result.ok && result.value.operation).toBe("merge");
+	});
+
 	it("returns the error when an untracked line count fails", async () => {
 		const { runner } = changesRunner({
 			untracked: ["new.ts"],

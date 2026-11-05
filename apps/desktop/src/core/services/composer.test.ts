@@ -43,7 +43,7 @@ interface FakeFs {
 	modified: Map<string, number>;
 	trashed: Set<string>;
 	now: () => number;
-	fail: { write: boolean; trash: boolean; mkdirp: boolean };
+	fail: { write: boolean; trash: boolean; mkdirp: boolean; readDir: boolean };
 }
 
 const parentOf = (path: string): string => path.slice(0, path.lastIndexOf("/"));
@@ -53,7 +53,7 @@ const fakeFs = (): FakeFs => {
 	const files = new Map<string, string>();
 	const modified = new Map<string, number>();
 	const trashed = new Set<string>();
-	const fail = { write: false, trash: false, mkdirp: false };
+	const fail = { write: false, trash: false, mkdirp: false, readDir: false };
 	const now = () => clock++;
 	const statFor = (path: string): FileStat => {
 		const text = files.get(path) ?? "";
@@ -89,6 +89,7 @@ const fakeFs = (): FakeFs => {
 			return ok(undefined);
 		},
 		async readDir(path) {
+			if (fail.readDir) return err(appError("fs_denied", "The drafts folder could not be read."));
 			const entries = [...files.keys()]
 				.filter((file) => parentOf(file) === path)
 				.map(statFor)
@@ -271,5 +272,28 @@ describe("COMP-01 drafts", () => {
 		files.set(file(), "{not json");
 		const result = await service.loadDraft(sessionId);
 		expect(result.ok).toBe(false);
+	});
+
+	it("does not bring back a cleared draft from a file that is still being removed", async () => {
+		const { service, clock } = harness();
+		service.saveDraft(sessionId, { text: "sent", attachmentPaths: [] });
+		clock.flush();
+		await settle();
+
+		const clearing = service.clearDraft(sessionId);
+		const loaded = await service.loadDraft(sessionId);
+		await clearing;
+
+		expect(loaded).toEqual({ ok: true, value: { text: "", attachmentPaths: [] } });
+	});
+
+	it("reports a draft that could not be saved because the drafts folder could not be read", async () => {
+		const { service, clock, fail, files } = harness();
+		fail.readDir = true;
+		service.saveDraft(sessionId, { text: "hello", attachmentPaths: [] });
+		clock.flush();
+		await settle();
+		expect(files.has(file())).toBe(false);
+		expect(service.store.getState().errors[sessionId]?.code).toBe("fs_denied");
 	});
 });

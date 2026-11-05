@@ -15,6 +15,7 @@ import type { RepositoryDeps } from "./deps.ts";
 import {
 	collectResults,
 	executeStatement,
+	executeVoid,
 	parseJsonText,
 	selectRows,
 	stringifyJson,
@@ -108,10 +109,7 @@ export function createSettingsRepository(db: Database, deps: RepositoryDeps): Se
 			);
 			return written.ok ? ok(setting) : err(written.error);
 		},
-		delete: async (key) => {
-			const written = await executeStatement(db, SETTINGS_SQL.delete, [key], "Removing a setting");
-			return written.ok ? ok(undefined) : err(written.error);
-		},
+		delete: (key) => executeVoid(db, SETTINGS_SQL.delete, [key], "Removing a setting"),
 		deleteByPrefix: async (prefix) => {
 			const written = await executeStatement(
 				db,

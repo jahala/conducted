@@ -317,3 +317,74 @@ describe("REV-01 git service discard", () => {
 		expect(trashed).toEqual(["/repo/worktree/added.ts"]);
 	});
 });
+
+describe("REV-01 git service refuses unsafe input", () => {
+	it("does not discard or trash a path that leaves the workspace", async () => {
+		const { git, recorder } = runner();
+		const trashed: string[] = [];
+		const service = makeService(git, async (path) => {
+			trashed.push(path);
+			return ok(undefined);
+		});
+
+		const result = await service.discardFile(workspaceId, "../outside.txt");
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.code).toBe("path_outside_workspace");
+		expect(trashed).toEqual([]);
+		expect(recorder.commands).toEqual([]);
+	});
+
+	it("keeps the file when git cannot say whether the base has it", async () => {
+		const { git } = runner((command) =>
+			command.args[0] === "cat-file" ? output("", "fatal: not a git repository", 128) : null,
+		);
+		const trashed: string[] = [];
+		const service = makeService(git, async (path) => {
+			trashed.push(path);
+			return ok(undefined);
+		});
+
+		const result = await service.discardFile(workspaceId, "added.ts");
+
+		expect(result.ok).toBe(false);
+		expect(trashed).toEqual([]);
+	});
+
+	it("trashes a file the base lacks when git says the path does not exist in it", async () => {
+		const { git } = runner((command) =>
+			command.args[0] === "cat-file"
+				? output("", "fatal: path 'added.ts' does not exist in 'mb'", 128)
+				: null,
+		);
+		const trashed: string[] = [];
+		const service = makeService(git, async (path) => {
+			trashed.push(path);
+			return ok(undefined);
+		});
+
+		const result = await service.discardFile(workspaceId, "added.ts");
+
+		expect(result.ok).toBe(true);
+		expect(trashed).toEqual(["/repo/worktree/added.ts"]);
+	});
+
+	it("refuses a commit id that git could read as an option", async () => {
+		const { git, recorder } = runner();
+		const service = makeService(git);
+
+		const files = await service.changedFiles(workspaceId, {
+			kind: "commit",
+			sha: "--output=/tmp/x",
+		});
+		const resolved = await service.resolveScope(workspaceId, {
+			kind: "commit",
+			sha: "--output=/tmp/x",
+		});
+
+		expect(files.ok).toBe(false);
+		expect(resolved.ok).toBe(false);
+		expect(recorder.commands.some((command) => command.args[0] === "show")).toBe(false);
+		expect(recorder.commands.some((command) => command.args[0] === "rev-parse")).toBe(false);
+	});
+});

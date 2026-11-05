@@ -4,7 +4,7 @@
  * Behaviour: docs/research/conductor/native-and-sidecar-map.md A2 and frontend.md 3a.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ShellCommand, ShellOutput } from "./platform.ts";
 import { COMMANDS, createTauriShell, type TauriBindings } from "./tauri.ts";
 
@@ -147,5 +147,36 @@ describe("PLAT-03 the Tauri shell door", () => {
 			command: COMMANDS.shellCancel,
 			args: { id: running.id },
 		});
+	});
+
+	it("PLAT-03 listens again after the first listen call failed", async () => {
+		let listenCalls = 0;
+		let startCalls = 0;
+		const state: { listener: ((payload: DonePayload) => void) | null } = { listener: null };
+		const bindings: TauriBindings = {
+			invoke: async <T>(commandName: string): Promise<T> => {
+				if (commandName === COMMANDS.shellStart) startCalls++;
+				return undefined as T;
+			},
+			listen: async <T>(_event: string, handler: (payload: T) => void) => {
+				listenCalls++;
+				if (listenCalls === 1) throw new Error("no event bus");
+				state.listener = handler as (payload: DonePayload) => void;
+				return () => {};
+			},
+		};
+		const shell = createTauriShell(bindings);
+
+		const failed = await shell.start(command).done;
+		expect(failed).toMatchObject({ ok: false, error: { code: "tauri_error" } });
+
+		const running = shell.start(command);
+		await vi.waitFor(() => expect(startCalls).toBe(1));
+		state.listener?.({
+			id: running.id,
+			output: { exitCode: 0, stdout: "", stderr: "" },
+			error: null,
+		});
+		await expect(running.done).resolves.toMatchObject({ ok: true });
 	});
 });

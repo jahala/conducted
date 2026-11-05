@@ -4,7 +4,7 @@
  * saved state, so the UI, the sidecar and bin/checkpointer.sh agree on one spelling.
  * Behaviour: services-map.md 3.12.1 to 3.12.3 (checkpoint ids and refs), 3.10 (archive pin),
  * sessions.md section 7 (turn checkpoint ids).
- * Must handle: ids are built from uuids, never from user text, so they are safe in a ref name.
+ * Callers pass uuids as ids, never user text, so the names are safe in a ref. Nothing here checks it.
  * Our design choice: the namespace is `refs/conducted/...` instead of Conductor's
  * `refs/conductor-checkpoints/...`. bin/checkpointer.sh must use the same prefix.
  * Test first: checkpointRef(turnCheckpointId("s1", "t1", "start")) is

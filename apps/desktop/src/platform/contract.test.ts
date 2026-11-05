@@ -20,9 +20,10 @@ function missingContractGroups(
 
 describe("PLAT-01 platform contract coverage", () => {
 	it("has at least one case for every Platform group", () => {
+		let idCounter = 0;
 		const platform = createMemoryPlatform({
 			clock: { now: () => 0 },
-			ids: { uuid: () => "id" },
+			ids: { uuid: () => `id-${++idCounter}` },
 			database: unusedDatabase,
 		}).platform;
 		const groups = Object.keys(platform) as (keyof Platform)[];

@@ -57,6 +57,12 @@ describe("notificationTitle", () => {
 		expect(notificationTitle("a".repeat(80))).toHaveLength(50);
 		expect(notificationTitle("short")).toBe("short");
 	});
+	it("does not split an emoji when it cuts", () => {
+		const cut = notificationTitle(`${"a".repeat(48)}😀😀😀`);
+		expect(Array.from(cut)).toHaveLength(50);
+		expect(cut.endsWith("😀…")).toBe(true);
+		expect(cut).not.toMatch(/[\ud800-\udbff](?![\udc00-\udfff])/);
+	});
 });
 
 describe("deep links", () => {

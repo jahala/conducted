@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { SETTING_LAYERS } from "../services/settings.ts";
+import { SENSITIVE_SETTING_KEYS, SETTING_LAYERS } from "../services/settings.ts";
 import {
 	coerceSettingValue,
 	defaultValueOf,
@@ -127,6 +127,18 @@ describe("SET-01 setting table", () => {
 	it("keeps toml keys unique", () => {
 		const keys = SETTINGS.flatMap((s) => (s.tomlKey === undefined ? [] : [s.tomlKey]));
 		expect(new Set(keys).size).toBe(keys.length);
+	});
+});
+
+describe("SET-01 secrets", () => {
+	it("holds no setting that looks like a key, token or password", () => {
+		const secretLike = /(api_?key|secret|token|password|credential)/i;
+		expect(SETTINGS.filter((def) => secretLike.test(def.key)).map((def) => def.key)).toEqual([]);
+	});
+
+	it("only redacts settings that exist", () => {
+		const missing = SENSITIVE_SETTING_KEYS.filter((key) => getSettingDef(key) === undefined);
+		expect(missing).toEqual([]);
 	});
 });
 

@@ -13,6 +13,8 @@
  * Our design choice: Conductor keeps the port in memory, so numbers change after a restart. We
  * store it in `workspaces.port`, which the schema already requires, so the number is stable.
  * Detection uses `lsof` through the shell (the platform has no port probe).
+ * Built now: `allocatePort` and `expandPreviewUrl`. The port service itself (stored blocks, `lsof`
+ * detection) is a placeholder.
  * Test first: allocatePort with 55000 and 55010 taken returns 55020.
  */
 import {

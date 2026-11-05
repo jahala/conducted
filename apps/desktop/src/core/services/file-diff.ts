@@ -5,7 +5,7 @@
  * Behaviour: services-map.md 3.4.2 and 3.4.3 (file contents from git and disk, patch form,
  * guard counts), 2.7.2 (diff cache limit 25 MB), ui-map.md 3.6 (warnings: whitespace only,
  * binary, updating).
- * Must handle: a file added (no old side) or deleted (no new side); the new side of the
+ * Must handle: a path outside the workspace folder is refused before any read; a file added (no old side) or deleted (no new side); the new side of the
  * working-tree comparison is read from disk, not from git;
  * binary files return `binary: true` and no text; files over the size or line limit return
  * `tooLarge: true` and no text; an untracked file is diffed against /dev/null; the cache key
@@ -29,6 +29,7 @@ import {
 import { isTooLargeToRender } from "../git/diff.ts";
 import type { GitRunner } from "../git/runner.ts";
 import { parseNumstat } from "../git/status.ts";
+import { workspaceRelativePath } from "./git.ts";
 
 export const FILE_DIFF_CACHE_BYTES = 25 * 1024 * 1024;
 
@@ -122,6 +123,9 @@ export class FileDiffService {
 		scope: DiffScope,
 		options: { withPatch: boolean; ignoreWhitespace: boolean },
 	): Promise<Result<FileDiff>> {
+		// A path that leaves the workspace folder is never read from disk.
+		const checked = workspaceRelativePath(path);
+		if (!checked.ok) return checked;
 		const workspaceKey = String(workspaceId);
 		const generation = this.#generations.get(workspaceKey) ?? 0;
 		const resolved = await this.#deps.resolveScope(workspaceId, scope);
@@ -168,7 +172,7 @@ export class FileDiffService {
 		return ok(built.value);
 	}
 
-	/** Warms the cache for files the user is likely to open next. Errors are ignored. */
+	/** Warms the cache for files the user is likely to open next. A failed file is skipped; it is shown when opened. */
 	async prefetch(
 		workspaceId: WorkspaceId,
 		paths: readonly string[],

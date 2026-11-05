@@ -324,6 +324,45 @@ describe("DATA-01 repos repository", () => {
 	});
 });
 
+describe("DATA-01 repos repository: missing rows and settings", () => {
+	it("reports a missing repo from every setter", async () => {
+		seedRepo();
+		const missing = "missing" as RepoId;
+		const writes = [
+			() => repositories.repos.setName(missing, "Name"),
+			() => repositories.repos.setDefaultBranch(missing, "main"),
+			() => repositories.repos.setRemoteUrl(missing, null),
+			() => repositories.repos.setIcon(missing, null),
+			() => repositories.repos.setHidden(missing, true),
+		];
+		for (const write of writes) {
+			expect(await write()).toMatchObject({ ok: false, error: { code: "db.not_found" } });
+		}
+	});
+
+	it("removes the repo-scoped settings of a deleted repo and no one else's", async () => {
+		seedRepo();
+		const other = must(
+			await repositories.repos.create({
+				name: "Other",
+				rootPath: "/code/other",
+				remoteUrl: null,
+				defaultBranch: "main",
+				icon: null,
+			}),
+		);
+		must(await repositories.settings.set(`repo:${sampleRepo.id}:scripts`, { run: "bun dev" }));
+		must(await repositories.settings.set(`repo:${other.id}:scripts`, { run: "bun test" }));
+		must(await repositories.settings.set("theme", "dark"));
+
+		must(await repositories.repos.delete(sampleRepo.id));
+
+		const keys = must(await repositories.settings.list()).map((setting) => setting.key);
+		expect(keys).toEqual([`repo:${other.id}:scripts`, "theme"]);
+		expect(must(await repositories.repos.get(sampleRepo.id))).toBeNull();
+	});
+});
+
 describe("DATA-01 sessions repository", () => {
 	it("creates a chat, reads it and updates its config and title", async () => {
 		seedWorkspace();
@@ -643,6 +682,87 @@ describe("DATA-01 diff comments repository", () => {
 		});
 		must(await repositories.diffComments.syncRemote(workspaceId, []));
 		expect(must(await repositories.diffComments.listByWorkspace(workspaceId))).toHaveLength(0);
+	});
+});
+
+describe("DATA-01 missing rows and ordering in smaller repositories", () => {
+	it("reports a missing chat, comment, section, terminal and attachment from their setters", async () => {
+		const writes = [
+			() => repositories.sessions.setTitle("missing" as SessionId, "T"),
+			() => repositories.sessions.setConfig("missing" as SessionId, sampleSession.config),
+			() => repositories.sessions.setAgentSessionId("missing" as SessionId, null),
+			() => repositories.sessions.reopen("missing" as SessionId),
+			() => repositories.diffComments.setBody("missing" as never, "b", null),
+			() => repositories.diffComments.setResolved("missing" as never, true),
+			() => repositories.diffComments.setOutdated("missing" as never, true),
+			() => repositories.diffComments.setRemoteUrl("missing" as never, null),
+			() => repositories.sections.rename("missing" as never, "n", null),
+			() => repositories.sections.setCollapsed("missing" as never, true),
+			() => repositories.terminals.setTitle("missing" as never, "t"),
+			() => repositories.attachments.setPath("missing" as never, "/p"),
+		];
+		for (const write of writes) {
+			expect(await write()).toMatchObject({ ok: false, error: { code: "db.not_found" } });
+		}
+	});
+
+	it("never moves a chat's updated_at back when an older user message is recorded", async () => {
+		seedAll();
+		const before = must(await repositories.sessions.get(sessionId))?.updatedAt ?? 0;
+		must(await repositories.sessions.recordUserMessage(sessionId, before - 500));
+		expect(must(await repositories.sessions.get(sessionId))?.updatedAt).toBe(before);
+		must(await repositories.sessions.recordUserMessage(sessionId, before + 500));
+		expect(must(await repositories.sessions.get(sessionId))).toMatchObject({
+			updatedAt: before + 500,
+			lastUserMessageAt: before + 500,
+		});
+	});
+
+	it("keeps an error only on a failed queued message", async () => {
+		seedAll();
+		must(await repositories.queuedMessages.enqueue({ ...sampleQueued, id: "q1" as MessageId }));
+		must(await repositories.queuedMessages.claimNext(sessionId));
+		must(
+			await repositories.queuedMessages.setState("q1" as MessageId, "sending", "failed", "offline"),
+		);
+		expect(must(await repositories.queuedMessages.get("q1" as MessageId))?.lastError).toBe(
+			"offline",
+		);
+		must(
+			await repositories.queuedMessages.setState("q1" as MessageId, "failed", "waiting", "stale"),
+		);
+		expect(must(await repositories.queuedMessages.get("q1" as MessageId))).toMatchObject({
+			state: "waiting",
+			lastError: null,
+		});
+	});
+
+	it("refuses to sync a comment of another workspace and never rewrites one", async () => {
+		seedWorkspace();
+		must(await repositories.diffComments.syncRemote(workspaceId, [sampleComment]));
+		const foreign = { ...sampleComment, workspaceId: "ws-2" as WorkspaceId, body: "Hijacked" };
+		expect(await repositories.diffComments.syncRemote(workspaceId, [foreign])).toMatchObject({
+			ok: false,
+			error: { code: "db.invalid_row" },
+		});
+
+		raw.prepare(WORKSPACES_SQL.insert).run(
+			bind(
+				must(
+					workspaceToParams({
+						...sampleWorkspace,
+						id: "ws-2" as WorkspaceId,
+						directoryName: "lisbon",
+						path: "/code/workspaces/lisbon",
+					}),
+				),
+			),
+		);
+		must(await repositories.diffComments.syncRemote("ws-2" as WorkspaceId, [foreign]));
+		expect(must(await repositories.diffComments.get(sampleComment.id))).toMatchObject({
+			workspaceId,
+			body: sampleComment.body,
+		});
 	});
 });
 

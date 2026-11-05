@@ -88,6 +88,38 @@ describe("NAV-07 CommandRunner.run", () => {
 	});
 });
 
+describe("NAV-07 CommandRunner handler failures", () => {
+	it("turns a handler that throws before returning into an error value", async () => {
+		const runner = new CommandRunner({
+			handlers: () => ({
+				"workspace.create": () => {
+					throw new Error("boom");
+				},
+			}),
+			context: allContext,
+		});
+		const result = await runner.run("workspace.create");
+		expect(result).toMatchObject({ ok: false, error: { code: "command_failed" } });
+	});
+
+	it("turns a rejected handler into an error value and lets the command run again", async () => {
+		const handler = vi
+			.fn<() => Promise<Result<void>>>()
+			.mockRejectedValueOnce(new Error("boom"))
+			.mockResolvedValueOnce(ok(undefined));
+		const runner = new CommandRunner({
+			handlers: () => ({ "workspace.create": handler }),
+			context: allContext,
+		});
+		expect(await runner.run("workspace.create")).toMatchObject({
+			ok: false,
+			error: { code: "command_failed" },
+		});
+		expect(await runner.run("workspace.create")).toEqual({ ok: true, value: undefined });
+		expect(handler).toHaveBeenCalledTimes(2);
+	});
+});
+
 describe("NAV-07 CommandRunner.isEnabled", () => {
 	it("needs a workspace, an open pull request or an open chat only where it says so", () => {
 		expect(commandRequirement("pr.merge")).toBe("hasOpenPr");

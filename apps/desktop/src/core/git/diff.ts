@@ -7,7 +7,7 @@
  * Must handle: a turn whose end checkpoint does not exist yet (compare to the working tree);
  * a turn with no start checkpoint (the chat gave no restore point, so no comparison);
  * a branch scope without a merge base (no comparison, with a reason); a root commit (compare
- * against git's empty tree); binary files.
+ * against git's empty tree).
  * Our design choice: the merge base is looked up by the caller and passed in, so this module is
  * pure. The comparison for the "branch" and "target" scopes is merge base against the working tree.
  * Test first: a turn scope with no end checkpoint compares start to the working tree.

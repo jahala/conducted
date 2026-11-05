@@ -139,4 +139,40 @@ describe("PLAT-09 sidecar transport", () => {
 		await fake.emit(EVENTS.sidecarRestart, { willRetry: false });
 		expect(fired).toBe(1);
 	});
+
+	it("PLAT-09 unsubscribe can run twice and releases the listener once", async () => {
+		const fake = fakeBindings();
+		const unsubscribe = createTauriSidecar(fake.bindings).onLine(() => {});
+		await flush();
+		unsubscribe();
+		unsubscribe();
+		expect(fake.stopped).toEqual([EVENTS.sidecarLine]);
+	});
+
+	it("PLAT-09 an unsubscribe before the listen call resolves releases the listener at once", async () => {
+		const stopped: string[] = [];
+		let resolveListen: (stop: () => void) => void = () => {};
+		const bindings: TauriBindings = {
+			invoke: async <T>(): Promise<T> => undefined as T,
+			listen: () =>
+				new Promise((resolve) => {
+					resolveListen = resolve;
+				}),
+		};
+		const unsubscribe = createTauriSidecar(bindings).onLine(() => {});
+		unsubscribe();
+		resolveListen(() => stopped.push("released"));
+		await flush();
+		expect(stopped).toEqual(["released"]);
+	});
+
+	it("PLAT-09 a listen call that fails does not throw and leaves nothing to release", async () => {
+		const bindings: TauriBindings = {
+			invoke: async <T>(): Promise<T> => undefined as T,
+			listen: () => Promise.reject(new Error("no event bus")),
+		};
+		const unsubscribe = createTauriSidecar(bindings).onLine(() => {});
+		await flush();
+		expect(() => unsubscribe()).not.toThrow();
+	});
 });

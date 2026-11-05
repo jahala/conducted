@@ -191,6 +191,24 @@ describe("WS-03 copyIncludedFiles on real files", () => {
 		expect(mode).toBe(0o600);
 	});
 
+	it("keeps a file that is already in the worktree, so a retry cannot overwrite the user's edits", async () => {
+		const repoRoot = join(root, "repo");
+		const workspacePath = join(root, "worktree");
+		await mkdir(repoRoot, { recursive: true });
+		await mkdir(workspacePath, { recursive: true });
+		await writeFile(join(repoRoot, ".env"), "TOKEN=from-repo\n");
+		await writeFile(join(workspacePath, ".env"), "TOKEN=edited-in-worktree\n");
+
+		const result = await copyIncludedFiles(
+			{ fs: fsAdapter, shell, git: gitListing(".env\0") },
+			repo(repoRoot),
+			workspace(workspacePath),
+		);
+
+		expect(result.ok).toBe(true);
+		expect(await readFile(join(workspacePath, ".env"), "utf8")).toBe("TOKEN=edited-in-worktree\n");
+	});
+
 	it("skips a file over 256 KiB and says so", async () => {
 		const repoRoot = join(root, "repo");
 		const workspacePath = join(root, "worktree");

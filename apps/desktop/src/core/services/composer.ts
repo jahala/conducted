@@ -5,14 +5,14 @@
  * Behaviour: services-map.md 5A.6 (attachment kinds, local pipeline, paste rule, sweep of old
  * staging folders), 2.7.2 (drafts have a size limit), ui-map.md 3.5 (composer).
  * Must handle: saving is debounced and the newest text wins (an older write that finishes late
- * is dropped); a crash between keystrokes loses at most the last debounce interval; an empty
- * draft removes its file; text pasted over 90 lines or 5000 characters becomes a text
- * attachment (setting `auto_convert_long_text`); a dropped file is copied to the staging folder
- * first, the original is never moved; sending copies staged files into the workspace's
- * `.context/attachments/<id>/` and flips them from draft to sent in one transaction; a failed
- * copy blocks the send with the file name in the message; a failed write or an oversized draft is
- * kept in `store.errors` so a screen can tell the user it did not save; draft files of deleted
- * chats are removed by the data-lifetime job.
+ * is dropped); a clear or save still writing finishes before a draft is read back; an empty
+ * draft removes its file; text pasted over 90 lines or 5000 characters is classed as an
+ * attachment by `convertsToAttachment` (the paste handler belongs to COMP-07); a failed write, a
+ * failed room-making pass or an oversized draft is kept in `store.errors` so a screen can tell
+ * the user it did not save; the drafts folder is capped at 5 MiB by trashing the oldest other
+ * drafts.
+ * Not built yet: staging dropped files, copying them into the workspace on send
+ * (`materializeForSend`), and removing the draft files of deleted chats (COMP-07, DATA-06).
  * Our design choice: drafts are files (see core/app-paths.ts) because migration 0001 has no
  * drafts table. Attachment rows use the existing `attachments` table.
  * Test first: classifyAttachment("shot.PNG") is "image" and convertsToAttachment(6000 chars) is true.
@@ -195,6 +195,11 @@ export class ComposerService {
 	async loadDraft(sessionId: SessionId): Promise<Result<Draft>> {
 		const loaded = this.store.getState().drafts[sessionId];
 		if (loaded !== undefined) return ok(loaded);
+		// A clear or save still writing must finish first, or the read could bring back a draft that
+		// was just cleared.
+		await this.#writes.get(sessionId);
+		const stored = this.store.getState().drafts[sessionId];
+		if (stored !== undefined) return ok(stored);
 		const revision = this.#generation.get(sessionId) ?? 0;
 		const file = draftFile(this.#deps.platform.fs.paths, sessionId);
 		const read = await this.#deps.platform.fs.readText(file);
@@ -356,7 +361,8 @@ export class ComposerService {
 		const folder = draftsDir(this.#deps.platform.fs.paths);
 		const made = await this.#deps.platform.fs.mkdirp(folder);
 		if (!made.ok) return made;
-		await this.#makeRoom(sessionId, bytes);
+		const room = await this.#makeRoom(sessionId, bytes);
+		if (!room.ok) return room;
 		if (this.#generation.get(sessionId) !== generation) return ok(undefined);
 		return this.#deps.platform.fs.writeTextAtomic(
 			draftFile(this.#deps.platform.fs.paths, sessionId),
@@ -365,19 +371,21 @@ export class ComposerService {
 	}
 
 	/** Removes the oldest other drafts until the store can hold this one. */
-	async #makeRoom(sessionId: SessionId, incomingBytes: number): Promise<void> {
+	async #makeRoom(sessionId: SessionId, incomingBytes: number): Promise<Result<void>> {
 		const listing = await this.#deps.platform.fs.readDir(draftsDir(this.#deps.platform.fs.paths));
-		if (!listing.ok) return;
+		if (!listing.ok) return listing;
 		const own = draftFile(this.#deps.platform.fs.paths, sessionId);
 		const others = listing.value
 			.filter((entry) => !entry.isDirectory && entry.path !== own)
 			.sort((left, right) => left.modifiedAt - right.modifiedAt);
 		let total = others.reduce((sum, entry) => sum + entry.size, 0);
 		for (const entry of others) {
-			if (total + incomingBytes <= DRAFT_STORE_LIMIT_BYTES) return;
+			if (total + incomingBytes <= DRAFT_STORE_LIMIT_BYTES) return ok(undefined);
 			const removed = await this.#deps.platform.fs.trash(entry.path);
-			if (removed.ok) total -= entry.size;
+			if (!removed.ok) return removed;
+			total -= entry.size;
 		}
+		return ok(undefined);
 	}
 
 	/** Backs `Actions.attachments.addChatTranscript`. */

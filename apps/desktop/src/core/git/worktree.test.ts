@@ -413,6 +413,22 @@ describe("WS-01 prepareWorktree", () => {
 		).toBe(true);
 	});
 
+	it("returns an error, and writes nothing, when git prints no common directory", async () => {
+		const { git } = makeRunner((command) => {
+			if (matches(command, "git", ["rev-parse", "--git-common-dir"])) return output(0, "");
+			return undefined;
+		});
+		const { fs, written } = fakeFs();
+		const result = await prepareWorktree(git, {
+			repoRootPath: "/repo",
+			worktreePath: "/wt",
+			autoSetupUpstream: false,
+			fs,
+		});
+		expect(result.ok).toBe(false);
+		expect(written).toEqual([]);
+	});
+
 	it("skips worktree config and warns when core.worktree is set", async () => {
 		const { git, calls } = makeRunner((command) => {
 			if (matches(command, "git", ["config", "--local", "--get", "core.worktree"]))
