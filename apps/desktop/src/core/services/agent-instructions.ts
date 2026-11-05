@@ -5,8 +5,9 @@
  * Owns now: the text of the "create a pull request" request, the "reconcile with the target"
  * request (GIT-04), the "commit and push" request (GIT-05), the "resolve conflicts" request
  * (GIT-07), plus the `pull.rebase` choice between rebasing and merging, and the AI code review
- * request. The other requests (fix failing checks, rename the branch, merge into the target) are
- * placeholders owned by PR-05, WS-04 and GIT-14.
+ * request. The other requests (fix failing checks, merge into the target) are placeholders owned
+ * by PR-05 and GIT-14. Renaming the branch is not a chat instruction here: WS-04 asks the
+ * sidecar's utility prompt through ChatTitleService instead (D030).
  * Behaviour: structure-map.md section 6 pattern 5 (delegate risky git work to the agent),
  * services-map.md 3.5 (commit and push is an agent instruction), 3.6.4 (reconcile messages, and
  * rebase or merge by `pull.rebase`), 3.7.1 (create PR steps), 3.7.6 (conflict resolution goes to
@@ -219,10 +220,6 @@ export const aiReviewInstruction = (input: AiReviewInstructionInput): string => 
 		? base
 		: `${base}\n\nAdditional instructions for this review:\n${extra}`;
 };
-
-export const renameBranchInstruction = (
-	_input: InstructionBase & { branchPrefix: string },
-): string => notImplemented("WS-04");
 
 /** "Pull latest from the target" when the worktree is dirty or the branch has diverged. */
 export const reconcileInstruction = (input: {

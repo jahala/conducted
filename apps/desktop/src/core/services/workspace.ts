@@ -1,11 +1,13 @@
 /**
  * @feature WS-01 Workspace service: create, set up, archive, unarchive, delete
+ * @feature WS-04 Rename the placeholder branch after the first message
  * Owns: the list of workspaces and their lifecycle as far as it is built: creating a worktree and
  * its first chat, running the setup script, archiving a workspace, storing the intended target
- * branch (GIT-08), and saving a renamed branch (GIT-09).
+ * branch (GIT-08), saving a renamed branch (GIT-09), and renaming the placeholder branch from a
+ * suggested name after the first message (WS-04).
  * Behaviour: frontend.md 6 (creation, naming, setup, archive), services-map.md 2.4.1 (state
  * machine), 3.1 (create), 3.2 and 5A.1.2 (setup), 3.10 (archive and unarchive), 3.11 (branch
- * rename and the stored target branch), ui-map.md 3.9 and 3.1.
+ * rename, the first-message rename and the stored target branch), ui-map.md 3.9, 3.1 and 6 Git.
  * Must handle: state moves initializing -> ready (or failed), each guarded so a stale step cannot
  * move a workspace that already changed; the directory name is a unique place name for the repo
  * and the branch is prefix + name, suffixed -v1, -v2 when taken; a branch, prefix or remote name
@@ -17,6 +19,12 @@
  * ignored); creations run one at a time; a repository config that cannot be read for the remote
  * name stops creation with its error, while a failed read of the file list or the default config
  * is shown as a warning.
+ * Built now (WS-04): the first-message rename runs only when `auto_rename_new_branches` is on and
+ * the workspace still has its placeholder branch. It is skipped when a pull request is linked,
+ * the branch has already changed (in the row or in git), the suggestion is empty or failed, or
+ * no suggester is wired. The suggestion is combined with the branch prefix, a name clash takes
+ * the next `-vN` suffix, and `auto_rename_workspace_on_branch_name_set` renames the workspace to
+ * the new branch name unless the user set a name.
  * Built now (WS-05): archive. It refuses while a chat is running, stops a setup or run process
  * that is still running and clears the workspace's run state, cancels the remaining chats, saves
  * the archive snapshot, reads the branch git reports (a detached HEAD or a failed read stops the
@@ -28,9 +36,8 @@
  * refusal, the screen's discard confirmation and the screen that shows the branch-delete warning
  * are not built; the service refuses a busy checkout and accepts `discardGitOperationState` from
  * a caller that has already asked.
- * Not built yet (placeholders): unarchive, delete to the Trash, the branch auto rename,
- * `markRead` and the base from a pull request or issue. `classifyUnarchive` is their decision
- * rule and has no caller until WS-06.
+ * Not built yet (placeholders): unarchive, delete to the Trash, `markRead` and the base from a
+ * pull request or issue. `classifyUnarchive` is their decision rule and has no caller until WS-06.
  * Our design choice: creation is split in two so the sidebar shows the workspace at once
  * (`initializing`) and the slow git work happens after the row exists. Place names come from our
  * own tiered source in this file (`createPlaceNames`, D002), which the composition root should
@@ -40,7 +47,8 @@
  * them, and the create page reads them back after the action returns. The composition root
  * supplies the repository config reader; the default-config reader remains optional until the
  * composition root passes it.
- * Test first: classifyUnarchive returns "branchTaken" when the branch is checked out elsewhere.
+ * Test first: classifyUnarchive returns "branchTaken" when the branch is checked out elsewhere;
+ * WS-04 renames a placeholder branch to a suggestion that clashes, with the `-v2` suffix.
  */
 import type { SessionConfig } from "@conducted/protocol";
 import {
@@ -72,6 +80,7 @@ import {
 	lsFilesIgnoredNul,
 } from "../git/commands.ts";
 import { apiUserLogin } from "../git/gh-commands.ts";
+import { renameBranchInWorktree } from "../git/rename.ts";
 import type { GitRunner } from "../git/runner.ts";
 import {
 	branchNameIsTaken,
@@ -651,6 +660,17 @@ export interface WorkspaceSessionsPort {
 	deleteAll(workspaceId: WorkspaceId): Promise<Result<void>>;
 }
 
+/** The model call that proposes a branch name (SIDE-24). The container passes ChatTitleService. */
+export interface BranchNameSuggester {
+	suggestBranchName(input: {
+		session: Session;
+		workspace: Workspace;
+		firstUserMessage: string;
+		/** The repository's Rename branch prompt, added to the built-in text. */
+		customPrompt: string | null;
+	}): Promise<Result<string | null>>;
+}
+
 export interface WorkspaceServiceDeps {
 	platform: Pick<Platform, "fs" | "opener" | "shell">;
 	git: GitRunner;
@@ -664,6 +684,8 @@ export interface WorkspaceServiceDeps {
 	ports?: { allocateForNewWorkspace(): Promise<Result<number>> };
 	/** The repository's effective config, for the remote name. Supplied by the composition root. */
 	repoConfig: (repoId: RepoId) => Promise<Result<RepoConfig>>;
+	/** WS-04's branch-name call. The composition root passes ChatTitleService. */
+	branchNames?: BranchNameSuggester;
 	/** The one default-config rule for a new chat. Supplied by the composition root. */
 	defaultConfig?: (workspaceId: WorkspaceId) => Promise<Result<SessionConfig>>;
 	scripts: {
@@ -784,17 +806,10 @@ export class WorkspaceService {
 		if (!folder.ok) return folder;
 
 		const warnings: string[] = [];
-		const prefixType = this.#deps.setting<string>("branch_prefix_type");
-		const login = prefixType === "github_username" ? await this.#githubLogin(repo.rootPath) : null;
-		if (prefixType === "github_username" && login === null) {
-			warnings.push(GITHUB_LOGIN_MISSING_MESSAGE);
-		}
-		const prefix = branchPrefixFor(
-			prefixType,
-			this.#deps.setting<string>("branch_prefix_custom"),
-			login,
-		);
-		const branchBase = `${prefix}${folder.value}`;
+		const prefix = await this.#branchPrefix(repo);
+		if (!prefix.ok) return prefix;
+		if (prefix.value.warning !== null) warnings.push(prefix.value.warning);
+		const branchBase = `${prefix.value.prefix}${folder.value}`;
 		if (!isSafeRefName(branchBase)) return err(invalidRefNameError(branchBase));
 		const branch = await nextFreeName(branchBase, (candidate) =>
 			branchNameIsTaken(this.#deps.git, {
@@ -1077,9 +1092,82 @@ export class WorkspaceService {
 		});
 	}
 
-	/** Renames the placeholder branch once the first message tells what the work is. */
-	renameBranchAfterFirstMessage(_sessionId: SessionId): Promise<Result<void>> {
-		return notImplemented("WS-04");
+	/**
+	 * Renames the placeholder branch once the first message tells what the work is
+	 * (services-map 3.11). A missing suggestion or a failed one leaves the placeholder in place, as
+	 * D030 says. A branch the user or the agent already changed is left alone.
+	 */
+	async renameBranchAfterFirstMessage(
+		sessionId: SessionId,
+		firstUserMessage: string,
+	): Promise<Result<void>> {
+		if (!this.#deps.setting<boolean>("auto_rename_new_branches")) return ok(undefined);
+		const foundSession = await this.#deps.repos.sessions.get(sessionId);
+		if (!foundSession.ok) return foundSession;
+		if (foundSession.value === null) {
+			return err(appError("session_unknown", "That chat no longer exists."));
+		}
+		const found = await this.#deps.repos.workspaces.get(foundSession.value.workspaceId);
+		if (!found.ok) return found;
+		const workspace = found.value;
+		if (workspace === null) {
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		}
+		if (!workspace.branchIsPlaceholder || workspace.prNumber !== null) return ok(undefined);
+		const message = firstUserMessage.trim();
+		if (message === "") return ok(undefined);
+
+		const checkedOut = await this.#deps.git.stdout(branchShowCurrent(), {
+			cwd: workspace.path,
+		});
+		if (!checkedOut.ok) return checkedOut;
+		if (checkedOut.value.trim() !== workspace.branch) return ok(undefined);
+
+		const suggester = this.#deps.branchNames;
+		if (suggester === undefined) return ok(undefined);
+		const repoResult = await this.#deps.repos.repos.get(workspace.repoId);
+		if (!repoResult.ok) return repoResult;
+		const repo = repoResult.value;
+		if (repo === null) return err(appError("repo_unknown", "That project no longer exists."));
+		const config = await this.#deps.repoConfig(repo.id);
+		if (!config.ok) return config;
+
+		const suggestion = await suggester.suggestBranchName({
+			session: foundSession.value,
+			workspace,
+			firstUserMessage: message,
+			customPrompt: config.value.prompts.renameBranch,
+		});
+		// D030: a failed or empty suggestion keeps the placeholder and writes one log line.
+		if (!suggestion.ok || suggestion.value === null) return ok(undefined);
+
+		// The model call takes time, so read the row and the checkout again before writing: a user
+		// or agent rename that landed meanwhile wins.
+		const latest = await this.#deps.repos.workspaces.get(workspace.id);
+		if (!latest.ok) return latest;
+		const current = latest.value;
+		if (current === null)
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		if (!current.branchIsPlaceholder || current.prNumber !== null) return ok(undefined);
+		const checkedOutAgain = await this.#deps.git.stdout(branchShowCurrent(), {
+			cwd: current.path,
+		});
+		if (!checkedOutAgain.ok) return checkedOutAgain;
+		if (checkedOutAgain.value.trim() !== current.branch) return ok(undefined);
+
+		const prefix = await this.#branchPrefix(repo);
+		if (!prefix.ok) return prefix;
+		const requestedName = `${prefix.value.prefix}${suggestion.value}`;
+		if (!isSafeRefName(requestedName)) return err(invalidRefNameError(requestedName));
+		const remote = await this.#remoteFor(repo);
+		if (!remote.ok) return remote;
+		return renameBranchInWorktree(this.#deps.git, {
+			worktreePath: current.path,
+			repoRootPath: repo.rootPath,
+			remote: remote.value,
+			requestedName,
+			onRenamed: (branch) => this.applyBranchRename(current.id, branch),
+		});
 	}
 
 	/** Backs `Actions.workspaces.archive`: the six steps of services-map 3.10, then the row. */
@@ -1314,7 +1402,11 @@ export class WorkspaceService {
 		return this.archive(id, { deleteBranch: false });
 	}
 
-	/** GIT-09: saves the branch git renamed, so the header and sidebar show the new name. */
+	/**
+	 * GIT-09: saves the branch git renamed, so the header and sidebar show the new name. WS-04's
+	 * "Rename the workspace with its branch" setting then renames an unnamed workspace to the new
+	 * branch, and a failed name write puts the branch row back so the two agree.
+	 */
 	async applyBranchRename(id: WorkspaceId, branch: string): Promise<Result<void>> {
 		const found = await this.#deps.repos.workspaces.get(id);
 		if (!found.ok) return found;
@@ -1323,11 +1415,29 @@ export class WorkspaceService {
 		}
 		const written = await this.#deps.repos.workspaces.setBranch(id, branch, false);
 		if (!written.ok) return written;
+		const at = this.#deps.now();
+		let displayName = found.value.displayName;
+		const followBranch =
+			displayName === null &&
+			this.#deps.setting<boolean>("auto_rename_workspace_on_branch_name_set");
+		if (followBranch) {
+			const named = await this.#deps.repos.workspaces.setDisplayName(id, branch);
+			if (!named.ok) {
+				const back = await this.#deps.repos.workspaces.setBranch(
+					id,
+					found.value.branch,
+					found.value.branchIsPlaceholder,
+				);
+				return back.ok ? named : err(appError(named.error.code, named.error.message, back.error));
+			}
+			displayName = branch;
+		}
 		this.#upsert({
 			...found.value,
 			branch,
 			branchIsPlaceholder: false,
-			updatedAt: this.#deps.now(),
+			displayName,
+			updatedAt: at,
 		});
 		return ok(undefined);
 	}
@@ -1588,6 +1698,21 @@ export class WorkspaceService {
 		if (moved.ok && moved.value) this.#upsert(failed);
 		this.store.setState((state) => ({ ...state, lastFailedCreate: failed }));
 		return err(error);
+	}
+
+	/** The branch prefix from the Git settings, and the warning when the GitHub login is missing. */
+	async #branchPrefix(repo: Repo): Promise<Result<{ prefix: string; warning: string | null }>> {
+		const prefixType = this.#deps.setting<string>("branch_prefix_type");
+		const login = prefixType === "github_username" ? await this.#githubLogin(repo.rootPath) : null;
+		return ok({
+			prefix: branchPrefixFor(
+				prefixType,
+				this.#deps.setting<string>("branch_prefix_custom"),
+				login,
+			),
+			warning:
+				prefixType === "github_username" && login === null ? GITHUB_LOGIN_MISSING_MESSAGE : null,
+		});
 	}
 
 	/** The GitHub login used by the default branch prefix. Null when `gh` is not signed in. */

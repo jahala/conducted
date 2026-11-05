@@ -28,6 +28,8 @@
  * Test first: createContainer returns a container whose `services` has every service named in
  * the `Services` interface, and builds without calling any placeholder.
  */
+
+import type { AgentLaunch } from "@conducted/protocol";
 import {
 	appError,
 	type Clock,
@@ -49,7 +51,9 @@ import { createRepositories } from "./db/repositories.ts";
 import { KeyedMutex } from "./git/locks.ts";
 import { ShellGitRunner } from "./git/runner.ts";
 import { createLookups, defaultSessionConfig, type Lookups } from "./lookups.ts";
-import { AgentCatalogService } from "./services/agent-catalog.ts";
+import type { Session } from "./model.ts";
+import { AgentCatalogService, agentKey } from "./services/agent-catalog.ts";
+import { ChatTitleService } from "./services/chat-titles.ts";
 import { CheckpointService } from "./services/checkpoint.ts";
 import { CommandRunner, createCommandHandlers } from "./services/command-runner.ts";
 import { ComposerService } from "./services/composer.ts";
@@ -340,11 +344,55 @@ export function createContainer(inputs: ContainerInputs): Container {
 		repos: () => repo.store,
 		sessions: () => sessions.store,
 	});
+	const agentCatalog = new AgentCatalogService({
+		sidecar: client,
+		workspacePathOf: (sessionId) => ready(lookups.workspacePathOfSession(sessionId)),
+	});
 	const settings = new SettingsService({
 		platform,
 		repos: repositories,
 		toml: inputs.toml,
 		git: gitRunner,
+	});
+	const agentExecutablePath = (session: Session): string | undefined => {
+		let key: string | undefined;
+		if (session.config.agent === "claude") key = "claude_executable_path";
+		else if (session.config.agent === "codex") key = "codex_executable_path";
+		else if (session.config.acpAgent === "opencode") key = "opencode_executable_path";
+		if (key === undefined) return undefined;
+		const path = setting<string>(key).trim();
+		return path === "" ? undefined : path;
+	};
+	// SIDE-21 adds the Environment page's variables and the user's provider keys to this launch.
+	// Until then the agent uses its own sign-in and the program at the setting or on the PATH.
+	const launchFor = (session: Session): AgentLaunch => {
+		const executablePath = agentExecutablePath(session);
+		return {
+			env: {},
+			providerKeys: {},
+			...(executablePath === undefined ? {} : { executablePath }),
+		};
+	};
+	const chatTitles = new ChatTitleService({
+		sidecar: client,
+		titlesEnabled: () =>
+			setting<boolean>("ai_generated_chat_titles") !== false &&
+			!setting<boolean>("enterprise_data_privacy"),
+		// The catalog has no price field, so the default picker model is the utility choice.
+		cheapestModel: (session) => {
+			const models =
+				agentCatalog.store.getState().models[
+					agentKey(session.config.agent, session.config.acpAgent)
+				];
+			if (models?.state === "ready") {
+				const picker = models.data.filter((model) => model.status === "picker");
+				const choice = picker.find((model) => model.isDefault) ?? picker[0];
+				if (choice !== undefined) return choice.id;
+			}
+			return session.config.model === "" ? null : session.config.model;
+		},
+		launchFor,
+		log,
 	});
 	const ports = new PortService({ platform });
 	const terminals = new TerminalsService({
@@ -390,6 +438,14 @@ export function createContainer(inputs: ContainerInputs): Container {
 		notifications,
 		workspaceContextOf: (id) => ready(lookups.sidecarContext(id, undefined)),
 		defaultConfig: (id) => ready(defaultSessionConfig(id, lookups, setting)),
+		launchFor,
+		onFirstMessage: async (session, text) => {
+			const renamed = await workspace.renameBranchAfterFirstMessage(session.id, text);
+			if (!renamed.ok) {
+				log("warn", `Couldn't rename the branch after the first message: ${renamed.error.message}`);
+			}
+		},
+		log,
 		setting,
 		now: () => clock.now(),
 		newId: () => ids.uuid(),
@@ -427,6 +483,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		sessions,
 		ports,
 		repoConfig: (repoId) => repo.loadConfig(repoId),
+		branchNames: chatTitles,
 		scripts: runScripts,
 		checkpointerPath: checkpointerScript(paths),
 		setting,
@@ -434,10 +491,6 @@ export function createContainer(inputs: ContainerInputs): Container {
 	});
 	const sections = new SectionsService({ db: platform.db, repos: repositories });
 	const favoriteModels = new FavoriteModelsService({ repos: repositories });
-	const agentCatalog = new AgentCatalogService({
-		sidecar: client,
-		workspacePathOf: (sessionId) => ready(lookups.workspacePathOfSession(sessionId)),
-	});
 	const mcp = new McpService({ sidecar: client });
 	const linear = new LinearService({
 		http: createCurlLinearHttp(platform.shell),
