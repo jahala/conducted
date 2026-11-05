@@ -133,7 +133,6 @@
 	"stand-in-home": {
 		"apps/desktop/src/app/SurfaceLayer.nav-15.test.tsx": 1,
 		"apps/desktop/src/app/navigation-history.test.ts": 1,
-		"apps/desktop/src/core/db/repair.test.ts": 1,
 		"apps/desktop/src/core/git/rename.test.ts": 1,
 		"apps/desktop/src/core/git/status.git-04.test.ts": 1,
 		"apps/desktop/src/core/git/status.test.ts": 1,
