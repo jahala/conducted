@@ -57,13 +57,13 @@
  * hook body lives with the feature that implements it (for example NAV-03 for useWorkspaces).
  */
 import { idleLiveState } from "@conducted/protocol";
-import { notImplemented, type WorkspaceId } from "@conducted/shared";
+import { appError, notImplemented, type WorkspaceId } from "@conducted/shared";
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { useStore } from "zustand";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 import type { Actions, Draft, Loadable, Queries } from "./api.ts";
 import { useServices } from "./context.tsx";
-import type { GitState, Repo, Session } from "./model.ts";
+import type { ChatView, GitState, Repo, Session } from "./model.ts";
 import type { WorkspaceGitEntry } from "./services/git.ts";
 import { toGitHubAccessView, type WorkspacePrEntry } from "./services/github.ts";
 import type { SessionsState } from "./services/sessions.ts";
@@ -210,7 +210,23 @@ export const useSessions: Queries["useSessions"] = (workspaceId) => {
 	const state = useSessionSlice((value) => value);
 	return sessionsOf(state, workspaceId, false);
 };
-export const useChat: Queries["useChat"] = () => notImplemented("CHAT-07");
+export const useChat: Queries["useChat"] = (sessionId) => {
+	const services = useServices();
+	const sessions = services.services.sessions;
+	const state = useSessionSlice((value) => value);
+	useStore(services.services.followUpQueue.store, (queue) => queue.bySession[sessionId]);
+
+	return useMemo<Loadable<ChatView>>(() => {
+		if (state.loadError != null) return { state: "error", error: state.loadError };
+		if (!state.loaded) return { state: "loading" };
+		if (state.sessions[sessionId] === undefined) {
+			return { state: "error", error: appError("session_unknown", "That chat no longer exists.") };
+		}
+		if (state.events[sessionId] === undefined) return { state: "loading" };
+		const data = sessions.chatView(sessionId);
+		return data === null ? { state: "loading" } : { state: "ready", data };
+	}, [state, sessionId, sessions]);
+};
 const EMPTY_DRAFT: Draft = { text: "", attachmentPaths: [] };
 
 export const useDraft: Queries["useDraft"] = (sessionId) => {

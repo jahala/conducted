@@ -11,17 +11,18 @@
  *
  * The send, cancel, interaction, progress and unread paths live in the same service but belong to
  * CHAT-02, CHAT-05, CHAT-10, CHAT-13, CHAT-18 and NAV-11. They are placeholders until those
- * features build them, so this header claims only what CHAT-01 builds.
+ * features build them. The chat view (turns built from stored events) belongs to CHAT-07.
  */
-import type {
-	Interaction,
-	InteractionAnswer,
-	InteractionRequest,
-	LiveState,
-	Progress,
-	SessionConfig,
-	SessionEvent,
-	WorkspaceContext,
+import {
+	type Interaction,
+	type InteractionAnswer,
+	type InteractionRequest,
+	idleLiveState,
+	type LiveState,
+	type Progress,
+	type SessionConfig,
+	type SessionEvent,
+	type WorkspaceContext,
 } from "@conducted/protocol";
 import {
 	type AppError,
@@ -44,7 +45,7 @@ import type { SidecarClient } from "../sidecar/tunnel.ts";
 import type { ComposerService } from "./composer.ts";
 import type { FollowUpQueue } from "./follow-up-queue.ts";
 import type { NotificationService } from "./notifications.ts";
-import type { StoredEvent } from "./turn-builder.ts";
+import { buildTurns, classifyTurnsChange, type StoredEvent } from "./turn-builder.ts";
 
 /**
  * How the git and GitHub services ask the agent to do work. The text lands in the workspace's
@@ -95,7 +96,7 @@ export interface SessionsServiceDeps {
 	repositories: () => Repositories;
 	sidecar: Pick<SidecarClient, "request" | "notify">;
 	composer: Pick<ComposerService, "materializeForSend" | "clearDraft" | "draftOf">;
-	queue: Pick<FollowUpQueue, "enqueue" | "release" | "pauseOnCancel">;
+	queue: Pick<FollowUpQueue, "enqueue" | "release" | "pauseOnCancel" | "store">;
 	notifications: Pick<NotificationService, "onLiveStateChanged">;
 	/** Folders and branch facts the sidecar needs to place a chat on disk. */
 	workspaceContextOf: (workspaceId: WorkspaceId) => Promise<Result<WorkspaceContext>>;
@@ -106,9 +107,34 @@ export interface SessionsServiceDeps {
 	newId: () => string;
 }
 
+/**
+ * Reuses the turns that did not change, so a memoised list item sees the same object while a
+ * reply streams. The differ names the first turn that differs.
+ */
+function reuseTurns(previous: ChatView["turns"], next: ChatView["turns"]): ChatView["turns"] {
+	const change = classifyTurnsChange(previous, next);
+	switch (change.kind) {
+		case "same":
+			return [...previous];
+		case "initial":
+			return [...next];
+		case "cleared":
+			return [];
+		case "appended":
+		case "tail_changed":
+			return [...previous.slice(0, change.fromIndex), ...next.slice(change.fromIndex)];
+		case "inserted":
+			return [...previous.slice(0, change.atIndex), ...next.slice(change.atIndex)];
+		case "truncated":
+			return [...previous.slice(0, change.toLength)];
+	}
+}
+
 export class SessionsService implements AgentMessenger {
 	readonly store: StoreApi<SessionsState>;
 	readonly #deps: SessionsServiceDeps;
+	/** The last turn list built per chat, so unchanged turns keep their identity. */
+	readonly #turns = new Map<string, ChatView["turns"]>();
 
 	constructor(deps: SessionsServiceDeps) {
 		this.#deps = deps;
@@ -301,6 +327,7 @@ export class SessionsService implements AgentMessenger {
 		if (!found.ok) return found;
 		const removed = await this.#deps.repositories().sessions.delete(id);
 		if (!removed.ok) return removed;
+		this.#turns.delete(id);
 		this.store.setState((state) => {
 			const sessions = { ...state.sessions };
 			delete sessions[id];
@@ -513,8 +540,39 @@ export class SessionsService implements AgentMessenger {
 	}
 
 	/** Backs `useChat`. Null for an unknown chat. */
-	chatView(_sessionId: SessionId): ChatView | null {
-		return notImplemented("CHAT-07");
+	chatView(sessionId: SessionId): ChatView | null {
+		const state = this.store.getState();
+		const session = state.sessions[sessionId];
+		if (session === undefined) return null;
+
+		const liveState = state.liveStates[sessionId] ?? idleLiveState;
+		const pending = (state.sending[sessionId] ?? []).map((send) => ({
+			...send,
+			messageId: send.messageId as MessageId,
+		}));
+		const fresh = buildTurns(state.events[sessionId] ?? [], liveState, pending);
+		const previous = this.#turns.get(sessionId);
+		const turns = previous === undefined ? fresh : reuseTurns(previous, fresh);
+		this.#turns.set(sessionId, turns);
+
+		const open = state.openInteractions[sessionId];
+		return {
+			session,
+			turns,
+			liveState,
+			queued: [...(this.#deps.queue.store.getState().bySession[sessionId] ?? [])],
+			openInteraction:
+				open === undefined
+					? null
+					: {
+							interactionId: open.interactionId,
+							interaction: open.interaction,
+							expiresAt: null,
+							timedOut: false,
+						},
+			progress: null,
+			goal: null,
+		};
 	}
 
 	/** Backs `useDraft` through the composer service; kept here so the view model has one source. */
