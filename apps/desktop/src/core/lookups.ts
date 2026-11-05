@@ -5,24 +5,22 @@
  * Behaviour: services-map.md 1.4 (the workspace service's dependency object: path, branch,
  * target, repository root), frontend.md 6 (what the sidecar needs to place a chat on disk).
  * Must handle: an unknown workspace, chat or repository returns an Err with a stable code and
- * never throws; the remote name is the part of the target branch before the first slash (for
- * example "origin" from "origin/main"); a target branch with no slash falls back to "origin";
- * the lookups read the stores when called, never at construction, because the services are built
- * in dependency order and some stores do not exist yet.
- * Our design choice: the remote is derived from `target_branch` because migration 0001 has no
- * remote column. Stores are passed as getters so construction order does not matter.
- * One home for the remote (DATA-09): the repo setting `remote_name` ("Remote origin" on the Git
- * page) is the only source. `remoteNameOf` reads `RepoConfig.remoteName` from the repo store; an
- * empty name means "origin". Once it is built, `gitContext` and `prContext` take their remote
- * from it and `remoteOf` goes away. A repo whose config is not loaded yet returns the error code
- * `repo_config_unloaded`, never a guessed name.
- * Test first: gitContext for a workspace targeting "upstream/dev" has remote "upstream".
+ * never throws; a repository whose config is not loaded yet returns `repo_config_unloaded`
+ * rather than a guessed remote; an empty or whitespace-only remote name means "origin"; the
+ * lookups read the stores when called, never at construction, because the services are built in
+ * dependency order and some stores do not exist yet.
+ * Our design choice: the repo setting `remote_name` ("Remote origin" on the Git page) is the one
+ * home of a repository's remote (DATA-09), because the settings files are where the user sets it.
+ * `remoteNameOf` reads `RepoConfig.remoteName` from the repo store, and `gitContext` and
+ * `prContext` take their remote from it, so every git and pull request caller uses the same name.
+ * Stores are passed as getters so construction order does not matter.
+ * Test first: a repo whose config names "upstream" gives "upstream" to gitContext and prContext,
+ * even when the workspace's target branch names "origin/dev".
  */
 import { type SessionConfig, type WorkspaceContext, zEffort } from "@conducted/protocol";
 import {
 	appError,
 	err,
-	notImplemented,
 	ok,
 	type Result,
 	type SessionId,
@@ -59,10 +57,15 @@ export interface Lookups {
 	allowedRoots(id: WorkspaceId): Result<string[]>;
 }
 
-export const remoteOf = (targetBranch: string): string => {
-	const slash = targetBranch.indexOf("/");
-	return slash > 0 ? targetBranch.slice(0, slash) : "origin";
-};
+/** The config read has not finished, so no remote name can be known yet. */
+function repoConfigUnloaded(): Result<never> {
+	return err(
+		appError(
+			"repo_config_unloaded",
+			"The repository settings are still loading. Try again in a moment.",
+		),
+	);
+}
 
 export function createLookups(sources: LookupSources): Lookups {
 	const workspace = (id: WorkspaceId): Result<Workspace> => {
@@ -85,21 +88,31 @@ export function createLookups(sources: LookupSources): Lookups {
 			? err(appError("session_unknown", "That chat no longer exists."))
 			: workspace(session.workspaceId);
 	};
+	const remoteNameOf = (id: WorkspaceId): Result<string> => {
+		const ws = workspace(id);
+		if (!ws.ok) return ws;
+		const config = sources.repos().getState().configs[ws.value.repoId];
+		if (config === undefined) return repoConfigUnloaded();
+		const name = config.remoteName?.trim() ?? "";
+		return ok(name === "" ? "origin" : name);
+	};
 	return {
 		workspace,
 		repoOf,
 		workspaceOfSession,
-		remoteNameOf: () => notImplemented("DATA-09"),
+		remoteNameOf,
 		gitContext(id) {
 			const ws = workspace(id);
 			if (!ws.ok) return ws;
 			const repo = repoOf(id);
 			if (!repo.ok) return repo;
+			const remote = remoteNameOf(id);
+			if (!remote.ok) return remote;
 			return ok({
 				workspaceId: id,
 				workspacePath: ws.value.path,
 				repoRootPath: repo.value.rootPath,
-				remote: remoteOf(ws.value.targetBranch),
+				remote: remote.value,
 				targetBranch: ws.value.targetBranch,
 				branch: ws.value.branch,
 			});
@@ -107,20 +120,15 @@ export function createLookups(sources: LookupSources): Lookups {
 		prContext(id) {
 			const ws = workspace(id);
 			if (!ws.ok) return ws;
+			const remote = remoteNameOf(id);
+			if (!remote.ok) return remote;
 			const config = sources.repos().getState().configs[ws.value.repoId];
-			if (config === undefined) {
-				return err(
-					appError(
-						"repo_config_unloaded",
-						"The repository settings are still loading. Try again in a moment.",
-					),
-				);
-			}
+			if (config === undefined) return repoConfigUnloaded();
 			return ok({
 				workspaceId: id,
 				workspacePath: ws.value.path,
 				branch: ws.value.branch,
-				remote: remoteOf(ws.value.targetBranch),
+				remote: remote.value,
 				prNumber: ws.value.prNumber,
 				targetBranch: ws.value.targetBranch,
 				customPrompt: config.prompts.createPr,
