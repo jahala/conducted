@@ -4,10 +4,10 @@
 //! with back-pressure, keeping a headless copy of each screen, and ending them cleanly.
 //!
 //! Behaviour: docs/research/conductor/native-and-sidecar-map.md A2 (`pty_spawn`, `pty_write`,
-//! `pty_resize`, `pty_kill`, `pty_ack_bytes`, `pty_screen_text`; portable-pty plus an alacritty
-//! screen model) and A5 (zsh integration is written by the UI, which passes `ZDOTDIR` in `env`).
-//! services-map.md 5A.4 (output is base64 with a byte length, the UI acks in batches of 5000
-//! bytes, Rust pauses reading when too many bytes are unacknowledged).
+//! `pty_resize`, `pty_kill`, `pty_ack`, `pty_screen_text`, `pty_screen_snapshot`; portable-pty
+//! plus an alacritty screen model) and A5 (zsh integration is written by the UI, which passes
+//! `ZDOTDIR` in `env`). services-map.md 5A.4 (output is base64 with a byte length, the UI acks in
+//! batches of 5000 bytes, Rust pauses reading when too many bytes are unacknowledged).
 //!
 //! Must handle:
 //! - Output travels over the `Channel` passed to `pty_spawn` as base64 chunks with their raw
@@ -20,20 +20,39 @@
 //!   separate handles, each behind its own mutex, so a slow write never blocks a resize.
 //! - Output is fed to the screen mirror in the reader thread, before it is sent, so
 //!   `pty_screen_text` never shows less than the UI has seen.
-//! - When the child exits, the reader drains what is left, the exit code is collected, history is
-//!   saved (terminal_history.rs), the session leaves the table, and `pty://exit` fires once.
-//! - `pty_kill` on a terminal that already ended succeeds. A kill also reaches the foreground
-//!   process group, so `npm run dev` children stop with the shell.
+//! - When the child exits, the exit watcher closes flow control and wakes a paused reader, then
+//!   waits only `DRAIN_AFTER_EXIT_MS` for the reader to drain. A background process that keeps
+//!   the PTY open cannot delay the exit. The exit code is collected, the history recorder is
+//!   asked to save (PLAT-08 owns saving; it fails today), the session leaves the table, and
+//!   `pty://exit` fires once.
+//! - `pty_kill` on a terminal that already ended succeeds. A kill sends SIGHUP to the terminal's
+//!   foreground process group, found with `tcgetpgrp` on the master, so `npm run dev` children
+//!   stop with the shell even when job control put them in another group.
 //! - `pty_spawn` fails with `pty_bad_cwd` when the folder is missing, before any process exists.
 //! - A resize to zero columns or rows is rejected with `pty_bad_size`.
-//! - Closing the app kills every terminal. A panic in one reader thread must not poison the table
-//!   for the others: lock calls recover from poisoning.
+//! - A panic in one reader thread must not poison the table for the others: lock calls recover
+//!   from poisoning.
 //! - Sessions are looked up by id in a shared table behind a mutex that is never held while
 //!   reading or writing a terminal.
+//! - The child starts from the captured, stripped login-shell environment. The request's `env`
+//!   is layered last, and the app's own process environment is never inherited.
+//!
+//! Not this module's work:
+//! - Closing the app kills every terminal. The app lifecycle lives in `lib.rs` (PLAT-27).
+//! - The session launch request (kind, execution, env mode, persistence, metadata), direct script
+//!   files under a projects folder, terminal naming and the terminal limit are UI work (RUN-06).
+//!   This module sees only `PtySpawnRequest`.
+//! - `pty_screen_snapshot` redraws the visible grid as clear-screen plus plain text. It keeps no
+//!   colours, attributes or cursor position, and scrollback appears as visible lines. The full
+//!   screen state is not built yet.
+//! - Saving history is PLAT-08. `HistoryRecorder::push_output` and `save` are placeholders that
+//!   return an error today, so the reader and the exit watcher discard those errors.
+//! - `pty-ready` is dropped by design: `pty_spawn` returns once the process exists.
 //!
 //! Our design choice: ids are made in Rust and are unique across restarts (start time plus a
 //! counter), so the history file name can be the id. The UI stores the id in its `terminals` row.
-//! Our design choice: history is saved by Rust when the child exits, so the UI has no persist call.
+//! Our design choice: once PLAT-08 lands, Rust saves history when the child exits, so the UI has
+//! no persist call.
 //!
 //! Test first: spawn `printf` of 3 MiB with the UI never acking; the reader pauses near
 //! `HIGH_WATER_BYTES`; acking everything lets it finish and `pty://exit` arrives once.
@@ -41,8 +60,8 @@
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Condvar, Mutex, PoisonError};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::{Arc, Condvar, Mutex, PoisonError, mpsc};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use alacritty_terminal::event::VoidListener;
 use alacritty_terminal::grid::Dimensions;
@@ -56,11 +75,12 @@ use tauri::ipc::Channel;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::error::{CommandError, CommandResult};
+use crate::process_group;
 use crate::terminal_history::{HistoryRecorder, history_dir};
 
 #[cfg(unix)]
 unsafe extern "C" {
-    fn killpg(pgrp: i32, signal: i32) -> i32;
+    fn tcgetpgrp(fd: i32) -> i32;
 }
 
 /// SIGHUP reaches every process in the terminal's foreground group.
@@ -77,6 +97,9 @@ pub const LOW_WATER_BYTES: usize = 256 * 1024;
 pub const READ_CHUNK_BYTES: usize = 64 * 1024;
 /// Lines the screen mirror keeps above the visible screen.
 pub const SCROLLBACK_LINES: usize = 10_000;
+/// How long the exit watcher waits for the reader after the child ends. A background process that
+/// still holds the PTY keeps the reader open; the exit event must not wait for it.
+pub const DRAIN_AFTER_EXIT_MS: u64 = 500;
 
 /// A program to run instead of the login shell. Mirrors `PtySpawn.command` in platform.ts.
 #[derive(Debug, Clone, Deserialize)]
@@ -178,6 +201,7 @@ impl FlowControl {
     pub fn record_sent(&self, bytes: usize) -> CommandResult<()> {
         let mut unacked = self.unacked.lock().unwrap_or_else(PoisonError::into_inner);
         *unacked = (*unacked).saturating_add(bytes);
+        self.below_low_water.notify_all();
         Ok(())
     }
 
@@ -207,6 +231,38 @@ impl FlowControl {
     pub fn close(&self) {
         self.closed.store(true, Ordering::SeqCst);
         self.below_low_water.notify_all();
+    }
+
+    /// Whether the terminal has been closed.
+    pub fn is_closed(&self) -> bool {
+        self.closed.load(Ordering::SeqCst)
+    }
+
+    /// Waits until the reader is paused at the high-water mark, so a test can drive its acks from
+    /// the counter instead of from the messages. Returns once the terminal closes.
+    #[cfg(test)]
+    fn wait_for_high_water(&self) -> CommandResult<()> {
+        let mut unacked = self.unacked.lock().unwrap_or_else(PoisonError::into_inner);
+        while *unacked < HIGH_WATER_BYTES && !self.is_closed() {
+            unacked = self
+                .below_low_water
+                .wait(unacked)
+                .unwrap_or_else(PoisonError::into_inner);
+        }
+        Ok(())
+    }
+
+    /// Waits until bytes are sent or the terminal closes, so a test ack loop never spins.
+    #[cfg(test)]
+    fn wait_for_progress(&self) -> CommandResult<()> {
+        let mut unacked = self.unacked.lock().unwrap_or_else(PoisonError::into_inner);
+        while *unacked == 0 && !self.is_closed() {
+            unacked = self
+                .below_low_water
+                .wait(unacked)
+                .unwrap_or_else(PoisonError::into_inner);
+        }
+        Ok(())
     }
 }
 
@@ -264,7 +320,9 @@ impl ScreenMirror {
         Ok(lines[first..].join("\n"))
     }
 
-    /// The full screen and its modes, for redrawing a tab.
+    /// The visible grid as clear-screen plus plain text, and the modes set by the program.
+    /// Colours, attributes and cursor position are not reproduced; scrollback is replayed as
+    /// visible lines.
     pub fn snapshot(&self) -> CommandResult<PtyScreenSnapshot> {
         let grid = self.term.grid();
         let cols = u16::try_from(grid.columns()).unwrap_or(u16::MAX);
@@ -336,10 +394,12 @@ impl PtyState {
 }
 
 /// Builds the program to run: the request's command, or the login shell with `-l`, with the
-/// captured login-shell environment, the request's `env` and the `TERM` defaults applied.
+/// captured login-shell environment, the `TERM` defaults and the request's `env` applied in that
+/// order. The app's own process environment is never inherited.
 pub fn build_command(
     request: &PtySpawnRequest,
     login_shell: &str,
+    base_env: &HashMap<String, String>,
 ) -> CommandResult<CommandBuilder> {
     let interactive = request.command.is_none();
     let mut builder = match &request.command {
@@ -359,6 +419,10 @@ pub fn build_command(
         }
     };
     builder.cwd(&request.cwd);
+    builder.env_clear();
+    for (key, value) in base_env {
+        builder.env(key, value);
+    }
 
     let overlay = request.env.as_ref();
     let has = |key: &str| overlay.is_some_and(|env| env.contains_key(key));
@@ -433,6 +497,7 @@ pub struct SpawnedTerminal {
 pub fn spawn_terminal(
     request: &PtySpawnRequest,
     login_shell: &str,
+    base_env: &HashMap<String, String>,
     id: String,
 ) -> CommandResult<SpawnedTerminal> {
     validate_cwd(&request.cwd)?;
@@ -440,7 +505,7 @@ pub fn spawn_terminal(
         return Err(bad_size());
     }
 
-    let command = build_command(request, login_shell)?;
+    let command = build_command(request, login_shell, base_env)?;
     let system = portable_pty::native_pty_system();
     let pair = system
         .openpty(PtySize {
@@ -499,7 +564,8 @@ pub fn spawn_terminal(
 
 /// Starts the reader thread and the exit watcher for a new session. The reader honours flow
 /// control, feeds the mirror and the history recorder, then sends chunks on `output`. The
-/// watcher collects the exit status, saves history, removes the session and emits `pty://exit`.
+/// watcher closes flow control, waits briefly for the reader, collects the exit status, asks the
+/// history recorder to save (PLAT-08 owns saving), removes the session and emits `pty://exit`.
 pub fn start_io_threads(
     app: &AppHandle,
     _state: &PtyState,
@@ -509,7 +575,8 @@ pub fn start_io_threads(
     mut reader: Box<dyn Read + Send>,
 ) -> CommandResult<()> {
     let reader_session = Arc::clone(&session);
-    let reader_thread = std::thread::spawn(move || {
+    let (reader_done_tx, reader_done_rx) = mpsc::channel();
+    std::thread::spawn(move || {
         let flow = Arc::clone(&reader_session.flow);
         let mirror = Arc::clone(&reader_session.mirror);
         let history = Arc::clone(&reader_session.history);
@@ -529,12 +596,18 @@ pub fn start_io_threads(
                 })
                 .is_ok()
         });
+        let _ = reader_done_tx.send(());
     });
 
     let app = app.clone();
     std::thread::spawn(move || {
         let status = child.wait();
-        let _ = reader_thread.join();
+        // A terminal nobody acks can have its reader paused at the high-water mark. Closing the
+        // flow wakes it, so it drains to end of file and the exit event is not lost.
+        session.flow.close();
+        // A background process can hold the PTY open after the child ends. Wait for the reader
+        // only briefly, then report the exit regardless.
+        let _ = reader_done_rx.recv_timeout(Duration::from_millis(DRAIN_AFTER_EXIT_MS));
         let (exit_code, signal) = exit_details(status);
 
         if let Ok(dir) = history_dir(&app) {
@@ -573,8 +646,11 @@ pub async fn pty_spawn(
     request: PtySpawnRequest,
     on_output: Channel<PtyChunk>,
 ) -> CommandResult<PtySpawned> {
-    let login_shell = default_login_shell();
-    let spawned = spawn_terminal(&request, &login_shell, state.next_id())?;
+    // The captured login-shell environment is the base of every child. It is already stripped of
+    // provider keys and exported functions. The same capture names the user's login shell, so
+    // there is one source of truth for both.
+    let login = crate::shell::shell_login_env(app.state::<crate::shell::ShellState>()).await?;
+    let spawned = spawn_terminal(&request, &login.shell, &login.vars, state.next_id())?;
     let id = spawned.session.id.clone();
     let pid = spawned.session.pid;
     state
@@ -657,19 +733,36 @@ pub async fn pty_resize(
     mirror.resize(cols, rows)
 }
 
-/// Ends the terminal's process.
+/// Ends the terminal's process. Killing an id that already ended is a no-op that succeeds.
 #[tauri::command]
 pub async fn pty_kill(state: State<'_, PtyState>, id: String) -> CommandResult<()> {
-    let Ok(session) = state.get(&id) else {
-        return Ok(());
-    };
+    kill_if_live(&state, &id)
+}
+
+/// Ends a live terminal, or succeeds when it already ended.
+fn kill_if_live(state: &PtyState, id: &str) -> CommandResult<()> {
+    if let Ok(session) = state.get(id) {
+        kill_session(&session);
+    }
+    Ok(())
+}
+
+/// Wakes the reader, signals the terminal's foreground process group, then ends the child.
+fn kill_session(session: &PtySession) {
     session.flow.close();
     #[cfg(unix)]
-    if let Some(pid) = session.pid {
-        // The shell is the session and process-group leader. Signal the whole group first so
-        // programs it started (a dev server) stop with it, then end the child itself.
-        unsafe {
-            let _ = killpg(pid as i32, SIGHUP);
+    {
+        // Under job control the foreground group is not the shell's own group. A dev server the
+        // user started is there, so signal that group first and fall back to the child's group.
+        let foreground = {
+            let master = session
+                .master
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            foreground_group(&**master)
+        };
+        if let Some(pgrp) = foreground.or(session.pid) {
+            let _ = process_group::signal_group(pgrp, SIGHUP);
         }
     }
     let mut killer = session
@@ -677,7 +770,16 @@ pub async fn pty_kill(state: State<'_, PtyState>, id: String) -> CommandResult<(
         .lock()
         .unwrap_or_else(PoisonError::into_inner);
     let _ = killer.kill();
-    Ok(())
+}
+
+/// The foreground process group of the terminal behind the master, when the platform reports one.
+#[cfg(unix)]
+fn foreground_group(master: &(dyn MasterPty + Send)) -> Option<u32> {
+    let fd = master.as_raw_fd()?;
+    // SAFETY: tcgetpgrp reads the foreground group of the terminal open on `fd`. The fd stays
+    // open for as long as the master is held by the caller.
+    let pgrp = unsafe { tcgetpgrp(fd) };
+    (pgrp > 0).then_some(pgrp as u32)
 }
 
 /// Reports bytes the UI has rendered, which lets a paused reader continue.
@@ -704,7 +806,8 @@ pub async fn pty_screen_text(
     mirror.text(max_lines)
 }
 
-/// Returns the full screen state, so a tab or a restored terminal redraws on the right screen.
+/// Returns clear-screen plus plain screen text and the modes, so a tab redraws on the right
+/// screen. Colours, attributes and cursor position are not included.
 #[tauri::command]
 pub async fn pty_screen_snapshot(
     state: State<'_, PtyState>,
@@ -731,20 +834,6 @@ fn validate_cwd(cwd: &str) -> CommandResult<()> {
         });
     }
     Ok(())
-}
-
-/// The user's login shell, or the macOS default when `SHELL` is not set.
-fn default_login_shell() -> String {
-    std::env::var("SHELL")
-        .ok()
-        .filter(|shell| !shell.is_empty())
-        .unwrap_or_else(|| {
-            if cfg!(target_os = "macos") {
-                "/bin/zsh".to_string()
-            } else {
-                "/bin/bash".to_string()
-            }
-        })
 }
 
 fn bad_size() -> CommandError {
@@ -831,6 +920,21 @@ mod tests {
         std::env::temp_dir().to_string_lossy().into_owned()
     }
 
+    /// A stand-in for the captured, stripped login-shell environment.
+    fn captured_env() -> HashMap<String, String> {
+        HashMap::from([
+            (
+                "PATH".to_string(),
+                "/opt/homebrew/bin:/usr/bin:/bin".to_string(),
+            ),
+            ("HOME".to_string(), "/Users/test".to_string()),
+        ])
+    }
+
+    fn empty_env() -> HashMap<String, String> {
+        HashMap::new()
+    }
+
     #[test]
     fn plat_07_flow_control_pauses_at_high_water_and_wakes_below_low() {
         let flow = Arc::new(FlowControl::new());
@@ -879,43 +983,41 @@ mod tests {
     fn plat_07_reader_pauses_before_three_megabytes_and_finishes_after_acking() {
         let flow = Arc::new(FlowControl::new());
         let total = 3 * 1024 * 1024;
-        let (sent_tx, sent_rx) = mpsc::channel();
         let reading = Arc::clone(&flow);
         let reader = std::thread::spawn(move || {
             let mut source = Cursor::new(vec![b'x'; total]);
             let mut sent = 0usize;
             pump_output(&mut source, &reading, |bytes| {
                 sent += bytes.len();
-                sent_tx.send(sent).unwrap();
                 true
             })
             .unwrap();
+            reading.close();
             sent
         });
 
-        let paused_at = loop {
-            let sent = sent_rx.recv().expect("the reader stopped before pausing");
-            if sent >= total || *flow.unacked.lock().unwrap() >= HIGH_WATER_BYTES - READ_CHUNK_BYTES
-            {
-                break sent;
-            }
-        };
+        // The reader blocks once it has sent the high-water mark. Waiting on the counter, rather
+        // than on the messages, keeps the acks from racing the reader's `record_sent`.
+        flow.wait_for_high_water()
+            .expect("the reader reaches the high-water mark");
         assert!(
-            paused_at < total,
-            "the reader must pause before it has read everything"
+            *flow.unacked.lock().unwrap() >= HIGH_WATER_BYTES,
+            "the reader must pause at the high-water mark before it has read everything"
         );
 
-        flow.acknowledge(paused_at).unwrap();
-        let mut acknowledged = paused_at;
-        while let Ok(sent) = sent_rx.recv() {
-            if sent > acknowledged {
-                flow.acknowledge(sent - acknowledged).unwrap();
-                acknowledged = sent;
+        while !flow.is_closed() {
+            let unacked = *flow.unacked.lock().unwrap();
+            if unacked > 0 {
+                flow.acknowledge(unacked).unwrap();
+            } else {
+                flow.wait_for_progress().unwrap();
             }
         }
+
         let sent = reader.join().unwrap();
         assert_eq!(sent, total);
-        flow.acknowledge(total).unwrap();
+        let remaining = *flow.unacked.lock().unwrap();
+        flow.acknowledge(remaining).unwrap();
         assert_eq!(*flow.unacked.lock().unwrap(), 0);
     }
 
@@ -977,12 +1079,17 @@ mod tests {
             command: None,
             env: None,
         };
-        let command = build_command(&request, "/bin/zsh").unwrap();
+        let command = build_command(&request, "/bin/zsh", &captured_env()).unwrap();
         assert_eq!(command.get_argv()[0], OsString::from("/bin/zsh"));
         assert_eq!(
             command.get_env("SHELL"),
             Some(OsStr::new("/bin/zsh")),
             "the shell is passed to the program"
+        );
+        assert_eq!(
+            command.get_env("HOME"),
+            Some(OsStr::new("/Users/test")),
+            "the captured environment is the base"
         );
         assert_eq!(command.get_env("TERM"), Some(OsStr::new("xterm-256color")));
         assert_eq!(command.get_env("COLORTERM"), Some(OsStr::new("truecolor")));
@@ -1019,7 +1126,7 @@ mod tests {
                 ("FOO".to_string(), "bar".to_string()),
             ])),
         };
-        let command = build_command(&request, "/bin/zsh").unwrap();
+        let command = build_command(&request, "/bin/zsh", &captured_env()).unwrap();
         assert_eq!(command.get_argv()[0], OsString::from("/bin/sh"));
         assert_eq!(command.get_argv()[1], OsString::from("-c"));
         assert_eq!(
@@ -1028,13 +1135,32 @@ mod tests {
             "the request env wins over the default"
         );
         assert_eq!(command.get_env("FOO"), Some(OsStr::new("bar")));
-        if cfg!(target_os = "macos") {
-            assert_ne!(
-                command.get_env("PATH"),
-                Some(OsStr::new("")),
-                "a direct script keeps the captured PATH"
-            );
-        }
+        assert_eq!(
+            command.get_env("PATH"),
+            Some(OsStr::new("/opt/homebrew/bin:/usr/bin:/bin")),
+            "a direct script keeps the exact captured PATH"
+        );
+        assert_eq!(command.get_env("HOME"), Some(OsStr::new("/Users/test")));
+    }
+
+    #[test]
+    fn plat_07_direct_command_does_not_inherit_the_app_environment() {
+        let request = PtySpawnRequest {
+            cwd: temp_cwd(),
+            cols: 80,
+            rows: 24,
+            command: Some(PtyCommand {
+                program: "/bin/sh".to_string(),
+                args: vec!["-c".to_string(), "printf hi".to_string()],
+            }),
+            env: None,
+        };
+        let command = build_command(&request, "/bin/zsh", &empty_env()).unwrap();
+        assert_eq!(
+            command.get_env("PATH"),
+            None,
+            "the app's process environment must not leak into the child"
+        );
     }
 
     #[test]
@@ -1066,7 +1192,8 @@ mod tests {
             }),
             env: None,
         };
-        let mut spawned = spawn_terminal(&request, "/bin/zsh", "spawn-test".to_string()).unwrap();
+        let mut spawned =
+            spawn_terminal(&request, "/bin/zsh", &empty_env(), "spawn-test".to_string()).unwrap();
         let mut output = [0u8; 256];
         let read = spawned.reader.read(&mut output).unwrap();
         let text = String::from_utf8_lossy(&output[..read]);
@@ -1087,7 +1214,8 @@ mod tests {
             }),
             env: None,
         };
-        let mut spawned = spawn_terminal(&request, "/bin/zsh", "io-test".to_string()).unwrap();
+        let mut spawned =
+            spawn_terminal(&request, "/bin/zsh", &empty_env(), "io-test".to_string()).unwrap();
 
         {
             let mut writer = spawned.session.writer.lock().unwrap();
@@ -1115,6 +1243,41 @@ mod tests {
         }
 
         spawned.session.killer.lock().unwrap().kill().unwrap();
+        let status = spawned.child.wait().unwrap();
+        assert!(!status.success(), "a killed terminal did not exit normally");
+    }
+
+    #[test]
+    fn plat_07_kill_of_an_ended_terminal_succeeds() {
+        let state = PtyState::default();
+        kill_if_live(&state, "already-ended").expect("killing an ended terminal is a no-op");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn plat_07_kill_signals_the_foreground_group_and_ends_the_child() {
+        let request = PtySpawnRequest {
+            cwd: temp_cwd(),
+            cols: 80,
+            rows: 24,
+            command: Some(PtyCommand {
+                program: "/bin/sh".to_string(),
+                args: vec!["-c".to_string(), "sleep 30".to_string()],
+            }),
+            env: None,
+        };
+        let mut spawned =
+            spawn_terminal(&request, "/bin/zsh", &empty_env(), "kill-test".to_string()).unwrap();
+        let foreground = {
+            let master = spawned.session.master.lock().unwrap();
+            foreground_group(&**master)
+        };
+        assert!(
+            foreground.is_some(),
+            "the terminal reports a foreground process group"
+        );
+
+        kill_session(&spawned.session);
         let status = spawned.child.wait().unwrap();
         assert!(!status.success(), "a killed terminal did not exit normally");
     }

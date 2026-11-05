@@ -9,20 +9,25 @@
 //! `exists`, `mkdir`, `remove`, `readDir`, and the paths appData, home, temp, resource).
 //!
 //! Must handle:
-//! - Atomic write: write a temp file in the same directory, fsync it, rename over the target.
-//!   A crash leaves either the old file or the new one, never half of one. The temp file is
-//!   removed if any step fails. The target's permission bits are kept.
+//! - Atomic write: write a temp file in the same directory, fsync it, rename over the target, then
+//!   fsync the parent folder. A crash leaves either the old file or the new one, never half of one.
+//!   A crash between the temp write and the rename can leave a hidden `.name.tmp-<pid>-<n>` file
+//!   beside the target; a later write does not remove it. The temp file is removed if any step
+//!   fails. The target's permission bits are kept.
 //! - Writing through a symlink replaces the file the link points to, not the link.
-//! - `fs_stat` returns `None` for a missing path and an error for any other failure, so the UI
-//!   can build both `exists` and `stat` from it.
+//! - `fs_stat` returns `None` for a missing path and an error for any other failure of the path
+//!   itself; a link whose target cannot be read is a broken link with size 0, so the UI can build
+//!   both `exists` and `stat` from it.
 //! - `fs_read_text` fails with `fs_not_utf8` for binary files and never returns replacement text.
-//! - `fs_read_dir` does not follow symlinks and reports a broken link as `is_symlink` with size 0.
+//! - `fs_read_dir` does not follow symlinks and reports a link whose target cannot be read (a
+//!   missing target or a loop) as `is_symlink` with size 0, so one bad entry cannot fail the
+//!   listing.
 //! - `fs_trash` moves to the macOS Trash and never deletes for good. A missing path is an error.
 //! - Paths must be absolute. Relative paths fail with `fs_relative_path`.
 //!
 //! Scope (PLAT-29, native-and-sidecar-map.md A3): the web view reads only listed paths, where the
 //! first version of every command above accepts any absolute path. `check_path_in_scope` is the
-//! one check each `fs_*` command calls first:
+//! one check every `fs_*` command will call first once PLAT-29 wires it in:
 //! - Allowed roots are the workspace folders, the app data folder, the temp folder, the user's
 //!   `~/.claude.json`, `~/.claude/`, and Claude Desktop's `claude_desktop_config.json`.
 //! - The check resolves symlinks and `..` first, so a link inside a root cannot lead out of it.
@@ -36,7 +41,8 @@
 //!
 //! Our design choice: `fs_stat` returns an optional value instead of failing on a missing path.
 //! `fs_trash` uses the Trash of the volume the item lives on, and picks "name 2.ext" when a
-//! same-named item is already there, so nothing is overwritten.
+//! same-named item is already there, so nothing is overwritten. The move is a rename (on macOS
+//! `renamex_np` with `RENAME_EXCL`), so Finder records no "Put Back" location for it.
 //!
 //! Test first: `fs_write_text_atomic` over an existing file, interrupted between the temp write
 //! and the rename, leaves the old content readable and no temp file behind.
@@ -52,6 +58,19 @@ use tauri::{AppHandle, Manager};
 
 use crate::error::{CommandError, CommandResult};
 use crate::not_implemented;
+
+#[cfg(target_os = "macos")]
+unsafe extern "C" {
+    fn renamex_np(
+        from: *const std::os::raw::c_char,
+        to: *const std::os::raw::c_char,
+        flags: std::os::raw::c_uint,
+    ) -> std::os::raw::c_int;
+}
+
+/// macOS flag that makes `renamex_np` fail instead of replacing an existing path.
+#[cfg(target_os = "macos")]
+const RENAME_EXCL: std::os::raw::c_uint = 0x4;
 
 /// File facts. Mirrors `FileStat` in `apps/desktop/src/platform/platform.ts`.
 #[derive(Debug, Clone, Serialize)]
@@ -140,9 +159,9 @@ fn stat_at(path: &Path) -> io::Result<Option<FileStat>> {
                 let size = if target.is_dir() { 0 } else { target.len() };
                 (target, size)
             }
-            // A broken link has no target to describe.
-            Err(error) if error.kind() == io::ErrorKind::NotFound => (link, 0),
-            Err(error) => return Err(error),
+            // A link whose target cannot be read (missing, loop or no permission) has nothing to
+            // describe, so it is reported as a broken link instead of failing the whole listing.
+            Err(_) => (link, 0),
         }
     } else {
         let size = if link.is_dir() { 0 } else { link.len() };
@@ -218,6 +237,20 @@ fn rename_file(from: &Path, to: &Path) -> io::Result<()> {
     fs::rename(from, to)
 }
 
+/// Flushes the folder entry so a rename survives a crash.
+#[cfg(unix)]
+fn sync_parent(target: &Path) -> io::Result<()> {
+    match target.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => fs::File::open(parent)?.sync_all(),
+        _ => Ok(()),
+    }
+}
+
+#[cfg(not(unix))]
+fn sync_parent(_target: &Path) -> io::Result<()> {
+    Ok(())
+}
+
 /// Writes through a temp file, then renames it over the target. The rename is a parameter so a
 /// test can stop between the write and the rename and prove the old file survives.
 fn write_text_atomic_with<F>(path: &Path, text: &str, rename: F) -> CommandResult<()>
@@ -241,6 +274,7 @@ where
             fs::set_permissions(&temp, permissions)?;
         }
         rename(&temp, &target)?;
+        sync_parent(&target)?;
         Ok(())
     })();
     if result.is_err() {
@@ -272,6 +306,17 @@ fn home_dir() -> CommandResult<PathBuf> {
         })
 }
 
+/// Picks the Trash folder from the device comparison, so the choice can be tested without a
+/// second volume.
+#[cfg(unix)]
+fn trash_dir_in(device: u64, root_device: u64, mount: &Path, home: &Path, uid: u32) -> PathBuf {
+    if device == root_device {
+        home.join(".Trash")
+    } else {
+        mount.join(".Trashes").join(uid.to_string())
+    }
+}
+
 /// The Trash folder of the volume that holds `path`.
 #[cfg(unix)]
 fn trash_dir_for(path: &Path) -> CommandResult<PathBuf> {
@@ -292,12 +337,41 @@ fn trash_dir_for(path: &Path) -> CommandResult<PathBuf> {
     }
     let home = home_dir()?;
     let root_device = fs::metadata("/")?.dev();
-    if device == root_device {
-        Ok(home.join(".Trash"))
+    let uid = fs::metadata(&home)?.uid();
+    Ok(trash_dir_in(device, root_device, &mount, &home, uid))
+}
+
+/// Renames `from` to `to` and fails when `to` already exists, so nothing is overwritten. The
+/// exclusive rename closes the race between picking a free name and moving the item into it.
+#[cfg(target_os = "macos")]
+fn rename_exclusive(from: &Path, to: &Path) -> io::Result<()> {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+
+    let from_c = CString::new(from.as_os_str().as_bytes())
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "path contains a null byte"))?;
+    let to_c = CString::new(to.as_os_str().as_bytes())
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "path contains a null byte"))?;
+    // SAFETY: both pointers are valid NUL-terminated strings that outlive the call.
+    let result = unsafe { renamex_np(from_c.as_ptr(), to_c.as_ptr(), RENAME_EXCL) };
+    if result == 0 {
+        Ok(())
     } else {
-        let uid = fs::metadata(&home)?.uid();
-        Ok(mount.join(".Trashes").join(uid.to_string()))
+        Err(io::Error::last_os_error())
     }
+}
+
+/// Refuses to overwrite by checking first. The check and the rename are separate steps, so this
+/// fallback is only for platforms the app does not ship on.
+#[cfg(not(target_os = "macos"))]
+fn rename_exclusive(from: &Path, to: &Path) -> io::Result<()> {
+    if fs::symlink_metadata(to).is_ok() {
+        return Err(io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            format!("Refusing to replace {}", to.display()),
+        ));
+    }
+    fs::rename(from, to)
 }
 
 /// "name.ext" becomes ("name", "ext"); a leading dot is part of the name.
@@ -323,26 +397,26 @@ fn trash_into(path: &Path, trash: &Path) -> CommandResult<()> {
         code: "fs_bad_path",
         message: format!("Cannot move {} to the Trash", path.display()),
     })?;
-    let mut candidate = trash.join(name);
-    if fs::symlink_metadata(&candidate).is_ok() {
-        let file_name = name.to_string_lossy();
-        let (stem, extension) = split_name(&file_name);
-        let mut number = 2u32;
-        loop {
-            let next = if extension.is_empty() {
-                format!("{stem} {number}")
-            } else {
-                format!("{stem} {number}.{extension}")
-            };
-            candidate = trash.join(next);
-            if fs::symlink_metadata(&candidate).is_err() {
-                break;
+    let file_name = name.to_string_lossy();
+    let (stem, extension) = split_name(&file_name);
+    let mut number = 1u64;
+    loop {
+        let candidate = if number == 1 {
+            trash.join(name)
+        } else if extension.is_empty() {
+            trash.join(format!("{stem} {number}"))
+        } else {
+            trash.join(format!("{stem} {number}.{extension}"))
+        };
+        match rename_exclusive(path, &candidate) {
+            Ok(()) => return Ok(()),
+            // Another move took the name between our choice and the rename. Try the next one.
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                number += 1;
             }
-            number += 1;
+            Err(error) => return Err(error.into()),
         }
     }
-    fs::rename(path, &candidate)?;
-    Ok(())
 }
 
 /// Reads a whole file as UTF-8 text.
@@ -647,6 +721,48 @@ mod tests {
     }
 
     #[test]
+    fn plat_05_read_dir_lists_a_symlink_loop_as_a_broken_link() {
+        let folder = TempDir::new();
+        let root = folder.path();
+        let first = root.join("loop-a");
+        let second = root.join("loop-b");
+        symlink(&second, &first).expect("make first loop link");
+        symlink(&first, &second).expect("make second loop link");
+
+        let entries = read_dir_at(root).expect("a loop does not fail the listing");
+        let names: Vec<&str> = entries
+            .iter()
+            .map(|entry| {
+                Path::new(&entry.path)
+                    .file_name()
+                    .expect("name")
+                    .to_str()
+                    .expect("utf8")
+            })
+            .collect();
+
+        assert_eq!(names, vec!["loop-a", "loop-b"]);
+        for entry in entries {
+            assert!(entry.is_symlink);
+            assert_eq!(entry.size, 0);
+            assert!(!entry.is_directory);
+        }
+    }
+
+    #[test]
+    fn plat_05_read_dir_command_lists_a_folder() {
+        let folder = TempDir::new();
+        fs::write(folder.path().join("a.txt"), "hello").expect("seed file");
+
+        let entries = tauri::async_runtime::block_on(fs_read_dir(as_string(folder.path())))
+            .expect("list folder");
+
+        assert_eq!(entries.len(), 1);
+        assert!(entries[0].path.ends_with("a.txt"));
+        assert_eq!(entries[0].size, 5);
+    }
+
+    #[test]
     fn plat_05_trash_moves_to_unique_names() {
         let folder = TempDir::new();
         let trash = folder.path().join("Trash");
@@ -682,9 +798,85 @@ mod tests {
     }
 
     #[test]
+    fn plat_05_trash_command_fails_for_a_missing_path() {
+        let folder = TempDir::new();
+        let missing = as_string(&folder.path().join("missing.txt"));
+
+        let error =
+            tauri::async_runtime::block_on(fs_trash(missing)).expect_err("missing path fails");
+
+        assert!(matches!(error, CommandError::Io(_)));
+    }
+
+    #[test]
+    fn plat_05_trash_rename_does_not_replace_an_existing_item() {
+        let folder = TempDir::new();
+        let source = folder.path().join("source.txt");
+        let destination = folder.path().join("destination.txt");
+        fs::write(&source, "source").expect("seed source");
+        fs::write(&destination, "destination").expect("seed destination");
+
+        let error = rename_exclusive(&source, &destination).expect_err("refuse to replace");
+
+        assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
+        assert_eq!(fs::read_to_string(&source).expect("source"), "source");
+        assert_eq!(
+            fs::read_to_string(&destination).expect("destination"),
+            "destination"
+        );
+    }
+
+    #[test]
+    fn plat_05_trash_does_not_rename_a_directory_onto_an_empty_one() {
+        let folder = TempDir::new();
+        let trash = folder.path().join("Trash");
+        fs::create_dir(&trash).expect("trash folder");
+        fs::create_dir(trash.join("project")).expect("empty folder already in the trash");
+        let source = folder.path().join("project");
+        fs::create_dir(&source).expect("source folder");
+        fs::write(source.join("keep.txt"), "keep").expect("seed file");
+
+        trash_into(&source, &trash).expect("trash folder");
+
+        assert!(!source.exists());
+        assert_eq!(
+            fs::read_to_string(trash.join("project 2").join("keep.txt")).expect("moved"),
+            "keep"
+        );
+        assert!(trash.join("project").is_dir(), "the empty folder stays");
+    }
+
+    #[test]
+    fn plat_05_trash_dir_in_uses_the_home_trash_on_the_boot_volume() {
+        let home = Path::new("/Users/example");
+
+        let trash = trash_dir_in(7, 7, Path::new("/"), home, 501);
+
+        assert_eq!(trash, Path::new("/Users/example/.Trash"));
+    }
+
+    #[test]
+    fn plat_05_trash_dir_in_uses_the_volume_trash_on_another_volume() {
+        let home = Path::new("/Users/example");
+
+        let trash = trash_dir_in(9, 7, Path::new("/Volumes/Backup"), home, 501);
+
+        assert_eq!(trash, Path::new("/Volumes/Backup/.Trashes/501"));
+    }
+
+    #[test]
     fn plat_05_trash_dir_for_home_is_the_home_trash() {
+        use std::os::unix::fs::MetadataExt;
+
         let home = home_dir().expect("home folder");
         let trash = trash_dir_for(&home).expect("trash folder");
-        assert_eq!(trash, home.join(".Trash"));
+        let home_metadata = fs::metadata(&home).expect("home metadata");
+        let root_device = fs::metadata("/").expect("root metadata").dev();
+
+        if home_metadata.dev() == root_device {
+            assert_eq!(trash, home.join(".Trash"));
+        } else {
+            assert!(trash.ends_with(Path::new(".Trashes").join(home_metadata.uid().to_string())));
+        }
     }
 }

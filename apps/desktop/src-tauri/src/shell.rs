@@ -30,15 +30,21 @@
 //! - Provider keys and exported shell functions are removed from the captured environment.
 //!
 //! Scope (PLAT-29, native-and-sidecar-map.md A3): the first version of `shell_run` and
-//! `shell_start` runs any program. `check_program_allowed` is the check both call first. It
-//! compares the program's name (the file name, after resolving a bare name on PATH) with a list
-//! the app builds: the programs the UI runs (git, gh, the shell for repository scripts, kill,
-//! which, open, caffeinate, pmset, lsof) and the managed agent programs. A program outside the list
-//! fails with `shell_program_not_allowed` and names it. The file scope and URL scopes are in
-//! `files.rs`.
+//! `shell_start` runs any program. PLAT-29 will add `check_program_allowed`, which both will call
+//! first. It compares the program's name (the file name, after resolving a bare name on PATH) with
+//! a list the app builds: the programs the UI runs (git, gh, the shell for repository scripts,
+//! kill, which, open, caffeinate, pmset, lsof) and the managed agent programs. A program outside
+//! the list will fail with `shell_program_not_allowed` and name it. The file scope and URL scopes
+//! are in `files.rs`.
 //!
 //! Our design choice: the id for `shell_start` comes from the UI. The captured environment is the
 //! base of every run and `ShellCommandRequest::env` is layered on top, as the Platform comment says.
+//! Only the login shell and its PATH reach the UI; the rest of the captured environment stays in
+//! Rust for the children.
+//! Our design choice: the capture runs once, in the folder the app process started in, and every
+//! later call reuses it. Conductor caches per working folder (services-map 5A.8.3), so direnv and
+//! mise settings are not picked up per workspace. Keying the cache by folder needs a `cwd` on the
+//! `loginEnv` contract, which it does not have.
 //!
 //! Test first: starting `sleep 30` then calling `shell_cancel` ends the process and its child
 //! within the grace period and delivers `shell://done` with the code `shell_cancelled`.
@@ -50,7 +56,7 @@ use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::mpsc::{self, RecvTimeoutError};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -59,6 +65,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::error::{CommandError, CommandResult};
 use crate::not_implemented;
+use crate::process_group;
 
 /// Event delivered when a command started with `shell_start` ends.
 pub const EVENT_DONE: &str = "shell://done";
@@ -66,13 +73,17 @@ pub const EVENT_DONE: &str = "shell://done";
 pub const MAX_OUTPUT_BYTES: usize = 64 * 1024 * 1024;
 /// Time between SIGTERM and SIGKILL when a run is cancelled or times out.
 pub const KILL_GRACE_MS: u64 = 2_000;
+/// How long the output readers may keep delivering after the child exits. A grandchild that holds
+/// the pipe open must not keep the call waiting.
+const DRAIN_AFTER_EXIT_MS: u64 = 500;
 /// How long the user's own login shell may take to print its environment.
 pub const PRIMARY_CAPTURE_TIMEOUT_MS: u64 = 5_000;
 /// How long the plain login zsh fallback may take.
 pub const FALLBACK_CAPTURE_TIMEOUT_MS: u64 = 3_000;
 /// The shell used when the user's shell is unknown or the first attempt fails.
 pub const FALLBACK_SHELL: &str = "/bin/zsh";
-/// Provider credentials removed from the captured environment. Kept in step with SIDE-10.
+/// Provider credentials removed from the captured environment. SIDE-10 has a TypeScript copy of
+/// this list; one home read by both is still to come.
 pub const STRIPPED_ENV_NAMES: &[&str] = &[
     "ANTHROPIC_API_KEY",
     "CLAUDE_CODE_OAUTH_TOKEN",
@@ -180,6 +191,8 @@ struct Finished {
 enum WaitEvent {
     Exited(Option<ExitStatus>),
     Overflow,
+    /// One output reader saw its pipe close.
+    ReaderDone,
 }
 
 fn lock_running(
@@ -190,35 +203,82 @@ fn lock_running(
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-/// Reserves an id for a running process. An id that is already present is an error.
-pub fn register_running(
+fn duplicate_id_error(id: &str) -> CommandError {
+    CommandError::Failed {
+        code: "shell_duplicate_id",
+        message: format!("A command with id \"{id}\" is already running."),
+    }
+}
+
+/// Reserves an id before its process exists. The pid stays 0 until `set_running_pid`.
+pub fn reserve_running(
     running: &Mutex<HashMap<String, RunningProcess>>,
     id: String,
-    pid: u32,
 ) -> CommandResult<()> {
     let mut table = lock_running(running);
     if table.contains_key(&id) {
-        return Err(CommandError::Failed {
-            code: "shell_duplicate_id",
-            message: format!("A command with id \"{id}\" is already running."),
-        });
+        return Err(duplicate_id_error(&id));
     }
     table.insert(
         id,
         RunningProcess {
-            pid,
+            pid: 0,
             cancel_requested: false,
         },
     );
     Ok(())
 }
 
-/// Marks a run as cancelled and returns the process group to signal. `None` means no such run.
+/// Records the pid of a reserved run and reports whether a cancel arrived while it was reserved.
+fn set_running_pid(running: &Mutex<HashMap<String, RunningProcess>>, id: &str, pid: u32) -> bool {
+    let mut table = lock_running(running);
+    match table.get_mut(id) {
+        Some(process) => {
+            process.pid = pid;
+            process.cancel_requested
+        }
+        // The entry vanished, which must not happen; stop the run rather than leave it untracked.
+        None => true,
+    }
+}
+
+/// Reserves an id for a running process. An id that is already present is an error.
+pub fn register_running(
+    running: &Mutex<HashMap<String, RunningProcess>>,
+    id: String,
+    pid: u32,
+) -> CommandResult<()> {
+    reserve_running(running, id.clone())?;
+    let _ = set_running_pid(running, &id, pid);
+    Ok(())
+}
+
+/// Reserves `id`, spawns the process, and records its pid. A duplicate id never reaches the
+/// spawner, and a failed spawn releases the reservation so the id can be tried again.
+fn begin_running(
+    running: &Mutex<HashMap<String, RunningProcess>>,
+    id: &str,
+    spawn: impl FnOnce() -> CommandResult<Child>,
+) -> CommandResult<(Child, bool)> {
+    reserve_running(running, id.to_string())?;
+    let child = match spawn() {
+        Ok(child) => child,
+        Err(error) => {
+            let _ = remove_finished(running, id);
+            return Err(error);
+        }
+    };
+    let cancelled = set_running_pid(running, id, child.id());
+    Ok((child, cancelled))
+}
+
+/// Marks a run as cancelled and returns the process group to signal. `None` means no such run, or
+/// a reservation whose process has not started yet.
 pub fn request_cancel(running: &Mutex<HashMap<String, RunningProcess>>, id: &str) -> Option<u32> {
     let mut table = lock_running(running);
-    table.get_mut(id).map(|process| {
+    table.get_mut(id).and_then(|process| {
         process.cancel_requested = true;
-        process.pid
+        (process.pid != 0).then_some(process.pid)
     })
 }
 
@@ -328,74 +388,80 @@ fn spawn_child(
     })
 }
 
-/// Reads one stream, keeping at most `limit` bytes. Past the limit it tells the controller.
+/// Reads one stream into the shared buffer, keeping at most `limit` bytes. Past the limit it tells
+/// the controller. A reader may outlive the leader when a grandchild keeps the pipe open, so it
+/// writes into shared state instead of returning its buffer from `join`.
 fn read_stream<R: Read>(
     mut reader: R,
     limit: usize,
     overflow: &mpsc::Sender<WaitEvent>,
-) -> Captured {
-    let mut captured = Captured::default();
+    captured: &Mutex<Captured>,
+) {
     let mut buffer = [0u8; 16 * 1024];
     loop {
         match reader.read(&mut buffer) {
-            Ok(0) => return captured,
+            Ok(0) => return,
             Ok(read) => {
-                if captured.bytes.len() + read > limit {
-                    let room = limit.saturating_sub(captured.bytes.len());
-                    captured.bytes.extend_from_slice(&buffer[..room]);
-                    captured.overflowed = true;
+                let overflowed = {
+                    let mut captured = captured
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner());
+                    if captured.bytes.len() + read > limit {
+                        let room = limit.saturating_sub(captured.bytes.len());
+                        captured.bytes.extend_from_slice(&buffer[..room]);
+                        captured.overflowed = true;
+                        true
+                    } else {
+                        captured.bytes.extend_from_slice(&buffer[..read]);
+                        false
+                    }
+                };
+                if overflowed {
                     let _ = overflow.send(WaitEvent::Overflow);
-                    return captured;
+                    return;
                 }
-                captured.bytes.extend_from_slice(&buffer[..read]);
             }
             Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
-            Err(_) => return captured,
+            Err(_) => return,
         }
     }
-}
-
-fn signal_group(pid: u32, signal: &str) {
-    let _ = Command::new("/bin/kill")
-        .arg("-s")
-        .arg(signal)
-        .arg(format!("-{pid}"))
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
-}
-
-fn group_exists(pid: u32) -> bool {
-    Command::new("/bin/kill")
-        .arg("-0")
-        .arg(format!("-{pid}"))
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .map(|status| status.success())
-        .unwrap_or(false)
 }
 
 /// Ends a whole process group: SIGTERM, then SIGKILL after the grace period.
 pub fn terminate_group(pid: u32) {
-    signal_group(pid, "TERM");
-    let deadline = Instant::now() + Duration::from_millis(KILL_GRACE_MS);
-    while Instant::now() < deadline {
-        if !group_exists(pid) {
+    process_group::terminate_group(pid, Duration::from_millis(KILL_GRACE_MS));
+}
+
+/// Waits up to `DRAIN_AFTER_EXIT_MS` for the readers to report that their pipe closed.
+fn drain_readers(receiver: &mpsc::Receiver<WaitEvent>, mut remaining: usize) {
+    let deadline = Instant::now() + Duration::from_millis(DRAIN_AFTER_EXIT_MS);
+    while remaining > 0 {
+        let left = deadline.saturating_duration_since(Instant::now());
+        if left.is_zero() {
             return;
         }
-        thread::sleep(Duration::from_millis(20));
+        match receiver.recv_timeout(left) {
+            Ok(WaitEvent::ReaderDone) => remaining -= 1,
+            Ok(_) => {}
+            Err(_) => return,
+        }
     }
-    signal_group(pid, "KILL");
+}
+
+/// Takes what a reader kept, leaving the shared buffer empty for a reader that is still running.
+fn take_captured(captured: &Mutex<Captured>) -> Captured {
+    std::mem::take(
+        &mut *captured
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()),
+    )
 }
 
 fn wait_for_exit(receiver: &mpsc::Receiver<WaitEvent>) -> Option<ExitStatus> {
     loop {
         match receiver.recv() {
             Ok(WaitEvent::Exited(status)) => return status,
-            Ok(WaitEvent::Overflow) => {}
+            Ok(_) => {}
             Err(_) => return None,
         }
     }
@@ -434,14 +500,27 @@ fn drive_with_limit(
     };
 
     let (sender, receiver) = mpsc::channel::<WaitEvent>();
-    let stdout_reader = child.stdout.take().map(|pipe| {
+    let stdout_pipe = child.stdout.take();
+    let stderr_pipe = child.stderr.take();
+    let reader_count = stdout_pipe.is_some() as usize + stderr_pipe.is_some() as usize;
+    let stdout_captured = Arc::new(Mutex::new(Captured::default()));
+    let stderr_captured = Arc::new(Mutex::new(Captured::default()));
+    if let Some(pipe) = stdout_pipe {
         let sender = sender.clone();
-        thread::spawn(move || read_stream(pipe, limit, &sender))
-    });
-    let stderr_reader = child.stderr.take().map(|pipe| {
+        let captured = Arc::clone(&stdout_captured);
+        let _ = thread::spawn(move || {
+            read_stream(pipe, limit, &sender, captured.as_ref());
+            let _ = sender.send(WaitEvent::ReaderDone);
+        });
+    }
+    if let Some(pipe) = stderr_pipe {
         let sender = sender.clone();
-        thread::spawn(move || read_stream(pipe, limit, &sender))
-    });
+        let captured = Arc::clone(&stderr_captured);
+        let _ = thread::spawn(move || {
+            read_stream(pipe, limit, &sender, captured.as_ref());
+            let _ = sender.send(WaitEvent::ReaderDone);
+        });
+    }
 
     let waiter = thread::spawn(move || {
         let status = child.wait().ok();
@@ -450,6 +529,7 @@ fn drive_with_limit(
 
     let deadline = timeout_ms.map(|ms| Instant::now() + Duration::from_millis(ms));
     let mut timed_out = false;
+    let mut readers_done = 0usize;
     let status = loop {
         let received = match deadline {
             Some(deadline) => {
@@ -472,6 +552,7 @@ fn drive_with_limit(
         match received {
             Ok(WaitEvent::Exited(status)) => break status,
             Ok(WaitEvent::Overflow) => terminate_group(pid),
+            Ok(WaitEvent::ReaderDone) => readers_done += 1,
             Err(()) => {
                 terminate_group(pid);
                 break None;
@@ -480,15 +561,12 @@ fn drive_with_limit(
     };
 
     let _ = waiter.join();
-    let stdout = stdout_reader
-        .map(|reader| reader.join().unwrap_or_default())
-        .unwrap_or_default();
-    let stderr = stderr_reader
-        .map(|reader| reader.join().unwrap_or_default())
-        .unwrap_or_default();
-    if let Some(writer) = writer {
-        let _ = writer.join();
-    }
+    drain_readers(&receiver, reader_count.saturating_sub(readers_done));
+    let stdout = take_captured(stdout_captured.as_ref());
+    let stderr = take_captured(stderr_captured.as_ref());
+    // The stdin writer can block the same way a reader can when a grandchild holds the pipe. The
+    // child is already gone, so letting the thread finish by itself is enough.
+    drop(writer);
 
     let status = status.ok_or_else(|| CommandError::Failed {
         code: "shell_wait_failed",
@@ -528,6 +606,18 @@ fn run_output(finished: Finished, timeout_ms: Option<u64>) -> CommandResult<Shel
         return Err(output_too_large_error());
     }
     Ok(finished.output)
+}
+
+/// Removes a finished run from the table, reads its cancel flag, and builds the `shell://done`
+/// payload. Keeping the two steps together is what makes a cancel reach the event.
+fn finish_run(
+    running: &Mutex<HashMap<String, RunningProcess>>,
+    id: String,
+    result: CommandResult<Finished>,
+    timeout_ms: Option<u64>,
+) -> ShellDone {
+    let cancelled = remove_finished(running, &id);
+    shell_done(id, result, cancelled, timeout_ms)
 }
 
 /// Turns one finished run into the payload of `shell://done`.
@@ -622,8 +712,13 @@ pub fn capture_command_for(shell_path: &str, marker: &str) -> CaptureCommand {
 
 /// Runs a plain login zsh, which loads the login profile but no interactive rc file.
 pub fn fallback_capture_command(marker: &str) -> CaptureCommand {
+    fallback_capture_command_at(FALLBACK_SHELL, marker)
+}
+
+/// The plain login shell to use, named, so a test can pass a fixture.
+fn fallback_capture_command_at(program: &str, marker: &str) -> CaptureCommand {
     CaptureCommand {
-        program: FALLBACK_SHELL.to_string(),
+        program: program.to_string(),
         args: vec!["-lc".to_string(), capture_script(marker)],
     }
 }
@@ -689,6 +784,7 @@ fn run_capture(
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
+        .process_group(0)
         .spawn()
         .map_err(|error| {
             login_env_error(format!(
@@ -697,13 +793,15 @@ fn run_capture(
             ))
         })?;
 
+    let pid = child.id();
     let mut stdout = child.stdout.take().ok_or_else(|| {
         login_env_error("The login shell's output could not be read.".to_string())
     })?;
-    let reader = thread::spawn(move || {
+    let (sender, receiver) = mpsc::channel();
+    let _ = thread::spawn(move || {
         let mut bytes = Vec::new();
         let _ = stdout.read_to_end(&mut bytes);
-        bytes
+        let _ = sender.send(bytes);
     });
 
     let deadline = Instant::now() + timeout;
@@ -711,19 +809,18 @@ fn run_capture(
         match child.try_wait() {
             Ok(Some(_)) => break true,
             Ok(None) if Instant::now() >= deadline => {
-                let _ = child.kill();
+                terminate_group(pid);
                 let _ = child.wait();
                 break false;
             }
             Ok(None) => thread::sleep(Duration::from_millis(10)),
             Err(_) => {
-                let _ = child.kill();
+                terminate_group(pid);
                 let _ = child.wait();
                 break false;
             }
         }
     };
-    let bytes = reader.join().unwrap_or_default();
     if !finished {
         return Err(login_env_error(format!(
             "{} did not finish within {} ms.",
@@ -732,6 +829,21 @@ fn run_capture(
         )));
     }
 
+    let mut collected = receiver
+        .recv_timeout(Duration::from_millis(DRAIN_AFTER_EXIT_MS))
+        .ok();
+    if collected.is_none() {
+        // A grandchild can keep the pipe open past the shell's exit. End the group so the reader
+        // sees EOF, then give it one more bounded wait.
+        terminate_group(pid);
+        collected = receiver
+            .recv_timeout(Duration::from_millis(DRAIN_AFTER_EXIT_MS))
+            .ok();
+    }
+    let bytes = collected.ok_or_else(|| {
+        login_env_error("The login shell's output could not be read.".to_string())
+    })?;
+
     let output = String::from_utf8_lossy(&bytes);
     let vars = parse_env_dump(&output, marker)?;
     Ok(strip_provider_secrets(vars))
@@ -739,6 +851,16 @@ fn run_capture(
 
 /// Captures with `shell_path`, falling back to the plain login zsh once when needed.
 pub fn capture_with_shell(shell_path: &str, cwd: &Path) -> CommandResult<LoginEnv> {
+    capture_with_shell_and_fallback(shell_path, cwd, FALLBACK_SHELL)
+}
+
+/// The same capture with the fallback named, so tests can supply a fixture instead of the user's
+/// own `zsh`.
+fn capture_with_shell_and_fallback(
+    shell_path: &str,
+    cwd: &Path,
+    fallback_shell: &str,
+) -> CommandResult<LoginEnv> {
     let known = matches!(
         Path::new(shell_path)
             .file_name()
@@ -760,14 +882,14 @@ pub fn capture_with_shell(shell_path: &str, cwd: &Path) -> CommandResult<LoginEn
     }
 
     let marker = new_marker();
-    let fallback = fallback_capture_command(&marker);
+    let fallback = fallback_capture_command_at(fallback_shell, &marker);
     let vars = run_capture(
         &fallback,
         cwd,
         &marker,
         Duration::from_millis(FALLBACK_CAPTURE_TIMEOUT_MS),
     )?;
-    Ok(login_env_from(FALLBACK_SHELL.to_string(), vars))
+    Ok(login_env_from(fallback_shell.to_string(), vars))
 }
 
 fn login_env_from(shell: String, vars: HashMap<String, String>) -> LoginEnv {
@@ -795,8 +917,10 @@ fn repair_process_path(login: &LoginEnv) {
     let Some(path) = path_to_repair(login) else {
         return;
     };
-    // SAFETY: the capture runs once at startup and the value is only read by child processes
-    // afterwards. No other thread of this app mutates the process environment.
+    // SAFETY: no other thread of this app mutates the process environment. Other threads may read
+    // it while this runs (child spawns and PTY readers), and the Rust lock does not cover libc
+    // `getenv`. Setting PATH before the Tauri runtime starts is PLAT-27's startup work; until then
+    // this write is the one known race in the capture.
     unsafe {
         std::env::set_var("PATH", path);
     }
@@ -842,29 +966,23 @@ pub async fn shell_start(
     mut command: ShellCommandRequest,
 ) -> CommandResult<()> {
     let base_env = captured_env(&state).await?;
-    let child = spawn_child(&command, &base_env)?;
+    // Reserve the id first. A duplicate must fail before any process with side effects starts.
+    let (child, cancelled_now) =
+        begin_running(&state.running, &id, || spawn_child(&command, &base_env))?;
     let pid = child.id();
-
-    if let Err(error) = register_running(&state.running, id.clone(), pid) {
-        let mut rejected = child;
-        // The caller returns the duplicate-id error at once, so this cleanup runs detached.
-        // Dropping the handle leaves it running; the task needs no result.
-        drop(tauri::async_runtime::spawn_blocking(move || {
-            terminate_group(pid);
-            let _ = rejected.wait();
-        }));
-        return Err(error);
-    }
 
     let stdin = command.stdin.take();
     let timeout_ms = command.timeout_ms;
     // `shell_start` already returns once the process is registered. The result reaches the UI as a
     // `shell://done` event, so the task runs detached and its handle is dropped on purpose.
     drop(tauri::async_runtime::spawn_blocking(move || {
+        if cancelled_now {
+            // A cancel arrived while the id was reserved and nothing could be signalled yet.
+            terminate_group(pid);
+        }
         let result = drive_with_limit(child, stdin, timeout_ms, MAX_OUTPUT_BYTES);
         let state = app.state::<ShellState>();
-        let cancelled = remove_finished(&state.running, &id);
-        let done = shell_done(id, result, cancelled, timeout_ms);
+        let done = finish_run(&state.running, id, result, timeout_ms);
         if let Ok(json) = serde_json::to_string(&done) {
             let _ = app.emit_str(EVENT_DONE, json);
         }
@@ -1014,22 +1132,94 @@ mod tests {
         );
     }
 
+    const FIXTURE_SHELL: &str = "#!/bin/sh\nexec /bin/sh -c \"$2\"\n";
+
+    fn fixture_dir() -> PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|elapsed| elapsed.as_nanos())
+            .unwrap_or(0);
+        let dir =
+            std::env::temp_dir().join(format!("conducted-plat-04-{}-{nanos}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("the fixture folder is made");
+        dir
+    }
+
+    fn write_script(dir: &Path, name: &str, body: &str) -> PathBuf {
+        let path = dir.join(name);
+        std::fs::write(&path, body).expect("the fixture script is written");
+        let mut permissions = std::fs::metadata(&path)
+            .expect("the fixture script exists")
+            .permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(&path, permissions).expect("the fixture script is executable");
+        path
+    }
+
     #[test]
     fn plat_04_captures_the_login_shell_path_and_environment() {
-        let cwd = std::env::temp_dir();
-        let login = capture_with_shell("/bin/zsh", &cwd).expect("zsh exists on macOS");
-        assert_eq!(login.shell, "/bin/zsh");
+        let dir = fixture_dir();
+        let shell = write_script(&dir, "zsh", FIXTURE_SHELL);
+        let login = capture_with_shell(shell.to_str().expect("the path is UTF-8"), &dir)
+            .expect("the fixture shell prints the environment");
+        assert_eq!(login.shell, shell.to_str().expect("the path is UTF-8"));
         assert!(!login.path.is_empty());
         assert_eq!(login.vars.get("PATH"), Some(&login.path));
         assert!(login.vars.len() > 1, "the capture keeps more than PATH");
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
     fn plat_04_falls_back_when_the_shell_is_unknown() {
-        let cwd = std::env::temp_dir();
-        let login = capture_with_shell("/nonexistent/shell", &cwd).expect("the fallback runs");
-        assert_eq!(login.shell, FALLBACK_SHELL);
+        let dir = fixture_dir();
+        let fallback = write_script(&dir, "fallback-shell", FIXTURE_SHELL);
+        let login = capture_with_shell_and_fallback(
+            "/nonexistent/shell",
+            &dir,
+            fallback.to_str().expect("the path is UTF-8"),
+        )
+        .expect("the fallback fixture runs");
+        assert_eq!(login.shell, fallback.to_str().expect("the path is UTF-8"));
         assert!(!login.path.is_empty());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn plat_04_a_broken_primary_shell_falls_back_to_the_given_shell() {
+        let dir = fixture_dir();
+        let primary = write_script(&dir, "zsh", "#!/bin/sh\nprintf 'no marker'\n");
+        let fallback = write_script(&dir, "fallback-shell", FIXTURE_SHELL);
+        let login = capture_with_shell_and_fallback(
+            primary.to_str().expect("the path is UTF-8"),
+            &dir,
+            fallback.to_str().expect("the path is UTF-8"),
+        )
+        .expect("the fallback fixture runs");
+        assert_eq!(login.shell, fallback.to_str().expect("the path is UTF-8"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn plat_04_a_capture_that_outlives_its_timeout_is_killed() {
+        let dir = fixture_dir();
+        let marker = dir.join("finished");
+        let body = format!("#!/bin/sh\nsleep 0.4\ntouch '{}'\n", marker.display());
+        let shell = write_script(&dir, "slow", &body);
+        let command = CaptureCommand {
+            program: shell.to_str().expect("the path is UTF-8").to_string(),
+            args: Vec::new(),
+        };
+        let started = Instant::now();
+        let error = run_capture(&command, &dir, "MARK", Duration::from_millis(80))
+            .expect_err("the slow capture times out");
+        assert_eq!(error_code(error), "login_env_failed");
+        assert!(started.elapsed() < Duration::from_secs(5));
+        thread::sleep(Duration::from_millis(500));
+        assert!(
+            !marker.exists(),
+            "the capture's child must be killed at the timeout"
+        );
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     fn test_env() -> HashMap<String, String> {
@@ -1182,6 +1372,173 @@ mod tests {
         let error =
             register_running(&running, "same".into(), 222).expect_err("the second id is taken");
         assert_eq!(error_code(error), "shell_duplicate_id");
+    }
+
+    #[test]
+    fn plat_03_a_duplicate_id_never_reaches_the_spawner() {
+        let running = Mutex::new(HashMap::new());
+        register_running(&running, "same".into(), 111).expect("the first id is new");
+        let mut spawned = false;
+        let error = begin_running(&running, "same", || -> CommandResult<Child> {
+            spawned = true;
+            Err(CommandError::Failed {
+                code: "unused",
+                message: "the spawner must not run".to_string(),
+            })
+        })
+        .expect_err("the duplicate id is refused");
+        assert_eq!(error_code(error), "shell_duplicate_id");
+        assert!(!spawned, "a duplicate id must not start a process");
+    }
+
+    #[test]
+    fn plat_03_a_failed_spawn_releases_the_id() {
+        let running = Mutex::new(HashMap::new());
+        let error = begin_running(&running, "run", || -> CommandResult<Child> {
+            Err(CommandError::Failed {
+                code: "shell_spawn_failed",
+                message: "not started".to_string(),
+            })
+        })
+        .expect_err("the spawn fails");
+        assert_eq!(error_code(error), "shell_spawn_failed");
+        register_running(&running, "run".into(), 9).expect("the id was released");
+    }
+
+    #[test]
+    fn plat_03_a_successful_spawn_records_its_pid() {
+        let running = Mutex::new(HashMap::new());
+        let (mut child, cancelled) = begin_running(&running, "run", || {
+            Command::new("/bin/sh")
+                .arg("-c")
+                .arg("exit 0")
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .process_group(0)
+                .spawn()
+                .map_err(|error| CommandError::Failed {
+                    code: "shell_spawn_failed",
+                    message: error.to_string(),
+                })
+        })
+        .expect("the child starts");
+        assert!(!cancelled);
+        let pid = child.id();
+        assert_eq!(
+            lock_running(&running).get("run").map(|process| process.pid),
+            Some(pid)
+        );
+        let _ = child.wait();
+        let _ = remove_finished(&running, "run");
+    }
+
+    #[test]
+    fn plat_03_a_cancel_while_reserved_is_remembered() {
+        let running = Mutex::new(HashMap::new());
+        reserve_running(&running, "run".into()).expect("the id is new");
+        assert_eq!(
+            request_cancel(&running, "run"),
+            None,
+            "there is no process to signal yet"
+        );
+        assert!(
+            set_running_pid(&running, "run", 4242),
+            "the cancel must be remembered when the pid arrives"
+        );
+        let _ = remove_finished(&running, "run");
+    }
+
+    #[test]
+    fn plat_03_finish_run_carries_the_cancel_to_the_done_payload() {
+        let running = Mutex::new(HashMap::new());
+        register_running(&running, "run".into(), 4242).expect("the id is new");
+        assert_eq!(request_cancel(&running, "run"), Some(4242));
+        let finished = Finished {
+            output: ShellOutput {
+                exit_code: 143,
+                stdout: String::new(),
+                stderr: String::new(),
+            },
+            timed_out: false,
+            overflowed: false,
+        };
+        let done = finish_run(&running, "run".into(), Ok(finished), None);
+        assert!(done.output.is_none());
+        assert_eq!(
+            done.error.map(error_code).as_deref(),
+            Some("shell_cancelled")
+        );
+        assert!(lock_running(&running).is_empty());
+    }
+
+    #[test]
+    fn plat_03_finish_run_reports_a_timeout() {
+        let running = Mutex::new(HashMap::new());
+        register_running(&running, "run".into(), 4242).expect("the id is new");
+        let finished = Finished {
+            output: ShellOutput {
+                exit_code: 128 + 15,
+                stdout: String::new(),
+                stderr: String::new(),
+            },
+            timed_out: true,
+            overflowed: false,
+        };
+        let done = finish_run(&running, "run".into(), Ok(finished), Some(150));
+        assert!(done.output.is_none());
+        assert_eq!(done.error.map(error_code).as_deref(), Some("shell_timeout"));
+        assert!(lock_running(&running).is_empty());
+    }
+
+    #[test]
+    fn plat_03_the_shared_group_helper_signals_a_real_group() {
+        let mut child = Command::new("/bin/sh")
+            .arg("-c")
+            .arg("sleep 30")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .process_group(0)
+            .spawn()
+            .expect("the child starts");
+        let pid = child.id();
+        assert!(
+            !process_group::signal_group(0, 0),
+            "group 0 would signal the caller's own group"
+        );
+        assert!(process_group::group_exists(pid));
+        assert!(process_group::signal_group(pid, process_group::SIGTERM));
+        let _ = child.wait();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while process_group::group_exists(pid) && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(20));
+        }
+        assert!(
+            !process_group::group_exists(pid),
+            "the group must end when its leader does"
+        );
+    }
+
+    #[test]
+    fn plat_03_a_grandchild_holding_the_pipe_does_not_block_the_result() {
+        let command = request("/bin/sh", &["-c", "sleep 30 & echo $!; echo done"]);
+        let started = Instant::now();
+        let finished = run_blocking(&command, &test_env()).expect("the command ends");
+        assert!(finished.output.stdout.contains("done"));
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "a grandchild that keeps the pipe open must not hold the call"
+        );
+        if let Some(grandchild) = finished.output.stdout.lines().next() {
+            let _ = Command::new("/bin/kill")
+                .arg("-KILL")
+                .arg(grandchild.trim())
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+        }
     }
 
     #[test]

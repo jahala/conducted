@@ -34,6 +34,7 @@ pub mod menu;
 pub mod navigation;
 pub mod notifications;
 pub mod open_with;
+mod process_group;
 pub mod pty;
 pub mod resource_usage;
 pub mod shell;

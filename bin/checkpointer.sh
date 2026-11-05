@@ -7,16 +7,20 @@
 #   handling) and sessions.md section 7 (the sidecar calls it before and after every turn, with a
 #   60 s timeout and SIGTERM, and reads exit codes 101 and 102 as "skipped"). The code is ours.
 # Must handle:
-#   - run from the worktree root; if git's top-level folder is an ancestor of the current folder
-#     (for example a git-controlled $HOME), refuse with exit 103 so a snapshot never covers it
+#   - save, restore and diff run from the worktree root; if git's top-level folder is an ancestor
+#     of the current folder (for example a git-controlled $HOME), refuse with exit 103 so a
+#     snapshot never covers it and a restore never changes only part of the repository
 #   - a merge, rebase, cherry-pick or revert in progress (git-busy-check.sh says busy): exit 101
 #   - unmerged index entries: exit 102
 #   - an id that already exists needs --force; without it exit 1 with a message
+#   - an id that is not a legal git ref name, starts with "-", or would collide with an existing
+#     ref: exit 64 before any snapshot work
 #   - an unborn HEAD (no commit yet): save works and records an all-zero head; restore of such a
 #     snapshot is refused
 #   - temp index files live in <gitdir>/conducted-checkpoint-tmp/<random>/ with a file "owner-pid";
 #     directories older than 60 minutes whose owner is gone are removed by the next run, through
-#     `trash` (never rm)
+#     `trash` (never rm). When `trash` is not installed the folder is left in place and a warning
+#     is printed on stderr.
 #   - SIGTERM and SIGINT: clean up through the EXIT trap and exit 143
 #   - restore rewrites only files that differ (so file watchers stay calm), removes untracked files
 #     that the snapshot does not have, keeps ignored files, then restores the saved index
@@ -84,11 +88,13 @@ on_signal() {
 trap cleanup EXIT
 trap on_signal INT TERM
 
-# A temp folder of ours may be removed; anything else goes to the Trash. The system `trash`
-# command is present on macOS. When it is missing, a stale folder is left where it is.
+# A temp folder of ours may be removed; anything else goes to the Trash. When `trash` is missing
+# the folder is left in place with a warning, so nothing is ever deleted with rm.
 trash_path() {
   if command -v trash >/dev/null 2>&1; then
     trash "$1" >/dev/null 2>&1 || true
+  else
+    printf 'warning: trash is not installed, so %s was left in place\n' "$1" >&2
   fi
 }
 
@@ -124,8 +130,9 @@ new_temp_index() {
   printf '%s\n' "$$" >"$tmp_work/owner-pid"
 }
 
-# Both save and diff must run from the worktree root. A git-controlled parent folder (for example
-# $HOME) is refused so a snapshot never covers more than the workspace.
+# Save, restore and diff must run from the worktree root. A git-controlled parent folder (for
+# example $HOME) is refused so a snapshot never covers more than the workspace and a restore never
+# changes only part of the repository.
 require_worktree_root() {
   git rev-parse --git-dir >/dev/null 2>&1 || die "not inside a git worktree"
   local top
@@ -145,6 +152,46 @@ ref_exists() {
   git show-ref --verify --quiet "$1"
 }
 
+# An id must be a legal git ref name and must not look like an option. Git permits a leading "-"
+# inside a ref, but the app and Spotlight never send one and update-ref would fail later.
+require_valid_id() {
+  local id="$1"
+  case "$id" in
+    '' | -*)
+      printf 'error: invalid checkpoint id: %s\n' "$id" >&2
+      exit 64
+      ;;
+  esac
+  if ! git check-ref-format "$(checkpoint_ref "$id")" >/dev/null 2>&1; then
+    printf 'error: invalid checkpoint id: %s\n' "$id" >&2
+    exit 64
+  fi
+}
+
+# A ref cannot be both a file and a folder: refs/.../a and refs/.../a/b cannot both exist. Refuse
+# an id that would collide with an existing ref before any snapshot work is done.
+require_no_ref_clash() {
+  local id="$1"
+  local prefix="$REF_PREFIX"
+  local rest="$id"
+  local part child
+  while [ "${rest#*/}" != "$rest" ]; do
+    part="${rest%%/*}"
+    prefix="$prefix$part"
+    if ref_exists "$prefix"; then
+      printf 'error: invalid checkpoint id: %s (it would clash with %s)\n' "$id" "$prefix" >&2
+      exit 64
+    fi
+    prefix="$prefix/"
+    rest="${rest#*/}"
+  done
+  child=$(git for-each-ref --format='%(refname)' --count=1 "$(checkpoint_ref "$id")/")
+  if [ -n "$child" ]; then
+    printf 'error: invalid checkpoint id: %s (it would clash with %s)\n' "$id" "$child" >&2
+    exit 64
+  fi
+}
+
 # Read one metadata line from a checkpoint commit.
 commit_field() {
   local commit="$1" name="$2"
@@ -153,6 +200,7 @@ commit_field() {
 
 cmd_save() {
   local id=""
+  local id_given="no"
   local force="no"
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -162,6 +210,7 @@ cmd_save() {
           exit 64
         }
         id="$2"
+        id_given="yes"
         shift 2
         ;;
       --force)
@@ -176,6 +225,11 @@ cmd_save() {
     esac
   done
 
+  if [ "$id_given" = "no" ]; then
+    id="cp-$(date -u +%Y%m%dT%H%M%SZ)"
+  fi
+
+  require_valid_id "$id"
   require_worktree_root
 
   local state
@@ -191,9 +245,7 @@ cmd_save() {
     exit 102
   fi
 
-  if [ -z "$id" ]; then
-    id="cp-$(date -u +%Y%m%dT%H%M%SZ)"
-  fi
+  require_no_ref_clash "$id"
 
   local ref
   ref=$(checkpoint_ref "$id")
@@ -235,7 +287,8 @@ cmd_restore() {
     exit 64
   }
   local id="$1"
-  git rev-parse --git-dir >/dev/null 2>&1 || die "not inside a git worktree"
+  require_valid_id "$id"
+  require_worktree_root
 
   local ref
   ref=$(checkpoint_ref "$id")
@@ -268,7 +321,7 @@ cmd_restore() {
   git read-tree --reset "$head_oid"
   git add -A -- .
   git read-tree --reset -u "$worktree_tree"
-  git clean -fd
+  git clean -fdq
   git read-tree --reset "$index_tree"
   git update-index -q --refresh
 
@@ -293,7 +346,11 @@ cmd_diff() {
     fi
   fi
 
-  git rev-parse --git-dir >/dev/null 2>&1 || die "not inside a git worktree"
+  require_valid_id "$left"
+  if [ "$right" != "current" ]; then
+    require_valid_id "$right"
+  fi
+  require_worktree_root
   local left_ref
   left_ref=$(checkpoint_ref "$left")
   ref_exists "$left_ref" || die "checkpoint $left does not exist"
