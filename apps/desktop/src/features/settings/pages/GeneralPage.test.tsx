@@ -50,4 +50,43 @@ describe("SET-02 GeneralPage", () => {
 
 		expect(await screen.findByText("The settings file is read-only.")).toBeTruthy();
 	});
+
+	it("shows a failed settings load with a Retry that reads the settings again", async () => {
+		test = createTestContainer();
+		await test.container.services.settings.start();
+		test.container.services.settings.store.setState({
+			warnings: [{ code: "settings_load_failed", message: "Failed to load settings" }],
+		});
+		render(
+			<ServicesProvider container={test.container}>
+				<GeneralPage />
+			</ServicesProvider>,
+		);
+
+		expect(screen.getByText("Couldn't load this settings page")).toBeTruthy();
+		expect(screen.getByText("Failed to load settings")).toBeTruthy();
+		expect(screen.queryByRole("combobox", { name: "Send key" })).toBeNull();
+
+		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+		expect(await screen.findByRole("combobox", { name: "Send key" })).toBeTruthy();
+		expect(test.container.services.settings.store.getState().warnings).toEqual([]);
+	});
+
+	it("lists the settings-file entries the store dropped", async () => {
+		test = createTestContainer();
+		await test.container.services.settings.start();
+		test.container.services.settings.store.setState({
+			dropped: [{ file: "settings.toml", key: "theme_colour", reason: "unknown-key" }],
+		});
+		render(
+			<ServicesProvider container={test.container}>
+				<GeneralPage />
+			</ServicesProvider>,
+		);
+
+		expect(screen.getByText("Some saved settings were ignored")).toBeTruthy();
+		expect(screen.getByText("theme_colour")).toBeTruthy();
+		expect(screen.getByText(/in settings\.toml: unknown setting/)).toBeTruthy();
+	});
 });

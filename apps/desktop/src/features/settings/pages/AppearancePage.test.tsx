@@ -3,8 +3,10 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandDispatcher } from "../../../app/command-dispatcher.ts";
 import { ServicesProvider } from "../../../core/context.tsx";
+import { getSettingDef } from "../../../core/registries/settings.ts";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
 import "../../../test/dom-polyfills.ts";
+import { AppearanceController } from "../appearance/AppearanceController.tsx";
 import { AppearancePage } from "./AppearancePage.tsx";
 
 let current: TestContainer | null = null;
@@ -23,11 +25,22 @@ afterEach(() => {
 	clearDocumentAppearance();
 });
 
-function renderPage() {
+/**
+ * A container whose settings store has loaded, as after the app's start. The page edits the values;
+ * the root's AppearanceController writes them to the document, so it is mounted beside the page.
+ */
+function loadedContainer() {
 	const test = createTestContainer();
 	current = test;
+	test.container.services.settings.store.setState({ loaded: true });
+	return test;
+}
+
+function renderPage() {
+	const test = loadedContainer();
 	render(
 		<ServicesProvider container={test.container}>
+			<AppearanceController />
 			<AppearancePage />
 		</ServicesProvider>,
 	);
@@ -35,11 +48,11 @@ function renderPage() {
 }
 
 function renderPageWithDispatcher() {
-	const test = createTestContainer();
-	current = test;
+	const test = loadedContainer();
 	render(
 		<ServicesProvider container={test.container}>
 			<CommandDispatcher>
+				<AppearanceController />
 				<AppearancePage />
 			</CommandDispatcher>
 		</ServicesProvider>,
@@ -151,8 +164,7 @@ describe("SET-06 AppearancePage", () => {
 	});
 
 	it("shows the settings store failure", () => {
-		const test = createTestContainer();
-		current = test;
+		const test = loadedContainer();
 		test.container.services.settings.store.setState({
 			warnings: [{ code: "settings_load_failed", message: "Failed to load settings" }],
 		});
@@ -163,13 +175,12 @@ describe("SET-06 AppearancePage", () => {
 			</ServicesProvider>,
 		);
 
-		expect(screen.getByText("Couldn't load all settings")).toBeTruthy();
+		expect(screen.getByText("Couldn't load this settings page")).toBeTruthy();
 		expect(screen.getByText("Failed to load settings")).toBeTruthy();
 	});
 
 	it("shows the error and keeps the old value when a save fails", async () => {
-		const test = createTestContainer();
-		current = test;
+		const test = loadedContainer();
 		vi.spyOn(test.container.actions.settings, "set").mockResolvedValue(
 			err(appError("setting_save_failed", "Couldn't save the setting")),
 		);
@@ -212,5 +223,52 @@ describe("SET-06 AppearancePage", () => {
 		fireEvent.keyDown(document, { key: "0", metaKey: true });
 		await waitFor(() => expect(values(test).zoom_level_v2).toBe(1));
 		await waitFor(() => expect(document.documentElement.style.getPropertyValue("zoom")).toBe("1"));
+	});
+
+	it("puts the stored terminal font size back when the save is refused", async () => {
+		renderPage();
+		const size = screen.getByLabelText("Terminal font size") as HTMLInputElement;
+		const stored = size.value;
+
+		fireEvent.change(size, { target: { value: "99" } });
+		fireEvent.blur(size);
+
+		expect(await screen.findByText(/at most 32/)).toBeTruthy();
+		await waitFor(() => expect(size.value).toBe(stored));
+	});
+
+	it("takes the zoom range from the settings registry", () => {
+		const def = getSettingDef("zoom_level_v2");
+		if (def?.type !== "number") throw new Error("zoom_level_v2 must be a number setting.");
+		const test = loadedContainer();
+		test.container.services.settings.store.setState((state) => ({
+			values: { ...state.values, zoom_level_v2: 2.5 },
+		}));
+		render(
+			<ServicesProvider container={test.container}>
+				<AppearancePage />
+			</ServicesProvider>,
+		);
+
+		const slider = screen.getByRole("slider", { name: "App zoom" });
+		expect(slider.getAttribute("aria-valuemin")).toBe(String(def.min));
+		expect(slider.getAttribute("aria-valuemax")).toBe(String(def.max));
+		expect(slider.getAttribute("aria-valuenow")).toBe("2.5");
+		expect(screen.getByText("250%")).toBeTruthy();
+	});
+
+	it("highlights the setting a search opened", () => {
+		const test = loadedContainer();
+		render(
+			<ServicesProvider container={test.container}>
+				<AppearancePage focusSettingKey="zoom_level_v2" />
+			</ServicesProvider>,
+		);
+
+		expect(
+			document
+				.querySelector('[data-setting-key="zoom_level_v2"]')
+				?.getAttribute("data-highlighted"),
+		).toBe("true");
 	});
 });

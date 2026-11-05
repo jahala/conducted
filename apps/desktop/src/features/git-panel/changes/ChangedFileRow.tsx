@@ -3,7 +3,7 @@
  * Owns: one file in the Changes list. File icon, name and folder, status letter, added and removed
  * line counts, a conflict badge, and the optional Viewed checkbox.
  * Behaviour: ui-map.md 3.6, Changes paragraph. Row menu: "Copy path", "Copy relative path",
- * "Discard changes".
+ * "Discard changes", from the file row menu the All files tab shares (files/FileRowMenu.tsx).
  * Must handle: renamed files (show old path and new path), binary files (no line counts, a
  * "binary" tag), conflicted files, a long path (middle truncation
  * from TruncatedText), discard asking for confirmation because it cannot be undone, and the
@@ -11,15 +11,12 @@
  * file.
  * Test first: clicking the Viewed checkbox calls onToggleViewed and does not call onOpen.
  */
-import { useState } from "react";
 import type { ChangedFile } from "../../../core/api.ts";
 import { Badge } from "../../../ui/Badge.tsx";
-import { Button } from "../../../ui/Button.tsx";
 import { Checkbox } from "../../../ui/Checkbox.tsx";
-import { ContextMenu, ContextMenuItem, ContextMenuSeparator } from "../../../ui/ContextMenu.tsx";
-import { Dialog, DialogContent, DialogFooter } from "../../../ui/Dialog.tsx";
 import { FileTextIcon } from "../../../ui/icons.tsx";
 import { truncateMiddle } from "../../../ui/TruncatedText.tsx";
+import { FileRowMenu } from "../files/FileRowMenu.tsx";
 import { changesRowIndent } from "./ChangedFolderRow.tsx";
 
 const statusLetter: Record<ChangedFile["status"], string> = {
@@ -67,7 +64,6 @@ export function ChangedFileRow({
 	onDiscard,
 	onCopyPath,
 }: ChangedFileRowProps) {
-	const [confirmDiscard, setConfirmDiscard] = useState(false);
 	const { folder, name } = splitPath(file.path);
 	const hasMenu = onDiscard !== undefined || onCopyPath !== undefined;
 
@@ -119,30 +115,16 @@ export function ChangedFileRow({
 				/>
 			) : null}
 			{hasMenu ? (
-				<ContextMenu
-					items={
-						<>
-							{onCopyPath !== undefined ? (
-								<>
-									<ContextMenuItem onSelect={() => onCopyPath("absolute")}>
-										Copy path
-									</ContextMenuItem>
-									<ContextMenuItem onSelect={() => onCopyPath("relative")}>
-										Copy relative path
-									</ContextMenuItem>
-									<ContextMenuSeparator />
-								</>
-							) : null}
-							{onDiscard !== undefined ? (
-								<ContextMenuItem destructive onSelect={() => setConfirmDiscard(true)}>
-									Discard changes
-								</ContextMenuItem>
-							) : null}
-						</>
-					}
+				<FileRowMenu
+					path={file.path}
+					isDirectory={false}
+					changed
+					hasActiveChat={false}
+					onCopyPath={onCopyPath}
+					onDiscard={onDiscard}
 				>
 					{openButton}
-				</ContextMenu>
+				</FileRowMenu>
 			) : (
 				openButton
 			)}
@@ -159,28 +141,6 @@ export function ChangedFileRow({
 					<span className="text-git-removed">-{file.linesRemoved}</span>
 				</span>
 			)}
-
-			<Dialog open={confirmDiscard} onOpenChange={setConfirmDiscard}>
-				<DialogContent title="Discard changes?" size="md">
-					<p className="text-sm text-fg-muted">
-						This puts {file.path} back to the target branch. It cannot be undone.
-					</p>
-					<DialogFooter>
-						<Button variant="outline" onClick={() => setConfirmDiscard(false)}>
-							Cancel
-						</Button>
-						<Button
-							variant="destructive"
-							onClick={() => {
-								setConfirmDiscard(false);
-								onDiscard?.();
-							}}
-						>
-							Discard
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
 		</div>
 	);
 }

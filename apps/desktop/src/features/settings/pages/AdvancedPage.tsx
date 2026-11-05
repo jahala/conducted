@@ -20,11 +20,12 @@ import { Button } from "../../../ui/Button.tsx";
 import { Input } from "../../../ui/Input.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
 import { RegistrySettingRows, SettingRow, useSettingSaves } from "../SettingRow.tsx";
-import { SettingsPageFrame } from "../SettingsPageFrame.tsx";
+import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
 
 const ROOT_PATH_KEY = "conducted_root_path";
 
 export function AdvancedPage({ focusSettingKey = null }: { focusSettingKey?: string | null }) {
+	const load = useSettingsLoad();
 	const { platform } = useServices();
 	const actions = useActions();
 	const saves = useSettingSaves();
@@ -53,9 +54,7 @@ export function AdvancedPage({ focusSettingKey = null }: { focusSettingKey?: str
 		<SettingsPageFrame
 			title="Advanced"
 			description="Where the app keeps its data, which programs it runs, and how much terminal history it keeps."
-			state="ready"
-			errorMessage={null}
-			onRetry={() => undefined}
+			{...load}
 			focusSettingKey={focusSettingKey}
 		>
 			<SettingRow

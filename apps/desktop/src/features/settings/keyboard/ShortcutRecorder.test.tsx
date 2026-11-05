@@ -31,4 +31,15 @@ describe("SET-02 ShortcutRecorder", () => {
 		fireEvent.keyDown(recorder, { key: "Escape" });
 		expect(onCancel).toHaveBeenCalledTimes(1);
 	});
+
+	it("records a letter and a digit by the physical key when Option or Shift change the character", () => {
+		const onRecord = vi.fn();
+		render(<ShortcutRecorder onRecord={onRecord} onCancel={() => undefined} />);
+		const recorder = screen.getByRole("button", { name: "Recording shortcut" });
+
+		fireEvent.keyDown(recorder, { key: "†", code: "KeyT", metaKey: true, altKey: true });
+		fireEvent.keyDown(recorder, { key: "!", code: "Digit1", metaKey: true, shiftKey: true });
+
+		expect(onRecord.mock.calls).toEqual([["Cmd+Alt+T"], ["Cmd+Shift+1"]]);
+	});
 });

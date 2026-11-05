@@ -9,16 +9,15 @@
  * Test first: changing "Send key" calls settings.set with the new value once.
  */
 import { RegistrySettingRows } from "../SettingRow.tsx";
-import { SettingsPageFrame } from "../SettingsPageFrame.tsx";
+import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
 
 export function GeneralPage({ focusSettingKey = null }: { focusSettingKey?: string | null }) {
+	const load = useSettingsLoad();
 	return (
 		<SettingsPageFrame
 			title="General"
 			description="Everyday behaviour for messages, notifications and the app window."
-			state="ready"
-			errorMessage={null}
-			onRetry={() => undefined}
+			{...load}
 			focusSettingKey={focusSettingKey}
 		>
 			<RegistrySettingRows page="general" focusSettingKey={focusSettingKey} />

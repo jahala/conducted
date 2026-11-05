@@ -15,6 +15,7 @@ describe("SET-02 SettingsPageFrame", () => {
 				state="error"
 				errorMessage="The settings file is invalid."
 				onRetry={onRetry}
+				dropped={[]}
 				focusSettingKey={null}
 			>
 				<p>Hidden content</p>
@@ -35,6 +36,7 @@ describe("SET-02 SettingsPageFrame", () => {
 				state="loading"
 				errorMessage={null}
 				onRetry={() => undefined}
+				dropped={[]}
 				focusSettingKey={null}
 			>
 				<p>Page content</p>
@@ -49,6 +51,7 @@ describe("SET-02 SettingsPageFrame", () => {
 				state="ready"
 				errorMessage={null}
 				onRetry={() => undefined}
+				dropped={[]}
 				focusSettingKey={null}
 			>
 				<p>Page content</p>

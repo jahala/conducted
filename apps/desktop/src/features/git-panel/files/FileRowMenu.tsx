@@ -1,6 +1,7 @@
 /**
  * @feature REV-06 File row menu
- * Owns: the context menu of a file row in the All files tab.
+ * Owns: the context menu of a file row, shared by the All files tab (FileTreeRow) and the Changes
+ * list (changes/ChangedFileRow), with the one discard confirm both use.
  * Behaviour: ui-map.md 3.6, "All files" paragraph. Items: View, Attach in chat, Copy path, Copy
  * relative path, Discard changes.
  * Must handle: Discard changes shown only for changed files, with a confirm step because it cannot

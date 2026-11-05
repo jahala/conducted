@@ -3,12 +3,12 @@
  * Owns: the split button of the Open in control. The main part opens the default app, the arrow
  * opens the menu.
  * Behaviour: ui-map.md 3.10 (Cmd+O opens in the default app, Cmd+Shift+O opens the menu).
- * Must handle: a missing default app (the label reads "Open in"), an open in flight (spinner, one
- * open at a time), the label and icon of the default app, a disabled reason, and the keyboard
- * focus ring from the shared button.
+ * Must handle: a missing default app (the label reads "Open in"), an open in flight (spinner and a
+ * disabled button while `busy`; the one-open-at-a-time guard is OpenInMenu's single flight), the
+ * label and icon of the default app, a disabled reason, and the keyboard focus ring from the
+ * shared button.
  * Test first: clicking the main part calls onOpenDefault once, even if clicked twice while busy.
  */
-import { useEffect, useRef } from "react";
 import { Button } from "../../ui/Button.tsx";
 import { ChevronDownIcon } from "../../ui/icons.tsx";
 import { MenuTrigger } from "../../ui/Menu.tsx";
@@ -32,16 +32,10 @@ export function OpenInButton({
 	menuOpen,
 	onMenuOpenChange,
 }: OpenInButtonProps) {
-	const clicked = useRef(false);
 	const disabled = disabledReason !== null;
 
-	useEffect(() => {
-		if (!busy) clicked.current = false;
-	}, [busy]);
-
 	const openDefault = () => {
-		if (busy || disabled || clicked.current) return;
-		clicked.current = true;
+		if (busy || disabled) return;
 		onOpenDefault();
 	};
 

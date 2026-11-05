@@ -29,4 +29,21 @@ describe("SET-02 ExperimentalPage", () => {
 			await screen.findByText(/Quit and reopen the app to apply sidebar transparency/),
 		).toBeTruthy();
 	});
+
+	it("shows Run after setup, where the settings search sends it", async () => {
+		test = createTestContainer();
+		await test.container.services.settings.start();
+		render(
+			<ServicesProvider container={test.container}>
+				<ExperimentalPage focusSettingKey="auto_run_after_setup" />
+			</ServicesProvider>,
+		);
+
+		expect(screen.getByRole("switch", { name: "Run after setup" })).toBeTruthy();
+		expect(
+			document
+				.querySelector('[data-setting-key="auto_run_after_setup"]')
+				?.getAttribute("data-highlighted"),
+		).toBe("true");
+	});
 });

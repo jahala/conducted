@@ -12,6 +12,9 @@ import { useQuery } from "@tanstack/react-query";
 import type { ContentMatch, FileEntry, Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
 
+/** Search in files shows this many matches; the service returns one more when the list was cut. */
+export { CONTENT_SEARCH_LIMIT } from "../services/workspace-files.ts";
+
 /** Both dialogs wait for a second character, and the picker shows the best 50 names. */
 const MIN_QUERY_LENGTH = 2;
 const QUICK_OPEN_LIMIT = 50;

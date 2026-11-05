@@ -27,9 +27,10 @@ import { Input, Label } from "../../../ui/Input.tsx";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
 import { RegistrySettingRowByKey } from "../SettingRow.tsx";
-import { SettingsPageFrame } from "../SettingsPageFrame.tsx";
+import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
 
 export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: string | null }) {
+	const load = useSettingsLoad();
 	const actions = useActions();
 	const services = useServices().services;
 	const access = useGitHubAccess();
@@ -102,9 +103,7 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 		<SettingsPageFrame
 			title="Account"
 			description="Local sign-ins and connections. There is no Conducted account or billing."
-			state="ready"
-			errorMessage={null}
-			onRetry={() => undefined}
+			{...load}
 			focusSettingKey={focusSettingKey}
 		>
 			<div className="flex flex-col gap-2 border-t border-border py-4 first:border-t-0 first:pt-0">

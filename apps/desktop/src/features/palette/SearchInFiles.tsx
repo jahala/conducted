@@ -7,16 +7,18 @@
  * the gitignore-aware Rust search. Results are grouped by file, with the line number and the match
  * marked.
  * Must handle: No workspace selected (explains and offers nothing); a query under two characters
- * (says so); an invalid regular expression (message under the box, no results); thousands of
- * matches (the newest search replaces the last, first 200 shown with 'Refine your search'); binary
- * and ignored files are skipped by the search; Escape closes; clicking a match opens its file.
+ * (says so); an invalid regular expression (the pattern error takes the place of the results);
+ * thousands of matches (the newest search replaces the last; the first CONTENT_SEARCH_LIMIT are
+ * shown, with 'Refine your search' only when the service found more); a pattern the search accepts
+ * but JavaScript cannot compile (the line is shown without a highlight); binary and ignored files
+ * are skipped by the search; Escape closes; clicking a match opens its file.
  * Test first: Searching 'retry' returns matches grouped by file; turning on 'Whole word' removes
  * 'retrying'.
  */
-import type { WorkspaceId } from "@conducted/shared";
+import { appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
 import { useMemo, useState } from "react";
 import type { ContentMatch, ContentSearchOptions } from "../../core/api.ts";
-import { useContentSearch } from "../../core/hooks.ts";
+import { CONTENT_SEARCH_LIMIT, useContentSearch } from "../../core/hooks.ts";
 import { cn } from "../../ui/cn.ts";
 import { Dialog, DialogContent } from "../../ui/Dialog.tsx";
 import { HighlightedText } from "../../ui/HighlightedText.tsx";
@@ -25,9 +27,6 @@ import type { OverlayProps } from "../../ui/overlay-props.ts";
 import { Spinner } from "../../ui/Spinner.tsx";
 import { Toggle } from "../../ui/Toggle.tsx";
 import { useWorkspaceLinks } from "../chat/workspace-links.ts";
-
-/** Keep in step with the service's grep limit: the dialog asks for a narrower query at this size. */
-const RESULT_LIMIT = 200;
 
 export function SearchInFiles({ open, onOpenChange, workspaceId }: OverlayProps) {
 	return (
@@ -52,16 +51,24 @@ function escapeRegExp(text: string): string {
 	return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** The exact text to mark on the line, so a regular expression's own match is highlighted. */
-function highlightQuery(preview: string, query: string, options: ContentSearchOptions): string {
+/** The search pattern as a JavaScript expression, or the reason it cannot be compiled. */
+function compileHighlight(query: string, options: ContentSearchOptions): Result<RegExp> {
 	let pattern = options.regex ? query : escapeRegExp(query);
 	if (options.wholeWord) pattern = `\\b(?:${pattern})\\b`;
 	try {
-		const found = new RegExp(pattern, options.matchCase ? "" : "i").exec(preview);
-		return found?.[0] ?? query;
-	} catch {
-		return query;
+		return ok(new RegExp(pattern, options.matchCase ? "" : "i"));
+	} catch (cause) {
+		return err(appError("invalid_pattern", "The pattern cannot be highlighted.", cause));
 	}
+}
+
+/**
+ * The exact text to mark on the line, so a regular expression's own match is highlighted. A pattern
+ * JavaScript cannot compile, or one that finds nothing on this line, marks nothing.
+ */
+function highlightText(preview: string, pattern: Result<RegExp>): string {
+	if (!pattern.ok) return "";
+	return pattern.value.exec(preview)?.[0] ?? "";
 }
 
 function groupByFile(matches: readonly ContentMatch[]): [string, ContentMatch[]][] {
@@ -90,8 +97,11 @@ function SearchBody({
 	});
 	const results = useContentSearch(workspaceId, query, options);
 	const trimmed = query.trim();
-	const matches = results.state === "ready" ? results.data : [];
+	const found = results.state === "ready" ? results.data : [];
+	const matches = useMemo(() => found.slice(0, CONTENT_SEARCH_LIMIT), [found]);
+	const cut = found.length > CONTENT_SEARCH_LIMIT;
 	const groups = useMemo(() => groupByFile(matches), [matches]);
+	const pattern = useMemo(() => compileHighlight(trimmed, options), [trimmed, options]);
 
 	const setOption = (key: keyof ContentSearchOptions) => (pressed: boolean) =>
 		setOptions((current) => ({ ...current, [key]: pressed }));
@@ -180,16 +190,14 @@ function SearchBody({
 										<span className="min-w-0 flex-1 truncate font-mono text-code text-fg">
 											<HighlightedText
 												text={match.preview}
-												query={highlightQuery(match.preview, trimmed, options)}
+												query={highlightText(match.preview, pattern)}
 											/>
 										</span>
 									</button>
 								))}
 							</section>
 						))}
-						{matches.length >= RESULT_LIMIT ? (
-							<p className="px-3 py-3 text-xs text-fg-subtle">Refine your search.</p>
-						) : null}
+						{cut ? <p className="px-3 py-3 text-xs text-fg-subtle">Refine your search.</p> : null}
 					</>
 				)}
 			</div>

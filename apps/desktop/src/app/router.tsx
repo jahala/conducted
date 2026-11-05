@@ -17,7 +17,8 @@
  * Must handle: an unknown address (NotFoundScreen); an error outside every screen's own boundary
  * (RouteErrorScreen with retry; a screen that throws is caught by its <NotBuiltYet>, which shows a short
  * card and clears on the next route key); the key, menu and deep-link listeners mounted once at the root
- * (CommandDispatcher); a changed workspace id resets a failed screen (resetKey); invalid search values are dropped (see
+ * (CommandDispatcher); the appearance settings and their shortcuts applied once at the root, on every
+ * route (AppearanceController); Cmd+, opening Settings from any route; a changed workspace id resets a failed screen (resetKey); invalid search values are dropped (see
  * workspace-search.ts); navigation never reloads the page; a workspace or chat that was deleted or archived
  * sends the route Home instead of drawing a dead screen; a bare workspace address reopens that workspace's
  * stored chat tab; "/" reopens the last workspace route and falls back to a ready one; the Go back and Go
@@ -47,6 +48,7 @@ import { DashboardScreen } from "../features/dashboard/DashboardScreen.tsx";
 import { DiagnosticsScreen } from "../features/diagnostics/DiagnosticsScreen.tsx";
 import { HomeScreen } from "../features/home/HomeScreen.tsx";
 import { OnboardingScreen } from "../features/onboarding/OnboardingScreen.tsx";
+import { AppearanceController } from "../features/settings/appearance/AppearanceController.tsx";
 import { SettingsScreen } from "../features/settings/SettingsScreen.tsx";
 import { WorkspaceScreen } from "../features/workspace/WorkspaceScreen.tsx";
 import { type WorkspaceSearch, zWorkspaceSearch } from "../features/workspace/workspace-search.ts";
@@ -61,7 +63,10 @@ import { NoWorkspaceSelected } from "./NoWorkspaceSelected.tsx";
 import { chooseRestoreTarget, readSavedLocation, saveSavedLocation } from "./navigation-history.ts";
 import { NotFoundScreen, RouteErrorScreen } from "./route-states.tsx";
 
-/** The window controls' keyboard shortcuts, which follow the same history the buttons use. */
+/**
+ * The window controls' keyboard shortcuts, which follow the same history the buttons use, and the
+ * root shortcuts that open a full page: Cmd+Shift+N the new workspace page, Cmd+, Settings.
+ */
 function NavigationShortcuts() {
 	const router = useRouter();
 	const navigate = useNavigate();
@@ -75,6 +80,10 @@ function NavigationShortcuts() {
 	});
 	useCommandHandler("workspace.createFromSource", "base", () => {
 		void navigate({ to: "/create" });
+		return true;
+	});
+	useCommandHandler("app.openSettings", "base", () => {
+		void navigate({ to: "/settings/$page", params: { page: "general" } });
 		return true;
 	});
 	return null;
@@ -148,6 +157,7 @@ function RestoreLastLocation() {
 function RootLayout() {
 	return (
 		<CommandDispatcher>
+			<AppearanceController />
 			<NavigationShortcuts />
 			<NextUnreadController />
 			<RouteLocationPersistence />

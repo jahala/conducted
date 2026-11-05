@@ -87,4 +87,27 @@ describe("REV-06 workspace files service", () => {
 			test.close();
 		}
 	});
+
+	it("reports a workspace with no folder the same way for the tree, quick open and search", async () => {
+		const test = createTestContainer();
+		try {
+			const service = new WorkspaceFilesService({
+				fs: test.memory.platform.fs,
+				search: test.memory.platform.fileSearch,
+				rootsOf: async () => ok([]),
+			});
+			const tree = await service.tree(workspaceId);
+			const quickOpen = await service.quickOpen(workspaceId, "readme", 10);
+			const grep = await service.grep(workspaceId, "retry", {
+				caseSensitive: false,
+				wholeWord: false,
+				regex: false,
+			});
+			expect(tree.ok ? null : tree.error.code).toBe("workspace_path_missing");
+			expect(quickOpen.ok ? null : quickOpen.error.code).toBe("workspace_path_missing");
+			expect(grep.ok ? null : grep.error.code).toBe("workspace_path_missing");
+		} finally {
+			test.close();
+		}
+	});
 });

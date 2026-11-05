@@ -6,8 +6,9 @@
  * Default models, Git, Connections), Agents and environment (Agents, Environment), Repositories
  * (Scripts, Actions, Prompts, Misc per repository), More (Experimental, Advanced).
  * Page ids follow Conductor's route names (ui-map.md header: key-bindings). Titles are ours.
- * Our design choice: the router's `$page` is one path segment (app/router.tsx), so a repository page
- * is written "repo:<repoId>:<page>", for example "repo:3f2a:scripts". Ids are UUIDs and never hold
+ * Our design choice: the settings screen takes one page string, so a repository page is written
+ * "repo:<repoId>:<page>", for example "repo:3f2a:scripts". The router's repository settings route
+ * (`/settings/repos/$repoId/$page`, app/router.tsx) builds that string. Ids are UUIDs and never hold
  * a colon.
  * Must handle: an empty string, a trailing colon, a repository page with an empty id, an unknown
  * page (an error result, never a default page), and a page string with extra colons.
