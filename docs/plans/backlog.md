@@ -239,7 +239,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | GIT-08 | Change the target branch                                          | D/core/services                              | services-map 3.11               | 2   | stub   |                         |
 | GIT-09 | Rename the branch                                                 | D/core/git                                   | services-map 3.11               | 2   | stub   |                         |
 | GIT-10 | `bin/checkpointer.sh`: save, restore, diff with private refs      | bin                                          | native-and-sidecar-map C1       | 1   | stub   |                         |
-| GIT-11 | `bin/git-busy-check.sh`                                           | bin                                          | native-and-sidecar-map C2       | 1   | stub   |                         |
+| GIT-11 | `bin/git-busy-check.sh`                                           | bin                                          | native-and-sidecar-map C2       | 1   | done   |                         |
 | GIT-12 | Branch lists, branch commits and switch branch                    | D/core/services/git.ts                       | services-map 3.3.3, 3.6.6, 3.11 | 2   | stub   | GIT-01, GIT-13, PLAT-31 |
 | GIT-13 | Fetch on demand, at most once a minute                            | D/core/services/git.ts                       | services-map 3.0.2, 3.3.4       | 2   | stub   | GIT-01                  |
 | GIT-14 | Local-git forge for repos without GitHub                          | D/core/services                              | services-map 3.7.7, 5B.1.5      | 3   | stub   | GIT-01, GIT-05          |
