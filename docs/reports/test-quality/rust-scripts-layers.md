@@ -14,11 +14,11 @@ Files read:
 
 Verdicts for the 19 test files in my area: **REAL 11, WEAK 8, THEATER 0**. Two single tests inside WEAK files are theater (listed in section 3).
 
-| Group | REAL | WEAK |
-| --- | --- | --- |
-| Rust (8) | `navigation.rs`, `lib.rs` | `shell.rs`, `pty.rs`, `sidecar.rs`, `files.rs`, `file_search.rs`, `binaries.rs` |
-| bin script tests (2) | `checkpointer.test.ts`, `git-busy-check.test.ts` | none |
-| scripts (9) | `check-runtime`, `check-stubs`, `with-run-dir`, `boundaries`, `issues/model`, `node-gate`, `plan-batches` | `guards.test.ts`, `overnight/drive.test.ts` |
+| Group                | REAL                                                                                                      | WEAK                                                                            |
+| -------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Rust (8)             | `navigation.rs`, `lib.rs`                                                                                 | `shell.rs`, `pty.rs`, `sidecar.rs`, `files.rs`, `file_search.rs`, `binaries.rs` |
+| bin script tests (2) | `checkpointer.test.ts`, `git-busy-check.test.ts`                                                          | none                                                                            |
+| scripts (9)          | `check-runtime`, `check-stubs`, `with-run-dir`, `boundaries`, `issues/model`, `node-gate`, `plan-batches` | `guards.test.ts`, `overnight/drive.test.ts`                                     |
 
 No test file exists for `release.ts`, `issues/sync.ts`, `guards/run.ts`, `scripts/conductor-re/*` and `spotlighter.sh`.
 
@@ -34,16 +34,16 @@ Judgement: the Rust helpers and the shell scripts are tested with care. They use
 
 Source: the coverage workflow's Rust artifact and `lcov.info`. It measures `main`, which is slice 1 only, so `binaries.rs`, `file_search.rs` and the tests in `lib.rs` show 0 % because main held placeholders. Branch coverage is not collected. TypeScript coverage was still being written when I looked, and it does not include `scripts/` or `bin/` anyway, so those have no measured numbers.
 
-| File (main) | Lines | Functions | Where the gaps are |
-| --- | --- | --- | --- |
-| `sidecar.rs` | 63.9 % | 66.0 % | `blocking_start` and `start_process` (538-632), `start_locked`, `spawn_reader`, `spawn_supervisor` (842-980), `on_process_ended` (996-1062), the three commands (1079-1138) |
-| `pty.rs` | 73.0 % | 62.5 % | `start_io_threads` (571-640), `pty_spawn` and all the commands (645-747, 788-836), `exit_details` and `signal_number` (860-881) |
-| `navigation.rs` | 79.0 % | 85.7 % | `install_guard` and the shim |
-| `shell.rs` | 82.5 % | 72.2 % | `shell_run`, `shell_start`, `shell_cancel`, `shell_login_env` (930-1071), background capture |
-| `files.rs` | 88.9 % | 76.8 % | a few error branches; the `fs_*` command bodies |
-| `process_group.rs` | 95.2 % | 100 % | line 50, the SIGKILL |
-| `terminal_history.rs` | 23.3 % | 10 % | placeholder |
-| Total | 69.9 % | 57.9 % | 270 of 642 functions never run |
+| File (main)           | Lines  | Functions | Where the gaps are                                                                                                                                                          |
+| --------------------- | ------ | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sidecar.rs`          | 63.9 % | 66.0 %    | `blocking_start` and `start_process` (538-632), `start_locked`, `spawn_reader`, `spawn_supervisor` (842-980), `on_process_ended` (996-1062), the three commands (1079-1138) |
+| `pty.rs`              | 73.0 % | 62.5 %    | `start_io_threads` (571-640), `pty_spawn` and all the commands (645-747, 788-836), `exit_details` and `signal_number` (860-881)                                             |
+| `navigation.rs`       | 79.0 % | 85.7 %    | `install_guard` and the shim                                                                                                                                                |
+| `shell.rs`            | 82.5 % | 72.2 %    | `shell_run`, `shell_start`, `shell_cancel`, `shell_login_env` (930-1071), background capture                                                                                |
+| `files.rs`            | 88.9 % | 76.8 %    | a few error branches; the `fs_*` command bodies                                                                                                                             |
+| `process_group.rs`    | 95.2 % | 100 %     | line 50, the SIGKILL                                                                                                                                                        |
+| `terminal_history.rs` | 23.3 % | 10 %      | placeholder                                                                                                                                                                 |
+| Total                 | 69.9 % | 57.9 %    | 270 of 642 functions never run                                                                                                                                              |
 
 The instrument checks out on a known case. My reading said the SIGKILL line of `terminate_group` is never reached, and the coverage file lists exactly line 50 as the only missed line of `process_group.rs`.
 
@@ -54,6 +54,7 @@ The least covered files that matter are `sidecar.rs` and `pty.rs`. In both, the 
 ### MUST
 
 **M1. The Tauri command layer is never run (PLAT-36, planned, no tests).** `lib.rs:272` lists 52 commands; no test builds an app, calls one through IPC or listens for an event. Misses:
+
 - Mutation: delete any line of `generate_handler!`. All tests pass.
 - Mutation: in `shell_start` (`shell.rs:1041`), emit `shell_done(...)` directly and skip `finish_run`, so a cancel is lost. No test fails. The test that comes closest (`plat_03_a_cancelled_run_reports_shell_cancelled`, `shell.rs:1662`) re-assembles the pieces by hand in the test itself.
 - Mutation: delete `if cancelled_now { terminate_group(pid) }` (`shell.rs:1058`). The unit test only checks that `set_running_pid` returns true.
@@ -62,18 +63,22 @@ The least covered files that matter are `sidecar.rs` and `pty.rs`. In both, the 
 - Fix: PLAT-36 as described in section 6, layer 3. It needs the commands to be generic over `R: Runtime` (21 of the 53 commands take a concrete `AppHandle`) and a shared `builder()` that `run()` and the tests both use, so the test mounts the very list the app mounts.
 
 **M2. A command is defined and called but never registered; its event has no sender (PLAT-34).** `binaries.rs:177` `programs_verification_errors` has no entry in `generate_handler!` (`lib.rs:272`); `emit_verification_errors` (`binaries.rs:167`) has no caller. `tauri.ts:1017` calls the command. All 10 tests in `binaries.rs` pass because they test `verify_bundled_programs`, which is sound.
+
 - Mutation that is already true in the code: the registration is missing. No test sees it.
 - `plat_34_the_event_name_is_the_one_the_platform_listens_for` (`binaries.rs:531`) asserts a constant against the literal that the test author typed. THEATER. Mutation: rename the constant on both sides, or never emit; the test stays green.
 - Fix: register the command, call `emit_verification_errors` from `setup`, and test both through the mock app. Add the static guard in section 7 (R1).
 
 **M3. The program allowlist and the callers disagree.** `ALLOWED_PROGRAMS` (`shell.rs:977`) does not hold `xcodebuild` or `osascript`, but `core/git/xcode-license.ts:35` and `:69` run them through `shell.run`. In the real app GIT-16 ends in `shell_program_not_allowed`. The Rust tests prove that `curl` is refused. The TypeScript tests use a fake shell that accepts everything. Nothing checks the two lists against each other.
+
 - Fix: a guard that reads the literal `program: "..."` strings in non-test TypeScript and requires each to be on the Rust list (R2). `rust-contract.test.ts` already does this style of check for the environment names, so the pattern exists.
 
 **M4. `terminate_group`'s SIGKILL step is untested (`process_group.rs:39-50`).** Every test that goes through it uses `sleep`, which dies on SIGTERM. The only SIGTERM-ignoring test (`plat_03_quitting_kills_a_command_that_ignores_sigterm`, `shell.rs`) goes through `terminate_all`, which has its own copy of the loop (`shell.rs:292`). Two copies of one kill routine, one tested.
+
 - Mutation: delete `let _ = signal_group(pgrp, SIGKILL);`. Coverage confirms no test reaches it. Result: a cancelled `npm run dev` that traps TERM lives forever, and the sidecar can outlive a quit.
 - Fix: one test per caller class with `trap '' TERM`: `terminate_group` directly, a `shell_start` cancel, a timeout, `shutdown`. Make `terminate_all` call `terminate_group` (or the reverse) so there is one loop.
 
 **M5. The PTY exit path and kill-with-children are untested (`pty.rs`).**
+
 - `start_io_threads` (`:571`) has no test. It removes the session, saves history, and emits `pty://exit` once. `exit_details` and `signal_number` (`:860`, `:870`) have no test.
   - Mutation: swap `exit_code` and `signal`. No test fails.
   - Mutation: drop `.remove(&session.id)`, so a dead terminal stays in the table. No test fails.
@@ -83,12 +88,14 @@ The least covered files that matter are `sidecar.rs` and `pty.rs`. In both, the 
 - Fix: a terminal test that runs `sh -c 'sleep 30 & wait'` under job control, kills it, and asserts both pids are gone. Exit mapping tests for exit 0, exit 3, SIGTERM, SIGKILL. The rest goes through the mock app (M1).
 
 **M6. Sidecar supervision is untested and one test is theater (`sidecar.rs`).**
+
 - `start_locked` (`:857`), the reader that turns socket lines into `sidecar://line` (`:910`), the supervisor (`:962`), `on_process_ended` and the restart loop (`:996`), and the three commands (`:1085`-`:1138`) never run in a test. 36 tests cover the parts around them.
 - `plat_09_a_start_announces_ready_on_the_documented_event` (`:1569`) asserts `EVENT_READY == "sidecar://ready"`. THEATER. Mutation: delete `app.emit(EVENT_READY, ())` (`:906`). Stays green.
 - Missing behaviours the header promises: two overlapping `sidecar_ensure_started` calls give one start; `sidecar_send` during a start waits; the 6th crash in a minute stops the restarts and emits `willRetry: false`; a restart waiting out its backoff does not start after `shutdown`; a line longer than 32 MiB is dropped and the relay carries on.
 - Fix: a mock-app test with a fake sidecar (a small script that prints `SOCKET_PATH=` and serves a Unix socket; `nc -lU` or a few lines of `bun`) and a second test that launches the real Bun sidecar through `CONDUCTED_SIDECAR_BIN`.
 
 **M7. File scope is proven for one command of six, and search has no scope.**
+
 - `files.rs:589` `checked_target` is shared, and `plat_29_read_text_outside_the_roots_is_refused` (`:1249`) covers it through `read_text_checked`. Write, stat, mkdirp, read_dir and trash are not tested against an outside path. Mutation: in `mkdirp_checked` (`:626`) call `absolute_path` instead of `checked_target`. All tests pass. Same for `trash_checked` (`:645`).
 - `allowed_roots` and the `fs_*` command bodies are never run; the roots come from `AppHandle`.
 - `file_search.rs:402-445`: `search_list_tree`, `search_fuzzy` and `search_grep` take any folder with no scope check. Today the webview can grep `~/.ssh`. PLAT-29 says "the webview may read only listed paths". No test says whether search is meant to be inside the rule.
@@ -97,21 +104,26 @@ The least covered files that matter are `sidecar.rs` and `pty.rs`. In both, the 
 - Fix: a table-driven test that every `*_checked` function refuses an outside path with `fs_out_of_scope`. A decision on search scope, then a test. A launched-window test that a command outside the intended set is refused (layer 1), or an `AppManifest`.
 
 **M8. The allowlist test pins the weak semantics.** `plat_29_allows_a_named_program_and_its_absolute_path` (`shell.rs:1718`) asserts `/opt/homebrew/bin/gh` passes because its file name is `gh`. By the same rule `/tmp/anything/git` passes, and `sh -c` runs anything. The test name promises a boundary the code does not draw.
+
 - Fix: decide. Either the list is a mistake guard (say so in the header and drop the PLAT-29 wording), or absolute paths must resolve inside known folders and the shells leave the list. Then test the decision, including `/tmp/x/git`.
 
 **M9. The "Tauri" Platform is a stand-in that never meets Rust.** `docs/engineering.md` says the in-memory Platform "passes the same contract test as the Tauri Platform". `runPlatformContract` is called with the real factory only for the memory Platform (`memory.test.ts:62`). `contract.test.ts` only registers the case names for "tauri" with a factory that throws. The Tauri Platform tests (`tauri-*.test.ts`) use hand-written payloads such as `{ exitCode: 0, ... }`. Rust payload shapes (`ShellOutput`, `FileStat`, `PtyChunk`, `CommandError`) have no Rust test at all; `error.rs` has none.
+
 - Mutation: rename `#[serde(rename_all = "camelCase")]` on `ShellOutput`. Rust tests, TS tests, and the contract all pass.
 - Fix: shared golden JSON files that a Rust test serialises into and a TypeScript test parses with the real schema; plus the contract run against the Tauri Platform over the mock app (layer 3).
 
 **M10. Migrations: nothing joins the files to the app.** `db.rs:40-70` lists four migrations by hand. `test/sqlite.ts:21-24` applies every `.sql` it finds on disk to an empty in-memory `node:sqlite` database. The migrations guard (`scripts/guards/migrations.ts`) checks hashes of files.
+
 - Mutation: add `0005_x.sql`, lock it, forget the entry in `db::migrations()`. Every test and every guard passes, and the real database never gets the table.
 - Nothing runs a migration against a populated database, or through sqlx (the migrator the plugin really uses; it differs from `node:sqlite` in statement handling and SQLite version).
 - Fix: a Rust test that `migrations()` equals the sorted file list with versions 1..n and `include_str!` matching the file (or a guard, R3); later a populated-database upgrade test (layer 4).
 
 **M11. The release bundle is never built or inspected; SIDE-23 is `done` without its wiring.** `tauri.conf.json` has no `bundle.externalBin` and no `resources`. A release build ends in `sidecar_binary_missing`, and `bin/checkpointer.sh` is not shipped. The audit and `APP-16` already know. `release/bundle.ts` is all placeholders (PLAT-25, stub). CI only builds the web UI. No test fails today because none looks.
+
 - Fix: a test that unpacks a debug-built `.app` and checks the sidecar, the `bin/` scripts, `Info.plist` keys and the entitlements (layer 1). Until then SIDE-23's row should not say `done`.
 
 **M12. "A run leaves nothing behind" is enforced for TypeScript files only.**
+
 - `scripts/with-run-dir.ts` looks only at files in the run's temp folder. It does not look at processes. Rust tests run outside it (`cargo test` in the Rust job; the job has no bun).
 - `shell.rs` removes its fixtures at the end of each test with `.ok()` (`:1248`, `:1263`, `:1278`, `:1301`), so a failed assertion leaves the folder, and an error is swallowed. Other files use a `Drop` guard.
 - Tests that start `sleep 30` clean up after the assertions (`sidecar.rs:1549`, `shell.rs` grandchild test), so a failing assertion leaves a process.
@@ -119,13 +131,16 @@ The least covered files that matter are `sidecar.rs` and `pty.rs`. In both, the 
 - Fix: one `test_support` module with `TempDir` and a `ChildGuard` that kills the group on drop; run `cargo test` under the run-dir wrapper (add bun to the macOS job) and add a leftover-process check.
 
 **M13. The shell-script tests run on Linux, the scripts run on macOS.** Coverage logs show `checkpointer.test.ts` and `git-busy-check.test.ts` ran on `/home/runner` (ubuntu-latest). The scripts use `find -mmin`, `find -delete`, `pgrep -P`, `mktemp`, `sed`, `date -u`, and `trash`, and the `/bin/bash` on a default Mac path is version 3.2. The no-`trash` branch is tested; the real `trash` path and BSD tools are not. I did not find a breakage; I found that nothing could tell.
+
 - Fix: run the two `bin/` test files on the macOS runner as well (the Rust job; add `setup-bun`).
 
 **M14. Search errors stop the whole search.** `file_search.rs:156`, `:179`, `:375` turn any walk error into a failed call, and `:382` fails the whole grep on one unreadable or just-deleted file. A workspace with one permission-denied folder breaks Cmd+P and search in files. No test uses an unreadable entry. I did not run it, but reading the loop leaves no other outcome.
+
 - Also in this file: `plat_06_fuzzy_skips_ignored_files` (`:618`) asserts `.all(...)` on the result. It passes on an empty list. Mutation: make `search_fuzzy` return `[]`. Green. `plat_06_fuzzy_match_files_ranks_and_limits` (`:601`) only checks that `alpha.ts` is first; the tie-breakers in the header (shorter path, then alphabetical) are not tested. The header claims `.git/info/exclude` and the global ignore file are honoured; neither has a test.
 - Fix: assert `src/alpha.ts` is present; a three-file tie test; an unreadable-folder test (`chmod 000`) that expects the other results plus a reported skip, or a decision that the whole call should fail.
 
 **M15. Docs that the tests contradict (fix in the same change).**
+
 - `CLAUDE.md` "When tests run": `pnpm test` "16 to 26 s", "Every test is fast today". CI logs of 2026-11-05: `pnpm test` took 74 s on a PR run (42021891601) and 118 s on the main push (42022220232). `engineering.md` says changed-only runs wait until the suite passes 30 s. It has.
 - `engineering.md`: the Platform contract claim (M9). `architecture.md`: the capabilities claim (M7).
 - `CLAUDE.md`: "CI reads the same files" for Rust. `ci.yml` installs `dtolnay/rust-toolchain@stable`; the pinned `1.99.1` is picked up only because rustup reads `rust-toolchain.toml` at the first `cargo` call. It works, but it installs two toolchains.
@@ -154,67 +169,67 @@ The least covered files that matter are `sidecar.rs` and `pty.rs`. In both, the 
 
 ## 4. Per-file verdicts
 
-| Path | Verdict | Reason |
-| --- | --- | --- |
-| `src-tauri/src/shell.rs` | WEAK | Helpers real (groups, timeout, overflow, capture, quit). Commands, event, login-env cache, repair untested; allowlist test pins weak rule (M1, M8) |
-| `src-tauri/src/process_group.rs` | WEAK (no own tests) | Covered via `shell.rs`; SIGKILL line never runs (M4) |
-| `src-tauri/src/pty.rs` | WEAK | Flow control and mirror real. Exit thread, exit mapping, kill with children, commands untested (M5) |
-| `src-tauri/src/sidecar.rs` | WEAK | Pure parts and log rules real. Start, relay, supervisor, restart untested; one constant test is theater (M6) |
-| `src-tauri/src/files.rs` | WEAK | Atomic write, symlinks, trash, scope function real. Scope wiring for 5 of 6 commands, string-search capabilities test (M7) |
-| `src-tauri/src/file_search.rs` | WEAK | List, grep, limits real. No scope, error paths, loose fuzzy asserts (M7, M14) |
-| `src-tauri/src/navigation.rs` | REAL | The URL decision is pure and fully covered. `install_guard` and the shim are not run; CSP test is text checks (admitted in the header) |
-| `src-tauri/src/binaries.rs` | WEAK | `verify_bundled_programs` well tested. Command unregistered, event unsent, constant test (M2) |
-| `src-tauri/src/lib.rs` | REAL | `system_info` and the arch parser are tested; one tautology. Handler list, `app_quit`, `app_info`, `health` untested (M1) |
-| `src-tauri/src/{attachments,db,deep_link,keychain,logger,menu,notifications,open_with,resource_usage,speech,terminal_history,updater,error,main}.rs` | n/a | Placeholders (no tests by rule), except `error.rs`, whose JSON shape is a contract with no test (M9) |
-| `bin/checkpointer.sh` via `checkpointer.test.ts`, `run-checkpointer.test.ts` | REAL | Real repos, real script, all 25 checklist items have a test, signals, odd names. Runs on Ubuntu only (M13) |
-| `bin/git-busy-check.sh` via `git-busy-check.test.ts` | REAL | Every state and exit code, real git operations |
-| `bin/spotlighter.sh` | none | Stub (RUN-08) |
-| `scripts/check-runtime.test.ts` | REAL | Flipping the major/minor comparison fails a test; the `main` block is untested but small |
-| `scripts/check-stubs.test.ts` | REAL | Each disagreement is named; planted samples |
-| `scripts/with-run-dir.test.ts` | REAL | Runs the wrapper for real; leaves a file; dead-run cleanup. Watches files only (M12) |
-| `scripts/guards/guards.test.ts` | WEAK | Planted samples for each guard, but only `.ts` for headers, only `.sh` for `rm` (LATER) |
-| `scripts/guards/boundaries.test.ts` | REAL | Runs Biome on a planted bad import per rule, plus a control. Missing probes, writes into the tree |
-| `scripts/issues/model.test.ts` | REAL | Parsing, labels, rendering; bad rows reported not dropped |
-| `scripts/overnight/drive.test.ts` | WEAK | Prompts, `--only`, `markDone`, balance are real; `plan`/`step`/`closes` untested; one test pins prose |
-| `scripts/overnight/node-gate.test.ts` | REAL | Placeholder and test-name detection in TS and Rust |
-| `scripts/overnight/plan-batches.test.ts` | REAL | Step order, one program per batch, splitting, loop refusal |
-| `scripts/release.ts`, `scripts/issues/sync.ts`, `scripts/guards/run.ts`, `scripts/conductor-re/*` | no test | See LATER |
-| `.github/workflows/*` | guard only | Timeout guard only (`workflows.ts`) |
+| Path                                                                                                                                                 | Verdict             | Reason                                                                                                                                             |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src-tauri/src/shell.rs`                                                                                                                             | WEAK                | Helpers real (groups, timeout, overflow, capture, quit). Commands, event, login-env cache, repair untested; allowlist test pins weak rule (M1, M8) |
+| `src-tauri/src/process_group.rs`                                                                                                                     | WEAK (no own tests) | Covered via `shell.rs`; SIGKILL line never runs (M4)                                                                                               |
+| `src-tauri/src/pty.rs`                                                                                                                               | WEAK                | Flow control and mirror real. Exit thread, exit mapping, kill with children, commands untested (M5)                                                |
+| `src-tauri/src/sidecar.rs`                                                                                                                           | WEAK                | Pure parts and log rules real. Start, relay, supervisor, restart untested; one constant test is theater (M6)                                       |
+| `src-tauri/src/files.rs`                                                                                                                             | WEAK                | Atomic write, symlinks, trash, scope function real. Scope wiring for 5 of 6 commands, string-search capabilities test (M7)                         |
+| `src-tauri/src/file_search.rs`                                                                                                                       | WEAK                | List, grep, limits real. No scope, error paths, loose fuzzy asserts (M7, M14)                                                                      |
+| `src-tauri/src/navigation.rs`                                                                                                                        | REAL                | The URL decision is pure and fully covered. `install_guard` and the shim are not run; CSP test is text checks (admitted in the header)             |
+| `src-tauri/src/binaries.rs`                                                                                                                          | WEAK                | `verify_bundled_programs` well tested. Command unregistered, event unsent, constant test (M2)                                                      |
+| `src-tauri/src/lib.rs`                                                                                                                               | REAL                | `system_info` and the arch parser are tested; one tautology. Handler list, `app_quit`, `app_info`, `health` untested (M1)                          |
+| `src-tauri/src/{attachments,db,deep_link,keychain,logger,menu,notifications,open_with,resource_usage,speech,terminal_history,updater,error,main}.rs` | n/a                 | Placeholders (no tests by rule), except `error.rs`, whose JSON shape is a contract with no test (M9)                                               |
+| `bin/checkpointer.sh` via `checkpointer.test.ts`, `run-checkpointer.test.ts`                                                                         | REAL                | Real repos, real script, all 25 checklist items have a test, signals, odd names. Runs on Ubuntu only (M13)                                         |
+| `bin/git-busy-check.sh` via `git-busy-check.test.ts`                                                                                                 | REAL                | Every state and exit code, real git operations                                                                                                     |
+| `bin/spotlighter.sh`                                                                                                                                 | none                | Stub (RUN-08)                                                                                                                                      |
+| `scripts/check-runtime.test.ts`                                                                                                                      | REAL                | Flipping the major/minor comparison fails a test; the `main` block is untested but small                                                           |
+| `scripts/check-stubs.test.ts`                                                                                                                        | REAL                | Each disagreement is named; planted samples                                                                                                        |
+| `scripts/with-run-dir.test.ts`                                                                                                                       | REAL                | Runs the wrapper for real; leaves a file; dead-run cleanup. Watches files only (M12)                                                               |
+| `scripts/guards/guards.test.ts`                                                                                                                      | WEAK                | Planted samples for each guard, but only `.ts` for headers, only `.sh` for `rm` (LATER)                                                            |
+| `scripts/guards/boundaries.test.ts`                                                                                                                  | REAL                | Runs Biome on a planted bad import per rule, plus a control. Missing probes, writes into the tree                                                  |
+| `scripts/issues/model.test.ts`                                                                                                                       | REAL                | Parsing, labels, rendering; bad rows reported not dropped                                                                                          |
+| `scripts/overnight/drive.test.ts`                                                                                                                    | WEAK                | Prompts, `--only`, `markDone`, balance are real; `plan`/`step`/`closes` untested; one test pins prose                                              |
+| `scripts/overnight/node-gate.test.ts`                                                                                                                | REAL                | Placeholder and test-name detection in TS and Rust                                                                                                 |
+| `scripts/overnight/plan-batches.test.ts`                                                                                                             | REAL                | Step order, one program per batch, splitting, loop refusal                                                                                         |
+| `scripts/release.ts`, `scripts/issues/sync.ts`, `scripts/guards/run.ts`, `scripts/conductor-re/*`                                                    | no test             | See LATER                                                                                                                                          |
+| `.github/workflows/*`                                                                                                                                | guard only          | Timeout guard only (`workflows.ts`)                                                                                                                |
 
 ## 5. Checklist map gaps
 
 Items with a real failing test are left out. "No test" means no test fails if the item is removed. "Passes without it" means a test exists but stays green.
 
-| Feature | Item | Status |
-| --- | --- | --- |
-| PLAT-03 | execute_shell_command_cancellable starts a cancellable process; "a command starts / cancels a shell process" (frontend 3a) | No test at the command (M1). `shell_start` and `shell_cancel` never run |
-| PLAT-03 | cancel kills the whole process group | Passes without the SIGKILL step (M4) |
-| PLAT-03 | distinct timeout and cancel result | Tested by hand-assembling `shell_done`; the event path has no test |
-| PLAT-04 | A command returns the login-shell env and PATH; first call and warm-up share one capture | No test (`shell_login_env`) |
-| PLAT-04 | The login-shell PATH is repaired at startup (two items) | No test (`repair_process_path`, `start_background_capture`) |
-| PLAT-04 | 5 s and 3 s timeouts | Passes without the behaviour: the test asserts the constants only |
-| PLAT-05 | Well-known paths | No test (`fs_paths`) |
-| PLAT-05 | Remove to the Trash | Tested on a folder the test picks. The real Trash folder is only tested for the failing case |
-| PLAT-07 | pty-data and pty-exit events reach the handle (3 items) ; "emits ready, data and exit" | No test. `pty://exit` once, session removed, exit code mapping (M5) |
-| PLAT-07 | pty_write, pty_resize, pty_kill, pty_ack commands | No test at the command; `pty_resize` also resizes the mirror, untested; zero size at spawn untested |
-| PLAT-07 | Kill stops children in another group | Passes without the SIGHUP (M5) |
-| PLAT-09 | ensure_sidecar_started starts if not running ; a command starts the sidecar | No test of the sequence or the single-flight (M6) |
-| PLAT-09 | A ready event tells the UI the connection is up | Passes without it (constant test) |
-| PLAT-09 | rpc_from_sidecar delivers lines ; the shell relays JSON-RPC lines | Writer tested; reader and event not |
-| PLAT-09 | Rust kills orphaned sidecars | Matching tested; `kill_orphans` (the `ps` call and the kill) not |
-| PLAT-09 | Restart policy | Plan arithmetic tested; the loop and `willRetry` event not |
-| PLAT-22 | CSP replaces null | Text checks of the JSON. A page loading under the CSP is not tested (header admits) |
-| PLAT-29 | The webview may read only listed paths | One command of six (M7) |
-| PLAT-29 | Shell access limited to named scopes | Test pins file-name-only rule (M8) |
-| PLAT-29 | Opener limited to URL scopes | Passes without the scope: the test checks that the wide schemes are listed |
-| PLAT-34 | get_binary_verification_errors lists failures ; the event reports them | No test; command unregistered, event unsent (M2) |
-| PLAT-06 | Directory listing applies the standard ignore filters | `.gitignore` tested; `.git/info/exclude` and global ignore not |
-| PLAT-06 | fuzzy_match_files ranks | Top-1 only; tie-breakers untested |
-| SIDE-23 | externalBin wiring; packaged copy | No test, not built (M11) |
-| PLAT-25 | App has a bundle id and version | Version agreement is guarded; bundle id has no test |
-| PLAT-36 | Mock-app tests | None, by definition |
-| RUN-08 | requires its env, exits 1 when missing | Built, no test |
-| GIT-10, GIT-11 | all items | Each has a test. "Spotlight uses the checkpointer" belongs to RUN-08 |
+| Feature        | Item                                                                                                                       | Status                                                                                              |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| PLAT-03        | execute_shell_command_cancellable starts a cancellable process; "a command starts / cancels a shell process" (frontend 3a) | No test at the command (M1). `shell_start` and `shell_cancel` never run                             |
+| PLAT-03        | cancel kills the whole process group                                                                                       | Passes without the SIGKILL step (M4)                                                                |
+| PLAT-03        | distinct timeout and cancel result                                                                                         | Tested by hand-assembling `shell_done`; the event path has no test                                  |
+| PLAT-04        | A command returns the login-shell env and PATH; first call and warm-up share one capture                                   | No test (`shell_login_env`)                                                                         |
+| PLAT-04        | The login-shell PATH is repaired at startup (two items)                                                                    | No test (`repair_process_path`, `start_background_capture`)                                         |
+| PLAT-04        | 5 s and 3 s timeouts                                                                                                       | Passes without the behaviour: the test asserts the constants only                                   |
+| PLAT-05        | Well-known paths                                                                                                           | No test (`fs_paths`)                                                                                |
+| PLAT-05        | Remove to the Trash                                                                                                        | Tested on a folder the test picks. The real Trash folder is only tested for the failing case        |
+| PLAT-07        | pty-data and pty-exit events reach the handle (3 items) ; "emits ready, data and exit"                                     | No test. `pty://exit` once, session removed, exit code mapping (M5)                                 |
+| PLAT-07        | pty_write, pty_resize, pty_kill, pty_ack commands                                                                          | No test at the command; `pty_resize` also resizes the mirror, untested; zero size at spawn untested |
+| PLAT-07        | Kill stops children in another group                                                                                       | Passes without the SIGHUP (M5)                                                                      |
+| PLAT-09        | ensure_sidecar_started starts if not running ; a command starts the sidecar                                                | No test of the sequence or the single-flight (M6)                                                   |
+| PLAT-09        | A ready event tells the UI the connection is up                                                                            | Passes without it (constant test)                                                                   |
+| PLAT-09        | rpc_from_sidecar delivers lines ; the shell relays JSON-RPC lines                                                          | Writer tested; reader and event not                                                                 |
+| PLAT-09        | Rust kills orphaned sidecars                                                                                               | Matching tested; `kill_orphans` (the `ps` call and the kill) not                                    |
+| PLAT-09        | Restart policy                                                                                                             | Plan arithmetic tested; the loop and `willRetry` event not                                          |
+| PLAT-22        | CSP replaces null                                                                                                          | Text checks of the JSON. A page loading under the CSP is not tested (header admits)                 |
+| PLAT-29        | The webview may read only listed paths                                                                                     | One command of six (M7)                                                                             |
+| PLAT-29        | Shell access limited to named scopes                                                                                       | Test pins file-name-only rule (M8)                                                                  |
+| PLAT-29        | Opener limited to URL scopes                                                                                               | Passes without the scope: the test checks that the wide schemes are listed                          |
+| PLAT-34        | get_binary_verification_errors lists failures ; the event reports them                                                     | No test; command unregistered, event unsent (M2)                                                    |
+| PLAT-06        | Directory listing applies the standard ignore filters                                                                      | `.gitignore` tested; `.git/info/exclude` and global ignore not                                      |
+| PLAT-06        | fuzzy_match_files ranks                                                                                                    | Top-1 only; tie-breakers untested                                                                   |
+| SIDE-23        | externalBin wiring; packaged copy                                                                                          | No test, not built (M11)                                                                            |
+| PLAT-25        | App has a bundle id and version                                                                                            | Version agreement is guarded; bundle id has no test                                                 |
+| PLAT-36        | Mock-app tests                                                                                                             | None, by definition                                                                                 |
+| RUN-08         | requires its env, exits 1 when missing                                                                                     | Built, no test                                                                                      |
+| GIT-10, GIT-11 | all items                                                                                                                  | Each has a test. "Spotlight uses the checkpointer" belongs to RUN-08                                |
 
 The node gate looks for the feature id in a test title. Of the 68 `done` rows, one (AGENT-01) has no test naming it. That counts titles only; the table above is the real measure.
 
@@ -224,15 +239,15 @@ Findings so far, for reference when ranking: the three slice-1 bugs (first chat 
 
 ### Ranking by bugs caught
 
-| Rank | Layer | Slice-1 bugs it would have caught | Live bugs in this snapshot it catches | Relative cost |
-| --- | --- | --- | --- | --- |
-| 1 | App launch and one chat message | all 3 | sidecar not bundled, CSP, unregistered command if the journey touches it | highest, one-time spike |
-| 2 | Sidecar composition over a real socket, scripted agent, fake CLIs on PATH | deadlock, "not installed" | none found, protocol drift | low |
-| 3 | Rust commands through a mock app, plus Rust and TypeScript contract checks | none | M2, M3, M1, M7 | low |
-| 4 | Migrations on a populated database, through the real migrator | none | M10 class | low |
-| 5 | Real-agent contract tests | "not installed" only if the CLI is real | upstream drift, which nothing sees today | recurring token cost |
-| 6 | Real-size lists | none | M14 class, PTY/shell limits | low to medium |
-| 7 | View screenshots | none | none | medium |
+| Rank | Layer                                                                      | Slice-1 bugs it would have caught       | Live bugs in this snapshot it catches                                    | Relative cost           |
+| ---- | -------------------------------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------ | ----------------------- |
+| 1    | App launch and one chat message                                            | all 3                                   | sidecar not bundled, CSP, unregistered command if the journey touches it | highest, one-time spike |
+| 2    | Sidecar composition over a real socket, scripted agent, fake CLIs on PATH  | deadlock, "not installed"               | none found, protocol drift                                               | low                     |
+| 3    | Rust commands through a mock app, plus Rust and TypeScript contract checks | none                                    | M2, M3, M1, M7                                                           | low                     |
+| 4    | Migrations on a populated database, through the real migrator              | none                                    | M10 class                                                                | low                     |
+| 5    | Real-agent contract tests                                                  | "not installed" only if the CLI is real | upstream drift, which nothing sees today                                 | recurring token cost    |
+| 6    | Real-size lists                                                            | none                                    | M14 class, PTY/shell limits                                              | low to medium           |
+| 7    | View screenshots                                                           | none                                    | none                                                                     | medium                  |
 
 Build order differs from the rank. Layer 2 comes first because it builds the scripted agent that layer 1 needs. Layer 3's static contract part (R1, R2, R3) is a day-one guard and costs no runner time.
 
@@ -310,22 +325,22 @@ Rules worth adding to `docs/engineering.md`:
 
 Deterministic checks a script could run, with what each flags today:
 
-| # | Check | Flags today in my area |
-| --- | --- | --- |
-| R1 | Every `#[tauri::command]` fn is in `generate_handler!`; every name in `COMMANDS` is registered or tagged with a backlog id that is not `done`; every registered name is in `tauri-commands.md` | `programs_verification_errors` (defined, unregistered, called); 19 more `COMMANDS` names with no handler (all planned, would need tags); `notification_take_pending` (no TypeScript name) |
-| R2 | Every literal `program: "..."` in non-test TypeScript is on `ALLOWED_PROGRAMS` | `xcodebuild`, `osascript` |
-| R3 | The `.sql` files in `migrations/` equal `db::migrations()` (names, versions 1..n, `include_str!` paths) | none today (4 of 4 match); the sample must flag a missing entry |
-| R4 | Rust: a `#[test]` whose body has no `assert`, `expect` or `unwrap`; TypeScript: a test file that names a feature id and has no `expect` | none for Rust; node gate lets titled empty files through |
-| R5 | Rust tests whose only assertion is `assert_eq!(UPPER_CASE_CONST, literal)` | `plat_09_a_start_announces_ready_on_the_documented_event`, `plat_04_capture_timeouts_are_five_and_three_seconds`, `plat_34_the_event_name_is_the_one_the_platform_listens_for` |
-| R6 | A `.all(` or `for` assertion over a result with no non-empty assertion in the same test | `plat_06_fuzzy_skips_ignored_files` |
-| R7 | `remove_dir_all(...)` or `remove_file(...)` inside a test body outside a `Drop` impl; more than one `struct TempDir` in the crate | 4 calls in `shell.rs` (`:1248`, `:1263`, `:1278`, `:1301`); 4 copies of `TempDir` |
-| R8 | After the run, no process started by the tests remains (process group of the runner is empty, or `pgrep` for fixture programs) | cannot be flagged yet, nothing measures it |
-| R9 | Workflow guard: every `uses:` is a 40-hex SHA; `ci.yml` contains `cargo test --locked`, `pnpm test`, `pnpm guards`, `pnpm stubs`; `merge_group` present when a merge queue is configured | `cargo test` without `--locked`; no `merge_group` (not needed until the queue is on) |
-| R10 | Header guard sample for each of `.rs`, `.sh`, `.ts`; `SOURCE` covers `src-tauri/*.rs` and `build.rs` | no sample for `.rs`, `.sh`; `build.rs` has no header and is out of scope |
-| R11 | `shellcheck` over every `*.sh` in the repo, not only `bin/` | `scripts/conductor-re/extract_bun_sidecar.sh` is unchecked; the 8 `.py` files have no checker |
-| R12 | `tauri.conf.json` has `bundle.externalBin` and `resources` for `bin/*` once PLAT-25 is `done`; until then the SIDE-23 row cannot be `done` | `externalBin` missing |
-| R13 | The CI step times quoted in `CLAUDE.md` are within 2x of the latest main run (`gh run view`) | `pnpm test` quoted at 16-26 s, measured 74-118 s |
-| R14 | A `done` row with no test whose title or function name carries the id | AGENT-01 |
+| #   | Check                                                                                                                                                                                          | Flags today in my area                                                                                                                                                                    |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1  | Every `#[tauri::command]` fn is in `generate_handler!`; every name in `COMMANDS` is registered or tagged with a backlog id that is not `done`; every registered name is in `tauri-commands.md` | `programs_verification_errors` (defined, unregistered, called); 19 more `COMMANDS` names with no handler (all planned, would need tags); `notification_take_pending` (no TypeScript name) |
+| R2  | Every literal `program: "..."` in non-test TypeScript is on `ALLOWED_PROGRAMS`                                                                                                                 | `xcodebuild`, `osascript`                                                                                                                                                                 |
+| R3  | The `.sql` files in `migrations/` equal `db::migrations()` (names, versions 1..n, `include_str!` paths)                                                                                        | none today (4 of 4 match); the sample must flag a missing entry                                                                                                                           |
+| R4  | Rust: a `#[test]` whose body has no `assert`, `expect` or `unwrap`; TypeScript: a test file that names a feature id and has no `expect`                                                        | none for Rust; node gate lets titled empty files through                                                                                                                                  |
+| R5  | Rust tests whose only assertion is `assert_eq!(UPPER_CASE_CONST, literal)`                                                                                                                     | `plat_09_a_start_announces_ready_on_the_documented_event`, `plat_04_capture_timeouts_are_five_and_three_seconds`, `plat_34_the_event_name_is_the_one_the_platform_listens_for`            |
+| R6  | A `.all(` or `for` assertion over a result with no non-empty assertion in the same test                                                                                                        | `plat_06_fuzzy_skips_ignored_files`                                                                                                                                                       |
+| R7  | `remove_dir_all(...)` or `remove_file(...)` inside a test body outside a `Drop` impl; more than one `struct TempDir` in the crate                                                              | 4 calls in `shell.rs` (`:1248`, `:1263`, `:1278`, `:1301`); 4 copies of `TempDir`                                                                                                         |
+| R8  | After the run, no process started by the tests remains (process group of the runner is empty, or `pgrep` for fixture programs)                                                                 | cannot be flagged yet, nothing measures it                                                                                                                                                |
+| R9  | Workflow guard: every `uses:` is a 40-hex SHA; `ci.yml` contains `cargo test --locked`, `pnpm test`, `pnpm guards`, `pnpm stubs`; `merge_group` present when a merge queue is configured       | `cargo test` without `--locked`; no `merge_group` (not needed until the queue is on)                                                                                                      |
+| R10 | Header guard sample for each of `.rs`, `.sh`, `.ts`; `SOURCE` covers `src-tauri/*.rs` and `build.rs`                                                                                           | no sample for `.rs`, `.sh`; `build.rs` has no header and is out of scope                                                                                                                  |
+| R11 | `shellcheck` over every `*.sh` in the repo, not only `bin/`                                                                                                                                    | `scripts/conductor-re/extract_bun_sidecar.sh` is unchecked; the 8 `.py` files have no checker                                                                                             |
+| R12 | `tauri.conf.json` has `bundle.externalBin` and `resources` for `bin/*` once PLAT-25 is `done`; until then the SIDE-23 row cannot be `done`                                                     | `externalBin` missing                                                                                                                                                                     |
+| R13 | The CI step times quoted in `CLAUDE.md` are within 2x of the latest main run (`gh run view`)                                                                                                   | `pnpm test` quoted at 16-26 s, measured 74-118 s                                                                                                                                          |
+| R14 | A `done` row with no test whose title or function name carries the id                                                                                                                          | AGENT-01                                                                                                                                                                                  |
 
 ## Closing summary
 

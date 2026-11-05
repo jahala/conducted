@@ -16,9 +16,7 @@ Snapshot: commit `808d632` of `slice2/step-1` (slice 1 on main plus slice 2 step
 
 **Judgement.** Where the code is pure or talks to a real system the suite is professional: the checkpoint script against real git repositories, the real Unix socket server, real child processes in `spawn-child` and `run-checkpointer`, the outbox and its replay, the process manager's rules, the watchdog and shutdown steps with injected time. Where parts meet each other or an outside program the suite is thin and its fakes are friendlier than the real thing (they answer at once, end streams cleanly on abort, accept any payload). The backlog shows `done` for features whose seams have no test; a line coverage of 90% hides it, because the uncovered lines are exactly the wiring.
 
-
 ## 2. Coverage
-
 
 Measured on `main` (slice 1 only), CI run https://github.com/jahala/conducted/actions/runs/42059567155, from `coverage/summary.md` and `files.tsv`. Sidecar `bun test`: 87 files, 646 tests, 5.7 s. Lines 90.64% (7362/8122), functions 84.05% (838/997). Branches are not reported by Bun. The snapshot has 885 tests in my area, so slice 2's code (Codex, ACP, Cursor, tools bridge, self-started turns) is not in these numbers; I judged it by reading.
 
@@ -26,20 +24,19 @@ Line coverage is a weak signal here and I did not rely on it. The 100% for `pack
 
 Least covered files that matter (main):
 
-| File | Lines | Uncovered | Why it matters |
-| --- | ---: | ---: | --- |
-| `modes/sidecar-mode.ts` | 43.0% | 443 | The composition root. The largest uncovered file in the sidecar. `startSidecarHost` (about 250 lines) is not called by any test. |
-| `tools/in-process-server.ts` | 14.3% | 6 | Claude's app tools: the real MCP wiring. |
-| `tools/backend.ts` | 26.2% | 31 | `RpcAppToolBackend`: the app round trips for diff, comments, terminal, questions. |
-| `tools/socket-bridge.ts` | 36.8% | 12 | SIDE-13 placeholder. |
-| `models/slash-and-mcp.ts` | 44.4% | 10 | Slash command and MCP listing. |
-| `runners/acp/acp-runner.ts`, `codex/codex-runner.ts`, `cursor/cursor-runner.ts` | 50.0% | 8 each | Runner `start()` is the live path. |
-| `main.ts` | 61.0% | 16 | The real `import.meta.main` entry. |
-| `process/process-manager.ts` | 61.9% | 8 | Idle stop and warm pool. |
-| `rpc/handlers.ts` | 72.1% | 17 | Which module answers which request. |
+| File                                                                            | Lines | Uncovered | Why it matters                                                                                                                   |
+| ------------------------------------------------------------------------------- | ----: | --------: | -------------------------------------------------------------------------------------------------------------------------------- |
+| `modes/sidecar-mode.ts`                                                         | 43.0% |       443 | The composition root. The largest uncovered file in the sidecar. `startSidecarHost` (about 250 lines) is not called by any test. |
+| `tools/in-process-server.ts`                                                    | 14.3% |         6 | Claude's app tools: the real MCP wiring.                                                                                         |
+| `tools/backend.ts`                                                              | 26.2% |        31 | `RpcAppToolBackend`: the app round trips for diff, comments, terminal, questions.                                                |
+| `tools/socket-bridge.ts`                                                        | 36.8% |        12 | SIDE-13 placeholder.                                                                                                             |
+| `models/slash-and-mcp.ts`                                                       | 44.4% |        10 | Slash command and MCP listing.                                                                                                   |
+| `runners/acp/acp-runner.ts`, `codex/codex-runner.ts`, `cursor/cursor-runner.ts` | 50.0% |    8 each | Runner `start()` is the live path.                                                                                               |
+| `main.ts`                                                                       | 61.0% |        16 | The real `import.meta.main` entry.                                                                                               |
+| `process/process-manager.ts`                                                    | 61.9% |         8 | Idle stop and warm pool.                                                                                                         |
+| `rpc/handlers.ts`                                                               | 72.1% |        17 | Which module answers which request.                                                                                              |
 
 Sidecar sources that no test loads at all (listed by the coverage run, 29 files): `logging/logger-server.ts`, `models/completions-cache.ts`, `modes/app-tools-mcp-mode.ts`, `modes/logger-mode.ts`, `process/launch-fingerprint.ts`, `runners/launch-env.ts`, `runners/claude/launch-settings.ts`, `runners/claude/skill-plugin.ts`, `runners/codex/goals.ts`, `runners/codex/thread-settings.ts`, `runners/cursor/*` and the slice-2 runners. I checked: the first ones are `notImplemented` placeholders, so no test is correct. `runners/claude/self-started-turns.ts` and `session/self-started-turns.ts` are the exception: real code. They are slice 2, so main does not load them; the snapshot has tests for them, but no production code imports them (CS-5). The same holds for `acp-client.ts`, `acp-session.ts`, `codex-session.ts` and `app-server-client.ts`, which are real code that main has no tests for.
-
 
 ## 3. Findings
 
@@ -49,24 +46,23 @@ Ids: H = host and wiring, CX = Codex, CT = Claude translator and permissions, CS
 
 Order of importance (the full text follows by area):
 
-| Rank | Id | One line | Features |
-| ---: | --- | --- | --- |
-| 1 | H-1 | The sidecar cannot start (placeholder on the startup path) and no test starts the host | SIDE-01, 02, 06, 13 |
-| 2 | CX-1 | The Codex client probably drops every real reply (`jsonrpc` field) | AGENT-06, 07, 08 |
-| 3 | H-3, SN-10 | The 30-minute idle stop never fires; the test fake hides it | SIDE-07, 03, 04 |
-| 4 | H-4, SN-1 | Events are never checked against the schema; one bad event bricks the next start | SIDE-05, 06 |
-| 5 | CT-1, CS-6 | Cost and "Session started" wrong from the second turn (SDK says init is per turn) | AGENT-03 |
-| 6 | H-2 | `getContextUsage` is always "unavailable" in production | SIDE-17 |
-| 7 | CX-3 | Codex approvals are never registered in a live chat | AGENT-08 |
-| 8 | MD-1 | The agent detector is built without its Codex, Cursor and Settings ports | SIDE-15 |
-| 9 | CT-2, CT-3 | The edit-path sandbox has no hostile-path test and may not run in the default mode | AGENT-04 |
-| 10 | CS-5, ACP-9 | AGENT-15 has no caller; the ACP runner never gets the app-tools server | AGENT-15, AGENT-11 |
-| 11 | CX-2, CX-4 | Codex params and `skills/list` do not match the real protocol | AGENT-06 |
-| 12 | SN-2 to SN-5 | Manager: the deadlock guard is thin, shutdown, overlapping turns and mid-way failures untested | SIDE-03, 04, 05 |
-| 13 | CS-1 to CS-4 | Claude session: abort semantics, hung interrupt, resend after crash, hook wiring | AGENT-02 |
-| 14 | ACP-1 to ACP-8 | ACP: temp-folder leak (will fail CI), no wire test, cancel race, sandbox | AGENT-11, 12 |
-| 15 | H-5, H-6, H-7, H-8 | Outbox at size, flaky checkpoint timeouts, handler wiring, peer validation paths | SIDE-06, 08, 02 |
-
+| Rank | Id                 | One line                                                                                       | Features            |
+| ---: | ------------------ | ---------------------------------------------------------------------------------------------- | ------------------- |
+|    1 | H-1                | The sidecar cannot start (placeholder on the startup path) and no test starts the host         | SIDE-01, 02, 06, 13 |
+|    2 | CX-1               | The Codex client probably drops every real reply (`jsonrpc` field)                             | AGENT-06, 07, 08    |
+|    3 | H-3, SN-10         | The 30-minute idle stop never fires; the test fake hides it                                    | SIDE-07, 03, 04     |
+|    4 | H-4, SN-1          | Events are never checked against the schema; one bad event bricks the next start               | SIDE-05, 06         |
+|    5 | CT-1, CS-6         | Cost and "Session started" wrong from the second turn (SDK says init is per turn)              | AGENT-03            |
+|    6 | H-2                | `getContextUsage` is always "unavailable" in production                                        | SIDE-17             |
+|    7 | CX-3               | Codex approvals are never registered in a live chat                                            | AGENT-08            |
+|    8 | MD-1               | The agent detector is built without its Codex, Cursor and Settings ports                       | SIDE-15             |
+|    9 | CT-2, CT-3         | The edit-path sandbox has no hostile-path test and may not run in the default mode             | AGENT-04            |
+|   10 | CS-5, ACP-9        | AGENT-15 has no caller; the ACP runner never gets the app-tools server                         | AGENT-15, AGENT-11  |
+|   11 | CX-2, CX-4         | Codex params and `skills/list` do not match the real protocol                                  | AGENT-06            |
+|   12 | SN-2 to SN-5       | Manager: the deadlock guard is thin, shutdown, overlapping turns and mid-way failures untested | SIDE-03, 04, 05     |
+|   13 | CS-1 to CS-4       | Claude session: abort semantics, hung interrupt, resend after crash, hook wiring               | AGENT-02            |
+|   14 | ACP-1 to ACP-8     | ACP: temp-folder leak (will fail CI), no wire test, cancel race, sandbox                       | AGENT-11, 12        |
+|   15 | H-5, H-6, H-7, H-8 | Outbox at size, flaky checkpoint timeouts, handler wiring, peer validation paths               | SIDE-06, 08, 02     |
 
 #### The host, the wiring and process lifetime (SIDE-01, 02, 03, 07, 19)
 
@@ -85,7 +81,6 @@ Order of importance (the full text follows by area):
 **H-7. `rpc/handlers.ts` wiring is checked for 5 of its 24 request handlers.** `handlers.test.ts` checks `cancel`, `setAutoApproveEdits`, `listModels`, `getShellEnv`, `runUtilityPrompt`, `eventPersisted`, `setLogLevel`. Mutations missed: swap `warmAgent` and `resetAgent`; pass `params.agent` where `params.acpAgent` belongs in `startAgentLogin`; return `fromCache: true`; point `getContextUsage` at the wrong reader (`rpc/handlers.ts:56`). The two handler test files also repeat a 40-line dependency block. Fix: one table-driven test that calls every handler with recording deps and asserts which dep and which arguments were used.
 
 **H-8. Only 3 of 6 validation paths of the sidecar peer are tested.** Covered: incoming request params, outgoing handler result, incoming notification params (plus the logging test). Untested although the header promises them (`rpc/peer.ts`): invalid params on an outgoing request (`rpc_invalid_params`), a result from the app that fails its schema (`rpc_invalid_result`), an outgoing notification that fails its schema, and "a late response for a request that already timed out is ignored". `peer.test.ts` "requestInteraction has no timeout" waits a real 30 ms: if the exemption were removed and the 20 s default applied, the test would still pass. Also the test transport hands over one whole line per call; chunking is only tested in `ndjson.test.ts`. Fix: the four tests, and an injectable timer so "no timer is created for requestInteraction" is asserted.
-
 
 #### Codex, Cursor and top-level runner files (AGENT-01, 06 to 10, 13, 14)
 
@@ -109,7 +104,6 @@ The Codex fixtures are partly invented, and I confirmed one wire-format mismatch
 
 **CX-9. `codex/protocol.test.ts` is theater.** It checks that method names are unique and have no spaces. Mutation: rename `turn/steer` to `turn/steering`; green. Fix: replace with the schema check of CX-2 (every method name and params shape against the generated schema).
 
-
 #### Claude translator and permissions (AGENT-03, AGENT-04)
 
 **CT-1. Cost and "Session started" are probably wrong from the second turn on, and every fixture hides it.** `runners/claude/translate.ts:220-224` says "The SDK sends init once per process" and resets `lastReportedCostUsd` on a second init (`:287`). The SDK type file says the opposite: `SDKSystemMessage` is "Session metadata the CLI emits at the start of each turn" (`sdk.d.ts` ~6305), and `total_cost_usd` is "cumulative across turns in streaming-input sessions" (`sdk.d.ts` 6008, 6150). If both hold, every turn after the first reports the whole running total as its own cost and emits "Session started" again. All fixtures (`translate.test.ts:323-339`, the smoke fake's init per prompt) either bake in the assumption or run one turn. Checked by reading only; not run. Mutation missed: delete `resetProcessState()` on the second init; only the respawn test at `:323` fails. Fix: a two-prompt test on one process with `total_cost_usd` 0.25 then 0.5; expect cost 0.25 for each turn and one "Session started". Confirm with a recorded stream.
@@ -127,7 +121,6 @@ The Codex fixtures are partly invented, and I confirmed one wire-format mismatch
 **CT-7. `translate.smoke.test.ts` duplicates `translate.test.ts:427-475` and uses a constant id.** `newUuid: () => "turn-uuid"` at `:178`; the fake echoes `user_message_uuid`, so uuid matching is trivially satisfied. It runs one turn (see CT-1) and does not `dispose` on failure (`:228` is not in a `finally`). Fix: turn it into the multi-turn test of CT-1 and delete the duplicate.
 
 **CT-8. `allow_edits_for_session` is lost on a process respawn.** `claude-session.ts:400` builds a new `ClaudePermissionHandler` per spawn and the answer-based grant lives on the handler (`permission-handler.ts:66, 196`). A restart for a fast-mode or effort change then asks again. Unverified by execution. Fix: a `ClaudeSession` test: grant, `applyConfig` that forces a restart, then an Edit expects no prompt.
-
 
 #### Claude session and runner (AGENT-02, AGENT-05, AGENT-15, AGENT-16)
 
@@ -152,7 +145,6 @@ The Codex fixtures are partly invented, and I confirmed one wire-format mismatch
 **CS-10. Fast mode never reaches the CLI.** `config-change.ts:38` makes `fastMode` a restart change, but `options.ts` passes no `settings` (only `config-change.ts` and `usage.ts` mention `fastMode` in non-test files). The AGENT-16 row says "ours passes fast mode only", which is false. No test asserts `fastMode` in `Options`.
 
 **CS-11. No real SDK and no recorded stream anywhere in the slice.** 42 `as unknown as` casts in the Claude tests; every fake `Query` is cast, so tsc cannot see drift (a renamed `applyFlagSettings` would pass all tests). No `.jsonl` fixture, no stub-executable contract test.
-
 
 #### ACP runner (AGENT-11, AGENT-12, AGENT-17)
 
@@ -180,7 +172,6 @@ The Codex fixtures are partly invented, and I confirmed one wire-format mismatch
 
 **ACP-12. Model-wait tests are weak.** The `waitForModelOption` test (`acp-runner.test.ts:357`) queues a microtask before `openSession` returns, so the update probably lands before the check at `acp-runner.ts:227`; deleting `:225-232` may still pass (not run). `cancel()` does not wake `modelWaiters` (`acp-session.ts:243-251`; only `dispose` and `handleClosed` do), so the checklist line "stops early when the user cancels" is not built and not tested.
 
-
 #### Session manager, turns, publisher, prompt (SIDE-03, 04, 05, 09, 11, 20, 24)
 
 The suite is solid at unit level and weak at the seams: almost every test uses fakes that answer at once and never block, and none validates what the sidecar publishes. No whole file is theater; two files hold assertions that cannot fail (SN-8, SN-3).
@@ -204,7 +195,6 @@ The suite is solid at unit level and weak at the seams: almost every test uses f
 **SN-9. Prompt assembly is never given the pull request's repository (SIDE-03, SIDE-09).** `prepareRequest` (`manager.ts:552-558`) never passes `pullRequestRepositoryFullName` (declared in `prompt/assemble.ts:45`; the `sendMessage` params have no such field). The stub's GitHub URL is unreachable in production, though `assemble.test.ts:141` passes it directly. Fix: add the field to `sendMessage` and assert the manager forwards it.
 
 **SN-10. The manager never tells the process manager a chat went idle** (the same bug as H-3, found independently). `markIdle` and `setBackgroundTasks` have no production caller; `FakeProcesses` (`manager.test.ts:280`) has no-op markers and a `claimActive` that does not single-flight, so it hides this.
-
 
 #### Agent detection, model catalog, slash and MCP listing (SIDE-14, 15, 16)
 
@@ -230,7 +220,6 @@ The suite is solid at unit level and weak at the seams: almost every test uses f
 
 **MD-11. MCP listing exists only in the lister.** Claude (`claude-runner.ts:71`) and Codex (`codex-runner.ts:60`) declare `mcpServers: true`; no runner has `listMcpServers`, so the RPC returns `mcp_list_unsupported` for both. The SDK's `McpServerStatus` (`sdk.d.ts:1294`) has `status: 'needs-auth'` with a hyphen plus `error`, `scope`, `source`, `tools[]`; the protocol and `McpServerStatusView` use `needs_auth`, and nothing maps between them. SIDE-16 is still open, so this is expected; the mapping needs a type-level test against the SDK type.
 
-
 #### App tools (SIDE-12, SIDE-13)
 
 **TL-1. The in-process MCP server is never driven over MCP.** `tools/tools.test.ts:104-112` reads the SDK's private `_registeredTools` field and calls each `handler({}, {})` directly. That skips the input schema (`definition.inputShape` is a zod shape passed to `tool()`), the JSON schema the SDK derives from it, and the MCP wire. A zod 4 shape the SDK cannot convert, a renamed private field after an SDK update, or `alwaysLoad` and `annotations` dropped would not fail anything about behaviour; the private-field read would break on a harmless SDK upgrade (pins incidental detail, earlier audit logged it). `tools/in-process-server.ts` is 14% covered on main. Fix: an in-memory MCP client against `createSdkMcpServer(...).instance` that lists tools and calls `GetWorkspaceDiff` with real arguments and with an invalid one; assert the JSON schema and the error result.
@@ -239,9 +228,7 @@ The suite is solid at unit level and weak at the seams: almost every test uses f
 
 **TL-3. The socket bridge and its helper are placeholders (SIDE-13), yet they sit on the startup path** (H-1). `socket-bridge.ts` and `mcp-stdio-server.ts` have no test; `bridge-protocol.test.ts` and `mcp-launch.test.ts` cover the pure parts (token never in the arguments; arguments parse back).
 
-
 ### LATER
-
 
 #### Core, LATER
 
@@ -261,7 +248,6 @@ The suite is solid at unit level and weak at the seams: almost every test uses f
 - `shared/`: `result.ts` (`appError` with and without cause), `ids.ts`, `clock.ts` have no test; there is no shared fake `IdSource` that hands out a new id per call, so every test file writes its own, and five of them wrote a constant (see the guards).
 - `process/spawn-child.ts:51-52` reports the exit from `child.exited` without waiting for stdout to drain; a final reply could be lost (reported by the Codex reviewer, not verified). No test with a child that writes and exits at once.
 
-
 #### Codex, Cursor, top-level runner files, LATER
 
 - `translate.test.ts:56` sets `status:"failed"` along with exit code 1, so `isError` is true anyway; drop the exit-code check at `translate.ts:143` and it passes. Add `status:"completed", exitCode:1`. The real `declined` status maps to `isError:false`; add a test and decide.
@@ -274,7 +260,6 @@ The suite is solid at unit level and weak at the seams: almost every test uses f
 - `initialize` reply fixture `{serverVersion}` is invented; the real reply is `{userAgent, codexHome, platformFamily, platformOs}` and the code returns the whole user-agent string as the version, untested.
 - Real size: no test sends a 5 MB line, 20,000 notifications or a long tool output; `startedTools` is never cleared for items that never complete.
 
-
 #### Claude translator and permissions, LATER
 
 - `permission-handler.ts:94` `resetSessionGrants()` has no caller and no test; the `editsAutoApproved` getter is read only by a test. Dead code under the "done means reachable" rule.
@@ -284,7 +269,6 @@ The suite is solid at unit level and weak at the seams: almost every test uses f
 - `always_allow` writes `{toolName}` with no `ruleContent` (`permissions.ts:181`): for Bash that allows every command. The test (`:120`) checks the shape only.
 - Bash and other tools are not sandboxed (by design); the architecture doc should say so.
 - Types the translator handles that `sdk.d.ts` does not declare (`post_turn_summary`, `session_metadata`, `autocompact_state`, `task_summary`) exist only in the `sdk.mjs` bundle; model names in `usage` fixtures are "main" and "small", not real ids.
-
 
 #### Claude session and runner, LATER
 
@@ -299,7 +283,6 @@ The suite is solid at unit level and weak at the seams: almost every test uses f
 - Duplicate fakes: `fakeScheduler` in two files; `scriptedQuery` and the config/workspace/start helpers in at least five. One shared fake `Query` with `satisfies Pick<Query, ...>` would do.
 - `constants.test.ts` copies literals back from constants; `config-change.test.ts` never changes only effort (hard-code `live.effort=false` passes); `transcript.ts:67` `.catch(() => {})` swallows; the hash is checked for shape only. A contract test should write a file at `transcriptPath` and read it with the SDK's `getSessionMessages`.
 
-
 #### ACP runner, LATER
 
 - `adapters/opencode.ts:95` refuses any prompt whose first token starts with `/`; `/Users/jan/x.ts is broken` matches, is not a known command, and is rejected. The test (`adapters.test.ts:107`) uses `/deploy` only.
@@ -313,7 +296,6 @@ The suite is solid at unit level and weak at the seams: almost every test uses f
 - The OpenCode version floor is a warning log only (`acp-runner.ts:121-127`), not asserted.
 - Hypothesis, not confirmed: a `session/load` replay may still be draining when `runTurn` sets `activeTurn`, leaking history into the turn.
 
-
 #### Session, prompt, util, LATER
 
 - Fixed ticks and real timers: `turn.test.ts:510, 606` assert a negative after one `setTimeout(0)`; `manager.test.ts:455` and `turn.test.ts:329` poll with a 2 s deadline; `utility-prompt.test.ts:373` uses a real 5 ms timer.
@@ -326,7 +308,6 @@ The suite is solid at unit level and weak at the seams: almost every test uses f
 - Many titles lack the feature id: `duplicate-guard.test.ts:7-58`, `queued-messages.test.ts:8-17`, `serial-queue.test.ts:12-41`, `steering.test.ts:4-25`, `assemble.test.ts` (11 tests), `blocks.test.ts`.
 - For SIDE-11, `RpcPeer.detach` rejects pending requests and a request made while detached returns `app_not_connected` at once, so the broker settles the interaction with the safe answer; the open interaction that `onAppAttached` would resend is already gone. Nothing tests this with the real peer.
 
-
 #### Models and tools, LATER
 
 - `slash-and-mcp.ts:75-87` labels every Claude entry `source: builtin`, `kind: command`; the SDK `SlashCommand` has `builtin?: boolean`, so project, user and plugin commands and skills are mislabelled, and `slash-and-mcp.test.ts:81-123` pins "review" as builtin. The SIDE-16 item "Typing / also lists the project's own slash commands" has no test and the code cannot meet it.
@@ -335,110 +316,108 @@ The suite is solid at unit level and weak at the seams: almost every test uses f
 - Duplicates: `registry.test.ts` repeats `tools.test.ts:156-170`; `format.test.ts:12` and `tools.test.ts:295`. `catalog.test.ts:136, 157` echo the fake's list back; no test that the returned array is a copy.
 - Real size: all tests use 1 to 3 agents or models; a 300-model catalog is not tried.
 
-
 ## 4. Per-file verdicts
 
 Paths are relative to `packages/sidecar/src`, except `protocol/` and `shared/` (under `packages/`). Rows that name several files give one verdict for all of them.
 
-| Path | Verdict | Reason (key missed mutation for WEAK and THEATER) |
-| --- | --- | --- |
-| protocol/src/events.test.ts | WEAK | 3 tests for 4 event types and 14 item kinds; the round-trip test passes if the schema were `z.any()`, only the two negative tests bite |
-| protocol/src/interactions.test.ts | WEAK | 2 of the interaction kinds; first test positive only |
-| protocol/src/mentions.test.ts | WEAK | one test; a path containing the closing bracket, an empty path and the shared global regex are untested |
-| protocol/src/session-config.test.ts | REAL | enum narrowing (`codexSandboxMode`, effort) and the missing switch each fail when the schema changes; narrow |
-| shared/src/not-implemented.test.ts | REAL | small and exact |
-| checkpoints/checkpoint-id.test.ts, checkpointer-constants.test.ts, checkpoint-rules-agreement.test.ts | REAL | three overlapping checks of the same prefix and exit codes (duplicate), each with a drift self-test |
-| checkpoints/checkpoint-service.test.ts | REAL | exit codes, ordering of start and end, diff summary, truncation; recording runner only |
-| checkpoints/checkpointer.test.ts | REAL | the script against real temporary repositories: save, diff, restore, odd file names, merge and rebase skips, signals |
-| checkpoints/diff-summary.test.ts | REAL | renames, copies, binary, odd paths, 200-file cap |
-| checkpoints/git-busy-check.test.ts | REAL | real repositories for merge, rebase (both backends), squash, cherry-pick, revert, linked worktree |
-| checkpoints/run-checkpointer.test.ts | REAL | real scripts, process group and 64 KiB cap; flaky timeouts (H-6) |
-| config.test.ts | REAL | named missing variables, relative paths refused |
-| logging/log-ring.test.ts, logging/logger.test.ts | REAL | byte limit, filters, level, throwing sink, redaction; no feature ids |
-| main.test.ts | REAL | dispatch and exit codes; the `import.meta.main` block is untested |
-| models/agent-detection.test.ts | WEAK | good state-machine tests (single flight, generation guard, 60 s cache), but the detector is built without its ports in production (MD-1), constants compared with themselves (MD-5), invented `auth status` fixtures (MD-7) |
-| models/catalog.test.ts | WEAK | the generation-guard test cannot fail without the guard (MD-3); several tests echo the fixture back; `validate` has no live caller (MD-4) |
-| models/slash-and-mcp.test.ts | WEAK | fakes feed the lister its own `McpServerStatusView`; no runner implements MCP listing; Claude entries pinned as `builtin` (MD-11) |
-| models/usage.test.ts | REAL | fixtures match the real `SDKControlGetUsageResponse` fields (`rate_limits.five_hour.utilization/resets_at`); hang guard, refusals and "never zero" paths each fail when the code changes; production wiring is missing (H-2) |
-| modes/sidecar-mode.shutdown.test.ts | REAL | production step list, coordinator and signal handlers over fakes |
-| modes/sidecar-mode.test.ts | WEAK | many helper tests, but `startSidecarHost` (about 250 lines) is not called (H-1, H-2); the probe kill test asserts `ok` only |
-| outbox/event-outbox.test.ts | REAL | restart, atomic batch, rollback, directory fsync refusal, cap, corrupt and newer-version files, sweep race; no validation on append (H-4), memory storage only (H-5) |
-| outbox/node-storage.test.ts | REAL | real files: mode 0600, no temp file, Trash refusal, directory fsync failure as its own code |
-| outbox/outbox-file.test.ts | REAL | name encoding and file shape |
-| outbox/replay.test.ts | REAL | order, persisted false, timeout, disconnect, single flight, ack during replay |
-| packaging.test.ts | WEAK | compile arguments only; no real build; Rust contract by regex |
-| process/idle-policy.test.ts | REAL | boundary values and skip rules |
-| process/process-manager.test.ts | REAL | single flight, release race, warm cap, idle clock, disconnect during start, stopAll failure each fail when the code changes; seam to the manager is H-3 |
-| process/spawn-child.test.ts | REAL | real `sh` child; SIGTERM-ignoring child is killed, stderr arrives early, stop after exit |
-| prompt/assemble, blocks, system-additions .test.ts; util/errors.test.ts | REAL | escaping and ordering mutations are caught |
-| prompt/mentions.test.ts | WEAK | `<= 0` to `< 0` (mentions.ts:50) passes |
-| prompt/pull-request-stub.test.ts | WEAK | write-failure branch untested |
-| prompt/workspace-instruction.test.ts | WEAK | keyword `toContain`; "Never read" to "Always read" passes |
-| rpc/handlers.test.ts | WEAK | 5 of 24 request handlers checked (H-7); swap `warmAgent` and `resetAgent` passes |
-| rpc/ndjson.test.ts | REAL | split chunks, CRLF, blank lines, oversize line and resume all asserted |
-| rpc/peer.test.ts | WEAK | 3 of 6 validation paths (H-8); late response after timeout and requestInteraction's missing timeout not checked; 30 ms real-time race |
-| rpc/server.test.ts | REAL | real Unix socket in a temp folder: second connection wins, mode 0600, stale file, close removes the file |
-| rpc/shell-env-handlers.test.ts | REAL | asserts the workspace folder reaches the provider; duplicates 40 lines of deps |
-| runners/acp/acp-client.test.ts | WEAK | leaks a temp folder (ACP-1); only `fs/*` over the wire; deleting the `session/update` handler fails nothing (ACP-2) |
-| runners/acp/acp-runner.test.ts | WEAK | stub translator at :111; dropping `...permission.value` (acp-runner.ts:149) fails nothing (ACP-10) |
-| runners/acp/acp-session.test.ts | WEAK | hand-written FakeTranslator; `FakeClient.exit()` never called; no second-turn or cancel-then-new-turn test (ACP-3, ACP-4) |
-| runners/acp/adapters/adapters.test.ts | REAL | env JSON, merge precedence and v1/v2 config shape each fail when the source changes |
-| runners/acp/methods.test.ts | REAL | compares our method names with the SDK constants |
-| runners/acp/permission.test.ts | WEAK | never tests `allow`, `allow_with_suggested_rules`, `allow_edits_for_session`, `max_tokens` |
-| runners/acp/tool-kinds.test.ts | REAL | covers the full kind table (the drift is in the caller, ACP-5) |
-| runners/acp/translate.test.ts | WEAK | payloads carry a `name` the real agent never sends; non-terminal updates, truncation, multi-turn state untested (ACP-5) |
-| runners/claude/background-tasks.test.ts | REAL | ambient and skip-transcript tasks, reset and updates covered |
-| runners/claude/checkpoint-hook.test.ts | REAL | wait, no-wait, rejecting gate covered; non-PreToolUse events and "no gate set" untested; no feature id in titles |
-| runners/claude/claude-runner-translators.test.ts | REAL | using the template translator instead of `fresh()` throws; factory-function branch untested |
-| runners/claude/claude-runner.test.ts | WEAK | pass `options` instead of resolved `start` (claude-runner.ts:120) still passes (CS-8); capabilities, probe timeout, `lastEnv` unchecked |
-| runners/claude/claude-session.test.ts | WEAK | good on cancel, stale start, respawn, config; fake stream ends cleanly on abort (CS-1); drop `hooks`/`mcpServers` (claude-session.ts:401-402) fails nothing (CS-4) |
-| runners/claude/config-change.test.ts | WEAK | hard-coding `live.effort=false` passes: no test changes only effort |
-| runners/claude/constants.test.ts | WEAK | copies literals back from constants: a change detector |
-| runners/claude/options.test.ts | WEAK | thorough on resume and fork; `ultra` to `max` untested; `hooks`, `canUseTool`, `mcpServers`, `sessionStore` pass-through unasserted |
-| runners/claude/permission-handler.test.ts | REAL | interaction, answer, mode-switch and abort paths assert outputs; sandbox part as weak as above |
-| runners/claude/permissions.test.ts | WEAK | sandbox runs on a fake `realPath`; no `..`, symlink, dangling link, NotebookEdit (CT-2) |
-| runners/claude/self-started-turns.test.ts | WEAK | unit logic real, but nothing constructs the class on a live path (CS-5); the test at ~:143 asserts `messages` stays `[]`, which the class can never fill (theater inside) |
-| runners/claude/session-mirror.test.ts | WEAK | the test titled "never writes from the key" cannot detect a write (theater inside) |
-| runners/claude/steer-receipts.test.ts | REAL | removing `waiting.delete` is caught |
-| runners/claude/todo.test.ts | REAL | shape matches the SDK `TodoWriteInput` |
-| runners/claude/tool-names.test.ts | REAL | best test in the slice: checks names against the real `BUILTIN_TOOL_NAMES` export |
-| runners/claude/transcript.test.ts | WEAK | real temp files, cleaned; hash checked for shape only; rename failure untested |
-| runners/claude/translate.smoke.test.ts | WEAK | duplicates translate.test.ts:427-475, constant id, one turn only (CT-7, CT-1) |
-| runners/claude/translate.test.ts | WEAK | happy paths real, but the "dropped" test cannot fail (CT-5), fixtures invented (CT-4), many branches untested (CT-6) |
-| runners/claude/turn-tracker.test.ts | WEAK | delete `armWatchdog()` at turn-tracker.ts:91 fails nothing |
-| runners/claude/usage.test.ts | WEAK | hand-made narrow input; respawn cost rule contradicts the SDK doc (CS-6) |
-| runners/codex/app-server-client.test.ts | WEAK | every frame carries `jsonrpc:"2.0"` which the real server omits (CX-1); spawn args never asserted (CX-6); write-refused, timeout, stderr cap, close ordering untested |
-| runners/codex/approval-bridge.test.ts | WEAK | assertions good, but the bridge is not wired into any live path (CX-3); timeout does not check withdrawal (CX-8) |
-| runners/codex/approvals.test.ts | REAL | reply shapes match the generated types; gaps `writeStdin`, `approvalId` |
-| runners/codex/codex-runner.test.ts | WEAK | invented `skills/list` fixture (CX-4); `start()` never exercised; duplicate fake child |
-| runners/codex/codex-session.test.ts | WEAK | stub translator, no-op callbacks, `dispose` untested, constant turn ids (CX-5, CX-7) |
-| runners/codex/protocol.test.ts | THEATER | checks names are unique and spaceless; rename `turn/steer` to `turn/steering` and it stays green (CX-9) |
-| runners/codex/tool-names.test.ts | REAL | mapping `bash` to `edit` is caught |
-| runners/codex/translate.test.ts | REAL | item shapes match `ThreadItem`; one weak case at :56 |
-| runners/cursor/tool-names.test.ts | REAL | names come from the research, the Cursor SDK is not installed |
-| runners/errors.test.ts | WEAK | `instanceof` only |
-| runners/output.test.ts | REAL | tail-side surrogate branch untested |
-| runners/registry.test.ts | REAL | fine for the map; whether the real composition registers all four agents is untested |
-| session/duplicate-guard, queued-messages, run-guard, serial-queue, steering .test.ts | REAL | small and exact; steering skips `other` and `unsupported` |
-| session/event-batcher.test.ts | WEAK | largest run is 60 events; no schema check; 3 of 4 `minimalEvent` branches untested (SN-1, SN-5) |
-| session/interactions.test.ts | REAL | title at :313 promises a resend but only checks a getter |
-| session/live-state.test.ts | REAL | ordering, drop-while-flushing and write-failure paths driven |
-| session/manager.test.ts | WEAK | runs on `FakeTurn`/`FakeProcesses`; delete the `queue.run` wrapper (manager.ts:211), the `cancelEpoch` check (214-216) or make shutdown call `turn.cancel()`: all pass (SN-2, SN-3, SN-4) |
-| session/self-started-turns.test.ts | REAL | unit logic real; the class has no production importer (CS-5) |
-| session/turn.test.ts | WEAK | delete the stale guard at turn.ts:228 and the test at :548 still passes (SN-4) |
-| session/utility-prompt.test.ts | WEAK | lines 270-307 cannot fail (SN-8) |
-| shell-env/capture.test.ts | REAL | commands per shell, fallback, single flight, per-folder cache, failure kinds; no real shell on the happy path |
-| shell-env/env.test.ts | REAL | `env -0` parsing with noise and multi-line values, secrets stripped, override order |
-| shell-env/rust-contract.test.ts | WEAK | regexes over `shell.rs` compare constants, not captured PATHs |
-| shutdown.test.ts | REAL | failing step, step timeout, timer cancelled |
-| tools/bridge-protocol.test.ts | REAL | missing token, unknown tool, non-JSON all refused; no feature id |
-| tools/format.test.ts | REAL | exact text for answers, comments, terminal output; pins wording the agent reads (intended); one case duplicated in tools.test.ts; title carries CHAT-10 not a SIDE id |
-| tools/mcp-launch.test.ts | WEAK | token only in the environment is pinned, but only `diffComments` is switched on: drop `args.push("--enable-progress")` and it passes; no feature id |
-| tools/registry.test.ts | WEAK | checks 3 of 4 gated names; `DiffComment` has no gate and nothing pins it; duplicates tools.test.ts:156-170 |
-| tools/tools.test.ts | WEAK | tool definitions are checked well with a fake backend, but the MCP server is read through a private SDK field, the wire is skipped (TL-1) and 4 of 7 backend methods are unchecked (TL-2) |
-| util/async-queue.test.ts | WEAK | "woken by close" does not exercise a waiting consumer |
-| watchdog.test.ts | REAL | injected scheduler and pid; single shutdown, overlapping sweeps skipped, stop cancels both timers |
-
+| Path                                                                                                  | Verdict | Reason (key missed mutation for WEAK and THEATER)                                                                                                                                                                            |
+| ----------------------------------------------------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| protocol/src/events.test.ts                                                                           | WEAK    | 3 tests for 4 event types and 14 item kinds; the round-trip test passes if the schema were `z.any()`, only the two negative tests bite                                                                                       |
+| protocol/src/interactions.test.ts                                                                     | WEAK    | 2 of the interaction kinds; first test positive only                                                                                                                                                                         |
+| protocol/src/mentions.test.ts                                                                         | WEAK    | one test; a path containing the closing bracket, an empty path and the shared global regex are untested                                                                                                                      |
+| protocol/src/session-config.test.ts                                                                   | REAL    | enum narrowing (`codexSandboxMode`, effort) and the missing switch each fail when the schema changes; narrow                                                                                                                 |
+| shared/src/not-implemented.test.ts                                                                    | REAL    | small and exact                                                                                                                                                                                                              |
+| checkpoints/checkpoint-id.test.ts, checkpointer-constants.test.ts, checkpoint-rules-agreement.test.ts | REAL    | three overlapping checks of the same prefix and exit codes (duplicate), each with a drift self-test                                                                                                                          |
+| checkpoints/checkpoint-service.test.ts                                                                | REAL    | exit codes, ordering of start and end, diff summary, truncation; recording runner only                                                                                                                                       |
+| checkpoints/checkpointer.test.ts                                                                      | REAL    | the script against real temporary repositories: save, diff, restore, odd file names, merge and rebase skips, signals                                                                                                         |
+| checkpoints/diff-summary.test.ts                                                                      | REAL    | renames, copies, binary, odd paths, 200-file cap                                                                                                                                                                             |
+| checkpoints/git-busy-check.test.ts                                                                    | REAL    | real repositories for merge, rebase (both backends), squash, cherry-pick, revert, linked worktree                                                                                                                            |
+| checkpoints/run-checkpointer.test.ts                                                                  | REAL    | real scripts, process group and 64 KiB cap; flaky timeouts (H-6)                                                                                                                                                             |
+| config.test.ts                                                                                        | REAL    | named missing variables, relative paths refused                                                                                                                                                                              |
+| logging/log-ring.test.ts, logging/logger.test.ts                                                      | REAL    | byte limit, filters, level, throwing sink, redaction; no feature ids                                                                                                                                                         |
+| main.test.ts                                                                                          | REAL    | dispatch and exit codes; the `import.meta.main` block is untested                                                                                                                                                            |
+| models/agent-detection.test.ts                                                                        | WEAK    | good state-machine tests (single flight, generation guard, 60 s cache), but the detector is built without its ports in production (MD-1), constants compared with themselves (MD-5), invented `auth status` fixtures (MD-7)  |
+| models/catalog.test.ts                                                                                | WEAK    | the generation-guard test cannot fail without the guard (MD-3); several tests echo the fixture back; `validate` has no live caller (MD-4)                                                                                    |
+| models/slash-and-mcp.test.ts                                                                          | WEAK    | fakes feed the lister its own `McpServerStatusView`; no runner implements MCP listing; Claude entries pinned as `builtin` (MD-11)                                                                                            |
+| models/usage.test.ts                                                                                  | REAL    | fixtures match the real `SDKControlGetUsageResponse` fields (`rate_limits.five_hour.utilization/resets_at`); hang guard, refusals and "never zero" paths each fail when the code changes; production wiring is missing (H-2) |
+| modes/sidecar-mode.shutdown.test.ts                                                                   | REAL    | production step list, coordinator and signal handlers over fakes                                                                                                                                                             |
+| modes/sidecar-mode.test.ts                                                                            | WEAK    | many helper tests, but `startSidecarHost` (about 250 lines) is not called (H-1, H-2); the probe kill test asserts `ok` only                                                                                                  |
+| outbox/event-outbox.test.ts                                                                           | REAL    | restart, atomic batch, rollback, directory fsync refusal, cap, corrupt and newer-version files, sweep race; no validation on append (H-4), memory storage only (H-5)                                                         |
+| outbox/node-storage.test.ts                                                                           | REAL    | real files: mode 0600, no temp file, Trash refusal, directory fsync failure as its own code                                                                                                                                  |
+| outbox/outbox-file.test.ts                                                                            | REAL    | name encoding and file shape                                                                                                                                                                                                 |
+| outbox/replay.test.ts                                                                                 | REAL    | order, persisted false, timeout, disconnect, single flight, ack during replay                                                                                                                                                |
+| packaging.test.ts                                                                                     | WEAK    | compile arguments only; no real build; Rust contract by regex                                                                                                                                                                |
+| process/idle-policy.test.ts                                                                           | REAL    | boundary values and skip rules                                                                                                                                                                                               |
+| process/process-manager.test.ts                                                                       | REAL    | single flight, release race, warm cap, idle clock, disconnect during start, stopAll failure each fail when the code changes; seam to the manager is H-3                                                                      |
+| process/spawn-child.test.ts                                                                           | REAL    | real `sh` child; SIGTERM-ignoring child is killed, stderr arrives early, stop after exit                                                                                                                                     |
+| prompt/assemble, blocks, system-additions .test.ts; util/errors.test.ts                               | REAL    | escaping and ordering mutations are caught                                                                                                                                                                                   |
+| prompt/mentions.test.ts                                                                               | WEAK    | `<= 0` to `< 0` (mentions.ts:50) passes                                                                                                                                                                                      |
+| prompt/pull-request-stub.test.ts                                                                      | WEAK    | write-failure branch untested                                                                                                                                                                                                |
+| prompt/workspace-instruction.test.ts                                                                  | WEAK    | keyword `toContain`; "Never read" to "Always read" passes                                                                                                                                                                    |
+| rpc/handlers.test.ts                                                                                  | WEAK    | 5 of 24 request handlers checked (H-7); swap `warmAgent` and `resetAgent` passes                                                                                                                                             |
+| rpc/ndjson.test.ts                                                                                    | REAL    | split chunks, CRLF, blank lines, oversize line and resume all asserted                                                                                                                                                       |
+| rpc/peer.test.ts                                                                                      | WEAK    | 3 of 6 validation paths (H-8); late response after timeout and requestInteraction's missing timeout not checked; 30 ms real-time race                                                                                        |
+| rpc/server.test.ts                                                                                    | REAL    | real Unix socket in a temp folder: second connection wins, mode 0600, stale file, close removes the file                                                                                                                     |
+| rpc/shell-env-handlers.test.ts                                                                        | REAL    | asserts the workspace folder reaches the provider; duplicates 40 lines of deps                                                                                                                                               |
+| runners/acp/acp-client.test.ts                                                                        | WEAK    | leaks a temp folder (ACP-1); only `fs/*` over the wire; deleting the `session/update` handler fails nothing (ACP-2)                                                                                                          |
+| runners/acp/acp-runner.test.ts                                                                        | WEAK    | stub translator at :111; dropping `...permission.value` (acp-runner.ts:149) fails nothing (ACP-10)                                                                                                                           |
+| runners/acp/acp-session.test.ts                                                                       | WEAK    | hand-written FakeTranslator; `FakeClient.exit()` never called; no second-turn or cancel-then-new-turn test (ACP-3, ACP-4)                                                                                                    |
+| runners/acp/adapters/adapters.test.ts                                                                 | REAL    | env JSON, merge precedence and v1/v2 config shape each fail when the source changes                                                                                                                                          |
+| runners/acp/methods.test.ts                                                                           | REAL    | compares our method names with the SDK constants                                                                                                                                                                             |
+| runners/acp/permission.test.ts                                                                        | WEAK    | never tests `allow`, `allow_with_suggested_rules`, `allow_edits_for_session`, `max_tokens`                                                                                                                                   |
+| runners/acp/tool-kinds.test.ts                                                                        | REAL    | covers the full kind table (the drift is in the caller, ACP-5)                                                                                                                                                               |
+| runners/acp/translate.test.ts                                                                         | WEAK    | payloads carry a `name` the real agent never sends; non-terminal updates, truncation, multi-turn state untested (ACP-5)                                                                                                      |
+| runners/claude/background-tasks.test.ts                                                               | REAL    | ambient and skip-transcript tasks, reset and updates covered                                                                                                                                                                 |
+| runners/claude/checkpoint-hook.test.ts                                                                | REAL    | wait, no-wait, rejecting gate covered; non-PreToolUse events and "no gate set" untested; no feature id in titles                                                                                                             |
+| runners/claude/claude-runner-translators.test.ts                                                      | REAL    | using the template translator instead of `fresh()` throws; factory-function branch untested                                                                                                                                  |
+| runners/claude/claude-runner.test.ts                                                                  | WEAK    | pass `options` instead of resolved `start` (claude-runner.ts:120) still passes (CS-8); capabilities, probe timeout, `lastEnv` unchecked                                                                                      |
+| runners/claude/claude-session.test.ts                                                                 | WEAK    | good on cancel, stale start, respawn, config; fake stream ends cleanly on abort (CS-1); drop `hooks`/`mcpServers` (claude-session.ts:401-402) fails nothing (CS-4)                                                           |
+| runners/claude/config-change.test.ts                                                                  | WEAK    | hard-coding `live.effort=false` passes: no test changes only effort                                                                                                                                                          |
+| runners/claude/constants.test.ts                                                                      | WEAK    | copies literals back from constants: a change detector                                                                                                                                                                       |
+| runners/claude/options.test.ts                                                                        | WEAK    | thorough on resume and fork; `ultra` to `max` untested; `hooks`, `canUseTool`, `mcpServers`, `sessionStore` pass-through unasserted                                                                                          |
+| runners/claude/permission-handler.test.ts                                                             | REAL    | interaction, answer, mode-switch and abort paths assert outputs; sandbox part as weak as above                                                                                                                               |
+| runners/claude/permissions.test.ts                                                                    | WEAK    | sandbox runs on a fake `realPath`; no `..`, symlink, dangling link, NotebookEdit (CT-2)                                                                                                                                      |
+| runners/claude/self-started-turns.test.ts                                                             | WEAK    | unit logic real, but nothing constructs the class on a live path (CS-5); the test at ~:143 asserts `messages` stays `[]`, which the class can never fill (theater inside)                                                    |
+| runners/claude/session-mirror.test.ts                                                                 | WEAK    | the test titled "never writes from the key" cannot detect a write (theater inside)                                                                                                                                           |
+| runners/claude/steer-receipts.test.ts                                                                 | REAL    | removing `waiting.delete` is caught                                                                                                                                                                                          |
+| runners/claude/todo.test.ts                                                                           | REAL    | shape matches the SDK `TodoWriteInput`                                                                                                                                                                                       |
+| runners/claude/tool-names.test.ts                                                                     | REAL    | best test in the slice: checks names against the real `BUILTIN_TOOL_NAMES` export                                                                                                                                            |
+| runners/claude/transcript.test.ts                                                                     | WEAK    | real temp files, cleaned; hash checked for shape only; rename failure untested                                                                                                                                               |
+| runners/claude/translate.smoke.test.ts                                                                | WEAK    | duplicates translate.test.ts:427-475, constant id, one turn only (CT-7, CT-1)                                                                                                                                                |
+| runners/claude/translate.test.ts                                                                      | WEAK    | happy paths real, but the "dropped" test cannot fail (CT-5), fixtures invented (CT-4), many branches untested (CT-6)                                                                                                         |
+| runners/claude/turn-tracker.test.ts                                                                   | WEAK    | delete `armWatchdog()` at turn-tracker.ts:91 fails nothing                                                                                                                                                                   |
+| runners/claude/usage.test.ts                                                                          | WEAK    | hand-made narrow input; respawn cost rule contradicts the SDK doc (CS-6)                                                                                                                                                     |
+| runners/codex/app-server-client.test.ts                                                               | WEAK    | every frame carries `jsonrpc:"2.0"` which the real server omits (CX-1); spawn args never asserted (CX-6); write-refused, timeout, stderr cap, close ordering untested                                                        |
+| runners/codex/approval-bridge.test.ts                                                                 | WEAK    | assertions good, but the bridge is not wired into any live path (CX-3); timeout does not check withdrawal (CX-8)                                                                                                             |
+| runners/codex/approvals.test.ts                                                                       | REAL    | reply shapes match the generated types; gaps `writeStdin`, `approvalId`                                                                                                                                                      |
+| runners/codex/codex-runner.test.ts                                                                    | WEAK    | invented `skills/list` fixture (CX-4); `start()` never exercised; duplicate fake child                                                                                                                                       |
+| runners/codex/codex-session.test.ts                                                                   | WEAK    | stub translator, no-op callbacks, `dispose` untested, constant turn ids (CX-5, CX-7)                                                                                                                                         |
+| runners/codex/protocol.test.ts                                                                        | THEATER | checks names are unique and spaceless; rename `turn/steer` to `turn/steering` and it stays green (CX-9)                                                                                                                      |
+| runners/codex/tool-names.test.ts                                                                      | REAL    | mapping `bash` to `edit` is caught                                                                                                                                                                                           |
+| runners/codex/translate.test.ts                                                                       | REAL    | item shapes match `ThreadItem`; one weak case at :56                                                                                                                                                                         |
+| runners/cursor/tool-names.test.ts                                                                     | REAL    | names come from the research, the Cursor SDK is not installed                                                                                                                                                                |
+| runners/errors.test.ts                                                                                | WEAK    | `instanceof` only                                                                                                                                                                                                            |
+| runners/output.test.ts                                                                                | REAL    | tail-side surrogate branch untested                                                                                                                                                                                          |
+| runners/registry.test.ts                                                                              | REAL    | fine for the map; whether the real composition registers all four agents is untested                                                                                                                                         |
+| session/duplicate-guard, queued-messages, run-guard, serial-queue, steering .test.ts                  | REAL    | small and exact; steering skips `other` and `unsupported`                                                                                                                                                                    |
+| session/event-batcher.test.ts                                                                         | WEAK    | largest run is 60 events; no schema check; 3 of 4 `minimalEvent` branches untested (SN-1, SN-5)                                                                                                                              |
+| session/interactions.test.ts                                                                          | REAL    | title at :313 promises a resend but only checks a getter                                                                                                                                                                     |
+| session/live-state.test.ts                                                                            | REAL    | ordering, drop-while-flushing and write-failure paths driven                                                                                                                                                                 |
+| session/manager.test.ts                                                                               | WEAK    | runs on `FakeTurn`/`FakeProcesses`; delete the `queue.run` wrapper (manager.ts:211), the `cancelEpoch` check (214-216) or make shutdown call `turn.cancel()`: all pass (SN-2, SN-3, SN-4)                                    |
+| session/self-started-turns.test.ts                                                                    | REAL    | unit logic real; the class has no production importer (CS-5)                                                                                                                                                                 |
+| session/turn.test.ts                                                                                  | WEAK    | delete the stale guard at turn.ts:228 and the test at :548 still passes (SN-4)                                                                                                                                               |
+| session/utility-prompt.test.ts                                                                        | WEAK    | lines 270-307 cannot fail (SN-8)                                                                                                                                                                                             |
+| shell-env/capture.test.ts                                                                             | REAL    | commands per shell, fallback, single flight, per-folder cache, failure kinds; no real shell on the happy path                                                                                                                |
+| shell-env/env.test.ts                                                                                 | REAL    | `env -0` parsing with noise and multi-line values, secrets stripped, override order                                                                                                                                          |
+| shell-env/rust-contract.test.ts                                                                       | WEAK    | regexes over `shell.rs` compare constants, not captured PATHs                                                                                                                                                                |
+| shutdown.test.ts                                                                                      | REAL    | failing step, step timeout, timer cancelled                                                                                                                                                                                  |
+| tools/bridge-protocol.test.ts                                                                         | REAL    | missing token, unknown tool, non-JSON all refused; no feature id                                                                                                                                                             |
+| tools/format.test.ts                                                                                  | REAL    | exact text for answers, comments, terminal output; pins wording the agent reads (intended); one case duplicated in tools.test.ts; title carries CHAT-10 not a SIDE id                                                        |
+| tools/mcp-launch.test.ts                                                                              | WEAK    | token only in the environment is pinned, but only `diffComments` is switched on: drop `args.push("--enable-progress")` and it passes; no feature id                                                                          |
+| tools/registry.test.ts                                                                                | WEAK    | checks 3 of 4 gated names; `DiffComment` has no gate and nothing pins it; duplicates tools.test.ts:156-170                                                                                                                   |
+| tools/tools.test.ts                                                                                   | WEAK    | tool definitions are checked well with a fake backend, but the MCP server is read through a private SDK field, the wire is skipped (TL-1) and 4 of 7 backend methods are unchecked (TL-2)                                    |
+| util/async-queue.test.ts                                                                              | WEAK    | "woken by close" does not exercise a waiting consumer                                                                                                                                                                        |
+| watchdog.test.ts                                                                                      | REAL    | injected scheduler and pid; single shutdown, overlapping sweeps skipped, stop cancels both timers                                                                                                                            |
 
 ## 5. Checklist map gaps
 
@@ -456,12 +435,10 @@ Backlog rows marked `done` whose issues are closed but whose checklists hold an 
 - SIDE-19 (8 items): "The sidecar exits within 2 seconds when its parent dies": **no test** with a real process. Others covered by injected-timer tests.
 - GIT-11, GIT-10: covered by real-repo tests.
 
-
 ### Claude translator and permissions: AGENT-03, AGENT-04
 
 - AGENT-03 (25 items checked): stream deltas / thinking tokens / task progress dropped: **passes without it** (CT-5). Rate limits pass through as a notice: **passes without it** for the text. Result errors and session-limit banner: **passes without it** for the real shape (CT-4). Autocompact state, post-turn summary, metadata: **passes without it** for the real autocompact shape. Cost delta across turns: **no test** (CT-1). Compact failed / informational / api_retry notices: **no test**. Unknown content block ignored: **no test**. Fast mode / service tier from usage: partial.
 - AGENT-04 (52 items checked): edit tools must target a real path inside the workspace: **passes without it** for `..`, dangling symlink, existing symlink, `NotebookEdit` (CT-2). Every tool use asks the permission callback / approvals off allows: **passes without it** (the real CLI is never asked, CT-3). Allow edits for the session: **passes without it** across a respawn (CT-8). Auto-approve explicit false after a grant: **no test**. No approval callback means deny, for `ExitPlanMode`: **no test**. Permission prompts have no SDK timeout: **no test**. Always allow writes a rule to local settings: only the update shape is checked. Plan-mode instructions not set on the SDK: **no test**.
-
 
 ### Claude session and runner: AGENT-01 (Claude), 02, 05, 15, 16
 
@@ -470,7 +447,6 @@ Backlog rows marked `done` whose issues are closed but whose checklists hold an 
 - AGENT-15 (3 items): all **pass without a live path** (CS-5).
 - AGENT-16 (23 items, 12 touch Claude): effort `ultra` becomes `max`: **no test**. Settings JSON passes fast mode: **no test, no code** (CS-10). Not built: `launch-settings.ts` (output style, ultracode, Chrome flag, restart rule, toast). AGENT-18 `skill-plugin.ts` not built.
 - AGENT-01 (Claude part): capabilities declared up front: **no test**.
-
 
 ### Codex, Cursor and top-level runner files: AGENT-01, 06 to 10, 13, 14
 
@@ -481,17 +457,16 @@ Backlog rows marked `done` whose issues are closed but whose checklists hold an 
 - AGENT-09 (28 items): **not built** (`notImplemented` in runner, session, env-lock). AGENT-10 (2 items): name table covered; Cursor error message type not built. AGENT-13 (11 items): **not built** (`goals.ts` is placeholders). AGENT-14 (4 items): **not built**.
 - Items checked: 134.
 
-
 ### ACP: AGENT-11, 12, 17
 
 - AGENT-11 (35 items checked): client answers `session/update`, `request_permission`, `elicitation/create` over the wire: **no test**. Resume then load then new: **passes without it** (only happy resume). `session/load` call: **no test**. Elicitation form only (URL declined): **no test**. A new turn refuses a second one: **no test**. Waits for config writes (`writeChain`): **no test**. Cancel releases pending elicitation: **no test**. Model wait stops early on exit or cancel: exit untested, cancel not built. Empty reply is an error naming the adapter: **passes without it** when `usage_update` arrives. Sign-in methods listed in the message: **passes without it** (initialize-response path untested). Bare "Internal error" replaced by provider output: **passes without it** (dead path). App-tools MCP in `session/new`: **passes without it** in production. Policy env: **passes without it**. File access limited: weak (ACP-7). Write waits for `beforeFirstWrite`: **passes without it** (ACP-8). Closing waits at most 1 s: **no test**. AcpAgentRunner log tag: **no test**.
 - AGENT-12 (15 items): model list wait / 90 s cap: pure function tested, wait not. OpenCode minimum version: constant and warning only. Tool-name hints: **passes without it** with real frames (ACP-5). Both OpenCode majors: only via a direct `agentVersion`; `start` passing the detected version is untested. MCP timeout floor: unit-tested, runner wiring not.
 - AGENT-17 (9 items): mostly **not built** (`listAcpConfigOptions`, `setAcpConfigOption` are placeholders at `rpc/handlers.ts:99-100`). Built but untested: the `acpConfig` reconcile loop (`acp-session.ts:602-608`), boolean refresh, `setConfigOption` returning updated options.
 
-
 ### Session, prompt, util: SIDE-03, 04, 05, 09, 11, 20, 24
 
 (155 items checked: SIDE-03 31, SIDE-04 19, SIDE-05 36, SIDE-09 28, SIDE-11 22, SIDE-20 8, SIDE-24 11.)
+
 - SIDE-03: warm agent used by the first message: **passes without it** (checks one start only). PR repository to prompt assembly: **no code, no test** (SN-9). Query payload carries `resume` on the first message: **no test**. One-at-a-time queue, cancel skips it: **no test** (SN-4). Queue key per chat: **no test** (a constant key passes). Duplicate guard in-flight id: unit only, no overlapping send. Steer with no active turn: **no test** (SN-7). Cancel with nothing running goes idle: **passes without it**. Option changes serialised on the queue: **no test**. `setAutoApproveEdits` end to end: **no test** (restarted agent, unknown chat silently dropped).
 - SIDE-04: run number checked at the runner result: **passes without it** (`turn.ts:228`). Stale branch in `launch` and callbacks: **no test** (`turn.ts:204, 293, 300`). Abort controller per query: partial.
 - SIDE-05: steer RPC returns after flush: **no code, no test** (SN-7). Fast-mode callback reaches live state: **no test** (`turn.ts:299-300`). Event shrunk above 80 percent: partial. "Has not settled" every 60 s: **passes without it**. Envelope carries valid events: **no test** (SN-1).
@@ -501,17 +476,16 @@ Backlog rows marked `done` whose issues are closed but whose checklists hold an 
 - SIDE-24: writes nothing, never logs launch: **passes without it** (SN-8). Never resent (D016): **no test**. Real ACP and Cursor start path: **no test**.
 - Not built, not gaps: SIDE-24 privacy switch (3 items), hosted-summarizer toast, app-side branch rename; SIDE-05 two app-side `store` rows; SIDE-03 about four design-note rows.
 
-
 ### Models and tools: SIDE-12 to 16, 22
 
 (SIDE-14 8 of 11 items checked, SIDE-15 24 of 38, SIDE-16 7 of 16, SIDE-12 7 of 26 here plus the rest in `tools.test.ts`, SIDE-13 5 of 13, SIDE-22 0 of 12: not built.)
+
 - SIDE-15: 5 s version hang guard: **passes without it** (constant echo, real probe never run, MD-5, MD-6). Codex device-code sign-in starts and waits up to 10 minutes: **passes without it** (port faked, not implemented, not wired). Codex `account/read` gives the account type: **passes without it**. Settings executable paths override the program path: **passes without it** (never wired). Prefer the managed copy, then the Settings path: **no test** of the order. CLI sign-in accepts a pasted code from Claude: **passes without it** (code discarded, MD-2). Cursor account read: **no test**. `CONDUCTED_ACP_PROVIDERS_DIR`: not built.
 - SIDE-14: validate the model before a turn: **passes without it** (no live caller, MD-4). Each agent has a default model: **passes without it** (`isDefault` always false for Claude). A cache with a stated lifetime: **passes without it** (literal 1 hour not asserted, guard untested).
 - SIDE-16: list MCP servers with status: **not built** (no runner implements it). List the project's own slash commands and skills: **no test**, code cannot meet it.
 - SIDE-12: availability flags decide which tools exist: **passes without it** for `DiffComment`. Others per TL-1, TL-2 and the earlier audit (unexpected_answer, app_request_failed, alwaysLoad, annotations, disallowed tools).
 - SIDE-13: app tools injected into Codex config: **no test** (MD-10). Bridge hello and idle timeout, private bridge folder, serving Codex and ACP, one bridge per run with one token per chat, `codex-mcp` as an MCP server, reserved server name clash, leftover folder check: **not built**.
 - SIDE-22: all 12 items **not built** (`completions-cache.ts` is a placeholder).
-
 
 ## 6. Missing test layers
 
@@ -526,7 +500,6 @@ Backlog rows marked `done` whose issues are closed but whose checklists hold an 
 9. **Real-process lifetime tests.** Parent dies, sidecar exits within the 2-second claim; sidecar killed with SIGKILL, agent children exit; an agent child crashing mid-turn and the next turn starting a new one (`ClaudeSession`, `CodexSession`, `AcpSession`).
 10. **Detector and catalog composition.** Build `DefaultAgentDetector` and `RunnerModelCatalog` as the host does, with the real `probeCommand`, real runners and scripted programs (outputs recorded from the real `claude --version`, `claude auth status --json` including exit 1, `codex --version`, `opencode --version`). Covers MD-1, MD-4, MD-6, MD-7.
 
-
 ## 7. Rules and guards
 
 Rules worth adding to `docs/engineering.md` (each one is a failure I found):
@@ -540,34 +513,33 @@ Rules worth adding to `docs/engineering.md` (each one is a failure I found):
 
 Checks a script could run, with what each flags today (grep or a small TypeScript pass over `*.test.ts` and `src`):
 
-| Check | Flags today |
-| --- | --- |
-| A production export (class or method on a port) with no importer outside tests | `SelfStartedTurnTracker`, `SelfStartedTurns`, `ProcessManager.markIdle` and `setBackgroundTasks`, `CodexApprovalBridge` construction, `ClaudePermissionHandler.resetSessionGrants` |
-| An exported function of 100 or more lines in `modes/` with no call in any test | `startSidecarHost` |
-| A fake `notify` / `publish` / `request` that records params without running a schema `safeParse` | six `FakeApp` classes (`event-batcher`, `manager`, `turn`, `live-state`, `self-started-turns`, `interactions` tests) |
-| A constant id fake: `(uuid\|newUuid): \(\) => "..."` | `claude-runner.test.ts:62, 73`, `claude-session.test.ts:307`, `translate.smoke.test.ts:178`, `claude-runner-translators.test.ts:178` |
-| `as unknown as` on SDK or schema-bound fixtures, counted per file against a baseline | 42 in `runners/claude`, 10 in `runners/acp`, `manager.test.ts:842` |
-| A fixture containing `jsonrpc: "2.0"` in a Codex test | `app-server-client.test.ts:105, 142, 181, 194`, `codex-runner.test.ts:104, 151, 199, 227` |
-| A test whose only assertion is `toEqual([])` or `toHaveLength(0)` over a loop | `claude/translate.test.ts:383-398`, `manager.test.ts:1081-1082` |
-| A test file with no `expect` | none today |
-| `vi.mock`, `mock.module` or `spyOn` of the unit under test | none today (the suite uses hand fakes only) |
-| `mkdtemp(tmpdir())` at module level with no cleanup | `acp/acp-client.test.ts:178` |
-| `setTimeout` or `Bun.sleep` in a test, outside a hang guard | 23 lines in 14 files; the ones that decide a result: `peer.test.ts` (30 ms race), `claude-session.test.ts:316-327` (tick counting), `acp-session.test.ts:505-506`, `turn.test.ts:510, 606` |
-| A hang-guard timer that is never cleared | `manager.test.ts:1095` |
-| Timeouts below 1 second for a spawned shell script | `run-checkpointer.test.ts` `smallTimeouts()` (300 ms, 200 ms) |
-| A fake class defined in more than one test file | `FakeApp` x6, `FakePublisher` x4, `FakeInteractions` x3, `MemoryStorage` x2, `FakeChild` x2, `fakeScheduler` x2, `scriptedQuery` in 5 files |
-| A fake member no test calls | `FakeClient.exit` (`acp-session.test.ts:112`), `failOn: "models"` (`claude-runner.test.ts:39`), `FakeChild.stop` never firing `onExit` |
-| Bare `rejects.toThrow()` | `acp-client.test.ts:331` |
-| A test file whose titles carry no `SIDE-`, `AGENT-`, `GIT-` or `PLAT-` id | 21 of 106 files (listed in the core LATER section) |
-| A "Must handle" line in a header with no test title that names the case | stop generations, `CodexMcpConsent` log tag, late response after timeout, "live events keep flowing during a replay" |
-| A zod `parse` of one object the test wrote itself that would pass for `z.any()` | `protocol/events.test.ts` first test, `interactions.test.ts` first test |
-| A source file in the coverage "no test loads" list that has no `notImplemented` | `runners/claude/self-started-turns.ts` and `session/self-started-turns.ts` only matter once slice 2 merges |
-| An optional dep of a class that the composition root never passes | `DefaultAgentDetector`: `codex`, `cursor`, `executablePath`, `findManagedProgram`, `cursorApiKey` (`sidecar-mode.ts:601`); `AcpRunner`: `appToolsServers`, `translator`, `createClient`; `SessionUsageReader`: `sessions` |
-| A runner that declares `mcpServers: true` (or another capability) with no method behind it | `claude-runner.ts:71`, `codex-runner.ts:60` (no `listMcpServers`); `codex-runner.ts:57` `resumeAt: true` |
-| `toBe(CONST)` or `timeoutMs: CONST` where `CONST` is imported from the file under test | `agent-detection.test.ts:204, 230, 234, 260, 550`, `catalog.test.ts:194` |
-| A `JSON.stringify({ loggedIn ...` or other CLI-output literal in a test that did not come from a recorded fixture file | `agent-detection.test.ts:186, 216, 334, 629, 650, 673` |
-| Mutation testing (Stryker) on small, pure modules as a periodic check, not a gate | the survivors named in MD-3, MD-5, MD-8, MD-9 are what it would report |
-
+| Check                                                                                                                  | Flags today                                                                                                                                                                                                               |
+| ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A production export (class or method on a port) with no importer outside tests                                         | `SelfStartedTurnTracker`, `SelfStartedTurns`, `ProcessManager.markIdle` and `setBackgroundTasks`, `CodexApprovalBridge` construction, `ClaudePermissionHandler.resetSessionGrants`                                        |
+| An exported function of 100 or more lines in `modes/` with no call in any test                                         | `startSidecarHost`                                                                                                                                                                                                        |
+| A fake `notify` / `publish` / `request` that records params without running a schema `safeParse`                       | six `FakeApp` classes (`event-batcher`, `manager`, `turn`, `live-state`, `self-started-turns`, `interactions` tests)                                                                                                      |
+| A constant id fake: `(uuid\|newUuid): \(\) => "..."`                                                                   | `claude-runner.test.ts:62, 73`, `claude-session.test.ts:307`, `translate.smoke.test.ts:178`, `claude-runner-translators.test.ts:178`                                                                                      |
+| `as unknown as` on SDK or schema-bound fixtures, counted per file against a baseline                                   | 42 in `runners/claude`, 10 in `runners/acp`, `manager.test.ts:842`                                                                                                                                                        |
+| A fixture containing `jsonrpc: "2.0"` in a Codex test                                                                  | `app-server-client.test.ts:105, 142, 181, 194`, `codex-runner.test.ts:104, 151, 199, 227`                                                                                                                                 |
+| A test whose only assertion is `toEqual([])` or `toHaveLength(0)` over a loop                                          | `claude/translate.test.ts:383-398`, `manager.test.ts:1081-1082`                                                                                                                                                           |
+| A test file with no `expect`                                                                                           | none today                                                                                                                                                                                                                |
+| `vi.mock`, `mock.module` or `spyOn` of the unit under test                                                             | none today (the suite uses hand fakes only)                                                                                                                                                                               |
+| `mkdtemp(tmpdir())` at module level with no cleanup                                                                    | `acp/acp-client.test.ts:178`                                                                                                                                                                                              |
+| `setTimeout` or `Bun.sleep` in a test, outside a hang guard                                                            | 23 lines in 14 files; the ones that decide a result: `peer.test.ts` (30 ms race), `claude-session.test.ts:316-327` (tick counting), `acp-session.test.ts:505-506`, `turn.test.ts:510, 606`                                |
+| A hang-guard timer that is never cleared                                                                               | `manager.test.ts:1095`                                                                                                                                                                                                    |
+| Timeouts below 1 second for a spawned shell script                                                                     | `run-checkpointer.test.ts` `smallTimeouts()` (300 ms, 200 ms)                                                                                                                                                             |
+| A fake class defined in more than one test file                                                                        | `FakeApp` x6, `FakePublisher` x4, `FakeInteractions` x3, `MemoryStorage` x2, `FakeChild` x2, `fakeScheduler` x2, `scriptedQuery` in 5 files                                                                               |
+| A fake member no test calls                                                                                            | `FakeClient.exit` (`acp-session.test.ts:112`), `failOn: "models"` (`claude-runner.test.ts:39`), `FakeChild.stop` never firing `onExit`                                                                                    |
+| Bare `rejects.toThrow()`                                                                                               | `acp-client.test.ts:331`                                                                                                                                                                                                  |
+| A test file whose titles carry no `SIDE-`, `AGENT-`, `GIT-` or `PLAT-` id                                              | 21 of 106 files (listed in the core LATER section)                                                                                                                                                                        |
+| A "Must handle" line in a header with no test title that names the case                                                | stop generations, `CodexMcpConsent` log tag, late response after timeout, "live events keep flowing during a replay"                                                                                                      |
+| A zod `parse` of one object the test wrote itself that would pass for `z.any()`                                        | `protocol/events.test.ts` first test, `interactions.test.ts` first test                                                                                                                                                   |
+| A source file in the coverage "no test loads" list that has no `notImplemented`                                        | `runners/claude/self-started-turns.ts` and `session/self-started-turns.ts` only matter once slice 2 merges                                                                                                                |
+| An optional dep of a class that the composition root never passes                                                      | `DefaultAgentDetector`: `codex`, `cursor`, `executablePath`, `findManagedProgram`, `cursorApiKey` (`sidecar-mode.ts:601`); `AcpRunner`: `appToolsServers`, `translator`, `createClient`; `SessionUsageReader`: `sessions` |
+| A runner that declares `mcpServers: true` (or another capability) with no method behind it                             | `claude-runner.ts:71`, `codex-runner.ts:60` (no `listMcpServers`); `codex-runner.ts:57` `resumeAt: true`                                                                                                                  |
+| `toBe(CONST)` or `timeoutMs: CONST` where `CONST` is imported from the file under test                                 | `agent-detection.test.ts:204, 230, 234, 260, 550`, `catalog.test.ts:194`                                                                                                                                                  |
+| A `JSON.stringify({ loggedIn ...` or other CLI-output literal in a test that did not come from a recorded fixture file | `agent-detection.test.ts:186, 216, 334, 629, 650, 673`                                                                                                                                                                    |
+| Mutation testing (Stryker) on small, pure modules as a periodic check, not a gate                                      | the survivors named in MD-3, MD-5, MD-8, MD-9 are what it would report                                                                                                                                                    |
 
 ## Findings outside my area (one line each)
 

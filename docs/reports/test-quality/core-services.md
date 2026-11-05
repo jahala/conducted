@@ -25,21 +25,21 @@ Source: `coverage/summary.md` and `files.tsv`, which measure main (slice 1 only)
 
 Least covered files:
 
-| File | Lines | Branches | Uncovered | Note |
-| --- | ---: | ---: | ---: | --- |
-| chat-titles.ts | 0.0% | n/a | 4 | slice 2, tested now, and not constructed anywhere in the app |
-| keep-awake.ts | 0.0% | n/a | 8 | slice 2, tested now, and not constructed in `container.ts` |
-| workspace-files.ts | 9.1% | n/a | 10 | placeholder |
-| checkpoint.ts | 10.0% | n/a | 9 | only `exists` and listing built |
-| review.ts | 12.5% | n/a | 14 | placeholder except `requestAiReview` |
-| system.ts | 33.3% | n/a | 12 | placeholder except two methods |
-| sections.ts | 40.0% | n/a | 6 | slice 2 |
-| terminals.ts | 62.4% | 52.3% | 94 | worst file that matters: 94 lines, half the branches |
-| follow-up-queue.ts | 74.4% | 81.0% | 11 | most methods are placeholders |
-| sessions.ts | 85.1% | 64.5% | 75 | |
-| settings.ts | 85.8% | 74.3% | 75 | |
-| workspace.ts | 87.7% | 70.3% | 51 | |
-| repo.ts | 88.9% | 67.6% | 29 | |
+| File               | Lines | Branches | Uncovered | Note                                                         |
+| ------------------ | ----: | -------: | --------: | ------------------------------------------------------------ |
+| chat-titles.ts     |  0.0% |      n/a |         4 | slice 2, tested now, and not constructed anywhere in the app |
+| keep-awake.ts      |  0.0% |      n/a |         8 | slice 2, tested now, and not constructed in `container.ts`   |
+| workspace-files.ts |  9.1% |      n/a |        10 | placeholder                                                  |
+| checkpoint.ts      | 10.0% |      n/a |         9 | only `exists` and listing built                              |
+| review.ts          | 12.5% |      n/a |        14 | placeholder except `requestAiReview`                         |
+| system.ts          | 33.3% |      n/a |        12 | placeholder except two methods                               |
+| sections.ts        | 40.0% |      n/a |         6 | slice 2                                                      |
+| terminals.ts       | 62.4% |    52.3% |        94 | worst file that matters: 94 lines, half the branches         |
+| follow-up-queue.ts | 74.4% |    81.0% |        11 | most methods are placeholders                                |
+| sessions.ts        | 85.1% |    64.5% |        75 |                                                              |
+| settings.ts        | 85.8% |    74.3% |        75 |                                                              |
+| workspace.ts       | 87.7% |    70.3% |        51 |                                                              |
+| repo.ts            | 88.9% |    67.6% |        29 |                                                              |
 
 Two cautions on the numbers. First, 84% line coverage sits beside every MUST finding below. Lines run is not behaviour checked: `watch`, the `onMerged` hook and the whole PR polling wiring show as covered because tests call them directly. Second, branch coverage in `terminals.ts` (52%) and `sessions.ts` (64%) points at the same gaps the findings name (close, openForRepo, cancel overlap, start failure branches).
 
@@ -337,83 +337,83 @@ No create test with repo name "My App é", a 300-character prefix or spaces in t
 
 Paths are relative to `apps/desktop/src/core/services/`.
 
-| File | Verdict | Reason |
-| --- | --- | --- |
-| agent-catalog.test.ts | WEAK | out-of-order refresh is real; per-key independence, load errors and initial state are not (M39) |
-| agent-instructions.git-04.test.ts | REAL | strategy, push line, no-remote, custom text; dropping `--force-with-lease` is caught |
-| agent-instructions.git-05.test.ts | WEAK | lowercased `toContain("commit")` is loose; custom path has no caller (M34) |
-| agent-instructions.git-07.test.ts | REAL | rebase and merge steps and the value table |
-| agent-instructions.pr-02.test.ts | WEAK | custom-prompt test pins the opposite of the issue (M34) |
-| agent-instructions.rev-05.test.ts | REAL | default, trimmed, blank, extras |
-| chat-titles.test.ts | WEAK | skip rules real; cuts, characters, fastMode, model-missing untested; service not in the container (L10) |
-| checkpoint.rev-09.test.ts | WEAK | `exists`, NUL count, eviction real; wait rule only `waits > 0`, no real script (L7) |
-| command-runner.test.ts | REAL | real registry, once-only, throw to Err; requirement table thin (L14) |
-| composer-run06.test.ts | WEAK | happy path only; collision loop missed (M40) |
-| composer.test.ts | WEAK | real round trips; fake fs, setTimeout(0), size rule unchecked (M40) |
-| favorite-models.test.ts | WEAK | serialisation real; one theater test, no failure paths (M39) |
-| file-diff.test.ts | WEAK | sides, guards, late answer real; 25 MB cache and invalidate untested (M33) |
-| follow-up-queue.chat-05.test.ts | REAL | real repository and DB; reorder, pause, waiting rows kept |
-| follow-up-queue.test.ts | WEAK | pure functions solid; `canReleaseQueue` title promises more than the body (L1) |
-| git.git-05.test.ts | REAL | one instruction to the agent, no `git commit` |
-| git.git-06.test.ts | WEAK | push, pull, single-flight real; up-to-date is a tautology, edges missing (M32) |
-| git.git-07.test.ts | REAL | `pull.rebase` true/unset/false, custom prompt, errors |
-| git.git-08.test.ts | REAL | clean, dirty, HEAD moved, missing ref, PR base; includes a source-scan guard that proves it can fail |
-| git.git-09.test.ts | REAL | lock path, `-v2`, detached HEAD, rollback, option-like names; the warning item has no test (L15) |
-| git.git-13.test.ts | REAL | truth table at 59,999/60,000 ms, overlap, shared key; no production caller (M4) |
-| git.rev-01.test.ts | WEAK | discard and unsafe-input real; fake exits 0 for `restore`, sha never asserted, vacuous loops (M30, M32) |
-| git.rev-02.test.ts | REAL | marks saved, reset on mtime change, damaged file, slow first write race |
-| git.test.ts | WEAK | polling, limiter, slow answer real; failure after a good snapshot untested; no caller for `watch` (M4, M32) |
-| github.git-08.test.ts | REAL | pins `gh pr view`/`gh pr edit` vectors; output matches real gh |
-| github.pr-02.test.ts | WEAK | target stripping, template, link setting real; no second click, fake agent (M16) |
-| github.pr-03.test.ts | WEAK | latest-wins and fake-timer watch real; invented GraphQL shape; one title-vs-body test (M12, M13) |
-| github.pr-11.test.ts | REAL | REST endpoints, issue-vs-PR split, redirect, failed write |
-| github.prj-02.test.ts | REAL | org parsing, owner order, filter, 401 message; argv compared with the builder's own output (L8) |
-| github.test.ts | WEAK | access latest-wins, PAT env, merge single-flight real; gh failures invented (M11) |
-| keep-awake.test.ts | REAL | best file here: counted handles, memory shell contract-checked; stop race untested (M41) |
-| notifications.nav-11.test.ts | REAL | real sessions on the test container, asserts the recorded badge |
-| notifications.test.ts | WEAK | finished, badge, emoji cut real; suppression matrix thin (L9) |
-| ports.test.ts | WEAK | allocation real; last-block boundary and message unchecked, no feature id (L15) |
-| pr-mapping.pr-03.test.ts | REAL | reviewers, deployments, truth tables; provider regexes unchecked |
-| pr-mapping.test.ts | WEAK | single-order dedupe, no CLOSED, required set never built in production (M15, M17) |
-| pr-polling.pr-03.test.ts | WEAK | thresholds and gate real; one constant-equals-itself test (L1) |
-| pr-polling.test.ts | WEAK | every test is repeated in the other file (L2) |
-| repo.config.test.ts | REAL | real TOML codec, held reads, focus reload, dispose; best file of the area; write path thin (M27) |
-| repo.prj-02.test.ts | WEAK | URL and folder rules real; expectations built from source builders (M29, L12) |
-| repo.test.ts | WEAK | add, dedupe, init, order real over a FakeGit; stubbed removal (M5) |
-| review.rev-05.test.ts | REAL | custom prompt, extras, error passthrough over the real instruction |
-| run-scripts.run-01.test.ts | WEAK | newest start, exclusive, parking real; every `exit` never resolves (M28) |
-| run-scripts.setup.test.ts | REAL | env, transcript path, dedupe, close old terminal |
-| run-scripts.test.ts | REAL | pure helpers |
-| run-scripts.ws-05.test.ts | REAL | argv, env, non-zero exit, missing shell |
-| sections.test.ts | WEAK | real DB but reads the store only, `setTimeout(0)`, no rename (M26) |
-| sessions.chat-02.test.ts | WEAK | strong send/retry/discard; queue and composer fakes return ok where real throws; SQL guard never reached (M6, M35) |
-| sessions.chat-05.test.ts | REAL | real queue over a real DB: drop, restore once, cancel in flight, cancelAll; cancel with queued rows missing (M36) |
-| sessions.chat-10.test.ts | REAL | card replaced, reconnect returns same promise, undeliverable |
-| sessions.chat-11.test.ts | REAL | timed-out card stays, stale id ignored |
-| sessions.chat-18.test.ts | WEAK | real transaction rollback; outcome, agent id, live-state round trip unchecked (M35) |
-| sessions.chat-27.test.ts | WEAK | tests 1, 3, 4 likely fail on setup (M7) |
-| sessions.nav-11.test.ts | REAL | real container and DB, store and SQL |
-| sessions.rev-05.test.ts | WEAK | Claude paths only; `setting \|\| base.fastMode` missed |
-| sessions.test.ts | WEAK | real DB for create/close/rename/delete; no start ordering, load errors or size |
-| settings.test.ts | WEAK | strong on write order, rollback, reload races; actions/env, sort, workspace layer, message, fake fs (M18-M21) |
-| system-app-13.test.ts | REAL | `copyText` success and a throwing clipboard; thin, wrong feature id |
-| system.git-16.test.ts | REAL | real container, in-memory shell, failure branches; imports the command constant from the source |
-| terminals-run06.test.ts | WEAK | good races; hand-built deps and handle; close, openForRepo untested (M8, M10) |
-| terminals-run07.test.ts | WEAK | source choice real; fake handle reads the screen after exit (M8) |
-| terminals.run-01.test.ts | REAL | login shell args, exit promise, watchdog; negative assertion has no settle point (L15) |
-| terminals.test.ts | WEAK | `buildScriptEnv`, limit; `TERM` and `COLORTERM` unchecked |
-| toml-codec.test.ts | REAL | real round trip and parse error; datetime and bigint missing |
-| transcript.test.ts | REAL | real SQLite proves literal `%`, type filter; reads migration 0001 only |
-| turn-builder.test.ts | WEAK | builder strong; differ's streaming case is wrong (M38) |
-| updates.test.ts | REAL | one correct test, 1 of about 24 checklist items |
-| workspace.copy.test.ts | WEAK | real files and modes; git listing is a constant string (M23) |
-| workspace.git-08.test.ts | REAL | real container, re-reads the row |
-| workspace.git-09.test.ts | WEAK | real DB, store only (M26) |
-| workspace.nav-02.test.ts | WEAK | `vi.fn` repo, no restart test (M26) |
-| workspace.nav-04.test.ts | WEAK | real DB, store only (M26) |
-| workspace.setup.test.ts | WEAK | state moves real; second start and cancel pass without their guard (M25) |
-| workspace.test.ts | WEAK | create/retry/recover real in logic; hand fakes, no failure past worktree add (M22, M23) |
-| workspace.ws-05.test.ts | WEAK | archive happy path and one rollback; other steps and Trash untested (M24) |
+| File                              | Verdict | Reason                                                                                                             |
+| --------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------ |
+| agent-catalog.test.ts             | WEAK    | out-of-order refresh is real; per-key independence, load errors and initial state are not (M39)                    |
+| agent-instructions.git-04.test.ts | REAL    | strategy, push line, no-remote, custom text; dropping `--force-with-lease` is caught                               |
+| agent-instructions.git-05.test.ts | WEAK    | lowercased `toContain("commit")` is loose; custom path has no caller (M34)                                         |
+| agent-instructions.git-07.test.ts | REAL    | rebase and merge steps and the value table                                                                         |
+| agent-instructions.pr-02.test.ts  | WEAK    | custom-prompt test pins the opposite of the issue (M34)                                                            |
+| agent-instructions.rev-05.test.ts | REAL    | default, trimmed, blank, extras                                                                                    |
+| chat-titles.test.ts               | WEAK    | skip rules real; cuts, characters, fastMode, model-missing untested; service not in the container (L10)            |
+| checkpoint.rev-09.test.ts         | WEAK    | `exists`, NUL count, eviction real; wait rule only `waits > 0`, no real script (L7)                                |
+| command-runner.test.ts            | REAL    | real registry, once-only, throw to Err; requirement table thin (L14)                                               |
+| composer-run06.test.ts            | WEAK    | happy path only; collision loop missed (M40)                                                                       |
+| composer.test.ts                  | WEAK    | real round trips; fake fs, setTimeout(0), size rule unchecked (M40)                                                |
+| favorite-models.test.ts           | WEAK    | serialisation real; one theater test, no failure paths (M39)                                                       |
+| file-diff.test.ts                 | WEAK    | sides, guards, late answer real; 25 MB cache and invalidate untested (M33)                                         |
+| follow-up-queue.chat-05.test.ts   | REAL    | real repository and DB; reorder, pause, waiting rows kept                                                          |
+| follow-up-queue.test.ts           | WEAK    | pure functions solid; `canReleaseQueue` title promises more than the body (L1)                                     |
+| git.git-05.test.ts                | REAL    | one instruction to the agent, no `git commit`                                                                      |
+| git.git-06.test.ts                | WEAK    | push, pull, single-flight real; up-to-date is a tautology, edges missing (M32)                                     |
+| git.git-07.test.ts                | REAL    | `pull.rebase` true/unset/false, custom prompt, errors                                                              |
+| git.git-08.test.ts                | REAL    | clean, dirty, HEAD moved, missing ref, PR base; includes a source-scan guard that proves it can fail               |
+| git.git-09.test.ts                | REAL    | lock path, `-v2`, detached HEAD, rollback, option-like names; the warning item has no test (L15)                   |
+| git.git-13.test.ts                | REAL    | truth table at 59,999/60,000 ms, overlap, shared key; no production caller (M4)                                    |
+| git.rev-01.test.ts                | WEAK    | discard and unsafe-input real; fake exits 0 for `restore`, sha never asserted, vacuous loops (M30, M32)            |
+| git.rev-02.test.ts                | REAL    | marks saved, reset on mtime change, damaged file, slow first write race                                            |
+| git.test.ts                       | WEAK    | polling, limiter, slow answer real; failure after a good snapshot untested; no caller for `watch` (M4, M32)        |
+| github.git-08.test.ts             | REAL    | pins `gh pr view`/`gh pr edit` vectors; output matches real gh                                                     |
+| github.pr-02.test.ts              | WEAK    | target stripping, template, link setting real; no second click, fake agent (M16)                                   |
+| github.pr-03.test.ts              | WEAK    | latest-wins and fake-timer watch real; invented GraphQL shape; one title-vs-body test (M12, M13)                   |
+| github.pr-11.test.ts              | REAL    | REST endpoints, issue-vs-PR split, redirect, failed write                                                          |
+| github.prj-02.test.ts             | REAL    | org parsing, owner order, filter, 401 message; argv compared with the builder's own output (L8)                    |
+| github.test.ts                    | WEAK    | access latest-wins, PAT env, merge single-flight real; gh failures invented (M11)                                  |
+| keep-awake.test.ts                | REAL    | best file here: counted handles, memory shell contract-checked; stop race untested (M41)                           |
+| notifications.nav-11.test.ts      | REAL    | real sessions on the test container, asserts the recorded badge                                                    |
+| notifications.test.ts             | WEAK    | finished, badge, emoji cut real; suppression matrix thin (L9)                                                      |
+| ports.test.ts                     | WEAK    | allocation real; last-block boundary and message unchecked, no feature id (L15)                                    |
+| pr-mapping.pr-03.test.ts          | REAL    | reviewers, deployments, truth tables; provider regexes unchecked                                                   |
+| pr-mapping.test.ts                | WEAK    | single-order dedupe, no CLOSED, required set never built in production (M15, M17)                                  |
+| pr-polling.pr-03.test.ts          | WEAK    | thresholds and gate real; one constant-equals-itself test (L1)                                                     |
+| pr-polling.test.ts                | WEAK    | every test is repeated in the other file (L2)                                                                      |
+| repo.config.test.ts               | REAL    | real TOML codec, held reads, focus reload, dispose; best file of the area; write path thin (M27)                   |
+| repo.prj-02.test.ts               | WEAK    | URL and folder rules real; expectations built from source builders (M29, L12)                                      |
+| repo.test.ts                      | WEAK    | add, dedupe, init, order real over a FakeGit; stubbed removal (M5)                                                 |
+| review.rev-05.test.ts             | REAL    | custom prompt, extras, error passthrough over the real instruction                                                 |
+| run-scripts.run-01.test.ts        | WEAK    | newest start, exclusive, parking real; every `exit` never resolves (M28)                                           |
+| run-scripts.setup.test.ts         | REAL    | env, transcript path, dedupe, close old terminal                                                                   |
+| run-scripts.test.ts               | REAL    | pure helpers                                                                                                       |
+| run-scripts.ws-05.test.ts         | REAL    | argv, env, non-zero exit, missing shell                                                                            |
+| sections.test.ts                  | WEAK    | real DB but reads the store only, `setTimeout(0)`, no rename (M26)                                                 |
+| sessions.chat-02.test.ts          | WEAK    | strong send/retry/discard; queue and composer fakes return ok where real throws; SQL guard never reached (M6, M35) |
+| sessions.chat-05.test.ts          | REAL    | real queue over a real DB: drop, restore once, cancel in flight, cancelAll; cancel with queued rows missing (M36)  |
+| sessions.chat-10.test.ts          | REAL    | card replaced, reconnect returns same promise, undeliverable                                                       |
+| sessions.chat-11.test.ts          | REAL    | timed-out card stays, stale id ignored                                                                             |
+| sessions.chat-18.test.ts          | WEAK    | real transaction rollback; outcome, agent id, live-state round trip unchecked (M35)                                |
+| sessions.chat-27.test.ts          | WEAK    | tests 1, 3, 4 likely fail on setup (M7)                                                                            |
+| sessions.nav-11.test.ts           | REAL    | real container and DB, store and SQL                                                                               |
+| sessions.rev-05.test.ts           | WEAK    | Claude paths only; `setting \|\| base.fastMode` missed                                                             |
+| sessions.test.ts                  | WEAK    | real DB for create/close/rename/delete; no start ordering, load errors or size                                     |
+| settings.test.ts                  | WEAK    | strong on write order, rollback, reload races; actions/env, sort, workspace layer, message, fake fs (M18-M21)      |
+| system-app-13.test.ts             | REAL    | `copyText` success and a throwing clipboard; thin, wrong feature id                                                |
+| system.git-16.test.ts             | REAL    | real container, in-memory shell, failure branches; imports the command constant from the source                    |
+| terminals-run06.test.ts           | WEAK    | good races; hand-built deps and handle; close, openForRepo untested (M8, M10)                                      |
+| terminals-run07.test.ts           | WEAK    | source choice real; fake handle reads the screen after exit (M8)                                                   |
+| terminals.run-01.test.ts          | REAL    | login shell args, exit promise, watchdog; negative assertion has no settle point (L15)                             |
+| terminals.test.ts                 | WEAK    | `buildScriptEnv`, limit; `TERM` and `COLORTERM` unchecked                                                          |
+| toml-codec.test.ts                | REAL    | real round trip and parse error; datetime and bigint missing                                                       |
+| transcript.test.ts                | REAL    | real SQLite proves literal `%`, type filter; reads migration 0001 only                                             |
+| turn-builder.test.ts              | WEAK    | builder strong; differ's streaming case is wrong (M38)                                                             |
+| updates.test.ts                   | REAL    | one correct test, 1 of about 24 checklist items                                                                    |
+| workspace.copy.test.ts            | WEAK    | real files and modes; git listing is a constant string (M23)                                                       |
+| workspace.git-08.test.ts          | REAL    | real container, re-reads the row                                                                                   |
+| workspace.git-09.test.ts          | WEAK    | real DB, store only (M26)                                                                                          |
+| workspace.nav-02.test.ts          | WEAK    | `vi.fn` repo, no restart test (M26)                                                                                |
+| workspace.nav-04.test.ts          | WEAK    | real DB, store only (M26)                                                                                          |
+| workspace.setup.test.ts           | WEAK    | state moves real; second start and cancel pass without their guard (M25)                                           |
+| workspace.test.ts                 | WEAK    | create/retry/recover real in logic; hand fakes, no failure past worktree add (M22, M23)                            |
+| workspace.ws-05.test.ts           | WEAK    | archive happy path and one rollback; other steps and Trash untested (M24)                                          |
 
 Count: REAL 33, WEAK 42, THEATER 0 (75 files).
 
@@ -423,92 +423,92 @@ Backlog status from `docs/plans/backlog.md`. Items on `done` rows without a fail
 
 Rows `done`:
 
-| Feature | Item | Gap |
-| --- | --- | --- |
-| CHAT-01 | Local workspace with no chat creates one automatically | no test in this area |
-| CHAT-01 | List order (newest first) | passes without it (one open chat in the test) |
-| CHAT-02 | Queue behind a running turn (service half) | passes without it (fake `enqueue` where real throws, M6) |
-| CHAT-02 | Config written only while stored config is the one the caller saw | SQL guard passes without it (M35a) |
-| CHAT-02 | Attachments carried with the message | passes without it (fake composer, M6) |
-| CHAT-05 | Cancel keeps queued follow-ups (D020), end to end | no test; persisted pause after restart: no test (M36) |
-| CHAT-07 | Incremental builder tells the list how turns changed | streaming reply passes without it (M38) |
-| CHAT-10 | Open questions survive a restart | no test (M35b) |
-| CHAT-10 | "Could not send answers. Try again." text | code asserted, message passes without it |
-| CHAT-18 | Dedupe replayed events | no test in this area |
-| CHAT-18 | Turn cut off by a crash shown as interrupted | outcome and display have no failing test (M35c) |
-| COMP-01 | Draft files kept 30 days | no test (DATA-02 owns the job) |
-| COMP-01 | Size-limited store: oldest first, boundary | passes without it (M40) |
-| COMP-01 | Newest write wins, written once | "once" passes without it |
-| COMP-02 | Deduped | model only (M39) |
-| COMP-02 | Written as a diff in one transaction | no test; service reorders then deletes |
-| SET-03 | Model lists do not block other agents | passes without it (M39) |
-| RUN-06 | "Failed to attach terminal selection" | no test |
-| RUN-06 | Sending that attachment | no test and the real send throws (M6) |
-| RUN-06 | Close terminal; repo-level terminal created lazily | no test (M10) |
-| RUN-06 | Cold restore replays the saved screen | no test, no code (`history` stays empty) |
-| RUN-06 | Table terminals plus saved screen files | passes without it (fakes only; real repo throws, M8) |
-| GIT-02 | Visible workspace polls every 5 s | passes without it in the app (M4) |
-| GIT-02 | Failed poll keeps last snapshot | no test (M32d) |
-| GIT-02 | Status refreshes after any git action | no test |
-| GIT-02 | Diff target precedence (Graphite, PR base) | no test |
-| REV-01 | Discard of an untracked file | fails on real git, test passes (M30) |
-| REV-01 | A commit's files come from the commit sha | passes without it (M32c) |
-| REV-01 | Modified time and size of each changed file | no test |
-| REV-02 | Cache limited to 25 MB | no test (M33) |
-| PR-01 | Unauthorized, SSO, missing-scope from real gh output | pass without it (M11) |
-| PR-01 | Dedupes each PR action | create has none (M16) |
-| PR-01 | `onMerged` hook | no test, never called (M3) |
-| PR-01 | Health updated on every gh call | merge and prj-02 only; poll, `#readGh`, `listIssues`: no test |
-| PR-02 | Custom prompt replaces default | test pins the opposite (M34) |
-| PR-02 | Second click | no test |
-| PRJ-01 | Delete a repo with its workspaces | passes without it; real app throws (M5) |
-| PRJ-01 | Insert deduped by root path, race | no test for the `db.conflict` race |
-| PRJ-04 | Invalid file reported, local file and write path | no test (M27) |
-| WS-01 | Remote origin from repo config | passes in test, not wired in the container (M2) |
-| WS-01 | Branch `-v1` when taken | passes without it (fake `show-ref` answers 1) |
-| WS-01 | Failed workspace keeps row | worktree add only; other steps none (M22) |
-| WS-01 | `github_username` prefix path | no test |
-| WS-01 | First chat from the default config | `defaultConfig` not wired in the container |
-| WS-03 | File count | no test (M22) |
-| WS-03 | Second start ignored; cancelled state | pass without it (M25) |
-| WS-03 | Quit mid-setup text (`SETUP_INTERRUPTED_MESSAGE`), `readSetupLog` | no test |
-| WS-03 | `cp` failure warning, symlinks, 256 KiB boundary | no test |
-| NAV-02 | Active tab restored after restart | no test (M26) |
-| NAV-07 | `project.add` mounted in the container; whole requirement table | no test (L14) |
-| DATA-05 | Actions and env written; sorted keys; workspace layer | no test, or passes without it (M19, M21) |
-| DATA-05 | "Failed to save setting" | message passes without it (M20) |
-| DATA-05 | Writing adds git exclude lines | create path only (M21) |
-| DATA-05 | Remote default branch layer | passes with a wrong ref string (fake ignores args) |
-| APP-13 | `copyText` | the test cites a feature whose checklist does not hold the item |
+| Feature | Item                                                              | Gap                                                             |
+| ------- | ----------------------------------------------------------------- | --------------------------------------------------------------- |
+| CHAT-01 | Local workspace with no chat creates one automatically            | no test in this area                                            |
+| CHAT-01 | List order (newest first)                                         | passes without it (one open chat in the test)                   |
+| CHAT-02 | Queue behind a running turn (service half)                        | passes without it (fake `enqueue` where real throws, M6)        |
+| CHAT-02 | Config written only while stored config is the one the caller saw | SQL guard passes without it (M35a)                              |
+| CHAT-02 | Attachments carried with the message                              | passes without it (fake composer, M6)                           |
+| CHAT-05 | Cancel keeps queued follow-ups (D020), end to end                 | no test; persisted pause after restart: no test (M36)           |
+| CHAT-07 | Incremental builder tells the list how turns changed              | streaming reply passes without it (M38)                         |
+| CHAT-10 | Open questions survive a restart                                  | no test (M35b)                                                  |
+| CHAT-10 | "Could not send answers. Try again." text                         | code asserted, message passes without it                        |
+| CHAT-18 | Dedupe replayed events                                            | no test in this area                                            |
+| CHAT-18 | Turn cut off by a crash shown as interrupted                      | outcome and display have no failing test (M35c)                 |
+| COMP-01 | Draft files kept 30 days                                          | no test (DATA-02 owns the job)                                  |
+| COMP-01 | Size-limited store: oldest first, boundary                        | passes without it (M40)                                         |
+| COMP-01 | Newest write wins, written once                                   | "once" passes without it                                        |
+| COMP-02 | Deduped                                                           | model only (M39)                                                |
+| COMP-02 | Written as a diff in one transaction                              | no test; service reorders then deletes                          |
+| SET-03  | Model lists do not block other agents                             | passes without it (M39)                                         |
+| RUN-06  | "Failed to attach terminal selection"                             | no test                                                         |
+| RUN-06  | Sending that attachment                                           | no test and the real send throws (M6)                           |
+| RUN-06  | Close terminal; repo-level terminal created lazily                | no test (M10)                                                   |
+| RUN-06  | Cold restore replays the saved screen                             | no test, no code (`history` stays empty)                        |
+| RUN-06  | Table terminals plus saved screen files                           | passes without it (fakes only; real repo throws, M8)            |
+| GIT-02  | Visible workspace polls every 5 s                                 | passes without it in the app (M4)                               |
+| GIT-02  | Failed poll keeps last snapshot                                   | no test (M32d)                                                  |
+| GIT-02  | Status refreshes after any git action                             | no test                                                         |
+| GIT-02  | Diff target precedence (Graphite, PR base)                        | no test                                                         |
+| REV-01  | Discard of an untracked file                                      | fails on real git, test passes (M30)                            |
+| REV-01  | A commit's files come from the commit sha                         | passes without it (M32c)                                        |
+| REV-01  | Modified time and size of each changed file                       | no test                                                         |
+| REV-02  | Cache limited to 25 MB                                            | no test (M33)                                                   |
+| PR-01   | Unauthorized, SSO, missing-scope from real gh output              | pass without it (M11)                                           |
+| PR-01   | Dedupes each PR action                                            | create has none (M16)                                           |
+| PR-01   | `onMerged` hook                                                   | no test, never called (M3)                                      |
+| PR-01   | Health updated on every gh call                                   | merge and prj-02 only; poll, `#readGh`, `listIssues`: no test   |
+| PR-02   | Custom prompt replaces default                                    | test pins the opposite (M34)                                    |
+| PR-02   | Second click                                                      | no test                                                         |
+| PRJ-01  | Delete a repo with its workspaces                                 | passes without it; real app throws (M5)                         |
+| PRJ-01  | Insert deduped by root path, race                                 | no test for the `db.conflict` race                              |
+| PRJ-04  | Invalid file reported, local file and write path                  | no test (M27)                                                   |
+| WS-01   | Remote origin from repo config                                    | passes in test, not wired in the container (M2)                 |
+| WS-01   | Branch `-v1` when taken                                           | passes without it (fake `show-ref` answers 1)                   |
+| WS-01   | Failed workspace keeps row                                        | worktree add only; other steps none (M22)                       |
+| WS-01   | `github_username` prefix path                                     | no test                                                         |
+| WS-01   | First chat from the default config                                | `defaultConfig` not wired in the container                      |
+| WS-03   | File count                                                        | no test (M22)                                                   |
+| WS-03   | Second start ignored; cancelled state                             | pass without it (M25)                                           |
+| WS-03   | Quit mid-setup text (`SETUP_INTERRUPTED_MESSAGE`), `readSetupLog` | no test                                                         |
+| WS-03   | `cp` failure warning, symlinks, 256 KiB boundary                  | no test                                                         |
+| NAV-02  | Active tab restored after restart                                 | no test (M26)                                                   |
+| NAV-07  | `project.add` mounted in the container; whole requirement table   | no test (L14)                                                   |
+| DATA-05 | Actions and env written; sorted keys; workspace layer             | no test, or passes without it (M19, M21)                        |
+| DATA-05 | "Failed to save setting"                                          | message passes without it (M20)                                 |
+| DATA-05 | Writing adds git exclude lines                                    | create path only (M21)                                          |
+| DATA-05 | Remote default branch layer                                       | passes with a wrong ref string (fake ignores args)              |
+| APP-13  | `copyText`                                                        | the test cites a feature whose checklist does not hold the item |
 
 Rows `stub` with code and tests landed:
 
-| Feature | Item | Gap |
-| --- | --- | --- |
-| GIT-06 | Up-to-date toast | passes without it (M32b) |
-| GIT-06 | Second request ignored (rename, merge, set target) | push and pull only (M16) |
-| GIT-09 | Keep old remote branch and warn | warning has no code or test |
-| GIT-08 | View fails; MERGED/DRAFT states | no test |
-| GIT-13 | Fetch at most once a minute | tested; no production caller |
-| REV-05 | Review model, edit before sending, `customPromptOf` wiring | no test in this area |
-| REV-09 | Wait budget for refs; 200-file cap | only `waits > 0`; cap no test |
-| PR-03 | By-branch answer shape; keeps last PR; rate limit wiring; 10 s timeout; 5 min memory expiry | M12, M13, M14, L1 |
-| PR-03 | Closed PR shown only while head matches (positive case) | no test (M17) |
-| PR-03 | PR state in header and sidebar updates after a poll | no test (M4, M15) |
-| PR-11 | gh failure on lists; odd ids | no test (L8) |
-| PRJ-02 | Clone streaming; clone double click; leftovers | M29 |
-| WS-05 | Trash fallback, remove failure, double archive, errors reach the user | M24, M3 |
-| RUN-01 | Run exit settles state; archive stops runs; default action rule; validation messages | M28, M24 |
-| RUN-01 | Run environment `TERM`, `COLORTERM` | no test (L15) |
-| RUN-07 | Rendered output stays after exit, then saved history | passes without it against real Rust (M8) |
-| RUN-07 | "up to 1000 lines" cap | cap untested |
-| NAV-04 | Delete section returns workspaces (DB cascade); pin persisted; move out of a section | store only (M26) |
-| NAV-11 | Fallback when the store has no open chat; waiting-flag from the card branch | no test (M35b) |
-| CHAT-19 | Hidden chat never notifies; tool approvals while viewing | L9 |
-| CHAT-27 | "Retry in new chat" | tests likely fail (M7); "retrying n/m", "Retry now" are unbuilt |
-| PLAT-21 | Scan every 10 s; manager started at launch | no test, not constructed (M41) |
-| SIDE-24 | Title and branch cuts, New chat, fastMode, model-missing | no test (L10) |
-| RUN-03 | Last block boundary, unknown variable text | L15 |
+| Feature | Item                                                                                        | Gap                                                             |
+| ------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| GIT-06  | Up-to-date toast                                                                            | passes without it (M32b)                                        |
+| GIT-06  | Second request ignored (rename, merge, set target)                                          | push and pull only (M16)                                        |
+| GIT-09  | Keep old remote branch and warn                                                             | warning has no code or test                                     |
+| GIT-08  | View fails; MERGED/DRAFT states                                                             | no test                                                         |
+| GIT-13  | Fetch at most once a minute                                                                 | tested; no production caller                                    |
+| REV-05  | Review model, edit before sending, `customPromptOf` wiring                                  | no test in this area                                            |
+| REV-09  | Wait budget for refs; 200-file cap                                                          | only `waits > 0`; cap no test                                   |
+| PR-03   | By-branch answer shape; keeps last PR; rate limit wiring; 10 s timeout; 5 min memory expiry | M12, M13, M14, L1                                               |
+| PR-03   | Closed PR shown only while head matches (positive case)                                     | no test (M17)                                                   |
+| PR-03   | PR state in header and sidebar updates after a poll                                         | no test (M4, M15)                                               |
+| PR-11   | gh failure on lists; odd ids                                                                | no test (L8)                                                    |
+| PRJ-02  | Clone streaming; clone double click; leftovers                                              | M29                                                             |
+| WS-05   | Trash fallback, remove failure, double archive, errors reach the user                       | M24, M3                                                         |
+| RUN-01  | Run exit settles state; archive stops runs; default action rule; validation messages        | M28, M24                                                        |
+| RUN-01  | Run environment `TERM`, `COLORTERM`                                                         | no test (L15)                                                   |
+| RUN-07  | Rendered output stays after exit, then saved history                                        | passes without it against real Rust (M8)                        |
+| RUN-07  | "up to 1000 lines" cap                                                                      | cap untested                                                    |
+| NAV-04  | Delete section returns workspaces (DB cascade); pin persisted; move out of a section        | store only (M26)                                                |
+| NAV-11  | Fallback when the store has no open chat; waiting-flag from the card branch                 | no test (M35b)                                                  |
+| CHAT-19 | Hidden chat never notifies; tool approvals while viewing                                    | L9                                                              |
+| CHAT-27 | "Retry in new chat"                                                                         | tests likely fail (M7); "retrying n/m", "Retry now" are unbuilt |
+| PLAT-21 | Scan every 10 s; manager started at launch                                                  | no test, not constructed (M41)                                  |
+| SIDE-24 | Title and branch cuts, New chat, fastMode, model-missing                                    | no test (L10)                                                   |
+| RUN-03  | Last block boundary, unknown variable text                                                  | L15                                                             |
 
 ## 6. Missing test layers
 
@@ -553,29 +553,29 @@ Concurrency tests missing: two overlapping cancels; two creates of a PR; two clo
 
 ### Deterministic checks a script could run
 
-| Check | What it flags in this area today |
-| --- | --- |
-| Test file with no `expect(` | none (all 75 files have assertions) |
-| Test whose every `expect` is on a `vi.fn` the test configured | none found; 9 call-argument asserts at agent-catalog.test.ts:67,127,140,161 and chat-02:331,408,427,444 are effects at a port (acceptable) |
-| `vi.mock` of the file under test | none |
-| Dependency cast `as unknown as <Name>Deps` or `{} as never` in a service test | sessions area 10 sites in 8 files; settings area 7 in settings.test.ts plus 4 in terminals, 1 each in keep-awake and updates; git area 15 `as never` in 9 files (`cache`, `agent`); GitHub area 15; workspace area 17 in 13 files |
-| `GitRunner`/`Shell`/`fs` object literal defined in a test file (instead of `src/test/`) | about 22 git runner fakes; two `makeRunner`, two `makeGit`; `fakeFs` in composer.test.ts and settings.test.ts; `class NodeDatabase implements Database` copies at sessions.chat-02:25, sessions.chat-05:33, follow-up-queue.chat-05:31 |
-| `withWorktreeLock: (_x, work) => work()` pass-through | 10 files in the git area; only git-09 records it |
-| Fake method returning `ok(...)` for a source method whose body is `notImplemented` | 9 sites in 5 files (M6); `getScreenState`/`setScreenState` in terminals tests (M8) |
-| `expect(UPPER_CASE_CONST).toBe(literal)` | pr-polling.pr-03.test.ts:78, workspace.setup.test.ts:386,395, git.git-06.test.ts:323 |
-| `new Promise(() => undefined)` fake with no test that resolves it | run-scripts.run-01.test.ts:127,294,318,340,399,416 |
-| `setTimeout(`/`sleep`/`Date.now()` without fake timers | composer.test.ts:135 (13 uses), sections.test.ts:198, github.pr-03.test.ts:155 `Date.now()` |
-| Microtask-count settle (`for ... await Promise.resolve()`) | git.test.ts:121-123, github.pr-03.test.ts:160-162, sessions.chat-05.test.ts:170-173 |
-| Loop with `expect` inside and no non-empty guard | git.rev-01.test.ts:145-148,161-163 |
-| `start()` or timer in a test with no `afterEach` stop | settings.test.ts (13 `start()` on success paths only), repo.config.test.ts:299-315 |
-| Declared failure switch never turned on | composer.test.ts:46,88 (`fail.mkdirp`), workspace.ws-05 harness `worktreeRemoveCode`/`trashed`, turn-builder.test.ts:54 `"interrupted"` |
-| Public service method or exported function whose only references are tests | `GitService.watch`, `fetchIfStale`, `CheckpointService.exists/changesForTurn/changedSince`, `GithubService.watch`/`pollNow`, `onMerged` dep, `pollSkipReason`, `nextBatchSizes`, `effectiveBatchSize`, `initialBatchSizes`, `RateLimitGate.decide`, `summarizeChecks`, `PULL_UP_TO_DATE_MESSAGE`, `getForRepo`/`setForRepo`/`resetForRepo`, `KeepAwakeService`, run-scripts `onSetupFinished`/`stopAllForRepository`/`isBusy`/`lastRunId`/`clearRuns`, `FollowUpQueue` pure helpers, `ChatTitleService`, `classifyAttachment`/`convertsToAttachment` |
-| Dependency declared in a Deps type and never read in the service | `onMerged`, `cache` in `GithubServiceDeps`; `composer.clearDraft`, `queue.release`, `notifications.onLiveStateChanged` in `SessionsServiceDeps`; `cache` in `GitService` |
-| Two test files for one source with the same `it` titles | pr-polling.test.ts vs pr-polling.pr-03.test.ts (about 5), pr-mapping `summarizeChecks` (2) |
-| Test file with no feature id in `describe` or title | ports.test.ts (7 tests), transcript.test.ts, follow-up-queue.test.ts, 11 sessions-area files with no `@feature` header |
-| Fixture built by `JSON.stringify` for gh/GraphQL output with no captured file | github.pr-03.test.ts:29-93, github.pr-11.test.ts:132-164, github.test.ts:117-122 |
-| Backlog row `done` and an issue checklist item mapped to `none` | the `done` rows in section 5; this needs the checklist map as a data file, so the check can run (the issue bodies hold the checklists) |
-| Source file in `core/services` with a `notImplemented` call reachable from `container.ts` start-up | `spotlight.healAfterCrash`, `updates.check`, `workspace.removeWorkspacesOf`, terminals `getScreenState`/`setScreenState` |
+| Check                                                                                              | What it flags in this area today                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Test file with no `expect(`                                                                        | none (all 75 files have assertions)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Test whose every `expect` is on a `vi.fn` the test configured                                      | none found; 9 call-argument asserts at agent-catalog.test.ts:67,127,140,161 and chat-02:331,408,427,444 are effects at a port (acceptable)                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `vi.mock` of the file under test                                                                   | none                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Dependency cast `as unknown as <Name>Deps` or `{} as never` in a service test                      | sessions area 10 sites in 8 files; settings area 7 in settings.test.ts plus 4 in terminals, 1 each in keep-awake and updates; git area 15 `as never` in 9 files (`cache`, `agent`); GitHub area 15; workspace area 17 in 13 files                                                                                                                                                                                                                                                                                                                    |
+| `GitRunner`/`Shell`/`fs` object literal defined in a test file (instead of `src/test/`)            | about 22 git runner fakes; two `makeRunner`, two `makeGit`; `fakeFs` in composer.test.ts and settings.test.ts; `class NodeDatabase implements Database` copies at sessions.chat-02:25, sessions.chat-05:33, follow-up-queue.chat-05:31                                                                                                                                                                                                                                                                                                               |
+| `withWorktreeLock: (_x, work) => work()` pass-through                                              | 10 files in the git area; only git-09 records it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Fake method returning `ok(...)` for a source method whose body is `notImplemented`                 | 9 sites in 5 files (M6); `getScreenState`/`setScreenState` in terminals tests (M8)                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `expect(UPPER_CASE_CONST).toBe(literal)`                                                           | pr-polling.pr-03.test.ts:78, workspace.setup.test.ts:386,395, git.git-06.test.ts:323                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `new Promise(() => undefined)` fake with no test that resolves it                                  | run-scripts.run-01.test.ts:127,294,318,340,399,416                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `setTimeout(`/`sleep`/`Date.now()` without fake timers                                             | composer.test.ts:135 (13 uses), sections.test.ts:198, github.pr-03.test.ts:155 `Date.now()`                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Microtask-count settle (`for ... await Promise.resolve()`)                                         | git.test.ts:121-123, github.pr-03.test.ts:160-162, sessions.chat-05.test.ts:170-173                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Loop with `expect` inside and no non-empty guard                                                   | git.rev-01.test.ts:145-148,161-163                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `start()` or timer in a test with no `afterEach` stop                                              | settings.test.ts (13 `start()` on success paths only), repo.config.test.ts:299-315                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Declared failure switch never turned on                                                            | composer.test.ts:46,88 (`fail.mkdirp`), workspace.ws-05 harness `worktreeRemoveCode`/`trashed`, turn-builder.test.ts:54 `"interrupted"`                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Public service method or exported function whose only references are tests                         | `GitService.watch`, `fetchIfStale`, `CheckpointService.exists/changesForTurn/changedSince`, `GithubService.watch`/`pollNow`, `onMerged` dep, `pollSkipReason`, `nextBatchSizes`, `effectiveBatchSize`, `initialBatchSizes`, `RateLimitGate.decide`, `summarizeChecks`, `PULL_UP_TO_DATE_MESSAGE`, `getForRepo`/`setForRepo`/`resetForRepo`, `KeepAwakeService`, run-scripts `onSetupFinished`/`stopAllForRepository`/`isBusy`/`lastRunId`/`clearRuns`, `FollowUpQueue` pure helpers, `ChatTitleService`, `classifyAttachment`/`convertsToAttachment` |
+| Dependency declared in a Deps type and never read in the service                                   | `onMerged`, `cache` in `GithubServiceDeps`; `composer.clearDraft`, `queue.release`, `notifications.onLiveStateChanged` in `SessionsServiceDeps`; `cache` in `GitService`                                                                                                                                                                                                                                                                                                                                                                             |
+| Two test files for one source with the same `it` titles                                            | pr-polling.test.ts vs pr-polling.pr-03.test.ts (about 5), pr-mapping `summarizeChecks` (2)                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Test file with no feature id in `describe` or title                                                | ports.test.ts (7 tests), transcript.test.ts, follow-up-queue.test.ts, 11 sessions-area files with no `@feature` header                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Fixture built by `JSON.stringify` for gh/GraphQL output with no captured file                      | github.pr-03.test.ts:29-93, github.pr-11.test.ts:132-164, github.test.ts:117-122                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Backlog row `done` and an issue checklist item mapped to `none`                                    | the `done` rows in section 5; this needs the checklist map as a data file, so the check can run (the issue bodies hold the checklists)                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Source file in `core/services` with a `notImplemented` call reachable from `container.ts` start-up | `spotlight.healAfterCrash`, `updates.check`, `workspace.removeWorkspacesOf`, terminals `getScreenState`/`setScreenState`                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 Each guard needs a sample it must flag, as `boundaries.test.ts` does.
 

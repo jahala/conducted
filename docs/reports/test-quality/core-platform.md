@@ -28,34 +28,34 @@ Judgement of the area. The inside of core is well tested: the async helpers, the
 
 Measured on main (slice 1 only) from `coverage/files.tsv` and `summary.md` (PR #298, desktop Vitest: 220 files, 2,853 tests, v8). The report covers every desktop test, so a file counts as covered when any test in the repo, including UI tests, runs it. Slice 2 files (`fuzzy.ts`, `snippets.ts`, `provider-keys.ts`, `backlog-workspaces.ts`, `lifetime.ts`) show low numbers only because their tests are not on main yet; I judged those by reading.
 
-| Folder | Files | Lines | Branches | Functions | Uncovered lines |
-| ------ | ----: | ----: | -------: | --------: | --------------: |
-| core/async | 6 | 97.6% | 89.6% | 100.0% | 3 |
-| core/status | 3 | 98.2% | 99.0% | 100.0% | 1 |
-| core/registries | 2 | 99.3% | 97.7% | 100.0% | 1 |
-| core/git | 8 | 93.6% | 81.8% | 77.6% | 43 |
-| core/sidecar | 4 | 93.4% | 76.8% | 87.7% | 20 |
-| core/db | 22 | 90.6% | 61.7% | 82.2% | 61 |
-| core (root) | 10 | 86.0% | 55.5% | 81.9% | 66 |
-| platform | 5 | 86.7% | 72.0% | 75.5% | 161 |
-| core/hooks | 15 | 80.2% | 59.3% | 56.8% | 50 |
+| Folder          | Files | Lines | Branches | Functions | Uncovered lines |
+| --------------- | ----: | ----: | -------: | --------: | --------------: |
+| core/async      |     6 | 97.6% |    89.6% |    100.0% |               3 |
+| core/status     |     3 | 98.2% |    99.0% |    100.0% |               1 |
+| core/registries |     2 | 99.3% |    97.7% |    100.0% |               1 |
+| core/git        |     8 | 93.6% |    81.8% |     77.6% |              43 |
+| core/sidecar    |     4 | 93.4% |    76.8% |     87.7% |              20 |
+| core/db         |    22 | 90.6% |    61.7% |     82.2% |              61 |
+| core (root)     |    10 | 86.0% |    55.5% |     81.9% |              66 |
+| platform        |     5 | 86.7% |    72.0% |     75.5% |             161 |
+| core/hooks      |    15 | 80.2% |    59.3% |     56.8% |              50 |
 
 Least covered files that matter (lines, branches, uncovered lines):
 
-| File | Lines | Branches | Uncovered |
-| ---- | ----: | -------: | --------: |
-| `core/hooks/terminals.ts` | 48.0% | 18.8% | 13 |
-| `core/hooks/commands.ts` | 63.6% | 100% | 4 |
-| `core/hooks/github.ts` | 64.3% | 0% | 5 |
-| `core/hooks/workspaces.ts` | 68.2% | 46.0% | 21 |
-| `core/container.ts` | 73.8% | 46.2% | 60 |
-| `platform/tauri.ts` | 73.9% | 78.5% | 93 |
-| `core/git/gh-commands.ts` | 78.6% | 61.5% | 12 |
-| `core/db/terminals.ts` | 78.6% | 50.0% | 6 |
-| `core/db/attachments.ts` | 81.3% | 45.5% | 6 |
-| `platform/memory.ts` | 87.6% | 68.0% | 53 |
-| `core/sidecar/handlers.ts` | 60.9% | 100% | 9 (the four `notImplemented` stubs and unused branches; slice-2 handlers) |
-| `main.tsx` (outside my area) | 39.1% | 23.5% | 42 |
+| File                         | Lines | Branches |                                                                 Uncovered |
+| ---------------------------- | ----: | -------: | ------------------------------------------------------------------------: |
+| `core/hooks/terminals.ts`    | 48.0% |    18.8% |                                                                        13 |
+| `core/hooks/commands.ts`     | 63.6% |     100% |                                                                         4 |
+| `core/hooks/github.ts`       | 64.3% |       0% |                                                                         5 |
+| `core/hooks/workspaces.ts`   | 68.2% |    46.0% |                                                                        21 |
+| `core/container.ts`          | 73.8% |    46.2% |                                                                        60 |
+| `platform/tauri.ts`          | 73.9% |    78.5% |                                                                        93 |
+| `core/git/gh-commands.ts`    | 78.6% |    61.5% |                                                                        12 |
+| `core/db/terminals.ts`       | 78.6% |    50.0% |                                                                         6 |
+| `core/db/attachments.ts`     | 81.3% |    45.5% |                                                                         6 |
+| `platform/memory.ts`         | 87.6% |    68.0% |                                                                        53 |
+| `core/sidecar/handlers.ts`   | 60.9% |     100% | 9 (the four `notImplemented` stubs and unused branches; slice-2 handlers) |
+| `main.tsx` (outside my area) | 39.1% |    23.5% |                                                                        42 |
 
 What the numbers say:
 
@@ -64,14 +64,14 @@ What the numbers say:
 - Branch coverage under 62% in `core/db` (and 45 to 54% in `attachments.ts`, `sections.ts`, `workspaces.ts`, `favorite-models.ts`, `repair.ts`) points to error and "row not found" branches of the repositories. `repositories.test.ts` tests "missing row from every setter" for workspaces, repos, chats and others; the UI tests do not reach the rest.
 - No coverage number exists for `src/test/` (the report leaves it out by design).
 
-| File | What is untested |
-| ---- | ---------------- |
-| `platform/tauri.ts` adapters for attachments, http, keychain, menu, notifications, speech, updater | No test file calls them. Keychain, notifications and http are `notImplemented` placeholders (tauri.ts:864, 873, 1030), so the container and PR-01 (token in Keychain) rest on the stand-in. |
-| `platform/tauri.ts` window, app info, opener, programs | Only focus, quit, `openUrl` and `verificationErrors` are tested. `setZoom`, `setVibrancy`, `setTrafficLightPosition`, `setTheme`, `toggleInspector`, `health`, `writeLog`, `exportLogs`, `resourceUsage`, `openWith`, `installedApps`, `statuses`, `install` have no test. |
-| `core/db/lifetime.ts` | Statements are tested in `schema.test.ts`. `runDataLifetimeJob` and all five steps are placeholders (DATA-02 `stub`). |
-| `core/async/optimistic.ts` | Tested well, but no production code calls `createOptimisticStore` (M12). |
-| `core/hooks/*` | `useRunState`, `useRepoTerminals`, `useModels`, `useCommands`, `useFullDiskAccess`, `useAgentPrograms`, `useTerminalConnection` have no test in core. `useTerminals` and `useAgentInstalls` have none in core either. |
-| `core/sidecar/tunnel.ts` | The inbound request success path, invalid inbound params, bad inbound results and a send failure are untested (M14). |
+| File                                                                                               | What is untested                                                                                                                                                                                                                                                           |
+| -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `platform/tauri.ts` adapters for attachments, http, keychain, menu, notifications, speech, updater | No test file calls them. Keychain, notifications and http are `notImplemented` placeholders (tauri.ts:864, 873, 1030), so the container and PR-01 (token in Keychain) rest on the stand-in.                                                                                |
+| `platform/tauri.ts` window, app info, opener, programs                                             | Only focus, quit, `openUrl` and `verificationErrors` are tested. `setZoom`, `setVibrancy`, `setTrafficLightPosition`, `setTheme`, `toggleInspector`, `health`, `writeLog`, `exportLogs`, `resourceUsage`, `openWith`, `installedApps`, `statuses`, `install` have no test. |
+| `core/db/lifetime.ts`                                                                              | Statements are tested in `schema.test.ts`. `runDataLifetimeJob` and all five steps are placeholders (DATA-02 `stub`).                                                                                                                                                      |
+| `core/async/optimistic.ts`                                                                         | Tested well, but no production code calls `createOptimisticStore` (M12).                                                                                                                                                                                                   |
+| `core/hooks/*`                                                                                     | `useRunState`, `useRepoTerminals`, `useModels`, `useCommands`, `useFullDiskAccess`, `useAgentPrograms`, `useTerminalConnection` have no test in core. `useTerminals` and `useAgentInstalls` have none in core either.                                                      |
+| `core/sidecar/tunnel.ts`                                                                           | The inbound request success path, invalid inbound params, bad inbound results and a send failure are untested (M14).                                                                                                                                                       |
 
 ## 3. Findings
 
@@ -80,21 +80,23 @@ What the numbers say:
 **M1. The platform contract never runs against Tauri, and about a quarter of its cases test the script.**
 `platform/contract.ts:1-24` admits it: "until that job runs the contract proves the stand-in alone". `runPlatformContract` has one caller, `memory.test.ts:62`, with `{ controls: true }`. The backlog item "contract also runs against the Tauri implementation" is open (`docs/plans/items/system.tsv`, PLAT-01 and PLAT-02, status `missing`).
 What is wrong, with lines:
+
 - The five shell cases (`contract.ts:718-821`) call `scriptShell` with the exact answer they then assert. On the stand-in they check the script. The same holds for `pty.exit-code` (queued exit code 5, then asserts 5, line 990), `dialogs.*` (1183-1216), `notifications.badge` and `.click`, `clipboard.write-text`, `sidecar.line-roundtrip` and `window.focus-events`.
 - Cases the stand-in passes by construction: `http.invalid-url` (the stand-in's `http.fetch` returns Err for every URL, memory.ts:867), `updater.check` (always `ok(null)`), `opener.installed-apps` (always `[]`), `speech.available`, `system.*`, `programs.*`.
 - Counts: 58 cases, 17 marked `os`, 8 marked `controls`. Of the 91 methods on the Platform interface, 31 are never called by any case (for example `pty.resize`, `pty.screenSnapshot`, `fs` symlinks, `fileSearch.grep` success path, `opener.openWith`, `programs.redownload`, `http.download`, `app.exportLogs`).
 - `contract.test.ts` checks that each of the 20 groups has one case. It does not check methods. A group with one case counts as covered.
-Mutation missed: change `memory.ts` `shell.run` to return a different but still scripted-looking value for every command; make `http.fetch` succeed for everything except the literal "not a url". No contract test fails. Change `createTauriKeychain` from a placeholder to anything; no test calls it.
-Fix: run the contract over `createTauriPlatform` with fake bindings that are backed by Node: `fs` commands by `node:fs` in a run-owned folder, `sql.load` by `node:sqlite`, `shell_run` by `execFile`, `listen` by an in-process emitter. That honestly covers fs, db, shell (run, cwd, env, stdin, no shell string, timeout), sidecar ensure/send, app and window cases. Skip only the `os` cases that need Rust (pty, keychain, trash, dialogs), and print their count in the test output. Add a method-level check: every method of every Platform group must be named by at least one case or by an explicit `uncovered` list with a reason. Replace each "asserts what the test scripted" case on the stand-in with a case that asserts a property the stand-in has to compute (for example, the stand-in's `listTree` ignoring rules against a `.gitignore` with wildcards, negation and a nested file, to be compared with the Rust `ignore` crate once the contract runs there).
+  Mutation missed: change `memory.ts` `shell.run` to return a different but still scripted-looking value for every command; make `http.fetch` succeed for everything except the literal "not a url". No contract test fails. Change `createTauriKeychain` from a placeholder to anything; no test calls it.
+  Fix: run the contract over `createTauriPlatform` with fake bindings that are backed by Node: `fs` commands by `node:fs` in a run-owned folder, `sql.load` by `node:sqlite`, `shell_run` by `execFile`, `listen` by an in-process emitter. That honestly covers fs, db, shell (run, cwd, env, stdin, no shell string, timeout), sidecar ensure/send, app and window cases. Skip only the `os` cases that need Rust (pty, keychain, trash, dialogs), and print their count in the test output. Add a method-level check: every method of every Platform group must be named by at least one case or by an explicit `uncovered` list with a reason. Replace each "asserts what the test scripted" case on the stand-in with a case that asserts a property the stand-in has to compute (for example, the stand-in's `listTree` ignoring rules against a `.gitignore` with wildcards, negation and a nested file, to be compared with the Rust `ignore` crate once the contract runs there).
 
 **M2. The test database is a third, weaker database wrapper.**
 There are three: `test/sqlite.ts:54` (`NodeDatabase.transaction`), a private copy in `platform/memory.test.ts:12-42` (which has a promise chain but does not hold outside statements), and the app's `createTauriDatabase` (`platform/tauri.ts:419-540`), which runs every statement through one queue, refuses nested transactions, and rejects a handle used after commit. `openTestDatabase` backs `createTestContainer` and about 35 test files.
 Consequences:
+
 - A function that calls the outer `db.select` inside a `transaction(work)` callback works in every test (no queue) and hangs in the app (the select waits behind the transaction that waits for it). This is the shape of the slice-1 deadlock.
 - Two overlapping transactions throw "cannot start a transaction within a transaction" in tests, but queue in the app. `ingest.test.ts:293` ("lets another chat through in parallel") avoids this by holding the first chat before it opens a transaction, so overlapping transactions are never exercised.
 - `tauri-platform.test.ts` tests the wrapper against a hand-written `fakeSql` that records strings. The wrapper has never run on a real SQLite.
-Mutation missed: in `sidecar/ingest.ts`, inside `runInTransaction`, call `this.#deps.repositories().sessions.get(sessionId)` (the outer repositories) instead of `repos.sessions.get(...)`. Every ingest test passes on `NodeDatabase`. The app deadlocks on the first event.
-Fix: build `openTestDatabase` on the real wrapper: `createTauriDatabase({ sql: { load: async () => nodeSqlAdapter } })`, where the adapter implements `SqlDatabase` over `node:sqlite`. Delete the copy in `memory.test.ts`. Add a test in `sqlite.test.ts` that an outer `select` started inside a transaction callback does not complete until commit (assert by order, with the usual timeout as the only hang guard). Add an ingest test with two chats whose transactions really overlap.
+  Mutation missed: in `sidecar/ingest.ts`, inside `runInTransaction`, call `this.#deps.repositories().sessions.get(sessionId)` (the outer repositories) instead of `repos.sessions.get(...)`. Every ingest test passes on `NodeDatabase`. The app deadlocks on the first event.
+  Fix: build `openTestDatabase` on the real wrapper: `createTauriDatabase({ sql: { load: async () => nodeSqlAdapter } })`, where the adapter implements `SqlDatabase` over `node:sqlite`. Delete the copy in `memory.test.ts`. Add a test in `sqlite.test.ts` that an outer `select` started inside a transaction callback does not complete until commit (assert by order, with the usual timeout as the only hang guard). Add an ingest test with two chats whose transactions really overlap.
 
 **M3. Real startup is never run; the tests remove the parts that would fail.**
 `core/container.ts:547` runs `runDataLifetimeJob` as a start step. `core/db/lifetime.ts:222` is `notImplemented("DATA-02")`, which throws, so `start()` rejects (it is not a failed `Result`). `container.ts:594` calls `platform.notifications.onClicked(openLink)`, and the real Tauri `onClicked` is also a placeholder (`platform/tauri.ts:873`). `container.app-01.test.ts:20` and `sidecar/resume.container.chat-18.test.ts:18` both `vi.mock("./db/lifetime.ts")` to return `ok`. Both also spy on every service `start`. `stubStartup` replaces eight service starts, `sidecar.start` and `SessionResume.resume`, so the order test (`container.app-01.test.ts:158`) checks the container's step list, not the services behind it.
@@ -179,119 +181,119 @@ REAL: the test fails if the named behaviour breaks. WEAK: real in part. THEATER:
 
 ### core root and async
 
-| File | Verdict | Reason |
-| ---- | ------- | ------ |
-| `core/actions.test.ts` | WEAK | Counts calls only; a swapped action passes (M8). |
-| `core/app-paths.test.ts` | REAL | Exact paths are the contract with scripts and Rust. |
-| `core/async/backoff.test.ts` | REAL | Fake clock and `random`; cap, jitter, reset window, bad policy. Mutation: drop the cap `Math.min` and the 8,000 case fails. |
-| `core/async/fire-and-forget.test.ts` | REAL | Caller continues first; async and sync failures reported. |
-| `core/async/latest-wins.test.ts` | REAL | Late ticket, invalidate, keys, settle; the counter never revives an old ticket. |
-| `core/async/optimistic.test.ts` | REAL | Overlap, late older result dropped, push wins, rollback. The helper has no caller (M12). |
-| `core/async/serial-queue.test.ts` | REAL | Order, failure, barrier, idle-key cleanup at 5,000 keys. See L11. |
-| `core/async/single-flight.test.ts` | REAL | Shared result and failure, fresh run after, sync throw. |
-| `core/container.app-01.test.ts` | WEAK | Mocks the lifetime job, spies every service start; codec half untested (M3, L7). |
-| `core/container.github.test.ts` | REAL | Keychain token reaches `gh` env; settings choice reaches `GH_TOKEN`. Drop `keychain:` in the container and it fails. |
-| `core/container.nav-07.test.ts` | REAL | Each context flag read from the right store. |
-| `core/container.stop.app-01.test.ts` | REAL | Gated database; stop waits for an event being stored, ends a start in progress, runs every step. |
-| `core/context.test.tsx` | REAL | Small and sufficient. |
-| `core/fuzzy.test.ts` | WEAK | Boundary scoring claim untested (L1). |
-| `core/lookups.test.ts` | REAL | Error values for unknown ids, remote from config, no guessing before load. |
-| `core/workspace-open.test.ts` | REAL | Every state and the archived date. |
+| File                                 | Verdict | Reason                                                                                                                      |
+| ------------------------------------ | ------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `core/actions.test.ts`               | WEAK    | Counts calls only; a swapped action passes (M8).                                                                            |
+| `core/app-paths.test.ts`             | REAL    | Exact paths are the contract with scripts and Rust.                                                                         |
+| `core/async/backoff.test.ts`         | REAL    | Fake clock and `random`; cap, jitter, reset window, bad policy. Mutation: drop the cap `Math.min` and the 8,000 case fails. |
+| `core/async/fire-and-forget.test.ts` | REAL    | Caller continues first; async and sync failures reported.                                                                   |
+| `core/async/latest-wins.test.ts`     | REAL    | Late ticket, invalidate, keys, settle; the counter never revives an old ticket.                                             |
+| `core/async/optimistic.test.ts`      | REAL    | Overlap, late older result dropped, push wins, rollback. The helper has no caller (M12).                                    |
+| `core/async/serial-queue.test.ts`    | REAL    | Order, failure, barrier, idle-key cleanup at 5,000 keys. See L11.                                                           |
+| `core/async/single-flight.test.ts`   | REAL    | Shared result and failure, fresh run after, sync throw.                                                                     |
+| `core/container.app-01.test.ts`      | WEAK    | Mocks the lifetime job, spies every service start; codec half untested (M3, L7).                                            |
+| `core/container.github.test.ts`      | REAL    | Keychain token reaches `gh` env; settings choice reaches `GH_TOKEN`. Drop `keychain:` in the container and it fails.        |
+| `core/container.nav-07.test.ts`      | REAL    | Each context flag read from the right store.                                                                                |
+| `core/container.stop.app-01.test.ts` | REAL    | Gated database; stop waits for an event being stored, ends a start in progress, runs every step.                            |
+| `core/context.test.tsx`              | REAL    | Small and sufficient.                                                                                                       |
+| `core/fuzzy.test.ts`                 | WEAK    | Boundary scoring claim untested (L1).                                                                                       |
+| `core/lookups.test.ts`               | REAL    | Error values for unknown ids, remote from config, no guessing before load.                                                  |
+| `core/workspace-open.test.ts`        | REAL    | Every state and the archived date.                                                                                          |
 
 ### core/db
 
-| File | Verdict | Reason |
-| ---- | ------- | ------ |
-| `core/db/schema.test.ts` | REAL | Every statement prepared against the real migrations; round trips; idempotent append; compare-and-set. |
-| `core/db/rows.test.ts` | REAL | Row codec both ways, bad JSON as `Err`. |
-| `core/db/repositories.test.ts` | REAL | Real SQLite; ids and time injected; missing rows from every setter. No real size (M7). |
-| `core/db/repair.test.ts` | REAL | Crashed database fixture, second run is a no-op, atomic on failure. |
-| `core/db/backlog-workspaces.test.ts` | REAL | Mapping errors, ordering, cascade. |
-| `core/db/provider-keys.test.ts` | REAL | Empty-string agent, Keychain reference rule. |
-| `core/db/snippets.test.ts` | REAL | Duplicate keyword rules, case-insensitive listing. |
-| `core/db/migration-0004.test.ts` | WEAK | Fresh database only (M4). |
+| File                                 | Verdict | Reason                                                                                                 |
+| ------------------------------------ | ------- | ------------------------------------------------------------------------------------------------------ |
+| `core/db/schema.test.ts`             | REAL    | Every statement prepared against the real migrations; round trips; idempotent append; compare-and-set. |
+| `core/db/rows.test.ts`               | REAL    | Row codec both ways, bad JSON as `Err`.                                                                |
+| `core/db/repositories.test.ts`       | REAL    | Real SQLite; ids and time injected; missing rows from every setter. No real size (M7).                 |
+| `core/db/repair.test.ts`             | REAL    | Crashed database fixture, second run is a no-op, atomic on failure.                                    |
+| `core/db/backlog-workspaces.test.ts` | REAL    | Mapping errors, ordering, cascade.                                                                     |
+| `core/db/provider-keys.test.ts`      | REAL    | Empty-string agent, Keychain reference rule.                                                           |
+| `core/db/snippets.test.ts`           | REAL    | Duplicate keyword rules, case-insensitive listing.                                                     |
+| `core/db/migration-0004.test.ts`     | WEAK    | Fresh database only (M4).                                                                              |
 
 ### core/git
 
-| File | Verdict | Reason |
-| ---- | ------- | ------ |
-| `core/git/runner.test.ts` | REAL | Retries at 50, 100 and 200 ms with an injected `sleep`, HTTPS fallback, lock order, warm timer. |
-| `core/git/status.test.ts` | REAL | Parsers and failure paths on a scripted runner. |
-| `core/git/status.real-git.test.ts` | REAL | The only real-git test; one scenario (L9). |
-| `core/git/diff.test.ts` | REAL | Comparison rules. |
-| `core/git/refs.test.ts` | REAL | Ref names are a contract with `checkpointer.sh`. |
-| `core/git/rename.test.ts` | REAL | Scripted, covers failed checks. |
-| `core/git/locks.test.ts` | REAL | Three of four tests duplicate `serial-queue.test.ts` (L4). |
-| `core/git/commands.test.ts` | WEAK | Argument arrays copied from the source; never run under git (M11). |
-| `core/git/gh-commands.test.ts` | WEAK | Same. The "pins to the head commit" cases are good but unproven against `gh`. |
-| `core/git/worktree.test.ts` | WEAK | Scripted answers, call-order pins, own `GitRunner` and `FileSystem` copies (M11). |
-| `core/git/worktree.ws-05.test.ts` | WEAK | Exit codes 101 and 102 of `checkpointer.sh` are assumed (M11). |
-| `core/git/xcode-license.test.ts` | REAL | One tautological assertion (L8). |
+| File                               | Verdict | Reason                                                                                          |
+| ---------------------------------- | ------- | ----------------------------------------------------------------------------------------------- |
+| `core/git/runner.test.ts`          | REAL    | Retries at 50, 100 and 200 ms with an injected `sleep`, HTTPS fallback, lock order, warm timer. |
+| `core/git/status.test.ts`          | REAL    | Parsers and failure paths on a scripted runner.                                                 |
+| `core/git/status.real-git.test.ts` | REAL    | The only real-git test; one scenario (L9).                                                      |
+| `core/git/diff.test.ts`            | REAL    | Comparison rules.                                                                               |
+| `core/git/refs.test.ts`            | REAL    | Ref names are a contract with `checkpointer.sh`.                                                |
+| `core/git/rename.test.ts`          | REAL    | Scripted, covers failed checks.                                                                 |
+| `core/git/locks.test.ts`           | REAL    | Three of four tests duplicate `serial-queue.test.ts` (L4).                                      |
+| `core/git/commands.test.ts`        | WEAK    | Argument arrays copied from the source; never run under git (M11).                              |
+| `core/git/gh-commands.test.ts`     | WEAK    | Same. The "pins to the head commit" cases are good but unproven against `gh`.                   |
+| `core/git/worktree.test.ts`        | WEAK    | Scripted answers, call-order pins, own `GitRunner` and `FileSystem` copies (M11).               |
+| `core/git/worktree.ws-05.test.ts`  | WEAK    | Exit codes 101 and 102 of `checkpointer.sh` are assumed (M11).                                  |
+| `core/git/xcode-license.test.ts`   | REAL    | One tautological assertion (L8).                                                                |
 
 ### core/hooks
 
-| File | Verdict | Reason |
-| ---- | ------- | ------ |
-| `core/hooks.chats.test.tsx` | REAL | Re-render isolation is asserted by render count; hand-built container (L5). |
-| `core/hooks.repos.test.tsx` | REAL | Hand-built container (L5). |
-| `core/hooks.repo-config.test.tsx` | REAL | Hand-built container; `vi.fn` for load. |
-| `core/hooks.nav-07.test.tsx` | REAL | Real settings service, rebinding changes the hint. |
-| `core/hooks.settings.test.tsx` | REAL | Default before load, follows the store. |
-| `core/hooks.system.plat-32.test.tsx` | REAL | Real hook and service over the stand-in; error message is the service's own. |
-| `core/hooks.workspace-status.test.tsx` | REAL | Real services, status follows each store (M14). |
-| `core/hooks.rev-01.test.tsx` | WEAK | `vi.fn` service, hand-built container, result is what the mock returned. |
-| `core/hooks.rev-02.test.tsx` | WEAK | Asserts the error text the test supplied ("nope"). The whitespace argument assertion is real. |
-| `core/hooks/git.git-04.test.tsx` | REAL | Real test container, real `stateOf`. |
-| `core/hooks/github.pr-11.test.tsx` | WEAK | Hand-built container, `vi.fn` services; the "no request without a remote" cases are real. |
-| `core/hooks/sections.nav-04.test.tsx` | REAL | Thin but correct. |
+| File                                   | Verdict | Reason                                                                                        |
+| -------------------------------------- | ------- | --------------------------------------------------------------------------------------------- |
+| `core/hooks.chats.test.tsx`            | REAL    | Re-render isolation is asserted by render count; hand-built container (L5).                   |
+| `core/hooks.repos.test.tsx`            | REAL    | Hand-built container (L5).                                                                    |
+| `core/hooks.repo-config.test.tsx`      | REAL    | Hand-built container; `vi.fn` for load.                                                       |
+| `core/hooks.nav-07.test.tsx`           | REAL    | Real settings service, rebinding changes the hint.                                            |
+| `core/hooks.settings.test.tsx`         | REAL    | Default before load, follows the store.                                                       |
+| `core/hooks.system.plat-32.test.tsx`   | REAL    | Real hook and service over the stand-in; error message is the service's own.                  |
+| `core/hooks.workspace-status.test.tsx` | REAL    | Real services, status follows each store (M14).                                               |
+| `core/hooks.rev-01.test.tsx`           | WEAK    | `vi.fn` service, hand-built container, result is what the mock returned.                      |
+| `core/hooks.rev-02.test.tsx`           | WEAK    | Asserts the error text the test supplied ("nope"). The whitespace argument assertion is real. |
+| `core/hooks/git.git-04.test.tsx`       | REAL    | Real test container, real `stateOf`.                                                          |
+| `core/hooks/github.pr-11.test.tsx`     | WEAK    | Hand-built container, `vi.fn` services; the "no request without a remote" cases are real.     |
+| `core/hooks/sections.nav-04.test.tsx`  | REAL    | Thin but correct.                                                                             |
 
 ### core/registries, status, sidecar
 
-| File | Verdict | Reason |
-| ---- | ------- | ------ |
-| `core/registries/commands.test.ts` | REAL | Shortcut parsing, conflicts, overrides, fixed commands. Some pinned data (L13). |
-| `core/registries/settings.test.ts` | REAL | Table invariants and coercion. Some pinned data (L13). |
-| `core/registries/consumption.test.ts` | WEAK | Fails when RUN-01 ships; exact lists (M9). |
-| `core/status/git-header.test.ts` | REAL | One huge `it` (L14). |
-| `core/status/pull-request-status.test.ts` | REAL | Closed or merged never reads as failing or ready. |
-| `core/status/workspace-status.test.ts` | REAL | Full priority order. |
-| `core/sidecar/tunnel.chat-18.test.ts` | WEAK | Strong outbound and reconnect tests; inbound validation missing (M13). Kept WEAK because the protocol boundary is the named focus. |
-| `core/sidecar/ingest.test.ts` | WEAK | Real SQLite and strong on order, idempotence, rollback, logger failure; never overlaps transactions (M2) and has no real size (M7). |
-| `core/sidecar/resume.chat-18.test.ts` | REAL | Real repositories and sessions service; stale status answer dropped; reconnect re-run. |
-| `core/sidecar/resume.container.chat-18.test.ts` | REAL | Real container, real handlers, restart then interrupted turn stored. (Mocks the lifetime job, M3.) |
-| `core/sidecar/handlers.chat-18.test.ts` | REAL | `persisted: false` on failure; thrown errors for the tunnel to log. |
-| `core/sidecar/handlers.git-08.test.ts` | REAL | Both result shapes. |
-| `core/sidecar/handlers.rev-01.test.ts` | REAL | Failed diff becomes text. |
-| `core/sidecar/handlers.run-07.test.ts` | REAL | Arguments and text fallback. |
-| `core/sidecar/handlers.side-20.test.ts` | REAL | Stored and thrown. |
-| `core/sidecar/handlers.chat-10.test.ts` | WEAK | Forwarding check against a `vi.fn` (L10). |
-| `core/sidecar/handlers.chat-11.test.ts` | WEAK | Same. |
+| File                                            | Verdict | Reason                                                                                                                              |
+| ----------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `core/registries/commands.test.ts`              | REAL    | Shortcut parsing, conflicts, overrides, fixed commands. Some pinned data (L13).                                                     |
+| `core/registries/settings.test.ts`              | REAL    | Table invariants and coercion. Some pinned data (L13).                                                                              |
+| `core/registries/consumption.test.ts`           | WEAK    | Fails when RUN-01 ships; exact lists (M9).                                                                                          |
+| `core/status/git-header.test.ts`                | REAL    | One huge `it` (L14).                                                                                                                |
+| `core/status/pull-request-status.test.ts`       | REAL    | Closed or merged never reads as failing or ready.                                                                                   |
+| `core/status/workspace-status.test.ts`          | REAL    | Full priority order.                                                                                                                |
+| `core/sidecar/tunnel.chat-18.test.ts`           | WEAK    | Strong outbound and reconnect tests; inbound validation missing (M13). Kept WEAK because the protocol boundary is the named focus.  |
+| `core/sidecar/ingest.test.ts`                   | WEAK    | Real SQLite and strong on order, idempotence, rollback, logger failure; never overlaps transactions (M2) and has no real size (M7). |
+| `core/sidecar/resume.chat-18.test.ts`           | REAL    | Real repositories and sessions service; stale status answer dropped; reconnect re-run.                                              |
+| `core/sidecar/resume.container.chat-18.test.ts` | REAL    | Real container, real handlers, restart then interrupted turn stored. (Mocks the lifetime job, M3.)                                  |
+| `core/sidecar/handlers.chat-18.test.ts`         | REAL    | `persisted: false` on failure; thrown errors for the tunnel to log.                                                                 |
+| `core/sidecar/handlers.git-08.test.ts`          | REAL    | Both result shapes.                                                                                                                 |
+| `core/sidecar/handlers.rev-01.test.ts`          | REAL    | Failed diff becomes text.                                                                                                           |
+| `core/sidecar/handlers.run-07.test.ts`          | REAL    | Arguments and text fallback.                                                                                                        |
+| `core/sidecar/handlers.side-20.test.ts`         | REAL    | Stored and thrown.                                                                                                                  |
+| `core/sidecar/handlers.chat-10.test.ts`         | WEAK    | Forwarding check against a `vi.fn` (L10).                                                                                           |
+| `core/sidecar/handlers.chat-11.test.ts`         | WEAK    | Same.                                                                                                                               |
 
 ### platform
 
-| File | Verdict | Reason |
-| ---- | ------- | ------ |
-| `platform/contract.test.ts` | WEAK | Group-level check only; contract never run on Tauri (M1). |
-| `platform/memory.test.ts` | WEAK | Runs the contract on the stand-in; its own database copy differs from the app's (M1, M2). The eight stand-in tests are real. |
-| `platform/system.plat-32.test.ts` | THEATER | Two stand-in tests test the stand-in (M6); two Tauri tests are pass-through. |
-| `platform/tauri-platform.test.ts` | REAL | The database wrapper queue, merge, nested and closed-handle rules are tested with ordering and gates. Scripted `fakeSql` only (M2). |
-| `platform/tauri-pty.test.ts` | REAL | Exit before the spawn answer, foreign exit ignored, listener released. |
-| `platform/tauri-sidecar.test.ts` | REAL | Unsubscribe before listen resolves, failed listen. |
-| `platform/tauri-window.test.ts` | REAL | Focus events only (section 2). |
-| `platform/shell.test.ts` | REAL | `done` event routing, failed listen retried. |
-| `platform/tauri.test.ts` | REAL | Error mapping, `invokeResult`, health. |
-| `platform/tauri.verification.test.ts` | REAL | Error is thrown, not turned into an empty list. |
-| `platform/tauri-file-search.test.ts` | WEAK | Returns what the test handed it; command names from the constants (L2). |
-| `platform/login-env.test.ts` | WEAK | Same (L2). |
+| File                                  | Verdict | Reason                                                                                                                              |
+| ------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `platform/contract.test.ts`           | WEAK    | Group-level check only; contract never run on Tauri (M1).                                                                           |
+| `platform/memory.test.ts`             | WEAK    | Runs the contract on the stand-in; its own database copy differs from the app's (M1, M2). The eight stand-in tests are real.        |
+| `platform/system.plat-32.test.ts`     | THEATER | Two stand-in tests test the stand-in (M6); two Tauri tests are pass-through.                                                        |
+| `platform/tauri-platform.test.ts`     | REAL    | The database wrapper queue, merge, nested and closed-handle rules are tested with ordering and gates. Scripted `fakeSql` only (M2). |
+| `platform/tauri-pty.test.ts`          | REAL    | Exit before the spawn answer, foreign exit ignored, listener released.                                                              |
+| `platform/tauri-sidecar.test.ts`      | REAL    | Unsubscribe before listen resolves, failed listen.                                                                                  |
+| `platform/tauri-window.test.ts`       | REAL    | Focus events only (section 2).                                                                                                      |
+| `platform/shell.test.ts`              | REAL    | `done` event routing, failed listen retried.                                                                                        |
+| `platform/tauri.test.ts`              | REAL    | Error mapping, `invokeResult`, health.                                                                                              |
+| `platform/tauri.verification.test.ts` | REAL    | Error is thrown, not turned into an empty list.                                                                                     |
+| `platform/tauri-file-search.test.ts`  | WEAK    | Returns what the test handed it; command names from the constants (L2).                                                             |
+| `platform/login-env.test.ts`          | WEAK    | Same (L2).                                                                                                                          |
 
 ### test kit
 
-| File | Verdict | Reason |
-| ---- | ------- | ------ |
-| `test/sqlite.test.ts` | REAL | Foreign keys, rollback, isolation. Does not compare with the real wrapper (M2). |
-| `test/container.test.ts` | WEAK | Hand list of services, `toBeDefined` (L7); seed ids not deterministic (M10). |
-| `test/container.jsdom.test.tsx` | REAL | The container renders a seeded workspace under jsdom. |
-| `test/setup.test.tsx` | REAL | The polyfills load without a manual import. |
+| File                            | Verdict | Reason                                                                          |
+| ------------------------------- | ------- | ------------------------------------------------------------------------------- |
+| `test/sqlite.test.ts`           | REAL    | Foreign keys, rollback, isolation. Does not compare with the real wrapper (M2). |
+| `test/container.test.ts`        | WEAK    | Hand list of services, `toBeDefined` (L7); seed ids not deterministic (M10).    |
+| `test/container.jsdom.test.tsx` | REAL    | The container renders a seeded workspace under jsdom.                           |
+| `test/setup.test.tsx`           | REAL    | The polyfills load without a manual import.                                     |
 
 Counts check: REAL 59, WEAK 21, THEATER 1 (81 files, one row each).
 
@@ -299,57 +301,57 @@ Counts check: REAL 59, WEAK 21, THEATER 1 (81 files, one row each).
 
 Source: issue checklists (`gh issue view`: PLAT-01 #7, APP-11 #238, APP-01 #228, DATA-03 #86, DATA-04 #87, CHAT-18 #141, PLAT-02 #8, GIT-01 #177, DATA-01 #84, WS-09 #106, NAV-07 #115, SET-01 #215) and `docs/plans/items/system.tsv`. Items with a failing test are not listed.
 
-| Feature | Item | Gap |
-| ------- | ---- | --- |
-| PLAT-01 | The Platform contract runs against the real Tauri implementation | no test (M1) |
-| PLAT-02 | The Platform contract test also runs against the Tauri implementation, in the end-to-end job | no test (M1) |
-| PLAT-02 | Open the web inspector from the app | no test (`window.toggleInspector` untested; command `window_toggle_inspector` has no Rust handler) |
-| PLAT-02 | Window setters, app info commands (`health`, `writeLog`, `exportLogs`, `resourceUsage`) through the Tauri adapter | no test |
-| PLAT-02 | A SQLite call slower than 1000 ms is written to the log | test exists, but items file still says `missing`; refresh the item status |
-| PLAT-02 | Identical concurrent select calls are merged | test exists; same stale status |
-| PLAT-01 | Platform stand-in "passes the contract" | test would pass for the 15 script-echo cases without the feature (M1) |
-| APP-11 | Service stores apply an optimistic overlay that rolls back on failure | test would pass without the feature: no store uses the helper (M12) |
-| APP-11 | Writes are queued serially per chat, per database and per local file write | database: no test of a shared per-database queue (the wrapper's queue is tested, but the services' own queues are in `core/services`); local file write: no test in my area |
-| APP-11 | An exponential backoff counter spaces retries of polls | test exists; used only by the tunnel; polls (git, PR) have no backoff use |
-| APP-01 | Startup passes the TOML codec and the git runner into settings | git half tested; TOML half test would pass without it (L7) |
-| APP-01 | A container test proves settings load first | test exists but with stubbed starts; the real `settings.start` is wrapped, not replaced, so it is acceptable |
-| APP-01 | Services start in order, with the sidecar last; data lifetime step | the final step is a mocked placeholder (M3) |
-| APP-01 | Mutation cache logs errors with variables redacted; React root error handlers; unhandled rejections; drag and drop guard | not in my area (app/), listed `missing` |
-| APP-01 | Start with the real Tauri adapters | no test (M3) |
-| DATA-03 | The repair report acts on workspaces left in archiving | `repair.test.ts:358` reports them; the container acts through `workspace.recoverArchiving`. No container test runs that path against a real database (container tests use `recordingDatabase` whose `select` returns `[]`) |
-| DATA-03 | Order guarantee: chat live state is reset before any screen reads it | `container.app-01.test.ts:206` checks the order against a SQL substring on a recording database. The reset itself is proven in `repair.test.ts`. Adequate; use a real database to prove both in one test |
-| DATA-04 | Inbound events persisted, then acknowledged, through one serial queue per session | tested; transaction overlap across chats not tested on a realistic database (M2) |
-| DATA-04 | The sidecar never writes the database | no test (architecture rule; the guard is the import boundary) |
-| DATA-08 | Migration 0004 columns, kinds and flags | fresh database only (M4) |
-| GIT-01 | Fetch does not write FETCH_HEAD; Discard changes; Diff scopes; read `user.name` and `user.email` | argument arrays only; never run under git (M11) |
-| GIT-01 | A git call returns stdout on success and fails with stderr text | tested on a scripted shell; real-git test covers refresh only |
-| NAV-07 | Connect `project.add` to the add-project flow | `container.nav-07.test.ts:42` proves the picker is asked and an empty answer fails; no test adds a project from a picked folder |
-| NAV-07 | Missing registry commands (loadouts, snippet, goal, sidecar logs, forward ports) | registered and tested as table entries; 20 commands of `done` features have no handler (`consumption.test.ts` KNOWN list) |
-| NAV-07 | Key-cap hint reads the live binding | tested (`hooks.nav-07.test.tsx`) |
-| CHAT-18 | The app handler is `notImplemented("CHAT-18")` (moved from SIDE-10) | status `missing` in items file; handlers are real and tested; refresh the status |
-| CHAT-18 | Per-method timeout, tunnel, restart, resume | tested |
-| CHAT-18 | Inbound validation and success path of the tunnel | no test (M13) |
-| SET-01 | A container test proves settings load first (moved) | covered by the APP-01 test above |
-| DATA-01 | Query option preset and `gcTime` | in `app/query-options.ts`, other reviewer |
-| DATA-01 | Add one repository call that applies favourite-model changes in a single transaction | no test (`missing`) |
-| DATA-01 | Every SQL statement is tested against a real SQLite database | covered (`schema.test.ts` prepares every statement and runs the main ones). Real size missing (M7) |
-| WS-09 | Workspace status as a pure function | tested at three levels (rule, predicates, hook) |
+| Feature | Item                                                                                                                     | Gap                                                                                                                                                                                                                        |
+| ------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PLAT-01 | The Platform contract runs against the real Tauri implementation                                                         | no test (M1)                                                                                                                                                                                                               |
+| PLAT-02 | The Platform contract test also runs against the Tauri implementation, in the end-to-end job                             | no test (M1)                                                                                                                                                                                                               |
+| PLAT-02 | Open the web inspector from the app                                                                                      | no test (`window.toggleInspector` untested; command `window_toggle_inspector` has no Rust handler)                                                                                                                         |
+| PLAT-02 | Window setters, app info commands (`health`, `writeLog`, `exportLogs`, `resourceUsage`) through the Tauri adapter        | no test                                                                                                                                                                                                                    |
+| PLAT-02 | A SQLite call slower than 1000 ms is written to the log                                                                  | test exists, but items file still says `missing`; refresh the item status                                                                                                                                                  |
+| PLAT-02 | Identical concurrent select calls are merged                                                                             | test exists; same stale status                                                                                                                                                                                             |
+| PLAT-01 | Platform stand-in "passes the contract"                                                                                  | test would pass for the 15 script-echo cases without the feature (M1)                                                                                                                                                      |
+| APP-11  | Service stores apply an optimistic overlay that rolls back on failure                                                    | test would pass without the feature: no store uses the helper (M12)                                                                                                                                                        |
+| APP-11  | Writes are queued serially per chat, per database and per local file write                                               | database: no test of a shared per-database queue (the wrapper's queue is tested, but the services' own queues are in `core/services`); local file write: no test in my area                                                |
+| APP-11  | An exponential backoff counter spaces retries of polls                                                                   | test exists; used only by the tunnel; polls (git, PR) have no backoff use                                                                                                                                                  |
+| APP-01  | Startup passes the TOML codec and the git runner into settings                                                           | git half tested; TOML half test would pass without it (L7)                                                                                                                                                                 |
+| APP-01  | A container test proves settings load first                                                                              | test exists but with stubbed starts; the real `settings.start` is wrapped, not replaced, so it is acceptable                                                                                                               |
+| APP-01  | Services start in order, with the sidecar last; data lifetime step                                                       | the final step is a mocked placeholder (M3)                                                                                                                                                                                |
+| APP-01  | Mutation cache logs errors with variables redacted; React root error handlers; unhandled rejections; drag and drop guard | not in my area (app/), listed `missing`                                                                                                                                                                                    |
+| APP-01  | Start with the real Tauri adapters                                                                                       | no test (M3)                                                                                                                                                                                                               |
+| DATA-03 | The repair report acts on workspaces left in archiving                                                                   | `repair.test.ts:358` reports them; the container acts through `workspace.recoverArchiving`. No container test runs that path against a real database (container tests use `recordingDatabase` whose `select` returns `[]`) |
+| DATA-03 | Order guarantee: chat live state is reset before any screen reads it                                                     | `container.app-01.test.ts:206` checks the order against a SQL substring on a recording database. The reset itself is proven in `repair.test.ts`. Adequate; use a real database to prove both in one test                   |
+| DATA-04 | Inbound events persisted, then acknowledged, through one serial queue per session                                        | tested; transaction overlap across chats not tested on a realistic database (M2)                                                                                                                                           |
+| DATA-04 | The sidecar never writes the database                                                                                    | no test (architecture rule; the guard is the import boundary)                                                                                                                                                              |
+| DATA-08 | Migration 0004 columns, kinds and flags                                                                                  | fresh database only (M4)                                                                                                                                                                                                   |
+| GIT-01  | Fetch does not write FETCH_HEAD; Discard changes; Diff scopes; read `user.name` and `user.email`                         | argument arrays only; never run under git (M11)                                                                                                                                                                            |
+| GIT-01  | A git call returns stdout on success and fails with stderr text                                                          | tested on a scripted shell; real-git test covers refresh only                                                                                                                                                              |
+| NAV-07  | Connect `project.add` to the add-project flow                                                                            | `container.nav-07.test.ts:42` proves the picker is asked and an empty answer fails; no test adds a project from a picked folder                                                                                            |
+| NAV-07  | Missing registry commands (loadouts, snippet, goal, sidecar logs, forward ports)                                         | registered and tested as table entries; 20 commands of `done` features have no handler (`consumption.test.ts` KNOWN list)                                                                                                  |
+| NAV-07  | Key-cap hint reads the live binding                                                                                      | tested (`hooks.nav-07.test.tsx`)                                                                                                                                                                                           |
+| CHAT-18 | The app handler is `notImplemented("CHAT-18")` (moved from SIDE-10)                                                      | status `missing` in items file; handlers are real and tested; refresh the status                                                                                                                                           |
+| CHAT-18 | Per-method timeout, tunnel, restart, resume                                                                              | tested                                                                                                                                                                                                                     |
+| CHAT-18 | Inbound validation and success path of the tunnel                                                                        | no test (M13)                                                                                                                                                                                                              |
+| SET-01  | A container test proves settings load first (moved)                                                                      | covered by the APP-01 test above                                                                                                                                                                                           |
+| DATA-01 | Query option preset and `gcTime`                                                                                         | in `app/query-options.ts`, other reviewer                                                                                                                                                                                  |
+| DATA-01 | Add one repository call that applies favourite-model changes in a single transaction                                     | no test (`missing`)                                                                                                                                                                                                        |
+| DATA-01 | Every SQL statement is tested against a real SQLite database                                                             | covered (`schema.test.ts` prepares every statement and runs the main ones). Real size missing (M7)                                                                                                                         |
+| WS-09   | Workspace status as a pure function                                                                                      | tested at three levels (rule, predicates, hook)                                                                                                                                                                            |
 
 Backlog rows marked `done` whose issue still lists unbuilt items: APP-01 (about 12 items), DATA-03 (2), PLAT-01 (1), PLAT-02 (7), DATA-01 (6). The rows are `done` because the open items were moved to other features by D041, but the target features (for example the `project.add` flow, `Retry` and `Recover` buttons) have no row that carries a test for them yet. Confirm each moved item landed on a feature row with a test, or the item is silently dropped.
 
 ## 6. Missing test layers
 
-| Layer | What it covers | Why it matters here |
-| ----- | -------------- | ------------------- |
-| Contract on Tauri with Node-backed bindings | The 58 contract cases over `createTauriPlatform` with `node:fs`, `node:sqlite` and `execFile` behind the bindings. | The only way the stand-in is checked against the adapter before an end-to-end job exists (M1). |
-| Test database on the real wrapper | `openTestDatabase` built on `createTauriDatabase` over `node:sqlite`. | Makes the slice-1 deadlock shape fail in tests (M2). |
-| Container over the Tauri platform | `createContainer` + `createTauriPlatform(fakeBindings)` + `start()` + `stop()`. | Finds placeholders and missing bindings on the start path (M3). |
-| Upgrade migration | Seed at N-1, apply N inside a transaction with foreign keys on, compare rows. | Data-shape changes (M4). |
-| Migration list parity | `db.rs` list = files = lock. | Kit versus app (M5). |
-| Real git | Create, prepare, rename, remove, archive snapshot, command catalogue under git, with a local bare `origin`. | Scripted git cannot find wrong flags (M11). |
-| Tunnel against the real sidecar | A tunnel connected to the Bun sidecar over a pipe: `getSessionStatus`, a `deliverEvent` round trip, a restart. | Both ends of the schemas are in different packages; this is the cheapest check that they agree. It belongs to the sidecar reviewer's area; listed here because the tunnel is in mine. |
-| Real size | 3,000 events in one turn through ingest; 20,000 events through `listFrom`; 300 workspaces through `useWorkspaces`. | Engineering rule; M7. |
-| Overlap | Two chats' transactions at once; two `resume` runs with a reconnect between; a hook unmounting while its query is in flight. | The latest-wins and single-flight helpers are well tested alone; their use under the real wrapper is not. |
+| Layer                                       | What it covers                                                                                                               | Why it matters here                                                                                                                                                                   |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Contract on Tauri with Node-backed bindings | The 58 contract cases over `createTauriPlatform` with `node:fs`, `node:sqlite` and `execFile` behind the bindings.           | The only way the stand-in is checked against the adapter before an end-to-end job exists (M1).                                                                                        |
+| Test database on the real wrapper           | `openTestDatabase` built on `createTauriDatabase` over `node:sqlite`.                                                        | Makes the slice-1 deadlock shape fail in tests (M2).                                                                                                                                  |
+| Container over the Tauri platform           | `createContainer` + `createTauriPlatform(fakeBindings)` + `start()` + `stop()`.                                              | Finds placeholders and missing bindings on the start path (M3).                                                                                                                       |
+| Upgrade migration                           | Seed at N-1, apply N inside a transaction with foreign keys on, compare rows.                                                | Data-shape changes (M4).                                                                                                                                                              |
+| Migration list parity                       | `db.rs` list = files = lock.                                                                                                 | Kit versus app (M5).                                                                                                                                                                  |
+| Real git                                    | Create, prepare, rename, remove, archive snapshot, command catalogue under git, with a local bare `origin`.                  | Scripted git cannot find wrong flags (M11).                                                                                                                                           |
+| Tunnel against the real sidecar             | A tunnel connected to the Bun sidecar over a pipe: `getSessionStatus`, a `deliverEvent` round trip, a restart.               | Both ends of the schemas are in different packages; this is the cheapest check that they agree. It belongs to the sidecar reviewer's area; listed here because the tunnel is in mine. |
+| Real size                                   | 3,000 events in one turn through ingest; 20,000 events through `listFrom`; 300 workspaces through `useWorkspaces`.           | Engineering rule; M7.                                                                                                                                                                 |
+| Overlap                                     | Two chats' transactions at once; two `resume` runs with a reconnect between; a hook unmounting while its query is in flight. | The latest-wins and single-flight helpers are well tested alone; their use under the real wrapper is not.                                                                             |
 
 Seams only an integration test covers, and whether one exists today:
 
@@ -373,21 +375,21 @@ Rules worth adding to `docs/engineering.md`:
 
 Deterministic checks a script could run (guards), with what each flags today in this area:
 
-| Check | What it flags in this area today |
-| ----- | -------------------------------- |
-| A test file with no `expect(`, `assert` or `toThrow` | Nothing (every file has assertions). |
-| A test whose only assertions are `toHaveBeenCalled*` on a `vi.fn` it created | `handlers.chat-10`, `handlers.chat-11`; partly `hooks.rev-01`, `hooks.rev-02`, `hooks/github.pr-11`. |
-| `vi.mock(` of a source module in a test whose subject imports that module | `container.app-01.test.ts:20` and `resume.container.chat-18.test.ts:18` (both mock `lifetime.ts`). |
-| `as never`, `as unknown as Container` or `{ services: ... } as ...` where a `Container` is passed to `ServicesProvider` | `hooks.chats`, `hooks.repos`, `hooks.repo-config`, `hooks.rev-01`, `hooks.rev-02`, `hooks/github.pr-11`, `hooks.settings`, `hooks.nav-07`, `hooks.workspace-status`, `context.test` (10 files; the last three build real services with `{}` deps and are acceptable). |
-| An expected value in a test that is an import of a constant also used by the code under test (a quick check: `expect(...).toEqual(...)` whose right side is an `export const` from the subject) | `xcode-license.test.ts:42-52`, `platform/*.test.ts` (`COMMANDS.*`, 40 uses). |
-| A test file that reads `docs/plans/backlog.md` | `registries/commands.test.ts`, `registries/settings.test.ts`, `registries/consumption.test.ts` (the last asserts a status). |
-| `COMMANDS` values versus `generate_handler!` versus `tauri-commands.md` | 20 TypeScript names without a Rust handler (all `stub` rows), `notification_take_pending` unused in TypeScript. |
-| `db.rs` `include_str!` list versus migration files versus `migrations.lock` | Nothing today (they agree). |
-| An exported function with no non-test importer | `createOptimisticStore`. Also all of `core/db/lifetime.ts` steps (placeholders). |
-| A `notImplemented(` call reachable from `container.start()` | `runDataLifetimeJob`, `createTauriNotifications().onClicked`, and others behind it. Implement as the M3 test. |
-| More than N copies of a helper name across test files (`const bind`, `const must`, `const deferred`, `const flush`) | 12, 24, 10, 7 copies. |
-| `rmSync` or `rm` in a test | `status.real-git.test.ts` `afterAll` (acceptable: it is the run's own temp folder, per the hard limits). |
-| Each guard ships a sample it must flag (engineering.md rule "A guard proves it can fail") | Needed for every guard above. |
+| Check                                                                                                                                                                                           | What it flags in this area today                                                                                                                                                                                                                                      |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A test file with no `expect(`, `assert` or `toThrow`                                                                                                                                            | Nothing (every file has assertions).                                                                                                                                                                                                                                  |
+| A test whose only assertions are `toHaveBeenCalled*` on a `vi.fn` it created                                                                                                                    | `handlers.chat-10`, `handlers.chat-11`; partly `hooks.rev-01`, `hooks.rev-02`, `hooks/github.pr-11`.                                                                                                                                                                  |
+| `vi.mock(` of a source module in a test whose subject imports that module                                                                                                                       | `container.app-01.test.ts:20` and `resume.container.chat-18.test.ts:18` (both mock `lifetime.ts`).                                                                                                                                                                    |
+| `as never`, `as unknown as Container` or `{ services: ... } as ...` where a `Container` is passed to `ServicesProvider`                                                                         | `hooks.chats`, `hooks.repos`, `hooks.repo-config`, `hooks.rev-01`, `hooks.rev-02`, `hooks/github.pr-11`, `hooks.settings`, `hooks.nav-07`, `hooks.workspace-status`, `context.test` (10 files; the last three build real services with `{}` deps and are acceptable). |
+| An expected value in a test that is an import of a constant also used by the code under test (a quick check: `expect(...).toEqual(...)` whose right side is an `export const` from the subject) | `xcode-license.test.ts:42-52`, `platform/*.test.ts` (`COMMANDS.*`, 40 uses).                                                                                                                                                                                          |
+| A test file that reads `docs/plans/backlog.md`                                                                                                                                                  | `registries/commands.test.ts`, `registries/settings.test.ts`, `registries/consumption.test.ts` (the last asserts a status).                                                                                                                                           |
+| `COMMANDS` values versus `generate_handler!` versus `tauri-commands.md`                                                                                                                         | 20 TypeScript names without a Rust handler (all `stub` rows), `notification_take_pending` unused in TypeScript.                                                                                                                                                       |
+| `db.rs` `include_str!` list versus migration files versus `migrations.lock`                                                                                                                     | Nothing today (they agree).                                                                                                                                                                                                                                           |
+| An exported function with no non-test importer                                                                                                                                                  | `createOptimisticStore`. Also all of `core/db/lifetime.ts` steps (placeholders).                                                                                                                                                                                      |
+| A `notImplemented(` call reachable from `container.start()`                                                                                                                                     | `runDataLifetimeJob`, `createTauriNotifications().onClicked`, and others behind it. Implement as the M3 test.                                                                                                                                                         |
+| More than N copies of a helper name across test files (`const bind`, `const must`, `const deferred`, `const flush`)                                                                             | 12, 24, 10, 7 copies.                                                                                                                                                                                                                                                 |
+| `rmSync` or `rm` in a test                                                                                                                                                                      | `status.real-git.test.ts` `afterAll` (acceptable: it is the run's own temp folder, per the hard limits).                                                                                                                                                              |
+| Each guard ships a sample it must flag (engineering.md rule "A guard proves it can fail")                                                                                                       | Needed for every guard above.                                                                                                                                                                                                                                         |
 
 ## 8. Coverage wait
 
