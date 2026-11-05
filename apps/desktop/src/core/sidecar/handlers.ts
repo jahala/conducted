@@ -105,7 +105,7 @@ export interface SidecarHandlerPorts {
 
 export function createSidecarRequestHandlers(ports: SidecarHandlerPorts): SidecarRequestHandlers {
 	return {
-		requestInteraction: () => notImplemented("CHAT-10"),
+		requestInteraction: (params) => ports.interactions.request(params),
 		deliverEvent: async (envelope) => {
 			const stored = await ports.ingest.ingest(envelope);
 			return { persisted: stored.ok };
