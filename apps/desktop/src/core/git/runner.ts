@@ -15,9 +15,9 @@
  * Our design choice: every command is `{ program, args }`, never a shell string, so there is no
  * quoting layer. `-c core.quotePath=false` is added for the program `git` only.
  * Xcode licence: this file detects the error and describes the toast (`xcodeLicenseToast`).
- * Showing it and running the accept-licence command belong to GIT-16 (its screen and
- * `services/system.ts`), so no call site is built here. A blocked SSH network returns
- * `git_ssh_blocked`; GIT-16 shows that message.
+ * GIT-16 checks the licence at startup (`app/xcode-license-notice.ts`) and runs the accept
+ * command from `services/system.ts`. A blocked SSH network returns `git_ssh_blocked`; the
+ * calling screen shows that message.
  * Test first: a command that fails once with "index.lock: File exists" is retried and then
  * returns its second result.
  */
