@@ -53,6 +53,11 @@ export function draftToContent(text: string): {
 	return { type: "doc", content: paragraphs };
 }
 
+/** A stable key for a list of attachment paths, so a change is noticed by value. */
+function keyOf(paths: readonly string[]): string {
+	return paths.join("\u0000");
+}
+
 export function useDraftSync({
 	sessionId,
 	editor,
@@ -66,8 +71,6 @@ export function useDraftSync({
 	const restore = useRef(onRestore);
 	restore.current = onRestore;
 	attachmentsBySession.current.set(sessionId, attachmentPaths);
-
-	const keyOf = (paths: readonly string[]): string => paths.join("\u0000");
 
 	useEffect(() => {
 		if (editor === null) return;

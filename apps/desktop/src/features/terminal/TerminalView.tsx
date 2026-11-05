@@ -21,6 +21,7 @@
 import type { TerminalId } from "@conducted/shared";
 import {
 	type KeyboardEvent as ReactKeyboardEvent,
+	useCallback,
 	useEffect,
 	useMemo,
 	useRef,
@@ -37,7 +38,6 @@ import {
 	TerminalFindBar,
 	type TerminalFindDirection,
 	type TerminalFindMatch,
-	type TerminalFindOptions,
 } from "./TerminalFindBar.tsx";
 import { TerminalSurface, type TerminalSurfaceHandle } from "./TerminalSurface.tsx";
 import {
@@ -200,24 +200,25 @@ export function TerminalView({
 		return source.onExit((exitCode) => setEnded({ exitCode }));
 	}, [source]);
 
-	const options: TerminalFindOptions = { query, caseSensitive, regex };
-
-	const search = (direction: TerminalFindDirection, from: TerminalFindMatch | null) => {
-		const surface = surfaceRef.current;
-		if (!surface || !query) {
-			matchRef.current = null;
-			setHasMatch(null);
-			return;
-		}
-		const match = surface.find(options, direction, from);
-		matchRef.current = match;
-		setHasMatch(match !== null);
-	};
+	const search = useCallback(
+		(direction: TerminalFindDirection, from: TerminalFindMatch | null) => {
+			const surface = surfaceRef.current;
+			if (!surface || !query) {
+				matchRef.current = null;
+				setHasMatch(null);
+				return;
+			}
+			const match = surface.find({ query, caseSensitive, regex }, direction, from);
+			matchRef.current = match;
+			setHasMatch(match !== null);
+		},
+		[query, caseSensitive, regex],
+	);
 
 	useEffect(() => {
 		if (!findOpen) return;
 		search("next", null);
-	}, [findOpen, query, caseSensitive, regex]);
+	}, [findOpen, search]);
 
 	const changeQuery = (next: string) => {
 		matchRef.current = null;

@@ -14,6 +14,7 @@ import type { TerminalAppearance } from "./terminal-theme.ts";
 const state = vi.hoisted(() => ({
 	connection: { state: "loading" } as Loadable<TerminalConnection>,
 	openUrl: vi.fn(),
+	surface: { find: vi.fn(() => null), focus: vi.fn(), clear: vi.fn() },
 }));
 
 vi.mock("../../core/hooks.ts", () => ({
@@ -22,13 +23,20 @@ vi.mock("../../core/hooks.ts", () => ({
 }));
 
 vi.mock("./TerminalSurface.tsx", () => ({
-	TerminalSurface: (props: { visible?: boolean; onOpenLink?: (url: string) => void }) => (
-		<div data-testid="terminal-surface" data-visible={String(props.visible)}>
-			<button type="button" onClick={() => props.onOpenLink?.("https://example.com")}>
-				open-link
-			</button>
-		</div>
-	),
+	TerminalSurface: (props: {
+		visible?: boolean;
+		onOpenLink?: (url: string) => void;
+		ref?: { current: typeof state.surface } | null;
+	}) => {
+		if (props.ref) props.ref.current = state.surface;
+		return (
+			<div data-testid="terminal-surface" data-visible={String(props.visible)}>
+				<button type="button" onClick={() => props.onOpenLink?.("https://example.com")}>
+					open-link
+				</button>
+			</div>
+		);
+	},
 }));
 
 const { BufferedTerminalConnection, TerminalView } = await import("./TerminalView.tsx");
@@ -73,6 +81,7 @@ const terminalId = "t1" as TerminalId;
 beforeEach(() => {
 	state.connection = { state: "loading" };
 	state.openUrl.mockClear();
+	state.surface.find.mockClear();
 });
 afterEach(() => {
 	cleanup();
@@ -142,6 +151,59 @@ describe("RUN-06 terminal view", () => {
 		expect(screen.getByRole("textbox", { name: "Find in terminal" })).toBeTruthy();
 		rerender(<TerminalView terminalId={terminalId} appearance={appearance} visible />);
 		expect(screen.getByTestId("terminal-surface").dataset.visible).toBe("true");
+	});
+
+	describe("find", () => {
+		function openFind() {
+			const view = document.querySelector("[data-terminal-view]");
+			if (!view) throw new Error("the terminal view did not render");
+			fireEvent.keyDown(view, { key: "f", metaKey: true });
+			return screen.getByRole("textbox", { name: "Find in terminal" });
+		}
+
+		it("searches from the top when the query changes while find is open", () => {
+			state.connection = { state: "ready", data: fakeConnection() };
+			render(<TerminalView terminalId={terminalId} appearance={appearance} />);
+			const input = openFind();
+			expect(state.surface.find).not.toHaveBeenCalled();
+			fireEvent.change(input, { target: { value: "alpha" } });
+			expect(state.surface.find).toHaveBeenCalledTimes(1);
+			expect(state.surface.find).toHaveBeenLastCalledWith(
+				{ query: "alpha", caseSensitive: false, regex: false },
+				"next",
+				null,
+			);
+		});
+
+		it("searches again when the case or regex option changes", () => {
+			state.connection = { state: "ready", data: fakeConnection() };
+			render(<TerminalView terminalId={terminalId} appearance={appearance} />);
+			const input = openFind();
+			fireEvent.change(input, { target: { value: "alpha" } });
+			fireEvent.click(screen.getByRole("button", { name: "Match case" }));
+			expect(state.surface.find).toHaveBeenLastCalledWith(
+				{ query: "alpha", caseSensitive: true, regex: false },
+				"next",
+				null,
+			);
+			fireEvent.click(screen.getByRole("button", { name: "Use regular expression" }));
+			expect(state.surface.find).toHaveBeenLastCalledWith(
+				{ query: "alpha", caseSensitive: true, regex: true },
+				"next",
+				null,
+			);
+			expect(state.surface.find).toHaveBeenCalledTimes(3);
+		});
+
+		it("does not search again when an unrelated render happens while find is open", () => {
+			state.connection = { state: "ready", data: fakeConnection() };
+			const { rerender } = render(<TerminalView terminalId={terminalId} appearance={appearance} />);
+			const input = openFind();
+			fireEvent.change(input, { target: { value: "alpha" } });
+			expect(state.surface.find).toHaveBeenCalledTimes(1);
+			rerender(<TerminalView terminalId={terminalId} appearance={appearance} visible={false} />);
+			expect(state.surface.find).toHaveBeenCalledTimes(1);
+		});
 	});
 
 	it("asks before opening a terminal link", async () => {
