@@ -2,12 +2,13 @@ import type { FileChange } from "@conducted/protocol";
 import type { WorkspaceId } from "@conducted/shared";
 import { cleanup, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTestContainer, type TestContainer } from "../../test/container.ts";
 import { ServicesProvider } from "../context.tsx";
 import type { ChangesSnapshot } from "../git/status.ts";
 import type { PullRequest } from "../model.ts";
 import type { WorkspacePrEntry } from "../services/github.ts";
+import { computeGitHeader } from "../status/git-header.ts";
 import { useGitState } from "./git.ts";
 
 const workspaceId = "ws-1" as WorkspaceId;
@@ -27,12 +28,15 @@ function setup(): TestContainer {
 
 function snapshot(overrides: Partial<ChangesSnapshot> = {}): ChangesSnapshot {
 	return {
+		depth: "full",
 		branch: "feat",
 		mergeBase: "abc123",
 		mergeBaseError: null,
 		files: [],
 		conflictedPaths: [],
 		untrackedTruncated: false,
+		uncommittedFiles: 0,
+		changedFiles: 0,
 		operation: "none",
 		commits: [],
 		sync: { ahead: 0, behind: 0, rewritten: false, hasUpstream: true },
@@ -139,6 +143,8 @@ describe("GIT-04 useGitState", () => {
 			snapshot({
 				branch: "feat",
 				files: [file("src/a.ts", 3, 1), file("src/b.ts", 2, 4)],
+				uncommittedFiles: 2,
+				changedFiles: 2,
 				conflictedPaths: ["src/a.ts"],
 				operation: "rebase",
 				sync: { ahead: 2, behind: 1, rewritten: false, hasUpstream: true },
@@ -198,5 +204,70 @@ describe("GIT-04 useGitState", () => {
 			state: "ready",
 			data: { pullRequestUnavailable: "none" },
 		});
+	});
+
+	it("reads committed changes and a clean tree as two separate counts", () => {
+		const container = setup();
+		setGit(
+			container,
+			snapshot({
+				files: [file("src/committed.ts", 4, 1)],
+				uncommittedFiles: 0,
+				changedFiles: 1,
+			}),
+		);
+		setPullRequest(container, null, "no_pr");
+
+		const result = renderGitState(container);
+		expect(result.result.current).toMatchObject({
+			state: "ready",
+			data: { uncommittedFiles: 0, changedFiles: 1 },
+		});
+		if (result.result.current.state !== "ready") throw new Error("expected a ready state");
+		expect(
+			computeGitHeader({
+				git: result.result.current.data,
+				agentWorking: false,
+				forge: "github",
+				automergeSettingOn: false,
+				treatOptionalChecksAsBlocking: false,
+				stack: null,
+			}).kind,
+		).toBe("changes");
+	});
+
+	it("loads while a metadata snapshot has read nothing but the branch", () => {
+		const container = setup();
+		setGit(
+			container,
+			snapshot({ depth: "metadata", files: [], uncommittedFiles: null, changedFiles: null }),
+		);
+		const result = renderGitState(container);
+		expect(result.result.current).toEqual({ state: "loading" });
+	});
+
+	it("loads for an uncommitted snapshot with no full branch comparison", () => {
+		const container = setup();
+		setGit(container, snapshot({ depth: "uncommitted", uncommittedFiles: 1, changedFiles: null }));
+		const result = renderGitState(container);
+		expect(result.result.current).toEqual({ state: "loading" });
+	});
+
+	it("reports the pull request action running in the GitHub service", () => {
+		const container = setup();
+		setGit(container, snapshot());
+		vi.spyOn(container.container.services.github, "pendingAction").mockReturnValue("merging");
+		const result = renderGitState(container);
+		expect(result.result.current).toMatchObject({
+			state: "ready",
+			data: { pendingPullRequestAction: "merging" },
+		});
+	});
+
+	it("leaves the pull request action null when none is running", () => {
+		const container = setup();
+		setGit(container, snapshot());
+		const state = container.container.services.git.stateOf(workspaceId);
+		expect(state?.pendingPullRequestAction).toBeNull();
 	});
 });

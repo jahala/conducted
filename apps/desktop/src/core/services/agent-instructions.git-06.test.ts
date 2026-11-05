@@ -8,7 +8,7 @@ const base = {
 	customPrompt: null,
 };
 
-describe("GIT-04 reconcileInstruction", () => {
+describe("GIT-06 reconcileInstruction", () => {
 	it("commits a dirty worktree, then rebases and force-pushes with a lease", () => {
 		const text = reconcileInstruction({ ...base, strategy: "rebase", dirty: true });
 		expect(text).toContain("commit");

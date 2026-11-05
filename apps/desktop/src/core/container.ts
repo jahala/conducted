@@ -367,6 +367,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		placeNames: inputs.placeNames,
 		sessions,
 		ports,
+		repoConfig: (repoId) => repo.loadConfig(repoId),
 		scripts: runScripts,
 		setting,
 		now: () => clock.now(),

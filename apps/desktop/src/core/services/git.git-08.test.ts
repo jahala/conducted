@@ -12,7 +12,7 @@ import type { ShellOutput } from "../../platform/platform.ts";
 import type { GitCommand } from "../git/commands.ts";
 import { resetHard } from "../git/commands.ts";
 import type { GitRunner, GitRunOptions } from "../git/runner.ts";
-import { GitService, type WorkspaceGitContext } from "./git.ts";
+import { GitService, parseTargetBranch, type WorkspaceGitContext } from "./git.ts";
 
 const workspaceId = "workspace-1" as WorkspaceId;
 
@@ -215,7 +215,7 @@ describe("GIT-08 change the target branch", () => {
 
 		expect(result.ok).toBe(true);
 		expect(moved).toEqual([{ id: workspaceId, branch: "develop" }]);
-		expect(stored).toEqual([{ id: workspaceId, branch: "origin/develop" }]);
+		expect(stored).toEqual([{ id: workspaceId, branch: "develop" }]);
 		expect(hasCommand(commands, "fetch")).toBe(false);
 		expect(hasCommand(commands, "reset")).toBe(false);
 	});
@@ -240,6 +240,41 @@ describe("GIT-08 change the target branch", () => {
 		expect(result.ok).toBe(false);
 		expect(stored).toEqual([]);
 		expect(commands).toEqual([]);
+	});
+
+	it("parses one bare target form for the user and the agent", () => {
+		expect(parseTargetBranch("origin", "  origin/develop  ")).toEqual(ok("develop"));
+		expect(parseTargetBranch("origin", "refs/heads/release/1")).toEqual(ok("release/1"));
+		expect(parseTargetBranch("origin", "refs/remotes/origin/dev")).toEqual(ok("dev"));
+		expect(parseTargetBranch("upstream", "origin/dev")).toEqual(ok("origin/dev"));
+	});
+
+	it("refuses an unsafe target before any git call", async () => {
+		const unsafe = parseTargetBranch("origin", "--upload-pack=x");
+		expect(unsafe.ok).toBe(false);
+		if (!unsafe.ok) expect(unsafe.error.code).toBe("workspace_branch_invalid");
+		expect(parseTargetBranch("origin", "   ").ok).toBe(false);
+
+		const { git, commands } = fakeRunner();
+		const { service } = makeService(git);
+		const result = await service.setTargetBranch(workspaceId, "   ");
+		expect(result.ok).toBe(false);
+		expect(commands).toEqual([]);
+	});
+
+	it("stores the bare branch when the agent names the remote", async () => {
+		const { git, commands } = fakeRunner();
+		const { service, stored } = makeService(git);
+
+		const result = await service.setTargetBranchFromAgent(workspaceId, "origin/develop");
+
+		expect(result.ok).toBe(true);
+		expect(stored).toEqual([{ id: workspaceId, branch: "develop" }]);
+		expect(commands).toContainEqual(
+			expect.objectContaining({
+				args: ["show-ref", "--verify", "--quiet", "refs/remotes/origin/develop"],
+			}),
+		);
 	});
 
 	it("sets the target from the agent after checking the remote ref, without fetch or reset", async () => {

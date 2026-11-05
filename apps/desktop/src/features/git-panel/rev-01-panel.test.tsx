@@ -8,7 +8,7 @@ import {
 	runCommandHandlers,
 } from "../../app/command-dispatcher.ts";
 import type { DiffScope, Loadable } from "../../core/api.ts";
-import type { GitState } from "../../core/model.ts";
+import type { GitState, PullRequest } from "../../core/model.ts";
 import "../../test/dom-polyfills.ts";
 
 const workspaceId = "w1" as WorkspaceId;
@@ -36,40 +36,33 @@ vi.mock("../../core/context.tsx", () => ({
 	useServices: () => ({ services: { git: { refresh: async () => ({ ok: true }) } } }),
 }));
 
-vi.mock("../../core/status/git-header.ts", () => ({
-	computeGitHeader: (inputs: { git: GitState }) => {
-		if (inputs.git.branch === "comments") {
-			return {
-				kind: "changes_requested",
-				title: "PR changes requested",
-				tone: "attention",
-				action: {
-					id: "add_comments_to_chat",
-					label: "Add all comments to chat",
-					waitingNote: null,
-				},
-			};
-		}
-		return inputs.git.uncommittedFiles > 0
-			? {
-					kind: "uncommitted",
-					title: "Uncommitted changes",
-					tone: "attention",
-					action: {
-						id: "commit_and_push",
-						label: "Commit and push",
-						waitingNote: null,
-					},
-				}
-			: { kind: "clean", title: "No changes", tone: "neutral", action: null };
-	},
-}));
-
 vi.mock("./changes/ChangesTab.tsx", () => ({ ChangesTab: () => <div>changes body</div> }));
 vi.mock("./files/FilesTab.tsx", () => ({ FilesTab: () => <div>files body</div> }));
 vi.mock("./checks/ChecksTab.tsx", () => ({ ChecksTab: () => <div>checks body</div> }));
 
 const { GitPanel } = await import("./GitPanel.tsx");
+
+const pullRequest = (over: Partial<PullRequest> = {}): PullRequest => ({
+	number: 1,
+	url: "https://example.test/pull/1",
+	title: "A change",
+	body: "",
+	state: "open",
+	mergeable: "mergeable",
+	reviewDecision: null,
+	checks: [],
+	inMergeQueue: false,
+	autoMergeEnabled: false,
+	baseBranch: "main",
+	authorLogin: "octocat",
+	viewerDidAuthor: false,
+	viewerCanMerge: true,
+	mergeMethod: "squash",
+	reviewers: [],
+	deployments: [],
+	updatedAt: 0,
+	...over,
+});
 
 const gitState = (over: Partial<GitState> = {}): GitState => ({
 	branch: "feat",
@@ -121,7 +114,13 @@ describe("REV-01 git panel", () => {
 	});
 
 	it("does not offer the comments action until the review store exists", () => {
-		state.git = { state: "ready", data: gitState({ branch: "comments", changedFiles: 1 }) };
+		state.git = {
+			state: "ready",
+			data: gitState({
+				changedFiles: 1,
+				pullRequest: pullRequest({ reviewDecision: "changes_requested" }),
+			}),
+		};
 		render(<GitPanel workspaceId={workspaceId} />);
 		expect(screen.queryByRole("button", { name: /Add all comments/ })).toBeNull();
 		expect(screen.getAllByText("PR changes requested").length).toBeGreaterThan(0);

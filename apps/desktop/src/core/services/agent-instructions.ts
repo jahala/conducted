@@ -1,9 +1,9 @@
 /**
  * @feature PR-02 Written instructions the app sends to the agent
- * Owns now: the text of the "create a pull request" request and the "reconcile with the target"
- * request (GIT-04). The other requests (commit and push, resolve conflicts, fix failing checks,
- * review the diff, rename the branch, merge into the target) are placeholders owned by GIT-05,
- * GIT-07, PR-05, REV-05, WS-04 and GIT-14.
+ * Owns now: the text of the "create a pull request" request. The "reconcile with the target" text
+ * waits for GIT-06's Pull-when-dirty path, which is not built yet. The other requests (commit and
+ * push, resolve conflicts, fix failing checks, review the diff, rename the branch, merge into the
+ * target) are placeholders owned by GIT-05, GIT-07, PR-05, REV-05, WS-04 and GIT-14.
  * Behaviour: structure-map.md section 6 pattern 5 (delegate risky git work to the agent),
  * services-map.md 3.6.4 (reconcile messages), 3.7.1 (create PR steps), ui-map.md 3.6.
  * Must handle: a per-repo custom prompt (`RepoConfig.prompts`) is added to the built-in text,

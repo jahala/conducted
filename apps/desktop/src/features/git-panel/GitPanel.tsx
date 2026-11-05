@@ -66,11 +66,7 @@ function HeaderSkeleton() {
 	);
 }
 
-/**
- * The header for a loaded git state. The model comes from computeGitHeader, which is not built yet
- * (GIT-04); in its own function so that gap stays inside the header's NotBuiltYet boundary and the
- * tabs below keep working.
- */
+/** The header for a loaded git state. The model comes from computeGitHeader. */
 function ComputedHeader({
 	inputs,
 	onAction,
@@ -241,20 +237,18 @@ export function GitPanel({
 			);
 		}
 		return (
-			<NotBuiltYet area="Git header" variant="inline" resetKey={workspaceId}>
-				<ComputedHeader
-					key={workspaceId}
-					inputs={{
-						git: git.data,
-						agentWorking: status?.kind === "agent" && status.label === "working",
-						forge: git.data.pullRequestUnavailable === "not_github" ? "local" : "github",
-						automergeSettingOn: automergeEnabled,
-						treatOptionalChecksAsBlocking: optionalChecksBlocking,
-						stack: null,
-					}}
-					onAction={runAction}
-				/>
-			</NotBuiltYet>
+			<ComputedHeader
+				key={workspaceId}
+				inputs={{
+					git: git.data,
+					agentWorking: status?.kind === "agent" && status.label === "working",
+					forge: git.data.pullRequestUnavailable === "not_github" ? "local" : "github",
+					automergeSettingOn: automergeEnabled,
+					treatOptionalChecksAsBlocking: optionalChecksBlocking,
+					stack: null,
+				}}
+				onAction={runAction}
+			/>
 		);
 	})();
 
