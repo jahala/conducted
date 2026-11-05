@@ -17,8 +17,9 @@
 //! - The content security policy replaces `"csp": null`. It allows the app's own origin, the IPC
 //!   channel and, in development only, the dev server and its web socket. It lists no remote
 //!   script source. Images from `https` hosts (avatars, GitHub attachments) and `data:` URLs stay
-//!   allowed for pictures only. The exact string is written when this is built and checked by
-//!   loading every screen with the policy on.
+//!   allowed for pictures only. The directives the policy must contain are checked against
+//!   `tauri.conf.json` in this module's test. Loading every screen with the policy on is not
+//!   covered by a test yet.
 //!
 //! Our design choice: the decision is a pure function of the URL and the allowed origins, so it is
 //! tested without a window. `install_guard` is the only part that touches Tauri. It registers a
@@ -44,9 +45,6 @@ const RELEASE_ORIGINS: &[&str] = &[RELEASE_ORIGIN];
 const DEV_ORIGINS: &[&str] = &[DEV_ORIGIN];
 /// Name of the navigation plugin registered in `setup`.
 const PLUGIN_NAME: &str = "navigation-guard";
-/// The page WebKit offers before any real navigation.
-const ABOUT_BLANK: &str = "about:blank";
-
 /// Hands `window.open` requests to the browser. A link click with `target="_blank"` is already
 /// handled by the opener plugin; a script call is not, and WebKit's new-window request is denied
 /// when no builder attached a handler.
@@ -124,10 +122,10 @@ pub fn install_guard(app: &AppHandle) -> CommandResult<()> {
         message: error.to_string(),
     })?;
 
-    if let Some(webview) = app.get_webview_window("main") {
-        if let Err(error) = webview.eval(OPEN_WINDOW_SHIM) {
-            eprintln!("navigation guard: could not install the window.open guard: {error}");
-        }
+    if let Some(webview) = app.get_webview_window("main")
+        && let Err(error) = webview.eval(OPEN_WINDOW_SHIM)
+    {
+        eprintln!("navigation guard: could not install the window.open guard: {error}");
     }
 
     Ok(())
@@ -174,6 +172,9 @@ fn origin_of(url: &Url) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The page WebKit offers before any real navigation.
+    const ABOUT_BLANK: &str = "about:blank";
 
     fn decide(url: &str, origins: &[&str]) -> NavigationDecision {
         decide_navigation(url, origins).expect("a navigation decision")
@@ -330,8 +331,19 @@ mod tests {
         assert!(
             dev_connect
                 .split_whitespace()
+                .any(|source| source == "ws://localhost:1420"),
+            "dev connect-src allows the default hot-reload socket: {dev_connect}"
+        );
+        assert!(
+            dev_connect
+                .split_whitespace()
                 .any(|source| source == "ws://localhost:1421"),
-            "dev connect-src allows the dev web socket: {dev_connect}"
+            "dev connect-src allows the hot-reload socket when a dev host is set: {dev_connect}"
+        );
+        assert_eq!(
+            config["build"]["devUrl"].as_str(),
+            Some(DEV_ORIGIN),
+            "build.devUrl is the origin the guard allows"
         );
         assert!(
             directive(dev, "default-src")

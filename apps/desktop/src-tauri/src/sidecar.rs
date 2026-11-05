@@ -26,6 +26,8 @@
 //! - `sidecar_send` while the sidecar is starting waits for the start. While it is restarting or
 //!   stopped it fails with `sidecar_not_running`. The UI resends after `sidecar://restart`
 //!   because the sidecar replays unacknowledged events on reconnect.
+//! - When a start finishes, `start_locked` emits `sidecar://ready`. Returning from
+//!   `sidecar_ensure_started` carries the same signal, so a caller can use either one.
 //! - Writes are serialised through one queue, so two sends never interleave inside a line.
 //! - Only the newest process generation may change state. An exit report from an older process
 //!   (late wait result, late socket close) is dropped by comparing generation numbers.
@@ -33,24 +35,28 @@
 //!   `MAX_RESTARTS_PER_WINDOW` times in `RESTART_WINDOW_MS`. Each exit emits `sidecar://restart`
 //!   with `willRetry`. After the limit the phase becomes `Stopped` and the next
 //!   `sidecar_ensure_started` starts fresh.
-//! - Quitting the app closes the socket, sends SIGTERM, waits briefly, then SIGKILL.
+//! - Quitting the app calls `shutdown` from `app_quit` and from the `RunEvent::Exit` handler:
+//!   it closes the socket, sends SIGTERM, waits briefly, then SIGKILL.
 //! - Parent watchdog: Rust sets `CONDUCTED_PARENT_PID` to its own pid. The sidecar polls it and
 //!   exits when the pid is gone or reused (SIDE-19). Rust covers the other direction: at start it
-//!   scans the process table for `conducted-sidecar sidecar` processes whose parent is not this
-//!   app and kills them.
+//!   scans the process table for an orphan (parent pid 1) whose executable is the sidecar binary
+//!   and kills it with SIGKILL. A sidecar that still has a live parent belongs to another running
+//!   app and is left alone.
 //! - stdout and stderr go to a log file: `<app data>/logs/sidecar-<pid>.log`, mode 0600. The
 //!   five newest logs are kept, the rest are removed at start. `sidecar_log_path` returns the
-//!   current one.
+//!   current one. D026 routes these lines into the app log files with a sidecar tag; that routing
+//!   (PLAT-18) is not built yet, so this file is their current home.
 //!
 //! Our design choice: the restart loop in Rust (Conductor has none: the UI calls ensure again).
 //! Our design choice: no HTTP health endpoint and no bearer token. A child that is alive and
 //! connected is healthy, and the socket is private to the user (mode 0600 in a 0700 folder).
 //! Our design choice: environment variables are fixed here and must match packages/sidecar and
-//! docs/plans/tauri-commands.md ("Sidecar launch"). We set the parent pid, the outbox root, the
-//! log folder, the bin folder, the app version, the agent binary folders and the Cursor store.
-//! SIDE-22 (`CONDUCTED_COMPLETIONS_DIR`) and AGENT-18 (`CONDUCTED_SKILL_PLUGIN_DIR`) add theirs
-//! when their resolvers stop being placeholders. There is no database path (the app owns the
-//! database) and no logger token or folder (D026, D028).
+//! docs/plans/tauri-commands.md ("Sidecar launch"). We set only the variables the sidecar reads
+//! today: the parent pid, the outbox root, the log folder and the bin folder. The app version,
+//! agent binary folders, ACP provider folder and Cursor store arrive with the features that read
+//! them (PLAT-18, PLAT-28, SIDE-15, AGENT-09). SIDE-22 (`CONDUCTED_COMPLETIONS_DIR`) and AGENT-18
+//! (`CONDUCTED_SKILL_PLUGIN_DIR`) add theirs when their resolvers stop being placeholders. There
+//! is no database path (the app owns the database) and no logger token or folder (D026, D028).
 //! Packaging the sidecar needs `bundle.externalBin` in tauri.conf.json, which requires the
 //! compiled file to exist at build time. In development `CONDUCTED_SIDECAR_BIN` points at a
 //! binary or a wrapper script.
@@ -77,9 +83,12 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use crate::error::{CommandError, CommandResult};
 use crate::not_implemented;
 use crate::process_group;
+use crate::shell::KILL_GRACE_MS;
 
 /// Event carrying one line from the sidecar, as a plain string.
 pub const EVENT_LINE: &str = "sidecar://line";
+/// Event fired when a start has connected to the sidecar and the relay is up.
+pub const EVENT_READY: &str = "sidecar://ready";
 /// Event fired when the sidecar process ends or is restarted. Payload: `SidecarRestart`.
 pub const EVENT_RESTART: &str = "sidecar://restart";
 /// Longest accepted line from the sidecar.
@@ -96,21 +105,12 @@ pub const MAX_RESTARTS_PER_WINDOW: u32 = 5;
 pub const RESTART_WINDOW_MS: u64 = 60_000;
 /// Sidecar log files kept.
 pub const LOGS_KEPT: usize = 5;
-/// Time between SIGTERM and SIGKILL when a process is stopped.
-pub const KILL_GRACE_MS: u64 = 2_000;
 /// Environment variable that names a binary or wrapper script instead of the bundled program.
 pub const ENV_SIDECAR_BIN: &str = "CONDUCTED_SIDECAR_BIN";
 /// Environment variable that tells the sidecar where to keep its slash-command snapshots.
 pub const ENV_COMPLETIONS_DIR: &str = "CONDUCTED_COMPLETIONS_DIR";
 /// Environment variable that tells the sidecar where the bundled skill folder is.
 pub const ENV_SKILL_PLUGIN_DIR: &str = "CONDUCTED_SKILL_PLUGIN_DIR";
-
-/// Signal number for SIGKILL. Kept beside the one in process_group for a direct `kill(2)`.
-const SIGKILL: i32 = process_group::SIGKILL;
-
-unsafe extern "C" {
-    fn kill(pid: i32, signal: i32) -> i32;
-}
 
 /// Why a sidecar process ended.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -120,8 +120,6 @@ pub enum SidecarExitReason {
     Exited,
     /// The socket closed while the process stayed alive.
     SocketClosed,
-    /// The app asked for it (quit, or a restart requested by the UI).
-    Requested,
 }
 
 /// Payload of `sidecar://restart`.
@@ -308,9 +306,10 @@ pub struct ProcessRow {
     pub args: String,
 }
 
-/// Kills sidecar processes left behind by an earlier crash of the app. Matches the program name
-/// and the `sidecar` argument, and skips the process this app owns.
-pub fn kill_orphans() -> CommandResult<u32> {
+/// Kills sidecars left behind by an earlier crash. Only an orphan (parent pid 1) whose executable
+/// is the resolved sidecar binary is killed. A process that still has a live parent belongs to
+/// another running app and is left alone.
+pub fn kill_orphans(binary: &Path) -> CommandResult<u32> {
     let output = Command::new("ps")
         .args(["-axo", "stat=,pid=,ppid=,ucomm=,args="])
         .output()
@@ -326,23 +325,12 @@ pub fn kill_orphans() -> CommandResult<u32> {
     }
     let table = String::from_utf8_lossy(&output.stdout);
     let rows = parse_process_table(&table);
-    let mut names = vec![SIDECAR_PROGRAM_NAME.to_string()];
-    let explicit_name = explicit_sidecar_bin().and_then(|explicit| {
-        explicit
-            .file_name()
-            .map(|name| name.to_string_lossy().into_owned())
-    });
-    if let Some(name) = explicit_name {
-        names.push(name);
-    }
     let own_pid = std::process::id();
+    let paths = [binary.to_path_buf()];
     let mut killed = 0;
-    for pid in orphan_pids(&rows, own_pid, &names) {
-        // SAFETY: the pid comes from the process table; kill reads no other memory.
-        unsafe {
-            if kill(pid as i32, SIGKILL) == 0 {
-                killed += 1;
-            }
+    for pid in orphan_pids(&rows, own_pid, &paths) {
+        if process_group::signal_group(pid, process_group::SIGKILL) {
+            killed += 1;
         }
     }
     Ok(killed)
@@ -368,33 +356,40 @@ fn parse_process_row(line: &str) -> Option<ProcessRow> {
     })
 }
 
-/// True for a sidecar process this app would have started: a known program name and the
-/// `sidecar` mode argument. A `--version` probe has no mode argument and is not matched.
-pub fn is_sidecar_process(row: &ProcessRow, names: &[String]) -> bool {
-    let ucomm = Path::new(&row.ucomm)
-        .file_name()
-        .map(|name| name.to_string_lossy().into_owned())
-        .unwrap_or_else(|| row.ucomm.clone());
-    let name_matches = names.iter().any(|name| name == &ucomm)
-        || row.args.split_whitespace().any(|token| {
-            Path::new(token)
-                .file_name()
-                .map(|name| {
-                    let name = name.to_string_lossy();
-                    names.iter().any(|known| &*name == known.as_str())
-                })
-                .unwrap_or(false)
-        });
-    let has_mode = row.args.split_whitespace().any(|token| token == "sidecar");
-    name_matches && has_mode
+/// True for an orphaned sidecar this app started: parent pid 1, the `sidecar` mode argument, and
+/// an executable (the first argument) that resolves to one of `paths`. A sidecar with a live
+/// parent is another app's and is not matched. A `--version` probe has no mode argument either.
+pub fn is_sidecar_process(row: &ProcessRow, paths: &[PathBuf]) -> bool {
+    if row.ppid != 1 {
+        return false;
+    }
+    if !row.args.split_whitespace().any(|token| token == "sidecar") {
+        return false;
+    }
+    let Some(executable) = row.args.split_whitespace().next() else {
+        return false;
+    };
+    let executable = Path::new(executable);
+    if !executable.is_absolute() {
+        return false;
+    }
+    paths.iter().any(|known| same_executable(executable, known))
 }
 
-/// The sidecar pids that belong to an earlier run: a match that is neither this process nor one
-/// of its children.
-pub fn orphan_pids(rows: &[ProcessRow], own_pid: u32, names: &[String]) -> Vec<u32> {
+/// Compares two executable paths. `ps` reports the path the kernel resolved, so a symlinked path
+/// and its target are equal. Paths that cannot be resolved are compared as written.
+fn same_executable(left: &Path, right: &Path) -> bool {
+    match (fs::canonicalize(left), fs::canonicalize(right)) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => left == right,
+    }
+}
+
+/// The sidecar pids that belong to an earlier run: an orphan that this app did not start.
+pub fn orphan_pids(rows: &[ProcessRow], own_pid: u32, paths: &[PathBuf]) -> Vec<u32> {
     rows.iter()
-        .filter(|row| row.pid != own_pid && row.ppid != own_pid)
-        .filter(|row| is_sidecar_process(row, names))
+        .filter(|row| row.pid != own_pid)
+        .filter(|row| is_sidecar_process(row, paths))
         .map(|row| row.pid)
         .collect()
 }
@@ -510,33 +505,19 @@ pub fn plan_restart(recent: &mut Vec<i64>, now_ms: i64) -> RestartPlan {
 }
 
 /// The environment the sidecar reads at start. Folder values are created by the launcher before
-/// the spawn. There is no database path and no logger token or folder (D026, D028).
-pub fn sidecar_environment(pid: u32, app_version: &str, data_dir: &Path) -> Vec<(String, String)> {
+/// the spawn. Only variables the sidecar reads today are set; the app version, agent binaries,
+/// ACP providers and Cursor store wait for the features that read them. There is no database path
+/// and no logger token or folder (D026, D028).
+pub fn sidecar_environment(pid: u32, data_dir: &Path) -> Vec<(String, String)> {
     let log_dir = data_dir.join("logs");
     let bin_dir = data_dir.join("bin");
     let outbox_root = data_dir.join("sidecar-v2-session-event-outbox");
-    let agent_binaries = data_dir.join("agent-binaries");
-    let acp_providers = agent_binaries.join("acp-providers");
-    let cursor_store = data_dir.join("cursor-store");
     let text = |path: &Path| path.to_string_lossy().into_owned();
     vec![
         ("CONDUCTED_PARENT_PID".to_string(), pid.to_string()),
         ("CONDUCTED_OUTBOX_ROOT".to_string(), text(&outbox_root)),
         ("CONDUCTED_LOG_DIR".to_string(), text(&log_dir)),
         ("CONDUCTED_BIN_DIR".to_string(), text(&bin_dir)),
-        ("CONDUCTED_APP_VERSION".to_string(), app_version.to_string()),
-        (
-            "CONDUCTED_AGENT_BINARIES_DIR".to_string(),
-            text(&agent_binaries),
-        ),
-        (
-            "CONDUCTED_ACP_PROVIDERS_DIR".to_string(),
-            text(&acp_providers),
-        ),
-        (
-            "CONDUCTED_CURSOR_STORE_DIR".to_string(),
-            text(&cursor_store),
-        ),
     ]
 }
 
@@ -571,10 +552,9 @@ fn blocking_start(
     binary: &Path,
     _generation: u64,
 ) -> CommandResult<StartedSidecar> {
-    kill_orphans()?;
+    kill_orphans(binary)?;
     let data_dir = app_data_dir(app)?;
-    let version = app.package_info().version.to_string();
-    let environment = sidecar_environment(std::process::id(), &version, &data_dir);
+    let environment = sidecar_environment(std::process::id(), &data_dir);
     for (key, value) in &environment {
         if is_folder_variable(key) {
             ensure_dir(Path::new(value), 0o700)?;
@@ -587,7 +567,7 @@ fn blocking_start(
         &log_dir,
         Duration::from_millis(HANDSHAKE_TIMEOUT_MS),
     )?;
-    let _ = prune_logs(&log_dir, LOGS_KEPT);
+    prune_logs(&log_dir, LOGS_KEPT);
     let stream = match connect_with_retries(
         &spawned.socket_path,
         Duration::from_millis(CONNECT_TIMEOUT_MS),
@@ -627,7 +607,15 @@ fn ensure_dir(path: &Path, mode: u32) -> CommandResult<PathBuf> {
         code: "sidecar_folder_failed",
         message: format!("Could not create {}: {error}", path.display()),
     })?;
-    let _ = fs::set_permissions(path, fs::Permissions::from_mode(mode));
+    fs::set_permissions(path, fs::Permissions::from_mode(mode)).map_err(|error| {
+        CommandError::Failed {
+            code: "sidecar_folder_failed",
+            message: format!(
+                "Could not set the permissions of {}: {error}",
+                path.display()
+            ),
+        }
+    })?;
     Ok(path.to_path_buf())
 }
 
@@ -708,7 +696,7 @@ fn spawn_sidecar(
             match reader.read_line(&mut line) {
                 Ok(0) => break,
                 Ok(_) => {
-                    let trimmed = line.trim_end_matches(|c| c == '\r' || c == '\n');
+                    let trimmed = line.trim_end_matches(['\r', '\n']);
                     match parse_handshake(trimmed) {
                         Some(path) => {
                             let _ = handshake_sender.send(path);
@@ -731,7 +719,7 @@ fn spawn_sidecar(
             match reader.read_line(&mut line) {
                 Ok(0) => break,
                 Ok(_) => {
-                    let trimmed = line.trim_end_matches(|c| c == '\r' || c == '\n');
+                    let trimmed = line.trim_end_matches(['\r', '\n']);
                     if !trimmed.is_empty() {
                         log_line(&stderr_log, "stderr", trimmed);
                     }
@@ -811,17 +799,20 @@ fn log_files(log_dir: &Path) -> Vec<(PathBuf, SystemTime)> {
         .collect()
 }
 
-/// Keeps the newest `keep` sidecar logs and removes the rest.
-pub fn prune_logs(log_dir: &Path, keep: usize) -> CommandResult<()> {
+/// Keeps the newest `keep` sidecar logs, removes the rest, and returns how many were removed.
+pub fn prune_logs(log_dir: &Path, keep: usize) -> usize {
     let mut files = log_files(log_dir);
     if files.len() <= keep {
-        return Ok(());
+        return 0;
     }
     files.sort_by_key(|entry| std::cmp::Reverse(entry.1));
+    let mut removed = 0;
     for (path, _) in files.into_iter().skip(keep) {
-        let _ = fs::remove_file(path);
+        if fs::remove_file(path).is_ok() {
+            removed += 1;
+        }
     }
-    Ok(())
+    removed
 }
 
 /// The newest sidecar log, used to keep the failure screen useful when a start fails.
@@ -889,6 +880,7 @@ async fn start_locked(app: &AppHandle, inner: &mut SidecarInner) -> CommandResul
     );
     spawn_writer(started.stream, receiver);
     spawn_supervisor(app.clone(), generation, started.child);
+    let _ = app.emit(EVENT_READY, ());
     Ok(handle)
 }
 
@@ -979,14 +971,16 @@ pub async fn on_process_ended(
         _ => return Ok(()),
     };
     inner.phase = SidecarPhase::Stopped;
-    if reason == SidecarExitReason::Requested {
+    drop(inner);
+    // Clean up the whole group for both reasons: a crash can leave grandchildren behind just as a
+    // closed socket can. The lock is not held while this waits, so sends and reads are not blocked.
+    let _ = tauri::async_runtime::spawn_blocking(move || {
+        process_group::terminate_group(pid, Duration::from_millis(KILL_GRACE_MS));
+    })
+    .await;
+    let mut inner = state.inner.lock().await;
+    if inner.generation != generation {
         return Ok(());
-    }
-    if reason == SidecarExitReason::SocketClosed {
-        let _ = tauri::async_runtime::spawn_blocking(move || {
-            process_group::terminate_group(pid, Duration::from_millis(KILL_GRACE_MS));
-        })
-        .await;
     }
     let plan = plan_restart(&mut inner.recent_restarts_ms, now_ms());
     inner.phase = if plan.will_retry {
@@ -1173,6 +1167,41 @@ mod tests {
         path
     }
 
+    /// Writes a log with a known modified time, so "the newest" is not a guess.
+    fn write_log_at(folder: &TempDir, name: &str, seconds: u64) -> PathBuf {
+        let path = folder.path().join(name);
+        let file = fs::File::create(&path).expect("write log");
+        let modified = UNIX_EPOCH + Duration::from_secs(seconds);
+        file.set_modified(modified).expect("set log time");
+        path
+    }
+
+    /// The environment variable names `packages/sidecar` reads, from its TypeScript source.
+    fn sidecar_env_names() -> String {
+        fn collect(dir: &Path, text: &mut String) {
+            let Ok(entries) = fs::read_dir(dir) else {
+                return;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    collect(&path, text);
+                } else if path.extension().and_then(|extension| extension.to_str()) == Some("ts")
+                    && !path
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .is_some_and(|name| name.ends_with(".test.ts"))
+                {
+                    text.push_str(&fs::read_to_string(&path).expect("read sidecar source"));
+                }
+            }
+        }
+        let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../packages/sidecar/src");
+        let mut text = String::new();
+        collect(&source, &mut text);
+        text
+    }
+
     #[test]
     fn side_23_a_matching_version_passes() {
         let folder = TempDir::new();
@@ -1305,30 +1334,61 @@ mod tests {
     }
 
     #[test]
-    fn plat_09_orphan_matching_skips_our_own_child() {
+    fn plat_09_orphan_matching_kills_only_a_parentless_sidecar() {
+        let folder = TempDir::new();
+        let sidecar = script(&folder, "conducted-sidecar", "exit 0");
+        let other = script(&folder, "other-program", "exit 0");
         let rows = vec![
-            row(100, 1, "conducted-sidecar", "/x/conducted-sidecar sidecar"),
-            row(101, 1, "other", "/x/other sidecar"),
+            row(
+                100,
+                1,
+                "conducted-sidecar",
+                &format!("{} sidecar", sidecar.display()),
+            ),
+            row(
+                101,
+                1,
+                "other-program",
+                &format!("{} sidecar", other.display()),
+            ),
             row(
                 102,
                 1,
                 "conducted-sidecar",
-                "/x/conducted-sidecar --version",
+                &format!("{} --version", sidecar.display()),
             ),
-            row(200, 42, "conducted-sidecar", "/x/conducted-sidecar sidecar"),
+            row(
+                200,
+                42,
+                "conducted-sidecar",
+                &format!("{} sidecar", sidecar.display()),
+            ),
         ];
-        let names = vec![SIDECAR_PROGRAM_NAME.to_string()];
-        assert_eq!(orphan_pids(&rows, 42, &names), vec![100]);
+        let paths = vec![sidecar];
+        assert_eq!(orphan_pids(&rows, 42, &paths), vec![100]);
     }
 
     #[test]
-    fn plat_09_a_dev_wrapper_name_is_also_matched() {
-        let rows = vec![row(300, 1, "my-dev-wrapper", "/x/my-dev-wrapper sidecar")];
-        let names = vec![
-            SIDECAR_PROGRAM_NAME.to_string(),
-            "my-dev-wrapper".to_string(),
-        ];
-        assert_eq!(orphan_pids(&rows, 42, &names), vec![300]);
+    fn plat_09_a_sidecar_of_another_running_app_is_not_killed() {
+        let folder = TempDir::new();
+        let sidecar = script(&folder, "conducted-sidecar", "exit 0");
+        let rows = vec![row(
+            200,
+            42,
+            "conducted-sidecar",
+            &format!("{} sidecar", sidecar.display()),
+        )];
+        let paths = vec![sidecar];
+        assert!(orphan_pids(&rows, 1, &paths).is_empty());
+    }
+
+    #[test]
+    fn plat_09_a_bun_process_with_the_sidecar_word_is_not_killed() {
+        let folder = TempDir::new();
+        let sidecar = script(&folder, "conducted-sidecar", "exit 0");
+        let rows = vec![row(300, 1, "bun", "/usr/bin/bun run sidecar")];
+        let paths = vec![sidecar];
+        assert!(orphan_pids(&rows, 1, &paths).is_empty());
     }
 
     #[test]
@@ -1344,26 +1404,23 @@ mod tests {
     #[test]
     fn plat_09_log_files_keep_the_newest_five() {
         let folder = TempDir::new();
-        for index in 0..7 {
-            write_log(&folder, &format!("sidecar-{index}.log"));
+        for index in 0..7u64 {
+            write_log_at(&folder, &format!("sidecar-{index}.log"), 1_000 + index);
         }
-        prune_logs(folder.path(), LOGS_KEPT).expect("prune");
-        let count = fs::read_dir(folder.path())
-            .expect("list logs")
-            .filter(|entry| {
-                entry
-                    .as_ref()
-                    .ok()
-                    .and_then(|entry| {
-                        entry
-                            .file_name()
-                            .to_str()
-                            .map(|name| name.ends_with(".log"))
-                    })
-                    .unwrap_or(false)
-            })
-            .count();
-        assert_eq!(count, LOGS_KEPT);
+        let removed = prune_logs(folder.path(), LOGS_KEPT);
+        assert_eq!(removed, 2);
+        for index in 2..7 {
+            assert!(
+                folder.path().join(format!("sidecar-{index}.log")).is_file(),
+                "sidecar-{index}.log is among the newest five"
+            );
+        }
+        for index in 0..2 {
+            assert!(
+                !folder.path().join(format!("sidecar-{index}.log")).exists(),
+                "sidecar-{index}.log was the oldest and should be removed"
+            );
+        }
     }
 
     #[test]
@@ -1371,7 +1428,7 @@ mod tests {
         let folder = TempDir::new();
         write_log(&folder, "notes.txt");
         write_log(&folder, "app-2026-11-05.ndjson");
-        prune_logs(folder.path(), 0).expect("prune");
+        assert_eq!(prune_logs(folder.path(), 0), 0);
         assert!(folder.path().join("notes.txt").is_file());
         assert!(folder.path().join("app-2026-11-05.ndjson").is_file());
     }
@@ -1388,13 +1445,12 @@ mod tests {
     #[test]
     fn plat_09_the_sidecar_environment_names_every_folder() {
         let data = Path::new("/tmp/conducted-data");
-        let environment = sidecar_environment(42, "0.1.0", data);
+        let environment = sidecar_environment(42, data);
         let map: HashMap<&str, &str> = environment
             .iter()
             .map(|(key, value)| (key.as_str(), value.as_str()))
             .collect();
         assert_eq!(map.get("CONDUCTED_PARENT_PID"), Some(&"42"));
-        assert_eq!(map.get("CONDUCTED_APP_VERSION"), Some(&"0.1.0"));
         assert_eq!(
             map.get("CONDUCTED_LOG_DIR"),
             Some(&"/tmp/conducted-data/logs")
@@ -1407,17 +1463,34 @@ mod tests {
             map.get("CONDUCTED_OUTBOX_ROOT"),
             Some(&"/tmp/conducted-data/sidecar-v2-session-event-outbox")
         );
-        assert_eq!(
-            map.get("CONDUCTED_AGENT_BINARIES_DIR"),
-            Some(&"/tmp/conducted-data/agent-binaries")
-        );
-        assert_eq!(
-            map.get("CONDUCTED_ACP_PROVIDERS_DIR"),
-            Some(&"/tmp/conducted-data/agent-binaries/acp-providers")
-        );
         assert!(!map.contains_key("CONDUCTED_DB_PATH"));
         assert!(!map.contains_key("CONDUCTED_LOGGER_TOKEN"));
         assert!(!map.contains_key("CONDUCTED_LOGGER_DIR"));
+    }
+
+    #[test]
+    fn plat_09_the_launcher_sets_only_variables_the_sidecar_reads() {
+        let source = sidecar_env_names();
+        assert!(
+            source.contains("CONDUCTED_BIN_DIR"),
+            "the sidecar source was not found"
+        );
+        let environment = sidecar_environment(42, Path::new("/tmp/conducted-data"));
+        let keys: Vec<&str> = environment.iter().map(|(key, _)| key.as_str()).collect();
+        for key in [
+            "CONDUCTED_PARENT_PID",
+            "CONDUCTED_OUTBOX_ROOT",
+            "CONDUCTED_LOG_DIR",
+            "CONDUCTED_BIN_DIR",
+        ] {
+            assert!(keys.contains(&key), "the launcher does not set {key}");
+        }
+        for key in &keys {
+            assert!(
+                source.contains(&format!("\"{key}\"")),
+                "the launcher sets {key}, but packages/sidecar never reads it"
+            );
+        }
     }
 
     #[test]
@@ -1446,6 +1519,44 @@ mod tests {
         assert!(spawned.log_path.is_file());
         process_group::terminate_group(spawned.pid, Duration::from_millis(500));
         let _ = spawned.child.wait();
+    }
+
+    #[test]
+    fn plat_09_a_start_announces_ready_on_the_documented_event() {
+        assert_eq!(EVENT_READY, "sidecar://ready");
+    }
+
+    #[test]
+    fn plat_09_shutdown_stops_a_running_sidecar() {
+        let child = Command::new("sleep")
+            .arg("30")
+            .process_group(0)
+            .spawn()
+            .expect("start a fake sidecar");
+        let pid = child.id();
+        let reaper = std::thread::spawn(move || child.wait());
+        let (outgoing, _receiver) = mpsc::channel::<String>();
+        let state = SidecarState {
+            inner: tauri::async_runtime::Mutex::new(SidecarInner {
+                phase: SidecarPhase::Running(SidecarHandle {
+                    pid,
+                    generation: 1,
+                    socket_path: PathBuf::from("/tmp/conducted-fake.sock"),
+                    log_path: PathBuf::from("/tmp/conducted-fake.log"),
+                    outgoing,
+                }),
+                generation: 1,
+                recent_restarts_ms: Vec::new(),
+                last_log_path: None,
+            }),
+        };
+        tauri::async_runtime::block_on(shutdown(&state)).expect("shutdown");
+        let status = reaper
+            .join()
+            .expect("the reaper finishes")
+            .expect("wait for the fake sidecar");
+        assert!(!status.success(), "the fake sidecar was stopped");
+        assert!(!process_group::group_exists(pid));
     }
 
     #[test]
