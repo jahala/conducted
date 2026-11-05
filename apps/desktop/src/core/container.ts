@@ -367,6 +367,11 @@ export function createContainer(inputs: ContainerInputs): Container {
 		setting,
 		isViewing: (sessionId) => sessions.store.getState().viewingSessionId === sessionId,
 		windowFocused: inputs.windowFocused,
+		sessionOf: (sessionId) => sessions.store.getState().sessions[sessionId],
+		workspaceOf: (workspaceId) => workspace.store.getState().workspacesById[workspaceId],
+		liveStateOf: (sessionId) => sessions.store.getState().liveStates[sessionId],
+		queuedCountOf: (sessionId) =>
+			(followUpQueue.store.getState().bySession[sessionId] ?? []).length,
 		workspaces: () => {
 			const byId = workspace.store.getState().workspacesById;
 			return new Map(
@@ -374,6 +379,11 @@ export function createContainer(inputs: ContainerInputs): Container {
 			);
 		},
 		sessions: () => Object.values(sessions.store.getState().sessions),
+		setTimer: (callback, ms) => {
+			const handle = setTimeout(callback, ms);
+			return () => clearTimeout(handle);
+		},
+		log,
 	});
 	const followUpQueue = new FollowUpQueue({
 		repos: repositories,
@@ -821,6 +831,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 				keepAwakeTimer = null;
 			});
 			await step("keep-awake", () => keepAwake.stop());
+			await step("notifications", () => notifications.stop());
 			await step("the repo service", () => repo.dispose());
 			await step("GitHub polling", () => github.dispose());
 			await step("terminals", () => terminals.killAll());
