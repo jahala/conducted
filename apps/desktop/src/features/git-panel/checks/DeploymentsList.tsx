@@ -6,17 +6,117 @@
  * Inactive; providers Vercel, Cloudflare, Netlify, Render, Railway, Fly.io, AWS Amplify, Heroku,
  * GitHub Pages); services-map.md 3.7.2 (deployments(first:20), newest first).
  * Must handle: no deployments (section hidden), an unknown provider (generic mark), a failed
- * deployment (link to its log if one exists), and an inactive deployment (muted).
+ * deployment (its URL opens the deployment), and an inactive deployment (muted).
  * Test first: three deployments render newest first and an unknown provider shows the generic mark.
  */
-import { notImplemented } from "@conducted/shared";
-import type { DeploymentView } from "../../../core/model.ts";
+import type { DeploymentProvider, DeploymentState, DeploymentView } from "../../../core/model.ts";
+import { Badge, type BadgeTone } from "../../../ui/Badge.tsx";
+import { GlobeIcon } from "../../../ui/icons.tsx";
 
 export interface DeploymentsListProps {
 	deployments: DeploymentView[];
 	onOpenUrl: (url: string) => void;
 }
 
-export function DeploymentsList(_props: DeploymentsListProps): never {
-	return notImplemented("PR-04");
+const PROVIDER_LABEL: Readonly<Record<DeploymentProvider, string>> = {
+	vercel: "Vercel",
+	cloudflare: "Cloudflare",
+	netlify: "Netlify",
+	render: "Render",
+	railway: "Railway",
+	fly: "Fly.io",
+	amplify: "AWS Amplify",
+	heroku: "Heroku",
+	github_pages: "GitHub Pages",
+	other: "Other",
+};
+
+const STATE_LABEL: Readonly<Record<DeploymentState, string>> = {
+	pending: "Pending",
+	deploying: "Deploying",
+	deployed: "Deployed",
+	failed: "Failed",
+	inactive: "Inactive",
+};
+
+const STATE_TONE: Readonly<Record<DeploymentState, BadgeTone>> = {
+	pending: "warning",
+	deploying: "warning",
+	deployed: "success",
+	failed: "danger",
+	inactive: "neutral",
+};
+
+export function deploymentProviderLabel(provider: DeploymentProvider): string {
+	return PROVIDER_LABEL[provider];
+}
+
+function ProviderMark({ provider }: { provider: DeploymentProvider }) {
+	if (provider === "other") {
+		return (
+			<span
+				role="img"
+				aria-label="Other deployment provider"
+				className="flex size-4 shrink-0 items-center justify-center text-fg-subtle"
+			>
+				<GlobeIcon className="size-4" />
+			</span>
+		);
+	}
+	const label = PROVIDER_LABEL[provider];
+	return (
+		<span
+			role="img"
+			aria-label={`${label} deployment`}
+			title={label}
+			className="flex size-4 shrink-0 items-center justify-center rounded-xs bg-surface text-2xs font-medium text-fg-muted"
+		>
+			{label.slice(0, 1)}
+		</span>
+	);
+}
+
+export function DeploymentsList({ deployments, onOpenUrl }: DeploymentsListProps) {
+	if (deployments.length === 0) return null;
+	const newestFirst = [...deployments].sort((left, right) => right.updatedAt - left.updatedAt);
+
+	return (
+		<section aria-label="Deployments" className="border-b border-separator">
+			<h3 className="px-2 pb-1 pt-2 text-sm font-medium text-fg">Deployments</h3>
+			<ul className="m-0 list-none p-0">
+				{newestFirst.map((deployment) => {
+					const inactive = deployment.state === "inactive";
+					const url = deployment.url;
+					return (
+						<li
+							key={`${deployment.environment}-${deployment.updatedAt}`}
+							data-testid="deployment-row"
+							className="flex items-center gap-2 px-2 py-1.5"
+						>
+							<ProviderMark provider={deployment.provider} />
+							<span
+								className={
+									inactive
+										? "min-w-0 flex-1 truncate text-sm text-fg-subtle"
+										: "min-w-0 flex-1 truncate text-sm text-fg"
+								}
+							>
+								{deployment.environment}
+							</span>
+							<Badge tone={STATE_TONE[deployment.state]}>{STATE_LABEL[deployment.state]}</Badge>
+							{url === null ? null : (
+								<button
+									type="button"
+									onClick={() => onOpenUrl(url)}
+									className="text-xs font-medium text-link underline-offset-4 hover:underline"
+								>
+									Open
+								</button>
+							)}
+						</li>
+					);
+				})}
+			</ul>
+		</section>
+	);
 }

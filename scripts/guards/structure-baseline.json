@@ -7,7 +7,7 @@
 		"apps/desktop/src/features/chat/tools/cards/chat-08-cards.test.tsx": 1,
 		"apps/desktop/src/features/chat/tools/ToolCard.test.tsx": 1,
 		"apps/desktop/src/features/git-panel/changes/rev-01-hooked.test.tsx": 1,
-		"apps/desktop/src/features/git-panel/git-panel.tabs.test.tsx": 3,
+		"apps/desktop/src/features/git-panel/git-panel.tabs.test.tsx": 2,
 		"apps/desktop/src/features/workspace/WorkspaceActionsMenu.nav-10.test.tsx": 2,
 		"apps/desktop/src/platform/tauri.test.ts": 2,
 		"apps/desktop/src/ui/states.test.tsx": 4,
