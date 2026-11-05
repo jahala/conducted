@@ -3,7 +3,9 @@
  * Owns: The typed table of every command with its default macOS shortcut, plus pure lookup, parse, format and conflict helpers.
  * Behaviour: docs/research/conductor/ui-map.md section 5.4 (keyboard shortcuts) and 5.1 (command palette actions).
  * Must handle: one id per command; several shortcuts per command; the same keys in different scopes;
- *   the send-key swap; plus and other symbol keys; bad shortcut text returns an error instead of throwing.
+ *   the send-key swap; plus and other symbol keys; bad shortcut text returns an error instead of
+ *   throwing; the user's overrides replace the defaults, never bind a fixed command, and feed the
+ *   key-cap hints.
  * Test first: every default shortcut parses, and no two commands share a shortcut inside one scope.
  *
  * This file is data and pure functions only. A separate service maps command ids to handlers.
@@ -35,6 +37,7 @@ export type CommandCategory =
  * - chat-question: a question card has focus.
  * - chat-queue: a queued follow-up message is selected.
  * - chat-queue-edit: a queued follow-up message is being edited.
+ * - chat-goal: the Codex goal bar has focus.
  */
 export type CommandScope =
 	| "global"
@@ -47,7 +50,8 @@ export type CommandScope =
 	| "chat-card"
 	| "chat-question"
 	| "chat-queue"
-	| "chat-queue-edit";
+	| "chat-queue-edit"
+	| "chat-goal";
 
 export interface CommandDef {
 	/** Dotted and unique, for example "workspace.create". */
@@ -144,6 +148,16 @@ export const COMMANDS = [
 		title: "Open the app log viewer",
 		category: "General",
 		defaultShortcuts: ["Cmd+Shift+I"],
+		configurable: true,
+		scope: "global",
+		feature: "APP-03",
+	},
+	{
+		id: "app.openSidecarLogs",
+		// Unbound because Cmd+Shift+L is Pull latest, as ui-map.md 5.4 notes.
+		title: "Open sidecar logs",
+		category: "General",
+		defaultShortcuts: [],
 		configurable: true,
 		scope: "global",
 		feature: "APP-03",
@@ -554,6 +568,15 @@ export const COMMANDS = [
 		feature: "RUN-01",
 	},
 	{
+		id: "workspace.togglePortForwarding",
+		title: "Toggle port forwarding",
+		category: "Workspace",
+		defaultShortcuts: ["Cmd+Y"],
+		configurable: true,
+		scope: "global",
+		feature: "CLOUD-10",
+	},
+	{
 		id: "workspace.createSection",
 		title: "Create a section",
 		category: "Workspace",
@@ -932,6 +955,24 @@ export const COMMANDS = [
 		feature: "PR-09",
 	},
 	{
+		id: "chat.insertSnippet",
+		title: "Insert snippet",
+		category: "Chat",
+		defaultShortcuts: ["Cmd+;"],
+		configurable: true,
+		scope: "chat-input",
+		feature: "COMP-09",
+	},
+	{
+		id: "chat.saveGoal",
+		title: "Save goal",
+		category: "Chat",
+		defaultShortcuts: ["Cmd+Enter"],
+		configurable: true,
+		scope: "chat-goal",
+		feature: "COMP-10",
+	},
+	{
 		id: "chat.addAttachment",
 		title: "Add an attachment",
 		category: "Chat",
@@ -963,6 +1004,51 @@ export const COMMANDS = [
 		title: "Cycle the effort level",
 		category: "Chat",
 		defaultShortcuts: ["Cmd+Shift+/"],
+		configurable: true,
+		scope: "global",
+		feature: "COMP-02",
+	},
+	{
+		id: "chat.selectLoadout1",
+		title: "Select loadout 1",
+		category: "Chat",
+		defaultShortcuts: ["Cmd+Ctrl+1"],
+		configurable: true,
+		scope: "global",
+		feature: "COMP-02",
+	},
+	{
+		id: "chat.selectLoadout2",
+		title: "Select loadout 2",
+		category: "Chat",
+		defaultShortcuts: ["Cmd+Ctrl+2"],
+		configurable: true,
+		scope: "global",
+		feature: "COMP-02",
+	},
+	{
+		id: "chat.selectLoadout3",
+		title: "Select loadout 3",
+		category: "Chat",
+		defaultShortcuts: ["Cmd+Ctrl+3"],
+		configurable: true,
+		scope: "global",
+		feature: "COMP-02",
+	},
+	{
+		id: "chat.selectLoadout4",
+		title: "Select loadout 4",
+		category: "Chat",
+		defaultShortcuts: ["Cmd+Ctrl+4"],
+		configurable: true,
+		scope: "global",
+		feature: "COMP-02",
+	},
+	{
+		id: "chat.selectLoadout5",
+		title: "Select loadout 5",
+		category: "Chat",
+		defaultShortcuts: ["Cmd+Ctrl+5"],
 		configurable: true,
 		scope: "global",
 		feature: "COMP-02",
@@ -1429,22 +1515,100 @@ export function formatShortcut(spec: string): string {
 	return `${modifierSymbols(parsed.value)}${NAMED_KEYS[key] ?? key}`;
 }
 
+// ---------------------------------------------------------------- user overrides
+
+/** Command id to the shortcuts the user chose. An empty list unbinds the command. */
+export type ShortcutOverrides = Readonly<Record<string, readonly string[]>>;
+
+/**
+ * Reads the saved overrides from `keybinding_overrides_v1`. Empty text means no changes.
+ * Other text must be one JSON object whose values are lists of shortcut text.
+ * Our design choice: an unknown command id stays in the object; it is ignored when applied, so
+ * removing a command from the registry does not make the whole setting unusable.
+ */
+export function parseShortcutOverrides(text: string): Result<ShortcutOverrides> {
+	if (text.trim() === "") {
+		return ok({});
+	}
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(text);
+	} catch {
+		return err(appError("shortcut_overrides_invalid", "The custom key bindings are not JSON."));
+	}
+	if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+		return err(
+			appError("shortcut_overrides_invalid", "The custom key bindings must be a JSON object."),
+		);
+	}
+	const overrides: Record<string, readonly string[]> = {};
+	for (const [id, value] of Object.entries(parsed)) {
+		if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) {
+			return err(
+				appError(
+					"shortcut_overrides_invalid",
+					`The shortcuts for ${id} must be a list of strings.`,
+				),
+			);
+		}
+		overrides[id] = value;
+	}
+	return ok(overrides);
+}
+
+/**
+ * The shortcuts a command uses now. An override replaces the whole default list; a fixed command
+ * always keeps its shipped shortcut.
+ */
+export function effectiveShortcuts(
+	command: CommandDef,
+	overrides: ShortcutOverrides,
+): readonly string[] {
+	if (!command.configurable) return command.defaultShortcuts;
+	return overrides[command.id] ?? command.defaultShortcuts;
+}
+
+/** The table with the user's overrides applied, for the conflict check in a rebinding screen. */
+export function withShortcutOverrides(
+	commands: readonly CommandDef[],
+	overrides: ShortcutOverrides,
+): CommandDef[] {
+	return commands.map((command) => {
+		const effective = effectiveShortcuts(command, overrides);
+		return effective === command.defaultShortcuts
+			? command
+			: { ...command, defaultShortcuts: effective };
+	});
+}
+
+/** Display form of the live first binding, for a key-cap hint. Null when the command is unbound. */
+export function liveShortcut(id: string, overrides: ShortcutOverrides = {}): string | null {
+	const command = getCommand(id);
+	if (command === undefined) return null;
+	const first = effectiveShortcuts(command, overrides)[0];
+	return first === undefined ? null : formatShortcut(first);
+}
+
 // ---------------------------------------------------------------- palette entries
 
 /**
  * Maps the table to the entries the palette reads. `enabled` says whether a command can run now.
- * `defaultShortcut` is what the command ships with, so a screen can offer "reset" after a rebind.
+ * `shortcut` is the live binding; `defaultShortcut` is what the command ships with, so a screen can
+ * offer "reset" after a rebind.
  */
-export function toCommandEntries(enabled: (id: CommandId) => boolean): CommandEntry[] {
+export function toCommandEntries(
+	enabled: (id: CommandId) => boolean,
+	overrides: ShortcutOverrides = {},
+): CommandEntry[] {
 	return COMMANDS.map((command) => {
-		const first = command.defaultShortcuts[0];
-		const shortcut = first === undefined ? null : formatShortcut(first);
+		const live = effectiveShortcuts(command, overrides)[0];
+		const shipped = command.defaultShortcuts[0];
 		return {
 			id: command.id,
 			title: command.title,
 			category: command.category,
-			shortcut,
-			defaultShortcut: shortcut,
+			shortcut: live === undefined ? null : formatShortcut(live),
+			defaultShortcut: shipped === undefined ? null : formatShortcut(shipped),
 			enabled: enabled(command.id),
 		};
 	});
