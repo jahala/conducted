@@ -17,7 +17,14 @@
  * `Actions` like everything else and the Platform stays out of `features/`.
  * Test first: install while a download of the same program runs starts no second download.
  */
-import { type ManagedProgram, notImplemented, type Result } from "@conducted/shared";
+import {
+	appError,
+	err,
+	type ManagedProgram,
+	notImplemented,
+	ok,
+	type Result,
+} from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform } from "../../platform/platform.ts";
 import type { FeedbackInput, Loadable } from "../api.ts";
@@ -63,8 +70,13 @@ export class SystemService {
 	}
 
 	/** Backs `Actions.app.copyText`. */
-	copyText(_text: string): Promise<Result<void>> {
-		return notImplemented("APP-13");
+	async copyText(text: string): Promise<Result<void>> {
+		try {
+			await this.#deps.platform.clipboard.writeText(text);
+			return ok(undefined);
+		} catch (cause) {
+			return err(appError("clipboard_write_failed", "Could not copy to the clipboard.", cause));
+		}
 	}
 
 	/** Backs `Actions.attachments.copyImage`. */
