@@ -24,6 +24,8 @@
  *    checkpoint, and reports wasWorking
  *  - shutdown(): stop every agent, take no checkpoint, wait up to 10 s for in-flight turns
  *  - the same agent session id is stored from the first callback and sent to the app once
+ *  - a config the agent changes by itself (plan mode) updates the chat's state and is sent to the
+ *    app with the reason, so the app's stored config agrees
  * Test first: two sendMessage calls with the same messageId start one turn; the second answer
  * repeats the first deliveredAs.
  * Our design choice: queued messages live in memory only. The app owns the persistent follow-up
@@ -63,7 +65,13 @@ import {
 	SteerRevertedError,
 } from "../runners/errors.ts";
 import type { RunnerRegistry } from "../runners/registry.ts";
-import type { AgentSession, Runner, RunnerCapabilities, TurnOutcome } from "../runners/runner.ts";
+import type {
+	AgentConfigChangeReason,
+	AgentSession,
+	Runner,
+	RunnerCapabilities,
+	TurnOutcome,
+} from "../runners/runner.ts";
 import type { ShellEnvProvider } from "../shell-env/capture.ts";
 import { messageOf } from "../util/errors.ts";
 import type { DuplicateGuard } from "./duplicate-guard.ts";
@@ -814,12 +822,28 @@ export class DefaultSessionManager implements SessionManager {
 			workspace,
 			env,
 			...(resume === undefined ? {} : { resume }),
+			onConfigChanged: (next, reason) => this.applyAgentConfig(state, next, reason),
 		});
 		state.agent = agent;
 		state.agentConfig = config;
 		state.runner = runner;
 		if (state.autoApproveEdits) agent.setAutoApproveEdits?.(true);
 		return agent;
+	}
+
+	/** Stores a config the agent changed by itself and tells the app, so its stored config agrees. */
+	private applyAgentConfig(
+		state: SessionState,
+		config: SessionConfig,
+		reason: AgentConfigChangeReason,
+	): void {
+		state.config = config;
+		if (state.agentConfig !== null) state.agentConfig = config;
+		this.deps.app.notify("agentConfigChanged", {
+			sessionId: state.sessionId,
+			config,
+			reason,
+		});
 	}
 
 	private async claimAgent(

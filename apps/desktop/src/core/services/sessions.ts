@@ -36,6 +36,7 @@
  * are placeholders until those features build them. The chat view (turns built from stored
  * events) belongs to CHAT-07. Cancel is CHAT-05's, and the interaction paths (answer,
  * requestInteraction) are CHAT-10's. CHAT-18 owns `applyLiveState` and `markInterrupted` here.
+ * SIDE-20 owns `applyAgentConfig`, which stores a config the agent changed by itself.
  */
 import {
 	type AgentLaunch,
@@ -66,6 +67,7 @@ import {
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Database } from "../../platform/platform.ts";
 import type { Draft, NewWorkspaceInput } from "../api.ts";
+import { createKeyedQueue, type KeyedQueue } from "../async/serial-queue.ts";
 import { interruptedTurnEvent } from "../db/repair.ts";
 import type { Repositories } from "../db/repositories.ts";
 import { executeStatement, inTransaction, selectRows, stringifyJson } from "../db/row-codec.ts";
@@ -225,6 +227,8 @@ export class SessionsService implements AgentMessenger {
 	readonly #interactionPromises = new Map<string, Promise<InteractionAnswer>>();
 	/** Bumped by cancel, so a send that finishes afterwards returns to the draft instead of running. */
 	readonly #cancelVersions = new Map<string, number>();
+	/** Config changes the agent makes for one chat are stored in the order they arrived. */
+	readonly #agentConfigWrites: KeyedQueue<SessionId> = createKeyedQueue<SessionId>();
 	/** Loads of stored events in progress, with the events that arrived meanwhile. */
 	readonly #opening = new Map<
 		string,
@@ -1188,6 +1192,19 @@ export class SessionsService implements AgentMessenger {
 			};
 		});
 		return ok(undefined);
+	}
+
+	/**
+	 * Stores a config the agent changed by itself, such as entering plan mode (SIDE-20). Writes for
+	 * one chat run in arrival order, so an older config never overwrites a newer one.
+	 */
+	async applyAgentConfig(sessionId: SessionId, config: SessionConfig): Promise<Result<void>> {
+		return this.#agentConfigWrites.run(sessionId, async () => {
+			const written = await this.#deps.repositories().sessions.setConfig(sessionId, config);
+			if (!written.ok) return written;
+			this.#setConfig(sessionId, config, this.#deps.now());
+			return ok(undefined);
+		});
 	}
 
 	/** Replaces the chat's progress tracker. An update with no blocks clears it. */
