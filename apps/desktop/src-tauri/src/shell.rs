@@ -33,12 +33,19 @@
 //! - Provider keys and exported shell functions are removed from the captured environment.
 //!
 //! Scope (PLAT-29, native-and-sidecar-map.md A3): `shell_run` and `shell_start` first call
-//! `check_program_allowed`, which compares the program's file name with `ALLOWED_PROGRAMS`: the
-//! programs the UI and its contract run (git, gh, gt, stat, cp, sleep, echo, true, the shell and
-//! the helper scripts for repository scripts, kill, which, open, caffeinate, pmset, lsof,
-//! watchexec) and the managed agent programs (claude, codex, cursor-agent, opencode, pi). A
-//! program outside the list fails with `shell_program_not_allowed` and names it. The file scope
-//! and URL scopes are in `files.rs`.
+//! `check_program_allowed`. It resolves the program (a bare name on the PATH the child will see,
+//! or the given path) and requires two things: the file name is in `ALLOWED_PROGRAMS` (git, gh,
+//! gt, stat, cp, sleep, echo, true, the shell and the helper scripts for repository scripts, kill,
+//! which, open, caffeinate, pmset, lsof, watchexec, and the managed agent programs claude, codex,
+//! cursor-agent, opencode, pi), and the resolved file sits in a trusted program folder: the
+//! system bin folders, the package-manager trees their links resolve into, the app's `bin/` and
+//! the managed agent-binaries folder. A program outside the list or the folders fails with
+//! `shell_program_not_allowed` and names it. The file scope and URL scopes are in `files.rs`.
+//!
+//! Our design choice: `ALLOWED_PROGRAMS` narrows accidents; it is not a sandbox. The shells, `cp`
+//! and `open` reach any file or URL when they run, as Conductor's list does. The working folder
+//! is not limited either. `pty_spawn` does not go through this check; the terminal's own scope
+//! belongs to PLAT-07.
 //!
 //! Our design choice: the id for `shell_start` comes from the UI. The captured environment is the
 //! base of every run and `ShellCommandRequest::env` is layered on top, as the Platform comment says.
@@ -380,8 +387,8 @@ fn resolve_program(program: &str, path: Option<&str>) -> CommandResult<PathBuf> 
 fn build_command(
     request: &ShellCommandRequest,
     base_env: &HashMap<String, String>,
+    program_roots: &[PathBuf],
 ) -> CommandResult<Command> {
-    check_program_allowed(&request.program, ALLOWED_PROGRAMS)?;
     let cwd = Path::new(&request.cwd);
     if !cwd.is_dir() {
         return Err(CommandError::Failed {
@@ -395,6 +402,7 @@ fn build_command(
         .or_else(|| base_env.get("PATH"))
         .map(String::as_str);
     let program = resolve_program(&request.program, path)?;
+    check_program_allowed(&request.program, ALLOWED_PROGRAMS, program_roots, path)?;
 
     let mut command = Command::new(program);
     command
@@ -419,8 +427,9 @@ fn build_command(
 fn spawn_child(
     request: &ShellCommandRequest,
     base_env: &HashMap<String, String>,
+    program_roots: &[PathBuf],
 ) -> CommandResult<Child> {
-    let mut command = build_command(request, base_env)?;
+    let mut command = build_command(request, base_env, program_roots)?;
     command.spawn().map_err(|error| CommandError::Failed {
         code: "shell_spawn_failed",
         message: format!("Could not start {}: {error}", request.program),
@@ -626,8 +635,9 @@ fn drive_with_limit(
 fn run_blocking(
     request: &ShellCommandRequest,
     base_env: &HashMap<String, String>,
+    program_roots: &[PathBuf],
 ) -> CommandResult<Finished> {
-    let child = spawn_child(request, base_env)?;
+    let child = spawn_child(request, base_env, program_roots)?;
     drive_with_limit(
         child,
         request.stdin.clone(),
@@ -973,7 +983,7 @@ pub fn start_background_capture(app: AppHandle) {
     });
 }
 
-/// Programs the web view may start. A program with a path is compared by its file name.
+/// Programs the web view may start. The resolved file must also sit in a trusted folder.
 pub const ALLOWED_PROGRAMS: &[&str] = &[
     "git",
     "gh",
@@ -1003,35 +1013,120 @@ pub const ALLOWED_PROGRAMS: &[&str] = &[
     "pi",
 ];
 
-/// Checks that `program` is on the list of programs the web view may start.
-pub fn check_program_allowed(program: &str, allowed: &[&str]) -> CommandResult<()> {
-    let name = Path::new(program)
+/// The folders a program may live in: the system bin folders, the package-manager trees whose
+/// links point into their own installation folders, and the app's own bin folders.
+pub fn program_roots(app: &AppHandle) -> Vec<PathBuf> {
+    let mut roots = vec![
+        PathBuf::from("/bin"),
+        PathBuf::from("/sbin"),
+        PathBuf::from("/usr/bin"),
+        PathBuf::from("/usr/sbin"),
+    ];
+    #[cfg(target_os = "macos")]
+    {
+        roots.push(PathBuf::from("/opt/homebrew"));
+        roots.push(PathBuf::from("/usr/local"));
+        roots.push(PathBuf::from("/opt/local"));
+    }
+    let resolver = app.path();
+    if let Ok(dir) = resolver.resource_dir() {
+        roots.push(dir.join("bin"));
+    }
+    if let Ok(dir) = resolver.app_data_dir() {
+        roots.push(dir.join("bin"));
+        roots.push(dir.join("agent-binaries"));
+    }
+    roots
+}
+
+/// Resolves `.` and `..` without touching the file system.
+fn normalize_lexically(path: &Path) -> PathBuf {
+    let mut resolved = PathBuf::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                resolved.pop();
+            }
+            other => resolved.push(other.as_os_str()),
+        }
+    }
+    resolved
+}
+
+/// The real path when it exists, so a link inside a trusted folder is compared by its target.
+fn canonical_or_lexical(path: &Path) -> PathBuf {
+    std::fs::canonicalize(path).unwrap_or_else(|_| {
+        let absolute = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            std::env::current_dir()
+                .map(|dir| dir.join(path))
+                .unwrap_or_else(|_| path.to_path_buf())
+        };
+        normalize_lexically(&absolute)
+    })
+}
+
+/// True when `path` is `root` itself or lies below it. Components are compared, so `/usr/bin-old`
+/// does not match `/usr/bin`.
+fn is_within(path: &Path, root: &Path) -> bool {
+    path == root || path.starts_with(root)
+}
+
+/// Checks that `program` is on the list of programs the web view may start and that the file it
+/// resolves to sits in one of `program_roots`. A bare name is resolved on `path`, the PATH the
+/// child will see, so a file beside a repository cannot pass as a system program.
+pub fn check_program_allowed(
+    program: &str,
+    allowed: &[&str],
+    program_roots: &[PathBuf],
+    path: Option<&str>,
+) -> CommandResult<()> {
+    let resolved = resolve_program(program, path)?;
+    let name = resolved
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or(program);
-    if allowed.contains(&name) {
+    if !allowed.contains(&name) {
+        return Err(CommandError::Failed {
+            code: "shell_program_not_allowed",
+            message: format!("The window may not run this program: {program}"),
+        });
+    }
+    let real = canonical_or_lexical(&resolved);
+    let trusted = program_roots
+        .iter()
+        .any(|root| is_within(&real, &canonical_or_lexical(root)));
+    if trusted {
         return Ok(());
     }
     Err(CommandError::Failed {
         code: "shell_program_not_allowed",
-        message: format!("The window may not run this program: {program}"),
+        message: format!(
+            "The window may not run a program from this folder: {}",
+            resolved.display()
+        ),
     })
 }
 
 /// Runs a program to completion and returns its output.
 #[tauri::command]
 pub async fn shell_run(
+    app: AppHandle,
     state: State<'_, ShellState>,
     command: ShellCommandRequest,
 ) -> CommandResult<ShellOutput> {
     let base_env = captured_env(&state).await?;
+    let roots = program_roots(&app);
     let timeout_ms = command.timeout_ms;
-    let joined = tauri::async_runtime::spawn_blocking(move || run_blocking(&command, &base_env))
-        .await
-        .map_err(|error| CommandError::Failed {
-            code: "shell_wait_failed",
-            message: format!("The command task failed: {error}"),
-        })??;
+    let joined =
+        tauri::async_runtime::spawn_blocking(move || run_blocking(&command, &base_env, &roots))
+            .await
+            .map_err(|error| CommandError::Failed {
+                code: "shell_wait_failed",
+                message: format!("The command task failed: {error}"),
+            })??;
 
     run_output(joined, timeout_ms)
 }
@@ -1045,9 +1140,11 @@ pub async fn shell_start(
     mut command: ShellCommandRequest,
 ) -> CommandResult<()> {
     let base_env = captured_env(&state).await?;
+    let roots = program_roots(&app);
     // Reserve the id first. A duplicate must fail before any process with side effects starts.
-    let (child, cancelled_now) =
-        begin_running(&state.running, &id, || spawn_child(&command, &base_env))?;
+    let (child, cancelled_now) = begin_running(&state.running, &id, || {
+        spawn_child(&command, &base_env, &roots)
+    })?;
     let pid = child.id();
 
     let stdin = command.stdin.take();
@@ -1310,6 +1407,47 @@ mod tests {
         env
     }
 
+    fn test_program_roots() -> Vec<PathBuf> {
+        vec![
+            PathBuf::from("/bin"),
+            PathBuf::from("/sbin"),
+            PathBuf::from("/usr/bin"),
+            PathBuf::from("/usr/sbin"),
+            PathBuf::from("/opt/homebrew"),
+            PathBuf::from("/usr/local"),
+            PathBuf::from("/opt/local"),
+        ]
+    }
+
+    /// A folder under the run's temp folder that removes itself, so a test leaves nothing behind.
+    struct TempProgramDir {
+        path: PathBuf,
+    }
+
+    impl TempProgramDir {
+        fn new() -> Self {
+            use std::sync::atomic::{AtomicU64, Ordering};
+            static COUNTER: AtomicU64 = AtomicU64::new(0);
+            let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!(
+                "conducted-plat-29-{}-{counter}",
+                std::process::id()
+            ));
+            std::fs::create_dir_all(&path).expect("create the test folder");
+            Self { path }
+        }
+
+        fn path(&self) -> &Path {
+            &self.path
+        }
+    }
+
+    impl Drop for TempProgramDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.path);
+        }
+    }
+
     fn request(program: &str, args: &[&str]) -> ShellCommandRequest {
         ShellCommandRequest {
             program: program.to_string(),
@@ -1342,8 +1480,12 @@ mod tests {
 
     #[test]
     fn plat_03_runs_a_command_and_returns_its_output() {
-        let finished = run_blocking(&request("/bin/sh", &["-c", "printf 'hello'"]), &test_env())
-            .expect("the command runs");
+        let finished = run_blocking(
+            &request("/bin/sh", &["-c", "printf 'hello'"]),
+            &test_env(),
+            &test_program_roots(),
+        )
+        .expect("the command runs");
         assert_eq!(finished.output.stdout, "hello");
         assert_eq!(finished.output.exit_code, 0);
         assert!(!finished.timed_out);
@@ -1355,6 +1497,7 @@ mod tests {
         let finished = run_blocking(
             &request("/bin/sh", &["-c", "printf 'oops' >&2; exit 3"]),
             &test_env(),
+            &test_program_roots(),
         )
         .expect("the command runs");
         assert_eq!(finished.output.exit_code, 3);
@@ -1364,8 +1507,12 @@ mod tests {
     #[test]
     fn plat_03_arguments_are_not_parsed_by_a_shell() {
         let value = "a b $HOME 'quoted'";
-        let finished =
-            run_blocking(&request("/bin/echo", &[value]), &test_env()).expect("the command runs");
+        let finished = run_blocking(
+            &request("/bin/echo", &[value]),
+            &test_env(),
+            &test_program_roots(),
+        )
+        .expect("the command runs");
         assert_eq!(finished.output.stdout, format!("{value}\n"));
     }
 
@@ -1383,7 +1530,8 @@ mod tests {
             "value".to_string(),
         )]));
 
-        let finished = run_blocking(&command, &test_env()).expect("the command runs");
+        let finished =
+            run_blocking(&command, &test_env(), &test_program_roots()).expect("the command runs");
         let expected_dir = dir.canonicalize().expect("the temp folder exists");
         assert_eq!(
             finished.output.stdout,
@@ -1393,8 +1541,12 @@ mod tests {
 
     #[test]
     fn plat_03_a_signalled_process_reports_128_plus_the_signal() {
-        let finished = run_blocking(&request("/bin/sh", &["-c", "kill -TERM $$"]), &test_env())
-            .expect("the command runs");
+        let finished = run_blocking(
+            &request("/bin/sh", &["-c", "kill -TERM $$"]),
+            &test_env(),
+            &test_program_roots(),
+        )
+        .expect("the command runs");
         assert_eq!(finished.output.exit_code, 128 + 15);
     }
 
@@ -1403,7 +1555,8 @@ mod tests {
         let mut command = request("/bin/sh", &["-c", "sleep 30 & wait"]);
         command.timeout_ms = Some(150);
         let started = Instant::now();
-        let finished = run_blocking(&command, &test_env()).expect("the command runs");
+        let finished =
+            run_blocking(&command, &test_env(), &test_program_roots()).expect("the command runs");
         assert!(finished.timed_out);
         assert!(started.elapsed() < Duration::from_secs(10));
 
@@ -1416,7 +1569,8 @@ mod tests {
     fn plat_03_run_reports_a_timeout_as_an_error() {
         let mut command = request("/bin/sh", &["-c", "sleep 30"]);
         command.timeout_ms = Some(120);
-        let finished = run_blocking(&command, &test_env()).expect("the command runs");
+        let finished =
+            run_blocking(&command, &test_env(), &test_program_roots()).expect("the command runs");
         let error = run_output(finished, command.timeout_ms).expect_err("a timeout is an error");
         assert_eq!(error_code(error), "shell_timeout");
     }
@@ -1429,6 +1583,7 @@ mod tests {
                 &["-c", "while true; do printf '0123456789'; done"],
             ),
             &test_env(),
+            &test_program_roots(),
         )
         .expect("the command starts");
         let started = Instant::now();
@@ -1603,7 +1758,8 @@ mod tests {
     fn plat_03_a_grandchild_holding_the_pipe_does_not_block_the_result() {
         let command = request("/bin/sh", &["-c", "sleep 30 & echo $!; echo done"]);
         let started = Instant::now();
-        let finished = run_blocking(&command, &test_env()).expect("the command ends");
+        let finished =
+            run_blocking(&command, &test_env(), &test_program_roots()).expect("the command ends");
         assert!(finished.output.stdout.contains("done"));
         assert!(
             started.elapsed() < Duration::from_secs(5),
@@ -1631,6 +1787,7 @@ mod tests {
         let mut child = spawn_child(
             &request("/bin/sh", &["-c", "sleep 30 & echo $!; wait"]),
             &test_env(),
+            &test_program_roots(),
         )
         .expect("the shell starts");
         let pid = child.id();
@@ -1661,7 +1818,8 @@ mod tests {
     #[test]
     fn plat_03_a_cancelled_run_reports_shell_cancelled() {
         let command = request("/bin/sh", &["-c", "sleep 30"]);
-        let child = spawn_child(&command, &test_env()).expect("the command starts");
+        let child =
+            spawn_child(&command, &test_env(), &test_program_roots()).expect("the command starts");
         let pid = child.id();
         let running = Mutex::new(HashMap::new());
         register_running(&running, "run".into(), pid).expect("the id is new");
@@ -1681,10 +1839,18 @@ mod tests {
 
     #[test]
     fn plat_03_quitting_ends_every_running_command_and_its_children() {
-        let first = spawn_child(&request("/bin/sh", &["-c", "sleep 30"]), &test_env())
-            .expect("the first command starts");
-        let second = spawn_child(&request("/bin/sh", &["-c", "sleep 30 & wait"]), &test_env())
-            .expect("the second command starts");
+        let first = spawn_child(
+            &request("/bin/sh", &["-c", "sleep 30"]),
+            &test_env(),
+            &test_program_roots(),
+        )
+        .expect("the first command starts");
+        let second = spawn_child(
+            &request("/bin/sh", &["-c", "sleep 30 & wait"]),
+            &test_env(),
+            &test_program_roots(),
+        )
+        .expect("the second command starts");
         let (first_pid, second_pid) = (first.id(), second.id());
         // The app's own waiter threads reap a finished command; these stand in for them.
         let reapers: Vec<_> = [first, second]
@@ -1716,19 +1882,41 @@ mod tests {
 
     #[test]
     fn plat_29_allows_a_named_program_and_its_absolute_path() {
-        check_program_allowed("git", ALLOWED_PROGRAMS).expect("a bare name is allowed");
-        check_program_allowed("/usr/bin/git", ALLOWED_PROGRAMS)
-            .expect("an absolute path with an allowed file name is allowed");
-        check_program_allowed("/opt/homebrew/bin/gh", ALLOWED_PROGRAMS)
-            .expect("a managed program path is allowed");
+        let path = Some("/usr/bin:/bin:/usr/sbin:/sbin");
+        check_program_allowed("git", ALLOWED_PROGRAMS, &test_program_roots(), path)
+            .expect("a bare name is allowed");
+        check_program_allowed(
+            "/usr/bin/git",
+            ALLOWED_PROGRAMS,
+            &test_program_roots(),
+            path,
+        )
+        .expect("an absolute path with an allowed file name is allowed");
+        check_program_allowed(
+            "/opt/homebrew/bin/gh",
+            ALLOWED_PROGRAMS,
+            &test_program_roots(),
+            path,
+        )
+        .expect("a managed program path is allowed");
     }
 
     #[test]
     fn plat_29_rejects_a_program_outside_the_list_and_names_it() {
-        let error = check_program_allowed("/usr/bin/curl", ALLOWED_PROGRAMS)
-            .expect_err("a program outside the list is refused");
+        let error = check_program_allowed(
+            "/usr/bin/curl",
+            ALLOWED_PROGRAMS,
+            &test_program_roots(),
+            None,
+        )
+        .expect_err("a program outside the list is refused");
         assert_eq!(error_code(error), "shell_program_not_allowed");
-        let message = match check_program_allowed("curl", ALLOWED_PROGRAMS) {
+        let message = match check_program_allowed(
+            "curl",
+            ALLOWED_PROGRAMS,
+            &test_program_roots(),
+            Some("/usr/bin:/bin"),
+        ) {
             Err(CommandError::Failed { message, .. }) => message,
             other => panic!("unexpected result: {other:?}"),
         };
@@ -1736,9 +1924,40 @@ mod tests {
     }
 
     #[test]
+    fn plat_29_rejects_an_allowed_name_in_an_untrusted_folder() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let folder = TempProgramDir::new();
+        let program = folder.path().join("git");
+        std::fs::write(&program, "#!/bin/sh\nexit 0\n").expect("write the fake program");
+        std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755))
+            .expect("make it executable");
+        let folder_text = folder.path().to_string_lossy().into_owned();
+        let program_text = program.to_string_lossy().into_owned();
+
+        let by_path =
+            check_program_allowed(&program_text, ALLOWED_PROGRAMS, &test_program_roots(), None)
+                .expect_err("a path in a folder outside the trusted ones is refused");
+        assert_eq!(error_code(by_path), "shell_program_not_allowed");
+
+        let by_path_lookup = check_program_allowed(
+            "git",
+            ALLOWED_PROGRAMS,
+            &test_program_roots(),
+            Some(&folder_text),
+        )
+        .expect_err("a bare name found in an untrusted folder is refused");
+        assert_eq!(error_code(by_path_lookup), "shell_program_not_allowed");
+    }
+
+    #[test]
     fn plat_29_spawning_a_program_outside_the_list_is_refused() {
-        let error = spawn_child(&request("/usr/bin/curl", &["--version"]), &test_env())
-            .expect_err("the program never starts");
+        let error = spawn_child(
+            &request("/usr/bin/curl", &["--version"]),
+            &test_env(),
+            &test_program_roots(),
+        )
+        .expect_err("the program never starts");
         assert_eq!(error_code(error), "shell_program_not_allowed");
     }
 
@@ -1750,6 +1969,7 @@ mod tests {
                 &["-c", "trap '' TERM; echo ready; while :; do sleep 1; done"],
             ),
             &test_env(),
+            &test_program_roots(),
         )
         .expect("the command starts");
         let pid = child.id();

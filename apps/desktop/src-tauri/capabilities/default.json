@@ -11,13 +11,13 @@
 				{ "url": "https://*" },
 				{ "url": "http://*" },
 				{ "url": "mailto:*" },
-				{ "url": "tel:*" },
 				{ "url": "linear://*" },
 				{ "url": "vscode://*" },
 				{ "url": "slack://*" },
 				{ "url": "figma://*" },
 				{ "url": "notion://*" },
-				{ "url": "raycast://*" }
+				{ "url": "raycast://*" },
+				{ "url": "x-apple.systempreferences:*" }
 			]
 		},
 		"sql:default",

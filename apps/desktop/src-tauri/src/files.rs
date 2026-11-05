@@ -35,16 +35,28 @@
 //! - The default workspaces folder, `~/conducted/`.
 //! - The check resolves symlinks and `..` first, so a link inside a root cannot lead out of it.
 //! - A path outside every root fails with `fs_out_of_scope` and names the path.
+//! - `fs_stat` resolves only the parent folder and then reads the link itself, so a link is
+//!   described as a link even when it points to another name.
 //! - The roots are a parameter, so a caller with a workspace outside the default folder can pass
-//!   its own list. The `fs_*` commands use `allowed_roots` until the UI registers its workspaces.
+//!   its own list. The `fs_*` commands use `allowed_roots`, which cannot add a folder the user
+//!   picked: a repository outside `~/conducted` is out of scope. Registering it needs a method
+//!   on the shared `FileSystem` contract and a caller in the project and workspace services, so it
+//!   is not built here.
 //!
 //! Our design choice: the web view's file scope covers the folders the UI already uses, not all of
-//! the home folder. A workspace the user keeps outside `~/conducted` needs its root registered; no
-//! command does that yet, and the UI's workspace list would have to call one.
+//! the home folder. The whole app data folder and the whole temp folder are roots because drafts,
+//! setup logs, attachments and temporary files live there; the research names only the Claude
+//! files.
 //!
 //! Our design choice: `capabilities/default.json` drops the broad plugin defaults. The UI calls
 //! the app's own file and shell commands, so the file-system and shell plugins are not granted.
-//! The opener is limited to web, mail, telephone and the IDE and chat schemes in the research.
+//! Web links keep `https://*` and `http://*` because chat renders links to any host; the host list
+//! in the research (A3) is narrower than what the chat shows. `mailto:` stays because chat renders
+//! mail addresses as links. `tel:` is not granted because nothing renders a telephone link. The
+//! IDE and chat schemes and the Full Disk Access pane come from A3.
+//!
+//! Our design choice: `fs_stat` reports the link itself, not the file it points to, so the UI can
+//! show a link. The file size and kind still come from the target, as the PLAT-05 header says.
 //!
 //! Our design choice: `fs_stat` returns an optional value instead of failing on a missing path.
 //! `fs_trash` uses the Trash of the volume the item lives on, and picks "name 2.ext" when a
@@ -584,11 +596,33 @@ fn trash_into(path: &Path, trash: &Path) -> CommandResult<()> {
     }
 }
 
-/// Checks the path against the roots, then returns it as written. The check follows links, so a
-/// link that leaves a root is refused even though the operation keeps the link's own path.
+/// Checks the path against the roots and returns the resolved path. Commands act on that path, so
+/// a link swapped after the check cannot point them outside the root.
 fn checked_target(path: &str, roots: &[PathBuf]) -> CommandResult<PathBuf> {
-    check_path_in_scope(path, roots)?;
-    absolute_path(path)
+    check_path_in_scope(path, roots)
+}
+
+/// Checks the path against the roots but keeps its last name. The parent is resolved, so a link in
+/// a parent folder cannot be swapped after the check, while `fs_stat` still describes the link
+/// itself. A link whose target leaves the roots is refused first.
+fn checked_link_target(path: &str, roots: &[PathBuf]) -> CommandResult<PathBuf> {
+    let resolved = check_path_in_scope(path, roots)?;
+    let absolute = absolute_path(path)?;
+    let name = absolute.file_name().ok_or_else(|| CommandError::Failed {
+        code: "fs_bad_path",
+        message: format!("Cannot describe this path: {}", absolute.display()),
+    })?;
+    let parent = absolute.parent().unwrap_or_else(|| Path::new("/"));
+    if parent.as_os_str().is_empty() {
+        return Ok(PathBuf::from("/").join(name));
+    }
+    let parent_text = parent.to_string_lossy().into_owned();
+    match check_path_in_scope(&parent_text, roots) {
+        Ok(resolved_parent) => Ok(resolved_parent.join(name)),
+        // A path that is itself a root has a parent outside every root. The full check above
+        // already resolved it, so its own location is safe to use.
+        Err(_) => Ok(resolved),
+    }
 }
 
 /// Read a text file after the scope check.
@@ -616,7 +650,7 @@ async fn write_text_atomic_checked(
 /// Read facts about a path after the scope check.
 async fn stat_checked(path: String, roots: Vec<PathBuf>) -> CommandResult<Option<FileStat>> {
     blocking(move || {
-        let path = checked_target(&path, &roots)?;
+        let path = checked_link_target(&path, &roots)?;
         Ok(stat_at(&path)?)
     })
     .await
@@ -1226,6 +1260,124 @@ mod tests {
     }
 
     #[test]
+    fn plat_29_checked_target_returns_the_resolved_path() {
+        let folder = TempDir::new();
+        let real = folder.path().join("real");
+        fs::create_dir(&real).expect("real folder");
+        let link = folder.path().join("link");
+        symlink(&real, &link).expect("make link");
+        let target = link.join("note.txt");
+        fs::write(&target, "x").expect("seed file");
+
+        let checked = checked_target(&as_string(&target), &[folder.path().to_path_buf()])
+            .expect("the path is in scope");
+
+        assert_eq!(
+            checked,
+            real.canonicalize().expect("real path").join("note.txt")
+        );
+        assert!(
+            !checked.starts_with(&link),
+            "the command acts on the resolved path, not the link"
+        );
+    }
+
+    #[test]
+    fn plat_29_stat_keeps_the_link_name_after_resolving_its_parent() {
+        let folder = TempDir::new();
+        let real = folder.path().join("real");
+        fs::create_dir(&real).expect("real folder");
+        let link_dir = folder.path().join("linkdir");
+        symlink(&real, &link_dir).expect("make the folder link");
+        let target = real.join("file.txt");
+        fs::write(&target, "x").expect("seed file");
+        let link = link_dir.join("note.txt");
+        symlink(&target, &link).expect("make the file link");
+
+        let checked = checked_link_target(&as_string(&link), &[folder.path().to_path_buf()])
+            .expect("the link is in scope");
+
+        assert_eq!(
+            checked,
+            real.canonicalize().expect("real path").join("note.txt")
+        );
+        let stat = stat_at(&checked)
+            .expect("stat the link")
+            .expect("the link exists");
+        assert!(stat.is_symlink, "fs_stat reports the link, not its target");
+    }
+
+    #[test]
+    fn plat_29_every_file_command_refuses_an_outside_path() {
+        let folder = TempDir::new();
+        let root = folder.path().join("root");
+        fs::create_dir(&root).expect("root folder");
+        let outside = folder.path().join("outside.txt");
+        fs::write(&outside, "secret").expect("seed the outside file");
+        let outside_dir = folder.path().join("outside-dir");
+        fs::create_dir(&outside_dir).expect("outside folder");
+        let roots = vec![root.clone()];
+
+        let write = tauri::async_runtime::block_on(write_text_atomic_checked(
+            as_string(&outside),
+            "changed".to_string(),
+            roots.clone(),
+        ))
+        .expect_err("a write outside the roots is refused");
+        assert_out_of_scope(write);
+        assert_eq!(
+            fs::read_to_string(&outside).expect("the outside file"),
+            "secret"
+        );
+
+        let stat = tauri::async_runtime::block_on(stat_checked(as_string(&outside), roots.clone()))
+            .expect_err("a stat outside the roots is refused");
+        assert_out_of_scope(stat);
+
+        let new_folder = folder.path().join("new-folder");
+        let mkdir =
+            tauri::async_runtime::block_on(mkdirp_checked(as_string(&new_folder), roots.clone()))
+                .expect_err("a folder outside the roots is refused");
+        assert_out_of_scope(mkdir);
+        assert!(!new_folder.exists(), "a refused mkdirp creates nothing");
+
+        let listed = tauri::async_runtime::block_on(read_dir_checked(
+            as_string(&outside_dir),
+            roots.clone(),
+        ))
+        .expect_err("a listing outside the roots is refused");
+        assert_out_of_scope(listed);
+
+        let trash =
+            tauri::async_runtime::block_on(trash_checked(as_string(&outside), roots.clone()))
+                .expect_err("a trash outside the roots is refused");
+        assert_out_of_scope(trash);
+        assert!(outside.exists(), "a refused trash moves nothing");
+
+        let secret = folder.path().join("secret-target.txt");
+        fs::write(&secret, "secret").expect("seed the link target");
+        let escaping_link = root.join("escaping.txt");
+        symlink(&secret, &escaping_link).expect("make the escaping link");
+        let stat_link =
+            tauri::async_runtime::block_on(stat_checked(as_string(&escaping_link), roots.clone()))
+                .expect_err("a link that leaves the roots is refused");
+        assert_out_of_scope(stat_link);
+    }
+
+    fn assert_out_of_scope(error: CommandError) {
+        assert!(
+            matches!(
+                &error,
+                CommandError::Failed {
+                    code: "fs_out_of_scope",
+                    ..
+                }
+            ),
+            "expected fs_out_of_scope, got {error:?}"
+        );
+    }
+
+    #[test]
     fn plat_29_read_text_refuses_a_file_over_the_size_limit() {
         let folder = TempDir::new();
         let file = folder.path().join("huge.txt");
@@ -1267,33 +1419,47 @@ mod tests {
 
     #[test]
     fn plat_29_capabilities_limit_the_opener_and_drop_the_broad_plugin_defaults() {
-        let capabilities = include_str!("../capabilities/default.json");
+        let capabilities: serde_json::Value =
+            serde_json::from_str(include_str!("../capabilities/default.json"))
+                .expect("the capability file is valid JSON");
+        let permissions = capabilities["permissions"]
+            .as_array()
+            .expect("permissions is a list");
 
-        assert!(capabilities.contains("opener:allow-open-url"));
-        for scope in [
-            "https://*",
-            "http://*",
-            "mailto:*",
-            "vscode://*",
-            "linear://*",
-            "slack://*",
-        ] {
+        let mut opener_scopes: Vec<&str> = Vec::new();
+        for permission in permissions {
+            let identifier = permission["identifier"].as_str().unwrap_or("");
+            if identifier == "opener:allow-open-url" {
+                for entry in permission["allow"]
+                    .as_array()
+                    .expect("the opener allow list is a list")
+                {
+                    opener_scopes.push(entry["url"].as_str().expect("every opener entry is a URL"));
+                }
+            }
             assert!(
-                capabilities.contains(scope),
-                "the opener scope lists {scope}"
+                !matches!(
+                    identifier,
+                    "opener:default" | "shell:default" | "fs:default"
+                ),
+                "the broad plugin default {identifier} is not granted"
             );
         }
-        assert!(
-            !capabilities.contains("\"opener:default\""),
-            "the broad opener default is gone"
-        );
-        assert!(
-            !capabilities.contains("\"shell:default\""),
-            "the plugin shell is not granted; the app's own commands check the program list"
-        );
-        assert!(
-            !capabilities.contains("\"fs:default\""),
-            "the plugin file system is not granted; the app's own commands check the path scope"
+        assert_eq!(
+            opener_scopes,
+            vec![
+                "https://*",
+                "http://*",
+                "mailto:*",
+                "linear://*",
+                "vscode://*",
+                "slack://*",
+                "figma://*",
+                "notion://*",
+                "raycast://*",
+                "x-apple.systempreferences:*",
+            ],
+            "the opener scope is the exact list, not a broader web scope"
         );
     }
 }
