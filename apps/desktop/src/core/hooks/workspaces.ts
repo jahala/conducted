@@ -92,13 +92,15 @@ export const useWorkspaceStatus: Queries["useWorkspaceStatus"] = (workspaceId) =
 	// Subscribe to the git entry so a new poll re-renders; stateOf reads the store itself.
 	useStore(git.store, (s) => s.byWorkspace[workspaceId]);
 	const prEntry = useStore(github.store, (s) => s.byWorkspace[workspaceId]);
+	// The pending action lives in the GitHub store, so this re-renders when an action starts and ends.
+	const pendingAction = useStore(github.store, () => github.pendingAction(workspaceId));
 
 	if (state === undefined) return null;
 	return deriveWorkspaceStatus({
 		state,
 		settingUp,
 		chats,
-		git: git.stateOf(workspaceId, prEntry, github.pendingAction(workspaceId)),
+		git: git.stateOf(workspaceId, prEntry, pendingAction),
 	});
 };
 

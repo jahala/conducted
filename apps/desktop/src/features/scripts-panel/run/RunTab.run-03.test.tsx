@@ -1,11 +1,20 @@
 /**
  * @feature RUN-03 One port per workspace, port detection and preview URLs
  * Owns: tests that the Run tab's Open menu is built from the run output, the detected ports and
- * the repository template, and that Cmd+Shift+B opens the first localhost URL.
+ * the repository template, that Cmd+Shift+B opens the first localhost URL, that Open follows the
+ * in-app browser setting, and that a template entry that is not a URL is named.
  * Test first: the menu lists the run output, a detected port and the expanded template.
  */
 import type { TerminalId } from "@conducted/shared";
-import { act, cleanup, fireEvent, screen } from "@testing-library/react";
+import {
+	createMemoryHistory,
+	createRootRoute,
+	createRoute,
+	createRouter,
+	RouterProvider,
+	useSearch,
+} from "@tanstack/react-router";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandDispatcher, createCommandRegistry } from "../../../app/command-dispatcher.ts";
 import type { RunState } from "../../../core/api.ts";
@@ -46,6 +55,12 @@ const config = (previewUrlTemplate: string | null): RepoConfig => ({
 		renameBranch: null,
 	},
 });
+
+/** Stands in for the workspace screen: it prints the tab and browser URL it was opened with. */
+function BrowserTab() {
+	const search = useSearch({ strict: false }) as { tab?: string; browserUrl?: string };
+	return <p>{`${search.tab ?? ""} ${search.browserUrl ?? ""}`}</p>;
+}
 
 const containers: ReturnType<typeof createTestContainer>[] = [];
 
@@ -142,5 +157,55 @@ describe("RUN-03 run tab preview URLs", () => {
 		});
 
 		expect(openUrl).toHaveBeenCalledWith("http://localhost:3000");
+	});
+
+	it("names a template entry that is not a valid URL instead of dropping it silently", async () => {
+		const { test, workspace } = await setup("http://$HOST:$PORT/app");
+
+		renderTab(test, workspace);
+		await screen.findByRole("button", { name: "Open" });
+
+		expect(await screen.findByText("Unknown variable $HOST in the preview URL.")).toBeTruthy();
+	});
+
+	it("opens the in-app browser tab when the in-app browser setting is on", async () => {
+		const { test, workspace } = await setup();
+		const setting = await test.container.services.settings.set(
+			"experimental_in_app_browser_preview",
+			true,
+		);
+		if (!setting.ok) throw new Error(setting.error.message);
+		const openUrl = vi.spyOn(test.container.platform.opener, "openUrl");
+
+		const rootRoute = createRootRoute();
+		const tabRoute = createRoute({
+			getParentRoute: () => rootRoute,
+			path: "/",
+			component: () => (
+				<ServicesProvider container={test.container}>
+					<CommandDispatcher registry={createCommandRegistry()}>
+						<RunTab workspaceId={workspace.id} />
+					</CommandDispatcher>
+				</ServicesProvider>
+			),
+		});
+		const workspaceRoute = createRoute({
+			getParentRoute: () => rootRoute,
+			path: "/repository/$repositoryId/workspace/$workspaceId",
+			component: BrowserTab,
+		});
+		const router = createRouter({
+			routeTree: rootRoute.addChildren([tabRoute, workspaceRoute]),
+			history: createMemoryHistory({ initialEntries: ["/"] }),
+		});
+		render(<RouterProvider router={router} />);
+
+		fireEvent.click(await screen.findByRole("button", { name: "Open" }));
+
+		expect(await screen.findByText("browser http://localhost:3000")).toBeTruthy();
+		expect(router.state.location.pathname).toBe(
+			`/repository/${workspace.repoId}/workspace/${workspace.id}`,
+		);
+		expect(openUrl).not.toHaveBeenCalled();
 	});
 });

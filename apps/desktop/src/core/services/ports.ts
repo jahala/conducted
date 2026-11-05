@@ -13,7 +13,9 @@
  * Our design choice: Conductor keeps the port in memory, so numbers change after a restart. We
  * store it in `workspaces.port`, which the schema already requires, so the number is stable.
  * Detection uses `lsof` through the shell (the platform has no port probe), with a 10 second
- * timeout. Port 22 stays reserved for SSH and is never given to a workspace.
+ * timeout. Port 22 stays reserved for SSH: blocks start at 55000, so no block can hold it.
+ * Each `lsof` scan goes through one runner that treats exit 1 (nothing matched) as an empty list
+ * and any other failure as `ports_unavailable` naming what could not be read.
  * Test first: allocatePort with 55000 and 55010 taken returns 55020.
  */
 import { appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
@@ -24,13 +26,13 @@ import type { Repositories } from "../db/repositories.ts";
 export const PORT_BASE = 55_000;
 export const PORT_BLOCK_SIZE = 10;
 export const PORT_MAX = 65_000;
-/** Reserved for SSH; never offered as a workspace port. */
-export const RESERVED_PORTS: ReadonlySet<number> = new Set([22]);
 
-/** The first block start (55000, 55010, ...) that is not in `taken`. `taken` holds block starts. */
+/**
+ * The first block start (55000, 55010, ...) that is not in `taken`. `taken` holds block starts.
+ * Every block lies between 55000 and 65000, so the SSH port (22) is never given out.
+ */
 export function allocatePort(taken: ReadonlySet<number>): Result<number> {
 	for (let port = PORT_BASE; port + PORT_BLOCK_SIZE <= PORT_MAX; port += PORT_BLOCK_SIZE) {
-		if (RESERVED_PORTS.has(port)) continue;
 		if (!taken.has(port)) return ok(port);
 	}
 	return err(appError("ports_exhausted", "All workspace port blocks are in use."));
@@ -178,61 +180,51 @@ export class PortService {
 		return ok(result);
 	}
 
-	async #listening(): Promise<Result<ListeningEntry[]>> {
-		const run = await this.#deps.platform.shell.run({
-			program: "lsof",
-			args: ["-nP", "-iTCP", "-sTCP:LISTEN", "-F", "pcn"],
-			cwd: "/",
-			timeoutMs: LSOF_TIMEOUT_MS,
-		});
-		if (!run.ok) return run;
-		// lsof exits 1 when nothing matches; that is an empty list, not a failure.
-		if (run.value.exitCode !== 0 && run.value.exitCode !== 1) {
-			return err(
-				appError(
-					"ports_unavailable",
-					`The listening ports could not be read: ${run.value.stderr.trim() || `lsof exited ${run.value.exitCode}`}`,
-				),
-			);
-		}
-		return ok(parseListening(run.value.stdout));
+	#listening(): Promise<Result<ListeningEntry[]>> {
+		return this.#runLsof(
+			["-nP", "-iTCP", "-sTCP:LISTEN", "-F", "pcn"],
+			"The listening ports",
+			parseListening,
+		);
 	}
 
-	async #cwds(): Promise<Result<Map<number, string>>> {
-		const run = await this.#deps.platform.shell.run({
-			program: "lsof",
-			args: ["-nP", "-a", "-d", "cwd", "-F", "pn"],
-			cwd: "/",
-			timeoutMs: LSOF_TIMEOUT_MS,
-		});
-		if (!run.ok) return run;
-		if (run.value.exitCode !== 0 && run.value.exitCode !== 1) {
-			return err(
-				appError(
-					"ports_unavailable",
-					`The process folders could not be read: ${run.value.stderr.trim() || `lsof exited ${run.value.exitCode}`}`,
-				),
-			);
-		}
-		return ok(parsePidPaths(run.value.stdout));
+	#cwds(): Promise<Result<Map<number, string>>> {
+		return this.#runLsof(
+			["-nP", "-a", "-d", "cwd", "-F", "pn"],
+			"The process folders",
+			parsePidPaths,
+		);
 	}
 
-	async #executablePaths(): Promise<Result<Map<number, string>>> {
+	#executablePaths(): Promise<Result<Map<number, string>>> {
+		return this.#runLsof(
+			["-nP", "-a", "-d", "txt", "-F", "pn"],
+			"The process paths",
+			parsePidPaths,
+		);
+	}
+
+	/**
+	 * Runs one `lsof` scan with the 10 second timeout and parses its output. lsof exits 1 when
+	 * nothing matches; that is an empty result, not a failure. Any other exit is
+	 * `ports_unavailable`, naming `what` could not be read.
+	 */
+	async #runLsof<T>(
+		args: string[],
+		what: string,
+		parse: (stdout: string) => T,
+	): Promise<Result<T>> {
 		const run = await this.#deps.platform.shell.run({
 			program: "lsof",
-			args: ["-nP", "-a", "-d", "txt", "-F", "pn"],
+			args,
 			cwd: "/",
 			timeoutMs: LSOF_TIMEOUT_MS,
 		});
 		if (!run.ok) return run;
 		if (run.value.exitCode !== 0 && run.value.exitCode !== 1) {
-			return err(
-				appError(
-					"ports_unavailable",
-					`The process paths could not be read: ${run.value.stderr.trim() || `lsof exited ${run.value.exitCode}`}`,
-				),
-			);
+			const detail = run.value.stderr.trim() || `lsof exited ${run.value.exitCode}`;
+			return err(appError("ports_unavailable", `${what} could not be read: ${detail}`));
 		}
-		return ok(parsePidPaths(run.value.stdout));
+		return ok(parse(run.value.stdout));
 	}
 }

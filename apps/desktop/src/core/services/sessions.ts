@@ -99,6 +99,7 @@ import { createKeyedQueue, type KeyedQueue } from "../async/serial-queue.ts";
 import { interruptedTurnEvent } from "../db/repair.ts";
 import type { Repositories } from "../db/repositories.ts";
 import { executeStatement, inTransaction, selectRows, stringifyJson } from "../db/row-codec.ts";
+import { trashIfPresent } from "../fs-helpers.ts";
 import { parseEffortSetting } from "../lookups.ts";
 import type { ChatView, Session } from "../model.ts";
 import type { SidecarClient } from "../sidecar/tunnel.ts";
@@ -1339,7 +1340,7 @@ export class SessionsService implements AgentMessenger {
 			const attachments = await this.#deps.repositories().attachments.listBySession(session.id);
 			if (!attachments.ok) return attachments;
 			for (const attachment of attachments.value) {
-				const trashed = await this.#trashIfPresent(attachment.path);
+				const trashed = await trashIfPresent(this.#deps.fs, attachment.path);
 				if (!trashed.ok) return trashed;
 			}
 			const draft = await this.#deps.composer.clearDraft(session.id);
@@ -1348,13 +1349,6 @@ export class SessionsService implements AgentMessenger {
 			if (!removed.ok) return removed;
 		}
 		return ok(undefined);
-	}
-
-	/** Moves a file to the Trash, and treats a missing file as nothing to do. */
-	async #trashIfPresent(path: string): Promise<Result<void>> {
-		const exists = await this.#deps.fs.exists(path);
-		if (!exists) return ok(undefined);
-		return this.#deps.fs.trash(path);
 	}
 
 	/** Starts a chat with the review model and sends `text`. Used by the AI review. */

@@ -25,6 +25,7 @@ import {
 	isInsideFolder,
 	terminalHistoryFile,
 } from "../app-paths.ts";
+import { trashIfPresent } from "../fs-helpers.ts";
 import {
 	executeStatement,
 	inTransaction,
@@ -264,13 +265,6 @@ async function sweepStagingFolders(fs: FileSystem, cutoff: number): Promise<Resu
 		trashed += scanned.value.files;
 	}
 	return ok(trashed);
-}
-
-/** Moves a file to the Trash when it is there; a missing file is already clean. */
-async function trashIfPresent(fs: FileSystem, path: string): Promise<Result<boolean>> {
-	if (!(await fs.exists(path))) return ok(false);
-	const removed = await fs.trash(path);
-	return removed.ok ? ok(true) : removed;
 }
 
 const removeDraftFiles: LifetimeStep = {

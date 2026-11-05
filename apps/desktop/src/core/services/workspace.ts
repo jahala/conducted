@@ -49,7 +49,9 @@
  * checkpoint, and sets the branch, folder, path and ready state while clearing the archive time.
  * A branch open in another worktree or moved since the archive returns `needsBranchName` and
  * changes nothing. A checkpoint restore that fails only sets `uncommittedChangesLost`. A worktree
- * that cannot be restored rolls the state back to archived.
+ * that cannot be restored is rolled back: the re-added folder and a branch the call created are
+ * removed and the state goes back to archived. A rollback step that fails is named in the
+ * returned error, and a workspace that cannot go back to archived stays initializing in the store.
  * Not built yet (placeholders): linked paths (WS-07), the kanban status (NAV-06) and the backlog
  * workspace operations (WS-11).
  * Our design choice: creation is split in two so the sidebar shows the workspace at once
@@ -89,6 +91,7 @@ import { createKeyedQueue } from "../async/serial-queue.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
 import type { ArchivingWorkspace } from "../db/repair.ts";
 import type { Repositories } from "../db/repositories.ts";
+import { trashIfPresent } from "../fs-helpers.ts";
 import {
 	branchDeleteForce,
 	branchShowCurrent,
@@ -1614,18 +1617,46 @@ export class WorkspaceService {
 		}
 		this.#upsert({ ...workspace, state: "initializing", updatedAt: this.#deps.now() });
 
-		const cleanUpBranch = async (): Promise<string | null> => {
-			if (createFrom === null) return null;
-			const removed = await this.#deps.git.runChecked(branchDeleteForce(branch), {
-				cwd: repo.rootPath,
-			});
-			return removed.ok ? null : removed.error.message;
+		/**
+		 * Undoes a restore that failed: removes the re-added folder when there is one, deletes a
+		 * branch this call created, and sets the state back to archived. Each step's failure is
+		 * added to the message, so a folder, branch or state left behind is never hidden.
+		 */
+		const rollBack = async (message: string, removeFolder: boolean): Promise<string> => {
+			const notes = [message];
+			if (removeFolder) {
+				const removed = await removeWorktree(this.#deps.git, this.#deps.platform.fs, {
+					repoRootPath: repo.rootPath,
+					worktreePath,
+				});
+				if (!removed.ok) {
+					notes.push(`The folder "${worktreePath}" also stays: ${removed.error.message}`);
+				}
+			}
+			if (createFrom !== null) {
+				const deleted = await this.#deps.git.runChecked(branchDeleteForce(branch), {
+					cwd: repo.rootPath,
+				});
+				if (!deleted.ok) notes.push(`The new branch "${branch}" also stays.`);
+			}
+			const back = await this.#deps.repos.workspaces.transitionState(
+				id,
+				"initializing",
+				"archived",
+			);
+			if (!back.ok) {
+				notes.push(
+					`The workspace could not be set back to archived and stays initializing: ${back.error.message}`,
+				);
+			} else if (!back.value) {
+				notes.push(
+					"The workspace changed while it was being restored, so it was not set back to archived.",
+				);
+			} else {
+				this.#upsert(workspace);
+			}
+			return notes.join(" ");
 		};
-
-		const alsoStays = async (message: string): Promise<string> =>
-			(await cleanUpBranch()) === null
-				? message
-				: `${message} The new branch "${branch}" also stays.`;
 
 		const added = await this.#deps.git.withWorktreeAndRepoLocks(worktreePath, repo.rootPath, () =>
 			addWorktreeOnBranch(this.#deps.git, {
@@ -1636,9 +1667,7 @@ export class WorkspaceService {
 			}),
 		);
 		if (!added.ok) {
-			const message = await alsoStays(added.error.message);
-			await this.#deps.repos.workspaces.transitionState(id, "initializing", "archived");
-			this.#upsert(workspace);
+			const message = await rollBack(added.error.message, false);
 			return err(appError(added.error.code, message, added.error));
 		}
 
@@ -1656,15 +1685,10 @@ export class WorkspaceService {
 			path: worktreePath,
 		});
 		if (!finished.ok || !finished.value) {
-			await removeWorktree(this.#deps.git, this.#deps.platform.fs, {
-				repoRootPath: repo.rootPath,
-				worktreePath,
-			});
-			const message = await alsoStays(
+			const message = await rollBack(
 				finished.ok ? "This workspace could not be restored." : finished.error.message,
+				true,
 			);
-			await this.#deps.repos.workspaces.transitionState(id, "initializing", "archived");
-			this.#upsert(workspace);
 			return finished.ok
 				? err(appError("workspace_not_archived", message))
 				: err(appError(finished.error.code, message, finished.error));
@@ -1756,9 +1780,15 @@ export class WorkspaceService {
 			if (!archiveDeleted.ok) return archiveDeleted;
 		}
 
-		const setupLog = await this.#trashIfPresent(setupLogFile(this.#deps.platform.fs.paths, id));
+		const setupLog = await trashIfPresent(
+			this.#deps.platform.fs,
+			setupLogFile(this.#deps.platform.fs.paths, id),
+		);
 		if (!setupLog.ok) return setupLog;
-		const viewed = await this.#trashIfPresent(viewedFilesFile(this.#deps.platform.fs.paths, id));
+		const viewed = await trashIfPresent(
+			this.#deps.platform.fs,
+			viewedFilesFile(this.#deps.platform.fs.paths, id),
+		);
 		if (!viewed.ok) return viewed;
 
 		const chats = await this.#deps.sessions.deleteAll(id);
@@ -1770,13 +1800,6 @@ export class WorkspaceService {
 		this.#deps.scripts.clearRuns(id);
 		this.#forgetWorkspace(id);
 		return ok(undefined);
-	}
-
-	/** Moves an app data file to the Trash, and treats a missing file as nothing to do. */
-	async #trashIfPresent(path: string): Promise<Result<void>> {
-		const exists = await this.#deps.platform.fs.exists(path);
-		if (!exists) return ok(undefined);
-		return this.#deps.platform.fs.trash(path);
 	}
 
 	/** Forgets a deleted workspace and every in-memory value kept for it. */

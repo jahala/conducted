@@ -62,6 +62,7 @@ Use these before writing your own. A second copy is a finding in review.
 | Optimistic change with rollback            | `createOptimisticStore`                          | `apps/desktop/src/core/async/optimistic.ts`                             |
 | Retry with backoff                         | `createBackoff`                                  | `apps/desktop/src/core/async/backoff.ts`                                |
 | Start work without awaiting it             | `fireAndForget`                                  | `apps/desktop/src/core/async/fire-and-forget.ts`                        |
+| Trash an app data file if it is there      | `trashIfPresent`                                 | `apps/desktop/src/core/fs-helpers.ts`                                   |
 | A database write that returns nothing      | `executeVoid`                                    | `apps/desktop/src/core/db/row-codec.ts`                                 |
 | Parse a JSON column, collect results       | `parseJsonColumn`, `collectResults`              | `apps/desktop/src/core/db/row-codec.ts`                                 |
 | Show an error toast from a `Result`        | `toastError`                                     | `apps/desktop/src/ui/Toast.tsx`                                         |

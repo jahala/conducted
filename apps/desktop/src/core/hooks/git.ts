@@ -19,6 +19,10 @@ export const useGitState: Queries["useGitState"] = (workspaceId) => {
 	const { services } = useServices();
 	const entry = useStore(services.git.store, (state) => state.byWorkspace[workspaceId]);
 	const prEntry = useStore(services.github.store, (state) => state.byWorkspace[workspaceId]);
+	// The pending action lives in the GitHub store, so this re-renders when an action starts and ends.
+	const pendingAction = useStore(services.github.store, () =>
+		services.github.pendingAction(workspaceId),
+	);
 	return useMemo<Loadable<GitState>>(() => {
 		if (entry === undefined || (entry.snapshot === null && entry.error === null)) {
 			return { state: "loading" };
@@ -32,13 +36,9 @@ export const useGitState: Queries["useGitState"] = (workspaceId) => {
 				),
 			};
 		}
-		const state = services.git.stateOf(
-			workspaceId,
-			prEntry,
-			services.github.pendingAction(workspaceId),
-		);
+		const state = services.git.stateOf(workspaceId, prEntry, pendingAction);
 		return state === null ? { state: "loading" } : { state: "ready", data: state };
-	}, [services.git, services.github, workspaceId, entry, prEntry]);
+	}, [services.git, workspaceId, entry, prEntry, pendingAction]);
 };
 const changedFilesKey = (workspaceId: WorkspaceId, scope: DiffScope) =>
 	["git", "workspace", workspaceId, "changes", scope] as const;

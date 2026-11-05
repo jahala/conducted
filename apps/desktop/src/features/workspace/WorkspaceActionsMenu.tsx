@@ -7,7 +7,8 @@
  * Shortcut hints come from the command registry. The sidebar's right-click surface belongs to
  * NAV-03's workspace row, which is not wired yet.
  * Must handle: Archived workspace (Unarchive instead of Archive, no Rename); unarchive that needs a
- * new branch name (a small dialog asks for one); mark as read or unread follows the chats' unread
+ * new branch name (a small dialog asks for one); a restore that lost uncommitted changes (the
+ * warning from `runUnarchive`); mark as read or unread follows the chats' unread
  * count; move to section lists the known sections and 'New section...'; a failed action shows a toast.
  * Test first: Choosing Pin calls workspaces.setPinned(id, true); for a pinned workspace the item
  * reads Unpin.
@@ -37,7 +38,7 @@ import { KANBAN_COLUMNS, KANBAN_STATUSES } from "../dashboard/kanban.ts";
 import { SectionDialog } from "../sidebar/SectionDialog.tsx";
 import { RenameDialog } from "./RenameDialog.tsx";
 import { WorkspaceRenameDialog } from "./WorkspaceRenameDialog.tsx";
-import { unarchiveWorkspace } from "./workspace-actions.ts";
+import { runUnarchive } from "./workspace-actions.ts";
 
 export interface WorkspaceActionsMenuProps {
 	workspaceId: WorkspaceId;
@@ -86,11 +87,11 @@ export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActions
 		);
 
 	const startUnarchive = () =>
-		void run("Couldn't unarchive the workspace", async () => {
-			const result = await unarchiveWorkspace(actions, workspaceId);
-			if (result.ok && result.value.needsBranchName) setBranchPrompt(true);
-			return result;
-		});
+		void runUnarchive(actions, workspaceId, { branchName: null, clearChats: false }).then(
+			(result) => {
+				if (result.ok && result.value.needsBranchName) setBranchPrompt(true);
+			},
+		);
 
 	return (
 		<>
@@ -191,7 +192,9 @@ export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActions
 				initialName={data?.branch ?? ""}
 				fieldLabel="Branch name"
 				submitLabel="Unarchive"
-				onSubmit={(name) => unarchiveWorkspace(actions, workspaceId, name)}
+				onSubmit={(name) =>
+					runUnarchive(actions, workspaceId, { branchName: name, clearChats: false })
+				}
 			/>
 			<SectionDialog open={newSection} onOpenChange={setNewSection} section={null} />
 		</>

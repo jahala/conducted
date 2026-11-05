@@ -2350,7 +2350,6 @@ GIT-02	message	A note says some untracked files are not shown when the untracked
 PR-03	state	The Checks tab lists checks with states Running, Failed, Cancelled and Pending.	ui-map 3.6	covered
 PR-03	state	A check can be Waiting; our check state type has no waiting value.	ui-map 3.6	partly
 PR-04	operation	Check logs open from a check row, with messages for logs that cannot load or have expired.	ui-map 3.6, 3.7	covered
-PR-06	git	Re-run failed checks re-runs the failed jobs through gh.	ui-map 3.6	covered
 PR-04	operation	Queue checks is offered on the checks list; what it does is not yet known.	ui-map 3.6	partly
 PR-03	state	Deployments show states Deployed, Failed, Deploying, Pending and Inactive for known providers.	ui-map 3.6	covered
 PR-04	git	PR comments show Resolved and Outdated markers and can be resolved.	ui-map 3.6	covered

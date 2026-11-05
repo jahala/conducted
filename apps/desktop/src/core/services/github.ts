@@ -26,7 +26,10 @@
  * `--disable-auto`; mark ready, edit, reviewer and approve calls refuse a workspace with no PR;
  * an approval is pinned to the pull request's head commit; the merge method follows the repo's
  * allowed methods (squash, then rebase, then merge) and is cached per repository; each action runs
- * once while it is in flight, and the pending action state names it; a token that does not look
+ * once while it is in flight, and the pending action state in the store names it; a write that
+ * succeeded polls the workspace before its pending state clears, so the header shows GitHub's new
+ * state without waiting for the next timed poll; every write and the base move share one `gh`
+ * runner, so their failures are mapped alike; a token that does not look
  * like one is a warning the caller can confirm, not a refusal, but an empty one is refused; every
  * `gh` result updates the health store; only the newest access check writes the access state; a
  * response the app cannot parse is an error, not an empty list; a context file is reported as
@@ -40,7 +43,8 @@
  * their repository (the git common dir) so siblings share one `gh api graphql` call. Required
  * check names are not part of the poll answer, so no check is marked required (NO_REQUIRED_CHECKS);
  * the Checks tab's required marks need the branch-protection read. The stack actions and the stack
- * catch-up belong to other features (PR-08, PR-12); failed-check fixes belong to PR-05. The
+ * catch-up belong to other features (PR-08, PR-12); failed-check fixes belong to PR-05, and
+ * re-running failed checks belongs to PR-04, which owns the Checks tab's button. The
  * sidebar and selected workspace subscriptions belong to the screens that own them; this file
  * calls `onMerged` and the workspace service archives the workspace.
  * Test first: two merge calls at once send one `gh pr merge`.
@@ -834,7 +838,23 @@ export interface GithubState {
 	access: GithubAccess;
 	health: GithubHealth;
 	byWorkspace: Readonly<Record<string, WorkspacePrEntry>>;
+	/**
+	 * The pull request actions running for each workspace, one entry per running action. It lives
+	 * in the store so a screen re-renders when an action starts and ends (services-map 5B.1.5).
+	 */
+	pendingActions: Readonly<Record<string, readonly PullRequestAction[]>>;
 }
+
+/** The order the header picks a pending action in when several run at once. */
+const PENDING_ACTION_ORDER: readonly PullRequestAction[] = [
+	"merging",
+	"enabling_auto_merge",
+	"disabling_auto_merge",
+	"marking_ready",
+	"approving",
+	"requesting_review",
+	"updating",
+];
 
 export interface PrWorkspaceContext {
 	workspaceId: WorkspaceId;
@@ -1086,6 +1106,7 @@ export class GithubService {
 				lastFailureAtMs: null,
 			},
 			byWorkspace: {},
+			pendingActions: {},
 		}));
 	}
 
@@ -1143,25 +1164,69 @@ export class GithubService {
 	}
 
 	/**
-	 * The pull request action running for a workspace, for the header's progress. The state is
+	 * The pull request action running for a workspace, for the header's progress. It is read from
+	 * the store, so a hook that selects it re-renders when an action starts and ends. The state is
 	 * layered over the last polled PR, so a button shows its own progress before GitHub answers.
 	 */
 	pendingAction(workspaceId: WorkspaceId): PullRequestAction | null {
-		const id = String(workspaceId);
-		const actions: readonly (readonly [string, PullRequestAction])[] = [
-			["merge", "merging"],
-			["enableAutoMerge", "enabling_auto_merge"],
-			["disableAutoMerge", "disabling_auto_merge"],
-			["markReady", "marking_ready"],
-			["approve", "approving"],
-			["requestReview", "requesting_review"],
-			["removeReviewRequest", "requesting_review"],
-			["updateTitleAndBody", "updating"],
-		];
-		for (const [key, action] of actions) {
-			if (this.#flights.isRunning(`${key}:${id}`)) return action;
+		const running = this.store.getState().pendingActions[String(workspaceId)] ?? [];
+		return PENDING_ACTION_ORDER.find((action) => running.includes(action)) ?? null;
+	}
+
+	/**
+	 * Runs one pull request write action once while it is in flight (services-map 5B.1.7), with
+	 * its pending state in the store. After a write that succeeded, the workspace is polled before
+	 * the pending state clears, so the header moves from the progress label straight to GitHub's
+	 * new state instead of showing the old one until the next timed poll. A failed refresh is
+	 * recorded on the workspace's entry by the poll itself, so the write's own result is returned.
+	 */
+	#writeAction(
+		key: string,
+		action: PullRequestAction,
+		workspaceId: WorkspaceId,
+		work: () => Promise<Result<void>>,
+	): Promise<Result<void>> {
+		return this.#flights.run(`${key}:${workspaceId}`, async () => {
+			this.#setPending(workspaceId, action, true);
+			try {
+				const result = await work();
+				if (result.ok) await this.#refreshAfterWrite(workspaceId);
+				return result;
+			} finally {
+				this.#setPending(workspaceId, action, false);
+			}
+		});
+	}
+
+	/**
+	 * Polls the workspace once after a write. `pollNow` records its own failure on the workspace's
+	 * entry, and a poll that throws is recorded the same way the timed poll records it, so a write
+	 * that went through is never reported as failed because the refresh did not.
+	 */
+	async #refreshAfterWrite(workspaceId: WorkspaceId): Promise<void> {
+		try {
+			await this.pollNow(workspaceId);
+		} catch (cause) {
+			this.#recordPollFailure(workspaceId, pollCrashError(cause));
 		}
-		return null;
+	}
+
+	/** Adds or removes one running action in the workspace's pending list. */
+	#setPending(workspaceId: WorkspaceId, action: PullRequestAction, running: boolean): void {
+		const id = String(workspaceId);
+		this.store.setState((state) => {
+			const list = [...(state.pendingActions[id] ?? [])];
+			if (running) {
+				list.push(action);
+			} else {
+				const index = list.indexOf(action);
+				if (index >= 0) list.splice(index, 1);
+			}
+			const pendingActions = { ...state.pendingActions };
+			if (list.length === 0) delete pendingActions[id];
+			else pendingActions[id] = list;
+			return { pendingActions };
+		});
 	}
 
 	/** Backs `Actions.app.recheckGitHubAccess`: runs the access probes again and updates the store. */
@@ -1892,8 +1957,9 @@ export class GithubService {
 		return notImplemented("PR-05");
 	}
 
+	/** Backs `Actions.pullRequests.rerunFailedChecks`: `gh run rerun --failed` per failed run. */
 	rerunFailedChecks(_workspaceId: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("PR-05");
+		return notImplemented("PR-04");
 	}
 
 	/** Reads the workspace's pull request and the `gh` sign-in every write action needs. */
@@ -1973,13 +2039,31 @@ export class GithubService {
 		if (isHeadMismatchFailure(text)) {
 			return appError("github_head_mismatch", GITHUB_HEAD_MISMATCH_MESSAGE);
 		}
-		const message = githubFailureMessage(classifyGhFailure(text), text);
-		return message === null
-			? failedCommandError(command, output)
-			: appError("github_failed", message);
+		return ghCommandError(command, output);
 	}
 
-	/** Runs one pull request write command, records its health answer and maps its failure. */
+	/**
+	 * Runs one `gh` command of a pull request action, records its health answer, and maps a failed
+	 * exit to the write error. Every write and the reads they depend on go through here.
+	 */
+	async #runGh(command: GitCommand, runOptions: GitRunOptions): Promise<Result<ShellOutput>> {
+		const result = await this.#deps.git.run(command, runOptions);
+		if (!result.ok) return err(result.error);
+		await this.recordGhResult(result.value);
+		if (!isSuccessfulExit(command, result.value.exitCode)) {
+			return err(this.#writeError(command, result.value));
+		}
+		return ok(result.value);
+	}
+
+	/** One value a `gh --jq` read prints, without the quotes JSON puts around a string. */
+	async #ghScalar(command: GitCommand, runOptions: GitRunOptions): Promise<Result<string>> {
+		const run = await this.#runGh(command, runOptions);
+		if (!run.ok) return err(run.error);
+		return ok(run.value.stdout.trim().replace(/^"|"$/g, ""));
+	}
+
+	/** Runs one pull request write command through `#runGh`, holding the worktree lock if asked. */
 	async #runPullRequestCommand(
 		found: PrWorkspaceContext,
 		runOptions: GitRunOptions,
@@ -1987,11 +2071,8 @@ export class GithubService {
 		lockWorktree = false,
 	): Promise<Result<void>> {
 		const run = async (): Promise<Result<void>> => {
-			const result = await this.#deps.git.run(command, runOptions);
-			if (!result.ok) return err(result.error);
-			await this.recordGhResult(result.value);
-			if (isSuccessfulExit(command, result.value.exitCode)) return ok(undefined);
-			return err(this.#writeError(command, result.value));
+			const result = await this.#runGh(command, runOptions);
+			return result.ok ? ok(undefined) : err(result.error);
 		};
 		return lockWorktree ? this.#deps.git.withWorktreeLock(found.workspacePath, run) : run();
 	}
@@ -2024,13 +2105,8 @@ export class GithubService {
 		const cached = this.#mergeMethodByRepo.get(repoKey.value);
 		if (cached !== undefined) return ok(cached);
 
-		const command = repoMergeMethodsQuery();
-		const allowed = await this.#deps.git.run(command, runOptions);
+		const allowed = await this.#runGh(repoMergeMethodsQuery(), runOptions);
 		if (!allowed.ok) return err(allowed.error);
-		await this.recordGhResult(allowed.value);
-		if (!isSuccessfulExit(command, allowed.value.exitCode)) {
-			return err(ghCommandError(command, allowed.value));
-		}
 		const method = chooseMergeMethod(allowed.value.stdout.trim());
 		if (method === null) {
 			return err(
@@ -2046,14 +2122,9 @@ export class GithubService {
 
 	/** The pull request's head commit, so an approval names exactly what GitHub is showing. */
 	async #pullRequestHead(runOptions: GitRunOptions, prNumber: number): Promise<Result<string>> {
-		const command = prViewHeadCommit(prNumber);
-		const result = await this.#deps.git.run(command, runOptions);
-		if (!result.ok) return err(result.error);
-		await this.recordGhResult(result.value);
-		if (!isSuccessfulExit(command, result.value.exitCode)) {
-			return err(this.#writeError(command, result.value));
-		}
-		const oid = result.value.stdout.trim().replace(/^"|"$/g, "");
+		const head = await this.#ghScalar(prViewHeadCommit(prNumber), runOptions);
+		if (!head.ok) return err(head.error);
+		const oid = head.value;
 		if (oid.length === 0) {
 			return err(
 				appError("github_head_unknown", "GitHub did not report the pull request's head commit."),
@@ -2064,7 +2135,7 @@ export class GithubService {
 
 	/** Backs `Actions.pullRequests.markReady`: `gh pr ready` (services-map 3.7.5). */
 	markReady(workspaceId: WorkspaceId): Promise<Result<void>> {
-		return this.#flights.run(`markReady:${workspaceId}`, async () => {
+		return this.#writeAction("markReady", "marking_ready", workspaceId, async () => {
 			const prepared = await this.#preparePullRequestWrite(workspaceId);
 			if (!prepared.ok) return err(prepared.error);
 			const { found, prNumber, runOptions } = prepared.value;
@@ -2077,7 +2148,7 @@ export class GithubService {
 	 * repository's method. A moved head is refused with the blocked message, not merged silently.
 	 */
 	merge(workspaceId: WorkspaceId): Promise<Result<void>> {
-		return this.#flights.run(`merge:${workspaceId}`, async () => {
+		return this.#writeAction("merge", "merging", workspaceId, async () => {
 			const prepared = await this.#preparePullRequestWrite(workspaceId);
 			if (!prepared.ok) return err(prepared.error);
 			const { found, prNumber, runOptions } = prepared.value;
@@ -2094,7 +2165,8 @@ export class GithubService {
 	 */
 	setAutoMerge(workspaceId: WorkspaceId, enabled: boolean): Promise<Result<void>> {
 		const key = enabled ? "enableAutoMerge" : "disableAutoMerge";
-		return this.#flights.run(`${key}:${workspaceId}`, async () => {
+		const action = enabled ? "enabling_auto_merge" : "disabling_auto_merge";
+		return this.#writeAction(key, action, workspaceId, async () => {
 			const prepared = await this.#preparePullRequestWrite(workspaceId);
 			if (!prepared.ok) return err(prepared.error);
 			const { found, prNumber, runOptions } = prepared.value;
@@ -2110,7 +2182,7 @@ export class GithubService {
 
 	/** Backs `Actions.pullRequests.approve`: the approval is pinned to the pull request's head. */
 	approve(workspaceId: WorkspaceId): Promise<Result<void>> {
-		return this.#flights.run(`approve:${workspaceId}`, async () => {
+		return this.#writeAction("approve", "approving", workspaceId, async () => {
 			const prepared = await this.#preparePullRequestWrite(workspaceId);
 			if (!prepared.ok) return err(prepared.error);
 			const { found, prNumber, runOptions } = prepared.value;
@@ -2122,7 +2194,7 @@ export class GithubService {
 
 	/** Backs `Actions.pullRequests.updateTitleAndBody`: one `gh pr edit` carries both fields. */
 	updateTitleAndBody(workspaceId: WorkspaceId, title: string, body: string): Promise<Result<void>> {
-		return this.#flights.run(`updateTitleAndBody:${workspaceId}`, async () => {
+		return this.#writeAction("updateTitleAndBody", "updating", workspaceId, async () => {
 			const prepared = await this.#preparePullRequestWrite(workspaceId);
 			if (!prepared.ok) return err(prepared.error);
 			const { found, prNumber, runOptions } = prepared.value;
@@ -2147,24 +2219,16 @@ export class GithubService {
 		if (!settings.ok) return err(settings.error);
 		const runOptions = this.#runOptions(settings.value, found.workspacePath);
 
-		const state = prViewState(found.prNumber);
-		const stateResult = await this.#deps.git.run(state, runOptions);
-		if (!stateResult.ok) return err(stateResult.error);
-		await this.recordGhResult(stateResult.value);
-		if (!isSuccessfulExit(state, stateResult.value.exitCode)) {
-			return err(failedCommandError(state, stateResult.value));
-		}
-		const current = stateResult.value.stdout.trim().replace(/^"|"$/g, "");
-		if (current !== "OPEN") return ok(false);
+		const state = await this.#ghScalar(prViewState(found.prNumber), runOptions);
+		if (!state.ok) return err(state.error);
+		if (state.value !== "OPEN") return ok(false);
 
-		const command = prEdit(found.prNumber, { base: branch });
-		const edited = await this.#deps.git.run(command, runOptions);
-		if (!edited.ok) return err(edited.error);
-		await this.recordGhResult(edited.value);
-		if (!isSuccessfulExit(command, edited.value.exitCode)) {
-			return err(failedCommandError(command, edited.value));
-		}
-		return ok(true);
+		const edited = await this.#runPullRequestCommand(
+			found,
+			runOptions,
+			prEdit(found.prNumber, { base: branch }),
+		);
+		return edited.ok ? ok(true) : err(edited.error);
 	}
 
 	/** Runs `gh stack sync` for a stacked branch. */
@@ -2190,7 +2254,7 @@ export class GithubService {
 				err(appError("github_reviewer_missing", "Choose someone to review this pull request.")),
 			);
 		}
-		return this.#flights.run(`requestReview:${workspaceId}`, async () => {
+		return this.#writeAction("requestReview", "requesting_review", workspaceId, async () => {
 			const prepared = await this.#preparePullRequestWrite(workspaceId);
 			if (!prepared.ok) return err(prepared.error);
 			const { found, prNumber, runOptions } = prepared.value;
@@ -2210,7 +2274,7 @@ export class GithubService {
 				err(appError("github_reviewer_missing", "Choose a reviewer to remove.")),
 			);
 		}
-		return this.#flights.run(`removeReviewRequest:${workspaceId}`, async () => {
+		return this.#writeAction("removeReviewRequest", "requesting_review", workspaceId, async () => {
 			const prepared = await this.#preparePullRequestWrite(workspaceId);
 			if (!prepared.ok) return err(prepared.error);
 			const { found, prNumber, runOptions } = prepared.value;
