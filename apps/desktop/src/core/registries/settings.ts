@@ -8,8 +8,10 @@
  * Test first: coercing "true" for a bool returns true, and "maybe" returns a setting_invalid error.
  *
  * Layers, lowest to highest: the default in this table, the user file `~/.conducted/settings.toml`,
- * then the repo file `.conducted/settings.toml`, then the personal repo file `.conducted/settings.local.toml`.
- * This file only describes settings. The store that reads and writes the files is DATA-05.
+ * the remote default-branch copy of the repo file, the repo shared file `.conducted/settings.toml`,
+ * the workspace shared file in a workspace, then the repo local file `.conducted/settings.local.toml`.
+ * The `settings` table sits between the default and the user file for keys that live there.
+ * This file only describes which keys a file layer may set. The order and the reading are DATA-05's.
  *
  * Our design choice: `default_message_send_mode` defaults to "steer" and its values are "steer" and "queue".
  * The research default is `steering` with the other value `queued`.
@@ -157,6 +159,20 @@ const SETTINGS_TABLE = [
 		feature: "COMP-07",
 		type: "bool",
 		default: true,
+	},
+	// Our design choice: the effect is read from the bundle. It strips a leading "You're absolutely right!"
+	// from AI messages, with any of the punctuation and spacing variants the bundle accepts.
+	{
+		key: "not_absolutely_right",
+		page: "general",
+		scopes: ["user"],
+		title: "I'm not absolutely right, thank you very much",
+		description:
+			"Remove a leading claim that the answer is absolutely right from assistant replies.",
+		searchTerms: ["absolutely right", "sycophancy", "strip", "preamble", "phrase"],
+		feature: "SET-01",
+		type: "bool",
+		default: false,
 	},
 	// Our design choice: off, which matches the description of the default behaviour.
 	{
