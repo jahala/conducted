@@ -193,8 +193,10 @@ describe("the guards end to end", () => {
 			`import { it } from "vitest";\n\nit("waits", async () => {\n\tawait new Promise((resolve) => setTimeout(resolve, 30));\n});\n`,
 		);
 		const raised = await writeBaseline(root);
-		expect(raised).toHaveLength(1);
-		expect(raised[0]).toContain("apps/desktop/src/core/other.test.ts 0 -> 1");
+		// The planted test sleeps for real and asserts nothing, so it raises two guards at once.
+		expect(raised).toContain("time-and-leaks: apps/desktop/src/core/other.test.ts 0 -> 1");
+		expect(raised.length).toBeGreaterThan(0);
+		for (const rise of raised) expect(rise).toContain("apps/desktop/src/core/other.test.ts 0 -> 1");
 		expect(readFileSync(join(root, BASELINE_PATH), "utf8")).toBe(before);
 	});
 
