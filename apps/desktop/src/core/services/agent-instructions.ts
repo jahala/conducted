@@ -33,11 +33,42 @@ export const commitAndPushInstruction = (_input: InstructionBase): string =>
 	notImplemented("GIT-05");
 
 export const createPrInstruction = (
-	_input: InstructionBase & {
+	input: InstructionBase & {
 		prTemplatePath: string | null;
 		hasUncommittedChanges: boolean;
 	},
-): string => notImplemented("PR-02");
+): string => {
+	const target = input.targetBranch;
+	const remoteTarget = `${input.remote}/${target}`;
+	const steps: string[] = [];
+	if (input.hasUncommittedChanges) {
+		steps.push(
+			"Review the uncommitted changes with `git diff` and commit them with a clear message.",
+		);
+	}
+	steps.push(
+		`Push the branch with \`git push -u ${input.remote} HEAD\` if it has no upstream or has unpushed commits.`,
+	);
+	steps.push(`Review the change against the target with \`git diff ${remoteTarget}...\`.`);
+	if (input.prTemplatePath !== null) {
+		steps.push(
+			`Read the repository's pull request template at \`${input.prTemplatePath}\` and follow it for the description.`,
+		);
+	}
+	steps.push(
+		`Open the pull request with \`gh pr create --base ${target}\`. Keep the title under 80 characters and the description under five sentences.`,
+	);
+
+	const intro = `Create a pull request for the branch \`${input.branch}\` into \`${remoteTarget}\`.`;
+	const numbered = steps.map((step, index) => `${index + 1}. ${step}`).join("\n");
+	const forcePush =
+		"If the branch history was rewritten, update the remote with `git push --force-with-lease`, never a plain force push.";
+	const builtIn = `${intro}\n\n${numbered}\n\n${forcePush}`;
+	const custom = input.customPrompt?.trim() ?? "";
+	return custom.length === 0
+		? builtIn
+		: `${builtIn}\n\nRepository instructions for Create PR:\n${custom}`;
+};
 
 export const resolveConflictsInstruction = (
 	_input: InstructionBase & {
