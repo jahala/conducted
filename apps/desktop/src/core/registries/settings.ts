@@ -143,7 +143,7 @@ const SETTINGS_TABLE = [
 		key: "manual_workspace_order",
 		page: "general",
 		scopes: ["user"],
-		title: "Arrange workspaces by hand",
+		title: "Arrange workspaces manually",
 		description: "Let you drag workspaces into your own order in the sidebar.",
 		searchTerms: ["sort", "drag", "order", "reorder"],
 		feature: "NAV-04",
@@ -1465,6 +1465,19 @@ const SETTINGS_TABLE = [
 			{ value: "created", label: "Created" },
 		],
 	},
+	// Our design choice: a JSON object from a group key ("pinned", "status:in_progress",
+	// "project:<id>") to the workspace ids in the user's order.
+	{
+		key: "sidebar_manual_order",
+		page: "state",
+		scopes: ["user"],
+		title: "Sidebar manual order",
+		description: "The order you dragged workspaces into, per sidebar group.",
+		searchTerms: ["order", "sidebar", "manual", "drag", "reorder"],
+		feature: "NAV-04",
+		type: "string",
+		default: "",
+	},
 	// Our design choice: empty means no filter.
 	{
 		key: "sidebar_repo_filter",
@@ -1583,18 +1596,6 @@ const SETTINGS_TABLE = [
 		feature: "APP-02",
 		type: "number",
 		default: 0,
-		min: 0,
-	},
-	{
-		key: "first_time_onboarding_step",
-		page: "state",
-		scopes: ["user"],
-		title: "First-time onboarding step",
-		description: "The step of the first-time guide you reached.",
-		searchTerms: ["onboarding", "first run"],
-		feature: "APP-02",
-		type: "number",
-		default: 1,
 		min: 0,
 	},
 	// Our design choice: empty means none seen.

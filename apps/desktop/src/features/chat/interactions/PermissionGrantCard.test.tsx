@@ -2,8 +2,15 @@
  * Tests for CHAT-11: the Codex permission grant card asks for extra access and sends the answer.
  */
 import type { Interaction, InteractionAnswer } from "@conducted/protocol";
-import { appError, err, type InteractionId, ok, type SessionId } from "@conducted/shared";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+	appError,
+	type Clock,
+	err,
+	type InteractionId,
+	ok,
+	type SessionId,
+} from "@conducted/shared";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "../../../test/dom-polyfills.ts";
 import { ServicesProvider } from "../../../core/context.tsx";
@@ -28,7 +35,11 @@ const request = (changes: Partial<PermissionGrant> = {}): PermissionGrant => ({
 let test: TestContainer;
 let answer: ReturnType<typeof vi.fn>;
 
-const renderCard = (changes: Partial<PermissionGrant> = {}, expiresAt: number | null = null) =>
+const renderCard = (
+	changes: Partial<PermissionGrant> = {},
+	expiresAt: number | null = null,
+	clock?: Clock,
+) =>
 	render(
 		<ServicesProvider container={test.container}>
 			<PermissionGrantCard
@@ -36,6 +47,7 @@ const renderCard = (changes: Partial<PermissionGrant> = {}, expiresAt: number | 
 				interactionId={interactionId}
 				request={request(changes)}
 				expiresAt={expiresAt}
+				clock={clock}
 			/>
 		</ServicesProvider>,
 	);
@@ -50,6 +62,7 @@ beforeEach(() => {
 
 afterEach(() => {
 	cleanup();
+	vi.useRealTimers();
 	test.close();
 });
 
@@ -95,7 +108,7 @@ describe("CHAT-11 permission grant card", () => {
 		);
 	});
 
-	it("shows the reason, each requested path and a Network access note", () => {
+	it("shows the reason, each requested path and a Network access card", () => {
 		renderCard({
 			network: true,
 			paths: [
@@ -109,7 +122,23 @@ describe("CHAT-11 permission grant card", () => {
 		expect(screen.getByText("/code/project/out")).toBeTruthy();
 		expect(screen.getByText("Read")).toBeTruthy();
 		expect(screen.getByText("Write")).toBeTruthy();
-		expect(screen.getByText("Network access")).toBeTruthy();
+		const network = screen.getByRole("region", { name: "Network access" });
+		expect(within(network).getByRole("button", { name: "Approve" })).toBeTruthy();
+		expect(within(network).getByRole("button", { name: "Deny" })).toBeTruthy();
+	});
+
+	it("approves from the Network access card", async () => {
+		renderCard({ network: true, paths: [] });
+
+		fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+
+		await waitFor(() =>
+			expect(answer).toHaveBeenCalledWith(sessionId, interactionId, {
+				kind: "permission_grant",
+				granted: true,
+				grantFor: "turn",
+			}),
+		);
 	});
 
 	it("shows that the request timed out and takes no answer", async () => {
@@ -119,6 +148,22 @@ describe("CHAT-11 permission grant card", () => {
 		expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
 		expect(screen.queryByRole("button", { name: "Deny" })).toBeNull();
 		expect(answer).not.toHaveBeenCalled();
+	});
+
+	it("shows that it timed out when the clock passes the expiry while the card is open", () => {
+		vi.useFakeTimers();
+		let now = 1_000;
+		const clock: Clock = { now: () => now };
+		renderCard({}, 5_000, clock);
+
+		expect(screen.queryByText(/timed out/)).toBeNull();
+		act(() => {
+			now = 5_000;
+			vi.advanceTimersByTime(4_000);
+		});
+
+		expect(screen.getByText(/timed out/)).toBeTruthy();
+		expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
 	});
 
 	it("sends one answer when Approve is double clicked", async () => {
@@ -149,7 +194,9 @@ describe("CHAT-11 permission grant card", () => {
 
 		fireEvent.click(screen.getByRole("button", { name: "Approve" }));
 
-		expect(await screen.findByText("Could not send the answer. Try again.")).toBeTruthy();
+		expect(
+			await screen.findByText(/Could not send the answer: The sidecar is not running\./),
+		).toBeTruthy();
 		fireEvent.click(screen.getByRole("button", { name: "Approve" }));
 		await waitFor(() => expect(answer).toHaveBeenCalledTimes(2));
 	});

@@ -32,6 +32,15 @@ const repo: Repo = {
 	updatedAt: 1000,
 };
 
+const section: Section = {
+	id: "s1" as Section["id"],
+	name: "Review",
+	emoji: null,
+	position: 0,
+	collapsed: false,
+	workspaceIds: [],
+};
+
 const workspace: Workspace = {
 	id: "w1" as WorkspaceId,
 	repoId: repo.id,
@@ -59,7 +68,7 @@ const workspace: Workspace = {
 	updatedAt: 1000,
 };
 
-function makeContainer() {
+function makeContainer(sectionRows: readonly Section[] = []) {
 	const repoService = new RepoService({} as RepoServiceDeps);
 	repoService.store.setState({
 		loaded: true,
@@ -81,7 +90,7 @@ function makeContainer() {
 	};
 	const sections = createStore<{ loaded: boolean; sections: readonly Section[] }>(() => ({
 		loaded: true,
-		sections: [],
+		sections: sectionRows,
 	}));
 	const create = vi.fn(
 		async (_input: NewWorkspaceInput): Promise<Result<Workspace>> => ok(workspace),
@@ -108,12 +117,14 @@ function makeContainer() {
 	return { container, create, retrySetup, recoverPrompt, workspaceStore };
 }
 
-async function renderCreatePage() {
-	const { container, create, retrySetup, recoverPrompt, workspaceStore } = makeContainer();
+async function renderCreatePage(path = "/create", sectionRows: readonly Section[] = []) {
+	const { container, create, retrySetup, recoverPrompt, workspaceStore } =
+		makeContainer(sectionRows);
 	const rootRoute = createRootRoute({ component: () => <Outlet /> });
 	const createPageRoute = createRoute({
 		getParentRoute: () => rootRoute,
 		path: "/create",
+		validateSearch: (search: Record<string, unknown>) => search as { section?: string },
 		component: () => <CreateWorkspacePage />,
 	});
 	const workspaceRoute = createRoute({
@@ -123,7 +134,7 @@ async function renderCreatePage() {
 	});
 	const router = createRouter({
 		routeTree: rootRoute.addChildren([createPageRoute, workspaceRoute]),
-		history: createMemoryHistory({ initialEntries: ["/create"] }),
+		history: createMemoryHistory({ initialEntries: [path] }),
 	});
 	render(
 		<ServicesProvider container={container}>
@@ -264,5 +275,18 @@ describe("WS-01 CreateWorkspacePage", () => {
 
 		await waitFor(() => expect(warning).toHaveBeenCalledWith("Setup script was skipped."));
 		warning.mockRestore();
+	});
+});
+
+describe("NAV-04 Create in section", () => {
+	it("starts with the section named in the URL and creates the workspace there", async () => {
+		const { create } = await renderCreatePage("/create?section=s1", [section]);
+
+		const trigger = await screen.findByRole("combobox", { name: "Create in section" });
+		expect(trigger.textContent).toContain("Review");
+		fireEvent.click(screen.getByRole("button", { name: "Create workspace" }));
+
+		await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+		expect(create.mock.calls[0]?.[0].sectionId).toBe("s1");
 	});
 });

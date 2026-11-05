@@ -59,7 +59,31 @@ describe("NAV-04 PinnedSection", () => {
 			const setPinned = vi
 				.spyOn(test.container.actions.workspaces, "setPinned")
 				.mockResolvedValue(ok(undefined));
-			renderWith(test.container, <PinnedSection workspaces={[workspace]} />);
+			renderWith(
+				test.container,
+				<PinnedSection workspaces={[workspace]} allWorkspaces={[workspace]} />,
+			);
+			const region = await screen.findByRole("region", { name: "Pinned workspaces" });
+			fireEvent.drop(region, { dataTransfer: dropData(workspace.id) });
+			await waitFor(() => expect(setPinned).toHaveBeenCalledWith(workspace.id, true));
+		} finally {
+			test.close();
+		}
+	});
+
+	it("pins a workspace dragged out of the main list", async () => {
+		const test = createTestContainer();
+		try {
+			await seedRepo(test.container);
+			const workspace = await seedWorkspace(test.container);
+			const setPinned = vi
+				.spyOn(test.container.actions.workspaces, "setPinned")
+				.mockResolvedValue(ok(undefined));
+			// The pinned list is empty: the workspace only exists in the full list.
+			renderWith(
+				test.container,
+				<PinnedSection workspaces={[]} allWorkspaces={[workspace]} dragging />,
+			);
 			const region = await screen.findByRole("region", { name: "Pinned workspaces" });
 			fireEvent.drop(region, { dataTransfer: dropData(workspace.id) });
 			await waitFor(() => expect(setPinned).toHaveBeenCalledWith(workspace.id, true));
@@ -71,7 +95,7 @@ describe("NAV-04 PinnedSection", () => {
 	it("is hidden when it is empty and nothing is being dragged", () => {
 		const test = createTestContainer();
 		try {
-			renderWith(test.container, <PinnedSection workspaces={[]} />);
+			renderWith(test.container, <PinnedSection workspaces={[]} allWorkspaces={[]} />);
 			expect(screen.queryByRole("region", { name: "Pinned workspaces" })).toBeNull();
 		} finally {
 			test.close();
@@ -81,7 +105,7 @@ describe("NAV-04 PinnedSection", () => {
 	it("shows the drop hint when it is empty during a drag", async () => {
 		const test = createTestContainer();
 		try {
-			renderWith(test.container, <PinnedSection workspaces={[]} dragging />);
+			renderWith(test.container, <PinnedSection workspaces={[]} allWorkspaces={[]} dragging />);
 			const region = await screen.findByRole("region", { name: "Pinned workspaces" });
 			expect(within(region).getByText("Drag a workspace here")).toBeTruthy();
 		} finally {
@@ -94,7 +118,10 @@ describe("NAV-04 PinnedSection", () => {
 		try {
 			await seedRepo(test.container);
 			const workspace = await seedWorkspace(test.container);
-			renderWith(test.container, <PinnedSection workspaces={[workspace]} />);
+			renderWith(
+				test.container,
+				<PinnedSection workspaces={[workspace]} allWorkspaces={[workspace]} />,
+			);
 			const region = await screen.findByRole("region", { name: "Pinned workspaces" });
 			fireEvent.click(within(region).getByRole("button", { name: "Pinned" }));
 			expect(within(region).getByText("1")).toBeTruthy();
@@ -112,7 +139,10 @@ describe("NAV-04 PinnedSection", () => {
 			const setPinned = vi
 				.spyOn(test.container.actions.workspaces, "setPinned")
 				.mockResolvedValue(ok(undefined));
-			renderWith(test.container, <PinnedSection workspaces={[archived]} />);
+			renderWith(
+				test.container,
+				<PinnedSection workspaces={[archived]} allWorkspaces={[archived]} />,
+			);
 			const region = await screen.findByRole("region", { name: "Pinned workspaces" });
 			fireEvent.drop(region, { dataTransfer: dropData(archived.id as WorkspaceId) });
 			await Promise.resolve();

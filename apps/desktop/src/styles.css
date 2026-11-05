@@ -15,9 +15,10 @@
  *  - Two font families, Geist and Geist Mono, bundled from their official SIL OFL release
  *    (assets/fonts/OFL.txt). The terminal keeps its own Menlo-first list (RUN-06).
  *  - Hierarchy comes from size and weight first. Five weights exist: 350, 400, 450, 500, 600.
- *  - Where a measured colour fails WCAG AA, the nearest passing value in the same hue replaces it.
+ *  - Where a measured colour fails WCAG AA, the nearest passing value in the same hue replaces it. Each
+ *    replaced pair is listed in docs/design.md.
  * Contrast is checked by src/ui/tokens.test.ts (text 4.5:1, marks 3:1) and by src/ui/app-14.test.tsx for every
- * theme and colour-vision combination, including the sixteen terminal colours.
+ * theme and colour-vision combination, including the sixteen terminal colours as text at 4.5:1.
  */
 @import "tailwindcss";
 
@@ -137,25 +138,27 @@
 	--color-diff-removed-marker: color-mix(in srgb, var(--color-diff-removed) 60%, transparent);
 	--color-diff-removed-word: color-mix(in srgb, var(--color-diff-removed) 20%, transparent);
 
-	/* Terminal ANSI colours. Light values that fell under 3:1 on the light terminal background take the
-	   nearest passing value in the same hue; the rest are Conductor's measured values. The two blacks are
-	   background slots, but they are raised in dark mode so a program that prints them stays readable. */
-	--color-term-black: light-dark(#2c2826, #736b64);
+	/* Terminal ANSI colours. ANSI colours draw text, so each one meets 4.5:1 on both terminal
+	   backgrounds (canvas and panel) in every theme. Values that fell short take the nearest passing
+	   value in the same hue; the rest are Conductor's measured values. The two blacks are background
+	   slots, but they are raised in dark mode so a program that prints them stays readable. Each
+	   replaced pair is listed in docs/design.md. */
+	--color-term-black: light-dark(#2c2826, #908984);
 	--color-term-red: light-dark(#dc2828, #f87272);
 	--color-term-green: light-dark(#12853c, #4ade80);
-	--color-term-yellow: light-dark(#a28700, #ffea80);
+	--color-term-yellow: light-dark(#887100, #ffea80);
 	--color-term-blue: light-dark(#2463eb, #61a6fa);
-	--color-term-magenta: light-dark(#cb00eb, #e852ff);
-	--color-term-cyan: light-dark(#098dae, #3ed8ef);
-	--color-term-white: light-dark(#8f8780, #eae8e6);
+	--color-term-magenta: light-dark(#c300e2, #e852ff);
+	--color-term-cyan: light-dark(#087d9a, #3ed8ef);
+	--color-term-white: light-dark(#78726c, #eae8e6);
 	--color-term-bright-black: light-dark(#766f6b, #a5a09c);
-	--color-term-bright-red: light-dark(#ef4343, #fca6a6);
-	--color-term-bright-green: light-dark(#1ca74f, #85efac);
-	--color-term-bright-yellow: light-dark(#ac8f00, #fff1ad);
-	--color-term-bright-blue: light-dark(#3c83f6, #91c3fd);
-	--color-term-bright-magenta: light-dark(#e014ff, #f08fff);
-	--color-term-bright-cyan: light-dark(#069fba, #7bebf9);
-	--color-term-bright-white: light-dark(#968e86, #ffffff);
+	--color-term-bright-red: light-dark(#d23b3b, #fca6a6);
+	--color-term-bright-green: light-dark(#16843e, #85efac);
+	--color-term-bright-yellow: light-dark(#887100, #fff1ad);
+	--color-term-bright-blue: light-dark(#3370d3, #91c3fd);
+	--color-term-bright-magenta: light-dark(#c211dd, #f08fff);
+	--color-term-bright-cyan: light-dark(#057e93, #7bebf9);
+	--color-term-bright-white: light-dark(#78726b, #ffffff);
 
 	/* Two families. */
 	--font-sans: "Geist", system-ui, sans-serif;

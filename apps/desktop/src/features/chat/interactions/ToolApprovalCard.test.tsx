@@ -10,6 +10,13 @@ import {
 	type SessionId,
 	type ToolUseId,
 } from "@conducted/shared";
+import {
+	createMemoryHistory,
+	createRootRoute,
+	createRoute,
+	createRouter,
+	RouterProvider,
+} from "@tanstack/react-router";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "../../../test/dom-polyfills.ts";
@@ -34,16 +41,30 @@ const request = (changes: Partial<ToolApproval> = {}): ToolApproval => ({
 let test: TestContainer;
 let answer: ReturnType<typeof vi.fn>;
 
-const renderCard = (changes: Partial<ToolApproval> = {}) =>
-	render(
-		<ServicesProvider container={test.container}>
-			<ToolApprovalCard
-				sessionId={sessionId}
-				interactionId={interactionId}
-				request={request(changes)}
-			/>
-		</ServicesProvider>,
-	);
+/** Tool cards open files through the router, so every approval renders inside one. */
+async function renderCard(changes: Partial<ToolApproval> = {}) {
+	const rootRoute = createRootRoute();
+	const route = createRoute({
+		getParentRoute: () => rootRoute,
+		path: "/",
+		component: () => (
+			<ServicesProvider container={test.container}>
+				<ToolApprovalCard
+					sessionId={sessionId}
+					interactionId={interactionId}
+					request={request(changes)}
+				/>
+			</ServicesProvider>
+		),
+	});
+	const router = createRouter({
+		routeTree: rootRoute.addChildren([route]),
+		history: createMemoryHistory({ initialEntries: ["/"] }),
+	});
+	const result = render(<RouterProvider router={router} />);
+	await router.load();
+	return result;
+}
 
 const card = () => screen.getByRole("group", { name: "Tool approval" });
 
@@ -62,7 +83,7 @@ afterEach(() => {
 
 describe("CHAT-11 tool approval card", () => {
 	it("calls sessions.answer with allow when Enter is pressed on a bash approval", async () => {
-		renderCard();
+		await renderCard();
 
 		fireEvent.keyDown(card(), { key: "Enter" });
 
@@ -75,7 +96,7 @@ describe("CHAT-11 tool approval card", () => {
 	});
 
 	it("sends deny when Backspace is pressed", async () => {
-		renderCard();
+		await renderCard();
 
 		fireEvent.keyDown(card(), { key: "Backspace" });
 
@@ -88,7 +109,7 @@ describe("CHAT-11 tool approval card", () => {
 	});
 
 	it("offers Yes always for a command and sends it on Cmd+Enter", async () => {
-		renderCard();
+		await renderCard();
 
 		expect(screen.getByRole("button", { name: "Yes always" })).toBeTruthy();
 		fireEvent.keyDown(card(), { key: "Enter", metaKey: true });
@@ -97,7 +118,7 @@ describe("CHAT-11 tool approval card", () => {
 	});
 
 	it("offers the edits choice for an edit and sends it on Cmd+Enter", async () => {
-		renderCard({ toolName: "Edit", input: { file_path: "src/a.ts" } });
+		await renderCard({ toolName: "Edit", input: { file_path: "src/a.ts" } });
 
 		expect(
 			screen.getByRole("button", { name: "Allow all edits during this session" }),
@@ -107,11 +128,12 @@ describe("CHAT-11 tool approval card", () => {
 		await waitFor(() => expect(sent()?.decision).toBe("allow_edits_for_session"));
 	});
 
-	it("titles the card by the tool", () => {
+	it("titles the card by the tool", async () => {
 		const cases: Array<[string, string]> = [
 			["Bash", "Do you want to run this command?"],
 			["RunLocalCommand", "Do you want to run this command on your Mac?"],
 			["Edit", "Do you want to make these changes?"],
+			["MultiEdit", "Do you want to make these changes?"],
 			["Task", "Do you want to run this agent?"],
 			["WebSearch", "Do you want to do this search?"],
 			["WebFetch", "Do you want to fetch this page?"],
@@ -119,34 +141,43 @@ describe("CHAT-11 tool approval card", () => {
 		];
 
 		for (const [toolName, title] of cases) {
-			const { unmount } = renderCard({ toolName });
+			const { unmount } = await renderCard({ toolName });
 			expect(screen.getByText(title)).toBeTruthy();
 			unmount();
 		}
 	});
 
-	it("shows the tool input and the decision reason", () => {
-		renderCard({ reason: "Needs to inspect the folder." });
+	it("shows the tool card and the decision reason", async () => {
+		await renderCard({ reason: "Needs to inspect the folder." });
 
-		expect(screen.getByText("ls -la")).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Raw" })).toBeTruthy();
+		expect(screen.getAllByText("ls -la").length).toBeGreaterThan(0);
 		expect(screen.getByText("Needs to inspect the folder.")).toBeTruthy();
 	});
 
-	it("marks a request from a sub-agent", () => {
-		renderCard({ subAgentId: "agent-2" });
+	it("does not call an MCP tool a web fetch", async () => {
+		await renderCard({ toolName: "mcp__git__git_fetch_x", input: { repo: "conducted" } });
+
+		expect(screen.getByText("Do you want to run this tool?")).toBeTruthy();
+		expect(screen.queryByText("Do you want to fetch this page?")).toBeNull();
+		expect(screen.getByText("git_fetch_x")).toBeTruthy();
+	});
+
+	it("marks a request from a sub-agent", async () => {
+		await renderCard({ subAgentId: "agent-2" });
 
 		expect(screen.getByText("Subagent")).toBeTruthy();
 	});
 
-	it("names a blocked path outside the workspace", () => {
-		renderCard({ blockedPath: "/etc/hosts" });
+	it("names a blocked path outside the workspace", async () => {
+		await renderCard({ blockedPath: "/etc/hosts" });
 
 		expect(screen.getByText(/outside this workspace/)).toBeTruthy();
 		expect(screen.getByText("/etc/hosts")).toBeTruthy();
 	});
 
 	it("offers the suggested rules as a third choice", async () => {
-		renderCard({ suggestedRules: ["Allow npm test in this project"] });
+		await renderCard({ suggestedRules: ["Allow npm test in this project"] });
 
 		expect(screen.getByText("Allow npm test in this project")).toBeTruthy();
 		fireEvent.click(screen.getByRole("button", { name: "Allow with suggested rules" }));
@@ -155,7 +186,7 @@ describe("CHAT-11 tool approval card", () => {
 	});
 
 	it("carries the deny message back to the agent", async () => {
-		renderCard();
+		await renderCard();
 
 		fireEvent.change(screen.getByLabelText("Message to the agent"), {
 			target: { value: "Do not touch that folder." },
@@ -171,8 +202,8 @@ describe("CHAT-11 tool approval card", () => {
 		);
 	});
 
-	it("ignores Enter while the user types the deny message", () => {
-		renderCard();
+	it("ignores Enter while the user types the deny message", async () => {
+		await renderCard();
 		const message = screen.getByLabelText("Message to the agent");
 
 		fireEvent.keyDown(message, { key: "Enter" });
@@ -181,7 +212,7 @@ describe("CHAT-11 tool approval card", () => {
 	});
 
 	it("sends only one answer when a button is clicked twice", async () => {
-		renderCard();
+		await renderCard();
 		const no = screen.getByRole("button", { name: "No" });
 
 		fireEvent.click(no);
@@ -193,31 +224,40 @@ describe("CHAT-11 tool approval card", () => {
 	});
 
 	it("shows what was chosen after the answer", async () => {
-		renderCard();
+		await renderCard();
 
 		fireEvent.click(screen.getByRole("button", { name: "Yes" }));
 
 		expect(await screen.findByText("Allowed")).toBeTruthy();
 	});
 
-	it("comes back with a retry message when the answer cannot be sent", async () => {
+	it("comes back with the real message when the answer cannot be sent", async () => {
 		answer
 			.mockResolvedValueOnce(err(appError("sidecar_down", "The sidecar is not running.")))
 			.mockResolvedValueOnce(ok(undefined));
-		renderCard();
+		await renderCard();
 
 		fireEvent.click(screen.getByRole("button", { name: "Yes" }));
 
-		expect(await screen.findByText("Could not send the answer. Try again.")).toBeTruthy();
+		expect(
+			await screen.findByText(/Could not send the answer: The sidecar is not running\./),
+		).toBeTruthy();
 		fireEvent.click(screen.getByRole("button", { name: "Yes" }));
 		await waitFor(() => expect(answer).toHaveBeenCalledTimes(2));
 	});
 
-	it("collapses a long tool input behind Show all", () => {
-		renderCard({ input: { command: "x".repeat(600) } });
+	it("does not take focus when the card arrives", async () => {
+		await renderCard();
 
-		expect(screen.getByRole("button", { name: "Show all" })).toBeTruthy();
-		fireEvent.click(screen.getByRole("button", { name: "Show all" }));
-		expect(screen.getByRole("button", { name: "Show less" })).toBeTruthy();
+		expect(document.activeElement).toBe(document.body);
+		expect(screen.getByText(/Shortcuts work while a control in this card has focus/)).toBeTruthy();
+	});
+
+	it("shows a long command in the tool card", async () => {
+		const command = "x".repeat(600);
+		await renderCard({ input: { command } });
+
+		expect(screen.getByRole("button", { name: "Raw" })).toBeTruthy();
+		expect(screen.getAllByText(command).length).toBeGreaterThan(0);
 	});
 });

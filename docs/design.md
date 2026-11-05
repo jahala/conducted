@@ -4,7 +4,7 @@ Where the visual design lives, where its values come from, and what holds it.
 
 ## Where it lives
 
-- **Tokens:** `apps/desktop/src/styles.css`, as Tailwind v4 `@theme static` variables with light and dark values (`light-dark()`). Colours, fonts, type scale, weights, tracking, radii, shadows and easings come only from these tokens. A low-contrast dark set sits under `data-contrast="low"` on `<html>`. Durations and layout sizes that are not on the 4px spacing scale are plain variables in the same file.
+- **Tokens:** `apps/desktop/src/styles.css`, as Tailwind v4 `@theme static` variables with light and dark values (`light-dark()`). Colours, fonts, type scale, weights, tracking, radii, shadows and easings come only from these tokens. A low-contrast dark set sits under `data-contrast="low"` on `<html>`, the colour-vision palettes under `data-color-vision`, and the translucent sidebar surfaces under `data-vibrancy="on"`. Durations and layout sizes that are not on the 4px spacing scale are plain variables in the same file.
 - **Panel sizes:** `apps/desktop/src/ui/layout-sizes.ts`, because the resizable panels take their sizes from script.
 - **Fonts:** Geist and Geist Mono, variable `woff2` files from the official release (v1.9.1, github.com/vercel/geist-font) in `apps/desktop/src/assets/fonts/`, with their SIL Open Font License in `OFL.txt` beside them. The terminal keeps its own Menlo-first font list.
 - **Components:** `apps/desktop/src/ui`. Screens build on these and never style raw colours.
@@ -59,6 +59,22 @@ Each row changes one measured value so the pair meets 4.5:1 for text or 3:1 for 
 | `on-danger`            | #fef1f1                  | #ffffff               | Destructive button label, 4.36 light                                                               |
 | `danger-solid`         | #dc2828 / #f87272        | #dc2828 / #c62828     | #f87272 cannot carry a light label (2.50)                                                          |
 | `success`, `git-added` | #16a249                  | #12853c               | Success text, 3.33 on canvas                                                                       |
+| `term-black`           | #2c2826 / #47423e        | #2c2826 / #908984     | Terminal text; the dark value is raised to meet 4.5:1 on the low-contrast panel                     |
+| `term-green`           | #16a249 / #4ade80        | #12853c / #4ade80     | Terminal text, 3.33 light                                                                          |
+| `term-yellow`          | #ffdc2e / #ffea80        | #887100 / #ffea80     | Terminal text, 3.50 light                                                                          |
+| `term-bright-yellow`   | #ffe561 / #fff1ad        | #887100 / #fff1ad     | Terminal text, 3.14 light                                                                          |
+| `term-magenta`         | #cb00eb / #e852ff        | #c300e2 / #e852ff     | Terminal text, 4.43 light                                                                          |
+| `term-cyan`            | #098dae / #3ed8ef        | #087d9a / #3ed8ef     | Terminal text, 3.87 light                                                                          |
+| `term-white`           | #eae8e6 / #eae8e6        | #78726c / #eae8e6     | Terminal text, 1.20 light                                                                          |
+| `term-bright-red`      | #ef4343 / #fca6a6        | #d23b3b / #fca6a6     | Terminal text, 3.78 light                                                                          |
+| `term-bright-green`    | #21c45d / #85efac        | #16843e / #85efac     | Terminal text, 3.14 light                                                                          |
+| `term-bright-blue`     | #3c83f6 / #91c3fd        | #3370d3 / #91c3fd     | Terminal text, 3.64 light                                                                          |
+| `term-bright-magenta`  | #e014ff / #f08fff        | #c211dd / #f08fff     | Terminal text, 3.68 light                                                                          |
+| `term-bright-cyan`     | #07b6d5 / #7bebf9        | #057e93 / #7bebf9     | Terminal text, 3.15 light                                                                          |
+| `term-bright-white`    | #f3f2f1 / #ffffff        | #78726b / #ffffff     | Terminal text, 1.18 light                                                                          |
+| `success`, `git-added`, `status-review` (colour vision) | #16a249 / #4ade80 | #2463eb / #61a6fa | Protanopia, deuteranopia and tritanopia turn success and added colours blue             |
+| `danger`, `git-removed` (colour vision) | #dc2828 / #f87272 | #b7430a / #fb923c | Protanopia and deuteranopia turn danger and removed colours orange                        |
+| `danger-solid` (colour vision) | #dc2828 / #c62828 | #b7430a / #b7430a | Filled destructive button; the white label passes                                     |
 | `link`                 | #a4847f                  | #8d6964               | Link text, 3.40 on canvas                                                                          |
 | `info`                 | #0da2e7                  | #0c9adc               | A mark at 2.86 on canvas                                                                           |
 | `status-progress`      | #e0bb00                  | #a28700               | Status icon, 1.78 on the sidebar                                                                   |
@@ -67,7 +83,7 @@ Each row changes one measured value so the pair meets 4.5:1 for text or 3:1 for 
 | `status-canceled`      | #a5a09c                  | #8f8884               | Status icon, 2.48 on the sidebar. It is now close to backlog grey; its icon shape tells them apart |
 | Tooltip fill           | popover at 50% with blur | solid `raised`        | A see-through fill cannot promise 4.5:1 over whatever is behind it                                 |
 
-Still open (APP-14): the sixteen terminal colours are kept as measured, and several light ones (yellow, white, bright green, bright cyan) fall under 4.5:1 on the light terminal background. Colour-vision variants, a search-highlight colour and the translucent sidebar surface are not built yet.
+The sixteen terminal colours draw text, so each one meets 4.5:1 on both terminal backgrounds (canvas and panel) in light, dark and low-contrast dark. The light ANSI slots that fell short take the nearest passing value in the same hue, and the dark black is raised for the same reason; every changed pair is in the table above. Search matches use the measured highlight pair (`search-highlight` and `search-highlight-fg`). The transparency setting switches the sidebar surfaces to `--color-sidebar-translucent` through `data-vibrancy="on"`.
 
 ## The owner's rules
 
@@ -85,6 +101,7 @@ These come from the owner and apply to every screen:
 | Rule                                                              | Guard                                                                                    |
 | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | Text and mark pairs meet AA in light, dark and low-contrast dark  | `apps/desktop/src/ui/tokens.test.ts`                                                     |
+| The same pairs meet AA in every colour-vision variant, and the terminal colours meet 4.5:1 | `apps/desktop/src/ui/app-14.test.tsx` |
 | The low-contrast set changes dark values only                     | `apps/desktop/src/ui/tokens.test.ts`                                                     |
 | No hard-coded colours outside the tokens                          | `apps/desktop/src/ui/tokens.test.ts`                                                     |
 | Conductor's type scale names, the five weights, exactly two fonts | `apps/desktop/src/ui/tokens.test.ts`                                                     |

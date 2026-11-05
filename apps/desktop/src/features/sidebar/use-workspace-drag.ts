@@ -9,18 +9,44 @@
  * native drag events and turns a drop into one of the caller's actions. The caller names the
  * action for each target, so the same hook serves Pinned, a user section and the main list.
  * Must handle: Escape cancels a drag; a drop outside any target changes nothing; a drop on the
- * row being dragged changes nothing; only the newest drop reports its failure; the grabbing
- * cursor and the disabled link pointer events exist only while a drag runs.
+ * row being dragged changes nothing; a row dropped from another list lands at that row's
+ * position; only the newest drop reports its failure; the grabbing cursor and the disabled link
+ * pointer events exist only while a drag runs.
  * Test first: Dropping row A after row B in manual order calls the order action with A after B
  * and not before.
  */
 import type { Result, SectionId, WorkspaceId } from "@conducted/shared";
-import { useCallback, useEffect, useState } from "react";
+import { type DragEvent, useCallback, useEffect, useState } from "react";
 import { fireAndForget } from "../../core/async/fire-and-forget.ts";
 import { createLatestWins } from "../../core/async/latest-wins.ts";
 
 /** The data a drag carries, so a drop target in another list can name the workspace. */
 export const WORKSPACE_DRAG_MIME = "application/x-conducted-workspace";
+
+/** A section header drag uses its own type, so workspace drop targets can ignore it. */
+export const SECTION_DRAG_MIME = "application/x-conducted-section";
+
+/** The section id a header drag carries, or null when the drag is not a section. */
+export function draggedSection(event: DragEvent): string | null {
+	const value = event.dataTransfer?.getData(SECTION_DRAG_MIME) ?? "";
+	return value === "" ? null : value;
+}
+
+/**
+ * The workspace id a drag carries. `fallback` names the row being dragged when the browser gives
+ * no data, which jsdom and some drop targets do.
+ */
+export function draggedWorkspace(
+	event: DragEvent,
+	fallback: WorkspaceId | null = null,
+): WorkspaceId | null {
+	const value =
+		event.dataTransfer?.getData(WORKSPACE_DRAG_MIME) ||
+		event.dataTransfer?.getData("text/plain") ||
+		fallback ||
+		"";
+	return value === "" ? null : (value as WorkspaceId);
+}
 
 export interface WorkspaceDragState {
 	draggingId: WorkspaceId | null;
@@ -134,21 +160,35 @@ export function useWorkspaceDrag(callbacks: WorkspaceDragCallbacks = {}): Worksp
 			}
 
 			if (target.startsWith("row:")) {
-				if (!manualOrder || order === undefined) return;
 				const targetId = target.slice("row:".length) as WorkspaceId;
 				if (targetId === draggingId) return;
-				if (!order.includes(draggingId) || !order.includes(targetId)) return;
-				const without = order.filter((id) => id !== draggingId);
-				const targetIndex = without.indexOf(targetId);
-				const index = Math.max(0, position > 0 ? targetIndex + 1 : targetIndex);
-				if (reorder !== undefined) {
-					const next = [...without.slice(0, index), draggingId, ...without.slice(index)];
-					run(REORDER_TITLE, () => reorder(next));
+				const fromThisList = order?.includes(draggingId) ?? false;
+				const targetIndex = order?.indexOf(targetId) ?? -1;
+				const index = Math.max(
+					0,
+					targetIndex < 0 ? position : position > 0 ? targetIndex + 1 : targetIndex,
+				);
+
+				if (fromThisList) {
+					// Reordering inside one list only happens when manual order is on.
+					if (!manualOrder || order === undefined) return;
+					const without = order.filter((id) => id !== draggingId);
+					const targetWithout = without.indexOf(targetId);
+					const nextIndex = Math.max(0, position > 0 ? targetWithout + 1 : targetWithout);
+					if (reorder !== undefined) {
+						const next = [...without.slice(0, nextIndex), draggingId, ...without.slice(nextIndex)];
+						run(REORDER_TITLE, () => reorder(next));
+						return;
+					}
+					if (place !== undefined) {
+						run(MOVE_TITLE, () => place(draggingId, sectionId ?? null, nextIndex));
+					}
 					return;
 				}
-				if (place !== undefined) {
-					run(MOVE_TITLE, () => place(draggingId, sectionId ?? null, index));
-				}
+
+				// A row from another list goes into this list at the row's position.
+				if (place === undefined) return;
+				run(MOVE_TITLE, () => place(draggingId, sectionId ?? null, index));
 			}
 		},
 		[manualOrder, order, pin, place, reorder, run, sectionId, state.draggingId],

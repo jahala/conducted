@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import "../../test/dom-polyfills.ts";
 import { CommandDispatcher } from "../../app/command-dispatcher.ts";
 import { ServicesProvider } from "../../core/context.tsx";
-import { createTestContainer, seedWorkspace } from "../../test/container.ts";
+import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
 import { toast } from "../../ui/Toast.tsx";
 import { ModeChips } from "./ModeChips.tsx";
 
@@ -26,6 +26,21 @@ const config = (over: Partial<SessionConfig> = {}): SessionConfig => ({
 	appTools: { diffComments: true, progressUpdates: true, setTargetBranch: true },
 	...over,
 });
+
+interface SidecarRequest {
+	id?: number;
+	method?: string;
+	params?: unknown;
+}
+
+const sidecarRequests = (test: TestContainer): SidecarRequest[] =>
+	test.memory.controls.sidecarSent.flatMap((line) => {
+		try {
+			return [JSON.parse(line) as SidecarRequest];
+		} catch {
+			return [];
+		}
+	});
 
 const setup = async (over: Partial<SessionConfig> = {}) => {
 	const test = createTestContainer();
@@ -139,6 +154,32 @@ describe("COMP-03 auto-accept edits toggle", () => {
 			await waitFor(() => expect(setAutoApproveEdits).toHaveBeenCalledWith(session.id, false));
 			await waitFor(() => expect(chip.getAttribute("aria-pressed")).toBe("false"));
 		} finally {
+			test.close();
+		}
+	});
+
+	it("sends the change to the sidecar over the JSON-RPC connection", async () => {
+		const { test, session, wrapper } = await setup();
+		try {
+			const started = await test.container.sidecar.start();
+			expect(started.ok).toBe(true);
+			render(<ModeChips sessionId={session.id} />, { wrapper });
+			const chip = screen.getByRole("button", { name: "Auto-accept edits" });
+			fireEvent.click(chip);
+			await waitFor(() =>
+				expect(sidecarRequests(test).some((sent) => sent.method === "setAutoApproveEdits")).toBe(
+					true,
+				),
+			);
+			const request = sidecarRequests(test).find((sent) => sent.method === "setAutoApproveEdits");
+			if (request?.id === undefined) throw new Error("no setAutoApproveEdits request");
+			expect(request.params).toEqual({ sessionId: session.id, enabled: true });
+			test.memory.controls.emitSidecarLine(
+				JSON.stringify({ jsonrpc: "2.0", id: request.id, result: {} }),
+			);
+			await waitFor(() => expect(chip.getAttribute("aria-pressed")).toBe("true"));
+		} finally {
+			test.container.sidecar.stop();
 			test.close();
 		}
 	});

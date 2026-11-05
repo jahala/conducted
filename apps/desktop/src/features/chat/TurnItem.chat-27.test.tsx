@@ -15,7 +15,7 @@ const state = vi.hoisted(() => ({
 	send: vi.fn(),
 	lastRetry: null as null | {
 		retry: { attempt: number; maxAttempts: number };
-		onRetryNow: () => void;
+		onRetryNow?: () => void;
 		retryInNewChat: { sessionId: string; turnId: string };
 	},
 	lastBanner: null as null | {
@@ -47,9 +47,11 @@ vi.mock("./ChatBanner.tsx", () => ({
 		return (
 			<div>
 				retrying {props.retry.attempt}/{props.retry.maxAttempts}
-				<button type="button" onClick={props.onRetryNow}>
-					Retry now
-				</button>
+				{props.onRetryNow === undefined ? null : (
+					<button type="button" onClick={props.onRetryNow}>
+						Retry now
+					</button>
+				)}
 			</div>
 		);
 	},
@@ -110,6 +112,19 @@ describe("CHAT-27 retry actions on a turn", () => {
 				"auto",
 			),
 		);
+	});
+
+	it("offers no Retry now on a retrying turn with no user message", () => {
+		render(
+			<TurnItem
+				turn={turn({ startedBy: "agent", userMessage: null })}
+				sessionId={sessionId}
+				retry={{ attempt: 1, maxAttempts: 3 }}
+			/>,
+		);
+
+		expect(screen.getByText("retrying 1/3")).toBeTruthy();
+		expect(screen.queryByRole("button", { name: "Retry now" })).toBeNull();
 	});
 
 	it("hands the failed turn to the error card for Retry in new chat", () => {

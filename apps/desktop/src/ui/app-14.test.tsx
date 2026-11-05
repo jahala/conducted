@@ -1,17 +1,31 @@
 /**
  * @feature APP-14 Theme variants
- * Owns: tests for the appearance attributes and the contrast guard that covers every theme and
- * colour-vision combination.
- * Test first: dark, low-contrast dark and tritanopia together set all three attributes; every text and
- * mark pair, and all sixteen terminal colours, meet their contrast threshold in every combination.
+ * Owns: tests for the appearance attributes, the subscriber that applies them to <html>, and the
+ * contrast guard that covers every theme and colour-vision combination.
+ * Test first: dark, low-contrast dark, tritanopia and vibrancy together set all four attributes; a
+ * change to the settings store changes document.documentElement; every text and mark pair, and all
+ * sixteen terminal colours, meet their contrast threshold in every combination.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
+import { createStore } from "zustand/vanilla";
+import {
+	contrastOn,
+	markPairs,
+	parse,
+	ratio,
+	readPalette,
+	type Theme,
+	textPairs,
+	tokenValue,
+	type Vision,
+} from "./contrast.ts";
 import { HighlightedText } from "./HighlightedText.tsx";
 import {
 	applyThemeAttributes,
+	applyThemeOnChange,
 	type StoredThemeValues,
 	type ThemeAttributeRoot,
 	type ThemeVariantSettings,
@@ -24,21 +38,24 @@ const settings = (overrides: Partial<ThemeVariantSettings> = {}): ThemeVariantSe
 	theme: "system",
 	lowContrastDark: false,
 	colorVision: "default",
+	vibrancy: false,
 	...overrides,
 });
 
 describe("APP-14 theme attributes", () => {
-	it("combines dark, low contrast and a colour-vision choice", () => {
+	it("combines dark, low contrast, a colour-vision choice and vibrancy", () => {
 		expect(
 			themeAttributes({
 				theme: "dark",
 				lowContrastDark: true,
 				colorVision: "tritanopia",
+				vibrancy: true,
 			}),
 		).toEqual({
 			"data-theme": "dark",
 			"data-contrast": "low",
 			"data-color-vision": "tritanopia",
+			"data-vibrancy": "on",
 		});
 	});
 
@@ -68,12 +85,18 @@ describe("APP-14 theme attributes", () => {
 		expect(themeAttributes(settings({ colorVision: "default" }))).toEqual({});
 	});
 
+	it("turns the translucent sidebar surface on only when vibrancy is on", () => {
+		expect(themeAttributes(settings({ vibrancy: true }))).toEqual({ "data-vibrancy": "on" });
+		expect(themeAttributes(settings({ vibrancy: false }))).toEqual({});
+	});
+
 	it("reports an unknown value and sets no attribute for it", () => {
 		const reported: [string, unknown][] = [];
 		const values = {
 			theme: "sepia",
 			lowContrastDark: "yes",
 			colorVision: "achromatopsia",
+			vibrancy: "on",
 		} as StoredThemeValues;
 		const attributes = themeAttributes(values, (key, value) => reported.push([key, value]));
 		expect(attributes).toEqual({});
@@ -81,6 +104,7 @@ describe("APP-14 theme attributes", () => {
 			["theme", "sepia"],
 			["lowContrastDark", "yes"],
 			["colorVision", "achromatopsia"],
+			["vibrancy", "on"],
 		]);
 	});
 
@@ -92,13 +116,14 @@ describe("APP-14 theme attributes", () => {
 		};
 		applyThemeAttributes(
 			root,
-			settings({ theme: "dark", lowContrastDark: true, colorVision: "tritanopia" }),
+			settings({ theme: "dark", lowContrastDark: true, colorVision: "tritanopia", vibrancy: true }),
 		);
 		expect(attributes).toEqual(
 			new Map([
 				["data-theme", "dark"],
 				["data-contrast", "low"],
 				["data-color-vision", "tritanopia"],
+				["data-vibrancy", "on"],
 			]),
 		);
 		applyThemeAttributes(root, settings());
@@ -106,149 +131,51 @@ describe("APP-14 theme attributes", () => {
 	});
 });
 
-type Pair = [light: string, dark: string];
-type Rgba = [r: number, g: number, b: number, a: number];
+describe("APP-14 appearance wiring", () => {
+	const ATTRIBUTES = ["data-theme", "data-contrast", "data-color-vision", "data-vibrancy"] as const;
+	const clearAttributes = () => {
+		for (const name of ATTRIBUTES) document.documentElement.removeAttribute(name);
+	};
+
+	afterEach(clearAttributes);
+
+	it("writes setting changes to the document element until it is disposed", () => {
+		clearAttributes();
+		const store = createStore<ThemeVariantSettings>(() => settings());
+		const dispose = applyThemeOnChange(document.documentElement, {
+			read: () => store.getState(),
+			subscribe: (listener) => store.subscribe(listener),
+		});
+
+		expect(document.documentElement.hasAttribute("data-theme")).toBe(false);
+
+		store.setState({
+			theme: "dark",
+			lowContrastDark: true,
+			colorVision: "tritanopia",
+			vibrancy: true,
+		});
+		expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+		expect(document.documentElement.getAttribute("data-contrast")).toBe("low");
+		expect(document.documentElement.getAttribute("data-color-vision")).toBe("tritanopia");
+		expect(document.documentElement.getAttribute("data-vibrancy")).toBe("on");
+
+		store.setState(settings());
+		expect(document.documentElement.hasAttribute("data-theme")).toBe(false);
+
+		dispose();
+		store.setState({ theme: "light" });
+		expect(document.documentElement.hasAttribute("data-theme")).toBe(false);
+	});
+});
 
 const CSS = readFileSync(join(import.meta.dirname, "..", "styles.css"), "utf8");
-const HEX = "#[0-9a-f]{6}(?:[0-9a-f]{2})?";
-const PAIR = new RegExp(`^light-dark\\(\\s*(${HEX})\\s*,\\s*(${HEX})\\s*\\)$`, "i");
-const SINGLE = new RegExp(`^${HEX}$`, "i");
+const palette = readPalette(CSS);
+const colors = palette.colors;
+const lowColors = palette.low;
+const visionColors = palette.vision;
 
-function readColors(text: string): Map<string, Pair> {
-	const colors = new Map<string, Pair>();
-	for (const match of text.matchAll(/--color-([a-z0-9-]+):\s*([^;]+);/g)) {
-		const name = match[1];
-		const value = match[2]?.trim();
-		if (!name || !value || value === "initial") continue;
-		const pair = PAIR.exec(value);
-		if (pair?.[1] && pair[2]) colors.set(name, [pair[1], pair[2]]);
-		else if (SINGLE.test(value)) colors.set(name, [value, value]);
-	}
-	return colors;
-}
-
-function extractBlock(selector: string): string {
-	const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-	return new RegExp(`${escaped}\\s*\\{([^}]*)\\}`).exec(CSS)?.[1] ?? "";
-}
-
-const LOW_SELECTOR = ':root[data-contrast="low"]';
-const PROTAN_SELECTOR = ':root[data-color-vision="protanopia-deuteranopia"]';
-const TRITAN_SELECTOR = ':root[data-color-vision="tritanopia"]';
-
-const lowBlock = extractBlock(LOW_SELECTOR);
-const protanBlock = extractBlock(PROTAN_SELECTOR);
-const tritanBlock = extractBlock(TRITAN_SELECTOR);
-let mainCss = CSS;
-for (const content of [lowBlock, protanBlock, tritanBlock]) {
-	if (content.length > 0) mainCss = mainCss.replace(content, "");
-}
-
-const colors = readColors(mainCss);
-const lowColors = readColors(lowBlock);
-const visionColors = {
-	"protanopia-deuteranopia": readColors(protanBlock),
-	tritanopia: readColors(tritanBlock),
-} as const;
-
-type Theme = 0 | 1 | 2;
-type Vision = "default" | "protanopia-deuteranopia" | "tritanopia";
-
-function parse(hex: string): Rgba {
-	const n = Number.parseInt(hex.slice(1, 7), 16);
-	const a = hex.length === 9 ? Number.parseInt(hex.slice(7), 16) / 255 : 1;
-	return [(n >> 16) & 255, (n >> 8) & 255, n & 255, a];
-}
-
-function over(top: Rgba, under: Rgba): Rgba {
-	const [r, g, b, a] = top;
-	return [r * a + under[0] * (1 - a), g * a + under[1] * (1 - a), b * a + under[2] * (1 - a), 1];
-}
-
-function luminance([r, g, b]: Rgba): number {
-	const channel = (value: number) => {
-		const s = value / 255;
-		return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-	};
-	return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
-}
-
-function ratio(a: Rgba, b: Rgba): number {
-	const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-	return ((hi ?? 0) + 0.05) / ((lo ?? 0) + 0.05);
-}
-
-const value = (name: string, theme: Theme, vision: Vision): string => {
-	const pair = colors.get(name);
-	if (!pair) throw new Error(`token --color-${name} is missing`);
-	let chosen = theme === 0 ? pair[0] : pair[1];
-	if (theme === 2) {
-		const low = lowColors.get(name);
-		if (low) chosen = low[1];
-	}
-	if (vision !== "default") {
-		const override = visionColors[vision].get(name);
-		if (override) chosen = theme === 0 ? override[0] : override[1];
-	}
-	return chosen;
-};
-
-const translucentBases = ["canvas", "surface", "raised"];
-
-function contrast(fg: string, bg: string, theme: Theme, vision: Vision): number {
-	const back = parse(value(bg, theme, vision));
-	const bases =
-		back[3] < 1 ? translucentBases.map((name) => parse(value(name, theme, vision))) : [back];
-	return Math.min(
-		...bases.map((base) => {
-			const ground = over(back, base);
-			return ratio(over(parse(value(fg, theme, vision)), ground), ground);
-		}),
-	);
-}
-
-const surfaces = ["canvas", "panel", "surface", "muted", "raised", "hover", "active"];
-const on = (fg: string, bgs: string[]): [string, string][] => bgs.map((bg) => [fg, bg]);
-
-const textPairs: [string, string][] = [
-	...on("fg", surfaces),
-	...on("fg-muted", surfaces),
-	...on("fg-subtle", surfaces),
-	...on("sidebar-fg", ["surface", "hover"]),
-	...on("sidebar-fg-muted", ["surface", "hover"]),
-	["canvas", "primary-fill"],
-	["on-check", "check"],
-	["on-accent", "accent"],
-	["on-accent", "accent-hover"],
-	["on-danger", "danger-solid"],
-	["warning-fg", "warning-surface"],
-	["highlight-fg", "highlight-surface"],
-	["search-highlight-fg", "search-highlight"],
-	...on("link", ["canvas", "surface", "raised", "highlight-surface"]),
-	...on("danger", ["canvas", "surface", "panel", "raised"]),
-	...on("warning", ["canvas", "surface", "panel", "raised"]),
-	...on("success", ["canvas", "surface", "panel", "raised"]),
-	...on("git-added", ["canvas", "surface", "panel"]),
-	...on("git-removed", ["canvas", "surface", "panel"]),
-];
-
-const markPairs: [string, string][] = [
-	...on("focus", ["canvas", "surface", "panel", "raised"]),
-	...on("border-strong", ["canvas", "surface", "panel", "raised"]),
-	...on("accent", ["canvas", "surface", "panel"]),
-	...on("unread", ["surface", "hover"]),
-	...on("info", ["canvas", "surface"]),
-	...on("check", ["canvas", "raised"]),
-	...on("switch-on", ["canvas", "raised"]),
-	...on("status-backlog", ["surface", "canvas", "hover"]),
-	...on("status-progress", ["surface", "canvas", "hover"]),
-	...on("status-review", ["surface", "canvas", "hover"]),
-	...on("status-done", ["surface", "canvas", "hover"]),
-	...on("status-canceled", ["surface", "canvas", "hover"]),
-];
-
-/** The sixteen ANSI slots are treated as marks (3:1), the same threshold as icons. The terminal's body
- * text is --color-fg, which the text pairs above check at 4.5:1. */
+/** The sixteen ANSI slots draw text, so each meets 4.5:1 on the light and dark terminal backgrounds. */
 const terminalColors = [
 	"term-black",
 	"term-red",
@@ -339,22 +266,24 @@ describe("APP-14 contrast guard", () => {
 					it.each(textPairs)(
 						`text %s on %s meets 4.5:1 in ${themeLabel} with ${visionLabel}`,
 						(fg, bg) => {
-							expect(contrast(fg, bg, theme, vision)).toBeGreaterThanOrEqual(4.5);
+							expect(contrastOn(palette, fg, bg, theme, vision)).toBeGreaterThanOrEqual(4.5);
 						},
 					);
 
 					it.each(markPairs)(
 						`mark %s on %s meets 3:1 in ${themeLabel} with ${visionLabel}`,
 						(fg, bg) => {
-							expect(contrast(fg, bg, theme, vision)).toBeGreaterThanOrEqual(3);
+							expect(contrastOn(palette, fg, bg, theme, vision)).toBeGreaterThanOrEqual(3);
 						},
 					);
 
 					it.each(terminalColors)(
-						`terminal %s meets 3:1 on both terminal backgrounds in ${themeLabel} with ${visionLabel}`,
+						`terminal %s meets 4.5:1 on both terminal backgrounds in ${themeLabel} with ${visionLabel}`,
 						(name) => {
 							for (const background of ["canvas", "panel"]) {
-								expect(contrast(name, background, theme, vision)).toBeGreaterThanOrEqual(3);
+								expect(contrastOn(palette, name, background, theme, vision)).toBeGreaterThanOrEqual(
+									4.5,
+								);
 							}
 						},
 					);
@@ -364,8 +293,8 @@ describe("APP-14 contrast guard", () => {
 	);
 
 	it("gives the sidebar a translucent surface for vibrancy", () => {
-		expect(colors.get("sidebar-translucent")?.[0]).toBe("#fafaf999");
-		expect(colors.get("sidebar-translucent")?.[1]).toBe("#211e1c99");
+		expect(tokenValue(palette, "sidebar-translucent", 0)).toBe("#fafaf999");
+		expect(tokenValue(palette, "sidebar-translucent", 1)).toBe("#211e1c99");
 		expect(lowColors.get("sidebar-translucent")?.[1]).toBe("#29262399");
 		expect(
 			/:root\[data-vibrancy="on"\]\s*\{[^}]*--color-surface:\s*var\(--color-sidebar-translucent\)/s.test(

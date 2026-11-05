@@ -52,9 +52,10 @@ export function ModeChips({ sessionId }: ModeChipsProps) {
 	const planShortcut = useLiveShortcut("chat.togglePlanMode");
 
 	const togglePlanMode = (): boolean => {
-		if (config === undefined || !supportsModeChips(config)) return false;
+		const latest = services.sessions.store.getState().sessions[sessionId]?.config;
+		if (latest === undefined || !supportsModeChips(latest)) return false;
 		void actions.sessions
-			.updateConfig(sessionId, { ...config, planMode: !config.planMode })
+			.updateConfig(sessionId, { ...latest, planMode: !latest.planMode })
 			.then((result) => {
 				if (!result.ok) toastError("Couldn't change plan mode", result.error);
 			});

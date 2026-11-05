@@ -29,7 +29,7 @@ import { type StatusTone, statusText } from "../workspace/status-text.ts";
 import { WorkspaceStatusIcon } from "../workspace/WorkspaceStatusIcon.tsx";
 import { unarchiveWorkspace } from "../workspace/workspace-actions.ts";
 import { workspaceName } from "../workspace/workspace-name.ts";
-import type { HomeDisplay } from "./home-query.ts";
+import { type HomeDisplay, isArchived } from "./home-query.ts";
 
 export interface WorkspaceCardProps {
 	workspace: Workspace;
@@ -46,10 +46,6 @@ const toneClass: Record<StatusTone, string> = {
 	success: "text-success",
 	neutral: "text-fg-muted",
 };
-
-function isArchived(workspace: Workspace): boolean {
-	return workspace.state === "archived" || workspace.archivedAt !== null;
-}
 
 function ArchivedActions({ workspace }: { workspace: Workspace }) {
 	const actions = useActions();

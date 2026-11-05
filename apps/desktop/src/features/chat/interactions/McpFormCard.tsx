@@ -14,15 +14,15 @@
  */
 
 import type { Interaction, InteractionAnswer } from "@conducted/protocol";
-import { CODEX_INTERACTION_TIMEOUT_MS } from "@conducted/protocol";
-import type { InteractionId, SessionId } from "@conducted/shared";
-import { useEffect, useRef, useState } from "react";
-import { useActions } from "../../../core/hooks.ts";
+import type { Clock, InteractionId, SessionId } from "@conducted/shared";
+import { useState } from "react";
 import { Button } from "../../../ui/Button.tsx";
 import { Checkbox } from "../../../ui/Checkbox.tsx";
 import { Input, Label } from "../../../ui/Input.tsx";
 import { Select } from "../../../ui/Select.tsx";
 import { asRecord, withKeys } from "../tools/ToolCardFrame.tsx";
+import { TIMED_OUT_TEXT, useExpiry } from "./use-expiry.ts";
+import { useInteractionAnswer } from "./use-interaction-answer.ts";
 
 export interface McpFormCardProps {
 	sessionId: SessionId;
@@ -32,6 +32,8 @@ export interface McpFormCardProps {
 	expiresAt?: number | null;
 	/** The agent already stopped waiting. */
 	timedOut?: boolean;
+	/** The clock the expiry timer reads. Tests pass a fake one. */
+	clock?: Clock;
 }
 
 type FieldKind = "string" | "number" | "boolean" | "enum";
@@ -49,8 +51,6 @@ type ParsedSchema = { ok: true; fields: FormField[] } | { ok: false; reason: str
 
 /** Radix Select cannot hold an empty value, so an unset enum uses this stand-in. */
 const UNSET = "__choose__";
-
-const TIMEOUT_MINUTES = Math.round(CODEX_INTERACTION_TIMEOUT_MS / 60_000);
 
 /** Reads the parts of a JSON Schema this card can show. Anything else needs a different card. */
 function parseSchema(schema: unknown): ParsedSchema {
@@ -135,30 +135,27 @@ export function McpFormCard({
 	request,
 	expiresAt = null,
 	timedOut = false,
+	clock,
 }: McpFormCardProps) {
-	const actions = useActions();
 	const parsed = parseSchema(request.schema);
 	const [values, setValues] = useState<Record<string, string | boolean>>(() =>
 		parsed.ok ? initialValues(parsed.fields) : {},
 	);
-	const [expired, setExpired] = useState(false);
-	const [pending, setPending] = useState(false);
-	const [failed, setFailed] = useState(false);
-	const [chosen, setChosen] = useState<string | null>(null);
-	const busy = useRef(false);
-
-	useEffect(() => {
-		if (expiresAt === null) return;
-		const remaining = expiresAt - Date.now();
-		if (remaining <= 0) {
-			setExpired(true);
-			return;
-		}
-		const timer = setTimeout(() => setExpired(true), Math.min(remaining, 2_147_483_647));
-		return () => clearTimeout(timer);
-	}, [expiresAt]);
-
+	const expired = useExpiry(expiresAt, clock);
 	const timedOutNow = timedOut || expired;
+	const answerState = useInteractionAnswer<Extract<InteractionAnswer, { kind: "mcp_form" }>>({
+		sessionId,
+		interactionId,
+		blocked: timedOutNow,
+		labelFor: (answer) =>
+			answer.action === "accept"
+				? "Accepted"
+				: answer.action === "decline"
+					? "Declined"
+					: "Cancelled",
+	});
+	const pending = answerState.pending !== null;
+	const chosen = answerState.chosen;
 	const fields = parsed.ok ? parsed.fields : [];
 	const valid =
 		parsed.ok &&
@@ -172,26 +169,8 @@ export function McpFormCard({
 		setValues((current) => ({ ...current, [key]: value }));
 	}
 
-	async function send(answer: Extract<InteractionAnswer, { kind: "mcp_form" }>): Promise<void> {
-		if (busy.current || chosen !== null || timedOutNow) return;
-		busy.current = true;
-		setPending(true);
-		setFailed(false);
-		const result = await actions.sessions.answer(sessionId, interactionId, answer);
-		if (!result.ok) {
-			busy.current = false;
-			setPending(false);
-			setFailed(true);
-			return;
-		}
-		const label =
-			answer.action === "accept"
-				? "Accepted"
-				: answer.action === "decline"
-					? "Declined"
-					: "Cancelled";
-		setChosen(label);
-		setPending(false);
+	function send(answer: Extract<InteractionAnswer, { kind: "mcp_form" }>): void {
+		void answerState.answer(answer);
 	}
 
 	function accept(): void {
@@ -206,15 +185,15 @@ export function McpFormCard({
 			if (typeof value !== "string" || (value.trim() === "" && !field.required)) continue;
 			content[field.key] = field.kind === "number" ? Number(value) : value;
 		}
-		void send({ kind: "mcp_form", action: "accept", content });
+		send({ kind: "mcp_form", action: "accept", content });
 	}
 
 	function cancel(): void {
-		void send({ kind: "mcp_form", action: "cancel" });
+		send({ kind: "mcp_form", action: "cancel" });
 	}
 
 	function decline(): void {
-		void send({ kind: "mcp_form", action: "decline" });
+		send({ kind: "mcp_form", action: "decline" });
 	}
 
 	return (
@@ -307,19 +286,19 @@ export function McpFormCard({
 				</p>
 			)}
 
-			{failed ? (
+			{answerState.failed === null ? null : (
 				<p role="alert" className="text-xs text-danger">
-					Could not send the answer. Try again.
+					Could not send the answer: {answerState.failed}
 				</p>
-			) : null}
+			)}
 
 			{timedOutNow ? (
 				<p role="status" className="text-sm text-fg-muted">
-					This request timed out after {TIMEOUT_MINUTES} minutes. The agent stopped waiting.
+					{TIMED_OUT_TEXT}
 				</p>
-			) : chosen !== null ? (
+			) : answerState.chosen !== null ? (
 				<p role="status" className="text-sm font-medium text-fg">
-					{chosen}
+					{answerState.chosen}
 				</p>
 			) : (
 				<div className="flex flex-wrap items-center gap-2">

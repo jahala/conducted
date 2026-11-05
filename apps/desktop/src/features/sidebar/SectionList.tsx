@@ -8,8 +8,9 @@
  * section...').
  * Must handle: Deleting a section moves its workspaces back to the main list; a failed move or
  * reorder shows a toast and the list keeps the saved order; a collapsed section is saved;
- * renaming to an empty name is refused; dragging a section header reorders sections; row drags
- * reorder only when 'Arrange workspaces by hand' is on.
+ * renaming to an empty name is refused; dragging a section header reorders sections (dropping on
+ * the upper half of a header puts it before that section); row drags reorder only when 'Arrange
+ * workspaces manually' is on, and a row dragged from another list joins this section there.
  * Our design choice: A drop writes through the sections service and the service store is the
  * only order the list shows, so a failed write leaves the previous order in place.
  * Test first: Placing a workspace into a section calls sections.place with the section id and the
@@ -29,15 +30,24 @@ import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "../../u
 import { toastError } from "../../ui/Toast.tsx";
 import { SectionDialog } from "./SectionDialog.tsx";
 import { useNow } from "./use-now.ts";
-import { useWorkspaceDrag, WORKSPACE_DRAG_MIME } from "./use-workspace-drag.ts";
+import {
+	draggedSection,
+	draggedWorkspace,
+	SECTION_DRAG_MIME,
+	useWorkspaceDrag,
+	WORKSPACE_DRAG_MIME,
+} from "./use-workspace-drag.ts";
 import { WorkspaceRow } from "./WorkspaceRow.tsx";
 
 export interface SectionListProps {
 	sections: readonly Section[];
 	workspaces: readonly Workspace[];
+	/** Opens the one New section dialog, so the sidebar background menu and the row share it. */
+	onNewSection?: () => void;
+	/** Pinned workspaces: they show in Pinned only, so a section leaves them out. */
+	excludedIds?: ReadonlySet<WorkspaceId>;
 }
 
-const SECTION_DRAG_MIME = "application/x-conducted-section";
 const REORDER_TITLE = "Couldn't reorder section";
 const DELETE_TITLE = "Couldn't delete section";
 
@@ -47,15 +57,14 @@ function orderedSections(sections: readonly Section[]): Section[] {
 	);
 }
 
-function carriedWorkspace(event: DragEvent): WorkspaceId | null {
-	const value =
-		event.dataTransfer?.getData(WORKSPACE_DRAG_MIME) ||
-		event.dataTransfer?.getData("text/plain") ||
-		"";
-	return value === "" ? null : (value as WorkspaceId);
-}
+const carriedWorkspace = (event: DragEvent): WorkspaceId | null => draggedWorkspace(event);
 
-export function SectionList({ sections, workspaces }: SectionListProps) {
+export function SectionList({
+	sections,
+	workspaces,
+	onNewSection,
+	excludedIds = new Set(),
+}: SectionListProps) {
 	const actions = useActions();
 	const repos = useRepos();
 	const params = useParams({ strict: false });
@@ -80,10 +89,12 @@ export function SectionList({ sections, workspaces }: SectionListProps) {
 		[workspaces],
 	);
 
-	const openCreate = () => {
-		setEditing(null);
-		setDialogOpen(true);
-	};
+	const openCreate =
+		onNewSection ??
+		(() => {
+			setEditing(null);
+			setDialogOpen(true);
+		});
 
 	const openRename = (section: Section) => {
 		setEditing(section);
@@ -121,6 +132,7 @@ export function SectionList({ sections, workspaces }: SectionListProps) {
 		<div className="flex flex-col gap-1 py-1">
 			{ordered.map((section) => {
 				const members = section.workspaceIds
+					.filter((id) => !excludedIds.has(id))
 					.map((id) => byId.get(id))
 					.filter((workspace): workspace is Workspace => workspace !== undefined);
 				return (
@@ -219,8 +231,8 @@ function SectionGroup({
 	onNewSection,
 }: SectionGroupProps) {
 	const actions = useActions();
-	const [open, setOpen] = useState(!section.collapsed);
-	const [renaming, setRenaming] = useState(false);
+	// The saved collapse state is the source, so a failed write leaves the list where it was.
+	const open = !section.collapsed;
 	const drag = useWorkspaceDrag({
 		order: members.map((workspace) => workspace.id),
 		sectionId: section.id,
@@ -231,7 +243,6 @@ function SectionGroup({
 	});
 
 	const changeOpen = (next: boolean) => {
-		setOpen(next);
 		void actions.sections.setCollapsed(section.id, !next).then((result) => {
 			if (!result.ok) toastError("Couldn't save the section", result.error);
 		});
@@ -240,6 +251,8 @@ function SectionGroup({
 	const drop = (event: DragEvent) => {
 		event.preventDefault();
 		drag.dragOver(null);
+		// A dragged section header only reorders sections; it is not a workspace.
+		if (draggingSection) return;
 		const carried = carriedWorkspace(event);
 		if (carried === null) return;
 		drag.dropOn(`section:${section.id}`, members.length, carried);
@@ -250,6 +263,7 @@ function SectionGroup({
 			aria-label={section.name}
 			className={cn("rounded-md", over && "bg-hover")}
 			onDragOver={(event) => {
+				if (draggingSection) return;
 				event.preventDefault();
 				drag.dragOver(`section:${section.id}`);
 			}}
@@ -270,7 +284,10 @@ function SectionGroup({
 						if (!draggingSection) return;
 						event.preventDefault();
 						event.stopPropagation();
-						onDropSection(true);
+						// The upper half of a header puts the section before it, the lower half after.
+						const rect = event.currentTarget.getBoundingClientRect();
+						const after = rect.height === 0 || event.clientY >= rect.top + rect.height / 2;
+						onDropSection(after);
 					}}
 				>
 					<CollapsibleTrigger
@@ -340,6 +357,7 @@ function SectionGroup({
 									}}
 									onDragEnd={drag.cancel}
 									onDragOver={(event) => {
+										if (draggingSection) return;
 										event.preventDefault();
 										event.stopPropagation();
 										drag.dragOver(`row:${workspace.id}`);
@@ -347,6 +365,7 @@ function SectionGroup({
 									onDrop={(event) => {
 										event.preventDefault();
 										event.stopPropagation();
+										if (draggedSection(event) !== null) return;
 										const carried = carriedWorkspace(event);
 										if (carried === null) return;
 										drag.dropOn(`row:${workspace.id}`, 1, carried);
@@ -371,7 +390,6 @@ function SectionGroup({
 					</div>
 				</CollapsibleContent>
 			</Collapsible>
-			<SectionDialog open={renaming} onOpenChange={setRenaming} section={section} />
 		</section>
 	);
 }

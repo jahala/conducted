@@ -1,17 +1,20 @@
 /**
  * @feature NAV-05 Home filtering, sorting and paging
  * Owns: the pure function that applies Home's search, project filter, archived toggle and sort, and
- * cuts the result into pages of 50; the display fields a card may show.
+ * grows the visible result by one page of 50 per request; the display fields a card may show; the
+ * rule for whether a workspace counts as archived.
  * Behaviour: ui-map.md 2 (Home: search, filters for projects and active or archived, sort, paging
  * by 50, pinned group), 10 (the fields seen on Home cards).
  * Our design choice: search matches the display name, branch, PR title and repository name,
  * ignoring case and accents. Pinned workspaces form their own first group and are not paged. The
- * total counts the unpaged matches, so the screen can say how many are hidden.
+ * total counts the unpaged matches, so the screen can say how many are hidden. Paging is
+ * cumulative: `pageCount` 2 returns the first 100 unpinned matches, so "Show more" only adds
+ * cards. An archived date counts as archived even before the state catches up.
  * Must handle: empty search (no filtering); the archived toggle shows only archived workspaces;
- * a page past the end gives an empty list; sorting is stable; a project filter naming a removed
- * repository is harmless because a workspace's repository still decides the match.
- * Test first: searching "AUTH" finds a workspace whose branch is "fix-auth-bug"; page 2 of 60
- * results has 10 items.
+ * asking for more pages than exist returns every match; sorting is stable; a project filter naming
+ * a removed repository is harmless because a workspace's repository still decides the match.
+ * Test first: searching "AUTH" finds a workspace whose branch is "fix-auth-bug"; asking for two
+ * pages of 60 results returns all 60.
  */
 
 import type { RepoId } from "@conducted/shared";
@@ -55,7 +58,8 @@ function normalise(value: string): string {
 		.toLowerCase();
 }
 
-function isArchived(workspace: Workspace): boolean {
+/** An archived date counts too, so a row cannot outlive its files while its state lags behind. */
+export function isArchived(workspace: Pick<Workspace, "state" | "archivedAt">): boolean {
 	return workspace.state === "archived" || workspace.archivedAt !== null;
 }
 

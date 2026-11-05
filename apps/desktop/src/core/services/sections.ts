@@ -119,11 +119,21 @@ export class SectionsService {
 		const removed = await this.#deps.repos.sections.delete(id);
 		if (!removed.ok) return err(removed.error);
 		// Its members are gone with it; the workspaces themselves stay in the main list.
+		const remaining = byPosition(this.store.getState().sections).filter(
+			(section) => section.id !== id,
+		);
+		// Write the remaining sections back in order, so their stored positions stay dense.
+		const renumbered =
+			remaining.length === 0
+				? ok(undefined)
+				: await this.#deps.repos.sections.reorder(remaining.map((section) => section.id));
 		this.store.setState((state) => ({
 			...state,
-			sections: state.sections.filter((section) => section.id !== id),
+			sections: renumbered.ok
+				? remaining.map((section, position) => ({ ...section, position }))
+				: remaining,
 		}));
-		return ok(undefined);
+		return renumbered.ok ? ok(undefined) : err(renumbered.error);
 	}
 
 	/** Moves a workspace into a section (or out, with null) at a position. */
@@ -147,12 +157,21 @@ export class SectionsService {
 		if (sectionId === null) {
 			const removed = await this.#deps.repos.sections.removeWorkspaceEverywhere(workspaceId);
 			if (!removed.ok) return err(removed.error);
-			this.store.setState({
-				sections: before.map((section) => ({
-					...section,
-					workspaceIds: section.workspaceIds.filter((id) => id !== workspaceId),
-				})),
-			});
+			const next = before.map((section) => ({
+				...section,
+				workspaceIds: section.workspaceIds.filter((id) => id !== workspaceId),
+			}));
+			// Rewrite the section that lost the member, so its stored positions stay dense.
+			const leaving = before.find((section) => section.workspaceIds.includes(workspaceId));
+			if (leaving !== undefined) {
+				const dense = leaving.workspaceIds.filter((id) => id !== workspaceId);
+				const written = await this.#deps.repos.sections.replaceMembers(leaving.id, dense);
+				if (!written.ok) {
+					this.store.setState({ sections: next });
+					return err(written.error);
+				}
+			}
+			this.store.setState({ sections: next });
 			return ok(undefined);
 		}
 

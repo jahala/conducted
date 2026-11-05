@@ -88,6 +88,13 @@ describe("NAV-05 WorkspaceCard", () => {
 		expect(screen.queryByRole("link", { name: /Old work/ })).toBeNull();
 	});
 
+	it("treats a workspace with an archived date as archived before its state catches up", async () => {
+		const { repo, workspace } = await seedCard({ displayName: "Old work" });
+		renderCard({ ...workspace, state: "ready", archivedAt: 10 }, repo);
+		expect(await screen.findByRole("button", { name: "Unarchive" })).toBeTruthy();
+		expect(screen.queryByRole("link", { name: /Old work/ })).toBeNull();
+	});
+
 	it("calls unarchive from the archived card", async () => {
 		const { repo, workspace } = await seedCard({ displayName: "Old work" });
 		if (test === undefined) throw new Error("Create the test container first.");

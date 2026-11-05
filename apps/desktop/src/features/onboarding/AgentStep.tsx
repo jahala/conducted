@@ -6,17 +6,19 @@
  * (agent detection and sign-in flows).
  * Our design choice: the list comes from the agent catalogue's install check. Installing and updating
  * programs belongs to PLAT-28 and is not built, so a missing program shows how to install it instead.
+ * The sign-in state machine lives in `core/use-agent-login.ts` and is shared with Agents settings.
  * Must handle: detection still running (a spinner per row); an agent installed but not signed in
  * (Sign in, then its instructions, code or link); none installed (instructions and Refresh); detection
  * fails (message and Retry); the version when it is known.
  * Test first: A signed-in Claude and a missing Codex render one 'Ready' row and one 'Not installed'
  * row.
  */
-import type { AgentInstall, AgentLogin } from "@conducted/protocol";
+import type { AgentInstall } from "@conducted/protocol";
 import type { AcpAgent, AgentKind } from "@conducted/shared";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useActions, useAgentInstalls } from "../../core/hooks.ts";
 import { agentDisplayName, agentKey } from "../../core/services/agent-catalog.ts";
+import { useAgentLogin } from "../../core/use-agent-login.ts";
 import { Alert, AlertDescription } from "../../ui/Alert.tsx";
 import { Badge, type BadgeTone } from "../../ui/Badge.tsx";
 import { Button } from "../../ui/Button.tsx";
@@ -27,16 +29,6 @@ import { Spinner } from "../../ui/Spinner.tsx";
 interface AgentSelection {
 	agent: AgentKind;
 	acpAgent?: AcpAgent;
-}
-
-interface LoginState extends AgentSelection {
-	key: string;
-	name: string;
-	loginId: string | null;
-	flow: AgentLogin | null;
-	error: string | null;
-	finishing: boolean;
-	requiresCode: boolean;
 }
 
 /** The five programs the step names, in Conductor's order (ui-map.md 6). */
@@ -74,21 +66,19 @@ function CheckingRow({ name }: { name: string }) {
 export function AgentStep() {
 	const actions = useActions();
 	const installs = useAgentInstalls();
-	const [busyKey, setBusyKey] = useState<string | null>(null);
-	const [login, setLogin] = useState<LoginState | null>(null);
 	const [notice, setNotice] = useState<string | null>(null);
 	const [copied, setCopied] = useState<string | null>(null);
-	const [code, setCode] = useState("");
-	/** The newest sign-in start. An older answer never replaces the panel it opened. */
-	const loginRequest = useRef(0);
-	const loginRef = useRef<LoginState | null>(null);
-	loginRef.current = login;
 
 	const refresh = async () => {
 		const result = await actions.agents.refresh();
 		if (result.ok) setNotice(null);
 		else setNotice(result.error.message);
 	};
+
+	const { busyKey, login, code, setCode, start, finish, cancel, setLoginError } = useAgentLogin({
+		onRefresh: refresh,
+		onCancelFailed: (message) => setNotice(message),
+	});
 
 	useEffect(() => {
 		let cancelled = false;
@@ -100,104 +90,21 @@ export function AgentStep() {
 		};
 	}, [actions]);
 
-	const finishLogin = async (loginId: string, pastedCode?: string) => {
-		setLogin((current) =>
-			current?.loginId === loginId ? { ...current, finishing: true, error: null } : current,
-		);
-		const finished = await actions.agents.finishLogin(loginId, pastedCode);
-		if (!finished.ok) {
-			setLogin((current) =>
-				current?.loginId === loginId
-					? { ...current, finishing: false, error: finished.error.message }
-					: current,
-			);
-			return;
-		}
-		if (finished.value.outcome !== "signed_in") {
-			setLogin((current) =>
-				current?.loginId === loginId
-					? {
-							...current,
-							finishing: false,
-							error: finished.value.message ?? "The sign-in did not finish.",
-						}
-					: current,
-			);
-			return;
-		}
-		const current = loginRef.current;
-		const wasShowingThisLogin = current === null || current.loginId === loginId;
-		setLogin((shown) => (shown === null || shown.loginId === loginId ? null : shown));
-		if (wasShowingThisLogin) setCode("");
-		const refreshed = await actions.agents.refresh();
-		if (!refreshed.ok) setNotice(refreshed.error.message);
-	};
-
-	const startLogin = async (selection: AgentSelection) => {
-		const key = agentKey(selection.agent, selection.acpAgent);
-		const name = agentDisplayName(selection);
-		const request = ++loginRequest.current;
-		setBusyKey(key);
+	const startSignIn = (selection: AgentSelection) => {
 		setNotice(null);
 		setCopied(null);
-		const started = await actions.agents.login(selection.agent, selection.acpAgent);
-		if (request !== loginRequest.current) return;
-		setBusyKey(null);
-		if (!started.ok) {
-			setLogin({
-				...selection,
-				key,
-				name,
-				loginId: null,
-				flow: null,
-				error: started.error.message,
-				finishing: false,
-				requiresCode: false,
-			});
-			return;
-		}
-		const requiresCode = selection.agent === "claude";
-		setLogin({
-			...selection,
-			key,
-			name,
-			loginId: started.value.loginId,
-			flow: started.value,
-			error: null,
-			finishing: false,
-			requiresCode,
-		});
-		if (selection.agent === "codex" || selection.agent === "cursor") {
-			void finishLogin(started.value.loginId);
-		}
-	};
-
-	const cancelLogin = async (loginId: string) => {
-		setLogin(null);
-		setCode("");
-		const cancelled = await actions.agents.cancelLogin(loginId);
-		if (!cancelled.ok) {
-			setNotice(cancelled.error.message);
-			return;
-		}
-		await refresh();
+		void start(selection);
 	};
 
 	const openUrl = async (url: string, loginId: string | null) => {
 		const opened = await actions.app.openUrl(url);
-		if (!opened.ok) {
-			setLogin((current) =>
-				current?.loginId === loginId ? { ...current, error: opened.error.message } : current,
-			);
-		}
+		if (!opened.ok) setLoginError(loginId, opened.error.message);
 	};
 
 	const copy = async (text: string, loginId: string | null) => {
 		const result = await actions.app.copyText(text);
 		if (!result.ok) {
-			setLogin((current) =>
-				current?.loginId === loginId ? { ...current, error: result.error.message } : current,
-			);
+			setLoginError(loginId, result.error.message);
 			return;
 		}
 		setCopied(text);
@@ -278,7 +185,7 @@ export function AgentStep() {
 														size="sm"
 														variant="secondary"
 														loading={busyKey === key}
-														onClick={() => void startLogin(selection)}
+														onClick={() => void startSignIn(selection)}
 													>
 														Sign in
 													</Button>
@@ -345,7 +252,7 @@ export function AgentStep() {
 																disabled={code.trim() === ""}
 																onClick={() => {
 																	if (selectedLogin.loginId !== null) {
-																		void finishLogin(selectedLogin.loginId, code.trim());
+																		void finish(selectedLogin.loginId, code.trim());
 																	}
 																}}
 															>
@@ -372,9 +279,9 @@ export function AgentStep() {
 															variant="ghost"
 															onClick={() => {
 																if (selectedLogin.loginId === null) {
-																	void startLogin(selection);
+																	void startSignIn(selection);
 																} else {
-																	void cancelLogin(selectedLogin.loginId);
+																	void cancel(selectedLogin.loginId);
 																}
 															}}
 														>
