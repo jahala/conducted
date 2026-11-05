@@ -2,8 +2,9 @@
  * @feature PR-01 GitHub service: access, health, merge and the personal access token
  * Owns: probing `gh` access (`gh auth status`, the user's login, the git protocol), the access
  * health store, reading and writing the personal access token, and merging a workspace's pull
- * request. Also owns PR-11's REST reads (issues, pull requests, recent repositories) and turning
- * a GitHub issue or pull request into a workspace context file.
+ * request. Also owns PR-11's REST reads (issues, pull requests, recent repositories), turning
+ * a GitHub issue or pull request into a workspace context file, and the owners and repositories
+ * the clone picker lists (PRJ-02).
  * Behaviour: services-map.md 3.9 (auth probes, method resolution, health), 5B.1.11 (failure
  * classes; only unauthorized breaks access), 5B.1.7 (merge method and dedupe), 2.5.2 and
  * 5B.1.10 (GitHub reads for the workspace pickers), 5B.8.2 (open issues, 50 newest), 5B.8.3
@@ -35,7 +36,7 @@ import {
 	type WorkspaceId,
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
-import type { FileSystem, Keychain, Unsubscribe } from "../../platform/platform.ts";
+import type { FileSystem, Keychain, ShellOutput, Unsubscribe } from "../../platform/platform.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
 import { createSingleFlight, type SingleFlight } from "../async/single-flight.ts";
 import {
@@ -49,6 +50,8 @@ import {
 	apiUserLogin,
 	authStatus,
 	configGetGitProtocol,
+	githubOwnerRepositories,
+	githubUserOrganizations,
 	issueByNumber as issueByNumberCommand,
 	type MergeMethod,
 	prCreateWeb,
@@ -62,6 +65,7 @@ import {
 import { failedCommandError, type GitRunner, isSuccessfulExit } from "../git/runner.ts";
 import type {
 	GitHubAccess as GitHubAccessView,
+	GitHubOwner,
 	GitHubRepoSummary,
 	IssueView,
 	PullRequest,
@@ -629,6 +633,120 @@ function accessFromFailure(text: string): GithubAccess {
 	return { status: "signed_out" };
 }
 
+/** Reads the organisation logins `gh api user/orgs` prints, one per line, without repeats. */
+export function parseGithubOrgLogins(text: string): string[] {
+	const seen = new Set<string>();
+	const logins: string[] = [];
+	for (const line of text.split(/\r?\n/)) {
+		const login = line.trim();
+		if (login === "" || seen.has(login)) continue;
+		seen.add(login);
+		logins.push(login);
+	}
+	return logins;
+}
+
+/** The signed-in account first, then its organisations, as the owner picker shows them. */
+export function githubOwnersFrom(
+	login: string | null,
+	organisations: readonly string[],
+): GitHubOwner[] {
+	const owners: GitHubOwner[] = [];
+	if (login !== null && login !== "") {
+		owners.push({ login, kind: "user", avatarUrl: null });
+	}
+	for (const organisation of organisations) {
+		if (organisation === login) continue;
+		owners.push({ login: organisation, kind: "organization", avatarUrl: null });
+	}
+	return owners;
+}
+
+interface RawGithubRepository {
+	name?: unknown;
+	owner?: { login?: unknown } | null;
+	description?: unknown;
+	isPrivate?: unknown;
+	sshUrl?: unknown;
+	url?: unknown;
+	updatedAt?: unknown;
+}
+
+/** Reads `gh repo list --json` output. A shape it does not understand is an error, not an empty list. */
+export function parseGithubRepositories(text: string): Result<GitHubRepoSummary[]> {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(text);
+	} catch {
+		return err(appError("github_response_invalid", "GitHub's repository list could not be read."));
+	}
+	if (!Array.isArray(parsed)) {
+		return err(appError("github_response_invalid", "GitHub's repository list could not be read."));
+	}
+	const repositories: GitHubRepoSummary[] = [];
+	for (const entry of parsed) {
+		if (typeof entry !== "object" || entry === null) {
+			return err(
+				appError("github_response_invalid", "GitHub's repository list could not be read."),
+			);
+		}
+		const raw = entry as RawGithubRepository;
+		const name = typeof raw.name === "string" ? raw.name : "";
+		const owner =
+			typeof raw.owner === "object" &&
+			raw.owner !== null &&
+			typeof raw.owner.login === "string" &&
+			raw.owner.login !== ""
+				? raw.owner.login
+				: "";
+		if (name === "" || owner === "" || typeof raw.isPrivate !== "boolean") {
+			return err(
+				appError("github_response_invalid", "GitHub's repository list could not be read."),
+			);
+		}
+		const updatedAtMs = typeof raw.updatedAt === "string" ? Date.parse(raw.updatedAt) : Number.NaN;
+		if (!Number.isFinite(updatedAtMs)) {
+			return err(
+				appError("github_response_invalid", "GitHub's repository list could not be read."),
+			);
+		}
+		const sshUrl = typeof raw.sshUrl === "string" && raw.sshUrl !== "" ? raw.sshUrl : null;
+		const webUrl = typeof raw.url === "string" && raw.url !== "" ? raw.url : null;
+		repositories.push({
+			owner,
+			name,
+			description: typeof raw.description === "string" ? raw.description : null,
+			isPrivate: raw.isPrivate,
+			cloneUrl: sshUrl ?? webUrl ?? `https://github.com/${owner}/${name}.git`,
+			updatedAt: updatedAtMs,
+		});
+	}
+	return ok(repositories);
+}
+
+/** The error a `gh` command that did not succeed means, with its classified message when it has one. */
+function ghCommandError(command: GitCommand, output: ShellOutput): AppError {
+	const text = `${output.stderr}\n${output.stdout}`;
+	const message = githubFailureMessage(classifyGhFailure(text), text);
+	return message === null
+		? failedCommandError(command, output)
+		: appError("github_failed", message);
+}
+
+/** The repositories whose name, owner/name or description contains the query. */
+export function filterGithubRepositories(
+	repositories: readonly GitHubRepoSummary[],
+	query: string,
+): GitHubRepoSummary[] {
+	const needle = query.trim().toLowerCase();
+	if (needle === "") return [...repositories];
+	return repositories.filter((repository) => {
+		const label = `${repository.owner}/${repository.name}`.toLowerCase();
+		const description = (repository.description ?? "").toLowerCase();
+		return label.includes(needle) || description.includes(needle);
+	});
+}
+
 export interface WorkspacePrEntry {
 	pullRequest: PullRequest | null;
 	/** Why there is no PR to show, when there is not. */
@@ -779,6 +897,48 @@ export class GithubService {
 		return result.ok
 			? ok(undefined)
 			: err(appError("github_refresh_failed", GITHUB_REFRESH_FAILED_MESSAGE, result.error));
+	}
+
+	/**
+	 * The owners the clone picker offers: the signed-in account first, then the user's organisations.
+	 * Reads them with `gh api user/orgs --paginate` (services-map 3.9).
+	 */
+	async listOwners(): Promise<Result<GitHubOwner[]>> {
+		const settings = await this.#ghSettings();
+		if (!settings.ok) return err(settings.error);
+		const command = githubUserOrganizations();
+		const result = await this.#deps.git.run(command, this.#runOptions(settings.value));
+		if (!result.ok) return err(result.error);
+		await this.recordGhResult(result.value);
+		if (!isSuccessfulExit(command, result.value.exitCode)) {
+			return err(ghCommandError(command, result.value));
+		}
+		const access = this.store.getState().access;
+		const login = access.status === "ok" ? access.login : null;
+		return ok(githubOwnersFrom(login, parseGithubOrgLogins(result.value.stdout)));
+	}
+
+	/**
+	 * One owner's repositories, filtered by the picker's query. `gh repo list` answers in JSON, so a
+	 * shape this file cannot read is an error rather than a shorter list.
+	 */
+	async listRepositories(owner: string, query: string): Promise<Result<GitHubRepoSummary[]>> {
+		const trimmedOwner = owner.trim();
+		if (trimmedOwner === "") {
+			return err(appError("github_owner_missing", "Choose a GitHub account or organisation."));
+		}
+		const settings = await this.#ghSettings();
+		if (!settings.ok) return err(settings.error);
+		const command = githubOwnerRepositories(trimmedOwner);
+		const result = await this.#deps.git.run(command, this.#runOptions(settings.value));
+		if (!result.ok) return err(result.error);
+		await this.recordGhResult(result.value);
+		if (!isSuccessfulExit(command, result.value.exitCode)) {
+			return err(ghCommandError(command, result.value));
+		}
+		const parsed = parseGithubRepositories(result.value.stdout);
+		if (!parsed.ok) return parsed;
+		return ok(filterGithubRepositories(parsed.value, query));
 	}
 
 	/**

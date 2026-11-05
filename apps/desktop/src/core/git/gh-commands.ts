@@ -2,8 +2,9 @@
  * @feature PR-01 Catalogue of every gh (GitHub CLI) invocation the app makes
  * Owns: one pure function per `gh` call (and the read-only `gt` Graphite calls), each returning a
  * `GitCommand` value. The runner executes it, in the workspace folder, so `gh` finds the repo.
- * Behaviour: services-map.md 3.7 (PR create, read, write actions), 3.8 (stacks, Graphite),
- * 3.9 (auth probes), 5B.1 (fields, batching, rate-limit gate).
+ * Also owns the clone picker calls and `gh repo clone` for cloning from GitHub (PRJ-02).
+ * Behaviour: services-map.md 3.2 (cloning), 3.7 (PR create, read, write actions), 3.8 (stacks,
+ * Graphite), 3.9 (auth probes, org list), 5B.1 (fields, batching, rate-limit gate).
  * Must handle: every value reaches `gh` as its own argument; GraphQL variables go through
  * `-F`/`-f` flags, never string-built into the query; a merge is pinned to the local HEAD with
  * `--match-head-commit`, and an approval to the head commit id, so the app never acts on a PR
@@ -271,6 +272,29 @@ export const issueByNumber = (ownerSlashName: string, number: number): GitComman
 /** The user's repositories, most recently updated first, for the new-workspace pickers. */
 export const recentRepositories = (): GitCommand =>
 	gh(["api", "user/repos?per_page=8&sort=updated"], { timeoutMs: REST_READ_TIMEOUT_MS });
+
+// ---------------------------------------------------------------- clone pickers (PRJ-02)
+
+/** The organisations the signed-in user belongs to, one login per line. */
+export const githubUserOrganizations = (): GitCommand =>
+	gh(["api", "user/orgs", "--paginate", "--jq", ".[].login"], { timeoutMs: 15_000 });
+/** One owner's repositories, most recently updated first. */
+export const githubOwnerRepositories = (owner: string): GitCommand =>
+	gh(
+		[
+			"repo",
+			"list",
+			owner,
+			"--limit",
+			"100",
+			"--json",
+			"name,owner,description,isPrivate,url,sshUrl,updatedAt",
+		],
+		{ timeoutMs: 15_000 },
+	);
+/** Clones a repository through the user's own `gh` sign-in. */
+export const githubRepoClone = (url: string, destination: string): GitCommand =>
+	gh(["repo", "clone", url, destination], { network: true });
 
 // ---------------------------------------------------------------- stacks and Graphite (PR-08)
 

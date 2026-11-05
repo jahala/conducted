@@ -1,9 +1,10 @@
 /**
  * @feature PRJ-01 Projects (repositories): add and list from a local folder, remove
- * Owns: the list of repositories, adding one from a local folder, removing one, and hiding one
- * from the sidebar. Also owns PRJ-04's config reads: scripts, files to copy and prompts come from
- * `.conducted/settings.toml`, with `.conducted/settings.local.toml` overriding it. Cloning,
- * creating from a template and icons are placeholders for PRJ-02, PRJ-03 and PRJ-05.
+ * Owns: the list of repositories, adding one from a local folder, cloning one from GitHub or any
+ * git URL (PRJ-02), removing one, and hiding one from the sidebar. Also owns PRJ-04's config
+ * reads: scripts, files to copy and prompts come from `.conducted/settings.toml`, with
+ * `.conducted/settings.local.toml` overriding it. Creating from a template and icons are
+ * placeholders for PRJ-03 and PRJ-05.
  * Behaviour: ui-map.md 3.9 (add project), 4 item 8 (Add project menu), services-map.md 3.2 (add
  * repository steps: `git init` when missing, remote URL read and normalised, default branch
  * detection), 2.3.2 (repo operations), 1.4 (config group), 4.2 (the repo settings file),
@@ -44,15 +45,19 @@ import { localSettingsFile, sharedSettingsFile } from "../app-paths.ts";
 import type { Repositories } from "../db/repositories.ts";
 import {
 	branchShowCurrent,
+	checkout,
+	cloneWithProgress,
 	initRepository,
 	remoteGetUrl,
 	remoteSetUrl,
 	revParse,
 	symbolicRefRemoteHead,
 } from "../git/commands.ts";
+import { githubRepoClone } from "../git/gh-commands.ts";
 import type { GitRunner } from "../git/runner.ts";
 import type { Repo, RepoConfig, RepoIconChoice, RunAction } from "../model.ts";
 import { coerceSettingValue, getSettingDef, type SettingValue } from "../registries/settings.ts";
+import { isGithubRemoteUrl } from "./github.ts";
 import {
 	actionIdsEqual,
 	actionLabel,
@@ -66,8 +71,19 @@ import {
 } from "./settings.ts";
 import { tomlCodec } from "./toml-codec.ts";
 
+/** What the clone dialog shows while a repository is cloned and after it ends. */
+export interface CloneProgress {
+	state: "cloning" | "done" | "failed";
+	url: string;
+	destination: string;
+	/** The progress text git printed, or the failure the clone ended with. */
+	output: string;
+}
+
 export interface RepoState {
 	loaded: boolean;
+	/** The clone in progress or the one just finished, so the dialog can show its progress. */
+	cloneProgress?: CloneProgress | null;
 	reposById: Readonly<Record<string, Repo>>;
 	/** Ids in sidebar order. Hidden repositories are not listed. */
 	order: readonly RepoId[];
@@ -161,6 +177,35 @@ export function projectNameFromPath(path: string): string {
 	const trimmed = normaliseRootPath(path);
 	const parts = trimmed.split("/");
 	return parts.at(-1) || trimmed || "Project";
+}
+
+/**
+ * The folder a clone of this URL makes: the last path segment without `.git`. Both the HTTPS form
+ * and git's `user@host:owner/repo` form name the same folder. Null when the URL names no folder.
+ */
+export function repoNameFromUrl(url: string): string | null {
+	const trimmed = url.trim().replace(/\/+$/, "");
+	if (trimmed === "") return null;
+	const scp = /^[^@\s/]+@[^:\s/]+:(.+)$/.exec(trimmed);
+	let path: string;
+	if (scp !== null) {
+		path = scp[1] ?? "";
+	} else {
+		try {
+			path = new URL(trimmed).pathname;
+		} catch {
+			return null;
+		}
+	}
+	const segments = path.split("/").filter((segment) => segment !== "");
+	const last = segments.at(-1)?.replace(/\.git$/i, "") ?? "";
+	return last === "" ? null : last;
+}
+
+/** Joins a parent folder and a child name with a single slash. */
+export function joinFolder(parent: string, child: string): string {
+	const root = normaliseRootPath(parent);
+	return root === "/" ? `/${child}` : `${root}/${child}`;
 }
 
 /**
@@ -466,6 +511,7 @@ export class RepoService {
 		this.#deps = deps;
 		this.store = createStore<RepoState>(() => ({
 			loaded: false,
+			cloneProgress: null,
 			reposById: {},
 			order: [],
 			configs: {},
@@ -542,9 +588,152 @@ export class RepoService {
 		return ok(created.value);
 	}
 
-	/** Backs `Actions.projects.clone`: `gh repo clone` or `git clone` with progress. */
-	clone(_url: string, _parentDir: string): Promise<Result<Repo>> {
-		return notImplemented("PRJ-02");
+	/**
+	 * Backs `Actions.projects.clone`: clones into `<parentDir>/<repository name>` with `gh repo clone`
+	 * for a GitHub URL and `git clone --progress` otherwise, checks out the default branch, reads the
+	 * remote and adds the project. Progress is kept in the store for the dialog to show.
+	 */
+	async clone(rawUrl: string, rawParentDir: string): Promise<Result<Repo>> {
+		const url = normaliseRemoteUrl(rawUrl);
+		if (url === "") {
+			return err(appError("repo_url_missing", "Enter a repository URL."));
+		}
+		const parentDir = normaliseRootPath(rawParentDir);
+		if (parentDir === "") {
+			return err(appError("repo_location_missing", "Choose a folder to clone into."));
+		}
+		const name = repoNameFromUrl(url);
+		if (name === null) {
+			return err(appError("repo_url_invalid", "That doesn't look like a Git repository URL."));
+		}
+
+		const location = await this.#deps.platform.fs.stat(parentDir);
+		if (!location.ok) {
+			return err(
+				appError("repo_location_missing", `Can't find the folder ${parentDir}.`, location.error),
+			);
+		}
+		if (!location.value.isDirectory) {
+			return err(appError("repo_location_missing", `${parentDir} is not a folder.`));
+		}
+
+		const destination = joinFolder(parentDir, name);
+		const existingFolder = await this.#deps.platform.fs.stat(destination);
+		if (existingFolder.ok) {
+			return err(
+				appError(
+					"repo_destination_exists",
+					`The folder ${destination} already exists. Choose another location.`,
+				),
+			);
+		}
+
+		this.#setCloneProgress({ state: "cloning", url, destination, output: "" });
+		const command = isGithubRemoteUrl(url)
+			? githubRepoClone(url, destination)
+			: cloneWithProgress(url, destination);
+		const cloned = await this.#deps.git.runChecked(command, { cwd: parentDir });
+		if (!cloned.ok) {
+			this.#setCloneProgress({
+				state: "failed",
+				url,
+				destination,
+				output: cloned.error.message,
+			});
+			return cloned;
+		}
+		this.#setCloneProgress({
+			state: "cloning",
+			url,
+			destination,
+			output: (cloned.value.stderr || cloned.value.stdout).trim(),
+		});
+
+		const remote = await this.#readRemoteUrl(destination);
+		if (!remote.ok) {
+			this.#setCloneProgress({
+				state: "failed",
+				url,
+				destination,
+				output: remote.error.message,
+			});
+			return remote;
+		}
+		if (remote.value === null) {
+			const missing = appError(
+				"repo_remote_missing",
+				`The clone at ${destination} has no origin remote.`,
+			);
+			this.#setCloneProgress({
+				state: "failed",
+				url,
+				destination,
+				output: missing.message,
+			});
+			return err(missing);
+		}
+		const defaultBranch = await this.#detectDefaultBranch(destination);
+		if (!defaultBranch.ok) {
+			this.#setCloneProgress({
+				state: "failed",
+				url,
+				destination,
+				output: defaultBranch.error.message,
+			});
+			return defaultBranch;
+		}
+
+		const current = await this.#deps.git.stdout(branchShowCurrent(), { cwd: destination });
+		if (current.ok && current.value !== "" && current.value !== defaultBranch.value) {
+			const checkedOut = await this.#deps.git.runChecked(checkout(defaultBranch.value), {
+				cwd: destination,
+			});
+			if (!checkedOut.ok) {
+				this.#setCloneProgress({
+					state: "failed",
+					url,
+					destination,
+					output: checkedOut.error.message,
+				});
+				return checkedOut;
+			}
+		}
+
+		const already = await this.#deps.repos.repos.getByRootPath(destination);
+		if (!already.ok) return already;
+		if (already.value !== null) {
+			this.#upsert(already.value);
+			this.#setCloneProgress({ state: "done", url, destination, output: "" });
+			return ok(already.value);
+		}
+
+		const created = await this.#deps.repos.repos.create({
+			name,
+			rootPath: destination,
+			remoteUrl: remote.value,
+			defaultBranch: defaultBranch.value,
+			icon: null,
+		});
+		if (!created.ok) {
+			if (created.error.code === "db.conflict") {
+				const raced = await this.#deps.repos.repos.getByRootPath(destination);
+				if (raced.ok && raced.value !== null) {
+					this.#upsert(raced.value);
+					this.#setCloneProgress({ state: "done", url, destination, output: "" });
+					return ok(raced.value);
+				}
+			}
+			this.#setCloneProgress({
+				state: "failed",
+				url,
+				destination,
+				output: created.error.message,
+			});
+			return created;
+		}
+		this.#upsert(created.value);
+		this.#setCloneProgress({ state: "done", url, destination, output: "" });
+		return ok(created.value);
 	}
 
 	/** Backs `Actions.projects.createFromTemplate`. */
@@ -853,6 +1042,11 @@ export class RepoService {
 			...state,
 			configErrors: { ...state.configErrors, [repoId]: error },
 		});
+	}
+
+	/** Records what the clone is doing, for the dialog that started it. */
+	#setCloneProgress(progress: CloneProgress): void {
+		this.store.setState((state) => ({ ...state, cloneProgress: progress }));
 	}
 
 	/** Puts one repository in the store and recomputes the sidebar order. */
