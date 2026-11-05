@@ -833,11 +833,11 @@ export function createTauriSidecar(bindings: TauriBindings): SidecarTransport {
 }
 
 /** `keychain_get { key }`, `keychain_set { key, value }`, `keychain_delete { key }`. */
-export function createTauriKeychain(_bindings: TauriBindings): Keychain {
+export function createTauriKeychain(bindings: TauriBindings): Keychain {
 	return {
-		get: () => notImplemented("PLAT-10"),
-		set: () => notImplemented("PLAT-10"),
-		delete: () => notImplemented("PLAT-10"),
+		get: (key) => invokeResult<string | null>(bindings, COMMANDS.keychainGet, { key }),
+		set: (key, value) => invokeResult<void>(bindings, COMMANDS.keychainSet, { key, value }),
+		delete: (key) => invokeResult<void>(bindings, COMMANDS.keychainDelete, { key }),
 	};
 }
 
