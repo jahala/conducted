@@ -44,6 +44,7 @@
  * Read state is NAV-11's: mark a chat or a workspace read or unread, and remember the chat on
  * screen for notifications.
  * SIDE-20 owns `applyAgentConfig`, which stores a config the agent changed by itself.
+ * COMP-06 owns `restartAgent`: reset the sidecar's session and warm the agent again with resume.
  */
 import {
 	type AgentLaunch,
@@ -1619,8 +1620,40 @@ export class SessionsService implements AgentMessenger {
 	}
 
 	/** /restart: `resetAgent`, then warm the agent again with resume. */
-	restartAgent(_id: SessionId): Promise<Result<void>> {
-		return notImplemented("COMP-06");
+	async restartAgent(id: SessionId): Promise<Result<void>> {
+		const found = await this.#session(id);
+		if (!found.ok) return found;
+		const session = found.value;
+		const launchFor = this.#deps.launchFor;
+		if (launchFor === undefined) {
+			return err(
+				appError(
+					"chat_launch_missing",
+					"The chat cannot start its agent because no launch settings were provided.",
+				),
+			);
+		}
+		const workspace = await this.#workspaceContext(session.workspaceId);
+		if (!workspace.ok) return workspace;
+		const reset = await this.#deps.sidecar.request("resetAgent", { sessionId: id });
+		if (!reset.ok) return reset;
+		// The sidecar forgets the chat's live state on reset and publishes no idle state, so the
+		// app clears it here instead of leaving the chat looking busy.
+		this.store.setState((state) => ({
+			liveStates: { ...state.liveStates, [id]: idleLiveState },
+			cancelling: { ...state.cancelling, [id]: false },
+		}));
+		const warm = await this.#deps.sidecar.request("warmAgent", {
+			sessionId: id,
+			config: session.config,
+			workspace: workspace.value,
+			launch: launchFor(session),
+			...(session.agentSessionId === null
+				? {}
+				: { resume: { agentSessionId: session.agentSessionId } }),
+		});
+		if (!warm.ok) return warm;
+		return ok(undefined);
 	}
 
 	compact(_id: SessionId): Promise<Result<void>> {
