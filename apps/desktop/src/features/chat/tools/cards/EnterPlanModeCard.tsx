@@ -6,9 +6,15 @@
  * Must handle: The switch was refused (error in the frame); shown once per switch.
  * Test first: An enter_plan_mode call renders the title 'Enter plan mode'.
  */
-import { notImplemented } from "@conducted/shared";
+import { ToolCardFrame, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
-export function EnterPlanModeCard(_props: ToolCardProps): never {
-	return notImplemented("CHAT-12");
+export function EnterPlanModeCard({ call }: ToolCardProps) {
+	return (
+		<ToolCardFrame
+			title="Enter plan mode"
+			status={toolStatus(call)}
+			summary="The agent is planning before it changes files"
+		/>
+	);
 }
