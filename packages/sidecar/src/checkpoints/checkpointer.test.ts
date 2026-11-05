@@ -134,8 +134,14 @@ function diverge(): void {
 	commitAll("main change");
 }
 
-/** Start a save that blocks in `git add`, then send `signal` to its process group. */
-async function expectTerminatedDuringSave(signal: "SIGTERM" | "SIGINT"): Promise<void> {
+/**
+ * Start a save that blocks in `git add`, then send `signal` to its process group, or only to the
+ * script itself (as the sidecar does), whose git steps must then be stopped by the script.
+ */
+async function expectTerminatedDuringSave(
+	signal: "SIGTERM" | "SIGINT",
+	target: "group" | "script" = "group",
+): Promise<void> {
 	const wrapper = join(base, "wrapper");
 	const ready = join(base, "ready");
 	writeGitWrapper(
@@ -166,7 +172,7 @@ esac`,
 		await Bun.sleep(10);
 	}
 
-	process.kill(-child.pid, signal);
+	process.kill(target === "group" ? -child.pid : child.pid, signal);
 	expect(await child.exited).toBe(143);
 	expect(refExists("slow")).toBe(false);
 
@@ -654,5 +660,9 @@ esac`,
 
 	test("exits 143 and removes its temp folder on SIGINT", async () => {
 		await expectTerminatedDuringSave("SIGINT");
+	});
+
+	test("exits 143 and stops its git step when only the script gets SIGTERM", async () => {
+		await expectTerminatedDuringSave("SIGTERM", "script");
 	});
 });

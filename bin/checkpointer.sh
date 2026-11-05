@@ -65,6 +65,7 @@ EMPTY_TREE="4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 
 tmp_work=""
 tmp_index=""
+step_pid=""
 
 usage() {
   sed -n '/^# Usage:/,/^$/p' "$0" | sed 's/^# \{0,1\}//' >&2
@@ -81,8 +82,39 @@ cleanup() {
   fi
 }
 
+# Print the pids of all descendants of $1, children before their own children.
+descendants() {
+  local child
+  for child in $(pgrep -P "$1" 2>/dev/null || true); do
+    printf '%s\n' "$child"
+    descendants "$child"
+  done
+}
+
+# Stop the running git step and everything it started, then exit. SIGTERM is used for the children
+# because a shell starts background jobs with SIGINT ignored. The direct child goes first so it
+# cannot start another process while the others are being stopped.
 on_signal() {
+  trap '' INT TERM
+  if [ -n "$step_pid" ]; then
+    local pids
+    pids=$(descendants "$step_pid")
+    kill -TERM "$step_pid" 2>/dev/null || true
+    # shellcheck disable=SC2086
+    [ -z "$pids" ] || kill -TERM $pids 2>/dev/null || true
+  fi
   exit 143
+}
+
+# Run a long command in the background and wait for it. Bash runs a trap only after its foreground
+# child ends, so a slow `git add` would hold up SIGTERM until it finished; `wait` returns at once.
+run_step() {
+  "$@" &
+  step_pid=$!
+  local status=0
+  wait "$step_pid" || status=$?
+  step_pid=""
+  return "$status"
 }
 
 trap cleanup EXIT
@@ -263,8 +295,8 @@ cmd_save() {
   prune_stale "$git_dir/$TMP_NAME"
   new_temp_index "$git_dir/$TMP_NAME"
 
-  GIT_INDEX_FILE="$tmp_index" git read-tree "$index_tree"
-  GIT_INDEX_FILE="$tmp_index" git add -A -- .
+  GIT_INDEX_FILE="$tmp_index" run_step git read-tree "$index_tree"
+  GIT_INDEX_FILE="$tmp_index" run_step git add -A -- .
   worktree_tree=$(GIT_INDEX_FILE="$tmp_index" git write-tree)
 
   local message commit
@@ -315,15 +347,15 @@ cmd_restore() {
   fi
   current_head=$(git rev-parse --verify HEAD 2>/dev/null || true)
   if [ "$current_head" != "$head_oid" ] || [ -n "$(git ls-files -u)" ] || [ "$busy" = "yes" ]; then
-    git reset -q --mixed "$head_oid"
+    run_step git reset -q --mixed "$head_oid"
   fi
 
-  git read-tree --reset "$head_oid"
-  git add -A -- .
-  git read-tree --reset -u "$worktree_tree"
-  git clean -fdq
-  git read-tree --reset "$index_tree"
-  git update-index -q --refresh
+  run_step git read-tree --reset "$head_oid"
+  run_step git add -A -- .
+  run_step git read-tree --reset -u "$worktree_tree"
+  run_step git clean -fdq
+  run_step git read-tree --reset "$index_tree"
+  run_step git update-index -q --refresh
 
   printf 'restored checkpoint: %s\n' "$id"
 }
@@ -364,8 +396,8 @@ cmd_diff() {
     if index_tree=$(git rev-parse --verify 'HEAD^{tree}' 2>/dev/null); then :; else
       index_tree="$EMPTY_TREE"
     fi
-    GIT_INDEX_FILE="$tmp_index" git read-tree "$index_tree"
-    GIT_INDEX_FILE="$tmp_index" git add -A -- .
+    GIT_INDEX_FILE="$tmp_index" run_step git read-tree "$index_tree"
+    GIT_INDEX_FILE="$tmp_index" run_step git add -A -- .
     right_target=$(GIT_INDEX_FILE="$tmp_index" git write-tree)
   else
     right_target=$(checkpoint_ref "$right")
