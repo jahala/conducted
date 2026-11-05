@@ -17,9 +17,8 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import { useStore } from "zustand";
 import { useServices } from "../../core/context.tsx";
-import { useActions, useSessions, useWorkspace } from "../../core/hooks.ts";
+import { useActions, useLiveShortcut, useSessions, useWorkspace } from "../../core/hooks.ts";
 import type { KanbanStatus, Section } from "../../core/model.ts";
-import { formatShortcut, getCommand } from "../../core/registries/commands.ts";
 import { buildDeepLink } from "../../core/services/notifications.ts";
 import {
 	Menu,
@@ -45,17 +44,15 @@ export interface WorkspaceActionsMenuProps {
 	children: ReactNode;
 }
 
-const shortcutOf = (id: string): string | undefined => {
-	const command = getCommand(id);
-	const first = command?.defaultShortcuts[0];
-	return first === undefined ? undefined : formatShortcut(first);
-};
-
 export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActionsMenuProps) {
 	const actions = useActions();
 	const workspace = useWorkspace(workspaceId);
 	const sessions = useSessions(workspaceId);
 	const sections = useStore(useServices().services.sections.store, (state) => state.sections);
+	const readShortcut = useLiveShortcut("sidebar.toggleRead");
+	const pinShortcut = useLiveShortcut("sidebar.togglePin");
+	const copyLinkShortcut = useLiveShortcut("workspace.copyLink");
+	const archiveShortcut = useLiveShortcut("workspace.archive");
 	const [renaming, setRenaming] = useState(false);
 	const [newSection, setNewSection] = useState(false);
 
@@ -92,7 +89,7 @@ export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActions
 				<MenuTrigger asChild>{children}</MenuTrigger>
 				<MenuContent aria-label="Workspace actions">
 					<MenuItem
-						shortcut={shortcutOf("sidebar.toggleRead")}
+						shortcut={readShortcut ?? undefined}
 						onSelect={() =>
 							void run(
 								unread
@@ -108,7 +105,7 @@ export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActions
 						{unread ? "Mark as read" : "Mark as unread"}
 					</MenuItem>
 					<MenuItem
-						shortcut={shortcutOf("sidebar.togglePin")}
+						shortcut={pinShortcut ?? undefined}
 						onSelect={() =>
 							void run(pinned ? "Couldn't unpin the workspace" : "Couldn't pin the workspace", () =>
 								actions.workspaces.setPinned(workspaceId, !pinned),
@@ -160,7 +157,7 @@ export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActions
 						<>
 							<MenuItem onSelect={() => setRenaming(true)}>Rename</MenuItem>
 							<MenuItem
-								shortcut={shortcutOf("workspace.copyLink")}
+								shortcut={copyLinkShortcut ?? undefined}
 								onSelect={() =>
 									void run("Couldn't copy the link", () =>
 										actions.app.copyText(buildDeepLink(workspaceId, null)),
@@ -172,7 +169,7 @@ export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActions
 							<MenuSeparator />
 							<MenuItem
 								destructive
-								shortcut={shortcutOf("workspace.archive")}
+								shortcut={archiveShortcut ?? undefined}
 								onSelect={() =>
 									void run("Couldn't archive the workspace", () =>
 										actions.workspaces.archive(workspaceId, { deleteBranch: false }),

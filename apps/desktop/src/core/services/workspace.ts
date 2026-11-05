@@ -1083,8 +1083,9 @@ export class WorkspaceService {
 		return notImplemented("NAV-06");
 	}
 
-	markRead(_id: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("NAV-11");
+	/** Backs a workspace-level mark-read: the chats service clears the workspace's unread chats. */
+	markRead(id: WorkspaceId): Promise<Result<void>> {
+		return this.#deps.sessions.markAllRead(id);
 	}
 
 	/** Backs `Actions.workspaces.openIn`: opens the workspace folder in another app. */

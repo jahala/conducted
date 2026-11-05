@@ -1,8 +1,8 @@
 /**
  * @feature CHAT-19 Notify when a chat finishes or needs the user
  * Built now: the pure rules (`shouldNotifyFinished`, `isSuppressed`, `notificationTitle`, deep
- * links, `dockBadgeCount`). The service methods are placeholders (CHAT-19, NAV-11), so the
- * settle timer, sound, native notification and click handling below are not built yet.
+ * links, `dockBadgeCount`, `refreshDockBadge`). The settle timer, sound, native notification and
+ * click handling below are CHAT-19 and still placeholders.
  * Owns: deciding when to play a sound and show a native notification, building the text and the
  * deep link, and the number on the dock icon.
  * Behaviour: services-map.md 5B.2 (settings, triggers, suppression, delay and throttle, deep
@@ -19,7 +19,15 @@
  * `conducted://` scheme.
  * Test first: shouldNotifyFinished is false when a follow-up is still queued.
  */
-import { notImplemented, type Result, type SessionId, type WorkspaceId } from "@conducted/shared";
+import {
+	appError,
+	err,
+	notImplemented,
+	ok,
+	type Result,
+	type SessionId,
+	type WorkspaceId,
+} from "@conducted/shared";
 import type { Platform } from "../../platform/platform.ts";
 import type { Session, Workspace } from "../model.ts";
 
@@ -133,6 +141,10 @@ export interface NotificationServiceDeps {
 	setting: <T>(key: string) => T;
 	isViewing: (sessionId: SessionId) => boolean;
 	windowFocused: () => boolean;
+	/** The loaded workspaces, for the dock badge. */
+	workspaces: () => ReadonlyMap<WorkspaceId, Pick<Workspace, "state">>;
+	/** The loaded chats, for the dock badge. */
+	sessions: () => readonly Pick<Session, "workspaceId" | "unreadCount" | "closedAt">[];
 }
 
 export class NotificationService {
@@ -158,8 +170,14 @@ export class NotificationService {
 	}
 
 	/** Recomputes the dock badge. Called when unread counts or workspace states change. */
-	refreshDockBadge(): Promise<Result<void>> {
-		return notImplemented("NAV-11");
+	async refreshDockBadge(): Promise<Result<void>> {
+		const count = dockBadgeCount(this.#deps.workspaces(), this.#deps.sessions());
+		try {
+			await this.#deps.platform.notifications.setDockBadge(count === 0 ? null : count);
+			return ok(undefined);
+		} catch (cause) {
+			return err(appError("dock_badge_failed", "Could not update the dock badge.", cause));
+		}
 	}
 
 	/** Asks for notification permission once, when the setting is first turned on. */

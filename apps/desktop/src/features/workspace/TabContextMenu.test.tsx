@@ -8,13 +8,18 @@ const state = vi.hoisted(() => ({
 	rename: vi.fn(),
 	close: vi.fn(),
 	copyText: vi.fn(),
+	markRead: vi.fn(),
+	markUnread: vi.fn(),
 }));
 
 vi.mock("../../core/hooks.ts", () => ({
+	useLiveShortcut: () => null,
 	useActions: () => ({
 		sessions: {
 			rename: state.rename,
 			close: state.close,
+			markRead: state.markRead,
+			markUnread: state.markUnread,
 		},
 		app: { copyText: state.copyText },
 	}),
@@ -66,6 +71,8 @@ beforeEach(() => {
 	state.rename.mockResolvedValue({ ok: true, value: undefined });
 	state.close.mockResolvedValue({ ok: true, value: undefined });
 	state.copyText.mockResolvedValue({ ok: true, value: undefined });
+	state.markRead.mockResolvedValue({ ok: true, value: undefined });
+	state.markUnread.mockResolvedValue({ ok: true, value: undefined });
 });
 
 afterEach(cleanup);
@@ -83,19 +90,15 @@ describe("CHAT-01 chat tab context menu", () => {
 		).toBe("true");
 	});
 
-	it("keeps Mark as read or unread disabled until NAV-11 builds it", async () => {
+	it("marks the chat read or unread from the menu", async () => {
 		await openMenu({ session: chat({ unreadCount: 2 }) });
-		expect(
-			(await screen.findByRole("menuitem", { name: "Mark as read" })).getAttribute("aria-disabled"),
-		).toBe("true");
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Mark as read" }));
+		await waitFor(() => expect(state.markRead).toHaveBeenCalledWith(sessionId));
 		cleanup();
 
 		await openMenu({ session: chat({ unreadCount: 0 }) });
-		expect(
-			(await screen.findByRole("menuitem", { name: "Mark as unread" })).getAttribute(
-				"aria-disabled",
-			),
-		).toBe("true");
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Mark as unread" }));
+		await waitFor(() => expect(state.markUnread).toHaveBeenCalledWith(sessionId));
 	});
 
 	it("renames the chat", async () => {

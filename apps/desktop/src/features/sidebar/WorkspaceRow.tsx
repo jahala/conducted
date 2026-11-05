@@ -7,10 +7,10 @@
  * (status text).
  * Our design choice: The row is a link to the workspace route. The current time is a prop, so the
  * list can refresh every row's "5m" with one timer. Status words come from
- * status-text.ts. Line counts need GIT-04, the Draft badge needs the pull request state and the
+ * status-text.ts. Line counts need GIT-04, the Draft badge needs the pull request state, and the
  * actions menu is NAV-10; each is left out until its owner is built. The "Archive workspace" badge
- * waits for the state that WS-09 gives it; archived workspaces are never listed here. The hover
- * keys are left out too: R read is NAV-11 and P pin is NAV-04.
+ * waits for the state that WS-09 gives it; archived workspaces are never listed here. Hovering a
+ * row and pressing R toggles its read state; P waits for NAV-04.
  * Must handle: A long name truncates; selected row is marked by background, not accent; unread dot
  * only when there are unread chats; no status yet (hook returns null); hover shows the live
  * Cmd+number hint for this row; keyboard focus ring.
@@ -18,10 +18,12 @@
  * above zero shows the unread dot.
  */
 import { Link } from "@tanstack/react-router";
-import { useLiveShortcut, useSessions, useWorkspaceStatus } from "../../core/hooks.ts";
+import { useState } from "react";
+import { useActions, useLiveShortcut, useSessions, useWorkspaceStatus } from "../../core/hooks.ts";
 import type { Repo, Workspace } from "../../core/model.ts";
 import { cn } from "../../ui/cn.ts";
 import { Kbd } from "../../ui/Kbd.tsx";
+import { toastError } from "../../ui/Toast.tsx";
 import { type StatusTone, statusText } from "../workspace/status-text.ts";
 import { WorkspaceStatusIcon } from "../workspace/WorkspaceStatusIcon.tsx";
 import { workspaceName } from "../workspace/workspace-name.ts";
@@ -75,6 +77,7 @@ function RepoAvatar({ repo }: { repo: Repo }) {
 }
 
 export function WorkspaceRow({ workspace, repo, selected, shortcutIndex, now }: WorkspaceRowProps) {
+	const actions = useActions();
 	const status = useWorkspaceStatus(workspace.id);
 	const sessions = useSessions(workspace.id);
 	const unread =
@@ -83,12 +86,34 @@ export function WorkspaceRow({ workspace, repo, selected, shortcutIndex, now }: 
 	const liveShortcut = useLiveShortcut(
 		shortcutIndex === null ? "workspace.switch1" : `workspace.switch${shortcutIndex}`,
 	);
+	const [hovered, setHovered] = useState(false);
+
+	const toggleRead = () => {
+		const failure = unread
+			? "Couldn't mark the workspace as read"
+			: "Couldn't mark the workspace as unread";
+		void (
+			unread
+				? actions.workspaces.markRead(workspace.id)
+				: actions.workspaces.markUnread(workspace.id)
+		).then((result) => {
+			if (!result.ok) toastError(failure, result.error);
+		});
+	};
 
 	return (
 		<Link
 			to="/repository/$repositoryId/workspace/$workspaceId"
 			params={{ repositoryId: repo.id, workspaceId: workspace.id }}
 			aria-current={selected ? "page" : undefined}
+			onMouseEnter={() => setHovered(true)}
+			onMouseLeave={() => setHovered(false)}
+			onKeyDown={(event) => {
+				if (!hovered || event.metaKey || event.ctrlKey || event.altKey) return;
+				if (event.key.toLowerCase() !== "r") return;
+				event.preventDefault();
+				toggleRead();
+			}}
 			className={cn(
 				"group flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
 				selected ? "bg-active text-fg" : "text-fg-muted hover:bg-hover hover:text-fg",
