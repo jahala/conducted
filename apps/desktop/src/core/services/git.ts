@@ -18,14 +18,23 @@
  * changes refresh it compares the PR's base and head commits with the local remote-tracking refs,
  * fetches only when they differ, and at most once per 60 seconds for one repository and branch. A
  * base that is a local stack parent is never fetched. Two callers asking at once share one fetch.
- * Test first: stateOf merges the polled snapshot with PR info from the GitHub service.
+ * Test first: a workspace watched at depth full runs its poll immediately and again once the
+ * interval has passed.
  */
-import { notImplemented, type Result, type WorkspaceId } from "@conducted/shared";
+import {
+	type AppError,
+	err,
+	notImplemented,
+	ok,
+	type Result,
+	type WorkspaceId,
+} from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Unsubscribe } from "../../platform/platform.ts";
 import type { ChangedFile, DiffScope } from "../api.ts";
+import { createLatestWins } from "../async/latest-wins.ts";
 import type { GitRunner } from "../git/runner.ts";
-import type { ChangesSnapshot } from "../git/status.ts";
+import { type ChangesSnapshot, diffTargetOf, refreshWorkspaceChanges } from "../git/status.ts";
 import type { GitState } from "../model.ts";
 import type { GitCache } from "./git-cache.ts";
 import type { AgentMessenger } from "./sessions.ts";
@@ -41,6 +50,74 @@ export interface GitServiceState {
 }
 
 export type PollDepth = "metadata" | "uncommitted" | "full";
+
+/** How often a workspace on screen is polled (services-map 3.3.1). */
+export const GIT_POLL_INTERVAL_MS = 5_000;
+/** A result younger than this share of the interval is reused instead of polled again. */
+export const POLL_FRESH_RATIO = 0.9;
+/** Most changes refreshes that run at once (services-map 3.3.1). */
+export const MAX_CONCURRENT_REFRESHES = 4;
+
+interface LimiterEntry {
+	readonly workspaceId: string;
+	readonly work: () => Promise<unknown>;
+	readonly resolve: (value: unknown) => void;
+	readonly reject: (reason: unknown) => void;
+}
+
+export interface RefreshLimiter {
+	/** Runs `work` in a slot. A foreground request runs before queued background ones. */
+	run<T>(workspaceId: string, foreground: boolean, work: () => Promise<T>): Promise<T>;
+}
+
+/**
+ * The four-slot queue of changes refreshes. Work already running is never preempted; the
+ * foreground queue is drained first whenever a slot opens.
+ */
+export function createRefreshLimiter(
+	maxConcurrent: number = MAX_CONCURRENT_REFRESHES,
+): RefreshLimiter {
+	let active = 0;
+	const foreground: LimiterEntry[] = [];
+	const background: LimiterEntry[] = [];
+
+	const pump = (): void => {
+		while (active < maxConcurrent) {
+			const entry = foreground.shift() ?? background.shift();
+			if (entry === undefined) return;
+			active += 1;
+			void Promise.resolve()
+				.then(entry.work)
+				.then(entry.resolve, entry.reject)
+				.finally(() => {
+					active -= 1;
+					pump();
+				});
+		}
+	};
+
+	return {
+		run<T>(workspaceId: string, foregroundRequest: boolean, work: () => Promise<T>): Promise<T> {
+			return new Promise<T>((resolve, reject) => {
+				const entry: LimiterEntry = {
+					workspaceId,
+					work: work as () => Promise<unknown>,
+					resolve: resolve as (value: unknown) => void,
+					reject,
+				};
+				(foregroundRequest ? foreground : background).push(entry);
+				pump();
+			});
+		},
+	};
+}
+
+interface Watcher {
+	count: number;
+	depth: PollDepth;
+	stopped: boolean;
+	timer: ReturnType<typeof setTimeout> | null;
+}
 
 export interface WorkspaceGitContext {
 	workspaceId: WorkspaceId;
@@ -99,6 +176,9 @@ export class GitService {
 	readonly #deps: GitServiceDeps;
 	/** When each repository and branch was last fetched, keyed by root path and branch. */
 	readonly #lastFetchAt = new Map<string, number>();
+	readonly #watchers = new Map<string, Watcher>();
+	readonly #latest = createLatestWins<string>();
+	readonly #limiter = createRefreshLimiter();
 
 	constructor(deps: GitServiceDeps) {
 		this.#deps = deps;
@@ -106,13 +186,128 @@ export class GitService {
 	}
 
 	/** Polls a workspace until the returned function is called. Several callers share one timer. */
-	watch(_workspaceId: WorkspaceId, _depth: PollDepth): Unsubscribe {
-		void this.#deps;
-		return notImplemented("GIT-02");
+	watch(workspaceId: WorkspaceId, depth: PollDepth): Unsubscribe {
+		const key = String(workspaceId);
+		const existing = this.#watchers.get(key);
+		if (existing !== undefined) {
+			existing.count += 1;
+			existing.depth = depth;
+			return () => this.#unwatch(key);
+		}
+
+		const watcher: Watcher = { count: 1, depth, stopped: false, timer: null };
+		this.#watchers.set(key, watcher);
+		const tick = async (): Promise<void> => {
+			if (watcher.stopped) return;
+			await this.#limiter.run(key, true, () =>
+				this.#refreshIfStale(workspaceId, watcher.depth, GIT_POLL_INTERVAL_MS),
+			);
+			if (watcher.stopped) return;
+			watcher.timer = setTimeout(() => {
+				void tick();
+			}, GIT_POLL_INTERVAL_MS);
+		};
+		void tick();
+		return () => this.#unwatch(key);
 	}
 
-	refresh(_workspaceId: WorkspaceId, _depth: PollDepth): Promise<Result<void>> {
-		return notImplemented("GIT-02");
+	refresh(workspaceId: WorkspaceId, depth: PollDepth): Promise<Result<void>> {
+		return this.#limiter.run(String(workspaceId), true, () => this.#refreshNow(workspaceId, depth));
+	}
+
+	#unwatch(key: string): void {
+		const watcher = this.#watchers.get(key);
+		if (watcher === undefined) return;
+		watcher.count -= 1;
+		if (watcher.count > 0) return;
+		watcher.stopped = true;
+		if (watcher.timer !== null) clearTimeout(watcher.timer);
+		this.#watchers.delete(key);
+		this.#latest.invalidate(key);
+	}
+
+	async #refreshIfStale(
+		workspaceId: WorkspaceId,
+		depth: PollDepth,
+		intervalMs: number,
+	): Promise<Result<void>> {
+		const entry = this.store.getState().byWorkspace[String(workspaceId)];
+		if (
+			entry?.snapshot != null &&
+			entry.refreshedAt !== null &&
+			this.#deps.now() - entry.refreshedAt < intervalMs * POLL_FRESH_RATIO
+		) {
+			return ok(undefined);
+		}
+		return this.#refreshNow(workspaceId, depth);
+	}
+
+	async #refreshNow(workspaceId: WorkspaceId, depth: PollDepth): Promise<Result<void>> {
+		const key = String(workspaceId);
+		const ticket = this.#latest.begin(key);
+		const context = await this.#deps.contextOf(workspaceId);
+		if (!context.ok) {
+			const latest = this.#latest.isLatest(ticket);
+			this.#latest.settle(ticket);
+			if (!latest) return ok(undefined);
+			this.#recordFailure(workspaceId, context.error);
+			return err(context.error);
+		}
+
+		const found = context.value;
+		const target = diffTargetOf({
+			graphiteParentBranch: null,
+			pullRequestBaseBranch: null,
+			intendedTargetBranch: found.targetBranch,
+			remote: found.remote,
+		});
+		const result = await refreshWorkspaceChanges(this.#deps.git, {
+			workspaceId,
+			workspacePath: found.workspacePath,
+			targetRef: target.ref,
+			remote: found.remote,
+			depth,
+		});
+
+		if (!this.#latest.isLatest(ticket)) {
+			this.#latest.settle(ticket);
+			return ok(undefined);
+		}
+		this.#latest.settle(ticket);
+
+		if (!result.ok) {
+			this.#recordFailure(workspaceId, result.error);
+			return err(result.error);
+		}
+
+		const previous = this.store.getState().byWorkspace[key]?.snapshot ?? null;
+		// A metadata poll reads only the branch; every other part of the snapshot stays as it was.
+		const snapshot =
+			depth === "metadata" && previous !== null
+				? { ...previous, branch: result.value.branch }
+				: result.value;
+		this.store.setState((state) => ({
+			byWorkspace: {
+				...state.byWorkspace,
+				[key]: { snapshot, error: null, refreshedAt: this.#deps.now() },
+			},
+		}));
+		return ok(undefined);
+	}
+
+	#recordFailure(workspaceId: WorkspaceId, error: AppError): void {
+		const key = String(workspaceId);
+		const previous = this.store.getState().byWorkspace[key];
+		this.store.setState((state) => ({
+			byWorkspace: {
+				...state.byWorkspace,
+				[key]: {
+					snapshot: previous?.snapshot ?? null,
+					error: { code: error.code, message: error.message },
+					refreshedAt: this.#deps.now(),
+				},
+			},
+		}));
 	}
 
 	/** Backs `useGitState`: the snapshot merged with PR info from the GitHub service. */
