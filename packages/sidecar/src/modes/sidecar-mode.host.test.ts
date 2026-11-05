@@ -106,8 +106,15 @@ async function startHost(folder: string): Promise<HostRun> {
 	return { socketPath, exited, child, stdout: () => out, stderr: () => errText };
 }
 
-/** Sends one request line to the socket and returns the first reply line. */
-function callOnce(socketPath: string, request: unknown): Promise<unknown> {
+/**
+ * Sends one request line to the socket and returns the reply that carries the request's id.
+ * The sidecar may send notifications (for example agentInstallsChanged) at any time, before or
+ * after the reply, so lines without that id are skipped.
+ */
+function callOnce(
+	socketPath: string,
+	request: { jsonrpc: "2.0"; id: number; method: string; params: unknown },
+): Promise<unknown> {
 	return new Promise((resolve, reject) => {
 		const socket = createConnection(socketPath);
 		socket.setEncoding("utf8");
@@ -115,9 +122,15 @@ function callOnce(socketPath: string, request: unknown): Promise<unknown> {
 		socket.once("connect", () => socket.write(encodeLine(request)));
 		socket.on("data", (chunk: string) => {
 			for (const decoded of decoder.push(chunk)) {
+				if (!decoded.ok) {
+					socket.destroy();
+					reject(decoded.error);
+					return;
+				}
+				const line = decoded.value as { id?: unknown };
+				if (line.id !== request.id) continue;
 				socket.destroy();
-				if (decoded.ok) resolve(decoded.value);
-				else reject(decoded.error);
+				resolve(decoded.value);
 				return;
 			}
 		});

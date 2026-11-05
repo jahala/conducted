@@ -18,7 +18,8 @@
 //!   refused source leaves nothing behind.
 //! - The source is copied, never moved. A source that is a folder fails with
 //!   `attachment_is_directory`. A missing source fails with `attachment_missing`.
-//! - A destination that exists is not overwritten: fail with `attachment_exists`.
+//! - A destination that exists is not overwritten: fail with `attachment_exists`. For a resized
+//!   image that means the `.jpg` name it is written under.
 //! - Images are detected from file contents, not the extension. A file named `.png` that is not an
 //!   image is copied as is and reported with `is_image: false`.
 //! - A resized image is written as JPEG under the destination's name with a `.jpg` extension,
@@ -287,6 +288,15 @@ fn materialize_into(
     if resize_image && over_limit && !image.animated {
         let resized = resize_image_bytes(source)?;
         let written = jpeg_path(&target);
+        if written != target && fs::symlink_metadata(&written).is_ok() {
+            return Err(failed(
+                "attachment_exists",
+                format!(
+                    "Attachment destination already exists: {}",
+                    written.display()
+                ),
+            ));
+        }
         write_bytes_atomic(&resized.bytes, &written)?;
         return Ok(MaterializedAttachment {
             path: written.to_string_lossy().into_owned(),
@@ -768,8 +778,13 @@ mod tests {
         assert_eq!(result.height, Some(1500));
         assert!(result.size_bytes <= MAX_IMAGE_BYTES);
         assert!(result.size_bytes < source_bytes);
+        assert!(
+            result.path.ends_with("noisy.jpg"),
+            "returned {}",
+            result.path
+        );
         assert_eq!(
-            fs::metadata(&destination).expect("copy").len(),
+            fs::metadata(&result.path).expect("copy").len(),
             result.size_bytes
         );
     }
@@ -913,6 +928,28 @@ mod tests {
             entries_under(&draft_root),
             before,
             "the refusal leaves nothing behind"
+        );
+    }
+
+    #[test]
+    fn plat_20_a_resized_image_refuses_a_taken_jpg_name() {
+        let folder = TempDir::new();
+        let source = folder.path().join("wide.png");
+        write_png(&source, 9000, 100, [200, 100, 50, 255]);
+        let destination = folder.destination("wide.png");
+        let taken = destination.with_extension("jpg");
+        fs::create_dir_all(taken.parent().expect("parent")).expect("create parents");
+        fs::write(&taken, "old").expect("write the taken name");
+        let draft_root = folder.draft_root();
+
+        let error = materialize_into(&source, &destination, true, &draft_root)
+            .expect_err("a taken .jpg name fails");
+
+        assert_code(error, "attachment_exists");
+        assert_eq!(fs::read_to_string(&taken).expect("taken"), "old");
+        assert!(
+            !destination.exists(),
+            "nothing is written under the .png name"
         );
     }
 
