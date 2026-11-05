@@ -136,11 +136,6 @@ async function renderCreatePage() {
 
 afterEach(cleanup);
 
-// jsdom has no scrollIntoView, which the select list calls. Moves to test/dom-polyfills.ts (see findings).
-if (typeof Element.prototype.scrollIntoView !== "function") {
-	Element.prototype.scrollIntoView = () => {};
-}
-
 /** Picks "Branch" in the "Create from" select with the keyboard, as app-12's select tests do. */
 async function chooseBranchSource() {
 	fireEvent.keyDown(screen.getByRole("combobox", { name: "Create from" }), { key: "Enter" });

@@ -7,13 +7,21 @@
  * transaction back, so tests see the same database the Tauri plugin gives the app.
  * Test first: a test database accepts every statement the app prepares.
  */
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { fileURLToPath } from "node:url";
 import type { Database } from "../platform/platform.ts";
 
-const MIGRATIONS_DIR = fileURLToPath(new URL("../../src-tauri/migrations/", import.meta.url));
+/**
+ * Under vitest's jsdom environment `import.meta.url` is not a file URL, so the folder is found from
+ * the working directory instead. `pnpm --filter` and `pnpm -r` run vitest in apps/desktop; a run
+ * from the repository root finds it by its full path.
+ */
+const MIGRATIONS_DIR =
+	[
+		resolve(process.cwd(), "src-tauri/migrations"),
+		resolve(process.cwd(), "apps/desktop/src-tauri/migrations"),
+	].find((dir) => existsSync(dir)) ?? resolve(process.cwd(), "src-tauri/migrations");
 const MIGRATIONS = readdirSync(MIGRATIONS_DIR)
 	.filter((name) => name.endsWith(".sql"))
 	.sort()

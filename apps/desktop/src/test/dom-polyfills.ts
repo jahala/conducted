@@ -38,3 +38,8 @@ if (hasWindow && typeof window.matchMedia === "undefined") {
 
 // jsdom prints "not implemented" for scrolling, which the router's scroll restoration calls.
 if (hasWindow) window.scrollTo = () => {};
+
+// jsdom has no scrollIntoView, which select lists and the diff view call.
+if (hasWindow && typeof Element.prototype.scrollIntoView !== "function") {
+	Element.prototype.scrollIntoView = () => {};
+}

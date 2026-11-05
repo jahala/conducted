@@ -7,7 +7,7 @@
  * Test first: not applicable.
  *
  * jsdom has no layout: Range and text nodes have no getClientRects or getBoundingClientRect.
- * This file also loads dom-polyfills.ts (ResizeObserver, matchMedia, scrollTo), so no test has to
+ * This file also loads dom-polyfills.ts (ResizeObserver, matchMedia, scrollTo, scrollIntoView), so no test has to
  * import it by hand.
  */
 import "./dom-polyfills.ts";

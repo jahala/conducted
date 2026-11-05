@@ -14,5 +14,6 @@ describe("test setup", () => {
 		expect(typeof ResizeObserver).toBe("function");
 		expect(window.matchMedia("(prefers-color-scheme: dark)").matches).toBe(false);
 		expect(() => window.scrollTo(0, 0)).not.toThrow();
+		expect(typeof Element.prototype.scrollIntoView).toBe("function");
 	});
 });

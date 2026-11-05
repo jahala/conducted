@@ -7,10 +7,6 @@ import { Select } from "./Select.tsx";
 import { Slider } from "./Slider.tsx";
 import { Switch } from "./Switch.tsx";
 
-if (typeof Element.prototype.scrollIntoView !== "function") {
-	Element.prototype.scrollIntoView = () => {};
-}
-
 afterEach(cleanup);
 
 describe("APP-12 Slider", () => {
