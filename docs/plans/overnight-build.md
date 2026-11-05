@@ -71,6 +71,7 @@ Then the rules: change only the files the issue owns; never edit a shared contra
 ### One agent per task, never reused
 
 - Each issue is one pleach node. pleach gives it a fresh git worktree, merged from the verified branches of the nodes it depends on, and a fresh umbel session that ends with the node. No agent sees a second task.
+- A batch of two or more features in the TypeScript areas (core, UI, sidecar) ends in a joining node that needs every feature node (D058). It starts from their merged branches, resolves conflicts keeping both sides, wires each feature into the composition root, keeps one copy of logic two features both wrote, and adds one integration test that drives each feature through that root (D054). Its smoke gate checks every feature id of the batch. Rust batches have no joining node.
 - Builder: OpenCode with `deepseek/deepseek-flash` (DeepSeek V4.1 Flash). The key reaches the worker by name only: `env: { DEEPSEEK_API_KEY: { fromEnv: "DEEPSEEK_API_KEY" } }`, because an OpenCode worker inherits no other variables.
 - Work shape: an agent prompt that writes the tests for the issue's checklist first, then the feature. pleach's enforced red-green cycle needs a test run per node, which would mean CI per agent, so it is not used. The step's CI run proves the tests pass, and the batch audit checks that each checklist item has a real test that would fail without the feature.
 - Agents never run `git commit`: pleach commits for them, without hooks. A worktree has no `.plotplot/bin`, so a commit there would fail.
