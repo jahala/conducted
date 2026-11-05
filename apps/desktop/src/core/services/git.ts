@@ -1,9 +1,17 @@
 /**
+<<<<<<< HEAD
  * @feature GIT-02 Git service: polling change state; GIT-06 Push and pull
  * Owns: polling each shown workspace's git state at the requested depth, the four-slot limiter,
  * and the last error per workspace. Also the two write actions that move a branch across the
  * remote: push, including the first push's upstream setup, and pull latest from the target, which
  * fetches, rechecks under the lock, fast-forwards or hands the work to the agent.
+=======
+ * @feature GIT-02 Git service: polling change state
+ * @feature GIT-07 Resolve conflicts, done by the agent on request
+ * Owns: polling each shown workspace's git state at the requested depth, the four-slot limiter,
+ * the last error per workspace, and the resolve-conflicts action: the rebase or merge choice from
+ * pull.rebase and the instruction sent to the agent.
+>>>>>>> node/git.07
  * Behaviour: services-map.md 3.3.1 (schedule, depths, staleness, concurrency) and 3.3.3 (a
  * cheaper poll reads only the local branch, and an answer for a branch that has since changed is
  * dropped); 3.6.1 (push, upstream, first push, no force) and 3.6.4 (pull latest from target).
@@ -20,12 +28,21 @@
  * changes nothing; and a second push or pull while one runs joins the first instead of starting
  * another.
  * Not built yet: only the visible workspace polling fast (GIT-13 owns the fetching rules).
+<<<<<<< HEAD
  * Our design choice: this class exposes snapshots and actions only. The Git header state machine
  * and the merge with pull request info belong to GIT-04, the other git actions (retarget, rename
  * and the rest) belong to their own features, and the restart cache belongs to DATA-07. Their
  * placeholders stay here until those features build them; the fetching rules belong to GIT-13.
  * Changing the target branch is here (GIT-08): it stores the intended branch, moves an open pull
  * request's base, or fetches and resets a clean branch still at the old target.
+=======
+ * Our design choice: the polling part of this class exposes snapshots only. The Git header state
+ * machine and the merge with pull request info belong to GIT-04, the other git actions (push,
+ * pull, retarget, rename, discard and the rest) belong to their own features, and the restart
+ * cache belongs to DATA-07.
+ * Their placeholders stay here until those features build them; the fetching rules belong to
+ * GIT-13.
+>>>>>>> node/git.07
  * Test first: a workspace watched at depth full runs its poll immediately and again once the
  * interval has passed.
  */
@@ -48,8 +65,11 @@ import { createKeyedQueue } from "../async/serial-queue.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
 import {
 	catFileExists,
+<<<<<<< HEAD
 	configGet,
 	configPullFf,
+=======
+>>>>>>> node/git.07
 	configPullRebase,
 	diffWorkingTree,
 	fetch,
@@ -89,7 +109,11 @@ import {
 	remoteTargetRef,
 } from "../git/status.ts";
 import type { GitState } from "../model.ts";
+<<<<<<< HEAD
 import { commitAndPushInstruction, reconcileInstruction } from "./agent-instructions.ts";
+=======
+import { pullRebaseStrategy, resolveConflictsInstruction } from "./agent-instructions.ts";
+>>>>>>> node/git.07
 import type { GitCache } from "./git-cache.ts";
 import type { WorkspacePrEntry } from "./github.ts";
 import type { AgentMessenger } from "./sessions.ts";
@@ -315,6 +339,8 @@ export interface GitServiceDeps {
 	/** Looks up folders and branch names for a workspace. Fails for unknown ids. */
 	contextOf: (workspaceId: WorkspaceId) => Promise<Result<WorkspaceGitContext>>;
 	agent: AgentMessenger;
+	/** The repository's Resolve conflicts prompt, or null when it has none. */
+	promptFor?: (workspaceId: WorkspaceId) => Promise<Result<string | null>>;
 	now: () => number;
 	/** Moves a discarded new file to the Trash, and stores the viewed marks. */
 	fs: Pick<FileSystem, "trash" | "readText" | "writeTextAtomic" | "mkdirp" | "stat" | "paths">;
@@ -1021,9 +1047,52 @@ export class GitService {
 		return sent.ok ? ok(undefined) : err(sent.error);
 	}
 
-	/** Backs `Actions.git.resolveConflicts`: sends the agent the resolve instruction. */
-	resolveConflicts(_workspaceId: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("GIT-07");
+	/**
+	 * Backs `Actions.git.resolveConflicts`: reads `pull.rebase`, then sends the agent the rebase or
+	 * merge instruction. An unset config means merge (services-map 3.6.4, 3.7.6).
+	 */
+	async resolveConflicts(workspaceId: WorkspaceId): Promise<Result<void>> {
+		const context = await this.#deps.contextOf(workspaceId);
+		if (!context.ok) return context;
+		const found = context.value;
+		const strategy = await this.#pullRebaseStrategy(found.workspacePath);
+		if (!strategy.ok) return strategy;
+		const custom =
+			this.#deps.promptFor === undefined
+				? ok<string | null>(null)
+				: await this.#deps.promptFor(workspaceId);
+		if (!custom.ok) return custom;
+
+		const remote = found.remote.trim();
+		const prefix = `${remote}/`;
+		const targetBranch =
+			remote.length > 0 && found.targetBranch.startsWith(prefix)
+				? found.targetBranch.slice(prefix.length)
+				: found.targetBranch;
+		const text = resolveConflictsInstruction({
+			remote,
+			targetBranch,
+			branch: found.branch,
+			customPrompt: custom.value,
+			strategy: strategy.value,
+		});
+		const sent = await this.#deps.agent.sendInstruction(workspaceId, text);
+		return sent.ok ? ok(undefined) : err(sent.error);
+	}
+
+	/** Reads `pull.rebase`; an unset key (exit 1) means merge, any other failure is returned. */
+	async #pullRebaseStrategy(cwd: string): Promise<Result<"rebase" | "merge">> {
+		const result = await this.#deps.git.run(configPullRebase(), { cwd });
+		if (!result.ok) return result;
+		if (result.value.exitCode === 0) return ok(pullRebaseStrategy(result.value.stdout));
+		if (result.value.exitCode === 1) return ok("merge");
+		return err(
+			appError(
+				"git_failed",
+				result.value.stderr.trim() ||
+					`git config pull.rebase exited with code ${result.value.exitCode}`,
+			),
+		);
 	}
 
 	/**
