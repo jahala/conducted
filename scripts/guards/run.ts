@@ -8,12 +8,26 @@ import { checkDocs } from "./docs.ts";
 import type { Problem } from "./lib.ts";
 import { checkMigrations } from "./migrations.ts";
 import { checkHeaders, checkMarkers } from "./source-rules.ts";
+import {
+	checkMigrationList,
+	checkPlaceholderTests,
+	checkShellPrograms,
+	checkTauriCommands,
+	checkTestOnlyExports,
+	checkUnwiredDeps,
+} from "./structure.ts";
 import { checkTestScripts } from "./test-scripts.ts";
+import {
+	checkMockingTheThing,
+	checkStandInHome,
+	checkTestsCannotFail,
+	checkTimeAndLeaks,
+} from "./test-shapes.ts";
 import { checkVersions } from "./versions.ts";
 import { checkWorkflows } from "./workflows.ts";
 
 const root = join(import.meta.dir, "../..");
-const guards: [string, (root: string) => Problem[]][] = [
+const guards: [string, (root: string) => Problem[] | Promise<Problem[]>][] = [
 	["docs", checkDocs],
 	["data-model", checkDataModel],
 	["migrations", checkMigrations],
@@ -22,11 +36,21 @@ const guards: [string, (root: string) => Problem[]][] = [
 	["versions", checkVersions],
 	["test-scripts", checkTestScripts],
 	["workflows", checkWorkflows],
+	["commands", checkTauriCommands],
+	["programs", checkShellPrograms],
+	["migration-list", checkMigrationList],
+	["placeholder-tests", checkPlaceholderTests],
+	["test-only-exports", checkTestOnlyExports],
+	["unwired-deps", checkUnwiredDeps],
+	["tests-cannot-fail", checkTestsCannotFail],
+	["mocking-the-thing", checkMockingTheThing],
+	["stand-in-home", checkStandInHome],
+	["time-and-leaks", checkTimeAndLeaks],
 ];
 
 let failed = 0;
 for (const [name, check] of guards) {
-	const problems = check(root);
+	const problems = await check(root);
 	console.log(`${problems.length === 0 ? "ok  " : "FAIL"} ${name}`);
 	for (const problem of problems) console.log(`       ${problem.message}`);
 	failed += problems.length;

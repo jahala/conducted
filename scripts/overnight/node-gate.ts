@@ -9,7 +9,7 @@
  *  3. pnpm typecheck, pnpm lint, pnpm guards;
  *  4. for Rust features, cargo fmt --check (formatting only, no build).
  *
- * Usage: bun scripts/overnight/node-gate.ts <FEATURE-ID>
+ * Usage: bun scripts/overnight/node-gate.ts <FEATURE-ID>... (a batch's joining node passes every id)
  */
 import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
@@ -55,24 +55,28 @@ function run(cmd: string[], cwd: string): boolean {
 }
 
 if (import.meta.main) {
-	const id = process.argv[2];
-	if (!id || !/^[A-Z]+-\d{2}$/.test(id)) {
-		console.error("Usage: bun scripts/overnight/node-gate.ts <FEATURE-ID>");
+	const ids = process.argv.slice(2);
+	if (ids.length === 0 || ids.some((id) => !/^[A-Z]+-\d{2}$/.test(id))) {
+		console.error("Usage: bun scripts/overnight/node-gate.ts <FEATURE-ID>...");
 		process.exit(64);
 	}
 	const root = process.cwd();
 	const files = readSources(root);
-	const left = placeholdersFor(id, files);
-	if (left.length > 0) {
-		console.error(`${id} still has placeholders in:\n${left.map((p) => `  ${p}`).join("\n")}`);
-		process.exit(1);
-	}
-	const tests = testsFor(id, files);
-	if (tests.length === 0) {
-		console.error(
-			`No test names ${id}. Put the id in a describe or test title, for example describe("${id} ...").`,
-		);
-		process.exit(1);
+	const counts: string[] = [];
+	for (const id of ids) {
+		const left = placeholdersFor(id, files);
+		if (left.length > 0) {
+			console.error(`${id} still has placeholders in:\n${left.map((p) => `  ${p}`).join("\n")}`);
+			process.exit(1);
+		}
+		const tests = testsFor(id, files);
+		if (tests.length === 0) {
+			console.error(
+				`No test names ${id}. Put the id in a describe or test title, for example describe("${id} ...").`,
+			);
+			process.exit(1);
+		}
+		counts.push(`${id} (${tests.length} test file(s))`);
 	}
 	for (const cmd of [
 		["pnpm", "typecheck"],
@@ -82,9 +86,9 @@ if (import.meta.main) {
 		if (!run(cmd, root)) process.exit(1);
 	}
 	const rust = files.some(
-		([path, text]) => path.endsWith(".rs") && text.includes(`@feature ${id}`),
+		([path, text]) => path.endsWith(".rs") && ids.some((id) => text.includes(`@feature ${id}`)),
 	);
 	if (rust && !run(["cargo", "fmt", "--check"], join(root, "apps/desktop/src-tauri")))
 		process.exit(1);
-	console.log(`${id}: gate passed (${tests.length} test file(s)).`);
+	console.log(`gate passed: ${counts.join(", ")}.`);
 }
