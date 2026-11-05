@@ -358,3 +358,14 @@ Context: the first overnight build's audits returned about 280 MUST findings in 
 Several of these had no rule in the docs, and agents read only the docs and their issue. Screen tests also kept failing because each hand-built a partial container.
 Chosen: `docs/engineering.md` states each pattern as a rule. `docs/architecture.md` lists the shared helpers to use before writing one. A shared `createTestContainer` and `openTestDatabase` replace hand-built test containers and five copies of a SQLite adapter. The builder and fixer prompts in `scripts/overnight/drive.ts` repeat the rules, and the audit prompt checks headers and each rule by name.
 Why: the agents start from the docs, so the docs must name what the audits were catching. The prompt carries it too, because a rule in a doc nobody quotes drifts. Nothing checks the header rule by script yet; the audit does.
+
+## D050. The fixed umbel and pleach, checked before slice 2 (2026-11-05)
+
+Context: the overnight build filed issues against umbel (#167 to #170) and pleach (#174 to #179). Both agents reported their fixes on master, and the local tools run from those versions: the global `umbel` is rebuilt, and the global `pleach` links to the checkout that holds the merge. Slice 2 runs about 100 features on them, so a 2-feature trial checked them first (AGENT-05 and AGENT-06, started side by side).
+Found:
+
+- pleach #174: node worktrees and the land stack live under `~/.cache/pleach/worktrees/`, outside `.git/`. Both nodes verified and landed. One empty base folder stays behind after the run (reported on #174).
+- pleach #175, #177 and #124: not exercised; the trial had no conflict, no failed spawn and no refused land.
+- umbel #169: two opencode workers spawned at the same moment without a database lock, so there was no retry to see. #170: `prune --prefix --repo` removed 227 dead sessions of this repository and kept live ones. #168: `logs` prints `<timestamp> <event>`. But `read` fails on a finished pleach worker, because the export runs in the removed worktree (reported on #168).
+  Chosen: slice 2 runs on the fixed tools. The night's workarounds stay where a fix is not proven: workers write their final message to a file, and the conductor merges conflicting nodes by hand when a land is refused.
+  Why: what the trial proved is used, and what it did not prove keeps its workaround.
