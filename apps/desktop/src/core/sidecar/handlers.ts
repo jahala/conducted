@@ -135,7 +135,9 @@ export function createSidecarNotificationHandlers(
 			await ports.ingest.ingest(envelope);
 		},
 		liveState: () => notImplemented("CHAT-18"),
-		agentSessionId: () => notImplemented("CHAT-02"),
+		agentSessionId: async (params) => {
+			await ports.liveState.setAgentSessionId(params);
+		},
 		progress: () => notImplemented("CHAT-13"),
 		agentInstallsChanged: async (params) => {
 			ports.agentCatalog.setAgentInstalls(params);
