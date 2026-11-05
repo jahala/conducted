@@ -8,9 +8,10 @@
  * `session/self-started-turns.ts`.
  * Must handle: an SDK `system` state change to running with no turn of ours open (in progress);
  * the matching change back to idle (not in progress); a state change while our own turn runs (not
- * ours to report: `ClaudeTurnTracker` decides); a result for a message we did not push (the
- * messages of the turn are forwarded and the end is reported); the stream ending while in progress
- * (report not in progress); no repeated reports of the same state; `dispose` (no report after it).
+ * ours to report: `ClaudeTurnTracker` decides); a result for a message we did not push (the work
+ * ended); a mini result (`num_turns` 0, a background-task notification) is not an end; the stream
+ * ending while in progress (report not in progress); no repeated reports of the same state;
+ * `dispose` (no report after it).
  * Our design choice: `onInProgressChanged` is a separate callback object, not a new field of
  * `TurnCallbacks`, because it is called outside `runTurn`, when no turn callbacks exist.
  * Test first: a scripted stream that reports running, then idle, with no turn open gives
@@ -18,7 +19,6 @@
  */
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentMessage } from "@conducted/protocol";
-import { notImplemented } from "@conducted/shared";
 
 /** What the host gives the runner for work the agent starts by itself. */
 export interface SelfStartedTurnCallbacks {
@@ -29,6 +29,9 @@ export interface SelfStartedTurnCallbacks {
 }
 
 export class SelfStartedTurnTracker {
+	private inProgress = false;
+	private disposed = false;
+
 	constructor(
 		protected readonly deps: {
 			callbacks: SelfStartedTurnCallbacks;
@@ -38,16 +41,36 @@ export class SelfStartedTurnTracker {
 	) {}
 
 	/** Looks at one SDK message. */
-	onSdkMessage(_message: SDKMessage): void {
-		notImplemented("AGENT-15");
+	onSdkMessage(message: SDKMessage): void {
+		if (this.disposed) return;
+		// A turn of ours owns the chat state; its tracker decides when that turn ends.
+		if (this.deps.ownTurnOpen()) return;
+
+		if (message.type === "system" && message.subtype === "session_state_changed") {
+			this.report(message.state !== "idle");
+			return;
+		}
+		if (message.type === "result") {
+			// A background-task notification reports no turns; it does not end the work.
+			if (message.num_turns === 0) return;
+			// The CLI answered a message we did not push, so the work it started is over.
+			this.report(false);
+		}
 	}
 
 	/** The stream ended or threw. Reports not in progress if it was. */
 	onStreamEnded(): void {
-		notImplemented("AGENT-15");
+		if (this.disposed) return;
+		this.report(false);
 	}
 
 	dispose(): void {
-		notImplemented("AGENT-15");
+		this.disposed = true;
+	}
+
+	private report(inProgress: boolean): void {
+		if (this.disposed || this.inProgress === inProgress) return;
+		this.inProgress = inProgress;
+		this.deps.callbacks.onInProgressChanged(inProgress);
 	}
 }
