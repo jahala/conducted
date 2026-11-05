@@ -26,7 +26,7 @@
  * Our design choice: only the newest detection run may replace the cached list, so an older answer
  * that arrives late cannot undo a newer one.
  */
-import type { AgentInstall } from "@conducted/protocol";
+import { AGENT_ERROR_CODES, type AgentInstall } from "@conducted/protocol";
 import type { AcpAgent, AgentKind, IdSource } from "@conducted/shared";
 import {
 	type AppError,
@@ -53,7 +53,7 @@ export const CLAUDE_AUTH_CACHE_MS = 60_000;
 export const CODEX_LOGIN_TIMEOUT_MS = 10 * 60 * 1000;
 
 /** The agent needs a sign-in that this sidecar has no flow for (ACP). */
-export const AGENT_AUTH_REQUIRED = "agent_auth_required";
+export const AGENT_AUTH_REQUIRED = AGENT_ERROR_CODES.authRequired;
 /** The flow finished or was cancelled before this call. */
 export const LOGIN_UNKNOWN = "login_unknown";
 /** A pasted Claude code was empty. */

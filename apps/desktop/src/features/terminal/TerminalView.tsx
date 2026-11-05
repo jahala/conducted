@@ -4,8 +4,7 @@
  * the scripts panel and by the center tab strip (big terminal mode).
  * Behaviour: ui-map.md 3.7 (Terminal N tabs: xterm.js, "Find in terminal" Cmd+F, "Close
  * terminal" Cmd+W) and 3.2 (terminals can sit in the center, setting "Big terminal mode").
- * Data: useTerminals(workspaceId) tells whether the terminal is live or ended;
- * useTerminalConnection(terminalId) gives the PTY stream, input, resize and saved history.
+ * Data: useTerminalConnection(terminalId) gives the PTY stream, input, resize and saved history.
  * Children: TerminalSurface, TerminalFindBar, TerminalEndedBanner.
  * Our design choice: the xterm instance outlives React tab switches. The surface layer from
  * ui-map.md 8 ("long-lived DOM outside React tab content") is a platform concern; this component
@@ -14,14 +13,402 @@
  * Must handle: a terminal that has ended (history shown, banner with exit code), a terminal that
  * cannot be found, the PTY failing to spawn, output arriving before the view is ready (buffer it),
  * output faster than rendering (acknowledge bytes only after they are written, for flow control),
- * a resize while hidden (fit on show), find with no matches, paste of large text, and an archived
- * workspace (history only, no input).
+ * a resize while hidden (fit on show), and find with no matches.
  * Test first: output written to a connection before mount appears in the terminal buffer after
  * mount, and bytes are acknowledged once.
  */
-import type { TerminalId } from "@conducted/shared";
-import { notImplemented } from "@conducted/shared";
+import type { TerminalId, WorkspaceId } from "@conducted/shared";
+import {
+	type KeyboardEvent as ReactKeyboardEvent,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
+import { useActions, useSetting, useTerminalConnection, useTerminals } from "../../core/hooks.ts";
+import type { TerminalConnection, TerminalUnsubscribe } from "../../core/model.ts";
+import { terminalLimit as limitForMode } from "../../core/services/terminals.ts";
+import { Button } from "../../ui/Button.tsx";
+import { Dialog, DialogClose, DialogContent, DialogFooter } from "../../ui/Dialog.tsx";
+import { EmptyState } from "../../ui/EmptyState.tsx";
+import { LoadableView } from "../../ui/LoadableView.tsx";
+import { TerminalEndedBanner } from "./TerminalEndedBanner.tsx";
+import {
+	TerminalFindBar,
+	type TerminalFindDirection,
+	type TerminalFindMatch,
+} from "./TerminalFindBar.tsx";
+import { TerminalSurface, type TerminalSurfaceHandle } from "./TerminalSurface.tsx";
+import { resolveTerminalAppearance, type TerminalAppearance } from "./terminal-theme.ts";
 
-export function TerminalView(_props: { terminalId: TerminalId }): never {
-	return notImplemented("RUN-06");
+/**
+ * Keeps output that arrives before the surface subscribes. A later `start` subscribes again, so
+ * StrictMode's development remount does not leave the terminal without a PTY listener.
+ */
+export class BufferedTerminalConnection implements TerminalConnection {
+	readonly history: Uint8Array;
+	readonly #source: TerminalConnection;
+	#unsubscribe: TerminalUnsubscribe | null = null;
+	#pending: Uint8Array[] = [];
+	readonly #listeners = new Set<(chunk: Uint8Array) => void>();
+	#started = false;
+
+	constructor(source: TerminalConnection) {
+		this.#source = source;
+		this.history = source.history;
+	}
+
+	/** The exit state can change when a finished shell is restarted. */
+	get ended(): { exitCode: number | null } | null {
+		return this.#source.ended;
+	}
+
+	/**
+	 * Subscribes to the PTY. Called from an effect, never during render.
+	 * Restartable: React's development StrictMode runs every effect's cleanup and setup once more.
+	 */
+	start(): void {
+		if (this.#started) return;
+		this.#started = true;
+		this.#unsubscribe = this.#source.onData((chunk) => {
+			if (this.#listeners.size === 0) {
+				this.#pending.push(chunk);
+				return;
+			}
+			for (const listener of [...this.#listeners]) listener(chunk);
+		});
+	}
+
+	onData(listener: (chunk: Uint8Array) => void): TerminalUnsubscribe {
+		this.#listeners.add(listener);
+		for (const chunk of this.#pending.splice(0)) listener(chunk);
+		return () => {
+			this.#listeners.delete(listener);
+		};
+	}
+
+	write(data: string) {
+		return this.#source.write(data);
+	}
+
+	resize(cols: number, rows: number) {
+		return this.#source.resize(cols, rows);
+	}
+
+	ack(bytes: number): void {
+		this.#source.ack(bytes);
+	}
+
+	onExit(listener: (exitCode: number | null) => void): TerminalUnsubscribe {
+		return this.#source.onExit(listener);
+	}
+
+	/** Stops listening. A later `start` subscribes again, so StrictMode can remount the effect. */
+	dispose(): void {
+		this.#started = false;
+		this.#unsubscribe?.();
+		this.#unsubscribe = null;
+		this.#pending = [];
+		this.#listeners.clear();
+	}
+}
+
+function StartTerminalBuffer({ buffered }: { buffered: BufferedTerminalConnection }) {
+	useEffect(() => {
+		buffered.start();
+		return () => buffered.dispose();
+	}, [buffered]);
+	return null;
+}
+
+function currentThemeType(): "light" | "dark" {
+	if (typeof document === "undefined") return "dark";
+	const forced = document.documentElement.dataset.theme;
+	if (forced === "light" || forced === "dark") return forced;
+	if (typeof window === "undefined") return "dark";
+	return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+/** The light or dark theme as it stands now, and again whenever the document theme changes. */
+function useDocumentThemeType(): "light" | "dark" {
+	const [themeType, setThemeType] = useState<"light" | "dark">(currentThemeType);
+
+	useEffect(() => {
+		const update = () => setThemeType(currentThemeType());
+		const media = window.matchMedia?.("(prefers-color-scheme: dark)");
+		media?.addEventListener?.("change", update);
+		const observer =
+			typeof MutationObserver === "undefined" ? null : new MutationObserver(() => update());
+		observer?.observe(document.documentElement, {
+			attributes: true,
+			attributeFilter: ["data-theme"],
+		});
+		return () => {
+			media?.removeEventListener?.("change", update);
+			observer?.disconnect();
+		};
+	}, []);
+
+	return themeType;
+}
+
+/** Resolves one of our colour tokens through the browser, so `light-dark()` is applied. */
+export function readDocumentColorToken(name: string): string | null {
+	if (typeof document === "undefined") return null;
+	const probe = document.createElement("span");
+	probe.style.color = `var(${name})`;
+	probe.style.display = "none";
+	document.body.append(probe);
+	const value = getComputedStyle(probe).color.trim();
+	probe.remove();
+	return value.length > 0 && value !== "rgba(0, 0, 0, 0)" ? value : null;
+}
+
+/** The user's terminal settings and the current theme, resolved into xterm options. */
+function useResolvedTerminalAppearance(
+	explicit: TerminalAppearance | undefined,
+): { appearance: TerminalAppearance } | { error: string } {
+	const fontFamily = useSetting<string>("terminal_font_family");
+	const fontSize = useSetting<number>("terminal_font_size");
+	const scrollbackLimitBytes = useSetting<number>("terminal_scrollback_limit_bytes");
+	const themeType = useDocumentThemeType();
+
+	return useMemo(() => {
+		if (explicit) return { appearance: explicit };
+		const result = resolveTerminalAppearance(
+			{
+				fontFamily: fontFamily?.trim() ? fontFamily : null,
+				fontSize: fontSize ?? null,
+				scrollbackLimitBytes,
+				themeType,
+			},
+			readDocumentColorToken,
+		);
+		return result.ok ? { appearance: result.value } : { error: result.error.message };
+	}, [explicit, fontFamily, fontSize, scrollbackLimitBytes, themeType]);
+}
+
+export interface TerminalViewProps {
+	terminalId: TerminalId;
+	/** The workspace that owns the terminal; its live terminals decide whether New terminal is allowed. */
+	workspaceId: WorkspaceId;
+	/** The tab is on screen. Hidden views keep their buffer and fit when shown again. */
+	visible?: boolean;
+	focusOnMount?: boolean;
+	/** Supplied by a caller that already resolved the terminal appearance. */
+	appearance?: TerminalAppearance;
+	onClose?: () => void;
+	onNewTerminal?: () => void;
+	/** Overrides the limit the view derives from the workspace's live terminals. */
+	canStartNew?: boolean;
+	terminalLimit?: number;
+}
+
+export function TerminalView({
+	terminalId,
+	workspaceId,
+	visible = true,
+	focusOnMount = false,
+	appearance,
+	onClose,
+	onNewTerminal,
+	canStartNew,
+	terminalLimit,
+}: TerminalViewProps) {
+	const connection = useTerminalConnection(terminalId);
+	const actions = useActions();
+	const workspaceTerminals = useTerminals(workspaceId);
+	const tabFreakMode = useSetting<boolean>("experimental_tab_freak_mode");
+	const [pendingLink, setPendingLink] = useState<string | null>(null);
+	const source = connection.state === "ready" ? connection.data : null;
+	const buffered = useMemo(
+		() => (source ? new BufferedTerminalConnection(source) : null),
+		[source],
+	);
+
+	const resolved = useResolvedTerminalAppearance(appearance);
+	const surfaceRef = useRef<TerminalSurfaceHandle>(null);
+	const [findOpen, setFindOpen] = useState(false);
+	const [query, setQuery] = useState("");
+	const [caseSensitive, setCaseSensitive] = useState(false);
+	const [regex, setRegex] = useState(false);
+	const [hasMatch, setHasMatch] = useState<boolean | null>(null);
+	const matchRef = useRef<TerminalFindMatch | null>(null);
+	const [ended, setEnded] = useState<{ exitCode: number | null } | null>(null);
+	const [exitSubscription, setExitSubscription] = useState(0);
+
+	// A restart starts a new shell, so the exit listener is attached again.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: exitSubscription only forces that fresh subscription.
+	useEffect(() => {
+		setEnded(source?.ended ?? null);
+		if (!source) return;
+		return source.onExit((exitCode) => setEnded({ exitCode }));
+	}, [source, exitSubscription]);
+
+	const effectiveLimit = terminalLimit ?? limitForMode(tabFreakMode);
+	const liveTerminals =
+		workspaceTerminals.state === "ready"
+			? workspaceTerminals.data.filter(
+					(terminal) => terminal.kind === "terminal" && terminal.endedAt === null,
+				).length
+			: 0;
+	const limitReached = workspaceTerminals.state === "ready" && liveTerminals >= effectiveLimit;
+	const startNewAllowed = canStartNew ?? !limitReached;
+
+	const restart = async () => {
+		const result = await actions.terminals.restart(terminalId);
+		if (result.ok) {
+			setEnded(null);
+			setExitSubscription((count) => count + 1);
+		}
+	};
+
+	const search = useCallback(
+		(direction: TerminalFindDirection, from: TerminalFindMatch | null) => {
+			const surface = surfaceRef.current;
+			if (!surface || !query) {
+				matchRef.current = null;
+				setHasMatch(null);
+				return;
+			}
+			const match = surface.find({ query, caseSensitive, regex }, direction, from);
+			matchRef.current = match;
+			setHasMatch(match !== null);
+		},
+		[query, caseSensitive, regex],
+	);
+
+	useEffect(() => {
+		if (!findOpen) return;
+		search("next", null);
+	}, [findOpen, search]);
+
+	const changeQuery = (next: string) => {
+		matchRef.current = null;
+		setQuery(next);
+		setHasMatch(next.length === 0 ? null : false);
+	};
+
+	const toggle = (option: "caseSensitive" | "regex") => {
+		matchRef.current = null;
+		if (option === "caseSensitive") setCaseSensitive((value) => !value);
+		else setRegex((value) => !value);
+	};
+
+	const closeFind = () => {
+		setFindOpen(false);
+		surfaceRef.current?.focus();
+	};
+
+	const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+		// Cmd only: Ctrl+W and Ctrl+F belong to the shell, where they delete a word and move forward.
+		const meta = event.metaKey && !event.ctrlKey && !event.altKey;
+		if (meta && event.key.toLowerCase() === "f") {
+			event.preventDefault();
+			setFindOpen(true);
+			return;
+		}
+		if (meta && event.key.toLowerCase() === "w" && onClose) {
+			event.preventDefault();
+			onClose();
+			return;
+		}
+		if (meta && !event.shiftKey && event.key.toLowerCase() === "t" && onNewTerminal) {
+			event.preventDefault();
+			onNewTerminal();
+			return;
+		}
+		if (event.key === "Escape" && findOpen) {
+			event.preventDefault();
+			closeFind();
+		}
+	};
+
+	return (
+		// biome-ignore lint/a11y/noStaticElementInteractions: xterm's textarea handles the keys; this catches the panel shortcuts that bubble out of it.
+		<div
+			className="flex h-full min-h-0 w-full flex-col bg-canvas"
+			data-terminal-view={terminalId}
+			onKeyDown={handleKeyDown}
+		>
+			<div className="relative min-h-0 flex-1">
+				<LoadableView
+					value={connection}
+					loadingLabel="Loading terminal"
+					errorTitle="Couldn't open the terminal"
+				>
+					{() =>
+						buffered && "appearance" in resolved ? (
+							<>
+								<StartTerminalBuffer buffered={buffered} />
+								<TerminalSurface
+									ref={surfaceRef}
+									connection={buffered}
+									appearance={resolved.appearance}
+									visible={visible}
+									ended={ended !== null}
+									focusOnMount={focusOnMount}
+									onOpenLink={setPendingLink}
+								/>
+							</>
+						) : (
+							<EmptyState
+								title="Couldn't use the terminal colours"
+								body={"error" in resolved ? resolved.error : "Try again."}
+							/>
+						)
+					}
+				</LoadableView>
+				{findOpen ? (
+					<TerminalFindBar
+						query={query}
+						caseSensitive={caseSensitive}
+						regex={regex}
+						hasMatch={hasMatch}
+						onQueryChange={changeQuery}
+						onToggle={toggle}
+						onNext={() => search("next", matchRef.current)}
+						onPrevious={() => search("previous", matchRef.current)}
+						onClose={closeFind}
+					/>
+				) : null}
+			</div>
+			{ended ? (
+				<TerminalEndedBanner
+					exitCode={ended.exitCode}
+					canStartNew={startNewAllowed}
+					onNewTerminal={onNewTerminal}
+					onRestart={() => void restart()}
+					terminalLimit={limitReached ? effectiveLimit : undefined}
+				/>
+			) : null}
+			<Dialog
+				open={pendingLink !== null}
+				onOpenChange={(open) => {
+					if (!open) setPendingLink(null);
+				}}
+			>
+				<DialogContent
+					title="Open this terminal link?"
+					description={pendingLink ?? undefined}
+					size="sm"
+				>
+					<DialogFooter>
+						<DialogClose asChild>
+							<Button variant="secondary">Cancel</Button>
+						</DialogClose>
+						<Button
+							onClick={() => {
+								if (pendingLink) void actions.app.openUrl(pendingLink);
+								setPendingLink(null);
+							}}
+						>
+							Open
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+		</div>
+	);
 }

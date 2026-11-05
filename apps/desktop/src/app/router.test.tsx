@@ -1,6 +1,10 @@
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createStore } from "zustand/vanilla";
+import type { Container } from "../core/container.ts";
+import { ServicesProvider } from "../core/context.tsx";
+import { RepoService, type RepoServiceDeps } from "../core/services/repo.ts";
 import "../test/dom-polyfills.ts";
 import { useOverlayStore } from "./overlay-store.ts";
 import { AppProviders, createQueryClient } from "./providers.tsx";
@@ -9,12 +13,27 @@ import { createAppRouter } from "./router.tsx";
 afterEach(cleanup);
 beforeEach(() => useOverlayStore.getState().close());
 
+/** The sidebar reads the repo store and the action table; the shell reads the sidebar settings. */
+function testContainer(): Container {
+	const settings = {
+		store: createStore<{ values: Record<string, unknown> }>(() => ({ values: {} })),
+		get: (key: string): unknown => ({ left_panel_visible: true, left_panel_width: 256 })[key],
+		set: async () => undefined,
+	};
+	return {
+		services: { repo: new RepoService({} as RepoServiceDeps), settings },
+		actions: {},
+	} as unknown as Container;
+}
+
 async function openApp(path: string) {
 	const router = createAppRouter(createMemoryHistory({ initialEntries: [path] }));
 	render(
-		<AppProviders client={createQueryClient()}>
-			<RouterProvider router={router} />
-		</AppProviders>,
+		<ServicesProvider container={testContainer()}>
+			<AppProviders client={createQueryClient()}>
+				<RouterProvider router={router} />
+			</AppProviders>
+		</ServicesProvider>,
 	);
 	await router.load();
 	return router;
@@ -42,7 +61,7 @@ describe("app shell", () => {
 			"/create",
 		);
 		// The workspace list needs data hooks that are not built; only that region says so.
-		expect(screen.getByText("Not built yet: PRJ-01")).toBeTruthy();
+		expect(screen.getByText("Not built yet: NAV-03")).toBeTruthy();
 	});
 
 	it("opens the command palette from the Search row", async () => {
@@ -103,7 +122,7 @@ describe("routes", () => {
 
 	it("shows a designed screen for an unknown address", async () => {
 		await openApp("/nowhere");
-		expect(await screen.findByRole("heading", { name: "That page does not exist" })).toBeTruthy();
+		expect(await screen.findByRole("heading", { name: "Not Found" })).toBeTruthy();
 		expect(screen.getByRole("link", { name: "Go to Home" }).getAttribute("href")).toBe(
 			"/all-workspaces",
 		);

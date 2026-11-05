@@ -65,6 +65,13 @@ export interface SessionManager {
 	updateConfig(
 		params: AppToSidecarRequestParams<"updateConfig">,
 	): Promise<AppToSidecarRequestResult<"updateConfig">>;
+	/**
+	 * Claude only: turn auto-approval of file edits on or off for a live chat (AGENT-04). The
+	 * manager passes it to that chat's session, which the permission handler reads.
+	 */
+	setAutoApproveEdits(
+		params: AppToSidecarRequestParams<"setAutoApproveEdits">,
+	): Promise<AppToSidecarRequestResult<"setAutoApproveEdits">>;
 	getSessionStatus(
 		params: AppToSidecarRequestParams<"getSessionStatus">,
 	): Promise<AppToSidecarRequestResult<"getSessionStatus">>;
@@ -124,6 +131,12 @@ export class DefaultSessionManager implements SessionManager {
 	updateConfig(
 		_params: AppToSidecarRequestParams<"updateConfig">,
 	): Promise<AppToSidecarRequestResult<"updateConfig">> {
+		return notImplemented("SIDE-03");
+	}
+
+	setAutoApproveEdits(
+		_params: AppToSidecarRequestParams<"setAutoApproveEdits">,
+	): Promise<AppToSidecarRequestResult<"setAutoApproveEdits">> {
 		return notImplemented("SIDE-03");
 	}
 

@@ -7,42 +7,48 @@
  * checks in canUseTool) and 3.5 (plan mode). The CLI always starts in bypassPermissions and the
  * runner switches the mode live with setPermissionMode.
  * Must handle:
- *  - mode: plan mode wins, then approvals required means "default", else "bypassPermissions"
+ *  - mode: plan mode wins; otherwise approvals off means "bypassPermissions", approvals on means
+ *    "auto" when the auto permission mode is on and "default" when it is off
  *  - the order of checks: ExitPlanMode first; then edit tools must target a path inside the
  *    workspace or an additional directory (checked on the real path, so a symlink cannot escape);
  *    then our own app tools are allowed; then a chat that is no longer live is denied; then
  *    "approvals off" allows; then auto-approved edits allow; else ask the user
  *  - an edit tool without a path in its input: denied with a message that names the missing field
+ *  - an edit target that does not exist yet resolves through its nearest existing ancestor, so a
+ *    new file in a new subfolder is allowed; a relative target resolves against the workspace
  *  - a path that equals an allowed root, or sits below it; "/work/app-other" is not inside
  *    "/work/app"
  *  - always_allow adds a rule for the tool to the project's local settings; allow_edits_for_session
  *    turns on auto-approval of edits for the rest of the chat
+ *  - allow_with_suggested_rules: allow, and apply the permission rules the SDK suggested with the
+ *    request (D020: Conductor offers this third button)
  *  - plan approved: switch to the mode the chat would have had without plan mode; rejected: deny and
  *    interrupt, with the user's feedback as the message
  * Test first: classifyToolUse for Edit on "/work/app-other/x.ts" with root "/work/app" is a deny
  * whose message names the allowed folders.
- *  - allow_with_suggested_rules: allow, and apply the permission rules the SDK suggested with the
- *    request (D020: Conductor offers this third button)
  */
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import type {
 	PermissionMode,
 	PermissionResult,
 	PermissionUpdate,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { InteractionAnswer, SessionConfig } from "@conducted/protocol";
-import { notImplemented } from "@conducted/shared";
 import { APP_TOOL_NAME_PREFIX } from "./constants.ts";
 
 export function permissionModeFor(
-	config: Pick<SessionConfig, "planMode" | "requireToolApproval">,
+	config: Pick<SessionConfig, "planMode" | "requireToolApproval" | "autoPermissionMode">,
 ): PermissionMode {
 	if (config.planMode) return "plan";
-	return config.requireToolApproval ? "default" : "bypassPermissions";
+	return modeAfterPlan(config);
 }
 
 /** The mode to return to when a plan is approved: what the chat would use without plan mode. */
-export function modeAfterPlan(config: Pick<SessionConfig, "requireToolApproval">): PermissionMode {
-	return config.requireToolApproval ? "default" : "bypassPermissions";
+export function modeAfterPlan(
+	config: Pick<SessionConfig, "requireToolApproval" | "autoPermissionMode">,
+): PermissionMode {
+	if (!config.requireToolApproval) return "bypassPermissions";
+	return config.autoPermissionMode === true ? "auto" : "default";
 }
 
 export const EDIT_TOOLS: ReadonlySet<string> = new Set([
@@ -57,6 +63,31 @@ export function editTargetPath(toolName: string, input: Record<string, unknown>)
 	const key = toolName === "NotebookEdit" ? "notebook_path" : "file_path";
 	const value = input[key];
 	return typeof value === "string" && value !== "" ? value : null;
+}
+
+/**
+ * Resolves an edit target to a real absolute path. `realPath` fails for a file that does not
+ * exist yet, so the nearest existing ancestor is resolved and the missing part is appended.
+ * A relative target is resolved against the workspace folder, not the sidecar's own folder.
+ */
+export async function resolveEditPath(
+	target: string,
+	workspacePath: string,
+	realPath: (path: string) => Promise<string | null>,
+): Promise<string | null> {
+	const absolute = isAbsolute(target) ? resolve(target) : resolve(workspacePath, target);
+	const direct = await realPath(absolute);
+	if (direct !== null) return direct;
+	let current = absolute;
+	const rest: string[] = [];
+	for (;;) {
+		const parent = dirname(current);
+		if (parent === current) return null;
+		rest.unshift(basename(current));
+		current = parent;
+		const resolved = await realPath(current);
+		if (resolved !== null) return join(resolved, ...rest);
+	}
 }
 
 /** True when `path` equals a root or sits below it. Both must already be real, absolute paths. */
@@ -76,7 +107,10 @@ export type ToolVerdict =
 export interface ToolUseFacts {
 	toolName: string;
 	input: Record<string, unknown>;
-	/** The edit target after resolving symlinks, or null when it could not be resolved. */
+	/**
+	 * The edit target after resolving symlinks, or through its nearest existing ancestor when the
+	 * file does not exist yet. Null when it could not be resolved at all.
+	 */
 	resolvedEditPath: string | null;
 	/** Workspace folder and additional directories, after resolving symlinks. */
 	allowedRoots: readonly string[];
@@ -122,6 +156,7 @@ export function toPermissionResult(
 	toolName: string,
 	input: Record<string, unknown>,
 	answer: InteractionAnswer,
+	suggestions: readonly PermissionUpdate[] = [],
 ): ApprovalOutcome {
 	if (answer.kind !== "tool_approval") {
 		return {
@@ -155,7 +190,14 @@ export function toPermissionResult(
 		case "allow":
 			return { result: { behavior: "allow", updatedInput: input }, enableAutoApproveEdits: false };
 		case "allow_with_suggested_rules":
-			return notImplemented("AGENT-04");
+			return {
+				result: {
+					behavior: "allow",
+					updatedInput: input,
+					...(suggestions.length > 0 ? { updatedPermissions: [...suggestions] } : {}),
+				},
+				enableAutoApproveEdits: false,
+			};
 	}
 }
 
@@ -163,7 +205,7 @@ export function toPermissionResult(
 export function toPlanResult(
 	input: Record<string, unknown>,
 	answer: InteractionAnswer,
-	config: Pick<SessionConfig, "requireToolApproval">,
+	config: Pick<SessionConfig, "requireToolApproval" | "autoPermissionMode">,
 	planFilePath?: string,
 ): { result: PermissionResult; nextMode: PermissionMode | null } {
 	if (answer.kind === "plan_approval" && answer.approved) {

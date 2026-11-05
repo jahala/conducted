@@ -42,7 +42,7 @@ export function TabContent({ workspaceId, search, onSearchChange }: TabContentPr
 		case "terminal":
 			return (
 				<NotBuiltYet area="Terminal" resetKey={key}>
-					<TerminalView terminalId={tab.terminalId} />
+					<TerminalView terminalId={tab.terminalId} workspaceId={workspaceId} />
 				</NotBuiltYet>
 			);
 		case "file":

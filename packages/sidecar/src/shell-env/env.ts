@@ -19,7 +19,10 @@ import type { WorkspaceContext } from "@conducted/protocol";
 import type { SessionId } from "@conducted/shared";
 import { appError, err, ok, type Result } from "@conducted/shared";
 
-/** Provider credentials removed from the captured environment. The agent signs in by itself. */
+/**
+ * Provider credentials removed from the captured environment. The agent signs in by itself.
+ * The Rust shell keeps the same list (`apps/desktop/src-tauri/src/shell.rs`); a test compares them.
+ */
 export const STRIPPED_ENV_NAMES: readonly string[] = [
 	"ANTHROPIC_API_KEY",
 	"CLAUDE_CODE_OAUTH_TOKEN",
@@ -27,6 +30,8 @@ export const STRIPPED_ENV_NAMES: readonly string[] = [
 	"CODEX_API_KEY",
 	"CURSOR_API_KEY",
 	"OPENAI_API_KEY",
+	/** The Rust shell sets it for its own capture; the sidecar keeps it only so both lists match. */
+	"CONDUCTED_CWD",
 ];
 
 /** Prefix of exported shell functions. They are not variables the agents need. */
@@ -73,6 +78,8 @@ export function workspaceEnv(
 		CONDUCTED_ROOT_PATH: workspace.repoRootPath,
 		CONDUCTED_DEFAULT_BRANCH: workspace.targetBranch,
 		CONDUCTED_PORT: String(workspace.port),
+		/** Every workspace is local until the cloud host (D018) exists. */
+		CONDUCTED_IS_LOCAL: "true",
 		DISABLE_AUTO_UPDATE: "true",
 	};
 }

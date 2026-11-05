@@ -8,9 +8,11 @@
  * `-F`/`-f` flags, never string-built into the query; a merge is pinned to the local HEAD with
  * `--match-head-commit`, and an approval to the head commit id, so the app never acts on a PR
  * that differs from what the user sees.
- * Our design choice: GitHub access is the user's own `gh auth login` (the research calls this
- * method `cli`). No token is injected and nothing is stored. The GraphQL query is written from
- * GitHub's public schema, not copied. `gh` comes from the captured login-shell PATH.
+ * Our design choice: GitHub access is the user's own `gh auth login` (method `cli`), or the
+ * personal access token saved on the Account page, which the service passes to `gh` as GH_TOKEN
+ * (D029). These functions only build the argument list; nothing here reads a secret. The GraphQL
+ * query is written from GitHub's public schema, not copied. `gh` comes from the captured
+ * login-shell PATH.
  * Test first: prMerge(12, "squash", "abc", false) pins the merge with --match-head-commit.
  */
 import type { GitCommand } from "./commands.ts";
@@ -31,6 +33,9 @@ const gh = (
 
 export const authStatus = (): GitCommand => gh(["auth", "status"], { okExitCodes: [0, 1] });
 export const apiUserLogin = (): GitCommand => gh(["api", "user", "--jq", ".login"]);
+/** The protocol `gh` uses for git operations: "https" or "ssh". Exit 1 means it is unset. */
+export const configGetGitProtocol = (): GitCommand =>
+	gh(["config", "get", "git_protocol"], { okExitCodes: [0, 1] });
 export const apiRateLimit = (): GitCommand =>
 	gh(["api", "rate_limit"], { timeoutMs: GH_GRAPHQL_TIMEOUT_MS });
 export const repoCanView = (ownerSlashName: string): GitCommand =>

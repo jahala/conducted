@@ -223,7 +223,7 @@ if (command === "issues") {
 	let text = readFileSync(path, "utf8");
 	for (const id of ids) {
 		if (placeholdersFor(id, files).length > 0) throw new Error(`${id} still has placeholders`);
-		const row = new RegExp(`^(\\| ${id} \\|.*\\|\\s*)stub(\\s*\\|[^\\n]*)$`, "m");
+		const row = new RegExp(`^(\\| ${id}\\s+\\|.*\\|\\s*)stub(\\s*\\|[^\\n]*)$`, "m");
 		if (!row.test(text)) throw new Error(`${id} has no stub row`);
 		text = text.replace(row, "$1done$2");
 	}

@@ -12,16 +12,30 @@
  * is committed, and never when the write failed (the sidecar then resends); a gap in
  * `sequence` is not an error (replay will fill it, ingest never reorders); an event for a chat
  * that no longer exists is acknowledged and dropped, so the sidecar does not resend it forever;
- * `turn_ended` clears the turn's open interaction; a `usage` item updates the chat's context
- * columns; a `user_message` sets `last_user_message_at`; an agent event in a chat the user is not
- * looking at raises the unread flag.
+ * an event for a turn that already has a `turn_ended` is still stored for its audit trail but its
+ * effects are not applied, and a second `turn_ended` for that turn is acknowledged without being
+ * stored; a logger that throws never changes the ingest result; `turn_ended` clears the turn's
+ * open interaction; a `usage` item updates the chat's context columns; a `user_message` sets
+ * `last_user_message_at`; an agent event in a chat the user is not looking at raises the unread
+ * flag.
  * Our design choice: one transaction per event covers the event row and the chat columns it
- * changes. The in-memory store is updated after the commit, so a failed write never shows.
+ * changes, and a partial write is rolled back before the acknowledgement is withheld. The
+ * in-memory store is updated after the commit, so a failed write never shows.
  * Test first: ingesting the same envelope twice stores one row and sends two acknowledgements.
  */
-import type { SessionEventEnvelope } from "@conducted/protocol";
-import { notImplemented, type Result, type SessionId } from "@conducted/shared";
+import type { AgentMessage, SessionEvent, SessionEventEnvelope } from "@conducted/protocol";
+import {
+	type AppError,
+	appError,
+	err,
+	ok,
+	type Result,
+	type SessionId,
+	type TurnId,
+} from "@conducted/shared";
+import { createKeyedQueue } from "../async/serial-queue.ts";
 import type { Repositories } from "../db/repositories.ts";
+import type { Session } from "../model.ts";
 import type { SidecarClient } from "./tunnel.ts";
 
 export interface IngestOutcome {
@@ -46,21 +60,173 @@ export interface EventIngestDeps {
 	log: (level: "warn" | "error", message: string, data?: unknown) => void;
 }
 
+/** Thrown inside the transaction so the database rolls back before the caller is told. */
+class IngestFailure extends Error {
+	readonly error: AppError;
+
+	constructor(error: AppError) {
+		super(error.message);
+		this.error = error;
+	}
+}
+
+/** The last usage item of an agent message, which carries the chat's context figures. */
+function lastUsage(
+	items: AgentMessage["items"],
+): Extract<AgentMessage["items"][number], { kind: "usage" }> | null {
+	let usage: Extract<AgentMessage["items"][number], { kind: "usage" }> | null = null;
+	for (const item of items) {
+		if (item.kind === "usage") usage = item;
+	}
+	return usage;
+}
+
+/** Applies the stored columns an event changes. Reads happen before the caller commits. */
+async function applyEffects(
+	repos: Repositories,
+	session: Session,
+	event: SessionEvent,
+	viewing: boolean,
+): Promise<Result<void>> {
+	switch (event.type) {
+		case "user_message":
+			return repos.sessions.recordUserMessage(session.id, event.at);
+		case "agent": {
+			const usage = lastUsage(event.message.items);
+			if (
+				usage !== null &&
+				(usage.contextUsedTokens !== undefined || usage.contextWindowTokens !== undefined)
+			) {
+				const written = await repos.sessions.setContextUsage(session.id, {
+					usedTokens: usage.contextUsedTokens ?? session.contextUsedTokens,
+					windowTokens: usage.contextWindowTokens ?? session.contextWindowTokens,
+				});
+				if (!written.ok) return written;
+			}
+			if (!viewing && session.unreadCount === 0) return repos.sessions.incrementUnread(session.id);
+			return ok(undefined);
+		}
+		case "checkpoint":
+		case "turn_ended":
+			return ok(undefined);
+	}
+}
+
 export class EventIngest {
 	readonly #deps: EventIngestDeps;
+	readonly #queue = createKeyedQueue<SessionId>();
+	readonly #pending = new Set<Promise<unknown>>();
 
 	constructor(deps: EventIngestDeps) {
 		this.#deps = deps;
 	}
 
 	/** Handles one envelope. Resolves after the acknowledgement was sent or deliberately withheld. */
-	ingest(_envelope: SessionEventEnvelope): Promise<Result<IngestOutcome>> {
-		void this.#deps;
-		return notImplemented("DATA-04");
+	ingest(envelope: SessionEventEnvelope): Promise<Result<IngestOutcome>> {
+		const task = this.#queue.run(envelope.sessionId, () => this.#store(envelope));
+		this.#pending.add(task);
+		const clear = (): void => {
+			this.#pending.delete(task);
+		};
+		void task.then(clear, clear);
+		return task;
 	}
 
 	/** Waits until every queued event of every chat has been handled. Used by tests and shutdown. */
-	idle(): Promise<void> {
-		return notImplemented("DATA-04");
+	async idle(): Promise<void> {
+		while (this.#pending.size > 0) {
+			await Promise.allSettled([...this.#pending]);
+		}
+	}
+
+	async #store(envelope: SessionEventEnvelope): Promise<Result<IngestOutcome>> {
+		const { sessionId } = envelope;
+		try {
+			const outcome = await this.#deps.runInTransaction(async (repos): Promise<IngestOutcome> => {
+				const session = await repos.sessions.get(sessionId);
+				if (!session.ok) throw new IngestFailure(session.error);
+				// The chat is gone. Writing would fail the foreign key, and replay would retry forever.
+				if (session.value === null) return { stored: false, idx: null };
+
+				const ended = await this.#turnHasEnded(repos, sessionId, envelope.event.turnId);
+				if (!ended.ok) throw new IngestFailure(ended.error);
+				// Startup repair may have closed this turn before the sidecar replayed the rest of
+				// it. The turn gets no second end; the other late events are kept for the log.
+				if (ended.value && envelope.event.type === "turn_ended") {
+					return { stored: false, idx: null };
+				}
+
+				const appended = await repos.sessionEvents.append(
+					sessionId,
+					envelope.event,
+					envelope.event.at,
+				);
+				if (!appended.ok) throw new IngestFailure(appended.error);
+				if (appended.value.kind === "duplicate") return { stored: false, idx: null };
+
+				if (!ended.value) {
+					const effects = await applyEffects(
+						repos,
+						session.value,
+						envelope.event,
+						this.#deps.listener.isViewing(sessionId),
+					);
+					if (!effects.ok) throw new IngestFailure(effects.error);
+				}
+				return { stored: true, idx: appended.value.idx };
+			});
+
+			if (outcome.stored && outcome.idx !== null) {
+				this.#show(sessionId, envelope, outcome.idx);
+			}
+			await this.#acknowledge(sessionId, envelope.event.eventId);
+			return ok(outcome);
+		} catch (cause) {
+			const error =
+				cause instanceof IngestFailure
+					? cause.error
+					: appError("db.failed", "Storing a chat event failed", cause);
+			this.#log("error", "Storing a chat event failed", error);
+			return err(error);
+		}
+	}
+
+	async #turnHasEnded(
+		repos: Repositories,
+		sessionId: SessionId,
+		turnId: TurnId,
+	): Promise<Result<boolean>> {
+		const events = await repos.sessionEvents.listByTurn(sessionId, turnId);
+		return events.ok
+			? ok(events.value.some((stored) => stored.event.type === "turn_ended"))
+			: err(events.error);
+	}
+
+	/** Logging is best effort: a logger failure must never change the ingest result. */
+	#log(level: "warn" | "error", message: string, data?: unknown): void {
+		try {
+			this.#deps.log(level, message, data);
+		} catch {
+			// The logger is unavailable. There is nowhere left to report that.
+		}
+	}
+
+	#show(sessionId: SessionId, envelope: SessionEventEnvelope, idx: number): void {
+		try {
+			this.#deps.listener.onStored(sessionId, envelope, idx);
+		} catch (cause) {
+			this.#log("error", "Showing a stored chat event failed", cause);
+		}
+	}
+
+	async #acknowledge(sessionId: SessionId, eventId: SessionEvent["eventId"]): Promise<void> {
+		try {
+			const sent = await this.#deps.sidecar.notify("eventPersisted", { sessionId, eventId });
+			if (!sent.ok) {
+				this.#log("warn", "Could not acknowledge a stored chat event", sent.error);
+			}
+		} catch (cause) {
+			this.#log("warn", "Could not acknowledge a stored chat event", cause);
+		}
 	}
 }

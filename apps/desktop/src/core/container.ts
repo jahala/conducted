@@ -266,6 +266,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		platform,
 		repos: repositories,
 		maxPerWorkspace: () => terminalLimit(setting<boolean>("experimental_tab_freak_mode")),
+		now: () => clock.now(),
 	});
 	const composer = new ComposerService({
 		platform,
@@ -353,6 +354,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 			void workspace.onPullRequestMerged(id, prNumber);
 		},
 		now: () => clock.now(),
+		keychain: platform.keychain,
+		setting,
+		probeCwd: platform.fs.paths.home,
 	});
 	const localGitForge = new LocalGitForge({
 		git: gitRunner,

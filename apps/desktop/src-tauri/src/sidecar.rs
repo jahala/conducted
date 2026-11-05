@@ -65,12 +65,12 @@
 //! `sidecar_send("a")` produces `sidecar://line` with `a`; killing the script emits
 //! `sidecar://restart` and a later send reaches the new process.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 use tauri::{AppHandle, State};
 
-use crate::error::CommandResult;
+use crate::error::{CommandError, CommandResult};
 use crate::not_implemented;
 
 /// Event carrying one line from the sidecar, as a plain string.
@@ -179,12 +179,60 @@ pub fn skill_plugin_dir(_app: &AppHandle) -> CommandResult<Option<PathBuf>> {
     not_implemented!("AGENT-18")
 }
 
+/// Program name the bundled sidecar prints for `--version`. The one home for the name on this
+/// side; a contract test compares it with packages/sidecar's `SIDECAR_PROGRAM_NAME`.
+pub const SIDECAR_PROGRAM_NAME: &str = "conducted-sidecar";
+
+/// The exact line `<sidecar> --version` must print for `app_version`.
+pub fn expected_version_line(app_version: &str) -> String {
+    format!("{SIDECAR_PROGRAM_NAME} {app_version}")
+}
+
 /// Runs `<binary> --version` and checks that it names `app_version`.
-pub async fn check_binary_version(
-    _binary: &std::path::Path,
-    _app_version: &str,
-) -> CommandResult<()> {
-    not_implemented!("SIDE-23")
+pub async fn check_binary_version(binary: &Path, app_version: &str) -> CommandResult<()> {
+    let binary = binary.to_path_buf();
+    let app_version = app_version.to_string();
+    tauri::async_runtime::spawn_blocking(move || check_version_blocking(&binary, &app_version))
+        .await
+        .map_err(|error| CommandError::Failed {
+            code: "sidecar_version_check_failed",
+            message: format!("The sidecar version check task failed: {error}"),
+        })?
+}
+
+/// Runs the version command and compares the one line it prints with the app version.
+fn check_version_blocking(binary: &Path, app_version: &str) -> CommandResult<()> {
+    let output = std::process::Command::new(binary)
+        .arg("--version")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .map_err(|error| CommandError::Failed {
+            code: "sidecar_version_check_failed",
+            message: format!("Could not run {} --version: {error}", binary.display()),
+        })?;
+    if !output.status.success() {
+        return Err(CommandError::Failed {
+            code: "sidecar_version_check_failed",
+            message: format!(
+                "{} --version exited with {}.",
+                binary.display(),
+                output.status
+            ),
+        });
+    }
+    let answer = String::from_utf8_lossy(&output.stdout);
+    let answer = answer.trim();
+    let expected = expected_version_line(app_version);
+    if answer != expected {
+        return Err(CommandError::Failed {
+            code: "sidecar_version_mismatch",
+            message: format!(
+                "The sidecar at {} reports \"{answer}\"; this app is version {app_version}.",
+                binary.display()
+            ),
+        });
+    }
+    Ok(())
 }
 
 /// Finds the sidecar program: `CONDUCTED_SIDECAR_BIN` when set, otherwise the bundled one in
@@ -247,4 +295,98 @@ pub async fn sidecar_send(state: State<'_, SidecarState>, line: String) -> Comma
 #[allow(unused_variables)]
 pub async fn sidecar_log_path(state: State<'_, SidecarState>) -> CommandResult<String> {
     not_implemented!("PLAT-09")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static TEST_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+    /// A folder that removes itself, so a test leaves nothing behind.
+    struct TempDir {
+        path: PathBuf,
+    }
+
+    impl TempDir {
+        fn new() -> Self {
+            let counter = TEST_COUNTER.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!(
+                "conducted-side-23-{}-{counter}",
+                std::process::id()
+            ));
+            fs::create_dir_all(&path).expect("create test folder");
+            Self { path }
+        }
+
+        fn path(&self) -> &Path {
+            &self.path
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+
+    fn script(folder: &TempDir, name: &str, body: &str) -> PathBuf {
+        let path = folder.path().join(name);
+        fs::write(&path, format!("#!/bin/sh\n{body}\n")).expect("write script");
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).expect("make it executable");
+        path
+    }
+
+    fn check(binary: &Path, version: &str) -> CommandResult<()> {
+        tauri::async_runtime::block_on(check_binary_version(binary, version))
+    }
+
+    fn error_code(error: CommandError) -> &'static str {
+        match error {
+            CommandError::Failed { code, .. } => code,
+            _ => "other",
+        }
+    }
+
+    #[test]
+    fn side_23_a_matching_version_passes() {
+        let folder = TempDir::new();
+        let binary = script(&folder, "sidecar", "printf 'conducted-sidecar 0.1.0\\n'");
+        check(&binary, "0.1.0").expect("the version matches");
+    }
+
+    #[test]
+    fn side_23_a_different_version_is_a_mismatch() {
+        let folder = TempDir::new();
+        let binary = script(&folder, "sidecar", "printf 'conducted-sidecar 0.0.9\\n'");
+        let error = check(&binary, "0.1.0").expect_err("the version differs");
+        assert_eq!(error_code(error), "sidecar_version_mismatch");
+    }
+
+    #[test]
+    fn side_23_a_wrong_program_name_is_a_mismatch() {
+        let folder = TempDir::new();
+        let binary = script(&folder, "sidecar", "printf 'some-other-sidecar 0.1.0\\n'");
+        let error = check(&binary, "0.1.0").expect_err("the program name differs");
+        assert_eq!(error_code(error), "sidecar_version_mismatch");
+    }
+
+    #[test]
+    fn side_23_a_missing_binary_fails_the_check() {
+        let folder = TempDir::new();
+        let binary = folder.path().join("missing");
+        let error = check(&binary, "0.1.0").expect_err("the binary does not exist");
+        assert_eq!(error_code(error), "sidecar_version_check_failed");
+    }
+
+    #[test]
+    fn side_23_a_command_that_fails_fails_the_check() {
+        let folder = TempDir::new();
+        let binary = script(&folder, "sidecar", "exit 2");
+        let error = check(&binary, "0.1.0").expect_err("the command refused");
+        assert_eq!(error_code(error), "sidecar_version_check_failed");
+    }
 }

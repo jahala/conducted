@@ -56,27 +56,193 @@
  * Test first: useActions returns the action table of the container it is given. The test for a
  * hook body lives with the feature that implements it (for example NAV-03 for useWorkspaces).
  */
-import { notImplemented } from "@conducted/shared";
-import type { Actions, Queries } from "./api.ts";
+import { idleLiveState } from "@conducted/protocol";
+import { notImplemented, type WorkspaceId } from "@conducted/shared";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { useStore } from "zustand";
+import { useStoreWithEqualityFn } from "zustand/traditional";
+import type { Actions, Draft, Loadable, Queries } from "./api.ts";
 import { useServices } from "./context.tsx";
+import type { GitState, Repo, Session } from "./model.ts";
+import type { WorkspaceGitEntry } from "./services/git.ts";
+import { toGitHubAccessView, type WorkspacePrEntry } from "./services/github.ts";
+import type { SessionsState } from "./services/sessions.ts";
+import { type ChatStatusInput, deriveWorkspaceStatus } from "./status/workspace-status.ts";
 
-export const useRepos: Queries["useRepos"] = () => notImplemented("PRJ-01");
+/** The chats of a workspace as the status rule sees them. */
+function chatsFor(state: SessionsState, workspaceId: WorkspaceId): readonly ChatStatusInput[] {
+	const ids = state.byWorkspace[workspaceId] ?? [];
+	return ids.map((id) => ({
+		liveState: state.liveStates[id] ?? idleLiveState,
+		cancelling: state.cancelling[id] === true,
+		closed: state.sessions[id]?.closedAt != null,
+	}));
+}
+
+/**
+ * True when two chat lists carry the same facts for the status rule. Streaming events change
+ * other parts of the live state, so an equal list keeps the previous selection and no re-render.
+ */
+function sameChatStatus(
+	left: readonly ChatStatusInput[],
+	right: readonly ChatStatusInput[],
+): boolean {
+	if (left.length !== right.length) return false;
+	return left.every((chat, index) => {
+		const other = right[index];
+		return (
+			other !== undefined &&
+			chat.cancelling === other.cancelling &&
+			chat.closed === other.closed &&
+			chat.liveState.status === other.liveState.status &&
+			chat.liveState.openInteraction?.interaction.kind ===
+				other.liveState.openInteraction?.interaction.kind &&
+			chat.liveState.backgroundTasks.length === other.liveState.backgroundTasks.length
+		);
+	});
+}
+
+/** The git input the status rule needs, built from the two polled entries. */
+function gitStateOf(
+	gitEntry: WorkspaceGitEntry | undefined,
+	prEntry: WorkspacePrEntry | undefined,
+): GitState | null {
+	const snapshot = gitEntry?.snapshot ?? null;
+	if (snapshot === null) return null;
+	const changedFiles = snapshot.files.length;
+	return {
+		branch: snapshot.branch ?? "",
+		uncommittedFiles: changedFiles,
+		changedFiles,
+		linesAdded: snapshot.files.reduce((total, file) => total + file.linesAdded, 0),
+		linesRemoved: snapshot.files.reduce((total, file) => total + file.linesRemoved, 0),
+		hasConflicts: snapshot.conflictedPaths.length > 0,
+		operation: snapshot.operation,
+		sync: snapshot.sync,
+		pullRequest: prEntry?.pullRequest ?? null,
+		pullRequestUnavailable:
+			prEntry === undefined
+				? "loading"
+				: prEntry.unavailable === "no_pr"
+					? "none"
+					: prEntry.unavailable,
+		untrackedFilesTruncated: snapshot.untrackedTruncated,
+		pendingPullRequestAction: null,
+	};
+}
+
+export const useRepos: Queries["useRepos"] = () => {
+	const store = useServices().services.repo.store;
+	const loaded = useStore(store, (state) => state.loaded);
+	const error = useStore(store, (state) => state.error);
+	const reposById = useStore(store, (state) => state.reposById);
+	const order = useStore(store, (state) => state.order);
+	return useMemo<Loadable<Repo[]>>(() => {
+		if (!loaded) return { state: "loading" };
+		if (error !== undefined && error !== null) return { state: "error", error };
+		const data = order.map((id) => reposById[id]).filter((row): row is Repo => row !== undefined);
+		return { state: "ready", data };
+	}, [loaded, error, reposById, order]);
+};
+
+/** Reads one slice of a service's store and re-renders when it changes. */
+function useSessionSlice<T>(select: (state: SessionsState) => T): T {
+	const services = useServices();
+	const store = services.services.sessions.store;
+	return useSyncExternalStore(
+		store.subscribe,
+		() => select(store.getState()),
+		() => select(store.getState()),
+	);
+}
+
+function sessionsOf(
+	state: SessionsState,
+	workspaceId: string,
+	closed: boolean,
+): Loadable<Session[]> {
+	if (state.loadError != null) return { state: "error", error: state.loadError };
+	if (!state.loaded) return { state: "loading" };
+	if (closed) {
+		const data = Object.values(state.sessions)
+			.filter((session) => session.workspaceId === workspaceId && session.closedAt !== null)
+			.sort((a, b) => (b.closedAt ?? 0) - (a.closedAt ?? 0));
+		return { state: "ready", data };
+	}
+	const ids = state.byWorkspace[workspaceId] ?? [];
+	const data = ids.flatMap((id) => {
+		const session = state.sessions[id];
+		return session === undefined ? [] : [session];
+	});
+	return { state: "ready", data };
+}
+
 export const useRepoConfig: Queries["useRepoConfig"] = () => notImplemented("PRJ-04");
 export const useWorkspaces: Queries["useWorkspaces"] = () => notImplemented("NAV-03");
 export const useWorkspace: Queries["useWorkspace"] = () => notImplemented("WS-01");
-export const useWorkspaceStatus: Queries["useWorkspaceStatus"] = () => notImplemented("WS-09");
+
+export const useWorkspaceStatus: Queries["useWorkspaceStatus"] = (workspaceId) => {
+	const container = useServices();
+	const { workspace, sessions: sessionService, git, github } = container.services;
+	const state = useStore(workspace.store, (s) => s.workspacesById[workspaceId]?.state);
+	const settingUp = useStore(workspace.store, (s) => s.setup[workspaceId] === "running");
+	const chats = useStoreWithEqualityFn(
+		sessionService.store,
+		(s) => chatsFor(s, workspaceId),
+		sameChatStatus,
+	);
+	const gitEntry = useStore(git.store, (s) => s.byWorkspace[workspaceId]);
+	const prEntry = useStore(github.store, (s) => s.byWorkspace[workspaceId]);
+
+	return useMemo(() => {
+		if (state === undefined) return null;
+		return deriveWorkspaceStatus({
+			state,
+			settingUp,
+			chats,
+			git: gitStateOf(gitEntry, prEntry),
+		});
+	}, [state, settingUp, chats, gitEntry, prEntry]);
+};
+
 export const useSections: Queries["useSections"] = () => notImplemented("NAV-04");
-export const useSessions: Queries["useSessions"] = () => notImplemented("CHAT-01");
+export const useSessions: Queries["useSessions"] = (workspaceId) => {
+	const state = useSessionSlice((value) => value);
+	return sessionsOf(state, workspaceId, false);
+};
 export const useChat: Queries["useChat"] = () => notImplemented("CHAT-07");
-export const useDraft: Queries["useDraft"] = () => notImplemented("COMP-01");
+const EMPTY_DRAFT: Draft = { text: "", attachmentPaths: [] };
+
+export const useDraft: Queries["useDraft"] = (sessionId) => {
+	const composer = useServices().services.composer;
+	const draft = useStore(composer.store, (state) => state.drafts[sessionId]);
+	useEffect(() => {
+		if (draft === undefined) void composer.loadDraft(sessionId);
+	}, [composer, sessionId, draft]);
+	return draft ?? EMPTY_DRAFT;
+};
 export const useGitState: Queries["useGitState"] = () => notImplemented("GIT-04");
 export const useChangedFiles: Queries["useChangedFiles"] = () => notImplemented("REV-01");
 export const useFileDiff: Queries["useFileDiff"] = () => notImplemented("REV-02");
 export const useFileTree: Queries["useFileTree"] = () => notImplemented("REV-06");
 export const useDiffComments: Queries["useDiffComments"] = () => notImplemented("REV-03");
-export const useTerminals: Queries["useTerminals"] = () => notImplemented("RUN-06");
+export const useTerminals: Queries["useTerminals"] = (workspaceId) => {
+	const service = useServices().services.terminals;
+	const terminals = useStore(service.store, (state) => state.byWorkspace[workspaceId]);
+	const error = useStore(service.store, (state) => state.errors[`w:${workspaceId}`]);
+	useEffect(() => {
+		if (terminals === undefined) void service.loadWorkspace(workspaceId);
+	}, [service, workspaceId, terminals]);
+	if (error !== undefined) return { state: "error", error };
+	if (terminals === undefined) return { state: "loading" };
+	return { state: "ready", data: [...terminals] };
+};
 export const useRunState: Queries["useRunState"] = () => notImplemented("RUN-01");
-export const useSetting: Queries["useSetting"] = <T>(_key: string): T => notImplemented("SET-01");
+export const useSetting: Queries["useSetting"] = <T>(key: string): T => {
+	const { services } = useServices();
+	const stored = useStore(services.settings.store, (s) => s.values[key]);
+	return (stored === undefined || stored === null ? services.settings.get<T>(key) : stored) as T;
+};
 export const useAgentInstalls: Queries["useAgentInstalls"] = () => notImplemented("SET-03");
 export const useModels: Queries["useModels"] = () => notImplemented("COMP-02");
 export const useSlashCommands: Queries["useSlashCommands"] = () => notImplemented("COMP-06");
@@ -89,17 +255,36 @@ export const usePullRequestActivity: Queries["usePullRequestActivity"] = () =>
 	notImplemented("PR-07");
 export const useStack: Queries["useStack"] = () => notImplemented("PR-08");
 export const useFileContent: Queries["useFileContent"] = () => notImplemented("REV-08");
-export const useTerminalConnection: Queries["useTerminalConnection"] = () =>
-	notImplemented("RUN-06");
+export const useTerminalConnection: Queries["useTerminalConnection"] = (id) => {
+	const service = useServices().services.terminals;
+	const connection = useStore(service.store, (state) => state.connections[id]);
+	useEffect(() => {
+		if (connection === undefined) void service.ensureConnection(id);
+	}, [service, id, connection]);
+	return connection ?? { state: "loading" };
+};
 export const useSetupState: Queries["useSetupState"] = () => notImplemented("WS-03");
 export const useEnvVars: Queries["useEnvVars"] = () => notImplemented("SET-04");
-export const useGitHubAccess: Queries["useGitHubAccess"] = () => notImplemented("PR-01");
+export const useGitHubAccess: Queries["useGitHubAccess"] = () => {
+	const { github } = useServices().services;
+	const access = useStore(github.store, (s) => s.access);
+	return useMemo(
+		() =>
+			access.status === "unknown" && access.reason === undefined
+				? { state: "loading" as const }
+				: { state: "ready" as const, data: toGitHubAccessView(access) },
+		[access],
+	);
+};
 export const useInstalledApps: Queries["useInstalledApps"] = () => notImplemented("WS-08");
 export const useMcpServers: Queries["useMcpServers"] = () => notImplemented("SET-05");
 export const useDiagnostics: Queries["useDiagnostics"] = () => notImplemented("APP-03");
 export const useFileSearch: Queries["useFileSearch"] = () => notImplemented("REV-07");
 export const useContentSearch: Queries["useContentSearch"] = () => notImplemented("REV-07");
-export const useClosedSessions: Queries["useClosedSessions"] = () => notImplemented("CHAT-01");
+export const useClosedSessions: Queries["useClosedSessions"] = (workspaceId) => {
+	const state = useSessionSlice((value) => value);
+	return sessionsOf(state, workspaceId, true);
+};
 export const useBacklogWorkspaces: Queries["useBacklogWorkspaces"] = () => notImplemented("WS-11");
 export const useIssues: Queries["useIssues"] = () => notImplemented("PR-11");
 export const usePullRequestList: Queries["usePullRequestList"] = () => notImplemented("PR-11");
@@ -117,7 +302,17 @@ export const useGitHubOwners: Queries["useGitHubOwners"] = () => notImplemented(
 export const useGitHubRepos: Queries["useGitHubRepos"] = () => notImplemented("PRJ-02");
 export const useRepoNameCheck: Queries["useRepoNameCheck"] = () => notImplemented("PRJ-03");
 export const useLinearAccess: Queries["useLinearAccess"] = () => notImplemented("PR-09");
-export const useRepoTerminals: Queries["useRepoTerminals"] = () => notImplemented("RUN-06");
+export const useRepoTerminals: Queries["useRepoTerminals"] = (repoId) => {
+	const service = useServices().services.terminals;
+	const terminals = useStore(service.store, (state) => state.byRepo[repoId]);
+	const error = useStore(service.store, (state) => state.errors[`r:${repoId}`]);
+	useEffect(() => {
+		if (terminals === undefined) void service.loadRepo(repoId);
+	}, [service, repoId, terminals]);
+	if (error !== undefined) return { state: "error", error };
+	if (terminals === undefined) return { state: "loading" };
+	return { state: "ready", data: [...terminals] };
+};
 export const useSystemInfo: Queries["useSystemInfo"] = () => notImplemented("PLAT-32");
 export const useFullDiskAccess: Queries["useFullDiskAccess"] = () => notImplemented("PLAT-24");
 

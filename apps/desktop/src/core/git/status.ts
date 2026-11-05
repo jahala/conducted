@@ -8,8 +8,9 @@
  * `dir/{a => b}/f`); binary files (`-` counts); a branch with no upstream (probe exits 128);
  * a detached HEAD (empty `branch --show-current`); no merge base (empty file list plus an error
  * field, never a throw); more than 100 untracked files (listed up to the cap, flagged truncated);
- * untracked files over 300 KB (counted as 501 lines, not read); a stale answer for a branch that
- * changed while the read ran must be dropped by the caller.
+ * untracked files over 300 KB (counted as 501 lines, not read); a failed untracked count, sync
+ * probe, distance or log is returned as an error, never a clean-looking zero; a stale answer for
+ * a branch that changed while the read ran must be dropped by the caller.
  * Our design choice: the parsers return values or a Result and never throw, and the pipeline
  * gets its runner as a parameter. The refresh interval (5 s for the visible workspace) belongs
  * to services/git.ts.
@@ -25,15 +26,113 @@ import {
 	type WorkspaceId,
 } from "@conducted/shared";
 import type { BranchSync } from "../model.ts";
+import {
+	branchShowCurrent,
+	diffNameStatus,
+	diffNoIndexNumstat,
+	diffNumstat,
+	type GitCommand,
+	logRange,
+	lsFilesUntracked,
+	mergeBase,
+	revListCount,
+	revListLeftRightCount,
+	revParseGitPath,
+	revParseHeadAndUpstream,
+	statusPorcelain,
+} from "./commands.ts";
 import type { GitRunner } from "./runner.ts";
 
 // ---------------------------------------------------------------- limits (services-map 3.3.2)
 
 export const UNTRACKED_FILE_CAP = 100;
+/** An untracked file larger than this is not read; its line count is reported as the sentinel. */
 export const UNTRACKED_COUNT_MAX_BYTES = 300 * 1024;
+/** One batch of untracked-file commands stays under this many bytes of paths (services-map 3.3.2). */
+export const UNTRACKED_COUNT_BATCH_BYTES = 200_000;
 /** Line count reported for an untracked file too large to read. */
 export const UNTRACKED_LARGE_FILE_LINES = 501;
 export const TURN_CHANGES_FILE_CAP = 200;
+
+// ---------------------------------------------------------------- diff target (services-map 3.3.2)
+
+export type DiffTargetSource = "graphite_parent" | "pull_request" | "intended";
+
+export interface DiffTargetInput {
+	/** The stack parent Graphite reports for this branch, as a local branch name. */
+	graphiteParentBranch: string | null;
+	/** The base branch of the open pull request, as GitHub names it. */
+	pullRequestBaseBranch: string | null;
+	/** The target branch stored on the workspace, for example "origin/main". */
+	intendedTargetBranch: string;
+	/** The repository's remote name, for example "origin". */
+	remote: string;
+}
+
+export interface DiffTarget {
+	branch: string;
+	/** The ref the merge base and the commit range are read against. */
+	ref: string;
+	source: DiffTargetSource;
+	/** A stack parent is a local branch, so its remote-tracking ref says nothing (services-map 3.3.4). */
+	isLocalStackParent: boolean;
+}
+
+/** The remote-tracking ref of a branch, accepting a branch already prefixed with the remote. */
+export function remoteTargetRef(branch: string, remote: string): string {
+	if (branch.startsWith("refs/")) return branch;
+	if (remote.length === 0) return branch;
+	if (branch === remote || branch.startsWith(`${remote}/`)) return `refs/remotes/${branch}`;
+	return `refs/remotes/${remote}/${branch}`;
+}
+
+/**
+ * Picks the diff target: a Graphite stack parent first, then the open pull request's base, then
+ * the workspace's intended target branch (services-map 3.3.2 step 2).
+ */
+export function diffTargetOf(input: DiffTargetInput): DiffTarget {
+	const graphite = input.graphiteParentBranch;
+	if (graphite !== null && graphite.length > 0) {
+		return {
+			branch: graphite,
+			ref: graphite,
+			source: "graphite_parent",
+			isLocalStackParent: true,
+		};
+	}
+	const pullRequestBase = input.pullRequestBaseBranch;
+	const fromPullRequest = pullRequestBase !== null && pullRequestBase.length > 0;
+	const branch = fromPullRequest ? pullRequestBase : input.intendedTargetBranch;
+	return {
+		branch,
+		ref: remoteTargetRef(branch, input.remote),
+		source: fromPullRequest ? "pull_request" : "intended",
+		isLocalStackParent: false,
+	};
+}
+
+/**
+ * Splits untracked paths into command batches under `UNTRACKED_COUNT_BATCH_BYTES`. A path longer
+ * than the cap still gets a batch of its own, so nothing is dropped.
+ */
+export function untrackedCountBatches(paths: readonly string[]): string[][] {
+	const encoder = new TextEncoder();
+	const batches: string[][] = [];
+	let batch: string[] = [];
+	let bytes = 0;
+	for (const path of paths) {
+		const size = encoder.encode(path).length + 1;
+		if (batch.length > 0 && bytes + size > UNTRACKED_COUNT_BATCH_BYTES) {
+			batches.push(batch);
+			batch = [];
+			bytes = 0;
+		}
+		batch.push(path);
+		bytes += size;
+	}
+	if (batch.length > 0) batches.push(batch);
+	return batches;
+}
 
 // ---------------------------------------------------------------- paths
 
@@ -281,10 +380,12 @@ export interface ChangesSnapshot {
 export interface RefreshChangesInput {
 	workspaceId: WorkspaceId;
 	workspacePath: string;
-	/** For example "origin/main". */
+	/** The ref to compare against, for example "refs/remotes/origin/main". */
 	targetRef: string;
 	remote: string;
 	depth: "metadata" | "uncommitted" | "full";
+	/** When present, the diff target is chosen from these by `diffTargetOf` instead of `targetRef`. */
+	diffTarget?: DiffTargetInput;
 }
 
 export interface BranchSyncInput {
@@ -305,13 +406,286 @@ export function refreshBranchSync(
 	return notImplemented("GIT-03");
 }
 
+const emptySync = (): BranchSync => ({
+	ahead: 0,
+	behind: 0,
+	rewritten: false,
+	hasUpstream: false,
+});
+
+/** `stat` is used only to test whether a marker path exists and to size an untracked file. */
+const statCommand = (path: string): GitCommand => ({
+	program: "stat",
+	args: ["-f", "%z", "--", path],
+	retryOnLock: false,
+});
+
+const pathExists = async (runner: GitRunner, cwd: string, path: string): Promise<boolean> => {
+	const result = await runner.run(statCommand(path), { cwd });
+	return result.ok && result.value.exitCode === 0;
+};
+
+/** Checks the names git keeps in its directory while a multi-step operation is open. */
+async function readOperation(runner: GitRunner, cwd: string): Promise<GitOperation> {
+	const markers = await Promise.all(
+		OPERATION_MARKERS.map(async (marker) => {
+			const path = await runner.stdout(revParseGitPath(marker), { cwd });
+			if (!path.ok || path.value.length === 0) return null;
+			return (await pathExists(runner, cwd, path.value)) ? marker : null;
+		}),
+	);
+	const present = new Set<string>();
+	for (const marker of markers) {
+		if (marker !== null) present.add(marker);
+	}
+	return operationFromMarkers(present);
+}
+
+async function countUntrackedLines(
+	runner: GitRunner,
+	cwd: string,
+	path: string,
+): Promise<Result<number>> {
+	const result = await runner.run(diffNoIndexNumstat(path), { cwd });
+	if (!result.ok) return result;
+	// Exit 1 means the files differ. Any other exit code with a message is a real failure.
+	if (result.value.exitCode !== 0 && result.value.stderr.trim().length > 0) {
+		return err(appError("git_failed", result.value.stderr.trim()));
+	}
+	const [entry] = parseNumstat(result.value.stdout.trim());
+	return ok(entry?.linesAdded ?? 0);
+}
+
+/**
+ * One untracked file as an added file. A file over `UNTRACKED_COUNT_MAX_BYTES` is not read; it
+ * keeps the sentinel count so an enormous log or archive cannot stall a poll.
+ */
+async function untrackedFile(
+	runner: GitRunner,
+	cwd: string,
+	path: string,
+): Promise<Result<FileChange>> {
+	const size = await runner.stdout(statCommand(path), { cwd });
+	const bytes = size.ok ? Number.parseInt(size.value, 10) : Number.NaN;
+	if (Number.isFinite(bytes) && bytes > UNTRACKED_COUNT_MAX_BYTES) {
+		return ok({
+			path,
+			status: "added",
+			linesAdded: UNTRACKED_LARGE_FILE_LINES,
+			linesRemoved: 0,
+			binary: false,
+		});
+	}
+	const lines = await countUntrackedLines(runner, cwd, path);
+	if (!lines.ok) return lines;
+	return ok({ path, status: "added", linesAdded: lines.value, linesRemoved: 0, binary: false });
+}
+
+async function readUntracked(
+	runner: GitRunner,
+	cwd: string,
+): Promise<Result<{ files: FileChange[]; truncated: boolean }>> {
+	const listed = await runner.run(lsFilesUntracked(), { cwd });
+	if (!listed.ok) return listed;
+	if (listed.value.exitCode !== 0) {
+		return err(
+			appError(
+				"git_failed",
+				listed.value.stderr.trim() || `git ls-files exited with code ${listed.value.exitCode}`,
+			),
+		);
+	}
+	// `-z` output is NUL separated and never quoted (services-map 3.0.5).
+	const all = listed.value.stdout.split("\0").filter((path) => path.length > 0);
+	const paths = all.slice(0, UNTRACKED_FILE_CAP);
+	const files: FileChange[] = [];
+	for (const batch of untrackedCountBatches(paths)) {
+		const results = await Promise.all(batch.map((path) => untrackedFile(runner, cwd, path)));
+		for (const result of results) {
+			if (!result.ok) return result;
+			files.push(result.value);
+		}
+	}
+	return ok({ files, truncated: all.length > UNTRACKED_FILE_CAP });
+}
+
+/**
+ * Reads how far the branch is ahead of and behind its upstream (services-map 3.3.2 step 8).
+ * Exit 128 is the one normal "no upstream" answer; every other failure is returned.
+ */
+async function readUpstreamSync(runner: GitRunner, cwd: string): Promise<Result<BranchSync>> {
+	const refs = await runner.run(revParseHeadAndUpstream(), { cwd });
+	if (!refs.ok) return refs;
+	if (refs.value.exitCode === 128) return ok(emptySync());
+	if (refs.value.exitCode !== 0) {
+		return err(
+			appError(
+				"git_failed",
+				refs.value.stderr.trim() || `git rev-parse exited with code ${refs.value.exitCode}`,
+			),
+		);
+	}
+	const [headOid, upstreamOid] = refs.value.stdout
+		.trim()
+		.split("\n")
+		.filter((line) => line.length > 0);
+	if (headOid === undefined || upstreamOid === undefined) {
+		return err(appError("git_parse", "Unexpected rev-parse HEAD @{u} output."));
+	}
+	const counts = await runner.stdout(revListLeftRightCount(upstreamOid, headOid), { cwd });
+	if (!counts.ok) return counts;
+	const parsed = parseLeftRightCount(counts.value);
+	if (!parsed.ok) return parsed;
+	return ok({
+		ahead: parsed.value.right,
+		behind: parsed.value.left,
+		rewritten: false,
+		hasUpstream: true,
+	});
+}
+
+/** How many commits the target has that the branch lacks (services-map 3.3.2 step 9). */
+async function readBehindTarget(
+	runner: GitRunner,
+	cwd: string,
+	targetRef: string,
+): Promise<Result<number>> {
+	const result = await runner.stdout(revListCount(`HEAD..${targetRef}`), { cwd });
+	if (!result.ok) return result;
+	const count = Number.parseInt(result.value, 10);
+	return Number.isNaN(count)
+		? err(appError("git_parse", `Unexpected rev-list count: ${result.value}`))
+		: ok(count);
+}
+
+/** The branch's own commits over the target (services-map 3.3.2 step 10). */
+async function readCommits(
+	runner: GitRunner,
+	cwd: string,
+	targetRef: string,
+): Promise<Result<CommitSummary[]>> {
+	const result = await runner.stdout(logRange(`${targetRef}..HEAD`), { cwd });
+	return result.ok ? ok(parseCommitLog(result.value)) : result;
+}
+
+interface SnapshotParts {
+	branch: string | null;
+	mergeBase: string | null;
+	mergeBaseError: string | null;
+	operation: GitOperation;
+}
+
+async function readChanges(
+	runner: GitRunner,
+	cwd: string,
+	from: string,
+	parts: SnapshotParts,
+	targetRef: string,
+): Promise<Result<ChangesSnapshot>> {
+	const [nameStatus, numstat, porcelain, untracked] = await Promise.all([
+		runner.stdout(diffNameStatus(from), { cwd }),
+		runner.stdout(diffNumstat(from), { cwd }),
+		runner.stdout(statusPorcelain(), { cwd }),
+		readUntracked(runner, cwd),
+	]);
+	if (!nameStatus.ok) return nameStatus;
+	if (!numstat.ok) return numstat;
+	if (!porcelain.ok) return porcelain;
+	if (!untracked.ok) return untracked;
+
+	const [sync, behindTarget, commits] = await Promise.all([
+		readUpstreamSync(runner, cwd),
+		readBehindTarget(runner, cwd, targetRef),
+		readCommits(runner, cwd, targetRef),
+	]);
+	if (!sync.ok) return sync;
+	if (!behindTarget.ok) return behindTarget;
+	if (!commits.ok) return commits;
+
+	return ok({
+		...parts,
+		files: [
+			...mergeChanges(parseNameStatus(nameStatus.value), parseNumstat(numstat.value)),
+			...untracked.value.files,
+		],
+		conflictedPaths: parseConflictedPaths(porcelain.value),
+		untrackedTruncated: untracked.value.truncated,
+		commits: commits.value,
+		sync: sync.value,
+		behindTarget: behindTarget.value,
+	});
+}
+
 /**
  * Runs the polling commands of services-map 3.3.2 in the documented order, in parallel where
  * the research says so, and assembles one snapshot. Runs no lock (read-only commands).
+ *
+ * A metadata poll reads only the branch and the operation. An uncommitted poll compares against
+ * HEAD. A full poll compares against the merge base of the target and the branch, and adds the
+ * untracked files, the upstream sync, the distance behind the target and the branch commits.
  */
-export function refreshWorkspaceChanges(
-	_runner: GitRunner,
-	_input: RefreshChangesInput,
+export async function refreshWorkspaceChanges(
+	runner: GitRunner,
+	input: RefreshChangesInput,
 ): Promise<Result<ChangesSnapshot>> {
-	return notImplemented("GIT-02");
+	const cwd = input.workspacePath;
+	const targetRef =
+		input.diffTarget === undefined ? input.targetRef : diffTargetOf(input.diffTarget).ref;
+
+	const branchResult = await runner.stdout(branchShowCurrent(), { cwd });
+	if (!branchResult.ok) return branchResult;
+	const branch = branchResult.value.length > 0 ? branchResult.value : null;
+
+	// The cheapest poll reads only the local branch (services-map 3.3.3).
+	if (input.depth === "metadata") {
+		return ok({
+			branch,
+			mergeBase: null,
+			mergeBaseError: null,
+			files: [],
+			conflictedPaths: [],
+			untrackedTruncated: false,
+			operation: "none",
+			commits: [],
+			sync: emptySync(),
+			behindTarget: 0,
+		});
+	}
+
+	const operation = await readOperation(runner, cwd);
+	const parts: SnapshotParts = {
+		branch,
+		mergeBase: null,
+		mergeBaseError: null,
+		operation,
+	};
+
+	if (input.depth === "uncommitted") {
+		return readChanges(runner, cwd, "HEAD", parts, targetRef);
+	}
+
+	const mergedBase = await runner.stdout(mergeBase(targetRef, branch ?? "HEAD"), { cwd });
+	if (!mergedBase.ok || mergedBase.value.length === 0) {
+		const mergeBaseError = mergedBase.ok
+			? `No common ancestor with ${targetRef}.`
+			: mergedBase.error.message;
+		return ok({
+			...parts,
+			mergeBaseError,
+			files: [],
+			conflictedPaths: [],
+			untrackedTruncated: false,
+			commits: [],
+			sync: emptySync(),
+			behindTarget: 0,
+		});
+	}
+
+	return readChanges(
+		runner,
+		cwd,
+		mergedBase.value,
+		{ ...parts, mergeBase: mergedBase.value },
+		targetRef,
+	);
 }

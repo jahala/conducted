@@ -1,9 +1,11 @@
-import { expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
+import type { PermissionUpdate } from "@anthropic-ai/claude-agent-sdk";
 import {
 	classifyToolUse,
 	isInsideAny,
 	modeAfterPlan,
 	permissionModeFor,
+	resolveEditPath,
 	type ToolUseFacts,
 	toPermissionResult,
 	toPlanResult,
@@ -44,6 +46,43 @@ test("an edit outside the allowed folders is denied with the folders named", () 
 	);
 	expect(verdict.kind).toBe("deny");
 	if (verdict.kind === "deny") expect(verdict.message).toContain("/work/app");
+});
+
+describe("AGENT-04 edit path resolution", () => {
+	const existingOnly = (paths: readonly string[]) => {
+		const existing = new Set(paths);
+		return async (path: string): Promise<string | null> => (existing.has(path) ? path : null);
+	};
+
+	test("a new file in a new subfolder resolves through its nearest existing ancestor", async () => {
+		const realPath = existingOnly(["/work/app"]);
+
+		expect(await resolveEditPath("/work/app/src/new/deep/a.ts", "/work/app", realPath)).toBe(
+			"/work/app/src/new/deep/a.ts",
+		);
+	});
+
+	test("a relative target resolves against the workspace, not the sidecar folder", async () => {
+		const realPath = existingOnly(["/work/app", "/work/app/src"]);
+
+		expect(await resolveEditPath("src/new.ts", "/work/app", realPath)).toBe("/work/app/src/new.ts");
+	});
+
+	test("a new file under a symlinked folder resolves to that folder's real path", async () => {
+		const realPath = async (path: string): Promise<string | null> => {
+			if (path === "/work/app/link") return "/elsewhere";
+			if (path === "/work/app") return "/work/app";
+			return null;
+		};
+
+		expect(await resolveEditPath("/work/app/link/new/a.ts", "/work/app", realPath)).toBe(
+			"/elsewhere/new/a.ts",
+		);
+	});
+
+	test("a target with no resolvable ancestor stays unresolved", async () => {
+		expect(await resolveEditPath("/work/app/a.ts", "/work/app", async () => null)).toBeNull();
+	});
 });
 
 test("an edit without a path, or with an unresolvable path, is denied", () => {
@@ -97,6 +136,67 @@ test("answers map to SDK results", () => {
 	expect(denied.result).toEqual({ behavior: "deny", message: "no" });
 	const withdrawn = toPermissionResult("Bash", input, { kind: "withdrawn" });
 	expect(withdrawn.result.behavior).toBe("deny");
+});
+
+describe("AGENT-04 permission mode and suggested rules", () => {
+	test("the auto permission mode follows approvals and plan mode", () => {
+		expect(
+			permissionModeFor({
+				planMode: false,
+				requireToolApproval: true,
+				autoPermissionMode: true,
+			}),
+		).toBe("auto");
+		expect(
+			permissionModeFor({
+				planMode: true,
+				requireToolApproval: true,
+				autoPermissionMode: true,
+			}),
+		).toBe("plan");
+		expect(
+			permissionModeFor({
+				planMode: false,
+				requireToolApproval: false,
+				autoPermissionMode: true,
+			}),
+		).toBe("bypassPermissions");
+		expect(modeAfterPlan({ requireToolApproval: true, autoPermissionMode: true })).toBe("auto");
+	});
+
+	test("allow with suggested rules adds the SDK's suggestions", () => {
+		const suggestions: PermissionUpdate[] = [
+			{
+				type: "addRules",
+				rules: [{ toolName: "Bash", ruleContent: "npm test" }],
+				behavior: "allow",
+				destination: "localSettings",
+			},
+		];
+		const outcome = toPermissionResult(
+			"Bash",
+			{ command: "npm test" },
+			{ kind: "tool_approval", decision: "allow_with_suggested_rules" },
+			suggestions,
+		);
+
+		expect(outcome.result).toEqual({
+			behavior: "allow",
+			updatedInput: { command: "npm test" },
+			updatedPermissions: suggestions,
+		});
+		expect(outcome.enableAutoApproveEdits).toBe(false);
+	});
+
+	test("allow with suggested rules still allows when the SDK proposes nothing", () => {
+		const outcome = toPermissionResult(
+			"Bash",
+			{ command: "ls" },
+			{ kind: "tool_approval", decision: "allow_with_suggested_rules" },
+		);
+
+		expect(outcome.result).toEqual({ behavior: "allow", updatedInput: { command: "ls" } });
+	});
 });
 
 test("plan approval returns to the normal mode, rejection interrupts with the feedback", () => {

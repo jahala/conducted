@@ -45,6 +45,7 @@ Generated from the migrations by `bun scripts/guards/data-model.ts --write`. `pn
 | Terminal scrollback | app data `terminal-history/` | 14 days after the terminal ends, and at most 50 MB in total, oldest first. | PLAT-08 |
 | Draft attachments | app data `draft-attachments/` | 7 days for drafts never sent. | DATA-02 |
 | Composer drafts | app data `drafts/<session>.json` | 30 days without an edit, and when the chat is deleted. | DATA-02 |
+| Workspace panel layouts | the web view's `localStorage`, key `conducted.panel-layout:<group id>` | Removed with its workspace when WS-05 deletes or archives it; a saved layout for a panel that no longer exists is ignored. The app shell's sidebar lives in the settings table, not here. | WS-05 |
 | Cached changes and PR info | app data `git-cache/changes/<workspace>.json` and `git-cache/pr-info/<workspace>.json` | 25 MB for changes and 5 MB for PR info in total; the oldest files go first. Removed with the workspace. | DATA-07 |
 | Terminal shell integration | app data `terminal-shell-integration/zsh/` | Four small files, rewritten at every app start. | RUN-09 |
 | Setup script logs | app data `setup-logs/<workspace>.log` | Removed with the workspace. | WS-10 |

@@ -13,7 +13,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | ID      | Feature                                                               | Owner                                                       | Research                                             | P   | Status  | Needs                              |
 | ------- | --------------------------------------------------------------------- | ----------------------------------------------------------- | ---------------------------------------------------- | --- | ------- | ---------------------------------- |
 | PLAT-01 | Platform contract test and in-memory stand-in for tests               | D/platform                                                  | services-map 1.1                                     | 1   | done    |                                    |
-| PLAT-02 | Tauri implementation of the Platform interface                        | D/platform                                                  | services-map 1.1                                     | 1   | stub    | PLAT-01                            |
+| PLAT-02 | Tauri implementation of the Platform interface                        | D/platform                                                  | services-map 1.1                                     | 1   | done    | PLAT-01                            |
 | PLAT-03 | Shell commands: run, start, cancel (kills the process group), timeout | R/shell.rs                                                  | native-and-sidecar-map A2                            | 1   | done    |                                    |
 | PLAT-04 | Capture the login-shell PATH at startup                               | R/shell.rs                                                  | native-and-sidecar-map B3                            | 1   | done    |                                    |
 | PLAT-05 | Files: atomic write, trash, stat, read dir                            | R/files.rs                                                  | native-and-sidecar-map A2                            | 1   | done    |                                    |
@@ -54,7 +54,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | ID      | Feature                                                                        | Owner                                         | Research                                                    | P   | Status  | Needs                      |
 | ------- | ------------------------------------------------------------------------------ | --------------------------------------------- | ----------------------------------------------------------- | --- | ------- | -------------------------- |
 | SIDE-01 | Entry point and modes                                                          | S/main.ts                                     | native-and-sidecar-map B1                                   | 1   | done    |                            |
-| SIDE-02 | JSON-RPC server over a Unix socket, NDJSON, re-attach on reconnect             | S/rpc                                         | sessions 0, 10                                              | 1   | stub    | SIDE-01                    |
+| SIDE-02 | JSON-RPC server over a Unix socket, NDJSON, re-attach on reconnect             | S/rpc                                         | sessions 0, 10                                              | 1   | done    | SIDE-01                    |
 | SIDE-03 | Session manager: per-session queue, duplicate guard, idle after flush          | S/session                                     | sessions 2                                                  | 1   | stub    | SIDE-02                    |
 | SIDE-04 | Turn lifecycle and stale-run guard                                             | S/session                                     | sessions 2                                                  | 1   | stub    | SIDE-03                    |
 | SIDE-05 | Event batching and live-state notifications                                    | S/session                                     | sessions 5                                                  | 1   | stub    | SIDE-03                    |
@@ -62,7 +62,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | SIDE-07 | Process manager: leases, 30-minute idle stop, warm pool of 2                   | S/process                                     | sessions 3                                                  | 2   | stub    |                            |
 | SIDE-08 | Checkpoints: start before first write, end with file summary                   | S/checkpoints                                 | sessions 7                                                  | 1   | stub    | SIDE-04                    |
 | SIDE-09 | Prompt assembly: first-message instruction, mentions, attachments, preferences | S/prompt                                      | claude-runner 5                                             | 1   | done    |                            |
-| SIDE-10 | Login-shell environment capture with provider secrets removed                  | S/shell-env                                   | native-and-sidecar-map B3                                   | 1   | stub    | PLAT-04                    |
+| SIDE-10 | Login-shell environment capture with provider secrets removed                  | S/shell-env                                   | native-and-sidecar-map B3                                   | 1   | done    | PLAT-04                    |
 | SIDE-11 | Interactions: one open per session, withdrawn on cancel or new message         | S/session                                     | claude-runner 3                                             | 1   | stub    | SIDE-03                    |
 | SIDE-12 | App tools as an in-process MCP server (for Claude)                             | S/tools                                       | claude-runner 4                                             | 2   | stub    |                            |
 | SIDE-13 | App tools over a socket bridge (for Codex and ACP agents)                      | S/tools                                       | claude-runner 4.3                                           | 2   | stub    | SIDE-12                    |
@@ -71,11 +71,11 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | SIDE-16 | Slash commands and MCP server listing                                          | S/models                                      | claude-runner 7                                             | 2   | stub    |                            |
 | SIDE-17 | Context and plan usage                                                         | S/models                                      | claude-runner 7                                             | 2   | stub    |                            |
 | SIDE-18 | Sidecar logs go to the Rust shell's log files                                  | S/logging                                     | native-and-sidecar-map B5                                   | 3   | stub    | PLAT-09, PLAT-18           |
-| SIDE-19 | Parent watchdog and graceful shutdown                                          | S/watchdog.ts, S/shutdown.ts                  | sessions 8                                                  | 1   | stub    | SIDE-01                    |
+| SIDE-19 | Parent watchdog and graceful shutdown                                          | S/watchdog.ts, S/shutdown.ts                  | sessions 8                                                  | 1   | done    | SIDE-01                    |
 | SIDE-20 | Tell the app when the agent changes a chat's mode                              | S/session, packages/protocol, D/core/sidecar  | claude-runner 2.1, 3.5; sessions 5, 10                      | 2   | stub    | AGENT-04, SIDE-05          |
 | SIDE-21 | Agent settings reach the sidecar: program paths, environment, keys             | S/runners, S/process, packages/protocol       | claude-runner 1.2; sessions 1, 4; native-and-sidecar-map B4 | 2   | stub    | PLAT-28, SIDE-07, SIDE-15  |
 | SIDE-22 | Slash command cache that works before a chat starts                            | S/models, R/sidecar.rs                        | native-and-sidecar-map B3, D1; frontend 3c                  | 3   | stub    | SIDE-16                    |
-| SIDE-23 | Sidecar packaging: version flag, one program per CPU                           | packages/sidecar, apps/desktop/src-tauri      | overview 3; native-and-sidecar-map B1, C                    | 1   | stub    | SIDE-01                    |
+| SIDE-23 | Sidecar packaging: version flag, one program per CPU                           | packages/sidecar, apps/desktop/src-tauri      | overview 3; native-and-sidecar-map B1, C                    | 1   | done    | SIDE-01                    |
 | SIDE-24 | Chat titles and branch names from a short run of the user's agent              | S/session, packages/protocol, D/core/services | other-runners 2.2; services-map 2.4, 5B                     | 2   | stub    | SIDE-03, SIDE-14, AGENT-02 |
 | SIDE-25 | Sidecar adapters in their own edge modules                                     | S/modes                                       | native-and-sidecar-map B1                                   | 2   | planned | SIDE-01                    |
 
@@ -85,8 +85,8 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | -------- | -------------------------------------------------------------------------- | ----------------------------------------------------- | --------------------------------------- | --- | ------ | -------------------------- |
 | AGENT-01 | Runner contract                                                            | S/runners/runner.ts                                   | other-runners 1                         | 1   | done   |                            |
 | AGENT-02 | Claude: Agent SDK in streaming-input mode, resume, fork                    | S/runners/claude                                      | claude-runner 1                         | 1   | done   |                            |
-| AGENT-03 | Claude: translate SDK messages to the neutral format                       | S/runners/claude                                      | claude-runner 2                         | 1   | stub   | AGENT-02                   |
-| AGENT-04 | Claude: tool approvals, plan mode, edit-path sandbox, live mode switch     | S/runners/claude                                      | claude-runner 3                         | 1   | stub   | AGENT-02                   |
+| AGENT-03 | Claude: translate SDK messages to the neutral format                       | S/runners/claude                                      | claude-runner 2                         | 1   | done   | AGENT-02                   |
+| AGENT-04 | Claude: tool approvals, plan mode, edit-path sandbox, live mode switch     | S/runners/claude                                      | claude-runner 3                         | 1   | done   | AGENT-02                   |
 | AGENT-05 | Claude: steer with a "read by the agent" receipt                           | S/runners/claude                                      | claude-runner 6                         | 2   | stub   |                            |
 | AGENT-06 | Codex: `codex app-server` JSON-RPC, threads, steer, interrupt              | S/runners/codex                                       | other-runners 2.1                       | 2   | stub   |                            |
 | AGENT-07 | Codex: translate items to the neutral format                               | S/runners/codex                                       | other-runners 3                         | 2   | stub   |                            |
@@ -108,8 +108,8 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | ------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------- | --------------------------------- | --- | ------ | ---------------------- |
 | DATA-01 | One repository module per table                                                                                       | D/core/db                    | services-map 2.3                  | 1   | done   |                        |
 | DATA-02 | Data lifetime job: cut old tool outputs, compact archived chats, remove old drafts and terminals                      | D/core/db                    | services-map 2.7                  | 2   | stub   | DATA-08                |
-| DATA-03 | Startup repair: close turns cut off by a crash, reset stale working state                                             | D/core/db                    | services-map 6                    | 1   | stub   | DATA-01                |
-| DATA-04 | Event ingest: store each event in order, then acknowledge                                                             | D/core/sidecar               | sessions-and-chats "What happens" | 1   | stub   | DATA-01                |
+| DATA-03 | Startup repair: close turns cut off by a crash, reset stale working state                                             | D/core/db                    | services-map 6                    | 1   | done   | DATA-01                |
+| DATA-04 | Event ingest: store each event in order, then acknowledge                                                             | D/core/sidecar               | sessions-and-chats "What happens" | 1   | done   | DATA-01                |
 | DATA-05 | Settings store and `.conducted/settings.toml` read and write                                                          | D/core/services              | services-map 4.2                  | 1   | done   |                        |
 | DATA-06 | Prune turn snapshots: remove a chat's checkpoint refs when it is deleted, and 30 days after its workspace is archived | D/core/services              | data-model.md                     | 2   | stub   | DATA-08                |
 | DATA-07 | Cache the last PR info and changes for a fast restart                                                                 | D/core/services              | services-map 2.7.2, 3.3.1, 5B.1.5 | 3   | stub   | DATA-01, GIT-02, PR-03 |
@@ -120,7 +120,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 
 | ID     | Feature                                                               | Owner                                        | Research             | P   | Status | Needs                            |
 | ------ | --------------------------------------------------------------------- | -------------------------------------------- | -------------------- | --- | ------ | -------------------------------- |
-| PRJ-01 | Add a project from a local folder                                     | D/core/services                              | ui-map 3.9           | 1   | stub   | GIT-01, DATA-01                  |
+| PRJ-01 | Add a project from a local folder                                     | D/core/services                              | ui-map 3.9           | 1   | done   | GIT-01, DATA-01                  |
 | PRJ-02 | Clone a project from GitHub                                           | D/core/services                              | ui-map 3.9           | 2   | stub   | PRJ-01, PR-01                    |
 | PRJ-03 | Quick start a new project from a template                             | D/core/services                              | ui-map 3.9           | 3   | stub   | PRJ-01, PR-01                    |
 | PRJ-04 | Per-repo config: scripts, files to copy, prompts                      | D/core/services                              | services-map 4.2     | 1   | stub   | PRJ-01, DATA-05                  |
@@ -133,7 +133,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | WS-06  | Unarchive                                                             | D/core/services                              | services-map 3.10    | 2   | stub   | WS-05                            |
 | WS-07  | Linked workspaces and extra folders                                   | D/core/services                              | ui-map 3.10          | 3   | stub   | WS-01                            |
 | WS-08  | Open a workspace in another app                                       | D/features/open-in                           | ui-map 3.10          | 2   | stub   | PLAT-19                          |
-| WS-09  | Workspace status as a pure function                                   | D/core/status                                | ui-map 3.8           | 1   | stub   | DATA-01                          |
+| WS-09  | Workspace status as a pure function                                   | D/core/status                                | ui-map 3.8           | 1   | done   | DATA-01                          |
 | WS-10  | Delete a workspace                                                    | D/core/services                              | services-map 3.10    | 2   | stub   | WS-05                            |
 | WS-11  | Backlog workspaces: add now, start later                              | D/core/services, D/app, D/features/workspace | ui-map 3.1, 3.9, 5.4 | 3   | stub   | WS-01, WS-09, DATA-01            |
 
@@ -141,7 +141,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 
 | ID     | Feature                                                                  | Owner                                   | Research                                       | P   | Status | Needs                          |
 | ------ | ------------------------------------------------------------------------ | --------------------------------------- | ---------------------------------------------- | --- | ------ | ------------------------------ |
-| NAV-01 | App shell: three resizable regions, persisted sizes                      | D/app                                   | ui-map 1.1                                     | 1   | stub   | APP-05, DATA-05                |
+| NAV-01 | App shell: three resizable regions, persisted sizes                      | D/app                                   | ui-map 1.1                                     | 1   | done   | APP-05, DATA-05                |
 | NAV-02 | Routes and per-workspace URL state                                       | D/app                                   | ui-map 2                                       | 1   | stub   | NAV-01, APP-01                 |
 | NAV-03 | Sidebar: workspace list, group by status or project, sort, filter        | D/features/sidebar                      | ui-map 4                                       | 1   | stub   | NAV-01, NAV-07, WS-09, DATA-01 |
 | NAV-04 | Pinned, sections, drag and drop, manual order                            | D/features/sidebar                      | ui-map 4                                       | 2   | stub   | NAV-03, APP-05, APP-12         |
@@ -163,7 +163,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 
 | ID      | Feature                                                                | Owner                                         | Research                                        | P   | Status | Needs                              |
 | ------- | ---------------------------------------------------------------------- | --------------------------------------------- | ----------------------------------------------- | --- | ------ | ---------------------------------- |
-| CHAT-01 | Create, close, rename chats; chat history                              | D/core/services                               | ui-map 3.2                                      | 1   | stub   | DATA-01                            |
+| CHAT-01 | Create, close, rename chats; chat history                              | D/core/services                               | ui-map 3.2                                      | 1   | done   | DATA-01                            |
 | CHAT-02 | Send a message as a new turn                                           | D/core/services                               | sessions-and-chats "What happens"               | 1   | stub   | SIDE-03, SIDE-09, DATA-04, COMP-01 |
 | CHAT-03 | Steer a running turn                                                   | D/core/services                               | sessions-and-chats "While the agent is working" | 2   | stub   | CHAT-02, AGENT-05                  |
 | CHAT-04 | Follow-up queue: edit, reorder, delete, pause, send now as steer       | D/core/services                               | ui-map 3.4                                      | 2   | stub   | CHAT-02, CHAT-03                   |
@@ -198,7 +198,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 
 | ID      | Feature                                                   | Owner               | Research             | P   | Status | Needs                            |
 | ------- | --------------------------------------------------------- | ------------------- | -------------------- | --- | ------ | -------------------------------- |
-| COMP-01 | Message editor, send key, drafts that survive restarts    | D/features/composer | ui-map 3.5           | 1   | stub   | DATA-01                          |
+| COMP-01 | Message editor, send key, drafts that survive restarts    | D/features/composer | ui-map 3.5           | 1   | done   | DATA-01                          |
 | COMP-02 | Model picker: agent, model, effort, fast mode, favourites | D/features/composer | ui-map 3.5           | 1   | stub   | SIDE-14, SET-01                  |
 | COMP-03 | Plan mode and approval toggles                            | D/features/composer | ui-map 3.5           | 2   | stub   | AGENT-04                         |
 | COMP-04 | `@` file mentions                                         | D/features/composer | ui-map 3.5           | 2   | stub   | PLAT-06                          |
@@ -232,7 +232,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | ID     | Feature                                                           | Owner                                        | Research                        | P   | Status | Needs                   |
 | ------ | ----------------------------------------------------------------- | -------------------------------------------- | ------------------------------- | --- | ------ | ----------------------- |
 | GIT-01 | Git runner and command catalogue                                  | D/core/git                                   | services-map 3.0                | 1   | done   |                         |
-| GIT-02 | Status polling: changed files, line counts, operation in progress | D/core/git                                   | services-map 3.3                | 1   | stub   | GIT-01                  |
+| GIT-02 | Status polling: changed files, line counts, operation in progress | D/core/git                                   | services-map 3.3                | 1   | done   | GIT-01                  |
 | GIT-03 | Branch sync: ahead, behind, rewritten remote                      | D/core/git                                   | services-map 3.6                | 2   | stub   | GIT-13                  |
 | GIT-04 | Git header state machine                                          | D/core/services                              | ui-map 3.6                      | 2   | stub   |                         |
 | GIT-05 | Commit and push, done by the agent on request                     | D/core/services                              | services-map 3.5                | 2   | stub   |                         |
@@ -248,7 +248,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | GIT-15 | Git extras: sparse checkout, external diff tool                   | D/core/services/git.ts                       | services-map 3.11, 5A.5.3       | 3   | stub   | GIT-01                  |
 | GIT-16 | Explain a blocked git (Xcode licence) and offer the fix           | D/core/git, D/app                            | services-map 5A.8; ui-map 7.4   | 2   | stub   | GIT-01, PLAT-07         |
 | GIT-17 | Continue after a merge or from a detached HEAD                    | D/core/services/git.ts, D/features/git-panel | services-map 3.1                | 2   | stub   | GIT-12, GIT-04, CHAT-02 |
-| PR-01  | GitHub access through `gh`                                        | D/core/services                              | services-map 3.9                | 1   | stub   | GIT-01                  |
+| PR-01  | GitHub access through `gh`                                        | D/core/services                              | services-map 3.9                | 1   | done   | GIT-01                  |
 | PR-02  | Create PR, done by the agent with written instructions            | D/core/services                              | frontend 7                      | 1   | stub   | PR-01, CHAT-02          |
 | PR-03  | PR status polling, batched, behind a rate-limit gate              | D/core/services                              | services-map 3.7                | 2   | stub   | PR-01                   |
 | PR-04  | Checks and deployments tab with logs and re-run                   | D/features/git-panel                         | ui-map 3.6                      | 2   | stub   | PR-03                   |
@@ -270,7 +270,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | RUN-03 | One port per workspace, port detection, preview URLs                | D/core/services               | ui-map 3.7                                     | 2   | stub   | RUN-01, PLAT-03           |
 | RUN-04 | Browser preview tab                                                 | D/features/browser-preview    | ui-map 3.2                                     | 3   | stub   | RUN-03, NAV-10            |
 | RUN-05 | Point at page elements in the preview and send them to the chat     | D/features/browser-preview    | native-and-sidecar-map B3                      | 3   | stub   | RUN-04, COMP-07           |
-| RUN-06 | Terminal tabs: xterm, find, big terminal mode                       | D/features/terminal           | ui-map 3.7                                     | 1   | stub   | PLAT-07                   |
+| RUN-06 | Terminal tabs: xterm, find, big terminal mode                       | D/features/terminal           | ui-map 3.7                                     | 1   | done   | PLAT-07                   |
 | RUN-07 | Terminal output for the GetTerminalOutput tool                      | D/core/services               | claude-runner 4.2                              | 2   | stub   | RUN-06                    |
 | RUN-08 | `bin/spotlighter.sh`                                                | bin                           | native-and-sidecar-map C3                      | 3   | stub   | RUN-02, PLAT-35           |
 | RUN-09 | Zsh shell integration for terminals                                 | D/features/terminal, R/pty.rs | native-and-sidecar-map A5; services-map 5A.4.6 | 3   | stub   | PLAT-07, RUN-06           |
@@ -279,7 +279,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 
 | ID     | Feature                                                           | Owner                              | Research                  | P   | Status  | Needs                                     |
 | ------ | ----------------------------------------------------------------- | ---------------------------------- | ------------------------- | --- | ------- | ----------------------------------------- |
-| SET-01 | Settings registry                                                 | D/core/registries                  | ui-map 6                  | 1   | stub    | DATA-05                                   |
+| SET-01 | Settings registry                                                 | D/core/registries                  | ui-map 6                  | 1   | done    | DATA-05                                   |
 | SET-02 | Settings pages and settings search                                | D/features/settings                | ui-map 6                  | 2   | stub    | SET-01, APP-12, APP-15, NAV-02            |
 | SET-03 | Agents page: install status, versions, sign-in                    | D/features/settings                | ui-map 6                  | 1   | stub    | SIDE-15, PLAT-04, APP-12                  |
 | SET-04 | Environment variables, stored in the Keychain                     | D/features/settings                | ui-map 6                  | 2   | stub    | PLAT-10, DATA-05, APP-12                  |
@@ -301,7 +301,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | APP-01 | Startup sequence                                                  | D/app                             | services-map 6                 | 1   | stub   | PLAT-09, DATA-01, DATA-03, DATA-05, APP-11 |
 | APP-02 | First-run onboarding: pick agents, add a project                  | D/features/onboarding             | ui-map 7.1                     | 2   | stub   | SET-03, PRJ-01, APP-05, APP-12             |
 | APP-03 | Diagnostics page and log export                                   | D/features/diagnostics            | ui-map 2                       | 3   | stub   | PLAT-18, PLAT-04                           |
-| APP-04 | Designed empty, loading and error states                          | D/features (all)                  | ui-map 7                       | 1   | stub   | APP-05                                     |
+| APP-04 | Designed empty, loading and error states                          | D/features (all)                  | ui-map 7                       | 1   | done   | APP-05                                     |
 | APP-05 | Design system: components and tokens                              | D/ui                              | ui-map 8                       | 1   | done   |                                            |
 | APP-06 | Update notice and restart when idle                               | D/features/updates                | ui-map 1.3                     | 3   | stub   | PLAT-13                                    |
 | APP-07 | Resource usage table                                              | D/features/sidebar                | ui-map 1.3                     | 3   | stub   | PLAT-14                                    |
@@ -309,7 +309,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | APP-09 | Send feedback                                                     | D/features/diagnostics, R/menu.rs | ui-map 5.1, 5.2                | 3   | stub   | APP-03, APP-12, PLAT-18                    |
 | APP-10 | Dismissible hints (callouts)                                      | D/ui, D/features/settings         | ui-map 7.1                     | 3   | stub   | APP-05, SET-01                             |
 | APP-11 | Async helpers: queue per key, single flight, latest wins, backoff | D/core/async                      | services-map 1.5, 2.5.3, 3.0.3 | 1   | done   |                                            |
-| APP-12 | Form controls                                                     | D/ui                              | ui-map 8                       | 1   | stub   | APP-05                                     |
+| APP-12 | Form controls                                                     | D/ui                              | ui-map 8                       | 1   | done   | APP-05                                     |
 | APP-13 | Display components                                                | D/ui                              | ui-map 8                       | 1   | stub   | APP-05, APP-12                             |
 | APP-14 | Missing design tokens: terminal colours, links, contrast modes    | D/styles.css, D/ui                | ui-map 8                       | 2   | stub   | APP-05                                     |
 | APP-15 | One shared fuzzy matcher                                          | D/core                            | ui-map 6, 8                    | 2   | stub   |                                            |

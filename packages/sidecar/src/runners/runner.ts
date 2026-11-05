@@ -89,6 +89,11 @@ export interface AgentSession {
 	cancel(): Promise<void>;
 	/** Applies config between or during turns. Returns "restart" when the agent must restart with resume. */
 	applyConfig(config: SessionConfig): Promise<"applied" | "restart">;
+	/**
+	 * Claude only: accept file edits without asking for the rest of the chat, set by the app's
+	 * auto-accept edits control (AGENT-04). Other runners omit it.
+	 */
+	setAutoApproveEdits?(enabled: boolean): void;
 	contextUsage(): Promise<{ usedTokens: number; windowTokens: number } | null>;
 	/** Ends the agent process and releases everything it holds. */
 	dispose(): Promise<void>;

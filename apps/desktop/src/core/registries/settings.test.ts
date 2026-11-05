@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { SETTING_LAYERS } from "../services/settings.ts";
 import {
 	coerceSettingValue,
 	defaultValueOf,
@@ -28,7 +29,7 @@ const must = (key: string): SettingDef => {
 	return def;
 };
 
-describe("setting table", () => {
+describe("SET-01 setting table", () => {
 	it("has unique keys", () => {
 		expect(new Set(SETTING_KEYS).size).toBe(SETTING_KEYS.length);
 	});
@@ -95,6 +96,22 @@ describe("setting table", () => {
 		}
 	});
 
+	it("lets an allow-repo key reach every repo file layer DATA-05 resolves", () => {
+		for (const layer of ["repo-remote", "repo-shared", "workspace-shared", "repo-local"] as const) {
+			expect(SETTING_LAYERS, layer).toContain(layer);
+		}
+		for (const def of SETTINGS) {
+			if (def.fileLayers === "user-and-repo") {
+				expect(def.scopes, def.key).toContain("repo");
+				expect(typeof def.tomlKey, def.key).toBe("string");
+			}
+			if (def.fileLayers === "user") {
+				expect(def.scopes, def.key).not.toContain("repo");
+				expect(typeof def.tomlKey, def.key).toBe("string");
+			}
+		}
+	});
+
 	it("has at least one setting on every page", () => {
 		for (const page of SETTING_PAGES) {
 			expect(settingsForPage(page).length, page).toBeGreaterThan(0);
@@ -113,7 +130,7 @@ describe("setting table", () => {
 	});
 });
 
-describe("lookups", () => {
+describe("SET-01 lookups", () => {
 	it("finds a setting by key and returns undefined for an unknown key", () => {
 		expect(getSettingDef("branch_prefix_type")?.page).toBe("git");
 		expect(getSettingDef("nope")).toBeUndefined();
@@ -153,7 +170,7 @@ describe("lookups", () => {
 	});
 });
 
-describe("searchSettings", () => {
+describe("SET-01 searchSettings", () => {
 	it("ranks title matches before other matches", () => {
 		const found = searchSettings("branch");
 		expect(found.length).toBeGreaterThan(1);
@@ -183,7 +200,7 @@ describe("searchSettings", () => {
 	});
 });
 
-describe("coerceSettingValue", () => {
+describe("SET-01 coerceSettingValue", () => {
 	it("accepts bool values and the strings true and false", () => {
 		const def = must("notifications_enabled");
 		expect(coerceSettingValue(def, true)).toEqual({ ok: true, value: true });
@@ -253,5 +270,96 @@ describe("coerceSettingValue", () => {
 			expect(coerceSettingValue(def, null), def.key).toEqual({ ok: true, value: null });
 		}
 		expect(coerceSettingValue(must("wrap_lines"), undefined).ok).toBe(false);
+	});
+});
+
+describe("SET-01 checklist", () => {
+	it("offers the absolute-right strip control on the General page, off by default", () => {
+		const def = must("not_absolutely_right");
+		expect(def.page).toBe("general");
+		expect(def.type).toBe("bool");
+		expect(def.default).toBe(false);
+		expect(def.title).toBe("I'm not absolutely right, thank you very much");
+		expect(def.description).toContain("absolutely right");
+		expect(def.feature).toBe("CHAT-06");
+		expect(searchSettings("absolutely").map((s) => s.key)).toContain("not_absolutely_right");
+	});
+
+	it("declares the GitHub sign-in method the GitHub service reads", () => {
+		const def = must("gh_auth_method");
+		expect(def.page).toBe("account");
+		expect(def.scopes).toEqual(["user"]);
+		expect(def.type).toBe("enum");
+		expect(def.default).toBe("");
+		const values = def.type === "enum" ? def.options.map((o) => o.value) : [];
+		expect(values).toEqual(["", "cli", "pat"]);
+		expect(isFileBacked(def)).toBe(false);
+		expect(searchSettings("personal access token").map((s) => s.key)).toContain("gh_auth_method");
+	});
+
+	it("accepts the GitHub CLI and personal access token values and refuses Conductor's app value", () => {
+		const def = must("gh_auth_method");
+		expect(coerceSettingValue(def, "")).toEqual({ ok: true, value: "" });
+		expect(coerceSettingValue(def, "cli")).toEqual({ ok: true, value: "cli" });
+		expect(coerceSettingValue(def, "pat")).toEqual({ ok: true, value: "pat" });
+		expect(coerceSettingValue(def, "conductor-app").ok).toBe(false);
+	});
+
+	it("lets the pull request open target be github, linear or graphite", () => {
+		const def = must("pull_request_open_target");
+		expect(def.type).toBe("enum");
+		expect(def.default).toBe("github");
+		expect(def.type === "enum" && def.options.map((o) => o.value)).toEqual([
+			"github",
+			"linear",
+			"graphite",
+		]);
+	});
+
+	it("says which file layers may set each setting", () => {
+		const userOnly = must("default_model");
+		expect(userOnly.tomlKey).toBe("models.default");
+		expect(userOnly.fileLayers).toBe("user");
+		expect(userOnly.scopes).not.toContain("repo");
+
+		const repoShared = must("delete_branch_on_archive");
+		expect(repoShared.fileLayers).toBe("user-and-repo");
+		expect(repoShared.scopes).toContain("repo");
+
+		expect(isFileBacked(must("message_send_key"))).toBe(false);
+	});
+
+	it("declares every field the settings pages and search need", () => {
+		for (const def of SETTINGS) {
+			expect(def.key.length, def.key).toBeGreaterThan(0);
+			expect(SETTING_PAGES, def.key).toContain(def.page);
+			expect(def.scopes.length, def.key).toBeGreaterThan(0);
+			expect(def.title.length, def.key).toBeGreaterThan(0);
+			expect(def.description.length, def.key).toBeGreaterThan(0);
+			expect(Array.isArray(def.searchTerms), def.key).toBe(true);
+		}
+	});
+
+	it("can preload a default of the declared type for every key", () => {
+		for (const key of SETTING_KEYS) {
+			const def = must(key);
+			const value = defaultValueOf(key);
+			expect(value, key).not.toBeUndefined();
+			switch (def.type) {
+				case "bool":
+					expect(typeof value, key).toBe("boolean");
+					break;
+				case "string":
+				case "enum":
+					expect(typeof value, key).toBe("string");
+					break;
+				case "number":
+					expect(typeof value, key).toBe("number");
+					break;
+				case "string-list":
+					expect(Array.isArray(value), key).toBe(true);
+					break;
+			}
+		}
 	});
 });

@@ -14,7 +14,11 @@
  * than its `timeoutMs` is the Rust side's job (it kills the process group); the database opens
  * `sqlite:conducted.db` through the sql plugin and must run `PRAGMA journal_mode = WAL` and
  * `PRAGMA foreign_keys = ON` on its connection before the first statement; `Database.transaction`
- * must serialise: one open transaction at a time, because the plugin pools connections.
+ * must serialise: every statement goes through one queue, and a transaction holds it from
+ * BEGIN IMMEDIATE to COMMIT or ROLLBACK, so only one statement uses the plugin's pool at a time
+ * and the lazily grown pool does not open a second connection while the transaction is open.
+ * An explicit pool pin is PLAT-27. A write also clears merged selects that were in flight, so a
+ * read asked for after it cannot get a pre-write result.
  * Our design choice: the group builders take a `TauriBindings` value instead of importing `invoke`
  * themselves, so the helpers below can be tested without a webview. `realTauriBindings` is the
  * only place that holds the real functions. The argument names of each command are listed in
@@ -26,6 +30,18 @@
 import { type AppError, appError, err, notImplemented, ok, type Result } from "@conducted/shared";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { Image } from "@tauri-apps/api/image";
+import {
+	writeImage as writeClipboardImage,
+	writeText as writeClipboardText,
+} from "@tauri-apps/plugin-clipboard-manager";
+import {
+	ask as askDialog,
+	open as openDialog,
+	save as saveDialog,
+} from "@tauri-apps/plugin-dialog";
+import { openUrl as openUrlInDefaultApp } from "@tauri-apps/plugin-opener";
+import Sql from "@tauri-apps/plugin-sql";
 import type {
 	AppInfo,
 	AppMenu,
@@ -35,6 +51,7 @@ import type {
 	Database,
 	Dialogs,
 	FileSearch,
+	FileStat,
 	FileSystem,
 	Http,
 	Keychain,
@@ -56,15 +73,135 @@ import type {
 
 // ---------------------------------------------------------------- bindings
 
+/** The database handle tauri-plugin-sql returns. Only the calls the Platform needs. */
+export interface SqlDatabase {
+	execute(
+		query: string,
+		bindValues?: unknown[],
+	): Promise<{ rowsAffected: number; lastInsertId?: number }>;
+	select<Rows>(query: string, bindValues?: unknown[]): Promise<Rows>;
+}
+
+export interface TauriDialogBindings {
+	open(options: {
+		title?: string;
+		defaultPath?: string;
+		directory?: boolean;
+		multiple?: boolean;
+	}): Promise<string | string[] | null>;
+	save(options: { title?: string; defaultPath?: string }): Promise<string | null>;
+	ask(message: string, options?: { title?: string; okLabel?: string }): Promise<boolean>;
+}
+
+export interface TauriClipboardBindings {
+	writeText(text: string): Promise<void>;
+	writeImage(image: Uint8Array): Promise<void>;
+}
+
+export interface TauriOpenerBindings {
+	openUrl(url: string): Promise<void>;
+}
+
 export interface TauriBindings {
 	invoke<T>(command: string, args?: Record<string, unknown>): Promise<T>;
 	listen<T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn>;
+	/** tauri-plugin-sql, present on the real bindings and in a test that opens a database. */
+	sql?: { load(path: string): Promise<SqlDatabase> };
+	/** tauri-plugin-dialog. */
+	dialog?: TauriDialogBindings;
+	/** tauri-plugin-clipboard-manager. */
+	clipboard?: TauriClipboardBindings;
+	/** tauri-plugin-opener. */
+	opener?: TauriOpenerBindings;
+}
+
+/**
+ * Decodes encoded image bytes to the raw RGBA the clipboard plugin needs. The web view already
+ * has a PNG decoder, so this needs no extra Rust feature or crate.
+ */
+async function decodeImageToRgba(
+	encoded: Uint8Array,
+): Promise<{ rgba: Uint8Array; width: number; height: number }> {
+	const copy = new Uint8Array(encoded.byteLength);
+	copy.set(encoded);
+	const bitmap = await createImageBitmap(new Blob([copy.buffer], { type: "image/png" }));
+	try {
+		const canvas = document.createElement("canvas");
+		canvas.width = bitmap.width;
+		canvas.height = bitmap.height;
+		const context = canvas.getContext("2d");
+		if (context === null) throw new Error("The web view has no 2D canvas context.");
+		context.drawImage(bitmap, 0, 0);
+		const { data } = context.getImageData(0, 0, bitmap.width, bitmap.height);
+		return { rgba: new Uint8Array(data), width: bitmap.width, height: bitmap.height };
+	} finally {
+		bitmap.close();
+	}
 }
 
 export const realTauriBindings: TauriBindings = {
 	invoke: (command, args) => invoke(command, args),
 	listen: (event, handler) => listen(event, (e) => handler(e.payload as never)),
+	sql: { load: (path) => Sql.load(path) as Promise<SqlDatabase> },
+	dialog: {
+		open: (options) => openDialog(options) as Promise<string | string[] | null>,
+		save: (options) => saveDialog(options),
+		ask: (message, options) => askDialog(message, options),
+	},
+	clipboard: {
+		writeText: writeClipboardText,
+		writeImage: async (pngBytes) => {
+			const { rgba, width, height } = await decodeImageToRgba(pngBytes);
+			const image = await Image.new(rgba, width, height);
+			try {
+				await writeClipboardImage(image);
+			} finally {
+				await image.close();
+			}
+		},
+	},
+	opener: { openUrl: openUrlInDefaultApp },
 };
+
+/** A binding that a builder needs but the caller left out is a programmer error, not a runtime one. */
+function requireBinding<T>(value: T | undefined, name: string): T {
+	if (value === undefined) throw new Error(`The Tauri ${name} binding is required.`);
+	return value;
+}
+
+/**
+ * Listens for an event and returns an unsubscribe function straight away. A listener that resolves
+ * after the caller unsubscribed is released at once, so no listener leaks.
+ */
+function onEvent<T>(
+	bindings: Pick<TauriBindings, "listen">,
+	event: string,
+	handler: (payload: T) => void,
+): () => void {
+	let active = true;
+	let unlisten: UnlistenFn | null = null;
+	void bindings
+		.listen<T>(event, (payload) => {
+			if (active) handler(payload);
+		})
+		.then((stop) => {
+			if (active) unlisten = stop;
+			else stop();
+		})
+		.catch(() => {
+			// The Platform interface cannot return an error from a subscription. A failed
+			// listener leaves the app running, and the caller can try again.
+		});
+	return () => {
+		active = false;
+		if (unlisten !== null) {
+			unlisten();
+			unlisten = null;
+		}
+	};
+}
+
+const nowMs = (): number => (typeof performance !== "undefined" ? performance.now() : Date.now());
 
 // ---------------------------------------------------------------- names (docs/plans/tauri-commands.md)
 
@@ -212,8 +349,10 @@ export function createTauriAppInfo(
 		health: () => checkHealth(bindings),
 		dbVersionWarning: () => notImplemented("PLAT-17"),
 		onDeepLink: () => notImplemented("PLAT-16"),
-		onQuitRequested: () => notImplemented("PLAT-02"),
-		quit: () => notImplemented("PLAT-02"),
+		onQuitRequested: (listener) => onEvent(bindings, EVENTS.quitRequested, () => listener()),
+		quit: async () => {
+			await invokeResult(bindings, COMMANDS.appQuit);
+		},
 		resourceUsage: () => notImplemented("PLAT-14"),
 		writeLog: () => notImplemented("PLAT-18"),
 		setLogLevel: () => notImplemented("PLAT-18"),
@@ -222,13 +361,168 @@ export function createTauriAppInfo(
 	};
 }
 
+export interface TauriDatabaseOptions {
+	/** A statement at or above this many milliseconds is logged. Defaults to 1000. */
+	slowMs?: number;
+	/** Where slow statements go, when a caller has a log sink. PLAT-18 will pass `app.writeLog`. */
+	log?: (level: "warn", message: string, data: unknown) => void;
+}
+
+const DATABASE_URL = "sqlite:conducted.db";
+
 /**
  * tauri-plugin-sql: `Database.load("sqlite:conducted.db")`, then the pragmas named in the header.
- * `select` and `execute` map to the plugin's methods; `transaction` sends BEGIN IMMEDIATE and
- * COMMIT or ROLLBACK on one connection, queued behind any open transaction.
+ * `select` and `execute` map to the plugin's methods. Every statement goes through one queue, so
+ * the plugin's pool never runs two at once. A transaction holds the queue from BEGIN IMMEDIATE to
+ * COMMIT or ROLLBACK; the work it runs gets a handle that skips the queue, because the queue is
+ * already held. Identical concurrent `select` calls share one promise, and a write clears those
+ * in-flight entries so a later read cannot get a pre-write result. A statement slower than
+ * `slowMs` goes to the log.
  */
-export function createTauriDatabase(): Promise<Result<Database>> {
-	return notImplemented("PLAT-02");
+export async function createTauriDatabase(
+	bindings: Pick<TauriBindings, "sql"> = realTauriBindings,
+	options: TauriDatabaseOptions = {},
+): Promise<Result<Database>> {
+	const plugin = bindings.sql;
+	if (plugin === undefined) {
+		return err(
+			appError(
+				"tauri_binding_missing",
+				"The Tauri SQL plugin binding is required to open the database.",
+			),
+		);
+	}
+
+	let raw: SqlDatabase;
+	try {
+		raw = await plugin.load(DATABASE_URL);
+	} catch (error) {
+		return err(toAppError(error));
+	}
+
+	const slowMs = options.slowMs ?? 1_000;
+	const log = options.log ?? (() => {});
+	const logIfSlow = (sql: string, startedAt: number): void => {
+		const elapsedMs = nowMs() - startedAt;
+		if (elapsedMs >= slowMs) {
+			log("warn", "Slow SQLite call", { sql, elapsedMs });
+		}
+	};
+	const write = async (
+		sql: string,
+		params?: readonly unknown[],
+	): Promise<{ rowsAffected: number; lastInsertId?: number }> => {
+		const startedAt = nowMs();
+		try {
+			return await raw.execute(sql, params === undefined ? undefined : [...params]);
+		} finally {
+			logIfSlow(sql, startedAt);
+		}
+	};
+	const read = async <Row>(sql: string, params?: readonly unknown[]): Promise<Row[]> => {
+		const startedAt = nowMs();
+		try {
+			return (await raw.select<Row[]>(
+				sql,
+				params === undefined ? undefined : [...params],
+			)) as Row[];
+		} finally {
+			logIfSlow(sql, startedAt);
+		}
+	};
+
+	try {
+		await write("PRAGMA journal_mode = WAL");
+		await write("PRAGMA foreign_keys = ON");
+	} catch (error) {
+		return err(toAppError(error));
+	}
+
+	const pendingSelects = new Map<string, Promise<unknown[]>>();
+	const clearPendingSelects = (): void => {
+		pendingSelects.clear();
+	};
+
+	/** Runs one statement at a time, in call order, and keeps the queue alive after a failure. */
+	let queue: Promise<unknown> = Promise.resolve();
+	const enqueue = <T>(task: () => Promise<T>): Promise<T> => {
+		const run = queue.then(task);
+		queue = run.then(
+			() => undefined,
+			() => undefined,
+		);
+		return run;
+	};
+
+	const writeOutsideTransaction = (
+		sql: string,
+		params?: readonly unknown[],
+	): Promise<{ rowsAffected: number; lastInsertId?: number }> => {
+		clearPendingSelects();
+		return enqueue(() => write(sql, params));
+	};
+
+	const database: Database = {
+		execute: writeOutsideTransaction,
+		select: <Row>(sql: string, params?: readonly unknown[]): Promise<Row[]> => {
+			const key = `${sql}\u0000${JSON.stringify(params ?? [])}`;
+			const existing = pendingSelects.get(key);
+			if (existing !== undefined) return existing as Promise<Row[]>;
+			const promise = enqueue(() => read<Row>(sql, params));
+			pendingSelects.set(key, promise as Promise<unknown[]>);
+			const settle = (): void => {
+				pendingSelects.delete(key);
+			};
+			void promise.then(settle, settle);
+			return promise;
+		},
+		transaction: <T>(work: (db: Database) => Promise<T>): Promise<T> => {
+			// A read asked for after this point must not join a select from before it.
+			clearPendingSelects();
+			return enqueue(async () => {
+				// The work's own statements run one at a time on a queue local to this
+				// transaction, so even a `Promise.all` inside it keeps one connection.
+				let transactionQueue: Promise<unknown> = Promise.resolve();
+				const transactionRun = <U>(task: () => Promise<U>): Promise<U> => {
+					const run = transactionQueue.then(task);
+					transactionQueue = run.then(
+						() => undefined,
+						() => undefined,
+					);
+					return run;
+				};
+				const transactionDatabase: Database = {
+					execute: (sql, params) => transactionRun(() => write(sql, params)),
+					select: <Row>(sql: string, params?: readonly unknown[]): Promise<Row[]> =>
+						transactionRun(() => read<Row>(sql, params)),
+					transaction: () =>
+						Promise.reject(
+							appError(
+								"transaction_nested",
+								"Database.transaction cannot start inside another transaction.",
+							),
+						),
+				};
+
+				await transactionRun(() => write("BEGIN IMMEDIATE"));
+				try {
+					const value = await work(transactionDatabase);
+					await transactionRun(() => write("COMMIT"));
+					return value;
+				} catch (error) {
+					try {
+						await transactionRun(() => write("ROLLBACK"));
+					} catch {
+						// The failure that caused the rollback is the one the caller needs.
+					}
+					throw error;
+				} finally {
+					clearPendingSelects();
+				}
+			});
+		},
+	};
+	return ok(database);
 }
 
 /** Payload of `shell://done`, as shell.rs sends it. */
@@ -311,18 +605,29 @@ export function createTauriShell(bindings: TauriBindings): Shell {
 
 /** `fs_read_text { path }`, `fs_write_text_atomic { path, text }`, `fs_stat { path }`, `fs_mkdirp`, `fs_read_dir`, `fs_trash`, `fs_paths`. */
 export function createTauriFileSystem(
-	_bindings: TauriBindings,
-	_paths: FileSystem["paths"],
+	bindings: TauriBindings,
+	paths: FileSystem["paths"],
 ): FileSystem {
 	return {
-		readText: () => notImplemented("PLAT-02"),
-		writeTextAtomic: () => notImplemented("PLAT-02"),
-		exists: () => notImplemented("PLAT-02"),
-		stat: () => notImplemented("PLAT-02"),
-		mkdirp: () => notImplemented("PLAT-02"),
-		readDir: () => notImplemented("PLAT-02"),
-		trash: () => notImplemented("PLAT-02"),
-		paths: _paths,
+		readText: (path) => invokeResult<string>(bindings, COMMANDS.fsReadText, { path }),
+		writeTextAtomic: (path, text) =>
+			invokeResult<void>(bindings, COMMANDS.fsWriteTextAtomic, { path, text }),
+		exists: async (path) => {
+			const result = await invokeResult<FileStat | null>(bindings, COMMANDS.fsStat, { path });
+			return result.ok && result.value !== null;
+		},
+		stat: async (path) => {
+			const result = await invokeResult<FileStat | null>(bindings, COMMANDS.fsStat, { path });
+			if (!result.ok) return result;
+			if (result.value === null) {
+				return err(appError("fs_not_found", `${path} does not exist.`));
+			}
+			return ok(result.value);
+		},
+		mkdirp: (path) => invokeResult<void>(bindings, COMMANDS.fsMkdirp, { path }),
+		readDir: (path) => invokeResult<FileStat[]>(bindings, COMMANDS.fsReadDir, { path }),
+		trash: (path) => invokeResult<void>(bindings, COMMANDS.fsTrash, { path }),
+		paths,
 	};
 }
 
@@ -485,19 +790,39 @@ export function createTauriNotifications(_bindings: TauriBindings): Notification
 }
 
 /** plugin-dialog: `open({ directory: true })`, `open({ multiple })`, `save`, `ask`. */
-export function createTauriDialogs(): Dialogs {
+export function createTauriDialogs(bindings: TauriBindings = realTauriBindings): Dialogs {
 	return {
-		pickFolder: () => notImplemented("PLAT-02"),
-		pickFiles: () => notImplemented("PLAT-02"),
-		pickSavePath: () => notImplemented("PLAT-02"),
-		confirm: () => notImplemented("PLAT-02"),
+		pickFolder: async (options) => {
+			const selected = await requireBinding(bindings.dialog, "dialog").open({
+				title: options.title,
+				defaultPath: options.defaultPath,
+				directory: true,
+				multiple: false,
+			});
+			return typeof selected === "string" ? selected : null;
+		},
+		pickFiles: async (options) => {
+			const selected = await requireBinding(bindings.dialog, "dialog").open({
+				title: options.title,
+				directory: false,
+				multiple: options.multiple,
+			});
+			if (Array.isArray(selected)) return selected;
+			return typeof selected === "string" ? [selected] : [];
+		},
+		pickSavePath: (options) => requireBinding(bindings.dialog, "dialog").save(options),
+		confirm: (options) =>
+			requireBinding(bindings.dialog, "dialog").ask(options.message, {
+				title: options.title,
+				okLabel: options.okLabel,
+			}),
 	};
 }
 
 /** plugin-opener: `openUrl`; `reveal_in_finder { path }`, `open_with { appName, path }`, `installed_apps`. */
-export function createTauriOpener(_bindings: TauriBindings): Opener {
+export function createTauriOpener(bindings: TauriBindings = realTauriBindings): Opener {
 	return {
-		openUrl: () => notImplemented("PLAT-02"),
+		openUrl: (url) => requireBinding(bindings.opener, "opener").openUrl(url),
 		revealInFinder: () => notImplemented("PLAT-19"),
 		openWith: () => notImplemented("PLAT-19"),
 		installedApps: () => notImplemented("PLAT-19"),
@@ -505,10 +830,10 @@ export function createTauriOpener(_bindings: TauriBindings): Opener {
 }
 
 /** plugin-clipboard-manager: `writeText`, `writeImage`. */
-export function createTauriClipboard(): Clipboard {
+export function createTauriClipboard(bindings: TauriBindings = realTauriBindings): Clipboard {
 	return {
-		writeText: () => notImplemented("PLAT-02"),
-		writeImage: () => notImplemented("PLAT-02"),
+		writeText: (text) => requireBinding(bindings.clipboard, "clipboard").writeText(text),
+		writeImage: (pngBytes) => requireBinding(bindings.clipboard, "clipboard").writeImage(pngBytes),
 	};
 }
 
@@ -604,10 +929,61 @@ export function createTauriHttp(_bindings: TauriBindings): Http {
 	};
 }
 
+interface AppInfoPayload {
+	version: string;
+	channel: "dev" | "release";
+}
+
+interface FsPathsPayload {
+	home: string;
+	appData: string;
+	temp: string;
+	resources: string;
+}
+
 /**
  * Builds the whole Platform. Order: health check, `app_info`, `fs_paths`, database load, then
  * the groups above. Returns the first failure as an `Err`.
  */
-export function createTauriPlatform(_bindings: TauriBindings): Promise<Result<Platform>> {
-	return notImplemented("PLAT-02");
+export async function createTauriPlatform(
+	bindings: TauriBindings = realTauriBindings,
+): Promise<Result<Platform>> {
+	const health = await checkHealth(bindings);
+	if (!health.ok) return health;
+
+	const info = await invokeResult<AppInfoPayload>(bindings, COMMANDS.appInfo);
+	if (!info.ok) return info;
+
+	const paths = await invokeResult<FsPathsPayload>(bindings, COMMANDS.fsPaths);
+	if (!paths.ok) return paths;
+
+	const app = createTauriAppInfo(bindings, info.value);
+	// The slow-statement log stays off until PLAT-18 builds app.writeLog. Wiring the placeholder
+	// here would throw on every slow query, and swallowing that error would be a fake success.
+	const database = await createTauriDatabase(bindings);
+	if (!database.ok) return database;
+
+	const platform: Platform = {
+		app,
+		db: database.value,
+		shell: createTauriShell(bindings),
+		fs: createTauriFileSystem(bindings, paths.value),
+		fileSearch: createTauriFileSearch(bindings),
+		pty: createTauriPty(bindings),
+		sidecar: createTauriSidecar(bindings),
+		keychain: createTauriKeychain(bindings),
+		notifications: createTauriNotifications(bindings),
+		dialogs: createTauriDialogs(bindings),
+		opener: createTauriOpener(bindings),
+		clipboard: createTauriClipboard(bindings),
+		speech: createTauriSpeech(bindings),
+		updater: createTauriUpdater(bindings),
+		window: createTauriWindow(bindings),
+		menu: createTauriMenu(bindings),
+		system: createTauriSystem(bindings),
+		attachments: createTauriAttachments(bindings),
+		programs: createTauriPrograms(bindings),
+		http: createTauriHttp(bindings),
+	};
+	return ok(platform);
 }

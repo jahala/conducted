@@ -54,6 +54,7 @@ export function LoadableView<T>({
 		return (
 			<EmptyState
 				compact={compact}
+				tone="failed"
 				title={errorTitle}
 				body={value.error.message}
 				action={

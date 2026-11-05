@@ -10,8 +10,18 @@
  * read-only states, an error state with its message linked by aria-describedby, a label tied to its field.
  * Test first: a Label with htmlFor names its Input, and the Input shows the accent edge class on focus.
  */
-import { notImplemented } from "@conducted/shared";
+
 import type { InputHTMLAttributes, LabelHTMLAttributes, Ref, TextareaHTMLAttributes } from "react";
+import { useId, useState } from "react";
+import { cn } from "./cn.ts";
+
+const fieldClass =
+	"rounded-md border bg-transparent text-sm text-fg transition-colors placeholder:text-fg-subtle disabled:cursor-not-allowed disabled:opacity-50 read-only:bg-muted";
+
+function edgeClass(focused: boolean, error: string | undefined): string {
+	if (error) return "border-danger";
+	return focused ? "border-accent" : "border-border-strong";
+}
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 	/** Message shown under the field and read with it. */
@@ -19,8 +29,49 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 	ref?: Ref<HTMLInputElement>;
 }
 
-export function Input(_props: InputProps): never {
-	return notImplemented("APP-12");
+export function Input({
+	error,
+	className,
+	id,
+	ref,
+	onFocus,
+	onBlur,
+	"aria-describedby": ariaDescribedBy,
+	"aria-invalid": ariaInvalid,
+	...rest
+}: InputProps) {
+	const [focused, setFocused] = useState(false);
+	const generatedId = useId();
+	const errorId = `${id ?? generatedId}-error`;
+	const describedBy = error
+		? [ariaDescribedBy, errorId].filter(Boolean).join(" ")
+		: ariaDescribedBy;
+
+	return (
+		<>
+			<input
+				id={id}
+				ref={ref}
+				aria-invalid={error ? true : ariaInvalid}
+				aria-describedby={describedBy}
+				className={cn(fieldClass, "h-8 px-3", edgeClass(focused, error), className)}
+				onFocus={(event) => {
+					setFocused(true);
+					onFocus?.(event);
+				}}
+				onBlur={(event) => {
+					setFocused(false);
+					onBlur?.(event);
+				}}
+				{...rest}
+			/>
+			{error ? (
+				<p id={errorId} className="mt-1 text-xs text-danger">
+					{error}
+				</p>
+			) : null}
+		</>
+	);
 }
 
 export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
@@ -28,12 +79,54 @@ export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElemen
 	ref?: Ref<HTMLTextAreaElement>;
 }
 
-export function Textarea(_props: TextareaProps): never {
-	return notImplemented("APP-12");
+export function Textarea({
+	error,
+	className,
+	id,
+	ref,
+	onFocus,
+	onBlur,
+	"aria-describedby": ariaDescribedBy,
+	"aria-invalid": ariaInvalid,
+	...rest
+}: TextareaProps) {
+	const [focused, setFocused] = useState(false);
+	const generatedId = useId();
+	const errorId = `${id ?? generatedId}-error`;
+	const describedBy = error
+		? [ariaDescribedBy, errorId].filter(Boolean).join(" ")
+		: ariaDescribedBy;
+
+	return (
+		<>
+			<textarea
+				id={id}
+				ref={ref}
+				aria-invalid={error ? true : ariaInvalid}
+				aria-describedby={describedBy}
+				className={cn(fieldClass, "min-h-15 px-3 py-2", edgeClass(focused, error), className)}
+				onFocus={(event) => {
+					setFocused(true);
+					onFocus?.(event);
+				}}
+				onBlur={(event) => {
+					setFocused(false);
+					onBlur?.(event);
+				}}
+				{...rest}
+			/>
+			{error ? (
+				<p id={errorId} className="mt-1 text-xs text-danger">
+					{error}
+				</p>
+			) : null}
+		</>
+	);
 }
 
 export type LabelProps = LabelHTMLAttributes<HTMLLabelElement>;
 
-export function Label(_props: LabelProps): never {
-	return notImplemented("APP-12");
+export function Label({ className, ...rest }: LabelProps) {
+	// biome-ignore lint/a11y/noLabelWithoutControl: callers pass htmlFor or nest their field.
+	return <label className={cn("text-sm font-medium leading-none text-fg", className)} {...rest} />;
 }

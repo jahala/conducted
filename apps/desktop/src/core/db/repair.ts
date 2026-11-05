@@ -10,8 +10,15 @@
  * current time; queued messages that were being sent go back to waiting unless their user
  * message is already stored, and every chat that still has queued rows is paused so nothing is
  * sent without the user; workspaces stuck in `initializing` become `failed`; workspaces in
- * `archiving` are only reported, because deciding needs the file system; open terminals get an
- * end time; unread counts are not touched; running repair twice changes nothing the second time.
+ * `archiving` are left as they are and reported with whether their worktree folder still exists,
+ * so the archive flow (WS-05) can finish or roll back; open terminals get an end time; unread
+ * counts are not touched; running repair twice changes nothing the second time.
+ * Replay rule: the sidecar starts after repair and replays events the app never acknowledged.
+ * For a turn repair closed, ingest keeps late agent output in the log for its audit trail, but
+ * drops a second `turn_ended` and applies no further effects, so the turn keeps the single
+ * `interrupted` end written here (DATA-04). Repair therefore closes each open turn exactly once.
+ * Not yet covered: a turn the agent starts itself (AGENT-15) has no user message, so
+ * `findInterruptedTurns` does not find it. Its start event must make the turn findable.
  * Test first: after repair, a chat with a user_message and no turn_ended gains one turn_ended
  * event with outcome "interrupted", and a second run adds none.
  */
@@ -19,19 +26,26 @@ import { idleLiveState, type SessionEvent } from "@conducted/protocol";
 import {
 	type Clock,
 	type EventId,
+	err,
 	type IdSource,
-	notImplemented,
+	ok,
 	type Result,
 	type SessionId,
 	type TurnId,
 	type WorkspaceId,
 } from "@conducted/shared";
 import type { Database, FileSystem } from "../../platform/platform.ts";
-import { SESSION_EVENTS_SQL } from "./session-events.ts";
+import { executeStatement, inTransaction, selectRows } from "./row-codec.ts";
+import { SESSION_EVENTS_SQL, sessionEventToParams } from "./session-events.ts";
 
 export const REPAIR_SQL = {
-	/** Step 1 (`$1` idle live state as JSON, `$2` now): every stored live state becomes idle. */
-	resetLiveStates: "UPDATE session_live_state SET live_state = $1, updated_at = $2",
+	/**
+	 * Step 1 (`$1` idle live state as JSON, `$2` now): every chat still marked working becomes
+	 * idle. A row already idle is left alone, so a second run changes nothing. `IS NOT` is
+	 * NULL-safe, so a row whose stored status is missing is reset too.
+	 */
+	resetLiveStates: `UPDATE session_live_state SET live_state = $1, updated_at = $2
+		WHERE json_extract(live_state, '$.status') IS NOT 'idle'`,
 	/** Step 2a: turns with a user message and no turn_ended, as (session_id, turn_id) rows. */
 	findInterruptedTurns: SESSION_EVENTS_SQL.findInterruptedTurns,
 	/** Step 2b: appends the turn_ended event for each turn found, with the idempotent append. */
@@ -78,12 +92,18 @@ export interface ArchivingWorkspace {
 	id: WorkspaceId;
 	path: string;
 	archiveCommit: string | null;
+	/** Whether the worktree folder is still on disk when repair runs. */
+	folderExists: boolean;
 }
 
-export const archivingWorkspaceFromRow = (row: ArchivingWorkspaceRow): ArchivingWorkspace => ({
+export const archivingWorkspaceFromRow = (
+	row: ArchivingWorkspaceRow,
+	folderExists: boolean,
+): ArchivingWorkspace => ({
 	id: row.id,
 	path: row.path,
 	archiveCommit: row.archive_commit,
+	folderExists,
 });
 
 /** What repair did, for the log and for the services that start after it. */
@@ -98,7 +118,7 @@ export interface RepairReport {
 	/** Chats that were paused because they still have queued messages. */
 	chatsPaused: number;
 	workspacesFailed: number;
-	/** Workspaces left in `archiving`; repair does not change them. */
+	/** Workspaces left in `archiving`; repair does not change their state. */
 	archivingWorkspaces: ArchivingWorkspace[];
 	terminalsEnded: number;
 }
@@ -129,9 +149,108 @@ export interface RepairDeps {
 /**
  * Runs steps 1 to 5 of REPAIR_SQL in order inside `db.transaction`. For step 2 it loops in
  * TypeScript over the turns the SQL returns and appends one event per turn with
- * `interruptedTurnEvent`, a new id from `ids` and the time from `clock`. Step 6 (unread counts)
- * does nothing on purpose.
+ * `interruptedTurnEvent`, a new id from `ids` and the time from `clock`. Step 4b asks `fs` whether
+ * each archiving workspace's folder is still there; it changes none of their state. Step 6
+ * (unread counts) does nothing on purpose.
  */
-export async function runStartupRepair(_deps: RepairDeps): Promise<Result<RepairReport>> {
-	return notImplemented("DATA-03");
+export async function runStartupRepair(deps: RepairDeps): Promise<Result<RepairReport>> {
+	const { db, fs, clock, ids } = deps;
+	return inTransaction(db, "Repairing state left by a crash", async (tx) => {
+		const now = clock.now();
+
+		const liveStatesReset = await executeStatement(
+			tx,
+			REPAIR_SQL.resetLiveStates,
+			[idleLiveStateJson(), now],
+			"Resetting working chats to idle",
+		);
+		if (!liveStatesReset.ok) return err(liveStatesReset.error);
+
+		const turns = await selectRows<InterruptedTurnRow>(
+			tx,
+			REPAIR_SQL.findInterruptedTurns,
+			[],
+			"Finding turns cut off by a crash",
+		);
+		if (!turns.ok) return err(turns.error);
+		const interruptedTurns: RepairReport["interruptedTurns"] = [];
+		for (const turn of turns.value) {
+			const event = interruptedTurnEvent(turn.turn_id, ids.uuid() as EventId, now);
+			const params = sessionEventToParams(turn.session_id, event, now);
+			if (!params.ok) return err(params.error);
+			const appended = await selectRows<{ idx: number }>(
+				tx,
+				REPAIR_SQL.appendInterruptedEvent,
+				params.value,
+				"Closing a turn cut off by a crash",
+			);
+			if (!appended.ok) return err(appended.error);
+			if (appended.value.length > 0) {
+				interruptedTurns.push({ sessionId: turn.session_id, turnId: turn.turn_id });
+			}
+		}
+
+		const queuedDelivered = await executeStatement(
+			tx,
+			REPAIR_SQL.deleteDeliveredQueued,
+			[],
+			"Removing queued messages that were delivered",
+		);
+		if (!queuedDelivered.ok) return err(queuedDelivered.error);
+
+		const queuedRequeued = await executeStatement(
+			tx,
+			REPAIR_SQL.requeueSending,
+			[now],
+			"Returning half-sent messages to the queue",
+		);
+		if (!queuedRequeued.ok) return err(queuedRequeued.error);
+
+		const chatsPaused = await executeStatement(
+			tx,
+			REPAIR_SQL.pauseChatsWithQueue,
+			[now],
+			"Pausing chats that still have queued messages",
+		);
+		if (!chatsPaused.ok) return err(chatsPaused.error);
+
+		const workspacesFailed = await executeStatement(
+			tx,
+			REPAIR_SQL.failInitializingWorkspaces,
+			[now],
+			"Marking half-built workspaces as failed",
+		);
+		if (!workspacesFailed.ok) return err(workspacesFailed.error);
+
+		const archiving = await selectRows<ArchivingWorkspaceRow>(
+			tx,
+			REPAIR_SQL.listArchivingWorkspaces,
+			[],
+			"Listing workspaces left in archiving",
+		);
+		if (!archiving.ok) return err(archiving.error);
+		const archivingWorkspaces: ArchivingWorkspace[] = [];
+		for (const row of archiving.value) {
+			archivingWorkspaces.push(archivingWorkspaceFromRow(row, await fs.exists(row.path)));
+		}
+
+		const terminalsEnded = await executeStatement(
+			tx,
+			REPAIR_SQL.endOpenTerminals,
+			[now],
+			"Closing terminals left open",
+		);
+		if (!terminalsEnded.ok) return err(terminalsEnded.error);
+
+		return ok({
+			liveStatesReset: liveStatesReset.value,
+			interruptedTurns,
+			queuedDelivered: queuedDelivered.value,
+			queuedRequeued: queuedRequeued.value,
+			chatsPaused: chatsPaused.value,
+			workspacesFailed: workspacesFailed.value,
+			archivingWorkspaces,
+			terminalsEnded: terminalsEnded.value,
+		});
+	});
 }

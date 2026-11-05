@@ -1,29 +1,52 @@
 import { appError, err, ok, type Result } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Loadable } from "../../core/api.ts";
+import type { Repo } from "../../core/model.ts";
 import "../../test/dom-polyfills.ts";
 
 const state = vi.hoisted(() => ({
 	addLocal: vi.fn(),
 	pick: vi.fn(),
 	toastError: vi.fn(),
+	repos: { state: "ready", data: [] } as Loadable<Repo[]>,
 }));
 
 vi.mock("../../core/hooks.ts", () => ({
 	useActions: () => ({ projects: { addLocal: state.addLocal }, app: { pickFolder: state.pick } }),
+	useRepos: () => state.repos,
 }));
 vi.mock("../../ui/Toast.tsx", () => ({ toastError: state.toastError }));
 
 const { AddProjectButton } = await import("./AddProjectButton.tsx");
 
+const repo = (id: string, name: string, updatedAt: number): Repo => ({
+	id: id as Repo["id"],
+	name,
+	rootPath: `/code/${name}`,
+	remoteUrl: null,
+	defaultBranch: "main",
+	icon: null,
+	displayOrder: 0,
+	hidden: false,
+	createdAt: 1,
+	updatedAt,
+});
+
 beforeEach(() => {
 	state.addLocal.mockReset();
 	state.pick.mockReset();
 	state.toastError.mockReset();
+	state.repos = { state: "ready", data: [] };
 });
 afterEach(cleanup);
 
-describe("AddProjectButton", () => {
+describe("PRJ-01 AddProjectButton", () => {
+	it("is the landing screen's Open project button", () => {
+		render(<AddProjectButton variant="default" size="lg" />);
+		expect(screen.getByRole("button", { name: /Open project/ })).toBeTruthy();
+	});
+
 	it("adds the folder the user picked", async () => {
 		state.pick.mockResolvedValue(ok("/code/app"));
 		state.addLocal.mockResolvedValue(ok({}));
@@ -75,5 +98,25 @@ describe("AddProjectButton", () => {
 		expect(state.pick).toHaveBeenCalledTimes(1);
 		release(ok(null));
 		await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+	});
+});
+
+describe("PRJ-01 Add project menu", () => {
+	it("opens the folder dialog from Open project in the menu", async () => {
+		state.repos = { state: "ready", data: [repo("repo-1", "app", 10)] };
+		state.pick.mockResolvedValue(ok("/code/other"));
+		state.addLocal.mockResolvedValue(ok({}));
+		render(<AddProjectButton />);
+		fireEvent.keyDown(screen.getByRole("button", { name: /Add a project/ }), { key: "Enter" });
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Open project..." }));
+		await waitFor(() => expect(state.addLocal).toHaveBeenCalledWith("/code/other"));
+	});
+
+	it("has no Recents group, which the research does not describe", async () => {
+		state.repos = { state: "ready", data: [repo("repo-1", "app", 10)] };
+		render(<AddProjectButton />);
+		fireEvent.keyDown(screen.getByRole("button", { name: /Add a project/ }), { key: "Enter" });
+		expect(await screen.findByRole("menuitem", { name: "Open project..." })).toBeTruthy();
+		expect(screen.queryByText("Recents")).toBeNull();
 	});
 });

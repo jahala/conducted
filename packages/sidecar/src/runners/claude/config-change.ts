@@ -3,9 +3,9 @@
  * Owns: deciding whether a config change can be applied to the running CLI or needs a restart
  * with resume.
  * Behaviour: research/conductor/claude-runner.md section 1.5, config policy table: model and
- * effort are live control requests; plan mode and approvals derive the permission mode (live);
- * fast mode, extra directories and the tool switches need a respawn with --resume; a change during
- * a turn waits for the next turn.
+ * effort are live control requests; plan mode, approvals and the auto permission mode derive the
+ * permission mode (live); fast mode, extra directories and the tool switches need a respawn with
+ * --resume; a change during a turn waits for the next turn.
  * Must handle: no change at all (nothing to do), a mix of live and restart changes (restart wins,
  * since the restart picks up everything), additional directories compared as sets in order of
  * appearance, and an agent or ACP adapter change (never handled here: the manager disposes the
@@ -30,7 +30,9 @@ export function classifyConfigChange(prev: SessionConfig, next: SessionConfig): 
 		model: prev.model !== next.model,
 		effort: prev.effort !== next.effort,
 		permissionMode:
-			prev.planMode !== next.planMode || prev.requireToolApproval !== next.requireToolApproval,
+			prev.planMode !== next.planMode ||
+			prev.requireToolApproval !== next.requireToolApproval ||
+			prev.autoPermissionMode !== next.autoPermissionMode,
 	};
 	const restart =
 		prev.fastMode !== next.fastMode ||

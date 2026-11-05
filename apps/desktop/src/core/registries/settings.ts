@@ -7,19 +7,20 @@
  *   settings that only the user file may set versus settings a repo file may also set.
  * Test first: coercing "true" for a bool returns true, and "maybe" returns a setting_invalid error.
  *
- * Layers, lowest to highest: the default in this table, the user file `~/.conducted/settings.toml`,
- * then the repo file `.conducted/settings.toml`, then the personal repo file `.conducted/settings.local.toml`.
- * This file only describes settings. The store that reads and writes the files is DATA-05.
+ * DATA-05 owns the settings layers, their order and their reading: see `SETTING_LAYERS` in
+ * `core/services/settings.ts`. This file only says which settings.toml files may set a key:
+ * `fileLayers` is "user" (the user file only) or "user-and-repo" (the user file and the repo files).
  *
  * Our design choice: `default_message_send_mode` defaults to "steer" and its values are "steer" and "queue".
  * The research default is `steering` with the other value `queued`.
- * Our design choice: settings that the research marks as cloud, account, billing, organization, remote control,
+ * Our design choice: settings that the research marks as cloud, hosted account, billing, organization, remote control,
  * analytics or internal are left out, as are secrets such as tokens and API keys, which belong in the Keychain.
  */
 import { appError, err, ok, type Result } from "@conducted/shared";
 
 export type SettingPage =
 	| "general"
+	| "account"
 	| "appearance"
 	| "models"
 	| "git"
@@ -35,6 +36,7 @@ export type SettingPage =
 /** "state" is a hidden page for saved screen state that has no settings screen. */
 export const SETTING_PAGES: readonly SettingPage[] = [
 	"general",
+	"account",
 	"appearance",
 	"models",
 	"git",
@@ -51,7 +53,8 @@ export const SETTING_PAGES: readonly SettingPage[] = [
 export type SettingScope = "user" | "repo";
 export type SettingValue = string | number | boolean | string[] | null;
 
-/** Which settings.toml files may set a key. `tomlKey` and `fileLayers` come as a pair. */
+/** Which settings.toml files may set a key. `tomlKey` and `fileLayers` come as a pair.
+ *  "user" is the user file only; "user-and-repo" adds the repo files. DATA-05 reads their order. */
 type FileBacking =
 	| { tomlKey: string; fileLayers: "user" | "user-and-repo" }
 	| { tomlKey?: undefined; fileLayers?: undefined };
@@ -158,6 +161,20 @@ const SETTINGS_TABLE = [
 		type: "bool",
 		default: true,
 	},
+	// Research names this control on the General page with this key and an off default
+	// (ui-map.md 6; services-map.md 4.2.3). The effect on assistant replies belongs to CHAT-06.
+	{
+		key: "not_absolutely_right",
+		page: "general",
+		scopes: ["user"],
+		title: "I'm not absolutely right, thank you very much",
+		description:
+			"Remove a leading claim that the answer is absolutely right from assistant replies.",
+		searchTerms: ["absolutely right", "sycophancy", "strip", "preamble", "phrase"],
+		feature: "CHAT-06",
+		type: "bool",
+		default: false,
+	},
 	// Our design choice: off, which matches the description of the default behaviour.
 	{
 		key: "always_show_context_wheel",
@@ -219,6 +236,26 @@ const SETTINGS_TABLE = [
 		feature: "SET-02",
 		type: "bool",
 		default: false,
+	},
+	// Research keeps the values cli and pat; conductor-app needs Conductor's hosted service (D029).
+	// An empty value means no explicit choice: a saved token resolves to pat, otherwise cli
+	// (services-map.md 3.9).
+	{
+		key: "gh_auth_method",
+		page: "account",
+		scopes: ["user"],
+		title: "GitHub sign-in method",
+		description:
+			"Choose how the app signs in to GitHub. Automatic uses a saved personal access token when there is one, and the gh command's own login otherwise.",
+		searchTerms: ["github", "auth", "sign in", "cli", "token", "pat", "personal access token"],
+		feature: "PR-01",
+		type: "enum",
+		default: "",
+		options: [
+			{ value: "", label: "Automatic" },
+			{ value: "cli", label: "GitHub CLI" },
+			{ value: "pat", label: "Personal access token" },
+		],
 	},
 	// Our design choice: follow the system, as the research gives no default.
 	{
