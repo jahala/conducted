@@ -5,6 +5,8 @@
  * Our design choice: a few hand-drawn line icons instead of an icon library. A file-type icon set for the
  * file tree is a separate decision for the git-panel owner.
  * Must handle: decorative by default (aria-hidden); the button that holds an icon carries the accessible name.
+ * The status, git and tool-card families cover the marks those rows need; the file-type set in the file tree
+ * remains a separate decision, as noted above.
  * Test first: every icon renders an svg with aria-hidden.
  */
 import type { SVGProps } from "react";
@@ -64,3 +66,78 @@ export const PullRequestIcon = (p: P) => (
 		{...p}
 	/>
 );
+export const CheckIcon = (p: P) => <Icon d="M3 8.5l3 3 7-7" {...p} />;
+export const DotIcon = (p: P) => (
+	<Icon d="M8 11.25a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5z" {...p} />
+);
+export const CircleIcon = (p: P) => (
+	<Icon d="M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11z" {...p} />
+);
+export const ClockIcon = (p: P) => (
+	<Icon d="M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM8 5v3.5l2 1.5" {...p} />
+);
+export const EyeIcon = (p: P) => (
+	<Icon
+		d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8zM8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"
+		{...p}
+	/>
+);
+export const CheckCircleIcon = (p: P) => (
+	<Icon d="M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM5.5 8l1.75 1.75L10.5 6.5" {...p} />
+);
+export const XCircleIcon = (p: P) => (
+	<Icon d="M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM6 6l4 4M10 6l-4 4" {...p} />
+);
+export const GitBranchIcon = (p: P) => (
+	<Icon
+		d="M4.5 4.5a1.25 1.25 0 1 0 0-.01zM4.5 11.5a1.25 1.25 0 1 0 0-.01zM4.5 5.75v4.5M11.5 4.5a1.25 1.25 0 1 0 0-.01zM11.5 5.75c0 3.25-3.25 3.25-5.5 3.75"
+		{...p}
+	/>
+);
+export const GitCommitIcon = (p: P) => (
+	<Icon d="M8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM1.5 8h4.5M10 8h4.5" {...p} />
+);
+export const GitMergeIcon = (p: P) => (
+	<Icon
+		d="M4.5 4.5a1.25 1.25 0 1 0 0-.01zM4.5 11.5a1.25 1.25 0 1 0 0-.01zM4.5 5.75v4.5M11.5 11.5a1.25 1.25 0 1 0 0-.01zM11.5 10.25V8a3 3 0 0 0-3-3H8"
+		{...p}
+	/>
+);
+export const PencilIcon = (p: P) => (
+	<Icon d="M10.5 2.5l3 3-7.5 7.5-3.5.5.5-3.5zM8.5 4.5l3 3" {...p} />
+);
+export const FileTextIcon = (p: P) => (
+	<Icon d="M4 2.5h5l3 3v8H4zM9 2.5v3h3M6 8h4M6 10.5h4" {...p} />
+);
+export const ListTodoIcon = (p: P) => (
+	<Icon d="M6 4.5h7M6 8h7M6 11.5h7M2.5 4.5l1 1 1.5-1.5M2.5 8l1 1L5 7.5M2.5 11.5l1 1L5 11" {...p} />
+);
+export const WrenchIcon = (p: P) => (
+	<Icon
+		d="M10.5 2.5a3 3 0 0 0-2.6 4.5L3 11.9l1.1 1.1 4.9-4.9A3 3 0 0 0 13.5 5.5L11.7 7.3 9.5 6.5 8.7 4.3z"
+		{...p}
+	/>
+);
+export const statusIcons = {
+	backlog: CircleIcon,
+	progress: ClockIcon,
+	review: EyeIcon,
+	done: CheckCircleIcon,
+	canceled: XCircleIcon,
+} as const;
+export const gitIcons = {
+	branch: GitBranchIcon,
+	commit: GitCommitIcon,
+	merge: GitMergeIcon,
+	pullRequest: PullRequestIcon,
+} as const;
+export const toolIcons = {
+	terminal: TerminalIcon,
+	file: FileIcon,
+	read: FileTextIcon,
+	edit: PencilIcon,
+	search: SearchIcon,
+	globe: GlobeIcon,
+	todo: ListTodoIcon,
+	other: WrenchIcon,
+} as const;

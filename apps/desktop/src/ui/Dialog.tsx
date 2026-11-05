@@ -6,9 +6,9 @@
  * medium with line height 1 and tight tracking; description text-sm muted; footer buttons 8px apart). Sizes are
  * the widths Conductor uses: sm 384, md 448, lg 512 (the default), xl 576, 2xl 672, 3xl 768, 4xl 896.
  * Must handle: a title is required (radix needs it for screen readers; `hideTitle` keeps it off screen),
- * focus is trapped and returns to the trigger, Escape and the overlay close it, `Cmd+Enter` confirm is the
- * caller's job, long content scrolls inside the dialog.
- * Test first: opening shows the title and description; Escape calls onOpenChange(false).
+ * focus is trapped and returns to the trigger, Escape and the overlay close it, `Cmd+Enter` calls `onConfirm`
+ * when one is given (ui-map.md 5.4), long content scrolls inside the dialog.
+ * Test first: opening shows the title and description; Escape calls onOpenChange(false); Cmd+Enter confirms.
  */
 import { Dialog as Radix, VisuallyHidden } from "radix-ui";
 import type { ReactNode } from "react";
@@ -24,6 +24,8 @@ export interface DialogContentProps {
 	hideTitle?: boolean;
 	size?: DialogSize;
 	className?: string;
+	/** The action Cmd+Enter runs while the dialog is open. */
+	onConfirm?: () => void;
 	children: ReactNode;
 }
 
@@ -45,6 +47,7 @@ export function DialogContent({
 	hideTitle = false,
 	size = "lg",
 	className,
+	onConfirm,
 	children,
 }: DialogContentProps) {
 	const heading = (
@@ -62,6 +65,12 @@ export function DialogContent({
 					sizeClass[size],
 					className,
 				)}
+				onKeyDown={(event) => {
+					if (event.metaKey && event.key === "Enter" && onConfirm) {
+						event.preventDefault();
+						onConfirm();
+					}
+				}}
 				{...(description ? {} : { "aria-describedby": undefined })}
 			>
 				{hideTitle ? <VisuallyHidden.Root>{heading}</VisuallyHidden.Root> : heading}
