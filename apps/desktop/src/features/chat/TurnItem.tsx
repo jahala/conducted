@@ -13,7 +13,7 @@
  * a block that streams keeps its place on screen (keys come from position, not text); a reverted turn (dimmed, labelled); steers not yet read by the
  * agent (marked pending); footer actions are always visible, on every turn; the agent's retry line names
  * the attempt, Retry now stops the turn and sends the message again, and Retry in new chat hands the turn
- * to the banner.
+ * to the banner; a turn with no user message offers no Retry now or Try again.
  * Test first: A turn with one text block and a tool block renders both in order; a thrown render
  * error shows the boundary text and the next turn still renders; Retry now cancels and resends.
  */
@@ -79,28 +79,38 @@ function outcomeBlock(turn: ChatTurn): Extract<ChatBlock, { kind: "notice" | "er
 export const TurnItem = memo(function TurnItem({ turn, sessionId, retry }: TurnItemProps) {
 	const actions = useActions();
 	const retryFlight = useRef(createSingleFlight()).current;
-	const retryMessage = () => {
-		const message = turn.userMessage;
-		if (message === null) return;
-		void reportFailure(
-			actions.sessions.send(sessionId, message.text, message.attachmentPaths, "auto"),
-			"Couldn't send the message again",
-		);
-	};
+	const message = turn.userMessage;
+	// A turn the agent started by itself has no message to send again in this chat, so the actions
+	// that resend it are not offered. Showing one that does nothing would be a silent failure.
+	const retryMessage =
+		message === null
+			? undefined
+			: () => {
+					void reportFailure(
+						actions.sessions.send(sessionId, message.text, message.attachmentPaths, "auto"),
+						"Couldn't send the message again",
+					);
+				};
 	// Retry now stops the agent's waiting retry and sends the same message as a fresh turn. The
 	// sidecar starts a new turn when it has gone idle, so a steer request falls back correctly.
-	const retryNow = () => {
-		const message = turn.userMessage;
-		if (message === null) return;
-		void reportFailure(
-			retryFlight.run(`chat:${sessionId}:retry-now`, async () => {
-				const stopped = await actions.sessions.cancel(sessionId);
-				if (!stopped.ok) return stopped;
-				return actions.sessions.send(sessionId, message.text, message.attachmentPaths, "auto");
-			}),
-			"Couldn't retry now",
-		);
-	};
+	const retryNow =
+		message === null
+			? undefined
+			: () => {
+					void reportFailure(
+						retryFlight.run(`chat:${sessionId}:retry-now`, async () => {
+							const stopped = await actions.sessions.cancel(sessionId);
+							if (!stopped.ok) return stopped;
+							return actions.sessions.send(
+								sessionId,
+								message.text,
+								message.attachmentPaths,
+								"auto",
+							);
+						}),
+						"Couldn't retry now",
+					);
+				};
 	const banner = outcomeBlock(turn);
 	const blocks = keyedBlocks(turn.blocks);
 	const retryInNewChat = { sessionId, turnId: turn.turnId };

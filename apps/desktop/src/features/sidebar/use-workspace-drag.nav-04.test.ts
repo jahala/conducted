@@ -59,6 +59,26 @@ describe("NAV-04 useWorkspaceDrag", () => {
 		await vi.waitFor(() => expect(reorder).toHaveBeenCalledWith([id("c"), id("a"), id("b")]));
 	});
 
+	it("places a workspace from another list at the row it was dropped on", async () => {
+		const place = vi.fn(async () => ok(undefined));
+		const { result } = renderHook(() =>
+			useWorkspaceDrag({ order: [id("a"), id("b")], sectionId: "s1" as SectionId, place }),
+		);
+		act(() => result.current.startDrag(id("c")));
+		act(() => result.current.dropOn("row:a", 1, id("c")));
+		await vi.waitFor(() => expect(place).toHaveBeenCalledWith(id("c"), "s1" as SectionId, 1));
+	});
+
+	it("places a workspace from another list even when manual order is off", async () => {
+		const place = vi.fn(async () => ok(undefined));
+		const { result } = renderHook(() =>
+			useWorkspaceDrag({ order: [id("a"), id("b")], sectionId: "s1" as SectionId, place }),
+		);
+		act(() => result.current.startDrag(id("c")));
+		act(() => result.current.dropOn("row:b", 0, id("c")));
+		await vi.waitFor(() => expect(place).toHaveBeenCalledWith(id("c"), "s1" as SectionId, 1));
+	});
+
 	it("does not reorder when manual order is off", () => {
 		const reorder = vi.fn(async () => ok(undefined));
 		const { result } = renderHook(() => useWorkspaceDrag({ order: [id("a"), id("b")], reorder }));

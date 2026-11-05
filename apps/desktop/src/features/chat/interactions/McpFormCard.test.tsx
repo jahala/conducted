@@ -2,8 +2,15 @@
  * Tests for CHAT-11: the MCP form card renders a server's form and sends the values.
  */
 import type { Interaction, InteractionAnswer } from "@conducted/protocol";
-import { appError, err, type InteractionId, ok, type SessionId } from "@conducted/shared";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+	appError,
+	type Clock,
+	err,
+	type InteractionId,
+	ok,
+	type SessionId,
+} from "@conducted/shared";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "../../../test/dom-polyfills.ts";
 import { ServicesProvider } from "../../../core/context.tsx";
@@ -56,7 +63,11 @@ const unknownForm: McpForm = {
 let test: TestContainer;
 let answer: ReturnType<typeof vi.fn>;
 
-const renderCard = (form: McpForm = requiredString, expiresAt: number | null = null) =>
+const renderCard = (
+	form: McpForm = requiredString,
+	expiresAt: number | null = null,
+	clock?: Clock,
+) =>
 	render(
 		<ServicesProvider container={test.container}>
 			<McpFormCard
@@ -64,6 +75,7 @@ const renderCard = (form: McpForm = requiredString, expiresAt: number | null = n
 				interactionId={interactionId}
 				request={form}
 				expiresAt={expiresAt}
+				clock={clock}
 			/>
 		</ServicesProvider>,
 	);
@@ -79,6 +91,7 @@ beforeEach(() => {
 
 afterEach(() => {
 	cleanup();
+	vi.useRealTimers();
 	test.close();
 });
 
@@ -165,6 +178,22 @@ describe("CHAT-11 MCP form card", () => {
 		expect(answer).not.toHaveBeenCalled();
 	});
 
+	it("shows that it timed out when the clock passes the expiry while the card is open", () => {
+		vi.useFakeTimers();
+		let now = 1_000;
+		const clock: Clock = { now: () => now };
+		renderCard(requiredString, 5_000, clock);
+
+		expect(screen.queryByText(/timed out/)).toBeNull();
+		act(() => {
+			now = 5_000;
+			vi.advanceTimersByTime(4_000);
+		});
+
+		expect(screen.getByText(/timed out/)).toBeTruthy();
+		expect(screen.queryByRole("button", { name: "Accept" })).toBeNull();
+	});
+
 	it("shows what was chosen after the answer", async () => {
 		renderCard();
 
@@ -187,7 +216,9 @@ describe("CHAT-11 MCP form card", () => {
 		});
 		fireEvent.click(acceptButton());
 
-		expect(await screen.findByText("Could not send the answer. Try again.")).toBeTruthy();
+		expect(
+			await screen.findByText(/Could not send the answer: The sidecar is not running\./),
+		).toBeTruthy();
 		fireEvent.click(acceptButton());
 		await waitFor(() => expect(answer).toHaveBeenCalledTimes(2));
 	});

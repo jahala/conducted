@@ -27,7 +27,17 @@ vi.mock("../../core/hooks.ts", () => ({
 		if (key === "sidebar_sort_by") return settings.sort;
 		return settings.filter;
 	},
-	useActions: () => ({ settings: { set: settings.set } }),
+	useActions: () => ({
+		settings: { set: settings.set },
+		sections: { place: vi.fn(async () => ({ ok: true, value: undefined })) },
+	}),
+	useRepos: () => ({
+		state: "ready",
+		data: [
+			{ id: "app", name: "app", hidden: false, displayOrder: 0 },
+			{ id: "api", name: "api", hidden: false, displayOrder: 1 },
+		],
+	}),
 	useShortcutOverrides: () => ({ overrides: {}, error: null }),
 }));
 
@@ -153,8 +163,8 @@ describe("NAV-03 GroupedWorkspaces", () => {
 				]}
 			/>,
 		);
-		expect(await screen.findByRole("region", { name: "Pinned" })).toBeTruthy();
-		const pinned = screen.getByRole("region", { name: "Pinned" });
+		expect(await screen.findByRole("region", { name: "Pinned workspaces" })).toBeTruthy();
+		const pinned = screen.getByRole("region", { name: "Pinned workspaces" });
 		expect(within(pinned).getAllByTestId("workspace-row")).toHaveLength(1);
 		expect(within(pinned).getByText("one")).toBeTruthy();
 		const app = screen.getByRole("region", { name: "app" });
@@ -258,11 +268,11 @@ describe("NAV-03 GroupedWorkspaces", () => {
 		expect(settings.set).toHaveBeenCalledWith("sidebar_group_by", "status");
 	});
 
-	it("explains that grouping by section is not available yet", async () => {
+	it("shows the list when the saved grouping is section", async () => {
 		settings.group = "section";
 		renderWithRouter(<GroupedWorkspaces repos={[repo("app")]} workspaces={[workspace("one")]} />);
-		expect(await screen.findByText("Grouping by section is not available yet.")).toBeTruthy();
-		expect(screen.queryByRole("region", { name: "app" })).toBeNull();
+		expect(await screen.findByRole("region", { name: "app" })).toBeTruthy();
+		expect(screen.queryByText("Grouping by section is not available yet.")).toBeNull();
 	});
 
 	it("uses the same row order for Cmd+1..9 and previous/next", async () => {

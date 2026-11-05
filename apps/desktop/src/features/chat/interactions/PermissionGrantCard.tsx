@@ -1,25 +1,25 @@
 /**
  * @feature CHAT-11 Permission grant card
- * Owns: The card for Codex asking for more access (file system, network or command) than its
- * sandbox allows.
+ * Owns: The card for Codex asking for more access (file system or network) than its sandbox
+ * allows.
  * Behaviour: other-runners.md 4 (Codex permission grants), ui-map.md 3.3 ('Network access' card
  * with Deny and Approve).
  * Our design choice: Approve grants the request for this turn; 'Approve for this session' grants
  * it for the rest of the chat. The card shows the description, the reason, every requested path
- * with its access, and a 'Network access' note when the request asks to reach the network.
+ * with its access, and a 'Network access' card with Deny and Approve when the request asks to
+ * reach the network.
  * Must handle: A request that expires (`expiresAt`) shows that it timed out and takes no answer; a
- * double click sends one answer; a failed answer says so and lets the user try again. The caller
- * removes the card when the interaction is withdrawn.
+ * double click sends one answer; a failed answer shows the error and lets the user try again. The
+ * caller removes the card when the interaction is withdrawn.
  * Test first: Approve calls sessions.answer with kind permission_grant and granted true.
  */
 
 import type { Interaction, InteractionAnswer } from "@conducted/protocol";
-import { CODEX_INTERACTION_TIMEOUT_MS } from "@conducted/protocol";
-import type { InteractionId, SessionId } from "@conducted/shared";
-import { useEffect, useRef, useState } from "react";
-import { useActions } from "../../../core/hooks.ts";
+import type { Clock, InteractionId, SessionId } from "@conducted/shared";
 import { Button } from "../../../ui/Button.tsx";
 import { withKeys } from "../tools/ToolCardFrame.tsx";
+import { TIMED_OUT_TEXT, useExpiry } from "./use-expiry.ts";
+import { useInteractionAnswer } from "./use-interaction-answer.ts";
 
 export interface PermissionGrantCardProps {
 	sessionId: SessionId;
@@ -29,6 +29,8 @@ export interface PermissionGrantCardProps {
 	expiresAt?: number | null;
 	/** The agent already stopped waiting. */
 	timedOut?: boolean;
+	/** The clock the expiry timer reads. Tests pass a fake one. */
+	clock?: Clock;
 }
 
 type Access = Extract<Interaction, { kind: "permission_grant" }>["paths"][number]["access"];
@@ -39,64 +41,75 @@ const ACCESS_LABEL: Record<Access, string> = {
 	deny: "Keep blocked",
 };
 
-const TIMEOUT_MINUTES = Math.round(CODEX_INTERACTION_TIMEOUT_MS / 60_000);
-
 export function PermissionGrantCard({
 	sessionId,
 	interactionId,
 	request,
 	expiresAt = null,
 	timedOut = false,
+	clock,
 }: PermissionGrantCardProps) {
-	const actions = useActions();
-	const [expired, setExpired] = useState(false);
-	const [pending, setPending] = useState(false);
-	const [failed, setFailed] = useState(false);
-	const [chosen, setChosen] = useState<string | null>(null);
-	const busy = useRef(false);
-
-	useEffect(() => {
-		if (expiresAt === null) return;
-		const remaining = expiresAt - Date.now();
-		if (remaining <= 0) {
-			setExpired(true);
-			return;
-		}
-		const timer = setTimeout(() => setExpired(true), Math.min(remaining, 2_147_483_647));
-		return () => clearTimeout(timer);
-	}, [expiresAt]);
-
+	const expired = useExpiry(expiresAt, clock);
 	const timedOutNow = timedOut || expired;
+	const answerState = useInteractionAnswer<
+		Extract<InteractionAnswer, { kind: "permission_grant" }>
+	>({
+		sessionId,
+		interactionId,
+		blocked: timedOutNow,
+		labelFor: (answer) =>
+			answer.granted
+				? answer.grantFor === "session"
+					? "Approved for this session"
+					: "Approved for this turn"
+				: "Denied",
+	});
+	const pending = answerState.pending !== null;
 	const paths = withKeys(
 		request.paths,
 		(path) => `${path.pathKind}:${path.path}:${path.access}`,
 		"path",
 	);
 
-	async function send(granted: boolean, grantFor: "turn" | "session"): Promise<void> {
-		if (busy.current || chosen !== null || timedOutNow) return;
-		busy.current = true;
-		setPending(true);
-		setFailed(false);
-		const answer: Extract<InteractionAnswer, { kind: "permission_grant" }> = granted
-			? { kind: "permission_grant", granted: true, grantFor }
-			: { kind: "permission_grant", granted: false };
-		const result = await actions.sessions.answer(sessionId, interactionId, answer);
-		if (!result.ok) {
-			busy.current = false;
-			setPending(false);
-			setFailed(true);
-			return;
-		}
-		setChosen(
+	function send(granted: boolean, grantFor: "turn" | "session"): void {
+		void answerState.answer(
 			granted
-				? grantFor === "session"
-					? "Approved for this session"
-					: "Approved for this turn"
-				: "Denied",
+				? { kind: "permission_grant", granted: true, grantFor }
+				: { kind: "permission_grant", granted: false },
 		);
-		setPending(false);
 	}
+
+	const turnButtons = (
+		<>
+			<Button
+				onClick={() => send(true, "turn")}
+				loading={
+					answerState.pending?.granted === true && answerState.pending.grantFor !== "session"
+				}
+				disabled={pending}
+			>
+				Approve
+			</Button>
+			<Button
+				variant="outline"
+				onClick={() => send(false, "turn")}
+				loading={answerState.pending?.granted === false}
+				disabled={pending}
+			>
+				Deny
+			</Button>
+		</>
+	);
+	const sessionButton = (
+		<Button
+			variant="secondary"
+			onClick={() => send(true, "session")}
+			loading={answerState.pending?.grantFor === "session"}
+			disabled={pending}
+		>
+			Approve for this session
+		</Button>
+	);
 
 	return (
 		<fieldset
@@ -120,38 +133,39 @@ export function PermissionGrantCard({
 				</ul>
 			)}
 
-			{request.network ? (
-				<div className="rounded-md border border-warning-border bg-warning-surface px-2 py-1.5">
-					<p className="text-sm font-medium text-warning-fg">Network access</p>
-					<p className="text-xs text-warning-fg">This request also asks to reach the network.</p>
-				</div>
-			) : null}
-
-			{failed ? (
+			{answerState.failed === null ? null : (
 				<p role="alert" className="text-xs text-danger">
-					Could not send the answer. Try again.
+					Could not send the answer: {answerState.failed}
 				</p>
-			) : null}
+			)}
 
 			{timedOutNow ? (
 				<p role="status" className="text-sm text-fg-muted">
-					This request timed out after {TIMEOUT_MINUTES} minutes. The agent stopped waiting.
+					{TIMED_OUT_TEXT}
 				</p>
-			) : chosen !== null ? (
+			) : answerState.chosen !== null ? (
 				<p role="status" className="text-sm font-medium text-fg">
-					{chosen}
+					{answerState.chosen}
 				</p>
 			) : (
-				<div className="flex flex-wrap items-center gap-2">
-					<Button onClick={() => void send(true, "turn")} loading={pending}>
-						Approve
-					</Button>
-					<Button variant="secondary" onClick={() => void send(true, "session")} disabled={pending}>
-						Approve for this session
-					</Button>
-					<Button variant="outline" onClick={() => void send(false, "turn")} disabled={pending}>
-						Deny
-					</Button>
+				<div className="flex flex-col gap-2">
+					{request.network ? (
+						<section
+							aria-label="Network access"
+							className="flex flex-col gap-2 rounded-lg border border-warning-border bg-warning-surface p-2"
+						>
+							<div className="flex flex-col gap-1">
+								<p className="text-sm font-medium text-warning-fg">Network access</p>
+								<p className="text-xs text-warning-fg">
+									This request also asks to reach the network.
+								</p>
+							</div>
+							<div className="flex flex-wrap items-center gap-2">{turnButtons}</div>
+						</section>
+					) : (
+						<div className="flex flex-wrap items-center gap-2">{turnButtons}</div>
+					)}
+					{sessionButton}
 				</div>
 			)}
 		</fieldset>

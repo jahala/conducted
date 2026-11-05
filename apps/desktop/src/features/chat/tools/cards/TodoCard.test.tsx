@@ -32,9 +32,9 @@ describe("CHAT-09 todo card", () => {
 		render(
 			<TodoCard
 				call={view({
-					todos: [
-						{ content: "Write the test", status: "pending" },
-						{ content: "Run the test", status: "completed" },
+					items: [
+						{ label: "Write the test", status: "pending" },
+						{ label: "Run the test", status: "done" },
 					],
 				})}
 				sessionId={sessionId}
@@ -50,7 +50,7 @@ describe("CHAT-09 todo card", () => {
 	it("shows 'Todo started' while work remains", () => {
 		render(
 			<TodoCard
-				call={view({ todos: [{ content: "One", status: "in_progress" }] })}
+				call={view({ items: [{ label: "One", status: "in_progress" }] })}
 				sessionId={sessionId}
 				defaultExpanded
 			/>,
@@ -61,7 +61,7 @@ describe("CHAT-09 todo card", () => {
 	it("shows 'Todo completed' when every item is done", () => {
 		render(
 			<TodoCard
-				call={view({ todos: [{ content: "One", status: "completed" }] })}
+				call={view({ items: [{ label: "One", status: "done" }] })}
 				sessionId={sessionId}
 				defaultExpanded
 			/>,
@@ -70,7 +70,7 @@ describe("CHAT-09 todo card", () => {
 	});
 
 	it("shows 'No todos' for an empty list", () => {
-		render(<TodoCard call={view({ todos: [] })} sessionId={sessionId} defaultExpanded />);
+		render(<TodoCard call={view({ items: [] })} sessionId={sessionId} defaultExpanded />);
 		expect(screen.getByText("No todos")).toBeTruthy();
 	});
 
@@ -84,5 +84,37 @@ describe("CHAT-09 todo card", () => {
 		);
 		expect(screen.getByText("TodoRead")).toBeTruthy();
 		expect(screen.getByText("current list")).toBeTruthy();
+	});
+
+	it("falls back to the generic card for a status outside the neutral set", () => {
+		render(
+			<TodoCard
+				call={view(
+					{ items: [{ label: "One", status: "running" }] },
+					{ rawName: "TodoWrite", output: "raw call" },
+				)}
+				sessionId={sessionId}
+				defaultExpanded
+			/>,
+		);
+		expect(screen.queryAllByRole("listitem")).toHaveLength(0);
+		expect(screen.getByText("TodoWrite")).toBeTruthy();
+		expect(screen.getByText("raw call")).toBeTruthy();
+	});
+
+	it("falls back to the generic card when an entry has no label", () => {
+		render(
+			<TodoCard
+				call={view(
+					{ items: [{ status: "pending" }] },
+					{ rawName: "TodoWrite", output: "raw call" },
+				)}
+				sessionId={sessionId}
+				defaultExpanded
+			/>,
+		);
+		expect(screen.queryAllByRole("listitem")).toHaveLength(0);
+		expect(screen.getByText("TodoWrite")).toBeTruthy();
+		expect(screen.getByText("raw call")).toBeTruthy();
 	});
 });

@@ -80,6 +80,32 @@ describe("NAV-05 home-query", () => {
 		expect(page.items).toHaveLength(1);
 	});
 
+	it("finds a workspace by display name", () => {
+		const page = queryHome({
+			workspaces: [
+				workspace("one", { displayName: "Fix the login" }),
+				workspace("two", { displayName: "Update docs" }),
+			],
+			repos: [repo("app")],
+			filters: { ...FILTERS, search: "login" },
+			pageCount: 1,
+		});
+		expect(page.items.map((row) => row.id)).toEqual(["one"]);
+	});
+
+	it("finds a workspace by pull request title", () => {
+		const page = queryHome({
+			workspaces: [
+				workspace("one", { displayName: "one", prTitle: "Fix the login" }),
+				workspace("two", { displayName: "two" }),
+			],
+			repos: [repo("app")],
+			filters: { ...FILTERS, search: "login" },
+			pageCount: 1,
+		});
+		expect(page.items.map((row) => row.id)).toEqual(["one"]);
+	});
+
 	it("matches the repository name as well as the workspace fields", () => {
 		const page = queryHome({
 			workspaces: [
@@ -93,7 +119,7 @@ describe("NAV-05 home-query", () => {
 		expect(page.items.map((row) => row.id)).toEqual(["one"]);
 	});
 
-	it("pages by 50 and reports the rest", () => {
+	it("grows by 50 per page and reports the rest", () => {
 		const workspaces = Array.from({ length: 60 }, (_, index) =>
 			workspace(`w${String(index).padStart(2, "0")}`),
 		);
@@ -107,24 +133,25 @@ describe("NAV-05 home-query", () => {
 		expect(first.total).toBe(60);
 		expect(first.hasMore).toBe(true);
 
+		// Paging is cumulative: "Show more" keeps the first page and adds the second.
 		const second = queryHome({
 			workspaces,
 			repos: [repo("app")],
 			filters: FILTERS,
 			pageCount: 2,
 		});
-		expect(second.items).toHaveLength(10);
+		expect(second.items).toHaveLength(60);
 		expect(second.hasMore).toBe(false);
 	});
 
-	it("gives an empty list for a page past the end", () => {
+	it("returns every match when more pages are asked for than exist", () => {
 		const page = queryHome({
 			workspaces: [workspace("one")],
 			repos: [repo("app")],
 			filters: FILTERS,
 			pageCount: 9,
 		});
-		expect(page.items).toEqual([]);
+		expect(page.items.map((row) => row.id)).toEqual(["one"]);
 		expect(page.hasMore).toBe(false);
 	});
 
@@ -143,6 +170,25 @@ describe("NAV-05 home-query", () => {
 
 		const archived = queryHome({
 			workspaces,
+			repos: [repo("app")],
+			filters: { ...FILTERS, archivedOnly: true },
+			pageCount: 1,
+		});
+		expect(archived.items.map((row) => row.id)).toEqual(["old"]);
+	});
+
+	it("treats a workspace with an archived date as archived before its state catches up", () => {
+		const staleState = workspace("old", { state: "ready", archivedAt: 10 });
+		const active = queryHome({
+			workspaces: [staleState],
+			repos: [repo("app")],
+			filters: FILTERS,
+			pageCount: 1,
+		});
+		expect(active.items).toEqual([]);
+
+		const archived = queryHome({
+			workspaces: [staleState],
 			repos: [repo("app")],
 			filters: { ...FILTERS, archivedOnly: true },
 			pageCount: 1,

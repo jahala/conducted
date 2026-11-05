@@ -101,6 +101,7 @@ export function SectionDialog({ open, onOpenChange, section }: SectionDialogProp
 							value={emoji}
 							aria-label="Emoji"
 							className="w-20 text-center"
+							maxLength={8}
 							onChange={(event) => setEmoji(event.target.value)}
 						/>
 						<div className="flex flex-wrap gap-1">

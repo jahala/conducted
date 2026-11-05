@@ -11,7 +11,7 @@
  * Must handle: Exit at any step (the state is stored so the guide is not shown again); no agent found
  * (the agents step explains how to install one and the user may continue); a project already exists
  * (the screen can be left from any step); finishing fails (a toast, and the step stays); Enter
- * continues, ArrowDown moves to the next step; the window title area stays draggable.
+ * continues, ArrowDown moves to the next step; the window title area stays draggable (from FullPage).
  * Test first: Exiting stores the onboarding state and navigates to '/'; Continue advances one step.
  */
 import { useNavigate } from "@tanstack/react-router";
@@ -225,9 +225,10 @@ export function OnboardingScreen() {
 		void finish();
 	}, [finish, step]);
 
-	// A stored finished state means the guide was left before; do not show it again.
+	// A stored finished state means the guide was left before; do not show it again. A finish in
+	// progress navigates on its own, so the store update does not navigate a second time.
 	useEffect(() => {
-		if (stored >= FINISHED_STEP) void navigate({ to: "/" });
+		if (!leaving.current && stored >= FINISHED_STEP) void navigate({ to: "/" });
 	}, [navigate, stored]);
 
 	useEffect(() => {

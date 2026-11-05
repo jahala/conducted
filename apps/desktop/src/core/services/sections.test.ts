@@ -128,6 +128,46 @@ describe("NAV-04 SectionsService", () => {
 		}
 	});
 
+	it("renumbers the remaining sections densely after a delete", async () => {
+		const test = createTestContainer();
+		try {
+			const service = test.container.services.sections;
+			const first = must(await service.create("First", null));
+			const second = must(await service.create("Second", null));
+			const third = must(await service.create("Third", null));
+			must(await service.remove(second.id));
+			expect(service.store.getState().sections.map((row) => [row.id, row.position])).toEqual([
+				[first.id, 0],
+				[third.id, 1],
+			]);
+		} finally {
+			test.close();
+		}
+	});
+
+	it("renumbers a section's members densely when one moves out", async () => {
+		const test = createTestContainer();
+		try {
+			const repo = await seedRepo(test.container);
+			const first = await seedWorkspace(test.container, { repoId: repo.id });
+			const second = await seedWorkspace(test.container, { repoId: repo.id });
+			const third = await seedWorkspace(test.container, { repoId: repo.id });
+			const service = test.container.services.sections;
+			const created = must(await service.create("Review", null));
+			must(await service.place(first.id, created.id, 0));
+			must(await service.place(second.id, created.id, 1));
+			must(await service.place(third.id, created.id, 2));
+			must(await service.place(second.id, null, 0));
+			expect(service.store.getState().sections[0]?.workspaceIds).toEqual([first.id, third.id]);
+			const positions = await test.database.select<{ position: number }>(
+				"SELECT position FROM section_members ORDER BY position",
+			);
+			expect(positions.map((row) => row.position)).toEqual([0, 1]);
+		} finally {
+			test.close();
+		}
+	});
+
 	it("saves a collapsed section", async () => {
 		const test = createTestContainer();
 		try {

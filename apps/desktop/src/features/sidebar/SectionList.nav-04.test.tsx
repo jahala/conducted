@@ -175,6 +175,38 @@ describe("NAV-04 SectionList", () => {
 		}
 	});
 
+	it("moves a section to the first position when dropped on the top half of a header", async () => {
+		const test = createTestContainer();
+		try {
+			const service = test.container.services.sections;
+			const alpha = must(await service.create("Alpha", null));
+			const beta = must(await service.create("Beta", null));
+			const reorder = vi
+				.spyOn(test.container.actions.sections, "reorder")
+				.mockResolvedValue(ok(undefined));
+			renderWith(
+				test.container,
+				<SectionList sections={service.store.getState().sections} workspaces={[]} />,
+			);
+			const alphaTrigger = await screen.findByRole("button", { name: "Alpha" });
+			const betaTrigger = screen.getByRole("button", { name: "Beta" });
+			const alphaHeader = alphaTrigger.parentElement;
+			if (alphaHeader === null) throw new Error("The section header is missing.");
+			vi.spyOn(alphaHeader, "getBoundingClientRect").mockReturnValue({
+				top: 0,
+				height: 20,
+			} as DOMRect);
+			fireEvent.dragStart(betaTrigger, { dataTransfer: { setData: vi.fn() } });
+			fireEvent.dragOver(alphaHeader);
+			fireEvent.drop(alphaHeader, { clientY: 5 });
+			await waitFor(() =>
+				expect(reorder).toHaveBeenCalledWith([beta.id as SectionId, alpha.id as SectionId]),
+			);
+		} finally {
+			test.close();
+		}
+	});
+
 	it("offers Create in section with the section in the create link", async () => {
 		const test = createTestContainer();
 		try {

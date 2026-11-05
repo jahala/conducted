@@ -114,6 +114,9 @@ describe("APP-02 onboarding agents step", () => {
 						}),
 					),
 		);
+		const cancelLogin = vi
+			.spyOn(test.container.services.agentCatalog, "cancelLogin")
+			.mockResolvedValue(ok(undefined));
 		try {
 			const claude = await screen.findByRole("listitem", { name: "Claude Code" });
 			const codex = screen.getByRole("listitem", { name: "Codex" });
@@ -127,6 +130,7 @@ describe("APP-02 onboarding agents step", () => {
 				}),
 			);
 			await waitFor(() => expect(screen.queryByText("Claude started later.")).toBeNull());
+			await waitFor(() => expect(cancelLogin).toHaveBeenCalledWith("claude-1"));
 			expect(screen.getByText("Codex started first.")).toBeTruthy();
 		} finally {
 			close(test);

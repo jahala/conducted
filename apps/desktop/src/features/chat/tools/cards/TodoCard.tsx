@@ -3,9 +3,9 @@
  * Owns: The card for the agent's todo tool call, drawn with the shared TodoList.
  * Behaviour: ui-map.md 3.3 (Todo: 'No todos', 'Todo started', 'Todo completed'), frontend.md 5
  * (the todo card).
- * Must handle: An empty list ('No todos'); input with no list falls back to the generic card, which
- * still shows the raw name and the output; entries without a label are skipped and an unknown
- * status counts as pending.
+ * Must handle: An empty list ('No todos'); input that is not the neutral todo item shape, an entry
+ * with an unknown status or an entry without a label falls back to the generic card, which still
+ * shows the raw name and the output.
  * Test first: A todo call with two items renders two rows through TodoList.
  */
 import { ListTodoIcon } from "../../../../ui/icons.tsx";
@@ -14,48 +14,35 @@ import { asRecord, ToolCardFrame, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 import { GenericToolCard } from "./GenericToolCard.tsx";
 
-const STATUS_KEYS = {
-	completed: "done",
-	done: "done",
-	in_progress: "in_progress",
-	"in-progress": "in_progress",
-	running: "in_progress",
-} as const;
+const STATUSES: readonly string[] = ["pending", "in_progress", "done"];
 
-function statusOf(value: unknown): TodoItems[number]["status"] {
-	if (typeof value !== "string") return "pending";
-	return STATUS_KEYS[value as keyof typeof STATUS_KEYS] ?? "pending";
+function isStatus(value: unknown): value is TodoItems[number]["status"] {
+	return typeof value === "string" && STATUSES.includes(value);
 }
 
-function labelOf(entry: unknown): string | null {
-	if (typeof entry === "string") return entry === "" ? null : entry;
-	const record = asRecord(entry);
-	for (const key of ["content", "label", "text", "subject"]) {
-		const value = record[key];
-		if (typeof value === "string" && value !== "") return value;
-	}
-	return null;
+/** One entry of the neutral todo item, or null when its label or status is not the neutral shape. */
+function itemFrom(value: unknown): TodoItems[number] | null {
+	const record = asRecord(value);
+	const label = record.label;
+	const status = record.status;
+	if (typeof label !== "string" || label === "" || !isStatus(status)) return null;
+	return { label, status };
 }
 
-function entriesFrom(source: unknown[]): TodoItems {
+/**
+ * The neutral todo items in the call input, or null when the input carries no list or an entry the
+ * neutral shape cannot describe. The sidecar already turns each runner's todo tool into this shape.
+ */
+function readList(input: unknown): TodoItems | null {
+	const list = Array.isArray(input) ? input : asRecord(input).items;
+	if (!Array.isArray(list)) return null;
 	const items: TodoItems = [];
-	for (const entry of source) {
-		const label = labelOf(entry);
-		if (label === null) continue;
-		items.push({ label, status: statusOf(asRecord(entry).status) });
+	for (const entry of list) {
+		const item = itemFrom(entry);
+		if (item === null) return null;
+		items.push(item);
 	}
 	return items;
-}
-
-/** The todo list in the call input, or null when the input carries no list at all. */
-function readList(input: unknown): TodoItems | null {
-	if (Array.isArray(input)) return entriesFrom(input);
-	const record = asRecord(input);
-	for (const key of ["todos", "items"]) {
-		const value = record[key];
-		if (Array.isArray(value)) return entriesFrom(value);
-	}
-	return null;
 }
 
 export function TodoCard(props: ToolCardProps) {

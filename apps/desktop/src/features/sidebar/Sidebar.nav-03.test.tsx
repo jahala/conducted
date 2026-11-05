@@ -7,6 +7,12 @@ import { renderWithRouter } from "../../test/render-with-router.tsx";
 const hooks = vi.hoisted(() => ({
 	repos: { state: "ready", data: [] } as Loadable<Repo[]>,
 	workspaces: { state: "ready", data: [] } as Loadable<Workspace[]>,
+	sectionsStore: {
+		getState: () => ({ loaded: true, sections: [] }),
+		getInitialState: () => ({ loaded: true, sections: [] }),
+		subscribe: () => () => {},
+		setState: () => {},
+	},
 }));
 
 vi.mock("../../core/hooks.ts", () => ({
@@ -17,7 +23,13 @@ vi.mock("../../core/hooks.ts", () => ({
 }));
 
 vi.mock("../../core/context.tsx", () => ({
-	useServices: () => ({ services: { repo: { start: vi.fn() }, workspace: { start: vi.fn() } } }),
+	useServices: () => ({
+		services: {
+			repo: { start: vi.fn() },
+			workspace: { start: vi.fn() },
+			sections: { store: hooks.sectionsStore },
+		},
+	}),
 }));
 
 vi.mock("./AddProjectButton.tsx", () => ({

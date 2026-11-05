@@ -34,7 +34,7 @@ import {
 } from "../../ui/Menu.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { KANBAN_COLUMNS, KANBAN_STATUSES } from "../dashboard/kanban.ts";
-import { RenameDialog } from "./RenameDialog.tsx";
+import { SectionDialog } from "../sidebar/SectionDialog.tsx";
 import { WorkspaceRenameDialog } from "./WorkspaceRenameDialog.tsx";
 import { unarchiveWorkspace } from "./workspace-actions.ts";
 
@@ -183,14 +183,7 @@ export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActions
 				</MenuContent>
 			</Menu>
 			<WorkspaceRenameDialog workspaceId={workspaceId} open={renaming} onOpenChange={setRenaming} />
-			<RenameDialog
-				open={newSection}
-				onOpenChange={setNewSection}
-				title="New section"
-				submitLabel="Create"
-				initialName=""
-				onSubmit={(name) => actions.sections.create(name, null)}
-			/>
+			<SectionDialog open={newSection} onOpenChange={setNewSection} section={null} />
 		</>
 	);
 }

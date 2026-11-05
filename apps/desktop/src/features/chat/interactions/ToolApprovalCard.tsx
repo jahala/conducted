@@ -7,27 +7,31 @@
  * buttons 'Yes' (Enter), 'Allow all edits during this session' or 'Yes always' (Cmd+Enter), 'No'
  * (Backspace)), claude-runner.md 3.2.
  * Our design choice: Our decisions are allow, allow_edits_for_session, allow_with_suggested_rules,
- * always_allow and deny (see the protocol). The secondary button label depends on the tool: edits
- * offer 'Allow all edits during this session', other tools offer 'Yes always'. A third button
+ * always_allow and deny (see the protocol). The tool is shown by the registry's own tool card, so
+ * the approval looks like the call in the chat. The secondary button label depends on the tool:
+ * edits offer 'Allow all edits during this session', other tools offer 'Yes always'. A third button
  * allows with the rules the agent suggests, shown only when the request has `suggestedRules`. A
  * request from a sub-agent (`subAgentId`) shows a 'Subagent' badge. 'No' can carry a short message.
- * Must handle: A blocked path outside the workspace (shown with the path); the tool input is long
- * (collapsed with 'Show all'); keyboard shortcuts fire only while the card has focus and never
- * while the user types in the message field; one decision per card, then the card shows what was
- * chosen. The caller removes the card when the interaction is withdrawn.
+ * Must handle: A blocked path outside the workspace (shown with the path); shortcuts fire only
+ * while the card or one of its controls has focus and never while the user types in any field; one
+ * decision per card, then the card shows what was chosen. The card does not take focus when it
+ * arrives, so a person typing a message keeps their place in the composer.
  * Test first: Pressing Enter on a bash approval calls sessions.answer with decision 'allow';
  * Backspace sends 'deny'.
  */
 
 import type { Interaction, InteractionAnswer } from "@conducted/protocol";
 import type { InteractionId, SessionId } from "@conducted/shared";
-import { type KeyboardEvent, useCallback, useId, useRef, useState } from "react";
-import { useActions } from "../../../core/hooks.ts";
+import { type KeyboardEvent, useId, useState } from "react";
+import type { ToolCallView } from "../../../core/model.ts";
 import { Badge } from "../../../ui/Badge.tsx";
 import { Button } from "../../../ui/Button.tsx";
 import { Input } from "../../../ui/Input.tsx";
 import { WrenchIcon } from "../../../ui/icons.tsx";
-import { formatJson, textField, withKeys } from "../tools/ToolCardFrame.tsx";
+import { ToolCard } from "../tools/ToolCard.tsx";
+import { withKeys } from "../tools/ToolCardFrame.tsx";
+import { approvalTitle, canonicalToolForApproval, editsFilesInApproval } from "./approval-tool.ts";
+import { useInteractionAnswer } from "./use-interaction-answer.ts";
 
 export interface ToolApprovalCardProps {
 	sessionId: SessionId;
@@ -37,57 +41,7 @@ export interface ToolApprovalCardProps {
 
 type Decision = Extract<InteractionAnswer, { kind: "tool_approval" }>["decision"];
 
-const EDIT_TOOLS = new Set(["edit", "write", "multiedit", "notebookedit", "filechange", "patch"]);
-
-/** True for the tools whose approval is about changing files. */
-function editsFiles(toolName: string): boolean {
-	return EDIT_TOOLS.has(toolName.toLowerCase());
-}
-
-/** The approval title Conductor shows for each kind of tool (ui-map.md 3.3). */
-export function approvalTitle(toolName: string): string {
-	const name = toolName.toLowerCase();
-	if (name === "runlocalcommand") return "Do you want to run this command on your Mac?";
-	if (
-		name.includes("bash") ||
-		name.includes("shell") ||
-		name.includes("command") ||
-		name === "exec"
-	) {
-		return "Do you want to run this command?";
-	}
-	if (editsFiles(toolName)) return "Do you want to make these changes?";
-	if (name === "task" || name === "agent" || name.includes("subagent") || name === "sub_agent") {
-		return "Do you want to run this agent?";
-	}
-	if (name.includes("websearch") || name.includes("web_search") || name === "search") {
-		return "Do you want to do this search?";
-	}
-	if (name.includes("webfetch") || name.includes("web_fetch") || name.includes("fetch")) {
-		return "Do you want to fetch this page?";
-	}
-	return "Do you want to run this tool?";
-}
-
-/** A one-line summary of the tool's input, when it names a command, path or address. */
-function inputSummary(input: unknown): string | null {
-	return textField(
-		input,
-		"command",
-		"cmd",
-		"file_path",
-		"path",
-		"url",
-		"query",
-		"pattern",
-		"description",
-		"prompt",
-		"task",
-		"name",
-	);
-}
-
-const LONG_INPUT = 400;
+export { approvalTitle } from "./approval-tool.ts";
 
 const OUTCOME: Record<Decision, string> = {
 	allow: "Allowed",
@@ -98,49 +52,42 @@ const OUTCOME: Record<Decision, string> = {
 };
 
 export function ToolApprovalCard({ sessionId, interactionId, request }: ToolApprovalCardProps) {
-	const actions = useActions();
 	const [message, setMessage] = useState("");
-	const [showAll, setShowAll] = useState(false);
-	const [pendingDecision, setPendingDecision] = useState<Decision | null>(null);
-	const [failed, setFailed] = useState(false);
-	const [chosen, setChosen] = useState<Decision | null>(null);
 	const messageId = useId();
-	const busy = useRef(false);
-	/** Focuses the card when it mounts, so its shortcuts work without a click. */
-	const focusOnMount = useCallback((node: HTMLElement | null) => {
-		node?.focus();
-	}, []);
+	const answerState = useInteractionAnswer<Extract<InteractionAnswer, { kind: "tool_approval" }>>({
+		sessionId,
+		interactionId,
+		labelFor: (answer) => OUTCOME[answer.decision],
+		blocked: false,
+	});
 
-	const edits = editsFiles(request.toolName);
+	const edits = editsFilesInApproval(request.toolName);
 	const alternateDecision: Decision = edits ? "allow_edits_for_session" : "always_allow";
 	const alternateLabel = edits ? "Allow all edits during this session" : "Yes always";
 	const suggestedRules = request.suggestedRules ?? [];
-	const inputText = formatJson(request.input);
-	const summary = inputSummary(request.input);
-	const truncated = inputText.length > LONG_INPUT && !showAll;
-	const shownInput = truncated ? `${inputText.slice(0, LONG_INPUT)}…` : inputText;
 	const rules = withKeys(suggestedRules, (rule) => rule, "rule");
+	const pendingDecision = answerState.pending?.decision ?? null;
+	const chosen = answerState.chosen;
+	const toolCall: ToolCallView = {
+		toolUseId: request.toolUseId,
+		item: {
+			kind: "tool_call",
+			toolUseId: request.toolUseId,
+			tool: canonicalToolForApproval(request.toolName),
+			rawName: request.toolName,
+			input: request.input,
+		},
+		result: null,
+		children: [],
+	};
 
-	async function send(decision: Decision): Promise<void> {
-		if (busy.current || chosen !== null) return;
-		busy.current = true;
-		setPendingDecision(decision);
-		setFailed(false);
+	function send(decision: Decision): void {
 		const text = message.trim();
-		const answer: Extract<InteractionAnswer, { kind: "tool_approval" }> = {
+		void answerState.answer({
 			kind: "tool_approval",
 			decision,
 			...(decision === "deny" && text.length > 0 ? { message: text } : {}),
-		};
-		const result = await actions.sessions.answer(sessionId, interactionId, answer);
-		if (!result.ok) {
-			busy.current = false;
-			setPendingDecision(null);
-			setFailed(true);
-			return;
-		}
-		setChosen(decision);
-		setPendingDecision(null);
+		});
 	}
 
 	function onKeyDown(event: KeyboardEvent<HTMLFieldSetElement>): void {
@@ -152,26 +99,24 @@ export function ToolApprovalCard({ sessionId, interactionId, request }: ToolAppr
 		if (typing) return;
 		if (event.metaKey && event.key === "Enter") {
 			event.preventDefault();
-			void send(alternateDecision);
+			send(alternateDecision);
 			return;
 		}
 		if (onButton) return;
 		if (event.key === "Enter") {
 			event.preventDefault();
-			void send("allow");
+			send("allow");
 			return;
 		}
 		if (event.key === "Backspace") {
 			event.preventDefault();
-			void send("deny");
+			send("deny");
 		}
 	}
 
 	return (
 		<fieldset
 			aria-label="Tool approval"
-			ref={focusOnMount}
-			tabIndex={-1}
 			onKeyDown={onKeyDown}
 			className="m-0 flex flex-col gap-3 rounded-xl border border-border bg-surface p-3"
 		>
@@ -185,28 +130,7 @@ export function ToolApprovalCard({ sessionId, interactionId, request }: ToolAppr
 				<p className="text-sm text-fg-muted">{request.reason}</p>
 			)}
 
-			<div className="flex flex-col gap-2 rounded-md border border-border bg-canvas p-2">
-				<div className="flex items-baseline gap-2">
-					<span className="text-xs font-medium text-fg">{request.toolName}</span>
-					{summary === null ? null : (
-						<span className="min-w-0 flex-1 truncate font-mono text-xs text-fg-muted">
-							{summary}
-						</span>
-					)}
-				</div>
-				<pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-sm bg-surface p-2 font-mono text-xs text-fg-muted">
-					{shownInput}
-				</pre>
-				{inputText.length > LONG_INPUT ? (
-					<button
-						type="button"
-						onClick={() => setShowAll(!showAll)}
-						className="self-start text-xs font-medium text-fg-muted hover:text-fg"
-					>
-						{showAll ? "Show less" : "Show all"}
-					</button>
-				) : null}
-			</div>
+			<ToolCard call={toolCall} sessionId={sessionId} />
 
 			{request.blockedPath === undefined ? null : (
 				<p className="rounded-md border border-warning-border bg-warning-surface px-2 py-1.5 text-xs text-warning-fg">
@@ -240,51 +164,57 @@ export function ToolApprovalCard({ sessionId, interactionId, request }: ToolAppr
 				/>
 			</div>
 
-			{failed ? (
+			{answerState.failed === null ? null : (
 				<p role="alert" className="text-xs text-danger">
-					Could not send the answer. Try again.
+					Could not send the answer: {answerState.failed}
 				</p>
-			) : null}
+			)}
 
 			{chosen === null ? (
-				<div className="flex flex-wrap items-center gap-2">
-					<Button
-						onClick={() => void send("allow")}
-						loading={pendingDecision === "allow"}
-						disabled={pendingDecision !== null}
-					>
-						Yes
-					</Button>
-					<Button
-						variant="secondary"
-						onClick={() => void send(alternateDecision)}
-						loading={pendingDecision === alternateDecision}
-						disabled={pendingDecision !== null}
-					>
-						{alternateLabel}
-					</Button>
-					{suggestedRules.length === 0 ? null : (
+				<>
+					<p className="text-xs text-fg-subtle">
+						Shortcuts work while a control in this card has focus: Enter approves, Backspace denies,
+						Cmd+Enter picks the alternate.
+					</p>
+					<div className="flex flex-wrap items-center gap-2">
 						<Button
-							variant="outline"
-							onClick={() => void send("allow_with_suggested_rules")}
-							loading={pendingDecision === "allow_with_suggested_rules"}
+							onClick={() => send("allow")}
+							loading={pendingDecision === "allow"}
 							disabled={pendingDecision !== null}
 						>
-							Allow with suggested rules
+							Yes
 						</Button>
-					)}
-					<Button
-						variant="outline"
-						onClick={() => void send("deny")}
-						loading={pendingDecision === "deny"}
-						disabled={pendingDecision !== null}
-					>
-						No
-					</Button>
-				</div>
+						<Button
+							variant="secondary"
+							onClick={() => send(alternateDecision)}
+							loading={pendingDecision === alternateDecision}
+							disabled={pendingDecision !== null}
+						>
+							{alternateLabel}
+						</Button>
+						{suggestedRules.length === 0 ? null : (
+							<Button
+								variant="outline"
+								onClick={() => send("allow_with_suggested_rules")}
+								loading={pendingDecision === "allow_with_suggested_rules"}
+								disabled={pendingDecision !== null}
+							>
+								Allow with suggested rules
+							</Button>
+						)}
+						<Button
+							variant="outline"
+							onClick={() => send("deny")}
+							loading={pendingDecision === "deny"}
+							disabled={pendingDecision !== null}
+						>
+							No
+						</Button>
+					</div>
+				</>
 			) : (
 				<p role="status" className="text-sm font-medium text-fg">
-					{OUTCOME[chosen]}
+					{chosen}
 				</p>
 			)}
 		</fieldset>

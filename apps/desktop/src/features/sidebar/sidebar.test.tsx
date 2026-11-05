@@ -12,6 +12,12 @@ const hooks = vi.hoisted(() => ({
 	workspaces: { state: "loading" } as Loadable<Workspace[]>,
 	repoService: { start: vi.fn() },
 	workspaceService: { start: vi.fn() },
+	sectionsStore: {
+		getState: () => ({ loaded: true, sections: [] }),
+		getInitialState: () => ({ loaded: true, sections: [] }),
+		subscribe: () => () => {},
+		setState: () => {},
+	},
 }));
 
 vi.mock("../../core/hooks.ts", () => ({
@@ -20,7 +26,13 @@ vi.mock("../../core/hooks.ts", () => ({
 }));
 
 vi.mock("../../core/context.tsx", () => ({
-	useServices: () => ({ services: { repo: hooks.repoService, workspace: hooks.workspaceService } }),
+	useServices: () => ({
+		services: {
+			repo: hooks.repoService,
+			workspace: hooks.workspaceService,
+			sections: { store: hooks.sectionsStore },
+		},
+	}),
 }));
 
 // The grouped list is built later; this test is about which state the list region picks.

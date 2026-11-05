@@ -43,7 +43,7 @@ describe("NAV-03 ViewOptionsMenu", () => {
 		expect(onChange).toHaveBeenCalledWith({ ...baseView, groupBy: "project" });
 	});
 
-	it("keeps Sort by visible until a saved manual order exists", async () => {
+	it("hides Sort by while manual order is on", async () => {
 		render(
 			<ViewOptionsMenu
 				view={{ ...baseView, manualOrder: true }}
@@ -52,7 +52,7 @@ describe("NAV-03 ViewOptionsMenu", () => {
 			/>,
 		);
 		await openMenu();
-		expect(screen.getByText("Sort by")).toBeTruthy();
+		expect(screen.queryByText("Sort by")).toBeNull();
 		expect(screen.getByText("Filter by project")).toBeTruthy();
 	});
 

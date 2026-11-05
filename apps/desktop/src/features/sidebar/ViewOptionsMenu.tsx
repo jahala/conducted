@@ -4,12 +4,13 @@
  * (Updated or Created).
  * Behaviour: ui-map.md 4 (View options menu; the project filter is searchable from 5 repos; Sort by
  * is hidden when manual order is on).
- * Our design choice: Sort by stays visible until NAV-04 saves a real manual order. Hiding it before
- * then would leave the user with neither a sort choice nor a working reorder.
+ * Our design choice: The user's drag order is saved, so Sort by goes away while manual order is on;
+ * the saved order is the only order that applies then.
  * Must handle: Fewer than 5 repos (no search box in the filter); a filter that names a removed repo
- * is dropped; the menu shows the current choice with a check mark.
- * Test first: Choosing Group by Project calls onChange with groupBy 'project'; Sort by is present
- * even when manualOrder is true, until NAV-04 supplies the saved order.
+ * is dropped; the menu shows the current choice with a check mark; Sort by is hidden while manual
+ * order is on.
+ * Test first: Choosing Group by Project calls onChange with groupBy 'project'; Sort by is absent
+ * when manualOrder is true.
  */
 
 import type { RepoId } from "@conducted/shared";
@@ -108,17 +109,21 @@ export function ViewOptionsMenu({ view, repos, onChange }: ViewOptionsMenuProps)
 						)}
 					</MenuSubContent>
 				</MenuSub>
-				<MenuSeparator />
-				<MenuLabel>Sort by</MenuLabel>
-				<MenuRadioGroup
-					value={view.sortBy}
-					onValueChange={(value) =>
-						onChange({ ...view, sortBy: value === "created" ? "created" : "updated" })
-					}
-				>
-					<MenuRadioItem value="updated">Updated</MenuRadioItem>
-					<MenuRadioItem value="created">Created</MenuRadioItem>
-				</MenuRadioGroup>
+				{view.manualOrder ? null : (
+					<>
+						<MenuSeparator />
+						<MenuLabel>Sort by</MenuLabel>
+						<MenuRadioGroup
+							value={view.sortBy}
+							onValueChange={(value) =>
+								onChange({ ...view, sortBy: value === "created" ? "created" : "updated" })
+							}
+						>
+							<MenuRadioItem value="updated">Updated</MenuRadioItem>
+							<MenuRadioItem value="created">Created</MenuRadioItem>
+						</MenuRadioGroup>
+					</>
+				)}
 			</MenuContent>
 		</Menu>
 	);
