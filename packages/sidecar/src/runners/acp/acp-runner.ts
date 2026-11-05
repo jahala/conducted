@@ -11,14 +11,15 @@
  * Must handle:
  *  - detect(): program missing gives null; a version below the adapter's minimum is logged with the
  *    adapter and its minimum (the real version is still returned, so the detector can report it)
- *  - start(): one child per chat through StdioAcpClient; the app tools MCP server is passed to
- *    session/new when the caller supplies it; the adapter's environment, session storage and prompt
- *    check are applied
+ *  - start(): one child per chat through StdioAcpClient; the app tools MCP servers are passed to
+ *    session/new when the caller supplies them, and the client keeps only the transports the agent
+ *    advertised; the adapter's environment, session storage and prompt check are applied
  *  - listModels(): the throwaway session is always closed, also on error and on timeout; the model
  *    option may arrive in a config_option_update after session/new
  *  - listSlashCommands(): from the throwaway session's available commands, waiting up to 2 s
  *  - capabilities: interrupt true (session/cancel), steer false, resumeAt false, liveConfig true
- *    (model and options between turns), slashCommands true, mcpServers false, contextUsage true
+ *    (model and options between turns), slashCommands true, mcpServers true (the app tools servers),
+ *    contextUsage true
  * Test first: capabilities.steer is false for both adapters.
  * Our design choice: a client factory is a dependency, so the model and command listing can be
  * tested without starting an agent process.
@@ -92,7 +93,7 @@ export class AcpRunner implements Runner {
 		resumeAt: false,
 		liveConfig: true,
 		slashCommands: true,
-		mcpServers: false,
+		mcpServers: true,
 		contextUsage: true,
 	};
 
@@ -167,6 +168,7 @@ export class AcpRunner implements Runner {
 				requestElicitation: (request) =>
 					session?.requestElicitation(request) ?? Promise.resolve({ action: "cancel" }),
 				beforeWrite: () => session?.beforeWrite() ?? Promise.resolve(),
+				lastOutput: () => session?.lastOutput() ?? "",
 			};
 			const client = this.createClient(
 				executablePath,

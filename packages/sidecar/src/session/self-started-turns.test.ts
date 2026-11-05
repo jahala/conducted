@@ -158,7 +158,7 @@ describe("AGENT-15 self-started turns host side", () => {
 		expect(h.liveState.get(sessionId).status).toBe("working");
 		expect(h.processes.busy).toEqual(["claude:s1"]);
 
-		await h.turns.onInProgressChanged(sessionId, false);
+		await h.turns.onInProgressChanged(sessionId, false, { outcome: "success" });
 		expect(h.liveState.get(sessionId).status).toBe("idle");
 		expect(h.processes.idle).toEqual(["claude:s1"]);
 	});
@@ -181,7 +181,7 @@ describe("AGENT-15 self-started turns host side", () => {
 
 		await h.turns.onInProgressChanged(sessionId, true);
 		h.turns.onMessage(sessionId, agentMessage("background task done"));
-		await h.turns.onInProgressChanged(sessionId, false);
+		await h.turns.onInProgressChanged(sessionId, false, { outcome: "success" });
 
 		const events = h.publisher.events.map((entry) => entry.event);
 		expect(events.map((event) => event.type)).toEqual(["agent", "turn_ended"]);
@@ -191,6 +191,7 @@ describe("AGENT-15 self-started turns host side", () => {
 		expect(events[0]?.type === "agent" ? events[0].message : null).toEqual(
 			agentMessage("background task done"),
 		);
+		expect(events[1]).toMatchObject({ type: "turn_ended", outcome: "success" });
 		expect(h.settled).toHaveLength(1);
 	});
 
@@ -199,7 +200,7 @@ describe("AGENT-15 self-started turns host side", () => {
 		const sessionId = sid("s1");
 
 		await h.turns.onInProgressChanged(sessionId, true);
-		await h.turns.onInProgressChanged(sessionId, false);
+		await h.turns.onInProgressChanged(sessionId, false, { outcome: "success" });
 
 		const ended = h.order.indexOf("event:turn_ended");
 		const flushed = h.order.indexOf("flush");
@@ -218,7 +219,7 @@ describe("AGENT-15 self-started turns host side", () => {
 
 		h.runGuard.invalidate();
 		h.liveState.drop(sessionId);
-		await h.turns.onInProgressChanged(sessionId, false);
+		await h.turns.onInProgressChanged(sessionId, false, { outcome: "success" });
 
 		expect(h.publisher.events.length).toBe(published);
 		expect(h.liveState.get(sessionId)).toEqual(idleLiveState);
@@ -242,7 +243,7 @@ describe("AGENT-15 self-started turns host side", () => {
 		await h.turns.onInProgressChanged(sessionId, true);
 		await h.turns.onInProgressChanged(sessionId, true);
 		h.turns.onMessage(sessionId, agentMessage("one"));
-		await h.turns.onInProgressChanged(sessionId, false);
+		await h.turns.onInProgressChanged(sessionId, false, { outcome: "success" });
 
 		expect(h.publisher.events.map((entry) => entry.event.type)).toEqual(["agent", "turn_ended"]);
 		expect(h.processes.busy).toEqual(["claude:s1"]);
@@ -253,11 +254,53 @@ describe("AGENT-15 self-started turns host side", () => {
 		const sessionId = sid("s1");
 
 		h.turns.onMessage(sessionId, agentMessage("late wake"));
-		await h.turns.onInProgressChanged(sessionId, false);
+		await h.turns.onInProgressChanged(sessionId, false, { outcome: "success" });
 
 		const events = h.publisher.events.map((entry) => entry.event);
 		expect(events.map((event) => event.type)).toEqual(["agent", "turn_ended"]);
 		expect(h.liveState.get(sessionId).status).toBe("idle");
+	});
+
+	test("AGENT-15 a stream that died is stored as interrupted, not success", async () => {
+		const h = harness();
+		const sessionId = sid("s1");
+
+		await h.turns.onInProgressChanged(sessionId, true);
+		await h.turns.onInProgressChanged(sessionId, false, { outcome: "interrupted" });
+
+		const ended = h.publisher.events.find((entry) => entry.event.type === "turn_ended")?.event;
+		expect(ended).toMatchObject({ type: "turn_ended", outcome: "interrupted" });
+		expect(h.liveState.get(sessionId).error).toBeUndefined();
+	});
+
+	test("AGENT-15 a crashed stream stores the error outcome and its message", async () => {
+		const h = harness();
+		const sessionId = sid("s1");
+
+		await h.turns.onInProgressChanged(sessionId, true);
+		await h.turns.onInProgressChanged(sessionId, false, {
+			outcome: "error",
+			error: "the CLI exited",
+		});
+
+		const ended = h.publisher.events.find((entry) => entry.event.type === "turn_ended")?.event;
+		expect(ended).toMatchObject({
+			type: "turn_ended",
+			outcome: "error",
+			error: "the CLI exited",
+		});
+		expect(h.liveState.get(sessionId)).toMatchObject({ status: "idle", error: "the CLI exited" });
+	});
+
+	test("AGENT-15 an end with no reported outcome is not claimed as success", async () => {
+		const h = harness();
+		const sessionId = sid("s1");
+
+		await h.turns.onInProgressChanged(sessionId, true);
+		await h.turns.onInProgressChanged(sessionId, false);
+
+		const ended = h.publisher.events.find((entry) => entry.event.type === "turn_ended")?.event;
+		expect(ended).toMatchObject({ type: "turn_ended", outcome: "interrupted" });
 	});
 
 	test("AGENT-15 an end without a start changes nothing", async () => {

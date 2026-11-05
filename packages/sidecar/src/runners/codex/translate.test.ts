@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { AgentItem, AgentMessage } from "@conducted/protocol";
 import type { Logger } from "../../logging/logger.ts";
 import { MAX_TOOL_OUTPUT_CHARS } from "../output.ts";
+import { toolForCodexItem } from "./tool-names.ts";
 import { type CodexImageStager, CodexTranslator } from "./translate.ts";
 
 function fakeLogger(): {
@@ -295,6 +296,51 @@ describe("AGENT-07 Codex items translate to the neutral format", () => {
 		]);
 	});
 
+	test("every tool item takes its canonical tool from the item-to-tool table", () => {
+		const t = translator();
+		const cases: { type: string; item: Record<string, unknown> }[] = [
+			{ type: "commandExecution", item: commandExecution() },
+			{
+				type: "fileChange",
+				item: { type: "fileChange", id: "file-9", changes: [], status: "completed" },
+			},
+			{
+				type: "dynamicToolCall",
+				item: {
+					type: "dynamicToolCall",
+					id: "dyn-9",
+					tool: "lookup",
+					arguments: {},
+					status: "completed",
+					contentItems: [],
+					success: true,
+				},
+			},
+			{
+				type: "collabAgentToolCall",
+				item: {
+					type: "collabAgentToolCall",
+					id: "collab-9",
+					tool: "wait",
+					status: "completed",
+					receiverThreadIds: [],
+					agentsStates: {},
+				},
+			},
+			{
+				type: "webSearch",
+				item: { type: "webSearch", id: "search-9", query: "q", results: [] },
+			},
+		];
+		for (const entry of cases) {
+			const call = items(t.translateItem("completed", entry.item, "root"))[0];
+			expect(call).toMatchObject({
+				kind: "tool_call",
+				tool: toolForCodexItem(entry.type, undefined),
+			});
+		}
+	});
+
 	test("image items map to the image tools", () => {
 		const t = translator();
 		const viewed = t.translateItem(
@@ -376,6 +422,36 @@ describe("AGENT-07 Codex items translate to the neutral format", () => {
 		expect(warn).toContainEqual({
 			message: "Failed to stage generated image inside the workspace",
 			data: { path: "/tmp/cat.png", itemId: "gen-2", error: "no space" },
+		});
+	});
+
+	test("an image item with no saved image becomes an error result and is logged", () => {
+		const { logger, warn } = fakeLogger();
+		const t = new CodexTranslator({ logger });
+		const messages = t.translateItem(
+			"completed",
+			{
+				type: "imageGeneration",
+				id: "gen-3",
+				status: "completed",
+				revisedPrompt: "a cat",
+				result: "",
+				failure: null,
+				savedPath: "",
+			},
+			"root",
+		);
+
+		expect(items(messages)[1]).toEqual({
+			kind: "tool_result",
+			toolUseId: "gen-3",
+			output: "Image generation finished without an image.",
+			isError: true,
+			truncated: false,
+		});
+		expect(warn).toContainEqual({
+			message: "Image generation finished without a saved image",
+			data: { itemId: "gen-3" },
 		});
 	});
 
@@ -493,6 +569,26 @@ describe("AGENT-07 Codex items translate to the neutral format", () => {
 		]);
 	});
 
+	test("Codex errors map to their own codes", () => {
+		const t = translator();
+		const codeFor = (message: string, codexErrorInfo?: string) => {
+			const messages = t.translateNotification("error", {
+				error: { message, ...(codexErrorInfo === undefined ? {} : { codexErrorInfo }) },
+				willRetry: false,
+			});
+			return items(messages)[0];
+		};
+
+		expect(codeFor("You exceeded your usage limit", "usageLimitExceeded")).toMatchObject({
+			code: "agent_usage_limit",
+		});
+		expect(codeFor("too many requests")).toMatchObject({ code: "agent_rate_limit" });
+		expect(codeFor("context window exceeded", "contextWindowExceeded")).toMatchObject({
+			code: "agent_context_window",
+		});
+		expect(codeFor("something broke")).toMatchObject({ code: "agent_codex_error" });
+	});
+
 	test("ignored item types produce no messages", () => {
 		const t = translator();
 		for (const type of [
@@ -572,6 +668,30 @@ describe("AGENT-07 Codex sub-agents", () => {
 
 		const parent = t.translateItem("completed", commandExecution({ id: "cmd-parent" }), "root");
 		expect(items(parent)[0]).not.toHaveProperty("parentToolUseId");
+	});
+
+	test("a text item from a child thread stays untagged", () => {
+		const t = translator();
+		t.translateItem(
+			"started",
+			{
+				type: "collabAgentToolCall",
+				id: "collab-3",
+				tool: "spawnAgent",
+				status: "inProgress",
+				receiverThreadIds: ["child-3"],
+				agentsStates: {},
+			},
+			"root",
+		);
+
+		const child = t.translateItem(
+			"completed",
+			{ type: "agentMessage", id: "msg-child", text: "Working on it" },
+			"child-3",
+		);
+
+		expect(items(child)).toEqual([{ kind: "text", text: "Working on it" }]);
 	});
 
 	test("a completed collaboration call reports the agents' states", () => {

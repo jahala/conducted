@@ -3,6 +3,7 @@ import type { Interaction } from "@conducted/protocol";
 import type { ToolUseId } from "@conducted/shared";
 import {
 	consentOutcomeFor,
+	consentOutcomeMessage,
 	decisionForApproval,
 	elicitationReply,
 	permissionGranted,
@@ -93,7 +94,9 @@ describe("AGENT-08 approvals", () => {
 				},
 			],
 		});
-		expect(plan?.interaction).toEqual({
+		if (plan?.kind !== "ask") throw new Error("expected a question plan");
+		expect(plan.groups).toHaveLength(1);
+		expect(plan.groups[0]?.interaction).toEqual({
 			kind: "question",
 			questions: [
 				{
@@ -115,12 +118,69 @@ describe("AGENT-08 approvals", () => {
 				},
 			],
 		});
-		expect(plan?.reply({ kind: "question", answers: [["Postgres"], ["main"]] })).toEqual({
+		expect(plan.reply([{ kind: "question", answers: [["Postgres"], ["main"]] }])).toEqual({
 			answers: {
 				pick: { answers: ["Postgres"] },
 				name: { answers: ["main"] },
 			},
 		});
+	});
+
+	test("more than four questions are asked in groups of four", () => {
+		const questions = Array.from({ length: 6 }, (_, index) => ({
+			id: `q${index + 1}`,
+			header: `Question ${index + 1}`,
+			question: `What is ${index + 1}?`,
+			isOther: true,
+			isSecret: false,
+			options: null,
+		}));
+		const plan = planToolUserInput({ questions });
+		if (plan?.kind !== "ask") throw new Error("expected a question plan");
+		expect(plan.groups).toHaveLength(2);
+		expect(plan.groups[0]?.interaction.questions).toHaveLength(4);
+		expect(plan.groups[1]?.interaction.questions).toHaveLength(2);
+		expect(
+			plan.reply([
+				{ kind: "question", answers: [["1"], ["2"], ["3"], ["4"]] },
+				{ kind: "question", answers: [["5"], ["6"]] },
+			]),
+		).toEqual({
+			answers: {
+				q1: { answers: ["1"] },
+				q2: { answers: ["2"] },
+				q3: { answers: ["3"] },
+				q4: { answers: ["4"] },
+				q5: { answers: ["5"] },
+				q6: { answers: ["6"] },
+			},
+		});
+	});
+
+	test("a question with more options than a card can show is refused", () => {
+		const plan = planToolUserInput({
+			questions: [
+				{
+					id: "pick",
+					question: "Which one?",
+					options: [{ label: "a" }, { label: "b" }, { label: "c" }, { label: "d" }, { label: "e" }],
+				},
+			],
+		});
+		expect(plan).toEqual({
+			kind: "refused",
+			reason: "A Codex question offers 5 options, but a card shows four at most.",
+		});
+	});
+
+	test("a withdrawn answer to the user input tool is refused, not sent as empty answers", () => {
+		const plan = planToolUserInput({
+			questions: [{ id: "pick", question: "Which one?", options: null }],
+		});
+		if (plan?.kind !== "ask") throw new Error("expected a question plan");
+		expect(() => plan.reply([{ kind: "withdrawn" }])).toThrow(
+			"The user did not answer the Codex question.",
+		);
 	});
 
 	test("an MCP form becomes a form interaction and keeps its schema", () => {
@@ -255,6 +315,17 @@ describe("AGENT-08 approvals", () => {
 		expect(plan?.reply({ kind: "withdrawn" })).toEqual({ permissions: {}, scope: "turn" });
 	});
 
+	test("a permission request that asks for nothing is not shown", () => {
+		expect(planPermissionApproval({ itemId: "item-5", cwd: "/workspace" })).toBeNull();
+		expect(planPermissionApproval({ itemId: "item-5", permissions: {} })).toBeNull();
+		expect(
+			planPermissionApproval({
+				itemId: "item-5",
+				permissions: { fileSystem: { read: [], write: null } },
+			}),
+		).toBeNull();
+	});
+
 	test("only an explicit grant grants", () => {
 		expect(permissionGranted({ kind: "permission_grant", granted: true })).toBe(true);
 		expect(permissionGranted({ kind: "permission_grant", granted: false })).toBe(false);
@@ -279,5 +350,13 @@ describe("AGENT-08 approvals", () => {
 		expect(
 			consentOutcomeFor(permission, { kind: "permission_grant", granted: true }),
 		).toBeUndefined();
+	});
+
+	test("a consent outcome is a notice, not an error", () => {
+		const message = consentOutcomeMessage("user_declined");
+		expect(message.items).toEqual([
+			{ kind: "notice", notice: "info", text: "[codex-mcp-consent] user_declined" },
+		]);
+		expect(message.raw).toEqual({ event: "codex.mcpConsentOutcome", outcome: "user_declined" });
 	});
 });

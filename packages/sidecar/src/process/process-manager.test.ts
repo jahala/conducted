@@ -43,6 +43,37 @@ class FakeAgent implements AgentSession {
 	}
 }
 
+class GatedAgent extends FakeAgent {
+	readonly disposeStarted: Promise<void>;
+	readonly disposeGate: Promise<void>;
+	private readonly markDisposeStarted: () => void;
+	private readonly openDisposeGate: () => void;
+
+	constructor() {
+		super();
+		let markDisposeStarted: () => void = () => {};
+		this.disposeStarted = new Promise<void>((resolve) => {
+			markDisposeStarted = resolve;
+		});
+		this.markDisposeStarted = markDisposeStarted;
+		let openDisposeGate: () => void = () => {};
+		this.disposeGate = new Promise<void>((resolve) => {
+			openDisposeGate = resolve;
+		});
+		this.openDisposeGate = openDisposeGate;
+	}
+
+	override async dispose(): Promise<void> {
+		this.markDisposeStarted();
+		await this.disposeGate;
+		await super.dispose();
+	}
+
+	releaseDispose(): void {
+		this.openDisposeGate();
+	}
+}
+
 function makeManager(): {
 	manager: AgentProcessManager;
 	clock: FakeClock;
@@ -175,6 +206,26 @@ describe("SIDE-07 process manager leases", () => {
 		await manager.sweep();
 		expect(agent.disposed).toBe(1);
 	});
+
+	test("SIDE-07 a claim that lands while an idle sweep awaits a dispose is not stopped", async () => {
+		const { manager, clock } = makeManager();
+		const stopping = new GatedAgent();
+		const claimed = new FakeAgent();
+		await manager.ensureWarm("claude:stopping", async () => stopping);
+		await manager.ensureWarm("claude:claimed", async () => claimed);
+		clock.advance(IDLE_STOP_AFTER_MS);
+
+		const sweeping = manager.sweep();
+		await stopping.disposeStarted;
+		const lease = await manager.claimActive("claude:claimed", async () => claimed);
+		stopping.releaseDispose();
+		await sweeping;
+
+		expect(stopping.disposed).toBe(1);
+		expect(claimed.disposed).toBe(0);
+		expect(lease.agent).toBe(claimed);
+		lease.release();
+	});
 });
 
 describe("SIDE-07 process manager warm pool", () => {
@@ -260,6 +311,32 @@ describe("SIDE-07 process manager warm pool", () => {
 		expect(warmA.disposed).toBe(1);
 		expect(warmB.disposed).toBe(0);
 		expect(warmC.disposed).toBe(0);
+	});
+
+	test("SIDE-07 a claim during the warm-cap sweep keeps the process it claimed", async () => {
+		const { manager, clock } = makeManager();
+		const oldest = new GatedAgent();
+		const claimed = new FakeAgent();
+		const warmC = new FakeAgent();
+		const warmD = new FakeAgent();
+		await manager.ensureWarm("claude:a", async () => oldest);
+		clock.advance(1);
+		await manager.ensureWarm("claude:b", async () => claimed);
+		clock.advance(1);
+		await manager.ensureWarm("claude:c", async () => warmC);
+		clock.advance(1);
+		await manager.ensureWarm("claude:d", async () => warmD);
+
+		const sweeping = manager.sweep();
+		await oldest.disposeStarted;
+		const lease = await manager.claimActive("claude:b", async () => claimed);
+		oldest.releaseDispose();
+		await sweeping;
+
+		expect(oldest.disposed).toBe(1);
+		expect(claimed.disposed).toBe(0);
+		expect(lease.agent).toBe(claimed);
+		lease.release();
 	});
 });
 

@@ -5,9 +5,12 @@
  * Test first: capabilities.steer is false for both adapters.
  */
 import { describe, expect, test } from "bun:test";
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
 	AGENT_METHODS,
+	CLIENT_METHODS,
 	agent as createAgentApp,
 	type NewSessionRequest,
 	ndJsonStream,
@@ -166,9 +169,10 @@ function bridge(newParams: { value: NewSessionRequest | null }): {
 }
 
 describe("AGENT-11 ACP runner", () => {
-	test("steering is off for OpenCode and Pi", () => {
+	test("steering is off and app tools are on for OpenCode and Pi", () => {
 		const runner = makeRunner();
 		expect(runner.capabilities.steer).toBe(false);
+		expect(runner.capabilities.mcpServers).toBe(true);
 		expect(ACP_ADAPTERS.opencode.id).toBe("opencode");
 		expect(ACP_ADAPTERS.pi.id).toBe("pi");
 	});
@@ -220,6 +224,61 @@ describe("AGENT-11 ACP runner", () => {
 		await session.runTurn({ text: "hello", attachmentPaths: [], config }, callbacks());
 
 		expect(seen.value?.mcpServers).toEqual([appTools]);
+		await session.dispose();
+	});
+
+	test("a file write asks for the start checkpoint through the runner", async () => {
+		const workspace = await mkdtemp(join(tmpdir(), "conducted-acp-runner-"));
+		let checkpoints = 0;
+		const spawn: ConstructorParameters<typeof AcpRunner>[0]["spawn"] = async () => {
+			const toAgent = new TransformStream<Uint8Array, Uint8Array>();
+			const toChild = new TransformStream<Uint8Array, Uint8Array>();
+			const app = createAgentApp({ name: "fake" })
+				.onRequest(AGENT_METHODS.initialize, () => ({
+					protocolVersion: 1,
+					agentCapabilities: { sessionCapabilities: { close: {} } },
+					agentInfo: { name: "fake", version: "1.2.3" },
+				}))
+				.onRequest(AGENT_METHODS.session_new, () => ({
+					sessionId: "new-session",
+					configOptions: [],
+				}))
+				.onRequest(AGENT_METHODS.session_prompt, async (context) => {
+					await context.client.request(CLIENT_METHODS.fs_write_text_file, {
+						sessionId: "new-session",
+						path: join(workspace, "wired.txt"),
+						content: "hello",
+					});
+					return { stopReason: "end_turn" };
+				})
+				.onRequest(AGENT_METHODS.session_close, () => ({}));
+			app.connect(ndJsonStream(toChild.writable, toAgent.readable));
+			return ok({
+				stdin: toAgent.writable,
+				stdout: toChild.readable,
+				onStderr: () => {},
+				onExit: () => {},
+				stop: async () => {},
+			} satisfies AcpChild);
+		};
+		const runner = makeRunner({ spawn });
+		const session = await runner.start({
+			...startOptions,
+			workspace: { ...startOptions.workspace, workspacePath: workspace },
+		});
+
+		await session.runTurn(
+			{ text: "hello", attachmentPaths: [], config },
+			{
+				...callbacks(),
+				beforeFirstWrite: async () => {
+					checkpoints += 1;
+				},
+			},
+		);
+
+		expect(checkpoints).toBe(1);
+		expect(await readFile(join(workspace, "wired.txt"), "utf8")).toBe("hello");
 		await session.dispose();
 	});
 });
