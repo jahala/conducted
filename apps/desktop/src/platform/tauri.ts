@@ -19,7 +19,8 @@
  * event before it spawns, so a command that ends at once still reports its exit; a command that is slower
  * than its `timeoutMs` is the Rust side's job (it kills the process group); the database opens
  * `sqlite:conducted.db` through the sql plugin and must run `PRAGMA journal_mode = WAL` and
- * `PRAGMA foreign_keys = ON` on its connection before the first statement; `Database.transaction`
+ * `PRAGMA foreign_keys = ON` on its connection before the first statement; the database opens on
+ * its first statement so the startup version check runs before the migrator; `Database.transaction`
  * must serialise: every statement goes through one queue, and a transaction holds it from
  * BEGIN IMMEDIATE to COMMIT or ROLLBACK, so only one statement uses the plugin's pool at a time
  * and the lazily grown pool does not open a second connection while the transaction is open.
@@ -419,7 +420,15 @@ export async function checkHealth(bindings: Pick<TauriBindings, "invoke">): Prom
 
 // ---------------------------------------------------------------- groups (placeholders)
 
-/** `app_info` -> `{ version, channel }`; `app_quit`; `resource_usage`; `log_write`; `log_set_level { level }`; `logs_export`; `set_quit_handler_ready`. Events: quit, deep link. */
+/** The answer of `db_version_check` in Rust (apps/desktop/src-tauri/src/db.rs). */
+interface DbVersionCheck {
+	state: "ok" | "fresh" | "failed_migration" | "database_newer";
+	appVersion: number;
+	dbVersion: number | null;
+	message: string | null;
+}
+
+/** `app_info` -> `{ version, channel }`; `app_quit`; `resource_usage`; `log_write`; `log_set_level { level }`; `logs_export`; `set_quit_handler_ready`; `db_version_check`. Events: quit, deep link. */
 export function createTauriAppInfo(
 	bindings: TauriBindings,
 	info: { version: string; channel: "dev" | "release" },
@@ -428,7 +437,31 @@ export function createTauriAppInfo(
 		version: info.version,
 		channel: info.channel,
 		health: () => checkHealth(bindings),
-		dbVersionWarning: () => notImplemented("PLAT-17"),
+		dbVersionWarning: async () => {
+			const checked = await invokeResult<DbVersionCheck>(bindings, COMMANDS.dbVersionCheck);
+			if (!checked.ok) return checked;
+			const { state, dbVersion, appVersion, message } = checked.value;
+			if (state === "database_newer") {
+				if (dbVersion === null) {
+					return err(
+						appError(
+							"db_version_unreadable",
+							message ?? "The database version could not be read, so startup cannot continue.",
+						),
+					);
+				}
+				return ok({ databaseVersion: dbVersion, appVersion });
+			}
+			if (state === "failed_migration") {
+				return err(
+					appError(
+						"db_migration_failed",
+						message ?? "A database upgrade did not finish, so startup cannot continue.",
+					),
+				);
+			}
+			return ok(null);
+		},
 		onDeepLink: () => notImplemented("PLAT-16"),
 		onQuitRequested: (listener) => onEvent(bindings, EVENTS.quitRequested, () => listener()),
 		quit: async () => {
@@ -510,6 +543,31 @@ export async function createTauriDatabase(
 		return err(toAppError(error));
 	}
 	return ok(createQueuedDatabase(raw, options));
+}
+
+/**
+ * The same database, opened on its first statement instead of now. Startup asks the Rust shell
+ * whether the database is newer before any service touches it, so the plugin's migrator must not
+ * run while the Platform is built. A failed load reaches each call as its `AppError`.
+ */
+export function createLazyTauriDatabase(
+	bindings: Pick<TauriBindings, "sql"> = realTauriBindings,
+	options: TauriDatabaseOptions = {},
+): Database {
+	let opened: Promise<Result<Database>> | null = null;
+	const open = (): Promise<Result<Database>> => (opened ??= createTauriDatabase(bindings, options));
+	const handle = async (): Promise<Database> => {
+		const result = await open();
+		if (!result.ok) throw result.error;
+		return result.value;
+	};
+	return {
+		execute: async (sql, params) => (await handle()).execute(sql, params),
+		select: async <Row>(sql: string, params?: readonly unknown[]) =>
+			(await handle()).select<Row>(sql, params),
+		transaction: async <T>(work: (db: Database) => Promise<T>) =>
+			(await handle()).transaction(work),
+	};
 }
 
 /** Payload of `shell://done`, as shell.rs sends it. */
@@ -1063,8 +1121,9 @@ interface FsPathsPayload {
 }
 
 /**
- * Builds the whole Platform. Order: health check, `app_info`, `fs_paths`, database load, then
- * the groups above. Returns the first failure as an `Err`.
+ * Builds the whole Platform. Order: health check, `app_info`, `fs_paths`, then the groups above.
+ * The database opens on its first statement, so the startup version check runs before the plugin's
+ * migrator. Returns the first failed startup call as an `Err`.
  */
 export async function createTauriPlatform(
 	bindings: TauriBindings = realTauriBindings,
@@ -1079,12 +1138,10 @@ export async function createTauriPlatform(
 	if (!paths.ok) return paths;
 
 	const app = createTauriAppInfo(bindings, info.value);
-	const database = await createTauriDatabase(bindings, { log: createAppLogSink(app) });
-	if (!database.ok) return database;
 
 	const platform: Platform = {
 		app,
-		db: database.value,
+		db: createLazyTauriDatabase(bindings, { log: createAppLogSink(app) }),
 		shell: createTauriShell(bindings),
 		fs: createTauriFileSystem(bindings, paths.value),
 		fileSearch: createTauriFileSearch(bindings),
