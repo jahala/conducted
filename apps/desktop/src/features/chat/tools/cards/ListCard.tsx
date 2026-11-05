@@ -6,9 +6,52 @@
  * slash and a different weight, not a colour.
  * Test first: A list call renders the directory path and its entries.
  */
-import { notImplemented } from "@conducted/shared";
+import {
+	asRecord,
+	ToolCardFrame,
+	textField,
+	textLines,
+	toolStatus,
+	withKeys,
+} from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
-export function ListCard(_props: ToolCardProps): never {
-	return notImplemented("CHAT-08");
+export function ListCard({ call, defaultExpanded }: ToolCardProps) {
+	const input = asRecord(call.item.input);
+	const path = textField(input, "path", "directory", "dir") ?? "";
+	const entries = textLines(call.result?.output ?? "");
+	const shown = entries.slice(0, 50);
+	return (
+		<ToolCardFrame
+			title="List files"
+			summary={path}
+			status={toolStatus(call)}
+			expandAll={defaultExpanded}
+			body={
+				shown.length === 0 ? (
+					<p className="text-xs text-fg-subtle">Empty folder</p>
+				) : (
+					<div className="flex flex-col gap-0.5">
+						{withKeys(shown, (entry) => entry, "entry").map(({ key, item: entry }) => (
+							<span
+								key={key}
+								className={
+									entry.endsWith("/")
+										? "font-mono text-xs font-medium text-fg"
+										: "font-mono text-xs text-fg-muted"
+								}
+							>
+								{entry}
+							</span>
+						))}
+						{entries.length > shown.length ? (
+							<span className="text-xs text-fg-subtle">
+								and {entries.length - shown.length} more
+							</span>
+						) : null}
+					</div>
+				)
+			}
+		/>
+	);
 }

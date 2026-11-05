@@ -11,9 +11,63 @@
  * Test first: A GetTerminalOutput call renders the terminal's name and the number of lines
  * returned.
  */
-import { notImplemented } from "@conducted/shared";
+import { formatJson, ToolCardFrame, textField, textLines, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
-export function AppToolCard(_props: ToolCardProps): never {
-	return notImplemented("CHAT-08");
+const TITLES: Record<string, string> = {
+	GetWorkspaceDiff: "Workspace diff",
+	GetDiffComments: "Review comments",
+	DiffComment: "Code review comments",
+	GetTerminalOutput: "Get terminal output",
+	SetTargetBranch: "Set target branch",
+};
+
+const SOURCES: Record<string, string> = {
+	spotlight: "Spotlight",
+	run_script: "Run script",
+	terminal: "Terminal",
+	auto: "Auto",
+};
+
+/** `mcp__conducted__GetTerminalOutput` names the tool after the last double underscore. */
+function appToolName(rawName: string): string {
+	const parts = rawName.split("__");
+	return parts.at(-1) ?? rawName;
+}
+
+export function AppToolCard({ call, defaultExpanded }: ToolCardProps) {
+	const name = appToolName(call.item.rawName);
+	if (name === "UpdateProgress") return null;
+	const title = TITLES[name] ?? name;
+	const input = call.item.input;
+	const output = call.result?.output ?? "";
+	const source = textField(input, "source") ?? "auto";
+	const terminal = SOURCES[source] ?? source;
+	const lineCount = textLines(output).length;
+	const summary =
+		name === "GetTerminalOutput"
+			? `${terminal} · ${lineCount} ${lineCount === 1 ? "line" : "lines"}`
+			: name === "SetTargetBranch"
+				? (textField(input, "targetBranch") ?? undefined)
+				: undefined;
+	return (
+		<ToolCardFrame
+			title={title}
+			summary={summary}
+			status={toolStatus(call)}
+			expandAll={defaultExpanded}
+			body={
+				<div className="flex flex-col gap-2">
+					<pre className="overflow-x-auto whitespace-pre-wrap rounded-sm bg-surface p-2 font-mono text-xs text-fg-muted">
+						{formatJson(input)}
+					</pre>
+					{output.length > 0 ? (
+						<pre className="max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-fg">
+							{output}
+						</pre>
+					) : null}
+				</div>
+			}
+		/>
+	);
 }
