@@ -8,17 +8,31 @@
  * Must handle: construction does no I/O; services that need each other are wired through
  * closures that read the other service when called, so no construction order creates a cycle;
  * `start` runs the steps in order, stops at the first fatal failure and returns it, and records
- * non-fatal failures (the sidecar not starting, no GitHub access) as warnings; `start` runs once
- * (a second call returns the first result); `stop` kills terminals and runs, then detaches from
- * the sidecar; the database-version check happens before `start` (see the proposed
- * `Platform.app.dbVersionWarning`); after the sidecar reconnects, chats are resumed again.
+ * non-fatal failures (no GitHub access, a failed Spotlight heal) as warnings; the sidecar not
+ * starting is fatal, because without it no chat can run (the failed state carries the sidecar log
+ * path in `app/startup.ts`); `start` runs once (a second call returns the first result); after the
+ * steps it wires the dock badge, notification clicks, the hourly update check, the quit guard and
+ * the Spotlight heal; deep links have one subscriber, the command dispatcher (NAV-14), which is
+ * mounted with the app root, so this file does not listen for them a second time; `stop`
+ * removes those listeners, stops the settings reload listener and its timer, stops the update
+ * timer, kills terminals and runs, disposes the repo service and detaches from the sidecar; the
+ * database-version check happens before `start` (see the proposed `Platform.app.dbVersionWarning`);
+ * after the sidecar reconnects, chats are resumed.
  * Our design choice: one `createContainer` function with every dependency as a parameter. There
  * is no module-level singleton, so tests build as many containers as they like. The timers here
  * are the only global clock use in core; they sit in the root, the edge of the program.
  * Test first: createContainer returns a container whose `services` has every service named in
  * the `Services` interface, and builds without calling any placeholder.
  */
-import { appError, type Clock, err, type IdSource, ok, type Result } from "@conducted/shared";
+import {
+	appError,
+	type Clock,
+	err,
+	type IdSource,
+	ok,
+	type Result,
+	type WorkspaceId,
+} from "@conducted/shared";
 import type { Platform } from "../platform/platform.ts";
 import { createActions } from "./actions.ts";
 import type { Actions } from "./api.ts";
@@ -29,6 +43,7 @@ import { createRepositories } from "./db/repositories.ts";
 import { KeyedMutex } from "./git/locks.ts";
 import { ShellGitRunner } from "./git/runner.ts";
 import { createLookups, defaultSessionConfig, type Lookups } from "./lookups.ts";
+import type { Workspace } from "./model.ts";
 import { AgentCatalogService } from "./services/agent-catalog.ts";
 import { CheckpointService } from "./services/checkpoint.ts";
 import { CommandRunner, createCommandHandlers } from "./services/command-runner.ts";
@@ -42,7 +57,7 @@ import { GithubService } from "./services/github.ts";
 import { createCurlLinearHttp, LinearService } from "./services/linear.ts";
 import { LocalGitForge } from "./services/local-git-forge.ts";
 import { McpService } from "./services/mcp.ts";
-import { NotificationService, type SoundPlayer } from "./services/notifications.ts";
+import { dockBadgeCount, NotificationService, type SoundPlayer } from "./services/notifications.ts";
 import { PortService } from "./services/ports.ts";
 import { RepoService } from "./services/repo.ts";
 import { ReviewService } from "./services/review.ts";
@@ -53,7 +68,7 @@ import { SettingsService, type TomlCodec } from "./services/settings.ts";
 import { SpotlightService } from "./services/spotlight.ts";
 import { SystemService } from "./services/system.ts";
 import { TerminalsService, terminalLimit } from "./services/terminals.ts";
-import { UpdatesService } from "./services/updates.ts";
+import { UPDATE_CHECK_INTERVAL_MS, UpdatesService } from "./services/updates.ts";
 import { type PlaceNames, WorkspaceService } from "./services/workspace.ts";
 import { WorkspaceFilesService } from "./services/workspace-files.ts";
 import {
@@ -75,6 +90,8 @@ export interface ContainerInputs {
 	sound: SoundPlayer;
 	/** Whether the window has focus. Read when a notification is considered. */
 	windowFocused: () => boolean;
+	/** Opens a notification click or deep link in the app. The app entry passes its router opener. */
+	openLink?: (url: string) => void;
 }
 
 export interface Services {
@@ -260,7 +277,12 @@ export function createContainer(inputs: ContainerInputs): Container {
 		repos: () => repo.store,
 		sessions: () => sessions.store,
 	});
-	const settings = new SettingsService({ platform, repos: repositories, toml: inputs.toml });
+	const settings = new SettingsService({
+		platform,
+		repos: repositories,
+		toml: inputs.toml,
+		git: gitRunner,
+	});
 	const ports = new PortService({ platform });
 	const terminals = new TerminalsService({
 		platform,
@@ -463,7 +485,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		{ name: "chats", phase: "services", fatal: true, run: () => sessions.start() },
 		{ name: "github access", phase: "services", fatal: false, run: () => github.checkAccess() },
 		{ name: "programs", phase: "services", fatal: false, run: () => system.start() },
-		{ name: "sidecar", phase: "sidecar", fatal: false, run: () => tunnel.start() },
+		{ name: "sidecar", phase: "sidecar", fatal: true, run: () => tunnel.start() },
 		{ name: "resume chats", phase: "sidecar", fatal: false, run: () => resume.resume() },
 		{
 			name: "data lifetime",
@@ -480,6 +502,85 @@ export function createContainer(inputs: ContainerInputs): Container {
 	];
 	let started: Promise<Result<StartReport>> | null = null;
 	let detachReconnect: (() => void) | null = null;
+	const cleanups: (() => void)[] = [];
+	let updateTimer: ReturnType<typeof setInterval> | null = null;
+	let wired = false;
+
+	const updateDockBadge = (): void => {
+		const workspaces = new Map<WorkspaceId, Pick<Workspace, "state">>();
+		for (const [id, row] of Object.entries(workspace.store.getState().workspacesById)) {
+			workspaces.set(id as WorkspaceId, row);
+		}
+		const count = dockBadgeCount(workspaces, Object.values(sessions.store.getState().sessions));
+		void platform.notifications.setDockBadge(count === 0 ? null : count).catch((cause: unknown) => {
+			const message = cause instanceof Error ? cause.message : String(cause);
+			log("warn", `Could not set the dock badge: ${message}`);
+		});
+	};
+
+	const wireAfterStart = async (warnings: StartReport["warnings"]): Promise<void> => {
+		// Wired once, before the awaits below. A failed wireAfterStart is not retried: start runs
+		// once per container (see `start`), so there is no second caller to retry it.
+		if (wired) return;
+		wired = true;
+
+		updateDockBadge();
+		cleanups.push(sessions.store.subscribe(updateDockBadge));
+		cleanups.push(workspace.store.subscribe(updateDockBadge));
+
+		const openLink = inputs.openLink;
+		if (openLink === undefined) {
+			warnings.push({
+				step: "links",
+				message: "Notification clicks are not wired: no link opener was given to the container.",
+			});
+		} else {
+			// Deep links are not listened for here: the command dispatcher (NAV-14) is their one
+			// subscriber, so a link is not handled twice.
+			cleanups.push(platform.notifications.onClicked(openLink));
+		}
+
+		for (const project of Object.values(repo.store.getState().reposById)) {
+			const healed = await spotlight.healAfterCrash(project.rootPath);
+			if (!healed.ok) warnings.push({ step: "spotlight", message: healed.error.message });
+		}
+
+		updateTimer = setInterval(() => {
+			void updates.check().then((outcome) => {
+				if (!outcome.ok) log("warn", `Update check failed: ${outcome.error.message}`);
+			});
+		}, UPDATE_CHECK_INTERVAL_MS);
+		(updateTimer as unknown as { unref?: () => void }).unref?.();
+
+		let quitPromptOpen = false;
+		cleanups.push(
+			platform.app.onQuitRequested(() => {
+				if (updates.isSafeToQuit()) {
+					void platform.app.quit();
+					return;
+				}
+				// Agents are still working. Ask before quitting, and only one prompt at a time.
+				if (quitPromptOpen) return;
+				quitPromptOpen = true;
+				void platform.dialogs
+					.confirm({
+						title: "Quit Conducted?",
+						message: "Agents are still working. Quitting stops their turns and running commands.",
+						okLabel: "Quit",
+					})
+					.then((confirmed) => {
+						quitPromptOpen = false;
+						if (confirmed) void platform.app.quit();
+					})
+					.catch((cause: unknown) => {
+						quitPromptOpen = false;
+						const message = cause instanceof Error ? cause.message : String(cause);
+						log("warn", `Could not ask whether to quit: ${message}`);
+					});
+			}),
+		);
+		await platform.app.setQuitHandlerReady();
+	};
 
 	const runSteps = async (
 		onProgress: ((progress: StartProgress) => void) | undefined,
@@ -501,6 +602,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 					log("warn", `Resuming chats after reconnect failed: ${outcome.error.message}`);
 			});
 		});
+		await wireAfterStart(warnings);
 		return ok({ warnings });
 	};
 
@@ -517,8 +619,15 @@ export function createContainer(inputs: ContainerInputs): Container {
 		async stop() {
 			detachReconnect?.();
 			detachReconnect = null;
+			for (const cleanup of cleanups.splice(0)) cleanup();
+			settings.stop();
+			if (updateTimer !== null) {
+				clearInterval(updateTimer);
+				updateTimer = null;
+			}
 			await terminals.killAll();
 			await runScripts.stopAll();
+			repo.dispose();
 			tunnel.stop();
 		},
 	};

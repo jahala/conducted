@@ -8,9 +8,73 @@
  * Test first: A bash call with output shows the command line and the output text; a result with
  * isError shows Failed.
  */
-import { notImplemented } from "@conducted/shared";
+import { useState } from "react";
+import {
+	asRecord,
+	boolField,
+	formatJson,
+	stripAnsi,
+	ToolCardFrame,
+	textField,
+	toolStatus,
+} from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
-export function BashCard(_props: ToolCardProps): never {
-	return notImplemented("CHAT-08");
+export function BashCard({ call, defaultExpanded }: ToolCardProps) {
+	const [cleared, setCleared] = useState(false);
+	const [raw, setRaw] = useState(false);
+	const input = asRecord(call.item.input);
+	const command = textField(input, "command", "cmd") ?? "";
+	const output = stripAnsi(call.result?.output ?? "");
+	const background = boolField(input, "run_in_background");
+	const hasOutput = output.length > 0 && !cleared;
+	return (
+		<ToolCardFrame
+			title="Bash"
+			summary={command}
+			status={toolStatus(call)}
+			expandAll={defaultExpanded}
+			body={
+				<div className="flex flex-col gap-2">
+					<span className="text-xs font-medium text-fg-subtle">Input:</span>
+					<pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-sm bg-surface p-2 font-mono text-xs text-fg-muted">
+						{raw ? formatJson(input) : command}
+					</pre>
+					{background ? (
+						<p className="text-xs text-fg-subtle">
+							Running in the background; its new output appears in the Bash output card.
+						</p>
+					) : null}
+					{hasOutput ? (
+						<pre className="max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-fg">
+							{output}
+						</pre>
+					) : null}
+					{call.result?.truncated ? (
+						<p className="text-xs text-fg-subtle">Output was cut; the start and end are shown.</p>
+					) : null}
+				</div>
+			}
+			footer={
+				<div className="flex items-center gap-3">
+					{output.length > 0 ? (
+						<button
+							type="button"
+							onClick={() => setCleared(true)}
+							className="text-xs font-medium text-fg-muted hover:text-fg"
+						>
+							Clear output
+						</button>
+					) : null}
+					<button
+						type="button"
+						onClick={() => setRaw(!raw)}
+						className="text-xs font-medium text-fg-muted hover:text-fg"
+					>
+						{raw ? "Formatted" : "Raw"}
+					</button>
+				</div>
+			}
+		/>
+	);
 }

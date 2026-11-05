@@ -7,7 +7,8 @@
  * compares currentTurnRunId with its own runId; a cancel or a newer turn bumps activeRunId).
  * Must handle: a cancel bumps the number without starting a turn, a new turn bumps it again, and
  * a continuation holding an older number is refused even if its turn id matches.
- * Test first: start() returns 1; cancel() makes isCurrent(1) false; the next start() returns 3.
+ * Test first: start() returns 1; invalidate() (a cancel or reset) makes isCurrent(1) false; the
+ * next start() returns 3.
  */
 export type RunNumber = number & { readonly __run: unique symbol };
 

@@ -27,7 +27,7 @@ function toastClasses(text: string): string {
 describe("APP-05 toast host", () => {
 	it("mounts exactly one toast host at the app root", async () => {
 		render(
-			<AppProviders client={createQueryClient()}>
+			<AppProviders client={createQueryClient(() => {})}>
 				<div>App</div>
 			</AppProviders>,
 		);

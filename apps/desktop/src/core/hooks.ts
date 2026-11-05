@@ -64,9 +64,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { useStore } from "zustand";
 import { useStoreWithEqualityFn } from "zustand/traditional";
-import type { Actions, ChangedFile, DiffScope, Draft, Loadable, Queries } from "./api.ts";
+import type { Actions, ChangedFile, DiffScope, Draft, FileDiff, Loadable, Queries } from "./api.ts";
 import { useServices } from "./context.tsx";
-import type { BranchCommit, ChatView, GitState, Repo, Session } from "./model.ts";
+import type { BranchCommit, ChatView, GitState, Repo, Session, Workspace } from "./model.ts";
 import {
 	liveShortcut,
 	parseShortcutOverrides,
@@ -199,7 +199,21 @@ export const useRepoConfig: Queries["useRepoConfig"] = (repoId) => {
 	return { state: "ready", data: config };
 };
 export const useWorkspaces: Queries["useWorkspaces"] = () => notImplemented("NAV-03");
-export const useWorkspace: Queries["useWorkspace"] = () => notImplemented("WS-01");
+export const useWorkspace: Queries["useWorkspace"] = (id) => {
+	const store = useServices().services.workspace.store;
+	const loaded = useStore(store, (state) => state.loaded);
+	const workspace = useStore(store, (state) => state.workspacesById[id]);
+	return useMemo<Loadable<Workspace>>(() => {
+		if (!loaded) return { state: "loading" };
+		if (workspace === undefined) {
+			return {
+				state: "error",
+				error: appError("workspace_unknown", "That workspace no longer exists."),
+			};
+		}
+		return { state: "ready", data: workspace };
+	}, [loaded, workspace]);
+};
 
 export const useWorkspaceStatus: Queries["useWorkspaceStatus"] = (workspaceId) => {
 	const container = useServices();
@@ -277,7 +291,25 @@ export const useChangedFiles: Queries["useChangedFiles"] = (workspaceId, scope) 
 	if (query.data === undefined) return { state: "loading" };
 	return { state: "ready", data: query.data };
 };
-export const useFileDiff: Queries["useFileDiff"] = () => notImplemented("REV-02");
+export const useFileDiff: Queries["useFileDiff"] = (workspaceId, path, scope) => {
+	const { services } = useServices();
+	const hideWhitespace = useSetting<boolean>("hide_whitespace_changes");
+	const query = useQuery<FileDiff, AppError>({
+		queryKey: ["git", "workspace", workspaceId, "file-diff", path, scope, hideWhitespace],
+		queryFn: async () => {
+			const result = await services.fileDiff.load(workspaceId, path, scope, {
+				withPatch: false,
+				ignoreWhitespace: hideWhitespace,
+			});
+			if (!result.ok) throw result.error;
+			return result.value;
+		},
+		staleTime: 0,
+	});
+	if (query.isError && query.error !== null) return { state: "error", error: query.error };
+	if (query.data === undefined) return { state: "loading" };
+	return { state: "ready", data: query.data };
+};
 export const useFileTree: Queries["useFileTree"] = () => notImplemented("REV-06");
 export const useDiffComments: Queries["useDiffComments"] = () => notImplemented("REV-03");
 export const useTerminals: Queries["useTerminals"] = (workspaceId) => {

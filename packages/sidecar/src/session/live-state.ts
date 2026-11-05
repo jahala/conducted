@@ -6,29 +6,65 @@
  * idle or working; everything else is a flag) and section 5 step 5 (live-state changes go to the
  * app as a separate notification). packages/protocol/src/live-state.ts defines the shape.
  * Must handle:
- *  - "idle" is published only after the turn's last event has been sent (the store takes a
- *    `flushed` promise from the event publisher before it publishes idle)
- *  - a new turn clears the previous error and the pending steers
+ *  - a change is published only after the event publisher has flushed the chat's queued events,
+ *    and "idle" is published only after the turn's last event has been sent
+ *  - a new turn clears the previous error, the pending steers and any leftover wait
  *  - a steer is pending from acceptance until the runner reports it consumed
  *  - an open interaction is cleared when it is answered or withdrawn
- *  - an unchanged state is not published again
+ *  - a blocking task-output wait sets waitingSince, and it is cleared when the wait or turn ends
+ *  - a failed event write is reported as the chat's error at once, because it leaves the
+ *    publisher unable to flush the events that a normal live-state update waits behind
+ *  - an unchanged state is not published again, and updates for one chat are published in order
  * Test first: beginTurn on a state with an error returns working with no error and no pending
  * steers.
  */
 import { type Interaction, idleLiveState, type LiveState } from "@conducted/protocol";
 import type { InteractionId, MessageId, SessionId } from "@conducted/shared";
-import { notImplemented } from "@conducted/shared";
 import type { SidecarToApp } from "../rpc/types.ts";
+import type { EventPublisher } from "./event-batcher.ts";
 
 export type BackgroundTask = LiveState["backgroundTasks"][number];
 
+function sameValue(left: unknown, right: unknown): boolean {
+	if (left === right) return true;
+	if (left === null || right === null) return false;
+	if (typeof left !== "object" || typeof right !== "object") return false;
+	if (Array.isArray(left) !== Array.isArray(right)) return false;
+	if (Array.isArray(left)) {
+		if (!Array.isArray(right) || left.length !== right.length) return false;
+		return left.every((item, index) => sameValue(item, right[index]));
+	}
+	const leftKeys = Object.keys(left).filter(
+		(name) => (left as Record<string, unknown>)[name] !== undefined,
+	);
+	const rightKeys = Object.keys(right).filter(
+		(name) => (right as Record<string, unknown>)[name] !== undefined,
+	);
+	if (leftKeys.length !== rightKeys.length) return false;
+	return leftKeys.every(
+		(name) =>
+			Object.hasOwn(right, name) &&
+			sameValue((left as Record<string, unknown>)[name], (right as Record<string, unknown>)[name]),
+	);
+}
+
+function sameLiveState(left: LiveState, right: LiveState): boolean {
+	return sameValue(left, right);
+}
+
 export function beginTurn(state: LiveState): LiveState {
-	const { error: _cleared, ...rest } = state;
+	const { error: _cleared, waitingSince: _waiting, retry: _retry, ...rest } = state;
 	return { ...rest, status: "working", pendingSteerIds: [] };
 }
 
 export function endTurn(state: LiveState, error?: string): LiveState {
-	const { error: _previous, openInteraction: _open, ...rest } = state;
+	const {
+		error: _previous,
+		openInteraction: _open,
+		waitingSince: _waiting,
+		retry: _retry,
+		...rest
+	} = state;
 	const next: LiveState = { ...rest, status: "idle", pendingSteerIds: [] };
 	return error === undefined ? next : { ...next, error };
 }
@@ -44,7 +80,21 @@ export function removePendingSteer(state: LiveState, id: MessageId): LiveState {
 }
 
 export function setBackgroundTasks(state: LiveState, tasks: BackgroundTask[]): LiveState {
+	if (sameValue(state.backgroundTasks, tasks)) return state;
 	return { ...state, backgroundTasks: tasks };
+}
+
+/** Sets or clears the moment a blocking task-output wait began. */
+export function setWaitingSince(state: LiveState, since?: number): LiveState {
+	if (state.waitingSince === since) return state;
+	const { waitingSince: _previous, ...rest } = state;
+	return since === undefined ? rest : { ...rest, waitingSince: since };
+}
+
+/** Records a failure on the chat's live state without changing its status. */
+export function setError(state: LiveState, error: string): LiveState {
+	if (state.error === error) return state;
+	return { ...state, error };
 }
 
 export function openInteraction(
@@ -68,6 +118,10 @@ export function markFastModeUnavailable(state: LiveState): LiveState {
 
 /** Holds the LiveState of every chat and publishes changes. */
 export class LiveStateStore {
+	private readonly bySession = new Map<SessionId, LiveState>();
+	private readonly epochs = new Map<SessionId, number>();
+	private readonly chains = new Map<SessionId, Promise<void>>();
+
 	constructor(
 		protected readonly deps: {
 			app: SidecarToApp;
@@ -76,19 +130,76 @@ export class LiveStateStore {
 		},
 	) {}
 
-	get(_sessionId: SessionId): LiveState {
-		return notImplemented("SIDE-05");
+	get(sessionId: SessionId): LiveState {
+		return this.bySession.get(sessionId) ?? idleLiveState;
 	}
 
-	/** Applies a reducer and publishes the result when it differs. Idle waits for `flushed`. */
-	update(_sessionId: SessionId, _reducer: (state: LiveState) => LiveState): Promise<void> {
-		return notImplemented("SIDE-05");
+	/** Applies a reducer and publishes the result when it differs, after `flushed` resolves. */
+	update(sessionId: SessionId, reducer: (state: LiveState) => LiveState): Promise<void> {
+		const epoch = this.epochs.get(sessionId) ?? 0;
+		const previous = this.chains.get(sessionId) ?? Promise.resolve();
+		const run = previous.then(() => this.apply(sessionId, epoch, reducer));
+		const tail = run.then(
+			() => undefined,
+			() => undefined,
+		);
+		this.chains.set(sessionId, tail);
+		void tail.then(() => {
+			if (this.chains.get(sessionId) === tail) this.chains.delete(sessionId);
+		});
+		return run;
+	}
+
+	/**
+	 * Records an error and tells the app at once. A failed event write leaves the publisher's
+	 * flush unresolved, so this path waits for neither the flush nor an earlier update that is
+	 * blocked behind it: the user has to see why the chat stopped making progress.
+	 */
+	reportError(sessionId: SessionId, error: string): void {
+		if (!this.bySession.has(sessionId)) return;
+		const current = this.get(sessionId);
+		const next = setError(current, error);
+		if (sameLiveState(current, next)) return;
+		this.bySession.set(sessionId, next);
+		this.deps.app.notify("liveState", { sessionId, liveState: next });
 	}
 
 	/** Forgets a chat after resetAgent. */
-	drop(_sessionId: SessionId): void {
-		notImplemented("SIDE-05");
+	drop(sessionId: SessionId): void {
+		this.bySession.delete(sessionId);
+		this.epochs.set(sessionId, (this.epochs.get(sessionId) ?? 0) + 1);
 	}
+
+	private async apply(
+		sessionId: SessionId,
+		epoch: number,
+		reducer: (state: LiveState) => LiveState,
+	): Promise<void> {
+		if ((this.epochs.get(sessionId) ?? 0) !== epoch) return;
+		const current = this.get(sessionId);
+		const next = reducer(current);
+		if (sameLiveState(current, next)) return;
+		this.bySession.set(sessionId, next);
+		await this.deps.flushed(sessionId);
+		if ((this.epochs.get(sessionId) ?? 0) !== epoch) {
+			if (this.bySession.get(sessionId) === next) this.bySession.delete(sessionId);
+			return;
+		}
+		this.deps.app.notify("liveState", { sessionId, liveState: this.get(sessionId) });
+	}
+}
+
+/**
+ * Connects the publisher's terminal write failures to the chat's live state. Without this the
+ * publisher only logs and retries, and the chat never shows the error (sessions 5 step 4).
+ */
+export function reportWriteFailures(deps: {
+	publisher: Pick<EventPublisher, "onWriteFailure">;
+	liveState: LiveStateStore;
+}): void {
+	deps.publisher.onWriteFailure((sessionId, message) => {
+		deps.liveState.reportError(sessionId, message);
+	});
 }
 
 export { idleLiveState };

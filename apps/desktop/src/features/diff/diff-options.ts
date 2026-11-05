@@ -9,19 +9,33 @@
  * expandUnchanged (boolean, the "Entire file" switch), theme, themeType, disableFileHeader, and
  * parseDiffOptions.ignoreWhitespace for hiding whitespace changes.
  * Must handle: ignoreWhitespace only applying when the diff is computed from the two texts (when
- * only a patch exists, the services must produce a whitespace-free patch instead), and a theme name
- * the renderer does not know (fall back to its default, reported in the log).
+ * only a patch exists, the services must produce a whitespace-free patch instead). An empty theme
+ * name, or "default", means the renderer's own default for the light or dark type.
  * Test first: preferences { layout: "split", wrapLines: true } give diffStyle "split" and
  * overflow "wrap".
  */
-import { notImplemented } from "@conducted/shared";
 import type { FileDiffOptions } from "@pierre/diffs/react";
 import type { CommentAnnotation } from "./diff-annotations.ts";
-import type { DiffPreferences } from "./diff-types.ts";
+import type { DiffPreferences, DiffTheme } from "./diff-types.ts";
+
+/** The renderer's own defaults (ui-map.md 8). */
+const DEFAULT_THEMES: Record<DiffTheme["type"], string> = {
+	light: "pierre-light",
+	dark: "pierre-dark",
+};
 
 export function toDiffOptions(
-	_preferences: DiffPreferences,
-	_theme: { name: string; type: "light" | "dark" },
+	preferences: DiffPreferences,
+	theme: DiffTheme,
 ): FileDiffOptions<CommentAnnotation, undefined> {
-	return notImplemented("REV-02");
+	return {
+		diffStyle: preferences.layout === "split" ? "split" : "unified",
+		overflow: preferences.wrapLines ? "wrap" : "scroll",
+		expandUnchanged: preferences.entireFile,
+		theme:
+			theme.name.length > 0 && theme.name !== "default" ? theme.name : DEFAULT_THEMES[theme.type],
+		themeType: theme.type,
+		disableFileHeader: true,
+		parseDiffOptions: { ignoreWhitespace: preferences.hideWhitespaceChanges },
+	};
 }

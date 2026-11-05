@@ -8,7 +8,7 @@ import { ToolCardFrame, toolStatus } from "./ToolCardFrame.tsx";
 
 afterEach(cleanup);
 
-describe("tool card registry", () => {
+describe("CHAT-08 tool card registry", () => {
 	it.each(CANONICAL_TOOLS)("has a card for %s", (tool) => {
 		expect(typeof toolCardFor(tool)).toBe("function");
 	});
@@ -36,7 +36,7 @@ const call = (result: ToolCallView["result"]): ToolCallView => ({
 	children: [],
 });
 
-describe("toolStatus", () => {
+describe("CHAT-08 tool status", () => {
 	it("is running until a result arrives", () => {
 		expect(toolStatus(call(null))).toBe("running");
 	});
@@ -53,7 +53,7 @@ describe("toolStatus", () => {
 	});
 });
 
-describe("ToolCardFrame", () => {
+describe("CHAT-08 tool card frame", () => {
 	it("starts a finished card closed and opens its body on click", () => {
 		render(<ToolCardFrame title="Read" summary="src/a.ts" status="done" body={<p>excerpt</p>} />);
 		expect(screen.queryByText("excerpt")).toBeNull();
@@ -78,5 +78,10 @@ describe("ToolCardFrame", () => {
 	it("is not a button when there is no body", () => {
 		render(<ToolCardFrame title="Skill" status="done" />);
 		expect(screen.queryByRole("button")).toBeNull();
+	});
+
+	it("opens every card in Garry mode", () => {
+		render(<ToolCardFrame title="Read" status="done" body={<p>excerpt</p>} expandAll />);
+		expect(screen.getByText("excerpt")).toBeTruthy();
 	});
 });

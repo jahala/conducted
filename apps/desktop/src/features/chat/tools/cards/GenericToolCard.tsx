@@ -8,9 +8,28 @@
  * Test first: A call with tool 'unknown' and raw name 'FooTool' renders 'FooTool' and its input as
  * JSON.
  */
-import { notImplemented } from "@conducted/shared";
+import { formatJson, ToolCardFrame, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
-export function GenericToolCard(_props: ToolCardProps): never {
-	return notImplemented("CHAT-08");
+export function GenericToolCard({ call, defaultExpanded }: ToolCardProps) {
+	const output = call.result?.output ?? "";
+	return (
+		<ToolCardFrame
+			title={call.item.rawName}
+			status={toolStatus(call)}
+			expandAll={defaultExpanded}
+			body={
+				<div className="flex flex-col gap-2">
+					<pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-sm bg-surface p-2 font-mono text-xs text-fg-muted">
+						{formatJson(call.item.input)}
+					</pre>
+					{output.length > 0 ? (
+						<pre className="max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-fg">
+							{output}
+						</pre>
+					) : null}
+				</div>
+			}
+		/>
+	);
 }

@@ -10,7 +10,10 @@
  * warnings at once (updating plus too_large shows the first only).
  * Test first: kind "whitespace_only" shows an action that calls onAction.
  */
-import { notImplemented } from "@conducted/shared";
+import { Alert, AlertDescription, AlertTitle } from "../../ui/Alert.tsx";
+import { Button } from "../../ui/Button.tsx";
+import { CloseIcon } from "../../ui/icons.tsx";
+import { Spinner } from "../../ui/Spinner.tsx";
 
 export type DiffWarningKind =
 	| "binary"
@@ -25,6 +28,61 @@ export interface DiffWarningProps {
 	onDismiss: () => void;
 }
 
-export function DiffWarning(_props: DiffWarningProps): never {
-	return notImplemented("REV-02");
+interface WarningCopy {
+	title: string;
+	action: string | null;
+	dismissible: boolean;
+}
+
+const COPY: Record<DiffWarningKind, WarningCopy> = {
+	binary: { title: "Binary file changed", action: null, dismissible: true },
+	too_large: {
+		title: "This file is too large to show",
+		action: "Render anyway",
+		dismissible: true,
+	},
+	whitespace_only: {
+		title: "Only whitespace changes found",
+		action: "Show whitespace changes",
+		dismissible: true,
+	},
+	updating: { title: "Updating diff", action: null, dismissible: false },
+	render_failed: { title: "Failed to open editor", action: "Retry", dismissible: true },
+};
+
+export function DiffWarning({ kind, onAction, onDismiss }: DiffWarningProps) {
+	const copy = COPY[kind];
+	return (
+		<Alert
+			tone={kind === "render_failed" ? "destructive" : "default"}
+			icon={kind === "updating" ? <Spinner size="sm" label="Updating diff" /> : undefined}
+			className="m-3"
+		>
+			<div className="flex items-start justify-between gap-3">
+				<div className="flex flex-col gap-1">
+					<AlertTitle>{copy.title}</AlertTitle>
+					{kind === "binary" ? (
+						<AlertDescription>The file's contents are not shown.</AlertDescription>
+					) : null}
+				</div>
+				<div className="flex shrink-0 items-center gap-1">
+					{copy.action !== null ? (
+						<Button variant="outline" size="xs" onClick={onAction}>
+							{copy.action}
+						</Button>
+					) : null}
+					{copy.dismissible ? (
+						<Button
+							variant="ghost"
+							size="xs"
+							aria-label="Dismiss diff rendering warning"
+							onClick={onDismiss}
+						>
+							<CloseIcon className="size-3.5" />
+						</Button>
+					) : null}
+				</div>
+			</div>
+		</Alert>
+	);
 }

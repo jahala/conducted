@@ -6,9 +6,28 @@
  * text from the agent); no new output since the last read.
  * Test first: A bash_output call shows the new output lines.
  */
-import { notImplemented } from "@conducted/shared";
+import { asRecord, stripAnsi, ToolCardFrame, textField, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
-export function BashOutputCard(_props: ToolCardProps): never {
-	return notImplemented("CHAT-08");
+export function BashOutputCard({ call, defaultExpanded }: ToolCardProps) {
+	const input = asRecord(call.item.input);
+	const shellId = textField(input, "bash_id", "shell_id", "id");
+	const output = stripAnsi(call.result?.output ?? "");
+	return (
+		<ToolCardFrame
+			title="Bash output"
+			summary={shellId ?? undefined}
+			status={toolStatus(call)}
+			expandAll={defaultExpanded}
+			body={
+				output.length === 0 ? (
+					<p className="text-xs text-fg-subtle">No new output</p>
+				) : (
+					<pre className="max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-fg">
+						{output}
+					</pre>
+				)
+			}
+		/>
+	);
 }
