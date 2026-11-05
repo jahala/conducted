@@ -259,9 +259,9 @@ function toAccelerator(spec: string): string | null {
 	const parsed = parseShortcut(spec);
 	if (!parsed.ok) return null;
 	const modifiers = [
+		parsed.value.cmd ? "CmdOrCtrl" : null,
 		parsed.value.ctrl ? "Control" : null,
 		parsed.value.alt ? "Alt" : null,
-		parsed.value.cmd ? "CmdOrCtrl" : null,
 		parsed.value.shift ? "Shift" : null,
 	].filter((part): part is string => part !== null);
 	const key = ACCELERATOR_KEYS[parsed.value.key] ?? parsed.value.key;

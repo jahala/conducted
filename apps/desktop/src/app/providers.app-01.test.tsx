@@ -41,12 +41,12 @@ describe("APP-01 providers", () => {
 
 		expect(screen.getByText("child")).toBeTruthy();
 		expect(seen).toBe(client);
-		expect(document.querySelector("[data-sonner-toaster]")).toBeTruthy();
 
 		await act(async () => {
 			toast.success("Saved");
 		});
 		expect(await screen.findByText("Saved")).toBeTruthy();
+		expect(document.querySelector("[data-sonner-toaster]")).toBeTruthy();
 	});
 
 	it("keeps the client defaults: no retry, always online, never stale on its own", () => {

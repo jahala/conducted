@@ -6,7 +6,7 @@
  * Test first: the modal handler wins, then the base handler runs after the modal unmounts.
  */
 import { ok } from "@conducted/shared";
-import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
+import { act, cleanup, render, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createContainer } from "../core/container.ts";
@@ -89,6 +89,20 @@ function lastShortcutFor(calls: readonly (readonly MenuShortcut[])[], commandId:
 function ModalRegistration({ handler }: { handler: CommandHandlerFn }) {
 	useCommandHandler("app.commandPalette", "modal", handler);
 	return null;
+}
+
+function HandlerHarness({
+	modalOpen,
+	base,
+	modal,
+}: {
+	modalOpen: boolean;
+	base: CommandHandlerFn;
+	modal: CommandHandlerFn;
+}) {
+	useCommandDispatcher();
+	useCommandHandler("app.commandPalette", "base", base);
+	return modalOpen ? <ModalRegistration handler={modal} /> : null;
 }
 
 beforeEach(() => {
@@ -268,14 +282,9 @@ describe("NAV-14 useCommandHandler", () => {
 		const modal = vi.fn(() => true);
 		vi.spyOn(container.services.commands, "run").mockResolvedValue(ok(undefined));
 
-		const { rerender } = renderHook(
-			({ modalOpen }: { modalOpen: boolean }) => {
-				useCommandDispatcher();
-				useCommandHandler("app.commandPalette", "base", base);
-				return modalOpen ? <ModalRegistration handler={modal} /> : null;
-			},
-			{ initialProps: { modalOpen: true }, wrapper },
-		);
+		const { rerender } = render(<HandlerHarness modalOpen base={base} modal={modal} />, {
+			wrapper,
+		});
 
 		act(() => {
 			for (const listener of menuListeners) listener("app.commandPalette");
@@ -283,7 +292,7 @@ describe("NAV-14 useCommandHandler", () => {
 		expect(modal).toHaveBeenCalledTimes(1);
 		expect(base).not.toHaveBeenCalled();
 
-		rerender({ modalOpen: false });
+		rerender(<HandlerHarness modalOpen={false} base={base} modal={modal} />);
 		act(() => {
 			for (const listener of menuListeners) listener("app.commandPalette");
 		});

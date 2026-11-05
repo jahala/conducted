@@ -498,6 +498,7 @@ describe("WS-01 WorkspaceService.create", () => {
 				if (starts(command, "git", ["fetch"])) return output(0);
 				if (matches(command, "git", ["rev-parse", "refs/remotes/origin/main"]))
 					return output(0, "base-sha");
+				if (starts(command, "git", ["show-ref"])) return output(1);
 				if (starts(command, "git", ["worktree", "add"]))
 					return output(128, "", "fatal: cannot create worktree");
 				if (matches(command, "git", ["worktree", "list", "--porcelain"])) return output(0, "");

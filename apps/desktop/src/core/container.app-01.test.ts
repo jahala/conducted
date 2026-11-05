@@ -114,6 +114,10 @@ function stubStartup(harness: Harness): void {
 	record(container.services.sessions, "chats");
 	record(container.services.system, "programs");
 
+	// Run scripts belongs to RUN-01 and its stop is still a placeholder; the container's own stop
+	// wiring is what this test checks, so the unbuilt dependency is stubbed like the starts above.
+	vi.spyOn(container.services.runScripts, "stopAll").mockResolvedValue(ok(undefined));
+
 	vi.spyOn(container.sidecar, "start").mockImplementation(async () => {
 		events.push("start:sidecar");
 		return ok(undefined);

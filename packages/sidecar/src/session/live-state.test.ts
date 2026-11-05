@@ -174,15 +174,20 @@ describe("SIDE-05 live-state store", () => {
 
 	test("SIDE-05 idle is published only after the turn's last event was flushed", async () => {
 		const gate = deferred<void>();
-		const { app, store } = harness(() => gate.promise);
+		let pendingFlush: Promise<void> = Promise.resolve();
+		const { app, store } = harness(() => pendingFlush);
 
-		const idle = store.update(sid("session-1"), (state) => endTurn(beginTurn(state)));
+		await store.update(sid("session-1"), beginTurn);
+		expect(publishedStates(app).map((state) => state.status)).toEqual(["working"]);
+
+		pendingFlush = gate.promise;
+		const idle = store.update(sid("session-1"), endTurn);
 		await settle();
-		expect(publishedStates(app)).toHaveLength(0);
+		expect(publishedStates(app).map((state) => state.status)).toEqual(["working"]);
 
 		gate.resolve();
 		await idle;
-		expect(publishedStates(app).map((state) => state.status)).toEqual(["idle"]);
+		expect(publishedStates(app).map((state) => state.status)).toEqual(["working", "idle"]);
 	});
 
 	test("SIDE-05 updates for one chat are published in order behind a slow flush", async () => {

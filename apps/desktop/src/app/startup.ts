@@ -133,7 +133,7 @@ export function installGlobalHandlers(platform: Pick<Platform, "app">): () => vo
 	const originalConsoleError = console.error;
 	console.error = (...args: unknown[]) => {
 		originalConsoleError.apply(console, args);
-		log("console.error", { text: args.map(describeForLog).join(" ") });
+		log("console.error", args.map(describeForLog).join(" "));
 	};
 
 	window.addEventListener("error", onError);

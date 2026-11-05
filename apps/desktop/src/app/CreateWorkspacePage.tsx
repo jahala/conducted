@@ -17,7 +17,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useStore } from "zustand";
 import type { NewWorkspaceInput } from "../core/api.ts";
-import { useServices } from "../core/context.ts";
+import { useServices } from "../core/context.tsx";
 import { useActions, useRepos, useSetting } from "../core/hooks.ts";
 import type { Section } from "../core/model.ts";
 import { AddProjectButton } from "../features/sidebar/AddProjectButton.tsx";
