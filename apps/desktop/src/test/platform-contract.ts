@@ -1609,8 +1609,9 @@ export const UNCOVERED_METHODS: Readonly<Record<string, string>> = {
 	"programs.prefetchForUpdate": "PLAT-28 builds it.",
 	"programs.verificationErrors": "Reads the Rust launch check; the Rust job owns it.",
 	"programs.syncPathOverrides": "SET-13 builds it.",
-	"http.download": "PLAT-30 builds it.",
-	"http.download.cancel": "PLAT-30 builds it.",
+	"http.download":
+		"Streams to a file in Rust; the Rust download tests own progress, checksum and cancel.",
+	"http.download.cancel": "Cancels the Rust download task by id; the Rust download tests own it.",
 };
 
 /** Methods that are neither covered by a case nor listed with a reason. */
