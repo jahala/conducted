@@ -20,7 +20,7 @@ import { constants as osConstants } from "node:os";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { UnlistenFn } from "@tauri-apps/api/event";
-import type { ContractControls } from "../platform/contract.ts";
+import type { ContractControls } from "./platform-contract.ts";
 import type { FileStat, ShellCommand, ShellOutput } from "../platform/platform.ts";
 import { COMMANDS, EVENTS, type TauriBindings } from "../platform/tauri.ts";
 import { createNodeSqlDatabase } from "./node-sql.ts";

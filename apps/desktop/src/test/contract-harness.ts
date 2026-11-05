@@ -8,7 +8,7 @@
  * Test first: a case the run skips appears in the output with its reason.
  */
 import { describe, expect, it } from "vitest";
-import type { ContractHarness } from "../platform/contract.ts";
+import type { ContractHarness } from "./platform-contract.ts";
 
 export const vitestContractHarness: ContractHarness = {
 	describe: (name, body) => {

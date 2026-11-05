@@ -4,7 +4,7 @@ import { ok } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import { vitestContractHarness } from "../test/contract-harness.ts";
 import { createNodeQueuedDatabase } from "../test/node-sql.ts";
-import { runPlatformContract } from "./contract.ts";
+import { runPlatformContract } from "../test/platform-contract.ts";
 import { createMemoryPlatform } from "./memory.ts";
 
 let caseNumber = 0;

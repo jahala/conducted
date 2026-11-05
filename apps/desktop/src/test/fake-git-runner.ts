@@ -7,6 +7,7 @@
  * taken in the real order.
  * Behaviour: core/git/runner.ts is the real runner; fake-git-runner.test.ts runs the same answers
  * through `ShellGitRunner` over a real temp repository and checks that they match.
+ * Contract test: fake-git-runner.test.ts
  * Must handle: a command the handler does not know is an `Err` with code `git_unscripted` and the
  * command in the message, never an `Ok`; every call is recorded in order with its options; a lock
  * held by one call makes the next call on the same key wait, as in the app; `start` throws unless

@@ -204,17 +204,45 @@ export const checkTimeAndLeaks = (root: string): Promise<Problem[]> =>
 	checkGuard(root, "time-and-leaks");
 
 /** Rewrites the baseline from today's findings. Output is sorted, so the same tree gives the same bytes. */
-export async function writeBaseline(root: string): Promise<void> {
+/**
+ * The counts that a regeneration would raise. A first baseline may hold any counts; once one
+ * exists it may only shrink (D055), so a rise is refused and named.
+ */
+export function risesOver(current: Baseline | null, next: Baseline): string[] {
+	if (current === null) return [];
+	const raised: string[] = [];
+	for (const guard of GUARD_NAMES) {
+		for (const [file, count] of Object.entries(next[guard])) {
+			const before = current[guard]?.[file] ?? 0;
+			if (count > before) raised.push(`${guard}: ${file} ${before} -> ${count}`);
+		}
+	}
+	return raised;
+}
+
+export async function writeBaseline(root: string): Promise<string[]> {
 	const found = await scanTestShapes(root);
-	mkdirSync(dirname(join(root, BASELINE_PATH)), { recursive: true });
-	writeFileSync(join(root, BASELINE_PATH), renderBaseline(countFindings(found)));
+	const next = countFindings(found);
+	const path = join(root, BASELINE_PATH);
+	const current = existsSync(path) ? (JSON.parse(read(path)) as Baseline) : null;
+	const raised = risesOver(current, next);
+	if (raised.length > 0) return raised;
+	mkdirSync(dirname(path), { recursive: true });
+	writeFileSync(path, renderBaseline(next));
+	return [];
 }
 
 if (import.meta.main) {
 	const root = join(import.meta.dir, "../..");
 	const args = process.argv.slice(2);
 	if (args.includes("--write-baseline")) {
-		await writeBaseline(root);
+		const raised = await writeBaseline(root);
+		if (raised.length > 0) {
+			console.error(
+				`A baseline may only shrink (D055). These counts would rise:\n  ${raised.join("\n  ")}`,
+			);
+			process.exit(1);
+		}
 		console.log(`wrote ${BASELINE_PATH}`);
 	} else if (args.includes("--list")) {
 		const only = args.find((arg) => (GUARD_NAMES as string[]).includes(arg));

@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { vitestContractHarness } from "../test/contract-harness.ts";
+import { memoryPlatformForShape, platformMethods } from "../test/memory-platform.ts";
+import { PLATFORM_CONTRACT_CASES, runPlatformContract } from "../test/platform-contract.ts";
 import { createNodeTauriBindings } from "../test/tauri-node-bindings.ts";
-import { PLATFORM_CONTRACT_CASES, runPlatformContract } from "./contract.ts";
-import { createMemoryPlatform } from "./memory.ts";
 import type { Database, Platform } from "./platform.ts";
 import { createTauriPlatform } from "./tauri.ts";
 
@@ -30,6 +30,35 @@ const TAURI_SKIPS: Readonly<Record<string, string>> = {
 	"system.info": `${NEEDS_RUST}: the macOS version and CPU`,
 };
 
+/**
+ * Cases whose method is still a placeholder in the Tauri adapter, because the feature that builds
+ * it is not done. They are skipped, not marked as failing (D055). The test below checks that each
+ * method still throws for its feature, so the day a feature lands, that test fails and its entry
+ * must come off this list. `pnpm stubs` already fails a done feature that keeps a placeholder.
+ */
+const NOT_BUILT: Readonly<Record<string, { feature: string; method: string }>> = {
+	"fileSearch.list-artifacts": { feature: "REV-10", method: "fileSearch.listArtifacts" },
+	"updater.check": { feature: "PLAT-13", method: "updater.check" },
+	"updater.installed-update": { feature: "PLAT-13", method: "updater.installedUpdate" },
+	"menu.set-shortcuts": { feature: "PLAT-33", method: "menu.setShortcuts" },
+	"system.online-and-access": { feature: "PLAT-26", method: "system.isOnline" },
+	"attachments.materialize": { feature: "PLAT-33", method: "attachments.materialize" },
+	"attachments.resize-image": { feature: "PLAT-33", method: "attachments.resizeImage" },
+	"programs.install-status": { feature: "PLAT-28", method: "programs.statuses" },
+	"programs.remove-status": { feature: "PLAT-28", method: "programs.remove" },
+	"http.invalid-url": { feature: "PLAT-30", method: "http.fetch" },
+};
+
+const TAURI_RUN_SKIPS: Readonly<Record<string, string>> = {
+	...TAURI_SKIPS,
+	...Object.fromEntries(
+		Object.entries(NOT_BUILT).map(([id, { feature, method }]) => [
+			id,
+			`not built: ${feature} (${method} is a placeholder in tauri.ts)`,
+		]),
+	),
+};
+
 runPlatformContract(
 	vitestContractHarness,
 	"tauri",
@@ -50,21 +79,8 @@ runPlatformContract(
 			throw error;
 		}
 	},
-	{ controls: true, skips: TAURI_SKIPS },
+	{ controls: true, skips: TAURI_RUN_SKIPS },
 );
-
-const unusedDatabase: Database = {
-	execute: () => Promise.reject(new Error("The shape check does not use the database.")),
-	select: () => Promise.reject(new Error("The shape check does not use the database.")),
-	transaction: () => Promise.reject(new Error("The shape check does not use the database.")),
-};
-
-const methodsOf = (platform: Platform): string[] =>
-	Object.entries(platform).flatMap(([group, value]) =>
-		Object.entries(value as object)
-			.filter(([, member]) => typeof member === "function")
-			.map(([name]) => `${group}.${name}`),
-	);
 
 describe("PLAT-02 Tauri platform contract run", () => {
 	it(`skips ${Object.keys(TAURI_SKIPS).length} of ${PLATFORM_CONTRACT_CASES.length} cases, all with a reason`, () => {
@@ -81,13 +97,37 @@ describe("PLAT-02 Tauri platform contract run", () => {
 		try {
 			const tauri = await createTauriPlatform(run.bindings);
 			if (!tauri.ok) throw new Error(tauri.error.message);
-			let counter = 0;
-			const memory = createMemoryPlatform({
-				clock: { now: () => 0 },
-				ids: { uuid: () => `id-${++counter}` },
-				database: unusedDatabase,
-			}).platform;
-			expect(methodsOf(tauri.value).sort()).toEqual(methodsOf(memory).sort());
+			const memory = memoryPlatformForShape();
+			expect(platformMethods(tauri.value).sort()).toEqual(platformMethods(memory).sort());
+		} finally {
+			await run.dispose();
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("skips a not-built case only while its method is still a placeholder", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "conducted-contract-"));
+		const run = createNodeTauriBindings(dir);
+		try {
+			const tauri = await createTauriPlatform(run.bindings);
+			if (!tauri.ok) throw new Error(tauri.error.message);
+			const ids = new Set(PLATFORM_CONTRACT_CASES.map((testCase) => testCase.id));
+			expect(Object.keys(NOT_BUILT).length).toBeGreaterThan(0);
+			for (const [id, { feature, method }] of Object.entries(NOT_BUILT)) {
+				expect(ids.has(id), `${id} is not a case`).toBe(true);
+				const [group, name] = method.split(".") as [string, string];
+				const member = (tauri.value as unknown as Record<string, Record<string, unknown>>)[group]?.[
+					name
+				];
+				expect(typeof member, `${method} exists on the Tauri platform`).toBe("function");
+				const call = (member as () => unknown).bind(
+					(tauri.value as unknown as Record<string, object>)[group],
+				);
+				await expect(
+					Promise.resolve().then(call),
+					`${method} is built now: take ${id} off NOT_BUILT`,
+				).rejects.toThrow(feature);
+			}
 		} finally {
 			await run.dispose();
 			rmSync(dir, { recursive: true, force: true });

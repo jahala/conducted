@@ -21,13 +21,13 @@
  * unsubscribed listener hears nothing); a case that needs the sidecar and has no controls expects a
  * loopback echo child, never a real agent.
  * Our design choice: the harness (`describe`, `it`, `skip`, `assert`) is passed in, so this file
- * imports no test framework and can sit in `src/`. Cases are plain data, and a coverage test
+ * imports no test framework. It sits in `src/test/` because only tests run it. Cases are plain data, and a coverage test
  * fails when a `Platform` method has neither a case nor an entry in `UNCOVERED_METHODS`, so a new
  * method cannot be forgotten.
  * Test first: the in-memory Platform passes "fs: write then read returns the same text".
  */
 import type { AppError, Result } from "@conducted/shared";
-import type { Platform, ProgramStatus, SpeechEvent, Unsubscribe } from "./platform.ts";
+import type { Platform, ProgramStatus, SpeechEvent, Unsubscribe } from "../platform/platform.ts";
 
 export type ContractGroup = keyof Platform;
 

@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
+import { memoryPlatformForShape, platformMethods } from "../test/memory-platform.ts";
 import {
 	CASE_METHODS,
 	type ContractHarness,
@@ -8,15 +9,8 @@ import {
 	PLATFORM_CONTRACT_CASES,
 	runPlatformContract,
 	UNCOVERED_METHODS,
-} from "./contract.ts";
-import { createMemoryPlatform } from "./memory.ts";
+} from "../test/platform-contract.ts";
 import type { Database, Platform } from "./platform.ts";
-
-const unusedDatabase: Database = {
-	execute: () => Promise.reject(new Error("The coverage test does not use the database.")),
-	select: () => Promise.reject(new Error("The coverage test does not use the database.")),
-	transaction: () => Promise.reject(new Error("The coverage test does not use the database.")),
-};
 
 function missingContractGroups(
 	groups: readonly string[],
@@ -28,12 +22,7 @@ function missingContractGroups(
 
 describe("PLAT-01 platform contract coverage", () => {
 	it("has at least one case for every Platform group", () => {
-		let idCounter = 0;
-		const platform = createMemoryPlatform({
-			clock: { now: () => 0 },
-			ids: { uuid: () => `id-${++idCounter}` },
-			database: unusedDatabase,
-		}).platform;
+		const platform = memoryPlatformForShape();
 		const groups = Object.keys(platform) as (keyof Platform)[];
 		expect(missingContractGroups(groups)).toEqual([]);
 	});
@@ -98,25 +87,9 @@ describe("PLAT-01 platform contract coverage", () => {
 	});
 });
 
-function memoryPlatform(): Platform {
-	let idCounter = 0;
-	return createMemoryPlatform({
-		clock: { now: () => 0 },
-		ids: { uuid: () => `id-${++idCounter}` },
-		database: unusedDatabase,
-	}).platform;
-}
-
-const methodsOf = (platform: Platform): string[] =>
-	Object.entries(platform).flatMap(([group, value]) =>
-		Object.entries(value as object)
-			.filter(([, member]) => typeof member === "function")
-			.map(([name]) => `${group}.${name}`),
-	);
-
 describe("PLAT-01 platform contract method coverage", () => {
 	it("names every Platform method in a case or in the uncovered list", () => {
-		const all = [...methodsOf(memoryPlatform()), ...HANDLE_METHODS];
+		const all = [...platformMethods(memoryPlatformForShape()), ...HANDLE_METHODS];
 		expect(methodsWithoutCoverage(all)).toEqual([]);
 	});
 
@@ -128,7 +101,7 @@ describe("PLAT-01 platform contract method coverage", () => {
 	});
 
 	it("lists no method that a case already covers, and none that does not exist", () => {
-		const all = new Set([...methodsOf(memoryPlatform()), ...HANDLE_METHODS]);
+		const all = new Set([...platformMethods(memoryPlatformForShape()), ...HANDLE_METHODS]);
 		const covered = new Set(Object.values(CASE_METHODS).flat());
 		expect(Object.keys(UNCOVERED_METHODS).filter((method) => covered.has(method))).toEqual([]);
 		expect(Object.keys(UNCOVERED_METHODS).filter((method) => !all.has(method))).toEqual([]);
@@ -141,7 +114,7 @@ describe("PLAT-01 platform contract method coverage", () => {
 	});
 
 	it("lists the methods of the handles that spawn, start and download return", async () => {
-		const platform = memoryPlatform();
+		const platform = memoryPlatformForShape();
 		const pty = await platform.pty.spawn({ cwd: "/", cols: 80, rows: 24 });
 		if (!pty.ok) throw new Error(pty.error.message);
 		const running = platform.shell.start({ program: "/bin/true", args: [], cwd: "/" });
@@ -175,7 +148,7 @@ describe("PLAT-01 platform contract method coverage", () => {
 		runPlatformContract(
 			harness,
 			"memory",
-			async () => ({ platform: memoryPlatform(), root: "/root", cleanup: async () => {} }),
+			async () => ({ platform: memoryPlatformForShape(), root: "/root", cleanup: async () => {} }),
 			{ controls: true, methods: { "app.version": ["app.health"] } },
 		);
 		expect(bodies).toHaveLength(1);
