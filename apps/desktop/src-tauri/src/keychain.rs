@@ -24,7 +24,7 @@
 //! Test first: set, get and delete round-trip under a unique test service, and a get after the
 //! delete returns `None`. The test removes everything it created.
 
-use crate::error::{blocking, CommandError, CommandResult};
+use crate::error::{CommandError, CommandResult, blocking};
 use security_framework::passwords::{
     delete_generic_password, get_generic_password, set_generic_password,
 };

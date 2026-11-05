@@ -273,10 +273,7 @@ mod tests {
             .record_click("conducted://workspace?id=newer")
             .expect("the newer link is accepted");
 
-        assert_eq!(
-            state.take_pending(),
-            ["conducted://workspace?id=newer"]
-        );
+        assert_eq!(state.take_pending(), ["conducted://workspace?id=newer"]);
         assert!(state.take_pending().is_empty());
     }
 
@@ -308,10 +305,7 @@ mod tests {
             serde_json::json!("conducted://workspace?id=w1"),
         );
 
-        assert_eq!(
-            clicked_link(&extra),
-            Some("conducted://workspace?id=w1")
-        );
+        assert_eq!(clicked_link(&extra), Some("conducted://workspace?id=w1"));
         assert_eq!(clicked_link(&HashMap::new()), None);
     }
 
