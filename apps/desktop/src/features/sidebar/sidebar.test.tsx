@@ -33,7 +33,7 @@ afterEach(cleanup);
 const repo = { id: "r1", name: "app" } as unknown as Repo;
 const workspace = { id: "w1" } as unknown as Workspace;
 
-describe("WorkspaceList", () => {
+describe("NAV-03 WorkspaceList", () => {
 	it("announces loading while projects load", () => {
 		hooks.repos = { state: "loading" };
 		render(<WorkspaceList />);
@@ -45,6 +45,7 @@ describe("WorkspaceList", () => {
 		render(<WorkspaceList />);
 		expect(screen.getByText("Couldn't load projects")).toBeTruthy();
 		expect(screen.getByText("Database is locked")).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
 	});
 
 	it("invites the user to add a project when there is none", async () => {

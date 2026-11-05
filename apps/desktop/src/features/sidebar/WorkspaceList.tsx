@@ -35,6 +35,7 @@ export function WorkspaceList() {
 			loadingLabel="Loading workspaces"
 			loading={<ListSkeleton />}
 			errorTitle="Couldn't load projects"
+			onRetry={() => window.location.reload()}
 			compact
 		>
 			{(repoRows) =>
@@ -46,6 +47,7 @@ export function WorkspaceList() {
 						loadingLabel="Loading workspaces"
 						loading={<ListSkeleton />}
 						errorTitle="Couldn't load workspaces"
+						onRetry={() => window.location.reload()}
 						compact
 					>
 						{(workspaceRows) =>
