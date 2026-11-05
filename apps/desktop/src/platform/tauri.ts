@@ -24,7 +24,7 @@
  */
 
 import { type AppError, appError, err, notImplemented, ok, type Result } from "@conducted/shared";
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
 	AppInfo,
@@ -43,6 +43,9 @@ import type {
 	Platform,
 	Programs,
 	Pty,
+	PtyHandle,
+	PtySpawn,
+	ScreenSnapshot,
 	Shell,
 	SidecarTransport,
 	Speech,
@@ -263,10 +266,121 @@ export function createTauriFileSearch(_bindings: TauriBindings): FileSearch {
 	};
 }
 
-/** `pty_spawn { options, onData: Channel }`, `pty_write { id, data }`, `pty_resize`, `pty_kill`, `pty_ack { id, bytes }`, `pty_screen_text { id, maxLines }`, `pty_screen_snapshot { id }`, `pty_load_history { terminalId }`, event `pty://exit`. */
-export function createTauriPty(_bindings: TauriBindings): Pty {
+function decodeBase64(value: string): Uint8Array {
+	const binary = atob(value);
+	const bytes = new Uint8Array(binary.length);
+	for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+	return bytes;
+}
+
+/** `pty_spawn { request, onOutput: Channel }`, `pty_write { id, data }`, `pty_resize`, `pty_kill`, `pty_ack { id, bytes }`, `pty_screen_text { id, maxLines }`, `pty_screen_snapshot { id }`, `pty_load_history { terminalId }`, event `pty://exit`. */
+export function createTauriPty(bindings: TauriBindings): Pty {
 	return {
-		spawn: () => notImplemented("PLAT-07"),
+		spawn: async (options: PtySpawn) => {
+			const dataListeners = new Set<(chunk: Uint8Array) => void>();
+			const exitListeners = new Set<(exitCode: number | null) => void>();
+			const early: Uint8Array[] = [];
+			let resolved = false;
+			let exitCode: number | null | undefined;
+			let unlisten: UnlistenFn | null = null;
+
+			const flushEarly = (): void => {
+				if (!resolved) return;
+				for (const chunk of early.splice(0)) {
+					for (const listener of [...dataListeners]) listener(chunk);
+				}
+			};
+
+			const channel = new Channel<{ data: string; byteLength: number }>((message) => {
+				const chunk = decodeBase64(message.data);
+				if (!resolved || dataListeners.size === 0) {
+					early.push(chunk);
+					return;
+				}
+				for (const listener of [...dataListeners]) listener(chunk);
+			});
+
+			const spawned = await invokeResult<{ id: string; pid: number | null }>(
+				bindings,
+				COMMANDS.ptySpawn,
+				{ request: options, onOutput: channel },
+			);
+			if (!spawned.ok) return spawned;
+
+			const handleId = spawned.value.id;
+			resolved = true;
+			unlisten = await bindings.listen<{ id: string; exitCode: number | null }>(
+				EVENTS.ptyExit,
+				(payload) => {
+					if (payload.id !== handleId) return;
+					const code = payload.exitCode;
+					exitCode = code;
+					for (const listener of [...exitListeners]) listener(code);
+					exitListeners.clear();
+					if (unlisten !== null) {
+						unlisten();
+						unlisten = null;
+					}
+				},
+			);
+
+			const handle: PtyHandle = {
+				id: handleId,
+				write: async (data) => {
+					const result = await invokeResult<void>(bindings, COMMANDS.ptyWrite, {
+						id: handleId,
+						data,
+					});
+					if (!result.ok) throw result.error;
+				},
+				resize: async (cols, rows) => {
+					const result = await invokeResult<void>(bindings, COMMANDS.ptyResize, {
+						id: handleId,
+						cols,
+						rows,
+					});
+					if (!result.ok) throw result.error;
+				},
+				kill: async () => {
+					const result = await invokeResult<void>(bindings, COMMANDS.ptyKill, {
+						id: handleId,
+					});
+					if (!result.ok) throw result.error;
+				},
+				onData: (listener) => {
+					dataListeners.add(listener);
+					flushEarly();
+					return () => {
+						dataListeners.delete(listener);
+					};
+				},
+				ack: (bytes) => {
+					void invokeResult<void>(bindings, COMMANDS.ptyAck, { id: handleId, bytes });
+				},
+				onExit: (listener) => {
+					if (exitCode !== undefined) {
+						const code = exitCode;
+						queueMicrotask(() => listener(code));
+						return () => {};
+					}
+					exitListeners.add(listener);
+					return () => {
+						exitListeners.delete(listener);
+					};
+				},
+				screenText: async (maxLines) => {
+					const result = await invokeResult<string>(bindings, COMMANDS.ptyScreenText, {
+						id: handleId,
+						maxLines,
+					});
+					if (!result.ok) throw result.error;
+					return result.value;
+				},
+				screenSnapshot: () =>
+					invokeResult<ScreenSnapshot>(bindings, COMMANDS.ptyScreenSnapshot, { id: handleId }),
+			};
+			return ok(handle);
+		},
 		loadHistory: () => notImplemented("PLAT-08"),
 	};
 }
