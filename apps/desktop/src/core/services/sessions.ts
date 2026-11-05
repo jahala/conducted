@@ -2,15 +2,10 @@
  * @feature CHAT-01 Sessions service: the chat list; CHAT-02 Send a message as a new turn; CHAT-05
  * Cancel a turn; CHAT-27 Retry a failed turn in a new chat; WS-10 Delete a workspace's chats
  * Owns: the list of chats per workspace, their stored live state and events in memory, the
-<<<<<<< HEAD
- * create, close, reopen, rename, set-title-if-empty, delete and open paths, starting a review chat
- * with the review model, sending a user message as a new turn or a steer, running the composition
- * root's first-message hook (WS-04's branch rename), cancelling a turn:
-=======
  * create, close, reopen, rename, set-title-if-empty, delete and open paths, deleting every chat
  * of a workspace with its attachment files and drafts, starting a review chat with the review
- * model, sending a user message as a new turn or a steer, cancelling a turn:
->>>>>>> node/ws.10
+ * model, sending a user message as a new turn or a steer, running the composition root's
+ * first-message hook (WS-04's branch rename), cancelling a turn:
  * pausing the follow-up queue, withdrawing the open interaction, removing only the pending sends
  * the sidecar dropped, and putting a send that was still in flight back in the composer draft,
  * and starting a failed turn's message again in a new chat of the same workspace.

@@ -130,6 +130,10 @@ function setSettings(container: TestContainer, values: Record<string, SettingVal
 	}));
 }
 
+/** Drops the `-c core.quotePath=false` the git runner puts in front of every git command. */
+const gitArgs = (command: { program: string; args: readonly string[] }): readonly string[] =>
+	command.program === "git" && command.args[0] === "-c" ? command.args.slice(2) : command.args;
+
 function scriptGit(
 	test: TestContainer,
 	options: { taken?: ReadonlySet<string>; currentBranch?: string } = {},
@@ -138,12 +142,12 @@ function scriptGit(
 	const currentBranch = options.currentBranch ?? "alpha";
 	test.memory.controls.scriptShell((command) => {
 		if (command.program !== "git") return null;
-		const [first, second] = command.args;
+		const [first, second] = gitArgs(command);
 		if (first === "branch" && second === "--show-current") {
 			return ok({ exitCode: 0, stdout: `${currentBranch}\n`, stderr: "" });
 		}
 		if (first === "show-ref") {
-			const ref = command.args.at(-1) ?? "";
+			const ref = gitArgs(command).at(-1) ?? "";
 			const name = ref.replace(/^refs\/heads\//, "").replace(/^refs\/remotes\/[^/]+\//, "");
 			return ok({ exitCode: taken.has(name) ? 0 : 1, stdout: "", stderr: "" });
 		}
@@ -204,10 +208,10 @@ async function setup(
 }
 
 const branchRenames = (test: TestContainer) =>
-	test.memory.controls.shellCalls.filter(
-		(command) =>
-			command.program === "git" && command.args[0] === "branch" && command.args[1] === "-m",
-	);
+	test.memory.controls.shellCalls.filter((command) => {
+		const args = gitArgs(command);
+		return command.program === "git" && args[0] === "branch" && args[1] === "-m";
+	});
 
 const savedWorkspace = (test: TestContainer, workspace: Workspace) =>
 	test.container.services.workspace.store.getState().workspacesById[workspace.id];

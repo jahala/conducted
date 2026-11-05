@@ -93,8 +93,11 @@ function harness(options: HarnessOptions = {}) {
 			return ok({ exitCode: 0, stdout: `${branchTip ?? ""}\n`, stderr: "" });
 		}
 		if (sameArgs(command, ["worktree", "list", "--porcelain"])) {
-			const branch = command.args.includes("--porcelain") ? "feature/oslo" : "";
-			const line = checkedOutElsewhere && branch !== "" ? `branch refs/heads/${branch}\n` : "";
+			// Both the workspace's branch and the name a caller may supply are reported as taken,
+			// so the checked-out-elsewhere test covers either path.
+			const line = checkedOutElsewhere
+				? "branch refs/heads/feature/oslo\nbranch refs/heads/feature/restored\n"
+				: "";
 			return ok({ exitCode: 0, stdout: line, stderr: "" });
 		}
 		if (command.args[0] === "branch" && command.args[1] === "--") {
@@ -227,7 +230,9 @@ function harness(options: HarnessOptions = {}) {
 
 const archiveCheckpoint = (call: { command: GitCommand }): boolean =>
 	call.command.program === "/res/bin/checkpointer.sh" &&
-	sameArgs(call.command, ["restore", "archive-w1"]);
+	call.command.args.length === 2 &&
+	call.command.args[0] === "restore" &&
+	call.command.args[1] === "archive-w1";
 
 describe("WS-06 unarchive on the same branch", () => {
 	it("re-adds the worktree, restores the checkpoint and clears the archive time", async () => {

@@ -354,9 +354,6 @@ export function createContainer(inputs: ContainerInputs): Container {
 		toml: inputs.toml,
 		git: gitRunner,
 	});
-<<<<<<< HEAD
-	const ports = new PortService({ platform, repos: repositories });
-=======
 	const agentExecutablePath = (session: Session): string | undefined => {
 		let key: string | undefined;
 		if (session.config.agent === "claude") key = "claude_executable_path";
@@ -397,8 +394,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		launchFor,
 		log,
 	});
-	const ports = new PortService({ platform });
->>>>>>> node/ws.04
+	const ports = new PortService({ platform, repos: repositories });
 	const terminals = new TerminalsService({
 		platform,
 		repos: repositories,
@@ -490,13 +486,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 		sessions,
 		ports,
 		repoConfig: (repoId) => repo.loadConfig(repoId),
-<<<<<<< HEAD
 		github: {
 			pullRequestByNumber: (remoteUrl, number) => github.pullRequestByNumber(remoteUrl, number),
 		},
-=======
 		branchNames: chatTitles,
->>>>>>> node/ws.04
 		scripts: runScripts,
 		checkpointerPath: checkpointerScript(paths),
 		setting,

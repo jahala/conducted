@@ -4,7 +4,7 @@
  * Test first: with detectedPorts [3000, 5173] two rows render in ascending order.
  */
 import { appError, ok } from "@conducted/shared";
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RunState } from "../../../core/api.ts";
 import { ServicesProvider } from "../../../core/context.tsx";
@@ -166,6 +166,8 @@ describe("RUN-03 ports tab", () => {
 			},
 		}));
 
-		expect(await screen.findAllByText(/^localhost:\d+$/)).toHaveLength(1);
+		await waitFor(() => {
+			expect(screen.getAllByText(/^localhost:\d+$/)).toHaveLength(1);
+		});
 	});
 });
