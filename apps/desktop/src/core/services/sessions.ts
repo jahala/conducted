@@ -4,6 +4,7 @@
  * Owns: the list of chats per workspace, their stored live state and events in memory, the
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  * create, close, reopen, rename, set-title-if-empty, delete (which also removes the chat's
  * checkpoint refs) and open paths, starting a review chat
  * with the review model, sending a user message as a new turn or a steer, cancelling a turn:
@@ -17,6 +18,12 @@
  * of a workspace with its attachment files and drafts, starting a review chat with the review
  * model, sending a user message as a new turn or a steer, cancelling a turn:
 >>>>>>> node/ws.10
+=======
+ * create, close, reopen, rename, set-title-if-empty, delete and open paths, deleting every chat
+ * of a workspace with its attachment files and drafts, starting a review chat with the review
+ * model, sending a user message as a new turn or a steer, running the composition root's
+ * first-message hook (WS-04's branch rename), cancelling a turn:
+>>>>>>> node/join.s1-core-2
  * pausing the follow-up queue, withdrawing the open interaction, removing only the pending sends
  * the sidecar dropped, and putting a send that was still in flight back in the composer draft,
  * and starting a failed turn's message again in a new chat of the same workspace.

@@ -362,6 +362,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 	});
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 	/**
 	 * Builds how one chat's agent starts (SIDE-21): the program the user chose, the provider, the
 	 * Environment page's variables and the provider keys that belong to that agent. Secrets come
@@ -461,6 +462,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 		};
 	};
 =======
+=======
+>>>>>>> node/join.s1-core-2
 	const agentExecutablePath = (session: Session): string | undefined => {
 		let key: string | undefined;
 		if (session.config.agent === "claude") key = "claude_executable_path";
@@ -501,11 +504,15 @@ export function createContainer(inputs: ContainerInputs): Container {
 		launchFor,
 		log,
 	});
+<<<<<<< HEAD
 >>>>>>> node/ws.04
 	const ports = new PortService({ platform });
 =======
 	const ports = new PortService({ platform, repos: repositories });
 >>>>>>> node/run.03
+=======
+	const ports = new PortService({ platform, repos: repositories });
+>>>>>>> node/join.s1-core-2
 	const terminals = new TerminalsService({
 		platform,
 		repos: repositories,
@@ -625,12 +632,19 @@ export function createContainer(inputs: ContainerInputs): Container {
 		ports,
 		repoConfig: (repoId) => repo.loadConfig(repoId),
 <<<<<<< HEAD
+<<<<<<< HEAD
 		github: {
 			pullRequestByNumber: (remoteUrl, number) => github.pullRequestByNumber(remoteUrl, number),
 		},
 =======
 		branchNames: chatTitles,
 >>>>>>> node/ws.04
+=======
+		github: {
+			pullRequestByNumber: (remoteUrl, number) => github.pullRequestByNumber(remoteUrl, number),
+		},
+		branchNames: chatTitles,
+>>>>>>> node/join.s1-core-2
 		scripts: runScripts,
 		checkpointerPath: checkpointerScript(paths),
 		setting,

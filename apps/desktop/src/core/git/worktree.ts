@@ -1,5 +1,6 @@
 /**
 <<<<<<< HEAD
+<<<<<<< HEAD
  * @feature WS-01 Worktree creation and removal; WS-05 archive snapshot and pin
  * @feature WS-02 Create from a branch, PR or issue
  * Owns: the git steps that create a workspace's worktree, set it up, and remove it again; the base
@@ -8,6 +9,12 @@
  * @feature WS-01 Worktree creation and removal; WS-05 archive snapshot and pin; WS-06 unarchive
  * Owns: the git steps that create a workspace's worktree, set it up, and remove it again; the
 >>>>>>> node/ws.06
+=======
+ * @feature WS-01 Worktree creation and removal; WS-05 archive snapshot and pin; WS-06 unarchive
+ * @feature WS-02 Create from a branch, PR or issue
+ * Owns: the git steps that create a workspace's worktree, set it up, and remove it again; the base
+ * branch fetch and commit resolution, including a commit already resolved by the caller; the
+>>>>>>> node/join.s1-core-2
  * archive snapshot, its discard repair, the HEAD pin, and the removal fallback; plus the rule that
  * makes a branch or folder name unique.
  * Behaviour: services-map.md 3.1 (workspace create), 3.13 (worktree-level config), 3.10 (archive

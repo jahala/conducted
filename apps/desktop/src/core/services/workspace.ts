@@ -1,5 +1,6 @@
 /**
 <<<<<<< HEAD
+<<<<<<< HEAD
  * @feature WS-01 Workspace service: create, set up, archive, unarchive, delete
 <<<<<<< HEAD
  * @feature WS-02 Create from a branch, PR or issue
@@ -18,17 +19,27 @@
  * machine), 3.1 (create), 3.2 and 5A.1.2 (setup), 3.10 (archive and unarchive), 3.11 (branch
  * rename, the first-message rename and the stored target branch), ui-map.md 3.9, 3.1 and 6 Git.
 =======
+=======
+>>>>>>> node/join.s1-core-2
  * @feature WS-01 Workspace service: create, set up, archive, unarchive, delete; WS-10 Delete a
  * workspace
+ * @feature WS-02 Create from a branch, PR or issue
+ * @feature WS-04 Rename the placeholder branch after the first message
  * Owns: the list of workspaces and their lifecycle as far as it is built: creating a worktree and
- * its first chat, running the setup script, archiving a workspace, deleting one or all of a
- * repository's workspaces, storing the intended target branch (GIT-08), and saving a renamed
- * branch (GIT-09).
+ * its first chat from the default branch, an existing local branch, a pull request or an issue,
+ * running the setup script, archiving a workspace, unarchiving one, deleting one or all of a
+ * repository's workspaces, storing the intended target branch (GIT-08), saving a renamed branch
+ * (GIT-09), and renaming the placeholder branch from a suggested name after the first message.
  * Behaviour: frontend.md 6 (creation, naming, setup, archive), services-map.md 2.3.1 (workspace
  * delete), 2.4.1 (state machine), 3.1 (create), 3.2 and 5A.1.2 (setup), 3.10 (archive, unarchive
+<<<<<<< HEAD
  * and delete), 3.11 (branch rename and the stored target branch), 3.16 (archive refs), ui-map.md
  * 3.9 and 3.1.
 >>>>>>> node/ws.10
+=======
+ * and delete), 3.11 (branch rename, the first-message rename and the stored target branch),
+ * 3.16 (archive refs), ui-map.md 3.9, 3.1 and 6 Git.
+>>>>>>> node/join.s1-core-2
  * Must handle: state moves initializing -> ready (or failed), each guarded so a stale step cannot
  * move a workspace that already changed; the directory name is a unique place name for the repo
  * and the branch is prefix + name, suffixed -v1, -v2 when taken; a branch, prefix or remote name
@@ -41,18 +52,27 @@
  * name stops creation with its error, while a failed read of the file list or the default config
  * is shown as a warning.
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> node/join.s1-core-2
  * Built now (WS-04): the first-message rename runs only when `auto_rename_new_branches` is on and
  * the workspace still has its placeholder branch. It is skipped when a pull request is linked,
  * the branch has already changed (in the row or in git), the suggestion is empty or failed, or
  * no suggester is wired. The suggestion is combined with the branch prefix, a name clash takes
  * the next `-vN` suffix, and `auto_rename_workspace_on_branch_name_set` renames the workspace to
  * the new branch name unless the user set a name.
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> node/join.s1-core-2
  * Built now (WS-10): delete a workspace by id and every workspace of a repository. It cancels the
  * workspace's chats, stops its processes, removes its worktree and archive ref, moves its setup log
  * and viewed-files file to the Trash, deletes its chats with their attachment files, then deletes
  * the row and forgets it in the store. A repository removal stops every workspace's processes first.
+<<<<<<< HEAD
 >>>>>>> node/ws.10
+=======
+>>>>>>> node/join.s1-core-2
  * Built now (WS-05): archive. It refuses while a chat is running, stops a setup or run process
  * that is still running and clears the workspace's run state, cancels the remaining chats, saves
  * the archive snapshot, reads the branch git reports (a detached HEAD or a failed read stops the
@@ -67,6 +87,7 @@
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
  * Not built yet (placeholders): unarchive, delete to the Trash, the branch auto rename and
  * `markRead`. `classifyUnarchive` is their decision rule and has no caller until WS-06.
 =======
@@ -74,12 +95,15 @@
  * pull request or issue. `classifyUnarchive` is their decision rule and has no caller until WS-06.
 >>>>>>> node/ws.04
 =======
+=======
+>>>>>>> node/join.s1-core-2
  * Built now (WS-06): unarchive. It classifies the branch as gone, taken, moved or fine, re-adds
  * the worktree (creating a missing branch from the archive commit), restores the archive
  * checkpoint, and sets the branch, folder, path and ready state while clearing the archive time.
  * A branch open in another worktree or moved since the archive returns `needsBranchName` and
  * changes nothing. A checkpoint restore that fails only sets `uncommittedChangesLost`. A worktree
  * that cannot be restored rolls the state back to archived.
+<<<<<<< HEAD
  * Not built yet (placeholders): delete to the Trash, the branch auto rename, `markRead` and the
  * base from a pull request or issue.
 >>>>>>> node/ws.06
@@ -88,6 +112,10 @@
  * `markRead` and the base from a pull request or issue. `classifyUnarchive` is their decision
  * rule and has no caller until WS-06.
 >>>>>>> node/ws.10
+=======
+ * Not built yet (placeholders): linked paths (WS-07), the kanban status (NAV-06) and the backlog
+ * workspace operations (WS-11).
+>>>>>>> node/join.s1-core-2
  * Our design choice: creation is split in two so the sidebar shows the workspace at once
  * (`initializing`) and the slow git work happens after the row exists. Place names come from our
  * own tiered source in this file (`createPlaceNames`, D002), which the composition root should
@@ -98,12 +126,19 @@
  * supplies the repository config reader; the default-config reader remains optional until the
  * composition root passes it.
 <<<<<<< HEAD
+<<<<<<< HEAD
  * Test first: classifyUnarchive returns "branchTaken" when the branch is checked out elsewhere;
  * WS-04 renames a placeholder branch to a suggestion that clashes, with the `-v2` suffix.
 =======
  * Test first: unarchive re-adds the worktree on the same branch, restores the archive checkpoint,
  * and clears the archive time; a branch checked out elsewhere asks for a new name.
 >>>>>>> node/ws.06
+=======
+ * Test first: classifyUnarchive returns "branchTaken" when the branch is checked out elsewhere;
+ * WS-04 renames a placeholder branch to a suggestion that clashes, with the `-v2` suffix;
+ * unarchive re-adds the worktree on the same branch, restores the archive checkpoint, and clears
+ * the archive time; a branch checked out elsewhere asks for a new name.
+>>>>>>> node/join.s1-core-2
  */
 import type { SessionConfig } from "@conducted/protocol";
 import {
@@ -135,17 +170,26 @@ import {
 	lsFiles,
 	lsFilesIgnoredNul,
 <<<<<<< HEAD
+<<<<<<< HEAD
 	revParse,
 	revParseVerify,
 } from "../git/commands.ts";
 import { apiUserLogin } from "../git/gh-commands.ts";
 import { renameBranchInWorktree } from "../git/rename.ts";
 =======
+=======
+	revParse,
+	revParseVerify,
+>>>>>>> node/join.s1-core-2
 	updateRefDelete,
 } from "../git/commands.ts";
 import { apiUserLogin } from "../git/gh-commands.ts";
 import { archiveRef } from "../git/refs.ts";
+<<<<<<< HEAD
 >>>>>>> node/ws.10
+=======
+import { renameBranchInWorktree } from "../git/rename.ts";
+>>>>>>> node/join.s1-core-2
 import type { GitRunner } from "../git/runner.ts";
 import {
 	addWorktreeOnBranch,
@@ -157,10 +201,15 @@ import {
 	readBranchState,
 	removeWorktree,
 <<<<<<< HEAD
+<<<<<<< HEAD
 	resolveBaseCommit,
 =======
 	restoreArchiveCheckpoint,
 >>>>>>> node/ws.06
+=======
+	resolveBaseCommit,
+	restoreArchiveCheckpoint,
+>>>>>>> node/join.s1-core-2
 	saveArchiveSnapshot,
 } from "../git/worktree.ts";
 import type {
@@ -765,14 +814,22 @@ export interface WorkspaceServiceDeps {
 	/** The repository's effective config, for the remote name. Supplied by the composition root. */
 	repoConfig: (repoId: RepoId) => Promise<Result<RepoConfig>>;
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> node/join.s1-core-2
 	/** Reads a pull request's head from GitHub, for a workspace created from a PR (WS-02). */
 	github?: {
 		pullRequestByNumber(remoteUrl: string, number: number): Promise<Result<PullRequestSummary>>;
 	};
+<<<<<<< HEAD
 =======
 	/** WS-04's branch-name call. The composition root passes ChatTitleService. */
 	branchNames?: BranchNameSuggester;
 >>>>>>> node/ws.04
+=======
+	/** WS-04's branch-name call. The composition root passes ChatTitleService. */
+	branchNames?: BranchNameSuggester;
+>>>>>>> node/join.s1-core-2
 	/** The one default-config rule for a new chat. Supplied by the composition root. */
 	defaultConfig?: (workspaceId: WorkspaceId) => Promise<Result<SessionConfig>>;
 	scripts: {
@@ -922,6 +979,7 @@ export class WorkspaceService {
 
 		const warnings: string[] = [];
 <<<<<<< HEAD
+<<<<<<< HEAD
 		if (baseWarning !== null) warnings.push(baseWarning);
 		const prefixType = this.#deps.setting<string>("branch_prefix_type");
 		const login = prefixType === "github_username" ? await this.#githubLogin(repo.rootPath) : null;
@@ -935,11 +993,17 @@ export class WorkspaceService {
 		);
 		const branchBase = `${prefix}${folder.value}`;
 =======
+=======
+		if (baseWarning !== null) warnings.push(baseWarning);
+>>>>>>> node/join.s1-core-2
 		const prefix = await this.#branchPrefix(repo);
 		if (!prefix.ok) return prefix;
 		if (prefix.value.warning !== null) warnings.push(prefix.value.warning);
 		const branchBase = `${prefix.value.prefix}${folder.value}`;
+<<<<<<< HEAD
 >>>>>>> node/ws.04
+=======
+>>>>>>> node/join.s1-core-2
 		if (!isSafeRefName(branchBase)) return err(invalidRefNameError(branchBase));
 		const branch = await nextFreeName(branchBase, (candidate) =>
 			branchNameIsTaken(this.#deps.git, {
