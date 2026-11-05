@@ -109,6 +109,8 @@ function makeService(
 			stat: async () => err(appError("fs_not_found", "missing")),
 			paths: { home: "", appData: "", temp: "", resources: "" },
 		},
+		setIntendedTargetBranch: async () => ok(undefined),
+		moveOpenPullRequestBase: async () => ok(false),
 	});
 }
 
@@ -247,8 +249,8 @@ describe("GIT-06 pull and push", () => {
 
 		expect(result.ok).toBe(true);
 		expect(instructions).toHaveLength(1);
-		expect(instructions[0]).toContain("Commit the uncommitted changes");
-		expect(instructions[0]).toContain("Rebase the branch onto `origin/main`");
+		expect(instructions[0]).toContain("Review the uncommitted changes");
+		expect(instructions[0]).toContain("Rebase this branch onto `origin/main`");
 		expect(instructions[0]).toContain("--force-with-lease");
 		expect(calls.some((command) => command.args[0] === "fetch")).toBe(false);
 		expect(calls.some((command) => command.args[0] === "merge")).toBe(false);
@@ -336,7 +338,7 @@ describe("GIT-06 pull and push", () => {
 
 		expect(result.ok).toBe(true);
 		expect(instructions).toHaveLength(1);
-		expect(instructions[0]).toContain("Merge `origin/main` into the branch");
+		expect(instructions[0]).toContain("Merge `origin/main` into this branch");
 		expect(calls.some((command) => command.args[0] === "merge")).toBe(false);
 	});
 

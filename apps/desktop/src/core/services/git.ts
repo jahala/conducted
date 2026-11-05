@@ -20,19 +20,12 @@
  * changes nothing; and a second push or pull while one runs joins the first instead of starting
  * another.
  * Not built yet: only the visible workspace polling fast (GIT-13 owns the fetching rules).
-<<<<<<< HEAD
- * Our design choice: this class exposes snapshots only. The Git header state machine and the
- * merge with pull request info belong to GIT-04, the remaining git actions (push, pull, rename,
- * discard and the rest) belong to their own features, and the restart cache belongs to DATA-07.
- * Their placeholders stay here until those features build them; the fetching rules belong to
- * GIT-13. Changing the target branch is here (GIT-08): it stores the intended branch, moves an
- * open pull request's base, or fetches and resets a clean branch still at the old target.
-=======
  * Our design choice: this class exposes snapshots and actions only. The Git header state machine
  * and the merge with pull request info belong to GIT-04, the other git actions (retarget, rename
  * and the rest) belong to their own features, and the restart cache belongs to DATA-07. Their
  * placeholders stay here until those features build them; the fetching rules belong to GIT-13.
->>>>>>> node/git.06
+ * Changing the target branch is here (GIT-08): it stores the intended branch, moves an open pull
+ * request's base, or fetches and resets a clean branch still at the old target.
  * Test first: a workspace watched at depth full runs its poll immediately and again once the
  * interval has passed.
  */
@@ -59,12 +52,9 @@ import {
 	configPullFf,
 	configPullRebase,
 	diffWorkingTree,
-<<<<<<< HEAD
-	fetchBranchRefspec,
-=======
 	fetch,
+	fetchBranchRefspec,
 	firstPushSteps,
->>>>>>> node/git.06
 	mergeBase,
 	mergeFastForwardOnly,
 	pull as pullCommand,
@@ -74,21 +64,15 @@ import {
 	resetHard,
 	restoreFromSource,
 	restoreStaged,
-<<<<<<< HEAD
+	revListLeftRightCount,
 	revParse,
 	revParseHead,
-=======
-	revListLeftRightCount,
->>>>>>> node/git.06
 	revParseVerify,
 	showCommitNameStatus,
 	showCommitNumstat,
 	showRefVerify,
 	statusPorcelainAll,
-<<<<<<< HEAD
-=======
 	upstreamName,
->>>>>>> node/git.06
 } from "../git/commands.ts";
 import { type ComparisonContext, resolveComparison } from "../git/diff.ts";
 import { checkpointRef, turnCheckpointId } from "../git/refs.ts";
@@ -105,11 +89,7 @@ import {
 	remoteTargetRef,
 } from "../git/status.ts";
 import type { GitState } from "../model.ts";
-<<<<<<< HEAD
-import { commitAndPushInstruction } from "./agent-instructions.ts";
-=======
-import { reconcileInstruction } from "./agent-instructions.ts";
->>>>>>> node/git.06
+import { commitAndPushInstruction, reconcileInstruction } from "./agent-instructions.ts";
 import type { GitCache } from "./git-cache.ts";
 import type { WorkspacePrEntry } from "./github.ts";
 import type { AgentMessenger } from "./sessions.ts";
