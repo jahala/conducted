@@ -1,5 +1,12 @@
 /**
- * SIDE-14 model catalog tests.
+ * @feature SIDE-14 Model catalog per agent
+ * Owns: the tests for the model cache, single-flight discovery, validation and default-model pick
+ * in catalog.ts.
+ * Behaviour: research/conductor/other-runners.md section 5 "Model catalog" and "Dynamic discovery"
+ * (each runner reports its own list; the cache lives for one hour; the default model is the entry
+ * the runner marks isDefault) and sessions.md section 2 step 4 (only the model is validated).
+ * Test first: validate() on a model that is not in the runner's list returns an error whose code is
+ * "model_unknown".
  */
 import { describe, expect, test } from "bun:test";
 import type { ModelInfo, SessionConfig } from "@conducted/protocol";
@@ -8,7 +15,13 @@ import { appError } from "@conducted/shared";
 import { createLogger } from "../logging/logger.ts";
 import { MapRunnerRegistry, type RunnerSelector } from "../runners/registry.ts";
 import type { AgentSession, Runner, StartOptions } from "../runners/runner.ts";
-import { MODEL_CATALOG_TTL_MS, RunnerModelCatalog } from "./catalog.ts";
+import {
+	AGENT_NOT_INSTALLED,
+	defaultModel,
+	MODEL_CATALOG_TTL_MS,
+	MODEL_LIST_FAILED,
+	RunnerModelCatalog,
+} from "./catalog.ts";
 
 const baseModel: ModelInfo = {
 	id: "claude-sonnet",
@@ -315,7 +328,26 @@ describe("SIDE-14 model catalog", () => {
 		if (!result.ok) expect(result.error.code).toBe("acp_agent_missing");
 	});
 
-	test("a missing agent program comes back as agent_not_installed, not a guessed list", async () => {
+	test("an AppError from the runner keeps its code, including agent_not_installed", async () => {
+		const catalog = catalogWith(
+			[
+				{
+					selector: { agent: "codex" },
+					listModels: async () => {
+						throw appError(AGENT_NOT_INSTALLED, "codex is missing");
+					},
+				},
+			],
+			fakeClock().clock,
+		);
+
+		const result = await catalog.list("codex");
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.code).toBe(AGENT_NOT_INSTALLED);
+	});
+
+	test("a plain Error saying not installed becomes model_list_failed", async () => {
 		const catalog = catalogWith(
 			[
 				{
@@ -331,7 +363,7 @@ describe("SIDE-14 model catalog", () => {
 		const result = await catalog.list("codex");
 
 		expect(result.ok).toBe(false);
-		if (!result.ok) expect(result.error.code).toBe("agent_not_installed");
+		if (!result.ok) expect(result.error.code).toBe(MODEL_LIST_FAILED);
 	});
 
 	test("a failed list is not cached, so the next call tries again", async () => {
@@ -383,39 +415,17 @@ describe("SIDE-14 model catalog", () => {
 		if (!result.ok) expect(result.error.code).toBe("model_unknown");
 	});
 
-	test("validate rejects an effort the model does not support", async () => {
-		const catalog = catalogWith(
-			[{ selector: { agent: "claude" }, listModels: async () => [baseModel] }],
-			fakeClock().clock,
-		);
-
-		const result = await catalog.validate(config({ model: baseModel.id, effort: "ultracode" }));
-
-		expect(result.ok).toBe(false);
-		if (!result.ok) expect(result.error.code).toBe("effort_unknown");
-	});
-
-	test("validate accepts any effort when the model reports none", async () => {
+	test("validate accepts an effort or fast mode the model does not advertise", async () => {
 		const catalog = catalogWith(
 			[{ selector: { agent: "claude" }, listModels: async () => [otherModel] }],
 			fakeClock().clock,
 		);
 
-		const result = await catalog.validate(config({ model: otherModel.id, effort: "ultracode" }));
+		const result = await catalog.validate(
+			config({ model: otherModel.id, effort: "ultracode", fastMode: true }),
+		);
 
 		expect(result).toEqual({ ok: true, value: otherModel });
-	});
-
-	test("validate rejects fast mode when the model does not offer it", async () => {
-		const catalog = catalogWith(
-			[{ selector: { agent: "claude" }, listModels: async () => [otherModel] }],
-			fakeClock().clock,
-		);
-
-		const result = await catalog.validate(config({ model: otherModel.id, fastMode: true }));
-
-		expect(result.ok).toBe(false);
-		if (!result.ok) expect(result.error.code).toBe("fast_mode_unsupported");
 	});
 
 	test("validate surfaces a catalog error instead of hiding it", async () => {
@@ -440,5 +450,14 @@ describe("SIDE-14 model catalog", () => {
 
 		expect(hiddenResult).toEqual({ ok: true, value: hidden });
 		expect(deprecatedResult).toEqual({ ok: true, value: deprecated });
+	});
+
+	test("defaultModel returns the entry the runner marks as the default", () => {
+		expect(defaultModel([otherModel, baseModel])).toBe(baseModel);
+	});
+
+	test("defaultModel returns undefined when no entry is marked, so the caller uses the user's setting", () => {
+		expect(defaultModel([otherModel])).toBeUndefined();
+		expect(defaultModel([])).toBeUndefined();
 	});
 });

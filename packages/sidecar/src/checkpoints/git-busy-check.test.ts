@@ -110,6 +110,15 @@ describe("GIT-11 git-busy-check.sh", () => {
 		expect(check(repo)).toEqual({ code: 0, out: "busy:rebase", err: "" });
 	});
 
+	test("prints busy:rebase during a conflicting rebase with the apply backend", () => {
+		diverge();
+		// --apply forces the patch backend, whose state lives in rebase-apply rather than
+		// rebase-merge. Both must report the same answer.
+		expect(git(repo, "rebase", "--apply", "other").code).not.toBe(0);
+
+		expect(check(repo)).toEqual({ code: 0, out: "busy:rebase", err: "" });
+	});
+
 	test("prints busy:squash-merge only when a squash left conflicts", () => {
 		diverge();
 		expect(git(repo, "merge", "--squash", "other").code).not.toBe(0);
@@ -128,6 +137,22 @@ describe("GIT-11 git-busy-check.sh", () => {
 		expect(git(repo, "cherry-pick", "other").code).not.toBe(0);
 
 		expect(check(repo)).toEqual({ code: 0, out: "busy:cherry-pick", err: "" });
+	});
+
+	test("prints the first state in the order when several markers exist at once", () => {
+		diverge();
+		expect(git(repo, "merge", "other").code).not.toBe(0);
+
+		// Git refuses a real second operation while a merge has unmerged files:
+		// `git cherry-pick` exits 128 with "not possible because you have unmerged files".
+		// So this creates CHERRY_PICK_HEAD by hand during the conflicting merge and expects
+		// the merge to win, as the stated order requires.
+		const real = git(repo, "cherry-pick", "other");
+		expect(real.code).not.toBe(0);
+		const gitDir = gitOk(repo, "rev-parse", "--absolute-git-dir");
+		writeFileSync(join(gitDir, "CHERRY_PICK_HEAD"), `${gitOk(repo, "rev-parse", "other")}\n`);
+
+		expect(check(repo)).toEqual({ code: 0, out: "busy:merge", err: "" });
 	});
 
 	test("prints busy:revert during a conflicting revert", () => {
