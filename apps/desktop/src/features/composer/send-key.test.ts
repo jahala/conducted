@@ -11,7 +11,7 @@ const press = (over: Partial<KeyPress>): KeyPress => ({
 	...over,
 });
 
-describe("resolveSendKey in Enter mode", () => {
+describe("COMP-01 resolveSendKey in Enter mode", () => {
 	it("sends on Enter", () => {
 		expect(resolveSendKey(press({}), "enter")).toBe("submit");
 	});
@@ -23,7 +23,7 @@ describe("resolveSendKey in Enter mode", () => {
 	});
 });
 
-describe("resolveSendKey in Cmd+Enter mode", () => {
+describe("COMP-01 resolveSendKey in Cmd+Enter mode", () => {
 	it("sends on Cmd+Enter", () => {
 		expect(resolveSendKey(press({ metaKey: true }), "mod_enter")).toBe("submit");
 	});
@@ -36,7 +36,7 @@ describe("resolveSendKey in Cmd+Enter mode", () => {
 	});
 });
 
-describe("resolveSendKey ignores", () => {
+describe("COMP-01 resolveSendKey ignores", () => {
 	it("keys other than Enter", () => {
 		expect(resolveSendKey(press({ key: "a" }), "enter")).toBeNull();
 	});

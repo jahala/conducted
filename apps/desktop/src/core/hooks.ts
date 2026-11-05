@@ -58,10 +58,14 @@
  */
 import { idleLiveState } from "@conducted/protocol";
 import { notImplemented, type WorkspaceId } from "@conducted/shared";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useStore } from "zustand";
+<<<<<<< HEAD
 import { useStoreWithEqualityFn } from "zustand/traditional";
 import type { Actions, Queries } from "./api.ts";
+=======
+import type { Actions, Draft, Queries } from "./api.ts";
+>>>>>>> node/comp.01
 import { useServices } from "./context.tsx";
 import type { GitState } from "./model.ts";
 import type { WorkspaceGitEntry } from "./services/git.ts";
@@ -163,7 +167,16 @@ export const useWorkspaceStatus: Queries["useWorkspaceStatus"] = (workspaceId) =
 export const useSections: Queries["useSections"] = () => notImplemented("NAV-04");
 export const useSessions: Queries["useSessions"] = () => notImplemented("CHAT-01");
 export const useChat: Queries["useChat"] = () => notImplemented("CHAT-07");
-export const useDraft: Queries["useDraft"] = () => notImplemented("COMP-01");
+const EMPTY_DRAFT: Draft = { text: "", attachmentPaths: [] };
+
+export const useDraft: Queries["useDraft"] = (sessionId) => {
+	const composer = useServices().services.composer;
+	const draft = useStore(composer.store, (state) => state.drafts[sessionId]);
+	useEffect(() => {
+		if (draft === undefined) void composer.loadDraft(sessionId);
+	}, [composer, sessionId, draft]);
+	return draft ?? EMPTY_DRAFT;
+};
 export const useGitState: Queries["useGitState"] = () => notImplemented("GIT-04");
 export const useChangedFiles: Queries["useChangedFiles"] = () => notImplemented("REV-01");
 export const useFileDiff: Queries["useFileDiff"] = () => notImplemented("REV-02");

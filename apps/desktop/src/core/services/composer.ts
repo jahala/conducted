@@ -17,7 +17,10 @@
  * Test first: classifyAttachment("shot.PNG") is "image" and convertsToAttachment(6000 chars) is true.
  */
 import {
+	appError,
+	err,
 	notImplemented,
+	ok,
 	type Result,
 	type SessionId,
 	type SnippetId,
@@ -27,12 +30,15 @@ import {
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform } from "../../platform/platform.ts";
 import type { Draft, SnippetInput } from "../api.ts";
+import { draftFile, draftsDir } from "../app-paths.ts";
 import type { Repositories } from "../db/repositories.ts";
 import type { Attachment, Snippet } from "../model.ts";
 
 export const PASTE_ATTACHMENT_MIN_LINES = 90;
 export const PASTE_ATTACHMENT_MIN_CHARS = 5_000;
 export const DRAFT_SAVE_DEBOUNCE_MS = 400;
+/** The whole draft store holds at most 5 MiB, like Conductor's composer-drafts store. */
+export const DRAFT_STORE_LIMIT_BYTES = 5 * 1024 * 1024;
 export const MAX_IMAGE_BYTES = 4.5 * 1024 * 1024;
 export const MAX_IMAGE_DIMENSION = 7_800;
 
@@ -109,6 +115,40 @@ export function classifyAttachment(fileName: string): AttachmentClass {
 export const convertsToAttachment = (text: string): boolean =>
 	text.length > PASTE_ATTACHMENT_MIN_CHARS || text.split("\n").length > PASTE_ATTACHMENT_MIN_LINES;
 
+const emptyDraft = (): Draft => ({ text: "", attachmentPaths: [] });
+
+const isBlank = (draft: Draft): boolean =>
+	draft.text.length === 0 && draft.attachmentPaths.length === 0;
+
+const copyDraft = (draft: Draft): Draft => ({
+	text: draft.text,
+	attachmentPaths: [...draft.attachmentPaths],
+});
+
+const parseDraftFile = (text: string): Result<Draft> => {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(text);
+	} catch (cause) {
+		return err(appError("draft_invalid", "The saved draft could not be read.", cause));
+	}
+	if (typeof parsed !== "object" || parsed === null) {
+		return err(appError("draft_invalid", "The saved draft could not be read."));
+	}
+	const candidate = parsed as { text?: unknown; attachmentPaths?: unknown };
+	const paths = candidate.attachmentPaths;
+	if (
+		typeof candidate.text !== "string" ||
+		!Array.isArray(paths) ||
+		!paths.every((path): path is string => typeof path === "string")
+	) {
+		return err(appError("draft_invalid", "The saved draft could not be read."));
+	}
+	return ok({ text: candidate.text, attachmentPaths: paths });
+};
+
+const byteLength = (text: string): number => new TextEncoder().encode(text).length;
+
 export interface ComposerState {
 	/** Drafts loaded so far. A missing entry means "not loaded yet", not "empty". */
 	drafts: Readonly<Record<string, Draft>>;
@@ -123,21 +163,69 @@ export interface ComposerServiceDeps {
 export class ComposerService {
 	readonly store: StoreApi<ComposerState>;
 	readonly #deps: ComposerServiceDeps;
+	/** Cancels the pending debounced write of each chat. */
+	readonly #pending = new Map<string, { cancel: () => void; generation: number }>();
+	/** The newest write of each chat. An older write that finishes late cannot change it. */
+	readonly #generation = new Map<string, number>();
+	/** Writes of one chat run one after the other, so a clear cannot be overtaken by an old save. */
+	readonly #writes = new Map<string, Promise<void>>();
 
 	constructor(deps: ComposerServiceDeps) {
 		this.#deps = deps;
 		this.store = createStore<ComposerState>(() => ({ drafts: {} }));
 	}
 
+	/** The draft currently in the store, or an empty one before it is loaded. */
+	draftOf(sessionId: SessionId): Draft {
+		return this.store.getState().drafts[sessionId] ?? emptyDraft();
+	}
+
 	/** Reads a chat's draft file into the store. Called when the chat is first shown. */
-	loadDraft(_sessionId: SessionId): Promise<Result<Draft>> {
-		void this.#deps;
-		return notImplemented("COMP-01");
+	async loadDraft(sessionId: SessionId): Promise<Result<Draft>> {
+		const loaded = this.store.getState().drafts[sessionId];
+		if (loaded !== undefined) return ok(loaded);
+		const revision = this.#generation.get(sessionId) ?? 0;
+		const file = draftFile(this.#deps.platform.fs.paths, sessionId);
+		const read = await this.#deps.platform.fs.readText(file);
+		const changedMeanwhile = (this.#generation.get(sessionId) ?? 0) !== revision;
+		if (changedMeanwhile) return ok(this.draftOf(sessionId));
+		const saved = this.store.getState().drafts[sessionId];
+		if (saved !== undefined) return ok(saved);
+		if (!read.ok) {
+			if (read.error.code !== "fs_not_found") return err(read.error);
+			const draft = emptyDraft();
+			this.#setDraft(sessionId, draft);
+			return ok(draft);
+		}
+		const parsed = parseDraftFile(read.value);
+		if (!parsed.ok) return parsed;
+		this.#setDraft(sessionId, parsed.value);
+		return ok(parsed.value);
 	}
 
 	/** Backs `Actions.sessions.saveDraft`: updates the store at once, writes the file after the debounce. */
-	saveDraft(_sessionId: SessionId, _draft: Draft): void {
-		notImplemented("COMP-01");
+	saveDraft(sessionId: SessionId, draft: Draft): void {
+		const next = copyDraft(draft);
+		this.#bump(sessionId);
+		this.#setDraft(sessionId, next);
+		const cancelled = this.#pending.get(sessionId);
+		cancelled?.cancel();
+		this.#pending.delete(sessionId);
+		const generation = this.#generation.get(sessionId) ?? 0;
+		if (isBlank(next)) {
+			void this.#enqueue(sessionId, async () => {
+				if (this.#generation.get(sessionId) !== generation) return;
+				await this.#removeFile(sessionId);
+			});
+			return;
+		}
+		const cancel = this.#deps.setDebounce(() => {
+			const pending = this.#pending.get(sessionId);
+			if (pending?.generation !== generation) return;
+			this.#pending.delete(sessionId);
+			void this.#enqueue(sessionId, () => this.#writeDraft(sessionId, next, generation));
+		}, DRAFT_SAVE_DEBOUNCE_MS);
+		this.#pending.set(sessionId, { cancel, generation });
 	}
 
 	/** Copies a picked or dropped file into the staging folder and adds an attachment row. */
@@ -180,8 +268,77 @@ export class ComposerService {
 	}
 
 	/** Clears the draft after a successful send. */
-	clearDraft(_sessionId: SessionId): Promise<Result<void>> {
-		return notImplemented("COMP-01");
+	async clearDraft(sessionId: SessionId): Promise<Result<void>> {
+		this.#bump(sessionId);
+		const pending = this.#pending.get(sessionId);
+		pending?.cancel();
+		this.#pending.delete(sessionId);
+		const drafts = { ...this.store.getState().drafts };
+		delete drafts[sessionId];
+		this.store.setState({ drafts });
+		return this.#enqueue(sessionId, () => this.#removeFile(sessionId));
+	}
+
+	#bump(sessionId: SessionId): void {
+		this.#generation.set(sessionId, (this.#generation.get(sessionId) ?? 0) + 1);
+	}
+
+	#setDraft(sessionId: SessionId, draft: Draft): void {
+		this.store.setState((state) => ({ drafts: { ...state.drafts, [sessionId]: draft } }));
+	}
+
+	#enqueue(sessionId: SessionId, work: () => Promise<void>): Promise<Result<void>> {
+		const previous = this.#writes.get(sessionId) ?? Promise.resolve();
+		const run = previous.then(work, work);
+		const tracked = run.then(
+			() => undefined,
+			() => undefined,
+		);
+		this.#writes.set(sessionId, tracked);
+		return run.then(
+			() => ok(undefined),
+			(cause: unknown) =>
+				err(appError("draft_write_failed", "The draft could not be saved.", cause)),
+		);
+	}
+
+	async #removeFile(sessionId: SessionId): Promise<void> {
+		const file = draftFile(this.#deps.platform.fs.paths, sessionId);
+		const exists = await this.#deps.platform.fs.exists(file);
+		if (!exists) return;
+		await this.#deps.platform.fs.trash(file);
+	}
+
+	async #writeDraft(sessionId: SessionId, draft: Draft, generation: number): Promise<void> {
+		if (this.#generation.get(sessionId) !== generation) return;
+		const text = JSON.stringify(draft);
+		const bytes = byteLength(text);
+		if (bytes > DRAFT_STORE_LIMIT_BYTES) return;
+		const folder = draftsDir(this.#deps.platform.fs.paths);
+		const made = await this.#deps.platform.fs.mkdirp(folder);
+		if (!made.ok) return;
+		await this.#makeRoom(sessionId, bytes);
+		if (this.#generation.get(sessionId) !== generation) return;
+		await this.#deps.platform.fs.writeTextAtomic(
+			draftFile(this.#deps.platform.fs.paths, sessionId),
+			text,
+		);
+	}
+
+	/** Removes the oldest other drafts until the store can hold this one. */
+	async #makeRoom(sessionId: SessionId, incomingBytes: number): Promise<void> {
+		const listing = await this.#deps.platform.fs.readDir(draftsDir(this.#deps.platform.fs.paths));
+		if (!listing.ok) return;
+		const own = draftFile(this.#deps.platform.fs.paths, sessionId);
+		const others = listing.value
+			.filter((entry) => !entry.isDirectory && entry.path !== own)
+			.sort((left, right) => left.modifiedAt - right.modifiedAt);
+		let total = others.reduce((sum, entry) => sum + entry.size, 0);
+		for (const entry of others) {
+			if (total + incomingBytes <= DRAFT_STORE_LIMIT_BYTES) return;
+			const removed = await this.#deps.platform.fs.trash(entry.path);
+			if (removed.ok) total -= entry.size;
+		}
 	}
 
 	/** Backs `Actions.attachments.addChatTranscript`. */

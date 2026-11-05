@@ -17,15 +17,105 @@
  */
 
 import type { SessionId } from "@conducted/shared";
-import { notImplemented } from "@conducted/shared";
-import type { SendIntent } from "./send-key.ts";
+import { type Editor, EditorContent, useEditor, useEditorState } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import type { KeyboardEvent } from "react";
+import { useEffect } from "react";
+import { resolveSendKey, type SendIntent, type SendWith } from "./send-key.ts";
 
 export interface ComposerEditorProps {
 	sessionId: SessionId;
 	disabled: boolean;
 	onSubmit: (intent: SendIntent) => void;
+	/** The setting `message_send_key`, mapped to the send-key mode. Default "enter". */
+	sendWith?: SendWith;
+	/** The editor, for the composer to read its text and to restore a draft. */
+	onEditorReady?: (editor: Editor | null) => void;
 }
 
-export function ComposerEditor(_props: ComposerEditorProps): never {
-	return notImplemented("COMP-01");
+export function ComposerEditor({
+	sessionId,
+	disabled,
+	onSubmit,
+	sendWith = "enter",
+	onEditorReady,
+}: ComposerEditorProps) {
+	const editor = useEditor(
+		{
+			extensions: [
+				StarterKit.configure({
+					blockquote: false,
+					bold: false,
+					bulletList: false,
+					code: false,
+					codeBlock: false,
+					heading: false,
+					horizontalRule: false,
+					italic: false,
+					link: false,
+					listItem: false,
+					listKeymap: false,
+					orderedList: false,
+					strike: false,
+					underline: false,
+				}),
+			],
+			content: "",
+			editorProps: {
+				attributes: {
+					"aria-label": "composer",
+					"aria-multiline": "true",
+					class:
+						"min-h-[88px] max-h-[188px] overflow-y-auto px-3 py-2 text-sm font-light text-fg outline-none",
+					role: "textbox",
+				},
+			},
+		},
+		[sessionId],
+	);
+
+	const empty = useEditorState({
+		editor,
+		selector: ({ editor: current }) => current?.isEmpty ?? true,
+	});
+
+	useEffect(() => {
+		onEditorReady?.(editor);
+		return () => onEditorReady?.(null);
+	}, [editor, onEditorReady]);
+
+	useEffect(() => {
+		editor?.setEditable(!disabled);
+	}, [editor, disabled]);
+
+	const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+		if (disabled) return;
+		const native = event.nativeEvent;
+		const intent = resolveSendKey(
+			{
+				key: event.key,
+				shiftKey: event.shiftKey,
+				metaKey: event.metaKey,
+				altKey: event.altKey,
+				ctrlKey: event.ctrlKey,
+				isComposing: native.isComposing || native.keyCode === 229,
+			},
+			sendWith,
+		);
+		if (intent !== "submit" && intent !== "submit_opposite") return;
+		event.preventDefault();
+		event.stopPropagation();
+		onSubmit(intent);
+	};
+
+	return (
+		<div className="relative" onKeyDownCapture={handleKeyDown} data-testid="composer-editor">
+			{empty ? (
+				<span className="pointer-events-none absolute left-3 top-2 text-sm font-light text-fg-subtle">
+					Write something ...
+				</span>
+			) : null}
+			<EditorContent editor={editor} />
+		</div>
+	);
 }
