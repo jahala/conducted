@@ -104,6 +104,7 @@ export function renderBatches(batches: Batch[], scope: string): string {
 			for (const f of batch.features) lines.push(`- ${f.id} ${f.title}`);
 			lines.push("");
 		}
+		lines.pop();
 	}
 	return `${lines.join("\n").trimEnd()}\n`;
 }

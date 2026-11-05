@@ -36,7 +36,8 @@ The steps are driven by a script, `scripts/overnight/drive.ts`, not by an agent.
 
 ```
 for each step:
-  1. build: for each batch, one pleach plan, one fresh agent per feature,
+  1. build: `drive.ts preflight` passes on the step branch first, because every
+     node starts from it. Then for each batch, one pleach plan, one fresh agent per feature,
      at most 6 agents at a time across the step; each node passes quick
      local checks only (typecheck, lint, guards, placeholders gone)
   2. land every batch of the step onto branch overnight/step-N; push; open the PR

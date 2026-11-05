@@ -10,6 +10,8 @@
  *                                                         batch, at most m workers at once, and the
  *                                                         batch's feature ids beside it
  *   bun scripts/overnight/drive.ts step <n>               list the step's batch ids
+ *   bun scripts/overnight/drive.ts preflight              the quick gate on the step branch itself,
+ *                                                         before any worker starts from it
  *   bun scripts/overnight/drive.ts mark-done <tree> <ID...>
  *                                                         set rows to done in <tree>'s backlog,
  *                                                         refusing an id with placeholders left
@@ -195,6 +197,21 @@ if (command === "issues") {
 		writeFileSync(`${base}.ids`, `${features.map((f) => f.id).join("\n")}\n`);
 		console.log(relative(root, `${base}.json`));
 	}
+} else if (command === "preflight") {
+	// Every node starts from the step branch, so a red check here fails every node at once.
+	for (const script of ["typecheck", "lint", "guards"]) {
+		const run = Bun.spawnSync(["pnpm", "-s", script], {
+			cwd: root,
+			stdout: "pipe",
+			stderr: "pipe",
+		});
+		if (run.exitCode !== 0) {
+			console.error(`${run.stdout.toString()}${run.stderr.toString()}`.slice(-4000));
+			console.error(`preflight: pnpm ${script} failed on the step branch; start no worker.`);
+			process.exit(1);
+		}
+		console.log(`ok   ${script}`);
+	}
 } else if (command === "mark-done") {
 	const [tree, ...ids] = args;
 	if (!tree || ids.length === 0) throw new Error("Usage: mark-done <tree> <ID...>");
@@ -246,7 +263,7 @@ if (command === "issues") {
 	console.log(fixerPrompt(ids.split(","), readFileSync(logFile, "utf8")));
 } else {
 	console.error(
-		"Usage: drive.ts issues | plan <batch> --night <n> [--only IDS] [--max <m>] | step <n> | mark-done <tree> <IDS> | balance | audit-prompt <ids-file> <file> | closes <IDS> | fixer-prompt <IDS> <log>",
+		"Usage: drive.ts issues | plan <batch> --night <n> [--only IDS] [--max <m>] | step <n> | preflight | mark-done <tree> <IDS> | balance | audit-prompt <ids-file> <file> | closes <IDS> | fixer-prompt <IDS> <log>",
 	);
 	process.exit(64);
 }
