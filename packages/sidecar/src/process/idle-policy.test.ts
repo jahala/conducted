@@ -33,6 +33,17 @@ test("leased and active entries do not count toward the warm cap", () => {
 	expect(selectWarmToEvict(entries, 2)).toEqual([]);
 });
 
+test("a busy entry or one with background tasks is never evicted", () => {
+	const entries = [
+		entry({ key: "busy", retention: "warm", lastIdleAt: 1, busy: true }),
+		entry({ key: "tasks", retention: "warm", lastIdleAt: 2, hasBackgroundTasks: true }),
+		entry({ key: "a", retention: "warm", lastIdleAt: 3 }),
+		entry({ key: "b", retention: "warm", lastIdleAt: 4 }),
+		entry({ key: "c", retention: "warm", lastIdleAt: 5 }),
+	];
+	expect(selectWarmToEvict(entries, 2)).toEqual(["a"]);
+});
+
 test("the idle rule skips leased, busy, background-task and never-idle entries", () => {
 	const now = 10 * IDLE_STOP_AFTER_MS;
 	const old = now - IDLE_STOP_AFTER_MS;

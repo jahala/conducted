@@ -24,7 +24,7 @@
  * same result (apps/desktop/src-tauri/src/shell.rs).
  */
 import type { AppError, Result } from "@conducted/shared";
-import { ok } from "@conducted/shared";
+import { appError, err, ok } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
 import { parseEnvDump, stripProviderSecrets } from "./env.ts";
 
@@ -213,7 +213,12 @@ export class LoginShellEnvProvider implements ShellEnvProvider {
 		const parsed = parseEnvDump(spawned.value, marker);
 		if (!parsed.ok) return parsed;
 		const env = stripProviderSecrets(parsed.value);
+		const path = env.PATH;
+		// A dump without PATH is a failed capture: an empty PATH would make every agent "not installed".
+		if (path === undefined || path === "") {
+			return err(appError("env_path_missing", "The login shell printed no PATH."));
+		}
 		this.deps.logger.debug("Captured the login-shell environment", { shell, folder });
-		return ok({ shell, path: env.PATH ?? "", env });
+		return ok({ shell, path, env });
 	}
 }

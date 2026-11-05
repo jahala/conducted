@@ -67,6 +67,23 @@ describe("SIDE-06 node outbox storage", () => {
 		expect((await readdir(root)).sort()).toEqual([path.basename(keep)]);
 	});
 
+	test("SIDE-06 cleanTempFiles reports a temp file the Trash refused", async () => {
+		await mkdir(root, { recursive: true });
+		await writeFile(path.join(root, "stuck.json.9.tmp"), "half a write");
+		const refusing = createOutboxStorage(root, { runTrash: async () => 1 });
+		const throwing = createOutboxStorage(root, {
+			runTrash: async () => {
+				throw new Error("no trash tool");
+			},
+		});
+
+		for (const storage of [refusing, throwing]) {
+			const result = await storage.cleanTempFiles();
+			expect(result.ok).toBe(false);
+			if (!result.ok) expect(result.error.message).toContain("stuck.json.9.tmp");
+		}
+	});
+
 	test("SIDE-06 open moves a leftover .tmp file to the Trash through the real storage", async () => {
 		await mkdir(root, { recursive: true });
 		const leftover = path.join(root, "crash.json.1.tmp");

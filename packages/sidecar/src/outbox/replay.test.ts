@@ -109,6 +109,10 @@ class FakeApp implements SidecarToApp {
 	}
 }
 
+async function until(check: () => boolean): Promise<void> {
+	while (!check()) await new Promise<void>((resolve) => setTimeout(resolve, 0));
+}
+
 async function harness() {
 	const storage = new MemoryStorage();
 	const outbox = new FileEventOutbox({
@@ -255,6 +259,33 @@ describe("SIDE-06 replay", () => {
 		await Promise.all([first, second]);
 
 		expect(h.app.delivered().map((envelope) => envelope.sequence)).toEqual([0, 1, 2]);
+	});
+
+	test("SIDE-06 an attach that replaces a connection mid-request still replays on the new one", async () => {
+		const h = await harness();
+		await appendEvents(h.outbox, sid("session-1"), 2);
+		let calls = 0;
+		let failFirst: () => void = () => {};
+		h.app.reply = async () => {
+			calls += 1;
+			if (calls === 1) {
+				// The old connection drops with the request in flight.
+				return new Promise<Reply>((resolve) => {
+					failFirst = () =>
+						resolve(err(appError("connection_closed", "The app connection closed")));
+				});
+			}
+			return ok({ persisted: true });
+		};
+
+		const first = h.replayer.replayAll();
+		await until(() => calls === 1);
+		// The new connection attaches, then the old request is rejected.
+		const second = h.replayer.replayAll();
+		failFirst();
+		await Promise.all([first, second]);
+
+		expect(h.outbox.pending(sid("session-1"))).toHaveLength(0);
 	});
 
 	test("SIDE-06 replay sends one request at a time and goes chat by chat", async () => {

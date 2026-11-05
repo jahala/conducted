@@ -30,13 +30,18 @@ function smallTimeouts() {
 	return { timeoutMs: 300, killGraceMs: 200 };
 }
 
+/** For scripts that must finish: a timeout catches a hang, never a slow machine. */
+function patientTimeouts() {
+	return { timeoutMs: 60_000, killGraceMs: 5_000 };
+}
+
 describe("SIDE-08 run checkpointer", () => {
 	test("returns the exit code and keeps stdout and stderr", async () => {
 		const { dir, path: script } = await fixture(
 			"printf 'out-line\\n'\nprintf 'err-line\\n' >&2\nexit 7",
 		);
 
-		const output = await runCheckpointer(["bash", script], { cwd: dir, ...smallTimeouts() });
+		const output = await runCheckpointer(["bash", script], { cwd: dir, ...patientTimeouts() });
 
 		expect(output.exitCode).toBe(7);
 		expect(output.stdout).toBe("out-line\n");
@@ -48,9 +53,10 @@ describe("SIDE-08 run checkpointer", () => {
 			"yes x | head -c 200000\n" + "yes y | head -c 200000 >&2\n" + "exit 0",
 		);
 
-		const output = await runCheckpointer(["bash", script], { cwd: dir, ...smallTimeouts() });
+		const output = await runCheckpointer(["bash", script], { cwd: dir, ...patientTimeouts() });
 
 		expect(output.exitCode).toBe(0);
+		expect(output.truncated).toBe(true);
 		expect(output.stdout).toHaveLength(MAX_LOG_LENGTH);
 		expect(output.stderr).toHaveLength(MAX_LOG_LENGTH);
 	});
@@ -70,7 +76,7 @@ describe("SIDE-08 run checkpointer", () => {
 		const elapsed = Date.now() - started;
 
 		expect(elapsed).toBeLessThan(5_000);
-		expect(output.exitCode).not.toBe(0);
+		expect(output.exitCode).toBe(143);
 		expect(await readFile(path.join(dir, "term-sent"), "utf8")).toContain("term");
 	});
 

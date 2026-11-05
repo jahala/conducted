@@ -709,6 +709,76 @@ describe("AGENT-02 Claude session", () => {
 		await second;
 	});
 
+	test("AGENT-02 a replaced process's late end does not finish the turn on its successor", async () => {
+		const scheduler = fakeScheduler();
+		const { query, processes } = multiProcessQuery(undefined, { closeOnAbort: false });
+		const session = new ClaudeSession(makeDeps({ query, scheduler }), start());
+
+		const first = session.runTurn(turnInput(), callbacks([]));
+		await until(() => processes[0]?.prompts.length === 1);
+		const cancelling = session.cancel();
+		await until(() => scheduler.pending() === 1);
+		scheduler.fire(INTERRUPT_GRACE_MS);
+		await cancelling;
+		expect(await first).toEqual({ kind: "cancelled" });
+
+		const seen: AgentMessage[] = [];
+		let secondOutcome: unknown = "pending";
+		const second = session.runTurn(turnInput(), callbacks(seen));
+		void second.then((outcome) => {
+			secondOutcome = outcome;
+		});
+		await until(() => processes[1]?.prompts.length === 1);
+
+		processes[0]?.stream.push(assistantMessage("late text from the old process"));
+		processes[0]?.stream.close();
+		await until(() => processes[0]?.stream.ended === true);
+		await flushMicrotasks();
+
+		expect(secondOutcome).toBe("pending");
+		expect(seen).toHaveLength(0);
+		const disposing = session.dispose();
+		processes[1]?.stream.close();
+		await disposing;
+		await second;
+	});
+
+	test("AGENT-02 a cancel during the live config sync never sends the message", async () => {
+		let releaseMode: () => void = () => {};
+		const modeGate = new Promise<void>((resolve) => {
+			releaseMode = resolve;
+		});
+		let modeCalls = 0;
+		const base = multiProcessQuery();
+		const query: QueryFunction = (args) => {
+			const live = base.query(args);
+			(live as { setPermissionMode: (mode: PermissionMode) => Promise<void> }).setPermissionMode =
+				async () => {
+					modeCalls += 1;
+					await modeGate;
+				};
+			return live;
+		};
+		const scheduler = fakeScheduler();
+		const session = new ClaudeSession(makeDeps({ query, scheduler }), start());
+
+		const turn = session.runTurn(
+			{ ...turnInput(), config: { ...config(), requireToolApproval: true } },
+			callbacks([]),
+		);
+		await until(() => modeCalls === 1);
+		const cancelling = session.cancel();
+		await until(() => scheduler.pending() === 1);
+		releaseMode();
+		await flushMicrotasks();
+		scheduler.fire(INTERRUPT_GRACE_MS);
+		await cancelling;
+
+		expect(await turn).toEqual({ kind: "cancelled" });
+		expect(base.processes[0]?.prompts).toHaveLength(0);
+		await session.dispose();
+	});
+
 	test("dispose waits for the process stream to end", async () => {
 		const { query, processes } = multiProcessQuery(undefined, { closeOnAbort: false });
 		const session = new ClaudeSession(makeDeps({ query }), start());

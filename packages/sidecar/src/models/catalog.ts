@@ -31,7 +31,7 @@ import { type AppError, appError, err, ok, type Result } from "@conducted/shared
 import type { Logger } from "../logging/logger.ts";
 import { type RunnerRegistry, selectorKey } from "../runners/registry.ts";
 import type { Runner } from "../runners/runner.ts";
-import { isAppError, messageOf } from "../util/errors.ts";
+import { asAppError } from "../util/errors.ts";
 
 /** How long a discovered list is reused. Conductor refreshes its catalog every hour. */
 export const MODEL_CATALOG_TTL_MS = 60 * 60 * 1000;
@@ -142,22 +142,9 @@ export class RunnerModelCatalog implements ModelCatalog {
 			this.deps.logger.debug("Listed agent models", { agent: key, models: models.length });
 			return ok([...models]);
 		} catch (cause) {
-			const error = asAppError(cause, key);
+			const error = asAppError(MODEL_LIST_FAILED, `Could not list models for ${key}`, cause);
 			this.deps.logger.warn("Could not list agent models", { agent: key, code: error.code });
 			return err(error);
 		}
 	}
-}
-
-/**
- * A runner reports a missing program as an AppError whose code is AGENT_NOT_INSTALLED. Keep any
- * AppError as it is; wrap anything else so callers always get a value to show.
- */
-function asAppError(cause: unknown, key: string): AppError {
-	if (isAppError(cause)) return cause;
-	return appError(
-		MODEL_LIST_FAILED,
-		`Could not list models for ${key}: ${messageOf(cause)}`,
-		cause,
-	);
 }

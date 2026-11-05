@@ -22,6 +22,7 @@ import { type Interaction, idleLiveState, type LiveState } from "@conducted/prot
 import type { InteractionId, MessageId, SessionId } from "@conducted/shared";
 import type { SidecarToApp } from "../rpc/types.ts";
 import type { EventPublisher } from "./event-batcher.ts";
+import { KeyedSerialQueue } from "./serial-queue.ts";
 
 export type BackgroundTask = LiveState["backgroundTasks"][number];
 
@@ -120,7 +121,8 @@ export function markFastModeUnavailable(state: LiveState): LiveState {
 export class LiveStateStore {
 	private readonly bySession = new Map<SessionId, LiveState>();
 	private readonly epochs = new Map<SessionId, number>();
-	private readonly chains = new Map<SessionId, Promise<void>>();
+	/** Updates of one chat run in call order. */
+	private readonly chains = new KeyedSerialQueue();
 
 	constructor(
 		protected readonly deps: {
@@ -137,17 +139,7 @@ export class LiveStateStore {
 	/** Applies a reducer and publishes the result when it differs, after `flushed` resolves. */
 	update(sessionId: SessionId, reducer: (state: LiveState) => LiveState): Promise<void> {
 		const epoch = this.epochs.get(sessionId) ?? 0;
-		const previous = this.chains.get(sessionId) ?? Promise.resolve();
-		const run = previous.then(() => this.apply(sessionId, epoch, reducer));
-		const tail = run.then(
-			() => undefined,
-			() => undefined,
-		);
-		this.chains.set(sessionId, tail);
-		void tail.then(() => {
-			if (this.chains.get(sessionId) === tail) this.chains.delete(sessionId);
-		});
-		return run;
+		return this.chains.run(sessionId, () => this.apply(sessionId, epoch, reducer));
 	}
 
 	/**

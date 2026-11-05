@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { isAppError, messageOf } from "./errors.ts";
+import { asAppError, isAppError, isMissingFile, messageOf } from "./errors.ts";
 
 describe("SIDE-01 error helpers", () => {
 	test("SIDE-01 messageOf reads an Error's message and stringifies anything else", () => {
@@ -16,5 +16,20 @@ describe("SIDE-01 error helpers", () => {
 		expect(isAppError(new Error("y"))).toBe(false);
 		expect(isAppError(null)).toBe(false);
 		expect(isAppError("x")).toBe(false);
+	});
+
+	test("SIDE-01 asAppError keeps an AppError and wraps anything else under the code", () => {
+		const original = { code: "agent_not_installed", message: "missing" };
+		expect(asAppError("wrapped", "Could not", original)).toBe(original);
+		const wrapped = asAppError("wrapped", "Could not", new Error("boom"));
+		expect(wrapped.code).toBe("wrapped");
+		expect(wrapped.message).toBe("Could not: boom");
+	});
+
+	test("SIDE-01 isMissingFile is true for ENOENT only", () => {
+		expect(isMissingFile(Object.assign(new Error("gone"), { code: "ENOENT" }))).toBe(true);
+		expect(isMissingFile(Object.assign(new Error("denied"), { code: "EACCES" }))).toBe(false);
+		expect(isMissingFile(new Error("plain"))).toBe(false);
+		expect(isMissingFile(null)).toBe(false);
 	});
 });

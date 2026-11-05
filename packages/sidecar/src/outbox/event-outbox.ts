@@ -50,6 +50,14 @@ import {
 	zOutboxFile,
 } from "./outbox-file.ts";
 
+/**
+ * The queue key of a chat's outbox work. The session manager keys the same queue by the bare
+ * session id and waits for a flush inside its job, so sharing that key would deadlock.
+ */
+function outboxQueueKey(sessionId: SessionId): string {
+	return `outbox:${sessionId}`;
+}
+
 export const MAX_PENDING_PER_SESSION = 20_000;
 export const IDLE_FILE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -120,7 +128,7 @@ export class FileEventOutbox implements EventOutbox {
 		events: readonly SessionEvent[],
 	): Promise<Result<SessionEventEnvelope[], AppError>> {
 		if (events.length === 0) return ok([]);
-		return this.deps.queue.run(sessionId, async () => {
+		return this.deps.queue.run(outboxQueueKey(sessionId), async () => {
 			const current = this.states.get(sessionId);
 			const base: ChatState = current ?? {
 				sessionId,
@@ -184,7 +192,7 @@ export class FileEventOutbox implements EventOutbox {
 	}
 
 	async acknowledge(sessionId: SessionId, eventId: EventId): Promise<Result<void, AppError>> {
-		return this.deps.queue.run(sessionId, async () => {
+		return this.deps.queue.run(outboxQueueKey(sessionId), async () => {
 			const current = this.states.get(sessionId);
 			if (current === undefined) return ok(undefined);
 			const index = current.pending.findIndex((entry) => entry.eventId === eventId);
@@ -245,7 +253,7 @@ export class FileEventOutbox implements EventOutbox {
 			// The check and the Trash move share the chat's queue, so an append either lands
 			// before the check (and keeps the file) or after the move (and starts a new file).
 			const outcome = await this.deps.queue.run(
-				sessionId,
+				outboxQueueKey(sessionId),
 				async (): Promise<Result<boolean, AppError>> => {
 					const state = this.states.get(sessionId);
 					if (state === undefined) return ok(false);
@@ -298,7 +306,7 @@ export class FileEventOutbox implements EventOutbox {
 				typeof raw === "object" && raw !== null && "version" in raw
 					? (raw as { version?: unknown }).version
 					: undefined;
-			if (typeof version === "number" && version > 1) {
+			if (typeof version === "number" && version > OUTBOX_FILE_VERSION) {
 				return corrupt(`version ${version} is newer than this app`);
 			}
 			return corrupt("wrong shape");

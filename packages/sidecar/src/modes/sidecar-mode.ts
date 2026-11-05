@@ -19,8 +19,8 @@
  *     starts the graceful shutdown, install the uncaughtException and unhandledRejection handlers
  *     (log, do not exit), and ask the agent detector for the current list; a detection failure is
  *     logged and never fails the start
- *  8. when the app attaches: replay the write-ahead log, resend the open interaction, and send
- *     agentInstallsChanged if detection changed
+ *  8. when the app attaches: replay the write-ahead log and resend the open interactions. The
+ *     agent list is sent when detection changes, and the app reads it with getAgentInstalls
  * Must handle: a second sidecar already running for the same app (the launcher kills orphans; the
  * socket path includes the pid, so two never clash), startup steps that fail halfway (the bridge
  * and the socket, once started, are stopped through the shutdown steps; the outbox has no close,
@@ -28,14 +28,14 @@
  * lines (logs go to stderr).
  * Test first: parseSidecarConfig is tested in config.test.ts; here, a start with an unwritable
  * outbox directory exits with code 1 and a message that names the directory.
- * Owned by later features: startSidecarHost calls buildHandlers (SIDE-02), so the real host cannot
- * start until SIDE-02 lands. A smoke test that starts it on a temporary socket path belongs there.
+ * Not yet covered: startSidecarHost has no test that starts it on a temporary socket path, because
+ * its start-up runs the app tools bridge, which is the SIDE-13 placeholder.
  * Our design choice: the entry only dispatches. All behaviour lives in modes/, so tests call the
  * mode functions without starting a process. The host itself is injected, so a test starts a
  * fake host without touching a real socket.
  */
 import { randomBytes, randomUUID } from "node:crypto";
-import { access, mkdir, open, readFile, realpath, rm, stat } from "node:fs/promises";
+import { access, mkdir, mkdtemp, open, readFile, realpath, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
@@ -59,8 +59,8 @@ import {
 import { ScriptCheckpointService } from "../checkpoints/checkpoint-service.ts";
 import { runCheckpointer } from "../checkpoints/run-checkpointer.ts";
 import { parseSidecarConfig, type SidecarConfig } from "../config.ts";
+import { EXIT_START_FAILED, EXIT_USAGE } from "../exit-codes.ts";
 import { createLogger, type Logger, type LogSink } from "../logging/logger.ts";
-import { EXIT_USAGE } from "../main.ts";
 import { type AgentDetector, DefaultAgentDetector } from "../models/agent-detection.ts";
 import { RunnerModelCatalog } from "../models/catalog.ts";
 import { RunnerMcpServerLister, RunnerSlashCommandLister } from "../models/slash-and-mcp.ts";
@@ -69,6 +69,7 @@ import { FileEventOutbox } from "../outbox/event-outbox.ts";
 import { createOutboxStorage } from "../outbox/node-storage.ts";
 import { OutboxReplayer } from "../outbox/replay.ts";
 import { AgentProcessManager } from "../process/process-manager.ts";
+import { startChild } from "../process/spawn-child.ts";
 import { MessagePromptAssembler, type PromptFiles } from "../prompt/assemble.ts";
 import { writePullRequestStubFile } from "../prompt/pull-request-stub.ts";
 import { buildHandlers } from "../rpc/handlers.ts";
@@ -100,9 +101,17 @@ import type { Runner } from "../runners/runner.ts";
 import { BatchingEventPublisher } from "../session/event-batcher.ts";
 import { SessionInteractionBroker } from "../session/interactions.ts";
 import { LiveStateStore, reportWriteFailures } from "../session/live-state.ts";
-import { DefaultSessionManager, type ShutdownReason } from "../session/manager.ts";
+import {
+	DefaultSessionManager,
+	type SessionManager,
+	type ShutdownReason,
+} from "../session/manager.ts";
 import { KeyedSerialQueue } from "../session/serial-queue.ts";
-import { LoginShellEnvProvider } from "../shell-env/capture.ts";
+import {
+	FALLBACK_SHELL,
+	LoginShellEnvProvider,
+	type NotifyShellEnvFailure,
+} from "../shell-env/capture.ts";
 import { runShutdownSteps, type ShutdownReport, type ShutdownStep } from "../shutdown.ts";
 import { RpcAppToolBackend } from "../tools/backend.ts";
 import { createAppToolsServer } from "../tools/in-process-server.ts";
@@ -111,8 +120,7 @@ import { AppToolsBridge, type BridgeEndpoint, type TokenSource } from "../tools/
 import { messageOf } from "../util/errors.ts";
 import { ParentWatchdog } from "../watchdog.ts";
 
-/** A start that fails after the command line was read. Matches the entry point's failure code. */
-export const EXIT_START_FAILED = 1;
+export { EXIT_START_FAILED };
 
 /** What the host needs from the mode function. */
 export interface SidecarHostInput {
@@ -275,6 +283,18 @@ export async function refreshAgentInstalls(deps: {
 	}
 }
 
+/** What a new app connection starts: the log replay, and the resend of open interactions. */
+export function handleAppAttached(deps: {
+	replayer: Pick<OutboxReplayer, "replayAll">;
+	sessions: Pick<SessionManager, "onAppAttached">;
+	logger: Logger;
+}): void {
+	void deps.replayer.replayAll().catch((cause: unknown) => {
+		deps.logger.warn("Replaying the write-ahead log failed", { reason: messageOf(cause) });
+	});
+	deps.sessions.onAppAttached();
+}
+
 /** The log tag Conductor uses for the signal handlers. */
 export const SIGNAL_LOG_TAG = "SIGNAL";
 
@@ -345,8 +365,14 @@ export interface ShutdownCoordinatorDeps {
 	logger: Logger;
 	effects: ShutdownEffects;
 	runShutdown(steps: readonly ShutdownStep[]): Promise<ShutdownReport>;
-	/** Stops what must not run during shutdown: the watchdog, the attach listener, the signals. */
+	/** Stops what must not run during shutdown: the watchdog and the attach listener. */
 	beforeShutdown(): void;
+	/**
+	 * Runs once the shutdown ended, before the process finishes. The signal handlers go here, not
+	 * in beforeShutdown: a second signal during a slow shutdown must still reach the coordinator
+	 * and be ignored, where Node's default action would kill the process and orphan the agents.
+	 */
+	afterShutdown(): void;
 	finish(code: number): void;
 }
 
@@ -375,6 +401,7 @@ export class ShutdownCoordinator {
 		} catch (cause) {
 			this.deps.logger.error("The shutdown sequence failed", { reason: messageOf(cause) });
 		} finally {
+			this.deps.afterShutdown();
 			this.deps.finish(0);
 		}
 	}
@@ -560,7 +587,9 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 		endpoint: () => bridgeEndpoint,
 	});
 	const models = new RunnerModelCatalog({ runners, logger, clock });
-	const shellEnv = createShellEnvProvider(env, logger);
+	const shellEnv = createShellEnvProvider(env, logger, (failure) => {
+		app.notify("shellEnvFailed", failure);
+	});
 	const agents = new DefaultAgentDetector({
 		runners,
 		shellEnv,
@@ -661,11 +690,7 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 	const done = new Promise<number>((resolve) => {
 		finish = resolve;
 	});
-	const unsubscribeAttach = peer.onAttach(() => {
-		void replayer.replayAll().catch((cause: unknown) => {
-			logger.warn("Replaying the write-ahead log failed", { reason: messageOf(cause) });
-		});
-	});
+	const unsubscribeAttach = peer.onAttach(() => handleAppAttached({ replayer, sessions, logger }));
 	let watchdog: ParentWatchdog | null = null;
 	let removeSignalHandlers: () => void = () => {};
 	const coordinator = new ShutdownCoordinator({
@@ -684,8 +709,8 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 		beforeShutdown: () => {
 			watchdog?.stop();
 			unsubscribeAttach();
-			removeSignalHandlers();
 		},
+		afterShutdown: () => removeSignalHandlers(),
 		finish: (code) => finish(code),
 	});
 	watchdog = new ParentWatchdog({
@@ -721,8 +746,7 @@ function createTokenSource(): TokenSource {
 	return { newToken: () => randomBytes(32).toString("base64url") };
 }
 
-async function mkdirTemp(prefix: string): Promise<string> {
-	const { mkdtemp } = await import("node:fs/promises");
+function mkdirTemp(prefix: string): Promise<string> {
 	return mkdtemp(path.join(tmpdir(), prefix));
 }
 
@@ -734,15 +758,17 @@ function currentEnvironment(): Record<string, string> {
 	return out;
 }
 
-function createShellEnvProvider(
+export function createShellEnvProvider(
 	env: Readonly<Record<string, string | undefined>>,
 	logger: Logger,
+	notifyFailure: NotifyShellEnvFailure,
 ): LoginShellEnvProvider {
 	return new LoginShellEnvProvider({
 		spawnText: spawnText,
-		shellPath: process.env.SHELL ?? env.SHELL ?? "/bin/zsh",
+		shellPath: env.SHELL ?? FALLBACK_SHELL,
 		newMarker: () => `__conducted_env_${randomBytes(8).toString("hex")}__`,
 		logger,
+		notifyFailure,
 	});
 }
 
@@ -864,8 +890,8 @@ function createRunnerRegistry(input: {
 	endpoint: () => BridgeEndpoint | null;
 }): RunnerRegistry {
 	const common = commonRunnerDeps(input.env, input.logger);
-	const spawnCodex: SpawnJsonRpcChild = (options) => spawnJsonRpcChild(options);
-	const spawnAcp: SpawnAcpChild = (options) => spawnAcpChild(options);
+	const spawnCodex: SpawnJsonRpcChild = (options) => spawnJsonRpcChild(options, input.logger);
+	const spawnAcp: SpawnAcpChild = (options) => spawnAcpChild(options, input.logger);
 	const loadSdk: LoadCursorSdk = loadCursorSdk;
 	const scheduler = createScheduler();
 	const queueForCursor = new KeyedSerialQueue();
@@ -975,123 +1001,76 @@ const loadCursorSdk: LoadCursorSdk = async () => {
 	}
 };
 
-function spawnJsonRpcChild(options: {
-	command: string;
-	args: readonly string[];
-	cwd: string;
-	env: Readonly<Record<string, string>>;
-}): Promise<Result<JsonRpcChild, AppError>> {
-	try {
-		const child = Bun.spawn({
-			cmd: [options.command, ...options.args],
-			cwd: options.cwd,
-			env: options.env,
-			stdin: "pipe",
-			stdout: "pipe",
-			stderr: "pipe",
-		});
-		const lineListeners: ((line: string) => void)[] = [];
-		const stderrListeners: ((text: string) => void)[] = [];
-		const exitListeners: ((code: number | null, signal: string | null) => void)[] = [];
+function spawnJsonRpcChild(
+	options: {
+		command: string;
+		args: readonly string[];
+		cwd: string;
+		env: Readonly<Record<string, string>>;
+	},
+	logger: Logger,
+): Promise<Result<JsonRpcChild, AppError>> {
+	const started = startChild({ ...options, logger });
+	if (!started.ok) return Promise.resolve(started);
+	const child = started.value;
+	const lineListeners: ((line: string) => void)[] = [];
+	void (async () => {
 		const decoder = new TextDecoder();
 		let buffer = "";
-		void (async () => {
-			for await (const chunk of child.stdout) {
-				buffer += decoder.decode(chunk, { stream: true });
-				let index = buffer.indexOf("\n");
-				while (index >= 0) {
-					const line = buffer.slice(0, index);
-					buffer = buffer.slice(index + 1);
-					for (const listener of lineListeners) listener(line);
-					index = buffer.indexOf("\n");
-				}
+		for await (const chunk of child.stdout) {
+			buffer += decoder.decode(chunk, { stream: true });
+			let index = buffer.indexOf("\n");
+			while (index >= 0) {
+				const line = buffer.slice(0, index);
+				buffer = buffer.slice(index + 1);
+				for (const listener of lineListeners) listener(line);
+				index = buffer.indexOf("\n");
 			}
-		})().catch(() => {});
-		void (async () => {
-			const text = await new Response(child.stderr).text();
-			if (text.length > 0) for (const listener of stderrListeners) listener(text);
-		})().catch(() => {});
-		void child.exited.then((code) => {
-			for (const listener of exitListeners) listener(code, null);
+		}
+	})().catch((cause: unknown) => {
+		logger.warn("Could not read a child's stdout", {
+			command: options.command,
+			reason: messageOf(cause),
 		});
-		const port: JsonRpcChild = {
-			writeLine: (line) => {
-				child.stdin.write(`${line}\n`);
-			},
+	});
+	return Promise.resolve(
+		ok({
+			writeLine: (line) => child.write(`${line}\n`),
 			onLine: (listener) => {
 				lineListeners.push(listener);
 			},
-			onStderr: (listener) => {
-				stderrListeners.push(listener);
-			},
-			onExit: (listener) => {
-				exitListeners.push(listener);
-			},
-			stop: async (graceMs) => {
-				child.stdin.end();
-				const timer = setTimeout(() => child.kill(), graceMs);
-				await child.exited;
-				clearTimeout(timer);
-			},
-		};
-		return Promise.resolve(ok(port));
-	} catch (cause) {
-		return Promise.resolve(err(appError("spawn_failed", messageOf(cause), cause)));
-	}
+			onStderr: (listener) => child.onStderr(listener),
+			onExit: (listener) => child.onExit(listener),
+			stop: (graceMs) => child.stop(graceMs),
+		}),
+	);
 }
 
-function spawnAcpChild(options: {
-	command: string;
-	args: readonly string[];
-	cwd: string;
-	env: Readonly<Record<string, string>>;
-}): Promise<Result<AcpChild, AppError>> {
-	try {
-		const child = Bun.spawn({
-			cmd: [options.command, ...options.args],
-			cwd: options.cwd,
-			env: options.env,
-			stdin: "pipe",
-			stdout: "pipe",
-			stderr: "pipe",
-		});
-		const stderrListeners: ((text: string) => void)[] = [];
-		const exitListeners: ((code: number | null, signal: string | null) => void)[] = [];
-		void (async () => {
-			const text = await new Response(child.stderr).text();
-			if (text.length > 0) for (const listener of stderrListeners) listener(text);
-		})().catch(() => {});
-		void child.exited.then((code) => {
-			for (const listener of exitListeners) listener(code, null);
-		});
-		const stdin = new WritableStream<Uint8Array>({
-			write: (chunk) => {
-				child.stdin.write(chunk);
-			},
-			close: () => {
-				child.stdin.end();
-			},
-		});
-		const port: AcpChild = {
+function spawnAcpChild(
+	options: {
+		command: string;
+		args: readonly string[];
+		cwd: string;
+		env: Readonly<Record<string, string>>;
+	},
+	logger: Logger,
+): Promise<Result<AcpChild, AppError>> {
+	const started = startChild({ ...options, logger });
+	if (!started.ok) return Promise.resolve(started);
+	const child = started.value;
+	const stdin = new WritableStream<Uint8Array>({
+		write: (chunk) => child.write(chunk),
+		close: () => child.endInput(),
+	});
+	return Promise.resolve(
+		ok({
 			stdin,
 			stdout: child.stdout,
-			onStderr: (listener) => {
-				stderrListeners.push(listener);
-			},
-			onExit: (listener) => {
-				exitListeners.push(listener);
-			},
-			stop: async (graceMs) => {
-				child.stdin.end();
-				const timer = setTimeout(() => child.kill(), graceMs);
-				await child.exited;
-				clearTimeout(timer);
-			},
-		};
-		return Promise.resolve(ok(port));
-	} catch (cause) {
-		return Promise.resolve(err(appError("spawn_failed", messageOf(cause), cause)));
-	}
+			onStderr: (listener) => child.onStderr(listener),
+			onExit: (listener) => child.onExit(listener),
+			stop: (graceMs) => child.stop(graceMs),
+		}),
+	);
 }
 
 /** Runs a login-shell capture command and returns its stdout. */

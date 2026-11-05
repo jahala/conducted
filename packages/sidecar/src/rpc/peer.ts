@@ -4,8 +4,7 @@
  * validates every incoming and outgoing message with the protocol schemas, and offers request and
  * notify calls toward the app.
  * Behaviour: research/conductor/sessions.md section 10 and section 8 ("Each connection
- * re-registers all RPC methods ... pending requests are rejected with 'Frontend RPC tunnel
- * stopped'"). Conductor uses the json-rpc-2.0 library's server-and-client pair; so do we.
+ * re-registers all RPC methods ... pending requests are rejected when the connection ends"). Conductor uses the json-rpc-2.0 library's server-and-client pair; so do we.
  * Must handle:
  *  - params that fail the schema: answer with RPC_ERRORS.invalidParams, never call the handler
  *  - a result that fails its schema: log it and answer RPC_ERRORS.internalError
