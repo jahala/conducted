@@ -1,4 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import type { Logger } from "../../logging/logger.ts";
 import { createMirrorStore } from "./session-mirror.ts";
 
@@ -43,6 +46,33 @@ describe("AGENT-05 session mirror", () => {
 		await store.append(key, [{ type: "user", uuid: "u1" }]);
 		expect(seen).toEqual(["u1"]);
 		expect(await store.load(key)).toBeNull();
+	});
+
+	test("a key that names real folders creates no file or folder at any of them", async () => {
+		const base = await mkdtemp(path.join(tmpdir(), "conducted-mirror-"));
+		try {
+			const projectFolder = path.join(base, "project");
+			const sibling = path.join(base, "escaped");
+			const { logger } = recordingLogger();
+			const store = createMirrorStore(() => {}, logger);
+			// If the adapter built a path from the key, it would write into one of these places.
+			const keys = [
+				{ projectKey: projectFolder, sessionId: "session-1" },
+				{ projectKey: projectFolder, sessionId: "../escaped" },
+				{ projectKey: base, sessionId: "../../escaped" },
+				{ projectKey: "/", sessionId: path.relative("/", sibling) },
+			];
+
+			for (const key of keys) {
+				await store.append(key, [{ type: "user", uuid: "u1" }]);
+				expect(await store.load(key)).toBeNull();
+			}
+
+			expect(await readdir(base)).toEqual([]);
+			await expect(stat(sibling)).rejects.toThrow();
+		} finally {
+			await rm(base, { recursive: true, force: true });
+		}
 	});
 
 	test("a throwing consumed callback is logged and does not fail the append", async () => {

@@ -1,16 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import type {
 	AgentInstall,
-	Interaction,
-	InteractionAnswer,
-	InteractionRequest,
 	ModelInfo,
 	RateLimit,
 	SessionConfig,
-	SessionEvent,
 	SessionEventEnvelope,
-	SidecarToAppNotification,
-	SidecarToAppRequest,
 	WorkspaceContext,
 } from "@conducted/protocol";
 import {
@@ -38,12 +32,6 @@ import type { EventOutbox } from "../outbox/event-outbox.ts";
 import type { PromptAssembler, PromptInput } from "../prompt/assemble.ts";
 import { buildHandlers, type HandlerDeps } from "../rpc/handlers.ts";
 import type {
-	SidecarToApp,
-	SidecarToAppNotificationParams,
-	SidecarToAppRequestParams,
-	SidecarToAppRequestResult,
-} from "../rpc/types.ts";
-import type {
 	AgentSession,
 	Runner,
 	RunnerCapabilities,
@@ -53,8 +41,6 @@ import type {
 	TurnInput,
 	TurnOutcome,
 } from "../runners/runner.ts";
-import type { EventPublisher } from "../session/event-batcher.ts";
-import type { InteractionBroker } from "../session/interactions.ts";
 import { LiveStateStore } from "../session/live-state.ts";
 import {
 	DefaultSessionManager,
@@ -65,35 +51,13 @@ import type { RunNumber } from "../session/run-guard.ts";
 import { KeyedSerialQueue } from "../session/serial-queue.ts";
 import type { UtilityPromptRunner } from "../session/utility-prompt.ts";
 import type { CapturedShellEnv, ShellEnvProvider } from "../shell-env/capture.ts";
+import { FakeApp } from "../test-support/fake-app.ts";
+import { FakeInteractions } from "../test-support/fake-interactions.ts";
+import { FakeProcesses } from "../test-support/fake-processes.ts";
+import { FakePublisher } from "../test-support/fake-publisher.ts";
 import { SessionUsageReader } from "./usage.ts";
 
 const sessionId = "session-1" as SessionId;
-
-class FakeApp implements SidecarToApp {
-	readonly connected = true;
-
-	async request<K extends SidecarToAppRequest>(
-		_method: K,
-		_params: SidecarToAppRequestParams<K>,
-	): Promise<Result<SidecarToAppRequestResult<K>, AppError>> {
-		return ok({ kind: "withdrawn" } as SidecarToAppRequestResult<K>);
-	}
-
-	notify<K extends SidecarToAppNotification>(
-		_method: K,
-		_params: SidecarToAppNotificationParams<K>,
-	): boolean {
-		return true;
-	}
-
-	onAttach(_listener: () => void): () => void {
-		return () => {};
-	}
-
-	onDetach(_listener: () => void): () => void {
-		return () => {};
-	}
-}
 
 class FakeAgentSession implements AgentSession {
 	readonly sessionId = sessionId;
@@ -156,31 +120,6 @@ class FakeRunner implements Runner {
 	}
 }
 
-class FakeProcesses {
-	async claimActive(
-		key: string,
-		start: () => Promise<AgentSession>,
-	): Promise<{ key: string; agent: AgentSession; release(): void }> {
-		return { key, agent: await start(), release: () => {} };
-	}
-
-	async ensureWarm(_key: string, start: () => Promise<AgentSession>): Promise<void> {
-		await start();
-	}
-
-	markBusy(_key: string): void {}
-
-	markIdle(_key: string): void {}
-
-	setBackgroundTasks(_key: string, _hasTasks: boolean): void {}
-
-	async disconnect(_key: string): Promise<void> {}
-
-	async sweep(): Promise<void> {}
-
-	async stopAll(): Promise<void> {}
-}
-
 class FakeCheckpoints implements CheckpointService {
 	async start(_request: CheckpointRequest): Promise<CheckpointOutcome> {
 		return {};
@@ -194,34 +133,6 @@ class FakeCheckpoints implements CheckpointService {
 class FakePrompt implements PromptAssembler {
 	async assemble(input: PromptInput): Promise<Result<string, AppError>> {
 		return ok(`agent:${input.text}`);
-	}
-}
-
-class FakePublisher implements EventPublisher {
-	publish(_sessionId: SessionId, _event: SessionEvent): void {}
-
-	async flush(_sessionId: SessionId): Promise<void> {}
-
-	onWriteFailure(_listener: (sessionId: SessionId, message: string) => void): void {}
-}
-
-class FakeInteractions implements InteractionBroker {
-	async open(_sessionId: SessionId, _interaction: Interaction): Promise<InteractionAnswer> {
-		return { kind: "withdrawn" };
-	}
-
-	answer(
-		_sessionId: SessionId,
-		_interactionId: InteractionRequest["interactionId"],
-		_answer: InteractionAnswer,
-	): { accepted: boolean; superseded: boolean } {
-		return { accepted: true, superseded: false };
-	}
-
-	withdrawAll(_sessionId: SessionId): void {}
-
-	openRequest(_sessionId: SessionId): InteractionRequest | undefined {
-		return undefined;
 	}
 }
 

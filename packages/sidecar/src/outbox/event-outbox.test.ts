@@ -1,15 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import type { SessionEvent } from "@conducted/protocol";
-import type { AppError, EventId, Result, SessionId, TurnId } from "@conducted/shared";
-import { appError, err, ok } from "@conducted/shared";
+import type { EventId, SessionId, TurnId } from "@conducted/shared";
 import { createLogger, type LogRecord } from "../logging/logger.ts";
 import { KeyedSerialQueue } from "../session/serial-queue.ts";
+import { MemoryStorage } from "../test-support/memory-storage.ts";
 import {
 	FileEventOutbox,
 	IDLE_FILE_RETENTION_MS,
 	MAX_PENDING_PER_SESSION,
 } from "./event-outbox.ts";
-import { fileNameFor, OUTBOX_FILE_VERSION, type OutboxStorage } from "./outbox-file.ts";
+import { fileNameFor, OUTBOX_FILE_VERSION } from "./outbox-file.ts";
 
 const sid = (value: string) => value as SessionId;
 
@@ -24,49 +24,6 @@ function endedEvent(): SessionEvent {
 		turnId: "turn-1" as TurnId,
 		outcome: "success",
 	};
-}
-
-class MemoryStorage implements OutboxStorage {
-	readonly files = new Map<string, string>();
-	readonly writes: { fileName: string; text: string }[] = [];
-	readonly trashed: string[] = [];
-	cleanCalls = 0;
-	failWrites = 0;
-	failCode = "outbox_write_failed";
-	beforeTrash: (() => Promise<void>) | null = null;
-
-	async list(): Promise<Result<string[], AppError>> {
-		return ok([...this.files.keys()]);
-	}
-
-	async read(fileName: string): Promise<Result<string | null, AppError>> {
-		return ok(this.files.get(fileName) ?? null);
-	}
-
-	async writeAtomic(fileName: string, text: string): Promise<Result<void, AppError>> {
-		this.writes.push({ fileName, text });
-		if (this.failWrites > 0) {
-			this.failWrites -= 1;
-			// A directory fsync fails after the rename landed, so the file is there but the
-			// directory entry may not be.
-			if (this.failCode === "outbox_dir_sync_failed") this.files.set(fileName, text);
-			return err(appError(this.failCode, "The disk refused the write."));
-		}
-		this.files.set(fileName, text);
-		return ok(undefined);
-	}
-
-	async moveToTrash(fileName: string): Promise<Result<void, AppError>> {
-		if (this.beforeTrash !== null) await this.beforeTrash();
-		this.trashed.push(fileName);
-		this.files.delete(fileName);
-		return ok(undefined);
-	}
-
-	async cleanTempFiles(): Promise<Result<number, AppError>> {
-		this.cleanCalls += 1;
-		return ok(0);
-	}
 }
 
 function harness() {

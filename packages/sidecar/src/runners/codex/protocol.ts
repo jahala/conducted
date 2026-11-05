@@ -10,7 +10,8 @@
  * Must handle: unknown fields in server messages (ignored), unknown thread item types (kept as
  * `unknown` and logged by the translator), and a server that is newer or older than the one the
  * shapes were checked against (the client reports the version from the `initialize` reply).
- * Test first: CODEX_CLIENT_METHODS has no duplicate values and every value contains no spaces.
+ * Test first: protocol.test.ts pins every method name to the name in the JSON schema that `codex
+ * app-server generate-json-schema` writes, and feeds the notification names to the translator.
  */
 
 /** Requests we send to the app server. */

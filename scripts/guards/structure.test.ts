@@ -18,6 +18,7 @@ import {
 	checkUnwiredDeps,
 	commandEntries,
 	commandFunctions,
+	isTestPath,
 	listedMigrations,
 	measureAgainst,
 	nextBaseline,
@@ -446,5 +447,15 @@ describe("unwired-deps", () => {
 		expect(messages(await checkUnwiredDeps(root))[0]).toBe(
 			"apps/desktop/tsconfig.json does not exist",
 		);
+	});
+});
+
+describe("test paths", () => {
+	test("files under a test or test-support folder count as test code", () => {
+		expect(isTestPath("apps/desktop/src/test/container.ts")).toBe(true);
+		expect(isTestPath("packages/sidecar/src/test-support/fake-app.ts")).toBe(true);
+		expect(isTestPath("packages/sidecar/src/session/manager.test.ts")).toBe(true);
+		expect(isTestPath("packages/sidecar/src/session/manager.ts")).toBe(false);
+		expect(isTestPath("apps/desktop/src/core/testing-mode.ts")).toBe(false);
 	});
 });

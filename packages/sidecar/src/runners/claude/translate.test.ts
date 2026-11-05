@@ -397,6 +397,41 @@ describe("AGENT-03 Claude translation", () => {
 		}
 	});
 
+	test("a dropped message is dropped on purpose (no debug line), and an unknown one is not (one debug line)", () => {
+		const dropped: unknown[] = [
+			{ type: "stream_event", event: { type: "content_block_delta" } },
+			{ type: "keep_alive" },
+			{ type: "transcript_mirror", entries: [] },
+			{ type: "control_request", request_id: "1" },
+			{ type: "control_response", response: {} },
+			{ type: "control_cancel_request", request_id: "1" },
+			system("thinking_tokens", { estimated_tokens: 1 }),
+			system("task_progress", { task_id: "t" }),
+			system("task_started", { task_id: "t", description: "work" }),
+			system("task_notification", { task_id: "t", status: "completed" }),
+			system("task_updated", { task_id: "t", patch: {} }),
+			system("session_state_changed", { state: "running" }),
+			system("background_tasks_changed", { tasks: [] }),
+		];
+		const unknown: unknown[] = [
+			{ type: "something_new", uuid: "u" },
+			system("a_subtype_we_never_saw"),
+		];
+
+		for (const message of dropped) {
+			const { logger, debug } = fakeLogger();
+			const t = new ClaudeTranslator({ logger });
+			expect(t.translate(message as SDKMessage)).toEqual([]);
+			expect(debug).toEqual([]);
+		}
+		for (const message of unknown) {
+			const { logger, debug } = fakeLogger();
+			const t = new ClaudeTranslator({ logger });
+			expect(t.translate(message as SDKMessage)).toEqual([]);
+			expect(debug).toHaveLength(1);
+		}
+	});
+
 	test("autocompact state, post-turn summary, session metadata and active goal keep their raw payload", () => {
 		const t = translator();
 		for (const message of [
