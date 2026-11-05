@@ -65,6 +65,7 @@ import {
 } from "../git/status.ts";
 import type { GitState } from "../model.ts";
 import type { GitCache } from "./git-cache.ts";
+import type { WorkspacePrEntry } from "./github.ts";
 import type { AgentMessenger } from "./sessions.ts";
 
 const DEPTH_RANK: Readonly<Record<PollDepth, number>> = { metadata: 0, uncommitted: 1, full: 2 };
@@ -387,9 +388,33 @@ export class GitService {
 		}));
 	}
 
-	/** Backs `useGitState`: the snapshot merged with PR info from the GitHub service. */
-	stateOf(_workspaceId: WorkspaceId): GitState | null {
-		return notImplemented("GIT-04");
+	/**
+	 * Backs `useGitState`: the polled snapshot merged with the PR entry the caller read from the
+	 * GitHub service. Returns null until the first poll has stored a snapshot.
+	 */
+	stateOf(workspaceId: WorkspaceId, prEntry?: WorkspacePrEntry): GitState | null {
+		const snapshot = this.store.getState().byWorkspace[String(workspaceId)]?.snapshot ?? null;
+		if (snapshot === null) return null;
+		const changedFiles = snapshot.files.length;
+		return {
+			branch: snapshot.branch ?? "",
+			uncommittedFiles: changedFiles,
+			changedFiles,
+			linesAdded: snapshot.files.reduce((total, file) => total + file.linesAdded, 0),
+			linesRemoved: snapshot.files.reduce((total, file) => total + file.linesRemoved, 0),
+			hasConflicts: snapshot.conflictedPaths.length > 0,
+			operation: snapshot.operation,
+			sync: snapshot.sync,
+			pullRequest: prEntry?.pullRequest ?? null,
+			pullRequestUnavailable:
+				prEntry === undefined
+					? "loading"
+					: prEntry.unavailable === "no_pr"
+						? "none"
+						: prEntry.unavailable,
+			untrackedFilesTruncated: snapshot.untrackedTruncated,
+			pendingPullRequestAction: null,
+		};
 	}
 
 	/** Backs `useChangedFiles`. */

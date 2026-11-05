@@ -1,11 +1,11 @@
 /**
  * @feature PR-02 Written instructions the app sends to the agent
- * Owns now: the text of the "create a pull request" request. The other requests (commit and
- * push, resolve conflicts, fix failing checks, review the diff, rename the branch, reconcile with
- * the target, merge into the target) are placeholders owned by GIT-05, GIT-07, PR-05, REV-05,
- * WS-04, GIT-04 and GIT-14.
+ * Owns now: the text of the "create a pull request" request and the "reconcile with the target"
+ * request (GIT-04). The other requests (commit and push, resolve conflicts, fix failing checks,
+ * review the diff, rename the branch, merge into the target) are placeholders owned by GIT-05,
+ * GIT-07, PR-05, REV-05, WS-04 and GIT-14.
  * Behaviour: structure-map.md section 6 pattern 5 (delegate risky git work to the agent),
- * services-map.md 3.7.1 (create PR steps), ui-map.md 3.6.
+ * services-map.md 3.6.4 (reconcile messages), 3.7.1 (create PR steps), ui-map.md 3.6.
  * Must handle: a per-repo custom prompt (`RepoConfig.prompts`) is added to the built-in text,
  * never silently replaces it; the target branch and remote names are inserted as given (they are
  * quoted by the agent's own tools, not by us); a PR template, when the repo has one, is named in
@@ -99,11 +99,40 @@ export const renameBranchInstruction = (
 
 /** "Pull latest from the target" when the worktree is dirty or the branch has diverged. */
 export const reconcileInstruction = (
-	_input: InstructionBase & {
+	input: InstructionBase & {
 		strategy: "rebase" | "merge";
 		dirty: boolean;
 	},
-): string => notImplemented("GIT-04");
+): string => {
+	const remote = input.remote.trim();
+	const remoteTarget = remote.length === 0 ? input.targetBranch : `${remote}/${input.targetBranch}`;
+	const steps: string[] = [];
+	if (input.dirty) {
+		steps.push(
+			"Review the uncommitted changes with `git diff` and commit them with a clear message.",
+		);
+	}
+	if (input.strategy === "rebase") {
+		steps.push(`Rebase this branch onto \`${remoteTarget}\`.`);
+	} else {
+		steps.push(`Merge \`${remoteTarget}\` into this branch.`);
+	}
+	if (remote.length > 0) {
+		steps.push(
+			input.strategy === "rebase"
+				? "Update the remote branch with `git push --force-with-lease`, never a plain force push."
+				: "Push the branch with `git push`.",
+		);
+	}
+
+	const intro = `Reconcile the branch \`${input.branch}\` with \`${remoteTarget}\`.`;
+	const numbered = steps.map((step, index) => `${index + 1}. ${step}`).join("\n");
+	const builtIn = `${intro}\n\n${numbered}`;
+	const custom = input.customPrompt?.trim() ?? "";
+	return custom.length === 0
+		? builtIn
+		: `${builtIn}\n\nRepository instructions for Reconcile:\n${custom}`;
+};
 
 /**
  * "Merge into target" for a repository with no GitHub remote: ask the agent to merge the branch
