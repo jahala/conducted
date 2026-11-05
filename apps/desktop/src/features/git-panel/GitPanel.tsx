@@ -20,7 +20,9 @@
  * the panel is mounted, through the command dispatcher so a rebind applies, "Commit and push" only
  * while the header offers that action, one review request at a time per workspace, and a
  * workspace switch mid-request (the old request's result does not touch the new workspace's
- * dialog).
+ * dialog), and one header action at a time per workspace and action: the header button and the
+ * Cmd+Shift+P, Cmd+Shift+Y and Cmd+Shift+L shortcuts share one single-flight guard, so a second
+ * key press or click while the action runs is ignored.
  * Test first: with a GitState of two uncommitted files the header reads "Uncommitted changes" and
  * the main action is "Commit and push".
  */
@@ -106,6 +108,7 @@ export function GitPanel({
 	const [reviewPromptOpen, setReviewPromptOpen] = useState(false);
 	const [reviewingFor, setReviewingFor] = useState<WorkspaceId | null>(null);
 	const [reviewFlight] = useState(() => createSingleFlight());
+	const [actionFlight] = useState(() => createSingleFlight());
 	const currentWorkspace = useRef(workspaceId);
 	currentWorkspace.current = workspaceId;
 	const reviewBusy = reviewingFor === workspaceId;
@@ -218,10 +221,16 @@ export function GitPanel({
 		}
 	};
 
+	// The header button and the shortcuts all start an action here. While an action runs for a
+	// workspace, the same action asked again (a second key press, or a click) gets the running
+	// call's promise and starts nothing, so the agent is never sent the same message twice.
+	const runGuarded = (action: GitHeaderActionId): Promise<void> =>
+		actionFlight.run(`${workspaceId}:${action}`, () => runAction(action));
+
 	// Cmd+Shift+P. The panel knows the active workspace, so the shortcut reaches the same action
 	// as the header's Create PR button instead of a service that has no workspace to act on.
 	useCommandHandler("git.createPr", "area", () => {
-		void runAction("create_pr");
+		void runGuarded("create_pr");
 		return true;
 	});
 
@@ -230,14 +239,14 @@ export function GitPanel({
 	// the agent would spend a turn for nothing.
 	useCommandHandler("git.commitAndPush", "area", () => {
 		if (headerInputs !== null && computeGitHeader(headerInputs).action?.id === "commit_and_push") {
-			void runAction("commit_and_push");
+			void runGuarded("commit_and_push");
 		}
 		return true;
 	});
 
 	// Cmd+Shift+L reaches the same action as the header's Pull latest button.
 	useCommandHandler("git.pullLatest", "area", () => {
-		void runAction("pull");
+		void runGuarded("pull");
 		return true;
 	});
 
@@ -283,9 +292,7 @@ export function GitPanel({
 			);
 		}
 		if (headerInputs === null) return null;
-		return (
-			<ComputedHeader key={workspaceId} inputs={headerInputs} onAction={runAction} />
-		);
+		return <ComputedHeader key={workspaceId} inputs={headerInputs} onAction={runGuarded} />;
 	})();
 
 	const changedCount = git.state === "ready" ? git.data.changedFiles : 0;

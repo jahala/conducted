@@ -1,13 +1,14 @@
 /**
  * @feature PR-02 Create a pull request from the git panel
  * Owns: the Create PR button and Cmd+Shift+P both reach `pullRequests.create` for the panel's
- * workspace.
+ * workspace, and a second press (or a click) while the first runs creates nothing more.
  * Behaviour: services-map.md 3.7.1 (the app asks the agent to create the pull request), ui-map.md
  * 3.6 (the header's Create PR action) and 5.4 (Cmd+Shift+P).
- * Test first: Cmd+Shift+P maps to `git.createPr` and calls `pullRequests.create`.
+ * Test first: Cmd+Shift+P maps to `git.createPr` and calls `pullRequests.create`; two presses while
+ * the first is still running call it once.
  */
-import type { WorkspaceId } from "@conducted/shared";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { Result, WorkspaceId } from "@conducted/shared";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	clearCommandHandlers,
@@ -109,5 +110,28 @@ describe("PR-02 git panel create PR", () => {
 		expect(runCommandHandlers("git.createPr")).toBe(true);
 
 		await waitFor(() => expect(state.create).toHaveBeenCalledWith(workspaceId));
+	});
+
+	it("asks the agent for one pull request when Cmd+Shift+P is pressed twice while the first runs", async () => {
+		let finish: (result: Result<void>) => void = () => {};
+		state.create.mockReturnValueOnce(
+			new Promise<Result<void>>((resolve) => {
+				finish = resolve;
+			}),
+		);
+		render(<GitPanel workspaceId={workspaceId} />);
+
+		expect(runCommandHandlers("git.createPr")).toBe(true);
+		expect(runCommandHandlers("git.createPr")).toBe(true);
+		// The header button shares the guard with the shortcut.
+		fireEvent.click(screen.getByRole("button", { name: /Create PR/ }));
+		expect(state.create).toHaveBeenCalledTimes(1);
+
+		// Once the first call has finished, the next press runs again.
+		await act(async () => finish({ ok: true, value: undefined }));
+		await waitFor(() => {
+			runCommandHandlers("git.createPr");
+			expect(state.create).toHaveBeenCalledTimes(2);
+		});
 	});
 });

@@ -12,7 +12,7 @@
  *  4. open the write-ahead log (outbox/); a failure is fatal: exit 1 with the reason. Conductor
  *     continues without a backup after 1 s; we do not, because the log is what makes delivery safe
  *  5. build the runners, process manager, session manager, interaction broker, publisher and the
- *     app tools backend and bridge
+ *     app tools backend and bridge (the bridge is built but not started: SIDE-13 starts it)
  *  6. listen on the Unix socket (rpc/server.ts) and print SOCKET_PATH=<path> as one line on stdout
  *  7. start the parent watchdog (watchdog.ts: the parent check and the idle sweep run on separate
  *     2-second timers), install one SIGINT and one SIGTERM handler that logs under SIGNAL and
@@ -22,14 +22,17 @@
  *  8. when the app attaches: replay the write-ahead log and resend the open interactions. The
  *     agent list is sent when detection changes, and the app reads it with getAgentInstalls
  * Must handle: a second sidecar already running for the same app (the launcher kills orphans; the
- * socket path includes the pid, so two never clash), startup steps that fail halfway (the bridge
- * and the socket, once started, are stopped through the shutdown steps; the outbox has no close,
- * and its pending events stay durable for the next start), and stdout carrying only handshake
- * lines (logs go to stderr).
+ * socket path includes the pid, so two never clash), startup steps that fail halfway (the socket,
+ * once started, is stopped through the shutdown steps; the outbox has no close, and its pending
+ * events stay durable for the next start), and stdout carrying only handshake lines (logs go to
+ * stderr).
  * Test first: parseSidecarConfig is tested in config.test.ts; here, a start with an unwritable
  * outbox directory exits with code 1 and a message that names the directory.
- * Not yet covered: startSidecarHost has no test that starts it on a temporary socket path, because
- * its start-up runs the app tools bridge, which is the SIDE-13 placeholder.
+ * Covered by a real process: sidecar-mode.host.test.ts starts the host on a temporary socket,
+ * makes one request and stops it with SIGTERM.
+ * Not yet built: the app tools bridge start-up (SIDE-13). The host starts with no bridge, so Codex
+ * and ACP agents get no app tools, and the shutdown step "close app tools bridge" still calls the
+ * SIDE-13 placeholder, which throws; the shutdown logs that failure and carries on.
  * Our design choice: the entry only dispatches. All behaviour lives in modes/, so tests call the
  * mode functions without starting a process. The host itself is injected, so a test starts a
  * fake host without touching a real socket.
@@ -574,7 +577,6 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 		logger,
 		makeTempDir: (prefix) => mkdirTemp(prefix),
 	});
-	let bridgeEndpoint: BridgeEndpoint | null = null;
 
 	const runners = createRunnerRegistry({
 		config,
@@ -585,7 +587,8 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 		hasTranscript,
 		appTools: backend,
 		bridge,
-		endpoint: () => bridgeEndpoint,
+		// No bridge is started until SIDE-13 builds it, so Codex and ACP agents get no app tools.
+		endpoint: () => null,
 	});
 	const models = new RunnerModelCatalog({ runners, logger, clock });
 	const shellEnv = createShellEnvProvider(env, logger, (failure) => {
@@ -669,15 +672,6 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 					},
 					limitMs: 10_000,
 				}),
-			},
-			{
-				name: "start the app tools bridge",
-				run: async () => {
-					const bridged = await bridge.start();
-					if (bridged.ok) bridgeEndpoint = bridged.value;
-					return bridged;
-				},
-				undo: () => ({ name: "close app tools bridge", run: () => bridge.stop(), limitMs: 5_000 }),
 			},
 			{
 				name: "listen on the sidecar socket",

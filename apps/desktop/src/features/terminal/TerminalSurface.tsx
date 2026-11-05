@@ -1,7 +1,8 @@
 /**
  * @feature RUN-06 Terminal surface
  * Owns: the React host of one xterm.js Terminal and its fit addon. It creates both in an effect,
- * connects them to a TerminalConnection, and disposes everything on unmount.
+ * connects them to a TerminalConnection, and disposes everything on unmount. The terminal is built
+ * once per connection: showing, hiding, focusing and appearance changes never rebuild it.
  * Behaviour: ui-map.md 3.7 (xterm.js terminals); ui-map.md 6, Appearance ("Terminal font", size) and
  * Advanced ("Scrollback limit").
  * Library reference (checked in node_modules): `Terminal` from "@xterm/xterm" (options include
@@ -10,7 +11,8 @@
  * Must handle: fit on mount, on container resize and on becoming visible (debounced, only the
  * newest size is sent to the PTY), replaying history before live output with no duplicated lines,
  * dispose on unmount with no leaked listeners or observers, font or theme changes applied without
- * recreating the terminal, copy and paste with the usual shortcuts, and keyboard focus ring.
+ * recreating the terminal, focus moving to the terminal each time `focusOnMount` turns true
+ * without recreating it, copy and paste with the usual shortcuts, and keyboard focus ring.
  * Test first: mounting then unmounting disposes the terminal and removes the resize observer.
  */
 import { FitAddon } from "@xterm/addon-fit";
@@ -45,6 +47,7 @@ export interface TerminalSurfaceProps {
 	visible: boolean;
 	/** The shell has ended. Input stays disabled until it is restarted. */
 	ended: boolean;
+	/** The terminal takes keyboard focus when it is built and each time this turns true. */
 	focusOnMount: boolean;
 	/** A Cmd-clicked link. The caller asks the user before opening it. */
 	onOpenLink?: (url: string) => void;
@@ -170,7 +173,6 @@ export function TerminalSurface({
 		terminal.open(container);
 		terminalRef.current = terminal;
 		terminal.options.disableStdin = endedRef.current;
-		if (focusOnMount) terminal.focus();
 
 		const sendSize = terminal.onResize(({ cols, rows }) => {
 			if (visibleRef.current) {
@@ -284,7 +286,14 @@ export function TerminalSurface({
 			fitAddon.dispose();
 			terminalRef.current = null;
 		};
-	}, [connection, focusOnMount]);
+	}, [connection]);
+
+	// Focus is its own effect, so a tab switch moves focus without rebuilding the terminal. It
+	// follows the build effect above, and runs again for a new connection's new terminal.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: a new connection builds a new terminal that needs the focus.
+	useEffect(() => {
+		if (focusOnMount) terminalRef.current?.focus();
+	}, [focusOnMount, connection]);
 
 	useEffect(() => {
 		const terminal = terminalRef.current;

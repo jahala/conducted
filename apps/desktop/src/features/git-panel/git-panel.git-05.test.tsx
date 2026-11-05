@@ -1,14 +1,16 @@
 /**
  * @feature GIT-05 Commit and push from the git panel
  * Owns: the Commit and push button and Cmd+Shift+Y both reach `git.commitAndPush` for the panel's
- * workspace, and Cmd+Shift+Y does nothing when the header offers no commit and push action.
+ * workspace, Cmd+Shift+Y does nothing when the header offers no commit and push action, and a
+ * second press (or a click) while the first runs sends the agent nothing more.
  * Behaviour: services-map.md 3.5 (the app asks the agent to commit and push) and ui-map.md 5.4
  * (Cmd+Shift+Y).
  * Test first: Cmd+Shift+Y maps to `git.commitAndPush` and calls the panel's handler when the
- * header offers it; a clean header leaves the git service untouched.
+ * header offers it; a clean header leaves the git service untouched; two presses while the first
+ * is still running call the service once.
  */
-import { ok, type WorkspaceId } from "@conducted/shared";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { ok, type Result, type WorkspaceId } from "@conducted/shared";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	clearCommandHandlers,
@@ -123,6 +125,30 @@ describe("GIT-05 git panel commit and push", () => {
 		await waitFor(() =>
 			expect(container.services.git.commitAndPush).toHaveBeenCalledWith(workspaceId),
 		);
+	});
+
+	it("sends the agent one message when Cmd+Shift+Y is pressed twice while the first runs", async () => {
+		const commit = vi.mocked(container.services.git.commitAndPush);
+		let finish: (result: Result<void>) => void = () => {};
+		commit.mockReturnValueOnce(
+			new Promise<Result<void>>((resolve) => {
+				finish = resolve;
+			}),
+		);
+		renderPanel();
+
+		expect(runCommandHandlers("git.commitAndPush")).toBe(true);
+		expect(runCommandHandlers("git.commitAndPush")).toBe(true);
+		// The header button shares the guard with the shortcut.
+		fireEvent.click(screen.getByRole("button", { name: /Commit and push/ }));
+		expect(commit).toHaveBeenCalledTimes(1);
+
+		// Once the first call has finished, the next press runs again.
+		await act(async () => finish(ok(undefined)));
+		await waitFor(() => {
+			runCommandHandlers("git.commitAndPush");
+			expect(commit).toHaveBeenCalledTimes(2);
+		});
 	});
 
 	it("does not ask the agent to commit and push when the header has no such action", () => {
