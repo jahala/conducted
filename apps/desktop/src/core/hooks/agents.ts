@@ -26,7 +26,19 @@ export const useModels: Queries["useModels"] = (agent, acpAgent) => {
 	}, [service, agent, acpAgent, models]);
 	return models ?? { state: "loading" };
 };
-export const useSlashCommands: Queries["useSlashCommands"] = () => notImplemented("COMP-06");
+export const useSlashCommands: Queries["useSlashCommands"] = (sessionId) => {
+	const { services } = useServices();
+	const service = services.agentCatalog;
+	const session = useStore(services.sessions.store, (state) => state.sessions[sessionId]);
+	const commands = useStore(service.store, (state) => state.slashCommands[sessionId]);
+	const agent = session?.config.agent;
+	const acpAgent = session?.config.acpAgent;
+	useEffect(() => {
+		if (agent === undefined) return;
+		void service.loadSlashCommands(sessionId, agent, acpAgent);
+	}, [service, sessionId, agent, acpAgent]);
+	return commands ?? { state: "loading" };
+};
 export const useProviderKeys: Queries["useProviderKeys"] = () => notImplemented("SET-09");
 export const useAgentProviders: Queries["useAgentProviders"] = () => notImplemented("SET-10");
 export const useAcpConfigOptions: Queries["useAcpConfigOptions"] = (sessionId) => {
