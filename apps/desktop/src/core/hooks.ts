@@ -66,7 +66,7 @@ import { useStore } from "zustand";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 import type { Actions, ChangedFile, DiffScope, Draft, Loadable, Queries } from "./api.ts";
 import { useServices } from "./context.tsx";
-import type { BranchCommit, ChatView, GitState, Repo, Session } from "./model.ts";
+import type { BranchCommit, ChatView, GitState, Repo, Session, Workspace } from "./model.ts";
 import {
 	liveShortcut,
 	parseShortcutOverrides,
@@ -198,7 +198,18 @@ export const useRepoConfig: Queries["useRepoConfig"] = (repoId) => {
 	if (config === undefined) return { state: "loading" };
 	return { state: "ready", data: config };
 };
-export const useWorkspaces: Queries["useWorkspaces"] = () => notImplemented("NAV-03");
+export const useWorkspaces: Queries["useWorkspaces"] = () => {
+	const store = useServices().services.workspace.store;
+	const loaded = useStore(store, (state) => state.loaded);
+	const workspacesById = useStore(store, (state) => state.workspacesById);
+	return useMemo<Loadable<Workspace[]>>(() => {
+		if (!loaded) return { state: "loading" };
+		const data = Object.values(workspacesById).sort(
+			(left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id),
+		);
+		return { state: "ready", data };
+	}, [loaded, workspacesById]);
+};
 export const useWorkspace: Queries["useWorkspace"] = () => notImplemented("WS-01");
 
 export const useWorkspaceStatus: Queries["useWorkspaceStatus"] = (workspaceId) => {
