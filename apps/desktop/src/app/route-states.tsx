@@ -32,7 +32,8 @@ export function RouteErrorScreen({ error, reset }: { error: Error; reset: () => 
 		<div className="flex h-full flex-col bg-canvas">
 			<div data-tauri-drag-region className="h-(--titlebar-height) shrink-0" />
 			<EmptyState
-				title="Something went wrong"
+				title="Something went wrong!"
+				tone="failed"
 				body={error.message}
 				action={
 					<div className="flex gap-2">

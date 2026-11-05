@@ -22,7 +22,7 @@ export function SidebarEmptyState({ kind }: { kind: "no-projects" | "no-workspac
 			<EmptyState
 				compact
 				title="No projects yet"
-				body="Add a project to create your first workspace."
+				body="Add a project to get started."
 				action={
 					<NotBuiltYet area="Add project" variant="inline">
 						<AddProjectButton variant="secondary" size="sm" />
@@ -35,7 +35,7 @@ export function SidebarEmptyState({ kind }: { kind: "no-projects" | "no-workspac
 		<EmptyState
 			compact
 			title="No workspaces yet"
-			body="A workspace gives one task its own copy of the code and its own chats."
+			body="Create your first workspace to start building."
 			action={
 				<Link to="/create" className={buttonClassName({ variant: "secondary", size: "sm" })}>
 					New workspace
