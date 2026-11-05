@@ -16,6 +16,7 @@ import type { GitCommand } from "../git/commands.ts";
 import type { GitRunner } from "../git/runner.ts";
 import { OFFLINE_FALLBACK_MESSAGE } from "../git/worktree.ts";
 import type { Repo, RepoConfig, Session, Workspace } from "../model.ts";
+import { allocatePort } from "./ports.ts";
 import {
 	baseBranchFor,
 	branchPrefixFor,
@@ -370,7 +371,9 @@ function makeHarness(
 			markAllRead: async () => ok(undefined),
 			deleteAll: async () => ok(undefined),
 		},
-		ports: { allocateForNewWorkspace: async () => ok(55_000) },
+		ports: {
+			allocateForNewWorkspace: async () => allocatePort(new Set(rows.map((row) => row.port))),
+		},
 		repoConfig: async (): Promise<Result<RepoConfig>> =>
 			options.repoConfigError === true
 				? err(appError("settings_invalid", "settings.toml is invalid."))

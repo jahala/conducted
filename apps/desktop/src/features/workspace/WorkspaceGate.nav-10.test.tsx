@@ -1,7 +1,7 @@
 /**
  * @feature NAV-10 Workspace gate
  * Owns: tests for what the centre shows before any tab.
- * Test first: an archived workspace shows "This workspace is archived"; a ready one renders its
+ * Test first: an archived workspace shows "Workspace archived"; a ready one renders its
  * children.
  */
 import { appError } from "@conducted/shared";
@@ -31,7 +31,7 @@ describe("NAV-10 WorkspaceGate", () => {
 	it("shows the archived notice and hides the tabs", () => {
 		state.workspace = { state: "ready", data: { id, state: "archived" } as Workspace };
 		render(<WorkspaceGate workspaceId={id}>content</WorkspaceGate>);
-		expect(screen.getByText("This workspace is archived")).toBeTruthy();
+		expect(screen.getByText("Workspace archived")).toBeTruthy();
 		expect(screen.queryByText("content")).toBeNull();
 	});
 
@@ -62,7 +62,10 @@ describe("NAV-10 WorkspaceGate", () => {
 
 	it("unarchives from the notice", async () => {
 		state.workspace = { state: "ready", data: { id, state: "archived" } as Workspace };
-		state.unarchive.mockResolvedValue({ ok: true, value: undefined });
+		state.unarchive.mockResolvedValue({
+			ok: true,
+			value: { needsBranchName: false, uncommittedChangesLost: false },
+		});
 		render(<WorkspaceGate workspaceId={id}>content</WorkspaceGate>);
 		fireEvent.click(screen.getByRole("button", { name: "Unarchive" }));
 		await waitFor(() =>

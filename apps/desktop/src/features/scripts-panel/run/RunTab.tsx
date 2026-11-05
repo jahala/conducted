@@ -4,8 +4,11 @@
  * live output of the running action.
  * Behaviour: ui-map.md 3.7, "Run" paragraph; services-map.md 5A.1.3 and 5A.1.4 (concurrent or
  * exclusive run mode). The button's words come from run-button-label.ts.
- * Data: useRunState (actions, running), useWorkspace (archived check and repo id), useActions().run.
- * Children: RunToolbar, RunEmptyState, terminal/TerminalView for the output.
+ * Data: useRunState (actions, running, detectedPorts), useWorkspace (archived check, port and repo
+ * id), useRepoConfig (the Preview URLs template), useActions().run.
+ * Children: RunToolbar with PreviewUrlMenu, RunEmptyState, terminal/TerminalView for the output.
+ * RUN-03: the Open menu lists the Run tab URL, the detected ports and the repository template, and
+ * the "Open localhost URL" shortcut (Cmd+Shift+B) opens the first one.
  * Must handle: no actions (empty state), loading, the picked action disappearing (falls back to the
  * default), a run starting while setup is running (button says Waiting for setup), a stop that is
  * not confirmed (the error is shown, the retained outcome stays in view, and the button returns to
@@ -14,20 +17,21 @@
  * service does it), and an archived workspace.
  * Test first: with one action and no running process the toolbar shows "Run <label>".
  */
-import type { TerminalId, WorkspaceId } from "@conducted/shared";
+import type { RepoId, TerminalId, WorkspaceId } from "@conducted/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useStore } from "zustand";
 import { useCommandHandler } from "../../../app/command-dispatcher.ts";
 import { useServices } from "../../../core/context.tsx";
-import { useActions, useRunState, useWorkspace } from "../../../core/hooks.ts";
+import { useActions, useRepoConfig, useRunState, useWorkspace } from "../../../core/hooks.ts";
 import { defaultRunAction } from "../../../core/services/run-scripts.ts";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { Spinner } from "../../../ui/Spinner.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
 import { TerminalView } from "../../terminal/TerminalView.tsx";
+import { buildPreviewUrls } from "./preview-urls.ts";
 import { RunEmptyState } from "./RunEmptyState.tsx";
-import { RunToolbar } from "./RunToolbar.tsx";
+import { RunToolbar, type RunToolbarProps } from "./RunToolbar.tsx";
 import { type RunPhase, runButtonModel } from "./run-button-label.ts";
 
 export interface RunTabProps {
@@ -45,6 +49,47 @@ function phaseFor(
 		return "running";
 	}
 	return "stopped";
+}
+
+interface RunPreviewProps
+	extends Omit<RunToolbarProps, "urls" | "onOpenUrl" | "defaultUrl" | "onSetDefault"> {
+	repoId: RepoId;
+	workspaceId: WorkspaceId;
+	workspacePort: number;
+	runOutputUrl: string | null;
+	detectedPorts: readonly number[];
+	onOpenUrl: (url: string) => void;
+}
+
+/** The toolbar over the repository template, the run output and the detected ports (RUN-03). */
+function RunPreview({
+	repoId,
+	workspaceId,
+	workspacePort,
+	runOutputUrl,
+	detectedPorts,
+	onOpenUrl,
+	...toolbar
+}: RunPreviewProps) {
+	const config = useRepoConfig(repoId);
+	const template = config.state === "ready" ? config.data.previewUrlTemplate : null;
+	const { urls } = buildPreviewUrls({
+		runOutputUrl,
+		detectedPorts,
+		template,
+		workspacePort,
+	});
+
+	useCommandHandler("terminal.openLocalhost", "area", () => {
+		const target = urls[0];
+		if (target === undefined) return false;
+		onOpenUrl(target.url);
+		return true;
+	});
+
+	return (
+		<RunToolbar {...toolbar} urls={urls} onOpenUrl={onOpenUrl} defaultUrl={urls[0]?.url ?? null} />
+	);
 }
 
 export function RunTab({ workspaceId }: RunTabProps) {
@@ -74,11 +119,6 @@ export function RunTab({ workspaceId }: RunTabProps) {
 		phase,
 		selected === null ? false : history.includes(selected.id),
 	);
-	const urls =
-		active?.url === null || active?.url === undefined
-			? []
-			: [{ label: "Local server", url: active.url }];
-
 	// biome-ignore lint/correctness/useExhaustiveDependencies: a new workspace starts on its default action.
 	useEffect(() => {
 		setSelectedId(null);
@@ -177,13 +217,17 @@ export function RunTab({ workspaceId }: RunTabProps) {
 					{historyError.message}
 				</p>
 			) : null}
-			<RunToolbar
+			<RunPreview
+				repoId={workspace.data.repoId}
+				workspaceId={workspaceId}
+				workspacePort={workspace.data.port}
+				runOutputUrl={active?.url ?? null}
+				detectedPorts={run.data.detectedPorts.map((entry) => entry.port)}
 				actions={available.map((entry) => ({ id: entry.id, label: entry.label }))}
 				selectedActionId={selected.id}
 				onSelectAction={setSelectedId}
 				button={button}
 				onButtonClick={click}
-				urls={urls}
 				onOpenUrl={(url) => {
 					void (async () => {
 						const opened = await actions.app.openUrl(url);

@@ -53,7 +53,8 @@ import { KeyedMutex } from "./git/locks.ts";
 import { ShellGitRunner } from "./git/runner.ts";
 import { createLookups, defaultSessionConfig, type Lookups } from "./lookups.ts";
 import type { Session } from "./model.ts";
-import { AgentCatalogService } from "./services/agent-catalog.ts";
+import { AgentCatalogService, agentKey } from "./services/agent-catalog.ts";
+import { ChatTitleService } from "./services/chat-titles.ts";
 import { CHECKPOINT_PRUNE_AFTER_DAYS, CheckpointService } from "./services/checkpoint.ts";
 import { CommandRunner, createCommandHandlers } from "./services/command-runner.ts";
 import { ComposerService } from "./services/composer.ts";
@@ -345,6 +346,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 		repos: () => repo.store,
 		sessions: () => sessions.store,
 	});
+	const agentCatalog = new AgentCatalogService({
+		sidecar: client,
+		workspacePathOf: (sessionId) => ready(lookups.workspacePathOfSession(sessionId)),
+	});
 	const settings = new SettingsService({
 		platform,
 		repos: repositories,
@@ -480,7 +485,28 @@ export function createContainer(inputs: ContainerInputs): Container {
 			...(provider === undefined ? {} : { provider }),
 		});
 	};
-	const ports = new PortService({ platform });
+	const chatTitles = new ChatTitleService({
+		sidecar: client,
+		titlesEnabled: () =>
+			setting<boolean>("ai_generated_chat_titles") !== false &&
+			!setting<boolean>("enterprise_data_privacy"),
+		// The catalog has no price field, so the default picker model is the utility choice.
+		cheapestModel: (session) => {
+			const models =
+				agentCatalog.store.getState().models[
+					agentKey(session.config.agent, session.config.acpAgent)
+				];
+			if (models?.state === "ready") {
+				const picker = models.data.filter((model) => model.status === "picker");
+				const choice = picker.find((model) => model.isDefault) ?? picker[0];
+				if (choice !== undefined) return choice.id;
+			}
+			return session.config.model === "" ? null : session.config.model;
+		},
+		launchFor,
+		log,
+	});
+	const ports = new PortService({ platform, repos: repositories });
 	const terminals = new TerminalsService({
 		platform,
 		repos: repositories,
@@ -535,6 +561,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		db: platform.db,
 		repositories: () => repositories,
 		repositoriesOn: (tx) => createRepositories(tx, repositoryDeps),
+		fs: platform.fs,
 		sidecar: client,
 		composer,
 		queue: followUpQueue,
@@ -553,6 +580,13 @@ export function createContainer(inputs: ContainerInputs): Container {
 		workspaceContextOf: (id) => ready(lookups.sidecarContext(id, undefined)),
 		defaultConfig: (id) => ready(defaultSessionConfig(id, lookups, setting)),
 		launchFor,
+		onFirstMessage: async (session, text) => {
+			const renamed = await workspace.renameBranchAfterFirstMessage(session.id, text);
+			if (!renamed.ok) {
+				log("warn", `Couldn't rename the branch after the first message: ${renamed.error.message}`);
+			}
+		},
+		log,
 		setting,
 		now: () => clock.now(),
 		newId: () => ids.uuid(),
@@ -574,6 +608,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 		repoFor: async (workspaceId) => lookups.repoOf(workspaceId),
 		fs: platform.fs,
 		shell: platform.shell,
+		ports,
+		log,
 	});
 	const repo: RepoService = new RepoService({
 		platform,
@@ -590,6 +626,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 		sessions,
 		ports,
 		repoConfig: (repoId) => repo.loadConfig(repoId),
+		github: {
+			pullRequestByNumber: (remoteUrl, number) => github.pullRequestByNumber(remoteUrl, number),
+		},
+		branchNames: chatTitles,
 		scripts: runScripts,
 		checkpointerPath: checkpointerScript(paths),
 		setting,
@@ -597,10 +637,6 @@ export function createContainer(inputs: ContainerInputs): Container {
 	});
 	const sections = new SectionsService({ db: platform.db, repos: repositories });
 	const favoriteModels = new FavoriteModelsService({ repos: repositories });
-	const agentCatalog = new AgentCatalogService({
-		sidecar: client,
-		workspacePathOf: (sessionId) => ready(lookups.workspacePathOfSession(sessionId)),
-	});
 	const mcp = new McpService({ sidecar: client });
 	const linear = new LinearService({
 		http: createCurlLinearHttp(platform.shell),
