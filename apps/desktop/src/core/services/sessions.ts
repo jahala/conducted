@@ -34,10 +34,11 @@
  * the dropped message to the draft, and a retry in a new chat sends the failed turn's message
  * there.
  *
- * The progress and unread paths live in the same service but belong to CHAT-13 and NAV-11. They
- * are placeholders until those features build them. The chat view (turns built from stored
- * events) belongs to CHAT-07. Cancel is CHAT-05's, and the interaction paths (answer,
+ * The progress path lives in the same service but belongs to CHAT-13. The chat view (turns built
+ * from stored events) belongs to CHAT-07. Cancel is CHAT-05's, and the interaction paths (answer,
  * requestInteraction) are CHAT-10's. CHAT-18 owns `applyLiveState` and `markInterrupted` here.
+ * Read state is NAV-11's: mark a chat or a workspace read or unread, and remember the chat on
+ * screen for notifications.
  */
 import {
 	type AgentLaunch,
@@ -1107,9 +1108,34 @@ export class SessionsService implements AgentMessenger {
 		);
 	}
 
-	/** Backs `Actions.workspaces.markRead`. */
-	markAllRead(_workspaceId: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("NAV-11");
+	/**
+	 * Backs `Actions.workspaces.markRead`. Clears every chat of the workspace except the ones that
+	 * still wait for the user, so the dot disappears only when nothing needs attention.
+	 */
+	async markAllRead(workspaceId: WorkspaceId): Promise<Result<void>> {
+		const state = this.store.getState();
+		const cleared: SessionId[] = [];
+		for (const session of Object.values(state.sessions)) {
+			if (session.workspaceId !== workspaceId || session.unreadCount <= 0) continue;
+			const waits =
+				state.openInteractions[session.id] !== undefined ||
+				state.liveStates[session.id]?.openInteraction !== undefined;
+			if (waits) continue;
+			const result = await this.#deps.repositories().sessions.clearUnread(session.id);
+			if (!result.ok) return result;
+			cleared.push(session.id);
+		}
+		if (cleared.length > 0) {
+			this.store.setState((current) => {
+				const sessions = { ...current.sessions };
+				for (const id of cleared) {
+					const session = sessions[id];
+					if (session !== undefined) sessions[id] = { ...session, unreadCount: 0 };
+				}
+				return { sessions };
+			});
+		}
+		return ok(undefined);
 	}
 
 	/** Deletes the chats, events and attachment files of a workspace that is being removed. */
@@ -1274,8 +1300,13 @@ export class SessionsService implements AgentMessenger {
 
 	// ---- called by the views ----
 
-	setViewing(_sessionId: SessionId | null): void {
-		notImplemented("NAV-11");
+	/**
+	 * Remembers the chat on screen, so notifications can skip it. Opening a workspace's chat also
+	 * clears its unread chats through `markAllRead`; that call belongs to the chat screen.
+	 */
+	setViewing(sessionId: SessionId | null): void {
+		if (this.store.getState().viewingSessionId === sessionId) return;
+		this.store.setState({ viewingSessionId: sessionId });
 	}
 
 	/** Backs `useChat`. Null for an unknown chat. */
@@ -1321,17 +1352,49 @@ export class SessionsService implements AgentMessenger {
 
 	// ---- read state, failed sends and agent controls (Actions.sessions)
 
-	markRead(_id: SessionId): Promise<Result<void>> {
-		return notImplemented("NAV-11");
+	/** Backs `Actions.sessions.markRead`. Clears the chat's unread count. */
+	async markRead(id: SessionId): Promise<Result<void>> {
+		const found = await this.#session(id);
+		if (!found.ok) return found;
+		const cleared = await this.#deps.repositories().sessions.clearUnread(id);
+		if (!cleared.ok) return cleared;
+		this.#setUnreadCount(id, 0);
+		return ok(undefined);
 	}
 
-	markUnread(_id: SessionId): Promise<Result<void>> {
-		return notImplemented("NAV-11");
+	/**
+	 * Backs `Actions.sessions.markUnread`. A chat that already has unread messages keeps its count,
+	 * so toggling the menu item twice never grows the number.
+	 */
+	async markUnread(id: SessionId): Promise<Result<void>> {
+		const found = await this.#session(id);
+		if (!found.ok) return found;
+		if (found.value.unreadCount > 0) return ok(undefined);
+		const incremented = await this.#deps.repositories().sessions.incrementUnread(id);
+		if (!incremented.ok) return incremented;
+		this.#setUnreadCount(id, found.value.unreadCount + 1);
+		return ok(undefined);
 	}
 
 	/** Backs `Actions.workspaces.markUnread`: the workspace's newest chat becomes unread. */
-	markWorkspaceUnread(_workspaceId: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("NAV-11");
+	async markWorkspaceUnread(workspaceId: WorkspaceId): Promise<Result<void>> {
+		const newest = this.store.getState().byWorkspace[workspaceId]?.[0];
+		if (newest !== undefined) return this.markUnread(newest);
+		const listed = await this.#deps.repositories().sessions.listByWorkspace(workspaceId, {
+			includeClosed: false,
+		});
+		if (!listed.ok) return listed;
+		const first = [...listed.value].sort(compareNewest)[0];
+		return first === undefined ? ok(undefined) : this.markUnread(first.id);
+	}
+
+	/** Writes one chat's unread count in the store, keeping the rest of the row unchanged. */
+	#setUnreadCount(id: SessionId, unreadCount: number): void {
+		this.store.setState((state) => {
+			const current = state.sessions[id];
+			if (current === undefined || current.unreadCount === unreadCount) return {};
+			return { sessions: { ...state.sessions, [id]: { ...current, unreadCount } } };
+		});
 	}
 
 	/** Sends a message the sidecar did not accept again, with the same ids. */

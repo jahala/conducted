@@ -15,12 +15,17 @@ import type { Repo, Session, Workspace, WorkspaceStatus } from "../../core/model
 const hooks = vi.hoisted(() => ({
 	status: null as WorkspaceStatus | null,
 	sessions: { state: "ready", data: [] } as Loadable<Session[]>,
+	markRead: vi.fn(),
+	markUnread: vi.fn(),
 }));
 
 vi.mock("../../core/hooks.ts", () => ({
 	useWorkspaceStatus: () => hooks.status,
 	useSessions: () => hooks.sessions,
 	useLiveShortcut: (commandId: string) => (commandId === "workspace.switch2" ? "⌃2" : null),
+	useActions: () => ({
+		workspaces: { markRead: hooks.markRead, markUnread: hooks.markUnread },
+	}),
 }));
 
 const { WorkspaceRow, relativeTime } = await import("./WorkspaceRow.tsx");

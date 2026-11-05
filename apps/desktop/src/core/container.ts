@@ -47,7 +47,6 @@ import { createRepositories } from "./db/repositories.ts";
 import { KeyedMutex } from "./git/locks.ts";
 import { ShellGitRunner } from "./git/runner.ts";
 import { createLookups, defaultSessionConfig, type Lookups } from "./lookups.ts";
-import type { Workspace } from "./model.ts";
 import { AgentCatalogService } from "./services/agent-catalog.ts";
 import { CheckpointService } from "./services/checkpoint.ts";
 import { CommandRunner, createCommandHandlers } from "./services/command-runner.ts";
@@ -61,7 +60,7 @@ import { GithubService } from "./services/github.ts";
 import { createCurlLinearHttp, LinearService } from "./services/linear.ts";
 import { LocalGitForge } from "./services/local-git-forge.ts";
 import { McpService } from "./services/mcp.ts";
-import { dockBadgeCount, NotificationService, type SoundPlayer } from "./services/notifications.ts";
+import { NotificationService, type SoundPlayer } from "./services/notifications.ts";
 import { PortService } from "./services/ports.ts";
 import { RepoService } from "./services/repo.ts";
 import { ReviewService } from "./services/review.ts";
@@ -326,6 +325,13 @@ export function createContainer(inputs: ContainerInputs): Container {
 		setting,
 		isViewing: (sessionId) => sessions.store.getState().viewingSessionId === sessionId,
 		windowFocused: inputs.windowFocused,
+		workspaces: () => {
+			const byId = workspace.store.getState().workspacesById;
+			return new Map(
+				Object.entries(byId).map(([id, row]) => [id as WorkspaceId, { state: row.state }]),
+			);
+		},
+		sessions: () => Object.values(sessions.store.getState().sessions),
 	});
 	const followUpQueue = new FollowUpQueue({
 		repos: repositories,
@@ -537,14 +543,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 		appError("container_stopped", "The app stopped while it was starting.");
 
 	const updateDockBadge = (): void => {
-		const workspaces = new Map<WorkspaceId, Pick<Workspace, "state">>();
-		for (const [id, row] of Object.entries(workspace.store.getState().workspacesById)) {
-			workspaces.set(id as WorkspaceId, row);
-		}
-		const count = dockBadgeCount(workspaces, Object.values(sessions.store.getState().sessions));
-		void platform.notifications.setDockBadge(count === 0 ? null : count).catch((cause: unknown) => {
-			const message = cause instanceof Error ? cause.message : String(cause);
-			log("warn", `Could not set the dock badge: ${message}`);
+		void notifications.refreshDockBadge().then((result) => {
+			if (!result.ok) log("warn", `Could not set the dock badge: ${result.error.message}`);
 		});
 	};
 
