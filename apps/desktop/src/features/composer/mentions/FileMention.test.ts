@@ -1,4 +1,4 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { act, fireEvent, screen } from "@testing-library/react";
 import { Editor } from "@tiptap/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "../../../test/dom-polyfills.ts";
@@ -8,7 +8,6 @@ import {
 	FILE_MENTION_LIMIT,
 	type FileMentionAction,
 	type FileMentionItem,
-	fileMentionState,
 	fileMentionSuggestions,
 } from "./FileMention.ts";
 
@@ -61,36 +60,39 @@ afterEach(() => {
 });
 
 describe("COMP-04 FileMention", () => {
-	it("offers README.md first for '@rea' and inserts its path as a chip", () => {
+	it("offers README.md first for '@rea' and inserts its path as a chip", async () => {
 		const editor = mount(() => files);
 		type(editor, "@rea");
-		const state = fileMentionState(editor);
-		expect(state?.items[0]?.label).toBe("README.md");
+		const options = await screen.findAllByRole("option");
+		expect(options[0]?.textContent).toBe("README.md");
 		expect(fileMentionSuggestions("rea", { search: () => files })[0]?.path).toBe("README.md");
 
-		expect(fileMentionState(editor)).not.toBeNull();
+		expect(screen.getByRole("listbox", { name: "Suggestions" })).toBeTruthy();
 		fireEvent.keyDown(editor.view.dom, { key: "Enter" });
 		expect(mentionNodes(editor)).toEqual([{ path: "README.md", isDirectory: false }]);
 	});
 
-	it("keeps the typed '@' when Escape closes the popup", () => {
+	it("keeps the typed '@' when Escape closes the popup", async () => {
 		const editor = mount(() => files);
 		type(editor, "@rea");
+		await screen.findByRole("listbox", { name: "Suggestions" });
 		fireEvent.keyDown(editor.view.dom, { key: "Escape" });
-		expect(fileMentionState(editor)).toBeNull();
+		expect(screen.queryByRole("listbox", { name: "Suggestions" })).toBeNull();
 		expect(editor.getText()).toBe("@rea");
 	});
 
 	it("does not open inside a word", () => {
 		const editor = mount(() => files);
-		type(editor, "email@rea");
-		expect(fileMentionState(editor)).toBeNull();
+		// act() draws anything the trigger would have opened before the popup is looked for.
+		act(() => type(editor, "email@rea"));
+		expect(screen.queryByRole("listbox", { name: "Suggestions" })).toBeNull();
 	});
 
-	it("offers no rows when nothing matches", () => {
+	it("offers no rows when nothing matches", async () => {
 		const editor = mount(() => []);
 		type(editor, "@zzzz");
-		expect(fileMentionState(editor)?.items).toEqual([]);
+		await screen.findByRole("listbox", { name: "Suggestions" });
+		expect(screen.queryAllByRole("option")).toEqual([]);
 	});
 
 	it("keeps the popup open and says 'No files found' when nothing matches", async () => {
@@ -140,7 +142,7 @@ describe("COMP-04 FileMention", () => {
 		]);
 	});
 
-	it("runs a chosen action instead of inserting a chip", () => {
+	it("runs a chosen action instead of inserting a chip", async () => {
 		const onChoose = vi.fn();
 		const action: FileMentionAction = {
 			id: "terminal",
@@ -149,7 +151,8 @@ describe("COMP-04 FileMention", () => {
 		};
 		const editor = mount(() => files, [action]);
 		type(editor, "@attach");
-		expect(fileMentionState(editor)?.items[0]?.id).toBe("action:terminal");
+		const options = await screen.findAllByRole("option");
+		expect(options[0]?.textContent).toBe("Attach current terminal output");
 		fireEvent.keyDown(editor.view.dom, { key: "Enter" });
 		expect(onChoose).toHaveBeenCalledTimes(1);
 		expect(mentionNodes(editor)).toEqual([]);

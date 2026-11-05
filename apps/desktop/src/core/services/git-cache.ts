@@ -14,13 +14,15 @@
  * workspace removes its entries; a cached entry is shown as old until a poll replaces it, so
  * callers pass `observedAt` through to the screen.
  * Our design choice: files under the app data folder (`git-cache/changes` and `git-cache/pr-info`,
- * see app-paths.ts), one JSON file per workspace, because decision D038 has no `cache.db`. The
- * limits count the bytes of the files. An entry carries `version`; a change to the shape of
- * `ChangesSnapshot` or `WorkspacePrEntry` bumps it, which makes every old file a miss.
+ * named by `changesCacheFile` and `prInfoCacheFile` below), one JSON file per workspace, because
+ * decision D038 has no `cache.db`. The limits count the bytes of the files. An entry carries
+ * `version`; a change to the shape of `ChangesSnapshot` or `WorkspacePrEntry` bumps it, which makes
+ * every old file a miss.
  * Test first: `entriesToEvict` returns the oldest files until the rest fit under the limit.
  */
 import { notImplemented, type Result, type WorkspaceId } from "@conducted/shared";
 import type { FileStat, FileSystem } from "../../platform/platform.ts";
+import { type AppPaths, appDataPath } from "../app-paths.ts";
 import type { ChangesSnapshot } from "../git/status.ts";
 import type { WorkspacePrEntry } from "./github.ts";
 
@@ -30,6 +32,14 @@ export const CHANGES_CACHE_MAX_BYTES = 25 * 1024 * 1024;
 export const PR_INFO_CACHE_MAX_BYTES = 5 * 1024 * 1024;
 /** Written into every file. Reading a file with another number is a cache miss. */
 export const GIT_CACHE_VERSION = 1;
+
+/** The last changed-file list of one workspace, so a restart can paint at once. */
+export const changesCacheFile = (paths: AppPaths, workspaceId: string): string =>
+	appDataPath(paths, "git-cache", "changes", `${workspaceId}.json`);
+
+/** The last pull request information of one workspace. */
+export const prInfoCacheFile = (paths: AppPaths, workspaceId: string): string =>
+	appDataPath(paths, "git-cache", "pr-info", `${workspaceId}.json`);
 
 /** One cached value with where and when it was seen. */
 export interface GitCacheEntry<T> {
