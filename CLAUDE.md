@@ -53,7 +53,7 @@ Each one fails a check when it is broken.
 | `pnpm lint`                                                                    | Biome (lint, format, boundaries) and shellcheck                         | Every change                       |
 | `pnpm test`                                                                    | Unit tests (bun test, Vitest) inside a run-owned temp folder            | Every change to code with logic    |
 | `pnpm -r test:coverage`                                                        | Coverage of the desktop and the sidecar. Reports numbers, no thresholds | On GitHub only (coverage workflow) |
-| `pnpm guards`                                                                  | Docs, data model, migrations, headers, markers, versions                | Every change                       |
+| `pnpm guards`                                                                  | Docs, data model, migrations, headers, markers, versions, test shapes   | Every change                       |
 | `pnpm build`                                                                   | The web UI build that ships inside the app                              | Every change to the UI             |
 | `pnpm stubs`                                                                   | Placeholders against the backlog                                        | Every change                       |
 | `pnpm check`                                                                   | All of the above, stopping at the first failure                         | Before a PR                        |
