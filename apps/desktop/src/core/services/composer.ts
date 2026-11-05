@@ -169,6 +169,10 @@ export interface ComposerServiceDeps {
 	platform: Pick<Platform, "fs" | "dialogs" | "clipboard">;
 	repos: Pick<Repositories, "attachments">;
 	setDebounce: (callback: () => void, ms: number) => () => void;
+	/** The workspace terminal's screen text, or null when the workspace has no terminal. */
+	terminalOutputOf?: (
+		sessionId: SessionId,
+	) => Promise<Result<{ text: string; source: string } | null>>;
 }
 
 export class ComposerService {
@@ -402,8 +406,27 @@ export class ComposerService {
 	}
 
 	/** Backs `Actions.attachments.addTerminalOutput`. */
-	addTerminalOutput(_sessionId: SessionId): Promise<Result<string>> {
-		return notImplemented("COMP-04");
+	async addTerminalOutput(sessionId: SessionId): Promise<Result<string>> {
+		const outputOf = this.#deps.terminalOutputOf;
+		if (outputOf === undefined) {
+			return err(
+				appError("terminal_output_unavailable", "No terminal output available for this workspace"),
+			);
+		}
+		const output = await outputOf(sessionId);
+		if (!output.ok) return output;
+		if (output.value === null || output.value.text.trim().length === 0) {
+			return err(
+				appError("terminal_output_unavailable", "No terminal output available for this workspace"),
+			);
+		}
+		const attached = await this.addText(sessionId, "terminal-output", output.value.text);
+		if (!attached.ok) {
+			return err(
+				appError("terminal_output_failed", "Failed to attach terminal output", attached.error),
+			);
+		}
+		return attached;
 	}
 
 	/** Backs `Actions.attachments.addText`, for example a terminal selection. */

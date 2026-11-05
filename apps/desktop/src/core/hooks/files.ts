@@ -12,5 +12,5 @@ export const useFileTree: Queries["useFileTree"] = () => notImplemented("REV-06"
 export const useFileContent: Queries["useFileContent"] = () => notImplemented("REV-08");
 export const useFileSearch: Queries["useFileSearch"] = () => notImplemented("REV-07");
 export const useContentSearch: Queries["useContentSearch"] = () => notImplemented("REV-07");
-export const useRepoFileSearch: Queries["useRepoFileSearch"] = () => notImplemented("COMP-04");
+export const useRepoFileSearch: Queries["useRepoFileSearch"] = () => notImplemented("SIDE-22");
 export const useArtifacts: Queries["useArtifacts"] = () => notImplemented("REV-10");
