@@ -60,12 +60,8 @@ import { idleLiveState } from "@conducted/protocol";
 import { notImplemented, type WorkspaceId } from "@conducted/shared";
 import { useEffect, useMemo } from "react";
 import { useStore } from "zustand";
-<<<<<<< HEAD
 import { useStoreWithEqualityFn } from "zustand/traditional";
-import type { Actions, Queries } from "./api.ts";
-=======
 import type { Actions, Draft, Queries } from "./api.ts";
->>>>>>> node/comp.01
 import { useServices } from "./context.tsx";
 import type { GitState } from "./model.ts";
 import type { WorkspaceGitEntry } from "./services/git.ts";
