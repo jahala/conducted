@@ -1,5 +1,6 @@
 //! Errors returned by Tauri commands. They serialise to `{ code, message }` so the UI's
 //! Platform layer can turn them into `AppError` values (packages/shared/src/result.ts).
+//! `blocking` runs work that may block off the async runtime.
 
 use serde::Serialize;
 
@@ -31,6 +32,22 @@ impl Serialize for CommandError {
 }
 
 pub type CommandResult<T> = Result<T, CommandError>;
+
+/// Runs blocking work off the async runtime, so it never stalls an async worker. A task that
+/// cannot be joined fails with `code`.
+pub async fn blocking<T, F>(code: &'static str, work: F) -> CommandResult<T>
+where
+    T: Send + 'static,
+    F: FnOnce() -> CommandResult<T> + Send + 'static,
+{
+    match tauri::async_runtime::spawn_blocking(work).await {
+        Ok(result) => result,
+        Err(error) => Err(CommandError::Failed {
+            code,
+            message: format!("The background task could not run: {error}"),
+        }),
+    }
+}
 
 /// Placeholder for an unbuilt command body. Usage: `not_implemented!("<ID>")` with a backlog id.
 #[macro_export]

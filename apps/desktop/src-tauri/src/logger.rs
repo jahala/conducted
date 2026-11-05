@@ -16,9 +16,12 @@
 //!   optional data. A level other than `error`, `warn`, `info` or `debug` fails with
 //!   `log_bad_level`.
 //! - `log_set_level` changes the level at run time. A record below the level is not written.
-//! - Secrets must not reach disk. Any data key that matches token, secret, password, key,
-//!   authorization or credential (case-insensitive) is replaced by `"[redacted]"`. Known token
-//!   shapes in strings, such as a bearer value or an `sk-` key, are replaced too.
+//! - Secrets must not reach disk. Any data key that contains token, secret, password, key,
+//!   authorization or credential (case-insensitive) is replaced by `"[redacted]"`. The keyboard
+//!   and shortcut names `keyboard`, `keybinding`, `keycode`, `keypress` and `keymap` are kept
+//!   unless another secret word is present. Known token shapes in strings, such as a bearer value
+//!   or an `sk-` key, are replaced too when they start at a word boundary, so `task-queue` and
+//!   `disk-usage` survive.
 //! - A message is cut at `MAX_MESSAGE_BYTES` and data at `MAX_DATA_BYTES`, with a marker.
 //! - Files: `<app data>/logs/app-YYYY-MM-DD.ndjson` in UTC, mode 0600. A day's file rolls over to
 //!   `app-YYYY-MM-DD-1.ndjson` at `MAX_FILE_BYTES`. Files older than `KEEP_DAYS` days are removed
@@ -28,23 +31,29 @@
 //! - `logs_export` collects the app logs of the kept days plus the newest sidecar log into one
 //!   file in `<app data>/exports/`, and returns its path. Exports older than `EXPORT_KEEP_DAYS`
 //!   are removed. It runs on the blocking pool and does not stop the writer.
-//! - Sidecar logs in the same folder that are older than `SIDECAR_KEEP_HOURS` hours or above
-//!   twice `SIDECAR_MAX_BYTES` are removed at start.
+//! - Sidecar logs are capped while they grow. A file that reaches `SIDECAR_MAX_BYTES` is cut to its
+//!   newest third, starting on a line boundary. At start, logs older than `SIDECAR_KEEP_HOURS`
+//!   hours or above twice `SIDECAR_MAX_BYTES` are removed, and the launcher asks this module to
+//!   keep the five newest.
 //! - Every line is flushed as it is written, so the last lines before a crash are on disk.
 //!
 //! Our design choice: Rust writes the files directly. Conductor runs a separate logger process
 //! with an in-memory buffer and an HTTP port; a local-only app does not need either. The sidecar
 //! keeps its own log (sidecar.rs), and the export includes it.
 //! Not built here: routing the sidecar's stdout and stderr into these files belongs to the
-//! sidecar launcher (PLAT-09, D026). This file only cleans those logs at start and includes the
-//! newest one in an export.
+//! sidecar launcher (PLAT-09, D026). This file only caps those logs, cleans them at start and
+//! includes the newest one in an export.
+//! Not built here: the Rust shell's own `eprintln!` lines reach stderr only. Routing them through
+//! this writer belongs to the modules that print them (PLAT-11 notifications, PLAT-27 startup).
+//! Not built here: a user switch for persistence. Every accepted record is written while the
+//! writer runs; the diagnostics page that offers the switch is APP-03.
 //! Our design choice: no remote export of any kind.
 //!
 //! Test first: a record with `{ "apiToken": "abc" }` in its data is written with
 //! `"apiToken":"[redacted]"`, and `logs_export` returns a file that contains that record.
 
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, Write};
+use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU8, AtomicU64, Ordering};
@@ -127,6 +136,16 @@ pub fn level_rank(level: &str) -> Option<u8> {
 /// True when a record at `level` passes a configured level. `None` when the name is unknown.
 pub fn level_allows(configured_rank: u8, level: &str) -> Option<bool> {
     level_rank(level).map(|rank| rank <= configured_rank)
+}
+
+/// The name of a level rank. A rank outside the known range falls back to `info`.
+pub fn level_name(rank: u8) -> &'static str {
+    match rank {
+        0 => "error",
+        1 => "warn",
+        3 => "debug",
+        _ => "info",
+    }
 }
 
 fn failed(code: &'static str, message: impl Into<String>) -> CommandError {
@@ -261,6 +280,7 @@ fn open_log_file(path: &Path) -> io::Result<File> {
     let file = OpenOptions::new()
         .create(true)
         .append(true)
+        .read(true)
         .mode(0o600)
         .open(path)?;
     fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
@@ -436,6 +456,50 @@ pub fn remove_expired(dir: &Path, keep_days: u64, now: SystemTime) -> usize {
     remove_files_older_than(dir, cutoff, is_app_log_name)
 }
 
+/// Cuts a sidecar log to its newest third when it reaches `max_bytes`. The kept part starts on a
+/// line boundary. Returns true when the file was cut. The file must be open for reading and
+/// writing at absolute offsets, not in append mode.
+pub fn cap_sidecar_log(file: &mut File, max_bytes: u64) -> io::Result<bool> {
+    let length = file.metadata()?.len();
+    if length < max_bytes {
+        return Ok(false);
+    }
+    let keep = (max_bytes / 3).max(1);
+    let start = length.saturating_sub(keep);
+    file.seek(SeekFrom::Start(start))?;
+    let mut tail = Vec::with_capacity(keep as usize);
+    file.read_to_end(&mut tail)?;
+    let begin = tail
+        .iter()
+        .position(|byte| *byte == b'\n')
+        .map_or(0, |index| index + 1);
+    let kept = &tail[begin..];
+    file.seek(SeekFrom::Start(0))?;
+    file.write_all(kept)?;
+    file.set_len(kept.len() as u64)?;
+    file.flush()?;
+    Ok(true)
+}
+
+/// Sidecar log files in `dir`, with the time each was last changed.
+pub fn sidecar_log_files(dir: &Path) -> Vec<(PathBuf, SystemTime)> {
+    log_files(dir, is_sidecar_log_name)
+}
+
+/// Keeps the newest `keep` sidecar logs and removes the rest. Returns how many were removed.
+pub fn keep_newest_sidecar_logs(dir: &Path, keep: usize) -> usize {
+    let mut files = sidecar_log_files(dir);
+    if files.len() <= keep {
+        return 0;
+    }
+    files.sort_by_key(|(_, modified)| std::cmp::Reverse(*modified));
+    files
+        .into_iter()
+        .skip(keep)
+        .filter(|(path, _)| fs::remove_file(path).is_ok())
+        .count()
+}
+
 /// Removes sidecar logs older than `SIDECAR_KEEP_HOURS` or above twice `max_bytes`.
 pub fn prune_sidecar_logs(dir: &Path, now: SystemTime, max_bytes: u64) -> usize {
     let Some(cutoff) = now.checked_sub(Duration::from_secs(
@@ -549,9 +613,15 @@ fn log_files(dir: &Path, wanted: fn(&str) -> bool) -> Vec<(PathBuf, SystemTime)>
 }
 
 fn copy_into(source: &Path, out: &mut File) -> CommandResult<()> {
-    let bytes = fs::read(source)?;
-    out.write_all(&bytes)?;
-    if !bytes.is_empty() && !bytes.ends_with(b"\n") {
+    let mut input = File::open(source)?;
+    let copied = io::copy(&mut input, out)?;
+    if copied == 0 {
+        return Ok(());
+    }
+    input.seek(SeekFrom::End(-1))?;
+    let mut last = [0u8; 1];
+    input.read_exact(&mut last)?;
+    if last[0] != b'\n' {
         out.write_all(b"\n")?;
     }
     Ok(())
@@ -587,7 +657,8 @@ pub fn encode_record(record: &LogRecord, at_ms: i64) -> io::Result<String> {
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
 }
 
-/// True when a data key names a secret. Matching ignores case and `-`/`_`.
+/// True when a data key names a secret. Matching ignores case and `-`/`_`. A key that contains
+/// `key` is a secret unless the word is a keyboard or shortcut name.
 pub fn key_is_secret(key: &str) -> bool {
     let lower = key.to_ascii_lowercase();
     let compact: String = lower
@@ -607,12 +678,13 @@ pub fn key_is_secret(key: &str) -> bool {
     {
         return true;
     }
-    compact == "key"
-        || compact.ends_with("apikey")
-        || compact.ends_with("secretkey")
-        || compact.ends_with("privatekey")
-        || compact.ends_with("accesskey")
-        || compact.ends_with("clientkey")
+    if ["keyboard", "keybinding", "keycode", "keypress", "keymap"]
+        .iter()
+        .any(|allowed| compact.contains(allowed))
+    {
+        return false;
+    }
+    compact.contains("key")
 }
 
 fn redact_value(value: &Value, depth: u32) -> Value {
@@ -679,29 +751,42 @@ pub fn redact_text(input: &str) -> String {
 
 fn redact_prefixed(input: &str, needle: &str, prefix_out: &str, ignore_case: bool) -> String {
     let mut out = String::with_capacity(input.len());
-    let mut rest = input;
+    let mut cursor = 0;
     loop {
         let found = if ignore_case {
-            find_ignore_case(rest, needle)
+            find_ignore_case(&input[cursor..], needle)
         } else {
-            rest.find(needle)
+            input[cursor..].find(needle)
         };
-        let Some(index) = found else {
-            out.push_str(rest);
+        let Some(relative) = found else {
+            out.push_str(&input[cursor..]);
             break;
         };
-        out.push_str(&rest[..index]);
-        out.push_str(prefix_out);
-        let after = &rest[index + needle.len()..];
+        let index = cursor + relative;
+        let starts_a_word = index == 0
+            || input[..index]
+                .chars()
+                .next_back()
+                .is_some_and(|previous| !previous.is_alphanumeric());
+        if !starts_a_word {
+            let after = index + needle.len();
+            out.push_str(&input[cursor..after]);
+            cursor = after;
+            continue;
+        }
+        out.push_str(&input[cursor..index]);
+        let after = &input[index + needle.len()..];
         let end = after
             .find(|character: char| !is_token_character(character))
             .unwrap_or(after.len());
         if end == 0 {
-            rest = after;
+            out.push_str(&input[index..index + needle.len()]);
+            cursor = index + needle.len();
             continue;
         }
+        out.push_str(prefix_out);
         out.push_str(REDACTED);
-        rest = &after[end..];
+        cursor = index + needle.len() + end;
     }
     out
 }
@@ -862,6 +947,40 @@ mod tests {
     }
 
     #[test]
+    fn plat_18_prefixes_inside_plain_words_are_kept() {
+        let text = "task-queue disk-usage risk-assessment desk-lamp reAKIAted theyJson";
+        assert_eq!(redact_text(text), text);
+        assert_eq!(redact_text("a sk- b"), "a sk- b");
+        assert_eq!(redact_text("key=sk-1234567890"), "key=sk-[redacted]");
+    }
+
+    #[test]
+    fn plat_18_key_names_that_contain_key_are_redacted() {
+        let data = json!({
+            "sshKey": "one",
+            "encryptionKey": "two",
+            "signingKey": "three",
+            "keyboardLayout": "us",
+            "keybindings": ["keep me"]
+        });
+        let line = encode_record(&record("info", "saving", Some(data)), 1_000).expect("encode");
+        for secret in ["one", "two", "three"] {
+            assert!(!line.contains(secret), "{secret} survived in {line}");
+        }
+        assert!(line.contains("\"keyboardLayout\":\"us\""), "{line}");
+        assert!(line.contains("keep me"), "{line}");
+    }
+
+    #[test]
+    fn plat_18_level_names_round_trip() {
+        assert_eq!(level_name(0), "error");
+        assert_eq!(level_name(1), "warn");
+        assert_eq!(level_name(2), "info");
+        assert_eq!(level_name(3), "debug");
+        assert_eq!(level_name(9), "info");
+    }
+
+    #[test]
     fn plat_18_an_unknown_level_is_refused() {
         assert_eq!(level_rank("loud"), None);
         assert_eq!(level_rank("debug"), Some(3));
@@ -979,6 +1098,57 @@ mod tests {
     }
 
     #[test]
+    fn plat_18_a_full_sidecar_log_is_cut_to_about_a_third() {
+        let folder = TempDir::new();
+        let path = folder.path().join("sidecar-1.log");
+        let mut file = OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .read(true)
+            .write(true)
+            .mode(0o600)
+            .open(&path)
+            .expect("open sidecar log");
+        let line = format!("[stdout] {}\n", "x".repeat(40));
+        for _ in 0..20 {
+            file.write_all(line.as_bytes()).expect("write a line");
+        }
+        file.flush().expect("flush");
+        assert!(!cap_sidecar_log(&mut file, 10_000).expect("under the cap"));
+
+        assert!(cap_sidecar_log(&mut file, 300).expect("cut the log"));
+        let after = fs::metadata(&path).expect("stat log").len();
+        assert!(after > 0 && after <= 100, "kept {after} bytes");
+        let text = fs::read_to_string(&path).expect("read log");
+        assert!(text.starts_with("[stdout] x"), "{text}");
+        assert!(text.ends_with('\n'), "{text}");
+    }
+
+    #[test]
+    fn plat_18_sidecar_log_lifetime_combines_age_size_and_count() {
+        let folder = TempDir::new();
+        let old = folder.path().join("sidecar-old.log");
+        let big = folder.path().join("sidecar-big.log");
+        fs::write(&old, "old\n").expect("write old");
+        fs::write(&big, "x".repeat(300)).expect("write big");
+        set_modified(&old, at(1_000));
+        set_modified(&big, at(NOW));
+        for index in 0..6 {
+            let path = folder.path().join(format!("sidecar-{index}.log"));
+            fs::write(&path, "fresh\n").expect("write fresh");
+            set_modified(&path, at(NOW + index));
+        }
+
+        let removed = prune_sidecar_logs(folder.path(), at(NOW), 100);
+        assert_eq!(removed, 2);
+        assert!(!old.exists());
+        assert!(!big.exists());
+        let kept = keep_newest_sidecar_logs(folder.path(), 5);
+        assert_eq!(kept, 1);
+        assert_eq!(sidecar_log_files(folder.path()).len(), 5);
+    }
+
+    #[test]
     fn plat_18_dropped_records_are_reported_on_the_next_write() {
         let folder = TempDir::new();
         let dropped = Arc::new(AtomicU64::new(3));
@@ -1033,6 +1203,18 @@ mod tests {
             .permissions()
             .mode();
         assert_eq!(mode & 0o777, 0o600);
+    }
+
+    #[test]
+    fn plat_18_an_export_ends_a_log_without_a_newline_with_one() {
+        let folder = TempDir::new();
+        let logs = folder.path().join(LOG_FOLDER);
+        fs::create_dir_all(&logs).expect("create log folder");
+        fs::write(logs.join("app-1970-01-01.ndjson"), "first\nlast").expect("write log");
+
+        let path = export_logs_in(folder.path(), 7).expect("export");
+        let text = fs::read_to_string(&path).expect("read export");
+        assert!(text.contains("first\nlast\n"), "{text}");
     }
 
     #[test]

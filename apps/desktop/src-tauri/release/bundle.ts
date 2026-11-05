@@ -1,28 +1,34 @@
 /**
  * @feature PLAT-25 Release bundle: privacy strings, entitlements, signing, notarisation
- * Owns: what a release build must contain, and the steps after `tauri build` that sign and
- * notarise it and prove the result: privacy strings in `Info.plist`, the entitlements file, the
- * hardened runtime, the sidecar signed on its own, and Apple's notarisation.
+ * Owns: what a release build must contain, and the steps after `tauri build` that sign, notarise,
+ * package and prove the result: privacy strings in `Info.plist`, the entitlements file, the
+ * hardened runtime, the sidecar signed on its own, Apple's notarisation, and a disk image built
+ * from the app only after it was signed and verified.
  * Behaviour: research/conductor/native-and-sidecar-map.md A1 (entitlements `allow-jit`,
  * `allow-unsigned-executable-memory` and `audio-input`; privacy strings for the microphone and for
  * the Desktop, Documents and Downloads folders; one arm64 binary with no Frameworks folder; signed
  * with a team identity, hardened runtime, notarised).
  * Must handle: a missing signing identity or notarisation credential (an error value that names
- * the missing variable, never a build that ships unsigned); the sidecar signed before the app,
- * with the JIT entitlements, because Bun needs them and the app signature covers it; a bundle with
- * a missing privacy string or entitlement (the report lists each); credentials never printed or
- * written to a log; a notarisation that Apple rejects (the log text is kept and returned);
- * stapling the ticket so the app opens offline.
+ * the missing variable, never a build that ships unsigned; an empty variable counts as missing);
+ * the sidecar signed before the app, with the JIT entitlements, because Bun needs them and the app
+ * signature covers it; a bundle with a missing privacy string or entitlement (the report lists
+ * each); credentials never printed or written to a log (a stored keychain profile keeps the
+ * password off the command line; an `APPLE_ID`/`APPLE_PASSWORD` pair is passed to `notarytool` on
+ * its command line, so the profile is the preferred way); a notarisation that Apple rejects (the
+ * log text is kept and returned); stapling the ticket so the app opens offline; a disk image or
+ * archive built before signing (the release builds the app alone, then signs it, and only then
+ * makes the disk image from the verified app).
  * Our design choice: every tool call goes through `RunTool`, so tests give it a scripted runner
  * and never sign anything. The privacy strings and entitlements live in files next to
  * `tauri.conf.json`, and `bundle.macOS` points at them. `bundle.externalBin` lives in
  * `tauri.release.conf.json`, because Tauri refuses to build when a listed sidecar file is missing;
- * `scripts/release.ts` builds the sidecars, then builds with that release config.
+ * `scripts/release.ts` builds the sidecars, then builds the app alone with that release config.
  * Test first: `verifyBundle` on a bundle whose `Info.plist` lacks the microphone string returns a
  * report that names `NSMicrophoneUsageDescription`.
  */
 import { spawn } from "node:child_process";
-import { rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { appError, err, ok, type Result } from "@conducted/shared";
@@ -52,6 +58,9 @@ export const REQUIRED_PRIVACY_KEYS = [
 
 /** The environment variable that names the Developer ID identity. */
 export const SIGNING_IDENTITY_ENV = "APPLE_SIGNING_IDENTITY";
+
+/** The environment variable that names a notarytool keychain profile stored with `store-credentials`. */
+export const NOTARY_PROFILE_ENV = "APPLE_NOTARY_PROFILE";
 
 /** The entitlements file both signatures use. */
 export const ENTITLEMENTS_PATH = join(
@@ -135,6 +144,81 @@ export function sidecarBinaryPath(appPath: string): Result<string> {
 	return ok(join(appPath, "Contents", "MacOS", name.value));
 }
 
+/**
+ * The `tauri build` arguments for a release. Only the app is bundled, so Tauri never makes a disk
+ * image or archive from an unsigned app; `scripts/release.ts` makes those after signing.
+ */
+export function appBuildArguments(target: string, configPath: string): readonly string[] {
+	return [
+		"pnpm",
+		"--filter",
+		"@conducted/desktop",
+		"tauri",
+		"build",
+		"--target",
+		target,
+		"--bundles",
+		"app",
+		"--config",
+		configPath,
+	];
+}
+
+/** The disk image path next to a built app, named for the product. */
+export function diskImagePath(appPath: string): string {
+	return join(dirname(appPath), `${basename(appPath, ".app")}.dmg`);
+}
+
+/**
+ * Makes a compressed disk image from an app that is already signed and notarised. The image holds
+ * a copy of that app and the usual Applications shortcut; Tauri is not asked to bundle again,
+ * because its macos bundler rebuilds the `.app` from the binary and would drop the signature.
+ */
+export async function createDiskImage(
+	run: RunTool,
+	appPath: string,
+	dmgPath: string,
+): Promise<Result<void>> {
+	const staging = mkdtempSync(join(tmpdir(), "conducted-dmg-"));
+	try {
+		const copied = await runChecked(
+			run,
+			"ditto",
+			[appPath, join(staging, basename(appPath))],
+			"release_disk_image_failed",
+		);
+		if (!copied.ok) return copied;
+		const linked = await runChecked(
+			run,
+			"ln",
+			["-s", "/Applications", join(staging, "Applications")],
+			"release_disk_image_failed",
+		);
+		if (!linked.ok) return linked;
+		rmSync(dmgPath, { force: true });
+		const created = await runChecked(
+			run,
+			"hdiutil",
+			[
+				"create",
+				"-volname",
+				basename(appPath, ".app"),
+				"-srcfolder",
+				staging,
+				"-ov",
+				"-format",
+				"UDZO",
+				dmgPath,
+			],
+			"release_disk_image_failed",
+		);
+		if (!created.ok) return created;
+		return ok(undefined);
+	} finally {
+		rmSync(staging, { recursive: true, force: true });
+	}
+}
+
 /** Signs the sidecar program, then the app, with the hardened runtime. */
 export async function signBundle(
 	run: RunTool,
@@ -202,42 +286,109 @@ export async function notariseBundle(
 	if (!packed.ok) return packed;
 
 	try {
-		const submitted = await runChecked(
-			run,
-			"xcrun",
-			["notarytool", "submit", zipPath, "--wait", ...credentials.value],
-			"release_notarisation_failed",
-		);
+		const submitted = await submitForNotarisation(run, zipPath, credentials.value);
 		if (!submitted.ok) return submitted;
-
-		const answer = `${submitted.value.stdout}\n${submitted.value.stderr}`;
-		if (!/status:\s*Accepted/i.test(answer)) {
-			return err(
-				appError(
-					"release_notarisation_rejected",
-					`Apple rejected the notarisation.\n${await notarisationLog(run, answer, credentials.value)}`,
-				),
-			);
-		}
-
-		const stapled = await runChecked(
-			run,
-			"xcrun",
-			["stapler", "staple", appPath],
-			"release_notarisation_failed",
-		);
-		if (!stapled.ok) return stapled;
-		const validated = await runChecked(
-			run,
-			"xcrun",
-			["stapler", "validate", appPath],
-			"release_notarisation_failed",
-		);
-		if (!validated.ok) return validated;
-		return ok(undefined);
+		return stapleArtifact(run, appPath);
 	} finally {
 		rmSync(zipPath, { force: true });
 	}
+}
+
+/** Submits the disk image itself for notarisation, waits and staples the ticket to the image. */
+export async function notariseDiskImage(
+	run: RunTool,
+	dmgPath: string,
+	env: Readonly<Record<string, string | undefined>>,
+): Promise<Result<void>> {
+	const credentials = notaryCredentials(env);
+	if (!credentials.ok) return credentials;
+	const submitted = await submitForNotarisation(run, dmgPath, credentials.value);
+	if (!submitted.ok) return submitted;
+	return stapleArtifact(run, dmgPath);
+}
+
+/**
+ * Mounts the shipped disk image and verifies the app inside it, so the file a person downloads is
+ * the one that was checked, not a fresh app on disk.
+ */
+export async function verifyDiskImage(
+	run: RunTool,
+	dmgPath: string,
+	appName: string,
+): Promise<Result<BundleReport>> {
+	const imageStaple = await runChecked(
+		run,
+		"xcrun",
+		["stapler", "validate", dmgPath],
+		"release_disk_image_not_notarised",
+	);
+	if (!imageStaple.ok) return imageStaple;
+
+	const mountPoint = mkdtempSync(join(tmpdir(), "conducted-release-"));
+	const attached = await runChecked(
+		run,
+		"hdiutil",
+		["attach", "-readonly", "-nobrowse", "-mountpoint", mountPoint, dmgPath],
+		"release_disk_image_failed",
+	);
+	if (!attached.ok) {
+		rmSync(mountPoint, { recursive: true, force: true });
+		return attached;
+	}
+
+	const report = await verifyBundle(run, join(mountPoint, appName));
+	const detached = await runChecked(
+		run,
+		"hdiutil",
+		["detach", mountPoint],
+		"release_disk_image_failed",
+	);
+	if (!detached.ok) return detached;
+	rmSync(mountPoint, { recursive: true, force: true });
+	return report;
+}
+
+async function submitForNotarisation(
+	run: RunTool,
+	artifactPath: string,
+	credentials: readonly string[],
+): Promise<Result<void>> {
+	const submitted = await runChecked(
+		run,
+		"xcrun",
+		["notarytool", "submit", artifactPath, "--wait", ...credentials],
+		"release_notarisation_failed",
+	);
+	if (!submitted.ok) return submitted;
+
+	const answer = `${submitted.value.stdout}\n${submitted.value.stderr}`;
+	if (!/status:\s*Accepted/i.test(answer)) {
+		return err(
+			appError(
+				"release_notarisation_rejected",
+				`Apple rejected the notarisation.\n${await notarisationLog(run, answer, credentials)}`,
+			),
+		);
+	}
+	return ok(undefined);
+}
+
+async function stapleArtifact(run: RunTool, artifactPath: string): Promise<Result<void>> {
+	const stapled = await runChecked(
+		run,
+		"xcrun",
+		["stapler", "staple", artifactPath],
+		"release_notarisation_failed",
+	);
+	if (!stapled.ok) return stapled;
+	const validated = await runChecked(
+		run,
+		"xcrun",
+		["stapler", "validate", artifactPath],
+		"release_notarisation_failed",
+	);
+	if (!validated.ok) return validated;
+	return ok(undefined);
 }
 
 /** Reads a built `.app` and reports what it holds and what is missing. */
@@ -411,46 +562,57 @@ async function runChecked(
 	return output;
 }
 
+/** A trimmed environment value, or `undefined` when it is missing or empty. */
+function envValue(
+	env: Readonly<Record<string, string | undefined>>,
+	name: string,
+): string | undefined {
+	const value = env[name]?.trim();
+	return value === undefined || value === "" ? undefined : value;
+}
+
+function missingCredentials(missing: readonly string[]): Result<readonly string[]> {
+	return err(
+		appError(
+			"release_notarisation_credentials_missing",
+			`Set ${NOTARY_PROFILE_ENV}, or ${missing.join(", ")} for notarisation.`,
+		),
+	);
+}
+
 function notaryCredentials(
 	env: Readonly<Record<string, string | undefined>>,
 ): Result<readonly string[]> {
-	const apiKey = env.APPLE_API_KEY?.trim();
-	const apiKeyId = env.APPLE_API_KEY_ID?.trim();
-	const issuer = env.APPLE_API_ISSUER?.trim();
+	const profile = envValue(env, NOTARY_PROFILE_ENV);
+	if (profile !== undefined) {
+		return ok(["--keychain-profile", profile]);
+	}
+
+	const apiKey = envValue(env, "APPLE_API_KEY");
+	const apiKeyId = envValue(env, "APPLE_API_KEY_ID");
+	const issuer = envValue(env, "APPLE_API_ISSUER");
 	if (apiKey !== undefined || apiKeyId !== undefined || issuer !== undefined) {
 		if (apiKey !== undefined && apiKeyId !== undefined && issuer !== undefined) {
 			return ok(["--key", apiKey, "--key-id", apiKeyId, "--issuer", issuer]);
 		}
-		const missing = [
-			apiKey === undefined ? "APPLE_API_KEY" : null,
-			apiKeyId === undefined ? "APPLE_API_KEY_ID" : null,
-			issuer === undefined ? "APPLE_API_ISSUER" : null,
-		].filter((name): name is string => name !== null);
-		return err(
-			appError(
-				"release_notarisation_credentials_missing",
-				`Set ${missing.join(", ")} for notarisation.`,
-			),
-		);
+		return missingCredentials([
+			...(apiKey === undefined ? ["APPLE_API_KEY"] : []),
+			...(apiKeyId === undefined ? ["APPLE_API_KEY_ID"] : []),
+			...(issuer === undefined ? ["APPLE_API_ISSUER"] : []),
+		]);
 	}
 
-	const appleId = env.APPLE_ID?.trim();
-	const password = env.APPLE_PASSWORD?.trim();
-	const teamId = env.APPLE_TEAM_ID?.trim();
+	const appleId = envValue(env, "APPLE_ID");
+	const password = envValue(env, "APPLE_PASSWORD");
+	const teamId = envValue(env, "APPLE_TEAM_ID");
 	if (appleId !== undefined && password !== undefined && teamId !== undefined) {
 		return ok(["--apple-id", appleId, "--password", password, "--team-id", teamId]);
 	}
-	const missing = [
-		appleId === undefined ? "APPLE_ID" : null,
-		password === undefined ? "APPLE_PASSWORD" : null,
-		teamId === undefined ? "APPLE_TEAM_ID" : null,
-	].filter((name): name is string => name !== null);
-	return err(
-		appError(
-			"release_notarisation_credentials_missing",
-			`Set ${missing.join(", ")} for notarisation.`,
-		),
-	);
+	return missingCredentials([
+		...(appleId === undefined ? ["APPLE_ID"] : []),
+		...(password === undefined ? ["APPLE_PASSWORD"] : []),
+		...(teamId === undefined ? ["APPLE_TEAM_ID"] : []),
+	]);
 }
 
 async function notarisationLog(
