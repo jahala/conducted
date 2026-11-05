@@ -156,6 +156,12 @@ export const allChangesDiffNameStatus = (mergeBase: string): GitCommand =>
 export const allChangesDiffNumstat = (mergeBase: string): GitCommand => diffNumstat(mergeBase);
 export const diffNameOnlyNul = (from: string, to: string | null = null): GitCommand =>
 	git([...DIFF_BASE, "--name-only", "-z", from, ...(to === null ? [] : [to])]);
+/** Paths with unresolved merge conflicts, NUL separated (services-map 3.10 discard step). */
+export const diffUnmergedPathsNul = (): GitCommand =>
+	git(["diff", "--name-only", "--diff-filter=U", "-z"]);
+/** Marks conflicted paths as resolved without staging their content (services-map 3.10). */
+export const addUpdatedPaths = (paths: readonly string[]): GitCommand =>
+	git(["add", "-u", "--", ...paths]);
 /** Only used to find conflicted paths; untracked files are listed separately. */
 export const statusPorcelain = (): GitCommand =>
 	git(["status", "--porcelain", "--untracked-files=no"]);

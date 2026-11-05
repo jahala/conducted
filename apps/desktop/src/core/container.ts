@@ -355,6 +355,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		workspaceFor: async (workspaceId) => lookups.workspace(workspaceId),
 		repoFor: async (workspaceId) => lookups.repoOf(workspaceId),
 		fs: platform.fs,
+		shell: platform.shell,
 	});
 	const repo: RepoService = new RepoService({
 		platform,
@@ -371,6 +372,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		sessions,
 		ports,
 		scripts: runScripts,
+		checkpointerPath: checkpointerScript(paths),
 		setting,
 		now: () => clock.now(),
 	});
@@ -501,7 +503,16 @@ export function createContainer(inputs: ContainerInputs): Container {
 			name: "repair",
 			phase: "settings",
 			fatal: true,
-			run: () => runStartupRepair({ db: platform.db, fs: platform.fs, clock, ids }),
+			run: async () => {
+				const repaired = await runStartupRepair({
+					db: platform.db,
+					fs: platform.fs,
+					clock,
+					ids,
+				});
+				if (!repaired.ok) return repaired;
+				return workspace.recoverArchiving(repaired.value.archivingWorkspaces);
+			},
 		},
 		{ name: "repos", phase: "services", fatal: true, run: () => repo.start() },
 		{ name: "workspaces", phase: "services", fatal: true, run: () => workspace.start() },
