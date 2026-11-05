@@ -1339,13 +1339,13 @@ const STEPS: Record<string, ContractStep> = {
 		const result = expectOk(
 			ctx,
 			await ctx.platform.menu.setShortcuts([
-				{ commandId: "palette.open", accelerator: "CmdOrCtrl+Shift+P" },
-				{ commandId: "chat.new", accelerator: null },
+				{ commandId: "view.toggleLeftSidebar", accelerator: "CmdOrCtrl+B" },
+				{ commandId: "help.documentation", accelerator: null },
 			]),
 			"menu.setShortcuts",
 		);
 		ctx.assert(
-			result.applied.includes("palette.open"),
+			result.applied.includes("view.toggleLeftSidebar"),
 			`applied was ${JSON.stringify(result.applied)}`,
 		);
 		ctx.assert(result.rejected.length === 0, `rejected was ${JSON.stringify(result.rejected)}`);
@@ -1600,9 +1600,9 @@ export const UNCOVERED_METHODS: Readonly<Record<string, string>> = {
 	"app.setLogLevel": "Changes the Rust logger; the Rust logger tests own it.",
 	"app.exportLogs": "Zips the Rust log folder; the Rust logger tests own it.",
 	"app.setQuitHandlerReady": "Needs the Rust quit hook; the Rust job owns it.",
-	"window.onFileDrop": "PLAT-33 builds it; needs a real window drag.",
+	"window.onFileDrop": "Needs a real window drag; the Tauri adapter tests own the event mapping.",
 	"window.toggleInspector": "Opens the web inspector; nothing a stand-in can show.",
-	"menu.onCommand": "PLAT-33 builds it; needs a real menu.",
+	"menu.onCommand": "Needs a real menu; the Tauri adapter tests own the event door.",
 	"system.onNetworkChanged": "PLAT-26 builds it.",
 	"system.openFullDiskAccessSettings": "Opens System Settings; nothing a stand-in can show.",
 	"programs.redownload": "PLAT-28 builds it.",

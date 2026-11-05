@@ -104,6 +104,8 @@ export interface MemoryPlatformControls {
 	emitQuitRequested(): void;
 	/** Changes the window's focus and tells every focus listener. */
 	emitWindowFocus(focused: boolean): void;
+	/** Delivers one file drag event to every file drop listener. */
+	emitFileDrop(event: FileDropEvent): void;
 	/** Notifications shown and the last dock badge. */
 	readonly notificationsShown: readonly { title: string; body: string; deepLink?: string }[];
 	readonly dockBadge: number | null;
@@ -927,6 +929,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			windowFocused = focused;
 			emit(focusListeners, focused);
 		},
+		emitFileDrop: (event) => emit(fileDropListeners, event),
 		get notificationsShown() {
 			return notificationsShown;
 		},
