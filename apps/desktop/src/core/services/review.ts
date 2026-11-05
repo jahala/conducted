@@ -13,7 +13,8 @@
  * removal for that kind; an edited GitHub comment that was already reviewed comes back as
  * pending; inactive (outdated or resolved) comments cannot be sent to chat; sending to chat writes
  * each comment as a small file in the workspace and returns its path; the AI review creates a new
- * chat with the review model and sends the review instruction.
+ * chat with the review model and sends the review instruction, using the repository's review
+ * prompt when it has one and adding the extra instructions from "Edit before sending".
  * Our design choice: the lifecycle uses the columns of migration 0001 (`resolved`, `outdated`,
  * author kind), not Conductor's six-state column. "Sent to chat" is derived from the message.
  * Test first: sync removes a GitHub comment that vanished and keeps a locally authored one.
@@ -23,6 +24,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Repositories } from "../db/repositories.ts";
 import type { GitRunner } from "../git/runner.ts";
 import type { DiffComment, Session } from "../model.ts";
+import { aiReviewInstruction } from "./agent-instructions.ts";
 import type { AgentMessenger } from "./sessions.ts";
 
 export interface ReviewState {
@@ -33,6 +35,8 @@ export interface ReviewServiceDeps {
 	repos: Pick<Repositories, "diffComments">;
 	git: GitRunner;
 	agent: AgentMessenger;
+	/** The repository's custom review prompt, or null when it has none. */
+	customPromptOf: (workspaceId: WorkspaceId) => Promise<Result<string | null>>;
 	/** Creates a chat with the review model and sends the text. */
 	startReviewChat: (workspaceId: WorkspaceId, text: string) => Promise<Result<Session>>;
 }
@@ -107,11 +111,17 @@ export class ReviewService {
 	}
 
 	/** Backs `Actions.pullRequests.requestAiReview`. */
-	requestAiReview(
-		_workspaceId: WorkspaceId,
-		_extraInstructions: string | null,
+	async requestAiReview(
+		workspaceId: WorkspaceId,
+		extraInstructions: string | null,
 	): Promise<Result<Session>> {
-		return notImplemented("REV-05");
+		const customPrompt = await this.#deps.customPromptOf(workspaceId);
+		if (!customPrompt.ok) return customPrompt;
+		const text = aiReviewInstruction({
+			customPrompt: customPrompt.value,
+			extraInstructions,
+		});
+		return this.#deps.startReviewChat(workspaceId, text);
 	}
 
 	/** Backs `Actions.comments.setHidden`. */
