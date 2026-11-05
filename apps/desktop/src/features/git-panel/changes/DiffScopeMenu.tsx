@@ -8,9 +8,9 @@
  * Entries, in order: Current branch, Target branch (opens TargetBranchPicker), All changes,
  * Uncommitted changes (Cmd+Alt+U, shows "N files changed"), then one entry per commit with its
  * message, short hash, author and date. Per-turn entries are not part of the issue's scope.
- * Must handle: a branch with no commits ahead (commit list empty state), a branch list that is not
- * built yet or fails to load (the submenu says so and the rest of the panel keeps working), no
- * file count while the git state is loading, and the shortcut hint following the user's rebind.
+ * Must handle: a branch with no commits ahead (commit list empty state), a branch list that fails
+ * to load (the submenu says so and the rest of the panel keeps working), no file count while the
+ * git state is loading, and the shortcut hint following the user's rebind.
  * Test first: choosing a commit entry calls onChange with { kind: "commit", sha }.
  */
 import type { RepoId, WorkspaceId } from "@conducted/shared";
@@ -102,7 +102,7 @@ function TargetBranchSubmenu({
 	if (workspace.state !== "ready") {
 		return <p className="px-2 py-2 text-sm text-fg-muted">Select target branch...</p>;
 	}
-	// The branch list hook is not built yet (WS-02). Its failure stays inside the submenu.
+	// A failed branch list stays inside the submenu, so the rest of the panel keeps working.
 	return (
 		<NotBuiltYet area="Target branch" variant="inline" resetKey={workspaceId}>
 			<BranchList repoId={workspace.data.repoId} current={current} onSelect={onSelect} />
