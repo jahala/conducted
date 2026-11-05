@@ -19,8 +19,9 @@
 //!   mutex that is held during the start sequence only.
 //! - Start sequence: kill orphans from an earlier crash, resolve the binary, check its version
 //!   (SIDE-23), spawn `conducted-sidecar sidecar` with the environment below, read stdout until
-//!   `SOCKET_PATH=` (fail with `sidecar_handshake_timeout` after `HANDSHAKE_TIMEOUT_MS`), connect
-//!   with retries, start the reader and writer threads.
+//!   `SOCKET_PATH=` (fail with `sidecar_handshake_timeout` after `HANDSHAKE_TIMEOUT_MS`, or at once
+//!   with `sidecar_exited_early` when the sidecar ends first), connect with retries, start the
+//!   reader and writer threads.
 //! - Lines are relayed verbatim. A line is never split or merged. A line longer than
 //!   `MAX_LINE_BYTES` is dropped with a log entry instead of exhausting memory.
 //! - `sidecar_send` while the sidecar is starting waits for the start. While it is restarting or
@@ -36,7 +37,12 @@
 //!   with `willRetry`. After the limit the phase becomes `Stopped` and the next
 //!   `sidecar_ensure_started` starts fresh.
 //! - Quitting the app calls `shutdown` from `app_quit` and from the `RunEvent::Exit` handler:
-//!   it closes the socket, sends SIGTERM, waits briefly, then SIGKILL.
+//!   it drops the writer, sends SIGTERM to the sidecar's process group, waits briefly, then sends
+//!   SIGKILL. The reader thread closes the socket when the sidecar's end closes. A restart that
+//!   was waiting out its backoff does not start.
+//! - stdout and stderr are read to the end whatever they hold: a byte that is not UTF-8 is
+//!   replaced, and a line over `MAX_LINE_BYTES` is dropped, so a full pipe never blocks the
+//!   sidecar.
 //! - Parent watchdog: Rust sets `CONDUCTED_PARENT_PID` to its own pid. The sidecar polls it and
 //!   exits when the pid is gone or reused (SIDE-19). Rust covers the other direction: at start it
 //!   scans the process table for an orphan (parent pid 1) whose executable is the sidecar binary
@@ -66,13 +72,13 @@
 //! line.
 
 use std::fs::{self, File, OpenOptions};
-use std::io::{BufRead, BufReader, BufWriter, Read, Write};
+use std::io::{BufWriter, Read, Write};
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::os::unix::net::UnixStream;
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::mpsc::{self, Receiver};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -403,15 +409,21 @@ pub fn parse_handshake(line: &str) -> Option<PathBuf> {
 
 /// Waits for the stdout reader to send the socket path, or fails with a named timeout.
 fn read_handshake(receiver: &Receiver<PathBuf>, timeout: Duration) -> CommandResult<PathBuf> {
-    receiver
-        .recv_timeout(timeout)
-        .map_err(|_| CommandError::Failed {
+    receiver.recv_timeout(timeout).map_err(|error| match error {
+        RecvTimeoutError::Timeout => CommandError::Failed {
             code: "sidecar_handshake_timeout",
             message: format!(
                 "The sidecar did not print SOCKET_PATH within {} ms.",
                 timeout.as_millis()
             ),
-        })
+        },
+        // The stdout reader ended, so the sidecar closed its output before the handshake.
+        RecvTimeoutError::Disconnected => CommandError::Failed {
+            code: "sidecar_exited_early",
+            message: "The sidecar ended before it printed SOCKET_PATH. Its log has the reason."
+                .to_string(),
+        },
+    })
 }
 
 /// Splits a byte stream into lines. A line over the limit is dropped and the rest of that line is
@@ -689,44 +701,20 @@ fn spawn_sidecar(
 
     let stdout_log = Arc::clone(&log);
     thread::spawn(move || {
-        let mut reader = BufReader::new(stdout);
-        let mut line = String::new();
-        loop {
-            line.clear();
-            match reader.read_line(&mut line) {
-                Ok(0) => break,
-                Ok(_) => {
-                    let trimmed = line.trim_end_matches(['\r', '\n']);
-                    match parse_handshake(trimmed) {
-                        Some(path) => {
-                            let _ = handshake_sender.send(path);
-                        }
-                        None if !trimmed.is_empty() => log_line(&stdout_log, "stdout", trimmed),
-                        None => {}
-                    }
-                }
-                Err(_) => break,
+        drain_lines(stdout, &stdout_log, "stdout", |line| {
+            if let Some(path) = parse_handshake(line) {
+                // The receiver is gone once the handshake finished or timed out. A second
+                // handshake line then has nowhere to go and is not an error.
+                let _ = handshake_sender.send(path);
+                return true;
             }
-        }
+            false
+        });
     });
 
     let stderr_log = Arc::clone(&log);
     thread::spawn(move || {
-        let mut reader = BufReader::new(stderr);
-        let mut line = String::new();
-        loop {
-            line.clear();
-            match reader.read_line(&mut line) {
-                Ok(0) => break,
-                Ok(_) => {
-                    let trimmed = line.trim_end_matches(['\r', '\n']);
-                    if !trimmed.is_empty() {
-                        log_line(&stderr_log, "stderr", trimmed);
-                    }
-                }
-                Err(_) => break,
-            }
-        }
+        drain_lines(stderr, &stderr_log, "stderr", |_| false);
     });
 
     match read_handshake(&handshake_receiver, timeout) {
@@ -741,6 +729,41 @@ fn spawn_sidecar(
             process_group::terminate_group(pid, Duration::from_millis(500));
             let _ = child.wait();
             Err(error)
+        }
+    }
+}
+
+/// Reads a child's output pipe to the end, one line at a time, and writes each line to the log
+/// unless `consume` takes it. Bytes that are not UTF-8 are replaced and a line over
+/// `MAX_LINE_BYTES` is dropped with a log entry, so the pipe is always emptied. A pipe nobody
+/// empties fills up and blocks the sidecar.
+fn drain_lines<R: Read>(
+    mut reader: R,
+    log: &Arc<Mutex<File>>,
+    stream: &str,
+    mut consume: impl FnMut(&str) -> bool,
+) {
+    let mut framer = LineFramer::new(MAX_LINE_BYTES);
+    let mut buffer = [0u8; 16 * 1024];
+    loop {
+        match reader.read(&mut buffer) {
+            Ok(0) => return,
+            Ok(read) => {
+                for line in framer.push(&buffer[..read]) {
+                    let line = line.trim_end_matches('\r');
+                    if !line.is_empty() && !consume(line) {
+                        log_line(log, stream, line);
+                    }
+                }
+                if framer.take_dropped() {
+                    log_line(log, stream, "A line was dropped because it was too long.");
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(error) => {
+                log_line(log, stream, &format!("The pipe could not be read: {error}"));
+                return;
+            }
         }
     }
 }
@@ -770,7 +793,7 @@ fn open_log_file(path: &Path) -> std::io::Result<File> {
         .write(true)
         .mode(0o600)
         .open(path)?;
-    let _ = fs::set_permissions(path, fs::Permissions::from_mode(0o600));
+    fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
     Ok(file)
 }
 
@@ -956,6 +979,18 @@ fn spawn_supervisor(app: AppHandle, generation: u64, mut child: Child) {
     });
 }
 
+/// Takes the end report of process `generation`. Only the newest running process may change
+/// state: a report from an older process, or a second report for the same one, finds the phase
+/// moved on and gets `None`. The running process becomes `Stopped` and its pid is returned.
+fn claim_exit(inner: &mut SidecarInner, generation: u64) -> Option<u32> {
+    let pid = match &inner.phase {
+        SidecarPhase::Running(handle) if handle.generation == generation => handle.pid,
+        _ => return None,
+    };
+    inner.phase = SidecarPhase::Stopped;
+    Some(pid)
+}
+
 /// Handles the end of a process: drops the report when `generation` is not the newest, emits
 /// `sidecar://restart`, and schedules the next start according to the restart policy.
 pub async fn on_process_ended(
@@ -966,11 +1001,9 @@ pub async fn on_process_ended(
     exit_code: Option<i32>,
 ) -> CommandResult<()> {
     let mut inner = state.inner.lock().await;
-    let pid = match &inner.phase {
-        SidecarPhase::Running(handle) if handle.generation == generation => handle.pid,
-        _ => return Ok(()),
+    let Some(pid) = claim_exit(&mut inner, generation) else {
+        return Ok(());
     };
-    inner.phase = SidecarPhase::Stopped;
     drop(inner);
     // Clean up the whole group for both reasons: a crash can leave grandchildren behind just as a
     // closed socket can. The lock is not held while this waits, so sends and reads are not blocked.
@@ -1443,6 +1476,17 @@ mod tests {
     }
 
     #[test]
+    fn plat_09_an_older_log_file_with_open_permissions_becomes_owner_only() {
+        let folder = TempDir::new();
+        let path = folder.path().join("sidecar-10.log");
+        fs::write(&path, "old\n").expect("write log");
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).expect("open it up");
+        let _file = open_log_file(&path).expect("reopen log");
+        let mode = fs::metadata(&path).expect("stat log").permissions().mode();
+        assert_eq!(mode & 0o777, 0o600);
+    }
+
+    #[test]
     fn plat_09_the_sidecar_environment_names_every_folder() {
         let data = Path::new("/tmp/conducted-data");
         let environment = sidecar_environment(42, data);
@@ -1581,5 +1625,112 @@ mod tests {
         line.clear();
         reader.read_line(&mut line).expect("read second");
         assert_eq!(line.as_str(), "second\n");
+    }
+
+    #[test]
+    fn plat_09_a_closed_output_before_the_handshake_is_not_called_a_timeout() {
+        let (sender, receiver) = mpsc::channel::<PathBuf>();
+        drop(sender);
+        let error = read_handshake(&receiver, Duration::from_secs(30))
+            .expect_err("the stdout reader is gone");
+        assert_eq!(error_code(error), "sidecar_exited_early");
+    }
+
+    #[test]
+    fn plat_09_a_sidecar_that_exits_before_the_handshake_fails_at_once() {
+        let folder = TempDir::new();
+        let binary = script(&folder, "crashing-sidecar", "exit 3");
+        let error = match spawn_sidecar(&binary, &[], folder.path(), Duration::from_secs(30)) {
+            Ok(_) => panic!("the sidecar never printed a handshake"),
+            Err(error) => error,
+        };
+        assert_eq!(error_code(error), "sidecar_exited_early");
+    }
+
+    #[test]
+    fn plat_09_output_that_is_not_utf8_does_not_stop_the_handshake() {
+        let folder = TempDir::new();
+        let socket = folder.path().join("odd.sock");
+        let binary = script(
+            &folder,
+            "odd-sidecar",
+            &format!(
+                "printf '\\377\\376 junk\\n'; printf 'SOCKET_PATH={}\\n'; exec sleep 30",
+                socket.display()
+            ),
+        );
+        let mut spawned = spawn_sidecar(&binary, &[], folder.path(), Duration::from_secs(5))
+            .expect("the handshake follows the odd bytes");
+        assert_eq!(spawned.socket_path, socket);
+        process_group::terminate_group(spawned.pid, Duration::from_millis(500));
+        let _ = spawned.child.wait();
+    }
+
+    #[test]
+    fn plat_09_drain_lines_replaces_bytes_that_are_not_utf8_and_reads_on() {
+        let folder = TempDir::new();
+        let log_path = folder.path().join("sidecar-1.log");
+        let log = Arc::new(Mutex::new(open_log_file(&log_path).expect("create log")));
+        let input: &[u8] = b"first\n\xff\xfe odd\r\nlast\n";
+        let mut taken = Vec::new();
+        drain_lines(input, &log, "stderr", |line| {
+            taken.push(line.to_string());
+            line == "first"
+        });
+        assert_eq!(
+            taken,
+            vec![
+                "first".to_string(),
+                "\u{fffd}\u{fffd} odd".to_string(),
+                "last".to_string()
+            ]
+        );
+        let written = fs::read_to_string(&log_path).expect("read log");
+        assert_eq!(written, "[stderr] \u{fffd}\u{fffd} odd\n[stderr] last\n");
+    }
+
+    fn running_inner(pid: u32, generation: u64) -> SidecarInner {
+        let (outgoing, _receiver) = mpsc::channel::<String>();
+        SidecarInner {
+            phase: SidecarPhase::Running(SidecarHandle {
+                pid,
+                generation,
+                socket_path: PathBuf::from("/tmp/conducted-fake.sock"),
+                log_path: PathBuf::from("/tmp/conducted-fake.log"),
+                outgoing,
+            }),
+            generation,
+            recent_restarts_ms: Vec::new(),
+            last_log_path: None,
+        }
+    }
+
+    #[test]
+    fn plat_09_only_the_newest_process_may_end_the_running_phase() {
+        let mut inner = running_inner(4242, 2);
+        assert_eq!(claim_exit(&mut inner, 1), None, "an older process is late");
+        assert!(matches!(inner.phase, SidecarPhase::Running(_)));
+        assert_eq!(claim_exit(&mut inner, 2), Some(4242));
+        assert!(matches!(inner.phase, SidecarPhase::Stopped));
+        assert_eq!(
+            claim_exit(&mut inner, 2),
+            None,
+            "the socket report after the exit report finds nothing to end"
+        );
+    }
+
+    #[test]
+    fn plat_09_shutdown_cancels_a_restart_that_is_waiting() {
+        let state = SidecarState {
+            inner: tauri::async_runtime::Mutex::new(SidecarInner {
+                phase: SidecarPhase::Restarting { attempt: 1 },
+                generation: 1,
+                recent_restarts_ms: Vec::new(),
+                last_log_path: None,
+            }),
+        };
+        tauri::async_runtime::block_on(shutdown(&state)).expect("shutdown");
+        let inner = tauri::async_runtime::block_on(state.inner.lock());
+        assert!(matches!(inner.phase, SidecarPhase::Stopped));
     }
 }

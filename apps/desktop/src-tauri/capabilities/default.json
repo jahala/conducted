@@ -1,7 +1,7 @@
 {
 	"$schema": "../gen/schemas/desktop-schema.json",
 	"identifier": "default",
-	"description": "What the main window may call. Keep this list as small as the features need.",
+	"description": "What the main window may call from Tauri and its plugins. Keep this list as small as the features need. The app's own commands (lib.rs) are not limited here yet: PLAT-29 adds that.",
 	"windows": ["main"],
 	"permissions": [
 		"core:default",

@@ -19,6 +19,9 @@
 //! - Output is captured up to `MAX_OUTPUT_BYTES` per stream. Past that the process is killed and
 //!   the call fails with `shell_output_too_large` instead of growing memory without bound.
 //! - Cancelling an id that already finished, or never existed, is a no-op that succeeds.
+//! - Quitting the app ends every command started with `shell_start`. Each runs in its own process
+//!   group, so closing the app would not reach it. `lib.rs` calls `terminate_all` when the app
+//!   exits: SIGTERM to every group, then SIGKILL to the groups still there after the grace period.
 //! - `shell_start` returns as soon as the process is registered. The result arrives later as a
 //!   `shell://done` event. The UI makes the id, because `RunningCommand.id` is read synchronously.
 //! - Two `shell_start` calls with the same id: the second fails with `shell_duplicate_id`.
@@ -242,8 +245,9 @@ fn set_running_pid(running: &Mutex<HashMap<String, RunningProcess>>, id: &str, p
     }
 }
 
-/// Reserves an id for a running process. An id that is already present is an error.
-pub fn register_running(
+/// Reserves an id and records the pid at once, for tests that start a process by hand.
+#[cfg(test)]
+fn register_running(
     running: &Mutex<HashMap<String, RunningProcess>>,
     id: String,
     pid: u32,
@@ -280,6 +284,41 @@ pub fn request_cancel(running: &Mutex<HashMap<String, RunningProcess>>, id: &str
         process.cancel_requested = true;
         (process.pid != 0).then_some(process.pid)
     })
+}
+
+/// Ends every registered run for good, for the moment the app quits: SIGTERM to each process
+/// group at once, then SIGKILL to the groups still alive after `grace`. Every run is marked as
+/// cancelled, so a run that ends meanwhile reports `shell_cancelled`. A reservation whose process
+/// has not started yet has no group to signal. Returns how many groups were signalled.
+pub fn terminate_all(running: &Mutex<HashMap<String, RunningProcess>>, grace: Duration) -> usize {
+    let pids: Vec<u32> = {
+        let mut table = lock_running(running);
+        table
+            .values_mut()
+            .filter_map(|process| {
+                process.cancel_requested = true;
+                (process.pid != 0).then_some(process.pid)
+            })
+            .collect()
+    };
+    let signalled: Vec<u32> = pids
+        .into_iter()
+        .filter(|pid| process_group::signal_group(*pid, process_group::SIGTERM))
+        .collect();
+    let deadline = Instant::now() + grace;
+    while Instant::now() < deadline
+        && signalled
+            .iter()
+            .any(|pid| process_group::group_exists(*pid))
+    {
+        thread::sleep(Duration::from_millis(20));
+    }
+    for pid in &signalled {
+        if process_group::group_exists(*pid) {
+            let _ = process_group::signal_group(*pid, process_group::SIGKILL);
+        }
+    }
+    signalled.len()
 }
 
 /// Removes a finished run and reports whether a cancel was requested for it.
@@ -1598,5 +1637,72 @@ mod tests {
             done.error.map(error_code).as_deref(),
             Some("shell_cancelled")
         );
+    }
+
+    #[test]
+    fn plat_03_quitting_ends_every_running_command_and_its_children() {
+        let first = spawn_child(&request("/bin/sh", &["-c", "sleep 30"]), &test_env())
+            .expect("the first command starts");
+        let second = spawn_child(&request("/bin/sh", &["-c", "sleep 30 & wait"]), &test_env())
+            .expect("the second command starts");
+        let (first_pid, second_pid) = (first.id(), second.id());
+        // The app's own waiter threads reap a finished command; these stand in for them.
+        let reapers: Vec<_> = [first, second]
+            .into_iter()
+            .map(|mut child| thread::spawn(move || child.wait()))
+            .collect();
+        let running = Mutex::new(HashMap::new());
+        register_running(&running, "first".into(), first_pid).expect("the id is new");
+        register_running(&running, "second".into(), second_pid).expect("the id is new");
+        reserve_running(&running, "reserved".into()).expect("the id is new");
+
+        let signalled = terminate_all(&running, Duration::from_secs(5));
+        for reaper in reapers {
+            reaper
+                .join()
+                .expect("the reaper finishes")
+                .expect("the command ends");
+        }
+
+        assert_eq!(signalled, 2, "the reservation has no group to signal");
+        assert!(!process_group::group_exists(first_pid));
+        assert!(
+            !process_group::group_exists(second_pid),
+            "the command's child must end with it"
+        );
+        assert!(remove_finished(&running, "first"));
+        assert!(remove_finished(&running, "reserved"));
+    }
+
+    #[test]
+    fn plat_03_quitting_kills_a_command_that_ignores_sigterm() {
+        let mut child = spawn_child(
+            &request(
+                "/bin/sh",
+                &["-c", "trap '' TERM; echo ready; while :; do sleep 1; done"],
+            ),
+            &test_env(),
+        )
+        .expect("the command starts");
+        let pid = child.id();
+        // Wait for the trap to be in place, or SIGTERM would end the shell before it ignores it.
+        let stdout = child.stdout.take().expect("stdout is piped");
+        let mut line = String::new();
+        std::io::BufReader::new(stdout)
+            .read_line(&mut line)
+            .expect("the ready line is read");
+        assert_eq!(line.trim(), "ready");
+        let reaper = thread::spawn(move || child.wait());
+        let running = Mutex::new(HashMap::new());
+        register_running(&running, "stubborn".into(), pid).expect("the id is new");
+
+        terminate_all(&running, Duration::from_millis(300));
+        let status = reaper
+            .join()
+            .expect("the reaper finishes")
+            .expect("the command ends");
+
+        assert_eq!(status.signal(), Some(9), "SIGKILL ended it after the grace");
+        assert!(!process_group::group_exists(pid));
     }
 }

@@ -9,9 +9,12 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { checkDataModel, renderTables } from "./data-model.ts";
 import { checkDocs } from "./docs.ts";
+import { placeholdersIn } from "./lib.ts";
 import { checkMigrations } from "./migrations.ts";
 import { checkHeaders, checkMarkers } from "./source-rules.ts";
+import { checkTestScripts } from "./test-scripts.ts";
 import { checkVersions } from "./versions.ts";
+import { checkWorkflows } from "./workflows.ts";
 
 let root = "";
 const put = (path: string, text: string) => {
@@ -47,6 +50,25 @@ describe("data-model", () => {
 		]);
 		put("docs/data-model.md", `# Data\n\n${table}\n`);
 		expect(checkDataModel(root)).toEqual([]);
+	});
+});
+
+describe("data-model table syntax", () => {
+	test("a lowercase, quoted or IF NOT EXISTS table is still checked for a lifetime", () => {
+		put(
+			"apps/desktop/src-tauri/migrations/0001_init.sql",
+			[
+				"create table lower_one (id TEXT);",
+				'CREATE TABLE IF NOT EXISTS "quoted_one" (id TEXT);',
+				"  CREATE VIRTUAL TABLE fts_one USING fts5(body);",
+			].join("\n"),
+		);
+		put("docs/data-model.md", "<!-- generated:tables -->\n<!-- /generated:tables -->\n");
+		const messages = checkDataModel(root).map((p) => p.message);
+		for (const name of ["lower_one", "quoted_one", "fts_one"]) {
+			expect(messages.some((m) => m.startsWith(`table ${name} `))).toBe(true);
+		}
+		expect(messages.some((m) => m.startsWith("table IF "))).toBe(false);
 	});
 });
 
@@ -94,6 +116,55 @@ describe("headers", () => {
 			"packages/a/src/stub.ts has placeholders but its header names no @feature",
 		);
 		expect(messages.some((m) => m.includes("good.ts"))).toBe(false);
+	});
+});
+
+describe("headers in nested scripts", () => {
+	test("flags a script in a sub-folder of scripts/ without a header", () => {
+		put("scripts/overnight/bare.ts", "export const x = 1;\n");
+		put("scripts/overnight/good.ts", "/** Does a thing. */\nexport const y = 2;\n");
+		const messages = checkHeaders(root).map((p) => p.message);
+		expect(messages).toContain("scripts/overnight/bare.ts has no header comment");
+		expect(messages.some((m) => m.includes("good.ts"))).toBe(false);
+	});
+});
+
+describe("placeholders", () => {
+	test("all three spellings are found, with their ids", () => {
+		const text =
+			'notImplemented("CHAT-03");\nnot_implemented!("PLAT-04")\nnot_implemented "SIDE-01"';
+		expect(placeholdersIn(text)).toEqual(["CHAT-03", "PLAT-04", "SIDE-01"]);
+		expect(placeholdersIn('notImplemented("not an id")')).toEqual([]);
+	});
+});
+
+describe("test-scripts", () => {
+	const manifest = (scripts: Record<string, string>) => JSON.stringify({ scripts });
+
+	test("flags a test script that passes with no tests, and tests nothing runs", () => {
+		put("apps/a/package.json", manifest({ test: "vitest run --passWithNoTests" }));
+		put("packages/b/package.json", manifest({}));
+		put("packages/b/src/b.test.ts", "");
+		put("packages/c/package.json", manifest({ test: "bun test" }));
+		put("packages/c/src/c.test.ts", "");
+		put("packages/d/package.json", manifest({}));
+		const messages = checkTestScripts(root).map((p) => p.message);
+		expect(messages).toEqual([
+			"apps/a/package.json has a test script that passes when no tests are found",
+			'packages/b/package.json has test files but no "test" script, so nothing runs them',
+		]);
+	});
+});
+
+describe("workflows", () => {
+	test("flags a job without a timeout and passes one with it", () => {
+		put(
+			".github/workflows/ci.yml",
+			"name: CI\non: push\njobs:\n  fast:\n    runs-on: ubuntu-latest\n    timeout-minutes: 10\n    steps: []\n  slow:\n    runs-on: macos-latest\n    steps: []\n",
+		);
+		expect(checkWorkflows(root).map((p) => p.message)).toEqual([
+			".github/workflows/ci.yml: job slow has no timeout-minutes",
+		]);
 	});
 });
 

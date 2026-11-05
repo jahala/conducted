@@ -4,13 +4,16 @@
  */
 import { expect, test } from "bun:test";
 import {
+	isRateLimited,
 	labelsOf,
 	MARKER,
 	milestoneOf,
 	parseBacklog,
 	parseHeader,
 	parseItems,
+	parseOnly,
 	renderIssue,
+	scanBacklog,
 } from "./model.ts";
 
 const BACKLOG = `# Feature backlog
@@ -72,4 +75,37 @@ test("an issue lists items by kind, links blockers, and carries its marker", () 
 	expect(body).toContain("**action**");
 	expect(body).toContain("- [ ] Steer from the queue _(scaffold: partly)_ · ui-map 3.4");
 	expect(body).toContain("Everything this feature covers (2)");
+});
+
+const HEAD =
+	"| ID | Feature | Owner | Research | P | Status | Needs |\n|---|---|---|---|---|---|---|\n";
+
+test("a row with a bad status, priority or need is reported, never dropped or defaulted", () => {
+	const text = `## Chat (CHAT)\n\n${HEAD}| CHAT-01 | A | D/core | r | 1 | wip |  |\n| CHAT-02 | B | D/core | r | 9 | stub |  |\n| CHAT-03 | C | D/core | r | 1 | stub | SIDE-3 |\n`;
+	const { rows, problems } = scanBacklog(text);
+	expect(problems).toEqual([
+		'CHAT-01 has status "wip"; use stub, done or planned',
+		'CHAT-02 has priority "9"; use 1, 2 or 3',
+		'CHAT-03 needs "SIDE-3", which is not a feature id',
+	]);
+	expect(rows.map((r) => r.id)).toEqual(["CHAT-03"]);
+	expect(() => parseBacklog(text)).toThrow("CHAT-01 has status");
+});
+
+test("--only: absent means all, a missing or malformed value is an error", () => {
+	expect(parseOnly(["bun", "sync.ts", "--apply"])).toEqual({ only: null });
+	expect(parseOnly(["--apply", "--only", "A-01,B-02"])).toEqual({
+		only: new Set(["A-01", "B-02"]),
+	});
+	expect("error" in parseOnly(["--apply", "--only"])).toBe(true);
+	expect("error" in parseOnly(["--only", "--apply"])).toBe(true);
+	expect(parseOnly(["--only", "A-01,oops"])).toEqual({
+		error: "--only has values that are not feature ids: oops",
+	});
+});
+
+test("only a rate limit is retried; a permission refusal is not", () => {
+	expect(isRateLimited("You have exceeded a secondary rate limit")).toBe(true);
+	expect(isRateLimited("HTTP 429: slow down")).toBe(true);
+	expect(isRateLimited("HTTP 403: Resource not accessible by integration")).toBe(false);
 });

@@ -8,7 +8,9 @@ import { checkDocs } from "./docs.ts";
 import type { Problem } from "./lib.ts";
 import { checkMigrations } from "./migrations.ts";
 import { checkHeaders, checkMarkers } from "./source-rules.ts";
+import { checkTestScripts } from "./test-scripts.ts";
 import { checkVersions } from "./versions.ts";
+import { checkWorkflows } from "./workflows.ts";
 
 const root = join(import.meta.dir, "../..");
 const guards: [string, (root: string) => Problem[]][] = [
@@ -18,6 +20,8 @@ const guards: [string, (root: string) => Problem[]][] = [
 	["headers", checkHeaders],
 	["markers", checkMarkers],
 	["versions", checkVersions],
+	["test-scripts", checkTestScripts],
+	["workflows", checkWorkflows],
 ];
 
 let failed = 0;

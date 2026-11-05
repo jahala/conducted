@@ -11,23 +11,29 @@
  *
  * Usage: bun scripts/overnight/node-gate.ts <FEATURE-ID>
  */
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
+import { isTestFile, placeholderPattern, walk } from "../guards/lib.ts";
 
-const SKIP = new Set(["node_modules", "dist", "target", "gen", ".git", ".context"]);
+const TOP_FOLDERS = ["apps", "packages", "bin"];
 
-export function* sourceFiles(dir: string): Generator<string> {
-	for (const name of readdirSync(dir)) {
-		if (SKIP.has(name)) continue;
-		const path = join(dir, name);
-		if (statSync(path).isDirectory()) yield* sourceFiles(path);
-		else if (/\.(ts|tsx|rs|sh)$/.test(name)) yield path;
+/** Every source file under the repo's code folders, as [path relative to root, text]. */
+export function readSources(root: string): [string, string][] {
+	const files: [string, string][] = [];
+	for (const top of TOP_FOLDERS) {
+		for (const path of walk(root, join(root, top), /\.(ts|tsx|rs|sh)$/)) {
+			files.push([relative(root, path), readFileSync(path, "utf8")]);
+		}
 	}
+	return files;
 }
 
+/** Files that still hold a placeholder for the id. Test files do not count, as in `pnpm stubs`. */
 export function placeholdersFor(id: string, files: Iterable<[string, string]>): string[] {
-	const pattern = new RegExp(`not_?[iI]mplemented!?\\s*\\(?\\s*"${id}"`);
-	return [...files].filter(([, text]) => pattern.test(text)).map(([path]) => path);
+	const pattern = placeholderPattern(id);
+	return [...files]
+		.filter(([path, text]) => !isTestFile(path) && text.search(pattern) !== -1)
+		.map(([path]) => path);
 }
 
 export function testsFor(id: string, files: Iterable<[string, string]>): string[] {
@@ -38,8 +44,7 @@ export function testsFor(id: string, files: Iterable<[string, string]>): string[
 	return [...files]
 		.filter(
 			([path, text]) =>
-				(/\.test\.tsx?$/.test(path) && pattern.test(text)) ||
-				(path.endsWith(".rs") && rust.test(text)),
+				(isTestFile(path) && pattern.test(text)) || (path.endsWith(".rs") && rust.test(text)),
 		)
 		.map(([path]) => path);
 }
@@ -56,11 +61,7 @@ if (import.meta.main) {
 		process.exit(64);
 	}
 	const root = process.cwd();
-	const files: [string, string][] = [];
-	for (const top of ["apps", "packages", "bin"]) {
-		for (const path of sourceFiles(join(root, top)))
-			files.push([relative(root, path), readFileSync(path, "utf8")]);
-	}
+	const files = readSources(root);
 	const left = placeholdersFor(id, files);
 	if (left.length > 0) {
 		console.error(`${id} still has placeholders in:\n${left.map((p) => `  ${p}`).join("\n")}`);
