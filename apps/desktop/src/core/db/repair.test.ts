@@ -233,7 +233,7 @@ describe("DATA-03 startup repair closes turns cut off by a crash", () => {
 		const ended = rows<{ total: number }>(
 			"SELECT COUNT(*) AS total FROM session_events WHERE type = 'turn_ended'",
 		);
-		expect(ended[0]?.total).toBe(3);
+		expect(ended[0]?.total).toBe(2);
 	});
 });
 

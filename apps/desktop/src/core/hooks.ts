@@ -132,17 +132,17 @@ function gitStateOf(
 }
 
 export const useRepos: Queries["useRepos"] = () => {
-	const repo = useServices().services.repo;
-	return useStore(repo.store, (state): Loadable<Repo[]> => {
-		if (!state.loaded) return { state: "loading" };
-		if (state.error !== undefined && state.error !== null) {
-			return { state: "error", error: state.error };
-		}
-		const data = state.order
-			.map((id) => state.reposById[id])
-			.filter((row): row is Repo => row !== undefined);
+	const store = useServices().services.repo.store;
+	const loaded = useStore(store, (state) => state.loaded);
+	const error = useStore(store, (state) => state.error);
+	const reposById = useStore(store, (state) => state.reposById);
+	const order = useStore(store, (state) => state.order);
+	return useMemo<Loadable<Repo[]>>(() => {
+		if (!loaded) return { state: "loading" };
+		if (error !== undefined && error !== null) return { state: "error", error };
+		const data = order.map((id) => reposById[id]).filter((row): row is Repo => row !== undefined);
 		return { state: "ready", data };
-	});
+	}, [loaded, error, reposById, order]);
 };
 
 /** Reads one slice of a service's store and re-renders when it changes. */

@@ -2,18 +2,31 @@ import type { WorkspaceId } from "@conducted/shared";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { Container } from "../core/container.ts";
+import { ServicesProvider } from "../core/context.tsx";
+import { RepoService, type RepoServiceDeps } from "../core/services/repo.ts";
 import "../test/dom-polyfills.ts";
 import { setCurrentWorkspace, workspaceToast } from "../ui/Toast.tsx";
 import { savePanelLayout } from "./layout-persistence.ts";
 import { AppProviders, createQueryClient } from "./providers.tsx";
 import { createAppRouter } from "./router.tsx";
 
+/** The sidebar reads the repo store and the action table; the other regions say what is unbuilt. */
+function testContainer(): Container {
+	return {
+		services: { repo: new RepoService({} as RepoServiceDeps) },
+		actions: {},
+	} as unknown as Container;
+}
+
 async function openApp(path = "/") {
 	const router = createAppRouter(createMemoryHistory({ initialEntries: [path] }));
 	render(
-		<AppProviders client={createQueryClient()}>
-			<RouterProvider router={router} />
-		</AppProviders>,
+		<ServicesProvider container={testContainer()}>
+			<AppProviders client={createQueryClient()}>
+				<RouterProvider router={router} />
+			</AppProviders>
+		</ServicesProvider>,
 	);
 	await router.load();
 	return router;
@@ -32,7 +45,7 @@ describe("NAV-01 app shell", () => {
 		expect(await screen.findByRole("heading", { name: "Run agents side by side" })).toBeTruthy();
 		expect(screen.getByRole("complementary", { name: "Sidebar" })).toBeTruthy();
 		expect(screen.getByRole("main")).toBeTruthy();
-		expect(screen.getByText("Not built yet: PRJ-01")).toBeTruthy();
+		expect(screen.getByText("Not built yet: NAV-03")).toBeTruthy();
 	});
 
 	it("comes back with the sidebar collapsed when the saved layout says so", async () => {

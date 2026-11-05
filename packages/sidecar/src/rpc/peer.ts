@@ -52,6 +52,9 @@ import type {
 /** Default time to wait for the app's reply. requestInteraction is exempt. */
 export const DEFAULT_REQUEST_TIMEOUT_MS = 20_000;
 
+/** json-rpc-2.0 rejects every pending request with this code when the connection closes. */
+const LIBRARY_CONNECTION_CLOSED_CODE = 0;
+
 /** One attached connection, reduced to what the peer needs. */
 export interface RpcTransport {
 	/** Writes one already-encoded line. */
@@ -357,7 +360,9 @@ function isResult(value: unknown): value is Result<unknown, AppError> {
 
 function errorFrom(cause: unknown, method: string): AppError {
 	if (cause instanceof JSONRPCErrorException) {
-		return appError(`rpc_error_${cause.code}`, cause.message, cause.data);
+		const code =
+			cause.code === LIBRARY_CONNECTION_CLOSED_CODE ? RPC_ERRORS.internalError : cause.code;
+		return appError(`rpc_error_${code}`, cause.message, cause.data);
 	}
 	if (cause instanceof RpcTimeoutError) {
 		return appError("rpc_timeout", cause.message);

@@ -255,7 +255,11 @@ describe("GIT-02 refresh limiter", () => {
 		await flush();
 		expect(started).toEqual(["b1", "b2", "b3", "b4", "foreground"]);
 
-		for (const release of gates) release();
+		// Each freed slot starts the next queued task, so release gates as they appear.
+		for (let index = 0; index < gates.length; index += 1) {
+			gates[index]?.();
+			await flush();
+		}
 		await Promise.all([...background, foreground]);
 	});
 });

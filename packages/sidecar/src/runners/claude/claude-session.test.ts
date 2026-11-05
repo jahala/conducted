@@ -949,7 +949,19 @@ describe("AGENT-02 Claude session", () => {
 
 		test("AGENT-04 a config change during a turn waits for the next turn", async () => {
 			const { query, script } = scriptedQuery();
-			const session = new ClaudeSession(makeDeps({ query }), start());
+			let turnCount = 0;
+			const session = new ClaudeSession(
+				makeDeps({
+					query,
+					// Distinct uuids per turn, as the real IdSource gives: a repeated uuid is treated
+					// as a result for the turn that already ended.
+					newUuid: () => {
+						turnCount += 1;
+						return `turn-${turnCount}`;
+					},
+				}),
+				start(),
+			);
 			const turn = session.runTurn(turnInput(), callbacks([]));
 			await until(() => script.prompts.length === 1);
 

@@ -9,7 +9,7 @@
 		"lint": "biome check . && shellcheck bin/*.sh",
 		"format": "biome format --write .",
 		"test": "bun scripts/check-runtime.ts && bun scripts/with-run-dir.ts pnpm run test:all",
-		"test:all": "pnpm -r --no-bail test; packages=$?; bun test scripts; scripts=$?; exit $((packages || scripts))",
+		"test:all": "pnpm -r --no-bail test; packages=$?; bun test ./scripts; scripts=$?; exit $((packages || scripts))",
 		"guards": "bun scripts/guards/run.ts",
 		"stubs": "bun scripts/check-stubs.ts",
 		"check": "pnpm typecheck && pnpm lint && pnpm test && pnpm guards && pnpm stubs",
