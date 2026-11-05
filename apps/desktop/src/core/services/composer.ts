@@ -169,15 +169,12 @@ export interface ComposerServiceDeps {
 	platform: Pick<Platform, "fs" | "dialogs" | "clipboard">;
 	repos: Pick<Repositories, "attachments">;
 	setDebounce: (callback: () => void, ms: number) => () => void;
-<<<<<<< HEAD
 	/** The chat tab open in a workspace, for "Attach in chat" (REV-06). */
 	activeSessionOf?: (workspaceId: WorkspaceId) => Result<SessionId | null>;
-=======
 	/** The workspace terminal's screen text, or null when the workspace has no terminal. */
 	terminalOutputOf?: (
 		sessionId: SessionId,
 	) => Promise<Result<{ text: string; source: string } | null>>;
->>>>>>> node/comp.04
 }
 
 export class ComposerService {

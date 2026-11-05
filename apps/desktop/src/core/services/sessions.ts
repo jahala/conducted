@@ -50,22 +50,13 @@
  * Read state is NAV-11's: mark a chat or a workspace read or unread, and remember the chat on
  * screen for notifications.
  * SIDE-20 owns `applyAgentConfig`, which stores a config the agent changed by itself.
-<<<<<<< HEAD
-<<<<<<< HEAD
  * AGENT-17 owns `loadAcpConfigOptions`, `setAcpOption` and the `acpConfigOptions` part of the
  * store: an ACP chat's own options beyond the model, fetched and kept per chat.
  * SIDE-21 owns the launch every send and warm carries (`launchFor`: a launch that cannot be built
  * fails the send with its reason and keeps the message for Retry), and `warm`, which starts a
  * chat's agent with its launch and resume token for the ACP options and for a chat the sidecar
  * lost (`sidecar/resume.ts`).
-=======
  * COMP-06 owns `restartAgent`: reset the sidecar's session and warm the agent again with resume.
->>>>>>> node/comp.06
-=======
- * AGENT-17 owns `loadAcpConfigOptions`, `setAcpOption` and the `acpConfigOptions` part of the
- * store: an ACP chat's own options beyond the model, fetched and kept per chat.
- * COMP-06 owns `restartAgent`: reset the sidecar's session and warm the agent again with resume.
->>>>>>> node/join.s1-ui-1
  */
 import {
 	type AcpConfigOption,
@@ -1734,11 +1725,13 @@ export class SessionsService implements AgentMessenger {
 			liveStates: { ...state.liveStates, [id]: idleLiveState },
 			cancelling: { ...state.cancelling, [id]: false },
 		}));
+		const built = await launchFor(session);
+		if (!built.ok) return built;
 		const warm = await this.#deps.sidecar.request("warmAgent", {
 			sessionId: id,
 			config: session.config,
 			workspace: workspace.value,
-			launch: await launchFor(session),
+			launch: built.value,
 			...(session.agentSessionId === null
 				? {}
 				: { resume: { agentSessionId: session.agentSessionId } }),

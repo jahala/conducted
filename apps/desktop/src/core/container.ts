@@ -499,11 +499,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 			const handle = setTimeout(callback, ms);
 			return () => clearTimeout(handle);
 		},
-<<<<<<< HEAD
 		activeSessionOf: (id) => {
 			const found = lookups.workspace(id);
 			return found.ok ? ok(found.value.activeSessionId) : found;
-=======
+		},
 		terminalOutputOf: async (sessionId) => {
 			const workspace = lookups.workspaceOfSession(sessionId);
 			if (!workspace.ok) return workspace;
@@ -515,7 +514,6 @@ export function createContainer(inputs: ContainerInputs): Container {
 			if (!output.ok) return output;
 			if (output.value.output === NO_TERMINAL_OUTPUT) return ok(null);
 			return ok({ text: output.value.output, source: output.value.source });
->>>>>>> node/comp.04
 		},
 	});
 	const notifications = new NotificationService({

@@ -37,18 +37,6 @@ export function GlobalOverlays() {
 	const open = useOverlayStore((state) => state.open);
 	const show = useOverlayStore((state) => state.show);
 	const close = useOverlayStore((state) => state.close);
-<<<<<<< HEAD
-	const { workspaceId } = useParams({ strict: false });
-	useCommandHandler("nav.quickOpenFile", "base", () => {
-		show("quick-open");
-		return true;
-	});
-	useCommandHandler("nav.searchInFiles", "base", () => {
-		show("search-files");
-		return true;
-	});
-=======
-	const show = useOverlayStore((state) => state.show);
 	const workspaceId = useRouterState({
 		select: (state) => {
 			for (let index = state.matches.length - 1; index >= 0; index -= 1) {
@@ -58,13 +46,18 @@ export function GlobalOverlays() {
 			return null;
 		},
 	});
-
+	useCommandHandler("nav.quickOpenFile", "base", () => {
+		show("quick-open");
+		return true;
+	});
+	useCommandHandler("nav.searchInFiles", "base", () => {
+		show("search-files");
+		return true;
+	});
 	useCommandHandler("app.commandPalette", "base", () => {
 		show("palette");
 		return true;
 	});
-
->>>>>>> node/nav.08
 	if (open === null) return null;
 	const { area, Component } = overlays[open];
 	return (

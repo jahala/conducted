@@ -23,14 +23,11 @@ vi.mock("../../core/hooks.ts", () => ({
 	useWorkspaceStatus: () => null,
 	useSetting: () => false,
 	useLiveShortcut: () => null,
-<<<<<<< HEAD
 	useFileTree: () => ({ state: "loading" }),
 	useWorkspace: () => ({ state: "loading" }),
 	useSessions: () => ({ state: "loading" }),
 	useChangedFiles: () => ({ state: "loading" }),
-=======
 	useDiffComments: () => ({ state: "ready", data: [] }),
->>>>>>> node/pr.04
 	useActions: () => ({
 		git: {},
 		pullRequests: { requestAiReview: state.requestAiReview },

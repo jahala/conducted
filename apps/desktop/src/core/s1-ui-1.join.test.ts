@@ -317,9 +317,10 @@ describe("s1-ui-1 join", () => {
 		try {
 			const workspace = await seedWorkspace(test.container);
 			const created = must(await test.container.services.sessions.create(workspace.id, CONFIG));
-			const added = vi
-				.spyOn(test.container.services.composer, "addTerminalOutput")
-				.mockResolvedValue(ok("/tmp/join-terminal-output.txt"));
+			// seam: COMP-04 reads the screen through RUN-07's outputFor; PLAT-08 saves no screen yet.
+			const outputFor = vi
+				.spyOn(test.container.services.terminals, "outputFor")
+				.mockResolvedValue(ok({ output: "build finished\n", source: "Terminal", running: false }));
 			let editor: Editor | null = null;
 
 			render(
@@ -341,7 +342,7 @@ describe("s1-ui-1 join", () => {
 
 			fireEvent.click(await screen.findByText("Attach current terminal output"));
 
-			await waitFor(() => expect(added).toHaveBeenCalledWith(created.id));
+			await waitFor(() => expect(outputFor).toHaveBeenCalledWith(workspace.id, "auto", 1_000));
 		} finally {
 			await test.container.stop();
 			test.close();

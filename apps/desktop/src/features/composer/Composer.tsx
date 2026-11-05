@@ -40,16 +40,8 @@ import { WrenchIcon } from "../../ui/icons.tsx";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { toastError } from "../../ui/Toast.tsx";
-<<<<<<< HEAD
-<<<<<<< HEAD
-import { AcpOptions } from "./AcpOptions.tsx";
-=======
-import { ContextWheel } from "../chat/ContextWheel.tsx";
->>>>>>> node/chat.14
-=======
 import { ContextWheel } from "../chat/ContextWheel.tsx";
 import { AcpOptions } from "./AcpOptions.tsx";
->>>>>>> node/join.s1-ui-1
 import { ComposerEditor } from "./ComposerEditor.tsx";
 import { buildComposerExtensions } from "./composer-extensions.ts";
 import { ModeChips } from "./ModeChips.tsx";

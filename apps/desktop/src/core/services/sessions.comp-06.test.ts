@@ -128,7 +128,7 @@ function harness(overrides: Partial<SessionsServiceDeps> = {}): Harness {
 		},
 		queue,
 		notifications: { onLiveStateChanged: () => {} },
-		launchFor: () => ({ env: {}, providerKeys: {} }),
+		launchFor: async () => ok({ env: {}, providerKeys: {} }),
 		workspaceContextOf: async () => ok(workspace),
 		defaultConfig: async () => ok(config),
 		setting: <T>(key: string): T => ({ custom_prompt_general: "" })[key] as T,
