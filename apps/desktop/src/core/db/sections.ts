@@ -3,7 +3,8 @@
  * Owns: the sidebar sections and which workspaces sit in them, in order.
  * Behaviour: services-map.md 2.3.5 (navigation_sections: replace scope in one immediate
  * transaction). Our tables are simpler: no scopes, no updated_at guard.
- * Must handle: replacing a section's members runs several statements in one transaction;
+ * Must handle: replacing a section's members runs several statements in one transaction; a rename
+ * or collapse of a missing section returns `db.not_found`.
  * Our design choice: a workspace is in at most one section, so adding it to a section removes it
  * from the others; positions are 0-based and written from the order of a JSON list; deleting a
  * section deletes its members only, never the workspaces; a workspace delete cascades to its
@@ -15,6 +16,7 @@ import type { Database } from "../../platform/platform.ts";
 import type { Section } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
 import {
+	executeExisting,
 	executeStatement,
 	executeVoid,
 	fromFlag,
@@ -198,9 +200,14 @@ export function createSectionRepository(db: Database, deps: RepositoryDeps): Sec
 				return written.ok ? ok(section) : err(written.error);
 			}),
 		rename: (id, name, emoji) =>
-			executeVoid(db, SECTIONS_SQL.rename, [name, emoji, id], "Renaming a section"),
+			executeExisting(db, SECTIONS_SQL.rename, [name, emoji, id], "Renaming a section"),
 		setCollapsed: (id, collapsed) =>
-			executeVoid(db, SECTIONS_SQL.setCollapsed, [toFlag(collapsed), id], "Collapsing a section"),
+			executeExisting(
+				db,
+				SECTIONS_SQL.setCollapsed,
+				[toFlag(collapsed), id],
+				"Collapsing a section",
+			),
 		reorder: async (orderedIds) => {
 			const json = stringifyJson(orderedIds, "sections.ids");
 			if (!json.ok) return err(json.error);
@@ -209,14 +216,14 @@ export function createSectionRepository(db: Database, deps: RepositoryDeps): Sec
 		delete: (id) => executeVoid(db, SECTIONS_SQL.delete, [id], "Removing a section"),
 		moveWorkspace: async (workspaceId, toSectionId, position) =>
 			inTransaction(db, "Moving a workspace to a section", async (tx) => {
-				const removed = await executeStatement(
+				const removed = await executeVoid(
 					tx,
 					SECTIONS_SQL.removeFromAllSections,
 					[workspaceId],
 					"Moving a workspace to a section",
 				);
 				if (!removed.ok) return err(removed.error);
-				const added = await executeStatement(
+				return executeVoid(
 					tx,
 					position === undefined ? SECTIONS_SQL.addMemberAtEnd : SECTIONS_SQL.addMember,
 					position === undefined
@@ -224,7 +231,6 @@ export function createSectionRepository(db: Database, deps: RepositoryDeps): Sec
 						: [toSectionId, workspaceId, position],
 					"Moving a workspace to a section",
 				);
-				return added.ok ? ok(undefined) : err(added.error);
 			}),
 		removeWorkspace: (sectionId, workspaceId) =>
 			executeVoid(

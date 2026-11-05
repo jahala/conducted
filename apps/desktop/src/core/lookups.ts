@@ -18,7 +18,7 @@
  * `repo_config_unloaded`, never a guessed name.
  * Test first: gitContext for a workspace targeting "upstream/dev" has remote "upstream".
  */
-import type { SessionConfig, WorkspaceContext } from "@conducted/protocol";
+import { type SessionConfig, type WorkspaceContext, zEffort } from "@conducted/protocol";
 import {
 	appError,
 	err,
@@ -165,11 +165,23 @@ export function defaultSessionConfig(
 	const workspace = lookups.workspace(workspaceId);
 	if (!workspace.ok) return workspace;
 	const model = setting<string>("default_model");
-	const effort = setting<string>("default_claude_effort_level") || "high";
+	// An empty setting means "Model default", but a chat config needs a level, so it opens at
+	// "high" until the protocol can say "the model's own default" (see the findings, CONTRACT).
+	const effortSetting = setting<string>("default_claude_effort_level") || "high";
+	const effort = zEffort.safeParse(effortSetting);
+	if (!effort.success) {
+		return err(
+			appError(
+				"setting_invalid",
+				`The default effort level "${effortSetting}" is not one a chat can use. Pick another in Settings.`,
+				effort.error,
+			),
+		);
+	}
 	return ok({
 		agent: "claude",
 		model: model.length > 0 ? model : "default",
-		effort: effort as SessionConfig["effort"],
+		effort: effort.data,
 		fastMode: setting<boolean>("default_fast_mode"),
 		planMode: setting<boolean>("default_plan_mode"),
 		requireToolApproval: setting<boolean>("tool_approvals_enabled"),

@@ -22,7 +22,13 @@ import {
 import type { Database } from "../../platform/platform.ts";
 import type { Terminal } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
-import { executeStatement, executeVoid, inTransaction, selectRows } from "./row-codec.ts";
+import {
+	executeExisting,
+	executeStatement,
+	executeVoid,
+	inTransaction,
+	selectRows,
+} from "./row-codec.ts";
 
 export interface TerminalRow {
 	id: TerminalId;
@@ -188,7 +194,7 @@ export function createTerminalRepository(db: Database, deps: RepositoryDeps): Te
 				});
 			}),
 		setTitle: (id, title) =>
-			executeVoid(db, TERMINALS_SQL.setTitle, [title, id], "Titling a terminal"),
+			executeExisting(db, TERMINALS_SQL.setTitle, [title, id], "Titling a terminal"),
 		setSize: (id, cols, rows) =>
 			executeVoid(db, TERMINALS_SQL.setSize, [cols, rows, id], "Resizing a terminal"),
 		getScreenState: async () => notImplemented("PLAT-08"),

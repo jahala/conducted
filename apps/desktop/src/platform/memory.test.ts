@@ -57,6 +57,7 @@ const harness: ContractHarness = {
 };
 
 let caseNumber = 0;
+let contractIdCounter = 0;
 
 runPlatformContract(
 	harness,
@@ -67,7 +68,9 @@ runPlatformContract(
 		db.exec("PRAGMA foreign_keys = ON");
 		const memory = createMemoryPlatform({
 			clock: { now: () => 1_700_000_000_000 + caseNumber },
-			ids: { uuid: () => `00000000-0000-4000-8000-${String(caseNumber).padStart(12, "0")}` },
+			ids: {
+				uuid: () => `00000000-0000-4000-8000-${String(++contractIdCounter).padStart(12, "0")}`,
+			},
 			database: createDatabase(db),
 			version: "0.0.0-test",
 			channel: "dev",
@@ -95,12 +98,11 @@ runPlatformContract(
 let nextId = 0;
 
 function freshPlatform() {
-	nextId++;
 	const db = new DatabaseSync(":memory:");
 	db.exec("PRAGMA foreign_keys = ON");
 	const memory = createMemoryPlatform({
 		clock: { now: () => 42 },
-		ids: { uuid: () => `uuid-${nextId}` },
+		ids: { uuid: () => `uuid-${++nextId}` },
 		database: createDatabase(db),
 	});
 	return { memory, db };
@@ -141,8 +143,70 @@ describe("PLAT-01 in-memory Platform", () => {
 			expect(write.ok).toBe(true);
 			const stat = await memory.platform.fs.stat("/work/file.txt");
 			expect(stat.ok && stat.value.modifiedAt).toBe(42);
-			const spawned = await memory.platform.pty.spawn({ cwd: "/", cols: 80, rows: 24 });
-			expect(spawned.ok && spawned.value.id).toMatch(/^uuid-\d+$/);
+			const first = await memory.platform.pty.spawn({ cwd: "/", cols: 80, rows: 24 });
+			const second = await memory.platform.pty.spawn({ cwd: "/", cols: 80, rows: 24 });
+			const running = memory.platform.shell.start({ program: "/bin/true", args: [], cwd: "/" });
+			const ids = [first.ok && first.value.id, second.ok && second.value.id, running.id];
+			expect(ids.every((id) => typeof id === "string" && /^uuid-\d+$/.test(id))).toBe(true);
+			expect(new Set(ids).size).toBe(3);
+		} finally {
+			db.close();
+		}
+	});
+
+	it("ends a cancelled shell.start with shell_cancelled, as the Rust shell does", async () => {
+		const { db, memory } = freshPlatform();
+		try {
+			memory.controls.holdNextStart();
+			const running = memory.platform.shell.start({ program: "/bin/sleep", args: ["5"], cwd: "/" });
+			await running.cancel();
+			const result = await running.done;
+			expect(result.ok).toBe(false);
+			if (!result.ok) expect(result.error.code).toBe("shell_cancelled");
+		} finally {
+			db.close();
+		}
+	});
+
+	it("keeps a queued dialog answer for the dialog kind it was queued for", async () => {
+		const { db, memory } = freshPlatform();
+		try {
+			memory.controls.queueDialogAnswers({ confirm: true });
+			expect(await memory.platform.dialogs.pickFolder({ title: "x" })).toBeNull();
+			expect(await memory.platform.dialogs.pickFiles({ title: "x", multiple: true })).toEqual([]);
+			expect(
+				await memory.platform.dialogs.confirm({ title: "x", message: "y", okLabel: "z" }),
+			).toBe(true);
+		} finally {
+			db.close();
+		}
+	});
+
+	it("returns no matches for a grep limit of 0", async () => {
+		const { db, memory } = freshPlatform();
+		try {
+			await memory.platform.fs.writeTextAtomic("/r/a.txt", "needle");
+			const result = await memory.platform.fileSearch.grep("/r", "needle", {
+				caseSensitive: false,
+				wholeWord: false,
+				regex: false,
+				limit: 0,
+			});
+			expect(result).toEqual({ ok: true, value: [] });
+		} finally {
+			db.close();
+		}
+	});
+
+	it("rejects a listArtifacts cursor it did not hand out", async () => {
+		const { db, memory } = freshPlatform();
+		try {
+			const result = await memory.platform.fileSearch.listArtifacts("/w", {
+				cursor: "abc",
+				limit: 5,
+			});
+			expect(result.ok).toBe(false);
+			if (!result.ok) expect(result.error.code).toBe("invalid_cursor");
 		} finally {
 			db.close();
 		}

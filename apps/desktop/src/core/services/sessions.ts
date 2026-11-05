@@ -225,6 +225,11 @@ export class SessionsService implements AgentMessenger {
 	readonly #interactionPromises = new Map<string, Promise<InteractionAnswer>>();
 	/** Bumped by cancel, so a send that finishes afterwards returns to the draft instead of running. */
 	readonly #cancelVersions = new Map<string, number>();
+	/** Loads of stored events in progress, with the events that arrived meanwhile. */
+	readonly #opening = new Map<
+		string,
+		{ promise: Promise<Result<void>>; buffered: StoredEvent[] }
+	>();
 
 	constructor(deps: SessionsServiceDeps) {
 		this.#deps = deps;
@@ -419,6 +424,11 @@ export class SessionsService implements AgentMessenger {
 		const removed = await this.#deps.repositories().sessions.delete(id);
 		if (!removed.ok) return removed;
 		this.#turns.delete(id);
+		this.#cancelVersions.delete(id);
+		// An open card would leave the sidecar's request waiting for an answer that never comes.
+		const openCard = this.store.getState().openInteractions[id];
+		if (openCard !== undefined)
+			this.#settleInteraction(openCard.interactionId, { kind: "withdrawn" });
 		this.store.setState((state) => {
 			const sessions = { ...state.sessions };
 			delete sessions[id];
@@ -426,10 +436,22 @@ export class SessionsService implements AgentMessenger {
 			delete liveStates[id];
 			const events = { ...state.events };
 			delete events[id];
+			const sending = { ...state.sending };
+			delete sending[id];
+			const failedSends = { ...(state.failedSends ?? {}) };
+			delete failedSends[id];
+			const openInteractions = { ...state.openInteractions };
+			delete openInteractions[id];
+			const cancelling = { ...state.cancelling };
+			delete cancelling[id];
 			return {
 				sessions,
 				liveStates,
 				events,
+				sending,
+				failedSends,
+				openInteractions,
+				cancelling,
 				byWorkspace: {
 					...state.byWorkspace,
 					[found.value.workspaceId]: (state.byWorkspace[found.value.workspaceId] ?? []).filter(
@@ -442,20 +464,34 @@ export class SessionsService implements AgentMessenger {
 		return ok(undefined);
 	}
 
-	/** Loads the stored events of a chat the first time it is shown. */
-	async open(id: SessionId): Promise<Result<void>> {
-		if (this.store.getState().events[id] !== undefined) return ok(undefined);
+	/**
+	 * Loads the stored events of a chat the first time it is shown. Calls that overlap share one
+	 * load. An event stored while the load runs is kept and merged in, so it is not lost.
+	 */
+	open(id: SessionId): Promise<Result<void>> {
+		if (this.store.getState().events[id] !== undefined) return Promise.resolve(ok(undefined));
+		const inFlight = this.#opening.get(id);
+		if (inFlight !== undefined) return inFlight.promise;
+		const buffered: StoredEvent[] = [];
+		const promise = this.#loadEvents(id, buffered).finally(() => {
+			this.#opening.delete(id);
+		});
+		this.#opening.set(id, { promise, buffered });
+		return promise;
+	}
+
+	async #loadEvents(id: SessionId, buffered: StoredEvent[]): Promise<Result<void>> {
 		const found = await this.#session(id);
 		if (!found.ok) return found;
 		const repositories = this.#deps.repositories();
 		const last = await repositories.sessionEvents.lastIdx(id);
 		if (!last.ok) return last;
-		const events: StoredEvent[] = [];
+		const byIdx = new Map<number, StoredEvent>();
 		if (last.value !== null) {
 			const stored = await repositories.sessionEvents.listFrom(id, 0, last.value + 1);
 			if (!stored.ok) return stored;
 			for (const row of stored.value) {
-				events.push({
+				byIdx.set(row.idx, {
 					idx: row.idx,
 					event: row.event,
 					receivedAt: row.receivedAt,
@@ -463,6 +499,10 @@ export class SessionsService implements AgentMessenger {
 				});
 			}
 		}
+		for (const event of buffered) {
+			if (!byIdx.has(event.idx)) byIdx.set(event.idx, event);
+		}
+		const events = [...byIdx.values()].sort((a, b) => a.idx - b.idx);
 		this.store.setState((state) => ({ events: { ...state.events, [id]: events } }));
 		return ok(undefined);
 	}
@@ -547,8 +587,13 @@ export class SessionsService implements AgentMessenger {
 				: { resume: { agentSessionId: session.agentSessionId } }),
 		});
 		if (this.#cancelVersionOf(session.id) !== cancelVersion) {
+			// A cancel that dropped this message already put it back in the draft and removed it from
+			// the pending list. Restoring it again would show the text twice.
+			const cancelTookIt = !(this.store.getState().sending[session.id] ?? []).some(
+				(entry) => entry.messageId === pending.messageId,
+			);
 			this.#removeSending(session.id, pending.messageId);
-			await this.#restoreDroppedToDraft(session.id, [pending]);
+			if (!cancelTookIt) await this.#restoreDroppedToDraft(session.id, [pending]);
 			return err(appError("cancelled", "The message was cancelled before it was sent."));
 		}
 		if (!result.ok) {
@@ -746,9 +791,11 @@ export class SessionsService implements AgentMessenger {
 		const dropped = new Set(cancelled.value.droppedMessageIds);
 		const pending = this.store.getState().sending[id] ?? [];
 		const toRestore = pending.filter((entry) => dropped.has(entry.messageId));
+		// Take the dropped messages off the pending list before any await, so a send that finishes
+		// meanwhile sees that the cancel owns them.
+		for (const messageId of dropped) this.#removeSending(id, messageId);
 		const paused = await this.#deps.queue.pauseOnCancel(id);
 		const restored = await this.#restoreDroppedToDraft(id, toRestore);
-		for (const messageId of dropped) this.#removeSending(id, messageId);
 		this.#setCancelling(id, false);
 		return paused.ok ? restored : paused;
 	}
@@ -1076,6 +1123,7 @@ export class SessionsService implements AgentMessenger {
 		event: SessionEvent,
 		receivedAt: number,
 	): void {
+		this.#opening.get(sessionId)?.buffered.push({ idx, event, receivedAt, revertedAt: null });
 		const closedInteractionId =
 			event.type === "turn_ended"
 				? (this.store.getState().openInteractions[sessionId]?.interactionId ?? null)
@@ -1257,7 +1305,13 @@ export class SessionsService implements AgentMessenger {
 		if (!found.ok) return found;
 		const cancelVersion = this.#cancelVersionOf(id);
 		this.#removeFailed(id, messageId);
-		return this.#submit(found.value, failed, cancelVersion);
+		const submitted = await this.#submit(found.value, failed, cancelVersion);
+		// A failure before the sidecar was asked must not lose the message. A cancel has already
+		// put it back in the draft.
+		if (!submitted.ok && submitted.error.code !== "cancelled") {
+			this.#addFailed(id, { ...failed, error: submitted.error });
+		}
+		return submitted;
 	}
 
 	/** Drops a message the sidecar did not accept and puts its text back in the composer. */

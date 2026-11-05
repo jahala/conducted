@@ -4,8 +4,11 @@
  * value. Nothing here runs a process. The runner (runner.ts) executes the value.
  * Behaviour: services-map.md part 3 (3.1 create, 3.3 polling, 3.4 diffs, 3.6 push and pull,
  * 3.10 archive, 3.11 rename and retarget, 3.12 checkpoints, 3.13 worktree config, 3.15 minimal set).
- * Must handle: arguments are an array and are never joined into a shell string; user-controlled
- * names (branches, paths) are always separate array items, so they cannot inject options;
+ * Must handle: arguments are an array and are never joined into a shell string, so a name cannot
+ * add shell syntax; remote and branch names for fetch, push, remote and branch commands come after
+ * `--`, so a name that looks like an option is read as a name; revision arguments (checkout,
+ * rev-parse, diff, log) have no such guard, because those commands read `--` as "paths follow":
+ * callers pass refs git itself listed, and git refuses to create a ref that starts with `-`;
  * paths passed to `diff` use the `:(literal)` pathspec; exit codes that carry meaning (1 from
  * `--verify --quiet`, 1 from `--no-index`) are listed in `okExitCodes`.
  * Our design choice: the app never runs `commit`, `rebase`, `merge` (except fast-forward) or
@@ -60,9 +63,10 @@ export const configGetWorktree = (key: string): GitCommand =>
 export const configSet = (key: string, value: string): GitCommand => git(["config", key, value]);
 export const configSetWorktree = (key: string, value: string): GitCommand =>
 	git(["config", "--worktree", key, value]);
-export const remoteGetUrl = (remote: string): GitCommand => git(["remote", "get-url", remote]);
+export const remoteGetUrl = (remote: string): GitCommand =>
+	git(["remote", "get-url", "--", remote]);
 export const remoteSetUrl = (remote: string, url: string): GitCommand =>
-	git(["remote", "set-url", remote, url]);
+	git(["remote", "set-url", "--", remote, url]);
 export const symbolicRefRemoteHead = (remote: string): GitCommand =>
 	git(["symbolic-ref", `refs/remotes/${remote}/HEAD`], { okExitCodes: [0, 128] });
 export const catFileCommit = (ref: string): GitCommand => git(["cat-file", "commit", ref]);
@@ -79,7 +83,7 @@ export const cloneWithProgress = (url: string, destination: string): GitCommand 
 
 /** Fetch without touching FETCH_HEAD, so concurrent fetches do not fight (services-map 3.6.5). */
 export const fetch = (remote: string, refspecs: readonly string[] = []): GitCommand =>
-	git(["fetch", "--no-write-fetch-head", "--prune", remote, ...refspecs], { network: true });
+	git(["fetch", "--no-write-fetch-head", "--prune", "--", remote, ...refspecs], { network: true });
 
 export const worktreeAddNewBranch = (path: string, branch: string, startSha: string): GitCommand =>
 	git(["worktree", "add", path, "-b", branch, startSha], { retryOnLock: false });
@@ -104,10 +108,12 @@ export const lsFilesUnmerged = (): GitCommand => git(["ls-files", "-u"]);
 // ---------------------------------------------------------------- branches
 
 export const branchCreate = (name: string, startPoint: string): GitCommand =>
-	git(["branch", name, startPoint]);
+	git(["branch", "--", name, startPoint]);
 export const branchRename = (oldName: string | null, newName: string): GitCommand =>
-	git(oldName === null ? ["branch", "-m", newName] : ["branch", "-m", oldName, newName]);
-export const branchDeleteForce = (name: string): GitCommand => git(["branch", "-D", name]);
+	git(
+		oldName === null ? ["branch", "-m", "--", newName] : ["branch", "-m", "--", oldName, newName],
+	);
+export const branchDeleteForce = (name: string): GitCommand => git(["branch", "-D", "--", name]);
 export const branchListLocal = (): GitCommand =>
 	git(["branch", "--format=%(refname:short)", "--sort=-committerdate"]);
 export const forEachRefRemoteBranches = (remote: string): GitCommand =>
@@ -165,7 +171,7 @@ export const revListLeftRightCount = (a: string, b: string): GitCommand =>
 	git(["rev-list", "--left-right", "--count", `${a}...${b}`]);
 export const revListCount = (range: string): GitCommand => git(["rev-list", "--count", range]);
 export const logRange = (range: string): GitCommand =>
-	git(["log", range, "--format=%H|%s|%an|%ae|%at"]);
+	git(["log", range, "--format=%H%x1f%s%x1f%an%x1f%ae%x1f%at"]);
 
 // ---------------------------------------------------------------- local-git forge (3.7.7)
 
@@ -321,9 +327,9 @@ export const diffWorkingTree = (base: string, statOnly: boolean, path?: string):
 // ---------------------------------------------------------------- push and pull (3.6)
 
 export const pushHeadTo = (remote: string, remoteBranch: string): GitCommand =>
-	git(["push", remote, `HEAD:${remoteBranch}`], { network: true });
+	git(["push", "--", remote, `HEAD:${remoteBranch}`], { network: true });
 export const pushHeadSetUpstream = (remote: string, remoteBranch: string): GitCommand =>
-	git(["push", "-u", remote, `HEAD:${remoteBranch}`], { network: true });
+	git(["push", "-u", "--", remote, `HEAD:${remoteBranch}`], { network: true });
 export const pushPlain = (): GitCommand => git(["push"], { network: true });
 export const pull = (): GitCommand => git(["pull"], { network: true });
 export const mergeFastForwardOnly = (ref: string): GitCommand => git(["merge", "--ff-only", ref]);

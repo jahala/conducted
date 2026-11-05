@@ -4,17 +4,27 @@
  * method that does the work. If a method is missing or has the wrong shape, this file does not
  * compile.
  * Behaviour: services-map.md 1.3 (services behind a facade), api.ts (the contract).
- * Must handle: every action returns a `Result` and never throws for expected failures; actions
+ * Must handle: every action returns a `Result` and never throws for expected failures (the
+ * link opener and the folder picker reject when the system refuses; both become an Err); actions
  * that change data go through the services, never through repositories; `saveDraft` returns at
  * once (the composer service debounces the write).
  * Our design choice: plain wrapper functions, no proxies or magic, so a stack trace names the
  * service method.
  * Test first: createActions returns an object with every group named in the Actions interface.
  */
-import { ok } from "@conducted/shared";
+import { appError, err, ok, type Result } from "@conducted/shared";
 import type { Platform } from "../platform/platform.ts";
 import type { Actions } from "./api.ts";
 import type { Services } from "./container.ts";
+
+/** Runs a platform call that reports failure by rejecting, and returns the failure as a Result. */
+async function settle<T>(code: string, message: string, run: () => Promise<T>): Promise<Result<T>> {
+	try {
+		return ok(await run());
+	} catch (cause) {
+		return err(appError(code, message, cause));
+	}
+}
 
 export function createActions(
 	services: Services,
@@ -223,11 +233,14 @@ export function createActions(
 			checkForUpdates: () => services.updates.check(),
 			installUpdate: () => services.updates.install(),
 			exportLogs: () => platform.app.exportLogs(),
-			openUrl: async (url) => {
-				await platform.opener.openUrl(url);
-				return ok(undefined);
-			},
-			pickFolder: async (title) => ok(await platform.dialogs.pickFolder({ title })),
+			openUrl: (url) =>
+				settle("open_url_failed", "The link could not be opened.", () =>
+					platform.opener.openUrl(url),
+				),
+			pickFolder: (title) =>
+				settle("pick_folder_failed", "The folder picker could not be opened.", () =>
+					platform.dialogs.pickFolder({ title }),
+				),
 			recheckGitHubAccess: () => services.github.recheckAccess(),
 			createDiagnosticsChat: (workspaceId) => services.sessions.createDiagnosticsChat(workspaceId),
 			copyText: (text) => services.system.copyText(text),

@@ -94,13 +94,15 @@ export const LIFETIME_SQL = {
 
 	/**
 	 * Turns not yet compacted whose workspace was archived before `$1` (the archive time is the
-	 * workspace's updated_at), at most `$2`. Each row feeds the three compact statements below.
+	 * workspace's archived_at, set by migration 0002; updated_at moves with every later edit), at
+	 * most `$2`. A workspace with no archived_at is left alone. Each row feeds the three compact
+	 * statements below.
 	 */
 	findCompactableTurns: `SELECT t.session_id, t.turn_id FROM session_events t
 		JOIN sessions s ON s.id = t.session_id
 		JOIN workspaces w ON w.id = s.workspace_id
 		WHERE t.type = 'turn_ended' AND json_extract(t.content, '$.compacted') IS NULL
-			AND w.state = 'archived' AND w.updated_at < $1
+			AND w.state = 'archived' AND w.archived_at < $1
 		ORDER BY t.session_id, t.idx LIMIT $2`,
 	/** Compact step 1 (`$1` session, `$2` turn): the last event with text keeps only text and usage. */
 	compactStripKeptEvent: `UPDATE session_events

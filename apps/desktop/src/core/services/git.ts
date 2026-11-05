@@ -5,10 +5,15 @@
  * Behaviour: services-map.md 3.3.1 (schedule, depths, staleness, concurrency) and 3.3.3 (a
  * cheaper poll reads only the local branch, and an answer for a branch that has since changed is
  * dropped).
- * Must handle: only the visible workspace polls fast (5 s); a result younger than 0.9 of the
- * interval is reused; at most four refreshes at once, foreground first; an answer whose branch
- * differs from the branch the request was made for is dropped; a failed poll keeps the last
- * snapshot and records the error.
+ * Must handle: every watched workspace polls every 5 s at the deepest depth any watcher asked
+ * for; a result younger than 0.9 of the interval is reused; at most four refreshes at once
+ * (the limiter runs foreground requests first, and every caller today is foreground); an answer
+ * whose branch differs from the branch the request was made for is dropped; a failed poll keeps
+ * the last snapshot and records the error; a path or commit id from a screen that could leave the
+ * workspace or read as a git option is refused; discarding a file moves a file the branch added to
+ * the Trash and stops when git cannot say whether the base has the file; viewed marks are saved
+ * one write at a time per workspace.
+ * Not built yet: only the visible workspace polling fast (GIT-13 owns the fetching rules).
  * Our design choice: this class exposes snapshots only. The Git header state machine and the
  * merge with pull request info belong to GIT-04, the git actions (push, pull, retarget, rename,
  * discard and the rest) belong to their own features, and the restart cache belongs to DATA-07.
@@ -32,6 +37,7 @@ import type { FileSystem, Unsubscribe } from "../../platform/platform.ts";
 import type { ChangedFile, DiffScope } from "../api.ts";
 import { viewedFilesFile } from "../app-paths.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
+import { createKeyedQueue } from "../async/serial-queue.ts";
 import {
 	catFileExists,
 	diffWorkingTree,
@@ -60,6 +66,32 @@ import {
 import type { GitState } from "../model.ts";
 import type { GitCache } from "./git-cache.ts";
 import type { AgentMessenger } from "./sessions.ts";
+
+const DEPTH_RANK: Readonly<Record<PollDepth, number>> = { metadata: 0, uncommitted: 1, full: 2 };
+
+/**
+ * A path a screen sends, checked to stay inside the workspace folder. Absolute paths, `..`
+ * segments and NUL bytes are refused, so `${cwd}/${path}` cannot reach another folder.
+ */
+export function workspaceRelativePath(path: string): Result<string> {
+	const outside = (): Result<string> =>
+		err(appError("path_outside_workspace", `"${path}" is not inside the workspace folder.`));
+	if (path === "" || path.startsWith("/") || path.includes("\u0000")) return outside();
+	if (path.split("/").some((part) => part === "..")) return outside();
+	return ok(path);
+}
+
+/**
+ * A commit id from a screen. It may not start with `-` or hold white space, so git cannot read it
+ * as an option such as `--output=x`.
+ */
+export function checkedCommitId(sha: string): Result<string> {
+	const clean = sha !== "" && !sha.startsWith("-") && !/\s/.test(sha) && !sha.includes("\u0000");
+	return clean ? ok(sha) : err(appError("git_bad_revision", `"${sha}" is not a commit id.`));
+}
+
+/** What `git cat-file -e` prints when the path is not in the base commit. */
+const MISSING_IN_BASE = /(path .* does not exist in|exists on disk, but not in)/i;
 
 export interface WorkspaceGitEntry {
 	snapshot: ChangesSnapshot | null;
@@ -217,6 +249,8 @@ export class GitService {
 	/** Viewed marks per workspace and path. Loaded from the file on first use. */
 	readonly #viewed = new Map<string, ViewedMark>();
 	readonly #viewedLoaded = new Set<string>();
+	/** Loads and saves of one workspace's viewed marks run one after another. */
+	readonly #viewedQueue = createKeyedQueue();
 
 	constructor(deps: GitServiceDeps) {
 		this.#deps = deps;
@@ -229,7 +263,8 @@ export class GitService {
 		const existing = this.#watchers.get(key);
 		if (existing !== undefined) {
 			existing.count += 1;
-			existing.depth = depth;
+			// The deepest request wins, so a shallow second watcher cannot starve the first.
+			if (DEPTH_RANK[depth] > DEPTH_RANK[existing.depth]) existing.depth = depth;
 			return () => this.#unwatch(key);
 		}
 
@@ -378,7 +413,10 @@ export class GitService {
 	}
 
 	/** A commit's files come from `show`, which also works for a root commit. */
-	async #commitFiles(workspaceId: WorkspaceId, sha: string): Promise<Result<ChangedFile[]>> {
+	async #commitFiles(workspaceId: WorkspaceId, rawSha: string): Promise<Result<ChangedFile[]>> {
+		const checked = checkedCommitId(rawSha);
+		if (!checked.ok) return checked;
+		const sha = checked.value;
 		const found = await this.#deps.contextOf(workspaceId);
 		if (!found.ok) return found;
 		const cwd = found.value.workspacePath;
@@ -445,6 +483,8 @@ export class GitService {
 
 		let commitParentExists: boolean | undefined;
 		if (scope.kind === "commit") {
+			const checked = checkedCommitId(scope.sha);
+			if (!checked.ok) return checked;
 			const parent = await this.#revisionExists(cwd, `${scope.sha}^`);
 			if (!parent.ok) return parent;
 			commitParentExists = parent.value;
@@ -526,16 +566,21 @@ export class GitService {
 
 	/** Backs `Actions.git.setViewed`. The mark resets when the file's modified time changes. */
 	async setViewed(workspaceId: WorkspaceId, path: string, viewed: boolean): Promise<Result<void>> {
+		const checked = workspaceRelativePath(path);
+		if (!checked.ok) return checked;
 		const found = await this.#deps.contextOf(workspaceId);
 		if (!found.ok) return found;
-		const loaded = await this.#loadViewed(workspaceId);
-		if (!loaded.ok) return loaded;
-		const key = this.#viewedKey(workspaceId, path);
-		this.#viewed.set(key, {
-			viewed,
-			fingerprint: await this.#viewedFingerprint(found.value.workspacePath, path),
+		// Two quick marks must reach the file in the order they were made, each with the other's mark.
+		return this.#viewedQueue.run(String(workspaceId), async () => {
+			const loaded = await this.#loadViewedNow(workspaceId);
+			if (!loaded.ok) return loaded;
+			const key = this.#viewedKey(workspaceId, path);
+			this.#viewed.set(key, {
+				viewed,
+				fingerprint: await this.#viewedFingerprint(found.value.workspacePath, path),
+			});
+			return this.#saveViewed(workspaceId);
 		});
-		return this.#saveViewed(workspaceId);
 	}
 
 	#viewedKey(workspaceId: WorkspaceId, path: string): string {
@@ -552,7 +597,11 @@ export class GitService {
 	 * error, including damaged JSON, is returned so the caller does not save an empty map over the
 	 * user's marks. The workspace is only marked loaded after a successful read.
 	 */
-	async #loadViewed(workspaceId: WorkspaceId): Promise<Result<void>> {
+	#loadViewed(workspaceId: WorkspaceId): Promise<Result<void>> {
+		return this.#viewedQueue.run(String(workspaceId), () => this.#loadViewedNow(workspaceId));
+	}
+
+	async #loadViewedNow(workspaceId: WorkspaceId): Promise<Result<void>> {
 		const key = String(workspaceId);
 		if (this.#viewedLoaded.has(key)) return ok(undefined);
 		const read = await this.#deps.fs.readText(viewedFilesFile(this.#deps.fs.paths, key));
@@ -617,6 +666,8 @@ export class GitService {
 
 	/** Backs `Actions.git.discardFile`. */
 	async discardFile(workspaceId: WorkspaceId, path: string): Promise<Result<void>> {
+		const checked = workspaceRelativePath(path);
+		if (!checked.ok) return checked;
 		const found = await this.#deps.contextOf(workspaceId);
 		if (!found.ok) return found;
 		const cwd = found.value.workspacePath;
@@ -627,11 +678,14 @@ export class GitService {
 		if (!changes.ok) return changes;
 		const entry = changes.value.find((file) => file.path === path);
 		const source = entry?.oldPath ?? path;
+		// Only a clear "not in the base" may lead to the Trash. Any other failure stops here.
 		const exists = await this.#deps.git.run(catFileExists(`${from}:${source}`), { cwd });
-		const inBase = exists.ok && exists.value.exitCode === 0;
+		if (!exists.ok) return exists;
+		const inBase = this.#baseHasFile(exists.value);
+		if (!inBase.ok) return inBase;
 
 		return this.#deps.git.withWorktreeLock(cwd, async () => {
-			if (!inBase) {
+			if (!inBase.value) {
 				// A file the branch added: unstage it, then move the new file to the Trash.
 				const unstage = await this.#deps.git.runChecked(restoreStaged(path), { cwd });
 				if (!unstage.ok) return unstage;
@@ -645,6 +699,19 @@ export class GitService {
 			}
 			return ok(undefined);
 		});
+	}
+
+	/** Reads `git cat-file -e`: 0 is present, 1 or git's "does not exist in" is absent, else an error. */
+	#baseHasFile(output: { exitCode: number; stderr: string }): Result<boolean> {
+		if (output.exitCode === 0) return ok(true);
+		if (output.exitCode === 1) return ok(false);
+		if (output.exitCode === 128 && MISSING_IN_BASE.test(output.stderr)) return ok(false);
+		return err(
+			appError(
+				"git_failed",
+				output.stderr.trim() || `git cat-file exited with code ${output.exitCode}`,
+			),
+		);
 	}
 
 	/** Backs `Actions.git.commitAndPush`: sends the agent the commit instruction. */

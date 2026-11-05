@@ -23,10 +23,20 @@
  * Test first: a repo shared value beats the user file for a repo-scoped key, and is ignored for a
  * user-only key.
  */
-import { appError, err, notImplemented, ok, type RepoId, type Result } from "@conducted/shared";
+import {
+	type AppError,
+	appError,
+	err,
+	notImplemented,
+	ok,
+	type RepoId,
+	type Result,
+} from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform } from "../../platform/platform.ts";
 import { localSettingsFile, sharedSettingsFile, userSettingsFile } from "../app-paths.ts";
+import { fireAndForget } from "../async/fire-and-forget.ts";
+import { createLatestWins } from "../async/latest-wins.ts";
 import { createKeyedQueue, type KeyedQueue } from "../async/serial-queue.ts";
 import type { Repositories } from "../db/repositories.ts";
 import { showSettingsFileAt, symbolicRefRemoteHead } from "../git/commands.ts";
@@ -126,24 +136,21 @@ export const redactSettingForLog = (key: string, value: unknown): unknown =>
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value);
 
-/** Reads a dotted key such as `models.default` from a parsed document. */
-export function getTomlPath(root: Record<string, unknown>, path: string): unknown {
-	let current: unknown = root;
-	for (const part of path.split(".")) {
-		if (!isRecord(current) || !Object.hasOwn(current, part)) return undefined;
-		current = current[part];
-	}
-	return current;
-}
+/** Path parts that would reach the object prototype instead of a table of the document. */
+const UNSAFE_PATH_PARTS: ReadonlySet<string> = new Set(["__proto__", "constructor", "prototype"]);
 
-/** Writes a dotted key such as `models.default` into a parsed document. */
-export function setTomlPath(root: Record<string, unknown>, path: string, value: unknown): void {
+/**
+ * Writes a dotted key such as `models.default` into a parsed document. A path with a part that
+ * names the prototype is refused (returns false), so a settings file cannot change shared objects.
+ */
+export function setTomlPath(root: Record<string, unknown>, path: string, value: unknown): boolean {
 	const parts = path.split(".");
+	if (parts.some((part) => UNSAFE_PATH_PARTS.has(part))) return false;
 	let current = root;
 	for (let index = 0; index < parts.length - 1; index += 1) {
 		const part = parts[index];
-		if (part === undefined) return;
-		const next = current[part];
+		if (part === undefined) return false;
+		const next = Object.hasOwn(current, part) ? current[part] : undefined;
 		if (isRecord(next)) {
 			current = next;
 		} else {
@@ -153,7 +160,9 @@ export function setTomlPath(root: Record<string, unknown>, path: string, value: 
 		}
 	}
 	const last = parts.at(-1);
-	if (last !== undefined) current[last] = value;
+	if (last === undefined) return false;
+	current[last] = value;
+	return true;
 }
 
 /** Sorted for a stable file. The action table keeps its order, as the research asks. */
@@ -772,6 +781,8 @@ export interface ListedSetting {
 
 interface PendingWrite {
 	value: SettingValue;
+	/** The last value known to be saved. A failed write puts this back, not an unsaved value. */
+	previous: SettingValue | undefined;
 }
 
 export interface SetOptions {
@@ -793,6 +804,11 @@ export class SettingsService {
 	readonly #writes: KeyedQueue<string>;
 	/** Writes that are visible in the store but not yet on disk, by setting key. */
 	readonly #pending = new Map<string, PendingWrite>();
+	/** Only the newest reload may change the store. */
+	readonly #reloads = createLatestWins<"reload">();
+	/** Counts store changes made by writes. A reload keeps what a write changed after it began. */
+	#epoch = 0;
+	readonly #touchedAt = new Map<string, number>();
 	#unsubscribeFocus: (() => void) | null = null;
 	#reloadTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -816,9 +832,12 @@ export class SettingsService {
 
 	/** Reads the user file and the table again. Called on window focus and every 30 s. */
 	async reloadFromDisk(): Promise<Result<void>> {
+		const ticket = this.#reloads.begin("reload");
+		const startEpoch = this.#epoch;
 		const dropped: DroppedSetting[] = [];
 		const warnings: SettingsWarning[] = [];
-		const values: Record<string, SettingValue> = {};
+		const fromTable: Record<string, SettingValue> = {};
+		const fromFile: Record<string, SettingValue> = {};
 
 		const rows = await this.#deps.repos.settings.list();
 		if (!rows.ok) {
@@ -828,7 +847,7 @@ export class SettingsService {
 				const def = getSettingDef(row.key);
 				if (def === undefined || def.tomlKey !== undefined) continue;
 				const coerced = coerceSettingValue(def, row.value);
-				if (coerced.ok) values[def.key] = coerced.value;
+				if (coerced.ok) fromTable[def.key] = coerced.value;
 				else {
 					dropped.push({
 						file: "settings",
@@ -844,7 +863,7 @@ export class SettingsService {
 		if (file.ok) {
 			for (const [key, value] of Object.entries(file.value.values)) {
 				const def = getSettingDef(key);
-				if (def?.tomlKey !== undefined) values[key] = value;
+				if (def?.tomlKey !== undefined) fromFile[key] = value;
 			}
 			dropped.push(...file.value.dropped);
 		} else {
@@ -856,6 +875,26 @@ export class SettingsService {
 			warnings.push({ code: "settings_load_failed", message: SETTINGS_LOAD_FAILED_MESSAGE });
 		}
 
+		// A newer reload started while this one read: its answer is the one that counts.
+		if (!this.#reloads.isLatest(ticket)) return ok(undefined);
+		this.#reloads.settle(ticket);
+
+		const current = this.store.getState().values;
+		// A part that could not be read keeps the values it had, so one bad read does not reset them.
+		const values: Record<string, SettingValue> = {};
+		for (const [key, value] of Object.entries(current)) {
+			const isFileKey = getSettingDef(key)?.tomlKey !== undefined;
+			if (isFileKey ? !file.ok : !rows.ok) values[key] = value;
+		}
+		Object.assign(values, fromTable, fromFile);
+
+		// A write that changed a key after this reload began is newer than what was read.
+		for (const [key, at] of this.#touchedAt) {
+			if (at <= startEpoch) continue;
+			const now = current[key];
+			if (now === undefined) delete values[key];
+			else values[key] = now;
+		}
 		// A write that has not reached disk yet still wins over the older file text.
 		for (const [key, pending] of this.#pending) values[key] = pending.value;
 
@@ -1065,17 +1104,31 @@ export class SettingsService {
 			const window = this.#deps.platform.window;
 			if (window !== undefined) {
 				this.#unsubscribeFocus = window.onFocusChanged((focused) => {
-					if (focused) void this.reloadFromDisk();
+					if (focused) this.#reloadInBackground();
 				});
 			}
 		}
 		if (this.#reloadTimer === null) {
-			const timer = setInterval(async () => {
-				await this.reloadFromDisk();
-			}, RELOAD_INTERVAL_MS);
+			const timer = setInterval(() => this.#reloadInBackground(), RELOAD_INTERVAL_MS);
 			(timer as unknown as { unref?: () => void }).unref?.();
 			this.#reloadTimer = timer;
 		}
+	}
+
+	/** A reload nobody waits for. A platform failure becomes a warning in the store. */
+	#reloadInBackground(): void {
+		fireAndForget(
+			() => this.reloadFromDisk(),
+			(cause) => {
+				const warning = { code: "settings_load_failed", message: SETTINGS_LOAD_FAILED_MESSAGE };
+				this.store.setState((state) => ({
+					warnings: [...state.warnings.filter((w) => w.code !== warning.code), warning],
+				}));
+				this.#deps.platform.app.writeLog("warn", "Settings reload failed", {
+					cause: String(cause),
+				});
+			},
+		);
 	}
 
 	async #layerValue(
@@ -1115,32 +1168,39 @@ export class SettingsService {
 		return { value: value === undefined ? null : value, dropped: contents.dropped };
 	}
 
-	async #setInTable(def: SettingDef, value: SettingValue): Promise<Result<void>> {
-		const previous = this.store.getState().values[def.key];
+	#setInTable(def: SettingDef, value: SettingValue): Promise<Result<void>> {
 		const pending = this.#beginWrite(def.key, value);
-		const written = await this.#deps.repos.settings.set(def.key, value);
-		if (!written.ok) {
-			this.#rollback(def.key, pending, previous);
-			return err(appError("setting_save_failed", SETTINGS_SAVE_FAILED_MESSAGE, written.error));
-		}
-		this.#finishWrite(def.key, pending);
-		this.#logSaved(def.key, value);
-		return ok(undefined);
+		return this.#writes.run(`table:${def.key}`, async () => {
+			const written = await this.#deps.repos.settings.set(def.key, value);
+			if (!written.ok) {
+				this.#rollback(def.key, pending);
+				return err(appError("setting_save_failed", SETTINGS_SAVE_FAILED_MESSAGE, written.error));
+			}
+			this.#finishWrite(def.key, pending);
+			this.#logSaved(def.key, value);
+			return ok(undefined);
+		});
 	}
 
-	async #deleteInTable(def: SettingDef): Promise<Result<void>> {
-		const previous = this.store.getState().values[def.key];
+	#deleteInTable(def: SettingDef): Promise<Result<void>> {
 		const pending = this.#beginWrite(def.key, null);
-		const written = await this.#deps.repos.settings.delete(def.key);
-		if (!written.ok) {
-			this.#rollback(def.key, pending, previous);
-			return err(appError("setting_save_failed", SETTINGS_SAVE_FAILED_MESSAGE, written.error));
-		}
-		this.#finishWrite(def.key, pending);
-		this.#logSaved(def.key, null);
-		return ok(undefined);
+		return this.#writes.run(`table:${def.key}`, async () => {
+			const written = await this.#deps.repos.settings.delete(def.key);
+			if (!written.ok) {
+				this.#rollback(def.key, pending);
+				return err(appError("setting_save_failed", SETTINGS_SAVE_FAILED_MESSAGE, written.error));
+			}
+			this.#finishWrite(def.key, pending);
+			this.#logSaved(def.key, null);
+			return ok(undefined);
+		});
 	}
 
+	/**
+	 * Writes one key into a settings file. The user file also drives the store, so a user-scope
+	 * write shows at once and rolls back on failure. A repo-scope write must not touch the store:
+	 * it holds user-level values, and a value for one repository would show for all of them.
+	 */
 	#setInFile(
 		file: string,
 		scope: "user" | "repo",
@@ -1149,8 +1209,11 @@ export class SettingsService {
 		overwrite: boolean,
 		key: string,
 	): Promise<Result<void>> {
-		const previous = this.store.getState().values[key];
-		const pending = this.#beginWrite(key, value);
+		const pending = scope === "user" ? this.#beginWrite(key, value) : null;
+		const fail = (error: AppError): Result<void> => {
+			if (pending !== null) this.#rollback(key, pending);
+			return err(error);
+		};
 		return this.#writes.run(file, async () => {
 			const existing = await this.readSettingsFile(file);
 			let contents: SettingsFileContents;
@@ -1159,8 +1222,7 @@ export class SettingsService {
 			} else if (overwrite) {
 				contents = emptyContents(file);
 			} else {
-				this.#rollback(key, pending, previous);
-				return err(
+				return fail(
 					appError(
 						"settings_file_invalid",
 						existing.error.code === "settings_file_invalid"
@@ -1176,46 +1238,64 @@ export class SettingsService {
 				contents.values[key] = value;
 			}
 			contents.preserved = withoutPreserved(contents.preserved, def.tomlKey);
-			const document = buildSettingsDocument(contents, scope);
-			const text = this.#deps.toml.stringify(document);
+			let text: string;
+			try {
+				text = this.#deps.toml.stringify(buildSettingsDocument(contents, scope));
+			} catch (cause) {
+				return fail(appError("setting_save_failed", SETTINGS_SAVE_FAILED_MESSAGE, cause));
+			}
 			const written = await this.#deps.platform.fs.writeTextAtomic(file, text);
 			if (!written.ok) {
-				this.#rollback(key, pending, previous);
-				return err(appError("setting_save_failed", SETTINGS_SAVE_FAILED_MESSAGE, written.error));
+				return fail(appError("setting_save_failed", SETTINGS_SAVE_FAILED_MESSAGE, written.error));
 			}
-			this.#finishWrite(key, pending);
+			if (pending !== null) this.#finishWrite(key, pending);
 			this.#logSaved(key, value);
 			return ok(undefined);
 		});
 	}
 
 	#beginWrite(key: string, value: SettingValue): PendingWrite {
-		const pending = { value };
+		const earlier = this.#pending.get(key);
+		const previous = earlier !== undefined ? earlier.previous : this.store.getState().values[key];
+		const pending = { value, previous };
 		this.#pending.set(key, pending);
 		this.#setValue(key, value);
 		return pending;
 	}
 
-	/** Clears a pending marker only when no newer write has replaced it. */
+	/**
+	 * Clears a pending marker only when no newer write has replaced it. A newer write now has this
+	 * value as the last one known to be saved.
+	 */
 	#finishWrite(key: string, pending: PendingWrite): void {
-		if (this.#pending.get(key) === pending) this.#pending.delete(key);
+		const newest = this.#pending.get(key);
+		if (newest === pending) this.#pending.delete(key);
+		else if (newest !== undefined) newest.previous = pending.value;
+		this.#touch(key);
 	}
 
 	/**
-	 * Puts the earlier value back only when this call still owns the store's value. If a later call
-	 * already showed its own value, that value stays and the later write decides the outcome.
+	 * Puts the last saved value back only when this call still owns the store's value. If a later
+	 * call already showed its own value, that value stays and the later write decides the outcome.
 	 */
-	#rollback(key: string, pending: PendingWrite, previous: SettingValue | undefined): void {
+	#rollback(key: string, pending: PendingWrite): void {
 		if (this.#pending.get(key) !== pending) return;
 		this.#pending.delete(key);
 		const values = { ...this.store.getState().values };
-		if (previous === undefined) delete values[key];
-		else values[key] = previous;
+		if (pending.previous === undefined) delete values[key];
+		else values[key] = pending.previous;
 		this.store.setState({ values });
+		this.#touch(key);
 	}
 
 	#setValue(key: string, value: SettingValue): void {
 		this.store.setState({ values: { ...this.store.getState().values, [key]: value } });
+		this.#touch(key);
+	}
+
+	#touch(key: string): void {
+		this.#epoch += 1;
+		this.#touchedAt.set(key, this.#epoch);
 	}
 
 	#logSaved(key: string, value: SettingValue): void {

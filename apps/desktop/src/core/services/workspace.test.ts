@@ -22,6 +22,7 @@ import {
 	classifyUnarchive,
 	createPlaceNames,
 	expandHome,
+	isSafeRefName,
 	SECTION_PLACEMENT_FAILED_MESSAGE,
 	WorkspaceService,
 	type WorkspaceServiceDeps,
@@ -190,6 +191,9 @@ function makeHarness(
 		repoRemoteName?: string | null;
 		defaultConfigValue?: SessionConfig;
 		moveFails?: boolean;
+		setupLogPathError?: boolean;
+		repoConfigError?: boolean;
+		defaultConfigError?: boolean;
 	} = {},
 ): Harness {
 	const rows = options.rows ?? [];
@@ -243,13 +247,17 @@ function makeHarness(
 			return ok(rows.filter((row) => row.state === state));
 		},
 		async get(id: WorkspaceId) {
-			return ok(rows.find((row) => row.id === id) ?? null);
+			// A database hands out a new object on every read, so a later change does not reach it.
+			const row = rows.find((candidate) => candidate.id === id);
+			return ok(row === undefined ? null : { ...row });
 		},
 		async getByPath(path: string) {
 			return ok(rows.find((row) => row.path === path) ?? null);
 		},
 		async getSetupLogPath() {
-			return ok(null);
+			return options.setupLogPathError === true
+				? err(appError("db.failed", "The setup log path could not be read."))
+				: ok(null);
 		},
 		async listDirectoryNames(repoId: RepoId) {
 			return ok(rows.filter((row) => row.repoId === repoId).map((row) => row.directoryName));
@@ -392,8 +400,13 @@ function makeHarness(
 		},
 		ports: { allocateForNewWorkspace: async () => ok(55_000) },
 		repoConfig: async (): Promise<Result<RepoConfig>> =>
-			ok({ remoteName: options.repoRemoteName ?? null } as RepoConfig),
-		defaultConfig: async () => ok(options.defaultConfigValue ?? sampleConfig),
+			options.repoConfigError === true
+				? err(appError("settings_invalid", "settings.toml is invalid."))
+				: ok({ remoteName: options.repoRemoteName ?? null } as RepoConfig),
+		defaultConfig: async () =>
+			options.defaultConfigError === true
+				? err(appError("config_failed", "The default config could not be read."))
+				: ok(options.defaultConfigValue ?? sampleConfig),
 		scripts: {
 			runSetup: async () => ok({ exitCode: 0 }),
 			runArchive: async () => ok(undefined),
@@ -549,13 +562,13 @@ describe("WS-01 WorkspaceService.create", () => {
 				if (matches(command, "git", ["rev-parse", "refs/remotes/origin/main"]))
 					return output(0, "cached");
 				if (starts(command, "git", ["worktree", "add"])) return output(0);
+				if (matches(command, "git", ["rev-parse", "--git-common-dir"])) return output(0, ".git");
 				if (starts(command, "git", ["show-ref"])) return output(1);
 				return undefined;
 			},
 		});
 
 		const result = await service.create(newInput);
-
 		expect(result.ok).toBe(true);
 		expect(service.store.getState().warnings?.[rows[0]?.id ?? ""] ?? []).toContain(
 			OFFLINE_FALLBACK_MESSAGE,
@@ -588,6 +601,7 @@ describe("WS-01 WorkspaceService.create", () => {
 					return adds === 1 ? output(128, "", "fatal: cannot create worktree") : output(0);
 				}
 				if (matches(command, "git", ["worktree", "list", "--porcelain"])) return output(0, "");
+				if (matches(command, "git", ["rev-parse", "--git-common-dir"])) return output(0, ".git");
 				if (starts(command, "git", ["show-ref"])) return output(1);
 				return undefined;
 			},
@@ -649,6 +663,7 @@ describe("WS-01 WorkspaceService.create", () => {
 				if (matches(command, "git", ["rev-parse", "refs/remotes/upstream/main"]))
 					return output(0, "base-sha");
 				if (starts(command, "git", ["worktree", "add"])) return output(0);
+				if (matches(command, "git", ["rev-parse", "--git-common-dir"])) return output(0, ".git");
 				if (starts(command, "git", ["show-ref"])) return output(1);
 				return undefined;
 			},
@@ -697,6 +712,7 @@ describe("WS-01 WorkspaceService.create", () => {
 				if (starts(command, "git", ["fetch"])) return output(0);
 				if (matches(command, "git", ["rev-parse", "refs/remotes/origin/main"]))
 					return output(0, "base-sha");
+				if (matches(command, "git", ["rev-parse", "--git-common-dir"])) return output(0, ".git");
 				if (starts(command, "git", ["show-ref"])) return output(1);
 				if (starts(command, "git", ["worktree", "add"]))
 					return output(128, "", "fatal: cannot create worktree");
@@ -754,5 +770,113 @@ describe("WS-01 WorkspaceService.recoverPrompt", () => {
 			value: { text: "Fix the login bug", attachmentPaths: ["/tmp/shot.png"] },
 		});
 		expect(firstDraftOf).toHaveBeenCalledWith(workspace.id);
+	});
+});
+
+describe("WS-01 names that git or gh could read as options", () => {
+	it("accepts ordinary branch names and refuses the ones git refuses", () => {
+		for (const good of ["oslo", "me/oslo", "feature/x-1", "v1.2"]) {
+			expect(isSafeRefName(good), good).toBe(true);
+		}
+		for (const bad of [
+			"",
+			"-oslo",
+			"--upload-pack=sh",
+			"/oslo",
+			"oslo/",
+			"a..b",
+			"a b",
+			"a~1",
+			"a:b",
+			"a\\b",
+			"a//b",
+			"x.lock",
+			".hidden/x",
+			"a@{1}",
+			"a\nb",
+		]) {
+			expect(isSafeRefName(bad), JSON.stringify(bad)).toBe(false);
+		}
+	});
+
+	it("refuses to create a workspace when the branch prefix makes an unsafe branch", async () => {
+		const { service, rows, calls } = makeHarness({
+			settings: { branch_prefix_type: "custom", branch_prefix_custom: "-x/" },
+		});
+
+		const result = await service.create({ ...newInput, prompt: "" });
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.code).toBe("workspace_branch_invalid");
+		expect(rows).toHaveLength(0);
+		expect(calls.some((call) => call.command.args.includes("worktree"))).toBe(false);
+	});
+
+	it("refuses a remote name from the repository config that starts with a dash", async () => {
+		const { service, rows, calls } = makeHarness({ repoRemoteName: "--upload-pack=sh" });
+
+		const result = await service.create({ ...newInput, prompt: "" });
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.code).toBe("workspace_branch_invalid");
+		expect(rows).toHaveLength(0);
+		expect(calls.some((call) => call.command.args[0] === "fetch")).toBe(false);
+	});
+
+	it("refuses a base branch that starts with a dash", () => {
+		const result = baseBranchFor("main", { kind: "branch", name: "--output=/tmp/x" });
+		expect(result.ok).toBe(false);
+	});
+});
+
+describe("WS-01 failures that must reach the user", () => {
+	it("warns when the repository config cannot be read, instead of silently using origin", async () => {
+		const { service, rows } = makeHarness({ repoConfigError: true });
+
+		const result = await service.create({ ...newInput, prompt: "" });
+
+		expect(result.ok).toBe(true);
+		const warnings = service.store.getState().warnings?.[rows[0]?.id ?? ""] ?? [];
+		expect(warnings.some((warning) => warning.includes("settings.toml is invalid."))).toBe(true);
+	});
+
+	it("does not start the first chat with a guessed config when the default config fails", async () => {
+		const { service, rows, createFirstChat } = makeHarness({ defaultConfigError: true });
+
+		const result = await service.create(newInput);
+
+		expect(result.ok).toBe(true);
+		expect(createFirstChat).not.toHaveBeenCalled();
+		const id = rows[0]?.id ?? "";
+		expect(service.store.getState().warnings?.[id]).toContain(CHAT_CREATION_FAILED_MESSAGE);
+		expect(service.store.getState().failedFirstInputs?.[id]).toEqual(newInput);
+	});
+
+	it("loads the workspaces but returns the error when a setup log path cannot be read", async () => {
+		const workspace = makeWorkspace({ state: "ready" });
+		const { service } = makeHarness({ rows: [workspace], setupLogPathError: true });
+
+		const result = await service.start();
+
+		expect(result.ok).toBe(false);
+		expect(service.store.getState().loaded).toBe(true);
+		expect(service.store.getState().workspacesById[workspace.id]).toBeDefined();
+	});
+});
+
+describe("WS-01 retrySetup pressed twice", () => {
+	it("prepares the worktree once when two retries start together", async () => {
+		const workspace = makeWorkspace({ state: "failed" });
+		const { service, calls } = makeHarness({ rows: [workspace], exists: true });
+
+		const [first, second] = await Promise.all([
+			service.retrySetup(workspace.id),
+			service.retrySetup(workspace.id),
+		]);
+
+		expect(first.ok).toBe(true);
+		expect(second.ok).toBe(true);
+		const copyListings = calls.filter((call) => call.command.args.includes("--others"));
+		expect(copyListings).toHaveLength(1);
 	});
 });

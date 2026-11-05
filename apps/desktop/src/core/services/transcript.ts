@@ -1,5 +1,7 @@
 /**
  * @feature CHAT-17 Copy transcript and search chat history
+ * Built now: `escapeLike`, `HISTORY_SEARCH_SQL` and the minimum query length. `formatTranscript`
+ * and `searchHistory` are placeholders (CHAT-17), so the behaviour below is not built yet.
  * Owns: turning a chat's turns into text for the clipboard, and the query that searches stored
  * chats.
  * Behaviour: ui-map.md 3.2 and 5.1 (copy concise transcript, chat history search), services-map.md

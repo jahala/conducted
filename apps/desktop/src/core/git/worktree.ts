@@ -217,9 +217,6 @@ export async function createWorktree(
 			return err(appError("git_fetch_failed", fetched.error.message, fetched.error));
 		}
 	}
-	if (baseSha === null) {
-		return err(appError("git_base_missing", `Couldn't find ${input.remote}/${input.baseBranch}.`));
-	}
 
 	const added = await runner.runChecked(
 		worktreeAddNewBranch(input.worktreePath, input.newBranch, baseSha),
@@ -286,10 +283,12 @@ export async function prepareWorktree(
 
 	const commonDir = await runner.stdout(revParseGitCommonDir(), { cwd: input.worktreePath });
 	if (!commonDir.ok) return commonDir;
-	const resolvedCommonDir =
-		commonDir.value.startsWith("/") || commonDir.value === ""
-			? commonDir.value || input.worktreePath
-			: join(input.worktreePath, commonDir.value);
+	if (commonDir.value === "") {
+		return err(appError("git_parse", "git rev-parse --git-common-dir printed nothing."));
+	}
+	const resolvedCommonDir = commonDir.value.startsWith("/")
+		? commonDir.value
+		: join(input.worktreePath, commonDir.value);
 	const excludePath = join(resolvedCommonDir, "info/exclude");
 	const current = await input.fs.readText(excludePath);
 	if (!current.ok && current.error.code !== "fs_not_found") return current;

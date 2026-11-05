@@ -217,4 +217,41 @@ describe("CHAT-18 resume after restart", () => {
 			{ sessionId: h.sessionId, message: "The live state was not stored" },
 		]);
 	});
+	it("runs again after a reconnect that came while a run was waiting on the old connection", async () => {
+		const answers: ((value: unknown) => void)[] = [];
+		const h = await harness(
+			() =>
+				new Promise((resolve) => {
+					answers.push(resolve);
+				}),
+		);
+
+		const first = h.resume.resume();
+		await vi.waitFor(() => expect(answers).toHaveLength(1));
+		const second = h.resume.resumeAfterReconnect();
+		const third = h.resume.resumeAfterReconnect();
+		expect(h.sidecar.request).toHaveBeenCalledTimes(1);
+
+		// The old connection died: its answer is a failure and the chat stays working.
+		answers[0]?.(err(appError("sidecar_restarted", "The sidecar restarted before it answered.")));
+		const firstReport = await first;
+		expect(firstReport.ok && firstReport.value.failed).toHaveLength(1);
+
+		await vi.waitFor(() => expect(answers).toHaveLength(2));
+		answers[1]?.(ok({ known: false }));
+		const [secondReport, thirdReport] = await Promise.all([second, third]);
+
+		expect(h.sidecar.request).toHaveBeenCalledTimes(2);
+		expect(secondReport.ok && secondReport.value.interrupted).toEqual([h.sessionId]);
+		expect(thirdReport).toBe(secondReport);
+	});
+
+	it("starts a run at once after a reconnect when none is in flight", async () => {
+		const h = await harness(async () => ok({ known: false }));
+
+		const report = await h.resume.resumeAfterReconnect();
+
+		expect(report.ok && report.value.interrupted).toEqual([h.sessionId]);
+		expect(h.sidecar.request).toHaveBeenCalledTimes(1);
+	});
 });

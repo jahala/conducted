@@ -6,8 +6,8 @@
  * native-and-sidecar-map.md A2.
  */
 
-import { describe, expect, it } from "vitest";
-import type { FileStat } from "./platform.ts";
+import { describe, expect, it, vi } from "vitest";
+import type { Database, FileStat } from "./platform.ts";
 import {
 	COMMANDS,
 	createTauriAppInfo,
@@ -462,6 +462,64 @@ describe("PLAT-02 Tauri database", () => {
 		await write;
 		await expect(first).resolves.toEqual([{ value: 1 }]);
 		await expect(second).resolves.toEqual([{ value: 2 }]);
+	});
+
+	it("PLAT-02 rejects a statement run on a transaction handle after the transaction ended", async () => {
+		const statements: string[] = [];
+		const raw = fakeSql({
+			execute: async (sql) => {
+				statements.push(sql);
+				return { rowsAffected: 0 };
+			},
+		});
+		const result = await createTauriDatabase({ sql: { load: async () => raw } });
+		if (!result.ok) throw new Error("the database did not open");
+
+		let kept: Database | null = null;
+		await result.value.transaction(async (tx) => {
+			kept = tx;
+		});
+		const before = statements.length;
+		await expect(
+			(kept as Database | null)?.execute("INSERT INTO t (id) VALUES (9)"),
+		).rejects.toMatchObject({
+			code: "transaction_closed",
+		});
+		await expect((kept as Database | null)?.select("SELECT 1")).rejects.toMatchObject({
+			code: "transaction_closed",
+		});
+		expect(statements.length).toBe(before);
+	});
+
+	it("PLAT-02 keeps merging reads after an older select that a write cleared settles", async () => {
+		const gates: (() => void)[] = [];
+		let rawSelects = 0;
+		const raw = fakeSql({
+			select: async <Rows>(): Promise<Rows> => {
+				rawSelects++;
+				await new Promise<void>((resolve) => {
+					gates.push(resolve);
+				});
+				return [] as unknown as Rows;
+			},
+		});
+		const result = await createTauriDatabase({ sql: { load: async () => raw } });
+		if (!result.ok) throw new Error("the database did not open");
+		const db = result.value;
+
+		const first = db.select("SELECT value FROM t");
+		const write = db.execute("INSERT INTO t (value) VALUES (1)");
+		const second = db.select("SELECT value FROM t");
+		await vi.waitFor(() => expect(gates).toHaveLength(1));
+		gates[0]?.();
+		await first;
+		await write;
+		// The first select has settled. The second is still waiting, so a third must join it.
+		const third = db.select("SELECT value FROM t");
+		await vi.waitFor(() => expect(gates).toHaveLength(2));
+		gates[1]?.();
+		await Promise.all([second, third]);
+		expect(rawSelects).toBe(2);
 	});
 
 	it("PLAT-02 refuses a transaction inside a transaction", async () => {

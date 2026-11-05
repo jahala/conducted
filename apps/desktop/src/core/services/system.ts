@@ -15,6 +15,8 @@
  * the project's issue page with the text filled in and never sends logs anywhere by itself.
  * Our design choice: one service for these Mac-level actions, so screens get them through
  * `Actions` like everything else and the Platform stays out of `features/`.
+ * Built now: `copyText`. The rest is a placeholder owned by PLAT-28, CHAT-29, APP-09, APP-03,
+ * PLAT-24 and GIT-16.
  * Test first: install while a download of the same program runs starts no second download.
  */
 import {

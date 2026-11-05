@@ -105,6 +105,29 @@ describe("APP-11 optimistic overlay", () => {
 		expect(store.read()).toEqual({ name: "renamed", starred: true });
 	});
 
+	it("drops an older action's result that arrives after a newer action's result", async () => {
+		const store = createOptimisticStore({ name: "old", starred: false }, ids());
+		const first = deferred<Result<{ name: string; starred: boolean }, string>>();
+		const second = deferred<Result<{ name: string; starred: boolean }, string>>();
+
+		const firstRun = store.run({
+			update: (state) => ({ ...state, name: "renamed" }),
+			action: () => first.promise,
+		});
+		const secondRun = store.run({
+			update: (state) => ({ ...state, starred: true }),
+			action: () => second.promise,
+		});
+
+		second.resolve({ ok: true, value: { name: "renamed", starred: true } });
+		await secondRun;
+		first.resolve({ ok: true, value: { name: "renamed", starred: false } });
+		await firstRun;
+
+		expect(store.canonical()).toEqual({ name: "renamed", starred: true });
+		expect(store.read()).toEqual({ name: "renamed", starred: true });
+	});
+
 	it("keeps a newer canonical state that arrives before the action ends", async () => {
 		const store = createOptimisticStore({ name: "old" }, ids());
 		const gate = deferred<Result<{ name: string }, string>>();

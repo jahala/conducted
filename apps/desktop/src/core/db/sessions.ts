@@ -4,8 +4,9 @@
  * Behaviour: services-map.md 2.3.3 (sessions) and sessions-and-chats.md "How chats are stored".
  * Live status is not here: it lives in session_live_state.
  * Must handle: a bad config column returns an error Result; unread counts change in SQL
- * (`unread_count + 1`) so two writers never lose an increment; last_user_message_at only moves
- * forward; setTitleIfEmpty never overwrites a title the user set; pausing is idempotent.
+ * (`unread_count + 1`) so two writers never lose an increment; last_user_message_at and the
+ * updated_at it sets only move forward; a title, config, agent session id or reopen on a missing chat
+ * returns `db.not_found`; setTitleIfEmpty never overwrites a title the user set; pausing is idempotent.
  * Test first: sessionFromRow returns an error Result when config is not a valid SessionConfig.
  */
 import { zSessionConfig } from "@conducted/protocol";
@@ -15,6 +16,7 @@ import type { Session } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
 import {
 	collectResults,
+	executeExisting,
 	executeStatement,
 	executeVoid,
 	inTransaction,
@@ -107,7 +109,7 @@ export const SESSIONS_SQL = {
 	setContextUsage: `UPDATE sessions SET context_used_tokens = $1, context_window_tokens = $2
 		WHERE id = $3`,
 	recordUserMessage: `UPDATE sessions SET last_user_message_at =
-		MAX(COALESCE(last_user_message_at, 0), $1), updated_at = $1 WHERE id = $2`,
+		MAX(COALESCE(last_user_message_at, 0), $1), updated_at = MAX(updated_at, $1) WHERE id = $2`,
 	incrementUnread: "UPDATE sessions SET unread_count = unread_count + 1 WHERE id = $1",
 	clearUnread: "UPDATE sessions SET unread_count = 0 WHERE id = $1 AND unread_count > 0",
 	clearWorkspaceUnread: `UPDATE sessions SET unread_count = 0
@@ -216,7 +218,7 @@ export function createSessionRepository(db: Database, deps: RepositoryDeps): Ses
 				return written.ok ? ok(session) : err(written.error);
 			}),
 		setTitle: (id, title) =>
-			executeVoid(db, SESSIONS_SQL.setTitle, [title, now(), id], "Titling a chat"),
+			executeExisting(db, SESSIONS_SQL.setTitle, [title, now(), id], "Titling a chat"),
 		setTitleIfEmpty: async (id, title) => {
 			const written = await executeStatement(
 				db,
@@ -229,7 +231,7 @@ export function createSessionRepository(db: Database, deps: RepositoryDeps): Ses
 		setConfig: async (id, config) => {
 			const json = stringifyJson(config, "sessions.config");
 			if (!json.ok) return err(json.error);
-			return executeVoid(
+			return executeExisting(
 				db,
 				SESSIONS_SQL.setConfig,
 				[json.value, now(), id],
@@ -237,21 +239,19 @@ export function createSessionRepository(db: Database, deps: RepositoryDeps): Ses
 			);
 		},
 		setAgentSessionId: (id, agentSessionId) =>
-			executeVoid(
+			executeExisting(
 				db,
 				SESSIONS_SQL.setAgentSessionId,
 				[agentSessionId, now(), id],
 				"Saving an agent session id",
 			),
-		setContextUsage: async (id, usage) => {
-			const written = await executeStatement(
+		setContextUsage: (id, usage) =>
+			executeVoid(
 				db,
 				SESSIONS_SQL.setContextUsage,
 				[usage.usedTokens, usage.windowTokens, id],
 				"Saving context usage",
-			);
-			return written.ok ? ok(undefined) : err(written.error);
-		},
+			),
 		recordUserMessage: (id, at) =>
 			executeVoid(db, SESSIONS_SQL.recordUserMessage, [at, id], "Recording a user message"),
 		incrementUnread: (id) =>
@@ -285,7 +285,7 @@ export function createSessionRepository(db: Database, deps: RepositoryDeps): Ses
 			const written = await executeStatement(db, SESSIONS_SQL.close, [now(), id], "Closing a chat");
 			return written.ok ? ok(written.value > 0) : err(written.error);
 		},
-		reopen: (id) => executeVoid(db, SESSIONS_SQL.reopen, [now(), id], "Reopening a chat"),
+		reopen: (id) => executeExisting(db, SESSIONS_SQL.reopen, [now(), id], "Reopening a chat"),
 		delete: (id) => executeVoid(db, SESSIONS_SQL.delete, [id], "Removing a chat"),
 	};
 }

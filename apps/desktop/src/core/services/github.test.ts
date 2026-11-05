@@ -223,6 +223,42 @@ describe("PR-01 access probes", () => {
 		expect(result).toEqual(ok({ status: "signed_out" }));
 	});
 
+	it("keeps the newest check's answer when an older check ends last", async () => {
+		const answering = fakeGit({
+			run: (command) => {
+				if (command.args[0] === "auth") return ok(authOutput);
+				if (command.args[0] === "api") return output(0, "octocat\n");
+				return output(0);
+			},
+		});
+		let release: () => void = () => {};
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		let held = false;
+		const git: GitRunner = {
+			...answering,
+			async run(command, options) {
+				// The first auth probe waits; every later probe answers at once.
+				if (command.args[0] === "auth" && !held) {
+					held = true;
+					await gate;
+					return output(1, "", "You are not logged into any GitHub hosts.");
+				}
+				return answering.run(command, options);
+			},
+		};
+		const service = makeService(git);
+
+		const older = service.checkAccess();
+		const newer = await service.checkAccess();
+		expect(newer.ok && newer.value.status).toBe("ok");
+		release();
+		await older;
+
+		expect(service.store.getState().access.status).toBe("ok");
+	});
+
 	it("reads the login, host, scopes and git protocol", async () => {
 		const git = fakeGit({
 			run: (command) => {
@@ -397,6 +433,16 @@ describe("PR-01 personal access token", () => {
 
 		expect(await service.setToken(null)).toEqual(ok(undefined));
 		expect(keychain.values.has(GH_PAT_KEYCHAIN_KEY)).toBe(false);
+	});
+
+	it("refuses an empty token and keeps the saved one", async () => {
+		const keychain = memoryKeychain({ [GH_PAT_KEYCHAIN_KEY]: validToken });
+		const service = makeService(fakeGit({}), { keychain });
+
+		const result = await service.setToken("   ");
+
+		expect(!result.ok && result.error.code).toBe("github_token_empty");
+		expect(keychain.values.get(GH_PAT_KEYCHAIN_KEY)).toBe(validToken);
 	});
 
 	it("says when the Keychain cannot be reached", async () => {

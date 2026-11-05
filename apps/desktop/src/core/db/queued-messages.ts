@@ -251,7 +251,7 @@ export function createQueuedMessageRepository(
 			const written = await executeStatement(
 				db,
 				QUEUED_MESSAGES_SQL.setState,
-				[to, lastError, now(), id, from],
+				[to, to === "failed" ? lastError : null, now(), id, from],
 				"Changing a queued message state",
 			);
 			return written.ok ? ok(written.value > 0) : err(written.error);

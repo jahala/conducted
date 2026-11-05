@@ -1,13 +1,16 @@
 /**
  * @feature CHAT-19 Notify when a chat finishes or needs the user
+ * Built now: the pure rules (`shouldNotifyFinished`, `isSuppressed`, `notificationTitle`, deep
+ * links, `dockBadgeCount`). The service methods are placeholders (CHAT-19, NAV-11), so the
+ * settle timer, sound, native notification and click handling below are not built yet.
  * Owns: deciding when to play a sound and show a native notification, building the text and the
  * deep link, and the number on the dock icon.
  * Behaviour: services-map.md 5B.2 (settings, triggers, suppression, delay and throttle, deep
  * links, dock badge), ui-map.md 6 (General: agent notifications, completion sound).
  * Must handle: a chat that went idle notifies only after 2 seconds of staying idle, with no
  * background tasks, no error, no queued follow-up, and not twice for the same turn; a notice for
- * a chat the user is looking at in a focused window is skipped for "finished", "plan ready" and
- * "question", but not for tool approvals; hidden chats and archived workspaces never notify; the
+ * a chat the user is looking at in a focused window is skipped for "finished", "failed", "plan
+ * ready", "question" and "permission request", but not for tool approvals; hidden chats and archived workspaces never notify; the
  * sound plays even when native notifications are off, unless the sound is "none"; titles are
  * cut to 50 characters; the dock badge counts workspaces with at least one unread open chat, not
  * chats; a click opens the deep link, and on a cold start only the newest link is used.
@@ -68,8 +71,13 @@ export const isSuppressed = (input: SuppressionInput): boolean => {
 };
 
 /** Trims to 50 characters with an ellipsis. */
-export const notificationTitle = (title: string): string =>
-	title.length <= NOTIFICATION_TITLE_MAX ? title : `${title.slice(0, NOTIFICATION_TITLE_MAX - 1)}…`;
+export const notificationTitle = (title: string): string => {
+	// Count whole characters, so an emoji at the cut is not split in half.
+	const characters = Array.from(title);
+	return characters.length <= NOTIFICATION_TITLE_MAX
+		? title
+		: `${characters.slice(0, NOTIFICATION_TITLE_MAX - 1).join("")}…`;
+};
 
 export const buildDeepLink = (workspaceId: WorkspaceId, sessionId: SessionId | null): string => {
 	const params = new URLSearchParams({ id: workspaceId });

@@ -21,6 +21,11 @@ export class KeyedMutex {
 		return this.#queue.run(key, work);
 	}
 
+	/** True while someone holds or waits for `key`, so a new caller would have to wait. */
+	isHeld(key: string): boolean {
+		return this.#queue.isBusy(key);
+	}
+
 	/** Number of keys that currently hold or wait for the lock. */
 	get size(): number {
 		return this.#queue.activeKeys();

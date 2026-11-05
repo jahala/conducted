@@ -171,7 +171,7 @@ export const resolveReviewThread = (threadId: string): GitCommand =>
 	gh([
 		"api",
 		"graphql",
-		"-F",
+		"-f",
 		`threadId=${threadId}`,
 		"-f",
 		"query=mutation($threadId: ID!) { resolveReviewThread(input: {threadId: $threadId}) { thread { id isResolved } } }",

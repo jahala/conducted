@@ -26,6 +26,8 @@ export interface KeyedQueue<K extends string = string> {
 	run<T>(key: K, task: () => Promise<T>): Promise<T>;
 	/** Runs `task` once everything queued on each of `keys` is done, and holds them until it ends. */
 	runBarrier<T>(keys: readonly K[], task: () => Promise<T>): Promise<T>;
+	/** True while a task is queued or running on `key`, so a new task on it would have to wait. */
+	isBusy(key: K): boolean;
 	/** How many keys have work queued or running. For tests and the health view. */
 	activeKeys(): number;
 }
@@ -69,6 +71,7 @@ export function createKeyedQueue<K extends string = string>(): KeyedQueue<K> {
 			void result.then(clear, clear);
 			return result;
 		},
+		isBusy: (key) => tails.has(key),
 		activeKeys: () => tails.size,
 	};
 }

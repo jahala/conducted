@@ -15,6 +15,7 @@ import type { RepositoryDeps } from "./deps.ts";
 import {
 	collectResults,
 	executeStatement,
+	executeVoid,
 	parseJsonColumn,
 	selectRows,
 	stringifyJson,
@@ -115,14 +116,7 @@ export function createSessionLiveStateRepository(
 			);
 			return written.ok ? ok(written.value > 0) : err(written.error);
 		},
-		delete: async (sessionId) => {
-			const written = await executeStatement(
-				db,
-				SESSION_LIVE_STATE_SQL.delete,
-				[sessionId],
-				"Removing a chat's live state",
-			);
-			return written.ok ? ok(undefined) : err(written.error);
-		},
+		delete: (sessionId) =>
+			executeVoid(db, SESSION_LIVE_STATE_SQL.delete, [sessionId], "Removing a chat's live state"),
 	};
 }

@@ -58,6 +58,13 @@ describe("PR-01 gh command catalogue", () => {
 		expect(query).toContain("pr1ByNumber");
 	});
 
+	it("sends a review thread id as a plain string, never as a typed field or a file read", () => {
+		const args = gh.resolveReviewThread("@/etc/hosts").args;
+		const at = args.indexOf("threadId=@/etc/hosts");
+		expect(at).toBeGreaterThan(0);
+		expect(args[at - 1]).toBe("-f");
+	});
+
 	it("only sends the title when it changes", () => {
 		expect(gh.prEdit(3, { title: "T" }).args).toEqual(["pr", "edit", "3", "--title", "T"]);
 	});

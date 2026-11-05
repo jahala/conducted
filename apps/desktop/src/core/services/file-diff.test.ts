@@ -98,6 +98,34 @@ const stat = (modifiedAt: number, size = 10): Result<FileStat> =>
 const missing = (): Promise<Result<FileStat>> =>
 	Promise.resolve(err(appError("not_found", "no file")));
 
+describe("REV-02 file diff paths", () => {
+	it("refuses a path outside the workspace without reading anything", async () => {
+		const { git, commands } = runner();
+		let reads = 0;
+		const svc = service(git, {
+			readText: async () => {
+				reads += 1;
+				return ok("secret\n");
+			},
+			stat: async () => {
+				reads += 1;
+				return stat(1);
+			},
+		});
+
+		for (const path of ["../outside.txt", "/etc/passwd", "a/../../b"]) {
+			const diff = await svc.load(workspaceId, path, scope, {
+				withPatch: false,
+				ignoreWhitespace: false,
+			});
+			expect(diff.ok).toBe(false);
+			if (!diff.ok) expect(diff.error.code).toBe("path_outside_workspace");
+		}
+		expect(reads).toBe(0);
+		expect(commands).toEqual([]);
+	});
+});
+
 describe("REV-02 file diff sides", () => {
 	it("returns oldText and a null newText for a deleted file", async () => {
 		const { git } = runner({

@@ -4,8 +4,9 @@
  * Behaviour: services-map.md 2.3.2 (repos). Our table is smaller: no scripts or prompts, those
  * live in the repo config files.
  * Must handle: a duplicate root_path (UNIQUE) returns an error Result instead of throwing;
- * deleting a repo cascades to its workspaces, sessions, comments, terminals and env vars; the
- * next display_order is read and inserted in one transaction so two adds never share a slot.
+ * deleting a repo cascades to its workspaces, sessions, comments, terminals and env vars, and
+ * removes its "repo:<id>:" rows from the settings table, which no foreign key covers, in the same
+ * transaction; a setter on a missing repo returns `db.not_found`; the next display_order is read and inserted in one transaction so two adds never share a slot.
  * Test first: repoToParams then repoFromRow gives back the same Repo, including hidden=true.
  */
 import { err, ok, type RepoId, type Result } from "@conducted/shared";
@@ -13,13 +14,14 @@ import type { Database } from "../../platform/platform.ts";
 import type { Repo } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
 import {
+	executeExisting,
 	executeStatement,
-	executeVoid,
 	fromFlag,
 	inTransaction,
 	selectRows,
 	toFlag,
 } from "./row-codec.ts";
+import { repoSettingKey, SETTINGS_SQL } from "./settings.ts";
 
 export interface RepoRow {
 	id: RepoId;
@@ -98,7 +100,7 @@ export interface RepoRepository {
 	 * root_path returns the error code `db.conflict`.
 	 */
 	create(input: NewRepo): Promise<Result<Repo>>;
-	/** REPOS_SQL.setName. Bumps updated_at. */
+	/** REPOS_SQL.setName. Bumps updated_at. A missing repo is `db.not_found`, as for every setter. */
 	setName(id: RepoId, name: string): Promise<Result<void>>;
 	/** REPOS_SQL.setDefaultBranch. */
 	setDefaultBranch(id: RepoId, branch: string): Promise<Result<void>>;
@@ -110,7 +112,10 @@ export interface RepoRepository {
 	setHidden(id: RepoId, hidden: boolean): Promise<Result<void>>;
 	/** REPOS_SQL.setDisplayOrder for each id in the given order, in one transaction. */
 	reorder(orderedIds: readonly RepoId[]): Promise<Result<void>>;
-	/** REPOS_SQL.delete. The database cascades to everything the repo owns. */
+	/**
+	 * REPOS_SQL.delete. The database cascades to everything the repo owns; SETTINGS_SQL.deleteByPrefix
+	 * removes its "repo:<id>:" settings in the same transaction. A missing repo is not an error.
+	 */
 	delete(id: RepoId): Promise<Result<void>>;
 }
 
@@ -174,20 +179,20 @@ export function createRepoRepository(db: Database, deps: RepositoryDeps): RepoRe
 				return written.ok ? ok(repo) : err(written.error);
 			}),
 		setName: async (id, name) =>
-			executeVoid(db, REPOS_SQL.setName, [name, now(), id], "Renaming a repository"),
+			executeExisting(db, REPOS_SQL.setName, [name, now(), id], "Renaming a repository"),
 		setDefaultBranch: async (id, branch) =>
-			executeVoid(
+			executeExisting(
 				db,
 				REPOS_SQL.setDefaultBranch,
 				[branch, now(), id],
 				"Changing a repository branch",
 			),
 		setRemoteUrl: async (id, url) =>
-			executeVoid(db, REPOS_SQL.setRemoteUrl, [url, now(), id], "Changing a repository remote"),
+			executeExisting(db, REPOS_SQL.setRemoteUrl, [url, now(), id], "Changing a repository remote"),
 		setIcon: async (id, icon) =>
-			executeVoid(db, REPOS_SQL.setIcon, [icon, now(), id], "Changing a repository icon"),
+			executeExisting(db, REPOS_SQL.setIcon, [icon, now(), id], "Changing a repository icon"),
 		setHidden: async (id, hidden) =>
-			executeVoid(db, REPOS_SQL.setHidden, [toFlag(hidden), now(), id], "Hiding a repository"),
+			executeExisting(db, REPOS_SQL.setHidden, [toFlag(hidden), now(), id], "Hiding a repository"),
 		reorder: async (orderedIds) =>
 			inTransaction(db, "Reordering repositories", async (tx) => {
 				const at = now();
@@ -202,6 +207,17 @@ export function createRepoRepository(db: Database, deps: RepositoryDeps): RepoRe
 				}
 				return ok(undefined);
 			}),
-		delete: async (id) => executeVoid(db, REPOS_SQL.delete, [id], "Removing a repository"),
+		delete: async (id) =>
+			inTransaction(db, "Removing a repository", async (tx) => {
+				const settings = await executeStatement(
+					tx,
+					SETTINGS_SQL.deleteByPrefix,
+					[repoSettingKey(id, "")],
+					"Removing a repository's settings",
+				);
+				if (!settings.ok) return err(settings.error);
+				const removed = await executeStatement(tx, REPOS_SQL.delete, [id], "Removing a repository");
+				return removed.ok ? ok(undefined) : err(removed.error);
+			}),
 	};
 }
