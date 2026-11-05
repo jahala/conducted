@@ -404,3 +404,15 @@ Why: a part that only tests call is not a feature, and an audit of one batch can
 Context: the new test-quality guards flag hundreds of existing violations, and the plan's first draft also proposed marking real failing tests as expected to fail (`it.fails`, `test.failing`) until their owner builds.
 Chosen: each guard reads a committed baseline of today's violations per file. A guard fails when a count rises, and also when the baseline is higher than the real count, so every fix lowers the file. There are no expected-failure marks. A test that fails because the product is broken lands in the same change as its fix, or is the acceptance test of the feature build that owns the fix, written test first in that build.
 Why: a baseline that can only fall lets the guards start today without hiding anything new. An expected-failure mark is a skip by another name, which the project's rules and weeder (T3) refuse.
+
+## D056. The DeepSeek budget has no fixed cap (2026-11-05)
+
+Context: the goal for slice 2 stopped DeepSeek spend at 35 USD. After slice 2's first step, the rest of the slice needed about as much as the cap had left, with no margin.
+Chosen: the owner raised the budget and set no fixed cap. One floor stays: a step does not start when the balance is under 3 USD, and the owner is asked to top up instead.
+Why: the floor keeps a step from running out of credit with workers half done, which would leave work to clean up by hand.
+
+## D057. A red step is fixed at its cause, not quarantined (2026-11-05)
+
+Context: D039 gave each step two CI fix rounds, then quarantine for the features still red. Quarantine kept main green by leaving a feature out. The owner asked for every failure to be understood and fixed instead. So far, every red run had a cause that could be fixed: a real bug, or two merged changes meeting for the first time.
+Chosen: CI failures get root-cause fixes, however many rounds that takes. After two rounds, the conductor diagnoses the failure itself, or hands it to an Opus agent with the full logs, before trying again. Quarantine remains only for a feature that cannot be built yet, for example one waiting on a contract change the owner must approve, and that case goes into the report for the owner.
+Why: leaving a broken feature out moves the problem into the next step, and main must stay green without features quietly dropped.

@@ -1948,6 +1948,15 @@ mod tests {
         values
     }
 
+    /// The allowlist holds names; a program the UI names by path (`/bin/echo`) is checked by
+    /// its file name, as `check_program_allowed` does.
+    fn program_file_name(program: &str) -> &str {
+        Path::new(program)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or(program)
+    }
+
     #[test]
     fn git_16_allows_the_xcode_licence_programs() {
         for program in ["xcodebuild", "osascript"] {
@@ -1969,7 +1978,7 @@ mod tests {
         );
         for program in &programs {
             assert!(
-                ALLOWED_PROGRAMS.contains(&program.as_str()),
+                ALLOWED_PROGRAMS.contains(&program_file_name(program)),
                 "the UI starts {program}, which the allowlist refuses"
             );
         }

@@ -21,6 +21,8 @@
 //! - A destination that exists is not overwritten: fail with `attachment_exists`.
 //! - Images are detected from file contents, not the extension. A file named `.png` that is not an
 //!   image is copied as is and reported with `is_image: false`.
+//! - A resized image is written as JPEG under the destination's name with a `.jpg` extension,
+//!   and the returned `path` names that file, so the name always matches the bytes.
 //! - Resizing keeps the aspect ratio, honours EXIF orientation, flattens transparency onto white
 //!   when it re-encodes as JPEG, and never enlarges. An animated GIF is copied as is and reported
 //!   with `is_image: false`, because it is not a still image.
@@ -284,9 +286,10 @@ fn materialize_into(
         || metadata.len() > MAX_IMAGE_BYTES;
     if resize_image && over_limit && !image.animated {
         let resized = resize_image_bytes(source)?;
-        write_bytes_atomic(&resized.bytes, &target)?;
+        let written = jpeg_path(&target);
+        write_bytes_atomic(&resized.bytes, &written)?;
         return Ok(MaterializedAttachment {
-            path: reported_path,
+            path: written.to_string_lossy().into_owned(),
             size_bytes: resized.bytes.len() as u64,
             is_image: true,
             width: Some(resized.width),
@@ -304,6 +307,22 @@ fn materialize_into(
         height: Some(image.height),
         resized: false,
     })
+}
+
+/// A re-encoded image is JPEG, so its file name says so: `wide.png` is written as `wide.jpg`.
+/// An agent that takes the image type from the name then sends what the bytes are.
+fn jpeg_path(path: &Path) -> PathBuf {
+    let is_jpeg = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            extension.eq_ignore_ascii_case("jpg") || extension.eq_ignore_ascii_case("jpeg")
+        });
+    if is_jpeg {
+        path.to_path_buf()
+    } else {
+        path.with_extension("jpg")
+    }
 }
 
 /// Reads the image format and dimensions from the file's first bytes. `None` means the contents
@@ -714,9 +733,15 @@ mod tests {
             (ratio - 90.0).abs() / 90.0 < 0.01,
             "aspect ratio was {ratio}"
         );
-        let bytes = fs::read(&destination).expect("copy");
+        assert!(
+            result.path.ends_with("wide.jpg"),
+            "a JPEG keeps a .jpg name: {}",
+            result.path
+        );
+        let written = PathBuf::from(&result.path);
+        let bytes = fs::read(&written).expect("copy");
         assert_eq!(&bytes[..2], &[0xff, 0xd8], "the copy is a JPEG");
-        let (width, stored_height) = image::image_dimensions(&destination).expect("dimensions");
+        let (width, stored_height) = image::image_dimensions(&written).expect("dimensions");
         assert_eq!(width, MAX_PIXEL_DIMENSION);
         assert_eq!(stored_height, height);
     }
@@ -802,7 +827,16 @@ mod tests {
 
         assert!(result.resized);
         assert_eq!(result.width, Some(MAX_PIXEL_DIMENSION));
-        assert!(destination.is_file());
+        assert!(
+            result.path.ends_with("wide-small.jpg"),
+            "returned {}",
+            result.path
+        );
+        assert!(PathBuf::from(&result.path).is_file());
+        assert!(
+            !destination.exists(),
+            "nothing is written under the .png name"
+        );
     }
 
     #[test]
