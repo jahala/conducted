@@ -10,15 +10,11 @@
 import { appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import type { ShellCommand, ShellOutput } from "../../platform/platform.ts";
-import type { GitCommand } from "../git/commands.ts";
-import { FakeGitRunner, gitOutput } from "../../test/fake-git-runner.ts";
 import { createTestContainer, seedRepo, seedWorkspace } from "../../test/container.ts";
+import { FakeGitRunner, gitOutput } from "../../test/fake-git-runner.ts";
+import type { GitCommand } from "../git/commands.ts";
 import type { PullRequestAction } from "../model.ts";
-import {
-	GITHUB_HEAD_MISMATCH_MESSAGE,
-	GithubService,
-	type PrWorkspaceContext,
-} from "./github.ts";
+import { GithubService, type PrWorkspaceContext } from "./github.ts";
 
 const workspaceId = "ws-1" as WorkspaceId;
 
@@ -48,11 +44,7 @@ function defaultAnswer(command: GitCommand): Result<ShellOutput> {
 	if (command.program === "git" && command.args[0] === "rev-parse") {
 		return command.args[1] === "HEAD" ? gitOutput("abc123\n") : gitOutput(".git\n");
 	}
-	if (
-		command.program === "gh" &&
-		command.args[0] === "api" &&
-		command.args.includes("graphql")
-	) {
+	if (command.program === "gh" && command.args[0] === "api" && command.args.includes("graphql")) {
 		return gitOutput("[true,true,true]\n");
 	}
 	if (
@@ -100,6 +92,53 @@ describe("PR-06 pull request write actions", () => {
 
 		expect(await service.setAutoMerge(workspaceId, false)).toEqual(ok(undefined));
 		expect(commandArgs(git)).toContainEqual(["pr", "merge", "12", "--disable-auto"]);
+	});
+
+	it("merges with the repository's method pinned to the local HEAD", async () => {
+		const git = new FakeGitRunner(defaultAnswer);
+		const service = makeService(git);
+
+		expect(await service.merge(workspaceId)).toEqual(ok(undefined));
+		expect(commandArgs(git)).toContainEqual([
+			"pr",
+			"merge",
+			"12",
+			"--squash",
+			"--match-head-commit",
+			"abc123",
+		]);
+	});
+
+	it("runs one mark-ready while a second press waits on the same action", async () => {
+		let release: (() => void) | undefined;
+		const blocked = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		let started: (() => void) | undefined;
+		const reached = new Promise<void>((resolve) => {
+			started = resolve;
+		});
+		const git = new FakeGitRunner(async (command) => {
+			if (command.args[0] === "pr" && command.args[1] === "ready") {
+				started?.();
+				await blocked;
+			}
+			return defaultAnswer(command);
+		});
+		const service = makeService(git);
+
+		const first = service.markReady(workspaceId);
+		await reached;
+		const second = service.markReady(workspaceId);
+		release?.();
+
+		expect(await Promise.all([first, second])).toEqual([ok(undefined), ok(undefined)]);
+		expect(
+			git.commands.filter(
+				(command) =>
+					command.program === "gh" && command.args[0] === "pr" && command.args[1] === "ready",
+			),
+		).toHaveLength(1);
 	});
 
 	it("approves pinned to the pull request's head commit", async () => {
@@ -156,13 +195,7 @@ describe("PR-06 pull request write actions", () => {
 			"--add-reviewer",
 			"hubot",
 		]);
-		expect(commandArgs(git)).toContainEqual([
-			"pr",
-			"edit",
-			"12",
-			"--remove-reviewer",
-			"hubot",
-		]);
+		expect(commandArgs(git)).toContainEqual(["pr", "edit", "12", "--remove-reviewer", "hubot"]);
 	});
 
 	it("refuses an empty reviewer list instead of sending gh", async () => {
@@ -188,11 +221,7 @@ describe("PR-06 pull request write actions", () => {
 	it("reports a moved head as a blocked merge, not a raw gh failure", async () => {
 		const git = new FakeGitRunner((command) => {
 			if (command.program === "gh" && command.args[0] === "pr" && command.args[1] === "merge") {
-				return gitOutput(
-					"",
-					"the head commit abc123 does not match the pull request head",
-					1,
-				);
+				return gitOutput("", "the head commit abc123 does not match the pull request head", 1);
 			}
 			return defaultAnswer(command);
 		});
@@ -201,7 +230,9 @@ describe("PR-06 pull request write actions", () => {
 		const result = await service.merge(workspaceId);
 
 		expect(!result.ok && result.error.code).toBe("github_head_mismatch");
-		expect(!result.ok && result.error.message).toBe(GITHUB_HEAD_MISMATCH_MESSAGE);
+		expect(!result.ok && result.error.message).toBe(
+			"Merge blocked: this workspace's code is different from the pull request's head. Pull the latest changes and try again.",
+		);
 	});
 
 	it("reads the merge method once per repository and reuses it", async () => {

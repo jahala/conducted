@@ -1981,10 +1981,7 @@ export class GithubService {
 	}
 
 	/** The pull request's head commit, so an approval names exactly what GitHub is showing. */
-	async #pullRequestHead(
-		runOptions: GitRunOptions,
-		prNumber: number,
-	): Promise<Result<string>> {
+	async #pullRequestHead(runOptions: GitRunOptions, prNumber: number): Promise<Result<string>> {
 		const command = prViewHeadCommit(prNumber);
 		const result = await this.#deps.git.run(command, runOptions);
 		if (!result.ok) return err(result.error);
@@ -2038,11 +2035,7 @@ export class GithubService {
 			if (!prepared.ok) return err(prepared.error);
 			const { found, prNumber, runOptions } = prepared.value;
 			if (!enabled) {
-				return this.#runPullRequestCommand(
-					found,
-					runOptions,
-					prMergeDisableAuto(prNumber),
-				);
+				return this.#runPullRequestCommand(found, runOptions, prMergeDisableAuto(prNumber));
 			}
 			const setup = await this.#mergeSetup(found, runOptions);
 			if (!setup.ok) return err(setup.error);
@@ -2059,29 +2052,17 @@ export class GithubService {
 			const { found, prNumber, runOptions } = prepared.value;
 			const head = await this.#pullRequestHead(runOptions, prNumber);
 			if (!head.ok) return err(head.error);
-			return this.#runPullRequestCommand(
-				found,
-				runOptions,
-				prApprove(prNumber, head.value),
-			);
+			return this.#runPullRequestCommand(found, runOptions, prApprove(prNumber, head.value));
 		});
 	}
 
 	/** Backs `Actions.pullRequests.updateTitleAndBody`: one `gh pr edit` carries both fields. */
-	updateTitleAndBody(
-		workspaceId: WorkspaceId,
-		title: string,
-		body: string,
-	): Promise<Result<void>> {
+	updateTitleAndBody(workspaceId: WorkspaceId, title: string, body: string): Promise<Result<void>> {
 		return this.#flights.run(`updateTitleAndBody:${workspaceId}`, async () => {
 			const prepared = await this.#preparePullRequestWrite(workspaceId);
 			if (!prepared.ok) return err(prepared.error);
 			const { found, prNumber, runOptions } = prepared.value;
-			return this.#runPullRequestCommand(
-				found,
-				runOptions,
-				prEdit(prNumber, { title, body }),
-			);
+			return this.#runPullRequestCommand(found, runOptions, prEdit(prNumber, { title, body }));
 		});
 	}
 
