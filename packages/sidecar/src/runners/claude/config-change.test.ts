@@ -33,6 +33,13 @@ test("a restart change wins over live changes and still reports them", () => {
 	expect(change.live.model).toBe(true);
 });
 
+test("AGENT-04 the auto permission mode is a live permission-mode change", () => {
+	const change = classifyConfigChange(base, { ...base, autoPermissionMode: true });
+
+	expect(change.kind).toBe("live");
+	expect(change.live.permissionMode).toBe(true);
+});
+
 test("tool switches need a restart", () => {
 	expect(
 		classifyConfigChange(base, {

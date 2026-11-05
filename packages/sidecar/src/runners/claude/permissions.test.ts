@@ -1,4 +1,5 @@
-import { expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
+import type { PermissionUpdate } from "@anthropic-ai/claude-agent-sdk";
 import {
 	classifyToolUse,
 	isInsideAny,
@@ -97,6 +98,67 @@ test("answers map to SDK results", () => {
 	expect(denied.result).toEqual({ behavior: "deny", message: "no" });
 	const withdrawn = toPermissionResult("Bash", input, { kind: "withdrawn" });
 	expect(withdrawn.result.behavior).toBe("deny");
+});
+
+describe("AGENT-04 permission mode and suggested rules", () => {
+	test("the auto permission mode follows approvals and plan mode", () => {
+		expect(
+			permissionModeFor({
+				planMode: false,
+				requireToolApproval: true,
+				autoPermissionMode: true,
+			}),
+		).toBe("auto");
+		expect(
+			permissionModeFor({
+				planMode: true,
+				requireToolApproval: true,
+				autoPermissionMode: true,
+			}),
+		).toBe("plan");
+		expect(
+			permissionModeFor({
+				planMode: false,
+				requireToolApproval: false,
+				autoPermissionMode: true,
+			}),
+		).toBe("bypassPermissions");
+		expect(modeAfterPlan({ requireToolApproval: true, autoPermissionMode: true })).toBe("auto");
+	});
+
+	test("allow with suggested rules adds the SDK's suggestions", () => {
+		const suggestions: PermissionUpdate[] = [
+			{
+				type: "addRules",
+				rules: [{ toolName: "Bash", ruleContent: "npm test" }],
+				behavior: "allow",
+				destination: "localSettings",
+			},
+		];
+		const outcome = toPermissionResult(
+			"Bash",
+			{ command: "npm test" },
+			{ kind: "tool_approval", decision: "allow_with_suggested_rules" },
+			suggestions,
+		);
+
+		expect(outcome.result).toEqual({
+			behavior: "allow",
+			updatedInput: { command: "npm test" },
+			updatedPermissions: suggestions,
+		});
+		expect(outcome.enableAutoApproveEdits).toBe(false);
+	});
+
+	test("allow with suggested rules still allows when the SDK proposes nothing", () => {
+		const outcome = toPermissionResult(
+			"Bash",
+			{ command: "ls" },
+			{ kind: "tool_approval", decision: "allow_with_suggested_rules" },
+		);
+
+		expect(outcome.result).toEqual({ behavior: "allow", updatedInput: { command: "ls" } });
+	});
 });
 
 test("plan approval returns to the normal mode, rejection interrupts with the feedback", () => {
