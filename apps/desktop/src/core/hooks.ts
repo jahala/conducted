@@ -64,6 +64,7 @@ import { useStoreWithEqualityFn } from "zustand/traditional";
 import type { Actions, Draft, Loadable, Queries } from "./api.ts";
 import { useServices } from "./context.tsx";
 import type { GitState, Repo, Session } from "./model.ts";
+import { parseShortcutOverrides, toCommandEntries } from "./registries/commands.ts";
 import type { WorkspaceGitEntry } from "./services/git.ts";
 import { toGitHubAccessView, type WorkspacePrEntry } from "./services/github.ts";
 import type { SessionsState } from "./services/sessions.ts";
@@ -246,7 +247,17 @@ export const useSetting: Queries["useSetting"] = <T>(key: string): T => {
 export const useAgentInstalls: Queries["useAgentInstalls"] = () => notImplemented("SET-03");
 export const useModels: Queries["useModels"] = () => notImplemented("COMP-02");
 export const useSlashCommands: Queries["useSlashCommands"] = () => notImplemented("COMP-06");
-export const useCommands: Queries["useCommands"] = () => notImplemented("NAV-07");
+export const useCommands: Queries["useCommands"] = () => {
+	const { services } = useServices();
+	const stored = useSetting<string>("keybinding_overrides_v1");
+	return useMemo(() => {
+		const overrides = parseShortcutOverrides(stored);
+		return toCommandEntries(
+			(id) => services.commands.isEnabled(id),
+			overrides.ok ? overrides.value : {},
+		);
+	}, [services, stored]);
+};
 export const useUpdateStatus: Queries["useUpdateStatus"] = () => notImplemented("APP-06");
 export const useBranchCommits: Queries["useBranchCommits"] = () => notImplemented("REV-01");
 export const useBranches: Queries["useBranches"] = () => notImplemented("WS-02");
