@@ -70,6 +70,7 @@ import {
 	remoteTargetRef,
 } from "../git/status.ts";
 import type { GitState } from "../model.ts";
+import { commitAndPushInstruction } from "./agent-instructions.ts";
 import type { GitCache } from "./git-cache.ts";
 import type { WorkspacePrEntry } from "./github.ts";
 import type { AgentMessenger } from "./sessions.ts";
@@ -764,8 +765,18 @@ export class GitService {
 	}
 
 	/** Backs `Actions.git.commitAndPush`: sends the agent the commit instruction. */
-	commitAndPush(_workspaceId: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("GIT-05");
+	async commitAndPush(workspaceId: WorkspaceId): Promise<Result<void>> {
+		const context = await this.#deps.contextOf(workspaceId);
+		if (!context.ok) return context;
+		const found = context.value;
+		const text = commitAndPushInstruction({
+			remote: found.remote,
+			targetBranch: found.targetBranch,
+			branch: found.branch,
+			customPrompt: null,
+		});
+		const sent = await this.#deps.agent.sendInstruction(workspaceId, text);
+		return sent.ok ? ok(undefined) : sent;
 	}
 
 	/** Backs `Actions.git.pull`. Fast-forward when the tree is clean, otherwise asks the agent. */
