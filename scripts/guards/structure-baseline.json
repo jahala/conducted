@@ -19,8 +19,13 @@
 		"apps/desktop/src/core/async/optimistic.ts": 1,
 		"apps/desktop/src/core/db/sections.ts": 1,
 		"apps/desktop/src/core/fuzzy.ts": 1,
+<<<<<<< HEAD
 		"apps/desktop/src/core/git/commands.ts": 13,
 		"apps/desktop/src/core/git/gh-commands.ts": 1,
+=======
+		"apps/desktop/src/core/git/commands.ts": 12,
+		"apps/desktop/src/core/git/gh-commands.ts": 2,
+>>>>>>> node/ws.06
 		"apps/desktop/src/core/git/status.ts": 1,
 		"apps/desktop/src/core/hooks/git.ts": 1,
 		"apps/desktop/src/core/hooks/sections.ts": 1,
@@ -31,7 +36,7 @@
 		"apps/desktop/src/core/services/github.ts": 1,
 		"apps/desktop/src/core/services/pr-mapping.ts": 1,
 		"apps/desktop/src/core/services/settings.ts": 2,
-		"apps/desktop/src/core/services/workspace.ts": 2,
+		"apps/desktop/src/core/services/workspace.ts": 1,
 		"apps/desktop/src/features/composer/ArchivedComposerBar.tsx": 1,
 		"apps/desktop/src/features/diff/DiffToolbar.tsx": 1,
 		"apps/desktop/src/features/diff/DiffView.tsx": 1,

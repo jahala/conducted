@@ -111,6 +111,22 @@ describe("NAV-05 WorkspaceCard", () => {
 		);
 	});
 
+	it("clears the chats and unarchives from the archived card", async () => {
+		const { repo, workspace } = await seedCard({ displayName: "Old work" });
+		if (test === undefined) throw new Error("Create the test container first.");
+		const unarchive = vi
+			.spyOn(test.container.actions.workspaces, "unarchive")
+			.mockResolvedValue(ok({ needsBranchName: false, uncommittedChangesLost: false }));
+		renderCard(archive(workspace), repo);
+		fireEvent.click(await screen.findByRole("button", { name: "Clear & unarchive" }));
+		await waitFor(() =>
+			expect(unarchive).toHaveBeenCalledWith(workspace.id, {
+				branchName: null,
+				clearChats: true,
+			}),
+		);
+	});
+
 	it("opens the archived workspace in Finder and copies its path", async () => {
 		const { repo, workspace } = await seedCard({ displayName: "Old work" });
 		if (test === undefined) throw new Error("Create the test container first.");
