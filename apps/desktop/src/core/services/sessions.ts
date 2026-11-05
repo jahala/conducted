@@ -129,7 +129,17 @@ export interface SessionsState {
 	/** Messages the sidecar did not accept, kept for Retry and Discard. */
 	failedSends?: Readonly<Record<string, readonly FailedSend[]>>;
 	openInteractions: Readonly<
-		Record<string, { interactionId: InteractionId; interaction: Interaction }>
+		Record<
+			string,
+			{
+				interactionId: InteractionId;
+				interaction: Interaction;
+				/** When Codex stops waiting, in milliseconds since the epoch. Null: no limit. */
+				expiresAt: number | null;
+				/** The agent stopped waiting before the user answered. */
+				timedOut: boolean;
+			}
+		>
 	>;
 	viewingSessionId: SessionId | null;
 }
@@ -866,6 +876,28 @@ export class SessionsService implements AgentMessenger {
 		return this.store.getState().openInteractions[sessionId] !== undefined;
 	}
 
+	/**
+	 * Backs the `interactionClosed` notification. A timed-out request keeps its card, marked as
+	 * timed out, and the agent's pending request settles as withdrawn. A delivery failure leaves
+	 * the card in place so the user can answer again.
+	 */
+	interactionClosed(params: {
+		sessionId: SessionId;
+		interactionId: InteractionId;
+		reason: "timed_out" | "delivery_failed";
+	}): void {
+		const open = this.store.getState().openInteractions[params.sessionId];
+		if (open === undefined || open.interactionId !== params.interactionId) return;
+		if (params.reason !== "timed_out") return;
+		this.store.setState((state) => ({
+			openInteractions: {
+				...state.openInteractions,
+				[params.sessionId]: { ...open, timedOut: true },
+			},
+		}));
+		this.#resolveInteraction(params.interactionId, { kind: "withdrawn" });
+	}
+
 	/** Called by the `requestInteraction` handler. Resolves when the user answers or it is withdrawn. */
 	requestInteraction(request: InteractionRequest): Promise<InteractionAnswer> {
 		const existing = this.#interactionPromises.get(request.interactionId);
@@ -897,6 +929,8 @@ export class SessionsService implements AgentMessenger {
 				[request.sessionId]: {
 					interactionId: request.interactionId,
 					interaction: request.interaction,
+					expiresAt: request.expiresAt ?? null,
+					timedOut: false,
 				},
 			},
 		}));
@@ -904,9 +938,6 @@ export class SessionsService implements AgentMessenger {
 
 	/** Answers the sidecar's open request and removes the card. A stale id is ignored. */
 	#settleInteraction(interactionId: InteractionId, answer: InteractionAnswer): void {
-		const resolve = this.#interactionResolvers.get(interactionId);
-		this.#interactionResolvers.delete(interactionId);
-		this.#interactionPromises.delete(interactionId);
 		this.store.setState((state) => {
 			const openInteractions = { ...state.openInteractions };
 			let changed = false;
@@ -917,6 +948,14 @@ export class SessionsService implements AgentMessenger {
 			}
 			return changed ? { openInteractions } : {};
 		});
+		this.#resolveInteraction(interactionId, answer);
+	}
+
+	/** Resolves the sidecar's pending request without touching the card on screen. */
+	#resolveInteraction(interactionId: InteractionId, answer: InteractionAnswer): void {
+		const resolve = this.#interactionResolvers.get(interactionId);
+		this.#interactionResolvers.delete(interactionId);
+		this.#interactionPromises.delete(interactionId);
 		resolve?.(answer);
 	}
 
@@ -1098,9 +1137,12 @@ export class SessionsService implements AgentMessenger {
 			const openInteractions = { ...state.openInteractions };
 			let changed = false;
 			if (nextOpen !== undefined) {
+				const same = previous?.interactionId === nextOpen.interactionId;
 				openInteractions[sessionId] = {
 					interactionId: nextOpen.interactionId,
 					interaction: nextOpen.interaction,
+					expiresAt: same ? (previous?.expiresAt ?? null) : null,
+					timedOut: same ? (previous?.timedOut ?? false) : false,
 				};
 				changed = true;
 			} else if (openInteractions[sessionId] !== undefined) {
@@ -1262,8 +1304,8 @@ export class SessionsService implements AgentMessenger {
 					: {
 							interactionId: open.interactionId,
 							interaction: open.interaction,
-							expiresAt: null,
-							timedOut: false,
+							expiresAt: open.expiresAt,
+							timedOut: open.timedOut,
 						},
 			progress: null,
 			goal: null,

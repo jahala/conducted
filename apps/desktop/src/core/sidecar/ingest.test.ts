@@ -503,6 +503,8 @@ describe("DATA-04 applyStoredEvent", () => {
 				[sessionId]: {
 					interactionId: "i1" as InteractionId,
 					interaction: {} as never,
+					expiresAt: null,
+					timedOut: false,
 				},
 			},
 		});

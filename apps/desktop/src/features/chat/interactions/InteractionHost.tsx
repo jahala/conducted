@@ -21,9 +21,19 @@ export interface InteractionHostProps {
 	sessionId: SessionId;
 	interactionId: InteractionId;
 	interaction: Interaction;
+	/** When Codex stops waiting, in milliseconds since the epoch. Missing: no limit. */
+	expiresAt?: number | null;
+	/** The agent already stopped waiting. */
+	timedOut?: boolean;
 }
 
-export function InteractionHost({ sessionId, interactionId, interaction }: InteractionHostProps) {
+export function InteractionHost({
+	sessionId,
+	interactionId,
+	interaction,
+	expiresAt = null,
+	timedOut = false,
+}: InteractionHostProps) {
 	switch (interaction.kind) {
 		case "question":
 			return (
@@ -51,11 +61,19 @@ export function InteractionHost({ sessionId, interactionId, interaction }: Inter
 					sessionId={sessionId}
 					interactionId={interactionId}
 					request={interaction}
+					expiresAt={expiresAt}
+					timedOut={timedOut}
 				/>
 			);
 		case "mcp_form":
 			return (
-				<McpFormCard sessionId={sessionId} interactionId={interactionId} request={interaction} />
+				<McpFormCard
+					sessionId={sessionId}
+					interactionId={interactionId}
+					request={interaction}
+					expiresAt={expiresAt}
+					timedOut={timedOut}
+				/>
 			);
 	}
 }

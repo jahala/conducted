@@ -200,6 +200,8 @@ describe("CHAT-05 cancel a turn", () => {
 				[session.id]: {
 					interactionId: "i1" as never,
 					interaction: question,
+					expiresAt: null,
+					timedOut: false,
 				},
 			},
 		});

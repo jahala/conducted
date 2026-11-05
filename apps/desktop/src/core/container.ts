@@ -198,7 +198,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 		log: (level, message, data) => platform.app.writeLog(level, message, data),
 	});
 	const handlerPorts: SidecarHandlerPorts = {
-		interactions: { request: (request) => sessions.requestInteraction(request) },
+		interactions: {
+			request: (request) => sessions.requestInteraction(request),
+			closed: (params) => sessions.interactionClosed(params),
+		},
 		ingest,
 		liveState: {
 			setLiveState: (p) => sessions.applyLiveState(p.sessionId, p.liveState),

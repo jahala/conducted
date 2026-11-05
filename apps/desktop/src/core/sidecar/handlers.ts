@@ -11,8 +11,9 @@
  * adopted status and any open interaction, and a failed live-state write is thrown so the tunnel
  * logs it; `agentSessionId` stores the agent's own session id so the next message resumes, and a
  * failed write is thrown so the tunnel logs it; `agentInstallsChanged` updates the agent catalog;
- * `shellEnvFailed` logs the folder, kind and message; a failed workspace diff becomes error text
- * the agent can read instead of a crash.
+ * `interactionClosed` marks a timed-out card and settles the pending request; `shellEnvFailed`
+ * logs the folder, kind and message; a failed workspace diff becomes error text the agent can
+ * read instead of a crash.
  * Our design choice: handlers receive ports (small interfaces), not services, so each can be
  * tested with a plain object. Errors the agent should read go into the normal result as text.
  * Test first: a deliverEvent request for a stored event answers persisted true and sends the ack.
@@ -37,6 +38,11 @@ import type {
 export interface InteractionPort {
 	/** Shows the card and resolves with the user's answer, or `withdrawn` when it was cancelled. */
 	request(request: InteractionRequest): Promise<InteractionAnswer>;
+	/**
+	 * The agent stopped waiting for an answer, or an answer could not reach it. A timed-out card
+	 * stays on screen marked as timed out.
+	 */
+	closed(params: SidecarToAppNotificationParams<"interactionClosed">): void;
 }
 
 export interface IngestPort {
@@ -153,7 +159,9 @@ export function createSidecarNotificationHandlers(
 			ports.agentCatalog.setAgentInstalls(params);
 		},
 		agentConfigChanged: () => notImplemented("SIDE-20"),
-		interactionClosed: () => notImplemented("CHAT-11"),
+		interactionClosed: async (params) => {
+			ports.interactions.closed(params);
+		},
 		goalChanged: () => notImplemented("COMP-10"),
 		shellEnvFailed: async (params) => {
 			ports.shellEnv.captureFailed(params);
