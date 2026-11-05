@@ -1,18 +1,125 @@
 /**
  * @feature APP-05 Toast
- * Owns: the one toast host, built on sonner, themed with our tokens. Screens call `toast` for short feedback.
- * Behaviour: ui-map.md 7.4 (toasts such as "Failed to create workspace"; success, error and warning kinds);
- * ui-dimensions.md 4 (356px wide, 16px padding, 8px gap, 8px radius, 1px border, 13px text, title weight 500).
+ * Owns: the one toast host, built on sonner, themed with our tokens. Screens and services call `toast` for
+ * short feedback; `workspaceToast` is the variant that shows only while its workspace is open.
+ * Behaviour: ui-map.md 7.4 (toasts such as "Failed to create workspace"; success, error and warning kinds; a
+ * workspace-scoped variant), 1.1 (one toast area at the root); ui-dimensions.md 4 (356px wide, 16px padding,
+ * 8px gap, 8px radius, 1px border, 13px text, title weight 500).
  * Our design choice: toasts report an outcome. Anything the user must act on gets a designed state or a card.
- * Must handle: error toasts stay long enough to read, success toasts are short, the host sits at the bottom
- * right and never covers the composer's send button, `role="status"` for screen readers (sonner).
- * Test first: toast.error("x") shows "x" in the host.
+ * The workspace-scoped toast keeps its workspace id beside the toast, so switching workspace dismisses it.
+ * Must handle: the host sits at the bottom right; `role="status"` for screen readers (sonner); a
+ * workspace-scoped toast is hidden while another workspace is open and removed when the user leaves or the
+ * toast closes on its own.
+ * Test first: toast.error("x") shows "x" in the host; a workspace-scoped toast for a closed workspace does not.
  */
-import { Toaster as Sonner } from "sonner";
+import type { WorkspaceId } from "@conducted/shared";
+import { useEffect } from "react";
+import { type ExternalToast, Toaster as Sonner, toast } from "sonner";
+import { create } from "zustand";
 
-export { toast } from "sonner";
+export { toast };
 
-export function Toaster() {
+interface WorkspaceToastState {
+	open: WorkspaceId | null;
+	owned: Record<string, WorkspaceId>;
+	next: number;
+	setOpen: (workspaceId: WorkspaceId | null) => void;
+	claim: (workspaceId: WorkspaceId) => string;
+	release: (id: string) => void;
+}
+
+const useWorkspaceToastStore = create<WorkspaceToastState>()((set, get) => ({
+	open: null,
+	owned: {},
+	next: 1,
+	setOpen: (workspaceId) => set({ open: workspaceId }),
+	claim: (workspaceId) => {
+		const id = `workspace-toast-${get().next}`;
+		set((state) => ({
+			next: state.next + 1,
+			owned: { ...state.owned, [id]: workspaceId },
+		}));
+		return id;
+	},
+	release: (id) =>
+		set((state) => {
+			const owned = { ...state.owned };
+			delete owned[id];
+			return { owned };
+		}),
+}));
+
+/** Tell the toast host which workspace is open. `Toaster` does this when it receives `workspaceId`. */
+export function setCurrentWorkspace(workspaceId: WorkspaceId | null): void {
+	useWorkspaceToastStore.getState().setOpen(workspaceId);
+}
+
+/** Ids of the workspace toasts that have not closed yet. */
+export function workspaceToastIds(): string[] {
+	return Object.keys(useWorkspaceToastStore.getState().owned);
+}
+
+/**
+ * Show an error toast with a failure's plain-language message as its description. Screens call this with the
+ * `Result` error, so the `Result` to toast path lives in one place.
+ */
+export function toastError(
+	title: string,
+	error: { message: string },
+	options?: ExternalToast,
+): string | number {
+	return toast.error(title, { ...options, description: error.message });
+}
+
+/**
+ * Show a toast only while `workspaceId` is the open workspace. Before a workspace is set the toast is shown,
+ * so an unwired host behaves like a plain toast rather than hiding the message.
+ */
+export function workspaceToast(
+	workspaceId: WorkspaceId,
+	message: string,
+	options?: ExternalToast,
+): string | null {
+	const { open, claim, release } = useWorkspaceToastStore.getState();
+	if (open !== null && open !== workspaceId) return null;
+	const id = claim(workspaceId);
+	const onDismiss = options?.onDismiss;
+	const onAutoClose = options?.onAutoClose;
+	toast(message, {
+		...options,
+		id,
+		onAutoClose: (closed) => {
+			release(String(closed.id));
+			onAutoClose?.(closed);
+		},
+		onDismiss: (dismissed) => {
+			release(String(dismissed.id));
+			onDismiss?.(dismissed);
+		},
+	});
+	return id;
+}
+
+export interface ToasterProps {
+	/** The workspace in the current route. Passing it dismisses toasts owned by other workspaces. */
+	workspaceId?: WorkspaceId | null;
+}
+
+export function Toaster({ workspaceId }: ToasterProps = {}) {
+	const setOpen = useWorkspaceToastStore((state) => state.setOpen);
+	const owned = useWorkspaceToastStore((state) => state.owned);
+	const release = useWorkspaceToastStore((state) => state.release);
+
+	useEffect(() => {
+		if (workspaceId === undefined) return;
+		setOpen(workspaceId ?? null);
+		for (const [id, owner] of Object.entries(owned)) {
+			if (owner === workspaceId) continue;
+			toast.dismiss(id);
+			release(id);
+		}
+	}, [workspaceId, owned, release, setOpen]);
+
 	return (
 		<Sonner
 			position="bottom-right"

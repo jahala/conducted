@@ -9,11 +9,19 @@
  * Test first: sessionFromRow returns an error Result when config is not a valid SessionConfig.
  */
 import { zSessionConfig } from "@conducted/protocol";
-import { notImplemented, type Result, type SessionId, type WorkspaceId } from "@conducted/shared";
+import { err, ok, type Result, type SessionId, type WorkspaceId } from "@conducted/shared";
 import type { Database } from "../../platform/platform.ts";
 import type { Session } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
-import { parseJsonColumn, stringifyJson } from "./row-codec.ts";
+import {
+	collectResults,
+	executeStatement,
+	executeVoid,
+	inTransaction,
+	parseJsonColumn,
+	selectRows,
+	stringifyJson,
+} from "./row-codec.ts";
 
 export interface SessionRow {
 	id: SessionId;
@@ -161,25 +169,123 @@ export interface SessionRepository {
 	delete(id: SessionId): Promise<Result<void>>;
 }
 
-export function createSessionRepository(_db: Database, _deps: RepositoryDeps): SessionRepository {
+export function createSessionRepository(db: Database, deps: RepositoryDeps): SessionRepository {
+	const now = (): number => deps.clock.now();
 	return {
-		listByWorkspace: async () => notImplemented("DATA-01"),
-		get: async () => notImplemented("DATA-01"),
-		create: async () => notImplemented("DATA-01"),
-		setTitle: async () => notImplemented("DATA-01"),
-		setTitleIfEmpty: async () => notImplemented("DATA-01"),
-		setConfig: async () => notImplemented("DATA-01"),
-		setAgentSessionId: async () => notImplemented("DATA-01"),
-		setContextUsage: async () => notImplemented("DATA-01"),
-		recordUserMessage: async () => notImplemented("DATA-01"),
-		incrementUnread: async () => notImplemented("DATA-01"),
-		clearUnread: async () => notImplemented("DATA-01"),
-		clearWorkspaceUnread: async () => notImplemented("DATA-01"),
-		unreadByWorkspace: async () => notImplemented("DATA-01"),
-		pauseQueue: async () => notImplemented("DATA-01"),
-		resumeQueue: async () => notImplemented("DATA-01"),
-		close: async () => notImplemented("DATA-01"),
-		reopen: async () => notImplemented("DATA-01"),
-		delete: async () => notImplemented("DATA-01"),
+		listByWorkspace: async (workspaceId, options) => {
+			const rows = await selectRows<SessionRow>(
+				db,
+				options.includeClosed ? SESSIONS_SQL.listByWorkspace : SESSIONS_SQL.listOpenByWorkspace,
+				[workspaceId],
+				"Listing chats",
+			);
+			return rows.ok ? collectResults(rows.value.map(sessionFromRow)) : err(rows.error);
+		},
+		get: async (id) => {
+			const rows = await selectRows<SessionRow>(db, SESSIONS_SQL.get, [id], "Reading a chat");
+			if (!rows.ok) return err(rows.error);
+			const row = rows.value[0];
+			return row === undefined ? ok(null) : sessionFromRow(row);
+		},
+		create: async (input) =>
+			inTransaction(db, "Creating a chat", async (tx) => {
+				const at = now();
+				const session: Session = {
+					id: deps.ids.uuid() as SessionId,
+					workspaceId: input.workspaceId,
+					title: input.title,
+					config: input.config,
+					agentSessionId: null,
+					unreadCount: 0,
+					contextUsedTokens: null,
+					contextWindowTokens: null,
+					queuePausedAt: null,
+					closedAt: null,
+					lastUserMessageAt: null,
+					createdAt: at,
+					updatedAt: at,
+				};
+				const params = sessionToParams(session);
+				if (!params.ok) return err(params.error);
+				const written = await executeStatement(
+					tx,
+					SESSIONS_SQL.insert,
+					params.value,
+					"Creating a chat",
+				);
+				return written.ok ? ok(session) : err(written.error);
+			}),
+		setTitle: (id, title) =>
+			executeVoid(db, SESSIONS_SQL.setTitle, [title, now(), id], "Titling a chat"),
+		setTitleIfEmpty: async (id, title) => {
+			const written = await executeStatement(
+				db,
+				SESSIONS_SQL.setTitleIfEmpty,
+				[title, now(), id],
+				"Titling a chat",
+			);
+			return written.ok ? ok(written.value > 0) : err(written.error);
+		},
+		setConfig: async (id, config) => {
+			const json = stringifyJson(config, "sessions.config");
+			if (!json.ok) return err(json.error);
+			return executeVoid(
+				db,
+				SESSIONS_SQL.setConfig,
+				[json.value, now(), id],
+				"Saving a chat config",
+			);
+		},
+		setAgentSessionId: (id, agentSessionId) =>
+			executeVoid(
+				db,
+				SESSIONS_SQL.setAgentSessionId,
+				[agentSessionId, now(), id],
+				"Saving an agent session id",
+			),
+		setContextUsage: async (id, usage) => {
+			const written = await executeStatement(
+				db,
+				SESSIONS_SQL.setContextUsage,
+				[usage.usedTokens, usage.windowTokens, id],
+				"Saving context usage",
+			);
+			return written.ok ? ok(undefined) : err(written.error);
+		},
+		recordUserMessage: (id, at) =>
+			executeVoid(db, SESSIONS_SQL.recordUserMessage, [at, id], "Recording a user message"),
+		incrementUnread: (id) =>
+			executeVoid(db, SESSIONS_SQL.incrementUnread, [id], "Marking a chat unread"),
+		clearUnread: (id) => executeVoid(db, SESSIONS_SQL.clearUnread, [id], "Marking a chat read"),
+		clearWorkspaceUnread: async (workspaceId) => {
+			const rows = await selectRows<{ id: SessionId }>(
+				db,
+				SESSIONS_SQL.clearWorkspaceUnread,
+				[workspaceId],
+				"Marking a workspace read",
+			);
+			return rows.ok ? ok(rows.value.map((row) => row.id)) : err(rows.error);
+		},
+		unreadByWorkspace: async () => {
+			const rows = await selectRows<{ workspace_id: WorkspaceId; unread: number }>(
+				db,
+				SESSIONS_SQL.unreadByWorkspace,
+				[],
+				"Reading unread counts",
+			);
+			return rows.ok
+				? ok(rows.value.map((row) => ({ workspaceId: row.workspace_id, unread: row.unread })))
+				: err(rows.error);
+		},
+		pauseQueue: (id, at) =>
+			executeVoid(db, SESSIONS_SQL.pauseQueue, [at, id], "Pausing the follow-up queue"),
+		resumeQueue: (id) =>
+			executeVoid(db, SESSIONS_SQL.resumeQueue, [id], "Resuming the follow-up queue"),
+		close: async (id) => {
+			const written = await executeStatement(db, SESSIONS_SQL.close, [now(), id], "Closing a chat");
+			return written.ok ? ok(written.value > 0) : err(written.error);
+		},
+		reopen: (id) => executeVoid(db, SESSIONS_SQL.reopen, [now(), id], "Reopening a chat"),
+		delete: (id) => executeVoid(db, SESSIONS_SQL.delete, [id], "Removing a chat"),
 	};
 }

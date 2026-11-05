@@ -233,6 +233,16 @@ describe("round trips through real tables", () => {
 		).toEqual(sampleQueued);
 	});
 
+	it("has statements for a new session and its first message event", () => {
+		seedWorkspace();
+		expect(rows<{ id: string }>(SESSIONS_SQL.get, [sessionId])).toHaveLength(1);
+		const firstMessage = userMessageEvent("e-new", "t-new", 10);
+		expect(append(firstMessage)).toEqual([{ idx: 0 }]);
+		expect(
+			rows<{ type: string }>(SESSION_EVENTS_SQL.getByEventId, [sessionId, firstMessage.eventId]),
+		).toHaveLength(1);
+	});
+
 	it("live state, favorite models, sections, settings", () => {
 		seedWorkspace();
 		run(SESSION_LIVE_STATE_SQL.upsert, must(liveStateToParams(sessionId, idleLiveState, 10)));

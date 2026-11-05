@@ -34,6 +34,7 @@ pub mod menu;
 pub mod navigation;
 pub mod notifications;
 pub mod open_with;
+mod process_group;
 pub mod pty;
 pub mod resource_usage;
 pub mod shell;
@@ -132,6 +133,10 @@ pub fn run() {
         .manage(resource_usage::ResourceUsageState::default())
         .manage(menu::MenuState::default())
         .manage(logger::LoggerState::default())
+        .setup(|app| {
+            shell::start_background_capture(app.handle().clone());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             health,
             app_info,
@@ -160,6 +165,7 @@ pub fn run() {
             pty::pty_kill,
             pty::pty_ack,
             pty::pty_screen_text,
+            pty::pty_screen_snapshot,
             terminal_history::pty_load_history,
             sidecar::sidecar_ensure_started,
             sidecar::sidecar_send,

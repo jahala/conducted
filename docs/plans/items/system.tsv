@@ -330,19 +330,19 @@ SIDE-10	rule	Conductor-specific environment variables from the host reach the ag
 SIDE-10	rule	The session id variable and the emit-session-state-events variable are set for Claude	claude-runner 1.3	covered
 AGENT-02	rule	The SDK adds its entrypoint variables and strips NODE_OPTIONS and DEBUG from the Claude environment	claude-runner 1.3	covered
 CLOUD-05	rule	Auth reaches Claude by env or by a brokered OAuth token injected on each spawn	claude-runner 1.3	covered
-AGENT-02	rule	Provider routing (Anthropic, Bedrock, Vertex) is read from claude auth status json	claude-runner 1.3	covered
+SIDE-21	rule	Provider routing (Anthropic, Bedrock, Vertex) is read from claude auth status json	claude-runner 1.3	covered
 AGENT-02	timeout	The claude auth status call has a 5 second timeout and its result is cached for 60 seconds	claude-runner 1.3	covered
 CLOUD-04	rule	The cloud sandbox flag CLAUDE_CODE_SANDBOXED is set inside the sandbox	claude-runner 1.3	covered
 SIDE-10	rule	Environment values are redacted in logs	claude-runner 1.3	covered
 SIDE-08	rule	The PreToolUse hook waits for the start checkpoint before any tool outside the read-only set runs	claude-runner 1.4	covered
-AGENT-02	operation	The agent is warmed before the first message is sent	claude-runner 1.5	covered
+SIDE-03	operation	The agent is warmed before the first message is sent	claude-runner 1.5	covered
 AGENT-02	rule	A second turn on a busy session is refused, config is reconciled, and the message is sent with a uuid	claude-runner 1.5	covered
-AGENT-02	rule	A model change is applied to the live process with setModel	claude-runner 1.5	covered
-AGENT-02	rule	An effort change is applied live when the model allows it, else the process restarts	claude-runner 1.5	covered
+AGENT-04	rule	A model change is applied to the live process with setModel	claude-runner 1.5	covered
+AGENT-04	rule	An effort change is applied live when the model allows it, else the process restarts	claude-runner 1.5	covered
 AGENT-04	rule	The permission mode is derived from plan mode, tool approvals and the auto permission mode setting	claude-runner 1.5	missing
 AGENT-16	rule	Personality, ultracode, fast mode, directories, Chrome and tool switches respawn the process; ours handles fast mode, directories and tool switches only	claude-runner 1.5	partly
 CLOUD-05	rule	A rejected OAuth token, changed credentials or a token expiring in 5 minutes forces a respawn	claude-runner 1.5	covered
-AGENT-02	rule	A config change during a turn is deferred to the next turn	claude-runner 1.5	covered
+AGENT-04	rule	A config change during a turn is deferred to the next turn	claude-runner 1.5	covered
 AGENT-02	rule	A respawn keeps history by resuming the session	claude-runner 1.5	covered
 AGENT-02	rule	Resumability is checked from the transcript on disk and an empty transcript is renamed to stale	claude-runner 1.5	partly
 AGENT-02	rule	Stop rejects the turn and aborts the process with a 5 second grace for interrupt first (D015)	claude-runner 1.5	covered
@@ -353,7 +353,7 @@ AGENT-02	rule	The system init message records the model, marks the session start
 SIDE-20	rule	An init message that reports plan permission mode tells the app to enter plan mode	claude-runner 2.1	missing
 AGENT-03	rule	The session state changed message drives the in-progress state and disarms the watchdog	claude-runner 2.2	covered
 AGENT-02	rule	Task started, notification and updated messages feed the background tasks list (sub-agent, shell, other)	claude-runner 2.3	partly
-AGENT-02	rule	Running tool ids and blocking TaskOutput waits are tracked and set waitingSince	claude-runner 2.4	missing
+SIDE-05	rule	Running tool ids and blocking TaskOutput waits are tracked and set waitingSince	claude-runner 2.4	missing
 AGENT-03	rule	Task messages of a sub-agent carry the parent tool use id	claude-runner 2.4	covered
 AGENT-03	message	An authentication-failed assistant message becomes an error item with code agent_auth_required so the UI can offer sign-in	claude-runner 2.5	missing
 AGENT-03	rule	A result message gives cost delta, model, tier, speed and a foreign flag	claude-runner 2.6	partly
@@ -1010,7 +1010,7 @@ GIT-01	operation	Shell group: run an internal script.	services-map 1.4	covered
 WS-03	operation	Shell group: run a user script.	services-map 1.4	covered
 WS-01	operation	File group: symlink helpers.	services-map 1.4	covered
 WS-01	operation	File group: the workspaces root folder.	services-map 1.4	covered
-PLAT-05	operation	File group: the bundled bin folder.	services-map 1.4	covered
+PLAT-28	operation	File group: the bundled bin folder.	services-map 1.4	covered
 WS-01	operation	Git infra: test whether a branch name is already taken.	services-map 1.4	covered
 GIT-01	rule	Git infra: fetch without holding the repo lock.	services-map 1.4	covered
 GIT-01	rule	Git infra: repo and worktree locks serialise git commands.	services-map 1.4	covered
@@ -1054,7 +1054,7 @@ NAV-15	store	The dialog manager that opens and closes dialogs.	services-map 1.5	
 PR-01	store	GitHub health store: whether gh is installed and signed in.	services-map 1.5, 5B.1.11	covered
 APP-11	rule	A task queue runs work serially per key or concurrently with barriers; today only the git lock exists.	services-map 1.5, 2.5.3	partly
 APP-11	rule	A single-flight helper makes a merge, push or rename run once when asked twice.	services-map 1.5, 3.0.3	missing
-PLAT-03	timeout	A timeout wrapper bounds shell commands and RPC calls.	services-map 1.5	covered
+SIDE-02	timeout	A timeout wrapper bounds shell commands and RPC calls.	services-map 1.5	covered
 APP-11	rule	Promises are never left floating; work started without waiting is marked as such.	services-map 1.5	covered
 APP-11	rule	An exponential backoff counter spaces retries of polls and reconnects.	services-map 1.5	partly
 CLOUD-03	rule	A desired-state reconciler drives cloud workspaces towards their wanted state.	services-map 1.5	covered
@@ -1214,7 +1214,7 @@ APP-01	rule	Client defaults of the query cache.	services-map 2.5.1	partly
 DATA-01	timeout	Default gcTime and per-query overrides.	services-map 2.5.1	missing
 DATA-01	rule	A shared query option preset retries only on non-4xx errors and uses a 30 s stale time.	services-map 2.5.1	missing
 DATA-01	rule	The query cache is not persisted.	services-map 2.5.1	covered
-DATA-01	rule	One place lists query key factories and what invalidates each key.	services-map 2.5.2	missing
+GIT-02	rule	One place lists query key factories and what invalidates each key.	services-map 2.5.2	missing
 GIT-02	rule	The git and workspace query subtree (file lists, diffs, directories, status) is invalidated on turn end, setup end, file revert and git action.	services-map 2.5.2	partly
 REV-09	rule	The turn diff is carried by the checkpoint-created event.	services-map 2.5.2	covered
 REV-06	timeout	The workspace file tree is polled every 30 s while shown.	services-map 2.5.2, 5A.5.3	covered
@@ -1295,7 +1295,7 @@ PR-03	timeout	A "no PR for this branch" answer is remembered for 5 minutes.	serv
 GIT-01	rule	A named in-process mutex exists per worktree and per repository.	services-map 3.0.3	covered
 GIT-01	rule	Each action takes a fixed lock; the repo lock is always nested inside the worktree lock.	services-map 3.0.3	covered
 GIT-12	rule	Switching branch has its own mutex, separate from the other git actions.	services-map 3.0.3	missing
-APP-11	rule	Rename, push, pull, merge, approve, ready, auto-merge, edit and sync each ignore a second request while one is running.	services-map 3.0.3	partly
+GIT-06	rule	Rename, push, pull, merge, approve, ready, auto-merge, edit and sync each ignore a second request while one is running.	services-map 3.0.3	partly
 GIT-01	rule	Git commands that fail on index.lock or "cannot lock ref" retry after 50, 100 and 200 ms.	services-map 3.0.4	covered
 GIT-02	rule	Quoted paths in git output are un-quoted.	services-map 3.0.5	covered
 GIT-02	rule	The --name-status output is parsed into change kinds and paths.	services-map 3.0.5	covered
@@ -1469,7 +1469,7 @@ PR-01	git	Onboarding reads the preferred git protocol with gh config get git_pro
 PRJ-02	git	The org list for the owner picker comes from the user's orgs.	services-map 3.9	missing
 PR-01	git	The branch prefix defaults to the user's login from gh api user --jq .login.	services-map 3.9	covered
 CLOUD-05	rule	Git in a sandbox runs with a scrubbed environment.	services-map 3.9	covered
-GIT-10	git	Archive starts with a checkpoint save under the archive id.	services-map 3.10	covered
+WS-05	git	Archive starts with a checkpoint save under the archive id.	services-map 3.10	covered
 WS-05	rule	A checkpoint save that exits with 101 or 102 offers to discard the git operation state, then retries.	services-map 3.10	missing
 WS-05	git	Discard path: list unmerged files with diff --diff-filter=U -z.	services-map 3.10	missing
 WS-05	git	Discard path: reset tracked changes with add -u.	services-map 3.10	missing
@@ -1505,12 +1505,12 @@ GIT-10	script	checkpointer save prunes stale temp files.	services-map 3.12.2	cov
 GIT-10	script	checkpointer restore rewrites only changed files and keeps ignored files.	services-map 3.12.2	covered
 GIT-10	script	checkpointer diff compares two checkpoints, or one against the current state.	services-map 3.12.2	covered
 GIT-11	script	git-busy-check.sh reports whether git is busy.	services-map 3.0, 3.12.2	covered
-GIT-10	git	Whether a checkpoint exists is checked with show-ref.	services-map 3.12.3	covered
-GIT-10	git	The original HEAD of a checkpoint is read with cat-file.	services-map 3.12.3	covered
+SIDE-08	git	Whether a checkpoint exists is checked with show-ref.	services-map 3.12.3	covered
+SIDE-08	git	The original HEAD of a checkpoint is read with cat-file.	services-map 3.12.3	covered
 REV-09	rule	Turn changes wait while checkpoint refs are not ready.	services-map 3.12.3	covered
 REV-09	store	The turn changes cache is capped at 5 MB.	services-map 3.12.3	covered
 REV-09	git	Files changed since a checkpoint come from diff --name-only with NUL separators.	services-map 3.12.3	covered
-GIT-10	message	Revert to a checkpoint fails with the exact failure text.	services-map 3.12.3	covered
+SIDE-08	message	Revert to a checkpoint fails with the exact failure text.	services-map 3.12.3	covered
 RUN-02	rule	Spotlight saves a pre-spotlight checkpoint, tests, then restores and deletes it.	services-map 3.12.3	covered
 RUN-08	script	The Spotlight start command is given the checkpointer and watchexec paths.	services-map 3.12.3	covered
 RUN-02	rule	Spotlight sync checkpoints (cp-spotlight-*) are removed when Spotlight stops.	n/a	partly
@@ -1598,9 +1598,9 @@ PLAT-07	rule	Local PTY transport checks the working folder and emits ready, data
 PLAT-07	rule	Flow control acknowledges consumed bytes.	services-map 5A.4.4	covered
 PLAT-07	rule	The Rust side keeps a screen snapshot and screen text.	services-map 5A.4.4, 5A.4.6	covered
 CLOUD-09	rule	Cloud terminals use a cloud transport with reconnect backoff and a local mirror.	services-map 5A.4.5	covered
-PLAT-07	rule	A session launch request names kind, execution, env mode, persistence and metadata.	services-map 5A.4.2	covered
+RUN-06	rule	A session launch request names kind, execution, env mode, persistence and metadata.	services-map 5A.4.2	covered
 PLAT-07	rule	Launch picks the shell, login arguments and env order, and empties PATH for interactive shells on macOS.	services-map 5A.4.3	partly
-PLAT-07	rule	Scripts run directly from files under a projects folder.	services-map 5A.4.3	covered
+RUN-06	rule	Scripts run directly from files under a projects folder.	services-map 5A.4.3	covered
 RUN-09	rule	Shell integration (OSC 633) reports the running program and completed-command markers.	services-map 5A.4.6	missing
 PLAT-07	rule	The terminal tracks the alternate screen.	services-map 5A.4.6	covered
 RUN-06	operation	A finished interactive shell can be restarted and a divider line is drawn.	services-map 5A.4.6	missing
@@ -1684,7 +1684,7 @@ PR-03	timeout	The selected workspace syncs every 5 seconds and sidebar workspace
 PR-08	rule	A Graphite poller runs alongside the PR poll.	services-map 5B.1.1, 5B.1.8	partly
 DATA-07	store	A PR info persister saves last PR info so a restart paints at once.	services-map 5B.1.5	missing
 GIT-02	rule	A workspace changes controller tracks git changes.	services-map 5B.1.1	covered
-APP-11	rule	The workspace actions controller dedupes each PR action while one is running.	services-map 5B.1.1, 5B.1.7	partly
+PR-01	rule	The workspace actions controller dedupes each PR action while one is running.	services-map 5B.1.1, 5B.1.7	partly
 PR-12	rule	Auto stack sync catches up stacked PRs with a rebase.	services-map 5B.1.1	missing
 CLOUD-03	rule	PR state for cloud workspaces comes from the cloud host.	services-map 5B.1.6	covered
 GIT-12	rule	A repo branch watcher keeps branch lists up to date.	services-map 5B.1.1	missing
@@ -2147,8 +2147,8 @@ CLOUD-17	message	Cloud settings that cannot be reached show "Conductor could not
 CLOUD-17	message	Changing the cloud git identity can fail with "Couldn't update Git identity".	inventory:toast row 874	missing
 CLOUD-17	message	Changing the local port range for cloud forwarding can fail with "Couldn't update the local port range".	inventory:toast row 876	missing
 CLOUD-17	message	Changing the port forwarding strategy can fail with "Couldn't update the forwarding strategy".	inventory:toast row 877	missing
-SIDE-15	message	After a Codex login with the ChatGPT plan, show "Codex now uses your ChatGPT plan".	inventory:toast row 839	covered
-SIDE-15	interaction	The Codex device-code login shows a verification code that can be copied: "Copied Codex verification code."	inventory:toast row 841	covered
+SET-03	message	After a Codex login with the ChatGPT plan, show "Codex now uses your ChatGPT plan".	inventory:toast row 839	covered
+SET-03	interaction	The Codex device-code login shows a verification code that can be copied: "Copied Codex verification code."	inventory:toast row 841	covered
 SET-03	message	The Agents page lets the user save a provider API key and shows "API key saved".	inventory:toast row 843	missing
 SET-03	message	The Agents page lets the user remove a provider API key and shows "API key removed".	inventory:toast row 844	missing
 SET-03	message	The Agents page can import a provider API key from the environment: "API key imported from env".	inventory:toast row 847	missing
@@ -2179,14 +2179,14 @@ WS-11	operation	Add to backlog saves a workspace without a worktree and Start cr
 CLOUD-16	capability	A cloud workspace can open a Cloud desktop tab (optional, only if the spike shows it is wanted).	ui-map 1.2, 2	missing
 CLOUD-08	startup	First run for the cloud option walks through deploy and connecting GitHub, with a Skip.	ui-map 2, 7.1	covered
 RC-02	capability	Remote control is allowed per chat through our own switch (Claude Remote Control, D019); Conductor's version is a phone relay.	ui-map 1.2	covered
-PLAT-04	operation	Diagnostics captures the login shell, PATH and environment, with values hashed except a safe list.	ui-map 2	covered
+APP-03	operation	Diagnostics captures the login shell, PATH and environment, with values hashed except a safe list.	ui-map 2	covered
 PLAT-18	operation	Diagnostics copies the app logs on request and warns that they may contain personal data.	ui-map 2	covered
 APP-03	operation	The Diagnostics Restart button restarts the app.	ui-map 2	covered
 WS-08	integration	A workspace card can reveal its folder in Finder.	ui-map 4	covered
 GIT-02	git	Each sidebar row shows added and removed line counts taken from the git status poll.	ui-map 4	partly
 CLOUD-10	state	A sidebar row shows a Forwarding ports badge while a cloud workspace forwards ports.	ui-map 4, 3.7	missing
 DATA-05	store	The sidebar width and the open state of both panels are saved as the settings left_panel_width, left_panel_visible and right_panel_visible.	ui-map 1.1	partly
-DATA-05	store	Right-panel layout is saved per workspace under a group id that carries the workspace id.	ui-map 1.1	covered
+NAV-01	store	Right-panel layout is saved per workspace under a group id that carries the workspace id.	ui-map 1.1	covered
 PLAT-15	integration	Menu bar accelerators come from the command registry and are pushed to the Rust menu whenever bindings change.	ui-map 5.4	partly
 PLAT-15	integration	Cmd+Q quits and Cmd+, opens settings from the app menu; both keys are fixed.	ui-map 5.4	covered
 APP-03	integration	Cmd+Alt+I opens the webview developer tools (fixed key).	ui-map 5.4	covered
@@ -2226,8 +2226,8 @@ WS-11	operation	Start on an unstarted workspace creates its worktree and runs se
 NAV-11	store	Chat read and unread state is saved per chat; the sessions API has no read or unread action.	ui-map 3.2	partly
 CHAT-16	operation	Fork to new tab copies the chat up to a checkpointed turn into a new session (experimental setting).	ui-map 3.2	covered
 CLOUD-09	state	A terminal tab shows a host icon when it runs in a cloud workspace.	ui-map 3.2	covered
-PLAT-07	capability	A local terminal tab is a PTY created through the terminals API and named Terminal N.	ui-map 3.2	covered
-PLAT-05	rule	When a file open in the editor changes on disk, the editor offers Discard my edits or Keep mine.	ui-map 3.2	covered
+RUN-06	capability	A local terminal tab is a PTY created through the terminals API and named Terminal N.	ui-map 3.2	covered
+REV-08	rule	When a file open in the editor changes on disk, the editor offers Discard my edits or Keep mine.	ui-map 3.2	covered
 CLOUD-16	state	The Cloud desktop tab has Reconnect, an edit-access message and a message for non-cloud workspaces.	ui-map 3.2	missing
 PR-06	git	The PR tab merges the pull request with the chosen merge method.	ui-map 3.2	covered
 RC-03	message	User messages carry a source so the chat can say Sent via or Sent from another session; the turn model has no sender field yet.	ui-map 3.3	partly
@@ -2371,8 +2371,8 @@ RUN-01	operation	The Run tab starts, stops and restarts the chosen action, with 
 RUN-02	operation	Start spotlight runs the Run action in spotlight testing mode.	ui-map 3.7	covered
 RUN-02	rule	Stopping spotlight restores the state from before it started.	ui-map 3.7	covered
 CLOUD-09	capability	An action can declare where it can run: terminal, cloud or local.	ui-map 3.7	covered
-PLAT-07	capability	Terminal tabs run a PTY rendered with xterm.js; New terminal and Close terminal create and end them.	ui-map 3.7	covered
-PLAT-07	rule	A workspace allows only a maximum number of terminals and says so when the limit is reached.	ui-map 3.7	covered
+RUN-06	capability	Terminal tabs run a PTY rendered with xterm.js; New terminal and Close terminal create and end them.	ui-map 3.7	covered
+RUN-06	rule	A workspace allows only a maximum number of terminals and says so when the limit is reached.	ui-map 3.7	covered
 CLOUD-09	state	The terminal panel has Cloud and Local host tabs in cloud workspaces.	ui-map 3.7	covered
 CLOUD-11	state	File sync shows states Sync files is off, Sync folder unavailable, Sync files failed and Local terminal unavailable.	ui-map 3.7	missing
 RUN-03	rule	Preview URLs come from the Run tab URL, ports in output and the repo's Preview URLs template.	ui-map 3.7	covered
@@ -2544,7 +2544,7 @@ DATA-05	message	Entries dropped while reading settings (unparseable, unknown key
 DATA-05	rule	Writing settings adds git exclude lines for the .conducted files.	services-map 4.2.1	covered
 DATA-05	rule	The settings file keeps a schema line and sorted keys.	services-map 4.2.1	covered
 DATA-05	store	Environment variable tables can hold a none marker or a Keychain marker; the file should hold names and the Keychain the values.	services-map 4.2.4	partly
-DATA-05	store	Hidden run actions are kept in local storage and not in the settings file.	services-map 4.2.4	covered
+SET-07	store	Hidden run actions are kept in local storage and not in the settings file.	services-map 4.2.4	covered
 PLAT-10	store	Keychain key names cover gh tokens, the Codex key and per-scope environment variables; no document lists our names.	services-map 4.2.8	partly
 SIDE-10	rule	Provider keys are removed from the agent environment unless the provider is custom.	services-map 4.2.8	partly
 AGENT-16	store	The claude_provider and codex_provider keys choose the provider; the Agents decision is open.	services-map 4.2.3	partly
@@ -2617,7 +2617,7 @@ REV-13	view	Pull request comments without a file show in the PR tab.	inventory:s
 REV-03	store	A suggestion keeps the base code it applies to (suggestion_base_code); check the apply-suggestion path before adding it.	inventory:sql diff_comments	missing
 DATA-08	store	Migration 0004 also holds the review comment state and link (the state replaces a dismissed flag), a nullable comment file path, the author avatar, active_session_id, the attachment loading flag, the pdf and review kinds, and the terminal screen modes.	inventory:sql	missing
 SIDE-15	rule	Agent detection prefers the app's managed copy (agent binaries folder, <name>/<version>/<name>), then the PATH copy chosen in Settings.	inventory:sidecar @48288	missing
-SIDE-15	rule	ACP provider programs are looked up in the ACP providers folder, then the bundled bin folder.	inventory:sidecar @48291	missing
+AGENT-11	rule	ACP provider programs are looked up in the ACP providers folder, then the bundled bin folder.	inventory:sidecar @48291	missing
 SIDE-15	message	If an installed program's executable is missing, the sidecar reports that the expected program was not found at its path, as an error that is not retried.	inventory:sidecar @313880	missing
 AGENT-02	rule	A workspace folder reached through a symlink is resolved to its real path before Claude gets it, with a log warning, so resume finds the agent's history.	inventory:sidecar @341608	missing
 AGENT-06	rule	Codex gets the resolved real path of the workspace folder, never a symlinked one.	inventory:sidecar @341608	missing
@@ -2675,7 +2675,7 @@ AGENT-07	rule	Generated images are staged inside the workspace.	other-runners 3	
 AGENT-09	rule	App tools reach Cursor, and its store folder sits under app data.	other-runners 2.3	missing
 AGENT-11	rule	fs/write_text_file waits for beforeFirstWrite; session/new passes the app-tool MCP servers; a boolean option capability; an empty ACP reply is an error naming the adapter; a no-steer capability flag hides steering.	other-runners 2.2	missing
 PLAT-13	rule	The update prefetches the agent programs the next version pins.	native-and-sidecar-map A9	missing
-DATA-01	store	Query keys live in one file.	services-map 2.5.1	missing
+GIT-02	store	Query keys live in one file.	services-map 2.5.1	missing
 DATA-02	rule	Archive-based lifetimes count from archived_at.	services-map 2.7	missing
 DATA-06	rule	The 30-day prune counts from archived_at.	services-map 2.7	missing
 DATA-03	rule	The repair report acts on workspaces left in archiving.	services-map 6	missing
@@ -2683,3 +2683,22 @@ DATA-05	rule	Config files reload on window focus, a remote default-branch settin
 GIT-02	rule	diffTargetOf picks the diff target by a fixed precedence, and sidebar rows get line counts.	services-map 3.3	missing
 SIDE-01	rule	The composition root builds the model catalog with the system clock and calls its invalidate() from the agent detector's onChanged, before agentInstallsChanged is sent, because a new agent version can add models.	other-runners 5	missing
 SIDE-02	rpc	listModels is answered by the model catalog's list(); an agent that is not installed answers agentNotInstalled.	other-runners 5	missing
+SIDE-03	operation	The session manager runs prompt assembly for every message, passing the first-message flag, the pull request's repository and the workspace preferences.	sessions 9	missing
+APP-01	operation	Startup passes the TOML codec and the git runner into the settings service, so settings files and the shared repository layer work in the app.	services-map 4.2	missing
+PLAT-02	rule	The Platform contract test also runs against the Tauri implementation, in the end-to-end job.	frontend 3	missing
+REV-01	operation	The diff service uses the catalogue's branch and all-changes diff commands, and the discard action uses its discard command.	services-map 3.4	missing
+SIDE-10	rule	One list of stripped environment names is shared by the Rust shell and the sidecar, with a test that compares them.	native-and-sidecar-map B4	missing
+PLAT-27	rule	The login-shell PATH is set before the Tauri runtime starts, so no thread reads the environment while it changes.	native-and-sidecar-map A6	missing
+PLAT-35	rule	The app's bin folder is added to PATH after the login-shell repair.	native-and-sidecar-map A6	missing
+AGENT-03	rule	One smoke test runs a Claude turn end to end through the real translator.	claude-runner 1	missing
+SIDE-21	rule	Runners start the agent program the detector found (Settings path, managed copy, then PATH), never a second PATH lookup.	other-runners 5	missing
+PLAT-36	rule	Rust command tests run through a mock Tauri app: shell start, cancel and timeout events, the file paths command, and a terminal from spawn to exit.	native-and-sidecar-map A2	missing
+SET-14	rule	Rewriting a settings file keeps the user's comments, or warns before the first rewrite that would drop them.	services-map 4.2	missing
+SIDE-02	rule	A smoke test starts the real sidecar host on a temporary socket path and sees the handshake line.	sessions 10	missing
+AGENT-06	operation	The agent detector reads Codex sign-in through the Codex runner's account call.	other-runners 5	missing
+AGENT-09	operation	The agent detector reads Cursor sign-in through the Cursor runner.	other-runners 5	missing
+SIDE-21	operation	The agent detector gets the Settings program paths and the Cursor API key.	other-runners 5	missing
+PLAT-28	operation	The agent detector prefers the managed copy of an agent program (D021).	other-runners 5	missing
+SIDE-25	rule	The sidecar's process and file adapters live in their own edge modules, each with a test, and the composition root only composes.	native-and-sidecar-map B1	missing
+PLAT-27	rule	Closing the app kills every terminal it started.	native-and-sidecar-map A4	missing
+PLAT-08	rule	A terminal snapshot keeps colours, attributes and the cursor, and does not replay scrollback as visible lines.	native-and-sidecar-map A4	missing

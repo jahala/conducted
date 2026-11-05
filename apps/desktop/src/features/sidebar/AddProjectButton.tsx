@@ -13,7 +13,7 @@ import { useState } from "react";
 import { useActions } from "../../core/hooks.ts";
 import { Button, type ButtonProps } from "../../ui/Button.tsx";
 import { FolderPlusIcon } from "../../ui/icons.tsx";
-import { toast } from "../../ui/Toast.tsx";
+import { toastError } from "../../ui/Toast.tsx";
 
 export function AddProjectButton({
 	variant = "secondary",
@@ -29,13 +29,12 @@ export function AddProjectButton({
 		try {
 			const picked = await actions.app.pickFolder("Add a project");
 			if (!picked.ok) {
-				toast.error("Couldn't open the folder dialog", { description: picked.error.message });
+				toastError("Couldn't open the folder dialog", picked.error);
 				return;
 			}
 			if (picked.value === null) return;
 			const result = await actions.projects.addLocal(picked.value);
-			if (!result.ok)
-				toast.error("Couldn't add the project", { description: result.error.message });
+			if (!result.ok) toastError("Couldn't add the project", result.error);
 		} finally {
 			setBusy(false);
 		}

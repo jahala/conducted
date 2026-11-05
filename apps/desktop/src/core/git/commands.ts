@@ -138,6 +138,15 @@ export const diffNameStatus = (from: string, to: string | null = null): GitComma
 	git([...DIFF_BASE, "--name-status", from, ...(to === null ? [] : [to])]);
 export const diffNumstat = (from: string, to: string | null = null): GitCommand =>
 	git([...DIFF_BASE, "--numstat", from, ...(to === null ? [] : [to])]);
+/** Diff scope "Current branch": committed changes from the merge base to HEAD (ui-map 3.6). */
+export const currentBranchDiffNameStatus = (mergeBase: string): GitCommand =>
+	diffNameStatus(mergeBase, "HEAD");
+export const currentBranchDiffNumstat = (mergeBase: string): GitCommand =>
+	diffNumstat(mergeBase, "HEAD");
+/** Diff scope "All changes": branch commits plus uncommitted changes (merge base to worktree). */
+export const allChangesDiffNameStatus = (mergeBase: string): GitCommand =>
+	diffNameStatus(mergeBase);
+export const allChangesDiffNumstat = (mergeBase: string): GitCommand => diffNumstat(mergeBase);
 export const diffNameOnlyNul = (from: string, to: string | null = null): GitCommand =>
 	git([...DIFF_BASE, "--name-only", "-z", from, ...(to === null ? [] : [to])]);
 /** Only used to find conflicted paths; untracked files are listed separately. */
@@ -231,6 +240,9 @@ export const rebaseOntoUpstream = (upstreamOid: string, localOid: string): GitCo
 
 export const showFileAt = (ref: string, path: string): GitCommand =>
 	git(["show", "--no-ext-diff", "--no-textconv", `${ref}:${path}`], { okExitCodes: [0, 128] });
+/** The committed settings of a repository, read from a ref instead of the checkout (DATA-05). */
+export const showSettingsFileAt = (ref: string): GitCommand =>
+	showFileAt(ref, ".conducted/settings.toml");
 export const diffFilePatch = (
 	from: string,
 	to: string | null,
@@ -326,6 +338,8 @@ export const firstPushSteps = (
 export const resetHard = (ref: string): GitCommand => git(["reset", "--hard", ref]);
 export const restoreFromSource = (source: string, path: string): GitCommand =>
 	git(["restore", `--source=${source}`, "--worktree", "--staged", "--", path]);
+/** File row "Discard changes": puts one file back to its committed state (ui-map 3.6). */
+export const discardFileChanges = (path: string): GitCommand => restoreFromSource("HEAD", path);
 export const restoreStaged = (path: string): GitCommand => git(["restore", "--staged", "--", path]);
 export const removeCached = (path: string): GitCommand =>
 	git(["rm", "--cached", "--force", "--", path]);

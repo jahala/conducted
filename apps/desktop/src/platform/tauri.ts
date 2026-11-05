@@ -24,7 +24,7 @@
  */
 
 import { type AppError, appError, err, notImplemented, ok, type Result } from "@conducted/shared";
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
 	AppInfo,
@@ -43,7 +43,11 @@ import type {
 	Platform,
 	Programs,
 	Pty,
+	PtyHandle,
+	PtySpawn,
+	ScreenSnapshot,
 	Shell,
+	ShellOutput,
 	SidecarTransport,
 	Speech,
 	SystemFacts,
@@ -227,12 +231,81 @@ export function createTauriDatabase(): Promise<Result<Database>> {
 	return notImplemented("PLAT-02");
 }
 
-/** `shell_run { command }`, `shell_start { command }` + `shell_cancel { id }` + event `shell://done`, `shell_login_env`. */
-export function createTauriShell(_bindings: TauriBindings): Shell {
+/** Payload of `shell://done`, as shell.rs sends it. */
+interface ShellDonePayload {
+	id: string;
+	output: ShellOutput | null;
+	error: { code: string; message: string } | null;
+}
+
+/** `shell_run { command }`, `shell_start { id, command }` + `shell_cancel { id }` + event `shell://done`, `shell_login_env`. */
+export function createTauriShell(bindings: TauriBindings): Shell {
+	const pending = new Map<string, (result: Result<ShellOutput>) => void>();
+	let listening: Promise<void> | null = null;
+
+	const listen = (): Promise<void> => {
+		listening ??= bindings
+			.listen<ShellDonePayload>(EVENTS.shellDone, (payload) => {
+				const resolve = pending.get(payload.id);
+				if (!resolve) return;
+				pending.delete(payload.id);
+				if (payload.error) {
+					resolve(err(appError(payload.error.code, payload.error.message)));
+					return;
+				}
+				if (!payload.output) {
+					resolve(
+						err(
+							appError(
+								"shell_done_incomplete",
+								"The shell command ended without an output or an error.",
+							),
+						),
+					);
+					return;
+				}
+				resolve(ok(payload.output));
+			})
+			.then(() => undefined);
+		return listening;
+	};
+
 	return {
-		run: () => notImplemented("PLAT-03"),
-		start: () => notImplemented("PLAT-03"),
-		loginEnv: () => notImplemented("PLAT-04"),
+		run: (command) => invokeResult<ShellOutput>(bindings, COMMANDS.shellRun, { command }),
+		start: (command) => {
+			const id = crypto.randomUUID();
+			const done = (async (): Promise<Result<ShellOutput>> => {
+				try {
+					await listen();
+				} catch (error) {
+					return err(toAppError(error));
+				}
+				const answer = new Promise<Result<ShellOutput>>((resolve) => {
+					pending.set(id, resolve);
+				});
+				const started = await invokeResult<void>(bindings, COMMANDS.shellStart, { id, command });
+				if (!started.ok) {
+					pending.delete(id);
+					return started;
+				}
+				return answer;
+			})();
+			return {
+				id,
+				done,
+				cancel: async () => {
+					await invokeResult(bindings, COMMANDS.shellCancel, { id });
+				},
+			};
+		},
+		loginEnv: async () => {
+			const result = await invokeResult<{ shell: string; path: string }>(
+				bindings,
+				COMMANDS.shellLoginEnv,
+			);
+			if (!result.ok) throw result.error;
+			return result.value;
+		},
 	};
 }
 
@@ -242,13 +315,13 @@ export function createTauriFileSystem(
 	_paths: FileSystem["paths"],
 ): FileSystem {
 	return {
-		readText: () => notImplemented("PLAT-05"),
-		writeTextAtomic: () => notImplemented("PLAT-05"),
-		exists: () => notImplemented("PLAT-05"),
-		stat: () => notImplemented("PLAT-05"),
-		mkdirp: () => notImplemented("PLAT-05"),
-		readDir: () => notImplemented("PLAT-05"),
-		trash: () => notImplemented("PLAT-05"),
+		readText: () => notImplemented("PLAT-02"),
+		writeTextAtomic: () => notImplemented("PLAT-02"),
+		exists: () => notImplemented("PLAT-02"),
+		stat: () => notImplemented("PLAT-02"),
+		mkdirp: () => notImplemented("PLAT-02"),
+		readDir: () => notImplemented("PLAT-02"),
+		trash: () => notImplemented("PLAT-02"),
 		paths: _paths,
 	};
 }
@@ -263,10 +336,121 @@ export function createTauriFileSearch(_bindings: TauriBindings): FileSearch {
 	};
 }
 
-/** `pty_spawn { options, onData: Channel }`, `pty_write { id, data }`, `pty_resize`, `pty_kill`, `pty_ack { id, bytes }`, `pty_screen_text { id, maxLines }`, `pty_screen_snapshot { id }`, `pty_load_history { terminalId }`, event `pty://exit`. */
-export function createTauriPty(_bindings: TauriBindings): Pty {
+function decodeBase64(value: string): Uint8Array {
+	const binary = atob(value);
+	const bytes = new Uint8Array(binary.length);
+	for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+	return bytes;
+}
+
+/** `pty_spawn { request, onOutput: Channel }`, `pty_write { id, data }`, `pty_resize`, `pty_kill`, `pty_ack { id, bytes }`, `pty_screen_text { id, maxLines }`, `pty_screen_snapshot { id }`, `pty_load_history { terminalId }`, event `pty://exit`. */
+export function createTauriPty(bindings: TauriBindings): Pty {
 	return {
-		spawn: () => notImplemented("PLAT-07"),
+		spawn: async (options: PtySpawn) => {
+			const dataListeners = new Set<(chunk: Uint8Array) => void>();
+			const exitListeners = new Set<(exitCode: number | null) => void>();
+			const early: Uint8Array[] = [];
+			let resolved = false;
+			let exitCode: number | null | undefined;
+			let unlisten: UnlistenFn | null = null;
+
+			const flushEarly = (): void => {
+				if (!resolved) return;
+				for (const chunk of early.splice(0)) {
+					for (const listener of [...dataListeners]) listener(chunk);
+				}
+			};
+
+			const channel = new Channel<{ data: string; byteLength: number }>((message) => {
+				const chunk = decodeBase64(message.data);
+				if (!resolved || dataListeners.size === 0) {
+					early.push(chunk);
+					return;
+				}
+				for (const listener of [...dataListeners]) listener(chunk);
+			});
+
+			const spawned = await invokeResult<{ id: string; pid: number | null }>(
+				bindings,
+				COMMANDS.ptySpawn,
+				{ request: options, onOutput: channel },
+			);
+			if (!spawned.ok) return spawned;
+
+			const handleId = spawned.value.id;
+			resolved = true;
+			unlisten = await bindings.listen<{ id: string; exitCode: number | null }>(
+				EVENTS.ptyExit,
+				(payload) => {
+					if (payload.id !== handleId) return;
+					const code = payload.exitCode;
+					exitCode = code;
+					for (const listener of [...exitListeners]) listener(code);
+					exitListeners.clear();
+					if (unlisten !== null) {
+						unlisten();
+						unlisten = null;
+					}
+				},
+			);
+
+			const handle: PtyHandle = {
+				id: handleId,
+				write: async (data) => {
+					const result = await invokeResult<void>(bindings, COMMANDS.ptyWrite, {
+						id: handleId,
+						data,
+					});
+					if (!result.ok) throw result.error;
+				},
+				resize: async (cols, rows) => {
+					const result = await invokeResult<void>(bindings, COMMANDS.ptyResize, {
+						id: handleId,
+						cols,
+						rows,
+					});
+					if (!result.ok) throw result.error;
+				},
+				kill: async () => {
+					const result = await invokeResult<void>(bindings, COMMANDS.ptyKill, {
+						id: handleId,
+					});
+					if (!result.ok) throw result.error;
+				},
+				onData: (listener) => {
+					dataListeners.add(listener);
+					flushEarly();
+					return () => {
+						dataListeners.delete(listener);
+					};
+				},
+				ack: (bytes) => {
+					void invokeResult<void>(bindings, COMMANDS.ptyAck, { id: handleId, bytes });
+				},
+				onExit: (listener) => {
+					if (exitCode !== undefined) {
+						const code = exitCode;
+						queueMicrotask(() => listener(code));
+						return () => {};
+					}
+					exitListeners.add(listener);
+					return () => {
+						exitListeners.delete(listener);
+					};
+				},
+				screenText: async (maxLines) => {
+					const result = await invokeResult<string>(bindings, COMMANDS.ptyScreenText, {
+						id: handleId,
+						maxLines,
+					});
+					if (!result.ok) throw result.error;
+					return result.value;
+				},
+				screenSnapshot: () =>
+					invokeResult<ScreenSnapshot>(bindings, COMMANDS.ptyScreenSnapshot, { id: handleId }),
+			};
+			return ok(handle);
+		},
 		loadHistory: () => notImplemented("PLAT-08"),
 	};
 }

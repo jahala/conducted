@@ -1,23 +1,71 @@
 /**
  * @feature APP-05 Popover
  * Owns: floating panels anchored to a button (model picker, context hover card, forward ports), built on
- * the radix Popover.
- * Behaviour: ui-map.md 5.2 (popovers), 8 (HoverCard, Popover).
- * Must handle: focus moves in on open and back on close, Escape closes, flips at window edges, a hover
- * variant that opens on pointer hover and on keyboard focus (context wheel).
+ * the radix Popover. `hover` switches to the radix HoverCard for the context usage card.
+ * Behaviour: ui-map.md 5.2 (popovers: model picker, forward ports, context usage hover card), 8 (Popover and
+ * HoverCard parts). ui-dimensions.md 6.2 gives the popover look; popovers and tooltips fade in 100ms.
+ * Must handle: focus moves in on open and back on close, Escape closes, flips at window edges, a hover variant
+ * that opens on pointer hover and on keyboard focus (context card), a caller-set width.
  * Test first: clicking the trigger shows the content; Escape hides it and returns focus to the trigger.
  */
-import { notImplemented } from "@conducted/shared";
-import type { ReactNode } from "react";
+import { HoverCard, Popover as Radix } from "radix-ui";
+import type { ReactElement, ReactNode } from "react";
+import { cn } from "./cn.ts";
+
+export type PopoverSide = "top" | "right" | "bottom" | "left";
+export type PopoverAlign = "start" | "center" | "end";
 
 export interface PopoverProps {
-	trigger: ReactNode;
+	/** One element that can take a ref and focus. */
+	trigger: ReactElement;
 	children: ReactNode;
-	side?: "top" | "right" | "bottom" | "left";
+	side?: PopoverSide;
+	align?: PopoverAlign;
 	/** Opens on hover and focus instead of click. */
 	hover?: boolean;
+	className?: string;
 }
 
-export function Popover(_props: PopoverProps): never {
-	return notImplemented("APP-05");
+const contentClass = "z-50 rounded-lg bg-raised p-3 text-sm text-fg shadow-popover outline-none";
+
+export function Popover({
+	trigger,
+	children,
+	side = "bottom",
+	align = "center",
+	hover = false,
+	className,
+}: PopoverProps) {
+	if (hover) {
+		return (
+			<HoverCard.Root openDelay={200} closeDelay={150}>
+				<HoverCard.Trigger asChild>{trigger}</HoverCard.Trigger>
+				<HoverCard.Portal>
+					<HoverCard.Content
+						side={side}
+						align={align}
+						sideOffset={6}
+						className={cn(contentClass, className)}
+					>
+						{children}
+					</HoverCard.Content>
+				</HoverCard.Portal>
+			</HoverCard.Root>
+		);
+	}
+	return (
+		<Radix.Root>
+			<Radix.Trigger asChild>{trigger}</Radix.Trigger>
+			<Radix.Portal>
+				<Radix.Content
+					side={side}
+					align={align}
+					sideOffset={6}
+					className={cn(contentClass, className)}
+				>
+					{children}
+				</Radix.Content>
+			</Radix.Portal>
+		</Radix.Root>
+	);
 }

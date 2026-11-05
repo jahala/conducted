@@ -1,15 +1,19 @@
 /**
- * @feature DATA-01 Helpers for reading and writing row columns
+ * @feature DATA-01 Helpers for reading and writing rows
  * Owns: the small pure functions every row mapper uses for JSON columns, 0/1 flags and lists of
- * results, so no mapper repeats them and none of them throws.
+ * results, and the helpers that run a statement and turn an expected database failure into an
+ * error Result instead of a throw.
  * Behaviour: migration 0001 conventions (JSON columns hold data checked by packages/protocol,
- * booleans are integers).
+ * booleans are integers), and the repository rule that a unique clash is `db.conflict` while a
+ * missing foreign row is `db.foreign_key`.
  * Must handle: text that is not JSON, JSON that fails its schema, values JSON cannot hold
- * (undefined, BigInt, cycles). All of these come back as an error Result.
+ * (undefined, BigInt, cycles), a unique constraint, a foreign-key constraint. All of these come
+ * back as an error Result.
  * Test first: parseJsonColumn on the text "{" returns an error with code db.invalid_json.
  */
 import { type AppError, appError, err, ok, type Result } from "@conducted/shared";
 import { type ZodType, z } from "zod";
+import type { Database } from "../../platform/platform.ts";
 
 export const INVALID_JSON = "db.invalid_json";
 
@@ -63,3 +67,107 @@ export function collectResults<T, E = AppError>(results: readonly Result<T, E>[]
 
 export const toFlag = (value: boolean): 0 | 1 => (value ? 1 : 0);
 export const fromFlag = (value: number): boolean => value !== 0;
+
+const messageOf = (cause: unknown): string => {
+	if (typeof cause === "string") return cause;
+	if (cause instanceof Error) return cause.message;
+	if (cause !== null && typeof cause === "object" && "message" in cause) {
+		const message = (cause as { message: unknown }).message;
+		if (typeof message === "string") return message;
+	}
+	return "";
+};
+
+/** Maps a thrown database error to the stable code services and screens depend on. */
+export function databaseError(cause: unknown, what: string): AppError {
+	const message = messageOf(cause);
+	if (/UNIQUE constraint failed/i.test(message)) {
+		return appError("db.conflict", `${what} conflicts with a row that already exists`, cause);
+	}
+	if (/FOREIGN KEY constraint failed/i.test(message)) {
+		return appError("db.foreign_key", `${what} refers to a row that does not exist`, cause);
+	}
+	return appError("db.failed", `${what} failed`, cause);
+}
+
+/** Runs one SELECT statement. A thrown database error becomes an error Result. */
+export async function selectRows<Row>(
+	db: Database,
+	sql: string,
+	params: readonly unknown[],
+	what: string,
+): Promise<Result<Row[]>> {
+	try {
+		return ok(await db.select<Row>(sql, params));
+	} catch (cause) {
+		return err(databaseError(cause, what));
+	}
+}
+
+/** Runs one INSERT, UPDATE or DELETE. Returns how many rows changed. */
+export async function executeStatement(
+	db: Database,
+	sql: string,
+	params: readonly unknown[],
+	what: string,
+): Promise<Result<number>> {
+	try {
+		const result = await db.execute(sql, params);
+		return ok(result.rowsAffected);
+	} catch (cause) {
+		return err(databaseError(cause, what));
+	}
+}
+
+/** Runs one INSERT, UPDATE or DELETE and returns nothing. Zero rows is still a success. */
+export async function executeVoid(
+	db: Database,
+	sql: string,
+	params: readonly unknown[],
+	what: string,
+): Promise<Result<void>> {
+	const result = await executeStatement(db, sql, params, what);
+	return result.ok ? ok(undefined) : err(result.error);
+}
+
+/** Runs a write that must change a row. Zero rows means the row is gone: `db.not_found`. */
+export async function executeExisting(
+	db: Database,
+	sql: string,
+	params: readonly unknown[],
+	what: string,
+): Promise<Result<void>> {
+	const result = await executeStatement(db, sql, params, what);
+	if (!result.ok) return err(result.error);
+	return result.value > 0
+		? ok(undefined)
+		: err(appError("db.not_found", `${what}: the row no longer exists`));
+}
+
+/** Runs several statements in one transaction. The work returns its own Result. */
+export async function inTransaction<T>(
+	db: Database,
+	what: string,
+	work: (tx: Database) => Promise<Result<T>>,
+): Promise<Result<T>> {
+	try {
+		return await db.transaction(async (tx) => {
+			const result = await work(tx);
+			if (!result.ok) throw new TransactionFailure(result.error);
+			return result;
+		});
+	} catch (cause) {
+		if (cause instanceof TransactionFailure) return err(cause.error);
+		return err(databaseError(cause, what));
+	}
+}
+
+/** Thrown only inside `inTransaction`, so the database rolls back before the error is returned. */
+class TransactionFailure extends Error {
+	readonly error: AppError;
+
+	constructor(error: AppError) {
+		super(error.message);
+		this.error = error;
+	}
+}

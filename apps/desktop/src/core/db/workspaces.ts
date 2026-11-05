@@ -5,12 +5,15 @@
  * Behaviour: services-map.md 2.3.1 (workspaces) and 2.4 (lifecycle state machines). Our states
  * are initializing, ready, failed, archiving, archived; kanban_status is a separate column.
  * Must handle: state changes are compare-and-set (`WHERE state = <expected>`) so two callers
- * cannot both win; a bad linked_paths column returns an error Result; last_activity_at only
- * moves forward; deleting cascades to sessions, comments, terminals and section members.
+ * cannot both win; a bad linked_paths column returns an error Result; a setter on a missing
+ * workspace returns `db.not_found`; last_activity_at only moves forward; deleting cascades to
+ * sessions, comments, terminals and section members.
  * Test first: workspaceFromRow returns an error Result when linked_paths is not a JSON list.
  */
 import {
+	err,
 	notImplemented,
+	ok,
 	type RepoId,
 	type Result,
 	type SessionId,
@@ -19,7 +22,18 @@ import {
 import type { Database } from "../../platform/platform.ts";
 import type { KanbanStatus, Workspace, WorkspaceState } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
-import { fromFlag, parseStringList, stringifyJson, toFlag } from "./row-codec.ts";
+import {
+	collectResults,
+	executeExisting,
+	executeStatement,
+	executeVoid,
+	fromFlag,
+	inTransaction,
+	parseStringList,
+	selectRows,
+	stringifyJson,
+	toFlag,
+} from "./row-codec.ts";
 
 export interface WorkspaceRow {
 	id: WorkspaceId;
@@ -213,28 +227,37 @@ export interface WorkspaceRepository {
 	 * workspace in `archiving`; `ok(false)` otherwise.
 	 */
 	markArchived(id: WorkspaceId, archiveCommit: string | null): Promise<Result<boolean>>;
-	/** WORKSPACES_SQL.setKanbanStatus. */
+	/** WORKSPACES_SQL.setKanbanStatus. A missing workspace is `db.not_found`. */
 	setKanbanStatus(id: WorkspaceId, status: KanbanStatus): Promise<Result<void>>;
-	/** WORKSPACES_SQL.setDisplayName. `null` goes back to the PR title or branch. */
+	/**
+	 * WORKSPACES_SQL.setDisplayName. `null` goes back to the PR title or branch. A missing
+	 * workspace is `db.not_found`.
+	 */
 	setDisplayName(id: WorkspaceId, name: string | null): Promise<Result<void>>;
-	/** WORKSPACES_SQL.setBranch. Renaming the branch also clears the placeholder flag. */
+	/**
+	 * WORKSPACES_SQL.setBranch. The placeholder flag is whatever the caller passes; renaming a
+	 * branch does not change it on its own. A missing workspace is `db.not_found`.
+	 */
 	setBranch(id: WorkspaceId, branch: string, isPlaceholder: boolean): Promise<Result<void>>;
-	/** WORKSPACES_SQL.setTargetBranch. */
+	/** WORKSPACES_SQL.setTargetBranch. A missing workspace is `db.not_found`. */
 	setTargetBranch(id: WorkspaceId, targetBranch: string): Promise<Result<void>>;
-	/** WORKSPACES_SQL.setPinned. `null` unpins. */
+	/** WORKSPACES_SQL.setPinned. `null` unpins. A missing workspace is `db.not_found`. */
 	setPinned(id: WorkspaceId, pinnedAt: number | null): Promise<Result<void>>;
-	/** WORKSPACES_SQL.setNotes. */
+	/** WORKSPACES_SQL.setNotes. A missing workspace is `db.not_found`. */
 	setNotes(id: WorkspaceId, notes: string | null): Promise<Result<void>>;
-	/** WORKSPACES_SQL.setLinkedPaths. The list is written as a JSON array. */
+	/**
+	 * WORKSPACES_SQL.setLinkedPaths. The list is written as a JSON array. A missing workspace is
+	 * `db.not_found`.
+	 */
 	setLinkedPaths(id: WorkspaceId, paths: readonly string[]): Promise<Result<void>>;
-	/** WORKSPACES_SQL.setPullRequest. */
+	/** WORKSPACES_SQL.setPullRequest. A missing workspace is `db.not_found`. */
 	setPullRequest(
 		id: WorkspaceId,
 		pr: { number: number; title: string | null; description: string | null },
 	): Promise<Result<void>>;
-	/** WORKSPACES_SQL.clearPullRequest. */
+	/** WORKSPACES_SQL.clearPullRequest. A missing workspace is `db.not_found`. */
 	clearPullRequest(id: WorkspaceId): Promise<Result<void>>;
-	/** WORKSPACES_SQL.setSetupLogPath. */
+	/** WORKSPACES_SQL.setSetupLogPath. A missing workspace is `db.not_found`. */
 	setSetupLogPath(id: WorkspaceId, path: string | null): Promise<Result<void>>;
 	/** WORKSPACES_SQL.setActiveSession: the chat tab to reopen after a restart. */
 	setActiveSession(id: WorkspaceId, sessionId: SessionId | null): Promise<Result<void>>;
@@ -246,35 +269,171 @@ export interface WorkspaceRepository {
 	delete(id: WorkspaceId): Promise<Result<void>>;
 }
 
-export function createWorkspaceRepository(
-	_db: Database,
-	_deps: RepositoryDeps,
-): WorkspaceRepository {
+export function createWorkspaceRepository(db: Database, deps: RepositoryDeps): WorkspaceRepository {
+	const now = (): number => deps.clock.now();
+	const list = async (sql: string, params: readonly unknown[]): Promise<Result<Workspace[]>> => {
+		const rows = await selectRows<WorkspaceRow>(db, sql, params, "Listing workspaces");
+		return rows.ok ? collectResults(rows.value.map(workspaceFromRow)) : err(rows.error);
+	};
+	const find = async (
+		sql: string,
+		params: readonly unknown[],
+		what: string,
+	): Promise<Result<Workspace | null>> => {
+		const rows = await selectRows<WorkspaceRow>(db, sql, params, what);
+		if (!rows.ok) return err(rows.error);
+		const row = rows.value[0];
+		return row === undefined ? ok(null) : workspaceFromRow(row);
+	};
 	return {
-		listAll: async () => notImplemented("DATA-01"),
-		listByRepo: async () => notImplemented("DATA-01"),
-		listByState: async () => notImplemented("DATA-01"),
-		get: async () => notImplemented("DATA-01"),
-		getByPath: async () => notImplemented("DATA-01"),
-		getSetupLogPath: async () => notImplemented("DATA-01"),
-		listDirectoryNames: async () => notImplemented("DATA-01"),
-		listPorts: async () => notImplemented("DATA-01"),
-		create: async () => notImplemented("DATA-01"),
-		transitionState: async () => notImplemented("DATA-01"),
-		markArchived: async () => notImplemented("DATA-01"),
-		setKanbanStatus: async () => notImplemented("DATA-01"),
-		setDisplayName: async () => notImplemented("DATA-01"),
-		setBranch: async () => notImplemented("DATA-01"),
-		setTargetBranch: async () => notImplemented("DATA-01"),
-		setPinned: async () => notImplemented("DATA-01"),
-		setNotes: async () => notImplemented("DATA-01"),
-		setLinkedPaths: async () => notImplemented("DATA-01"),
-		setPullRequest: async () => notImplemented("DATA-01"),
-		clearPullRequest: async () => notImplemented("DATA-01"),
-		setSetupLogPath: async () => notImplemented("DATA-01"),
+		listAll: () => list(WORKSPACES_SQL.listAll, []),
+		listByRepo: (repoId) => list(WORKSPACES_SQL.listByRepo, [repoId]),
+		listByState: (state) => list(WORKSPACES_SQL.listByState, [state]),
+		get: (id) => find(WORKSPACES_SQL.get, [id], "Reading a workspace"),
+		getByPath: (path) => find(WORKSPACES_SQL.getByPath, [path], "Reading a workspace by folder"),
+		getSetupLogPath: async (id) => {
+			const rows = await selectRows<{ setup_log_path: string | null }>(
+				db,
+				WORKSPACES_SQL.getSetupLogPath,
+				[id],
+				"Reading a workspace setup log",
+			);
+			if (!rows.ok) return err(rows.error);
+			return ok(rows.value[0]?.setup_log_path ?? null);
+		},
+		listDirectoryNames: async (repoId) => {
+			const rows = await selectRows<{ directory_name: string }>(
+				db,
+				WORKSPACES_SQL.listDirectoryNames,
+				[repoId],
+				"Listing workspace folder names",
+			);
+			return rows.ok ? ok(rows.value.map((row) => row.directory_name)) : err(rows.error);
+		},
+		listPorts: async () => {
+			const rows = await selectRows<{ port: number }>(
+				db,
+				WORKSPACES_SQL.listPorts,
+				[],
+				"Listing workspace ports",
+			);
+			return rows.ok ? ok(rows.value.map((row) => row.port)) : err(rows.error);
+		},
+		create: async (input) =>
+			inTransaction(db, "Creating a workspace", async (tx) => {
+				const at = now();
+				const workspace: Workspace = {
+					id: deps.ids.uuid() as WorkspaceId,
+					repoId: input.repoId,
+					directoryName: input.directoryName,
+					path: input.path,
+					branch: input.branch,
+					branchIsPlaceholder: input.branchIsPlaceholder,
+					displayName: null,
+					targetBranch: input.targetBranch,
+					state: "initializing",
+					kanbanStatus: "in_progress",
+					port: input.port,
+					pinnedAt: null,
+					notes: null,
+					linkedPaths: [...input.linkedPaths],
+					prNumber: null,
+					prTitle: null,
+					prDescription: null,
+					archiveCommit: null,
+					archivedAt: null,
+					activeSessionId: null,
+					filesCopied: null,
+					lastActivityAt: at,
+					createdAt: at,
+					updatedAt: at,
+				};
+				const params = workspaceToParams({ ...workspace, setupLogPath: input.setupLogPath });
+				if (!params.ok) return err(params.error);
+				const written = await executeStatement(
+					tx,
+					WORKSPACES_SQL.insert,
+					params.value,
+					"Creating a workspace",
+				);
+				return written.ok ? ok(workspace) : err(written.error);
+			}),
+		transitionState: async (id, from, to) => {
+			const written = await executeStatement(
+				db,
+				WORKSPACES_SQL.transitionState,
+				[to, now(), id, from],
+				"Changing a workspace state",
+			);
+			return written.ok ? ok(written.value > 0) : err(written.error);
+		},
+		markArchived: async (id, archiveCommit) => {
+			const at = now();
+			const written = await executeStatement(
+				db,
+				WORKSPACES_SQL.markArchived,
+				[archiveCommit, at, id],
+				"Archiving a workspace",
+			);
+			return written.ok ? ok(written.value > 0) : err(written.error);
+		},
+		setKanbanStatus: (id, status) =>
+			executeExisting(
+				db,
+				WORKSPACES_SQL.setKanbanStatus,
+				[status, now(), id],
+				"Changing a board status",
+			),
+		setDisplayName: (id, name) =>
+			executeExisting(db, WORKSPACES_SQL.setDisplayName, [name, now(), id], "Renaming a workspace"),
+		setBranch: (id, branch, isPlaceholder) =>
+			executeExisting(
+				db,
+				WORKSPACES_SQL.setBranch,
+				[branch, toFlag(isPlaceholder), now(), id],
+				"Changing a workspace branch",
+			),
+		setTargetBranch: (id, targetBranch) =>
+			executeExisting(
+				db,
+				WORKSPACES_SQL.setTargetBranch,
+				[targetBranch, now(), id],
+				"Changing a target branch",
+			),
+		setPinned: (id, pinnedAt) =>
+			executeExisting(db, WORKSPACES_SQL.setPinned, [pinnedAt, now(), id], "Pinning a workspace"),
+		setNotes: (id, notes) =>
+			executeExisting(db, WORKSPACES_SQL.setNotes, [notes, now(), id], "Changing workspace notes"),
+		setLinkedPaths: async (id, paths) => {
+			const json = stringifyJson(paths, "workspaces.linked_paths");
+			if (!json.ok) return err(json.error);
+			return executeExisting(
+				db,
+				WORKSPACES_SQL.setLinkedPaths,
+				[json.value, now(), id],
+				"Changing linked folders",
+			);
+		},
+		setPullRequest: (id, pr) =>
+			executeExisting(
+				db,
+				WORKSPACES_SQL.setPullRequest,
+				[pr.number, pr.title, pr.description, now(), id],
+				"Saving a pull request",
+			),
+		clearPullRequest: (id) =>
+			executeExisting(db, WORKSPACES_SQL.clearPullRequest, [now(), id], "Clearing a pull request"),
+		setSetupLogPath: (id, path) =>
+			executeExisting(
+				db,
+				WORKSPACES_SQL.setSetupLogPath,
+				[path, now(), id],
+				"Saving a setup log path",
+			),
 		setActiveSession: async () => notImplemented("NAV-02"),
 		setFilesCopied: async () => notImplemented("WS-03"),
-		touchActivity: async () => notImplemented("DATA-01"),
-		delete: async () => notImplemented("DATA-01"),
+		touchActivity: (id, at) =>
+			executeVoid(db, WORKSPACES_SQL.touchActivity, [at, id], "Touching workspace activity"),
+		delete: (id) => executeVoid(db, WORKSPACES_SQL.delete, [id], "Removing a workspace"),
 	};
 }

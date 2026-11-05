@@ -10,11 +10,26 @@
  * to keep as a JSON list (no giant IN clause); replies point to their parent by reply_to_id.
  * Test first: diffCommentToParams then diffCommentFromRow gives back the same comment.
  */
-import { type CommentId, notImplemented, type Result, type WorkspaceId } from "@conducted/shared";
+import {
+	type CommentId,
+	err,
+	notImplemented,
+	ok,
+	type Result,
+	type WorkspaceId,
+} from "@conducted/shared";
 import type { Database } from "../../platform/platform.ts";
 import type { DiffComment, ReviewCommentState } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
-import { fromFlag, toFlag } from "./row-codec.ts";
+import {
+	executeStatement,
+	executeVoid,
+	fromFlag,
+	inTransaction,
+	selectRows,
+	stringifyJson,
+	toFlag,
+} from "./row-codec.ts";
 
 export interface DiffCommentRow {
 	id: CommentId;
@@ -181,23 +196,130 @@ export interface DiffCommentRepository {
 }
 
 export function createDiffCommentRepository(
-	_db: Database,
-	_deps: RepositoryDeps,
+	db: Database,
+	deps: RepositoryDeps,
 ): DiffCommentRepository {
+	const now = (): number => deps.clock.now();
+	const list = async (
+		sql: string,
+		params: readonly unknown[],
+		what: string,
+	): Promise<Result<DiffComment[]>> => {
+		const rows = await selectRows<DiffCommentRow>(db, sql, params, what);
+		return rows.ok ? ok(rows.value.map(diffCommentFromRow)) : err(rows.error);
+	};
 	return {
-		listByWorkspace: async () => notImplemented("DATA-01"),
-		listByFile: async () => notImplemented("DATA-01"),
-		listByThread: async () => notImplemented("DATA-01"),
-		get: async () => notImplemented("DATA-01"),
-		countOpen: async () => notImplemented("DATA-01"),
-		add: async () => notImplemented("DATA-01"),
-		syncRemote: async () => notImplemented("DATA-01"),
-		setBody: async () => notImplemented("DATA-01"),
-		setResolved: async () => notImplemented("DATA-01"),
+		listByWorkspace: (workspaceId) =>
+			list(DIFF_COMMENTS_SQL.listByWorkspace, [workspaceId], "Listing review comments"),
+		listByFile: (workspaceId, filePath) =>
+			list(DIFF_COMMENTS_SQL.listByFile, [workspaceId, filePath], "Listing a file's comments"),
+		listByThread: (workspaceId, threadId) =>
+			list(DIFF_COMMENTS_SQL.listByThread, [workspaceId, threadId], "Listing a comment thread"),
+		get: async (id) => {
+			const rows = await selectRows<DiffCommentRow>(
+				db,
+				DIFF_COMMENTS_SQL.get,
+				[id],
+				"Reading a review comment",
+			);
+			if (!rows.ok) return err(rows.error);
+			const row = rows.value[0];
+			return row === undefined ? ok(null) : ok(diffCommentFromRow(row));
+		},
+		countOpen: async (workspaceId) => {
+			const rows = await selectRows<{ total: number }>(
+				db,
+				DIFF_COMMENTS_SQL.countOpen,
+				[workspaceId],
+				"Counting open review comments",
+			);
+			return rows.ok ? ok(rows.value[0]?.total ?? 0) : err(rows.error);
+		},
+		add: async (input) =>
+			inTransaction(db, "Adding a review comment", async (tx) => {
+				const at = now();
+				const comment: DiffComment = {
+					id: deps.ids.uuid() as CommentId,
+					workspaceId: input.workspaceId,
+					filePath: input.filePath,
+					line: input.line,
+					endLine: input.endLine,
+					body: input.body,
+					author: input.author,
+					state: "pending",
+					side: input.side,
+					threadId: input.threadId,
+					replyToId: input.replyToId,
+					suggestion: input.suggestion,
+					remoteUrl: null,
+					resolved: false,
+					outdated: false,
+					createdAt: at,
+					updatedAt: at,
+				};
+				const written = await executeStatement(
+					tx,
+					DIFF_COMMENTS_SQL.insert,
+					diffCommentToParams(comment),
+					"Adding a review comment",
+				);
+				return written.ok ? ok(comment) : err(written.error);
+			}),
+		syncRemote: async (workspaceId, comments) =>
+			inTransaction(db, "Syncing review comments", async (tx) => {
+				for (const comment of comments) {
+					const written = await executeStatement(
+						tx,
+						DIFF_COMMENTS_SQL.upsertRemote,
+						diffCommentToParams(comment),
+						"Syncing a review comment",
+					);
+					if (!written.ok) return err(written.error);
+				}
+				const ids = stringifyJson(
+					comments.map((comment) => comment.id),
+					"diff_comments.ids",
+				);
+				if (!ids.ok) return err(ids.error);
+				const removed = await executeStatement(
+					tx,
+					DIFF_COMMENTS_SQL.deleteRemoteNotIn,
+					[workspaceId, ids.value],
+					"Removing review comments GitHub no longer has",
+				);
+				return removed.ok ? ok(undefined) : err(removed.error);
+			}),
+		setBody: (id, body, suggestion) =>
+			executeVoid(
+				db,
+				DIFF_COMMENTS_SQL.setBody,
+				[body, suggestion, now(), id],
+				"Editing a review comment",
+			),
+		setResolved: (id, resolved) =>
+			executeVoid(
+				db,
+				DIFF_COMMENTS_SQL.setResolved,
+				[toFlag(resolved), now(), id],
+				"Resolving a review comment",
+			),
 		setState: async () => notImplemented("REV-12"),
-		setThreadResolved: async () => notImplemented("DATA-01"),
-		setOutdated: async () => notImplemented("DATA-01"),
-		setRemoteUrl: async () => notImplemented("DATA-01"),
-		delete: async () => notImplemented("DATA-01"),
+		setThreadResolved: (workspaceId, threadId, resolved) =>
+			executeVoid(
+				db,
+				DIFF_COMMENTS_SQL.setThreadResolved,
+				[toFlag(resolved), now(), workspaceId, threadId],
+				"Resolving a comment thread",
+			),
+		setOutdated: (id, outdated) =>
+			executeVoid(
+				db,
+				DIFF_COMMENTS_SQL.setOutdated,
+				[toFlag(outdated), now(), id],
+				"Marking a comment outdated",
+			),
+		setRemoteUrl: (id, url) =>
+			executeVoid(db, DIFF_COMMENTS_SQL.setRemoteUrl, [url, now(), id], "Saving a comment link"),
+		delete: (id) => executeVoid(db, DIFF_COMMENTS_SQL.delete, [id], "Removing a review comment"),
 	};
 }

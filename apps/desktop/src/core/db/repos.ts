@@ -8,11 +8,18 @@
  * next display_order is read and inserted in one transaction so two adds never share a slot.
  * Test first: repoToParams then repoFromRow gives back the same Repo, including hidden=true.
  */
-import { notImplemented, type RepoId, type Result } from "@conducted/shared";
+import { err, ok, type RepoId, type Result } from "@conducted/shared";
 import type { Database } from "../../platform/platform.ts";
 import type { Repo } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
-import { fromFlag, toFlag } from "./row-codec.ts";
+import {
+	executeStatement,
+	executeVoid,
+	fromFlag,
+	inTransaction,
+	selectRows,
+	toFlag,
+} from "./row-codec.ts";
 
 export interface RepoRow {
 	id: RepoId;
@@ -107,18 +114,94 @@ export interface RepoRepository {
 	delete(id: RepoId): Promise<Result<void>>;
 }
 
-export function createRepoRepository(_db: Database, _deps: RepositoryDeps): RepoRepository {
+export function createRepoRepository(db: Database, deps: RepositoryDeps): RepoRepository {
+	const now = (): number => deps.clock.now();
 	return {
-		list: async () => notImplemented("DATA-01"),
-		get: async () => notImplemented("DATA-01"),
-		getByRootPath: async () => notImplemented("DATA-01"),
-		create: async () => notImplemented("DATA-01"),
-		setName: async () => notImplemented("DATA-01"),
-		setDefaultBranch: async () => notImplemented("DATA-01"),
-		setRemoteUrl: async () => notImplemented("DATA-01"),
-		setIcon: async () => notImplemented("DATA-01"),
-		setHidden: async () => notImplemented("DATA-01"),
-		reorder: async () => notImplemented("DATA-01"),
-		delete: async () => notImplemented("DATA-01"),
+		list: async ({ includeHidden }) => {
+			const rows = await selectRows<RepoRow>(
+				db,
+				includeHidden ? REPOS_SQL.list : REPOS_SQL.listVisible,
+				[],
+				"Listing repositories",
+			);
+			return rows.ok ? ok(rows.value.map(repoFromRow)) : err(rows.error);
+		},
+		get: async (id) => {
+			const rows = await selectRows<RepoRow>(db, REPOS_SQL.get, [id], "Reading a repository");
+			if (!rows.ok) return err(rows.error);
+			const row = rows.value[0];
+			return ok(row === undefined ? null : repoFromRow(row));
+		},
+		getByRootPath: async (rootPath) => {
+			const rows = await selectRows<RepoRow>(
+				db,
+				REPOS_SQL.getByRootPath,
+				[rootPath],
+				"Reading a repository by its folder",
+			);
+			if (!rows.ok) return err(rows.error);
+			const row = rows.value[0];
+			return ok(row === undefined ? null : repoFromRow(row));
+		},
+		create: async (input) =>
+			inTransaction(db, "Adding a repository", async (tx) => {
+				const next = await selectRows<{ next: number }>(
+					tx,
+					REPOS_SQL.nextDisplayOrder,
+					[],
+					"Reading the next repository order",
+				);
+				if (!next.ok) return err(next.error);
+				const at = now();
+				const repo: Repo = {
+					id: deps.ids.uuid() as RepoId,
+					name: input.name,
+					rootPath: input.rootPath,
+					remoteUrl: input.remoteUrl,
+					defaultBranch: input.defaultBranch,
+					icon: input.icon,
+					displayOrder: next.value[0]?.next ?? 0,
+					hidden: input.hidden ?? false,
+					createdAt: at,
+					updatedAt: at,
+				};
+				const written = await executeStatement(
+					tx,
+					REPOS_SQL.insert,
+					repoToParams(repo),
+					"Adding a repository",
+				);
+				return written.ok ? ok(repo) : err(written.error);
+			}),
+		setName: async (id, name) =>
+			executeVoid(db, REPOS_SQL.setName, [name, now(), id], "Renaming a repository"),
+		setDefaultBranch: async (id, branch) =>
+			executeVoid(
+				db,
+				REPOS_SQL.setDefaultBranch,
+				[branch, now(), id],
+				"Changing a repository branch",
+			),
+		setRemoteUrl: async (id, url) =>
+			executeVoid(db, REPOS_SQL.setRemoteUrl, [url, now(), id], "Changing a repository remote"),
+		setIcon: async (id, icon) =>
+			executeVoid(db, REPOS_SQL.setIcon, [icon, now(), id], "Changing a repository icon"),
+		setHidden: async (id, hidden) =>
+			executeVoid(db, REPOS_SQL.setHidden, [toFlag(hidden), now(), id], "Hiding a repository"),
+		reorder: async (orderedIds) =>
+			inTransaction(db, "Reordering repositories", async (tx) => {
+				const at = now();
+				for (const [index, id] of orderedIds.entries()) {
+					const written = await executeStatement(
+						tx,
+						REPOS_SQL.setDisplayOrder,
+						[index, at, id],
+						"Reordering repositories",
+					);
+					if (!written.ok) return err(written.error);
+				}
+				return ok(undefined);
+			}),
+		delete: async (id) => executeVoid(db, REPOS_SQL.delete, [id], "Removing a repository"),
 	};
 }

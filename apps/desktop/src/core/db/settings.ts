@@ -9,10 +9,16 @@
  * stored as NULL; deleting a repo must delete its "repo:<id>:" rows (no foreign key covers them).
  * Test first: settingToParams on undefined returns an error Result.
  */
-import { notImplemented, type Result } from "@conducted/shared";
+import { err, ok, type Result } from "@conducted/shared";
 import type { Database } from "../../platform/platform.ts";
 import type { RepositoryDeps } from "./deps.ts";
-import { parseJsonText, stringifyJson } from "./row-codec.ts";
+import {
+	collectResults,
+	executeStatement,
+	parseJsonText,
+	selectRows,
+	stringifyJson,
+} from "./row-codec.ts";
 
 export interface SettingRow {
 	key: string;
@@ -71,13 +77,49 @@ export interface SettingsRepository {
 	deleteByPrefix(prefix: string): Promise<Result<number>>;
 }
 
-export function createSettingsRepository(_db: Database, _deps: RepositoryDeps): SettingsRepository {
+export function createSettingsRepository(db: Database, deps: RepositoryDeps): SettingsRepository {
+	const list = async (
+		sql: string,
+		params: readonly unknown[],
+		what: string,
+	): Promise<Result<Setting[]>> => {
+		const rows = await selectRows<SettingRow>(db, sql, params, what);
+		return rows.ok ? collectResults(rows.value.map(settingFromRow)) : err(rows.error);
+	};
 	return {
-		get: async () => notImplemented("DATA-01"),
-		list: async () => notImplemented("DATA-01"),
-		listByPrefix: async () => notImplemented("DATA-01"),
-		set: async () => notImplemented("DATA-01"),
-		delete: async () => notImplemented("DATA-01"),
-		deleteByPrefix: async () => notImplemented("DATA-01"),
+		get: async (key) => {
+			const rows = await selectRows<SettingRow>(db, SETTINGS_SQL.get, [key], "Reading a setting");
+			if (!rows.ok) return err(rows.error);
+			const row = rows.value[0];
+			return row === undefined ? ok(null) : settingFromRow(row);
+		},
+		list: () => list(SETTINGS_SQL.list, [], "Listing settings"),
+		listByPrefix: (prefix) =>
+			list(SETTINGS_SQL.listByPrefix, [prefix], "Listing settings of one scope"),
+		set: async (key, value) => {
+			const setting: Setting = { key, value, updatedAt: deps.clock.now() };
+			const params = settingToParams(setting);
+			if (!params.ok) return err(params.error);
+			const written = await executeStatement(
+				db,
+				SETTINGS_SQL.upsert,
+				params.value,
+				"Saving a setting",
+			);
+			return written.ok ? ok(setting) : err(written.error);
+		},
+		delete: async (key) => {
+			const written = await executeStatement(db, SETTINGS_SQL.delete, [key], "Removing a setting");
+			return written.ok ? ok(undefined) : err(written.error);
+		},
+		deleteByPrefix: async (prefix) => {
+			const written = await executeStatement(
+				db,
+				SETTINGS_SQL.deleteByPrefix,
+				[prefix],
+				"Removing settings of one scope",
+			);
+			return written.ok ? ok(written.value) : err(written.error);
+		},
 	};
 }

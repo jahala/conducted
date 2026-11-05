@@ -42,6 +42,7 @@ export function buildWorkspaceInstruction(workspace: WorkspaceContext): string {
 	}
 	lines.push(
 		"Do not rename the branch unless the user asks you to.",
+		"The app shows the pull request of whichever branch is checked out. After you open a pull request, or a stack of them, check out that pull request's branch so the user sees it.",
 		"The user mostly reads your last message of a turn; earlier messages are folded away. Put every result, decision and open question into that last message.",
 		"If you take a screenshot, save it under `.context` and show it in your last message with Markdown image syntax.",
 		"If the user brings up several unrelated tasks, suggest that they start a new workspace for each one.",

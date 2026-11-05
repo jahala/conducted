@@ -23,7 +23,7 @@ describe("cn", () => {
 });
 
 describe("Button", () => {
-	const variants: ButtonVariant[] = ["primary", "secondary", "ghost", "danger"];
+	const variants: ButtonVariant[] = ["default", "secondary", "ghost", "destructive"];
 
 	it.each(variants)("renders the %s variant", (variant) => {
 		render(<Button variant={variant}>Go</Button>);
@@ -31,10 +31,10 @@ describe("Button", () => {
 		expect(button.getAttribute("data-variant")).toBe(variant);
 	});
 
-	it("gives the primary variant the primary fill and no other variant", () => {
+	it("gives the default variant the primary fill and no other variant", () => {
 		render(
 			<>
-				<Button variant="primary">A</Button>
+				<Button variant="default">A</Button>
 				<Button variant="secondary">B</Button>
 			</>,
 		);
@@ -54,9 +54,10 @@ describe("Button", () => {
 				Save
 			</Button>,
 		);
-		const button = screen.getByRole("button", { name: /Save/ }) as HTMLButtonElement;
+		const button = screen.getByRole("button", { name: "Save" }) as HTMLButtonElement;
 		expect(button.disabled).toBe(true);
-		expect(screen.getByRole("status", { name: "Working" })).toBeTruthy();
+		expect(button.getAttribute("aria-busy")).toBe("true");
+		expect(screen.queryByRole("status")).toBeNull();
 		fireEvent.click(button);
 		expect(onClick).not.toHaveBeenCalled();
 	});

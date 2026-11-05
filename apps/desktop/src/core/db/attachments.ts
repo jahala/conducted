@@ -13,14 +13,24 @@
 import {
 	type AttachmentId,
 	type CommentId,
+	err,
 	notImplemented,
+	ok,
 	type Result,
 	type SessionId,
 } from "@conducted/shared";
 import type { Database } from "../../platform/platform.ts";
 import type { Attachment } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
-import { fromFlag, toFlag } from "./row-codec.ts";
+import {
+	executeStatement,
+	executeVoid,
+	fromFlag,
+	inTransaction,
+	selectRows,
+	stringifyJson,
+	toFlag,
+} from "./row-codec.ts";
 
 export interface AttachmentRow {
 	id: AttachmentId;
@@ -120,20 +130,105 @@ export interface AttachmentRepository {
 }
 
 export function createAttachmentRepository(
-	_db: Database,
-	_deps: RepositoryDeps,
+	db: Database,
+	deps: RepositoryDeps,
 ): AttachmentRepository {
+	const list = async (
+		sql: string,
+		params: readonly unknown[],
+		what: string,
+	): Promise<Result<Attachment[]>> => {
+		const rows = await selectRows<AttachmentRow>(db, sql, params, what);
+		return rows.ok ? ok(rows.value.map(attachmentFromRow)) : err(rows.error);
+	};
 	return {
-		get: async () => notImplemented("DATA-01"),
-		listBySession: async () => notImplemented("DATA-01"),
-		listDraftsBySession: async () => notImplemented("DATA-01"),
-		listByMessage: async () => notImplemented("DATA-01"),
+		get: async (id) => {
+			const rows = await selectRows<AttachmentRow>(
+				db,
+				ATTACHMENTS_SQL.get,
+				[id],
+				"Reading an attachment",
+			);
+			if (!rows.ok) return err(rows.error);
+			const row = rows.value[0];
+			return row === undefined ? ok(null) : ok(attachmentFromRow(row));
+		},
+		listBySession: (sessionId) =>
+			list(ATTACHMENTS_SQL.listBySession, [sessionId], "Listing attachments"),
+		listDraftsBySession: (sessionId) =>
+			list(ATTACHMENTS_SQL.listDraftsBySession, [sessionId], "Listing draft attachments"),
+		listByMessage: (messageId) =>
+			list(ATTACHMENTS_SQL.listByMessage, [messageId], "Listing a message's attachments"),
 		listByComment: async () => notImplemented("REV-12"),
-		addDraft: async () => notImplemented("DATA-01"),
-		setPath: async () => notImplemented("DATA-01"),
-		attachDrafts: async () => notImplemented("DATA-01"),
-		restoreToDraft: async () => notImplemented("DATA-01"),
-		remove: async () => notImplemented("DATA-01"),
-		removeDraft: async () => notImplemented("DATA-01"),
+		addDraft: async (input) =>
+			inTransaction(db, "Adding a draft attachment", async (tx) => {
+				const attachment: AttachmentInsert = {
+					id: deps.ids.uuid() as AttachmentId,
+					sessionId: input.sessionId,
+					kind: input.kind,
+					originalName: input.originalName,
+					path: input.path,
+					isDraft: true,
+					commentId: input.commentId,
+					messageId: null,
+					createdAt: deps.clock.now(),
+				};
+				const written = await executeStatement(
+					tx,
+					ATTACHMENTS_SQL.insert,
+					attachmentToParams(attachment),
+					"Adding a draft attachment",
+				);
+				if (!written.ok) return err(written.error);
+				return ok({
+					id: attachment.id,
+					sessionId: attachment.sessionId,
+					kind: attachment.kind,
+					originalName: attachment.originalName,
+					path: attachment.path,
+					isDraft: attachment.isDraft,
+					commentId: attachment.commentId,
+				});
+			}),
+		setPath: (id, path) =>
+			executeVoid(db, ATTACHMENTS_SQL.setPath, [path, id], "Saving an attachment path"),
+		attachDrafts: async (sessionId, messageId, ids) => {
+			const json = stringifyJson(ids, "attachments.ids");
+			if (!json.ok) return err(json.error);
+			const written = await executeStatement(
+				db,
+				ATTACHMENTS_SQL.attachDrafts,
+				[messageId, sessionId, json.value],
+				"Attaching drafts to a message",
+			);
+			return written.ok ? ok(written.value) : err(written.error);
+		},
+		restoreToDraft: async (messageId) => {
+			const written = await executeStatement(
+				db,
+				ATTACHMENTS_SQL.restoreToDraft,
+				[messageId],
+				"Restoring attachments to a draft",
+			);
+			return written.ok ? ok(written.value) : err(written.error);
+		},
+		remove: async (id) => {
+			const rows = await selectRows<{ path: string }>(
+				db,
+				ATTACHMENTS_SQL.deleteReturningPath,
+				[id],
+				"Removing an attachment",
+			);
+			return rows.ok ? ok(rows.value[0]?.path ?? null) : err(rows.error);
+		},
+		removeDraft: async (sessionId, id) => {
+			const rows = await selectRows<{ path: string }>(
+				db,
+				ATTACHMENTS_SQL.deleteDraftReturningPath,
+				[id, sessionId],
+				"Removing a draft attachment",
+			);
+			return rows.ok ? ok(rows.value[0]?.path ?? null) : err(rows.error);
+		},
 	};
 }

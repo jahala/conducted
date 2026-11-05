@@ -12,7 +12,7 @@ const state = vi.hoisted(() => ({
 vi.mock("../../core/hooks.ts", () => ({
 	useActions: () => ({ projects: { addLocal: state.addLocal }, app: { pickFolder: state.pick } }),
 }));
-vi.mock("../../ui/Toast.tsx", () => ({ toast: { error: state.toastError } }));
+vi.mock("../../ui/Toast.tsx", () => ({ toastError: state.toastError }));
 
 const { AddProjectButton } = await import("./AddProjectButton.tsx");
 
@@ -42,28 +42,24 @@ describe("AddProjectButton", () => {
 	});
 
 	it("tells the user when the folder dialog fails", async () => {
-		state.pick.mockResolvedValue(err(appError("dialog_failed", "The dialog did not open")));
+		const failure = appError("dialog_failed", "The dialog did not open");
+		state.pick.mockResolvedValue(err(failure));
 		render(<AddProjectButton />);
 		fireEvent.click(screen.getByRole("button", { name: /Add a project/ }));
 		await waitFor(() =>
-			expect(state.toastError).toHaveBeenCalledWith("Couldn't open the folder dialog", {
-				description: "The dialog did not open",
-			}),
+			expect(state.toastError).toHaveBeenCalledWith("Couldn't open the folder dialog", failure),
 		);
 		expect(state.addLocal).not.toHaveBeenCalled();
 	});
 
 	it("tells the user why adding failed", async () => {
+		const failure = appError("not_git", "That folder is not a git repository");
 		state.pick.mockResolvedValue(ok("/code/notes"));
-		state.addLocal.mockResolvedValue(
-			err(appError("not_git", "That folder is not a git repository")),
-		);
+		state.addLocal.mockResolvedValue(err(failure));
 		render(<AddProjectButton />);
 		fireEvent.click(screen.getByRole("button", { name: /Add a project/ }));
 		await waitFor(() =>
-			expect(state.toastError).toHaveBeenCalledWith("Couldn't add the project", {
-				description: "That folder is not a git repository",
-			}),
+			expect(state.toastError).toHaveBeenCalledWith("Couldn't add the project", failure),
 		);
 	});
 

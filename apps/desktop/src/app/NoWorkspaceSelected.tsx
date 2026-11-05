@@ -25,7 +25,7 @@ export function NoWorkspaceSelected() {
 					body="Add a project, then give each task its own workspace. Pick a workspace in the sidebar to continue where you left off."
 					action={
 						<NotBuiltYet area="Add project">
-							<AddProjectButton variant="primary" size="lg" />
+							<AddProjectButton variant="default" size="lg" />
 						</NotBuiltYet>
 					}
 				/>

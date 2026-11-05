@@ -5,22 +5,28 @@
  *
  * Usage:
  *   bun scripts/overnight/drive.ts issues                 map feature ids to issue numbers
- *   bun scripts/overnight/drive.ts plan <batch-id> [--only ID,ID]
- *                                                         write the batch's pleach plan
+ *   bun scripts/overnight/drive.ts plan <batch-id> --night <n> [--only ID,ID] [--max <m>]
+ *                                                         write night step n's pleach plan for the
+ *                                                         batch, at most m workers at once, and the
+ *                                                         batch's feature ids beside it
  *   bun scripts/overnight/drive.ts step <n>               list the step's batch ids
+ *   bun scripts/overnight/drive.ts preflight              the quick gate on the step branch itself,
+ *                                                         before any worker starts from it
  *   bun scripts/overnight/drive.ts mark-done <tree> <ID...>
  *                                                         set rows to done in <tree>'s backlog,
  *                                                         refusing an id with placeholders left
  *   bun scripts/overnight/drive.ts balance                print the DeepSeek balance in USD
- *   bun scripts/overnight/drive.ts audit-prompt <batch-id> <findings-file>
- *                                                         the read-only audit agent's prompt
+ *   bun scripts/overnight/drive.ts audit-prompt <ids-file> <findings-file>
+ *                                                         the read-only audit agent's prompt for the
+ *                                                         batch whose ids plan wrote
+ *   bun scripts/overnight/drive.ts closes <ID...>         the step PR's "Closes #N" lines (D041)
  *   bun scripts/overnight/drive.ts fixer-prompt <ID,ID> <log-file>
  *                                                         a fixer's prompt for one failure group
  *
  * Working files go to .context/overnight/ (git-ignored).
  */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { basename, join, relative } from "node:path";
 import { type BacklogRow, parseBacklog } from "../issues/model.ts";
 import { placeholdersFor, sourceFiles } from "./node-gate.ts";
 import { planBatches } from "./plan-batches.ts";
@@ -130,6 +136,11 @@ export function fixerPrompt(ids: string[], log: string): string {
 
 const [command, ...args] = process.argv.slice(2);
 
+function flag(name: string): string | undefined {
+	const at = args.indexOf(name);
+	return at === -1 ? undefined : args[at + 1];
+}
+
 if (command === "issues") {
 	const map: Record<string, number> = {};
 	let cursor: string | null = null;
@@ -162,14 +173,16 @@ if (command === "issues") {
 	} else {
 		const batch = batches.find((b) => b.id === args[0]);
 		if (!batch) throw new Error(`No batch ${args[0]}`);
-		const onlyAt = args.indexOf("--only");
-		const only = onlyAt === -1 ? null : new Set((args[onlyAt + 1] ?? "").split(","));
+		const night = flag("--night");
+		if (!night) throw new Error("plan needs --night <n>, the night's step number");
+		const onlyFlag = flag("--only");
+		const only = onlyFlag ? new Set(onlyFlag.split(",")) : null;
 		const features = batch.features.filter((f) => !only || only.has(f.id));
 		const issues = issueMap();
 		const plan = {
 			goal: `Overnight batch ${batch.id}: ${features.map((f) => f.id).join(", ")}`,
 			source: `overnight/${batch.id}`,
-			maxConcurrency: 6,
+			maxConcurrency: Number(flag("--max") ?? 6),
 			nodes: features.map((f) => ({
 				id: nodeId(f.id),
 				worker: { provider: "builder" },
@@ -179,9 +192,25 @@ if (command === "issues") {
 				policy: { maxAttempts: 2, timeoutMs: 45 * 60 * 1000 },
 			})),
 		};
-		const path = join(work, "plans", `${batch.id}${only ? "-trial" : ""}.json`);
-		writeFileSync(path, `${JSON.stringify(plan, null, 2)}\n`);
-		console.log(relative(root, path));
+		const base = join(work, "plans", `n${night}-${batch.id}`);
+		writeFileSync(`${base}.json`, `${JSON.stringify(plan, null, 2)}\n`);
+		writeFileSync(`${base}.ids`, `${features.map((f) => f.id).join("\n")}\n`);
+		console.log(relative(root, `${base}.json`));
+	}
+} else if (command === "preflight") {
+	// Every node starts from the step branch, so a red check here fails every node at once.
+	for (const script of ["typecheck", "lint", "guards"]) {
+		const run = Bun.spawnSync(["pnpm", "-s", script], {
+			cwd: root,
+			stdout: "pipe",
+			stderr: "pipe",
+		});
+		if (run.exitCode !== 0) {
+			console.error(`${run.stdout.toString()}${run.stderr.toString()}`.slice(-4000));
+			console.error(`preflight: pnpm ${script} failed on the step branch; start no worker.`);
+			process.exit(1);
+		}
+		console.log(`ok   ${script}`);
 	}
 } else if (command === "mark-done") {
 	const [tree, ...ids] = args;
@@ -209,21 +238,32 @@ if (command === "issues") {
 	};
 	console.log(body.balance_infos.find((b) => b.currency === "USD")?.total_balance ?? "unknown");
 } else if (command === "audit-prompt") {
-	const [batchId, findings] = args;
-	const rows = backlog(root).filter((r) => r.status !== "planned" && r.priority === 1);
-	const batch = planBatches(rows).find((b) => b.id === batchId);
-	if (!batch || !findings) throw new Error("Usage: audit-prompt <batch-id> <findings-file>");
-	const onlyAt = args.indexOf("--only");
-	const only = onlyAt === -1 ? null : new Set((args[onlyAt + 1] ?? "").split(","));
-	const features = batch.features.filter((f) => !only || only.has(f.id));
-	console.log(auditPrompt(batch.id, features, issueMap(), findings));
+	const [idsFile, findings] = args;
+	if (!idsFile || !findings) throw new Error("Usage: audit-prompt <ids-file> <findings-file>");
+	const ids = readFileSync(idsFile, "utf8").split("\n").filter(Boolean);
+	const rows = new Map(backlog(root).map((r) => [r.id, r]));
+	const features = ids.map((id) => {
+		const row = rows.get(id);
+		if (!row) throw new Error(`${id} is not in the backlog`);
+		return row;
+	});
+	const batchId = basename(idsFile, ".ids");
+	console.log(auditPrompt(batchId, features, issueMap(), findings));
+} else if (command === "closes") {
+	if (args.length === 0) throw new Error("Usage: closes <ID...>");
+	const issues = issueMap();
+	for (const id of args) {
+		const number = issues.get(id);
+		if (!number) throw new Error(`${id} has no issue in issues.json`);
+		console.log(`Closes #${number}`);
+	}
 } else if (command === "fixer-prompt") {
 	const [ids, logFile] = args;
 	if (!ids || !logFile) throw new Error("Usage: fixer-prompt <ID,ID> <log-file>");
 	console.log(fixerPrompt(ids.split(","), readFileSync(logFile, "utf8")));
 } else {
 	console.error(
-		"Usage: drive.ts issues | plan <batch> [--only IDS] | step <n> | mark-done <tree> <IDS> | balance | audit-prompt <batch> <file> | fixer-prompt <IDS> <log>",
+		"Usage: drive.ts issues | plan <batch> --night <n> [--only IDS] [--max <m>] | step <n> | preflight | mark-done <tree> <IDS> | balance | audit-prompt <ids-file> <file> | closes <IDS> | fixer-prompt <IDS> <log>",
 	);
 	process.exit(64);
 }

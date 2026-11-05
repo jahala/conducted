@@ -1,8 +1,8 @@
 /**
- * @feature DATA-01 Query hooks and actions for screens
- * Owns: the hooks screens call. Each one reads a service store (core/services) and returns a
- * Loadable, so screens design their own loading and error states. The signatures are fixed by
- * core/api.ts. `useActions` is real: it returns the action table of the container.
+ * @feature DATA-01 Query hook contract for screens
+ * Owns: the one file that fixes the shape of every hook screens call. The signatures are fixed by
+ * core/api.ts; each hook body belongs to the feature named in its placeholder, and that feature
+ * writes its test. `useActions` is real: it returns the action table of the container.
  * Behaviour: services-map.md 1.3 (services over zustand stores), 2.5 (query cache: SQL data
  * flows through service stores, not through TanStack Query; queries are for git, GitHub and
  * file data).
@@ -53,7 +53,8 @@
  *   useLinearAccess                    -> services.linear.store (access)
  *   useRepoTerminals                   -> services.terminals.store (repository terminals)
  *   useSystemInfo, useFullDiskAccess   -> query over Platform.system, through services.system
- * Test first: useWorkspaces returns "ready" with the rows a test database holds.
+ * Test first: useActions returns the action table of the container it is given. The test for a
+ * hook body lives with the feature that implements it (for example NAV-03 for useWorkspaces).
  */
 import { notImplemented } from "@conducted/shared";
 import type { Actions, Queries } from "./api.ts";

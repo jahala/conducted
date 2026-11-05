@@ -4,7 +4,7 @@
  */
 import { expect, test } from "bun:test";
 import type { BacklogRow } from "../issues/model.ts";
-import { MAX_BATCH, planBatches } from "./plan-batches.ts";
+import { MAX_BATCH, planBatches, renderBatches } from "./plan-batches.ts";
 
 const row = (id: string, owner: string, needs: string[] = []): BacklogRow => ({
 	id,
@@ -43,4 +43,15 @@ test("a dependency loop is refused", () => {
 	expect(() => planBatches([row("A-01", "D/x", ["B-01"]), row("B-01", "D/x", ["A-01"])])).toThrow(
 		"Dependency loop",
 	);
+});
+
+test("the rendered file has no double blank lines, so the formatter leaves it alone", () => {
+	const batches = planBatches([
+		row("A-01", "S/a"),
+		row("B-01", "D/b"),
+		row("C-01", "S/a", ["A-01"]),
+	]);
+	const text = renderBatches(batches, "test");
+	expect(text).not.toContain("\n\n\n");
+	expect(text.endsWith("\n")).toBe(true);
 });

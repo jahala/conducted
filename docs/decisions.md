@@ -291,3 +291,24 @@ Chosen:
 - A checklist item that another feature owns (a screen, a runner, the composition root) moves to that feature in `docs/plans/items/` before the row turns `done`. When the move leaves wiring undone, the conductor adds an item for it to the feature that owns the wiring.
 - A red CI run caused by the conductor's own process does not count as a feature's fix round.
   Why: one record of what is done (the backlog), issues closed by the merge that finishes them, and no "done" that hides unbuilt items.
+
+## D042. A composition root built beside its modules gets an integration fix (2026-11-05)
+
+Context: in step 2, SIDE-01 (the sidecar's composition root) was built in parallel with the modules it composes. Each node passed its gate alone, but the merged batch failed typecheck, because three modules had changed their constructor inputs. pleach's land gate refused the whole batch.
+Chosen: the conductor merges the batch's verified branches in a scratch worktree and gives the typecheck output to one fresh fixer for the composition root. It changes only the composition root and its test. The conductor runs every feature's gate on the result before the step branch takes it.
+Why: the composition root depends on every module's inputs, so making it wait for all of them would hold it back to the last step. One integration fix per step costs less.
+
+## D043. What a batch audit's findings become (2026-11-05)
+
+Context: the step-2 audits returned about 100 findings for 15 features. Many name behaviour that needs a feature not built yet (a handler, a screen, wiring in the composition root). A feature's row must turn `done` in the PR that removes its placeholders, so "keep it open" is not an option once the code is in.
+Chosen: one fresh fixer per feature, or per group of files, sorts each finding:
+
+- Fixed now: a bug, a header that claims what the code does not do, a banned pattern (compatibility alias, invented default, fake success, silent fallback), duplicated logic, an unsafe read or write. Each fix gets a test that fails without it.
+- Built now: missing behaviour the feature owns and can build in its own files.
+- Moved: behaviour that needs another feature's code. The conductor moves the checklist item to the owner in `docs/plans/items/`, or adds an item there for the wiring.
+- Later: work in the feature's own scope too large for the night. It becomes a new backlog row, listed in the morning report.
+- Refused: a finding the fixer shows is wrong from the research, with the section cited.
+
+Fixers that share a file never run at once. The composition root (`modes/sidecar-mode.ts`) is fixed last, by one fixer, with the wiring the others asked for.
+
+Why: every finding ends in a fix, an owner or a visible row, and none is lost in a chat log.

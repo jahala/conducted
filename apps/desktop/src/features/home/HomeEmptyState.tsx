@@ -42,7 +42,7 @@ export function HomeEmptyState({
 			title="No workspaces yet"
 			body="Create one to give a task its own copy of the code and its own chats."
 			action={
-				<Link to="/create" className={buttonClassName({ variant: "primary" })}>
+				<Link to="/create" className={buttonClassName({ variant: "default" })}>
 					Create a workspace
 				</Link>
 			}

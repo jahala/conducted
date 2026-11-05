@@ -11,9 +11,10 @@
  * not have one; deleting a repo cascades to its rows.
  * Test first: setting the same global name twice leaves one row.
  */
-import { appError, err, notImplemented, ok, type RepoId, type Result } from "@conducted/shared";
+import { appError, err, ok, type RepoId, type Result } from "@conducted/shared";
 import type { Database } from "../../platform/platform.ts";
 import type { RepositoryDeps } from "./deps.ts";
+import { executeStatement, inTransaction, selectRows } from "./row-codec.ts";
 
 export interface EnvVarRow {
 	name: string;
@@ -85,13 +86,61 @@ export interface EnvVarRepository {
 	delete(name: string, scope: EnvVar["scope"], repoId: RepoId | null): Promise<Result<void>>;
 }
 
-export function createEnvVarRepository(_db: Database, _deps: RepositoryDeps): EnvVarRepository {
+export function createEnvVarRepository(db: Database, _deps: RepositoryDeps): EnvVarRepository {
+	const list = async (
+		sql: string,
+		params: readonly unknown[],
+		what: string,
+	): Promise<Result<EnvVar[]>> => {
+		const rows = await selectRows<EnvVarRow>(db, sql, params, what);
+		return rows.ok ? ok(rows.value.map(envVarFromRow)) : err(rows.error);
+	};
 	return {
-		listGlobal: async () => notImplemented("DATA-01"),
-		listByRepo: async () => notImplemented("DATA-01"),
-		listForRepo: async () => notImplemented("DATA-01"),
-		get: async () => notImplemented("DATA-01"),
-		set: async () => notImplemented("DATA-01"),
-		delete: async () => notImplemented("DATA-01"),
+		listGlobal: () => list(ENV_VARS_SQL.listGlobal, [], "Listing global environment variables"),
+		listByRepo: (repoId) =>
+			list(ENV_VARS_SQL.listByRepo, [repoId], "Listing a repository's environment variables"),
+		listForRepo: (repoId) =>
+			list(ENV_VARS_SQL.listForRepo, [repoId], "Listing environment variables for a repository"),
+		get: async (name, scope, repoId) => {
+			const rows = await selectRows<EnvVarRow>(
+				db,
+				ENV_VARS_SQL.get,
+				[name, scope, repoId],
+				"Reading an environment variable",
+			);
+			if (!rows.ok) return err(rows.error);
+			const row = rows.value[0];
+			return row === undefined ? ok(null) : ok(envVarFromRow(row));
+		},
+		set: async (envVar) => {
+			const params = envVarToParams(envVar);
+			if (!params.ok) return err(params.error);
+			return inTransaction(db, "Saving an environment variable", async (tx) => {
+				const updated = await executeStatement(
+					tx,
+					ENV_VARS_SQL.upsertUpdate,
+					[envVar.keychainRef, envVar.name, envVar.scope, envVar.repoId],
+					"Saving an environment variable",
+				);
+				if (!updated.ok) return err(updated.error);
+				if (updated.value > 0) return ok(undefined);
+				const inserted = await executeStatement(
+					tx,
+					ENV_VARS_SQL.upsertInsert,
+					params.value,
+					"Saving an environment variable",
+				);
+				return inserted.ok ? ok(undefined) : err(inserted.error);
+			});
+		},
+		delete: async (name, scope, repoId) => {
+			const written = await executeStatement(
+				db,
+				ENV_VARS_SQL.delete,
+				[name, scope, repoId],
+				"Removing an environment variable",
+			);
+			return written.ok ? ok(undefined) : err(written.error);
+		},
 	};
 }

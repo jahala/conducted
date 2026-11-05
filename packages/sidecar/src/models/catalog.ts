@@ -31,6 +31,7 @@ import { type AppError, appError, err, ok, type Result } from "@conducted/shared
 import type { Logger } from "../logging/logger.ts";
 import { type RunnerRegistry, selectorKey } from "../runners/registry.ts";
 import type { Runner } from "../runners/runner.ts";
+import { isAppError, messageOf } from "../util/errors.ts";
 
 /** How long a discovered list is reused. Conductor refreshes its catalog every hour. */
 export const MODEL_CATALOG_TTL_MS = 60 * 60 * 1000;
@@ -154,12 +155,9 @@ export class RunnerModelCatalog implements ModelCatalog {
  */
 function asAppError(cause: unknown, key: string): AppError {
 	if (isAppError(cause)) return cause;
-	const message = cause instanceof Error ? cause.message : String(cause);
-	return appError(MODEL_LIST_FAILED, `Could not list models for ${key}: ${message}`, cause);
-}
-
-function isAppError(value: unknown): value is AppError {
-	if (typeof value !== "object" || value === null) return false;
-	const candidate = value as { code?: unknown; message?: unknown };
-	return typeof candidate.code === "string" && typeof candidate.message === "string";
+	return appError(
+		MODEL_LIST_FAILED,
+		`Could not list models for ${key}: ${messageOf(cause)}`,
+		cause,
+	);
 }
