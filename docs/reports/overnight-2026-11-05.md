@@ -16,6 +16,7 @@ The night's plan is in [overnight-build.md](../plans/overnight-build.md), and ev
 - **Design to look at.** APP-05's four spinner kinds and three redrawn git icons are our own design. The research has no Conductor reference for them.
 - **NAV-03 is quarantined.** Two shell tests stayed red after both fix rounds, most likely because the test container has no workspace store. The built work is on `quarantine/nav.03` (pushed), and issue #111 says how to resume.
 - **Five stale branches to delete.** They hold aborted work from the first step-2 launch, and the night's guard would not let me delete them: `git branch -D quarantine/agent.02 quarantine/app.05 quarantine/data.01 quarantine/git.10 quarantine/plat.03`.
+- **Dead umbel sessions.** The night left about 436 dead session folders, from workers and audits that are all stopped. `umbel prune` can only select by age, so it would also remove older sessions from other projects, logs included. I left it for you: `umbel prune` clears all dead sessions. No worktree, tmux session or live worker is left.
 - **One pleach issue to file.** Biome turns its React rules off inside `.git/`, where pleach builds its worktrees. So node gates passed lint that failed on the branch. D044 fixes it for this repository by naming the React domain in `biome.json`. Other repositories that pleach builds in have the same gap.
 
 ## Steps
