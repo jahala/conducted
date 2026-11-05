@@ -14,6 +14,7 @@ import type { SessionId, WorkspaceId } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
 import type { AppToolBackend } from "../../tools/backend.ts";
 import { AsyncQueue } from "../../util/async-queue.ts";
+import { NoActiveTurnError } from "../errors.ts";
 import type { StartOptions, TurnCallbacks, TurnInput } from "../runner.ts";
 import { ClaudeSession, type ClaudeSessionDeps, type QueryFunction } from "./claude-session.ts";
 import { INTERRUPT_GRACE_MS, SETTLEMENT_WATCHDOG_MS } from "./constants.ts";
@@ -1168,6 +1169,127 @@ describe("AGENT-02 Claude session", () => {
 			expect(script.starts).toBe(0);
 			await session.warm();
 			expect(script.options?.model).toBe("claude-opus-5");
+			await session.dispose();
+		});
+	});
+
+	describe("AGENT-05 steering", () => {
+		test("AGENT-05 a steer gets a fresh uuid and stays pending until the mirror reports it read", async () => {
+			let ids = 0;
+			const { query, script } = scriptedQuery((_user, s) => {
+				s.emit(init());
+			});
+			const session = new ClaudeSession(
+				makeDeps({
+					query,
+					newUuid: () => {
+						ids += 1;
+						return `uuid-${ids}`;
+					},
+				}),
+				start(),
+			);
+			let settled = false;
+			const turn = session.runTurn(turnInput(), callbacks([])).then((outcome) => {
+				settled = true;
+				return outcome;
+			});
+			await until(() => script.prompts.length === 1);
+			expect(String(script.prompts[0]?.uuid)).toBe("uuid-1");
+
+			let read = false;
+			const { consumed } = await session.steer({ ...turnInput(), text: "hold on" });
+			void consumed.then(() => {
+				read = true;
+			});
+			await until(() => script.prompts.length === 2);
+			expect(String(script.prompts[1]?.uuid)).toBe("uuid-2");
+			expect(script.prompts[1]?.message).toMatchObject({ role: "user", content: "hold on" });
+			await flushMicrotasks();
+			expect(read).toBe(false);
+
+			// The result for the pre-steer message is held back while the steer is unread.
+			script.emit(resultMessage("uuid-1"));
+			await flushMicrotasks();
+			expect(settled).toBe(false);
+
+			// The CLI writes the steer into its transcript, so the receipt resolves.
+			await script.options?.sessionStore?.append({ projectKey: "p", sessionId: "s1" }, [
+				{ type: "user", uuid: "uuid-2" },
+			]);
+			await until(() => read === true);
+
+			// The next result ends the turn.
+			script.emit(resultMessage("uuid-2"));
+			expect(await turn).toEqual({ kind: "success" });
+			await session.dispose();
+		});
+
+		test("AGENT-05 steering is refused when no turn is open", async () => {
+			let ids = 0;
+			const { query } = scriptedQuery((user, s) => {
+				s.emit(resultMessage(String(user.uuid)));
+			});
+			const session = new ClaudeSession(
+				makeDeps({
+					query,
+					newUuid: () => {
+						ids += 1;
+						return `uuid-${ids}`;
+					},
+				}),
+				start(),
+			);
+
+			await expect(session.steer(turnInput())).rejects.toBeInstanceOf(NoActiveTurnError);
+
+			await session.runTurn(turnInput(), callbacks([]));
+			await expect(session.steer(turnInput())).rejects.toBeInstanceOf(NoActiveTurnError);
+			await session.dispose();
+		});
+
+		test("AGENT-05 a steer sent while the turn starts is queued after its first message", async () => {
+			let releaseStart: () => void = () => {};
+			const startGate = new Promise<void>((resolve) => {
+				releaseStart = resolve;
+			});
+			let firstStart = true;
+			let ids = 0;
+			const { query, script } = scriptedQuery();
+			const session = new ClaudeSession(
+				makeDeps({
+					query,
+					hasTranscript: async () => {
+						if (firstStart) {
+							firstStart = false;
+							await startGate;
+						}
+						return false;
+					},
+					newUuid: () => {
+						ids += 1;
+						return `uuid-${ids}`;
+					},
+				}),
+				start(),
+			);
+
+			const turn = session.runTurn(turnInput(), callbacks([]));
+			await until(() => !firstStart);
+			const steered = session.steer({ ...turnInput(), text: "second" });
+			releaseStart();
+			await until(() => script.prompts.length === 2);
+
+			expect(script.prompts[0]?.message).toMatchObject({ role: "user", content: "hi" });
+			expect(script.prompts[1]?.message).toMatchObject({ role: "user", content: "second" });
+
+			const { consumed } = await steered;
+			await script.options?.sessionStore?.append({ projectKey: "p", sessionId: "s1" }, [
+				{ type: "user", uuid: "uuid-2" },
+			]);
+			await consumed;
+			script.emit(resultMessage("uuid-2"));
+			expect(await turn).toEqual({ kind: "success" });
 			await session.dispose();
 		});
 	});

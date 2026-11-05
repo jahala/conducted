@@ -29,8 +29,8 @@
  *    never runs in bypassPermissions; an effort change that needs a restart restarts the process
  *    before the message is sent
  *  - an approved plan records the permission mode the CLI switched to
- * Owned by later features: steer() is AGENT-05; while it is unbuilt it returns notImplemented with
- * its own id. The session header only promises what this feature builds.
+ *  - steer() pushes a fresh user message into the open turn and reports when the transcript mirror
+ *    shows the agent read it (AGENT-05); with no open turn it throws NoActiveTurnError
  * Test first: with a scripted query function that yields init, assistant text and a result for
  * the pushed uuid, runTurn emits the text message and resolves with success.
  * Our design choice: the SDK's query function is a constructor parameter (Conductor does this
@@ -48,11 +48,11 @@ import type {
 } from "@anthropic-ai/claude-agent-sdk";
 import type { Effort, SessionConfig } from "@conducted/protocol";
 import type { SessionId } from "@conducted/shared";
-import { notImplemented } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
 import type { AppToolBackend } from "../../tools/backend.ts";
 import { AsyncQueue } from "../../util/async-queue.ts";
 import { messageOf } from "../../util/errors.ts";
+import { NoActiveTurnError } from "../errors.ts";
 import type {
 	AgentSession,
 	StartOptions,
@@ -146,6 +146,8 @@ export class ClaudeSession implements AgentSession {
 	private appliedPermissionMode: PermissionMode | null = null;
 	private exited: Promise<void> = Promise.resolve();
 	private startPending: Promise<void> | null = null;
+	/** Resolves once the open turn's first user message is in the input stream. */
+	private firstMessage: Deferred<void> | null = null;
 	private readonly stderrTail: string[] = [];
 
 	constructor(
@@ -180,6 +182,7 @@ export class ClaudeSession implements AgentSession {
 		this.callbacks = callbacks;
 		const turn = deferred<TurnOutcome>();
 		this.turnDeferred = turn;
+		this.firstMessage = deferred<void>();
 		this.currentGate = once(() => callbacks.beforeFirstWrite());
 		this.config = input.config;
 		if (this.agentSessionId !== null && !this.agentSessionIdReported) {
@@ -240,7 +243,9 @@ export class ClaudeSession implements AgentSession {
 		const uuid = this.deps.newUuid();
 		this.tracker.expectTurn(uuid);
 		const queue = this.input;
-		if (queue === null || !queue.push(this.userMessage(input.text, uuid))) {
+		const pushed = queue?.push(this.userMessage(input.text, uuid)) ?? false;
+		this.firstMessage?.resolve();
+		if (!pushed) {
 			this.finishTurn();
 			return {
 				kind: "error",
@@ -254,8 +259,27 @@ export class ClaudeSession implements AgentSession {
 		return outcome;
 	}
 
-	steer(_input: TurnInput): Promise<{ consumed: Promise<void> }> {
-		return notImplemented("AGENT-05");
+	async steer(input: TurnInput): Promise<{ consumed: Promise<void> }> {
+		if (!this.turnOpen || this.turnSettled) throw new NoActiveTurnError();
+		// A steer can arrive while the turn is still starting. Wait for its first message so the
+		// steer joins the stream after it, never before it.
+		const first = this.firstMessage;
+		if (first !== null) await first.promise;
+		if (!this.turnOpen || this.turnSettled) throw new NoActiveTurnError();
+		const queue = this.input;
+		if (queue === null || queue.isClosed) throw new NoActiveTurnError();
+
+		const uuid = this.deps.newUuid();
+		const consumed = this.receipts.register(uuid);
+		// The tracker must know this uuid: a result that answers the steer can end the turn, and a
+		// result that arrives before the mirror shows it read is held back.
+		this.tracker.expectTurn(uuid);
+		if (!queue.push(this.userMessage(input.text, uuid))) {
+			// The turn ended between the check and the push, so no receipt is left waiting.
+			this.receipts.consume(uuid);
+			throw new NoActiveTurnError();
+		}
+		return { consumed };
 	}
 
 	async cancel(): Promise<void> {
@@ -381,7 +405,7 @@ export class ClaudeSession implements AgentSession {
 			}),
 			sessionStore: createMirrorStore((uuid) => {
 				this.receipts.consume(uuid);
-			}),
+			}, this.deps.logger),
 			abortController: abort,
 			onStderr: (line) => this.onStderr(line),
 		});
@@ -481,6 +505,8 @@ export class ClaudeSession implements AgentSession {
 	private settleTurn(outcome: TurnOutcome): void {
 		if (this.turnSettled) return;
 		this.turnSettled = true;
+		// A steer waiting for the turn's first message wakes up and sees the closed turn.
+		this.firstMessage?.resolve();
 		this.receipts.clear();
 		this.currentGate = undefined;
 		const final: TurnOutcome =
@@ -523,6 +549,8 @@ export class ClaudeSession implements AgentSession {
 
 	private finishTurn(): void {
 		this.turnOpen = false;
+		this.firstMessage?.resolve();
+		this.firstMessage = null;
 		this.callbacks = null;
 		this.currentGate = undefined;
 		this.turnDeferred = null;
