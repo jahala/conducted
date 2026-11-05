@@ -6,8 +6,8 @@
  * servers, then exits with code 0. SIGINT, SIGTERM and a vanished parent all take this path.
  * uncaughtException and unhandledRejection are logged and do not exit.
  * Must handle: a step that throws or rejects (logged, the next step still runs), a step that takes
- * too long (each step has its own time limit, then it is abandoned and logged), a second shutdown
- * request while one runs (returns the first one's promise), and the report of which steps failed.
+ * too long (each step has its own time limit, then it is abandoned and logged), and the report of
+ * which steps failed. The caller ignores a second shutdown request while one is running.
  * Test first: with steps [ok, throws, ok], all three run, and the report lists the second as failed.
  * Our design choice: the order is stop accepting new work, stop agents, flush events, close the
  * socket, close the logger. Conductor flushes the outbox before closing the sockets too.

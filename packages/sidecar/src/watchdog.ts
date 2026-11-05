@@ -15,16 +15,25 @@
  * Test first: with a fake scheduler and a parent pid that changes from 100 to 1, the next tick calls
  * onParentGone once and a second tick does not call it again.
  */
-import { notImplemented } from "@conducted/shared";
 import type { Logger } from "./logging/logger.ts";
+import { SWEEP_INTERVAL_MS } from "./process/idle-policy.ts";
 import type { ProcessManager } from "./process/process-manager.ts";
+import { messageOf } from "./util/errors.ts";
 
 export interface IntervalScheduler {
 	/** Calls `fn` every `ms`. Returns the function that stops it. */
 	every(ms: number, fn: () => void): () => void;
 }
 
+/** The log tag Conductor uses for this module. */
+export const WATCHDOG_LOG_TAG = "WATCHDOG";
+
 export class ParentWatchdog {
+	private readonly logger: Logger;
+	private stopTimer: (() => void) | null = null;
+	private ticking = false;
+	private parentGone = false;
+
 	constructor(
 		protected readonly deps: {
 			scheduler: IntervalScheduler;
@@ -36,13 +45,49 @@ export class ParentWatchdog {
 			onParentGone(): void;
 			logger: Logger;
 		},
-	) {}
+	) {
+		this.logger = deps.logger.child(WATCHDOG_LOG_TAG);
+	}
 
 	start(): void {
-		notImplemented("SIDE-19");
+		if (this.stopTimer !== null) return;
+		this.stopTimer = this.deps.scheduler.every(SWEEP_INTERVAL_MS, () => {
+			void this.tick();
+		});
 	}
 
 	stop(): void {
-		notImplemented("SIDE-19");
+		this.stopTimer?.();
+		this.stopTimer = null;
+	}
+
+	/**
+	 * Runs one watchdog tick: the parent check first, then the idle sweep. A tick that starts while
+	 * another is still running does nothing, so two sweeps never overlap.
+	 */
+	async tick(): Promise<void> {
+		if (this.ticking || this.parentGone) return;
+		this.ticking = true;
+		try {
+			const parentPid = this.deps.currentParentPid();
+			if (parentPid !== this.deps.initialParentPid) {
+				this.parentGone = true;
+				this.logger.warn("The parent process is gone; the sidecar is shutting down", {
+					initialParentPid: this.deps.initialParentPid,
+					currentParentPid: parentPid,
+				});
+				this.deps.onParentGone();
+				return;
+			}
+			try {
+				await this.deps.processes.sweep();
+			} catch (cause) {
+				this.logger.warn("The idle sweep failed", { reason: messageOf(cause) });
+			}
+		} catch (cause) {
+			this.logger.warn("The parent check failed", { reason: messageOf(cause) });
+		} finally {
+			this.ticking = false;
+		}
 	}
 }
