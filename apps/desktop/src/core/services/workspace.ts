@@ -1,8 +1,8 @@
 /**
  * @feature WS-01 Workspace service: create, set up, archive, unarchive, delete
  * Owns: the list of workspaces and their lifecycle as far as it is built: creating a worktree and
- * its first chat, running the setup script, archiving a workspace, and storing the intended target
- * branch (GIT-08).
+ * its first chat, running the setup script, archiving a workspace, storing the intended target
+ * branch (GIT-08), and saving a renamed branch (GIT-09).
  * Behaviour: frontend.md 6 (creation, naming, setup, archive), services-map.md 2.4.1 (state
  * machine), 3.1 (create), 3.2 and 5A.1.2 (setup), 3.10 (archive and unarchive), 3.11 (branch
  * rename and the stored target branch), ui-map.md 3.9 and 3.1.
@@ -1268,6 +1268,24 @@ export class WorkspaceService {
 			return err(appError("workspace_corrupted", WORKSPACE_CORRUPTED_MESSAGE));
 		}
 		return this.archive(id, { deleteBranch: false });
+	}
+
+	/** GIT-09: saves the branch git renamed, so the header and sidebar show the new name. */
+	async applyBranchRename(id: WorkspaceId, branch: string): Promise<Result<void>> {
+		const found = await this.#deps.repos.workspaces.get(id);
+		if (!found.ok) return found;
+		if (found.value === null) {
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		}
+		const written = await this.#deps.repos.workspaces.setBranch(id, branch, false);
+		if (!written.ok) return written;
+		this.#upsert({
+			...found.value,
+			branch,
+			branchIsPlaceholder: false,
+			updatedAt: this.#deps.now(),
+		});
+		return ok(undefined);
 	}
 
 	async rename(id: WorkspaceId, name: string): Promise<Result<void>> {

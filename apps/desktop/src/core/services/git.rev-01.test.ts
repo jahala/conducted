@@ -105,6 +105,7 @@ const makeService = (
 		cache: {} as never,
 		contextOf: async () => ({ ok: true, value: context }),
 		agent: {} as never,
+		renameWorkspaceBranch: async () => ok(undefined),
 		now: () => 0,
 		fs: {
 			trash,

@@ -26,11 +26,13 @@
  * read failure is returned instead of guessing a strategy.
  * Also: GIT-13 decides when the pull request's base or head is newer than the local refs and
  * fetches it at most once a minute for one repository and branch.
+ * GIT-09: the rename reads the checked-out branch, asks the git helpers for a free name, and
+ * renames under the worktree lock; a detached HEAD returns the plain "check out a branch" message.
  * Not built yet: only the visible workspace polling fast.
  * Our design choice: this class exposes snapshots and actions only. The Git header state machine
- * and the merge with pull request info belong to GIT-04, the other git actions (rename and the
- * rest) belong to their own features, and the restart cache belongs to DATA-07. Their
- * placeholders stay here until those features build them.
+ * and the merge with pull request info belong to GIT-04, the other git actions belong to their
+ * own features, and the restart cache belongs to DATA-07. Their placeholders stay here until those
+ * features build them.
  * Changing the target branch is here (GIT-08): it stores the intended branch, moves an open pull
  * request's base, or fetches and resets a clean branch still at the old target.
  * Test first: a workspace watched at depth full runs its poll immediately and again once the
@@ -83,6 +85,7 @@ import {
 } from "../git/commands.ts";
 import { type ComparisonContext, resolveComparison } from "../git/diff.ts";
 import { checkpointRef, turnCheckpointId } from "../git/refs.ts";
+import { renameBranchInWorktree } from "../git/rename.ts";
 import type { GitRunner } from "../git/runner.ts";
 import {
 	type ChangesSnapshot,
@@ -381,6 +384,8 @@ export interface GitServiceDeps {
 	agent: AgentMessenger;
 	/** The repository's Resolve conflicts prompt, or null when it has none. */
 	promptFor?: (workspaceId: WorkspaceId) => Promise<Result<string | null>>;
+	/** Saves a renamed branch in the workspace row and its store (GIT-09). */
+	renameWorkspaceBranch: (workspaceId: WorkspaceId, branch: string) => Promise<Result<void>>;
 	now: () => number;
 	/** Moves a discarded new file to the Trash, and stores the viewed marks. */
 	fs: Pick<FileSystem, "trash" | "readText" | "writeTextAtomic" | "mkdirp" | "stat" | "paths">;
@@ -1294,9 +1299,28 @@ export class GitService {
 		return this.#deps.setIntendedTargetBranch(workspaceId, branchName);
 	}
 
-	/** Backs `Actions.git.renameBranch`. */
-	renameBranch(_workspaceId: WorkspaceId, _name: string): Promise<Result<void>> {
-		return notImplemented("GIT-09");
+	/**
+	 * Backs `Actions.git.renameBranch`: checks the name, then renames and saves under the worktree
+	 * lock. The old remote branch is left in place.
+	 */
+	async renameBranch(workspaceId: WorkspaceId, rawName: string): Promise<Result<void>> {
+		const name = rawName.trim();
+		if (!isSafeRefName(name)) {
+			return err(
+				appError("workspace_branch_invalid", `"${name}" can't be used as a Git branch name.`),
+			);
+		}
+
+		const found = await this.#deps.contextOf(workspaceId);
+		if (!found.ok) return found;
+		const context = found.value;
+		return renameBranchInWorktree(this.#deps.git, {
+			worktreePath: context.workspacePath,
+			repoRootPath: context.repoRootPath,
+			remote: context.remote,
+			requestedName: name,
+			onRenamed: (branch) => this.#deps.renameWorkspaceBranch(workspaceId, branch),
+		});
 	}
 
 	/** Backs `Actions.git.switchBranch`. Has its own lock, apart from the other git actions. */

@@ -118,6 +118,7 @@ const makeService = (fs: ReturnType<typeof fakeFs>["fs"]): GitService =>
 		cache: {} as never,
 		contextOf: async () => ({ ok: true, value: context }),
 		agent: {} as never,
+		renameWorkspaceBranch: async () => ok(undefined),
 		now: () => 0,
 		fs,
 		setIntendedTargetBranch: async () => ok(undefined),

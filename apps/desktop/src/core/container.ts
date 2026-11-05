@@ -402,6 +402,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		cache: gitCache,
 		contextOf: (id) => ready(lookups.gitContext(id)),
 		agent: sessions,
+		renameWorkspaceBranch: (id, branch) => workspace.applyBranchRename(id, branch),
 		now: () => clock.now(),
 		fs: platform.fs,
 		setIntendedTargetBranch: (id, branch) => workspace.setIntendedTargetBranch(id, branch),

@@ -103,6 +103,7 @@ function makeService(
 		cache: {} as never,
 		contextOf: options.contextOf ?? (async () => ok(context())),
 		agent: {} as never,
+		renameWorkspaceBranch: async () => ok(undefined),
 		now: options.now ?? (() => Date.now()),
 		fs: {
 			trash: async () => ok(undefined),
