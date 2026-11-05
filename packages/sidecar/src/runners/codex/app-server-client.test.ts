@@ -7,6 +7,7 @@
 import { describe, expect, test } from "bun:test";
 import { type AppError, ok, type Result } from "@conducted/shared";
 import { createLogger } from "../../logging/logger.ts";
+import { FakeChild } from "../../test-support/fake-child.ts";
 import {
 	CODEX_CHEAP_CALL_TIMEOUT_MS,
 	type JsonRpcChild,
@@ -14,65 +15,6 @@ import {
 	type SpawnJsonRpcChild,
 } from "./app-server-client.ts";
 import { CODEX_CLIENT_METHODS, CODEX_INITIALIZED_NOTIFICATION } from "./protocol.ts";
-
-interface JsonRpcMessage {
-	jsonrpc: string;
-	id?: number | string | null;
-	method?: string;
-	params?: unknown;
-	result?: unknown;
-	error?: { code: number; message: string };
-}
-
-class FakeChild implements JsonRpcChild {
-	readonly lines: JsonRpcMessage[] = [];
-	stopped = false;
-	onWrite: ((message: JsonRpcMessage) => void) | undefined;
-
-	private lineListeners: ((line: string) => void)[] = [];
-	private stderrListeners: ((text: string) => void)[] = [];
-	private exitListeners: ((code: number | null, signal: string | null) => void)[] = [];
-
-	writeLine(line: string): void {
-		const message = JSON.parse(line) as JsonRpcMessage;
-		this.lines.push(message);
-		this.onWrite?.(message);
-	}
-
-	onLine(listener: (line: string) => void): void {
-		this.lineListeners.push(listener);
-	}
-
-	onStderr(listener: (text: string) => void): void {
-		this.stderrListeners.push(listener);
-	}
-
-	onExit(listener: (code: number | null, signal: string | null) => void): void {
-		this.exitListeners.push(listener);
-	}
-
-	stop(): Promise<void> {
-		this.stopped = true;
-		return Promise.resolve();
-	}
-
-	emit(message: JsonRpcMessage): void {
-		const line = JSON.stringify(message);
-		for (const listener of this.lineListeners) listener(line);
-	}
-
-	emitRaw(line: string): void {
-		for (const listener of this.lineListeners) listener(line);
-	}
-
-	emitStderr(text: string): void {
-		for (const listener of this.stderrListeners) listener(text);
-	}
-
-	exit(code: number | null, signal: string | null): void {
-		for (const listener of this.exitListeners) listener(code, signal);
-	}
-}
 
 function logger() {
 	return createLogger({

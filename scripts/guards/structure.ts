@@ -420,10 +420,10 @@ export const ROOT_FILES = [
 	{ config: "packages/sidecar/tsconfig.json", file: "packages/sidecar/src/modes/sidecar-mode.ts" },
 ];
 
-/** A test, a spec or a helper under a `test` folder: code that exists to exercise other code. */
+/** A test, a spec or a helper under a `test` or `test-support` folder: code that exists to exercise other code. */
 export const isTestPath = (path: string): boolean =>
 	/\.(test|spec)\.tsx?$/.test(path) ||
-	/(^|\/)src\/test\//.test(path) ||
+	/(^|\/)src\/(test|test-support)\//.test(path) ||
 	/(test-support|test-fixtures)\.tsx?$/.test(path);
 
 const missingFiles = (root: string, guard: string, files: string[]): Problem[] =>

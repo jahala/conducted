@@ -45,7 +45,7 @@ import {
 import type { GuardName, Violation } from "./test-shapes.ts";
 
 /** Homes for stand-ins: the only folders where a `Fake*` or `Memory*` may be defined. */
-export const STAND_IN_HOMES = ["apps/desktop/src/test/", "packages/sidecar/src/test/"];
+export const STAND_IN_HOMES = ["apps/desktop/src/test/", "packages/sidecar/src/test-support/"];
 
 const SEAM_COMMENT = /\/\/\s*seam:\s*[A-Z]+-\d+\s+\S/;
 const CONTRACT_LINE = /Contract test:\s*(\S+)/;

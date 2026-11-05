@@ -1,22 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import type {
-	SessionEvent,
-	SessionEventEnvelope,
-	SidecarToAppNotification,
-	SidecarToAppRequest,
-} from "@conducted/protocol";
+import type { SessionEvent, SessionEventEnvelope } from "@conducted/protocol";
 import type { AppError, EventId, Result, SessionId, TurnId } from "@conducted/shared";
 import { appError, err, ok } from "@conducted/shared";
 import { createLogger, type LogRecord } from "../logging/logger.ts";
-import type {
-	SidecarToApp,
-	SidecarToAppNotificationParams,
-	SidecarToAppRequestParams,
-	SidecarToAppRequestResult,
-} from "../rpc/types.ts";
 import { KeyedSerialQueue } from "../session/serial-queue.ts";
+import { FakeApp } from "../test-support/fake-app.ts";
+import { MemoryStorage } from "../test-support/memory-storage.ts";
 import { FileEventOutbox } from "./event-outbox.ts";
-import type { OutboxStorage } from "./outbox-file.ts";
 import { OutboxReplayer, REPLAY_TIMEOUT_MS } from "./replay.ts";
 
 const sid = (value: string) => value as SessionId;
@@ -34,80 +24,7 @@ function endedEvent(): SessionEvent {
 	};
 }
 
-class MemoryStorage implements OutboxStorage {
-	readonly files = new Map<string, string>();
-	async list(): Promise<Result<string[], AppError>> {
-		return ok([...this.files.keys()]);
-	}
-	async read(fileName: string): Promise<Result<string | null, AppError>> {
-		return ok(this.files.get(fileName) ?? null);
-	}
-	async writeAtomic(fileName: string, text: string): Promise<Result<void, AppError>> {
-		this.files.set(fileName, text);
-		return ok(undefined);
-	}
-	async moveToTrash(fileName: string): Promise<Result<void, AppError>> {
-		this.files.delete(fileName);
-		return ok(undefined);
-	}
-	async cleanTempFiles(): Promise<Result<number, AppError>> {
-		return ok(0);
-	}
-}
-
 type Reply = Result<{ persisted: boolean }, AppError>;
-
-class FakeApp implements SidecarToApp {
-	connected = true;
-	readonly requests: {
-		method: SidecarToAppRequest;
-		params: unknown;
-		options?: { timeoutMs?: number };
-	}[] = [];
-	reply: (envelope: SessionEventEnvelope) => Promise<Reply> = async () => ok({ persisted: true });
-	beforeDeliver: ((envelope: SessionEventEnvelope) => Promise<void>) | null = null;
-	private active = 0;
-	maxActive = 0;
-
-	async request<K extends SidecarToAppRequest>(
-		method: K,
-		params: SidecarToAppRequestParams<K>,
-		options?: { timeoutMs?: number },
-	): Promise<Result<SidecarToAppRequestResult<K>, AppError>> {
-		this.requests.push({ method, params, options });
-		if (method !== "deliverEvent") return ok({} as SidecarToAppRequestResult<K>);
-		this.active += 1;
-		this.maxActive = Math.max(this.maxActive, this.active);
-		try {
-			const envelope = params as unknown as SessionEventEnvelope;
-			if (this.beforeDeliver !== null) await this.beforeDeliver(envelope);
-			return (await this.reply(envelope)) as Result<SidecarToAppRequestResult<K>, AppError>;
-		} finally {
-			this.active -= 1;
-		}
-	}
-
-	notify<K extends SidecarToAppNotification>(
-		_method: K,
-		_params: SidecarToAppNotificationParams<K>,
-	): boolean {
-		return this.connected;
-	}
-
-	onAttach(_listener: () => void): () => void {
-		return () => {};
-	}
-
-	onDetach(_listener: () => void): () => void {
-		return () => {};
-	}
-
-	delivered(): SessionEventEnvelope[] {
-		return this.requests
-			.filter((request) => request.method === "deliverEvent")
-			.map((request) => request.params as SessionEventEnvelope);
-	}
-}
 
 async function until(check: () => boolean): Promise<void> {
 	while (!check()) await new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -154,12 +71,12 @@ describe("SIDE-06 replay", () => {
 	test("SIDE-06 replayAll started on an empty log picks up events appended later", async () => {
 		const h = await harness();
 		await h.replayer.replayAll();
-		expect(h.app.delivered()).toEqual([]);
+		expect(h.app.requested("deliverEvent")).toEqual([]);
 
 		await appendEvents(h.outbox, sid("session-1"), 1);
 		await h.replayer.replayAll();
 
-		expect(h.app.delivered().map((envelope) => envelope.sequence)).toEqual([0]);
+		expect(h.app.requested("deliverEvent").map((envelope) => envelope.sequence)).toEqual([0]);
 		expect(h.outbox.pending(sid("session-1"))).toEqual([]);
 	});
 
@@ -169,7 +86,7 @@ describe("SIDE-06 replay", () => {
 
 		await h.replayer.replayAll();
 
-		const delivered = h.app.delivered();
+		const delivered = h.app.requested("deliverEvent");
 		expect(delivered.map((envelope) => envelope.sequence)).toEqual([0, 1, 2]);
 		expect(h.app.requests.map((request) => request.options?.timeoutMs)).toEqual([
 			REPLAY_TIMEOUT_MS,
@@ -190,7 +107,7 @@ describe("SIDE-06 replay", () => {
 
 		await h.replayer.replayAll();
 
-		expect(h.app.delivered().map((envelope) => envelope.sequence)).toEqual([0, 1]);
+		expect(h.app.requested("deliverEvent").map((envelope) => envelope.sequence)).toEqual([0, 1]);
 		expect(h.outbox.pending(sid("session-1")).map((envelope) => envelope.sequence)).toEqual([1, 2]);
 	});
 
@@ -206,7 +123,7 @@ describe("SIDE-06 replay", () => {
 
 		await h.replayer.replayAll();
 
-		expect(h.app.delivered()).toHaveLength(2);
+		expect(h.app.requested("deliverEvent")).toHaveLength(2);
 		expect(h.outbox.pending(sid("session-1")).map((envelope) => envelope.sequence)).toEqual([1, 2]);
 		expect(
 			h.records.filter(
@@ -225,7 +142,7 @@ describe("SIDE-06 replay", () => {
 
 		await h.replayer.replayAll();
 
-		expect(h.app.delivered()).toHaveLength(1);
+		expect(h.app.requested("deliverEvent")).toHaveLength(1);
 		expect(h.outbox.pending(sid("session-1")).map((envelope) => envelope.sequence)).toEqual([1, 2]);
 		expect(h.records.filter((record) => record.level === "warn")).toEqual([]);
 	});
@@ -237,7 +154,7 @@ describe("SIDE-06 replay", () => {
 
 		await h.replayer.replayAll();
 
-		expect(h.app.delivered()).toEqual([]);
+		expect(h.app.requested("deliverEvent")).toEqual([]);
 		expect(h.outbox.pending(sid("session-1")).map((envelope) => envelope.sequence)).toEqual([0, 1]);
 	});
 
@@ -248,7 +165,7 @@ describe("SIDE-06 replay", () => {
 		const gate = new Promise<void>((resolve) => {
 			release = resolve;
 		});
-		h.app.beforeDeliver = async () => {
+		h.app.beforeReply = async () => {
 			await gate;
 		};
 
@@ -258,7 +175,7 @@ describe("SIDE-06 replay", () => {
 		release();
 		await Promise.all([first, second]);
 
-		expect(h.app.delivered().map((envelope) => envelope.sequence)).toEqual([0, 1, 2]);
+		expect(h.app.requested("deliverEvent").map((envelope) => envelope.sequence)).toEqual([0, 1, 2]);
 	});
 
 	test("SIDE-06 an attach that replaces a connection mid-request still replays on the new one", async () => {
@@ -296,16 +213,19 @@ describe("SIDE-06 replay", () => {
 		await h.replayer.replayAll();
 
 		expect(
-			h.app.delivered().map((envelope) => `${envelope.sessionId}:${envelope.sequence}`),
+			h.app
+				.requested("deliverEvent")
+				.map((envelope) => `${envelope.sessionId}:${envelope.sequence}`),
 		).toEqual(["session-a:0", "session-a:1", "session-b:0"]);
-		expect(h.app.maxActive).toBe(1);
+		expect(h.app.maxActiveRequests).toBe(1);
 	});
 
 	test("SIDE-06 an acknowledgement that arrives during replay does not break it", async () => {
 		const h = await harness();
 		await appendEvents(h.outbox, sid("session-1"), 3);
 		let calls = 0;
-		h.app.beforeDeliver = async (envelope) => {
+		h.app.beforeReply = async (_method, params) => {
+			const envelope = params as SessionEventEnvelope;
 			calls += 1;
 			if (calls !== 1) return;
 			const second = h.outbox.pending(sid("session-1"))[1];
@@ -318,7 +238,7 @@ describe("SIDE-06 replay", () => {
 		await h.replayer.replayAll();
 
 		// The second event was acknowledged before it was sent, so replay must skip it.
-		expect(h.app.delivered().map((envelope) => envelope.sequence)).toEqual([0, 2]);
+		expect(h.app.requested("deliverEvent").map((envelope) => envelope.sequence)).toEqual([0, 2]);
 		expect(h.outbox.pending(sid("session-1"))).toEqual([]);
 	});
 });
