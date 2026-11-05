@@ -20,8 +20,14 @@ function testContainer(): Container {
 		get: (key: string): unknown => ({ left_panel_visible: true, left_panel_width: 256 })[key],
 		set: async () => undefined,
 	};
+	const repo = new RepoService({} as RepoServiceDeps);
+	repo.store.setState({ loaded: true, reposById: {}, order: [], configs: {} });
 	return {
-		services: { repo: new RepoService({} as RepoServiceDeps), settings },
+		services: {
+			repo,
+			settings,
+			sections: { store: createStore(() => ({ loaded: true, sections: [] })) },
+		},
 		actions: {},
 	} as unknown as Container;
 }
@@ -79,12 +85,18 @@ describe("routes", () => {
 	it.each([
 		["/all-workspaces", "Home", "NAV-05"],
 		["/dashboard", "Dashboard", "NAV-06"],
-		["/create", "New workspace", "WS-01"],
 	])("%s renders inside the shell", async (path, area, id) => {
 		await openApp(path);
 		const main = await screen.findByRole("main");
 		expect(await within(main).findByText(area)).toBeTruthy();
 		expect(within(main).getByText(`Not built yet: ${id}`)).toBeTruthy();
+		expect(screen.getByRole("complementary", { name: "Sidebar" })).toBeTruthy();
+	});
+
+	it("/create renders the new-workspace page inside the shell", async () => {
+		await openApp("/create");
+		const main = await screen.findByRole("main");
+		expect(await within(main).findByRole("heading", { name: "New workspace" })).toBeTruthy();
 		expect(screen.getByRole("complementary", { name: "Sidebar" })).toBeTruthy();
 	});
 

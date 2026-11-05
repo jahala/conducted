@@ -27,6 +27,7 @@ import {
 import {
 	type AppError,
 	appError,
+	err,
 	type InteractionId,
 	type MessageId,
 	notImplemented,
@@ -459,8 +460,30 @@ export class SessionsService implements AgentMessenger {
 	// ---- the port the workspace service uses (WorkspaceSessionsPort) ----
 
 	/** Creates the first chat of a new workspace and sends the prompt, unless the prompt is empty. */
-	createFirstChat(_workspaceId: WorkspaceId, _input: NewWorkspaceInput): Promise<Result<Session>> {
-		return notImplemented("WS-01");
+	async createFirstChat(
+		workspaceId: WorkspaceId,
+		input: NewWorkspaceInput,
+	): Promise<Result<Session>> {
+		const created = await this.create(workspaceId, input.config);
+		if (!created.ok) return created;
+		if (input.prompt.trim() === "" && input.attachmentPaths.length === 0) return created;
+		const sent = await this.send(created.value.id, input.prompt, input.attachmentPaths, "auto");
+		return sent.ok ? created : sent;
+	}
+
+	/** The first chat's draft, for "Recover prompt" after a failed creation (WS-01). */
+	async firstDraftOf(workspaceId: WorkspaceId): Promise<Result<Draft>> {
+		const listed = await this.#deps.repositories().sessions.listByWorkspace(workspaceId, {
+			includeClosed: true,
+		});
+		if (!listed.ok) return listed;
+		const first = listed.value[0];
+		if (first === undefined) {
+			return err(
+				appError("workspace_draft_missing", "This workspace has no first message to recover."),
+			);
+		}
+		return ok(this.#deps.composer.draftOf(first.id));
 	}
 
 	/** Cancels every working chat of a workspace. Used before archive and delete. */
