@@ -5,10 +5,12 @@
  * agent, runs one turn at a time, streams translated messages, relays interactions and stops.
  * Queueing, status, checkpoints, events and the write-ahead log live once in session/, above
  * the runners.
+ * AGENT-17 adds two ACP-only optional methods for a chat's config options beyond the model.
  * Our design choices: messages arrive already translated into the neutral AgentMessage format,
  * and capabilities are declared up front instead of discovered by catching "not supported".
  */
 import type {
+	AcpConfigOption,
 	AgentMessage,
 	appToSidecarRequests,
 	Interaction,
@@ -18,7 +20,7 @@ import type {
 	SessionConfig,
 	WorkspaceContext,
 } from "@conducted/protocol";
-import type { AgentKind, SessionId } from "@conducted/shared";
+import type { AgentKind, AppError, Result, SessionId } from "@conducted/shared";
 
 /** What a runner can do. The session manager checks this before calling optional methods. */
 export interface RunnerCapabilities {
@@ -109,6 +111,21 @@ export interface AgentSession {
 	 * auto-accept edits control (AGENT-04). Other runners omit it.
 	 */
 	setAutoApproveEdits?(enabled: boolean): void;
+	/**
+	 * ACP only: the agent's own chat options beyond the model, applied from the saved config first
+	 * (AGENT-17). Other runners omit it.
+	 */
+	listAcpConfigOptions?(
+		config: SessionConfig,
+		onAgentSessionId?: (agentSessionId: string) => void,
+	): Promise<Result<AcpConfigOption[], AppError>>;
+	/** ACP only: set one chat option between turns and return every option (AGENT-17). */
+	setAcpConfigOption?(
+		optionId: string,
+		value: string | boolean,
+		config: SessionConfig,
+		onAgentSessionId?: (agentSessionId: string) => void,
+	): Promise<Result<AcpConfigOption[], AppError>>;
 	contextUsage(): Promise<{ usedTokens: number; windowTokens: number } | null>;
 	/** Ends the agent process and releases everything it holds. */
 	dispose(): Promise<void>;
