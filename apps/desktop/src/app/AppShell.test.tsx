@@ -6,7 +6,7 @@ import {
 	createRouter,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createStore } from "zustand/vanilla";
 import type { Container } from "../core/container.ts";
@@ -22,7 +22,13 @@ import { createAppRouter } from "./router.tsx";
 function testSettings(initial: Record<string, unknown> = {}) {
 	const writes: { key: string; value: unknown }[] = [];
 	const store = createStore<{ values: Record<string, unknown> }>(() => ({
-		values: { left_panel_visible: true, left_panel_width: 256, ...initial },
+		values: {
+			left_panel_visible: true,
+			left_panel_width: 256,
+			keybinding_overrides_v1: "",
+			dashboard_enabled: false,
+			...initial,
+		},
 	}));
 	return {
 		writes,
@@ -44,10 +50,18 @@ function BrokenCentre(): never {
 	throw new Error("centre broke");
 }
 
-/** The sidebar reads the repo store and the action table; the other regions say what is unbuilt. */
+/** The sidebar reads the repo and workspace stores and the action table; other regions say what is unbuilt. */
 function testContainer(settings: TestSettings = testSettings()): Container {
+	const repo = new RepoService({} as RepoServiceDeps);
+	repo.store.setState({ loaded: true, reposById: {}, order: [], configs: {} });
+	const workspace = createStore(() => ({
+		loaded: true,
+		workspacesById: {},
+		setup: {},
+		archiving: {},
+	}));
 	return {
-		services: { repo: new RepoService({} as RepoServiceDeps), settings },
+		services: { repo, workspace: { store: workspace }, settings },
 		actions: {},
 	} as unknown as Container;
 }
@@ -78,7 +92,9 @@ describe("NAV-01 app shell", () => {
 		expect(await screen.findByRole("heading", { name: "Run agents side by side" })).toBeTruthy();
 		expect(screen.getByRole("complementary", { name: "Sidebar" })).toBeTruthy();
 		expect(screen.getByRole("main")).toBeTruthy();
-		expect(screen.getByText("Not built yet: NAV-03")).toBeTruthy();
+		const nav = screen.getByRole("navigation", { name: "Main" });
+		expect(within(nav).getByRole("link", { name: /Home/ })).toBeTruthy();
+		expect(screen.getByText("No projects yet")).toBeTruthy();
 	});
 
 	it("comes back with the sidebar collapsed when the saved settings say so", async () => {
