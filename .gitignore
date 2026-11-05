@@ -5,6 +5,9 @@ target/
 *.tsbuildinfo
 .vite/
 
+# Coverage reports (`pnpm test:coverage`, the coverage workflow)
+coverage/
+
 # Local scratch space, including code extracted from Conductor for research.
 # Never commit it: it is another company's code.
 .context/
