@@ -1621,6 +1621,19 @@ const SETTINGS_TABLE = [
 		type: "bool",
 		default: false,
 	},
+	// Our design choice: unchecked by default, so resetting the chat alone cannot lose files by accident.
+	{
+		key: "reset_chat_also_reset_files",
+		page: "state",
+		scopes: ["user"],
+		title: "Reset chat also resets files",
+		description:
+			"Whether Reset chat also restores the working tree to the turn's start checkpoint.",
+		searchTerms: ["reset", "revert", "checkpoint", "files"],
+		feature: "CHAT-15",
+		type: "bool",
+		default: false,
+	},
 ] as const satisfies readonly SettingDef[];
 
 export type SettingKey = (typeof SETTINGS_TABLE)[number]["key"];

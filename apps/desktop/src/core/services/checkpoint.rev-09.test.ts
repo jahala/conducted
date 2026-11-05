@@ -41,6 +41,10 @@ const makeService = (
 		git,
 		checkpointerPath: SCRIPT,
 		workspacePathOf: async () => ok("/repo/worktree"),
+		events: { markRevertedFromTurn: async () => ok(0) },
+		markViewReverted: () => {},
+		setting: <T>() => false as T,
+		now: () => 0,
 		sleep,
 	});
 

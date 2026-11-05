@@ -9,19 +9,20 @@
  * Must handle: a turn with no start checkpoint (the chat gave no restore point: revert and fork
  * are disabled with a reason); refs that are not written yet when the turn just ended (wait a
  * short time, then say "not ready"); more than 200 changed files (the end event omits the list,
- * so compute it from the refs, capped); restoring needs a clean git state (exit 101 and 102 are
- * explained, not retried); revert marks later events as reverted in the same step, and says
- * "No changes or conversation history have been reverted" when restore fails; fork starts a new
- * chat whose agent resumes the old history only up to the chosen turn; the original chat is
- * untouched; refs are removed only by the two prune methods (when a chat is deleted, and 30 days
- * after its workspace was archived), never by revert or fork; pruning one chat never touches
- * another chat's refs, even when ids share a prefix.
+ * so compute it from the refs, capped); restoring needs a clean git state, and a command that
+ * cannot start, a non-zero exit or any stderr fails the revert without a retry; revert restores
+ * first and only then marks later events as reverted, so a failed restore changes nothing, and
+ * says "No changes or conversation history have been reverted" when restore fails; fork starts
+ * a new chat whose agent resumes the old history only up to the chosen turn; the original chat
+ * is untouched; refs are removed only by the two prune methods (when a chat is deleted, and 30
+ * days after its workspace was archived), never by revert or fork; pruning one chat never
+ * touches another chat's refs, even when ids share a prefix.
  * The per-turn change list is read with the checkpointer's own diff, so it includes untracked
  * files and honours the repository's ignore rules like the checkpoint itself. It is cached per
  * chat and turn; every caller gets its own copy of the list, so one caller's change cannot reach
  * the cache. The cache holds at most 5 MB and evicts the oldest turns first.
- * Our design choice: a revert restores files and hides later events in one user action, and asks
- * the sidecar to reset the agent so its next turn resumes from the chosen message.
+ * Our design choice: a revert restores files and hides later events in one user action when the
+ * "Also reset files" preference is on. The chat's agent process is not restarted here.
  * Test first: reverting to a turn without a start checkpoint returns an Err and changes nothing.
  */
 import type { FileChange } from "@conducted/protocol";
@@ -34,7 +35,8 @@ import {
 	type SessionId,
 	type TurnId,
 } from "@conducted/shared";
-import { checkpointerDiff, showRefVerify } from "../git/commands.ts";
+import type { SessionEventRepository } from "../db/session-events.ts";
+import { checkpointerDiff, checkpointerRestore, showRefVerify } from "../git/commands.ts";
 import { checkpointRef, turnCheckpointId } from "../git/refs.ts";
 import type { GitRunner } from "../git/runner.ts";
 import { mergeChanges, parseNameStatus, parseNumstat } from "../git/status.ts";
@@ -46,6 +48,11 @@ export const CHECKPOINT_READY_TIMEOUT_MS = 2_000;
 export const CHECKPOINT_READY_POLL_MS = 50;
 /** Most memory the per-turn change list cache may hold (services-map 3.12.3). */
 export const TURN_CHANGES_CACHE_BYTES = 5 * 1024 * 1024;
+
+/** The exact failure text a reset shows when the checkpoint cannot be restored (services-map 3.12.3). */
+const REVERT_FAILED_MESSAGE = "No changes or conversation history have been reverted.";
+/** A turn that never got a start checkpoint gives the chat no place to return to. */
+const CHECKPOINT_MISSING_MESSAGE = "This turn has no checkpoint to revert to.";
 
 const utf8 = new TextEncoder();
 
@@ -62,6 +69,13 @@ export interface CheckpointServiceDeps {
 	checkpointerPath: string;
 	/** Folder of the workspace a chat belongs to. */
 	workspacePathOf: (sessionId: SessionId) => Promise<Result<string>>;
+	/** The chat's stored event log, so a revert marks later events in the same step. */
+	events: Pick<SessionEventRepository, "markRevertedFromTurn">;
+	/** Marks the open chat's in-memory events, so the turn list hides them without a reload. */
+	markViewReverted: (sessionId: SessionId, turnId: TurnId, at: number) => void;
+	/** Reads the "Also reset files" preference. */
+	setting: <T>(key: string) => T;
+	now: () => number;
 	/** Waits between checkpoint ref checks. Tests pass one that resolves at once. */
 	sleep?: (ms: number) => Promise<void>;
 }
@@ -208,9 +222,38 @@ export class CheckpointService {
 		return notImplemented("DATA-06");
 	}
 
-	/** Backs `Actions.sessions.revertTo`. */
-	revertTo(_sessionId: SessionId, _turnId: TurnId): Promise<Result<void>> {
-		return notImplemented("CHAT-15");
+	/**
+	 * Backs `Actions.sessions.revertTo`. Restores the turn's start checkpoint when the preference
+	 * asks for files too, then marks every event from the turn onward as reverted. A turn without a
+	 * start checkpoint is refused before anything changes.
+	 */
+	async revertTo(sessionId: SessionId, turnId: TurnId): Promise<Result<void>> {
+		const folder = await this.#deps.workspacePathOf(sessionId);
+		if (!folder.ok) return folder;
+		const cwd = folder.value;
+		const startId = turnCheckpointId(sessionId, turnId, "start");
+
+		const present = await this.#refExists(cwd, startId);
+		if (!present.ok) return present;
+		if (!present.value) return err(appError("checkpoint_missing", CHECKPOINT_MISSING_MESSAGE));
+
+		if (this.#deps.setting<boolean>("reset_chat_also_reset_files")) {
+			const restored = await this.#deps.git.withWorktreeLock(cwd, () =>
+				this.#deps.git.run(checkpointerRestore(this.#deps.checkpointerPath, startId), { cwd }),
+			);
+			if (!restored.ok) {
+				return err(appError("checkpoint_restore_failed", REVERT_FAILED_MESSAGE, restored.error));
+			}
+			if (restored.value.exitCode !== 0 || restored.value.stderr.trim().length > 0) {
+				return err(appError("checkpoint_restore_failed", REVERT_FAILED_MESSAGE, restored.value));
+			}
+		}
+
+		const at = this.#deps.now();
+		const marked = await this.#deps.events.markRevertedFromTurn(sessionId, turnId, at);
+		if (!marked.ok) return marked;
+		this.#deps.markViewReverted(sessionId, turnId, at);
+		return ok(undefined);
 	}
 
 	/** Backs `Actions.sessions.forkFrom`. */
