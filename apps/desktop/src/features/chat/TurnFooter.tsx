@@ -1,7 +1,7 @@
 /**
  * @feature CHAT-06 Turn footer
- * Owns: The footer under a finished turn: copy actions, token and time details, the file-change
- * summary and the fork and reset menu.
+ * Owns: The footer under a finished turn: copy actions, token and time details and the fork and reset
+ * menu. The files the turn changed are listed above it by TurnChanges.
  * Behaviour: ui-map.md 3.3 (Turn footer: 'Copy final message', 'Copy summary', hover card with
  * start and end time and Input, Output, Cache read, Cache write tokens; More menu: 'Fork to new
  * tab', 'Fork to new workspace', 'Reset chat', copy options).
@@ -91,11 +91,6 @@ export function TurnFooter({ turn, sessionId }: TurnFooterProps) {
 					<span>{clock(turn.startedAt)}</span>
 				</Button>
 			</Tooltip>
-			{turn.changes.length > 0 ? (
-				<span className="px-1">
-					{turn.changes.length} file{turn.changes.length === 1 ? "" : "s"} changed
-				</span>
-			) : null}
 			<Menu>
 				<MenuTrigger asChild>
 					<Button variant="ghost" size="xs" aria-label="More turn actions">

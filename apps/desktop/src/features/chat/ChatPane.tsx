@@ -1,8 +1,9 @@
 /**
  * @feature CHAT-06 Chat tab
- * Owns: the layout of one chat tab: the message list on top and, below it, the open interaction, the progress
- * line, the follow-up queue and the composer. It also records the chat on screen and clears the
- * workspace's unread chats that do not wait for the user.
+ * Owns: the layout of one chat tab: the message list on top and, below it, the messages that were not sent,
+ * the open interaction, the progress line, the follow-up queue and the composer. It also loads the chat's
+ * stored messages, records the chat on screen and clears the workspace's unread chats that do not wait for
+ * the user.
  * Behaviour: ui-map.md 3.3 (chat view), 3.2 ("[progress line] [queue] [composer]" under the list),
  * 3.4 (queue), 3.5 (composer), 4 (opening a workspace clears its unread chats).
  * Our design choice: every approval, question and plan review appears in one dock between the list and the
@@ -19,6 +20,7 @@ import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { Composer } from "../composer/Composer.tsx";
 import { QueueBox } from "../composer/QueueBox.tsx";
+import { FailedSends } from "./FailedSends.tsx";
 import { InteractionDock } from "./interactions/InteractionDock.tsx";
 import { MessageList } from "./MessageList.tsx";
 import { NextUnreadButton } from "./NextUnreadButton.tsx";
@@ -41,6 +43,13 @@ export function ChatPane({
 		return () => services.sessions.setViewing(null);
 	}, [services, sessionId, workspaceId]);
 
+	// The chat's stored messages load when it is shown. Nothing else opens a chat.
+	useEffect(() => {
+		void services.sessions.open(sessionId).then((result) => {
+			if (!result.ok) toastError("Couldn't load this chat's messages", result.error);
+		});
+	}, [services, sessionId]);
+
 	return (
 		<div className="flex h-full min-h-0 flex-col">
 			<div data-region="messages" className="relative min-h-0 flex-1">
@@ -52,6 +61,9 @@ export function ChatPane({
 				</NotBuiltYet>
 			</div>
 			<div className="flex shrink-0 flex-col gap-2 px-3 pb-3">
+				<NotBuiltYet area="Messages not sent" variant="inline" resetKey={sessionId}>
+					<FailedSends sessionId={sessionId} />
+				</NotBuiltYet>
 				<div data-region="agent-request">
 					<NotBuiltYet area="Agent request" variant="inline" resetKey={sessionId}>
 						<InteractionDock sessionId={sessionId} />

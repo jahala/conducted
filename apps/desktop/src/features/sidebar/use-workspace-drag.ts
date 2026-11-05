@@ -11,7 +11,8 @@
  * Must handle: Escape cancels a drag; a drop outside any target changes nothing; a drop on the
  * row being dragged changes nothing; a row dropped from another list lands at that row's
  * position; only the newest drop reports its failure; the grabbing cursor and the disabled link
- * pointer events exist only while a drag runs.
+ * pointer events exist only while a drag runs; a drag started in one list is visible to the others
+ * (`useWorkspaceDragActive`).
  * Test first: Dropping row A after row B in manual order calls the order action with A after B
  * and not before.
  */
@@ -46,6 +47,27 @@ export function draggedWorkspace(
 		fallback ||
 		"";
 	return value === "" ? null : (value as WorkspaceId);
+}
+
+const DRAG_ATTRIBUTE = "data-workspace-drag";
+
+/**
+ * True while any list is dragging a workspace. Every list marks the page while its drag runs, so a drop target
+ * in another list, such as an empty Pinned, can show itself without sharing state with the list that started it.
+ */
+export function useWorkspaceDragActive(): boolean {
+	const [active, setActive] = useState(() => document.documentElement.hasAttribute(DRAG_ATTRIBUTE));
+	useEffect(() => {
+		const read = () => setActive(document.documentElement.hasAttribute(DRAG_ATTRIBUTE));
+		const observer = new MutationObserver(read);
+		observer.observe(document.documentElement, {
+			attributes: true,
+			attributeFilter: [DRAG_ATTRIBUTE],
+		});
+		read();
+		return () => observer.disconnect();
+	}, []);
+	return active;
 }
 
 export interface WorkspaceDragState {

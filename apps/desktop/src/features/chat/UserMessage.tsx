@@ -3,8 +3,8 @@
  * Owns: The user's message in a turn: text, mention chips, attachments and the hover actions.
  * Behaviour: ui-map.md 3.3 (user message: attachments, mention chips, 'Sent via' or 'Sent from
  * another session'; hover actions include revert; 'Message not sent' with Retry and Discard).
- * Must handle: Not sent (the `failed` prop draws the error state with Retry and Discard; TurnItem cannot pass it
- * yet because ChatView carries no failed sends); a very long
+ * Must handle: Not sent (the `failed` prop draws the error state with Retry and Discard, and offers no Revert,
+ * because a message that was never sent has nothing to revert to; FailedSends passes it); a very long
  * message collapses with 'Show more'; an image attachment tries a thumbnail from its path and a missing file shows
  * its name (a local path does not load in the webview until the Platform hands out file URLs); mention chips for
  * files and PRs open the file or PR tab; text is selectable and copyable.
@@ -176,14 +176,16 @@ export function UserMessage({
 			</ContextMenu>
 			<div className="flex items-center gap-2 text-2xs text-fg-subtle">
 				{sender ? <span>{sender}</span> : null}
-				<button
-					type="button"
-					onClick={revert}
-					aria-label="Revert to before this message"
-					className="rounded-sm px-1 text-2xs text-fg-subtle opacity-0 hover:text-fg group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-				>
-					Revert
-				</button>
+				{failed === null ? (
+					<button
+						type="button"
+						onClick={revert}
+						aria-label="Revert to before this message"
+						className="rounded-sm px-1 text-2xs text-fg-subtle opacity-0 hover:text-fg group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+					>
+						Revert
+					</button>
+				) : null}
 			</div>
 			{failed !== null ? (
 				<div className="flex flex-wrap items-center justify-end gap-2 rounded-md border border-danger bg-surface px-2 py-1.5 text-xs">

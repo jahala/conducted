@@ -11,7 +11,8 @@
  * bar, so the top 40px of the sidebar is an empty drag strip under the floating window controls. The sidebar's
  * open state and width are kept in the settings table (`left_panel_visible`, `left_panel_width`), in pixels, so
  * a restart restores both. Workspace panel groups keep their own layout through layout-persistence.ts.
- * Must handle: collapsed sidebar (the `--shell-left-inset` variable tells headers to leave room for the
+ * Must handle: the saved sidebar state is applied only after the settings have loaded (the shell shows an empty
+ * surface until then); collapsed sidebar (the `--shell-left-inset` variable tells headers to leave room for the
  * controls); sidebar and centre fail separately, each inside <NotBuiltYet>, and a route change clears the
  * centre's; the sidebar stays mounted while collapsed so its state survives; a saved layout for panels that no
  * longer exist is ignored; Cmd+A outside an editable field is stopped before it selects the whole UI.
@@ -21,6 +22,7 @@
 import type { WorkspaceId } from "@conducted/shared";
 import { Outlet, useRouterState } from "@tanstack/react-router";
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import { useStore } from "zustand";
 import { useServices } from "../core/context.tsx";
 import { useSetting } from "../core/hooks.ts";
 import { Sidebar } from "../features/sidebar/Sidebar.tsx";
@@ -45,7 +47,20 @@ import {
 import { ShellControls } from "./ShellControls.tsx";
 import { XcodeLicenseNotice } from "./xcode-license-notice.ts";
 
+/**
+ * Draws the shell once the saved settings are loaded. The sidebar panel takes its open state and width when it
+ * mounts, so mounting it earlier would use the defaults and never apply what the user saved.
+ */
 export function AppShell() {
+	const { settings } = useServices().services;
+	const settingsLoaded = useStore(settings.store, (state) => state.loaded);
+	if (!settingsLoaded) {
+		return <div data-tauri-drag-region className="h-full bg-surface" />;
+	}
+	return <LoadedShell />;
+}
+
+function LoadedShell() {
 	const sidebarRef = usePanelRef();
 	const { settings } = useServices().services;
 	const savedVisible = useSetting<boolean>("left_panel_visible");

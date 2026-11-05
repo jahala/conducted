@@ -1,8 +1,8 @@
 /**
  * @feature CHAT-06 Chat turn; CHAT-27 Visible auto-retry with Retry now
  * Owns: One list item: the user's message, steers sent during the turn, the assistant's blocks,
- * banners, the agent's own retry line with Retry now, Retry in new chat on a failed turn, and the
- * turn footer.
+ * banners, the agent's own retry line with Retry now, Retry in new chat on a failed turn, the files the
+ * turn changed (with Open diff, which shows the turn in the Git panel's Changes tab) and the turn footer.
  * Behaviour: frontend.md 5 (one item per turn), ui-map.md 3.3 (user message with attachments and
  * mention chips; assistant text; thinking; footer; 'Interrupted by user'; per-turn boundary;
  * 'Something went wrong, retrying n/m' with Retry now and Retry in new chat).
@@ -28,8 +28,10 @@ import { Spinner } from "../../ui/Spinner.tsx";
 import { ChatBanner, ChatRetryBanner } from "./ChatBanner.tsx";
 import { ChatBlockView } from "./ChatBlockView.tsx";
 import { reportFailure } from "./report-failure.ts";
+import { TurnChanges } from "./TurnChanges.tsx";
 import { TurnFooter } from "./TurnFooter.tsx";
 import { UserMessage } from "./UserMessage.tsx";
+import { useWorkspaceLinks } from "./workspace-links.ts";
 
 export interface TurnItemProps {
 	turn: ChatTurn;
@@ -78,6 +80,7 @@ function outcomeBlock(turn: ChatTurn): Extract<ChatBlock, { kind: "notice" | "er
 
 export const TurnItem = memo(function TurnItem({ turn, sessionId, retry }: TurnItemProps) {
 	const actions = useActions();
+	const links = useWorkspaceLinks();
 	const retryFlight = useRef(createSingleFlight()).current;
 	const message = turn.userMessage;
 	// A turn the agent started by itself has no message to send again in this chat, so the actions
@@ -164,7 +167,10 @@ export const TurnItem = memo(function TurnItem({ turn, sessionId, retry }: TurnI
 						<span>The agent is working</span>
 					</div>
 				) : (
-					<TurnFooter turn={turn} sessionId={sessionId} />
+					<>
+						<TurnChanges turn={turn} sessionId={sessionId} onOpenDiff={links.openDiffScope} />
+						<TurnFooter turn={turn} sessionId={sessionId} />
+					</>
 				)}
 			</ErrorBoundary>
 		</div>

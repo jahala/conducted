@@ -104,7 +104,12 @@ export function GitHeader({ model, onAction }: GitHeaderProps) {
 					className="shrink-0"
 				>
 					{model.action.label}
-					{shortcut !== null ? <Kbd>{shortcut}</Kbd> : null}
+					{shortcut !== null ? (
+						// The key glyphs are a visual hint. A screen reader should hear only the action's name.
+						<span aria-hidden="true">
+							<Kbd>{shortcut}</Kbd>
+						</span>
+					) : null}
 				</Button>
 			) : null}
 		</div>
