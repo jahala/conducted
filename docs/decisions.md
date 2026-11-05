@@ -274,3 +274,9 @@ Chosen:
 - Money: the night's spend is measured from the DeepSeek balance at the start (20.99 USD), and no step starts once it passes 15 USD.
 - The step-1 sidecar, data and git features gained the dependencies they have in fact (for example SIDE-03 needs SIDE-02), so they build in order instead of against each other's empty code.
   Why: the owner asked for batches, CI on GitHub only, and DeepSeek Flash.
+
+## D040. The next step is recomputed after every merge (2026-11-05)
+
+Context: `plan-batches.ts` counts dependency steps among the features still open. Once a step's features are done, the remaining ones move up.
+Chosen: after each step merges, the conductor regenerates `docs/plans/batches.md` from the open first-slice features and runs its step 1, which is exactly the work whose dependencies are all done. Batch ids therefore describe the night's current state, not a fixed schedule.
+Why: one rule for "what is ready", with no second list to keep in sync.
