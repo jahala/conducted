@@ -248,6 +248,19 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 				return paths;
 			case COMMANDS.logWrite:
 				return undefined;
+			case COMMANDS.httpFetch: {
+				const request = args.request as { url?: unknown } | undefined;
+				const requested = request?.url;
+				if (typeof requested !== "string") {
+					return fail("http_invalid_url", "The request has no URL.");
+				}
+				try {
+					new URL(requested);
+				} catch {
+					return fail("http_invalid_url", `The URL is not valid: ${requested}`);
+				}
+				return fail("http_offline", "The Node-backed contract bindings make no network requests.");
+			}
 			case COMMANDS.fsReadText:
 				return readFile(requirePath(args), "utf8").catch((error: Error) =>
 					fail("fs_io", error.message),

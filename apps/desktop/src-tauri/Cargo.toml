@@ -45,6 +45,11 @@ grep-searcher = "0.1"
 ignore = "0.4"
 image = { version = "0.25.10", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "tiff", "webp"] }
 nucleo-matcher = "0.3"
+reqwest = { version = "0.13", default-features = false, features = ["native-tls", "stream", "system-proxy", "charset", "http2"] }
+futures-util = "0.3"
+sha2 = "0.10"
+tokio = { version = "1", features = ["fs", "io-util", "macros"] }
+tokio-util = { version = "0.7", features = ["rt"] }
 
 [dev-dependencies]
 # The mock app that lets a test hear the events a command emits (PLAT-36 builds on it).
