@@ -11,12 +11,7 @@ import { useMemo } from "react";
 import { useStore } from "zustand";
 import type { Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
-import type {
-	GitHubOwner,
-	GitHubRepoSummary,
-	IssueView,
-	PullRequestSummary,
-} from "../model.ts";
+import type { GitHubOwner, GitHubRepoSummary, IssueView, PullRequestSummary } from "../model.ts";
 import {
 	canListGithubIssues,
 	canListGithubPullRequests,
