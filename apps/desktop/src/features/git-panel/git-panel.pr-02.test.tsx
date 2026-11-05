@@ -1,0 +1,112 @@
+/**
+ * @feature PR-02 Create a pull request from the git panel
+ * Owns: the Create PR button and Cmd+Shift+P both reach `pullRequests.create` for the panel's
+ * workspace.
+ * Behaviour: services-map.md 3.7.1 (the app asks the agent to create the pull request), ui-map.md
+ * 3.6 (the header's Create PR action) and 5.4 (Cmd+Shift+P).
+ * Test first: Cmd+Shift+P maps to `git.createPr` and calls `pullRequests.create`.
+ */
+import type { WorkspaceId } from "@conducted/shared";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	clearCommandHandlers,
+	commandForKeyPress,
+	keyBindings,
+	runCommandHandlers,
+} from "../../app/command-dispatcher.ts";
+import type { Loadable } from "../../core/api.ts";
+import type { GitState } from "../../core/model.ts";
+import "../../test/dom-polyfills.ts";
+
+const workspaceId = "w1" as WorkspaceId;
+
+const state = vi.hoisted(() => ({
+	git: { state: "loading" } as Loadable<GitState>,
+	create: vi.fn(),
+}));
+
+vi.mock("../../core/hooks.ts", () => ({
+	useGitState: () => state.git,
+	useWorkspaceStatus: () => null,
+	useSetting: () => false,
+	useActions: () => ({
+		git: { commitAndPush: vi.fn() },
+		pullRequests: { create: state.create, requestAiReview: vi.fn() },
+		files: { open: vi.fn() },
+	}),
+}));
+
+vi.mock("../../core/context.tsx", () => ({
+	useServices: () => ({ services: { git: { refresh: async () => ({ ok: true }) } } }),
+}));
+
+vi.mock("../../core/status/git-header.ts", () => ({
+	computeGitHeader: () => ({
+		kind: "changes",
+		title: "Changes",
+		tone: "attention",
+		action: { id: "create_pr", label: "Create PR", waitingNote: null },
+	}),
+}));
+
+vi.mock("./changes/ChangesTab.tsx", () => ({ ChangesTab: () => <div>changes body</div> }));
+vi.mock("./files/FilesTab.tsx", () => ({ FilesTab: () => <div>files body</div> }));
+vi.mock("./checks/ChecksTab.tsx", () => ({ ChecksTab: () => <div>checks body</div> }));
+
+const { GitPanel } = await import("./GitPanel.tsx");
+
+const gitState = (): GitState => ({
+	branch: "feat",
+	uncommittedFiles: 1,
+	changedFiles: 1,
+	linesAdded: 1,
+	linesRemoved: 0,
+	hasConflicts: false,
+	operation: "none",
+	sync: { ahead: 0, behind: 0, rewritten: false, hasUpstream: true },
+	pullRequest: null,
+	pullRequestUnavailable: "none",
+	untrackedFilesTruncated: false,
+	pendingPullRequestAction: null,
+});
+
+beforeEach(() => {
+	clearCommandHandlers();
+	state.git = { state: "ready", data: gitState() };
+	state.create.mockReset();
+	state.create.mockResolvedValue({ ok: true });
+});
+
+afterEach(() => {
+	cleanup();
+	clearCommandHandlers();
+});
+
+describe("PR-02 git panel create PR", () => {
+	it("sends the Create PR button to the pull request service", async () => {
+		render(<GitPanel workspaceId={workspaceId} />);
+
+		fireEvent.click(screen.getByRole("button", { name: /Create PR/ }));
+
+		await waitFor(() => expect(state.create).toHaveBeenCalledWith(workspaceId));
+	});
+
+	it("maps Cmd+Shift+P to git.createPr and runs the panel's handler", async () => {
+		render(<GitPanel workspaceId={workspaceId} />);
+
+		const press = {
+			key: "p",
+			metaKey: true,
+			ctrlKey: false,
+			altKey: false,
+			shiftKey: true,
+			isComposing: false,
+			repeat: false,
+		};
+		expect(commandForKeyPress(press, ["global"], keyBindings())).toBe("git.createPr");
+		expect(runCommandHandlers("git.createPr")).toBe(true);
+
+		await waitFor(() => expect(state.create).toHaveBeenCalledWith(workspaceId));
+	});
+});

@@ -33,6 +33,7 @@ class MemoryStorage implements OutboxStorage {
 	cleanCalls = 0;
 	failWrites = 0;
 	failCode = "outbox_write_failed";
+	beforeTrash: (() => Promise<void>) | null = null;
 
 	async list(): Promise<Result<string[], AppError>> {
 		return ok([...this.files.keys()]);
@@ -46,6 +47,9 @@ class MemoryStorage implements OutboxStorage {
 		this.writes.push({ fileName, text });
 		if (this.failWrites > 0) {
 			this.failWrites -= 1;
+			// A directory fsync fails after the rename landed, so the file is there but the
+			// directory entry may not be.
+			if (this.failCode === "outbox_dir_sync_failed") this.files.set(fileName, text);
 			return err(appError(this.failCode, "The disk refused the write."));
 		}
 		this.files.set(fileName, text);
@@ -53,6 +57,7 @@ class MemoryStorage implements OutboxStorage {
 	}
 
 	async moveToTrash(fileName: string): Promise<Result<void, AppError>> {
+		if (this.beforeTrash !== null) await this.beforeTrash();
 		this.trashed.push(fileName);
 		this.files.delete(fileName);
 		return ok(undefined);
@@ -203,7 +208,62 @@ describe("SIDE-06 event outbox", () => {
 		expect(h.storage.writes).toHaveLength(2);
 	});
 
-	test("SIDE-06 a directory fsync failure marks durability uncertain until a write succeeds", async () => {
+	test("SIDE-06 a directory fsync failure marks the chat uncertain and append refuses until a restart", async () => {
+		const h = harness();
+		const outbox = h.build();
+		await outbox.open();
+
+		h.storage.failWrites = 1;
+		h.storage.failCode = "outbox_dir_sync_failed";
+		const failed = await outbox.append(sid("session-1"), [endedEvent()]);
+		expect(failed.ok).toBe(false);
+		if (failed.ok) return;
+		expect(failed.error.code).toBe("outbox_dir_sync_failed");
+		expect(outbox.durabilityUncertain(sid("session-1"))).toBe(true);
+		expect(outbox.pending(sid("session-1"))).toEqual([]);
+		// The rename landed even though its directory entry was not flushed.
+		expect(h.storage.files.has(fileNameFor("session-1"))).toBe(true);
+		expect(
+			h.records.filter(
+				(record) => record.level === "warn" && record.message.includes("durability is uncertain"),
+			),
+		).toHaveLength(1);
+
+		const refused = await outbox.append(sid("session-1"), [endedEvent()]);
+		expect(refused.ok).toBe(false);
+		if (refused.ok) return;
+		expect(refused.error.code).toBe("outbox_durability_uncertain");
+		// The refusal does not attempt another write.
+		expect(h.storage.writes).toHaveLength(1);
+
+		const restarted = h.build();
+		expect((await restarted.open()).ok).toBe(true);
+		expect(restarted.durabilityUncertain(sid("session-1"))).toBe(false);
+		expect(restarted.pending(sid("session-1")).map((envelope) => envelope.sequence)).toEqual([0]);
+	});
+
+	test("SIDE-06 only a directory fsync failure marks durability uncertain", async () => {
+		const h = harness();
+		const outbox = h.build();
+		await outbox.open();
+		await outbox.append(sid("session-1"), [endedEvent()]);
+
+		h.storage.failWrites = 1;
+		h.storage.failCode = "outbox_write_failed";
+		const failed = await outbox.append(sid("session-1"), [endedEvent()]);
+		expect(failed.ok).toBe(false);
+		if (failed.ok) return;
+		expect(failed.error.code).toBe("outbox_write_failed");
+		expect(outbox.durabilityUncertain(sid("session-1"))).toBe(false);
+
+		// An ordinary failure rolls back, so the retry is allowed and keeps the sequence.
+		const retried = await outbox.append(sid("session-1"), [endedEvent()]);
+		expect(retried.ok).toBe(true);
+		if (!retried.ok) return;
+		expect(retried.value[0]?.sequence).toBe(1);
+	});
+
+	test("SIDE-06 an acknowledgement write restores durability after a directory fsync failure", async () => {
 		const h = harness();
 		const outbox = h.build();
 		await outbox.open();
@@ -213,22 +273,21 @@ describe("SIDE-06 event outbox", () => {
 		h.storage.failCode = "outbox_dir_sync_failed";
 		const failed = await outbox.append(sid("session-1"), [endedEvent()]);
 		expect(failed.ok).toBe(false);
-		expect(outbox.pending(sid("session-1")).map((envelope) => envelope.sequence)).toEqual([0]);
-		expect(
-			h.records.filter(
-				(record) => record.level === "warn" && record.message.includes("durability is uncertain"),
-			),
-		).toHaveLength(1);
+		expect(outbox.durabilityUncertain(sid("session-1"))).toBe(true);
 
-		const retried = await outbox.append(sid("session-1"), [endedEvent()]);
-		expect(retried.ok).toBe(true);
-		if (!retried.ok) return;
-		expect(retried.value[0]?.sequence).toBe(1);
+		const head = outbox.pending(sid("session-1"))[0];
+		if (head === undefined) throw new Error("missing event");
+		const acknowledged = await outbox.acknowledge(sid("session-1"), head.event.eventId);
+		expect(acknowledged.ok).toBe(true);
+		expect(outbox.durabilityUncertain(sid("session-1"))).toBe(false);
 		expect(
 			h.records.filter(
 				(record) => record.level === "info" && record.message === "The event log is durable again",
 			),
 		).toHaveLength(1);
+
+		const next = await outbox.append(sid("session-1"), [endedEvent()]);
+		expect(next.ok).toBe(true);
 	});
 
 	test("SIDE-06 an empty append writes nothing", async () => {
@@ -339,5 +398,47 @@ describe("SIDE-06 event outbox", () => {
 		]);
 		expect(h.storage.files.has(fileNameFor("idle"))).toBe(false);
 		expect(h.storage.files.has(fileNameFor("active"))).toBe(true);
+	});
+
+	test("SIDE-06 a sweep does not lose an append that arrives while it moves a file", async () => {
+		const h = harness();
+		const outbox = h.build();
+		await outbox.open();
+		await outbox.append(sid("idle"), [endedEvent()]);
+		const first = outbox.pending(sid("idle"))[0];
+		if (first === undefined) throw new Error("missing event");
+		await outbox.acknowledge(sid("idle"), first.event.eventId);
+
+		h.advance(IDLE_FILE_RETENTION_MS + 1);
+
+		let releaseTrash: () => void = () => {};
+		const trashGate = new Promise<void>((resolve) => {
+			releaseTrash = resolve;
+		});
+		let trashStarted: () => void = () => {};
+		const started = new Promise<void>((resolve) => {
+			trashStarted = resolve;
+		});
+		h.storage.beforeTrash = async () => {
+			trashStarted();
+			await trashGate;
+		};
+
+		const sweeping = outbox.sweepIdle();
+		await started;
+
+		const late = endedEvent();
+		const appending = outbox.append(sid("idle"), [late]);
+		releaseTrash();
+		const [swept, appended] = await Promise.all([sweeping, appending]);
+
+		expect(swept.ok).toBe(true);
+		expect(appended.ok).toBe(true);
+		if (!appended.ok) return;
+		expect(appended.value.map((envelope) => envelope.event.eventId)).toEqual([late.eventId]);
+		expect(outbox.pending(sid("idle")).map((envelope) => envelope.event.eventId)).toEqual([
+			late.eventId,
+		]);
+		expect(h.storage.files.has(fileNameFor("idle"))).toBe(true);
 	});
 });

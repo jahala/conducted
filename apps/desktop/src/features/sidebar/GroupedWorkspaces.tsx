@@ -16,6 +16,9 @@
  * the selected workspace stays visible after a re-sort; a saved "section" grouping says it is not
  * available yet; Cmd+1..9 and Cmd+Alt+ArrowUp/Down move through the visible order, wrapping at
  * the ends.
+ * The collapsed state lives here so the visible order can leave collapsed groups out; a row the
+ * user cannot see gets no shortcut number. The "+" on a project header carries the project to the
+ * create page as the search param `repo`.
  * Test first: Given three workspaces in two repos, grouping by project gives two groups; pinning
  * one moves it to Pinned and removes it from its group.
  */
@@ -60,26 +63,42 @@ function readView(
 	};
 }
 
+function groupKey(group: SidebarGroup): string {
+	switch (group.key.kind) {
+		case "project":
+			return `project:${group.key.repoId}`;
+		case "status":
+			return `status:${group.key.status}`;
+		case "section":
+			return `section:${group.key.sectionId}`;
+		case "pinned":
+			return "pinned";
+	}
+}
+
 function GroupSection({
 	group,
 	rows,
 	repos,
 	selectedId,
 	shortcutIndexes,
+	open,
+	onOpenChange,
 }: {
 	group: SidebarGroup;
 	rows: Map<WorkspaceId, { workspace: Workspace; repo: Repo }>;
 	repos: Repo[];
 	selectedId: WorkspaceId | null;
 	shortcutIndexes: ReadonlyMap<WorkspaceId, number>;
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
 }) {
-	const [open, setOpen] = useState(true);
 	const repoId = group.key.kind === "project" ? group.key.repoId : null;
 	const repo =
 		repoId === null ? null : (repos.find((candidate) => candidate.id === repoId) ?? null);
 	return (
 		<section aria-label={group.label} className="mb-1">
-			<Collapsible open={open} onOpenChange={setOpen}>
+			<Collapsible open={open} onOpenChange={onOpenChange}>
 				<div className="group/header flex items-center gap-1 px-2">
 					<CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-1 rounded-md px-1 py-1 text-xs font-medium text-sidebar-fg-muted hover:bg-hover hover:text-fg">
 						{open ? <ChevronDownIcon /> : <ChevronRightIcon />}
@@ -91,6 +110,7 @@ function GroupSection({
 					{repo === null ? null : (
 						<Link
 							to="/create"
+							search={{ repo: repo.id }}
 							aria-label={`Create workspace in ${repo.name}`}
 							title={`Create workspace in ${repo.name}`}
 							className="flex size-6 shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-hover hover:text-fg"
@@ -165,7 +185,24 @@ export function GroupedWorkspaces({ repos, workspaces }: GroupedWorkspacesProps)
 		return result;
 	}, [repos, workspaces]);
 
-	const ordered = useMemo(() => orderedWorkspaceIds(groups), [groups]);
+	const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+	const setGroupOpen = (key: string, open: boolean) => {
+		setCollapsed((previous) => {
+			if (open) {
+				if (!previous.has(key)) return previous;
+				const next = new Set(previous);
+				next.delete(key);
+				return next;
+			}
+			if (previous.has(key)) return previous;
+			return new Set(previous).add(key);
+		});
+	};
+
+	const ordered = useMemo(
+		() => orderedWorkspaceIds(groups.filter((group) => !collapsed.has(groupKey(group)))),
+		[groups, collapsed],
+	);
 
 	const shortcutIndexes = useMemo(() => {
 		const result = new Map<WorkspaceId, number>();
@@ -259,24 +296,21 @@ export function GroupedWorkspaces({ repos, workspaces }: GroupedWorkspacesProps)
 					) : null}
 				</div>
 			) : (
-				groups.map((group) => (
-					<GroupSection
-						key={
-							group.key.kind === "project"
-								? `project:${group.key.repoId}`
-								: group.key.kind === "status"
-									? `status:${group.key.status}`
-									: group.key.kind === "section"
-										? `section:${group.key.sectionId}`
-										: "pinned"
-						}
-						group={group}
-						rows={rows}
-						repos={repos}
-						selectedId={selectedId}
-						shortcutIndexes={shortcutIndexes}
-					/>
-				))
+				groups.map((group) => {
+					const key = groupKey(group);
+					return (
+						<GroupSection
+							key={key}
+							group={group}
+							rows={rows}
+							repos={repos}
+							selectedId={selectedId}
+							shortcutIndexes={shortcutIndexes}
+							open={!collapsed.has(key)}
+							onOpenChange={(open) => setGroupOpen(key, open)}
+						/>
+					);
+				})
 			)}
 		</div>
 	);

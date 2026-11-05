@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createStore } from "zustand/vanilla";
 import "../../test/dom-polyfills.ts";
+import { CommandDispatcher } from "../../app/command-dispatcher.ts";
 import type { Container } from "../../core/container.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import { ComposerService, type ComposerServiceDeps } from "../../core/services/composer.ts";
@@ -70,6 +71,7 @@ interface HarnessOptions {
 	sendKey?: string;
 	sendMode?: string;
 	sendFails?: boolean;
+	sendCancelled?: boolean;
 	fake?: ReturnType<typeof fakeFs>;
 }
 
@@ -104,17 +106,41 @@ const harness = (options: HarnessOptions = {}) => {
 		values: {
 			message_send_key: options.sendKey ?? "enter",
 			default_message_send_mode: options.sendMode ?? "steer",
+			keybinding_overrides_v1: "",
 		},
 		dropped: [],
 		warnings: [],
 	}));
 	const send = options.sendFails
 		? vi.fn(async () => err(appError("sidecar_down", "The sidecar is not running.")))
-		: vi.fn(async () => ok(undefined));
+		: options.sendCancelled
+			? vi.fn(async () => err(appError("cancelled", "The message was cancelled.")))
+			: vi.fn(async () => ok(undefined));
 	const cancel = vi.fn(async () => ok(undefined));
 	const refreshMcp = vi.fn(async () => ok(undefined));
+	const settingsService = {
+		store: settings,
+		get: <T,>(key: string): T => settings.getState().values[key] as T,
+	};
+	const commands = {
+		isEnabled: vi.fn(() => true),
+		run: vi.fn(async () => ok(undefined)),
+	};
+	const platform = {
+		app: { writeLog: vi.fn(), onDeepLink: () => () => {} },
+		menu: {
+			setShortcuts: vi.fn(async () => ok({ applied: [], rejected: [] })),
+			onCommand: () => () => {},
+		},
+	};
 	const container = {
-		services: { composer, sessions: { store: sessions }, settings: { store: settings } },
+		platform,
+		services: {
+			composer,
+			sessions: { store: sessions },
+			settings: settingsService,
+			commands,
+		},
 		actions: {
 			sessions: {
 				send,
@@ -126,7 +152,9 @@ const harness = (options: HarnessOptions = {}) => {
 		},
 	} as unknown as Container;
 	const wrapper = ({ children }: { children: ReactNode }) => (
-		<ServicesProvider container={container}>{children}</ServicesProvider>
+		<ServicesProvider container={container}>
+			<CommandDispatcher>{children}</CommandDispatcher>
+		</ServicesProvider>
 	);
 	const flush = () => {
 		const pending = [...callbacks.values()];
@@ -228,7 +256,7 @@ describe("COMP-01 Composer", () => {
 		working();
 		render(<Composer workspaceId={workspaceId} sessionId={sessionId} />, { wrapper });
 		await waitFor(() => expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy());
-		fireEvent.keyDown(window, { key: "Backspace", metaKey: true, shiftKey: true });
+		fireEvent.keyDown(document, { key: "Backspace", metaKey: true, shiftKey: true });
 		await waitFor(() => expect(cancel).toHaveBeenCalledWith(sessionId));
 	});
 
@@ -270,7 +298,7 @@ describe("COMP-01 Composer", () => {
 		seedDraft(composer, "hello");
 		render(<Composer workspaceId={workspaceId} sessionId={sessionId} />, { wrapper });
 		await waitFor(() => expect(sendButton().disabled).toBe(false));
-		fireEvent.keyDown(window, { key: "l", metaKey: true });
+		fireEvent.keyDown(document, { key: "l", metaKey: true });
 		await waitFor(() =>
 			expect(document.activeElement?.getAttribute("aria-label")).toBe("composer"),
 		);
@@ -303,6 +331,19 @@ describe("COMP-01 Composer", () => {
 			expect(toastSpy).toHaveBeenCalledWith("Couldn't send the message", expect.anything()),
 		);
 		expect(editor().textContent).toBe("hello");
+	});
+
+	it("keeps the typed text and shows no error when a send is cancelled", async () => {
+		const toastSpy = vi.spyOn(toast, "error").mockImplementation(() => "toast-id");
+		const { composer, send, wrapper } = harness({ sendCancelled: true });
+		seedDraft(composer, "hello");
+		render(<Composer workspaceId={workspaceId} sessionId={sessionId} />, { wrapper });
+		await waitFor(() => expect(sendButton().disabled).toBe(false));
+		fireEvent.click(sendButton());
+		await waitFor(() => expect(send).toHaveBeenCalledWith(sessionId, "hello", [], "auto"));
+		await settle();
+		expect(editor().textContent).toBe("hello");
+		expect(toastSpy).not.toHaveBeenCalled();
 	});
 
 	it("tells the user when a draft write fails", async () => {

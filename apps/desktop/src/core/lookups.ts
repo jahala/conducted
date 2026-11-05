@@ -49,6 +49,7 @@ export interface Lookups {
 	/** The git remote of the workspace's repository, from the repo setting (DATA-09). */
 	remoteNameOf(id: WorkspaceId): Result<string>;
 	gitContext(id: WorkspaceId): Result<WorkspaceGitContext>;
+	/** Fails with `repo_config_unloaded` until the repository's config is loaded. */
 	prContext(id: WorkspaceId): Result<PrWorkspaceContext>;
 	/** What the sidecar needs to place a chat on disk. */
 	sidecarContext(id: WorkspaceId, userPreferences: string | undefined): Result<WorkspaceContext>;
@@ -106,6 +107,15 @@ export function createLookups(sources: LookupSources): Lookups {
 		prContext(id) {
 			const ws = workspace(id);
 			if (!ws.ok) return ws;
+			const config = sources.repos().getState().configs[ws.value.repoId];
+			if (config === undefined) {
+				return err(
+					appError(
+						"repo_config_unloaded",
+						"The repository settings are still loading. Try again in a moment.",
+					),
+				);
+			}
 			return ok({
 				workspaceId: id,
 				workspacePath: ws.value.path,
@@ -113,7 +123,7 @@ export function createLookups(sources: LookupSources): Lookups {
 				remote: remoteOf(ws.value.targetBranch),
 				prNumber: ws.value.prNumber,
 				targetBranch: ws.value.targetBranch,
-				customPrompt: sources.repos().getState().configs[ws.value.repoId]?.prompts.createPr ?? null,
+				customPrompt: config.prompts.createPr,
 			});
 		},
 		sidecarContext(id, userPreferences) {

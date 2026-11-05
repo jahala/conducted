@@ -3,9 +3,9 @@
  * Cancel a turn
  * Owns: the list of chats per workspace, their stored live state and events in memory, the
  * create, close, reopen, rename, set-title-if-empty, delete and open paths, sending a user
- * message as a new turn or a steer, and cancelling a turn: pausing the follow-up queue, closing
- * the open interaction, clearing the pending send and taking back the messages the sidecar
- * dropped.
+ * message as a new turn or a steer, and cancelling a turn: pausing the follow-up queue,
+ * withdrawing the open interaction, removing only the pending sends the sidecar dropped, and
+ * putting a send that was still in flight back in the composer draft.
  * Behaviour: services-map.md 2.3.3 (session operations), 2.2 (the sessions table), 2.3.4
  * (composer outbox: restore to draft), ui-map.md 3.2, sessions-and-chats.md "What happens when
  * you send a message" and "While the agent is working" (cancel), sessions.md 6.
@@ -13,10 +13,10 @@
  * the open list; an empty title is refused; stored events load once, in `idx` order; a message is
  * held in memory as pending before the sidecar is asked; a send that fails keeps its text for
  * Retry and Discard; a chat config is written only while the stored config is still the one the
- * caller saw, so a late answer cannot overwrite a newer choice; a cancel clears the pending send,
- * closes the open interaction and takes back the messages the sidecar dropped; a sidecar that
- * refuses the cancel changes nothing; cancelAll reaches every working chat of a workspace and no
- * idle one.
+ * caller saw, so a late answer cannot overwrite a newer choice; a cancel withdraws the open
+ * interaction, takes back the messages the sidecar dropped and returns an in-flight send to the
+ * draft; a sidecar that refuses the cancel changes nothing; cancelAll reaches every working chat
+ * of a workspace and no idle one.
  * Our design choice: a chat starts with no title; the title generator fills it only once
  * (`setTitleIfEmpty`), so a name the user typed is never overwritten.
  * Our design choice: the pending send lives in memory until the sidecar stores its `user_message`
@@ -212,6 +212,8 @@ export class SessionsService implements AgentMessenger {
 	/** Resolvers for the sidecar's open interaction requests, keyed by interaction id. */
 	readonly #interactionResolvers = new Map<string, (answer: InteractionAnswer) => void>();
 	readonly #interactionPromises = new Map<string, Promise<InteractionAnswer>>();
+	/** Bumped by cancel, so a send that finishes afterwards returns to the draft instead of running. */
+	readonly #cancelVersions = new Map<string, number>();
 
 	constructor(deps: SessionsServiceDeps) {
 		this.#deps = deps;
@@ -460,6 +462,7 @@ export class SessionsService implements AgentMessenger {
 		text: string,
 		attachmentPaths: string[],
 		delivery: "new_turn" | "steer",
+		cancelVersion: number,
 	): Promise<Result<void>> {
 		const workspace = await this.#workspaceContext(session.workspaceId);
 		if (!workspace.ok) return workspace;
@@ -472,21 +475,30 @@ export class SessionsService implements AgentMessenger {
 			if (!materialized.ok) return materialized;
 			paths = materialized.value;
 		}
-		return this.#submit(session, {
-			messageId: this.#deps.newId() as MessageId,
-			turnId: this.#deps.newId() as TurnId,
-			text,
-			attachmentPaths: paths,
-			at: this.#deps.now(),
-			delivery,
-		});
+		return this.#submit(
+			session,
+			{
+				messageId: this.#deps.newId() as MessageId,
+				turnId: this.#deps.newId() as TurnId,
+				text,
+				attachmentPaths: paths,
+				at: this.#deps.now(),
+				delivery,
+			},
+			cancelVersion,
+		);
 	}
 
 	/**
 	 * Keeps the message in memory as pending first, then asks the sidecar for a new turn or a steer.
-	 * A failure removes the pending entry and keeps the message for Retry and Discard.
+	 * A failure removes the pending entry and keeps the message for Retry and Discard. A send that
+	 * finishes after the user cancelled is not delivered: its text goes back to the draft.
 	 */
-	async #submit(session: Session, pending: PendingSend): Promise<Result<void>> {
+	async #submit(
+		session: Session,
+		pending: PendingSend,
+		cancelVersion: number,
+	): Promise<Result<void>> {
 		const launchFor = this.#deps.launchFor;
 		if (launchFor === undefined) {
 			return err(
@@ -500,6 +512,11 @@ export class SessionsService implements AgentMessenger {
 		if (!workspace.ok) return workspace;
 		const last = await this.#deps.repositories().sessionEvents.lastIdx(session.id);
 		if (!last.ok) return last;
+
+		if (this.#cancelVersionOf(session.id) !== cancelVersion) {
+			await this.#restoreDroppedToDraft(session.id, [pending]);
+			return err(appError("cancelled", "The message was cancelled before it was sent."));
+		}
 
 		const firstMessage = last.value === null;
 		this.#setSending(session.id, pending);
@@ -518,6 +535,11 @@ export class SessionsService implements AgentMessenger {
 				? {}
 				: { resume: { agentSessionId: session.agentSessionId } }),
 		});
+		if (this.#cancelVersionOf(session.id) !== cancelVersion) {
+			this.#removeSending(session.id, pending.messageId);
+			await this.#restoreDroppedToDraft(session.id, [pending]);
+			return err(appError("cancelled", "The message was cancelled before it was sent."));
+		}
 		if (!result.ok) {
 			this.#removeSending(session.id, pending.messageId);
 			this.#addFailed(session.id, { ...pending, error: result.error });
@@ -626,6 +648,7 @@ export class SessionsService implements AgentMessenger {
 		const found = await this.#session(id);
 		if (!found.ok) return found;
 		const session = found.value;
+		const cancelVersion = this.#cancelVersionOf(id);
 		const liveState = this.store.getState().liveStates[id] ?? idleLiveState;
 		const defaultMode =
 			this.#deps.setting<string>("default_message_send_mode") === "queue" ? "queue" : "steer";
@@ -651,6 +674,7 @@ export class SessionsService implements AgentMessenger {
 			text,
 			[...attachmentPaths],
 			decision === "steer" ? "steer" : "new_turn",
+			cancelVersion,
 		);
 	}
 
@@ -689,27 +713,31 @@ export class SessionsService implements AgentMessenger {
 	/**
 	 * Backs `Actions.sessions.cancel`. Stops the turn through the sidecar, which takes the end
 	 * checkpoint, drops its queued messages and withdraws interactions. Here the app pauses its
-	 * own follow-up queue, closes the interaction it shows, clears the pending send, and puts the
-	 * messages the sidecar dropped back in the composer draft with their attachments.
+	 * own follow-up queue, withdraws the interaction it shows, removes only the dropped pending
+	 * sends, and puts those messages back in the composer draft with their attachments.
 	 */
 	async cancel(id: SessionId): Promise<Result<void>> {
 		const found = await this.#session(id);
 		if (!found.ok) return found;
 
+		const previousCancelVersion = this.#cancelVersionOf(id);
+		this.#cancelVersions.set(id, previousCancelVersion + 1);
 		this.#setCancelling(id, true);
 		const cancelled = await this.#deps.sidecar.request("cancel", { sessionId: id });
 		if (!cancelled.ok) {
+			this.#cancelVersions.set(id, previousCancelVersion);
 			this.#setCancelling(id, false);
 			return cancelled;
 		}
 
-		this.#closeInteraction(id);
+		const open = this.store.getState().openInteractions[id];
+		if (open !== undefined) this.#settleInteraction(open.interactionId, { kind: "withdrawn" });
 		const dropped = new Set(cancelled.value.droppedMessageIds);
 		const pending = this.store.getState().sending[id] ?? [];
 		const toRestore = pending.filter((entry) => dropped.has(entry.messageId));
 		const paused = await this.#deps.queue.pauseOnCancel(id);
 		const restored = await this.#restoreDroppedToDraft(id, toRestore);
-		this.#clearSending(id);
+		for (const messageId of dropped) this.#removeSending(id, messageId);
 		this.#setCancelling(id, false);
 		return paused.ok ? restored : paused;
 	}
@@ -720,20 +748,8 @@ export class SessionsService implements AgentMessenger {
 		}));
 	}
 
-	#closeInteraction(sessionId: SessionId): void {
-		this.store.setState((state) => {
-			if (state.openInteractions[sessionId] === undefined) return {};
-			const openInteractions = { ...state.openInteractions };
-			delete openInteractions[sessionId];
-			return { openInteractions };
-		});
-	}
-
-	#clearSending(sessionId: SessionId): void {
-		this.store.setState((state) => {
-			if ((state.sending[sessionId] ?? []).length === 0) return {};
-			return { sending: { ...state.sending, [sessionId]: [] } };
-		});
+	#cancelVersionOf(sessionId: SessionId): number {
+		return this.#cancelVersions.get(sessionId) ?? 0;
 	}
 
 	/** Puts the messages the sidecar dropped before delivering them back in the composer draft. */
@@ -762,7 +778,11 @@ export class SessionsService implements AgentMessenger {
 		return ok(undefined);
 	}
 
-	/** Backs `Actions.sessions.answer`. A superseded answer is not an error. */
+	/**
+	 * Backs `Actions.sessions.answer`. A superseded answer is not an error: the card was already
+	 * withdrawn. A refusal with neither flag means the sidecar did not take the answer, so the card
+	 * stays open and the user can try again.
+	 */
 	async answer(
 		sessionId: SessionId,
 		interactionId: InteractionId,
@@ -777,8 +797,15 @@ export class SessionsService implements AgentMessenger {
 		if (result.value.accepted) this.#settleInteraction(interactionId, answer);
 		else if (result.value.superseded) {
 			this.#settleInteraction(interactionId, { kind: "withdrawn" });
+		} else {
+			return err(appError("interaction_not_accepted", "Could not send answers. Try again."));
 		}
 		return ok(undefined);
+	}
+
+	/** True while the chat shows a question, approval or another card the agent waits on. */
+	hasPendingConsentInteraction(sessionId: SessionId): boolean {
+		return this.store.getState().openInteractions[sessionId] !== undefined;
 	}
 
 	/** Called by the `requestInteraction` handler. Resolves when the user answers or it is withdrawn. */
@@ -820,7 +847,6 @@ export class SessionsService implements AgentMessenger {
 	/** Answers the sidecar's open request and removes the card. A stale id is ignored. */
 	#settleInteraction(interactionId: InteractionId, answer: InteractionAnswer): void {
 		const resolve = this.#interactionResolvers.get(interactionId);
-		if (resolve === undefined) return;
 		this.#interactionResolvers.delete(interactionId);
 		this.#interactionPromises.delete(interactionId);
 		this.store.setState((state) => {
@@ -833,7 +859,7 @@ export class SessionsService implements AgentMessenger {
 			}
 			return changed ? { openInteractions } : {};
 		});
-		resolve(answer);
+		resolve?.(answer);
 	}
 
 	/**
@@ -1160,8 +1186,9 @@ export class SessionsService implements AgentMessenger {
 		}
 		const found = await this.#session(id);
 		if (!found.ok) return found;
+		const cancelVersion = this.#cancelVersionOf(id);
 		this.#removeFailed(id, messageId);
-		return this.#submit(found.value, failed);
+		return this.#submit(found.value, failed, cancelVersion);
 	}
 
 	/** Drops a message the sidecar did not accept and puts its text back in the composer. */

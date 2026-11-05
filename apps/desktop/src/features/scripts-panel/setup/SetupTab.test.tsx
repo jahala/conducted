@@ -4,7 +4,7 @@
  * Test first: kind "failed" shows the failure log and a fix action that calls the chat action once.
  */
 import type { TerminalId, WorkspaceId } from "@conducted/shared";
-import { ok } from "@conducted/shared";
+import { appError, err, ok } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Loadable } from "../../../core/api.ts";
@@ -15,10 +15,12 @@ const state = vi.hoisted(() => ({
 	workspace: { state: "loading" } as Loadable<Workspace>,
 	sessions: { state: "ready", data: [] } as Loadable<Session[]>,
 	send: vi.fn(),
-	closeTerminal: vi.fn(),
+	cancelSetup: vi.fn(),
 	retrySetup: vi.fn(),
 	navigate: vi.fn(),
 	readSetupLog: vi.fn(),
+	toastError: vi.fn(),
+	toast: vi.fn(),
 }));
 
 vi.mock("../../../core/hooks.ts", () => ({
@@ -27,7 +29,6 @@ vi.mock("../../../core/hooks.ts", () => ({
 	useSessions: () => state.sessions,
 	useActions: () => ({
 		sessions: { send: state.send },
-		terminals: { close: state.closeTerminal },
 		workspaces: { retrySetup: state.retrySetup },
 	}),
 }));
@@ -37,7 +38,19 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 vi.mock("../../../core/context.tsx", () => ({
-	useServices: () => ({ services: { workspace: { readSetupLog: state.readSetupLog } } }),
+	useServices: () => ({
+		services: {
+			workspace: {
+				readSetupLog: state.readSetupLog,
+				cancelSetup: state.cancelSetup,
+			},
+		},
+	}),
+}));
+
+vi.mock("../../../ui/Toast.tsx", () => ({
+	toast: Object.assign(state.toast, { error: state.toast }),
+	toastError: state.toastError,
 }));
 
 vi.mock("../../terminal/TerminalView.tsx", () => ({
@@ -77,10 +90,14 @@ beforeEach(() => {
 	state.sessions = { state: "ready", data: [session] };
 	state.send.mockReset();
 	state.send.mockResolvedValue(ok(undefined));
-	state.closeTerminal.mockReset();
+	state.cancelSetup.mockReset();
+	state.cancelSetup.mockResolvedValue(ok(undefined));
 	state.retrySetup.mockReset();
+	state.retrySetup.mockResolvedValue(ok(undefined));
 	state.readSetupLog.mockReset();
 	state.readSetupLog.mockResolvedValue(ok("setup output"));
+	state.toastError.mockReset();
+	state.toast.mockReset();
 });
 
 afterEach(cleanup);
@@ -127,5 +144,69 @@ describe("WS-03 Setup tab", () => {
 		expect(
 			(screen.getByRole("button", { name: "Ask agent to fix" }) as HTMLButtonElement).disabled,
 		).toBe(true);
+	});
+
+	it("stops a running setup through cancelSetup", async () => {
+		state.setup = {
+			state: "ready",
+			data: failed({ state: "running", exitCode: null, log: "live" }),
+		};
+		render(<SetupTab workspaceId={workspaceId} />);
+
+		fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+
+		await waitFor(() => expect(state.cancelSetup).toHaveBeenCalledWith(workspaceId));
+	});
+
+	it("toasts Failed to attach setup logs when the log cannot be read", async () => {
+		state.readSetupLog.mockResolvedValue(err(appError("setup_log_missing", "missing")));
+		render(<SetupTab workspaceId={workspaceId} />);
+
+		fireEvent.click(screen.getByRole("button", { name: "Ask agent to fix" }));
+
+		await waitFor(() =>
+			expect(state.toastError.mock.calls[0]?.[0]).toBe("Failed to attach setup logs"),
+		);
+		expect(state.send).toHaveBeenCalledTimes(1);
+	});
+
+	it("toasts Failed to attach setup context when the chat send fails", async () => {
+		state.send.mockResolvedValue(err(appError("session_not_ready", "no chat")));
+		render(<SetupTab workspaceId={workspaceId} />);
+
+		fireEvent.click(screen.getByRole("button", { name: "Ask agent to fix" }));
+
+		await waitFor(() =>
+			expect(state.toastError.mock.calls[0]?.[0]).toBe("Failed to attach setup context"),
+		);
+	});
+
+	it("toasts the setup failure message when Run again fails", async () => {
+		state.setup = {
+			state: "ready",
+			data: failed({ state: "completed", exitCode: 0, terminalId: "t2" as TerminalId }),
+		};
+		state.retrySetup.mockResolvedValue(err(appError("setup_failed", "failed")));
+		render(<SetupTab workspaceId={workspaceId} />);
+
+		fireEvent.click(screen.getByRole("button", { name: "Run again" }));
+
+		await waitFor(() =>
+			expect(state.toast.mock.calls[0]?.[0]).toBe(
+				"Setup script failed. Check the setup tab for logs.",
+			),
+		);
+	});
+
+	it("puts the end of the setup log into the fix request", async () => {
+		state.readSetupLog.mockResolvedValue(ok("one\ntwo\nthree"));
+		render(<SetupTab workspaceId={workspaceId} />);
+
+		fireEvent.click(screen.getByRole("button", { name: "Ask agent to fix" }));
+
+		await waitFor(() => expect(state.send).toHaveBeenCalledTimes(1));
+		const prompt = state.send.mock.calls[0]?.[1] as string;
+		expect(prompt).toContain("one\ntwo\nthree");
+		expect(prompt).not.toContain("Setup tab");
 	});
 });

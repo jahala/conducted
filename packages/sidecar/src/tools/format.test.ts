@@ -1,10 +1,30 @@
-import { expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { formatDiffComments, formatQuestionAnswers, formatTerminalOutput } from "./format.ts";
 
-test("a multi-select answer lists its items under the question number", () => {
-	expect(formatQuestionAnswers([["Yes"], ["a", "b"]])).toBe(
-		"The user answered:\n1. Yes\n2.\n   - a\n   - b",
-	);
+const questions = [{ question: "Which database?" }, { question: "Which regions?" }];
+
+describe("CHAT-10 answers return as question, answer and (Skipped)", () => {
+	test("a single answer sits under its question", () => {
+		expect(formatQuestionAnswers([{ question: "Which database?" }], [["Yes"]])).toBe(
+			"The user answered:\n1. Which database?\n   Yes",
+		);
+	});
+
+	test("a multi-select answer lists its items under the question", () => {
+		expect(formatQuestionAnswers(questions, [["Yes"], ["a", "b"]])).toBe(
+			"The user answered:\n1. Which database?\n   Yes\n2. Which regions?\n   - a\n   - b",
+		);
+	});
+
+	test("a skipped question says (Skipped)", () => {
+		expect(formatQuestionAnswers(questions, [["Yes"], []])).toBe(
+			"The user answered:\n1. Which database?\n   Yes\n2. Which regions?\n   (Skipped)",
+		);
+	});
+
+	test("no answers at all is a plain sentence", () => {
+		expect(formatQuestionAnswers([], [])).toBe("The user gave no answers.");
+	});
 });
 
 test("comments show the line range, author and resolved state", () => {

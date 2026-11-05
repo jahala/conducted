@@ -193,6 +193,7 @@ describe("CHAT-05 cancel a turn", () => {
 		const h = harness();
 		const session = must(await h.service.create(workspaceId, sampleSession.config));
 		await h.service.send(session.id, "Fix login", [], "auto");
+		const sent = sendMessageCalls(h.calls)[0]?.params ?? {};
 		h.service.store.setState({
 			liveStates: { [session.id]: working },
 			openInteractions: {
@@ -202,7 +203,7 @@ describe("CHAT-05 cancel a turn", () => {
 				},
 			},
 		});
-		h.replyTo(async () => ok({ wasWorking: true, droppedMessageIds: [] }));
+		h.replyTo(async () => ok({ wasWorking: true, droppedMessageIds: [sent.messageId as never] }));
 
 		const result = await h.service.cancel(session.id);
 
@@ -213,6 +214,24 @@ describe("CHAT-05 cancel a turn", () => {
 		expect(state.openInteractions[session.id]).toBeUndefined();
 		expect(state.sending[session.id]).toEqual([]);
 		expect(h.queue.store.getState().pausedSessionIds[session.id]).toBe(true);
+	});
+
+	it("settles the open interaction as withdrawn when the turn is cancelled", async () => {
+		seedWorkspace();
+		const h = harness();
+		const session = must(await h.service.create(workspaceId, sampleSession.config));
+		const pending = h.service.requestInteraction({
+			sessionId: session.id,
+			interactionId: "i1" as never,
+			interaction: question,
+		});
+		h.replyTo(async () => ok({ wasWorking: true, droppedMessageIds: [] }));
+
+		const result = await h.service.cancel(session.id);
+
+		expect(result).toEqual(ok(undefined));
+		await expect(pending).resolves.toEqual({ kind: "withdrawn" });
+		expect(h.service.store.getState().openInteractions[session.id]).toBeUndefined();
 	});
 
 	it("reports cancelling while the sidecar has not answered yet", async () => {
@@ -273,6 +292,39 @@ describe("CHAT-05 cancel a turn", () => {
 			attachmentPaths: [],
 		});
 		expect(first?.params.messageId).not.toBe(second?.params.messageId);
+		expect(h.service.store.getState().sending[session.id]?.map((entry) => entry.messageId)).toEqual(
+			[first?.params.messageId],
+		);
+	});
+
+	it("returns an in-flight message to the draft when its send finishes after the cancel", async () => {
+		seedWorkspace();
+		const h = harness();
+		const session = must(await h.service.create(workspaceId, sampleSession.config));
+		let finishSend: ((value: unknown) => void) | undefined;
+		h.replyTo(async (method) => {
+			if (method !== "sendMessage") return ok({ wasWorking: true, droppedMessageIds: [] });
+			return new Promise((resolve) => {
+				finishSend = resolve;
+			});
+		});
+
+		const sending = h.service.send(session.id, "Fix login", [], "auto");
+		await vi.waitFor(() => expect(sendMessageCalls(h.calls)).toHaveLength(1));
+		const cancelled = await h.service.cancel(session.id);
+		expect(cancelled).toEqual(ok(undefined));
+
+		finishSend?.(ok({ deliveredAs: "new_turn" }));
+		const result = await sending;
+
+		expect(result).toMatchObject({ ok: false, error: { code: "cancelled" } });
+		expect(h.composer.saveDraft).toHaveBeenCalledWith(session.id, {
+			text: "Fix login",
+			attachmentPaths: [],
+		});
+		const state = h.service.store.getState();
+		expect(state.sending[session.id]).toEqual([]);
+		expect(state.failedSends?.[session.id] ?? []).toEqual([]);
 	});
 
 	it("does not pause the queue or lose the pending send when the sidecar refuses the cancel", async () => {

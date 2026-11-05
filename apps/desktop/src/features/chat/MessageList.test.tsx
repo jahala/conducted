@@ -4,10 +4,11 @@ import { VirtuosoMockContext } from "react-virtuoso";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "../../test/dom-polyfills.ts";
 import { clearCommandHandlers, runCommandHandlers } from "../../app/command-dispatcher.ts";
-import type { ChatTurn, ChatView, Session } from "../../core/model.ts";
+import type { ChatTurn, ChatView, Session, Workspace } from "../../core/model.ts";
 
 const state = vi.hoisted(() => ({
 	chat: null as unknown,
+	workspace: null as unknown,
 	expand: false,
 	setSetting: vi.fn(),
 	saveDraft: vi.fn(),
@@ -17,6 +18,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock("../../core/hooks.ts", () => ({
 	useChat: () => state.chat,
+	useWorkspace: () => state.workspace,
 	useDraft: () => ({ text: "", attachmentPaths: [] }),
 	useSetting: () => state.expand,
 	useLiveShortcut: () => null,
@@ -95,6 +97,36 @@ function session(): Session {
 	};
 }
 
+function workspace(over: Partial<Workspace> = {}): Workspace {
+	return {
+		id: workspaceId,
+		repoId: "r1" as Workspace["repoId"],
+		directoryName: "workspace",
+		path: "/tmp/workspace",
+		branch: "conducted/workspace",
+		branchIsPlaceholder: false,
+		displayName: null,
+		targetBranch: "main",
+		state: "ready",
+		kanbanStatus: "in_progress",
+		port: 4100,
+		pinnedAt: null,
+		notes: null,
+		linkedPaths: [],
+		prNumber: null,
+		prTitle: null,
+		prDescription: null,
+		archiveCommit: null,
+		archivedAt: null,
+		activeSessionId: null,
+		filesCopied: null,
+		lastActivityAt: 1,
+		createdAt: 1,
+		updatedAt: 1,
+		...over,
+	};
+}
+
 function view(turns: ChatTurn[]): ChatView {
 	return {
 		session: session(),
@@ -118,6 +150,7 @@ beforeEach(() => {
 	state.renders = {};
 	state.expand = false;
 	state.chat = { state: "ready", data: view([makeTurn(0)]) };
+	state.workspace = { state: "ready", data: workspace() };
 	for (const fn of [state.setSetting, state.saveDraft, state.send]) fn.mockReset();
 	state.setSetting.mockResolvedValue({ ok: true, value: undefined });
 	state.saveDraft.mockReturnValue(undefined);
@@ -168,6 +201,14 @@ describe("CHAT-06 message list", () => {
 			text: "Fix a known bug",
 			attachmentPaths: [],
 		});
+	});
+
+	it("offers no starters in an archived workspace", async () => {
+		state.chat = { state: "ready", data: view([]) };
+		state.workspace = { state: "ready", data: workspace({ state: "archived" }) };
+		render(wrap(<MessageList sessionId={sessionId} workspaceId={workspaceId} />));
+		expect(await screen.findByText("No messages yet")).toBeTruthy();
+		expect(screen.queryAllByRole("button")).toHaveLength(0);
 	});
 
 	it("registers the Expand all tool calls command for the list", async () => {

@@ -73,6 +73,19 @@ describe("CHAT-06 chat banners", () => {
 		expect(screen.getByText("Compacting...")).toBeTruthy();
 	});
 
+	it("does not read a finished compaction as still running", () => {
+		render(
+			<ChatBanner
+				block={{
+					kind: "notice",
+					item: { kind: "notice", notice: "info", text: "Compacted 40 messages" },
+				}}
+			/>,
+		);
+		expect(screen.getByText("Compacted 40 messages")).toBeTruthy();
+		expect(screen.queryByText("Compacting...")).toBeNull();
+	});
+
 	it("offers the error and its details from the right-click menu", async () => {
 		state.copyText.mockResolvedValue({ ok: true, value: undefined });
 		render(<ChatBanner block={error(true)} />);

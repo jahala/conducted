@@ -11,11 +11,11 @@
  * components.Footer, and a ref to scrollToIndex. Only the newest turn changes while streaming:
  * TurnItem is memoised on the turn object, and the service (CHAT-07) keeps unchanged turns
  * referentially equal.
- * Must handle: Loading (skeleton turns); error with retry; empty chat (EmptyChat with starters); a
- * turn added while the user reads old messages (no jump, show Scroll to bottom); the chat switches
- * (list resets to the bottom); a very long turn; archived workspace (read-only, composer bar says
- * so); each turn in its own boundary 'This chat turn failed to render. Other turns are still
- * available.'; 5000 turns stay smooth.
+ * Must handle: Loading (skeleton turns); an error card (no retry action is owned here); empty chat
+ * (EmptyChat with starters, or none in an archived workspace; the composer bar says the workspace
+ * is read-only); a turn added while the user reads old messages (no jump, show Scroll to bottom);
+ * the chat switches (list resets to the bottom); a very long turn; each turn in its own boundary
+ * 'This chat turn failed to render. Other turns are still available.'; 5000 turns stay smooth.
  * Test first: With 2000 turns only a small window of TurnItem is mounted; appending a block to the
  * last turn re-renders only that item.
  */
@@ -23,7 +23,7 @@ import type { SessionId, WorkspaceId } from "@conducted/shared";
 import { useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
-import { useActions, useChat, useDraft, useSetting } from "../../core/hooks.ts";
+import { useActions, useChat, useDraft, useSetting, useWorkspace } from "../../core/hooks.ts";
 import type { ChatView } from "../../core/model.ts";
 import { LoadableView } from "../../ui/LoadableView.tsx";
 import { Skeleton } from "../../ui/Skeleton.tsx";
@@ -58,8 +58,10 @@ function ListFooter() {
 	return <div data-region="list-footer" className="h-3" aria-hidden="true" />;
 }
 
-export function MessageList({ sessionId, workspaceId: _workspaceId }: MessageListProps) {
+export function MessageList({ sessionId, workspaceId }: MessageListProps) {
 	const chat = useChat(sessionId);
+	const workspace = useWorkspace(workspaceId);
+	const archived = workspace.state === "ready" && workspace.data.state === "archived";
 	const draft = useDraft(sessionId);
 	const actions = useActions();
 	const expandAll = useSetting<boolean>("expand_tool_calls");
@@ -89,7 +91,7 @@ export function MessageList({ sessionId, workspaceId: _workspaceId }: MessageLis
 		>
 			{(data: ChatView) =>
 				data.turns.length === 0 ? (
-					<EmptyChat onPick={pickStarter} />
+					<EmptyChat onPick={pickStarter} archived={archived} />
 				) : (
 					<div className="relative h-full min-h-0">
 						<Virtuoso

@@ -4,7 +4,15 @@
  * Test first: a setup script that exits 0 moves the workspace from initializing to ready, and a
  * nonzero exit moves it to failed.
  */
-import { appError, err, ok, type RepoId, type Result, type WorkspaceId } from "@conducted/shared";
+import {
+	appError,
+	err,
+	ok,
+	type RepoId,
+	type Result,
+	type TerminalId,
+	type WorkspaceId,
+} from "@conducted/shared";
 import { describe, expect, it, vi } from "vitest";
 import type { GitRunner } from "../git/runner.ts";
 import type { Repo, Workspace } from "../model.ts";
@@ -62,6 +70,7 @@ const workspace = (overrides: Partial<Workspace> = {}): Workspace => ({
 });
 
 const setupResult = (overrides: Partial<SetupRunResult> = {}): SetupRunResult => ({
+	scriptFound: true,
 	exitCode: 0,
 	terminalId: null,
 	logPath: null,
@@ -69,8 +78,15 @@ const setupResult = (overrides: Partial<SetupRunResult> = {}): SetupRunResult =>
 	...overrides,
 });
 
-function harness(runSetup: () => Promise<Result<SetupRunResult>>) {
-	const rows = [workspace()];
+interface HarnessOptions {
+	rows?: Workspace[];
+	logPaths?: Readonly<Record<string, string | null>>;
+	logExists?: (path: string) => boolean;
+	shell?: WorkspaceServiceDeps["platform"]["shell"];
+}
+
+function harness(runSetup: () => Promise<Result<SetupRunResult>>, options: HarnessOptions = {}) {
+	const rows = options.rows ?? [workspace()];
 	const stopWorkspace = vi.fn(async () => ok(undefined));
 	const setSetupLogPath = vi.fn(async (_path: string | null) => ok(undefined));
 	const workspaces = {
@@ -89,8 +105,8 @@ function harness(runSetup: () => Promise<Result<SetupRunResult>>) {
 		async getByPath(path: string) {
 			return ok(rows.find((row) => row.path === path) ?? null);
 		},
-		async getSetupLogPath() {
-			return ok(null);
+		async getSetupLogPath(id: WorkspaceId) {
+			return ok(options.logPaths?.[id] ?? null);
 		},
 		async listDirectoryNames() {
 			return ok([]);
@@ -164,8 +180,8 @@ function harness(runSetup: () => Promise<Result<SetupRunResult>>) {
 				async writeTextAtomic() {
 					return ok(undefined);
 				},
-				async exists() {
-					return false;
+				async exists(path: string) {
+					return options.logExists?.(path) ?? false;
 				},
 				async stat() {
 					return err(appError("fs_not_found", "missing"));
@@ -182,6 +198,11 @@ function harness(runSetup: () => Promise<Result<SetupRunResult>>) {
 				paths: { home: "/home", appData: "/app", temp: "/tmp", resources: "/res" },
 			},
 			opener: {},
+			shell:
+				options.shell ??
+				({
+					run: async () => ok({ exitCode: 0, stdout: "", stderr: "" }),
+				} as unknown as WorkspaceServiceDeps["platform"]["shell"]),
 		},
 		git: {} as GitRunner,
 		repos: {
@@ -222,7 +243,7 @@ describe("WS-03 WorkspaceService.runSetup", () => {
 
 		expect(result.ok).toBe(true);
 		expect(rows[0]?.state).toBe("ready");
-		expect(setSetupLogPath).toHaveBeenCalledWith("/tmp/setup.log");
+		expect(setSetupLogPath).toHaveBeenCalledWith("/app/setup-logs/w1.log");
 		expect(service.store.getState().setupRuns?.[rows[0]?.id ?? ""]?.state).toBe("completed");
 	});
 
@@ -237,19 +258,47 @@ describe("WS-03 WorkspaceService.runSetup", () => {
 		expect(service.store.getState().setupRuns?.[rows[0]?.id ?? ""]?.exitCode).toBe(2);
 	});
 
+	it("treats a killed script with no exit code as failed", async () => {
+		const { service, rows } = harness(async () =>
+			ok(setupResult({ scriptFound: true, exitCode: null, terminalId: "t1" as TerminalId })),
+		);
+
+		const result = await service.runSetup(rows[0]?.id as WorkspaceId);
+
+		expect(result.ok).toBe(false);
+		expect(rows[0]?.state).toBe("failed");
+		const run = service.store.getState().setupRuns?.[rows[0]?.id ?? ""];
+		expect(run?.state).toBe("failed");
+		expect(run?.exitCode).toBeNull();
+	});
+
+	it("moves to ready when the repository has no setup script", async () => {
+		const { service, rows } = harness(async () => ok(setupResult({ scriptFound: false })));
+
+		const result = await service.runSetup(rows[0]?.id as WorkspaceId);
+
+		expect(result.ok).toBe(true);
+		expect(rows[0]?.state).toBe("ready");
+	});
+
 	it("ignores a second start while the first is running", async () => {
 		let release: (value: Result<SetupRunResult>) => void = () => {};
-		const scripts = vi.fn(
-			() =>
-				new Promise<Result<SetupRunResult>>((resolve) => {
-					release = resolve;
-				}),
-		);
+		let scriptStarted: () => void = () => {};
+		const started = new Promise<void>((resolve) => {
+			scriptStarted = resolve;
+		});
+		const scripts = vi.fn(() => {
+			scriptStarted();
+			return new Promise<Result<SetupRunResult>>((resolve) => {
+				release = resolve;
+			});
+		});
 		const { service, rows } = harness(scripts);
 		const id = rows[0]?.id as WorkspaceId;
 
 		const first = service.runSetup(id);
 		const second = service.runSetup(id);
+		await started;
 		release(ok(setupResult()));
 
 		await Promise.all([first, second]);
@@ -275,6 +324,53 @@ describe("WS-03 WorkspaceService.runSetup", () => {
 		expect(stopWorkspace).toHaveBeenCalledWith(id);
 		expect(service.store.getState().setupRuns?.[id]?.state).toBe("cancelled");
 		expect(rows[0]?.state).toBe("failed");
+	});
+});
+
+describe("WS-03 loading a saved setup run", () => {
+	it("does not invent an exit code or a reason for a failed workspace", async () => {
+		const row = workspace({ state: "failed" });
+		const { service } = harness(async () => ok(setupResult()), {
+			rows: [row],
+			logPaths: { w1: "/app/setup-logs/w1.log" },
+			logExists: () => true,
+		});
+
+		await service.start();
+
+		expect(service.store.getState().setupRuns?.w1).toMatchObject({
+			state: "failed",
+			exitCode: null,
+			interruptedReason: null,
+			logPath: "/app/setup-logs/w1.log",
+			log: "saved",
+		});
+	});
+
+	it("does not invent an exit code for a ready workspace", async () => {
+		const row = workspace({ state: "ready" });
+		const { service } = harness(async () => ok(setupResult()), {
+			rows: [row],
+			logPaths: { w1: "/app/setup-logs/w1.log" },
+			logExists: () => true,
+		});
+
+		await service.start();
+
+		expect(service.store.getState().setupRuns?.w1).toMatchObject({
+			state: "completed",
+			exitCode: null,
+			interruptedReason: null,
+		});
+	});
+
+	it("shows no run for a workspace whose log was never recorded", async () => {
+		const row = workspace({ state: "failed" });
+		const { service } = harness(async () => ok(setupResult()), { rows: [row] });
+
+		await service.start();
+
+		expect(service.store.getState().setupRuns?.w1).toBeUndefined();
 	});
 });
 

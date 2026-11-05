@@ -19,6 +19,7 @@
 
 import type { RepoId, WorkspaceId } from "@conducted/shared";
 import type { KanbanStatus, Repo, Section, Workspace } from "../../core/model.ts";
+import { canOpenWorkspace } from "../../core/workspace-open.ts";
 
 export interface SidebarView {
 	groupBy: "status" | "project";
@@ -109,8 +110,9 @@ function orderKey(key: SidebarGroupKey): string {
 	}
 }
 
-function isArchived(workspace: Workspace): boolean {
-	return workspace.state === "archived" || workspace.archivedAt !== null;
+/** The sidebar hides the same workspaces the router refuses to open. */
+function isHidden(workspace: Workspace): boolean {
+	return !canOpenWorkspace(workspace);
 }
 
 function dateOf(workspace: Workspace, sortBy: SidebarView["sortBy"]): number {
@@ -164,7 +166,7 @@ export function buildSidebarGroups(input: SidebarViewInput): SidebarGroup[] {
 	const filter = new Set(view.projectFilter);
 	const eligible = workspaces.filter(
 		(workspace) =>
-			!isArchived(workspace) &&
+			!isHidden(workspace) &&
 			visibleRepoIds.has(workspace.repoId) &&
 			(filter.size === 0 || filter.has(workspace.repoId)),
 	);

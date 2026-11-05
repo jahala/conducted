@@ -94,11 +94,14 @@ function harness(options: { setupScript?: string | null; exitCode?: number | nul
 			transcripts.push({ path, text });
 			return ok(undefined);
 		},
+		async mkdirp() {
+			return ok(undefined);
+		},
 		async exists() {
 			return true;
 		},
 		paths: { home: "/home", appData: "/app", temp: "/tmp", resources: "/res" },
-	} as unknown as Pick<FileSystem, "writeTextAtomic" | "exists"> & {
+	} as unknown as Pick<FileSystem, "writeTextAtomic" | "mkdirp" | "exists"> & {
 		paths: FileSystem["paths"];
 	};
 
@@ -144,12 +147,22 @@ describe("WS-03 RunScriptsService.runSetup", () => {
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
 		expect(result.value).toMatchObject({
+			scriptFound: true,
 			exitCode: 0,
 			terminalId: "t1",
-			logPath: "/tmp/conducted-setup-w1.log",
+			logPath: "/app/setup-logs/w1.log",
 			log: "saved",
 		});
-		expect(transcripts).toEqual([{ path: "/tmp/conducted-setup-w1.log", text: "installed" }]);
+		expect(transcripts).toEqual([{ path: "/app/setup-logs/w1.log", text: "installed" }]);
+	});
+
+	it("keeps the setup log in the app data folder for the workspace's lifetime", async () => {
+		const { service, transcripts } = harness({ exitCode: 0 });
+
+		await service.runSetup(workspace.id);
+
+		expect(transcripts[0]?.path).toBe("/app/setup-logs/w1.log");
+		expect(transcripts[0]?.path.startsWith("/tmp")).toBe(false);
 	});
 
 	it("does not start a terminal when the repository has no setup script", async () => {
@@ -157,7 +170,15 @@ describe("WS-03 RunScriptsService.runSetup", () => {
 
 		const result = await service.runSetup(workspace.id);
 
-		expect(result).toEqual(ok({ exitCode: null, terminalId: null, logPath: null, log: "missing" }));
+		expect(result).toEqual(
+			ok({
+				scriptFound: false,
+				exitCode: null,
+				terminalId: null,
+				logPath: null,
+				log: "missing",
+			}),
+		);
 		expect(runScript).not.toHaveBeenCalled();
 	});
 
@@ -172,6 +193,10 @@ describe("WS-03 RunScriptsService.runSetup", () => {
 
 	it("ignores a second start while the same workspace is running", async () => {
 		let release: (value: number | null) => void = () => {};
+		let scriptStarted: () => void = () => {};
+		const started = new Promise<void>((resolve) => {
+			scriptStarted = resolve;
+		});
 		const runScript = vi.fn(
 			async (_input: {
 				workspaceId: WorkspaceId;
@@ -180,13 +205,15 @@ describe("WS-03 RunScriptsService.runSetup", () => {
 				command: string;
 				cwd: string;
 				env: Readonly<Record<string, string>>;
-			}) =>
-				ok({
+			}) => {
+				scriptStarted();
+				return ok({
 					terminalId: "t1" as TerminalId,
 					exit: new Promise<number | null>((resolve) => {
 						release = resolve;
 					}),
-				}),
+				});
+			},
 		);
 		const service = new RunScriptsService({
 			terminals: {
@@ -200,12 +227,14 @@ describe("WS-03 RunScriptsService.runSetup", () => {
 			repoFor: async () => ok(repo),
 			fs: {
 				writeTextAtomic: async () => ok(undefined),
+				mkdirp: async () => ok(undefined),
 				paths: { home: "/home", appData: "/app", temp: "/tmp", resources: "/res" },
 			},
 		});
 
 		const first = service.runSetup(workspace.id);
 		const second = service.runSetup(workspace.id);
+		await started;
 		release(0);
 		await Promise.all([first, second]);
 

@@ -71,4 +71,30 @@ describe("PR-02 createPrInstruction", () => {
 
 		expect(text).not.toContain("pull request template");
 	});
+
+	it("adds the workspace link when the setting is on, and says where it works", () => {
+		const link = "conducted://workspace?id=w1";
+		const text = createPrInstruction({
+			...base,
+			prTemplatePath: null,
+			hasUncommittedChanges: false,
+			workspaceLink: link,
+		});
+
+		expect(text).toContain(link);
+		expect(text).toContain("on this Mac");
+		expect(text).toContain("does not work for anyone else");
+	});
+
+	it("leaves the workspace link out when the setting is off", () => {
+		const text = createPrInstruction({
+			...base,
+			prTemplatePath: null,
+			hasUncommittedChanges: false,
+			workspaceLink: null,
+		});
+
+		expect(text).not.toContain("conducted://");
+		expect(text).not.toContain("on this Mac");
+	});
 });

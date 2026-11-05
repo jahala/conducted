@@ -147,6 +147,18 @@ async function appendEvents(
 }
 
 describe("SIDE-06 replay", () => {
+	test("SIDE-06 replayAll started on an empty log picks up events appended later", async () => {
+		const h = await harness();
+		await h.replayer.replayAll();
+		expect(h.app.delivered()).toEqual([]);
+
+		await appendEvents(h.outbox, sid("session-1"), 1);
+		await h.replayer.replayAll();
+
+		expect(h.app.delivered().map((envelope) => envelope.sequence)).toEqual([0]);
+		expect(h.outbox.pending(sid("session-1"))).toEqual([]);
+	});
+
 	test("SIDE-06 3 pending events with persisted true are delivered in sequence order and leave the log", async () => {
 		const h = await harness();
 		await appendEvents(h.outbox, sid("session-1"), 3);
@@ -274,6 +286,8 @@ describe("SIDE-06 replay", () => {
 
 		await h.replayer.replayAll();
 
+		// The second event was acknowledged before it was sent, so replay must skip it.
+		expect(h.app.delivered().map((envelope) => envelope.sequence)).toEqual([0, 2]);
 		expect(h.outbox.pending(sid("session-1"))).toEqual([]);
 	});
 });

@@ -15,14 +15,20 @@
  *  - the end checkpoint waits for the start checkpoint of the same turn
  *  - the next turn waits for the previous end checkpoint (the manager awaits settled())
  *  - cancel during a running checkpoint: the script is allowed to finish or hit its timeout
- *  - the same id twice (a retry): the script gets --force, as Conductor does
- *  - the diff summary: two `diff` calls (--name-status -z and --numstat -z), omitted above 200
- *    files; a failing diff call leaves the changes out and keeps the checkpoint id
+ *  - every save passes --force, as Conductor does, so a repeated id overwrites instead of failing
+ *  - the diff summary: two `diff` calls (--name-status -z and --numstat -z) run together, omitted
+ *    above 200 files; a failing diff call leaves the changes out and keeps the checkpoint id
  *  - the log line keeps at most 64 KiB of the script's output and error
  * Test first: exit code 101 from the process runner gives an outcome with skippedReason
  * merge_in_progress and no checkpoint id.
  * Our design choice: the process runner is a parameter, so tests run the real script against a
  * temp repository only in the script's own test, and this class is tested with a recording runner.
+ * Our design choice: when the start checkpoint is skipped there is nothing to diff against, so the
+ * end checkpoint still carries its id but no `changes`. sessions.md section 7 only says the summary
+ * compares the start and end ids.
+ * Lifetime: `turns` holds one record from the start checkpoint until the end checkpoint settles;
+ * `end()` removes it. A turn whose end never runs (shutdown takes none, by design) keeps its record
+ * until the sidecar process exits. That is the only bound, and it matches the research.
  */
 import type { FileChange } from "@conducted/protocol";
 import type { CheckpointId, SessionId, TurnId } from "@conducted/shared";
@@ -181,42 +187,17 @@ export class ScriptCheckpointService implements CheckpointService {
 			startOutcome = { skippedReason: "failed" };
 		}
 
-		const id = checkpointIdFor(request.sessionId, request.turnId, "end");
-		if (id === null) {
-			this.deps.logger.warn("A checkpoint id is not a safe git ref name, so it was skipped", {
-				sessionId: request.sessionId,
-				turnId: request.turnId,
-				phase: "end",
-			});
-			return { skippedReason: "failed" };
+		const outcome = await this.take(request, "end");
+		if (outcome.checkpointId === undefined || startOutcome.checkpointId === undefined) {
+			return outcome;
 		}
 
-		const output = await this.save(request.workspacePath, id);
-		if (output === null) return { skippedReason: "failed" };
-
-		const outcome = exitCodeToOutcome(output.exitCode);
-		if (outcome.kind !== "created") {
-			this.deps.logger.warn("Checkpoint skipped", {
-				sessionId: request.sessionId,
-				turnId: request.turnId,
-				phase: "end",
-				exitCode: output.exitCode,
-				reason: outcome.reason,
-				detail: outcome.detail,
-				output: keepForLog(output.stdout),
-				...(output.stderr === undefined ? {} : { error: keepForLog(output.stderr) }),
-			});
-			return { skippedReason: outcome.reason };
-		}
-
-		const changes =
-			startOutcome.checkpointId === undefined
-				? undefined
-				: await this.summarize(request.workspacePath, startOutcome.checkpointId, id);
-		return {
-			checkpointId: id,
-			...(changes === undefined ? {} : { changes }),
-		};
+		const changes = await this.summarize(
+			request.workspacePath,
+			startOutcome.checkpointId,
+			outcome.checkpointId,
+		);
+		return changes === undefined ? outcome : { ...outcome, changes };
 	}
 
 	private async save(workspacePath: string, id: CheckpointId): Promise<CheckpointerOutput | null> {
@@ -243,14 +224,10 @@ export class ScriptCheckpointService implements CheckpointService {
 			killGraceMs: CHECKPOINT_KILL_GRACE_MS,
 		};
 		try {
-			const nameStatus = await this.deps.run(
-				["diff", startId, endId, "--", "--name-status", "-z"],
-				options,
-			);
-			const numstat = await this.deps.run(
-				["diff", startId, endId, "--", "--numstat", "-z"],
-				options,
-			);
+			const [nameStatus, numstat] = await Promise.all([
+				this.deps.run(["diff", startId, endId, "--", "--name-status", "-z"], options),
+				this.deps.run(["diff", startId, endId, "--", "--numstat", "-z"], options),
+			]);
 			if (nameStatus.exitCode !== 0 || numstat.exitCode !== 0) {
 				this.deps.logger.warn("The turn diff summary could not be computed", {
 					startId,

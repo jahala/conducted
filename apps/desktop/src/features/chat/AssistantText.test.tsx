@@ -72,4 +72,21 @@ describe("CHAT-06 assistant text", () => {
 		render(<AssistantText text={"![A chart](/tmp/chart.png)"} />);
 		expect(screen.getByRole("img", { name: "A chart" }).getAttribute("src")).toBe("/tmp/chart.png");
 	});
+
+	it("keeps a non-web link from navigating the app window", () => {
+		render(<AssistantText text={"[Open the file](file:///tmp/notes.txt)"} />);
+		const link = screen.getByRole("link", { name: "Open the file" });
+		expect(fireEvent.click(link)).toBe(false);
+		expect(state.openUrl).not.toHaveBeenCalled();
+	});
+
+	it("keys equal list items and table cells by position", () => {
+		const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+		render(<AssistantText text={"- yes\n- yes\n\n| A | B |\n| --- | --- |\n| yes | yes |"} />);
+		const warnings = errors.mock.calls.map((call) => call.join(" "));
+		errors.mockRestore();
+		expect(warnings.some((line) => line.includes("same key"))).toBe(false);
+		expect(screen.getAllByRole("listitem")).toHaveLength(2);
+		expect(screen.getAllByRole("cell")).toHaveLength(2);
+	});
 });

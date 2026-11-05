@@ -14,22 +14,35 @@
  * Scripts page has no route of its own yet.
  * Test first: kind "failed" shows the failure log and a fix action that calls the chat action once.
  */
-import type { TerminalId, WorkspaceId } from "@conducted/shared";
+import type { Result, TerminalId, WorkspaceId } from "@conducted/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServices } from "../../../core/context.tsx";
 import { useActions, useSessions, useSetupState, useWorkspace } from "../../../core/hooks.ts";
+import { SETUP_FAILED_MESSAGE } from "../../../core/services/workspace.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { Spinner } from "../../../ui/Spinner.tsx";
+import { toast, toastError } from "../../../ui/Toast.tsx";
 import { TerminalView } from "../../terminal/TerminalView.tsx";
 import { SetupEmptyState } from "./SetupEmptyState.tsx";
 import { SetupStatusBar } from "./SetupStatusBar.tsx";
 import { SETUP_TAB_TEXT, setupTabKind } from "./setup-state.ts";
 
+/** How many lines of the setup log the fix request carries. */
+export const SETUP_LOG_TAIL_LINES = 200;
+
 /** Sent to the chat when the user asks the agent to fix a failed setup. */
 export const SETUP_FIX_PROMPT =
-	"The setup script failed. Read the setup log in the Setup tab and fix the problem.";
+	"The setup script failed. Fix the problem it reported, then run setup again.";
+
+/** Adds the end of the setup log to the fix request, so the agent does not need the app. */
+export function setupFixPrompt(log: string | null): string {
+	const text = log?.trim() ?? "";
+	if (text === "") return SETUP_FIX_PROMPT;
+	const tail = text.split("\n").slice(-SETUP_LOG_TAIL_LINES).join("\n");
+	return `${SETUP_FIX_PROMPT}\n\nThe last lines of the setup log:\n\n\`\`\`\n${tail}\n\`\`\``;
+}
 
 /** Sent to the chat when the user asks the agent to add a setup script. */
 export const ADD_SETUP_PROMPT =
@@ -97,10 +110,14 @@ export function SetupTab({ workspaceId }: SetupTabProps) {
 				sessions.data[0]);
 	const canSendToChat = !archived && activeSession !== undefined;
 
-	const run = async (work: () => Promise<unknown>): Promise<void> => {
+	const run = async (
+		work: () => Promise<Result<unknown>>,
+		onFailure: (error: { message: string }) => void,
+	): Promise<void> => {
 		setBusy(true);
 		try {
-			await work();
+			const result = await work();
+			if (!result.ok) onFailure(result.error);
 		} finally {
 			setBusy(false);
 		}
@@ -108,7 +125,45 @@ export function SetupTab({ workspaceId }: SetupTabProps) {
 
 	const send = (prompt: string): void => {
 		if (activeSession === undefined) return;
-		void run(() => actions.sessions.send(activeSession.id, prompt, [], "auto"));
+		const sessionId = activeSession.id;
+		void run(
+			() => actions.sessions.send(sessionId, prompt, [], "auto"),
+			(error) => toastError("Failed to attach setup context", error),
+		);
+	};
+
+	const runAgain = (): void => {
+		void run(
+			() => actions.workspaces.retrySetup(workspaceId),
+			() => toast.error(SETUP_FAILED_MESSAGE),
+		);
+	};
+
+	const stop = (): void => {
+		void run(
+			() => services.services.workspace.cancelSetup(workspaceId),
+			(error) => toastError("Couldn't stop the setup script", error),
+		);
+	};
+
+	const askAgentToFix = (): void => {
+		if (activeSession === undefined) return;
+		const sessionId = activeSession.id;
+		void run(
+			async () => {
+				let log: string | null = null;
+				if (view.log === "saved") {
+					const read = await services.services.workspace.readSetupLog(workspaceId);
+					if (read.ok) {
+						log = read.value;
+					} else {
+						toastError("Failed to attach setup logs", read.error);
+					}
+				}
+				return actions.sessions.send(sessionId, setupFixPrompt(log), [], "auto");
+			},
+			(error) => toastError("Failed to attach setup context", error),
+		);
 	};
 
 	const showStatus = kind !== "no_script" && kind !== "not_run" && kind !== "log_missing";
@@ -128,12 +183,9 @@ export function SetupTab({ workspaceId }: SetupTabProps) {
 					exitCode={view.exitCode}
 					interruptedReason={view.interruptedReason}
 					busy={busy || archived || (kind === "failed" && !canSendToChat)}
-					onStop={() => {
-						if (terminalId === null) return;
-						void run(() => actions.terminals.close(terminalId));
-					}}
-					onRunAgain={() => void run(() => actions.workspaces.retrySetup(workspaceId))}
-					onAskAgentToFix={() => send(SETUP_FIX_PROMPT)}
+					onStop={stop}
+					onRunAgain={runAgain}
+					onAskAgentToFix={askAgentToFix}
 				/>
 			) : null}
 
@@ -155,12 +207,7 @@ export function SetupTab({ workspaceId }: SetupTabProps) {
 						body={SETUP_TAB_TEXT.log_missing.body ?? undefined}
 					/>
 					<div className="flex shrink-0 justify-center pb-3">
-						<Button
-							variant="outline"
-							size="sm"
-							disabled={busy}
-							onClick={() => void run(() => actions.workspaces.retrySetup(workspaceId))}
-						>
+						<Button variant="outline" size="sm" disabled={busy} onClick={runAgain}>
 							Retry
 						</Button>
 					</div>

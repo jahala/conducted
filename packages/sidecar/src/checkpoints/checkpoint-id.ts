@@ -12,7 +12,9 @@
  * Test first: exitCodeToOutcome(101) is skipped with reason merge_in_progress.
  * Our design choice: the ref lives under refs/conducted/checkpoints/<id>, our own namespace.
  */
+import type { zCheckpointEvent } from "@conducted/protocol";
 import type { CheckpointId, SessionId, TurnId } from "@conducted/shared";
+import type { z } from "zod";
 
 export type CheckpointPhase = "start" | "end";
 
@@ -43,7 +45,8 @@ export function checkpointRefFor(id: CheckpointId): string {
 	return `${CHECKPOINT_REF_PREFIX}${id}`;
 }
 
-export type SkipReason = "merge_in_progress" | "conflicts" | "failed";
+/** The protocol's checkpoint reason is the one home for this list. */
+export type SkipReason = NonNullable<z.infer<typeof zCheckpointEvent>["skippedReason"]>;
 
 export type ExitOutcome =
 	| { kind: "created" }

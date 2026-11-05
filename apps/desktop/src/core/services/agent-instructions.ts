@@ -9,8 +9,9 @@
  * Must handle: a per-repo custom prompt (`RepoConfig.prompts`) is added to the built-in text,
  * never silently replaces it; the target branch and remote names are inserted as given (they are
  * quoted by the agent's own tools, not by us); a PR template, when the repo has one, is named in
- * the text so the agent reads it; failing checks include the name, link and the last lines of the
- * log, cut to a size the agent can read; a force push is only ever requested as
+ * the text so the agent reads it; a workspace link is included only when the user turns it on,
+ * and the text says it opens the app on this Mac; failing checks include the name, link and the
+ * last lines of the log, cut to a size the agent can read; a force push is only ever requested as
  * `--force-with-lease`; the instruction never asks to rename the branch unless it is the rename
  * request itself.
  * Our design choice: all wording is our own. Each function returns plain text with no hidden
@@ -36,6 +37,8 @@ export const createPrInstruction = (
 	input: InstructionBase & {
 		prTemplatePath: string | null;
 		hasUncommittedChanges: boolean;
+		/** The `conducted://` link to the workspace, or null when the setting is off. */
+		workspaceLink?: string | null;
 	},
 ): string => {
 	const target = input.targetBranch;
@@ -53,6 +56,12 @@ export const createPrInstruction = (
 	if (input.prTemplatePath !== null) {
 		steps.push(
 			`Read the repository's pull request template at \`${input.prTemplatePath}\` and follow it for the description.`,
+		);
+	}
+	const workspaceLink = input.workspaceLink?.trim() ?? "";
+	if (workspaceLink.length > 0) {
+		steps.push(
+			`End the description with this link to the workspace: ${workspaceLink}. It opens the workspace in Conducted on this Mac, so it does not work for anyone else.`,
 		);
 	}
 	steps.push(

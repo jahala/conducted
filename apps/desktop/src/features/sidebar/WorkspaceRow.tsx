@@ -8,7 +8,8 @@
  * Our design choice: The row is a link to the workspace route. Status words come from
  * status-text.ts. Line counts need GIT-04, the Draft badge needs the pull request state and the
  * actions menu is NAV-10; each is left out until its owner is built. The "Archive workspace" badge
- * is not needed in this list because archived workspaces are never listed.
+ * waits for the state that WS-09 gives it; archived workspaces are never listed here. The hover
+ * keys are left out too: R read is NAV-11 and P pin is NAV-04.
  * Must handle: A long name truncates; selected row is marked by background, not accent; unread dot
  * only when there are unread chats; no status yet (hook returns null); hover shows the live
  * Cmd+number hint for this row; keyboard focus ring.

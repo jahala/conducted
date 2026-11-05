@@ -2,7 +2,14 @@ import type { RepoId, SessionId, WorkspaceId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import type { Workspace } from "../core/model.ts";
 import type { WorkspaceSearch } from "../features/workspace/workspace-search.ts";
-import { chooseRestoreTarget, type SavedLocation } from "./navigation-history.ts";
+import {
+	chooseRestoreTarget,
+	readSavedLocation,
+	SAVED_LOCATION_KEY,
+	type SavedLocation,
+	type SavedLocationStorage,
+	saveSavedLocation,
+} from "./navigation-history.ts";
 
 function workspace({
 	id,
@@ -152,5 +159,67 @@ describe("NAV-02 chooseRestoreTarget", () => {
 				hasProjects: true,
 			}),
 		).toEqual({ kind: "empty" });
+	});
+});
+
+function memoryStorage(): SavedLocationStorage & { values: Map<string, string> } {
+	const values = new Map<string, string>();
+	return {
+		values,
+		getItem: (key) => values.get(key) ?? null,
+		setItem: (key, value) => {
+			values.set(key, value);
+		},
+		removeItem: (key) => {
+			values.delete(key);
+		},
+	};
+}
+
+describe("NAV-02 saved location", () => {
+	it("round-trips the workspace and its search", () => {
+		const storage = memoryStorage();
+		const saved = { workspaceId: "w1", search } satisfies SavedLocation;
+
+		saveSavedLocation(saved, storage);
+
+		expect(storage.values.get(SAVED_LOCATION_KEY)).toBe(JSON.stringify(saved));
+		expect(readSavedLocation(storage)).toEqual(saved);
+	});
+
+	it("drops a search value the search schema cannot use", () => {
+		const storage = memoryStorage();
+		storage.setItem(
+			SAVED_LOCATION_KEY,
+			JSON.stringify({ workspaceId: "w1", search: { tab: "nope" } }),
+		);
+
+		expect(readSavedLocation(storage)).toEqual({ workspaceId: "w1", search: {} });
+	});
+
+	it("returns null for unreadable text or a missing workspace id", () => {
+		const storage = memoryStorage();
+		storage.setItem(SAVED_LOCATION_KEY, "not json");
+		expect(readSavedLocation(storage)).toBeNull();
+
+		storage.setItem(SAVED_LOCATION_KEY, JSON.stringify({ workspaceId: 7 }));
+		expect(readSavedLocation(storage)).toBeNull();
+
+		storage.setItem(SAVED_LOCATION_KEY, JSON.stringify({ workspaceId: "" }));
+		expect(readSavedLocation(storage)).toBeNull();
+	});
+
+	it("clears the value when there is no workspace", () => {
+		const storage = memoryStorage();
+		saveSavedLocation({ workspaceId: "w1", search: null }, storage);
+
+		saveSavedLocation({ workspaceId: null, search: null }, storage);
+
+		expect(readSavedLocation(storage)).toBeNull();
+	});
+
+	it("does nothing when storage is unavailable", () => {
+		expect(readSavedLocation(null)).toBeNull();
+		expect(() => saveSavedLocation({ workspaceId: "w1", search: null }, null)).not.toThrow();
 	});
 });

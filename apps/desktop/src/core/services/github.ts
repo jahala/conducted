@@ -44,6 +44,7 @@ import { failedCommandError, type GitRunner, isSuccessfulExit } from "../git/run
 import type { GitHubAccess as GitHubAccessView, IssueView, PullRequest } from "../model.ts";
 import { createPrInstruction } from "./agent-instructions.ts";
 import type { GitCache } from "./git-cache.ts";
+import { buildDeepLink } from "./notifications.ts";
 import type { PollRole } from "./pr-polling.ts";
 import type { AgentMessenger } from "./sessions.ts";
 
@@ -319,7 +320,7 @@ export interface PrWorkspaceContext {
 	prNumber: number | null;
 	/** The target branch as stored, for example "origin/main". */
 	targetBranch?: string;
-	/** The repository's custom Create PR prompt, when its config is loaded. */
+	/** The repository's custom Create PR prompt, read from its loaded config. */
 	customPrompt?: string | null;
 }
 
@@ -551,6 +552,7 @@ export class GithubService {
 		if (!status.ok) return err(status.error);
 		if (!files.ok) return err(files.error);
 
+		const includeLink = this.#deps.setting?.<boolean>("include_workspace_link_in_pr") ?? false;
 		const text = createPrInstruction({
 			remote: found.remote,
 			targetBranch: target.value,
@@ -563,6 +565,7 @@ export class GithubService {
 					.filter((path) => path.length > 0),
 			),
 			hasUncommittedChanges: status.value.trim().length > 0,
+			workspaceLink: includeLink ? buildDeepLink(found.workspaceId, null) : null,
 		});
 		const sent = await this.#deps.agent.sendInstruction(workspaceId, text);
 		return sent.ok ? ok(undefined) : err(sent.error);

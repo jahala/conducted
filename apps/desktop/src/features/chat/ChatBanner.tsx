@@ -1,12 +1,13 @@
 /**
  * @feature CHAT-06 Chat banners
  * Owns: Notices and errors in the list: interrupted, history compacted, compacting, session limit
- * reached, sign-in needed, image too large, 'This message could not be displayed.'.
+ * reached, sign-in needed, 'This message could not be displayed.'.
  * Behaviour: ui-map.md 3.3 (Banners in the list), 7.4 (agent binary and auth problems are shown
  * inline in chat).
  * Our design choice: Sign-in and key problems link to the Agents settings page and show the agent's
- * own message, which names the problem. Retryable errors show 'Try again', which resends the last
- * message.
+ * own message, which names the problem (one auth code covers every agent). Retryable errors show
+ * 'Try again', which resends the last message. 'Image too large' belongs to the composer's
+ * attachment bar, not this list banner.
  * Must handle: Each notice kind has its own wording (the protocol's notice kinds: session_started,
  * compacted, rate_limit, model_changed, info); an error with `retryable` false has no retry; text
  * is selectable; error colour only for real errors, not for notices.
@@ -30,7 +31,7 @@ export interface ChatBannerProps {
 
 function noticeLine(item: Extract<ChatBlock, { kind: "notice" }>["item"]): string {
 	const text = item.text.trim();
-	const compacting = /compact/i.test(text);
+	const compacting = /^compacting\b/i.test(text);
 	switch (item.notice) {
 		case "compacted":
 			return text.length === 0 ? "Chat history compacted" : `Chat history compacted. ${text}`;

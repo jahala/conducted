@@ -44,10 +44,10 @@ describe("WS-03 setup tab view state", () => {
 		expect(setupTabKind(view({ state: "completed", log: "saved" }))).toBe("completed");
 	});
 
-	it("shows a missing log only when the run is idle", () => {
-		expect(setupTabKind(view({ log: "missing" }))).toBe("log_missing");
+	it("shows the log-missing view only for an expired log with no active run", () => {
 		expect(setupTabKind(view({ log: "expired" }))).toBe("log_missing");
-		expect(setupTabKind(view({ state: "completed", log: "missing" }))).toBe("completed");
+		expect(setupTabKind(view({ log: "missing" }))).toBe("not_run");
+		expect(setupTabKind(view({ state: "completed", log: "expired" }))).toBe("completed");
 	});
 
 	it("offers Stop only while running", () => {

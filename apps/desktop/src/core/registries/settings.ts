@@ -761,6 +761,20 @@ const SETTINGS_TABLE = [
 			{ value: "graphite", label: "Graphite" },
 		],
 	},
+	// Our design choice: off, as the research gives no default. The link opens Conducted on the
+	// author's own Mac, so it does not work for anyone else reading the pull request.
+	{
+		key: "include_workspace_link_in_pr",
+		page: "git",
+		scopes: ["user"],
+		title: "Include link to workspace in PR description",
+		description:
+			"Ask the agent to put a link to this workspace in the pull request description. The link only works on your own Mac.",
+		searchTerms: ["workspace", "link", "pull request", "description", "deep link"],
+		feature: "PR-02",
+		type: "bool",
+		default: false,
+	},
 	// Our design choice: off, as the research gives no default.
 	{
 		key: "automerge_enabled",

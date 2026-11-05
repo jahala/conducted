@@ -22,4 +22,12 @@ describe("CHAT-06 scroll to bottom button", () => {
 		render(<ScrollToBottomButton visible hasNew onClick={vi.fn()} />);
 		expect(screen.getByText("New")).toBeTruthy();
 	});
+
+	it("floats over the list instead of sitting after it", () => {
+		const { container } = render(<ScrollToBottomButton visible hasNew={false} onClick={vi.fn()} />);
+		const overlay = container.firstElementChild as HTMLElement;
+		expect(overlay.className).toContain("absolute");
+		expect(overlay.className).toContain("inset-x-0");
+		expect(overlay.className).toContain("bottom-3");
+	});
 });

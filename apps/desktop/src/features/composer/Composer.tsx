@@ -9,8 +9,7 @@
  * composer actions' menu; wide ones show the MCP status button directly. The accent colour is used
  * once here: the send button.
  * Keyboard: Cmd+L focuses the editor and Cmd+Shift+Backspace cancels the running agent. Both are
- * window listeners because the shortcut dispatcher (NAV-14) and command runner are not built yet.
- * This pair is the documented exception to the command registry until then.
+ * command handlers (NAV-14), so a shortcut the user rebinds moves with it.
  * Must handle: Archived or read-only workspace (ArchivedComposerBar instead); agent working (send
  * becomes queue or steer, a stop button appears); draft restored when the app restarts; empty text
  * (send disabled); attachments only (send enabled); the sidecar is down (message kept, error shown,
@@ -27,6 +26,7 @@ import type { SessionId, WorkspaceId } from "@conducted/shared";
 import type { Editor } from "@tiptap/react";
 import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
+import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import type { Draft } from "../../core/api.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions } from "../../core/hooks.ts";
@@ -138,23 +138,17 @@ export function Composer({ sessionId }: ComposerProps) {
 		toastError("Couldn't save the draft", draftError);
 	}, [draftError]);
 
-	// Cmd+L and Cmd+Shift+Backspace are the documented exception until NAV-14's dispatcher exists.
-	useEffect(() => {
-		const handleShortcut = (event: KeyboardEvent) => {
-			if (event.ctrlKey || event.altKey) return;
-			if (event.metaKey && !event.shiftKey && event.key.toLowerCase() === "l") {
-				event.preventDefault();
-				editor?.commands.focus();
-				return;
-			}
-			if (event.metaKey && event.shiftKey && event.key === "Backspace" && working) {
-				event.preventDefault();
-				void stop();
-			}
-		};
-		window.addEventListener("keydown", handleShortcut);
-		return () => window.removeEventListener("keydown", handleShortcut);
-	}, [editor, stop, working]);
+	useCommandHandler("chat.focusInput", "area", () => {
+		if (editor === null) return false;
+		editor.commands.focus();
+		return true;
+	});
+
+	useCommandHandler("chat.cancelAgent", "area", () => {
+		if (!working) return false;
+		void stop();
+		return true;
+	});
 
 	const send = async (intent: SendIntent) => {
 		if (editor === null) return;
@@ -165,6 +159,8 @@ export function Composer({ sessionId }: ComposerProps) {
 		try {
 			const result = await actions.sessions.send(sessionId, body, attachments, delivery);
 			if (!result.ok) {
+				// A cancel during an in-flight send restores the text to the draft; keep the editor.
+				if (result.error.code === "cancelled") return;
 				toastError("Couldn't send the message", result.error);
 				return;
 			}

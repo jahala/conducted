@@ -199,7 +199,9 @@ describe("CHAT-10 question card", () => {
 	});
 
 	it("comes back with a retry message when the answer cannot be sent", async () => {
-		state.answer.mockResolvedValue(err(appError("sidecar_down", "The sidecar is not running.")));
+		state.answer
+			.mockResolvedValueOnce(err(appError("sidecar_down", "The sidecar is not running.")))
+			.mockResolvedValueOnce(ok(undefined));
 		renderCard([question({ question: "Which database?", options: [option("SQLite")] })]);
 
 		fireEvent.click(screen.getByRole("button", { name: "SQLite" }));
@@ -207,5 +209,8 @@ describe("CHAT-10 question card", () => {
 
 		expect(await screen.findByText("Could not send answers. Try again.")).toBeTruthy();
 		expect(screen.getByRole("button", { name: "Submit" })).toBeTruthy();
+
+		fireEvent.keyDown(card(), { key: "Enter" });
+		await waitFor(() => expect(state.answer).toHaveBeenCalledTimes(2));
 	});
 });

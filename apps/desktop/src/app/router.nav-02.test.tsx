@@ -6,7 +6,7 @@
  * Test first: navigating to /all-workspaces renders the Home screen area; "/" renders the centre empty state.
  */
 import { ok, type RepoId, type SessionId, type WorkspaceId } from "@conducted/shared";
-import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
+import { createMemoryHistory, type RouterHistory, RouterProvider } from "@tanstack/react-router";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createStore } from "zustand/vanilla";
@@ -15,12 +15,17 @@ import { ServicesProvider } from "../core/context.tsx";
 import type { Repo, Workspace } from "../core/model.ts";
 import { RepoService, type RepoServiceDeps } from "../core/services/repo.ts";
 import "../test/dom-polyfills.ts";
+import { CommandRegistryProvider, createCommandRegistry } from "./command-dispatcher.ts";
+import { SAVED_LOCATION_KEY } from "./navigation-history.ts";
 import { useOverlayStore } from "./overlay-store.ts";
 import { AppProviders, createQueryClient } from "./providers.tsx";
 import { createAppRouter } from "./router.tsx";
 
 afterEach(cleanup);
-beforeEach(() => useOverlayStore.getState().close());
+beforeEach(() => {
+	useOverlayStore.getState().close();
+	window.localStorage.clear();
+});
 
 function repo(id: string): Repo {
 	return {
@@ -137,18 +142,23 @@ function testContainer(fixture: Fixture): {
 	};
 }
 
-async function openApp(path: string, fixture: Fixture = {}) {
-	const router = createAppRouter(createMemoryHistory({ initialEntries: [path] }));
+async function openApp(path: string | RouterHistory, fixture: Fixture = {}) {
+	const router = createAppRouter(
+		typeof path === "string" ? createMemoryHistory({ initialEntries: [path] }) : path,
+	);
+	const registry = createCommandRegistry();
 	const { container, setActiveSession } = testContainer(fixture);
 	render(
 		<ServicesProvider container={container}>
 			<AppProviders client={createQueryClient(() => {})}>
-				<RouterProvider router={router} />
+				<CommandRegistryProvider registry={registry}>
+					<RouterProvider router={router} />
+				</CommandRegistryProvider>
 			</AppProviders>
 		</ServicesProvider>,
 	);
 	await router.load();
-	return { router, setActiveSession };
+	return { router, setActiveSession, registry };
 }
 
 describe("NAV-02 route tree", () => {
@@ -174,6 +184,56 @@ describe("NAV-02 route tree", () => {
 	});
 });
 
+describe("NAV-02 last location", () => {
+	it("reopens the saved workspace and its search when the app starts at /", async () => {
+		window.localStorage.setItem(
+			SAVED_LOCATION_KEY,
+			JSON.stringify({ workspaceId: "w1", search: { tab: "pr", pr: 42 } }),
+		);
+		const { router } = await openApp("/", {
+			repos: [repo("r1")],
+			workspaces: [workspace({ id: "w1" })],
+		});
+
+		await waitFor(() => expect(router.state.location.pathname).toBe("/repository/r1/workspace/w1"));
+		expect(router.state.location.search).toMatchObject({ tab: "pr", pr: 42 });
+	});
+
+	it("skips an archived saved workspace and opens the most recent ready one", async () => {
+		window.localStorage.setItem(
+			SAVED_LOCATION_KEY,
+			JSON.stringify({ workspaceId: "w1", search: { tab: "pr", pr: 42 } }),
+		);
+		const { router } = await openApp("/", {
+			repos: [repo("r1")],
+			workspaces: [
+				workspace({ id: "w1", state: "archived", archivedAt: 10, lastActivityAt: 900 }),
+				workspace({ id: "w2", lastActivityAt: 500 }),
+				workspace({ id: "w3", lastActivityAt: 700 }),
+			],
+		});
+
+		await waitFor(() => expect(router.state.location.pathname).toBe("/repository/r1/workspace/w3"));
+		expect(router.state.location.search).toEqual({});
+	});
+
+	it("saves the workspace route once it settles", async () => {
+		await openApp("/repository/r1/workspace/w1?tab=file&path=src/a.ts&gitTab=changes", {
+			repos: [repo("r1")],
+			workspaces: [workspace({ id: "w1" })],
+		});
+
+		await waitFor(() => {
+			const saved = window.localStorage.getItem(SAVED_LOCATION_KEY);
+			expect(saved).not.toBeNull();
+			expect(JSON.parse(saved ?? "null")).toMatchObject({
+				workspaceId: "w1",
+				search: { tab: "file", path: "src/a.ts", gitTab: "changes" },
+			});
+		});
+	});
+});
+
 describe("NAV-02 route repair", () => {
 	it("sends an archived workspace to Home", async () => {
 		const { router } = await openApp("/repository/r1/workspace/w1?tab=pr", {
@@ -182,7 +242,8 @@ describe("NAV-02 route repair", () => {
 		});
 
 		await waitFor(() => expect(router.state.location.pathname).toBe("/all-workspaces"));
-		expect(await screen.findByText("Home")).toBeTruthy();
+		const main = await screen.findByRole("main");
+		expect(await within(main).findByText("Home")).toBeTruthy();
 	});
 
 	it("sends a deleted workspace to Home when other workspaces are known", async () => {
@@ -238,5 +299,20 @@ describe("NAV-02 per-workspace URL state", () => {
 		});
 
 		expect(router.state.location.search).toMatchObject({ tab: "pr", pr: 42 });
+	});
+});
+
+describe("NAV-02 back and forward commands", () => {
+	it("moves through history with nav.back and nav.forward", async () => {
+		const { router, registry } = await openApp(
+			createMemoryHistory({ initialEntries: ["/all-workspaces", "/dashboard"] }),
+		);
+
+		expect(router.state.location.pathname).toBe("/dashboard");
+		registry.run("nav.back");
+		await waitFor(() => expect(router.state.location.pathname).toBe("/all-workspaces"));
+
+		registry.run("nav.forward");
+		await waitFor(() => expect(router.state.location.pathname).toBe("/dashboard"));
 	});
 });

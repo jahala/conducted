@@ -35,7 +35,7 @@
  * fake host without touching a real socket.
  */
 import { randomBytes, randomUUID } from "node:crypto";
-import { access, mkdir, open, readFile, realpath, rename, rm, stat } from "node:fs/promises";
+import { access, mkdir, open, readFile, realpath, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
@@ -57,6 +57,7 @@ import {
 	systemClock,
 } from "@conducted/shared";
 import { ScriptCheckpointService } from "../checkpoints/checkpoint-service.ts";
+import { runCheckpointer } from "../checkpoints/run-checkpointer.ts";
 import { parseSidecarConfig, type SidecarConfig } from "../config.ts";
 import { createLogger, type Logger, type LogSink } from "../logging/logger.ts";
 import { EXIT_USAGE } from "../main.ts";
@@ -65,7 +66,7 @@ import { RunnerModelCatalog } from "../models/catalog.ts";
 import { RunnerMcpServerLister, RunnerSlashCommandLister } from "../models/slash-and-mcp.ts";
 import { SessionUsageReader } from "../models/usage.ts";
 import { FileEventOutbox } from "../outbox/event-outbox.ts";
-import type { OutboxStorage } from "../outbox/outbox-file.ts";
+import { createOutboxStorage } from "../outbox/node-storage.ts";
 import { OutboxReplayer } from "../outbox/replay.ts";
 import { AgentProcessManager } from "../process/process-manager.ts";
 import { MessagePromptAssembler, type PromptFiles } from "../prompt/assemble.ts";
@@ -779,106 +780,6 @@ export function createPromptFiles(): PromptFiles {
 			}
 		},
 	};
-}
-
-/** Runs checkpointer.sh for one request. */
-async function runCheckpointer(
-	args: readonly string[],
-	options: { cwd: string; timeoutMs: number; killGraceMs: number },
-): Promise<{ exitCode: number; stdout: string }> {
-	const child = Bun.spawn({
-		cmd: [...args],
-		cwd: options.cwd,
-		stdin: "ignore",
-		stdout: "pipe",
-		stderr: "ignore",
-	});
-	const timer = setTimeout(() => child.kill(), options.timeoutMs);
-	const killTimer = setTimeout(
-		() => child.kill("SIGKILL"),
-		options.timeoutMs + options.killGraceMs,
-	);
-	try {
-		const stdout = await new Response(child.stdout).text();
-		const exitCode = await child.exited;
-		return { exitCode: exitCode ?? -1, stdout };
-	} finally {
-		clearTimeout(timer);
-		clearTimeout(killTimer);
-	}
-}
-
-function createOutboxStorage(root: string): OutboxStorage {
-	return {
-		async list() {
-			try {
-				const { readdir } = await import("node:fs/promises");
-				await mkdir(root, { recursive: true, mode: 0o700 });
-				return ok(await readdir(root));
-			} catch (cause) {
-				return err(appError("outbox_list_failed", messageOf(cause), cause));
-			}
-		},
-		async read(fileName) {
-			try {
-				return ok(await readFile(path.join(root, fileName), "utf8"));
-			} catch (cause) {
-				if (isMissing(cause)) return ok(null);
-				return err(appError("outbox_read_failed", messageOf(cause), cause));
-			}
-		},
-		async writeAtomic(fileName, text) {
-			const target = path.join(root, fileName);
-			const temp = `${target}.${process.pid}.tmp`;
-			try {
-				await mkdir(root, { recursive: true, mode: 0o700 });
-				const handle = await open(temp, "w", 0o600);
-				await handle.writeFile(text);
-				await handle.sync();
-				await handle.close();
-				await rename(temp, target);
-				return ok(undefined);
-			} catch (cause) {
-				await rm(temp, { force: true }).catch(() => {});
-				return err(appError("outbox_write_failed", messageOf(cause), cause));
-			}
-		},
-		async moveToTrash(fileName) {
-			try {
-				const child = Bun.spawn({ cmd: ["trash", path.join(root, fileName)], stderr: "pipe" });
-				if ((await child.exited) !== 0) {
-					return err(appError("trash_failed", `trash refused ${fileName}`));
-				}
-				return ok(undefined);
-			} catch (cause) {
-				return err(appError("trash_failed", messageOf(cause), cause));
-			}
-		},
-		async cleanTempFiles() {
-			try {
-				const { readdir } = await import("node:fs/promises");
-				const names = await readdir(root);
-				let moved = 0;
-				for (const name of names) {
-					if (!name.endsWith(".tmp")) continue;
-					const child = Bun.spawn({ cmd: ["trash", path.join(root, name)], stderr: "pipe" });
-					if ((await child.exited) === 0) moved += 1;
-				}
-				return ok(moved);
-			} catch (cause) {
-				return err(appError("outbox_clean_failed", messageOf(cause), cause));
-			}
-		},
-	};
-}
-
-function isMissing(cause: unknown): boolean {
-	return (
-		typeof cause === "object" &&
-		cause !== null &&
-		"code" in cause &&
-		(cause as { code?: string }).code === "ENOENT"
-	);
 }
 
 /** The ports every runner shares. */

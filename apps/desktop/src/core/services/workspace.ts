@@ -41,11 +41,14 @@ import {
 	type Result,
 	type SectionId,
 	type SessionId,
+	type TerminalId,
 	type WorkspaceId,
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
+import { globToRegExp } from "../../platform/glob.ts";
 import type { Platform } from "../../platform/platform.ts";
 import type { Draft, NewWorkspaceInput, UnarchiveOutcome } from "../api.ts";
+import { setupLogFile } from "../app-paths.ts";
 import type { Repositories } from "../db/repositories.ts";
 import { lsFiles, lsFilesIgnoredNul } from "../git/commands.ts";
 import { apiUserLogin } from "../git/gh-commands.ts";
@@ -346,27 +349,6 @@ export function parseWorktreeInclude(text: string): string[] {
 
 const hasGlob = (pattern: string): boolean => /[*?]/.test(pattern);
 
-/** Turns a simple gitignore-style glob into an anchored regular expression. */
-function globToRegExp(pattern: string): RegExp {
-	let source = "^";
-	for (let index = 0; index < pattern.length; index += 1) {
-		const char = pattern.charAt(index);
-		if (char === "*") {
-			if (pattern[index + 1] === "*") {
-				source += ".*";
-				index += 1;
-			} else {
-				source += "[^/]*";
-			}
-		} else if (char === "?") {
-			source += "[^/]";
-		} else {
-			source += char.replace(/[.+^${}()|[\]\\]/g, "\\$&");
-		}
-	}
-	return new RegExp(`${source}$`);
-}
-
 /** True when a worktree-relative path matches one copy pattern. */
 export function matchesCopyPattern(path: string, pattern: string): boolean {
 	const trimmed = pattern
@@ -399,6 +381,119 @@ export function selectIncludedPaths(
 	return [...selected];
 }
 
+export interface CopyIncludedFilesDeps {
+	fs: Pick<Platform["fs"], "readText" | "exists" | "stat" | "mkdirp" | "readDir">;
+	shell: Pick<Platform["shell"], "run">;
+	git: GitRunner;
+	repoConfig?: (repoId: RepoId) => Promise<Result<RepoConfig>>;
+}
+
+/**
+ * Copies the files the repository asks for into a new worktree: the lines of `.worktreeinclude`
+ * plus the repository's `file_include_globs` (default `.env*`), each file up to 256 KiB
+ * (services-map.md 3.1, 5A.5.5). Every path it could not copy comes back as a warning, so the
+ * create page can tell the user rather than dropping it silently.
+ */
+export async function copyIncludedFiles(
+	deps: CopyIncludedFilesDeps,
+	repo: Repo,
+	workspace: Workspace,
+): Promise<Result<string[]>> {
+	const warnings: string[] = [];
+	let fromSettings: readonly string[] = DEFAULT_COPY_FILES;
+	if (deps.repoConfig !== undefined) {
+		const configured = await deps.repoConfig(repo.id);
+		if (!configured.ok) {
+			warnings.push(`Couldn't read the repository's file list: ${configured.error.message}`);
+		} else if (Array.isArray(configured.value.copyFiles)) {
+			fromSettings = configured.value.copyFiles;
+		}
+	}
+
+	const includePath = `${repo.rootPath}/.worktreeinclude`;
+	let fromFile: string[] = [];
+	if (await deps.fs.exists(includePath)) {
+		const include = await deps.fs.readText(includePath);
+		if (include.ok) fromFile = parseWorktreeInclude(include.value);
+		else warnings.push(`Couldn't read .worktreeinclude: ${include.error.message}`);
+	}
+
+	const patterns = [...fromSettings, ...fromFile];
+	if (patterns.length === 0) return ok(warnings);
+
+	const listed = await deps.git.run(lsFilesIgnoredNul(), { cwd: repo.rootPath });
+	if (!listed.ok) return listed;
+	const candidates = listed.value.stdout.split("\0").filter((path) => path !== "");
+	const selected = selectIncludedPaths(candidates, patterns);
+
+	for (const path of selected) {
+		const source = `${repo.rootPath}/${path}`;
+		const target = `${workspace.path}/${path}`;
+		const stat = await deps.fs.stat(source);
+		if (!stat.ok) {
+			warnings.push(`Couldn't copy ${path}: ${stat.error.message}`);
+			continue;
+		}
+		const copied = stat.value.isDirectory
+			? await copyDirectory(deps, source, target, path, warnings)
+			: await copyFile(deps, source, target, path, stat.value.size, warnings);
+		if (!copied.ok) return copied;
+	}
+	return ok(warnings);
+}
+
+/** Copies one included file with its mode, or records why it was skipped. */
+async function copyFile(
+	deps: CopyIncludedFilesDeps,
+	source: string,
+	target: string,
+	displayPath: string,
+	size: number,
+	warnings: string[],
+): Promise<Result<void>> {
+	if (size > COPY_FILE_SIZE_LIMIT) {
+		warnings.push(`Skipped ${displayPath}: larger than 256 KiB.`);
+		return ok(undefined);
+	}
+	const parent = target.slice(0, target.lastIndexOf("/"));
+	const made = await deps.fs.mkdirp(parent);
+	if (!made.ok) return made;
+	const copied = await deps.shell.run({ program: "cp", args: ["-p", source, target], cwd: parent });
+	if (!copied.ok) return copied;
+	if (copied.value.exitCode !== 0) {
+		warnings.push(`Couldn't copy ${displayPath}: ${copied.value.stderr.trim() || "cp failed"}`);
+	}
+	return ok(undefined);
+}
+
+/** Copies a whole included folder, keeping each file's mode and the 256 KiB cap. */
+async function copyDirectory(
+	deps: CopyIncludedFilesDeps,
+	source: string,
+	target: string,
+	displayPath: string,
+	warnings: string[],
+): Promise<Result<void>> {
+	const listed = await deps.fs.readDir(source);
+	if (!listed.ok) {
+		warnings.push(`Couldn't read ${displayPath}: ${listed.error.message}`);
+		return ok(undefined);
+	}
+	const made = await deps.fs.mkdirp(target);
+	if (!made.ok) return made;
+	for (const entry of listed.value) {
+		const name = entry.path.slice(entry.path.lastIndexOf("/") + 1);
+		const childDisplay = `${displayPath.replace(/\/$/, "")}/${name}`;
+		const childSource = `${source.replace(/\/$/, "")}/${name}`;
+		const childTarget = `${target.replace(/\/$/, "")}/${name}`;
+		const copied = entry.isDirectory
+			? await copyDirectory(deps, childSource, childTarget, childDisplay, warnings)
+			: await copyFile(deps, childSource, childTarget, childDisplay, entry.size, warnings);
+		if (!copied.ok) return copied;
+	}
+	return ok(undefined);
+}
+
 /** Resolves `NewWorkspaceInput.from` to the branch the worktree starts from. */
 export function baseBranchFor(
 	defaultBranch: string,
@@ -419,7 +514,14 @@ export function baseBranchFor(
 	);
 }
 
-export type SetupState = "idle" | "running" | "completed" | "failed" | "cancelled";
+export type SetupState =
+	| "idle"
+	| "detecting"
+	| "running"
+	| "stopping"
+	| "completed"
+	| "failed"
+	| "cancelled";
 
 /** Shown when the app was quit or crashed while setup was running (services-map.md 2.4.6). */
 export const SETUP_INTERRUPTED_MESSAGE =
@@ -470,7 +572,7 @@ export interface WorkspaceSessionsPort {
 }
 
 export interface WorkspaceServiceDeps {
-	platform: Pick<Platform, "fs" | "opener">;
+	platform: Pick<Platform, "fs" | "opener" | "shell">;
 	git: GitRunner;
 	repos: Pick<Repositories, "repos" | "workspaces" | "sessions" | "sections">;
 	placeNames: PlaceNames;
@@ -485,7 +587,10 @@ export interface WorkspaceServiceDeps {
 	/** The one default-config rule for a new chat. Supplied by the composition root. */
 	defaultConfig?: (workspaceId: WorkspaceId) => Promise<Result<SessionConfig>>;
 	scripts: {
-		runSetup(workspaceId: WorkspaceId): Promise<Result<SetupRunResult>>;
+		runSetup(
+			workspaceId: WorkspaceId,
+			onStarted?: (terminalId: TerminalId) => void,
+		): Promise<Result<SetupRunResult>>;
 		runArchive(workspaceId: WorkspaceId): Promise<Result<void>>;
 		stopWorkspace(workspaceId: WorkspaceId): Promise<Result<void>>;
 	};
@@ -500,6 +605,8 @@ export class WorkspaceService {
 	#createQueue: Promise<void> = Promise.resolve();
 	/** Bumped by every start and cancel, so an older run cannot change the state after them. */
 	readonly #setupNonces = new Map<WorkspaceId, number>();
+	/** The nonce of a start that has not reached its first await yet, so a second one is ignored. */
+	readonly #setupStarting = new Map<WorkspaceId, number>();
 
 	constructor(deps: WorkspaceServiceDeps) {
 		this.#deps = deps;
@@ -529,13 +636,15 @@ export class WorkspaceService {
 			const logPath = await this.#deps.repos.workspaces.getSetupLogPath(workspace.id);
 			if (!logPath.ok || logPath.value === null) continue;
 			const saved = await this.#deps.platform.fs.exists(logPath.value);
+			// The exit code and the interrupted reason are not stored, so the load leaves both
+			// null rather than inventing a value from the workspace state.
 			setupRuns[workspace.id] = {
 				state: workspace.state === "ready" ? "completed" : "failed",
-				exitCode: workspace.state === "ready" ? 0 : 1,
+				exitCode: null,
 				terminalId: null,
 				logPath: logPath.value,
 				log: saved ? "saved" : "missing",
-				interruptedReason: workspace.state === "failed" ? SETUP_INTERRUPTED_MESSAGE : null,
+				interruptedReason: null,
 			};
 		}
 		this.store.setState((state) => ({
@@ -681,8 +790,18 @@ export class WorkspaceService {
 		if (!prepared.ok) return this.#fail(workspace, prepared.error);
 		if (prepared.value.warning !== null) warnings.push(prepared.value.warning);
 
-		const copied = await this.#copyIncludedFiles(repo, workspace);
+		const copied = await copyIncludedFiles(
+			{
+				fs: this.#deps.platform.fs,
+				shell: this.#deps.platform.shell,
+				git: this.#deps.git,
+				repoConfig: this.#deps.repoConfig,
+			},
+			repo,
+			workspace,
+		);
 		if (!copied.ok) return this.#fail(workspace, copied.error);
+		warnings.push(...copied.value);
 
 		const counted = await this.#countWorktreeFiles(workspace);
 		if (!counted.ok) return this.#fail(workspace, counted.error);
@@ -699,44 +818,6 @@ export class WorkspaceService {
 			);
 		}
 		return ok({ workspace: final.value, warnings });
-	}
-
-	/**
-	 * Copies the files the repository asks for into a new worktree: the lines of
-	 * `.worktreeinclude` plus the repository's `file_include_globs` (default `.env*`), each up to
-	 * 256 KiB (services-map.md 3.1, 5A.5.5).
-	 */
-	async #copyIncludedFiles(repo: Repo, workspace: Workspace): Promise<Result<void>> {
-		const configured =
-			this.#deps.repoConfig === undefined ? null : await this.#deps.repoConfig(repo.id);
-		const fromSettings =
-			configured?.ok === true && Array.isArray(configured.value.copyFiles)
-				? configured.value.copyFiles
-				: DEFAULT_COPY_FILES;
-		const include = await this.#deps.platform.fs.readText(`${repo.rootPath}/.worktreeinclude`);
-		const fromFile = include.ok ? parseWorktreeInclude(include.value) : [];
-		const patterns = [...fromSettings, ...fromFile];
-		if (patterns.length === 0) return ok(undefined);
-
-		const listed = await this.#deps.git.run(lsFilesIgnoredNul(), { cwd: repo.rootPath });
-		if (!listed.ok) return ok(undefined);
-		const candidates = listed.value.stdout.split("\0").filter((path) => path !== "");
-		const selected = selectIncludedPaths(candidates, patterns);
-
-		for (const path of selected) {
-			const source = `${repo.rootPath}/${path}`;
-			const target = `${workspace.path}/${path}`;
-			const stat = await this.#deps.platform.fs.stat(source);
-			if (!stat.ok || stat.value.isDirectory || stat.value.size > COPY_FILE_SIZE_LIMIT) continue;
-			const text = await this.#deps.platform.fs.readText(source);
-			if (!text.ok) continue;
-			const parent = target.slice(0, target.lastIndexOf("/"));
-			const made = await this.#deps.platform.fs.mkdirp(parent);
-			if (!made.ok) return made;
-			const written = await this.#deps.platform.fs.writeTextAtomic(target, text.value);
-			if (!written.ok) return written;
-		}
-		return ok(undefined);
 	}
 
 	/** Counts the files in the new worktree with `git ls-files`, for the Setup tab (3.1). */
@@ -760,55 +841,77 @@ export class WorkspaceService {
 
 	/** Runs the repo's setup script in a terminal and moves the workspace to ready or failed. */
 	async runSetup(workspaceId: WorkspaceId): Promise<Result<void>> {
-		const found = await this.#deps.repos.workspaces.get(workspaceId);
-		if (!found.ok) return found;
-		const workspace = found.value;
-		if (workspace === null) {
-			return err(appError("workspace_unknown", "That workspace no longer exists."));
-		}
-		if (workspace.state === "archived" || workspace.state === "archiving") {
-			return err(appError("workspace_not_ready", "That workspace is archived."));
-		}
+		// Register the start and its nonce before the first await. A second start or a cancel in
+		// the same tick then sees this run instead of slipping past a check that waits on the row.
+		if (this.#setupStarting.has(workspaceId)) return ok(undefined);
 		const current = this.store.getState().setup[workspaceId];
 		if (current === "running") return ok(undefined);
 
 		const nonce = (this.#setupNonces.get(workspaceId) ?? 0) + 1;
 		this.#setupNonces.set(workspaceId, nonce);
-		this.#setSetupRun(workspaceId, {
-			state: "running",
-			exitCode: null,
-			terminalId: null,
-			logPath: null,
-			log: "live",
-			interruptedReason: null,
-		});
+		this.#setupStarting.set(workspaceId, nonce);
 
-		const result = await this.#deps.scripts.runSetup(workspaceId);
-		if (this.#setupNonces.get(workspaceId) !== nonce) return ok(undefined);
+		try {
+			const found = await this.#deps.repos.workspaces.get(workspaceId);
+			if (this.#setupNonces.get(workspaceId) !== nonce) return ok(undefined);
+			if (!found.ok) return found;
+			const workspace = found.value;
+			if (workspace === null) {
+				return err(appError("workspace_unknown", "That workspace no longer exists."));
+			}
+			if (workspace.state === "archived" || workspace.state === "archiving") {
+				return err(appError("workspace_not_ready", "That workspace is archived."));
+			}
 
-		if (!result.ok) {
-			this.#setSetupRun(workspaceId, { state: "failed", exitCode: 1, log: "missing" });
-			const moved = await this.#finishSetup(workspaceId, false);
-			return moved.ok ? err(result.error) : moved;
+			// Record the log path before the script starts, so a quit during setup leaves a row
+			// that the next start can still show a log for.
+			const logPath = setupLogFile(this.#deps.platform.fs.paths, workspaceId);
+			const recorded = await this.#deps.repos.workspaces.setSetupLogPath(workspaceId, logPath);
+			if (!recorded.ok) return recorded;
+			this.#setSetupRun(workspaceId, {
+				state: "detecting",
+				exitCode: null,
+				terminalId: null,
+				logPath,
+				log: "live",
+				interruptedReason: null,
+			});
+
+			const result = await this.#deps.scripts.runSetup(workspaceId, (terminalId) => {
+				if (this.#setupNonces.get(workspaceId) !== nonce) return;
+				this.#setSetupRun(workspaceId, { state: "running", terminalId });
+			});
+			if (this.#setupNonces.get(workspaceId) !== nonce) return ok(undefined);
+
+			if (!result.ok) {
+				this.#setSetupRun(workspaceId, { state: "failed", exitCode: null, log: "missing" });
+				const moved = await this.#finishSetup(workspaceId, false);
+				return moved.ok ? err(result.error) : moved;
+			}
+
+			const run = result.value;
+			const exitCode = run.exitCode;
+			// A null exit code means the process was killed or its end is unknown. Only a real
+			// exit code of 0, or no script to run, counts as success.
+			const succeeded = run.scriptFound ? exitCode === 0 : true;
+			if (!run.scriptFound) {
+				await this.#deps.repos.workspaces.setSetupLogPath(workspaceId, null);
+			}
+			this.#setSetupRun(workspaceId, {
+				state: succeeded ? "completed" : "failed",
+				exitCode,
+				terminalId: run.terminalId ?? null,
+				logPath: run.scriptFound ? (run.logPath ?? null) : null,
+				log: run.log ?? "missing",
+			});
+			const moved = await this.#finishSetup(workspaceId, succeeded);
+			if (!moved.ok) return moved;
+			return succeeded ? ok(undefined) : err(appError("setup_failed", SETUP_FAILED_MESSAGE));
+		} finally {
+			if (this.#setupStarting.get(workspaceId) === nonce) {
+				this.#setupStarting.delete(workspaceId);
+			}
 		}
-
-		const run = result.value;
-		const exitCode = run.exitCode ?? null;
-		const logPath = run.logPath ?? null;
-		const succeeded = exitCode === null || exitCode === 0;
-		this.#setSetupRun(workspaceId, {
-			state: succeeded ? "completed" : "failed",
-			exitCode,
-			terminalId: run.terminalId ?? null,
-			logPath,
-			log: run.log ?? "missing",
-		});
-		if (logPath !== null) {
-			await this.#deps.repos.workspaces.setSetupLogPath(workspaceId, logPath);
-		}
-		const moved = await this.#finishSetup(workspaceId, succeeded);
-		if (!moved.ok) return moved;
-		return succeeded ? ok(undefined) : err(appError("setup_failed", SETUP_FAILED_MESSAGE));
 	}
 
 	/** Reads the saved setup transcript for the Setup tab. */
@@ -825,10 +928,22 @@ export class WorkspaceService {
 	/** Stops a running setup and shows "Cancelled setup script" instead of a failure. */
 	async cancelSetup(workspaceId: WorkspaceId): Promise<Result<void>> {
 		const current = this.store.getState().setup[workspaceId];
-		if (current !== "running") return ok(undefined);
+		const starting = this.#setupStarting.get(workspaceId);
+		// A start that is still waiting on its row has no "running" state yet, but it must still
+		// be cancelled rather than run after the user pressed Stop.
+		if (current !== "running" && starting === undefined) return ok(undefined);
 		this.#setupNonces.set(workspaceId, (this.#setupNonces.get(workspaceId) ?? 0) + 1);
+		if (starting !== undefined && this.#setupStarting.get(workspaceId) === starting) {
+			this.#setupStarting.delete(workspaceId);
+		}
+		this.#setSetupRun(workspaceId, { state: "stopping", exitCode: null, terminalId: null });
+		let stopped: Result<void>;
+		try {
+			stopped = await this.#deps.scripts.stopWorkspace(workspaceId);
+		} catch (cause) {
+			stopped = err(appError("setup_stop_failed", "Couldn't stop the setup script.", cause));
+		}
 		this.#setSetupRun(workspaceId, { state: "cancelled", exitCode: null, terminalId: null });
-		const stopped = await this.#deps.scripts.stopWorkspace(workspaceId);
 		await this.#finishSetup(workspaceId, false);
 		return stopped;
 	}

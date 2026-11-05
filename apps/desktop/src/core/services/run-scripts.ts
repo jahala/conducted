@@ -15,6 +15,9 @@
  * not saved to disk; only the last 20 action ids per workspace are remembered.
  * Our design choice: the terminal service owns the process; this service owns the rules around
  * it. Run history is kept in memory plus the `settings` table is not used for it.
+ * Our design choice: setup runs with no `userEnv` for now. SET-04 owns the settings and Keychain
+ * variables; until that service is wired here, no extra variables are passed rather than a
+ * made-up set.
  * Test first: starting an action while another runs in the same workspace stops the first.
  */
 import {
@@ -28,6 +31,7 @@ import {
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { FileSystem } from "../../platform/platform.ts";
 import type { RunState } from "../api.ts";
+import { setupLogFile } from "../app-paths.ts";
 import type { Repo, RepoConfig, SetupView, Workspace } from "../model.ts";
 import { buildScriptEnv, type TerminalsService } from "./terminals.ts";
 
@@ -66,6 +70,8 @@ export const SETUP_LOG_LINES = 20_000;
 
 /** What one setup run leaves behind for the Setup tab. */
 export interface SetupRunResult {
+	/** False when the repository has no setup script, so nothing ran. */
+	scriptFound: boolean;
 	exitCode: number | null;
 	terminalId: TerminalId | null;
 	logPath: string | null;
@@ -79,7 +85,7 @@ export interface RunScriptsServiceDeps {
 	/** The workspace and its project, for the folder and the script variables. */
 	workspaceFor: (workspaceId: WorkspaceId) => Promise<Result<Workspace>>;
 	repoFor: (workspaceId: WorkspaceId) => Promise<Result<Repo>>;
-	fs: Pick<FileSystem, "writeTextAtomic"> & { paths: FileSystem["paths"] };
+	fs: Pick<FileSystem, "writeTextAtomic" | "mkdirp"> & { paths: FileSystem["paths"] };
 }
 
 export class RunScriptsService {
@@ -104,23 +110,39 @@ export class RunScriptsService {
 		return notImplemented("RUN-01");
 	}
 
-	/** Runs the repo's setup script in a terminal of kind "setup". Backs the workspace service. */
-	runSetup(workspaceId: WorkspaceId): Promise<Result<SetupRunResult>> {
+	/**
+	 * Runs the repo's setup script in a terminal of kind "setup". Backs the workspace service.
+	 * `onStarted` fires once the terminal exists, so the Setup tab can show its live output before
+	 * the script ends.
+	 */
+	runSetup(
+		workspaceId: WorkspaceId,
+		onStarted?: (terminalId: TerminalId) => void,
+	): Promise<Result<SetupRunResult>> {
 		const existing = this.#running.get(workspaceId);
 		if (existing !== undefined) return existing;
-		const run = this.#runSetup(workspaceId).finally(() => {
+		const run = this.#runSetup(workspaceId, onStarted).finally(() => {
 			this.#running.delete(workspaceId);
 		});
 		this.#running.set(workspaceId, run);
 		return run;
 	}
 
-	async #runSetup(workspaceId: WorkspaceId): Promise<Result<SetupRunResult>> {
+	async #runSetup(
+		workspaceId: WorkspaceId,
+		onStarted?: (terminalId: TerminalId) => void,
+	): Promise<Result<SetupRunResult>> {
 		const config = await this.#deps.configFor(workspaceId);
 		if (!config.ok) return config;
 		const script = config.value.setupScript?.trim() ?? "";
 		if (script === "") {
-			return ok({ exitCode: null, terminalId: null, logPath: null, log: "missing" });
+			return ok({
+				scriptFound: false,
+				exitCode: null,
+				terminalId: null,
+				logPath: null,
+				log: "missing",
+			});
 		}
 
 		const workspace = await this.#deps.workspaceFor(workspaceId);
@@ -150,14 +172,24 @@ export class RunScriptsService {
 		});
 		if (!started.ok) return started;
 		this.#lastTerminal.set(workspaceId, started.value.terminalId);
+		onStarted?.(started.value.terminalId);
 
 		const exitCode = await started.value.exit;
-		const logPath = `${this.#deps.fs.paths.temp}/conducted-setup-${workspaceId}.log`;
-		const transcript = await this.#deps.terminals.outputFor(workspaceId, "auto", SETUP_LOG_LINES);
+		const logPath = setupLogFile(this.#deps.fs.paths, workspaceId);
+		const made = await this.#deps.fs.mkdirp(logPath.slice(0, logPath.lastIndexOf("/")));
+		const transcript = made.ok
+			? await this.#deps.terminals.outputFor(
+					workspaceId,
+					"auto",
+					SETUP_LOG_LINES,
+					started.value.terminalId,
+				)
+			: made;
 		const wrote = transcript.ok
 			? await this.#deps.fs.writeTextAtomic(logPath, transcript.value.output)
 			: err(transcript.error);
 		return ok({
+			scriptFound: true,
 			exitCode,
 			terminalId: started.value.terminalId,
 			logPath: wrote.ok ? logPath : null,

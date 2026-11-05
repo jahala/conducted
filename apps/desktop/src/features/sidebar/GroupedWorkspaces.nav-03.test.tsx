@@ -32,8 +32,16 @@ vi.mock("../../core/hooks.ts", () => ({
 }));
 
 vi.mock("./WorkspaceRow.tsx", () => ({
-	WorkspaceRow: ({ workspace }: { workspace: Workspace }) => (
-		<div data-testid="workspace-row">{workspace.displayName}</div>
+	WorkspaceRow: ({
+		workspace,
+		shortcutIndex,
+	}: {
+		workspace: Workspace;
+		shortcutIndex: number | null;
+	}) => (
+		<div data-testid="workspace-row" data-shortcut={shortcutIndex ?? undefined}>
+			{workspace.displayName}
+		</div>
 	),
 }));
 
@@ -182,6 +190,7 @@ describe("NAV-03 GroupedWorkspaces", () => {
 		renderWithRouter(<GroupedWorkspaces repos={[repo("app")]} workspaces={[workspace("one")]} />);
 		const region = await screen.findByRole("region", { name: "app" });
 		const plus = within(region).getByRole("link", { name: "Create workspace in app" });
+		expect(plus.getAttribute("href")).toBe("/create?repo=app");
 		const trigger = within(region).getByRole("button", { name: "app" });
 		expect(plus.parentElement).toBe(trigger.parentElement);
 		const row = within(region).getByTestId("workspace-row");
@@ -201,6 +210,43 @@ describe("NAV-03 GroupedWorkspaces", () => {
 		expect(within(region).getByText("2")).toBeTruthy();
 		fireEvent.click(trigger);
 		expect(within(region).getAllByTestId("workspace-row")).toHaveLength(2);
+	});
+
+	it("numbers only the rows the user can see after a group is collapsed", async () => {
+		renderWithRouter(
+			<GroupedWorkspaces
+				repos={[repo("app"), repo("api")]}
+				workspaces={[
+					workspace("one", { lastActivityAt: 30 }),
+					workspace("two", { lastActivityAt: 20 }),
+					workspace("three", { repoId: "api" as RepoId, lastActivityAt: 10 }),
+				]}
+			/>,
+		);
+		const app = await screen.findByRole("region", { name: "app" });
+		const api = screen.getByRole("region", { name: "api" });
+		expect(within(api).getByTestId("workspace-row").getAttribute("data-shortcut")).toBe("3");
+		fireEvent.click(within(app).getByRole("button", { name: "app" }));
+		expect(within(api).getByTestId("workspace-row").getAttribute("data-shortcut")).toBe("1");
+	});
+
+	it("skips collapsed groups for Cmd+1..9", async () => {
+		const router = renderInRouter(
+			<GroupedWorkspaces
+				repos={[repo("app"), repo("api")]}
+				workspaces={[
+					workspace("one", { lastActivityAt: 30 }),
+					workspace("two", { lastActivityAt: 20 }),
+					workspace("three", { repoId: "api" as RepoId, lastActivityAt: 10 }),
+				]}
+			/>,
+		);
+		const app = await screen.findByRole("region", { name: "app" });
+		fireEvent.click(within(app).getByRole("button", { name: "app" }));
+		await waitFor(() => expect(runCommandHandlers("workspace.switch1")).toBe(true));
+		await waitFor(() =>
+			expect(router.state.location.pathname).toBe("/repository/api/workspace/three"),
+		);
 	});
 
 	it("saves only the view option that changed", async () => {

@@ -39,15 +39,16 @@ export class OutboxReplayer {
 	/** Replays every chat with pending events. Resolves when done or when the app went away. */
 	replayAll(): Promise<void> {
 		if (this.all !== null) return this.all;
-		const run = (async () => {
-			try {
+		// Start on a microtask so this.all is assigned before an empty log can finish the body.
+		const run = Promise.resolve()
+			.then(async () => {
 				for (const sessionId of this.deps.outbox.sessionsWithPending()) {
 					await this.replaySession(sessionId);
 				}
-			} finally {
+			})
+			.finally(() => {
 				this.all = null;
-			}
-		})();
+			});
 		this.all = run;
 		return run;
 	}
@@ -63,7 +64,11 @@ export class OutboxReplayer {
 	}
 
 	private async runSession(sessionId: SessionId): Promise<void> {
-		for (const envelope of this.deps.outbox.pending(sessionId)) {
+		while (true) {
+			// Read the head each time: an eventPersisted notification may have removed it while
+			// the previous delivery was in flight, and that event must not be sent twice.
+			const envelope = this.deps.outbox.pending(sessionId)[0];
+			if (envelope === undefined) return;
 			if (!this.deps.app.connected) {
 				this.deps.logger.debug("No app is attached; the event log waits for the next connection", {
 					sessionId,

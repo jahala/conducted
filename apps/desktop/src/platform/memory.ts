@@ -20,6 +20,7 @@
 
 import type { Clock, IdSource, ManagedProgram } from "@conducted/shared";
 import { appError, err, ok, type Result } from "@conducted/shared";
+import { globToRegExp } from "./glob.ts";
 import type {
 	AppInfo,
 	AppMenu,
@@ -177,26 +178,6 @@ const ignoreRulesFor = (root: string, files: ReadonlyMap<string, string>): Ignor
 		rules.push({ pattern: globToRegExp(pattern), hasSlash: pattern.includes("/") });
 	}
 	return rules;
-};
-
-const globToRegExp = (pattern: string): RegExp => {
-	let source = "";
-	for (let index = 0; index < pattern.length; index++) {
-		const char = pattern.charAt(index);
-		if (char === "*") {
-			if (pattern.charAt(index + 1) === "*") {
-				source += ".*";
-				index++;
-			} else {
-				source += "[^/]*";
-			}
-		} else if (char === "?") {
-			source += "[^/]";
-		} else {
-			source += escapeRegExp(char);
-		}
-	}
-	return new RegExp(`^${source}$`);
 };
 
 const isIgnoredPath = (relative: string, rules: readonly IgnoreRule[]): boolean => {

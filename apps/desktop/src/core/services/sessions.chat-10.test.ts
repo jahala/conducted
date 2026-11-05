@@ -10,6 +10,7 @@ import {
 	ok,
 	type Result,
 	type SessionId,
+	type ToolUseId,
 } from "@conducted/shared";
 import { describe, expect, it, vi } from "vitest";
 import { SessionsService, type SessionsServiceDeps } from "./sessions.ts";
@@ -103,6 +104,45 @@ describe("CHAT-10 interactions", () => {
 		expect(result).toEqual(ok(undefined));
 		expect(await pending).toEqual({ kind: "withdrawn" });
 		expect(openInteraction(service)).toBeUndefined();
+	});
+
+	it("keeps the card and reports an error when the sidecar refuses the answer", async () => {
+		const { service } = harness(() => ok({ accepted: false, superseded: false }));
+		service.requestInteraction(request("i1"));
+
+		const result = await service.answer(sessionId, "i1" as InteractionId, {
+			kind: "question",
+			answers: [["SQLite"]],
+		});
+
+		expect(result).toMatchObject({
+			ok: false,
+			error: { code: "interaction_not_accepted" },
+		});
+		expect(openInteraction(service)).toMatchObject({ interactionId: "i1" });
+	});
+
+	it("reports whether a chat has a pending consent interaction", async () => {
+		const { service } = harness();
+		const approval: InteractionRequest["interaction"] = {
+			kind: "tool_approval",
+			toolUseId: "tu1" as ToolUseId,
+			toolName: "Bash",
+			input: {},
+		};
+
+		expect(service.hasPendingConsentInteraction(sessionId)).toBe(false);
+
+		const pending = service.requestInteraction(request("i1", approval));
+		expect(service.hasPendingConsentInteraction(sessionId)).toBe(true);
+
+		await service.answer(sessionId, "i1" as InteractionId, {
+			kind: "tool_approval",
+			decision: "allow",
+		});
+
+		expect(service.hasPendingConsentInteraction(sessionId)).toBe(false);
+		expect(await pending).toEqual({ kind: "tool_approval", decision: "allow" });
 	});
 
 	it("keeps the card when the answer cannot reach the sidecar", async () => {

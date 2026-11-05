@@ -5,8 +5,9 @@
  * descriptions, multi-select, secret input, 'Other...' free text (0), previous and next (arrow
  * keys), number keys 1..9 pick options, Enter submits, buttons Submit and 'Cancel agent'; answers
  * return as 'question / answer / (Skipped)'), claude-runner.md 3.4.
- * Our design choice: A skipped question sends an empty list, which the history card shows as
- * '(Skipped)'. A secret question masks the answer and has no option list. The card asks
+ * Our design choice: A skipped question sends an empty list; the tool result says '(Skipped)' and
+ * the history card masks a secret answer. A secret question hides its input and has no option
+ * list. The card asks
  * sessions.answer once and stays disabled while the answer is sent; if that fails it says
  * 'Could not send answers. Try again.' and lets the user send again.
  * Must handle: One question (no previous or next); up to four questions; a multi-select question
@@ -23,6 +24,7 @@ import { type KeyboardEvent, useCallback, useRef, useState } from "react";
 import { useActions } from "../../../core/hooks.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { cn } from "../../../ui/cn.ts";
+import { withKeys } from "../tools/ToolCardFrame.tsx";
 
 export interface QuestionCardProps {
 	sessionId: SessionId;
@@ -209,43 +211,45 @@ export function QuestionCard({ sessionId, interactionId, questions }: QuestionCa
 			) : (
 				<>
 					<fieldset aria-label={current.question} className="m-0 flex flex-col gap-1 border-0 p-0">
-						{current.options.map((option, optionIndex) => {
-							const selected = picked.includes(option.label);
-							return (
-								<button
-									key={option.label}
-									ref={optionIndex === 0 ? focusOnMount : undefined}
-									type="button"
-									data-question-option={optionIndex}
-									aria-pressed={selected}
-									onClick={() => toggleOption(page, optionIndex)}
-									onFocus={() => setPreviewIndex(optionIndex)}
-									onMouseEnter={() => setPreviewIndex(optionIndex)}
-									className={cn(
-										"flex w-full items-start gap-2 rounded-md border px-2 py-1.5 text-left",
-										selected ? PICKED : `${CLEAR} border-transparent`,
-									)}
-								>
-									<span
-										aria-hidden="true"
+						{withKeys(current.options, (option) => option.label, "option").map(
+							({ key, item: option }, optionIndex) => {
+								const selected = picked.includes(option.label);
+								return (
+									<button
+										key={key}
+										ref={optionIndex === 0 ? focusOnMount : undefined}
+										type="button"
+										data-question-option={optionIndex}
+										aria-pressed={selected}
+										onClick={() => toggleOption(page, optionIndex)}
+										onFocus={() => setPreviewIndex(optionIndex)}
+										onMouseEnter={() => setPreviewIndex(optionIndex)}
 										className={cn(
-											"mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-sm border text-3xs font-medium",
-											selected
-												? "border-accent text-accent"
-												: "border-border-strong text-fg-subtle",
+											"flex w-full items-start gap-2 rounded-md border px-2 py-1.5 text-left",
+											selected ? PICKED : `${CLEAR} border-transparent`,
 										)}
 									>
-										{optionIndex + 1}
-									</span>
-									<span className="flex min-w-0 flex-col gap-0.5">
-										<span className="text-sm text-fg">{option.label}</span>
-										{option.description ? (
-											<span className="text-xs text-fg-muted">{option.description}</span>
-										) : null}
-									</span>
-								</button>
-							);
-						})}
+										<span
+											aria-hidden="true"
+											className={cn(
+												"mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-sm border text-3xs font-medium",
+												selected
+													? "border-accent text-accent"
+													: "border-border-strong text-fg-subtle",
+											)}
+										>
+											{optionIndex + 1}
+										</span>
+										<span className="flex min-w-0 flex-col gap-0.5">
+											<span className="text-sm text-fg">{option.label}</span>
+											{option.description ? (
+												<span className="text-xs text-fg-muted">{option.description}</span>
+											) : null}
+										</span>
+									</button>
+								);
+							},
+						)}
 					</fieldset>
 
 					{preview ? (

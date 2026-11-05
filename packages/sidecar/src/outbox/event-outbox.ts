@@ -17,9 +17,12 @@
  *    event id, so out-of-order acks are safe); an unknown id is not an error (a replayed ack)
  *  - a failed write: the in-memory pending list is rolled back and the error is returned, so the
  *    caller can retry without sequence gaps
- *  - a corrupt or newer-version file: the chat is blocked with code "outbox_corrupt"; the file is
- *    kept for inspection and never rewritten
- *  - durabilityUncertain after a directory fsync failure: append refuses until a write succeeds
+ *  - a corrupt or newer-version file: the sidecar refuses to start with code "outbox_corrupt"; the
+ *    file is kept for inspection and never rewritten
+ *  - durabilityUncertain after a directory fsync failure: append refuses with
+ *    "outbox_durability_uncertain" until a new process opens the log or an acknowledgement writes
+ *    the file again (that write also syncs the directory). An ordinary write failure rolls back
+ *    and does not mark the chat; durabilityUncertain() shows the flag to callers
  *  - open() reads every file, drops temp files, and returns the chats that have pending events
  * Data lifetime (what the log keeps, how long, what removes the rest):
  *  - keeps: unacknowledged events, until acknowledged; no age limit, because dropping them loses
@@ -66,6 +69,11 @@ export interface EventOutbox {
 	sessionsWithPending(): SessionId[];
 	/** Moves the files of long-idle chats to the Trash. Returns how many. */
 	sweepIdle(): Promise<Result<number, AppError>>;
+	/**
+	 * True when a directory fsync failed and append refuses. Optional on the port: a stand-in that
+	 * never reports the condition has nothing to expose; the real outbox always implements it.
+	 */
+	durabilityUncertain?(sessionId: SessionId): boolean;
 }
 
 interface ChatState {
@@ -121,6 +129,14 @@ export class FileEventOutbox implements EventOutbox {
 				updatedAt: 0,
 				durabilityUncertain: false,
 			};
+			if (base.durabilityUncertain) {
+				return err(
+					appError(
+						"outbox_durability_uncertain",
+						"The event log for this chat is not durable after a directory fsync failure. Restart the sidecar or let the app acknowledge a pending event before adding more.",
+					),
+				);
+			}
 			if (base.pending.length + events.length > MAX_PENDING_PER_SESSION) {
 				return err(
 					appError(
@@ -143,20 +159,18 @@ export class FileEventOutbox implements EventOutbox {
 				updatedAt: at,
 				durabilityUncertain: false,
 			};
-			const wasUncertain = base.durabilityUncertain;
 			const written = await this.writeFile(next);
 			if (!written.ok) {
-				// A failed atomic write may have renamed the file without its directory fsync, so
-				// the chat's durability is uncertain until a later write succeeds.
-				if (current !== undefined) current.durabilityUncertain = true;
-				this.deps.logger.warn("The event log write failed; this chat's durability is uncertain", {
-					sessionId,
-					reason: written.error.message,
-				});
+				// Only a directory fsync failure leaves the rename unconfirmed. Keep the state even
+				// for a chat that has none yet, so the flag has somewhere to live and append refuses.
+				if (written.error.code === "outbox_dir_sync_failed") {
+					this.states.set(sessionId, { ...base, updatedAt: at, durabilityUncertain: true });
+					this.deps.logger.warn("The event log write failed; this chat's durability is uncertain", {
+						sessionId,
+						reason: written.error.message,
+					});
+				}
 				return err(written.error);
-			}
-			if (wasUncertain) {
-				this.deps.logger.info("The event log is durable again", { sessionId });
 			}
 			this.states.set(sessionId, next);
 			return ok(
@@ -185,11 +199,13 @@ export class FileEventOutbox implements EventOutbox {
 			};
 			const written = await this.writeFile(next);
 			if (!written.ok) {
-				current.durabilityUncertain = true;
-				this.deps.logger.warn("The event log write failed; this chat's durability is uncertain", {
-					sessionId,
-					reason: written.error.message,
-				});
+				if (written.error.code === "outbox_dir_sync_failed") {
+					this.states.set(sessionId, { ...current, durabilityUncertain: true });
+					this.deps.logger.warn("The event log write failed; this chat's durability is uncertain", {
+						sessionId,
+						reason: written.error.message,
+					});
+				}
 				return err(written.error);
 			}
 			if (current.durabilityUncertain) {
@@ -218,16 +234,31 @@ export class FileEventOutbox implements EventOutbox {
 		return sessions;
 	}
 
+	durabilityUncertain(sessionId: SessionId): boolean {
+		return this.states.get(sessionId)?.durabilityUncertain ?? false;
+	}
+
 	async sweepIdle(): Promise<Result<number, AppError>> {
 		const now = this.deps.clock.now();
 		let moved = 0;
-		for (const state of [...this.states.values()]) {
-			if (state.pending.length > 0) continue;
-			if (now - state.updatedAt <= IDLE_FILE_RETENTION_MS) continue;
-			const removed = await this.deps.storage.moveToTrash(fileNameFor(state.sessionId));
-			if (!removed.ok) return err(removed.error);
-			this.states.delete(state.sessionId);
-			moved += 1;
+		for (const sessionId of [...this.states.keys()]) {
+			// The check and the Trash move share the chat's queue, so an append either lands
+			// before the check (and keeps the file) or after the move (and starts a new file).
+			const outcome = await this.deps.queue.run(
+				sessionId,
+				async (): Promise<Result<boolean, AppError>> => {
+					const state = this.states.get(sessionId);
+					if (state === undefined) return ok(false);
+					if (state.pending.length > 0) return ok(false);
+					if (now - state.updatedAt <= IDLE_FILE_RETENTION_MS) return ok(false);
+					const removed = await this.deps.storage.moveToTrash(fileNameFor(sessionId));
+					if (!removed.ok) return err(removed.error);
+					this.states.delete(sessionId);
+					return ok(true);
+				},
+			);
+			if (!outcome.ok) return err(outcome.error);
+			if (outcome.value) moved += 1;
 		}
 		return ok(moved);
 	}
@@ -291,7 +322,7 @@ export class FileEventOutbox implements EventOutbox {
 		return ok({
 			sessionId: parsed.data.sessionId as SessionId,
 			nextSequence: parsed.data.nextSequence,
-			pending: [...parsed.data.pending].sort((left, right) => left.sequence - right.sequence),
+			pending: [...parsed.data.pending],
 			updatedAt: parsed.data.updatedAt,
 			durabilityUncertain: false,
 		});

@@ -42,6 +42,11 @@ const LEADING_FILLER =
 
 const HEADING_TAGS = { 1: "h1", 2: "h2", 3: "h3", 4: "h4", 5: "h5", 6: "h6" } as const;
 
+/** Stable key for content that can repeat: the item's position inside its block. */
+function positionKey(prefix: string, index: number): string {
+	return `${prefix}#${index}`;
+}
+
 /** Conductor hides a habitual opening phrase so the reply starts with its substance. */
 export function stripLeadingFiller(text: string): string {
 	return text.replace(LEADING_FILLER, "");
@@ -241,9 +246,8 @@ function renderInline(text: string, onOpen: (url: string) => void, keyPrefix: st
 					key={key}
 					href={url}
 					onClick={(event) => {
-						if (!/^https?:|^mailto:/i.test(url)) return;
 						event.preventDefault();
-						onOpen(url);
+						if (/^(?:https?|mailto):/i.test(url)) onOpen(url);
 					}}
 					className="text-link underline-offset-2 hover:underline"
 				>
@@ -323,8 +327,10 @@ export function AssistantText({ text }: AssistantTextProps) {
 									block.ordered ? "list-decimal" : "list-disc",
 								)}
 							>
-								{block.items.map((item) => (
-									<li key={`${key}-${item}`}>{renderInline(item, openUrl, `${key}-${item}`)}</li>
+								{block.items.map((item, itemIndex) => (
+									<li key={positionKey(`${key}-item`, itemIndex)}>
+										{renderInline(item, openUrl, `${key}-${itemIndex}`)}
+									</li>
 								))}
 							</Tag>
 						);
@@ -335,25 +341,25 @@ export function AssistantText({ text }: AssistantTextProps) {
 								<table className="w-full border-collapse text-sm">
 									<thead>
 										<tr>
-											{block.header.map((cell) => (
+											{block.header.map((cell, cellIndex) => (
 												<th
-													key={`${key}-h-${cell}`}
+													key={positionKey(`${key}-h`, cellIndex)}
 													className="border-b border-border-strong px-2 py-1 text-left font-medium text-fg"
 												>
-													{renderInline(cell, openUrl, `${key}-h-${cell}`)}
+													{renderInline(cell, openUrl, `${key}-h-${cellIndex}`)}
 												</th>
 											))}
 										</tr>
 									</thead>
 									<tbody>
-										{block.rows.map((row) => (
-											<tr key={`${key}-r-${row.join("|")}`}>
-												{row.map((cell) => (
+										{block.rows.map((row, rowIndex) => (
+											<tr key={positionKey(`${key}-r`, rowIndex)}>
+												{row.map((cell, cellIndex) => (
 													<td
-														key={`${key}-r-${row.join("|")}-${cell}`}
+														key={positionKey(`${key}-r-${rowIndex}`, cellIndex)}
 														className="border-b border-border px-2 py-1 text-fg-muted"
 													>
-														{renderInline(cell, openUrl, `${key}-r-${cell}`)}
+														{renderInline(cell, openUrl, `${key}-r-${rowIndex}-${cellIndex}`)}
 													</td>
 												))}
 											</tr>

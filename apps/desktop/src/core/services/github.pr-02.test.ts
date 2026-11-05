@@ -87,6 +87,7 @@ function makeService(
 	git: GitRunner,
 	agent: AgentMessenger,
 	overrides: Partial<PrWorkspaceContext> = {},
+	setting?: <T>(key: string) => T,
 ): GithubService {
 	return new GithubService({
 		git,
@@ -96,6 +97,7 @@ function makeService(
 		onMerged: () => {},
 		now: () => 1_000,
 		probeCwd: "/tmp",
+		...(setting === undefined ? {} : { setting }),
 	});
 }
 
@@ -160,6 +162,29 @@ describe("PR-02 create a pull request", () => {
 		expect(result.ok).toBe(false);
 		expect(!result.ok && result.error.code).toBe("github_target_unknown");
 		expect(agent.calls).toHaveLength(0);
+	});
+
+	it("includes the workspace link only when its setting is on", async () => {
+		const setting = (values: Record<string, unknown>): (<T>(key: string) => T) =>
+			((key: string) => values[key]) as <T>(key: string) => T;
+
+		const withLink = fakeAgent();
+		await makeService(
+			fakeGit({ stdout: tracked }),
+			withLink,
+			{},
+			setting({ include_workspace_link_in_pr: true }),
+		).create(workspaceId);
+		expect(withLink.calls[0]?.text).toContain("conducted://workspace?id=ws-1");
+
+		const withoutLink = fakeAgent();
+		await makeService(
+			fakeGit({ stdout: tracked }),
+			withoutLink,
+			{},
+			setting({ include_workspace_link_in_pr: false }),
+		).create(workspaceId);
+		expect(withoutLink.calls[0]?.text).not.toContain("conducted://");
 	});
 });
 

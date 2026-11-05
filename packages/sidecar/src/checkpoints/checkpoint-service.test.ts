@@ -133,6 +133,18 @@ describe("SIDE-08 checkpoint service", () => {
 		expect(calls.map((call) => call.args[0])).toEqual(["save", "save", "diff", "diff"]);
 	});
 
+	test("the end checkpoint goes through the same create path and logs its ref", async () => {
+		const { service, records } = harness(() => ok());
+		await service.start(request());
+		await service.end(request());
+
+		const created = records.filter(
+			(record) => record.level === "debug" && record.message === "Checkpoint created",
+		);
+		expect(created.map((record) => record.data?.phase)).toEqual(["start", "end"]);
+		expect(created[1]?.data?.ref).toBe("refs/conducted/checkpoints/session-s1-turn-t1-end");
+	});
+
 	test("the end checkpoint lists name-status and numstat changes", async () => {
 		const { service, calls } = harness((call) => {
 			if (call.args[0] !== "diff") return ok();

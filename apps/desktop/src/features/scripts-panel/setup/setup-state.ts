@@ -13,7 +13,7 @@
  *   state cancelled                -> "cancelled"
  *   state completed                -> "completed"      (log)
  *   idle with a script, no log     -> "not_run"        (empty: output appears after setup runs)
- *   log missing or expired         -> "log_missing"
+ *   idle with an expired log       -> "log_missing"    (an earlier log is gone)
  * Must handle: the app quitting during setup (next start shows failed with a reason), a very long
  * log, and a script that exists but the workspace is archived.
  * Test first: state "failed" with a log gives view "failed" and exposes the fix action.
@@ -94,7 +94,9 @@ export function setupTabKind(view: SetupView): SetupTabKind {
 	if (view.state === "failed") return "failed";
 	if (view.state === "cancelled") return "cancelled";
 	if (view.state === "completed") return "completed";
-	if (view.log === "missing" || view.log === "expired") return "log_missing";
+	// An idle script with no log has simply not run yet. Only an expired log means a run whose
+	// transcript is gone, which is the "Couldn't load the logs" state.
+	if (view.log === "expired") return "log_missing";
 	return "not_run";
 }
 
