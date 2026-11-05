@@ -19,7 +19,6 @@
 		"apps/desktop/src/app/SurfaceLayer.tsx": 2,
 		"apps/desktop/src/core/async/optimistic.ts": 1,
 		"apps/desktop/src/core/db/sections.ts": 1,
-		"apps/desktop/src/core/fuzzy.ts": 1,
 		"apps/desktop/src/core/git/commands.ts": 13,
 		"apps/desktop/src/core/git/gh-commands.ts": 2,
 		"apps/desktop/src/core/git/status.ts": 1,
