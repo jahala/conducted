@@ -34,7 +34,15 @@
  * and a plain string into code `tauri_error`.
  */
 
-import { type AppError, appError, err, notImplemented, ok, type Result } from "@conducted/shared";
+import {
+	type AppError,
+	appError,
+	err,
+	type ManagedProgram,
+	notImplemented,
+	ok,
+	type Result,
+} from "@conducted/shared";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { Image } from "@tauri-apps/api/image";
@@ -966,7 +974,7 @@ export function createTauriAttachments(_bindings: TauriBindings): AttachmentFile
  * `programs_sync_path_overrides { overrides }`, events `programs://status` and
  * `programs://verification-errors`.
  */
-export function createTauriPrograms(_bindings: TauriBindings): Programs {
+export function createTauriPrograms(bindings: TauriBindings): Programs {
 	return {
 		statuses: () => notImplemented("PLAT-28"),
 		onStatus: () => notImplemented("PLAT-28"),
@@ -974,7 +982,14 @@ export function createTauriPrograms(_bindings: TauriBindings): Programs {
 		redownload: () => notImplemented("PLAT-28"),
 		remove: () => notImplemented("PLAT-28"),
 		prefetchForUpdate: () => notImplemented("PLAT-28"),
-		verificationErrors: () => notImplemented("PLAT-34"),
+		verificationErrors: async () => {
+			const result = await invokeResult<{ program: ManagedProgram; message: string }[]>(
+				bindings,
+				COMMANDS.programsVerificationErrors,
+			);
+			if (!result.ok) throw result.error;
+			return result.value;
+		},
 		syncPathOverrides: () => notImplemented("SET-13"),
 	};
 }
