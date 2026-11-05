@@ -64,6 +64,7 @@ import { useStoreWithEqualityFn } from "zustand/traditional";
 import type { Actions, Draft, Loadable, Queries } from "./api.ts";
 import { useServices } from "./context.tsx";
 import type { GitState, Repo, Session } from "./model.ts";
+import { agentKey } from "./services/agent-catalog.ts";
 import type { WorkspaceGitEntry } from "./services/git.ts";
 import { toGitHubAccessView, type WorkspacePrEntry } from "./services/github.ts";
 import type { SessionsState } from "./services/sessions.ts";
@@ -244,7 +245,15 @@ export const useSetting: Queries["useSetting"] = <T>(key: string): T => {
 	return (stored === undefined || stored === null ? services.settings.get<T>(key) : stored) as T;
 };
 export const useAgentInstalls: Queries["useAgentInstalls"] = () => notImplemented("SET-03");
-export const useModels: Queries["useModels"] = () => notImplemented("COMP-02");
+export const useModels: Queries["useModels"] = (agent, acpAgent) => {
+	const service = useServices().services.agentCatalog;
+	const key = agentKey(agent, acpAgent);
+	const models = useStore(service.store, (state) => state.models[key]);
+	useEffect(() => {
+		if (models === undefined) void service.loadModels(agent, acpAgent);
+	}, [service, agent, acpAgent, models]);
+	return models ?? { state: "loading" };
+};
 export const useSlashCommands: Queries["useSlashCommands"] = () => notImplemented("COMP-06");
 export const useCommands: Queries["useCommands"] = () => notImplemented("NAV-07");
 export const useUpdateStatus: Queries["useUpdateStatus"] = () => notImplemented("APP-06");

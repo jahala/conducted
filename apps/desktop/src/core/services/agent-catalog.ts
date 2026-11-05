@@ -17,7 +17,7 @@
  */
 import type { AgentInstall, AgentLogin, ModelInfo, SlashCommand } from "@conducted/protocol";
 import type { AcpAgent, AgentKind, Result, SessionId } from "@conducted/shared";
-import { notImplemented } from "@conducted/shared";
+import { err, notImplemented, ok } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Loadable, ProviderKeyRef } from "../api.ts";
 import type { AgentConfigFile, ConfigSyncCategory, ConfigSyncResult } from "../model.ts";
@@ -42,6 +42,8 @@ export interface AgentCatalogServiceDeps {
 export class AgentCatalogService {
 	readonly store: StoreApi<AgentCatalogState>;
 	readonly #deps: AgentCatalogServiceDeps;
+	/** The newest model request per agent key. An older answer never changes the store. */
+	readonly #modelRequests = new Map<string, number>();
 
 	constructor(deps: AgentCatalogServiceDeps) {
 		this.#deps = deps;
@@ -63,8 +65,30 @@ export class AgentCatalogService {
 		notImplemented("SET-03");
 	}
 
-	loadModels(_agent: AgentKind, _acpAgent?: AcpAgent): Promise<Result<ModelInfo[]>> {
-		return notImplemented("COMP-02");
+	async loadModels(agent: AgentKind, acpAgent?: AcpAgent): Promise<Result<ModelInfo[]>> {
+		const key = agentKey(agent, acpAgent);
+		const request = (this.#modelRequests.get(key) ?? 0) + 1;
+		this.#modelRequests.set(key, request);
+		this.store.setState((state) => ({
+			models: { ...state.models, [key]: { state: "loading" } },
+		}));
+		const result = await this.#deps.sidecar.request(
+			"listModels",
+			acpAgent === undefined ? { agent } : { agent, acpAgent },
+		);
+		if (this.#modelRequests.get(key) !== request) {
+			return result.ok ? ok(result.value.models) : err(result.error);
+		}
+		if (!result.ok) {
+			this.store.setState((state) => ({
+				models: { ...state.models, [key]: { state: "error", error: result.error } },
+			}));
+			return err(result.error);
+		}
+		this.store.setState((state) => ({
+			models: { ...state.models, [key]: { state: "ready", data: result.value.models } },
+		}));
+		return ok(result.value.models);
 	}
 
 	loadSlashCommands(_sessionId: SessionId): Promise<Result<SlashCommand[]>> {
