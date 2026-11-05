@@ -1,7 +1,16 @@
+import { appError, err, ok, type SessionId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
-import { classifyAttachment, convertsToAttachment } from "./composer.ts";
+import type { FileStat, FileSystem, Platform } from "../../platform/platform.ts";
+import { draftFile } from "../app-paths.ts";
+import {
+	ComposerService,
+	type ComposerServiceDeps,
+	classifyAttachment,
+	convertsToAttachment,
+	DRAFT_STORE_LIMIT_BYTES,
+} from "./composer.ts";
 
-describe("classifyAttachment", () => {
+describe("COMP-01 classifyAttachment", () => {
 	it("reads the extension case-insensitively", () => {
 		expect(classifyAttachment("shot.PNG")).toBe("image");
 		expect(classifyAttachment("notes.md")).toBe("text");
@@ -12,7 +21,7 @@ describe("classifyAttachment", () => {
 	});
 });
 
-describe("convertsToAttachment", () => {
+describe("COMP-01 convertsToAttachment", () => {
 	it("keeps short text in the editor", () => {
 		expect(convertsToAttachment("hello")).toBe(false);
 	});
@@ -23,5 +32,212 @@ describe("convertsToAttachment", () => {
 	it("converts text over 90 lines", () => {
 		expect(convertsToAttachment(Array.from({ length: 91 }, () => "x").join("\n"))).toBe(true);
 		expect(convertsToAttachment(Array.from({ length: 90 }, () => "x").join("\n"))).toBe(false);
+	});
+});
+
+const sessionId = "session-1" as SessionId;
+
+interface FakeFs {
+	fs: FileSystem;
+	files: Map<string, string>;
+	modified: Map<string, number>;
+	trashed: Set<string>;
+	now: () => number;
+}
+
+const parentOf = (path: string): string => path.slice(0, path.lastIndexOf("/"));
+
+const fakeFs = (): FakeFs => {
+	let clock = 1_000;
+	const files = new Map<string, string>();
+	const modified = new Map<string, number>();
+	const trashed = new Set<string>();
+	const now = () => clock++;
+	const statFor = (path: string): FileStat => {
+		const text = files.get(path) ?? "";
+		return {
+			path,
+			isDirectory: false,
+			isSymlink: false,
+			size: new TextEncoder().encode(text).length,
+			modifiedAt: modified.get(path) ?? 0,
+		};
+	};
+	const fs: FileSystem = {
+		async readText(path) {
+			const text = files.get(path);
+			return text === undefined
+				? err(appError("fs_not_found", `${path} does not exist.`))
+				: ok(text);
+		},
+		async writeTextAtomic(path, text) {
+			files.set(path, text);
+			modified.set(path, now());
+			return ok(undefined);
+		},
+		async exists(path) {
+			return files.has(path);
+		},
+		async stat(path) {
+			return files.has(path) ? ok(statFor(path)) : err(appError("fs_not_found", "missing"));
+		},
+		async mkdirp() {
+			return ok(undefined);
+		},
+		async readDir(path) {
+			const entries = [...files.keys()]
+				.filter((file) => parentOf(file) === path)
+				.map(statFor)
+				.sort((left, right) => left.path.localeCompare(right.path));
+			return ok(entries);
+		},
+		async trash(path) {
+			files.delete(path);
+			modified.delete(path);
+			trashed.add(path);
+			return ok(undefined);
+		},
+		paths: { home: "/home", appData: "/app", temp: "/tmp", resources: "/resources" },
+	};
+	return { fs, files, modified, trashed, now };
+};
+
+interface Timers {
+	callbacks: Map<number, () => void>;
+	set: (callback: () => void, ms: number) => () => void;
+	flush: () => void;
+}
+
+const timers = (): Timers => {
+	let next = 1;
+	const callbacks = new Map<number, () => void>();
+	return {
+		callbacks,
+		set(callback) {
+			const id = next++;
+			callbacks.set(id, callback);
+			return () => callbacks.delete(id);
+		},
+		flush() {
+			const pending = [...callbacks.values()];
+			callbacks.clear();
+			for (const callback of pending) callback();
+		},
+	};
+};
+
+const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
+const harness = () => {
+	const fake = fakeFs();
+	const clock = timers();
+	const deps: ComposerServiceDeps = {
+		platform: { fs: fake.fs } as Pick<Platform, "fs" | "dialogs" | "clipboard">,
+		repos: {} as ComposerServiceDeps["repos"],
+		setDebounce: clock.set,
+	};
+	return { ...fake, clock, service: new ComposerService(deps), deps };
+};
+
+const file = (): string =>
+	draftFile({ home: "/h", appData: "/app", temp: "/t", resources: "/r" }, sessionId);
+
+describe("COMP-01 drafts", () => {
+	it("loads an empty draft when no file exists and marks it loaded", async () => {
+		const { service } = harness();
+		const result = await service.loadDraft(sessionId);
+		expect(result).toEqual(ok({ text: "", attachmentPaths: [] }));
+		expect(service.draftOf(sessionId)).toEqual({ text: "", attachmentPaths: [] });
+	});
+
+	it("writes the newest text once after the pause", async () => {
+		const { service, clock, files } = harness();
+		service.saveDraft(sessionId, { text: "he", attachmentPaths: [] });
+		service.saveDraft(sessionId, { text: "hello", attachmentPaths: ["/a.txt"] });
+		expect(files.size).toBe(0);
+		clock.flush();
+		await settle();
+		expect(JSON.parse(files.get(file()) ?? "")).toEqual({
+			text: "hello",
+			attachmentPaths: ["/a.txt"],
+		});
+	});
+
+	it("keeps the draft across a restart", async () => {
+		const fake = fakeFs();
+		const firstClock = timers();
+		const first = new ComposerService({
+			platform: { fs: fake.fs } as Pick<Platform, "fs" | "dialogs" | "clipboard">,
+			repos: {} as ComposerServiceDeps["repos"],
+			setDebounce: firstClock.set,
+		});
+		first.saveDraft(sessionId, { text: "unsent", attachmentPaths: [] });
+		firstClock.flush();
+		await settle();
+		const secondClock = timers();
+		const restarted = new ComposerService({
+			platform: { fs: fake.fs } as Pick<Platform, "fs" | "dialogs" | "clipboard">,
+			repos: {} as ComposerServiceDeps["repos"],
+			setDebounce: secondClock.set,
+		});
+		expect(await restarted.loadDraft(sessionId)).toEqual(
+			ok({ text: "unsent", attachmentPaths: [] }),
+		);
+	});
+
+	it("removes the file when the draft becomes empty", async () => {
+		const { service, clock, files } = harness();
+		service.saveDraft(sessionId, { text: "draft", attachmentPaths: [] });
+		clock.flush();
+		await settle();
+		expect(files.has(file())).toBe(true);
+		service.saveDraft(sessionId, { text: "", attachmentPaths: [] });
+		await settle();
+		expect(files.has(file())).toBe(false);
+	});
+
+	it("clears the draft and its file after a send", async () => {
+		const { service, clock, files } = harness();
+		service.saveDraft(sessionId, { text: "sent", attachmentPaths: [] });
+		clock.flush();
+		await settle();
+		expect((await service.clearDraft(sessionId)).ok).toBe(true);
+		expect(files.has(file())).toBe(false);
+		expect(service.store.getState().drafts[sessionId]).toBeUndefined();
+	});
+
+	it("does not write a draft larger than the store limit", async () => {
+		const { service, clock, files } = harness();
+		service.saveDraft(sessionId, {
+			text: "x".repeat(DRAFT_STORE_LIMIT_BYTES),
+			attachmentPaths: [],
+		});
+		clock.flush();
+		await settle();
+		expect(files.has(file())).toBe(false);
+		expect(service.draftOf(sessionId).text).toHaveLength(DRAFT_STORE_LIMIT_BYTES);
+	});
+
+	it("moves the oldest other draft to the trash to make room", async () => {
+		const { service, clock, files, trashed } = harness();
+		const paths = { home: "/h", appData: "/app", temp: "/t", resources: "/r" };
+		const oldSession = "session-old" as SessionId;
+		const half = Math.floor(DRAFT_STORE_LIMIT_BYTES / 2);
+		service.saveDraft(oldSession, { text: "o".repeat(half), attachmentPaths: [] });
+		clock.flush();
+		await settle();
+		const oldFile = draftFile(paths, oldSession);
+		expect(files.has(oldFile)).toBe(true);
+		service.saveDraft(sessionId, { text: "n".repeat(half), attachmentPaths: [] });
+		clock.flush();
+		await settle();
+		expect(trashed.has(oldFile)).toBe(true);
+	});
+
+	it("reports an unreadable draft instead of losing it silently", async () => {
+		const { service, files } = harness();
+		files.set(file(), "{not json");
+		const result = await service.loadDraft(sessionId);
+		expect(result.ok).toBe(false);
 	});
 });
