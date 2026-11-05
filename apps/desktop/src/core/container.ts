@@ -82,7 +82,12 @@ import { SessionsService } from "./services/sessions.ts";
 import { SettingsService, type TomlCodec } from "./services/settings.ts";
 import { SpotlightService } from "./services/spotlight.ts";
 import { SystemService } from "./services/system.ts";
-import { TerminalsService, terminalLimit } from "./services/terminals.ts";
+import {
+	DEFAULT_TERMINAL_OUTPUT_LINES,
+	NO_TERMINAL_OUTPUT,
+	TerminalsService,
+	terminalLimit,
+} from "./services/terminals.ts";
 import { UPDATE_CHECK_INTERVAL_MS, UpdatesService } from "./services/updates.ts";
 import { type PlaceNames, WorkspaceService } from "./services/workspace.ts";
 import { WorkspaceFilesService } from "./services/workspace-files.ts";
@@ -524,6 +529,18 @@ export function createContainer(inputs: ContainerInputs): Container {
 			const found = lookups.workspace(id);
 			return found.ok ? ok(found.value.activeSessionId) : found;
 		},
+		terminalOutputOf: async (sessionId) => {
+			const workspace = lookups.workspaceOfSession(sessionId);
+			if (!workspace.ok) return workspace;
+			const output = await terminals.outputFor(
+				workspace.value.id,
+				"auto",
+				DEFAULT_TERMINAL_OUTPUT_LINES,
+			);
+			if (!output.ok) return output;
+			if (output.value.output === NO_TERMINAL_OUTPUT) return ok(null);
+			return ok({ text: output.value.output, source: output.value.source });
+		},
 	});
 	const notifications = new NotificationService({
 		platform,
@@ -706,6 +723,11 @@ export function createContainer(inputs: ContainerInputs): Container {
 		repos: repositories,
 		git: gitRunner,
 		agent: sessions,
+		fs: platform.fs,
+		workspacePathOf: async (id) => {
+			const found = lookups.workspace(id);
+			return found.ok ? ok(found.value.path) : found;
+		},
 		customPromptOf: async (id) => {
 			const found = lookups.repoOf(id);
 			if (!found.ok) return found;

@@ -1,7 +1,8 @@
 /**
  * @feature REV-02 Diff view
  * Owns: rendering one file's diff with @pierre/diffs, its warnings, and the error card when the
- * renderer fails. It does not fetch anything and it draws no comments itself.
+ * renderer fails. It does not fetch anything; when given stored comments it places the REV-03
+ * comment layer over the lines.
  * Behaviour: ui-map.md 3.6 ("Diff renderer: @pierre/diffs"), 3.2 (File tab, diff mode);
  * services-map.md 3.4.2 (the renderer computes the diff in the browser from the two file texts).
  * Renderer reference: `FileDiff`, `MultiFileDiff` and `PatchDiff` from "@pierre/diffs/react". Use
@@ -23,17 +24,26 @@ import type { CommentId } from "@conducted/shared";
 import { type DiffLineAnnotation, MultiFileDiff, PatchDiff } from "@pierre/diffs/react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { FileDiff } from "../../core/api.ts";
+import type { DiffComment } from "../../core/model.ts";
 import { ErrorBoundary } from "../../ui/ErrorBoundary.tsx";
+import { CommentThread } from "./CommentThread.tsx";
 import { DiffWarning, type DiffWarningKind } from "./DiffWarnings.tsx";
-import type { CommentAnnotation } from "./diff-annotations.ts";
+import { type CommentAnnotation, commentsToAnnotations } from "./diff-annotations.ts";
 import { toDiffOptions } from "./diff-options.ts";
-import type { DiffPreferences, DiffSide, DiffTheme } from "./diff-types.ts";
+import type { CommentHandlers, DiffPreferences, DiffSide, DiffTheme } from "./diff-types.ts";
+import { GutterCommentButton } from "./GutterCommentButton.tsx";
 
 export interface DiffViewProps {
 	diff: FileDiff;
 	preferences: DiffPreferences;
 	/** Line annotations from the comment layer. No annotations means no comment slots. */
 	annotations?: DiffLineAnnotation<CommentAnnotation>[];
+	/** Stored comments of this file; REV-03 maps them to annotations when `annotations` is absent. */
+	comments?: readonly DiffComment[];
+	/** The actions a comment thread offers. With `comments`, it draws every thread. */
+	commentHandlers?: CommentHandlers;
+	/** Opens the composer for a new comment on the clicked line. */
+	onAddComment?: (line: { lineNumber: number; side: DiffSide }) => void;
 	/** Draws one annotation under its line. Supplied by the comment layer (REV-03). */
 	renderAnnotation?: (annotation: DiffLineAnnotation<CommentAnnotation>) => ReactNode;
 	/** Draws the gutter's add-comment control. Supplied by the comment layer (REV-03). */
@@ -76,6 +86,9 @@ export function DiffView({
 	diff,
 	preferences,
 	annotations,
+	comments,
+	commentHandlers,
+	onAddComment,
 	renderAnnotation,
 	renderGutterUtility,
 	focusCommentId = null,
@@ -92,6 +105,28 @@ export function DiffView({
 	const [dismissed, setDismissed] = useState<{ key: string; kind: DiffWarningKind } | null>(null);
 
 	const options = useMemo(() => toDiffOptions(preferences, theme), [preferences, theme]);
+	const lineAnnotations = useMemo(
+		() =>
+			annotations ??
+			(comments === undefined ? undefined : commentsToAnnotations(comments, diff.path)),
+		[annotations, comments, diff.path],
+	);
+	const annotationRenderer =
+		renderAnnotation ??
+		(comments === undefined || commentHandlers === undefined
+			? undefined
+			: (annotation: DiffLineAnnotation<CommentAnnotation>) => {
+					const ids = new Set(annotation.metadata.commentIds);
+					const thread = comments.filter((comment) => ids.has(comment.id));
+					return <CommentThread comments={thread} handlers={commentHandlers} />;
+				});
+	const gutterRenderer =
+		renderGutterUtility ??
+		(onAddComment === undefined
+			? undefined
+			: (getHoveredLine: () => { lineNumber: number; side: DiffSide } | undefined) => (
+					<GutterCommentButton getHoveredLine={getHoveredLine} onAdd={onAddComment} />
+				));
 
 	useEffect(() => {
 		if (focusCommentId === null) return;
@@ -118,9 +153,9 @@ export function DiffView({
 
 	const rendererProps = {
 		options,
-		lineAnnotations: annotations,
-		renderAnnotation,
-		renderGutterUtility,
+		lineAnnotations,
+		renderAnnotation: annotationRenderer,
+		renderGutterUtility: gutterRenderer,
 		className: "conducted-diff",
 	};
 

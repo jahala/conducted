@@ -8,11 +8,12 @@
  * Our design choice: an overlay is mounted only while it is open. Its state resets on every open, and an
  * unbuilt overlay shows a small card with a close button instead of an empty frame.
  * Must handle: Escape or outside click closes (the overlay calls onOpenChange(false)); opening a second overlay
- * replaces the first; an overlay that is not built yet can still be dismissed.
- * Test first: show("passport") mounts only the Passport overlay; close() unmounts it.
+ * replaces the first; an overlay that is not built yet can still be dismissed; Cmd+K opens the palette from any
+ * screen.
+ * Test first: show("palette") then show("passport") leaves only "passport" open; Cmd+K opens the palette.
  */
 import type { WorkspaceId } from "@conducted/shared";
-import { useParams } from "@tanstack/react-router";
+import { useRouterState } from "@tanstack/react-router";
 import type { ComponentType } from "react";
 import { CommandPalette } from "../features/palette/CommandPalette.tsx";
 import { QuickOpen } from "../features/palette/QuickOpen.tsx";
@@ -36,13 +37,25 @@ export function GlobalOverlays() {
 	const open = useOverlayStore((state) => state.open);
 	const show = useOverlayStore((state) => state.show);
 	const close = useOverlayStore((state) => state.close);
-	const { workspaceId } = useParams({ strict: false });
+	const workspaceId = useRouterState({
+		select: (state) => {
+			for (let index = state.matches.length - 1; index >= 0; index -= 1) {
+				const params = state.matches[index]?.params as { workspaceId?: unknown } | undefined;
+				if (typeof params?.workspaceId === "string") return params.workspaceId as WorkspaceId;
+			}
+			return null;
+		},
+	});
 	useCommandHandler("nav.quickOpenFile", "base", () => {
 		show("quick-open");
 		return true;
 	});
 	useCommandHandler("nav.searchInFiles", "base", () => {
 		show("search-files");
+		return true;
+	});
+	useCommandHandler("app.commandPalette", "base", () => {
+		show("palette");
 		return true;
 	});
 	if (open === null) return null;
@@ -52,7 +65,7 @@ export function GlobalOverlays() {
 			<Component
 				open
 				onOpenChange={(next) => (next ? undefined : close())}
-				workspaceId={(workspaceId as WorkspaceId | undefined) ?? null}
+				workspaceId={workspaceId}
 			/>
 		</NotBuiltYet>
 	);

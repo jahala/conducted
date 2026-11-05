@@ -9,7 +9,8 @@
  * cancelling a turn:
  * pausing the follow-up queue, withdrawing the open interaction, removing only the pending sends
  * the sidecar dropped, and putting a send that was still in flight back in the composer draft,
- * and starting a failed turn's message again in a new chat of the same workspace.
+ * and starting a failed turn's message again in a new chat of the same workspace, and handing a
+ * plan to a chosen chat or a new one.
  * Behaviour: services-map.md 2.3.1 (workspace delete deletes its chats), 2.3.3 (session
  * operations), 2.2 (the sessions table), 2.3.4 (composer outbox: restore to draft), ui-map.md
  * 3.2, sessions-and-chats.md "What happens when
@@ -60,6 +61,7 @@
  * fails the send with its reason and keeps the message for Retry), and `warm`, which starts a
  * chat's agent with its launch and resume token for the ACP options and for a chat the sidecar
  * lost (`sidecar/resume.ts`).
+ * COMP-06 owns `restartAgent`: reset the sidecar's session and warm the agent again with resume.
  */
 import {
 	type AcpConfigOption,
@@ -1190,14 +1192,34 @@ export class SessionsService implements AgentMessenger {
 
 	/**
 	 * Backs `Actions.sessions.startFromPlan`: the chosen chat, or a new chat in the same workspace
-	 * when `target` is null, carries out the plan.
+	 * when `target` is null, carries out the plan. A new chat starts with plan mode off, because
+	 * the plan is already written and hand-off means implementation. A target in another workspace
+	 * is refused.
 	 */
-	startFromPlan(
-		_id: SessionId,
-		_planText: string,
-		_target: SessionId | null,
+	async startFromPlan(
+		id: SessionId,
+		planText: string,
+		target: SessionId | null,
 	): Promise<Result<Session>> {
-		return notImplemented("CHAT-12");
+		const found = await this.#session(id);
+		if (!found.ok) return found;
+		const origin = found.value;
+		const text = planText.trim();
+		if (text.length === 0) {
+			return err(appError("chat_plan_empty", "The plan has no text to send."));
+		}
+		if (target === null) {
+			const base = await this.#deps.defaultConfig(origin.workspaceId);
+			if (!base.ok) return base;
+			return this.#createAndSend(origin.workspaceId, { ...base.value, planMode: false }, text, []);
+		}
+		const targetSession = await this.#session(target);
+		if (!targetSession.ok) return targetSession;
+		if (targetSession.value.workspaceId !== origin.workspaceId) {
+			return err(appError("chat_plan_target_invalid", "That chat belongs to another workspace."));
+		}
+		const sent = await this.send(target, text, [], "auto");
+		return sent.ok ? ok(targetSession.value) : sent;
 	}
 
 	/** Backs `Actions.app.createDiagnosticsChat`: saves the redacted report and starts a chat with it attached. */
@@ -1722,8 +1744,42 @@ export class SessionsService implements AgentMessenger {
 	}
 
 	/** /restart: `resetAgent`, then warm the agent again with resume. */
-	restartAgent(_id: SessionId): Promise<Result<void>> {
-		return notImplemented("COMP-06");
+	async restartAgent(id: SessionId): Promise<Result<void>> {
+		const found = await this.#session(id);
+		if (!found.ok) return found;
+		const session = found.value;
+		const launchFor = this.#deps.launchFor;
+		if (launchFor === undefined) {
+			return err(
+				appError(
+					"chat_launch_missing",
+					"The chat cannot start its agent because no launch settings were provided.",
+				),
+			);
+		}
+		const workspace = await this.#workspaceContext(session.workspaceId);
+		if (!workspace.ok) return workspace;
+		const reset = await this.#deps.sidecar.request("resetAgent", { sessionId: id });
+		if (!reset.ok) return reset;
+		// The sidecar forgets the chat's live state on reset and publishes no idle state, so the
+		// app clears it here instead of leaving the chat looking busy.
+		this.store.setState((state) => ({
+			liveStates: { ...state.liveStates, [id]: idleLiveState },
+			cancelling: { ...state.cancelling, [id]: false },
+		}));
+		const built = await launchFor(session);
+		if (!built.ok) return built;
+		const warm = await this.#deps.sidecar.request("warmAgent", {
+			sessionId: id,
+			config: session.config,
+			workspace: workspace.value,
+			launch: built.value,
+			...(session.agentSessionId === null
+				? {}
+				: { resume: { agentSessionId: session.agentSessionId } }),
+		});
+		if (!warm.ok) return warm;
+		return ok(undefined);
 	}
 
 	compact(_id: SessionId): Promise<Result<void>> {

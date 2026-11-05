@@ -84,5 +84,5 @@ export const useContentSearch: Queries["useContentSearch"] = (workspaceId, query
 	if (result.data === undefined) return { state: "loading" };
 	return { state: "ready", data: result.data };
 };
-export const useRepoFileSearch: Queries["useRepoFileSearch"] = () => notImplemented("COMP-04");
+export const useRepoFileSearch: Queries["useRepoFileSearch"] = () => notImplemented("SIDE-22");
 export const useArtifacts: Queries["useArtifacts"] = () => notImplemented("REV-10");
