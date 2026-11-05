@@ -66,7 +66,7 @@ import { useStore } from "zustand";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 import type { Actions, ChangedFile, DiffScope, Draft, Loadable, Queries } from "./api.ts";
 import { useServices } from "./context.tsx";
-import type { BranchCommit, ChatView, GitState, Repo, Session } from "./model.ts";
+import type { BranchCommit, ChatView, GitState, Repo, Session, Workspace } from "./model.ts";
 import {
 	liveShortcut,
 	parseShortcutOverrides,
@@ -199,7 +199,21 @@ export const useRepoConfig: Queries["useRepoConfig"] = (repoId) => {
 	return { state: "ready", data: config };
 };
 export const useWorkspaces: Queries["useWorkspaces"] = () => notImplemented("NAV-03");
-export const useWorkspace: Queries["useWorkspace"] = () => notImplemented("WS-01");
+export const useWorkspace: Queries["useWorkspace"] = (id) => {
+	const store = useServices().services.workspace.store;
+	const loaded = useStore(store, (state) => state.loaded);
+	const workspace = useStore(store, (state) => state.workspacesById[id]);
+	return useMemo<Loadable<Workspace>>(() => {
+		if (!loaded) return { state: "loading" };
+		if (workspace === undefined) {
+			return {
+				state: "error",
+				error: appError("workspace_unknown", "That workspace no longer exists."),
+			};
+		}
+		return { state: "ready", data: workspace };
+	}, [loaded, workspace]);
+};
 
 export const useWorkspaceStatus: Queries["useWorkspaceStatus"] = (workspaceId) => {
 	const container = useServices();
