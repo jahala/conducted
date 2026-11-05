@@ -11,9 +11,11 @@ on:
 permissions:
   contents: read
 
+# A newer push cancels the older run of the same pull request. A push to main never cancels the
+# run of the commit before it, so every commit on the main line gets its verdict.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -22,6 +24,8 @@ jobs:
   typescript:
     if: github.event_name == 'push' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    # A hung test would otherwise run for GitHub's default of six hours.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7.0.1
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # ratchet:pnpm/action-setup@v6.1.1
@@ -37,6 +41,8 @@ jobs:
       - run: pnpm exec biome ci .
       - run: shellcheck bin/*.sh
       - run: pnpm test
+      - name: Build the web UI that ships inside the app
+        run: pnpm build
       - name: Guards (docs, data model, migrations, headers, markers, versions)
         run: pnpm guards
       - name: Placeholders match the backlog
@@ -46,6 +52,7 @@ jobs:
     if: github.event_name == 'push' || github.event.pull_request.draft == false
     # The app is macOS-only (WKWebView, Keychain, Apple speech), so the shell is checked on macOS.
     runs-on: macos-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: apps/desktop/src-tauri

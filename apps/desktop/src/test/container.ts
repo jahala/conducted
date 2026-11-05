@@ -4,9 +4,10 @@
  * needs, and two seed helpers that write a row through the repositories and load it into the
  * matching service store.
  * Behaviour: not applicable, test support only.
- * Must handle: every container option can be overridden, ids are never a constant, and `close`
- * releases the database. Construction does not call `container.start()`, so a test decides when
- * stores load.
+ * Must handle: every container input except the platform can be overridden, ids are never a
+ * constant, and `close` releases the database (a test that started the container awaits
+ * `container.stop()` first). Construction does not call `container.start()`, so a test decides
+ * when stores load.
  * Test first: a seeded project is visible through the repo service's store and two ids differ.
  */
 import type { Clock, IdSource } from "@conducted/shared";

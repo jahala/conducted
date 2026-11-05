@@ -41,8 +41,16 @@ function cells(line: string): string[] {
 		.map((cell) => cell.trim());
 }
 
-export function parseBacklog(text: string): BacklogRow[] {
+export interface BacklogScan {
+	rows: BacklogRow[];
+	/** Rows that look like features but cannot be read: a bad status or a bad priority. */
+	problems: string[];
+}
+
+/** Reads the backlog and reports every row it cannot read, so no feature drops out unseen. */
+export function scanBacklog(text: string): BacklogScan {
 	const rows: BacklogRow[] = [];
+	const problems: string[] = [];
 	let epic = "";
 	let header: string[] = [];
 	for (const line of text.split("\n")) {
@@ -61,21 +69,39 @@ export function parseBacklog(text: string): BacklogRow[] {
 		if (!row[0] || !ID.test(row[0]) || header.length === 0) continue;
 		const get = (name: string) => row[header.indexOf(name)] ?? "";
 		const status = get("status");
-		if (status !== "stub" && status !== "done" && status !== "planned") continue;
+		if (status !== "stub" && status !== "done" && status !== "planned") {
+			problems.push(`${row[0]} has status "${status}"; use stub, done or planned`);
+			continue;
+		}
 		const priority = Number(get("p"));
+		if (priority !== 1 && priority !== 2 && priority !== 3) {
+			problems.push(`${row[0]} has priority "${get("p")}"; use 1, 2 or 3`);
+			continue;
+		}
+		const needs = get("needs")
+			.split(/[,\s]+/)
+			.filter(Boolean);
+		for (const need of needs.filter((n) => !ID.test(n))) {
+			problems.push(`${row[0]} needs "${need}", which is not a feature id`);
+		}
 		rows.push({
 			id: row[0],
 			title: get("feature"),
 			owner: get("owner"),
 			research: get("research"),
-			priority: priority === 1 || priority === 2 || priority === 3 ? priority : 3,
+			priority,
 			status,
-			needs: get("needs")
-				.split(/[,\s]+/)
-				.filter((need) => ID.test(need)),
+			needs: needs.filter((need) => ID.test(need)),
 			epic,
 		});
 	}
+	return { rows, problems };
+}
+
+/** The rows of the backlog. A row it cannot read stops the script that asked, with the reason. */
+export function parseBacklog(text: string): BacklogRow[] {
+	const { rows, problems } = scanBacklog(text);
+	if (problems.length > 0) throw new Error(`docs/plans/backlog.md: ${problems.join("; ")}`);
 	return rows;
 }
 
@@ -207,4 +233,28 @@ export function renderIssue(
 		GENERATED_END,
 	);
 	return lines.join("\n");
+}
+
+/** True when GitHub refused a call for going too fast, so waiting and retrying can help. */
+export const isRateLimited = (error: string): boolean =>
+	/rate limit|abuse|HTTP 429|was submitted too quickly/i.test(error);
+
+export type OnlyArg = { only: Set<string> | null } | { error: string };
+
+/**
+ * Reads `--only A-01,B-02`. No flag means every row. A flag with no value, or with something
+ * that is not a feature id, is an error, so a typo never widens a run to every issue.
+ */
+export function parseOnly(argv: string[]): OnlyArg {
+	const at = argv.indexOf("--only");
+	if (at === -1) return { only: null };
+	const value = argv[at + 1];
+	if (value === undefined || value.startsWith("--")) {
+		return { error: "--only needs a comma-separated list of feature ids, for example A-01,B-02" };
+	}
+	const ids = value.split(",");
+	const bad = ids.filter((id) => !ID.test(id));
+	if (bad.length > 0)
+		return { error: `--only has values that are not feature ids: ${bad.join(", ")}` };
+	return { only: new Set(ids) };
 }

@@ -91,4 +91,41 @@ describe("test container", () => {
 			test.close();
 		}
 	});
+
+	it("uses the ids and clock a test passes in", async () => {
+		let next = 0;
+		const test = createTestContainer({
+			ids: { uuid: () => `custom-${++next}` },
+			clock: { now: () => 42 },
+		});
+		try {
+			const workspace = await seedWorkspace(test.container);
+			const created = await test.container.services.sessions.create(workspace.id, sessionConfig);
+			if (!created.ok) throw new Error("could not create a session");
+			expect(created.value.id).toMatch(/^custom-\d+$/);
+			expect(next).toBeGreaterThan(0);
+		} finally {
+			test.close();
+		}
+	});
+
+	it("close releases the database", async () => {
+		const test = createTestContainer();
+		await seedRepo(test.container);
+		test.close();
+		await expect(test.database.select("SELECT 1")).rejects.toThrow();
+	});
+
+	it("two containers never share rows", async () => {
+		const first = createTestContainer();
+		const second = createTestContainer();
+		try {
+			await seedRepo(first.container, { name: "only-first" });
+			expect(second.container.services.repo.store.getState().order).toEqual([]);
+			expect(await second.database.select("SELECT id FROM repos")).toEqual([]);
+		} finally {
+			first.close();
+			second.close();
+		}
+	});
 });

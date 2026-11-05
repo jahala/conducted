@@ -25,13 +25,22 @@ function alive(pid: number): boolean {
 	}
 }
 
+/**
+ * The process that owns a run folder: the pid in its owner file. A run writes that file a moment
+ * after it makes the folder, so a folder without it falls back to the pid its name ends in.
+ */
+function ownerOf(dir: string, name: string): number {
+	const owner = join(dir, name, OWNER);
+	if (existsSync(owner)) return Number(readFileSync(owner, "utf8"));
+	return Number(/-(\d+)$/.exec(name)?.[1] ?? Number.NaN);
+}
+
 /** Removes run folders whose owner process no longer exists. Returns how many were removed. */
 export function removeDeadRuns(dir: string): number {
 	if (!existsSync(dir)) return 0;
 	let removed = 0;
 	for (const name of readdirSync(dir)) {
-		const owner = join(dir, name, OWNER);
-		const pid = existsSync(owner) ? Number(readFileSync(owner, "utf8")) : Number.NaN;
+		const pid = ownerOf(dir, name);
 		if (!Number.isInteger(pid) || !alive(pid)) {
 			rmSync(join(dir, name), { recursive: true, force: true });
 			removed += 1;

@@ -45,7 +45,12 @@ test("folders of killed runs are removed, live ones are kept", () => {
 	writeFileSync(join(dir, "dead", "owner.pid"), "999999999");
 	mkdirSync(join(dir, "live"));
 	writeFileSync(join(dir, "live", "owner.pid"), String(process.pid));
-	expect(removeDeadRuns(dir)).toBe(1);
+	// A run that has made its folder but not yet written the owner file is still alive.
+	mkdirSync(join(dir, `1700000000000-${process.pid}`));
+	mkdirSync(join(dir, "1700000000000-999999999"));
+	expect(removeDeadRuns(dir)).toBe(2);
+	expect(existsSync(join(dir, `1700000000000-${process.pid}`))).toBe(true);
+	expect(existsSync(join(dir, "1700000000000-999999999"))).toBe(false);
 	expect(existsSync(join(dir, "dead"))).toBe(false);
 	expect(existsSync(join(dir, "live"))).toBe(true);
 	rmSync(dir, { recursive: true, force: true });

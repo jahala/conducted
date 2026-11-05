@@ -84,22 +84,22 @@ pub fn app_origins() -> &'static [&'static str] {
 }
 
 /// Decides for one URL. `app_origins` holds origins such as `tauri://localhost`.
-pub fn decide_navigation(url: &str, app_origins: &[&str]) -> CommandResult<NavigationDecision> {
+pub fn decide_navigation(url: &str, app_origins: &[&str]) -> NavigationDecision {
     let Ok(parsed) = Url::parse(url) else {
-        return Ok(NavigationDecision::Block);
+        return NavigationDecision::Block;
     };
 
     if parsed.scheme() == "about" && parsed.path() == "blank" {
-        return Ok(NavigationDecision::Allow);
+        return NavigationDecision::Allow;
     }
 
     if is_app_origin(&parsed, app_origins) {
-        return Ok(NavigationDecision::Allow);
+        return NavigationDecision::Allow;
     }
 
     match parsed.scheme() {
-        "http" | "https" => Ok(NavigationDecision::OpenInBrowser),
-        _ => Ok(NavigationDecision::Block),
+        "http" | "https" => NavigationDecision::OpenInBrowser,
+        _ => NavigationDecision::Block,
     }
 }
 
@@ -133,18 +133,14 @@ pub fn install_guard(app: &AppHandle) -> CommandResult<()> {
 
 fn guard_navigation(webview: &Webview<Wry>, url: &Url) -> bool {
     match decide_navigation(url.as_str(), app_origins()) {
-        Ok(NavigationDecision::Allow) => true,
-        Ok(NavigationDecision::OpenInBrowser) => {
+        NavigationDecision::Allow => true,
+        NavigationDecision::OpenInBrowser => {
             if let Err(error) = webview.opener().open_url(url.to_string(), None::<&str>) {
                 eprintln!("navigation guard: could not open {url} in the browser: {error}");
             }
             false
         }
-        Ok(NavigationDecision::Block) => false,
-        Err(error) => {
-            eprintln!("navigation guard: could not decide for {url}: {error}");
-            false
-        }
+        NavigationDecision::Block => false,
     }
 }
 
@@ -177,7 +173,7 @@ mod tests {
     const ABOUT_BLANK: &str = "about:blank";
 
     fn decide(url: &str, origins: &[&str]) -> NavigationDecision {
-        decide_navigation(url, origins).expect("a navigation decision")
+        decide_navigation(url, origins)
     }
 
     #[test]

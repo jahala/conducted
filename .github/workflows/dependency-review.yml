@@ -2,9 +2,11 @@
 # licence. Free on public repos; private repos need GitHub Advanced Security.
 name: dependency review
 
+# Draft PRs run nothing, as in ci.yml: marking one ready runs the review.
 on:
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
@@ -13,7 +15,9 @@ permissions:
 
 jobs:
   review:
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7.0.1
       - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # ratchet:actions/dependency-review-action@v5.0.0
