@@ -36,6 +36,7 @@ import {
 	type InteractionId,
 	type MessageId,
 	notImplemented,
+	ok,
 	type Result,
 	type SessionId,
 	type TurnId,
@@ -327,8 +328,12 @@ export class SessionsService implements AgentMessenger {
 		return notImplemented("AGENT-14");
 	}
 
-	setAutoApproveEdits(_id: SessionId, _enabled: boolean): Promise<Result<void>> {
-		return notImplemented("AGENT-04");
+	async setAutoApproveEdits(id: SessionId, enabled: boolean): Promise<Result<void>> {
+		const result = await this.#deps.sidecar.request("setAutoApproveEdits", {
+			sessionId: id,
+			enabled,
+		});
+		return result.ok ? ok(undefined) : result;
 	}
 
 	/** Sets the option through the sidecar and stores the new choice in the chat's `acpConfig`. */

@@ -7,7 +7,8 @@
  * checks in canUseTool) and 3.5 (plan mode). The CLI always starts in bypassPermissions and the
  * runner switches the mode live with setPermissionMode.
  * Must handle:
- *  - mode: plan mode wins, then approvals required means "default", else "bypassPermissions"
+ *  - mode: plan mode wins; otherwise approvals off means "bypassPermissions", approvals on means
+ *    "auto" when the auto permission mode is on and "default" when it is off
  *  - the order of checks: ExitPlanMode first; then edit tools must target a path inside the
  *    workspace or an additional directory (checked on the real path, so a symlink cannot escape);
  *    then our own app tools are allowed; then a chat that is no longer live is denied; then
@@ -30,19 +31,21 @@ import type {
 	PermissionUpdate,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { InteractionAnswer, SessionConfig } from "@conducted/protocol";
-import { notImplemented } from "@conducted/shared";
 import { APP_TOOL_NAME_PREFIX } from "./constants.ts";
 
 export function permissionModeFor(
-	config: Pick<SessionConfig, "planMode" | "requireToolApproval">,
+	config: Pick<SessionConfig, "planMode" | "requireToolApproval" | "autoPermissionMode">,
 ): PermissionMode {
 	if (config.planMode) return "plan";
-	return config.requireToolApproval ? "default" : "bypassPermissions";
+	return modeAfterPlan(config);
 }
 
 /** The mode to return to when a plan is approved: what the chat would use without plan mode. */
-export function modeAfterPlan(config: Pick<SessionConfig, "requireToolApproval">): PermissionMode {
-	return config.requireToolApproval ? "default" : "bypassPermissions";
+export function modeAfterPlan(
+	config: Pick<SessionConfig, "requireToolApproval" | "autoPermissionMode">,
+): PermissionMode {
+	if (!config.requireToolApproval) return "bypassPermissions";
+	return config.autoPermissionMode === true ? "auto" : "default";
 }
 
 export const EDIT_TOOLS: ReadonlySet<string> = new Set([
@@ -122,6 +125,7 @@ export function toPermissionResult(
 	toolName: string,
 	input: Record<string, unknown>,
 	answer: InteractionAnswer,
+	suggestions: readonly PermissionUpdate[] = [],
 ): ApprovalOutcome {
 	if (answer.kind !== "tool_approval") {
 		return {
@@ -155,7 +159,14 @@ export function toPermissionResult(
 		case "allow":
 			return { result: { behavior: "allow", updatedInput: input }, enableAutoApproveEdits: false };
 		case "allow_with_suggested_rules":
-			return notImplemented("AGENT-04");
+			return {
+				result: {
+					behavior: "allow",
+					updatedInput: input,
+					...(suggestions.length > 0 ? { updatedPermissions: [...suggestions] } : {}),
+				},
+				enableAutoApproveEdits: false,
+			};
 	}
 }
 
@@ -163,7 +174,7 @@ export function toPermissionResult(
 export function toPlanResult(
 	input: Record<string, unknown>,
 	answer: InteractionAnswer,
-	config: Pick<SessionConfig, "requireToolApproval">,
+	config: Pick<SessionConfig, "requireToolApproval" | "autoPermissionMode">,
 	planFilePath?: string,
 ): { result: PermissionResult; nextMode: PermissionMode | null } {
 	if (answer.kind === "plan_approval" && answer.approved) {
