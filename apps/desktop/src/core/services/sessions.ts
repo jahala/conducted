@@ -254,12 +254,29 @@ export class SessionsService implements AgentMessenger {
 	}
 
 	applyStoredEvent(
-		_sessionId: SessionId,
-		_idx: number,
-		_event: SessionEvent,
-		_receivedAt: number,
+		sessionId: SessionId,
+		idx: number,
+		event: SessionEvent,
+		receivedAt: number,
 	): void {
-		notImplemented("DATA-04");
+		this.store.setState((state) => {
+			const loaded = state.events[sessionId];
+			const duplicate = loaded?.some((stored) => stored.idx === idx) ?? false;
+			const events =
+				loaded !== undefined && !duplicate
+					? {
+							...state.events,
+							[sessionId]: [...loaded, { idx, event, receivedAt, revertedAt: null }],
+						}
+					: state.events;
+			const open = state.openInteractions[sessionId];
+			const closeInteraction = event.type === "turn_ended" && open !== undefined;
+			if (events === state.events && !closeInteraction) return {};
+			if (!closeInteraction) return { events };
+			const openInteractions = { ...state.openInteractions };
+			delete openInteractions[sessionId];
+			return { events, openInteractions };
+		});
 	}
 
 	setAgentSessionId(_sessionId: SessionId, _agentSessionId: string): Promise<Result<void>> {

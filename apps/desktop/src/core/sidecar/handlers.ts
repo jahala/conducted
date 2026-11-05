@@ -103,10 +103,13 @@ export interface SidecarHandlerPorts {
 
 // ---------------------------------------------------------------- requests (sidecar asks the UI)
 
-export function createSidecarRequestHandlers(_ports: SidecarHandlerPorts): SidecarRequestHandlers {
+export function createSidecarRequestHandlers(ports: SidecarHandlerPorts): SidecarRequestHandlers {
 	return {
 		requestInteraction: () => notImplemented("CHAT-10"),
-		deliverEvent: () => notImplemented("DATA-04"),
+		deliverEvent: async (envelope) => {
+			const stored = await ports.ingest.ingest(envelope);
+			return { persisted: stored.ok };
+		},
 		getWorkspaceDiff: () => notImplemented("REV-01"),
 		getDiffComments: () => notImplemented("REV-03"),
 		addDiffComments: () => notImplemented("REV-03"),
@@ -118,10 +121,12 @@ export function createSidecarRequestHandlers(_ports: SidecarHandlerPorts): Sidec
 // ---------------------------------------------------------------- notifications (sidecar tells the UI)
 
 export function createSidecarNotificationHandlers(
-	_ports: SidecarHandlerPorts,
+	ports: SidecarHandlerPorts,
 ): SidecarNotificationHandlers {
 	return {
-		sessionEvent: () => notImplemented("DATA-04"),
+		sessionEvent: async (envelope) => {
+			await ports.ingest.ingest(envelope);
+		},
 		liveState: () => notImplemented("CHAT-18"),
 		agentSessionId: () => notImplemented("CHAT-02"),
 		progress: () => notImplemented("CHAT-13"),
