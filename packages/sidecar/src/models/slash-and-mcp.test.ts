@@ -11,18 +11,23 @@ import type { AgentKind } from "@conducted/shared";
 import { appError } from "@conducted/shared";
 import { createLogger } from "../logging/logger.ts";
 import { MapRunnerRegistry, type RunnerSelector } from "../runners/registry.ts";
-import type { AgentSession, Runner, StartOptions } from "../runners/runner.ts";
+import type {
+	AgentSession,
+	McpServerView,
+	Runner,
+	RunnerSlashCommand,
+	StartOptions,
+} from "../runners/runner.ts";
 import {
 	MCP_LIST_FAILED,
 	MCP_LIST_UNSUPPORTED,
-	type McpListingRunner,
 	RunnerMcpServerLister,
 	RunnerSlashCommandLister,
 	SLASH_COMMANDS_FAILED,
 } from "./slash-and-mcp.ts";
 
-type ListedCommand = { name: string; description: string; argumentHint?: string };
-type ListedServer = Awaited<ReturnType<NonNullable<McpListingRunner["listMcpServers"]>>>[number];
+type ListedCommand = RunnerSlashCommand;
+type ListedServer = McpServerView;
 
 function fakeLogger() {
 	return createLogger({
@@ -41,7 +46,7 @@ interface FakeRunnerOptions {
 }
 
 function fakeRunner(agent: AgentKind, options: FakeRunnerOptions = {}): Runner {
-	const runner: McpListingRunner = {
+	const runner: Runner = {
 		agent,
 		capabilities: {
 			steer: false,
@@ -93,13 +98,18 @@ describe("SIDE-16 slash commands", () => {
 		expect(called).toBe(false);
 	});
 
-	test("maps the runner's entries to protocol commands and marks MCP and Codex entries", async () => {
+	test("maps the runner's entries to protocol commands and keeps the reported source", async () => {
 		const claude = fakeRunner("claude", {
 			slashCommands: true,
 			listSlashCommands: async () => [
-				{ name: "compact", description: "Compact the conversation" },
-				{ name: "review", description: "Review changes", argumentHint: "[path]" },
-				{ name: "mcp__github__search", description: "Search GitHub" },
+				{ name: "compact", description: "Compact the conversation", source: "builtin" },
+				{
+					name: "review",
+					description: "Review changes",
+					argumentHint: "[path]",
+					source: "project",
+				},
+				{ name: "mcp__github__search", description: "Search GitHub", source: "mcp" },
 			],
 		});
 
@@ -116,7 +126,7 @@ describe("SIDE-16 slash commands", () => {
 				name: "review",
 				description: "Review changes",
 				argumentHint: "[path]",
-				source: "builtin",
+				source: "project",
 				kind: "command",
 			},
 			{
@@ -125,6 +135,32 @@ describe("SIDE-16 slash commands", () => {
 				source: "mcp",
 				kind: "command",
 			},
+		]);
+
+		const codex = fakeRunner("codex", {
+			slashCommands: true,
+			listSlashCommands: async () => [
+				{ name: "skill-creator", description: "Create a skill", source: "user", kind: "skill" },
+			],
+		});
+
+		const skills = await listers(codex).slash.list("codex", undefined, "/work/app");
+
+		expect(skills.ok && skills.value).toEqual([
+			{ name: "skill-creator", description: "Create a skill", source: "user", kind: "skill" },
+		]);
+	});
+
+	test("falls back to builtin for an unlabelled command and to skill for unlabelled Codex entries", async () => {
+		const claude = fakeRunner("claude", {
+			slashCommands: true,
+			listSlashCommands: async () => [{ name: "clear", description: "Start a fresh chat" }],
+		});
+
+		const listed = await listers(claude).slash.list("claude", undefined, "/work/app");
+
+		expect(listed.ok && listed.value).toEqual([
+			{ name: "clear", description: "Start a fresh chat", source: "builtin", kind: "command" },
 		]);
 
 		const codex = fakeRunner("codex", {
@@ -194,20 +230,46 @@ describe("SIDE-16 MCP servers", () => {
 		expect(called).toBe(false);
 	});
 
-	test("lists a capable agent's MCP servers with their status", async () => {
+	test("lists a capable agent's MCP servers with status, error text and tool names", async () => {
 		const runner = fakeRunner("claude", {
 			mcpServers: true,
 			listMcpServers: async () => [
-				{ name: "github", status: "connected", toolCount: 12 },
-				{ name: "linear", status: "needs_auth" },
+				{
+					name: "github",
+					status: "connected",
+					toolCount: 2,
+					tools: ["search", "create_issue"],
+					scope: "user",
+					transport: "http",
+				},
+				{
+					name: "linear",
+					status: "failed",
+					error: "connection refused",
+					scope: "project",
+					transport: "stdio",
+				},
 			],
 		});
 
 		const listed = await listers(runner).mcp.list("claude", undefined, "/work/app");
 
 		expect(listed.ok && listed.value).toEqual([
-			{ name: "github", status: "connected", toolCount: 12 },
-			{ name: "linear", status: "needs_auth" },
+			{
+				name: "github",
+				status: "connected",
+				toolCount: 2,
+				tools: ["search", "create_issue"],
+				scope: "user",
+				transport: "http",
+			},
+			{
+				name: "linear",
+				status: "failed",
+				error: "connection refused",
+				scope: "project",
+				transport: "stdio",
+			},
 		]);
 	});
 

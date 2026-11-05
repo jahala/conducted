@@ -13,18 +13,21 @@
  * failed write is thrown so the tunnel logs it; `agentInstallsChanged` updates the agent catalog;
  * `agentConfigChanged` stores the config the agent chose and a failed write is thrown so the
  * tunnel logs it; `interactionClosed` marks a timed-out card and settles the pending request;
- * `shellEnvFailed` logs the folder, kind and message; a failed workspace diff becomes error text
- * the agent can read instead of a crash.
+ * `shellEnvFailed` logs the folder, kind and message; a failed workspace diff is answered as an
+ * RPC error whose data carries the app's own error code, so the sidecar tool shows an error
+ * result instead of a fake diff.
  * Our design choice: handlers receive ports (small interfaces), not services, so each can be
- * tested with a plain object. Errors the agent should read go into the normal result as text.
+ * tested with a plain object. A result the agent should read as text stays in the normal result.
  * Test first: a deliverEvent request for a stored event answers persisted true and sends the ack.
  */
-import type {
-	InteractionAnswer,
-	InteractionRequest,
-	SessionEventEnvelope,
+import {
+	type InteractionAnswer,
+	type InteractionRequest,
+	RPC_ERRORS,
+	type SessionEventEnvelope,
 } from "@conducted/protocol";
 import { notImplemented, type Result, type SessionId } from "@conducted/shared";
+import { JSONRPCErrorException } from "json-rpc-2.0";
 import type { IngestOutcome } from "./ingest.ts";
 import type {
 	SidecarNotificationHandlers,
@@ -134,7 +137,12 @@ export function createSidecarRequestHandlers(ports: SidecarHandlerPorts): Sideca
 				params.file,
 				params.statOnly,
 			);
-			return { diff: result.ok ? result.value : result.error.message };
+			if (!result.ok) {
+				throw new JSONRPCErrorException(result.error.message, RPC_ERRORS.internalError, {
+					appErrorCode: result.error.code,
+				});
+			}
+			return { diff: result.value };
 		},
 		getDiffComments: () => notImplemented("REV-03"),
 		addDiffComments: () => notImplemented("REV-03"),

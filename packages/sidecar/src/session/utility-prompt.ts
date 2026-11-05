@@ -6,19 +6,21 @@
  * session for utility prompts), the decision is D030 in docs/decisions.md. One call covers every
  * agent.
  * Must handle: an agent that is not signed in (the runner's error value, nothing written); no model
- * given (an error value, no default is invented); the call writes no events, takes no checkpoints
- * and sends no live-state change; every tool request is refused through the interaction callback;
- * the session is closed at once, also on error and on timeout; the call is never resent (D016); the
- * launch is never logged; a log line records the phase and duration, as Conductor's
- * `AcpOneShotPrompt` tag does.
+ * given (an error value, no default is invented); every tool request is refused through the
+ * interaction callback; the session is closed at once, also on error and on timeout; the call is
+ * never resent (D016); the launch values never reach a log line; a completed log line records the
+ * phase and duration at info level, as Conductor's `AcpOneShotPrompt` tag does.
+ * This module holds no event publisher, checkpoint service or live-state store, so a call writes
+ * no events, takes no checkpoints and sends no live-state change by construction.
  * Our design choice: the runner contract (`runners/runner.ts`) has no one-shot method, so this
  * module starts a normal `AgentSession` with every app tool off and an auto-deny interaction
  * callback. If that proves too heavy for an agent, add an optional `runOnce` to `Runner` then.
  * Our design choice: the session gets a minimal workspace context built from the prompt's folder;
- * runners only read its path. Until SIDE-21 lands, the launch's own environment does not reach the
- * runner, so the call uses the captured login shell alone.
+ * runners only read its path. Until SIDE-21 lands, `launch` is accepted but not applied: the
+ * runner gets the captured login shell alone, so the launch's environment and provider keys do
+ * not reach it yet. Applying them belongs to SIDE-21 (`runners/launch-env.ts`).
  * Test first: a call returns the agent's text items, refuses every interaction and disposes the
- * session; no event, checkpoint or live-state writer is ever called.
+ * session.
  */
 import path from "node:path";
 import type {
@@ -79,6 +81,8 @@ export class AgentUtilityPromptRunner implements UtilityPromptRunner {
 			return err(runnerResult.error);
 		}
 
+		// SIDE-21 will merge the launch's environment and keys here; until then the runner gets
+		// the captured login shell alone.
 		const env = await this.deps.shellEnv.get(params.cwd);
 		if (!env.ok) {
 			this.logFailure(params, startedAt, env.error.message);
@@ -149,7 +153,7 @@ export class AgentUtilityPromptRunner implements UtilityPromptRunner {
 				this.logFailure(params, startedAt, error.message);
 				return err(error);
 			}
-			this.deps.logger.debug("Utility prompt finished", {
+			this.deps.logger.info("Utility prompt finished", {
 				agent: agentLabel(params),
 				phase: "completed",
 				durationMs: this.deps.clock.now() - startedAt,

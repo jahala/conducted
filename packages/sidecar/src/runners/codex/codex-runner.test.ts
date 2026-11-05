@@ -250,7 +250,7 @@ describe("AGENT-06 Codex runner", () => {
 		expect(child.stopped).toBe(true);
 	});
 
-	test("listSlashCommands reads codex skills", async () => {
+	test("listSlashCommands reads codex skills with their scope and kind", async () => {
 		const child = new FakeChild();
 		answerInitialize(child);
 		child.onWrite = (message: JsonRpcMessage) => {
@@ -266,9 +266,21 @@ describe("AGENT-06 Codex runner", () => {
 						jsonrpc: "2.0",
 						id: message.id,
 						result: {
-							skills: [
-								{ name: "review", description: "Review a diff", argumentHint: "<path>" },
-								{ name: "no-description" },
+							data: [
+								{
+									cwd: "/workspace",
+									skills: [
+										{
+											name: "review",
+											description: "Review a diff",
+											argumentHint: "<path>",
+											scope: "repo",
+										},
+										{ name: "mine", description: "My skill", scope: "user" },
+										{ name: "packaged", description: "From a plugin", pluginId: "p1" },
+									],
+									errors: [],
+								},
 							],
 						},
 					});
@@ -282,8 +294,143 @@ describe("AGENT-06 Codex runner", () => {
 		const commands = await runner.listSlashCommands("/workspace");
 
 		expect(commands).toEqual([
-			{ name: "review", description: "Review a diff", argumentHint: "<path>" },
-			{ name: "no-description", description: "" },
+			{
+				name: "review",
+				description: "Review a diff",
+				argumentHint: "<path>",
+				source: "project",
+				kind: "skill",
+			},
+			{ name: "mine", description: "My skill", source: "user", kind: "skill" },
+			{ name: "packaged", description: "From a plugin", source: "plugin", kind: "skill" },
 		]);
+	});
+});
+
+describe("SIDE-16 Codex MCP server listing", () => {
+	test("listMcpServers maps state, tools, error text and plugin scope and closes the client", async () => {
+		const child = new FakeChild();
+		answerInitialize(child);
+		child.onWrite = (message: JsonRpcMessage) => {
+			if (message.method === "initialize" && message.id !== undefined) {
+				queueMicrotask(() => {
+					child.emit({ jsonrpc: "2.0", id: message.id, result: { serverVersion: "0.154.0" } });
+				});
+				return;
+			}
+			if (message.method === "mcpServerStatus/list" && message.id !== undefined) {
+				queueMicrotask(() => {
+					child.emit({
+						jsonrpc: "2.0",
+						id: message.id,
+						result: {
+							data: [
+								{
+									name: "github",
+									runtimeStatus: "connected",
+									pluginId: null,
+									tools: { search: { name: "search" } },
+									toolsError: null,
+									authStatus: "oAuth",
+								},
+								{
+									name: "linear",
+									runtimeStatus: "failed",
+									pluginId: null,
+									tools: {},
+									toolsError: "connection refused",
+									authStatus: "unsupported",
+								},
+								{
+									name: "packaged",
+									runtimeStatus: "authenticationRequired",
+									pluginId: "p1",
+									tools: {},
+									toolsError: null,
+									authStatus: "notLoggedIn",
+								},
+							],
+							nextCursor: null,
+						},
+					});
+				});
+			}
+		};
+		const spawn: SpawnJsonRpcChild = async () => ok(child) as Result<JsonRpcChild, AppError>;
+		const runner = makeRunner({ spawn });
+		await runner.detect({ PATH: "/usr/bin" });
+
+		const servers = await runner.listMcpServers("/workspace");
+
+		expect(servers).toEqual([
+			{
+				name: "github",
+				status: "connected",
+				tools: ["search"],
+				toolCount: 1,
+			},
+			{
+				name: "linear",
+				status: "failed",
+				tools: [],
+				toolCount: 0,
+				error: "connection refused",
+			},
+			{
+				name: "packaged",
+				status: "needs_auth",
+				scope: "plugin",
+				tools: [],
+				toolCount: 0,
+			},
+		]);
+		expect(child.stopped).toBe(true);
+	});
+
+	test("listMcpServers pages until nextCursor is null", async () => {
+		const child = new FakeChild();
+		answerInitialize(child);
+		const cursors: unknown[] = [];
+		child.onWrite = (message: JsonRpcMessage) => {
+			if (message.method === "initialize" && message.id !== undefined) {
+				queueMicrotask(() => {
+					child.emit({ jsonrpc: "2.0", id: message.id, result: { serverVersion: "0.154.0" } });
+				});
+				return;
+			}
+			if (message.method === "mcpServerStatus/list" && message.id !== undefined) {
+				const params = message.params as { cursor: unknown };
+				cursors.push(params.cursor);
+				const nextCursor = params.cursor === null ? "page-2" : null;
+				const name = params.cursor === null ? "first" : "second";
+				queueMicrotask(() => {
+					child.emit({
+						jsonrpc: "2.0",
+						id: message.id,
+						result: {
+							data: [
+								{
+									name,
+									runtimeStatus: "connected",
+									pluginId: null,
+									tools: {},
+									toolsError: null,
+									authStatus: "unsupported",
+								},
+							],
+							nextCursor,
+						},
+					});
+				});
+			}
+		};
+		const spawn: SpawnJsonRpcChild = async () => ok(child) as Result<JsonRpcChild, AppError>;
+		const runner = makeRunner({ spawn });
+		await runner.detect({ PATH: "/usr/bin" });
+
+		const servers = await runner.listMcpServers("/workspace");
+
+		expect(cursors).toEqual([null, "page-2"]);
+		expect(servers.map((server) => server.name)).toEqual(["first", "second"]);
 	});
 });

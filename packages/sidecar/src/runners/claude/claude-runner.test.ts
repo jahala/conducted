@@ -3,6 +3,7 @@ import type {
 	CanUseTool,
 	Options,
 	Query,
+	McpServerStatus as SdkMcpServerStatus,
 	ModelInfo as SdkModelInfo,
 	SlashCommand,
 } from "@anthropic-ai/claude-agent-sdk";
@@ -36,7 +37,8 @@ function fakeLogger(): { logger: Logger; warnings: string[] } {
 function metadataQuery(handler: {
 	models?: SdkModelInfo[];
 	commands?: SlashCommand[];
-	failOn?: "models" | "commands";
+	mcpServers?: SdkMcpServerStatus[];
+	failOn?: "models" | "commands" | "mcp";
 	onOptions?: (options: Options | undefined) => void;
 }): QueryFunction {
 	const query = {
@@ -47,6 +49,10 @@ function metadataQuery(handler: {
 		supportedCommands: async () => {
 			if (handler.failOn === "commands") throw new Error("commands failed");
 			return handler.commands ?? [];
+		},
+		mcpServerStatus: async () => {
+			if (handler.failOn === "mcp") throw new Error("mcp failed");
+			return handler.mcpServers ?? [];
 		},
 	} as unknown as Query;
 	return ({ options }) => {
@@ -277,6 +283,15 @@ describe("AGENT-02 Claude runner", () => {
 		const commands: SlashCommand[] = [
 			{ name: "review", description: "Review the diff", argumentHint: "<file>" },
 			{ name: "plain", description: "No arguments", argumentHint: "" },
+			{ name: "clear", description: "Start a fresh chat", argumentHint: "", builtin: true },
+			{
+				name: "compact",
+				description: "Compact the context window",
+				argumentHint: "",
+				builtin: true,
+			},
+			{ name: "my-plugin:lint", description: "Lint with a plugin", argumentHint: "" },
+			{ name: "mcp__github__search", description: "Search GitHub", argumentHint: "" },
 		];
 		const runner = new ClaudeRunner(
 			makeDeps({
@@ -290,8 +305,33 @@ describe("AGENT-02 Claude runner", () => {
 		);
 
 		expect(await runner.listSlashCommands("/work/app")).toEqual([
-			{ name: "review", description: "Review the diff", argumentHint: "<file>" },
-			{ name: "plain", description: "No arguments" },
+			{
+				name: "review",
+				description: "Review the diff",
+				argumentHint: "<file>",
+				source: "project",
+				kind: "command",
+			},
+			{ name: "plain", description: "No arguments", source: "project", kind: "command" },
+			{ name: "clear", description: "Start a fresh chat", source: "builtin", kind: "command" },
+			{
+				name: "compact",
+				description: "Compact the context window",
+				source: "builtin",
+				kind: "command",
+			},
+			{
+				name: "my-plugin:lint",
+				description: "Lint with a plugin",
+				source: "plugin",
+				kind: "command",
+			},
+			{
+				name: "mcp__github__search",
+				description: "Search GitHub",
+				source: "mcp",
+				kind: "command",
+			},
 		]);
 		expect(signal?.aborted).toBe(true);
 
@@ -308,5 +348,111 @@ describe("AGENT-02 Claude runner", () => {
 		);
 		await expect(failing.listSlashCommands("/work/app")).rejects.toThrow("commands failed");
 		expect(failedSignal?.aborted).toBe(true);
+	});
+});
+
+describe("SIDE-16 Claude MCP server listing", () => {
+	test("listMcpServers maps status, scope, transport, error text and tools and ends the query", async () => {
+		let signal: AbortSignal | undefined;
+		const servers: SdkMcpServerStatus[] = [
+			{
+				name: "github",
+				status: "connected",
+				scope: "user",
+				config: { type: "http", url: "https://example.test/mcp" },
+				tools: [{ name: "search" }, { name: "create_issue" }],
+			},
+			{
+				name: "linear",
+				status: "failed",
+				scope: "project",
+				source: "plugin",
+				config: { type: "stdio", command: "linear-mcp" },
+				error: "connection refused",
+			},
+			{
+				name: "sentry",
+				status: "needs-auth",
+				scope: "local",
+				tools: [],
+			},
+			{
+				name: "in-process",
+				status: "connected",
+				config: { type: "sdk", name: "in-process" },
+			},
+		];
+		const runner = new ClaudeRunner(
+			makeDeps({
+				query: metadataQuery({
+					mcpServers: servers,
+					onOptions: (options) => {
+						signal = options?.abortController?.signal;
+					},
+				}),
+			}),
+		);
+
+		expect(await runner.listMcpServers("/work/app")).toEqual([
+			{
+				name: "github",
+				status: "connected",
+				scope: "user",
+				transport: "http",
+				tools: ["search", "create_issue"],
+				toolCount: 2,
+			},
+			{
+				name: "linear",
+				status: "failed",
+				scope: "plugin",
+				transport: "stdio",
+				error: "connection refused",
+			},
+			{
+				name: "sentry",
+				status: "needs_auth",
+				scope: "local",
+				tools: [],
+				toolCount: 0,
+			},
+			{
+				name: "in-process",
+				status: "connected",
+			},
+		]);
+		expect(signal?.aborted).toBe(true);
+	});
+
+	test("listMcpServers reports a missing Claude program without starting a query", async () => {
+		const runner = new ClaudeRunner(
+			makeDeps({
+				findExecutable: async () => null,
+				query: (() => {
+					throw new Error("the metadata query must not start");
+				}) as unknown as QueryFunction,
+			}),
+		);
+
+		await expect(runner.listMcpServers("/work/app")).rejects.toMatchObject({
+			code: "agent_not_installed",
+		});
+	});
+
+	test("listMcpServers ends the throwaway query when the status call fails", async () => {
+		let signal: AbortSignal | undefined;
+		const failing = new ClaudeRunner(
+			makeDeps({
+				query: metadataQuery({
+					failOn: "mcp",
+					onOptions: (options) => {
+						signal = options?.abortController?.signal;
+					},
+				}),
+			}),
+		);
+
+		await expect(failing.listMcpServers("/work/app")).rejects.toThrow("mcp failed");
+		expect(signal?.aborted).toBe(true);
 	});
 });

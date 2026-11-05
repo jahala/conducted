@@ -191,6 +191,32 @@ describe("SIDE-24 chat titles", () => {
 		expect(requests).toEqual([]);
 		expect(logs).toContain("Failed to generate LLM session title");
 	});
+
+	it("SIDE-24 cuts a title at 80 characters", async () => {
+		const { service } = harness({ response: ok({ text: "a".repeat(100) }) });
+
+		expect(await service.suggestChatTitle(titleInput)).toEqual(ok("a".repeat(80)));
+	});
+
+	it("SIDE-24 keeps the placeholder when the agent returns the placeholder", async () => {
+		const { service } = harness({ response: ok({ text: "New chat" }) });
+
+		expect(await service.suggestChatTitle(titleInput)).toEqual(ok(null));
+	});
+
+	it("SIDE-24 passes the chat's fast-mode switch to the call", async () => {
+		const { service, requests } = harness();
+		const base = session();
+
+		await service.suggestChatTitle({
+			...titleInput,
+			session: { ...base, config: { ...base.config, fastMode: true } },
+		});
+
+		const call = requests[0];
+		if (call === undefined) throw new Error("no request was made");
+		expect(call.params).toMatchObject({ fastMode: true });
+	});
 });
 
 describe("SIDE-24 branch names", () => {
@@ -259,5 +285,28 @@ describe("SIDE-24 branch names", () => {
 
 		expect(await service.suggestBranchName(branchInput)).toEqual(err(failure));
 		expect(logs).toContain("Failed to generate a branch name");
+	});
+
+	it("SIDE-24 returns an error and sends nothing when the branch has no model", async () => {
+		const { service, requests, logs } = harness({ model: null });
+
+		const result = await service.suggestBranchName(branchInput);
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.code).toBe("utility_model_missing");
+		expect(requests).toEqual([]);
+		expect(logs).toContain("Failed to generate a branch name");
+	});
+
+	it("SIDE-24 cuts a branch name at 30 characters and trims a trailing separator", async () => {
+		const { service } = harness({ response: ok({ text: `${"a".repeat(29)}-b` }) });
+
+		expect(await service.suggestBranchName(branchInput)).toEqual(ok("a".repeat(29)));
+	});
+
+	it("SIDE-24 replaces characters outside the branch-name set", async () => {
+		const { service } = harness({ response: ok({ text: "Fix: Login! Now?" }) });
+
+		expect(await service.suggestBranchName(branchInput)).toEqual(ok("fix-login-now"));
 	});
 });

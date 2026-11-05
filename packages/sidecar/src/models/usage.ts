@@ -17,7 +17,6 @@
  *  - a reset time that cannot be parsed: the limit is still reported, without resetsAt
  * Test first: rateLimitsFromSdk with only a five-hour window returns that one limit with its
  * percentage and its reset time in milliseconds.
- * Each window reports its own reset time.
  * Our design choice: the reader asks a session source for the chat's live agent. The composition
  * root (SIDE-01) supplies the session manager as that source; this file does not reach into the
  * manager. Until a source is supplied, the request answers context_usage_unavailable rather than
@@ -67,8 +66,11 @@ export interface UsageAgent {
 
 /** Where the reader finds a chat's live agent. The composition root supplies the session manager. */
 export interface UsageSessionSource {
-	/** Undefined when this sidecar has no state for the chat: it restarted or never saw it. */
-	find(sessionId: SessionId): { agent: UsageAgent; contextUsage: boolean } | undefined;
+	/**
+	 * Null agent when the chat is known but has no live agent yet. Undefined when this sidecar has
+	 * no state for the chat: it restarted or never saw it.
+	 */
+	find(sessionId: SessionId): { agent: UsageAgent | null; contextUsage: boolean } | undefined;
 }
 
 export interface UsageReader {
@@ -106,14 +108,20 @@ export class SessionUsageReader implements UsageReader {
 		if (found === undefined) {
 			return err(appError("session_unknown", "The sidecar has no state for this chat."));
 		}
+		if (found.agent === null) {
+			return err(
+				appError("context_usage_unavailable", "This chat has not reported its context window."),
+			);
+		}
 		if (!found.contextUsage) {
 			return err(
 				appError("context_usage_unavailable", "This agent does not report context usage."),
 			);
 		}
+		const agent = found.agent;
 		let usage: { usedTokens: number; windowTokens: number } | null;
 		try {
-			usage = await found.agent.contextUsage();
+			usage = await agent.contextUsage();
 		} catch (cause) {
 			this.deps.logger.debug("Could not read the context usage", {
 				sessionId,
@@ -132,7 +140,7 @@ export class SessionUsageReader implements UsageReader {
 				appError("context_usage_unavailable", "This chat has not reported its context window."),
 			);
 		}
-		const rateLimits = await this.planLimits(sessionId, found.agent);
+		const rateLimits = await this.planLimits(sessionId, agent);
 		return ok({ usedTokens: usage.usedTokens, windowTokens: usage.windowTokens, rateLimits });
 	}
 
@@ -147,7 +155,14 @@ export class SessionUsageReader implements UsageReader {
 		});
 		try {
 			const limits = await Promise.race([planUsage.call(agent), timedOut]);
-			return limits ?? [];
+			if (limits === null) {
+				this.deps.logger.debug("Plan usage timed out", {
+					sessionId,
+					timeoutMs: PLAN_USAGE_TIMEOUT_MS,
+				});
+				return [];
+			}
+			return limits;
 		} catch (cause) {
 			this.deps.logger.debug("Plan usage was not available", {
 				sessionId,
