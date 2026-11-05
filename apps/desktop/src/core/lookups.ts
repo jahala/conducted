@@ -146,9 +146,22 @@ export function createLookups(sources: LookupSources): Lookups {
  * tool approvals from settings, and the workspace's linked folders as additional directories.
  */
 export function defaultSessionConfig(
-	_workspaceId: WorkspaceId,
-	_lookups: Lookups,
-	_setting: <T>(key: string) => T,
+	workspaceId: WorkspaceId,
+	lookups: Lookups,
+	setting: <T>(key: string) => T,
 ): Result<SessionConfig> {
-	return notImplemented("CHAT-01");
+	const workspace = lookups.workspace(workspaceId);
+	if (!workspace.ok) return workspace;
+	const model = setting<string>("default_model");
+	const effort = setting<string>("default_claude_effort_level") || "high";
+	return ok({
+		agent: "claude",
+		model: model.length > 0 ? model : "default",
+		effort: effort as SessionConfig["effort"],
+		fastMode: setting<boolean>("default_fast_mode"),
+		planMode: setting<boolean>("default_plan_mode"),
+		requireToolApproval: setting<boolean>("tool_approvals_enabled"),
+		additionalDirectories: workspace.value.linkedPaths,
+		appTools: { diffComments: true, progressUpdates: true, setTargetBranch: true },
+	});
 }

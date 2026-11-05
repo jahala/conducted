@@ -20,7 +20,7 @@
  * Our design choice: the sidecar writes the `user_message` event, so the message appears in the
  * chat when that event is stored; until then the view shows it as "sending". Cancel pauses the
  * queue. `sendInstruction` is how git and GitHub actions reach the agent.
- * Test first: chooseDelivery("steer") while working calls the sidecar with delivery "steer".
+ * Test first: create then close keeps the chat in history and out of the open list.
  */
 import type {
 	Interaction,
@@ -33,9 +33,12 @@ import type {
 	WorkspaceContext,
 } from "@conducted/protocol";
 import {
+	type AppError,
+	appError,
 	type InteractionId,
 	type MessageId,
 	notImplemented,
+	ok,
 	type Result,
 	type SessionId,
 	type TurnId,
@@ -66,6 +69,8 @@ export interface AgentMessenger {
 
 export interface SessionsState {
 	loaded: boolean;
+	/** Why the stored chats could not be read, for the chat history and tab strip. */
+	loadError?: AppError | null;
 	sessions: Readonly<Record<string, Session>>;
 	/** Chat ids per workspace, newest first. */
 	byWorkspace: Readonly<Record<string, readonly SessionId[]>>;
@@ -83,6 +88,15 @@ export interface SessionsState {
 		Record<string, { interactionId: InteractionId; interaction: Interaction }>
 	>;
 	viewingSessionId: SessionId | null;
+}
+
+/** Open chats are listed newest first, by the last message and then by creation time. */
+function compareNewest(a: Session, b: Session): number {
+	const aAt = a.lastUserMessageAt ?? a.createdAt;
+	const bAt = b.lastUserMessageAt ?? b.createdAt;
+	if (aAt !== bAt) return bAt - aAt;
+	if (a.createdAt !== b.createdAt) return b.createdAt - a.createdAt;
+	return a.id.localeCompare(b.id);
 }
 
 export interface SessionsServiceDeps {
@@ -109,6 +123,7 @@ export class SessionsService implements AgentMessenger {
 		this.#deps = deps;
 		this.store = createStore<SessionsState>(() => ({
 			loaded: false,
+			loadError: null,
 			sessions: {},
 			byWorkspace: {},
 			liveStates: {},
@@ -122,32 +137,209 @@ export class SessionsService implements AgentMessenger {
 	}
 
 	/** Loads chats and their stored live states. Runs after startup repair. */
-	start(): Promise<Result<void>> {
-		void this.#deps;
-		return notImplemented("CHAT-01");
+	async start(): Promise<Result<void>> {
+		const repositories = this.#deps.repositories();
+		const workspaces = await repositories.workspaces.listAll();
+		if (!workspaces.ok) return this.#failLoad(workspaces);
+
+		const sessions: Session[] = [];
+		for (const workspace of workspaces.value) {
+			const listed = await repositories.sessions.listByWorkspace(workspace.id, {
+				includeClosed: true,
+			});
+			if (!listed.ok) return this.#failLoad(listed);
+			sessions.push(...listed.value);
+		}
+
+		const liveStates = await repositories.liveStates.listAll();
+		if (!liveStates.ok) return this.#failLoad(liveStates);
+
+		const byId: Record<string, Session> = {};
+		for (const session of sessions) byId[session.id] = session;
+		const byWorkspace: Record<string, SessionId[]> = {};
+		for (const session of sessions) {
+			if (session.closedAt !== null) continue;
+			const ids = byWorkspace[session.workspaceId] ?? [];
+			ids.push(session.id);
+			byWorkspace[session.workspaceId] = ids;
+		}
+		for (const ids of Object.values(byWorkspace)) {
+			ids.sort((a, b) => {
+				const left = byId[a];
+				const right = byId[b];
+				return left === undefined || right === undefined ? 0 : compareNewest(left, right);
+			});
+		}
+
+		this.store.setState({
+			loaded: true,
+			loadError: null,
+			sessions: byId,
+			byWorkspace,
+			liveStates: Object.fromEntries(
+				liveStates.value.map((stored) => [stored.sessionId, stored.liveState]),
+			),
+		});
+		return ok(undefined);
 	}
 
 	/** Backs `Actions.sessions.create`. */
-	create(_workspaceId: WorkspaceId, _config: SessionConfig): Promise<Result<Session>> {
-		return notImplemented("CHAT-01");
+	async create(workspaceId: WorkspaceId, config: SessionConfig): Promise<Result<Session>> {
+		const created = await this.#deps.repositories().sessions.create({
+			workspaceId,
+			title: null,
+			config,
+		});
+		if (!created.ok) return created;
+		const session = created.value;
+		this.store.setState((state) => ({
+			sessions: { ...state.sessions, [session.id]: session },
+			byWorkspace: {
+				...state.byWorkspace,
+				[workspaceId]: [session.id, ...(state.byWorkspace[workspaceId] ?? [])],
+			},
+		}));
+		return created;
 	}
 
 	/** Backs `Actions.sessions.close`: hides the tab, keeps the chat in history. */
-	close(_id: SessionId): Promise<Result<void>> {
-		return notImplemented("CHAT-01");
+	async close(id: SessionId): Promise<Result<void>> {
+		const found = await this.#session(id);
+		if (!found.ok) return found;
+		const closed = await this.#deps.repositories().sessions.close(id);
+		if (!closed.ok) return closed;
+		const at = this.#deps.now();
+		this.store.setState((state) => {
+			const current = state.sessions[id];
+			const next =
+				current === undefined
+					? state.sessions
+					: {
+							...state.sessions,
+							[id]: { ...current, closedAt: current.closedAt ?? at, updatedAt: at },
+						};
+			return {
+				sessions: next,
+				byWorkspace: {
+					...state.byWorkspace,
+					[found.value.workspaceId]: (state.byWorkspace[found.value.workspaceId] ?? []).filter(
+						(openId) => openId !== id,
+					),
+				},
+			};
+		});
+		return ok(undefined);
 	}
 
-	reopen(_id: SessionId): Promise<Result<void>> {
-		return notImplemented("CHAT-01");
+	async reopen(id: SessionId): Promise<Result<void>> {
+		const found = await this.#session(id);
+		if (!found.ok) return found;
+		const reopened = await this.#deps.repositories().sessions.reopen(id);
+		if (!reopened.ok) return reopened;
+		const at = this.#deps.now();
+		this.store.setState((state) => {
+			const current = state.sessions[id];
+			const ids = state.byWorkspace[found.value.workspaceId] ?? [];
+			return {
+				sessions:
+					current === undefined
+						? state.sessions
+						: { ...state.sessions, [id]: { ...current, closedAt: null, updatedAt: at } },
+				byWorkspace: {
+					...state.byWorkspace,
+					[found.value.workspaceId]: ids.includes(id) ? ids : [id, ...ids],
+				},
+			};
+		});
+		return ok(undefined);
 	}
 
-	rename(_id: SessionId, _title: string): Promise<Result<void>> {
-		return notImplemented("CHAT-01");
+	async rename(id: SessionId, title: string): Promise<Result<void>> {
+		const trimmed = title.trim();
+		if (trimmed.length === 0)
+			return { ok: false, error: appError("chat_title_empty", "Enter a chat name.") };
+		const found = await this.#session(id);
+		if (!found.ok) return found;
+		const renamed = await this.#deps.repositories().sessions.setTitle(id, trimmed);
+		if (!renamed.ok) return renamed;
+		const at = this.#deps.now();
+		this.store.setState((state) => {
+			const current = state.sessions[id];
+			if (current === undefined) return {};
+			return {
+				sessions: { ...state.sessions, [id]: { ...current, title: trimmed, updatedAt: at } },
+			};
+		});
+		return ok(undefined);
 	}
 
-	/** Loads the stored events of a chat the first time it is shown, and warms the agent. */
-	open(_id: SessionId): Promise<Result<void>> {
-		return notImplemented("CHAT-01");
+	/** Deletes one chat with its stored events and live state. */
+	async delete(id: SessionId): Promise<Result<void>> {
+		const found = await this.#session(id);
+		if (!found.ok) return found;
+		const removed = await this.#deps.repositories().sessions.delete(id);
+		if (!removed.ok) return removed;
+		this.store.setState((state) => {
+			const sessions = { ...state.sessions };
+			delete sessions[id];
+			const liveStates = { ...state.liveStates };
+			delete liveStates[id];
+			const events = { ...state.events };
+			delete events[id];
+			return {
+				sessions,
+				liveStates,
+				events,
+				byWorkspace: {
+					...state.byWorkspace,
+					[found.value.workspaceId]: (state.byWorkspace[found.value.workspaceId] ?? []).filter(
+						(openId) => openId !== id,
+					),
+				},
+				viewingSessionId: state.viewingSessionId === id ? null : state.viewingSessionId,
+			};
+		});
+		return ok(undefined);
+	}
+
+	/** Loads the stored events of a chat the first time it is shown. */
+	async open(id: SessionId): Promise<Result<void>> {
+		if (this.store.getState().events[id] !== undefined) return ok(undefined);
+		const found = await this.#session(id);
+		if (!found.ok) return found;
+		const repositories = this.#deps.repositories();
+		const last = await repositories.sessionEvents.lastIdx(id);
+		if (!last.ok) return last;
+		const events: StoredEvent[] = [];
+		if (last.value !== null) {
+			const stored = await repositories.sessionEvents.listFrom(id, 0, last.value + 1);
+			if (!stored.ok) return stored;
+			for (const row of stored.value) {
+				events.push({
+					idx: row.idx,
+					event: row.event,
+					receivedAt: row.receivedAt,
+					revertedAt: row.revertedAt,
+				});
+			}
+		}
+		this.store.setState((state) => ({ events: { ...state.events, [id]: events } }));
+		return ok(undefined);
+	}
+
+	#failLoad<T>(failure: { ok: false; error: AppError }): Result<T> {
+		this.store.setState({ loadError: failure.error });
+		return failure;
+	}
+
+	async #session(id: SessionId): Promise<Result<Session>> {
+		const cached = this.store.getState().sessions[id];
+		if (cached !== undefined) return ok(cached);
+		const stored = await this.#deps.repositories().sessions.get(id);
+		if (!stored.ok) return stored;
+		if (stored.value === null)
+			return { ok: false, error: appError("session_unknown", "That chat no longer exists.") };
+		return ok(stored.value);
 	}
 
 	/** Backs `Actions.sessions.send`. */
