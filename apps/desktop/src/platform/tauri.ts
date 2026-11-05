@@ -228,11 +228,18 @@ export function createTauriDatabase(): Promise<Result<Database>> {
 }
 
 /** `shell_run { command }`, `shell_start { command }` + `shell_cancel { id }` + event `shell://done`, `shell_login_env`. */
-export function createTauriShell(_bindings: TauriBindings): Shell {
+export function createTauriShell(bindings: TauriBindings): Shell {
 	return {
 		run: () => notImplemented("PLAT-03"),
 		start: () => notImplemented("PLAT-03"),
-		loginEnv: () => notImplemented("PLAT-04"),
+		loginEnv: async () => {
+			const result = await invokeResult<{ shell: string; path: string }>(
+				bindings,
+				COMMANDS.shellLoginEnv,
+			);
+			if (!result.ok) throw result.error;
+			return result.value;
+		},
 	};
 }
 

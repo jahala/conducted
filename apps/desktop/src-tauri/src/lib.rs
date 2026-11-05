@@ -132,6 +132,10 @@ pub fn run() {
         .manage(resource_usage::ResourceUsageState::default())
         .manage(menu::MenuState::default())
         .manage(logger::LoggerState::default())
+        .setup(|app| {
+            shell::start_background_capture(app.handle().clone());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             health,
             app_info,
