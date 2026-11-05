@@ -154,11 +154,18 @@ describe("routes", () => {
 	it.each([
 		["/settings/general", "Settings", "SET-02"],
 		["/diagnostics", "Diagnostics", "APP-03"],
-		["/first-run-onboarding", "Welcome", "APP-02"],
 	])("%s renders without the sidebar", async (path, area, id) => {
 		await openApp(path);
 		expect(await screen.findByText(area)).toBeTruthy();
 		expect(screen.getByText(`Not built yet: ${id}`)).toBeTruthy();
+		expect(screen.queryByRole("complementary", { name: "Sidebar" })).toBeNull();
+	});
+
+	it("/first-run-onboarding renders without the sidebar", async () => {
+		await openApp("/first-run-onboarding");
+		expect(
+			await screen.findByRole("heading", { name: "Get coding agents working in parallel" }),
+		).toBeTruthy();
 		expect(screen.queryByRole("complementary", { name: "Sidebar" })).toBeNull();
 	});
 
