@@ -7,7 +7,7 @@
 //! Behaviour: docs/research/conductor/native-and-sidecar-map.md A11 (Conductor's migrations and
 //! rollback guard: at startup the database version is compared with the app's newest migration, and
 //! a newer database produces a warning instead of running; `get_db_version_warning` hands it to
-//! the UI).
+//! the UI). Our command is `db_version_check`.
 //!
 //! Must handle:
 //! - The check must run before the UI opens the database. Opening it through the plugin runs
@@ -23,20 +23,24 @@
 //! - Never edit an applied migration; add a new numbered file and a new entry in `migrations()`.
 //!
 //! Our design choice: no down-migrations and no rollback table. Conductor keeps a
-//! `migration_rollbacks` table; for us "update the app" is the only supported fix.
+//! `migration_rollbacks` table; for us "update the app" is the only supported fix. Undo SQL and the
+//! rollback command need that table, which is a new migration and so belongs to a change that may
+//! edit `migrations/`.
 //! Our design choice: the database file is `conducted.db` in the app config folder, which is where
 //! tauri-plugin-sql puts it (the same folder as the app data folder on macOS). The implementation
-//! adds `rusqlite` for the read-only query.
+//! uses `rusqlite` for the read-only query.
 //!
 //! Test first: a temp database whose `_sqlx_migrations` holds a version one higher than
 //! `app_schema_version()` yields `database_newer`; one at the same version yields `ok`.
 
+use std::path::{Path, PathBuf};
+
+use rusqlite::{Connection, OpenFlags};
 use serde::Serialize;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tauri_plugin_sql::{Migration, MigrationKind};
 
-use crate::error::CommandResult;
-use crate::not_implemented;
+use crate::error::{CommandError, CommandResult, blocking};
 
 pub const DB_URL: &str = "sqlite:conducted.db";
 
@@ -75,7 +79,7 @@ pub fn app_schema_version() -> i64 {
 }
 
 /// How the database file compares with this build.
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DbVersionState {
     /// The database is at this build's version or older and will be migrated normally.
@@ -101,10 +105,318 @@ pub struct DbVersionCheck {
     pub message: Option<String>,
 }
 
+/// What the database file says about its migrations, read without the migrator.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DatabaseFacts {
+    /// Whether the file exists at all.
+    pub exists: bool,
+    /// Whether the plugin's migration table is in the file.
+    pub has_migration_table: bool,
+    /// The highest version whose migration finished.
+    pub db_version: Option<i64>,
+    /// Whether any migration row records a failure.
+    pub failed_migration: bool,
+}
+
+/// The path of the database the sql plugin opens: `conducted.db` in the app config folder.
+pub fn database_path(app: &AppHandle) -> CommandResult<PathBuf> {
+    app.path()
+        .app_config_dir()
+        .map(|directory| directory.join("conducted.db"))
+        .map_err(|error| CommandError::Failed {
+            code: "db_path_unavailable",
+            message: format!("The app's config folder could not be found: {error}."),
+        })
+}
+
+/// Reads the migration facts through a read-only connection. A file that does not exist is not
+/// created.
+pub fn read_database_facts(path: &Path) -> CommandResult<DatabaseFacts> {
+    if !path.exists() {
+        return Ok(DatabaseFacts {
+            exists: false,
+            has_migration_table: false,
+            db_version: None,
+            failed_migration: false,
+        });
+    }
+    let connection = open_read_only(path)?;
+    let has_migration_table = connection
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '_sqlx_migrations')",
+            [],
+            |row| row.get::<_, bool>(0),
+        )
+        .map_err(|error| read_error(path, error))?;
+    if !has_migration_table {
+        return Ok(DatabaseFacts {
+            exists: true,
+            has_migration_table: false,
+            db_version: None,
+            failed_migration: false,
+        });
+    }
+    let db_version = connection
+        .query_row(
+            "SELECT MAX(version) FROM _sqlx_migrations WHERE success = 1",
+            [],
+            |row| row.get::<_, Option<i64>>(0),
+        )
+        .map_err(|error| read_error(path, error))?;
+    let failed_migration = connection
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM _sqlx_migrations WHERE success = 0)",
+            [],
+            |row| row.get::<_, bool>(0),
+        )
+        .map_err(|error| read_error(path, error))?;
+    Ok(DatabaseFacts {
+        exists: true,
+        has_migration_table: true,
+        db_version,
+        failed_migration,
+    })
+}
+
+fn open_read_only(path: &Path) -> CommandResult<Connection> {
+    let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX;
+    Connection::open_with_flags(path, flags).map_err(|error| CommandError::Failed {
+        code: "db_open_failed",
+        message: format!(
+            "The database at {} could not be opened read-only: {error}.",
+            path.display()
+        ),
+    })
+}
+
+fn read_error(path: &Path, error: rusqlite::Error) -> CommandError {
+    CommandError::Failed {
+        code: "db_read_failed",
+        message: format!(
+            "The database version at {} could not be read: {error}.",
+            path.display()
+        ),
+    }
+}
+
+/// Turns the facts from the file into the state the UI acts on.
+pub fn classify(app_version: i64, facts: DatabaseFacts) -> DbVersionCheck {
+    if !facts.exists || !facts.has_migration_table {
+        return DbVersionCheck {
+            state: DbVersionState::Fresh,
+            app_version,
+            db_version: None,
+            message: None,
+        };
+    }
+    if facts.failed_migration {
+        return DbVersionCheck {
+            state: DbVersionState::FailedMigration,
+            app_version,
+            db_version: facts.db_version,
+            message: Some(
+                "A database upgrade did not finish, so the app cannot use this database. Restart the app to try again."
+                    .to_string(),
+            ),
+        };
+    }
+    let db_version = facts.db_version.unwrap_or(0);
+    if db_version > app_version {
+        return DbVersionCheck {
+            state: DbVersionState::DatabaseNewer,
+            app_version,
+            db_version: Some(db_version),
+            message: Some(format!(
+                "This database was written by a newer version of Conducted (schema version {db_version}); this app supports up to version {app_version}. Update Conducted to open it."
+            )),
+        };
+    }
+    DbVersionCheck {
+        state: DbVersionState::Ok,
+        app_version,
+        db_version: Some(db_version),
+        message: None,
+    }
+}
+
 /// Compares the database file with this build. The UI calls it at startup and shows a blocking
 /// screen unless the state is `ok` or `fresh`.
 #[tauri::command]
-#[allow(unused_variables)]
 pub async fn db_version_check(app: AppHandle) -> CommandResult<DbVersionCheck> {
-    not_implemented!("PLAT-17")
+    let path = database_path(&app)?;
+    let app_version = app_schema_version();
+    blocking("db_check_failed", move || {
+        let facts = read_database_facts(&path)?;
+        Ok(classify(app_version, facts))
+    })
+    .await
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    use super::*;
+
+    /// A database file that removes itself, so a test leaves nothing behind.
+    struct TempDatabase {
+        path: PathBuf,
+    }
+
+    impl TempDatabase {
+        fn new() -> Self {
+            static COUNTER: AtomicU64 = AtomicU64::new(0);
+            let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!(
+                "conducted-plat-17-{}-{counter}.db",
+                std::process::id()
+            ));
+            Self { path }
+        }
+
+        fn path(&self) -> &Path {
+            &self.path
+        }
+
+        fn with_migrations(rows: &[(i64, bool)]) -> Self {
+            let database = Self::new();
+            let connection = Connection::open(database.path()).expect("create test database");
+            connection
+                .execute_batch(
+                    "CREATE TABLE _sqlx_migrations (
+                        version INTEGER NOT NULL,
+                        description TEXT NOT NULL,
+                        success INTEGER NOT NULL
+                    );",
+                )
+                .expect("create migration table");
+            for (version, success) in rows {
+                connection
+                    .execute(
+                        "INSERT INTO _sqlx_migrations (version, description, success) VALUES (?1, 'test', ?2)",
+                        rusqlite::params![version, success],
+                    )
+                    .expect("insert migration row");
+            }
+            drop(connection);
+            database
+        }
+    }
+
+    impl Drop for TempDatabase {
+        fn drop(&mut self) {
+            let _ = fs::remove_file(&self.path);
+            let _ = fs::remove_file(format!("{}-wal", self.path.display()));
+            let _ = fs::remove_file(format!("{}-shm", self.path.display()));
+        }
+    }
+
+    fn check(path: &Path) -> DbVersionCheck {
+        let facts = read_database_facts(path).expect("read database facts");
+        classify(app_schema_version(), facts)
+    }
+
+    #[test]
+    fn plat_17_a_database_one_version_newer_blocks_startup() {
+        let newer = app_schema_version() + 1;
+        let database = TempDatabase::with_migrations(&[(1, true), (newer, true)]);
+
+        let result = check(database.path());
+
+        assert_eq!(result.state, DbVersionState::DatabaseNewer);
+        assert_eq!(result.db_version, Some(newer));
+        assert_eq!(result.app_version, app_schema_version());
+        assert!(
+            result
+                .message
+                .as_deref()
+                .is_some_and(|message| message.contains("Update Conducted")),
+            "{:?}",
+            result.message
+        );
+    }
+
+    #[test]
+    fn plat_17_a_database_at_the_same_version_is_ok() {
+        let database = TempDatabase::with_migrations(&[(1, true), (app_schema_version(), true)]);
+
+        let result = check(database.path());
+
+        assert_eq!(result.state, DbVersionState::Ok);
+        assert_eq!(result.db_version, Some(app_schema_version()));
+        assert_eq!(result.message, None);
+    }
+
+    #[test]
+    fn plat_17_an_older_database_is_ok() {
+        let database = TempDatabase::with_migrations(&[(1, true)]);
+
+        let result = check(database.path());
+
+        assert_eq!(result.state, DbVersionState::Ok);
+        assert_eq!(result.db_version, Some(1));
+    }
+
+    #[test]
+    fn plat_17_a_missing_database_is_fresh() {
+        let database = TempDatabase::new();
+
+        let facts = read_database_facts(database.path()).expect("read database facts");
+
+        assert!(!facts.exists);
+        assert_eq!(
+            classify(app_schema_version(), facts).state,
+            DbVersionState::Fresh
+        );
+        assert!(!database.path().exists());
+    }
+
+    #[test]
+    fn plat_17_a_file_without_the_migration_table_is_fresh() {
+        let database = TempDatabase::new();
+        Connection::open(database.path())
+            .expect("create empty database")
+            .execute_batch("CREATE TABLE unrelated (id TEXT);")
+            .expect("create unrelated table");
+
+        let facts = read_database_facts(database.path()).expect("read database facts");
+
+        assert!(facts.exists);
+        assert!(!facts.has_migration_table);
+        assert_eq!(
+            classify(app_schema_version(), facts).state,
+            DbVersionState::Fresh
+        );
+    }
+
+    #[test]
+    fn plat_17_a_failed_migration_blocks_startup() {
+        let database = TempDatabase::with_migrations(&[(1, true), (2, false)]);
+
+        let result = check(database.path());
+
+        assert_eq!(result.state, DbVersionState::FailedMigration);
+        assert_eq!(result.db_version, Some(1));
+        assert!(
+            result
+                .message
+                .as_deref()
+                .is_some_and(|message| message.contains("did not finish")),
+            "{:?}",
+            result.message
+        );
+    }
+
+    #[test]
+    fn plat_17_reads_the_highest_successful_version() {
+        let database =
+            TempDatabase::with_migrations(&[(1, true), (2, true), (3, false), (4, true)]);
+
+        let facts = read_database_facts(database.path()).expect("read database facts");
+
+        assert_eq!(facts.db_version, Some(4));
+        assert!(facts.failed_migration);
+    }
 }
