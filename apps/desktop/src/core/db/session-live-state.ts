@@ -9,10 +9,16 @@
  * Test first: upserting with an older updated_at than the stored row leaves the row unchanged.
  */
 import { type LiveState, zLiveState } from "@conducted/protocol";
-import { notImplemented, type Result, type SessionId } from "@conducted/shared";
+import { err, ok, type Result, type SessionId } from "@conducted/shared";
 import type { Database } from "../../platform/platform.ts";
 import type { RepositoryDeps } from "./deps.ts";
-import { parseJsonColumn, stringifyJson } from "./row-codec.ts";
+import {
+	collectResults,
+	executeStatement,
+	parseJsonColumn,
+	selectRows,
+	stringifyJson,
+} from "./row-codec.ts";
 
 export interface SessionLiveStateRow {
 	session_id: SessionId;
@@ -74,13 +80,49 @@ export interface SessionLiveStateRepository {
 }
 
 export function createSessionLiveStateRepository(
-	_db: Database,
+	db: Database,
 	_deps: RepositoryDeps,
 ): SessionLiveStateRepository {
 	return {
-		get: async () => notImplemented("DATA-01"),
-		listAll: async () => notImplemented("DATA-01"),
-		upsert: async () => notImplemented("DATA-01"),
-		delete: async () => notImplemented("DATA-01"),
+		get: async (sessionId) => {
+			const rows = await selectRows<SessionLiveStateRow>(
+				db,
+				SESSION_LIVE_STATE_SQL.get,
+				[sessionId],
+				"Reading a chat's live state",
+			);
+			if (!rows.ok) return err(rows.error);
+			const row = rows.value[0];
+			return row === undefined ? ok(null) : liveStateFromRow(row);
+		},
+		listAll: async () => {
+			const rows = await selectRows<SessionLiveStateRow>(
+				db,
+				SESSION_LIVE_STATE_SQL.listAll,
+				[],
+				"Listing live states",
+			);
+			return rows.ok ? collectResults(rows.value.map(liveStateFromRow)) : err(rows.error);
+		},
+		upsert: async (sessionId, liveState, updatedAt) => {
+			const params = liveStateToParams(sessionId, liveState, updatedAt);
+			if (!params.ok) return err(params.error);
+			const written = await executeStatement(
+				db,
+				SESSION_LIVE_STATE_SQL.upsert,
+				params.value,
+				"Writing a chat's live state",
+			);
+			return written.ok ? ok(written.value > 0) : err(written.error);
+		},
+		delete: async (sessionId) => {
+			const written = await executeStatement(
+				db,
+				SESSION_LIVE_STATE_SQL.delete,
+				[sessionId],
+				"Removing a chat's live state",
+			);
+			return written.ok ? ok(undefined) : err(written.error);
+		},
 	};
 }

@@ -11,11 +11,18 @@
  * Result; a sent row is deleted once its user_message event is stored (queue lifetime).
  * Test first: claimNext twice in a row returns two different rows, then nothing.
  */
-import { type MessageId, notImplemented, type Result, type SessionId } from "@conducted/shared";
+import { err, type MessageId, ok, type Result, type SessionId } from "@conducted/shared";
 import type { Database } from "../../platform/platform.ts";
 import type { QueuedMessage } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
-import { collectResults, parseStringList, stringifyJson } from "./row-codec.ts";
+import {
+	collectResults,
+	executeStatement,
+	inTransaction,
+	parseStringList,
+	selectRows,
+	stringifyJson,
+} from "./row-codec.ts";
 
 export interface QueuedMessageRow {
 	id: MessageId;
@@ -163,21 +170,144 @@ export interface QueuedMessageRepository {
 }
 
 export function createQueuedMessageRepository(
-	_db: Database,
-	_deps: RepositoryDeps,
+	db: Database,
+	deps: RepositoryDeps,
 ): QueuedMessageRepository {
+	const now = (): number => deps.clock.now();
+	const write = async (
+		target: Database,
+		sql: string,
+		params: readonly unknown[],
+		what: string,
+	): Promise<Result<void>> => {
+		const result = await executeStatement(target, sql, params, what);
+		return result.ok ? ok(undefined) : err(result.error);
+	};
 	return {
-		listBySession: async () => notImplemented("DATA-01"),
-		get: async () => notImplemented("DATA-01"),
-		count: async () => notImplemented("DATA-01"),
-		enqueue: async () => notImplemented("DATA-01"),
-		claimNext: async () => notImplemented("DATA-01"),
-		setState: async () => notImplemented("DATA-01"),
-		setContent: async () => notImplemented("DATA-01"),
-		setDelivery: async () => notImplemented("DATA-01"),
-		reorder: async () => notImplemented("DATA-01"),
-		cancel: async () => notImplemented("DATA-01"),
-		remove: async () => notImplemented("DATA-01"),
-		clear: async () => notImplemented("DATA-01"),
+		listBySession: async (sessionId) => {
+			const rows = await selectRows<QueuedMessageRow>(
+				db,
+				QUEUED_MESSAGES_SQL.listBySession,
+				[sessionId],
+				"Listing queued messages",
+			);
+			return rows.ok ? queuedMessagesFromRows(rows.value) : err(rows.error);
+		},
+		get: async (id) => {
+			const rows = await selectRows<QueuedMessageRow>(
+				db,
+				QUEUED_MESSAGES_SQL.get,
+				[id],
+				"Reading a queued message",
+			);
+			if (!rows.ok) return err(rows.error);
+			const row = rows.value[0];
+			return row === undefined ? ok(null) : queuedMessageFromRow(row);
+		},
+		count: async (sessionId) => {
+			const rows = await selectRows<{ total: number }>(
+				db,
+				QUEUED_MESSAGES_SQL.count,
+				[sessionId],
+				"Counting queued messages",
+			);
+			return rows.ok ? ok(rows.value[0]?.total ?? 0) : err(rows.error);
+		},
+		enqueue: async (input) =>
+			inTransaction(db, "Queuing a message", async (tx) => {
+				const next = await selectRows<{ next: number }>(
+					tx,
+					QUEUED_MESSAGES_SQL.nextPosition,
+					[input.sessionId],
+					"Reading the next queue position",
+				);
+				if (!next.ok) return err(next.error);
+				const at = now();
+				const message: QueuedMessage = {
+					id: input.id,
+					sessionId: input.sessionId,
+					text: input.text,
+					attachmentPaths: [...input.attachmentPaths],
+					delivery: input.delivery,
+					position: next.value[0]?.next ?? 1,
+					state: "waiting",
+					lastError: null,
+				};
+				const params = queuedMessageToParams(message, at);
+				if (!params.ok) return err(params.error);
+				const written = await executeStatement(
+					tx,
+					QUEUED_MESSAGES_SQL.insert,
+					params.value,
+					"Queuing a message",
+				);
+				return written.ok ? ok(message) : err(written.error);
+			}),
+		claimNext: async (sessionId) => {
+			const rows = await selectRows<QueuedMessageRow>(
+				db,
+				QUEUED_MESSAGES_SQL.claimNext,
+				[now(), sessionId],
+				"Claiming the next queued message",
+			);
+			if (!rows.ok) return err(rows.error);
+			const row = rows.value[0];
+			return row === undefined ? ok(null) : queuedMessageFromRow(row);
+		},
+		setState: async (id, from, to, lastError) => {
+			const written = await executeStatement(
+				db,
+				QUEUED_MESSAGES_SQL.setState,
+				[to, lastError, now(), id, from],
+				"Changing a queued message state",
+			);
+			return written.ok ? ok(written.value > 0) : err(written.error);
+		},
+		setContent: async (id, content) => {
+			const json = stringifyJson(content.attachmentPaths, "queued_messages.attachment_paths");
+			if (!json.ok) return err(json.error);
+			const written = await executeStatement(
+				db,
+				QUEUED_MESSAGES_SQL.setContent,
+				[content.text, json.value, now(), id],
+				"Editing a queued message",
+			);
+			return written.ok ? ok(written.value > 0) : err(written.error);
+		},
+		setDelivery: async (id, delivery) => {
+			const written = await executeStatement(
+				db,
+				QUEUED_MESSAGES_SQL.setDelivery,
+				[delivery, now(), id],
+				"Changing a queued message delivery",
+			);
+			return written.ok ? ok(written.value > 0) : err(written.error);
+		},
+		reorder: async (sessionId, orderedIds) =>
+			inTransaction(db, "Reordering queued messages", async (tx) => {
+				const at = now();
+				for (const [index, id] of orderedIds.entries()) {
+					const written = await executeStatement(
+						tx,
+						QUEUED_MESSAGES_SQL.setPosition,
+						[index + 1, at, id, sessionId],
+						"Reordering queued messages",
+					);
+					if (!written.ok) return err(written.error);
+				}
+				return ok(undefined);
+			}),
+		cancel: async (id) => {
+			const written = await executeStatement(
+				db,
+				QUEUED_MESSAGES_SQL.deleteUnlessSending,
+				[id],
+				"Cancelling a queued message",
+			);
+			return written.ok ? ok(written.value > 0) : err(written.error);
+		},
+		remove: (id) => write(db, QUEUED_MESSAGES_SQL.delete, [id], "Removing a queued message"),
+		clear: (sessionId) =>
+			write(db, QUEUED_MESSAGES_SQL.deleteBySession, [sessionId], "Clearing the queue"),
 	};
 }

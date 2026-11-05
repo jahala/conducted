@@ -11,7 +11,9 @@
  * Test first: markEnded twice keeps the first exit code.
  */
 import {
+	err,
 	notImplemented,
+	ok,
 	type RepoId,
 	type Result,
 	type TerminalId,
@@ -20,6 +22,7 @@ import {
 import type { Database } from "../../platform/platform.ts";
 import type { Terminal } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
+import { executeStatement, inTransaction, selectRows } from "./row-codec.ts";
 
 export interface TerminalRow {
 	id: TerminalId;
@@ -125,18 +128,87 @@ export interface TerminalRepository {
 	delete(id: TerminalId): Promise<Result<void>>;
 }
 
-export function createTerminalRepository(_db: Database, _deps: RepositoryDeps): TerminalRepository {
+export function createTerminalRepository(db: Database, deps: RepositoryDeps): TerminalRepository {
+	const list = async (
+		sql: string,
+		params: readonly unknown[],
+		what: string,
+	): Promise<Result<Terminal[]>> => {
+		const rows = await selectRows<TerminalRow>(db, sql, params, what);
+		return rows.ok ? ok(rows.value.map(terminalFromRow)) : err(rows.error);
+	};
+	const write = async (
+		target: Database,
+		sql: string,
+		params: readonly unknown[],
+		what: string,
+	): Promise<Result<void>> => {
+		const result = await executeStatement(target, sql, params, what);
+		return result.ok ? ok(undefined) : err(result.error);
+	};
 	return {
-		listByWorkspace: async () => notImplemented("DATA-01"),
+		listByWorkspace: (workspaceId) =>
+			list(TERMINALS_SQL.listByWorkspace, [workspaceId], "Listing terminals"),
 		listByRepo: async () => notImplemented("RUN-06"),
-		listActive: async () => notImplemented("DATA-01"),
-		get: async () => notImplemented("DATA-01"),
-		start: async () => notImplemented("DATA-01"),
-		setTitle: async () => notImplemented("DATA-01"),
-		setSize: async () => notImplemented("DATA-01"),
+		listActive: () => list(TERMINALS_SQL.listActive, [], "Listing open terminals"),
+		get: async (id) => {
+			const rows = await selectRows<TerminalRow>(db, TERMINALS_SQL.get, [id], "Reading a terminal");
+			if (!rows.ok) return err(rows.error);
+			const row = rows.value[0];
+			return row === undefined ? ok(null) : ok(terminalFromRow(row));
+		},
+		start: async (input) =>
+			inTransaction(db, "Starting a terminal", async (tx) => {
+				const at = deps.clock.now();
+				const terminal: TerminalInsert = {
+					id: deps.ids.uuid() as TerminalId,
+					workspaceId: input.workspaceId,
+					repoId: input.repoId,
+					kind: input.kind,
+					title: input.title,
+					cwd: input.cwd,
+					startCommand: input.startCommand,
+					startedAt: at,
+					endedAt: null,
+					exitCode: null,
+					cols: input.cols,
+					rows: input.rows,
+					screenState: null,
+				};
+				const written = await executeStatement(
+					tx,
+					TERMINALS_SQL.insert,
+					terminalToParams(terminal),
+					"Starting a terminal",
+				);
+				if (!written.ok) return err(written.error);
+				return ok({
+					id: terminal.id,
+					workspaceId: terminal.workspaceId,
+					repoId: terminal.repoId,
+					kind: terminal.kind,
+					title: terminal.title,
+					cwd: terminal.cwd,
+					startCommand: terminal.startCommand,
+					startedAt: terminal.startedAt,
+					endedAt: terminal.endedAt,
+					exitCode: terminal.exitCode,
+				});
+			}),
+		setTitle: (id, title) => write(db, TERMINALS_SQL.setTitle, [title, id], "Titling a terminal"),
+		setSize: (id, cols, rows) =>
+			write(db, TERMINALS_SQL.setSize, [cols, rows, id], "Resizing a terminal"),
 		getScreenState: async () => notImplemented("PLAT-08"),
 		setScreenState: async () => notImplemented("PLAT-08"),
-		markEnded: async () => notImplemented("DATA-01"),
-		delete: async () => notImplemented("DATA-01"),
+		markEnded: async (id, endedAt, exitCode) => {
+			const written = await executeStatement(
+				db,
+				TERMINALS_SQL.markEnded,
+				[endedAt, exitCode, id],
+				"Ending a terminal",
+			);
+			return written.ok ? ok(written.value > 0) : err(written.error);
+		},
+		delete: (id) => write(db, TERMINALS_SQL.delete, [id], "Removing a terminal"),
 	};
 }

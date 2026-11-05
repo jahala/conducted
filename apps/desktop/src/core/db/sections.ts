@@ -10,11 +10,18 @@
  * member rows.
  * Test first: moving a workspace to another section leaves it in exactly one section.
  */
-import { notImplemented, type Result, type SectionId, type WorkspaceId } from "@conducted/shared";
+import { err, ok, type Result, type SectionId, type WorkspaceId } from "@conducted/shared";
 import type { Database } from "../../platform/platform.ts";
 import type { Section } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
-import { fromFlag, toFlag } from "./row-codec.ts";
+import {
+	executeStatement,
+	fromFlag,
+	inTransaction,
+	selectRows,
+	stringifyJson,
+	toFlag,
+} from "./row-codec.ts";
 
 export interface SectionRow {
 	id: SectionId;
@@ -149,17 +156,117 @@ export interface SectionRepository {
 	): Promise<Result<void>>;
 }
 
-export function createSectionRepository(_db: Database, _deps: RepositoryDeps): SectionRepository {
+export function createSectionRepository(db: Database, deps: RepositoryDeps): SectionRepository {
+	const now = (): number => deps.clock.now();
+	const write = async (
+		target: Database,
+		sql: string,
+		params: readonly unknown[],
+		what: string,
+	): Promise<Result<void>> => {
+		const result = await executeStatement(target, sql, params, what);
+		return result.ok ? ok(undefined) : err(result.error);
+	};
 	return {
-		list: async () => notImplemented("DATA-01"),
-		create: async () => notImplemented("DATA-01"),
-		rename: async () => notImplemented("DATA-01"),
-		setCollapsed: async () => notImplemented("DATA-01"),
-		reorder: async () => notImplemented("DATA-01"),
-		delete: async () => notImplemented("DATA-01"),
-		moveWorkspace: async () => notImplemented("DATA-01"),
-		removeWorkspace: async () => notImplemented("DATA-01"),
-		removeWorkspaceEverywhere: async () => notImplemented("DATA-01"),
-		replaceMembers: async () => notImplemented("DATA-01"),
+		list: async () => {
+			const sections = await selectRows<SectionRow>(db, SECTIONS_SQL.list, [], "Listing sections");
+			if (!sections.ok) return err(sections.error);
+			const members = await selectRows<SectionMemberRow>(
+				db,
+				SECTIONS_SQL.listMembers,
+				[],
+				"Listing section members",
+			);
+			if (!members.ok) return err(members.error);
+			return ok(sections.value.map((row) => sectionFromRow(row, members.value)));
+		},
+		create: async (input) =>
+			inTransaction(db, "Creating a section", async (tx) => {
+				const next = await selectRows<{ next: number }>(
+					tx,
+					SECTIONS_SQL.nextPosition,
+					[],
+					"Reading the next section position",
+				);
+				if (!next.ok) return err(next.error);
+				const section: Section = {
+					id: deps.ids.uuid() as SectionId,
+					name: input.name,
+					emoji: input.emoji,
+					position: next.value[0]?.next ?? 0,
+					collapsed: false,
+					workspaceIds: [],
+				};
+				const written = await executeStatement(
+					tx,
+					SECTIONS_SQL.insert,
+					sectionToParams(section, now()),
+					"Creating a section",
+				);
+				return written.ok ? ok(section) : err(written.error);
+			}),
+		rename: (id, name, emoji) =>
+			write(db, SECTIONS_SQL.rename, [name, emoji, id], "Renaming a section"),
+		setCollapsed: (id, collapsed) =>
+			write(db, SECTIONS_SQL.setCollapsed, [toFlag(collapsed), id], "Collapsing a section"),
+		reorder: async (orderedIds) => {
+			const json = stringifyJson(orderedIds, "sections.ids");
+			if (!json.ok) return err(json.error);
+			return write(db, SECTIONS_SQL.reorder, [json.value], "Reordering sections");
+		},
+		delete: (id) => write(db, SECTIONS_SQL.delete, [id], "Removing a section"),
+		moveWorkspace: async (workspaceId, toSectionId, position) =>
+			inTransaction(db, "Moving a workspace to a section", async (tx) => {
+				const removed = await executeStatement(
+					tx,
+					SECTIONS_SQL.removeFromAllSections,
+					[workspaceId],
+					"Moving a workspace to a section",
+				);
+				if (!removed.ok) return err(removed.error);
+				const added = await executeStatement(
+					tx,
+					position === undefined ? SECTIONS_SQL.addMemberAtEnd : SECTIONS_SQL.addMember,
+					position === undefined
+						? [toSectionId, workspaceId]
+						: [toSectionId, workspaceId, position],
+					"Moving a workspace to a section",
+				);
+				return added.ok ? ok(undefined) : err(added.error);
+			}),
+		removeWorkspace: (sectionId, workspaceId) =>
+			write(
+				db,
+				SECTIONS_SQL.removeMember,
+				[sectionId, workspaceId],
+				"Removing a workspace from a section",
+			),
+		removeWorkspaceEverywhere: (workspaceId) =>
+			write(
+				db,
+				SECTIONS_SQL.removeFromAllSections,
+				[workspaceId],
+				"Removing a workspace from every section",
+			),
+		replaceMembers: async (sectionId, orderedWorkspaceIds) => {
+			const json = stringifyJson(orderedWorkspaceIds, "section_members.ids");
+			if (!json.ok) return err(json.error);
+			return inTransaction(db, "Replacing a section's workspaces", async (tx) => {
+				for (const sql of [
+					SECTIONS_SQL.replaceStep1RemoveOthers,
+					SECTIONS_SQL.replaceStep2TakeFromOtherSections,
+					SECTIONS_SQL.replaceStep3WriteOrder,
+				]) {
+					const written = await executeStatement(
+						tx,
+						sql,
+						[sectionId, json.value],
+						"Replacing a section's workspaces",
+					);
+					if (!written.ok) return err(written.error);
+				}
+				return ok(undefined);
+			});
+		},
 	};
 }

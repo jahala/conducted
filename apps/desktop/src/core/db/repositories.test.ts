@@ -1,0 +1,798 @@
+// @vitest-environment node
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import { fileURLToPath } from "node:url";
+import { idleLiveState } from "@conducted/protocol";
+import type { MessageId, RepoId, SessionId, WorkspaceId } from "@conducted/shared";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { Database } from "../../platform/platform.ts";
+import { REPOS_SQL, repoToParams } from "./repos.ts";
+import { createRepositories, type Repositories } from "./repositories.ts";
+import { SESSIONS_SQL, sessionToParams } from "./sessions.ts";
+import {
+	agentEvent,
+	sampleAttachment,
+	sampleComment,
+	sampleQueued,
+	sampleRepo,
+	sampleSession,
+	sampleWorkspace,
+	sessionId,
+	userMessageEvent,
+	workspaceId,
+} from "./test-fixtures.ts";
+import { WORKSPACES_SQL, workspaceToParams } from "./workspaces.ts";
+
+const MIGRATIONS_DIR = fileURLToPath(new URL("../../../src-tauri/migrations/", import.meta.url));
+const MIGRATIONS = readdirSync(MIGRATIONS_DIR)
+	.filter((name) => name.endsWith(".sql"))
+	.sort()
+	.map((name) => readFileSync(join(MIGRATIONS_DIR, name), "utf8"));
+
+/** node:sqlite binds `$1..$n` by name, so a positional list becomes `{ $1: ... }`. */
+const bind = (params: readonly unknown[]): Record<string, never> =>
+	Object.fromEntries(params.map((value, index) => [`$${index + 1}`, value])) as never;
+
+/** The same Database interface the Tauri plugin offers, over node:sqlite. */
+class NodeDatabase implements Database {
+	readonly #db: DatabaseSync;
+
+	constructor(db: DatabaseSync) {
+		this.#db = db;
+	}
+
+	async execute(sql: string, params: readonly unknown[] = []) {
+		const result = this.#db.prepare(sql).run(bind(params));
+		return {
+			rowsAffected: Number(result.changes),
+			lastInsertId: Number(result.lastInsertRowid),
+		};
+	}
+
+	async select<Row>(sql: string, params: readonly unknown[] = []): Promise<Row[]> {
+		return this.#db.prepare(sql).all(bind(params)) as Row[];
+	}
+
+	async transaction<T>(work: (db: Database) => Promise<T>): Promise<T> {
+		this.#db.exec("BEGIN IMMEDIATE");
+		try {
+			const value = await work(this);
+			this.#db.exec("COMMIT");
+			return value;
+		} catch (cause) {
+			this.#db.exec("ROLLBACK");
+			throw cause;
+		}
+	}
+}
+
+const must = <T>(result: { ok: true; value: T } | { ok: false; error: unknown }): T => {
+	if (!result.ok) throw new Error(JSON.stringify(result.error));
+	return result.value;
+};
+
+let raw: DatabaseSync;
+let repositories: Repositories;
+let now: number;
+let nextId: number;
+
+beforeEach(() => {
+	raw = new DatabaseSync(":memory:");
+	for (const sql of MIGRATIONS) raw.exec(sql);
+	now = 1000;
+	nextId = 0;
+	repositories = createRepositories(new NodeDatabase(raw), {
+		clock: { now: () => now },
+		ids: { uuid: () => `generated-${++nextId}` },
+	});
+});
+
+afterEach(() => {
+	raw.close();
+});
+
+const seedRepo = (): void => {
+	const exists = raw.prepare("SELECT 1 FROM repos WHERE id = $1").get({ $1: sampleRepo.id });
+	if (exists === undefined) {
+		raw.prepare(REPOS_SQL.insert).run(bind(repoToParams(sampleRepo)));
+	}
+};
+
+const seedWorkspace = (): void => {
+	seedRepo();
+	raw.prepare(WORKSPACES_SQL.insert).run(bind(must(workspaceToParams(sampleWorkspace))));
+};
+
+const seedSession = (): void => {
+	raw.prepare(SESSIONS_SQL.insert).run(bind(must(sessionToParams(sampleSession))));
+};
+
+const seedAll = (): void => {
+	seedRepo();
+	seedWorkspace();
+	seedSession();
+};
+
+describe("DATA-01 workspaces repository", () => {
+	it("lists all, by repo and by state", async () => {
+		seedRepo();
+		seedWorkspace();
+		now = 2000;
+		const second = must(
+			await repositories.workspaces.create({
+				repoId: sampleRepo.id,
+				directoryName: "lisbon",
+				path: "/code/workspaces/lisbon",
+				branch: "jahala/lisbon",
+				branchIsPlaceholder: false,
+				targetBranch: "origin/main",
+				port: 55101,
+				linkedPaths: [],
+				setupLogPath: null,
+			}),
+		);
+
+		expect(must(await repositories.workspaces.listAll()).map((w) => w.id)).toEqual([
+			sampleWorkspace.id,
+			second.id,
+		]);
+		expect(await repositories.workspaces.listByRepo(sampleRepo.id)).toMatchObject({ ok: true });
+		expect(must(await repositories.workspaces.listByRepo(sampleRepo.id)).length).toBe(2);
+		expect(must(await repositories.workspaces.listByState("ready"))).toHaveLength(1);
+		expect(must(await repositories.workspaces.getByPath(sampleWorkspace.path))).toEqual(
+			must(await repositories.workspaces.get(sampleWorkspace.id)),
+		);
+		expect(must(await repositories.workspaces.get("missing" as WorkspaceId))).toBeNull();
+	});
+
+	it("creates a workspace in initializing and refuses a duplicate path", async () => {
+		seedRepo();
+		now = 3000;
+		const created = must(
+			await repositories.workspaces.create({
+				repoId: sampleRepo.id,
+				directoryName: "kyoto",
+				path: "/code/workspaces/kyoto",
+				branch: "jahala/kyoto",
+				branchIsPlaceholder: true,
+				targetBranch: "origin/main",
+				port: 55102,
+				linkedPaths: ["/code/extra"],
+				setupLogPath: "/data/setup-logs/kyoto.log",
+			}),
+		);
+		expect(created).toMatchObject({
+			id: "generated-1",
+			state: "initializing",
+			kanbanStatus: "in_progress",
+			lastActivityAt: 3000,
+		});
+		expect(must(await repositories.workspaces.getSetupLogPath(created.id))).toBe(
+			"/data/setup-logs/kyoto.log",
+		);
+
+		const duplicate = await repositories.workspaces.create({
+			repoId: sampleRepo.id,
+			directoryName: "kyoto-2",
+			path: "/code/workspaces/kyoto",
+			branch: "jahala/kyoto-2",
+			branchIsPlaceholder: true,
+			targetBranch: "origin/main",
+			port: 55103,
+			linkedPaths: [],
+			setupLogPath: null,
+		});
+		expect(duplicate).toMatchObject({ ok: false, error: { code: "db.conflict" } });
+	});
+
+	it("moves state by compare-and-set and archives only from archiving", async () => {
+		seedWorkspace();
+		expect(
+			await repositories.workspaces.transitionState(workspaceId, "ready", "archiving"),
+		).toEqual({ ok: true, value: true });
+		expect(
+			await repositories.workspaces.transitionState(workspaceId, "ready", "archiving"),
+		).toEqual({ ok: true, value: false });
+		now = 6000;
+		expect(await repositories.workspaces.markArchived(workspaceId, "abc123")).toEqual({
+			ok: true,
+			value: true,
+		});
+		const archived = must(await repositories.workspaces.get(workspaceId));
+		expect(archived).toMatchObject({
+			state: "archived",
+			archiveCommit: "abc123",
+			archivedAt: 6000,
+		});
+		expect(await repositories.workspaces.markArchived(workspaceId, "later")).toEqual({
+			ok: true,
+			value: false,
+		});
+	});
+
+	it("moves activity forward only", async () => {
+		seedWorkspace();
+		now = 2000;
+		must(await repositories.workspaces.touchActivity(workspaceId, 2000));
+		expect(must(await repositories.workspaces.get(workspaceId))?.lastActivityAt).toBe(3000);
+		now = 4000;
+		must(await repositories.workspaces.touchActivity(workspaceId, 5000));
+		expect(must(await repositories.workspaces.get(workspaceId))?.lastActivityAt).toBe(5000);
+	});
+
+	it("writes every workspace field in its own update", async () => {
+		seedWorkspace();
+		must(await repositories.workspaces.setKanbanStatus(workspaceId, "in_review"));
+		must(await repositories.workspaces.setDisplayName(workspaceId, "Review me"));
+		must(await repositories.workspaces.setBranch(workspaceId, "jahala/renamed", false));
+		must(await repositories.workspaces.setTargetBranch(workspaceId, "upstream/dev"));
+		must(await repositories.workspaces.setPinned(workspaceId, null));
+		must(await repositories.workspaces.setNotes(workspaceId, "note"));
+		must(await repositories.workspaces.setLinkedPaths(workspaceId, ["/a", "/b"]));
+		must(
+			await repositories.workspaces.setPullRequest(workspaceId, {
+				number: 9,
+				title: "Title",
+				description: "Body",
+			}),
+		);
+		const updated = must(await repositories.workspaces.get(workspaceId));
+		expect(updated).toMatchObject({
+			kanbanStatus: "in_review",
+			displayName: "Review me",
+			branch: "jahala/renamed",
+			branchIsPlaceholder: false,
+			targetBranch: "upstream/dev",
+			pinnedAt: null,
+			notes: "note",
+			linkedPaths: ["/a", "/b"],
+			prNumber: 9,
+			prTitle: "Title",
+			prDescription: "Body",
+		});
+		must(await repositories.workspaces.clearPullRequest(workspaceId));
+		expect(must(await repositories.workspaces.get(workspaceId))?.prNumber).toBeNull();
+	});
+
+	it("returns an error when a stored linked_paths column is not a list", async () => {
+		seedWorkspace();
+		raw
+			.prepare("UPDATE workspaces SET linked_paths = $1 WHERE id = $2")
+			.run({ $1: "not json", $2: workspaceId });
+		expect(await repositories.workspaces.listAll()).toMatchObject({ ok: false });
+		expect(await repositories.workspaces.get(workspaceId)).toMatchObject({ ok: false });
+	});
+});
+
+describe("DATA-01 repos repository", () => {
+	it("lists visible and hidden repositories in display order", async () => {
+		seedRepo();
+		expect(must(await repositories.repos.list({ includeHidden: true }))).toEqual([sampleRepo]);
+		expect(must(await repositories.repos.list({ includeHidden: false }))).toEqual([]);
+		expect(must(await repositories.repos.get(sampleRepo.id))).toEqual(sampleRepo);
+		expect(must(await repositories.repos.getByRootPath(sampleRepo.rootPath))).toEqual(sampleRepo);
+		expect(must(await repositories.repos.get("missing" as RepoId))).toBeNull();
+	});
+
+	it("creates a repo after the last display order and refuses a duplicate folder", async () => {
+		seedRepo();
+		now = 7000;
+		const created = must(
+			await repositories.repos.create({
+				name: "Second",
+				rootPath: "/code/second",
+				remoteUrl: null,
+				defaultBranch: "main",
+				icon: null,
+			}),
+		);
+		expect(created).toMatchObject({
+			id: "generated-1",
+			displayOrder: 3,
+			hidden: false,
+			createdAt: 7000,
+			updatedAt: 7000,
+		});
+
+		const duplicate = await repositories.repos.create({
+			name: "Again",
+			rootPath: sampleRepo.rootPath,
+			remoteUrl: null,
+			defaultBranch: "main",
+			icon: null,
+		});
+		expect(duplicate).toMatchObject({ ok: false, error: { code: "db.conflict" } });
+	});
+
+	it("updates one field at a time and reorders in a batch", async () => {
+		seedRepo();
+		now = 8000;
+		const second = must(
+			await repositories.repos.create({
+				name: "Second",
+				rootPath: "/code/second",
+				remoteUrl: null,
+				defaultBranch: "main",
+				icon: null,
+			}),
+		);
+		must(await repositories.repos.setName(second.id, "Renamed"));
+		must(await repositories.repos.setDefaultBranch(second.id, "develop"));
+		must(await repositories.repos.setRemoteUrl(second.id, "git@example.com:x/y.git"));
+		must(await repositories.repos.setIcon(second.id, "star"));
+		must(await repositories.repos.setHidden(second.id, true));
+		expect(must(await repositories.repos.get(second.id))).toMatchObject({
+			name: "Renamed",
+			defaultBranch: "develop",
+			remoteUrl: "git@example.com:x/y.git",
+			icon: "star",
+			hidden: true,
+			updatedAt: 8000,
+		});
+
+		must(await repositories.repos.reorder([second.id, sampleRepo.id]));
+		expect(must(await repositories.repos.list({ includeHidden: true })).map((r) => r.id)).toEqual([
+			second.id,
+			sampleRepo.id,
+		]);
+	});
+});
+
+describe("DATA-01 sessions repository", () => {
+	it("creates a chat, reads it and updates its config and title", async () => {
+		seedWorkspace();
+		now = 2000;
+		const created = must(
+			await repositories.sessions.create({
+				workspaceId,
+				title: null,
+				config: sampleSession.config,
+			}),
+		);
+		expect(created).toMatchObject({
+			id: "generated-1",
+			unreadCount: 0,
+			agentSessionId: null,
+			createdAt: 2000,
+		});
+		expect(must(await repositories.sessions.get(created.id))).toEqual(created);
+
+		expect(await repositories.sessions.setTitleIfEmpty(created.id, "From the agent")).toEqual({
+			ok: true,
+			value: true,
+		});
+		expect(await repositories.sessions.setTitleIfEmpty(created.id, "Again")).toEqual({
+			ok: true,
+			value: false,
+		});
+		must(
+			await repositories.sessions.setConfig(created.id, { ...sampleSession.config, model: "opus" }),
+		);
+		expect(must(await repositories.sessions.get(created.id))?.config.model).toBe("opus");
+	});
+
+	it("keeps unread counts and the last user message moving forward", async () => {
+		seedAll();
+		must(await repositories.sessions.incrementUnread(sessionId));
+		must(await repositories.sessions.incrementUnread(sessionId));
+		expect(must(await repositories.sessions.get(sessionId))?.unreadCount).toBe(5);
+		expect(must(await repositories.sessions.unreadByWorkspace())).toEqual([
+			{ workspaceId, unread: 5 },
+		]);
+
+		now = 3000;
+		must(await repositories.sessions.recordUserMessage(sessionId, 3000));
+		must(await repositories.sessions.recordUserMessage(sessionId, 2000));
+		expect(must(await repositories.sessions.get(sessionId))?.lastUserMessageAt).toBe(4000);
+
+		expect(must(await repositories.sessions.clearWorkspaceUnread(workspaceId))).toEqual([
+			sessionId,
+		]);
+		expect(must(await repositories.sessions.get(sessionId))?.unreadCount).toBe(0);
+	});
+
+	it("pauses once, closes once and reopens", async () => {
+		seedAll();
+		must(await repositories.sessions.pauseQueue(sessionId, 5000));
+		must(await repositories.sessions.pauseQueue(sessionId, 6000));
+		expect(must(await repositories.sessions.get(sessionId))?.queuePausedAt).toBe(5000);
+		must(await repositories.sessions.resumeQueue(sessionId));
+
+		expect(await repositories.sessions.close(sessionId)).toEqual({ ok: true, value: true });
+		expect(await repositories.sessions.close(sessionId)).toEqual({ ok: true, value: false });
+		expect(
+			must(await repositories.sessions.listByWorkspace(workspaceId, { includeClosed: false })),
+		).toHaveLength(0);
+		must(await repositories.sessions.reopen(sessionId));
+		expect(
+			must(await repositories.sessions.listByWorkspace(workspaceId, { includeClosed: false })),
+		).toHaveLength(1);
+	});
+});
+
+describe("DATA-01 live state and events repositories", () => {
+	it("keeps only the newest live state", async () => {
+		seedAll();
+		const working = { ...idleLiveState, status: "working" as const };
+		expect(await repositories.liveStates.upsert(sessionId, working, 2000)).toEqual({
+			ok: true,
+			value: true,
+		});
+		expect(await repositories.liveStates.upsert(sessionId, idleLiveState, 1000)).toEqual({
+			ok: true,
+			value: false,
+		});
+		expect(must(await repositories.liveStates.get(sessionId))?.liveState.status).toBe("working");
+		expect(must(await repositories.liveStates.listAll())).toHaveLength(1);
+		must(await repositories.liveStates.delete(sessionId));
+		expect(must(await repositories.liveStates.get(sessionId))).toBeNull();
+	});
+
+	it("appends each event once and reads it in position order", async () => {
+		seedAll();
+		const first = userMessageEvent("e1", "t1", 10);
+		const second = agentEvent("e2", "t1", 11, [{ kind: "text", text: "Hi" }]);
+		expect(await repositories.sessionEvents.append(sessionId, first, 100)).toEqual({
+			ok: true,
+			value: { kind: "appended", idx: 0 },
+		});
+		expect(await repositories.sessionEvents.append(sessionId, first, 101)).toEqual({
+			ok: true,
+			value: { kind: "duplicate" },
+		});
+		expect(await repositories.sessionEvents.append(sessionId, second, 102)).toEqual({
+			ok: true,
+			value: { kind: "appended", idx: 1 },
+		});
+		expect(must(await repositories.sessionEvents.lastIdx(sessionId))).toBe(1);
+		expect(
+			must(await repositories.sessionEvents.listFrom(sessionId, 0, 10)).map((e) => e.idx),
+		).toEqual([0, 1]);
+		expect(must(await repositories.sessionEvents.listByTurn(sessionId, first.turnId))).toHaveLength(
+			2,
+		);
+		expect(must(await repositories.sessionEvents.listUserMessages(sessionId))).toHaveLength(1);
+		expect(
+			must(await repositories.sessionEvents.getByEventId(sessionId, second.eventId))?.event,
+		).toEqual(second);
+		expect(
+			must(await repositories.sessionEvents.getByEventId(sessionId, "nope" as never)),
+		).toBeNull();
+	});
+
+	it("marks a turn reverted without deleting it and finds interrupted turns", async () => {
+		seedAll();
+		must(await repositories.sessionEvents.append(sessionId, userMessageEvent("e1", "t1", 10), 100));
+		must(
+			await repositories.sessionEvents.append(
+				sessionId,
+				agentEvent("e2", "t1", 11, [{ kind: "text", text: "x" }]),
+				101,
+			),
+		);
+		expect(
+			must(await repositories.sessionEvents.markRevertedFromTurn(sessionId, "t1" as never, 500)),
+		).toBe(2);
+		const stored = must(await repositories.sessionEvents.listFrom(sessionId, 0, 10));
+		expect(stored.map((event) => event.revertedAt)).toEqual([500, 500]);
+		expect(must(await repositories.sessionEvents.findInterruptedTurns())).toEqual([
+			{ sessionId, turnId: "t1" },
+		]);
+	});
+});
+
+describe("DATA-01 queued messages repository", () => {
+	it("queues in order, claims each row once and then returns nothing", async () => {
+		seedAll();
+		const first = must(
+			await repositories.queuedMessages.enqueue({
+				...sampleQueued,
+				id: "q1" as MessageId,
+			}),
+		);
+		const second = must(
+			await repositories.queuedMessages.enqueue({
+				...sampleQueued,
+				id: "q2" as MessageId,
+			}),
+		);
+		expect([first.position, second.position]).toEqual([1, 2]);
+		expect(must(await repositories.queuedMessages.count(sessionId))).toBe(2);
+		now = 2000;
+		expect(must(await repositories.queuedMessages.claimNext(sessionId))?.id).toBe("q1");
+		expect(must(await repositories.queuedMessages.claimNext(sessionId))?.id).toBe("q2");
+		expect(must(await repositories.queuedMessages.claimNext(sessionId))).toBeNull();
+	});
+
+	it("does not edit or cancel a sending message, and reorders the rest", async () => {
+		seedAll();
+		must(
+			await repositories.queuedMessages.enqueue({
+				...sampleQueued,
+				id: "q1" as MessageId,
+			}),
+		);
+		must(
+			await repositories.queuedMessages.enqueue({
+				...sampleQueued,
+				id: "q2" as MessageId,
+			}),
+		);
+		must(await repositories.queuedMessages.claimNext(sessionId));
+		expect(
+			await repositories.queuedMessages.setContent("q1" as MessageId, {
+				text: "new",
+				attachmentPaths: [],
+			}),
+		).toEqual({ ok: true, value: false });
+		expect(await repositories.queuedMessages.cancel("q1" as MessageId)).toEqual({
+			ok: true,
+			value: false,
+		});
+		expect(
+			await repositories.queuedMessages.setState("q1" as MessageId, "sending", "failed", "offline"),
+		).toEqual({ ok: true, value: true });
+
+		must(await repositories.queuedMessages.reorder(sessionId, ["q2" as MessageId]));
+		expect(must(await repositories.queuedMessages.get("q2" as MessageId))?.position).toBe(1);
+	});
+});
+
+describe("DATA-01 attachments repository", () => {
+	it("adds drafts, attaches only the same chat and returns the path on removal", async () => {
+		seedAll();
+		raw
+			.prepare(SESSIONS_SQL.insert)
+			.run(bind(must(sessionToParams({ ...sampleSession, id: "chat-2" as SessionId }))));
+		const own = must(await repositories.attachments.addDraft(sampleAttachment));
+		const other = must(
+			await repositories.attachments.addDraft({
+				...sampleAttachment,
+				sessionId: "chat-2" as SessionId,
+			}),
+		);
+		expect(own.isDraft).toBe(true);
+		expect(other.sessionId).toBe("chat-2");
+
+		expect(
+			await repositories.attachments.attachDrafts(sessionId, "msg-1", [own.id, other.id]),
+		).toEqual({ ok: true, value: 1 });
+		expect(must(await repositories.attachments.listByMessage("msg-1"))).toHaveLength(1);
+		expect(must(await repositories.attachments.listDraftsBySession(sessionId))).toHaveLength(0);
+
+		expect(await repositories.attachments.restoreToDraft("msg-1")).toEqual({ ok: true, value: 1 });
+		expect(must(await repositories.attachments.removeDraft(sessionId, own.id))).toBe(
+			sampleAttachment.path,
+		);
+		expect(must(await repositories.attachments.remove(own.id))).toBeNull();
+	});
+});
+
+describe("DATA-01 diff comments repository", () => {
+	it("adds, edits and resolves a comment", async () => {
+		seedWorkspace();
+		now = 2000;
+		const added = must(
+			await repositories.diffComments.add({
+				workspaceId,
+				filePath: "src/app.ts",
+				line: 4,
+				endLine: null,
+				body: "Please rename this",
+				author: { kind: "user", name: null, avatarUrl: null },
+				side: "additions",
+				threadId: null,
+				replyToId: null,
+				suggestion: null,
+			}),
+		);
+		expect(added).toMatchObject({
+			state: "pending",
+			resolved: false,
+			outdated: false,
+			createdAt: 2000,
+		});
+		expect(must(await repositories.diffComments.countOpen(workspaceId))).toBe(1);
+
+		must(await repositories.diffComments.setBody(added.id, "Renamed", "const x = 1;"));
+		must(await repositories.diffComments.setResolved(added.id, true));
+		expect(must(await repositories.diffComments.get(added.id))).toMatchObject({
+			body: "Renamed",
+			suggestion: "const x = 1;",
+			resolved: true,
+		});
+		expect(must(await repositories.diffComments.countOpen(workspaceId))).toBe(0);
+		must(await repositories.diffComments.delete(added.id));
+		expect(must(await repositories.diffComments.get(added.id))).toBeNull();
+	});
+
+	it("syncs GitHub comments without undoing a local resolve", async () => {
+		seedWorkspace();
+		must(await repositories.diffComments.syncRemote(workspaceId, [sampleComment]));
+		must(await repositories.diffComments.setResolved(sampleComment.id, true));
+		must(
+			await repositories.diffComments.syncRemote(workspaceId, [
+				{ ...sampleComment, body: "Edited", resolved: false, updatedAt: 9000 },
+			]),
+		);
+		expect(must(await repositories.diffComments.get(sampleComment.id))).toMatchObject({
+			body: "Edited",
+			resolved: true,
+		});
+		must(await repositories.diffComments.syncRemote(workspaceId, []));
+		expect(must(await repositories.diffComments.listByWorkspace(workspaceId))).toHaveLength(0);
+	});
+});
+
+describe("DATA-01 sections repository", () => {
+	it("keeps a workspace in exactly one section when moving it", async () => {
+		seedRepo();
+		seedWorkspace();
+		const first = must(await repositories.sections.create({ name: "Review", emoji: null }));
+		const second = must(await repositories.sections.create({ name: "Later", emoji: null }));
+
+		must(await repositories.sections.moveWorkspace(workspaceId, first.id));
+		must(await repositories.sections.moveWorkspace(workspaceId, second.id));
+		const sections = must(await repositories.sections.list());
+		expect(sections.find((section) => section.id === first.id)?.workspaceIds).toEqual([]);
+		expect(sections.find((section) => section.id === second.id)?.workspaceIds).toEqual([
+			workspaceId,
+		]);
+
+		must(await repositories.sections.replaceMembers(first.id, [workspaceId]));
+		const replaced = must(await repositories.sections.list());
+		expect(replaced.find((section) => section.id === first.id)?.workspaceIds).toEqual([
+			workspaceId,
+		]);
+		expect(replaced.find((section) => section.id === second.id)?.workspaceIds).toEqual([]);
+	});
+
+	it("renames, collapses, reorders and deletes a section without the workspaces", async () => {
+		seedRepo();
+		seedWorkspace();
+		const first = must(await repositories.sections.create({ name: "One", emoji: null }));
+		const second = must(await repositories.sections.create({ name: "Two", emoji: "star" }));
+		must(await repositories.sections.rename(second.id, "Renamed", "eyes"));
+		must(await repositories.sections.setCollapsed(second.id, true));
+		must(await repositories.sections.reorder([second.id, first.id]));
+		expect(must(await repositories.sections.list()).map((section) => section.id)).toEqual([
+			second.id,
+			first.id,
+		]);
+		must(await repositories.sections.delete(second.id));
+		expect(must(await repositories.sections.list())).toHaveLength(1);
+		expect(must(await repositories.workspaces.get(workspaceId))).not.toBeNull();
+	});
+});
+
+describe("DATA-01 settings, environment and favorite models repositories", () => {
+	it("stores settings by key and deletes by prefix", async () => {
+		now = 3000;
+		const saved = must(await repositories.settings.set("theme", { dark: true }));
+		expect(saved).toEqual({ key: "theme", value: { dark: true }, updatedAt: 3000 });
+		expect(must(await repositories.settings.get("theme"))).toEqual(saved);
+		now = 4000;
+		must(await repositories.settings.set("theme", "light"));
+		expect(must(await repositories.settings.get("theme"))?.value).toBe("light");
+		must(await repositories.settings.set("repo:r1:branch", "main"));
+		expect(must(await repositories.settings.listByPrefix("repo:r1:"))).toHaveLength(1);
+		expect(await repositories.settings.deleteByPrefix("repo:r1:")).toEqual({ ok: true, value: 1 });
+		expect(await repositories.settings.set("bad", undefined)).toMatchObject({ ok: false });
+	});
+
+	it("keeps one global environment row when the same name is set twice", async () => {
+		seedRepo();
+		must(
+			await repositories.envVars.set({
+				name: "TOKEN",
+				scope: "global",
+				repoId: null,
+				keychainRef: "kc-1",
+			}),
+		);
+		must(
+			await repositories.envVars.set({
+				name: "TOKEN",
+				scope: "global",
+				repoId: null,
+				keychainRef: "kc-2",
+			}),
+		);
+		must(
+			await repositories.envVars.set({
+				name: "TOKEN",
+				scope: "repo",
+				repoId: sampleRepo.id,
+				keychainRef: "kc-3",
+			}),
+		);
+		expect(must(await repositories.envVars.listGlobal())).toEqual([
+			{ name: "TOKEN", scope: "global", repoId: null, keychainRef: "kc-2" },
+		]);
+		expect(must(await repositories.envVars.listByRepo(sampleRepo.id))).toHaveLength(1);
+		expect(must(await repositories.envVars.listForRepo(sampleRepo.id))).toHaveLength(2);
+		expect(must(await repositories.envVars.get("TOKEN", "global", null))?.keychainRef).toBe("kc-2");
+		must(await repositories.envVars.delete("TOKEN", "global", null));
+		expect(must(await repositories.envVars.listGlobal())).toHaveLength(0);
+		expect(
+			await repositories.envVars.set({
+				name: "BAD",
+				scope: "repo",
+				repoId: null,
+				keychainRef: "kc",
+			}),
+		).toMatchObject({ ok: false, error: { code: "db.invalid_row" } });
+	});
+
+	it("adds, reorders and removes favorite models", async () => {
+		const first = must(
+			await repositories.favoriteModels.add({
+				agent: "claude",
+				model: "default",
+				effort: "high",
+				fastMode: false,
+			}),
+		);
+		const second = must(
+			await repositories.favoriteModels.add({
+				agent: "codex",
+				model: "gpt",
+				effort: "low",
+				fastMode: true,
+			}),
+		);
+		expect([first.position, second.position]).toEqual([0, 1]);
+		must(await repositories.favoriteModels.reorder([second.id, first.id]));
+		expect(must(await repositories.favoriteModels.list()).map((model) => model.id)).toEqual([
+			second.id,
+			first.id,
+		]);
+		expect(
+			await repositories.favoriteModels.setConfig(first.id, {
+				agent: "claude",
+				model: "opus",
+				effort: "low",
+				fastMode: false,
+			}),
+		).toEqual({ ok: true, value: true });
+		must(await repositories.favoriteModels.delete(second.id));
+		expect(must(await repositories.favoriteModels.list())).toHaveLength(1);
+	});
+});
+
+describe("DATA-01 terminals repository", () => {
+	it("starts a terminal and keeps the first exit report", async () => {
+		seedWorkspace();
+		now = 2000;
+		const started = must(
+			await repositories.terminals.start({
+				workspaceId,
+				repoId: null,
+				kind: "run",
+				title: "dev server",
+				cwd: "/code/workspaces/oslo",
+				startCommand: "bun dev",
+				cols: 100,
+				rows: 30,
+			}),
+		);
+		expect(started).toMatchObject({ id: "generated-1", startedAt: 2000, endedAt: null });
+		expect(must(await repositories.terminals.listActive())).toHaveLength(1);
+		expect(await repositories.terminals.markEnded(started.id, 3000, 0)).toEqual({
+			ok: true,
+			value: true,
+		});
+		expect(await repositories.terminals.markEnded(started.id, 4000, 1)).toEqual({
+			ok: true,
+			value: false,
+		});
+		expect(must(await repositories.terminals.get(started.id))).toMatchObject({
+			endedAt: 3000,
+			exitCode: 0,
+		});
+		expect(must(await repositories.terminals.listActive())).toHaveLength(0);
+		must(await repositories.terminals.setTitle(started.id, "server"));
+		expect(must(await repositories.terminals.get(started.id))?.title).toBe("server");
+	});
+});
