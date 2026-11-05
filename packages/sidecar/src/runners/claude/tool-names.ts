@@ -38,6 +38,15 @@ export const CLAUDE_TOOL_TABLE: Readonly<Record<string, CanonicalTool>> = {
 	EnterPlanMode: "enter_plan_mode",
 	ExitPlanMode: "exit_plan_mode",
 	Skill: "skill",
+	TaskCreate: "task_create",
+	TaskGet: "task_get",
+	TaskList: "task_list",
+	TaskUpdate: "task_update",
+	TaskStop: "task_stop",
+	Monitor: "monitor",
+	ScheduleWakeup: "schedule_wakeup",
+	SendMessage: "send_message",
+	ToolSearch: "tool_search",
 };
 
 export function canonicalToolFor(name: string): CanonicalTool {
@@ -47,7 +56,14 @@ export function canonicalToolFor(name: string): CanonicalTool {
 }
 
 /** Read-only Claude tools that have no canonical entry in the table above. */
-const EXTRA_READ_ONLY = new Set(["ToolSearch", "LSP", "TaskGet", "TaskList", "CronList"]);
+const EXTRA_READ_ONLY = new Set([
+	"ToolSearch",
+	"LSP",
+	"TaskGet",
+	"TaskList",
+	"TaskOutput",
+	"CronList",
+]);
 
 /**
  * True when the tool cannot change files or run commands, so it need not wait for the start
