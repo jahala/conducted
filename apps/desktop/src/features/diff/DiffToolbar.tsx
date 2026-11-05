@@ -11,6 +11,7 @@
  * only as wide as its buttons, so measuring it would think every tab is narrow.
  * Test first: toggling "Wrap lines" calls onChange with wrapLines flipped and nothing else changed.
  */
+import { useId } from "react";
 import { Button } from "../../ui/Button.tsx";
 import { Checkbox } from "../../ui/Checkbox.tsx";
 import { Popover } from "../../ui/Popover.tsx";
@@ -29,6 +30,8 @@ export interface DiffToolbarProps {
 
 export function DiffToolbar({ preferences, onChange, disabled, width = null }: DiffToolbarProps) {
 	const splitDisabled = disabled || (width !== null && width < SPLIT_MIN_WIDTH);
+	// Two diff tabs can be on screen at once (split panes), so the ids cannot be fixed strings.
+	const idPrefix = useId();
 	const update = (patch: Partial<DiffPreferences>) => onChange({ ...preferences, ...patch });
 
 	return (
@@ -72,9 +75,12 @@ export function DiffToolbar({ preferences, onChange, disabled, width = null }: D
 				align="start"
 			>
 				<div className="flex w-56 flex-col gap-2">
-					<label className="flex items-center gap-2 text-sm" htmlFor="diff-hide-whitespace">
+					<label
+						className="flex items-center gap-2 text-sm"
+						htmlFor={`${idPrefix}-hide-whitespace`}
+					>
 						<Checkbox
-							id="diff-hide-whitespace"
+							id={`${idPrefix}-hide-whitespace`}
 							aria-label="Hide whitespace changes"
 							checked={preferences.hideWhitespaceChanges}
 							disabled={disabled}
@@ -82,9 +88,9 @@ export function DiffToolbar({ preferences, onChange, disabled, width = null }: D
 						/>
 						<span>Hide whitespace changes</span>
 					</label>
-					<label className="flex items-center gap-2 text-sm" htmlFor="diff-wrap-lines">
+					<label className="flex items-center gap-2 text-sm" htmlFor={`${idPrefix}-wrap-lines`}>
 						<Checkbox
-							id="diff-wrap-lines"
+							id={`${idPrefix}-wrap-lines`}
 							aria-label="Wrap lines"
 							checked={preferences.wrapLines}
 							disabled={disabled}

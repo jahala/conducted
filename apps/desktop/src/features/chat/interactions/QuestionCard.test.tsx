@@ -213,4 +213,17 @@ describe("CHAT-10 question card", () => {
 		fireEvent.keyDown(card(), { key: "Enter" });
 		await waitFor(() => expect(state.answer).toHaveBeenCalledTimes(2));
 	});
+
+	it("says so when the agent cannot be cancelled, and lets the user try again", async () => {
+		state.cancel
+			.mockResolvedValueOnce(err(appError("sidecar_down", "The sidecar is not running.")))
+			.mockResolvedValueOnce(ok(undefined));
+		renderCard([question({ question: "Which database?", options: [option("SQLite")] })]);
+
+		fireEvent.click(screen.getByRole("button", { name: "Cancel agent" }));
+
+		expect(await screen.findByText("Could not cancel the agent. Try again.")).toBeTruthy();
+		fireEvent.click(screen.getByRole("button", { name: "Cancel agent" }));
+		await waitFor(() => expect(state.cancel).toHaveBeenCalledTimes(2));
+	});
 });

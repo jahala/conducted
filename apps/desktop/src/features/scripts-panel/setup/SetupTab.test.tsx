@@ -37,16 +37,13 @@ vi.mock("@tanstack/react-router", () => ({
 	useNavigate: () => state.navigate,
 }));
 
-vi.mock("../../../core/context.tsx", () => ({
-	useServices: () => ({
-		services: {
-			workspace: {
-				readSetupLog: state.readSetupLog,
-				cancelSetup: state.cancelSetup,
-			},
-		},
-	}),
-}));
+vi.mock("../../../core/context.tsx", () => {
+	// One object for every render, as the real container gives.
+	const services = {
+		services: { workspace: { readSetupLog: state.readSetupLog, cancelSetup: state.cancelSetup } },
+	};
+	return { useServices: () => services };
+});
 
 vi.mock("../../../ui/Toast.tsx", () => ({
 	toast: Object.assign(state.toast, { error: state.toast }),
@@ -196,6 +193,69 @@ describe("WS-03 Setup tab", () => {
 				"Setup script failed. Check the setup tab for logs.",
 			),
 		);
+	});
+
+	it("shows the real reason when Run again fails for another cause", async () => {
+		state.setup = {
+			state: "ready",
+			data: failed({ state: "completed", exitCode: 0, terminalId: "t2" as TerminalId }),
+		};
+		state.retrySetup.mockResolvedValue(
+			err(appError("workspace_unknown", "That workspace is gone.")),
+		);
+		render(<SetupTab workspaceId={workspaceId} />);
+
+		fireEvent.click(screen.getByRole("button", { name: "Run again" }));
+
+		await waitFor(() => expect(state.toastError).toHaveBeenCalled());
+		expect(state.toastError.mock.calls[0]?.[0]).toBe("Couldn't run setup again");
+		expect(state.toastError.mock.calls[0]?.[1]).toEqual({
+			code: "workspace_unknown",
+			message: "That workspace is gone.",
+		});
+		expect(state.toast).not.toHaveBeenCalled();
+	});
+
+	it("keeps Run again usable when there is no chat to ask", () => {
+		state.sessions = { state: "ready", data: [] };
+		render(<SetupTab workspaceId={workspaceId} />);
+
+		expect((screen.getByRole("button", { name: "Run again" }) as HTMLButtonElement).disabled).toBe(
+			false,
+		);
+	});
+
+	describe("a saved log without a live terminal", () => {
+		const saved = () => failed({ terminalId: null, log: "saved" as const });
+
+		it("shows the saved log", async () => {
+			state.setup = { state: "ready", data: saved() };
+			render(<SetupTab workspaceId={workspaceId} />);
+			expect(await screen.findByText("setup output")).toBeTruthy();
+		});
+
+		it("shows why the log could not be read, and reads it again on Retry", async () => {
+			state.setup = { state: "ready", data: saved() };
+			state.readSetupLog.mockResolvedValueOnce(err(appError("db_error", "database is locked")));
+			render(<SetupTab workspaceId={workspaceId} />);
+
+			expect(await screen.findByText("database is locked")).toBeTruthy();
+			fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+			expect(await screen.findByText("setup output")).toBeTruthy();
+			expect(state.readSetupLog).toHaveBeenCalledTimes(2);
+		});
+	});
+
+	it("does not call a log expired while setup is only detecting the script", () => {
+		state.setup = {
+			state: "ready",
+			data: failed({ state: "detecting", terminalId: null, log: "missing", exitCode: null }),
+		};
+		render(<SetupTab workspaceId={workspaceId} />);
+
+		expect(screen.queryByText(/expired/)).toBeNull();
+		expect(screen.getByText("Looking for the repository's setup script.")).toBeTruthy();
 	});
 
 	it("puts the end of the setup log into the fix request", async () => {

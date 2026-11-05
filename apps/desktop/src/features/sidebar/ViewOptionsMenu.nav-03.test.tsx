@@ -63,4 +63,55 @@ describe("NAV-03 ViewOptionsMenu", () => {
 		fireEvent.click(await screen.findByRole("menuitemradio", { name: "Created" }));
 		expect(onChange).toHaveBeenCalledWith({ ...baseView, sortBy: "created" });
 	});
+
+	const openFilter = async () => {
+		await openMenu();
+		fireEvent.keyDown(await screen.findByRole("menuitem", { name: "Filter by project" }), {
+			key: "ArrowRight",
+		});
+	};
+
+	it("adds a project to the filter when it is checked", async () => {
+		const onChange = vi.fn();
+		render(
+			<ViewOptionsMenu view={baseView} repos={[repo("app"), repo("api")]} onChange={onChange} />,
+		);
+		await openFilter();
+		fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "api" }));
+		expect(onChange).toHaveBeenCalledWith({ ...baseView, projectFilter: ["api"] });
+	});
+
+	it("drops a filter entry for a project that was removed when another is chosen", async () => {
+		const onChange = vi.fn();
+		render(
+			<ViewOptionsMenu
+				view={{ ...baseView, projectFilter: ["gone" as RepoId] }}
+				repos={[repo("app"), repo("api")]}
+				onChange={onChange}
+			/>,
+		);
+		await openFilter();
+		fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "api" }));
+		expect(onChange).toHaveBeenCalledWith({ ...baseView, projectFilter: ["api"] });
+	});
+
+	it("offers a project search only from five projects and filters the list by it", async () => {
+		const few = render(
+			<ViewOptionsMenu view={baseView} repos={[repo("a1"), repo("a2")]} onChange={() => {}} />,
+		);
+		await openFilter();
+		await screen.findByRole("menuitemcheckbox", { name: "a1" });
+		expect(screen.queryByRole("textbox", { name: "Search projects" })).toBeNull();
+		few.unmount();
+		cleanup();
+
+		const names = ["alpha", "beta", "gamma", "delta", "epsilon"];
+		render(<ViewOptionsMenu view={baseView} repos={names.map(repo)} onChange={() => {}} />);
+		await openFilter();
+		fireEvent.change(await screen.findByRole("textbox", { name: "Search projects" }), {
+			target: { value: "ga" },
+		});
+		expect(screen.getByRole("menuitemcheckbox", { name: "gamma" })).toBeTruthy();
+		expect(screen.queryByRole("menuitemcheckbox", { name: "alpha" })).toBeNull();
+	});
 });

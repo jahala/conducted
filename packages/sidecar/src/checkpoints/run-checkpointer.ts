@@ -12,21 +12,31 @@
  * Our design choice: the child gets its own process group through `detached`, so `-pid` reaches
  * every process it starts.
  */
+import { CHECKPOINTER_EXIT } from "./checkpoint-id.ts";
 import { MAX_LOG_LENGTH, type RunCheckpointer } from "./checkpoint-service.ts";
 
 /**
  * Reads a stream to its end, keeping at most `maxBytes`. The rest is drained and dropped so the
  * child never blocks on a full pipe.
  */
-async function readCapped(stream: ReadableStream<Uint8Array>, maxBytes: number): Promise<string> {
+async function readCapped(
+	stream: ReadableStream<Uint8Array>,
+	maxBytes: number,
+): Promise<{ text: string; truncated: boolean }> {
 	const reader = stream.getReader();
 	const kept: Uint8Array[] = [];
 	let length = 0;
+	let truncated = false;
 	try {
 		for (;;) {
 			const { done, value } = await reader.read();
 			if (done) break;
-			if (value === undefined || length >= maxBytes) continue;
+			if (value === undefined) continue;
+			if (length >= maxBytes) {
+				truncated = truncated || value.byteLength > 0;
+				continue;
+			}
+			if (value.byteLength > maxBytes - length) truncated = true;
 			const slice = value.subarray(0, Math.min(maxBytes - length, value.byteLength));
 			kept.push(slice);
 			length += slice.byteLength;
@@ -34,7 +44,7 @@ async function readCapped(stream: ReadableStream<Uint8Array>, maxBytes: number):
 	} finally {
 		reader.releaseLock();
 	}
-	return new TextDecoder().decode(joinBytes(kept));
+	return { text: new TextDecoder().decode(joinBytes(kept)), truncated };
 }
 
 function joinBytes(chunks: readonly Uint8Array[]): Uint8Array {
@@ -67,6 +77,12 @@ function signalGroup(child: Bun.Subprocess, signal: "SIGTERM" | "SIGKILL"): void
 	}
 }
 
+/** A child ended by our own SIGTERM or SIGKILL reports the documented "terminated" code. */
+function exitCodeOf(exitCode: number | null, signal: NodeJS.Signals | number | null): number {
+	if (signal === "SIGTERM" || signal === "SIGKILL") return CHECKPOINTER_EXIT.terminated;
+	return exitCode ?? -1;
+}
+
 /** Runs checkpointer.sh for one request. */
 export const runCheckpointer: RunCheckpointer = async (args, options) => {
 	const child = Bun.spawn({
@@ -89,7 +105,12 @@ export const runCheckpointer: RunCheckpointer = async (args, options) => {
 			readCapped(child.stderr, MAX_LOG_LENGTH),
 			child.exited,
 		]);
-		return { exitCode: exitCode ?? -1, stdout, stderr };
+		return {
+			exitCode: exitCodeOf(exitCode, child.signalCode),
+			stdout: stdout.text,
+			stderr: stderr.text,
+			truncated: stdout.truncated || stderr.truncated,
+		};
 	} finally {
 		clearTimeout(terminate);
 		clearTimeout(kill);

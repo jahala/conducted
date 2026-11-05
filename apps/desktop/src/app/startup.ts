@@ -152,10 +152,13 @@ export function installGlobalHandlers(platform: Pick<Platform, "app">): () => vo
 	};
 }
 
+/** The sidecar's log file, or null when the Platform cannot say. The reason goes to the app log. */
 async function sidecarLogPath(platform: Platform): Promise<string | null> {
 	try {
 		return await platform.sidecar.logPath();
-	} catch {
+	} catch (cause) {
+		const message = cause instanceof Error ? cause.message : String(cause);
+		platform.app.writeLog("warn", "The sidecar log path could not be read", { message });
 		return null;
 	}
 }

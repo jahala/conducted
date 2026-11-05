@@ -20,6 +20,7 @@
 import type { RepoId, WorkspaceId } from "@conducted/shared";
 import type { KanbanStatus, Repo, Section, Workspace } from "../../core/model.ts";
 import { canOpenWorkspace } from "../../core/workspace-open.ts";
+import { KANBAN_COLUMNS } from "../dashboard/kanban.ts";
 
 export interface SidebarView {
 	groupBy: "status" | "project";
@@ -88,14 +89,6 @@ export const SIDEBAR_STATUS_ORDER: readonly KanbanStatus[] = [
 	"backlog",
 	"canceled",
 ];
-
-export const SIDEBAR_STATUS_LABELS: Record<KanbanStatus, string> = {
-	done: "Done",
-	in_review: "In review",
-	in_progress: "In progress",
-	backlog: "Backlog",
-	canceled: "Canceled",
-};
 
 function orderKey(key: SidebarGroupKey): string {
 	switch (key.kind) {
@@ -208,7 +201,7 @@ export function buildSidebarGroups(input: SidebarViewInput): SidebarGroup[] {
 			const key: SidebarGroupKey = { kind: "status", status };
 			groups.push({
 				key,
-				label: SIDEBAR_STATUS_LABELS[status],
+				label: KANBAN_COLUMNS[status].label,
 				workspaceIds: orderGroup(inside, key, input),
 			});
 		}

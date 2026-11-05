@@ -9,9 +9,9 @@
  * Our design choice: A started chat keeps its agent: picking another agent opens a new chat. A
  * model change in a started chat is applied live when the agent allows it (the sidecar decides) and
  * warns that the next reply may be slower and cost more.
- * Keyboard: the picker's command ids live in the registry, but their handlers and the dispatcher
- * (NAV-14) are not built yet. Until they are, the picker and its favourites listen for the default
- * keys on the window, a documented exception like the composer's Cmd+L.
+ * Keyboard: Cmd+/ (open), Cmd+Shift+E (fast mode), Cmd+Shift+/ (cycle effort) and the five loadout
+ * keys are command handlers (NAV-14), so a shortcut the user rebinds moves with it. The picker stays
+ * mounted while its popover is closed, so the handlers are always registered.
  * Must handle: Models not loaded (loading row); the agent is not installed or not signed in (item
  * disabled); a model that lacks the current effort (switch to its default and say so); fast mode not
  * available for the model or the account (toggle hidden); no models match the search; ACP agents
@@ -22,16 +22,19 @@
 
 import type { Effort, ModelInfo, SessionConfig } from "@conducted/protocol";
 import type { SessionId } from "@conducted/shared";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
+import { useCommandHandler } from "../../app/command-dispatcher.ts";
+import { createLatestWins } from "../../core/async/latest-wins.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions, useLiveShortcut, useModels, useSetting } from "../../core/hooks.ts";
+import { agentDisplayName, agentKey } from "../../core/services/agent-catalog.ts";
 import { Button } from "../../ui/Button.tsx";
 import { Input } from "../../ui/Input.tsx";
 import { CheckIcon, ChevronDownIcon } from "../../ui/icons.tsx";
 import { Popover } from "../../ui/Popover.tsx";
 import { toast, toastError } from "../../ui/Toast.tsx";
-import { agentDisplayName, FavoriteModels } from "./FavoriteModels.tsx";
+import { FavoriteModels } from "./FavoriteModels.tsx";
 
 export interface ModelPickerProps {
 	sessionId: SessionId;
@@ -40,12 +43,12 @@ export interface ModelPickerProps {
 type Choice = Pick<SessionConfig, "agent" | "acpAgent">;
 type ConfigChange = Pick<SessionConfig, "agent" | "acpAgent" | "model" | "effort" | "fastMode">;
 
-const AGENT_CHOICES: readonly (Choice & { label: string })[] = [
-	{ agent: "claude", label: "Claude Code" },
-	{ agent: "codex", label: "Codex" },
-	{ agent: "cursor", label: "Cursor" },
-	{ agent: "acp", acpAgent: "opencode", label: "OpenCode" },
-	{ agent: "acp", acpAgent: "pi", label: "Pi" },
+const AGENT_CHOICES: readonly Choice[] = [
+	{ agent: "claude" },
+	{ agent: "codex" },
+	{ agent: "cursor" },
+	{ agent: "acp", acpAgent: "opencode" },
+	{ agent: "acp", acpAgent: "pi" },
 ];
 
 const EFFORT_LABELS: Record<Effort, string> = {
@@ -102,6 +105,7 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 	const models = useModels(config?.agent ?? "claude", config?.acpAgent);
 	const fastShortcut = useLiveShortcut("chat.toggleFastMode");
 	const [search, setSearch] = useState("");
+	const agentChoices = useRef(createLatestWins());
 
 	const allModels = models.state === "ready" ? models.data : [];
 	const currentModel =
@@ -190,13 +194,16 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 	const chooseAgent = useCallback(
 		async (choice: Choice) => {
 			if (config === undefined || sameChoice(config, choice)) return;
-			const key =
-				choice.acpAgent === undefined ? choice.agent : `${choice.agent}:${choice.acpAgent}`;
+			const key = agentKey(choice.agent, choice.acpAgent);
+			const ticket = agentChoices.current.begin(sessionId);
 			let entry = services.agentCatalog.store.getState().models[key];
 			if (entry === undefined) {
 				const loaded = await services.agentCatalog.loadModels(choice.agent, choice.acpAgent);
+				// A newer agent choice began while the models loaded: this answer is stale.
+				if (!agentChoices.current.isLatest(ticket)) return;
 				if (loaded.ok) entry = { state: "ready", data: loaded.value };
 			}
+			agentChoices.current.settle(ticket);
 			const list = entry?.state === "ready" ? modelsForPicker(entry.data, visible) : [];
 			const chosen = list.find((model) => model.isDefault) ?? list[0];
 			if (chosen === undefined) {
@@ -213,7 +220,7 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 				fastMode: chosen.supportsFastMode ? config.fastMode : false,
 			});
 		},
-		[applyConfig, config, services, visible],
+		[applyConfig, config, services, sessionId, visible],
 	);
 
 	const chooseEffort = useCallback(
@@ -243,9 +250,8 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 			if (config !== undefined && sameChoice(choice, config)) {
 				return allModels.some((model) => model.id === choice.model);
 			}
-			const key =
-				choice.acpAgent === undefined ? choice.agent : `${choice.agent}:${choice.acpAgent}`;
-			const entry = services.agentCatalog.store.getState().models[key];
+			const entry =
+				services.agentCatalog.store.getState().models[agentKey(choice.agent, choice.acpAgent)];
 			if (entry === undefined || entry.state !== "ready") return true;
 			return entry.data.some((model) => model.id === choice.model);
 		},
@@ -265,40 +271,34 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 		[applyConfig, isFavoriteAvailable],
 	);
 
-	useEffect(() => {
-		const handleShortcut = (event: KeyboardEvent) => {
-			if (event.defaultPrevented) return;
-			if (event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) {
-				if (event.key === "/") {
-					event.preventDefault();
-					triggerRef.current?.click();
-					return;
-				}
-			}
-			if (event.metaKey && event.shiftKey && !event.ctrlKey && !event.altKey) {
-				if (event.key.toLowerCase() === "e") {
-					event.preventDefault();
-					toggleFast();
-					return;
-				}
-				if (event.key === "/" || event.key === "?") {
-					event.preventDefault();
-					cycleEffort();
-					return;
-				}
-			}
-			if (event.metaKey && event.ctrlKey && !event.shiftKey && !event.altKey) {
-				const index = Number(event.key) - 1;
-				if (!Number.isInteger(index) || index < 0 || index >= 5) return;
-				const favorite = favorites[index];
-				if (favorite === undefined) return;
-				event.preventDefault();
-				pickFavorite(favorite);
-			}
-		};
-		window.addEventListener("keydown", handleShortcut);
-		return () => window.removeEventListener("keydown", handleShortcut);
-	}, [cycleEffort, favorites, pickFavorite, toggleFast]);
+	/** Applies the favourite at `index`. False when there is none, so the key passes on. */
+	const selectLoadout = (index: number): boolean => {
+		const favorite = favorites[index];
+		if (favorite === undefined) return false;
+		pickFavorite(favorite);
+		return true;
+	};
+
+	useCommandHandler("chat.openModelPicker", "area", () => {
+		if (triggerRef.current === null) return false;
+		triggerRef.current.click();
+		return true;
+	});
+	useCommandHandler("chat.toggleFastMode", "area", () => {
+		if (config === undefined) return false;
+		toggleFast();
+		return true;
+	});
+	useCommandHandler("chat.cycleEffort", "area", () => {
+		if (config === undefined) return false;
+		cycleEffort();
+		return true;
+	});
+	useCommandHandler("chat.selectLoadout1", "area", () => selectLoadout(0));
+	useCommandHandler("chat.selectLoadout2", "area", () => selectLoadout(1));
+	useCommandHandler("chat.selectLoadout3", "area", () => selectLoadout(2));
+	useCommandHandler("chat.selectLoadout4", "area", () => selectLoadout(3));
+	useCommandHandler("chat.selectLoadout5", "area", () => selectLoadout(4));
 
 	const triggerLabel =
 		config === undefined
@@ -353,7 +353,7 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 								onClick={() => void chooseAgent(choice)}
 								className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-fg outline-none hover:bg-hover disabled:cursor-not-allowed disabled:opacity-50"
 							>
-								<span className="flex-1 truncate">{choice.label}</span>
+								<span className="flex-1 truncate">{agentDisplayName(choice)}</span>
 								{selected ? <CheckIcon /> : null}
 							</button>
 						);

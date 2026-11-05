@@ -9,6 +9,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { FileDiff } from "../../core/api.ts";
 import "../../test/dom-polyfills.ts";
 
+const renderer = vi.hoisted(() => ({ failure: null as Error | null }));
+
 vi.mock("@pierre/diffs/react", () => ({
 	MultiFileDiff: ({
 		oldFile,
@@ -20,27 +22,34 @@ vi.mock("@pierre/diffs/react", () => ({
 		newFile: { contents: string } | null;
 		lineAnnotations?: { side: string; lineNumber: number; metadata: unknown }[];
 		renderAnnotation?: (annotation: unknown) => unknown;
-	}) => (
-		<div data-testid="multifile">
-			<span data-testid="old">{oldFile?.contents ?? ""}</span>
-			<span data-testid="new">{newFile?.contents ?? ""}</span>
-			{lineAnnotations?.map((annotation) => (
-				<div
-					key={`${annotation.side}:${annotation.lineNumber}`}
-					data-side={annotation.side}
-					data-line={annotation.lineNumber}
-				>
-					{renderAnnotation?.(annotation) as ReactNode}
-				</div>
-			))}
-		</div>
-	),
+	}) => {
+		if (renderer.failure !== null) throw renderer.failure;
+		return (
+			<div data-testid="multifile">
+				<span data-testid="old">{oldFile?.contents ?? ""}</span>
+				<span data-testid="new">{newFile?.contents ?? ""}</span>
+				{lineAnnotations?.map((annotation) => (
+					<div
+						key={`${annotation.side}:${annotation.lineNumber}`}
+						data-side={annotation.side}
+						data-line={annotation.lineNumber}
+					>
+						{renderAnnotation?.(annotation) as ReactNode}
+					</div>
+				))}
+			</div>
+		);
+	},
 	PatchDiff: ({ patch }: { patch: string }) => <div data-testid="patch">{patch}</div>,
 }));
 
 const { DiffView } = await import("./DiffView.tsx");
 
-afterEach(cleanup);
+afterEach(() => {
+	cleanup();
+	renderer.failure = null;
+	vi.restoreAllMocks();
+});
 
 const preferences = {
 	layout: "unified" as const,
@@ -140,6 +149,41 @@ describe("REV-02 DiffView", () => {
 			/>,
 		);
 		expect(screen.getByTestId("patch").textContent).toContain("diff --git");
+	});
+
+	it("does not draw a too-large diff after its warning is dismissed", () => {
+		render(<DiffView {...props} diff={fileDiff({ tooLarge: true })} />);
+		expect(screen.queryByTestId("multifile")).toBeNull();
+		fireEvent.click(screen.getByRole("button", { name: "Dismiss diff rendering warning" }));
+		expect(screen.queryByText("This file is too large to show")).toBeNull();
+		expect(screen.queryByTestId("multifile")).toBeNull();
+	});
+
+	it("does not draw a too-large diff while an update notice is showing", () => {
+		render(<DiffView {...props} updating={true} diff={fileDiff({ tooLarge: true })} />);
+		expect(screen.getByText("Updating diff")).toBeTruthy();
+		expect(screen.queryByTestId("multifile")).toBeNull();
+	});
+
+	it("draws a too-large diff once the user asks for it", () => {
+		render(<DiffView {...props} forceRender={true} diff={fileDiff({ tooLarge: true })} />);
+		expect(screen.getByTestId("multifile")).toBeTruthy();
+	});
+
+	it("shows the failure card, not a blank panel, when the renderer throws", () => {
+		vi.spyOn(console, "error").mockImplementation(() => undefined);
+		renderer.failure = new Error("renderer broke");
+		render(<DiffView {...props} diff={fileDiff()} />);
+		expect(screen.getByText("Failed to open editor")).toBeTruthy();
+		renderer.failure = null;
+		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+		expect(screen.getByTestId("multifile")).toBeTruthy();
+	});
+
+	it("draws an added file with one side empty", () => {
+		render(<DiffView {...props} diff={fileDiff({ oldText: null })} />);
+		expect(screen.getByTestId("new").textContent).toContain("TWO");
+		expect(screen.getByTestId("old").textContent).toBe("");
 	});
 
 	it("keeps a dismissed warning hidden for the same file", () => {

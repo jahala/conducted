@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	type FindableBuffer,
 	findInTerminalBuffer,
+	findPatternError,
 	TerminalFindBar,
 	type TerminalFindOptions,
 } from "./TerminalFindBar.tsx";
@@ -60,6 +61,36 @@ describe("RUN-06 find in the terminal buffer", () => {
 			column: 0,
 			length: 3,
 		});
+	});
+
+	it("wraps back to the only match when Next is pressed on it", () => {
+		const buffer = bufferWith(["nothing", "one foo here", "nothing"]);
+		const only = findInTerminalBuffer(buffer, options());
+		expect(only).toEqual({ line: 1, column: 4, length: 3 });
+		expect(findInTerminalBuffer(buffer, options(), only, "next")).toEqual(only);
+		expect(findInTerminalBuffer(buffer, options(), only, "previous")).toEqual(only);
+	});
+
+	it("reaches a match earlier on the start line after the later ones", () => {
+		const buffer = bufferWith(["foo and foo"]);
+		const second = { line: 0, column: 8, length: 3 };
+		expect(findInTerminalBuffer(buffer, options(), second, "next")).toEqual({
+			line: 0,
+			column: 0,
+			length: 3,
+		});
+		const first = { line: 0, column: 0, length: 3 };
+		expect(findInTerminalBuffer(buffer, options(), first, "previous")).toEqual({
+			line: 0,
+			column: 8,
+			length: 3,
+		});
+	});
+
+	it("says why a broken regular expression cannot be searched", () => {
+		expect(findPatternError(options({ query: "[", regex: true }))).not.toBeNull();
+		expect(findPatternError(options({ query: "[", regex: false }))).toBeNull();
+		expect(findPatternError(options({ query: "" }))).toBeNull();
 	});
 
 	it("honours case sensitivity and regular expressions", () => {
@@ -118,6 +149,25 @@ describe("RUN-06 terminal find bar", () => {
 		expect(onPrevious).toHaveBeenCalledTimes(1);
 		fireEvent.keyDown(input, { key: "Escape" });
 		expect(onClose).toHaveBeenCalledTimes(1);
+	});
+
+	it("shows 'Invalid pattern' instead of 'No results' for a broken regular expression", () => {
+		render(
+			<TerminalFindBar
+				query="["
+				caseSensitive={false}
+				regex
+				hasMatch={false}
+				patternError="Unterminated character class"
+				onQueryChange={vi.fn()}
+				onToggle={vi.fn()}
+				onNext={vi.fn()}
+				onPrevious={vi.fn()}
+				onClose={vi.fn()}
+			/>,
+		);
+		expect(screen.getByText("Invalid pattern")).toBeTruthy();
+		expect(screen.queryByText("No results")).toBeNull();
 	});
 
 	it("toggles case and regex and reports the typed query", () => {

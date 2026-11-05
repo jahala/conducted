@@ -12,8 +12,8 @@
  * The header slot sits in a title-bar-height row that is a window drag region and starts with the title bar
  * inset, so the header component only fills the row.
  * Must handle: right panel collapsed (the header's toggle button reopens it; the header receives
- * `rightPanelOpen` and `toggleRightPanel`); window narrower than both minimums; the scripts panel collapsing to
- * its 32px tab row (ui/layout-sizes.ts).
+ * `rightPanelOpen` and `toggleRightPanel`); the scripts panel collapsing to its 32px tab row
+ * (ui/layout-sizes.ts). A window narrower than both minimums is left to the resizable group.
  * Test first: renders all three slots; toggleRightPanel hides and shows the right panel.
  */
 import type { WorkspaceId } from "@conducted/shared";

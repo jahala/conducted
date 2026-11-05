@@ -10,6 +10,14 @@ describe("NAV-03 WorkspaceStatusIcon", () => {
 		expect(screen.getByRole("status", { name: "Working…" })).toBeTruthy();
 	});
 
+	it("hides the spinner from screen readers when the status text sits beside it", () => {
+		const { container } = render(
+			<WorkspaceStatusIcon status={{ kind: "agent", label: "working" }} decorative />,
+		);
+		expect(screen.queryByRole("status")).toBeNull();
+		expect(container.querySelector("[aria-hidden=true] [data-kind]")).not.toBeNull();
+	});
+
 	it("keeps the mark decorative when the status is settled or unknown", () => {
 		const settled = render(<WorkspaceStatusIcon status={{ kind: "git", label: "clean" }} />);
 		expect(settled.container.querySelector("[aria-hidden=true]")).not.toBeNull();

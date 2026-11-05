@@ -9,7 +9,7 @@
  *  - detect(): `claude` not on PATH gives null; `claude --version` that hangs gives an error value
  *    after 5 s, reported as installed without a version by the detector
  *  - start() with a missing workspace folder: an error that names the folder
- *  - listModels(): from the live or throwaway query's supportedModels(); efforts from
+ *  - listModels(): from supportedModels() of a throwaway metadata query; efforts from
  *    supportedEffortLevels, fast mode from supportsFastMode; the default effort is the middle of
  *    the list when the SDK gives none
  *  - listSlashCommands(): from supportedCommands() of a throwaway metadata query; the throwaway

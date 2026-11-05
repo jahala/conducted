@@ -1,5 +1,5 @@
 import type { AgentInstall } from "@conducted/protocol";
-import { ok } from "@conducted/shared";
+import { appError, err, ok } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "../../../test/dom-polyfills.ts";
@@ -229,5 +229,32 @@ describe("SET-03 AgentsPage", () => {
 		fireEvent.change(screen.getByLabelText("Search providers"), { target: { value: "codex" } });
 
 		expect(screen.queryByText(/No agent programs were found/)).toBeNull();
+	});
+
+	it("cancels the first sign-in before a retry starts another", async () => {
+		state.installs = {
+			state: "ready",
+			data: [install({ agent: "codex", authenticated: false })],
+		};
+		state.login
+			.mockReset()
+			.mockResolvedValueOnce(ok({ loginId: "login-1", instructions: "Enter the code." }))
+			.mockResolvedValueOnce(ok({ loginId: "login-2", instructions: "Enter the new code." }));
+		state.finishLogin
+			.mockReset()
+			.mockResolvedValueOnce(err(appError("login_timeout", "The sign-in timed out.")))
+			.mockReturnValue(new Promise(() => {}));
+
+		render(<AgentsPage />);
+		fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+		expect(await screen.findByText("The sign-in timed out.")).toBeTruthy();
+		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+		await waitFor(() => expect(state.cancelLogin).toHaveBeenCalledWith("login-1"));
+		await waitFor(() => expect(state.login).toHaveBeenCalledTimes(2));
+		expect(await screen.findByText("Enter the new code.")).toBeTruthy();
+		expect(state.cancelLogin.mock.invocationCallOrder[0]).toBeLessThan(
+			state.login.mock.invocationCallOrder[1] ?? 0,
+		);
 	});
 });

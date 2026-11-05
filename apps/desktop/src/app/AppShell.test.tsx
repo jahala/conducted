@@ -6,84 +6,43 @@ import {
 	createRouter,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { act, cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createStore } from "zustand/vanilla";
-import type { Container } from "../core/container.ts";
 import { ServicesProvider } from "../core/context.tsx";
-import { RepoService, type RepoServiceDeps } from "../core/services/repo.ts";
 import "../test/dom-polyfills.ts";
-import { setCurrentWorkspace, workspaceToast } from "../ui/Toast.tsx";
+import { setCurrentWorkspace, toast, workspaceToast, workspaceToastIds } from "../ui/Toast.tsx";
 import { AppShell } from "./AppShell.tsx";
 import { AppProviders, createQueryClient } from "./providers.tsx";
 import { createAppRouter } from "./router.tsx";
-
-/** The settings values the shell reads, plus the writes it makes. */
-function testSettings(initial: Record<string, unknown> = {}) {
-	const writes: { key: string; value: unknown }[] = [];
-	const store = createStore<{ values: Record<string, unknown> }>(() => ({
-		values: {
-			left_panel_visible: true,
-			left_panel_width: 256,
-			keybinding_overrides_v1: "",
-			dashboard_enabled: false,
-			...initial,
-		},
-	}));
-	return {
-		writes,
-		store,
-		get<T>(key: string): T {
-			return store.getState().values[key] as T;
-		},
-		async set(key: string, value: unknown) {
-			writes.push({ key, value });
-			store.setState({ values: { ...store.getState().values, [key]: value } });
-		},
-	};
-}
-
-type TestSettings = ReturnType<typeof testSettings>;
+import { createShellContainer, type ShellFixture } from "./shell-test-support.ts";
 
 /** A route component that throws, to prove the centre's boundary keeps the shell. */
 function BrokenCentre(): never {
 	throw new Error("centre broke");
 }
 
-/** The sidebar reads the repo and workspace stores and the action table; other regions say what is unbuilt. */
-function testContainer(settings: TestSettings = testSettings()): Container {
-	const repo = new RepoService({} as RepoServiceDeps);
-	repo.store.setState({ loaded: true, reposById: {}, order: [], configs: {} });
-	const workspace = createStore(() => ({
-		loaded: true,
-		workspacesById: {},
-		setup: {},
-		archiving: {},
-	}));
-	return {
-		services: { repo, workspace: { store: workspace }, settings },
-		actions: {},
-	} as unknown as Container;
-}
-
-async function openApp(path = "/", settings: TestSettings = testSettings()) {
+async function openApp(path = "/", fixture: ShellFixture = {}) {
+	const shell = createShellContainer(fixture);
 	const router = createAppRouter(createMemoryHistory({ initialEntries: [path] }));
 	render(
-		<ServicesProvider container={testContainer(settings)}>
+		<ServicesProvider container={shell.container}>
 			<AppProviders client={createQueryClient(() => {})}>
 				<RouterProvider router={router} />
 			</AppProviders>
 		</ServicesProvider>,
 	);
 	await router.load();
-	return router;
+	return { router, shell };
 }
 
 beforeEach(() => {
 	window.localStorage.clear();
 	setCurrentWorkspace(null);
 });
-afterEach(cleanup);
+afterEach(() => {
+	cleanup();
+	toast.dismiss();
+});
 
 describe("NAV-01 app shell", () => {
 	it("shows the sidebar and the centre empty state while features are unbuilt", async () => {
@@ -98,9 +57,7 @@ describe("NAV-01 app shell", () => {
 	});
 
 	it("comes back with the sidebar collapsed when the saved settings say so", async () => {
-		const settings = testSettings({ left_panel_visible: false });
-
-		await openApp("/", settings);
+		await openApp("/", { settings: { left_panel_visible: false } });
 
 		expect(await screen.findByRole("button", { name: "Show sidebar" })).toBeTruthy();
 	});
@@ -118,7 +75,7 @@ describe("NAV-01 app shell", () => {
 		});
 
 		render(
-			<ServicesProvider container={testContainer()}>
+			<ServicesProvider container={createShellContainer().container}>
 				<AppProviders client={createQueryClient(() => {})}>
 					<RouterProvider router={router} />
 				</AppProviders>
@@ -143,6 +100,39 @@ describe("NAV-01 app shell", () => {
 
 		expect(own).not.toBeNull();
 		expect(other).toBeNull();
+	});
+
+	it("shows the user when the sidebar layout cannot be saved", async () => {
+		await openApp("/", { failSettingsWrites: "The settings file is read-only" });
+		fireEvent.click(await screen.findByRole("button", { name: "Hide sidebar" }));
+
+		expect(await screen.findByText("Couldn't save the sidebar layout")).toBeTruthy();
+		expect(screen.getByText("The settings file is read-only")).toBeTruthy();
+	});
+
+	it("saves the sidebar state when the user hides it", async () => {
+		const { shell } = await openApp("/");
+		fireEvent.click(await screen.findByRole("button", { name: "Hide sidebar" }));
+
+		await waitFor(() =>
+			expect(shell.settingsWrites).toContainEqual({ key: "left_panel_visible", value: false }),
+		);
+	});
+
+	it("dismisses a workspace toast when the route leaves that workspace", async () => {
+		const { router } = await openApp("/repository/r1/workspace/w1");
+		await screen.findByText("Git panel");
+		act(() => {
+			workspaceToast("w1" as WorkspaceId, "Build finished", { duration: 60_000 });
+		});
+		expect(await screen.findByText("Build finished")).toBeTruthy();
+
+		await act(async () => {
+			await router.navigate({ to: "/all-workspaces" });
+		});
+
+		await waitFor(() => expect(screen.queryByText("Build finished")).toBeNull());
+		expect(workspaceToastIds()).toEqual([]);
 	});
 
 	it("leaves Cmd+A alone inside a text field and stops it everywhere else", async () => {

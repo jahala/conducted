@@ -19,6 +19,23 @@ const preferences: DiffPreferences = {
 };
 
 describe("REV-02 DiffToolbar", () => {
+	it("gives each toolbar's checkboxes ids of their own, for two tabs side by side", async () => {
+		render(
+			<>
+				<DiffToolbar preferences={preferences} onChange={vi.fn()} disabled={false} />
+				<DiffToolbar preferences={preferences} onChange={vi.fn()} disabled={false} />
+			</>,
+		);
+		const buttons = screen.getAllByRole("button", { name: "View options" });
+		fireEvent.click(buttons[0] as HTMLElement);
+		const first = await screen.findByRole("checkbox", { name: "Wrap lines" });
+		const firstId = first.id;
+		fireEvent.keyDown(first, { key: "Escape" });
+		fireEvent.click(buttons[1] as HTMLElement);
+		const second = await screen.findByRole("checkbox", { name: "Wrap lines" });
+		expect(second.id).not.toBe(firstId);
+	});
+
 	it("flips wrap lines and nothing else", async () => {
 		const onChange = vi.fn();
 		render(<DiffToolbar preferences={preferences} onChange={onChange} disabled={false} />);

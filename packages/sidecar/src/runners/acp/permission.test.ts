@@ -61,3 +61,10 @@ test("stop reasons map to outcomes", () => {
 	expect(outcomeFromStopReason("cancelled")).toEqual({ kind: "cancelled" });
 	expect(outcomeFromStopReason("refusal").kind).toBe("error");
 });
+
+test("an unknown stop reason from a newer agent is a turn error, not a crash", () => {
+	const outcome = outcomeFromStopReason(
+		"future_reason" as Parameters<typeof outcomeFromStopReason>[0],
+	);
+	expect(outcome.kind).toBe("error");
+});

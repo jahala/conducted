@@ -662,19 +662,35 @@ export class DefaultSessionManager implements SessionManager {
 			state.duplicates.markHandled(request.messageId);
 			state.duplicates.rememberDelivery(request.messageId, "steer");
 			this.deps.interactions.withdrawAll(state.sessionId);
-			await this.deps.liveState.update(state.sessionId, (live) =>
-				addPendingSteer(live, request.messageId),
-			);
+			// The agent has the message now. A failure of the bookkeeping below must not send it to the
+			// agent a second time through the steer-failed path.
+			try {
+				await this.deps.liveState.update(state.sessionId, (live) =>
+					addPendingSteer(live, request.messageId),
+				);
+			} catch (cause) {
+				this.deps.logger.warn("A delivered steer could not be marked pending", {
+					sessionId: state.sessionId,
+					reason: messageOf(cause),
+				});
+			}
 			this.publishUserMessage(request, "steer");
-			void consumed.then(
-				() => this.steerConsumed(state, request.messageId, epoch),
-				(cause: unknown) => {
-					this.deps.logger.warn("The agent did not read a steer", {
+			void consumed
+				.then(
+					() => this.steerConsumed(state, request.messageId, epoch),
+					(cause: unknown) => {
+						this.deps.logger.warn("The agent did not read a steer", {
+							sessionId: state.sessionId,
+							reason: messageOf(cause),
+						});
+					},
+				)
+				.catch((cause: unknown) => {
+					this.deps.logger.warn("A steer could not be marked read", {
 						sessionId: state.sessionId,
 						reason: messageOf(cause),
 					});
-				},
-			);
+				});
 			return ok({ deliveredAs: "steer" });
 		} catch (cause) {
 			if (signal.aborted || epoch !== state.cancelEpoch) {
@@ -879,16 +895,23 @@ export class DefaultSessionManager implements SessionManager {
 	}
 
 	private turnSettled(state: SessionState, run: RunNumber): void {
-		void this.deps.queue.run(queueKey(state.sessionId), async () => {
-			if (!state.runGuard.isCurrent(run)) return;
-			const active = state.activeTurn;
-			if (active !== null) {
-				state.activeTurn = null;
-				state.duplicates.markHandled(active.messageId);
-			}
-			state.duplicates.cancelInFlight();
-			await this.drain(state);
-		});
+		this.deps.queue
+			.run(queueKey(state.sessionId), async () => {
+				if (!state.runGuard.isCurrent(run)) return;
+				const active = state.activeTurn;
+				if (active !== null) {
+					state.activeTurn = null;
+					state.duplicates.markHandled(active.messageId);
+				}
+				state.duplicates.cancelInFlight();
+				await this.drain(state);
+			})
+			.catch((cause: unknown) => {
+				this.deps.logger.error("The next queued message could not start", {
+					sessionId: state.sessionId,
+					reason: messageOf(cause),
+				});
+			});
 	}
 
 	private async drain(state: SessionState): Promise<void> {

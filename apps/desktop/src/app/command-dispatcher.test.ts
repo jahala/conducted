@@ -5,7 +5,7 @@
  * Test first: with a base and a modal handler registered for "palette.open", only the modal one runs.
  */
 
-import type { Result } from "@conducted/shared";
+import { appError, err, type Result } from "@conducted/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { effectiveShortcuts, getCommand } from "../core/registries/commands.ts";
 import {
@@ -165,11 +165,17 @@ describe("NAV-14 handler priority", () => {
 });
 
 describe("NAV-14 dispatchCommand", () => {
-	const deps = (registry = createCommandRegistry(), run = vi.fn(), report = vi.fn()) => ({
+	const deps = (
+		registry = createCommandRegistry(),
+		run = vi.fn(),
+		report = vi.fn(),
+		failed = vi.fn(),
+	) => ({
 		registry,
 		isEnabled: () => true,
 		run: run as (commandId: string) => Promise<Result<void>>,
 		report,
+		failed,
 	});
 
 	it("falls back to the service runner when no focused handler takes the command", () => {
@@ -195,6 +201,16 @@ describe("NAV-14 dispatchCommand", () => {
 			isEnabled: () => false,
 		});
 		expect(run).not.toHaveBeenCalled();
+		expect(report).not.toHaveBeenCalled();
+	});
+
+	it("hands a failed run to the user-facing reporter, not only the log", async () => {
+		const failure = appError("archive_failed", "The workspace is busy");
+		const run = vi.fn().mockResolvedValue(err(failure));
+		const report = vi.fn();
+		const failed = vi.fn();
+		dispatchCommand("workspace.archive", deps(createCommandRegistry(), run, report, failed));
+		await vi.waitFor(() => expect(failed).toHaveBeenCalledWith("workspace.archive", failure));
 		expect(report).not.toHaveBeenCalled();
 	});
 

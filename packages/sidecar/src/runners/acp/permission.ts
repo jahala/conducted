@@ -79,5 +79,12 @@ export function outcomeFromStopReason(stopReason: StopReason): TurnOutcome {
 			};
 		case "refusal":
 			return { kind: "error", message: "The agent refused to continue.", retryable: false };
+		default:
+			// The value comes from the agent over the wire, so a newer agent can send a new one.
+			return {
+				kind: "error",
+				message: `The agent ended the turn for a reason this app does not know (${String(stopReason)}).`,
+				retryable: false,
+			};
 	}
 }

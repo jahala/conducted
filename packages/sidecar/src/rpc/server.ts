@@ -21,7 +21,7 @@ import { createServer, type Server, type Socket } from "node:net";
 import { dirname } from "node:path";
 import { type AppError, appError, type Result } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
-import { messageOf } from "../util/errors.ts";
+import { isMissingFile, messageOf } from "../util/errors.ts";
 import type { RpcPeer, RpcTransport } from "./peer.ts";
 
 export interface SocketServerDeps {
@@ -167,16 +167,7 @@ async function removeIfPresent(target: string): Promise<void> {
 	try {
 		await unlink(target);
 	} catch (cause) {
-		if (isMissing(cause)) return;
+		if (isMissingFile(cause)) return;
 		throw cause;
 	}
-}
-
-function isMissing(cause: unknown): boolean {
-	return (
-		typeof cause === "object" &&
-		cause !== null &&
-		"code" in cause &&
-		(cause as { code?: string }).code === "ENOENT"
-	);
 }

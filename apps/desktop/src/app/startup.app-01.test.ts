@@ -90,6 +90,30 @@ describe("APP-01 startup gate", () => {
 		});
 	});
 
+	it("logs why the sidecar log path is missing when the Platform cannot give it", async () => {
+		const logs: LogLine[] = [];
+		const platform = fakePlatform(logs);
+		platform.sidecar.logPath = async () => {
+			throw new Error("no log directory");
+		};
+		const container = fakeContainer(
+			platform,
+			vi.fn(async () =>
+				err(appError("sidecar_failed", "The agent sidecar did not start.")),
+			) as unknown as Container["start"],
+		);
+		const states: StartupState[] = [];
+
+		await runStartup(container, (state) => states.push(state), { installHandlers: false });
+
+		expect(states.at(-1)).toMatchObject({ kind: "failed", logPath: null });
+		expect(logs).toContainEqual({
+			level: "warn",
+			message: "The sidecar log path could not be read",
+			data: { message: "no log directory" },
+		});
+	});
+
 	it("reports a sidecar that does not start as failed, with its log path", async () => {
 		const logs: LogLine[] = [];
 		const container = fakeContainer(

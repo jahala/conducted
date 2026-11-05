@@ -33,8 +33,10 @@ import { Button } from "../../ui/Button.tsx";
 import { Dialog, DialogClose, DialogContent, DialogFooter } from "../../ui/Dialog.tsx";
 import { EmptyState } from "../../ui/EmptyState.tsx";
 import { LoadableView } from "../../ui/LoadableView.tsx";
+import { toastError } from "../../ui/Toast.tsx";
 import { TerminalEndedBanner } from "./TerminalEndedBanner.tsx";
 import {
+	findPatternError,
 	TerminalFindBar,
 	type TerminalFindDirection,
 	type TerminalFindMatch,
@@ -258,16 +260,33 @@ export function TerminalView({
 
 	const restart = async () => {
 		const result = await actions.terminals.restart(terminalId);
-		if (result.ok) {
-			setEnded(null);
-			setExitSubscription((count) => count + 1);
+		if (!result.ok) {
+			toastError("Couldn't restart the terminal", result.error);
+			return;
 		}
+		setEnded(null);
+		setExitSubscription((count) => count + 1);
+	};
+
+	const copySelection = (text: string) => {
+		void actions.app.copyText(text).then((result) => {
+			if (!result.ok) toastError("Couldn't copy the selection", result.error);
+		});
+	};
+
+	const openPendingLink = () => {
+		const url = pendingLink;
+		setPendingLink(null);
+		if (url === null) return;
+		void actions.app.openUrl(url).then((result) => {
+			if (!result.ok) toastError("Couldn't open the link", result.error);
+		});
 	};
 
 	const search = useCallback(
 		(direction: TerminalFindDirection, from: TerminalFindMatch | null) => {
 			const surface = surfaceRef.current;
-			if (!surface || !query) {
+			if (!surface || !query || findPatternError({ query, caseSensitive, regex }) !== null) {
 				matchRef.current = null;
 				setHasMatch(null);
 				return;
@@ -283,6 +302,8 @@ export function TerminalView({
 		if (!findOpen) return;
 		search("next", null);
 	}, [findOpen, search]);
+
+	const patternError = findOpen ? findPatternError({ query, caseSensitive, regex }) : null;
 
 	const changeQuery = (next: string) => {
 		matchRef.current = null;
@@ -350,6 +371,7 @@ export function TerminalView({
 									ended={ended !== null}
 									focusOnMount={focusOnMount}
 									onOpenLink={setPendingLink}
+									onCopy={copySelection}
 								/>
 							</>
 						) : (
@@ -366,6 +388,7 @@ export function TerminalView({
 						caseSensitive={caseSensitive}
 						regex={regex}
 						hasMatch={hasMatch}
+						patternError={patternError}
 						onQueryChange={changeQuery}
 						onToggle={toggle}
 						onNext={() => search("next", matchRef.current)}
@@ -398,14 +421,7 @@ export function TerminalView({
 						<DialogClose asChild>
 							<Button variant="secondary">Cancel</Button>
 						</DialogClose>
-						<Button
-							onClick={() => {
-								if (pendingLink) void actions.app.openUrl(pendingLink);
-								setPendingLink(null);
-							}}
-						>
-							Open
-						</Button>
+						<Button onClick={openPendingLink}>Open</Button>
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>

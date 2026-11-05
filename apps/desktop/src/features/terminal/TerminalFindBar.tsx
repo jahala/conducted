@@ -5,7 +5,8 @@
  * Behaviour: ui-map.md 3.7 ("Find in terminal", Cmd+F).
  * Open question: xterm's search addon (@xterm/addon-search) is not installed, so the search walks
  * `Terminal.buffer` instead.
- * Must handle: no match, case and regex toggles, Enter and Shift+Enter, Escape closing and
+ * Must handle: no match, a broken regular expression ("Invalid pattern", not "No results"), Next
+ * wrapping back to the only match, case and regex toggles, Enter and Shift+Enter, Escape closing and
  * returning focus to the terminal, and the query kept when the bar closes and opens again.
  * Test first: searching for text that is in the scrollback reports a match and Next moves to the
  * following one.
@@ -45,6 +46,8 @@ export interface TerminalFindBarProps {
 	caseSensitive: boolean;
 	regex: boolean;
 	hasMatch: boolean | null;
+	/** Why the pattern cannot be searched, or null. Shown instead of "No results". */
+	patternError?: string | null;
 	onQueryChange: (query: string) => void;
 	onToggle: (option: "caseSensitive" | "regex") => void;
 	onNext: () => void;
@@ -56,14 +59,23 @@ function escapeRegExp(text: string): string {
 	return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function patternFor(options: TerminalFindOptions): RegExp | null {
+type PatternResult = { pattern: RegExp } | { error: string } | null;
+
+/** The search pattern, or why the query cannot be one. Null for an empty query. */
+function buildPattern(options: TerminalFindOptions): PatternResult {
 	const { query, caseSensitive, regex } = options;
 	if (!query) return null;
 	try {
-		return new RegExp(regex ? query : escapeRegExp(query), caseSensitive ? "g" : "gi");
-	} catch {
-		return null;
+		return { pattern: new RegExp(regex ? query : escapeRegExp(query), caseSensitive ? "g" : "gi") };
+	} catch (cause) {
+		return { error: cause instanceof Error ? cause.message : "Invalid regular expression" };
 	}
+}
+
+/** Why the query cannot be searched (a broken regular expression), or null when it can. */
+export function findPatternError(options: TerminalFindOptions): string | null {
+	const built = buildPattern(options);
+	return built !== null && "error" in built ? built.error : null;
 }
 
 function lineTexts(buffer: FindableBuffer): string[] {
@@ -93,8 +105,9 @@ export function findInTerminalBuffer(
 	from: TerminalFindMatch | null = null,
 	direction: TerminalFindDirection = "next",
 ): TerminalFindMatch | null {
-	const pattern = patternFor(options);
-	if (!pattern) return null;
+	const built = buildPattern(options);
+	if (built === null || "error" in built) return null;
+	const { pattern } = built;
 
 	const lines = lineTexts(buffer);
 	if (lines.length === 0) return null;
@@ -102,7 +115,8 @@ export function findInTerminalBuffer(
 	if (direction === "next") {
 		const startLine = from ? Math.max(0, Math.min(from.line, lines.length - 1)) : 0;
 		const startColumn = from ? from.column + Math.max(1, from.length) : 0;
-		for (let step = 0; step < lines.length; step += 1) {
+		// One step past the last line comes back to the start line, to search the part before the column.
+		for (let step = 0; step <= lines.length; step += 1) {
 			const line = (startLine + step) % lines.length;
 			const text = lines[line] ?? "";
 			const fromColumn = step === 0 ? startColumn : 0;
@@ -117,7 +131,7 @@ export function findInTerminalBuffer(
 
 	const startLine = from ? Math.max(0, Math.min(from.line, lines.length - 1)) : lines.length - 1;
 	const startColumn = from ? from.column : Number.POSITIVE_INFINITY;
-	for (let step = 0; step < lines.length; step += 1) {
+	for (let step = 0; step <= lines.length; step += 1) {
 		const line = (startLine - step + lines.length) % lines.length;
 		const text = lines[line] ?? "";
 		const end = step === 0 ? startColumn : Number.POSITIVE_INFINITY;
@@ -134,6 +148,7 @@ export function TerminalFindBar({
 	caseSensitive,
 	regex,
 	hasMatch,
+	patternError = null,
 	onQueryChange,
 	onToggle,
 	onNext,
@@ -164,7 +179,15 @@ export function TerminalFindBar({
 				spellCheck={false}
 				className="h-6 w-40 min-w-0 rounded-sm bg-transparent px-1 text-xs text-fg outline-none placeholder:text-fg-subtle focus-visible:ring-2 focus-visible:ring-focus"
 			/>
-			{hasMatch === false ? (
+			{patternError !== null ? (
+				<span
+					aria-live="polite"
+					title={patternError}
+					className="shrink-0 pr-1 text-2xs text-danger"
+				>
+					Invalid pattern
+				</span>
+			) : hasMatch === false ? (
 				<span aria-live="polite" className="shrink-0 pr-1 text-2xs text-danger">
 					No results
 				</span>

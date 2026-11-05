@@ -3,21 +3,24 @@
  * Owns: The user's message in a turn: text, mention chips, attachments and the hover actions.
  * Behaviour: ui-map.md 3.3 (user message: attachments, mention chips, 'Sent via' or 'Sent from
  * another session'; hover actions include revert; 'Message not sent' with Retry and Discard).
- * Must handle: Not sent (error state with Retry and Discard); a very long message collapses with
- * 'Show more'; image attachments show a thumbnail and a missing file shows its name; mention chips
- * for files and PRs open the file or PR tab; text is selectable and copyable.
+ * Must handle: Not sent (the `failed` prop draws the error state with Retry and Discard; TurnItem cannot pass it
+ * yet because ChatView carries no failed sends); a very long
+ * message collapses with 'Show more'; an image attachment tries a thumbnail from its path and a missing file shows
+ * its name (a local path does not load in the webview until the Platform hands out file URLs); mention chips for
+ * files and PRs open the file or PR tab; text is selectable and copyable.
  * Test first: A message with two attachment paths renders two attachment items; a failed send shows
- * Retry and Discard.
+ * Retry and Discard; a PR chip opens the PR tab on that number.
  */
 import { MENTION_TOKEN, type MentionKind } from "@conducted/protocol";
 import type { SessionId } from "@conducted/shared";
-import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 import { useActions } from "../../core/hooks.ts";
 import type { ChatTurn } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
 import { ContextMenu, ContextMenuItem } from "../../ui/ContextMenu.tsx";
 import { FileIcon, PullRequestIcon } from "../../ui/icons.tsx";
+import { reportFailure } from "./report-failure.ts";
+import { useWorkspaceLinks } from "./workspace-links.ts";
 
 const LONG_MESSAGE = 800;
 const IMAGE = /\.(png|jpe?g|gif|webp|avif|svg)$/i;
@@ -102,29 +105,18 @@ export function UserMessage({
 	onRevert,
 }: UserMessageProps) {
 	const actions = useActions();
-	const navigate = useNavigate();
+	const links = useWorkspaceLinks();
 	const message = turn.userMessage;
 	const [expanded, setExpanded] = useState(false);
 	if (message === null) return null;
 
 	const openMention = (kind: MentionKind, value: string) => {
 		if (kind === "file") {
-			void navigate({
-				search: ((previous: Record<string, unknown>) => ({
-					...previous,
-					tab: "file",
-					path: value,
-					fileMode: "diff",
-				})) as never,
-			});
+			links.openFile(value, "diff");
 			return;
 		}
-		void navigate({
-			search: ((previous: Record<string, unknown>) => ({
-				...previous,
-				tab: "pr",
-			})) as never,
-		});
+		const number = Number(value);
+		if (Number.isInteger(number) && number > 0) links.openPullRequest(number);
 	};
 
 	const revert = () => {
@@ -132,7 +124,10 @@ export function UserMessage({
 			onRevert();
 			return;
 		}
-		void actions.sessions.revertTo(sessionId, turn.turnId);
+		void reportFailure(
+			actions.sessions.revertTo(sessionId, turn.turnId),
+			"Couldn't reset the chat",
+		);
 	};
 
 	const tooLong = message.text.length > LONG_MESSAGE && !expanded;
@@ -150,7 +145,7 @@ export function UserMessage({
 				items={
 					<ContextMenuItem
 						onSelect={() => {
-							void actions.app.copyText(message.text);
+							void reportFailure(actions.app.copyText(message.text), "Couldn't copy the message");
 						}}
 					>
 						Copy message

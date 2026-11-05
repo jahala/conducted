@@ -5,8 +5,8 @@
  * Behaviour: ui-map.md 1.1, 5.4, 8.
  * Test first: the modal handler wins, then the base handler runs after the modal unmounts.
  */
-import { ok } from "@conducted/shared";
-import { act, cleanup, render, renderHook, waitFor } from "@testing-library/react";
+import { appError, err, ok } from "@conducted/shared";
+import { act, cleanup, render, renderHook, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createContainer } from "../core/container.ts";
@@ -14,6 +14,7 @@ import { ServicesProvider } from "../core/context.tsx";
 import { tomlCodec } from "../core/services/toml-codec.ts";
 import { createMemoryPlatform } from "../platform/memory.ts";
 import type { Database, MenuShortcut, Platform } from "../platform/platform.ts";
+import { Toaster } from "../ui/Toast.tsx";
 import {
 	CommandDispatcher,
 	type CommandHandlerFn,
@@ -170,6 +171,26 @@ describe("NAV-14 useCommandDispatcher", () => {
 		});
 
 		expect(run).toHaveBeenCalledWith("app.commandPalette");
+	});
+
+	it("shows the user a command that failed to run", async () => {
+		const { container, menuListeners, wrapper } = buildHarness();
+		vi.spyOn(container.services.commands, "run").mockResolvedValue(
+			err(appError("archive_failed", "The workspace is busy")),
+		);
+		render(
+			<>
+				<Toaster />
+				<CommandDispatcher>{null}</CommandDispatcher>
+			</>,
+			{ wrapper },
+		);
+
+		act(() => {
+			for (const listener of menuListeners) listener("app.commandPalette");
+		});
+
+		expect(await screen.findByText("The workspace is busy")).toBeTruthy();
 	});
 
 	it("reports a menu event for an id the registry does not know", () => {

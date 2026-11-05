@@ -19,7 +19,7 @@
  *  - the app is not connected: command and file approvals decline, permissions decline, forms
  *    cancel (Conductor: command approvals decline; others resolve as unavailable)
  *  - the question tool: option labels become the answers; free text from "Other" is passed as is
- * Test first: decisionForCommand({ kind: "tool_approval", decision: "allow_edits_for_session" })
+ * Test first: decisionForApproval({ kind: "tool_approval", decision: "allow_edits_for_session" })
  * is "acceptForSession" and a withdrawn answer is "cancel".
  */
 import type { InteractionAnswer } from "@conducted/protocol";

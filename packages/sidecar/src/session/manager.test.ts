@@ -20,6 +20,8 @@ import type {
 	CheckpointService,
 } from "../checkpoints/checkpoint-service.ts";
 import { createLogger, type Logger } from "../logging/logger.ts";
+import { FileEventOutbox } from "../outbox/event-outbox.ts";
+import type { OutboxStorage } from "../outbox/outbox-file.ts";
 import type { ProcessLease, ProcessManager } from "../process/process-manager.ts";
 import type { PromptAssembler, PromptInput } from "../prompt/assemble.ts";
 import type {
@@ -40,7 +42,7 @@ import type {
 	TurnOutcome,
 } from "../runners/runner.ts";
 import type { CapturedShellEnv, ShellEnvProvider } from "../shell-env/capture.ts";
-import type { EventPublisher } from "./event-batcher.ts";
+import { BatchingEventPublisher, type EventPublisher } from "./event-batcher.ts";
 import type { InteractionBroker } from "./interactions.ts";
 import { beginTurn, endTurn, LiveStateStore } from "./live-state.ts";
 import {
@@ -101,6 +103,32 @@ function model(id: string, isDefault = false): ModelInfo {
 		liveEffortChange: false,
 		supportsFastMode: false,
 	};
+}
+
+class InMemoryOutboxStorage implements OutboxStorage {
+	private readonly files = new Map<string, string>();
+
+	async list() {
+		return ok([...this.files.keys()]);
+	}
+
+	async read(fileName: string) {
+		return ok(this.files.get(fileName) ?? null);
+	}
+
+	async writeAtomic(fileName: string, text: string) {
+		this.files.set(fileName, text);
+		return ok(undefined);
+	}
+
+	async moveToTrash(fileName: string) {
+		this.files.delete(fileName);
+		return ok(undefined);
+	}
+
+	async cleanTempFiles() {
+		return ok(0);
+	}
 }
 
 class FakeApp implements SidecarToApp {
@@ -447,11 +475,15 @@ function harness(
 		runners?: FakeRunner[];
 		liveState?: (app: FakeApp) => TestLiveState;
 		prompt?: FakePrompt;
+		/** Uses the real outbox, publisher, live state and Turn, all on the one shared queue. */
+		realPipeline?: boolean;
 	} = {},
 ): Harness {
 	const app = new FakeApp();
-	const liveState = options.liveState?.(app) ?? new TestLiveState(app);
 	const queue = new KeyedSerialQueue();
+	let realPublisher: BatchingEventPublisher | null = null;
+	const liveState = options.liveState?.(app) ?? new TestLiveState(app);
+	let pipelineLiveState: LiveStateStore | null = null;
 	const turns = new FakeTurns();
 	const processes = new FakeProcesses();
 	const prompt = options.prompt ?? new FakePrompt();
@@ -465,6 +497,23 @@ function harness(
 		level: "debug",
 		scope: "test",
 	});
+	if (options.realPipeline === true) {
+		const outbox = new FileEventOutbox({
+			storage: new InMemoryOutboxStorage(),
+			queue,
+			clock: { now: () => 1000 },
+			logger,
+		});
+		realPublisher = new BatchingEventPublisher({
+			outbox,
+			app,
+			clock: { now: () => 1000 },
+			logger,
+			sleep: async () => {},
+		});
+		const flushing = realPublisher;
+		pipelineLiveState = new LiveStateStore({ app, flushed: (id) => flushing.flush(id) });
+	}
 	const runners = new Map<AgentKind, FakeRunner>();
 	const entries: { selector: { agent: AgentKind }; runner: Runner }[] = [];
 	for (const runner of options.runners ?? [new FakeRunner("claude"), new FakeRunner("codex")]) {
@@ -488,14 +537,14 @@ function harness(
 		checkpoints,
 		prompt,
 		shellEnv: fakeShellEnv(),
-		publisher,
-		liveState,
+		publisher: realPublisher ?? publisher,
+		liveState: pipelineLiveState ?? liveState,
 		interactions,
 		queue,
 		clock: { now: () => 1000 },
 		ids: { uuid: () => `event-${++nextId}` },
 		logger,
-		createTurn: turns.factory,
+		...(options.realPipeline === true ? {} : { createTurn: turns.factory }),
 	};
 	return {
 		manager: new DefaultSessionManager(deps),
@@ -650,6 +699,31 @@ describe("SIDE-03 delivery while working", () => {
 		expect(await h.manager.sendMessage(steer)).toEqual(ok({ deliveredAs: "steer" }));
 		expect(h.turns.turns).toHaveLength(1);
 		expect(agent.steerCalls).toBe(1);
+	});
+
+	test("SIDE-03 a steer whose pending mark fails is delivered once, not sent again", async () => {
+		let failMark = false;
+		class FailingMarkLiveState extends TestLiveState {
+			override async update(
+				sessionId: SessionId,
+				reducer: (state: LiveState) => LiveState,
+			): Promise<void> {
+				if (failMark) throw new Error("the live state could not be written");
+				await super.update(sessionId, reducer);
+			}
+		}
+		const h = harness({ liveState: (app) => new FailingMarkLiveState(app) });
+		await h.manager.sendMessage(sendParams());
+		const agent = h.processes.agents.values().next().value as FakeAgentSession;
+		failMark = true;
+
+		const steered = await h.manager.sendMessage(
+			sendParams({ messageId: mid("message-2"), turnId: tid("turn-2"), delivery: "steer" }),
+		);
+
+		expect(steered).toEqual(ok({ deliveredAs: "steer" }));
+		expect(agent.steerCalls).toBe(1);
+		expect(h.turns.turns).toHaveLength(1);
 	});
 
 	test("SIDE-03 a steer queues when the runner cannot steer", async () => {
@@ -980,5 +1054,19 @@ describe("SIDE-03 session map and agent identity", () => {
 		expect(await h.manager.getSessionStatus({ sessionId: sid("session-1") })).toEqual(
 			ok({ known: false }),
 		);
+	});
+});
+
+describe("SIDE-03 real pipeline on one shared queue", () => {
+	test("SIDE-03 the first message of a chat starts a turn with the real outbox, publisher and Turn", async () => {
+		const h = harness({ realPipeline: true });
+
+		const sent = await Promise.race([
+			h.manager.sendMessage(sendParams()),
+			new Promise<"deadlock">((resolve) => setTimeout(() => resolve("deadlock"), 1500)),
+		]);
+
+		expect(sent).toEqual(ok({ deliveredAs: "new_turn" }));
+		await h.manager.shutdown("signal");
 	});
 });

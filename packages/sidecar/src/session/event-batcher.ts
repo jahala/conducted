@@ -31,6 +31,7 @@ import type { Clock, SessionId } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
 import type { EventOutbox } from "../outbox/event-outbox.ts";
 import type { SidecarToApp } from "../rpc/types.ts";
+import { messageOf } from "../util/errors.ts";
 
 export const MAX_BATCH_EVENTS = 50;
 /** 80 percent of 1 MiB, leaving room for the envelope. */
@@ -285,18 +286,20 @@ export class BatchingEventPublisher implements EventPublisher {
 		return chat;
 	}
 
+	/** Runs a drain nobody awaits, so a failure is logged and never left unhandled. */
+	private drainLogged(sessionId: SessionId): void {
+		void this.drain(sessionId).catch((cause: unknown) => {
+			this.deps.logger.error("The event drain failed", { sessionId, reason: messageOf(cause) });
+		});
+	}
+
 	/** Starts the chat's drain once the current run of publishes has been queued. */
 	private scheduleDrain(sessionId: SessionId, chat: ChatQueue): void {
 		if (chat.draining || chat.scheduled) return;
 		chat.scheduled = true;
 		queueMicrotask(() => {
 			chat.scheduled = false;
-			void this.drain(sessionId).catch((cause: unknown) => {
-				this.deps.logger.error("The event drain failed", {
-					sessionId,
-					reason: cause instanceof Error ? cause.message : String(cause),
-				});
-			});
+			this.drainLogged(sessionId);
 		});
 	}
 
@@ -340,12 +343,7 @@ export class BatchingEventPublisher implements EventPublisher {
 		}
 		if (stopForBoundary && chat.events.length > 0) {
 			queueMicrotask(() => {
-				void this.drain(sessionId).catch((cause: unknown) => {
-					this.deps.logger.error("The event drain failed", {
-						sessionId,
-						reason: cause instanceof Error ? cause.message : String(cause),
-					});
-				});
+				this.drainLogged(sessionId);
 			});
 		}
 	}

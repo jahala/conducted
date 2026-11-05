@@ -12,7 +12,7 @@
  * Test first: Choosing Pin calls workspaces.setPinned(id, true); for a pinned workspace the item
  * reads Unpin.
  */
-import type { WorkspaceId } from "@conducted/shared";
+import type { Result, WorkspaceId } from "@conducted/shared";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { useStore } from "zustand";
@@ -34,6 +34,7 @@ import {
 	MenuTrigger,
 } from "../../ui/Menu.tsx";
 import { toastError } from "../../ui/Toast.tsx";
+import { KANBAN_COLUMNS, KANBAN_STATUSES } from "../dashboard/kanban.ts";
 import { RenameDialog } from "./RenameDialog.tsx";
 import { WorkspaceRenameDialog } from "./WorkspaceRenameDialog.tsx";
 import { unarchiveWorkspace } from "./workspace-actions.ts";
@@ -43,14 +44,6 @@ export interface WorkspaceActionsMenuProps {
 	/** The button that opens the menu. */
 	children: ReactNode;
 }
-
-const STATUS_LABELS: readonly { status: KanbanStatus; label: string }[] = [
-	{ status: "backlog", label: "Backlog" },
-	{ status: "in_progress", label: "In progress" },
-	{ status: "in_review", label: "In review" },
-	{ status: "done", label: "Done" },
-	{ status: "canceled", label: "Canceled" },
-];
 
 const shortcutOf = (id: string): string | undefined => {
 	const command = getCommand(id);
@@ -72,12 +65,12 @@ export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActions
 	const unread =
 		sessions.state === "ready" && sessions.data.some((session) => session.unreadCount > 0);
 
-	const run = async (title: string, action: () => Promise<{ ok: boolean; error?: unknown }>) => {
+	// An action that returns a failed Result gets its toast. An action that throws (a placeholder
+	// that is not built yet, such as mark as read) gets one too, so the user is never left guessing.
+	const run = async (title: string, action: () => Promise<Result<unknown>>) => {
 		try {
 			const result = await action();
-			if (!result.ok) {
-				toastError(title, result.error as { message: string });
-			}
+			if (!result.ok) toastError(title, result.error);
 		} catch (caught) {
 			toastError(title, caught instanceof Error ? caught : { message: String(caught) });
 		}
@@ -128,9 +121,9 @@ export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActions
 						<MenuSubTrigger>Set status</MenuSubTrigger>
 						<MenuSubContent aria-label="Set status">
 							<MenuRadioGroup value={data?.kanbanStatus ?? ""}>
-								{STATUS_LABELS.map(({ status, label }) => (
+								{KANBAN_STATUSES.map((status) => (
 									<MenuRadioItem key={status} value={status} onSelect={() => setStatus(status)}>
-										{label}
+										{KANBAN_COLUMNS[status].label}
 									</MenuRadioItem>
 								))}
 							</MenuRadioGroup>
@@ -197,6 +190,7 @@ export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActions
 				open={newSection}
 				onOpenChange={setNewSection}
 				title="New section"
+				submitLabel="Create"
 				initialName=""
 				onSubmit={(name) => actions.sections.create(name, null)}
 			/>

@@ -10,7 +10,8 @@
  *  - a reply { persisted: true } acknowledges the event; { persisted: false } or a timeout stops
  *    that chat's replay and leaves the rest pending for the next attach
  *  - the app disconnects in the middle: stop quietly; the next attach starts again
- *  - single flight: attach during a running replay does not start a second one
+ *  - single flight: attach during a running replay does not start a second one; the running one
+ *    goes through the log once more, so the new connection is served
  *  - live events keep flowing during a replay; the app stores by event id, so a duplicate is safe
  *  - an eventPersisted notification that arrives for an event being replayed acknowledges it once
  * Test first: with 3 pending events and an app that answers persisted true, deliverEvent is called
@@ -26,6 +27,8 @@ export const REPLAY_TIMEOUT_MS = 10_000;
 
 export class OutboxReplayer {
 	private all: Promise<void> | null = null;
+	/** Set by a replayAll() call that found a run in flight: the run goes through the log again. */
+	private rerun = false;
 	private readonly sessions = new Map<SessionId, Promise<void>>();
 
 	constructor(
@@ -38,13 +41,21 @@ export class OutboxReplayer {
 
 	/** Replays every chat with pending events. Resolves when done or when the app went away. */
 	replayAll(): Promise<void> {
-		if (this.all !== null) return this.all;
+		if (this.all !== null) {
+			// A new connection attached while the run served the old one, whose requests
+			// failed. The run goes through the log once more for the new connection.
+			this.rerun = true;
+			return this.all;
+		}
 		// Start on a microtask so this.all is assigned before an empty log can finish the body.
 		const run = Promise.resolve()
 			.then(async () => {
-				for (const sessionId of this.deps.outbox.sessionsWithPending()) {
-					await this.replaySession(sessionId);
-				}
+				do {
+					this.rerun = false;
+					for (const sessionId of this.deps.outbox.sessionsWithPending()) {
+						await this.replaySession(sessionId);
+					}
+				} while (this.rerun);
 			})
 			.finally(() => {
 				this.all = null;

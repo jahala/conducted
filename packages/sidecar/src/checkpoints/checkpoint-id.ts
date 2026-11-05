@@ -32,12 +32,17 @@ export const CHECKPOINTER_EXIT = {
 
 const SAFE_PART = /^[A-Za-z0-9._-]+$/;
 
+/** Git refuses ".." anywhere in a ref name, so a part with it is refused here, not by the script. */
+function isSafePart(part: string): boolean {
+	return SAFE_PART.test(part) && !part.includes("..");
+}
+
 export function checkpointIdFor(
 	sessionId: SessionId,
 	turnId: TurnId,
 	phase: CheckpointPhase,
 ): CheckpointId | null {
-	if (!SAFE_PART.test(sessionId) || !SAFE_PART.test(turnId)) return null;
+	if (!isSafePart(sessionId) || !isSafePart(turnId)) return null;
 	return `session-${sessionId}-turn-${turnId}-${phase}` as CheckpointId;
 }
 

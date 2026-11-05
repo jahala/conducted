@@ -11,7 +11,8 @@
  * Test first: with a stand-in action that returns ok, clicking calls projects.addLocal with the picked folder.
  */
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { createSingleFlight } from "../../core/async/single-flight.ts";
 import { useActions, useRepos } from "../../core/hooks.ts";
 import { Button, type ButtonProps } from "../../ui/Button.tsx";
 import { ChevronDownIcon, FolderPlusIcon } from "../../ui/icons.tsx";
@@ -26,25 +27,27 @@ export function AddProjectButton({
 	const actions = useActions();
 	const repos = useRepos();
 	const [busy, setBusy] = useState(false);
+	const flight = useRef(createSingleFlight()).current;
 	const hasProjects = repos.state === "ready" && repos.data.length > 0;
 	const label = variant === "default" && size === "lg" ? "Open project" : "Add a project";
 
-	const addProject = async () => {
-		if (busy) return;
-		setBusy(true);
-		try {
-			const picked = await actions.app.pickFolder("Add a project");
-			if (!picked.ok) {
-				toastError("Couldn't open the folder dialog", picked.error);
-				return;
+	// A second request while one runs gets the first one's promise, so the dialog opens once.
+	const addProject = () =>
+		flight.run("add-project", async () => {
+			setBusy(true);
+			try {
+				const picked = await actions.app.pickFolder("Add a project");
+				if (!picked.ok) {
+					toastError("Couldn't open the folder dialog", picked.error);
+					return;
+				}
+				if (picked.value === null) return;
+				const result = await actions.projects.addLocal(picked.value);
+				if (!result.ok) toastError("Couldn't add the project", result.error);
+			} finally {
+				setBusy(false);
 			}
-			if (picked.value === null) return;
-			const result = await actions.projects.addLocal(picked.value);
-			if (!result.ok) toastError("Couldn't add the project", result.error);
-		} finally {
-			setBusy(false);
-		}
-	};
+		});
 
 	if (!hasProjects) {
 		return (

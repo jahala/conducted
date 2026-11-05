@@ -16,8 +16,10 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
+import type { Result } from "@conducted/shared";
 import { type Ref, useEffect, useImperativeHandle, useRef } from "react";
 import type { TerminalConnection } from "../../core/model.ts";
+import { toastError } from "../../ui/Toast.tsx";
 import {
 	findInTerminalBuffer,
 	type TerminalFindDirection,
@@ -46,6 +48,8 @@ export interface TerminalSurfaceProps {
 	focusOnMount: boolean;
 	/** A Cmd-clicked link. The caller asks the user before opening it. */
 	onOpenLink?: (url: string) => void;
+	/** Copies the selection (Cmd+C). The caller reports a failed copy. */
+	onCopy: (text: string) => void;
 	ref?: Ref<TerminalSurfaceHandle>;
 }
 
@@ -72,6 +76,16 @@ export function findTerminalLinks(text: string): TerminalLink[] {
 
 const FIT_DELAY_MS = 50;
 
+/**
+ * Tells the user when the PTY refused input or a resize. One toast id per kind, so a burst of failed
+ * keystrokes shows one toast, not one per key.
+ */
+const reportFailure =
+	(title: string, id: string) =>
+	(result: Result<void>): void => {
+		if (!result.ok) toastError(title, result.error, { id });
+	};
+
 const KEY_SEQUENCES: Record<string, string> = {
 	"meta+Backspace": "\u0015",
 	"meta+ArrowLeft": "\u0001",
@@ -96,6 +110,7 @@ export function TerminalSurface({
 	ended,
 	focusOnMount,
 	onOpenLink,
+	onCopy,
 	ref,
 }: TerminalSurfaceProps) {
 	const containerRef = useRef<HTMLElement>(null);
@@ -106,6 +121,8 @@ export function TerminalSurface({
 	const initialAppearance = useRef(appearance);
 	const openLinkRef = useRef(onOpenLink);
 	openLinkRef.current = onOpenLink;
+	const copyRef = useRef(onCopy);
+	copyRef.current = onCopy;
 	endedRef.current = ended;
 
 	useImperativeHandle(
@@ -156,11 +173,17 @@ export function TerminalSurface({
 		if (focusOnMount) terminal.focus();
 
 		const sendSize = terminal.onResize(({ cols, rows }) => {
-			if (visibleRef.current) void connection.resize(cols, rows);
+			if (visibleRef.current) {
+				void connection
+					.resize(cols, rows)
+					.then(reportFailure("Couldn't resize the terminal", "terminal-resize"));
+			}
 		});
 		const userInput = terminal.onData((data) => {
 			if (endedRef.current) return;
-			void connection.write(data);
+			void connection
+				.write(data)
+				.then(reportFailure("Couldn't send input to the terminal", "terminal-write"));
 		});
 
 		let live = false;
@@ -207,7 +230,7 @@ export function TerminalSurface({
 			if (event.metaKey && !event.ctrlKey && !event.altKey) {
 				const key = event.key.toLowerCase();
 				if (key === "c" && terminal.hasSelection()) {
-					void navigator.clipboard?.writeText(terminal.getSelection());
+					copyRef.current(terminal.getSelection());
 					return false;
 				}
 				if (key === "k") {

@@ -8,14 +8,21 @@
  * Entries, in order: Current branch, Target branch (opens TargetBranchPicker), All changes,
  * Uncommitted changes (Cmd+Alt+U, shows "N files changed"), then one entry per commit with its
  * message, short hash, author and date. Per-turn entries are not part of the issue's scope.
- * Must handle: a branch with no commits ahead (commit list empty state) and no upstream branch.
+ * Must handle: a branch with no commits ahead (commit list empty state), a branch list that is not
+ * built yet or fails to load (the submenu says so and the rest of the panel keeps working), no
+ * file count while the git state is loading, and the shortcut hint following the user's rebind.
  * Test first: choosing a commit entry calls onChange with { kind: "commit", sha }.
  */
 import type { RepoId, WorkspaceId } from "@conducted/shared";
 import { useState } from "react";
 import type { DiffScope } from "../../../core/api.ts";
-import { useBranchCommits, useBranches, useGitState, useWorkspace } from "../../../core/hooks.ts";
-import { formatShortcut, getCommand } from "../../../core/registries/commands.ts";
+import {
+	useBranchCommits,
+	useBranches,
+	useGitState,
+	useLiveShortcut,
+	useWorkspace,
+} from "../../../core/hooks.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { ChevronDownIcon } from "../../../ui/icons.tsx";
 import {
@@ -30,6 +37,7 @@ import {
 	MenuSubTrigger,
 	MenuTrigger,
 } from "../../../ui/Menu.tsx";
+import { NotBuiltYet } from "../../../ui/not-built-yet.tsx";
 import { CommitScopeList } from "./CommitScopeList.tsx";
 import { TargetBranchPicker } from "./TargetBranchPicker.tsx";
 
@@ -56,8 +64,6 @@ function scopeLabel(scope: DiffScope): string {
 
 const scopeValue = (scope: DiffScope): string => scope.kind;
 
-const SHORTCUT = formatShortcut(getCommand("review.showUncommitted")?.defaultShortcuts[0] ?? "");
-
 function countLabel(count: number): string {
 	return `${count} ${count === 1 ? "file" : "files"} changed`;
 }
@@ -72,16 +78,13 @@ function BranchList({
 	onSelect: (branch: string) => void;
 }) {
 	const branches = useBranches(repoId);
-	const offline = branches.state === "error";
-	const list: string[] =
-		branches.state === "ready" ? branches.data : current.length > 0 ? [current] : [];
 	return (
 		<TargetBranchPicker
-			branches={list}
+			branches={branches.state === "ready" ? branches.data : []}
 			current={current}
 			onSelect={onSelect}
 			loading={branches.state === "loading"}
-			offline={offline}
+			error={branches.state === "error" ? branches.error.message : null}
 		/>
 	);
 }
@@ -99,7 +102,12 @@ function TargetBranchSubmenu({
 	if (workspace.state !== "ready") {
 		return <p className="px-2 py-2 text-sm text-fg-muted">Select target branch...</p>;
 	}
-	return <BranchList repoId={workspace.data.repoId} current={current} onSelect={onSelect} />;
+	// The branch list hook is not built yet (WS-02). Its failure stays inside the submenu.
+	return (
+		<NotBuiltYet area="Target branch" variant="inline" resetKey={workspaceId}>
+			<BranchList repoId={workspace.data.repoId} current={current} onSelect={onSelect} />
+		</NotBuiltYet>
+	);
 }
 
 export function DiffScopeMenu({ workspaceId, scope, onChange }: DiffScopeMenuProps) {
@@ -107,7 +115,8 @@ export function DiffScopeMenu({ workspaceId, scope, onChange }: DiffScopeMenuPro
 	const git = useGitState(workspaceId);
 	const commits = useBranchCommits(workspaceId);
 	const currentBranch = git.state === "ready" ? git.data.branch : "";
-	const uncommitted = git.state === "ready" ? git.data.uncommittedFiles : 0;
+	const uncommitted = git.state === "ready" ? git.data.uncommittedFiles : null;
+	const shortcut = useLiveShortcut("review.showUncommitted");
 
 	const choose = (next: DiffScope) => {
 		onChange(next);
@@ -140,8 +149,12 @@ export function DiffScopeMenu({ workspaceId, scope, onChange }: DiffScopeMenuPro
 					<MenuRadioItem value="uncommitted" onSelect={() => choose({ kind: "uncommitted" })}>
 						<span className="flex w-full items-center gap-2">
 							<span className="flex-1">Uncommitted changes</span>
-							<span className="text-xs text-fg-muted">{countLabel(uncommitted)}</span>
-							<span className="text-xs tracking-widest text-fg-subtle">{SHORTCUT}</span>
+							{uncommitted === null ? null : (
+								<span className="text-xs text-fg-muted">{countLabel(uncommitted)}</span>
+							)}
+							{shortcut === null ? null : (
+								<span className="text-xs tracking-widest text-fg-subtle">{shortcut}</span>
+							)}
 						</span>
 					</MenuRadioItem>
 					<MenuSub>

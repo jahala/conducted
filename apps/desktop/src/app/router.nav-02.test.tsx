@@ -5,21 +5,19 @@
  * sends the route Home).
  * Test first: navigating to /all-workspaces renders the Home screen area; "/" renders the centre empty state.
  */
-import { ok, type RepoId, type SessionId, type WorkspaceId } from "@conducted/shared";
+import type { RepoId, SessionId, WorkspaceId } from "@conducted/shared";
 import { createMemoryHistory, type RouterHistory, RouterProvider } from "@tanstack/react-router";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createStore } from "zustand/vanilla";
-import type { Container } from "../core/container.ts";
 import { ServicesProvider } from "../core/context.tsx";
 import type { Repo, Workspace } from "../core/model.ts";
-import { RepoService, type RepoServiceDeps } from "../core/services/repo.ts";
 import "../test/dom-polyfills.ts";
 import { CommandRegistryProvider, createCommandRegistry } from "./command-dispatcher.ts";
 import { SAVED_LOCATION_KEY } from "./navigation-history.ts";
 import { useOverlayStore } from "./overlay-store.ts";
 import { AppProviders, createQueryClient } from "./providers.tsx";
 import { createAppRouter } from "./router.tsx";
+import { createShellContainer } from "./shell-test-support.ts";
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -81,73 +79,13 @@ interface Fixture {
 	sessions?: { id: string; workspaceId: string }[];
 }
 
-function testContainer(fixture: Fixture): {
-	container: Container;
-	setActiveSession: ReturnType<typeof vi.fn>;
-} {
-	const repos = fixture.repos ?? [];
-	const workspaces = fixture.workspaces ?? [];
-	const sessions = fixture.sessions ?? [];
-	const settings = {
-		store: createStore<{ values: Record<string, unknown> }>(() => ({ values: {} })),
-		get: (key: string): unknown =>
-			({
-				left_panel_visible: true,
-				left_panel_width: 256,
-				keybinding_overrides_v1: "",
-				dashboard_enabled: false,
-			})[key],
-		set: async () => undefined,
-	};
-	const repoService = new RepoService({} as RepoServiceDeps);
-	repoService.store.setState({
-		loaded: true,
-		reposById: Object.fromEntries(repos.map((row) => [row.id, row])),
-		order: repos.map((row) => row.id),
-		configs: {},
-	});
-	const workspaceStore = createStore(() => ({
-		loaded: true,
-		workspacesById: Object.fromEntries(workspaces.map((row) => [row.id, row])),
-		setup: {},
-		archiving: {},
-	}));
-	const sessionsStore = createStore(() => ({
-		loaded: true,
-		sessions: Object.fromEntries(
-			sessions.map((row) => [row.id, { id: row.id, workspaceId: row.workspaceId }]),
-		),
-		byWorkspace: {},
-		liveStates: {},
-		cancelling: {},
-		events: {},
-		progress: {},
-		sending: {},
-		openInteractions: {},
-		viewingSessionId: null,
-	}));
-	const setActiveSession = vi.fn(async () => ok(undefined));
-	return {
-		container: {
-			services: {
-				repo: repoService,
-				workspace: { store: workspaceStore },
-				sessions: { store: sessionsStore },
-				settings,
-				sections: { store: createStore(() => ({ loaded: true, sections: [] })) },
-			},
-			actions: { workspaces: { setActiveSession } },
-		} as unknown as Container,
-		setActiveSession,
-	};
-}
-
 async function openApp(path: string | RouterHistory, fixture: Fixture = {}) {
 	const router = createAppRouter(
 		typeof path === "string" ? createMemoryHistory({ initialEntries: [path] }) : path,
 	);
 	const registry = createCommandRegistry();
-	const { container, setActiveSession } = testContainer(fixture);
+	const { container } = createShellContainer(fixture);
+	const setActiveSession = vi.spyOn(container.actions.workspaces, "setActiveSession");
 	render(
 		<ServicesProvider container={container}>
 			<AppProviders client={createQueryClient(() => {})}>
@@ -314,5 +252,14 @@ describe("NAV-02 back and forward commands", () => {
 
 		registry.run("nav.forward");
 		await waitFor(() => expect(router.state.location.pathname).toBe("/dashboard"));
+	});
+
+	it("follows the Cmd+[ key press, because the dispatcher is mounted at the root", async () => {
+		const { router } = await openApp(
+			createMemoryHistory({ initialEntries: ["/all-workspaces", "/dashboard"] }),
+		);
+
+		fireEvent.keyDown(document.body, { key: "[", metaKey: true });
+		await waitFor(() => expect(router.state.location.pathname).toBe("/all-workspaces"));
 	});
 });

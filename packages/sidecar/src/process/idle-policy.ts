@@ -46,13 +46,22 @@ export function selectIdleToStop(
 		.map((entry) => entry.key);
 }
 
-/** Keys of warm, unleased processes beyond the cap, least recently idle first. */
+/**
+ * Keys of warm, unleased processes beyond the cap, least recently idle first. A busy process or
+ * one with background tasks is never a candidate and does not count toward the cap.
+ */
 export function selectWarmToEvict(
 	entries: readonly ProcessEntryView[],
 	maxWarm: number = MAX_WARM_PROCESSES,
 ): string[] {
 	const warm = entries
-		.filter((entry) => entry.retention === "warm" && entry.activeLeases === 0)
+		.filter(
+			(entry) =>
+				entry.retention === "warm" &&
+				entry.activeLeases === 0 &&
+				!entry.busy &&
+				!entry.hasBackgroundTasks,
+		)
 		.sort((a, b) => (a.lastIdleAt ?? 0) - (b.lastIdleAt ?? 0));
 	return warm.slice(0, Math.max(0, warm.length - maxWarm)).map((entry) => entry.key);
 }

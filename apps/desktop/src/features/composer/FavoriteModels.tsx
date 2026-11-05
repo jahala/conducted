@@ -7,27 +7,19 @@
  * Must handle: An 'Add models' row at any count, which explains that five are the limit when full; a
  * favourite whose model is gone (shown muted and marked unavailable, picking it explains); reorder by
  * keyboard; removing the last favourite; a sixth favourite is refused with a message.
- * Keyboard: the loadout shortcuts are handled by the picker, which stays mounted while this list is
- * closed. The key caps here read the live binding so a rebind is shown.
+ * Keyboard: the loadout shortcuts are command handlers in the picker, which stays mounted while this
+ * list is closed. The key caps here read the live binding so a rebind is shown.
  * Test first: Adding a sixth favourite is refused with a message; an unavailable favourite is muted.
  */
-import type { SessionConfig } from "@conducted/protocol";
 import { useEffect, useState } from "react";
 import { useStore } from "zustand";
 import { useServices } from "../../core/context.tsx";
 import { useLiveShortcut } from "../../core/hooks.ts";
+import { agentDisplayName } from "../../core/services/agent-catalog.ts";
 import type { FavoriteModel } from "../../core/services/favorite-models.ts";
 import { Button } from "../../ui/Button.tsx";
 import { CloseIcon } from "../../ui/icons.tsx";
 import { toast, toastError } from "../../ui/Toast.tsx";
-
-/** What the user sees for an agent choice, including the two ACP agents. */
-export function agentDisplayName(choice: Pick<SessionConfig, "agent" | "acpAgent">): string {
-	if (choice.agent === "claude") return "Claude Code";
-	if (choice.agent === "codex") return "Codex";
-	if (choice.agent === "cursor") return "Cursor";
-	return choice.acpAgent === "pi" ? "Pi" : "OpenCode";
-}
 
 export interface FavoriteModelsProps {
 	onPick: (config: FavoriteModel["config"]) => void;

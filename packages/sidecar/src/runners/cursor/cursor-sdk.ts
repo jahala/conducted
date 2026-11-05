@@ -15,7 +15,7 @@
  * have shapes we do not list (kept as a loose record and checked field by field in translate.ts),
  * and the SDK may be absent at run time (load() returns an error value, the runner reports "Cursor
  * is not installed").
- * Test first: none (types only). translate.test.ts covers the messages we do read.
+ * Test first: none (types only). AGENT-10 adds translate.test.ts for the messages we do read.
  */
 import type { AppError, Result } from "@conducted/shared";
 

@@ -4,13 +4,14 @@
  * grouped inside, and its final answer.
  * Behaviour: frontend.md 5 (sub-agent messages are bucketed under their parent Task call),
  * ui-map.md 3.3 ('Subagent').
- * Must handle: Many nested calls (collapsed to a count, expandable); a running sub-agent (live
- * count); a sub-agent that failed; a nested sub-agent; the children render through the same
- * registry so every kind of card works inside.
+ * Must handle: Many nested calls (a count above the list; the card itself collapses); a running
+ * sub-agent (the count grows); a sub-agent that failed; a nested sub-agent; the children render through the
+ * same registry, each in its own error boundary, so every kind of card works inside and one broken card
+ * does not hide its siblings.
  * Test first: A call with two children shows 'Subagent', the description, and two nested cards.
  */
-import { NotBuiltYet } from "../../../../ui/not-built-yet.tsx";
 import { toolCardFor } from "../registry.ts";
+import { ToolCardBoundary } from "../ToolCard.tsx";
 import { ToolCardFrame, textField, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
@@ -18,6 +19,7 @@ export function SubAgentCard({ call, sessionId, defaultExpanded }: ToolCardProps
 	const input = call.item.input;
 	const description = textField(input, "description", "prompt", "task") ?? "Sub-agent task";
 	const count = call.children.length;
+	const answer = call.result?.output ?? "";
 	return (
 		<ToolCardFrame
 			title="Subagent"
@@ -32,16 +34,16 @@ export function SubAgentCard({ call, sessionId, defaultExpanded }: ToolCardProps
 					{call.children.map((child) => {
 						const Card = toolCardFor(child.item.tool);
 						return (
-							<NotBuiltYet
-								key={child.toolUseId}
-								area={`Tool: ${child.item.rawName}`}
-								variant="inline"
-								resetKey={child.toolUseId}
-							>
+							<ToolCardBoundary key={child.toolUseId} call={child}>
 								<Card call={child} sessionId={sessionId} defaultExpanded={defaultExpanded} />
-							</NotBuiltYet>
+							</ToolCardBoundary>
 						);
 					})}
+					{answer.length > 0 ? (
+						<pre className="max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-fg">
+							{answer}
+						</pre>
+					) : null}
 				</div>
 			}
 		/>

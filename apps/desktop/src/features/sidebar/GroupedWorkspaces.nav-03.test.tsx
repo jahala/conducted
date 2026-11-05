@@ -6,7 +6,7 @@ import {
 	createRouter,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearCommandHandlers, runCommandHandlers } from "../../app/command-dispatcher.ts";
@@ -35,11 +35,13 @@ vi.mock("./WorkspaceRow.tsx", () => ({
 	WorkspaceRow: ({
 		workspace,
 		shortcutIndex,
+		now,
 	}: {
 		workspace: Workspace;
 		shortcutIndex: number | null;
+		now: number;
 	}) => (
-		<div data-testid="workspace-row" data-shortcut={shortcutIndex ?? undefined}>
+		<div data-testid="workspace-row" data-shortcut={shortcutIndex ?? undefined} data-now={now}>
 			{workspace.displayName}
 		</div>
 	),
@@ -319,5 +321,31 @@ describe("NAV-03 GroupedWorkspaces", () => {
 		renderWithRouter(<GroupedWorkspaces repos={[repo("app")]} workspaces={[workspace("one")]} />);
 		await screen.findByRole("region", { name: "app" });
 		await waitFor(() => expect(runCommandHandlers("workspace.switch9")).toBe(false));
+	});
+
+	it("gives every row the same time and moves it forward each minute", async () => {
+		vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+		let time = 5_000_000;
+		const clock = vi.spyOn(Date, "now").mockImplementation(() => time);
+		try {
+			renderWithRouter(
+				<GroupedWorkspaces
+					repos={[repo("app")]}
+					workspaces={[workspace("one"), workspace("two")]}
+				/>,
+			);
+			const rows = await screen.findAllByTestId("workspace-row");
+			expect(rows.map((row) => row.getAttribute("data-now"))).toEqual(["5000000", "5000000"]);
+			time += 60_000;
+			act(() => {
+				vi.advanceTimersByTime(60_000);
+			});
+			expect(
+				screen.getAllByTestId("workspace-row").map((row) => row.getAttribute("data-now")),
+			).toEqual(["5060000", "5060000"]);
+		} finally {
+			clock.mockRestore();
+			vi.useRealTimers();
+		}
 	});
 });

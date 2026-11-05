@@ -4,7 +4,9 @@
  * Behaviour: ui-map.md 3.8 (sidebar row subtitle text: "Review plan", "Need permission", "Answer question",
  * "Planning...", "Working...", "Cancelling...", "Waiting...", "Initializing...", "Initialization failed",
  * "Setting up...", "Archiving..."; git and PR labels, first match wins).
- * Our design choice: the labels for `changes` and `clean` are ours ("Changes", "Ready"): Conductor's
+ * Our design choice: the research writes the progress words with three dots ("Working..."); we print
+ * one ellipsis character ("Working…") on purpose, so the words never wrap between dots. "Planning..."
+ * has no case because WorkspaceStatus carries no planning label. The labels for `changes` and `clean` are ours ("Changes", "Ready"): Conductor's
  * "Local workspace" and "Ready (has branch)" depend on fields our WorkspaceStatus does not carry. Tone is a
  * function, not decoration: `attention` means the user must act (shown in the accent), `active` means work is
  * in progress, `danger` means something failed, `success` means done, `neutral` is the rest.

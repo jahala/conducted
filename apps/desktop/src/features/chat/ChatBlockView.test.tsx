@@ -1,3 +1,4 @@
+import { notImplemented } from "@conducted/shared";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatBlock } from "../../core/model.ts";
@@ -9,7 +10,11 @@ vi.mock("./ChatBanner.tsx", () => ({
 	ChatBanner: ({ block }: { block: { kind: string } }) => <div>banner:{block.kind}</div>,
 }));
 vi.mock("./ThinkingBlock.tsx", () => ({
-	ThinkingBlock: ({ text }: { text: string }) => <div>thinking:{text}</div>,
+	ThinkingBlock: ({ text }: { text: string }) => {
+		if (text === "UNBUILT") throw notImplemented("CHAT-09");
+		if (text === "BOOM") throw new Error("render failed");
+		return <div>thinking:{text}</div>;
+	},
 }));
 vi.mock("./TodoBlock.tsx", () => ({
 	TodoBlock: () => <div>todo</div>,
@@ -57,5 +62,46 @@ describe("CHAT-06 block view", () => {
 	it("renders assistant text for a text block", () => {
 		render(<ChatBlockView block={{ kind: "text", text: "hello" }} sessionId={sessionId} />);
 		expect(screen.getByText("markdown:hello")).toBeTruthy();
+	});
+
+	it("shows one line for a block whose view is not built yet, not an error for the whole list", () => {
+		render(
+			<ChatBlockView
+				block={{ kind: "thinking", text: "UNBUILT", summarized: false }}
+				sessionId={sessionId}
+			/>,
+		);
+		expect(screen.getByText("Thinking: Not built yet: CHAT-09")).toBeTruthy();
+	});
+
+	it("shows one line for a block that throws and logs the error", () => {
+		const log = vi.spyOn(console, "error").mockImplementation(() => {});
+		render(
+			<ChatBlockView
+				block={{ kind: "thinking", text: "BOOM", summarized: false }}
+				sessionId={sessionId}
+			/>,
+		);
+		expect(screen.getByText("Thinking: This part failed to load.")).toBeTruthy();
+		expect(log).toHaveBeenCalled();
+		log.mockRestore();
+	});
+
+	it("tries a streaming block again when more text arrives", () => {
+		const log = vi.spyOn(console, "error").mockImplementation(() => {});
+		const view = render(
+			<ChatBlockView
+				block={{ kind: "thinking", text: "BOOM", summarized: false }}
+				sessionId={sessionId}
+			/>,
+		);
+		view.rerender(
+			<ChatBlockView
+				block={{ kind: "thinking", text: "fine now", summarized: false }}
+				sessionId={sessionId}
+			/>,
+		);
+		expect(screen.getByText("thinking:fine now")).toBeTruthy();
+		log.mockRestore();
 	});
 });

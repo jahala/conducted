@@ -100,4 +100,56 @@ describe("NAV-10 RenameDialog", () => {
 		expect(field.selectionStart).toBe(0);
 		expect(field.selectionEnd).toBe("Old name".length);
 	});
+
+	it("submits once when Cmd+Enter is pressed in the field", async () => {
+		const onSubmit = vi.fn(async () => ok(undefined));
+		render(
+			<RenameDialog
+				open
+				onOpenChange={vi.fn()}
+				title="Rename workspace"
+				initialName="Old name"
+				onSubmit={onSubmit}
+			/>,
+		);
+		fireEvent.keyDown(screen.getByRole("textbox", { name: "Name" }), {
+			key: "Enter",
+			metaKey: true,
+		});
+		await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps what the user typed when the starting name changes while open", () => {
+		const props = {
+			onOpenChange: vi.fn(),
+			title: "Rename workspace",
+			onSubmit: vi.fn(async () => ok(undefined)),
+		};
+		const view = render(<RenameDialog open initialName="Old name" {...props} />);
+		fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
+			target: { value: "Half typed" },
+		});
+		view.rerender(<RenameDialog open initialName="Renamed elsewhere" {...props} />);
+		expect((screen.getByRole("textbox", { name: "Name" }) as HTMLInputElement).value).toBe(
+			"Half typed",
+		);
+	});
+
+	it("starts from the current name each time it opens", () => {
+		const props = {
+			onOpenChange: vi.fn(),
+			title: "Rename workspace",
+			onSubmit: vi.fn(async () => ok(undefined)),
+		};
+		const view = render(<RenameDialog open initialName="Old name" {...props} />);
+		fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
+			target: { value: "Half typed" },
+		});
+		view.rerender(<RenameDialog open={false} initialName="Newer name" {...props} />);
+		view.rerender(<RenameDialog open initialName="Newer name" {...props} />);
+		expect((screen.getByRole("textbox", { name: "Name" }) as HTMLInputElement).value).toBe(
+			"Newer name",
+		);
+	});
 });

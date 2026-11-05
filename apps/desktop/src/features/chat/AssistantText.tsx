@@ -9,14 +9,16 @@
  * additions.
  * Must handle: Partial Markdown while streaming (an open code fence or list must not flash); very
  * long lines wrap; links open outside the app through the opener, never inside the window; raw HTML
- * is not rendered; an image that fails to load shows its alt text; text is selectable.
+ * is not rendered; an image that fails to load shows its alt text; an image from a web address is never loaded
+ * (a reply could carry data out in the address), it shows as a link instead; text is selectable.
  * Test first: A text with an unclosed code fence renders as a code block without throwing; the
  * "not_absolutely_right" setting controls whether a leading absolutely-right phrase is removed.
  */
 import { type ReactNode, useState } from "react";
-import { useActions, useSetting } from "../../core/hooks.ts";
+import { useSetting } from "../../core/hooks.ts";
 import { cn } from "../../ui/cn.ts";
 import { CodeBlock } from "./CodeBlock.tsx";
+import { ExternalLink } from "./ExternalLink.tsx";
 
 type Block =
 	| { kind: "code"; language: string | null; code: string }
@@ -211,10 +213,22 @@ export function parseMarkdown(source: string): Block[] {
 const INLINE =
 	/(!\[[^\]]*\]\([^)]+\))|(\[[^\]]+\]\([^)]+\))|(`[^`]+`)|(\*\*[^*]+\*\*)|(__[^_]+__)|(\*[^*]+\*)|(_[^_]+_)/g;
 
+/** A web address or another scheme. An address like this in a reply could carry data out of the app. */
+const REMOTE_IMAGE = /^(?:\/\/|[a-z][a-z0-9+.-]*:)/i;
+const INLINE_IMAGE = /^data:image\//i;
+
 function MarkdownImage({ src, alt }: { src: string; alt: string }) {
 	const [failed, setFailed] = useState(false);
+	const label = alt.length > 0 ? alt : src;
+	if (REMOTE_IMAGE.test(src) && !INLINE_IMAGE.test(src)) {
+		return (
+			<ExternalLink url={src} className="text-link underline-offset-2 hover:underline">
+				{label}
+			</ExternalLink>
+		);
+	}
 	if (failed) {
-		return <span className="text-fg-muted">{[alt.length > 0 ? alt : src]}</span>;
+		return <span className="text-fg-muted">{label}</span>;
 	}
 	return (
 		<img
@@ -226,7 +240,7 @@ function MarkdownImage({ src, alt }: { src: string; alt: string }) {
 	);
 }
 
-function renderInline(text: string, onOpen: (url: string) => void, keyPrefix: string): ReactNode[] {
+function renderInline(text: string, keyPrefix: string): ReactNode[] {
 	const nodes: ReactNode[] = [];
 	let last = 0;
 	let index = 0;
@@ -242,17 +256,9 @@ function renderInline(text: string, onOpen: (url: string) => void, keyPrefix: st
 			const inner = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(token);
 			const url = inner?.[2] ?? "";
 			nodes.push(
-				<a
-					key={key}
-					href={url}
-					onClick={(event) => {
-						event.preventDefault();
-						if (/^(?:https?|mailto):/i.test(url)) onOpen(url);
-					}}
-					className="text-link underline-offset-2 hover:underline"
-				>
+				<ExternalLink key={key} url={url} className="text-link underline-offset-2 hover:underline">
 					{inner?.[1] ?? token}
-				</a>,
+				</ExternalLink>,
 			);
 		} else if (token.startsWith("`")) {
 			nodes.push(
@@ -277,16 +283,12 @@ export interface AssistantTextProps {
 }
 
 export function AssistantText({ text }: AssistantTextProps) {
-	const actions = useActions();
 	const style = useSetting<string>("markdown_style");
 	const stripFiller = useSetting<boolean>("not_absolutely_right");
 	const cleaned = stripFiller ? stripLeadingFiller(text) : text;
 	if (cleaned.trim().length === 0) return null;
 	const blocks = parseMarkdown(cleaned);
 	const tufte = style === "tufte";
-	const openUrl = (url: string) => {
-		void actions.app.openUrl(url);
-	};
 
 	return (
 		<div
@@ -313,7 +315,7 @@ export function AssistantText({ text }: AssistantTextProps) {
 									block.level >= 3 && "text-base",
 								)}
 							>
-								{renderInline(block.text, openUrl, key)}
+								{renderInline(block.text, key)}
 							</Tag>
 						);
 					}
@@ -329,7 +331,7 @@ export function AssistantText({ text }: AssistantTextProps) {
 							>
 								{block.items.map((item, itemIndex) => (
 									<li key={positionKey(`${key}-item`, itemIndex)}>
-										{renderInline(item, openUrl, `${key}-${itemIndex}`)}
+										{renderInline(item, `${key}-${itemIndex}`)}
 									</li>
 								))}
 							</Tag>
@@ -346,7 +348,7 @@ export function AssistantText({ text }: AssistantTextProps) {
 													key={positionKey(`${key}-h`, cellIndex)}
 													className="border-b border-border-strong px-2 py-1 text-left font-medium text-fg"
 												>
-													{renderInline(cell, openUrl, `${key}-h-${cellIndex}`)}
+													{renderInline(cell, `${key}-h-${cellIndex}`)}
 												</th>
 											))}
 										</tr>
@@ -359,7 +361,7 @@ export function AssistantText({ text }: AssistantTextProps) {
 														key={positionKey(`${key}-r-${rowIndex}`, cellIndex)}
 														className="border-b border-border px-2 py-1 text-fg-muted"
 													>
-														{renderInline(cell, openUrl, `${key}-r-${rowIndex}-${cellIndex}`)}
+														{renderInline(cell, `${key}-r-${rowIndex}-${cellIndex}`)}
 													</td>
 												))}
 											</tr>
@@ -372,13 +374,13 @@ export function AssistantText({ text }: AssistantTextProps) {
 						return (
 							<div key={key} className="rounded-md border border-border bg-surface px-3 py-2">
 								<p className="text-xs font-medium text-fg">{block.label}</p>
-								<p className="text-sm text-fg-muted">{renderInline(block.text, openUrl, key)}</p>
+								<p className="text-sm text-fg-muted">{renderInline(block.text, key)}</p>
 							</div>
 						);
 					case "quote":
 						return (
 							<blockquote key={key} className="border-l-2 border-border-strong pl-3 text-fg-muted">
-								{renderInline(block.text, openUrl, key)}
+								{renderInline(block.text, key)}
 							</blockquote>
 						);
 					case "hr":
@@ -386,7 +388,7 @@ export function AssistantText({ text }: AssistantTextProps) {
 					case "paragraph":
 						return (
 							<p key={key} className="whitespace-pre-wrap break-words">
-								{renderInline(block.text, openUrl, key)}
+								{renderInline(block.text, key)}
 							</p>
 						);
 					default:

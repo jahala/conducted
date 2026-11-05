@@ -1,6 +1,12 @@
 import type { WorkspaceId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	clearCommandHandlers,
+	commandForKeyPress,
+	keyBindings,
+	runCommandHandlers,
+} from "../../app/command-dispatcher.ts";
 import type { DiffScope, Loadable } from "../../core/api.ts";
 import type { GitState } from "../../core/model.ts";
 import "../../test/dom-polyfills.ts";
@@ -18,6 +24,7 @@ vi.mock("../../core/hooks.ts", () => ({
 	useGitState: () => state.git,
 	useWorkspaceStatus: () => null,
 	useSetting: () => false,
+	useLiveShortcut: () => null,
 	useActions: () => ({
 		git: { commitAndPush: state.commitAndPush },
 		pullRequests: { create: state.create, requestAiReview: state.requestAiReview },
@@ -90,7 +97,10 @@ beforeEach(() => {
 	state.requestAiReview.mockResolvedValue({ ok: true });
 });
 
-afterEach(cleanup);
+afterEach(() => {
+	cleanup();
+	clearCommandHandlers();
+});
 
 describe("REV-01 git panel", () => {
 	it("shows uncommitted changes and the main action from the git state", () => {
@@ -126,6 +136,13 @@ describe("REV-01 git panel", () => {
 		expect(state.requestAiReview).toHaveBeenCalledTimes(1);
 	});
 
+	it("ignores a raw Cmd+Alt+U key press, which belongs to the command dispatcher", () => {
+		const onScopeChange = vi.fn<(scope: DiffScope) => void>();
+		render(<GitPanel workspaceId={workspaceId} onScopeChange={onScopeChange} />);
+		fireEvent.keyDown(window, { key: "u", metaKey: true, altKey: true });
+		expect(onScopeChange).not.toHaveBeenCalled();
+	});
+
 	it("Cmd+Alt+U switches to the uncommitted changes scope", () => {
 		const onTabChange = vi.fn();
 		const onScopeChange = vi.fn<(scope: DiffScope) => void>();
@@ -138,7 +155,17 @@ describe("REV-01 git panel", () => {
 				onScopeChange={onScopeChange}
 			/>,
 		);
-		fireEvent.keyDown(window, { key: "u", metaKey: true, altKey: true });
+		const press = {
+			key: "u",
+			metaKey: true,
+			ctrlKey: false,
+			altKey: true,
+			shiftKey: false,
+			isComposing: false,
+			repeat: false,
+		};
+		expect(commandForKeyPress(press, ["global"], keyBindings())).toBe("review.showUncommitted");
+		expect(runCommandHandlers("review.showUncommitted")).toBe(true);
 		expect(onTabChange).toHaveBeenCalledWith("changes");
 		expect(onScopeChange).toHaveBeenCalledWith({ kind: "uncommitted" });
 	});

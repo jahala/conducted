@@ -76,4 +76,24 @@ describe("NAV-10 TabContent", () => {
 		expect(screen.getByText(/This chat tab failed to render/)).toBeTruthy();
 		state.throwChat = false;
 	});
+
+	it("mounts a fresh chat pane when another chat is chosen", () => {
+		// A new DOM node means the pane was mounted again, not updated in place.
+		const view = render(
+			<TabContent
+				workspaceId={workspaceId}
+				search={{ tab: "session", sessionId: "s1" }}
+				onSearchChange={vi.fn()}
+			/>,
+		);
+		const first = screen.getByText("chat pane");
+		view.rerender(
+			<TabContent
+				workspaceId={workspaceId}
+				search={{ tab: "session", sessionId: "s2" }}
+				onSearchChange={vi.fn()}
+			/>,
+		);
+		expect(screen.getByText("chat pane")).not.toBe(first);
+	});
 });

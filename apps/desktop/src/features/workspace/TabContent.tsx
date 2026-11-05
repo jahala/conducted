@@ -4,8 +4,9 @@
  * preview, each from its own feature.
  * Behaviour: ui-map.md 3.2 (tab content by type; empty group shows New chat, Browser, Local terminal; error
  * cards "This chat tab failed to render").
- * Our design choice: each tab sits in its own boundary keyed by the tab's identity, so a crash in one tab
- * clears when the user opens another. Long-lived DOM (terminals, browser previews) should move to a surface
+ * Our design choice: each tab is mounted under its own identity and sits in its own boundary, so a
+ * crash in one tab clears when the user opens another and no state carries from one chat or terminal
+ * to the next. Long-lived DOM (terminals, browser previews) should move to a surface
  * layer outside tab content (ui-map.md 8); until then switching tabs remounts them.
  * Must handle: no tab open (EmptyTabGroup); a file tab without a path (treated as no tab, see active-tab.ts);
  * a terminal that has exited; a browser tab with an unreachable URL (BrowserTab's own state).
@@ -32,6 +33,10 @@ export interface TabContentProps {
 	tab?: ActiveTab;
 }
 
+/**
+ * Each tab is mounted under its own identity, so switching from one chat or terminal to another
+ * starts it fresh and nothing typed, scrolled or ended in the first one shows in the second.
+ */
 export function TabContent({
 	workspaceId,
 	search,
@@ -39,6 +44,25 @@ export function TabContent({
 	tab: override,
 }: TabContentProps) {
 	const tab = override ?? resolveActiveTab(search);
+	return (
+		<TabBody
+			key={activeTabKey(tab)}
+			workspaceId={workspaceId}
+			tab={tab}
+			onSearchChange={onSearchChange}
+		/>
+	);
+}
+
+function TabBody({
+	workspaceId,
+	tab,
+	onSearchChange,
+}: {
+	workspaceId: WorkspaceId;
+	tab: ActiveTab;
+	onSearchChange: TabContentProps["onSearchChange"];
+}) {
 	const key = activeTabKey(tab);
 	switch (tab.kind) {
 		case "session":

@@ -366,6 +366,36 @@ describe("SIDE-15 agent detection", () => {
 	});
 });
 
+describe("SIDE-15 detection calls the runner as a method", () => {
+	test("SIDE-15 a class runner whose detect() reads this is reported installed", async () => {
+		class ClassRunner {
+			readonly agent: AgentKind = "claude";
+			readonly capabilities = fakeRunner("claude", async () => null).capabilities;
+			private readonly deps = { path: "/usr/local/bin/claude" };
+			async detect() {
+				return { path: this.deps.path, version: "2.0.0" };
+			}
+			async start(): Promise<AgentSession> {
+				throw new Error("start is not used by detection");
+			}
+			async listModels() {
+				return [];
+			}
+			async listSlashCommands() {
+				return [];
+			}
+		}
+		const runner = new ClassRunner() as unknown as Runner;
+		const agents = await detector({
+			deps: {
+				runners: new MapRunnerRegistry([{ selector: { agent: "claude" }, runner }]),
+			},
+		}).detectAll();
+
+		expect(agents[0]).toMatchObject({ agent: "claude", installed: true });
+	});
+});
+
 describe("SIDE-15 sign-in flows", () => {
 	test("Claude sign-in offers the setup-token command", async () => {
 		const result = await detector().startLogin("claude");

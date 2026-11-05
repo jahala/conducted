@@ -1,3 +1,4 @@
+import { appError, err } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "../test/dom-polyfills.ts";
@@ -6,7 +7,7 @@ import { AlertDialog, AlertDialogContent } from "./AlertDialog.tsx";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./Card.tsx";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./Collapsible.tsx";
 import { CopyButton } from "./CopyButton.tsx";
-import { HighlightedText } from "./HighlightedText.tsx";
+import { HighlightedText, splitHighlight } from "./HighlightedText.tsx";
 import { Separator } from "./Separator.tsx";
 import {
 	Table,
@@ -17,10 +18,14 @@ import {
 	TableHeader,
 	TableRow,
 } from "./Table.tsx";
+import { Toaster, toast } from "./Toast.tsx";
 import { Toggle, ToggleGroup, ToggleGroupItem } from "./Toggle.tsx";
 import { TruncatedText, truncateMiddle } from "./TruncatedText.tsx";
 
-afterEach(cleanup);
+afterEach(() => {
+	cleanup();
+	toast.dismiss();
+});
 
 describe("APP-13 Toggle", () => {
 	it("reports the pressed state and toggles it on click", () => {
@@ -98,14 +103,35 @@ describe("APP-13 CopyButton", () => {
 		await waitFor(() => expect(screen.getByRole("button", { name: "Copy" })).toBeTruthy());
 	});
 
-	it("does not claim it copied when the copy failed", async () => {
+	it("does not claim it copied when the copy threw, and tells the user", async () => {
 		const onCopy = vi.fn(async () => {
 			throw new Error("denied");
 		});
-		render(<CopyButton text="secret" onCopy={onCopy} />);
+		render(
+			<>
+				<Toaster />
+				<CopyButton text="secret" onCopy={onCopy} />
+			</>,
+		);
 
 		fireEvent.click(screen.getByRole("button", { name: "Copy" }));
-		await waitFor(() => expect(onCopy).toHaveBeenCalled());
+		expect(await screen.findByText("Couldn't copy")).toBeTruthy();
+		expect(screen.getByText("denied")).toBeTruthy();
+		expect(screen.queryByRole("button", { name: "Copied" })).toBeNull();
+	});
+
+	it("does not claim it copied when the copy returned a failed Result, and tells the user", async () => {
+		const onCopy = vi.fn(async () => err(appError("clipboard_denied", "No clipboard access")));
+		render(
+			<>
+				<Toaster />
+				<CopyButton text="secret" onCopy={onCopy} />
+			</>,
+		);
+
+		fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+		expect(await screen.findByText("Couldn't copy")).toBeTruthy();
+		expect(screen.getByText("No clipboard access")).toBeTruthy();
 		expect(screen.queryByRole("button", { name: "Copied" })).toBeNull();
 	});
 });
@@ -331,6 +357,20 @@ describe("APP-13 TruncatedText", () => {
 
 		fireEvent.click(screen.getByRole("button", { name: "Copy" }));
 		expect(onCopy).toHaveBeenCalledWith(text);
+	});
+});
+
+describe("APP-13 splitHighlight", () => {
+	it("keeps offsets right for a letter whose lower-case form is longer", () => {
+		expect(splitHighlight("İstanbul", "stan")).toEqual([
+			{ text: "İ", match: false, start: 0 },
+			{ text: "stan", match: true, start: 1 },
+			{ text: "bul", match: false, start: 5 },
+		]);
+	});
+
+	it("marks every match and keeps the original case", () => {
+		expect(splitHighlight("Aa", "a").map((part) => part.text)).toEqual(["A", "a"]);
 	});
 });
 

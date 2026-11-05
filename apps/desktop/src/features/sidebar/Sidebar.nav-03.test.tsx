@@ -16,6 +16,10 @@ vi.mock("../../core/hooks.ts", () => ({
 	useLiveShortcut: () => null,
 }));
 
+vi.mock("../../core/context.tsx", () => ({
+	useServices: () => ({ services: { repo: { start: vi.fn() }, workspace: { start: vi.fn() } } }),
+}));
+
 vi.mock("./AddProjectButton.tsx", () => ({
 	AddProjectButton: () => <button type="button">Add a project</button>,
 }));

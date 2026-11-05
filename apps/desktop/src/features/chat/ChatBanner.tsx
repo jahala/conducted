@@ -22,6 +22,7 @@ import { Alert, AlertDescription, AlertTitle } from "../../ui/Alert.tsx";
 import { Button } from "../../ui/Button.tsx";
 import { ContextMenu, ContextMenuItem } from "../../ui/ContextMenu.tsx";
 import { XCircleIcon } from "../../ui/icons.tsx";
+import { reportFailure } from "./report-failure.ts";
 
 export interface ChatBannerProps {
 	block: Extract<ChatBlock, { kind: "notice" | "error" }>;
@@ -49,7 +50,7 @@ function noticeLine(item: Extract<ChatBlock, { kind: "notice" }>["item"]): strin
 export function ChatBanner({ block, onRetry }: ChatBannerProps) {
 	const actions = useActions();
 	const copy = (text: string) => {
-		void actions.app.copyText(text);
+		void reportFailure(actions.app.copyText(text), "Couldn't copy the message");
 	};
 
 	if (block.kind === "notice") {

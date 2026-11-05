@@ -13,6 +13,7 @@
  * Our design choice: the entry only dispatches. All behaviour lives in modes/, so tests call the
  * mode functions without starting a process.
  */
+import { EXIT_USAGE } from "./exit-codes.ts";
 import { printVersion, VERSION_FLAG } from "./packaging.ts";
 import { messageOf } from "./util/errors.ts";
 
@@ -29,8 +30,7 @@ export type ModeRunner = (
 	args: readonly string[],
 ) => Promise<number>;
 
-/** Exit code for a wrong command line (EX_USAGE in sysexits.h). */
-export const EXIT_USAGE = 64;
+export { EXIT_USAGE };
 
 export async function dispatchMode(
 	argv: readonly string[],

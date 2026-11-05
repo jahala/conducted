@@ -1,19 +1,26 @@
 import { appError } from "@conducted/shared";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Loadable } from "../../core/api.ts";
 import type { Repo, Workspace } from "../../core/model.ts";
 import { renderWithRouter } from "../../test/render-with-router.tsx";
+import { toast } from "../../ui/Toast.tsx";
 import { UnreadDot } from "./UnreadDot.tsx";
 
 const hooks = vi.hoisted(() => ({
 	repos: { state: "loading" } as Loadable<Repo[]>,
 	workspaces: { state: "loading" } as Loadable<Workspace[]>,
+	repoService: { start: vi.fn() },
+	workspaceService: { start: vi.fn() },
 }));
 
 vi.mock("../../core/hooks.ts", () => ({
 	useRepos: () => hooks.repos,
 	useWorkspaces: () => hooks.workspaces,
+}));
+
+vi.mock("../../core/context.tsx", () => ({
+	useServices: () => ({ services: { repo: hooks.repoService, workspace: hooks.workspaceService } }),
 }));
 
 // The grouped list is built later; this test is about which state the list region picks.
@@ -46,6 +53,37 @@ describe("NAV-03 WorkspaceList", () => {
 		expect(screen.getByText("Couldn't load projects")).toBeTruthy();
 		expect(screen.getByText("Database is locked")).toBeTruthy();
 		expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
+	});
+
+	it("tries again by reading the projects again, without reloading the window", async () => {
+		hooks.repos = { state: "error", error: appError("db", "Database is locked") };
+		hooks.repoService.start.mockReset();
+		hooks.repoService.start.mockResolvedValue({ ok: true, value: undefined });
+		render(<WorkspaceList />);
+		fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+		await waitFor(() => expect(hooks.repoService.start).toHaveBeenCalledTimes(1));
+		expect(hooks.workspaceService.start).not.toHaveBeenCalled();
+	});
+
+	it("shows a toast when trying again fails too", async () => {
+		const toasted = vi.spyOn(toast, "error").mockReturnValue("t");
+		try {
+			hooks.repos = { state: "error", error: appError("db", "Database is locked") };
+			hooks.repoService.start.mockReset();
+			hooks.repoService.start.mockResolvedValue({
+				ok: false,
+				error: appError("db", "Still locked"),
+			});
+			render(<WorkspaceList />);
+			fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+			await waitFor(() =>
+				expect(toasted).toHaveBeenCalledWith("Couldn't load the projects", {
+					description: "Still locked",
+				}),
+			);
+		} finally {
+			toasted.mockRestore();
+		}
 	});
 
 	it("invites the user to add a project when there is none", async () => {

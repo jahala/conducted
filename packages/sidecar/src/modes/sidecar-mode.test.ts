@@ -11,7 +11,9 @@ import {
 	announceAgentInstalls,
 	createPromptFiles,
 	createScheduler,
+	createShellEnvProvider,
 	EXIT_START_FAILED,
+	handleAppAttached,
 	installErrorHandlers,
 	PROBE_KILL_GRACE_MS,
 	type ProcessErrorHooks,
@@ -429,6 +431,46 @@ describe("SIDE-01 startup folders", () => {
 		} finally {
 			await chmod(config.logDir, 0o700);
 		}
+	});
+});
+
+describe("SIDE-11 a new app connection", () => {
+	test("SIDE-11 replays the log and resends the open interactions", () => {
+		const calls: string[] = [];
+		const { logger } = recordingLogger();
+		handleAppAttached({
+			replayer: {
+				replayAll: async () => {
+					calls.push("replay");
+				},
+			},
+			sessions: {
+				onAppAttached: () => {
+					calls.push("resend");
+				},
+			},
+			logger,
+		});
+
+		expect(calls).toEqual(["replay", "resend"]);
+	});
+});
+
+describe("SIDE-10 shell capture failures reach the app", () => {
+	test("SIDE-10 a capture that fails in both shells sends shellEnvFailed with the folder", async () => {
+		const { logger } = recordingLogger();
+		const failures: unknown[] = [];
+		const provider = createShellEnvProvider({ SHELL: "/bin/sh" }, logger, (failure) => {
+			failures.push(failure);
+		});
+
+		// A folder that does not exist makes the capture script fail in every shell.
+		const missing = path.join(tmpdir(), "conducted-side10-no-such-folder");
+		const result = await provider.get(missing);
+
+		expect(result.ok).toBe(false);
+		expect(failures).toHaveLength(1);
+		expect(failures[0]).toMatchObject({ folder: missing });
 	});
 });
 

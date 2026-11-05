@@ -9,7 +9,8 @@
  * the history card masks a secret answer. A secret question hides its input and has no option
  * list. The card asks
  * sessions.answer once and stays disabled while the answer is sent; if that fails it says
- * 'Could not send answers. Try again.' and lets the user send again.
+ * 'Could not send answers. Try again.' and lets the user send again. A failed Cancel agent says
+ * 'Could not cancel the agent. Try again.'
  * Must handle: One question (no previous or next); up to four questions; a multi-select question
  * with nothing ticked (skipped, allowed); 'Other' text empty (not accepted as an answer); the
  * interaction is withdrawn while open (card disappears, typed text is lost on purpose); Cancel
@@ -43,7 +44,7 @@ export function QuestionCard({ sessionId, interactionId, questions }: QuestionCa
 	const [secretAnswers, setSecretAnswers] = useState<string[]>(() => questions.map(() => ""));
 	const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 	const [pending, setPending] = useState(false);
-	const [failed, setFailed] = useState(false);
+	const [failed, setFailed] = useState<"answer" | "cancel" | null>(null);
 	const otherRefs = useRef<Array<HTMLInputElement | null>>([]);
 	const busy = useRef(false);
 	/** Focuses a control when it mounts, so the wizard takes the keys as it opens. */
@@ -101,14 +102,14 @@ export function QuestionCard({ sessionId, interactionId, questions }: QuestionCa
 		if (busy.current) return;
 		busy.current = true;
 		setPending(true);
-		setFailed(false);
+		setFailed(null);
 		const result = await actions.sessions.answer(sessionId, interactionId, {
 			kind: "question",
 			answers: questions.map((_, index) => answersFor(index)),
 		});
 		if (!result.ok) {
 			busy.current = false;
-			setFailed(true);
+			setFailed("answer");
 			setPending(false);
 		}
 	}
@@ -117,9 +118,11 @@ export function QuestionCard({ sessionId, interactionId, questions }: QuestionCa
 		if (busy.current) return;
 		busy.current = true;
 		setPending(true);
+		setFailed(null);
 		const result = await actions.sessions.cancel(sessionId);
 		if (!result.ok) {
 			busy.current = false;
+			setFailed("cancel");
 			setPending(false);
 		}
 	}
@@ -275,9 +278,11 @@ export function QuestionCard({ sessionId, interactionId, questions }: QuestionCa
 				</>
 			)}
 
-			{failed ? (
+			{failed !== null ? (
 				<p role="alert" className="text-xs text-danger">
-					Could not send answers. Try again.
+					{failed === "answer"
+						? "Could not send answers. Try again."
+						: "Could not cancel the agent. Try again."}
 				</p>
 			) : null}
 

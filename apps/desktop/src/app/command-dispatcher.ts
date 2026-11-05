@@ -60,6 +60,7 @@ import {
 import { resolveSendKey, type SendIntent, type SendWith } from "../features/composer/send-key.ts";
 import type { MenuShortcut } from "../platform/platform.ts";
 import { Kbd } from "../ui/Kbd.tsx";
+import { toastError } from "../ui/Toast.tsx";
 import { useOverlayStore } from "./overlay-store.ts";
 
 export type HandlerPriority = "base" | "area" | "modal";
@@ -375,7 +376,8 @@ export function scopesForTarget(
 	return [...new Set(scopes)];
 }
 
-function isTextEntry(element: Element): boolean {
+/** True when the element is, or sits inside, a field that takes typed text and keeps its own select-all. */
+export function isTextEntry(element: Element): boolean {
 	const field = element.closest("input, textarea, [contenteditable]");
 	if (field === null) return false;
 	if (field instanceof HTMLInputElement) return !TEXT_INPUT_TYPES.has(field.type);
@@ -507,12 +509,15 @@ export interface CommandDispatchDeps {
 	registry: CommandRegistry;
 	isEnabled: (commandId: string) => boolean;
 	run: (commandId: string) => Promise<Result<void>>;
+	/** Developer-facing notes: an unknown id, a link nothing handles. They go to the log. */
 	report: (message: string) => void;
+	/** A command the user asked for ran and failed. The user is told. */
+	failed: (commandId: string, error: { message: string }) => void;
 }
 
 /**
  * Runs a command by id: a focused screen handler first, then the service-level runner. An unknown
- * id or a failed run is reported, never thrown. A disabled command runs neither path, so a menu pick
+ * id is reported to the log, a failed run is shown to the user, and neither is thrown. A disabled command runs neither path, so a menu pick
  * cannot do what the same key press refuses to do.
  */
 export function dispatchCommand(commandId: string, deps: CommandDispatchDeps): void {
@@ -523,7 +528,7 @@ export function dispatchCommand(commandId: string, deps: CommandDispatchDeps): v
 	if (!deps.isEnabled(commandId)) return;
 	if (deps.registry.run(commandId)) return;
 	void deps.run(commandId).then((result) => {
-		if (!result.ok) deps.report(result.error.message);
+		if (!result.ok) deps.failed(commandId, result.error);
 	});
 }
 
@@ -567,6 +572,10 @@ export function useCommandDispatcher(
 			isEnabled: (commandId) => services.commands.isEnabled(commandId),
 			run: (commandId) => services.commands.run(commandId),
 			report: (message) => platform.app.writeLog("warn", message),
+			failed: (commandId, error) => {
+				platform.app.writeLog("warn", `Command ${commandId} failed: ${error.message}`);
+				toastError(`Couldn't ${(getCommand(commandId)?.title ?? commandId).toLowerCase()}`, error);
+			},
 		}),
 		[registry, services, platform],
 	);
@@ -634,7 +643,10 @@ export function useCommandDispatcher(
 }
 
 export interface CommandDispatcherProps extends CommandDispatcherOptions {
-	/** The registry handlers register into. One is created when the caller does not pass one. */
+	/**
+	 * The registry handlers register into. When the caller passes none, a `CommandRegistryProvider` above is
+	 * used; with neither, one is created.
+	 */
 	registry?: CommandRegistry;
 	children?: ReactNode;
 }
@@ -650,7 +662,8 @@ export function CommandDispatcher({
 	...options
 }: CommandDispatcherProps) {
 	const [created] = useState(createCommandRegistry);
-	const registry = provided ?? created;
+	const outer = useContext(CommandRegistryContext);
+	const registry = provided ?? outer ?? created;
 	useCommandDispatcher(registry, options);
 	return createElement(CommandRegistryContext.Provider, { value: registry }, children);
 }

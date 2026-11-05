@@ -13,7 +13,7 @@
  * Other owners: provider keys, Bedrock and custom providers are SET-09; Claude settings and Codex
  * config are SET-12; "Use Claude Code with Chrome" is SET-12; the Advanced program paths are
  * SET-02 with the path keys in SIDE-21.
- * Must handle: loading and error, a provider filter with no match ("No providers match your
+ * Must handle: a retry after a failed sign-in (the first one is cancelled first), loading and error, a provider filter with no match ("No providers match your
  * search."), nothing installed (the page leads with install help), a program found but failing its
  * version check ("Validation failed" with its warning), a sign-in in progress, and a refresh after
  * the user installs a program in a terminal.
@@ -184,9 +184,15 @@ export function AgentsPage() {
 		void actions.agents.refresh();
 	};
 
-	const retryLogin = () => {
+	const retryLogin = async () => {
 		if (login === null) return;
-		void startLogin({ agent: login.agent, acpAgent: login.acpAgent });
+		const { agent, acpAgent, loginId } = login;
+		// A failed finish leaves the first sign-in open in the sidecar: end it before starting another.
+		if (loginId !== null) {
+			const cancelled = await actions.agents.cancelLogin(loginId);
+			if (!cancelled.ok) toastError("Couldn't cancel the earlier sign-in", cancelled.error);
+		}
+		await startLogin({ agent, acpAgent });
 	};
 
 	const openUrl = (url: string) => {
@@ -292,7 +298,7 @@ export function AgentsPage() {
 					requiresCode={login.requiresCode}
 					onOpenUrl={openUrl}
 					onOpenChange={closeLogin}
-					onRetry={retryLogin}
+					onRetry={() => void retryLogin()}
 					onFinish={(code) => {
 						if (login.loginId !== null) void finishLogin(login.loginId, code);
 					}}

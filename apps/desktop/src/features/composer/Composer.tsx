@@ -1,7 +1,7 @@
 /**
  * @feature COMP-01 Composer
  * Owns: The message box at the bottom of a chat: editor, toolbar (plus menu, model picker, mode
- * chips, context wheel, dictation) and the send or stop button.
+ * chips, MCP status) and the send or stop button.
  * Behaviour: ui-map.md 3.5 (Composer: TipTap editor, placeholder, toolbar, send or queue button,
  * stop button), 3.4 (send button icon and tooltip switch between 'Send message', 'Queue message'
  * and 'Save edit').
@@ -10,14 +10,15 @@
  * once here: the send button.
  * Keyboard: Cmd+L focuses the editor and Cmd+Shift+Backspace cancels the running agent. Both are
  * command handlers (NAV-14), so a shortcut the user rebinds moves with it.
- * Must handle: Archived or read-only workspace (ArchivedComposerBar instead); agent working (send
- * becomes queue or steer, a stop button appears); draft restored when the app restarts; empty text
- * (send disabled); attachments only (send enabled); the sidecar is down (message kept, error shown,
- * nothing lost); a draft write that fails (error shown); focus returns to the editor after sending;
- * Cmd+L focuses the editor.
+ * Must handle: agent working (send becomes queue or steer, a stop button appears); draft restored
+ * when the app restarts; empty text (send disabled); attachments only (send enabled); the sidecar is
+ * down (message kept, error shown, nothing lost); a draft write or clear that fails (error shown);
+ * focus returns to the editor after sending; Cmd+L focuses the editor.
  * Moved: 'Save edit' belongs to the queued-message editor (CHAT-04); the composer minimising while
  * a content tab is open belongs to the tab strip (NAV-10); the new-workspace form reusing this
- * editor belongs to workspace creation (WS-01).
+ * editor belongs to workspace creation (WS-01). The archived bar (ArchivedComposerBar) is not
+ * rendered here: NAV-10's workspace gate replaces the whole screen of an archived workspace.
+ * Dictation (COMP-08) and the context wheel (features/chat) are not mounted in this toolbar yet.
  * Test first: With text typed and the agent idle, the send button is enabled; while the agent works
  * it reads 'Queue message' and a Cancel button shows.
  */
@@ -167,7 +168,8 @@ export function Composer({ sessionId }: ComposerProps) {
 			editor.commands.setContent("", { emitUpdate: false });
 			setText("");
 			setAttachments([]);
-			await services.composer.clearDraft(sessionId);
+			const cleared = await services.composer.clearDraft(sessionId);
+			if (!cleared.ok) toastError("Couldn't clear the draft", cleared.error);
 			editor.commands.focus();
 		} finally {
 			setBusy(false);

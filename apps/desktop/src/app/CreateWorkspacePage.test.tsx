@@ -71,13 +71,13 @@ function makeContainer() {
 		store: createStore<{ values: Record<string, unknown> }>(() => ({ values: {} })),
 		get: <T,>(key: string): T =>
 			({
-				default_model: "default",
-				default_claude_effort_level: "high",
+				default_model: "",
+				default_claude_effort_level: "",
 				default_fast_mode: false,
 				default_plan_mode: false,
 				tool_approvals_enabled: false,
 			})[key] as T,
-		set: async () => undefined,
+		set: async () => ok(undefined),
 	};
 	const sections = createStore<{ loaded: boolean; sections: readonly Section[] }>(() => ({
 		loaded: true,
@@ -135,6 +135,17 @@ async function renderCreatePage() {
 }
 
 afterEach(cleanup);
+
+// jsdom has no scrollIntoView, which the select list calls. Moves to test/dom-polyfills.ts (see findings).
+if (typeof Element.prototype.scrollIntoView !== "function") {
+	Element.prototype.scrollIntoView = () => {};
+}
+
+/** Picks "Branch" in the "Create from" select with the keyboard, as app-12's select tests do. */
+async function chooseBranchSource() {
+	fireEvent.keyDown(screen.getByRole("combobox", { name: "Create from" }), { key: "Enter" });
+	fireEvent.keyDown(await screen.findByRole("option", { name: "Branch" }), { key: "Enter" });
+}
 
 describe("WS-01 CreateWorkspacePage", () => {
 	it("creates the workspace with the picked repository and prompt, then opens it", async () => {
@@ -194,5 +205,69 @@ describe("WS-01 CreateWorkspacePage", () => {
 				`/repository/${repo.id}/workspace/${workspace.id}`,
 			),
 		);
+	});
+
+	it("starts a chat on the model default when the settings leave model and effort empty", async () => {
+		const { create } = await renderCreatePage();
+		fireEvent.click(await screen.findByRole("button", { name: "Create workspace" }));
+
+		await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+		expect(create.mock.calls[0]?.[0].config).toMatchObject({ model: "default", effort: "high" });
+		expect(create.mock.calls[0]?.[0].prompt).toBe("");
+	});
+
+	it("creates from the named branch", async () => {
+		const { create } = await renderCreatePage();
+		await screen.findByRole("button", { name: "Create workspace" });
+		await chooseBranchSource();
+		fireEvent.change(await screen.findByLabelText("Branch name"), {
+			target: { value: "  feature/login  " },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Create workspace" }));
+
+		await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+		expect(create.mock.calls[0]?.[0].from).toEqual({ kind: "branch", name: "feature/login" });
+	});
+
+	it("refuses to create from a branch without a name", async () => {
+		const { create } = await renderCreatePage();
+		await screen.findByRole("button", { name: "Create workspace" });
+		await chooseBranchSource();
+		fireEvent.click(screen.getByRole("button", { name: "Create workspace" }));
+
+		expect(await screen.findByText("Enter the branch to start from.")).toBeTruthy();
+		expect(create).not.toHaveBeenCalled();
+	});
+
+	it("creates once when the button is pressed twice before the first create ends", async () => {
+		const { create } = await renderCreatePage();
+		let finish: (result: Result<Workspace>) => void = () => {};
+		create.mockImplementationOnce(
+			() => new Promise<Result<Workspace>>((resolve) => (finish = resolve)),
+		);
+		const button = await screen.findByRole("button", { name: "Create workspace" });
+
+		fireEvent.click(button);
+		fireEvent.click(button);
+		finish(ok(workspace));
+
+		await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+	});
+
+	it("toasts the warnings a retried setup returned", async () => {
+		const warning = vi.spyOn(toast, "warning");
+		const { create, workspaceStore } = await renderCreatePage();
+		create.mockImplementationOnce(async () => {
+			workspaceStore.setState({ lastFailedCreate: { ...workspace, state: "failed" } });
+			return err(appError("git_failed", "fatal: cannot create worktree"));
+		});
+		fireEvent.click(await screen.findByRole("button", { name: "Create workspace" }));
+		const retry = await screen.findByRole("button", { name: "Retry setup" });
+		workspaceStore.setState({ warnings: { [workspace.id]: ["Setup script was skipped."] } });
+
+		fireEvent.click(retry);
+
+		await waitFor(() => expect(warning).toHaveBeenCalledWith("Setup script was skipped."));
+		warning.mockRestore();
 	});
 });

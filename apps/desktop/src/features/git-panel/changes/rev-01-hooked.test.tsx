@@ -1,6 +1,7 @@
-import type { WorkspaceId } from "@conducted/shared";
+import { NotImplemented, type WorkspaceId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearCommandHandlers, runCommandHandlers } from "../../../app/command-dispatcher.ts";
 import type { ChangedFile, DiffScope, Loadable } from "../../../core/api.ts";
 import type { BranchCommit, GitState, Workspace } from "../../../core/model.ts";
 import "../../../test/dom-polyfills.ts";
@@ -13,6 +14,7 @@ const state = vi.hoisted(() => ({
 	commits: { state: "ready", data: [] } as Loadable<BranchCommit[]>,
 	workspace: { state: "loading" } as Loadable<Workspace>,
 	branches: { state: "ready", data: [] } as Loadable<string[]>,
+	branchesThrow: null as Error | null,
 	setViewed: vi.fn(),
 	discardFile: vi.fn(),
 }));
@@ -22,7 +24,11 @@ vi.mock("../../../core/hooks.ts", () => ({
 	useGitState: () => state.git,
 	useBranchCommits: () => state.commits,
 	useWorkspace: () => state.workspace,
-	useBranches: () => state.branches,
+	useBranches: () => {
+		if (state.branchesThrow !== null) throw state.branchesThrow;
+		return state.branches;
+	},
+	useLiveShortcut: () => null,
 	useActions: () => ({
 		git: { setViewed: state.setViewed, discardFile: state.discardFile },
 		app: { copyText: vi.fn() },
@@ -73,11 +79,16 @@ beforeEach(() => {
 	state.commits = { state: "ready", data: [] };
 	state.workspace = { state: "loading" };
 	state.branches = { state: "ready", data: [] };
+	state.branchesThrow = null;
 	state.setViewed.mockReset();
 	state.discardFile.mockReset();
 });
 
-afterEach(cleanup);
+afterEach(() => {
+	cleanup();
+	clearCommandHandlers();
+	vi.restoreAllMocks();
+});
 
 const renderChanges = (onOpenFile = vi.fn()) => {
 	render(
@@ -144,6 +155,35 @@ describe("REV-01 changes tab", () => {
 		expect(screen.getByRole("heading", { name: "Finish the rebase" })).toBeTruthy();
 	});
 
+	it("shows the error's own message when the changed files cannot be read", () => {
+		state.files = { state: "error", error: { code: "git_failed", message: "fatal: bad object" } };
+		renderChanges();
+		expect(screen.getByRole("heading", { name: "No git status" })).toBeTruthy();
+		expect(screen.getByText("fatal: bad object")).toBeTruthy();
+	});
+
+	it("opens the selected file's diff when the open-diff command runs", () => {
+		state.files = { state: "ready", data: [file("src/a/x.ts")] };
+		const onOpenFile = renderChanges();
+		expect(runCommandHandlers("review.openDiff")).toBe(false);
+		fireEvent.click(screen.getByLabelText("Open src/a/x.ts"));
+		onOpenFile.mockClear();
+		expect(runCommandHandlers("review.openDiff")).toBe(true);
+		expect(onOpenFile).toHaveBeenCalledWith("src/a/x.ts");
+	});
+
+	it("offers Discard changes on a branch scope but not on a single commit", async () => {
+		state.files = { state: "ready", data: [file("src/a/x.ts")] };
+		const props = { workspaceId, onScopeChange: vi.fn(), onOpenFile: vi.fn() };
+		const { rerender } = render(<ChangesTab {...props} scope={{ kind: "branch" }} />);
+		fireEvent.contextMenu(screen.getByLabelText("Open src/a/x.ts"));
+		expect(await screen.findByText("Discard changes")).toBeTruthy();
+		fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+		rerender(<ChangesTab {...props} scope={{ kind: "commit", sha: "abc" }} />);
+		fireEvent.contextMenu(screen.getByLabelText("Open src/a/x.ts"));
+		expect(screen.queryByText("Discard changes")).toBeNull();
+	});
+
 	it("says changes appear here when the list is empty", () => {
 		renderChanges();
 		expect(screen.getByRole("heading", { name: "Changes appear here" })).toBeTruthy();
@@ -151,6 +191,34 @@ describe("REV-01 changes tab", () => {
 });
 
 describe("REV-01 diff scope menu", () => {
+	it("keeps the menu working when the branch list is not built yet", async () => {
+		state.workspace = { state: "ready", data: { repoId: "r1" } as Workspace };
+		state.branchesThrow = new NotImplemented("WS-02");
+		vi.spyOn(console, "error").mockImplementation(() => undefined);
+		render(
+			<DiffScopeMenu workspaceId={workspaceId} scope={{ kind: "branch" }} onChange={vi.fn()} />,
+		);
+		const trigger = screen.getByRole("button", { name: "Diff scope" });
+		trigger.focus();
+		fireEvent.keyDown(trigger, { key: "Enter" });
+		const sub = await screen.findByRole("menuitem", { name: "Target branch" });
+		fireEvent.keyDown(sub, { key: "ArrowRight" });
+		expect(await screen.findByText(/Not built yet: WS-02/)).toBeTruthy();
+		expect(screen.getByRole("menuitemradio", { name: /Uncommitted changes/ })).toBeTruthy();
+	});
+
+	it("shows no file count while the git state is loading", async () => {
+		state.git = { state: "loading" };
+		render(
+			<DiffScopeMenu workspaceId={workspaceId} scope={{ kind: "branch" }} onChange={vi.fn()} />,
+		);
+		const trigger = screen.getByRole("button", { name: "Diff scope" });
+		trigger.focus();
+		fireEvent.keyDown(trigger, { key: "Enter" });
+		await screen.findByRole("menuitemradio", { name: /Uncommitted changes/ });
+		expect(screen.queryByText(/files? changed/)).toBeNull();
+	});
+
 	it("choosing a commit entry reports the commit scope", async () => {
 		state.commits = {
 			state: "ready",

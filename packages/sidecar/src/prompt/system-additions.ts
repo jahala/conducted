@@ -1,7 +1,6 @@
 /**
  * @feature SIDE-09 Prompt assembly: system prompt additions
- * Owns: the short guidance appended to the agent's system prompt (Claude) or to the first message
- * (other agents) when an app tool needs the agent to know when to use it, and the Claude system
+ * Owns: the short guidance appended to the Claude system prompt when an app tool needs the agent to know when to use it, and the Claude system
  * prompt shape that carries it.
  * Behaviour: research/conductor/claude-runner.md sections 1.2 and 5 item 1: the system prompt is
  * the stock `claude_code` preset plus the progress tracker paragraph, and nothing else. The

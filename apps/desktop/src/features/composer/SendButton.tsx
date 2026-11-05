@@ -7,10 +7,11 @@
  * Our design choice: The send button is the screen's single accent button.
  * Must handle: Disabled with nothing to send; sending in progress (busy); agent working (queue or
  * steer label, per the follow-up setting) plus a Stop button; editing a queued message ('Save
- * edit'). Tooltips carry the shortcut from the command registry; the send shortcut follows the
- * send-key mode, so Cmd+Enter mode shows Cmd+Enter.
+ * edit'). The Stop tooltip shows the live binding of chat.cancelAgent, so a rebind is shown. The send
+ * tooltip follows the send-key mode (Enter, or Cmd+Enter in Cmd+Enter mode).
  * Test first: State 'queue' reads 'Queue message'; the Stop button appears only while working.
  */
+import { useLiveShortcut } from "../../core/hooks.ts";
 import { formatShortcut, getCommand } from "../../core/registries/commands.ts";
 import { IconButton } from "../../ui/IconButton.tsx";
 import type { SendWith } from "./send-key.ts";
@@ -34,10 +35,6 @@ const labels: Record<SendButtonState, string> = {
 	steer: "Send message",
 	save: "Save edit",
 };
-
-const STOP_SHORTCUT = formatShortcut(
-	getCommand("chat.cancelAgent")?.defaultShortcuts[0] ?? "Cmd+Shift+Backspace",
-);
 
 /** The submit binding: Enter by default, Cmd+Enter when the setting swaps the four chat bindings. */
 function sendShortcut(sendWith: SendWith): string {
@@ -91,6 +88,7 @@ export function SendButton({
 	sendWith = "enter",
 }: SendButtonProps) {
 	const label = labels[state];
+	const stopShortcut = useLiveShortcut("chat.cancelAgent");
 	return (
 		<div className="flex items-center gap-1">
 			<IconButton
@@ -109,7 +107,7 @@ export function SendButton({
 					size="xs"
 					variant="ghost"
 					label="Cancel"
-					shortcut={STOP_SHORTCUT}
+					shortcut={stopShortcut ?? undefined}
 					icon={<StopIcon />}
 					onClick={onStop}
 					data-testid="composer-stop-button"
