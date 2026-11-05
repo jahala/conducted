@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createStore } from "zustand/vanilla";
 import type { Container } from "../core/container.ts";
 import { ServicesProvider } from "../core/context.tsx";
-import type { Repo } from "../core/model.ts";
 import { RepoService, type RepoServiceDeps } from "../core/services/repo.ts";
 import "../test/dom-polyfills.ts";
 import { useOverlayStore } from "./overlay-store.ts";
@@ -14,51 +13,18 @@ import { createAppRouter } from "./router.tsx";
 afterEach(cleanup);
 beforeEach(() => useOverlayStore.getState().close());
 
-function repo(id: string): Repo {
-	return {
-		id: id as Repo["id"],
-		name: id,
-		rootPath: `/repos/${id}`,
-		remoteUrl: null,
-		defaultBranch: "main",
-		icon: null,
-		displayOrder: 0,
-		hidden: false,
-		createdAt: 0,
-		updatedAt: 0,
-	};
-}
-
-/** The sidebar reads the repo and workspace stores; the shell reads the sidebar settings. */
-function testContainer(repos: Repo[] = []): Container {
+/** The sidebar reads the repo store and the action table; the shell reads the sidebar settings. */
+function testContainer(): Container {
 	const settings = {
 		store: createStore<{ values: Record<string, unknown> }>(() => ({ values: {} })),
-		get: (key: string): unknown =>
-			({
-				left_panel_visible: true,
-				left_panel_width: 256,
-				keybinding_overrides_v1: "",
-				dashboard_enabled: false,
-			})[key],
+		get: (key: string): unknown => ({ left_panel_visible: true, left_panel_width: 256 })[key],
 		set: async () => undefined,
 	};
-	const repoService = new RepoService({} as RepoServiceDeps);
-	repoService.store.setState({
-		loaded: true,
-		reposById: Object.fromEntries(repos.map((row) => [row.id, row])),
-		order: repos.map((row) => row.id),
-		configs: {},
-	});
-	const workspaceStore = createStore(() => ({
-		loaded: true,
-		workspacesById: {},
-		setup: {},
-		archiving: {},
-	}));
+	const repo = new RepoService({} as RepoServiceDeps);
+	repo.store.setState({ loaded: true, reposById: {}, order: [], configs: {} });
 	return {
 		services: {
-			repo: repoService,
-			workspace: { store: workspaceStore },
+			repo,
 			settings,
 			sections: { store: createStore(() => ({ loaded: true, sections: [] })) },
 		},
@@ -66,10 +32,10 @@ function testContainer(repos: Repo[] = []): Container {
 	} as unknown as Container;
 }
 
-async function openApp(path: string, repos: Repo[] = []) {
+async function openApp(path: string) {
 	const router = createAppRouter(createMemoryHistory({ initialEntries: [path] }));
 	render(
-		<ServicesProvider container={testContainer(repos)}>
+		<ServicesProvider container={testContainer()}>
 			<AppProviders client={createQueryClient(() => {})}>
 				<RouterProvider router={router} />
 			</AppProviders>
@@ -97,9 +63,11 @@ describe("app shell", () => {
 		expect(within(nav).getByRole("link", { name: "Home" }).getAttribute("href")).toBe(
 			"/all-workspaces",
 		);
-		expect(within(nav).getByRole("link", { name: "Create" }).getAttribute("href")).toBe("/create");
-		// The footer still has features to build, and their boundaries keep the shell usable.
-		expect(screen.getByText("Update notice: Not built yet: APP-06")).toBeTruthy();
+		expect(within(nav).getByRole("link", { name: "New workspace" }).getAttribute("href")).toBe(
+			"/create",
+		);
+		// The workspace list needs data hooks that are not built; only that region says so.
+		expect(screen.getByText("Not built yet: NAV-03")).toBeTruthy();
 	});
 
 	it("opens the command palette from the Search row", async () => {
@@ -126,7 +94,7 @@ describe("routes", () => {
 	});
 
 	it("/create renders the new-workspace page inside the shell", async () => {
-		await openApp("/create", [repo("r1")]);
+		await openApp("/create");
 		const main = await screen.findByRole("main");
 		expect(await within(main).findByRole("heading", { name: "New workspace" })).toBeTruthy();
 		expect(screen.getByRole("complementary", { name: "Sidebar" })).toBeTruthy();
