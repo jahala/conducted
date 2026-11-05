@@ -6,12 +6,14 @@
  * wait for the user).
  * Test first: the pane lays out the message list, dock, progress, queue and composer for a seeded chat.
  */
-import type { SessionConfig } from "@conducted/protocol";
+import type { SessionConfig, SessionEvent } from "@conducted/protocol";
 import {
 	appError,
 	err,
 	type InteractionId,
+	type MessageId,
 	type SessionId,
+	type TurnId,
 	type WorkspaceId,
 } from "@conducted/shared";
 import {
@@ -23,6 +25,7 @@ import {
 } from "@tanstack/react-router";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
+import { VirtuosoMockContext } from "react-virtuoso";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../core/context.tsx";
 import { createTestContainer, seedWorkspace } from "../../test/container.ts";
@@ -91,11 +94,13 @@ async function mount(
 	});
 	const view = render(
 		<ServicesProvider container={test.container}>
-			<RouterProvider router={router} />
+			<VirtuosoMockContext.Provider value={{ viewportHeight: 800, itemHeight: 200 }}>
+				<RouterProvider router={router} />
+			</VirtuosoMockContext.Provider>
 		</ServicesProvider>,
 	);
 	await router.load();
-	return view;
+	return Object.assign(view, { router });
 }
 
 const unreadOf = (
@@ -111,6 +116,7 @@ describe("CHAT-06 chat pane", () => {
 			const workspace = await seedWorkspace(test.container);
 			const chat = must(await test.container.services.sessions.create(workspace.id, CONFIG));
 			const other = must(await test.container.services.sessions.create(workspace.id, CONFIG));
+			must(await test.container.services.sessions.start());
 
 			const { container } = await mount(test, workspace.id, chat.id, other.id);
 
@@ -140,6 +146,7 @@ describe("CHAT-06 chat pane", () => {
 			const current = must(await sessions.create(workspace.id, CONFIG));
 			const sibling = must(await sessions.create(workspace.id, CONFIG));
 			const waiting = must(await sessions.create(workspace.id, CONFIG));
+			must(await sessions.start());
 			must(await sessions.markUnread(current.id));
 			must(await sessions.markUnread(sibling.id));
 			must(await sessions.markUnread(waiting.id));
@@ -183,6 +190,7 @@ describe("CHAT-06 chat pane", () => {
 			const sessions = test.container.services.sessions;
 			const first = must(await sessions.create(workspace.id, CONFIG));
 			const second = must(await sessions.create(workspace.id, CONFIG));
+			must(await sessions.start());
 			await mount(test, workspace.id, first.id, second.id);
 			await waitFor(() => expect(sessions.store.getState().viewingSessionId).toBe(first.id));
 
@@ -202,6 +210,7 @@ describe("CHAT-06 chat pane", () => {
 			const workspace = await seedWorkspace(test.container);
 			const chat = must(await test.container.services.sessions.create(workspace.id, CONFIG));
 			const other = must(await test.container.services.sessions.create(workspace.id, CONFIG));
+			must(await test.container.services.sessions.start());
 			vi.spyOn(test.container.services.sessions, "markAllRead").mockResolvedValue(
 				err(appError("mark_read_failed", "The database is busy.")),
 			);
@@ -210,6 +219,179 @@ describe("CHAT-06 chat pane", () => {
 
 			expect(await screen.findByText("Couldn't mark the workspace as read")).toBeTruthy();
 			expect(screen.getByText("The database is busy.")).toBeTruthy();
+		} finally {
+			cleanup();
+			await test.container.stop();
+			test.close();
+		}
+	});
+});
+
+/** Stores the events of one finished turn that changed two files, the way the ingest path does. */
+function feedFinishedTurn(
+	test: ReturnType<typeof createTestContainer>,
+	sessionId: SessionId,
+	turnId: TurnId,
+): void {
+	const base = { at: 1_700_000_000_000, turnId };
+	const events = [
+		{
+			...base,
+			eventId: "e1",
+			type: "user_message",
+			messageId: "m1",
+			text: "Add the helper",
+			attachmentPaths: [],
+			delivery: "new_turn",
+			config: CONFIG,
+		},
+		{ ...base, eventId: "e2", type: "checkpoint", phase: "start", checkpointId: "c1" },
+		{
+			...base,
+			eventId: "e3",
+			type: "checkpoint",
+			phase: "end",
+			checkpointId: "c2",
+			changes: [
+				{ path: "src/helper.ts", status: "added", linesAdded: 12, linesRemoved: 0, binary: false },
+				{ path: "src/index.ts", status: "modified", linesAdded: 1, linesRemoved: 1, binary: false },
+			],
+		},
+		{ ...base, eventId: "e4", type: "turn_ended", outcome: "success" },
+	] as SessionEvent[];
+	for (const [idx, event] of events.entries()) {
+		test.container.services.sessions.applyStoredEvent(sessionId, idx, event, event.at);
+	}
+}
+
+describe("REV-09 files changed under a turn", () => {
+	it("lists the files a finished turn changed and opens that turn's diff in the Changes tab", async () => {
+		const test = createTestContainer();
+		try {
+			const workspace = await seedWorkspace(test.container);
+			const sessions = test.container.services.sessions;
+			const chat = must(await sessions.create(workspace.id, CONFIG));
+			const other = must(await sessions.create(workspace.id, CONFIG));
+			must(await sessions.start());
+			const turnId = "turn-1" as TurnId;
+			feedFinishedTurn(test, chat.id, turnId);
+
+			const { router } = await mount(test, workspace.id, chat.id, other.id);
+
+			expect(await screen.findByText("2 files changed")).toBeTruthy();
+			expect(screen.getByText("src/helper.ts")).toBeTruthy();
+			expect(screen.getByText("src/index.ts")).toBeTruthy();
+
+			fireEvent.click(screen.getByRole("button", { name: "Open diff" }));
+
+			await waitFor(() =>
+				expect(router.state.location.search).toMatchObject({
+					gitTab: "changes",
+					scope: `turn:${chat.id}:${turnId}`,
+				}),
+			);
+		} finally {
+			cleanup();
+			await test.container.stop();
+			test.close();
+		}
+	});
+});
+
+describe("CHAT-02 messages that were not sent", () => {
+	const failedSend = (text: string, reason: string) => ({
+		messageId: "m-failed" as MessageId,
+		turnId: "t-failed" as TurnId,
+		text,
+		attachmentPaths: [],
+		at: 1_700_000_000_000,
+		delivery: "new_turn" as const,
+		error: appError("sidecar_down", reason),
+	});
+
+	it("shows a failed send of this chat with its reason, Retry and Discard", async () => {
+		const test = createTestContainer();
+		try {
+			const workspace = await seedWorkspace(test.container);
+			const sessions = test.container.services.sessions;
+			const chat = must(await sessions.create(workspace.id, CONFIG));
+			const other = must(await sessions.create(workspace.id, CONFIG));
+			must(await sessions.start());
+			sessions.store.setState({
+				failedSends: { [chat.id]: [failedSend("Fix the login bug", "The agent is not running.")] },
+			});
+
+			const { container } = await mount(test, workspace.id, chat.id, other.id);
+
+			const region = await waitFor(() => {
+				const found = container.querySelector<HTMLElement>('[data-region="failed-sends"]');
+				if (found === null) throw new Error("No failed send is shown yet.");
+				return found;
+			});
+			expect(within(region).getByText("Fix the login bug")).toBeTruthy();
+			expect(within(region).getByText("Message not sent")).toBeTruthy();
+			expect(within(region).getByText("The agent is not running.")).toBeTruthy();
+			expect(within(region).getByRole("button", { name: "Retry" })).toBeTruthy();
+			expect(within(region).getByRole("button", { name: "Discard" })).toBeTruthy();
+			// A message that was never sent has no turn to revert to.
+			expect(within(region).queryByRole("button", { name: /Revert/ })).toBeNull();
+
+			fireEvent.click(screen.getByRole("button", { name: "Open the other chat" }));
+
+			await waitFor(() =>
+				expect(container.querySelector('[data-region="failed-sends"]')).toBeNull(),
+			);
+		} finally {
+			cleanup();
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("sends the message again when the user presses Retry", async () => {
+		const test = createTestContainer();
+		try {
+			const workspace = await seedWorkspace(test.container);
+			const sessions = test.container.services.sessions;
+			const chat = must(await sessions.create(workspace.id, CONFIG));
+			const other = must(await sessions.create(workspace.id, CONFIG));
+			must(await sessions.start());
+			sessions.store.setState({
+				failedSends: { [chat.id]: [failedSend("Fix the login bug", "The agent is not running.")] },
+			});
+			const retry = vi.spyOn(sessions, "retryFailedSend");
+			await mount(test, workspace.id, chat.id, other.id);
+
+			fireEvent.click(await screen.findByRole("button", { name: "Retry" }));
+
+			await waitFor(() => expect(retry).toHaveBeenCalledWith(chat.id, "m-failed"));
+		} finally {
+			cleanup();
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("drops the card and puts the text back in the composer when the user presses Discard", async () => {
+		const test = createTestContainer();
+		try {
+			const workspace = await seedWorkspace(test.container);
+			const sessions = test.container.services.sessions;
+			const chat = must(await sessions.create(workspace.id, CONFIG));
+			const other = must(await sessions.create(workspace.id, CONFIG));
+			must(await sessions.start());
+			sessions.store.setState({
+				failedSends: { [chat.id]: [failedSend("Fix the login bug", "The agent is not running.")] },
+			});
+			const { container } = await mount(test, workspace.id, chat.id, other.id);
+
+			fireEvent.click(await screen.findByRole("button", { name: "Discard" }));
+
+			await waitFor(() =>
+				expect(container.querySelector('[data-region="failed-sends"]')).toBeNull(),
+			);
+			expect(sessions.draftOf(chat.id).text).toBe("Fix the login bug");
+			expect(sessions.store.getState().failedSends?.[chat.id]).toEqual([]);
 		} finally {
 			cleanup();
 			await test.container.stop();

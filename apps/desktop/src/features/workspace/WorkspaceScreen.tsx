@@ -10,7 +10,8 @@
  * region, not from this component.
  * Must handle: switching workspaces (all regions reset); the right panel closed (header shows the toggle, see
  * WorkspaceHeader); archived workspace (the gate shows the notice, panels explain themselves); search state
- * is the URL's, changes go through onSearchChange.
+ * is the URL's, changes go through onSearchChange; the Git panel's tab and diff scope follow the URL's `gitTab`
+ * and `scope`, so a chat's "Open diff" shows its turn in the Changes tab.
  * Test first: renders the header, centre content, Git panel and Scripts panel regions for a workspace id.
  */
 import type { RepoId, WorkspaceId } from "@conducted/shared";
@@ -21,7 +22,7 @@ import { SplitPanes } from "./SplitPanes.tsx";
 import { WorkspaceGate } from "./WorkspaceGate.tsx";
 import { WorkspaceHeader } from "./WorkspaceHeader.tsx";
 import { WorkspaceLayout } from "./WorkspaceLayout.tsx";
-import type { WorkspaceSearch } from "./workspace-search.ts";
+import { formatDiffScope, parseDiffScope, type WorkspaceSearch } from "./workspace-search.ts";
 
 export interface WorkspaceScreenProps {
 	repoId: RepoId;
@@ -36,6 +37,9 @@ export function WorkspaceScreen({
 	search,
 	onSearchChange,
 }: WorkspaceScreenProps) {
+	// The Git panel's tab and diff scope are URL state, so "Open diff" under a turn can show a turn.
+	const gitScope =
+		search.scope === undefined ? undefined : (parseDiffScope(search.scope) ?? undefined);
 	return (
 		<WorkspaceLayout
 			workspaceId={workspaceId}
@@ -53,7 +57,13 @@ export function WorkspaceScreen({
 			}
 			gitPanel={
 				<NotBuiltYet area="Git panel" resetKey={workspaceId}>
-					<GitPanel workspaceId={workspaceId} />
+					<GitPanel
+						workspaceId={workspaceId}
+						tab={search.gitTab}
+						onTabChange={(gitTab) => onSearchChange({ gitTab })}
+						scope={gitScope}
+						onScopeChange={(scope) => onSearchChange({ scope: formatDiffScope(scope) })}
+					/>
 				</NotBuiltYet>
 			}
 			scriptsPanel={
