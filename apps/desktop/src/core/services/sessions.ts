@@ -2,9 +2,15 @@
  * @feature CHAT-01 Sessions service: the chat list; CHAT-02 Send a message as a new turn; CHAT-05
  * Cancel a turn; CHAT-27 Retry a failed turn in a new chat
  * Owns: the list of chats per workspace, their stored live state and events in memory, the
+<<<<<<< HEAD
  * create, close, reopen, rename, set-title-if-empty, delete (which also removes the chat's
  * checkpoint refs) and open paths, starting a review chat
  * with the review model, sending a user message as a new turn or a steer, cancelling a turn:
+=======
+ * create, close, reopen, rename, set-title-if-empty, delete and open paths, starting a review chat
+ * with the review model, sending a user message as a new turn or a steer, running the composition
+ * root's first-message hook (WS-04's branch rename), cancelling a turn:
+>>>>>>> node/ws.04
  * pausing the follow-up queue, withdrawing the open interaction, removing only the pending sends
  * the sidecar dropped, and putting a send that was still in flight back in the composer draft,
  * and starting a failed turn's message again in a new chat of the same workspace.
@@ -81,8 +87,13 @@ import {
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Database } from "../../platform/platform.ts";
+<<<<<<< HEAD
 import type { Draft, Loadable, NewWorkspaceInput } from "../api.ts";
 import { createLatestWins, type LatestWins } from "../async/latest-wins.ts";
+=======
+import type { Draft, NewWorkspaceInput } from "../api.ts";
+import { fireAndForget } from "../async/fire-and-forget.ts";
+>>>>>>> node/ws.04
 import { createKeyedQueue, type KeyedQueue } from "../async/serial-queue.ts";
 import { interruptedTurnEvent } from "../db/repair.ts";
 import type { Repositories } from "../db/repositories.ts";
@@ -261,12 +272,20 @@ export interface SessionsServiceDeps {
 	 * A Promise is accepted because the launch reads the saved environment and keys from the
 	 * database and the Keychain.
 	 */
+<<<<<<< HEAD
 	launchFor?: (session: Session) => AgentLaunch | Promise<AgentLaunch>;
 	/**
 	 * Removes a chat's checkpoint refs before its row is deleted (DATA-06). The composition root
 	 * supplies it; a harness without it still deletes chats and leaves the refs alone.
 	 */
 	pruneCheckpoints?: (sessionId: SessionId, workspaceId: WorkspaceId) => Promise<Result<number>>;
+=======
+	launchFor?: (session: Session) => AgentLaunch;
+	/** Runs after a chat's first message is accepted. WS-04 uses it to rename the branch. */
+	onFirstMessage?: (session: Session, text: string) => Promise<void>;
+	/** Reports work that runs beside the send, such as the first-message branch rename. */
+	log?: (level: "warn" | "info", message: string) => void;
+>>>>>>> node/ws.04
 	/** Folders and branch facts the sidecar needs to place a chat on disk. */
 	workspaceContextOf: (workspaceId: WorkspaceId) => Promise<Result<WorkspaceContext>>;
 	/** Default config for a new chat, from settings and the last used model. */
@@ -719,6 +738,13 @@ export class SessionsService implements AgentMessenger {
 			this.#removeSending(session.id, pending.messageId);
 			this.#addFailed(session.id, { ...pending, error: result.error });
 			return result;
+		}
+		if (firstMessage && this.#deps.onFirstMessage !== undefined) {
+			const onFirstMessage = this.#deps.onFirstMessage;
+			fireAndForget(
+				() => onFirstMessage(session, pending.text),
+				(error) => this.#deps.log?.("warn", `The first-message step failed: ${String(error)}`),
+			);
 		}
 		return ok(undefined);
 	}
