@@ -290,7 +290,10 @@ export const useSetting: Queries["useSetting"] = <T>(key: string): T => {
 	const stored = useStore(services.settings.store, (s) => s.values[key]);
 	return (stored === undefined || stored === null ? services.settings.get<T>(key) : stored) as T;
 };
-export const useAgentInstalls: Queries["useAgentInstalls"] = () => notImplemented("SET-03");
+export const useAgentInstalls: Queries["useAgentInstalls"] = () => {
+	const store = useServices().services.agentCatalog.store;
+	return useStore(store, (state) => state.installs);
+};
 export const useModels: Queries["useModels"] = (agent, acpAgent) => {
 	const service = useServices().services.agentCatalog;
 	const key = agentKey(agent, acpAgent);
