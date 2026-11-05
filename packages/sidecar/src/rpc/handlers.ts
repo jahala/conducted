@@ -21,6 +21,7 @@ import type { McpServerLister, SlashCommandLister } from "../models/slash-and-mc
 import type { UsageReader } from "../models/usage.ts";
 import type { EventOutbox } from "../outbox/event-outbox.ts";
 import type { SessionManager } from "../session/manager.ts";
+import type { UtilityPromptRunner } from "../session/utility-prompt.ts";
 import type { ShellEnvProvider } from "../shell-env/capture.ts";
 import type { AppToSidecarHandlers, AppToSidecarNotificationHandlers } from "./types.ts";
 
@@ -33,6 +34,7 @@ export interface HandlerDeps {
 	mcpServers: McpServerLister;
 	usage: UsageReader;
 	shellEnv: ShellEnvProvider;
+	utilityPrompt: UtilityPromptRunner;
 	/** Applies setLogLevel to the root logger. */
 	setLogLevel(level: "error" | "warn" | "info" | "debug"): void;
 }
@@ -89,7 +91,7 @@ export function buildHandlers(deps: HandlerDeps): {
 				if (!captured.ok) return captured;
 				return ok({ shell: captured.value.shell, path: captured.value.path });
 			},
-			runUtilityPrompt: async () => notImplemented("SIDE-24"),
+			runUtilityPrompt: (params) => deps.utilityPrompt.run(params),
 			getGoal: async () => notImplemented("AGENT-13"),
 			setGoal: async () => notImplemented("AGENT-13"),
 			changeGoal: async () => notImplemented("AGENT-13"),

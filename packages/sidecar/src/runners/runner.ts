@@ -59,6 +59,8 @@ export interface TurnCallbacks {
 	onFastModeUnavailable(): void;
 }
 
+export type AgentConfigChangeReason = "entered_plan_mode" | "left_plan_mode";
+
 export interface StartOptions {
 	sessionId: SessionId;
 	config: SessionConfig;
@@ -66,6 +68,11 @@ export interface StartOptions {
 	/** Captured login-shell environment with provider secrets removed. */
 	env: Readonly<Record<string, string>>;
 	resume?: { agentSessionId: string; atNativeMessageId?: string };
+	/**
+	 * The agent changed the chat's own settings, for example by entering plan mode. The session
+	 * manager stores the config and tells the app.
+	 */
+	onConfigChanged?: (config: SessionConfig, reason: AgentConfigChangeReason) => void;
 }
 
 export interface TurnInput {

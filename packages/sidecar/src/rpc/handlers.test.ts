@@ -63,6 +63,7 @@ function deps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
 			get: async () => ok({ shell: "/bin/zsh", path: "/usr/bin", env: {} }),
 			refresh: async () => ok({ shell: "/bin/zsh", path: "/usr/bin", env: {} }),
 		},
+		utilityPrompt: { run: async () => ok({ text: "" }) },
 		setLogLevel: () => {},
 		...overrides,
 	};
@@ -207,5 +208,33 @@ describe("SIDE-02 handler wiring", () => {
 			name: "NotImplemented",
 			featureId: "AGENT-14",
 		});
+	});
+});
+
+describe("SIDE-24 utility prompt handler", () => {
+	test("SIDE-24 runUtilityPrompt is answered by the utility runner", async () => {
+		const asked: unknown[] = [];
+		const handlers = buildHandlers(
+			deps({
+				utilityPrompt: {
+					run: async (params) => {
+						asked.push(params);
+						return ok({ text: "A short title" });
+					},
+				},
+			}),
+		);
+
+		const params = {
+			agent: "claude" as const,
+			model: "cheap-model",
+			prompt: "Name this chat",
+			cwd: "/work/alpha",
+			launch: { env: {}, providerKeys: {} },
+		};
+		await expect(handlers.requests.runUtilityPrompt(params)).resolves.toEqual(
+			ok({ text: "A short title" }),
+		);
+		expect(asked).toEqual([params]);
 	});
 });

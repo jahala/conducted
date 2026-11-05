@@ -596,3 +596,33 @@ describe("CHAT-02 retry keeps a message the sidecar was never asked about", () =
 		expect(sendMessageCalls(h.calls)).toHaveLength(1);
 	});
 });
+
+describe("SIDE-20 a config the agent changed is stored", () => {
+	it("keeps the newest config when two changes overlap", async () => {
+		seedWorkspace();
+		const h = harness();
+		const session = must(await h.service.create(workspaceId, sampleSession.config));
+		const entered = { ...sampleSession.config, planMode: true };
+		const left = { ...sampleSession.config, planMode: false };
+		const original = repositories.sessions.setConfig.bind(repositories.sessions);
+		let releaseFirst: () => void = () => {};
+		const firstGate = new Promise<void>((resolve) => {
+			releaseFirst = resolve;
+		});
+		let writes = 0;
+		vi.spyOn(repositories.sessions, "setConfig").mockImplementation(async (id, config) => {
+			writes += 1;
+			if (writes === 1) await firstGate;
+			return original(id, config);
+		});
+
+		const first = h.service.applyAgentConfig(session.id, entered);
+		const second = h.service.applyAgentConfig(session.id, left);
+		releaseFirst();
+		const results = await Promise.all([first, second]);
+
+		expect(results).toEqual([ok(undefined), ok(undefined)]);
+		expect(must(await repositories.sessions.get(session.id))?.config.planMode).toBe(false);
+		expect(h.service.store.getState().sessions[session.id]?.config.planMode).toBe(false);
+	});
+});

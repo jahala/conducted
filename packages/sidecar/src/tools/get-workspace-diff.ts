@@ -9,7 +9,6 @@
  * (error result with the reason), and statOnly true (file list with counts, no hunks).
  * Test first: execute() with an empty diff returns "No changes found." with isError false.
  */
-import { notImplemented } from "@conducted/shared";
 import { z } from "zod";
 import type { ToolContext, ToolDefinition, ToolResult } from "./types.ts";
 
@@ -31,10 +30,25 @@ export const getWorkspaceDiffTool: ToolDefinition<typeof getWorkspaceDiffShape> 
 	inputShape: getWorkspaceDiffShape,
 	readOnly: true,
 	idempotent: true,
-	execute(
-		_args: z.infer<z.ZodObject<typeof getWorkspaceDiffShape>>,
-		_context: ToolContext,
+	async execute(
+		args: z.infer<z.ZodObject<typeof getWorkspaceDiffShape>>,
+		context: ToolContext,
 	): Promise<ToolResult> {
-		return notImplemented("SIDE-12");
+		const result = await context.backend.getWorkspaceDiff(context.sessionId, {
+			file: args.file,
+			statOnly: args.stat ?? false,
+		});
+		if (!result.ok) {
+			if (result.error.code === "git_busy") {
+				return {
+					text: "Cannot fetch diff: a merge or rebase is in progress.",
+					isError: true,
+				};
+			}
+			return { text: result.error.message, isError: true };
+		}
+		return result.value.trim() === ""
+			? { text: "No changes found.", isError: false }
+			: { text: result.value, isError: false };
 	},
 };

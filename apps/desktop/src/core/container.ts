@@ -208,6 +208,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 			setProgress: (p) => sessions.setProgress(p.sessionId, p.progress),
 		},
 		agentCatalog: { setAgentInstalls: (p) => agentCatalog.setInstalls(p.agents) },
+		agentConfig: {
+			setAgentConfig: (p) => sessions.applyAgentConfig(p.sessionId, p.config),
+		},
 		workspaceDiff: {
 			diffForSession: async (sessionId, file, statOnly) => {
 				const workspace = lookups.workspaceOfSession(sessionId);

@@ -169,7 +169,7 @@ function scriptedQuery(
 	return { query: queryFn, script };
 }
 
-function init(sessionId = "s1"): SDKMessage {
+function init(sessionId = "s1", permissionMode = "bypassPermissions"): SDKMessage {
 	return {
 		type: "system",
 		subtype: "init",
@@ -179,13 +179,23 @@ function init(sessionId = "s1"): SDKMessage {
 		tools: [],
 		mcp_servers: [],
 		model: "claude-sonnet-5",
-		permissionMode: "bypassPermissions",
+		permissionMode,
 		slash_commands: [],
 		output_style: "default",
 		skills: [],
 		plugins: [],
 		uuid: "init-uuid",
 		session_id: sessionId,
+	} as unknown as SDKMessage;
+}
+
+function toolUseMessage(name: string, id = "tool-1", sessionId = "s1"): SDKMessage {
+	return {
+		type: "assistant",
+		message: { role: "assistant", content: [{ type: "tool_use", id, name, input: {} }] },
+		parent_tool_use_id: null,
+		session_id: sessionId,
+		uuid: "assistant-tool-uuid",
 	} as unknown as SDKMessage;
 }
 
@@ -1289,6 +1299,85 @@ describe("AGENT-02 Claude session", () => {
 			]);
 			await consumed;
 			script.emit(resultMessage("uuid-2"));
+			expect(await turn).toEqual({ kind: "success" });
+			await session.dispose();
+		});
+	});
+
+	describe("SIDE-20 plan mode changes the agent made", () => {
+		test("SIDE-20 an init that reports plan mode tells the app the chat entered plan mode", async () => {
+			const changes: { config: SessionConfig; reason: string }[] = [];
+			const { query } = scriptedQuery((message, s) => {
+				s.emit(init("s1", "plan"));
+				s.emit(resultMessage(String(message.uuid)));
+			});
+			const session = new ClaudeSession(makeDeps({ query }), {
+				...start(),
+				onConfigChanged: (config, reason) => changes.push({ config, reason }),
+			});
+
+			expect(await session.runTurn(turnInput(), callbacks([]))).toEqual({ kind: "success" });
+
+			expect(changes).toHaveLength(1);
+			expect(changes[0]?.reason).toBe("entered_plan_mode");
+			expect(changes[0]?.config.planMode).toBe(true);
+			await session.dispose();
+		});
+
+		test("SIDE-20 an EnterPlanMode call tells the app the chat entered plan mode", async () => {
+			const changes: { config: SessionConfig; reason: string }[] = [];
+			const { query } = scriptedQuery((message, s) => {
+				s.emit(init());
+				s.emit(toolUseMessage("EnterPlanMode"));
+				s.emit(resultMessage(String(message.uuid)));
+			});
+			const session = new ClaudeSession(makeDeps({ query }), {
+				...start(),
+				onConfigChanged: (config, reason) => changes.push({ config, reason }),
+			});
+
+			expect(await session.runTurn(turnInput(), callbacks([]))).toEqual({ kind: "success" });
+
+			expect(changes).toHaveLength(1);
+			expect(changes[0]?.reason).toBe("entered_plan_mode");
+			expect(changes[0]?.config.planMode).toBe(true);
+			await session.dispose();
+		});
+
+		test("SIDE-20 an approved plan tells the app the chat left plan mode", async () => {
+			const changes: { config: SessionConfig; reason: string }[] = [];
+			const planConfig = { ...config(), planMode: true, requireToolApproval: true };
+			const { query, script } = scriptedQuery();
+			const session = new ClaudeSession(
+				makeDeps({
+					query,
+					createCanUseTool: (deps) => new ClaudePermissionHandler(deps).canUseTool,
+				}),
+				{
+					...start(),
+					config: planConfig,
+					onConfigChanged: (next, reason) => changes.push({ config: next, reason }),
+				},
+			);
+			const turn = session.runTurn(
+				{ ...turnInput(), config: planConfig },
+				callbacks([], {
+					requestInteraction: async () => ({ kind: "plan_approval", approved: true }),
+				}),
+			);
+			await until(() => script.prompts.length === 1);
+
+			const approved = await script.options?.canUseTool?.(
+				"ExitPlanMode",
+				{ plan: "Change one file" },
+				{ signal: new AbortController().signal, toolUseID: "tool-1", requestId: "request-1" },
+			);
+
+			expect(approved).toMatchObject({ behavior: "allow" });
+			expect(changes).toHaveLength(1);
+			expect(changes[0]?.reason).toBe("left_plan_mode");
+			expect(changes[0]?.config.planMode).toBe(false);
+			script.emit(resultMessage(String(script.prompts[0]?.uuid)));
 			expect(await turn).toEqual({ kind: "success" });
 			await session.dispose();
 		});
