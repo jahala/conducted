@@ -1034,10 +1034,7 @@ export function createTauriUpdater(_bindings: TauriBindings): Updater {
  * `window_set_traffic_lights { x, y }`, `window_toggle_inspector`.
  */
 export function createTauriWindow(bindings: TauriBindings): AppWindow {
-<<<<<<< HEAD
 	const currentWindow = (): TauriWindowBindings => requireBinding(bindings.window, "window");
-=======
->>>>>>> node/plat.15
 	return {
 		isFocused: () => currentWindow().isFocused(),
 		onFocusChanged: (listener) => {
