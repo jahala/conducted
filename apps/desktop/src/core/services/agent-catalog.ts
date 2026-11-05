@@ -25,6 +25,7 @@ import type { AcpAgent, AgentKind, Result, SessionId } from "@conducted/shared";
 import { appError, err, notImplemented, ok } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Loadable, ProviderKeyRef } from "../api.ts";
+import { createLatestWins } from "../async/latest-wins.ts";
 import type { AgentConfigFile, ConfigSyncCategory, ConfigSyncResult } from "../model.ts";
 import type { SidecarClient } from "../sidecar/tunnel.ts";
 
@@ -61,6 +62,8 @@ export class AgentCatalogService {
 	readonly #modelRequests = new Map<string, number>();
 	/** The newest install request. An older answer that arrives late changes nothing. */
 	#installRequest = 0;
+	/** Only the newest slash-command request for a chat changes state. */
+	readonly #slashRequests = createLatestWins<SessionId>();
 
 	constructor(deps: AgentCatalogServiceDeps) {
 		this.#deps = deps;
@@ -116,8 +119,61 @@ export class AgentCatalogService {
 		return ok(result.value.models);
 	}
 
-	loadSlashCommands(_sessionId: SessionId): Promise<Result<SlashCommand[]>> {
-		return notImplemented("COMP-06");
+	/**
+	 * Loads the slash commands of a chat's agent from the sidecar. The list is keyed by the chat,
+	 * so a late answer for an older request never replaces the newer one.
+	 */
+	async loadSlashCommands(
+		sessionId: SessionId,
+		agent: AgentKind,
+		acpAgent?: AcpAgent,
+	): Promise<Result<SlashCommand[]>> {
+		const ticket = this.#slashRequests.begin(sessionId);
+		this.store.setState((state) => ({
+			slashCommands: { ...state.slashCommands, [sessionId]: { state: "loading" } },
+		}));
+		const workspacePath = await this.#deps.workspacePathOf(sessionId);
+		if (!workspacePath.ok) {
+			if (this.#slashRequests.isLatest(ticket)) {
+				this.#slashRequests.settle(ticket);
+				this.store.setState((state) => ({
+					slashCommands: {
+						...state.slashCommands,
+						[sessionId]: { state: "error", error: workspacePath.error },
+					},
+				}));
+			}
+			return err(workspacePath.error);
+		}
+		const result = await this.#deps.sidecar.request("listSlashCommands", {
+			agent,
+			acpAgent,
+			workspacePath: workspacePath.value,
+			// The sidecar lists from `workspacePath`; `repoRootPath` keys its pre-workspace cache,
+			// which an open chat does not use (SIDE-22).
+			repoRootPath: workspacePath.value,
+		});
+		if (!this.#slashRequests.isLatest(ticket)) {
+			this.#slashRequests.settle(ticket);
+			return result.ok ? ok(result.value.commands) : err(result.error);
+		}
+		this.#slashRequests.settle(ticket);
+		if (!result.ok) {
+			this.store.setState((state) => ({
+				slashCommands: {
+					...state.slashCommands,
+					[sessionId]: { state: "error", error: result.error },
+				},
+			}));
+			return err(result.error);
+		}
+		this.store.setState((state) => ({
+			slashCommands: {
+				...state.slashCommands,
+				[sessionId]: { state: "ready", data: result.value.commands },
+			},
+		}));
+		return ok(result.value.commands);
 	}
 
 	/** Backs `Actions.agents.login`. */
