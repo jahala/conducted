@@ -72,6 +72,7 @@ import type {
 	FileSystem,
 	GrepMatch,
 	Http,
+	HttpResponse,
 	Keychain,
 	Notifications,
 	Opener,
@@ -1042,11 +1043,37 @@ export function createTauriPrograms(bindings: TauriBindings): Programs {
 	};
 }
 
-/** `http_fetch { request }`, `http_download { url, destinationPath, expectedSha256, onProgress: Channel }`, `http_cancel { id }`. */
-export function createTauriHttp(_bindings: TauriBindings): Http {
+/** `http_fetch { request }`, `http_download { id, url, destinationPath, expectedSha256, onProgress: Channel }`, `http_cancel { id }`. */
+export function createTauriHttp(bindings: TauriBindings): Http {
 	return {
-		fetch: () => notImplemented("PLAT-30"),
-		download: () => notImplemented("PLAT-30"),
+		fetch: (request) => invokeResult<HttpResponse>(bindings, COMMANDS.httpFetch, { request }),
+		download: (input) => {
+			const id = crypto.randomUUID();
+			const channel = new Channel<{ receivedBytes: number; totalBytes: number | null }>(
+				(message) => {
+					input.onProgress?.(message.receivedBytes, message.totalBytes);
+				},
+			);
+			const done = invokeResult<{ path: string; sizeBytes: number; sha256: string }>(
+				bindings,
+				COMMANDS.httpDownload,
+				{
+					id,
+					url: input.url,
+					destinationPath: input.destinationPath,
+					expectedSha256: input.expectedSha256 ?? null,
+					onProgress: channel,
+				},
+			);
+			return {
+				id,
+				done,
+				cancel: async () => {
+					const result = await invokeResult(bindings, COMMANDS.httpCancel, { id });
+					if (!result.ok) throw result.error;
+				},
+			};
+		},
 	};
 }
 
