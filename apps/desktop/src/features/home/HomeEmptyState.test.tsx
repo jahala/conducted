@@ -5,7 +5,7 @@ import { HomeEmptyState } from "./HomeEmptyState.tsx";
 
 afterEach(cleanup);
 
-describe("HomeEmptyState", () => {
+describe("NAV-05 HomeEmptyState", () => {
 	it("offers to clear filters when filters hide everything", async () => {
 		const onClearFilters = vi.fn();
 		renderWithRouter(
