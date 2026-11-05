@@ -84,11 +84,8 @@ import type {
 	SidecarTransport,
 	Speech,
 	SystemFacts,
-<<<<<<< HEAD
 	SystemInfo,
-=======
 	TreeEntry,
->>>>>>> node/plat.06
 	Updater,
 } from "./platform.ts";
 
