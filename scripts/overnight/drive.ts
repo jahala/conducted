@@ -28,12 +28,11 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 import { type BacklogRow, parseBacklog } from "../issues/model.ts";
-import { placeholdersFor, sourceFiles } from "./node-gate.ts";
-import { planBatches } from "./plan-batches.ts";
+import { placeholdersFor, readSources } from "./node-gate.ts";
+import { type Batch, planBatches } from "./plan-batches.ts";
 
 const root = join(import.meta.dir, "../..");
 const work = join(root, ".context/overnight");
-mkdirSync(join(work, "plans"), { recursive: true });
 
 export const READ_FIRST = `Read these first, in order, before you change anything:
 1. CLAUDE.md, docs/architecture.md, docs/engineering.md and docs/decisions.md.
@@ -135,140 +134,190 @@ export function fixerPrompt(ids: string[], log: string): string {
 			"{SNAKE}",
 			(ids[0] ?? "").toLowerCase().replace("-", "_"),
 		),
+		...(ids.length > 1
+			? [
+					`- The rules above name ${ids[0]} as the example. They apply the same way to each of ${ids.join(", ")}: keep each feature's id in its test titles and remove only that feature's placeholders.`,
+				]
+			: []),
 		"- Fix the cause, not the symptom. Never delete, skip or loosen a failing test: make the code right, or fix a test that asserts the wrong thing and say why.",
 	].join("\n");
 }
 
-const [command, ...args] = process.argv.slice(2);
-
-function flag(name: string): string | undefined {
+/** The value after a flag, or undefined when the flag is absent or has no value. */
+function flag(args: string[], name: string): string | undefined {
 	const at = args.indexOf(name);
-	return at === -1 ? undefined : args[at + 1];
+	const value = at === -1 ? undefined : args[at + 1];
+	return value?.startsWith("--") ? undefined : value;
 }
 
-if (command === "issues") {
-	const map: Record<string, number> = {};
-	let cursor: string | null = null;
-	for (;;) {
-		const query = `query($cursor: String) { repository(owner: "jahala", name: "conducted") {
-			issues(first: 100, after: $cursor, labels: ["backlog"]) { pageInfo { hasNextPage endCursor } nodes { number body } } } }`;
-		const cmd = ["gh", "api", "graphql", "-f", `query=${query}`];
-		if (cursor) cmd.push("-f", `cursor=${cursor}`);
-		const page = JSON.parse(Bun.spawnSync(cmd, { stdout: "pipe" }).stdout.toString()).data
-			.repository.issues;
-		for (const node of page.nodes as { number: number; body: string }[]) {
-			const id = /<!-- backlog:([A-Z]+-\d{2}) -->/.exec(node.body)?.[1];
-			if (id) map[id] = node.number;
-		}
-		if (!page.pageInfo.hasNextPage) break;
-		cursor = page.pageInfo.endCursor;
-	}
-	writeFileSync(join(work, "issues.json"), JSON.stringify(map, null, 2));
-	console.log(`${Object.keys(map).length} feature issues mapped.`);
-} else if (command === "step" || command === "plan") {
-	const rows = backlog(root).filter((r) => r.status === "stub" && r.priority === 1);
-	const batches = planBatches(rows);
-	if (command === "step") {
-		console.log(
-			batches
-				.filter((b) => b.step === Number(args[0]))
-				.map((b) => b.id)
-				.join("\n"),
-		);
-	} else {
-		const batch = batches.find((b) => b.id === args[0]);
-		if (!batch) throw new Error(`No batch ${args[0]}`);
-		const night = flag("--night");
-		if (!night) throw new Error("plan needs --night <n>, the night's step number");
-		const onlyFlag = flag("--only");
-		const only = onlyFlag ? new Set(onlyFlag.split(",")) : null;
-		const features = batch.features.filter((f) => !only || only.has(f.id));
-		const issues = issueMap();
-		const plan = {
-			goal: `Overnight batch ${batch.id}: ${features.map((f) => f.id).join(", ")}`,
-			source: `overnight/${batch.id}`,
-			maxConcurrency: Number(flag("--max") ?? 6),
-			nodes: features.map((f) => ({
-				id: nodeId(f.id),
-				worker: { provider: "builder" },
-				setup: "pnpm install --frozen-lockfile",
-				work: { prompt: promptFor(f, issues.get(f.id)) },
-				accept: { smoke: `bun scripts/overnight/node-gate.ts ${f.id}` },
-				policy: { maxAttempts: 2, timeoutMs: 45 * 60 * 1000 },
-			})),
-		};
-		const base = join(work, "plans", `n${night}-${batch.id}`);
-		writeFileSync(`${base}.json`, `${JSON.stringify(plan, null, 2)}\n`);
-		writeFileSync(`${base}.ids`, `${features.map((f) => f.id).join("\n")}\n`);
-		console.log(relative(root, `${base}.json`));
-	}
-} else if (command === "preflight") {
-	// Every node starts from the step branch, so a red check here fails every node at once.
-	for (const script of ["typecheck", "lint", "guards"]) {
-		const run = Bun.spawnSync(["pnpm", "-s", script], {
-			cwd: root,
-			stdout: "pipe",
-			stderr: "pipe",
-		});
-		if (run.exitCode !== 0) {
-			console.error(`${run.stdout.toString()}${run.stderr.toString()}`.slice(-4000));
-			console.error(`preflight: pnpm ${script} failed on the step branch; start no worker.`);
-			process.exit(1);
-		}
-		console.log(`ok   ${script}`);
-	}
-} else if (command === "mark-done") {
-	const [tree, ...ids] = args;
-	if (!tree || ids.length === 0) throw new Error("Usage: mark-done <tree> <ID...>");
-	const files: [string, string][] = [];
-	for (const top of ["apps", "packages", "bin"]) {
-		for (const path of sourceFiles(join(tree, top))) files.push([path, readFileSync(path, "utf8")]);
-	}
-	const path = join(tree, "docs/plans/backlog.md");
-	let text = readFileSync(path, "utf8");
-	for (const id of ids) {
-		if (placeholdersFor(id, files).length > 0) throw new Error(`${id} still has placeholders`);
-		const row = new RegExp(`^(\\| ${id}\\s+\\|.*\\|\\s*)stub(\\s*\\|[^\\n]*)$`, "m");
-		if (!row.test(text)) throw new Error(`${id} has no stub row`);
-		text = text.replace(row, "$1done$2");
-	}
-	writeFileSync(path, text);
-	console.log(`Marked done: ${ids.join(", ")}`);
-} else if (command === "balance") {
-	const response = await fetch("https://api.deepseek.com/user/balance", {
-		headers: { Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY ?? ""}` },
+/** Runs `gh` and returns its output. A failed call stops the command with gh's own message. */
+function gh(cmd: string[]): string {
+	const run = Bun.spawnSync(["gh", ...cmd], { stdout: "pipe", stderr: "pipe" });
+	if (run.exitCode !== 0) throw new Error(`gh ${cmd[0]} failed:\n${run.stderr.toString()}`);
+	return run.stdout.toString();
+}
+
+/** The DeepSeek balance in USD. A missing key or a refused call is an error, never a guess. */
+export async function deepseekBalance(
+	key: string | undefined,
+	fetcher: (url: string, init: RequestInit) => Promise<Response> = fetch,
+): Promise<string> {
+	if (!key) throw new Error("DEEPSEEK_API_KEY is not set");
+	const response = await fetcher("https://api.deepseek.com/user/balance", {
+		headers: { Authorization: `Bearer ${key}` },
 	});
+	if (!response.ok) throw new Error(`DeepSeek balance call failed: HTTP ${response.status}`);
 	const body = (await response.json()) as {
-		balance_infos: { currency: string; total_balance: string }[];
+		balance_infos?: { currency: string; total_balance: string }[];
 	};
-	console.log(body.balance_infos.find((b) => b.currency === "USD")?.total_balance ?? "unknown");
-} else if (command === "audit-prompt") {
-	const [idsFile, findings] = args;
-	if (!idsFile || !findings) throw new Error("Usage: audit-prompt <ids-file> <findings-file>");
-	const ids = readFileSync(idsFile, "utf8").split("\n").filter(Boolean);
-	const rows = new Map(backlog(root).map((r) => [r.id, r]));
-	const features = ids.map((id) => {
-		const row = rows.get(id);
-		if (!row) throw new Error(`${id} is not in the backlog`);
-		return row;
-	});
-	const batchId = basename(idsFile, ".ids");
-	console.log(auditPrompt(batchId, features, issueMap(), findings));
-} else if (command === "closes") {
-	if (args.length === 0) throw new Error("Usage: closes <ID...>");
-	const issues = issueMap();
-	for (const id of args) {
-		const number = issues.get(id);
-		if (!number) throw new Error(`${id} has no issue in issues.json`);
-		console.log(`Closes #${number}`);
+	const usd = body.balance_infos?.find((b) => b.currency === "USD")?.total_balance;
+	if (usd === undefined) throw new Error("DeepSeek reported no USD balance");
+	return usd;
+}
+
+/** The batch's features, after `--only`. An id the batch does not hold is an error. */
+export function selectFeatures(batch: Batch, only: string | undefined): BacklogRow[] {
+	if (only === undefined) return batch.features;
+	const wanted = only.split(",");
+	const unknown = wanted.filter((id) => !batch.features.some((f) => f.id === id));
+	if (unknown.length > 0) throw new Error(`${batch.id} does not hold ${unknown.join(", ")}`);
+	return batch.features.filter((f) => wanted.includes(f.id));
+}
+
+/** Sets stub rows to done in backlog text. Refuses an id with no stub row. */
+export function markDone(text: string, ids: string[]): string {
+	let next = text;
+	for (const id of ids) {
+		if (!/^[A-Z]+-\d{2}$/.test(id)) throw new Error(`${id} is not a feature id`);
+		const row = new RegExp(`^(\\| ${id}\\s+\\|.*\\|\\s*)stub(\\s*\\|[^\\n]*)$`, "m");
+		if (!row.test(next)) throw new Error(`${id} has no stub row`);
+		next = next.replace(row, "$1done$2");
 	}
-} else if (command === "fixer-prompt") {
-	const [ids, logFile] = args;
-	if (!ids || !logFile) throw new Error("Usage: fixer-prompt <ID,ID> <log-file>");
-	console.log(fixerPrompt(ids.split(","), readFileSync(logFile, "utf8")));
-} else {
-	console.error(
-		"Usage: drive.ts issues | plan <batch> --night <n> [--only IDS] [--max <m>] | step <n> | preflight | mark-done <tree> <IDS> | balance | audit-prompt <ids-file> <file> | closes <IDS> | fixer-prompt <IDS> <log>",
-	);
-	process.exit(64);
+	return next;
+}
+
+async function main(command: string | undefined, args: string[]): Promise<void> {
+	if (command === "issues") {
+		const map: Record<string, number> = {};
+		let cursor: string | null = null;
+		for (;;) {
+			const query = `query($cursor: String) { repository(owner: "jahala", name: "conducted") {
+			issues(first: 100, after: $cursor, labels: ["backlog"]) { pageInfo { hasNextPage endCursor } nodes { number body } } } }`;
+			const cmd = ["api", "graphql", "-f", `query=${query}`];
+			if (cursor) cmd.push("-f", `cursor=${cursor}`);
+			const page = JSON.parse(gh(cmd)).data.repository.issues;
+			for (const node of page.nodes as { number: number; body: string }[]) {
+				const id = /<!-- backlog:([A-Z]+-\d{2}) -->/.exec(node.body)?.[1];
+				if (id) map[id] = node.number;
+			}
+			if (!page.pageInfo.hasNextPage) break;
+			cursor = page.pageInfo.endCursor;
+		}
+		mkdirSync(work, { recursive: true });
+		writeFileSync(join(work, "issues.json"), JSON.stringify(map, null, 2));
+		console.log(`${Object.keys(map).length} feature issues mapped.`);
+	} else if (command === "step" || command === "plan") {
+		const rows = backlog(root).filter((r) => r.status === "stub" && r.priority === 1);
+		const batches = planBatches(rows);
+		if (command === "step") {
+			console.log(
+				batches
+					.filter((b) => b.step === Number(args[0]))
+					.map((b) => b.id)
+					.join("\n"),
+			);
+		} else {
+			const batch = batches.find((b) => b.id === args[0]);
+			if (!batch) throw new Error(`No batch ${args[0]}`);
+			const night = flag(args, "--night");
+			if (!night) throw new Error("plan needs --night <n>, the night's step number");
+			const max = Number(flag(args, "--max") ?? 6);
+			if (!Number.isInteger(max) || max < 1)
+				throw new Error("--max needs a whole number of 1 or more");
+			const features = selectFeatures(batch, flag(args, "--only"));
+			const issues = issueMap();
+			const plan = {
+				goal: `Overnight batch ${batch.id}: ${features.map((f) => f.id).join(", ")}`,
+				source: `overnight/${batch.id}`,
+				maxConcurrency: max,
+				nodes: features.map((f) => ({
+					id: nodeId(f.id),
+					worker: { provider: "builder" },
+					setup: "pnpm install --frozen-lockfile",
+					work: { prompt: promptFor(f, issues.get(f.id)) },
+					accept: { smoke: `bun scripts/overnight/node-gate.ts ${f.id}` },
+					policy: { maxAttempts: 2, timeoutMs: 45 * 60 * 1000 },
+				})),
+			};
+			mkdirSync(join(work, "plans"), { recursive: true });
+			const base = join(work, "plans", `n${night}-${batch.id}`);
+			writeFileSync(`${base}.json`, `${JSON.stringify(plan, null, 2)}\n`);
+			writeFileSync(`${base}.ids`, `${features.map((f) => f.id).join("\n")}\n`);
+			console.log(relative(root, `${base}.json`));
+		}
+	} else if (command === "preflight") {
+		// Every node starts from the step branch, so a red check here fails every node at once.
+		for (const script of ["typecheck", "lint", "guards"]) {
+			const run = Bun.spawnSync(["pnpm", "-s", script], {
+				cwd: root,
+				stdout: "pipe",
+				stderr: "pipe",
+			});
+			if (run.exitCode !== 0) {
+				console.error(`${run.stdout.toString()}${run.stderr.toString()}`.slice(-4000));
+				console.error(`preflight: pnpm ${script} failed on the step branch; start no worker.`);
+				process.exit(1);
+			}
+			console.log(`ok   ${script}`);
+		}
+	} else if (command === "mark-done") {
+		const [tree, ...ids] = args;
+		if (!tree || ids.length === 0) throw new Error("Usage: mark-done <tree> <ID...>");
+		const files = readSources(tree);
+		for (const id of ids) {
+			if (placeholdersFor(id, files).length > 0) throw new Error(`${id} still has placeholders`);
+		}
+		const path = join(tree, "docs/plans/backlog.md");
+		writeFileSync(path, markDone(readFileSync(path, "utf8"), ids));
+		console.log(`Marked done: ${ids.join(", ")}`);
+	} else if (command === "balance") {
+		console.log(await deepseekBalance(process.env.DEEPSEEK_API_KEY));
+	} else if (command === "audit-prompt") {
+		const [idsFile, findings] = args;
+		if (!idsFile || !findings) throw new Error("Usage: audit-prompt <ids-file> <findings-file>");
+		const ids = readFileSync(idsFile, "utf8").split("\n").filter(Boolean);
+		const rows = new Map(backlog(root).map((r) => [r.id, r]));
+		const features = ids.map((id) => {
+			const row = rows.get(id);
+			if (!row) throw new Error(`${id} is not in the backlog`);
+			return row;
+		});
+		const batchId = basename(idsFile, ".ids");
+		console.log(auditPrompt(batchId, features, issueMap(), findings));
+	} else if (command === "closes") {
+		if (args.length === 0) throw new Error("Usage: closes <ID...>");
+		const issues = issueMap();
+		for (const id of args) {
+			const number = issues.get(id);
+			if (!number) throw new Error(`${id} has no issue in issues.json`);
+			console.log(`Closes #${number}`);
+		}
+	} else if (command === "fixer-prompt") {
+		const [ids, logFile] = args;
+		if (!ids || !logFile) throw new Error("Usage: fixer-prompt <ID,ID> <log-file>");
+		console.log(fixerPrompt(ids.split(","), readFileSync(logFile, "utf8")));
+	} else {
+		console.error(
+			"Usage: drive.ts issues | plan <batch> --night <n> [--only IDS] [--max <m>] | step <n> | preflight | mark-done <tree> <IDS> | balance | audit-prompt <ids-file> <file> | closes <IDS> | fixer-prompt <IDS> <log>",
+		);
+		process.exit(64);
+	}
+}
+
+if (import.meta.main) {
+	const [command, ...args] = process.argv.slice(2);
+	main(command, args).catch((error: unknown) => {
+		console.error(error instanceof Error ? error.message : String(error));
+		process.exit(1);
+	});
 }

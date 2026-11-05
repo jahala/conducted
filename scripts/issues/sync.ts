@@ -9,18 +9,21 @@
  *                                         updates generated text, links sub-issues and blockers
  *   bun scripts/issues/sync.ts --apply --only A-01,B-02   the same, for those ids only
  *   bun scripts/issues/sync.ts --check    fails when a done row's issue is open, or a closed
- *                                         issue's row is not done (CI)
+ *                                         issue's row is not done. CI does not run it (a PR's
+ *                                         done rows close their issues only when it merges, D041):
+ *                                         the conductor runs it after a merge.
  *
  * It never closes issues, and it keeps everything below the generated marker in an issue body.
  * It stops at the first failed GitHub call.
  */
-import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
+import { isTestFile, walk } from "../guards/lib.ts";
 import {
 	areaLabel,
-	type BacklogRow,
 	GENERATED_END,
 	type Item,
+	isRateLimited,
 	issueTitle,
 	labelsOf,
 	milestoneOf,
@@ -28,6 +31,7 @@ import {
 	parseBacklog,
 	parseHeader,
 	parseItems,
+	parseOnly,
 	renderIssue,
 } from "./model.ts";
 
@@ -41,8 +45,12 @@ const draftDir = join(root, ".context/issues-draft");
 
 const allRows = parseBacklog(readFileSync(join(root, "docs/plans/backlog.md"), "utf8"));
 /** `--only A-01,B-02` limits the run to those ids and their epics (for a small first batch). */
-const onlyArg = process.argv[process.argv.indexOf("--only") + 1];
-const only = process.argv.includes("--only") && onlyArg ? new Set(onlyArg.split(",")) : null;
+const parsedOnly = parseOnly(process.argv);
+if ("error" in parsedOnly) {
+	console.error(parsedOnly.error);
+	process.exit(64);
+}
+const { only } = parsedOnly;
 const rows = only ? allRows.filter((r) => only.has(r.id)) : allRows;
 
 const items = new Map<string, Item[]>();
@@ -54,18 +62,13 @@ for (const name of readdirSync(itemsDir).filter((n) => n.endsWith(".tsv"))) {
 }
 
 const files = new Map<string, OwningFile[]>();
-function walk(dir: string): void {
-	for (const name of readdirSync(dir)) {
-		if (["node_modules", "dist", "target", "gen", ".git"].includes(name)) continue;
-		const path = join(dir, name);
-		if (statSync(path).isDirectory()) walk(path);
-		else if (/\.(ts|tsx|rs|sh)$/.test(name) && !/\.test\.tsx?$/.test(name)) {
-			const { ids, file } = parseHeader(relative(root, path), readFileSync(path, "utf8"));
-			for (const id of ids) files.set(id, [...(files.get(id) ?? []), file]);
-		}
+for (const top of ["apps", "packages", "bin"]) {
+	for (const path of walk(root, join(root, top), /\.(ts|tsx|rs|sh)$/)) {
+		if (isTestFile(path)) continue;
+		const { ids, file } = parseHeader(relative(root, path), readFileSync(path, "utf8"));
+		for (const id of ids) files.set(id, [...(files.get(id) ?? []), file]);
 	}
 }
-for (const top of ["apps", "packages", "bin"]) walk(join(root, top));
 
 const unknownItems = [...items.keys()].filter((id) => !allRows.some((r) => r.id === id));
 if (unknownItems.length > 0) {
@@ -88,10 +91,7 @@ function gh(args: string[], input?: string): string {
 		});
 		if (run.exitCode === 0) return run.stdout.toString();
 		const error = run.stderr.toString();
-		const limited = /secondary rate limit|abuse|HTTP 403|HTTP 429|was submitted too quickly/i.test(
-			error,
-		);
-		if (limited && attempt < 5) {
+		if (isRateLimited(error) && attempt < 5) {
 			const pause = 60_000 * 2 ** attempt;
 			console.error(`GitHub asked to slow down; waiting ${pause / 1000} s`);
 			Bun.sleepSync(pause);
@@ -325,5 +325,3 @@ for (const row of rows) {
 }
 for (const epic of epics) upsert(epicKey(epic), `Epic: ${epic}`, renderEpic(epic, refs), []);
 console.log(`Synced ${rows.length} feature issues and ${epics.length} epics.`);
-
-export type { BacklogRow };
