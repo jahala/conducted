@@ -4,19 +4,13 @@ import type {
 	InteractionAnswer,
 	InteractionRequest,
 	LiveState,
-	SidecarToAppNotification,
-	SidecarToAppRequest,
 } from "@conducted/protocol";
 import { CODEX_INTERACTION_TIMEOUT_MS, idleLiveState } from "@conducted/protocol";
-import type { AppError, InteractionId, Result, SessionId, ToolUseId } from "@conducted/shared";
-import { appError, err, ok } from "@conducted/shared";
+import type { InteractionId, SessionId, ToolUseId } from "@conducted/shared";
+import { appError } from "@conducted/shared";
 import { createLogger } from "../logging/logger.ts";
-import type {
-	SidecarToApp,
-	SidecarToAppNotificationParams,
-	SidecarToAppRequestParams,
-	SidecarToAppRequestResult,
-} from "../rpc/types.ts";
+import type { SidecarToApp } from "../rpc/types.ts";
+import { FakeApp } from "../test-support/fake-app.ts";
 import { answerMatches, SessionInteractionBroker } from "./interactions.ts";
 import { LiveStateStore } from "./live-state.ts";
 
@@ -49,61 +43,6 @@ const form: Interaction = {
 	schema: {},
 };
 
-interface PendingRequest {
-	answer(answer: InteractionAnswer): void;
-	fail(error: AppError): void;
-	reject(cause: unknown): void;
-}
-
-class FakeApp implements SidecarToApp {
-	connected = true;
-	readonly requests: { method: SidecarToAppRequest; params: unknown }[] = [];
-	private readonly pending: PendingRequest[] = [];
-
-	request<K extends SidecarToAppRequest>(
-		method: K,
-		params: SidecarToAppRequestParams<K>,
-	): Promise<Result<SidecarToAppRequestResult<K>, AppError>> {
-		this.requests.push({ method, params });
-		return new Promise<Result<SidecarToAppRequestResult<K>, AppError>>((resolve, reject) => {
-			const settle = (result: Result<InteractionAnswer, AppError>) =>
-				resolve(result as unknown as Result<SidecarToAppRequestResult<K>, AppError>);
-			this.pending.push({
-				answer: (answer) => settle(ok(answer)),
-				fail: (error) => settle(err(error)),
-				reject,
-			});
-		});
-	}
-
-	answerNext(answer: InteractionAnswer): void {
-		this.pending.shift()?.answer(answer);
-	}
-
-	failNext(error: AppError): void {
-		this.pending.shift()?.fail(error);
-	}
-
-	rejectNext(cause: unknown): void {
-		this.pending.shift()?.reject(cause);
-	}
-
-	notify<K extends SidecarToAppNotification>(
-		_method: K,
-		_params: SidecarToAppNotificationParams<K>,
-	): boolean {
-		return true;
-	}
-
-	onAttach(_listener: () => void): () => void {
-		return () => {};
-	}
-
-	onDetach(_listener: () => void): () => void {
-		return () => {};
-	}
-}
-
 class TestLiveState extends LiveStateStore {
 	private readonly states = new Map<SessionId, LiveState>();
 
@@ -128,7 +67,7 @@ class TestLiveState extends LiveStateStore {
 }
 
 function harness() {
-	const app = new FakeApp();
+	const app = new FakeApp({ holdRequests: true });
 	const liveState = new TestLiveState(app);
 	let nextId = 0;
 	const broker = new SessionInteractionBroker({

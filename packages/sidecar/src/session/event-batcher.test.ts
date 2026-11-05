@@ -1,21 +1,18 @@
 import { describe, expect, test } from "bun:test";
+import type { SessionConfig, SessionEvent, SessionEventEnvelope } from "@conducted/protocol";
 import type {
-	SessionConfig,
-	SessionEvent,
-	SessionEventEnvelope,
-	SidecarToAppNotification,
-	SidecarToAppRequest,
-} from "@conducted/protocol";
-import type { AppError, EventId, MessageId, Result, SessionId, TurnId } from "@conducted/shared";
+	AppError,
+	CheckpointId,
+	EventId,
+	MessageId,
+	Result,
+	SessionId,
+	TurnId,
+} from "@conducted/shared";
 import { appError, err, ok } from "@conducted/shared";
 import { createLogger, type LogRecord } from "../logging/logger.ts";
 import type { EventOutbox } from "../outbox/event-outbox.ts";
-import type {
-	SidecarToApp,
-	SidecarToAppNotificationParams,
-	SidecarToAppRequestParams,
-	SidecarToAppRequestResult,
-} from "../rpc/types.ts";
+import { FakeApp } from "../test-support/fake-app.ts";
 import {
 	BatchingEventPublisher,
 	jsonBytes,
@@ -50,35 +47,6 @@ const userConfig: SessionConfig = {
 	additionalDirectories: [],
 	appTools: { diffComments: false, progressUpdates: false, setTargetBranch: false },
 };
-
-class FakeApp implements SidecarToApp {
-	connected = true;
-	readonly notifications: { method: SidecarToAppNotification; params: unknown }[] = [];
-
-	async request<K extends SidecarToAppRequest>(
-		_method: K,
-		_params: SidecarToAppRequestParams<K>,
-	): Promise<Result<SidecarToAppRequestResult<K>, AppError>> {
-		return ok({} as SidecarToAppRequestResult<K>);
-	}
-
-	notify<K extends SidecarToAppNotification>(
-		method: K,
-		params: SidecarToAppNotificationParams<K>,
-	): boolean {
-		if (!this.connected) return false;
-		this.notifications.push({ method, params });
-		return true;
-	}
-
-	onAttach(_listener: () => void): () => void {
-		return () => {};
-	}
-
-	onDetach(_listener: () => void): () => void {
-		return () => {};
-	}
-}
 
 class FakeOutbox implements EventOutbox {
 	/** Every append attempt, including failed ones. */
@@ -312,6 +280,78 @@ describe("SIDE-05 notifications", () => {
 		expect(sent?.type).toBe("user_message");
 		expect(sent !== undefined && "state" in sent).toBe(false);
 		expect(sent?.type === "user_message" ? sent.config.agent : undefined).toBe("claude");
+	});
+
+	test("SIDE-05 one event of each kind, a steered user message and a shortened event all pass the protocol schema on the way out", async () => {
+		const h = harness();
+		const events: SessionEvent[] = [
+			{
+				type: "user_message",
+				eventId: "kind-1" as EventId,
+				at: 1,
+				messageId: "message-1" as MessageId,
+				turnId: tid,
+				text: "hello",
+				attachmentPaths: ["/work/a.png"],
+				delivery: "new_turn",
+				config: userConfig,
+			},
+			{
+				type: "user_message",
+				eventId: "kind-2" as EventId,
+				at: 2,
+				messageId: "message-2" as MessageId,
+				turnId: tid,
+				text: "also this",
+				attachmentPaths: [],
+				delivery: "steer",
+				config: userConfig,
+			},
+			agentEvent("an answer"),
+			{
+				type: "checkpoint",
+				eventId: "kind-3" as EventId,
+				at: 3,
+				turnId: tid,
+				phase: "end",
+				checkpointId: "checkpoint-1" as CheckpointId,
+				changes: [
+					{ path: "a.ts", status: "modified", linesAdded: 2, linesRemoved: 1, binary: false },
+				],
+			},
+			{
+				type: "agent",
+				eventId: "kind-4" as EventId,
+				at: 4,
+				turnId: tid,
+				message: {
+					agent: "claude",
+					items: [{ kind: "text", text: "T".repeat(900_000) }],
+					raw: { blob: "R".repeat(1_200_000) },
+				},
+			},
+			{
+				type: "turn_ended",
+				eventId: "kind-5" as EventId,
+				at: 5,
+				turnId: tid,
+				outcome: "error",
+				error: "The agent stopped.",
+			},
+		];
+		for (const event of events) h.publisher.publish(sid("session-1"), event);
+
+		await h.publisher.flush(sid("session-1"));
+
+		expect(h.app.refused).toEqual([]);
+		expect(sessionEvents(h.app).map((envelope) => envelope.event.type)).toEqual([
+			"user_message",
+			"user_message",
+			"agent",
+			"checkpoint",
+			"agent",
+			"turn_ended",
+		]);
 	});
 
 	test("SIDE-05 a notification over the byte limit keeps its head and tail with the original size", async () => {

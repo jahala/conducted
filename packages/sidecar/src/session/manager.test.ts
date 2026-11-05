@@ -1,18 +1,21 @@
 import { describe, expect, test } from "bun:test";
 import type {
-	Interaction,
-	InteractionAnswer,
 	InteractionRequest,
 	LiveState,
 	ModelInfo,
 	SessionConfig,
-	SessionEvent,
-	SidecarToAppNotification,
-	SidecarToAppRequest,
 	WorkspaceContext,
 } from "@conducted/protocol";
 import { idleLiveState } from "@conducted/protocol";
-import type { AgentKind, AppError, MessageId, Result, SessionId, TurnId } from "@conducted/shared";
+import type {
+	AgentKind,
+	AppError,
+	InteractionId,
+	MessageId,
+	Result,
+	SessionId,
+	TurnId,
+} from "@conducted/shared";
 import { ok } from "@conducted/shared";
 import type {
 	CheckpointOutcome,
@@ -21,15 +24,8 @@ import type {
 } from "../checkpoints/checkpoint-service.ts";
 import { createLogger, type Logger } from "../logging/logger.ts";
 import { FileEventOutbox } from "../outbox/event-outbox.ts";
-import type { OutboxStorage } from "../outbox/outbox-file.ts";
-import type { ProcessLease, ProcessManager } from "../process/process-manager.ts";
 import type { PromptAssembler, PromptInput } from "../prompt/assemble.ts";
-import type {
-	SidecarToApp,
-	SidecarToAppNotificationParams,
-	SidecarToAppRequestParams,
-	SidecarToAppRequestResult,
-} from "../rpc/types.ts";
+import type { SidecarToApp } from "../rpc/types.ts";
 import { SteerRevertedError } from "../runners/errors.ts";
 import type { RunnerRegistry } from "../runners/registry.ts";
 import type {
@@ -42,8 +38,12 @@ import type {
 	TurnOutcome,
 } from "../runners/runner.ts";
 import type { CapturedShellEnv, ShellEnvProvider } from "../shell-env/capture.ts";
-import { BatchingEventPublisher, type EventPublisher } from "./event-batcher.ts";
-import type { InteractionBroker } from "./interactions.ts";
+import { FakeApp } from "../test-support/fake-app.ts";
+import { FakeInteractions } from "../test-support/fake-interactions.ts";
+import { FakeProcesses } from "../test-support/fake-processes.ts";
+import { FakePublisher } from "../test-support/fake-publisher.ts";
+import { MemoryStorage } from "../test-support/memory-storage.ts";
+import { BatchingEventPublisher } from "./event-batcher.ts";
 import { beginTurn, endTurn, LiveStateStore } from "./live-state.ts";
 import {
 	DefaultSessionManager,
@@ -103,62 +103,6 @@ function model(id: string, isDefault = false): ModelInfo {
 		liveEffortChange: false,
 		supportsFastMode: false,
 	};
-}
-
-class InMemoryOutboxStorage implements OutboxStorage {
-	private readonly files = new Map<string, string>();
-
-	async list() {
-		return ok([...this.files.keys()]);
-	}
-
-	async read(fileName: string) {
-		return ok(this.files.get(fileName) ?? null);
-	}
-
-	async writeAtomic(fileName: string, text: string) {
-		this.files.set(fileName, text);
-		return ok(undefined);
-	}
-
-	async moveToTrash(fileName: string) {
-		this.files.delete(fileName);
-		return ok(undefined);
-	}
-
-	async cleanTempFiles() {
-		return ok(0);
-	}
-}
-
-class FakeApp implements SidecarToApp {
-	connected = true;
-	readonly requests: { method: SidecarToAppRequest; params: unknown }[] = [];
-	readonly notifications: { method: SidecarToAppNotification; params: unknown }[] = [];
-
-	async request<K extends SidecarToAppRequest>(
-		method: K,
-		params: SidecarToAppRequestParams<K>,
-	): Promise<Result<SidecarToAppRequestResult<K>, AppError>> {
-		this.requests.push({ method, params });
-		return ok({ kind: "withdrawn" } as SidecarToAppRequestResult<K>);
-	}
-
-	notify<K extends SidecarToAppNotification>(
-		method: K,
-		params: SidecarToAppNotificationParams<K>,
-	): boolean {
-		this.notifications.push({ method, params });
-		return true;
-	}
-
-	onAttach(_listener: () => void): () => void {
-		return () => {};
-	}
-
-	onDetach(_listener: () => void): () => void {
-		return () => {};
-	}
 }
 
 class TestLiveState extends LiveStateStore {
@@ -277,44 +221,26 @@ class FakeRunner implements Runner {
 	}
 }
 
-class FakeProcesses implements ProcessManager {
-	readonly agents = new Map<string, AgentSession>();
-	readonly disconnected: string[] = [];
-	stopAllCalls = 0;
+/** An agent whose turn runs until it is cancelled, as a real agent's does. */
+class HangingAgentSession extends FakeAgentSession {
+	private endTurn: ((outcome: TurnOutcome) => void) | null = null;
 
-	async claimActive(key: string, start: () => Promise<AgentSession>): Promise<ProcessLease> {
-		let agent = this.agents.get(key);
-		if (agent === undefined) {
-			agent = await start();
-			this.agents.set(key, agent);
-		}
-		return { key, agent, release: () => {} };
+	override runTurn(_input: TurnInput, _callbacks: TurnCallbacks): Promise<TurnOutcome> {
+		return new Promise<TurnOutcome>((resolve) => {
+			this.endTurn = resolve;
+		});
 	}
 
-	async ensureWarm(key: string, start: () => Promise<AgentSession>): Promise<void> {
-		if (this.agents.has(key)) return;
-		this.agents.set(key, await start());
+	override async cancel(): Promise<void> {
+		await super.cancel();
+		this.endTurn?.({ kind: "cancelled" });
 	}
+}
 
-	markBusy(_key: string): void {}
-
-	markIdle(_key: string): void {}
-
-	setBackgroundTasks(_key: string, _hasTasks: boolean): void {}
-
-	async disconnect(key: string): Promise<void> {
-		this.disconnected.push(key);
-		const agent = this.agents.get(key);
-		this.agents.delete(key);
-		await agent?.dispose();
-	}
-
-	async sweep(): Promise<void> {}
-
-	async stopAll(): Promise<void> {
-		this.stopAllCalls += 1;
-		for (const agent of this.agents.values()) await agent.dispose();
-		this.agents.clear();
+class HangingRunner extends FakeRunner {
+	override async start(options: StartOptions): Promise<AgentSession> {
+		this.started.push(options);
+		return new HangingAgentSession(options.sessionId);
 	}
 }
 
@@ -326,44 +252,6 @@ class FakePrompt implements PromptAssembler {
 		this.inputs.push(input);
 		if (this.gate !== null) await this.gate;
 		return ok(`agent:${input.text}`);
-	}
-}
-
-class FakePublisher implements EventPublisher {
-	readonly events: { sessionId: SessionId; event: SessionEvent }[] = [];
-
-	publish(sessionId: SessionId, event: SessionEvent): void {
-		this.events.push({ sessionId, event });
-	}
-
-	async flush(_sessionId: SessionId): Promise<void> {}
-
-	onWriteFailure(_listener: (sessionId: SessionId, message: string) => void): void {}
-}
-
-class FakeInteractions implements InteractionBroker {
-	readonly withdrawn: SessionId[] = [];
-	readonly openRequests = new Map<SessionId, InteractionRequest>();
-	answerResult = { accepted: true, superseded: false };
-
-	async open(_sessionId: SessionId, _interaction: Interaction): Promise<InteractionAnswer> {
-		return { kind: "withdrawn" };
-	}
-
-	answer(
-		_sessionId: SessionId,
-		_interactionId: InteractionRequest["interactionId"],
-		_answer: InteractionAnswer,
-	): { accepted: boolean; superseded: boolean } {
-		return this.answerResult;
-	}
-
-	withdrawAll(sessionId: SessionId): void {
-		this.withdrawn.push(sessionId);
-	}
-
-	openRequest(sessionId: SessionId): InteractionRequest | undefined {
-		return this.openRequests.get(sessionId);
 	}
 }
 
@@ -468,6 +356,8 @@ interface Harness {
 	turns: FakeTurns;
 	logs: string[];
 	runners: Map<AgentKind, FakeRunner>;
+	/** The real publisher, when the harness was built with `realPipeline`. */
+	pipelinePublisher: BatchingEventPublisher | null;
 }
 
 function harness(
@@ -499,7 +389,7 @@ function harness(
 	});
 	if (options.realPipeline === true) {
 		const outbox = new FileEventOutbox({
-			storage: new InMemoryOutboxStorage(),
+			storage: new MemoryStorage(),
 			queue,
 			clock: { now: () => 1000 },
 			logger,
@@ -558,6 +448,7 @@ function harness(
 		turns,
 		logs,
 		runners,
+		pipelinePublisher: realPublisher,
 	};
 }
 
@@ -836,10 +727,13 @@ describe("SIDE-03 cancel, reset and status", () => {
 		const h = harness();
 		await h.manager.sendMessage(sendParams());
 		const request = {
-			interactionId: "interaction-1",
+			interactionId: "interaction-1" as InteractionId,
 			sessionId: sid("session-1"),
-			interaction: { kind: "question", questions: [] },
-		} as unknown as InteractionRequest;
+			interaction: {
+				kind: "question",
+				questions: [{ question: "Which one?", options: [], multiSelect: false }],
+			},
+		} satisfies InteractionRequest;
 		h.interactions.openRequests.set(sid("session-1"), request);
 
 		h.manager.onAppAttached();
@@ -1101,6 +995,22 @@ describe("SIDE-03 session map and agent identity", () => {
 });
 
 describe("SIDE-03 real pipeline on one shared queue", () => {
+	test("SIDE-03 shutdown cancels the agent and a running real turn takes no end checkpoint and writes no turn_ended", async () => {
+		const h = harness({ realPipeline: true, runners: [new HangingRunner("claude")] });
+		await h.manager.sendMessage(sendParams());
+		expect(h.checkpoints.starts).toHaveLength(1);
+		const agent = h.processes.agents.values().next().value as FakeAgentSession;
+
+		await h.manager.shutdown("signal");
+
+		expect(agent.cancelCalls).toBe(1);
+		expect(h.checkpoints.ends).toHaveLength(0);
+		await h.pipelinePublisher?.flush(sid("session-1"));
+		const sent = h.app.notified("sessionEvent").map((envelope) => envelope.event);
+		expect(sent.map((event) => event.type)).toEqual(["user_message", "checkpoint"]);
+		expect(sent.some((event) => event.type === "turn_ended")).toBe(false);
+	});
+
 	test("SIDE-03 the first message of a chat starts a turn with the real outbox, publisher and Turn", async () => {
 		const h = harness({ realPipeline: true });
 

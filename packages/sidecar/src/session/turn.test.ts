@@ -1,34 +1,18 @@
 import { describe, expect, test } from "bun:test";
-import type {
-	AgentMessage,
-	Interaction,
-	InteractionAnswer,
-	InteractionRequest,
-	LiveState,
-	SessionConfig,
-	SessionEvent,
-	SidecarToAppNotification,
-	SidecarToAppRequest,
-	WorkspaceContext,
-} from "@conducted/protocol";
+import type { AgentMessage, LiveState, SessionConfig, WorkspaceContext } from "@conducted/protocol";
 import { idleLiveState } from "@conducted/protocol";
-import type { AppError, MessageId, Result, SessionId, TurnId } from "@conducted/shared";
-import { ok } from "@conducted/shared";
+import type { MessageId, SessionId, TurnId } from "@conducted/shared";
 import type {
 	CheckpointOutcome,
 	CheckpointRequest,
 	CheckpointService,
 } from "../checkpoints/checkpoint-service.ts";
 import { createLogger } from "../logging/logger.ts";
-import type {
-	SidecarToApp,
-	SidecarToAppNotificationParams,
-	SidecarToAppRequestParams,
-	SidecarToAppRequestResult,
-} from "../rpc/types.ts";
+import type { SidecarToApp } from "../rpc/types.ts";
 import type { AgentSession, TurnCallbacks, TurnInput, TurnOutcome } from "../runners/runner.ts";
-import type { EventPublisher } from "./event-batcher.ts";
-import type { InteractionBroker } from "./interactions.ts";
+import { FakeApp } from "../test-support/fake-app.ts";
+import { FakeInteractions } from "../test-support/fake-interactions.ts";
+import { FakePublisher } from "../test-support/fake-publisher.ts";
 import { LiveStateStore } from "./live-state.ts";
 import { RunGuard as Guard, type RunGuard, type RunNumber } from "./run-guard.ts";
 import { Turn, type TurnDeps, type TurnRequest } from "./turn.ts";
@@ -81,11 +65,6 @@ function agentMessage(text: string): AgentMessage {
 	return { agent: "claude", items: [{ kind: "text", text }] };
 }
 
-function eventLabel(event: SessionEvent): string {
-	if (event.type === "checkpoint") return `event:checkpoint:${event.phase}`;
-	return `event:${event.type}`;
-}
-
 class RecordingLiveState extends LiveStateStore {
 	private readonly states = new Map<SessionId, LiveState>();
 	readonly order: string[];
@@ -108,54 +87,6 @@ class RecordingLiveState extends LiveStateStore {
 	override drop(id: SessionId): void {
 		this.states.delete(id);
 	}
-}
-
-class NotifyingApp implements SidecarToApp {
-	connected = true;
-	readonly notifications: { method: SidecarToAppNotification; params: unknown }[] = [];
-
-	async request<K extends SidecarToAppRequest>(
-		_method: K,
-		_params: SidecarToAppRequestParams<K>,
-	): Promise<Result<SidecarToAppRequestResult<K>, AppError>> {
-		return ok({} as SidecarToAppRequestResult<K>);
-	}
-
-	notify<K extends SidecarToAppNotification>(
-		method: K,
-		params: SidecarToAppNotificationParams<K>,
-	): boolean {
-		this.notifications.push({ method, params });
-		return true;
-	}
-
-	onAttach(_listener: () => void): () => void {
-		return () => {};
-	}
-
-	onDetach(_listener: () => void): () => void {
-		return () => {};
-	}
-}
-
-class FakePublisher implements EventPublisher {
-	readonly events: { sessionId: SessionId; event: SessionEvent }[] = [];
-	private readonly order: string[];
-
-	constructor(order: string[]) {
-		this.order = order;
-	}
-
-	publish(id: SessionId, event: SessionEvent): void {
-		this.events.push({ sessionId: id, event });
-		this.order.push(eventLabel(event));
-	}
-
-	async flush(_id: SessionId): Promise<void> {
-		this.order.push("flush");
-	}
-
-	onWriteFailure(_listener: (id: SessionId, message: string) => void): void {}
 }
 
 class FakeCheckpoints implements CheckpointService {
@@ -228,28 +159,6 @@ class FakeAgentSession implements AgentSession {
 	}
 }
 
-class FakeInteractions implements InteractionBroker {
-	readonly withdrawn: SessionId[] = [];
-	readonly opened: { sessionId: SessionId; interaction: Interaction }[] = [];
-
-	async open(id: SessionId, interaction: Interaction): Promise<InteractionAnswer> {
-		this.opened.push({ sessionId: id, interaction });
-		return { kind: "withdrawn" };
-	}
-
-	answer(): { accepted: boolean; superseded: boolean } {
-		return { accepted: true, superseded: false };
-	}
-
-	withdrawAll(id: SessionId): void {
-		this.withdrawn.push(id);
-	}
-
-	openRequest(): InteractionRequest | undefined {
-		return undefined;
-	}
-}
-
 interface Harness {
 	turn: Turn;
 	agent: FakeAgentSession;
@@ -261,6 +170,7 @@ interface Harness {
 	order: string[];
 	settledRuns: RunNumber[];
 	agentSessionIds: string[];
+	backgroundFlags: boolean[];
 }
 
 function harness(
@@ -281,6 +191,7 @@ function harness(
 	const runGuard = options.runGuard ?? new Guard();
 	const settledRuns: RunNumber[] = [];
 	const agentSessionIds: string[] = [];
+	const backgroundFlags: boolean[] = [];
 	let nextId = 0;
 	const deps: TurnDeps = {
 		agent,
@@ -299,6 +210,7 @@ function harness(
 		}),
 		onAgentSessionId: (id) => agentSessionIds.push(id),
 		onTurnSettled: (run) => settledRuns.push(run),
+		onBackgroundTasks: (hasTasks) => backgroundFlags.push(hasTasks),
 	};
 	return {
 		turn: new Turn(deps, request()),
@@ -311,6 +223,7 @@ function harness(
 		order,
 		settledRuns,
 		agentSessionIds,
+		backgroundFlags,
 	};
 }
 
@@ -592,6 +505,37 @@ describe("SIDE-04 runner callbacks", () => {
 		await h.turn.settled();
 	});
 
+	test("SIDE-07 open background tasks reach the process manager's hook, and so does the end of the last one", async () => {
+		const h = harness();
+		await h.turn.start();
+		const callbacks = h.agent.callbacks;
+		if (callbacks === null) throw new Error("The runner did not receive callbacks");
+
+		callbacks.onBackgroundTasks([{ id: "task-1", kind: "shell", description: "tests" }]);
+		callbacks.onBackgroundTasks([]);
+
+		expect(h.backgroundFlags).toEqual([true, false]);
+
+		h.agent.resolve({ kind: "success" });
+		await h.turn.settled();
+	});
+
+	test("SIDE-07 a replaced run's background report does not reach the hook", async () => {
+		const runGuard = new Guard();
+		const h = harness({ runGuard });
+		await h.turn.start();
+		const callbacks = h.agent.callbacks;
+		if (callbacks === null) throw new Error("The runner did not receive callbacks");
+
+		runGuard.start();
+		callbacks.onBackgroundTasks([{ id: "task-1", kind: "shell", description: "tests" }]);
+
+		expect(h.backgroundFlags).toEqual([]);
+
+		h.agent.resolve({ kind: "success" });
+		await h.turn.settled();
+	});
+
 	test("SIDE-04 beforeFirstWrite waits for the start checkpoint", async () => {
 		const gate = deferred();
 		const h = harness({ startGate: gate.promise });
@@ -618,7 +562,7 @@ describe("SIDE-04 runner callbacks", () => {
 
 describe("SIDE-05 waiting since from the runner callback", () => {
 	test("SIDE-05 a background-task callback sets waitingSince and a notification carries it", async () => {
-		const app = new NotifyingApp();
+		const app = new FakeApp();
 		const liveState = new LiveStateStore({ app, flushed: async () => {} });
 		const h = harness({ liveState });
 		await h.turn.start();

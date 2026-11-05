@@ -23,6 +23,9 @@
  *  - cancel drops queued messages, withdraws interactions, asks the running turn to take the end
  *    checkpoint, and reports wasWorking
  *  - shutdown(): stop every agent, take no checkpoint, wait up to 10 s for in-flight turns
+ *  - the chat's agent process is marked idle when no turn runs (a turn ends, a cancel finishes, a
+ *    lease is given back with no turn), so the process manager's idle stop applies; open
+ *    background tasks are reported to it so the stop spares the process
  *  - the same agent session id is stored from the first callback and sent to the app once
  *  - a config the agent changes by itself (plan mode) updates the chat's state and is sent to the
  *    app with the reason, so the app's stored config agrees
@@ -182,6 +185,8 @@ interface SessionState {
 	setup: AbortController | null;
 	autoApproveEdits: boolean;
 	cancelEpoch: number;
+	/** The key of the chat's agent process in the process manager, once a lease was taken. */
+	processKey: string | null;
 }
 
 interface StartParams {
@@ -311,6 +316,8 @@ export class DefaultSessionManager implements SessionManager {
 		if (active !== null) {
 			state.duplicates.markHandled(active.messageId);
 			await active.turn.cancel();
+			// The cancelled run is stale, so turnSettled ignores it. The process is idle now.
+			this.markProcessIdleWhenNoTurn(state);
 		} else {
 			await this.deps.liveState.update(state.sessionId, (live) => endTurn(live, "aborted by user"));
 		}
@@ -539,6 +546,7 @@ export class DefaultSessionManager implements SessionManager {
 				setup: null,
 				autoApproveEdits: false,
 				cancelEpoch: 0,
+				processKey: null,
 			};
 			this.sessions.set(params.sessionId, state);
 		} else {
@@ -626,7 +634,7 @@ export class DefaultSessionManager implements SessionManager {
 
 		const { agent, lease } = claimed.value;
 		if (signal?.aborted) {
-			lease.release();
+			this.releaseLease(state, lease);
 			state.duplicates.forget(request.messageId);
 			return false;
 		}
@@ -646,7 +654,7 @@ export class DefaultSessionManager implements SessionManager {
 			});
 			return false;
 		} finally {
-			lease.release();
+			this.releaseLease(state, lease);
 		}
 	}
 
@@ -724,7 +732,7 @@ export class DefaultSessionManager implements SessionManager {
 			}
 			return this.steerFailed(state, request, cause);
 		} finally {
-			lease.release();
+			this.releaseLease(state, lease);
 		}
 	}
 
@@ -877,6 +885,7 @@ export class DefaultSessionManager implements SessionManager {
 
 		try {
 			const lease = await this.deps.processes.claimActive(key, start);
+			state.processKey = key;
 			state.agent = lease.agent;
 			state.agentConfig = config;
 			state.runner = runner;
@@ -923,7 +932,27 @@ export class DefaultSessionManager implements SessionManager {
 			logger: this.deps.logger,
 			onAgentSessionId: (agentSessionId) => this.rememberAgentSessionId(state, agentSessionId),
 			onTurnSettled: (run) => this.turnSettled(state, run),
+			onBackgroundTasks: (hasTasks) => {
+				if (state.processKey !== null) {
+					this.deps.processes.setBackgroundTasks(state.processKey, hasTasks);
+				}
+			},
 		};
+	}
+
+	/**
+	 * Gives a lease back. The process manager keeps a process busy after its lease is released,
+	 * because it cannot tell whether a turn is running. Only this manager knows, so when no turn
+	 * runs it marks the process idle, which starts the 30-minute idle clock.
+	 */
+	private releaseLease(state: SessionState, lease: { release(): void }): void {
+		lease.release();
+		this.markProcessIdleWhenNoTurn(state);
+	}
+
+	private markProcessIdleWhenNoTurn(state: SessionState): void {
+		if (state.activeTurn !== null || state.processKey === null) return;
+		this.deps.processes.markIdle(state.processKey);
 	}
 
 	private rememberAgentSessionId(state: SessionState, agentSessionId: string): void {
@@ -945,6 +974,8 @@ export class DefaultSessionManager implements SessionManager {
 					state.duplicates.markHandled(active.messageId);
 				}
 				state.duplicates.cancelInFlight();
+				// Before the drain: a queued message that starts next takes a new lease of its own.
+				this.markProcessIdleWhenNoTurn(state);
 				await this.drain(state);
 			})
 			.catch((cause: unknown) => {

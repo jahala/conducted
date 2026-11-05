@@ -1,14 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import type { LiveState, SidecarToAppNotification, SidecarToAppRequest } from "@conducted/protocol";
+import type { LiveState } from "@conducted/protocol";
 import { idleLiveState } from "@conducted/protocol";
-import type { AppError, InteractionId, MessageId, Result, SessionId } from "@conducted/shared";
-import { ok } from "@conducted/shared";
-import type {
-	SidecarToApp,
-	SidecarToAppNotificationParams,
-	SidecarToAppRequestParams,
-	SidecarToAppRequestResult,
-} from "../rpc/types.ts";
+import type { InteractionId, MessageId, SessionId } from "@conducted/shared";
+import { FakeApp } from "../test-support/fake-app.ts";
+import { FakePublisher } from "../test-support/fake-publisher.ts";
 import {
 	addPendingSteer,
 	beginTurn,
@@ -41,51 +36,10 @@ async function settle(): Promise<void> {
 	await Promise.resolve();
 }
 
-class FakeApp implements SidecarToApp {
-	connected = true;
-	readonly notifications: { method: SidecarToAppNotification; params: unknown }[] = [];
-
-	async request<K extends SidecarToAppRequest>(
-		_method: K,
-		_params: SidecarToAppRequestParams<K>,
-	): Promise<Result<SidecarToAppRequestResult<K>, AppError>> {
-		return ok({} as SidecarToAppRequestResult<K>);
-	}
-
-	notify<K extends SidecarToAppNotification>(
-		method: K,
-		params: SidecarToAppNotificationParams<K>,
-	): boolean {
-		if (!this.connected) return false;
-		this.notifications.push({ method, params });
-		return true;
-	}
-
-	onAttach(_listener: () => void): () => void {
-		return () => {};
-	}
-
-	onDetach(_listener: () => void): () => void {
-		return () => {};
-	}
-}
-
 function harness(flushed: (sessionId: SessionId) => Promise<void> = async () => {}) {
 	const app = new FakeApp();
 	const store = new LiveStateStore({ app, flushed });
 	return { app, store };
-}
-
-class FakeWriteFailures {
-	private readonly listeners: ((sessionId: SessionId, message: string) => void)[] = [];
-
-	onWriteFailure(listener: (sessionId: SessionId, message: string) => void): void {
-		this.listeners.push(listener);
-	}
-
-	fail(sessionId: SessionId, message: string): void {
-		for (const listener of this.listeners) listener(sessionId, message);
-	}
 }
 
 function publishedStates(app: FakeApp): LiveState[] {
@@ -179,9 +133,9 @@ describe("SIDE-05 failed event writes", () => {
 		const working = store.update(sid("session-1"), beginTurn);
 		await settle();
 
-		const publisher = new FakeWriteFailures();
+		const publisher = new FakePublisher();
 		reportWriteFailures({ publisher, liveState: store });
-		publisher.fail(sid("session-1"), "The disk refused the write.");
+		publisher.failWrite(sid("session-1"), "The disk refused the write.");
 		await settle();
 
 		expect(publishedStates(app).at(-1)).toMatchObject({
@@ -195,10 +149,10 @@ describe("SIDE-05 failed event writes", () => {
 
 	test("SIDE-05 a failure for a chat the store has dropped is ignored", () => {
 		const { app, store } = harness();
-		const publisher = new FakeWriteFailures();
+		const publisher = new FakePublisher();
 		reportWriteFailures({ publisher, liveState: store });
 
-		publisher.fail(sid("session-1"), "The disk refused the write.");
+		publisher.failWrite(sid("session-1"), "The disk refused the write.");
 
 		expect(publishedStates(app)).toHaveLength(0);
 		expect(store.get(sid("session-1"))).toEqual(idleLiveState);
