@@ -250,6 +250,28 @@ export const jobLogs = (jobId: string): GitCommand =>
 export const checkRunAnnotations = (checkRunUrl: string): GitCommand =>
 	gh(["api", `${checkRunUrl}/annotations`, "--paginate", "--jq", 'map(.message) | join("\\n\\n")']);
 
+// ---------------------------------------------------------------- REST reads (PR-11)
+
+const REST_READ_TIMEOUT_MS = 15_000;
+
+/** Open issues, newest first. The caller drops the entries that are pull requests. */
+export const repositoryIssues = (ownerSlashName: string): GitCommand =>
+	gh(["api", `repos/${ownerSlashName}/issues?state=open&per_page=50&sort=updated&direction=desc`], {
+		timeoutMs: REST_READ_TIMEOUT_MS,
+	});
+/** Open pull requests, newest first. */
+export const repositoryPullRequests = (ownerSlashName: string): GitCommand =>
+	gh(["api", `repos/${ownerSlashName}/pulls?state=open&per_page=50&sort=updated&direction=desc`], {
+		timeoutMs: REST_READ_TIMEOUT_MS,
+	});
+export const pullRequestByNumber = (ownerSlashName: string, number: number): GitCommand =>
+	gh(["api", `repos/${ownerSlashName}/pulls/${number}`], { timeoutMs: REST_READ_TIMEOUT_MS });
+export const issueByNumber = (ownerSlashName: string, number: number): GitCommand =>
+	gh(["api", `repos/${ownerSlashName}/issues/${number}`], { timeoutMs: REST_READ_TIMEOUT_MS });
+/** The user's repositories, most recently updated first, for the new-workspace pickers. */
+export const recentRepositories = (): GitCommand =>
+	gh(["api", "user/repos?per_page=8&sort=updated"], { timeoutMs: REST_READ_TIMEOUT_MS });
+
 // ---------------------------------------------------------------- stacks and Graphite (PR-08)
 
 export const stackSync = (): GitCommand => gh(["stack", "sync"], { network: true });
