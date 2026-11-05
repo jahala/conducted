@@ -27,8 +27,8 @@ const m = (value: string) => value as MessageId;
 
 function deferred<T>() {
 	let resolve!: (value: T) => void;
-	const promise = new Promise<T>((settle) => {
-		resolve = settle;
+	const promise = new Promise<T>((complete) => {
+		resolve = complete;
 	});
 	return { promise, resolve };
 }
