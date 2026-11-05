@@ -648,17 +648,14 @@ name = "conducted"
 version = "0.1.0"
 dependencies = [
  "alacritty_terminal",
-<<<<<<< HEAD
  "globset",
  "grep-matcher",
  "grep-regex",
  "grep-searcher",
  "ignore",
+ "image",
  "muda",
  "nucleo-matcher",
-=======
- "image",
->>>>>>> node/plat.20
  "portable-pty",
  "security-framework",
  "serde",
