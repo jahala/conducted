@@ -154,12 +154,6 @@ function stateAtEditor(state: EditorState, deps: FileMentionDeps): FileMentionSt
 	};
 }
 
-/** The '@' state of an editor, for a caller that draws its own popup. Null when the trigger is closed. */
-export function fileMentionState(editor: { state: EditorState }): FileMentionState | null {
-	const state = mentionPluginKey.getState(editor.state);
-	return state === undefined || !state.active ? null : state;
-}
-
 function chooseSuggestion(view: EditorView, state: FileMentionState, index: number): boolean {
 	const item = state.items[index];
 	if (item === undefined) return false;

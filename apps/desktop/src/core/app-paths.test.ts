@@ -1,16 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
-	changesCacheFile,
+	appDataPath,
 	checkpointerScript,
 	contextDir,
 	draftFile,
 	localSettingsFile,
-	prInfoCacheFile,
 	setupLogFile,
 	sharedSettingsFile,
 	userSettingsFile,
 	viewedFilesFile,
-	zshIntegrationDir,
 } from "./app-paths.ts";
 
 const paths = {
@@ -35,9 +33,9 @@ describe("app paths", () => {
 		expect(localSettingsFile("/repo")).toBe("/repo/.conducted/settings.local.toml");
 		expect(contextDir("/repo/ws")).toBe("/repo/ws/.context");
 	});
-	it("keeps the zsh shim and the git caches in their own folders", () => {
-		expect(zshIntegrationDir(paths)).toBe("/Users/a/Library/App/terminal-shell-integration/zsh");
-		expect(changesCacheFile(paths, "w1")).toBe("/Users/a/Library/App/git-cache/changes/w1.json");
-		expect(prInfoCacheFile(paths, "w1")).toBe("/Users/a/Library/App/git-cache/pr-info/w1.json");
+	it("joins a feature's own folders under the app data folder", () => {
+		expect(appDataPath(paths, "/git-cache/", "changes", "w1.json")).toBe(
+			"/Users/a/Library/App/git-cache/changes/w1.json",
+		);
 	});
 });
