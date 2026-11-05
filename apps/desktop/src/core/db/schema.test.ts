@@ -1,8 +1,5 @@
 // @vitest-environment node
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
-import { fileURLToPath } from "node:url";
+import type { DatabaseSync } from "node:sqlite";
 import { idleLiveState } from "@conducted/protocol";
 import type {
 	AttachmentId,
@@ -14,6 +11,7 @@ import type {
 	WorkspaceId,
 } from "@conducted/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { openTestDatabase } from "../../test/sqlite.ts";
 import type { AttachmentRow } from "./attachments.ts";
 import { ATTACHMENTS_SQL, attachmentFromRow, attachmentToParams } from "./attachments.ts";
 import type { BacklogWorkspaceRow } from "./backlog-workspaces.ts";
@@ -80,13 +78,6 @@ import {
 import type { WorkspaceRow } from "./workspaces.ts";
 import { WORKSPACES_SQL, workspaceFromRow, workspaceToParams } from "./workspaces.ts";
 
-const MIGRATIONS_DIR = fileURLToPath(new URL("../../../src-tauri/migrations/", import.meta.url));
-/** Every migration, applied in order, the way the app applies them at startup. */
-const MIGRATIONS = readdirSync(MIGRATIONS_DIR)
-	.filter((name) => name.endsWith(".sql"))
-	.sort()
-	.map((name) => readFileSync(join(MIGRATIONS_DIR, name), "utf8"));
-
 const ALL_SQL: Record<string, Record<string, string>> = {
 	REPOS_SQL,
 	WORKSPACES_SQL,
@@ -110,15 +101,16 @@ const ALL_SQL: Record<string, Record<string, string>> = {
 
 type Params = readonly unknown[];
 
+let store: ReturnType<typeof openTestDatabase>;
 let db: DatabaseSync;
 
 beforeEach(() => {
-	db = new DatabaseSync(":memory:");
-	for (const sql of MIGRATIONS) db.exec(sql);
+	store = openTestDatabase();
+	db = store.raw;
 });
 
 afterEach(() => {
-	db.close();
+	store.close();
 });
 
 /** node:sqlite binds `$1..$n` by name, so a positional list becomes `{ $1: ..., $2: ... }`. */

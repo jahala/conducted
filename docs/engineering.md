@@ -26,9 +26,16 @@ Every source file starts with a header comment. `pnpm guards` fails on a source 
 
 Rust files use `//!` with the same fields. Shell scripts use `#` lines. Mark our own design choices with "Our design choice:" so they are not mistaken for observed behaviour.
 
+The header says what the file does now, not what the feature will do one day. When you build part of a feature, cut the claims you did not build, or move them to the feature that owns them. A "Must handle" line with no code and no test is a defect. This was the most common finding of the first overnight build's audits (D045).
+
 ## Code
 
 - **Failure lives in the return type.** Expected failures (git refused, file missing, agent not installed) return `Result` from `@conducted/shared`. Throwing is for programmer errors and `notImplemented`. Rust commands return `CommandResult`.
+- **No silent failures.** These shapes hide a failure and are refused in review: `catch { return null }` or an empty `catch`, Rust's `.ok()` or `let _ =` on a `Result` nobody reads, an error that is only logged, and a default invented when the real value is missing. Hand the error on as a value. If a write the user relies on fails (a draft, a setting, a file), the user sees it.
+- **Only the newest answer changes state.** An async read that writes a store guards against an older answer arriving late: use `createLatestWins` from `apps/desktop/src/core/async/latest-wins.ts`, or a request counter. Test it with two overlapping calls whose answers arrive in the wrong order.
+- **Done means reachable.** A feature is done when its code is called from a live path: the composition root, a route, a screen or a handler. If the caller belongs to a feature that is not built yet, add the wiring as a checklist item on that feature in `docs/plans/items/` (D041, D043). Do not leave code nothing calls.
+- **Use the shared helpers.** Before writing a queue, a single-flight guard, a retry, an error-message helper or a database write helper, check the table in [architecture.md](architecture.md#shared-helpers). A second copy of a helper is a finding.
+- **Whatever subscribes, unsubscribes.** A service that adds a listener or starts a timer has a `dispose` or `stop` that removes it, and the container's `stop()` calls it.
 - **Side effects at the edge.** Functions compute; callers do I/O. A function that needs time, ids, the file system or the shell takes them as parameters.
 - **Placeholders.** `notImplemented("ID")` in TypeScript, `not_implemented!("ID")` in Rust, `not_implemented "ID"` in shell. No `TODO` comments, no fake data, no silent defaults. Unused placeholder parameters start with `_`.
 - **Promises are always handled.** Biome's `noFloatingPromises` is an error.
@@ -47,6 +54,10 @@ Rust files use `//!` with the same fields. Shell scripts use `#` lines. Mark our
 Rules every test follows:
 
 - **Never test a mock of the thing under test**, and never test a placeholder.
+- **Every checklist item has a test that would fail without it.** A test that would still pass with the feature removed does not count.
+- **Fakes behave like the real thing.** An id source hands out a new id on every call, never a constant. The night's most repeated test bug was a fake that gave every turn the same id.
+- **Screens are tested over the real container.** Use `createTestContainer` from `apps/desktop/src/test/container.ts`, and `seedRepo` and `seedWorkspace` to put data in it, instead of a hand-built object cast to `Container`. Tests that need a real database use `openTestDatabase` from `apps/desktop/src/test/sqlite.ts`.
+- **jsdom has no layout.** `apps/desktop/src/test/setup.ts` adds the layout methods editors call (`getClientRects` and the like). Do not stub them per test.
 - **Stand-ins are checked against the real thing.** The in-memory Platform passes the same contract test as the Tauri Platform (PLAT-01).
 - **Wait for the event, never a fixed time.** A timeout catches a hang; it is not a way to wait.
 - **Time and ids are inputs.** Pass a `Clock` and an `IdSource`.

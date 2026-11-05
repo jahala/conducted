@@ -49,6 +49,7 @@ export const RULES = `Rules:
 - Do not run the test suite or build Rust: tests run on GitHub after the batch. Run pnpm typecheck, pnpm lint and pnpm guards before you stop.
 - Never run git commit, git push or anything with --no-verify. Use trash, never rm.
 - Match Conductor in everything a user sees or does (D020, D022), in our own words and code (D002).
+- The rules the audits enforce most, all in docs/engineering.md: your file headers say only what the code does (cut or move the claims you did not build); no silent failures (no empty catch, no catch that returns null, no unread Result, no invented default); an async read that writes a store lets only the newest answer win (createLatestWins), with a test of two overlapping calls; your code is called from a live path, or the wiring is a checklist item on the feature that owns the caller; use the shared helpers in docs/architecture.md (Shared helpers) instead of writing your own; whatever subscribes has a dispose; fakes hand out a new id on every call; screen tests use createTestContainer from apps/desktop/src/test/container.ts.
 - Finish with a short message: what you built, which checklist items have tests, and anything you could not do.`;
 
 export function nodeId(id: string): string {
@@ -106,6 +107,10 @@ export function auditPrompt(
 		"3. Does every checklist item have a real test that would fail without the feature? Name items with no test.",
 		"4. Is any logic duplicated, within the batch or with existing code? Name both places.",
 		"5. Was anything skipped or left half done (a placeholder removed without the behaviour, a test that asserts nothing)?",
+		"6. Does every file header claim only what the code does? List each header line (Owns, Must handle, Our design choice) that the code does not keep.",
+		"7. Check the rules in docs/engineering.md (Code and Tests) one by one: silent failures, newest-answer guards, code no live path calls, copies of the shared helpers in docs/architecture.md, listeners with no dispose, fakes that repeat ids.",
+		"Mark each finding MUST or LATER. MUST: a bug, a header claim the code does not keep, a banned pattern (compatibility alias, invented default, fake success, silent fallback), duplicated logic, an unsafe read or write. LATER: everything else. End with a line starting 'Summary:'.",
+		"Read only. Never run git checkout, switch, reset, stash or any git command that changes the working tree or HEAD: other agents work in this folder.",
 		"",
 		`Write your findings to ${findings} as a Markdown list grouped by feature id. Each finding: the file and line, what is wrong, and what would fix it. Write "none" for a clean feature. Do not edit any other file, do not run git commit or git push, and do not run the test suite. Finish with a one-line summary: how many findings per feature.`,
 	].join("\n");

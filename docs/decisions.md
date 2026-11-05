@@ -336,3 +336,19 @@ Why: the stop rules come before the goal's "done when". A half-built step would 
 Context: after step 5's two CI fix rounds, two NAV-01 shell tests still failed. NAV-03 rebuilt the sidebar's workspace list to read the workspace store. The shell test's container has no workspace store, so the list region falls back to "This part failed to load" and the "No projects yet" text the test looks for never shows. The fix is most likely in the test fixture, but the rules allow no third fix round.
 Chosen: NAV-03 leaves step 5. Its files go back to their `main` versions with its placeholders, its row goes back to `stub` and its issue stays open. Its built work and its audit fixes are kept on the branch `quarantine/nav.03` (pushed) for the next run. The next run should start from that branch and give the NAV-01 shell test a workspace store.
 Why: the rule is two fix rounds, then quarantine. A red test that is probably wrong is still red.
+
+## D049. What the audits kept finding becomes rules the agents read (2026-11-05)
+
+Context: the first overnight build's audits returned about 280 MUST findings in steps 3 to 6. They fell into a few repeated patterns:
+
+- a file header claiming what the code does not do (about 38%);
+- duplicated logic (15%);
+- a late async answer overwriting newer state (15%);
+- silent failures (13%);
+- tests that check nothing or use fakes that repeat ids (11%);
+- code nothing calls;
+- listeners never removed.
+
+Several of these had no rule in the docs, and agents read only the docs and their issue. Screen tests also kept failing because each hand-built a partial container.
+Chosen: `docs/engineering.md` states each pattern as a rule. `docs/architecture.md` lists the shared helpers to use before writing one. A shared `createTestContainer` and `openTestDatabase` replace hand-built test containers and five copies of a SQLite adapter. The builder and fixer prompts in `scripts/overnight/drive.ts` repeat the rules, and the audit prompt checks headers and each rule by name.
+Why: the agents start from the docs, so the docs must name what the audits were catching. The prompt carries it too, because a rule in a doc nobody quotes drifts. Nothing checks the header rule by script yet; the audit does.
