@@ -24,7 +24,7 @@
 //! Test first: set, get and delete round-trip under a unique test service, and a get after the
 //! delete returns `None`. The test removes everything it created.
 
-use crate::error::{CommandError, CommandResult};
+use crate::error::{blocking, CommandError, CommandResult};
 use security_framework::passwords::{
     delete_generic_password, get_generic_password, set_generic_password,
 };
@@ -42,21 +42,6 @@ const ERR_SEC_USER_CANCELED: i32 = -128;
 const ERR_SEC_AUTH_FAILED: i32 = -25293;
 /// The Keychain cannot prompt, for example because the app runs without a user session.
 const ERR_SEC_INTERACTION_NOT_ALLOWED: i32 = -25308;
-
-/// Runs a Keychain call off the async runtime, because it can block on a system prompt.
-async fn blocking<T, F>(work: F) -> CommandResult<T>
-where
-    T: Send + 'static,
-    F: FnOnce() -> CommandResult<T> + Send + 'static,
-{
-    match tauri::async_runtime::spawn_blocking(work).await {
-        Ok(result) => result,
-        Err(error) => Err(CommandError::Failed {
-            code: "keychain_failed",
-            message: format!("The Keychain task could not run: {error}"),
-        }),
-    }
-}
 
 /// Rejects a key that cannot name an item.
 fn check_key(key: &str) -> CommandResult<()> {
@@ -131,7 +116,7 @@ fn remove_secret(service: &str, key: &str) -> CommandResult<()> {
 #[tauri::command]
 pub async fn keychain_get(key: String) -> CommandResult<Option<String>> {
     check_key(&key)?;
-    blocking(move || read_secret(SERVICE, &key)).await
+    blocking("keychain_failed", move || read_secret(SERVICE, &key)).await
 }
 
 /// Stores or replaces a secret.
@@ -139,14 +124,17 @@ pub async fn keychain_get(key: String) -> CommandResult<Option<String>> {
 pub async fn keychain_set(key: String, value: String) -> CommandResult<()> {
     check_key(&key)?;
     check_value(&value)?;
-    blocking(move || write_secret(SERVICE, &key, &value)).await
+    blocking("keychain_failed", move || {
+        write_secret(SERVICE, &key, &value)
+    })
+    .await
 }
 
 /// Removes a secret. Succeeds when it does not exist.
 #[tauri::command]
 pub async fn keychain_delete(key: String) -> CommandResult<()> {
     check_key(&key)?;
-    blocking(move || remove_secret(SERVICE, &key)).await
+    blocking("keychain_failed", move || remove_secret(SERVICE, &key)).await
 }
 
 #[cfg(test)]
@@ -338,7 +326,12 @@ mod tests {
 
     #[test]
     fn plat_10_items_share_the_bundle_identifier_service() {
-        assert_eq!(SERVICE, "build.conducted.app");
-        assert_eq!(MAX_VALUE_BYTES, 64 * 1024);
+        let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json"))
+            .expect("tauri.conf.json is valid JSON");
+        let identifier = config["identifier"]
+            .as_str()
+            .expect("tauri.conf.json has an identifier");
+
+        assert_eq!(SERVICE, identifier);
     }
 }

@@ -16,20 +16,28 @@
 //! - A click is queued in `NotificationState` and a `notification://clicked` event wakes the UI.
 //!   The UI drains the queue through `notification_take_pending`, which it calls right after
 //!   attaching its listener, so a click that arrives first is not lost.
+//! - `notification_take_pending` returns the newest queued click only. Older queued clicks are
+//!   logged and dropped, matching Conductor on a cold start (services-map 5B.2.5).
+//! - A click on a notification shown by an earlier run of the app is not delivered. The plugin
+//!   only reports clicks on notifications it showed after its handler was registered in this
+//!   process. Delivering a launch click waits for the `conducted://` route (PLAT-16).
 //! - The click handler runs on a system thread. It only reads the link, locks the queue and emits
 //!   an event.
 //! - The badge is cleared with `None` or zero. Counts above 99 show as `99+` in the Dock tile.
 //!
-//! Our design choice: the system notification sound is used. Conductor stores a user-chosen sound
-//! type; ours has no custom sounds because Conductor's sound files are not ours to copy.
+//! Our design choice: the system notification sound is used. `notify` asks for it with the sound
+//! name "default" unless the request turns it off. Conductor stores a user-chosen sound type;
+//! ours has no custom sounds because Conductor's sound files are not ours to copy.
 //! Our design choice: we use the notification plugin's `on_action` click callback and its extra
-//! payload instead of writing an Objective-C delegate. The handler is registered before the first
-//! notification, because a notification shown before a handler exists reports no click.
+//! payload instead of writing an Objective-C delegate. The handler is installed on the first
+//! `notify`, before that notification is shown, because a notification shown before a handler
+//! exists reports no click.
 //! `notification_take_pending` is listed in docs/plans/tauri-commands.md as an extra command.
 //!
-//! Test first: a click recorded while no listener is attached is returned once by
-//! `notification_take_pending`, and a second call returns an empty list.
+//! Test first: two clicks recorded while no listener is attached return only the newest link
+//! from `notification_take_pending`, and a second call returns an empty list.
 
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
@@ -45,7 +53,8 @@ pub const EVENT_CLICKED: &str = "notification://clicked";
 /// The largest count shown in the Dock tile. Higher counts show as `99+`.
 pub const MAX_BADGE_COUNT: u32 = 99;
 
-/// What to show. Mirrors the argument of `Notifications.notify` in platform.ts.
+/// What to show. The fields match the argument of `Notifications.notify` in platform.ts, plus
+/// the sound choice the notification-sound setting needs.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotifyRequest {
@@ -54,6 +63,18 @@ pub struct NotifyRequest {
     /// `conducted://...` link the UI opens when the notification is clicked.
     #[serde(default)]
     pub deep_link: Option<String>,
+    /// Whether to use the system notification sound. Missing means on.
+    #[serde(default = "sound_on")]
+    pub sound: bool,
+}
+
+fn sound_on() -> bool {
+    true
+}
+
+/// The sound name for the notification builder. `None` leaves the notification silent.
+pub fn notification_sound(sound: bool) -> Option<&'static str> {
+    sound.then_some("default")
 }
 
 /// Shared state, registered once with `.manage(NotificationState::default())`.
@@ -73,9 +94,20 @@ impl NotificationState {
         Ok(())
     }
 
-    /// Returns every queued link, oldest first, and clears the queue.
+    /// Returns the newest queued link and clears the queue. Older queued links are dropped and
+    /// logged, as Conductor does on a cold start (services-map 5B.2.5).
     pub fn take_pending(&self) -> Vec<String> {
-        std::mem::take(&mut *lock(&self.pending))
+        let mut links = std::mem::take(&mut *lock(&self.pending));
+        let Some(newest) = links.pop() else {
+            return Vec::new();
+        };
+        if !links.is_empty() {
+            eprintln!(
+                "notifications: dropped {} older queued click(s)",
+                links.len()
+            );
+        }
+        vec![newest]
     }
 }
 
@@ -110,6 +142,7 @@ pub async fn notify(app: AppHandle, request: NotifyRequest) -> CommandResult<()>
     if let Some(link) = request.deep_link.as_deref() {
         accept_link(link)?;
     }
+    let sound = notification_sound(request.sound);
 
     let permission =
         app.notification()
@@ -135,6 +168,9 @@ pub async fn notify(app: AppHandle, request: NotifyRequest) -> CommandResult<()>
         .builder()
         .title(request.title)
         .body(request.body);
+    if let Some(name) = sound {
+        builder = builder.sound(name);
+    }
     if let Some(link) = request.deep_link {
         builder = builder.extra("deepLink", link);
     }
@@ -142,6 +178,12 @@ pub async fn notify(app: AppHandle, request: NotifyRequest) -> CommandResult<()>
         code: "notification_failed",
         message: error.to_string(),
     })
+}
+
+/// Reads the deep link from the extra data of a clicked notification. Our links are the only
+/// ones written to `deepLink`; a notification without one yields nothing.
+fn clicked_link(extra: &HashMap<String, serde_json::Value>) -> Option<&str> {
+    extra.get("deepLink").and_then(|value| value.as_str())
 }
 
 fn install_click_handler(app: &AppHandle) {
@@ -154,8 +196,7 @@ fn install_click_handler(app: &AppHandle) {
     let registration = app.notification().on_action(move |performed| {
         let Some(link) = performed
             .notification()
-            .and_then(|notification| notification.extra().get("deepLink"))
-            .and_then(|value| value.as_str())
+            .and_then(|notification| clicked_link(notification.extra()))
         else {
             return;
         };
@@ -223,22 +264,55 @@ mod tests {
     }
 
     #[test]
-    fn plat_11_clicks_are_returned_oldest_first() {
+    fn plat_11_only_the_newest_queued_click_is_returned() {
         let state = NotificationState::default();
         state
-            .record_click("conducted://workspace?id=first")
-            .expect("the first link is accepted");
+            .record_click("conducted://workspace?id=older")
+            .expect("the older link is accepted");
         state
-            .record_click("conducted://workspace?id=second")
-            .expect("the second link is accepted");
+            .record_click("conducted://workspace?id=newer")
+            .expect("the newer link is accepted");
 
         assert_eq!(
             state.take_pending(),
-            [
-                "conducted://workspace?id=first",
-                "conducted://workspace?id=second"
-            ]
+            ["conducted://workspace?id=newer"]
         );
+        assert!(state.take_pending().is_empty());
+    }
+
+    #[test]
+    fn plat_11_the_sound_setting_chooses_the_notification_sound() {
+        let default_request: NotifyRequest = serde_json::from_value(serde_json::json!({
+            "title": "Agent finished",
+            "body": "Click to view session."
+        }))
+        .expect("a request without a sound setting is valid");
+        assert!(default_request.sound);
+        assert_eq!(notification_sound(default_request.sound), Some("default"));
+
+        let silent_request: NotifyRequest = serde_json::from_value(serde_json::json!({
+            "title": "Agent finished",
+            "body": "Click to view session.",
+            "sound": false
+        }))
+        .expect("a request with the sound off is valid");
+        assert!(!silent_request.sound);
+        assert_eq!(notification_sound(silent_request.sound), None);
+    }
+
+    #[test]
+    fn plat_11_a_click_reads_the_deep_link_from_the_extra_payload() {
+        let mut extra = HashMap::new();
+        extra.insert(
+            "deepLink".to_owned(),
+            serde_json::json!("conducted://workspace?id=w1"),
+        );
+
+        assert_eq!(
+            clicked_link(&extra),
+            Some("conducted://workspace?id=w1")
+        );
+        assert_eq!(clicked_link(&HashMap::new()), None);
     }
 
     #[test]

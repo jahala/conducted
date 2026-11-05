@@ -3,14 +3,19 @@
  * identity or Apple account is needed and nothing is signed.
  */
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { appError, err, ok, type Result } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import {
+	appBuildArguments,
 	bundleProblems,
+	createDiskImage,
+	diskImagePath,
 	ENTITLEMENTS_PATH,
+	NOTARY_PROFILE_ENV,
 	notariseBundle,
+	notariseDiskImage,
 	REQUIRED_ENTITLEMENTS,
 	REQUIRED_PRIVACY_KEYS,
 	REQUIRED_SIDECAR_ENTITLEMENTS,
@@ -19,6 +24,7 @@ import {
 	sidecarBinaryPath,
 	signBundle,
 	verifyBundle,
+	verifyDiskImage,
 } from "./bundle.ts";
 
 interface Output {
@@ -35,6 +41,7 @@ interface Call {
 const HERE = dirname(fileURLToPath(import.meta.url));
 const APP = "/tmp/Conducted.app";
 const SIDECAR = `${APP}/Contents/MacOS/conducted-sidecar`;
+const DMG = "/tmp/Conducted.dmg";
 
 const INFO = {
 	CFBundleIdentifier: "build.conducted.app",
@@ -272,6 +279,143 @@ describe("PLAT-25 release bundle", () => {
 		expect(calls[1]?.args).toContain("person@example.com");
 		expect(calls[2]?.args).toEqual(["stapler", "staple", APP]);
 		expect(calls[3]?.args).toEqual(["stapler", "validate", APP]);
+	});
+
+	it("PLAT-25 treats an empty or whitespace credential as missing", async () => {
+		const { run, calls } = scripted(() => ok({ stdout: "", stderr: "", exitCode: 0 }));
+
+		const result = await notariseBundle(run, APP, {
+			APPLE_ID: "",
+			APPLE_PASSWORD: "   ",
+			APPLE_TEAM_ID: "TEAM123",
+		});
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error.message).toContain("APPLE_ID");
+			expect(result.error.message).toContain("APPLE_PASSWORD");
+		}
+		expect(calls).toEqual([]);
+	});
+
+	it("PLAT-25 uses a stored keychain profile so the password stays off the command line", async () => {
+		const { run, calls } = scripted((program, args) => {
+			if (program === "ditto") return ok({ stdout: "", stderr: "", exitCode: 0 });
+			if (program === "xcrun" && args[1] === "submit") {
+				return ok({ stdout: "status: Accepted\n", stderr: "", exitCode: 0 });
+			}
+			if (program === "xcrun") return ok({ stdout: "validated\n", stderr: "", exitCode: 0 });
+			return err(appError("unexpected_tool", `Unexpected tool ${program}.`));
+		});
+
+		const result = await notariseBundle(run, APP, {
+			[NOTARY_PROFILE_ENV]: "conducted-notary",
+		});
+
+		expect(result).toEqual({ ok: true, value: undefined });
+		const submit = calls.find((call) => call.program === "xcrun" && call.args[1] === "submit");
+		expect(submit?.args).toContain("--keychain-profile");
+		expect(submit?.args).toContain("conducted-notary");
+		expect(submit?.args).not.toContain("--password");
+		expect(submit?.args).not.toContain("--apple-id");
+	});
+
+	it("PLAT-25 makes the disk image from the verified app and the Applications shortcut", async () => {
+		const { run, calls } = scripted(() => ok({ stdout: "", stderr: "", exitCode: 0 }));
+
+		const result = await createDiskImage(run, APP, DMG);
+
+		expect(diskImagePath(APP)).toBe(DMG);
+		expect(result).toEqual({ ok: true, value: undefined });
+		expect(calls.map((call) => call.program)).toEqual(["ditto", "ln", "hdiutil"]);
+		expect(calls[0]?.args[0]).toBe(APP);
+		expect(calls[0]?.args[1]).toMatch(/Conducted\.app$/);
+		expect(calls[1]?.args).toEqual(["-s", "/Applications", expect.stringMatching(/Applications$/)]);
+		expect(calls[2]?.args[0]).toBe("create");
+		expect(calls[2]?.args).toContain("-srcfolder");
+		expect(calls[2]?.args.at(-1)).toBe(DMG);
+	});
+
+	it("PLAT-25 notarises and staples the disk image itself", async () => {
+		const dmgPath = DMG;
+		const { run, calls } = scripted((program, args) => {
+			if (program === "xcrun" && args[1] === "submit") {
+				return ok({ stdout: "status: Accepted\n", stderr: "", exitCode: 0 });
+			}
+			if (program === "xcrun") return ok({ stdout: "validated\n", stderr: "", exitCode: 0 });
+			return err(appError("unexpected_tool", `Unexpected tool ${program}.`));
+		});
+
+		const result = await notariseDiskImage(run, dmgPath, {
+			[NOTARY_PROFILE_ENV]: "conducted-notary",
+		});
+
+		expect(result).toEqual({ ok: true, value: undefined });
+		expect(calls[0]?.args).toEqual([
+			"notarytool",
+			"submit",
+			dmgPath,
+			"--wait",
+			"--keychain-profile",
+			"conducted-notary",
+		]);
+		expect(calls[1]?.args).toEqual(["stapler", "staple", dmgPath]);
+		expect(calls[2]?.args).toEqual(["stapler", "validate", dmgPath]);
+	});
+
+	it("PLAT-25 verifies the app inside the shipped disk image", async () => {
+		const dmgPath = DMG;
+		const { run, calls } = scripted((program) => {
+			if (program === "hdiutil") return ok({ stdout: "", stderr: "", exitCode: 0 });
+			if (program === "xcrun") return ok({ stdout: "validated\n", stderr: "", exitCode: 0 });
+			if (program === "plutil") {
+				return ok({ stdout: JSON.stringify(INFO), stderr: "", exitCode: 0 });
+			}
+			if (program === "file") {
+				return ok({
+					stdout: "Mach-O 64-bit executable arm64\n",
+					stderr: "",
+					exitCode: 0,
+				});
+			}
+			if (program === "ls") {
+				return ok({ stdout: "MacOS\nResources\n", stderr: "", exitCode: 0 });
+			}
+			if (program === "codesign") {
+				return ok({
+					stdout: "",
+					stderr: completeSignature(REQUIRED_ENTITLEMENTS),
+					exitCode: 0,
+				});
+			}
+			return err(appError("unexpected_tool", `Unexpected tool ${program}.`));
+		});
+
+		const result = await verifyDiskImage(run, dmgPath, basename(APP));
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.bundleIdentifier).toBe("build.conducted.app");
+		const attach = calls.find((call) => call.program === "hdiutil" && call.args[0] === "attach");
+		const mountPoint = attach?.args[4];
+		expect(mountPoint).toBeDefined();
+		expect(
+			calls.some(
+				(call) =>
+					call.program === "hdiutil" && call.args[0] === "detach" && call.args[1] === mountPoint,
+			),
+		).toBe(true);
+		const plutil = calls.find((call) => call.program === "plutil");
+		expect(plutil?.args.at(-1)).toBe(
+			join(mountPoint ?? "", "Conducted.app", "Contents", "Info.plist"),
+		);
+	});
+
+	it("PLAT-25 builds only the app so signing happens before the disk image is made", () => {
+		const args = appBuildArguments("aarch64-apple-darwin", "src-tauri/tauri.release.conf.json");
+
+		expect(args[args.indexOf("--bundles") + 1]).toBe("app");
+		expect(args).not.toContain("all");
 	});
 
 	it("PLAT-25 returns Apple's log when notarisation is rejected", async () => {

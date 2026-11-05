@@ -905,9 +905,10 @@ export function createTauriKeychain(bindings: TauriBindings): Keychain {
 
 /**
  * `notify { request: { title, body, deepLink } }` (the Rust command checks the notification
- * permission), `set_dock_badge { count }`, `notification_take_pending`. The `notification://clicked`
- * event wakes the UI, which then drains the queue so a click that arrived before the listener is
- * not lost.
+ * permission and plays the system sound), `set_dock_badge { count }`,
+ * `notification_take_pending`. The `notification://clicked` event wakes the UI, which then drains
+ * the newest queued click so one that arrived before the listener is not lost. An older queued
+ * click is dropped by the Rust command.
  */
 export function createTauriNotifications(bindings: TauriBindings): Notifications {
 	const takePending = async (): Promise<string[] | null> => {
@@ -921,6 +922,7 @@ export function createTauriNotifications(bindings: TauriBindings): Notifications
 		listener: (deepLink: string) => void,
 		active: () => boolean,
 	): Promise<void> => {
+		if (!active()) return;
 		const links = await takePending();
 		if (links === null || !active()) return;
 		for (const link of links) {

@@ -11,6 +11,10 @@
 //!
 //! Must handle:
 //! - Honour `.gitignore`, `.git/info/exclude` and the global ignore file. Never list `.git`.
+//! - List dot-files and dot-folders such as `.github/`, `.gitignore`, `.env.example` and
+//!   `.context/`; only `.git` is always left out.
+//! - A path that disappears between the walk and the read is skipped. Any other walk or read
+//!   error fails the search.
 //! - Do not follow symlinks out of the root. A symlink loop must not hang the walk.
 //! - Binary files are skipped by grep. Files over `MAX_GREP_FILE_BYTES` are skipped too.
 //! - The root must be an existing directory; otherwise fail with `search_bad_root`.
@@ -90,9 +94,7 @@ pub struct GrepOptions {
 /// The built-in names the walker always leaves out, even if the standard filters are changed.
 fn always_ignored() -> GlobSet {
     let mut builder = GlobSetBuilder::new();
-    for pattern in [".git", "**/.git"] {
-        builder.add(Glob::new(pattern).expect("the built-in ignore pattern is valid"));
-    }
+    builder.add(Glob::new("**/.git").expect("the built-in ignore pattern is valid"));
     builder.build().expect("the built-in ignore set is valid")
 }
 
@@ -102,6 +104,7 @@ fn walk_builder(root: &Path, max_filesize: Option<u64>) -> WalkBuilder {
     let mut builder = WalkBuilder::new(root);
     builder
         .standard_filters(true)
+        .hidden(false)
         .require_git(false)
         .follow_links(false)
         .filter_entry(move |entry| !ignored.is_match(entry.path()));
@@ -115,6 +118,36 @@ fn walk_error(error: ignore::Error) -> CommandError {
     CommandError::Failed {
         code: "search_walk_failed",
         message: error.to_string(),
+    }
+}
+
+/// Whether an error means the path went away between listing it and reading it.
+fn is_gone(error: &io::Error) -> bool {
+    error.kind() == io::ErrorKind::NotFound
+}
+
+/// Turns one walk result into an entry. A path that vanished mid-walk is skipped; any other
+/// walk error is handed on.
+fn walk_entry(
+    result: Result<ignore::DirEntry, ignore::Error>,
+) -> CommandResult<Option<ignore::DirEntry>> {
+    match result {
+        Ok(entry) => Ok(Some(entry)),
+        Err(error) if error.io_error().is_some_and(is_gone) => Ok(None),
+        Err(error) => Err(walk_error(error)),
+    }
+}
+
+/// Reads one file for grep. A file that vanished mid-search reads as `None`; any other error
+/// fails the search.
+fn read_grep_file(path: &Path) -> CommandResult<Option<Vec<u8>>> {
+    match fs::read(path) {
+        Ok(bytes) => Ok(Some(bytes)),
+        Err(error) if is_gone(&error) => Ok(None),
+        Err(error) => Err(CommandError::Failed {
+            code: "search_read_failed",
+            message: format!("Could not read {}: {error}", path.display()),
+        }),
     }
 }
 
@@ -153,7 +186,9 @@ where
 fn collect_tree(root: &Path, max_entries: usize) -> CommandResult<Vec<TreeEntry>> {
     let mut entries = Vec::new();
     for result in walk_builder(root, None).build() {
-        let entry = result.map_err(walk_error)?;
+        let Some(entry) = walk_entry(result)? else {
+            continue;
+        };
         if entry.depth() == 0 {
             continue;
         }
@@ -176,7 +211,9 @@ fn collect_tree(root: &Path, max_entries: usize) -> CommandResult<Vec<TreeEntry>
 fn collect_files(root: &Path) -> CommandResult<Vec<TreeEntry>> {
     let mut files = Vec::new();
     for result in walk_builder(root, None).build() {
-        let entry = result.map_err(walk_error)?;
+        let Some(entry) = walk_entry(result)? else {
+            continue;
+        };
         if entry.depth() == 0 {
             continue;
         }
@@ -372,15 +409,16 @@ fn grep_workspace(
         .binary_detection(BinaryDetection::quit(b'\0'))
         .build();
     for result in walk_builder(root, Some(MAX_GREP_FILE_BYTES)).build() {
-        let entry = result.map_err(walk_error)?;
+        let Some(entry) = walk_entry(result)? else {
+            continue;
+        };
         if entry.depth() == 0 || !entry.file_type().is_some_and(|kind| kind.is_file()) {
             continue;
         }
         let path = entry.path();
-        let bytes = fs::read(path).map_err(|error| CommandError::Failed {
-            code: "search_read_failed",
-            message: format!("Could not read {}: {error}", path.display()),
-        })?;
+        let Some(bytes) = read_grep_file(path)? else {
+            continue;
+        };
         if looks_binary(&bytes) {
             continue;
         }
@@ -496,6 +534,17 @@ mod tests {
         }
     }
 
+    fn scored_file(relative: &str, score: u32) -> ScoredFile {
+        ScoredFile {
+            entry: TreeEntry {
+                path: format!("/root/{relative}"),
+                is_directory: false,
+            },
+            score,
+            relative: relative.to_string(),
+        }
+    }
+
     #[test]
     fn plat_06_list_tree_skips_ignored_and_git() {
         let folder = TempDir::new();
@@ -514,13 +563,56 @@ mod tests {
         assert!(paths.iter().any(|path| path.ends_with("/src/a.ts")));
         assert!(paths.iter().any(|path| path.ends_with("/keep.md")));
         assert!(paths.iter().any(|path| path.ends_with("/src")));
-        assert!(!paths.iter().any(|path| path.contains("/.git")));
+        assert!(!paths.iter().any(|path| path.ends_with("/.git")));
+        assert!(!paths.iter().any(|path| path.contains("/.git/")));
+        assert!(paths.iter().any(|path| path.ends_with("/.gitignore")));
         assert!(!paths.iter().any(|path| path.ends_with("ignored.txt")));
         assert!(!paths.iter().any(|path| path.contains("node_modules")));
         assert!(
             entries
                 .iter()
                 .any(|entry| entry.path.ends_with("/src") && entry.is_directory)
+        );
+    }
+
+    #[test]
+    fn plat_06_list_tree_and_fuzzy_include_dot_files_and_folders() {
+        let folder = TempDir::new();
+        let root = folder.path();
+        write(root, ".gitignore", b"");
+        write(root, ".github/workflows/ci.yml", b"on: push\n");
+        write(root, ".env.example", b"KEY=\n");
+        write(root, ".context/notes.md", b"notes\n");
+        write(root, ".git/config", b"x");
+        write(root, "src/app.ts", b"a\n");
+
+        let entries =
+            tauri::async_runtime::block_on(search_list_tree(as_string(root))).expect("list tree");
+        let paths: Vec<&str> = entries.iter().map(|entry| entry.path.as_str()).collect();
+
+        assert!(paths.iter().any(|path| path.ends_with("/.github")));
+        assert!(
+            paths
+                .iter()
+                .any(|path| path.ends_with("/.github/workflows/ci.yml"))
+        );
+        assert!(paths.iter().any(|path| path.ends_with("/.gitignore")));
+        assert!(paths.iter().any(|path| path.ends_with("/.env.example")));
+        assert!(
+            paths
+                .iter()
+                .any(|path| path.ends_with("/.context/notes.md"))
+        );
+        assert!(!paths.iter().any(|path| path.ends_with("/.git")));
+        assert!(!paths.iter().any(|path| path.contains("/.git/")));
+
+        let fuzzy =
+            tauri::async_runtime::block_on(search_fuzzy(as_string(root), "ci.yml".to_string(), 10))
+                .expect("fuzzy search");
+        assert!(
+            fuzzy
+                .iter()
+                .any(|entry| entry.path.ends_with("/.github/workflows/ci.yml"))
         );
     }
 
@@ -615,6 +707,43 @@ mod tests {
     }
 
     #[test]
+    fn plat_06_fuzzy_match_breaks_ties_by_shorter_path_then_alphabetically() {
+        let build = || {
+            vec![
+                scored_file("a/deep/x.ts", 100),
+                scored_file("c/x.ts", 100),
+                scored_file("b/x.ts", 100),
+                scored_file("a/x.ts", 100),
+            ]
+        };
+        let expected = vec![
+            "/root/a/x.ts",
+            "/root/b/x.ts",
+            "/root/c/x.ts",
+            "/root/a/deep/x.ts",
+        ];
+
+        // Run twice: equal scores must give the same order every time.
+        for _ in 0..2 {
+            let ranked: Vec<String> = fuzzy_match_files(build(), 10)
+                .into_iter()
+                .map(|entry| entry.path)
+                .collect();
+            assert_eq!(ranked, expected);
+        }
+    }
+
+    #[test]
+    fn plat_06_fuzzy_match_ranks_score_before_path_length() {
+        let ranked = fuzzy_match_files(
+            vec![scored_file("a.ts", 10), scored_file("long/path.ts", 20)],
+            10,
+        );
+
+        assert_eq!(ranked[0].path, "/root/long/path.ts");
+    }
+
+    #[test]
     fn plat_06_fuzzy_skips_ignored_files() {
         let folder = TempDir::new();
         let root = folder.path();
@@ -679,6 +808,38 @@ mod tests {
 
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0].column, 4);
+    }
+
+    #[test]
+    fn plat_06_grep_skips_a_file_that_vanished() {
+        let folder = TempDir::new();
+        let missing = folder.path().join("gone.txt");
+
+        assert!(
+            read_grep_file(&missing)
+                .expect("a file that vanished is not an error")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn plat_06_walk_skips_a_path_that_vanished_and_fails_on_other_errors() {
+        let gone = ignore::Error::Io(io::Error::new(io::ErrorKind::NotFound, "gone"));
+        assert!(
+            walk_entry(Err(gone))
+                .expect("a path that vanished is skipped")
+                .is_none()
+        );
+
+        let denied = ignore::Error::Io(io::Error::new(io::ErrorKind::PermissionDenied, "no"));
+        let error = walk_entry(Err(denied)).expect_err("a permission error fails the walk");
+        assert!(matches!(
+            error,
+            CommandError::Failed {
+                code: "search_walk_failed",
+                ..
+            }
+        ));
     }
 
     #[test]

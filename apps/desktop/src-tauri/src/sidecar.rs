@@ -49,20 +49,23 @@
 //!   and kills it with SIGKILL. A sidecar that still has a live parent belongs to another running
 //!   app and is left alone.
 //! - stdout and stderr go to a log file: `<app data>/logs/sidecar-<pid>.log`, mode 0600. The
-//!   five newest logs are kept, the rest are removed at start. `sidecar_log_path` returns the
-//!   current one. D026 routes these lines into the app log files with a sidecar tag; that routing
-//!   (PLAT-18) is not built yet, so this file is their current home.
+//!   logger (PLAT-18) owns the file's lifetime: at start the launcher removes logs by age and size
+//!   and keeps the five newest, and it cuts a log to its newest third when it reaches its cap.
+//!   `sidecar_log_path` returns the current one. D026 routes these lines into the app log files
+//!   with a sidecar tag; that routing (PLAT-18) is not built yet, so this file is their current
+//!   home.
 //!
 //! Our design choice: the restart loop in Rust (Conductor has none: the UI calls ensure again).
 //! Our design choice: no HTTP health endpoint and no bearer token. A child that is alive and
 //! connected is healthy, and the socket is private to the user (mode 0600 in a 0700 folder).
 //! Our design choice: environment variables are fixed here and must match packages/sidecar and
-//! docs/plans/tauri-commands.md ("Sidecar launch"). We set only the variables the sidecar reads
-//! today: the parent pid, the outbox root, the log folder and the bin folder. The app version,
-//! agent binary folders, ACP provider folder and Cursor store arrive with the features that read
-//! them (PLAT-18, PLAT-28, SIDE-15, AGENT-09). SIDE-22 (`CONDUCTED_COMPLETIONS_DIR`) and AGENT-18
-//! (`CONDUCTED_SKILL_PLUGIN_DIR`) add theirs when their resolvers stop being placeholders. There
-//! is no database path (the app owns the database) and no logger token or folder (D026, D028).
+//! docs/plans/tauri-commands.md ("Sidecar launch"). We set the variables the sidecar reads today
+//! (the parent pid, the outbox root, the log folder and the bin folder) plus the app version and
+//! log level its logger reads (SIDE-18). Agent binary folders, ACP provider folder and Cursor
+//! store arrive with the features that read them (PLAT-28, SIDE-15, AGENT-09). SIDE-22
+//! (`CONDUCTED_COMPLETIONS_DIR`) and AGENT-18 (`CONDUCTED_SKILL_PLUGIN_DIR`) add theirs when their
+//! resolvers stop being placeholders. There is no database path (the app owns the database) and no
+//! logger token or folder (D026, D028).
 //! Packaging the sidecar needs `bundle.externalBin` in tauri.conf.json, which requires the
 //! compiled file to exist at build time. In development `CONDUCTED_SIDECAR_BIN` points at a
 //! binary or a wrapper script.
@@ -87,6 +90,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::error::{CommandError, CommandResult};
+use crate::logger;
 use crate::not_implemented;
 use crate::process_group;
 use crate::shell::KILL_GRACE_MS;
@@ -533,6 +537,20 @@ pub fn sidecar_environment(pid: u32, data_dir: &Path) -> Vec<(String, String)> {
     ]
 }
 
+/// The full environment of a launch: the folders above plus the app version and log level that the
+/// sidecar's logger reads (SIDE-18).
+pub fn launch_environment(
+    pid: u32,
+    data_dir: &Path,
+    app_version: &str,
+    log_level: &str,
+) -> Vec<(String, String)> {
+    let mut environment = sidecar_environment(pid, data_dir);
+    environment.push(("CONDUCTED_APP_VERSION".to_string(), app_version.to_string()));
+    environment.push(("CONDUCTED_LOG_LEVEL".to_string(), log_level.to_string()));
+    environment
+}
+
 /// Spawns the process, performs the handshake and connects the socket. The caller starts the relay
 /// threads, so only one start runs at a time while the state lock is held.
 pub async fn start_process(
@@ -566,7 +584,12 @@ fn blocking_start(
 ) -> CommandResult<StartedSidecar> {
     kill_orphans(binary)?;
     let data_dir = app_data_dir(app)?;
-    let environment = sidecar_environment(std::process::id(), &data_dir);
+    let app_version = app.package_info().version.to_string();
+    let log_level = {
+        let state = app.state::<logger::LoggerState>();
+        logger::level_name(state.level.load(std::sync::atomic::Ordering::Relaxed))
+    };
+    let environment = launch_environment(std::process::id(), &data_dir, &app_version, log_level);
     for (key, value) in &environment {
         if is_folder_variable(key) {
             ensure_dir(Path::new(value), 0o700)?;
@@ -579,7 +602,8 @@ fn blocking_start(
         &log_dir,
         Duration::from_millis(HANDSHAKE_TIMEOUT_MS),
     )?;
-    prune_logs(&log_dir, LOGS_KEPT);
+    logger::prune_sidecar_logs(&log_dir, SystemTime::now(), logger::SIDECAR_MAX_BYTES);
+    logger::keep_newest_sidecar_logs(&log_dir, LOGS_KEPT);
     let stream = match connect_with_retries(
         &spawned.socket_path,
         Duration::from_millis(CONNECT_TIMEOUT_MS),
@@ -790,6 +814,7 @@ fn open_log_file(path: &Path) -> std::io::Result<File> {
     let file = OpenOptions::new()
         .create(true)
         .truncate(true)
+        .read(true)
         .write(true)
         .mode(0o600)
         .open(path)?;
@@ -798,50 +823,31 @@ fn open_log_file(path: &Path) -> std::io::Result<File> {
 }
 
 fn log_line(log: &Arc<Mutex<File>>, stream: &str, line: &str) {
-    if let Ok(mut file) = log.lock() {
-        let _ = writeln!(file, "[{stream}] {line}");
-        let _ = file.flush();
-    }
+    log_line_with_cap(log, stream, line, logger::SIDECAR_MAX_BYTES);
 }
 
-fn log_files(log_dir: &Path) -> Vec<(PathBuf, SystemTime)> {
-    let Ok(entries) = fs::read_dir(log_dir) else {
-        return Vec::new();
+fn log_line_with_cap(log: &Arc<Mutex<File>>, stream: &str, line: &str, max_bytes: u64) {
+    let Ok(mut file) = log.lock() else {
+        eprintln!("sidecar: the log lock is poisoned");
+        return;
     };
-    entries
-        .filter_map(|entry| {
-            let entry = entry.ok()?;
-            let name = entry.file_name();
-            let name = name.to_str()?;
-            if !(name.starts_with("sidecar-") && name.ends_with(".log")) {
-                return None;
-            }
-            let modified = entry.metadata().ok()?.modified().ok()?;
-            Some((entry.path(), modified))
-        })
-        .collect()
-}
-
-/// Keeps the newest `keep` sidecar logs, removes the rest, and returns how many were removed.
-pub fn prune_logs(log_dir: &Path, keep: usize) -> usize {
-    let mut files = log_files(log_dir);
-    if files.len() <= keep {
-        return 0;
+    if let Err(error) = writeln!(file, "[{stream}] {line}") {
+        eprintln!("sidecar: could not write its log: {error}");
+        return;
     }
-    files.sort_by_key(|entry| std::cmp::Reverse(entry.1));
-    let mut removed = 0;
-    for (path, _) in files.into_iter().skip(keep) {
-        if fs::remove_file(path).is_ok() {
-            removed += 1;
-        }
+    if let Err(error) = file.flush() {
+        eprintln!("sidecar: could not flush its log: {error}");
+        return;
     }
-    removed
+    if let Err(error) = logger::cap_sidecar_log(&mut file, max_bytes) {
+        eprintln!("sidecar: could not cap its log: {error}");
+    }
 }
 
 /// The newest sidecar log, used to keep the failure screen useful when a start fails.
 fn latest_log_path(app: &AppHandle) -> Option<PathBuf> {
     let data_dir = app_data_dir(app).ok()?;
-    let mut files = log_files(&data_dir.join("logs"));
+    let mut files = logger::sidecar_log_files(&data_dir.join("logs"));
     files.sort_by_key(|entry| std::cmp::Reverse(entry.1));
     files.into_iter().next().map(|(path, _)| path)
 }
@@ -1440,7 +1446,7 @@ mod tests {
         for index in 0..7u64 {
             write_log_at(&folder, &format!("sidecar-{index}.log"), 1_000 + index);
         }
-        let removed = prune_logs(folder.path(), LOGS_KEPT);
+        let removed = logger::keep_newest_sidecar_logs(folder.path(), LOGS_KEPT);
         assert_eq!(removed, 2);
         for index in 2..7 {
             assert!(
@@ -1461,7 +1467,7 @@ mod tests {
         let folder = TempDir::new();
         write_log(&folder, "notes.txt");
         write_log(&folder, "app-2026-11-05.ndjson");
-        assert_eq!(prune_logs(folder.path(), 0), 0);
+        assert_eq!(logger::keep_newest_sidecar_logs(folder.path(), 0), 0);
         assert!(folder.path().join("notes.txt").is_file());
         assert!(folder.path().join("app-2026-11-05.ndjson").is_file());
     }
@@ -1510,6 +1516,19 @@ mod tests {
         assert!(!map.contains_key("CONDUCTED_DB_PATH"));
         assert!(!map.contains_key("CONDUCTED_LOGGER_TOKEN"));
         assert!(!map.contains_key("CONDUCTED_LOGGER_DIR"));
+    }
+
+    #[test]
+    fn plat_18_the_launch_environment_adds_the_app_version_and_log_level() {
+        let environment =
+            launch_environment(42, Path::new("/tmp/conducted-data"), "1.2.3", "debug");
+        let map: HashMap<&str, &str> = environment
+            .iter()
+            .map(|(key, value)| (key.as_str(), value.as_str()))
+            .collect();
+        assert_eq!(map.get("CONDUCTED_PARENT_PID"), Some(&"42"));
+        assert_eq!(map.get("CONDUCTED_APP_VERSION"), Some(&"1.2.3"));
+        assert_eq!(map.get("CONDUCTED_LOG_LEVEL"), Some(&"debug"));
     }
 
     #[test]
@@ -1664,6 +1683,18 @@ mod tests {
         assert_eq!(spawned.socket_path, socket);
         process_group::terminate_group(spawned.pid, Duration::from_millis(500));
         let _ = spawned.child.wait();
+    }
+
+    #[test]
+    fn plat_18_a_sidecar_log_is_cut_when_it_reaches_its_cap() {
+        let folder = TempDir::new();
+        let path = folder.path().join("sidecar-1.log");
+        let log = Arc::new(Mutex::new(open_log_file(&path).expect("create log")));
+        for _ in 0..10 {
+            log_line_with_cap(&log, "stdout", &"x".repeat(20), 300);
+        }
+        let length = fs::metadata(&path).expect("stat log").len();
+        assert!(length <= 100, "kept {length} bytes");
     }
 
     #[test]

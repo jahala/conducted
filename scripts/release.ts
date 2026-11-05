@@ -9,13 +9,19 @@
  * deliberate step.
  */
 import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import {
+	appBuildArguments,
+	type BundleReport,
 	bundleProblems,
+	createDiskImage,
+	diskImagePath,
 	notariseBundle,
+	notariseDiskImage,
 	runTool,
 	signBundle,
 	verifyBundle,
+	verifyDiskImage,
 } from "../apps/desktop/src-tauri/release/bundle.ts";
 import { VERSION_FILES } from "./guards/versions.ts";
 
@@ -42,8 +48,13 @@ async function must<T>(result: Promise<ToolResult<T>>): Promise<T> {
 	return value.value;
 }
 
-function sh(cmd: string[], cwd = root): string {
-	const result = Bun.spawnSync(cmd, { cwd, stdout: "pipe", stderr: "pipe" });
+function rejectProblems(report: BundleReport): void {
+	const problems = bundleProblems(report);
+	if (problems.length > 0) throw new Error(problems.join("\n"));
+}
+
+function sh(cmd: readonly string[], cwd = root): string {
+	const result = Bun.spawnSync([...cmd], { cwd, stdout: "pipe", stderr: "pipe" });
 	if (result.exitCode !== 0) {
 		throw new Error(
 			`${cmd.join(" ")} failed:\n${result.stderr.toString()}${result.stdout.toString()}`,
@@ -98,21 +109,11 @@ const steps: Step[] = [
 		},
 	},
 	{
-		say: "Build the arm64 app with its sidecar, sign it, notarise it and verify the bundle",
+		say: "Build the arm64 app alone, sign and notarise it, then make and verify the disk image",
 		undo: "nothing to undo; build output stays under apps/desktop/src-tauri/target",
 		run: async () => {
 			sh(["pnpm", "--filter", "@conducted/sidecar", "build"]);
-			sh([
-				"pnpm",
-				"--filter",
-				"@conducted/desktop",
-				"tauri",
-				"build",
-				"--target",
-				"aarch64-apple-darwin",
-				"--config",
-				"src-tauri/tauri.release.conf.json",
-			]);
+			sh(appBuildArguments("aarch64-apple-darwin", "src-tauri/tauri.release.conf.json"));
 			const appPath = join(
 				tauriDir,
 				"target",
@@ -124,9 +125,12 @@ const steps: Step[] = [
 			);
 			await must(signBundle(runTool, appPath, process.env));
 			await must(notariseBundle(runTool, appPath, process.env));
-			const report = await must(verifyBundle(runTool, appPath));
-			const problems = bundleProblems(report);
-			if (problems.length > 0) throw new Error(problems.join("\n"));
+			rejectProblems(await must(verifyBundle(runTool, appPath)));
+
+			const dmgPath = diskImagePath(appPath);
+			await must(createDiskImage(runTool, appPath, dmgPath));
+			await must(notariseDiskImage(runTool, dmgPath, process.env));
+			rejectProblems(await must(verifyDiskImage(runTool, dmgPath, basename(appPath))));
 		},
 	},
 	{
