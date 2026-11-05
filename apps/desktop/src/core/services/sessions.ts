@@ -2,7 +2,8 @@
  * @feature CHAT-01 Sessions service: the chat list; CHAT-02 Send a message as a new turn; CHAT-05
  * Cancel a turn; CHAT-27 Retry a failed turn in a new chat
  * Owns: the list of chats per workspace, their stored live state and events in memory, the
- * create, close, reopen, rename, set-title-if-empty, delete and open paths, starting a review chat
+ * create, close, reopen, rename, set-title-if-empty, delete (which also removes the chat's
+ * checkpoint refs) and open paths, starting a review chat
  * with the review model, sending a user message as a new turn or a steer, cancelling a turn:
  * pausing the follow-up queue, withdrawing the open interaction, removing only the pending sends
  * the sidecar dropped, and putting a send that was still in flight back in the composer draft,
@@ -22,8 +23,9 @@
  * of a workspace and no idle one; a live state from the sidecar is shown as it arrives and an
  * open interaction in it becomes the chat's card, while a live state without one withdraws the
  * card; a chat the sidecar lost gets every open turn closed as `interrupted` in one transaction
- * and an idle live state, while its agent session id stays for resume and a failed live-state
- * write is returned; a review chat uses the review model, fast mode and effort from settings,
+ * and an idle live state with no finished notice, while its agent session id stays for resume and
+ * a failed live-state write is returned; a review chat uses the review model, fast mode and effort
+ * from settings,
  * falls back to the default chat model when no review model is set, and does not start when a
  * review setting cannot be used.
  * Our design choice: a chat starts with no title; the title generator fills it only once
@@ -41,6 +43,8 @@
  * The progress path lives in the same service but belongs to CHAT-13. The chat view (turns built
  * from stored events) belongs to CHAT-07. Cancel is CHAT-05's, and the interaction paths (answer,
  * requestInteraction) are CHAT-10's. CHAT-18 owns `applyLiveState` and `markInterrupted` here.
+ * CHAT-15 owns `markReverted`, which marks the open chat's loaded events from the reverted turn
+ * onward so the turn list hides them without a reload.
  * Read state is NAV-11's: mark a chat or a workspace read or unread, and remember the chat on
  * screen for notifications.
  * SIDE-20 owns `applyAgentConfig`, which stores a config the agent changed by itself.
@@ -250,6 +254,11 @@ export interface SessionsServiceDeps {
 	 * when it is missing: building a launch here would drop the provider keys and the program path.
 	 */
 	launchFor?: (session: Session) => AgentLaunch;
+	/**
+	 * Removes a chat's checkpoint refs before its row is deleted (DATA-06). The composition root
+	 * supplies it; a harness without it still deletes chats and leaves the refs alone.
+	 */
+	pruneCheckpoints?: (sessionId: SessionId, workspaceId: WorkspaceId) => Promise<Result<number>>;
 	/** Folders and branch facts the sidecar needs to place a chat on disk. */
 	workspaceContextOf: (workspaceId: WorkspaceId) => Promise<Result<WorkspaceContext>>;
 	/** Default config for a new chat, from settings and the last used model. */
@@ -512,6 +521,10 @@ export class SessionsService implements AgentMessenger {
 	async delete(id: SessionId): Promise<Result<void>> {
 		const found = await this.#session(id);
 		if (!found.ok) return found;
+		// Prune first: a git failure leaves the chat in place so the user can retry, rather than
+		// losing a chat whose refs could not be removed.
+		const pruned = await this.#deps.pruneCheckpoints?.(id, found.value.workspaceId);
+		if (pruned !== undefined && !pruned.ok) return err(pruned.error);
 		const removed = await this.#deps.repositories().sessions.delete(id);
 		if (!removed.ok) return removed;
 		this.#turns.delete(id);
@@ -1273,7 +1286,11 @@ export class SessionsService implements AgentMessenger {
 	 * Shows the sidecar's live state. A new state replaces the one before it. An interaction the
 	 * new state no longer carries is settled as withdrawn, so a stale card never stays on screen.
 	 */
-	async applyLiveState(sessionId: SessionId, liveState: LiveState): Promise<Result<void>> {
+	async applyLiveState(
+		sessionId: SessionId,
+		liveState: LiveState,
+		options: { notify?: boolean } = {},
+	): Promise<Result<void>> {
 		const at = this.#deps.now();
 		const previous = this.store.getState().openInteractions[sessionId];
 		const nextOpen = liveState.openInteraction;
@@ -1302,6 +1319,7 @@ export class SessionsService implements AgentMessenger {
 		if (previous !== undefined && previous.interactionId !== nextOpen?.interactionId) {
 			this.#settleInteraction(previous.interactionId, { kind: "withdrawn" });
 		}
+		if (options.notify !== false) this.#deps.notifications.onLiveStateChanged(sessionId);
 		const written = await this.#deps.repositories().liveStates.upsert(sessionId, liveState, at);
 		return written.ok ? ok(undefined) : err(written.error);
 	}
@@ -1357,6 +1375,26 @@ export class SessionsService implements AgentMessenger {
 		if (closedInteractionId !== null) {
 			this.#settleInteraction(closedInteractionId, { kind: "withdrawn" });
 		}
+	}
+
+	/**
+	 * Reflects a completed revert in the open chat's store: every event from the turn's user
+	 * message onward is marked reverted, exactly as the database write did. The turn list then
+	 * drops those turns without reloading the chat. Events are kept, never removed.
+	 */
+	markReverted(sessionId: SessionId, turnId: TurnId, at: number): void {
+		this.store.setState((state) => {
+			const loaded = state.events[sessionId];
+			if (loaded === undefined) return {};
+			const first = loaded.find(
+				(row) => row.event.turnId === turnId && row.event.type === "user_message",
+			);
+			if (first === undefined) return {};
+			const events = loaded.map((row) =>
+				row.idx >= first.idx && row.revertedAt === null ? { ...row, revertedAt: at } : row,
+			);
+			return { events: { ...state.events, [sessionId]: events } };
+		});
 	}
 
 	async setAgentSessionId(sessionId: SessionId, agentSessionId: string): Promise<Result<void>> {
@@ -1432,7 +1470,7 @@ export class SessionsService implements AgentMessenger {
 		for (const entry of appended.value) {
 			this.applyStoredEvent(sessionId, entry.idx, entry.event, at);
 		}
-		return this.applyLiveState(sessionId, idleLiveState);
+		return this.applyLiveState(sessionId, idleLiveState, { notify: false });
 	}
 
 	// ---- called by the views ----

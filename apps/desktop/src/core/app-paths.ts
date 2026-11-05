@@ -2,7 +2,8 @@
  * @feature DATA-02 Where the app keeps its own files
  * Owns: the folder layout under the app data folder, as pure functions of `Platform.fs.paths`, so
  * every service and the data-lifetime job agree on where drafts, attachments and logs live.
- * Behaviour: services-map.md 5A.6.2 (draft staging folder, sweep of old drafts), 5A.1.2 (setup log).
+ * Behaviour: services-map.md 5A.6.2 (draft staging folder, sweep of old drafts), 5A.1.2 (setup log)
+ * and 5A.4.7 (saved terminal scrollback files).
  * Callers pass ids from the id source, never user text, so no name here holds a path separator.
  * Nothing in this file checks that; a caller that passed user text would escape the folder.
  * Our design choice: drafts are JSON files, one per chat, because migration 0001 has no drafts
@@ -27,6 +28,18 @@ export const draftFile = (paths: AppPaths, sessionId: string): string =>
 /** Staging folder for attachments that are not yet part of a sent message. */
 export const draftAttachmentsDir = (paths: AppPaths, sessionId: string): string =>
 	join(paths.appData, "draft-attachments", sessionId);
+
+/** Folder holding one staging folder per chat with draft attachments. */
+export const draftAttachmentsRoot = (paths: AppPaths): string =>
+	join(paths.appData, "draft-attachments");
+
+/** Folder where the Rust shell writes the saved scrollback of ended terminals (PLAT-08). */
+export const terminalHistoryDir = (paths: AppPaths): string =>
+	join(paths.appData, "terminal-history");
+
+/** The saved scrollback file of one terminal. */
+export const terminalHistoryFile = (paths: AppPaths, terminalId: string): string =>
+	join(terminalHistoryDir(paths), `${terminalId}.bin`);
 
 /** Where the setup script's output is written for one workspace. */
 export const setupLogFile = (paths: AppPaths, workspaceId: string): string =>

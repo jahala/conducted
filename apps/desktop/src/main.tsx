@@ -70,8 +70,8 @@ const placeNames: PlaceNames = {
 };
 
 /**
- * Plays our own two-tone chime with the Web Audio API. The sound catalog and the settings that pick
- * one belong to CHAT-19; this is the default player the container needs before that lands.
+ * Plays our own two-tone chime with the Web Audio API. The two sound choices and the notification
+ * settings that pick one live in `core/services/notifications.ts` and the settings registry.
  */
 const sound: SoundPlayer = {
 	async play(soundId) {

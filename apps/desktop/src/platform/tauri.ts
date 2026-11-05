@@ -66,6 +66,7 @@ import type {
 	Clipboard,
 	Database,
 	Dialogs,
+	FileDropEvent,
 	FileSearch,
 	FileStat,
 	FileSystem,
@@ -121,9 +122,17 @@ export interface TauriOpenerBindings {
 	openUrl(url: string): Promise<void>;
 }
 
+/** One drag and drop event from Tauri's window API. Positions are physical pixels. */
+export type TauriDragDropEvent =
+	| { type: "enter"; paths: string[]; position: { x: number; y: number } }
+	| { type: "over"; position: { x: number; y: number } }
+	| { type: "drop"; paths: string[]; position: { x: number; y: number } }
+	| { type: "leave" };
+
 export interface TauriWindowBindings {
 	isFocused(): Promise<boolean>;
 	listen<T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn>;
+	onDragDropEvent(handler: (event: TauriDragDropEvent) => void): Promise<UnlistenFn>;
 }
 
 export interface TauriBindings {
@@ -172,6 +181,8 @@ export const realTauriBindings: TauriBindings = {
 		isFocused: () => getCurrentWindow().isFocused(),
 		listen: (event, handler) =>
 			getCurrentWindow().listen(event, (e) => handler(e.payload as never)),
+		onDragDropEvent: (handler) =>
+			getCurrentWindow().onDragDropEvent((event) => handler(event.payload)),
 	},
 	sql: { load: (path) => Sql.load(path) as Promise<SqlDatabase> },
 	dialog: {
@@ -208,17 +219,15 @@ interface EventSource {
 	listen<T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn>;
 }
 
-function onEvent<T>(
-	bindings: EventSource,
-	event: string,
+function subscribe<T>(
+	start: (handler: (payload: T) => void) => Promise<UnlistenFn>,
 	handler: (payload: T) => void,
 ): () => void {
 	let active = true;
 	let unlisten: UnlistenFn | null = null;
-	void bindings
-		.listen<T>(event, (payload) => {
-			if (active) handler(payload);
-		})
+	void start((payload) => {
+		if (active) handler(payload);
+	})
 		.then((stop) => {
 			if (active) unlisten = stop;
 			else stop();
@@ -234,6 +243,38 @@ function onEvent<T>(
 			unlisten = null;
 		}
 	};
+}
+
+function onEvent<T>(
+	bindings: EventSource,
+	event: string,
+	handler: (payload: T) => void,
+): () => void {
+	return subscribe((listener) => bindings.listen<T>(event, listener), handler);
+}
+
+/** Turns one Tauri drag event into the Platform's event, with its real paths and pixel position. */
+function toFileDropEvent(event: TauriDragDropEvent): FileDropEvent {
+	switch (event.type) {
+		case "enter":
+			return {
+				kind: "enter",
+				paths: [...event.paths],
+				x: event.position.x,
+				y: event.position.y,
+			};
+		case "over":
+			return { kind: "over", x: event.position.x, y: event.position.y };
+		case "drop":
+			return {
+				kind: "drop",
+				paths: [...event.paths],
+				x: event.position.x,
+				y: event.position.y,
+			};
+		case "leave":
+			return { kind: "leave" };
+	}
 }
 
 // ---------------------------------------------------------------- names (docs/plans/tauri-commands.md)
@@ -923,7 +964,13 @@ export function createTauriWindow(bindings: TauriBindings): AppWindow {
 				stopBlur();
 			};
 		},
-		onFileDrop: () => notImplemented("PLAT-33"),
+		onFileDrop: (listener) => {
+			const window = currentWindow();
+			return subscribe<TauriDragDropEvent>(
+				(handler) => window.onDragDropEvent(handler),
+				(event) => listener(toFileDropEvent(event)),
+			);
+		},
 		setZoom: () => notImplemented("PLAT-23"),
 		setVibrancy: () => notImplemented("PLAT-23"),
 		setTrafficLightPosition: () => notImplemented("PLAT-23"),
@@ -936,10 +983,11 @@ export function createTauriWindow(bindings: TauriBindings): AppWindow {
 }
 
 /** `menu_set_shortcuts { shortcuts }`, event `menu://command` (payload: command id). */
-export function createTauriMenu(_bindings: TauriBindings): AppMenu {
+export function createTauriMenu(bindings: TauriBindings): AppMenu {
 	return {
-		setShortcuts: () => notImplemented("PLAT-33"),
-		onCommand: () => notImplemented("PLAT-33"),
+		setShortcuts: (shortcuts) =>
+			invokeResult(bindings, COMMANDS.menuSetShortcuts, { shortcuts: [...shortcuts] }),
+		onCommand: (listener) => onEvent(bindings, EVENTS.menuCommand, listener),
 	};
 }
 
@@ -955,10 +1003,16 @@ export function createTauriSystem(bindings: TauriBindings): SystemFacts {
 }
 
 /** `attachment_materialize { sourcePath, destinationPath, resizeImage }`, `image_resize { sourcePath, destinationPath }`. */
-export function createTauriAttachments(_bindings: TauriBindings): AttachmentFiles {
+export function createTauriAttachments(bindings: TauriBindings): AttachmentFiles {
 	return {
-		materialize: () => notImplemented("PLAT-33"),
-		resizeImage: () => notImplemented("PLAT-33"),
+		materialize: (sourcePath, destinationPath, options) =>
+			invokeResult(bindings, COMMANDS.attachmentMaterialize, {
+				sourcePath,
+				destinationPath,
+				resizeImage: options.resizeImage,
+			}),
+		resizeImage: (sourcePath, destinationPath) =>
+			invokeResult(bindings, COMMANDS.imageResize, { sourcePath, destinationPath }),
 	};
 }
 

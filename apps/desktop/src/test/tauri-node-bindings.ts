@@ -267,6 +267,28 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 				const entries = await Promise.all(names.map((name) => statOf(join(folder, name))));
 				return entries.filter((entry): entry is FileStat => entry !== null);
 			}
+			case COMMANDS.attachmentMaterialize:
+			case COMMANDS.imageResize: {
+				const source = String(args.sourcePath);
+				const destination = String(args.destinationPath);
+				const text = await readFile(source, "utf8").catch((error: Error) =>
+					fail("attachment_missing", error.message),
+				);
+				await writeAtomic(destination, text);
+				return {
+					path: destination,
+					sizeBytes: Buffer.byteLength(text),
+					isImage: false,
+					width: null,
+					height: null,
+					resized: false,
+				};
+			}
+			case COMMANDS.menuSetShortcuts: {
+				const shortcuts =
+					(args.shortcuts as { commandId: string; accelerator: string | null }[] | undefined) ?? [];
+				return { applied: shortcuts.map((shortcut) => shortcut.commandId), rejected: [] };
+			}
 			case COMMANDS.shellLoginEnv:
 				return { shell: process.env.SHELL ?? "/bin/sh", path: process.env.PATH ?? "" };
 			case COMMANDS.shellRun: {
@@ -343,6 +365,7 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 		window: {
 			isFocused: async () => focused,
 			listen: windowEvents.listen,
+			onDragDropEvent: async () => () => {},
 		},
 		sql: {
 			load: async () => {

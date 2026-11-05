@@ -17,6 +17,12 @@ const state = vi.hoisted(() => ({
 	branchesThrow: null as Error | null,
 	setViewed: vi.fn(),
 	discardFile: vi.fn(),
+	toast: { error: vi.fn() },
+}));
+
+vi.mock("../../../ui/Toast.tsx", () => ({
+	toast: state.toast,
+	toastError: vi.fn(),
 }));
 
 vi.mock("../../../core/hooks.ts", () => ({
@@ -82,6 +88,7 @@ beforeEach(() => {
 	state.branchesThrow = null;
 	state.setViewed.mockReset();
 	state.discardFile.mockReset();
+	state.toast.error.mockReset();
 });
 
 afterEach(() => {
@@ -187,6 +194,21 @@ describe("REV-01 changes tab", () => {
 	it("says changes appear here when the list is empty", () => {
 		renderChanges();
 		expect(screen.getByRole("heading", { name: "Changes appear here" })).toBeTruthy();
+	});
+
+	it("CHAT-15 refuses a single-file revert in a per-turn view", async () => {
+		state.files = { state: "ready", data: [file("src/a/x.ts")] };
+		const props = { workspaceId, onScopeChange: vi.fn(), onOpenFile: vi.fn() };
+		render(
+			<ChangesTab
+				{...props}
+				scope={{ kind: "turn", sessionId: "s1" as never, turnId: "t1" as never }}
+			/>,
+		);
+		fireEvent.contextMenu(screen.getByLabelText("Open src/a/x.ts"));
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Discard changes" }));
+		expect(state.toast.error).toHaveBeenCalledWith("Reverting to a turn is not supported yet.");
+		expect(state.discardFile).not.toHaveBeenCalled();
 	});
 });
 

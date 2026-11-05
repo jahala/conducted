@@ -13,7 +13,9 @@ import { renderWithRouter } from "../../test/render-with-router.tsx";
 
 const state = vi.hoisted(() => ({
 	copyText: vi.fn(),
+	cancel: vi.fn(),
 	revertTo: vi.fn(),
+	setSetting: vi.fn(),
 	toastError: vi.fn(),
 }));
 
@@ -22,8 +24,10 @@ vi.mock("../../ui/Toast.tsx", () => ({ toastError: state.toastError }));
 vi.mock("../../core/hooks.ts", () => ({
 	useActions: () => ({
 		app: { copyText: state.copyText },
-		sessions: { revertTo: state.revertTo },
+		sessions: { cancel: state.cancel, revertTo: state.revertTo },
+		settings: { set: state.setSetting },
 	}),
+	useSetting: () => false,
 }));
 
 const { UserMessage } = await import("./UserMessage.tsx");
@@ -31,7 +35,9 @@ const { UserMessage } = await import("./UserMessage.tsx");
 afterEach(() => {
 	cleanup();
 	state.copyText.mockReset();
+	state.cancel.mockReset();
 	state.revertTo.mockReset();
+	state.setSetting.mockReset();
 	state.toastError.mockReset();
 });
 
@@ -172,15 +178,21 @@ describe("CHAT-06 user message", () => {
 		);
 	});
 
-	it("tells the user when the chat could not be reset", async () => {
-		const error = appError("not_found", "No checkpoint.");
-		state.revertTo.mockResolvedValue(err(error));
+	it("opens the reset dialog from the Revert action", async () => {
 		renderWithRouter(<UserMessage turn={turn()} sessionId={sessionId} />);
 		fireEvent.click(await screen.findByRole("button", { name: "Revert to before this message" }));
-		await waitFor(() =>
-			expect(state.toastError).toHaveBeenCalledWith("Couldn't reset the chat", error),
-		);
-		expect(state.revertTo).toHaveBeenCalledWith(sessionId, "t1");
+		expect(await screen.findByRole("heading", { name: "Reset chat?" })).toBeTruthy();
+		expect(state.revertTo).not.toHaveBeenCalled();
+	});
+
+	it("reverts to the turn when the dialog is confirmed", async () => {
+		state.revertTo.mockResolvedValue(ok(undefined));
+		state.setSetting.mockResolvedValue(ok(undefined));
+		renderWithRouter(<UserMessage turn={turn()} sessionId={sessionId} />);
+		fireEvent.click(await screen.findByRole("button", { name: "Revert to before this message" }));
+		fireEvent.click(await screen.findByRole("button", { name: "Reset" }));
+		await waitFor(() => expect(state.revertTo).toHaveBeenCalledWith(sessionId, "t1"));
+		expect(state.toastError).not.toHaveBeenCalled();
 	});
 
 	it("tells the user when the message could not be copied", async () => {
@@ -192,13 +204,5 @@ describe("CHAT-06 user message", () => {
 		await waitFor(() =>
 			expect(state.toastError).toHaveBeenCalledWith("Couldn't copy the message", error),
 		);
-	});
-
-	it("stays quiet when a reset works", async () => {
-		state.revertTo.mockResolvedValue(ok(undefined));
-		renderWithRouter(<UserMessage turn={turn()} sessionId={sessionId} />);
-		fireEvent.click(await screen.findByRole("button", { name: "Revert to before this message" }));
-		await waitFor(() => expect(state.revertTo).toHaveBeenCalledTimes(1));
-		expect(state.toastError).not.toHaveBeenCalled();
 	});
 });
