@@ -12,11 +12,12 @@
  * points at a path of their own is shown as theirs and never downloaded over; copying an image
  * that is not an image file fails with a plain message; a save the user cancels is `ok(null)`;
  * System Settings that will not open says where to grant Full Disk Access by hand; feedback opens
- * the project's issue page with the text filled in and never sends logs anywhere by itself.
+ * the project's issue page with the text filled in and never sends logs anywhere by itself; the
+ * Xcode licence fix opens Terminal and reports a Terminal that cannot be opened.
  * Our design choice: one service for these Mac-level actions, so screens get them through
  * `Actions` like everything else and the Platform stays out of `features/`.
- * Built now: `copyText`. The rest is a placeholder owned by PLAT-28, CHAT-29, APP-09, APP-03,
- * PLAT-24 and GIT-16.
+ * Built now: `copyText` and `runXcodeLicenseFix`. The rest is a placeholder owned by PLAT-28,
+ * CHAT-29, APP-09, APP-03 and PLAT-24.
  * Test first: install while a download of the same program runs starts no second download.
  */
 import {
@@ -30,6 +31,7 @@ import {
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform } from "../../platform/platform.ts";
 import type { FeedbackInput, Loadable } from "../api.ts";
+import { openXcodeLicenseTerminal } from "../git/xcode-license.ts";
 import type { AgentProgramView } from "../model.ts";
 
 export interface SystemState {
@@ -37,7 +39,10 @@ export interface SystemState {
 }
 
 export interface SystemServiceDeps {
-	platform: Pick<Platform, "programs" | "clipboard" | "dialogs" | "opener" | "system" | "sidecar">;
+	platform: Pick<
+		Platform,
+		"programs" | "clipboard" | "dialogs" | "opener" | "system" | "sidecar" | "shell" | "fs"
+	>;
 	setting: <T>(key: string) => T;
 }
 
@@ -111,8 +116,8 @@ export class SystemService {
 		return notImplemented("PLAT-24");
 	}
 
-	/** Backs `Actions.app.runXcodeLicenseFix`. */
+	/** Backs `Actions.app.runXcodeLicenseFix`: opens Terminal with the accept command. */
 	runXcodeLicenseFix(): Promise<Result<void>> {
-		return notImplemented("GIT-16");
+		return openXcodeLicenseTerminal(this.#deps.platform.shell, this.#deps.platform.fs.paths.home);
 	}
 }

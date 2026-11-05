@@ -43,6 +43,7 @@ import {
 	shellSidebarWidth,
 } from "./layout-persistence.ts";
 import { ShellControls } from "./ShellControls.tsx";
+import { XcodeLicenseNotice } from "./xcode-license-notice.ts";
 
 export function AppShell() {
 	const sidebarRef = usePanelRef();
@@ -116,6 +117,7 @@ export function AppShell() {
 
 	return (
 		<div className="relative h-full bg-surface" style={style}>
+			<XcodeLicenseNotice />
 			<ShellControls sidebarOpen={sidebarOpen} onToggleSidebar={toggleSidebar} />
 			<PanelLayoutProvider store={layoutStore}>
 				<ResizableGroup
