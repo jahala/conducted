@@ -1,29 +1,30 @@
 /**
  * @feature SIDE-09 Prompt assembly: first-message instruction, mentions, attachments, preferences
  * Owns: building the final text sent to the agent from the user's message, in a fixed order.
- * Behaviour: research/conductor/sessions.md section 9 "Message enrichment" and claude-runner.md
- * section 5: the sidecar, not the app, builds the final message. Order here: workspace instruction
- * (first message only), linked folders (when the agent has no add-dir flag), the expanded message,
- * the attachments block, the preferences block.
+ * Behaviour: research/conductor/sessions.md section 9 "Message enrichment", claude-runner.md
+ * section 5, and ui-map.md section 6 ("General preferences" are sent at the start of every chat).
+ * The sidecar, not the app, builds the final message. Order here: workspace instruction (first
+ * message only), linked folders (when the agent has no add-dir flag), the expanded message, the
+ * attachments block, the preferences block (first message only).
  * Must handle:
- *  - the first message gets the instruction block and the user's preferences; later messages do not
- *  - the steer case: a steer is assembled like a later message (no instruction block)
+ *  - the first message gets the instruction block and the user's preferences; later messages and
+ *    steers get neither
  *  - pull-request mentions: write the stub file once, never overwrite, create .context/pull-requests
  *  - a stub that cannot be written: the message still goes out with the link, the failure is
  *    logged (the agent can ask the user), nothing is dropped silently
- *  - a review-comment attachment: its file mentions join the referenced-files list; an unreadable
- *    file is logged and the message still goes out
+ *  - a review-comment attachment under the workspace's own .context/attachments/comments: its file
+ *    mentions join the referenced-files list; an unreadable file is logged and the message still
+ *    goes out; a path outside that folder is never read
  *  - a file whose size cannot be read is listed as "unknown size"
  *  - the stored user_message event keeps the raw text; only the agent sees the assembled one
  * Test first: assemble with firstMessage true starts with the instruction tag and ends with the
  * user's text when there are no attachments or preferences.
  * Our design choice: file reads and the stub write are ports, so the assembler has no hidden I/O.
  */
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, join } from "node:path";
+import { isAbsolute, relative, resolve } from "node:path";
 import type { SessionConfig, WorkspaceContext } from "@conducted/protocol";
 import type { AppError, Result } from "@conducted/shared";
-import { appError, err, ok } from "@conducted/shared";
+import { ok } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
 import {
 	type AttachmentEntry,
@@ -31,12 +32,7 @@ import {
 	buildLinkedDirectoriesBlock,
 	buildPreferencesBlock,
 } from "./blocks.ts";
-import {
-	buildPullRequestStub,
-	expandMentions,
-	fileMentionPaths,
-	pullRequestStubPath,
-} from "./mentions.ts";
+import { expandMentions, fileMentionPaths } from "./mentions.ts";
 import { buildWorkspaceInstruction } from "./workspace-instruction.ts";
 
 export interface PromptInput {
@@ -69,44 +65,18 @@ export type WritePullRequestStub = (
 ) => Promise<Result<void, AppError>>;
 
 /** The review-comment folder Conductor reserves for files a diff comment sends to a chat. */
-const REVIEW_COMMENT_MARKER = ".context/attachments/comments/";
+const REVIEW_COMMENT_FOLDER = ".context/attachments/comments";
 
-function isReviewCommentAttachment(path: string): boolean {
-	const normalized = path.replaceAll("\\", "/");
-	return (
-		normalized.includes(`/${REVIEW_COMMENT_MARKER}`) || normalized.startsWith(REVIEW_COMMENT_MARKER)
-	);
+/** True only for a path inside this workspace's review-comment folder. */
+function isReviewCommentAttachment(workspacePath: string, path: string): boolean {
+	const folder = resolve(workspacePath, REVIEW_COMMENT_FOLDER);
+	const target = resolve(workspacePath, path);
+	const offset = relative(folder, target);
+	return offset !== "" && !offset.startsWith("..") && !isAbsolute(offset);
 }
 
 function resolveAgainst(workspacePath: string, path: string): string {
-	return isAbsolute(path) ? path : join(workspacePath, path);
-}
-
-/** Writes a pull-request stub with a create-only open, so an existing file is never replaced. */
-export async function writePullRequestStubFile(
-	workspacePath: string,
-	number: number,
-	repositoryFullName?: string,
-): Promise<Result<void, AppError>> {
-	const relative = pullRequestStubPath(number);
-	const target = join(workspacePath, relative);
-	try {
-		await mkdir(dirname(target), { recursive: true });
-		await writeFile(target, buildPullRequestStub(number, repositoryFullName), {
-			encoding: "utf8",
-			flag: "wx",
-		});
-		return ok(undefined);
-	} catch (cause) {
-		if ((cause as NodeJS.ErrnoException).code === "EEXIST") return ok(undefined);
-		return err(
-			appError(
-				"PROMPT_PR_STUB_WRITE_FAILED",
-				`Could not write the pull-request stub ${relative}.`,
-				cause,
-			),
-		);
-	}
+	return resolve(workspacePath, path);
 }
 
 export class MessagePromptAssembler implements PromptAssembler {
@@ -138,7 +108,7 @@ export class MessagePromptAssembler implements PromptAssembler {
 
 		const referencedPaths = new Set(expanded.filePaths);
 		for (const attachmentPath of input.attachmentPaths) {
-			if (!isReviewCommentAttachment(attachmentPath)) continue;
+			if (!isReviewCommentAttachment(input.workspace.workspacePath, attachmentPath)) continue;
 			const read = await this.deps.files.readText(
 				resolveAgainst(input.workspace.workspacePath, attachmentPath),
 			);
@@ -164,7 +134,8 @@ export class MessagePromptAssembler implements PromptAssembler {
 
 		const parts: string[] = [];
 		if (input.firstMessage) parts.push(buildWorkspaceInstruction(input.workspace));
-		// Claude and ACP agents receive the linked folders through their own add-dir option.
+		// Claude and ACP agents receive the linked folders through their own add-dir option. Codex
+		// and Cursor have no such option, so their message carries the folders (other-runners 2.3).
 		if (input.config.agent !== "claude" && input.config.agent !== "acp") {
 			const linked = buildLinkedDirectoriesBlock(input.config.additionalDirectories);
 			if (linked !== null) parts.push(linked);
@@ -172,8 +143,10 @@ export class MessagePromptAssembler implements PromptAssembler {
 		parts.push(expanded.text);
 		const attachments = buildAttachmentsBlock({ referenced, attached });
 		if (attachments !== null) parts.push(attachments);
-		const preferences = buildPreferencesBlock(input.workspace.userPreferences);
-		if (preferences !== null) parts.push(preferences);
+		if (input.firstMessage) {
+			const preferences = buildPreferencesBlock(input.workspace.userPreferences);
+			if (preferences !== null) parts.push(preferences);
+		}
 		return ok(parts.join("\n\n"));
 	}
 

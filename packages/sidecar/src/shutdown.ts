@@ -13,6 +13,7 @@
  * socket, close the logger. Conductor flushes the outbox before closing the sockets too.
  */
 import type { Logger } from "./logging/logger.ts";
+import { messageOf } from "./util/errors.ts";
 
 export interface ShutdownStep {
 	name: string;
@@ -47,7 +48,7 @@ export async function runShutdownSteps(
 				report.completed.push(step.name);
 			}
 		} catch (cause) {
-			const reason = cause instanceof Error ? cause.message : String(cause);
+			const reason = messageOf(cause);
 			deps.logger.error(`Shutdown step ${step.name} failed`, { reason });
 			report.failed.push({ name: step.name, reason });
 		}

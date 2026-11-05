@@ -18,7 +18,11 @@ export const SIDECAR_ENV = {
 	binDir: "CONDUCTED_BIN_DIR",
 	/** Folder for the write-ahead event log, one file per chat. */
 	outboxRoot: "CONDUCTED_OUTBOX_ROOT",
-	/** Folder for the sidecar's own log file. */
+	/**
+	 * Folder for the sidecar's log files, which SIDE-18 writes. Today the sidecar writes log
+	 * lines to stderr, which the Rust launcher stores in the app log files (D026), so this folder
+	 * is not written or probed yet.
+	 */
 	logDir: "CONDUCTED_LOG_DIR",
 } as const;
 

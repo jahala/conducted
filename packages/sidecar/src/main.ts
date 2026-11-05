@@ -14,6 +14,7 @@
  * mode functions without starting a process.
  */
 import { printVersion, VERSION_FLAG } from "./packaging.ts";
+import { messageOf } from "./util/errors.ts";
 
 export const MODES = ["sidecar", "logger", "app-tools-mcp"] as const;
 export type Mode = (typeof MODES)[number];
@@ -45,7 +46,7 @@ export async function dispatchMode(
 	try {
 		return await runners[mode](env, argv.slice(3));
 	} catch (cause) {
-		writeError(`${cause instanceof Error ? cause.message : String(cause)}\n`);
+		writeError(`${messageOf(cause)}\n`);
 		return 1;
 	}
 }

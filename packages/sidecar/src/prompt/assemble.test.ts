@@ -1,17 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SessionConfig, WorkspaceContext } from "@conducted/protocol";
 import type { AppError, Result, WorkspaceId } from "@conducted/shared";
 import { appError, err, ok } from "@conducted/shared";
 import { createLogger, type LogRecord } from "../logging/logger.ts";
-import {
-	MessagePromptAssembler,
-	type PromptFiles,
-	type WritePullRequestStub,
-	writePullRequestStubFile,
-} from "./assemble.ts";
+import { MessagePromptAssembler, type PromptFiles, type WritePullRequestStub } from "./assemble.ts";
 import { formatFileMention, formatPullRequestMention } from "./mentions.ts";
 
 const workspace: WorkspaceContext = {
@@ -108,7 +101,7 @@ describe("SIDE-09 prompt assembly", () => {
 		expect(result.value.endsWith("Hello there")).toBe(true);
 	});
 
-	test("the first message carries the user's preferences, while later messages do not get the instruction", async () => {
+	test("the first message carries the user's preferences and instruction; later messages carry neither", async () => {
 		const prefs = "Always run the tests.";
 		const { assembler } = makeAssembler({});
 		const first = await assembler.assemble({
@@ -130,7 +123,8 @@ describe("SIDE-09 prompt assembly", () => {
 		expect(first.value).toContain(prefs);
 		expect(first.value.endsWith("</user_preferences>")).toBe(true);
 		expect(later.value).not.toContain("<conducted_context>");
-		expect(later.value).toContain(prefs);
+		expect(later.value).not.toContain("<user_preferences>");
+		expect(later.value).not.toContain(prefs);
 	});
 
 	test("mentions expand, their files gain a size, and each pull request gets one stub", async () => {
@@ -244,6 +238,13 @@ describe("SIDE-09 prompt assembly", () => {
 			workspace,
 			config: { ...config, additionalDirectories: ["/shared/lib"] },
 		});
+		const cursorResult = await assembler.assemble({
+			text: "Work",
+			attachmentPaths: [],
+			firstMessage: false,
+			workspace,
+			config: { ...config, agent: "cursor", additionalDirectories: ["/shared/lib"] },
+		});
 		const acpResult = await assembler.assemble({
 			text: "Work",
 			attachmentPaths: [],
@@ -251,35 +252,87 @@ describe("SIDE-09 prompt assembly", () => {
 			workspace,
 			config: { ...config, agent: "acp", additionalDirectories: ["/shared/lib"] },
 		});
-		if (!codexResult.ok || !claudeResult.ok || !acpResult.ok) throw new Error("assemble failed");
+		if (!codexResult.ok || !claudeResult.ok || !cursorResult.ok || !acpResult.ok) {
+			throw new Error("assemble failed");
+		}
 		expect(codexResult.value).toContain("<linked_directories>");
 		expect(codexResult.value).toContain("- /shared/lib");
+		expect(cursorResult.value).toContain("<linked_directories>");
+		expect(cursorResult.value).toContain("- /shared/lib");
 		expect(claudeResult.value).not.toContain("<linked_directories>");
 		expect(acpResult.value).not.toContain("<linked_directories>");
 	});
 
-	test("a pull-request stub is written once and an existing file is kept", async () => {
-		const dir = mkdtempSync(join(tmpdir(), "conducted-side-09-"));
-		try {
-			const first = await writePullRequestStubFile(dir, 12, "acme/app");
-			expect(first.ok).toBe(true);
-			const target = join(dir, ".context/pull-requests/12.md");
-			const content = readFileSync(target, "utf8");
-			expect(content).toContain("# Pull request #12");
-			expect(content).toContain("https://github.com/acme/app/pull/12");
+	test("a review-comment path outside the workspace is never read", async () => {
+		const reads: string[] = [];
+		const files: PromptFiles = {
+			size: async () => 10,
+			readText: async (path) => {
+				reads.push(path);
+				return ok(`See ${formatFileMention("src/leak.ts")}.`);
+			},
+		};
+		const { assembler } = makeAssembler({ files });
+		const result = await assembler.assemble({
+			text: "Handle it",
+			attachmentPaths: [
+				"/elsewhere/.context/attachments/comments/c3.md",
+				".context/attachments/comments/../../../notes.md",
+			],
+			firstMessage: false,
+			workspace,
+			config,
+		});
+		if (!result.ok) throw new Error(result.error.message);
+		expect(reads).toEqual([]);
+		expect(result.value).not.toContain("src/leak.ts");
+	});
 
-			writeFileSync(target, "notes from the agent\n");
-			const second = await writePullRequestStubFile(dir, 12, "acme/app");
-			expect(second.ok).toBe(true);
-			expect(readFileSync(target, "utf8")).toBe("notes from the agent\n");
+	test("a file whose size cannot be read is listed as unknown size", async () => {
+		const { assembler } = makeAssembler({});
+		const result = await assembler.assemble({
+			text: "Look at this",
+			attachmentPaths: ["notes/todo.md"],
+			firstMessage: false,
+			workspace,
+			config,
+		});
+		if (!result.ok) throw new Error(result.error.message);
+		expect(result.value).toContain("- notes/todo.md (unknown size)");
+	});
 
-			const withoutRepository = await writePullRequestStubFile(dir, 13);
-			expect(withoutRepository.ok).toBe(true);
-			expect(readFileSync(join(dir, ".context/pull-requests/13.md"), "utf8")).toBe(
-				"# Pull request #13\n",
-			);
-		} finally {
-			rmSync(dir, { recursive: true, force: true });
-		}
+	test("the attachments block tells the agent to read the attached files first", async () => {
+		const { assembler } = makeAssembler({});
+		const result = await assembler.assemble({
+			text: "Look at this",
+			attachmentPaths: ["notes/todo.md"],
+			firstMessage: false,
+			workspace,
+			config,
+		});
+		if (!result.ok) throw new Error(result.error.message);
+		expect(result.value).toContain("Read the attached files before you start.");
+	});
+
+	test("the placeholder branch note appears only in the first message", async () => {
+		const { assembler } = makeAssembler({});
+		const placeholder = { ...workspace, placeholderBranch: true };
+		const first = await assembler.assemble({
+			text: "Hello",
+			attachmentPaths: [],
+			firstMessage: true,
+			workspace: placeholder,
+			config,
+		});
+		const later = await assembler.assemble({
+			text: "Hello",
+			attachmentPaths: [],
+			firstMessage: false,
+			workspace: placeholder,
+			config,
+		});
+		if (!first.ok || !later.ok) throw new Error("assemble failed");
+		expect(first.value.match(/temporary name/g)).toHaveLength(1);
+		expect(later.value).not.toContain("temporary name");
 	});
 });

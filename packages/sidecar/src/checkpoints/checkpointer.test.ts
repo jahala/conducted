@@ -18,6 +18,7 @@ import {
 	readFileSync,
 	rmSync,
 	statSync,
+	symlinkSync,
 	utimesSync,
 	writeFileSync,
 } from "node:fs";
@@ -133,6 +134,46 @@ function diverge(): void {
 	commitAll("main change");
 }
 
+/** Start a save that blocks in `git add`, then send `signal` to its process group. */
+async function expectTerminatedDuringSave(signal: "SIGTERM" | "SIGINT"): Promise<void> {
+	const wrapper = join(base, "wrapper");
+	const ready = join(base, "ready");
+	writeGitWrapper(
+		wrapper,
+		`case " $* " in
+  *" add "*)
+    if [ -n "\${GIT_INDEX_FILE:-}" ]; then
+      touch "${ready}"
+      sleep 10
+    fi
+    ;;
+esac`,
+	);
+
+	const child = Bun.spawn(["bash", SCRIPT, "save", "--id", "slow"], {
+		cwd: repo,
+		env: { ...ENV, PATH: `${wrapper}:${ENV.PATH ?? ""}` },
+		stdio: ["ignore", "pipe", "pipe"],
+		detached: true,
+	});
+
+	const deadline = Date.now() + 10_000;
+	while (!existsSync(ready)) {
+		if (Date.now() > deadline) {
+			process.kill(-child.pid, "SIGKILL");
+			throw new Error("save never reached its temp index");
+		}
+		await Bun.sleep(10);
+	}
+
+	process.kill(-child.pid, signal);
+	expect(await child.exited).toBe(143);
+	expect(refExists("slow")).toBe(false);
+
+	const tmpRoot = join(gitOk(repo, "rev-parse", "--absolute-git-dir"), "conducted-checkpoint-tmp");
+	expect(existsSync(tmpRoot) ? readdirSync(tmpRoot) : []).toEqual([]);
+}
+
 beforeEach(() => {
 	base = mkdtempSync(join(tmpdir(), "git-10-"));
 	repo = join(base, "repo with spaces");
@@ -170,6 +211,29 @@ describe("GIT-10 checkpointer.sh", () => {
 		});
 		expect(readFileSync(join(repo, "one.txt"), "utf8")).toBe("one\n");
 		expect(statSync(join(repo, "two.txt")).mtimeMs).toBe(untouched);
+	});
+
+	test("handles file names with spaces, newlines and non-ASCII characters", () => {
+		const names = ["file with space.txt", "line\nbreak.txt", "naïve-é.txt"];
+		for (const name of names) write(name, `before:${name}\n`);
+		commitAll("odd names");
+		expect(save(repo, "--id", "odd")).toEqual({ code: 0, out: "odd", err: "" });
+
+		for (const name of names) writeFileSync(join(repo, name), `after:${name}\n`);
+		expect(restore(repo, "odd")).toEqual({
+			code: 0,
+			out: "restored checkpoint: odd",
+			err: "",
+		});
+		for (const name of names) {
+			expect(readFileSync(join(repo, name), "utf8")).toBe(`before:${name}\n`);
+		}
+
+		for (const name of names) writeFileSync(join(repo, name), `after:${name}\n`);
+		const changed = diff(repo, "odd", "current", "--", "--name-only", "-z");
+		expect(changed.code).toBe(0);
+		const listed = changed.out.split("\0").filter(Boolean);
+		for (const name of names) expect(listed).toContain(name);
 	});
 
 	test("leaves HEAD, the index and the working files untouched when saving", () => {
@@ -292,6 +356,52 @@ describe("GIT-10 checkpointer.sh", () => {
 		expect(refExists("sub")).toBe(false);
 	});
 
+	test("diff and restore refuse with exit 103 from a sub-folder", () => {
+		write("tracked.txt", "one\n");
+		commitAll("one");
+		expect(save(repo, "--id", "a").code).toBe(0);
+		write("tracked.txt", "two\n");
+
+		const sub = join(repo, "sub");
+		mkdirSync(sub);
+
+		const compared = diff(sub, "a", "current");
+		expect(compared.code).toBe(103);
+		expect(compared.err).toContain("refused");
+
+		const restored = restore(sub, "a");
+		expect(restored.code).toBe(103);
+		expect(restored.err).toContain("refused");
+
+		expect(readFileSync(join(repo, "tracked.txt"), "utf8")).toBe("two\n");
+	});
+
+	test("refuses an id that is not a legal git ref name with exit 64", () => {
+		for (const id of ["a b", "a..b", "-a", "x.lock", ""]) {
+			const result = save(repo, "--id", id);
+			expect(result.code).toBe(64);
+			expect(result.err).toContain("invalid checkpoint id");
+		}
+		expect(gitOk(repo, "for-each-ref", "--format=%(refname)", "refs/conducted/checkpoints/")).toBe(
+			"",
+		);
+	});
+
+	test("refuses an id that would collide with an existing ref with exit 64", () => {
+		expect(save(repo, "--id", "a").code).toBe(0);
+
+		const child = save(repo, "--id", "a/b");
+		expect(child.code).toBe(64);
+		expect(child.err).toContain("invalid checkpoint id");
+		expect(refExists("a/b")).toBe(false);
+
+		expect(save(repo, "--id", "c/d").code).toBe(0);
+		const parent = save(repo, "--id", "c");
+		expect(parent.code).toBe(64);
+		expect(parent.err).toContain("invalid checkpoint id");
+		expect(refExists("c")).toBe(false);
+	});
+
 	test("saves an unborn HEAD and refuses to restore that snapshot", () => {
 		const empty = join(base, "empty");
 		mkdirSync(empty);
@@ -321,7 +431,7 @@ describe("GIT-10 checkpointer.sh", () => {
 		write("untracked.txt", "stray\n");
 		write("ignored.txt", "ignored after\n");
 
-		expect(restore(repo, "a").code).toBe(0);
+		expect(restore(repo, "a")).toEqual({ code: 0, out: "restored checkpoint: a", err: "" });
 		expect(readFileSync(join(repo, "changed.txt"), "utf8")).toBe("before\n");
 		expect(existsSync(join(repo, "untracked.txt"))).toBe(false);
 		expect(readFileSync(join(repo, "ignored.txt"), "utf8")).toBe("ignored after\n");
@@ -340,10 +450,60 @@ describe("GIT-10 checkpointer.sh", () => {
 		gitOk(repo, "reset", "-q", "--hard", "HEAD");
 		expect(readFileSync(join(repo, "staged.txt"), "utf8")).toBe("base\n");
 
-		expect(restore(repo, "a").code).toBe(0);
+		expect(restore(repo, "a")).toEqual({ code: 0, out: "restored checkpoint: a", err: "" });
 		expect(readFileSync(join(repo, "staged.txt"), "utf8")).toBe("working version\n");
 		expect(gitOk(repo, "show", ":staged.txt")).toBe("staged version");
 		expect(gitOk(repo, "diff", "--cached", "--name-only").split("\n")).toContain("staged.txt");
+	});
+
+	test("restore moves HEAD back after a new commit", () => {
+		write("tracked.txt", "one\n");
+		commitAll("one");
+		const saved = gitOk(repo, "rev-parse", "HEAD");
+		expect(save(repo, "--id", "a").code).toBe(0);
+
+		write("tracked.txt", "two\n");
+		commitAll("two");
+		expect(gitOk(repo, "rev-parse", "HEAD")).not.toBe(saved);
+
+		expect(restore(repo, "a")).toEqual({ code: 0, out: "restored checkpoint: a", err: "" });
+		expect(gitOk(repo, "rev-parse", "HEAD")).toBe(saved);
+		expect(readFileSync(join(repo, "tracked.txt"), "utf8")).toBe("one\n");
+	});
+
+	test("restore moves HEAD back after another branch is checked out", () => {
+		write("tracked.txt", "one\n");
+		commitAll("one");
+		const saved = gitOk(repo, "rev-parse", "HEAD");
+		expect(save(repo, "--id", "a").code).toBe(0);
+
+		gitOk(repo, "checkout", "-q", "-b", "other");
+		write("tracked.txt", "other\n");
+		write("other.txt", "other\n");
+		commitAll("other");
+
+		expect(restore(repo, "a")).toEqual({ code: 0, out: "restored checkpoint: a", err: "" });
+		expect(gitOk(repo, "branch", "--show-current")).toBe("other");
+		expect(gitOk(repo, "rev-parse", "HEAD")).toBe(saved);
+		expect(readFileSync(join(repo, "tracked.txt"), "utf8")).toBe("one\n");
+		expect(existsSync(join(repo, "other.txt"))).toBe(false);
+	});
+
+	test("restore clears a merge in progress", () => {
+		write("shared.txt", "base\n");
+		commitAll("base");
+		const saved = gitOk(repo, "rev-parse", "HEAD");
+		expect(save(repo, "--id", "a").code).toBe(0);
+
+		diverge();
+		expect(git(repo, "merge", "other").code).not.toBe(0);
+		const gitDir = gitOk(repo, "rev-parse", "--absolute-git-dir");
+		expect(existsSync(join(gitDir, "MERGE_HEAD"))).toBe(true);
+
+		expect(restore(repo, "a")).toEqual({ code: 0, out: "restored checkpoint: a", err: "" });
+		expect(existsSync(join(gitDir, "MERGE_HEAD"))).toBe(false);
+		expect(gitOk(repo, "rev-parse", "HEAD")).toBe(saved);
+		expect(readFileSync(join(repo, "shared.txt"), "utf8")).toBe("base\n");
 	});
 
 	test("diff compares two checkpoints and a checkpoint against the current state", () => {
@@ -362,6 +522,17 @@ describe("GIT-10 checkpointer.sh", () => {
 		const names = current.out.split("\0").filter(Boolean);
 		expect(names).toContain("a.txt");
 		expect(names).toContain("new.txt");
+	});
+
+	test("diff compares against the current state on an unborn HEAD", () => {
+		const empty = join(base, "unborn-diff");
+		mkdirSync(empty);
+		gitOk(empty, "init", "-q", "-b", "main");
+		expect(save(empty, "--id", "empty").code).toBe(0);
+
+		writeFileSync(join(empty, "first.txt"), "first\n");
+		const result = run(["bash", SCRIPT, "diff", "empty", "current", "--", "--name-status"], empty);
+		expect(result).toEqual({ code: 0, out: "A\tfirst.txt", err: "" });
 	});
 
 	test("diff fails when a checkpoint does not exist", () => {
@@ -442,45 +613,46 @@ esac`,
 		expect(readdirSync(tmpRoot).sort()).toEqual(["fresh", "live"]);
 	});
 
-	test("exits 143 and removes its temp folder when terminated", async () => {
-		const wrapper = join(base, "wrapper");
-		const ready = join(base, "ready");
-		writeGitWrapper(
-			wrapper,
-			`case " $* " in
-  *" add "*)
-    if [ -n "\${GIT_INDEX_FILE:-}" ]; then
-      touch "${ready}"
-      sleep 10
-    fi
-    ;;
-esac`,
-		);
+	test("leaves a stale temp folder in place and warns when trash is not installed", () => {
+		const gitDir = gitOk(repo, "rev-parse", "--absolute-git-dir");
+		const tmpRoot = join(gitDir, "conducted-checkpoint-tmp");
+		const stale = join(tmpRoot, "stale");
+		mkdirSync(stale, { recursive: true });
+		const dead = Bun.spawnSync(["sh", "-c", "echo $$"]).stdout.toString().trim();
+		writeFileSync(join(stale, "owner-pid"), `${dead}\n`);
+		const old = new Date(Date.now() - 90 * 60 * 1000);
+		utimesSync(stale, old, old);
 
-		const child = Bun.spawn(["bash", SCRIPT, "save", "--id", "slow"], {
-			cwd: repo,
-			env: { ...ENV, PATH: `${wrapper}:${ENV.PATH ?? ""}` },
-			stdio: ["ignore", "pipe", "pipe"],
-			detached: true,
-		});
-
-		const deadline = Date.now() + 10_000;
-		while (!existsSync(ready)) {
-			if (Date.now() > deadline) {
-				process.kill(-child.pid, "SIGKILL");
-				throw new Error("save never reached its temp index");
-			}
-			await Bun.sleep(10);
+		const bin = join(base, "bin-without-trash");
+		mkdirSync(bin);
+		for (const name of [
+			"bash",
+			"cat",
+			"date",
+			"dirname",
+			"find",
+			"git",
+			"mkdir",
+			"mktemp",
+			"sed",
+		]) {
+			const found = Bun.which(name);
+			if (!found) throw new Error(`${name} is not on PATH`);
+			symlinkSync(found, join(bin, name));
 		}
 
-		process.kill(-child.pid, "SIGTERM");
-		expect(await child.exited).toBe(143);
-		expect(refExists("slow")).toBe(false);
+		const result = run(["/bin/bash", SCRIPT, "save", "--id", "no-trash"], repo, { PATH: bin });
+		expect(result.code).toBe(0);
+		expect(result.out).toBe("no-trash");
+		expect(result.err).toContain("trash");
+		expect(existsSync(stale)).toBe(true);
+	});
 
-		const tmpRoot = join(
-			gitOk(repo, "rev-parse", "--absolute-git-dir"),
-			"conducted-checkpoint-tmp",
-		);
-		expect(existsSync(tmpRoot) ? readdirSync(tmpRoot) : []).toEqual([]);
+	test("exits 143 and removes its temp folder on SIGTERM", async () => {
+		await expectTerminatedDuringSave("SIGTERM");
+	});
+
+	test("exits 143 and removes its temp folder on SIGINT", async () => {
+		await expectTerminatedDuringSave("SIGINT");
 	});
 });

@@ -2,17 +2,16 @@
  * @feature AGENT-02 Claude: Agent SDK in streaming-input mode, resume, fork
  * Owns: the Runner for Claude Code: finding the program, its version and sign-in state, starting a
  * ClaudeSession, listing models and slash commands.
- * Behaviour: research/conductor/claude-runner.md sections 1 and 7, other-runners.md section 5
- * (`claude auth status --json` with a 5 s timeout; the provider routing variables for Bedrock,
- * Vertex and Foundry follow from its answer) and decision 7 in docs/plans/scaffold.md.
+ * Behaviour: research/conductor/claude-runner.md sections 1 and 7 and decision 7 in
+ * docs/plans/scaffold.md. Provider routing and the `claude auth status --json` call belong to
+ * SIDE-21 (runners/launch-env.ts) and SIDE-15 (models/agent-detection.ts).
  * Must handle:
  *  - detect(): `claude` not on PATH gives null; `claude --version` that hangs gives an error value
  *    after 5 s, reported as installed without a version by the detector
  *  - start() with a missing workspace folder: an error that names the folder
  *  - listModels(): from the live or throwaway query's supportedModels(); efforts from
  *    supportedEffortLevels, fast mode from supportsFastMode; the default effort is the middle of
- *    the list when the SDK gives none (no invented default: if the list is empty, the entry has
- *    no efforts and the picker hides the control)
+ *    the list when the SDK gives none
  *  - listSlashCommands(): from supportedCommands() of a throwaway metadata query; the throwaway
  *    query is always ended, even on error
  *  - capabilities are fixed: steer, interrupt, resumeAt, liveConfig, slashCommands, mcpServers and
@@ -26,11 +25,12 @@ import type {
 } from "@anthropic-ai/claude-agent-sdk";
 import type { Effort, ModelInfo } from "@conducted/protocol";
 import { appError } from "@conducted/shared";
+import { parseVersion, VERSION_PROBE_TIMEOUT_MS } from "../../models/agent-detection.ts";
 import { AGENT_NOT_INSTALLED } from "../../models/catalog.ts";
 import type { RunnerCommonDeps } from "../deps.ts";
 import type { AgentSession, Runner, RunnerCapabilities, StartOptions } from "../runner.ts";
 import { ClaudeSession, type ClaudeSessionDeps } from "./claude-session.ts";
-import { CLAUDE_PROBE_TIMEOUT_MS, CLAUDE_SETTING_SOURCES } from "./constants.ts";
+import { CLAUDE_SETTING_SOURCES } from "./constants.ts";
 
 export type ClaudeRunnerDeps = RunnerCommonDeps &
 	Pick<
@@ -70,7 +70,7 @@ export class ClaudeRunner implements Runner {
 		if (path === null) return null;
 		const probed = await this.deps.probe(path, ["--version"], {
 			env,
-			timeoutMs: CLAUDE_PROBE_TIMEOUT_MS,
+			timeoutMs: VERSION_PROBE_TIMEOUT_MS,
 		});
 		if (!probed.ok) {
 			// Reported as installed but without a version, as the detector expects.
@@ -80,14 +80,17 @@ export class ClaudeRunner implements Runner {
 			});
 			return { path, version: "" };
 		}
-		return { path, version: parseClaudeVersion(probed.value.stdout || probed.value.stderr) };
+		return {
+			path,
+			version: parseVersion(probed.value.stdout || probed.value.stderr) ?? "",
+		};
 	}
 
 	async start(options: StartOptions): Promise<AgentSession> {
 		const requested = options.workspace.workspacePath;
 		const resolved = await this.deps.realPath(requested);
 		if (resolved === null) {
-			throw new Error(`Workspace directory missing: ${requested}`);
+			throw appError("workspace_missing", `Workspace directory missing: ${requested}`);
 		}
 		if (resolved !== requested) {
 			// Claude names its transcript folder from the real path, so resume must use it too.
@@ -98,10 +101,7 @@ export class ClaudeRunner implements Runner {
 		}
 		const executablePath = await this.deps.findExecutable("claude", options.env);
 		if (executablePath === null) {
-			throw appError(
-				AGENT_NOT_INSTALLED,
-				"Claude Code was not found. Install it in settings and try again.",
-			);
+			throw claudeNotInstalled();
 		}
 		const start =
 			resolved === requested
@@ -140,12 +140,7 @@ export class ClaudeRunner implements Runner {
 
 	private async requireExecutable(): Promise<string> {
 		const path = await this.deps.findExecutable("claude", this.lastEnv);
-		if (path === null) {
-			throw appError(
-				AGENT_NOT_INSTALLED,
-				"Claude Code was not found. Install it in settings and try again.",
-			);
-		}
+		if (path === null) throw claudeNotInstalled();
 		return path;
 	}
 
@@ -177,10 +172,12 @@ export class ClaudeRunner implements Runner {
 	}
 }
 
-/** "2.0.14 (Claude Code)" gives "2.0.14"; text without a version is returned trimmed. */
-export function parseClaudeVersion(text: string): string {
-	const match = /(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)/.exec(text);
-	return match?.[1] ?? text.trim();
+/** One home for the error both start() and the metadata queries return. */
+function claudeNotInstalled() {
+	return appError(
+		AGENT_NOT_INSTALLED,
+		"Claude Code was not found. Install it in settings and try again.",
+	);
 }
 
 const EFFORT_LEVELS: ReadonlySet<string> = new Set([

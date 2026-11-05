@@ -6,9 +6,10 @@
  * Mapping:
  *  - cwd: workspace folder; additionalDirectories from the config
  *  - env: StartOptions.env plus CLAUDE_LAUNCH_ENV
- *  - session: a new chat passes sessionId (our session id is also Claude's session id); a chat with
- *    a transcript on disk passes resume; a fork or rewind passes resume, sessionId,
- *    resumeSessionAt and forkSession true
+ *  - session: a new chat passes sessionId (our session id is also Claude's session id); a chat whose
+ *    own id has a transcript on disk resumes that transcript, so a fork request for it is ignored;
+ *    a fork or rewind for an id with no transcript yet passes resume, sessionId, resumeSessionAt
+ *    and forkSession true
  *  - model, effort, thinking: model id from the config; effort passed as is; thinking summarized
  *  - permissionMode: always "bypassPermissions" at start, then set live (permissions.ts)
  *  - systemPrompt: preset claude_code, plus the progress guidance when progressUpdates is on
@@ -27,7 +28,7 @@
  */
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import type { Effort } from "@conducted/protocol";
-import { progressTrackerGuidance } from "../../prompt/system-additions.ts";
+import { buildClaudeSystemPrompt } from "../../prompt/system-additions.ts";
 import type { StartOptions } from "../runner.ts";
 import {
 	APP_TOOL_NAME_PREFIX,
@@ -55,9 +56,6 @@ export interface ClaudeOptionsInput {
 
 export function buildClaudeOptions(input: ClaudeOptionsInput): Options {
 	const config = input.start.config;
-	const progressGuidance = config.appTools.progressUpdates
-		? progressTrackerGuidance(`${APP_TOOL_NAME_PREFIX}UpdateProgress`)
-		: undefined;
 	return {
 		...sessionChoice(input.start, input.hasTranscript),
 		abortController: input.abortController,
@@ -70,10 +68,10 @@ export function buildClaudeOptions(input: ClaudeOptionsInput): Options {
 		// The process starts bypassing checks and the real mode is switched live (permissions.ts).
 		permissionMode: "bypassPermissions",
 		allowDangerouslySkipPermissions: true,
-		systemPrompt:
-			progressGuidance === undefined
-				? { type: "preset", preset: "claude_code" }
-				: { type: "preset", preset: "claude_code", append: progressGuidance },
+		systemPrompt: buildClaudeSystemPrompt(
+			config.appTools.progressUpdates,
+			`${APP_TOOL_NAME_PREFIX}UpdateProgress`,
+		),
 		settingSources: [...CLAUDE_SETTING_SOURCES],
 		maxTurns: CLAUDE_MAX_TURNS,
 		additionalDirectories: [...config.additionalDirectories],
@@ -93,6 +91,8 @@ function sessionChoice(
 	start: StartOptions,
 	hasTranscript: boolean,
 ): Pick<Options, "resume" | "sessionId" | "resumeSessionAt" | "forkSession"> {
+	// Our own transcript wins: a fork request for a started session is dropped and we resume it.
+	if (hasTranscript) return { resume: start.sessionId };
 	const resume = start.resume;
 	if (resume === undefined) return { sessionId: start.sessionId };
 	if (resume.atNativeMessageId !== undefined) {
@@ -104,8 +104,7 @@ function sessionChoice(
 		};
 	}
 	// Resuming an id with no transcript would fail the start, so a new session claims our id.
-	if (!hasTranscript) return { sessionId: start.sessionId };
-	return { resume: resume.agentSessionId };
+	return { sessionId: start.sessionId };
 }
 
 /**

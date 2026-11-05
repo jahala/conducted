@@ -44,6 +44,3 @@ export const SETTLEMENT_WATCHDOG_MS = 120_000;
  * process. Our design choice; Conductor never interrupts and always kills.
  */
 export const INTERRUPT_GRACE_MS = 5_000;
-
-/** Timeout for `claude --version` and `claude auth status --json`. Conductor: 5 s. */
-export const CLAUDE_PROBE_TIMEOUT_MS = 5_000;

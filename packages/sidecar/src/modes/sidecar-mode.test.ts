@@ -3,18 +3,23 @@ import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { AgentInstall } from "@conducted/protocol";
-import { systemClock } from "@conducted/shared";
+import { appError, err, ok, systemClock } from "@conducted/shared";
 import type { SidecarConfig } from "../config.ts";
 import { createLogger, type LogRecord } from "../logging/logger.ts";
+import type { ShutdownStep } from "../shutdown.ts";
 import {
 	announceAgentInstalls,
 	createPromptFiles,
 	createScheduler,
 	EXIT_START_FAILED,
 	installErrorHandlers,
+	PROBE_KILL_GRACE_MS,
 	type ProcessErrorHooks,
 	preflightDirectories,
+	probeCommand,
+	refreshAgentInstalls,
 	runSidecarMode,
+	runStartupSteps,
 	type SidecarHostInput,
 	type SidecarModeIo,
 	stderrLogSink,
@@ -245,6 +250,199 @@ describe("SIDE-01 composition ports", () => {
 			});
 		});
 		expect(fired).toEqual([]);
+	});
+});
+
+describe("SIDE-01 startup steps", () => {
+	test("SIDE-01 a failing step stops every step that started, newest first", async () => {
+		const order: string[] = [];
+		const shutdownCalls: string[][] = [];
+		const result = await runStartupSteps(
+			[
+				{
+					name: "outbox",
+					run: async () => {
+						order.push("outbox");
+						return ok(undefined);
+					},
+					undo: () => ({
+						name: "flush events",
+						limitMs: 10,
+						run: async () => {
+							order.push("flush events");
+						},
+					}),
+				},
+				{
+					name: "bridge",
+					run: async () => {
+						order.push("bridge");
+						return ok(undefined);
+					},
+					undo: () => ({
+						name: "close bridge",
+						limitMs: 10,
+						run: async () => {
+							order.push("close bridge");
+						},
+					}),
+				},
+				{
+					name: "socket",
+					run: async () => {
+						order.push("socket");
+						return err(appError("listen_failed", "no socket"));
+					},
+					undo: () => ({ name: "close socket", limitMs: 10, run: async () => {} }),
+				},
+			],
+			{
+				runShutdown: async (steps: readonly ShutdownStep[]) => {
+					shutdownCalls.push(steps.map((step) => step.name));
+					for (const step of steps) await step.run();
+					return { completed: [], failed: [] };
+				},
+			},
+		);
+		expect(result.ok).toBe(false);
+		expect(order).toEqual(["outbox", "bridge", "socket", "close bridge", "flush events"]);
+		expect(shutdownCalls).toEqual([["close bridge", "flush events"]]);
+	});
+
+	test("SIDE-01 a start where every step passes runs no shutdown step", async () => {
+		const shutdownCalls: ShutdownStep[][] = [];
+		const result = await runStartupSteps(
+			[
+				{
+					name: "one",
+					run: async () => ok(1),
+					undo: () => ({ name: "u1", limitMs: 1, run: async () => {} }),
+				},
+				{
+					name: "two",
+					run: async () => ok(2),
+					undo: () => ({ name: "u2", limitMs: 1, run: async () => {} }),
+				},
+			],
+			{
+				runShutdown: async (steps) => {
+					shutdownCalls.push([...steps]);
+					return { completed: [], failed: [] };
+				},
+			},
+		);
+		expect(result).toEqual({ ok: true, value: undefined });
+		expect(shutdownCalls).toEqual([]);
+	});
+});
+
+describe("SIDE-01 startup agent detection", () => {
+	test("SIDE-01 a detector that rejects is logged and does not fail the start", async () => {
+		const { logger, records } = recordingLogger();
+		await expect(
+			refreshAgentInstalls({
+				agents: {
+					detectAll: async () => {
+						throw new Error("probe hung");
+					},
+				},
+				logger,
+			}),
+		).resolves.toBeUndefined();
+		expect(records.some((record) => record.level === "warn")).toBe(true);
+		expect(records.some((record) => record.data?.reason === "probe hung")).toBe(true);
+	});
+});
+
+describe("SIDE-01 startup error handler wiring", () => {
+	test("SIDE-01 the mode installs the error handlers before the host and removes them after", async () => {
+		const base = await tempDir("wiring");
+		const config = {
+			binDir: path.join(base, "bin"),
+			outboxRoot: path.join(base, "outbox"),
+			logDir: path.join(base, "logs"),
+		};
+		const events: string[] = [];
+		const io = fakeIo({
+			installErrorHandlers: () => {
+				events.push("install");
+				return () => events.push("remove");
+			},
+			startHost: async () => {
+				events.push("start");
+				return 0;
+			},
+		});
+		await runSidecarMode(envFor(config), ["sidecar"], io);
+		expect(events).toEqual(["install", "start", "remove"]);
+	});
+
+	test("SIDE-01 the handlers are removed when the host throws", async () => {
+		const base = await tempDir("wiring-throws");
+		const config = {
+			binDir: path.join(base, "bin"),
+			outboxRoot: path.join(base, "outbox"),
+			logDir: path.join(base, "logs"),
+		};
+		const events: string[] = [];
+		const io = fakeIo({
+			installErrorHandlers: () => {
+				events.push("install");
+				return () => events.push("remove");
+			},
+			startHost: async () => {
+				events.push("start");
+				throw new Error("kaboom");
+			},
+		});
+		await expect(runSidecarMode(envFor(config), ["sidecar"], io)).rejects.toThrow("kaboom");
+		expect(events).toEqual(["install", "start", "remove"]);
+	});
+
+	test("SIDE-01 the default wiring adds and removes listeners on the process", () => {
+		const { logger } = recordingLogger();
+		const beforeException = process.listenerCount("uncaughtException");
+		const beforeRejection = process.listenerCount("unhandledRejection");
+		const remove = installErrorHandlers(logger);
+		expect(process.listenerCount("uncaughtException")).toBe(beforeException + 1);
+		expect(process.listenerCount("unhandledRejection")).toBe(beforeRejection + 1);
+		remove();
+		expect(process.listenerCount("uncaughtException")).toBe(beforeException);
+		expect(process.listenerCount("unhandledRejection")).toBe(beforeRejection);
+	});
+});
+
+describe("SIDE-01 startup folders", () => {
+	test("SIDE-01 an unwritable log folder is not probed, because nothing writes it yet", async () => {
+		const base = await tempDir("log-folder");
+		const config = {
+			binDir: path.join(base, "bin"),
+			outboxRoot: path.join(base, "outbox"),
+			logDir: path.join(base, "logs"),
+		};
+		await mkdir(config.binDir, { recursive: true });
+		await mkdir(config.outboxRoot, { recursive: true });
+		await mkdir(config.logDir, { recursive: true });
+		await chmod(config.logDir, 0o500);
+		try {
+			expect(await preflightDirectories(config)).toEqual({ ok: true, value: undefined });
+		} finally {
+			await chmod(config.logDir, 0o700);
+		}
+	});
+});
+
+describe("SIDE-01 command probes", () => {
+	test("SIDE-01 a probe that ignores SIGTERM is killed after the grace and does not hang", async () => {
+		const started = Date.now();
+		const result = await probeCommand("/bin/sh", ["-c", 'trap "" TERM; while :; do :; done'], {
+			env: { PATH: "/usr/bin:/bin" },
+			cwd: tmpdir(),
+			timeoutMs: 100,
+		});
+		expect(result.ok).toBe(true);
+		expect(Date.now() - started).toBeLessThan(5_000);
+		expect(PROBE_KILL_GRACE_MS).toBeGreaterThan(0);
 	});
 });
 

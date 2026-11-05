@@ -18,6 +18,7 @@ import type { AgentSession, Runner, StartOptions } from "../runners/runner.ts";
 import type { CapturedShellEnv, ShellEnvProvider } from "../shell-env/capture.ts";
 import {
 	AGENT_AUTH_REQUIRED,
+	CLAUDE_AUTH_CACHE_MS,
 	CODEX_LOGIN_TIMEOUT_MS,
 	type CodexAuthPort,
 	type CursorAuthPort,
@@ -205,6 +206,36 @@ describe("SIDE-15 agent detection", () => {
 		]);
 	});
 
+	test("the Claude auth status is reused for 60 seconds", async () => {
+		let now = 1_000;
+		let authCalls = 0;
+		const probe: ProbeCommand = async (_command, args) => {
+			if (args[0] === "auth") {
+				authCalls += 1;
+				return ok({
+					stdout: JSON.stringify({ loggedIn: true, authMethod: "api_key" }),
+					stderr: "",
+					exitCode: 0,
+				});
+			}
+			return ok({ stdout: "1.2.3\n", stderr: "", exitCode: 0 });
+		};
+		const subject = detector({
+			detect: async () => ({ path: "/opt/claude", version: "1.2.3" }),
+			probe,
+			deps: { clock: { now: () => now } },
+		});
+
+		await subject.detectAll();
+		now += CLAUDE_AUTH_CACHE_MS - 1;
+		await subject.detectAll();
+		expect(authCalls).toBe(1);
+
+		now += 1;
+		await subject.detectAll();
+		expect(authCalls).toBe(2);
+	});
+
 	test("a configured executable path replaces the PATH copy", async () => {
 		const seen: string[] = [];
 		const probe: ProbeCommand = async (command, args, options) => {
@@ -285,6 +316,34 @@ describe("SIDE-15 agent detection", () => {
 		});
 	});
 
+	test("Codex and Claude use one spelling for an auth method", async () => {
+		const codex: CodexAuthPort = {
+			account: async () => ok({ authenticated: true, authMethod: "apiKey" }),
+			startDeviceLogin: async () => err(appError("not_used", "not used")),
+			finishLogin: async () => err(appError("not_used", "not used")),
+			cancelLogin: async () => err(appError("not_used", "not used")),
+		};
+		const codexAgents = await detector({
+			detect: async () => ({ path: "/opt/codex", version: "0.154.0" }),
+			deps: { codex },
+			selector: { agent: "codex" },
+		}).detectAll();
+
+		const probe: ProbeCommand = async () =>
+			ok({
+				stdout: JSON.stringify({ loggedIn: true, authMethod: "api_key" }),
+				stderr: "",
+				exitCode: 0,
+			});
+		const claudeAgents = await detector({
+			detect: async () => ({ path: "/opt/claude", version: "1.2.3" }),
+			probe,
+		}).detectAll();
+
+		expect(codexAgents[0]?.authMethod).toBe("api_key");
+		expect(claudeAgents[0]?.authMethod).toBe("api_key");
+	});
+
 	test("a Cursor API key from Settings reports the agent as signed in", async () => {
 		const agents = await detector({
 			detect: async () => ({ path: "/opt/cursor-agent", version: "1.0.0" }),
@@ -325,6 +384,97 @@ describe("SIDE-15 sign-in flows", () => {
 		if (!first.ok || !second.ok) return;
 		expect(second.value.loginId).toBe(first.value.loginId);
 		expect(second.value.command).toBe(first.value.command);
+	});
+
+	test("two concurrent Codex starts share one device login", async () => {
+		let starts = 0;
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const codex: CodexAuthPort = {
+			account: async () => ok({ authenticated: false }),
+			startDeviceLogin: async () => {
+				starts += 1;
+				await gate;
+				return ok({
+					loginId: "codex-login",
+					userCode: "ABCD-1234",
+					instructions: "Enter the code.",
+				});
+			},
+			finishLogin: async () => err(appError("not_used", "not used")),
+			cancelLogin: async () => ok(undefined),
+		};
+		const subject = detector({ deps: { codex }, selector: { agent: "codex" } });
+
+		const first = subject.startLogin("codex");
+		const second = subject.startLogin("codex");
+		release();
+		const [one, two] = await Promise.all([first, second]);
+
+		expect(starts).toBe(1);
+		expect(one.ok && two.ok).toBe(true);
+		if (!one.ok || !two.ok) return;
+		expect(two.value.loginId).toBe(one.value.loginId);
+	});
+
+	test("a failed Codex start can be retried", async () => {
+		let starts = 0;
+		const codex: CodexAuthPort = {
+			account: async () => ok({ authenticated: false }),
+			startDeviceLogin: async () => {
+				starts += 1;
+				if (starts === 1) return err(appError("app_server_failed", "the app-server stopped"));
+				return ok({ loginId: "codex-login", instructions: "Enter the code." });
+			},
+			finishLogin: async () => err(appError("not_used", "not used")),
+			cancelLogin: async () => ok(undefined),
+		};
+		const subject = detector({ deps: { codex }, selector: { agent: "codex" } });
+
+		const first = await subject.startLogin("codex");
+		expect(first.ok).toBe(false);
+		const second = await subject.startLogin("codex");
+		expect(second.ok).toBe(true);
+		expect(starts).toBe(2);
+	});
+
+	test("two concurrent Cursor starts share one browser login", async () => {
+		let starts = 0;
+		const cancelled: string[] = [];
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const cursor: CursorAuthPort = {
+			startLogin: async () => {
+				starts += 1;
+				await gate;
+				return ok({
+					loginId: "cursor-login",
+					url: "https://example.test/cursor",
+					instructions: "Finish signing in in your browser.",
+				});
+			},
+			finishLogin: async () => ok({ outcome: "signed_in", apiKey: "key" }),
+			cancelLogin: async (loginId) => {
+				cancelled.push(loginId);
+				return ok(undefined);
+			},
+		};
+		const subject = detector({ deps: { cursor }, selector: { agent: "cursor" } });
+
+		const first = subject.startLogin("cursor");
+		const second = subject.startLogin("cursor");
+		release();
+		const [one, two] = await Promise.all([first, second]);
+
+		expect(starts).toBe(1);
+		expect(cancelled).toEqual([]);
+		expect(one.ok && two.ok).toBe(true);
+		if (!one.ok || !two.ok) return;
+		expect(two.value.loginId).toBe(one.value.loginId);
 	});
 
 	test("an ACP agent has no sign-in flow of its own", async () => {
@@ -431,14 +581,93 @@ describe("SIDE-15 sign-in flows", () => {
 	});
 
 	test("a Claude finish without a pasted code keeps the flow open", async () => {
-		const subject = detector();
+		const subject = detector({
+			detect: async () => ({ path: "/opt/claude", version: "1.2.3" }),
+		});
 		const started = await subject.startLogin("claude");
 		expect(started.ok).toBe(true);
 
 		const empty = await subject.finishLogin("login-1", "   ");
 		expect(!empty.ok && empty.error.code).toBe("login_code_missing");
 
+		const stillWaiting = await subject.finishLogin("login-1", "");
+		expect(!stillWaiting.ok && stillWaiting.error.code).toBe("login_code_missing");
+	});
+
+	test("a Claude finish reports signed in only when claude auth status confirms it", async () => {
+		const probe: ProbeCommand = async () =>
+			ok({
+				stdout: JSON.stringify({ loggedIn: true }),
+				stderr: "",
+				exitCode: 0,
+			});
+		const subject = detector({
+			detect: async () => ({ path: "/opt/claude", version: "1.2.3" }),
+			probe,
+		});
+		const started = await subject.startLogin("claude");
+		expect(started.ok).toBe(true);
+
 		const accepted = await subject.finishLogin("login-1", "code-from-claude");
 		expect(accepted.ok && accepted.value.outcome).toBe("signed_in");
+	});
+
+	test("a Claude finish checks again instead of reusing the cached answer", async () => {
+		let authCalls = 0;
+		const probe: ProbeCommand = async () => {
+			authCalls += 1;
+			return ok({
+				stdout: JSON.stringify({ loggedIn: authCalls > 1 }),
+				stderr: "",
+				exitCode: 0,
+			});
+		};
+		const subject = detector({
+			detect: async () => ({ path: "/opt/claude", version: "1.2.3" }),
+			probe,
+		});
+
+		const before = await subject.detectAll();
+		expect(before[0]?.authenticated).toBe(false);
+
+		const started = await subject.startLogin("claude");
+		expect(started.ok).toBe(true);
+		const accepted = await subject.finishLogin("login-1", "code-from-claude");
+		expect(accepted.ok && accepted.value.outcome).toBe("signed_in");
+		expect(authCalls).toBe(2);
+	});
+
+	test("a Claude finish fails when claude auth status says not signed in", async () => {
+		const probe: ProbeCommand = async () =>
+			ok({
+				stdout: JSON.stringify({ loggedIn: false }),
+				stderr: "",
+				exitCode: 0,
+			});
+		const subject = detector({
+			detect: async () => ({ path: "/opt/claude", version: "1.2.3" }),
+			probe,
+		});
+		const started = await subject.startLogin("claude");
+		expect(started.ok).toBe(true);
+
+		const accepted = await subject.finishLogin("login-1", "code-from-claude");
+		expect(accepted.ok && accepted.value.outcome).toBe("failed");
+		if (!accepted.ok) return;
+		expect(accepted.value.message).toContain("does not report a sign-in");
+
+		const again = await subject.finishLogin("login-1", "code-from-claude");
+		expect(!again.ok && again.error.code).toBe("login_unknown");
+	});
+
+	test("a Claude finish that cannot check the sign-in fails instead of pretending", async () => {
+		const subject = detector({
+			detect: async () => ({ path: "/opt/claude", version: "1.2.3" }),
+		});
+		const started = await subject.startLogin("claude");
+		expect(started.ok).toBe(true);
+
+		const accepted = await subject.finishLogin("login-1", "code-from-claude");
+		expect(accepted.ok && accepted.value.outcome).toBe("failed");
 	});
 });

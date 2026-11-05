@@ -14,16 +14,20 @@
  *  5. build the runners, process manager, session manager, interaction broker, publisher and the
  *     app tools backend and bridge
  *  6. listen on the Unix socket (rpc/server.ts) and print SOCKET_PATH=<path> as one line on stdout
- *  7. start the parent watchdog (watchdog.ts), install signal handlers, and install the
- *     uncaughtException and unhandledRejection handlers (log, do not exit)
+ *  7. start the parent watchdog (watchdog.ts), install signal handlers, install the
+ *     uncaughtException and unhandledRejection handlers (log, do not exit), and ask the agent
+ *     detector for the current list; a detection failure is logged and never fails the start
  *  8. when the app attaches: replay the write-ahead log, resend the open interaction, and send
  *     agentInstallsChanged if detection changed
  * Must handle: a second sidecar already running for the same app (the launcher kills orphans; the
- * socket path includes the pid, so two never clash), startup steps that fail halfway (everything
- * started so far is stopped through the shutdown steps), and stdout carrying only handshake lines
- * (logs go to the file).
+ * socket path includes the pid, so two never clash), startup steps that fail halfway (the bridge
+ * and the socket, once started, are stopped through the shutdown steps; the outbox has no close,
+ * and its pending events stay durable for the next start), and stdout carrying only handshake
+ * lines (logs go to stderr).
  * Test first: parseSidecarConfig is tested in config.test.ts; here, a start with an unwritable
  * outbox directory exits with code 1 and a message that names the directory.
+ * Owned by later features: startSidecarHost calls buildHandlers (SIDE-02), so the real host cannot
+ * start until SIDE-02 lands. A smoke test that starts it on a temporary socket path belongs there.
  * Our design choice: the entry only dispatches. All behaviour lives in modes/, so tests call the
  * mode functions without starting a process. The host itself is injected, so a test starts a
  * fake host without touching a real socket.
@@ -47,12 +51,14 @@ import {
 	err,
 	ok,
 	type Result,
+	type SessionId,
 	systemClock,
 } from "@conducted/shared";
 import { ScriptCheckpointService } from "../checkpoints/checkpoint-service.ts";
 import { parseSidecarConfig, type SidecarConfig } from "../config.ts";
 import { createLogger, type Logger, type LogSink } from "../logging/logger.ts";
-import { DefaultAgentDetector } from "../models/agent-detection.ts";
+import { EXIT_USAGE } from "../main.ts";
+import { type AgentDetector, DefaultAgentDetector } from "../models/agent-detection.ts";
 import { RunnerModelCatalog } from "../models/catalog.ts";
 import { RunnerMcpServerLister, RunnerSlashCommandLister } from "../models/slash-and-mcp.ts";
 import { SessionUsageReader } from "../models/usage.ts";
@@ -61,6 +67,7 @@ import type { OutboxStorage } from "../outbox/outbox-file.ts";
 import { OutboxReplayer } from "../outbox/replay.ts";
 import { AgentProcessManager } from "../process/process-manager.ts";
 import { MessagePromptAssembler, type PromptFiles } from "../prompt/assemble.ts";
+import { writePullRequestStubFile } from "../prompt/pull-request-stub.ts";
 import { buildHandlers } from "../rpc/handlers.ts";
 import { RpcPeer } from "../rpc/peer.ts";
 import { handshakeLine, SocketServer, socketPathFor } from "../rpc/server.ts";
@@ -75,6 +82,7 @@ import { AcpRunner } from "../runners/acp/acp-runner.ts";
 import { ACP_ADAPTERS } from "../runners/acp/adapters/registry.ts";
 import { ClaudeRunner } from "../runners/claude/claude-runner.ts";
 import { ClaudePermissionHandler } from "../runners/claude/permission-handler.ts";
+import { claudeConfigDir, createTranscriptCheck } from "../runners/claude/transcript.ts";
 import { ClaudeTranslator } from "../runners/claude/translate.ts";
 import type { Scheduler } from "../runners/claude/turn-tracker.ts";
 import type { JsonRpcChild, SpawnJsonRpcChild } from "../runners/codex/app-server-client.ts";
@@ -92,15 +100,13 @@ import { LiveStateStore } from "../session/live-state.ts";
 import { DefaultSessionManager } from "../session/manager.ts";
 import { KeyedSerialQueue } from "../session/serial-queue.ts";
 import { LoginShellEnvProvider } from "../shell-env/capture.ts";
-import { runShutdownSteps, type ShutdownStep } from "../shutdown.ts";
+import { runShutdownSteps, type ShutdownReport, type ShutdownStep } from "../shutdown.ts";
 import { RpcAppToolBackend } from "../tools/backend.ts";
 import { createAppToolsServer } from "../tools/in-process-server.ts";
 import { appToolsMcpEntry } from "../tools/mcp-launch.ts";
 import { AppToolsBridge, type BridgeEndpoint, type TokenSource } from "../tools/socket-bridge.ts";
+import { messageOf } from "../util/errors.ts";
 import { ParentWatchdog } from "../watchdog.ts";
-
-/** Exit code for a wrong command line (EX_USAGE in sysexits.h). */
-const EXIT_USAGE = 64;
 
 /** A start that fails after the command line was read. Matches the entry point's failure code. */
 export const EXIT_START_FAILED = 1;
@@ -134,9 +140,10 @@ export interface SidecarModeIo {
 export const PARENT_PID_ENV = "CONDUCTED_PARENT_PID";
 
 /**
- * Checks the folders the sidecar writes to. A missing or read-only folder is a startup failure:
- * there is no silent fallback to a default path under the user's home (D027, native-and-sidecar-map
- * D2). Only write targets are probed; the bin folder is read from.
+ * Checks the folders the sidecar writes to. A missing bin folder or an unwritable outbox is a
+ * startup failure: there is no silent fallback to a default path under the user's home (D027,
+ * native-and-sidecar-map D2). The log folder is required by config.ts but is not probed here:
+ * nothing writes it yet, and SIDE-18 will own the log file.
  */
 export async function preflightDirectories(config: SidecarConfig): Promise<Result<void, AppError>> {
 	const bin = await directoryExists(config.binDir);
@@ -145,9 +152,7 @@ export async function preflightDirectories(config: SidecarConfig): Promise<Resul
 			appError("bin_dir_missing", `The sidecar's bin folder (${config.binDir}) does not exist.`),
 		);
 	}
-	const outbox = await probeWritable("outbox folder", config.outboxRoot);
-	if (!outbox.ok) return outbox;
-	return probeWritable("log folder", config.logDir);
+	return probeWritable("outbox folder", config.outboxRoot);
 }
 
 async function directoryExists(folder: string): Promise<boolean> {
@@ -171,14 +176,10 @@ async function probeWritable(label: string, folder: string): Promise<Result<void
 		return err(
 			appError(
 				"folder_not_writable",
-				`The sidecar cannot write to its ${label} (${folder}): ${reasonOf(cause)}`,
+				`The sidecar cannot write to its ${label} (${folder}): ${messageOf(cause)}`,
 			),
 		);
 	}
-}
-
-function reasonOf(cause: unknown): string {
-	return cause instanceof Error ? cause.message : String(cause);
 }
 
 /** A sink that writes one JSON object per line, as the Rust launcher expects (D026). */
@@ -206,13 +207,13 @@ export function installErrorHandlers(
 ): () => void {
 	const onException = (error: unknown): void => {
 		logger.error("Uncaught exception in the sidecar; it keeps running", {
-			reason: reasonOf(error),
+			reason: messageOf(error),
 			stack: error instanceof Error ? error.stack : undefined,
 		});
 	};
 	const onRejection = (reason: unknown): void => {
 		logger.error("Unhandled promise rejection in the sidecar; it keeps running", {
-			reason: reasonOf(reason),
+			reason: messageOf(reason),
 		});
 	};
 	hooks.on("uncaughtException", onException);
@@ -221,6 +222,54 @@ export function installErrorHandlers(
 		hooks.off("uncaughtException", onException);
 		hooks.off("unhandledRejection", onRejection);
 	};
+}
+
+/** One startup step and how to undo it when a later step fails. */
+export interface StartupStep {
+	name: string;
+	run(): Promise<Result<unknown, AppError>>;
+	undo(): ShutdownStep;
+}
+
+/**
+ * Runs the startup steps in order. When a step fails, every step that already finished is stopped
+ * through the shutdown steps, newest first, and the failure is returned. The steps are passed in,
+ * so a test proves a half-failed start stops what it started.
+ */
+export async function runStartupSteps(
+	steps: readonly StartupStep[],
+	deps: {
+		runShutdown(steps: readonly ShutdownStep[]): Promise<ShutdownReport>;
+	},
+): Promise<Result<void, AppError>> {
+	const started: StartupStep[] = [];
+	for (const step of steps) {
+		const result = await step.run();
+		if (!result.ok) {
+			const undo = [...started].reverse().map((done) => done.undo());
+			if (undo.length > 0) await deps.runShutdown(undo);
+			return result;
+		}
+		started.push(step);
+	}
+	return ok(undefined);
+}
+
+/**
+ * Asks the detector for the current agent list at startup. Detection can fail (a slow or missing
+ * agent program), and the sidecar must still serve chats, so the failure is logged only.
+ */
+export async function refreshAgentInstalls(deps: {
+	agents: Pick<AgentDetector, "detectAll">;
+	logger: Logger;
+}): Promise<void> {
+	try {
+		await deps.agents.detectAll();
+	} catch (cause) {
+		deps.logger.warn("Could not detect the installed agents at startup", {
+			reason: messageOf(cause),
+		});
+	}
 }
 
 const defaultIo: SidecarModeIo = {
@@ -343,6 +392,14 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 	const ids = cryptoIds;
 	const queue = new KeyedSerialQueue();
 	const app = new DelegatingApp();
+	// Pinned once, so a later environment change cannot move the transcript path.
+	const hasTranscript = createTranscriptCheck(claudeConfigDir(env));
+	const runShutdown = (steps: readonly ShutdownStep[]): Promise<ShutdownReport> =>
+		runShutdownSteps(steps, {
+			logger,
+			timeout: (ms) =>
+				new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), ms)),
+		});
 
 	const outbox = new FileEventOutbox({
 		storage: createOutboxStorage(config.outboxRoot),
@@ -378,6 +435,7 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 		logger,
 		clock,
 		ids,
+		hasTranscript,
 		appTools: backend,
 		bridge,
 		endpoint: () => bridgeEndpoint,
@@ -393,6 +451,7 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 		logger,
 		ids,
 		probe: probeCommand,
+		clock,
 	});
 	const sessions = new DefaultSessionManager({
 		app,
@@ -405,7 +464,7 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 			logger,
 		}),
 		prompt: new MessagePromptAssembler({
-			writePullRequestStub,
+			writePullRequestStub: writePullRequestStubFile,
 			files: createPromptFiles(),
 			logger,
 		}),
@@ -439,29 +498,44 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 	const socketPath = socketPathFor(tmpdir(), process.pid);
 	const server = new SocketServer({ peer, logger, socketPath });
 
-	const opened = await outbox.open();
-	if (!opened.ok) {
-		logger.error("The write-ahead event log could not be opened", {
-			reason: opened.error.message,
-		});
+	const started = await runStartupSteps(
+		[
+			{
+				name: "open the write-ahead event log",
+				run: () => outbox.open(),
+				undo: () => ({
+					name: "flush events",
+					run: async () => {
+						for (const sessionId of outbox.sessionsWithPending()) {
+							await publisher.flush(sessionId);
+						}
+					},
+					limitMs: 10_000,
+				}),
+			},
+			{
+				name: "start the app tools bridge",
+				run: async () => {
+					const bridged = await bridge.start();
+					if (bridged.ok) bridgeEndpoint = bridged.value;
+					return bridged;
+				},
+				undo: () => ({ name: "close app tools bridge", run: () => bridge.stop(), limitMs: 5_000 }),
+			},
+			{
+				name: "listen on the sidecar socket",
+				run: () => server.listen(),
+				undo: () => ({ name: "close socket", run: () => server.close(), limitMs: 5_000 }),
+			},
+		],
+		{ runShutdown },
+	);
+	if (!started.ok) {
+		logger.error("The sidecar could not start", { reason: started.error.message });
 		return EXIT_START_FAILED;
 	}
 	const swept = await outbox.sweepIdle();
 	if (!swept.ok) logger.warn("Old outbox files were not swept", { reason: swept.error.message });
-
-	const bridged = await bridge.start();
-	if (!bridged.ok) {
-		logger.error("The app tools bridge could not start", { reason: bridged.error.message });
-		return EXIT_START_FAILED;
-	}
-	bridgeEndpoint = bridged.value;
-
-	const listening = await server.listen();
-	if (!listening.ok) {
-		await bridge.stop();
-		logger.error("The sidecar socket could not listen", { reason: listening.error.message });
-		return EXIT_START_FAILED;
-	}
 	writeOut(`${handshakeLine(socketPath)}\n`);
 
 	let finished = false;
@@ -471,7 +545,7 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 	});
 	const unsubscribeAttach = peer.onAttach(() => {
 		void replayer.replayAll().catch((cause: unknown) => {
-			logger.warn("Replaying the write-ahead log failed", { reason: reasonOf(cause) });
+			logger.warn("Replaying the write-ahead log failed", { reason: messageOf(cause) });
 		});
 	});
 	const watchdog = new ParentWatchdog({
@@ -511,11 +585,7 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 			{ name: "close socket", run: () => server.close(), limitMs: 5_000 },
 			{ name: "close app tools bridge", run: () => bridge.stop(), limitMs: 5_000 },
 		];
-		const report = await runShutdownSteps(steps, {
-			logger,
-			timeout: (ms) =>
-				new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), ms)),
-		});
+		const report = await runShutdown(steps);
 		if (report.failed.length > 0) {
 			logger.warn("Some shutdown steps failed", { failed: report.failed });
 		}
@@ -528,6 +598,7 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 	process.on("SIGINT", onSignal);
 	process.on("SIGTERM", onSignal);
 	watchdog.start();
+	void refreshAgentInstalls({ agents, logger });
 	return done;
 }
 
@@ -593,41 +664,13 @@ export function createPromptFiles(): PromptFiles {
 				return err(
 					appError(
 						"prompt_file_read_failed",
-						`Could not read ${target}: ${reasonOf(cause)}`,
+						`Could not read ${target}: ${messageOf(cause)}`,
 						cause,
 					),
 				);
 			}
 		},
 	};
-}
-
-/** A write pull-request stub that never overwrites an existing file. */
-async function writePullRequestStub(
-	workspacePath: string,
-	number: number,
-): Promise<Result<void, AppError>> {
-	const folder = path.join(workspacePath, ".context", "pull-requests");
-	const target = path.join(folder, `${number}.md`);
-	try {
-		await mkdir(folder, { recursive: true, mode: 0o700 });
-		const handle = await open(target, "wx", 0o600);
-		await handle.writeFile(`# Pull request ${number}\n`);
-		await handle.close();
-		return ok(undefined);
-	} catch (cause) {
-		if (isAlreadyExists(cause)) return ok(undefined);
-		return err(appError("pull_request_stub_failed", reasonOf(cause), cause));
-	}
-}
-
-function isAlreadyExists(cause: unknown): boolean {
-	return (
-		typeof cause === "object" &&
-		cause !== null &&
-		"code" in cause &&
-		(cause as { code?: string }).code === "EEXIST"
-	);
 }
 
 /** Runs checkpointer.sh for one request. */
@@ -665,7 +708,7 @@ function createOutboxStorage(root: string): OutboxStorage {
 				await mkdir(root, { recursive: true, mode: 0o700 });
 				return ok(await readdir(root));
 			} catch (cause) {
-				return err(appError("outbox_list_failed", reasonOf(cause), cause));
+				return err(appError("outbox_list_failed", messageOf(cause), cause));
 			}
 		},
 		async read(fileName) {
@@ -673,7 +716,7 @@ function createOutboxStorage(root: string): OutboxStorage {
 				return ok(await readFile(path.join(root, fileName), "utf8"));
 			} catch (cause) {
 				if (isMissing(cause)) return ok(null);
-				return err(appError("outbox_read_failed", reasonOf(cause), cause));
+				return err(appError("outbox_read_failed", messageOf(cause), cause));
 			}
 		},
 		async writeAtomic(fileName, text) {
@@ -689,7 +732,7 @@ function createOutboxStorage(root: string): OutboxStorage {
 				return ok(undefined);
 			} catch (cause) {
 				await rm(temp, { force: true }).catch(() => {});
-				return err(appError("outbox_write_failed", reasonOf(cause), cause));
+				return err(appError("outbox_write_failed", messageOf(cause), cause));
 			}
 		},
 		async moveToTrash(fileName) {
@@ -700,7 +743,7 @@ function createOutboxStorage(root: string): OutboxStorage {
 				}
 				return ok(undefined);
 			} catch (cause) {
-				return err(appError("trash_failed", reasonOf(cause), cause));
+				return err(appError("trash_failed", messageOf(cause), cause));
 			}
 		},
 		async cleanTempFiles() {
@@ -715,7 +758,7 @@ function createOutboxStorage(root: string): OutboxStorage {
 				}
 				return ok(moved);
 			} catch (cause) {
-				return err(appError("outbox_clean_failed", reasonOf(cause), cause));
+				return err(appError("outbox_clean_failed", messageOf(cause), cause));
 			}
 		},
 	};
@@ -744,7 +787,15 @@ function commonRunnerDeps(
 	};
 }
 
-const probeCommand: ProbeCommand = async (command, args, options) => {
+/** How long a probe may ignore SIGTERM before it is killed outright. */
+export const PROBE_KILL_GRACE_MS = 500;
+
+/**
+ * Runs a short command for a probe. A program that ignores SIGTERM is killed after a short grace,
+ * so a child that keeps its pipes open cannot hang the read (claude-runner 8: probes have a
+ * timeout).
+ */
+export const probeCommand: ProbeCommand = async (command, args, options) => {
 	try {
 		const child = Bun.spawn({
 			cmd: [command, ...args],
@@ -755,6 +806,10 @@ const probeCommand: ProbeCommand = async (command, args, options) => {
 			stderr: "pipe",
 		});
 		const timer = setTimeout(() => child.kill(), options.timeoutMs);
+		const killTimer = setTimeout(
+			() => child.kill("SIGKILL"),
+			options.timeoutMs + PROBE_KILL_GRACE_MS,
+		);
 		try {
 			const [stdout, stderr] = await Promise.all([
 				new Response(child.stdout).text(),
@@ -764,9 +819,10 @@ const probeCommand: ProbeCommand = async (command, args, options) => {
 			return ok({ stdout, stderr, exitCode: exitCode ?? -1 });
 		} finally {
 			clearTimeout(timer);
+			clearTimeout(killTimer);
 		}
 	} catch (cause) {
-		return err(appError("probe_failed", reasonOf(cause), cause));
+		return err(appError("probe_failed", messageOf(cause), cause));
 	}
 };
 
@@ -793,6 +849,7 @@ function createRunnerRegistry(input: {
 	logger: Logger;
 	clock: typeof systemClock;
 	ids: typeof cryptoIds;
+	hasTranscript(sessionId: SessionId, cwd: string): Promise<boolean>;
 	appTools: RpcAppToolBackend;
 	bridge: AppToolsBridge;
 	endpoint: () => BridgeEndpoint | null;
@@ -837,7 +894,7 @@ function createRunnerRegistry(input: {
 				query: (params) => sdkQuery(params as Parameters<typeof sdkQuery>[0]),
 				appTools: input.appTools,
 				translator: new ClaudeTranslator({ logger: input.logger }),
-				hasTranscript,
+				hasTranscript: input.hasTranscript,
 				realPath,
 				newUuid: () => randomUUID(),
 				scheduler,
@@ -878,23 +935,6 @@ function createRunnerRegistry(input: {
 		});
 	}
 	return new MapRunnerRegistry(entries);
-}
-
-const hasTranscript = async (
-	sessionId: Parameters<typeof loadSessionFile>[0],
-	cwd: string,
-): Promise<boolean> => {
-	try {
-		const text = await readFile(loadSessionFile(sessionId, cwd), "utf8");
-		return text.trim().length > 0;
-	} catch {
-		return false;
-	}
-};
-
-function loadSessionFile(sessionId: string, cwd: string): string {
-	const encoded = cwd.split("/").join("-");
-	return path.join(process.env.HOME ?? "", ".claude", "projects", encoded, `${sessionId}.jsonl`);
 }
 
 const realPath = async (target: string): Promise<string | null> => {
@@ -987,7 +1027,7 @@ function spawnJsonRpcChild(options: {
 		};
 		return Promise.resolve(ok(port));
 	} catch (cause) {
-		return Promise.resolve(err(appError("spawn_failed", reasonOf(cause), cause)));
+		return Promise.resolve(err(appError("spawn_failed", messageOf(cause), cause)));
 	}
 }
 
@@ -1041,7 +1081,7 @@ function spawnAcpChild(options: {
 		};
 		return Promise.resolve(ok(port));
 	} catch (cause) {
-		return Promise.resolve(err(appError("spawn_failed", reasonOf(cause), cause)));
+		return Promise.resolve(err(appError("spawn_failed", messageOf(cause), cause)));
 	}
 }
 

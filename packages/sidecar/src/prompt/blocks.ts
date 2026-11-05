@@ -50,7 +50,9 @@ function renderAttachmentGroup(instruction: string, entries: readonly Attachment
 	return [
 		`<${ATTACHMENTS_TAG}>`,
 		instruction,
-		...entries.map((entry) => `- ${entry.path} (${formatFileSize(entry.sizeBytes)})`),
+		...entries.map(
+			(entry) => `- ${escapeTag(entry.path, ATTACHMENTS_TAG)} (${formatFileSize(entry.sizeBytes)})`,
+		),
 		`</${ATTACHMENTS_TAG}>`,
 	].join("\n");
 }
@@ -68,7 +70,7 @@ export function buildAttachmentsBlock(groups: AttachmentGroups): string | null {
 	if (groups.attached.length > 0) {
 		blocks.push(
 			renderAttachmentGroup(
-				"The user attached these files. Read them before you start.",
+				"The user attached these files. Read the attached files before you start.",
 				groups.attached,
 			),
 		);
@@ -81,7 +83,7 @@ export function buildLinkedDirectoriesBlock(paths: readonly string[]): string | 
 	return [
 		`<${LINKED_DIRECTORIES_TAG}>`,
 		"These folders are linked to this workspace. You may read and change them when the task involves files outside the workspace:",
-		...paths.map((path) => `- ${path}`),
+		...paths.map((path) => `- ${escapeTag(path, LINKED_DIRECTORIES_TAG)}`),
 		`</${LINKED_DIRECTORIES_TAG}>`,
 	].join("\n");
 }

@@ -30,6 +30,19 @@ describe("SIDE-09 first-message workspace instruction", () => {
 		expect(text).toContain("check out that pull request's branch");
 	});
 
+	test("the block calls .context git-ignored and bans renaming the branch", () => {
+		const text = buildWorkspaceInstruction(base);
+		expect(text).toContain("ignored by git");
+		expect(text).toContain("Do not rename the branch");
+	});
+
+	test("the block tells the agent to save and embed screenshots", () => {
+		const text = buildWorkspaceInstruction(base);
+		expect(text).toContain("screenshot");
+		expect(text).toContain("`.context`");
+		expect(text).toContain("Markdown image");
+	});
+
 	test("only a placeholder branch gets the temporary-name paragraph", () => {
 		expect(buildWorkspaceInstruction({ ...base, placeholderBranch: true })).toContain(
 			"temporary name",

@@ -13,7 +13,7 @@ import type { Logger } from "../../logging/logger.ts";
 import type { AppToolBackend } from "../../tools/backend.ts";
 import type { RunnerCommonDeps } from "../deps.ts";
 import type { StartOptions } from "../runner.ts";
-import { ClaudeRunner, type ClaudeRunnerDeps, parseClaudeVersion } from "./claude-runner.ts";
+import { ClaudeRunner, type ClaudeRunnerDeps } from "./claude-runner.ts";
 import type { QueryFunction } from "./claude-session.ts";
 import type { ClaudeTranslator } from "./translate.ts";
 import type { Scheduler } from "./turn-tracker.ts";
@@ -113,6 +113,13 @@ function startOptions(): StartOptions {
 	};
 }
 
+async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
+	return promise.then(
+		() => undefined,
+		(cause: unknown) => cause,
+	);
+}
+
 describe("AGENT-02 Claude runner", () => {
 	test("detect returns null without probing when the program is missing", async () => {
 		let probed = false;
@@ -156,17 +163,52 @@ describe("AGENT-02 Claude runner", () => {
 		});
 	});
 
-	test("parseClaudeVersion keeps a plain version and falls back to the text", () => {
-		expect(parseClaudeVersion("claude 1.2.3")).toBe("1.2.3");
-		expect(parseClaudeVersion("no version here")).toBe("no version here");
+	test("detect reports an installed program with no version when the output has none", async () => {
+		const runner = new ClaudeRunner(
+			makeDeps({
+				probe: async () => ok({ stdout: "no version here", stderr: "", exitCode: 0 }),
+			}),
+		);
+
+		expect(await runner.detect({ PATH: "/usr/bin" })).toEqual({
+			path: "/bin/claude",
+			version: "",
+		});
 	});
 
-	test("start names the missing workspace folder", async () => {
+	test("start names the missing workspace folder with a code", async () => {
 		const runner = new ClaudeRunner(makeDeps({ realPath: async () => null }));
 
-		await expect(runner.start(startOptions())).rejects.toThrow(
-			"Workspace directory missing: /work/app",
+		expect(await rejectionOf(runner.start(startOptions()))).toMatchObject({
+			code: "workspace_missing",
+			message: "Workspace directory missing: /work/app",
+		});
+	});
+
+	test("start reports a missing Claude program as an AppError", async () => {
+		const runner = new ClaudeRunner(makeDeps({ findExecutable: async () => null }));
+
+		expect(await rejectionOf(runner.start(startOptions()))).toMatchObject({
+			code: "agent_not_installed",
+		});
+	});
+
+	test("listModels reports a missing Claude program without starting a query", async () => {
+		let queried = false;
+		const runner = new ClaudeRunner(
+			makeDeps({
+				findExecutable: async () => null,
+				query: () => {
+					queried = true;
+					throw new Error("should not query");
+				},
+			}),
 		);
+
+		expect(await rejectionOf(runner.listModels())).toMatchObject({
+			code: "agent_not_installed",
+		});
+		expect(queried).toBe(false);
 	});
 
 	test("start resolves a symlinked workspace and logs a warning", async () => {

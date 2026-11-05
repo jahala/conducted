@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import {
-	buildPullRequestStub,
 	expandMentions,
 	fileMentionPaths,
 	formatFileMention,
@@ -28,12 +27,5 @@ describe("SIDE-09 mentions", () => {
 	test("file mentions inside a review comment are found, once each", () => {
 		const comment = `See ${formatFileMention("src/a.ts")} and ${formatFileMention("src/a.ts")}.`;
 		expect(fileMentionPaths(comment)).toEqual(["src/a.ts"]);
-	});
-
-	test("a pull-request stub has a heading and, when known, its GitHub URL", () => {
-		expect(buildPullRequestStub(12)).toBe("# Pull request #12\n");
-		expect(buildPullRequestStub(12, "acme/app")).toBe(
-			"# Pull request #12\n\nGitHub URL: https://github.com/acme/app/pull/12\n",
-		);
 	});
 });

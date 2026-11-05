@@ -1,14 +1,13 @@
 /**
  * @feature SIDE-09 Prompt assembly: mentions
  * Owns: the text form of "@" file mentions and "#" pull-request mentions inside a message, their
- * expansion into what the agent reads, and the stub file a pull-request mention points at.
+ * expansion into what the agent reads, and the stub path a pull-request mention points at.
  * Behaviour: research/conductor/sessions.md section 9 "Message enrichment" and claude-runner.md
  * section 5 item 4 (file mentions are resolved to paths; a pull-request mention becomes a link to
- * a stub file `.context/pull-requests/<n>.md` that is written once and never overwritten).
+ * a stub file `.context/pull-requests/<n>.md`).
  * Must handle: several mentions in one message, a mention at the start or end, a path that
- * contains spaces, text that only looks like a mention (an unterminated token stays as typed),
- * the same pull request mentioned twice (one stub), and a stub that already exists (kept, because
- * the agent may have added notes).
+ * contains spaces, text that only looks like a mention (an unterminated token stays as typed), and
+ * the same pull request mentioned twice (one link, listed once).
  * Test first: expandMentions("fix ⟦file:src/a b.ts⟧ and ⟦pr:12⟧") replaces the file token with
  * `src/a b.ts` and the pr token with a link to .context/pull-requests/12.md, and lists pr 12.
  * The token syntax itself lives in @conducted/protocol (mentions.ts), shared with the composer.
@@ -61,13 +60,4 @@ export function expandMentions(text: string): ExpandedMentions {
 /** The file paths named by mentions inside a text, such as a review-comment attachment. */
 export function fileMentionPaths(text: string): string[] {
 	return expandMentions(text).filePaths;
-}
-
-/** The small markdown stub a pull-request mention links to. */
-export function buildPullRequestStub(number: number, repositoryFullName?: string): string {
-	const lines = [`# Pull request #${number}`];
-	if (repositoryFullName !== undefined && repositoryFullName.trim() !== "") {
-		lines.push("", `GitHub URL: https://github.com/${repositoryFullName.trim()}/pull/${number}`);
-	}
-	return `${lines.join("\n")}\n`;
 }

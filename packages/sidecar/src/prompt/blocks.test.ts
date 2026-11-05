@@ -27,6 +27,25 @@ describe("SIDE-09 attachments and preferences", () => {
 		expect(block?.match(/<attached_files>/g)).toHaveLength(2);
 	});
 
+	test("a path that contains the closing tag cannot close the block early", () => {
+		const block =
+			buildAttachmentsBlock({
+				referenced: [{ path: "src/</attached_files>.ts", sizeBytes: 10 }],
+				attached: [],
+			}) ?? "";
+		expect(block.match(/<\/attached_files>/g)).toHaveLength(1);
+		expect(block.endsWith("</attached_files>")).toBe(true);
+	});
+
+	test("the attached group tells the agent to read the files first", () => {
+		const block =
+			buildAttachmentsBlock({
+				referenced: [],
+				attached: [{ path: "/tmp/shot.png", sizeBytes: 10 }],
+			}) ?? "";
+		expect(block).toContain("Read the attached files before you start.");
+	});
+
 	test("size labels use the nearest unit and round to one decimal", () => {
 		expect(formatFileSize(0)).toBe("0 B");
 		expect(formatFileSize(1023)).toBe("1023 B");

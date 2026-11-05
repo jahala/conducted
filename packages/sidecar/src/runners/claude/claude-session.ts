@@ -9,23 +9,22 @@
  * translator turns into AgentMessage values.
  * Must handle:
  *  - runTurn while another turn runs: refused with an error outcome (the manager prevents it)
- *  - steer(): pushes another user message with a fresh uuid, registers a receipt, and returns
- *    `consumed` that resolves when the mirror shows the agent read it; only while a turn is open,
- *    else NoActiveTurnError; the result that arrives before the steer is read is held back
  *  - cancel(): in-band interrupt first, wait INTERRUPT_GRACE_MS for the result, then stop the
  *    process (SIDE-04 takes the end checkpoint). Pending interactions are withdrawn by the manager
- *  - the process exits or the stream throws: the turn ends with an error outcome that carries the
- *    exit code and the stderr tail; the next runTurn starts a new process with resume
- *  - applyConfig(): live changes through setModel, applyFlagSettings and setPermissionMode;
- *    restart changes dispose and respawn with resume between turns (returns "restart")
- *  - fork or rewind: start with resumeSessionAt and forkSession; the new session id is reported
- *    through onAgentSessionId
+ *  - the process exits or the stream throws: the turn ends with an error outcome whose message
+ *    carries the exit code, the signal and the stderr tail; the next runTurn respawns with resume
+ *  - a respawn resumes the transcript of our own id, so history is never claimed twice
+ *  - task_started, task_notification and task_updated messages update the background task list
+ *    through TurnCallbacks.onBackgroundTasks; that list is reset when the process respawns
  *  - the first SDK message with a session id reports it through onAgentSessionId
  *  - the "Fast mode requires extra usage billing" stderr line calls onFastModeUnavailable
  *  - the PreToolUse hook awaits beforeFirstWrite() once per turn for tools that can write
  *  - a late message from a cancelled turn must not reach the next turn's callbacks
  *  - dispose(): close the input queue, abort, wait for exit (SIGTERM, SIGKILL after 5 s by the SDK)
  *  - AskUserQuestion, tool approval and ExitPlanMode go through TurnCallbacks.requestInteraction
+ * Owned by later features: steer() is AGENT-05 and applyConfig() is AGENT-04; while those are
+ * unbuilt they return notImplemented with their own ids. The session header only promises what
+ * this feature builds.
  * Test first: with a scripted query function that yields init, assistant text and a result for
  * the pushed uuid, runTurn emits the text message and resolves with success.
  * Our design choice: the SDK's query function is a constructor parameter (Conductor does this
@@ -46,6 +45,7 @@ import { notImplemented } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
 import type { AppToolBackend } from "../../tools/backend.ts";
 import { AsyncQueue } from "../../util/async-queue.ts";
+import { messageOf } from "../../util/errors.ts";
 import type {
 	AgentSession,
 	StartOptions,
@@ -53,6 +53,7 @@ import type {
 	TurnInput,
 	TurnOutcome,
 } from "../runner.ts";
+import { ClaudeBackgroundTasks } from "./background-tasks.ts";
 import { type CheckpointGate, createCheckpointHook } from "./checkpoint-hook.ts";
 import { INTERRUPT_GRACE_MS } from "./constants.ts";
 import { buildClaudeOptions } from "./options.ts";
@@ -112,6 +113,7 @@ export class ClaudeSession implements AgentSession {
 
 	private readonly receipts = new SteerReceipts();
 	private readonly tracker: ClaudeTurnTracker;
+	private readonly backgroundTasks = new ClaudeBackgroundTasks();
 	private config: SessionConfig;
 	private input: AsyncQueue<SDKUserMessage> | null = null;
 	private query: Query | null = null;
@@ -128,7 +130,6 @@ export class ClaudeSession implements AgentSession {
 	private agentSessionId: string | null = null;
 	private agentSessionIdReported = false;
 	private exited: Promise<void> = Promise.resolve();
-	private resolveExit: (() => void) | null = null;
 	private startPending: Promise<void> | null = null;
 	private readonly stderrTail: string[] = [];
 
@@ -175,7 +176,7 @@ export class ClaudeSession implements AgentSession {
 		try {
 			await this.ensureStarted();
 		} catch (cause) {
-			const message = cause instanceof Error ? cause.message : String(cause);
+			const message = messageOf(cause);
 			this.deps.logger.error("The Claude session could not start", {
 				sessionId: this.sessionId,
 				message,
@@ -226,7 +227,7 @@ export class ClaudeSession implements AgentSession {
 		} catch (cause) {
 			this.deps.logger.debug("The Claude interrupt request failed", {
 				sessionId: this.sessionId,
-				message: cause instanceof Error ? cause.message : String(cause),
+				message: messageOf(cause),
 			});
 		}
 		const ended = await this.waitForTurn(INTERRUPT_GRACE_MS);
@@ -249,7 +250,7 @@ export class ClaudeSession implements AgentSession {
 		} catch (cause) {
 			this.deps.logger.debug("Could not read the Claude context usage", {
 				sessionId: this.sessionId,
-				message: cause instanceof Error ? cause.message : String(cause),
+				message: messageOf(cause),
 			});
 			return null;
 		}
@@ -294,8 +295,16 @@ export class ClaudeSession implements AgentSession {
 		const input = new AsyncQueue<SDKUserMessage>();
 		const abort = new AbortController();
 		const gate: CheckpointGate = { current: () => this.currentGate };
+		// A respawn inherits no resume token, so name our own transcript explicitly.
+		const start: StartOptions =
+			hasTranscript && this.start.resume === undefined
+				? {
+						...this.start,
+						resume: { agentSessionId: this.agentSessionId ?? this.sessionId },
+					}
+				: this.start;
 		const options = buildClaudeOptions({
-			start: { ...this.start, config: this.config },
+			start: { ...start, config: this.config },
 			executablePath: this.deps.executablePath,
 			hasTranscript,
 			canUseTool: this.deps.createCanUseTool(this.permissionDeps()),
@@ -315,28 +324,34 @@ export class ClaudeSession implements AgentSession {
 
 		this.stderrTail.length = 0;
 		this.agentSessionIdReported = false;
+		this.backgroundTasks.reset();
 		this.input = input;
 		this.abortController = abort;
+		let resolveExit: () => void = () => {};
 		this.exited = new Promise<void>((resolve) => {
-			this.resolveExit = resolve;
+			resolveExit = resolve;
 		});
 		const query = this.deps.query({ prompt: input, options });
 		this.query = query;
-		void this.consume(query, input);
+		void this.consume(query, input, resolveExit);
 	}
 
 	/** Reads the SDK stream until the process ends, forwarding messages and settling turns. */
-	private async consume(query: Query, input: AsyncQueue<SDKUserMessage>): Promise<void> {
+	private async consume(
+		query: Query,
+		input: AsyncQueue<SDKUserMessage>,
+		resolveExit: () => void,
+	): Promise<void> {
 		try {
 			for await (const message of query) this.handleMessage(message);
-			this.tracker.onStreamEnded();
+			this.tracker.onStreamEnded(this.streamEndedError());
 		} catch (cause) {
 			const error = cause instanceof Error ? cause : new Error(String(cause));
 			this.deps.logger.error(
 				`Claude session ${this.sessionId} failed`,
 				errorDetails(error, this.stderrTail),
 			);
-			this.tracker.onStreamEnded(error);
+			this.tracker.onStreamEnded(new Error(streamErrorMessage(error, this.stderrTail)));
 		} finally {
 			input.close();
 			if (this.query === query) {
@@ -344,14 +359,16 @@ export class ClaudeSession implements AgentSession {
 				this.input = null;
 				this.abortController = null;
 			}
-			this.resolveExit?.();
-			this.resolveExit = null;
+			// This process's exit, never the one a later process is still waiting on.
+			resolveExit();
 		}
 	}
 
 	private handleMessage(message: SDKMessage): void {
 		this.noteSessionId(message);
 		const callbacks = this.callbacks;
+		const tasks = this.backgroundTasks.handle(message);
+		if (tasks !== null) callbacks?.onBackgroundTasks(tasks);
 		const decision = this.tracker.onSdkMessage(message);
 		if (decision.action === "hold_back" || callbacks === null) return;
 		for (const agentMessage of this.deps.translator.translate(message)) {
@@ -453,6 +470,13 @@ export class ClaudeSession implements AgentSession {
 		};
 	}
 
+	/** A clean stream end still mid-turn carries the stderr tail when the CLI wrote one. */
+	private streamEndedError(): Error | undefined {
+		const tail = this.stderrTail.join("\n").trim();
+		if (tail === "") return undefined;
+		return new Error(`The Claude session ended unexpectedly.\n${tail}`);
+	}
+
 	private userMessage(text: string, uuid: string): SDKUserMessage {
 		return {
 			type: "user",
@@ -471,6 +495,17 @@ function once(fn: () => Promise<void>): () => Promise<void> {
 		if (started === null) started = fn();
 		return started;
 	};
+}
+
+/** The message a failed turn shows: the error, its exit code or signal, and the stderr tail. */
+function streamErrorMessage(error: Error, stderrTail: readonly string[]): string {
+	const extra = error as Error & { exitCode?: unknown; signal?: unknown };
+	let message = error.message;
+	if (typeof extra.exitCode === "number") message += ` (exit code ${extra.exitCode})`;
+	if (typeof extra.signal === "string") message += ` (signal ${extra.signal})`;
+	const tail = stderrTail.join("\n").trim();
+	if (tail !== "") message += `\n${tail}`;
+	return message;
 }
 
 function errorDetails(error: Error, stderrTail: readonly string[]): Record<string, unknown> {

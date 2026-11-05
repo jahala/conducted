@@ -14,6 +14,9 @@
  *    result differs from the last one
  *  - startLogin for an agent without a login flow: RPC_ERRORS.agentAuthRequired with instructions
  *  - a login flow already running for the same agent: return the same url and code
+ *  - a Claude sign-in that the CLI does not confirm: report failed, never a fake success
+ *  - a second detectAll() within 60 s: reuse the Claude auth answer (claude-runner 1.3)
+ *  - two starts at once: one flow only, so they share the same promise
  * Test first: detectAll() with a runner whose detect() returns null yields installed false and
  * emits no agentInstallsChanged when nothing changed since the last call.
  * Our design choice: the Codex app-server and Cursor SDK calls arrive as ports (CodexAuthPort,
@@ -25,14 +28,26 @@
  */
 import type { AgentInstall } from "@conducted/protocol";
 import type { AcpAgent, AgentKind, IdSource } from "@conducted/shared";
-import { type AppError, appError, err, ok, type Result } from "@conducted/shared";
+import {
+	type AppError,
+	appError,
+	type Clock,
+	err,
+	ok,
+	type Result,
+	systemClock,
+} from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
 import type { ProbeCommand } from "../runners/deps.ts";
 import { type RunnerRegistry, type RunnerSelector, selectorKey } from "../runners/registry.ts";
 import type { ShellEnvProvider } from "../shell-env/capture.ts";
+import { isAppError, messageOf } from "../util/errors.ts";
 
 /** The longest a version or auth probe may take. Conductor kills Claude's probe at 5 s. */
 export const VERSION_PROBE_TIMEOUT_MS = 5_000;
+
+/** How long a Claude auth answer is reused. Conductor caches it for 60 s (claude-runner 1.3). */
+export const CLAUDE_AUTH_CACHE_MS = 60_000;
 
 /** How long a Codex device-code login may wait for the user to finish. */
 export const CODEX_LOGIN_TIMEOUT_MS = 10 * 60 * 1000;
@@ -105,6 +120,8 @@ export interface AgentDetectorDeps {
 	ids: IdSource;
 	/** Runs short programs: `--version` and `claude auth status --json`. */
 	probe: ProbeCommand;
+	/** The clock behind the Claude auth cache. Defaults to the system clock. */
+	clock?: Clock;
 	/** The program path the user chose in Settings, when there is one. */
 	executablePath?(agent: AgentKind): string | undefined;
 	/** The app's own copy of an agent program (D021), when one is installed. */
@@ -131,6 +148,17 @@ interface PendingLogin {
 	instructions: LoginInstructions;
 }
 
+interface AuthRead {
+	authenticated: boolean;
+	authMethod?: string;
+}
+
+interface ClaudeAuthCacheEntry {
+	path: string;
+	readAt: number;
+	value: AuthRead;
+}
+
 interface ProgramFound {
 	path: string;
 	source: "managed" | "user" | "login_path";
@@ -144,6 +172,9 @@ export class DefaultAgentDetector implements AgentDetector {
 	private generation = 0;
 	private readonly pending = new Map<string, PendingLogin>();
 	private readonly pendingBySelector = new Map<string, string>();
+	/** A start that has not remembered its flow yet, so two callers share one flow. */
+	private readonly starting = new Map<string, Promise<Result<LoginInstructions, AppError>>>();
+	private claudeAuth: ClaudeAuthCacheEntry | undefined;
 
 	constructor(protected readonly deps: AgentDetectorDeps) {}
 
@@ -190,6 +221,18 @@ export class DefaultAgentDetector implements AgentDetector {
 			}
 		}
 
+		const inFlight = this.starting.get(key);
+		if (inFlight !== undefined) return inFlight;
+
+		const started = this.beginLogin(selector).finally(() => {
+			if (this.starting.get(key) === started) this.starting.delete(key);
+		});
+		this.starting.set(key, started);
+		return started;
+	}
+
+	private async beginLogin(selector: RunnerSelector): Promise<Result<LoginInstructions, AppError>> {
+		const agent = selector.agent;
 		try {
 			if (agent === "claude") {
 				const instructions = this.claudeLogin();
@@ -234,7 +277,24 @@ export class DefaultAgentDetector implements AgentDetector {
 				if (code === undefined || code.trim() === "") {
 					return err(appError(LOGIN_CODE_MISSING, "Paste the code that Claude printed."));
 				}
+				const env = await this.shellEnvironment();
+				const path = await this.resolveProgram(pending.selector, env);
 				this.forget(loginId);
+				if (path === undefined) {
+					return ok({
+						outcome: "failed",
+						message: "Claude Code was not found, so its sign-in could not be checked.",
+					});
+				}
+				this.claudeAuth = undefined;
+				const auth = await this.readClaudeAuth(path, env);
+				if (auth?.authenticated !== true) {
+					return ok({
+						outcome: "failed",
+						message:
+							"Claude does not report a sign-in. Run `claude setup-token` again and paste the new code.",
+					});
+				}
 				return ok({ outcome: "signed_in" });
 			}
 
@@ -387,7 +447,7 @@ export class DefaultAgentDetector implements AgentDetector {
 		selector: RunnerSelector,
 		path: string,
 		env: Readonly<Record<string, string>>,
-	): Promise<{ authenticated: boolean; authMethod?: string } | undefined> {
+	): Promise<AuthRead | undefined> {
 		if (selector.agent === "claude") return this.readClaudeAuth(path, env);
 
 		if (selector.agent === "codex") {
@@ -400,14 +460,14 @@ export class DefaultAgentDetector implements AgentDetector {
 				});
 				return undefined;
 			}
-			return account.value;
+			return normalizeAuth(account.value);
 		}
 
 		if (selector.agent === "cursor") {
 			const cursor = this.deps.cursor;
 			if (cursor?.account !== undefined) {
 				const account = await cursor.account(env);
-				if (account.ok) return account.value;
+				if (account.ok) return normalizeAuth(account.value);
 			}
 			const key = this.deps.cursorApiKey?.();
 			if (key !== undefined && key !== "") {
@@ -419,10 +479,21 @@ export class DefaultAgentDetector implements AgentDetector {
 		return undefined;
 	}
 
+	/** Reads the Claude account. A successful answer is reused for 60 s (claude-runner 1.3). */
 	private async readClaudeAuth(
 		path: string,
 		env: Readonly<Record<string, string>>,
-	): Promise<{ authenticated: boolean; authMethod?: string } | undefined> {
+	): Promise<AuthRead | undefined> {
+		const now = this.now();
+		const cached = this.claudeAuth;
+		if (
+			cached !== undefined &&
+			cached.path === path &&
+			now - cached.readAt < CLAUDE_AUTH_CACHE_MS
+		) {
+			return cached.value;
+		}
+
 		const result = await this.deps.probe(path, ["auth", "status", "--json"], {
 			env,
 			timeoutMs: VERSION_PROBE_TIMEOUT_MS,
@@ -446,7 +517,26 @@ export class DefaultAgentDetector implements AgentDetector {
 
 		const method =
 			typeof parsed.authMethod === "string" ? normalizeAuthMethod(parsed.authMethod) : undefined;
-		return method === undefined ? { authenticated } : { authenticated, authMethod: method };
+		const value: AuthRead =
+			method === undefined ? { authenticated } : { authenticated, authMethod: method };
+		this.claudeAuth = { path, readAt: this.now(), value };
+		return value;
+	}
+
+	/** Finds the program to probe without asking the runner for its version again. */
+	private async resolveProgram(
+		selector: RunnerSelector,
+		env: Readonly<Record<string, string>>,
+	): Promise<string | undefined> {
+		const runner = this.deps.runners.get(selector);
+		const detect = runner.ok ? runner.value.detect : async () => null;
+		const found = await this.findProgram(selector, detect, env);
+		if (found === null || "warning" in found) return undefined;
+		return found.path;
+	}
+
+	private now(): number {
+		return (this.deps.clock ?? systemClock).now();
 	}
 
 	/** Reads a program's version. null means the program is not there; "" means no version. */
@@ -525,7 +615,7 @@ function programName(selector: RunnerSelector): string {
 	return selector.acpAgent === "pi" ? "Pi" : "OpenCode";
 }
 
-function parseVersion(stdout: string): string | undefined {
+export function parseVersion(stdout: string): string | undefined {
 	const match = stdout.match(/\d+\.\d+\.\d+(?:[-+][\w.]+)?/);
 	return match?.[0];
 }
@@ -544,6 +634,15 @@ function parseJsonObject(text: string): Record<string, unknown> | undefined {
 	}
 }
 
+/** One spelling for an auth method, whichever agent reported it (other-runners 5). */
+function normalizeAuth(value: AuthRead): AuthRead {
+	if (value.authMethod === undefined) return value;
+	return {
+		authenticated: value.authenticated,
+		authMethod: normalizeAuthMethod(value.authMethod),
+	};
+}
+
 function normalizeAuthMethod(method: string): string {
 	const lower = method.toLowerCase();
 	if (lower.includes("api")) return "api_key";
@@ -552,17 +651,7 @@ function normalizeAuthMethod(method: string): string {
 	return method;
 }
 
-function messageOf(cause: unknown): string {
-	return cause instanceof Error ? cause.message : String(cause);
-}
-
 function asAppError(code: string, message: string, cause: unknown): AppError {
 	if (isAppError(cause)) return cause;
 	return appError(code, `${message}: ${messageOf(cause)}`, cause);
-}
-
-function isAppError(value: unknown): value is AppError {
-	if (typeof value !== "object" || value === null) return false;
-	const candidate = value as { code?: unknown; message?: unknown };
-	return typeof candidate.code === "string" && typeof candidate.message === "string";
 }

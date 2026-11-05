@@ -95,7 +95,7 @@ describe("AGENT-02 Claude SDK options", () => {
 		expect(options.resume).toBeUndefined();
 	});
 
-	test("a fork passes resume, session id, the resume point and forkSession", () => {
+	test("a fork of an id that already has a transcript resumes its own transcript", () => {
 		const options = buildClaudeOptions(
 			input({
 				start: start({
@@ -104,12 +104,41 @@ describe("AGENT-02 Claude SDK options", () => {
 				hasTranscript: true,
 			}),
 		);
+
+		expect(options.resume).toBe("s1");
+		expect(options.sessionId).toBeUndefined();
+		expect(options.resumeSessionAt).toBeUndefined();
+		expect(options.forkSession).toBeUndefined();
+	});
+
+	test("a fork without our own transcript passes resume, session id, the point and forkSession", () => {
+		const options = buildClaudeOptions(
+			input({
+				start: start({
+					resume: { agentSessionId: "source-session", atNativeMessageId: "message-5" },
+				}),
+				hasTranscript: false,
+			}),
+		);
 		expect(options).toMatchObject({
 			resume: "source-session",
 			sessionId: "s1",
 			resumeSessionAt: "message-5",
 			forkSession: true,
 		});
+	});
+
+	test("a respawn with a transcript resumes our id and passes no session id", () => {
+		const options = buildClaudeOptions(
+			input({
+				start: start({
+					resume: { agentSessionId: "s1" },
+				}),
+				hasTranscript: true,
+			}),
+		);
+		expect(options.resume).toBe("s1");
+		expect(options.sessionId).toBeUndefined();
 	});
 
 	test("the fixed options match the research", () => {
