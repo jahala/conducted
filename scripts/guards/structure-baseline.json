@@ -22,7 +22,6 @@
 		"apps/desktop/src/core/fuzzy.ts": 1,
 		"apps/desktop/src/core/git/commands.ts": 13,
 		"apps/desktop/src/core/git/gh-commands.ts": 2,
-		"apps/desktop/src/core/git/status.ts": 1,
 		"apps/desktop/src/core/hooks/git.ts": 1,
 		"apps/desktop/src/core/hooks/github.ts": 2,
 		"apps/desktop/src/core/hooks/sections.ts": 1,
