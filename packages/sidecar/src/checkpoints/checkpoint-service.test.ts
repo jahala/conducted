@@ -199,6 +199,18 @@ describe("SIDE-08 checkpoint service", () => {
 		expect(outcome).toEqual({ checkpointId: cid("session-s1-turn-t1-end") });
 	});
 
+	test("a cut diff output leaves the changes out instead of listing a partial summary", async () => {
+		const { service, records } = harness((call) =>
+			call.args[0] === "diff" ? { exitCode: 0, stdout: "M\0a.ts\0", truncated: true } : ok(),
+		);
+
+		await service.start(request());
+		const outcome = await service.end(request());
+
+		expect(outcome).toEqual({ checkpointId: cid("session-s1-turn-t1-end") });
+		expect(records.some((record) => record.message.includes("output was cut"))).toBe(true);
+	});
+
 	test("an end checkpoint is still taken when the start was skipped, without a diff", async () => {
 		const { service, calls } = harness((call) =>
 			call.args[0] === "save" && call.args[2]?.endsWith("-start")

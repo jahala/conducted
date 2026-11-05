@@ -18,7 +18,7 @@
 import { mkdir, open, readdir, readFile, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { appError, err, ok, type Result } from "@conducted/shared";
-import { messageOf } from "../util/errors.ts";
+import { isMissingFile, messageOf } from "../util/errors.ts";
 import type { OutboxStorage } from "./outbox-file.ts";
 
 /** How this storage runs a file through the Trash. Returns the command's exit code. */
@@ -68,7 +68,7 @@ export function createOutboxStorage(
 			try {
 				return ok(await readFile(path.join(root, fileName), "utf8"));
 			} catch (cause) {
-				if (isMissing(cause)) return ok(null);
+				if (isMissingFile(cause)) return ok(null);
 				return err(appError("outbox_read_failed", messageOf(cause), cause));
 			}
 		},
@@ -115,28 +115,29 @@ export function createOutboxStorage(
 			try {
 				names = await readdir(root);
 			} catch (cause) {
-				if (isMissing(cause)) return ok(0);
+				if (isMissingFile(cause)) return ok(0);
 				return err(appError("outbox_clean_failed", messageOf(cause), cause));
 			}
 			let moved = 0;
+			const failed: string[] = [];
 			for (const name of names) {
 				if (!name.endsWith(".tmp")) continue;
 				try {
 					if ((await runTrash(path.join(root, name))) === 0) moved += 1;
+					else failed.push(name);
 				} catch {
-					// The temp file stays for the next open.
+					failed.push(name);
 				}
+			}
+			if (failed.length > 0) {
+				return err(
+					appError(
+						"outbox_clean_failed",
+						`The Trash refused ${failed.length} leftover temp file(s): ${failed.join(", ")}.`,
+					),
+				);
 			}
 			return ok(moved);
 		},
 	};
-}
-
-function isMissing(cause: unknown): boolean {
-	return (
-		typeof cause === "object" &&
-		cause !== null &&
-		"code" in cause &&
-		(cause as { code?: string }).code === "ENOENT"
-	);
 }

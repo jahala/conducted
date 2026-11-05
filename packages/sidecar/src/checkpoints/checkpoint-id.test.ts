@@ -33,6 +33,8 @@ describe("SIDE-08 checkpoint ids, refs and exit codes", () => {
 		expect(checkpointIdFor(sid("a b"), tid("t"), "end")).toBeNull();
 		expect(checkpointIdFor(sid("a"), tid("t/../x"), "end")).toBeNull();
 		expect(checkpointIdFor(sid("a"), tid("t~1"), "end")).toBeNull();
+		expect(checkpointIdFor(sid("a..b"), tid("t"), "end")).toBeNull();
+		expect(checkpointIdFor(sid(".."), tid("t"), "end")).toBeNull();
 	});
 
 	test("exit code 101 is a skip for a merge or rebase in progress", () => {

@@ -83,4 +83,12 @@ describe("SIDE-08 checkpoint diff summary", () => {
 		expect(capSummary(make(MAX_SUMMARY_FILES))).toHaveLength(MAX_SUMMARY_FILES);
 		expect(capSummary(make(MAX_SUMMARY_FILES + 1))).toBeUndefined();
 	});
+
+	test("SIDE-08 an unknown status letter keeps its path and does not shift the next entry", () => {
+		const out = parseDiffSummary("X\0Makefile\0M\0a.ts\0", "");
+		expect(out.map((change) => [change.path, change.status])).toEqual([
+			["Makefile", "modified"],
+			["a.ts", "modified"],
+		]);
+	});
 });

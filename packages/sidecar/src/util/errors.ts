@@ -1,6 +1,7 @@
 /**
  * @feature SIDE-01 Entry point and modes: error helpers
- * Owns: one spelling for the message of a thrown value, and the check that a value is an AppError.
+ * Owns: one spelling for the message of a thrown value, the check that a value is an AppError, and
+ * the wrap of a thrown value into one, and the check for a missing file.
  * Behaviour: `Result` carries expected failures (docs/engineering.md), so this module only reads
  * values that reached a catch or an error callback.
  * Must handle: an Error, any other thrown value, and a plain object that only looks like an
@@ -10,6 +11,7 @@
  * copies could drift.
  */
 import type { AppError } from "@conducted/shared";
+import { appError } from "@conducted/shared";
 
 /** The message of a thrown value, in one spelling for every module. */
 export function messageOf(cause: unknown): string {
@@ -21,4 +23,20 @@ export function isAppError(value: unknown): value is AppError {
 	if (typeof value !== "object" || value === null) return false;
 	const candidate = value as { code?: unknown; message?: unknown };
 	return typeof candidate.code === "string" && typeof candidate.message === "string";
+}
+
+/** Keeps an AppError as it is. Wraps anything else under `code`, with `message` and the cause. */
+export function asAppError(code: string, message: string, cause: unknown): AppError {
+	if (isAppError(cause)) return cause;
+	return appError(code, `${message}: ${messageOf(cause)}`, cause);
+}
+
+/** True when a file system call failed because the file or folder does not exist. */
+export function isMissingFile(cause: unknown): boolean {
+	return (
+		typeof cause === "object" &&
+		cause !== null &&
+		"code" in cause &&
+		(cause as { code?: string }).code === "ENOENT"
+	);
 }

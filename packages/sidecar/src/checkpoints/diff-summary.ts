@@ -39,8 +39,9 @@ function parseNameStatus(text: string): NameStatusEntry[] {
 	for (let i = 0; i < tokens.length; i++) {
 		const code = tokens[i];
 		if (!code) continue;
-		const status = STATUS_BY_LETTER[code[0] ?? ""];
-		if (!status) continue;
+		// A letter git prints that we do not know (X, B) still has one path after it, so it is
+		// read as a modified file and the path token is never mistaken for a status.
+		const status = STATUS_BY_LETTER[code[0] ?? ""] ?? "modified";
 		if (status === "renamed" || status === "copied") {
 			const oldPath = tokens[i + 1];
 			const path = tokens[i + 2];

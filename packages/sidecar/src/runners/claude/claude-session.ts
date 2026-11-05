@@ -210,6 +210,12 @@ export class ClaudeSession implements AgentSession {
 		} catch (cause) {
 			return this.failConfigSync(cause);
 		}
+		// A cancel during the control requests settled the turn and must not send the message.
+		if (generation !== this.generation || this.turnSettled) {
+			const outcome = await turn.promise;
+			this.finishTurn();
+			return outcome;
+		}
 		if (restart) {
 			// The new effort only takes effect in a new process. The next process starts with the
 			// current model and effort, and the permission mode is applied live again below.
@@ -405,15 +411,21 @@ export class ClaudeSession implements AgentSession {
 		resolveExit: () => void,
 	): Promise<void> {
 		try {
-			for await (const message of query) this.handleMessage(message);
-			this.tracker.onStreamEnded(this.streamEndedError());
+			for await (const message of query) {
+				// A replaced process must not feed the turn that runs on its successor.
+				if (this.query !== query) continue;
+				this.handleMessage(message);
+			}
+			if (this.query === query) this.tracker.onStreamEnded(this.streamEndedError());
 		} catch (cause) {
 			const error = cause instanceof Error ? cause : new Error(String(cause));
 			this.deps.logger.error(
 				`Claude session ${this.sessionId} failed`,
 				errorDetails(error, this.stderrTail),
 			);
-			this.tracker.onStreamEnded(new Error(streamErrorMessage(error, this.stderrTail)));
+			if (this.query === query) {
+				this.tracker.onStreamEnded(new Error(streamErrorMessage(error, this.stderrTail)));
+			}
 		} finally {
 			input.close();
 			if (this.query === query) {

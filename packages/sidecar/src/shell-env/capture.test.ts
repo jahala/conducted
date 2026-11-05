@@ -88,6 +88,21 @@ describe("SIDE-10 capture command", () => {
 });
 
 describe("SIDE-10 login-shell capture", () => {
+	test("SIDE-10 a dump without PATH is a failure and is not cached", async () => {
+		const { spawnText, calls } = recordingSpawn((call) => {
+			const marker = /printf '%s' '([^']+)'/.exec(call.command.args.join(" "))?.[1] ?? "";
+			return ok(dump(marker, { HOME: "/home/a" }));
+		});
+		const subject = provider("/bin/zsh", spawnText);
+
+		const first = await subject.get();
+		expect(first.ok).toBe(false);
+		if (!first.ok) expect(first.error.code).toBe("env_path_missing");
+
+		await subject.get();
+		expect(calls.length).toBeGreaterThan(1);
+	});
+
 	test("parses the dump, strips secrets and keeps the login-shell PATH", async () => {
 		const marker = "M1";
 		const { spawnText, calls } = recordingSpawn(() =>

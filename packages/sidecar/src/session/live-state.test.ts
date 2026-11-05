@@ -206,6 +206,19 @@ describe("SIDE-05 failed event writes", () => {
 });
 
 describe("SIDE-05 live-state store", () => {
+	test("SIDE-05 a reducer that throws fails its own update and not the next one", async () => {
+		const { store } = harness();
+
+		const failing = store.update(sid("session-1"), () => {
+			throw new Error("reducer broke");
+		});
+		const next = store.update(sid("session-1"), beginTurn);
+
+		await expect(failing).rejects.toThrow("reducer broke");
+		await next;
+		expect(store.get(sid("session-1")).status).toBe("working");
+	});
+
 	test("SIDE-05 a changed state is published after the flush, and an unchanged state is not", async () => {
 		const gate = deferred<void>();
 		const { app, store } = harness(() => gate.promise);

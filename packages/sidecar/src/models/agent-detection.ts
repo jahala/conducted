@@ -41,7 +41,7 @@ import type { Logger } from "../logging/logger.ts";
 import type { ProbeCommand } from "../runners/deps.ts";
 import { type RunnerRegistry, type RunnerSelector, selectorKey } from "../runners/registry.ts";
 import type { ShellEnvProvider } from "../shell-env/capture.ts";
-import { isAppError, messageOf } from "../util/errors.ts";
+import { asAppError, messageOf } from "../util/errors.ts";
 
 /** The longest a version or auth probe may take. Conductor kills Claude's probe at 5 s. */
 export const VERSION_PROBE_TIMEOUT_MS = 5_000;
@@ -183,7 +183,9 @@ export class DefaultAgentDetector implements AgentDetector {
 		const env = await this.shellEnvironment();
 		const entries = this.deps.runners.all();
 		const agents = await Promise.all(
-			entries.map((entry) => this.detectOne(entry.selector, entry.runner.detect, env)),
+			entries.map((entry) =>
+				this.detectOne(entry.selector, (probeEnv) => entry.runner.detect(probeEnv), env),
+			),
 		);
 
 		if (generation !== this.generation) {
@@ -529,7 +531,9 @@ export class DefaultAgentDetector implements AgentDetector {
 		env: Readonly<Record<string, string>>,
 	): Promise<string | undefined> {
 		const runner = this.deps.runners.get(selector);
-		const detect = runner.ok ? runner.value.detect : async () => null;
+		const detect = runner.ok
+			? (probeEnv: Readonly<Record<string, string>>) => runner.value.detect(probeEnv)
+			: async () => null;
 		const found = await this.findProgram(selector, detect, env);
 		if (found === null || "warning" in found) return undefined;
 		return found.path;
@@ -649,9 +653,4 @@ function normalizeAuthMethod(method: string): string {
 	if (lower.includes("bedrock")) return "bedrock";
 	if (lower.includes("chatgpt")) return "chatgpt";
 	return method;
-}
-
-function asAppError(code: string, message: string, cause: unknown): AppError {
-	if (isAppError(cause)) return cause;
-	return appError(code, `${message}: ${messageOf(cause)}`, cause);
 }

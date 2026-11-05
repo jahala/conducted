@@ -1,7 +1,7 @@
 /**
  * @feature AGENT-02 Claude: Agent SDK in streaming-input mode
  * Owns: a push-based async queue that turns "push a value now" into "for await" iteration. Claude's
- * prompt stream and the ACP per-session event queue are built on it.
+ * prompt stream is built on it.
  * Behaviour: research/conductor/claude-runner.md section 1.1 (the prompt is an async iterable that
  * yields a user message whenever the app pushes one, so one `claude` process lives across turns).
  * Must handle: values pushed before anyone iterates (buffered in order), a consumer waiting when a

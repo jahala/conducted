@@ -111,6 +111,7 @@ describe("SIDE-19 shutdown coordinator", () => {
 			beforeShutdown: () => {
 				beforeShutdown += 1;
 			},
+			afterShutdown: () => {},
 			finish: (code) => {
 				finished.push(code);
 			},
@@ -129,6 +130,56 @@ describe("SIDE-19 shutdown coordinator", () => {
 		expect(coordinator.isFinished).toBe(true);
 	});
 });
+
+describe("SIDE-19 signals during a slow shutdown", () => {
+	test("SIDE-19 the handlers stay installed while the shutdown runs and go when it ends", async () => {
+		const signals = new FakeSignals();
+		const { logger } = recordingLogger();
+		let release: () => void = () => {};
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const order: string[] = [];
+		const effects: ShutdownEffects = {
+			...recordingEffects(order),
+			stopAgents: async () => {
+				await gate;
+			},
+		};
+		let removeHandlers: () => void = () => {};
+		const finished: number[] = [];
+		const coordinator = new ShutdownCoordinator({
+			logger,
+			effects,
+			runShutdown: (steps) => runShutdownSteps(steps, { logger, timeout: never }),
+			beforeShutdown: () => {},
+			afterShutdown: () => removeHandlers(),
+			finish: (code) => {
+				finished.push(code);
+			},
+		});
+		removeHandlers = installSignalHandlers(logger, signals, () => {
+			void coordinator.shutdown("signal");
+		});
+
+		signals.fire("SIGTERM");
+		// A second signal while the first shutdown waits must still be caught by a handler.
+		expect(signals.count("SIGTERM")).toBe(1);
+		expect(signals.count("SIGINT")).toBe(1);
+		signals.fire("SIGINT");
+		expect(finished).toEqual([]);
+
+		release();
+		await until(() => finished.length === 1);
+		expect(signals.count("SIGTERM")).toBe(0);
+		expect(signals.count("SIGINT")).toBe(0);
+		expect(finished).toEqual([0]);
+	});
+});
+
+async function until(check: () => boolean): Promise<void> {
+	while (!check()) await new Promise<void>((resolve) => setTimeout(resolve, 0));
+}
 
 describe("SIDE-19 signal handlers", () => {
 	test("SIDE-19 SIGINT and SIGTERM log under SIGNAL and start the shutdown", () => {

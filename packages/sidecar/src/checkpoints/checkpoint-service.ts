@@ -13,7 +13,8 @@
  *  - the start checkpoint is a promise handed to the runner (TurnCallbacks.beforeFirstWrite
  *    awaits it); it must never reject, failures resolve to a skipped outcome
  *  - the end checkpoint waits for the start checkpoint of the same turn
- *  - the next turn waits for the previous end checkpoint (the manager awaits settled())
+ *  - the next turn waits for the previous end checkpoint: Turn.start awaits the previous turn's
+ *    settled promise, not this class
  *  - cancel during a running checkpoint: the script is allowed to finish or hit its timeout
  *  - every save passes --force, as Conductor does, so a repeated id overwrites instead of failing
  *  - the diff summary: two `diff` calls (--name-status -z and --numstat -z) run together, omitted
@@ -35,9 +36,9 @@ import type { CheckpointId, SessionId, TurnId } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
 import { messageOf } from "../util/errors.ts";
 import {
-	CHECKPOINT_REF_PREFIX,
 	type CheckpointPhase,
 	checkpointIdFor,
+	checkpointRefFor,
 	exitCodeToOutcome,
 	type SkipReason,
 } from "./checkpoint-id.ts";
@@ -62,6 +63,8 @@ export interface CheckpointerOutput {
 	stdout: string;
 	/** Kept for the log line when the runner captures it. */
 	stderr?: string;
+	/** True when stdout or stderr was longer than the log line keeps and the rest was dropped. */
+	truncated?: boolean;
 }
 
 /** Runs the script and returns its exit code and stdout. A parameter so tests need no processes. */
@@ -158,7 +161,7 @@ export class ScriptCheckpointService implements CheckpointService {
 				turnId: request.turnId,
 				phase,
 				checkpointId: id,
-				ref: `${CHECKPOINT_REF_PREFIX}${id}`,
+				ref: checkpointRefFor(id),
 			});
 			return { checkpointId: id };
 		}
@@ -228,6 +231,14 @@ export class ScriptCheckpointService implements CheckpointService {
 				this.deps.run(["diff", startId, endId, "--", "--name-status", "-z"], options),
 				this.deps.run(["diff", startId, endId, "--", "--numstat", "-z"], options),
 			]);
+			if (nameStatus.truncated === true || numstat.truncated === true) {
+				// A cut stream would parse into a partial list that looks complete.
+				this.deps.logger.warn("The turn diff summary was left out: the script output was cut", {
+					startId,
+					endId,
+				});
+				return undefined;
+			}
 			if (nameStatus.exitCode !== 0 || numstat.exitCode !== 0) {
 				this.deps.logger.warn("The turn diff summary could not be computed", {
 					startId,
