@@ -2,7 +2,8 @@
  * @feature CHAT-01 Sessions service: the chat list; CHAT-02 Send a message as a new turn; CHAT-05
  * Cancel a turn; CHAT-27 Retry a failed turn in a new chat
  * Owns: the list of chats per workspace, their stored live state and events in memory, the
- * create, close, reopen, rename, set-title-if-empty, delete and open paths, starting a review chat
+ * create, close, reopen, rename, set-title-if-empty, delete (which also removes the chat's
+ * checkpoint refs) and open paths, starting a review chat
  * with the review model, sending a user message as a new turn or a steer, cancelling a turn:
  * pausing the follow-up queue, withdrawing the open interaction, removing only the pending sends
  * the sidecar dropped, and putting a send that was still in flight back in the composer draft,
@@ -251,6 +252,11 @@ export interface SessionsServiceDeps {
 	 * when it is missing: building a launch here would drop the provider keys and the program path.
 	 */
 	launchFor?: (session: Session) => AgentLaunch;
+	/**
+	 * Removes a chat's checkpoint refs before its row is deleted (DATA-06). The composition root
+	 * supplies it; a harness without it still deletes chats and leaves the refs alone.
+	 */
+	pruneCheckpoints?: (sessionId: SessionId, workspaceId: WorkspaceId) => Promise<Result<number>>;
 	/** Folders and branch facts the sidecar needs to place a chat on disk. */
 	workspaceContextOf: (workspaceId: WorkspaceId) => Promise<Result<WorkspaceContext>>;
 	/** Default config for a new chat, from settings and the last used model. */
@@ -513,6 +519,10 @@ export class SessionsService implements AgentMessenger {
 	async delete(id: SessionId): Promise<Result<void>> {
 		const found = await this.#session(id);
 		if (!found.ok) return found;
+		// Prune first: a git failure leaves the chat in place so the user can retry, rather than
+		// losing a chat whose refs could not be removed.
+		const pruned = await this.#deps.pruneCheckpoints?.(id, found.value.workspaceId);
+		if (pruned !== undefined && !pruned.ok) return err(pruned.error);
 		const removed = await this.#deps.repositories().sessions.delete(id);
 		if (!removed.ok) return removed;
 		this.#turns.delete(id);
