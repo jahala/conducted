@@ -5,7 +5,8 @@
  * Behaviour: services-map.md 5A.6.2 (draft staging folder, sweep of old drafts), 5A.1.2 (setup log)
  * and 5A.4.7 (saved terminal scrollback files).
  * Callers pass ids from the id source, never user text, so no name here holds a path separator.
- * Nothing in this file checks that; a caller that passed user text would escape the folder.
+ * The builders do not check that; a caller that passed user text would escape the folder. A path
+ * read back from storage is checked with `isInsideFolder` before anything deletes it.
  * Our design choice: drafts are JSON files, one per chat, because migration 0001 has no drafts
  * table. A new table would need a new migration; files need none.
  * Test first: draftFile joins appData, "drafts" and "<sessionId>.json" with single slashes.
@@ -18,6 +19,20 @@ const join = (...parts: string[]): string =>
 	parts
 		.map((part, index) => (index === 0 ? part.replace(/\/+$/, "") : part.replace(/^\/+|\/+$/g, "")))
 		.join("/");
+
+/**
+ * True when `path` names something inside `folder`, never the folder itself. Both are absolute,
+ * with `/` separators. An empty, `.` or `..` segment or a NUL byte makes the answer false, so a
+ * path cannot climb out of the folder by how it is spelled.
+ */
+export const isInsideFolder = (folder: string, path: string): boolean => {
+	const base = folder.replace(/\/+$/, "");
+	if (base.length === 0 || path.includes("\u0000") || !path.startsWith(`${base}/`)) return false;
+	return path
+		.slice(base.length + 1)
+		.split("/")
+		.every((part) => part !== "" && part !== "." && part !== "..");
+};
 
 /** Folder with one `<sessionId>.json` per chat that has an unsent draft. */
 export const draftsDir = (paths: AppPaths): string => join(paths.appData, "drafts");

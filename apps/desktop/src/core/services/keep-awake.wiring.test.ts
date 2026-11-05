@@ -13,10 +13,16 @@ import type { RunningCommand, ShellCommand } from "../../platform/platform.ts";
 import { createTestContainer, type TestContainer } from "../../test/container.ts";
 import { KEEP_AWAKE_SCAN_MS } from "./keep-awake.ts";
 
-// DATA-02 owns the lifetime job; its startup step is unrelated to keep-awake.
+// The lifetime job's startup step is unrelated to keep-awake, so it reports a skipped run.
 vi.mock("../db/lifetime.ts", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("../db/lifetime.ts")>();
-	return { ...actual, runDataLifetimeJob: async () => ({ ok: true, value: undefined }) };
+	return {
+		...actual,
+		runDataLifetimeJob: async () => ({
+			ok: true,
+			value: { kind: "skipped", lastRunAt: 0 },
+		}),
+	};
 });
 
 const AC_OUTPUT =

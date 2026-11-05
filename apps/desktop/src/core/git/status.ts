@@ -11,8 +11,10 @@
  * field, never a throw); more than 100 untracked files (listed up to the cap, flagged truncated);
  * untracked files over 300 KB (counted as 501 lines, not read); a failed untracked count, sync
  * probe, reflog, distance or log is returned as an error, never a clean-looking zero; a diverged
- * branch whose local tip is absent from its upstream's reflog is flagged rewritten; a stale
- * answer for a branch that changed while the read ran must be dropped by the caller.
+ * branch whose local tip is in its upstream's reflog is flagged rewritten (the remote once
+ * pointed at the local tip and then moved away from it), while a plain divergence (local commits
+ * the remote never had) is not; a stale answer for a branch that changed while the read ran must
+ * be dropped by the caller.
  * Our design choice: the parsers return values or a Result and never throw, and the pipeline
  * gets its runner as a parameter. The refresh interval (5 s for the visible workspace) belongs
  * to services/git.ts.
@@ -52,7 +54,6 @@ export const UNTRACKED_COUNT_MAX_BYTES = 300 * 1024;
 export const UNTRACKED_COUNT_BATCH_BYTES = 200_000;
 /** Line count reported for an untracked file too large to read. */
 export const UNTRACKED_LARGE_FILE_LINES = 501;
-export const TURN_CHANGES_FILE_CAP = 200;
 
 // ---------------------------------------------------------------- diff target (services-map 3.3.2)
 
@@ -418,8 +419,10 @@ async function upstreamTipSeen(
 /**
  * Computes ahead and behind against the upstream and against the target (services-map 3.3.2
  * steps 8 and 9, 3.6.4), and whether the remote branch was rewritten. A branch counts as
- * rewritten when it has diverged (commits on both sides) and the local tip is not in the reflog
- * of the remote-tracking ref (services-map 3.8.3). A branch with no upstream returns
+ * rewritten when it has diverged (commits on both sides) and the local tip is in the reflog of
+ * the remote-tracking ref: the remote once pointed at the local tip, and a force-push moved it
+ * off. services-map 3.8.3 step 4 makes the same reflog check before it catches up a rewritten
+ * branch. A local tip the remote never held is a plain divergence. A branch with no upstream returns
  * `hasUpstream: false` and zero counts, not an error.
  */
 export async function refreshBranchSync(
@@ -465,7 +468,7 @@ export async function refreshBranchSync(
 	if (ahead > 0 && behind > 0) {
 		const seen = await upstreamTipSeen(runner, cwd, headOid);
 		if (!seen.ok) return seen;
-		rewritten = !seen.value;
+		rewritten = seen.value;
 	}
 
 	return ok({

@@ -109,10 +109,10 @@ const startOptions = (resume?: string): StartOptions => ({
 	...(resume === undefined ? {} : { resume: { agentSessionId: resume } }),
 });
 
-const turnInput = (text = "hello"): TurnInput => ({
+const turnInput = (text = "hello", config = baseConfig): TurnInput => ({
 	text,
 	attachmentPaths: [],
-	config: baseConfig,
+	config,
 });
 
 function callbacks(): TurnCallbacks {
@@ -490,4 +490,70 @@ test("AGENT-06 friendly Codex errors name usage limits and shared accounts", () 
 		"cannot share",
 	);
 	expect(friendlyCodexError("Something else broke.")).toBe("Something else broke.");
+});
+
+describe("AGENT-16 Codex thread options", () => {
+	function paramsOf(client: FakeClient, method: string): Record<string, unknown> {
+		const request = client.requests.find((candidate) => candidate.method === method);
+		expect(request).toBeDefined();
+		return request?.params as Record<string, unknown>;
+	}
+
+	test("a thread starts with the default approval policy and full access", async () => {
+		const client = new FakeClient();
+		answerThreadStart(client);
+		answerCompletedTurn(client);
+		const session = makeSession(client);
+
+		expect(
+			await session.runTurn(
+				turnInput("hello", { ...baseConfig, requireToolApproval: true }),
+				callbacks(),
+			),
+		).toEqual({ kind: "success" });
+
+		expect(paramsOf(client, "thread/start")).toMatchObject({
+			approvalPolicy: "on-request",
+			sandbox: "danger-full-access",
+		});
+		expect(paramsOf(client, "turn/start")).toMatchObject({ approvalPolicy: "on-request" });
+		// The sandbox is a thread option; turn/start has no field with that name.
+		expect(paramsOf(client, "turn/start")).not.toHaveProperty("sandbox");
+	});
+
+	test("the chosen personality reaches the thread and the turn", async () => {
+		const client = new FakeClient();
+		answerThreadStart(client);
+		answerCompletedTurn(client);
+		const session = makeSession(client);
+		const chosen = { ...baseConfig, codexPersonality: "pragmatic" } as SessionConfig;
+
+		expect(await session.runTurn(turnInput("hello", chosen), callbacks())).toEqual({
+			kind: "success",
+		});
+
+		expect(paramsOf(client, "thread/start")).toMatchObject({ personality: "pragmatic" });
+		expect(paramsOf(client, "turn/start")).toMatchObject({ personality: "pragmatic" });
+	});
+
+	test("a personality change re-opens the thread with the new tone", async () => {
+		const client = new FakeClient();
+		answerThreadStart(client);
+		answerCompletedTurn(client);
+		const session = makeSession(client);
+		expect(await session.runTurn(turnInput(), callbacks())).toEqual({ kind: "success" });
+
+		client.answers.set("thread/resume", () => ok({ thread: { id: "thread-1" }, model: "gpt-5" }));
+		const changed = { ...baseConfig, codexPersonality: "friendly" } as SessionConfig;
+		expect(await session.applyConfig(changed)).toBe("applied");
+		expect(await session.runTurn(turnInput("again", changed), callbacks())).toEqual({
+			kind: "success",
+		});
+
+		expect(client.methods()).toContain("thread/resume");
+		expect(paramsOf(client, "thread/resume")).toMatchObject({
+			threadId: "thread-1",
+			personality: "friendly",
+		});
+	});
 });

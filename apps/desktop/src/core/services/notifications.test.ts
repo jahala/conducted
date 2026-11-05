@@ -6,27 +6,30 @@ import {
 	isSuppressed,
 	notificationTitle,
 	parseDeepLink,
-	shouldNotifyFinished,
+	settledNotification,
+	shouldNotifySettled,
 } from "./notifications.ts";
 
 const quiet = {
 	hasBackgroundTasks: false,
-	hasError: false,
 	queuedCount: 0,
 	alreadyNotifiedForTurn: false,
 };
 
-describe("shouldNotifyFinished", () => {
+describe("shouldNotifySettled", () => {
 	it("notifies for a plain finish", () => {
-		expect(shouldNotifyFinished(quiet)).toBe(true);
+		expect(shouldNotifySettled(quiet)).toBe(true);
 	});
 	it.each([
 		["a queued follow-up", { queuedCount: 1 }],
 		["background tasks", { hasBackgroundTasks: true }],
-		["an error", { hasError: true }],
 		["an earlier notice for the turn", { alreadyNotifiedForTurn: true }],
 	])("stays quiet with %s", (_name, over) => {
-		expect(shouldNotifyFinished({ ...quiet, ...over })).toBe(false);
+		expect(shouldNotifySettled({ ...quiet, ...over })).toBe(false);
+	});
+	it("raises the failed notice instead of the finished one for a turn that ended with an error", () => {
+		expect(settledNotification({ error: "The agent stopped." }).kind).toBe("failed");
+		expect(settledNotification({}).kind).toBe("finished");
 	});
 });
 

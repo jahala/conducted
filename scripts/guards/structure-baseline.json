@@ -58,11 +58,10 @@
 		"packages/sidecar/src/packaging.ts": 1,
 		"packages/sidecar/src/runners/claude/self-started-turns.ts": 1,
 		"packages/sidecar/src/runners/codex/approval-bridge.ts": 1,
-		"packages/sidecar/src/session/self-started-turns.ts": 1,
-		"packages/sidecar/src/shell-env/env.ts": 1
+		"packages/sidecar/src/session/self-started-turns.ts": 1
 	},
 	"unwired-deps": {
-		"apps/desktop/src/core/container.ts": 5,
-		"packages/sidecar/src/modes/sidecar-mode.ts": 10
+		"apps/desktop/src/core/container.ts": 4,
+		"packages/sidecar/src/modes/sidecar-mode.ts": 9
 	}
 }

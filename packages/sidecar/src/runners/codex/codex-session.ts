@@ -20,9 +20,10 @@
  *  - the turn ends with status interrupted: outcome cancelled; failed: error outcome with the
  *    turn error message, retryable only for rate-limit errors
  *  - the thread id is reported through onAgentSessionId as soon as thread/started arrives
- *  - applyConfig: model and effort are per-turn overrides (live); approval policy and sandbox are
- *    per-turn overrides too; additional directories or app-tool changes need a new thread
- *    config, so they return "restart"
+ *  - applyConfig: model, effort, approval policy and personality are per-turn overrides (live);
+ *    an approval policy, sandbox or personality change re-opens the thread with the new settings;
+ *    additional directories or app-tool changes need a new thread config, so they return
+ *    "restart"
  *  - the first message after resume does not repeat the workspace instruction (the manager decides)
  * Test first: with a fake client, runTurn sends thread/start then turn/start and resolves success
  * when turn/completed with status completed arrives.
@@ -53,6 +54,7 @@ import {
 	type CodexTurnSteerParams,
 	type CodexUserInput,
 } from "./protocol.ts";
+import { codexSettingsChanged, codexThreadSettings } from "./thread-settings.ts";
 import type { CodexTranslator } from "./translate.ts";
 
 /** Retries for rate-limit and overload errors. From the research. */
@@ -293,8 +295,12 @@ export class CodexSession implements AgentSession {
 		const restart =
 			!sameStrings(this.config.additionalDirectories, config.additionalDirectories) ||
 			JSON.stringify(this.config.appTools) !== JSON.stringify(config.appTools);
+		const settingsChanged = codexSettingsChanged(this.config, config);
 		this.config = config;
-		return restart ? "restart" : "applied";
+		if (restart) return "restart";
+		// The next turn re-opens the thread with the new options, keeping its history.
+		if (settingsChanged) this.threadClient = null;
+		return "applied";
 	}
 
 	async contextUsage(): Promise<{ usedTokens: number; windowTokens: number } | null> {
@@ -489,32 +495,27 @@ export class CodexSession implements AgentSession {
 	}
 
 	private threadParams(): CodexThreadStartParams {
+		const settings = codexThreadSettings(this.config);
 		const params: CodexThreadStartParams = {
 			cwd: this.start.workspace.workspacePath,
 			model: this.config.model === "" ? null : this.config.model,
+			approvalPolicy: settings.approvalPolicy,
+			sandbox: settings.sandbox,
 		};
-		if (this.config.codexApprovalPolicy !== undefined) {
-			params.approvalPolicy = this.config.codexApprovalPolicy;
-		}
-		if (this.config.codexSandboxMode !== undefined) {
-			params.sandbox = this.config.codexSandboxMode;
-		}
+		if (settings.personality !== undefined) params.personality = settings.personality;
 		return params;
 	}
 
 	private turnStartParams(threadId: string, input: TurnInput): CodexTurnStartParams {
+		const settings = codexThreadSettings(input.config);
 		const params: CodexTurnStartParams = {
 			threadId,
 			input: toUserInput(input),
 			model: input.config.model === "" ? null : input.config.model,
 			effort: input.config.effort,
+			approvalPolicy: settings.approvalPolicy,
 		};
-		if (input.config.codexApprovalPolicy !== undefined) {
-			params.approvalPolicy = input.config.codexApprovalPolicy;
-		}
-		if (input.config.codexSandboxMode !== undefined) {
-			params.sandbox = input.config.codexSandboxMode;
-		}
+		if (settings.personality !== undefined) params.personality = settings.personality;
 		return params;
 	}
 

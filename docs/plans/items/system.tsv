@@ -50,7 +50,7 @@ SIDE-04	rule	Step 9: the turn ends on the result message, then the end checkpoin
 SIDE-05	state	Chat status is only idle or working; other conditions are flags on the live state.	sessions-and-chats what happens, last line	covered
 CHAT-04	rule	Follow-up queue: a user row with no sent time and a queue order; edit, reorder and delete.	sessions-and-chats while working	covered
 CHAT-03	rule	Steer is a send with steering delivery, shown as pending until the agent reads it.	sessions-and-chats while working	covered
-CHAT-03	rule	Agents that cannot steer do not offer steering in the UI, as in Conductor; ours sends the message as a normal follow-up.	sessions-and-chats while working	partly
+CHAT-03	rule	Agents that cannot steer do not offer steering in the UI, as in Conductor; a message sent with the default mode goes to them as a normal follow-up, and a steer asked for by name fails visibly.	sessions-and-chats while working	partly
 CHAT-05	rule	Cancel stops the turn, takes the end checkpoint and drops the queued follow-ups; ours pauses the app queue instead of dropping it.	sessions-and-chats while working	missing
 AGENT-02	rule	Cancel for Claude tries an in-protocol interrupt first, then SIGTERM and SIGKILL after 5 s (D015).	sessions-and-chats while working	covered
 SIDE-04	rule	Run numbers drop late results of a cancelled run.	sessions-and-chats while working	covered
@@ -1365,7 +1365,7 @@ REV-01	rule	Step 6 reads the modified time and size of each changed file.	servic
 GIT-02	rule	Step 7 has an uncommitted-only variant that compares against HEAD.	services-map 3.3.2	covered
 GIT-03	git	Step 8 reads HEAD and its upstream with rev-parse HEAD @{u}.	services-map 3.3.2	covered
 GIT-03	git	Step 8 counts commits ahead and behind the upstream with a left-right count.	services-map 3.3.2	covered
-GIT-03	rule	A remote branch counts as rewritten when the local tip is not in the remote ref's reflog.	services-map 3.8.3	covered
+GIT-03	rule	A diverged remote branch counts as rewritten when the local tip is in the remote ref's reflog: the remote once pointed at it, then a force-push moved it away.	services-map 3.8.3	covered
 GIT-02	git	Step 9 counts how far the branch is behind its target.	services-map 3.3.2	covered
 GIT-02	git	Step 10 lists the branch commits with a log over the range.	services-map 3.3.2	covered
 GIT-02	rule	A cheaper poll reads only the local branch, and an answer for a branch that has since changed is dropped.	services-map 3.3.3	covered
@@ -3043,3 +3043,4 @@ PLAT-33	rule	Menu accelerators and menu clicks in the live app: `createTauriMenu
 SET-04	integration	The Environment page's variables reach a running agent: SET-04 adds them to the agent launch that SIDE-21 builds (global variables, then the repository's of the same name), and an idle agent restarts with resume when they change.	native-and-sidecar-map B4	missing
 SIDE-21	integration	The managed agent copy joins the program order (Settings path, managed copy, then PATH) when PLAT-28 installs it; until then the order is Settings path, then PATH.	other-runners 5	missing
 SIDE-21	integration	The desktop composition root (core/container.ts) passes launchFor to SessionsService and ChatTitlesService, built from the saved settings: program paths, provider and base URL, and provider keys from the Keychain. Accepted by a test over createTestContainer that sends one message and sees the launch in the sidecar request, with no chat_launch_missing (D054).	claude-runner 1.2	missing
+CHAT-15	rule	After a revert the agent forgets the reverted turns: revertTo asks the sidecar to resetAgent, and the chat's next send resumes the agent at the chosen turn with resume.atNativeMessageId. Until then the agent keeps them in memory although the chat hides them (moved by the s2-2 core-1 audit).	sessions 2	missing

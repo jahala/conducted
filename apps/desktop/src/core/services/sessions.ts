@@ -13,7 +13,9 @@
  * you send a message" and "While the agent is working" (cancel), sessions.md 6.
  * Must handle: a closed chat stays in history and leaves the open list; a reopened chat returns to
  * the open list; an empty title is refused; stored events load once, in `idx` order; a message is
- * held in memory as pending before the sidecar is asked; a send that fails keeps its text for
+ * held in memory as pending before the sidecar is asked; a queued row is sent under its own id,
+ * so a crash before the row is removed cannot send it twice; an explicit steer for an agent that
+ * cannot steer is refused (CHAT-03); a send that fails keeps its text for
  * Retry and Discard; a chat whose first message cannot be sent is removed, so a retry does not
  * leave an empty chat; a chat config is written only while the stored config is still the one the
  * caller saw, so a late answer cannot overwrite a newer choice; a cancel withdraws the open
@@ -47,8 +49,11 @@
  * Read state is NAV-11's: mark a chat or a workspace read or unread, and remember the chat on
  * screen for notifications.
  * SIDE-20 owns `applyAgentConfig`, which stores a config the agent changed by itself.
+ * AGENT-17 owns `loadAcpConfigOptions`, `setAcpOption` and the `acpConfigOptions` part of the
+ * store: an ACP chat's own options beyond the model, fetched and kept per chat.
  */
 import {
+	type AcpConfigOption,
 	type AgentLaunch,
 	type Interaction,
 	type InteractionAnswer,
@@ -76,7 +81,8 @@ import {
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Database } from "../../platform/platform.ts";
-import type { Draft, NewWorkspaceInput } from "../api.ts";
+import type { Draft, Loadable, NewWorkspaceInput } from "../api.ts";
+import { createLatestWins, type LatestWins } from "../async/latest-wins.ts";
 import { createKeyedQueue, type KeyedQueue } from "../async/serial-queue.ts";
 import { interruptedTurnEvent } from "../db/repair.ts";
 import type { Repositories } from "../db/repositories.ts";
@@ -141,6 +147,8 @@ export interface SessionsState {
 	sending: Readonly<Record<string, readonly PendingSend[]>>;
 	/** Messages the sidecar did not accept, kept for Retry and Discard. */
 	failedSends?: Readonly<Record<string, readonly FailedSend[]>>;
+	/** An ACP chat's own options beyond the model, as the agent last reported them. */
+	acpConfigOptions?: Readonly<Record<string, Loadable<AcpConfigOption[]>>>;
 	openInteractions: Readonly<
 		Record<
 			string,
@@ -250,8 +258,10 @@ export interface SessionsServiceDeps {
 	/**
 	 * How to start the chat's agent, from the composition root. A send fails with a clear error
 	 * when it is missing: building a launch here would drop the provider keys and the program path.
+	 * A Promise is accepted because the launch reads the saved environment and keys from the
+	 * database and the Keychain.
 	 */
-	launchFor?: (session: Session) => AgentLaunch;
+	launchFor?: (session: Session) => AgentLaunch | Promise<AgentLaunch>;
 	/**
 	 * Removes a chat's checkpoint refs before its row is deleted (DATA-06). The composition root
 	 * supplies it; a harness without it still deletes chats and leaves the refs alone.
@@ -304,6 +314,8 @@ export class SessionsService implements AgentMessenger {
 	 * order. The agent's store and the composer's compare-and-set never interleave.
 	 */
 	readonly #configWrites: KeyedQueue<SessionId> = createKeyedQueue<SessionId>();
+	/** The newest option-list request per chat. An older answer never changes the store. */
+	readonly #acpOptionRequests: LatestWins<string> = createLatestWins<string>();
 	/** Loads of stored events in progress, with the events that arrived meanwhile. */
 	readonly #opening = new Map<
 		string,
@@ -323,6 +335,7 @@ export class SessionsService implements AgentMessenger {
 			progress: {},
 			sending: {},
 			failedSends: {},
+			acpConfigOptions: {},
 			openInteractions: {},
 			viewingSessionId: null,
 		}));
@@ -609,13 +622,17 @@ export class SessionsService implements AgentMessenger {
 		return ok(undefined);
 	}
 
-	/** Materialises attachments, then hands the message to the sidecar. */
+	/**
+	 * Materialises attachments, then hands the message to the sidecar. A queued row passes its own
+	 * id as `messageId`; any other send gets a fresh one.
+	 */
 	async #prepareAndSend(
 		session: Session,
 		text: string,
 		attachmentPaths: string[],
 		delivery: "new_turn" | "steer",
 		cancelVersion: number,
+		messageId: MessageId | undefined,
 	): Promise<Result<void>> {
 		const workspace = await this.#workspaceContext(session.workspaceId);
 		if (!workspace.ok) return workspace;
@@ -631,7 +648,7 @@ export class SessionsService implements AgentMessenger {
 		return this.#submit(
 			session,
 			{
-				messageId: this.#deps.newId() as MessageId,
+				messageId: messageId ?? (this.#deps.newId() as MessageId),
 				turnId: this.#deps.newId() as TurnId,
 				text,
 				attachmentPaths: paths,
@@ -683,7 +700,7 @@ export class SessionsService implements AgentMessenger {
 			firstMessage,
 			config: session.config,
 			workspace: workspace.value,
-			launch: launchFor(session),
+			launch: await launchFor(session),
 			...(session.agentSessionId === null
 				? {}
 				: { resume: { agentSessionId: session.agentSessionId } }),
@@ -795,13 +812,16 @@ export class SessionsService implements AgentMessenger {
 
 	/**
 	 * Backs `Actions.sessions.send`. An idle chat starts a new turn. A working chat queues the
-	 * message or steers it, following the user's default or the requested mode.
+	 * message or steers it, following the user's default or the requested mode. A steer asked for
+	 * by name is refused for an agent that cannot steer (CHAT-03). The follow-up queue passes the
+	 * row's id as `messageId`, so the stored user message carries the row's id (CHAT-03).
 	 */
 	async send(
 		id: SessionId,
 		text: string,
 		attachmentPaths: readonly string[],
 		delivery: "auto" | "queue" | "steer",
+		messageId?: MessageId,
 	): Promise<Result<void>> {
 		const found = await this.#session(id);
 		if (!found.ok) return found;
@@ -817,6 +837,14 @@ export class SessionsService implements AgentMessenger {
 			canSteer: agentCanSteer(session.config),
 		});
 
+		if (decision === "steer_unsupported") {
+			return err(
+				appError(
+					"steer_unsupported",
+					"This agent cannot be steered. Send the message as a follow-up instead.",
+				),
+			);
+		}
 		if (decision === "queue") {
 			const queued = await this.#deps.queue.enqueue({
 				sessionId: id,
@@ -833,6 +861,7 @@ export class SessionsService implements AgentMessenger {
 			[...attachmentPaths],
 			decision === "steer" ? "steer" : "new_turn",
 			cancelVersion,
+			messageId,
 		);
 	}
 
@@ -1059,7 +1088,11 @@ export class SessionsService implements AgentMessenger {
 	 * first cannot land after the user's newer choice.
 	 */
 	async updateConfig(id: SessionId, config: SessionConfig): Promise<Result<void>> {
-		return this.#configWrites.run(id, async () => {
+		return this.#configWrites.run(id, () => this.#persistConfig(id, config));
+	}
+
+	#persistConfig(id: SessionId, config: SessionConfig): Promise<Result<void>> {
+		return (async () => {
 			const found = await this.#session(id);
 			if (!found.ok) return found;
 			const session = found.value;
@@ -1122,7 +1155,7 @@ export class SessionsService implements AgentMessenger {
 				config,
 			});
 			return applied.ok ? ok(undefined) : applied;
-		});
+		})();
 	}
 
 	/**
@@ -1652,9 +1685,96 @@ export class SessionsService implements AgentMessenger {
 		return result.ok ? ok(undefined) : result;
 	}
 
+	/**
+	 * Fetches an ACP chat's own options beyond the model. The chat's agent is warmed first, so a
+	 * saved chat gets its model and options back, and a new chat can show them before its first
+	 * reply. Only the newest request changes the store (AGENT-17).
+	 */
+	async loadAcpConfigOptions(id: SessionId): Promise<Result<AcpConfigOption[]>> {
+		const found = await this.#session(id);
+		if (!found.ok) return found;
+		const session = found.value;
+		if (session.config.agent !== "acp") {
+			this.#setAcpOptions(id, { state: "ready", data: [] });
+			return ok([]);
+		}
+
+		const ticket = this.#acpOptionRequests.begin(id);
+		this.#setAcpOptions(id, { state: "loading" });
+		const warmed = await this.#warmForAcpOptions(session);
+		if (!this.#acpOptionRequests.isLatest(ticket)) {
+			return warmed.ok ? ok([]) : warmed;
+		}
+		if (!warmed.ok) {
+			this.#acpOptionRequests.settle(ticket);
+			this.#setAcpOptions(id, { state: "error", error: warmed.error });
+			return warmed;
+		}
+
+		const listed = await this.#deps.sidecar.request("listAcpConfigOptions", { sessionId: id });
+		if (!this.#acpOptionRequests.isLatest(ticket)) {
+			return listed.ok ? ok(listed.value.options) : listed;
+		}
+		this.#acpOptionRequests.settle(ticket);
+		if (!listed.ok) {
+			this.#setAcpOptions(id, { state: "error", error: listed.error });
+			return listed;
+		}
+		this.#setAcpOptions(id, { state: "ready", data: listed.value.options });
+		return ok(listed.value.options);
+	}
+
 	/** Sets the option through the sidecar and stores the new choice in the chat's `acpConfig`. */
-	setAcpOption(_id: SessionId, _optionId: string, _value: string | boolean): Promise<Result<void>> {
-		return notImplemented("AGENT-17");
+	async setAcpOption(
+		id: SessionId,
+		optionId: string,
+		value: string | boolean,
+	): Promise<Result<void>> {
+		return this.#configWrites.run(id, async () => {
+			const found = await this.#session(id);
+			if (!found.ok) return found;
+			const session = found.value;
+			const changed = await this.#deps.sidecar.request("setAcpConfigOption", {
+				sessionId: id,
+				optionId,
+				value,
+			});
+			if (!changed.ok) return changed;
+			this.#setAcpOptions(id, { state: "ready", data: changed.value.options });
+			const nextConfig: SessionConfig = {
+				...session.config,
+				acpConfig: { ...(session.config.acpConfig ?? {}), [optionId]: value },
+			};
+			return this.#persistConfig(id, nextConfig);
+		});
+	}
+
+	#setAcpOptions(id: SessionId, options: Loadable<AcpConfigOption[]>): void {
+		this.store.setState((state) => ({
+			acpConfigOptions: { ...(state.acpConfigOptions ?? {}), [id]: options },
+		}));
+	}
+
+	/**
+	 * Starts the chat's agent without a turn, so it can report its options. When the composition
+	 * root has no launch settings yet (SIDE-21), the chat may already be live, so it is asked
+	 * directly and the sidecar's answer decides.
+	 */
+	async #warmForAcpOptions(session: Session): Promise<Result<void>> {
+		const launchFor = this.#deps.launchFor;
+		if (launchFor === undefined) return ok(undefined);
+		const workspace = await this.#workspaceContext(session.workspaceId);
+		if (!workspace.ok) return workspace;
+		const warmed = await this.#deps.sidecar.request("warmAgent", {
+			sessionId: session.id,
+			config: session.config,
+			workspace: workspace.value,
+			launch: await launchFor(session),
+			...(session.agentSessionId === null
+				? {}
+				: { resume: { agentSessionId: session.agentSessionId } }),
+		});
+		return warmed.ok ? ok(undefined) : warmed;
 	}
 
 	/** The goal bar's Save. An empty objective is refused with "Enter a goal first." */

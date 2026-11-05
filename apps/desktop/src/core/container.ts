@@ -16,7 +16,8 @@
  * the command dispatcher (NAV-14), which is mounted with the app root, so this file does not
  * listen for them a second time; `stop` removes those listeners, stops the settings reload
  * listener and its timer, stops the update and keep-awake timers, cancels `caffeinate`, disposes
- * the repo service, kills terminals and runs, waits for chat events that are being stored, and
+ * the repo service, stops every git poll and branch watcher, kills terminals and runs, waits for
+ * chat events that are being stored, and
  * detaches from the sidecar; every stop step runs even when an earlier one
  * fails (the failure is logged), and a `stop` that comes during `start` lets the running
  * step finish, ends the start before it wires anything new, and then tears down; the
@@ -28,6 +29,8 @@
  * Test first: createContainer returns a container whose `services` has every service named in
  * the `Services` interface, and builds without calling any placeholder.
  */
+
+import type { AgentLaunch } from "@conducted/protocol";
 import {
 	appError,
 	type Clock,
@@ -43,12 +46,13 @@ import { createActions } from "./actions.ts";
 import type { Actions } from "./api.ts";
 import { checkpointerScript, spotlighterScript } from "./app-paths.ts";
 import { fireAndForget } from "./async/fire-and-forget.ts";
-import { DEFAULT_LIFETIME_LIMITS, runDataLifetimeJob } from "./db/lifetime.ts";
+import { DEFAULT_LIFETIME_LIMITS, lifetimeJobResult, runDataLifetimeJob } from "./db/lifetime.ts";
 import { runStartupRepair } from "./db/repair.ts";
 import { createRepositories } from "./db/repositories.ts";
 import { KeyedMutex } from "./git/locks.ts";
 import { ShellGitRunner } from "./git/runner.ts";
 import { createLookups, defaultSessionConfig, type Lookups } from "./lookups.ts";
+import type { Session } from "./model.ts";
 import { AgentCatalogService } from "./services/agent-catalog.ts";
 import { CHECKPOINT_PRUNE_AFTER_DAYS, CheckpointService } from "./services/checkpoint.ts";
 import { CommandRunner, createCommandHandlers } from "./services/command-runner.ts";
@@ -346,6 +350,104 @@ export function createContainer(inputs: ContainerInputs): Container {
 		toml: inputs.toml,
 		git: gitRunner,
 	});
+	/**
+	 * Builds how one chat's agent starts (SIDE-21): the program the user chose, the provider, the
+	 * Environment page's variables and the provider keys that belong to that agent. Secrets come
+	 * from the Keychain; a key chosen from the Mac is skipped because the app cannot read it.
+	 */
+	const launchFor = async (session: Session): Promise<AgentLaunch> => {
+		const env: Record<string, string> = {};
+		const providerKeys: AgentLaunch["providerKeys"] = {};
+		const workspace = lookups.workspace(session.workspaceId);
+		const providerSetting =
+			session.config.agent === "claude"
+				? "claude_provider"
+				: session.config.agent === "codex"
+					? "codex_provider"
+					: null;
+		const chosenProvider =
+			providerSetting === null ? undefined : setting<string>(providerSetting).trim().toLowerCase();
+		const defaultProvider =
+			session.config.agent === "claude"
+				? "anthropic"
+				: session.config.agent === "codex"
+					? "openai"
+					: session.config.agent === "cursor"
+						? "cursor"
+						: null;
+		const providerAllowed = (provider: string): boolean => {
+			if (chosenProvider !== undefined && chosenProvider !== "") {
+				return provider.toLowerCase() === chosenProvider;
+			}
+			// OpenCode and Pi choose a provider in their own config, so every stored key may apply.
+			return defaultProvider === null || provider.toLowerCase() === defaultProvider;
+		};
+		const readSecret = async (ref: string): Promise<string | null> => {
+			const read = await platform.keychain.get(ref);
+			if (!read.ok) {
+				log("warn", `Could not read a saved secret: ${read.error.message}`);
+				return null;
+			}
+			return read.value;
+		};
+		if (workspace.ok) {
+			const listed = await repositories.envVars.listForRepo(workspace.value.repoId);
+			if (!listed.ok) {
+				log("warn", `Could not read the environment variables: ${listed.error.message}`);
+			} else {
+				for (const entry of listed.value) {
+					const value = await readSecret(entry.keychainRef);
+					if (value === null) {
+						log("warn", `The value of ${entry.name} is missing from the Keychain.`);
+					} else {
+						env[entry.name] = value;
+					}
+				}
+			}
+			const keys = await repositories.providerKeys.listForAgent(
+				session.config.agent,
+				session.config.acpAgent ?? null,
+			);
+			if (!keys.ok) {
+				log("warn", `Could not read the provider keys: ${keys.error.message}`);
+			} else {
+				for (const key of keys.value) {
+					if (!providerAllowed(key.provider)) continue;
+					if (key.source === "this_mac") {
+						platform.app.writeLog(
+							"debug",
+							`The key for ${key.envVar} is chosen from this Mac, which the app cannot read yet.`,
+						);
+						continue;
+					}
+					if (key.keychainRef === null) continue;
+					const value = await readSecret(key.keychainRef);
+					if (value === null) {
+						log("warn", `The value of ${key.envVar} is missing from the Keychain.`);
+					} else {
+						providerKeys[key.envVar] = { value, source: "entered" };
+					}
+				}
+			}
+		}
+		const executableKey =
+			session.config.agent === "claude"
+				? "claude_executable_path"
+				: session.config.agent === "codex"
+					? "codex_executable_path"
+					: session.config.agent === "acp" && session.config.acpAgent === "opencode"
+						? "opencode_executable_path"
+						: null;
+		const executablePath = executableKey === null ? "" : setting<string>(executableKey).trim();
+		const provider =
+			chosenProvider === undefined || chosenProvider === "" ? undefined : chosenProvider;
+		return {
+			env,
+			providerKeys,
+			...(executablePath === "" ? {} : { executablePath }),
+			...(provider === undefined ? {} : { provider }),
+		};
+	};
 	const ports = new PortService({ platform });
 	const terminals = new TerminalsService({
 		platform,
@@ -391,7 +493,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 	});
 	const followUpQueue = new FollowUpQueue({
 		repos: repositories,
-		deliver: (row) => sessions.send(row.sessionId, row.text, row.attachmentPaths, row.delivery),
+		// The row id is the message id, so startup repair can tell that a row in `sending` was
+		// already delivered, and the sidecar's duplicate guard drops a second send of it.
+		deliver: (row) =>
+			sessions.send(row.sessionId, row.text, row.attachmentPaths, row.delivery, row.id),
 		liveStateOf: (sessionId) => sessions.store.getState().liveStates[sessionId],
 	});
 	const sessions: SessionsService = new SessionsService({
@@ -415,6 +520,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		},
 		workspaceContextOf: (id) => ready(lookups.sidecarContext(id, undefined)),
 		defaultConfig: (id) => ready(defaultSessionConfig(id, lookups, setting)),
+		launchFor,
 		setting,
 		now: () => clock.now(),
 		newId: () => ids.uuid(),
@@ -638,13 +744,16 @@ export function createContainer(inputs: ContainerInputs): Container {
 			name: "data lifetime",
 			phase: "sidecar",
 			fatal: false,
-			run: () =>
-				runDataLifetimeJob({
+			run: async () => {
+				const ran = await runDataLifetimeJob({
 					db: platform.db,
 					fs: platform.fs,
 					clock,
 					limits: DEFAULT_LIFETIME_LIMITS,
-				}),
+				});
+				// A step that failed sits inside the report; this makes it a start warning.
+				return ran.ok ? lifetimeJobResult(ran.value) : ran;
+			},
 		},
 	];
 	let started: Promise<Result<StartReport>> | null = null;
@@ -855,6 +964,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 			await step("keep-awake", () => keepAwake.stop());
 			await step("notifications", () => notifications.stop());
 			await step("the repo service", () => repo.dispose());
+			await step("git polling", () => git.dispose());
 			await step("GitHub polling", () => github.dispose());
 			await step("terminals", () => terminals.killAll());
 			await step("run scripts", () => runScripts.stopAll());

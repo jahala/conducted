@@ -3,13 +3,15 @@
  * @feature DATA-02 Data-lifetime job reached from the composition root
  * Owns: the startup step that runs the job, and the named store that keeps an open interaction.
  * Behaviour: services-map.md 2.7.1 (live state is kept per chat so a restart can show it).
- * Test first: starting the real container removes a draft file older than the draft limit.
+ * Test first: starting the real container removes a draft file older than the draft limit, and
+ * a step that fails becomes a start warning.
  */
 import { idleLiveState, type LiveState } from "@conducted/protocol";
 import { type InteractionId, ok, type Result } from "@conducted/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
 import { draftFile } from "../app-paths.ts";
+import type { StartReport } from "../container.ts";
 import { sampleSession } from "./test-fixtures.ts";
 
 const START = 1_800_000_000_000;
@@ -30,7 +32,7 @@ const must = <T>(result: Result<T>): T => {
 };
 
 /** Starts the container with the services unrelated to the lifetime job quiet. */
-async function startContainer(test: TestContainer): Promise<void> {
+async function startContainer(test: TestContainer): Promise<StartReport> {
 	const { services } = test.container;
 	for (const service of [
 		services.repo,
@@ -44,7 +46,10 @@ async function startContainer(test: TestContainer): Promise<void> {
 	}
 	vi.spyOn(services.github, "checkAccess").mockResolvedValue(ok({ status: "unknown" }));
 	vi.spyOn(services.runScripts, "stopAll").mockResolvedValue(ok(undefined));
-	expect((await test.container.start()).ok).toBe(true);
+	const started = await test.container.start();
+	expect(started.ok).toBe(true);
+	if (!started.ok) throw new Error(started.error.message);
+	return started.value;
 }
 
 describe("DATA-02 data lifetime from the composition root", () => {
@@ -63,6 +68,33 @@ describe("DATA-02 data lifetime from the composition root", () => {
 		await startContainer(test);
 
 		expect(await fs.exists(file)).toBe(false);
+	});
+
+	it("turns a failed lifetime step into a start warning and leaves the user's file alone", async () => {
+		let now = START;
+		const test = createTestContainer({ clock: { now: () => now } });
+		current = test;
+		const workspace = await seedWorkspace(test.container);
+		const session = must(
+			await test.container.services.sessions.create(workspace.id, sampleSession.config),
+		);
+		const fs = test.memory.platform.fs;
+		const userFile = "/code/user-files/report.pdf";
+		now = START - 8 * DAY;
+		must(await fs.writeTextAtomic(userFile, "mine"));
+		await test.database.execute(
+			`INSERT INTO attachments (id, session_id, kind, original_name, path, is_draft, created_at)
+			VALUES ($1, $2, 'text', 'report.pdf', $3, 1, $4)`,
+			["attachment-user", session.id, userFile, START - 8 * DAY],
+		);
+		now = START;
+
+		const report = await startContainer(test);
+
+		const warning = report.warnings.find((entry) => entry.step === "data lifetime");
+		expect(warning?.message).toContain("remove-draft-attachments");
+		expect(warning?.message).toContain(userFile);
+		expect(await fs.exists(userFile)).toBe(true);
 	});
 
 	it("keeps an open interaction in the live-state store and loads it on start", async () => {

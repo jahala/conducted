@@ -46,7 +46,7 @@ describe("GIT-03 branch sync", () => {
 			refs: gitOutput("head-oid\nupstream-oid\n"),
 			counts: gitOutput("2\t5\n"),
 			targetCount: gitOutput("4\n"),
-			reflog: gitOutput("head-oid\n"),
+			reflog: gitOutput("upstream-oid\n"),
 		});
 
 		const result = await refreshBranchSync(runner, input);
@@ -90,10 +90,10 @@ describe("GIT-03 branch sync", () => {
 		expect(commandArgs(runner, "reflog")).toBeUndefined();
 	});
 
-	it("does not call a diverged branch rewritten when its local tip is in the upstream reflog", async () => {
+	it("does not call a plain divergence rewritten: the remote never pointed at the local tip", async () => {
 		const runner = scripted({
 			counts: gitOutput("3\t2\n"),
-			reflog: gitOutput("older\nhead\n"),
+			reflog: gitOutput("older\n"),
 		});
 
 		const result = await refreshBranchSync(runner, input);
@@ -102,11 +102,13 @@ describe("GIT-03 branch sync", () => {
 		expect(result.value.sync.rewritten).toBe(false);
 	});
 
-	it("calls a diverged branch rewritten when its local tip is missing from the upstream reflog", async () => {
+	it("calls a diverged branch rewritten when the remote once pointed at the local tip", async () => {
+		// A force-push: the local tip was the remote tip (it is in the upstream reflog), and the
+		// remote then moved to commits that do not contain it.
 		const runner = scripted({
 			counts: gitOutput("3\t2\n"),
 			upstreamName: gitOutput("refs/remotes/origin/feature\n"),
-			reflog: gitOutput("older\n"),
+			reflog: gitOutput("older\nhead\n"),
 		});
 
 		const result = await refreshBranchSync(runner, input);

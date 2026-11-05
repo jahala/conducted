@@ -340,6 +340,44 @@ describe("DATA-02 data lifetime", () => {
 		expect(await count(h.deps.db, "attachments")).toBe(1);
 	});
 
+	it("never trashes a stored path outside the attachment folder, and reports it", async () => {
+		const h = harness();
+		await insertRepo(h.deps.db, "r1", NOW);
+		await insertWorkspace(h.deps.db, { id: "w1", repoId: "r1" });
+		await insertSession(h.deps.db, "s1", "w1", NOW);
+		const fs = h.deps.fs;
+
+		h.setNow(NOW - 8 * DAY);
+		// A file the user dropped from their own folder, and a stored path that climbs out of the
+		// staging folder by its spelling. Neither is the app's to trash.
+		const userFile = "/code/user-files/report.pdf";
+		const climbing = `${draftAttachmentsDir(fs.paths, "s1")}/../../notes.txt`;
+		await fs.writeTextAtomic(userFile, "mine");
+		await fs.writeTextAtomic(climbing, "also mine");
+		for (const [id, path] of [
+			["a-user", userFile],
+			["a-climbing", climbing],
+		]) {
+			await h.deps.db.execute(
+				`INSERT INTO attachments (id, session_id, kind, original_name, path, is_draft, created_at)
+				VALUES ($1, $2, 'text', 'kept.txt', $3, 1, $4)`,
+				[id, "s1", path, NOW - 8 * DAY],
+			);
+		}
+		h.setNow(NOW);
+
+		const outcome = await runStep(h, "remove-draft-attachments");
+
+		expect(outcome.ok).toBe(false);
+		if (outcome.ok) return;
+		expect(outcome.error.code).toBe("data_lifetime_path_outside");
+		expect(outcome.error.message).toContain(userFile);
+		expect(outcome.error.message).toContain(climbing);
+		expect(await fs.exists(userFile)).toBe(true);
+		expect(await fs.exists(climbing)).toBe(true);
+		expect(await count(h.deps.db, "attachments")).toBe(0);
+	});
+
 	it("removes ended terminals after the terminal limit with their scrollback", async () => {
 		const h = harness();
 		await insertRepo(h.deps.db, "r1", NOW);

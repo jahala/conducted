@@ -204,6 +204,40 @@ describe("CHAT-19 finished and failed notices", () => {
 		}
 	});
 
+	it("logs a native notification that fails in the background instead of dropping it", async () => {
+		const h = await harness();
+		try {
+			h.test.memory.platform.notifications.notify = async () => {
+				throw new Error("Notification Center is not available.");
+			};
+			await finish(h);
+			await vi.waitFor(() => {
+				expect(h.test.memory.controls.logs).toContainEqual({
+					level: "warn",
+					message: "Could not send a notification: Could not show the notification.",
+				});
+			});
+
+			// The same holds for a notice that an interaction raises at once.
+			must(
+				await h.test.container.services.sessions.applyLiveState(
+					h.session.id,
+					open("interaction-failed", question),
+				),
+			);
+			await vi.waitFor(() => {
+				expect(
+					h.test.memory.controls.logs.filter(
+						(line) =>
+							line.message === "Could not send a notification: Could not show the notification.",
+					),
+				).toHaveLength(2);
+			});
+		} finally {
+			await stop(h);
+		}
+	});
+
 	it("does not notify for an error that is not a settled turn", async () => {
 		const h = await harness();
 		try {

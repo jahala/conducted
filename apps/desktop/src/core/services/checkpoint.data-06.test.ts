@@ -180,6 +180,85 @@ describe("DATA-06 pruning archived workspaces", () => {
 		test.close();
 	});
 
+	it("prunes the other repositories when one archived workspace's repository fails", async () => {
+		let now = BASE;
+		const clock: Clock = { now: () => now };
+		const test = createTestContainer({ clock });
+		try {
+			const repos = createRepositories(test.database, {
+				clock,
+				ids: { uuid: () => crypto.randomUUID() },
+			});
+			const broken = await seedRepo(test.container, { rootPath: "/code/broken" });
+			const healthy = await seedRepo(test.container, { rootPath: "/code/healthy" });
+
+			const archivedChat = async (repoId: typeof broken.id, name: string, port: number) => {
+				const workspace = must(
+					await repos.workspaces.create({
+						repoId,
+						directoryName: name,
+						path: `/code/${name}/worktree`,
+						branch: `jahala/${name}`,
+						branchIsPlaceholder: true,
+						targetBranch: "origin/main",
+						port,
+						linkedPaths: [],
+						setupLogPath: null,
+					}),
+				);
+				must(await repos.workspaces.transitionState(workspace.id, "initializing", "archiving"));
+				must(await repos.workspaces.markArchived(workspace.id, "sha"));
+				return must(
+					await repos.sessions.create({
+						workspaceId: workspace.id,
+						title: name,
+						config: sampleSession.config,
+					}),
+				);
+			};
+			// The broken workspace is created first, and the prune lists workspaces by creation
+			// time, so it meets the broken repository before the healthy one.
+			await archivedChat(broken.id, "broken", 55_021);
+			now = BASE + 1;
+			const healthyChat = await archivedChat(healthy.id, "healthy", 55_022);
+			now = BASE + 40 * DAY;
+
+			const refs = new Set(refsFor(healthyChat.id, ["turn-1"]));
+			test.memory.controls.scriptShell((command) => {
+				if (command.program !== "git") return null;
+				if (command.args.includes("for-each-ref")) {
+					if (command.cwd === "/code/broken") {
+						return ok({ stdout: "", stderr: "fatal: not a git repository", exitCode: 128 });
+					}
+					const prefix = command.args.at(-1) ?? "";
+					return ok({
+						stdout: [...refs].filter((ref) => ref.startsWith(prefix)).join("\n"),
+						stderr: "",
+						exitCode: 0,
+					});
+				}
+				if (command.args.includes("update-ref") && command.args.includes("-d")) {
+					refs.delete(command.args.at(-1) ?? "");
+					return ok({ stdout: "", stderr: "", exitCode: 0 });
+				}
+				return null;
+			});
+
+			const pruned = await test.container.services.checkpoint.pruneArchived(
+				CHECKPOINT_PRUNE_AFTER_DAYS,
+			);
+
+			expect([...refs]).toEqual([]);
+			expect(pruned.ok).toBe(false);
+			if (pruned.ok) return;
+			expect(pruned.error.code).toBe("checkpoint_prune_failed");
+			expect(pruned.error.message).toContain("/code/broken");
+			expect(pruned.error.message).toContain("(2 removed elsewhere)");
+		} finally {
+			test.close();
+		}
+	});
+
 	it("reaches the archive prune through the container's real repositories and clock", async () => {
 		const test = createTestContainer();
 		try {

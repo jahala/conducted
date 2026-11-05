@@ -10,14 +10,18 @@
  * "failed", "plan ready", "question", "MCP form" and "permission request", but not for tool
  * approvals; hidden chats and archived workspaces never notify; the sound plays even when native
  * notifications are off, unless the sound is "none"; titles are cut to 50 characters; the dock
- * badge counts workspaces with at least one unread open chat, not chats; a click opens the deep
- * link, and on a cold start only the newest link is used.
+ * badge counts workspaces with at least one unread open chat, not chats; a notice that fails in
+ * the background (no native notification, no sound, an unknown chat) reaches the app log as a
+ * warning, whether it threw or returned an error.
+ * Not built here: opening the deep link is the app entry's (`main.tsx`), and the rule that a cold
+ * start uses only the newest link is still open on this feature's checklist.
  * Our design choice: the sound player is a port (`SoundPlayer`) because audio belongs to the web
  * view, not to Platform. The sound files are our own, not Conductor's. Deep links use the
  * `conducted://` scheme.
  * Our design choice: the service owns one settle timer per chat, created with the timer passed in
  * by the composition root and cleared by `stop`, so tests control time and nothing is left behind.
- * Test first: shouldNotifyFinished is false when a follow-up is still queued.
+ * Test first: a settled turn stays quiet while a follow-up is still queued
+ * (notifications.chat-19.test.ts, through the service's live-state path).
  */
 import type { Interaction, LiveState } from "@conducted/protocol";
 import {
@@ -55,19 +59,18 @@ export const SKIPPED_WHEN_VIEWING: ReadonlySet<NotificationKind> = new Set([
 	"permission_request",
 ]);
 
-export interface FinishedInput {
+export interface SettledInput {
 	hasBackgroundTasks: boolean;
-	hasError: boolean;
 	queuedCount: number;
 	alreadyNotifiedForTurn: boolean;
 }
 
-/** A settled turn notifies unless background tasks run, a follow-up waits, or it was announced. */
-export const shouldNotifySettled = (input: FinishedInput): boolean =>
+/**
+ * A settled turn notifies unless background tasks run, a follow-up waits, or it was announced.
+ * A turn that ended with an error still notifies, as the failed notice (`settledNotification`).
+ */
+export const shouldNotifySettled = (input: SettledInput): boolean =>
 	!input.hasBackgroundTasks && input.queuedCount === 0 && !input.alreadyNotifiedForTurn;
-
-export const shouldNotifyFinished = (input: FinishedInput): boolean =>
-	!input.hasError && shouldNotifySettled(input);
 
 export interface SuppressionInput {
 	kind: NotificationKind;
@@ -251,10 +254,7 @@ export class NotificationService {
 		this.#cancelSettle(sessionId);
 		const cancel = this.#deps.setTimer(() => {
 			this.#settleTimers.delete(sessionId);
-			fireAndForget(
-				() => this.#settle(sessionId),
-				(error) => this.#deps.log("warn", `Could not send a notification: ${String(error)}`),
-			);
+			this.#inBackground(() => this.#settle(sessionId));
 		}, SETTLE_DELAY_MS);
 		this.#settleTimers.set(sessionId, cancel);
 	}
@@ -366,7 +366,6 @@ export class NotificationService {
 		}
 		const shouldNotify = shouldNotifySettled({
 			hasBackgroundTasks: live.backgroundTasks.length > 0,
-			hasError: live.error !== undefined,
 			// A follow-up waiting for the chat will start the next turn, so this settle stays quiet.
 			queuedCount: this.#deps.queuedCountOf(sessionId),
 			alreadyNotifiedForTurn: turn.notified,
@@ -380,9 +379,22 @@ export class NotificationService {
 	}
 
 	#sendInBackground(sessionId: SessionId, kind: NotificationKind, body: string): void {
+		this.#inBackground(() => this.notify({ sessionId, kind, body }));
+	}
+
+	/**
+	 * Starts a notice without waiting for it. Nobody awaits the answer, so a failed `Result` is
+	 * logged here, the same way as a throw: neither may vanish.
+	 */
+	#inBackground(work: () => Promise<Result<void>>): void {
+		const report = (message: string): void =>
+			this.#deps.log("warn", `Could not send a notification: ${message}`);
 		fireAndForget(
-			() => this.notify({ sessionId, kind, body }),
-			(error) => this.#deps.log("warn", `Could not send a notification: ${String(error)}`),
+			async () => {
+				const result = await work();
+				if (!result.ok) report(result.error.message);
+			},
+			(error) => report(error instanceof Error ? error.message : String(error)),
 		);
 	}
 }

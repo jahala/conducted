@@ -36,6 +36,7 @@ import { WrenchIcon } from "../../ui/icons.tsx";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { toastError } from "../../ui/Toast.tsx";
+import { AcpOptions } from "./AcpOptions.tsx";
 import { ComposerEditor } from "./ComposerEditor.tsx";
 import { ModeChips } from "./ModeChips.tsx";
 import { ModelPicker } from "./ModelPicker.tsx";
@@ -198,6 +199,7 @@ export function Composer({ sessionId }: ComposerProps) {
 					<NotBuiltYet area="Modes" variant="inline" resetKey={sessionId}>
 						<ModeChips sessionId={sessionId} />
 					</NotBuiltYet>
+					<AcpOptions sessionId={sessionId} />
 				</div>
 				<div className="flex shrink-0 items-center gap-1">
 					{narrow ? (

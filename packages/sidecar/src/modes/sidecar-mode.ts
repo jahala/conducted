@@ -12,8 +12,9 @@
  *  4. open the write-ahead log (outbox/); a failure is fatal: exit 1 with the reason. Conductor
  *     continues without a backup after 1 s; we do not, because the log is what makes delivery safe
  *  5. build the runners, process manager, session manager, interaction broker, publisher and the
- *     app tools backend and bridge (the bridge is built but not started: SIDE-13 starts it)
- *  6. listen on the Unix socket (rpc/server.ts) and print SOCKET_PATH=<path> as one line on stdout
+ *     app tools backend and bridge
+ *  6. start the app tools bridge, then listen on the Unix socket (rpc/server.ts) and print
+ *     SOCKET_PATH=<path> as one line on stdout
  *  7. start the parent watchdog (watchdog.ts: the parent check and the idle sweep run on separate
  *     2-second timers), install one SIGINT and one SIGTERM handler that logs under SIGNAL and
  *     starts the graceful shutdown, install the uncaughtException and unhandledRejection handlers
@@ -22,17 +23,14 @@
  *  8. when the app attaches: replay the write-ahead log and resend the open interactions. The
  *     agent list is sent when detection changes, and the app reads it with getAgentInstalls
  * Must handle: a second sidecar already running for the same app (the launcher kills orphans; the
- * socket path includes the pid, so two never clash), startup steps that fail halfway (the socket,
- * once started, is stopped through the shutdown steps; the outbox has no close, and its pending
- * events stay durable for the next start), and stdout carrying only handshake lines (logs go to
- * stderr).
+ * socket path includes the pid, so two never clash), startup steps that fail halfway (the bridge
+ * and the socket, once started, are stopped through the shutdown steps; the outbox has no close,
+ * and its pending events stay durable for the next start), and stdout carrying only handshake lines
+ * (logs go to stderr).
  * Test first: parseSidecarConfig is tested in config.test.ts; here, a start with an unwritable
  * outbox directory exits with code 1 and a message that names the directory.
  * Covered by a real process: sidecar-mode.host.test.ts starts the host on a temporary socket,
- * makes one request and stops it with SIGTERM.
- * Not yet built: the app tools bridge start-up (SIDE-13). The host starts with no bridge, so Codex
- * and ACP agents get no app tools, and the shutdown step "close app tools bridge" still calls the
- * SIDE-13 placeholder, which throws; the shutdown logs that failure and carries on.
+ * makes one request, checks the app tools bridge folder and stops it with SIGTERM.
  * Our design choice: the entry only dispatches. All behaviour lives in modes/, so tests call the
  * mode functions without starting a process. The host itself is injected, so a test starts a
  * fake host without touching a real socket.
@@ -45,7 +43,6 @@ import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
 import {
 	type AgentInstall,
 	APP_TOOL_SERVER,
-	type SessionConfig,
 	type SidecarToAppNotification,
 	type SidecarToAppRequest,
 } from "@conducted/protocol";
@@ -100,7 +97,7 @@ import { EnvLock } from "../runners/cursor/env-lock.ts";
 import type { FindExecutable, ProbeCommand, RunnerCommonDeps } from "../runners/deps.ts";
 import type { RunnerRegistry, RunnerSelector } from "../runners/registry.ts";
 import { MapRunnerRegistry } from "../runners/registry.ts";
-import type { Runner } from "../runners/runner.ts";
+import type { Runner, StartOptions } from "../runners/runner.ts";
 import { BatchingEventPublisher } from "../session/event-batcher.ts";
 import { SessionInteractionBroker } from "../session/interactions.ts";
 import { LiveStateStore, reportWriteFailures } from "../session/live-state.ts";
@@ -119,7 +116,7 @@ import {
 import { runShutdownSteps, type ShutdownReport, type ShutdownStep } from "../shutdown.ts";
 import { RpcAppToolBackend } from "../tools/backend.ts";
 import { createAppToolsServer } from "../tools/in-process-server.ts";
-import { appToolsMcpEntry } from "../tools/mcp-launch.ts";
+import { appToolsMcpEntry, codexMcpConfig, type McpStdioEntry } from "../tools/mcp-launch.ts";
 import { AppToolsBridge, type BridgeEndpoint, type TokenSource } from "../tools/socket-bridge.ts";
 import { messageOf } from "../util/errors.ts";
 import { ParentWatchdog } from "../watchdog.ts";
@@ -577,6 +574,7 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 		logger,
 		makeTempDir: (prefix) => mkdirTemp(prefix),
 	});
+	let bridgeEndpoint: BridgeEndpoint | null = null;
 
 	const runners = createRunnerRegistry({
 		config,
@@ -587,8 +585,7 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 		hasTranscript,
 		appTools: backend,
 		bridge,
-		// No bridge is started until SIDE-13 builds it, so Codex and ACP agents get no app tools.
-		endpoint: () => null,
+		endpoint: () => bridgeEndpoint,
 	});
 	const models = new RunnerModelCatalog({ runners, logger, clock });
 	const shellEnv = createShellEnvProvider(env, logger, (failure) => {
@@ -671,6 +668,20 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 						}
 					},
 					limitMs: 10_000,
+				}),
+			},
+			{
+				name: "start the app tools bridge",
+				run: async () => {
+					const startedBridge = await bridge.start();
+					if (!startedBridge.ok) return startedBridge;
+					bridgeEndpoint = startedBridge.value;
+					return ok(undefined);
+				},
+				undo: () => ({
+					name: "close app tools bridge",
+					run: () => bridge.stop(),
+					limitMs: 5_000,
 				}),
 			},
 			{
@@ -898,30 +909,38 @@ function createRunnerRegistry(input: {
 	const loadSdk: LoadCursorSdk = loadCursorSdk;
 	const scheduler = createScheduler();
 	const queueForCursor = new KeyedSerialQueue();
-	const appToolsConfigArgs = (options: {
-		sessionId: Parameters<AppToolsBridge["registerSession"]>[0];
-		config: SessionConfig;
-	}): readonly string[] => {
+	const appToolsEntry = (options: StartOptions): McpStdioEntry | null => {
 		const endpoint = input.endpoint();
-		if (endpoint === null) return [];
+		if (endpoint === null) return null;
 		const token = input.bridge.registerSession(options.sessionId, options.config.appTools);
-		const entry = appToolsMcpEntry({
+		return appToolsMcpEntry({
 			sidecarExecutable: process.execPath,
 			sessionId: options.sessionId,
 			socketPath: endpoint.socketPath,
+			workspaceDir: options.workspace.workspacePath,
 			token,
 			appTools: options.config.appTools,
 		});
-		const args: string[] = [
-			"--config",
-			`mcp_servers.${entry.name}.command=${entry.command}`,
-			"--config",
-			`mcp_servers.${entry.name}.args=${JSON.stringify(entry.args)}`,
+	};
+	const appToolsConfig = (
+		options: StartOptions,
+	): { args: readonly string[]; env: Readonly<Record<string, string>> } => {
+		const entry = appToolsEntry(options);
+		if (entry === null) return { args: [], env: {} };
+		const config = codexMcpConfig(entry);
+		return { args: config.args, env: config.env };
+	};
+	const appToolsServers = (options: StartOptions): readonly unknown[] => {
+		const entry = appToolsEntry(options);
+		if (entry === null) return [];
+		return [
+			{
+				name: entry.name,
+				command: entry.command,
+				args: entry.args,
+				env: Object.entries(entry.env).map(([name, value]) => ({ name, value })),
+			},
 		];
-		for (const [key, value] of Object.entries(entry.env)) {
-			args.push("--config", `mcp_servers.${entry.name}.env.${key}=${value}`);
-		}
-		return args;
 	};
 
 	const entries: { selector: RunnerSelector; runner: Runner }[] = [
@@ -949,7 +968,7 @@ function createRunnerRegistry(input: {
 				spawn: spawnCodex,
 				random: () => Math.random(),
 				sleep: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
-				appToolsConfigArgs: (options) => appToolsConfigArgs(options),
+				appToolsConfig: (options) => appToolsConfig(options),
 			}),
 		},
 		{
@@ -969,6 +988,7 @@ function createRunnerRegistry(input: {
 				...common,
 				adapter: ACP_ADAPTERS[acpAgent],
 				spawn: spawnAcp,
+				appToolsServers: (options) => appToolsServers(options),
 			}),
 		});
 	}

@@ -50,8 +50,11 @@ export type CodexRunnerDeps = RunnerCommonDeps & {
 	spawn: SpawnJsonRpcChild;
 	random(): number;
 	sleep(ms: number): Promise<void>;
-	/** Builds the `--config` arguments that register the app tools MCP server for a chat. */
-	appToolsConfigArgs(options: StartOptions): readonly string[];
+	/** Builds the `--config` arguments and child environment for the app tools MCP server. */
+	appToolsConfig(options: StartOptions): {
+		args: readonly string[];
+		env: Readonly<Record<string, string>>;
+	};
 };
 
 export interface CodexAccount {
@@ -106,14 +109,15 @@ export class CodexRunner implements Runner {
 	async start(options: StartOptions): Promise<AgentSession> {
 		const codexPath = await this.requirePath(options.env);
 		const translator = new CodexTranslator({ logger: this.deps.logger });
+		const appTools = this.deps.appToolsConfig(options);
 		return new CodexSession(
 			{
 				connectClient: async () => {
 					const client = this.createClient({
 						codexPath,
 						cwd: options.workspace.workspacePath,
-						env: options.env,
-						extraArgs: this.deps.appToolsConfigArgs(options),
+						env: { ...options.env, ...appTools.env },
+						extraArgs: appTools.args,
 					});
 					const connected = await client.connect();
 					if (!connected.ok) {
