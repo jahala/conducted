@@ -626,11 +626,11 @@ describe("DATA-05 writing settings", () => {
 		test.fs.files.set(
 			userFile(),
 			[
+				"surprise = true",
+				"",
 				"[git]",
 				'delete_branch_on_archive = "maybe"',
 				"unknown_key = 7",
-				"",
-				"surprise = true",
 				"",
 			].join("\n"),
 		);
@@ -820,7 +820,7 @@ describe("DATA-05 loading at startup and reloading", () => {
 
 	it("reports dropped entries while reading a file", async () => {
 		const test = harness();
-		test.fs.files.set(userFile(), '[git]\ndelete_branch_on_archive = "maybe"\n\nsurprise = true\n');
+		test.fs.files.set(userFile(), 'surprise = true\n\n[git]\ndelete_branch_on_archive = "maybe"\n');
 		await test.service.start();
 		expect(test.service.store.getState().dropped).toEqual(
 			expect.arrayContaining([

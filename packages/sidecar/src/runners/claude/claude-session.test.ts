@@ -599,7 +599,8 @@ describe("AGENT-02 Claude session", () => {
 
 	test("a crashed turn reports the exit code and stderr tail, and the next turn resumes", async () => {
 		const recorder = recordingLogger();
-		const { query, processes } = multiProcessQuery((_message, process, index) => {
+		let turnCount = 0;
+		const { query, processes } = multiProcessQuery((message, process, index) => {
 			if (index === 0) {
 				process.options?.stderr?.("fatal: out of memory");
 				const error = Object.assign(new Error("Claude Code process exited"), {
@@ -611,11 +612,19 @@ describe("AGENT-02 Claude session", () => {
 				return;
 			}
 			process.stream.push(init());
-			process.stream.push(resultMessage("turn-uuid"));
+			process.stream.push(resultMessage(String(message.uuid)));
 		});
 		let hasTranscript = false;
 		const session = new ClaudeSession(
-			makeDeps({ query, logger: recorder.logger, hasTranscript: async () => hasTranscript }),
+			makeDeps({
+				query,
+				logger: recorder.logger,
+				hasTranscript: async () => hasTranscript,
+				newUuid: () => {
+					turnCount += 1;
+					return `turn-${turnCount}`;
+				},
+			}),
 			start(),
 		);
 
