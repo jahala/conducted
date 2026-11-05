@@ -16,12 +16,13 @@ import { Select } from "../../../ui/Select.tsx";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
 import { Switch } from "../../../ui/Switch.tsx";
 import { RegistrySettingRows, SettingRow, useSettingSaves } from "../SettingRow.tsx";
-import { SettingsPageFrame } from "../SettingsPageFrame.tsx";
+import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
 
 const MODEL_KEY = "default_model";
 const FAST_MODE_KEY = "default_fast_mode";
 
 export function DefaultModelsPage({ focusSettingKey = null }: { focusSettingKey?: string | null }) {
+	const load = useSettingsLoad();
 	const models = useModels("claude");
 	const installs = useAgentInstalls();
 	const saves = useSettingSaves();
@@ -42,9 +43,7 @@ export function DefaultModelsPage({ focusSettingKey = null }: { focusSettingKey?
 		<SettingsPageFrame
 			title="Default models"
 			description="The model and options a new chat starts with."
-			state="ready"
-			errorMessage={null}
-			onRetry={() => undefined}
+			{...load}
 			focusSettingKey={focusSettingKey}
 		>
 			{installs.state === "ready" && !claudeInstalled ? (

@@ -8,9 +8,10 @@
  * Data: useCommands(), useShortcutOverrides() and Actions.settings for keybinding_overrides_v1.
  * The clash rule is findShortcutConflicts in core/registries/commands.ts: the page passes the
  * table with the edit applied and reads the pair that names the edited command.
- * Must handle: a filter with no match, a clash with another command (the page names it and offers
- * to replace or cancel), unbinding a command, resetting one command, a disabled command (shown
- * muted), and saved text that cannot be read (its error is shown here).
+ * Must handle: a filter with no match, a clash with another command (the edited row names it and
+ * offers Replace, which binds the keys here and removes them from the other command in the same
+ * write, or Cancel), unbinding a command, resetting one command, a disabled command (shown muted),
+ * and saved text that cannot be read (its error is shown here).
  * Test first: recording "Cmd+K" for a command that another command uses reports that command.
  */
 import { useState } from "react";
@@ -19,6 +20,7 @@ import {
 	COMMAND_CATEGORIES,
 	COMMANDS,
 	findShortcutConflicts,
+	formatShortcut,
 	getCommand,
 	parseShortcut,
 	type ShortcutOverrides,
@@ -28,12 +30,28 @@ import { Button } from "../../../ui/Button.tsx";
 import { Input } from "../../../ui/Input.tsx";
 import { ShortcutRecorder } from "../keyboard/ShortcutRecorder.tsx";
 import { ShortcutRow } from "../keyboard/ShortcutRow.tsx";
-import { SettingsPageFrame } from "../SettingsPageFrame.tsx";
+import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
 
 interface Conflict {
 	commandId: string;
 	combination: string;
+	otherId: string;
 	otherTitle: string;
+}
+
+/** The overrides with `combination` bound to `commandId` and taken off the command that had it. */
+function replaceBinding(
+	overrides: ShortcutOverrides,
+	commandId: string,
+	combination: string,
+	otherId: string,
+): ShortcutOverrides {
+	const clash = formatShortcut(combination);
+	const other = withShortcutOverrides(COMMANDS, overrides).find(
+		(command) => command.id === otherId,
+	);
+	const kept = (other?.defaultShortcuts ?? []).filter((spec) => formatShortcut(spec) !== clash);
+	return { ...overrides, [commandId]: [combination], [otherId]: kept };
 }
 
 const SETTING_KEY = "keybinding_overrides_v1";
@@ -43,6 +61,7 @@ export function KeyboardShortcutsPage({
 }: {
 	focusSettingKey?: string | null;
 }) {
+	const load = useSettingsLoad();
 	const commands = useCommands();
 	const { overrides, error: overridesError } = useShortcutOverrides();
 	const actions = useActions();
@@ -77,6 +96,7 @@ export function KeyboardShortcutsPage({
 			setConflict({
 				commandId,
 				combination,
+				otherId,
 				otherTitle: getCommand(otherId)?.title ?? otherId,
 			});
 			return;
@@ -108,9 +128,7 @@ export function KeyboardShortcutsPage({
 		<SettingsPageFrame
 			title="Keyboard shortcuts"
 			description="Every command and the keys that run it. Changes take effect at once."
-			state="ready"
-			errorMessage={null}
-			onRetry={() => undefined}
+			{...load}
 			focusSettingKey={focusSettingKey}
 		>
 			<div className="max-w-sm pb-4">
@@ -133,31 +151,6 @@ export function KeyboardShortcutsPage({
 					{saveError}
 				</p>
 			) : null}
-			{conflict ? (
-				<div
-					role="alert"
-					className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-danger/40 p-3"
-				>
-					<p className="text-sm text-fg">
-						{conflict.combination} is already used by {conflict.otherTitle}.
-					</p>
-					<Button
-						size="sm"
-						variant="destructive"
-						onClick={() => {
-							const pending = conflict;
-							setConflict(null);
-							void persist({ ...overrides, [pending.commandId]: [pending.combination] });
-						}}
-					>
-						Replace
-					</Button>
-					<Button size="sm" variant="secondary" onClick={() => setConflict(null)}>
-						Cancel
-					</Button>
-				</div>
-			) : null}
-
 			{shown.length === 0 ? (
 				<p role="status" className="text-sm text-fg-muted">
 					No commands match your search.
@@ -175,7 +168,7 @@ export function KeyboardShortcutsPage({
 										<ShortcutRow
 											command={command}
 											changedFromDefault={command.shortcut !== command.defaultShortcut}
-											conflictWith={null}
+											conflictWith={conflict?.commandId === command.id ? conflict.otherTitle : null}
 											recording={recordingId === command.id}
 											onStartRecording={() => {
 												setConflict(null);
@@ -191,6 +184,34 @@ export function KeyboardShortcutsPage({
 													onRecord={(combination) => record(command.id, combination)}
 													onCancel={() => setRecordingId(null)}
 												/>
+											</div>
+										) : null}
+										{conflict?.commandId === command.id ? (
+											<div className="flex flex-wrap items-center gap-2 pb-2">
+												<p className="text-xs text-fg-muted">
+													Use {conflict.combination} here and remove it from {conflict.otherTitle}?
+												</p>
+												<Button
+													size="sm"
+													variant="destructive"
+													onClick={() => {
+														const pending = conflict;
+														setConflict(null);
+														void persist(
+															replaceBinding(
+																overrides,
+																pending.commandId,
+																pending.combination,
+																pending.otherId,
+															),
+														);
+													}}
+												>
+													Replace
+												</Button>
+												<Button size="sm" variant="secondary" onClick={() => setConflict(null)}>
+													Cancel
+												</Button>
 											</div>
 										) : null}
 									</div>

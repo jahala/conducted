@@ -86,4 +86,28 @@ describe("SET-02 SettingsScreen", () => {
 			).toBe("true"),
 		);
 	});
+
+	it("says the projects are loading while the project list is read", async () => {
+		await mount(<SettingsScreen page="general" />);
+		await screen.findByRole("heading", { name: "General" });
+
+		expect(screen.getByText("Loading projects…")).toBeTruthy();
+		expect(screen.queryByText(/No projects yet/)).toBeNull();
+	});
+
+	it("highlights a searched setting on the Appearance page", async () => {
+		await mount(<SettingsScreen page="appearance" onNavigate={vi.fn()} />);
+		const input = await screen.findByRole("searchbox", { name: "Search settings" });
+		fireEvent.change(input, { target: { value: "zoom" } });
+
+		fireEvent.click(await screen.findByRole("button", { name: /App zoom/ }));
+
+		await waitFor(() =>
+			expect(
+				document
+					.querySelector('[data-setting-key="zoom_level_v2"]')
+					?.getAttribute("data-highlighted"),
+			).toBe("true"),
+		);
+	});
 });

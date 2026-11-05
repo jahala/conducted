@@ -45,6 +45,9 @@ describe("SET-02 ConnectionsPage", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Save port range" }));
 
 		expect(screen.getByText(/Port 22 is reserved for SSH/)).toBeTruthy();
+		expect(screen.getByRole("alert").textContent).toBe(
+			"Port 22 is reserved for SSH. Choose a range that does not include it.",
+		);
 		expect(set).not.toHaveBeenCalled();
 	});
 });

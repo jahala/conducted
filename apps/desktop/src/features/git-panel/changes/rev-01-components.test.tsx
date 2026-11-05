@@ -93,7 +93,7 @@ describe("REV-01 changed file row discard", () => {
 		fireEvent.contextMenu(screen.getByLabelText("Open src/a.ts"));
 		fireEvent.click(await screen.findByText("Discard changes"));
 		expect(onDiscard).not.toHaveBeenCalled();
-		expect(await screen.findByRole("heading", { name: "Discard changes?" })).toBeTruthy();
+		expect(await screen.findByRole("heading", { name: "Discard file changes?" })).toBeTruthy();
 		fireEvent.click(screen.getByRole("button", { name: "Discard" }));
 		expect(onDiscard).toHaveBeenCalledTimes(1);
 	});

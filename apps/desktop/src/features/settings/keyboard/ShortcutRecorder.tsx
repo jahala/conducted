@@ -3,7 +3,8 @@
  * Owns: the control that captures a key combination when the user presses it.
  * Behaviour: ui-map.md 5.4 (shortcuts use Cmd, Alt, Shift, Ctrl and a key) and 6.
  * Must handle: modifier-only presses (wait for a key), Escape cancelling, Backspace clearing, and
- * a key being recorded by its visible character.
+ * a letter or digit recorded by its physical key (`event.code`), because on macOS Option and Shift
+ * change the character (Option+T types "†", Shift+1 types "!"). Other keys are recorded by name.
  * Test first: pressing Cmd+Shift+K calls onRecord with the combination "Cmd+Shift+K".
  */
 import { useEffect, useRef } from "react";
@@ -30,6 +31,12 @@ const NAMED_KEYS: Readonly<Record<string, string>> = {
 	PageUp: "PageUp",
 	PageDown: "PageDown",
 };
+
+/** The letter or digit of a physical key, for example "T" for KeyT and "1" for Digit1. */
+function letterOrDigit(code: string): string | null {
+	const match = /^(?:Key([A-Z])|Digit([0-9]))$/.exec(code);
+	return match === null ? null : (match[1] ?? match[2] ?? null);
+}
 
 function keyName(key: string): string | null {
 	if (MODIFIER_KEYS.has(key)) return null;
@@ -67,7 +74,9 @@ export function ShortcutRecorder({ onRecord, onCancel }: ShortcutRecorderProps) 
 					onRecord("");
 					return;
 				}
-				const key = keyName(event.key);
+				const key = MODIFIER_KEYS.has(event.key)
+					? null
+					: (letterOrDigit(event.code) ?? keyName(event.key));
 				if (key === null) return;
 				event.preventDefault();
 				event.stopPropagation();

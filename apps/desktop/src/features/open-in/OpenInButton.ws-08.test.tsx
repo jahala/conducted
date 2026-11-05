@@ -18,10 +18,33 @@ afterEach(cleanup);
 describe("WS-08 OpenInButton", () => {
 	it("WS-08 opens the default app once even when clicked twice", () => {
 		const onOpenDefault = vi.fn();
-		render(
+		const button = (busy: boolean) => (
 			<Menu>
 				<OpenInButton
 					defaultApp={cursor}
+					busy={busy}
+					disabledReason={null}
+					onOpenDefault={onOpenDefault}
+					menuOpen={false}
+					onMenuOpenChange={vi.fn()}
+				/>
+			</Menu>
+		);
+		const { rerender } = render(button(false));
+		const main = screen.getByRole("button", { name: /Cursor/ });
+		fireEvent.click(main);
+		// The parent marks the open as busy, as OpenInMenu does while the app opens.
+		rerender(button(true));
+		fireEvent.click(main);
+		expect(onOpenDefault).toHaveBeenCalledTimes(1);
+	});
+
+	it("WS-08 keeps answering clicks that only open the menu", () => {
+		const onOpenDefault = vi.fn();
+		render(
+			<Menu>
+				<OpenInButton
+					defaultApp={null}
 					busy={false}
 					disabledReason={null}
 					onOpenDefault={onOpenDefault}
@@ -30,10 +53,10 @@ describe("WS-08 OpenInButton", () => {
 				/>
 			</Menu>,
 		);
-		const main = screen.getByRole("button", { name: /Cursor/ });
+		const main = screen.getByRole("button", { name: "Open in" });
 		fireEvent.click(main);
 		fireEvent.click(main);
-		expect(onOpenDefault).toHaveBeenCalledTimes(1);
+		expect(onOpenDefault).toHaveBeenCalledTimes(2);
 	});
 
 	it("WS-08 shows the default app's label and blocks the main part while busy", () => {

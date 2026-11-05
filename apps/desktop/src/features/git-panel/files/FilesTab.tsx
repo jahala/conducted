@@ -10,7 +10,8 @@
  * Must handle: loading and error states, an empty repository, thousands of files (windowed
  * rendering, folders expanded one level at a time), the tree changing underneath the user (keep
  * expanded folders and selection), a filter with no match, gitignored files (hidden, as the file
- * search does), and an archived workspace (the worktree is gone: say so, do not list).
+ * search does), and an archived workspace (the worktree is gone: say so, do not list, and do not
+ * poll the tree: the tree query only mounts for a workspace that is not archived).
  * Our design choice: the platform lists the whole tree in one call; this tab starts at depth 1 and
  * expands from the list it already holds.
  * Test first: with entries ["src/a.ts", "README.md"] and the filter "read", only README.md shows.
@@ -67,7 +68,6 @@ interface FileTreeBodyProps {
 	onCopyPath: (path: string, kind: "absolute" | "relative") => void;
 	onDiscard: (path: string) => void;
 	hasActiveChat: boolean;
-	archived: boolean;
 	changedFiles: ReadonlySet<string>;
 	changedFolders: ReadonlySet<string>;
 }
@@ -83,7 +83,6 @@ function FileTreeBody({
 	onCopyPath,
 	onDiscard,
 	hasActiveChat,
-	archived,
 	changedFiles,
 	changedFolders,
 }: FileTreeBodyProps) {
@@ -196,7 +195,6 @@ function FileTreeBody({
 								onCopyPath={(kind) => onCopyPath(row.path, kind)}
 								onDiscard={() => onDiscard(row.path)}
 								hasActiveChat={hasActiveChat}
-								archived={archived}
 							/>
 						</div>
 					);
@@ -209,8 +207,36 @@ function FileTreeBody({
 const joinRoot = (root: string, path: string): string => `${root.replace(/\/+$/, "")}/${path}`;
 
 export function FilesTab({ workspaceId, onOpenFile }: FilesTabProps) {
-	const tree = useFileTree(workspaceId);
 	const workspace = useWorkspace(workspaceId);
+	if (workspace.state === "ready" && workspace.data.state === "archived") {
+		return (
+			<EmptyState
+				compact
+				title="This workspace is archived"
+				body="Restore the workspace to see its files."
+			/>
+		);
+	}
+	const workspacePath = workspace.state === "ready" ? workspace.data.path : null;
+	const activeSessionId = workspace.state === "ready" ? workspace.data.activeSessionId : null;
+	return (
+		<LiveFilesTab
+			workspaceId={workspaceId}
+			workspacePath={workspacePath}
+			activeSessionId={activeSessionId}
+			onOpenFile={onOpenFile}
+		/>
+	);
+}
+
+/** The tab for a workspace whose folder exists. Only this part reads and polls the tree. */
+function LiveFilesTab({
+	workspaceId,
+	workspacePath,
+	activeSessionId,
+	onOpenFile,
+}: FilesTabProps & { workspacePath: string | null; activeSessionId: string | null }) {
+	const tree = useFileTree(workspaceId);
 	const sessions = useSessions(workspaceId);
 	const changes = useChangedFiles(workspaceId, { kind: "branch" });
 	const actions = useActions();
@@ -242,9 +268,6 @@ export function FilesTab({ workspaceId, onOpenFile }: FilesTabProps) {
 
 	const selected =
 		selectedPath !== null && rows.some((row) => row.path === selectedPath) ? selectedPath : null;
-	const workspacePath = workspace.state === "ready" ? workspace.data.path : null;
-	const archived = workspace.state === "ready" && workspace.data.state === "archived";
-	const activeSessionId = workspace.state === "ready" ? workspace.data.activeSessionId : null;
 	const hasActiveChat =
 		activeSessionId !== null &&
 		sessions.state === "ready" &&
@@ -298,16 +321,6 @@ export function FilesTab({ workspaceId, onOpenFile }: FilesTabProps) {
 		});
 	};
 
-	if (archived) {
-		return (
-			<EmptyState
-				compact
-				title="This workspace is archived"
-				body="Restore the workspace to see its files."
-			/>
-		);
-	}
-
 	return (
 		<div className="flex h-full min-h-0 flex-col">
 			<div className="shrink-0 px-2 py-2">
@@ -357,7 +370,6 @@ export function FilesTab({ workspaceId, onOpenFile }: FilesTabProps) {
 							onCopyPath={copyPath}
 							onDiscard={discard}
 							hasActiveChat={hasActiveChat}
-							archived={archived}
 							changedFiles={changedFiles}
 							changedFolders={changedFolders}
 						/>

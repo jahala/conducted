@@ -11,9 +11,10 @@
  */
 import { useGitHubAccess, useSetting } from "../../../core/hooks.ts";
 import { RegistrySettingRows } from "../SettingRow.tsx";
-import { SettingsPageFrame } from "../SettingsPageFrame.tsx";
+import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
 
 export function GitPage({ focusSettingKey = null }: { focusSettingKey?: string | null }) {
+	const load = useSettingsLoad();
 	const prefixType = useSetting<string>("branch_prefix_type");
 	const access = useGitHubAccess();
 	const login =
@@ -34,9 +35,7 @@ export function GitPage({ focusSettingKey = null }: { focusSettingKey?: string |
 		<SettingsPageFrame
 			title="Git"
 			description="Defaults for branches, pull requests and archiving. Each project can override them."
-			state="ready"
-			errorMessage={null}
-			onRetry={() => undefined}
+			{...load}
 			focusSettingKey={focusSettingKey}
 		>
 			<RegistrySettingRows

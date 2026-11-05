@@ -18,6 +18,7 @@
 import type { WorkspaceId } from "@conducted/shared";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
+import { createSingleFlight } from "../../core/async/single-flight.ts";
 import { useActions, useInstalledApps, useSetting, useWorkspace } from "../../core/hooks.ts";
 import { Menu, MenuContent, MenuLabel } from "../../ui/Menu.tsx";
 import { toastError } from "../../ui/Toast.tsx";
@@ -46,7 +47,8 @@ export function OpenInMenu({ workspaceId }: { workspaceId: WorkspaceId }) {
 	const recentSetting = useSetting<string>("open_in_mru_order");
 	const [menuOpen, setMenuOpen] = useState(false);
 	const [busy, setBusy] = useState(false);
-	const opening = useRef(false);
+	// One open at a time: a second click or Cmd+O while an app is opening joins the first.
+	const flight = useRef(createSingleFlight<"open">()).current;
 
 	const recentNames = useMemo(() => parseRecent(recentSetting), [recentSetting]);
 	const installedNames = installed.state === "ready" ? installed.data : NO_APPS;
@@ -67,27 +69,28 @@ export function OpenInMenu({ workspaceId }: { workspaceId: WorkspaceId }) {
 					: null;
 
 	const open = useCallback(
-		async (app: OpenInApp) => {
-			if (workspace.state !== "ready" || workspace.data.state === "archived") return;
-			if (opening.current) return;
-			opening.current = true;
-			setBusy(true);
-			setMenuOpen(false);
-			try {
-				const opened = await actions.workspaces.openIn(workspaceId, app.appName);
-				if (!opened.ok) {
-					toastError(openInFailureTitle(opened.error), opened.error);
-					return;
-				}
-				const next = [app.appName, ...recentNames.filter((name) => name !== app.appName)];
-				const written = await actions.settings.set("open_in_mru_order", next.join(","));
-				if (!written.ok) toastError("Couldn't remember the last app", written.error);
-			} finally {
-				opening.current = false;
-				setBusy(false);
+		(app: OpenInApp): Promise<void> => {
+			if (workspace.state !== "ready" || workspace.data.state === "archived") {
+				return Promise.resolve();
 			}
+			return flight.run("open", async () => {
+				setBusy(true);
+				setMenuOpen(false);
+				try {
+					const opened = await actions.workspaces.openIn(workspaceId, app.appName);
+					if (!opened.ok) {
+						toastError(openInFailureTitle(opened.error), opened.error);
+						return;
+					}
+					const next = [app.appName, ...recentNames.filter((name) => name !== app.appName)];
+					const written = await actions.settings.set("open_in_mru_order", next.join(","));
+					if (!written.ok) toastError("Couldn't remember the last app", written.error);
+				} finally {
+					setBusy(false);
+				}
+			});
 		},
-		[actions, workspace, workspaceId, recentNames],
+		[actions, flight, workspace, workspaceId, recentNames],
 	);
 
 	const setDefault = useCallback(

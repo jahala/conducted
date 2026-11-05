@@ -117,4 +117,30 @@ describe("REV-06 all files tab", () => {
 			test.close();
 		}
 	});
+
+	it("shows an archived workspace's notice and never asks for its tree", async () => {
+		const test = createTestContainer();
+		try {
+			const workspace = await seedWorkspace(test.container, { path: "/ws/archived" });
+			test.memory.controls.files.set("/ws/archived/README.md", "");
+			test.container.services.workspace.store.setState((state) => ({
+				workspacesById: {
+					...state.workspacesById,
+					[workspace.id]: { ...workspace, state: "archived", archivedAt: 1 },
+				},
+			}));
+			const { view, client } = renderTab(test.container, workspace.id);
+
+			expect(await screen.findByText("This workspace is archived")).toBeTruthy();
+			expect(
+				client.getQueryCache().find({ queryKey: ["workspace-files", workspace.id] }),
+			).toBeUndefined();
+			expect(screen.queryByText("README.md")).toBeNull();
+
+			view.unmount();
+			client.clear();
+		} finally {
+			test.close();
+		}
+	});
 });

@@ -1,12 +1,12 @@
 /**
  * @feature REV-07 Search in files
  * Owns: tests for the Cmd+Shift+F dialog: matches grouped by file, the three match options, the
- * pattern error, the two-character minimum and opening a match.
+ * pattern error, the two-character minimum, the match limit, the highlight and opening a match.
  * Behaviour: ui-map.md 3.6, 3.10.
  * Test first: Searching 'retry' returns matches grouped by file; turning on 'Whole word' removes
  * 'retrying'.
  */
-import type { WorkspaceId } from "@conducted/shared";
+import { ok, type WorkspaceId } from "@conducted/shared";
 import {
 	createMemoryHistory,
 	createRootRoute,
@@ -184,6 +184,73 @@ describe("REV-07 SearchInFiles", () => {
 					path: "src/retry.ts",
 				}),
 			);
+		} finally {
+			test.close();
+		}
+	});
+
+	it("asks to refine the search only when it found more matches than it shows", async () => {
+		const { test, workspace } = await setup();
+		try {
+			const lines = Array.from({ length: 200 }, (_, index) => `needle ${index + 1}`);
+			test.memory.controls.files.set(`${workspace.path}/src/many.ts`, `${lines.join("\n")}\n`);
+			await renderDialog(
+				test.container,
+				<SearchInFiles open onOpenChange={vi.fn()} workspaceId={workspace.id} />,
+				workspace.id,
+			);
+			fireEvent.change(screen.getByRole("searchbox", { name: "Search file contents" }), {
+				target: { value: "needle" },
+			});
+			const group = await screen.findByRole("region", { name: "src/many.ts" });
+			expect(within(group).getAllByRole("button")).toHaveLength(200);
+			expect(screen.queryByText("Refine your search.")).toBeNull();
+		} finally {
+			test.close();
+		}
+	});
+
+	it("shows the first 200 matches and asks to refine when there are more", async () => {
+		const { test, workspace } = await setup();
+		try {
+			const lines = Array.from({ length: 201 }, (_, index) => `needle ${index + 1}`);
+			test.memory.controls.files.set(`${workspace.path}/src/many.ts`, `${lines.join("\n")}\n`);
+			await renderDialog(
+				test.container,
+				<SearchInFiles open onOpenChange={vi.fn()} workspaceId={workspace.id} />,
+				workspace.id,
+			);
+			fireEvent.change(screen.getByRole("searchbox", { name: "Search file contents" }), {
+				target: { value: "needle" },
+			});
+			expect(await screen.findByText("Refine your search.")).toBeTruthy();
+			const group = screen.getByRole("region", { name: "src/many.ts" });
+			expect(within(group).getAllByRole("button")).toHaveLength(200);
+			expect(screen.queryByRole("button", { name: "src/many.ts:201" })).toBeNull();
+		} finally {
+			test.close();
+		}
+	});
+
+	it("shows a line without a highlight when JavaScript cannot compile the pattern", async () => {
+		const { test, workspace } = await setup();
+		try {
+			// seam: REV-07 the Rust search accepts inline flags such as (?i) that JavaScript rejects, and the in-memory search cannot
+			vi.spyOn(test.container.services.workspaceFiles, "grep").mockResolvedValue(
+				ok([{ path: "src/flags.ts", line: 1, column: 1, preview: "uses (?i)retry here" }]),
+			);
+			await renderDialog(
+				test.container,
+				<SearchInFiles open onOpenChange={vi.fn()} workspaceId={workspace.id} />,
+				workspace.id,
+			);
+			fireEvent.click(screen.getByRole("button", { name: "Regular expression" }));
+			fireEvent.change(screen.getByRole("searchbox", { name: "Search file contents" }), {
+				target: { value: "(?i)retry" },
+			});
+			const row = await screen.findByRole("button", { name: "src/flags.ts:1" });
+			expect(row.textContent).toContain("uses (?i)retry here");
+			expect(row.querySelector("mark")).toBeNull();
 		} finally {
 			test.close();
 		}

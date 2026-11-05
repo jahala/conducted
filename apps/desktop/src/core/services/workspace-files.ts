@@ -10,8 +10,12 @@
  * query under two characters returns no rows; a bad regular expression returns the platform's
  * pattern error; saving writes atomically and refuses when the file changed on disk since it was
  * opened (returns a conflict Err with the new modified time).
- * Our design choice: the base path check compares resolved paths in TypeScript before every file
- * call, in addition to whatever the Rust side checks.
+ * Our design choice: before every file call the path is checked in TypeScript: it must be relative
+ * and must not climb with `..`. This check is lexical. It does not follow symlinks, so a link inside
+ * the workspace that points outside it passes here; resolving links is the Rust file commands' scope
+ * check (PLAT-29, files.rs `check_path_in_scope`).
+ * Our design choice: `grep` asks the platform for one match more than CONTENT_SEARCH_LIMIT, so the
+ * caller can tell a list that was cut from one that holds exactly the limit.
  * Test first: readFile("../outside") returns an Err with code `path_outside_workspace`.
  */
 import {
@@ -26,8 +30,8 @@ import type { FileSearch, FileSystem, GrepMatch, TreeEntry } from "../../platfor
 import type { ConflictChoice, DiffScope, FileEntry } from "../api.ts";
 import { workspaceRelativePath } from "./git.ts";
 
-/** The search stops here, and the dialog tells the user to refine the query. */
-const GREP_MATCH_LIMIT = 200;
+/** Search in files shows this many matches, and asks for a narrower query when there are more. */
+export const CONTENT_SEARCH_LIMIT = 200;
 
 export interface WorkspaceFilesServiceDeps {
 	fs: FileSystem;
@@ -102,25 +106,18 @@ export class WorkspaceFilesService {
 	): Promise<Result<GrepMatch[]>> {
 		const trimmed = query.trim();
 		if (trimmed.length < 2) return ok([]);
-		const roots = await this.#deps.rootsOf(workspaceId);
-		if (!roots.ok) return roots;
-		const root = roots.value[0];
-		if (root === undefined) {
-			return {
-				ok: false,
-				error: appError("workspace_root_missing", "The workspace has no folder to search."),
-			};
-		}
-		const found = await this.#deps.search.grep(root, trimmed, {
+		const root = await this.#rootOf(workspaceId);
+		if (!root.ok) return root;
+		const found = await this.#deps.search.grep(root.value, trimmed, {
 			caseSensitive: options.caseSensitive,
 			wholeWord: options.wholeWord,
 			regex: options.regex,
-			limit: GREP_MATCH_LIMIT,
+			limit: CONTENT_SEARCH_LIMIT + 1,
 		});
 		if (!found.ok) return found;
 		const matches: GrepMatch[] = [];
 		for (const match of found.value) {
-			const relative = relativeTo(root, match.path);
+			const relative = relativeTo(root.value, match.path);
 			if (relative !== null) matches.push({ ...match, path: relative });
 		}
 		return ok(matches);

@@ -2,36 +2,22 @@
  * @feature s1-ui-2 Join the batch's features through the composition root
  * Owns: one test per feature in the batch: REV-06 file tree, REV-07 quick open and search in files,
  * SET-02 settings pages and search, SET-06 appearance, and WS-08 open in another app. Each test
- * reaches the feature through createTestContainer and the real screen, dialog or route the app
- * mounts.
+ * builds the real container with createTestContainer, mounts the app's own route tree
+ * (createAppRouter, with its root layout, dispatcher and overlays), and drives the feature with the
+ * keys and clicks a user would use.
  * Behaviour: D054 (a feature is reachable from the composition root).
- * Test first: each test fails when its feature's container or screen wiring is removed.
+ * Test first: each test fails when its feature's container, route or root wiring is removed.
  */
-import { ok, type WorkspaceId } from "@conducted/shared";
-import {
-	createMemoryHistory,
-	createRootRoute,
-	createRoute,
-	createRouter,
-	RouterProvider,
-} from "@tanstack/react-router";
+import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-// biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
-import { CommandDispatcher } from "../app/command-dispatcher.ts";
-// biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
-import { GlobalOverlays } from "../app/GlobalOverlays.tsx";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
 import { useOverlayStore } from "../app/overlay-store.ts";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
 import { AppProviders, createQueryClient } from "../app/providers.tsx";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
 import { createAppRouter } from "../app/router.tsx";
-// biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
-import { GitPanel } from "../features/git-panel/GitPanel.tsx";
-// biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
-import { WorkspaceHeader } from "../features/workspace/WorkspaceHeader.tsx";
 import { createTestContainer, seedWorkspace } from "../test/container.ts";
 import type { Container } from "./container.ts";
 import { ServicesProvider } from "./context.tsx";
@@ -65,6 +51,14 @@ function renderInside(container: Container, node: ReactNode) {
 	return render(h(Services, { container }, h(App, { client }, node)));
 }
 
+/** Mounts the app's own route tree at `path`, as main.tsx does. */
+async function openApp(container: Container, path: string) {
+	const router = createAppRouter(createMemoryHistory({ initialEntries: [path] }));
+	renderInside(container, h(RouterProvider, { router }));
+	await router.load();
+	return router;
+}
+
 function clearAppearance() {
 	for (const name of ["data-theme", "data-contrast", "data-color-vision", "data-vibrancy"]) {
 		document.documentElement.removeAttribute(name);
@@ -77,12 +71,14 @@ afterEach(() => {
 	cleanup();
 	vi.restoreAllMocks();
 	clearAppearance();
+	window.localStorage.clear();
 });
 
 describe("s1-ui-2 join", () => {
 	it("REV-06 lists the workspace's files in the Git panel's All files tab", async () => {
 		const test = createTestContainer();
 		try {
+			await test.container.services.settings.start();
 			const workspace = await seedWorkspace(test.container, { path: "/join/rev-06" });
 			test.memory.controls.files.set(`${workspace.path}/src/app.ts`, "");
 			test.memory.controls.files.set(`${workspace.path}/README.md`, "");
@@ -97,9 +93,9 @@ describe("s1-ui-2 join", () => {
 				},
 			});
 
-			renderInside(
+			const router = await openApp(
 				test.container,
-				h(CommandDispatcher, null, h(GitPanel, { workspaceId: workspace.id })),
+				`/repository/${workspace.repoId}/workspace/${workspace.id}`,
 			);
 
 			const allFiles = await screen.findByRole("tab", { name: "All files" });
@@ -107,6 +103,16 @@ describe("s1-ui-2 join", () => {
 
 			expect(await screen.findByText("README.md")).toBeTruthy();
 			expect(await screen.findByRole("button", { name: "Expand src" })).toBeTruthy();
+
+			fireEvent.doubleClick(screen.getByText("README.md"));
+
+			await waitFor(() =>
+				expect(router.state.location.search).toMatchObject({
+					tab: "file",
+					path: "README.md",
+					fileMode: "edit",
+				}),
+			);
 		} finally {
 			await test.container.stop();
 			test.close();
@@ -116,31 +122,22 @@ describe("s1-ui-2 join", () => {
 	it("REV-07 opens quick open and search in files from the root shortcuts", async () => {
 		const test = createTestContainer();
 		try {
+			await test.container.services.settings.start();
 			const workspace = await seedWorkspace(test.container, { path: "/join/rev-07" });
 			test.memory.controls.files.set(`${workspace.path}/src/app/AppShell.tsx`, "export {};\n");
 			test.memory.controls.files.set(`${workspace.path}/src/retry.ts`, "retry now\n");
 
-			const rootRoute = createRootRoute();
-			const route = createRoute({
-				getParentRoute: () => rootRoute,
-				path: "/repository/$repositoryId/workspace/$workspaceId",
-				component: () => h(CommandDispatcher, null, h(GlobalOverlays)),
-			});
-			const router = createRouter({
-				routeTree: rootRoute.addChildren([route]),
-				history: createMemoryHistory({
-					initialEntries: [`/repository/r1/workspace/${workspace.id}`],
-				}),
-			});
-			renderInside(test.container, h(RouterProvider, { router }));
-			await router.load();
+			const router = await openApp(
+				test.container,
+				`/repository/${workspace.repoId}/workspace/${workspace.id}`,
+			);
 
 			fireEvent.keyDown(document.body, { key: "p", metaKey: true });
 			const quickOpen = await screen.findByRole("textbox", { name: "Search files by name" });
 			fireEvent.change(quickOpen, { target: { value: "appshell" } });
 			expect(await screen.findByRole("button", { name: "src/app/AppShell.tsx" })).toBeTruthy();
 
-			useOverlayStore.getState().close();
+			fireEvent.keyDown(quickOpen, { key: "Escape" });
 			await waitFor(() =>
 				expect(screen.queryByRole("textbox", { name: "Search files by name" })).toBeNull(),
 			);
@@ -149,21 +146,37 @@ describe("s1-ui-2 join", () => {
 			const search = await screen.findByRole("searchbox", { name: "Search file contents" });
 			fireEvent.change(search, { target: { value: "retry" } });
 			expect(await screen.findByRole("region", { name: "src/retry.ts" })).toBeTruthy();
+			fireEvent.click(screen.getByRole("button", { name: "src/retry.ts:1" }));
+			await waitFor(() =>
+				expect(router.state.location.search).toMatchObject({ tab: "file", path: "src/retry.ts" }),
+			);
+
+			fireEvent.keyDown(document.body, { key: "p", metaKey: true });
+			const again = await screen.findByRole("textbox", { name: "Search files by name" });
+			fireEvent.change(again, { target: { value: "appshell" } });
+			await screen.findByRole("button", { name: "src/app/AppShell.tsx" });
+			fireEvent.keyDown(again, { key: "Enter" });
+			await waitFor(() =>
+				expect(router.state.location.search).toMatchObject({
+					tab: "file",
+					path: "src/app/AppShell.tsx",
+				}),
+			);
 		} finally {
 			await test.container.stop();
 			test.close();
 		}
 	});
 
-	it("SET-02 finds a settings page from the settings search and opens it", async () => {
+	it("SET-02 opens settings with Cmd+, and finds and highlights a setting from the search", async () => {
 		const test = createTestContainer();
 		try {
 			await test.container.services.settings.start();
-			const router = createAppRouter(
-				createMemoryHistory({ initialEntries: ["/settings/general"] }),
-			);
-			renderInside(test.container, h(RouterProvider, { router }));
-			await router.load();
+			await test.container.services.repo.start();
+			const router = await openApp(test.container, "/");
+
+			fireEvent.keyDown(document.body, { key: ",", metaKey: true });
+			await waitFor(() => expect(router.state.location.pathname).toBe("/settings/general"));
 
 			await screen.findByRole("navigation", { name: "Settings" });
 			const settingsScreen = await screen.findByTestId("settings-screen");
@@ -172,26 +185,40 @@ describe("s1-ui-2 join", () => {
 			expect(document.activeElement).toBe(search);
 
 			fireEvent.change(search, { target: { value: "zoom" } });
-			fireEvent.click(await screen.findByRole("button", { name: /App zoom/ }));
+			expect(await screen.findByRole("button", { name: /App zoom/ })).toBeTruthy();
+			fireEvent.keyDown(search, { key: "Enter" });
 
 			await waitFor(() => expect(router.state.location.pathname).toBe("/settings/appearance"));
 			expect(await screen.findByRole("heading", { name: "Appearance" })).toBeTruthy();
+			await waitFor(() =>
+				expect(
+					document
+						.querySelector('[data-setting-key="zoom_level_v2"]')
+						?.getAttribute("data-highlighted"),
+				).toBe("true"),
+			);
+
+			fireEvent.keyDown(screen.getByTestId("settings-screen"), { key: "Escape" });
+			await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+
+			await router.navigate({
+				to: "/settings/repos/$repoId/$page",
+				params: { repoId: "gone", page: "scripts" },
+			});
+			expect(await screen.findByRole("heading", { name: "Pick a project" })).toBeTruthy();
 		} finally {
 			await test.container.stop();
 			test.close();
 		}
 	});
 
-	it("SET-06 applies the appearance shortcut on the mounted Appearance page", async () => {
+	it("SET-06 applies the appearance shortcuts away from the Appearance page", async () => {
 		const test = createTestContainer();
 		try {
 			await test.container.services.settings.start();
-			const router = createAppRouter(
-				createMemoryHistory({ initialEntries: ["/settings/appearance"] }),
-			);
-			renderInside(test.container, h(RouterProvider, { router }));
-			await router.load();
-			await screen.findByRole("heading", { name: "Appearance" });
+			const router = await openApp(test.container, "/settings/general");
+			await screen.findByRole("heading", { name: "General" });
+			expect(router.state.location.pathname).toBe("/settings/general");
 
 			fireEvent.keyDown(document, { key: "t", metaKey: true, altKey: true });
 
@@ -199,6 +226,14 @@ describe("s1-ui-2 join", () => {
 				expect(test.container.services.settings.store.getState().values.theme).toBe("dark"),
 			);
 			await waitFor(() => expect(document.documentElement.getAttribute("data-theme")).toBe("dark"));
+
+			fireEvent.keyDown(document, { key: "=", metaKey: true });
+			await waitFor(() =>
+				expect(test.container.services.settings.store.getState().values.zoom_level_v2).toBe(1.1),
+			);
+			await waitFor(() =>
+				expect(document.documentElement.style.getPropertyValue("zoom")).toBe("1.1"),
+			);
 		} finally {
 			await test.container.stop();
 			test.close();
@@ -208,28 +243,27 @@ describe("s1-ui-2 join", () => {
 	it("WS-08 opens the workspace in the header's Open in app", async () => {
 		const test = createTestContainer();
 		try {
+			await test.container.services.settings.start();
 			const workspace = await seedWorkspace(test.container, { path: "/join/ws-08" });
-			const openIn = vi
-				.spyOn(test.container.services.workspace, "openIn")
-				.mockResolvedValue(ok(undefined));
+			const saved = await test.container.actions.settings.set("default_open_in", "Finder");
+			expect(saved.ok).toBe(true);
+			// Calls through to the in-memory opener; the spy only records what reached the Platform.
+			const openWith = vi.spyOn(test.memory.platform.opener, "openWith");
 
-			renderInside(
-				test.container,
-				h(
-					CommandDispatcher,
-					null,
-					h(WorkspaceHeader, {
-						repoId: workspace.repoId,
-						workspaceId: workspace.id as WorkspaceId,
-						controls: { rightPanelOpen: true, toggleRightPanel: vi.fn() },
-					}),
-				),
-			);
+			await openApp(test.container, `/repository/${workspace.repoId}/workspace/${workspace.id}`);
 
 			const openButton = await screen.findByRole("button", { name: /^Finder$/ });
 			fireEvent.click(openButton);
 
-			await waitFor(() => expect(openIn).toHaveBeenCalledWith(workspace.id, "Finder"));
+			await waitFor(() => expect(openWith).toHaveBeenCalledWith("Finder", workspace.path));
+			await waitFor(() => expect((openButton as HTMLButtonElement).disabled).toBe(false));
+
+			fireEvent.keyDown(document.body, { key: "o", metaKey: true });
+			await waitFor(() => expect(openWith).toHaveBeenCalledTimes(2));
+			expect(openWith).toHaveBeenLastCalledWith("Finder", workspace.path);
+
+			fireEvent.keyDown(document.body, { key: "o", metaKey: true, shiftKey: true });
+			expect(await screen.findByRole("menu", { name: "Open in" })).toBeTruthy();
 		} finally {
 			await test.container.stop();
 			test.close();

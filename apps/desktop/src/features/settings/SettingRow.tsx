@@ -9,7 +9,8 @@
  * so every page uses one control implementation.
  * Must handle: a long description (wraps, no truncation), a disabled setting with a reason (the
  * fieldset disables the control), a setting that is highlighted after a search jump, and a save
- * error line when saving fails.
+ * error line when saving fails (a typed number, text or list that was not saved goes back to the
+ * stored value, so the field never shows a value the app does not hold).
  * Test first: with a disabledReason the control is disabled and the reason is shown.
  */
 import {
@@ -130,14 +131,11 @@ export function SettingRow({
 export function useSettingSaves() {
 	const actions = useActions();
 	const [errors, setErrors] = useState<Readonly<Record<string, string | null>>>({});
-	const [saving, setSaving] = useState<Readonly<Record<string, boolean>>>({});
 
 	const save = useCallback(
 		async (key: string, value: unknown): Promise<boolean> => {
-			setSaving((current) => ({ ...current, [key]: true }));
 			setErrors((current) => ({ ...current, [key]: null }));
 			const result = await actions.settings.set(key, value);
-			setSaving((current) => ({ ...current, [key]: false }));
 			if (!result.ok) {
 				setErrors((current) => ({ ...current, [key]: result.error.message }));
 				return false;
@@ -148,9 +146,11 @@ export function useSettingSaves() {
 	);
 
 	const errorOf = useCallback((key: string) => errors[key] ?? null, [errors]);
-	const savingOf = useCallback((key: string) => saving[key] === true, [saving]);
-	return { save, errorOf, savingOf };
+	return { save, errorOf };
 }
+
+/** Saves a field's value; true when it was stored. A field puts its stored value back on false. */
+type SaveField<T> = (value: T) => Promise<boolean>;
 
 function NumberField({
 	def,
@@ -161,13 +161,13 @@ function NumberField({
 	def: SettingDef;
 	value: SettingValue;
 	disabled: boolean;
-	onChange: (value: number) => void;
+	onChange: SaveField<number>;
 }) {
 	const initial = typeof value === "number" ? value : def.type === "number" ? def.default : 0;
 	const [text, setText] = useState(String(initial));
 	useEffect(() => {
-		setText(String(typeof value === "number" ? value : initial));
-	}, [value, initial]);
+		setText(String(initial));
+	}, [initial]);
 	return (
 		<Input
 			type="number"
@@ -182,7 +182,10 @@ function NumberField({
 				const trimmed = text.trim();
 				if (trimmed === "") return;
 				const parsed = Number(trimmed);
-				if (Number.isFinite(parsed)) onChange(parsed);
+				if (!Number.isFinite(parsed)) return;
+				void onChange(parsed).then((saved) => {
+					if (!saved) setText(String(initial));
+				});
 			}}
 		/>
 	);
@@ -197,7 +200,7 @@ function TextField({
 	def: SettingDef;
 	value: SettingValue;
 	disabled: boolean;
-	onChange: (value: string) => void;
+	onChange: SaveField<string>;
 }) {
 	const initial = typeof value === "string" ? value : def.type === "string" ? def.default : "";
 	const [text, setText] = useState(initial);
@@ -216,7 +219,10 @@ function TextField({
 				className="w-64"
 				onChange={(event) => setText(event.target.value)}
 				onBlur={() => {
-					if (text !== initial) onChange(text);
+					if (text === initial) return;
+					void onChange(text).then((saved) => {
+						if (!saved) setText(initial);
+					});
 				}}
 			/>
 		</>
@@ -232,7 +238,7 @@ function ListField({
 	def: SettingDef;
 	value: SettingValue;
 	disabled: boolean;
-	onChange: (value: string[]) => void;
+	onChange: SaveField<string[]>;
 }) {
 	const saved = Array.isArray(value) ? value.join("\n") : "";
 	const [text, setText] = useState(saved);
@@ -252,12 +258,13 @@ function ListField({
 				onChange={(event) => setText(event.target.value)}
 				onBlur={() => {
 					if (text === saved) return;
-					onChange(
-						text
-							.split("\n")
-							.map((line) => line.trim())
-							.filter((line) => line !== ""),
-					);
+					const lines = text
+						.split("\n")
+						.map((line) => line.trim())
+						.filter((line) => line !== "");
+					void onChange(lines).then((stored) => {
+						if (!stored) setText(saved);
+					});
 				}}
 			/>
 		</>
@@ -274,7 +281,7 @@ export function SettingControl({
 	def: SettingDef;
 	value: unknown;
 	disabled?: boolean;
-	onChange: (value: SettingValue) => void;
+	onChange: SaveField<SettingValue>;
 }) {
 	if (def.type === "bool") {
 		return (
@@ -282,7 +289,7 @@ export function SettingControl({
 				aria-label={def.title}
 				checked={value === true}
 				disabled={disabled}
-				onCheckedChange={(checked) => onChange(checked)}
+				onCheckedChange={(checked) => void onChange(checked)}
 			/>
 		);
 	}
@@ -293,7 +300,7 @@ export function SettingControl({
 				value={typeof value === "string" ? value : def.default}
 				options={def.options}
 				disabled={disabled}
-				onValueChange={(next) => onChange(next)}
+				onValueChange={(next) => void onChange(next)}
 			/>
 		);
 	}
@@ -333,16 +340,16 @@ function RegistrySettingRow({
 	const value = useSetting<SettingValue>(def.key);
 	const [localError, setLocalError] = useState<string | null>(null);
 
-	const handleChange = async (next: SettingValue) => {
+	const handleChange = async (next: SettingValue): Promise<boolean> => {
 		setLocalError(null);
 		if (beforeSave !== undefined) {
 			const problem = await beforeSave(def, next);
 			if (problem !== null) {
 				setLocalError(problem);
-				return;
+				return false;
 			}
 		}
-		await saves.save(def.key, next);
+		return saves.save(def.key, next);
 	};
 
 	return (
@@ -355,7 +362,7 @@ function RegistrySettingRow({
 			highlighted={focusSettingKey === def.key}
 			saveError={localError ?? saves.errorOf(def.key)}
 		>
-			<SettingControl def={def} value={value} onChange={(next) => void handleChange(next)} />
+			<SettingControl def={def} value={value} onChange={handleChange} />
 			{extraFor === undefined ? null : extraFor(def, value)}
 		</SettingRow>
 	);

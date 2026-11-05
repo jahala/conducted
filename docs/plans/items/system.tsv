@@ -2182,7 +2182,7 @@ RC-02	capability	Remote control is allowed per chat through our own switch (Clau
 APP-03	operation	Diagnostics captures the login shell, PATH and environment, with values hashed except a safe list.	ui-map 2	covered
 PLAT-18	operation	Diagnostics copies the app logs on request and warns that they may contain personal data.	ui-map 2	covered
 APP-03	operation	The Diagnostics Restart button restarts the app.	ui-map 2	covered
-WS-08	integration	A workspace card can reveal its folder in Finder.	ui-map 4	covered
+NAV-05	integration	A workspace card can reveal its folder in Finder: the archived card's 'Open in Finder' (moved from WS-08 by the slice 2 step 2 audit).	ui-map 4	covered
 GIT-02	git	Each sidebar row shows added and removed line counts taken from the git status poll.	ui-map 4	partly
 CLOUD-10	state	A sidebar row shows a Forwarding ports badge while a cloud workspace forwards ports.	ui-map 4, 3.7	missing
 DATA-05	store	The sidebar width and the open state of both panels are saved as the settings left_panel_width, left_panel_visible and right_panel_visible.	ui-map 1.1	partly

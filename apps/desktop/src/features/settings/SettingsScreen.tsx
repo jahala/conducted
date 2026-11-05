@@ -9,8 +9,9 @@
  * Children: SettingsNav, SettingsSearch, one page component per UserSettingsPageId and
  * RepoSettingsPageId (pages/*.tsx, repo/*.tsx).
  * Our design choice: `page` is "general", "account", "key-bindings", ... for user pages and
- * "repo:<repoId>:<page>" for repository pages (one path segment, as app/router.tsx has it), parsed
- * by parseSettingsPage. Repository pages are linked from SettingsNav, so the router needs no change.
+ * "repo:<repoId>:<page>" for repository pages, parsed by parseSettingsPage. The router gives
+ * repository pages their own address, `/settings/repos/$repoId/$page`, and passes them here in the
+ * "repo:" form; `go()` navigates to that address.
  * Must handle: an unknown page string (designed "page not found" state with a link to General),
  * a repository id that no longer exists, repositories still loading, Esc and the Back button
  * leaving the settings screen, and a search result opening its page and highlighting the setting.
@@ -85,7 +86,7 @@ function UserPage({
 		case "appearance":
 			return (
 				<NotBuiltYet area="Appearance settings" resetKey="appearance">
-					<AppearancePage />
+					<AppearancePage focusSettingKey={focusSettingKey} />
 				</NotBuiltYet>
 			);
 		case "environment":
@@ -241,6 +242,7 @@ export function SettingsScreen({ page, onNavigate, onBack }: SettingsScreenProps
 						? repos.data.map((repo) => ({ id: repo.id, name: repo.name }))
 						: []
 				}
+				reposLoading={repos.state === "loading"}
 				onNavigate={go}
 				onBack={leave}
 				searchSlot={

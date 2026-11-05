@@ -16,7 +16,7 @@ import { getSettingDef } from "../../../core/registries/settings.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { Input, Label } from "../../../ui/Input.tsx";
 import { toast } from "../../../ui/Toast.tsx";
-import { SettingsPageFrame } from "../SettingsPageFrame.tsx";
+import { SettingsPageFrame, useSettingsLoad } from "../SettingsPageFrame.tsx";
 
 const MIN_PORT = 1024;
 const MAX_PORT = 65_535;
@@ -30,19 +30,21 @@ function validateRange(first: number, last: number): RangeError | null {
 	if (!Number.isInteger(first) || !Number.isInteger(last)) {
 		return { message: "Enter whole port numbers." };
 	}
+	// Port 22 is checked before the bounds: it sits below them, so the bounds message would hide it.
+	if (first <= SSH_PORT && last >= SSH_PORT) {
+		return { message: "Port 22 is reserved for SSH. Choose a range that does not include it." };
+	}
 	if (first < MIN_PORT || last > MAX_PORT) {
 		return { message: `Ports must be between ${MIN_PORT} and ${MAX_PORT}.` };
 	}
 	if (first > last) {
 		return { message: "The first port must be lower than or equal to the last port." };
 	}
-	if (first <= SSH_PORT && last >= SSH_PORT) {
-		return { message: "Port 22 is reserved for SSH. Choose a range that does not include it." };
-	}
 	return null;
 }
 
 export function ConnectionsPage({ focusSettingKey = null }: { focusSettingKey?: string | null }) {
+	const load = useSettingsLoad();
 	const actions = useActions();
 	const [first, setFirst] = useState("55000");
 	const [last, setLast] = useState("55010");
@@ -81,9 +83,7 @@ export function ConnectionsPage({ focusSettingKey = null }: { focusSettingKey?: 
 		<SettingsPageFrame
 			title="Connections"
 			description="The local ports workspaces draw from. Cloud port forwarding is not part of this app."
-			state="ready"
-			errorMessage={null}
-			onRetry={() => undefined}
+			{...load}
 			focusSettingKey={focusSettingKey}
 		>
 			<div className="flex flex-col gap-3 border-t border-border py-4 first:border-t-0 first:pt-0">
@@ -134,7 +134,7 @@ export function ConnectionsPage({ focusSettingKey = null }: { focusSettingKey?: 
 						{error}
 					</p>
 				) : null}
-				<p className="text-xs text-fg-subtle">Port 22 is reserved for SSH.</p>
+				<p className="text-xs text-fg-subtle">Ranges cannot include port 22, which SSH uses.</p>
 			</div>
 		</SettingsPageFrame>
 	);
