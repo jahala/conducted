@@ -44,16 +44,27 @@ export type SidecarToAppNotificationParams<K extends SidecarToAppNotification> =
 	(typeof sidecarToAppNotifications)[K]
 >;
 
+/**
+ * A handler may return its payload directly, or a Result when the failure is expected (an agent
+ * that is not installed, a session the sidecar no longer knows). The peer turns a Result error
+ * into the matching JSON-RPC error code.
+ */
+export type AppToSidecarHandlerValue<K extends AppToSidecarRequest> =
+	| AppToSidecarRequestResult<K>
+	| Result<AppToSidecarRequestResult<K>, AppError>;
+
 /** What the app can call. The session manager and friends implement these. */
 export type AppToSidecarHandlers = {
 	[K in AppToSidecarRequest]: (
 		params: AppToSidecarRequestParams<K>,
-	) => Promise<AppToSidecarRequestResult<K>>;
+	) => Promise<AppToSidecarHandlerValue<K>>;
 };
 
 /** Notifications from the app. They have no reply, so handlers return nothing. */
 export type AppToSidecarNotificationHandlers = {
-	[K in AppToSidecarNotification]: (params: AppToSidecarNotificationParams<K>) => void;
+	[K in AppToSidecarNotification]: (
+		params: AppToSidecarNotificationParams<K>,
+	) => void | Promise<void>;
 };
 
 /** The sidecar's view of the app. Every module that talks to the UI takes this as a parameter. */
