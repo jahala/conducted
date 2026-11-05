@@ -1,11 +1,18 @@
 /**
  * @feature GIT-02 Git service: polling change state; GIT-06 Push and pull; GIT-13 Fetch on demand,
  * at most once a minute
+ * @feature WS-02 Create from a branch, PR or issue
  * @feature GIT-05 Commit and push, done by the agent on request
  * @feature GIT-07 Resolve conflicts, done by the agent on request
+<<<<<<< HEAD
  * @feature GIT-12 Branch lists, branch commits and switch branch
  * Owns: polling each shown workspace's git state at the requested depth, the four-slot limiter,
  * and the last error per workspace. Also the write actions that move a branch across the remote:
+=======
+ * Owns: the repository's local branch list for the create-from picker; polling each shown
+ * workspace's git state at the requested depth, the four-slot limiter, and the last error per
+ * workspace. Also the write actions that move a branch across the remote:
+>>>>>>> node/ws.02
  * push, including the first push's upstream setup; pull latest from the target, which fetches,
  * rechecks under the lock, fast-forwards or hands the work to the agent; resolve conflicts, which
  * reads the rebase or merge choice from pull.rebase and sends the instruction to the agent; and
@@ -546,6 +553,18 @@ export class GitService {
 	constructor(deps: GitServiceDeps) {
 		this.#deps = deps;
 		this.store = createStore<GitServiceState>(() => ({ byWorkspace: {}, branchesByRepo: {} }));
+	}
+
+	/** The repository's local branches, newest commit first, for the create-from picker. */
+	async listBranches(repoRootPath: string): Promise<Result<string[]>> {
+		const listed = await this.#deps.git.stdout(branchListLocal(), { cwd: repoRootPath });
+		if (!listed.ok) return listed;
+		return ok(
+			listed.value
+				.split("\n")
+				.map((line) => line.trim())
+				.filter((line) => line !== ""),
+		);
 	}
 
 	/** Polls a workspace until the returned function is called. Several callers share one timer. */

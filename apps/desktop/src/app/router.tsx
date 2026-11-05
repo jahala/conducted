@@ -64,12 +64,17 @@ import { NotFoundScreen, RouteErrorScreen } from "./route-states.tsx";
 /** The window controls' keyboard shortcuts, which follow the same history the buttons use. */
 function NavigationShortcuts() {
 	const router = useRouter();
+	const navigate = useNavigate();
 	useCommandHandler("nav.back", "base", () => {
 		router.history.back();
 		return true;
 	});
 	useCommandHandler("nav.forward", "base", () => {
 		router.history.forward();
+		return true;
+	});
+	useCommandHandler("workspace.createFromSource", "base", () => {
+		void navigate({ to: "/create" });
 		return true;
 	});
 	return null;
