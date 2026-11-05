@@ -110,7 +110,7 @@ function makeRunner(options: { currentBranch?: string; worktreeRemoveCode?: numb
 	};
 }
 
-function makeFs(): { fs: FileSystem; trashed: string[] } {
+function makeFs(folderExists = true): { fs: FileSystem; trashed: string[] } {
 	const trashed: string[] = [];
 	return {
 		trashed,
@@ -122,7 +122,7 @@ function makeFs(): { fs: FileSystem; trashed: string[] } {
 				return ok(undefined);
 			},
 			async exists() {
-				return false;
+				return folderExists;
 			},
 			async stat() {
 				return err(appError("fs_not_found", "missing"));
@@ -149,6 +149,7 @@ interface HarnessOptions {
 	currentBranch?: string;
 	worktreeRemoveCode?: number;
 	archiveScriptFails?: boolean;
+	folderExists?: boolean;
 }
 
 function harness(options: HarnessOptions = {}) {
@@ -162,7 +163,7 @@ function harness(options: HarnessOptions = {}) {
 		currentBranch: options.currentBranch,
 		worktreeRemoveCode: options.worktreeRemoveCode,
 	});
-	const { fs, trashed } = makeFs();
+	const { fs, trashed } = makeFs(options.folderExists ?? true);
 	const transitions: { id: WorkspaceId; from: string; to: string }[] = [];
 	const marks: { id: WorkspaceId; commit: string | null }[] = [];
 
@@ -195,6 +196,7 @@ function harness(options: HarnessOptions = {}) {
 	};
 
 	const cancelAll = vi.fn(async () => ok(undefined));
+	const stopWorkspace = vi.fn(async () => ok(undefined));
 	const runArchive = vi.fn(async () =>
 		options.archiveScriptFails === true
 			? err(appError("archive_script_failed", "archive script failed"))
@@ -217,7 +219,7 @@ function harness(options: HarnessOptions = {}) {
 		scripts: {
 			runSetup: vi.fn(),
 			runArchive,
-			stopWorkspace: vi.fn(),
+			stopWorkspace,
 		},
 		checkpointerPath: "/res/bin/checkpointer.sh",
 		setting: <T>(key: string) => settings[key] as T,
@@ -230,6 +232,7 @@ function harness(options: HarnessOptions = {}) {
 		calls,
 		trashed,
 		cancelAll,
+		stopWorkspace,
 		runArchive,
 		transitions,
 		marks,
@@ -287,6 +290,20 @@ describe("WS-05 archive steps", () => {
 		expect(h.rows[0]?.state).toBe("ready");
 		expect(h.marks).toEqual([]);
 		expect(h.service.store.getState().archiving.w1).toBeUndefined();
+	});
+
+	it("stops a setup script that is still running before archiving", async () => {
+		const h = harness();
+		h.service.store.setState((state) => ({
+			...state,
+			setup: { ...state.setup, w1: "running" },
+		}));
+
+		const archived = await h.service.archive("w1" as WorkspaceId, { deleteBranch: false });
+
+		expect(archived.ok).toBe(true);
+		expect(h.stopWorkspace).toHaveBeenCalledWith("w1");
+		expect(h.rows[0]?.state).toBe("archived");
 	});
 });
 
@@ -346,6 +363,16 @@ describe("WS-05 archive on merge", () => {
 		const failed = await running.service.onPullRequestMerged("w1" as WorkspaceId, 7);
 		expect(failed.ok).toBe(false);
 		if (!failed.ok) expect(failed.error.code).toBe("workspace_has_running_sessions");
+	});
+
+	it("reports a corrupted workspace whose folder is gone", async () => {
+		const h = harness({ settings: { archive_on_merge: true }, folderExists: false });
+
+		const result = await h.service.onPullRequestMerged("w1" as WorkspaceId, 7);
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.code).toBe("workspace_corrupted");
+		expect(h.transitions).toEqual([]);
 	});
 });
 

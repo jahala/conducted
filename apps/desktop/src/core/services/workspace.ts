@@ -1,7 +1,7 @@
 /**
  * @feature WS-01 Workspace service: create, set up, archive, unarchive, delete
  * Owns: the list of workspaces and their lifecycle as far as it is built: creating a worktree and
- * its first chat, and running the setup script.
+ * its first chat, running the setup script, and archiving a workspace.
  * Behaviour: frontend.md 6 (creation, naming, setup, archive), services-map.md 2.4.1 (state
  * machine), 3.1 (create), 3.2 and 5A.1.2 (setup), 3.10 (archive and unarchive), 3.11 (branch
  * rename), ui-map.md 3.9 and 3.1.
@@ -15,12 +15,14 @@
  * failed (a failed setup keeps the workspace, with a retry; a second retry while one runs is
  * ignored); creations run one at a time; a repo config or default-config read that fails is shown
  * as a warning, never hidden.
- * Built now (WS-05): archive. It refuses while a chat is running, cancels the remaining chats,
- * saves the archive snapshot, pins HEAD under the archive ref, runs the archive script, removes
- * the worktree, optionally deletes the branch (never the default branch), and records the archive
- * commit and time. The stack rule for archive-on-merge and the screen's discard confirmation are
- * not built; the service refuses a busy checkout and accepts `discardGitOperationState` from a
- * caller that has already asked.
+ * Built now (WS-05): archive. It refuses while a chat is running, cancels a setup that is still
+ * running and the remaining chats, saves the archive snapshot, pins HEAD under the archive ref,
+ * runs the archive script, removes the worktree, optionally deletes the branch (never the default
+ * branch), and records the archive commit and time. Archive-on-merge is refused for a corrupted
+ * workspace and ignores a merged PR that is not the workspace's own. The stack rule for
+ * archive-on-merge, the open-PR check, the write-access refusal and the screen's discard
+ * confirmation are not built; the service refuses a busy checkout and accepts
+ * `discardGitOperationState` from a caller that has already asked.
  * Not built yet (placeholders): unarchive, delete to the Trash, the branch auto rename,
  * `markRead` and the base from a pull request or issue. `classifyUnarchive` is their decision
  * rule and has no caller until WS-06.
@@ -581,6 +583,10 @@ export const ARCHIVE_RUNNING_CHATS_MESSAGE =
 /** Shown when a workspace that is still being created is asked to archive. */
 export const ARCHIVE_NOT_READY_MESSAGE = "This workspace is still being created.";
 
+/** Shown when archive-on-merge finds a ready workspace whose folder is gone (services-map 5B.1.9). */
+export const WORKSPACE_CORRUPTED_MESSAGE =
+	"This workspace's folder is missing, so it can't be archived. Check the folder or remove the workspace.";
+
 /** One setup run, kept in memory for the Setup tab while the app is open. */
 export interface SetupRun {
 	state: SetupState;
@@ -1110,6 +1116,14 @@ export class WorkspaceService {
 		};
 
 		try {
+			// A setup process can still be running on a row that has moved on. Stop it before the
+			// snapshot so no script writes into the worktree while it is archived (services-map 3.10).
+			const setupState = this.store.getState().setup[id];
+			if (setupState === "running" || setupState === "detecting" || setupState === "stopping") {
+				const stopped = await this.cancelSetup(id);
+				if (!stopped.ok) return await rollBack(stopped.error);
+			}
+
 			const cancelled = await this.#deps.sessions.cancelAll(id);
 			if (!cancelled.ok) return await rollBack(cancelled.error);
 
@@ -1185,8 +1199,9 @@ export class WorkspaceService {
 
 	/**
 	 * Finishes or rolls back workspaces that a crash left in `archiving`. A missing folder means
-	 * the archive got as far as removing the worktree, so the row is finished; a folder still on
-	 * disk means the archive stopped early, so the workspace goes back to the state it had.
+	 * the archive got as far as removing the worktree, so the row is finished with the commit
+	 * repair read; a folder still on disk means the archive stopped early, so the row goes back
+	 * to ready and can be archived again.
 	 */
 	async recoverArchiving(workspaces: readonly ArchivingWorkspace[]): Promise<Result<void>> {
 		for (const row of workspaces) {
@@ -1248,6 +1263,9 @@ export class WorkspaceService {
 			return ok(undefined);
 		}
 		if (workspace.prNumber !== null && workspace.prNumber !== prNumber) return ok(undefined);
+		if (!(await this.#deps.platform.fs.exists(workspace.path))) {
+			return err(appError("workspace_corrupted", WORKSPACE_CORRUPTED_MESSAGE));
+		}
 		return this.archive(id, { deleteBranch: false });
 	}
 

@@ -443,7 +443,10 @@ export function removeWorktree(
 		const removed = await runner.run(worktreeRemove(input.worktreePath), {
 			cwd: input.repoRootPath,
 		});
-		if (removed.ok && removed.value.exitCode === 0) return ok(undefined);
+		// A command that could not start is a real failure; only a refusal by git falls through
+		// to the Trash and prune path below.
+		if (!removed.ok) return removed;
+		if (removed.value.exitCode === 0) return ok(undefined);
 		if (await fs.exists(input.worktreePath)) {
 			const trashed = await fs.trash(input.worktreePath);
 			if (!trashed.ok) return trashed;
