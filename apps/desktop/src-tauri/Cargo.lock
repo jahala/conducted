@@ -647,6 +647,7 @@ dependencies = [
  "grep-regex",
  "grep-searcher",
  "ignore",
+ "muda",
  "nucleo-matcher",
  "portable-pty",
  "security-framework",

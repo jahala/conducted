@@ -407,7 +407,10 @@ export function createTauriAppInfo(
 			if (!result.ok) throw result.error;
 		},
 		exportLogs: () => invokeResult<string>(bindings, COMMANDS.logsExport),
-		setQuitHandlerReady: () => notImplemented("PLAT-15"),
+		setQuitHandlerReady: async () => {
+			const result = await invokeResult(bindings, COMMANDS.setQuitHandlerReady);
+			if (!result.ok) throw result.error;
+		},
 	};
 }
 
@@ -1048,7 +1051,10 @@ export function createTauriWindow(bindings: TauriBindings): AppWindow {
 		setVibrancy: () => notImplemented("PLAT-23"),
 		setTrafficLightPosition: () => notImplemented("PLAT-23"),
 		setTheme: () => notImplemented("PLAT-23"),
-		toggleInspector: () => notImplemented("PLAT-15"),
+		toggleInspector: async () => {
+			const result = await invokeResult(bindings, COMMANDS.windowToggleInspector);
+			if (!result.ok) throw result.error;
+		},
 	};
 }
 
