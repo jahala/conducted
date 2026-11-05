@@ -910,7 +910,7 @@ PR-07	state	'No description' on a PR	ui-map 7.2	covered
 PR-04	state	'No logs available.'	ui-map 7.2	covered
 RUN-03	state	'No local servers running. Start your dev server...'	ui-map 7.2	covered
 APP-04	region	Shared empty-state layout	ui-map 7.2, 8	covered
-APP-05	rule	Empty state has a tone (neutral or failed) and an optional icon	ui-map 8	partly
+APP-04	rule	Empty state has a tone (neutral or failed) and an optional icon	ui-map 8	partly
 APP-05	rule	Loading indicator kinds: working, typing, waiting, setting-up	ui-map 7.3	partly
 APP-04	rule	Loading, error-with-retry and ready wrapper (LoadableView)	ui-map 7.3, 7.4	covered
 APP-04	state	Skeleton blocks and status role with aria labels	ui-map 7.3	covered
@@ -923,7 +923,7 @@ CHAT-06	state	Agent program and sign-in problems shown inline in the chat	ui-map
 APP-05	rule	Toasts have success, error and warning variants	ui-map 7.4	covered
 APP-05	rule	Workspace-scoped toast that only shows while that workspace is open	ui-map 7.4	missing
 WS-01	message	Toast 'Failed to create workspace'	ui-map 7.4	covered
-GIT-01	message	Toast 'Xcode license is not accepted' for 15 seconds with a 'Run for me' action	inventory label #196, description #17	missing
+GIT-16	message	Toast 'Xcode license is not accepted' for 15 seconds with a 'Run for me' action	inventory label #196, description #17	missing
 GIT-01	message	Friendly text when SSH is blocked and HTTPS also fails	services-map 3.6.1	partly
 RUN-04	message	Toast 'Couldn't open browser tab'	ui-map 7.4	covered
 APP-01	rule	Local logs for unhandled errors	services-map 5B.11.3	partly
@@ -960,7 +960,7 @@ APP-13	region	Alert (default and destructive) for banners	ui-map 8	missing
 APP-13	region	Truncated text with middle truncation and copy	ui-map 8	missing
 APP-13	region	Search-highlight text for settings search and the palette	ui-map 8	missing
 APP-05	region	Tabs, panel header and resizable panels	ui-map 8	covered
-APP-05	region	Icon set (more icons for status, git, tool cards) and a licensed file-icon set	ui-map 8	partly
+APP-05	region	Icon set: more icons for status, git and tool cards	ui-map 8	covered
 APP-15	rule	One shared fuzzy matcher for settings search, the palette and pickers	ui-map 6, 8	missing
 APP-14	rule	Search-highlight colour with AA contrast	ui-map 8	missing
 APP-14	rule	Link style in Markdown and PR text	ui-map 8	missing
@@ -970,7 +970,7 @@ APP-14	rule	Colour-vision variants of the danger, success and warning colours	ui
 APP-14	rule	Translucent sidebar surface for the vibrancy setting	ui-map 8	missing
 APP-14	rule	Contrast guard checks every theme combination	ui-map 8	partly
 APP-05	rule	Surface, text, border, focus and danger tokens, single accent, light and dark themes	ui-map 8	covered
-APP-05	rule	Fonts: system UI and system mono stacks (design choice; Tufte style needs a serif decision)	ui-map 8	partly
+APP-05	rule	Fonts: Geist and Geist Mono, shipped with the app (D023)	ui-map 8	covered
 CHAT-24	rule	Mermaid dependency added with a licence check	ui-map 8	partly
 NAV-14	rule	A hook registers a handler for a command id with a priority	ui-map 8	partly
 NAV-15	rule	Long-lived DOM surface layer for terminals and webviews	ui-map 8, 9	partly
@@ -1013,3 +1013,5 @@ RUN-07	rule	The agent can read a terminal's output through the GetTerminalOutput
 RUN-07	rule	Output of an ended run falls back to saved terminal history	services-map 5A.1.3	partly
 RUN-08	rule	Spotlight helper script copies workspace changes into the repo root and restores them on stop	native-and-sidecar-map C3	covered
 WS-10	rule	Removing a repository deletes its workspaces and chats; failed or half-created local workspaces are cleaned up at startup	services-map 3.10, 2.3.1	covered
+REV-06	region	A licensed file-icon set for the file tree and file tabs	ui-map 8	missing
+NAV-01	rule	The toast host knows the open workspace, so a workspace's toasts show only while it is open.	ui-map 8	missing
