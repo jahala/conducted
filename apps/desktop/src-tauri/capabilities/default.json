@@ -1,15 +1,27 @@
 {
 	"$schema": "../gen/schemas/desktop-schema.json",
 	"identifier": "default",
-	"description": "What the main window may call from Tauri and its plugins. Keep this list as small as the features need. The app's own commands (lib.rs) are not limited here yet: PLAT-29 adds that.",
+	"description": "What the main window may call from Tauri and its plugins. Only the plugins the UI uses are granted. The app's file and shell commands check their own path and program scopes, so the broad file-system and shell plugin defaults are not granted.",
 	"windows": ["main"],
 	"permissions": [
 		"core:default",
-		"opener:default",
+		{
+			"identifier": "opener:allow-open-url",
+			"allow": [
+				{ "url": "https://*" },
+				{ "url": "http://*" },
+				{ "url": "mailto:*" },
+				{ "url": "tel:*" },
+				{ "url": "linear://*" },
+				{ "url": "vscode://*" },
+				{ "url": "slack://*" },
+				{ "url": "figma://*" },
+				{ "url": "notion://*" },
+				{ "url": "raycast://*" }
+			]
+		},
 		"sql:default",
 		"sql:allow-execute",
-		"shell:default",
-		"fs:default",
 		"dialog:default",
 		"notification:default",
 		"clipboard-manager:default",

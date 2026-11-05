@@ -32,13 +32,13 @@
 //!   the environment between a delimiter, and retries once with a plain login zsh (5 s, then 3 s).
 //! - Provider keys and exported shell functions are removed from the captured environment.
 //!
-//! Scope (PLAT-29, native-and-sidecar-map.md A3): the first version of `shell_run` and
-//! `shell_start` runs any program. PLAT-29 will add `check_program_allowed`, which both will call
-//! first. It compares the program's name (the file name, after resolving a bare name on PATH) with
-//! a list the app builds: the programs the UI runs (git, gh, the shell for repository scripts,
-//! kill, which, open, caffeinate, pmset, lsof) and the managed agent programs. A program outside
-//! the list will fail with `shell_program_not_allowed` and name it. The file scope and URL scopes
-//! are in `files.rs`.
+//! Scope (PLAT-29, native-and-sidecar-map.md A3): `shell_run` and `shell_start` first call
+//! `check_program_allowed`, which compares the program's file name with `ALLOWED_PROGRAMS`: the
+//! programs the UI and its contract run (git, gh, gt, stat, cp, sleep, echo, true, the shell and
+//! the helper scripts for repository scripts, kill, which, open, caffeinate, pmset, lsof,
+//! watchexec) and the managed agent programs (claude, codex, cursor-agent, opencode, pi). A
+//! program outside the list fails with `shell_program_not_allowed` and names it. The file scope
+//! and URL scopes are in `files.rs`.
 //!
 //! Our design choice: the id for `shell_start` comes from the UI. The captured environment is the
 //! base of every run and `ShellCommandRequest::env` is layered on top, as the Platform comment says.
@@ -67,7 +67,6 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::error::{CommandError, CommandResult};
-use crate::not_implemented;
 use crate::process_group;
 
 /// Event delivered when a command started with `shell_start` ends.
@@ -382,6 +381,7 @@ fn build_command(
     request: &ShellCommandRequest,
     base_env: &HashMap<String, String>,
 ) -> CommandResult<Command> {
+    check_program_allowed(&request.program, ALLOWED_PROGRAMS)?;
     let cwd = Path::new(&request.cwd);
     if !cwd.is_dir() {
         return Err(CommandError::Failed {
@@ -973,9 +973,49 @@ pub fn start_background_capture(app: AppHandle) {
     });
 }
 
+/// Programs the web view may start. A program with a path is compared by its file name.
+pub const ALLOWED_PROGRAMS: &[&str] = &[
+    "git",
+    "gh",
+    "gt",
+    "stat",
+    "cp",
+    "sleep",
+    "echo",
+    "true",
+    "sh",
+    "bash",
+    "zsh",
+    "kill",
+    "which",
+    "open",
+    "lsof",
+    "caffeinate",
+    "pmset",
+    "watchexec",
+    "checkpointer.sh",
+    "spotlighter.sh",
+    "git-busy-check.sh",
+    "claude",
+    "codex",
+    "cursor-agent",
+    "opencode",
+    "pi",
+];
+
 /// Checks that `program` is on the list of programs the web view may start.
-pub fn check_program_allowed(_program: &str, _allowed: &[&str]) -> CommandResult<()> {
-    not_implemented!("PLAT-29")
+pub fn check_program_allowed(program: &str, allowed: &[&str]) -> CommandResult<()> {
+    let name = Path::new(program)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(program);
+    if allowed.contains(&name) {
+        return Ok(());
+    }
+    Err(CommandError::Failed {
+        code: "shell_program_not_allowed",
+        message: format!("The window may not run this program: {program}"),
+    })
 }
 
 /// Runs a program to completion and returns its output.
@@ -1672,6 +1712,34 @@ mod tests {
         );
         assert!(remove_finished(&running, "first"));
         assert!(remove_finished(&running, "reserved"));
+    }
+
+    #[test]
+    fn plat_29_allows_a_named_program_and_its_absolute_path() {
+        check_program_allowed("git", ALLOWED_PROGRAMS).expect("a bare name is allowed");
+        check_program_allowed("/usr/bin/git", ALLOWED_PROGRAMS)
+            .expect("an absolute path with an allowed file name is allowed");
+        check_program_allowed("/opt/homebrew/bin/gh", ALLOWED_PROGRAMS)
+            .expect("a managed program path is allowed");
+    }
+
+    #[test]
+    fn plat_29_rejects_a_program_outside_the_list_and_names_it() {
+        let error = check_program_allowed("/usr/bin/curl", ALLOWED_PROGRAMS)
+            .expect_err("a program outside the list is refused");
+        assert_eq!(error_code(error), "shell_program_not_allowed");
+        let message = match check_program_allowed("curl", ALLOWED_PROGRAMS) {
+            Err(CommandError::Failed { message, .. }) => message,
+            other => panic!("unexpected result: {other:?}"),
+        };
+        assert!(message.contains("curl"), "the error names the program");
+    }
+
+    #[test]
+    fn plat_29_spawning_a_program_outside_the_list_is_refused() {
+        let error = spawn_child(&request("/usr/bin/curl", &["--version"]), &test_env())
+            .expect_err("the program never starts");
+        assert_eq!(error_code(error), "shell_program_not_allowed");
     }
 
     #[test]
