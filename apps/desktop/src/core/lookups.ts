@@ -13,6 +13,8 @@
  * home of a repository's remote (DATA-09), because the settings files are where the user sets it.
  * `remoteNameOf` reads `RepoConfig.remoteName` from the repo store, and `gitContext` and
  * `prContext` take their remote from it, so every git and pull request caller uses the same name.
+ * `remoteNameOf` and the workspace service apply the same rule (`remoteNameFromConfig`): empty
+ * means "origin", and a name git could read as an option is refused.
  * Stores are passed as getters so construction order does not matter.
  * Test first: a repo whose config names "upstream" gives "upstream" to gitContext and prContext,
  * even when the workspace's target branch names "origin/dev".
@@ -32,7 +34,7 @@ import type { WorkspaceGitContext } from "./services/git.ts";
 import type { PrWorkspaceContext } from "./services/github.ts";
 import type { RepoState } from "./services/repo.ts";
 import type { SessionsState } from "./services/sessions.ts";
-import type { WorkspaceState } from "./services/workspace.ts";
+import { remoteNameFromConfig, type WorkspaceState } from "./services/workspace.ts";
 
 export interface LookupSources {
 	workspaces: () => StoreApi<WorkspaceState>;
@@ -93,8 +95,7 @@ export function createLookups(sources: LookupSources): Lookups {
 		if (!ws.ok) return ws;
 		const config = sources.repos().getState().configs[ws.value.repoId];
 		if (config === undefined) return repoConfigUnloaded();
-		const name = config.remoteName?.trim() ?? "";
-		return ok(name === "" ? "origin" : name);
+		return remoteNameFromConfig(config);
 	};
 	return {
 		workspace,

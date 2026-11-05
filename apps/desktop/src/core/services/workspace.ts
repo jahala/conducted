@@ -14,8 +14,9 @@
  * files (for example `.env`) is part of creation and never overwrites a file already in the
  * worktree; setup runs in a terminal with the workspace variables and its result decides ready or
  * failed (a failed setup keeps the workspace, with a retry; a second retry while one runs is
- * ignored); creations run one at a time; a repo config or default-config read that fails is shown
- * as a warning, never hidden.
+ * ignored); creations run one at a time; a repository config that cannot be read for the remote
+ * name stops creation with its error, while a failed read of the file list or the default config
+ * is shown as a warning.
  * Built now (WS-05): archive. It refuses while a chat is running, cancels a setup that is still
  * running and the remaining chats, saves the archive snapshot, pins HEAD under the archive ref,
  * runs the archive script, removes the worktree, optionally deletes the branch (never the default
@@ -33,8 +34,9 @@
  * pass in place of any other list. Creation copies the repository's included files, counts the
  * worktree files, then runs setup in a terminal. Warnings and the first message of a failed
  * creation live in the service's in-memory store: the contract's `Workspace` row has no field for
- * them, and the create page reads them back after the action returns. Calls to `repoConfig` and
- * `defaultConfig` are optional because the composition root passes them in a later wiring change.
+ * them, and the create page reads them back after the action returns. The composition root
+ * supplies the repository config reader; the default-config reader remains optional until the
+ * composition root passes it.
  * Test first: classifyUnarchive returns "branchTaken" when the branch is checked out elsewhere.
  */
 import type { SessionConfig } from "@conducted/protocol";
@@ -538,6 +540,20 @@ export const invalidRefNameError = (name: string): AppError =>
 		`"${name}" can't be used as a Git branch or remote name. Check the branch prefix in settings.`,
 	);
 
+/** The remote a repository uses when its config names none (ui-map 6 Git, services-map 3.1). */
+export const DEFAULT_REMOTE_NAME = "origin";
+
+/**
+ * The remote name the repository config picks, or `DEFAULT_REMOTE_NAME` when it names none. One
+ * rule for creation and for every git and pull request caller (DATA-09). A configured name git
+ * could read as an option is an error, never passed to a command.
+ */
+export function remoteNameFromConfig(config: RepoConfig): Result<string> {
+	const name = config.remoteName?.trim() ?? "";
+	if (name === "") return ok(DEFAULT_REMOTE_NAME);
+	return isSafeRefName(name) ? ok(name) : err(invalidRefNameError(name));
+}
+
 /** Resolves `NewWorkspaceInput.from` to the branch the worktree starts from. */
 export function baseBranchFor(
 	defaultBranch: string,
@@ -638,7 +654,7 @@ export interface WorkspaceServiceDeps {
 	 */
 	ports?: { allocateForNewWorkspace(): Promise<Result<number>> };
 	/** The repository's effective config, for the remote name. Supplied by the composition root. */
-	repoConfig?: (repoId: RepoId) => Promise<Result<RepoConfig>>;
+	repoConfig: (repoId: RepoId) => Promise<Result<RepoConfig>>;
 	/** The one default-config rule for a new chat. Supplied by the composition root. */
 	defaultConfig?: (workspaceId: WorkspaceId) => Promise<Result<SessionConfig>>;
 	scripts: {
@@ -739,7 +755,7 @@ export class WorkspaceService {
 		if (!target.ok) return target;
 		const remoteRead = await this.#remoteFor(repo);
 		if (!remoteRead.ok) return remoteRead;
-		const remote = remoteRead.value.name;
+		const remote = remoteRead.value;
 
 		const root = expandHome(
 			this.#deps.setting<string>("conducted_root_path"),
@@ -756,7 +772,6 @@ export class WorkspaceService {
 		if (!folder.ok) return folder;
 
 		const warnings: string[] = [];
-		if (remoteRead.value.warning !== null) warnings.push(remoteRead.value.warning);
 		const prefixType = this.#deps.setting<string>("branch_prefix_type");
 		const login = prefixType === "github_username" ? await this.#githubLogin(repo.rootPath) : null;
 		if (prefixType === "github_username" && login === null) {
@@ -1381,12 +1396,9 @@ export class WorkspaceService {
 
 		const remote = await this.#remoteFor(repo);
 		if (!remote.ok) return this.#fail(initializing, remote.error);
-		const materialised = await this.#materialise(initializing, repo, remote.value.name);
+		const materialised = await this.#materialise(initializing, repo, remote.value);
 		if (!materialised.ok) return materialised;
-		this.#addWarnings(id, [
-			...(remote.value.warning === null ? [] : [remote.value.warning]),
-			...materialised.value.warnings,
-		]);
+		this.#addWarnings(id, materialised.value.warnings);
 
 		// A failed creation kept its first message, so a successful retry can start the chat.
 		const firstInput = this.store.getState().failedFirstInputs?.[id];
@@ -1471,23 +1483,14 @@ export class WorkspaceService {
 	}
 
 	/**
-	 * The remote the repository's config picks, or "origin" when the config names none
-	 * (ui-map 6 Git, services-map 3.1). A config that cannot be read still gives "origin", with a
-	 * warning that says so. A configured name git would refuse is an error.
+	 * The remote the repository's config picks, validated before any git command uses it
+	 * (ui-map 6 Git, services-map 3.1). A config that cannot be read stops creation with its
+	 * error: the service never falls back to a remote the user did not choose.
 	 */
-	async #remoteFor(repo: Repo): Promise<Result<{ name: string; warning: string | null }>> {
-		const configured =
-			this.#deps.repoConfig === undefined ? null : await this.#deps.repoConfig(repo.id);
-		if (configured === null) return ok({ name: "origin", warning: null });
-		if (!configured.ok) {
-			return ok({
-				name: "origin",
-				warning: `Couldn't read the repository's settings, so the remote "origin" is used: ${configured.error.message}`,
-			});
-		}
-		const name = configured.value.remoteName?.trim() ?? "";
-		if (name === "") return ok({ name: "origin", warning: null });
-		return isSafeRefName(name) ? ok({ name, warning: null }) : err(invalidRefNameError(name));
+	async #remoteFor(repo: Repo): Promise<Result<string>> {
+		const configured = await this.#deps.repoConfig(repo.id);
+		if (!configured.ok) return configured;
+		return remoteNameFromConfig(configured.value);
 	}
 
 	/**

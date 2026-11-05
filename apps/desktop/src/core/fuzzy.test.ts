@@ -49,6 +49,24 @@ describe("APP-15 fuzzyMatch", () => {
 		expect(short?.score).toBeGreaterThan(prefix?.score ?? 0);
 	});
 
+	it("scores a word start and a camelCase boundary higher", () => {
+		const wordStart = fuzzyMatch("app", "x app");
+		const glued = fuzzyMatch("app", "xapp");
+		expect(wordStart).not.toBeNull();
+		expect(glued).not.toBeNull();
+		expect(wordStart?.score).toBeGreaterThan(glued?.score ?? 0);
+
+		const camel = fuzzyMatch("ba", "fooBar");
+		const lower = fuzzyMatch("ba", "foobar");
+		expect(camel).not.toBeNull();
+		expect(lower).not.toBeNull();
+		expect(camel?.score).toBeGreaterThan(lower?.score ?? 0);
+	});
+
+	it("lets two query words claim the same letters", () => {
+		expect(fuzzyMatch("app app", "App")).not.toBeNull();
+	});
+
 	it("keeps ranges valid for characters outside the basic plane", () => {
 		const candidate = "😀 App";
 		const match = fuzzyMatch("app", candidate);

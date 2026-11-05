@@ -1,8 +1,8 @@
 /**
  * @feature APP-15 One shared fuzzy matcher
  * Owns: the one function that scores how well a query matches a text, and the helper that ranks a list
- * with it. Settings search (SET-02), the command palette (NAV-08) and the pickers call it from their
- * own features.
+ * with it. Nothing calls it yet; settings search (SET-02), the command palette (NAV-08) and the
+ * pickers own their own wiring.
  * Behaviour: ui-map.md 6 (settings search is fuzzy over labels, descriptions and keywords, top 30
  * results, arrow keys and Enter) and 8 ("Fuzzy search util `aO({items, query, fields, threshold})` is
  * shared by settings search and pickers"); native-and-sidecar-map.md (the file search in Rust has its

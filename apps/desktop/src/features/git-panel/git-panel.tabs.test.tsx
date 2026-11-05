@@ -33,7 +33,7 @@ vi.mock("../../core/context.tsx", () => ({
 	useServices: () => ({ services: { git: { refresh: async () => ({ ok: true }) } } }),
 }));
 
-// computeGitHeader is the real, unbuilt one (GIT-04): the panel must still show its tabs.
+// The real header (GIT-04) is used here; an unbuilt tab must not take the rest of the panel down.
 vi.mock("./changes/ChangesTab.tsx", () => ({ ChangesTab: () => <div>changes body</div> }));
 
 const { GitPanel } = await import("./GitPanel.tsx");
@@ -71,7 +71,7 @@ describe("REV-01 git panel with unbuilt tabs", () => {
 		choose("Checks");
 		expect(screen.getByText(/Not built yet: PR-04/)).toBeTruthy();
 		expect(screen.getByRole("tab", { name: /Changes/ })).toBeTruthy();
-		expect(screen.getByText(/Not built yet: GIT-04/)).toBeTruthy();
+		expect(screen.getAllByText("Uncommitted changes").length).toBeGreaterThan(0);
 
 		choose(/^Changes/);
 		expect(screen.getByText("changes body")).toBeTruthy();

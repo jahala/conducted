@@ -99,7 +99,7 @@ import {
 	refreshWorkspaceChanges,
 	remoteTargetRef,
 } from "../git/status.ts";
-import type { GitState } from "../model.ts";
+import type { GitState, PullRequestAction } from "../model.ts";
 import {
 	commitAndPushInstruction,
 	pullRebaseStrategy,
@@ -412,6 +412,22 @@ export function branchNameWithoutRemote(branch: string, remote: string): string 
 	return branch;
 }
 
+/**
+ * A target branch entered by the user or an agent. Trims it, refuses a name git could read as an
+ * option, and returns the bare branch name: no refs prefix and no leading remote name. The bare
+ * name is the one stored form, used for the stored target, the fetched ref, the reset and the
+ * pull request base (services-map 3.11).
+ */
+export function parseTargetBranch(remote: string, input: string): Result<string> {
+	const entered = input.trim();
+	if (!isSafeRefName(entered)) {
+		return err(
+			appError("workspace_branch_invalid", `"${entered}" can't be used as a Git branch name.`),
+		);
+	}
+	return ok(branchNameWithoutRemote(entered, remote));
+}
+
 /** One file's viewed mark, together with the version of the file it was made on. */
 interface ViewedMark {
 	viewed: boolean;
@@ -545,11 +561,24 @@ export class GitService {
 		if (result.value.branch !== expectedBranch) return ok(undefined);
 
 		const previous = this.store.getState().byWorkspace[key]?.snapshot ?? null;
-		// A metadata poll reads only the branch; every other part of the snapshot stays as it was.
-		const snapshot =
+		// A metadata poll reads only the branch, so every other part stays as it was and the depth
+		// marks the counts as unknown. An uncommitted poll keeps the last full poll's changed-file
+		// count, which it did not read again.
+		const snapshot: ChangesSnapshot =
 			depth === "metadata" && previous !== null
-				? { ...previous, branch: result.value.branch }
-				: result.value;
+				? {
+						...previous,
+						depth: "metadata",
+						branch: result.value.branch,
+						uncommittedFiles: null,
+						changedFiles: null,
+					}
+				: depth === "uncommitted" &&
+						previous !== null &&
+						previous.changedFiles !== null &&
+						result.value.changedFiles === null
+					? { ...result.value, changedFiles: previous.changedFiles }
+					: result.value;
 		this.store.setState((state) => ({
 			byWorkspace: {
 				...state.byWorkspace,
@@ -576,16 +605,28 @@ export class GitService {
 
 	/**
 	 * Backs `useGitState`: the polled snapshot merged with the PR entry the caller read from the
-	 * GitHub service. Returns null until the first poll has stored a snapshot.
+	 * GitHub service. Returns null until a poll has stored both counts: a metadata poll knows
+	 * nothing, and an uncommitted poll has no branch comparison. `pendingAction` is the pull
+	 * request action running in the GitHub service, if any.
 	 */
-	stateOf(workspaceId: WorkspaceId, prEntry?: WorkspacePrEntry): GitState | null {
+	stateOf(
+		workspaceId: WorkspaceId,
+		prEntry?: WorkspacePrEntry,
+		pendingAction: PullRequestAction | null = null,
+	): GitState | null {
 		const snapshot = this.store.getState().byWorkspace[String(workspaceId)]?.snapshot ?? null;
 		if (snapshot === null) return null;
-		const changedFiles = snapshot.files.length;
+		if (
+			DEPTH_RANK[snapshot.depth] < DEPTH_RANK.uncommitted ||
+			snapshot.uncommittedFiles === null ||
+			snapshot.changedFiles === null
+		) {
+			return null;
+		}
 		return {
 			branch: snapshot.branch ?? "",
-			uncommittedFiles: changedFiles,
-			changedFiles,
+			uncommittedFiles: snapshot.uncommittedFiles,
+			changedFiles: snapshot.changedFiles,
 			linesAdded: snapshot.files.reduce((total, file) => total + file.linesAdded, 0),
 			linesRemoved: snapshot.files.reduce((total, file) => total + file.linesRemoved, 0),
 			hasConflicts: snapshot.conflictedPaths.length > 0,
@@ -599,7 +640,7 @@ export class GitService {
 						? "none"
 						: prEntry.unavailable,
 			untrackedFilesTruncated: snapshot.untrackedTruncated,
-			pendingPullRequestAction: null,
+			pendingPullRequestAction: pendingAction,
 		};
 	}
 
@@ -1221,17 +1262,13 @@ export class GitService {
 		const found = await this.#deps.contextOf(workspaceId);
 		if (!found.ok) return found;
 		const context = found.value;
-		const requested = branch.trim();
-		if (!isSafeRefName(requested)) {
-			return err(
-				appError("workspace_branch_invalid", `"${requested}" can't be used as a Git branch name.`),
-			);
-		}
+		const parsed = parseTargetBranch(context.remote, branch);
+		if (!parsed.ok) return parsed;
+		const branchName = parsed.value;
 
-		const stored = await this.#deps.setIntendedTargetBranch(workspaceId, requested);
+		const stored = await this.#deps.setIntendedTargetBranch(workspaceId, branchName);
 		if (!stored.ok) return stored;
 
-		const branchName = branchNameWithoutRemote(requested, context.remote);
 		const moved = await this.#deps.moveOpenPullRequestBase(workspaceId, branchName);
 		if (!moved.ok) return moved;
 		if (moved.value) return ok(undefined);
@@ -1267,7 +1304,7 @@ export class GitService {
 				if (!oldSha.ok) return oldSha;
 				if (head.value !== oldSha.value) return ok(undefined);
 
-				const newRef = remoteTargetRef(requested, context.remote);
+				const newRef = remoteTargetRef(branchName, context.remote);
 				const newExists = await this.#refExists(context.workspacePath, newRef);
 				if (!newExists.ok) return newExists;
 				if (!newExists.value) return ok(undefined);
@@ -1288,13 +1325,9 @@ export class GitService {
 		const found = await this.#deps.contextOf(workspaceId);
 		if (!found.ok) return found;
 		const context = found.value;
-		const requested = branch.trim();
-		if (!isSafeRefName(requested)) {
-			return err(
-				appError("workspace_branch_invalid", `"${requested}" can't be used as a Git branch name.`),
-			);
-		}
-		const branchName = branchNameWithoutRemote(requested, context.remote);
+		const parsed = parseTargetBranch(context.remote, branch);
+		if (!parsed.ok) return parsed;
+		const branchName = parsed.value;
 		const ref = remoteTargetRef(branchName, context.remote);
 		const exists = await this.#refExists(context.workspacePath, ref);
 		if (!exists.ok) return exists;

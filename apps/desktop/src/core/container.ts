@@ -380,6 +380,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		placeNames: inputs.placeNames,
 		sessions,
 		ports,
+		repoConfig: (repoId) => repo.loadConfig(repoId),
 		scripts: runScripts,
 		checkpointerPath: checkpointerScript(paths),
 		setting,

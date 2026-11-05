@@ -31,9 +31,13 @@ export const useGitState: Queries["useGitState"] = (workspaceId) => {
 				),
 			};
 		}
-		const state = services.git.stateOf(workspaceId, prEntry);
+		const state = services.git.stateOf(
+			workspaceId,
+			prEntry,
+			services.github.pendingAction(workspaceId),
+		);
 		return state === null ? { state: "loading" } : { state: "ready", data: state };
-	}, [services.git, workspaceId, entry, prEntry]);
+	}, [services.git, services.github, workspaceId, entry, prEntry]);
 };
 const changedFilesKey = (workspaceId: WorkspaceId, scope: DiffScope) =>
 	["git", "workspace", workspaceId, "changes", scope] as const;

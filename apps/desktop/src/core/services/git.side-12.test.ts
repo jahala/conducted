@@ -64,6 +64,9 @@ const service = (git: GitRunner): GitService =>
 		cache: {} as never,
 		contextOf: async () => ok(context),
 		agent: {} as never,
+		renameWorkspaceBranch: async () => ok(undefined),
+		setIntendedTargetBranch: async () => ok(undefined),
+		moveOpenPullRequestBase: async () => ok(false),
 		now: () => 0,
 		fs: {
 			trash: async () => ok(undefined),

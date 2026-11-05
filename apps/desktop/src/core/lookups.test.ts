@@ -180,6 +180,20 @@ describe("DATA-09 one home for a repository's remote", () => {
 		});
 	});
 
+	it("refuses a configured remote name git could read as an option", () => {
+		const lookups = lookupsWith("--upload-pack=x");
+		for (const result of [
+			lookups.remoteNameOf("w1" as WorkspaceId),
+			lookups.gitContext("w1" as WorkspaceId),
+			lookups.prContext("w1" as WorkspaceId),
+		]) {
+			expect(result).toMatchObject({
+				ok: false,
+				error: { code: "workspace_branch_invalid" },
+			});
+		}
+	});
+
 	it("refuses to guess a remote before the config is loaded", () => {
 		expect(makeLookups().remoteNameOf("w1" as WorkspaceId)).toMatchObject({
 			ok: false,

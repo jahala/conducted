@@ -78,9 +78,11 @@ import type {
 	GitHubRepoSummary,
 	IssueView,
 	PullRequest,
+	PullRequestAction,
 	PullRequestSummary,
 } from "../model.ts";
 import { createPrInstruction } from "./agent-instructions.ts";
+import { parseTargetBranch } from "./git.ts";
 import type { GitCache } from "./git-cache.ts";
 import { buildDeepLink } from "./notifications.ts";
 import {
@@ -1007,6 +1009,14 @@ export class GithubService {
 		});
 	}
 
+	/**
+	 * The pull request action running for a workspace, for the header's progress. Only merge has a
+	 * live path today; the other actions belong to PR-06 and PR-08.
+	 */
+	pendingAction(workspaceId: WorkspaceId): PullRequestAction | null {
+		return this.#flights.isRunning(`merge:${workspaceId}`) ? "merging" : null;
+	}
+
 	/** Backs `Actions.app.recheckGitHubAccess`: runs the access probes again and updates the store. */
 	async recheckAccess(): Promise<Result<void>> {
 		const result = await this.checkAccess();
@@ -1436,16 +1446,13 @@ export class GithubService {
 		);
 	}
 
-	/** The target branch without its remote prefix, as `gh pr create --base` expects it. */
+	/** The target branch as `gh pr create --base` expects it, parsed by the one target rule. */
 	#targetBranchOf(context: PrWorkspaceContext): Result<string> {
 		const stored = context.targetBranch?.trim() ?? "";
 		if (stored.length === 0) {
 			return err(appError("github_target_unknown", "This workspace has no target branch."));
 		}
-		const prefix = `${context.remote}/`;
-		return ok(
-			context.remote.length > 0 && stored.startsWith(prefix) ? stored.slice(prefix.length) : stored,
-		);
+		return parseTargetBranch(context.remote, stored);
 	}
 
 	/** Refuses to act on a repository without a GitHub remote. */

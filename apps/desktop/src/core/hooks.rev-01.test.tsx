@@ -24,12 +24,15 @@ const testWrapper = (container: Container, client: QueryClient) => {
 
 const snapshot = (): ChangesSnapshot =>
 	({
+		depth: "full",
 		branch: "feat",
 		mergeBase: "mb",
 		mergeBaseError: null,
 		files: [],
 		conflictedPaths: [],
 		untrackedTruncated: false,
+		uncommittedFiles: 0,
+		changedFiles: 0,
 		operation: "none",
 		commits: [
 			{
