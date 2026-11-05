@@ -475,10 +475,12 @@ pub fn pump_output<R: Read>(
         match reader.read(&mut buffer) {
             Ok(0) => return Ok(()),
             Ok(read) => {
+                // Count the bytes before they leave. The UI's ack can come back before this thread
+                // runs its next line, and an ack that finds nothing counted is lost for good.
+                flow.record_sent(read)?;
                 if !on_chunk(&buffer[..read]) {
                     return Ok(());
                 }
-                flow.record_sent(read)?;
             }
             Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
             Err(error) => return Err(CommandError::Io(error)),
@@ -966,6 +968,19 @@ mod tests {
         let flow = FlowControl::new();
         flow.record_sent(10).unwrap();
         flow.acknowledge(99).unwrap();
+        assert_eq!(*flow.unacked.lock().unwrap(), 0);
+    }
+
+    #[test]
+    fn plat_07_an_ack_that_arrives_before_the_next_read_is_not_lost() {
+        let flow = FlowControl::new();
+        let mut source = Cursor::new(vec![b'x'; 1000]);
+        pump_output(&mut source, &flow, |bytes| {
+            // A fast UI acknowledges a chunk while the reader thread is still inside the send.
+            flow.acknowledge(bytes.len()).unwrap();
+            true
+        })
+        .unwrap();
         assert_eq!(*flow.unacked.lock().unwrap(), 0);
     }
 
