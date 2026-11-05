@@ -911,6 +911,24 @@ fn capture_with_shell_and_fallback(
     cwd: &Path,
     fallback_shell: &str,
 ) -> CommandResult<LoginEnv> {
+    capture_with_timeouts(
+        shell_path,
+        cwd,
+        fallback_shell,
+        Duration::from_millis(PRIMARY_CAPTURE_TIMEOUT_MS),
+        Duration::from_millis(FALLBACK_CAPTURE_TIMEOUT_MS),
+    )
+}
+
+/// The capture with both time limits named: `primary` bounds the user's own shell and `fallback`
+/// bounds the plain login zsh that runs when the first attempt fails.
+fn capture_with_timeouts(
+    shell_path: &str,
+    cwd: &Path,
+    fallback_shell: &str,
+    primary: Duration,
+    fallback: Duration,
+) -> CommandResult<LoginEnv> {
     let known = matches!(
         Path::new(shell_path)
             .file_name()
@@ -921,24 +939,14 @@ fn capture_with_shell_and_fallback(
     if known {
         let marker = new_marker();
         let command = capture_command_for(shell_path, &marker);
-        if let Ok(vars) = run_capture(
-            &command,
-            cwd,
-            &marker,
-            Duration::from_millis(PRIMARY_CAPTURE_TIMEOUT_MS),
-        ) {
+        if let Ok(vars) = run_capture(&command, cwd, &marker, primary) {
             return Ok(login_env_from(shell_path.to_string(), vars));
         }
     }
 
     let marker = new_marker();
-    let fallback = fallback_capture_command_at(fallback_shell, &marker);
-    let vars = run_capture(
-        &fallback,
-        cwd,
-        &marker,
-        Duration::from_millis(FALLBACK_CAPTURE_TIMEOUT_MS),
-    )?;
+    let command = fallback_capture_command_at(fallback_shell, &marker);
+    let vars = run_capture(&command, cwd, &marker, fallback)?;
     Ok(login_env_from(fallback_shell.to_string(), vars))
 }
 
@@ -1289,6 +1297,125 @@ mod tests {
     fn plat_04_capture_timeouts_are_five_and_three_seconds() {
         assert_eq!(PRIMARY_CAPTURE_TIMEOUT_MS, 5_000);
         assert_eq!(FALLBACK_CAPTURE_TIMEOUT_MS, 3_000);
+
+        // The default capture applies them. Two shells that never answer are given up on after
+        // the primary limit and the fallback limit. The runs go side by side to keep the wait
+        // near five seconds. The outer bound only catches a hang.
+        let primary_limit = Duration::from_millis(PRIMARY_CAPTURE_TIMEOUT_MS);
+        let fallback_limit = Duration::from_millis(FALLBACK_CAPTURE_TIMEOUT_MS);
+        let slack = Duration::from_secs(8);
+        let silent = "#!/bin/sh\nsleep 30\n";
+        let slow_primary_dir = TempProgramDir::new();
+        let slow_primary = write_script(slow_primary_dir.path(), "zsh", silent);
+        let answering = write_script(slow_primary_dir.path(), "fallback-shell", FIXTURE_SHELL);
+        let slow_fallback_dir = TempProgramDir::new();
+        let broken_primary = write_script(
+            slow_fallback_dir.path(),
+            "zsh",
+            "#!/bin/sh\nprintf 'no marker'\n",
+        );
+        let silent_fallback = write_script(slow_fallback_dir.path(), "fallback-shell", silent);
+
+        std::thread::scope(|scope| {
+            let primary_run = scope.spawn(|| {
+                let started = Instant::now();
+                let login = capture_with_shell_and_fallback(
+                    slow_primary.to_str().expect("the path is UTF-8"),
+                    slow_primary_dir.path(),
+                    answering.to_str().expect("the path is UTF-8"),
+                )
+                .expect("the fallback answers once the primary is given up on");
+                (login.shell, started.elapsed())
+            });
+            let fallback_run = scope.spawn(|| {
+                let started = Instant::now();
+                let error = capture_with_shell_and_fallback(
+                    broken_primary.to_str().expect("the path is UTF-8"),
+                    slow_fallback_dir.path(),
+                    silent_fallback.to_str().expect("the path is UTF-8"),
+                )
+                .expect_err("a fallback that never answers fails the capture");
+                (error_code(error), started.elapsed())
+            });
+
+            let (shell, took) = primary_run.join().expect("the primary run finishes");
+            assert_eq!(shell, answering.to_str().expect("the path is UTF-8"));
+            assert!(
+                took >= primary_limit,
+                "gave up on the primary after {took:?}"
+            );
+            assert!(
+                took < primary_limit + slack,
+                "waited {took:?} for the primary"
+            );
+
+            let (code, took) = fallback_run.join().expect("the fallback run finishes");
+            assert_eq!(code, "login_env_failed");
+            assert!(
+                took >= fallback_limit,
+                "gave up on the fallback after {took:?}"
+            );
+            assert!(
+                took < fallback_limit + slack,
+                "waited {took:?} for the fallback"
+            );
+        });
+    }
+
+    #[test]
+    fn plat_04_a_shell_slower_than_its_primary_timeout_is_given_up_on() {
+        // The primary shell would answer after 3 s. Its limit is 150 ms and the fallback's limit
+        // is long, so only the primary limit decides which shell answers.
+        let dir = TempProgramDir::new();
+        let slow = write_script(
+            dir.path(),
+            "zsh",
+            "#!/bin/sh\nsleep 3\nexec /bin/sh -c \"$2\"\n",
+        );
+        let fallback = write_script(dir.path(), "fallback-shell", FIXTURE_SHELL);
+        let started = Instant::now();
+        let login = capture_with_timeouts(
+            slow.to_str().expect("the path is UTF-8"),
+            dir.path(),
+            fallback.to_str().expect("the path is UTF-8"),
+            Duration::from_millis(150),
+            Duration::from_secs(30),
+        )
+        .expect("the fallback answers");
+        assert_eq!(login.shell, fallback.to_str().expect("the path is UTF-8"));
+        assert!(
+            started.elapsed() < Duration::from_secs(2),
+            "the slow shell was waited for: {:?}",
+            started.elapsed()
+        );
+    }
+
+    #[test]
+    fn plat_04_a_fallback_slower_than_its_own_timeout_fails_the_capture() {
+        // The fallback would answer after 3 s. Its limit is 150 ms while the primary's limit is
+        // long, so only the fallback limit ends the wait.
+        let dir = TempProgramDir::new();
+        let broken = write_script(dir.path(), "zsh", "#!/bin/sh\nprintf 'no marker'\n");
+        let slow = write_script(
+            dir.path(),
+            "fallback-shell",
+            "#!/bin/sh\nsleep 3\nexec /bin/sh -c \"$2\"\n",
+        );
+        let started = Instant::now();
+        let error = capture_with_timeouts(
+            broken.to_str().expect("the path is UTF-8"),
+            dir.path(),
+            slow.to_str().expect("the path is UTF-8"),
+            Duration::from_secs(30),
+            Duration::from_millis(150),
+        )
+        .expect_err("the slow fallback times out");
+        assert_eq!(error_code(error), "login_env_failed");
+        assert!(
+            started.elapsed() < Duration::from_secs(2),
+            "the slow fallback was waited for: {:?}",
+            started.elapsed()
+        );
     }
 
     #[test]
