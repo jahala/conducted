@@ -11,15 +11,17 @@
  *                                /create                                               new workspace page
  *   (no sidebar)                 /settings, /settings/$page, /diagnostics, /first-run-onboarding
  * Our design choices: `/settings` redirects to `/settings/general` (Conductor redirects /settings/user to
- * /settings/user/general). `$page` is a single segment, so repository pages need an encoding or a splat route
- * from the settings owner. The workspace param is `$workspaceId`, not `$localWorkspaceId`, because there are no
- * cloud workspaces.
+ * /settings/user/general). Repository pages have their own route, `/settings/repos/$repoId/$page`, and pass
+ * the page to the settings screen as `repo:<repoId>:<page>`. The workspace param is `$workspaceId`, not
+ * `$localWorkspaceId`, because there are no cloud workspaces.
  * Must handle: an unknown address (NotFoundScreen); a screen that throws (RouteErrorScreen with retry); a
  * changed workspace id resets a failed screen (resetKey); invalid search values are dropped (see
- * workspace-search.ts); navigation never reloads the page.
+ * workspace-search.ts); navigation never reloads the page; a workspace or chat that was deleted or archived
+ * sends the route Home instead of drawing a dead screen; a bare workspace address reopens that workspace's
+ * stored chat tab.
  * Test first: navigating to /all-workspaces renders the Home screen area; "/" renders the centre empty state.
  */
-import type { RepoId, WorkspaceId } from "@conducted/shared";
+import type { RepoId, SessionId, WorkspaceId } from "@conducted/shared";
 import {
 	createRootRoute,
 	createRoute,
@@ -28,7 +30,12 @@ import {
 	type RouterHistory,
 	RouterProvider,
 	redirect,
+	useNavigate,
 } from "@tanstack/react-router";
+import { useEffect, useRef } from "react";
+import { useStore } from "zustand";
+import type { StoreApi } from "zustand/vanilla";
+import { useServices } from "../core/context.tsx";
 import { DashboardScreen } from "../features/dashboard/DashboardScreen.tsx";
 import { DiagnosticsScreen } from "../features/diagnostics/DiagnosticsScreen.tsx";
 import { HomeScreen } from "../features/home/HomeScreen.tsx";
@@ -51,6 +58,39 @@ function RootLayout() {
 			<GlobalOverlays />
 		</>
 	);
+}
+
+/** The parts of the sessions store the route needs, so the check does not depend on the whole service. */
+interface SessionVisibilityState {
+	loaded: boolean;
+	sessions: Readonly<Record<string, { workspaceId: string }>>;
+}
+
+/**
+ * Sends the route Home when the chat in the URL was deleted. It runs only when the sessions service exists,
+ * so a fixture without one keeps its workspace route. The store is loaded before the router's first repair.
+ */
+function SessionRouteRepair({
+	workspaceId,
+	sessionId,
+}: {
+	workspaceId: string;
+	sessionId: string;
+}) {
+	const { services } = useServices();
+	const navigate = useNavigate();
+	const sessions = services.sessions as unknown as { store: StoreApi<SessionVisibilityState> };
+	const state = useStore(sessions.store, (value) => value);
+
+	useEffect(() => {
+		if (!state.loaded) return;
+		const session = state.sessions[sessionId];
+		if (session === undefined || session.workspaceId !== workspaceId) {
+			void navigate({ to: "/all-workspaces", replace: true });
+		}
+	}, [navigate, sessionId, state, workspaceId]);
+
+	return null;
 }
 
 const rootRoute = createRootRoute({
@@ -86,17 +126,75 @@ const workspaceRoute = createRoute({
 		const { repositoryId, workspaceId } = workspaceRoute.useParams();
 		const search = workspaceRoute.useSearch();
 		const navigate = workspaceRoute.useNavigate();
+		const { services, actions } = useServices();
+		const workspaceState = useStore(services.workspace.store, (state) => state);
+		const hasSessions = (services as { sessions?: unknown }).sessions !== undefined;
+		const workspace = workspaceState.workspacesById[workspaceId];
+		const sawWorkspace = useRef(false);
+
+		// Route repair: a workspace that is gone or archived belongs on Home, not on a dead screen.
+		useEffect(() => {
+			if (!workspaceState.loaded) return;
+			if (workspace === undefined) {
+				// An empty list is the first frame of a fresh app, not proof that this id was deleted.
+				if (sawWorkspace.current || Object.keys(workspaceState.workspacesById).length > 0) {
+					void navigate({ to: "/all-workspaces", replace: true });
+				}
+				return;
+			}
+			sawWorkspace.current = true;
+			if (workspace.state === "archived" || workspace.state === "archiving") {
+				void navigate({ to: "/all-workspaces", replace: true });
+			}
+		}, [navigate, workspace, workspaceState.loaded, workspaceState.workspacesById]);
+
+		// With no search set, reopen the chat tab this workspace had open last.
+		useEffect(() => {
+			if (!workspaceState.loaded || workspace === undefined) return;
+			if (workspace.state === "archived" || workspace.state === "archiving") return;
+			if (search.tab !== undefined || workspace.activeSessionId === null) return;
+			const sessionId = workspace.activeSessionId;
+			void navigate({
+				search: (previous) => ({ ...previous, tab: "session", sessionId }),
+				replace: true,
+			});
+		}, [navigate, search.tab, workspace, workspaceState.loaded]);
+
+		// Keep the stored chat tab current as the user moves between tabs.
+		useEffect(() => {
+			if (search.tab !== "session" || search.sessionId === undefined) return;
+			if (workspace === undefined || workspace.activeSessionId === search.sessionId) return;
+			if (hasSessions) {
+				const sessions = (services as { sessions: { store: StoreApi<SessionVisibilityState> } })
+					.sessions;
+				const state = sessions.store.getState();
+				if (state.loaded) {
+					const session = state.sessions[search.sessionId];
+					if (session === undefined || session.workspaceId !== workspaceId) return;
+				}
+			}
+			void actions.workspaces?.setActiveSession?.(
+				workspaceId as WorkspaceId,
+				search.sessionId as SessionId,
+			);
+		}, [actions, hasSessions, search.sessionId, search.tab, services, workspace, workspaceId]);
+
 		const onSearchChange = (patch: Partial<WorkspaceSearch>) =>
 			navigate({ search: (previous) => ({ ...previous, ...patch }) });
 		return (
-			<NotBuiltYet area="Workspace" resetKey={workspaceId}>
-				<WorkspaceScreen
-					repoId={repositoryId as RepoId}
-					workspaceId={workspaceId as WorkspaceId}
-					search={search}
-					onSearchChange={onSearchChange}
-				/>
-			</NotBuiltYet>
+			<>
+				<NotBuiltYet area="Workspace" resetKey={workspaceId}>
+					<WorkspaceScreen
+						repoId={repositoryId as RepoId}
+						workspaceId={workspaceId as WorkspaceId}
+						search={search}
+						onSearchChange={onSearchChange}
+					/>
+				</NotBuiltYet>
+				{hasSessions && search.tab === "session" && search.sessionId !== undefined ? (
+					<SessionRouteRepair workspaceId={workspaceId} sessionId={search.sessionId} />
+				) : null}
+			</>
 		);
 	},
 });
@@ -156,6 +254,21 @@ const settingsRoute = createRoute({
 	},
 });
 
+const repoSettingsRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/settings/repos/$repoId/$page",
+	component: function RepoSettingsRoute() {
+		const { repoId, page } = repoSettingsRoute.useParams();
+		return (
+			<FullPage>
+				<NotBuiltYet area="Settings" resetKey={`${repoId}:${page}`}>
+					<SettingsScreen page={`repo:${repoId}:${page}`} />
+				</NotBuiltYet>
+			</FullPage>
+		);
+	},
+});
+
 const diagnosticsRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/diagnostics",
@@ -190,6 +303,7 @@ const routeTree = rootRoute.addChildren([
 	]),
 	settingsIndexRoute,
 	settingsRoute,
+	repoSettingsRoute,
 	diagnosticsRoute,
 	onboardingRoute,
 ]);
