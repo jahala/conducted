@@ -13,6 +13,7 @@ import {
 } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import type { ShellOutput } from "../../platform/platform.ts";
+import { FakeGitRunner } from "../../test/fake-git-runner.ts";
 import { configPullFf, type GitCommand } from "../git/commands.ts";
 import type { GitRunner, GitRunOptions } from "../git/runner.ts";
 import { pullStrategy, remoteTargetOf } from "./agent-instructions.ts";
@@ -38,36 +39,8 @@ type Handler = (
 ) => Result<ShellOutput> | Promise<Result<ShellOutput>>;
 
 function fakeRunner(handler: Handler): { runner: GitRunner; calls: GitCommand[] } {
-	const calls: GitCommand[] = [];
-	const run = async (command: GitCommand, options: GitRunOptions) => {
-		calls.push(command);
-		return handler(command, options);
-	};
-	const runChecked = async (command: GitCommand, options: GitRunOptions) => {
-		const result = await run(command, options);
-		if (!result.ok) return result;
-		const codes = command.okExitCodes ?? [0];
-		return codes.includes(result.value.exitCode)
-			? result
-			: err(appError("git_failed", result.value.stderr.trim() || "git failed"));
-	};
-	const stdout = async (command: GitCommand, options: GitRunOptions) => {
-		const result = await runChecked(command, options);
-		return result.ok ? ok(result.value.stdout.trim()) : result;
-	};
-	return {
-		runner: {
-			run,
-			runChecked,
-			stdout,
-			start: async () => {
-				throw new Error("start is not used here");
-			},
-			withWorktreeLock: (_path, work) => work(),
-			withWorktreeAndRepoLocks: (_path, _root, work) => work(),
-		},
-		calls,
-	};
+	const runner = new FakeGitRunner(handler);
+	return { runner, calls: runner.commands };
 }
 
 const context = (overrides: Partial<WorkspaceGitContext> = {}): WorkspaceGitContext => ({

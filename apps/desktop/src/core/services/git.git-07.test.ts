@@ -8,8 +8,8 @@ import {
 } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import type { ShellOutput } from "../../platform/platform.ts";
-import type { GitCommand } from "../git/commands.ts";
-import type { GitRunner, GitRunOptions } from "../git/runner.ts";
+import { FakeGitRunner } from "../../test/fake-git-runner.ts";
+import type { GitRunner } from "../git/runner.ts";
 import { GitService, type WorkspaceGitContext } from "./git.ts";
 import type { AgentMessenger } from "./sessions.ts";
 
@@ -24,40 +24,15 @@ interface FakeGitOptions {
 	configFailure?: ShellOutput;
 }
 
-function fakeGit(options: FakeGitOptions = {}): GitRunner & {
-	readonly commands: readonly GitCommand[];
-} {
-	const commands: GitCommand[] = [];
-	const git: GitRunner & { readonly commands: readonly GitCommand[] } = {
-		commands,
-		async run(command, _options: GitRunOptions) {
-			commands.push(command);
-			if (command.args[0] === "config" && command.args[2] === "pull.rebase") {
-				if (options.configFailure !== undefined) return ok(options.configFailure);
-				const value = options.pullRebase ?? null;
-				return ok(value === null ? output("", 1) : output(`${value}\n`, 0));
-			}
-			return ok(output());
-		},
-		async runChecked(command, runOptions) {
-			const result = await git.run(command, runOptions);
-			if (!result.ok) return result;
-			const codes = command.okExitCodes ?? [0];
-			return codes.includes(result.value.exitCode)
-				? result
-				: err(appError("git_failed", result.value.stderr.trim() || "git failed"));
-		},
-		async stdout(command, runOptions) {
-			const result = await git.runChecked(command, runOptions);
-			return result.ok ? ok(result.value.stdout.trim()) : result;
-		},
-		async start() {
-			throw new Error("start is not used by resolve conflicts");
-		},
-		withWorktreeLock: (_worktreePath, work) => work(),
-		withWorktreeAndRepoLocks: (_worktreePath, _repoRootPath, work) => work(),
-	};
-	return git;
+function fakeGit(options: FakeGitOptions = {}): FakeGitRunner {
+	return new FakeGitRunner((command) => {
+		if (command.args[0] === "config" && command.args[2] === "pull.rebase") {
+			if (options.configFailure !== undefined) return ok(options.configFailure);
+			const value = options.pullRebase ?? null;
+			return ok(value === null ? output("", 1) : output(`${value}\n`, 0));
+		}
+		return ok(output());
+	});
 }
 
 function fakeAgent(): AgentMessenger & {

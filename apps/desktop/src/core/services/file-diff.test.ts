@@ -5,8 +5,8 @@
 import { appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import type { FileStat, ShellOutput } from "../../platform/platform.ts";
+import { FakeGitRunner } from "../../test/fake-git-runner.ts";
 import type { DiffScope } from "../api.ts";
-import type { GitCommand } from "../git/commands.ts";
 import type { GitRunner } from "../git/runner.ts";
 import { FileDiffService } from "./file-diff.ts";
 
@@ -30,11 +30,9 @@ interface Replies {
 }
 
 function runner(replies: Replies = {}) {
-	const commands: GitCommand[] = [];
 	const showCalls: string[] = [];
 
-	const run = async (command: GitCommand): Promise<Result<ShellOutput>> => {
-		commands.push(command);
+	const git = new FakeGitRunner((command) => {
 		if (command.args[0] === "show") {
 			const spec = command.args.at(-1) ?? "";
 			showCalls.push(spec);
@@ -50,27 +48,11 @@ function runner(replies: Replies = {}) {
 					: output(text),
 			);
 		}
-		return ok(output());
-	};
-
-	const stdout = async (command: GitCommand): Promise<Result<string>> => {
-		commands.push(command);
-		if (command.args.includes("--numstat")) return ok(replies.numstat ?? "");
-		if (command.args.includes("--no-index")) return ok(replies.untrackedPatch ?? "");
-		return ok(replies.trackedPatch ?? "");
-	};
-
-	const git: GitRunner = {
-		run,
-		runChecked: run as GitRunner["runChecked"],
-		stdout,
-		start: async () => {
-			throw new Error("start is not used");
-		},
-		withWorktreeLock: (_path, work) => work(),
-		withWorktreeAndRepoLocks: (_path, _root, work) => work(),
-	};
-	return { git, commands, showCalls };
+		if (command.args.includes("--numstat")) return ok(output(replies.numstat ?? ""));
+		if (command.args.includes("--no-index")) return ok(output(replies.untrackedPatch ?? ""));
+		return ok(output(replies.trackedPatch ?? ""));
+	});
+	return { git, commands: git.commands, showCalls };
 }
 
 function service(

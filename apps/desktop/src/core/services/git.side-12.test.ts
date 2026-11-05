@@ -1,7 +1,7 @@
-import { appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
+import { appError, err, ok, type WorkspaceId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import type { ShellOutput } from "../../platform/platform.ts";
-import type { GitCommand } from "../git/commands.ts";
+import { FakeGitRunner } from "../../test/fake-git-runner.ts";
 import type { GitRunner } from "../git/runner.ts";
 import { AGENT_DIFF_BUSY_MESSAGE, GitService, type WorkspaceGitContext } from "./git.ts";
 
@@ -23,7 +23,7 @@ const output = (stdout = "", stderr = "", exitCode = 0): ShellOutput => ({
 });
 
 function runner(busyMarker: string | null): GitRunner {
-	const run = async (command: GitCommand): Promise<Result<ShellOutput>> => {
+	return new FakeGitRunner((command) => {
 		const args = command.args;
 		if (command.program === "stat") return ok(output("10\n"));
 		if (args[0] === "branch" && args[1] === "--show-current") return ok(output("feat\n"));
@@ -34,28 +34,7 @@ function runner(busyMarker: string | null): GitRunner {
 		}
 		if (args[0] === "diff") return ok(output("diff --git a/a.ts b/a.ts\n"));
 		return ok(output(""));
-	};
-	const runChecked = async (command: GitCommand): Promise<Result<ShellOutput>> => {
-		const result = await run(command);
-		if (!result.ok) return result;
-		const codes = command.okExitCodes ?? [0];
-		if (codes.includes(result.value.exitCode)) return result;
-		return err(appError("git_failed", result.value.stderr.trim() || "git failed"));
-	};
-	const stdout = async (command: GitCommand): Promise<Result<string>> => {
-		const result = await runChecked(command);
-		return result.ok ? ok(result.value.stdout.trim()) : result;
-	};
-	return {
-		run,
-		runChecked,
-		stdout,
-		start: async () => {
-			throw new Error("start is not used");
-		},
-		withWorktreeLock: (_path, work) => work(),
-		withWorktreeAndRepoLocks: (_path, _root, work) => work(),
-	};
+	});
 }
 
 const service = (git: GitRunner): GitService =>

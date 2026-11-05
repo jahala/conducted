@@ -1,30 +1,33 @@
 /**
  * @feature PLAT-01 Platform contract: one list of behaviours both implementations must show
- * Owns: the list of behaviours of the Platform interface (as data) and the function that turns
- * the list into tests. Any implementation must pass it: today that is the in-memory stand-in
- * (memory.ts). The Tauri implementation (tauri.ts) is checked against it by the planned
- * end-to-end job (docs/plans/parallel-build.md), so until that job runs the contract proves the
- * stand-in alone, not the real Platform.
+ * Owns: the list of behaviours of the Platform interface (as data), the method each case must call,
+ * the methods no case covers (with a reason), and the function that turns the list into tests. Two
+ * runs use it: the in-memory stand-in (memory.test.ts) and `createTauriPlatform` over Node-backed
+ * bindings (tauri-contract.test.ts). Each run passes its own list of cases it cannot run, with a
+ * reason, and the test output names every one.
  * Behaviour: services-map.md 1.1 (Platform object), native-and-sidecar-map.md A2 (what each
  * Rust command promises), docs/plans/tauri-commands.md.
  * Must handle: every case builds its own Platform and cleans it up, even when the case fails (no
- * temp folders, scratch databases or processes left behind); cases that need a real operating
- * system (pty, keychain, trash) are marked `needs: "os"` so the stand-in may run them against its
- * own model while the Tauri run uses a scratch folder; a case that needs scripted outside events
- * (a click, a dialog answer, a crashed sidecar) is marked `needs: "controls"`, so a factory
- * without controls skips it explicitly; cases wait for events, not for a fixed time (the one
- * exception is a single macrotask yield in db.transaction-serialised, which only gives a second
- * transaction the chance to overlap); a case that needs the sidecar and has no controls expects a
- * loopback echo child, never a real agent. The shell cases are answered by a script on the
- * stand-in, so on the stand-in they check the contract's shape, not a real process.
+ * temp folders, scratch databases or processes left behind); a case runs on a stand-in only when
+ * the stand-in computes the answer: the memory stand-in answers shell commands from a script, so
+ * the shell cases that read a process's output skip there and run on the Node-backed bindings,
+ * which start real processes; cases that need Rust or macOS (pty, keychain, trash, the ignore and
+ * regex crates) skip on the Node-backed run; a case that needs outside events (a click, a dialog
+ * answer, a crashed sidecar) is marked `needs: "controls"`, and each run supplies the controls it
+ * can honestly provide; every case lists the Platform methods it must call, and the run fails a
+ * case that did not call one of them; cases wait for events, not for a fixed time (the two
+ * exceptions are single macrotask yields: in db.transaction-serialised, which only gives a second
+ * transaction the chance to overlap, and in notifications.click, which checks that an
+ * unsubscribed listener hears nothing); a case that needs the sidecar and has no controls expects a
+ * loopback echo child, never a real agent.
  * Our design choice: the harness (`describe`, `it`, `skip`, `assert`) is passed in, so this file
- * imports no test framework and can sit in `src/`. Cases are plain data, and a coverage test
- * fails when a `Platform` group has no case, so a new group cannot be forgotten.
+ * imports no test framework. It sits in `src/test/` because only tests run it. Cases are plain data, and a coverage test
+ * fails when a `Platform` method has neither a case nor an entry in `UNCOVERED_METHODS`, so a new
+ * method cannot be forgotten.
  * Test first: the in-memory Platform passes "fs: write then read returns the same text".
  */
-import { type AppError, appError, err, ok, type Result } from "@conducted/shared";
-import type { ShellScript } from "./memory.ts";
-import type { Platform, ProgramStatus, SpeechEvent, Unsubscribe } from "./platform.ts";
+import type { AppError, Result } from "@conducted/shared";
+import type { Platform, ProgramStatus, SpeechEvent, Unsubscribe } from "../platform/platform.ts";
 
 export type ContractGroup = keyof Platform;
 
@@ -208,8 +211,8 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 	c(
 		"pty",
 		"exit-code",
-		"onExit reports the exit code",
-		"A command that exits 5 calls onExit(5) once.",
+		"onExit tells early and late listeners the same code, once",
+		"After the process ends, a listener added before and a listener added after both hear the same exit code, and the early one hears it once.",
 		"os",
 	),
 	c(
@@ -243,14 +246,14 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"sidecar",
 		"line-roundtrip",
 		"a line sent comes back from a loopback child",
-		"A line passed to send() is delivered to onLine listeners after the child echoes it; listeners stop after unsubscribe.",
+		"Every line the sidecar sends reaches every onLine listener in order; a listener that unsubscribed hears nothing more.",
 		"os",
 	),
 	c(
 		"sidecar",
 		"restart-signal",
 		"onRestart fires when the process exits",
-		"Killing the child calls onRestart listeners once.",
+		"Each time the process exits, a listener hears one restart; a listener that unsubscribed hears none.",
 		"controls",
 	),
 	c(
@@ -264,21 +267,21 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"notifications",
 		"badge",
 		"dock badge accepts a count and null",
-		"setDockBadge(3) then setDockBadge(null) both resolve; the stand-in records the last value.",
+		"setDockBadge(3) then setDockBadge(null) both resolve, and the platform passes the count to the layer below it as given.",
 		"controls",
 	),
 	c(
 		"notifications",
 		"click",
 		"a click calls onClicked with the deep link",
-		"Clicking a notification that carried deepLink X calls listeners with X; listeners stop after unsubscribe.",
+		"Clicking a notification that carried deepLink X calls the listener with X once; a listener that unsubscribed hears nothing more.",
 		"controls",
 	),
 	c(
 		"clipboard",
 		"write-text",
 		"writeText stores text",
-		"writeText resolves; the stand-in exposes the last text.",
+		"writeText resolves, and the text reaches the layer below it unchanged.",
 		"controls",
 	),
 	c("app", "health", "health is Ok", "health() returns Ok when the shell is up."),
@@ -305,7 +308,7 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"dialogs",
 		"pick-files",
 		"pickFiles returns the chosen files",
-		"The files the user picks come back in the order given.",
+		"The files the user picks come back in the order given, as a list for one file and for none.",
 		"controls",
 	),
 	c(
@@ -423,21 +426,20 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
  * Platform provides all of them; a real-platform harness provides the ones its cases need.
  */
 export interface ContractControls {
-	scriptShell?(script: ShellScript): void;
 	holdNextStart?(): void;
-	queuePtyExit?(code: number | null): void;
 	queueDialogAnswers?(answers: {
 		folder?: string | null;
 		files?: string[];
 		confirm?: boolean;
 	}): void;
-	emitSidecarLine?(line: string): void;
-	emitSidecarRestart?(): void;
-	emitNotificationClick?(deepLink: string): void;
-	emitWindowFocus?(focused: boolean): void;
+	/** Each emit resolves once the platform has been told, so a case can wait for the event. */
+	emitSidecarLine?(line: string): void | Promise<void>;
+	emitSidecarRestart?(): void | Promise<void>;
+	emitNotificationClick?(deepLink: string): void | Promise<void>;
+	emitWindowFocus?(focused: boolean): void | Promise<void>;
+	/** What the layer below the platform last received. */
 	readonly dockBadge?: number | null;
 	readonly clipboardText?: string | null;
-	readonly sidecarSent?: readonly string[];
 }
 
 export interface ContractContext {
@@ -512,12 +514,20 @@ async function waitForEvent<T>(
 	}
 }
 
+/**
+ * One macrotask yield, for a check that nothing more arrives. No event can announce that, so the
+ * run gives the queued work one turn of the event loop to deliver it.
+ */
+const oneMacrotask = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
 type ContractStep = (ctx: ContractContext) => Promise<void>;
 
 const STEPS: Record<string, ContractStep> = {
 	"fs.write-read": async (ctx) => {
 		const path = ctx.path("notes/hello.txt");
 		const text = "héllo, 世界\nand a second line";
+		// Rust does not create the folder of a file it writes.
+		expectOk(ctx, await ctx.platform.fs.mkdirp(ctx.path("notes")), "mkdirp");
 		expectOk(ctx, await ctx.platform.fs.writeTextAtomic(path, text), "writeTextAtomic");
 		const read = expectOk(ctx, await ctx.platform.fs.readText(path), "readText");
 		ctx.assert(read === text, `readText returned ${JSON.stringify(read)}`);
@@ -526,8 +536,8 @@ const STEPS: Record<string, ContractStep> = {
 	"fs.atomic-no-partial": async (ctx) => {
 		const folder = ctx.path("atomic");
 		const target = joinPath(folder, "keep.txt");
-		expectOk(ctx, await ctx.platform.fs.writeTextAtomic(target, "old"), "first write");
 		expectOk(ctx, await ctx.platform.fs.mkdirp(folder), "mkdirp");
+		expectOk(ctx, await ctx.platform.fs.writeTextAtomic(target, "old"), "first write");
 		const failed = await ctx.platform.fs.writeTextAtomic(joinPath(target, "child.txt"), "new");
 		ctx.assert(!failed.ok, "writing under a file should fail");
 		const old = expectOk(ctx, await ctx.platform.fs.readText(target), "readText after failure");
@@ -549,8 +559,8 @@ const STEPS: Record<string, ContractStep> = {
 		const folder = ctx.path("stat");
 		const file = joinPath(folder, "file.txt");
 		const text = "abcdef";
-		expectOk(ctx, await ctx.platform.fs.writeTextAtomic(file, text), "writeTextAtomic");
 		expectOk(ctx, await ctx.platform.fs.mkdirp(folder), "mkdirp");
+		expectOk(ctx, await ctx.platform.fs.writeTextAtomic(file, text), "writeTextAtomic");
 		ctx.assert(await ctx.platform.fs.exists(file), "exists is true for a file");
 		ctx.assert(await ctx.platform.fs.exists(folder), "exists is true for a folder");
 		ctx.assert(!(await ctx.platform.fs.exists(ctx.path("absent"))), "exists is false elsewhere");
@@ -594,6 +604,7 @@ const STEPS: Record<string, ContractStep> = {
 
 	"fs.trash": async (ctx) => {
 		const path = ctx.path("trash/me.txt");
+		expectOk(ctx, await ctx.platform.fs.mkdirp(ctx.path("trash")), "mkdirp");
 		expectOk(ctx, await ctx.platform.fs.writeTextAtomic(path, "bye"), "writeTextAtomic");
 		expectOk(ctx, await ctx.platform.fs.trash(path), "trash");
 		ctx.assert(!(await ctx.platform.fs.exists(path)), "trash removed the file from its folder");
@@ -677,7 +688,7 @@ const STEPS: Record<string, ContractStep> = {
 			await tx.execute(`INSERT INTO ${table} (id) VALUES ($1)`, [2]);
 			order.push("second-end");
 		});
-		await new Promise((resolve) => setTimeout(resolve, 0));
+		await oneMacrotask();
 		release();
 		await Promise.all([first, second]);
 		ctx.assert(
@@ -716,11 +727,6 @@ const STEPS: Record<string, ContractStep> = {
 	},
 
 	"shell.run-stdout": async (ctx) => {
-		ctx.controls?.scriptShell?.((command) =>
-			command.program === "/bin/echo" && command.args[0] === "hello"
-				? ok({ exitCode: 0, stdout: "hello\n", stderr: "" })
-				: null,
-		);
 		const output = expectOk(
 			ctx,
 			await ctx.platform.shell.run({ program: "/bin/echo", args: ["hello"], cwd: ctx.root }),
@@ -731,9 +737,6 @@ const STEPS: Record<string, ContractStep> = {
 	},
 
 	"shell.run-nonzero": async (ctx) => {
-		ctx.controls?.scriptShell?.((command) =>
-			command.program === "/bin/sh" ? ok({ exitCode: 3, stdout: "", stderr: "oops\n" }) : null,
-		);
 		const output = expectOk(
 			ctx,
 			await ctx.platform.shell.run({
@@ -752,11 +755,6 @@ const STEPS: Record<string, ContractStep> = {
 		expectOk(ctx, await ctx.platform.fs.mkdirp(cwd), "mkdirp");
 		const marker = "contract-env";
 		const stdin = "piped\n";
-		ctx.controls?.scriptShell?.((command) =>
-			command.program === "/bin/sh"
-				? ok({ exitCode: 0, stdout: `cwd=${cwd} env=${marker} stdin=${stdin}`, stderr: "" })
-				: null,
-		);
 		const output = expectOk(
 			ctx,
 			await ctx.platform.shell.run({
@@ -774,11 +772,6 @@ const STEPS: Record<string, ContractStep> = {
 	},
 
 	"shell.run-timeout": async (ctx) => {
-		ctx.controls?.scriptShell?.((command) =>
-			command.program === "/bin/sleep"
-				? err(appError("shell_timeout", "The command was stopped after its timeout."))
-				: null,
-		);
 		const result = await ctx.platform.shell.run({
 			program: "/bin/sleep",
 			args: ["5"],
@@ -804,11 +797,6 @@ const STEPS: Record<string, ContractStep> = {
 
 	"shell.no-shell-string": async (ctx) => {
 		const argument = "two words 'quoted' $HOME";
-		ctx.controls?.scriptShell?.((command) =>
-			command.program === "/bin/echo" && command.args[0] === argument
-				? ok({ exitCode: 0, stdout: `${argument}\n`, stderr: "" })
-				: null,
-		);
 		const output = expectOk(
 			ctx,
 			await ctx.platform.shell.run({ program: "/bin/echo", args: [argument], cwd: ctx.root }),
@@ -988,24 +976,34 @@ const STEPS: Record<string, ContractStep> = {
 	},
 
 	"pty.exit-code": async (ctx) => {
-		ctx.controls?.queuePtyExit?.(5);
 		const handle = expectOk(
 			ctx,
-			await ctx.platform.pty.spawn({
-				cwd: ctx.root,
-				cols: 80,
-				rows: 24,
-				command: { program: "/bin/sh", args: ["-c", "exit 5"] },
-			}),
+			await ctx.platform.pty.spawn({ cwd: ctx.root, cols: 80, rows: 24 }),
 			"pty.spawn",
 		);
+		const early: (number | null)[] = [];
+		const stopEarly = handle.onExit((code) => early.push(code));
 		const code = await waitForEvent<number | null>(
 			ctx,
 			(listener) => handle.onExit(listener),
-			() => {},
-			"pty exit",
+			async () => {
+				await handle.kill();
+			},
+			"pty exit after kill",
 		);
-		ctx.assert(code === 5, `the exit code was ${String(code)}`);
+		const late = await waitForEvent<number | null>(
+			ctx,
+			(listener) => handle.onExit(listener),
+			() => {},
+			"pty exit heard by a late listener",
+		);
+		stopEarly();
+		ctx.assert(early.length === 1, `the early listener heard ${early.length} exits`);
+		ctx.assert(
+			early[0] === code,
+			`the early listener heard ${String(early[0])} and another heard ${String(code)}`,
+		);
+		ctx.assert(late === code, `the late listener heard ${String(late)}, not ${String(code)}`);
 	},
 
 	"pty.screen-text": async (ctx) => {
@@ -1063,46 +1061,73 @@ const STEPS: Record<string, ContractStep> = {
 
 	"sidecar.line-roundtrip": async (ctx) => {
 		expectOk(ctx, await ctx.platform.sidecar.ensureStarted(), "ensureStarted");
-		if (ctx.controls?.emitSidecarLine !== undefined) {
-			const received: string[] = [];
-			const unsubscribe = ctx.platform.sidecar.onLine((line) => received.push(line));
-			ctx.controls.emitSidecarLine("hello");
-			ctx.assert(
-				received.length === 1 && received[0] === "hello",
-				`onLine received ${JSON.stringify(received)}`,
+		// With controls the outside world sends the line; without them the loopback child echoes it.
+		const deliver = async (line: string): Promise<void> => {
+			if (ctx.controls?.emitSidecarLine !== undefined) {
+				await ctx.controls.emitSidecarLine(line);
+				return;
+			}
+			expectOk(ctx, await ctx.platform.sidecar.send(line), "send");
+		};
+		const deliverAndWait = (line: string): Promise<string> =>
+			waitForEvent<string>(
+				ctx,
+				(listener) =>
+					ctx.platform.sidecar.onLine((heard) => {
+						if (heard === line) listener(heard);
+					}),
+				() => deliver(line),
+				`sidecar line ${line}`,
 			);
-			unsubscribe();
-			ctx.controls.emitSidecarLine("after");
-			ctx.assert(received.length === 1, "a listener fired after unsubscribe");
-			expectOk(ctx, await ctx.platform.sidecar.send("to-sidecar"), "send");
+		const first: string[] = [];
+		const second: string[] = [];
+		const stopFirst = ctx.platform.sidecar.onLine((line) => first.push(line));
+		const stopSecond = ctx.platform.sidecar.onLine((line) => second.push(line));
+		try {
+			await deliverAndWait("alpha");
+			await deliverAndWait("beta");
 			ctx.assert(
-				ctx.controls.sidecarSent?.includes("to-sidecar") === true,
-				"send did not record the line",
+				first.join(",") === "alpha,beta" && second.join(",") === "alpha,beta",
+				`the listeners heard ${first.join(",")} and ${second.join(",")}`,
 			);
-			return;
+			stopFirst();
+			await deliverAndWait("gamma");
+			ctx.assert(
+				first.join(",") === "alpha,beta",
+				`a listener heard ${first.join(",")} after it unsubscribed`,
+			);
+			ctx.assert(second.join(",") === "alpha,beta,gamma", `the other heard ${second.join(",")}`);
+		} finally {
+			stopFirst();
+			stopSecond();
 		}
-		const line = await waitForEvent<string>(
-			ctx,
-			(listener) => ctx.platform.sidecar.onLine(listener),
-			async () => {
-				expectOk(ctx, await ctx.platform.sidecar.send("contract-ping"), "send");
-			},
-			"sidecar echo",
-		);
-		ctx.assert(line.length > 0, "the loopback child echoed nothing");
 	},
 
 	"sidecar.restart-signal": async (ctx) => {
 		const emit = ctx.controls?.emitSidecarRestart;
 		ctx.assert(emit !== undefined, "the controls do not expose emitSidecarRestart");
 		if (emit === undefined) return;
-		const events: number[] = [];
-		const unsubscribe = ctx.platform.sidecar.onRestart(() => events.push(1));
-		emit();
-		ctx.assert(events.length === 1, `onRestart fired ${events.length} times`);
-		unsubscribe();
-		emit();
-		ctx.assert(events.length === 1, "a listener fired after unsubscribe");
+		const restarted = (): Promise<void> =>
+			waitForEvent<void>(
+				ctx,
+				(listener) => ctx.platform.sidecar.onRestart(() => listener()),
+				() => emit(),
+				"sidecar restart",
+			);
+		expectOk(ctx, await ctx.platform.sidecar.ensureStarted(), "ensureStarted");
+		const heard: number[] = [];
+		const stop = ctx.platform.sidecar.onRestart(() => heard.push(1));
+		try {
+			await restarted();
+			ctx.assert(heard.length === 1, `onRestart fired ${heard.length} times`);
+			stop();
+			expectOk(ctx, await ctx.platform.sidecar.ensureStarted(), "ensureStarted after the restart");
+			// The waiting listener below hears the second restart, so the first one is done by then.
+			await restarted();
+			ctx.assert(heard.length === 1, "a listener fired after unsubscribe");
+		} finally {
+			stop();
+		}
 	},
 
 	"keychain.roundtrip": async (ctx) => {
@@ -1126,10 +1151,10 @@ const STEPS: Record<string, ContractStep> = {
 		await ctx.platform.notifications.setDockBadge(3);
 		ctx.assert(
 			ctx.controls?.dockBadge === 3,
-			`the stand-in recorded ${String(ctx.controls?.dockBadge)}`,
+			`the layer below recorded ${String(ctx.controls?.dockBadge)}`,
 		);
 		await ctx.platform.notifications.setDockBadge(null);
-		ctx.assert(ctx.controls?.dockBadge === null, "the stand-in kept an old badge");
+		ctx.assert(ctx.controls?.dockBadge === null, "the layer below kept an old badge");
 	},
 
 	"notifications.click": async (ctx) => {
@@ -1137,15 +1162,25 @@ const STEPS: Record<string, ContractStep> = {
 		ctx.assert(emit !== undefined, "the controls do not expose emitNotificationClick");
 		if (emit === undefined) return;
 		const received: string[] = [];
-		const unsubscribe = ctx.platform.notifications.onClicked((deepLink) => received.push(deepLink));
-		emit("conducted://workspace/1");
-		ctx.assert(
-			received.length === 1 && received[0] === "conducted://workspace/1",
-			`onClicked received ${JSON.stringify(received)}`,
+		const link = "conducted://workspace/1";
+		const heard = await waitForEvent<string>(
+			ctx,
+			(listener) =>
+				ctx.platform.notifications.onClicked((deepLink) => {
+					received.push(deepLink);
+					listener(deepLink);
+				}),
+			() => emit(link),
+			"notification click",
 		);
-		unsubscribe();
-		emit("conducted://workspace/2");
-		ctx.assert(received.length === 1, "a listener fired after unsubscribe");
+		ctx.assert(heard === link, `onClicked heard ${heard}`);
+		// waitForEvent has unsubscribed the listener, so this click must not reach it.
+		await emit("conducted://workspace/2");
+		await oneMacrotask();
+		ctx.assert(
+			received.length === 1,
+			`the listener heard ${JSON.stringify(received)} after it unsubscribed`,
+		);
 	},
 
 	"clipboard.write-text": async (ctx) => {
@@ -1196,6 +1231,15 @@ const STEPS: Record<string, ContractStep> = {
 			files.length === 2 && files[0] === "/a.txt" && files[1] === "/b.txt",
 			`pickFiles returned ${JSON.stringify(files)}`,
 		);
+		ctx.controls?.queueDialogAnswers?.({ files: ["/only.txt"] });
+		const one = await ctx.platform.dialogs.pickFiles({ title: "Pick a file", multiple: false });
+		ctx.assert(
+			one.length === 1 && one[0] === "/only.txt",
+			`one picked file came back as ${JSON.stringify(one)}`,
+		);
+		ctx.controls?.queueDialogAnswers?.({ files: [] });
+		const none = await ctx.platform.dialogs.pickFiles({ title: "Pick files", multiple: true });
+		ctx.assert(none.length === 0, `a cancelled dialog returned ${JSON.stringify(none)}`);
 	},
 
 	"dialogs.confirm": async (ctx) => {
@@ -1271,12 +1315,12 @@ const STEPS: Record<string, ContractStep> = {
 		if (emit === undefined) return;
 		const seen: boolean[] = [];
 		const stop = ctx.platform.window.onFocusChanged((focused) => seen.push(focused));
-		emit(true);
-		emit(false);
+		await emit(true);
+		await emit(false);
 		ctx.assert(seen.join(",") === "true,false", `the listener saw ${seen.join(",")}`);
 		ctx.assert(!(await ctx.platform.window.isFocused()), "isFocused kept the old focus");
 		stop();
-		emit(true);
+		await emit(true);
 		ctx.assert(seen.length === 2, "a listener kept running after it was removed");
 	},
 
@@ -1331,6 +1375,7 @@ const STEPS: Record<string, ContractStep> = {
 		const source = ctx.path("attachments/source.txt");
 		const destination = ctx.path("attachments/destination.txt");
 		const text = "copied attachment";
+		expectOk(ctx, await ctx.platform.fs.mkdirp(ctx.path("attachments")), "mkdirp");
 		expectOk(ctx, await ctx.platform.fs.writeTextAtomic(source, text), "write source");
 		const file = expectOk(
 			ctx,
@@ -1351,6 +1396,7 @@ const STEPS: Record<string, ContractStep> = {
 	"attachments.resize-image": async (ctx) => {
 		const source = ctx.path("attachments/image.png");
 		const destination = ctx.path("attachments/image-small.png");
+		expectOk(ctx, await ctx.platform.fs.mkdirp(ctx.path("attachments")), "mkdirp");
 		expectOk(ctx, await ctx.platform.fs.writeTextAtomic(source, "pixels"), "write source");
 		const file = expectOk(
 			ctx,
@@ -1397,15 +1443,226 @@ const STEPS: Record<string, ContractStep> = {
 
 export interface ContractOptions {
 	/**
-	 * True when the factory exposes the scripted controls these cases need. A real platform passes
-	 * false, and cases marked `needs: "controls"` are then skipped explicitly.
+	 * True when the factory exposes the outside-event controls these cases need. A run without
+	 * them skips the cases marked `needs: "controls"`, and says so.
 	 */
 	controls: boolean;
+	/**
+	 * Cases this run cannot run honestly, by case id, each with the reason. The harness prints
+	 * every one as skipped. An id that names no case is a programmer error.
+	 */
+	skips?: Readonly<Record<string, string>>;
+	/** Replaces the method list of the named cases. Only a test of this check needs it. */
+	methods?: Readonly<Record<string, readonly string[]>>;
+}
+
+/** The handle types some methods return. Their methods count as Platform methods too. */
+export const HANDLE_METHODS: readonly string[] = [
+	"pty.handle.write",
+	"pty.handle.resize",
+	"pty.handle.kill",
+	"pty.handle.onData",
+	"pty.handle.ack",
+	"pty.handle.onExit",
+	"pty.handle.screenText",
+	"pty.handle.screenSnapshot",
+	"shell.running.cancel",
+	"http.download.cancel",
+];
+
+/** Which method returns which handle, so a call on the handle is recorded under its own name. */
+const HANDLE_OF: Readonly<Record<string, string>> = {
+	"pty.spawn": "pty.handle",
+	"shell.start": "shell.running",
+	"http.download": "http.download",
+};
+
+/**
+ * The Platform methods each case must call. The run records the calls and fails a case that
+ * skipped one, so a name here is a fact and not a wish.
+ */
+export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
+	"fs.write-read": ["fs.mkdirp", "fs.writeTextAtomic", "fs.readText"],
+	"fs.atomic-no-partial": ["fs.writeTextAtomic", "fs.mkdirp", "fs.readText", "fs.readDir"],
+	"fs.missing-file": ["fs.readText"],
+	"fs.exists-stat": ["fs.writeTextAtomic", "fs.mkdirp", "fs.exists", "fs.stat"],
+	"fs.mkdirp-idempotent": ["fs.mkdirp", "fs.exists"],
+	"fs.read-dir": ["fs.mkdirp", "fs.writeTextAtomic", "fs.readDir"],
+	"fs.trash": ["fs.mkdirp", "fs.writeTextAtomic", "fs.trash", "fs.exists"],
+	"db.roundtrip": ["db.execute", "db.select"],
+	"db.rows-affected": ["db.execute"],
+	"db.transaction-commit": ["db.execute", "db.transaction", "db.select"],
+	"db.transaction-rollback": ["db.execute", "db.transaction", "db.select"],
+	"db.transaction-serialised": ["db.execute", "db.transaction"],
+	"db.foreign-keys": ["db.execute", "db.select"],
+	"shell.run-stdout": ["shell.run"],
+	"shell.run-nonzero": ["shell.run"],
+	"shell.run-cwd-env-stdin": ["fs.mkdirp", "shell.run"],
+	"shell.run-timeout": ["shell.run"],
+	"shell.start-cancel": ["shell.start", "shell.running.cancel"],
+	"shell.no-shell-string": ["shell.run"],
+	"shell.login-env": ["shell.loginEnv"],
+	"fileSearch.list-tree-ignores": ["fs.mkdirp", "fs.writeTextAtomic", "fileSearch.listTree"],
+	"fileSearch.fuzzy": ["fs.mkdirp", "fs.writeTextAtomic", "fileSearch.fuzzyMatch"],
+	"fileSearch.grep-bad-regex": ["fileSearch.grep"],
+	"fileSearch.list-artifacts": ["fs.mkdirp", "fs.writeTextAtomic", "fileSearch.listArtifacts"],
+	"pty.spawn-echo": [
+		"pty.spawn",
+		"pty.handle.write",
+		"pty.handle.onData",
+		"pty.handle.ack",
+		"pty.handle.kill",
+	],
+	"pty.exit-code": ["pty.spawn", "pty.handle.onExit", "pty.handle.kill"],
+	"pty.screen-text": [
+		"pty.spawn",
+		"pty.handle.onData",
+		"pty.handle.write",
+		"pty.handle.screenText",
+	],
+	"pty.kill": ["pty.spawn", "pty.handle.onExit", "pty.handle.kill", "pty.handle.write"],
+	"sidecar.ensure-started-twice": ["sidecar.ensureStarted"],
+	"sidecar.send-before-start": ["sidecar.send"],
+	"sidecar.line-roundtrip": ["sidecar.ensureStarted", "sidecar.onLine"],
+	"sidecar.restart-signal": ["sidecar.ensureStarted", "sidecar.onRestart"],
+	"keychain.roundtrip": ["keychain.get", "keychain.set", "keychain.delete"],
+	"notifications.badge": ["notifications.setDockBadge"],
+	"notifications.click": ["notifications.onClicked"],
+	"clipboard.write-text": ["clipboard.writeText"],
+	"app.health": ["app.health"],
+	"app.write-log-never-throws": ["app.writeLog"],
+	"app.version": [],
+	"dialogs.pick-folder": ["dialogs.pickFolder"],
+	"dialogs.pick-files": ["dialogs.pickFiles"],
+	"dialogs.confirm": ["dialogs.confirm"],
+	"opener.installed-apps": ["opener.installedApps"],
+	"speech.available": ["speech.available"],
+	"speech.stop-ends": ["speech.start", "speech.stop"],
+	"updater.check": ["updater.check"],
+	"updater.installed-update": ["updater.installedUpdate"],
+	"window.is-focused": ["window.isFocused"],
+	"window.focus-events": ["window.onFocusChanged", "window.isFocused"],
+	"window.setters": [
+		"window.setZoom",
+		"window.setVibrancy",
+		"window.setTrafficLightPosition",
+		"window.setTheme",
+	],
+	"menu.set-shortcuts": ["menu.setShortcuts"],
+	"system.info": ["system.info"],
+	"system.online-and-access": ["system.isOnline", "system.hasFullDiskAccess"],
+	"attachments.materialize": [
+		"fs.mkdirp",
+		"fs.writeTextAtomic",
+		"attachments.materialize",
+		"fs.readText",
+	],
+	"attachments.resize-image": [
+		"fs.mkdirp",
+		"fs.writeTextAtomic",
+		"attachments.resizeImage",
+		"fs.exists",
+	],
+	"programs.install-status": ["programs.onStatus", "programs.install", "programs.statuses"],
+	"programs.remove-status": ["programs.install", "programs.remove", "programs.statuses"],
+	"http.invalid-url": ["http.fetch"],
+};
+
+/**
+ * Platform methods no case calls, each with the reason. A method that a case calls must not be
+ * listed here, and a method that is neither listed nor called fails the coverage test.
+ */
+export const UNCOVERED_METHODS: Readonly<Record<string, string>> = {
+	"pty.loadHistory":
+		"Needs a terminal that ended and left saved scrollback; the history file is written by Rust (terminal_history.rs).",
+	"pty.handle.resize":
+		"Resizing changes a real terminal's size, which no stand-in can show; the Rust pty tests own it.",
+	"pty.handle.screenSnapshot":
+		"The escape sequences come from the Rust terminal emulator; a stand-in would only echo its own output.",
+	"sidecar.logPath": "The path is chosen by Rust at startup; no behaviour to compare yet.",
+	"notifications.notify":
+		"Showing a native notification checks the system permission; only a real macOS run can.",
+	"dialogs.pickSavePath":
+		"Same shape as pickFolder; add it with the first caller that needs a save dialog.",
+	"opener.openUrl": "Opens the default browser; nothing a stand-in can show.",
+	"opener.revealInFinder": "Opens Finder; nothing a stand-in can show.",
+	"opener.openWith": "Starts another app; the Rust open_with tests own it.",
+	"clipboard.writeImage":
+		"Decodes a PNG in the web view's canvas, which Node does not have; needs the launched app.",
+	"speech.cancel": "Apple dictation; PLAT-12 builds it.",
+	"updater.install": "Downloads and installs an update; needs a signed release feed.",
+	"updater.relaunch": "Restarts the app; cannot run inside a test.",
+	"app.dbVersionWarning": "PLAT-17 builds it.",
+	"app.onDeepLink": "PLAT-16 builds it.",
+	"app.onQuitRequested": "Needs the Rust quit hook; the Rust job owns it.",
+	"app.quit": "Quits the app; cannot run inside a test.",
+	"app.resourceUsage": "PLAT-14 builds it.",
+	"app.setLogLevel": "Changes the Rust logger; the Rust logger tests own it.",
+	"app.exportLogs": "Zips the Rust log folder; the Rust logger tests own it.",
+	"app.setQuitHandlerReady": "Needs the Rust quit hook; the Rust job owns it.",
+	"window.onFileDrop": "PLAT-33 builds it; needs a real window drag.",
+	"window.toggleInspector": "Opens the web inspector; nothing a stand-in can show.",
+	"menu.onCommand": "PLAT-33 builds it; needs a real menu.",
+	"system.onNetworkChanged": "PLAT-26 builds it.",
+	"system.openFullDiskAccessSettings": "Opens System Settings; nothing a stand-in can show.",
+	"programs.redownload": "PLAT-28 builds it.",
+	"programs.prefetchForUpdate": "PLAT-28 builds it.",
+	"programs.verificationErrors": "Reads the Rust launch check; the Rust job owns it.",
+	"programs.syncPathOverrides": "SET-13 builds it.",
+	"http.download": "PLAT-30 builds it.",
+	"http.download.cancel": "PLAT-30 builds it.",
+};
+
+/** Methods that are neither covered by a case nor listed with a reason. */
+export function methodsWithoutCoverage(
+	allMethods: readonly string[],
+	caseMethods: Readonly<Record<string, readonly string[]>> = CASE_METHODS,
+	uncovered: Readonly<Record<string, string>> = UNCOVERED_METHODS,
+): string[] {
+	const covered = new Set(Object.values(caseMethods).flat());
+	return allMethods.filter((method) => !covered.has(method) && !(method in uncovered));
+}
+
+/**
+ * Wraps a platform so every call is recorded under "group.method", and a call on a handle that a
+ * method returns is recorded under the handle's own name.
+ */
+function recordCalls(platform: Platform, called: Set<string>): Platform {
+	const wrapObject = <T extends object>(prefix: string, target: T): T =>
+		new Proxy(target, {
+			get(object, property, receiver) {
+				const value = Reflect.get(object, property, receiver) as unknown;
+				if (typeof property !== "string" || typeof value !== "function") return value;
+				return (...args: unknown[]) => {
+					const name = `${prefix}.${property}`;
+					called.add(name);
+					const result = (value as (...rest: unknown[]) => unknown).apply(object, args);
+					const handlePrefix = HANDLE_OF[name];
+					if (handlePrefix === undefined) return result;
+					if (result instanceof Promise) {
+						return result.then((settled: unknown) => {
+							const wrapped = settled as { ok?: boolean; value?: object };
+							return wrapped.ok === true && wrapped.value !== undefined
+								? { ...wrapped, value: wrapObject(handlePrefix, wrapped.value) }
+								: settled;
+						});
+					}
+					return wrapObject(handlePrefix, result as object);
+				};
+			},
+		});
+	const wrapped: Record<string, unknown> = {};
+	for (const [group, value] of Object.entries(platform)) {
+		wrapped[group] = wrapObject(group, value as object);
+	}
+	return wrapped as unknown as Platform;
 }
 
 /**
  * Registers one test per case. Each test builds a fresh platform with `create`, runs the case's
- * steps, and calls `cleanup`. `kind` names the implementation in the test titles.
+ * steps, checks that the case called every method it names, and calls `cleanup`. `kind` names the
+ * implementation in the test titles. A case this run cannot run is registered as skipped with its
+ * reason, so the output counts it.
  */
 export function runPlatformContract(
 	harness: ContractHarness,
@@ -1414,26 +1671,38 @@ export function runPlatformContract(
 	options: ContractOptions,
 ): void {
 	const hasControls = options.controls;
+	const skips = options.skips ?? {};
+	const caseMethods = { ...CASE_METHODS, ...options.methods };
+	const caseIds = new Set(PLATFORM_CONTRACT_CASES.map((testCase) => testCase.id));
+	for (const id of Object.keys(skips)) {
+		if (!caseIds.has(id)) throw new Error(`The ${kind} run skips ${id}, which is not a case.`);
+	}
 	harness.describe(`PLAT-01 platform contract (${kind})`, () => {
 		for (const testCase of PLATFORM_CONTRACT_CASES) {
 			const step = STEPS[testCase.id];
 			if (step === undefined) {
 				throw new Error(`No steps are registered for contract case ${testCase.id}.`);
 			}
+			const methods = caseMethods[testCase.id];
+			if (methods === undefined) {
+				throw new Error(`Contract case ${testCase.id} names no methods in CASE_METHODS.`);
+			}
 			const title = `${testCase.id}: ${testCase.title}`;
-			if (testCase.needs === "controls" && !hasControls) {
+			const skipReason =
+				skips[testCase.id] ??
+				(testCase.needs === "controls" && !hasControls ? "needs scripted controls" : null);
+			if (skipReason !== null) {
 				if (harness.skip === undefined) {
-					throw new Error(
-						`The ${kind} harness cannot skip ${testCase.id}, which needs scripted controls.`,
-					);
+					throw new Error(`The ${kind} harness cannot skip ${testCase.id}: ${skipReason}.`);
 				}
-				harness.skip(title, "needs scripted controls");
+				harness.skip(title, skipReason);
 				continue;
 			}
 			harness.it(title, async () => {
 				const underTest = await create();
+				const called = new Set<string>();
 				const context: ContractContext = {
-					platform: underTest.platform,
+					platform: recordCalls(underTest.platform, called),
 					kind,
 					root: underTest.root,
 					controls: underTest.controls,
@@ -1442,6 +1711,11 @@ export function runPlatformContract(
 				};
 				try {
 					await step(context);
+					const missed = methods.filter((method) => !called.has(method));
+					context.assert(
+						missed.length === 0,
+						`${testCase.id} did not call ${missed.join(", ")}, which CASE_METHODS says it does`,
+					);
 				} finally {
 					await underTest.cleanup();
 				}

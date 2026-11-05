@@ -89,17 +89,17 @@ import type {
 	TreeEntry,
 	Updater,
 } from "./platform.ts";
+import {
+	createQueuedDatabase,
+	DATABASE_PRAGMAS,
+	type QueuedDatabaseOptions,
+	type SqlDatabase,
+} from "./queued-database.ts";
 
 // ---------------------------------------------------------------- bindings
 
-/** The database handle tauri-plugin-sql returns. Only the calls the Platform needs. */
-export interface SqlDatabase {
-	execute(
-		query: string,
-		bindValues?: unknown[],
-	): Promise<{ rowsAffected: number; lastInsertId?: number }>;
-	select<Rows>(query: string, bindValues?: unknown[]): Promise<Rows>;
-}
+/** The database handle tauri-plugin-sql returns. It lives in `queued-database.ts`. */
+export type { SqlDatabase };
 
 export interface TauriDialogBindings {
 	open(options: {
@@ -235,8 +235,6 @@ function onEvent<T>(
 		}
 	};
 }
-
-const nowMs = (): number => (typeof performance !== "undefined" ? performance.now() : Date.now());
 
 // ---------------------------------------------------------------- names (docs/plans/tauri-commands.md)
 
@@ -436,23 +434,13 @@ export function createAppLogSink(app: Pick<AppInfo, "writeLog">) {
 	return (level: "warn", message: string, data: unknown) => app.writeLog(level, message, data);
 }
 
-export interface TauriDatabaseOptions {
-	/** A statement at or above this many milliseconds is logged. Defaults to 1000. */
-	slowMs?: number;
-	/** Where slow statements go. The Platform passes `app.writeLog`. */
-	log?: (level: "warn", message: string, data: unknown) => void;
-}
+export type TauriDatabaseOptions = QueuedDatabaseOptions;
 
 const DATABASE_URL = "sqlite:conducted.db";
 
 /**
- * tauri-plugin-sql: `Database.load("sqlite:conducted.db")`, then the pragmas named in the header.
- * `select` and `execute` map to the plugin's methods. Every statement goes through one queue, so
- * the plugin's pool never runs two at once. A transaction holds the queue from BEGIN IMMEDIATE to
- * COMMIT or ROLLBACK; the work it runs gets a handle that skips the queue, because the queue is
- * already held. Identical concurrent `select` calls share one promise, and a write clears those
- * in-flight entries so a later read cannot get a pre-write result. A statement slower than
- * `slowMs` goes to the log.
+ * tauri-plugin-sql: `Database.load("sqlite:conducted.db")`, then the pragmas named in the header,
+ * then the statement queue from `queued-database.ts`, which the test database runs too.
  */
 export async function createTauriDatabase(
 	bindings: Pick<TauriBindings, "sql"> = realTauriBindings,
@@ -475,143 +463,12 @@ export async function createTauriDatabase(
 		return err(toAppError(error));
 	}
 
-	const slowMs = options.slowMs ?? 1_000;
-	const log = options.log ?? (() => {});
-	const logIfSlow = (sql: string, startedAt: number): void => {
-		const elapsedMs = nowMs() - startedAt;
-		if (elapsedMs >= slowMs) {
-			log("warn", "Slow SQLite call", { sql, elapsedMs });
-		}
-	};
-	const write = async (
-		sql: string,
-		params?: readonly unknown[],
-	): Promise<{ rowsAffected: number; lastInsertId?: number }> => {
-		const startedAt = nowMs();
-		try {
-			return await raw.execute(sql, params === undefined ? undefined : [...params]);
-		} finally {
-			logIfSlow(sql, startedAt);
-		}
-	};
-	const read = async <Row>(sql: string, params?: readonly unknown[]): Promise<Row[]> => {
-		const startedAt = nowMs();
-		try {
-			return (await raw.select<Row[]>(
-				sql,
-				params === undefined ? undefined : [...params],
-			)) as Row[];
-		} finally {
-			logIfSlow(sql, startedAt);
-		}
-	};
-
 	try {
-		await write("PRAGMA journal_mode = WAL");
-		await write("PRAGMA foreign_keys = ON");
+		for (const pragma of DATABASE_PRAGMAS) await raw.execute(pragma);
 	} catch (error) {
 		return err(toAppError(error));
 	}
-
-	const pendingSelects = new Map<string, Promise<unknown[]>>();
-	const clearPendingSelects = (): void => {
-		pendingSelects.clear();
-	};
-
-	/** Runs one statement at a time, in call order, and keeps the queue alive after a failure. */
-	let queue: Promise<unknown> = Promise.resolve();
-	const enqueue = <T>(task: () => Promise<T>): Promise<T> => {
-		const run = queue.then(task);
-		queue = run.then(
-			() => undefined,
-			() => undefined,
-		);
-		return run;
-	};
-
-	const writeOutsideTransaction = (
-		sql: string,
-		params?: readonly unknown[],
-	): Promise<{ rowsAffected: number; lastInsertId?: number }> => {
-		clearPendingSelects();
-		return enqueue(() => write(sql, params));
-	};
-
-	const database: Database = {
-		execute: writeOutsideTransaction,
-		select: <Row>(sql: string, params?: readonly unknown[]): Promise<Row[]> => {
-			const key = `${sql}\u0000${JSON.stringify(params ?? [])}`;
-			const existing = pendingSelects.get(key);
-			if (existing !== undefined) return existing as Promise<Row[]>;
-			const promise = enqueue(() => read<Row>(sql, params));
-			pendingSelects.set(key, promise as Promise<unknown[]>);
-			const settle = (): void => {
-				// A write may have cleared this entry and a newer read taken its place.
-				if (pendingSelects.get(key) === promise) pendingSelects.delete(key);
-			};
-			void promise.then(settle, settle);
-			return promise;
-		},
-		transaction: <T>(work: (db: Database) => Promise<T>): Promise<T> => {
-			// A read asked for after this point must not join a select from before it.
-			clearPendingSelects();
-			return enqueue(async () => {
-				// The work's own statements run one at a time on a queue local to this
-				// transaction, so even a `Promise.all` inside it keeps one connection.
-				let transactionQueue: Promise<unknown> = Promise.resolve();
-				const transactionRun = <U>(task: () => Promise<U>): Promise<U> => {
-					const run = transactionQueue.then(task);
-					transactionQueue = run.then(
-						() => undefined,
-						() => undefined,
-					);
-					return run;
-				};
-				// The handle given to `work` stops working when the transaction ends, so a statement
-				// kept past COMMIT cannot run outside the queue.
-				let open = true;
-				const whileOpen = <U>(task: () => Promise<U>): Promise<U> =>
-					open
-						? transactionRun(task)
-						: Promise.reject(
-								appError(
-									"transaction_closed",
-									"This transaction has ended. Run the statement on the Database instead.",
-								),
-							);
-				const transactionDatabase: Database = {
-					execute: (sql, params) => whileOpen(() => write(sql, params)),
-					select: <Row>(sql: string, params?: readonly unknown[]): Promise<Row[]> =>
-						whileOpen(() => read<Row>(sql, params)),
-					transaction: () =>
-						Promise.reject(
-							appError(
-								"transaction_nested",
-								"Database.transaction cannot start inside another transaction.",
-							),
-						),
-				};
-
-				await transactionRun(() => write("BEGIN IMMEDIATE"));
-				try {
-					const value = await work(transactionDatabase);
-					await transactionRun(() => write("COMMIT"));
-					return value;
-				} catch (error) {
-					try {
-						await transactionRun(() => write("ROLLBACK"));
-					} catch {
-						// The failure that caused the rollback is the one the caller needs.
-					}
-					throw error;
-				} finally {
-					open = false;
-					clearPendingSelects();
-				}
-			});
-		},
-	};
-	return ok(database);
+	return ok(createQueuedDatabase(raw, options));
 }
 
 /** Payload of `shell://done`, as shell.rs sends it. */
@@ -664,26 +521,40 @@ export function createTauriShell(bindings: TauriBindings): Shell {
 		run: (command) => invokeResult<ShellOutput>(bindings, COMMANDS.shellRun, { command }),
 		start: (command) => {
 			const id = crypto.randomUUID();
+			// Rust ignores a cancel for an id it has not registered yet, so a cancel waits for the
+			// start call to be answered.
+			let markStartAnswered: () => void = () => {};
+			const startAnswered = new Promise<void>((resolve) => {
+				markStartAnswered = resolve;
+			});
 			const done = (async (): Promise<Result<ShellOutput>> => {
 				try {
-					await listen();
-				} catch (error) {
-					return err(toAppError(error));
+					try {
+						await listen();
+					} catch (error) {
+						return err(toAppError(error));
+					}
+					const answer = new Promise<Result<ShellOutput>>((resolve) => {
+						pending.set(id, resolve);
+					});
+					const started = await invokeResult<void>(bindings, COMMANDS.shellStart, {
+						id,
+						command,
+					});
+					if (!started.ok) {
+						pending.delete(id);
+						return started;
+					}
+					return answer;
+				} finally {
+					markStartAnswered();
 				}
-				const answer = new Promise<Result<ShellOutput>>((resolve) => {
-					pending.set(id, resolve);
-				});
-				const started = await invokeResult<void>(bindings, COMMANDS.shellStart, { id, command });
-				if (!started.ok) {
-					pending.delete(id);
-					return started;
-				}
-				return answer;
 			})();
 			return {
 				id,
 				done,
 				cancel: async () => {
+					await startAnswered;
 					await invokeResult(bindings, COMMANDS.shellCancel, { id });
 				},
 			};

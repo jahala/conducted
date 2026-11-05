@@ -46,7 +46,6 @@
 		"apps/desktop/src/features/settings/repo/RepoPromptsPage.tsx": 1,
 		"apps/desktop/src/features/settings/repo/RepoScriptsPage.tsx": 1,
 		"apps/desktop/src/features/workspace/tab-layout.ts": 1,
-		"apps/desktop/src/platform/contract.ts": 1,
 		"apps/desktop/src/platform/memory.ts": 1,
 		"apps/desktop/src/ui/Card.tsx": 6,
 		"apps/desktop/src/ui/ContextMenu.tsx": 5,

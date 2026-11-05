@@ -7,39 +7,15 @@ import {
 	type WorkspaceId,
 } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
-import type { ShellOutput } from "../../platform/platform.ts";
-import type { GitCommand } from "../git/commands.ts";
+import { FakeGitRunner, gitOutput } from "../../test/fake-git-runner.ts";
 import type { GitRunner } from "../git/runner.ts";
 import { GitService, type WorkspaceGitContext } from "./git.ts";
 import type { AgentMessenger } from "./sessions.ts";
 
 const workspaceId = "ws-1" as WorkspaceId;
 
-const output = (): Result<ShellOutput> => ok({ stdout: "", stderr: "", exitCode: 0 });
-
-function fakeGit(): GitRunner & { readonly commands: readonly GitCommand[] } {
-	const commands: GitCommand[] = [];
-	const git: GitRunner & { readonly commands: readonly GitCommand[] } = {
-		commands,
-		async run(command) {
-			commands.push(command);
-			return output();
-		},
-		async runChecked(command) {
-			commands.push(command);
-			return output();
-		},
-		async stdout(command) {
-			commands.push(command);
-			return ok("");
-		},
-		async start() {
-			throw new Error("start is not used by commit and push");
-		},
-		withWorktreeLock: (_worktreePath, work) => work(),
-		withWorktreeAndRepoLocks: (_worktreePath, _repoRootPath, work) => work(),
-	};
-	return git;
+function fakeGit(): FakeGitRunner {
+	return new FakeGitRunner(() => gitOutput());
 }
 
 function fakeAgent(): AgentMessenger & {

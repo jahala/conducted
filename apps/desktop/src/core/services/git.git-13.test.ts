@@ -1,6 +1,7 @@
 import { appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import type { ShellOutput } from "../../platform/platform.ts";
+import { FakeGitRunner } from "../../test/fake-git-runner.ts";
 import type { GitCommand } from "../git/commands.ts";
 import type { GitRunner, GitRunOptions } from "../git/runner.ts";
 import {
@@ -142,33 +143,7 @@ function fetchRunner(): { runner: GitRunner; recorder: FetchRecorder } {
 		return ok(output(""));
 	};
 
-	const run = async (command: GitCommand): Promise<Result<ShellOutput>> => reply(command);
-	const runChecked = async (command: GitCommand): Promise<Result<ShellOutput>> => {
-		const result = await run(command);
-		if (!result.ok) return result;
-		const codes = command.okExitCodes ?? [0];
-		return codes.includes(result.value.exitCode)
-			? result
-			: err(appError("git_failed", result.value.stderr.trim() || "git failed"));
-	};
-	const stdout = async (command: GitCommand): Promise<Result<string>> => {
-		const result = await runChecked(command);
-		return result.ok ? ok(result.value.stdout.trim()) : result;
-	};
-
-	return {
-		recorder,
-		runner: {
-			run,
-			runChecked,
-			stdout,
-			start: async () => {
-				throw new Error("start is not used by the fetch tests");
-			},
-			withWorktreeLock: (_path, work) => work(),
-			withWorktreeAndRepoLocks: (_path, _root, work) => work(),
-		},
-	};
+	return { recorder, runner: new FakeGitRunner(reply) };
 }
 
 const context = (overrides: Partial<WorkspaceGitContext> = {}): WorkspaceGitContext => ({
@@ -326,8 +301,14 @@ describe("GIT-13 fetchIfStale", () => {
 		let now = start;
 		let attempts = 0;
 		const { runner } = fetchRunner();
+		// FakeGitRunner is a class, so a spread would drop its methods: each one is passed on.
 		const failing: GitRunner = {
-			...runner,
+			run: (command, options) => runner.run(command, options),
+			stdout: (command, options) => runner.stdout(command, options),
+			start: (command, options) => runner.start(command, options),
+			withWorktreeLock: (worktreePath, work) => runner.withWorktreeLock(worktreePath, work),
+			withWorktreeAndRepoLocks: (worktreePath, repoPath, work) =>
+				runner.withWorktreeAndRepoLocks(worktreePath, repoPath, work),
 			runChecked: async (command, options) => {
 				const result = await runner.runChecked(command, options as GitRunOptions);
 				if (command.args[0] !== "fetch") return result;

@@ -4,6 +4,7 @@ import { idleLiveState, type SessionEvent } from "@conducted/protocol";
 import type { MessageId, SessionId, WorkspaceId } from "@conducted/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Database, FileSystem } from "../../platform/platform.ts";
+import { failingOnSelect } from "../../test/failing-database.ts";
 import { openTestDatabase } from "../../test/sqlite.ts";
 import { QUEUED_MESSAGES_SQL, queuedMessageToParams } from "./queued-messages.ts";
 import { idleLiveStateJson, REPAIR_SQL, runStartupRepair } from "./repair.ts";
@@ -35,32 +36,6 @@ const must = <T>(result: { ok: true; value: T } | { ok: false; error: unknown })
 };
 
 /** Delegates to a real database, but fails when the archiving list is read. */
-class FailingOnArchivingDatabase implements Database {
-	readonly #inner: Database;
-	readonly #wrapped: Database;
-
-	constructor(inner: Database) {
-		this.#inner = inner;
-		this.#wrapped = {
-			execute: (sql, params) => this.execute(sql, params),
-			select: <Row>(sql: string, params?: readonly unknown[]) => this.select<Row>(sql, params),
-			transaction: <T>(work: (db: Database) => Promise<T>) => this.transaction(work),
-		};
-	}
-
-	async execute(sql: string, params: readonly unknown[] = []) {
-		return this.#inner.execute(sql, params);
-	}
-
-	async select<Row>(sql: string, params: readonly unknown[] = []): Promise<Row[]> {
-		if (sql === REPAIR_SQL.listArchivingWorkspaces) throw new Error("disk on fire");
-		return this.#inner.select<Row>(sql, params);
-	}
-
-	async transaction<T>(work: (db: Database) => Promise<T>): Promise<T> {
-		return this.#inner.transaction(() => work(this.#wrapped));
-	}
-}
 
 let store: ReturnType<typeof openTestDatabase>;
 let raw: DatabaseSync;
@@ -418,7 +393,11 @@ describe("DATA-03 startup repair closes terminals left open", () => {
 describe("DATA-03 startup repair is atomic", () => {
 	it("changes nothing when a later step fails", async () => {
 		seedCrash();
-		database = new FailingOnArchivingDatabase(database);
+		database = failingOnSelect(
+			database,
+			REPAIR_SQL.listArchivingWorkspaces,
+			new Error("disk on fire"),
+		);
 
 		const result = await runStartupRepair(deps());
 		expect(result).toMatchObject({ ok: false, error: { code: "db.failed" } });

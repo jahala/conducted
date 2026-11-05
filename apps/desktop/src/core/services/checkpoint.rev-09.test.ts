@@ -3,9 +3,10 @@
  * Tests the checkpoint reads behind the per-turn diff: ref existence, the waiting rule, the file
  * list from the checkpointer's diff, the NUL-separated count, and the 5 MB turn changes cache.
  */
-import { appError, err, ok, type Result, type SessionId, type TurnId } from "@conducted/shared";
+import { ok, type SessionId, type TurnId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import type { ShellOutput } from "../../platform/platform.ts";
+import { FakeGitRunner } from "../../test/fake-git-runner.ts";
 import type { GitCommand } from "../git/commands.ts";
 import type { GitRunner } from "../git/runner.ts";
 import {
@@ -28,35 +29,8 @@ function fakeGit(reply: (command: GitCommand) => ShellOutput | null): {
 	git: GitRunner;
 	commands: GitCommand[];
 } {
-	const commands: GitCommand[] = [];
-	const run = async (command: GitCommand): Promise<Result<ShellOutput>> => {
-		commands.push(command);
-		const replaced = reply(command);
-		return ok(replaced ?? output());
-	};
-	const runChecked = async (command: GitCommand): Promise<Result<ShellOutput>> => {
-		const result = await run(command);
-		if (!result.ok) return result;
-		const codes = command.okExitCodes ?? [0];
-		if (codes.includes(result.value.exitCode)) return result;
-		return err(appError("git_failed", result.value.stderr.trim() || "git failed"));
-	};
-	return {
-		git: {
-			run,
-			runChecked,
-			stdout: async (command) => {
-				const result = await runChecked(command);
-				return result.ok ? ok(result.value.stdout.trim()) : result;
-			},
-			start: async () => {
-				throw new Error("start is not used");
-			},
-			withWorktreeLock: (_path, work) => work(),
-			withWorktreeAndRepoLocks: (_path, _root, work) => work(),
-		},
-		commands,
-	};
+	const git = new FakeGitRunner((command) => ok(reply(command) ?? output()));
+	return { git, commands: git.commands };
 }
 
 const makeService = (

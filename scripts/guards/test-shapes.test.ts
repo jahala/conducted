@@ -170,13 +170,34 @@ describe("the guards end to end", () => {
 		if (sample === undefined) throw new Error("no real-time sample");
 		plant(sample);
 		await writeBaseline(root);
-		put(sample.file, `import { it } from "vitest";\n\nit("is fixed", () => {});\n`);
+		// The fixed test still asserts, so the fix adds no other finding the writer would refuse.
+		put(
+			sample.file,
+			`import { expect, it } from "vitest";\n\nit("is fixed", () => {\n\texpect(Number("2")).toBe(2);\n});\n`,
+		);
 		const problems = await checkTimeAndLeaks(root);
 		expect(problems).toHaveLength(1);
 		expect(problems[0]?.message).toContain("baseline says 1");
 
 		await writeBaseline(root);
 		expect(await checkTimeAndLeaks(root)).toEqual([]);
+	});
+
+	test("a regeneration that would raise a count is refused and names the rise (D055)", async () => {
+		if (sample === undefined) throw new Error("no real-time sample");
+		plant(sample);
+		expect(await writeBaseline(root)).toEqual([]);
+		const before = readFileSync(join(root, BASELINE_PATH), "utf8");
+		put(
+			"apps/desktop/src/core/other.test.ts",
+			`import { it } from "vitest";\n\nit("waits", async () => {\n\tawait new Promise((resolve) => setTimeout(resolve, 30));\n});\n`,
+		);
+		const raised = await writeBaseline(root);
+		// The planted test sleeps for real and asserts nothing, so it raises two guards at once.
+		expect(raised).toContain("time-and-leaks: apps/desktop/src/core/other.test.ts 0 -> 1");
+		expect(raised.length).toBeGreaterThan(0);
+		for (const rise of raised) expect(rise).toContain("apps/desktop/src/core/other.test.ts 0 -> 1");
+		expect(readFileSync(join(root, BASELINE_PATH), "utf8")).toBe(before);
 	});
 
 	test("writing the baseline twice gives the same bytes", async () => {

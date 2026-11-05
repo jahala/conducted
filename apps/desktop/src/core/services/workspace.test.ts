@@ -11,8 +11,9 @@ import {
 } from "@conducted/shared";
 import { describe, expect, it, vi } from "vitest";
 import type { FileSystem, ShellOutput } from "../../platform/platform.ts";
+import { FakeGitRunner } from "../../test/fake-git-runner.ts";
 import type { GitCommand } from "../git/commands.ts";
-import { type GitRunner, isSuccessfulExit } from "../git/runner.ts";
+import type { GitRunner } from "../git/runner.ts";
 import { OFFLINE_FALLBACK_MESSAGE } from "../git/worktree.ts";
 import type { Repo, RepoConfig, Session, Workspace } from "../model.ts";
 import {
@@ -118,40 +119,11 @@ function makeRunner(reply: (command: GitCommand, cwd: string) => ShellOutput | u
 	calls: { command: GitCommand; cwd: string }[];
 } {
 	const calls: { command: GitCommand; cwd: string }[] = [];
-	const answer = (command: GitCommand, cwd: string): ShellOutput =>
-		reply(command, cwd) ?? output(0);
-	const run: GitRunner["run"] = async (command, options) => {
+	const git = new FakeGitRunner((command, options) => {
 		calls.push({ command, cwd: options.cwd });
-		return ok(answer(command, options.cwd));
-	};
-	const runChecked: GitRunner["runChecked"] = async (command, options) => {
-		const result = await run(command, options);
-		if (!result.ok) return result;
-		return isSuccessfulExit(command, result.value.exitCode)
-			? result
-			: err(appError("git_failed", result.value.stderr.trim() || "git failed"));
-	};
-	const stdout: GitRunner["stdout"] = async (command, options) => {
-		const result = await runChecked(command, options);
-		return result.ok ? ok(result.value.stdout.trim()) : result;
-	};
-	return {
-		calls,
-		git: {
-			run,
-			runChecked,
-			stdout,
-			async start() {
-				throw new Error("start is not used in these tests");
-			},
-			async withWorktreeLock(_path, work) {
-				return work();
-			},
-			async withWorktreeAndRepoLocks(_worktree, _root, work) {
-				return work();
-			},
-		},
-	};
+		return ok(reply(command, options.cwd) ?? output(0));
+	});
+	return { calls, git };
 }
 
 function defaultGitReply(worktreePath: string) {

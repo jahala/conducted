@@ -5,10 +5,10 @@
 import { type AppError, appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import type { FileStat, FileSystem, ShellOutput } from "../../platform/platform.ts";
+import { FakeGitRunner } from "../../test/fake-git-runner.ts";
 import { createActions } from "../actions.ts";
 import { viewedFilesFile } from "../app-paths.ts";
 import type { Services } from "../container.ts";
-import type { GitCommand } from "../git/commands.ts";
 import type { GitRunner } from "../git/runner.ts";
 import { GitService, type WorkspaceGitContext } from "./git.ts";
 
@@ -21,7 +21,7 @@ const output = (stdout = "", stderr = "", exitCode = 0): ShellOutput => ({
 });
 
 function runner(): GitRunner {
-	const run = async (command: GitCommand): Promise<Result<ShellOutput>> => {
+	return new FakeGitRunner((command) => {
 		const args = command.args;
 		if (args[0] === "branch" && args[1] === "--show-current") return ok(output("feat\n"));
 		if (args[0] === "merge-base") return ok(output("mb\n"));
@@ -31,25 +31,7 @@ function runner(): GitRunner {
 		if (args[0] === "status") return ok(output(""));
 		if (args[0] === "ls-files") return ok(output(""));
 		return ok(output());
-	};
-	return {
-		run,
-		runChecked: async (command) => {
-			const result = await run(command);
-			return result.ok && (command.okExitCodes ?? [0]).includes(result.value.exitCode)
-				? result
-				: err(appError("git_failed", "git failed"));
-		},
-		stdout: async (command) => {
-			const result = await run(command);
-			return result.ok ? ok(result.value.stdout.trim()) : result;
-		},
-		start: async () => {
-			throw new Error("start is not used");
-		},
-		withWorktreeLock: (_path, work) => work(),
-		withWorktreeAndRepoLocks: (_path, _root, work) => work(),
-	};
+	});
 }
 
 const context: WorkspaceGitContext = {
