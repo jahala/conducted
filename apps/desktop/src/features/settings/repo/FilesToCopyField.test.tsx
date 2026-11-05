@@ -8,7 +8,7 @@ afterEach(cleanup);
 describe("SET-07 FilesToCopyField", () => {
 	it("refuses a pattern that reaches outside the repository", () => {
 		const onChange = vi.fn();
-		render(<FilesToCopyField patterns={[]} matches={null} source="settings" onChange={onChange} />);
+		render(<FilesToCopyField patterns={[]} matches={null} onChange={onChange} />);
 
 		fireEvent.change(screen.getByLabelText("Add a file or pattern"), {
 			target: { value: "../secret" },
@@ -26,7 +26,7 @@ describe("SET-07 FilesToCopyField", () => {
 	it("adds an inside pattern and lists the saved patterns", () => {
 		const onChange = vi.fn();
 		const { rerender } = render(
-			<FilesToCopyField patterns={[]} matches={null} source="settings" onChange={onChange} />,
+			<FilesToCopyField patterns={[]} matches={null} onChange={onChange} />,
 		);
 
 		fireEvent.change(screen.getByLabelText("Add a file or pattern"), {
@@ -35,14 +35,7 @@ describe("SET-07 FilesToCopyField", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Add" }));
 		expect(onChange).toHaveBeenCalledWith([".env*"]);
 
-		rerender(
-			<FilesToCopyField
-				patterns={[".env*"]}
-				matches={null}
-				source="settings"
-				onChange={onChange}
-			/>,
-		);
+		rerender(<FilesToCopyField patterns={[".env*"]} matches={null} onChange={onChange} />);
 		expect(
 			within(screen.getByRole("list", { name: "Files to copy" })).getByText(".env*"),
 		).toBeTruthy();
@@ -50,12 +43,7 @@ describe("SET-07 FilesToCopyField", () => {
 
 	it("shows detection in progress", () => {
 		render(
-			<FilesToCopyField
-				patterns={[".env*"]}
-				matches={{ state: "detecting" }}
-				source="settings"
-				onChange={vi.fn()}
-			/>,
+			<FilesToCopyField patterns={[".env*"]} matches={{ state: "detecting" }} onChange={vi.fn()} />,
 		);
 
 		expect(screen.getByText("Detecting files to copy...")).toBeTruthy();
@@ -67,7 +55,6 @@ describe("SET-07 FilesToCopyField", () => {
 			<FilesToCopyField
 				patterns={[".env*"]}
 				matches={{ state: "ready", paths }}
-				source="settings"
 				onChange={vi.fn()}
 			/>,
 		);
@@ -79,18 +66,15 @@ describe("SET-07 FilesToCopyField", () => {
 		).toHaveLength(COPY_PREVIEW_LIMIT);
 	});
 
-	it("says when .worktreeinclude takes over and hides the editor", () => {
-		render(
-			<FilesToCopyField
-				patterns={[".env"]}
-				matches={null}
-				source="worktreeinclude"
-				onChange={vi.fn()}
-			/>,
-		);
+	it("keeps the settings list editable and says .worktreeinclude is copied too", () => {
+		const onChange = vi.fn();
+		render(<FilesToCopyField patterns={[".env"]} matches={null} onChange={onChange} />);
 
-		expect(screen.getByText(/Using \.worktreeinclude from this repository/)).toBeTruthy();
-		expect(screen.queryByLabelText("Add a file or pattern")).toBeNull();
-		expect(screen.queryByRole("button", { name: /Remove/ })).toBeNull();
+		expect(screen.getByText(/If the repository has a \.worktreeinclude file/)).toBeTruthy();
+		expect(screen.getByText(/the paths in it are copied as well/)).toBeTruthy();
+		expect(screen.getByLabelText("Add a file or pattern")).toBeTruthy();
+
+		fireEvent.click(screen.getByRole("button", { name: "Remove .env" }));
+		expect(onChange).toHaveBeenCalledWith([]);
 	});
 });

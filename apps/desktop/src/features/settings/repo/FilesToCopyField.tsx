@@ -4,10 +4,12 @@
  * workspace, with a preview of what matches.
  * Behaviour: ui-map.md 6, "Misc (repo)" (Files to copy) and "Environment page" ("Detecting files to
  * copy...", "Using .worktreeinclude from this repository..."); services-map.md 4.2.3
- * (file_include_globs).
+ * (file_include_globs). The workspace service copies the settings list and the `.worktreeinclude`
+ * list together (services-map.md 5A.5.5); only the settings list is editable here.
  * Must handle: a pattern with no match (shown, not an error), a pattern that reaches outside the
- * repository (refused), a huge match list (first 50 and a count), detection in progress, and a
- * `.worktreeinclude` file taking over (the field says where the list comes from, read-only).
+ * repository (refused), a huge match list (first 50 and a count), and a saved list the caller
+ * supplies. Detection and the `.worktreeinclude` contents are the caller's; wiring them to the
+ * repository is WS-01's.
  * Test first: the pattern "../secret" is refused.
  */
 import { useId, useState } from "react";
@@ -29,15 +31,13 @@ export interface FilesToCopyFieldProps {
 	patterns: string[];
 	/** Null while no detector is available, so the field shows no false result. */
 	matches: { state: "detecting" } | { state: "ready"; paths: string[] } | null;
-	source: "settings" | "worktreeinclude";
 	onChange: (patterns: string[]) => void;
 }
 
-export function FilesToCopyField({ patterns, matches, source, onChange }: FilesToCopyFieldProps) {
+export function FilesToCopyField({ patterns, matches, onChange }: FilesToCopyFieldProps) {
 	const [draft, setDraft] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const inputId = useId();
-	const readOnly = source === "worktreeinclude";
 
 	const add = () => {
 		const pattern = draft.trim();
@@ -57,35 +57,29 @@ export function FilesToCopyField({ patterns, matches, source, onChange }: FilesT
 
 	return (
 		<div className="flex flex-col gap-3">
-			{readOnly ? (
-				<p className="text-sm text-fg-muted">
-					Using .worktreeinclude from this repository. Edit that file to change the list.
-				</p>
-			) : (
-				<div className="flex flex-col gap-1.5">
-					<Label htmlFor={inputId}>Add a file or pattern</Label>
-					<div className="flex items-center gap-2">
-						<Input
-							id={inputId}
-							value={draft}
-							placeholder=".env*"
-							error={error ?? undefined}
-							onChange={(event) => {
-								setDraft(event.target.value);
-								setError(null);
-							}}
-							onKeyDown={(event) => {
-								if (event.key !== "Enter") return;
-								event.preventDefault();
-								add();
-							}}
-						/>
-						<Button variant="secondary" onClick={add}>
-							Add
-						</Button>
-					</div>
+			<div className="flex flex-col gap-1.5">
+				<Label htmlFor={inputId}>Add a file or pattern</Label>
+				<div className="flex items-center gap-2">
+					<Input
+						id={inputId}
+						value={draft}
+						placeholder=".env*"
+						error={error ?? undefined}
+						onChange={(event) => {
+							setDraft(event.target.value);
+							setError(null);
+						}}
+						onKeyDown={(event) => {
+							if (event.key !== "Enter") return;
+							event.preventDefault();
+							add();
+						}}
+					/>
+					<Button variant="secondary" onClick={add}>
+						Add
+					</Button>
 				</div>
-			)}
+			</div>
 
 			{patterns.length === 0 ? (
 				<p className="text-sm text-fg-muted">No files are copied into new workspaces.</p>
@@ -97,20 +91,23 @@ export function FilesToCopyField({ patterns, matches, source, onChange }: FilesT
 							className="flex items-center justify-between gap-2 rounded-md bg-muted px-3 py-1.5"
 						>
 							<code className="min-w-0 truncate font-mono text-xs text-fg">{pattern}</code>
-							{readOnly ? null : (
-								<Button
-									size="xs"
-									variant="ghost"
-									aria-label={`Remove ${pattern}`}
-									onClick={() => onChange(patterns.filter((entry) => entry !== pattern))}
-								>
-									Remove
-								</Button>
-							)}
+							<Button
+								size="xs"
+								variant="ghost"
+								aria-label={`Remove ${pattern}`}
+								onClick={() => onChange(patterns.filter((entry) => entry !== pattern))}
+							>
+								Remove
+							</Button>
 						</li>
 					))}
 				</ul>
 			)}
+
+			<p className="text-sm text-fg-muted">
+				If the repository has a .worktreeinclude file, the paths in it are copied as well. Edit that
+				file to add or remove them.
+			</p>
 
 			{matches?.state === "detecting" ? (
 				<p role="status" className="text-sm text-fg-muted">

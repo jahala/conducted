@@ -10,13 +10,16 @@
  * below 1000 (poll only the selected workspace, at most once a minute, and do not batch
  * siblings); a PR whose mergeability GitHub is still computing polls every second; the schedule
  * never goes below one second; a failed or slow batch shrinks the next batch, a good one grows it
- * back by a fifth (at least one); no subscribers (nothing to poll); inactive, unlinked, offline
- * and remote-less workspaces are skipped; a branch that was never pushed asks GitHub nothing.
+ * back by a fifth (at least one); no subscribers (nothing to poll); the poller skips unlinked,
+ * offline and remote-less workspaces, and the owner of the subscription stops inactive ones; a
+ * branch that was never pushed asks GitHub nothing; a failed budget probe is an error value,
+ * never a made-up budget.
  * Our design choice: the numbers are the researched ones. The pure functions decide; the poller in
  * services/github.ts only applies them and owns the timers.
  * Test first: with 800 calls left, a sidebar workspace is paused and the selected one polls at
  * most once a minute.
  */
+import { err, ok, type Result } from "@conducted/shared";
 
 export const VISIBLE_POLL_MS = 5_000;
 export const SIDEBAR_POLL_MS = 300_000;
@@ -37,7 +40,7 @@ export interface PollDecision {
 	requestedOnly: boolean;
 }
 
-/** `remaining` is the GraphQL budget left, or null when it could not be read. */
+/** `remaining` is the GraphQL budget left, or null when the host does not rate limit. */
 export function decidePolling(
 	remaining: number | null,
 	role: PollRole,
@@ -155,51 +158,44 @@ export function nextBatchSizes(sizes: BatchSizes, outcome: BatchOutcome): BatchS
 }
 
 export interface RateLimitGateDeps {
-	/** Reads the GraphQL budget left. Null means unlimited or unknown. */
-	readRemaining: () => Promise<number | null>;
+	/** Reads the GraphQL budget left. Ok(null) means the host does not rate limit. */
+	readRemaining: () => Promise<Result<number | null>>;
 	now: () => number;
 }
 
 export interface RateLimitGate {
-	/** The cached budget, reading it again only when its lifetime has passed. */
-	remaining(): Promise<number | null>;
-	/** Asks the gate whether a poll may run at the requested interval. */
-	decide(role: PollRole, requestedIntervalMs: number): Promise<PollDecision>;
+	/** Chooses the smallest subscription and asks the gate whether it may run. */
+	decide(subscriptions: readonly PollSubscription[]): Promise<Result<PollDecision>>;
 }
 
 /**
  * The GraphQL rate-limit gate (services-map 5B.1.3). The budget answer is cached for 60 s when it
  * is high and 500 ms when it is low; two calls at once share one probe. A probe that fails is
- * handed to the caller as an error, never turned into a made-up budget.
+ * returned as an error value, never turned into a made-up budget.
  */
 export function createRateLimitGate(deps: RateLimitGateDeps): RateLimitGate {
 	let cached: { remaining: number | null; at: number } | null = null;
-	let probe: Promise<number | null> | null = null;
+	let probe: Promise<Result<number | null>> | null = null;
 
-	const read = async (): Promise<number | null> => {
+	const read = (): Promise<Result<number | null>> => {
 		if (cached !== null) {
 			const ttl = budgetCacheMs(cached.remaining ?? BUDGET_MAIN_ONLY_BELOW);
-			if (deps.now() - cached.at < ttl) return cached.remaining;
+			if (deps.now() - cached.at < ttl) return Promise.resolve(ok(cached.remaining));
 		}
 		if (probe !== null) return probe;
-		probe = deps.readRemaining().then(
-			(remaining) => {
-				cached = { remaining, at: deps.now() };
-				probe = null;
-				return remaining;
-			},
-			(error: unknown) => {
-				probe = null;
-				throw error;
-			},
-		);
+		probe = deps.readRemaining().then((result) => {
+			probe = null;
+			if (result.ok) cached = { remaining: result.value, at: deps.now() };
+			return result;
+		});
 		return probe;
 	};
 
 	return {
-		remaining: read,
-		async decide(role, requestedIntervalMs) {
-			return decidePolling(await read(), role, requestedIntervalMs);
+		async decide(subscriptions) {
+			const remaining = await read();
+			if (!remaining.ok) return err(remaining.error);
+			return ok(updatePolling(subscriptions, remaining.value));
 		},
 	};
 }

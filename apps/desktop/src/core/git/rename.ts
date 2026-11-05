@@ -9,21 +9,23 @@
  * used locally, on the remote or by an open or merged pull request takes the next `-vN` suffix; a
  * repository with no GitHub remote skips the pull request check; a failed `gh` call is returned,
  * never read as "no pull requests"; 1000 suffixes are tried before giving up.
- * Our design choice: the availability check walks the suffix rule here rather than using the
- * workspace creator's `nextFreeName`, which starts at `-v1` (services-map 3.1). Rename keeps the
- * old remote branch: the app never deletes or force-pushes it here.
+ * Our design choice: rename keeps the old remote branch; the app never deletes or force-pushes it
+ * here. The suffix loop stays local because the workspace creator's `nextFreeName` starts at `-v1`
+ * and cannot bump a name that is already `-vN` (services-map 3.1 against 3.11).
+ * Not built here: renaming the workspace folder and its short-lived symlink need file operations
+ * and a workspace path that can change; the warning that the old remote branch remains is shown by
+ * the workspace header.
  * Test first: a name with an open pull request becomes name-v2.
  */
 import { appError, err, ok, type Result } from "@conducted/shared";
-import { branchRename, branchShowCurrent, remoteGetUrl, showRefVerify } from "./commands.ts";
+import { isGithubRemoteUrl } from "../services/github.ts";
+import { branchRename, branchShowCurrent, remoteGetUrl } from "./commands.ts";
 import { prListForBranch } from "./gh-commands.ts";
 import type { GitRunner } from "./runner.ts";
+import { branchNameIsTaken, MAX_NAME_SUFFIX_TRIES } from "./worktree.ts";
 
 /** Shown when `git branch --show-current` prints nothing, for a detached HEAD. */
 export const NO_BRANCH_CHECKED_OUT_MESSAGE = "Please check out a branch before renaming.";
-
-/** The most suffixes the availability rule tries before it gives up (services-map 3.11). */
-export const MAX_BRANCH_SUFFIX = 1000;
 
 export interface BranchNameQuery {
 	/** The repository root, where local and remote refs are visible. */
@@ -51,7 +53,7 @@ export async function nextFreeBranchName(
 	if (!first.ok) return first;
 	if (!first.value) return ok(base);
 	const { prefix, next } = branchSuffixOf(base);
-	for (let suffix = next; suffix <= MAX_BRANCH_SUFFIX; suffix += 1) {
+	for (let suffix = next; suffix <= MAX_NAME_SUFFIX_TRIES; suffix += 1) {
 		const candidate = `${prefix}-v${suffix}`;
 		const taken = await isTaken(candidate);
 		if (!taken.ok) return taken;
@@ -60,29 +62,18 @@ export async function nextFreeBranchName(
 	return err(appError("name_exhausted", `No free branch name was found for "${base}".`));
 }
 
-/** True when the repository's remote is a GitHub remote, so `gh pr list` can answer. */
-const isGitHubRemote = (url: string): boolean => /github\.com[:/]/i.test(url);
-
 /** Whether a local branch, a remote-tracking branch, or an open or merged PR uses `name`. */
 export async function branchNameTaken(
 	git: GitRunner,
 	query: BranchNameQuery,
 ): Promise<Result<boolean>> {
+	if (await branchNameIsTaken(git, query)) return ok(true);
+
 	const cwd = query.repoRootPath;
-	const local = await git.run(showRefVerify(`refs/heads/${query.name}`), { cwd });
-	if (!local.ok) return local;
-	if (local.value.exitCode === 0) return ok(true);
-
-	const remote = await git.run(showRefVerify(`refs/remotes/${query.remote}/${query.name}`), {
-		cwd,
-	});
-	if (!remote.ok) return remote;
-	if (remote.value.exitCode === 0) return ok(true);
-
 	// A repository with no remote, or a remote that is not GitHub, cannot have a pull request.
 	const url = await git.run(remoteGetUrl(query.remote), { cwd });
 	if (!url.ok) return url;
-	if (url.value.exitCode !== 0 || !isGitHubRemote(url.value.stdout)) return ok(false);
+	if (url.value.exitCode !== 0 || !isGithubRemoteUrl(url.value.stdout)) return ok(false);
 
 	const listed = await git.stdout(prListForBranch(query.name), { cwd });
 	if (!listed.ok) return listed;

@@ -15,12 +15,10 @@ import { describe, expect, it } from "vitest";
 import type { ShellOutput } from "../../platform/platform.ts";
 import { configPullFf, type GitCommand } from "../git/commands.ts";
 import type { GitRunner, GitRunOptions } from "../git/runner.ts";
+import { pullStrategy, remoteTargetOf } from "./agent-instructions.ts";
 import {
 	firstPushRemoteBranch,
 	GitService,
-	PULL_UP_TO_DATE_MESSAGE,
-	pullStrategy,
-	pullUsesRebase,
 	targetBranchName,
 	upstreamBranchOn,
 	type WorkspaceGitContext,
@@ -100,6 +98,7 @@ function makeService(
 				return ok("session-1" as SessionId);
 			},
 		},
+		promptFor: async () => ok(null),
 		now: () => 0,
 		fs: {
 			trash: async () => ok(undefined),
@@ -248,7 +247,7 @@ describe("GIT-06 pull and push", () => {
 
 		const result = await service.pull(workspaceId);
 
-		expect(result.ok).toBe(true);
+		expect(result.ok && result.value).toBe("handed_to_agent");
 		expect(instructions).toHaveLength(1);
 		expect(instructions[0]).toContain("Review the uncommitted changes");
 		expect(instructions[0]).toContain("Rebase this branch onto `origin/main`");
@@ -271,7 +270,7 @@ describe("GIT-06 pull and push", () => {
 
 		const result = await service.pull(workspaceId);
 
-		expect(result.ok).toBe(true);
+		expect(result.ok && result.value).toBe("fast_forwarded");
 		const fetchIndex = calls.findIndex((command) => command.args[0] === "fetch");
 		const mergeIndex = calls.findIndex((command) => command.args[0] === "merge");
 		expect(fetchIndex).toBeGreaterThan(-1);
@@ -297,7 +296,7 @@ describe("GIT-06 pull and push", () => {
 
 		const result = await service.pull(workspaceId);
 
-		expect(result.ok).toBe(true);
+		expect(result.ok && result.value).toBe("handed_to_agent");
 		expect(instructions).toHaveLength(1);
 		expect(calls.some((command) => command.args[0] === "merge")).toBe(false);
 		expect(calls.some((command) => command.args[0] === "rev-list")).toBe(false);
@@ -317,10 +316,9 @@ describe("GIT-06 pull and push", () => {
 
 		const result = await service.pull(workspaceId);
 
-		expect(result.ok).toBe(true);
+		expect(result.ok && result.value).toBe("up_to_date");
 		expect(instructions).toHaveLength(0);
 		expect(calls.some((command) => command.args[0] === "merge")).toBe(false);
-		expect(PULL_UP_TO_DATE_MESSAGE).toBe("Pulled latest changes. You're up to date!");
 	});
 
 	it("hands a diverged branch to the agent with the configured merge strategy", async () => {
@@ -337,7 +335,7 @@ describe("GIT-06 pull and push", () => {
 
 		const result = await service.pull(workspaceId);
 
-		expect(result.ok).toBe(true);
+		expect(result.ok && result.value).toBe("handed_to_agent");
 		expect(instructions).toHaveLength(1);
 		expect(instructions[0]).toContain("Merge `origin/main` into this branch");
 		expect(calls.some((command) => command.args[0] === "merge")).toBe(false);
@@ -364,6 +362,42 @@ describe("GIT-06 pull and push", () => {
 		expect(instructions).toHaveLength(0);
 	});
 
+	it("never hands a dirty tree to the agent when pull.ff=only forbids merging", async () => {
+		const instructions: string[] = [];
+		const { runner, calls } = fakeRunner((command) => {
+			if (isConfigGet(command, "pull.rebase")) return ok(configValue(""));
+			if (isConfigGet(command, "pull.ff")) return ok(configValue("only"));
+			if (command.args[0] === "status") return ok(output(" M src/a.ts\n"));
+			if (command.args[0] === "fetch") return ok(output(""));
+			if (command.args[0] === "rev-list") return ok(output("0\t2\n"));
+			if (command.args[0] === "merge") return ok(output(""));
+			return err(appError("git_failed", `unexpected: ${command.args.join(" ")}`));
+		});
+		const service = makeService(runner, { instructions });
+
+		const result = await service.pull(workspaceId);
+
+		expect(result.ok && result.value).toBe("fast_forwarded");
+		expect(instructions).toHaveLength(0);
+		expect(calls.some((command) => command.args[0] === "merge")).toBe(true);
+	});
+
+	it("uses pull.rebase for resolve conflicts even when pull.ff=only", async () => {
+		const instructions: string[] = [];
+		const { runner } = fakeRunner((command) => {
+			if (isConfigGet(command, "pull.rebase")) return ok(configValue("true"));
+			if (isConfigGet(command, "pull.ff")) return ok(configValue("only"));
+			return err(appError("git_failed", `unexpected: ${command.args.join(" ")}`));
+		});
+		const service = makeService(runner, { instructions });
+
+		const result = await service.resolveConflicts(workspaceId);
+
+		expect(result.ok).toBe(true);
+		expect(instructions).toHaveLength(1);
+		expect(instructions[0]).toContain("Rebase this branch onto `origin/main`");
+	});
+
 	it("uses a plain pull when there is no target", async () => {
 		const { runner, calls } = fakeRunner((command) => {
 			if (command.args[0] === "pull") return ok(output(""));
@@ -375,7 +409,7 @@ describe("GIT-06 pull and push", () => {
 
 		const result = await service.pull(workspaceId);
 
-		expect(result.ok).toBe(true);
+		expect(result.ok && result.value).toBe("plain");
 		expect(calls.map((command) => command.args)).toEqual([["pull"]]);
 	});
 
@@ -414,15 +448,15 @@ describe("GIT-06 pull and push", () => {
 
 	it("reads the user's pull settings and names the remote-target parts", () => {
 		expect(configPullFf().args).toEqual(["config", "--get", "pull.ff"]);
-		expect(pullUsesRebase("true")).toBe(true);
-		expect(pullUsesRebase("merges")).toBe(true);
-		expect(pullUsesRebase("false")).toBe(false);
-		expect(pullUsesRebase("")).toBe(false);
 		expect(pullStrategy("true", "")).toBe("rebase");
+		expect(pullStrategy("merges", "")).toBe("rebase");
+		expect(pullStrategy("false", "")).toBe("merge");
 		expect(pullStrategy("", "")).toBe("merge");
 		expect(pullStrategy("true", "only")).toBe("ff_only");
 		expect(targetBranchName("origin/main", "origin")).toBe("main");
 		expect(targetBranchName("refs/remotes/origin/main", "origin")).toBe("main");
+		expect(remoteTargetOf("origin", "main")).toBe("origin/main");
+		expect(remoteTargetOf("", "main")).toBe("main");
 		expect(upstreamBranchOn("origin/feat", "origin")).toBe("feat");
 		expect(upstreamBranchOn("upstream/feat", "origin")).toBeNull();
 		expect(

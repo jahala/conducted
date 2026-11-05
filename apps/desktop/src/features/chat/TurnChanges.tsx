@@ -1,13 +1,15 @@
 /**
  * @feature REV-09 Turn change summary
- * Owns: The list of files a turn changed, with line counts and an 'Open diff' action that asks the
- * caller to show the Changes view scoped to this turn.
+ * Owns: The list of files a turn changed, with line counts and an 'Open diff' action that hands the
+ * caller a `DiffScope` for this turn.
  * Behaviour: ui-map.md 3.3 (file-change summary with 'Open diff'), 3.3 checkpoint controls (diff
  * scope 'turn'), 3.6 (Changes list).
  * Must handle: No changes (renders nothing); many files (the first five, then 'and N more', which
  * expands the list); a deleted or renamed file (the old path is named); a binary file (no line
- * counts); the turn is reverted (every row is struck through); opening a diff hands the caller
- * the turn scope so the URL can carry turn:<session>:<turn>.
+ * counts); the turn is reverted (every row is struck through); no handler for opening the diff
+ * (the 'Open diff' action is shown disabled).
+ * Our design choice: the component cannot open the Changes view itself, so it hands the turn scope
+ * to the optional `onOpenDiff` and the caller shows the view.
  * Test first: A turn with 12 changed files shows the first 5 and 'and 7 more'.
  */
 
@@ -40,8 +42,8 @@ export interface TurnChangesProps {
 	turn: ChatTurn;
 	sessionId: SessionId;
 	/**
-	 * Shows the Changes view for this turn. The caller writes the scope into the URL. Without it the
-	 * action is shown disabled, because this component cannot open the panel itself.
+	 * Shows the Changes view for this turn. The caller turns the scope into its own view. Without it
+	 * the action is shown disabled, because this component cannot open the panel itself.
 	 */
 	onOpenDiff?: (scope: DiffScope) => void;
 }

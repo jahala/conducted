@@ -8,7 +8,8 @@
  * Children: RunToolbar, RunEmptyState, terminal/TerminalView for the output.
  * Must handle: no actions (empty state), loading, the picked action disappearing (falls back to the
  * default), a run starting while setup is running (button says Waiting for setup), a stop that is
- * not confirmed (the error is shown and the button returns to Run), a process that exits by itself
+ * not confirmed (the error is shown, the retained outcome stays in view, and the button returns to
+ * Run), a saved history that could not be read (the reason is shown), a process that exits by itself
  * (output stays, button back to Run again), exclusive mode stopping another workspace's run (the
  * service does it), and an archived workspace.
  * Test first: with one action and no running process the toolbar shows "Run <label>".
@@ -54,6 +55,8 @@ export function RunTab({ workspaceId }: RunTabProps) {
 	const runService = useServices().services.runScripts;
 	const storedPhase = useStore(runService.store, (state) => state.phases[workspaceId]);
 	const history = useStore(runService.store, (state) => state.history[workspaceId]) ?? [];
+	const outcome = useStore(runService.store, (state) => state.outcomes[workspaceId]);
+	const historyError = useStore(runService.store, (state) => state.historyError);
 	const [selectedId, setSelectedId] = useState<string | null>(null);
 	const [lastTerminal, setLastTerminal] = useState<TerminalId | null>(null);
 
@@ -108,7 +111,14 @@ export function RunTab({ workspaceId }: RunTabProps) {
 						: effect === "start_spotlight"
 							? await actions.run.startSpotlight(workspaceId)
 							: await actions.run.stopSpotlight(workspaceId);
-			if (!result.ok) toastError("Couldn't run the action", result.error);
+			if (!result.ok) {
+				toastError(
+					effect === "stop" || effect === "stop_spotlight"
+						? "Couldn't stop the action"
+						: "Couldn't run the action",
+					result.error,
+				);
+			}
 		})();
 	};
 
@@ -152,6 +162,21 @@ export function RunTab({ workspaceId }: RunTabProps) {
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
+			{outcome === "stop-unconfirmed" ? (
+				<p
+					role="status"
+					className="shrink-0 border-b border-separator px-3 py-2 text-xs text-fg-muted"
+				>
+					The last action may still be running.
+				</p>
+			) : historyError !== null ? (
+				<p
+					role="status"
+					className="shrink-0 border-b border-separator px-3 py-2 text-xs text-fg-muted"
+				>
+					{historyError.message}
+				</p>
+			) : null}
 			<RunToolbar
 				actions={available.map((entry) => ({ id: entry.id, label: entry.label }))}
 				selectedActionId={selected.id}

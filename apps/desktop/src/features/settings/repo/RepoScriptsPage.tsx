@@ -33,16 +33,7 @@ import { Select } from "../../../ui/Select.tsx";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
 import { Switch } from "../../../ui/Switch.tsx";
 import { toastError } from "../../../ui/Toast.tsx";
-
-/** Variables the app adds to every setup, archive and run script (D027). */
-export const SCRIPT_VARIABLES: readonly string[] = [
-	"CONDUCTED_WORKSPACE_NAME",
-	"CONDUCTED_WORKSPACE_PATH",
-	"CONDUCTED_WORKSPACE_ID",
-	"CONDUCTED_ROOT_PATH",
-	"CONDUCTED_DEFAULT_BRANCH",
-	"CONDUCTED_PORT",
-];
+import { RUN_FOLDER_VARIABLES } from "../../scripts-panel/run/AddActionDialog.tsx";
 
 const RUN_MODES = [
 	{ value: "concurrent" as const, label: "Run together" },
@@ -211,7 +202,7 @@ export function RepoScriptsPage({ repoId }: { repoId: RepoId }) {
 						<div className="rounded-md bg-muted p-3 text-xs text-fg-muted">
 							<p className="font-medium text-fg">Variables in scripts</p>
 							<p className="mt-1 font-mono">
-								{SCRIPT_VARIABLES.map((name) => `$${name}`).join("  ")}
+								{RUN_FOLDER_VARIABLES.map((name) => `$${name}`).join("  ")}
 							</p>
 						</div>
 

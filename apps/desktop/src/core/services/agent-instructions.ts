@@ -12,21 +12,21 @@
  * rebase or merge by `pull.rebase`), 3.7.1 (create PR steps), 3.7.6 (conflict resolution goes to
  * the agent), ui-map.md 3.6 and 6 Actions (Review prompt).
  * Must handle: a per-repo custom prompt (`RepoConfig.prompts`) is added to the built-in text for
- * Create PR, and replaces it for Review and for Resolve conflicts; the target branch and remote
- * names are inserted as given (they are quoted by the agent's own tools, not by us); a PR
- * template, when the repo has one, is named in the text so the agent reads it; a workspace link is
+ * Create PR, Commit and push and Reconcile (those two take it as an optional input), and replaces
+ * it for Review and for Resolve conflicts; the target branch and remote names are inserted as
+ * given (they are quoted by the agent's own tools, not by us); a PR template, when the repo has one, is named in the text so the agent reads it; a workspace link is
  * included only when the user turns it on, and the text says it opens the app on this Mac; a force
  * push is only ever requested as `--force-with-lease`; the instruction never asks to rename the
- * branch; the commit request names the branch and remote and never asks for a force push; the
- * Resolve conflicts request names the target and the rebase or merge steps, and its rebase steps
- * finish with a leased force push; the extra review instructions from "Edit before sending" are
- * added after the chosen base.
+ * branch; the commit request names the branch and remote and never asks for a force push; when no
+ * repository prompt is set, the Resolve conflicts request names the target and the rebase or merge
+ * steps, and its rebase steps finish with a leased force push; the extra review instructions from
+ * "Edit before sending" are added after the chosen base.
  * Our design choice: all wording is our own. Each function returns plain text with no hidden
  * markers. The text is the message the user sees in the chat, so it must be readable.
  * Test first: commitAndPushInstruction names the branch and remote; createPrInstruction mentions
  * the target branch, `gh pr create` and the PR template path; resolveConflictsInstruction names
- * the target and the rebase or merge steps; aiReviewInstruction replaces its default text with the
- * repository's review prompt.
+ * the target and the rebase or merge steps when the repository has no prompt; aiReviewInstruction
+ * replaces its default text with the repository's review prompt.
  */
 import { notImplemented } from "@conducted/shared";
 import type { CheckRun } from "../model.ts";
@@ -40,7 +40,9 @@ export interface InstructionBase {
 	customPrompt: string | null;
 }
 
-export const commitAndPushInstruction = (input: InstructionBase): string => {
+export const commitAndPushInstruction = (
+	input: Pick<InstructionBase, "remote" | "branch"> & { customPrompt?: string | null },
+): string => {
 	const builtIn =
 		`Commit all the changes in this workspace with a clear message, then push the branch ` +
 		`\`${input.branch}\` to \`${input.remote}\`. Check that the push succeeded.`;
@@ -59,7 +61,7 @@ export const createPrInstruction = (
 	},
 ): string => {
 	const target = input.targetBranch;
-	const remoteTarget = `${input.remote}/${target}`;
+	const remoteTarget = remoteTargetOf(input.remote, target);
 	const steps: string[] = [];
 	if (input.hasUncommittedChanges) {
 		steps.push(
@@ -99,12 +101,57 @@ export const createPrInstruction = (
 /** `pull.rebase` values that tell git to rebase (services-map 3.6.4). */
 const REBASE_PULL_VALUES = new Set(["true", "yes", "on", "1", "merges", "interactive", "preserve"]);
 
+/** How a pull proceeds: rebase, merge, or only when it can fast-forward. */
+export type PullStrategy = "rebase" | "merge" | "ff_only";
+
+/** The two strategies an agent instruction can ask for. */
+export type AgentPullStrategy = Exclude<PullStrategy, "ff_only">;
+
 /**
  * The strategy when the branch has diverged from its target: `pull.rebase` decides, and an
  * unset, false or unknown value means merge (services-map 3.6.4).
  */
-export function pullRebaseStrategy(configValue: string): "rebase" | "merge" {
+export function pullRebaseStrategy(configValue: string): AgentPullStrategy {
 	return REBASE_PULL_VALUES.has(configValue.trim().toLowerCase()) ? "rebase" : "merge";
+}
+
+/**
+ * The strategy from the user's git config. `pull.ff = only` wins because it forbids both a merge
+ * commit and a rebase; otherwise `pull.rebase` decides, and its absence means merge.
+ */
+export function pullStrategy(rebase: string | null, ff: string | null): PullStrategy {
+	if (ff?.trim().toLowerCase() === "only") return "ff_only";
+	return pullRebaseStrategy(rebase ?? "");
+}
+
+/** `remote/target` as an agent instruction names it; a repository with no remote names the target. */
+export function remoteTargetOf(remote: string, target: string): string {
+	const name = remote.trim();
+	const branch = target.trim();
+	return name.length === 0 ? branch : `${name}/${branch}`;
+}
+
+/**
+ * The step that moves the branch onto its target, plus the push that follows. The reconcile and
+ * Resolve conflicts requests share this wording (services-map 3.6.4, 3.7.6). A rebase updates the
+ * remote with a leased force push; a merge pushes normally. There is no push without a remote.
+ */
+function rebaseOrMergeSteps(input: {
+	strategy: AgentPullStrategy;
+	remote: string;
+	remoteTarget: string;
+}): { start: string; push: string | null } {
+	const start =
+		input.strategy === "rebase"
+			? `Rebase this branch onto \`${input.remoteTarget}\`.`
+			: `Merge \`${input.remoteTarget}\` into this branch.`;
+	const push =
+		input.remote.trim().length === 0
+			? null
+			: input.strategy === "rebase"
+				? "Update the remote branch with `git push --force-with-lease`, never a plain force push."
+				: "Push the branch with `git push`.";
+	return { start, push };
 }
 
 /**
@@ -114,29 +161,27 @@ export function pullRebaseStrategy(configValue: string): "rebase" | "merge" {
  */
 export const resolveConflictsInstruction = (
 	input: InstructionBase & {
-		strategy: "rebase" | "merge";
+		strategy: AgentPullStrategy;
 	},
 ): string => {
 	const custom = input.customPrompt?.trim() ?? "";
 	if (custom.length > 0) return custom;
 
 	const remote = input.remote.trim();
-	const remoteTarget = remote.length === 0 ? input.targetBranch : `${remote}/${input.targetBranch}`;
-	const steps: string[] = [];
+	const remoteTarget = remoteTargetOf(remote, input.targetBranch);
+	const { start, push } = rebaseOrMergeSteps({
+		strategy: input.strategy,
+		remote,
+		remoteTarget,
+	});
+	const steps: string[] = [start];
 	if (input.strategy === "rebase") {
-		steps.push(`Rebase this branch onto \`${remoteTarget}\`.`);
 		steps.push("Resolve every conflict, then stage the resolved files.");
 		steps.push("Continue the rebase with `git rebase --continue` until it finishes.");
-		if (remote.length > 0) {
-			steps.push(
-				"Update the remote branch with `git push --force-with-lease`, never a plain force push.",
-			);
-		}
 	} else {
-		steps.push(`Merge \`${remoteTarget}\` into this branch.`);
 		steps.push("Resolve every conflict, then stage the resolved files and finish the merge.");
-		if (remote.length > 0) steps.push("Push the branch with `git push`.");
 	}
+	if (push !== null) steps.push(push);
 
 	const intro = `Resolve the conflicts on the branch \`${input.branch}\` against \`${remoteTarget}\`.`;
 	const numbered = steps.map((step, index) => `${index + 1}. ${step}`).join("\n");
@@ -180,32 +225,29 @@ export const renameBranchInstruction = (
 ): string => notImplemented("WS-04");
 
 /** "Pull latest from the target" when the worktree is dirty or the branch has diverged. */
-export const reconcileInstruction = (
-	input: InstructionBase & {
-		strategy: "rebase" | "merge";
-		dirty: boolean;
-	},
-): string => {
+export const reconcileInstruction = (input: {
+	remote: string;
+	targetBranch: string;
+	branch: string;
+	strategy: AgentPullStrategy;
+	dirty: boolean;
+	customPrompt?: string | null;
+}): string => {
 	const remote = input.remote.trim();
-	const remoteTarget = remote.length === 0 ? input.targetBranch : `${remote}/${input.targetBranch}`;
+	const remoteTarget = remoteTargetOf(remote, input.targetBranch);
 	const steps: string[] = [];
 	if (input.dirty) {
 		steps.push(
 			"Review the uncommitted changes with `git diff` and commit them with a clear message.",
 		);
 	}
-	if (input.strategy === "rebase") {
-		steps.push(`Rebase this branch onto \`${remoteTarget}\`.`);
-	} else {
-		steps.push(`Merge \`${remoteTarget}\` into this branch.`);
-	}
-	if (remote.length > 0) {
-		steps.push(
-			input.strategy === "rebase"
-				? "Update the remote branch with `git push --force-with-lease`, never a plain force push."
-				: "Push the branch with `git push`.",
-		);
-	}
+	const { start, push } = rebaseOrMergeSteps({
+		strategy: input.strategy,
+		remote,
+		remoteTarget,
+	});
+	steps.push(start);
+	if (push !== null) steps.push(push);
 
 	const intro = `Reconcile the branch \`${input.branch}\` with \`${remoteTarget}\`.`;
 	const numbered = steps.map((step, index) => `${index + 1}. ${step}`).join("\n");

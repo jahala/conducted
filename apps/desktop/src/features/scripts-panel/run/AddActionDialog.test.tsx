@@ -1,7 +1,9 @@
+import type { WorkspaceId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { buildScriptEnv } from "../../../core/services/terminals.ts";
 import "../../../test/dom-polyfills.ts";
-import { type ActionDraft, AddActionDialog } from "./AddActionDialog.tsx";
+import { type ActionDraft, AddActionDialog, RUN_FOLDER_VARIABLES } from "./AddActionDialog.tsx";
 
 afterEach(cleanup);
 
@@ -92,5 +94,25 @@ describe("SET-07 AddActionDialog", () => {
 
 		fireEvent.change(screen.getByLabelText("Command"), { target: { value: "pnpm docs" } });
 		expect(save.disabled).toBe(false);
+	});
+
+	it("lists exactly the CONDUCTED_ variables a script gets", () => {
+		const env = buildScriptEnv({
+			workspace: {
+				id: "workspace" as WorkspaceId,
+				directoryName: "place",
+				path: "/code/workspaces/place",
+				port: 55_000,
+				targetBranch: "main",
+			},
+			repoRootPath: "/code/repo",
+			defaultBranch: "main",
+			userEnv: { EXTRA: "1" },
+		});
+
+		const fromEnv = Object.keys(env)
+			.filter((name) => name.startsWith("CONDUCTED_"))
+			.sort();
+		expect([...RUN_FOLDER_VARIABLES].sort()).toEqual(fromEnv);
 	});
 });

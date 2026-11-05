@@ -11,20 +11,24 @@
  * scan starts it again when the rules still say yes); a battery reading that cannot be parsed (keep
  * the current state and return the error, never guess a percentage); a Mac with no battery (no
  * reading, so the battery rule does not apply); the app quitting (stop cancels the process).
- * Our design choice: the service has no timer. A caller calls `scan` every
- * `KEEP_AWAKE_SCAN_MS` and whenever a chat starts or stops working, so tests never wait.
- * Overlapping scans share one run, so two calls can never start two processes.
+ * Our design choice: the service has no timer. The composition root (`container.ts`) calls `scan`
+ * every `KEEP_AWAKE_SCAN_MS` and whenever the setting or a chat's work changes, so tests never
+ * wait. Overlapping scans share one run, so two calls can never start two processes. After `stop`
+ * a later `scan` does nothing, so nothing can start `caffeinate` again as the app quits.
  * Test first: with the setting on and a chat working, `scan` starts exactly one `caffeinate`;
  * when the battery reads 9 percent, the next `scan` cancels it.
  */
 import { appError, err, ok, type Result } from "@conducted/shared";
 import type { Platform, RunningCommand } from "../../platform/platform.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
+import type { SettingKey } from "../registries/settings.ts";
 
 /** How often the root calls `scan`, from the research (10 seconds). */
 export const KEEP_AWAKE_SCAN_MS = 10_000;
 /** On battery at or below this level the Mac is allowed to sleep. */
 export const KEEP_AWAKE_MIN_BATTERY_PERCENT = 10;
+/** The setting's registry key, typed from the registry so a rename there fails the typecheck. */
+export const KEEP_AWAKE_SETTING_KEY: SettingKey = "caffeinate_while_agents_running";
 
 /** What `pmset -g batt` reported. */
 export interface BatteryReading {
@@ -87,13 +91,12 @@ export interface KeepAwakeDeps {
 	anyChatWorking: () => boolean;
 }
 
-const SETTING_KEY = "caffeinate_while_agents_running";
-
 export class KeepAwakeService {
 	readonly #deps: KeepAwakeDeps;
 	readonly #scans = createSingleFlight<"scan">();
 	#running: RunningCommand | null = null;
 	#generation = 0;
+	#stopped = false;
 
 	constructor(deps: KeepAwakeDeps) {
 		this.#deps = deps;
@@ -101,18 +104,20 @@ export class KeepAwakeService {
 
 	/** Applies the rule once: starts or cancels `caffeinate` to match it. */
 	scan(): Promise<Result<void>> {
+		if (this.#stopped) return Promise.resolve(ok(undefined));
 		return this.#scans.run("scan", () => this.#apply());
 	}
 
 	/** Cancels `caffeinate` if it runs. Called when the app stops. */
 	async stop(): Promise<void> {
+		this.#stopped = true;
 		this.#generation += 1;
 		await this.#cancel();
 	}
 
 	async #apply(): Promise<Result<void>> {
 		const generation = this.#generation;
-		const enabled = this.#deps.setting<boolean>(SETTING_KEY) === true;
+		const enabled = this.#deps.setting<boolean>(KEEP_AWAKE_SETTING_KEY) === true;
 		const chatWorking = this.#deps.anyChatWorking();
 		if (!enabled || !chatWorking) {
 			await this.#cancel();
@@ -132,7 +137,7 @@ export class KeepAwakeService {
 		if (!battery.ok) return battery;
 
 		// The setting or the chats may have changed while `pmset` ran.
-		const stillEnabled = this.#deps.setting<boolean>(SETTING_KEY) === true;
+		const stillEnabled = this.#deps.setting<boolean>(KEEP_AWAKE_SETTING_KEY) === true;
 		const stillWorking = this.#deps.anyChatWorking();
 		if (!stillEnabled || !stillWorking) {
 			await this.#cancel();

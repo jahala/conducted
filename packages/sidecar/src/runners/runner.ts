@@ -72,7 +72,8 @@ export interface StartOptions {
 	resume?: { agentSessionId: string; atNativeMessageId?: string };
 	/**
 	 * The agent changed the chat's own settings, for example by entering plan mode. The session
-	 * manager stores the config and tells the app.
+	 * manager stores the config and tells the app. Our design choice: one callback with a reason,
+	 * not a separate onEnterPlanMode callback.
 	 */
 	onConfigChanged?: (config: SessionConfig, reason: AgentConfigChangeReason) => void;
 }

@@ -1,7 +1,7 @@
 /**
  * @feature NAV-15 Terminals and previews that survive tab switches
  * Owns: tests for the surface layer keeping surfaces mounted, placing them over their anchors, hiding
- * them without unmounting, and for the anchor reporting its box.
+ * them without unmounting, and for the anchor reporting its box, batched into one report per frame.
  * Test first: switching the active tab away and back does not unmount the terminal surface.
  */
 import type { WorkspaceId } from "@conducted/shared";
@@ -165,7 +165,7 @@ describe("NAV-15 SurfaceLayer", () => {
 		expect(hostOf("t1").hidden).toBe(true);
 	});
 
-	it("removes and disposes a surface when its tab closes", () => {
+	it("removes a surface when its tab closes, unmounting its content", () => {
 		const onUnmount = vi.fn();
 		const view = render(
 			<SurfaceLayer
@@ -190,11 +190,7 @@ describe("NAV-15 SurfaceLayer", () => {
 			},
 		];
 		const view = render(
-			<SurfaceLayer
-				surfaces={surfaces}
-				placements={new Map([["t1", rect(10, 20)]])}
-				focusSurfaceId={null}
-			/>,
+			<SurfaceLayer surfaces={surfaces} placements={new Map()} focusSurfaceId="t1" />,
 		);
 		const input = screen.getByLabelText("terminal input");
 		expect(document.activeElement).not.toBe(input);
@@ -208,8 +204,11 @@ describe("NAV-15 SurfaceLayer", () => {
 		);
 		expect(document.activeElement).toBe(input);
 
+		// jsdom 30 will not move focus out of an element once an ancestor is hidden, so the test
+		// checks that the layer asks the focused control to blur. A browser then clears focus.
+		const blur = vi.spyOn(input, "blur");
 		view.rerender(<SurfaceLayer surfaces={surfaces} placements={new Map()} focusSurfaceId="t1" />);
-		expect(document.activeElement).not.toBe(input);
+		expect(blur).toHaveBeenCalledTimes(1);
 	});
 
 	it("never places two surfaces in one slot", () => {
@@ -233,10 +232,30 @@ describe("NAV-15 SurfaceLayer", () => {
 
 describe("NAV-15 SurfaceAnchor", () => {
 	let box: SurfaceRect;
+	let frames: { pending: () => number; flush: () => void };
 
 	beforeEach(() => {
 		box = rect(12, 34, 300, 200);
 		vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(() => domRect(box));
+		const queued = new Map<number, FrameRequestCallback>();
+		let nextId = 1;
+		vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+			const id = nextId;
+			nextId += 1;
+			queued.set(id, callback);
+			return id;
+		});
+		vi.stubGlobal("cancelAnimationFrame", (id: number) => {
+			queued.delete(id);
+		});
+		frames = {
+			pending: () => queued.size,
+			flush: () => {
+				const callbacks = [...queued.values()];
+				queued.clear();
+				for (const callback of callbacks) callback(0);
+			},
+		};
 	});
 
 	it("reports its box on mount and null when it unmounts", () => {
@@ -266,7 +285,26 @@ describe("NAV-15 SurfaceAnchor", () => {
 		box = rect(12, 34, 420, 180);
 		const callback = observers.current as ResizeObserverCallback | null;
 		callback?.([], {} as ResizeObserver);
+		expect(onPlace).toHaveBeenLastCalledWith("t1", rect(12, 34, 300, 200));
+		frames.flush();
 		expect(onPlace).toHaveBeenLastCalledWith("t1", rect(12, 34, 420, 180));
+	});
+
+	it("batches a burst of scroll events into one report per animation frame", () => {
+		const onPlace = vi.fn();
+		render(<SurfaceAnchor surfaceId="t1" onPlace={onPlace} />);
+		const callsAfterMount = onPlace.mock.calls.length;
+
+		box = rect(20, 40, 360, 220);
+		document.dispatchEvent(new Event("scroll"));
+		document.dispatchEvent(new Event("scroll"));
+		document.dispatchEvent(new Event("scroll"));
+		expect(frames.pending()).toBe(1);
+		expect(onPlace).toHaveBeenCalledTimes(callsAfterMount);
+
+		frames.flush();
+		expect(onPlace).toHaveBeenCalledTimes(callsAfterMount + 1);
+		expect(onPlace).toHaveBeenLastCalledWith("t1", rect(20, 40, 360, 220));
 	});
 
 	it("reports a new box when the window resizes and stops after it unmounts", () => {
@@ -275,11 +313,21 @@ describe("NAV-15 SurfaceAnchor", () => {
 
 		box = rect(40, 60, 500, 300);
 		window.dispatchEvent(new Event("resize"));
+		window.dispatchEvent(new Event("resize"));
+		expect(frames.pending()).toBe(1);
+		frames.flush();
 		expect(onPlace).toHaveBeenLastCalledWith("t1", rect(40, 60, 500, 300));
 
+		box = rect(50, 70, 520, 320);
+		window.dispatchEvent(new Event("resize"));
+		expect(frames.pending()).toBe(1);
 		view.unmount();
 		const callsAfterUnmount = onPlace.mock.calls.length;
+		frames.flush();
+		expect(onPlace).toHaveBeenCalledTimes(callsAfterUnmount);
+
 		window.dispatchEvent(new Event("resize"));
+		frames.flush();
 		expect(onPlace).toHaveBeenCalledTimes(callsAfterUnmount);
 	});
 });

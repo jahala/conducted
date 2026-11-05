@@ -1,3 +1,4 @@
+import { appError, err, ok } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import {
 	BUDGET_STOP_BELOW,
@@ -80,23 +81,25 @@ describe("PR-03 skip rules", () => {
 });
 
 describe("PR-03 rate-limit gate", () => {
+	const selected = [{ role: "selected" as const, intervalMs: 5_000 }];
+
 	it("caches a high budget for a minute", async () => {
 		let reads = 0;
 		let now = 1_000;
 		const gate = createRateLimitGate({
 			readRemaining: async () => {
 				reads += 1;
-				return 5_000;
+				return ok(5_000);
 			},
 			now: () => now,
 		});
 
-		expect(await gate.remaining()).toBe(5_000);
+		expect((await gate.decide(selected)).ok).toBe(true);
 		now += 59_999;
-		expect(await gate.remaining()).toBe(5_000);
+		expect((await gate.decide(selected)).ok).toBe(true);
 		expect(reads).toBe(1);
 		now += 2;
-		expect(await gate.remaining()).toBe(5_000);
+		expect((await gate.decide(selected)).ok).toBe(true);
 		expect(reads).toBe(2);
 	});
 
@@ -106,17 +109,17 @@ describe("PR-03 rate-limit gate", () => {
 		const gate = createRateLimitGate({
 			readRemaining: async () => {
 				reads += 1;
-				return 800;
+				return ok(800);
 			},
 			now: () => now,
 		});
 
-		await gate.remaining();
+		await gate.decide(selected);
 		now += 499;
-		await gate.remaining();
+		await gate.decide(selected);
 		expect(reads).toBe(1);
 		now += 2;
-		await gate.remaining();
+		await gate.decide(selected);
 		expect(reads).toBe(2);
 	});
 
@@ -126,41 +129,38 @@ describe("PR-03 rate-limit gate", () => {
 		const gate = createRateLimitGate({
 			readRemaining: () => {
 				reads += 1;
-				return new Promise<number>((resolve) => {
-					release = resolve;
+				return new Promise((resolve) => {
+					release = (remaining) => resolve(ok(remaining));
 				});
 			},
 			now: () => 1_000,
 		});
 
-		const first = gate.remaining();
-		const second = gate.remaining();
+		const first = gate.decide(selected);
+		const second = gate.decide(selected);
 		expect(reads).toBe(1);
 		release?.(900);
-		expect(await first).toBe(900);
-		expect(await second).toBe(900);
+		expect(await first).toEqual(ok({ poll: true, intervalMs: 60_000, requestedOnly: true }));
+		expect(await second).toEqual(ok({ poll: true, intervalMs: 60_000, requestedOnly: true }));
 	});
 
-	it("hands a failed probe to the caller instead of inventing a budget", async () => {
+	it("hands a failed probe to the caller as an error value", async () => {
+		const failure = appError("github_failed", "probe failed");
 		const gate = createRateLimitGate({
-			readRemaining: async () => {
-				throw new Error("probe failed");
-			},
+			readRemaining: async () => err(failure),
 			now: () => 1_000,
 		});
-		await expect(gate.remaining()).rejects.toThrow("probe failed");
+		expect(await gate.decide(selected)).toEqual(err(failure));
 	});
 
 	it("asks the gate's decision with the cached budget", async () => {
 		const gate = createRateLimitGate({
-			readRemaining: async () => 800,
+			readRemaining: async () => ok(800),
 			now: () => 1_000,
 		});
-		expect(await gate.decide("sidebar", 300_000)).toEqual({
-			poll: false,
-			intervalMs: 300_000,
-			requestedOnly: true,
-		});
+		expect(await gate.decide([{ role: "sidebar", intervalMs: 300_000 }])).toEqual(
+			ok({ poll: false, intervalMs: 300_000, requestedOnly: true }),
+		);
 	});
 });
 

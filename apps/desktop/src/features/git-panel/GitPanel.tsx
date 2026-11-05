@@ -1,5 +1,6 @@
 /**
  * @feature REV-01 GitPanel
+ * @feature GIT-06 Cmd+Shift+L and the pull outcome toasts
  * Owns: right panel, top half. A header (status chip and main action), a tab strip, and the
  * active tab: All files, Changes or Checks. Entry point embedded by the workspace screen.
  * Behaviour: ui-map.md 3.6 (tab strip, header, tabs); frontend layout in structure-map.md 3.2.
@@ -15,9 +16,10 @@
  * value in its own state (and, without `onOpenFile`, cannot open a file tab).
  * Must handle: git state loading (skeleton header), git state error with retry, no git status
  * because a rebase or merge is underway (the Changes tab says so), the commands "Create PR",
- * "Commit and push" and "Show uncommitted changes" handled only while the panel is mounted,
- * through the command dispatcher so a rebind applies, one review request at a time per workspace,
- * and a workspace switch mid-request (the old request's result does not touch the new workspace's
+ * "Commit and push", "Start an AI code review" and "Show uncommitted changes" handled only while
+ * the panel is mounted, through the command dispatcher so a rebind applies, "Commit and push" only
+ * while the header offers that action, one review request at a time per workspace, and a
+ * workspace switch mid-request (the old request's result does not touch the new workspace's
  * dialog).
  * Test first: with a GitState of two uncommitted files the header reads "Uncommitted changes" and
  * the main action is "Commit and push".
@@ -30,6 +32,7 @@ import { createSingleFlight } from "../../core/async/single-flight.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions, useGitState, useSetting, useWorkspaceStatus } from "../../core/hooks.ts";
 import type { GitPanelTab } from "../../core/model.ts";
+import { PULL_UP_TO_DATE_MESSAGE, PULLED_LATEST_MESSAGE } from "../../core/services/git.ts";
 import {
 	computeGitHeader,
 	type GitHeaderActionId,
@@ -38,7 +41,7 @@ import {
 import { Button } from "../../ui/Button.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { Skeleton } from "../../ui/Skeleton.tsx";
-import { toastError } from "../../ui/Toast.tsx";
+import { toast, toastError } from "../../ui/Toast.tsx";
 import { ChangesTab } from "./changes/ChangesTab.tsx";
 import { ChecksTab } from "./checks/ChecksTab.tsx";
 import { FilesTab } from "./files/FilesTab.tsx";
@@ -108,6 +111,17 @@ export function GitPanel({
 	const reviewBusy = reviewingFor === workspaceId;
 	const tab = tabProp ?? ownTab;
 	const scope = scopeProp ?? ownScope;
+	const headerInputs: GitHeaderInputs | null =
+		git.state === "ready"
+			? {
+					git: git.data,
+					agentWorking: status?.kind === "agent" && status.label === "working",
+					forge: git.data.pullRequestUnavailable === "not_github" ? "local" : "github",
+					automergeSettingOn: automergeEnabled,
+					treatOptionalChecksAsBlocking: optionalChecksBlocking,
+					stack: null,
+				}
+			: null;
 
 	const setTab = (next: GitPanelTab) => {
 		if (onTabChange !== undefined) onTabChange(next);
@@ -146,7 +160,7 @@ export function GitPanel({
 		});
 	};
 
-	const runAction = (action: GitHeaderActionId): Promise<void> => {
+	const runAction = async (action: GitHeaderActionId): Promise<void> => {
 		const run = async (
 			work: Promise<{ ok: boolean; error?: { message: string } }>,
 			title: string,
@@ -162,8 +176,17 @@ export function GitPanel({
 					actions.git.commitAndPush(workspaceId),
 					"Couldn't ask the agent to commit and push",
 				);
-			case "pull":
-				return run(actions.git.pull(workspaceId), "Couldn't pull");
+			case "pull": {
+				const result = await gitService.pull(workspaceId);
+				if (!result.ok) {
+					toastError("Couldn't pull", result.error);
+					return;
+				}
+				// A pull reports what it did; the agent hand-off is already visible in the chat.
+				if (result.value === "up_to_date") toast.success(PULL_UP_TO_DATE_MESSAGE);
+				if (result.value === "fast_forwarded") toast.success(PULLED_LATEST_MESSAGE);
+				return;
+			}
 			case "push":
 				return run(actions.git.push(workspaceId), "Couldn't push");
 			case "resolve":
@@ -202,9 +225,19 @@ export function GitPanel({
 		return true;
 	});
 
-	// Cmd+Shift+Y reaches the same action as the header's Commit and push button.
+	// Cmd+Shift+Y reaches the same action as the header's Commit and push button, but only while
+	// the header offers that action. A clean tree or an open PR has nothing to commit, so asking
+	// the agent would spend a turn for nothing.
 	useCommandHandler("git.commitAndPush", "area", () => {
-		void runAction("commit_and_push");
+		if (headerInputs !== null && computeGitHeader(headerInputs).action?.id === "commit_and_push") {
+			void runAction("commit_and_push");
+		}
+		return true;
+	});
+
+	// Cmd+Shift+L reaches the same action as the header's Pull latest button.
+	useCommandHandler("git.pullLatest", "area", () => {
+		void runAction("pull");
 		return true;
 	});
 
@@ -229,6 +262,12 @@ export function GitPanel({
 		}
 	};
 
+	// Cmd+Shift+R starts the same review as the Review button.
+	useCommandHandler("review.start", "area", () => {
+		void startReview(null);
+		return true;
+	});
+
 	const header = (() => {
 		if (git.state === "loading") return <HeaderSkeleton />;
 		if (git.state === "error") {
@@ -243,19 +282,9 @@ export function GitPanel({
 				</div>
 			);
 		}
+		if (headerInputs === null) return null;
 		return (
-			<ComputedHeader
-				key={workspaceId}
-				inputs={{
-					git: git.data,
-					agentWorking: status?.kind === "agent" && status.label === "working",
-					forge: git.data.pullRequestUnavailable === "not_github" ? "local" : "github",
-					automergeSettingOn: automergeEnabled,
-					treatOptionalChecksAsBlocking: optionalChecksBlocking,
-					stack: null,
-				}}
-				onAction={runAction}
-			/>
+			<ComputedHeader key={workspaceId} inputs={headerInputs} onAction={runAction} />
 		);
 	})();
 

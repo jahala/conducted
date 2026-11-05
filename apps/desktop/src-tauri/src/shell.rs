@@ -36,8 +36,9 @@
 //! `check_program_allowed`. It resolves the program (a bare name on the PATH the child will see,
 //! or the given path) and requires two things: the file name is in `ALLOWED_PROGRAMS` (git, gh,
 //! gt, stat, cp, sleep, echo, true, the shell and the helper scripts for repository scripts, kill,
-//! which, open, caffeinate, pmset, lsof, watchexec, and the managed agent programs claude, codex,
-//! cursor-agent, opencode, pi), and the resolved file sits in a trusted program folder: the
+//! which, open, caffeinate, pmset, lsof, watchexec, xcodebuild for the Xcode licence probe,
+//! osascript for its Terminal fix, and the managed agent programs claude, codex, cursor-agent,
+//! opencode, pi), and the resolved file sits in a trusted program folder: the
 //! system bin folders, the package-manager trees their links resolve into, the app's `bin/` and
 //! the managed agent-binaries folder. A program outside the list or the folders fails with
 //! `shell_program_not_allowed` and names it. The file scope and URL scopes are in `files.rs`.
@@ -1003,6 +1004,8 @@ pub const ALLOWED_PROGRAMS: &[&str] = &[
     "caffeinate",
     "pmset",
     "watchexec",
+    "xcodebuild",
+    "osascript",
     "checkpointer.sh",
     "spotlighter.sh",
     "git-busy-check.sh",
@@ -1899,6 +1902,83 @@ mod tests {
             path,
         )
         .expect("a managed program path is allowed");
+    }
+
+    /// The `program: "<value>"` literals in the UI's TypeScript, skipping test files: those talk
+    /// to the in-memory Platform and never reach this allowlist.
+    fn ui_program_literals(dir: &Path, found: &mut Vec<String>) {
+        let entries = std::fs::read_dir(dir).expect("the UI source folder is readable");
+        for entry in entries {
+            let path = entry.expect("the folder entry is readable").path();
+            if path.is_dir() {
+                ui_program_literals(&path, found);
+                continue;
+            }
+            let name = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("");
+            let is_source = matches!(
+                path.extension().and_then(|extension| extension.to_str()),
+                Some("ts" | "tsx")
+            );
+            if !is_source || name.contains(".test.") {
+                continue;
+            }
+            let source = std::fs::read_to_string(&path).expect("the source file is readable");
+            found.extend(program_literal_values(&source));
+        }
+    }
+
+    /// Every `program: "<value>"` in one source file.
+    fn program_literal_values(source: &str) -> Vec<String> {
+        let mut values = Vec::new();
+        let mut rest = source;
+        while let Some(at) = rest.find("program:") {
+            rest = &rest[at + "program:".len()..];
+            let Some(quoted) = rest.trim_start().strip_prefix('"') else {
+                continue;
+            };
+            let Some(end) = quoted.find('"') else {
+                continue;
+            };
+            values.push(quoted[..end].to_string());
+            rest = &quoted[end..];
+        }
+        values
+    }
+
+    #[test]
+    fn git_16_allows_the_xcode_licence_programs() {
+        for program in ["xcodebuild", "osascript"] {
+            check_program_allowed(program, ALLOWED_PROGRAMS)
+                .unwrap_or_else(|_| panic!("the Xcode licence flow starts {program}"));
+        }
+    }
+
+    #[test]
+    fn git_16_every_program_the_ui_starts_is_allowed() {
+        let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("../src");
+        let mut programs = Vec::new();
+        ui_program_literals(&src, &mut programs);
+        assert!(
+            programs.iter().any(|program| program.as_str() == "git"),
+            "the scan reads the UI source at {src:?}"
+        );
+        for program in &programs {
+            check_program_allowed(program, ALLOWED_PROGRAMS)
+                .unwrap_or_else(|_| panic!("the UI starts {program}, which the allowlist refuses"));
+        }
+        // These reach the shell through a variable, so the literal scan cannot see them.
+        for program in [
+            "zsh",
+            "checkpointer.sh",
+            "spotlighter.sh",
+            "git-busy-check.sh",
+        ] {
+            check_program_allowed(program, ALLOWED_PROGRAMS)
+                .unwrap_or_else(|_| panic!("the UI starts {program}, which the allowlist refuses"));
+        }
     }
 
     #[test]

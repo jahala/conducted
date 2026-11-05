@@ -76,7 +76,7 @@ import {
 	outcomeFromStopReason,
 	permissionResponseFor,
 } from "./permission.ts";
-import type { AcpTranslator } from "./translate.ts";
+import { type AcpTranslator, usageFromUpdate } from "./translate.ts";
 
 export interface AcpSessionDeps {
 	adapter: AcpAdapter;
@@ -445,8 +445,9 @@ export class AcpSession implements AgentSession {
 			for (const wake of [...this.modelWaiters]) wake();
 		}
 		if (update.sessionUpdate === "usage_update") {
-			if (update.size > 0) {
-				this.usage = { usedTokens: update.used, windowTokens: update.size };
+			const usage = usageFromUpdate(update);
+			if (usage.windowTokens !== undefined) {
+				this.usage = { usedTokens: usage.usedTokens, windowTokens: usage.windowTokens };
 			}
 		}
 		const turn = this.activeTurn;

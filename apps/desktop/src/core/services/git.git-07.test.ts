@@ -40,10 +40,15 @@ function fakeGit(options: FakeGitOptions = {}): GitRunner & {
 			return ok(output());
 		},
 		async runChecked(command, runOptions) {
-			return git.run(command, runOptions);
+			const result = await git.run(command, runOptions);
+			if (!result.ok) return result;
+			const codes = command.okExitCodes ?? [0];
+			return codes.includes(result.value.exitCode)
+				? result
+				: err(appError("git_failed", result.value.stderr.trim() || "git failed"));
 		},
 		async stdout(command, runOptions) {
-			const result = await git.run(command, runOptions);
+			const result = await git.runChecked(command, runOptions);
 			return result.ok ? ok(result.value.stdout.trim()) : result;
 		},
 		async start() {
@@ -86,6 +91,7 @@ function makeService(
 	options: {
 		contextOf?: (id: WorkspaceId) => Promise<Result<WorkspaceGitContext>>;
 		promptFor?: (id: WorkspaceId) => Promise<Result<string | null>>;
+		omitPromptFor?: boolean;
 	} = {},
 ): GitService {
 	return new GitService({
@@ -93,7 +99,9 @@ function makeService(
 		cache: {} as never,
 		contextOf: options.contextOf ?? (async () => ok(context())),
 		agent,
-		promptFor: options.promptFor,
+		...(options.omitPromptFor === true
+			? {}
+			: { promptFor: options.promptFor ?? (async () => ok<string | null>(null)) }),
 		now: () => 1_000,
 		fs: {
 			trash: async () => ok(undefined),
@@ -193,6 +201,17 @@ describe("GIT-07 resolve conflicts", () => {
 		});
 
 		expect(await service.resolveConflicts(workspaceId)).toEqual(err(failure));
+		expect(agent.calls).toHaveLength(0);
+	});
+
+	it("returns an error instead of sending built-in text when no prompt reader is wired", async () => {
+		const agent = fakeAgent();
+		const service = makeService(fakeGit(), agent, { omitPromptFor: true });
+
+		const result = await service.resolveConflicts(workspaceId);
+
+		expect(result.ok).toBe(false);
+		expect(!result.ok && result.error.code).toBe("repo_config_unloaded");
 		expect(agent.calls).toHaveLength(0);
 	});
 

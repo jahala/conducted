@@ -12,8 +12,8 @@
  * Spotlight terminal, then the run terminal, then the newest interactive one, and says which it
  * used; a request for output when nothing matches returns a plain sentence the agent can read
  * ("No action process active"), not an error; an ended terminal falls back to the text kept when it
- * ended, then to its saved screen; script files are never written to disk (the command goes to the
- * shell as arguments).
+ * ended, then to its saved screen, then to a plain sentence when neither exists; script files are
+ * never written to disk (the command goes to the shell as arguments).
  * Shell integration (RUN-09, native-and-sidecar-map.md A5 and D1, services-map.md 5A.4.6): an
  * interactive terminal starts zsh with `ZDOTDIR` pointing at a folder of four small files
  * (`.zshenv`, `.zprofile`, `.zshrc`, `.zlogin`) that source the user's own dotfiles first and then
@@ -128,6 +128,9 @@ export const DEFAULT_TERMINAL_OUTPUT_LINES = 1000;
 export const NO_SPOTLIGHT_OUTPUT = "No spotlight process active";
 export const NO_RUN_OUTPUT = "No action process active";
 export const NO_TERMINAL_OUTPUT = "No terminal found for this workspace";
+
+/** The text for an ended process whose output was never kept and never saved. */
+export const NO_SAVED_OUTPUT = "No saved output for this process";
 
 export interface TerminalOutput {
 	output: string;
@@ -788,9 +791,11 @@ export class TerminalsService {
 			return err(appError("terminal_stop_failed", "Couldn't stop the terminal.", cause));
 		}
 
+		let unsubscribeExit: () => void = () => {};
 		const exited = new Promise<void>((resolve) => {
-			const unsubscribe = record.connection.onExit(() => {
-				unsubscribe();
+			unsubscribeExit = record.connection.onExit(() => {
+				unsubscribeExit();
+				unsubscribeExit = () => {};
 				resolve();
 			});
 		});
@@ -807,8 +812,10 @@ export class TerminalsService {
 			void exited.then(() => finish(false));
 		});
 		if (timedOut) {
+			unsubscribeExit();
 			return err(appError("run_stop_unconfirmed", STOP_NOT_CONFIRMED_MESSAGE));
 		}
+		unsubscribeExit();
 		return ok(undefined);
 	}
 
@@ -890,7 +897,7 @@ export class TerminalsService {
 			return ok({ output: lastLines(text.value, maxLines), running: false });
 		}
 
-		return ok({ output: "", running: false });
+		return ok({ output: NO_SAVED_OUTPUT, running: false });
 	}
 
 	/** Kills every live terminal and stamps `ended_at`. Runs on quit. */

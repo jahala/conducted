@@ -201,6 +201,40 @@ describe("REV-09 checkpoint service", () => {
 		expect(diff?.args).toEqual(["diff", "checkpoint-1", "current", "--", "--name-only", "-z"]);
 	});
 
+	it("gives each caller its own copy so a change never reaches the cache", async () => {
+		const { git, commands } = fakeGit((command) => {
+			const exit = refExit(command);
+			if (exit !== null) return output("", "", 0);
+			return diffReply({ nameStatus: "M\tsrc/a.ts\n", numstat: "1\t0\tsrc/a.ts\n" })(command);
+		});
+		const service = makeService(git);
+		const first = await service.changesForTurn(session, turn);
+		expect(first.ok).toBe(true);
+		if (!first.ok) return;
+
+		const only = first.value[0];
+		if (only !== undefined) only.path = "mutated.ts";
+		first.value.push({
+			path: "extra.ts",
+			status: "added",
+			linesAdded: 1,
+			linesRemoved: 0,
+			binary: false,
+		});
+
+		await expect(service.changesForTurn(session, turn)).resolves.toEqual({
+			ok: true,
+			value: [
+				{ path: "src/a.ts", status: "modified", linesAdded: 1, linesRemoved: 0, binary: false },
+			],
+		});
+		expect(
+			commands.filter(
+				(command) => command.program === SCRIPT && command.args.includes("--name-status"),
+			),
+		).toHaveLength(1);
+	});
+
 	it("reuses a turn's change list and evicts the oldest turn beyond 5 MB", async () => {
 		const { git, commands } = fakeGit((command) => {
 			const exit = refExit(command);

@@ -1,12 +1,15 @@
 /**
  * @feature GIT-02 Git service: polling change state; GIT-06 Push and pull; GIT-13 Fetch on demand,
  * at most once a minute
+ * @feature GIT-05 Commit and push, done by the agent on request
  * @feature GIT-07 Resolve conflicts, done by the agent on request
  * Owns: polling each shown workspace's git state at the requested depth, the four-slot limiter,
  * and the last error per workspace. Also the write actions that move a branch across the remote:
  * push, including the first push's upstream setup; pull latest from the target, which fetches,
- * rechecks under the lock, fast-forwards or hands the work to the agent; and resolve conflicts,
- * which reads the rebase or merge choice from pull.rebase and sends the instruction to the agent.
+ * rechecks under the lock, fast-forwards or hands the work to the agent; resolve conflicts, which
+ * reads the rebase or merge choice from pull.rebase and sends the instruction to the agent; and
+ * the commit and push request, which sends the agent the instruction to commit the workspace and
+ * push the branch.
  * Behaviour: services-map.md 3.3.1 (schedule, depths, staleness, concurrency) and 3.3.3 (a
  * cheaper poll reads only the local branch, and an answer for a branch that has since changed is
  * dropped); 3.6.1 (push, upstream, first push, no force), 3.6.4 (pull latest from target, and
@@ -20,15 +23,25 @@
  * the Trash and stops when git cannot say whether the base has the file; viewed marks are saved
  * one write at a time per workspace; a push to a known upstream does not set it again; a first
  * push writes both branch keys and the remote-tracking ref; a dirty or diverged tree goes to the
- * agent; the user's own pull.rebase and pull.ff choose how a pull proceeds; a pull with nothing new
- * changes nothing; a second push or pull while one runs joins the first instead of starting
+ * agent, unless `pull.ff = only` forbids the agent's merge or rebase, in which case the app fetches
+ * and runs `merge --ff-only`, returning git's refusal when that is impossible; the user's own
+ * pull.rebase and pull.ff choose how a pull proceeds; a pull with nothing new changes nothing and
+ * reports it, and a fast-forward reports that it pulled; a second push or pull while one runs joins
+ * the first instead of starting
  * another; a resolve-conflicts request uses the repository prompt when it has one, and a config
- * read failure is returned instead of guessing a strategy.
+ * read failure is returned instead of guessing a strategy. The app itself never force-pushes: a
+ * resolve-conflicts rebase names `--force-with-lease` for the agent to run.
+ * The push upstream setting (`worktree_push_auto_setup_remote`) is read only when a workspace is
+ * created: workspace creation writes `push.autoSetupRemote` for the new worktree (GIT-01, WS-01).
+ * Push itself does not read it.
  * Also: GIT-13 decides when the pull request's base or head is newer than the local refs and
- * fetches it at most once a minute for one repository and branch.
+ * fetches it at most once a minute for one repository and branch. The diff target is always a
+ * remote branch: this service holds no Graphite stack data, so a local stack parent never
+ * reaches the decision.
  * GIT-09: the rename reads the checked-out branch, asks the git helpers for a free name, and
  * renames under the worktree lock; a detached HEAD returns the plain "check out a branch" message.
- * Not built yet: only the visible workspace polling fast.
+ * The workspace folder rename, its short-lived symlink and the old-remote-branch toast are not
+ * built; they need the platform file operations, a movable workspace path and a header message.
  * Our design choice: this class exposes snapshots and actions only. The Git header state machine
  * and the merge with pull request info belong to GIT-04, the other git actions belong to their
  * own features, and the restart cache belongs to DATA-07. Their placeholders stay here until those
@@ -101,8 +114,10 @@ import {
 } from "../git/status.ts";
 import type { GitState, PullRequestAction } from "../model.ts";
 import {
+	type AgentPullStrategy,
 	commitAndPushInstruction,
 	pullRebaseStrategy,
+	pullStrategy,
 	reconcileInstruction,
 	resolveConflictsInstruction,
 } from "./agent-instructions.ts";
@@ -158,22 +173,11 @@ export const MAX_CONCURRENT_REFRESHES = 4;
 
 /** Shown when a pull finds nothing to bring in. */
 export const PULL_UP_TO_DATE_MESSAGE = "Pulled latest changes. You're up to date!";
+/** Shown after a pull brings in new commits (services-map 3.6.4 step 4). */
+export const PULLED_LATEST_MESSAGE = "Pulled latest changes.";
 
-/** Whether the user's own `pull.rebase` asks for a rebase. Missing or false values mean merge. */
-export const pullUsesRebase = (value: string | null): boolean =>
-	pullRebaseStrategy(value ?? "") === "rebase";
-
-/** How a pull that cannot fast-forward proceeds: rebase, merge, or only a fast-forward. */
-export type PullStrategy = "rebase" | "merge" | "ff_only";
-
-/**
- * The strategy from the user's git config. `pull.ff = only` wins because it forbids both a merge
- * commit and a rebase; otherwise `pull.rebase` decides, and its absence means merge.
- */
-export function pullStrategy(rebase: string | null, ff: string | null): PullStrategy {
-	if (ff?.trim().toLowerCase() === "only") return "ff_only";
-	return pullUsesRebase(rebase) ? "rebase" : "merge";
-}
+/** What a pull did: nothing new, a fast-forward, git's plain pull, or an agent hand-off. */
+export type PullOutcome = "up_to_date" | "fast_forwarded" | "plain" | "handed_to_agent";
 
 /** The branch part of `origin/main` or `refs/remotes/origin/main`, for an agent instruction. */
 export function targetBranchName(targetBranch: string, remote: string): string {
@@ -324,23 +328,6 @@ function fetchRefspec(remote: string, branch: string): string {
 }
 
 /**
- * The plain branch name of a stored target such as "origin/main", "refs/remotes/origin/main" or
- * "refs/heads/main". A target with no prefix is already a branch name.
- */
-function plainBranchName(branch: string, remote: string): string {
-	if (branch.startsWith("refs/heads/")) return branch.slice("refs/heads/".length);
-	if (branch.startsWith("refs/remotes/")) {
-		const rest = branch.slice("refs/remotes/".length);
-		const slash = rest.indexOf("/");
-		return slash === -1 ? rest : rest.slice(slash + 1);
-	}
-	if (remote.length > 0 && branch.startsWith(`${remote}/`)) {
-		return branch.slice(remote.length + 1);
-	}
-	return branch;
-}
-
-/**
  * Whether to fetch now. `lastFetchedAt` is the time of the last fetch for the same repository and
  * branch, or null when there was none. Pure: the caller reads the refs and the clock.
  *
@@ -386,7 +373,11 @@ export interface GitServiceDeps {
 	/** Looks up folders and branch names for a workspace. Fails for unknown ids. */
 	contextOf: (workspaceId: WorkspaceId) => Promise<Result<WorkspaceGitContext>>;
 	agent: AgentMessenger;
-	/** The repository's Resolve conflicts prompt, or null when it has none. */
+	/**
+	 * The repository's Resolve conflicts prompt, or null when it has none. The container always
+	 * supplies it. Tests that never resolve conflicts may leave it out; `resolveConflicts` returns
+	 * an error instead of guessing when it is absent.
+	 */
 	promptFor?: (workspaceId: WorkspaceId) => Promise<Result<string | null>>;
 	/** Saves a renamed branch in the workspace row and its store (GIT-09). */
 	renameWorkspaceBranch: (workspaceId: WorkspaceId, branch: string) => Promise<Result<void>>;
@@ -838,7 +829,7 @@ export class GitService {
 		const decision = decideFetch(
 			{
 				remote: context.remote,
-				targetBranch: plainBranchName(context.targetBranch, context.remote),
+				targetBranch: branchNameWithoutRemote(context.targetBranch, context.remote),
 				branch: context.branch,
 				prBaseOid: pullRequestOids.prBaseOid,
 				prHeadOid: pullRequestOids.prHeadOid,
@@ -853,7 +844,7 @@ export class GitService {
 		if (!decision.fetch) return ok({ fetched: false });
 
 		// Record the attempt before the command runs, so two overlapping calls cannot both fetch.
-		this.#lastFetchAt.set(key, now);
+		this.#recordFetchAttempt(key, now);
 		const fetched = await this.#deps.git.runChecked(fetch(context.remote, decision.refspecs), {
 			cwd: context.workspacePath,
 		});
@@ -862,6 +853,17 @@ export class GitService {
 		const refreshed = await this.#refreshNow(workspaceId, "full");
 		if (!refreshed.ok) return refreshed;
 		return ok({ fetched: true });
+	}
+
+	/**
+	 * Records when a fetch was attempted. An entry older than the minimum gap can no longer block
+	 * a fetch, so it is dropped here instead of growing the map for the life of the process.
+	 */
+	#recordFetchAttempt(key: string, now: number): void {
+		for (const [storedKey, at] of this.#lastFetchAt) {
+			if (now - at >= FETCH_MIN_GAP_MS) this.#lastFetchAt.delete(storedKey);
+		}
+		this.#lastFetchAt.set(key, now);
 	}
 
 	/** The commit a remote-tracking ref points at, or null when the ref does not exist. */
@@ -1041,9 +1043,7 @@ export class GitService {
 		const found = context.value;
 		const text = commitAndPushInstruction({
 			remote: found.remote,
-			targetBranch: found.targetBranch,
 			branch: found.branch,
-			customPrompt: null,
 		});
 		const sent = await this.#deps.agent.sendInstruction(workspaceId, text);
 		return sent.ok ? ok(undefined) : sent;
@@ -1051,9 +1051,10 @@ export class GitService {
 
 	/**
 	 * Backs `Actions.git.pull`. Fetches the target, rechecks the tree under the lock, then merges
-	 * fast-forward only. A dirty or diverged tree goes to the agent (services-map 3.6.4).
+	 * fast-forward only. A dirty or diverged tree goes to the agent, except under `pull.ff = only`,
+	 * where git's own fast-forward-only refusal is returned instead (services-map 3.6.4).
 	 */
-	pull(workspaceId: WorkspaceId): Promise<Result<void>> {
+	pull(workspaceId: WorkspaceId): Promise<Result<PullOutcome>> {
 		return this.#flights.run(`pull:${workspaceId}`, () => this.#pullNow(workspaceId));
 	}
 
@@ -1108,7 +1109,7 @@ export class GitService {
 		});
 	}
 
-	async #pullNow(workspaceId: WorkspaceId): Promise<Result<void>> {
+	async #pullNow(workspaceId: WorkspaceId): Promise<Result<PullOutcome>> {
 		const found = await this.#deps.contextOf(workspaceId);
 		if (!found.ok) return found;
 		const context = found.value;
@@ -1123,60 +1124,63 @@ export class GitService {
 		// With no target there is nothing to compare against, so git's plain pull follows the
 		// user's own pull.rebase and pull.ff settings.
 		if (remote.length === 0 || targetRef.length === 0) {
-			return this.#deps.git.withWorktreeLock(cwd, async () =>
-				discardValue(await this.#deps.git.runChecked(pullCommand(), { cwd })),
+			const pulled = await this.#deps.git.withWorktreeLock(cwd, () =>
+				this.#deps.git.runChecked(pullCommand(), { cwd }),
 			);
+			return pulled.ok ? ok("plain") : pulled;
 		}
 
-		const rebase = await this.#deps.git.stdout(configPullRebase(), { cwd });
-		if (!rebase.ok) return rebase;
-		const ff = await this.#deps.git.stdout(configPullFf(), { cwd });
-		if (!ff.ok) return ff;
-		const strategy = pullStrategy(rebase.value, ff.value);
-		const agentStrategy = strategy === "rebase" ? "rebase" : "merge";
+		const choice = await this.#pullStrategyOf(cwd);
+		if (!choice.ok) return choice;
+		const agentStrategy = choice.value.agent;
+		const ffOnly = choice.value.ffOnly;
 
-		const dirty = await this.#isDirty(cwd);
-		if (!dirty.ok) return dirty;
-		if (dirty.value) return this.#handOffPull(workspaceId, context, agentStrategy, true);
+		// `pull.ff = only` forbids both a merge commit and a rebase, so a dirty tree is never
+		// handed off to the agent; git's own fast-forward-only check decides.
+		if (!ffOnly) {
+			const dirty = await this.#isDirty(cwd);
+			if (!dirty.ok) return dirty;
+			if (dirty.value) return this.#handOffOutcome(workspaceId, context, agentStrategy, true);
+		}
 
 		const fetched = await this.#deps.git.runChecked(fetch(remote), { cwd });
 		if (!fetched.ok) return fetched;
 
-		let handOff: { strategy: "rebase" | "merge"; dirty: boolean } | null = null;
-		const outcome = await this.#deps.git.withWorktreeLock(
-			cwd,
-			async (): Promise<Result<{ handOff: typeof handOff }>> => {
-				// The tree may have changed while the fetch ran; check again under the lock.
+		type PullStep =
+			| { kind: "done"; outcome: PullOutcome }
+			| { kind: "hand_off"; strategy: AgentPullStrategy; dirty: boolean };
+		const step = await this.#deps.git.withWorktreeLock(cwd, async (): Promise<Result<PullStep>> => {
+			// The tree may have changed while the fetch ran; check again under the lock.
+			if (!ffOnly) {
 				const rechecked = await this.#isDirty(cwd);
 				if (!rechecked.ok) return rechecked;
 				if (rechecked.value) {
-					return ok({ handOff: { strategy: agentStrategy, dirty: true } });
+					return ok({ kind: "hand_off", strategy: agentStrategy, dirty: true });
 				}
+			}
 
-				const counts = await this.#deps.git.stdout(revListLeftRightCount(branch, targetRef), {
+			const counts = await this.#deps.git.stdout(revListLeftRightCount(branch, targetRef), {
+				cwd,
+			});
+			if (!counts.ok) return counts;
+			const parsed = parseLeftRightCount(counts.value);
+			if (!parsed.ok) return parsed;
+			const ahead = parsed.value.left;
+			const behind = parsed.value.right;
+			if (behind === 0) return ok({ kind: "done", outcome: "up_to_date" });
+			// A branch that is only behind fast-forwards. `pull.ff = only` also stops here,
+			// because the user forbade both a merge commit and a rebase.
+			if (ahead === 0 || ffOnly) {
+				const merged = await this.#deps.git.runChecked(mergeFastForwardOnly(targetRef), {
 					cwd,
 				});
-				if (!counts.ok) return counts;
-				const parsed = parseLeftRightCount(counts.value);
-				if (!parsed.ok) return parsed;
-				const ahead = parsed.value.left;
-				const behind = parsed.value.right;
-				if (behind === 0) return ok({ handOff: null });
-				// A branch that is only behind fast-forwards. `pull.ff = only` also stops here,
-				// because the user forbade both a merge commit and a rebase.
-				if (ahead === 0 || strategy === "ff_only") {
-					const merged = await this.#deps.git.runChecked(mergeFastForwardOnly(targetRef), {
-						cwd,
-					});
-					return merged.ok ? ok({ handOff: null }) : merged;
-				}
-				return ok({ handOff: { strategy: agentStrategy, dirty: false } });
-			},
-		);
-		if (!outcome.ok) return outcome;
-		handOff = outcome.value.handOff;
-		if (handOff === null) return ok(undefined);
-		return this.#handOffPull(workspaceId, context, handOff.strategy, handOff.dirty);
+				return merged.ok ? ok({ kind: "done", outcome: "fast_forwarded" }) : merged;
+			}
+			return ok({ kind: "hand_off", strategy: agentStrategy, dirty: false });
+		});
+		if (!step.ok) return step;
+		if (step.value.kind === "done") return ok(step.value.outcome);
+		return this.#handOffOutcome(workspaceId, context, step.value.strategy, step.value.dirty);
 	}
 
 	async #isDirty(cwd: string): Promise<Result<boolean>> {
@@ -1184,11 +1188,22 @@ export class GitService {
 		return status.ok ? ok(status.value.trim().length > 0) : status;
 	}
 
+	/** Sends the pull's hand-off, then reports that the agent owns the rest of the work. */
+	async #handOffOutcome(
+		workspaceId: WorkspaceId,
+		context: WorkspaceGitContext,
+		strategy: AgentPullStrategy,
+		dirty: boolean,
+	): Promise<Result<PullOutcome>> {
+		const sent = await this.#handOffPull(workspaceId, context, strategy, dirty);
+		return sent.ok ? ok("handed_to_agent") : sent;
+	}
+
 	/** Sends the target and the chosen strategy to the agent, which commits, rebases or merges. */
 	async #handOffPull(
 		workspaceId: WorkspaceId,
 		context: WorkspaceGitContext,
-		strategy: "rebase" | "merge",
+		strategy: AgentPullStrategy,
 		dirty: boolean,
 	): Promise<Result<void>> {
 		const sent = await this.#deps.agent.sendInstruction(
@@ -1197,7 +1212,6 @@ export class GitService {
 				remote: context.remote,
 				targetBranch: targetBranchName(context.targetBranch, context.remote),
 				branch: context.branch,
-				customPrompt: null,
 				strategy,
 				dirty,
 			}),
@@ -1213,44 +1227,48 @@ export class GitService {
 		const context = await this.#deps.contextOf(workspaceId);
 		if (!context.ok) return context;
 		const found = context.value;
-		const strategy = await this.#pullRebaseStrategy(found.workspacePath);
+		const strategy = await this.#pullStrategyOf(found.workspacePath);
 		if (!strategy.ok) return strategy;
-		const custom =
-			this.#deps.promptFor === undefined
-				? ok<string | null>(null)
-				: await this.#deps.promptFor(workspaceId);
+		const promptFor = this.#deps.promptFor;
+		if (promptFor === undefined) {
+			return err(
+				appError(
+					"repo_config_unloaded",
+					"The repository settings are not available, so the Resolve conflicts request cannot be built.",
+				),
+			);
+		}
+		const custom = await promptFor(workspaceId);
 		if (!custom.ok) return custom;
 
-		const remote = found.remote.trim();
-		const prefix = `${remote}/`;
-		const targetBranch =
-			remote.length > 0 && found.targetBranch.startsWith(prefix)
-				? found.targetBranch.slice(prefix.length)
-				: found.targetBranch;
 		const text = resolveConflictsInstruction({
-			remote,
-			targetBranch,
+			remote: found.remote.trim(),
+			targetBranch: targetBranchName(found.targetBranch, found.remote),
 			branch: found.branch,
 			customPrompt: custom.value,
-			strategy: strategy.value,
+			strategy: strategy.value.agent,
 		});
 		const sent = await this.#deps.agent.sendInstruction(workspaceId, text);
 		return sent.ok ? ok(undefined) : err(sent.error);
 	}
 
-	/** Reads `pull.rebase`; an unset key (exit 1) means merge, any other failure is returned. */
-	async #pullRebaseStrategy(cwd: string): Promise<Result<"rebase" | "merge">> {
-		const result = await this.#deps.git.run(configPullRebase(), { cwd });
-		if (!result.ok) return result;
-		if (result.value.exitCode === 0) return ok(pullRebaseStrategy(result.value.stdout));
-		if (result.value.exitCode === 1) return ok("merge");
-		return err(
-			appError(
-				"git_failed",
-				result.value.stderr.trim() ||
-					`git config pull.rebase exited with code ${result.value.exitCode}`,
-			),
-		);
+	/**
+	 * Reads `pull.rebase` and `pull.ff` once. `agent` is what an agent instruction asks for, so
+	 * Resolve conflicts follows `pull.rebase` even when `pull.ff = only` stops a pull from handing
+	 * work off. An unset key means merge (services-map 3.6.4).
+	 */
+	async #pullStrategyOf(
+		cwd: string,
+	): Promise<Result<{ agent: AgentPullStrategy; ffOnly: boolean }>> {
+		const rebase = await this.#deps.git.stdout(configPullRebase(), { cwd });
+		if (!rebase.ok) return rebase;
+		const ff = await this.#deps.git.stdout(configPullFf(), { cwd });
+		if (!ff.ok) return ff;
+		const strategy = pullStrategy(rebase.value, ff.value);
+		return ok({
+			agent: strategy === "ff_only" ? pullRebaseStrategy(rebase.value) : strategy,
+			ffOnly: strategy === "ff_only",
+		});
 	}
 
 	/**

@@ -301,4 +301,14 @@ describe("PLAT-21 KeepAwakeService", () => {
 
 		expect(harness.cancels).toBe(1);
 	});
+
+	it("starts no caffeinate when a scan comes after stop", async () => {
+		const harness = createHarness();
+		await harness.service.stop();
+
+		expect(await harness.service.scan()).toEqual({ ok: true, value: undefined });
+
+		expect(harness.cancels).toBe(0);
+		expect(caffeinateStarts(harness)).toHaveLength(0);
+	});
 });

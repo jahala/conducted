@@ -61,7 +61,11 @@ function makeWorkspace(overrides: Partial<Workspace> = {}): Workspace {
 	};
 }
 
-function makeRunner(options: { currentBranch?: string; worktreeRemoveCode?: number }): {
+function makeRunner(options: {
+	currentBranch?: string | null;
+	worktreeRemoveCode?: number;
+	branchDeleteFails?: boolean;
+}): {
 	git: GitRunner;
 	calls: { command: GitCommand; cwd: string }[];
 } {
@@ -69,10 +73,19 @@ function makeRunner(options: { currentBranch?: string; worktreeRemoveCode?: numb
 	const reply = (command: GitCommand): ShellOutput => {
 		if (command.program === "/res/bin/checkpointer.sh") return output(0);
 		if (sameArgs(command, ["rev-parse", "HEAD"])) return output(0, "sha-1");
-		if (sameArgs(command, ["branch", "--show-current"]))
+		if (sameArgs(command, ["branch", "--show-current"])) {
+			if (options.currentBranch === null) return output(1, "", "fatal: not a git repository");
 			return output(0, options.currentBranch ?? "feature/oslo");
+		}
 		if (sameArgs(command, ["worktree", "remove", "--force", "--force", "/worktrees/oslo"])) {
 			return output(options.worktreeRemoveCode ?? 0);
+		}
+		if (
+			options.branchDeleteFails === true &&
+			command.args[0] === "branch" &&
+			command.args[1] === "-D"
+		) {
+			return output(1, "", "error: branch is checked out");
 		}
 		return output(0);
 	};
@@ -146,8 +159,9 @@ interface HarnessOptions {
 	rows?: Workspace[];
 	hasWorkingChats?: boolean;
 	settings?: Record<string, unknown>;
-	currentBranch?: string;
+	currentBranch?: string | null;
 	worktreeRemoveCode?: number;
+	branchDeleteFails?: boolean;
 	archiveScriptFails?: boolean;
 	folderExists?: boolean;
 }
@@ -162,6 +176,7 @@ function harness(options: HarnessOptions = {}) {
 	const { git, calls } = makeRunner({
 		currentBranch: options.currentBranch,
 		worktreeRemoveCode: options.worktreeRemoveCode,
+		branchDeleteFails: options.branchDeleteFails,
 	});
 	const { fs, trashed } = makeFs(options.folderExists ?? true);
 	const transitions: { id: WorkspaceId; from: string; to: string }[] = [];
@@ -197,6 +212,7 @@ function harness(options: HarnessOptions = {}) {
 
 	const cancelAll = vi.fn(async () => ok(undefined));
 	const stopWorkspace = vi.fn(async () => ok(undefined));
+	const clearRuns = vi.fn();
 	const runArchive = vi.fn(async () =>
 		options.archiveScriptFails === true
 			? err(appError("archive_script_failed", "archive script failed"))
@@ -220,6 +236,7 @@ function harness(options: HarnessOptions = {}) {
 			runSetup: vi.fn(),
 			runArchive,
 			stopWorkspace,
+			clearRuns,
 		},
 		checkpointerPath: "/res/bin/checkpointer.sh",
 		setting: <T>(key: string) => settings[key] as T,
@@ -233,6 +250,7 @@ function harness(options: HarnessOptions = {}) {
 		trashed,
 		cancelAll,
 		stopWorkspace,
+		clearRuns,
 		runArchive,
 		transitions,
 		marks,
@@ -305,6 +323,44 @@ describe("WS-05 archive steps", () => {
 		expect(h.stopWorkspace).toHaveBeenCalledWith("w1");
 		expect(h.rows[0]?.state).toBe("archived");
 	});
+
+	it("stops the workspace's run processes and clears its run state", async () => {
+		const h = harness();
+
+		const archived = await h.service.archive("w1" as WorkspaceId, { deleteBranch: false });
+
+		expect(archived.ok).toBe(true);
+		expect(h.stopWorkspace).toHaveBeenCalledWith("w1");
+		expect(h.clearRuns).toHaveBeenCalledWith("w1");
+	});
+});
+
+describe("WS-05 branch read at archive", () => {
+	it("rolls back when git cannot report the current branch", async () => {
+		const h = harness({ currentBranch: null });
+
+		const archived = await h.service.archive("w1" as WorkspaceId, { deleteBranch: false });
+
+		expect(archived.ok).toBe(false);
+		expect(h.rows[0]?.state).toBe("ready");
+		expect(h.marks).toEqual([]);
+		expect(
+			h.calls.some((call) =>
+				sameArgs(call.command, ["update-ref", "refs/conducted/archive/w1", "sha-1"]),
+			),
+		).toBe(false);
+	});
+
+	it("rolls back on a detached HEAD instead of archiving the stored branch name", async () => {
+		const h = harness({ currentBranch: "" });
+
+		const archived = await h.service.archive("w1" as WorkspaceId, { deleteBranch: false });
+
+		expect(archived.ok).toBe(false);
+		if (!archived.ok) expect(archived.error.code).toBe("git_detached_head");
+		expect(h.rows[0]?.state).toBe("ready");
+		expect(h.marks).toEqual([]);
+	});
 });
 
 describe("WS-05 branch deletion", () => {
@@ -329,6 +385,16 @@ describe("WS-05 branch deletion", () => {
 			sameArgs(call.command, ["branch", "-D", "--", "feature/oslo"]),
 		);
 		expect(deletion?.cwd).toBe("/repo");
+	});
+
+	it("keeps the finished archive when deleting the branch fails, and records a warning", async () => {
+		const h = harness({ branchDeleteFails: true });
+
+		const archived = await h.service.archive("w1" as WorkspaceId, { deleteBranch: true });
+
+		expect(archived.ok).toBe(true);
+		expect(h.rows[0]?.state).toBe("archived");
+		expect(h.service.store.getState().archiveWarnings?.w1).toContain("feature/oslo");
 	});
 });
 

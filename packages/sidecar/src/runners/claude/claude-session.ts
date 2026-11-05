@@ -29,8 +29,10 @@
  *    never runs in bypassPermissions; an effort change that needs a restart restarts the process
  *    before the message is sent
  *  - an approved plan records the permission mode the CLI switched to
- *  - a plan mode the agent chose (an init that reports "plan", or an EnterPlanMode call) updates the
- *    session config and reports it through onConfigChanged; an approved plan reports leaving it
+ *  - a plan mode the agent chose (an EnterPlanMode call, or an init that reports "plan" when the app
+ *    has not just asked for a non-plan mode) updates the session config and reports it through
+ *    onConfigChanged; an approved plan reports leaving it; an init that reports plan after the app
+ *    asked for a non-plan mode is ignored, so the app's choice wins
  *  - steer() pushes a fresh user message into the open turn and reports when the transcript mirror
  *    shows the agent read it (AGENT-05); with no open turn it throws NoActiveTurnError
  *  - planUsage() asks the SDK's experimental usage request without the behavior scan and converts
@@ -150,6 +152,11 @@ export class ClaudeSession implements AgentSession {
 	private appliedModel: string | null = null;
 	private appliedEffort: Effort | null = null;
 	private appliedPermissionMode: PermissionMode | null = null;
+	/**
+	 * The plan mode the app last asked for, until the agent changes the mode itself. A stale CLI init
+	 * must not undo a choice the user just made in the app.
+	 */
+	private appPlanModeChoice: boolean | null = null;
 	private exited: Promise<void> = Promise.resolve();
 	private startPending: Promise<void> | null = null;
 	/** Resolves once the open turn's first user message is in the input stream. */
@@ -314,6 +321,7 @@ export class ClaudeSession implements AgentSession {
 
 	async applyConfig(config: SessionConfig): Promise<"applied" | "restart"> {
 		const change = classifyConfigChange(this.config, config);
+		if (this.config.planMode !== config.planMode) this.appPlanModeChoice = config.planMode;
 		this.config = config;
 		if (change.kind === "restart") return "restart";
 		// A live change waits while a turn runs; runTurn applies it before the next message.
@@ -500,6 +508,8 @@ export class ClaudeSession implements AgentSession {
 			message.subtype === "init" &&
 			message.permissionMode === "plan"
 		) {
+			// The app's newest choice wins over an init that still reports the mode it replaced.
+			if (this.appPlanModeChoice === false) return;
 			// The CLI is already in plan mode, so only the bookkeeping is updated.
 			this.appliedPermissionMode = "plan";
 			this.changePlanMode(true);
@@ -517,6 +527,8 @@ export class ClaudeSession implements AgentSession {
 	/** Records a plan mode the agent chose and tells the app, once per change. */
 	private changePlanMode(planMode: boolean): void {
 		if (this.config.planMode === planMode) return;
+		// The agent's own change is newer than any plan choice the app made before it.
+		this.appPlanModeChoice = null;
 		this.config = { ...this.config, planMode };
 		this.start.onConfigChanged?.(this.config, planMode ? "entered_plan_mode" : "left_plan_mode");
 	}
@@ -657,8 +669,9 @@ export class ClaudeSession implements AgentSession {
 
 	/**
 	 * Switches the live process's permission mode and records it, so a plan approval leaves the
-	 * session knowing the mode the CLI is in. Leaving plan mode here is a change the agent made,
-	 * so the app is told after an approved plan.
+	 * session knowing the mode the CLI is in. An approved plan leaves plan mode through here, a
+	 * change the agent made, so the app is told. Leaving plan mode because the app asked for it is
+	 * not reported: applyConfig already set this.config and the app made the change itself.
 	 */
 	private async applyPermissionMode(mode: PermissionMode): Promise<void> {
 		if (mode !== "plan") this.changePlanMode(false);

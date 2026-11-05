@@ -146,6 +146,44 @@ describe("GIT-09 branch name taken", () => {
 		expect(askedGh).toBe(false);
 	});
 
+	it("does not treat a host that merely contains github.com as GitHub", async () => {
+		let askedGh = false;
+		const git = fakeRunner((command) => {
+			if (command.args[0] === "show-ref") return ok(output("", "", 1));
+			if (command.args[0] === "remote") return ok(output("git@evilgithub.com:acme/app.git\n"));
+			if (command.args[0] === "pr") askedGh = true;
+			return ok(output(""));
+		});
+		const result = await branchNameTaken(git, {
+			repoRootPath: "/repo",
+			remote: "origin",
+			name: "fix-login",
+		});
+		expect(result.ok && result.value).toBe(false);
+		expect(askedGh).toBe(false);
+	});
+
+	it("runs the pull request check for GitHub's SSH host", async () => {
+		let askedGh = false;
+		const git = fakeRunner((command) => {
+			if (command.args[0] === "show-ref") return ok(output("", "", 1));
+			if (command.args[0] === "remote")
+				return ok(output("ssh://git@ssh.github.com:443/acme/app\n"));
+			if (command.args[0] === "pr") {
+				askedGh = true;
+				return ok(output("[]"));
+			}
+			return err(appError("git_failed", "unexpected"));
+		});
+		const result = await branchNameTaken(git, {
+			repoRootPath: "/repo",
+			remote: "origin",
+			name: "fix-login",
+		});
+		expect(result.ok && result.value).toBe(false);
+		expect(askedGh).toBe(true);
+	});
+
 	it("returns a failed gh call instead of reading it as no pull request", async () => {
 		const git = fakeRunner((command) => {
 			if (command.args[0] === "show-ref") return ok(output("", "", 1));

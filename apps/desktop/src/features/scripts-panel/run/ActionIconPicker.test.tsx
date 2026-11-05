@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "../../../test/dom-polyfills.ts";
-import { ActionIconPicker } from "./ActionIconPicker.tsx";
+import { ActionIcon, ActionIconPicker } from "./ActionIconPicker.tsx";
 
 afterEach(cleanup);
 
@@ -31,5 +31,18 @@ describe("SET-07 ActionIconPicker", () => {
 
 		expect(screen.getByRole("button", { name: "test" }).getAttribute("aria-pressed")).toBe("true");
 		expect(screen.getByRole("button", { name: "play" }).getAttribute("aria-pressed")).toBe("false");
+	});
+
+	it("reports an unknown icon once per name and draws the default", () => {
+		const report = vi.spyOn(console, "error").mockImplementation(() => {});
+		try {
+			const { rerender } = render(<ActionIcon name="missing-icon" />);
+			rerender(<ActionIcon name="missing-icon" />);
+
+			expect(report).toHaveBeenCalledTimes(1);
+			expect(report.mock.calls[0]?.[0]).toContain('Unknown action icon "missing-icon"');
+		} finally {
+			report.mockRestore();
+		}
 	});
 });

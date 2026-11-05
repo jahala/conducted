@@ -41,11 +41,15 @@ const config = (changes: Partial<RepoConfig> = {}): RepoConfig => ({
 	...changes,
 });
 
-async function renderPage(workspaceCount = 0, changes: Partial<RepoConfig> = {}) {
+async function renderPage(
+	workspaceCount = 0,
+	changes: Partial<RepoConfig> = {},
+	icon: string | null = null,
+) {
 	const testContainer = createTestContainer();
 	test = testContainer;
 	const container = testContainer.container;
-	const repo = await seedRepo(container);
+	const repo = await seedRepo(container, { icon });
 	for (let index = 0; index < workspaceCount; index += 1) {
 		await seedWorkspace(container, { repoId: repo.id });
 	}
@@ -101,7 +105,9 @@ describe("SET-07 RepoMiscPage", () => {
 			.spyOn(container.actions.projects, "updateConfig")
 			.mockResolvedValue(ok(undefined));
 
-		const remote = screen.getByLabelText("Remote origin");
+		const remote = screen.getByLabelText("Remote origin") as HTMLInputElement;
+		expect(remote.value).toBe("");
+		expect(remote.placeholder).toBe("origin");
 		fireEvent.blur(remote);
 		expect(updateConfig).not.toHaveBeenCalled();
 
@@ -159,17 +165,24 @@ describe("SET-07 RepoMiscPage", () => {
 		expect(updateConfig.mock.calls[0]?.[1]).toMatchObject({ copyFiles: [] });
 	});
 
-	it("sends an emoji icon to the icon service", async () => {
-		const { repo, container } = await renderPage();
-		const setIcon = vi
-			.spyOn(container.actions.projects, "setIcon")
-			.mockResolvedValue(ok(undefined));
+	it("shows the saved icon read-only with the reason it cannot be changed yet", async () => {
+		await renderPage(0, {}, "🚀");
 
-		fireEvent.change(screen.getByLabelText("Icon"), { target: { value: "🚀" } });
-		fireEvent.click(screen.getByRole("button", { name: "Save icon" }));
+		const icon = screen.getByLabelText("Icon") as HTMLInputElement;
+		expect(icon.value).toBe("🚀");
+		expect(icon.readOnly).toBe(true);
+		expect(icon.disabled).toBe(true);
+		expect(screen.getByText(/Choosing an icon is not built yet \(PRJ-05\)/)).toBeTruthy();
+		expect(screen.queryByRole("button", { name: "Save icon" })).toBeNull();
+		expect(screen.queryByRole("button", { name: "Remove icon" })).toBeNull();
+	});
 
-		await waitFor(() =>
-			expect(setIcon).toHaveBeenCalledWith(repo.id, { kind: "emoji", emoji: "🚀" }),
-		);
+	it("shows and protects the branch new workspaces start from", async () => {
+		const { repo } = await renderPage();
+
+		const branch = screen.getByLabelText("Branch new workspaces from") as HTMLInputElement;
+		expect(branch.value).toBe(repo.defaultBranch);
+		expect(branch.readOnly).toBe(true);
+		expect(screen.getByText(/Choosing another base is not built yet \(WS-01\)/)).toBeTruthy();
 	});
 });

@@ -52,7 +52,7 @@ export interface AcpAdapter {
 	command: { executable: string; args: readonly string[] };
 	/** Arguments that make the program print its version. */
 	versionArgs: readonly string[];
-	/** The lowest version we run against. Older versions are reported as "update needed". */
+	/** The lowest version we run against. The runner refuses an older version with an AgentUpdateNeededError. */
 	minimumVersion?: string;
 	/** Native tool names that need a canonical tool the ACP tool kind does not give. */
 	toolNameHints: Readonly<Record<string, CanonicalTool>>;

@@ -30,6 +30,10 @@
  * repeats the first deliveredAs.
  * Our design choice: queued messages live in memory only. The app owns the persistent follow-up
  * queue (CHAT-04) and re-sends after a restart; this queue is the second line Conductor also has.
+ * Our design choice: one `agentConfigChanged` notification with a reason, plus one
+ * `onConfigChanged` runner callback, instead of Conductor's separate enter-plan-mode notification
+ * and `onEnterPlanMode` callback. `liveState` and `sessionEvent` keep their own shapes and do not
+ * echo the config, so a config change is never batched into an event notification.
  */
 import type {
 	AgentLaunch,

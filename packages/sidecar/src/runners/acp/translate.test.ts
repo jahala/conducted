@@ -234,6 +234,21 @@ describe("AGENT-12 ACP translation", () => {
 		expect(t.flush()[0]?.items).toEqual([{ kind: "text", text: "[image]" }]);
 	});
 
+	test("a non-text tool result block is shown as a placeholder", () => {
+		const t = translator();
+		t.push(toolCall());
+		const messages = t.push(
+			toolUpdate("completed", [
+				{ type: "content", content: { type: "image", data: "aGk=", mimeType: "image/png" } },
+			]),
+		);
+		expect(messages[0]?.items[0]).toMatchObject({
+			kind: "tool_result",
+			toolUseId: "c1" as ToolUseId,
+			output: "[image]",
+		});
+	});
+
 	test("flush emits buffered text and drops a result whose call never arrived", () => {
 		const logger = fakeLogger();
 		const t = new AcpTranslator({ logger: logger.logger, toolNameHints: {} });

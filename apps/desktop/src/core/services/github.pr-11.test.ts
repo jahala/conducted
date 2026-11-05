@@ -254,6 +254,17 @@ describe("PR-11 GitHub issue list", () => {
 
 		expect(!result.ok && result.error.code).toBe("github_response_invalid");
 	});
+
+	it("reports a rejected read as a sign-in failure and marks GitHub broken", async () => {
+		const git = fakeGit({ run: () => output(1, "", "HTTP 401: Bad credentials") });
+		const service = makeService(git);
+
+		const result = await service.listIssues(remoteUrl, "");
+
+		expect(!result.ok && result.error.code).toBe("github_failed");
+		if (!result.ok) expect(result.error.message).toContain("gh auth login");
+		expect(service.store.getState().health.status).toBe("broken");
+	});
 });
 
 describe("PR-11 pull request list and search", () => {

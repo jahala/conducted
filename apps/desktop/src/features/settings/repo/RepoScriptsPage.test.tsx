@@ -134,6 +134,18 @@ describe("SET-07 RepoScriptsPage", () => {
 		expect(updateConfig.mock.calls[0]?.[1]).toMatchObject({ autoRunAfterSetup: true });
 	});
 
+	it("saves the run mode", async () => {
+		const initial = config();
+		const { updateConfig } = await renderPage(initial);
+
+		fireEvent.keyDown(screen.getByRole("combobox", { name: "Run mode" }), { key: "Enter" });
+		const oneAtATime = await screen.findByRole("option", { name: "One at a time" });
+		fireEvent.keyDown(oneAtATime, { key: "Enter" });
+
+		await waitFor(() => expect(updateConfig).toHaveBeenCalledTimes(1));
+		expect(updateConfig.mock.calls[0]?.[1]).toMatchObject({ runMode: "exclusive" });
+	});
+
 	it("names the variables the app gives a script", async () => {
 		await renderPage(config());
 

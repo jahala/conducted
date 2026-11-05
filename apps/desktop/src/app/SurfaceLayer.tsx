@@ -3,16 +3,16 @@
  * Owns: a layer above the tab content that keeps terminals and browser previews mounted, and places each
  * one over the empty slot (the anchor) that its tab renders. Also the anchor, which measures its box.
  * Behaviour: ui-map.md 8 ("Surface/anchor system places long-lived DOM (terminals, browser webviews) over
- * layout anchors so they survive tab switches"), 1.1; services-map.md 1.5 (a surface layout registry holds
- * anchors, surface configs, placements and the surface that asked for focus; a dialog manager is separate).
- * Our design choice: the placements (a rectangle per surface id) are passed in, because the registry is a
- * store owned by the caller. The layer is pure placement: it draws what it is given and measures nothing.
+ * layout anchors so they survive tab switches"), 1.1.
+ * Our design choice: the placements (a rectangle per surface id) and the focus request are passed in,
+ * because the layout registry is the caller's store. The layer draws what it is given and measures
+ * nothing; the anchor is the part that measures, and it reports at most once per animation frame. A tab
+ * that closes has its surface removed from the list, which unmounts that surface's content.
  * Must handle: a tab switch (the surface stays mounted, hidden, with its scrollback and page state);
- * a tab that closes (its surface is removed and disposed); a layout that moves (split drag, sidebar resize,
- * window resize, zen mode) so the surface follows when the anchor resizes, the window resizes or the page
- * scrolls; an anchor that is not on screen (the surface is hidden, not unmounted); hidden surfaces take no
- * focus and no pointer events; two surfaces never share a slot; keyboard focus moves into the surface when
- * the tab is activated.
+ * a layout that moves (split drag, sidebar resize, window resize, zen mode) so the surface follows when
+ * the anchor resizes, the window resizes or the page scrolls; an anchor that is not on screen (the
+ * surface is hidden, not unmounted); hidden surfaces take no focus and no pointer events; two surfaces
+ * never share a slot; keyboard focus moves into the surface when the tab is activated.
  * Test first: switching the active tab away and back does not unmount the terminal surface.
  */
 import type { WorkspaceId } from "@conducted/shared";
@@ -137,7 +137,7 @@ function SurfaceHost({
 	);
 }
 
-/** Draws every surface it is given, keeping hidden ones mounted over their last known slot. */
+/** Draws every surface it is given. A hidden surface stays mounted but has no box on screen. */
 export function SurfaceLayer({ surfaces, placements, focusSurfaceId }: SurfaceLayerProps) {
 	const placed = placeSurfaces(surfaces, placements);
 	return (
@@ -162,7 +162,8 @@ export interface SurfaceAnchorProps {
 
 /**
  * An empty slot in the tab content. It reports its box to the caller, which stores the placement the
- * surface layer draws. Reporting stops and null is sent when the slot unmounts.
+ * surface layer draws. Reports are batched into one per animation frame. Reporting stops and null is sent
+ * when the slot unmounts.
  */
 export function SurfaceAnchor({ surfaceId, onPlace }: SurfaceAnchorProps) {
 	const anchorRef = useRef<HTMLDivElement>(null);
@@ -172,7 +173,9 @@ export function SurfaceAnchor({ surfaceId, onPlace }: SurfaceAnchorProps) {
 	useLayoutEffect(() => {
 		const element = anchorRef.current;
 		if (element === null) return;
-		const report = () => {
+		let frame: number | null = null;
+		const measure = () => {
+			frame = null;
 			const box = element.getBoundingClientRect();
 			placeRef.current(surfaceId, {
 				x: box.x,
@@ -181,16 +184,25 @@ export function SurfaceAnchor({ surfaceId, onPlace }: SurfaceAnchorProps) {
 				height: box.height,
 			});
 		};
-		report();
+		const schedule = () => {
+			if (frame !== null) return;
+			if (typeof requestAnimationFrame !== "function") {
+				measure();
+				return;
+			}
+			frame = requestAnimationFrame(measure);
+		};
+		measure();
 		const observer =
-			typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => report());
+			typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => schedule());
 		observer?.observe(element);
-		window.addEventListener("resize", report);
-		document.addEventListener("scroll", report, true);
+		window.addEventListener("resize", schedule);
+		document.addEventListener("scroll", schedule, true);
 		return () => {
+			if (frame !== null) cancelAnimationFrame(frame);
 			observer?.disconnect();
-			window.removeEventListener("resize", report);
-			document.removeEventListener("scroll", report, true);
+			window.removeEventListener("resize", schedule);
+			document.removeEventListener("scroll", schedule, true);
 			placeRef.current(surfaceId, null);
 		};
 	}, [surfaceId]);

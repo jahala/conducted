@@ -3,9 +3,9 @@
  * Owns: turning `session/update` notifications into AgentMessage values.
  * Behaviour: research/conductor/other-runners.md section 3: streaming text and thought chunks are
  * buffered and flushed as one message at tool boundaries or the end of the turn; a plan becomes a
- * todo list; diff content is shown as an edit; usage updates feed the context wheel; questions
- * (permission requests with several allow options) become question interactions elsewhere, not
- * messages. ACP update kinds are from @agentclientprotocol/sdk SessionUpdate.
+ * todo list; diff content is summarised as "Wrote/Edited <path>"; usage updates feed the context
+ * wheel; questions (permission requests with several allow options) become question interactions
+ * elsewhere, not messages. ACP update kinds are from @agentclientprotocol/sdk SessionUpdate.
  * Mapping:
  *  - agent_message_chunk: text, buffered; agent_thought_chunk: thinking, buffered
  *  - tool_call: tool_call with canonicalToolForAcp, rawName from `name` or `title`, rawInput as
@@ -20,10 +20,10 @@
  *    compaction_summary_chunk (the completed compaction already produces the notice)
  * Must handle: a tool_call_update that arrives before its tool_call (kept until the call is seen,
  * dropped at the end of the turn with a debug log), several terminal updates for one call (only the
- * first result is emitted), the buffer flushed before every tool call so order is kept, content
- * blocks that are not text (image and audio are shown as a placeholder such as "[image]"), and a
- * turn that ends while text is buffered (flush() emits it). flush() belongs at the end of a turn;
- * a tool call flushes the buffer itself.
+ * first result is emitted), the buffer flushed before every tool call, plan, usage update, notice
+ * and completed compaction so order is kept, content blocks that are not text (image and audio are
+ * shown as a placeholder such as "[image]"), and a turn that ends while text is buffered (flush()
+ * emits it). flush() belongs at the end of a turn; a tool call flushes the buffer itself.
  * Test first: two agent_message_chunk updates then a tool_call yield text("ab") then tool_call in
  * order.
  * Our design choice: a thinking chunk that follows text is kept in the same buffered message, so
@@ -126,7 +126,7 @@ export class AcpTranslator {
 		content: ContentBlock,
 		source: SessionUpdate,
 	): AgentMessage[] {
-		const text = chunkText(content);
+		const text = blockText(content);
 		if (text === "") return [];
 		const last = this.buffer.at(-1);
 		if (last !== undefined && last.kind === kind) {
@@ -231,15 +231,16 @@ export class AcpTranslator {
 
 	private usage(update: Extract<SessionUpdate, { sessionUpdate: "usage_update" }>): AgentMessage[] {
 		const messages = this.drain();
+		const usage = usageFromUpdate(update);
 		const item: AgentItem = {
 			kind: "usage",
 			inputTokens: 0,
 			outputTokens: 0,
 			cacheReadTokens: 0,
 			cacheWriteTokens: 0,
-			contextUsedTokens: Math.max(0, update.used),
+			contextUsedTokens: usage.usedTokens,
 		};
-		if (update.size > 0) item.contextWindowTokens = update.size;
+		if (usage.windowTokens !== undefined) item.contextWindowTokens = usage.windowTokens;
 		messages.push(this.message([item], update));
 		return messages;
 	}
@@ -294,14 +295,19 @@ function isTerminal(status: ToolCallStatus | null | undefined): status is "compl
 	return status === "completed" || status === "failed";
 }
 
-function chunkText(block: ContentBlock): string {
+function blockText(block: ContentBlock): string {
 	if (block.type === "text") return block.text;
 	return `[${block.type}]`;
 }
 
-function blockText(block: ContentBlock): string {
-	if (block.type === "text") return block.text;
-	return `[${block.type}]`;
+/** The only mapping from an ACP usage update to token counts; the session reuses it. */
+export function usageFromUpdate(
+	update: Extract<SessionUpdate, { sessionUpdate: "usage_update" }>,
+): { usedTokens: number; windowTokens: number | undefined } {
+	return {
+		usedTokens: Math.max(0, update.used),
+		windowTokens: update.size > 0 ? update.size : undefined,
+	};
 }
 
 function diffText(block: Extract<ToolCallContent, { type: "diff" }>): string {

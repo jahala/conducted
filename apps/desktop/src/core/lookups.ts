@@ -19,7 +19,12 @@
  * Test first: a repo whose config names "upstream" gives "upstream" to gitContext and prContext,
  * even when the workspace's target branch names "origin/dev".
  */
-import { type SessionConfig, type WorkspaceContext, zEffort } from "@conducted/protocol";
+import {
+	type Effort,
+	type SessionConfig,
+	type WorkspaceContext,
+	zEffort,
+} from "@conducted/protocol";
 import {
 	appError,
 	err,
@@ -30,6 +35,7 @@ import {
 } from "@conducted/shared";
 import type { StoreApi } from "zustand/vanilla";
 import type { Repo, Workspace } from "./model.ts";
+import { getSettingDef } from "./registries/settings.ts";
 import type { WorkspaceGitContext } from "./services/git.ts";
 import type { PrWorkspaceContext } from "./services/github.ts";
 import type { RepoState } from "./services/repo.ts";
@@ -163,6 +169,24 @@ export function createLookups(sources: LookupSources): Lookups {
 }
 
 /**
+ * Reads one effort setting, refusing a value a chat cannot use. The key names the setting, so the
+ * error points at the one the user must fix. An empty value means "the model's own default", which
+ * only the caller can decide how to represent.
+ */
+export function parseEffortSetting(key: string, value: string): Result<Effort> {
+	const parsed = zEffort.safeParse(value);
+	if (parsed.success) return ok(parsed.data);
+	const title = getSettingDef(key)?.title ?? key;
+	return err(
+		appError(
+			"setting_invalid",
+			`The effort level "${value}" for "${title}" is not one a chat can use. Pick another in Settings.`,
+			parsed.error,
+		),
+	);
+}
+
+/**
  * The config a new chat starts with: the default model and effort from settings, plan mode and
  * tool approvals from settings, and the workspace's linked folders as additional directories.
  */
@@ -177,20 +201,12 @@ export function defaultSessionConfig(
 	// An empty setting means "Model default", but a chat config needs a level, so it opens at
 	// "high" until the protocol can say "the model's own default" (see the findings, CONTRACT).
 	const effortSetting = setting<string>("default_claude_effort_level") || "high";
-	const effort = zEffort.safeParse(effortSetting);
-	if (!effort.success) {
-		return err(
-			appError(
-				"setting_invalid",
-				`The default effort level "${effortSetting}" is not one a chat can use. Pick another in Settings.`,
-				effort.error,
-			),
-		);
-	}
+	const effort = parseEffortSetting("default_claude_effort_level", effortSetting);
+	if (!effort.ok) return effort;
 	return ok({
 		agent: "claude",
 		model: model.length > 0 ? model : "default",
-		effort: effort.data,
+		effort: effort.value,
 		fastMode: setting<boolean>("default_fast_mode"),
 		planMode: setting<boolean>("default_plan_mode"),
 		requireToolApproval: setting<boolean>("tool_approvals_enabled"),
