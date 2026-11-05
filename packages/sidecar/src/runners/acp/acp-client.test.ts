@@ -5,8 +5,8 @@
  * Test first: an in-memory agent that advertises session/resume receives session/resume, not
  * session/load, for a resume id.
  */
-import { describe, expect, test } from "bun:test";
-import { mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
+import { afterAll, describe, expect, test } from "bun:test";
+import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -199,6 +199,10 @@ function makeClient(
 }
 
 const workspace = await mkdtemp(join(tmpdir(), "conducted-acp-client-"));
+// The run owns this folder, so the run removes it.
+afterAll(async () => {
+	await rm(workspace, { recursive: true, force: true });
+});
 
 async function requestFromAgent<T>(
 	connection: AgentConnection,
@@ -433,22 +437,26 @@ describe("AGENT-11 ACP client", () => {
 
 	test("a symlinked folder cannot carry a write outside the workspace", async () => {
 		const outside = await mkdtemp(join(tmpdir(), "conducted-acp-outside-"));
-		const link = join(workspace, "escape-link");
-		await symlink(outside, link);
-		const bridge = makeBridge();
-		const client = makeClient(bridge, { cwd: workspace });
-		await client.connect();
-		await client.openSession({ cwd: workspace, additionalDirectories: [], mcpServers: [] });
+		try {
+			const link = join(workspace, "escape-link");
+			await symlink(outside, link);
+			const bridge = makeBridge();
+			const client = makeClient(bridge, { cwd: workspace });
+			await client.connect();
+			await client.openSession({ cwd: workspace, additionalDirectories: [], mcpServers: [] });
 
-		await expect(
-			requestFromAgent(bridge.connection, CLIENT_METHODS.fs_write_text_file, {
-				sessionId: "new-session",
-				path: join(link, "new", "file.txt"),
-				content: "escaped",
-			} satisfies WriteTextFileRequest),
-		).rejects.toThrow();
-		await expect(readFile(join(outside, "new", "file.txt"), "utf8")).rejects.toThrow();
-		await client.close();
+			await expect(
+				requestFromAgent(bridge.connection, CLIENT_METHODS.fs_write_text_file, {
+					sessionId: "new-session",
+					path: join(link, "new", "file.txt"),
+					content: "escaped",
+				} satisfies WriteTextFileRequest),
+			).rejects.toThrow();
+			await expect(readFile(join(outside, "new", "file.txt"), "utf8")).rejects.toThrow();
+			await client.close();
+		} finally {
+			await rm(outside, { recursive: true, force: true });
+		}
 	});
 
 	test("a relative path is refused", async () => {

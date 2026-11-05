@@ -266,7 +266,7 @@ pub fn plan_shortcuts(shortcuts: &[MenuShortcut]) -> ShortcutPlan {
                     change: ShortcutChange::Clear,
                 });
             }
-            Some(value) => match value.parse::<muda::Accelerator>() {
+            Some(value) => match value.parse::<muda::accelerator::Accelerator>() {
                 Ok(_) => {
                     planned_items.push(menu_id);
                     plan.applied.push(PlannedShortcut {

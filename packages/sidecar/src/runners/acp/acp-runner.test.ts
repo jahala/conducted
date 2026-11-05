@@ -5,7 +5,7 @@
  * Test first: capabilities.steer is false for both adapters.
  */
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -262,25 +262,30 @@ describe("AGENT-11 ACP runner", () => {
 				stop: async () => {},
 			} satisfies AcpChild);
 		};
-		const runner = makeRunner({ spawn });
-		const session = await runner.start({
-			...startOptions,
-			workspace: { ...startOptions.workspace, workspacePath: workspace },
-		});
+		try {
+			const runner = makeRunner({ spawn });
+			const session = await runner.start({
+				...startOptions,
+				workspace: { ...startOptions.workspace, workspacePath: workspace },
+			});
 
-		await session.runTurn(
-			{ text: "hello", attachmentPaths: [], config },
-			{
-				...callbacks(),
-				beforeFirstWrite: async () => {
-					checkpoints += 1;
+			await session.runTurn(
+				{ text: "hello", attachmentPaths: [], config },
+				{
+					...callbacks(),
+					beforeFirstWrite: async () => {
+						checkpoints += 1;
+					},
 				},
-			},
-		);
+			);
 
-		expect(checkpoints).toBe(1);
-		expect(await readFile(join(workspace, "wired.txt"), "utf8")).toBe("hello");
-		await session.dispose();
+			expect(checkpoints).toBe(1);
+			expect(await readFile(join(workspace, "wired.txt"), "utf8")).toBe("hello");
+			await session.dispose();
+		} finally {
+			// The test owns this folder, so it removes it.
+			await rm(workspace, { recursive: true, force: true });
+		}
 	});
 });
 

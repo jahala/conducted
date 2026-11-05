@@ -580,10 +580,10 @@ mod tests {
         let directory = folder.path().join("workspace");
         fs::create_dir_all(&directory).expect("create workspace folder");
 
-        let file_action =
-            plan_open("Finder", &file, &app_dirs(&[folder])).expect("plan the file open");
-        let folder_action =
-            plan_open("Finder", &directory, &app_dirs(&[folder])).expect("plan the folder open");
+        let folders = [folder];
+        let dirs = app_dirs(&folders);
+        let file_action = plan_open("Finder", &file, &dirs).expect("plan the file open");
+        let folder_action = plan_open("Finder", &directory, &dirs).expect("plan the folder open");
 
         assert_eq!(
             file_action,

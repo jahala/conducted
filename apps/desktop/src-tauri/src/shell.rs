@@ -1951,8 +1951,10 @@ mod tests {
     #[test]
     fn git_16_allows_the_xcode_licence_programs() {
         for program in ["xcodebuild", "osascript"] {
-            check_program_allowed(program, ALLOWED_PROGRAMS)
-                .unwrap_or_else(|_| panic!("the Xcode licence flow starts {program}"));
+            assert!(
+                ALLOWED_PROGRAMS.contains(&program),
+                "the Xcode licence flow starts {program}"
+            );
         }
     }
 
@@ -1966,8 +1968,10 @@ mod tests {
             "the scan reads the UI source at {src:?}"
         );
         for program in &programs {
-            check_program_allowed(program, ALLOWED_PROGRAMS)
-                .unwrap_or_else(|_| panic!("the UI starts {program}, which the allowlist refuses"));
+            assert!(
+                ALLOWED_PROGRAMS.contains(&program.as_str()),
+                "the UI starts {program}, which the allowlist refuses"
+            );
         }
         // These reach the shell through a variable, so the literal scan cannot see them.
         for program in [
@@ -1976,8 +1980,10 @@ mod tests {
             "spotlighter.sh",
             "git-busy-check.sh",
         ] {
-            check_program_allowed(program, ALLOWED_PROGRAMS)
-                .unwrap_or_else(|_| panic!("the UI starts {program}, which the allowlist refuses"));
+            assert!(
+                ALLOWED_PROGRAMS.contains(&program),
+                "the UI starts {program}, which the allowlist refuses"
+            );
         }
     }
 

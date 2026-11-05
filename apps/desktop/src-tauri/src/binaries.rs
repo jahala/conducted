@@ -251,10 +251,10 @@ pub fn start_verification(app: AppHandle) {
     thread::spawn(move || {
         let result = launch_verification(&app);
         app.state::<BinariesState>().finish(&result);
-        if let Ok(errors) = &result {
-            if let Err(error) = app.emit(EVENT_VERIFICATION_ERRORS, errors) {
-                eprintln!("could not report the programs that failed verification: {error}");
-            }
+        if let Ok(errors) = &result
+            && let Err(error) = app.emit(EVENT_VERIFICATION_ERRORS, errors)
+        {
+            eprintln!("could not report the programs that failed verification: {error}");
         }
     });
 }
