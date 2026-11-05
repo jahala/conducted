@@ -312,13 +312,13 @@ export function createTauriFileSystem(
 	_paths: FileSystem["paths"],
 ): FileSystem {
 	return {
-		readText: () => notImplemented("PLAT-05"),
-		writeTextAtomic: () => notImplemented("PLAT-05"),
-		exists: () => notImplemented("PLAT-05"),
-		stat: () => notImplemented("PLAT-05"),
-		mkdirp: () => notImplemented("PLAT-05"),
-		readDir: () => notImplemented("PLAT-05"),
-		trash: () => notImplemented("PLAT-05"),
+		readText: () => notImplemented("PLAT-02"),
+		writeTextAtomic: () => notImplemented("PLAT-02"),
+		exists: () => notImplemented("PLAT-02"),
+		stat: () => notImplemented("PLAT-02"),
+		mkdirp: () => notImplemented("PLAT-02"),
+		readDir: () => notImplemented("PLAT-02"),
+		trash: () => notImplemented("PLAT-02"),
 		paths: _paths,
 	};
 }
