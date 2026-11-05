@@ -12,8 +12,11 @@
  * system (pty, keychain, trash) are marked `needs: "os"` so the stand-in may run them against its
  * own model while the Tauri run uses a scratch folder; a case that needs scripted outside events
  * (a click, a dialog answer, a crashed sidecar) is marked `needs: "controls"`, so a factory
- * without controls skips it explicitly; no case waits a fixed time (they wait for events); a case
- * that needs the sidecar uses a loopback echo child, never a real agent.
+ * without controls skips it explicitly; cases wait for events, not for a fixed time (the one
+ * exception is a single macrotask yield in db.transaction-serialised, which only gives a second
+ * transaction the chance to overlap); a case that needs the sidecar and has no controls expects a
+ * loopback echo child, never a real agent. The shell cases are answered by a script on the
+ * stand-in, so on the stand-in they check the contract's shape, not a real process.
  * Our design choice: the harness (`describe`, `it`, `skip`, `assert`) is passed in, so this file
  * imports no test framework and can sit in `src/`. Cases are plain data, and a coverage test
  * fails when a `Platform` group has no case, so a new group cannot be forgotten.
@@ -153,7 +156,7 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"shell",
 		"start-cancel",
 		"start returns a handle that can be cancelled",
-		"cancel() ends the process; done resolves with Ok and a signal exit, and a second cancel() is harmless.",
+		"cancel() ends the process; done resolves with Err code shell_cancelled (as shell.rs reports it), and a second cancel() is harmless.",
 		"os",
 	),
 	c(
@@ -786,8 +789,8 @@ const STEPS: Record<string, ContractStep> = {
 			cwd: ctx.root,
 		});
 		await running.cancel();
-		const output = expectOk(ctx, await running.done, "cancelled command");
-		ctx.assert(output.exitCode !== 0, "a cancelled command reports a signal exit");
+		const error = expectErr(ctx, await running.done, "cancelled command");
+		ctx.assert(error.code === "shell_cancelled", `the error code was ${error.code}`);
 		await running.cancel();
 	},
 

@@ -5,8 +5,9 @@
  * Behaviour: services-map.md 2.3.5 (env_vars: set, tombstone, delete; upsert on name, scope,
  * context). Our design choice: no tombstones, a delete removes the row.
  * Must handle: the primary key (name, scope, repo_id) does not stop duplicate global rows,
- * because SQLite treats NULL repo_id values as different from each other. So an upsert is an
- * UPDATE followed by an INSERT that runs only when no row matches (`repo_id IS $3` compares
+ * because SQLite treats NULL repo_id values as different from each other (migration 0002 adds a
+ * unique index on name, scope and repo_id that closes this at the database too). An upsert is an
+ * UPDATE followed by an INSERT that runs only when no row matches (`repo_id IS ?` compares
  * NULLs correctly), in one transaction; a repo-scoped row needs a repo id and a global row must
  * not have one; deleting a repo cascades to its rows.
  * Test first: setting the same global name twice leaves one row.
@@ -14,7 +15,7 @@
 import { appError, err, ok, type RepoId, type Result } from "@conducted/shared";
 import type { Database } from "../../platform/platform.ts";
 import type { RepositoryDeps } from "./deps.ts";
-import { executeStatement, inTransaction, selectRows } from "./row-codec.ts";
+import { executeStatement, executeVoid, inTransaction, selectRows } from "./row-codec.ts";
 
 export interface EnvVarRow {
 	name: string;
@@ -133,14 +134,12 @@ export function createEnvVarRepository(db: Database, _deps: RepositoryDeps): Env
 				return inserted.ok ? ok(undefined) : err(inserted.error);
 			});
 		},
-		delete: async (name, scope, repoId) => {
-			const written = await executeStatement(
+		delete: (name, scope, repoId) =>
+			executeVoid(
 				db,
 				ENV_VARS_SQL.delete,
 				[name, scope, repoId],
 				"Removing an environment variable",
-			);
-			return written.ok ? ok(undefined) : err(written.error);
-		},
+			),
 	};
 }

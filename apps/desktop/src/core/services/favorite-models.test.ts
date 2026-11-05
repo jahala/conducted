@@ -25,6 +25,9 @@ const fakeRepo = (initial: readonly FavoriteModel[] = []) => {
 		addCalls: 0,
 		reorderCalls: [] as string[][],
 		deleteCalls: [] as string[],
+		nextId: initial.length,
+		/** When set, `reorder` waits for it, so a test can interleave other calls. */
+		reorderGate: null as Promise<void> | null,
 	};
 	return {
 		state,
@@ -34,7 +37,7 @@ const fakeRepo = (initial: readonly FavoriteModel[] = []) => {
 		async add(config: FavoriteModel["config"]) {
 			state.addCalls += 1;
 			const model: FavoriteModel = {
-				id: `fav-${state.favorites.length + 1}`,
+				id: `fav-${++state.nextId}`,
 				config,
 				position: state.favorites.length,
 			};
@@ -46,6 +49,7 @@ const fakeRepo = (initial: readonly FavoriteModel[] = []) => {
 		},
 		async reorder(orderedIds: readonly string[]) {
 			state.reorderCalls.push([...orderedIds]);
+			await state.reorderGate;
 			state.favorites = state.favorites
 				.map((model) => ({ ...model, position: orderedIds.indexOf(model.id) }))
 				.sort((a, b) => a.position - b.position);
@@ -150,5 +154,38 @@ describe("COMP-02 favourite models service", () => {
 		expect(service.store.getState().favorites.map((model) => model.id)).toEqual(["c", "a", "b"]);
 		expect(service.store.getState().favorites.map((model) => model.position)).toEqual([0, 1, 2]);
 		expect(repo.state.reorderCalls.at(-1)).toEqual(["c", "a", "b"]);
+	});
+
+	it("keeps a favourite added while a removal is writing", async () => {
+		const { repo, service } = serviceWith([
+			favorite("a", "m1", 0),
+			favorite("b", "m2", 1),
+			favorite("c", "m3", 2),
+		]);
+		await service.start();
+		let release: () => void = () => undefined;
+		repo.state.reorderGate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+
+		const removing = service.remove("b");
+		const adding = service.add(choice("m4"));
+		release();
+		const [removed, added] = await Promise.all([removing, adding]);
+
+		expect(removed.ok && added.ok).toBe(true);
+		const shown = service.store.getState().favorites.map((model) => model.config.model);
+		expect(shown).toEqual(["m1", "m3", "m4"]);
+		expect(repo.state.favorites.map((model) => model.config.model)).toEqual(shown);
+	});
+
+	it("gives every saved favourite its own id, also after a removal", async () => {
+		const { repo, service } = serviceWith([favorite("fav-1", "m1", 0), favorite("fav-2", "m2", 1)]);
+		await service.start();
+		await service.remove("fav-1");
+		await service.add(choice("m3"));
+		await service.add(choice("m4"));
+		const ids = repo.state.favorites.map((model) => model.id);
+		expect(new Set(ids).size).toBe(ids.length);
 	});
 });

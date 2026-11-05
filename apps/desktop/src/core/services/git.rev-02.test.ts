@@ -61,7 +61,7 @@ const context: WorkspaceGitContext = {
 	branch: "feat",
 };
 
-function fakeFs() {
+function fakeFs(options: { slowFirstWrite?: boolean } = {}) {
 	const files = new Map<string, string>();
 	let modifiedAt = 1;
 	let readError: AppError | null = null;
@@ -84,8 +84,13 @@ function fakeFs() {
 				: err(appError("fs_not_found", `${path} does not exist.`));
 		},
 		writeTextAtomic: async (path, text) => {
-			files.set(path, text);
+			const index = writes.length;
 			writes.push(path);
+			// A slow disk: the first write lands after many other steps, with no timer to wait on.
+			if (options.slowFirstWrite === true && index === 0) {
+				for (let tick = 0; tick < 200; tick += 1) await Promise.resolve();
+			}
+			files.set(path, text);
 			return ok(undefined);
 		},
 		mkdirp: async () => ok(undefined),
@@ -224,5 +229,35 @@ describe("REV-02 viewed files", () => {
 		const result = await actions.git.setViewed(workspaceId, "src/a.ts", true);
 		expect(result.ok).toBe(true);
 		expect(fake.writes).toHaveLength(1);
+	});
+});
+
+describe("REV-02 viewed files written together", () => {
+	it("keeps both marks when two files are marked at once and the first write is slow", async () => {
+		const fake = fakeFs({ slowFirstWrite: true });
+		const service = makeService(fake.fs);
+
+		const [first, second] = await Promise.all([
+			service.setViewed(workspaceId, "src/a.ts", true),
+			service.setViewed(workspaceId, "src/b.ts", true),
+		]);
+
+		expect(first.ok).toBe(true);
+		expect(second.ok).toBe(true);
+		const saved = JSON.parse(fake.files.get(fake.viewedFile) ?? "{}") as {
+			marks: Record<string, unknown>;
+		};
+		expect(Object.keys(saved.marks).sort()).toEqual(["src/a.ts", "src/b.ts"]);
+	});
+
+	it("refuses a path that leaves the workspace", async () => {
+		const fake = fakeFs();
+		const service = makeService(fake.fs);
+
+		const result = await service.setViewed(workspaceId, "../../etc/passwd", true);
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.code).toBe("path_outside_workspace");
+		expect(fake.writes).toHaveLength(0);
 	});
 });

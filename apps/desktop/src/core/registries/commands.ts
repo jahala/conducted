@@ -3,7 +3,7 @@
  * Owns: The typed table of every command with its default macOS shortcut, plus pure lookup, parse, format and conflict helpers.
  * Behaviour: docs/research/conductor/ui-map.md section 5.4 (keyboard shortcuts) and 5.1 (command palette actions).
  * Must handle: one id per command; several shortcuts per command; the same keys in different scopes;
- *   the send-key swap; plus and other symbol keys; bad shortcut text returns an error instead of
+ *   the table holds the default send-key mode only (the dispatcher applies the swap); plus and other symbol keys; bad shortcut text returns an error instead of
  *   throwing; the user's overrides replace the defaults, never bind a fixed command, and feed the
  *   key-cap hints.
  * Test first: every default shortcut parses, and no two commands share a shortcut inside one scope.
@@ -1541,7 +1541,7 @@ export function parseShortcutOverrides(text: string): Result<ShortcutOverrides> 
 			appError("shortcut_overrides_invalid", "The custom key bindings must be a JSON object."),
 		);
 	}
-	const overrides: Record<string, readonly string[]> = {};
+	const entries: [string, readonly string[]][] = [];
 	for (const [id, value] of Object.entries(parsed)) {
 		if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) {
 			return err(
@@ -1551,9 +1551,10 @@ export function parseShortcutOverrides(text: string): Result<ShortcutOverrides> 
 				),
 			);
 		}
-		overrides[id] = value;
+		entries.push([id, value]);
 	}
-	return ok(overrides);
+	// fromEntries defines own properties, so an id such as "__proto__" cannot replace the prototype.
+	return ok(Object.fromEntries(entries));
 }
 
 /**

@@ -23,8 +23,8 @@ import type { Database } from "../../platform/platform.ts";
 import type { Attachment } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
 import {
+	executeExisting,
 	executeStatement,
-	executeVoid,
 	fromFlag,
 	inTransaction,
 	selectRows,
@@ -191,7 +191,7 @@ export function createAttachmentRepository(
 				});
 			}),
 		setPath: (id, path) =>
-			executeVoid(db, ATTACHMENTS_SQL.setPath, [path, id], "Saving an attachment path"),
+			executeExisting(db, ATTACHMENTS_SQL.setPath, [path, id], "Saving an attachment path"),
 		attachDrafts: async (sessionId, messageId, ids) => {
 			const json = stringifyJson(ids, "attachments.ids");
 			if (!json.ok) return err(json.error);

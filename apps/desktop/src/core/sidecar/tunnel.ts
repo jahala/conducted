@@ -12,7 +12,9 @@
  * validation (an Err with code `rpc_invalid`, never a throw into the caller); a sidecar request
  * for a method we have no handler for (answer -32601); a handler that throws (answer -32603,
  * logged); lines that are not JSON (logged and skipped); messages sent before `start` finishes
- * wait for it.
+ * wait for it; a reconnect that fails is retried with growing waits (`createBackoff`), and
+ * requests made meanwhile fail at once with the start error instead of waiting; `stop` ends a
+ * reconnect in progress, so it never builds an endpoint afterwards.
  * Our design choice: the json-rpc-2.0 package does the framing and id matching. This class adds
  * the schemas, timeouts and the restart rule. Request and notification names are the keys of the
  * tables in the protocol package, so a rename there is a type error here.
@@ -31,7 +33,7 @@ import {
 	sidecarToAppNotifications,
 	sidecarToAppRequests,
 } from "@conducted/protocol";
-import { appError, err, ok, type Result } from "@conducted/shared";
+import { appError, type Clock, err, ok, type Result } from "@conducted/shared";
 import {
 	createJSONRPCErrorResponse,
 	createJSONRPCNotification,
@@ -44,6 +46,7 @@ import {
 } from "json-rpc-2.0";
 import type { z } from "zod";
 import type { SidecarTransport, Unsubscribe } from "../../platform/platform.ts";
+import { type BackoffPolicy, createBackoff } from "../async/backoff.ts";
 
 export type AppToSidecarParams<K extends AppToSidecarRequest> = ParamsOf<
 	(typeof appToSidecarRequests)[K]
@@ -105,6 +108,15 @@ export const RPC_TIMEOUTS_MS: Partial<Record<AppToSidecarRequest, number>> = {
 export const rpcTimeoutFor = (method: AppToSidecarRequest): number =>
 	RPC_TIMEOUTS_MS[method] ?? DEFAULT_RPC_TIMEOUT_MS;
 
+/** How long to wait before trying to reach a sidecar that did not come back after a restart. */
+export const RECONNECT_BACKOFF: BackoffPolicy = {
+	baseMs: 500,
+	factor: 2,
+	capMs: 15_000,
+	jitter: 0.2,
+	resetAfterMs: 60_000,
+};
+
 export interface SidecarTunnelDeps {
 	transport: SidecarTransport;
 	requestHandlers: SidecarRequestHandlers;
@@ -112,6 +124,10 @@ export interface SidecarTunnelDeps {
 	log: (level: "error" | "warn" | "info" | "debug", message: string, data?: unknown) => void;
 	/** Fires a timer. A parameter so tests need no real clock. */
 	setTimer: (callback: () => void, ms: number) => () => void;
+	/** Time for the reconnect backoff. */
+	clock: Clock;
+	/** A number from 0 to 1 for the reconnect jitter. */
+	random: () => number;
 }
 
 /** json-rpc-2.0 resolves the pending request with this code when the connection closes. */
@@ -141,9 +157,17 @@ export class SidecarTunnel implements SidecarClient {
 	/** Lines that arrived before the first endpoint was built, replayed once it exists. */
 	#inbound: unknown[] = [];
 	readonly #reconnectedListeners = new Set<() => void>();
+	readonly #backoff;
+	/** Bumped by `stop`, so a reconnect that outlives it can tell and does nothing. */
+	#epoch = 0;
+	/** Counts reconnect runs. Only the newest one may schedule a retry. */
+	#reconnectSerial = 0;
+	/** Cancels the wait before the next reconnect try, if one is waiting. */
+	#cancelRetry: (() => void) | null = null;
 
 	constructor(deps: SidecarTunnelDeps) {
 		this.#deps = deps;
+		this.#backoff = createBackoff(RECONNECT_BACKOFF, deps.clock, deps.random);
 	}
 
 	/** Asks the Rust shell to start the sidecar, then attaches to its lines and restart signal. */
@@ -165,6 +189,10 @@ export class SidecarTunnel implements SidecarClient {
 	}
 
 	stop(): void {
+		this.#epoch += 1;
+		this.#reconnectSerial += 1;
+		this.#clearRetry();
+		this.#backoff.succeed();
 		this.#lineUnsubscribe?.();
 		this.#lineUnsubscribe = null;
 		this.#restartUnsubscribe?.();
@@ -402,17 +430,46 @@ export class SidecarTunnel implements SidecarClient {
 		this.#generation += 1;
 		this.#endpoint = null;
 		this.#inbound = [];
-		const previous = this.#ready ?? this.#startPromise ?? Promise.resolve(ok(undefined));
-		this.#ready = this.#reconnect(previous);
+		this.#startReconnect();
 	}
 
-	async #reconnect(previous: Promise<Result<void>>): Promise<Result<void>> {
+	#startReconnect(): void {
+		this.#clearRetry();
+		const serial = ++this.#reconnectSerial;
+		const previous = this.#ready ?? this.#startPromise ?? Promise.resolve(ok(undefined));
+		this.#ready = this.#reconnect(previous, serial, this.#epoch);
+	}
+
+	#clearRetry(): void {
+		this.#cancelRetry?.();
+		this.#cancelRetry = null;
+	}
+
+	async #reconnect(
+		previous: Promise<Result<void>>,
+		serial: number,
+		epoch: number,
+	): Promise<Result<void>> {
 		await previous;
+		if (epoch !== this.#epoch) return err(this.#stopped());
 		const started = await this.#deps.transport.ensureStarted();
+		if (epoch !== this.#epoch) return err(this.#stopped());
 		if (!started.ok) {
-			this.#deps.log("warn", "Reconnecting to the sidecar failed", started.error);
+			const delayMs = this.#backoff.fail();
+			this.#deps.log("warn", "Reconnecting to the sidecar failed", {
+				error: started.error,
+				retryInMs: delayMs,
+			});
+			// Requests made meanwhile see this failure at once. A newer run owns the retry.
+			if (serial === this.#reconnectSerial) {
+				this.#cancelRetry = this.#deps.setTimer(() => {
+					this.#cancelRetry = null;
+					this.#startReconnect();
+				}, delayMs);
+			}
 			return started;
 		}
+		this.#backoff.succeed();
 		this.#endpoint = this.#buildEndpoint();
 		this.#drainInbound();
 		for (const listener of this.#reconnectedListeners) {
@@ -424,5 +481,9 @@ export class SidecarTunnel implements SidecarClient {
 			}
 		}
 		return ok(undefined);
+	}
+
+	#stopped() {
+		return appError("sidecar_not_started", "The sidecar connection was stopped.");
 	}
 }

@@ -39,9 +39,10 @@ const must = <T>(result: Result<T>): T => {
 const sessionId = "chat-1" as SessionId;
 const secondSessionId = "chat-2" as SessionId;
 
+let generated = 0;
 const deps = {
 	clock: { now: () => 1000 },
-	ids: { uuid: () => "generated" },
+	ids: { uuid: () => `generated-${++generated}` },
 };
 const config = JSON.stringify(sessionConfig);
 

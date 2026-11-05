@@ -567,3 +567,32 @@ describe("CHAT-02 instructions from other services", () => {
 		expect(h.service.store.getState().byWorkspace[workspaceId]).toContain(fresh);
 	});
 });
+
+describe("CHAT-02 retry keeps a message the sidecar was never asked about", () => {
+	it("keeps the failed row when the retry fails before the sidecar is reached", async () => {
+		seedWorkspace();
+		let contextFails = false;
+		const h = harness({
+			workspaceContextOf: async () =>
+				contextFails ? err(appError("workspace_gone", "The workspace is gone.")) : ok(workspace),
+		});
+		const session = must(await h.service.create(workspaceId, sampleSession.config));
+		h.replyTo(async () => err(appError("send_failed", "The agent did not answer.")));
+		await h.service.send(session.id, "Fix login", [], "auto");
+		const failed = h.service.store.getState().failedSends?.[session.id] ?? [];
+		expect(failed).toHaveLength(1);
+
+		contextFails = true;
+		const retried = await h.service.retryFailedSend(session.id, failed[0]?.messageId as never);
+
+		expect(retried).toMatchObject({ ok: false, error: { code: "workspace_gone" } });
+		const after = h.service.store.getState().failedSends?.[session.id] ?? [];
+		expect(after).toHaveLength(1);
+		expect(after[0]).toMatchObject({
+			messageId: failed[0]?.messageId,
+			text: "Fix login",
+			error: { code: "workspace_gone" },
+		});
+		expect(sendMessageCalls(h.calls)).toHaveLength(1);
+	});
+});

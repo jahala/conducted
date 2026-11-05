@@ -44,6 +44,8 @@ export interface PendingSend {
 	messageId: MessageId;
 	text: string;
 	at: number;
+	/** A steer joins the running turn instead of showing as a turn of its own. */
+	delivery?: "new_turn" | "steer";
 }
 
 type Entry = { kind: "block"; block: ChatBlock } | { kind: "tool"; call: ToolCallView };
@@ -270,7 +272,8 @@ function finalize(draft: TurnDraft, liveState: LiveState, isLast: boolean): Chat
 
 /**
  * Builds the chat's turns from its stored events. Pending sends are a second overlay: a message
- * whose `user_message` event has not been stored yet appears as a running turn at the end.
+ * whose `user_message` event has not been stored yet appears as a running turn at the end. A
+ * pending steer is added to the last turn's steers instead, as not yet read.
  */
 export function buildTurns(
 	events: readonly StoredEvent[],
@@ -310,6 +313,14 @@ export function buildTurns(
 	for (const send of pendingSends) {
 		if (storedMessageIds.has(send.messageId)) continue;
 		storedMessageIds.add(send.messageId);
+		const running = turns.at(-1);
+		if (send.delivery === "steer" && running !== undefined) {
+			running.steers = [
+				...running.steers,
+				{ messageId: send.messageId, text: send.text, at: send.at, consumed: false },
+			];
+			continue;
+		}
 		turns.push({
 			turnId: send.messageId as unknown as ChatTurn["turnId"],
 			startedBy: "user",

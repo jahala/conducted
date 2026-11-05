@@ -18,7 +18,10 @@ const unusedDatabase: Database = {
 };
 
 const clock = { now: () => 1_000 };
-const ids = { uuid: () => "id" };
+const ids = (() => {
+	let next = 0;
+	return { uuid: () => `id-${++next}` };
+})();
 
 function buildContainer(): {
 	container: ReturnType<typeof createContainer>;

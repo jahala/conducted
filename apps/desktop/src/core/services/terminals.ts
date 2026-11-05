@@ -24,6 +24,10 @@
  * still read; output with a marker still reaches the screen unchanged.
  * Our design choice: environment variables are named CONDUCTED_*. Scripts run as
  * `<login shell> -l -c <script>` with the captured login environment, not from a temp file.
+ * Built now (RUN-06): tabs, the live connection, restart, repo terminal, limit, folder check, kill on
+ * quit, `buildScriptEnv`. Still placeholders: `runScript` and `stop` (RUN-01), `outputFor` (RUN-07),
+ * the shell integration (RUN-09). The claims above about script exit codes, `getTerminalOutput`
+ * and script files belong to those placeholders.
  * Test first: buildScriptEnv sets CONDUCTED_PORT and CONDUCTED_WORKSPACE_PATH from the workspace.
  */
 import {
@@ -40,6 +44,9 @@ import {
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform, PtyHandle } from "../../platform/platform.ts";
 import type { Loadable } from "../api.ts";
+import { createLatestWins } from "../async/latest-wins.ts";
+import { createKeyedQueue } from "../async/serial-queue.ts";
+import { createSingleFlight } from "../async/single-flight.ts";
 import type { Repositories } from "../db/repositories.ts";
 import type { Terminal, TerminalConnection, TerminalUnsubscribe, Workspace } from "../model.ts";
 
@@ -131,7 +138,10 @@ export interface TerminalsState {
 	byRepo: Readonly<Record<string, readonly Terminal[]>>;
 	/** The live PTY stream of each terminal that has been opened. */
 	connections: Readonly<Record<string, Loadable<TerminalConnection>>>;
-	/** Loading failures, keyed `w:<workspace id>` or `r:<repo id>`. */
+	/**
+	 * Failures the screen should show, keyed `w:<workspace id>` or `r:<repo id>` (loading) and
+	 * `t:<terminal id>` (saving an end time or a screen, or typing the starting command).
+	 */
 	errors: Readonly<Record<string, AppError>>;
 	/** The program a terminal is running right now, by terminal id. Null: the shell is at its prompt. */
 	runningProgram: Readonly<Record<string, string | null>>;
@@ -189,6 +199,12 @@ export class TerminalsService {
 	readonly store: StoreApi<TerminalsState>;
 	readonly #deps: TerminalsServiceDeps;
 	readonly #records = new Map<TerminalId, ConnectionRecord>();
+	/** Only the newest list read for a workspace or repository may change the store. */
+	readonly #loads = createLatestWins<string>();
+	/** Creates in one workspace run one at a time, so the terminal limit counts the earlier ones. */
+	readonly #creates = createKeyedQueue<string>();
+	/** A second restart of one terminal joins the first, so it never spawns two shells. */
+	readonly #restarts = createSingleFlight<string>();
 
 	constructor(deps: TerminalsServiceDeps) {
 		this.#deps = deps;
@@ -209,7 +225,10 @@ export class TerminalsService {
 
 	/** Reads the terminals of a workspace into the store. The screen calls it through useTerminals. */
 	async loadWorkspace(workspaceId: WorkspaceId): Promise<Result<void>> {
+		const ticket = this.#loads.begin(`w:${workspaceId}`);
 		const listed = await this.#deps.repos.terminals.listByWorkspace(workspaceId);
+		if (!this.#loads.isLatest(ticket)) return ok(undefined);
+		this.#loads.settle(ticket);
 		if (!listed.ok) {
 			this.#setError(`w:${workspaceId}`, listed.error);
 			return err(listed.error);
@@ -223,7 +242,10 @@ export class TerminalsService {
 
 	/** Reads the repository terminal and its earlier runs. Backs useRepoTerminals. */
 	async loadRepo(repoId: RepoId): Promise<Result<void>> {
+		const ticket = this.#loads.begin(`r:${repoId}`);
 		const listed = await this.#deps.repos.terminals.listByRepo(repoId);
+		if (!this.#loads.isLatest(ticket)) return ok(undefined);
+		this.#loads.settle(ticket);
 		if (!listed.ok) {
 			this.#setError(`r:${repoId}`, listed.error);
 			return err(listed.error);
@@ -368,15 +390,40 @@ export class TerminalsService {
 		record.exitListeners.clear();
 
 		const endedAt = this.#deps.now();
-		void this.#deps.repos.terminals.markEnded(id, endedAt, exitCode);
+		void this.#persistEnd(id, endedAt, exitCode);
 		this.#update(id, { endedAt, exitCode });
 		if (handle) void this.#saveScreen(id, handle);
 	}
 
+	/** Stores the end time. A failure is kept in the store, so the row is not left looking live. */
+	async #persistEnd(
+		id: TerminalId,
+		endedAt: number,
+		exitCode: number | null,
+	): Promise<Result<void>> {
+		const marked = await this.#deps.repos.terminals.markEnded(id, endedAt, exitCode);
+		if (marked.ok) return ok(undefined);
+		this.#setError(`t:${id}`, marked.error);
+		return err(marked.error);
+	}
+
 	async #saveScreen(id: TerminalId, handle: PtyHandle): Promise<void> {
 		const snapshot = await handle.screenSnapshot();
-		if (!snapshot.ok) return;
-		await this.#deps.repos.terminals.setScreenState(id, JSON.stringify(snapshot.value));
+		if (!snapshot.ok) {
+			this.#setError(`t:${id}`, snapshot.error);
+			return;
+		}
+		const saved = await this.#deps.repos.terminals.setScreenState(
+			id,
+			JSON.stringify(snapshot.value),
+		);
+		if (!saved.ok) this.#setError(`t:${id}`, saved.error);
+	}
+
+	/** A terminal needs its folder. Without this check the shell would fail to start with no reason. */
+	async #requireFolder(path: string): Promise<Result<void>> {
+		if (await this.#deps.platform.fs.exists(path)) return ok(undefined);
+		return err(appError("terminal_folder_missing", `The folder ${path} no longer exists.`));
 	}
 
 	#update(id: TerminalId, patch: Partial<Terminal>): void {
@@ -420,7 +467,11 @@ export class TerminalsService {
 	}
 
 	/** Backs `Actions.terminals.create`: an interactive login shell in the workspace folder. */
-	async create(
+	create(workspaceId: WorkspaceId, options?: { command?: string }): Promise<Result<Terminal>> {
+		return this.#creates.run(workspaceId, () => this.#create(workspaceId, options));
+	}
+
+	async #create(
 		workspaceId: WorkspaceId,
 		options?: { command?: string },
 	): Promise<Result<Terminal>> {
@@ -443,6 +494,8 @@ export class TerminalsService {
 		if (liveCount >= limit) {
 			return err(appError("terminal_limit", `Maximum ${limit} terminals allowed`));
 		}
+		const folder = await this.#requireFolder(workspace.value.path);
+		if (!folder.ok) return folder;
 
 		const started = await this.#deps.repos.terminals.start({
 			workspaceId,
@@ -458,16 +511,22 @@ export class TerminalsService {
 
 		const spawned = await this.#spawn(started.value);
 		if (!spawned.ok) {
-			await this.#deps.repos.terminals.markEnded(started.value.id, this.#deps.now(), null);
+			await this.#persistEnd(started.value.id, this.#deps.now(), null);
 			return spawned;
 		}
 
-		const next = [...existing, started.value];
-		this.store.setState((state) => ({
-			byWorkspace: { ...state.byWorkspace, [workspaceId]: next },
-		}));
+		// A list read that began before this terminal existed must not replace the new list.
+		this.#loads.invalidate(`w:${workspaceId}`);
+		this.store.setState((state) => {
+			const current = state.byWorkspace[workspaceId] ?? existing;
+			const next = current.some((terminal) => terminal.id === started.value.id)
+				? current
+				: [...current, started.value];
+			return { byWorkspace: { ...state.byWorkspace, [workspaceId]: next } };
+		});
 		if (started.value.startCommand !== null) {
-			void this.#write(started.value.id, `${started.value.startCommand}\r`);
+			const typed = await this.#write(started.value.id, `${started.value.startCommand}\r`);
+			if (!typed.ok) this.#setError(`t:${started.value.id}`, typed.error);
 		}
 		return ok(started.value);
 	}
@@ -528,19 +587,29 @@ export class TerminalsService {
 	/** Kills every live terminal and stamps `ended_at`. Runs on quit. */
 	async killAll(): Promise<Result<void>> {
 		const records = [...this.#records.entries()];
+		const failures: unknown[] = [];
 		await Promise.all(
 			records.map(async ([id, record]) => {
 				if (record.handle) {
 					try {
 						await record.handle.kill();
-					} catch {
-						// The row still gets its end time below.
+					} catch (cause) {
+						failures.push(cause);
 					}
 				}
+				// Every row still gets its end time, so none is left looking live.
 				this.#finish(id, null);
 			}),
 		);
-		return ok(undefined);
+		return failures.length === 0
+			? ok(undefined)
+			: err(
+					appError(
+						"terminal_kill_failed",
+						`Couldn't stop ${failures.length} terminal${failures.length === 1 ? "" : "s"}.`,
+						failures,
+					),
+				);
 	}
 
 	/** Backs `Actions.terminals.openForRepo`. One terminal per repository, created the first time. */
@@ -564,6 +633,9 @@ export class TerminalsService {
 			return ok(open);
 		}
 
+		const folder = await this.#requireFolder(repo.value.rootPath);
+		if (!folder.ok) return folder;
+
 		const started = await this.#deps.repos.terminals.start({
 			workspaceId: null,
 			repoId,
@@ -578,19 +650,27 @@ export class TerminalsService {
 
 		const spawned = await this.#spawn(started.value);
 		if (!spawned.ok) {
-			await this.#deps.repos.terminals.markEnded(started.value.id, this.#deps.now(), null);
+			await this.#persistEnd(started.value.id, this.#deps.now(), null);
 			return spawned;
 		}
 
-		const next = [...existing, started.value];
-		this.store.setState((state) => ({
-			byRepo: { ...state.byRepo, [repoId]: next },
-		}));
+		this.#loads.invalidate(`r:${repoId}`);
+		this.store.setState((state) => {
+			const current = state.byRepo[repoId] ?? existing;
+			const next = current.some((terminal) => terminal.id === started.value.id)
+				? current
+				: [...current, started.value];
+			return { byRepo: { ...state.byRepo, [repoId]: next } };
+		});
 		return ok(started.value);
 	}
 
 	/** Backs `Actions.terminals.restart`. Draws the divider, then starts a fresh shell. */
-	async restart(id: TerminalId): Promise<Result<void>> {
+	restart(id: TerminalId): Promise<Result<void>> {
+		return this.#restarts.run(id, () => this.#restart(id));
+	}
+
+	async #restart(id: TerminalId): Promise<Result<void>> {
 		const found = await this.#deps.repos.terminals.get(id);
 		if (!found.ok) return found;
 		const terminal = found.value;
@@ -600,6 +680,9 @@ export class TerminalsService {
 		if (terminal.endedAt === null) {
 			return err(appError("terminal_running", "The terminal is still running."));
 		}
+
+		const folder = await this.#requireFolder(terminal.cwd);
+		if (!folder.ok) return folder;
 
 		const record = this.#records.get(id) ?? this.#record(terminal);
 		this.#emit(record, new TextEncoder().encode(`${RESTART_DIVIDER}\r\n`));

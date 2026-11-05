@@ -5,10 +5,11 @@
  * is ready to merge, and whether git or the pull request has a merge conflict.
  * Behaviour: ui-map.md 3.6 (Git panel header order) and 3.8 (workspace status labels), read from
  * the same pull request fields. GIT-04 imports these so the two rules cannot disagree.
- * Must handle: a closed pull request, which is never active, ready or running; optional checks;
- * a merge or rebase in progress; a pull request with no checks.
+ * Must handle: a closed pull request, which is never active, ready, failing or running; a merge or
+ * rebase in progress; a pull request with no checks.
  * Our design choice: each predicate takes plain values and returns a boolean. The caller decides
- * which question to ask first.
+ * which question to ask first. Every check counts, required or not. GIT-04 adds the "treat
+ * optional checks as blocking" setting (ui-map.md 6) when it is built.
  * Test first: a closed pull request with failing checks is not failing, ready or running.
  */
 import type { GitState, PullRequest } from "../model.ts";
@@ -20,15 +21,22 @@ export function isActivePullRequest(
 	return pullRequest !== null && (pullRequest.state === "open" || pullRequest.state === "draft");
 }
 
+/** Failing checks of an open or draft pull request. A closed or merged one never fails. */
 export function checksAreFailing(pullRequest: PullRequest): boolean {
-	return pullRequest.checks.some(
-		(check) => check.state === "failure" || check.state === "cancelled",
+	return (
+		isActivePullRequest(pullRequest) &&
+		pullRequest.checks.some((check) => check.state === "failure" || check.state === "cancelled")
 	);
 }
 
+/** Running checks of an open or draft pull request. A closed or merged one never runs. */
 export function checksAreRunning(pullRequest: PullRequest): boolean {
-	return pullRequest.checks.some(
-		(check) => check.state === "pending" || check.state === "waiting" || check.state === "running",
+	return (
+		isActivePullRequest(pullRequest) &&
+		pullRequest.checks.some(
+			(check) =>
+				check.state === "pending" || check.state === "waiting" || check.state === "running",
+		)
 	);
 }
 

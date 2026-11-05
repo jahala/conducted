@@ -9,7 +9,9 @@
  * Must handle: the sidecar restarted (every chat the UI thinks is working is "unknown" there:
  * close its turn as interrupted, show idle, keep the agent session id so the next message
  * resumes); the sidecar is alive and still working (adopt its live state and wait for events);
- * two resume runs at once collapse into one; a status request that fails is reported in the
+ * two resume runs at once collapse into one, except that a run asked for after a reconnect
+ * waits for the run in flight and then runs afresh (the run in flight asked a connection that is
+ * gone, so its answers say nothing about the new one); a status request that fails is reported in the
  * result and never guessed at; a live-state notification that arrives while the status request
  * is in flight wins over the older status answer; a failed live-state write is reported in the
  * result.
@@ -47,6 +49,8 @@ export interface SessionResumeDeps {
 export class SessionResume {
 	readonly #deps: SessionResumeDeps;
 	readonly #flight = createSingleFlight<"resume">();
+	/** The fresh run waiting behind the run in flight, shared by every reconnect that asks for one. */
+	#afterReconnect: Promise<Result<ResumeReport>> | null = null;
 
 	constructor(deps: SessionResumeDeps) {
 		this.#deps = deps;
@@ -55,6 +59,23 @@ export class SessionResume {
 	/** Runs once after the tunnel is up and again after every reconnect. */
 	resume(): Promise<Result<ResumeReport>> {
 		return this.#flight.run("resume", () => this.#run());
+	}
+
+	/**
+	 * Runs once the tunnel is back after a restart. A run already in flight used the old connection,
+	 * so this does not join it: it waits for it and then runs again. Callers that arrive while it
+	 * waits share the one follow-up run.
+	 */
+	resumeAfterReconnect(): Promise<Result<ResumeReport>> {
+		if (this.#afterReconnect !== null) return this.#afterReconnect;
+		if (!this.#flight.isRunning("resume")) return this.resume();
+		const inFlight = this.resume();
+		const follow = (): Promise<Result<ResumeReport>> => {
+			this.#afterReconnect = null;
+			return this.resume();
+		};
+		this.#afterReconnect = inFlight.then(follow, follow);
+		return this.#afterReconnect;
 	}
 
 	async #run(): Promise<Result<ResumeReport>> {

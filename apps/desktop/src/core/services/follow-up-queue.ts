@@ -1,21 +1,20 @@
 /**
  * @feature CHAT-04 Follow-up queue and steering
- * Owns: messages typed while the agent works: queueing them, editing, reordering, deleting,
- * pausing, sending one now as a steer, and releasing the queue when the chat is idle.
+ * Owns now: the rules for choosing a delivery (`chooseDelivery`), for releasing the queue
+ * (`canReleaseQueue`) and for picking the next row (`nextToSend`), and `pauseOnCancel`.
+ * Not built yet (placeholders): load, enqueue, edit, remove, reorder, setPaused, sendNowAsSteer
+ * and release (CHAT-04, CHAT-03).
  * Behaviour: sessions-and-chats.md "While the agent is working" (queue, steer, cancel),
- * sessions.md 6 (delivery modes, steer falls back to a normal follow-up), services-map.md 2.3.4
- * and 2.4.4 (local drainer: steer rows first, then the first queued row unless paused; rows stuck
- * in `sending` are settled after a crash), ui-map.md 3.4 (queue box, errors).
- * Must handle: steer rows go before queue rows; a paused queue releases nothing; only one row is
- * `sending` at a time per chat; a row that fails to send becomes `failed` with its error and
- * stays in place (the user retries or deletes it); an agent that cannot steer (ACP agents) gets
- * the message as a normal follow-up; a queued row is removed once its `user_message` event is
- * stored; the queue is only released when the chat is idle with no background tasks and no open
- * interaction; cancel drops nothing the user typed (cancel pauses the queue instead) and moves a
- * row that was already `sending` to the end as waiting again (CHAT-05); edits to a row that is
- * already `sending` are refused; positions stay dense after a delete or reorder.
+ * sessions.md 6 (delivery modes, steer falls back to a normal follow-up), services-map.md 2.3.3,
+ * 2.3.4 and 2.4.4 (local drainer: steer rows first, then the first queued row unless paused), ui-map.md 3.4.
+ * Must handle: steer rows go before queue rows; a paused queue releases no queue row; nothing is
+ * picked while a row is `sending`; failed rows are skipped; an agent that cannot steer (ACP
+ * agents) gets the message as a normal follow-up; the queue is released only when the chat is
+ * idle with no background tasks and no open interaction; cancel drops nothing the user typed
+ * (cancel pauses the queue instead) and moves a row that was already `sending` to the end as
+ * waiting again (CHAT-05).
  * Our design choice: cancelling pauses the queue instead of deleting it, so typed follow-ups are
- * never lost. The user resumes with one click.
+ * never lost. The pause flag lives in the queue store only until `setPaused` stores it.
  * Test first: nextToSend returns the steer row before an earlier queue row.
  */
 import type { LiveState, SessionConfig } from "@conducted/protocol";

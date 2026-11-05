@@ -33,7 +33,7 @@ import {
 	type SessionId,
 	type TurnId,
 } from "@conducted/shared";
-import { createKeyedQueue } from "../async/serial-queue.ts";
+import { createKeyedQueue, persistThenAck } from "../async/serial-queue.ts";
 import type { Repositories } from "../db/repositories.ts";
 import type { Session } from "../model.ts";
 import type { SidecarClient } from "./tunnel.ts";
@@ -123,7 +123,7 @@ export class EventIngest {
 
 	/** Handles one envelope. Resolves after the acknowledgement was sent or deliberately withheld. */
 	ingest(envelope: SessionEventEnvelope): Promise<Result<IngestOutcome>> {
-		const task = this.#queue.run(envelope.sessionId, () => this.#store(envelope));
+		const task = this.#storeThenAck(envelope);
 		this.#pending.add(task);
 		const clear = (): void => {
 			this.#pending.delete(task);
@@ -139,6 +139,25 @@ export class EventIngest {
 		}
 	}
 
+	/** One queue slot per chat: store the event, show it, then acknowledge it, in that order. */
+	async #storeThenAck(envelope: SessionEventEnvelope): Promise<Result<IngestOutcome>> {
+		const { sessionId } = envelope;
+		let outcome: IngestOutcome = { stored: false, idx: null };
+		const done = await persistThenAck(
+			this.#queue,
+			sessionId,
+			async (): Promise<Result<void>> => {
+				const stored = await this.#store(envelope);
+				if (!stored.ok) return stored;
+				outcome = stored.value;
+				return ok(undefined);
+			},
+			() => this.#acknowledge(sessionId, envelope.event.eventId),
+		);
+		return done.ok ? ok(outcome) : err(done.error);
+	}
+
+	/** Writes the event in one transaction, then shows it. Never throws. */
 	async #store(envelope: SessionEventEnvelope): Promise<Result<IngestOutcome>> {
 		const { sessionId } = envelope;
 		try {
@@ -179,7 +198,6 @@ export class EventIngest {
 			if (outcome.stored && outcome.idx !== null) {
 				this.#show(sessionId, envelope, outcome.idx);
 			}
-			await this.#acknowledge(sessionId, envelope.event.eventId);
 			return ok(outcome);
 		} catch (cause) {
 			const error =

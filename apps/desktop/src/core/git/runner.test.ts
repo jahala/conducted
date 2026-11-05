@@ -50,6 +50,7 @@ const makeShell = (
 	runHandler: (command: ShellCommand) => Promise<Result<ShellOutput>> = async () => ok(out(0)),
 	startHandler?: (command: ShellCommand) => RunningCommand,
 	loginPath = "/Users/me/.local/bin:/usr/bin:/bin",
+	loginEnv: Shell["loginEnv"] = async () => ({ shell: "/bin/zsh", path: loginPath }),
 ): FakeShell => {
 	const calls: ShellCommand[] = [];
 	return {
@@ -69,7 +70,7 @@ const makeShell = (
 					}
 				);
 			},
-			loginEnv: async () => ({ shell: "/bin/zsh", path: loginPath }),
+			loginEnv,
 		},
 	};
 };
@@ -191,6 +192,30 @@ describe("GIT-01 ShellGitRunner", () => {
 			program: "/b/checkpointer.sh",
 			args: ["save"],
 		});
+	});
+
+	it("logs a login-shell PATH that cannot be read and tries again on the next command", async () => {
+		let attempts = 0;
+		const shell = makeShell(
+			async () => ok(out(0)),
+			undefined,
+			"/Users/me/bin",
+			async () => {
+				attempts += 1;
+				if (attempts === 1) throw new Error("login shell timed out");
+				return { shell: "/bin/zsh", path: "/Users/me/bin" };
+			},
+		);
+		const { runner, logs } = makeRunner(shell.shell);
+		await runner.run(fetch("origin"), { cwd: "/w" });
+		await runner.run(fetch("origin"), { cwd: "/w" });
+		expect(logs).toContainEqual({
+			level: "warn",
+			message: "Could not read the login-shell PATH: login shell timed out",
+		});
+		expect(shell.calls[0]?.env).toBeUndefined();
+		expect(shell.calls[1]?.env?.PATH).toBe("/Users/me/bin");
+		expect(attempts).toBe(2);
 	});
 
 	it("puts the captured login-shell PATH in front of every call", async () => {
@@ -451,6 +476,14 @@ describe("GIT-01 ShellGitRunner", () => {
 		expect(repoRan).toBe(true);
 	});
 
+	it("starts no warm-up timer for a lock that is free", async () => {
+		const shell = makeShell(async () => ok(out(0)));
+		const { runner, warmWaits } = makeRunner(shell.shell);
+		await runner.withWorktreeLock("/w", async () => undefined);
+		await runner.withWorktreeAndRepoLocks("/w", "/r", async () => undefined);
+		expect(warmWaits).toHaveLength(0);
+	});
+
 	it("logs a warning when a lock is waited on for 10 seconds and still runs the action", async () => {
 		const shell = makeShell(async () => ok(out(0)));
 		const { runner, logs, warmWaits } = makeRunner(shell.shell);
@@ -462,7 +495,7 @@ describe("GIT-01 ShellGitRunner", () => {
 		});
 
 		await flush();
-		expect(warmWaits).toHaveLength(2);
+		expect(warmWaits).toHaveLength(1);
 		for (const resolve of warmWaits) resolve();
 		await flush();
 

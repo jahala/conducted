@@ -48,7 +48,10 @@ import type { GitRunner } from "./runner.ts";
 export const UNTRACKED_FILE_CAP = 100;
 /** An untracked file larger than this is not read; its line count is reported as the sentinel. */
 export const UNTRACKED_COUNT_MAX_BYTES = 300 * 1024;
-/** One batch of untracked-file commands stays under this many bytes of paths (services-map 3.3.2). */
+/**
+ * One batch of untracked files stays under this many bytes of paths. Each file still runs its own
+ * `stat` and `diff`, so a batch only limits how many files are counted at the same time.
+ */
 export const UNTRACKED_COUNT_BATCH_BYTES = 200_000;
 /** Line count reported for an untracked file too large to read. */
 export const UNTRACKED_LARGE_FILE_LINES = 501;
@@ -112,7 +115,8 @@ export function diffTargetOf(input: DiffTargetInput): DiffTarget {
 }
 
 /**
- * Splits untracked paths into command batches under `UNTRACKED_COUNT_BATCH_BYTES`. A path longer
+ * Splits untracked paths into groups under `UNTRACKED_COUNT_BATCH_BYTES`; the groups are counted one
+ * after the other. A path longer
  * than the cap still gets a batch of its own, so nothing is dropped.
  */
 export function untrackedCountBatches(paths: readonly string[]): string[][] {
@@ -317,21 +321,21 @@ export interface CommitSummary {
 	authoredAt: number;
 }
 
+/** Field separator of `logRange`: the ASCII unit separator, which a name or subject never holds. */
+export const COMMIT_LOG_SEPARATOR = "\x1f";
+
 /**
- * Parses `log --format=%H|%s|%an|%ae|%at`. The subject may contain `|`, so the last three
- * fields are read from the right and the first field is the hash.
+ * Parses the output of `logRange`: hash, subject, author name, author email and author time,
+ * split on `COMMIT_LOG_SEPARATOR`. A subject or a name may contain `|` and still reads right.
  */
 export function parseCommitLog(text: string): CommitSummary[] {
 	const commits: CommitSummary[] = [];
 	for (const line of text.split("\n")) {
 		if (line.length === 0) continue;
-		const fields = line.split("|");
-		if (fields.length < 5) continue;
-		const authoredAt = Number(fields.at(-1));
-		const authorEmail = fields.at(-2) ?? "";
-		const authorName = fields.at(-3) ?? "";
-		const hash = fields[0] ?? "";
-		const subject = fields.slice(1, -3).join("|");
+		const fields = line.split(COMMIT_LOG_SEPARATOR);
+		if (fields.length !== 5) continue;
+		const [hash = "", subject = "", authorName = "", authorEmail = ""] = fields;
+		const authoredAt = Number(fields[4]);
 		if (Number.isNaN(authoredAt)) continue;
 		commits.push({ hash, subject, authorName, authorEmail, authoredAt });
 	}
@@ -420,32 +424,44 @@ const statCommand = (path: string): GitCommand => ({
 	retryOnLock: false,
 });
 
-const pathExists = async (runner: GitRunner, cwd: string, path: string): Promise<boolean> => {
+/** A `stat` that cannot run is an error; a path that is not there is a normal "no". */
+const pathExists = async (
+	runner: GitRunner,
+	cwd: string,
+	path: string,
+): Promise<Result<boolean>> => {
 	const result = await runner.run(statCommand(path), { cwd });
-	return result.ok && result.value.exitCode === 0;
+	return result.ok ? ok(result.value.exitCode === 0) : result;
 };
 
-/** Checks the names git keeps in its directory while a multi-step operation is open. */
-async function readOperation(runner: GitRunner, cwd: string): Promise<GitOperation> {
+/**
+ * Checks the names git keeps in its directory while a multi-step operation is open. A lookup that
+ * fails is returned, so an unreadable git directory never reads as "no operation".
+ */
+async function readOperation(runner: GitRunner, cwd: string): Promise<Result<GitOperation>> {
 	const markers = await Promise.all(
-		OPERATION_MARKERS.map(async (marker) => {
+		OPERATION_MARKERS.map(async (marker): Promise<Result<string | null>> => {
 			const path = await runner.stdout(revParseGitPath(marker), { cwd });
-			if (!path.ok || path.value.length === 0) return null;
-			return (await pathExists(runner, cwd, path.value)) ? marker : null;
+			if (!path.ok) return path;
+			if (path.value.length === 0) return ok(null);
+			const exists = await pathExists(runner, cwd, path.value);
+			if (!exists.ok) return exists;
+			return ok(exists.value ? marker : null);
 		}),
 	);
 	const present = new Set<string>();
 	for (const marker of markers) {
-		if (marker !== null) present.add(marker);
+		if (!marker.ok) return marker;
+		if (marker.value !== null) present.add(marker.value);
 	}
-	return operationFromMarkers(present);
+	return ok(operationFromMarkers(present));
 }
 
 async function countUntrackedLines(
 	runner: GitRunner,
 	cwd: string,
 	path: string,
-): Promise<Result<number>> {
+): Promise<Result<{ lines: number; binary: boolean }>> {
 	const result = await runner.run(diffNoIndexNumstat(path), { cwd });
 	if (!result.ok) return result;
 	// Exit 1 means the files differ. Any other exit code with a message is a real failure.
@@ -453,7 +469,7 @@ async function countUntrackedLines(
 		return err(appError("git_failed", result.value.stderr.trim()));
 	}
 	const [entry] = parseNumstat(result.value.stdout.trim());
-	return ok(entry?.linesAdded ?? 0);
+	return ok({ lines: entry?.linesAdded ?? 0, binary: entry?.binary ?? false });
 }
 
 /**
@@ -478,7 +494,13 @@ async function untrackedFile(
 	}
 	const lines = await countUntrackedLines(runner, cwd, path);
 	if (!lines.ok) return lines;
-	return ok({ path, status: "added", linesAdded: lines.value, linesRemoved: 0, binary: false });
+	return ok({
+		path,
+		status: "added",
+		linesAdded: lines.value.lines,
+		linesRemoved: 0,
+		binary: lines.value.binary,
+	});
 }
 
 /** The untracked files of a worktree, with their line counts and the truncation flag. */
@@ -656,7 +678,7 @@ async function readChanges(
  * Runs the polling commands of services-map 3.3.2 in the documented order, in parallel where
  * the research says so, and assembles one snapshot. Runs no lock (read-only commands).
  *
- * A metadata poll reads only the branch and the operation. An uncommitted poll compares against
+ * A metadata poll reads only the branch (the operation is reported as "none"). An uncommitted poll compares against
  * HEAD. A full poll compares against the merge base of the target and the branch, and adds the
  * untracked files, the upstream sync, the distance behind the target and the branch commits.
  */
@@ -689,11 +711,12 @@ export async function refreshWorkspaceChanges(
 	}
 
 	const operation = await readOperation(runner, cwd);
+	if (!operation.ok) return operation;
 	const parts: SnapshotParts = {
 		branch,
 		mergeBase: null,
 		mergeBaseError: null,
-		operation,
+		operation: operation.value,
 	};
 
 	if (input.depth === "uncommitted") {

@@ -227,6 +227,28 @@ describe("APP-11 serial queue", () => {
 		expect(queue.activeKeys()).toBe(0);
 	});
 
+	it("says a key is busy only while work is queued or running on it", async () => {
+		const queue = createKeyedQueue();
+		const gate = deferred();
+		expect(queue.isBusy("a")).toBe(false);
+		const first = queue.run("a", () => gate.promise);
+		expect(queue.isBusy("a")).toBe(true);
+		expect(queue.isBusy("b")).toBe(false);
+		gate.resolve();
+		await first;
+		await flush();
+		expect(queue.isBusy("a")).toBe(false);
+	});
+
+	it("drops every idle key after thousands of keys have run", async () => {
+		const queue = createKeyedQueue();
+		await Promise.all(
+			Array.from({ length: 5000 }, (_, n) => queue.run(`chat-${n}`, async () => n)),
+		);
+		await flush();
+		expect(queue.activeKeys()).toBe(0);
+	});
+
 	it("runs a task even when its caller stops waiting", async () => {
 		const queue = createKeyedQueue();
 		const log: string[] = [];

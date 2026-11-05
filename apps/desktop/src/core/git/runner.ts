@@ -9,8 +9,9 @@
  * keeps `shell_timeout`; retries on `index.lock` and "cannot lock ref" at 50, 100 and 200 ms; one
  * HTTPS retry when SSH is blocked and the command is marked `network`; the repo lock is taken
  * inside the worktree lock, and it cannot be taken any other way; a lock waited on longer than
- * 10 s is logged through the injected `sleep`, never aborted; the caller can cancel by dropping
- * the result (a late answer must not change state).
+ * 10 s is logged through the injected `sleep`, never aborted (the timer starts only when the lock
+ * is already held, so a free lock leaves no timer behind); a login-shell PATH that cannot be read
+ * is logged and tried again on the next command.
  * Our design choice: every command is `{ program, args }`, never a shell string, so there is no
  * quoting layer. `-c core.quotePath=false` is added for the program `git` only.
  * Xcode licence: this file detects the error and describes the toast (`xcodeLicenseToast`).
@@ -105,7 +106,7 @@ export interface GitRunner {
 	 * with code `git_failed` and the trimmed stderr as the message.
 	 */
 	runChecked(command: GitCommand, options: GitRunOptions): Promise<Result<ShellOutput>>;
-	/** Output of `runChecked` with trailing whitespace removed. */
+	/** Output of `runChecked` with whitespace removed from both ends. */
 	stdout(command: GitCommand, options: GitRunOptions): Promise<Result<string>>;
 	/** Starts the command and returns a handle. Work that waits for the user cancels through it. */
 	start(command: GitCommand, options: GitRunOptions): Promise<RunningGitCommand>;
@@ -261,28 +262,41 @@ export class ShellGitRunner implements GitRunner {
 		return Object.keys(env).length === 0 ? undefined : env;
 	}
 
+	/** Reads the login-shell PATH once. A failed read is logged and not kept, so the next command tries again. */
 	#loginShellPath(): Promise<string | null> {
 		this.#loginPath ??= this.#deps.shell.loginEnv().then(
 			(env) => env.path,
-			() => null,
+			(cause: unknown) => {
+				this.#loginPath = undefined;
+				const message = cause instanceof Error ? cause.message : String(cause);
+				this.#deps.log("warn", `Could not read the login-shell PATH: ${message}`);
+				return null;
+			},
 		);
 		return this.#loginPath;
 	}
 
-	/** Runs `work` under `key`, warning if the wait beats the warm timeout. It never aborts. */
+	/**
+	 * Runs `work` under `key`. If the key is already held, a warning is logged when the wait beats
+	 * the warm timeout. The wait is never aborted.
+	 */
 	async #withLock<T>(key: string, work: () => Promise<T>): Promise<T> {
 		let acquired = false;
-		const slow = this.#deps.sleep(LOCK_WARM_TIMEOUT_MS).then(() => {
-			if (!acquired) this.#deps.log("warn", LOCK_WARM_TIMEOUT_MESSAGE);
-		});
-		try {
-			return await this.#deps.locks.run(key, async () => {
-				acquired = true;
-				return work();
-			});
-		} finally {
-			void slow;
+		if (this.#deps.locks.isHeld(key)) {
+			void this.#deps.sleep(LOCK_WARM_TIMEOUT_MS).then(
+				() => {
+					if (!acquired) this.#deps.log("warn", LOCK_WARM_TIMEOUT_MESSAGE);
+				},
+				(cause: unknown) => {
+					const message = cause instanceof Error ? cause.message : String(cause);
+					this.#deps.log("warn", `Could not time a lock wait: ${message}`);
+				},
+			);
 		}
+		return this.#deps.locks.run(key, async () => {
+			acquired = true;
+			return work();
+		});
 	}
 }
 

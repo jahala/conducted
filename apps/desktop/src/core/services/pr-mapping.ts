@@ -7,11 +7,12 @@
  * (header states that depend on these values).
  * Must handle: a node with missing optional fields (null `mergeable`, no check rollup, no
  * review decision); duplicate check runs with the same workflow and name (keep the newest by
- * `completedAt`, else `startedAt`); a merge state of UNKNOWN never replaces a known state for the
- * same head commit (the caller keeps the previous value); a closed, unmerged PR maps to
- * "closed"; a draft maps to "draft" only while open; check conclusions the app does not know map
+ * `completedAt`, else `startedAt`); a closed, unmerged PR maps to "closed"; a draft maps to
+ * "draft" only while open; check conclusions the app does not know map
  * to "failure" for ACTION_REQUIRED, TIMED_OUT and STARTUP_FAILURE, to "skipped" for NEUTRAL,
  * STALE and SKIPPED.
+ * Not here: keeping a known merge state when GitHub answers UNKNOWN for the same head commit. That
+ * belongs to the poller (PR-03), which has the previous value.
  * Our design choice: the raw types below are the subset of fields we ask for, written from
  * GitHub's public schema. They are not shared with the query text, so the test pins both.
  * Test first: a rollup with two runs named "build" keeps only the newest one.

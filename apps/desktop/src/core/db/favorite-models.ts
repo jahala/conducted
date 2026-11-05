@@ -15,6 +15,7 @@ import type { RepositoryDeps } from "./deps.ts";
 import {
 	collectResults,
 	executeStatement,
+	executeVoid,
 	inTransaction,
 	parseJsonColumn,
 	selectRows,
@@ -135,22 +136,13 @@ export function createFavoriteModelRepository(
 		reorder: async (orderedIds) => {
 			const json = stringifyJson(orderedIds, "favorite_models.ids");
 			if (!json.ok) return err(json.error);
-			const written = await executeStatement(
+			return executeVoid(
 				db,
 				FAVORITE_MODELS_SQL.reorder,
 				[json.value],
 				"Reordering favorite models",
 			);
-			return written.ok ? ok(undefined) : err(written.error);
 		},
-		delete: async (id) => {
-			const written = await executeStatement(
-				db,
-				FAVORITE_MODELS_SQL.delete,
-				[id],
-				"Removing a favorite model",
-			);
-			return written.ok ? ok(undefined) : err(written.error);
-		},
+		delete: (id) => executeVoid(db, FAVORITE_MODELS_SQL.delete, [id], "Removing a favorite model"),
 	};
 }

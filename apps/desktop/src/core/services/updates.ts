@@ -11,6 +11,8 @@
  * Our design choice: we check at start, then once an hour and after the window regains focus
  * after 10 minutes, instead of every minute. There is no release holdout and no random delay,
  * because there is no shared CDN to protect.
+ * Built now: `isSafeToQuit` (no chat is working). Checking, downloading and restarting are
+ * placeholders.
  * Test first: with the setting on, the state moves to a restart when the last working chat goes idle.
  */
 import { notImplemented, type Result } from "@conducted/shared";
@@ -60,6 +62,6 @@ export class UpdatesService {
 
 	/** Used by the quit handler. */
 	isSafeToQuit(): boolean {
-		return notImplemented("PLAT-13");
+		return !this.#deps.anyChatWorking();
 	}
 }

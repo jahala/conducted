@@ -7,7 +7,8 @@
  * Must handle: an id the registry does not know returns an Err; a known id with no handler
  * returns an Err with code `command_unavailable` (so a menu item never does nothing silently); a
  * disabled command (no workspace selected, no open PR) returns an Err and the palette greys it
- * out; a handler that fails returns its Err; two runs of one command at once run once; commands
+ * out; a handler that fails returns its Err (a handler that throws or rejects becomes an Err with
+ * code `command_failed`); two runs of one command at once run once; commands
  * that need a dialog open it and return when it is opened, not when it is answered.
  * Our design choice: handlers are plain functions over services, kept in an optional table keyed by
  * `CommandId`. A command with no handler fails at run time with `command_unavailable`, so a menu
@@ -75,6 +76,15 @@ export function commandRequirement(id: string): keyof CommandContext | null {
 	return null;
 }
 
+/** Runs a handler so that a throw or a rejection becomes an Err, as the header promises. */
+async function settle(title: string, handler: CommandHandler): Promise<Result<void>> {
+	try {
+		return await handler();
+	} catch (cause) {
+		return err(appError("command_failed", `${title} failed.`, cause));
+	}
+}
+
 export class CommandRunner {
 	readonly #deps: CommandRunnerDeps;
 	/** A command already running answers later calls with the same promise, so it runs once. */
@@ -104,7 +114,7 @@ export class CommandRunner {
 		}
 		const alreadyRunning = this.#running.get(commandId);
 		if (alreadyRunning !== undefined) return alreadyRunning;
-		const started = Promise.resolve(handler()).finally(() => this.#running.delete(commandId));
+		const started = settle(def.title, handler).finally(() => this.#running.delete(commandId));
 		this.#running.set(commandId, started);
 		return started;
 	}

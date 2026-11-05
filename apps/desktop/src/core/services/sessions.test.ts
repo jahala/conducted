@@ -210,6 +210,43 @@ describe("CHAT-01 sessions service", () => {
 		expect(loaded.map((event) => event.event.eventId)).toEqual(["e1", "e2"]);
 	});
 
+	it("keeps an event stored while the chat's events are loading", async () => {
+		seedWorkspace();
+		const created = must(await service.create(workspaceId, sampleSession.config));
+		must(
+			await repositories.sessionEvents.append(created.id, userMessageEvent("e1", "t1", 10), 100),
+		);
+		// The second event is stored and announced after the load read the log, before it set the store.
+		const second = userMessageEvent("e2", "t1", 11);
+		const listFrom = repositories.sessionEvents.listFrom.bind(repositories.sessionEvents);
+		vi.spyOn(repositories.sessionEvents, "listFrom").mockImplementation(async (...args) => {
+			const rows = await listFrom(...args);
+			const appended = must(await repositories.sessionEvents.append(created.id, second, 101));
+			if (appended.kind !== "appended") throw new Error("expected an appended event");
+			service.applyStoredEvent(created.id, appended.idx, second, 101);
+			return rows;
+		});
+
+		expect(await service.open(created.id)).toEqual({ ok: true, value: undefined });
+
+		const loaded = service.store.getState().events[created.id] ?? [];
+		expect(loaded.map((event) => event.event.eventId)).toEqual(["e1", "e2"]);
+	});
+
+	it("shares one load between overlapping opens", async () => {
+		seedWorkspace();
+		const created = must(await service.create(workspaceId, sampleSession.config));
+		must(
+			await repositories.sessionEvents.append(created.id, userMessageEvent("e1", "t1", 10), 100),
+		);
+		const lastIdx = vi.spyOn(repositories.sessionEvents, "lastIdx");
+
+		const results = await Promise.all([service.open(created.id), service.open(created.id)]);
+
+		expect(results).toEqual([ok(undefined), ok(undefined)]);
+		expect(lastIdx).toHaveBeenCalledTimes(1);
+	});
+
 	it("deletes a chat with its events and live state", async () => {
 		seedWorkspace();
 		const created = must(await service.create(workspaceId, sampleSession.config));
@@ -226,6 +263,28 @@ describe("CHAT-01 sessions service", () => {
 		const state = service.store.getState();
 		expect(state.sessions[created.id]).toBeUndefined();
 		expect(state.byWorkspace[workspaceId]).toEqual([]);
+	});
+
+	it("withdraws the open card and drops the pending state of a deleted chat", async () => {
+		seedWorkspace();
+		const created = must(await service.create(workspaceId, sampleSession.config));
+		const answer = service.requestInteraction({
+			sessionId: created.id,
+			interactionId: "i1" as never,
+			interaction: { kind: "question", questions: [] },
+		} as never);
+		service.store.setState({
+			cancelling: { [created.id]: true },
+			sending: { [created.id]: [{ messageId: "m1" } as never] },
+		});
+
+		must(await service.delete(created.id));
+
+		expect(await answer).toEqual({ kind: "withdrawn" });
+		const state = service.store.getState();
+		expect(state.openInteractions[created.id]).toBeUndefined();
+		expect(state.sending[created.id]).toBeUndefined();
+		expect(state.cancelling[created.id]).toBeUndefined();
 	});
 
 	it("reports an unknown chat instead of inventing one", async () => {

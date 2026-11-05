@@ -5,9 +5,10 @@
  * (default model per agent), ui-map.md 3.5 (model picker).
  * Must handle: the same choice saved twice is one favourite; a favourite whose model the agent
  * no longer offers stays in the list but is marked unavailable by the picker; order is the
- * `position` column and stays dense; add runs one at a time so two quick calls cannot both pass
- * the duplicate and five-limit checks; removing rewrites the order before it deletes, so a failed
- * reorder leaves the row in place; at most five favourites are saved.
+ * `position` column and stays dense; add, remove and reorder run one at a time, so two quick
+ * calls cannot both pass the duplicate and five-limit checks and a removal cannot undo an add;
+ * removing rewrites the order before it deletes, so a failed reorder leaves the row in place; at
+ * most five favourites are saved.
  * Our design choice: a single repository call that takes the target list is needed to make a
  * removal one transaction. Until DATA-01 adds it, the service reorders then deletes.
  * Our design choice: favourites are local only, with no sync.
@@ -16,6 +17,7 @@
 import type { SessionConfig } from "@conducted/protocol";
 import { appError, err, ok, type Result } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
+import { createKeyedQueue } from "../async/serial-queue.ts";
 import type { Repositories } from "../db/repositories.ts";
 
 export interface FavoriteModel {
@@ -56,8 +58,8 @@ const byPosition = (favorites: readonly FavoriteModel[]): FavoriteModel[] =>
 export class FavoriteModelsService {
 	readonly store: StoreApi<FavoriteModelsState>;
 	readonly #deps: FavoriteModelsServiceDeps;
-	/** Runs adds one after another, so each reads the list the one before it wrote. */
-	#adds: Promise<unknown> = Promise.resolve();
+	/** Runs adds, removals and reorders one after another, so each reads the list the one before it wrote. */
+	readonly #writes = createKeyedQueue<"favorites">();
 
 	constructor(deps: FavoriteModelsServiceDeps) {
 		this.#deps = deps;
@@ -71,16 +73,8 @@ export class FavoriteModelsService {
 		return ok(undefined);
 	}
 
-	async add(config: FavoriteModel["config"]): Promise<Result<FavoriteModel>> {
-		const run = this.#adds.then(
-			() => this.#add(config),
-			() => this.#add(config),
-		);
-		this.#adds = run.then(
-			() => undefined,
-			() => undefined,
-		);
-		return run;
+	add(config: FavoriteModel["config"]): Promise<Result<FavoriteModel>> {
+		return this.#writes.run("favorites", () => this.#add(config));
 	}
 
 	async #add(config: FavoriteModel["config"]): Promise<Result<FavoriteModel>> {
@@ -103,7 +97,11 @@ export class FavoriteModelsService {
 		return ok(added.value);
 	}
 
-	async remove(id: string): Promise<Result<void>> {
+	remove(id: string): Promise<Result<void>> {
+		return this.#writes.run("favorites", () => this.#remove(id));
+	}
+
+	async #remove(id: string): Promise<Result<void>> {
 		const before = this.store.getState().favorites;
 		const remaining = before.filter((favorite) => favorite.id !== id);
 		if (remaining.length === before.length) return ok(undefined);
@@ -119,7 +117,11 @@ export class FavoriteModelsService {
 		return ok(undefined);
 	}
 
-	async reorder(orderedIds: readonly string[]): Promise<Result<void>> {
+	reorder(orderedIds: readonly string[]): Promise<Result<void>> {
+		return this.#writes.run("favorites", () => this.#reorder(orderedIds));
+	}
+
+	async #reorder(orderedIds: readonly string[]): Promise<Result<void>> {
 		const before = this.store.getState().favorites;
 		if (before.length === 0) return ok(undefined);
 		const byId = new Map(before.map((favorite) => [favorite.id, favorite]));

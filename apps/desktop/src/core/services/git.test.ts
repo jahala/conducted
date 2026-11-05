@@ -166,6 +166,23 @@ describe("GIT-02 git service polling", () => {
 		expect(branchReads()).toBe(2);
 	});
 
+	it("keeps the deepest depth when a second subscriber asks for less", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(1_000_000);
+		const { runner } = pollRunner();
+		const service = makeService(runner);
+		const full = service.watch(workspaceId, "full");
+		const shallow = service.watch(workspaceId, "metadata");
+		await vi.advanceTimersByTimeAsync(0);
+		await flush();
+
+		expect(service.store.getState().byWorkspace[workspaceId]?.snapshot?.files[0]?.path).toBe(
+			"new.ts",
+		);
+		full();
+		shallow();
+	});
+
 	it("reuses a result younger than 0.9 of the interval", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(1_000_000);

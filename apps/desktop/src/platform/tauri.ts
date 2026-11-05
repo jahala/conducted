@@ -7,10 +7,16 @@
  * Tauri), native-and-sidecar-map.md A2 (the commands behind each group), docs/plans/
  * tauri-commands.md (command names, camelCase arguments, `Result<T, CommandError>`).
  * Must handle: a Rust command rejects with `{ code, message }`; a plugin rejects with a string or
- * an Error; both become `AppError` values and never reach a service as an exception; binary data
- * (terminal output, history, images) crosses as base64 strings or a Channel, never as number
- * arrays; event listeners return an unsubscribe function and every one is released by the caller;
- * `pty.spawn` and `speech.start` pass a Channel for streamed output; a command that is slower
+ * an Error; both become `AppError` values for every method that returns a `Result`. The methods
+ * whose interface type has no `Result` throw the `AppError` instead (`shell.loginEnv`, the `pty`
+ * handle's `write`, `resize`, `kill` and `screenText`, `sidecar.logPath`) or let the plugin's
+ * rejection through (`dialogs`, `opener.openUrl`, `clipboard`). `fs.exists` answers false when
+ * the command fails. Binary data (terminal output, images) crosses as base64 strings or a
+ * Channel, never as number arrays; event listeners return an unsubscribe function that can be
+ * called twice, and one called before the listen call resolves releases the listener as soon as
+ * it does; a listen call that fails leaves the subscription silent, because the interface has no
+ * way to report it; `pty.spawn` passes a Channel for streamed output and listens for the exit
+ * event before it spawns, so a command that ends at once still reports its exit; a command that is slower
  * than its `timeoutMs` is the Rust side's job (it kills the process group); the database opens
  * `sqlite:conducted.db` through the sql plugin and must run `PRAGMA journal_mode = WAL` and
  * `PRAGMA foreign_keys = ON` on its connection before the first statement; `Database.transaction`
@@ -18,7 +24,8 @@
  * BEGIN IMMEDIATE to COMMIT or ROLLBACK, so only one statement uses the plugin's pool at a time
  * and the lazily grown pool does not open a second connection while the transaction is open.
  * An explicit pool pin is PLAT-27. A write also clears merged selects that were in flight, so a
- * read asked for after it cannot get a pre-write result.
+ * read asked for after it cannot get a pre-write result. The handle a transaction passes to its
+ * work rejects with `transaction_closed` once the transaction has ended.
  * Our design choice: the group builders take a `TauriBindings` value instead of importing `invoke`
  * themselves, so the helpers below can be tested without a webview. `realTauriBindings` is the
  * only place that holds the real functions. The argument names of each command are listed in
@@ -471,7 +478,8 @@ export async function createTauriDatabase(
 			const promise = enqueue(() => read<Row>(sql, params));
 			pendingSelects.set(key, promise as Promise<unknown[]>);
 			const settle = (): void => {
-				pendingSelects.delete(key);
+				// A write may have cleared this entry and a newer read taken its place.
+				if (pendingSelects.get(key) === promise) pendingSelects.delete(key);
 			};
 			void promise.then(settle, settle);
 			return promise;
@@ -491,10 +499,22 @@ export async function createTauriDatabase(
 					);
 					return run;
 				};
+				// The handle given to `work` stops working when the transaction ends, so a statement
+				// kept past COMMIT cannot run outside the queue.
+				let open = true;
+				const whileOpen = <U>(task: () => Promise<U>): Promise<U> =>
+					open
+						? transactionRun(task)
+						: Promise.reject(
+								appError(
+									"transaction_closed",
+									"This transaction has ended. Run the statement on the Database instead.",
+								),
+							);
 				const transactionDatabase: Database = {
-					execute: (sql, params) => transactionRun(() => write(sql, params)),
+					execute: (sql, params) => whileOpen(() => write(sql, params)),
 					select: <Row>(sql: string, params?: readonly unknown[]): Promise<Row[]> =>
-						transactionRun(() => read<Row>(sql, params)),
+						whileOpen(() => read<Row>(sql, params)),
 					transaction: () =>
 						Promise.reject(
 							appError(
@@ -517,6 +537,7 @@ export async function createTauriDatabase(
 					}
 					throw error;
 				} finally {
+					open = false;
 					clearPendingSelects();
 				}
 			});
@@ -560,7 +581,14 @@ export function createTauriShell(bindings: TauriBindings): Shell {
 				}
 				resolve(ok(payload.output));
 			})
-			.then(() => undefined);
+			.then(
+				() => undefined,
+				(error: unknown) => {
+					// A failed listen must not stay cached, or every later start fails the same way.
+					listening = null;
+					throw error;
+				},
+			);
 		return listening;
 	};
 
@@ -657,7 +685,19 @@ export function createTauriPty(bindings: TauriBindings): Pty {
 			const early: Uint8Array[] = [];
 			let resolved = false;
 			let exitCode: number | null | undefined;
-			let unlisten: UnlistenFn | null = null;
+			let handleId: string | null = null;
+			// Exits seen before the spawn answer named the id. A short-lived command can end first.
+			const earlyExits = new Map<string, number | null>();
+			let stopExitListener: (() => void) | null = null;
+
+			const finishExit = (code: number | null): void => {
+				if (exitCode !== undefined) return;
+				exitCode = code;
+				for (const listener of [...exitListeners]) listener(code);
+				exitListeners.clear();
+				stopExitListener?.();
+				stopExitListener = null;
+			};
 
 			const flushEarly = (): void => {
 				if (!resolved) return;
@@ -675,42 +715,55 @@ export function createTauriPty(bindings: TauriBindings): Pty {
 				for (const listener of [...dataListeners]) listener(chunk);
 			});
 
+			// Listen before the spawn, so an exit that arrives before the answer is not lost.
+			let stopListening: UnlistenFn;
+			try {
+				stopListening = await bindings.listen<{ id: string; exitCode: number | null }>(
+					EVENTS.ptyExit,
+					(payload) => {
+						if (handleId === null) {
+							earlyExits.set(payload.id, payload.exitCode);
+						} else if (payload.id === handleId) {
+							finishExit(payload.exitCode);
+						}
+					},
+				);
+			} catch (error) {
+				return err(toAppError(error));
+			}
+			stopExitListener = stopListening;
+
 			const spawned = await invokeResult<{ id: string; pid: number | null }>(
 				bindings,
 				COMMANDS.ptySpawn,
 				{ request: options, onOutput: channel },
 			);
-			if (!spawned.ok) return spawned;
+			if (!spawned.ok) {
+				stopListening();
+				stopExitListener = null;
+				return spawned;
+			}
 
-			const handleId = spawned.value.id;
+			const spawnedId = spawned.value.id;
+			handleId = spawnedId;
 			resolved = true;
-			unlisten = await bindings.listen<{ id: string; exitCode: number | null }>(
-				EVENTS.ptyExit,
-				(payload) => {
-					if (payload.id !== handleId) return;
-					const code = payload.exitCode;
-					exitCode = code;
-					for (const listener of [...exitListeners]) listener(code);
-					exitListeners.clear();
-					if (unlisten !== null) {
-						unlisten();
-						unlisten = null;
-					}
-				},
-			);
+			const exitedEarly = earlyExits.has(spawnedId);
+			const earlyCode = earlyExits.get(spawnedId) ?? null;
+			earlyExits.clear();
+			if (exitedEarly) finishExit(earlyCode);
 
 			const handle: PtyHandle = {
-				id: handleId,
+				id: spawnedId,
 				write: async (data) => {
 					const result = await invokeResult<void>(bindings, COMMANDS.ptyWrite, {
-						id: handleId,
+						id: spawnedId,
 						data,
 					});
 					if (!result.ok) throw result.error;
 				},
 				resize: async (cols, rows) => {
 					const result = await invokeResult<void>(bindings, COMMANDS.ptyResize, {
-						id: handleId,
+						id: spawnedId,
 						cols,
 						rows,
 					});
@@ -718,7 +771,7 @@ export function createTauriPty(bindings: TauriBindings): Pty {
 				},
 				kill: async () => {
 					const result = await invokeResult<void>(bindings, COMMANDS.ptyKill, {
-						id: handleId,
+						id: spawnedId,
 					});
 					if (!result.ok) throw result.error;
 				},
@@ -730,7 +783,7 @@ export function createTauriPty(bindings: TauriBindings): Pty {
 					};
 				},
 				ack: (bytes) => {
-					void invokeResult<void>(bindings, COMMANDS.ptyAck, { id: handleId, bytes });
+					void invokeResult<void>(bindings, COMMANDS.ptyAck, { id: spawnedId, bytes });
 				},
 				onExit: (listener) => {
 					if (exitCode !== undefined) {
@@ -745,14 +798,14 @@ export function createTauriPty(bindings: TauriBindings): Pty {
 				},
 				screenText: async (maxLines) => {
 					const result = await invokeResult<string>(bindings, COMMANDS.ptyScreenText, {
-						id: handleId,
+						id: spawnedId,
 						maxLines,
 					});
 					if (!result.ok) throw result.error;
 					return result.value;
 				},
 				screenSnapshot: () =>
-					invokeResult<ScreenSnapshot>(bindings, COMMANDS.ptyScreenSnapshot, { id: handleId }),
+					invokeResult<ScreenSnapshot>(bindings, COMMANDS.ptyScreenSnapshot, { id: spawnedId }),
 			};
 			return ok(handle);
 		},

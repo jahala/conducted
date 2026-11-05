@@ -847,3 +847,222 @@ describe("DATA-05 env vars and redaction", () => {
 		expect(redactSettingForLog("theme", "dark")).toBe("dark");
 	});
 });
+
+/** A service over the fake file system with a settings repository and codec the test controls. */
+const customService = (
+	repo: Partial<SettingsRepository> = {},
+	toml: SettingsServiceDeps["toml"] = tomlCodec,
+	withWindow = false,
+) => {
+	const fs = fakeFs();
+	const logs: { level: string; message: string }[] = [];
+	let focusListener: ((focused: boolean) => void) | null = null;
+	const service = new SettingsService({
+		platform: {
+			fs: fs.fs,
+			app: {
+				writeLog(level: string, message: string) {
+					logs.push({ level, message });
+				},
+			},
+			...(withWindow
+				? {
+						window: {
+							onFocusChanged(listener: (focused: boolean) => void) {
+								focusListener = listener;
+								return () => {
+									focusListener = null;
+								};
+							},
+						},
+					}
+				: {}),
+		} as unknown as SettingsServiceDeps["platform"],
+		repos: {
+			settings: { ...fakeSettings(), ...repo },
+			envVars: {} as SettingsServiceDeps["repos"]["envVars"],
+		},
+		toml,
+	});
+	return { service, fs, logs, emitFocus: (focused: boolean) => focusListener?.(focused) };
+};
+
+describe("DATA-05 hardening", () => {
+	it("never lets a settings file write to the object prototype", async () => {
+		const test = harness();
+		test.fs.files.set(userFile(), '[__proto__]\npolluted = "yes"\n\n[models]\ndefault = "a"\n');
+		await test.service.start();
+		try {
+			expect((await test.service.set("default_model", "b")).ok).toBe(true);
+			expect(({} as Record<string, unknown>)["polluted"]).toBeUndefined();
+			expect(test.fs.files.get(userFile())).not.toContain("polluted");
+		} finally {
+			delete (Object.prototype as Record<string, unknown>)["polluted"];
+			test.service.stop();
+		}
+	});
+
+	it("keeps a repo value out of the user-level store", async () => {
+		const test = harness();
+		expect((await test.service.setForRepo("/repo", "delete_branch_on_archive", true)).ok).toBe(
+			true,
+		);
+		expect(test.service.get("delete_branch_on_archive")).toBe(false);
+		expect(test.service.list().find((row) => row.key === "delete_branch_on_archive")?.value).toBe(
+			false,
+		);
+	});
+
+	it("shows nothing unsaved after two overlapping writes both fail", async () => {
+		const test = harness();
+		test.fs.failWrites.add(userFile());
+		const [first, second] = await Promise.all([
+			test.service.set("delete_branch_on_archive", true),
+			test.service.set("delete_branch_on_archive", true),
+		]);
+		expect(first.ok).toBe(false);
+		expect(second.ok).toBe(false);
+		expect(test.service.get("delete_branch_on_archive")).toBe(false);
+	});
+
+	it("turns a codec that throws on write into an error and rolls back", async () => {
+		const test = customService(
+			{},
+			{
+				parse: tomlCodec.parse,
+				stringify() {
+					throw new Error("cannot encode");
+				},
+			},
+		);
+		const result = await test.service.set("default_model", "x");
+		expect(result.ok).toBe(false);
+		expect(!result.ok && result.error.code).toBe("setting_save_failed");
+		expect(test.service.get("default_model")).toBe("");
+	});
+
+	it("runs writes to one table key one after the other", async () => {
+		let active = 0;
+		let overlapped = false;
+		const order: unknown[] = [];
+		const test = customService({
+			async set(key, value) {
+				active += 1;
+				overlapped ||= active > 1;
+				order.push(value);
+				await Promise.resolve();
+				await Promise.resolve();
+				active -= 1;
+				return ok({ key, value, updatedAt: 0 });
+			},
+		});
+		await Promise.all([
+			test.service.set("default_message_send_mode", "queue"),
+			test.service.set("default_message_send_mode", "steer"),
+		]);
+		expect(overlapped).toBe(false);
+		expect(order).toEqual(["queue", "steer"]);
+	});
+
+	it("lets only the newest of two overlapping reloads change the store", async () => {
+		const test = harness();
+		test.fs.files.set(userFile(), '[models]\ndefault = "old"\n');
+		const realRead = test.fs.fs.readText.bind(test.fs.fs);
+		let release: () => void = () => undefined;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		let first = true;
+		test.fs.fs.readText = async (path) => {
+			const text = await realRead(path);
+			if (path === userFile() && first) {
+				first = false;
+				await gate;
+			}
+			return text;
+		};
+		const slow = test.service.reloadFromDisk();
+		await vi.waitFor(() => expect(first).toBe(false));
+		test.fs.files.set(userFile(), '[models]\ndefault = "new"\n');
+		await test.service.reloadFromDisk();
+		expect(test.service.get("default_model")).toBe("new");
+		release();
+		await slow;
+		expect(test.service.get("default_model")).toBe("new");
+	});
+
+	it("keeps a write that finished while a reload was reading the older file", async () => {
+		const test = harness();
+		test.fs.files.set(userFile(), '[models]\ndefault = "old"\n');
+		await test.service.start();
+		const realRead = test.fs.fs.readText.bind(test.fs.fs);
+		let release: () => void = () => undefined;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		let readStarted = false;
+		test.fs.fs.readText = async (path) => {
+			const text = await realRead(path);
+			if (path === userFile() && !readStarted) {
+				readStarted = true;
+				await gate;
+			}
+			return text;
+		};
+		const reload = test.service.reloadFromDisk();
+		await vi.waitFor(() => expect(readStarted).toBe(true));
+		expect((await test.service.set("default_model", "written")).ok).toBe(true);
+		release();
+		await reload;
+		expect(test.service.get("default_model")).toBe("written");
+		test.service.stop();
+	});
+
+	it("keeps the values it had when a reload cannot read the file", async () => {
+		const test = harness();
+		test.fs.files.set(userFile(), '[models]\ndefault = "kept"\n');
+		await test.service.start();
+		test.fs.fs.readText = async () => err(appError("fs_read_failed", "disk error"));
+		await test.service.reloadFromDisk();
+		expect(test.service.get("default_model")).toBe("kept");
+		expect(test.service.store.getState().warnings).toEqual(
+			expect.arrayContaining([
+				{ code: "settings_load_failed", message: "Failed to load settings" },
+			]),
+		);
+		test.service.stop();
+	});
+
+	it("keeps the values it had when a reload cannot read the table", async () => {
+		let failing = false;
+		const rows = fakeSettings();
+		rows.rows.set("default_message_send_mode", "queue");
+		const test = customService({
+			list: async () => (failing ? err(appError("db_failed", "read failed")) : rows.list()),
+		});
+		await test.service.start();
+		expect(test.service.get("default_message_send_mode")).toBe("queue");
+		failing = true;
+		await test.service.reloadFromDisk();
+		expect(test.service.get("default_message_send_mode")).toBe("queue");
+		test.service.stop();
+	});
+
+	it("reports a reload that fails in the background instead of leaving it unhandled", async () => {
+		const test = customService({}, tomlCodec, true);
+		await test.service.start();
+		test.fs.fs.exists = async () => {
+			throw new Error("bridge closed");
+		};
+		test.emitFocus(true);
+		await vi.waitFor(() => {
+			expect(test.service.store.getState().warnings).toEqual(
+				expect.arrayContaining([
+					{ code: "settings_load_failed", message: "Failed to load settings" },
+				]),
+			);
+		});
+		expect(test.logs.some((entry) => entry.level === "warn")).toBe(true);
+		test.service.stop();
+	});
+});

@@ -40,12 +40,22 @@ import { SESSION_EVENTS_SQL, sessionEventToParams } from "./session-events.ts";
 
 export const REPAIR_SQL = {
 	/**
-	 * Step 1 (`$1` idle live state as JSON, `$2` now): every chat still marked working becomes
-	 * idle. A row already idle is left alone, so a second run changes nothing. `IS NOT` is
-	 * NULL-safe, so a row whose stored status is missing is reset too.
+	 * Step 1 (`$1` idle live state as JSON, `$2` now): every chat that is not plainly idle becomes
+	 * idle. That is a chat still marked working, one that kept an open question, background tasks,
+	 * unread steer messages, a wait or a retry from before the crash (the agent behind them is
+	 * gone), and one whose stored text is not JSON. A row that is already plainly idle is left
+	 * alone, so a second run changes nothing. `IS NOT` is NULL-safe, so a row whose stored status
+	 * is missing is reset too.
 	 */
 	resetLiveStates: `UPDATE session_live_state SET live_state = $1, updated_at = $2
-		WHERE json_extract(live_state, '$.status') IS NOT 'idle'`,
+		WHERE CASE WHEN json_valid(live_state) THEN (
+				json_extract(live_state, '$.status') IS NOT 'idle'
+				OR json_extract(live_state, '$.openInteraction') IS NOT NULL
+				OR COALESCE(json_array_length(live_state, '$.backgroundTasks'), 0) > 0
+				OR COALESCE(json_array_length(live_state, '$.pendingSteerIds'), 0) > 0
+				OR json_extract(live_state, '$.waitingSince') IS NOT NULL
+				OR json_extract(live_state, '$.retry') IS NOT NULL)
+			ELSE 1 END`,
 	/** Step 2a: turns with a user message and no turn_ended, as (session_id, turn_id) rows. */
 	findInterruptedTurns: SESSION_EVENTS_SQL.findInterruptedTurns,
 	/** Step 2b: appends the turn_ended event for each turn found, with the idempotent append. */

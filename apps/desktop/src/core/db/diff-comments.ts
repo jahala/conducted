@@ -5,12 +5,14 @@
  * delete comments GitHub no longer has). The review state (REV-12) is its own column since
  * migration 0004; resolved and outdated stay flags. A comment on the pull request itself has
  * location 'pull_request' and an empty file_path, which the model shows as a null file path.
- * Must handle: a sync from GitHub upserts by id and must not undo a local resolve; threads are
- * resolved together; the sync delete only touches author_kind 'github' rows and receives the ids
+ * Must handle: a sync from GitHub upserts by id and must not undo a local resolve; a sync never
+ * rewrites a comment that belongs to another workspace, and refuses a list that names one; a setter
+ * on a missing comment returns `db.not_found`; threads are resolved together; the sync delete only touches author_kind 'github' rows and receives the ids
  * to keep as a JSON list (no giant IN clause); replies point to their parent by reply_to_id.
  * Test first: diffCommentToParams then diffCommentFromRow gives back the same comment.
  */
 import {
+	appError,
 	type CommentId,
 	err,
 	notImplemented,
@@ -22,6 +24,7 @@ import type { Database } from "../../platform/platform.ts";
 import type { DiffComment, ReviewCommentState } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
 import {
+	executeExisting,
 	executeStatement,
 	executeVoid,
 	fromFlag,
@@ -126,7 +129,8 @@ export const DIFF_COMMENTS_SQL = {
 			body = excluded.body, suggestion = excluded.suggestion, line = excluded.line,
 			end_line = excluded.end_line, outdated = excluded.outdated,
 			remote_url = excluded.remote_url, author_avatar_url = excluded.author_avatar_url,
-			updated_at = excluded.updated_at`,
+			updated_at = excluded.updated_at
+		WHERE diff_comments.workspace_id = excluded.workspace_id`,
 	setBody: "UPDATE diff_comments SET body = $1, suggestion = $2, updated_at = $3 WHERE id = $4",
 	setResolved: "UPDATE diff_comments SET resolved = $1, updated_at = $2 WHERE id = $3",
 	setState: "UPDATE diff_comments SET state = $1, updated_at = $2 WHERE id = $3",
@@ -265,8 +269,17 @@ export function createDiffCommentRepository(
 				);
 				return written.ok ? ok(comment) : err(written.error);
 			}),
-		syncRemote: async (workspaceId, comments) =>
-			inTransaction(db, "Syncing review comments", async (tx) => {
+		syncRemote: async (workspaceId, comments) => {
+			const stranger = comments.find((comment) => comment.workspaceId !== workspaceId);
+			if (stranger !== undefined) {
+				return err(
+					appError(
+						"db.invalid_row",
+						`Review comment ${stranger.id} belongs to another workspace than the one being synced`,
+					),
+				);
+			}
+			return inTransaction(db, "Syncing review comments", async (tx) => {
 				for (const comment of comments) {
 					const written = await executeStatement(
 						tx,
@@ -288,16 +301,17 @@ export function createDiffCommentRepository(
 					"Removing review comments GitHub no longer has",
 				);
 				return removed.ok ? ok(undefined) : err(removed.error);
-			}),
+			});
+		},
 		setBody: (id, body, suggestion) =>
-			executeVoid(
+			executeExisting(
 				db,
 				DIFF_COMMENTS_SQL.setBody,
 				[body, suggestion, now(), id],
 				"Editing a review comment",
 			),
 		setResolved: (id, resolved) =>
-			executeVoid(
+			executeExisting(
 				db,
 				DIFF_COMMENTS_SQL.setResolved,
 				[toFlag(resolved), now(), id],
@@ -312,14 +326,19 @@ export function createDiffCommentRepository(
 				"Resolving a comment thread",
 			),
 		setOutdated: (id, outdated) =>
-			executeVoid(
+			executeExisting(
 				db,
 				DIFF_COMMENTS_SQL.setOutdated,
 				[toFlag(outdated), now(), id],
 				"Marking a comment outdated",
 			),
 		setRemoteUrl: (id, url) =>
-			executeVoid(db, DIFF_COMMENTS_SQL.setRemoteUrl, [url, now(), id], "Saving a comment link"),
+			executeExisting(
+				db,
+				DIFF_COMMENTS_SQL.setRemoteUrl,
+				[url, now(), id],
+				"Saving a comment link",
+			),
 		delete: (id) => executeVoid(db, DIFF_COMMENTS_SQL.delete, [id], "Removing a review comment"),
 	};
 }

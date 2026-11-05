@@ -12,9 +12,27 @@ describe("GIT-01 git command catalogue", () => {
 		expect(cmd.args).toEqual(["worktree", "add", "/w/a b", "-b", "me/--force", "abc"]);
 	});
 
+	it("puts remote and branch names after `--` so an option-like name stays a name", () => {
+		const evil = "--upload-pack=touch /tmp/x";
+		const operandsAfterDashes = (cmd: c.GitCommand): string[] => {
+			const at = cmd.args.indexOf("--");
+			expect(at).toBeGreaterThan(-1);
+			expect(cmd.args.slice(0, at)).not.toContain(evil);
+			return [...cmd.args.slice(at + 1)];
+		};
+		expect(operandsAfterDashes(c.fetch(evil))).toEqual([evil]);
+		expect(operandsAfterDashes(c.pushHeadTo(evil, "main"))).toEqual([evil, "HEAD:main"]);
+		expect(operandsAfterDashes(c.pushHeadSetUpstream(evil, "main"))).toEqual([evil, "HEAD:main"]);
+		expect(operandsAfterDashes(c.remoteGetUrl(evil))).toEqual([evil]);
+		expect(operandsAfterDashes(c.remoteSetUrl(evil, "u"))).toEqual([evil, "u"]);
+		expect(operandsAfterDashes(c.branchCreate(evil, "main"))).toEqual([evil, "main"]);
+		expect(operandsAfterDashes(c.branchRename(evil, "n"))).toEqual([evil, "n"]);
+		expect(operandsAfterDashes(c.branchDeleteForce(evil))).toEqual([evil]);
+	});
+
 	it("fetches without writing FETCH_HEAD and marks itself as network work", () => {
 		const cmd = c.fetch("origin", ["main"]);
-		expect(cmd.args).toEqual(["fetch", "--no-write-fetch-head", "--prune", "origin", "main"]);
+		expect(cmd.args).toEqual(["fetch", "--no-write-fetch-head", "--prune", "--", "origin", "main"]);
 		expect(cmd.network).toBe(true);
 	});
 
@@ -48,8 +66,8 @@ describe("GIT-01 git command catalogue", () => {
 	});
 
 	it("renames the current branch when the old name is unknown", () => {
-		expect(c.branchRename(null, "new").args).toEqual(["branch", "-m", "new"]);
-		expect(c.branchRename("old", "new").args).toEqual(["branch", "-m", "old", "new"]);
+		expect(c.branchRename(null, "new").args).toEqual(["branch", "-m", "--", "new"]);
+		expect(c.branchRename("old", "new").args).toEqual(["branch", "-m", "--", "old", "new"]);
 	});
 
 	it("treats exit 1 of the merge probe as an answer and keeps both branch names separate", () => {
