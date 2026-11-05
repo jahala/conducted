@@ -3,7 +3,7 @@
  * answers its shortcut.
  */
 import type { Interaction, SessionConfig } from "@conducted/protocol";
-import { type InteractionId, ok, type SessionId } from "@conducted/shared";
+import { appError, err, type InteractionId, ok, type SessionId } from "@conducted/shared";
 import {
 	createMemoryHistory,
 	createRootRoute,
@@ -145,6 +145,29 @@ describe("CHAT-12 plan review bar", () => {
 			}),
 		);
 		expect(await screen.findByText("Approved")).toBeTruthy();
+		// The stored mode changes before the agent hears the approval, so its next turn is not planned.
+		expect(updateConfig.mock.invocationCallOrder[0]).toBeLessThan(
+			answer.mock.invocationCallOrder[0] ?? 0,
+		);
+	});
+
+	it("keeps the plan open when plan mode cannot be turned off", async () => {
+		const { test, session } = await setup();
+		const answer = vi
+			.spyOn(test.container.services.sessions, "answer")
+			.mockResolvedValue(ok(undefined));
+		vi.spyOn(test.container.services.sessions, "updateConfig").mockResolvedValue(
+			err(appError("db_write_failed", "The disk is full.")),
+		);
+
+		renderBar(test, session.id);
+		fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+
+		expect((await screen.findByRole("alert")).textContent).toBe(
+			"Couldn't turn plan mode off: The disk is full.",
+		);
+		expect(answer).not.toHaveBeenCalled();
+		expect(screen.getByRole("button", { name: "Approve" })).toBeTruthy();
 	});
 
 	it("rejects the plan with the typed feedback", async () => {
@@ -195,11 +218,37 @@ describe("CHAT-12 plan review bar", () => {
 			.spyOn(test.container.services.sessions, "startFromPlan")
 			.mockResolvedValue(ok(session));
 
+		const answer = vi
+			.spyOn(test.container.services.sessions, "answer")
+			.mockResolvedValue(ok(undefined));
+
 		renderBar(test, session.id);
 		fireEvent.click(screen.getByRole("button", { name: "Hand off" }));
 
 		await waitFor(() => expect(startFromPlan).toHaveBeenCalledWith(session.id, plan, null));
 		expect(await screen.findByText("Sent to a new chat")).toBeTruthy();
+		// This chat's agent stops waiting: the plan is answered as not approved, with no feedback.
+		await waitFor(() =>
+			expect(answer).toHaveBeenCalledWith(session.id, interactionId, {
+				kind: "plan_approval",
+				approved: false,
+			}),
+		);
+	});
+
+	it("says so when the handed-off plan cannot be closed in this chat", async () => {
+		const { test, session } = await setup();
+		vi.spyOn(test.container.services.sessions, "startFromPlan").mockResolvedValue(ok(session));
+		vi.spyOn(test.container.services.sessions, "answer").mockResolvedValue(
+			err(appError("interaction_not_accepted", "Could not send answers. Try again.")),
+		);
+
+		renderBar(test, session.id);
+		fireEvent.click(screen.getByRole("button", { name: "Hand off" }));
+
+		expect((await screen.findByRole("alert")).textContent).toBe(
+			"The plan was sent, but this chat still waits on it: Could not send answers. Try again.",
+		);
 	});
 
 	it("hands the plan to the chat chosen in the picker", async () => {
@@ -213,6 +262,7 @@ describe("CHAT-12 plan review bar", () => {
 		const startFromPlan = vi
 			.spyOn(test.container.services.sessions, "startFromPlan")
 			.mockResolvedValue(ok(second.value));
+		vi.spyOn(test.container.services.sessions, "answer").mockResolvedValue(ok(undefined));
 
 		renderBar(test, session.id);
 		fireEvent.keyDown(screen.getByRole("combobox", { name: "Sending to" }), { key: "Enter" });

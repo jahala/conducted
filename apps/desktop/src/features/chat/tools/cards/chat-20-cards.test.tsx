@@ -194,6 +194,22 @@ describe("CHAT-20 schedule wake-up card", () => {
 		expect(screen.getByText(/in the past/i)).toBeTruthy();
 	});
 
+	it("shows an absolute wake-up time as a time, whenever the chat is read", () => {
+		// 2001 is long past on any clock that reads this chat, and must still not be judged as past.
+		const at = Date.UTC(2001, 0, 2, 3, 4);
+		render(
+			<ScheduleWakeupCard
+				call={view("schedule_wakeup", { wake_at: String(at) })}
+				sessionId={sessionId}
+				defaultExpanded
+			/>,
+		);
+		expect(
+			screen.getAllByText(`Wake up at ${new Date(at).toLocaleString()}`).length,
+		).toBeGreaterThan(0);
+		expect(screen.queryByText(/in the past/i)).toBeNull();
+	});
+
 	it("marks a cancelled wake-up", () => {
 		render(
 			<ScheduleWakeupCard
@@ -236,6 +252,29 @@ describe("CHAT-20 preview image card", () => {
 		fireEvent.error(screen.getByRole("img", { name: "gone.png" }));
 		expect(screen.getByText(/Image could not be loaded/)).toBeTruthy();
 		expect(screen.queryByRole("img")).toBeNull();
+	});
+
+	it("does not take a result that is not a path as the image", () => {
+		render(
+			<ImageViewCard
+				call={view("image_view", {}, { output: "done" })}
+				sessionId={sessionId}
+				defaultExpanded
+			/>,
+		);
+		expect(screen.queryByRole("img")).toBeNull();
+		expect(screen.getByText("No image path was given.")).toBeTruthy();
+	});
+
+	it("takes the path the result names when the input has none", () => {
+		render(
+			<ImageViewCard
+				call={view("image_view", {}, { output: "Read the image\n/work/shots/plot" })}
+				sessionId={sessionId}
+				defaultExpanded
+			/>,
+		);
+		expect(screen.getByRole("img", { name: "plot" }).getAttribute("src")).toBe("/work/shots/plot");
 	});
 
 	it("says 'Loading image' while the image is still being read", () => {

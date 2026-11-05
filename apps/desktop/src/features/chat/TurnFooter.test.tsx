@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
 	revertTo: vi.fn(),
 	setSetting: vi.fn(),
 	toastError: vi.fn(),
+	settings: {} as Record<string, unknown>,
 }));
 
 vi.mock("../../ui/Toast.tsx", () => ({ toastError: state.toastError }));
@@ -20,7 +21,7 @@ vi.mock("../../core/hooks.ts", () => ({
 		sessions: { cancel: state.cancel, forkFrom: state.forkFrom, revertTo: state.revertTo },
 		settings: { set: state.setSetting },
 	}),
-	useSetting: () => false,
+	useSetting: (key: string) => state.settings[key] ?? false,
 }));
 
 const { TurnFooter } = await import("./TurnFooter.tsx");
@@ -37,6 +38,7 @@ beforeEach(() => {
 		fn.mockResolvedValue({ ok: true, value: undefined });
 	}
 	state.toastError.mockReset();
+	state.settings = {};
 });
 afterEach(cleanup);
 
@@ -84,6 +86,25 @@ describe("CHAT-06 turn footer", () => {
 		expect(screen.getAllByText(/Output 34/).length).toBeGreaterThan(0);
 		expect(screen.getAllByText(/Cache read 56/).length).toBeGreaterThan(0);
 		expect(screen.getAllByText(/Cache write 78/).length).toBeGreaterThan(0);
+	});
+
+	it("shows the fast mode state in the details hover card", async () => {
+		render(<TurnFooter turn={turn()} sessionId={sessionId} />);
+		fireEvent.focus(screen.getByRole("button", { name: "Turn details" }));
+		expect((await screen.findAllByText(/Fast mode on/)).length).toBeGreaterThan(0);
+	});
+
+	it("shows the turn's cost only while Show agent cost is on", async () => {
+		const first = render(<TurnFooter turn={turn()} sessionId={sessionId} />);
+		fireEvent.focus(screen.getByRole("button", { name: "Turn details" }));
+		expect((await screen.findAllByText(/Input 12/)).length).toBeGreaterThan(0);
+		expect(screen.queryAllByText(/Cost \$0\.01/)).toEqual([]);
+		first.unmount();
+
+		state.settings = { experimental_show_agent_cost: true };
+		render(<TurnFooter turn={turn()} sessionId={sessionId} />);
+		fireEvent.focus(screen.getByRole("button", { name: "Turn details" }));
+		expect((await screen.findAllByText(/Cost \$0\.01/)).length).toBeGreaterThan(0);
 	});
 
 	it("copies the final message", async () => {

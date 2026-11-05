@@ -12,6 +12,7 @@ import {
 	formatJson,
 	stripAnsi,
 	ToolCardFrame,
+	ToolOutput,
 	textField,
 	toolStatus,
 } from "../ToolCardFrame.tsx";
@@ -40,9 +41,7 @@ export function NodeReplCard({ call, defaultExpanded }: ToolCardProps) {
 					{output.length > 0 ? (
 						<>
 							<span className="text-xs font-medium text-fg-subtle">Output:</span>
-							<pre className="max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-fg">
-								{output}
-							</pre>
+							<ToolOutput>{output}</ToolOutput>
 						</>
 					) : null}
 					{call.result?.truncated ? (

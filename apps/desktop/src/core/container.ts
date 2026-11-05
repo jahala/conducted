@@ -293,7 +293,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 			},
 			addForSession: async (sessionId, comments) => {
 				const found = lookups.workspaceOfSession(sessionId);
-				return found.ok ? review.addFromAgent(found.value.id, comments) : found;
+				if (!found.ok) return found;
+				// The agent's comments carry the chat's model as their author.
+				const model = sessions.store.getState().sessions[sessionId]?.config.model ?? null;
+				return review.addFromAgent(found.value.id, comments, model);
 			},
 		},
 		terminalOutput: {

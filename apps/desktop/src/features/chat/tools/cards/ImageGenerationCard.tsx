@@ -9,9 +9,16 @@
  */
 import { useState } from "react";
 import { EyeIcon } from "../../../../ui/icons.tsx";
-import { asRecord, ToolCardFrame, textField, toolStatus } from "../ToolCardFrame.tsx";
+import {
+	asRecord,
+	fileNameOf,
+	ToolCardFrame,
+	ToolOutput,
+	textField,
+	toolStatus,
+} from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
-import { fileNameOf, imagePathOf } from "./ImageViewCard.tsx";
+import { imagePathOf } from "./ImageViewCard.tsx";
 
 export function ImageGenerationCard({ call, defaultExpanded }: ToolCardProps) {
 	const input = asRecord(call.item.input);
@@ -42,11 +49,7 @@ export function ImageGenerationCard({ call, defaultExpanded }: ToolCardProps) {
 						/>
 					) : null}
 					{failed ? <p className="text-xs text-danger">Image could not be loaded: {path}</p> : null}
-					{path === null && output.length > 0 ? (
-						<pre className="max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-fg-muted">
-							{output}
-						</pre>
-					) : null}
+					{path === null && output.length > 0 ? <ToolOutput muted>{output}</ToolOutput> : null}
 					{path === null && output.length === 0 ? (
 						<p className="text-xs text-fg-subtle">No generated image was returned.</p>
 					) : null}

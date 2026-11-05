@@ -6,7 +6,8 @@
  * Our design choice: the popup is controlled. The trigger extension owns the query, the rows and
  * the selection, and the popup only draws them and reports a clicked row. It opens below the caret
  * and flips above it when the list would not fit in the window.
- * Must handle: a loading state; an empty list with a reason; rows announced as options in a
+ * Must handle: a loading state; an empty list with a reason; a notice above the rows, for a source
+ * that is still loading or failed while other rows can be offered; rows announced as options in a
  * listbox; the selected row marked with aria-selected; a click on a row; a caret anchor.
  * Test first: Given three items and selectedIndex 1, the second row has aria-selected true;
  * clicking a row calls onPick with it.
@@ -35,6 +36,8 @@ export interface SuggestionPopupProps {
 	anchor?: SuggestionAnchor;
 	/** Screen reader name of the list. */
 	label?: string;
+	/** One line above the rows, such as a source that failed to load. */
+	notice?: string;
 }
 
 export interface PopupPosition {
@@ -61,6 +64,7 @@ export function SuggestionPopup({
 	onPick,
 	anchor,
 	label = "Suggestions",
+	notice,
 }: SuggestionPopupProps) {
 	const list = useRef<HTMLDivElement | null>(null);
 	const [height, setHeight] = useState(0);
@@ -85,6 +89,11 @@ export function SuggestionPopup({
 				placed === undefined ? undefined : { position: "fixed", left: placed.left, top: placed.top }
 			}
 		>
+			{notice === undefined ? null : (
+				<p role="status" className="px-2 py-1.5 text-xs text-fg-muted">
+					{notice}
+				</p>
+			)}
 			{state === "loading" ? (
 				<p role="status" className="px-2 py-1.5 text-xs text-fg-muted">
 					Loading ...

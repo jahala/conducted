@@ -1,19 +1,24 @@
 /**
  * @feature COMP-06 / slash commands
  * Owns: The '/' trigger: the built-in commands of each agent, the project commands and skills the
- * sidecar lists, and what choosing one does.
+ * sidecar lists, and the rule for what choosing one does (`slashCommandAction`).
  * Behaviour: ui-map.md 3.5 (built-in commands per agent, project commands, a 'Skills' group,
  * argument hints, terminal-effect commands and the messages for a command a chat does not offer),
  * claude-runner.md 7 (the sidecar lists slash commands).
  * Our design choice: the sidecar's list supplies the project commands and skills; Conductor's
  * built-in commands are added per agent, and the sidecar's entry wins when it names the same
- * command. Only a '/' at the start of the message opens the menu. A terminal-effect command shows
- * TerminalCommandBar, and `onRun` tells the caller to open the embedded terminal.
+ * command. Only a '/' at the start of the message opens the menu. Choosing a command with an
+ * argument hint writes '/name ' into the composer, so the user types the arguments and sends the
+ * message; any other command runs at once through `onRun`. What it runs is `slashCommandAction`:
+ * /clear, /restart, /plan, /fast and the terminal-effect commands act on the app; a command the
+ * agent lists is sent to it as text; a built-in whose app action is not built yet and that the
+ * agent does not list says "This command isn't available in this workspace."
  * Must handle: a command the agent does not offer (hidden from the list, and a typed one shows
  * "This command isn't available in this workspace."); /plan on an agent without plan mode ("Plan
- * mode is not available in this chat."); an argument hint (shown after the name); choosing by
- * click, Enter or Tab, and moving with the arrow keys; removing the typed command from the
- * composer; removing the menu when the editor unmounts.
+ * mode is not available in this chat."); an argument hint (shown after the name, and the command
+ * waits for its arguments); the agent's list still loading or failed to load (the menu says so and
+ * still offers the built-ins); choosing by click, Enter or Tab, and moving with the arrow keys;
+ * removing the typed command from the composer; removing the menu when the editor unmounts.
  * Test first: Typing '/co' lists '/compact' for Claude and not for an agent that lacks it.
  */
 import type { SlashCommand } from "@conducted/protocol";
@@ -23,18 +28,24 @@ import type { EditorView } from "@tiptap/pm/view";
 import { type Editor, Extension, ReactRenderer } from "@tiptap/react";
 import { createElement } from "react";
 import { toast } from "../../../ui/Toast.tsx";
-import { TerminalCommandBar, type TerminalCommandPhase } from "../TerminalCommandBar.tsx";
 import { SuggestionPopup, type SuggestionRow } from "./SuggestionPopup.tsx";
+
+/** Where the agent's own list stands. The built-ins are offered whatever it says. */
+export type SlashListState =
+	| { state: "loading" }
+	| { state: "ready" }
+	| { state: "error"; message: string };
 
 export interface SlashCommandDeps {
 	/** The agent's own list from `useSlashCommands`. */
 	commands: SlashCommand[];
-	onRun: (command: SlashCommand, args: string) => void;
+	/** Runs a chosen command that takes no arguments. */
+	onRun: (command: SlashCommand) => void;
 	/** Which agent's built-in commands to add. Without it, only the sidecar's list is shown. */
 	agent?: AgentKind;
 	acpAgent?: AcpAgent;
-	/** Called when the terminal-command bar's Done button restarts the agent. */
-	onTerminalDone?: (command: SlashCommand) => void;
+	/** Whether the agent's list is loading, ready or failed. Missing means ready. */
+	listState?: SlashListState;
 }
 
 export type SlashCommandGroup = "Built-in" | "Project" | "Skills";
@@ -240,6 +251,63 @@ export function slashCommandProblem(query: string, agent: AgentKind | undefined)
 	return COMMAND_UNAVAILABLE;
 }
 
+/** What choosing a command does. `screen` runs the command handler the composer's own control has. */
+export type SlashAction =
+	| { kind: "clear" }
+	| { kind: "restart" }
+	| { kind: "screen"; commandId: "chat.togglePlanMode" | "chat.toggleFastMode" }
+	| { kind: "terminal" }
+	| { kind: "send"; text: string }
+	| { kind: "unavailable"; message: string };
+
+/**
+ * The one rule for what a chosen command does. `listed` is the agent's own list: a command it
+ * names is sent to it as text. A built-in that acts on the app runs that action instead, because
+ * the agent cannot close a tab or restart itself.
+ */
+export function slashCommandAction(
+	command: SlashCommand,
+	listed: readonly SlashCommand[],
+	agent: AgentKind | undefined,
+): SlashAction {
+	if (isTerminalEffectCommand(command)) return { kind: "terminal" };
+	switch (command.name) {
+		case "clear":
+			return { kind: "clear" };
+		case "restart":
+			return { kind: "restart" };
+		case "plan":
+			return agent !== undefined && !PLAN_AGENTS.has(agent)
+				? { kind: "unavailable", message: PLAN_MODE_UNAVAILABLE }
+				: { kind: "screen", commandId: "chat.togglePlanMode" };
+		case "fast":
+			return { kind: "screen", commandId: "chat.toggleFastMode" };
+	}
+	if (listed.some((entry) => entry.name === command.name)) {
+		return { kind: "send", text: `/${command.name}` };
+	}
+	return { kind: "unavailable", message: COMMAND_UNAVAILABLE };
+}
+
+/**
+ * The line a terminal-effect command types into a new terminal: the agent's own program with the
+ * command, then `exit`, so the terminal ends when the agent does and the bar can say the command
+ * finished. Null for an agent that has no such program (only Claude and Codex offer these).
+ * Our design choice: Conductor's text says the command runs "in the embedded terminal"; which
+ * program line it types is not recorded in the research.
+ */
+export function terminalCommandLine(
+	agent: AgentKind | undefined,
+	command: SlashCommand,
+): string | null {
+	if (agent !== "claude" && agent !== "codex") return null;
+	return `${agent} /${command.name}; exit`;
+}
+
+/** True when the command waits for arguments the user types before sending. */
+export const takesArguments = (command: SlashCommand): boolean =>
+	(command.argumentHint?.trim() ?? "").length > 0;
+
 interface Trigger {
 	from: number;
 	to: number;
@@ -253,9 +321,6 @@ interface SlashState {
 	query: string;
 	entries: SlashCommandEntry[];
 	selected: number;
-	terminal: SlashCommand | null;
-	phase: TerminalCommandPhase;
-	error: string | null;
 }
 
 const CLOSED: SlashState = {
@@ -265,9 +330,6 @@ const CLOSED: SlashState = {
 	query: "",
 	entries: [],
 	selected: 0,
-	terminal: null,
-	phase: "running",
-	error: null,
 };
 
 const slashKey = new PluginKey<SlashState>("conductedSlashCommands");
@@ -283,40 +345,28 @@ function readTrigger(state: EditorState): Trigger | null {
 	return { from: $from.start(), to: $from.pos, query: before.slice(1) };
 }
 
-type SlashMeta =
-	| { kind: "move"; delta: number }
-	| { kind: "close" }
-	| {
-			kind: "terminal";
-			command: SlashCommand;
-			phase?: TerminalCommandPhase;
-			error?: string | null;
-	  };
+type SlashMeta = { kind: "move"; delta: number } | { kind: "close" };
 
 interface OverlayProps {
 	rows: SuggestionRow[];
 	selectedIndex: number;
 	onPick: (row: SuggestionRow) => void;
-	terminal: SlashCommand | null;
-	phase: TerminalCommandPhase;
-	error: string | null;
-	onTerminalDone: () => void;
+	listState: SlashListState;
 }
 
 function Overlay(props: OverlayProps) {
-	if (props.terminal !== null) {
-		return createElement(TerminalCommandBar, {
-			command: props.terminal.name,
-			phase: props.phase,
-			error: props.error,
-			onDone: props.onTerminalDone,
-		});
-	}
+	const { listState } = props;
 	return createElement(SuggestionPopup, {
 		rows: props.rows,
 		selectedIndex: props.selectedIndex,
-		state: "ready",
+		state: listState.state === "loading" && props.rows.length === 0 ? "loading" : "ready",
 		emptyText: "No results found",
+		notice:
+			listState.state === "error"
+				? `Couldn't load this agent's commands: ${listState.message}`
+				: listState.state === "loading"
+					? "Loading this agent's commands ..."
+					: undefined,
 		onPick: props.onPick,
 	});
 }
@@ -347,18 +397,19 @@ export function createSlashCommands(deps: SlashCommandDeps): Extension {
 				const view = editor.view;
 				const current = slashKey.getState(view.state);
 				if (current === undefined) return;
-				if (current.from !== current.to) {
-					view.dispatch(view.state.tr.delete(current.from, current.to));
+				const tr = view.state.tr;
+				if (current.from !== current.to) tr.delete(current.from, current.to);
+				tr.setMeta(slashKey, { kind: "close" } satisfies SlashMeta);
+				if (takesArguments(command)) {
+					// The arguments are typed after the name and travel with the message on send.
+					tr.insertText(`/${command.name} `, current.from);
+					view.dispatch(tr);
+					editor.commands.focus();
+					return;
 				}
-				if (isTerminalEffectCommand(command)) {
-					view.dispatch(
-						view.state.tr.setMeta(slashKey, { kind: "terminal", command } satisfies SlashMeta),
-					);
-				} else {
-					view.dispatch(view.state.tr.setMeta(slashKey, { kind: "close" } satisfies SlashMeta));
-				}
+				view.dispatch(tr);
 				editor.commands.focus();
-				deps.onRun(command, "");
+				deps.onRun(command);
 			};
 
 			const rowsOf = (state: SlashState): SuggestionRow[] =>
@@ -371,20 +422,11 @@ export function createSlashCommands(deps: SlashCommandDeps): Extension {
 					apply: (tr, previous, _oldState, newState) => {
 						const meta = tr.getMeta(slashKey) as SlashMeta | undefined;
 						if (meta?.kind === "close") return CLOSED;
-						if (meta?.kind === "terminal") {
-							return {
-								...CLOSED,
-								terminal: meta.command,
-								phase: meta.phase ?? "running",
-								error: meta.error ?? null,
-							};
-						}
 						if (meta?.kind === "move") {
 							if (!previous.open || previous.entries.length === 0) return previous;
 							const count = previous.entries.length;
 							return { ...previous, selected: (previous.selected + meta.delta + count) % count };
 						}
-						if (previous.terminal !== null) return previous;
 						if (tr.docChanged || tr.selectionSet) return stateFor(newState, previous.selected);
 						return previous;
 					},
@@ -392,7 +434,7 @@ export function createSlashCommands(deps: SlashCommandDeps): Extension {
 				props: {
 					handleKeyDown: (view, event) => {
 						const current = slashKey.getState(view.state);
-						if (current === undefined || current.terminal !== null || !current.open) return false;
+						if (current === undefined || !current.open) return false;
 						if (event.key === "ArrowDown" || event.key === "ArrowUp") {
 							view.dispatch(
 								view.state.tr.setMeta(slashKey, {
@@ -429,7 +471,7 @@ export function createSlashCommands(deps: SlashCommandDeps): Extension {
 					};
 					const update = (view: EditorView) => {
 						const state = slashKey.getState(view.state);
-						if (state === undefined || (!state.open && state.terminal === null)) {
+						if (state === undefined || !state.open) {
 							destroy();
 							return;
 						}
@@ -440,16 +482,7 @@ export function createSlashCommands(deps: SlashCommandDeps): Extension {
 								const entry = state.entries.find((item) => item.command.name === row.id);
 								if (entry !== undefined) choose(entry.command);
 							},
-							terminal: state.terminal,
-							phase: state.phase,
-							error: state.error,
-							onTerminalDone: () => {
-								const done = state.terminal;
-								view.dispatch(
-									view.state.tr.setMeta(slashKey, { kind: "close" } satisfies SlashMeta),
-								);
-								if (done !== null) deps.onTerminalDone?.(done);
-							},
+							listState: deps.listState ?? { state: "ready" },
 						};
 						if (host === null || renderer === null) {
 							host = document.createElement("div");
@@ -461,9 +494,8 @@ export function createSlashCommands(deps: SlashCommandDeps): Extension {
 						} else {
 							renderer.updateProps(props);
 						}
-						const position = state.open ? state.to : view.state.selection.from;
 						try {
-							const coords = view.coordsAtPos(position);
+							const coords = view.coordsAtPos(state.to);
 							host.style.left = `${coords.left}px`;
 							host.style.top = `${coords.bottom}px`;
 						} catch {

@@ -5,15 +5,16 @@
  * Behaviour: ui-map.md 5.1 (tabs and placeholders, workspace actions), 5.4 (Cmd+K).
  * Test first: typing "arch" lists "Archive workspace" when a workspace is open and not when none is.
  */
+import { ok } from "@conducted/shared";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { useOverlayStore } from "../../app/overlay-store.ts";
 import { AppProviders, createQueryClient } from "../../app/providers.tsx";
 import { createAppRouter } from "../../app/router.tsx";
 import type { Container } from "../../core/container.ts";
 import { ServicesProvider } from "../../core/context.tsx";
-import type { Workspace } from "../../core/model.ts";
+import type { Repo, Workspace } from "../../core/model.ts";
 import { createTestContainer, seedRepo, seedWorkspace } from "../../test/container.ts";
 
 const containers: { close(): void }[] = [];
@@ -21,17 +22,24 @@ const containers: { close(): void }[] = [];
 afterEach(() => {
 	cleanup();
 	useOverlayStore.getState().close();
+	vi.restoreAllMocks();
 	for (const container of containers.splice(0)) container.close();
 });
 
 interface Mounted {
 	container: Container;
 	workspace: Workspace | null;
+	repo: Repo;
+	router: ReturnType<typeof createAppRouter>;
 }
 
-async function mountApp(withWorkspace: boolean): Promise<Mounted> {
+async function mountApp(
+	withWorkspace: boolean,
+	before: (container: Container) => void = () => {},
+): Promise<Mounted> {
 	const test = createTestContainer();
 	containers.push(test);
+	before(test.container);
 	await test.container.services.settings.start();
 	const repo = await seedRepo(test.container, { name: "conducted" });
 	const workspace = withWorkspace
@@ -52,11 +60,14 @@ async function mountApp(withWorkspace: boolean): Promise<Mounted> {
 	);
 	await router.load();
 	useOverlayStore.getState().show("palette");
-	return { container: test.container, workspace };
+	return { container: test.container, workspace, repo, router };
 }
 
-async function openPalette(withWorkspace: boolean) {
-	const mounted = await mountApp(withWorkspace);
+async function openPalette(
+	withWorkspace: boolean,
+	before: (container: Container) => void = () => {},
+) {
+	const mounted = await mountApp(withWorkspace, before);
 	const input = await screen.findByPlaceholderText("Type a command or search...");
 	return { ...mounted, input };
 }
@@ -120,5 +131,79 @@ describe("NAV-08 CommandPalette", () => {
 		const { input } = await openPalette(false);
 		fireEvent.change(input, { target: { value: "zzzzzz" } });
 		expect(await screen.findByText("No results found")).toBeTruthy();
+	});
+
+	it("opens the new-workspace page for the chosen project", async () => {
+		const { repo, router } = await openPalette(false);
+		fireEvent.click(screen.getByRole("tab", { name: "Projects" }));
+		fireEvent.click(await screen.findByText("conducted"));
+
+		await waitFor(() => expect(router.state.location.pathname).toBe("/create"));
+		expect(router.state.location.search).toEqual({ repo: repo.id });
+	});
+
+	it("runs a chosen action and closes", async () => {
+		const { container, input } = await openPalette(false);
+		const check = vi.spyOn(container.services.updates, "check").mockResolvedValue(ok(undefined));
+		fireEvent.change(input, { target: { value: "check for updates" } });
+		fireEvent.click(await screen.findByText("Check for updates"));
+
+		await waitFor(() => expect(check).toHaveBeenCalledTimes(1));
+		await waitFor(() =>
+			expect(screen.queryByPlaceholderText("Type a command or search...")).toBeNull(),
+		);
+	});
+
+	it("says so when the apps to open a workspace in cannot be listed", async () => {
+		await openPalette(true, (container) => {
+			vi.spyOn(container.platform.opener, "installedApps").mockRejectedValue(
+				new Error("Launch Services did not answer."),
+			);
+		});
+
+		expect(
+			await screen.findByText(
+				"Couldn't list the apps to open the workspace in. Launch Services did not answer.",
+			),
+		).toBeTruthy();
+	});
+
+	async function openSectionsPage() {
+		const mounted = await openPalette(true);
+		const created = await mounted.container.actions.sections.create("Ideas", null);
+		if (!created.ok) throw new Error(created.error.message);
+		fireEvent.change(mounted.input, { target: { value: "move to section" } });
+		fireEvent.click(await screen.findByText("Move to section"));
+		const sections = await screen.findByPlaceholderText("Search sections...");
+		const row = await screen.findByText("Ideas");
+		fireEvent.pointerMove(row);
+		return { ...mounted, section: created.value, sections };
+	}
+
+	it("opens the section sub-page from Move to section", async () => {
+		const { sections } = await openSectionsPage();
+		expect(sections).toBeTruthy();
+		expect(screen.getByText("Ideas")).toBeTruthy();
+	});
+
+	it("edits the highlighted section with Cmd+E pressed into the root dispatcher", async () => {
+		const { sections } = await openSectionsPage();
+		fireEvent.keyDown(sections, { key: "e", metaKey: true });
+
+		const field = (await screen.findByLabelText("Section name")) as HTMLInputElement;
+		expect(field.value).toBe("Ideas");
+	});
+
+	it("deletes the highlighted section with Cmd+Backspace pressed into the root dispatcher", async () => {
+		const { container, section, sections } = await openSectionsPage();
+		fireEvent.keyDown(sections, { key: "Backspace", metaKey: true });
+
+		await waitFor(() =>
+			expect(
+				container.services.sections.store
+					.getState()
+					.sections.some((entry: { id: string }) => entry.id === section.id),
+			).toBe(false),
+		);
 	});
 });

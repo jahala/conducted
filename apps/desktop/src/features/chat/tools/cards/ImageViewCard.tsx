@@ -3,24 +3,25 @@
  * Owns: The card for the agent looking at an image file, and the image path reader the image
  * generation card shares.
  * Behaviour: ui-map.md 3.3 ('Preview image', 'Loading image').
- * Must handle: An image still loading; a path outside the workspace or a file that is gone (the
- * name and a clear message stay, the preview does not); a result that names the path instead of
- * the input.
+ * Must handle: An image still loading; an image that cannot be shown, such as a file that is gone
+ * (the name and a clear message stay, the preview does not); a result that names the path instead
+ * of the input; a result that is not a path at all ("No image path was given").
+ * Not built here: loading a local file into the preview. The webview cannot read a file path
+ * directly, and the Platform has no door that turns a path into a URL the view may load.
  * Test first: An image_view call renders 'Preview image' with the file name.
  */
 import { useState } from "react";
 import { EyeIcon } from "../../../../ui/icons.tsx";
-import { asRecord, ToolCardFrame, textField, toolStatus } from "../ToolCardFrame.tsx";
+import { asRecord, fileNameOf, ToolCardFrame, textField, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
 const IMAGE_PATH = /[^\s"'`]+\.(?:png|jpe?g|gif|webp|avif|svg)/i;
 
-export function fileNameOf(path: string): string {
-	const parts = path.split(/[\\/]/);
-	return parts.at(-1) ?? path;
-}
-
-/** The image path in a value that may be a bare path, a line of text or a markdown image. */
+/**
+ * The image path in a value that may be a bare path, a line of text or a markdown image. A value
+ * counts only when it names a file with an image extension, or when its last line is an absolute
+ * path. Any other text ("done", an error) is not a path, so null.
+ */
 export function imagePathOf(value: string | null): string | null {
 	if (value === null) return null;
 	const trimmed = value.trim();
@@ -28,7 +29,7 @@ export function imagePathOf(value: string | null): string | null {
 	const found = IMAGE_PATH.exec(trimmed);
 	if (found) return found[0];
 	const last = trimmed.split(/\r?\n/).at(-1)?.trim() ?? trimmed;
-	if (last === "" || /\s/.test(last)) return null;
+	if (!last.startsWith("/") || /\s/.test(last)) return null;
 	return last;
 }
 

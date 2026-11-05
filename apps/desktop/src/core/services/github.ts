@@ -5,6 +5,8 @@
  * @feature PR-11 REST reads for issues and pull requests, and the context files they write
  * @feature PRJ-02 the owners and repositories the clone picker lists
  * @feature GIT-08 moving an open pull request's base when the target branch changes
+ * @feature PR-04 the Checks tab's calls: one job's log (an expired log has its own error) and
+ * re-running the failed workflow runs, one `gh run rerun --failed` per run
  * Owns: probing `gh` access (`gh auth status`, the user's login, the git protocol), the access
  * health store, reading and writing the personal access token, every pull request write action
  * (merge, auto-merge on and off, mark ready, edit title and body, request and remove reviewers,
@@ -1957,9 +1959,41 @@ export class GithubService {
 		return notImplemented("PR-05");
 	}
 
-	/** Backs `Actions.pullRequests.rerunFailedChecks`: `gh run rerun --failed` per failed run. */
-	rerunFailedChecks(_workspaceId: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("PR-04");
+	/**
+	 * Backs `Actions.pullRequests.rerunFailedChecks`: `gh run rerun <run> --failed` in the
+	 * workspace, once for each workflow run that has a failed check, with the run id read from the
+	 * check's details URL (services-map 3.7.5). Two failed jobs of one run send one command. The
+	 * checks come from the pull request the panel shows; afterwards the PR is read once again so
+	 * the re-run checks show as queued.
+	 */
+	rerunFailedChecks(workspaceId: WorkspaceId): Promise<Result<void>> {
+		return this.#flights.run(`rerunFailedChecks:${workspaceId}`, async () => {
+			const pullRequest = this.store.getState().byWorkspace[String(workspaceId)]?.pullRequest;
+			const runIds = new Set<string>();
+			for (const check of pullRequest?.checks ?? []) {
+				if (check.state !== "failure") continue;
+				const job = parseCheckJob(check.url);
+				if (job !== null) runIds.add(job.runId);
+			}
+			if (runIds.size === 0) {
+				return err(appError("github_no_failed_runs", "No failed GitHub Actions run to re-run."));
+			}
+			const prepared = await this.#preparePullRequestWrite(workspaceId);
+			if (!prepared.ok) return err(prepared.error);
+			const { found, runOptions } = prepared.value;
+			for (const runId of runIds) {
+				const command: GitCommand = {
+					program: "gh",
+					args: ["run", "rerun", runId, "--failed"],
+					retryOnLock: false,
+				};
+				const ran = await this.#runPullRequestCommand(found, runOptions, command);
+				if (!ran.ok) return ran;
+			}
+			// A failed refresh is kept on the workspace's PR entry, where the panel shows it.
+			await this.#refreshAfterWrite(workspaceId);
+			return ok(undefined);
+		});
 	}
 
 	/** Reads the workspace's pull request and the `gh` sign-in every write action needs. */
@@ -2028,6 +2062,13 @@ export class GithubService {
 			if (!answer.ok) return err(answer.error);
 		}
 		if (!answer.value.ok) {
+			const failure = `${answer.value.output.stderr}\n${answer.value.output.stdout}`;
+			// GitHub answers 404 or 410 for a job whose logs were never kept or have expired.
+			if (/HTTP (404|410)\b/.test(failure)) {
+				return err(
+					appError("github_check_log_expired", "No logs were recorded, or they have expired."),
+				);
+			}
 			return err(appError("github_check_log_failed", "Couldn't load the logs."));
 		}
 		return ok(checkLogTail(answer.value.output.stdout));

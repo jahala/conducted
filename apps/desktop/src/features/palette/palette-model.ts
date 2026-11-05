@@ -41,12 +41,6 @@ export interface PaletteGroup {
 	items: PaletteItem[];
 }
 
-export interface PaletteHistoryHit {
-	id: string;
-	label: string;
-	hint: string | null;
-}
-
 export interface PaletteInput {
 	tab: PaletteTab;
 	query: string;
@@ -57,7 +51,6 @@ export interface PaletteInput {
 	sessions?: readonly Session[];
 	installedApps?: readonly string[];
 	defaultOpenInApp?: string | null;
-	history?: readonly PaletteHistoryHit[];
 }
 
 interface CommandSpec {
@@ -132,7 +125,6 @@ const GROUP_ORDER = [
 	"Workspaces",
 	"Archived",
 	"Chats in this workspace",
-	"Chat history",
 	"Projects",
 	"Workspace actions",
 	"Actions",
@@ -262,18 +254,6 @@ export function buildPaletteGroups(props: PaletteInput): PaletteGroup[] {
 				id: `chat:${session.id}`,
 				label: session.title ?? "New chat",
 				hint: session.closedAt === null ? "Open chat" : "Closed chat",
-				shortcut: null,
-				disabled: false,
-			})),
-		);
-	}
-	if (props.history !== undefined) {
-		addGroup(
-			"Chat history",
-			props.history.map((hit) => ({
-				id: `history:${hit.id}`,
-				label: hit.label,
-				hint: hit.hint,
 				shortcut: null,
 				disabled: false,
 			})),

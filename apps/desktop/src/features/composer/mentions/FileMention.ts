@@ -1,19 +1,20 @@
 /**
  * @feature COMP-04 @ file mentions
- * Owns: The '@' trigger: fuzzy search of files and directories in the workspace, the extra items
- * for plans, the current terminal output and the working-directories dialog, and the chip the
- * trigger inserts.
- * Behaviour: ui-map.md 3.5 ('@' mentions: files and directories with fuzzy search, plans,
- * 'Attach current terminal output', linked directories 'Select working directories'), sessions-and-
- * chats.md (the sidecar expands file mentions).
+ * Owns: The '@' trigger: fuzzy search of files and directories in the workspace, the extra rows the
+ * composer supplies (today "Attach current terminal output"), and the chip the trigger inserts.
+ * Behaviour: ui-map.md 3.5 ('@' mentions: files and directories with fuzzy search,
+ * 'Attach current terminal output'), sessions-and-chats.md (the sidecar expands file mentions).
  * Data: `search` is passed in and reads the workspace file list; `actions` are the extra rows the
- * composer supplies. The chip stores the relative path, and the sidecar expands it.
+ * composer supplies; `onOpen` lets the caller refresh that list each time the trigger opens. The
+ * chip stores the relative path, and the sidecar expands it.
+ * Not built here: '@' plans (no plan list exists yet, CHAT-26) and linked directories with
+ * 'Select working directories' (WS-07).
  * Our design choice: the trigger is one ProseMirror plugin rather than TipTap's suggestion helper,
  * because the editor already carries no extra TipTap packages. The plugin holds the query, the
  * ranked rows and the selected row, and draws them with SuggestionPopup.
- * Must handle: no matches ('No files found'); at most 20 file rows; Escape closes the popup and
- * keeps the typed '@'; Arrow keys wrap; Enter and Tab choose; a trigger inside a word does not
- * open; a chosen action runs instead of inserting a chip.
+ * Must handle: no matches ('No files found', the popup stays open); at most 20 file rows; Escape
+ * closes the popup and keeps the typed '@'; Arrow keys wrap; Enter and Tab choose; a trigger inside
+ * a word does not open; a chosen action runs instead of inserting a chip.
  * Test first: Typing '@rea' offers 'README.md' first; choosing it inserts a chip with the path.
  */
 import type { EditorState, Transaction } from "@tiptap/pm/state";
@@ -40,8 +41,10 @@ export interface FileMentionAction {
 
 export interface FileMentionDeps {
 	search: (query: string) => FileMentionItem[];
-	/** Plans, "Attach current terminal output", "Select working directories". */
+	/** Extra rows beside the files, such as "Attach current terminal output". */
 	actions?: readonly FileMentionAction[];
+	/** Called each time the '@' trigger opens, so the caller can refresh the file list. */
+	onOpen?: () => void;
 	/** How many file rows to show. Defaults to 20. */
 	limit?: number;
 }
@@ -146,7 +149,7 @@ function stateAtEditor(state: EditorState, deps: FileMentionDeps): FileMentionSt
 		query,
 		from,
 		to: $from.pos,
-		selectedIndex: items.length === 0 ? 0 : Math.min(inactive.selectedIndex, items.length - 1),
+		selectedIndex: 0,
 		items,
 	};
 }
@@ -179,21 +182,29 @@ function chooseSuggestion(view: EditorView, state: FileMentionState, index: numb
 
 class MentionPopupView {
 	#view: EditorView;
+	#deps: FileMentionDeps;
 	#host: HTMLDivElement | null = null;
 	#root: Root | null = null;
 	#signature = "";
+	#open = false;
 
-	constructor(view: EditorView) {
+	constructor(view: EditorView, deps: FileMentionDeps) {
 		this.#view = view;
+		this.#deps = deps;
 		this.update(view);
 	}
 
 	update(view: EditorView): void {
 		this.#view = view;
 		const state = mentionPluginKey.getState(view.state);
-		if (state === undefined || !state.active || state.items.length === 0) {
+		if (state === undefined || !state.active) {
+			this.#open = false;
 			this.#close();
 			return;
+		}
+		if (!this.#open) {
+			this.#open = true;
+			this.#deps.onOpen?.();
 		}
 		const signature = `${state.query}|${state.selectedIndex}|${state.items
 			.map((item) => item.id)
@@ -300,7 +311,7 @@ function createMentionPlugin(deps: FileMentionDeps): Plugin<FileMentionState> {
 				return false;
 			},
 		},
-		view: (view) => new MentionPopupView(view),
+		view: (view) => new MentionPopupView(view, deps),
 	});
 }
 

@@ -4,12 +4,12 @@
  * actions.
  * Behaviour: ui-map.md 3.6 ("Comment card: author You, Edit comment, Delete comment, Suggested
  * change block"; "Discard comment?" dialog).
- * Must handle: edit mode swapping the body for a CommentComposer, comments from GitHub having no
+ * Must handle: edit mode swapping the body for a CommentComposer, an edit that fails to save (the
+ * composer stays open and says so), comments from GitHub having no
  * Edit or Delete (they are synced, not owned), an agent comment (label, no Edit), a long body that
  * wraps, and unresolved versus resolved styling.
  * Test first: a comment by the user shows Edit and Delete, one from GitHub shows neither.
  */
-import { useState } from "react";
 import type { DiffComment } from "../../core/model.ts";
 import { Badge } from "../../ui/Badge.tsx";
 import { Button } from "../../ui/Button.tsx";
@@ -20,7 +20,8 @@ export interface CommentCardProps {
 	comment: DiffComment;
 	editing: boolean;
 	onStartEdit: () => void;
-	onSaveEdit: (body: string) => void;
+	/** Resolves true when the edit was saved; false keeps the editor open with the error. */
+	onSaveEdit: (body: string) => Promise<boolean>;
 	onCancelEdit: () => void;
 	onDelete: () => void;
 }
@@ -46,7 +47,6 @@ export function CommentCard({
 	onCancelEdit,
 	onDelete,
 }: CommentCardProps) {
-	const [saveFailed, setSaveFailed] = useState(false);
 	const owned = comment.author.kind === "user";
 	const deletable = comment.author.kind !== "github";
 
@@ -71,21 +71,11 @@ export function CommentCard({
 					initialBody={comment.body}
 					suggestionBase={null}
 					onCancel={onCancelEdit}
-					onSubmit={async (body) => {
-						setSaveFailed(false);
-						try {
-							onSaveEdit(body);
-							return true;
-						} catch {
-							setSaveFailed(true);
-							return false;
-						}
-					}}
+					onSubmit={(body) => onSaveEdit(body)}
 				/>
 			) : (
 				<p className="whitespace-pre-wrap break-words text-sm text-fg">{comment.body}</p>
 			)}
-			{saveFailed ? <p className="text-xs text-danger">The comment could not be saved.</p> : null}
 			{comment.suggestion !== null && !editing ? (
 				<SuggestionBlock
 					original=""

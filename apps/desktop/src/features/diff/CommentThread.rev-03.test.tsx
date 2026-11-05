@@ -3,7 +3,7 @@
  * Tests the order of a thread and its collapsed resolved state.
  */
 import type { CommentId, WorkspaceId } from "@conducted/shared";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DiffComment } from "../../core/model.ts";
 import "../../test/dom-polyfills.ts";
@@ -81,5 +81,21 @@ describe("REV-03 CommentThread", () => {
 		expect(screen.getAllByTestId("comment-card")).toHaveLength(1);
 		fireEvent.click(screen.getByRole("button", { name: "Expand thread" }));
 		expect(screen.getAllByTestId("comment-card")).toHaveLength(2);
+	});
+
+	it("resolves every comment of the thread, replies included", async () => {
+		const onSetResolved = vi.fn(async () => true);
+		render(
+			<CommentThread
+				comments={[comment("c-1", "first", 1000), comment("c-2", "second", 2000)]}
+				handlers={{ ...handlers, onSetResolved }}
+			/>,
+		);
+
+		fireEvent.click(screen.getByRole("button", { name: "Resolve" }));
+
+		await waitFor(() => expect(onSetResolved).toHaveBeenCalledTimes(2));
+		expect(onSetResolved).toHaveBeenNthCalledWith(1, "c-1", true);
+		expect(onSetResolved).toHaveBeenNthCalledWith(2, "c-2", true);
 	});
 });

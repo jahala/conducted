@@ -8,19 +8,24 @@
  * claude-runner.md 3.5.
  * Our design choice: 'Approve' is the one primary button. 'Hand off' calls
  * useActions().sessions.startFromPlan(sessionId, planText, target), where target is the chat picked
- * in 'Sending to <chat>', or null for a new chat. Approving also turns the chat's plan mode off, so
- * the next turn runs in the mode the plan was approved for. Cmd+Shift+Enter rejects with the typed
- * feedback when the box has text, and approves when it is empty.
+ * in 'Sending to <chat>', or null for a new chat. After a hand-off this chat's plan is answered as
+ * not approved, with no feedback, so its agent stops waiting (claude-runner 3.5: a cancelled plan
+ * review is a plain denial). Approving first turns the chat's stored plan mode off and only then
+ * answers, so a turn that starts right after the approval cannot run on the old plan-mode config.
+ * Cmd+Shift+Enter rejects with the typed feedback when the box has text, and approves when it is
+ * empty. The shortcut is a chat-card command, so Approve takes focus when the bar opens, as the
+ * question card does.
  * Must handle: Very long plan (scrolls, collapsed to a few lines with 'Show all'); feedback empty
  * (Reject disabled); plan file path present (a link to open the file); the interaction is
- * withdrawn; Approve sets plan mode off for the next turn.
+ * withdrawn; Approve sets plan mode off before it answers, and a failed config write keeps the bar
+ * open with the error; a hand-off whose closing answer fails says so.
  * Test first: Approve calls sessions.answer with kind plan_approval and approved true; Reject sends
  * the feedback text.
  */
 
 import type { Interaction, InteractionAnswer, SessionConfig } from "@conducted/protocol";
-import type { InteractionId, SessionId } from "@conducted/shared";
-import { useRef, useState } from "react";
+import { type InteractionId, ok, type Result, type SessionId } from "@conducted/shared";
+import { useCallback, useRef, useState } from "react";
 import { useCommandHandler } from "../../../app/command-dispatcher.ts";
 import { useActions, useChat, useLiveShortcut, useSessions } from "../../../core/hooks.ts";
 import type { Session } from "../../../core/model.ts";
@@ -28,7 +33,6 @@ import { Button } from "../../../ui/Button.tsx";
 import { CopyButton } from "../../../ui/CopyButton.tsx";
 import { Label, Textarea } from "../../../ui/Input.tsx";
 import { Select } from "../../../ui/Select.tsx";
-import { toastError } from "../../../ui/Toast.tsx";
 import { Tooltip } from "../../../ui/Tooltip.tsx";
 import { FileLink, textLines } from "../tools/ToolCardFrame.tsx";
 
@@ -79,6 +83,10 @@ function PlanReviewForm({
 	const [failure, setFailure] = useState<string | null>(null);
 	const [chosen, setChosen] = useState<string | null>(null);
 	const busy = useRef(false);
+	/** Approve takes focus when the bar opens, so Cmd+Shift+Enter reaches the bar's handler. */
+	const focusOnMount = useCallback((node: HTMLButtonElement | null) => {
+		node?.focus();
+	}, []);
 	const approveShortcut = useLiveShortcut("chat.approvePlan");
 	const lines = textLines(request.plan);
 	const shownText = showAll ? request.plan : lines.slice(0, COLLAPSED_LINES).join("\n");
@@ -98,28 +106,32 @@ function PlanReviewForm({
 		busy.current = true;
 		setPending(value.approved ? "approve" : "reject");
 		setFailure(null);
+		if (value.approved) {
+			const left = await leavePlanMode();
+			if (!left.ok) {
+				busy.current = false;
+				setPending(null);
+				setFailure(`Couldn't turn plan mode off: ${left.error.message}`);
+				return;
+			}
+		}
 		const result = await actions.sessions.answer(sessionId, interactionId, value);
 		if (!result.ok) {
 			busy.current = false;
 			setPending(null);
-			setFailure(result.error.message);
+			setFailure(`Could not send the plan: ${result.error.message}`);
 			return;
 		}
-		if (value.approved) await leavePlanMode();
 		busy.current = false;
 		setPending(null);
 		setChosen(value.approved ? "Approved" : "Sent the feedback to the agent");
 	}
 
 	/** Turns the chat's stored plan mode off, so the next turn carries out the plan. */
-	async function leavePlanMode(): Promise<void> {
+	async function leavePlanMode(): Promise<Result<void>> {
 		const current: SessionConfig = session.config;
-		if (!current.planMode) return;
-		const updated = await actions.sessions.updateConfig(sessionId, {
-			...current,
-			planMode: false,
-		});
-		if (!updated.ok) toastError("Couldn't turn plan mode off", updated.error);
+		if (!current.planMode) return ok(undefined);
+		return actions.sessions.updateConfig(sessionId, { ...current, planMode: false });
 	}
 
 	async function handOff(): Promise<void> {
@@ -129,13 +141,23 @@ function PlanReviewForm({
 		setFailure(null);
 		const targetId = target === NEW_CHAT ? null : (target as SessionId);
 		const result = await actions.sessions.startFromPlan(sessionId, request.plan, targetId);
-		busy.current = false;
-		setPending(null);
 		if (!result.ok) {
-			setFailure(result.error.message);
+			busy.current = false;
+			setPending(null);
+			setFailure(`Could not send the plan: ${result.error.message}`);
 			return;
 		}
 		setChosen(targetId === null ? "Sent to a new chat" : `Sent to ${chatName(result.value)}`);
+		// This chat's agent still waits on the plan. A denial with no feedback ends that wait.
+		const closed = await actions.sessions.answer(sessionId, interactionId, {
+			kind: "plan_approval",
+			approved: false,
+		});
+		busy.current = false;
+		setPending(null);
+		if (!closed.ok) {
+			setFailure(`The plan was sent, but this chat still waits on it: ${closed.error.message}`);
+		}
 	}
 
 	function submitFeedback(): void {
@@ -218,7 +240,7 @@ function PlanReviewForm({
 
 			{failure === null ? null : (
 				<p role="alert" className="text-xs text-danger">
-					Could not send the plan: {failure}
+					{failure}
 				</p>
 			)}
 
@@ -230,6 +252,7 @@ function PlanReviewForm({
 					<div className="flex flex-wrap items-center gap-2">
 						<Tooltip content="Execute plan in current chat" shortcut={approveShortcut ?? undefined}>
 							<Button
+								ref={focusOnMount}
 								onClick={() => void answer({ kind: "plan_approval", approved: true })}
 								loading={pending === "approve"}
 								disabled={disabled}

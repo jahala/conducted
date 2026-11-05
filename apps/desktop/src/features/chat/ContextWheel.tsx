@@ -39,7 +39,8 @@ function formatTokens(tokens: number): string {
 	return tokenFormat.format(tokens);
 }
 
-function formatCost(usd: number): string {
+/** Dollars as the chat shows them, in the wheel's card and in the turn footer. */
+export function formatCost(usd: number): string {
 	return usd.toLocaleString("en-US", {
 		style: "currency",
 		currency: "USD",

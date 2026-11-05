@@ -8,18 +8,23 @@
  * "No results found"; loading spinner in the heading), 5.4 (Cmd+E edits and Cmd+Backspace deletes a
  * highlighted section).
  * Our design choice: the items come from palette-model.ts and the live command registry. The screen
- * routes a chosen item by its id prefix. Cloud groups (organizations, people, templates) are left out.
- * A "Chat history" group appears only when the caller supplies hits; CHAT-17 owns searching for them.
+ * routes a chosen item by its id prefix. A command runs the way its shortcut would: a screen's own
+ * handler first, then the service-level runner. Choosing a project opens the new-workspace page with
+ * that project chosen; the research does not record what Conductor opens. Cloud groups
+ * (organizations, people, templates) are left out. Chat history search results are not built here
+ * (CHAT-17).
  * Must handle: no workspace selected (workspace actions hidden); archived workspaces only under
  * Archived; a disabled command shown muted and doing nothing; Escape closes; opening again starts
- * clean; the section sub-page for "Move to section"; renaming and removing a section from the palette.
+ * clean; the section sub-page for "Move to section"; renaming and removing a section from the
+ * palette; the list of installed apps failing to load (the palette says so instead of dropping the
+ * "Open in" group without a word).
  * Test first: Typing "arch" lists "Archive workspace" when a workspace is open and not when none is.
  */
 import type { SectionId, WorkspaceId } from "@conducted/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { Command } from "cmdk";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useCommandHandler } from "../../app/command-dispatcher.ts";
+import { useCommandHandler, useRunCommandHandlers } from "../../app/command-dispatcher.ts";
 import { useOverlayStore } from "../../app/overlay-store.ts";
 import { createLatestWins } from "../../core/async/latest-wins.ts";
 import { useServices } from "../../core/context.tsx";
@@ -66,6 +71,7 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 	const sessions = useSessions((workspaceId ?? "") as WorkspaceId);
 	const defaultOpenIn = useSetting<string>("default_open_in");
 	const showOverlay = useOverlayStore((state) => state.show);
+	const runCommand = useRunCommandHandlers();
 
 	const [tab, setTab] = useState<PaletteTab>("all");
 	const [query, setQuery] = useState("");
@@ -73,6 +79,7 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 	const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
 	const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
 	const [installedApps, setInstalledApps] = useState<string[]>([]);
+	const [appsError, setAppsError] = useState<string | null>(null);
 
 	const latestApps = useRef(createLatestWins<"installed-apps">()).current;
 
@@ -89,6 +96,7 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 		void services.platform.opener.installedApps().then(
 			(apps) => {
 				if (latestApps.isLatest(ticket)) {
+					setAppsError(null);
 					setInstalledApps((current) =>
 						current.length === apps.length && current.every((app, index) => app === apps[index])
 							? current
@@ -98,9 +106,11 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 				latestApps.settle(ticket);
 			},
 			(cause: unknown) => {
+				const latest = latestApps.isLatest(ticket);
 				latestApps.settle(ticket);
 				const message = cause instanceof Error ? cause.message : String(cause);
 				services.platform.app.writeLog("warn", `Could not list installed apps: ${message}`);
+				if (latest) setAppsError(message);
 			},
 		);
 		return () => latestApps.invalidate("installed-apps");
@@ -245,7 +255,7 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 			return;
 		}
 		if (item.id.startsWith("project:")) {
-			void navigate({ to: "/all-workspaces" });
+			void navigate({ to: "/create", search: { repo: item.id.slice("project:".length) } });
 			close();
 			return;
 		}
@@ -279,11 +289,11 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 			close();
 			return;
 		}
-		if (item.id.startsWith("history:")) {
+		// A screen's own handler first, as the command's shortcut would reach it.
+		if (runCommand(item.id)) {
 			close();
 			return;
 		}
-
 		const result = await services.services.commands.run(item.id);
 		if (!result.ok) {
 			toastError(`Couldn't ${item.label.toLowerCase()}`, result.error);
@@ -371,6 +381,11 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 			{loadError !== null ? (
 				<p role="alert" className="px-3 py-2 text-xs text-danger">
 					Couldn't load the palette. {loadError.message}
+				</p>
+			) : null}
+			{appsError !== null && workspaceId !== null && subpage === "root" ? (
+				<p role="alert" className="px-3 py-2 text-xs text-danger">
+					Couldn't list the apps to open the workspace in. {appsError}
 				</p>
 			) : null}
 			{editing !== null ? (

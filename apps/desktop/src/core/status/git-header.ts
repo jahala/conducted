@@ -170,8 +170,11 @@ function mergeLabel(method: PullRequest["mergeMethod"]): string {
 	}
 }
 
-/** Required checks always count. Optional ones count only when the setting says so. */
-function countsAsBlocking(check: CheckRun, treatOptionalChecksAsBlocking: boolean): boolean {
+/**
+ * Required checks always count. Optional ones count only when the setting says so. The one home
+ * of this rule: the Checks tab's summary uses it too.
+ */
+export function countsAsBlocking(check: CheckRun, treatOptionalChecksAsBlocking: boolean): boolean {
 	return check.required || treatOptionalChecksAsBlocking;
 }
 

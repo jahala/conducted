@@ -7,7 +7,14 @@
  * Test first: A web_fetch call shows the host prominently and the full address on hover.
  */
 import { ExternalLink } from "../../ExternalLink.tsx";
-import { asRecord, ToolCardFrame, textField, textLines, toolStatus } from "../ToolCardFrame.tsx";
+import {
+	asRecord,
+	ToolCardFrame,
+	ToolOutput,
+	textField,
+	textLines,
+	toolStatus,
+} from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
 const EXCERPT_LINES = 20;
@@ -31,13 +38,7 @@ export function WebFetchCard({ call, defaultExpanded }: ToolCardProps) {
 			summary={host}
 			status={toolStatus(call)}
 			expandAll={defaultExpanded}
-			body={
-				excerpt.length === 0 ? null : (
-					<pre className="max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-fg-muted">
-						{excerpt.join("\n")}
-					</pre>
-				)
-			}
+			body={excerpt.length === 0 ? null : <ToolOutput muted>{excerpt.join("\n")}</ToolOutput>}
 			footer={
 				address.length > 0 ? (
 					<ExternalLink url={address} className="truncate text-link hover:underline">

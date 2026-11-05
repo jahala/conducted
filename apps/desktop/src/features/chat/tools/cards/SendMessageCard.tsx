@@ -7,7 +7,7 @@
  * Test first: A send_message call names the chat it went to.
  */
 import { ChatIcon } from "../../../../ui/icons.tsx";
-import { asRecord, ToolCardFrame, textField, toolStatus } from "../ToolCardFrame.tsx";
+import { asRecord, ToolCardFrame, ToolOutput, textField, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
 export function SendMessageCard({ call, defaultExpanded }: ToolCardProps) {
@@ -45,9 +45,7 @@ export function SendMessageCard({ call, defaultExpanded }: ToolCardProps) {
 						<p className="text-xs text-fg-subtle">This call names no target chat.</p>
 					)}
 					{message.length > 0 ? (
-						<pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-sm bg-surface p-2 font-mono text-xs text-fg">
-							{message}
-						</pre>
+						<ToolOutput className="rounded-sm bg-surface p-2">{message}</ToolOutput>
 					) : null}
 					{output.length > 0 ? (
 						<pre className="max-h-40 overflow-auto whitespace-pre-wrap font-mono text-xs text-fg-muted">

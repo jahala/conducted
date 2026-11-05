@@ -7,7 +7,7 @@
  * Test first: A task_stop call renders 'Stop task' and the task's name.
  */
 import { XCircleIcon } from "../../../../ui/icons.tsx";
-import { asRecord, ToolCardFrame, textField, toolStatus } from "../ToolCardFrame.tsx";
+import { asRecord, ToolCardFrame, ToolOutput, textField, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
 export function TaskStopCard({ call, defaultExpanded }: ToolCardProps) {
@@ -24,9 +24,7 @@ export function TaskStopCard({ call, defaultExpanded }: ToolCardProps) {
 			expandAll={defaultExpanded}
 			body={
 				output.length > 0 ? (
-					<pre className="max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-fg-muted">
-						{output}
-					</pre>
+					<ToolOutput muted>{output}</ToolOutput>
 				) : call.result === null ? (
 					<p className="text-xs text-fg-subtle">Stopping task.</p>
 				) : undefined

@@ -7,7 +7,7 @@
  * Test first: A task_create call renders 'Task created' and the task subject.
  */
 import { ListTodoIcon } from "../../../../ui/icons.tsx";
-import { ToolCardFrame, toolStatus } from "../ToolCardFrame.tsx";
+import { ToolCardFrame, ToolOutput, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 import { hasTaskFields, TaskFieldsBody, taskFieldsFrom } from "./TaskGetCard.tsx";
 
@@ -25,9 +25,7 @@ export function TaskCreateCard({ call, defaultExpanded }: ToolCardProps) {
 				hasTaskFields(fields) ? (
 					<TaskFieldsBody fields={fields} />
 				) : raw.length > 0 ? (
-					<pre className="max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-fg-muted">
-						{raw}
-					</pre>
+					<ToolOutput muted>{raw}</ToolOutput>
 				) : (
 					<p className="text-xs text-fg-subtle">Creating task.</p>
 				)
