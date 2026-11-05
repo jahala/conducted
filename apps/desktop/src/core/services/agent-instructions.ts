@@ -1,22 +1,13 @@
 /**
  * @feature PR-02 Written instructions the app sends to the agent
-<<<<<<< HEAD
- * Owns now: the text of the "create a pull request" request and the "reconcile with the target"
- * request (GIT-04). The other requests (commit and push, resolve conflicts, fix failing checks,
- * review the diff, rename the branch, merge into the target) are placeholders owned by GIT-05,
- * GIT-07, PR-05, REV-05, WS-04 and GIT-14.
- * Behaviour: structure-map.md section 6 pattern 5 (delegate risky git work to the agent),
- * services-map.md 3.6.4 (reconcile messages), 3.7.1 (create PR steps), ui-map.md 3.6.
-=======
  * @feature GIT-05 Commit and push, done by the agent on request
- * Owns now: the text of the "commit and push" and "create a pull request" requests. The other
- * requests (resolve conflicts, fix failing checks, review the diff, rename the branch, reconcile
- * with the target, merge into the target) are placeholders owned by GIT-07, PR-05, REV-05, WS-04,
- * GIT-04 and GIT-14.
+ * Owns now: the text of the "create a pull request" request, the "reconcile with the target"
+ * request (GIT-04) and the "commit and push" request (GIT-05). The other requests (resolve
+ * conflicts, fix failing checks, review the diff, rename the branch, merge into the target) are
+ * placeholders owned by GIT-07, PR-05, REV-05, WS-04 and GIT-14.
  * Behaviour: structure-map.md section 6 pattern 5 (delegate risky git work to the agent),
- * services-map.md 3.5 (commit and push is an agent instruction), 3.7.1 (create PR steps),
- * ui-map.md 3.6.
->>>>>>> node/git.05
+ * services-map.md 3.5 (commit and push is an agent instruction), 3.6.4 (reconcile messages),
+ * 3.7.1 (create PR steps), ui-map.md 3.6.
  * Must handle: a per-repo custom prompt (`RepoConfig.prompts`) is added to the built-in text,
  * never silently replaces it; the target branch and remote names are inserted as given (they are
  * quoted by the agent's own tools, not by us); a PR template, when the repo has one, is named in

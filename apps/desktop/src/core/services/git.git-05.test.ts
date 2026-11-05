@@ -78,6 +78,8 @@ function makeService(
 		contextOf,
 		agent,
 		now: () => 1_000,
+		setIntendedTargetBranch: async () => ok(undefined),
+		moveOpenPullRequestBase: async () => ok(false),
 		fs: {
 			trash: async () => ok(undefined),
 			readText: async () => err(appError("fs_not_found", "missing")),
