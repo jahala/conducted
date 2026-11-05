@@ -169,6 +169,8 @@ export interface ComposerServiceDeps {
 	platform: Pick<Platform, "fs" | "dialogs" | "clipboard">;
 	repos: Pick<Repositories, "attachments">;
 	setDebounce: (callback: () => void, ms: number) => () => void;
+	/** The chat tab open in a workspace, for "Attach in chat" (REV-06). */
+	activeSessionOf?: (workspaceId: WorkspaceId) => Result<SessionId | null>;
 }
 
 export class ComposerService {
@@ -259,8 +261,31 @@ export class ComposerService {
 	}
 
 	/** Backs `Actions.files.attachToChat`: adds workspace files to the active chat's draft. */
-	attachFilesToActiveChat(_workspaceId: WorkspaceId, _paths: string[]): Promise<Result<void>> {
-		return notImplemented("REV-06");
+	async attachFilesToActiveChat(workspaceId: WorkspaceId, paths: string[]): Promise<Result<void>> {
+		const activeSessionOf = this.#deps.activeSessionOf;
+		if (activeSessionOf === undefined) {
+			return err(appError("no_active_chat", "Open a chat first."));
+		}
+		const active = activeSessionOf(workspaceId);
+		if (!active.ok) return active;
+		const sessionId = active.value;
+		if (sessionId === null) {
+			return err(appError("no_active_chat", "Open a chat first."));
+		}
+		for (const path of paths) {
+			if (!(await this.#deps.platform.fs.exists(path))) {
+				return err(appError("attachment_missing", `"${path}" is no longer in the workspace.`));
+			}
+		}
+		const loaded = await this.loadDraft(sessionId);
+		if (!loaded.ok) return loaded;
+		const draft = this.draftOf(sessionId);
+		const attachmentPaths = [...draft.attachmentPaths];
+		for (const path of paths) {
+			if (!attachmentPaths.includes(path)) attachmentPaths.push(path);
+		}
+		this.saveDraft(sessionId, { text: draft.text, attachmentPaths });
+		return ok(undefined);
 	}
 
 	/** Stores clipboard image bytes as a staged attachment. */

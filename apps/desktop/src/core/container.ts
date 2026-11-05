@@ -360,6 +360,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 			const handle = setTimeout(callback, ms);
 			return () => clearTimeout(handle);
 		},
+		activeSessionOf: (id) => {
+			const found = lookups.workspace(id);
+			return found.ok ? ok(found.value.activeSessionId) : found;
+		},
 	});
 	const notifications = new NotificationService({
 		platform,
