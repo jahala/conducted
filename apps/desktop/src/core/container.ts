@@ -412,6 +412,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		keychain: platform.keychain,
 		setting,
 		probeCwd: platform.fs.paths.home,
+		fs: platform.fs,
 	});
 	const localGitForge = new LocalGitForge({
 		git: gitRunner,
