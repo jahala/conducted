@@ -13,7 +13,9 @@
  * you send a message" and "While the agent is working" (cancel), sessions.md 6.
  * Must handle: a closed chat stays in history and leaves the open list; a reopened chat returns to
  * the open list; an empty title is refused; stored events load once, in `idx` order; a message is
- * held in memory as pending before the sidecar is asked; a send that fails keeps its text for
+ * held in memory as pending before the sidecar is asked; a queued row is sent under its own id,
+ * so a crash before the row is removed cannot send it twice; an explicit steer for an agent that
+ * cannot steer is refused (CHAT-03); a send that fails keeps its text for
  * Retry and Discard; a chat whose first message cannot be sent is removed, so a retry does not
  * leave an empty chat; a chat config is written only while the stored config is still the one the
  * caller saw, so a late answer cannot overwrite a newer choice; a cancel withdraws the open
@@ -609,13 +611,17 @@ export class SessionsService implements AgentMessenger {
 		return ok(undefined);
 	}
 
-	/** Materialises attachments, then hands the message to the sidecar. */
+	/**
+	 * Materialises attachments, then hands the message to the sidecar. A queued row passes its own
+	 * id as `messageId`; any other send gets a fresh one.
+	 */
 	async #prepareAndSend(
 		session: Session,
 		text: string,
 		attachmentPaths: string[],
 		delivery: "new_turn" | "steer",
 		cancelVersion: number,
+		messageId: MessageId | undefined,
 	): Promise<Result<void>> {
 		const workspace = await this.#workspaceContext(session.workspaceId);
 		if (!workspace.ok) return workspace;
@@ -631,7 +637,7 @@ export class SessionsService implements AgentMessenger {
 		return this.#submit(
 			session,
 			{
-				messageId: this.#deps.newId() as MessageId,
+				messageId: messageId ?? (this.#deps.newId() as MessageId),
 				turnId: this.#deps.newId() as TurnId,
 				text,
 				attachmentPaths: paths,
@@ -795,13 +801,16 @@ export class SessionsService implements AgentMessenger {
 
 	/**
 	 * Backs `Actions.sessions.send`. An idle chat starts a new turn. A working chat queues the
-	 * message or steers it, following the user's default or the requested mode.
+	 * message or steers it, following the user's default or the requested mode. A steer asked for
+	 * by name is refused for an agent that cannot steer (CHAT-03). The follow-up queue passes the
+	 * row's id as `messageId`, so the stored user message carries the row's id (CHAT-03).
 	 */
 	async send(
 		id: SessionId,
 		text: string,
 		attachmentPaths: readonly string[],
 		delivery: "auto" | "queue" | "steer",
+		messageId?: MessageId,
 	): Promise<Result<void>> {
 		const found = await this.#session(id);
 		if (!found.ok) return found;
@@ -817,6 +826,14 @@ export class SessionsService implements AgentMessenger {
 			canSteer: agentCanSteer(session.config),
 		});
 
+		if (decision === "steer_unsupported") {
+			return err(
+				appError(
+					"steer_unsupported",
+					"This agent cannot be steered. Send the message as a follow-up instead.",
+				),
+			);
+		}
 		if (decision === "queue") {
 			const queued = await this.#deps.queue.enqueue({
 				sessionId: id,
@@ -833,6 +850,7 @@ export class SessionsService implements AgentMessenger {
 			[...attachmentPaths],
 			decision === "steer" ? "steer" : "new_turn",
 			cancelVersion,
+			messageId,
 		);
 	}
 

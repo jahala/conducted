@@ -10,8 +10,10 @@
  * 2.3.4 and 2.4.4 (local drainer: steer rows first, then the first queued row unless paused), ui-map.md 3.4.
  * Must handle: steer rows go before queue rows; a paused queue releases no queue row; nothing is
  * picked while a row is `sending`; failed rows are skipped; an agent that cannot steer (ACP
- * agents) gets a message sent with steer delivery as a normal follow-up, while an explicit
- * send-now-as-steer fails visibly and leaves the row queued; the queue is released only when the
+ * agents) gets a message sent with the default mode as a normal follow-up, while an explicit
+ * steer (a send with steer delivery, or send-now-as-steer) fails visibly and a queued row stays
+ * queued (other-runners.md 2.4); a row is delivered under its own id, so startup repair finds its
+ * stored user message and never sends it twice; the queue is released only when the
  * chat is idle with no background tasks and no open interaction; cancel drops nothing the user
  * typed (cancel pauses the queue instead) and moves a row that was already `sending` to the end
  * as waiting again (CHAT-05).
@@ -36,15 +38,18 @@ import type { Repositories } from "../db/repositories.ts";
 import type { QueuedMessage } from "../model.ts";
 
 export type SendMode = "auto" | "queue" | "steer";
-export type SendDecision = "send_now" | "queue" | "steer";
+/** `steer_unsupported`: the user asked to steer an agent that cannot take a steer. */
+export type SendDecision = "send_now" | "queue" | "steer" | "steer_unsupported";
 
 /** ACP agents (OpenCode, Pi) cannot take a message in the middle of a turn. */
 export const agentCanSteer = (config: Pick<SessionConfig, "agent">): boolean =>
 	config.agent !== "acp";
 
 /**
- * Decides what happens to a message the user sends. `auto` follows the user's default setting.
- * A steer for an agent that cannot steer becomes a queued follow-up.
+ * Decides what happens to a message the user sends. `auto` follows the user's default setting,
+ * and a default of steer becomes a queued follow-up for an agent that cannot steer. A steer the
+ * user asked for by name is refused for such an agent, so it fails visibly instead of quietly
+ * turning into a follow-up (other-runners.md 2.4).
  */
 export function chooseDelivery(input: {
 	mode: SendMode;
@@ -53,6 +58,7 @@ export function chooseDelivery(input: {
 	canSteer: boolean;
 }): SendDecision {
 	if (!input.working) return "send_now";
+	if (input.mode === "steer" && !input.canSteer) return "steer_unsupported";
 	const wanted = input.mode === "auto" ? input.defaultMode : input.mode;
 	return wanted === "steer" && !input.canSteer ? "queue" : wanted;
 }
@@ -80,7 +86,10 @@ export interface FollowUpQueueState {
 
 export interface FollowUpQueueDeps {
 	repos: Pick<Repositories, "queuedMessages" | "sessions">;
-	/** Sends one row now (new turn or steer). Resolves when the sidecar accepted it. */
+	/**
+	 * Sends one row now (new turn or steer), with the row's id as the message id, so the stored
+	 * user message matches the row. Resolves when the sidecar accepted it.
+	 */
 	deliver: (row: QueuedMessage) => Promise<Result<void>>;
 	/** Undefined for a chat that is not loaded. */
 	liveStateOf: (sessionId: SessionId) => LiveState | undefined;

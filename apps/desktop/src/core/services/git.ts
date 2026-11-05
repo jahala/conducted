@@ -54,7 +54,8 @@
  * 60 s, and switches a workspace to another branch by fetching it, checking it out and
  * fast-forwarding only when the branch can be fast-forwarded. The switch has its own mutex, apart
  * from the other git actions. The branch commits the diff scope lists come from the workspace poll
- * above.
+ * above. `dispose` stops every workspace and branch watcher, and the container's `stop()` calls
+ * it, so no poll outlives the app even when a caller never unsubscribed.
  * The branch picker hooks, the "Switch branch?" confirmation and "Continue" from a detached HEAD
  * belong to WS-02, the screen that shows the dialog and GIT-17; they are not built here.
  * Test first: a workspace watched at depth full runs its poll immediately and again once the
@@ -627,6 +628,25 @@ export class GitService {
 		if (watcher.timer !== null) clearTimeout(watcher.timer);
 		this.#branchWatchers.delete(key);
 		this.#branchesLatest.invalidate(key);
+	}
+
+	/**
+	 * Stops every workspace and branch watcher and drops their timers. The container's `stop()`
+	 * calls it. An unsubscribe that arrives later finds nothing and does nothing.
+	 */
+	dispose(): void {
+		for (const [key, watcher] of this.#watchers) {
+			watcher.stopped = true;
+			if (watcher.timer !== null) clearTimeout(watcher.timer);
+			this.#latest.invalidate(key);
+		}
+		this.#watchers.clear();
+		for (const [key, watcher] of this.#branchWatchers) {
+			watcher.stopped = true;
+			if (watcher.timer !== null) clearTimeout(watcher.timer);
+			this.#branchesLatest.invalidate(key);
+		}
+		this.#branchWatchers.clear();
 	}
 
 	/** The last branch list of a repository, or null until one was read. */

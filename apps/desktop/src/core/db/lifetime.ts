@@ -10,12 +10,21 @@
  * not stop the next and the report lists every outcome; steps never block the UI because they
  * work in batches (`LIMIT` on every delete and update) and yield between batches; user files
  * only go to the Trash through `fs.trash`, and a file is trashed before its row is deleted so a
- * failure leaves a row to retry; every step is safe to run twice (a second run finds nothing).
+ * failure leaves a row to retry; a stored attachment path is trashed only when it lies inside the
+ * draft attachment folder, so a row that points at the user's own file loses its row, keeps the
+ * file, and fails its step with the path named; every step is safe to run twice (a second run
+ * finds nothing); `lifetimeJobResult` turns the steps that failed into one error, so the startup
+ * step reports them as a start warning instead of hiding them inside the report.
  * Test first: ageCutoff turns a day count into a time, and the cut statement is idempotent.
  */
 import { appError, type Clock, err, ok, type Result } from "@conducted/shared";
 import type { Database, FileSystem } from "../../platform/platform.ts";
-import { draftAttachmentsRoot, draftsDir, terminalHistoryFile } from "../app-paths.ts";
+import {
+	draftAttachmentsRoot,
+	draftsDir,
+	isInsideFolder,
+	terminalHistoryFile,
+} from "../app-paths.ts";
 import {
 	executeStatement,
 	inTransaction,
@@ -301,6 +310,9 @@ const removeDraftAttachments: LifetimeStep = {
 		"Trash the files of draft attachments older than the attachment limit, delete their rows in batches, then empty old staging folders.",
 	run: async ({ db, fs, clock, limits }) => {
 		const cutoff = ageCutoff(clock.now(), limits.draftAttachmentMaxAgeDays);
+		const root = draftAttachmentsRoot(fs.paths);
+		// Rows whose path is not inside the attachment folder. Their files are not the app's to trash.
+		const outside: string[] = [];
 		let report = nothingDone();
 		for (;;) {
 			const listed = await selectRows<{ id: string; path: string }>(
@@ -314,6 +326,10 @@ const removeDraftAttachments: LifetimeStep = {
 			const ids: string[] = [];
 			for (const row of listed.value) {
 				ids.push(row.id);
+				if (!isInsideFolder(root, row.path)) {
+					outside.push(row.path);
+					continue;
+				}
 				const removed = await trashIfPresent(fs, row.path);
 				if (!removed.ok) return removed;
 				if (removed.value) report = addReport(report, { rowsChanged: 0, filesTrashed: 1 });
@@ -332,6 +348,14 @@ const removeDraftAttachments: LifetimeStep = {
 		}
 		const swept = await sweepStagingFolders(fs, cutoff);
 		if (!swept.ok) return swept;
+		if (outside.length > 0) {
+			return err(
+				appError(
+					"data_lifetime_path_outside",
+					`${outside.length} old draft attachment${outside.length === 1 ? "" : "s"} pointed outside the app's attachment folder. Their rows were removed and the files were left in place: ${outside.join(", ")}`,
+				),
+			);
+		}
 		return ok(addReport(report, { rowsChanged: 0, filesTrashed: swept.value }));
 	},
 };
@@ -518,6 +542,26 @@ async function writeLastRunAt(db: Database, at: number): Promise<Result<void>> {
 
 const errorFor = (step: LifetimeStepId, cause: unknown) =>
 	appError("data_lifetime_step_failed", `The data-lifetime step ${step} failed.`, cause);
+
+/**
+ * The job's outcome for the startup step. A report whose steps all succeeded, or a skipped run,
+ * is returned as it is. A report with failed steps becomes one error that names each failed step,
+ * so the failure reaches the start warnings instead of staying inside the report.
+ */
+export function lifetimeJobResult(report: LifetimeReport): Result<LifetimeReport> {
+	if (report.kind === "skipped") return ok(report);
+	const failed: string[] = [];
+	for (const step of report.steps) {
+		if (!step.outcome.ok) failed.push(`${step.id}: ${step.outcome.error.message}`);
+	}
+	if (failed.length === 0) return ok(report);
+	return err(
+		appError(
+			"data_lifetime_steps_failed",
+			`Old data was not fully cleaned up. ${failed.join(" ")}`,
+		),
+	);
+}
 
 /**
  * Runs the steps in order unless the last run was less than LIFETIME_MIN_INTERVAL_MS ago. It

@@ -86,7 +86,7 @@ describe("s1-core-1 join", () => {
 			const result = await test.container.actions.sessions.queue.sendNowAsSteer(row.id);
 
 			expect(result).toEqual(ok(undefined));
-			expect(send).toHaveBeenCalledWith(session.id, "Steer this now", [], "steer");
+			expect(send).toHaveBeenCalledWith(session.id, "Steer this now", [], "steer", row.id);
 			expect(must(await repositories.queuedMessages.get(row.id))).toBeNull();
 		} finally {
 			await test.container.stop();
@@ -314,7 +314,8 @@ describe("s1-core-1 join", () => {
 				if (args.includes("ls-files")) return output("");
 				if (args.includes("--symbolic-full-name")) return output("refs/remotes/origin/feature\n");
 				if (args.includes("@{u}")) return output("head-oid\nupstream-oid\n");
-				if (args.includes("reflog")) return output("older-oid\n");
+				// The remote once pointed at the local tip, then a force-push moved it away.
+				if (args.includes("reflog")) return output("upstream-oid\nhead-oid\n");
 				if (args.includes("--left-right")) return output("2\t5\n");
 				if (args.includes("--count")) return output("4\n");
 				if (args.includes("log")) return output("");

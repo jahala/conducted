@@ -14,10 +14,16 @@ import { createRepositories, type Repositories } from "../db/repositories.ts";
 import { sampleSession, userMessageEvent } from "../db/test-fixtures.ts";
 import { SessionResume } from "./resume.ts";
 
-// DATA-02 owns the lifetime job and is not built yet; its startup step is unrelated to resume.
+// The lifetime job's startup step is unrelated to resume, so it reports a skipped run.
 vi.mock("../db/lifetime.ts", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("../db/lifetime.ts")>();
-	return { ...actual, runDataLifetimeJob: async () => ({ ok: true, value: undefined }) };
+	return {
+		...actual,
+		runDataLifetimeJob: async () => ({
+			ok: true,
+			value: { kind: "skipped", lastRunAt: 0 },
+		}),
+	};
 });
 
 const must = <T>(result: { ok: true; value: T } | { ok: false; error: unknown }): T => {

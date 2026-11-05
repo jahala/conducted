@@ -211,14 +211,18 @@ describe("CHAT-03 the follow-up setting chooses steering or queueing", () => {
 		).toBe("send_now");
 	});
 
-	it("queues a steer for OpenCode and Pi instead of offering it", () => {
+	it("queues the default steer for OpenCode and Pi, and refuses a steer asked for by name", () => {
 		expect(agentCanSteer({ agent: "acp" })).toBe(false);
 		expect(agentCanSteer({ agent: "claude" })).toBe(true);
 		expect(agentCanSteer({ agent: "codex" })).toBe(true);
 		expect(agentCanSteer({ agent: "cursor" })).toBe(true);
 		expect(
-			chooseDelivery({ mode: "steer", working: true, defaultMode: "steer", canSteer: false }),
+			chooseDelivery({ mode: "auto", working: true, defaultMode: "steer", canSteer: false }),
 		).toBe("queue");
+		// other-runners.md 2.4: steering an ACP agent fails visibly instead of degrading.
+		expect(
+			chooseDelivery({ mode: "steer", working: true, defaultMode: "steer", canSteer: false }),
+		).toBe("steer_unsupported");
 	});
 
 	it("binds Cmd+Enter to sending with the opposite follow-up behaviour", () => {

@@ -191,7 +191,10 @@ interface Fixture {
 	fileSizes?: Record<string, number>;
 	markers?: string[];
 	upstream?: { head: string; upstream: string } | null;
-	/** Hashes `git reflog show` prints for the upstream ref, one per line. */
+	/**
+	 * Hashes `git reflog show` prints for the upstream ref, one per line. By default it holds only
+	 * the upstream's own tip, so a diverged branch reads as a plain divergence, not a rewrite.
+	 */
 	reflog?: string;
 	aheadBehind?: string;
 	targetCount?: string;
@@ -262,7 +265,7 @@ function changesRunner(fixture: Fixture = {}): {
 			return ok(output(`refs/remotes/origin/${fixture.branch ?? "feat"}\n`));
 		}
 		if (first === "reflog") {
-			return ok(output(fixture.reflog ?? `${fixture.upstream?.head ?? "head"}\n`));
+			return ok(output(fixture.reflog ?? `${fixture.upstream?.upstream ?? "upstream"}\n`));
 		}
 		if (first === "rev-list" && command.args.includes("--left-right")) {
 			return ok(output(`${fixture.aheadBehind ?? "0\t0"}\n`));

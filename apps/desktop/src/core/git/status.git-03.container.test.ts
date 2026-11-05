@@ -9,7 +9,8 @@ const output = (stdout = "", stderr = "", exitCode = 0): Result<ShellOutput> =>
 
 /**
  * Answers the read-only commands of one full poll. The branch diverged by five commits ahead and
- * two behind, and the local tip is absent from the upstream reflog, so the remote reads rewritten.
+ * two behind, and the upstream reflog holds the local tip (the remote pointed at it before a
+ * force-push moved it), so the remote reads rewritten.
  */
 function pollShell(command: ShellCommand): Result<ShellOutput> | null {
 	if (command.program === "stat") return output("", "", 1);
@@ -23,7 +24,7 @@ function pollShell(command: ShellCommand): Result<ShellOutput> | null {
 	if (args.includes("ls-files")) return output("");
 	if (args.includes("--symbolic-full-name")) return output("refs/remotes/origin/feature\n");
 	if (args.includes("@{u}")) return output("head-oid\nupstream-oid\n");
-	if (args.includes("reflog")) return output("older-oid\n");
+	if (args.includes("reflog")) return output("upstream-oid\nhead-oid\n");
 	if (args.includes("--left-right")) return output("2\t5\n");
 	if (args.includes("--count")) return output("4\n");
 	if (args.includes("log")) return output("");

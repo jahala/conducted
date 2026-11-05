@@ -16,7 +16,8 @@
  * the command dispatcher (NAV-14), which is mounted with the app root, so this file does not
  * listen for them a second time; `stop` removes those listeners, stops the settings reload
  * listener and its timer, stops the update and keep-awake timers, cancels `caffeinate`, disposes
- * the repo service, kills terminals and runs, waits for chat events that are being stored, and
+ * the repo service, stops every git poll and branch watcher, kills terminals and runs, waits for
+ * chat events that are being stored, and
  * detaches from the sidecar; every stop step runs even when an earlier one
  * fails (the failure is logged), and a `stop` that comes during `start` lets the running
  * step finish, ends the start before it wires anything new, and then tears down; the
@@ -43,7 +44,7 @@ import { createActions } from "./actions.ts";
 import type { Actions } from "./api.ts";
 import { checkpointerScript, spotlighterScript } from "./app-paths.ts";
 import { fireAndForget } from "./async/fire-and-forget.ts";
-import { DEFAULT_LIFETIME_LIMITS, runDataLifetimeJob } from "./db/lifetime.ts";
+import { DEFAULT_LIFETIME_LIMITS, lifetimeJobResult, runDataLifetimeJob } from "./db/lifetime.ts";
 import { runStartupRepair } from "./db/repair.ts";
 import { createRepositories } from "./db/repositories.ts";
 import { KeyedMutex } from "./git/locks.ts";
@@ -387,7 +388,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 	});
 	const followUpQueue = new FollowUpQueue({
 		repos: repositories,
-		deliver: (row) => sessions.send(row.sessionId, row.text, row.attachmentPaths, row.delivery),
+		// The row id is the message id, so startup repair can tell that a row in `sending` was
+		// already delivered, and the sidecar's duplicate guard drops a second send of it.
+		deliver: (row) =>
+			sessions.send(row.sessionId, row.text, row.attachmentPaths, row.delivery, row.id),
 		liveStateOf: (sessionId) => sessions.store.getState().liveStates[sessionId],
 	});
 	const sessions: SessionsService = new SessionsService({
@@ -634,13 +638,16 @@ export function createContainer(inputs: ContainerInputs): Container {
 			name: "data lifetime",
 			phase: "sidecar",
 			fatal: false,
-			run: () =>
-				runDataLifetimeJob({
+			run: async () => {
+				const ran = await runDataLifetimeJob({
 					db: platform.db,
 					fs: platform.fs,
 					clock,
 					limits: DEFAULT_LIFETIME_LIMITS,
-				}),
+				});
+				// A step that failed sits inside the report; this makes it a start warning.
+				return ran.ok ? lifetimeJobResult(ran.value) : ran;
+			},
 		},
 	];
 	let started: Promise<Result<StartReport>> | null = null;
@@ -851,6 +858,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 			await step("keep-awake", () => keepAwake.stop());
 			await step("notifications", () => notifications.stop());
 			await step("the repo service", () => repo.dispose());
+			await step("git polling", () => git.dispose());
 			await step("GitHub polling", () => github.dispose());
 			await step("terminals", () => terminals.killAll());
 			await step("run scripts", () => runScripts.stopAll());

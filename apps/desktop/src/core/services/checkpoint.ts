@@ -1,5 +1,5 @@
 /**
- * @feature CHAT-15 Checkpoints: per-turn changes, revert and fork; REV-09 Turn changes from checkpoints; DATA-06 Prune turn snapshots
+ * @feature CHAT-15 Checkpoints: per-turn changes and revert; REV-09 Turn changes from checkpoints; DATA-06 Prune turn snapshots
  * Owns: reading the private checkpoint refs that the sidecar writes around each turn, listing
  * what a turn changed, counting files that changed since a checkpoint, restoring the working
  * tree to a turn's start, and removing a chat's checkpoint refs when it is deleted or 30 days
@@ -8,25 +8,31 @@
  * sessions-and-chats.md "Checkpoints, revert, fork and archive", sessions.md 7 (when
  * checkpoints are taken; skipped on merge, rebase or conflicts), data-model.md (turn snapshots'
  * lifetime), D036 (rewind keeps events; refs are pruned).
- * Must handle: a turn with no start checkpoint (the chat gave no restore point: revert and fork
- * are disabled with a reason); refs that are not written yet when the turn just ended (wait a
- * short time, then say "not ready"); more than 200 changed files (the end event omits the list,
- * so compute it from the refs, capped); restoring needs a clean git state, and a command that
- * cannot start, a non-zero exit or any stderr fails the revert without a retry; revert restores
- * first and only then marks later events as reverted, so a failed restore changes nothing, and
- * says "No changes or conversation history have been reverted" when restore fails; fork starts
- * a new chat whose agent resumes the old history only up to the chosen turn; the original chat
- * is untouched; refs are removed only by the two prune methods (when a chat is deleted, and 30
- * days after its workspace was archived), never by revert or fork; the archive prune counts from
- * `archived_at`, not from a later edit of the archived workspace; pruning one chat never touches
- * another chat's refs, even when ids share a prefix. The archive prune runs from the startup
- * checkpoint-pruning step; the chat prune runs when the chat is deleted.
+ * Must handle: a turn with no start checkpoint (the chat gave no restore point: revert is
+ * refused with a reason); refs that are not written yet when the turn just ended (wait a short
+ * time, then say "not ready"); more than 200 changed files (the end event omits the list above
+ * 200 files, so the list is always read from the refs, with no cap); restoring needs a clean git
+ * state, and a command that cannot start, a non-zero exit or any stderr fails the revert without
+ * a retry; revert restores first and only then marks later events as reverted, so a failed
+ * restore changes nothing, and says "No changes or conversation history have been reverted" when
+ * restore fails; refs are removed only by the two prune methods (when a chat is deleted, and 30
+ * days after its workspace was archived), never by revert; the archive prune counts from
+ * `archived_at`, not from a later edit of the archived workspace; one broken archived workspace
+ * or repository does not stop the archive prune for the others, and their failures come back
+ * together in one error; pruning one chat never touches another chat's refs, even when ids share
+ * a prefix. The archive prune runs from the startup checkpoint-pruning step; the chat prune runs
+ * when the chat is deleted.
  * The per-turn change list is read with the checkpointer's own diff, so it includes untracked
  * files and honours the repository's ignore rules like the checkpoint itself. It is cached per
  * chat and turn; every caller gets its own copy of the list, so one caller's change cannot reach
  * the cache. The cache holds at most 5 MB and evicts the oldest turns first.
  * Our design choice: a revert restores files and hides later events in one user action when the
- * "Also reset files" preference is on. The chat's agent process is not restarted here.
+ * "Also reset files" preference is on.
+ * Not built yet: the agent is not rewound. Its own transcript still holds the reverted turns, so
+ * its next turn remembers them although the chat no longer shows them. Rewinding it (the sidecar's
+ * `resetAgent`, then a resume at the chosen turn with `resume.atNativeMessageId`) is an open item
+ * on CHAT-15's checklist. Fork from a turn (`forkFrom`) is CHAT-16's placeholder and fork to a
+ * new workspace (`forkToWorkspace`) is CHAT-21's; neither is built here.
  * Test first: reverting to a turn without a start checkpoint returns an Err and changes nothing.
  */
 import type { FileChange } from "@conducted/protocol";
@@ -271,7 +277,9 @@ export class CheckpointService {
 	/**
 	 * Removes checkpoint refs of chats whose workspace was archived more than `olderThanDays` ago.
 	 * The cutoff is counted from `workspaces.archived_at`, so a later note or pin does not restart
-	 * the clock. Runs from the startup checkpoint-pruning step.
+	 * the clock. Runs from the startup checkpoint-pruning step. One broken workspace or repository
+	 * does not stop the others: every repository is tried, and the failures come back together in
+	 * one error after the rest were pruned.
 	 */
 	async pruneArchived(olderThanDays: number): Promise<Result<number>> {
 		const repositories = this.#deps.repositories;
@@ -289,22 +297,31 @@ export class CheckpointService {
 		const workspaces = await databases.workspaces.listByState("archived");
 		if (!workspaces.ok) return workspaces;
 
+		// Each failure names the workspace or repository it came from. The loop goes on, so one
+		// broken archive cannot stop the prune for every other repository at every start.
+		const failures: string[] = [];
+
 		// One ref scan per repository, not one per chat: an old archive can hold many chats, and
 		// this runs at every start.
 		const byRepository = new Map<string, SessionId[]>();
 		for (const workspace of workspaces.value) {
 			if (workspace.archivedAt === null || workspace.archivedAt >= cutoff) continue;
 			const repository = await databases.repos.get(workspace.repoId);
-			if (!repository.ok) return repository;
+			if (!repository.ok) {
+				failures.push(`workspace ${workspace.id}: ${repository.error.message}`);
+				continue;
+			}
 			if (repository.value === null) {
-				return err(
-					appError("repo_unknown", "The project of an archived workspace no longer exists."),
-				);
+				failures.push(`workspace ${workspace.id}: its project no longer exists`);
+				continue;
 			}
 			const sessions = await databases.sessions.listByWorkspace(workspace.id, {
 				includeClosed: true,
 			});
-			if (!sessions.ok) return sessions;
+			if (!sessions.ok) {
+				failures.push(`workspace ${workspace.id}: ${sessions.error.message}`);
+				continue;
+			}
 			const existing = byRepository.get(repository.value.rootPath) ?? [];
 			existing.push(...sessions.value.map((session) => session.id));
 			byRepository.set(repository.value.rootPath, existing);
@@ -323,9 +340,22 @@ export class CheckpointService {
 				);
 				return this.#deleteRefs(repoRootPath, refs);
 			});
-			if (!deleted.ok) return deleted;
+			if (!deleted.ok) {
+				failures.push(`${repoRootPath}: ${deleted.error.message}`);
+				continue;
+			}
 			removed += deleted.value;
 			for (const sessionId of sessionIds) this.#forgetTurnChanges(sessionId);
+		}
+		if (failures.length > 0) {
+			return err(
+				appError(
+					"checkpoint_prune_failed",
+					`Old checkpoint refs could not be removed in ${failures.length} place${
+						failures.length === 1 ? "" : "s"
+					} (${removed} removed elsewhere). ${failures.join("; ")}`,
+				),
+			);
 		}
 		return ok(removed);
 	}
