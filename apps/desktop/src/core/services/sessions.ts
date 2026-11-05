@@ -1,11 +1,12 @@
 /**
  * @feature CHAT-01 Sessions service: the chat list; CHAT-02 Send a message as a new turn; CHAT-05
- * Cancel a turn
+ * Cancel a turn; CHAT-27 Retry a failed turn in a new chat
  * Owns: the list of chats per workspace, their stored live state and events in memory, the
  * create, close, reopen, rename, set-title-if-empty, delete and open paths, sending a user
- * message as a new turn or a steer, and cancelling a turn: pausing the follow-up queue,
- * withdrawing the open interaction, removing only the pending sends the sidecar dropped, and
- * putting a send that was still in flight back in the composer draft.
+ * message as a new turn or a steer, cancelling a turn: pausing the follow-up queue, withdrawing
+ * the open interaction, removing only the pending sends the sidecar dropped, and putting a send
+ * that was still in flight back in the composer draft, and starting a failed turn's message
+ * again in a new chat of the same workspace.
  * Behaviour: services-map.md 2.3.3 (session operations), 2.2 (the sessions table), 2.3.4
  * (composer outbox: restore to draft), ui-map.md 3.2, sessions-and-chats.md "What happens when
  * you send a message" and "While the agent is working" (cancel), sessions.md 6.
@@ -29,8 +30,9 @@
  * queue service keeps them), while the messages the sidecar had not delivered come back into the
  * composer draft with their attachments.
  * Test first: a send holds the pending message in memory before it reaches the sidecar, a late
- * config write leaves the newer stored choice in place, and a cancel pauses the queue and returns
- * the dropped message to the draft.
+ * config write leaves the newer stored choice in place, a cancel pauses the queue and returns
+ * the dropped message to the draft, and a retry in a new chat sends the failed turn's message
+ * there.
  *
  * The progress and unread paths live in the same service but belong to CHAT-13 and NAV-11. They
  * are placeholders until those features build them. The chat view (turns built from stored
@@ -1384,8 +1386,35 @@ export class SessionsService implements AgentMessenger {
 		return ok(undefined);
 	}
 
-	retryInNewChat(_id: SessionId, _turnId: TurnId): Promise<Result<Session>> {
-		return notImplemented("CHAT-27");
+	/**
+	 * Backs `Actions.sessions.retryInNewChat`: sends a failed turn's message again in a new chat of
+	 * the same workspace, with the failed chat's config. The old chat stays open and unchanged.
+	 */
+	async retryInNewChat(id: SessionId, turnId: TurnId): Promise<Result<Session>> {
+		const found = await this.#session(id);
+		if (!found.ok) return found;
+		const session = found.value;
+		const state = this.store.getState();
+		const liveState = state.liveStates[id] ?? idleLiveState;
+		const turns = buildTurns(state.events[id] ?? [], liveState);
+		const turn = turns.find((candidate) => candidate.turnId === turnId);
+		if (turn === undefined) {
+			return err(appError("chat_turn_unknown", "That turn is no longer in this chat."));
+		}
+		const message = turn.userMessage;
+		if (message === null) {
+			return err(
+				appError(
+					"chat_turn_no_message",
+					"This turn was not started by you, so there is no message to retry.",
+				),
+			);
+		}
+
+		const created = await this.create(session.workspaceId, session.config);
+		if (!created.ok) return created;
+		const sent = await this.send(created.value.id, message.text, message.attachmentPaths, "auto");
+		return sent.ok ? created : sent;
 	}
 
 	/** /restart: `resetAgent`, then warm the agent again with resume. */

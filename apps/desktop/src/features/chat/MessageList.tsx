@@ -1,19 +1,20 @@
 /**
- * @feature CHAT-06 Message list
+ * @feature CHAT-06 Message list; CHAT-27 Visible auto-retry with Retry now
  * Owns: The virtualised list of turns in a chat, with a header for older history, a footer for the
- * live state, and the scroll-to-bottom behaviour.
+ * live state, the running turn's retry line, and the scroll-to-bottom behaviour.
  * Behaviour: frontend.md 5 (one virtualised item per turn, keyed by turn id; Header for history
  * loading; Footer; a 'Scroll to bottom' button over the list; increaseViewportBy 600), ui-map.md
- * 3.3 (list).
+ * 3.3 (list; 'Something went wrong, retrying n/m' with Retry now on the running turn).
  * Our design choice: Built on react-virtuoso's Virtuoso (MIT) instead of the commercial
  * VirtuosoMessageList. Use data + computeItemKey (turn id), increaseViewportBy, followOutput
  * (follow only while the user is at the bottom, via atBottomStateChange), components.Header and
  * components.Footer, and a ref to scrollToIndex. Only the newest turn changes while streaming:
  * TurnItem is memoised on the turn object, and the service (CHAT-07) keeps unchanged turns
  * referentially equal.
- * Must handle: Loading (skeleton turns); an error card (no retry action is owned here); empty chat
- * (EmptyChat with starters, or none in an archived workspace; the composer bar says the workspace
- * is read-only); a turn added while the user reads old messages (no jump, show Scroll to bottom);
+ * Must handle: Loading (skeleton turns); an error card and the running turn's retry line (their
+ * actions live in TurnItem and ChatBanner); empty chat (EmptyChat with starters, or none in an
+ * archived workspace; the composer bar says the workspace is read-only); a turn added while the
+ * user reads old messages (no jump, show Scroll to bottom);
  * the chat switches (list resets to the bottom); a very long turn; each turn in its own boundary
  * 'This chat turn failed to render. Other turns are still available.'; 2000 turns stay smooth (tested at that size).
  * Test first: With 2000 turns only a small window of TurnItem is mounted; appending a block to the
@@ -103,7 +104,13 @@ export function MessageList({ sessionId, workspaceId }: MessageListProps) {
 							ref={listRef}
 							data={data.turns}
 							computeItemKey={(_, turn) => turn.turnId}
-							itemContent={(_, turn) => <TurnItem turn={turn} sessionId={sessionId} />}
+							itemContent={(index, turn) => (
+								<TurnItem
+									turn={turn}
+									sessionId={sessionId}
+									retry={index === data.turns.length - 1 ? data.liveState.retry : undefined}
+								/>
+							)}
 							initialTopMostItemIndex={Math.max(0, data.turns.length - 1)}
 							increaseViewportBy={600}
 							followOutput={(isAtBottom) => (isAtBottom ? "smooth" : false)}

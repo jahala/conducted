@@ -1,19 +1,20 @@
 /**
- * @feature CHAT-06 One block of a turn
+ * @feature CHAT-06 One block of a turn; CHAT-27 Visible auto-retry with Retry now
  * Owns: choosing the component for each block of an assistant turn: text, thinking, tool call, todo list,
  * notice or error.
  * Behaviour: frontend.md 5 (tool cards keyed by kind, thinking and todo as their own kinds), ui-map.md 3.3
- * (banners in the list).
+ * (banners in the list; an error block offers Retry in new chat).
  * Must handle: every ChatBlock kind has a view (the switch is exhaustive, so a new kind fails to compile here);
  * an empty text block renders nothing; a streaming text block grows in place; a block whose view is a
- * placeholder, or throws, is replaced by one line and the rest of the turn stays.
+ * placeholder, or throws, is replaced by one line and the rest of the turn stays; a retry target reaches an
+ * error block's banner.
  * Test first: a tool block renders the tool card for its call; a notice block renders a banner.
  */
 import type { SessionId } from "@conducted/shared";
 import type { ChatBlock } from "../../core/model.ts";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { AssistantText } from "./AssistantText.tsx";
-import { ChatBanner } from "./ChatBanner.tsx";
+import { ChatBanner, type RetryInNewChatTarget } from "./ChatBanner.tsx";
 import { ThinkingBlock } from "./ThinkingBlock.tsx";
 import { TodoBlock } from "./TodoBlock.tsx";
 import { ToolCard } from "./tools/ToolCard.tsx";
@@ -32,10 +33,12 @@ function BlockContent({
 	block,
 	sessionId,
 	onRetry,
+	retryInNewChat,
 }: {
 	block: ChatBlock;
 	sessionId: SessionId;
 	onRetry?: () => void;
+	retryInNewChat?: RetryInNewChatTarget;
 }) {
 	switch (block.kind) {
 		case "text":
@@ -48,7 +51,7 @@ function BlockContent({
 			return <TodoBlock item={block.item} />;
 		case "notice":
 		case "error":
-			return <ChatBanner block={block} onRetry={onRetry} />;
+			return <ChatBanner block={block} onRetry={onRetry} retryInNewChat={retryInNewChat} />;
 	}
 }
 
@@ -61,18 +64,26 @@ export function ChatBlockView({
 	block,
 	sessionId,
 	onRetry,
+	retryInNewChat,
 }: {
 	block: ChatBlock;
 	sessionId: SessionId;
 	/** Resends the last message, for a retryable error block. */
 	onRetry?: () => void;
+	/** The failed turn to send again in a new chat, for an error block. */
+	retryInNewChat?: RetryInNewChatTarget;
 }) {
 	// A streaming block that failed on half a sentence gets another try when more text arrives.
 	const resetKey =
 		block.kind === "text" || block.kind === "thinking" ? block.text.length : undefined;
 	return (
 		<NotBuiltYet area={BLOCK_AREA[block.kind]} variant="inline" resetKey={resetKey}>
-			<BlockContent block={block} sessionId={sessionId} onRetry={onRetry} />
+			<BlockContent
+				block={block}
+				sessionId={sessionId}
+				onRetry={onRetry}
+				retryInNewChat={retryInNewChat}
+			/>
 		</NotBuiltYet>
 	);
 }
