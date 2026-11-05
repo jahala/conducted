@@ -1,0 +1,135 @@
+name: Coverage
+
+# Measures how much of the code the tests run, and reports numbers only. It sets no threshold yet.
+# It is separate from ci.yml, so pull requests do not pay for it.
+#   - TypeScript (desktop and sidecar) runs on every push to main, on demand, and when this file changes.
+#   - Rust runs on demand and when this file changes. It is not on push: macOS minutes cost ten times as much.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - .github/workflows/coverage.yml
+
+permissions:
+  contents: read
+
+# A newer run of the same ref replaces the older one.
+concurrency:
+  group: coverage-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Desktop (Vitest, v8 provider) and sidecar (bun test). Each writes a report folder that is
+  # uploaded as an artifact, and a summary on the run page.
+  typescript:
+    runs-on: ubuntu-latest
+    # A hung test would otherwise run for GitHub's default of six hours.
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7.0.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # ratchet:pnpm/action-setup@v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # ratchet:actions/setup-node@v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # ratchet:oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version-file: .bun-version
+      - run: pnpm install --frozen-lockfile
+      # These call the coverage scripts directly, not `pnpm test`: the run-owned temp folder check
+      # belongs to the test run and has nothing to say about report folders.
+      - name: Desktop coverage (reports in apps/desktop/coverage)
+        run: pnpm --filter @conducted/desktop test:coverage 2>&1 | tee "$RUNNER_TEMP/desktop.txt"
+      - name: Sidecar coverage (reports in packages/sidecar/coverage)
+        run: pnpm --filter @conducted/sidecar test:coverage 2>&1 | tee "$RUNNER_TEMP/sidecar.txt"
+      - name: Write the summary
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            echo "## Desktop (Vitest, v8)"
+            echo
+            if [ -f apps/desktop/coverage/coverage-summary.json ]; then
+              echo "| Measure | Covered | Total | % |"
+              echo "| --- | ---: | ---: | ---: |"
+              jq -r '.total | to_entries[] | "| \(.key) | \(.value.covered) | \(.value.total) | \(.value.pct) |"' \
+                apps/desktop/coverage/coverage-summary.json
+            else
+              echo "No desktop report was written."
+            fi
+            echo
+            echo "## Sidecar (bun test)"
+            echo
+            echo '```'
+            sed -n '/^-*|/,$p' "$RUNNER_TEMP/sidecar.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload the reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # ratchet:actions/upload-artifact@v7.0.2
+        with:
+          name: coverage-typescript
+          path: |
+            apps/desktop/coverage
+            packages/sidecar/coverage
+            ${{ runner.temp }}/desktop.txt
+            ${{ runner.temp }}/sidecar.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  # The Rust shell, measured with cargo-llvm-cov. It runs on macOS like ci.yml's Rust job, so it
+  # only runs on demand and when this file changes.
+  rust:
+    if: github.event_name != 'push'
+    # The app is macOS-only (WKWebView, Keychain, Apple speech), so the shell is measured on macOS.
+    runs-on: macos-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: apps/desktop/src-tauri
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # ratchet:actions/checkout@v7.0.1
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # ratchet:dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # ratchet:Swatinem/rust-cache@v2.9.3
+        with:
+          workspaces: apps/desktop/src-tauri
+      - uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # ratchet:taiki-e/install-action@v2.90.1
+        with:
+          tool: cargo-llvm-cov
+      # The toolchain file in this folder pins Rust, so rustup adds the component to that version.
+      - name: Add the LLVM tools the coverage report needs
+        run: rustup component add llvm-tools-preview
+      - name: Run the tests once with coverage on
+        run: cargo llvm-cov --no-report
+      - name: Write the reports (reports in apps/desktop/src-tauri/coverage)
+        run: |
+          mkdir -p coverage
+          cargo llvm-cov report --summary-only | tee coverage/summary.txt
+          cargo llvm-cov report --summary-only --json --output-path coverage/summary.json
+          cargo llvm-cov report --lcov --output-path coverage/lcov.info
+      - name: Write the summary
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            echo "## Rust (cargo-llvm-cov)"
+            echo
+            echo '```'
+            cat coverage/summary.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload the reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # ratchet:actions/upload-artifact@v7.0.2
+        with:
+          name: coverage-rust
+          path: apps/desktop/src-tauri/coverage
+          if-no-files-found: error
+          retention-days: 14

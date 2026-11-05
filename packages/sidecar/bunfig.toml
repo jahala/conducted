@@ -1,0 +1,4 @@
+# Bun settings for the sidecar. Read by `bun test` in this folder.
+[test]
+# Coverage lists the code under test, not the test files themselves.
+coverageSkipTestFiles = true
