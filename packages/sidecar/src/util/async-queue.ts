@@ -13,6 +13,7 @@ export class AsyncQueue<T> implements AsyncIterable<T> {
 	private readonly buffer: T[] = [];
 	private waiting: ((result: IteratorResult<T>) => void) | null = null;
 	private closed = false;
+	private consumerStarted = false;
 
 	/** Adds a value. Returns false when the queue is closed and the value was dropped. */
 	push(value: T): boolean {
@@ -43,14 +44,16 @@ export class AsyncQueue<T> implements AsyncIterable<T> {
 	}
 
 	[Symbol.asyncIterator](): AsyncIterator<T> {
+		// A queue is a single stream. A second reader would steal values from the first.
+		if (this.consumerStarted) throw new Error("AsyncQueue supports one consumer at a time");
+		this.consumerStarted = true;
 		return {
 			next: () => {
-				const value = this.buffer.shift();
-				if (value !== undefined) return Promise.resolve({ value, done: false });
-				if (this.closed) return Promise.resolve({ value: undefined, done: true });
-				if (this.waiting) {
-					throw new Error("AsyncQueue supports one consumer at a time");
+				if (this.buffer.length > 0) {
+					const value = this.buffer.shift() as T;
+					return Promise.resolve({ value, done: false });
 				}
+				if (this.closed) return Promise.resolve({ value: undefined, done: true });
 				return new Promise<IteratorResult<T>>((resolve) => {
 					this.waiting = resolve;
 				});

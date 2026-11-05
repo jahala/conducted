@@ -29,14 +29,23 @@
  * Test first: with a scripted query function that yields init, assistant text and a result for
  * the pushed uuid, runTurn emits the text message and resolves with success.
  * Our design choice: the SDK's query function is a constructor parameter (Conductor does this
- * too), so tests drive the session with a scripted stream and never start a real CLI.
+ * too), so tests drive the session with a scripted stream and never start a real CLI. The
+ * translator, the permission handler and the app tools server are injected as well, so this
+ * feature can be built and tested before AGENT-03, AGENT-04 and SIDE-12 exist.
  */
-import type { Options, Query, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
+import type {
+	CanUseTool,
+	Options,
+	Query,
+	SDKMessage,
+	SDKUserMessage,
+} from "@anthropic-ai/claude-agent-sdk";
 import type { SessionConfig } from "@conducted/protocol";
 import type { SessionId } from "@conducted/shared";
 import { notImplemented } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
 import type { AppToolBackend } from "../../tools/backend.ts";
+import { AsyncQueue } from "../../util/async-queue.ts";
 import type {
 	AgentSession,
 	StartOptions,
@@ -44,6 +53,14 @@ import type {
 	TurnInput,
 	TurnOutcome,
 } from "../runner.ts";
+import { type CheckpointGate, createCheckpointHook } from "./checkpoint-hook.ts";
+import { INTERRUPT_GRACE_MS } from "./constants.ts";
+import { buildClaudeOptions } from "./options.ts";
+import type { PermissionHandlerDeps } from "./permission-handler.ts";
+import { createMirrorStore } from "./session-mirror.ts";
+import { SteerReceipts } from "./steer-receipts.ts";
+import type { ClaudeTranslator } from "./translate.ts";
+import { ClaudeTurnTracker, type Scheduler } from "./turn-tracker.ts";
 
 /** The SDK's query function, as a type. */
 export type QueryFunction = (params: {
@@ -56,49 +73,414 @@ export interface ClaudeSessionDeps {
 	executablePath: string;
 	appTools: AppToolBackend;
 	logger: Logger;
+	/** Turns SDK messages into our neutral format (AGENT-03). */
+	translator: ClaudeTranslator;
 	/** Checks for a resumable transcript on disk. */
 	hasTranscript(sessionId: SessionId, cwd: string): Promise<boolean>;
 	/** Resolves symlinks for the edit-path check. Returns null when the path cannot be resolved. */
 	realPath(path: string): Promise<string | null>;
 	newUuid(): string;
+	/** Timers for the settlement watchdog; tests pass a fake. */
+	scheduler: Scheduler;
+	/** Builds the SDK's canUseTool callback (AGENT-04). */
+	createCanUseTool(deps: PermissionHandlerDeps): CanUseTool;
+	/** Builds the app tools MCP server for this chat (SIDE-12). */
+	createMcpServers(input: {
+		sessionId: SessionId;
+		appTools: SessionConfig["appTools"];
+		backend: AppToolBackend;
+		logger: Logger;
+	}): NonNullable<Options["mcpServers"]>;
+}
+
+interface Deferred<T> {
+	promise: Promise<T>;
+	resolve(value: T): void;
+}
+
+/** A promise a later event resolves, such as the result message that ends a turn. */
+function deferred<T>(): Deferred<T> {
+	let resolve: (value: T) => void = () => {};
+	const promise = new Promise<T>((settle) => {
+		resolve = settle;
+	});
+	return { promise, resolve };
 }
 
 export class ClaudeSession implements AgentSession {
 	readonly sessionId: SessionId;
+
+	private readonly receipts = new SteerReceipts();
+	private readonly tracker: ClaudeTurnTracker;
+	private config: SessionConfig;
+	private input: AsyncQueue<SDKUserMessage> | null = null;
+	private query: Query | null = null;
+	private abortController: AbortController | null = null;
+	private callbacks: TurnCallbacks | null = null;
+	private currentGate: (() => Promise<void>) | undefined;
+	private turnDeferred: Deferred<TurnOutcome> | null = null;
+	private turnOpen = false;
+	private turnSettled = true;
+	private cancelling = false;
+	/** Bumped by cancel and dispose so a start that raced them does not send its message. */
+	private generation = 0;
+	private disposed = false;
+	private agentSessionId: string | null = null;
+	private agentSessionIdReported = false;
+	private exited: Promise<void> = Promise.resolve();
+	private resolveExit: (() => void) | null = null;
+	private startPending: Promise<void> | null = null;
+	private readonly stderrTail: string[] = [];
 
 	constructor(
 		protected readonly deps: ClaudeSessionDeps,
 		protected readonly start: StartOptions,
 	) {
 		this.sessionId = start.sessionId;
+		this.config = start.config;
+		this.tracker = new ClaudeTurnTracker({
+			receipts: this.receipts,
+			scheduler: deps.scheduler,
+			onSettle: (outcome) => this.settleTurn(outcome),
+		});
 	}
 
 	/** Spawns the process (query() with an open input stream) so the first message starts fast. */
-	warm(): Promise<void> {
-		return notImplemented("AGENT-02");
+	async warm(): Promise<void> {
+		await this.ensureStarted();
 	}
 
-	runTurn(_input: TurnInput, _callbacks: TurnCallbacks): Promise<TurnOutcome> {
-		return notImplemented("AGENT-02");
+	async runTurn(input: TurnInput, callbacks: TurnCallbacks): Promise<TurnOutcome> {
+		if (this.turnOpen) {
+			return {
+				kind: "error",
+				message: "A turn is already in progress for this chat.",
+				retryable: false,
+			};
+		}
+		this.turnOpen = true;
+		this.turnSettled = false;
+		this.cancelling = false;
+		this.callbacks = callbacks;
+		const turn = deferred<TurnOutcome>();
+		this.turnDeferred = turn;
+		this.currentGate = once(() => callbacks.beforeFirstWrite());
+		this.config = input.config;
+		if (this.agentSessionId !== null && !this.agentSessionIdReported) {
+			this.agentSessionIdReported = true;
+			callbacks.onAgentSessionId(this.agentSessionId);
+		}
+
+		const generation = this.generation;
+		try {
+			await this.ensureStarted();
+		} catch (cause) {
+			const message = cause instanceof Error ? cause.message : String(cause);
+			this.deps.logger.error("The Claude session could not start", {
+				sessionId: this.sessionId,
+				message,
+			});
+			this.finishTurn();
+			return { kind: "error", message, retryable: false };
+		}
+
+		// A cancel or dispose during the start settled the turn and must not send the message.
+		if (generation !== this.generation || this.turnSettled) {
+			const outcome = await turn.promise;
+			this.finishTurn();
+			return outcome;
+		}
+
+		const uuid = this.deps.newUuid();
+		this.tracker.expectTurn(uuid);
+		const queue = this.input;
+		if (queue === null || !queue.push(this.userMessage(input.text, uuid))) {
+			this.finishTurn();
+			return {
+				kind: "error",
+				message: "The Claude session ended before the message could be sent.",
+				retryable: true,
+			};
+		}
+
+		const outcome = await turn.promise;
+		this.finishTurn();
+		return outcome;
 	}
 
 	steer(_input: TurnInput): Promise<{ consumed: Promise<void> }> {
 		return notImplemented("AGENT-05");
 	}
 
-	cancel(): Promise<void> {
-		return notImplemented("AGENT-02");
+	async cancel(): Promise<void> {
+		if (!this.turnOpen) return;
+		this.generation += 1;
+		this.cancelling = true;
+		const query = this.query;
+		if (query === null) {
+			this.settleCancelled();
+			return;
+		}
+		try {
+			await query.interrupt();
+		} catch (cause) {
+			this.deps.logger.debug("The Claude interrupt request failed", {
+				sessionId: this.sessionId,
+				message: cause instanceof Error ? cause.message : String(cause),
+			});
+		}
+		const ended = await this.waitForTurn(INTERRUPT_GRACE_MS);
+		if (ended) return;
+		// The agent did not stop on the interrupt, so stop the process. The next turn resumes.
+		this.settleCancelled();
+		this.stopProcess();
 	}
 
 	applyConfig(_config: SessionConfig): Promise<"applied" | "restart"> {
 		return notImplemented("AGENT-04");
 	}
 
-	contextUsage(): Promise<{ usedTokens: number; windowTokens: number } | null> {
-		return notImplemented("AGENT-02");
+	async contextUsage(): Promise<{ usedTokens: number; windowTokens: number } | null> {
+		const query = this.query;
+		if (query === null) return null;
+		try {
+			const usage = await query.getContextUsage({ detail: "summary" });
+			return { usedTokens: usage.totalTokens, windowTokens: usage.maxTokens };
+		} catch (cause) {
+			this.deps.logger.debug("Could not read the Claude context usage", {
+				sessionId: this.sessionId,
+				message: cause instanceof Error ? cause.message : String(cause),
+			});
+			return null;
+		}
 	}
 
-	dispose(): Promise<void> {
-		return notImplemented("AGENT-02");
+	async dispose(): Promise<void> {
+		if (this.disposed) return;
+		this.disposed = true;
+		this.generation += 1;
+		this.settleCancelled();
+		const input = this.input;
+		const abort = this.abortController;
+		const exited = this.exited;
+		this.input = null;
+		this.query = null;
+		this.abortController = null;
+		input?.close();
+		abort?.abort();
+		await exited;
 	}
+
+	/** Starts the one process for this chat, unless one already runs or is starting. */
+	private ensureStarted(): Promise<void> {
+		if (this.disposed) return Promise.reject(new Error("The Claude session was disposed."));
+		if (this.query !== null) return Promise.resolve();
+		if (this.startPending !== null) return this.startPending;
+		const started = this.startNow().finally(() => {
+			if (this.startPending === started) this.startPending = null;
+		});
+		this.startPending = started;
+		return started;
+	}
+
+	private async startNow(): Promise<void> {
+		const hasTranscript = await this.deps.hasTranscript(
+			this.sessionId,
+			this.start.workspace.workspacePath,
+		);
+		if (this.disposed) throw new Error("The Claude session was disposed.");
+		if (this.query !== null) return;
+
+		const input = new AsyncQueue<SDKUserMessage>();
+		const abort = new AbortController();
+		const gate: CheckpointGate = { current: () => this.currentGate };
+		const options = buildClaudeOptions({
+			start: { ...this.start, config: this.config },
+			executablePath: this.deps.executablePath,
+			hasTranscript,
+			canUseTool: this.deps.createCanUseTool(this.permissionDeps()),
+			hooks: { PreToolUse: [createCheckpointHook(gate)] },
+			mcpServers: this.deps.createMcpServers({
+				sessionId: this.sessionId,
+				appTools: this.config.appTools,
+				backend: this.deps.appTools,
+				logger: this.deps.logger,
+			}),
+			sessionStore: createMirrorStore((uuid) => {
+				this.receipts.consume(uuid);
+			}),
+			abortController: abort,
+			onStderr: (line) => this.onStderr(line),
+		});
+
+		this.stderrTail.length = 0;
+		this.agentSessionIdReported = false;
+		this.input = input;
+		this.abortController = abort;
+		this.exited = new Promise<void>((resolve) => {
+			this.resolveExit = resolve;
+		});
+		const query = this.deps.query({ prompt: input, options });
+		this.query = query;
+		void this.consume(query, input);
+	}
+
+	/** Reads the SDK stream until the process ends, forwarding messages and settling turns. */
+	private async consume(query: Query, input: AsyncQueue<SDKUserMessage>): Promise<void> {
+		try {
+			for await (const message of query) this.handleMessage(message);
+			this.tracker.onStreamEnded();
+		} catch (cause) {
+			const error = cause instanceof Error ? cause : new Error(String(cause));
+			this.deps.logger.error(
+				`Claude session ${this.sessionId} failed`,
+				errorDetails(error, this.stderrTail),
+			);
+			this.tracker.onStreamEnded(error);
+		} finally {
+			input.close();
+			if (this.query === query) {
+				this.query = null;
+				this.input = null;
+				this.abortController = null;
+			}
+			this.resolveExit?.();
+			this.resolveExit = null;
+		}
+	}
+
+	private handleMessage(message: SDKMessage): void {
+		this.noteSessionId(message);
+		const callbacks = this.callbacks;
+		const decision = this.tracker.onSdkMessage(message);
+		if (decision.action === "hold_back" || callbacks === null) return;
+		for (const agentMessage of this.deps.translator.translate(message)) {
+			callbacks.onMessage(agentMessage);
+		}
+	}
+
+	/** Reports the agent's own session id once, so the app can store it for resume. */
+	private noteSessionId(message: SDKMessage): void {
+		const id = (message as { session_id?: unknown }).session_id;
+		if (typeof id !== "string" || id === "") return;
+		this.agentSessionId = id;
+		if (this.agentSessionIdReported || this.callbacks === null) return;
+		this.agentSessionIdReported = true;
+		this.callbacks.onAgentSessionId(id);
+	}
+
+	private onStderr(line: string): void {
+		// The CLI's own debug lines are noise.
+		if (line.includes("[DEBUG]")) return;
+		if (line.includes("Fast mode requires extra usage billing")) {
+			this.callbacks?.onFastModeUnavailable();
+			return;
+		}
+		this.stderrTail.push(line);
+		if (this.stderrTail.length > 20) this.stderrTail.shift();
+		this.deps.logger.debug("Claude stderr", { sessionId: this.sessionId, line });
+	}
+
+	/** Settles the current turn as cancelled, even when the tracker never saw a user message. */
+	private settleCancelled(): void {
+		this.tracker.cancel();
+		this.settleTurn({ kind: "cancelled" });
+	}
+
+	private settleTurn(outcome: TurnOutcome): void {
+		if (this.turnSettled) return;
+		this.turnSettled = true;
+		this.receipts.clear();
+		this.currentGate = undefined;
+		const final: TurnOutcome =
+			this.cancelling && outcome.kind !== "cancelled" ? { kind: "cancelled" } : outcome;
+		const turn = this.turnDeferred;
+		this.turnDeferred = null;
+		// The callbacks of this turn must not receive anything after it ends.
+		this.callbacks = null;
+		turn?.resolve(final);
+	}
+
+	private finishTurn(): void {
+		this.turnOpen = false;
+		this.callbacks = null;
+		this.currentGate = undefined;
+		this.turnDeferred = null;
+		this.cancelling = false;
+	}
+
+	/** True when the open turn ended within `ms`, so cancel need not stop the process. */
+	private waitForTurn(ms: number): Promise<boolean> {
+		const turn = this.turnDeferred;
+		if (turn === null) return Promise.resolve(true);
+		return new Promise<boolean>((resolve) => {
+			let done = false;
+			let cancelTimer: () => void = () => {};
+			const finish = (ended: boolean) => {
+				if (done) return;
+				done = true;
+				cancelTimer();
+				resolve(ended);
+			};
+			cancelTimer = this.deps.scheduler.after(ms, () => finish(false));
+			void turn.promise.then(() => finish(true));
+		});
+	}
+
+	private stopProcess(): void {
+		const input = this.input;
+		const abort = this.abortController;
+		this.input = null;
+		this.query = null;
+		this.abortController = null;
+		input?.close();
+		abort?.abort();
+	}
+
+	private permissionDeps(): PermissionHandlerDeps {
+		return {
+			config: () => this.config,
+			allowedDirectories: () => [
+				this.start.workspace.workspacePath,
+				...this.config.additionalDirectories,
+			],
+			callbacks: () => this.callbacks ?? undefined,
+			realPath: (path) => this.deps.realPath(path),
+			isSessionLive: () => !this.disposed && this.query !== null,
+			setPermissionMode: async (mode) => {
+				await this.query?.setPermissionMode(mode);
+			},
+		};
+	}
+
+	private userMessage(text: string, uuid: string): SDKUserMessage {
+		return {
+			type: "user",
+			message: { role: "user", content: text },
+			parent_tool_use_id: null,
+			session_id: this.agentSessionId ?? this.sessionId,
+			uuid: uuid as SDKUserMessage["uuid"],
+		};
+	}
+}
+
+/** A function that runs once; later calls share the first promise. */
+function once(fn: () => Promise<void>): () => Promise<void> {
+	let started: Promise<void> | null = null;
+	return () => {
+		if (started === null) started = fn();
+		return started;
+	};
+}
+
+function errorDetails(error: Error, stderrTail: readonly string[]): Record<string, unknown> {
+	const extra = error as Error & { code?: unknown; exitCode?: unknown; signal?: unknown };
+	return {
+		errorClass: error.constructor.name,
+		code: extra.code,
+		exitCode: extra.exitCode,
+		signal: extra.signal,
+		message: error.message,
+		stderrTail: stderrTail.join("\n"),
+	};
 }
