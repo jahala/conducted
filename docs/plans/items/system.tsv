@@ -2390,7 +2390,7 @@ WS-09	state	Session aggregate order is needs plan response, needs permission, ne
 WS-09	state	Lifecycle labels Setting up and Failed come from the workspace state.	ui-map 3.8	covered
 WS-11	state	The Unstarted workspace label needs an unstarted workspace state that the model does not have.	ui-map 3.8	missing
 WS-09	state	Git and PR labels apply in order: Merged, In merge queue, Ready to merge, Draft pull request, Merge conflict, Checks failing, Checks running, Pull request open.	ui-map 3.8	covered
-WS-09	state	Conductor's Local workspace and Ready (has branch) labels are replaced by our own Changes and Ready.	ui-map 3.8	partly
+WS-09	state	Conductor's Local workspace and Ready (has branch) labels are replaced by our own Changes and Clean.	ui-map 3.8	partly
 PLAT-16	integration	A deep link can open the create page with path, branch and prompt filled in; the create page reads no parameters.	ui-map 3.9	partly
 WS-02	git	Create from Pull requests lists the repository's PRs; the API has no list hook.	ui-map 3.9	partly
 GIT-12	git	Create from Branches lists the repository's branches.	ui-map 3.9	covered
@@ -2702,3 +2702,79 @@ PLAT-28	operation	The agent detector prefers the managed copy of an agent progra
 SIDE-25	rule	The sidecar's process and file adapters live in their own edge modules, each with a test, and the composition root only composes.	native-and-sidecar-map B1	missing
 PLAT-27	rule	Closing the app kills every terminal it started.	native-and-sidecar-map A4	missing
 PLAT-08	rule	A terminal snapshot keeps colours, attributes and the cursor, and does not replay scrollback as visible lines.	native-and-sidecar-map A4	missing
+SIDE-02	rule	Use AGENT_ERROR_CODES.authRequired instead of the "agent_auth_required" literal (moved from AGENT-03 by the step-3 audit).	docs/reports/audits/step-3	missing
+SIDE-03	rule	Wire the RPC, composer chip and setClaudeEditAutoAccept end to end and add its end-to-end test (moved from AGENT-04 by the step-3 audit).	docs/reports/audits/step-3	missing
+SIDE-20	rule	Tell the app the permission mode changed after an approved plan (moved from AGENT-04 by the step-3 audit).	docs/reports/audits/step-3	missing
+COMP-03	rule	Account "Claude Code tool approvals", "Default to plan mode in new chats", /plan and the Auto permission mode setting (moved from AGENT-04 by the step-3 audit).	docs/reports/audits/step-3	missing
+COMP-01	rule	The bar has no importer and Composer.tsx is owned by COMP-01 (moved from APP-04 by the step-3 audit).	docs/reports/audits/step-3	missing
+PR-07	rule	PrEmptyState, ChangesEmpty and FileTabState have no importer, and the PR-07, REV-01 and REV-08 rows do not list the wiring (moved from APP-04 by the step-3 audit).	docs/reports/audits/step-3	missing
+NAV-10	rule	'View chat history' button and chat tab menu mounting (moved from CHAT-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+NAV-10	rule	Cmd+T new chat handler (moved from CHAT-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+WS-01	rule	Auto-create the first chat (createFirstChat) (moved from CHAT-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+NAV-11	rule	Chat tab menu Mark as read/unread (moved from CHAT-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+CHAT-17	rule	Chat tab menu Copy concise/full transcript (moved from CHAT-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+COMP-04	rule	Suggestions and chips (moved from COMP-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+COMP-05	rule	Suggestions and chips (moved from COMP-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+COMP-06	rule	Suggestions and built-in commands (moved from COMP-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+COMP-07	rule	Files, images, long text, and the convertsToAttachment/auto_convert_long_text wiring (moved from COMP-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+CHAT-04	rule	Queued-message editing (moved from COMP-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+NAV-10	rule	Composer minimises when a content tab is open (moved from COMP-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+WS-01	rule	New-workspace form reuses the same editor and toolbar (moved from COMP-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+NAV-14	rule	Dispatch through the command registry/shortcut dispatcher (moved from COMP-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+WS-05	rule	Finishing or rolling back a workspace left in archiving, and reading RepairReport.archivingWorkspaces from the startup step (moved from DATA-03 by the step-3 audit).	docs/reports/audits/step-3	missing
+WS-01	rule	The Retry action on the failed workspace screen (moved from DATA-03 by the step-3 audit).	docs/reports/audits/step-3	missing
+APP-01	rule	A test that chat live state is reset before any screen reads it (moved from DATA-03 by the step-3 audit).	docs/reports/audits/step-3	missing
+PLAT-18	rule	Platform.app.writeLog still throws notImplemented("PLAT-18"); ingest now treats its own logger failure as a value, and the real logger remains PLAT-18's work (moved from DATA-04 by the step-3 audit).	docs/reports/audits/step-3	missing
+GIT-04	rule	The live path has no source for either yet (moved from GIT-02 by the step-3 audit).	docs/reports/audits/step-3	missing
+GIT-04	rule	StateOf is still GIT-04 (moved from GIT-02 by the step-3 audit).	docs/reports/audits/step-3	missing
+GIT-06	rule	Every git action is still a placeholder (moved from GIT-02 by the step-3 audit).	docs/reports/audits/step-3	missing
+REV-06	rule	This is the file tree's refetch, not the git changes poll (moved from GIT-02 by the step-3 audit).	docs/reports/audits/step-3	missing
+REV-01	rule	No TanStack query exists yet; DATA-01 says keys ship with the first query (moved from GIT-02 by the step-3 audit).	docs/reports/audits/step-3	missing
+REV-01	rule	Same first query (moved from GIT-02 by the step-3 audit).	docs/reports/audits/step-3	missing
+REV-01	rule	The git and workspace query subtree is invalidated on turn end, setup end, file revert and git action: no TanStack queries exist to invalidate (moved from GIT-02 by the step-3 audit).	docs/reports/audits/step-3	missing
+WS-05	rule	Call clearPanelLayout("workspace-right-panels-<workspaceId>") from the workspace delete/archive path so its saved layout is removed (moved from NAV-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+PLAT-27	rule	Tauri-plugin-sql 2.6.0 calls Pool::connect with default options and exposes no pool-size setting, so an explicit one-connection pin is not a one-line change; the serialised queue keeps one statement in flight meanwhile (moved from PLAT-02 by the step-3 audit).	docs/reports/audits/step-3	missing
+PLAT-18	rule	Wiring app.writeLog before PLAT-18 builds it would be a fake success; the logger is off until then (moved from PLAT-02 by the step-3 audit).	docs/reports/audits/step-3	missing
+PLAT-18	rule	A Tauri command timing log needs the same log sink as app.writeLog (moved from PLAT-02 by the step-3 audit).	docs/reports/audits/step-3	missing
+PLAT-15	rule	Window.toggleInspector still calls notImplemented("PLAT-15") and there is no window_toggle_inspector Rust command (moved from PLAT-02 by the step-3 audit).	docs/reports/audits/step-3	missing
+PLAT-01	rule	The Platform contract against the real Tauri implementation needs the planned end-to-end job (contract.ts already says so) (moved from PLAT-02 by the step-3 audit).	docs/reports/audits/step-3	missing
+SET-01	rule	Add the cli/pat key to the settings registry (moved from PR-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+SET-02	rule	Show githubTokenWarning and confirm before saving on the Account page (moved from PR-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+SET-02	rule	Show saml-sso-required and missing-scope on the Account page (the class stays on the access state) (moved from PR-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+PR-02	rule	IsGithubRemoteUrl/forgeForRemoteUrl and the login-derived branch prefix have no non-test caller (moved from PR-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+PR-03	rule	Polling cadence, no-PR memory, closed-PR display and focus pause (moved from PR-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+PR-02	rule	Create and openOnGithub (moved from PR-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+PR-05	rule	FixErrors and rerunFailedChecks (moved from PR-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+PR-06	rule	MarkReady, setAutoMerge, approve, updateTitleAndBody, requestReview, removeReviewRequest (moved from PR-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+PR-08	rule	SyncStack (moved from PR-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+PR-10	rule	LinkPullRequest (moved from PR-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+PR-11	rule	AttachIssueToWorkspace (moved from PR-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+PR-12	rule	CatchUpStackBranch (moved from PR-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+WS-05	rule	The header claim and the workspace service stub (moved from PR-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+NAV-07	rule	Connect project.add to the add-project flow (moved from PRJ-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+SET-02	rule	Build the Advanced "Root folder" page and connect conducted_root_path to addLocal (moved from PRJ-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+NAV-10	rule	Open a new centre terminal with the big-terminal preset (moved from RUN-06 by the step-3 audit).	docs/reports/audits/step-3	missing
+NAV-10	rule	Supply onNewTerminal from the tab strip (moved from RUN-06 by the step-3 audit).	docs/reports/audits/step-3	missing
+NAV-10	rule	The terminal-side action that calls composer.addText (moved from RUN-06 by the step-3 audit).	docs/reports/audits/step-3	missing
+NAV-10	rule	Report the composer failure in the terminal UI (moved from RUN-06 by the step-3 audit).	docs/reports/audits/step-3	missing
+RUN-02	rule	Spotlight opens the repository terminal (moved from RUN-06 by the step-3 audit).	docs/reports/audits/step-3	missing
+NAV-10	rule	The UI that opens terminals.openForRepo (moved from RUN-06 by the step-3 audit).	docs/reports/audits/step-3	missing
+NAV-10	rule	The big-terminal preset flow that calls terminals.create({ command }) (moved from RUN-06 by the step-3 audit).	docs/reports/audits/step-3	missing
+NAV-10	rule	Create terminals in the centre with the preset command (moved from RUN-06 by the step-3 audit).	docs/reports/audits/step-3	missing
+NAV-10	rule	Drag a terminal from the right panel into the centre (moved from RUN-06 by the step-3 audit).	docs/reports/audits/step-3	missing
+SET-06	rule	Show it when the settings store fails (moved from RUN-06 by the step-3 audit).	docs/reports/audits/step-3	missing
+RUN-07	rule	Replay the saved screen and restart once (moved from RUN-06 by the step-3 audit).	docs/reports/audits/step-3	missing
+RUN-01	rule	Scripts panel collapse control (moved from RUN-06 by the step-3 audit).	docs/reports/audits/step-3	missing
+RUN-01	rule	Mount the tab body in the scripts panel (moved from RUN-06 by the step-3 audit).	docs/reports/audits/step-3	missing
+CHAT-06	rule	Strip a leading "absolutely right" phrase from assistant replies in the message renderer (moved from SET-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+DATA-05	rule	The layer order and reading are DATA-05's and tested in core/services/settings.test.ts (moved from SET-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+SIDE-06	rule	Start the real host on a temporary socket path and read the SOCKET_PATH= line from stdout, once FileEventOutbox.open (SIDE-06) and AppToolsBridge.start (SIDE-13) are real (moved from SIDE-02 by the step-3 audit).	docs/reports/audits/step-3	missing
+SIDE-01	rule	Pass notifyFailure into LoginShellEnvProvider and call app.notify("shellEnvFailed", …) in modes/sidecar-mode.ts (moved from SIDE-10 by the step-3 audit).	docs/reports/audits/step-3	missing
+SIDE-01	rule	Make spawnText in modes/sidecar-mode.ts return a timeout error code so a killed shell is classified as timeout (moved from SIDE-10 by the step-3 audit).	docs/reports/audits/step-3	missing
+SIDE-21	rule	Make SIDE-21's buildAgentEnvironment delegate to buildAgentEnv and fill StartOptions.env on a runner start (moved from SIDE-10 by the step-3 audit).	docs/reports/audits/step-3	missing
+CHAT-18	rule	The app handler is notImplemented("CHAT-18") (moved from SIDE-10 by the step-3 audit).	docs/reports/audits/step-3	missing
+WS-01	rule	Warming a folder's login shell after the worktree exists belongs to workspace creation (moved from SIDE-10 by the step-3 audit).	docs/reports/audits/step-3	missing
+PLAT-25	rule	Add bundle.externalBin to apps/desktop/src-tauri/tauri.conf.json and wire the built per-CPU files into the release bundle (moved from SIDE-23 by the step-3 audit).	docs/reports/audits/step-3	missing
+WS-11	rule	Remove "unstarted" from the shared WorkspaceStatus union or produce it (moved from WS-09 by the step-3 audit).	docs/reports/audits/step-3	missing
+APP-01	rule	A container test proves settings load first at startup (moved from SET-01 by the step-3 audit).	docs/reports/audits/step-3	missing
+PLAT-02	operation	A Rust command returns the database file's path (moved from PLAT-02's audit; needs db.rs and lib.rs).	docs/reports/audits/step-3	missing

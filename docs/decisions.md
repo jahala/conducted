@@ -318,3 +318,9 @@ Why: every finding ends in a fix, an owner or a visible row, and none is lost in
 Context: two features (WS-09, COMP-01) passed their node gate's `pnpm lint` and then failed it on the step branch, both on `useExhaustiveDependencies`. The same commit passed lint inside a worktree under `.git/` (where pleach puts its worktrees) and failed outside it. Biome switches its React rules on only when it detects React, and it does not detect it from inside `.git/`.
 Chosen: `biome.json` turns the React domain on by name (`linter.domains.react: "recommended"`). Checked on the known case: with the setting, the same file fails lint inside `.git/` too.
 Why: a gate must check the same rules wherever it runs.
+
+## D045. From step 3, audits rank findings and the LATER ones stay in the repo (2026-11-05)
+
+Context: step 2's audits returned about 140 findings, and fixing every one cost a fixer per feature and most of an hour. Many were test gaps and wording that do not change behaviour.
+Chosen: each audit marks every finding MUST (a bug, a false header claim, a banned pattern, duplicated logic, an unsafe read or write) or LATER (everything else). Fixers handle every MUST. LATER findings are committed unchanged in `docs/reports/audits/` beside the step's PR, so a later contributor can take them up. A MOVE line from a fixer that names a backlog id becomes a checklist item on that feature, added by script; one without an owner goes to the morning report.
+Why: the night's money and time go to behaviour, and nothing an audit found is lost.
