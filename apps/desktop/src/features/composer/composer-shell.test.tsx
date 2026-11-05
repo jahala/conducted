@@ -127,6 +127,10 @@ const harness = (options: HarnessOptions = {}) => {
 		isEnabled: vi.fn(() => true),
 		run: vi.fn(async () => ok(undefined)),
 	};
+	const agentCatalog = {
+		store: createStore(() => ({ slashCommands: {} })),
+		loadSlashCommands: vi.fn(async () => ok([])),
+	};
 	const platform = {
 		app: { writeLog: vi.fn(), onDeepLink: () => () => {} },
 		menu: {
@@ -141,6 +145,7 @@ const harness = (options: HarnessOptions = {}) => {
 			sessions: { store: sessions },
 			settings: settingsService,
 			commands,
+			agentCatalog,
 		},
 		actions: {
 			sessions: {

@@ -19,11 +19,7 @@
 		"apps/desktop/src/app/SurfaceLayer.tsx": 2,
 		"apps/desktop/src/core/async/optimistic.ts": 1,
 		"apps/desktop/src/core/db/sections.ts": 1,
-<<<<<<< HEAD
-		"apps/desktop/src/core/git/commands.ts": 13,
-=======
 		"apps/desktop/src/core/git/commands.ts": 12,
->>>>>>> 902c4b46bc91eadb9a6234e5705c372d44642f19
 		"apps/desktop/src/core/git/gh-commands.ts": 2,
 		"apps/desktop/src/core/hooks/git.ts": 1,
 		"apps/desktop/src/core/hooks/github.ts": 2,
