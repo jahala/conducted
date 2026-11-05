@@ -28,5 +28,6 @@ test("steer failures fall back as the research describes", () => {
 	});
 	expect(resolveSteerFailure({ kind: "no_active_turn", sessionIdle: false }).action).toBe("fail");
 	expect(resolveSteerFailure({ kind: "reverted" })).toEqual({ action: "queue" });
+	expect(resolveSteerFailure({ kind: "unsupported" })).toEqual({ action: "queue" });
 	expect(resolveSteerFailure({ kind: "cancelled" })).toEqual({ action: "drop" });
 });

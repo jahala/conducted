@@ -17,11 +17,14 @@ export const RECENT_MESSAGE_CAP = 100;
 
 export type DuplicateVerdict = "new" | "duplicate";
 
+export type DeliveredAs = "new_turn" | "steer" | "queued";
+
 export class DuplicateGuard {
 	private running: MessageId | null = null;
 	private readonly queued = new Set<MessageId>();
 	private readonly inFlight = new Set<MessageId>();
 	private readonly recent: MessageId[] = [];
+	private readonly deliveries = new Map<MessageId, DeliveredAs>();
 
 	check(id: MessageId): DuplicateVerdict {
 		if (this.running === id || this.queued.has(id) || this.inFlight.has(id)) return "duplicate";
@@ -49,7 +52,10 @@ export class DuplicateGuard {
 		this.inFlight.delete(id);
 		if (this.running === id) this.running = null;
 		this.recent.push(id);
-		if (this.recent.length > RECENT_MESSAGE_CAP) this.recent.shift();
+		if (this.recent.length > RECENT_MESSAGE_CAP) {
+			const evicted = this.recent.shift();
+			if (evicted !== undefined) this.deliveries.delete(evicted);
+		}
 	}
 
 	/** Forgets a message completely, for example a cancelled queued message. */
@@ -59,5 +65,22 @@ export class DuplicateGuard {
 		if (this.running === id) this.running = null;
 		const at = this.recent.indexOf(id);
 		if (at !== -1) this.recent.splice(at, 1);
+		this.deliveries.delete(id);
+	}
+
+	/** Drops every steer that is still being sent. Returns the ids so the caller can forget them. */
+	cancelInFlight(): MessageId[] {
+		const ids = [...this.inFlight];
+		for (const id of ids) this.forget(id);
+		return ids;
+	}
+
+	/** How the message was delivered, for the answer to a repeated send. */
+	rememberDelivery(id: MessageId, deliveredAs: DeliveredAs): void {
+		this.deliveries.set(id, deliveredAs);
+	}
+
+	deliveryOf(id: MessageId): DeliveredAs | undefined {
+		return this.deliveries.get(id);
 	}
 }

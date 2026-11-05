@@ -31,3 +31,22 @@ test("forget lets a cancelled message be sent again", () => {
 	guard.forget(id("q"));
 	expect(guard.check(id("q"))).toBe("new");
 });
+
+test("the delivery of a handled message is remembered for a repeated send", () => {
+	const guard = new DuplicateGuard();
+	guard.markQueued(id("q"));
+	guard.rememberDelivery(id("q"), "queued");
+	guard.markHandled(id("q"));
+	expect(guard.deliveryOf(id("q"))).toBe("queued");
+	guard.forget(id("q"));
+	expect(guard.deliveryOf(id("q"))).toBeUndefined();
+});
+
+test("cancelInFlight forgets every steer that is still being sent", () => {
+	const guard = new DuplicateGuard();
+	guard.markInFlight(id("a"));
+	guard.markInFlight(id("b"));
+	expect(guard.cancelInFlight()).toEqual([id("a"), id("b")]);
+	expect(guard.check(id("a"))).toBe("new");
+	expect(guard.check(id("b"))).toBe("new");
+});

@@ -9,6 +9,9 @@
  * message ids were dropped; a queued message keeps the config it was sent with.
  * Test first: enqueue a, b; dequeue gives a then b; clear() returns [a, b] when nothing was
  * dequeued.
+ * Our design choice: user messages carry delivery, not a queued/sent state (D031). A queued
+ * message is written as a user_message event only when it starts its turn, so this file holds the
+ * request and nothing is emitted while it waits.
  */
 import type { MessageId } from "@conducted/shared";
 import type { TurnRequest } from "./turn.ts";
