@@ -25,7 +25,7 @@ import {
 } from "@tanstack/react-router";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Editor } from "@tiptap/react";
-import { createElement, type ReactNode } from "react";
+import { createElement, Fragment, type ReactNode } from "react";
 import { VirtuosoMockContext } from "react-virtuoso";
 import { afterEach, describe, expect, it, vi } from "vitest";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
@@ -53,6 +53,8 @@ import {
 	seedWorkspace,
 	type TestContainer,
 } from "../test/container.ts";
+// biome-ignore lint/style/noRestrictedImports: the join test mounts the toast host the app root mounts
+import { Toaster } from "../ui/Toast.tsx";
 import { ServicesProvider } from "./context.tsx";
 import { createRepositories } from "./db/repositories.ts";
 import type { PullRequest, ToolCallView } from "./model.ts";
@@ -166,7 +168,10 @@ async function mountChatPane(
 	await router.load();
 }
 
-/** Mounts the real composer and hands back its editor. */
+/**
+ * Mounts the real composer and hands back its editor, beside the toast host the app root mounts
+ * (AppProviders), so a message the composer toasts reaches the screen as it does in the app.
+ */
 async function mountComposer(
 	test: TestContainer,
 	workspaceId: WorkspaceId,
@@ -176,13 +181,18 @@ async function mountComposer(
 	render(
 		withServices(
 			test,
-			createElement(Composer, {
-				workspaceId,
-				sessionId,
-				onEditorReady: (ready: Editor | null) => {
-					editor = ready;
-				},
-			}),
+			createElement(
+				Fragment,
+				null,
+				createElement(Composer, {
+					workspaceId,
+					sessionId,
+					onEditorReady: (ready: Editor | null) => {
+						editor = ready;
+					},
+				}),
+				createElement(Toaster),
+			),
 		),
 	);
 	await waitFor(() => expect(editor).not.toBeNull());

@@ -191,7 +191,9 @@ describe("CHAT-20 schedule wake-up card", () => {
 				sessionId={sessionId}
 			/>,
 		);
-		expect(screen.getByText(/in the past/i)).toBeTruthy();
+		// A call with no result yet is running, so its card is open (CHAT-08): the header summary and
+		// the body both name the time.
+		expect(screen.getAllByText("Wake-up time is in the past")).toHaveLength(2);
 	});
 
 	it("shows an absolute wake-up time as a time, whenever the chat is read", () => {

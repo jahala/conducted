@@ -207,6 +207,9 @@ describe("REV-01 changes tab", () => {
 		);
 		fireEvent.contextMenu(screen.getByLabelText("Open src/a/x.ts"));
 		fireEvent.click(await screen.findByRole("menuitem", { name: "Discard changes" }));
+		// Discard asks first, because it cannot be undone (the row menu's confirm, REV-06).
+		expect(await screen.findByRole("heading", { name: "Discard file changes?" })).toBeTruthy();
+		fireEvent.click(screen.getByRole("button", { name: "Discard" }));
 		expect(state.toast.error).toHaveBeenCalledWith("Reverting to a turn is not supported yet.");
 		expect(state.discardFile).not.toHaveBeenCalled();
 	});
@@ -225,7 +228,8 @@ describe("REV-01 diff scope menu", () => {
 		fireEvent.keyDown(trigger, { key: "Enter" });
 		const sub = await screen.findByRole("menuitem", { name: "Target branch" });
 		fireEvent.keyDown(sub, { key: "ArrowRight" });
-		expect(await screen.findByText("This part failed to load.")).toBeTruthy();
+		// The inline boundary says its area and the failure on one line.
+		expect(await screen.findByText("Target branch: This part failed to load.")).toBeTruthy();
 		expect(screen.getByRole("menuitemradio", { name: /Uncommitted changes/ })).toBeTruthy();
 	});
 

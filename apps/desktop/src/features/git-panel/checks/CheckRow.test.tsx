@@ -92,7 +92,8 @@ describe("PR-04 check row", () => {
 		const toggle = screen.getByRole("button", { name: /Build/ });
 		fireEvent.click(toggle);
 		await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
-		expect(screen.getByText("a log line")).toBeTruthy();
+		// The query renders its answer after the read resolves, a tick after the call itself.
+		expect(await screen.findByText("a log line")).toBeTruthy();
 
 		fireEvent.click(toggle);
 		fireEvent.click(toggle);

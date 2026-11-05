@@ -16,7 +16,8 @@ describe("PR-04 check log ANSI", () => {
 		);
 		const red = screen.getByText("red");
 		expect(red.className).toContain("text-term-red");
-		expect(screen.getByText("before ").className).not.toContain("text-term-red");
+		// The default matcher trims the span's text, so the plain run before the escape reads "before".
+		expect(screen.getByText("before").className).not.toContain("text-term-red");
 	});
 
 	it("drops the escapes from the visible text", () => {

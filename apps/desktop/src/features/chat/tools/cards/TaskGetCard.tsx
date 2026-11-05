@@ -3,8 +3,9 @@
  * Owns: The card for the agent reading one task, and the task field readers the other task cards
  * share.
  * Behaviour: ui-map.md 3.3 (Tasks: 'Task details' with Status, Subject, Blocked by, Blocks).
- * Must handle: A task that no longer exists (its raw result is shown); empty Blocked by and Blocks
- * lists ('None'); a result that is JSON or the agent's text form.
+ * Must handle: A task that no longer exists (the read fails and the agent's text is shown, with the
+ * task id still in the header); empty Blocked by and Blocks lists ('None'); a result that is JSON
+ * or the agent's text form.
  * Test first: A task_get result renders 'Task details' with its status and subject.
  */
 import { Fragment } from "react";
@@ -214,13 +215,19 @@ export function TaskFieldsBody({ fields }: { fields: TaskFields }) {
 
 export function TaskGetCard({ call, defaultExpanded }: ToolCardProps) {
 	const inputFields = taskFieldsFrom(call.item.input);
-	const resultFields = call.result === null ? null : readTask(call.result.output);
-	const fields = resultFields ?? (hasTaskFields(inputFields) ? inputFields : null);
+	// A failed read carries no task, only the agent's text saying why, so the card shows that text
+	// instead of the fields the input asked about.
+	const failed = call.result?.isError === true;
+	const resultFields = call.result === null || failed ? null : readTask(call.result.output);
+	const fields = failed
+		? null
+		: (resultFields ?? (hasTaskFields(inputFields) ? inputFields : null));
+	const named = fields ?? inputFields;
 	const raw = call.result?.output ?? "";
 	return (
 		<ToolCardFrame
 			title="Task details"
-			summary={fields?.subject ?? fields?.id ?? undefined}
+			summary={named.subject ?? named.id ?? undefined}
 			status={toolStatus(call)}
 			icon={<ListTodoIcon />}
 			expandAll={defaultExpanded}
