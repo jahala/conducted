@@ -40,6 +40,8 @@
  * The progress path lives in the same service but belongs to CHAT-13. The chat view (turns built
  * from stored events) belongs to CHAT-07. Cancel is CHAT-05's, and the interaction paths (answer,
  * requestInteraction) are CHAT-10's. CHAT-18 owns `applyLiveState` and `markInterrupted` here.
+ * CHAT-15 owns `markReverted`, which marks the open chat's loaded events from the reverted turn
+ * onward so the turn list hides them without a reload.
  * Read state is NAV-11's: mark a chat or a workspace read or unread, and remember the chat on
  * screen for notifications.
  * SIDE-20 owns `applyAgentConfig`, which stores a config the agent changed by itself.
@@ -1335,6 +1337,26 @@ export class SessionsService implements AgentMessenger {
 		if (closedInteractionId !== null) {
 			this.#settleInteraction(closedInteractionId, { kind: "withdrawn" });
 		}
+	}
+
+	/**
+	 * Reflects a completed revert in the open chat's store: every event from the turn's user
+	 * message onward is marked reverted, exactly as the database write did. The turn list then
+	 * drops those turns without reloading the chat. Events are kept, never removed.
+	 */
+	markReverted(sessionId: SessionId, turnId: TurnId, at: number): void {
+		this.store.setState((state) => {
+			const loaded = state.events[sessionId];
+			if (loaded === undefined) return {};
+			const first = loaded.find(
+				(row) => row.event.turnId === turnId && row.event.type === "user_message",
+			);
+			if (first === undefined) return {};
+			const events = loaded.map((row) =>
+				row.idx >= first.idx && row.revertedAt === null ? { ...row, revertedAt: at } : row,
+			);
+			return { events: { ...state.events, [sessionId]: events } };
+		});
 	}
 
 	async setAgentSessionId(sessionId: SessionId, agentSessionId: string): Promise<Result<void>> {

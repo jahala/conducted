@@ -10,13 +10,15 @@
  * Keyboard: ArrowUp and ArrowDown move the selected file (in ChangedFileList). The command
  * "Open the diff view" (Cmd+Shift+D, or the user's rebind) opens the selected file's diff through
  * the command dispatcher. Moving between comments (Cmd+Alt+J and K) belongs to REV-03.
- * Discard is offered only for the whole-branch scopes: it puts a file back to the target branch,
- * which would be a surprise from a one-commit or one-turn view.
+ * Discard is offered for the whole-branch scopes and the uncommitted view: it puts a file back to
+ * the target branch, which would be a surprise from a one-commit view.
  * Must handle: loading (skeleton rows), an error with its message (the list reloads by itself on
- * the next poll), no git status (rebase or merge underway), no changes, a filter that matches nothing, untracked files cut off at the cap, a very
- * long list (virtualised), conflicted files first, and a scope change while a request is in
- * flight (only the newest answer may update the list). The Viewed mark belongs to REV-02; this
- * tab leaves its checkbox out until that store exists.
+ * the next poll), no git status (rebase or merge underway), no changes, a filter that matches
+ * nothing, untracked files cut off at the cap, a very long list (virtualised), conflicted files
+ * first, and a scope change while a request is in flight (only the newest answer may update the
+ * list). The Viewed mark belongs to REV-02; this tab leaves its checkbox out until that store
+ * exists. A per-turn view offers Discard changes and says that reverting one file to a turn is
+ * not supported yet (CHAT-15), instead of discarding a file against the branch.
  * Test first: with three ChangedFile rows and the filter "src/a", only the matching row renders.
  */
 import type { WorkspaceId } from "@conducted/shared";
@@ -25,7 +27,7 @@ import { useCommandHandler } from "../../../app/command-dispatcher.ts";
 import type { DiffScope } from "../../../core/api.ts";
 import { useActions, useBranchCommits, useChangedFiles, useGitState } from "../../../core/hooks.ts";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
-import { toastError } from "../../../ui/Toast.tsx";
+import { toast, toastError } from "../../../ui/Toast.tsx";
 import { ChangedFileList } from "./ChangedFileList.tsx";
 import { ChangesEmpty } from "./ChangesEmpty.tsx";
 import { ChangesToolbar } from "./ChangesToolbar.tsx";
@@ -100,6 +102,10 @@ export function ChangesTab({ workspaceId, scope, onScopeChange, onOpenFile }: Ch
 	};
 
 	const discard = (path: string) => {
+		if (scope.kind === "turn") {
+			toast.error("Reverting to a turn is not supported yet.");
+			return;
+		}
 		void actions.git.discardFile(workspaceId, path).then((result) => {
 			if (!result.ok) toastError("Couldn't discard the changes", result.error);
 		});
@@ -135,7 +141,7 @@ export function ChangesTab({ workspaceId, scope, onScopeChange, onOpenFile }: Ch
 					onOpen={onOpenFile}
 					onToggleFolder={toggleFolder}
 					collapsedFolders={collapsedFolders}
-					onDiscard={narrowed ? undefined : discard}
+					onDiscard={scope.kind === "commit" ? undefined : discard}
 				/>
 				{git.state === "ready" && git.data.untrackedFilesTruncated && includesWorkingTree ? (
 					<ChangesEmpty reason="untracked_truncated" />

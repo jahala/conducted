@@ -5,8 +5,10 @@ import type { ChatTurn } from "../../core/model.ts";
 
 const state = vi.hoisted(() => ({
 	copyText: vi.fn(),
+	cancel: vi.fn(),
 	forkFrom: vi.fn(),
 	revertTo: vi.fn(),
+	setSetting: vi.fn(),
 	toastError: vi.fn(),
 }));
 
@@ -15,14 +17,22 @@ vi.mock("../../ui/Toast.tsx", () => ({ toastError: state.toastError }));
 vi.mock("../../core/hooks.ts", () => ({
 	useActions: () => ({
 		app: { copyText: state.copyText },
-		sessions: { forkFrom: state.forkFrom, revertTo: state.revertTo },
+		sessions: { cancel: state.cancel, forkFrom: state.forkFrom, revertTo: state.revertTo },
+		settings: { set: state.setSetting },
 	}),
+	useSetting: () => false,
 }));
 
 const { TurnFooter } = await import("./TurnFooter.tsx");
 
 beforeEach(() => {
-	for (const fn of [state.copyText, state.forkFrom, state.revertTo]) {
+	for (const fn of [
+		state.copyText,
+		state.cancel,
+		state.forkFrom,
+		state.revertTo,
+		state.setSetting,
+	]) {
 		fn.mockReset();
 		fn.mockResolvedValue({ ok: true, value: undefined });
 	}
@@ -106,15 +116,23 @@ describe("CHAT-06 turn footer", () => {
 		fireEvent.keyDown(trigger, { key: "Enter" });
 	}
 
-	it("tells the user when a reset fails", async () => {
+	it("opens the reset dialog from the turn menu", async () => {
+		render(<TurnFooter turn={turn({ startCheckpointId: "c1" })} sessionId={sessionId} />);
+		await openMenu();
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Reset chat" }));
+		expect(await screen.findByRole("heading", { name: "Reset chat?" })).toBeTruthy();
+		expect(state.revertTo).not.toHaveBeenCalled();
+	});
+
+	it("shows why a reset failed and keeps the dialog open", async () => {
 		const error = appError("git_failed", "The checkpoint is gone.");
 		state.revertTo.mockResolvedValue(err(error));
 		render(<TurnFooter turn={turn({ startCheckpointId: "c1" })} sessionId={sessionId} />);
 		await openMenu();
 		fireEvent.click(await screen.findByRole("menuitem", { name: "Reset chat" }));
-		await waitFor(() =>
-			expect(state.toastError).toHaveBeenCalledWith("Couldn't reset the chat", error),
-		);
+		fireEvent.click(await screen.findByRole("button", { name: "Reset" }));
+		expect(await screen.findByText("The checkpoint is gone.")).toBeTruthy();
+		expect(screen.getByRole("heading", { name: "Reset chat?" })).toBeTruthy();
 	});
 
 	it("tells the user when a fork fails", async () => {
