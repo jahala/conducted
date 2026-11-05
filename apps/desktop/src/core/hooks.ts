@@ -60,32 +60,75 @@ import { idleLiveState } from "@conducted/protocol";
 import { notImplemented, type WorkspaceId } from "@conducted/shared";
 import { useMemo } from "react";
 import { useStore } from "zustand";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 import type { Actions, Queries } from "./api.ts";
 import { useServices } from "./context.tsx";
+import type { GitState } from "./model.ts";
+import type { WorkspaceGitEntry } from "./services/git.ts";
+import type { WorkspacePrEntry } from "./services/github.ts";
 import type { SessionsState } from "./services/sessions.ts";
-import { deriveWorkspaceStatus } from "./status/workspace-status.ts";
+import { type ChatStatusInput, deriveWorkspaceStatus } from "./status/workspace-status.ts";
+
+/** The chats of a workspace as the status rule sees them. */
+function chatsFor(state: SessionsState, workspaceId: WorkspaceId): readonly ChatStatusInput[] {
+	const ids = state.byWorkspace[workspaceId] ?? [];
+	return ids.map((id) => ({
+		liveState: state.liveStates[id] ?? idleLiveState,
+		cancelling: state.cancelling[id] === true,
+		closed: state.sessions[id]?.closedAt != null,
+	}));
+}
 
 /**
- * A stable summary of the chat facts that change a workspace's status. Subscribing to this string
- * avoids re-rendering a sidebar row for every streamed event that cannot change the status.
+ * True when two chat lists carry the same facts for the status rule. Streaming events change
+ * other parts of the live state, so an equal list keeps the previous selection and no re-render.
  */
-function chatsSignature(state: SessionsState, workspaceId: WorkspaceId): string {
-	const ids = state.byWorkspace[workspaceId];
-	if (ids === undefined) return "";
-	return ids
-		.map((id) => {
-			const session = state.sessions[id];
-			const live = state.liveStates[id];
-			return [
-				id,
-				session?.closedAt == null ? "0" : "1",
-				state.cancelling[id] === true ? "1" : "0",
-				live?.status ?? "",
-				live?.openInteraction?.interaction.kind ?? "",
-				live?.backgroundTasks.length ?? 0,
-			].join(":");
-		})
-		.join("|");
+function sameChatStatus(
+	left: readonly ChatStatusInput[],
+	right: readonly ChatStatusInput[],
+): boolean {
+	if (left.length !== right.length) return false;
+	return left.every((chat, index) => {
+		const other = right[index];
+		return (
+			other !== undefined &&
+			chat.cancelling === other.cancelling &&
+			chat.closed === other.closed &&
+			chat.liveState.status === other.liveState.status &&
+			chat.liveState.openInteraction?.interaction.kind ===
+				other.liveState.openInteraction?.interaction.kind &&
+			chat.liveState.backgroundTasks.length === other.liveState.backgroundTasks.length
+		);
+	});
+}
+
+/** The git input the status rule needs, built from the two polled entries. */
+function gitStateOf(
+	gitEntry: WorkspaceGitEntry | undefined,
+	prEntry: WorkspacePrEntry | undefined,
+): GitState | null {
+	const snapshot = gitEntry?.snapshot ?? null;
+	if (snapshot === null) return null;
+	const changedFiles = snapshot.files.length;
+	return {
+		branch: snapshot.branch ?? "",
+		uncommittedFiles: changedFiles,
+		changedFiles,
+		linesAdded: snapshot.files.reduce((total, file) => total + file.linesAdded, 0),
+		linesRemoved: snapshot.files.reduce((total, file) => total + file.linesRemoved, 0),
+		hasConflicts: snapshot.conflictedPaths.length > 0,
+		operation: snapshot.operation,
+		sync: snapshot.sync,
+		pullRequest: prEntry?.pullRequest ?? null,
+		pullRequestUnavailable:
+			prEntry === undefined
+				? "loading"
+				: prEntry.unavailable === "no_pr"
+					? "none"
+					: prEntry.unavailable,
+		untrackedFilesTruncated: snapshot.untrackedTruncated,
+		pendingPullRequestAction: null,
+	};
 }
 
 export const useRepos: Queries["useRepos"] = () => notImplemented("PRJ-01");
@@ -98,26 +141,23 @@ export const useWorkspaceStatus: Queries["useWorkspaceStatus"] = (workspaceId) =
 	const { workspace, sessions: sessionService, git, github } = container.services;
 	const state = useStore(workspace.store, (s) => s.workspacesById[workspaceId]?.state);
 	const settingUp = useStore(workspace.store, (s) => s.setup[workspaceId] === "running");
-	const chatsKey = useStore(sessionService.store, (s) => chatsSignature(s, workspaceId));
+	const chats = useStoreWithEqualityFn(
+		sessionService.store,
+		(s) => chatsFor(s, workspaceId),
+		sameChatStatus,
+	);
 	const gitEntry = useStore(git.store, (s) => s.byWorkspace[workspaceId]);
 	const prEntry = useStore(github.store, (s) => s.byWorkspace[workspaceId]);
 
-	// chatsKey, gitEntry and prEntry are dependencies: they re-run this when the stores change.
 	return useMemo(() => {
 		if (state === undefined) return null;
-		const sessions = sessionService.store.getState();
-		const chats = (sessions.byWorkspace[workspaceId] ?? []).map((id) => ({
-			liveState: sessions.liveStates[id] ?? idleLiveState,
-			cancelling: sessions.cancelling[id] === true,
-			closed: sessions.sessions[id]?.closedAt != null,
-		}));
 		return deriveWorkspaceStatus({
 			state,
 			settingUp,
 			chats,
-			git: git.stateOf(workspaceId),
+			git: gitStateOf(gitEntry, prEntry),
 		});
-	}, [workspaceId, state, settingUp, chatsKey, gitEntry, prEntry, sessionService, git]);
+	}, [state, settingUp, chats, gitEntry, prEntry]);
 };
 
 export const useSections: Queries["useSections"] = () => notImplemented("NAV-04");
