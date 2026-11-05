@@ -66,10 +66,11 @@ describe("APP-13 ToggleGroup", () => {
 				<ToggleGroupItem value="split">Split</ToggleGroupItem>
 			</ToggleGroup>,
 		);
-		expect(screen.getByRole("button", { name: "Unified" }).getAttribute("aria-pressed")).toBe(
+		expect(screen.getByRole("radiogroup")).toBeTruthy();
+		expect(screen.getByRole("radio", { name: "Unified" }).getAttribute("aria-checked")).toBe(
 			"true",
 		);
-		fireEvent.click(screen.getByRole("button", { name: "Split" }));
+		fireEvent.click(screen.getByRole("radio", { name: "Split" }));
 		expect(onValueChange).toHaveBeenCalledWith("split");
 	});
 

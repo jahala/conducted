@@ -1,11 +1,13 @@
 /**
  * @feature SET-03 Agent catalogue: installs, models, slash commands, sign-in
  * Owns: what the sidecar says about agents: which are installed and signed in, the model list per
- * agent, the slash commands of a workspace, and starting a sign-in flow.
+ * agent, the slash commands of a workspace, and starting a sign-in flow. Also the display name
+ * and catalogue key that the Agents page and the model picker share.
  * Behaviour: other-runners.md 5 (model catalog, detection), claude-runner.md 7 (slash commands),
  * services-map.md 5B.5 (model catalog and favourites), ui-map.md 6 (Agents page states).
- * Must handle: the sidecar is not up yet (the state stays "loading", requests wait for the
- * tunnel); an `agentInstallsChanged` notification replaces the list without a request; a model
+ * Must handle: the sidecar is not up yet (the install list stays "loading" until the request
+ * answers, and a request that fails shows its error); an `agentInstallsChanged` notification
+ * replaces the list without a request; a model
  * list request for an agent that is not installed returns an Err with the sidecar's code
  * `agentNotInstalled`; slow model lists (ACP) must not block the picker's other agents; only the
  * newest answer for an install list wins (a late answer for an older request is dropped); a
@@ -15,7 +17,8 @@
  * floor.
  * Our design choice: the catalogue caches per agent key in memory only. Nothing about models is
  * saved to disk.
- * Test first: two refreshes of the install list, answered out of order, leave the newer answer.
+ * Test first: two refreshes of the install list, answered out of order, leave the newer answer;
+ * two model lists for one agent key, answered out of order, leave the newer answer.
  */
 import type { AgentInstall, AgentLogin, ModelInfo, SlashCommand } from "@conducted/protocol";
 import type { AcpAgent, AgentKind, Result, SessionId } from "@conducted/shared";
@@ -34,6 +37,16 @@ export interface AgentCatalogState {
 
 export const agentKey = (agent: AgentKind, acpAgent?: AcpAgent): string =>
 	acpAgent === undefined ? agent : `${agent}:${acpAgent}`;
+
+/** The name the user sees. ACP agents share one agent kind but keep their own names. */
+export function agentDisplayName(choice: { agent: AgentKind; acpAgent?: AcpAgent }): string {
+	if (choice.agent === "claude") return "Claude Code";
+	if (choice.agent === "codex") return "Codex";
+	if (choice.agent === "cursor") return "Cursor";
+	if (choice.acpAgent === "pi") return "Pi";
+	if (choice.acpAgent === "opencode") return "OpenCode";
+	return "ACP agent";
+}
 
 export interface AgentCatalogServiceDeps {
 	sidecar: Pick<SidecarClient, "request">;

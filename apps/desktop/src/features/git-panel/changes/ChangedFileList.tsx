@@ -4,8 +4,8 @@
  * rows from the model built by changed-file-tree.ts and tracks which row is selected.
  * Behaviour: ui-map.md 3.6, Changes paragraph (status, +/- lines, Viewed checkbox, conflict badge).
  * Must handle: thousands of files (windowed rendering), a selection that survives list updates
- * while the same path exists, keyboard selection with arrows, folders collapsing and expanding
- * (state kept per workspace), and focus returning to the list after a row menu closes.
+ * while the same path exists, keyboard selection with arrows, and folders collapsing and
+ * expanding (the collapse set comes from the parent).
  * Test first: with 5,000 files only the visible window of rows is in the DOM.
  */
 import { useEffect, useRef, useState } from "react";
@@ -25,7 +25,8 @@ export interface ChangedFileListProps {
 	selectedPath: string | null;
 	onSelect: (path: string) => void;
 	onOpen: (path: string) => void;
-	onToggleViewed: (path: string, viewed: boolean) => void;
+	/** Omitted while the Viewed store belongs to REV-02; the row then shows no checkbox. */
+	onToggleViewed?: (path: string, viewed: boolean) => void;
 	onToggleFolder: (folderPath: string) => void;
 	collapsedFolders: ReadonlySet<string>;
 	onDiscard?: (path: string) => void;
@@ -143,7 +144,11 @@ export function ChangedFileList({
 								depth={node.depth}
 								selected={path === selectedPath}
 								onOpen={() => openFromRow(path)}
-								onToggleViewed={(viewed) => onToggleViewed(path, viewed)}
+								onToggleViewed={
+									onToggleViewed === undefined
+										? undefined
+										: (viewed) => onToggleViewed(path, viewed)
+								}
 								onDiscard={onDiscard === undefined ? undefined : () => onDiscard(path)}
 								onCopyPath={onCopyPath === undefined ? undefined : (kind) => onCopyPath(path, kind)}
 							/>

@@ -9,14 +9,15 @@
  * Our design choice: A started chat keeps its agent: picking another agent opens a new chat. A
  * model change in a started chat is applied live when the agent allows it (the sidecar decides) and
  * warns that the next reply may be slower and cost more.
- * Keyboard: the picker's shortcuts are window listeners until the command runner (NAV-07) is
- * built, the same documented exception the composer takes for Cmd+L.
+ * Keyboard: the picker's command ids live in the registry, but their handlers and the dispatcher
+ * (NAV-14) are not built yet. Until they are, the picker and its favourites listen for the default
+ * keys on the window, a documented exception like the composer's Cmd+L.
  * Must handle: Models not loaded (loading row); the agent is not installed or not signed in (item
- * disabled with a link to settings); a model that lacks the current effort (switch to its default
- * and say so); fast mode not available for the model or the account (toggle hidden); no models
- * match the search; ACP agents (OpenCode, Pi) listed under Agent.
+ * disabled); a model that lacks the current effort (switch to its default and say so); fast mode not
+ * available for the model or the account (toggle hidden); no models match the search; ACP agents
+ * (OpenCode, Pi) listed under Agent.
  * Test first: Choosing a model that supports only 'high' effort while 'max' is set updates the
- * config to 'high'.
+ * config to 'high' and says the effort changed.
  */
 
 import type { Effort, ModelInfo, SessionConfig } from "@conducted/protocol";
@@ -24,8 +25,7 @@ import type { SessionId } from "@conducted/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { useServices } from "../../core/context.tsx";
-import { useActions, useModels, useSetting } from "../../core/hooks.ts";
-import type { FavoriteModel } from "../../core/services/favorite-models.ts";
+import { useActions, useLiveShortcut, useModels, useSetting } from "../../core/hooks.ts";
 import { Button } from "../../ui/Button.tsx";
 import { Input } from "../../ui/Input.tsx";
 import { CheckIcon, ChevronDownIcon } from "../../ui/icons.tsx";
@@ -70,7 +70,11 @@ export function effortForModel(
 	return model.efforts.includes(effort) ? effort : model.defaultEffort;
 }
 
-/** Keep status hidden and deprecated out, then apply the visible-provider-models setting. */
+/**
+ * Keep status hidden and deprecated out, then apply the visible-provider-models setting. The
+ * setting is a list of model ids or labels separated by commas or whitespace; an empty list shows
+ * every model.
+ */
 export function modelsForPicker(
 	models: readonly ModelInfo[],
 	visible: string | undefined,
@@ -96,6 +100,7 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 	const visible = useSetting<string>("visible_provider_models");
 	const config = session?.config;
 	const models = useModels(config?.agent ?? "claude", config?.acpAgent);
+	const fastShortcut = useLiveShortcut("chat.toggleFastMode");
 	const [search, setSearch] = useState("");
 
 	const allModels = models.state === "ready" ? models.data : [];
@@ -165,10 +170,17 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 
 	const chooseModel = useCallback(
 		(model: ModelInfo) => {
+			if (config === undefined) return;
+			const effort = effortForModel(model, config.effort);
+			if (effort !== config.effort) {
+				toast(`Effort changed to ${EFFORT_LABELS[effort]}`, {
+					description: `${model.shortLabel ?? model.label} does not support the previous effort.`,
+				});
+			}
 			const change = changeOf({
 				model: model.id,
-				effort: effortForModel(model, config?.effort ?? "high"),
-				fastMode: model.supportsFastMode ? (config?.fastMode ?? false) : false,
+				effort,
+				fastMode: model.supportsFastMode ? config.fastMode : false,
 			});
 			if (change !== undefined) void applyConfig(change);
 		},
@@ -185,11 +197,8 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 				const loaded = await services.agentCatalog.loadModels(choice.agent, choice.acpAgent);
 				if (loaded.ok) entry = { state: "ready", data: loaded.value };
 			}
-			const list = entry?.state === "ready" ? entry.data : [];
-			const chosen =
-				list.find((model) => model.isDefault && model.status === "picker") ??
-				list.find((model) => model.status === "picker") ??
-				list[0];
+			const list = entry?.state === "ready" ? modelsForPicker(entry.data, visible) : [];
+			const chosen = list.find((model) => model.isDefault) ?? list[0];
 			if (chosen === undefined) {
 				toast("No models found", {
 					description: `Install or sign in to ${agentDisplayName(choice)} in Settings.`,
@@ -204,7 +213,7 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 				fastMode: chosen.supportsFastMode ? config.fastMode : false,
 			});
 		},
-		[applyConfig, config, services],
+		[applyConfig, config, services, visible],
 	);
 
 	const chooseEffort = useCallback(
@@ -228,6 +237,33 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 		if (next === undefined) return;
 		chooseEffort(next);
 	}, [chooseEffort, config, currentModel]);
+
+	const isFavoriteAvailable = useCallback(
+		(choice: Choice & { model: string }): boolean => {
+			if (config !== undefined && sameChoice(choice, config)) {
+				return allModels.some((model) => model.id === choice.model);
+			}
+			const key =
+				choice.acpAgent === undefined ? choice.agent : `${choice.agent}:${choice.acpAgent}`;
+			const entry = services.agentCatalog.store.getState().models[key];
+			if (entry === undefined || entry.state !== "ready") return true;
+			return entry.data.some((model) => model.id === choice.model);
+		},
+		[allModels, config, services],
+	);
+
+	const pickFavorite = useCallback(
+		(favorite: (typeof favorites)[number]) => {
+			if (!isFavoriteAvailable(favorite.config)) {
+				toast("That model is no longer available", {
+					description: "Choose another model for this agent.",
+				});
+				return;
+			}
+			void applyConfig(favorite.config);
+		},
+		[applyConfig, isFavoriteAvailable],
+	);
 
 	useEffect(() => {
 		const handleShortcut = (event: KeyboardEvent) => {
@@ -254,15 +290,15 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 			if (event.metaKey && event.ctrlKey && !event.shiftKey && !event.altKey) {
 				const index = Number(event.key) - 1;
 				if (!Number.isInteger(index) || index < 0 || index >= 5) return;
-				const favorite: FavoriteModel | undefined = favorites[index];
+				const favorite = favorites[index];
 				if (favorite === undefined) return;
 				event.preventDefault();
-				void applyConfig(favorite.config);
+				pickFavorite(favorite);
 			}
 		};
 		window.addEventListener("keydown", handleShortcut);
 		return () => window.removeEventListener("keydown", handleShortcut);
-	}, [applyConfig, cycleEffort, favorites, toggleFast]);
+	}, [cycleEffort, favorites, pickFavorite, toggleFast]);
 
 	const triggerLabel =
 		config === undefined
@@ -270,16 +306,6 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 			: `${agentDisplayName(config)} · ${
 					currentModel?.shortLabel ?? currentModel?.label ?? (config.model || "Choose a model")
 				}`;
-
-	const isFavoriteAvailable = (choice: Choice & { model: string }): boolean => {
-		if (config !== undefined && sameChoice(choice, config)) {
-			return allModels.some((model) => model.id === choice.model);
-		}
-		const key = choice.acpAgent === undefined ? choice.agent : `${choice.agent}:${choice.acpAgent}`;
-		const entry = services.agentCatalog.store.getState().models[key];
-		if (entry === undefined || entry.state !== "ready") return true;
-		return entry.data.some((model) => model.id === choice.model);
-	};
 
 	const isInstalled = (choice: Choice): boolean => {
 		if (installs.state !== "ready") return true;
@@ -377,11 +403,11 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 					<h3 className="px-2 text-xs font-medium text-fg-subtle">
 						{currentModel?.effortAxis === "thinking" ? "Thinking" : "Effort"}
 					</h3>
-					{currentModel === undefined ? (
+					{models.state === "ready" && currentModel === undefined ? (
 						<p className="px-2 py-1 text-sm text-fg-muted">Not supported for this model</p>
-					) : (
+					) : currentModel === undefined ? null : (
 						<>
-							{!currentModel.efforts.includes(config?.effort ?? "high") ? (
+							{config !== undefined && !currentModel.efforts.includes(config.effort) ? (
 								<p className="px-2 py-1 text-xs text-fg-muted">Not supported for this model</p>
 							) : null}
 							{currentModel.efforts.map((effort) => {
@@ -414,7 +440,9 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 							className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-fg outline-none hover:bg-hover"
 						>
 							<span className="flex-1 truncate">Fast</span>
-							<span className="text-xs tracking-widest text-fg-muted">⌘⇧E</span>
+							{fastShortcut === null ? null : (
+								<span className="text-xs tracking-widest text-fg-muted">{fastShortcut}</span>
+							)}
 							{config?.fastMode === true ? <CheckIcon /> : null}
 						</button>
 					</section>

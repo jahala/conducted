@@ -6,15 +6,17 @@
  * (event types), sessions-and-chats.md "How chats are stored".
  * Must handle: events arrive in `idx` order but a tool result may arrive in a later event than
  * its call; a call without a result yet is shown as running; a sub-agent's calls carry
- * `parentToolUseId` and nest under that call at any depth; events with `reverted_at` set are
- * left out of the turns (the revert hides them); a steer message belongs to the turn it steered
- * and shows `consumed` once the live state no longer lists it as pending; a turn without a
- * `turn_ended` event while the chat is idle is shown as interrupted; usage items add up per
- * turn; text and thinking items of one message stay in order; unknown item kinds are skipped
- * with a notice block, never a crash.
- * Our design choice: the builder is a pure function of events and live state. The differ
- * compares a cheap fingerprint of every settled turn, so while a reply streams only the last
- * turn is rebuilt and re-rendered.
+ * `parentToolUseId` and nest under that call at any depth, while a call whose parent chain loops
+ * stays at the top level; events with `reverted_at` set are left out of the turns (the revert
+ * hides them) and mark the turn reverted; a tool result whose call never arrived shows a notice;
+ * a steer message belongs to the turn it steered and shows `consumed` once the live state no
+ * longer lists it as pending; a turn without a `turn_ended` event while the chat is idle is shown
+ * as interrupted; usage items add up per turn; text and thinking items of one message stay in
+ * order; unknown item kinds are skipped with a notice block, never a crash. Only tool calls carry
+ * `parentToolUseId` in the protocol, so a sub-agent's text and thinking stay at the top level.
+ * Our design choice: the builder is a pure function of events and live state. Every call walks the
+ * stored events and rebuilds the turns; the differ fingerprints the turns so the list reuses the
+ * unchanged ones and only the changed tail re-renders.
  * Test first: a tool_call event followed later by its tool_result yields one tool block with both.
  */
 import type { AgentItem, LiveState, SessionEvent } from "@conducted/protocol";
@@ -185,30 +187,64 @@ function applyEvent(draft: TurnDraft, event: SessionEvent, liveState: LiveState)
 	}
 }
 
+/**
+ * The call that should hold `call`, or undefined when it belongs at the top level. A missing
+ * parent, a call that names itself, and a parent chain that loops all keep the call at the top
+ * level, so no call disappears from the chat.
+ */
+function parentCall(
+	calls: Map<string, ToolCallView>,
+	call: ToolCallView,
+): ToolCallView | undefined {
+	const parentId = call.item.parentToolUseId;
+	if (parentId === undefined || parentId === call.toolUseId) return undefined;
+	const parent = calls.get(parentId);
+	if (parent === undefined) return undefined;
+
+	const seen = new Set<string>([call.toolUseId]);
+	let current: ToolCallView | undefined = parent;
+	while (current !== undefined) {
+		if (seen.has(current.toolUseId)) return undefined;
+		seen.add(current.toolUseId);
+		const next: string | undefined = current.item.parentToolUseId;
+		current = next === undefined ? undefined : calls.get(next);
+	}
+	return parent;
+}
+
 function finalize(draft: TurnDraft, liveState: LiveState, isLast: boolean): ChatTurn {
 	for (const [toolUseId, call] of draft.calls) {
 		const result = draft.results.get(toolUseId);
 		if (result !== undefined) call.result = result;
 	}
 
-	// Nest a sub-agent call under the call that started it. A call whose parent is missing
-	// stays at the top level, so a partial transcript still renders.
+	// Nest a sub-agent call under the call that started it. A call whose parent is missing or
+	// whose parent chain loops stays at the top level, so every call still renders.
 	const blocks: ChatBlock[] = [];
 	for (const entry of draft.entries) {
 		if (entry.kind === "block") {
 			blocks.push(entry.block);
 			continue;
 		}
-		const parentId = entry.call.item.parentToolUseId;
-		const parent =
-			parentId !== undefined && parentId !== entry.call.toolUseId
-				? draft.calls.get(parentId)
-				: undefined;
+		const parent = parentCall(draft.calls, entry.call);
 		if (parent === undefined) {
 			blocks.push({ kind: "tool", call: entry.call });
 		} else {
 			parent.children.push(entry.call);
 		}
+	}
+
+	// A result whose call never arrived would otherwise be dropped without a trace.
+	for (const toolUseId of draft.results.keys()) {
+		if (draft.calls.has(toolUseId)) continue;
+		blocks.push({
+			kind: "notice",
+			item: {
+				kind: "notice",
+				notice: "info",
+				text: `Tool result for an unknown call: ${toolUseId}`,
+			},
+		});
 	}
 
 	const outcome: ChatTurn["outcome"] =
@@ -255,7 +291,11 @@ export function buildTurns(
 		}
 		draft.startedAt = Math.min(draft.startedAt, row.event.at);
 
-		if (row.revertedAt !== null) continue;
+		if (row.revertedAt !== null) {
+			// The turn keeps the events that were not reverted, and says it was partly undone.
+			draft.reverted = true;
+			continue;
+		}
 		if (row.event.type === "user_message") storedMessageIds.add(row.event.messageId);
 
 		draft.liveEvents += 1;

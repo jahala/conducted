@@ -4,8 +4,8 @@
  * the diff scope menu.
  * Behaviour: ui-map.md 3.6 ("Filter changed files", "Show flat list" or "Show folder hierarchy",
  * options menu for the diff scope).
- * Must handle: the filter being cleared with Escape, the view choice surviving restarts (a setting,
- * not component state), the scope menu showing which scope is active, and a narrow panel.
+ * Must handle: the filter being cleared with Escape, the flat or folder view being switched, the
+ * scope menu showing which scope is active, and a narrow panel.
  * Test first: typing in the filter calls onFilterChange with the text, and Escape calls it with "".
  */
 import type { WorkspaceId } from "@conducted/shared";

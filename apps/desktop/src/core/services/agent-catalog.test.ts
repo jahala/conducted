@@ -1,4 +1,4 @@
-import type { AgentInstall } from "@conducted/protocol";
+import type { AgentInstall, ModelInfo } from "@conducted/protocol";
 import { appError, err, ok } from "@conducted/shared";
 import { describe, expect, it, vi } from "vitest";
 import type { SidecarClient } from "../sidecar/tunnel.ts";
@@ -74,6 +74,42 @@ describe("SET-03 agent catalogue installs", () => {
 		service.setInstalls([install]);
 
 		expect(service.store.getState().installs).toEqual({ state: "ready", data: [install] });
+	});
+});
+
+const model = (id: string): ModelInfo => ({
+	id,
+	label: id,
+	status: "picker",
+	isNew: false,
+	isDefault: false,
+	efforts: ["high"],
+	defaultEffort: "high",
+	effortAxis: "effort",
+	liveEffortChange: false,
+	supportsFastMode: false,
+});
+
+describe("SET-03 agent catalogue model lists", () => {
+	it("keeps the newer model list when two requests for one agent key answer out of order", async () => {
+		const { request, pending } = deferredRequests();
+		const service = serviceWith(request);
+		const older = [model("older")];
+		const newer = [model("newer")];
+
+		const first = service.loadModels("acp", "opencode");
+		const second = service.loadModels("acp", "opencode");
+		expect(pending).toHaveLength(2);
+
+		pending[1]?.(ok({ models: newer }));
+		expect(await second).toEqual(ok(newer));
+		pending[0]?.(ok({ models: older }));
+		expect(await first).toEqual(ok(older));
+
+		expect(service.store.getState().models["acp:opencode"]).toEqual({
+			state: "ready",
+			data: newer,
+		});
 	});
 });
 

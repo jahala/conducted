@@ -1,12 +1,13 @@
 /**
  * @feature REV-01 Changed file row
  * Owns: one file in the Changes list. File icon, name and folder, status letter, added and removed
- * line counts, a conflict badge, and the Viewed checkbox.
- * Behaviour: ui-map.md 3.6, Changes paragraph. Viewed checkbox shortcut `Ctrl+V`. Row menu:
- * "Copy path", "Copy relative path", "Discard changes".
+ * line counts, a conflict badge, and the optional Viewed checkbox.
+ * Behaviour: ui-map.md 3.6, Changes paragraph. Row menu: "Copy path", "Copy relative path",
+ * "Discard changes".
  * Must handle: renamed files (show old path and new path), binary files (no line counts, a
- * "binary" tag), conflicted files, a deleted file (no preview), a long path (middle truncation),
- * discard asking for confirmation because it cannot be undone, and the checkbox not opening the
+ * "binary" tag), conflicted files, a deleted file (no preview), a long path (middle truncation
+ * from TruncatedText), discard asking for confirmation because it cannot be undone, and the
+ * optional Viewed checkbox (shown only when the parent passes onToggleViewed) not opening the
  * file.
  * Test first: clicking the Viewed checkbox calls onToggleViewed and does not call onOpen.
  */
@@ -18,6 +19,7 @@ import { Checkbox } from "../../../ui/Checkbox.tsx";
 import { ContextMenu, ContextMenuItem, ContextMenuSeparator } from "../../../ui/ContextMenu.tsx";
 import { Dialog, DialogContent, DialogFooter } from "../../../ui/Dialog.tsx";
 import { FileTextIcon } from "../../../ui/icons.tsx";
+import { truncateMiddle } from "../../../ui/TruncatedText.tsx";
 import { changesRowIndent } from "./ChangedFolderRow.tsx";
 
 const statusLetter: Record<ChangedFile["status"], string> = {
@@ -36,13 +38,6 @@ const statusClass: Record<ChangedFile["status"], string> = {
 	copied: "text-info",
 };
 
-/** Keeps the file extension visible when a path is too long for the panel. */
-function middleTruncate(text: string, max: number): string {
-	if (text.length <= max) return text;
-	const keep = Math.ceil((max - 1) / 2);
-	return `${text.slice(0, keep)}…${text.slice(-keep)}`;
-}
-
 function splitPath(path: string): { folder: string; name: string } {
 	const at = path.lastIndexOf("/");
 	return at < 0
@@ -56,8 +51,9 @@ export interface ChangedFileRowProps {
 	depth: number;
 	selected: boolean;
 	onOpen: () => void;
-	onToggleViewed: (viewed: boolean) => void;
-	/** When absent the row menu leaves the copy items out. */
+	/** When absent the row shows no Viewed checkbox (REV-02 owns the store). */
+	onToggleViewed?: (viewed: boolean) => void;
+	/** When absent the row menu leaves the discard item out. */
 	onDiscard?: () => void;
 	onCopyPath?: (kind: "absolute" | "relative") => void;
 }
@@ -80,7 +76,7 @@ export function ChangedFileRow({
 			<FileTextIcon className="size-4 shrink-0 text-fg-muted" />
 			<span className="min-w-0 flex-1 truncate" title={file.path}>
 				{folder.length > 0 ? <span className="text-fg-muted">{folder}/</span> : null}
-				<span className="text-fg">{middleTruncate(name, 42)}</span>
+				<span className="text-fg">{truncateMiddle(name, 42)}</span>
 			</span>
 			{file.oldPath !== undefined ? (
 				<span className="min-w-0 max-w-40 truncate text-xs text-fg-subtle" title={file.oldPath}>
@@ -114,12 +110,14 @@ export function ChangedFileRow({
 			}`}
 			style={{ paddingLeft: 8 + depth * changesRowIndent }}
 		>
-			<Checkbox
-				size="sm"
-				checked={file.viewed}
-				aria-label={`Viewed ${file.path}`}
-				onCheckedChange={(viewed) => onToggleViewed(viewed)}
-			/>
+			{onToggleViewed !== undefined ? (
+				<Checkbox
+					size="sm"
+					checked={file.viewed}
+					aria-label={`Viewed ${file.path}`}
+					onCheckedChange={(viewed) => onToggleViewed(viewed)}
+				/>
+			) : null}
 			{hasMenu ? (
 				<ContextMenu
 					items={

@@ -10,7 +10,7 @@
  * Test first: submitting with text calls onSend with that text, and submitting empty calls it
  * with null.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "../../ui/Button.tsx";
 import { Dialog, DialogContent, DialogFooter } from "../../ui/Dialog.tsx";
 import { Textarea } from "../../ui/Input.tsx";
@@ -23,6 +23,12 @@ export interface ReviewPromptDialogProps {
 
 export function ReviewPromptDialog({ open, onOpenChange, onSend }: ReviewPromptDialogProps) {
 	const [text, setText] = useState("");
+
+	// A successful send closes the dialog; the next open starts empty. A failed one leaves it open
+	// with the text, because the parent only closes it on success.
+	useEffect(() => {
+		if (!open) setText("");
+	}, [open]);
 
 	const send = () => {
 		const trimmed = text.trim();

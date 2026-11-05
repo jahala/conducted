@@ -5,7 +5,8 @@
  * Behaviour: ui-map.md 6, "Agents page" (one card per provider; states "Loaded from env", "API key
  * configured", "Validation failed", "Recommended").
  * Data: the parent passes one AgentInstall from useAgentInstalls().
- * Our design choice: no download. A missing program shows how to install it and a Refresh action.
+ * The program manager downloads, updates and removes programs (PLAT-28, D021); this card shows
+ * what the catalogue reports. A missing program shows how to install it and a Refresh action.
  * Must handle: not installed, installed but not signed in, signed in, signed in status unknown,
  * version check failed, a custom path in use (marked), a long path (middle truncation, copyable),
  * sign-in in flight, and the ACP agents OpenCode and Pi sharing one agent kind (the card shows the
@@ -14,6 +15,7 @@
  * authenticated one shows the signed-in state without it.
  */
 import type { AgentInstall } from "@conducted/protocol";
+import { agentDisplayName } from "../../../core/services/agent-catalog.ts";
 import { Badge, type BadgeTone } from "../../../ui/Badge.tsx";
 import { Button } from "../../../ui/Button.tsx";
 
@@ -26,18 +28,6 @@ export interface AgentCardProps {
 	onCopyPath?: (path: string) => void;
 	/** Offered beside a warning. Left out until the program manager can download (D021). */
 	onUpdate?: () => void;
-}
-
-/** The name the user sees. ACP agents share one agent kind but keep their own names. */
-export function agentDisplayName(install: Pick<AgentInstall, "agent" | "acpAgent">): string {
-	if (install.agent === "acp") {
-		if (install.acpAgent === "pi") return "Pi";
-		if (install.acpAgent === "opencode") return "OpenCode";
-		return "ACP agent";
-	}
-	if (install.agent === "claude") return "Claude Code";
-	if (install.agent === "codex") return "Codex";
-	return "Cursor";
 }
 
 /** What the card calls the program's source, in Conductor's words (ui-map.md 6). */

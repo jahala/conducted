@@ -94,6 +94,20 @@ describe("COMP-02 favourite models service", () => {
 		]);
 	});
 
+	it("saves only one of two quick favourites when the list has one slot", async () => {
+		const { repo, service } = serviceWith([
+			favorite("a", "m1", 0),
+			favorite("b", "m2", 1),
+			favorite("c", "m3", 2),
+			favorite("d", "m4", 3),
+		]);
+		await service.start();
+		const results = await Promise.all([service.add(choice("m6")), service.add(choice("m7"))]);
+		expect(results.filter((result) => result.ok)).toHaveLength(1);
+		expect(repo.state.addCalls).toBe(1);
+		expect(service.store.getState().favorites).toHaveLength(5);
+	});
+
 	it("refuses a sixth favourite instead of saving it", async () => {
 		const { repo, service } = serviceWith([
 			favorite("a", "m1", 0),

@@ -13,10 +13,12 @@ import type { AgentCatalogState } from "../../core/services/agent-catalog.ts";
 import type { FavoriteModel, FavoriteModelsState } from "../../core/services/favorite-models.ts";
 import type { SessionsState } from "../../core/services/sessions.ts";
 import type { SettingsState } from "../../core/services/settings.ts";
+import { Toaster, toast } from "../../ui/Toast.tsx";
 import { ModelPicker } from "./ModelPicker.tsx";
 
 afterEach(() => {
 	cleanup();
+	toast.dismiss();
 	vi.restoreAllMocks();
 });
 
@@ -62,7 +64,11 @@ const favorite = (id: string, values: Partial<FavoriteModel["config"]>): Favorit
 interface HarnessOptions {
 	session?: Session;
 	models?: ModelInfo[];
+	/** What loading another agent's models returns. Defaults to `models`. */
+	loadedModels?: ModelInfo[];
 	favorites?: FavoriteModel[];
+	/** The saved `keybinding_overrides_v1` text. */
+	keybindings?: string;
 }
 
 const harness = (options: HarnessOptions = {}) => {
@@ -112,12 +118,17 @@ const harness = (options: HarnessOptions = {}) => {
 						installed: true,
 						authenticated: true,
 					},
+					{
+						agent: "codex",
+						installed: true,
+						authenticated: true,
+					},
 				],
 			},
 			models: { claude: { state: "ready", data: modelList } },
 			slashCommands: {},
 		})),
-		loadModels: vi.fn(async () => ok(modelList)),
+		loadModels: vi.fn(async () => ok(options.loadedModels ?? modelList)),
 	};
 	const favoriteModels = {
 		store: createStore<FavoriteModelsState>(() => ({
@@ -131,7 +142,10 @@ const harness = (options: HarnessOptions = {}) => {
 	};
 	const settings = createStore<SettingsState>(() => ({
 		loaded: true,
-		values: { visible_provider_models: "" },
+		values: {
+			visible_provider_models: "",
+			keybinding_overrides_v1: options.keybindings ?? "",
+		},
 		dropped: [],
 		warnings: [],
 	}));
@@ -175,6 +189,62 @@ describe("COMP-02 model picker", () => {
 				expect.objectContaining({ model: "m2", effort: "high" }),
 			),
 		);
+	});
+
+	it("says the effort changed when the chosen model lacks the current effort", async () => {
+		const { wrapper } = harness();
+		render(
+			<>
+				<ModelPicker sessionId={sessionId} />
+				<Toaster />
+			</>,
+			{ wrapper },
+		);
+		const modelTwo = await openPicker();
+		fireEvent.click(modelTwo);
+		expect(await screen.findByText("Effort changed to High")).toBeTruthy();
+	});
+
+	it("chooses an agent's model only from the picker's list, and says No models found otherwise", async () => {
+		const { updateConfig, wrapper } = harness({
+			loadedModels: [model({ id: "hidden", label: "Hidden", status: "hidden", isDefault: true })],
+		});
+		render(
+			<>
+				<ModelPicker sessionId={sessionId} />
+				<Toaster />
+			</>,
+			{ wrapper },
+		);
+		await openPicker();
+		fireEvent.click(screen.getByRole("button", { name: "Codex" }));
+		expect(await screen.findByText("No models found")).toBeTruthy();
+		expect(updateConfig).not.toHaveBeenCalled();
+	});
+
+	it("shows the live fast-mode shortcut after a rebind", async () => {
+		const { wrapper } = harness({
+			keybindings: JSON.stringify({ "chat.toggleFastMode": ["Cmd+Alt+F"] }),
+		});
+		render(<ModelPicker sessionId={sessionId} />, { wrapper });
+		await openPicker();
+		expect(screen.getByText("⌥⌘F")).toBeTruthy();
+	});
+
+	it("does not apply an unavailable favourite from its shortcut", async () => {
+		const { updateConfig, wrapper } = harness({
+			favorites: [favorite("1", { model: "ghost" })],
+		});
+		render(
+			<>
+				<ModelPicker sessionId={sessionId} />
+				<Toaster />
+			</>,
+			{ wrapper },
+		);
+		fireEvent.keyDown(window, { key: "1", metaKey: true, ctrlKey: true });
+		expect(await screen.findByText("That model is no longer available")).toBeTruthy();
+		expect(updateConfig).not.toHaveBeenCalled();
 	});
 
 	it("says No models found when the search matches nothing", async () => {

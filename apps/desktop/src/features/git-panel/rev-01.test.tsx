@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GitHeader as GitHeaderModel } from "../../core/status/git-header.ts";
 import "../../test/dom-polyfills.ts";
@@ -25,6 +25,24 @@ describe("REV-01 git header", () => {
 		fireEvent.click(button);
 		expect(onAction).toHaveBeenCalledTimes(1);
 		expect(onAction).toHaveBeenCalledWith("merge");
+	});
+
+	it("lets the button be used again after a failed action", async () => {
+		let fail: ((error: unknown) => void) | undefined;
+		const onAction = vi.fn(
+			() =>
+				new Promise<void>((_resolve, reject) => {
+					fail = reject;
+				}),
+		);
+		render(<GitHeader model={mergeModel} onAction={onAction} />);
+		const button = screen.getByRole("button", { name: /Merge/ });
+		fireEvent.click(button);
+		expect(onAction).toHaveBeenCalledTimes(1);
+		fail?.(new Error("push failed"));
+		await waitFor(() => expect(button.getAttribute("disabled")).toBeNull());
+		fireEvent.click(button);
+		expect(onAction).toHaveBeenCalledTimes(2);
 	});
 
 	it("shows a waiting note instead of a button", () => {
@@ -92,7 +110,7 @@ describe("REV-01 git panel tab strip", () => {
 				onReviewWithEdit={vi.fn()}
 			/>,
 		);
-		fireEvent.click(screen.getByRole("tab", { name: "Checks" }));
+		fireEvent.mouseDown(screen.getByRole("tab", { name: "Checks" }), { button: 0 });
 		expect(onSelect).toHaveBeenCalledWith("checks");
 	});
 });

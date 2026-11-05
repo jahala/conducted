@@ -1,7 +1,8 @@
 import type { AgentInstall } from "@conducted/protocol";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AgentCard, agentDisplayName, agentState, middleTruncate } from "./AgentCard.tsx";
+import { agentDisplayName } from "../../../core/services/agent-catalog.ts";
+import { AgentCard, agentState, middleTruncate } from "./AgentCard.tsx";
 
 const install = (changes: Partial<AgentInstall> = {}): AgentInstall => ({
 	agent: "claude",
@@ -88,6 +89,7 @@ describe("SET-03 agent names and paths", () => {
 		["cursor", undefined, "Cursor"],
 		["acp", "opencode", "OpenCode"],
 		["acp", "pi", "Pi"],
+		["acp", undefined, "ACP agent"],
 	] as const)("names %s %s as %s", (agent, acpAgent, expected) => {
 		expect(agentDisplayName({ agent, acpAgent })).toBe(expected);
 	});

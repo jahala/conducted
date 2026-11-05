@@ -5,15 +5,15 @@
  * Behaviour: ui-map.md 3.6, "Changes" paragraph; services-map.md 3.3 (what the list is made of)
  * and 3.4.1 (the diff scopes).
  * Data: useChangedFiles(workspaceId, scope), useGitState (conflicts, rebase underway),
- * useActions().git.setViewed and discardFile.
+ * useActions().git.discardFile.
  * Children: ChangesToolbar, ScopeBackBar, ChangedFileList, ChangesEmpty, StackView.
  * Keyboard: ArrowUp and ArrowDown move the selected file, Cmd+Alt+J and Cmd+Alt+K move between
  * comments, Cmd+Shift+D opens the selected file's diff (ui-map.md 3.6).
  * Must handle: loading (skeleton rows), error with retry, no git status (rebase or merge
  * underway), no changes, a filter that matches nothing, untracked files cut off at the cap, a very
- * long list (virtualised), a file that is viewed and then changes again (the viewed mark resets),
- * conflicted files first, archived workspace, and a scope change while a request is in flight (only
- * the newest answer may update the list).
+ * long list (virtualised), conflicted files first, and a scope change while a request is in
+ * flight (only the newest answer may update the list). The Viewed mark belongs to REV-02; this
+ * tab leaves its checkbox out until that store exists.
  * Test first: with three ChangedFile rows and the filter "src/a", only the matching row renders.
  */
 import type { WorkspaceId } from "@conducted/shared";
@@ -100,12 +100,6 @@ export function ChangesTab({ workspaceId, scope, onScopeChange, onOpenFile }: Ch
 		});
 	};
 
-	const setViewed = (path: string, viewed: boolean) => {
-		void actions.git.setViewed(workspaceId, path, viewed).then((result) => {
-			if (!result.ok) toastError("Couldn't mark the file as viewed", result.error);
-		});
-	};
-
 	const discard = (path: string) => {
 		void actions.git.discardFile(workspaceId, path).then((result) => {
 			if (!result.ok) toastError("Couldn't discard the changes", result.error);
@@ -114,6 +108,9 @@ export function ChangesTab({ workspaceId, scope, onScopeChange, onOpenFile }: Ch
 
 	const narrowed = scope.kind === "commit" || scope.kind === "turn";
 	const operation = git.state === "ready" ? git.data.operation : "none";
+	// The polling snapshot's untracked flag only fits scopes that include the working tree.
+	const includesWorkingTree =
+		scope.kind === "branch" || scope.kind === "target" || scope.kind === "uncommitted";
 
 	const body = (() => {
 		if (operation !== "none") {
@@ -133,12 +130,11 @@ export function ChangesTab({ workspaceId, scope, onScopeChange, onOpenFile }: Ch
 					selectedPath={selected}
 					onSelect={setSelectedPath}
 					onOpen={onOpenFile}
-					onToggleViewed={setViewed}
 					onToggleFolder={toggleFolder}
 					collapsedFolders={collapsedFolders}
 					onDiscard={discard}
 				/>
-				{git.state === "ready" && git.data.untrackedFilesTruncated ? (
+				{git.state === "ready" && git.data.untrackedFilesTruncated && includesWorkingTree ? (
 					<ChangesEmpty reason="untracked_truncated" />
 				) : null}
 			</div>

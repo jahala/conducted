@@ -30,8 +30,20 @@ vi.mock("../../core/context.tsx", () => ({
 }));
 
 vi.mock("../../core/status/git-header.ts", () => ({
-	computeGitHeader: (inputs: { git: GitState }) =>
-		inputs.git.uncommittedFiles > 0
+	computeGitHeader: (inputs: { git: GitState }) => {
+		if (inputs.git.branch === "comments") {
+			return {
+				kind: "changes_requested",
+				title: "PR changes requested",
+				tone: "attention",
+				action: {
+					id: "add_comments_to_chat",
+					label: "Add all comments to chat",
+					waitingNote: null,
+				},
+			};
+		}
+		return inputs.git.uncommittedFiles > 0
 			? {
 					kind: "uncommitted",
 					title: "Uncommitted changes",
@@ -42,7 +54,8 @@ vi.mock("../../core/status/git-header.ts", () => ({
 						waitingNote: null,
 					},
 				}
-			: { kind: "clean", title: "No changes", tone: "neutral", action: null },
+			: { kind: "clean", title: "No changes", tone: "neutral", action: null };
+	},
 }));
 
 vi.mock("./changes/ChangesTab.tsx", () => ({ ChangesTab: () => <div>changes body</div> }));
@@ -95,6 +108,22 @@ describe("REV-01 git panel", () => {
 	it("shows the changed count on the Changes tab", () => {
 		render(<GitPanel workspaceId={workspaceId} />);
 		expect(screen.getByRole("tab", { name: /Changes/ }).textContent).toContain("2");
+	});
+
+	it("does not offer the comments action until the review store exists", () => {
+		state.git = { state: "ready", data: gitState({ branch: "comments", changedFiles: 1 }) };
+		render(<GitPanel workspaceId={workspaceId} />);
+		expect(screen.queryByRole("button", { name: /Add all comments/ })).toBeNull();
+		expect(screen.getAllByText("PR changes requested").length).toBeGreaterThan(0);
+	});
+
+	it("starts only one review when Review is pressed twice", () => {
+		state.requestAiReview.mockReturnValue(new Promise(() => undefined));
+		render(<GitPanel workspaceId={workspaceId} />);
+		const button = screen.getByRole("button", { name: "Review" });
+		fireEvent.click(button);
+		fireEvent.click(button);
+		expect(state.requestAiReview).toHaveBeenCalledTimes(1);
 	});
 
 	it("Cmd+Alt+U switches to the uncommitted changes scope", () => {

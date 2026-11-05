@@ -217,6 +217,38 @@ describe("CHAT-07 turn builder", () => {
 		expect(grandchild.result?.output).toBe("deep");
 	});
 
+	it("keeps both calls at the top level when their parent links loop", () => {
+		const events = [
+			user("turn-1", "message-1", "loop", 100),
+			agent("turn-1", 101, [call("a", "b")]),
+			agent("turn-1", 102, [call("b", "a")]),
+			ended("turn-1", 103),
+		];
+
+		const turn = firstTurn(stored(events), live());
+		const tools = turn.blocks.filter((block) => block.kind === "tool");
+
+		expect(tools.map((block) => asToolBlock(block).item.toolUseId).sort()).toEqual(["a", "b"]);
+		expect(asToolBlock(tools[0]).children).toEqual([]);
+		expect(asToolBlock(tools[1]).children).toEqual([]);
+	});
+
+	it("shows a notice for a tool result whose call never arrived", () => {
+		const events = [
+			user("turn-1", "message-1", "orphan", 100),
+			agent("turn-1", 101, [toolResult("missing", "lost")]),
+			ended("turn-1", 102),
+		];
+
+		const turn = firstTurn(stored(events), live());
+
+		expect(turn.blocks).toHaveLength(1);
+		const notice = must(turn.blocks[0], "a notice block");
+		expect(notice.kind).toBe("notice");
+		if (notice.kind !== "notice") throw new Error("expected a notice block");
+		expect(notice.item.text).toContain("missing");
+	});
+
 	it("shows a call without a result as running", () => {
 		const events = [
 			user("turn-1", "message-1", "wait", 100),
@@ -405,6 +437,9 @@ describe("CHAT-07 turn builder", () => {
 		expect(turns).toHaveLength(5000);
 		expect(turns[0]?.turnId).toBe("turn-0");
 		expect(turns[4999]?.turnId).toBe("turn-4999");
+
+		const rebuilt = buildTurns(stored(events), live());
+		expect(classifyTurnsChange(turns, rebuilt)).toEqual({ kind: "same" });
 	});
 
 	it("keeps the error from a failed turn", () => {
@@ -457,6 +492,16 @@ describe("CHAT-07 turn differ", () => {
 			kind: "truncated",
 			toLength: 1,
 		});
+	});
+
+	it("reports a changed last turn with a new turn after it as an insert", () => {
+		const before = buildTurns(stored(simpleTurn("turn-1", "before", 100)), live());
+		const after = buildTurns(
+			stored([...simpleTurn("turn-1", "after", 100), ...simpleTurn("turn-2", "next", 200)]),
+			live(),
+		);
+
+		expect(classifyTurnsChange(before, after)).toEqual({ kind: "inserted", atIndex: 0 });
 	});
 
 	it("reports a turn inserted in the middle", () => {

@@ -51,10 +51,12 @@ export class DuplicateGuard {
 		this.queued.delete(id);
 		this.inFlight.delete(id);
 		if (this.running === id) this.running = null;
-		this.recent.push(id);
-		if (this.recent.length > RECENT_MESSAGE_CAP) {
-			const evicted = this.recent.shift();
-			if (evicted !== undefined) this.deliveries.delete(evicted);
+		if (!this.recent.includes(id)) {
+			this.recent.push(id);
+			if (this.recent.length > RECENT_MESSAGE_CAP) {
+				const evicted = this.recent.shift();
+				if (evicted !== undefined) this.deliveries.delete(evicted);
+			}
 		}
 	}
 

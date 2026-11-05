@@ -115,6 +115,29 @@ describe("REV-01 changes tab", () => {
 		expect(onOpenFile).toHaveBeenCalledWith("src/a/x.ts");
 	});
 
+	it("shows the untracked note only for scopes that include the working tree", () => {
+		state.files = { state: "ready", data: [file("src/a.ts")] };
+		state.git = { state: "ready", data: gitState({ untrackedFilesTruncated: true }) };
+		const { rerender } = render(
+			<ChangesTab
+				workspaceId={workspaceId}
+				scope={{ kind: "branch" }}
+				onScopeChange={vi.fn()}
+				onOpenFile={vi.fn()}
+			/>,
+		);
+		expect(screen.getByRole("note").textContent).toContain("Some untracked files");
+		rerender(
+			<ChangesTab
+				workspaceId={workspaceId}
+				scope={{ kind: "commit", sha: "abc" }}
+				onScopeChange={vi.fn()}
+				onOpenFile={vi.fn()}
+			/>,
+		);
+		expect(screen.queryByRole("note")).toBeNull();
+	});
+
 	it("asks the user to finish a rebase before showing changes", () => {
 		state.git = { state: "ready", data: gitState({ operation: "rebase" }) };
 		renderChanges();

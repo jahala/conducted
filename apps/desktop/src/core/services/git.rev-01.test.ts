@@ -25,11 +25,16 @@ interface Recorder {
 	commands: GitCommand[];
 }
 
-function runner(): { git: GitRunner; recorder: Recorder } {
+function runner(override?: (command: GitCommand) => ShellOutput | null): {
+	git: GitRunner;
+	recorder: Recorder;
+} {
 	const recorder: Recorder = { commands: [] };
 
 	const reply = (command: GitCommand): ShellOutput => {
 		recorder.commands.push(command);
+		const replaced = override?.(command);
+		if (replaced !== null && replaced !== undefined) return replaced;
 		const args = command.args;
 		const ref = args.at(-1) ?? "";
 		if (args[0] === "branch" && args[1] === "--show-current") return output("feat\n");
@@ -91,17 +96,27 @@ const context: WorkspaceGitContext = {
 	branch: "feat",
 };
 
-const makeService = (git: GitRunner): GitService =>
+const makeService = (
+	git: GitRunner,
+	trash: (path: string) => Promise<Result<void>> = async () => ok(undefined),
+): GitService =>
 	new GitService({
 		git,
 		cache: {} as never,
 		contextOf: async () => ({ ok: true, value: context }),
 		agent: {} as never,
 		now: () => 0,
+		fs: { trash },
 	});
 
+// `--no-index` diffs count untracked files against /dev/null; they never compare with a revision.
 const hasDiff = (commands: GitCommand[], kind: "name-status" | "numstat"): GitCommand[] =>
-	commands.filter((command) => command.args[0] === "diff" && command.args.includes(`--${kind}`));
+	commands.filter(
+		(command) =>
+			command.args[0] === "diff" &&
+			command.args.includes(`--${kind}`) &&
+			!command.args.includes("--no-index"),
+	);
 
 describe("REV-01 git service diff scopes", () => {
 	it("compares the branch scope from the merge base to the working tree", async () => {
@@ -162,6 +177,83 @@ describe("REV-01 git service diff scopes", () => {
 		expect(recorder.commands.some((command) => command.args[0] === "status")).toBe(false);
 	});
 
+	it("compares a finished turn from its start to its end checkpoint", async () => {
+		const { git, recorder } = runner((command) =>
+			command.args[0] === "show-ref" ? output("", "", 0) : null,
+		);
+		const service = makeService(git);
+		const resolved = await service.resolveScope(workspaceId, {
+			kind: "turn",
+			sessionId: "s1" as SessionId,
+			turnId: "t1" as TurnId,
+		});
+		expect(resolved.ok).toBe(true);
+		if (!resolved.ok) return;
+		expect(resolved.value.to).toContain("turn-t1-end");
+		await service.changedFiles(workspaceId, {
+			kind: "turn",
+			sessionId: "s1" as SessionId,
+			turnId: "t1" as TurnId,
+		});
+		expect(recorder.commands.some((command) => command.args[0] === "ls-files")).toBe(false);
+		expect(recorder.commands.some((command) => command.args[0] === "status")).toBe(false);
+	});
+
+	it("passes a broken merge-base failure on instead of calling it no common ancestor", async () => {
+		const { git } = runner((command) =>
+			command.args[0] === "merge-base" ? output("", "fatal: not a git repository", 128) : null,
+		);
+		const service = makeService(git);
+		const resolved = await service.resolveScope(workspaceId, { kind: "branch" });
+		expect(resolved.ok).toBe(false);
+		if (resolved.ok) return;
+		expect(resolved.error.code).toBe("git_failed");
+		expect(resolved.error.message).toContain("not a git repository");
+	});
+
+	it("still reports a missing merge base when git exits with code 1", async () => {
+		const { git } = runner((command) =>
+			command.args[0] === "merge-base" ? output("", "", 1) : null,
+		);
+		const service = makeService(git);
+		const resolved = await service.resolveScope(workspaceId, { kind: "branch" });
+		expect(resolved.ok).toBe(false);
+		if (resolved.ok) return;
+		expect(resolved.error.code).toBe("no_merge_base");
+	});
+
+	it("passes a broken checkpoint probe on instead of dropping the turn", async () => {
+		const { git } = runner((command) =>
+			command.args[0] === "show-ref" ? output("", "fatal: bad object", 2) : null,
+		);
+		const service = makeService(git);
+		const resolved = await service.resolveScope(workspaceId, {
+			kind: "turn",
+			sessionId: "s1" as SessionId,
+			turnId: "t1" as TurnId,
+		});
+		expect(resolved.ok).toBe(false);
+		if (resolved.ok) return;
+		expect(resolved.error.code).toBe("git_failed");
+	});
+
+	it("compares a root commit against git's empty tree", async () => {
+		const { git } = runner((command) =>
+			command.args[0] === "rev-parse" && command.args.includes("--verify")
+				? output("", "", 1)
+				: null,
+		);
+		const service = makeService(git);
+		const resolved = await service.resolveScope(workspaceId, {
+			kind: "commit",
+			sha: "root",
+		});
+		expect(resolved.ok).toBe(true);
+		if (!resolved.ok) return;
+		expect(resolved.value.from).toBe("4b825dc642cb6eb9a060e54bf8d69288fbee4904");
+		expect(resolved.value.to).toBe("root");
+	});
+
 	it("refuses a turn whose start checkpoint does not exist", async () => {
 		const { git } = runner();
 		const service = makeService(git);
@@ -202,5 +294,19 @@ describe("REV-01 git service discard", () => {
 		]);
 		const remove = recorder.commands.find((command) => command.args[0] === "rm");
 		expect(remove?.args).toEqual(["rm", "--cached", "--force", "--", "new.ts"]);
+	});
+
+	it("moves a file the branch added to the Trash after unstaging it", async () => {
+		const { git, recorder } = runner();
+		const trashed: string[] = [];
+		const service = makeService(git, async (path) => {
+			trashed.push(path);
+			return ok(undefined);
+		});
+		const result = await service.discardFile(workspaceId, "added.ts");
+		expect(result.ok).toBe(true);
+		const unstage = recorder.commands.find((command) => command.args[0] === "restore");
+		expect(unstage?.args).toEqual(["restore", "--staged", "--", "added.ts"]);
+		expect(trashed).toEqual(["/repo/worktree/added.ts"]);
 	});
 });

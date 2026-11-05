@@ -13,8 +13,11 @@ import { buildChangedTree } from "./changed-file-tree.ts";
 import { ScopeBackBar } from "./ScopeBackBar.tsx";
 import { TargetBranchPicker } from "./TargetBranchPicker.tsx";
 
-vi.mock("./DiffScopeMenu.tsx", () => ({
-	DiffScopeMenu: () => <div>Diff scope menu</div>,
+vi.mock("../../../core/hooks.ts", () => ({
+	useGitState: () => ({ state: "loading" }),
+	useBranchCommits: () => ({ state: "ready", data: [] }),
+	useWorkspace: () => ({ state: "loading" }),
+	useBranches: () => ({ state: "ready", data: [] }),
 }));
 
 afterEach(cleanup);

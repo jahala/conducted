@@ -9,9 +9,10 @@
  * disabled command (no workspace selected, no open PR) returns an Err and the palette greys it
  * out; a handler that fails returns its Err; two runs of one command at once run once; commands
  * that need a dialog open it and return when it is opened, not when it is answered.
- * Our design choice: handlers are plain functions over services, collected in one table typed by
- * `CommandId`, so a new command without a handler is visible as a missing key. `project.add` takes
- * its folder from a picker port; the composition root passes it once it wires the runner.
+ * Our design choice: handlers are plain functions over services, kept in an optional table keyed by
+ * `CommandId`. A command with no handler fails at run time with `command_unavailable`, so a menu
+ * item never does nothing silently. `project.add` takes its folder from a picker port; the
+ * composition root passes it once it wires the runner.
  * Test first: running an id without a handler returns `command_unavailable`.
  */
 import { appError, err, ok, type Result } from "@conducted/shared";

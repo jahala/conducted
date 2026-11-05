@@ -42,6 +42,19 @@ test("the delivery of a handled message is remembered for a repeated send", () =
 	expect(guard.deliveryOf(id("q"))).toBeUndefined();
 });
 
+test("SIDE-03 marking a handled id twice keeps one recent entry and its delivery", () => {
+	const guard = new DuplicateGuard();
+	guard.rememberDelivery(id("m1"), "steer");
+	guard.markHandled(id("m1"));
+	guard.markHandled(id("m1"));
+	expect(guard.check(id("m1"))).toBe("duplicate");
+	expect(guard.deliveryOf(id("m1"))).toBe("steer");
+	for (let i = 0; i < RECENT_MESSAGE_CAP - 1; i++) guard.markHandled(id(`n${i}`));
+	expect(guard.check(id("m1"))).toBe("duplicate");
+	guard.markHandled(id("last"));
+	expect(guard.check(id("m1"))).toBe("new");
+});
+
 test("cancelInFlight forgets every steer that is still being sent", () => {
 	const guard = new DuplicateGuard();
 	guard.markInFlight(id("a"));

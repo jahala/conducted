@@ -115,6 +115,26 @@ describe("SET-03 AgentLoginDialog", () => {
 		expect(onFinish).toHaveBeenCalledWith("code-123");
 	});
 
+	it("offers Retry when a started flow fails or times out", () => {
+		const onRetry = vi.fn();
+		render(
+			<AgentLoginDialog
+				open
+				agentName="Codex"
+				flow={deviceFlow}
+				error="The sign-in timed out."
+				onOpenUrl={vi.fn()}
+				onOpenChange={vi.fn()}
+				onRetry={onRetry}
+			/>,
+		);
+
+		expect(screen.getByRole("alert").textContent).toBe("The sign-in timed out.");
+		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+		expect(onRetry).toHaveBeenCalledTimes(1);
+	});
+
 	it("shows the failure and a Retry action when the flow did not start", () => {
 		const onRetry = vi.fn();
 		render(

@@ -121,4 +121,113 @@ describe("SET-03 AgentsPage", () => {
 
 		expect(screen.getByText("No agent programs found")).toBeTruthy();
 	});
+
+	it("does not cancel a sign-in that already finished", async () => {
+		state.installs = {
+			state: "ready",
+			data: [install({ agent: "claude", authenticated: false })],
+		};
+		state.login.mockResolvedValue(
+			ok({
+				loginId: "login-1",
+				instructions: "Run claude setup-token, then paste the code.",
+				command: "claude setup-token",
+			}),
+		);
+		let finished = false;
+		state.finishLogin.mockImplementation(async () => {
+			finished = true;
+			return ok({ outcome: "signed_in", message: null });
+		});
+		state.refresh.mockImplementation(async () => {
+			if (finished) {
+				state.installs = {
+					state: "ready",
+					data: [install({ agent: "claude", authenticated: true })],
+				};
+			}
+			return ok(undefined);
+		});
+
+		const { rerender } = render(<AgentsPage />);
+		fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+		expect(await screen.findByText("claude setup-token")).toBeTruthy();
+		fireEvent.change(screen.getByLabelText("Paste code from Claude"), {
+			target: { value: "code-123" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Finish sign-in" }));
+
+		await waitFor(() => expect(state.finishLogin).toHaveBeenCalledWith("login-1", "code-123"));
+		await waitFor(() => expect(state.refresh).toHaveBeenCalledTimes(2));
+		rerender(<AgentsPage />);
+		await waitFor(() => expect(screen.queryByText("Sign in to Claude Code")).toBeNull());
+
+		expect(state.cancelLogin).not.toHaveBeenCalled();
+	});
+
+	it("shows the Codex device code, its copy message and the ChatGPT toast", async () => {
+		state.installs = {
+			state: "ready",
+			data: [install({ agent: "codex", authenticated: false })],
+		};
+		state.login.mockResolvedValue(
+			ok({
+				loginId: "login-codex",
+				instructions: "Open the page and enter this code.",
+				userCode: "ABCD-1234",
+				verificationUrl: "https://example.com/device",
+			}),
+		);
+		let finish: ((value: unknown) => void) | undefined;
+		state.finishLogin.mockImplementation(
+			() =>
+				new Promise((resolve) => {
+					finish = resolve;
+				}),
+		);
+		let signedIn = false;
+		state.refresh.mockImplementation(async () => {
+			if (signedIn) {
+				state.installs = {
+					state: "ready",
+					data: [install({ agent: "codex", authenticated: true, authMethod: "chatgpt" })],
+				};
+			}
+			return ok(undefined);
+		});
+
+		const { rerender } = render(<AgentsPage />);
+		fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+		expect(await screen.findByText("ABCD-1234")).toBeTruthy();
+		fireEvent.click(screen.getByRole("button", { name: "Copy code" }));
+		await waitFor(() =>
+			expect(state.toast).toHaveBeenCalledWith("Copied Codex verification code."),
+		);
+
+		signedIn = true;
+		finish?.(ok({ outcome: "signed_in", message: null }));
+		await waitFor(() => expect(state.finishLogin).toHaveBeenCalledWith("login-codex", undefined));
+		await waitFor(() => expect(state.refresh).toHaveBeenCalledTimes(2));
+		rerender(<AgentsPage />);
+		await waitFor(() =>
+			expect(state.toast).toHaveBeenCalledWith("Codex now uses your ChatGPT plan"),
+		);
+
+		expect(state.cancelLogin).not.toHaveBeenCalled();
+	});
+
+	it("does not claim nothing is installed when the search hides the installed agents", () => {
+		state.installs = {
+			state: "ready",
+			data: [
+				install({ agent: "claude", authenticated: false }),
+				install({ agent: "codex", installed: false }),
+			],
+		};
+		render(<AgentsPage />);
+
+		fireEvent.change(screen.getByLabelText("Search providers"), { target: { value: "codex" } });
+
+		expect(screen.queryByText(/No agent programs were found/)).toBeNull();
+	});
 });

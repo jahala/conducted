@@ -45,8 +45,15 @@ describe("REV-01 changed file tree", () => {
 			"folders",
 			new Set(["src/a"]),
 		);
-		expect(paths(nodes)).toEqual(["folder:src/a", "folder:src/b", "src/b/y.ts"]);
-		expect(nodes[0]).toMatchObject({ kind: "folder", linesAdded: 4, linesRemoved: 2 });
+		// A folder with two child folders keeps its own row; only single-folder chains merge.
+		expect(paths(nodes)).toEqual(["folder:src", "folder:src/a", "folder:src/b", "src/b/y.ts"]);
+		expect(nodes[0]).toMatchObject({ kind: "folder", path: "src", linesAdded: 5, linesRemoved: 3 });
+		expect(nodes[1]).toMatchObject({
+			kind: "folder",
+			path: "src/a",
+			linesAdded: 4,
+			linesRemoved: 2,
+		});
 	});
 
 	it("merges a chain of single-child folders into one row", () => {

@@ -32,6 +32,13 @@ describe("REV-01 resolveComparison", () => {
 			value: { from: "abc^", to: "abc" },
 		});
 	});
+	it("compares a root commit against git's empty tree", () => {
+		const root = { ...context, commitParentExists: false };
+		expect(resolveComparison({ kind: "commit", sha: "abc" }, root)).toEqual({
+			ok: true,
+			value: { from: "4b825dc642cb6eb9a060e54bf8d69288fbee4904", to: "abc" },
+		});
+	});
 	it("compares a running turn's start checkpoint to the working tree", () => {
 		expect(resolveComparison(turn, context)).toEqual({
 			ok: true,

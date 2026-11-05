@@ -11,16 +11,15 @@
  * file. The workspace screen passes them in through the optional props `tab`, `onTabChange`,
  * `scope`, `onScopeChange` and `onOpenFile`. A prop that is left out means the panel keeps that
  * value in its own state (and, without `onOpenFile`, cannot open a file tab).
- * Must handle: git state loading (skeleton header), git state error with retry, archived workspace
- * ("files are not available"), a workspace still initializing, no git status because a rebase or
- * merge is underway ("Finish rebasing or merging to see changes"), keyboard shortcuts for the
- * header actions only while the panel is mounted, and a workspace switch mid-request (only the
- * newest result may change state).
+ * Must handle: git state loading (skeleton header), git state error with retry, no git status
+ * because a rebase or merge is underway ("Finish rebasing or merging to see changes"), keyboard
+ * shortcuts for the header actions only while the panel is mounted, one review request at a time,
+ * and a workspace switch mid-request (only the newest result may change state).
  * Test first: with a GitState of two uncommitted files the header reads "Uncommitted changes" and
  * the main action is "Commit and push".
  */
 import type { WorkspaceId } from "@conducted/shared";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { DiffScope } from "../../core/api.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions, useGitState, useSetting, useWorkspaceStatus } from "../../core/hooks.ts";
@@ -75,6 +74,8 @@ export function GitPanel({
 	const [ownTab, setOwnTab] = useState<GitPanelTab>("changes");
 	const [ownScope, setOwnScope] = useState<DiffScope>(DEFAULT_SCOPE);
 	const [reviewPromptOpen, setReviewPromptOpen] = useState(false);
+	const [reviewBusy, setReviewBusy] = useState(false);
+	const reviewBusyRef = useRef(false);
 	const tab = tabProp ?? ownTab;
 	const scope = scopeProp ?? ownScope;
 
@@ -100,10 +101,9 @@ export function GitPanel({
 		return () => window.removeEventListener("keydown", onKeyDown);
 	});
 
-	const refresh = () => {
-		void gitService.refresh(workspaceId, "full").then((result) => {
-			if (!result.ok) toastError("Couldn't read the git state", result.error);
-		});
+	const refresh = async (): Promise<void> => {
+		const result = await gitService.refresh(workspaceId, "full");
+		if (!result.ok) toastError("Couldn't read the git state", result.error);
 	};
 
 	const openFile = (path: string, mode: "diff" | "edit") => {
@@ -116,65 +116,71 @@ export function GitPanel({
 		});
 	};
 
-	const runAction = (action: GitHeaderActionId) => {
-		const run = (work: Promise<{ ok: boolean; error?: { message: string } }>, title: string) => {
-			void work.then((result) => {
-				if (!result.ok && result.error !== undefined) toastError(title, result.error);
-			});
+	const runAction = (action: GitHeaderActionId): Promise<void> => {
+		const run = async (
+			work: Promise<{ ok: boolean; error?: { message: string } }>,
+			title: string,
+		): Promise<void> => {
+			const result = await work;
+			if (!result.ok && result.error !== undefined) toastError(title, result.error);
 		};
 		switch (action) {
 			case "create_pr":
-				run(actions.pullRequests.create(workspaceId), "Couldn't create the pull request");
-				break;
+				return run(actions.pullRequests.create(workspaceId), "Couldn't create the pull request");
 			case "commit_and_push":
-				run(actions.git.commitAndPush(workspaceId), "Couldn't ask the agent to commit and push");
-				break;
+				return run(
+					actions.git.commitAndPush(workspaceId),
+					"Couldn't ask the agent to commit and push",
+				);
 			case "pull":
-				run(actions.git.pull(workspaceId), "Couldn't pull");
-				break;
+				return run(actions.git.pull(workspaceId), "Couldn't pull");
 			case "push":
-				run(actions.git.push(workspaceId), "Couldn't push");
-				break;
+				return run(actions.git.push(workspaceId), "Couldn't push");
 			case "resolve":
-				run(actions.git.resolveConflicts(workspaceId), "Couldn't ask the agent to resolve");
-				break;
+				return run(actions.git.resolveConflicts(workspaceId), "Couldn't ask the agent to resolve");
 			case "ready_for_review":
-				run(actions.pullRequests.markReady(workspaceId), "Couldn't mark the pull request ready");
-				break;
+				return run(
+					actions.pullRequests.markReady(workspaceId),
+					"Couldn't mark the pull request ready",
+				);
 			case "fix_errors":
-				run(actions.pullRequests.fixErrors(workspaceId), "Couldn't send the failing checks");
-				break;
+				return run(actions.pullRequests.fixErrors(workspaceId), "Couldn't send the failing checks");
 			case "approve":
-				run(actions.pullRequests.approve(workspaceId), "Couldn't approve the pull request");
-				break;
+				return run(actions.pullRequests.approve(workspaceId), "Couldn't approve the pull request");
 			case "merge":
 			case "merge_stack":
-				run(actions.pullRequests.merge(workspaceId), "Couldn't merge the pull request");
-				break;
+				return run(actions.pullRequests.merge(workspaceId), "Couldn't merge the pull request");
 			case "toggle_automerge": {
 				const pr = git.state === "ready" ? git.data.pullRequest : null;
-				run(
+				return run(
 					actions.pullRequests.setAutoMerge(workspaceId, pr === null ? true : !pr.autoMergeEnabled),
 					"Couldn't change auto-merge",
 				);
-				break;
 			}
 			case "add_comments_to_chat":
-				break;
+				// The header model above drops this action until REV-03 supplies sendToChat.
+				return Promise.resolve();
 			case "retry":
-				refresh();
-				break;
+				return refresh();
 		}
 	};
 
-	const startReview = (extraInstructions: string | null) => {
-		void actions.pullRequests.requestAiReview(workspaceId, extraInstructions).then((result) => {
+	const startReview = async (extraInstructions: string | null): Promise<void> => {
+		// One review at a time: a second press or the dialog's Send must not start another chat.
+		if (reviewBusyRef.current) return;
+		reviewBusyRef.current = true;
+		setReviewBusy(true);
+		try {
+			const result = await actions.pullRequests.requestAiReview(workspaceId, extraInstructions);
 			if (!result.ok) {
 				toastError("Couldn't start the review", result.error);
 				return;
 			}
 			setReviewPromptOpen(false);
-		});
+		} finally {
+			reviewBusyRef.current = false;
+			setReviewBusy(false);
+		}
 	};
 
 	const header = (() => {
@@ -191,7 +197,7 @@ export function GitPanel({
 				</div>
 			);
 		}
-		const model = computeGitHeader({
+		const computed = computeGitHeader({
 			git: git.data,
 			agentWorking: status?.kind === "agent" && status.label === "working",
 			forge: git.data.pullRequestUnavailable === "not_github" ? "local" : "github",
@@ -199,6 +205,10 @@ export function GitPanel({
 			treatOptionalChecksAsBlocking: optionalChecksBlocking,
 			stack: null,
 		});
+		// "Add all comments to chat" needs the review comment store (REV-03). Until it exists,
+		// offer no button rather than one that silently does nothing.
+		const model =
+			computed.action?.id === "add_comments_to_chat" ? { ...computed, action: null } : computed;
 		return <GitHeader model={model} onAction={runAction} />;
 	})();
 
@@ -216,8 +226,11 @@ export function GitPanel({
 				onSelect={setTab}
 				changedCount={changedCount}
 				checksFailing={checksFailing}
-				reviewDisabled={changedCount === 0}
-				onReview={() => startReview(null)}
+				reviewDisabled={reviewBusy || changedCount === 0}
+				reviewDisabledReason={
+					reviewBusy ? "A review is already running." : "There is nothing to review."
+				}
+				onReview={() => void startReview(null)}
 				onReviewWithEdit={() => setReviewPromptOpen(true)}
 			/>
 			<div className="min-h-0 flex-1 overflow-hidden">

@@ -1,7 +1,8 @@
 /**
  * @feature SIDE-03 Session manager: per-session queue, duplicate guard, idle after flush
  * Owns: every chat the sidecar knows about, and the app's requests about them: sendMessage,
- * cancel, warmAgent, resetAgent, updateConfig, getSessionStatus and answerInteraction.
+ * cancel, warmAgent, resetAgent, updateConfig, setAutoApproveEdits, getSessionStatus and
+ * answerInteraction.
  * Behaviour: research/conductor/sessions.md sections 2, 3 and 6, sessions-and-chats.md "What
  * happens when you send a message" and "While the agent is working", other-runners.md section 2.4
  * (steering policy). Conductor splits this over a server (`CJi`), a host (`PFe`) and a send
@@ -14,12 +15,13 @@
  *  - delivery: new turn, steer or queued, chosen by steering.ts; the answer says which
  *  - a new non-steering message and a steer both withdraw the open interaction
  *  - a model or agent change between turns restarts the agent with resume (applyConfig returns
- *    "restart"); a change during a turn waits for the next turn (answer "on_next_turn")
+ *    "restart"); every message applies its config to a live agent; a change during a turn waits
+ *    for the next turn (answer "on_next_turn")
  *  - a changed agent kind for an existing chat disposes the old agent first
  *  - getSessionStatus for a chat the sidecar does not know: known false (it restarted)
  *  - the first message adds the workspace instruction block (prompt/); later ones do not
- *  - cancel drops queued messages, withdraws interactions, takes the end checkpoint, and reports
- *    wasWorking
+ *  - cancel drops queued messages, withdraws interactions, asks the running turn to take the end
+ *    checkpoint, and reports wasWorking
  *  - shutdown(): stop every agent, take no checkpoint, wait up to 10 s for in-flight turns
  *  - the same agent session id is stored from the first callback and sent to the app once
  * Test first: two sendMessage calls with the same messageId start one turn; the second answer
@@ -300,7 +302,6 @@ export class DefaultSessionManager implements SessionManager {
 		} else {
 			await this.deps.liveState.update(state.sessionId, (live) => endTurn(live, "aborted by user"));
 		}
-		void this.deps.queue.run(queueKey(state.sessionId), () => this.drain(state));
 		return ok({ wasWorking, droppedMessageIds });
 	}
 
@@ -330,10 +331,7 @@ export class DefaultSessionManager implements SessionManager {
 				});
 			}
 			state.config = config;
-
-			if (state.agentConfig !== null && !sameAgent(state.agentConfig, config)) {
-				await this.disposeAgent(state, state.agentConfig, false);
-			}
+			await this.replaceAgentIfKindChanged(state, config);
 
 			const env = await this.deps.shellEnv.get(params.workspace.workspacePath);
 			if (!env.ok) {
@@ -345,23 +343,11 @@ export class DefaultSessionManager implements SessionManager {
 				return ok({});
 			}
 
-			const resume = this.resumeFor(state);
 			const key = processKey(config.agent, config.acpAgent, state.sessionId);
 			try {
-				await this.deps.processes.ensureWarm(key, async () => {
-					const agent = await runnerResult.value.start({
-						sessionId: state.sessionId,
-						config,
-						workspace: params.workspace,
-						env: env.value.env,
-						...(resume === undefined ? {} : { resume }),
-					});
-					state.agent = agent;
-					state.agentConfig = config;
-					state.runner = runnerResult.value;
-					if (state.autoApproveEdits) agent.setAutoApproveEdits?.(true);
-					return agent;
-				});
+				await this.deps.processes.ensureWarm(key, () =>
+					this.startAgent(state, runnerResult.value, config, params.workspace, env.value.env),
+				);
 			} catch (cause) {
 				this.deps.logger.warn("Warming the agent failed", {
 					sessionId: state.sessionId,
@@ -405,11 +391,7 @@ export class DefaultSessionManager implements SessionManager {
 
 			const agentConfig = state.agentConfig;
 			state.config = params.config;
-
-			if (agentConfig !== null && !sameAgent(agentConfig, params.config)) {
-				await this.disposeAgent(state, agentConfig, false);
-				return ok({ applied: "live" });
-			}
+			await this.replaceAgentIfKindChanged(state, params.config);
 
 			if (state.agent === null) return ok({ applied: "live" });
 
@@ -585,12 +567,9 @@ export class DefaultSessionManager implements SessionManager {
 		signal?: AbortSignal,
 	): Promise<boolean> {
 		this.deps.interactions.withdrawAll(state.sessionId);
-		if (
-			state.agentConfig !== null &&
-			!sameAgent(state.agentConfig, request.config) &&
-			state.agent !== null
-		) {
-			await this.disposeAgent(state, state.agentConfig, false);
+		await this.replaceAgentIfKindChanged(state, request.config);
+		if (state.agent !== null) {
+			await this.applyConfigToLiveAgent(state, request.config);
 		}
 
 		const runnerResult = this.runnerFor(request.config);
@@ -680,6 +659,7 @@ export class DefaultSessionManager implements SessionManager {
 				return err(appError("cancelled", "The message was cancelled while it was being steered."));
 			}
 
+			state.duplicates.markHandled(request.messageId);
 			state.duplicates.rememberDelivery(request.messageId, "steer");
 			this.deps.interactions.withdrawAll(state.sessionId);
 			await this.deps.liveState.update(state.sessionId, (live) =>
@@ -769,6 +749,63 @@ export class DefaultSessionManager implements SessionManager {
 		state.duplicates.rememberDelivery(request.messageId, "queued");
 	}
 
+	/** Stops a live agent whose kind the new config no longer matches, so a fresh one starts. */
+	private async replaceAgentIfKindChanged(
+		state: SessionState,
+		config: SessionConfig,
+	): Promise<void> {
+		if (state.agentConfig !== null && !sameAgent(state.agentConfig, config)) {
+			await this.disposeAgent(state, state.agentConfig, false);
+		}
+	}
+
+	/**
+	 * Applies the message's config to the agent that is already running, before the turn starts.
+	 * A restart keeps the agent's session id so the new process resumes the same conversation.
+	 */
+	private async applyConfigToLiveAgent(state: SessionState, config: SessionConfig): Promise<void> {
+		const agent = state.agent;
+		if (agent === null) return;
+		try {
+			const applied = await agent.applyConfig(config);
+			if (applied === "restart") {
+				await this.disposeAgent(state, state.agentConfig ?? config, true);
+			} else {
+				state.agentConfig = config;
+			}
+		} catch (cause) {
+			this.deps.logger.warn("Could not apply the message's settings; restarting the agent", {
+				sessionId: state.sessionId,
+				reason: messageOf(cause),
+				keepResume: true,
+			});
+			await this.disposeAgent(state, state.agentConfig ?? config, true);
+		}
+	}
+
+	/** Starts an agent and records it on the chat, including the current auto-approve choice. */
+	private async startAgent(
+		state: SessionState,
+		runner: Runner,
+		config: SessionConfig,
+		workspace: WorkspaceContext,
+		env: Readonly<Record<string, string>>,
+	): Promise<AgentSession> {
+		const resume = this.resumeFor(state);
+		const agent = await runner.start({
+			sessionId: state.sessionId,
+			config,
+			workspace,
+			env,
+			...(resume === undefined ? {} : { resume }),
+		});
+		state.agent = agent;
+		state.agentConfig = config;
+		state.runner = runner;
+		if (state.autoApproveEdits) agent.setAutoApproveEdits?.(true);
+		return agent;
+	}
+
 	private async claimAgent(
 		state: SessionState,
 		runner: Runner,
@@ -777,22 +814,9 @@ export class DefaultSessionManager implements SessionManager {
 	): Promise<Result<{ agent: AgentSession; lease: { release(): void } }, AppError>> {
 		const env = await this.deps.shellEnv.get(workspace.workspacePath);
 		if (!env.ok) return err(env.error);
-		const resume = this.resumeFor(state);
 		const key = processKey(config.agent, config.acpAgent, state.sessionId);
-		const start = async (): Promise<AgentSession> => {
-			const agent = await runner.start({
-				sessionId: state.sessionId,
-				config,
-				workspace,
-				env: env.value.env,
-				...(resume === undefined ? {} : { resume }),
-			});
-			state.agent = agent;
-			state.agentConfig = config;
-			state.runner = runner;
-			if (state.autoApproveEdits) agent.setAutoApproveEdits?.(true);
-			return agent;
-		};
+		const start = (): Promise<AgentSession> =>
+			this.startAgent(state, runner, config, workspace, env.value.env);
 
 		try {
 			const lease = await this.deps.processes.claimActive(key, start);

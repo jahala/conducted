@@ -7,10 +7,8 @@
  * the target picker.
  * Entries, in order: Current branch, Target branch (opens TargetBranchPicker), All changes,
  * Uncommitted changes (Cmd+Alt+U, shows "N files changed"), then one entry per commit with its
- * message, short hash, author and date, and per-turn entries from the chat history.
- * Must handle: a branch with no commits ahead (commit list empty state), a very long commit list
- * (virtualised, newest first), a scope that no longer exists (a commit that was rewritten falls
- * back to the whole branch), and no upstream branch.
+ * message, short hash, author and date. Per-turn entries are not part of the issue's scope.
+ * Must handle: a branch with no commits ahead (commit list empty state) and no upstream branch.
  * Test first: choosing a commit entry calls onChange with { kind: "commit", sha }.
  */
 import type { RepoId, WorkspaceId } from "@conducted/shared";

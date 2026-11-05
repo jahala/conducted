@@ -25,7 +25,8 @@ import { Popover } from "../../ui/Popover.tsx";
 
 export interface GitHeaderProps {
 	model: GitHeaderModel;
-	onAction: (action: GitHeaderActionId) => void;
+	/** Settles when the action is finished, including a failed one, so the button is usable again. */
+	onAction: (action: GitHeaderActionId) => Promise<unknown> | undefined;
 }
 
 const toneBadge: Record<GitHeaderTone, BadgeTone> = {
@@ -71,7 +72,12 @@ export function GitHeader({ model, onAction }: GitHeaderProps) {
 		if (busyRef.current) return;
 		busyRef.current = true;
 		setBusy(true);
-		onAction(action);
+		const settle = () => {
+			busyRef.current = false;
+			setBusy(false);
+		};
+		// A failed action settles too, so the button is usable again rather than stuck loading.
+		void Promise.resolve(onAction(action)).then(settle, settle);
 	};
 
 	const shortcut = model.action === null ? undefined : shortcutOf(model.action.id);

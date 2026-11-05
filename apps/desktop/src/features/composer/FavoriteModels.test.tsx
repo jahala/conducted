@@ -2,6 +2,7 @@ import { ok } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createStore } from "zustand/vanilla";
 import "../../test/dom-polyfills.ts";
 import type { Container } from "../../core/container.ts";
 import { ServicesProvider } from "../../core/context.tsx";
@@ -10,11 +11,13 @@ import {
 	FavoriteModelsService,
 	type FavoriteModelsServiceDeps,
 } from "../../core/services/favorite-models.ts";
-import { toast } from "../../ui/Toast.tsx";
+import type { SettingsState } from "../../core/services/settings.ts";
+import { Toaster, toast } from "../../ui/Toast.tsx";
 import { FavoriteModels } from "./FavoriteModels.tsx";
 
 afterEach(() => {
 	cleanup();
+	toast.dismiss();
 	vi.restoreAllMocks();
 });
 
@@ -77,7 +80,21 @@ const harness = async (initial: readonly FavoriteModel[] = []) => {
 		repos: { favoriteModels: repo },
 	} as unknown as FavoriteModelsServiceDeps);
 	await service.start();
-	const container = { services: { favoriteModels: service } } as unknown as Container;
+	const settings = createStore<SettingsState>(() => ({
+		loaded: true,
+		values: { keybinding_overrides_v1: "" },
+		dropped: [],
+		warnings: [],
+	}));
+	const container = {
+		services: {
+			favoriteModels: service,
+			settings: {
+				store: settings,
+				get: <T,>() => "" as unknown as T,
+			},
+		},
+	} as unknown as Container;
 	const wrapper = ({ children }: { children: ReactNode }) => (
 		<ServicesProvider container={container}>{children}</ServicesProvider>
 	);
@@ -108,13 +125,21 @@ describe("COMP-02 favourite models list", () => {
 		expect(service.store.getState().favorites).toHaveLength(5);
 	});
 
-	it("selects the second favourite with Cmd+Ctrl+2", async () => {
+	it("marks an unavailable favourite disabled and explains when picked", async () => {
 		const onPick = vi.fn();
-		const { wrapper } = await harness([favorite("a", "m1", 0), favorite("b", "m2", 1)]);
-		render(<FavoriteModels onPick={onPick} />, { wrapper });
-		await screen.findByRole("button", { name: "Select Claude Code · m2" });
-		fireEvent.keyDown(window, { key: "2", metaKey: true, ctrlKey: true });
-		await waitFor(() => expect(onPick).toHaveBeenCalledWith(choice("m2")));
+		const { wrapper } = await harness([favorite("a", "gone", 0)]);
+		render(
+			<>
+				<FavoriteModels onPick={onPick} isAvailable={() => false} />
+				<Toaster />
+			</>,
+			{ wrapper },
+		);
+		const select = await screen.findByRole("button", { name: "Select Claude Code · gone" });
+		expect(select.getAttribute("aria-disabled")).toBe("true");
+		fireEvent.click(select);
+		expect(await screen.findByText("That model is no longer available")).toBeTruthy();
+		expect(onPick).not.toHaveBeenCalled();
 	});
 
 	it("reorders with the edit controls", async () => {

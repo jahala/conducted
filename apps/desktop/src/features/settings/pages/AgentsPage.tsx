@@ -4,16 +4,15 @@
  * and path, whether it is signed in, and the sign-in action.
  * Behaviour: ui-map.md 6, "Agents" table and "Agents page" (provider search, one card per
  * provider: Claude Code, Codex, Cursor, OpenCode and Pi; states "Loaded from env", "API key
- * configured", "Validation failed", "Recommended"); decision 7 of the scaffold plan (agent programs
- * come from the user's machine first).
+ * configured", "Validation failed", "Recommended"). Programs are downloaded, updated and removed
+ * by the program manager (PLAT-28, D021), not by this page.
  * Data: useAgentInstalls() (AgentInstall: agent, acpAgent, installed, path, version,
  * authenticated), useActions().agents (login, finishLogin, cancelLogin, refresh).
  * Children: agents/AgentCard, agents/AgentLoginDialog. The MCP servers section belongs to SET-05,
  * which adds it here when built.
- * Left out: custom providers and API-key brokering (Conductor stores keys per provider; we use each
- * program's own login), Bedrock and Vertex fields, "Use Claude Code with Chrome", the download
- * manager (PLAT-28). Open question: whether to offer API-key entry at all, since the Environment
- * page can set the variables the programs read.
+ * Other owners: provider keys, Bedrock and custom providers are SET-09; Claude settings and Codex
+ * config are SET-12; "Use Claude Code with Chrome" is SET-12; the Advanced program paths are
+ * SET-02 with the path keys in SIDE-21.
  * Must handle: loading and error, a provider filter with no match ("No providers match your
  * search."), nothing installed (the page leads with install help), a program found but failing its
  * version check ("Validation failed" with its warning), a sign-in in progress, and a refresh after
@@ -24,13 +23,14 @@ import type { AgentInstall } from "@conducted/protocol";
 import type { AcpAgent, AgentKind } from "@conducted/shared";
 import { useEffect, useRef, useState } from "react";
 import { useActions, useAgentInstalls } from "../../../core/hooks.ts";
+import { agentDisplayName, agentKey } from "../../../core/services/agent-catalog.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { Input } from "../../../ui/Input.tsx";
 import { LoadableView } from "../../../ui/LoadableView.tsx";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
-import { AgentCard, agentDisplayName } from "../agents/AgentCard.tsx";
+import { AgentCard } from "../agents/AgentCard.tsx";
 import { AgentLoginDialog, type AgentLoginFlow } from "../agents/AgentLoginDialog.tsx";
 
 interface AgentSelector {
@@ -55,11 +55,8 @@ const KNOWN_ORDER: Record<string, number> = {
 	"acp:pi": 4,
 };
 
-const selectorKey = (agent: AgentKind, acpAgent?: AcpAgent): string =>
-	acpAgent === undefined ? agent : `${agent}:${acpAgent}`;
-
 const orderOf = (install: AgentInstall): number =>
-	KNOWN_ORDER[selectorKey(install.agent, install.acpAgent)] ?? 100;
+	KNOWN_ORDER[agentKey(install.agent, install.acpAgent)] ?? 100;
 
 /** One program's sign-in ends with a code pasted back, not a browser wait. */
 const needsPastedCode = (agent: AgentKind): boolean => agent === "claude";
@@ -103,7 +100,7 @@ export function AgentsPage() {
 	};
 
 	const startLogin = async (selector: AgentSelector) => {
-		setBusyKey(selectorKey(selector.agent, selector.acpAgent));
+		setBusyKey(agentKey(selector.agent, selector.acpAgent));
 		const started = await actions.agents.login(selector.agent, selector.acpAgent);
 		setBusyKey(null);
 		const name = agentDisplayName(selector);
@@ -164,11 +161,15 @@ export function AgentsPage() {
 			);
 			return;
 		}
+		// The login is finished: clear its id before the install refresh so the dialog's
+		// automatic close cannot ask the sidecar to cancel a sign-in that already succeeded.
+		setLogin((current) =>
+			current?.loginId === loginId
+				? { ...current, loginId: null, finishing: false, error: null }
+				: current,
+		);
 		const refreshed = await actions.agents.refresh();
 		if (!refreshed.ok) toastError("Couldn't check the sign-in", refreshed.error);
-		setLogin((current) =>
-			current?.loginId === loginId ? { ...current, finishing: false, error: null } : current,
-		);
 	};
 
 	const closeLogin = (open: boolean) => {
@@ -257,7 +258,7 @@ export function AgentsPage() {
 						);
 					}
 
-					const anyInstalled = filtered.some((install) => install.installed);
+					const anyInstalled = agents.some((install) => install.installed);
 					return (
 						<div className="flex flex-col gap-3">
 							{!anyInstalled ? (
@@ -267,9 +268,9 @@ export function AgentsPage() {
 							) : null}
 							{filtered.map((install) => (
 								<AgentCard
-									key={selectorKey(install.agent, install.acpAgent)}
+									key={agentKey(install.agent, install.acpAgent)}
 									install={install}
-									signInBusy={busyKey === selectorKey(install.agent, install.acpAgent)}
+									signInBusy={busyKey === agentKey(install.agent, install.acpAgent)}
 									onSignIn={() => void startLogin(install)}
 									onRefresh={() => void actions.agents.refresh()}
 									onCopyPath={(path) => void copy(path, "Copied the program path")}

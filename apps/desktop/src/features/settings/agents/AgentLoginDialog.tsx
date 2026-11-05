@@ -152,11 +152,7 @@ export function AgentLoginDialog({
 					<Button variant="ghost" onClick={() => onOpenChange(false)}>
 						Cancel
 					</Button>
-					{flow === null ? (
-						<Button variant="default" onClick={onRetry}>
-							Retry
-						</Button>
-					) : requiresCode ? (
+					{requiresCode ? (
 						<Button
 							variant="default"
 							loading={finishing}
@@ -164,6 +160,11 @@ export function AgentLoginDialog({
 							onClick={submit}
 						>
 							Finish sign-in
+						</Button>
+					) : null}
+					{error !== null || flow === null ? (
+						<Button variant={flow === null ? "default" : "secondary"} onClick={onRetry}>
+							Retry
 						</Button>
 					) : null}
 				</DialogFooter>

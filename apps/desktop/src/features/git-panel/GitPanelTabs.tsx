@@ -5,8 +5,8 @@
  * Behaviour: ui-map.md 3.6 ("Tab strip" paragraph). Review creates a new chat with a code review
  * prompt (the review itself is REV-05, built in the services).
  * Must handle: a badge that shows a count over 99 as "99+", a Checks tab that shows a dot when a
- * check failed, Review disabled while a review chat is being created, keyboard navigation between
- * tabs with the arrow keys, and an archived workspace (tabs disabled).
+ * check failed, Review disabled while a review chat is being created or when there is nothing to
+ * review, and keyboard navigation between tabs with the arrow keys.
  * Test first: with changedCount 3 the Changes tab shows the badge "3".
  */
 import type { GitPanelTab } from "../../core/model.ts";
@@ -20,6 +20,8 @@ export interface GitPanelTabsProps {
 	changedCount: number;
 	checksFailing: boolean;
 	reviewDisabled: boolean;
+	/** The reason the Review button is disabled, or null when it can be pressed. */
+	reviewDisabledReason?: string | null;
 	onReview: () => void;
 	onReviewWithEdit: () => void;
 }
@@ -32,6 +34,7 @@ export function GitPanelTabs({
 	changedCount,
 	checksFailing,
 	reviewDisabled,
+	reviewDisabledReason = null,
 	onReview,
 	onReviewWithEdit,
 }: GitPanelTabsProps) {
@@ -57,7 +60,7 @@ export function GitPanelTabs({
 				</TabsList>
 				<ReviewButton
 					disabled={reviewDisabled}
-					disabledReason={reviewDisabled ? "A review is already running." : null}
+					disabledReason={reviewDisabled ? reviewDisabledReason : null}
 					onReview={onReview}
 					onReviewWithEdit={onReviewWithEdit}
 				/>

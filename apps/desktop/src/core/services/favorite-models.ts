@@ -5,8 +5,11 @@
  * (default model per agent), ui-map.md 3.5 (model picker).
  * Must handle: the same choice saved twice is one favourite; a favourite whose model the agent
  * no longer offers stays in the list but is marked unavailable by the picker; order is the
- * `position` column and stays dense; writes are one transaction (update, insert, delete missing);
- * at most five favourites are saved.
+ * `position` column and stays dense; add runs one at a time so two quick calls cannot both pass
+ * the duplicate and five-limit checks; removing rewrites the order before it deletes, so a failed
+ * reorder leaves the row in place; at most five favourites are saved.
+ * Our design choice: a single repository call that takes the target list is needed to make a
+ * removal one transaction. Until DATA-01 adds it, the service reorders then deletes.
  * Our design choice: favourites are local only, with no sync.
  * Test first: adding an existing configuration returns the existing favourite.
  */
@@ -53,6 +56,8 @@ const byPosition = (favorites: readonly FavoriteModel[]): FavoriteModel[] =>
 export class FavoriteModelsService {
 	readonly store: StoreApi<FavoriteModelsState>;
 	readonly #deps: FavoriteModelsServiceDeps;
+	/** Runs adds one after another, so each reads the list the one before it wrote. */
+	#adds: Promise<unknown> = Promise.resolve();
 
 	constructor(deps: FavoriteModelsServiceDeps) {
 		this.#deps = deps;
@@ -67,6 +72,18 @@ export class FavoriteModelsService {
 	}
 
 	async add(config: FavoriteModel["config"]): Promise<Result<FavoriteModel>> {
+		const run = this.#adds.then(
+			() => this.#add(config),
+			() => this.#add(config),
+		);
+		this.#adds = run.then(
+			() => undefined,
+			() => undefined,
+		);
+		return run;
+	}
+
+	async #add(config: FavoriteModel["config"]): Promise<Result<FavoriteModel>> {
 		const state = this.store.getState();
 		if (!state.loaded) {
 			const loaded = await this.start();
@@ -88,14 +105,14 @@ export class FavoriteModelsService {
 
 	async remove(id: string): Promise<Result<void>> {
 		const before = this.store.getState().favorites;
-		const removed = await this.#deps.repos.favoriteModels.delete(id);
-		if (!removed.ok) return err(removed.error);
 		const remaining = before.filter((favorite) => favorite.id !== id);
 		if (remaining.length === before.length) return ok(undefined);
 		const reordered = await this.#deps.repos.favoriteModels.reorder(
 			remaining.map((favorite) => favorite.id),
 		);
 		if (!reordered.ok) return err(reordered.error);
+		const removed = await this.#deps.repos.favoriteModels.delete(id);
+		if (!removed.ok) return err(removed.error);
 		this.store.setState({
 			favorites: remaining.map((favorite, position) => ({ ...favorite, position })),
 		});

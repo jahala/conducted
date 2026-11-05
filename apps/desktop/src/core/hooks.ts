@@ -27,6 +27,8 @@
  *   useSetting                         -> services.settings.store
  *   useAgentInstalls, useModels, useSlashCommands -> services.agentCatalog.store
  *   useCommands                        -> toCommandEntries over the command runner's enabled flags
+ *   useShortcutOverrides               -> keybinding_overrides_v1 through useSetting
+ *   useLiveShortcut                    -> liveShortcut over those overrides
  *   useUpdateStatus                    -> services.updates.store
  *   useBranchCommits, useBranches      -> query over services.git (log of the branch, branch list)
  *   useCheckLog                        -> query over services.github (log of one check run)
@@ -65,7 +67,12 @@ import { useStoreWithEqualityFn } from "zustand/traditional";
 import type { Actions, ChangedFile, DiffScope, Draft, Loadable, Queries } from "./api.ts";
 import { useServices } from "./context.tsx";
 import type { BranchCommit, ChatView, GitState, Repo, Session } from "./model.ts";
-import { parseShortcutOverrides, toCommandEntries } from "./registries/commands.ts";
+import {
+	liveShortcut,
+	parseShortcutOverrides,
+	type ShortcutOverrides,
+	toCommandEntries,
+} from "./registries/commands.ts";
 import { agentKey } from "./services/agent-catalog.ts";
 import type { WorkspaceGitEntry } from "./services/git.ts";
 import { toGitHubAccessView, type WorkspacePrEntry } from "./services/github.ts";
@@ -304,17 +311,35 @@ export const useModels: Queries["useModels"] = (agent, acpAgent) => {
 	return models ?? { state: "loading" };
 };
 export const useSlashCommands: Queries["useSlashCommands"] = () => notImplemented("COMP-06");
-export const useCommands: Queries["useCommands"] = () => {
-	const { services } = useServices();
+/**
+ * The saved key bindings and, when the text cannot be read, the reason. A screen that can show a
+ * notice reads `error` instead of leaving the user with defaults that do not match what they saved.
+ */
+export function useShortcutOverrides(): { overrides: ShortcutOverrides; error: AppError | null } {
 	const stored = useSetting<string>("keybinding_overrides_v1");
 	return useMemo(() => {
-		const overrides = parseShortcutOverrides(stored);
-		return toCommandEntries(
-			(id) => services.commands.isEnabled(id),
-			overrides.ok ? overrides.value : {},
-		);
-	}, [services, stored]);
+		const parsed = parseShortcutOverrides(stored);
+		return parsed.ok
+			? { overrides: parsed.value, error: null }
+			: { overrides: {}, error: parsed.error };
+	}, [stored]);
+}
+export const useCommands: Queries["useCommands"] = () => {
+	const { services } = useServices();
+	const { overrides } = useShortcutOverrides();
+	return useMemo(
+		() => toCommandEntries((id) => services.commands.isEnabled(id), overrides),
+		[services, overrides],
+	);
 };
+/**
+ * Display form of a command's live first binding, for a key-cap hint. Follows the saved overrides.
+ * Null when the command is unknown or unbound.
+ */
+export function useLiveShortcut(commandId: string): string | null {
+	const { overrides } = useShortcutOverrides();
+	return useMemo(() => liveShortcut(commandId, overrides), [commandId, overrides]);
+}
 export const useUpdateStatus: Queries["useUpdateStatus"] = () => notImplemented("APP-06");
 export const useBranchCommits: Queries["useBranchCommits"] = (workspaceId) => {
 	const git = useServices().services.git;

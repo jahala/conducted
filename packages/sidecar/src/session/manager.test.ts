@@ -632,6 +632,26 @@ describe("SIDE-03 delivery while working", () => {
 		).toEqual(ok({ deliveredAs: "steer" }));
 	});
 
+	test("SIDE-03 a steer retried after its turn ended is still a steer and starts no turn", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams());
+		const agent = h.processes.agents.values().next().value as FakeAgentSession;
+		const consumed = deferred();
+		agent.consumed = consumed.promise;
+		const steer = sendParams({
+			messageId: mid("message-2"),
+			turnId: tid("turn-2"),
+			delivery: "steer",
+		});
+
+		expect(await h.manager.sendMessage(steer)).toEqual(ok({ deliveredAs: "steer" }));
+		await h.turns.last().succeed();
+
+		expect(await h.manager.sendMessage(steer)).toEqual(ok({ deliveredAs: "steer" }));
+		expect(h.turns.turns).toHaveLength(1);
+		expect(agent.steerCalls).toBe(1);
+	});
+
 	test("SIDE-03 a steer queues when the runner cannot steer", async () => {
 		const h = harness({ runners: [new FakeRunner("claude", { steer: false })] });
 		await h.manager.sendMessage(sendParams());
@@ -757,7 +777,8 @@ describe("SIDE-03 cancel, reset and status", () => {
 describe("SIDE-03 prompt, settings and warming", () => {
 	test("SIDE-03 prompt assembly runs for every message with its first-message flag", async () => {
 		const h = harness();
-		await h.manager.sendMessage(sendParams());
+		const withPreferences = workspace("/work/alpha", { userPreferences: "Use tabs." });
+		await h.manager.sendMessage(sendParams({ workspace: withPreferences }));
 		await h.turns.last().succeed();
 		await h.manager.sendMessage(
 			sendParams({
@@ -765,6 +786,7 @@ describe("SIDE-03 prompt, settings and warming", () => {
 				turnId: tid("turn-2"),
 				text: "second",
 				firstMessage: false,
+				workspace: withPreferences,
 			}),
 		);
 
@@ -772,7 +794,7 @@ describe("SIDE-03 prompt, settings and warming", () => {
 		expect(h.prompt.inputs[0]).toMatchObject({
 			text: "hello",
 			firstMessage: true,
-			workspace: workspace("/work/alpha"),
+			workspace: withPreferences,
 		});
 		expect(h.prompt.inputs[1]).toMatchObject({
 			text: "second",
@@ -816,6 +838,40 @@ describe("SIDE-03 prompt, settings and warming", () => {
 			ok({ applied: "live" }),
 		);
 		expect(agent.appliedConfigs).toEqual([changed]);
+	});
+
+	test("SIDE-03 a config carried by the next message is applied to the live agent", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams());
+		const agent = h.processes.agents.values().next().value as FakeAgentSession;
+		await h.turns.last().succeed();
+		const changed = baseConfig({ model: "opus" });
+
+		await h.manager.sendMessage(
+			sendParams({ messageId: mid("message-2"), turnId: tid("turn-2"), config: changed }),
+		);
+
+		expect(agent.appliedConfigs).toEqual([changed]);
+		expect(h.turns.last().request.config).toEqual(changed);
+	});
+
+	test("SIDE-03 a config that needs a restart is applied before the next turn", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams());
+		h.turns.last().deps.onAgentSessionId("agent-session-1");
+		const agent = h.processes.agents.values().next().value as FakeAgentSession;
+		agent.applyResult = "restart";
+		await h.turns.last().succeed();
+		const changed = baseConfig({ model: "opus" });
+
+		await h.manager.sendMessage(
+			sendParams({ messageId: mid("message-2"), turnId: tid("turn-2"), config: changed }),
+		);
+
+		const runner = h.runners.get("claude");
+		expect(runner?.started).toHaveLength(2);
+		expect(runner?.started[1]?.config).toEqual(changed);
+		expect(runner?.started[1]?.resume).toEqual({ agentSessionId: "agent-session-1" });
 	});
 
 	test("SIDE-03 a config change that needs a restart keeps the agent session id", async () => {

@@ -4,16 +4,19 @@
  * reorder and edit.
  * Behaviour: ui-map.md 3.5 (favourites called 'loadouts': up to 5, Cmd+Ctrl+1..5, reorder, 'Add
  * models', 'Edit'), services-map.md (favourite_models table).
- * Must handle: Fewer than five (an 'Add models' row); a favourite whose model is gone (shown muted,
- * picking it explains); reorder by keyboard; removing the last favourite; a sixth favourite is
- * refused with a message.
- * Test first: Adding a sixth favourite is refused with a message; Cmd+Ctrl+2 selects the second.
+ * Must handle: An 'Add models' row at any count, which explains that five are the limit when full; a
+ * favourite whose model is gone (shown muted and marked unavailable, picking it explains); reorder by
+ * keyboard; removing the last favourite; a sixth favourite is refused with a message.
+ * Keyboard: the loadout shortcuts are handled by the picker, which stays mounted while this list is
+ * closed. The key caps here read the live binding so a rebind is shown.
+ * Test first: Adding a sixth favourite is refused with a message; an unavailable favourite is muted.
  */
 import type { SessionConfig } from "@conducted/protocol";
 import { useEffect, useState } from "react";
 import { useStore } from "zustand";
 import { useServices } from "../../core/context.tsx";
-import { type FavoriteModel, MAX_FAVORITES } from "../../core/services/favorite-models.ts";
+import { useLiveShortcut } from "../../core/hooks.ts";
+import type { FavoriteModel } from "../../core/services/favorite-models.ts";
 import { Button } from "../../ui/Button.tsx";
 import { CloseIcon } from "../../ui/icons.tsx";
 import { toast, toastError } from "../../ui/Toast.tsx";
@@ -34,34 +37,23 @@ export interface FavoriteModelsProps {
 	isAvailable?: (config: FavoriteModel["config"]) => boolean;
 }
 
-const shortcut = (index: number): string => `⌘⌃${index + 1}`;
-
 export function FavoriteModels({ onPick, config, isAvailable }: FavoriteModelsProps) {
 	const service = useServices().services.favoriteModels;
 	const loaded = useStore(service.store, (state) => state.loaded);
 	const favorites = useStore(service.store, (state) => state.favorites);
+	const shortcuts = [
+		useLiveShortcut("chat.selectLoadout1"),
+		useLiveShortcut("chat.selectLoadout2"),
+		useLiveShortcut("chat.selectLoadout3"),
+		useLiveShortcut("chat.selectLoadout4"),
+		useLiveShortcut("chat.selectLoadout5"),
+	];
 	const [editing, setEditing] = useState(false);
 	const [busy, setBusy] = useState(false);
 
 	useEffect(() => {
 		if (!loaded) void service.start();
 	}, [loaded, service]);
-
-	// Cmd+Ctrl+1 to 5 pick a saved loadout even while the picker is closed.
-	useEffect(() => {
-		const handleShortcut = (event: KeyboardEvent) => {
-			if (event.defaultPrevented) return;
-			if (!event.metaKey || !event.ctrlKey || event.shiftKey || event.altKey) return;
-			const index = Number(event.key) - 1;
-			if (!Number.isInteger(index) || index < 0 || index >= MAX_FAVORITES) return;
-			const favorite = favorites[index];
-			if (favorite === undefined) return;
-			event.preventDefault();
-			onPick(favorite.config);
-		};
-		window.addEventListener("keydown", handleShortcut);
-		return () => window.removeEventListener("keydown", handleShortcut);
-	}, [favorites, onPick]);
 
 	const add = async () => {
 		if (config === undefined || busy) return;
@@ -135,6 +127,7 @@ export function FavoriteModels({ onPick, config, isAvailable }: FavoriteModelsPr
 						<button
 							type="button"
 							aria-label={`Select ${label}`}
+							aria-disabled={!available}
 							onClick={() => {
 								if (!available) {
 									toast("That model is no longer available", {
@@ -150,7 +143,9 @@ export function FavoriteModels({ onPick, config, isAvailable }: FavoriteModelsPr
 							{!available ? (
 								<span className="text-2xs uppercase tracking-wider text-fg-muted">Unavailable</span>
 							) : null}
-							<span className="text-xs tracking-widest text-fg-muted">{shortcut(index)}</span>
+							<span className="text-xs tracking-widest text-fg-muted">
+								{shortcuts[index] ?? ""}
+							</span>
 						</button>
 						{editing ? (
 							<Button
@@ -165,17 +160,15 @@ export function FavoriteModels({ onPick, config, isAvailable }: FavoriteModelsPr
 					</div>
 				);
 			})}
-			{favorites.length < MAX_FAVORITES ? (
-				<Button
-					variant="ghost"
-					size="sm"
-					className="w-full justify-start"
-					disabled={config === undefined || busy}
-					onClick={() => void add()}
-				>
-					Add models
-				</Button>
-			) : null}
+			<Button
+				variant="ghost"
+				size="sm"
+				className="w-full justify-start"
+				disabled={config === undefined || busy}
+				onClick={() => void add()}
+			>
+				Add models
+			</Button>
 		</section>
 	);
 }
