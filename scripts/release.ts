@@ -10,6 +10,13 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+	bundleProblems,
+	notariseBundle,
+	runTool,
+	signBundle,
+	verifyBundle,
+} from "../apps/desktop/src-tauri/release/bundle.ts";
 import { VERSION_FILES } from "./guards/versions.ts";
 
 const root = join(import.meta.dir, "..");
@@ -24,7 +31,15 @@ if (!version || !/^\d+\.\d+\.\d+$/.test(version)) {
 interface Step {
 	say: string;
 	undo: string;
-	run: () => void;
+	run: () => void | Promise<void>;
+}
+
+type ToolResult<T> = { ok: true; value: T } | { ok: false; error: { message: string } };
+
+async function must<T>(result: Promise<ToolResult<T>>): Promise<T> {
+	const value = await result;
+	if (!value.ok) throw new Error(value.error.message);
+	return value.value;
 }
 
 function sh(cmd: string[], cwd = root): string {
@@ -83,6 +98,38 @@ const steps: Step[] = [
 		},
 	},
 	{
+		say: "Build the arm64 app with its sidecar, sign it, notarise it and verify the bundle",
+		undo: "nothing to undo; build output stays under apps/desktop/src-tauri/target",
+		run: async () => {
+			sh(["pnpm", "--filter", "@conducted/sidecar", "build"]);
+			sh([
+				"pnpm",
+				"--filter",
+				"@conducted/desktop",
+				"tauri",
+				"build",
+				"--target",
+				"aarch64-apple-darwin",
+				"--config",
+				"src-tauri/tauri.release.conf.json",
+			]);
+			const appPath = join(
+				tauriDir,
+				"target",
+				"aarch64-apple-darwin",
+				"release",
+				"bundle",
+				"macos",
+				"Conducted.app",
+			);
+			await must(signBundle(runTool, appPath, process.env));
+			await must(notariseBundle(runTool, appPath, process.env));
+			const report = await must(verifyBundle(runTool, appPath));
+			const problems = bundleProblems(report);
+			if (problems.length > 0) throw new Error(problems.join("\n"));
+		},
+	},
+	{
 		say: `Commit "release: v${version}" and tag v${version}`,
 		undo: `git tag -d v${version} && git revert HEAD`,
 		run: () => {
@@ -98,7 +145,7 @@ for (const [index, step] of steps.entries()) {
 	console.log(`${index + 1}. ${step.say}\n   undo: ${step.undo}`);
 	if (!go) continue;
 	try {
-		step.run();
+		await step.run();
 	} catch (error) {
 		console.error(`\nStopped at step ${index + 1}: ${(error as Error).message}`);
 		process.exit(1);
