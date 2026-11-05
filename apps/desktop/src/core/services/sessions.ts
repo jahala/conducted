@@ -16,7 +16,9 @@
  * caller saw, so a late answer cannot overwrite a newer choice; a cancel withdraws the open
  * interaction, takes back the messages the sidecar dropped and returns an in-flight send to the
  * draft; a sidecar that refuses the cancel changes nothing; cancelAll reaches every working chat
- * of a workspace and no idle one.
+ * of a workspace and no idle one; a live state from the sidecar is shown as it arrives and an
+ * open interaction in it becomes the chat's card; a chat the sidecar lost gets every open turn
+ * closed as `interrupted` and an idle live state, while its agent session id stays for resume.
  * Our design choice: a chat starts with no title; the title generator fills it only once
  * (`setTitleIfEmpty`), so a name the user typed is never overwritten.
  * Our design choice: the pending send lives in memory until the sidecar stores its `user_message`
@@ -28,10 +30,10 @@
  * config write leaves the newer stored choice in place, and a cancel pauses the queue and returns
  * the dropped message to the draft.
  *
- * The progress and unread paths live in the same service but belong to CHAT-13, CHAT-18 and
- * NAV-11. They are placeholders until those features build them. The chat view (turns built from
- * stored events) belongs to CHAT-07. Cancel is CHAT-05's, and the interaction paths (answer,
- * requestInteraction) are CHAT-10's.
+ * The progress and unread paths live in the same service but belong to CHAT-13 and NAV-11. They
+ * are placeholders until those features build them. The chat view (turns built from stored
+ * events) belongs to CHAT-07. Cancel is CHAT-05's, and the interaction paths (answer,
+ * requestInteraction) are CHAT-10's. CHAT-18 owns `applyLiveState` and `markInterrupted` here.
  */
 import {
 	type AgentLaunch,
@@ -48,6 +50,7 @@ import {
 import {
 	type AppError,
 	appError,
+	type EventId,
 	err,
 	type InteractionId,
 	type MessageId,
@@ -1025,8 +1028,23 @@ export class SessionsService implements AgentMessenger {
 
 	// ---- called by the sidecar side (core/sidecar) ----
 
-	applyLiveState(_sessionId: SessionId, _liveState: LiveState): void {
-		notImplemented("CHAT-18");
+	/** Shows the sidecar's live state. A new state replaces the one before it. */
+	applyLiveState(sessionId: SessionId, liveState: LiveState): void {
+		const at = this.#deps.now();
+		this.store.setState((state) => {
+			const next: Partial<SessionsState> = {
+				liveStates: { ...state.liveStates, [sessionId]: liveState },
+			};
+			const open = liveState.openInteraction;
+			if (open !== undefined) {
+				next.openInteractions = {
+					...state.openInteractions,
+					[sessionId]: { interactionId: open.interactionId, interaction: open.interaction },
+				};
+			}
+			return next;
+		});
+		void this.#deps.repositories().liveStates.upsert(sessionId, liveState, at);
 	}
 
 	applyStoredEvent(
@@ -1106,9 +1124,29 @@ export class SessionsService implements AgentMessenger {
 		notImplemented("CHAT-13");
 	}
 
-	/** Closes a turn the sidecar lost: appends `turn_ended` with outcome "interrupted". */
-	markInterrupted(_sessionId: SessionId): Promise<Result<void>> {
-		return notImplemented("CHAT-18");
+	/** Closes every turn the sidecar lost: appends `turn_ended` with outcome "interrupted". */
+	async markInterrupted(sessionId: SessionId): Promise<Result<void>> {
+		const repositories = this.#deps.repositories();
+		const open = await repositories.sessionEvents.findInterruptedTurns();
+		if (!open.ok) return open;
+		for (const turn of open.value) {
+			if (turn.sessionId !== sessionId) continue;
+			const at = this.#deps.now();
+			const event: SessionEvent = {
+				type: "turn_ended",
+				eventId: this.#deps.newId() as EventId,
+				at,
+				turnId: turn.turnId,
+				outcome: "interrupted",
+			};
+			const appended = await repositories.sessionEvents.append(sessionId, event, at);
+			if (!appended.ok) return appended;
+			if (appended.value.kind === "appended") {
+				this.applyStoredEvent(sessionId, appended.value.idx, event, at);
+			}
+		}
+		this.applyLiveState(sessionId, idleLiveState);
+		return ok(undefined);
 	}
 
 	// ---- called by the views ----

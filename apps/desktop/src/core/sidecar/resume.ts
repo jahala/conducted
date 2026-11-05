@@ -9,11 +9,8 @@
  * Must handle: the sidecar restarted (every chat the UI thinks is working is "unknown" there:
  * close its turn as interrupted, show idle, keep the agent session id so the next message
  * resumes); the sidecar is alive and still working (adopt its live state and wait for events);
- * the sidecar replays unacknowledged events with `deliverEvent` after the handlers are
- * registered (ingest handles them; dedupe makes replay safe); chats with queued follow-ups stay
- * paused until the user resumes them (the queue never sends by itself after a crash); a chat
- * that was open gets `warmAgent` again with its resume id only when the user opens it; two
- * resume runs at once collapse into one.
+ * two resume runs at once collapse into one; a status request that fails is reported in the
+ * result and never guessed at.
  * Our design choice: the app never guesses. A chat is either confirmed `working` by the sidecar
  * or it is closed as interrupted. Startup repair (core/db/repair.ts) already did the same for the
  * stored side before this runs.
@@ -21,8 +18,8 @@
  * turn_ended event with outcome "interrupted" and an idle live state.
  */
 import type { LiveState } from "@conducted/protocol";
-import { notImplemented, type Result, type SessionId } from "@conducted/shared";
-import type { Repositories } from "../db/repositories.ts";
+import { ok, type Result, type SessionId } from "@conducted/shared";
+import { createSingleFlight } from "../async/single-flight.ts";
 import type { SidecarClient } from "./tunnel.ts";
 
 export interface ResumeReport {
@@ -32,7 +29,6 @@ export interface ResumeReport {
 }
 
 export interface SessionResumeDeps {
-	repositories: () => Repositories;
 	sidecar: Pick<SidecarClient, "request">;
 	/** Chats the UI believes are working, from memory and from stored live states. */
 	workingSessionIds: () => Promise<SessionId[]>;
@@ -45,6 +41,7 @@ export interface SessionResumeDeps {
 
 export class SessionResume {
 	readonly #deps: SessionResumeDeps;
+	readonly #flight = createSingleFlight<"resume">();
 
 	constructor(deps: SessionResumeDeps) {
 		this.#deps = deps;
@@ -52,7 +49,37 @@ export class SessionResume {
 
 	/** Runs once after the tunnel is up and again after every reconnect. */
 	resume(): Promise<Result<ResumeReport>> {
-		void this.#deps;
-		return notImplemented("CHAT-18");
+		return this.#flight.run("resume", () => this.#run());
+	}
+
+	async #run(): Promise<Result<ResumeReport>> {
+		const report: ResumeReport = { adopted: [], interrupted: [], failed: [] };
+		const working = await this.#deps.workingSessionIds();
+
+		for (const sessionId of working) {
+			const status = await this.#deps.sidecar.request("getSessionStatus", { sessionId });
+			if (!status.ok) {
+				report.failed.push({ sessionId, message: status.error.message });
+				continue;
+			}
+			if (!status.value.known) {
+				const marked = await this.#deps.apply.markInterrupted(sessionId);
+				if (marked.ok) report.interrupted.push(sessionId);
+				else report.failed.push({ sessionId, message: marked.error.message });
+				continue;
+			}
+			const liveState = status.value.liveState;
+			if (liveState === undefined) {
+				report.failed.push({
+					sessionId,
+					message: "The sidecar did not report the chat's live state.",
+				});
+				continue;
+			}
+			this.#deps.apply.adoptLiveState(sessionId, liveState);
+			report.adopted.push(sessionId);
+		}
+
+		return ok(report);
 	}
 }
