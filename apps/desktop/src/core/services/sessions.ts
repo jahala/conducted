@@ -16,7 +16,11 @@
  * caller saw, so a late answer cannot overwrite a newer choice; a cancel withdraws the open
  * interaction, takes back the messages the sidecar dropped and returns an in-flight send to the
  * draft; a sidecar that refuses the cancel changes nothing; cancelAll reaches every working chat
- * of a workspace and no idle one.
+ * of a workspace and no idle one; a live state from the sidecar is shown as it arrives and an
+ * open interaction in it becomes the chat's card, while a live state without one withdraws the
+ * card; a chat the sidecar lost gets every open turn closed as `interrupted` in one transaction
+ * and an idle live state, while its agent session id stays for resume and a failed live-state
+ * write is returned.
  * Our design choice: a chat starts with no title; the title generator fills it only once
  * (`setTitleIfEmpty`), so a name the user typed is never overwritten.
  * Our design choice: the pending send lives in memory until the sidecar stores its `user_message`
@@ -28,10 +32,10 @@
  * config write leaves the newer stored choice in place, and a cancel pauses the queue and returns
  * the dropped message to the draft.
  *
- * The progress and unread paths live in the same service but belong to CHAT-13, CHAT-18 and
- * NAV-11. They are placeholders until those features build them. The chat view (turns built from
- * stored events) belongs to CHAT-07. Cancel is CHAT-05's, and the interaction paths (answer,
- * requestInteraction) are CHAT-10's.
+ * The progress and unread paths live in the same service but belong to CHAT-13 and NAV-11. They
+ * are placeholders until those features build them. The chat view (turns built from stored
+ * events) belongs to CHAT-07. Cancel is CHAT-05's, and the interaction paths (answer,
+ * requestInteraction) are CHAT-10's. CHAT-18 owns `applyLiveState` and `markInterrupted` here.
  */
 import {
 	type AgentLaunch,
@@ -48,6 +52,7 @@ import {
 import {
 	type AppError,
 	appError,
+	type EventId,
 	err,
 	type InteractionId,
 	type MessageId,
@@ -61,8 +66,9 @@ import {
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Database } from "../../platform/platform.ts";
 import type { Draft, NewWorkspaceInput } from "../api.ts";
+import { interruptedTurnEvent } from "../db/repair.ts";
 import type { Repositories } from "../db/repositories.ts";
-import { executeStatement, selectRows, stringifyJson } from "../db/row-codec.ts";
+import { executeStatement, inTransaction, selectRows, stringifyJson } from "../db/row-codec.ts";
 import type { ChatView, Session } from "../model.ts";
 import type { SidecarClient } from "../sidecar/tunnel.ts";
 import type { ComposerService } from "./composer.ts";
@@ -160,6 +166,11 @@ function compareNewest(a: Session, b: Session): number {
 export interface SessionsServiceDeps {
 	db: Database;
 	repositories: () => Repositories;
+	/**
+	 * Builds repositories on a transaction handle, so several appends commit or roll back together.
+	 * The composition root passes the same factory it gives `EventIngest`.
+	 */
+	repositoriesOn: (db: Database) => Repositories;
 	sidecar: Pick<SidecarClient, "request" | "notify">;
 	composer: Pick<
 		ComposerService,
@@ -1025,8 +1036,38 @@ export class SessionsService implements AgentMessenger {
 
 	// ---- called by the sidecar side (core/sidecar) ----
 
-	applyLiveState(_sessionId: SessionId, _liveState: LiveState): void {
-		notImplemented("CHAT-18");
+	/**
+	 * Shows the sidecar's live state. A new state replaces the one before it. An interaction the
+	 * new state no longer carries is settled as withdrawn, so a stale card never stays on screen.
+	 */
+	async applyLiveState(sessionId: SessionId, liveState: LiveState): Promise<Result<void>> {
+		const at = this.#deps.now();
+		const previous = this.store.getState().openInteractions[sessionId];
+		const nextOpen = liveState.openInteraction;
+		this.store.setState((state) => {
+			const next: Partial<SessionsState> = {
+				liveStates: { ...state.liveStates, [sessionId]: liveState },
+			};
+			const openInteractions = { ...state.openInteractions };
+			let changed = false;
+			if (nextOpen !== undefined) {
+				openInteractions[sessionId] = {
+					interactionId: nextOpen.interactionId,
+					interaction: nextOpen.interaction,
+				};
+				changed = true;
+			} else if (openInteractions[sessionId] !== undefined) {
+				delete openInteractions[sessionId];
+				changed = true;
+			}
+			if (changed) next.openInteractions = openInteractions;
+			return next;
+		});
+		if (previous !== undefined && previous.interactionId !== nextOpen?.interactionId) {
+			this.#settleInteraction(previous.interactionId, { kind: "withdrawn" });
+		}
+		const written = await this.#deps.repositories().liveStates.upsert(sessionId, liveState, at);
+		return written.ok ? ok(undefined) : err(written.error);
 	}
 
 	applyStoredEvent(
@@ -1106,9 +1147,37 @@ export class SessionsService implements AgentMessenger {
 		notImplemented("CHAT-13");
 	}
 
-	/** Closes a turn the sidecar lost: appends `turn_ended` with outcome "interrupted". */
-	markInterrupted(_sessionId: SessionId): Promise<Result<void>> {
-		return notImplemented("CHAT-18");
+	/**
+	 * Closes every turn the sidecar lost: appends `turn_ended` with outcome "interrupted" in one
+	 * transaction, then writes the idle live state. The store shows the events only after they
+	 * committed, and a failed live-state write is returned rather than hidden.
+	 */
+	async markInterrupted(sessionId: SessionId): Promise<Result<void>> {
+		const open = await this.#deps.repositories().sessionEvents.findInterruptedTurns(sessionId);
+		if (!open.ok) return open;
+		const at = this.#deps.now();
+		const appended = await inTransaction(
+			this.#deps.db,
+			"Closing turns cut off by a crash",
+			async (tx) => {
+				const repositories = this.#deps.repositoriesOn(tx);
+				const stored: { idx: number; event: SessionEvent }[] = [];
+				for (const turn of open.value) {
+					const event = interruptedTurnEvent(turn.turnId, this.#deps.newId() as EventId, at);
+					const result = await repositories.sessionEvents.append(sessionId, event, at);
+					if (!result.ok) return err(result.error);
+					if (result.value.kind === "appended") {
+						stored.push({ idx: result.value.idx, event });
+					}
+				}
+				return ok(stored);
+			},
+		);
+		if (!appended.ok) return appended;
+		for (const entry of appended.value) {
+			this.applyStoredEvent(sessionId, entry.idx, entry.event, at);
+		}
+		return this.applyLiveState(sessionId, idleLiveState);
 	}
 
 	// ---- called by the views ----

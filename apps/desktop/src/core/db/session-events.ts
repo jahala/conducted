@@ -121,6 +121,12 @@ export const SESSION_EVENTS_SQL = {
 		GROUP BY session_id, turn_id
 		HAVING SUM(type = 'user_message') > 0 AND SUM(type = 'turn_ended') = 0
 		ORDER BY session_id, MIN(idx)`,
+	/** The same query for one chat, so a lost chat does not scan every chat's log. */
+	findInterruptedTurnsForSession: `SELECT session_id, turn_id FROM session_events
+		WHERE reverted_at IS NULL AND turn_id IS NOT NULL AND session_id = $1
+		GROUP BY session_id, turn_id
+		HAVING SUM(type = 'user_message') > 0 AND SUM(type = 'turn_ended') = 0
+		ORDER BY MIN(idx)`,
 } as const;
 
 export interface SessionEventRepository {
@@ -156,8 +162,13 @@ export interface SessionEventRepository {
 		turnId: TurnId,
 		revertedAt: number,
 	): Promise<Result<number>>;
-	/** SESSION_EVENTS_SQL.findInterruptedTurns across all chats, for startup repair. */
-	findInterruptedTurns(): Promise<Result<{ sessionId: SessionId; turnId: TurnId }[]>>;
+	/**
+	 * SESSION_EVENTS_SQL.findInterruptedTurns across all chats, for startup repair. With a
+	 * `sessionId`, only that chat's log is read.
+	 */
+	findInterruptedTurns(
+		sessionId?: SessionId,
+	): Promise<Result<{ sessionId: SessionId; turnId: TurnId }[]>>;
 }
 
 export function createSessionEventRepository(
@@ -226,11 +237,13 @@ export function createSessionEventRepository(
 			);
 			return written.ok ? ok(written.value) : err(written.error);
 		},
-		findInterruptedTurns: async () => {
+		findInterruptedTurns: async (sessionId?: SessionId) => {
 			const rows = await selectRows<{ session_id: SessionId; turn_id: TurnId }>(
 				db,
-				SESSION_EVENTS_SQL.findInterruptedTurns,
-				[],
+				sessionId === undefined
+					? SESSION_EVENTS_SQL.findInterruptedTurns
+					: SESSION_EVENTS_SQL.findInterruptedTurnsForSession,
+				sessionId === undefined ? [] : [sessionId],
 				"Finding interrupted turns",
 			);
 			return rows.ok

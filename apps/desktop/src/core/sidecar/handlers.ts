@@ -6,16 +6,13 @@
  * Behaviour: sessions.md 5 and 6 (event flow, interactions), sessions.md 10 (wire contract),
  * services-map.md 5A.7.2 (diff comment tools), 5A.1.3 (GetTerminalOutput), 3.4.6 (agent-facing
  * diff), claude-runner.md 3 and 4 (what each app tool needs from the UI).
- * Must handle: `requestInteraction` stays open until the user answers, the sidecar withdraws it, or
- * its `expiresAt` passes (a later request for the same chat replaces the open one); when the
- * sidecar reconnects, open interactions are asked again, so a handler must accept the same
- * interaction id twice; `deliverEvent` answers `persisted: true` only after ingest committed the
- * event; `getWorkspaceDiff` reports "merge or rebase in progress" as text, not as an RPC error;
- * `addDiffComments` creates comments with author kind "agent"; `getTerminalOutput` source
- * "auto" prefers the Spotlight terminal, then the run terminal, then the newest terminal; a
- * session id the UI does not know gets a clear error text, never a crash; `interactionClosed`
- * marks a Codex request that expired as timed out, and brings a card back when its answer could
- * not be delivered; `agentConfigChanged` stores the config the agent switched to (plan mode).
+ * Must handle: `deliverEvent` answers `persisted: true` only after ingest committed the event
+ * (ingest logs its own write failures and returns them in the result); `liveState` shows the
+ * adopted status and any open interaction, and a failed live-state write is thrown so the tunnel
+ * logs it; `agentSessionId` stores the agent's own session id so the next message resumes, and a
+ * failed write is thrown so the tunnel logs it; `agentInstallsChanged` updates the agent catalog;
+ * `shellEnvFailed` logs the folder, kind and message; a failed workspace diff becomes error text
+ * the agent can read instead of a crash.
  * Our design choice: handlers receive ports (small interfaces), not services, so each can be
  * tested with a plain object. Errors the agent should read go into the normal result as text.
  * Test first: a deliverEvent request for a stored event answers persisted true and sends the ack.
@@ -47,7 +44,7 @@ export interface IngestPort {
 }
 
 export interface LiveStatePort {
-	setLiveState(params: SidecarToAppNotificationParams<"liveState">): void;
+	setLiveState(params: SidecarToAppNotificationParams<"liveState">): Promise<Result<void>>;
 	setAgentSessionId(
 		params: SidecarToAppNotificationParams<"agentSessionId">,
 	): Promise<Result<void>>;
@@ -90,6 +87,11 @@ export interface TargetBranchPort {
 	setForSession(sessionId: SessionId, branch: string): Promise<Result<void>>;
 }
 
+export interface ShellEnvPort {
+	/** Logs that a folder's login-shell environment could not be captured. */
+	captureFailed(params: SidecarToAppNotificationParams<"shellEnvFailed">): void;
+}
+
 export interface SidecarHandlerPorts {
 	interactions: InteractionPort;
 	ingest: IngestPort;
@@ -99,6 +101,7 @@ export interface SidecarHandlerPorts {
 	diffComments: DiffCommentsPort;
 	terminalOutput: TerminalOutputPort;
 	targetBranch: TargetBranchPort;
+	shellEnv: ShellEnvPort;
 }
 
 // ---------------------------------------------------------------- requests (sidecar asks the UI)
@@ -131,12 +134,19 @@ export function createSidecarNotificationHandlers(
 	ports: SidecarHandlerPorts,
 ): SidecarNotificationHandlers {
 	return {
+		// Ingest owns its log: it reports a failed write there and in the result it returns.
 		sessionEvent: async (envelope) => {
 			await ports.ingest.ingest(envelope);
 		},
-		liveState: () => notImplemented("CHAT-18"),
+		liveState: async (params) => {
+			const written = await ports.liveState.setLiveState(params);
+			if (!written.ok) throw new Error(`Could not show a live state: ${written.error.message}`);
+		},
 		agentSessionId: async (params) => {
-			await ports.liveState.setAgentSessionId(params);
+			const written = await ports.liveState.setAgentSessionId(params);
+			if (!written.ok) {
+				throw new Error(`Could not store the agent session id: ${written.error.message}`);
+			}
 		},
 		progress: () => notImplemented("CHAT-13"),
 		agentInstallsChanged: async (params) => {
@@ -145,6 +155,8 @@ export function createSidecarNotificationHandlers(
 		agentConfigChanged: () => notImplemented("SIDE-20"),
 		interactionClosed: () => notImplemented("CHAT-11"),
 		goalChanged: () => notImplemented("COMP-10"),
-		shellEnvFailed: () => notImplemented("CHAT-18"),
+		shellEnvFailed: async (params) => {
+			ports.shellEnv.captureFailed(params);
+		},
 	};
 }

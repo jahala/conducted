@@ -247,6 +247,14 @@ export function createContainer(inputs: ContainerInputs): Container {
 				return found.ok ? git.setTargetBranch(found.value.id, branch) : found;
 			},
 		},
+		shellEnv: {
+			captureFailed: (params) => {
+				log(
+					"warn",
+					`Could not capture the login-shell environment for ${params.folder} (${params.kind}): ${params.message}`,
+				);
+			},
+		},
 	};
 	const tunnel = new SidecarTunnel({
 		transport: platform.sidecar,
@@ -259,12 +267,14 @@ export function createContainer(inputs: ContainerInputs): Container {
 		},
 	});
 	const resume = new SessionResume({
-		repositories: () => repositories,
 		sidecar: client,
+		// Startup repair already reset stored live states, so at startup this list is empty and
+		// the reconnect run is the one that finds lost chats.
 		workingSessionIds: async () =>
 			Object.entries(sessions.store.getState().liveStates)
 				.filter(([, live]) => live.status === "working")
 				.map(([id]) => id as never),
+		liveStateOf: (sessionId) => sessions.store.getState().liveStates[sessionId],
 		apply: {
 			adoptLiveState: (sessionId, liveState) => sessions.applyLiveState(sessionId, liveState),
 			markInterrupted: (sessionId) => sessions.markInterrupted(sessionId),
@@ -313,6 +323,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 	const sessions: SessionsService = new SessionsService({
 		db: platform.db,
 		repositories: () => repositories,
+		repositoriesOn: (tx) => createRepositories(tx, repositoryDeps),
 		sidecar: client,
 		composer,
 		queue: followUpQueue,

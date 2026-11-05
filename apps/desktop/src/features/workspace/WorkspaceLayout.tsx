@@ -1,19 +1,20 @@
 /**
  * @feature NAV-10 Workspace layout
- * Owns: the workspace screen's frame: header, tab strip and content in the centre, and the right panel with the
- * Git panel over the Scripts panel. All four are slots, so each can fail on its own.
+ * Owns: the workspace screen's frame: the header row, the centre content, and the right panel with the Git
+ * panel over the Scripts panel. The header, centre and panels are slots, so each can fail on its own.
  * Behaviour: ui-map.md 1.1 (horizontal group "right-panel-layout": main-content default 70, min 30; right-panel
  * default 35, min 30, collapsible; right panel is a vertical group "workspace-right-panels-<localId>": git-panel
  * default 50, min 0, over scripts-panel default 50, min 20, collapsible).
  * Our design choice: sizes are 65/35 so they add up to 100. The group ids carry the workspace id so each
  * workspace can keep its own layout once sizes are saved (layout-persistence.ts, NAV-01). The group is keyed by
- * the workspace id so switching workspaces gives a fresh layout state.
+ * the workspace id so switching workspaces gives a fresh layout state. The centre owns its tab strip, so the
+ * frame does not need a separate strip slot.
  * The header slot sits in a title-bar-height row that is a window drag region and starts with the title bar
  * inset, so the header component only fills the row.
  * Must handle: right panel collapsed (the header's toggle button reopens it; the header receives
  * `rightPanelOpen` and `toggleRightPanel`); window narrower than both minimums; the scripts panel collapsing to
  * its 32px tab row (ui/layout-sizes.ts).
- * Test first: renders all four slots; toggleRightPanel hides and shows the right panel.
+ * Test first: renders all three slots; toggleRightPanel hides and shows the right panel.
  */
 import type { WorkspaceId } from "@conducted/shared";
 import { type ReactNode, useState } from "react";
@@ -29,7 +30,6 @@ export interface RightPanelControls {
 export interface WorkspaceLayoutProps {
 	workspaceId: WorkspaceId;
 	header: (controls: RightPanelControls) => ReactNode;
-	tabStrip: ReactNode;
 	content: ReactNode;
 	gitPanel: ReactNode;
 	scriptsPanel: ReactNode;
@@ -38,7 +38,6 @@ export interface WorkspaceLayoutProps {
 export function WorkspaceLayout({
 	workspaceId,
 	header,
-	tabStrip,
 	content,
 	gitPanel,
 	scriptsPanel,
@@ -47,10 +46,13 @@ export function WorkspaceLayout({
 	const [rightPanelOpen, setRightPanelOpen] = useState(true);
 
 	const toggleRightPanel = () => {
+		const next = !rightPanelOpen;
 		const panel = rightRef.current;
-		if (!panel) return;
-		if (panel.isCollapsed()) panel.expand();
-		else panel.collapse();
+		if (panel) {
+			if (next) panel.expand();
+			else panel.collapse();
+		}
+		setRightPanelOpen(next);
 	};
 
 	return (
@@ -69,7 +71,6 @@ export function WorkspaceLayout({
 						<TitleBarInset />
 						<div className="min-w-0 flex-1">{header({ rightPanelOpen, toggleRightPanel })}</div>
 					</div>
-					{tabStrip}
 					<div className="min-h-0 flex-1">{content}</div>
 				</div>
 			</ResizablePanel>
@@ -83,7 +84,11 @@ export function WorkspaceLayout({
 				collapsedSize="0%"
 				onResize={(size) => setRightPanelOpen(size.inPixels > 0)}
 			>
-				<aside aria-label="Changes and scripts" className="h-full bg-surface">
+				<aside
+					aria-label="Changes and scripts"
+					data-right-panel-open={rightPanelOpen}
+					className="h-full bg-surface"
+				>
 					<ResizableGroup
 						id={`workspace-right-panels-${workspaceId}`}
 						orientation="vertical"

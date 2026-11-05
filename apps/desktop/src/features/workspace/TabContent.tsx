@@ -12,13 +12,14 @@
  * Test first: search { tab: "pr" } renders the PR tab area; {} renders the empty tab group.
  */
 import type { WorkspaceId } from "@conducted/shared";
+import { ErrorBoundary } from "../../ui/ErrorBoundary.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { BrowserTab } from "../browser-preview/BrowserTab.tsx";
 import { ChatPane } from "../chat/ChatPane.tsx";
 import { FileTab } from "../file-viewer/FileTab.tsx";
 import { PrTab } from "../pr/PrTab.tsx";
 import { TerminalView } from "../terminal/TerminalView.tsx";
-import { activeTabKey, resolveActiveTab } from "./active-tab.ts";
+import { type ActiveTab, activeTabKey, resolveActiveTab } from "./active-tab.ts";
 import { CommentTab } from "./CommentTab.tsx";
 import { EmptyTabGroup } from "./EmptyTabGroup.tsx";
 import type { WorkspaceSearch } from "./workspace-search.ts";
@@ -27,16 +28,35 @@ export interface TabContentProps {
 	workspaceId: WorkspaceId;
 	search: WorkspaceSearch;
 	onSearchChange: (patch: Partial<WorkspaceSearch>) => void;
+	/** A split pane shows its own tab; the main pane follows the URL (see SplitPanes). */
+	tab?: ActiveTab;
 }
 
-export function TabContent({ workspaceId, search, onSearchChange }: TabContentProps) {
-	const tab = resolveActiveTab(search);
+export function TabContent({
+	workspaceId,
+	search,
+	onSearchChange,
+	tab: override,
+}: TabContentProps) {
+	const tab = override ?? resolveActiveTab(search);
 	const key = activeTabKey(tab);
 	switch (tab.kind) {
 		case "session":
 			return (
 				<NotBuiltYet area="Chat" resetKey={key}>
-					<ChatPane workspaceId={workspaceId} sessionId={tab.sessionId} />
+					<ErrorBoundary
+						resetKey={key}
+						fallback={() => (
+							<div
+								role="alert"
+								className="flex h-full items-center justify-center p-6 text-sm text-danger"
+							>
+								This chat tab failed to render. Open another tab and come back.
+							</div>
+						)}
+					>
+						<ChatPane workspaceId={workspaceId} sessionId={tab.sessionId} />
+					</ErrorBoundary>
 				</NotBuiltYet>
 			);
 		case "terminal":

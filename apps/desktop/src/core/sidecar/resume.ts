@@ -9,20 +9,20 @@
  * Must handle: the sidecar restarted (every chat the UI thinks is working is "unknown" there:
  * close its turn as interrupted, show idle, keep the agent session id so the next message
  * resumes); the sidecar is alive and still working (adopt its live state and wait for events);
- * the sidecar replays unacknowledged events with `deliverEvent` after the handlers are
- * registered (ingest handles them; dedupe makes replay safe); chats with queued follow-ups stay
- * paused until the user resumes them (the queue never sends by itself after a crash); a chat
- * that was open gets `warmAgent` again with its resume id only when the user opens it; two
- * resume runs at once collapse into one.
+ * two resume runs at once collapse into one; a status request that fails is reported in the
+ * result and never guessed at; a live-state notification that arrives while the status request
+ * is in flight wins over the older status answer; a failed live-state write is reported in the
+ * result.
  * Our design choice: the app never guesses. A chat is either confirmed `working` by the sidecar
  * or it is closed as interrupted. Startup repair (core/db/repair.ts) already did the same for the
- * stored side before this runs.
+ * stored side before this runs, so at startup the working list is empty and the reconnect run is
+ * the one that finds lost chats.
  * Test first: a chat the UI shows as working, which the sidecar reports as unknown, ends with a
  * turn_ended event with outcome "interrupted" and an idle live state.
  */
 import type { LiveState } from "@conducted/protocol";
-import { notImplemented, type Result, type SessionId } from "@conducted/shared";
-import type { Repositories } from "../db/repositories.ts";
+import { ok, type Result, type SessionId } from "@conducted/shared";
+import { createSingleFlight } from "../async/single-flight.ts";
 import type { SidecarClient } from "./tunnel.ts";
 
 export interface ResumeReport {
@@ -32,19 +32,21 @@ export interface ResumeReport {
 }
 
 export interface SessionResumeDeps {
-	repositories: () => Repositories;
 	sidecar: Pick<SidecarClient, "request">;
-	/** Chats the UI believes are working, from memory and from stored live states. */
+	/** Chats the UI believes are working, from the in-memory live-state store. */
 	workingSessionIds: () => Promise<SessionId[]>;
+	/** The live state the UI currently shows, so an older status answer can be dropped. */
+	liveStateOf: (sessionId: SessionId) => LiveState | undefined;
 	/** Lets the sessions service show the adopted live state and the interrupted turn. */
 	apply: {
-		adoptLiveState(sessionId: SessionId, liveState: LiveState): void;
+		adoptLiveState(sessionId: SessionId, liveState: LiveState): Promise<Result<void>>;
 		markInterrupted(sessionId: SessionId): Promise<Result<void>>;
 	};
 }
 
 export class SessionResume {
 	readonly #deps: SessionResumeDeps;
+	readonly #flight = createSingleFlight<"resume">();
 
 	constructor(deps: SessionResumeDeps) {
 		this.#deps = deps;
@@ -52,7 +54,41 @@ export class SessionResume {
 
 	/** Runs once after the tunnel is up and again after every reconnect. */
 	resume(): Promise<Result<ResumeReport>> {
-		void this.#deps;
-		return notImplemented("CHAT-18");
+		return this.#flight.run("resume", () => this.#run());
+	}
+
+	async #run(): Promise<Result<ResumeReport>> {
+		const report: ResumeReport = { adopted: [], interrupted: [], failed: [] };
+		const working = await this.#deps.workingSessionIds();
+
+		for (const sessionId of working) {
+			const before = this.#deps.liveStateOf(sessionId);
+			const status = await this.#deps.sidecar.request("getSessionStatus", { sessionId });
+			// A notification that landed during the request is newer than this answer, so drop it.
+			if (this.#deps.liveStateOf(sessionId) !== before) continue;
+			if (!status.ok) {
+				report.failed.push({ sessionId, message: status.error.message });
+				continue;
+			}
+			if (!status.value.known) {
+				const marked = await this.#deps.apply.markInterrupted(sessionId);
+				if (marked.ok) report.interrupted.push(sessionId);
+				else report.failed.push({ sessionId, message: marked.error.message });
+				continue;
+			}
+			const liveState = status.value.liveState;
+			if (liveState === undefined) {
+				report.failed.push({
+					sessionId,
+					message: "The sidecar did not report the chat's live state.",
+				});
+				continue;
+			}
+			const adopted = await this.#deps.apply.adoptLiveState(sessionId, liveState);
+			if (adopted.ok) report.adopted.push(sessionId);
+			else report.failed.push({ sessionId, message: adopted.error.message });
+		}
+
+		return ok(report);
 	}
 }

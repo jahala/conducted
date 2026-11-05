@@ -37,7 +37,7 @@ describe("WorkspaceGate", () => {
 	it("explains a workspace that cannot be opened", () => {
 		state.workspace = { state: "error", error: appError("not_found", "Workspace not found") };
 		render(<WorkspaceGate workspaceId={id}>content</WorkspaceGate>);
-		expect(screen.getByText("Couldn't open this workspace")).toBeTruthy();
+		expect(screen.getByText("Error loading workspace")).toBeTruthy();
 		expect(screen.getByText("Workspace not found")).toBeTruthy();
 	});
 
@@ -76,13 +76,12 @@ describe("WorkspaceLayout", () => {
 			<WorkspaceLayout
 				workspaceId={id}
 				header={(controls) => <p>header open={String(controls.rightPanelOpen)}</p>}
-				tabStrip={<p>tabs</p>}
 				content={<p>content</p>}
 				gitPanel={<p>git</p>}
 				scriptsPanel={<p>scripts</p>}
 			/>,
 		);
-		for (const text of ["header open=true", "tabs", "content", "git", "scripts"]) {
+		for (const text of ["header open=true", "content", "git", "scripts"]) {
 			expect(screen.getByText(text)).toBeTruthy();
 		}
 		expect(screen.getByRole("complementary", { name: "Changes and scripts" })).toBeTruthy();

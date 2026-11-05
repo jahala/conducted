@@ -1,30 +1,205 @@
 /**
  * @feature NAV-10 Workspace actions menu
- * Owns: The one menu of workspace actions, used by the header's 'Workspace actions' button and the
- * sidebar row's context menu.
+ * Owns: The dropdown menu behind the header's 'Workspace actions' button.
  * Behaviour: ui-map.md 3.1 ('Workspace actions' menu: mark as read or unread, pin or unpin, set
  * status, move to section, rename, copy link, archive or unarchive).
- * Our design choice: One list, two surfaces: the items come from a single function so both menus
- * always agree. Cloud items (follow, reassign, share) are left out. Shortcut hints come from the
- * command registry.
- * Must handle: Archived workspace (Unarchive instead of Archive, no Rename); a destructive item
- * (Archive) asks for confirmation when the workspace has uncommitted changes; move to section lists
- * sections and 'New section...'; a failed action shows a toast.
+ * Our design choice: One list for the header. Cloud items (follow, reassign, share) are left out.
+ * Shortcut hints come from the command registry. The sidebar's right-click surface belongs to
+ * NAV-03's workspace row, which is not wired yet.
+ * Must handle: Archived workspace (Unarchive instead of Archive, no Rename); mark as read or unread
+ * follows the chats' unread count; move to section lists the known sections and 'New section...'; a
+ * failed action shows a toast.
  * Test first: Choosing Pin calls workspaces.setPinned(id, true); for a pinned workspace the item
  * reads Unpin.
  */
-
 import type { WorkspaceId } from "@conducted/shared";
-import { notImplemented } from "@conducted/shared";
 import type { ReactNode } from "react";
+import { useState } from "react";
+import { useStore } from "zustand";
+import { useServices } from "../../core/context.tsx";
+import { useActions, useSessions, useWorkspace } from "../../core/hooks.ts";
+import type { KanbanStatus, Section } from "../../core/model.ts";
+import { formatShortcut, getCommand } from "../../core/registries/commands.ts";
+import { buildDeepLink } from "../../core/services/notifications.ts";
+import {
+	Menu,
+	MenuContent,
+	MenuItem,
+	MenuRadioGroup,
+	MenuRadioItem,
+	MenuSeparator,
+	MenuSub,
+	MenuSubContent,
+	MenuSubTrigger,
+	MenuTrigger,
+} from "../../ui/Menu.tsx";
+import { toastError } from "../../ui/Toast.tsx";
+import { RenameDialog } from "./RenameDialog.tsx";
+import { WorkspaceRenameDialog } from "./WorkspaceRenameDialog.tsx";
+import { unarchiveWorkspace } from "./workspace-actions.ts";
 
 export interface WorkspaceActionsMenuProps {
 	workspaceId: WorkspaceId;
-	/** The button or row that opens the menu. */
+	/** The button that opens the menu. */
 	children: ReactNode;
-	surface: "dropdown" | "context";
 }
 
-export function WorkspaceActionsMenu(_props: WorkspaceActionsMenuProps): never {
-	return notImplemented("NAV-10");
+const STATUS_LABELS: readonly { status: KanbanStatus; label: string }[] = [
+	{ status: "backlog", label: "Backlog" },
+	{ status: "in_progress", label: "In progress" },
+	{ status: "in_review", label: "In review" },
+	{ status: "done", label: "Done" },
+	{ status: "canceled", label: "Canceled" },
+];
+
+const shortcutOf = (id: string): string | undefined => {
+	const command = getCommand(id);
+	const first = command?.defaultShortcuts[0];
+	return first === undefined ? undefined : formatShortcut(first);
+};
+
+export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActionsMenuProps) {
+	const actions = useActions();
+	const workspace = useWorkspace(workspaceId);
+	const sessions = useSessions(workspaceId);
+	const sections = useStore(useServices().services.sections.store, (state) => state.sections);
+	const [renaming, setRenaming] = useState(false);
+	const [newSection, setNewSection] = useState(false);
+
+	const data = workspace.state === "ready" ? workspace.data : null;
+	const archived = data?.state === "archived";
+	const pinned = data?.pinnedAt != null;
+	const unread =
+		sessions.state === "ready" && sessions.data.some((session) => session.unreadCount > 0);
+
+	const run = async (title: string, action: () => Promise<{ ok: boolean; error?: unknown }>) => {
+		try {
+			const result = await action();
+			if (!result.ok) {
+				toastError(title, result.error as { message: string });
+			}
+		} catch (caught) {
+			toastError(title, caught instanceof Error ? caught : { message: String(caught) });
+		}
+	};
+
+	const setStatus = (status: KanbanStatus) =>
+		void run("Couldn't change the status", () =>
+			actions.workspaces.setKanbanStatus(workspaceId, status),
+		);
+
+	const moveTo = (section: Section) =>
+		void run("Couldn't move the workspace", () =>
+			actions.sections.place(workspaceId, section.id, 0),
+		);
+
+	return (
+		<>
+			<Menu>
+				<MenuTrigger asChild>{children}</MenuTrigger>
+				<MenuContent aria-label="Workspace actions">
+					<MenuItem
+						shortcut={shortcutOf("sidebar.toggleRead")}
+						onSelect={() =>
+							void run(
+								unread
+									? "Couldn't mark the workspace as read"
+									: "Couldn't mark the workspace as unread",
+								() =>
+									unread
+										? actions.workspaces.markRead(workspaceId)
+										: actions.workspaces.markUnread(workspaceId),
+							)
+						}
+					>
+						{unread ? "Mark as read" : "Mark as unread"}
+					</MenuItem>
+					<MenuItem
+						shortcut={shortcutOf("sidebar.togglePin")}
+						onSelect={() =>
+							void run(pinned ? "Couldn't unpin the workspace" : "Couldn't pin the workspace", () =>
+								actions.workspaces.setPinned(workspaceId, !pinned),
+							)
+						}
+					>
+						{pinned ? "Unpin" : "Pin"}
+					</MenuItem>
+					<MenuSub>
+						<MenuSubTrigger>Set status</MenuSubTrigger>
+						<MenuSubContent aria-label="Set status">
+							<MenuRadioGroup value={data?.kanbanStatus ?? ""}>
+								{STATUS_LABELS.map(({ status, label }) => (
+									<MenuRadioItem key={status} value={status} onSelect={() => setStatus(status)}>
+										{label}
+									</MenuRadioItem>
+								))}
+							</MenuRadioGroup>
+						</MenuSubContent>
+					</MenuSub>
+					<MenuSub>
+						<MenuSubTrigger>Move to section</MenuSubTrigger>
+						<MenuSubContent aria-label="Move to section">
+							{sections.length === 0 ? (
+								<MenuItem disabled>No sections yet</MenuItem>
+							) : (
+								sections.map((section) => (
+									<MenuItem key={section.id} onSelect={() => moveTo(section)}>
+										{section.name}
+									</MenuItem>
+								))
+							)}
+							<MenuSeparator />
+							<MenuItem onSelect={() => setNewSection(true)}>New section...</MenuItem>
+						</MenuSubContent>
+					</MenuSub>
+					<MenuSeparator />
+					{archived ? (
+						<MenuItem
+							onSelect={() =>
+								void run("Couldn't unarchive the workspace", () =>
+									unarchiveWorkspace(actions, workspaceId),
+								)
+							}
+						>
+							Unarchive
+						</MenuItem>
+					) : (
+						<>
+							<MenuItem onSelect={() => setRenaming(true)}>Rename</MenuItem>
+							<MenuItem
+								shortcut={shortcutOf("workspace.copyLink")}
+								onSelect={() =>
+									void run("Couldn't copy the link", () =>
+										actions.app.copyText(buildDeepLink(workspaceId, null)),
+									)
+								}
+							>
+								Copy link
+							</MenuItem>
+							<MenuSeparator />
+							<MenuItem
+								destructive
+								shortcut={shortcutOf("workspace.archive")}
+								onSelect={() =>
+									void run("Couldn't archive the workspace", () =>
+										actions.workspaces.archive(workspaceId, { deleteBranch: false }),
+									)
+								}
+							>
+								Archive
+							</MenuItem>
+						</>
+					)}
+				</MenuContent>
+			</Menu>
+			<WorkspaceRenameDialog workspaceId={workspaceId} open={renaming} onOpenChange={setRenaming} />
+			<RenameDialog
+				open={newSection}
+				onOpenChange={setNewSection}
+				title="New section"
+				initialName=""
+				onSubmit={(name) => actions.sections.create(name, null)}
+			/>
+		</>
+	);
 }
