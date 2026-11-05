@@ -50,7 +50,7 @@ import { KeyedMutex } from "./git/locks.ts";
 import { ShellGitRunner } from "./git/runner.ts";
 import { createLookups, defaultSessionConfig, type Lookups } from "./lookups.ts";
 import { AgentCatalogService } from "./services/agent-catalog.ts";
-import { CheckpointService } from "./services/checkpoint.ts";
+import { CHECKPOINT_PRUNE_AFTER_DAYS, CheckpointService } from "./services/checkpoint.ts";
 import { CommandRunner, createCommandHandlers } from "./services/command-runner.ts";
 import { ComposerService } from "./services/composer.ts";
 import { FavoriteModelsService } from "./services/favorite-models.ts";
@@ -388,6 +388,17 @@ export function createContainer(inputs: ContainerInputs): Container {
 		composer,
 		queue: followUpQueue,
 		notifications,
+		pruneCheckpoints: async (sessionId, workspaceId) => {
+			const workspace = await repositories.workspaces.get(workspaceId);
+			if (!workspace.ok) return workspace;
+			if (workspace.value === null)
+				return err(appError("workspace_unknown", "That workspace no longer exists."));
+			const repository = await repositories.repos.get(workspace.value.repoId);
+			if (!repository.ok) return repository;
+			if (repository.value === null)
+				return err(appError("repo_unknown", "That project was removed."));
+			return checkpoint.pruneForChat(sessionId, repository.value.rootPath);
+		},
 		workspaceContextOf: (id) => ready(lookups.sidecarContext(id, undefined)),
 		defaultConfig: (id) => ready(defaultSessionConfig(id, lookups, setting)),
 		setting,
@@ -487,6 +498,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 		git: gitRunner,
 		checkpointerPath: checkpointerScript(paths),
 		workspacePathOf: (sessionId) => ready(lookups.workspacePathOfSession(sessionId)),
+		repositories: () => repositories,
+		now: () => clock.now(),
 	});
 	const fileDiff = new FileDiffService({
 		git: gitRunner,
@@ -598,6 +611,12 @@ export function createContainer(inputs: ContainerInputs): Container {
 		{ name: "programs", phase: "services", fatal: false, run: () => system.start() },
 		{ name: "sidecar", phase: "sidecar", fatal: true, run: () => tunnel.start() },
 		{ name: "resume chats", phase: "sidecar", fatal: false, run: () => resume.resume() },
+		{
+			name: "checkpoint pruning",
+			phase: "sidecar",
+			fatal: false,
+			run: () => checkpoint.pruneArchived(CHECKPOINT_PRUNE_AFTER_DAYS),
+		},
 		{
 			name: "data lifetime",
 			phase: "sidecar",
