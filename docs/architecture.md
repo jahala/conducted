@@ -49,6 +49,27 @@ How they talk:
 | Turn grouping for display                         | `apps/desktop/src/core/services` (turn builder)    | the chat list                                            |
 | Database schema                                   | `apps/desktop/src-tauri/migrations`                | UI repositories in `core/db`                             |
 
+## Shared helpers
+
+Use these before writing your own. A second copy is a finding in review.
+
+| Need                                       | Use                                              | Lives in                                                                |
+| ------------------------------------------ | ------------------------------------------------ | ----------------------------------------------------------------------- |
+| Run work one at a time per key             | `createKeyedQueue`                               | `apps/desktop/src/core/async/serial-queue.ts`                           |
+| Store, then acknowledge, in order          | `persistThenAck`                                 | `apps/desktop/src/core/async/serial-queue.ts`                           |
+| Ignore a second request while one runs     | `createSingleFlight`                             | `apps/desktop/src/core/async/single-flight.ts`                          |
+| Let only the newest answer change state    | `createLatestWins`                               | `apps/desktop/src/core/async/latest-wins.ts`                            |
+| Optimistic change with rollback            | `createOptimisticStore`                          | `apps/desktop/src/core/async/optimistic.ts`                             |
+| Retry with backoff                         | `createBackoff`                                  | `apps/desktop/src/core/async/backoff.ts`                                |
+| Start work without awaiting it             | `fireAndForget`                                  | `apps/desktop/src/core/async/fire-and-forget.ts`                        |
+| A database write that returns nothing      | `executeVoid`                                    | `apps/desktop/src/core/db/row-codec.ts`                                 |
+| Parse a JSON column, collect results       | `parseJsonColumn`, `collectResults`              | `apps/desktop/src/core/db/row-codec.ts`                                 |
+| Show an error toast from a `Result`        | `toastError`                                     | `apps/desktop/src/ui/Toast.tsx`                                         |
+| Menu and context-menu parts and classes    | `menuItemClass`, `MenuItemContents` and siblings | `apps/desktop/src/ui/Menu.tsx`                                          |
+| Error text and error checks in the sidecar | `messageOf`, `isAppError`                        | `packages/sidecar/src/util/errors.ts`                                   |
+| Signal a process group (Rust)              | `process_group`                                  | `apps/desktop/src-tauri/src/process_group.rs`                           |
+| A real container or database in a test     | `createTestContainer`, `openTestDatabase`        | `apps/desktop/src/test/container.ts`, `apps/desktop/src/test/sqlite.ts` |
+
 ## State and time
 
 - Services hold state in zustand stores owned by the service, created by `core/container.ts`. There is no module-level mutable state.
