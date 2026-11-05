@@ -5,6 +5,8 @@
  * Behaviour: ui-map.md 3.6, "Checks" paragraph (states Running, Failed, Cancelled, Pending,
  * Waiting; "Re-run failed checks"); services-map.md 3.7.2 (duplicate runs are collapsed to the
  * newest) and 3.7.5 (re-run per distinct workflow run).
+ * Not built here: Conductor's "Queue checks" button. The research records only its label, not what
+ * it does (system item "what it does is not yet known"), so it waits for that research.
  * Must handle: no checks (GitHub reports none: say so), many checks (failed first, then running,
  * then the rest), a check with no log link, re-run and fix in flight, and a check with a URL to
  * open on GitHub.

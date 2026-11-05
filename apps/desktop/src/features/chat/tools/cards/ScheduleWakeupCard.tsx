@@ -2,8 +2,11 @@
  * @feature CHAT-20 Schedule wake-up card
  * Owns: The card for the agent asking to be woken up later.
  * Behaviour: ui-map.md 3.3 (schedule wakeup).
- * Must handle: A wake-up time in the past; a cancelled wake-up; a delay given in seconds or an
- * absolute time given as text or milliseconds.
+ * Must handle: A delay of zero or less ("Wake-up time is in the past"); a cancelled wake-up; a delay
+ * given in seconds or an absolute time given as text or milliseconds.
+ * Our design choice: an absolute time is shown as the time itself, never judged against the clock.
+ * The card does not know when the agent made the call, and comparing with the time the chat is
+ * read would mark every old wake-up as past.
  * Test first: A schedule_wakeup call shows when the agent will wake up.
  */
 import { ClockIcon } from "../../../../ui/icons.tsx";
@@ -54,7 +57,6 @@ function wakeText(input: Record<string, unknown>): string | null {
 	if (at === null) return null;
 	const millis = /^\d+$/.test(at) ? Number(at) : Date.parse(at);
 	if (!Number.isFinite(millis)) return `Wake up at ${at}`;
-	if (millis <= Date.now()) return "Wake-up time is in the past";
 	return `Wake up at ${new Date(millis).toLocaleString()}`;
 }
 

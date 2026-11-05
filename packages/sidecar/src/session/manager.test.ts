@@ -870,6 +870,54 @@ describe("SIDE-03 cancel, reset and status", () => {
 	});
 });
 
+describe("CHAT-12 plan feedback is kept in the chat", () => {
+	const planAnswer = (approved: boolean, feedback?: string) => ({
+		sessionId: sid("session-1"),
+		interactionId: "plan-1" as InteractionId,
+		answer: {
+			kind: "plan_approval" as const,
+			approved,
+			...(feedback === undefined ? {} : { feedback }),
+		},
+	});
+	const feedbackEvents = (h: Harness) =>
+		h.publisher.events.filter(
+			(entry) => entry.event.type === "user_message" && entry.event.delivery === "plan_feedback",
+		);
+
+	test("CHAT-12 a plan rejected with feedback stores the feedback as a user message", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams());
+
+		expect(
+			await h.manager.answerInteraction(planAnswer(false, "  Keep the old schema.  ")),
+		).toEqual(ok({ accepted: true, superseded: false }));
+
+		const stored = feedbackEvents(h);
+		expect(stored).toHaveLength(1);
+		expect(stored[0]?.sessionId).toBe(sid("session-1"));
+		expect(stored[0]?.event).toMatchObject({
+			type: "user_message",
+			turnId: tid("turn-1"),
+			text: "Keep the old schema.",
+			attachmentPaths: [],
+			delivery: "plan_feedback",
+		});
+	});
+
+	test("CHAT-12 an approval, a bare denial and a refused answer store no feedback", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams());
+
+		await h.manager.answerInteraction(planAnswer(true));
+		await h.manager.answerInteraction(planAnswer(false));
+		h.interactions.answerResult = { accepted: false, superseded: true };
+		await h.manager.answerInteraction(planAnswer(false, "Too late."));
+
+		expect(feedbackEvents(h)).toEqual([]);
+	});
+});
+
 describe("SIDE-03 prompt, settings and warming", () => {
 	test("SIDE-03 prompt assembly runs for every message with its first-message flag", async () => {
 		const h = harness();

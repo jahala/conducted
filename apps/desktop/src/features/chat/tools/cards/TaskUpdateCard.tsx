@@ -7,7 +7,7 @@
  * Test first: A task_update call that marks a task done shows its subject and the new status.
  */
 import { ListTodoIcon } from "../../../../ui/icons.tsx";
-import { ToolCardFrame, toolStatus } from "../ToolCardFrame.tsx";
+import { ToolCardFrame, ToolOutput, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 import {
 	hasTaskFields,
@@ -32,9 +32,7 @@ export function TaskUpdateCard({ call, defaultExpanded }: ToolCardProps) {
 				hasTaskFields(fields) ? (
 					<TaskFieldsBody fields={fields} />
 				) : raw.length > 0 ? (
-					<pre className="max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-fg-muted">
-						{raw}
-					</pre>
+					<ToolOutput muted>{raw}</ToolOutput>
 				) : (
 					<p className="text-xs text-fg-subtle">Updating task.</p>
 				)

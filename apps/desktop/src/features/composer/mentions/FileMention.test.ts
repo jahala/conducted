@@ -1,4 +1,4 @@
-import { fireEvent } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { Editor } from "@tiptap/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "../../../test/dom-polyfills.ts";
@@ -21,9 +21,13 @@ const files: FileMentionItem[] = [
 
 const editors: Editor[] = [];
 
-const mount = (search: (query: string) => FileMentionItem[], actions?: FileMentionAction[]) => {
+const mount = (
+	search: (query: string) => FileMentionItem[],
+	actions?: FileMentionAction[],
+	onOpen?: () => void,
+) => {
 	const editor = new Editor({
-		extensions: [composerBaseKit, createFileMention({ search, actions })],
+		extensions: [composerBaseKit, createFileMention({ search, actions, onOpen })],
 		content: "",
 	});
 	editors.push(editor);
@@ -87,6 +91,24 @@ describe("COMP-04 FileMention", () => {
 		const editor = mount(() => []);
 		type(editor, "@zzzz");
 		expect(fileMentionState(editor)?.items).toEqual([]);
+	});
+
+	it("keeps the popup open and says 'No files found' when nothing matches", async () => {
+		const editor = mount(() => []);
+		type(editor, "@zzzz");
+		expect(await screen.findByText("No files found")).toBeTruthy();
+		expect(screen.getByRole("listbox", { name: "Suggestions" })).toBeTruthy();
+	});
+
+	it("asks for a fresh file list each time the trigger opens", () => {
+		const onOpen = vi.fn();
+		const editor = mount(() => files, undefined, onOpen);
+		type(editor, "@re");
+		type(editor, "a");
+		expect(onOpen).toHaveBeenCalledTimes(1);
+		fireEvent.keyDown(editor.view.dom, { key: "Escape" });
+		type(editor, " @s");
+		expect(onOpen).toHaveBeenCalledTimes(2);
 	});
 
 	it("shows at most twenty file rows", () => {

@@ -5,11 +5,12 @@
  * Behaviour: ui-map.md 3.5 (triggers: '@' files and directories, plans, terminal output, linked
  * directories; '#' pull requests and issues; '/' built-in commands, project commands and skills).
  * Our design choice: A function from dependencies to extensions, so the editor can be tested with
- * stand-in search functions. The trigger builders are inputs, so an editor can be assembled while a
- * sibling trigger is still a placeholder; the default builders are that trigger's own feature. The
- * fourth Conductor trigger (a section sign for saved snippets) is not verified and is left out.
- * Must handle: each trigger is an independent extension; the base kit removes the marks and blocks
- * the plain-text composer does not use.
+ * stand-in search functions. The trigger builders are inputs for tests; the default builders are
+ * each trigger's own feature. The '#' trigger is loaded only when the caller passes its
+ * dependencies: the app leaves it out until COMP-05 builds pull request search. The fourth
+ * Conductor trigger (a section sign for saved snippets) is not verified and is left out.
+ * Must handle: each trigger is an independent extension; a trigger the caller leaves out is not
+ * loaded; the base kit removes the marks and blocks the plain-text composer does not use.
  * Test first: buildComposerExtensions returns one extension for each of the three triggers plus the
  * base kit.
  */
@@ -27,7 +28,8 @@ export interface ComposerExtensionBuilders {
 
 export interface ComposerExtensionDeps {
 	files: FileMentionDeps;
-	pullRequests: PrMentionDeps;
+	/** The '#' trigger. Left out, the editor has no '#' menu. */
+	pullRequests?: PrMentionDeps;
 	slash: SlashCommandDeps;
 	/** Defaults to the trigger's own builder. Tests pass one for a trigger that is still unbuilt. */
 	builders?: ComposerExtensionBuilders;
@@ -60,5 +62,10 @@ export function buildComposerExtensions({
 	const buildFiles = builders.files ?? createFileMention;
 	const buildPullRequests = builders.pullRequests ?? createPrMention;
 	const buildSlash = builders.slash ?? createSlashCommands;
-	return [composerBaseKit, buildFiles(files), buildPullRequests(pullRequests), buildSlash(slash)];
+	return [
+		composerBaseKit,
+		buildFiles(files),
+		...(pullRequests === undefined ? [] : [buildPullRequests(pullRequests)]),
+		buildSlash(slash),
+	];
 }

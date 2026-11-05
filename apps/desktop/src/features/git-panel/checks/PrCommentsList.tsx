@@ -1,14 +1,17 @@
 /**
  * @feature PR-04 PR comments list
- * Owns: the Comments section of the Checks tab. Review comments synced from GitHub, each with
- * resolved and outdated markers, and actions to send them to the chat.
+ * Owns: the Comments section of the Checks tab: the workspace's review comments whose author is
+ * GitHub, each with resolved and outdated markers, and actions to send them to the chat.
  * Behaviour: ui-map.md 3.6, "Checks" paragraph (per comment: Resolved, Outdated, "Add to chat",
  * "Hide", "Resolve"; "Add all to chat"); services-map.md 3.7.4 (sync into diff_comments, resolve a
  * thread with a GraphQL mutation).
+ * Not built here: nothing syncs comments from GitHub yet (REV-04), so in the app the section shows
+ * only comments some other path stored with a GitHub author; "Resolve" changes the local comment
+ * only, and resolving on GitHub is REV-04's. "Hide" shows only when the caller can hide a comment;
+ * the Checks tab leaves it out until comment states are built (REV-12).
  * Must handle: no comments, a thread with replies (grouped), outdated comments (muted, kept),
  * resolved comments hidden until "Show resolved", a comment on a file that no longer exists, and
- * hiding a comment.
- * Test first: a resolved comment is hidden by default and shown after "Show resolved".
+ * no way to hide a comment (no Hide button).
  */
 import type { CommentId } from "@conducted/shared";
 import { useState } from "react";
@@ -19,7 +22,8 @@ export interface PrCommentsListProps {
 	comments: DiffComment[];
 	onAddToChat: (ids: CommentId[]) => void;
 	onResolve: (id: CommentId, resolved: boolean) => void;
-	onHide: (id: CommentId) => void;
+	/** Left out, no comment offers Hide. */
+	onHide?: (id: CommentId) => void;
 	onOpenComment: (id: CommentId) => void;
 }
 
@@ -34,7 +38,7 @@ function CommentCard({
 	comment: DiffComment;
 	onAddToChat: (ids: CommentId[]) => void;
 	onResolve: (id: CommentId, resolved: boolean) => void;
-	onHide: (id: CommentId) => void;
+	onHide?: (id: CommentId) => void;
 	onOpenComment: (id: CommentId) => void;
 	reply?: boolean;
 }) {
@@ -62,9 +66,11 @@ function CommentCard({
 				<Button variant="ghost" size="xs" onClick={() => onResolve(comment.id, !comment.resolved)}>
 					{comment.resolved ? "Unresolve" : "Resolve"}
 				</Button>
-				<Button variant="ghost" size="xs" onClick={() => onHide(comment.id)}>
-					Hide
-				</Button>
+				{onHide === undefined ? null : (
+					<Button variant="ghost" size="xs" onClick={() => onHide(comment.id)}>
+						Hide
+					</Button>
+				)}
 				{comment.remoteUrl === null ? null : (
 					<Button variant="ghost" size="xs" onClick={() => onOpenComment(comment.id)}>
 						Open

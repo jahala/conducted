@@ -1,8 +1,9 @@
 /**
  * @feature NAV-14 Shortcut and menu dispatcher
  * Owns: turning key presses, menu picks and deep links into command ids, and handing each command to the
- * right handler. Two hooks: `useCommandDispatcher` mounts the root listeners once; `useCommandHandler`
- * lets a screen register a handler for one command id with a priority.
+ * right handler. Three hooks: `useCommandDispatcher` mounts the root listeners once; `useCommandHandler`
+ * lets a screen register a handler for one command id with a priority; `useRunCommandHandlers` lets a
+ * screen run a command's handlers, as a slash command does for /plan and /fast.
  * Behaviour: ui-map.md 5.4 (shortcuts by scope), 8 ("Kn(commandId, handler, opts)" registers a handler with a
  * priority; a hint component reads the live binding so tooltips follow rebinds), 1.1 (root listeners for
  * menu events and deep links); structure-map.md 3.2 (one registry feeds menus, palette and shortcuts).
@@ -40,6 +41,7 @@ import {
 	createContext,
 	createElement,
 	type ReactNode,
+	useCallback,
 	useContext,
 	useEffect,
 	useMemo,
@@ -500,6 +502,17 @@ export function useCommandHandler(
 		() => registry.register(commandId, priority, () => latest.current()),
 		[registry, commandId, priority],
 	);
+}
+
+/**
+ * Runs a command's screen handlers from inside a screen, as its key press would, so a control that
+ * repeats a command (a slash command, a menu item) reaches the same handler. False when no handler
+ * took it.
+ */
+export function useRunCommandHandlers(): (commandId: string) => boolean {
+	const provided = useContext(CommandRegistryContext);
+	const registry = provided ?? defaultRegistry;
+	return useCallback((commandId: string) => registry.run(commandId), [registry]);
 }
 
 // ---------------------------------------------------------------- dispatch

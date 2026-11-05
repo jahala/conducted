@@ -3,7 +3,7 @@
  * Tests the author label and the actions each author kind gets.
  */
 import type { CommentId, WorkspaceId } from "@conducted/shared";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DiffComment } from "../../core/model.ts";
 import "../../test/dom-polyfills.ts";
@@ -39,7 +39,7 @@ function comment(over: Partial<DiffComment> = {}): DiffComment {
 const props = {
 	editing: false,
 	onStartEdit: () => {},
-	onSaveEdit: () => {},
+	onSaveEdit: async () => true,
 	onCancelEdit: () => {},
 	onDelete: () => {},
 };
@@ -73,5 +73,19 @@ describe("REV-03 CommentCard", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Edit comment" }));
 
 		expect(onStartEdit).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps the editor open and says so when the edit is not saved", async () => {
+		const onSaveEdit = vi.fn(async () => false);
+		render(<CommentCard comment={comment()} {...props} editing onSaveEdit={onSaveEdit} />);
+
+		fireEvent.change(screen.getByRole("textbox", { name: "Edit comment" }), {
+			target: { value: "Please rename this to parse." },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => expect(onSaveEdit).toHaveBeenCalledWith("Please rename this to parse."));
+		expect(await screen.findByText("The comment could not be saved.")).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Save" })).toBeTruthy();
 	});
 });

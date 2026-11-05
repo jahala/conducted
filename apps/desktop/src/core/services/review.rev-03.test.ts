@@ -138,14 +138,22 @@ describe("REV-03 review comment store over the real container", () => {
 		const workspace = await seedWorkspace(test.container);
 		const review = test.container.services.review;
 
-		const added = await review.addFromAgent(workspace.id, [
-			{ file: "src/a.ts", line: 3, body: "From the agent" },
-			{ file: "src/a.ts", line: 9, body: "Another one" },
-		]);
+		const added = await review.addFromAgent(
+			workspace.id,
+			[
+				{ file: "src/a.ts", line: 3, body: "From the agent" },
+				{ file: "src/a.ts", line: 9, body: "Another one" },
+			],
+			"claude-sonnet-4-5",
+		);
 
 		expect(added).toEqual(ok(2));
 		const rows = review.store.getState().byWorkspace[workspace.id] ?? [];
 		expect(rows.map((entry) => entry.author.kind)).toEqual(["agent", "agent"]);
+		expect(rows.map((entry) => entry.author.name)).toEqual([
+			"claude-sonnet-4-5",
+			"claude-sonnet-4-5",
+		]);
 	});
 
 	it("lets only the newest of two overlapping loads write the store", async () => {

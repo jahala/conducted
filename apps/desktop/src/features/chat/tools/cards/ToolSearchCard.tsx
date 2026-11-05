@@ -7,7 +7,14 @@
  * Test first: A tool_search call renders 'Search tools' and the query.
  */
 import { SearchIcon } from "../../../../ui/icons.tsx";
-import { asRecord, ToolCardFrame, textField, textLines, toolStatus } from "../ToolCardFrame.tsx";
+import {
+	asRecord,
+	ToolCardFrame,
+	ToolOutput,
+	textField,
+	textLines,
+	toolStatus,
+} from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
 export function ToolSearchCard({ call, defaultExpanded }: ToolCardProps) {
@@ -28,9 +35,7 @@ export function ToolSearchCard({ call, defaultExpanded }: ToolCardProps) {
 				) : found.length === 0 ? (
 					<p className="text-xs text-fg-subtle">No tools found</p>
 				) : (
-					<pre className="max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-fg">
-						{output}
-					</pre>
+					<ToolOutput>{output}</ToolOutput>
 				)
 			}
 		/>

@@ -22,6 +22,7 @@ import { ContextMenu, ContextMenuItem } from "../../ui/ContextMenu.tsx";
 import { FileIcon, PullRequestIcon } from "../../ui/icons.tsx";
 import { ResetChatDialog } from "./ResetChatDialog.tsx";
 import { reportFailure } from "./report-failure.ts";
+import { fileNameOf } from "./tools/ToolCardFrame.tsx";
 import { useWorkspaceLinks } from "./workspace-links.ts";
 
 const LONG_MESSAGE = 800;
@@ -36,14 +37,9 @@ export interface UserMessageProps {
 	onDiscard?: () => void;
 }
 
-function baseName(path: string): string {
-	const parts = path.split(/[\\/]/);
-	return parts.at(-1) ?? path;
-}
-
 function AttachmentItem({ path }: { path: string }) {
 	const [failed, setFailed] = useState(false);
-	const name = baseName(path);
+	const name = fileNameOf(path);
 	const image = IMAGE.test(path);
 	return (
 		<figure

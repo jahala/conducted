@@ -9,7 +9,7 @@
  */
 import { Fragment } from "react";
 import { ListTodoIcon } from "../../../../ui/icons.tsx";
-import { asRecord, ToolCardFrame, textField, toolStatus } from "../ToolCardFrame.tsx";
+import { asRecord, ToolCardFrame, ToolOutput, textField, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
 export interface TaskFields {
@@ -228,9 +228,7 @@ export function TaskGetCard({ call, defaultExpanded }: ToolCardProps) {
 				fields !== null ? (
 					<TaskFieldsBody fields={fields} />
 				) : raw.length > 0 ? (
-					<pre className="max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-fg-muted">
-						{raw}
-					</pre>
+					<ToolOutput muted>{raw}</ToolOutput>
 				) : (
 					<p className="text-xs text-fg-subtle">
 						{call.result === null ? "Loading task details." : "No task details were returned."}

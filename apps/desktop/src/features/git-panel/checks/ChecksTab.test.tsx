@@ -8,11 +8,17 @@ import { createTestContainer, seedWorkspace } from "../../../test/container.ts";
 import "../../../test/dom-polyfills.ts";
 import { ChecksTab } from "./ChecksTab.tsx";
 
+const shown = vi.hoisted(() => ({ comments: [] as unknown[] }));
+
 vi.mock("../../../core/hooks/review.ts", () => ({
-	useDiffComments: () => ({ state: "ready", data: [] }),
+	useDiffComments: () => ({ state: "ready", data: shown.comments }),
 }));
 
-afterEach(cleanup);
+afterEach(() => {
+	cleanup();
+	vi.restoreAllMocks();
+	shown.comments = [];
+});
 
 const pullRequest: PullRequest = {
 	number: 12,
@@ -151,6 +157,99 @@ describe("PR-04 Checks tab", () => {
 			);
 
 			expect(await screen.findByText("Checks need GitHub.")).toBeTruthy();
+		} finally {
+			test.close();
+		}
+	});
+
+	async function mountWithPullRequest() {
+		const test = createTestContainer();
+		const workspace = await seedWorkspace(test.container);
+		test.container.services.git.store.setState((state) => ({
+			...state,
+			byWorkspace: {
+				...state.byWorkspace,
+				[workspace.id]: {
+					snapshot: {
+						depth: "full",
+						branch: "feat/checks",
+						mergeBase: null,
+						mergeBaseError: null,
+						files: [],
+						conflictedPaths: [],
+						untrackedTruncated: false,
+						uncommittedFiles: 0,
+						changedFiles: 0,
+						operation: "none",
+						commits: [],
+						sync: { ahead: 0, behind: 0, rewritten: false, hasUpstream: true },
+						behindTarget: 0,
+					},
+					error: null,
+					refreshedAt: 1,
+				},
+			},
+		}));
+		test.container.services.github.store.setState((state) => ({
+			...state,
+			byWorkspace: {
+				...state.byWorkspace,
+				[workspace.id]: { pullRequest, unavailable: "none", fetchedAt: 1 },
+			},
+		}));
+		const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+		render(
+			<ServicesProvider container={test.container}>
+				<QueryClientProvider client={client}>
+					<ChecksTab workspaceId={workspace.id} />
+				</QueryClientProvider>
+			</ServicesProvider>,
+		);
+		return { test, workspace };
+	}
+
+	it("opens the pull request's own page instead of creating one", async () => {
+		const { test } = await mountWithPullRequest();
+		try {
+			const openUrl = vi.spyOn(test.container.platform.opener, "openUrl");
+			const create = vi.spyOn(test.container.services.github, "openOnGithub");
+
+			fireEvent.click(await screen.findByRole("button", { name: "Open on GitHub" }));
+
+			await waitFor(() => expect(openUrl).toHaveBeenCalledWith("https://github.com/o/r/pull/12"));
+			expect(create).not.toHaveBeenCalled();
+		} finally {
+			test.close();
+		}
+	});
+
+	it("offers no Hide on a GitHub comment while comments cannot be hidden", async () => {
+		shown.comments = [
+			{
+				id: "c1",
+				workspaceId: "w1",
+				filePath: "src/app.ts",
+				line: 4,
+				endLine: null,
+				body: "Rename this",
+				author: { kind: "github", name: "ada", avatarUrl: null },
+				state: "pending",
+				side: "additions",
+				threadId: "c1",
+				replyToId: null,
+				suggestion: null,
+				remoteUrl: null,
+				resolved: false,
+				outdated: false,
+				createdAt: 0,
+				updatedAt: 0,
+			},
+		];
+		const { test } = await mountWithPullRequest();
+		try {
+			expect(await screen.findByText("Rename this")).toBeTruthy();
+			expect(screen.getByRole("button", { name: "Add to chat" })).toBeTruthy();
+			expect(screen.queryByRole("button", { name: "Hide" })).toBeNull();
 		} finally {
 			test.close();
 		}

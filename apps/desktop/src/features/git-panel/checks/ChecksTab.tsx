@@ -7,12 +7,10 @@
  * Data: useGitState (pullRequest, pullRequestUnavailable), useDiffComments (GitHub-origin
  * comments), useActions().pullRequests (rerunFailedChecks, fixErrors) and comments. The check rows
  * load their own logs through useCheckLog. Reviewers and deployments are fields of PullRequest.
+ * "Open on GitHub" opens the pull request's own page; with no pull request, "Create PR" opens
+ * GitHub's new pull request page. The comments offer no "Hide" until comment states are built
+ * (REV-12).
  * Children: PrSummaryHeader, ChecksList, DeploymentsList, PrCommentsList, ReviewersList.
- * Must handle: no PR yet (explain, offer Create PR), PR info loading, offline, no GitHub access
- * (explain how to sign in with `gh auth login`), and a repository without a GitHub remote (the tab
- * says checks need GitHub).
- * Test first: with a PR that has one failed check, the tab shows the failed check and a "Re-run
- * failed checks" button.
  */
 import type { CommentId, WorkspaceId } from "@conducted/shared";
 import { useState } from "react";
@@ -60,8 +58,15 @@ export function ChecksTab({ workspaceId }: ChecksTabProps) {
 		});
 	};
 
-	const openOnGithub = () => {
+	/** With no pull request yet, GitHub's page for creating one. */
+	const createOnGithub = () => {
 		void services.github.openOnGithub(workspaceId).then((result) => {
+			if (!result.ok) toastError("Couldn't open GitHub", result.error);
+		});
+	};
+
+	const openPullRequest = (url: string) => {
+		void actions.app.openUrl(url).then((result) => {
 			if (!result.ok) toastError("Couldn't open GitHub", result.error);
 		});
 	};
@@ -129,10 +134,6 @@ export function ChecksTab({ workspaceId }: ChecksTabProps) {
 		);
 	};
 
-	const hideComment = (id: CommentId) => {
-		void runAction("Couldn't hide the comment", () => actions.comments.setHidden(id, true));
-	};
-
 	const openComment = (id: CommentId) => {
 		const comment = githubComments.find((entry) => entry.id === id);
 		if (comment?.remoteUrl == null) {
@@ -168,7 +169,7 @@ export function ChecksTab({ workspaceId }: ChecksTabProps) {
 				<PrSummaryHeader
 					pullRequest={null}
 					branch={git.data.branch}
-					onOpenOnGithub={openOnGithub}
+					onOpenOnGithub={createOnGithub}
 					onCopy={copy}
 				/>
 				<UnavailableState reason={git.data.pullRequestUnavailable} onRetry={refresh} />
@@ -181,7 +182,7 @@ export function ChecksTab({ workspaceId }: ChecksTabProps) {
 			<PrSummaryHeader
 				pullRequest={pullRequest}
 				branch={git.data.branch}
-				onOpenOnGithub={openOnGithub}
+				onOpenOnGithub={() => openPullRequest(pullRequest.url)}
 				onCopy={copy}
 			/>
 			<ChecksList
@@ -210,7 +211,6 @@ export function ChecksTab({ workspaceId }: ChecksTabProps) {
 				comments={githubComments}
 				onAddToChat={addCommentsToChat}
 				onResolve={resolveComment}
-				onHide={hideComment}
 				onOpenComment={openComment}
 			/>
 			<ReviewersList

@@ -6,7 +6,8 @@
  * change block"); services-map.md 3.7.4 (GitHub threads and replies). The agent reads comments
  * through the GetDiffComments and DiffComment tools (claude-runner.md).
  * Children: CommentCard, CommentComposer.
- * Must handle: a resolved thread (collapsed, expandable), an outdated comment (marker), a thread
+ * Must handle: a resolved thread (collapsed, expandable; Resolve and Reopen change every comment of
+ * the thread, replies included), an outdated comment (marker), a thread
  * from GitHub (no local edit), a thread the agent wrote (author label), and a failed action
  * (shown beside the thread).
  * Test first: a thread with a root and two replies renders three cards in time order.
@@ -57,9 +58,16 @@ export function CommentThread({ comments, handlers }: CommentThreadProps) {
 		if (!removed) setError("The comment could not be deleted.");
 	};
 
-	const setResolved = async (id: CommentId, resolved: boolean) => {
-		const changed = await handlers.onSetResolved(id, resolved);
-		if (!changed) setError("The comment could not be resolved.");
+	/** Resolving or reopening a thread changes every comment in it, replies included. */
+	const setThreadResolved = async (resolved: boolean) => {
+		for (const comment of ordered) {
+			if (comment.resolved === resolved) continue;
+			const changed = await handlers.onSetResolved(comment.id, resolved);
+			if (!changed) {
+				setError("The comment could not be resolved.");
+				return;
+			}
+		}
 	};
 
 	const visible = expanded ? ordered : [root];
@@ -71,11 +79,7 @@ export function CommentThread({ comments, handlers }: CommentThreadProps) {
 					{expanded ? "Collapse thread" : "Expand thread"}
 				</Button>
 				<div className="flex items-center gap-1">
-					<Button
-						variant="ghost"
-						size="xs"
-						onClick={() => void setResolved(root.id, !root.resolved)}
-					>
+					<Button variant="ghost" size="xs" onClick={() => void setThreadResolved(!root.resolved)}>
 						{root.resolved ? "Reopen" : "Resolve"}
 					</Button>
 					<Button
@@ -93,9 +97,7 @@ export function CommentThread({ comments, handlers }: CommentThreadProps) {
 					comment={comment}
 					editing={editing === comment.id}
 					onStartEdit={() => setEditing(comment.id)}
-					onSaveEdit={(body) => {
-						void saveEdit(comment.id, body);
-					}}
+					onSaveEdit={(body) => saveEdit(comment.id, body)}
 					onCancelEdit={() => setEditing(null)}
 					onDelete={() => {
 						void remove(comment.id);

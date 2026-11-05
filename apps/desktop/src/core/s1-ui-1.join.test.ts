@@ -5,7 +5,7 @@
  * Behaviour: D054 (a feature is reachable from the composition root).
  * Test first: each test fails when its feature's container wiring or mount is removed.
  */
-import type { CanonicalTool, SessionConfig, SessionEvent } from "@conducted/protocol";
+import type { CanonicalTool, SessionConfig, SessionEvent, SlashCommand } from "@conducted/protocol";
 import { idleLiveState } from "@conducted/protocol";
 import {
 	type EventId,
@@ -29,6 +29,8 @@ import { createElement, type ReactNode } from "react";
 import { VirtuosoMockContext } from "react-virtuoso";
 import { afterEach, describe, expect, it, vi } from "vitest";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
+import { CommandDispatcher } from "../app/command-dispatcher.ts";
+// biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
 import { useOverlayStore } from "../app/overlay-store.ts";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
 import { AppProviders, createQueryClient } from "../app/providers.tsx";
@@ -44,8 +46,15 @@ import { Composer } from "../features/composer/Composer.tsx";
 import { GitPanel } from "../features/git-panel/GitPanel.tsx";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
 import { TabContent } from "../features/workspace/TabContent.tsx";
-import { createTestContainer, seedWorkspace, type TestContainer } from "../test/container.ts";
+import type { ShellCommand } from "../platform/platform.ts";
+import {
+	createTestContainer,
+	seedRepo,
+	seedWorkspace,
+	type TestContainer,
+} from "../test/container.ts";
 import { ServicesProvider } from "./context.tsx";
+import { createRepositories } from "./db/repositories.ts";
 import type { PullRequest, ToolCallView } from "./model.ts";
 
 const must = <T>(result: { ok: true; value: T } | { ok: false; error: unknown }): T => {
@@ -67,6 +76,7 @@ const CONFIG: SessionConfig = {
 type LooseComponent = (props: { children?: ReactNode } & Record<string, unknown>) => ReactNode;
 
 const Services = ServicesProvider as unknown as LooseComponent;
+const Dispatcher = CommandDispatcher as unknown as LooseComponent;
 const Virtuoso = VirtuosoMockContext.Provider as unknown as LooseComponent;
 const App = AppProviders as unknown as LooseComponent;
 const Queries = QueryClientProvider as unknown as LooseComponent;
@@ -143,13 +153,54 @@ async function mountChatPane(
 		withServices(
 			test,
 			createElement(
-				Virtuoso,
-				{ value: { viewportHeight: 800, itemHeight: 200 } },
-				createElement(RouterProvider, { router }),
+				Dispatcher,
+				{},
+				createElement(
+					Virtuoso,
+					{ value: { viewportHeight: 800, itemHeight: 200 } },
+					createElement(RouterProvider, { router }),
+				),
 			),
 		),
 	);
 	await router.load();
+}
+
+/** Mounts the real composer and hands back its editor. */
+async function mountComposer(
+	test: TestContainer,
+	workspaceId: WorkspaceId,
+	sessionId: SessionId,
+): Promise<Editor> {
+	let editor: Editor | null = null;
+	render(
+		withServices(
+			test,
+			createElement(Composer, {
+				workspaceId,
+				sessionId,
+				onEditorReady: (ready: Editor | null) => {
+					editor = ready;
+				},
+			}),
+		),
+	);
+	await waitFor(() => expect(editor).not.toBeNull());
+	return editor as unknown as Editor;
+}
+
+/**
+ * Answers the agent's slash command list with `commands`.
+ * seam: COMP-06 the list comes from the sidecar's listSlashCommands, which this container does not run.
+ */
+function listSlashCommands(test: TestContainer, sessionId: SessionId, commands: SlashCommand[]) {
+	const catalog = test.container.services.agentCatalog;
+	vi.spyOn(catalog, "loadSlashCommands").mockImplementation(async () => {
+		catalog.store.setState((state) => ({
+			slashCommands: { ...state.slashCommands, [sessionId]: { state: "ready", data: commands } },
+		}));
+		return ok(commands);
+	});
 }
 
 const pullRequest: PullRequest = {
@@ -230,8 +281,14 @@ describe("s1-ui-1 join", () => {
 
 			await mountChatPane(test, workspace.id, created.id);
 
-			expect(await screen.findByRole("group", { name: "Plan review" })).toBeTruthy();
-			fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+			const bar = await screen.findByRole("group", { name: "Plan review" });
+			// The bar takes focus as it opens; the shortcut goes through the app's root dispatcher.
+			await waitFor(() => expect(bar.contains(document.activeElement)).toBe(true));
+			fireEvent.keyDown(document.activeElement as Element, {
+				key: "Enter",
+				metaKey: true,
+				shiftKey: true,
+			});
 
 			await waitFor(() =>
 				expect(answer).toHaveBeenCalledWith(created.id, "join-plan", {
@@ -239,6 +296,7 @@ describe("s1-ui-1 join", () => {
 					approved: true,
 				}),
 			);
+			expect(await screen.findByText("Approved")).toBeTruthy();
 		} finally {
 			await test.container.stop();
 			test.close();
@@ -312,6 +370,27 @@ describe("s1-ui-1 join", () => {
 		}
 	});
 
+	it("COMP-04 offers the workspace's files in the composer's @ menu and inserts a chip", async () => {
+		const test = createTestContainer();
+		try {
+			const workspace = await seedWorkspace(test.container);
+			test.memory.controls.files.set(`${workspace.path}/README.md`, "# Read me\n");
+			test.memory.controls.files.set(`${workspace.path}/src/app.ts`, "export {};\n");
+			const created = must(await test.container.services.sessions.create(workspace.id, CONFIG));
+			const editor = await mountComposer(test, workspace.id, created.id);
+			act(() => {
+				editor.commands.insertContent("@rea");
+			});
+
+			fireEvent.click(await screen.findByText("README.md"));
+
+			await waitFor(() => expect(JSON.stringify(editor.getJSON())).toContain('"path":"README.md"'));
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
 	it("COMP-04 attaches the terminal output from the composer's @ menu", async () => {
 		const test = createTestContainer();
 		try {
@@ -354,31 +433,195 @@ describe("s1-ui-1 join", () => {
 		try {
 			const workspace = await seedWorkspace(test.container);
 			const created = must(await test.container.services.sessions.create(workspace.id, CONFIG));
+			listSlashCommands(test, created.id, [
+				{ name: "compact", description: "Compact", source: "builtin", kind: "command" },
+			]);
 			const send = vi
 				.spyOn(test.container.services.sessions, "send")
 				.mockResolvedValue(ok(undefined));
-			let editor: Editor | null = null;
-
-			render(
-				withServices(
-					test,
-					createElement(Composer, {
-						workspaceId: workspace.id,
-						sessionId: created.id,
-						onEditorReady: (ready: Editor | null) => {
-							editor = ready;
-						},
-					}),
-				),
-			);
-			await waitFor(() => expect(editor).not.toBeNull());
+			const editor = await mountComposer(test, workspace.id, created.id);
 			act(() => {
-				(editor as unknown as Editor).commands.insertContent("/co");
+				editor.commands.insertContent("/co");
 			});
 
 			fireEvent.click(await screen.findByText("/compact"));
 
 			await waitFor(() => expect(send).toHaveBeenCalledWith(created.id, "/compact", [], "auto"));
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("COMP-06 /restart restarts the agent instead of messaging it", async () => {
+		const test = createTestContainer();
+		try {
+			const workspace = await seedWorkspace(test.container);
+			const created = must(await test.container.services.sessions.create(workspace.id, CONFIG));
+			listSlashCommands(test, created.id, []);
+			// seam: COMP-06 restartAgent resets the agent through the sidecar, which this container does not run.
+			const restart = vi
+				.spyOn(test.container.services.sessions, "restartAgent")
+				.mockResolvedValue(ok(undefined));
+			const send = vi.spyOn(test.container.services.sessions, "send");
+			const editor = await mountComposer(test, workspace.id, created.id);
+			act(() => {
+				editor.commands.insertContent("/resta");
+			});
+
+			fireEvent.click(await screen.findByText("/restart"));
+
+			await waitFor(() => expect(restart).toHaveBeenCalledWith(created.id));
+			expect(send).not.toHaveBeenCalled();
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("COMP-06 /plan turns plan mode on through the toolbar's own toggle", async () => {
+		const test = createTestContainer();
+		try {
+			const workspace = await seedWorkspace(test.container);
+			const created = must(await test.container.services.sessions.create(workspace.id, CONFIG));
+			listSlashCommands(test, created.id, []);
+			const send = vi.spyOn(test.container.services.sessions, "send");
+			const editor = await mountComposer(test, workspace.id, created.id);
+			act(() => {
+				editor.commands.insertContent("/pla");
+			});
+
+			fireEvent.click(await screen.findByText("/plan"));
+
+			await waitFor(() =>
+				expect(
+					test.container.services.sessions.store.getState().sessions[created.id]?.config.planMode,
+				).toBe(true),
+			);
+			expect(send).not.toHaveBeenCalled();
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("COMP-06 says a built-in the app cannot run here is not available", async () => {
+		const test = createTestContainer();
+		try {
+			const workspace = await seedWorkspace(test.container);
+			const created = must(await test.container.services.sessions.create(workspace.id, CONFIG));
+			listSlashCommands(test, created.id, []);
+			const send = vi.spyOn(test.container.services.sessions, "send");
+			const editor = await mountComposer(test, workspace.id, created.id);
+			act(() => {
+				editor.commands.insertContent("/comp");
+			});
+
+			fireEvent.click(await screen.findByText("/compact"));
+
+			expect(
+				await screen.findByText("This command isn't available in this workspace."),
+			).toBeTruthy();
+			expect(send).not.toHaveBeenCalled();
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("COMP-06 runs /hooks in a terminal and follows it until Done restarts the agent", async () => {
+		const test = createTestContainer();
+		try {
+			const workspace = await seedWorkspace(test.container);
+			const repositories = createRepositories(test.container.platform.db, {
+				clock: { now: () => 1 },
+				ids: { uuid: () => crypto.randomUUID() },
+			});
+			must(await repositories.workspaces.transitionState(workspace.id, "initializing", "ready"));
+			must(await test.container.platform.fs.mkdirp(workspace.path));
+			const created = must(await test.container.services.sessions.create(workspace.id, CONFIG));
+			listSlashCommands(test, created.id, []);
+			// seam: COMP-06 restartAgent resets the agent through the sidecar, which this container does not run.
+			const restart = vi
+				.spyOn(test.container.services.sessions, "restartAgent")
+				.mockResolvedValue(ok(undefined));
+			const editor = await mountComposer(test, workspace.id, created.id);
+			act(() => {
+				editor.commands.insertContent("/hoo");
+			});
+
+			fireEvent.click(await screen.findByText("/hooks"));
+
+			expect(await screen.findByText("Complete /hooks below, then click done")).toBeTruthy();
+			const terminals =
+				test.container.services.terminals.store.getState().byWorkspace[workspace.id];
+			const terminal = terminals?.find((entry) => entry.startCommand === "claude /hooks; exit");
+			expect(terminal).toBeDefined();
+
+			// The shell exits with the command's own code when the agent program ends.
+			act(() => {
+				test.container.services.terminals.store.setState((state) => ({
+					byWorkspace: {
+						...state.byWorkspace,
+						[workspace.id]: (state.byWorkspace[workspace.id] ?? []).map((entry) =>
+							entry.id === terminal?.id ? { ...entry, endedAt: 2, exitCode: 1 } : entry,
+						),
+					},
+				}));
+			});
+			expect(
+				await screen.findByText(
+					"Terminal command finished. Refresh to use the updated config here",
+				),
+			).toBeTruthy();
+			expect(screen.getByText("The command exited with code 1.")).toBeTruthy();
+
+			fireEvent.click(screen.getByRole("button", { name: "Done" }));
+
+			await waitFor(() => expect(restart).toHaveBeenCalledWith(created.id));
+			expect(screen.queryByRole("button", { name: "Done" })).toBeNull();
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("COMP-06 offers to reopen the terminal when it could not start", async () => {
+		const test = createTestContainer();
+		try {
+			const workspace = await seedWorkspace(test.container);
+			const created = must(await test.container.services.sessions.create(workspace.id, CONFIG));
+			listSlashCommands(test, created.id, []);
+			const editor = await mountComposer(test, workspace.id, created.id);
+			act(() => {
+				editor.commands.insertContent("/mem");
+			});
+
+			fireEvent.click(await screen.findByText("/memory"));
+
+			// The seeded workspace is still being set up, so the terminal service refuses it.
+			expect(await screen.findByText("Run /memory in the embedded terminal")).toBeTruthy();
+			expect(screen.getByText("Workspace is not ready for local terminals.")).toBeTruthy();
+			expect(screen.getByRole("button", { name: "Reopen terminal" })).toBeTruthy();
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("COMP-06 says so in the menu when the agent's commands cannot be loaded", async () => {
+		const test = createTestContainer();
+		try {
+			const workspace = await seedWorkspace(test.container);
+			const created = must(await test.container.services.sessions.create(workspace.id, CONFIG));
+			const editor = await mountComposer(test, workspace.id, created.id);
+			act(() => {
+				editor.commands.insertContent("/");
+			});
+
+			// The test container runs no sidecar, so the real list request fails.
+			expect(await screen.findByText(/^Couldn't load this agent's commands: /)).toBeTruthy();
+			expect(screen.getByText("/restart")).toBeTruthy();
 		} finally {
 			await test.container.stop();
 			test.close();
@@ -414,7 +657,15 @@ describe("s1-ui-1 join", () => {
 	it("PR-04 opens the checks tab from the git panel and re-runs a failed check", async () => {
 		const test = createTestContainer();
 		try {
-			const workspace = await seedWorkspace(test.container);
+			const repo = await seedRepo(test.container);
+			const workspace = await seedWorkspace(test.container, { repoId: repo.id });
+			must(await test.container.services.repo.loadConfig(repo.id));
+			test.container.services.workspace.store.setState((state) => ({
+				workspacesById: {
+					...state.workspacesById,
+					[workspace.id]: { ...workspace, prNumber: 12 },
+				},
+			}));
 			test.container.services.git.store.setState((state) => ({
 				...state,
 				byWorkspace: {
@@ -429,9 +680,13 @@ describe("s1-ui-1 join", () => {
 					[workspace.id]: { pullRequest, unavailable: "none", fetchedAt: 1 },
 				},
 			}));
-			const rerun = vi
-				.spyOn(test.container.actions.pullRequests, "rerunFailedChecks")
-				.mockResolvedValue(ok(undefined));
+			// The real action runs `gh` through the in-memory shell; only the re-run is answered.
+			const reruns: ShellCommand[] = [];
+			test.memory.controls.scriptShell((command) => {
+				if (command.program !== "gh" || command.args[0] !== "run") return null;
+				reruns.push(command);
+				return ok({ stdout: "", stderr: "", exitCode: 0 });
+			});
 			const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
 			render(
@@ -448,7 +703,90 @@ describe("s1-ui-1 join", () => {
 			expect(await screen.findByText("Build")).toBeTruthy();
 			fireEvent.click(screen.getByRole("button", { name: "Re-run failed checks" }));
 
-			await waitFor(() => expect(rerun).toHaveBeenCalledWith(workspace.id));
+			await waitFor(() =>
+				expect(reruns.map((command) => [...command.args])).toEqual([
+					["run", "rerun", "9", "--failed"],
+				]),
+			);
+			expect(reruns[0]?.cwd).toBe(workspace.path);
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("REV-03 stores the agent's diff comments with the chat's model as author", async () => {
+		const test = createTestContainer();
+		try {
+			must(await test.container.sidecar.start());
+			const workspace = await seedWorkspace(test.container);
+			const created = must(
+				await test.container.services.sessions.create(workspace.id, {
+					...CONFIG,
+					model: "claude-sonnet-4-5",
+				}),
+			);
+
+			// The sidecar relays the agent's DiffComment tool call to the app.
+			test.memory.controls.emitSidecarLine(
+				JSON.stringify({
+					jsonrpc: "2.0",
+					id: "agent-comment-1",
+					method: "addDiffComments",
+					params: {
+						sessionId: created.id,
+						comments: [{ file: "src/a.ts", line: 4, body: "This can be null." }],
+					},
+				}),
+			);
+
+			await waitFor(() =>
+				expect(
+					(test.container.services.review.store.getState().byWorkspace[workspace.id] ?? []).map(
+						(comment) => [comment.author.kind, comment.author.name, comment.body],
+					),
+				).toEqual([["agent", "claude-sonnet-4-5", "This can be null."]]),
+			);
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("REV-03 moves between comments with Cmd+Alt+J and Cmd+Alt+K in the comment tab", async () => {
+		const test = createTestContainer();
+		try {
+			const workspace = await seedWorkspace(test.container);
+			const review = test.container.services.review;
+			const first = must(await review.add(workspace.id, "src/a.ts", 3, null, "First note"));
+			const second = must(await review.add(workspace.id, "src/a.ts", 9, null, "Second note"));
+			const onSearchChange = vi.fn();
+
+			render(
+				withServices(
+					test,
+					createElement(
+						Dispatcher,
+						{},
+						createElement(TabContent, {
+							workspaceId: workspace.id,
+							search: { tab: "comment", commentId: first.id },
+							onSearchChange,
+						}),
+					),
+				),
+			);
+
+			const body = await screen.findByText("First note");
+			fireEvent.keyDown(body, { key: "j", metaKey: true, altKey: true });
+			await waitFor(() =>
+				expect(onSearchChange).toHaveBeenCalledWith({ tab: "comment", commentId: second.id }),
+			);
+
+			fireEvent.keyDown(body, { key: "k", metaKey: true, altKey: true });
+			// Going back from the first comment wraps around to the last one.
+			await waitFor(() => expect(onSearchChange).toHaveBeenCalledTimes(2));
+			expect(onSearchChange).toHaveBeenLastCalledWith({ tab: "comment", commentId: second.id });
 		} finally {
 			await test.container.stop();
 			test.close();

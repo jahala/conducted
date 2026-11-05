@@ -84,4 +84,17 @@ describe("PR-04 PR comments", () => {
 		renderList([]);
 		expect(screen.getByText("No review comments from GitHub.")).toBeTruthy();
 	});
+
+	it("offers no Hide when the caller cannot hide a comment", () => {
+		render(
+			<PrCommentsList
+				comments={[comment("open", "still open")]}
+				onAddToChat={vi.fn()}
+				onResolve={vi.fn()}
+				onOpenComment={vi.fn()}
+			/>,
+		);
+		expect(screen.getByRole("button", { name: "Resolve" })).toBeTruthy();
+		expect(screen.queryByRole("button", { name: "Hide" })).toBeNull();
+	});
 });

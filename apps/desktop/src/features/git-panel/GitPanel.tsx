@@ -6,8 +6,9 @@
  * Behaviour: ui-map.md 3.6 (tab strip, header, tabs); frontend layout in structure-map.md 3.2.
  * Data: useGitState, useWorkspaceStatus (agent working), useActions().
  * Children: GitHeader, GitPanelTabs, changes/ChangesTab, files/FilesTab, checks/ChecksTab. Each tab
- * body sits in its own NotBuiltYet boundary, keyed by the tab, so an unbuilt tab (All files, Checks)
- * shows which feature is missing while the header and the tab strip stay usable.
+ * body sits in its own NotBuiltYet boundary, keyed by the tab, so a tab that is not built or fails
+ * shows which feature it is while the header and the tab strip stay usable. The Checks tab is marked
+ * failing when a check that blocks the merge failed (checks-summary.ts, the header's rule).
  * The "Artifacts", "Desktop" and "Chat" tabs of Conductor are cloud or team features and are left
  * out.
  * The workspace URL state (workspace/workspace-search.ts) holds `gitTab`, `scope` and the open
@@ -46,6 +47,7 @@ import { Skeleton } from "../../ui/Skeleton.tsx";
 import { toast, toastError } from "../../ui/Toast.tsx";
 import { ChangesTab } from "./changes/ChangesTab.tsx";
 import { ChecksTab } from "./checks/ChecksTab.tsx";
+import { summarizeChecks } from "./checks/checks-summary.ts";
 import { FilesTab } from "./files/FilesTab.tsx";
 import { GitHeader } from "./GitHeader.tsx";
 import { GitPanelTabs } from "./GitPanelTabs.tsx";
@@ -299,7 +301,9 @@ export function GitPanel({
 	const checksFailing =
 		git.state === "ready" &&
 		git.data.pullRequest !== null &&
-		git.data.pullRequest.checks.some((check) => check.state === "failure");
+		summarizeChecks(git.data.pullRequest.checks, {
+			treatOptionalAsBlocking: optionalChecksBlocking === true,
+		}).overall === "failing";
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">

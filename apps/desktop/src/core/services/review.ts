@@ -12,7 +12,10 @@
  * in the workspace; editing a comment that was sent rewrites its file; the AI review creates a
  * new chat with the review model and sends the review instruction, using the repository's review
  * prompt when it has one.
- * Not built here: GitHub sync and the hidden/ready/reviewed states are REV-04 and REV-12.
+ * Not built here: GitHub sync and the hidden/ready/reviewed states are REV-04 and REV-12, so
+ * sending to chat does not mark a comment reviewed. A comment's side, its suggested change and its
+ * place in a reply thread are stored by the repositories but not yet taken by `add`, whose screen
+ * API (core/api.ts) has no parameters for them.
  * Our design choice: sending to chat asks the active chat through AgentMessenger, because the
  * composer's attachment pipeline belongs to COMP-01.
  * Test first: create, edit, resolve and remove each write SQLite and re-read the workspace rows.
@@ -245,10 +248,15 @@ export class ReviewService {
 		);
 	}
 
-	/** Backs the `addDiffComments` agent tool. Comments get author kind "agent". Returns how many were added. */
+	/**
+	 * Backs the `addDiffComments` agent tool. Comments get author kind "agent" and the chat's model
+	 * as the author's name (services-map 5A.7.2); null when the chat has no model, so the card says
+	 * "Agent". Returns how many were added.
+	 */
 	async addFromAgent(
 		workspaceId: WorkspaceId,
 		comments: readonly { file: string; line: number; endLine?: number; body: string }[],
+		model: string | null,
 	): Promise<Result<number>> {
 		return this.#writes.run(workspaceId, async () => {
 			let added = 0;
@@ -259,7 +267,7 @@ export class ReviewService {
 					line: comment.line,
 					endLine: comment.endLine ?? null,
 					body: comment.body,
-					author: { kind: "agent", name: "Agent", avatarUrl: null },
+					author: { kind: "agent", name: model, avatarUrl: null },
 					side: "additions",
 					threadId: null,
 					replyToId: null,

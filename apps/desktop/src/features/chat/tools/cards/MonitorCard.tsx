@@ -7,7 +7,14 @@
  * Test first: A monitor call renders 'Start monitor' and the watched command.
  */
 import { ClockIcon } from "../../../../ui/icons.tsx";
-import { asRecord, stripAnsi, ToolCardFrame, textField, toolStatus } from "../ToolCardFrame.tsx";
+import {
+	asRecord,
+	stripAnsi,
+	ToolCardFrame,
+	ToolOutput,
+	textField,
+	toolStatus,
+} from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
 export function MonitorCard({ call, defaultExpanded }: ToolCardProps) {
@@ -33,11 +40,7 @@ export function MonitorCard({ call, defaultExpanded }: ToolCardProps) {
 							</pre>
 						</>
 					) : null}
-					{output.length > 0 ? (
-						<pre className="max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-fg">
-							{output}
-						</pre>
-					) : null}
+					{output.length > 0 ? <ToolOutput>{output}</ToolOutput> : null}
 				</div>
 			}
 		/>

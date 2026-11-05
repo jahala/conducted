@@ -23,4 +23,14 @@ describe("COMP-04 Composer extensions", () => {
 			"slashCommands",
 		]);
 	});
+
+	it("leaves the '#' trigger out when the caller passes no pull request search", () => {
+		const { pullRequests: _left, ...withoutPullRequests } = deps;
+		const extensions = buildComposerExtensions(withoutPullRequests);
+		expect(extensions.map((extension) => extension.name)).toEqual([
+			"starterKit",
+			"fileMention",
+			"slashCommands",
+		]);
+	});
 });

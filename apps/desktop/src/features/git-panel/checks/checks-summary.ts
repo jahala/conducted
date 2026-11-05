@@ -1,7 +1,8 @@
 /**
  * @feature PR-04 Checks summary
  * Owns: pure functions that sort checks for display and summarise them into counts and one
- * overall state. Used by the Checks tab.
+ * overall state. Used by the Checks tab's counts and the Git panel's failing mark on the Checks
+ * tab. Which checks block a merge is core/status/git-header.ts's rule (`countsAsBlocking`).
  * Behaviour: services-map.md 3.7.2 ("Derived state": pending is IN_PROGRESS, EXPECTED, QUEUED or
  * PENDING; failing is FAILURE, ERROR, TIMED_OUT, ACTION_REQUIRED or STARTUP_FAILURE). The services
  * map CheckRun states onto CheckState; this file only reads CheckState.
@@ -11,6 +12,7 @@
  * Test first: [failure, pending, success] gives failed 1, pending 1, total 3, overall "failing".
  */
 import type { CheckRun, CheckState } from "../../../core/model.ts";
+import { countsAsBlocking } from "../../../core/status/git-header.ts";
 
 export interface ChecksSummary {
 	total: number;
@@ -35,9 +37,9 @@ export function summarizeChecks(
 	const failed = checks.filter((check) => FAILED_STATES.has(check.state)).length;
 	const pending = checks.filter((check) => PENDING_STATES.has(check.state)).length;
 	const passed = checks.filter((check) => check.state === "success").length;
-	const blocking = options.treatOptionalAsBlocking
-		? checks
-		: checks.filter((check) => check.required);
+	const blocking = checks.filter((check) =>
+		countsAsBlocking(check, options.treatOptionalAsBlocking),
+	);
 
 	const overall: ChecksSummary["overall"] =
 		checks.length === 0

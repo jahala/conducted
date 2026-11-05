@@ -7,7 +7,7 @@
  * Test first: A task_list result with no tasks renders 'No tasks'.
  */
 import { ListTodoIcon } from "../../../../ui/icons.tsx";
-import { ToolCardFrame, toolStatus, withKeys } from "../ToolCardFrame.tsx";
+import { ToolCardFrame, ToolOutput, toolStatus, withKeys } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 import { readTasks } from "./TaskGetCard.tsx";
 
@@ -18,9 +18,7 @@ export function TaskListCard({ call, defaultExpanded }: ToolCardProps) {
 	const body =
 		tasks === null ? (
 			raw.length > 0 ? (
-				<pre className="max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-fg-muted">
-					{raw}
-				</pre>
+				<ToolOutput muted>{raw}</ToolOutput>
 			) : (
 				<p className="text-xs text-fg-subtle">Loading tasks.</p>
 			)

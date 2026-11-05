@@ -11,7 +11,14 @@
  * Test first: A GetTerminalOutput call renders the terminal's name and the number of lines
  * returned.
  */
-import { formatJson, ToolCardFrame, textField, textLines, toolStatus } from "../ToolCardFrame.tsx";
+import {
+	formatJson,
+	ToolCardFrame,
+	ToolOutput,
+	textField,
+	textLines,
+	toolStatus,
+} from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
 const TITLES: Record<string, string> = {
@@ -61,11 +68,7 @@ export function AppToolCard({ call, defaultExpanded }: ToolCardProps) {
 					<pre className="overflow-x-auto whitespace-pre-wrap rounded-sm bg-surface p-2 font-mono text-xs text-fg-muted">
 						{formatJson(input)}
 					</pre>
-					{output.length > 0 ? (
-						<pre className="max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-fg">
-							{output}
-						</pre>
-					) : null}
+					{output.length > 0 ? <ToolOutput>{output}</ToolOutput> : null}
 				</div>
 			}
 		/>

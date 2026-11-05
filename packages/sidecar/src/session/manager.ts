@@ -36,6 +36,9 @@
  *  - the same agent session id is stored from the first callback and sent to the app once
  *  - a config the agent changes by itself (plan mode) updates the chat's state and is sent to the
  *    app with the reason, so the app's stored config agrees
+ *  - a plan answer the broker accepts with feedback is stored as a user_message with delivery
+ *    plan_feedback in the running turn, so the chat keeps what the user asked for (CHAT-12,
+ *    claude-runner 3.5); an approval, a denial with no feedback and a refused answer store nothing
  * Test first: two sendMessage calls with the same messageId start one turn; the second answer
  * repeats the first deliveredAs.
  * Our design choice: queued messages live in memory only. The app owns the persistent follow-up
@@ -61,6 +64,7 @@ import type {
 	MessageId,
 	Result,
 	SessionId,
+	TurnId,
 } from "@conducted/shared";
 import { appError, err, ok } from "@conducted/shared";
 import type { CheckpointService } from "../checkpoints/checkpoint-service.ts";
@@ -183,6 +187,7 @@ type ResumeParams = AppToSidecarRequestParams<"sendMessage">["resume"];
 interface ActiveTurn {
 	turn: SessionTurn;
 	messageId: MessageId;
+	turnId: TurnId;
 }
 
 interface SessionState {
@@ -484,7 +489,35 @@ export class DefaultSessionManager implements SessionManager {
 	): Promise<AppToSidecarHandlerValue<"answerInteraction">> {
 		const state = this.sessions.get(params.sessionId);
 		if (state === undefined) return ok({ accepted: false, superseded: true });
-		return ok(this.deps.interactions.answer(state.sessionId, params.interactionId, params.answer));
+		const result = this.deps.interactions.answer(
+			state.sessionId,
+			params.interactionId,
+			params.answer,
+		);
+		if (result.accepted) this.publishPlanFeedback(state, params.answer);
+		return ok(result);
+	}
+
+	/** Stores the feedback that rejected a plan as a user message in the running turn. */
+	private publishPlanFeedback(
+		state: SessionState,
+		answer: AppToSidecarRequestParams<"answerInteraction">["answer"],
+	): void {
+		if (answer.kind !== "plan_approval" || answer.approved) return;
+		const text = answer.feedback?.trim() ?? "";
+		if (text.length === 0 || state.activeTurn === null) return;
+		const event: SessionEvent = {
+			type: "user_message",
+			eventId: this.deps.ids.uuid() as EventId,
+			at: this.deps.clock.now(),
+			messageId: this.deps.ids.uuid() as MessageId,
+			turnId: state.activeTurn.turnId,
+			text,
+			attachmentPaths: [],
+			delivery: "plan_feedback",
+			config: state.config,
+		};
+		this.deps.publisher.publish(state.sessionId, event);
 	}
 
 	listAcpConfigOptions(
@@ -797,7 +830,7 @@ export class DefaultSessionManager implements SessionManager {
 		const turn = this.createTurn(this.turnDeps(state, agent), request);
 		state.duplicates.markRunning(request.messageId);
 		state.duplicates.rememberDelivery(request.messageId, "new_turn");
-		state.activeTurn = { turn, messageId: request.messageId };
+		state.activeTurn = { turn, messageId: request.messageId, turnId: request.turnId };
 		try {
 			await turn.start();
 			return true;
