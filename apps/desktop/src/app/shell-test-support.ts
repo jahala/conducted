@@ -41,6 +41,18 @@ export interface ShellContainer {
 	settingsWrites: { key: string; value: unknown }[];
 }
 
+/**
+ * Writes a settings row the way an earlier run of the app left it, without touching the settings store.
+ * The store learns of it when the settings service loads, as it does on a real launch.
+ */
+export async function saveSetting(database: Database, key: string, value: unknown): Promise<void> {
+	await database.execute("INSERT INTO settings (key, value, updated_at) VALUES ($1, $2, $3)", [
+		key,
+		JSON.stringify(value),
+		1,
+	]);
+}
+
 const refuseDatabase = (): Promise<never> =>
 	Promise.reject(new Error("The shell tests do not read the database."));
 
@@ -117,6 +129,8 @@ export function createShellContainer(fixture: ShellFixture = {}): ShellContainer
 		byWorkspace: Object.fromEntries(workspaces.map((row) => [row.id, []])),
 	});
 	vi.spyOn(services.terminals, "loadWorkspace").mockImplementation(async () => ok(undefined));
+	// A finished start has loaded the settings, and the shell draws nothing until they are.
+	services.settings.store.setState({ loaded: true });
 	if (fixture.settings !== undefined) {
 		const values = fixture.settings;
 		services.settings.store.setState((state) => ({ values: { ...state.values, ...values } }));
