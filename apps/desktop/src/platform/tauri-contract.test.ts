@@ -7,7 +7,6 @@ import { vitestContractHarness } from "../test/contract-harness.ts";
 import { memoryPlatformForShape, platformMethods } from "../test/memory-platform.ts";
 import { PLATFORM_CONTRACT_CASES, runPlatformContract } from "../test/platform-contract.ts";
 import { createNodeTauriBindings } from "../test/tauri-node-bindings.ts";
-import type { Database, Platform } from "./platform.ts";
 import { createTauriPlatform } from "./tauri.ts";
 
 const NEEDS_RUST = "Rust does this (the Node bindings cannot do it honestly)";
