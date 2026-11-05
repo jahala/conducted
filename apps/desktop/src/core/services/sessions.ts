@@ -89,7 +89,7 @@ export interface SessionsServiceDeps {
 	db: Database;
 	repositories: () => Repositories;
 	sidecar: Pick<SidecarClient, "request" | "notify">;
-	composer: Pick<ComposerService, "materializeForSend" | "clearDraft">;
+	composer: Pick<ComposerService, "materializeForSend" | "clearDraft" | "draftOf">;
 	queue: Pick<FollowUpQueue, "enqueue" | "release" | "pauseOnCancel">;
 	notifications: Pick<NotificationService, "onLiveStateChanged">;
 	/** Folders and branch facts the sidecar needs to place a chat on disk. */
@@ -287,8 +287,8 @@ export class SessionsService implements AgentMessenger {
 	}
 
 	/** Backs `useDraft` through the composer service; kept here so the view model has one source. */
-	draftOf(_sessionId: SessionId): Draft {
-		return notImplemented("COMP-01");
+	draftOf(sessionId: SessionId): Draft {
+		return this.#deps.composer.draftOf(sessionId);
 	}
 
 	// ---- read state, failed sends and agent controls (Actions.sessions)
