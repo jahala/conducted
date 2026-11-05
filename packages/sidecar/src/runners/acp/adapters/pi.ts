@@ -9,6 +9,7 @@
  * from the research (any version runs until a real one is found).
  * Test first: id and command are as stated and toolNameHints maps find to glob.
  */
+import { ok } from "@conducted/shared";
 import type { AcpAdapter } from "./adapter.ts";
 
 export const piAdapter: AcpAdapter = {
@@ -18,7 +19,7 @@ export const piAdapter: AcpAdapter = {
 	versionArgs: ["--version"],
 	toolNameHints: { find: "glob" },
 	waitForModelCatalogMs: 0,
-	permissionEnv(_requireToolApproval: boolean): Record<string, string> {
-		return {};
+	permissionEnv(_requireToolApproval: boolean) {
+		return ok({});
 	},
 };
