@@ -7,14 +7,42 @@
  * being unavailable at the terminal limit ("Maximum N terminals allowed").
  * Test first: exit code 1 shows the code, and the New terminal action calls onNewTerminal.
  */
-import { notImplemented } from "@conducted/shared";
+import { Button } from "../../ui/Button.tsx";
 
 export interface TerminalEndedBannerProps {
 	exitCode: number | null;
 	canStartNew: boolean;
 	onNewTerminal: () => void;
+	/** Shown when the limit is reached. */
+	terminalLimit?: number;
 }
 
-export function TerminalEndedBanner(_props: TerminalEndedBannerProps): never {
-	return notImplemented("RUN-06");
+function exitText(exitCode: number | null): string {
+	if (exitCode === null) return "Shell exited without an exit code.";
+	return `Shell exited with status ${exitCode}.`;
+}
+
+export function TerminalEndedBanner({
+	exitCode,
+	canStartNew,
+	onNewTerminal,
+	terminalLimit,
+}: TerminalEndedBannerProps) {
+	return (
+		<div className="flex shrink-0 items-center justify-between gap-3 border-t border-separator bg-panel px-3 py-2 text-xs text-fg-muted">
+			<div className="min-w-0">
+				<p>{exitText(exitCode)}</p>
+				{canStartNew ? null : (
+					<p className="text-fg-subtle">
+						{terminalLimit === undefined
+							? "Maximum terminals allowed"
+							: `Maximum ${terminalLimit} terminals allowed`}
+					</p>
+				)}
+			</div>
+			<Button variant="secondary" size="xs" disabled={!canStartNew} onClick={onNewTerminal}>
+				New terminal
+			</Button>
+		</div>
+	);
 }
