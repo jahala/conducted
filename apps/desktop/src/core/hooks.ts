@@ -62,6 +62,7 @@ import { useMemo } from "react";
 import { useStore } from "zustand";
 import type { Actions, Queries } from "./api.ts";
 import { useServices } from "./context.tsx";
+import { toGitHubAccessView } from "./services/github.ts";
 import type { SessionsState } from "./services/sessions.ts";
 import { deriveWorkspaceStatus } from "./status/workspace-status.ts";
 
@@ -148,7 +149,17 @@ export const useTerminalConnection: Queries["useTerminalConnection"] = () =>
 	notImplemented("RUN-06");
 export const useSetupState: Queries["useSetupState"] = () => notImplemented("WS-03");
 export const useEnvVars: Queries["useEnvVars"] = () => notImplemented("SET-04");
-export const useGitHubAccess: Queries["useGitHubAccess"] = () => notImplemented("PR-01");
+export const useGitHubAccess: Queries["useGitHubAccess"] = () => {
+	const { github } = useServices().services;
+	const access = useStore(github.store, (s) => s.access);
+	return useMemo(
+		() =>
+			access.status === "unknown" && access.reason === undefined
+				? { state: "loading" as const }
+				: { state: "ready" as const, data: toGitHubAccessView(access) },
+		[access],
+	);
+};
 export const useInstalledApps: Queries["useInstalledApps"] = () => notImplemented("WS-08");
 export const useMcpServers: Queries["useMcpServers"] = () => notImplemented("SET-05");
 export const useDiagnostics: Queries["useDiagnostics"] = () => notImplemented("APP-03");

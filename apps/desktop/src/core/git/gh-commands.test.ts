@@ -1,7 +1,34 @@
 import { describe, expect, it } from "vitest";
 import * as gh from "./gh-commands.ts";
 
-describe("gh command catalogue", () => {
+describe("PR-01 gh command catalogue", () => {
+	it("runs every GitHub call through the user's gh", () => {
+		for (const command of [
+			gh.authStatus(),
+			gh.apiUserLogin(),
+			gh.configGetGitProtocol(),
+			gh.prMerge(1, "squash", "abc", false),
+			gh.prApprove(1, "abc"),
+			gh.prEdit(1, { title: "T" }),
+		]) {
+			expect(command.program).toBe("gh");
+		}
+	});
+
+	it("reads the git protocol gh is set to use", () => {
+		const command = gh.configGetGitProtocol();
+		expect(command.args).toEqual(["config", "get", "git_protocol"]);
+		expect(command.okExitCodes).toEqual([0, 1]);
+	});
+
+	it("treats a signed-out auth status as an answer", () => {
+		expect(gh.authStatus().okExitCodes).toEqual([0, 1]);
+	});
+
+	it("asks for the login with gh api user", () => {
+		expect(gh.apiUserLogin().args).toEqual(["api", "user", "--jq", ".login"]);
+	});
+
 	it("pins a merge to the local head commit", () => {
 		const cmd = gh.prMerge(12, "squash", "abc123", false);
 		expect(cmd.program).toBe("gh");
