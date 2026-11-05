@@ -68,7 +68,8 @@ pub const MAX_SOURCE_BYTES: u64 = 200 * 1024 * 1024;
 pub struct MaterializedAttachment {
     /// Where the copy is.
     pub path: String,
-    pub size: u64,
+    /// Size of the copy in bytes. The name matches `MaterializedFile.sizeBytes` in platform.ts.
+    pub size_bytes: u64,
     /// True when the contents are a still image the app can show.
     pub is_image: bool,
     /// Pixel size, for images.
@@ -266,7 +267,7 @@ fn materialize_into(
         copy_atomic(source, &target)?;
         return Ok(MaterializedAttachment {
             path: reported_path,
-            size: metadata.len(),
+            size_bytes: metadata.len(),
             is_image: false,
             width: None,
             height: None,
@@ -282,7 +283,7 @@ fn materialize_into(
         write_bytes_atomic(&resized.bytes, &target)?;
         return Ok(MaterializedAttachment {
             path: reported_path,
-            size: resized.bytes.len() as u64,
+            size_bytes: resized.bytes.len() as u64,
             is_image: true,
             width: Some(resized.width),
             height: Some(resized.height),
@@ -293,7 +294,7 @@ fn materialize_into(
     copy_atomic(source, &target)?;
     Ok(MaterializedAttachment {
         path: reported_path,
-        size: metadata.len(),
+        size_bytes: metadata.len(),
         is_image: !image.animated,
         width: Some(image.width),
         height: Some(image.height),
@@ -521,7 +522,7 @@ mod tests {
     use image::{Delay, DynamicImage, Frame, ImageFormat, Rgb, RgbImage, Rgba, RgbaImage};
 
     use super::{
-        JPEG_QUALITIES, MAX_PIXEL_DIMENSION, MAX_SOURCE_BYTES, encode_jpeg,
+        JPEG_QUALITIES, MAX_PIXEL_DIMENSION, MAX_SOURCE_BYTES, MaterializedAttachment, encode_jpeg,
         encode_jpeg_within_limit, flatten_on_white, materialize_into, write_bytes_atomic,
     };
     use crate::error::CommandError;
@@ -596,7 +597,7 @@ mod tests {
             materialize_into(&source, &destination, false, &draft_root).expect("materialize");
 
         assert_eq!(result.path, as_string(&destination));
-        assert_eq!(result.size, 16);
+        assert_eq!(result.size_bytes, 16);
         assert!(!result.is_image);
         assert!(!result.resized);
         assert_eq!(result.width, None);
@@ -605,6 +606,30 @@ mod tests {
             "hello attachment"
         );
         assert!(draft_root.is_dir(), "the draft folder is created");
+    }
+
+    #[test]
+    fn plat_20_materialized_attachment_uses_the_platform_contract_field_names() {
+        let attachment = MaterializedAttachment {
+            path: "/tmp/draft-attachments/chat/notes.txt".to_string(),
+            size_bytes: 16,
+            is_image: false,
+            width: None,
+            height: None,
+            resized: false,
+        };
+
+        let json = serde_json::to_value(&attachment).expect("serialize");
+
+        assert_eq!(json["sizeBytes"], 16);
+        assert_eq!(json["isImage"], false);
+        assert_eq!(json["resized"], false);
+        assert!(json["width"].is_null());
+        assert!(json["height"].is_null());
+        assert!(
+            json.get("size").is_none(),
+            "the platform contract never reads a field named size"
+        );
     }
 
     #[test]
