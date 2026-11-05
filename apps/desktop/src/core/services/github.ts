@@ -25,27 +25,255 @@
  * adds; and the local tip is the recorded baseline (`syncedBaselineRef`) or appears in the
  * upstream's reflog. The rebase asserts the same facts again through its sequence editor, and
  * the baseline moves to the new tip with a compare-and-swap. Any failed check skips, never forces.
- * Our design choice: access is the user's own `gh auth login`. No tokens are stored. Graphite
- * support is read-only and off unless the setting is on. Creating a PR, committing and fixing
- * checks are requests to the agent (see agent-instructions.ts).
+ * Our design choice: access is the user's own `gh auth login`, or the personal access token the
+ * user saved on the Account page (D029). The token is kept in the Keychain and given to `gh` as
+ * GH_TOKEN; nothing is brokered per session. Graphite support is read-only and off unless the
+ * setting is on. Creating a PR, committing and fixing checks are requests to the agent (see
+ * agent-instructions.ts).
  * Test first: two merge calls at once send one `gh pr merge`.
  */
-import { notImplemented, type Result, type WorkspaceId } from "@conducted/shared";
+import {
+	appError,
+	err,
+	notImplemented,
+	ok,
+	type Result,
+	type WorkspaceId,
+} from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
-import type { Unsubscribe } from "../../platform/platform.ts";
-import type { GitRunner } from "../git/runner.ts";
-import type { IssueView, PullRequest } from "../model.ts";
+import type { Keychain, Unsubscribe } from "../../platform/platform.ts";
+import { createSingleFlight, type SingleFlight } from "../async/single-flight.ts";
+import { revParseHead } from "../git/commands.ts";
+import {
+	apiUserLogin,
+	authStatus,
+	configGetGitProtocol,
+	type MergeMethod,
+	prMerge,
+	repoMergeMethodsQuery,
+} from "../git/gh-commands.ts";
+import { failedCommandError, type GitRunner, isSuccessfulExit } from "../git/runner.ts";
+import type { GitHubAccess as GitHubAccessView, IssueView, PullRequest } from "../model.ts";
 import type { GitCache } from "./git-cache.ts";
 import type { PollRole } from "./pr-polling.ts";
 import type { AgentMessenger } from "./sessions.ts";
 
+/** The Keychain entry the Account page writes and `gh` receives as GH_TOKEN (D029). */
+export const GH_PAT_KEYCHAIN_KEY = "gh_pat_token";
+/** Shown by the Account page when the text in the token field is not shaped like a GitHub token. */
+export const GITHUB_TOKEN_WARNING = "That doesn't look like a GitHub token. Are you sure?";
+/** Shown when a refresh of GitHub data fails for a reason the service cannot classify. */
+export const GITHUB_REFRESH_FAILED_MESSAGE = "Couldn't refresh GitHub";
+export const GITHUB_UNAUTHORIZED_MESSAGE =
+	"GitHub denied the request. Sign in again with `gh auth login`, or update your token on the Account page.";
+export const GITHUB_SAML_SSO_MESSAGE =
+	"GitHub requires single sign-on for this organization. Authorize your account for the organization, then try again.";
+
+export type GithubAuthMethod = "cli" | "pat";
+export type GithubFailureClass =
+	| "unauthorized"
+	| "saml-sso-required"
+	| "missing-scope"
+	| "offline"
+	| "other";
+
 export type GithubAccess =
-	| { status: "unknown" }
-	| { status: "ok"; login: string }
+	| { status: "unknown"; reason?: "check_failed" }
+	| {
+			status: "ok";
+			login: string;
+			host: string;
+			scopes: string[];
+			usesToken: boolean;
+			gitProtocol: string | null;
+	  }
 	| { status: "gh_missing" }
 	| { status: "signed_out" }
 	| { status: "unauthorized" }
 	| { status: "offline" };
+
+/** What the health check keeps about GitHub access (services-map 5B.1.11). */
+export interface GithubHealth {
+	status: "unknown" | "ok" | "broken";
+	reason: GithubFailureClass | null;
+	authMethod: GithubAuthMethod;
+	lastSuccessAtMs: number | null;
+	lastFailureAtMs: number | null;
+}
+
+// ---------------------------------------------------------------- pure access helpers
+
+/**
+ * The class of a `gh` failure, from its output. Unauthorized means the sign-in is no longer
+ * accepted; the other classes tell the user what to fix.
+ */
+export function classifyGhFailure(text: string): GithubFailureClass {
+	const lower = text.toLowerCase();
+	if (/bad credentials|http 401|"status"\s*:\s*"?401|status\s*:?\s*401/.test(lower)) {
+		return "unauthorized";
+	}
+	if (/saml enforcement|saml sso|saml-sso|requires saml|sso for this organization/.test(lower)) {
+		return "saml-sso-required";
+	}
+	if (/(\b403\b|forbidden)/.test(lower) && /scope/.test(lower)) {
+		return "missing-scope";
+	}
+	if (
+		/could not resolve host|connection refused|network is unreachable|no such host|temporary failure in name resolution|dial tcp|timed out|timeout/.test(
+			lower,
+		)
+	) {
+		return "offline";
+	}
+	return "other";
+}
+
+/**
+ * The scope the failure says is missing, when GitHub names one. The Account page and the toast
+ * use it to say exactly which scope to add.
+ */
+export function missingScopeFrom(text: string): string | null {
+	const accepted = /x-accepted-oauth-scopes:\s*([^\r\n]+)/i.exec(text);
+	if (accepted !== null) return accepted[1]?.split(",")[0]?.trim() ?? null;
+	const quoted = /scope[^.\r\n]{0,120}?["'`]([a-z][a-z0-9:_-]*)["'`]/i.exec(text);
+	if (quoted !== null) return quoted[1] ?? null;
+	const known =
+		/(?:needs|requires|missing|add)[^.\r\n]{0,80}?\b(repo|gist|workflow|notifications|user|project|read:org|write:org|admin:org|read:packages|write:packages|delete:packages|read:discussion|write:discussion|read:project|write:project|codespace)\s+scope/i.exec(
+			text,
+		);
+	return known?.[1] ?? null;
+}
+
+/** The sentence the UI shows for a classified failure. Null when the class needs no message. */
+export function githubFailureMessage(failure: GithubFailureClass, text: string): string | null {
+	switch (failure) {
+		case "unauthorized":
+			return GITHUB_UNAUTHORIZED_MESSAGE;
+		case "saml-sso-required":
+			return GITHUB_SAML_SSO_MESSAGE;
+		case "missing-scope": {
+			const scope = missingScopeFrom(text);
+			return scope === null
+				? "GitHub access is missing a scope this action needs. Add it to your token and try again."
+				: `GitHub access is missing the "${scope}" scope. Add it to your token and try again.`;
+		}
+		default:
+			return null;
+	}
+}
+
+export interface ParsedAuthStatus {
+	login: string | null;
+	host: string | null;
+	scopes: string[];
+}
+
+/** Reads the signed-in account, host and token scopes out of `gh auth status` output. */
+export function parseAuthStatus(text: string): ParsedAuthStatus {
+	const modern = /logged in to (\S+) account (\S+)/i.exec(text);
+	const older = /logged in to (\S+) as (\S+)/i.exec(text);
+	const match = modern ?? older;
+	const scopesLine = /token scopes:\s*([^\r\n]+)/i.exec(text);
+	const scopesText = scopesLine?.[1] ?? "";
+	const scopes = scopesText
+		.split(",")
+		.map((scope) => scope.trim().replace(/^['"`]|['"`]$/g, ""))
+		.filter((scope) => scope.length > 0 && scope.toLowerCase() !== "none");
+	return { login: match?.[2] ?? null, host: match?.[1] ?? null, scopes };
+}
+
+/**
+ * Whether a remote URL points at GitHub. Only github.com and ssh.github.com get the GitHub forge;
+ * every other host is treated as local git (services-map 3.1).
+ */
+export function isGithubRemoteUrl(url: string): boolean {
+	const trimmed = url.trim();
+	if (trimmed.length === 0) return false;
+	const scp = /^[^@\s]+@([^:\s/]+):/.exec(trimmed);
+	if (scp !== null) return isGithubHost(scp[1]);
+	try {
+		return isGithubHost(new URL(trimmed).hostname);
+	} catch {
+		return false;
+	}
+}
+
+const isGithubHost = (host: string | undefined): boolean => {
+	const name = (host ?? "").toLowerCase();
+	return name === "github.com" || name === "ssh.github.com";
+};
+
+/** The forge a remote gets: GitHub for github.com only, local git for everything else. */
+export function forgeForRemoteUrl(url: string): "github" | "local" {
+	return isGithubRemoteUrl(url) ? "github" : "local";
+}
+
+/**
+ * The sign-in method Conductor offers (D029): an explicit `gh_auth_method` wins, otherwise a
+ * saved token means pat and nothing saved means the user's own gh login.
+ */
+export function resolveGhAuthMethod(
+	explicit: string | null | undefined,
+	hasStoredToken: boolean,
+): GithubAuthMethod {
+	return explicit === "cli" || explicit === "pat" ? explicit : hasStoredToken ? "pat" : "cli";
+}
+
+/**
+ * GitHub's personal access tokens start with a known prefix. A guard against a pasted password or
+ * a half-copied value, not a validation: only GitHub can say whether a token works.
+ */
+export function looksLikeGithubToken(token: string): boolean {
+	const trimmed = token.trim();
+	return /^(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})$/.test(trimmed);
+}
+
+/** The merge method GitHub allows, in Conductor's preference order (services-map 5B.1.7). */
+export function chooseMergeMethod(output: string): MergeMethod | null {
+	let allowed: unknown;
+	try {
+		allowed = JSON.parse(output);
+	} catch {
+		return null;
+	}
+	if (!Array.isArray(allowed)) return null;
+	if (allowed[0] === true) return "squash";
+	if (allowed[1] === true) return "rebase";
+	if (allowed[2] === true) return "merge";
+	return null;
+}
+
+/** Maps the service's access state to the shape the Account page reads (model.ts). */
+export function toGitHubAccessView(access: GithubAccess): GitHubAccessView {
+	switch (access.status) {
+		case "ok":
+			return {
+				state: "signed_in",
+				login: access.login,
+				host: access.host,
+				scopes: access.scopes,
+				usesToken: access.usesToken,
+			};
+		case "gh_missing":
+			return { state: "gh_missing" };
+		// A rejected sign-in is fixed the same way as a sign-out, so the page offers that command.
+		case "signed_out":
+		case "unauthorized":
+			return { state: "signed_out" };
+		case "offline":
+			return { state: "unknown", reason: "offline" };
+		case "unknown":
+			return { state: "unknown", reason: "check_failed" };
+	}
+}
+
+/** The access state a failed probe means. Only the failure class changes the answer. */
+function accessFromFailure(text: string): GithubAccess {
+	const failure = classifyGhFailure(text);
+	if (failure === "unauthorized") return { status: "unauthorized" };
+	if (failure === "offline") return { status: "offline" };
+	return { status: "signed_out" };
+}
 
 export interface WorkspacePrEntry {
 	pullRequest: PullRequest | null;
@@ -56,6 +284,7 @@ export interface WorkspacePrEntry {
 
 export interface GithubState {
 	access: GithubAccess;
+	health: GithubHealth;
 	byWorkspace: Readonly<Record<string, WorkspacePrEntry>>;
 }
 
@@ -93,30 +322,159 @@ export interface GithubServiceDeps {
 	/** Called when a PR becomes merged, so the workspace service can archive on merge. */
 	onMerged: (workspaceId: WorkspaceId, prNumber: number) => void;
 	now: () => number;
+	/** The Keychain the Account page's token is kept in (D029). */
+	keychain?: Pick<Keychain, "get" | "set" | "delete">;
+	/** Reads `gh_auth_method`; the registry does not declare it yet (services-map 3.9). */
+	setting?: <T>(key: string) => T;
+	/** Folder for probes that belong to no workspace. Our design choice: "/" when not given. */
+	probeCwd?: string;
 }
 
 export class GithubService {
 	readonly store: StoreApi<GithubState>;
 	readonly #deps: GithubServiceDeps;
+	/** Makes each PR action run once while it is in flight (services-map 5B.1.7). */
+	readonly #flights: SingleFlight<string>;
 
 	constructor(deps: GithubServiceDeps) {
 		this.#deps = deps;
+		this.#flights = createSingleFlight<string>();
 		this.store = createStore<GithubState>(() => ({
 			access: { status: "unknown" },
+			health: {
+				status: "unknown",
+				reason: null,
+				authMethod: "cli",
+				lastSuccessAtMs: null,
+				lastFailureAtMs: null,
+			},
 			byWorkspace: {},
 		}));
 	}
 
-	/** Runs `gh auth status` and `gh api user`; updates `access`. */
-	checkAccess(): Promise<Result<GithubAccess>> {
-		void this.#deps;
-		return notImplemented("PR-01");
+	/** Runs `gh auth status` and `gh api user`, reads the git protocol, and updates `access`. */
+	async checkAccess(): Promise<Result<GithubAccess>> {
+		const token = await this.#readToken();
+		if (!token.ok) {
+			this.#setAccess({ status: "unknown", reason: "check_failed" });
+			return err(token.error);
+		}
+		const env = token.value === null ? undefined : { GH_TOKEN: token.value };
+		const runOptions = this.#runOptions(env);
+		const auth = await this.#deps.git.run(authStatus(), runOptions);
+		if (!auth.ok) return ok(this.#setAccessFromProbeError(auth.error.code));
+
+		const authText = `${auth.value.stderr}\n${auth.value.stdout}`;
+		await this.recordGhResult(auth.value);
+		if (auth.value.exitCode !== 0) return ok(this.#setAccess(accessFromFailure(authText)));
+		if (!/logged in to /i.test(authText)) return ok(this.#setAccess({ status: "signed_out" }));
+
+		const parsed = parseAuthStatus(authText);
+		const user = await this.#deps.git.run(apiUserLogin(), runOptions);
+		if (!user.ok) return ok(this.#setAccessFromProbeError(user.error.code));
+		await this.recordGhResult(user.value);
+		if (user.value.exitCode !== 0) {
+			return ok(this.#setAccess(accessFromFailure(`${user.value.stderr}\n${user.value.stdout}`)));
+		}
+		const login = user.value.stdout.trim();
+		if (login.length === 0)
+			return ok(this.#setAccess({ status: "unknown", reason: "check_failed" }));
+
+		const protocol = await this.#deps.git.run(configGetGitProtocol(), runOptions);
+		let gitProtocol: string | null = null;
+		if (protocol.ok) {
+			await this.recordGhResult(protocol.value);
+			const value = protocol.value.stdout.trim();
+			gitProtocol = protocol.value.exitCode === 0 && value.length > 0 ? value : null;
+		}
+
+		return ok(
+			this.#setAccess({
+				status: "ok",
+				login,
+				host: parsed.host ?? "github.com",
+				scopes: parsed.scopes,
+				usesToken: token.value !== null,
+				gitProtocol,
+			}),
+		);
 	}
 
-	/** Starts polling one workspace until the returned function is called. */
 	/** Backs `Actions.app.recheckGitHubAccess`: runs the access probes again and updates the store. */
-	recheckAccess(): Promise<Result<void>> {
-		return notImplemented("PR-01");
+	async recheckAccess(): Promise<Result<void>> {
+		const result = await this.checkAccess();
+		return result.ok
+			? ok(undefined)
+			: err(appError("github_refresh_failed", GITHUB_REFRESH_FAILED_MESSAGE, result.error));
+	}
+
+	/**
+	 * Records what one `gh` call did (services-map 5B.1.11). Every action calls this, so the health
+	 * store is never stale. Only an unauthorized answer marks access broken.
+	 */
+	async recordGhResult(output: {
+		exitCode: number;
+		stdout: string;
+		stderr: string;
+	}): Promise<void> {
+		const authMethod = await this.#authMethod();
+		const previous = this.store.getState().health;
+		const now = this.#deps.now();
+		if (output.exitCode === 0) {
+			this.store.setState({
+				health: {
+					...previous,
+					status: "ok",
+					reason: null,
+					authMethod,
+					lastSuccessAtMs: now,
+				},
+			});
+			return;
+		}
+		const reason = classifyGhFailure(`${output.stderr}\n${output.stdout}`);
+		this.store.setState({
+			health: {
+				...previous,
+				status: reason === "unauthorized" ? "broken" : previous.status,
+				reason,
+				authMethod,
+				lastFailureAtMs: now,
+			},
+		});
+	}
+
+	#setAccess(access: GithubAccess): GithubAccess {
+		this.store.setState({ access });
+		return access;
+	}
+
+	#setAccessFromProbeError(code: string): GithubAccess {
+		return this.#setAccess(
+			code === "process_spawn"
+				? { status: "gh_missing" }
+				: { status: "unknown", reason: "check_failed" },
+		);
+	}
+
+	#runOptions(env: Readonly<Record<string, string>> | undefined) {
+		return {
+			cwd: this.#deps.probeCwd ?? "/",
+			...(env === undefined ? {} : { env }),
+		};
+	}
+
+	async #readToken(): Promise<Result<string | null>> {
+		const keychain = this.#deps.keychain;
+		if (keychain === undefined) return ok(null);
+		return keychain.get(GH_PAT_KEYCHAIN_KEY);
+	}
+
+	async #authMethod(): Promise<GithubAuthMethod> {
+		const setting = this.#deps.setting;
+		const explicit = setting === undefined ? null : setting<string>("gh_auth_method");
+		const token = await this.#readToken();
+		return resolveGhAuthMethod(explicit, token.ok && token.value !== null);
 	}
 
 	watch(_workspaceId: WorkspaceId, _role: PollRole): Unsubscribe {
@@ -150,8 +508,51 @@ export class GithubService {
 		return notImplemented("PR-06");
 	}
 
-	merge(_workspaceId: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("PR-06");
+	merge(workspaceId: WorkspaceId): Promise<Result<void>> {
+		return this.#flights.run(`merge:${workspaceId}`, async (): Promise<Result<void>> => {
+			const context = await this.#deps.contextOf(workspaceId);
+			if (!context.ok) return err(context.error);
+			const { workspacePath, prNumber } = context.value;
+			if (prNumber === null) {
+				return err(appError("github_pr_missing", "This workspace has no pull request yet."));
+			}
+
+			const cwd = workspacePath;
+			const head = await this.#deps.git.stdout(revParseHead(), { cwd });
+			if (!head.ok) return err(head.error);
+			if (head.value.length === 0) {
+				return err(
+					appError("github_head_unknown", "Merge blocked: can't read the workspace's HEAD commit."),
+				);
+			}
+
+			const allowed = await this.#deps.git.stdout(repoMergeMethodsQuery(), { cwd });
+			if (!allowed.ok) return err(allowed.error);
+			const method = chooseMergeMethod(allowed.value);
+			if (method === null) {
+				return err(
+					appError(
+						"github_merge_not_allowed",
+						"This repository doesn't allow merging pull requests.",
+					),
+				);
+			}
+
+			const command = prMerge(prNumber, method, head.value, false);
+			return this.#deps.git.withWorktreeLock(workspacePath, async (): Promise<Result<void>> => {
+				const result = await this.#deps.git.run(command, { cwd });
+				if (!result.ok) return err(result.error);
+				await this.recordGhResult(result.value);
+				if (isSuccessfulExit(command, result.value.exitCode)) return ok(undefined);
+				const text = `${result.value.stderr}\n${result.value.stdout}`;
+				const message = githubFailureMessage(classifyGhFailure(text), text);
+				return err(
+					message === null
+						? failedCommandError(command, result.value)
+						: appError("github_failed", message),
+				);
+			});
+		});
 	}
 
 	setAutoMerge(_workspaceId: WorkspaceId, _enabled: boolean): Promise<Result<void>> {
@@ -207,7 +608,21 @@ export class GithubService {
 	}
 
 	/** Backs `Actions.accounts.setGitHubToken`: the Keychain entry `gh` gets as GH_TOKEN (D029). */
-	setToken(_token: string | null): Promise<Result<void>> {
-		return notImplemented("PR-01");
+	async setToken(token: string | null): Promise<Result<void>> {
+		const keychain = this.#deps.keychain;
+		if (keychain === undefined) {
+			return err(
+				appError(
+					"github_keychain_unavailable",
+					"The app can't reach the Keychain to store the GitHub token.",
+				),
+			);
+		}
+		if (token !== null && !looksLikeGithubToken(token)) {
+			return err(appError("github_token_invalid", GITHUB_TOKEN_WARNING));
+		}
+		return token === null
+			? keychain.delete(GH_PAT_KEYCHAIN_KEY)
+			: keychain.set(GH_PAT_KEYCHAIN_KEY, token.trim());
 	}
 }
