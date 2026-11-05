@@ -11,16 +11,16 @@
  * Test first: appending the same event id twice stores one row, and a new event id gets idx + 1.
  */
 import { type SessionEvent, zSessionEvent } from "@conducted/protocol";
-import {
-	type EventId,
-	notImplemented,
-	type Result,
-	type SessionId,
-	type TurnId,
-} from "@conducted/shared";
+import { type EventId, err, ok, type Result, type SessionId, type TurnId } from "@conducted/shared";
 import type { Database } from "../../platform/platform.ts";
 import type { RepositoryDeps } from "./deps.ts";
-import { parseJsonColumn, stringifyJson } from "./row-codec.ts";
+import {
+	collectResults,
+	executeStatement,
+	parseJsonColumn,
+	selectRows,
+	stringifyJson,
+} from "./row-codec.ts";
 
 export interface SessionEventRow {
 	session_id: SessionId;
@@ -158,17 +158,81 @@ export interface SessionEventRepository {
 }
 
 export function createSessionEventRepository(
-	_db: Database,
+	db: Database,
 	_deps: RepositoryDeps,
 ): SessionEventRepository {
+	const list = async (
+		sql: string,
+		params: readonly unknown[],
+		what: string,
+	): Promise<Result<StoredSessionEvent[]>> => {
+		const rows = await selectRows<SessionEventRow>(db, sql, params, what);
+		return rows.ok ? collectResults(rows.value.map(sessionEventFromRow)) : err(rows.error);
+	};
 	return {
-		append: async () => notImplemented("DATA-01"),
-		listFrom: async () => notImplemented("DATA-01"),
-		listByTurn: async () => notImplemented("DATA-01"),
-		listUserMessages: async () => notImplemented("DATA-01"),
-		getByEventId: async () => notImplemented("DATA-01"),
-		lastIdx: async () => notImplemented("DATA-01"),
-		markRevertedFromTurn: async () => notImplemented("DATA-01"),
-		findInterruptedTurns: async () => notImplemented("DATA-01"),
+		append: async (sessionId, event, receivedAt) => {
+			const params = sessionEventToParams(sessionId, event, receivedAt);
+			if (!params.ok) return err(params.error);
+			const rows = await selectRows<{ idx: number }>(
+				db,
+				SESSION_EVENTS_SQL.append,
+				params.value,
+				"Appending a chat event",
+			);
+			if (!rows.ok) return err(rows.error);
+			const idx = rows.value[0]?.idx;
+			return ok(idx === undefined ? { kind: "duplicate" } : { kind: "appended", idx });
+		},
+		listFrom: (sessionId, fromIdx, limit) =>
+			list(
+				SESSION_EVENTS_SQL.listFrom,
+				[sessionId, fromIdx, limit],
+				"Listing chat events from a position",
+			),
+		listByTurn: (sessionId, turnId) =>
+			list(SESSION_EVENTS_SQL.listByTurn, [sessionId, turnId], "Listing a turn's events"),
+		listUserMessages: (sessionId) =>
+			list(SESSION_EVENTS_SQL.listUserMessages, [sessionId], "Listing user messages"),
+		getByEventId: async (sessionId, eventId) => {
+			const rows = await selectRows<SessionEventRow>(
+				db,
+				SESSION_EVENTS_SQL.getByEventId,
+				[sessionId, eventId],
+				"Reading a chat event",
+			);
+			if (!rows.ok) return err(rows.error);
+			const row = rows.value[0];
+			return row === undefined ? ok(null) : sessionEventFromRow(row);
+		},
+		lastIdx: async (sessionId) => {
+			const rows = await selectRows<{ last_idx: number | null }>(
+				db,
+				SESSION_EVENTS_SQL.lastIdx,
+				[sessionId],
+				"Reading the last event position",
+			);
+			if (!rows.ok) return err(rows.error);
+			return ok(rows.value[0]?.last_idx ?? null);
+		},
+		markRevertedFromTurn: async (sessionId, turnId, revertedAt) => {
+			const written = await executeStatement(
+				db,
+				SESSION_EVENTS_SQL.markRevertedFromTurn,
+				[revertedAt, sessionId, turnId],
+				"Reverting chat events",
+			);
+			return written.ok ? ok(written.value) : err(written.error);
+		},
+		findInterruptedTurns: async () => {
+			const rows = await selectRows<{ session_id: SessionId; turn_id: TurnId }>(
+				db,
+				SESSION_EVENTS_SQL.findInterruptedTurns,
+				[],
+				"Finding interrupted turns",
+			);
+			return rows.ok
+				? ok(rows.value.map((row) => ({ sessionId: row.session_id, turnId: row.turn_id })))
+				: err(rows.error);
+		},
 	};
 }

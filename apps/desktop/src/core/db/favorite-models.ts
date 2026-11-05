@@ -8,11 +8,18 @@
  * Test first: favoriteModelFromRow returns an error Result when config lacks a model name.
  */
 import { zSessionConfig } from "@conducted/protocol";
-import { notImplemented, type Result } from "@conducted/shared";
+import { err, ok, type Result } from "@conducted/shared";
 import type { z } from "zod";
 import type { Database } from "../../platform/platform.ts";
 import type { RepositoryDeps } from "./deps.ts";
-import { parseJsonColumn, stringifyJson } from "./row-codec.ts";
+import {
+	collectResults,
+	executeStatement,
+	inTransaction,
+	parseJsonColumn,
+	selectRows,
+	stringifyJson,
+} from "./row-codec.ts";
 
 /** The part of a chat's config that identifies a model choice. */
 export const zFavoriteModelConfig = zSessionConfig.pick({
@@ -77,14 +84,73 @@ export interface FavoriteModelRepository {
 }
 
 export function createFavoriteModelRepository(
-	_db: Database,
-	_deps: RepositoryDeps,
+	db: Database,
+	deps: RepositoryDeps,
 ): FavoriteModelRepository {
 	return {
-		list: async () => notImplemented("DATA-01"),
-		add: async () => notImplemented("DATA-01"),
-		setConfig: async () => notImplemented("DATA-01"),
-		reorder: async () => notImplemented("DATA-01"),
-		delete: async () => notImplemented("DATA-01"),
+		list: async () => {
+			const rows = await selectRows<FavoriteModelRow>(
+				db,
+				FAVORITE_MODELS_SQL.list,
+				[],
+				"Listing favorite models",
+			);
+			return rows.ok ? collectResults(rows.value.map(favoriteModelFromRow)) : err(rows.error);
+		},
+		add: async (config) =>
+			inTransaction(db, "Saving a favorite model", async (tx) => {
+				const next = await selectRows<{ next: number }>(
+					tx,
+					FAVORITE_MODELS_SQL.nextPosition,
+					[],
+					"Reading the next favorite model position",
+				);
+				if (!next.ok) return err(next.error);
+				const model: FavoriteModel = {
+					id: deps.ids.uuid(),
+					config,
+					position: next.value[0]?.next ?? 0,
+				};
+				const params = favoriteModelToParams(model);
+				if (!params.ok) return err(params.error);
+				const written = await executeStatement(
+					tx,
+					FAVORITE_MODELS_SQL.insert,
+					params.value,
+					"Saving a favorite model",
+				);
+				return written.ok ? ok(model) : err(written.error);
+			}),
+		setConfig: async (id, config) => {
+			const json = stringifyJson(config, "favorite_models.config");
+			if (!json.ok) return err(json.error);
+			const written = await executeStatement(
+				db,
+				FAVORITE_MODELS_SQL.setConfig,
+				[json.value, id],
+				"Changing a favorite model",
+			);
+			return written.ok ? ok(written.value > 0) : err(written.error);
+		},
+		reorder: async (orderedIds) => {
+			const json = stringifyJson(orderedIds, "favorite_models.ids");
+			if (!json.ok) return err(json.error);
+			const written = await executeStatement(
+				db,
+				FAVORITE_MODELS_SQL.reorder,
+				[json.value],
+				"Reordering favorite models",
+			);
+			return written.ok ? ok(undefined) : err(written.error);
+		},
+		delete: async (id) => {
+			const written = await executeStatement(
+				db,
+				FAVORITE_MODELS_SQL.delete,
+				[id],
+				"Removing a favorite model",
+			);
+			return written.ok ? ok(undefined) : err(written.error);
+		},
 	};
 }
