@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { chmod, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { AgentInstall } from "@conducted/protocol";
@@ -8,6 +8,8 @@ import type { SidecarConfig } from "../config.ts";
 import { createLogger, type LogRecord } from "../logging/logger.ts";
 import {
 	announceAgentInstalls,
+	createPromptFiles,
+	createScheduler,
 	EXIT_START_FAILED,
 	installErrorHandlers,
 	type ProcessErrorHooks,
@@ -196,6 +198,53 @@ describe("SIDE-01 agent detection and the model catalog", () => {
 			installs,
 		);
 		expect(order).toEqual(["invalidate", "notify"]);
+	});
+});
+
+describe("SIDE-01 composition ports", () => {
+	test("SIDE-01 the prompt file port reads a file's size and text", async () => {
+		const base = await tempDir("files");
+		const target = path.join(base, "note.md");
+		await writeFile(target, "hello", "utf8");
+		const files = createPromptFiles();
+		expect(await files.size(target)).toBe(5);
+		expect(await files.readText(target)).toEqual({ ok: true, value: "hello" });
+	});
+
+	test("SIDE-01 the prompt file port reports a missing file as no size and an error", async () => {
+		const base = await tempDir("missing");
+		const target = path.join(base, "gone.md");
+		const files = createPromptFiles();
+		expect(await files.size(target)).toBeNull();
+		const read = await files.readText(target);
+		expect(read.ok).toBe(false);
+		if (!read.ok) expect(read.error.message).toContain(target);
+	});
+
+	test("SIDE-01 the scheduler runs its callback after the delay", async () => {
+		const scheduler = createScheduler();
+		await new Promise<void>((resolve, reject) => {
+			const guard = setTimeout(() => reject(new Error("The scheduler did not run")), 1_000);
+			scheduler.after(0, () => {
+				clearTimeout(guard);
+				resolve();
+			});
+		});
+	});
+
+	test("SIDE-01 cancelling a scheduled callback stops it", async () => {
+		const scheduler = createScheduler();
+		const fired: string[] = [];
+		await new Promise<void>((resolve, reject) => {
+			const guard = setTimeout(() => reject(new Error("The follow-up did not run")), 1_000);
+			const cancel = scheduler.after(0, () => fired.push("cancelled"));
+			cancel();
+			scheduler.after(0, () => {
+				clearTimeout(guard);
+				resolve();
+			});
+		});
+		expect(fired).toEqual([]);
 	});
 });
 

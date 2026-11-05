@@ -33,11 +33,12 @@ import { access, mkdir, open, readFile, realpath, rename, rm, stat } from "node:
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { query as sdkQuery } from "@anthropic-ai/claude-agent-sdk";
-import type {
-	AgentInstall,
-	SessionConfig,
-	SidecarToAppNotification,
-	SidecarToAppRequest,
+import {
+	type AgentInstall,
+	APP_TOOL_SERVER,
+	type SessionConfig,
+	type SidecarToAppNotification,
+	type SidecarToAppRequest,
 } from "@conducted/protocol";
 import {
 	type AppError,
@@ -59,7 +60,7 @@ import { FileEventOutbox } from "../outbox/event-outbox.ts";
 import type { OutboxStorage } from "../outbox/outbox-file.ts";
 import { OutboxReplayer } from "../outbox/replay.ts";
 import { AgentProcessManager } from "../process/process-manager.ts";
-import { MessagePromptAssembler } from "../prompt/assemble.ts";
+import { MessagePromptAssembler, type PromptFiles } from "../prompt/assemble.ts";
 import { buildHandlers } from "../rpc/handlers.ts";
 import { RpcPeer } from "../rpc/peer.ts";
 import { handshakeLine, SocketServer, socketPathFor } from "../rpc/server.ts";
@@ -73,6 +74,9 @@ import type { AcpChild, SpawnAcpChild } from "../runners/acp/acp-client.ts";
 import { AcpRunner } from "../runners/acp/acp-runner.ts";
 import { ACP_ADAPTERS } from "../runners/acp/adapters/registry.ts";
 import { ClaudeRunner } from "../runners/claude/claude-runner.ts";
+import { ClaudePermissionHandler } from "../runners/claude/permission-handler.ts";
+import { ClaudeTranslator } from "../runners/claude/translate.ts";
+import type { Scheduler } from "../runners/claude/turn-tracker.ts";
 import type { JsonRpcChild, SpawnJsonRpcChild } from "../runners/codex/app-server-client.ts";
 import { CodexRunner } from "../runners/codex/codex-runner.ts";
 import { CursorRunner } from "../runners/cursor/cursor-runner.ts";
@@ -90,6 +94,7 @@ import { KeyedSerialQueue } from "../session/serial-queue.ts";
 import { LoginShellEnvProvider } from "../shell-env/capture.ts";
 import { runShutdownSteps, type ShutdownStep } from "../shutdown.ts";
 import { RpcAppToolBackend } from "../tools/backend.ts";
+import { createAppToolsServer } from "../tools/in-process-server.ts";
 import { appToolsMcpEntry } from "../tools/mcp-launch.ts";
 import { AppToolsBridge, type BridgeEndpoint, type TokenSource } from "../tools/socket-bridge.ts";
 import { ParentWatchdog } from "../watchdog.ts";
@@ -386,6 +391,8 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 			announceAgentInstalls({ models, app, logger }, installs);
 		},
 		logger,
+		ids,
+		probe: probeCommand,
 	});
 	const sessions = new DefaultSessionManager({
 		app,
@@ -397,7 +404,11 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 				runCheckpointer([path.join(config.binDir, "checkpointer.sh"), ...args], options),
 			logger,
 		}),
-		prompt: new MessagePromptAssembler({ writePullRequestStub, logger }),
+		prompt: new MessagePromptAssembler({
+			writePullRequestStub,
+			files: createPromptFiles(),
+			logger,
+		}),
 		shellEnv,
 		publisher,
 		liveState,
@@ -553,6 +564,42 @@ function createShellEnvProvider(
 		newMarker: () => `__conducted_env_${randomBytes(8).toString("hex")}__`,
 		logger,
 	});
+}
+
+/** Timers for the runner's settlement watchdog. */
+export function createScheduler(): Scheduler {
+	return {
+		after(ms, fn) {
+			const timer = setTimeout(fn, ms);
+			return () => clearTimeout(timer);
+		},
+	};
+}
+
+/** Reads the file facts prompt assembly needs, straight from the file system. */
+export function createPromptFiles(): PromptFiles {
+	return {
+		async size(target) {
+			try {
+				return (await stat(target)).size;
+			} catch {
+				return null;
+			}
+		},
+		async readText(target) {
+			try {
+				return ok(await readFile(target, "utf8"));
+			} catch (cause) {
+				return err(
+					appError(
+						"prompt_file_read_failed",
+						`Could not read ${target}: ${reasonOf(cause)}`,
+						cause,
+					),
+				);
+			}
+		},
+	};
 }
 
 /** A write pull-request stub that never overwrites an existing file. */
@@ -754,6 +801,7 @@ function createRunnerRegistry(input: {
 	const spawnCodex: SpawnJsonRpcChild = (options) => spawnJsonRpcChild(options);
 	const spawnAcp: SpawnAcpChild = (options) => spawnAcpChild(options);
 	const loadSdk: LoadCursorSdk = loadCursorSdk;
+	const scheduler = createScheduler();
 	const queueForCursor = new KeyedSerialQueue();
 	const appToolsConfigArgs = (options: {
 		sessionId: Parameters<AppToolsBridge["registerSession"]>[0];
@@ -788,9 +836,15 @@ function createRunnerRegistry(input: {
 				...common,
 				query: (params) => sdkQuery(params as Parameters<typeof sdkQuery>[0]),
 				appTools: input.appTools,
+				translator: new ClaudeTranslator({ logger: input.logger }),
 				hasTranscript,
 				realPath,
 				newUuid: () => randomUUID(),
+				scheduler,
+				createCanUseTool: (deps) => new ClaudePermissionHandler(deps).canUseTool,
+				createMcpServers: (options) => ({
+					[APP_TOOL_SERVER]: createAppToolsServer(options),
+				}),
 			}),
 		},
 		{
