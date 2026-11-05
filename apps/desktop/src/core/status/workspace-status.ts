@@ -10,14 +10,41 @@
  * most urgent chat decides when several chats differ; closed chats do not count; an archived
  * workspace has no status (null); `waiting` means idle with background tasks; `cancelling` is
  * the app's own flag for a chat whose cancel is not confirmed yet; missing git state (not loaded
- * yet) yields no git label and never "clean".
+ * yet) and a failed pull request lookup yield no git label and never "clean".
+ *
+ * The order within the agent states and within the git states is ui-map 3.8. The order between
+ * the three groups is Our design choice: the only evidence is the sidebar subtitle list, where
+ * lifecycle text sits alongside session text. So lifecycle outranks agent states, and agent
+ * states outrank git states.
+ *
  * Our design choice: the function takes plain values and returns a value. It reads no store, so
  * the sidebar, Home and tabs call it with the same inputs and always agree. Ready to merge means
  * an open PR, mergeable, review not blocking, and no failing or pending checks.
+ *
+ * Labels: our replacements for Conductor's "Local workspace" and "Ready (has branch)" are Changes
+ * and Clean. ui-map 3.8's "Checks running (git status only)" is read here from the pull request's
+ * checks, because we have no separate git-status source. The WorkspaceStatus type still allows
+ * the lifecycle label "unstarted", but this rule does not produce it: an unstarted workspace is a
+ * backlog workspace, which WS-11 builds. Removing or producing that label waits for WS-11.
+ *
+ * The board status in services-map 2.3.1 and 2.4.1 (manual status over derived status) is the
+ * user-set, separate kanban value of ui-map 3.8 and D038. It is stored in `Workspace.kanbanStatus`
+ * and set by NAV-06; this rule neither reads nor produces it.
+ *
+ * An open interaction outranks a requested cancel for the same chat: the agent is still blocked
+ * on the user while the cancel is pending.
+ *
  * Test first: a workspace with one working chat and a merged PR shows "working", not "merged".
  */
 import type { LiveState } from "@conducted/protocol";
-import type { GitState, PullRequest, Workspace, WorkspaceStatus } from "../model.ts";
+import type { GitState, Workspace, WorkspaceStatus } from "../model.ts";
+import {
+	checksAreFailing,
+	checksAreRunning,
+	hasMergeConflict,
+	isActivePullRequest,
+	isReadyToMerge,
+} from "./pull-request-status.ts";
 
 export interface ChatStatusInput {
 	liveState: LiveState;
@@ -100,52 +127,15 @@ function lifecycleLabel(input: WorkspaceStatusInput): LifecycleLabel | null {
 	}
 }
 
-function isActivePullRequest(
-	pullRequest: PullRequest | null,
-): pullRequest is PullRequest & { state: "open" | "draft" } {
-	return pullRequest !== null && (pullRequest.state === "open" || pullRequest.state === "draft");
+/** True when the PR lookup failed or its result is unknown. A load in progress is neither. */
+function pullRequestLookupFailed(git: GitState): boolean {
+	const reason = git.pullRequestUnavailable;
+	return reason === "offline" || reason === "no_github_access" || reason === null;
 }
 
-function checksAreFailing(pullRequest: PullRequest): boolean {
-	return pullRequest.checks.some(
-		(check) => check.state === "failure" || check.state === "cancelled",
-	);
-}
-
-function checksAreRunning(pullRequest: PullRequest): boolean {
-	return pullRequest.checks.some(
-		(check) => check.state === "pending" || check.state === "waiting" || check.state === "running",
-	);
-}
-
-function reviewIsBlocking(pullRequest: PullRequest): boolean {
-	return (
-		pullRequest.reviewDecision === "changes_requested" ||
-		pullRequest.reviewDecision === "review_required"
-	);
-}
-
-/** Open, mergeable, no blocking review, and no failing or pending checks. */
-function isReadyToMerge(pullRequest: PullRequest): boolean {
-	return (
-		pullRequest.state === "open" &&
-		pullRequest.mergeable === "mergeable" &&
-		!reviewIsBlocking(pullRequest) &&
-		!checksAreFailing(pullRequest) &&
-		!checksAreRunning(pullRequest)
-	);
-}
-
-function hasMergeConflict(git: GitState, pullRequest: PullRequest | null): boolean {
-	return (
-		git.hasConflicts ||
-		git.operation === "merge" ||
-		git.operation === "rebase" ||
-		pullRequest?.mergeable === "conflicting"
-	);
-}
-
-function gitLabel(git: GitState): GitLabel {
+/** Null when we cannot tell, so a failed PR lookup never reads as "clean". */
+function gitLabel(git: GitState): GitLabel | null {
+	if (pullRequestLookupFailed(git)) return null;
 	const pullRequest = git.pullRequest;
 	if (pullRequest?.state === "merged") return "merged";
 	const active = isActivePullRequest(pullRequest) ? pullRequest : null;
@@ -168,5 +158,7 @@ export function deriveWorkspaceStatus(input: WorkspaceStatusInput): WorkspaceSta
 	const agent = aggregateAgentLabel(input.chats);
 	if (agent !== null) return { kind: "agent", label: agent };
 	if (input.git === null) return null;
-	return { kind: "git", label: gitLabel(input.git) };
+	const git = gitLabel(input.git);
+	if (git === null) return null;
+	return { kind: "git", label: git };
 }

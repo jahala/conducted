@@ -1,23 +1,19 @@
 /**
- * @feature GIT-02 Git service: change state, push, pull, retarget
- * Owns: polling each shown workspace's git state and the git actions
- * the Git panel offers. Commits, rebases and conflict repair are delegated to the agent.
- * Behaviour: services-map.md 3.3 (polling schedule and depths), 3.6 (push, pull, pull latest),
- * 3.11 (rename, retarget), 3.7.7, ui-map.md 3.6 (header table: title and main action per state).
- * Must handle: only the visible workspace polls fast (5 s); a refresh in flight when the branch
- * changed is dropped; refresh after any git action; a merge or rebase in progress shows "Finish
- * rebasing or merging" and no file list; pull and push run under the worktree lock and never
- * force; a push with no upstream sets it (first-push steps); "Commit and push" needs a chat (the
- * agent runs it); changing the target branch with an open PR only edits the PR base, otherwise it
- * fetches and resets the worktree to the new target only when the tree is clean and still at the
- * old target; a rename of a branch with an upstream keeps the old remote branch (warn); discarding
- * a file restores it from the merge base or checkpoint and cannot be undone (the UI confirms).
- * Our design choice: the header is a pure function in status/git-header.ts, so every surface that
- * shows the state agrees. This service only gathers its inputs.
- * Fetching (GIT-13, services-map.md 3.0.2 and 3.3.4): the app never fetches on a timer. After a
- * changes refresh it compares the PR's base and head commits with the local remote-tracking refs,
- * fetches only when they differ, and at most once per 60 seconds for one repository and branch. A
- * base that is a local stack parent is never fetched. Two callers asking at once share one fetch.
+ * @feature GIT-02 Git service: polling change state
+ * Owns: polling each shown workspace's git state at the requested depth, the four-slot limiter,
+ * and the last error per workspace.
+ * Behaviour: services-map.md 3.3.1 (schedule, depths, staleness, concurrency) and 3.3.3 (a
+ * cheaper poll reads only the local branch, and an answer for a branch that has since changed is
+ * dropped).
+ * Must handle: only the visible workspace polls fast (5 s); a result younger than 0.9 of the
+ * interval is reused; at most four refreshes at once, foreground first; an answer whose branch
+ * differs from the branch the request was made for is dropped; a failed poll keeps the last
+ * snapshot and records the error.
+ * Our design choice: this class exposes snapshots only. The Git header state machine and the
+ * merge with pull request info belong to GIT-04, the git actions (push, pull, retarget, rename,
+ * discard and the rest) belong to their own features, and the restart cache belongs to DATA-07.
+ * Their placeholders stay here until those features build them; the fetching rules belong to
+ * GIT-13.
  * Test first: a workspace watched at depth full runs its poll immediately and again once the
  * interval has passed.
  */
@@ -279,6 +275,10 @@ export class GitService {
 			this.#recordFailure(workspaceId, result.error);
 			return err(result.error);
 		}
+
+		// An answer for a branch that has since changed must not land (services-map 3.3.3).
+		const expectedBranch = found.branch.length > 0 ? found.branch : null;
+		if (result.value.branch !== expectedBranch) return ok(undefined);
 
 		const previous = this.store.getState().byWorkspace[key]?.snapshot ?? null;
 		// A metadata poll reads only the branch; every other part of the snapshot stays as it was.

@@ -1,6 +1,7 @@
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createStore } from "zustand/vanilla";
 import type { Container } from "../core/container.ts";
 import { ServicesProvider } from "../core/context.tsx";
 import { RepoService, type RepoServiceDeps } from "../core/services/repo.ts";
@@ -12,10 +13,15 @@ import { createAppRouter } from "./router.tsx";
 afterEach(cleanup);
 beforeEach(() => useOverlayStore.getState().close());
 
-/** The sidebar reads the repo store and the action table; the other regions say what is unbuilt. */
+/** The sidebar reads the repo store and the action table; the shell reads the sidebar settings. */
 function testContainer(): Container {
+	const settings = {
+		store: createStore<{ values: Record<string, unknown> }>(() => ({ values: {} })),
+		get: (key: string): unknown => ({ left_panel_visible: true, left_panel_width: 256 })[key],
+		set: async () => undefined,
+	};
 	return {
-		services: { repo: new RepoService({} as RepoServiceDeps) },
+		services: { repo: new RepoService({} as RepoServiceDeps), settings },
 		actions: {},
 	} as unknown as Container;
 }

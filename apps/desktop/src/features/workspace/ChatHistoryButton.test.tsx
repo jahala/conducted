@@ -9,13 +9,17 @@ const state = vi.hoisted(() => ({
 	open: { state: "loading" } as Loadable<Session[]>,
 	closed: { state: "loading" } as Loadable<Session[]>,
 	reopen: vi.fn(),
-	create: vi.fn(),
+	createFromDefaults: vi.fn(),
 }));
 
 vi.mock("../../core/hooks.ts", () => ({
 	useSessions: () => state.open,
 	useClosedSessions: () => state.closed,
-	useActions: () => ({ sessions: { reopen: state.reopen, create: state.create } }),
+	useActions: () => ({ sessions: { reopen: state.reopen } }),
+}));
+
+vi.mock("../../core/context.tsx", () => ({
+	useServices: () => ({ services: { sessions: { createFromDefaults: state.createFromDefaults } } }),
 }));
 
 const { ChatHistoryButton } = await import("./ChatHistoryButton.tsx");
@@ -65,7 +69,7 @@ beforeEach(() => {
 	state.open = { state: "loading" };
 	state.closed = { state: "loading" };
 	state.reopen.mockReset();
-	state.create.mockReset();
+	state.createFromDefaults.mockReset();
 });
 
 afterEach(cleanup);
@@ -122,16 +126,28 @@ describe("CHAT-01 chat history button", () => {
 		expect(screen.getByRole("menuitem", { name: "Fix login" })).toBeTruthy();
 	});
 
-	it("starts a new chat from the most recent chat's config", async () => {
-		const recent = session("old", { closedAt: 2000 });
+	it("starts a new chat from the default config when the workspace has no chat", async () => {
 		const created = session("new", { createdAt: 3000 });
 		state.open = { state: "ready", data: [] };
-		state.closed = { state: "ready", data: [recent] };
-		state.create.mockResolvedValue({ ok: true, value: created });
+		state.closed = { state: "ready", data: [] };
+		state.createFromDefaults.mockResolvedValue({ ok: true, value: created });
 		const onSearchChange = renderButton();
 		await openHistory();
-		fireEvent.click(await screen.findByRole("button", { name: "New chat" }));
-		await waitFor(() => expect(state.create).toHaveBeenCalledWith(workspaceId, recent.config));
+		const newChat = await screen.findByRole("button", { name: "New chat" });
+		expect(newChat.hasAttribute("disabled")).toBe(false);
+		fireEvent.click(newChat);
+		await waitFor(() => expect(state.createFromDefaults).toHaveBeenCalledWith(workspaceId));
 		expect(onSearchChange).toHaveBeenCalledWith({ tab: "session", sessionId: "new" });
+	});
+
+	it("starts a new chat from the default config even when older chats exist", async () => {
+		const created = session("new", { createdAt: 3000 });
+		state.open = { state: "ready", data: [] };
+		state.closed = { state: "ready", data: [session("old", { closedAt: 2000 })] };
+		state.createFromDefaults.mockResolvedValue({ ok: true, value: created });
+		renderButton();
+		await openHistory();
+		fireEvent.click(await screen.findByRole("button", { name: "New chat" }));
+		await waitFor(() => expect(state.createFromDefaults).toHaveBeenCalledWith(workspaceId));
 	});
 });

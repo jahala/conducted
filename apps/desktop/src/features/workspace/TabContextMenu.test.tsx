@@ -5,9 +5,6 @@ import type { Session } from "../../core/model.ts";
 import "../../test/dom-polyfills.ts";
 
 const state = vi.hoisted(() => ({
-	copyTranscript: vi.fn(),
-	markRead: vi.fn(),
-	markUnread: vi.fn(),
 	rename: vi.fn(),
 	close: vi.fn(),
 	copyText: vi.fn(),
@@ -16,9 +13,6 @@ const state = vi.hoisted(() => ({
 vi.mock("../../core/hooks.ts", () => ({
 	useActions: () => ({
 		sessions: {
-			copyTranscript: state.copyTranscript,
-			markRead: state.markRead,
-			markUnread: state.markUnread,
 			rename: state.rename,
 			close: state.close,
 		},
@@ -69,9 +63,6 @@ const openMenu = async (props: Partial<Parameters<typeof TabContextMenu>[0]> = {
 
 beforeEach(() => {
 	for (const fn of Object.values(state)) fn.mockReset();
-	state.copyTranscript.mockResolvedValue({ ok: true, value: undefined });
-	state.markRead.mockResolvedValue({ ok: true, value: undefined });
-	state.markUnread.mockResolvedValue({ ok: true, value: undefined });
 	state.rename.mockResolvedValue({ ok: true, value: undefined });
 	state.close.mockResolvedValue({ ok: true, value: undefined });
 	state.copyText.mockResolvedValue({ ok: true, value: undefined });
@@ -80,27 +71,31 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("CHAT-01 chat tab context menu", () => {
-	it("copies the full transcript", async () => {
+	it("keeps the transcript items disabled until CHAT-17 builds them", async () => {
 		await openMenu();
-		fireEvent.click(await screen.findByRole("menuitem", { name: /Copy full transcript/ }));
-		await waitFor(() => expect(state.copyTranscript).toHaveBeenCalledWith(sessionId, "full"));
+		expect(
+			(await screen.findByRole("menuitem", { name: /Copy concise transcript/ })).getAttribute(
+				"aria-disabled",
+			),
+		).toBe("true");
+		expect(
+			screen.getByRole("menuitem", { name: /Copy full transcript/ }).getAttribute("aria-disabled"),
+		).toBe("true");
 	});
 
-	it("copies the concise transcript", async () => {
-		await openMenu();
-		fireEvent.click(await screen.findByRole("menuitem", { name: /Copy concise transcript/ }));
-		await waitFor(() => expect(state.copyTranscript).toHaveBeenCalledWith(sessionId, "concise"));
-	});
-
-	it("marks an unread chat as read and a read chat as unread", async () => {
+	it("keeps Mark as read or unread disabled until NAV-11 builds it", async () => {
 		await openMenu({ session: chat({ unreadCount: 2 }) });
-		fireEvent.click(await screen.findByRole("menuitem", { name: "Mark as read" }));
-		await waitFor(() => expect(state.markRead).toHaveBeenCalledWith(sessionId));
+		expect(
+			(await screen.findByRole("menuitem", { name: "Mark as read" })).getAttribute("aria-disabled"),
+		).toBe("true");
 		cleanup();
 
 		await openMenu({ session: chat({ unreadCount: 0 }) });
-		fireEvent.click(await screen.findByRole("menuitem", { name: "Mark as unread" }));
-		await waitFor(() => expect(state.markUnread).toHaveBeenCalledWith(sessionId));
+		expect(
+			(await screen.findByRole("menuitem", { name: "Mark as unread" })).getAttribute(
+				"aria-disabled",
+			),
+		).toBe("true");
 	});
 
 	it("renames the chat", async () => {

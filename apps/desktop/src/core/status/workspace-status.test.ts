@@ -131,10 +131,11 @@ describe("WS-09 workspace status", () => {
 	});
 
 	describe("WS-09 lifecycle", () => {
-		it("has no status for an archived workspace", () => {
+		it("has no status for an archived workspace, even while setup still runs", () => {
 			const status = deriveWorkspaceStatus(
 				input({
 					state: "archived",
+					settingUp: true,
 					chats: [chat({ liveState: working })],
 					git: git({ pullRequest: pullRequest({ state: "merged" }) }),
 				}),
@@ -145,6 +146,15 @@ describe("WS-09 workspace status", () => {
 		it("reports failed and archiving from the workspace state", () => {
 			expect(label(deriveWorkspaceStatus(input({ state: "failed" })))).toBe("lifecycle:failed");
 			expect(label(deriveWorkspaceStatus(input({ state: "archiving" })))).toBe(
+				"lifecycle:archiving",
+			);
+		});
+
+		it("lets failed and archiving outrank a running setup", () => {
+			expect(label(deriveWorkspaceStatus(input({ state: "failed", settingUp: true })))).toBe(
+				"lifecycle:failed",
+			);
+			expect(label(deriveWorkspaceStatus(input({ state: "archiving", settingUp: true })))).toBe(
 				"lifecycle:archiving",
 			);
 		});
@@ -220,6 +230,13 @@ describe("WS-09 workspace status", () => {
 				input({ chats: [chat({ liveState: working, cancelling: true })] }),
 			);
 			expect(status).toEqual({ kind: "agent", label: "cancelling" });
+		});
+
+		it("keeps an open interaction ahead of a pending cancel", () => {
+			const status = deriveWorkspaceStatus(
+				input({ chats: [chat({ liveState: liveWith(question), cancelling: true })] }),
+			);
+			expect(status).toEqual({ kind: "agent", label: "needs_answer" });
 		});
 
 		it("shows waiting only while idle with background tasks", () => {
@@ -334,7 +351,9 @@ describe("WS-09 workspace status", () => {
 		});
 
 		it("calls a pull request ready only when it is open, mergeable, unblocked and its checks are done", () => {
-			const ready = pullRequest({ checks: [check("success"), check("skipped", false)] });
+			const ready = pullRequest({
+				checks: [check("success"), check("skipped", false)],
+			});
 			expect(deriveGit({ pullRequest: ready })).toBe("git:ready_to_merge");
 			expect(deriveGit({ pullRequest: pullRequest({ reviewDecision: "approved" }) })).toBe(
 				"git:ready_to_merge",
@@ -346,6 +365,9 @@ describe("WS-09 workspace status", () => {
 				"git:pr_open",
 			);
 			expect(deriveGit({ pullRequest: pullRequest({ checks: [check("pending")] }) })).toBe(
+				"git:checks_running",
+			);
+			expect(deriveGit({ pullRequest: pullRequest({ checks: [check("waiting")] }) })).toBe(
 				"git:checks_running",
 			);
 			expect(deriveGit({ pullRequest: pullRequest({ checks: [check("failure")] }) })).toBe(
@@ -366,10 +388,39 @@ describe("WS-09 workspace status", () => {
 					}),
 				}),
 			).toBe("git:clean");
+			expect(deriveGit({ pullRequest: pullRequest({ state: "closed", inMergeQueue: true }) })).toBe(
+				"git:clean",
+			);
+			expect(
+				deriveGit({
+					pullRequest: pullRequest({ state: "closed", inMergeQueue: true }),
+					uncommittedFiles: 2,
+				}),
+			).toBe("git:changes");
 		});
 
 		it("has no git label and never claims clean while git state has not loaded", () => {
 			expect(deriveWorkspaceStatus(input({ git: null }))).toBeNull();
+		});
+
+		it("has no git label when the pull request lookup failed", () => {
+			expect(deriveGit({ pullRequestUnavailable: "offline" })).toBe("none");
+			expect(deriveGit({ pullRequestUnavailable: "no_github_access" })).toBe("none");
+			expect(deriveGit({ pullRequestUnavailable: null })).toBe("none");
+		});
+
+		it("still labels local git state while pull request info loads", () => {
+			expect(deriveGit({ pullRequestUnavailable: "loading" })).toBe("git:clean");
+			expect(deriveGit({ pullRequestUnavailable: "loading", uncommittedFiles: 1 })).toBe(
+				"git:changes",
+			);
+		});
+
+		it("still labels a repository with no GitHub remote from its local changes", () => {
+			expect(deriveGit({ pullRequestUnavailable: "not_github" })).toBe("git:clean");
+			expect(deriveGit({ pullRequestUnavailable: "not_github", uncommittedFiles: 1 })).toBe(
+				"git:changes",
+			);
 		});
 	});
 });

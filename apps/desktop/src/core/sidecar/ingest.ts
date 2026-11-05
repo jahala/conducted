@@ -12,16 +12,27 @@
  * is committed, and never when the write failed (the sidecar then resends); a gap in
  * `sequence` is not an error (replay will fill it, ingest never reorders); an event for a chat
  * that no longer exists is acknowledged and dropped, so the sidecar does not resend it forever;
- * `turn_ended` clears the turn's open interaction; a `usage` item updates the chat's context
- * columns; a `user_message` sets `last_user_message_at`; an agent event in a chat the user is not
- * looking at raises the unread flag.
+ * an event for a turn that already has a `turn_ended` is still stored for its audit trail but its
+ * effects are not applied, and a second `turn_ended` for that turn is acknowledged without being
+ * stored; a logger that throws never changes the ingest result; `turn_ended` clears the turn's
+ * open interaction; a `usage` item updates the chat's context columns; a `user_message` sets
+ * `last_user_message_at`; an agent event in a chat the user is not looking at raises the unread
+ * flag.
  * Our design choice: one transaction per event covers the event row and the chat columns it
  * changes, and a partial write is rolled back before the acknowledgement is withheld. The
  * in-memory store is updated after the commit, so a failed write never shows.
  * Test first: ingesting the same envelope twice stores one row and sends two acknowledgements.
  */
 import type { AgentMessage, SessionEvent, SessionEventEnvelope } from "@conducted/protocol";
-import { type AppError, appError, err, ok, type Result, type SessionId } from "@conducted/shared";
+import {
+	type AppError,
+	appError,
+	err,
+	ok,
+	type Result,
+	type SessionId,
+	type TurnId,
+} from "@conducted/shared";
 import { createKeyedQueue } from "../async/serial-queue.ts";
 import type { Repositories } from "../db/repositories.ts";
 import type { Session } from "../model.ts";
@@ -137,6 +148,14 @@ export class EventIngest {
 				// The chat is gone. Writing would fail the foreign key, and replay would retry forever.
 				if (session.value === null) return { stored: false, idx: null };
 
+				const ended = await this.#turnHasEnded(repos, sessionId, envelope.event.turnId);
+				if (!ended.ok) throw new IngestFailure(ended.error);
+				// Startup repair may have closed this turn before the sidecar replayed the rest of
+				// it. The turn gets no second end; the other late events are kept for the log.
+				if (ended.value && envelope.event.type === "turn_ended") {
+					return { stored: false, idx: null };
+				}
+
 				const appended = await repos.sessionEvents.append(
 					sessionId,
 					envelope.event,
@@ -145,13 +164,15 @@ export class EventIngest {
 				if (!appended.ok) throw new IngestFailure(appended.error);
 				if (appended.value.kind === "duplicate") return { stored: false, idx: null };
 
-				const effects = await applyEffects(
-					repos,
-					session.value,
-					envelope.event,
-					this.#deps.listener.isViewing(sessionId),
-				);
-				if (!effects.ok) throw new IngestFailure(effects.error);
+				if (!ended.value) {
+					const effects = await applyEffects(
+						repos,
+						session.value,
+						envelope.event,
+						this.#deps.listener.isViewing(sessionId),
+					);
+					if (!effects.ok) throw new IngestFailure(effects.error);
+				}
 				return { stored: true, idx: appended.value.idx };
 			});
 
@@ -165,8 +186,28 @@ export class EventIngest {
 				cause instanceof IngestFailure
 					? cause.error
 					: appError("db.failed", "Storing a chat event failed", cause);
-			this.#deps.log("error", "Storing a chat event failed", error);
+			this.#log("error", "Storing a chat event failed", error);
 			return err(error);
+		}
+	}
+
+	async #turnHasEnded(
+		repos: Repositories,
+		sessionId: SessionId,
+		turnId: TurnId,
+	): Promise<Result<boolean>> {
+		const events = await repos.sessionEvents.listByTurn(sessionId, turnId);
+		return events.ok
+			? ok(events.value.some((stored) => stored.event.type === "turn_ended"))
+			: err(events.error);
+	}
+
+	/** Logging is best effort: a logger failure must never change the ingest result. */
+	#log(level: "warn" | "error", message: string, data?: unknown): void {
+		try {
+			this.#deps.log(level, message, data);
+		} catch {
+			// The logger is unavailable. There is nowhere left to report that.
 		}
 	}
 
@@ -174,7 +215,7 @@ export class EventIngest {
 		try {
 			this.#deps.listener.onStored(sessionId, envelope, idx);
 		} catch (cause) {
-			this.#deps.log("error", "Showing a stored chat event failed", cause);
+			this.#log("error", "Showing a stored chat event failed", cause);
 		}
 	}
 
@@ -182,10 +223,10 @@ export class EventIngest {
 		try {
 			const sent = await this.#deps.sidecar.notify("eventPersisted", { sessionId, eventId });
 			if (!sent.ok) {
-				this.#deps.log("warn", "Could not acknowledge a stored chat event", sent.error);
+				this.#log("warn", "Could not acknowledge a stored chat event", sent.error);
 			}
 		} catch (cause) {
-			this.#deps.log("warn", "Could not acknowledge a stored chat event", cause);
+			this.#log("warn", "Could not acknowledge a stored chat event", cause);
 		}
 	}
 }

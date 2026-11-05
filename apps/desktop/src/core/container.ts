@@ -354,6 +354,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 			void workspace.onPullRequestMerged(id, prNumber);
 		},
 		now: () => clock.now(),
+		keychain: platform.keychain,
+		setting,
+		probeCwd: platform.fs.paths.home,
 	});
 	const localGitForge = new LocalGitForge({
 		git: gitRunner,

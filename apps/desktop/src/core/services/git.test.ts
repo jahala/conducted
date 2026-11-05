@@ -46,7 +46,7 @@ function fakeRunner(
 
 const fileIn = (cwd: string): string => (cwd === "/old" ? "old" : "new");
 
-function pollRunner(): { runner: GitRunner; branchReads: () => number } {
+function pollRunner(branch = "feat"): { runner: GitRunner; branchReads: () => number } {
 	let reads = 0;
 	const runner = fakeRunner((command, options) => {
 		if (command.program === "stat") {
@@ -56,7 +56,7 @@ function pollRunner(): { runner: GitRunner; branchReads: () => number } {
 		const [first, second] = command.args;
 		if (first === "branch" && second === "--show-current") {
 			reads += 1;
-			return ok(output("feat\n"));
+			return ok(output(`${branch}\n`));
 		}
 		if (first === "rev-parse" && second === "--git-path") {
 			return ok(output(`/git/${command.args.at(-1)}\n`));
@@ -214,6 +214,14 @@ describe("GIT-02 git service polling", () => {
 		const snapshot = service.store.getState().byWorkspace[workspaceId]?.snapshot;
 		expect(snapshot?.branch).toBe("feat");
 		expect(snapshot?.files[0]?.path).toBe("new.ts");
+	});
+
+	it("drops an answer for a branch other than the one the request was made for", async () => {
+		const { runner } = pollRunner("other");
+		const service = makeService(runner);
+		const result = await service.refresh(workspaceId, "full");
+		expect(result.ok).toBe(true);
+		expect(service.store.getState().byWorkspace[workspaceId]).toBeUndefined();
 	});
 
 	it("records a lookup failure in the workspace entry", async () => {

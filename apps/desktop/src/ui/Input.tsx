@@ -16,7 +16,7 @@ import { useId, useState } from "react";
 import { cn } from "./cn.ts";
 
 const fieldClass =
-	"w-full rounded-md border bg-transparent text-sm text-fg transition-colors placeholder:text-fg-subtle disabled:cursor-not-allowed disabled:opacity-50 read-only:bg-muted";
+	"rounded-md border bg-transparent text-sm text-fg transition-colors placeholder:text-fg-subtle disabled:cursor-not-allowed disabled:opacity-50 read-only:bg-muted";
 
 function edgeClass(focused: boolean, error: string | undefined): string {
 	if (error) return "border-danger";

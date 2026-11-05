@@ -2,7 +2,7 @@ import { appError, err, ok, type SessionId } from "@conducted/shared";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Editor } from "@tiptap/react";
 import type { ReactNode } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Draft } from "../../core/api.ts";
 import { draftFile } from "../../core/app-paths.ts";
 import type { Container } from "../../core/container.ts";
@@ -118,7 +118,14 @@ const harness = () => {
 		},
 	};
 	const composer = new ComposerService(deps);
-	const container = { services: { composer } } as unknown as Container;
+	const container = {
+		services: { composer },
+		actions: {
+			sessions: {
+				saveDraft: (sessionId: SessionId, draft: Draft) => composer.saveDraft(sessionId, draft),
+			},
+		},
+	} as unknown as Container;
 	const wrapper = ({ children }: { children: ReactNode }) => (
 		<ServicesProvider container={container}>{children}</ServicesProvider>
 	);
@@ -186,6 +193,58 @@ describe("COMP-01 useDraftSync", () => {
 			wrapper,
 		});
 		await waitFor(() => expect(editor.getText()).toBe("first line\nsecond line\n\nnew paragraph"));
+	});
+
+	it("keeps keystrokes typed before the load resolves and never saves the previous chat's attachments", async () => {
+		const first = "chat-a" as SessionId;
+		const second = "chat-b" as SessionId;
+		const { composer, files, wrapper, flush } = harness();
+		composer.saveDraft(second, { text: "second draft", attachmentPaths: ["/b.png"] });
+		flush();
+		await settle();
+
+		const originalLoad = composer.loadDraft.bind(composer);
+		let release: () => void = () => {};
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const load = vi.spyOn(composer, "loadDraft").mockImplementation(async (id) => {
+			if (id === second) await gate;
+			return originalLoad(id);
+		});
+
+		const editor = fakeEditor();
+		const firstAttachments = ["/a.png"];
+		const { rerender } = renderHook(
+			({ sessionId, attachmentPaths }: { sessionId: SessionId; attachmentPaths: string[] }) =>
+				useDraftSync({
+					sessionId,
+					editor: editor as unknown as Editor,
+					attachmentPaths,
+				}),
+			{ initialProps: { sessionId: first, attachmentPaths: firstAttachments }, wrapper },
+		);
+		await waitFor(() => expect(composer.store.getState().drafts[first]).toBeDefined());
+
+		// Switch to the second chat while its attachments prop is still the first chat's.
+		rerender({ sessionId: second, attachmentPaths: firstAttachments });
+		act(() => {
+			editor.text = "typed before restore";
+			editor.emit();
+		});
+		release();
+		await waitFor(() => expect(load).toHaveBeenCalledWith(second));
+		await waitFor(() => expect(composer.store.getState().drafts[second]).toBeDefined());
+
+		// The saved text did not replace what the user typed.
+		expect(editor.getText()).toBe("typed before restore");
+		act(() => editor.emit());
+		flush();
+		await settle();
+		expect(JSON.parse(files.get(draftFile(paths, second)) ?? "")).toEqual({
+			text: "typed before restore",
+			attachmentPaths: ["/b.png"],
+		});
 	});
 
 	it("saves an attachment change to the current chat", async () => {

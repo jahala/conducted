@@ -1,4 +1,6 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
+import { createRef } from "react";
+import type { GroupImperativeHandle } from "react-resizable-panels";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "../test/dom-polyfills.ts";
 import { PanelLayoutProvider, ResizableGroup, ResizablePanel, ResizeHandle } from "./resizable.tsx";
@@ -51,6 +53,23 @@ describe("NAV-01 resizable panels", () => {
 		expect(handle.className).toContain("aria-[orientation=vertical]:w-px");
 	});
 
+	it("gives the 1px line an 8px hit area", () => {
+		render(
+			<ResizableGroup id="nav-01-hit-area" orientation="horizontal">
+				<ResizablePanel id="left">left</ResizablePanel>
+				<ResizeHandle />
+				<ResizablePanel id="right">right</ResizablePanel>
+			</ResizableGroup>,
+		);
+
+		const handle = screen.getByRole("separator");
+		expect(handle.className).toContain("before:absolute");
+		expect(handle.className).toContain("aria-[orientation=vertical]:before:-left-[3.5px]");
+		expect(handle.className).toContain("aria-[orientation=vertical]:before:-right-[3.5px]");
+		expect(handle.className).toContain("aria-[orientation=horizontal]:before:-top-[3.5px]");
+		expect(handle.className).toContain("aria-[orientation=horizontal]:before:-bottom-[3.5px]");
+	});
+
 	it("asks the panel-layout store for a group's saved sizes", () => {
 		const load = vi.fn(() => ({ left: 30, right: 70 }));
 		const save = vi.fn();
@@ -65,6 +84,27 @@ describe("NAV-01 resizable panels", () => {
 			</PanelLayoutProvider>,
 		);
 
-		expect(load).toHaveBeenCalledWith("workspace-right-panels-w1");
+		expect(load).toHaveBeenCalledWith("workspace-right-panels-w1", ["left", "right"]);
+	});
+
+	it("writes a group's layout to the store after the library changes it", () => {
+		const save = vi.fn();
+		const groupRef = createRef<GroupImperativeHandle>();
+
+		render(
+			<PanelLayoutProvider store={{ load: () => null, save }}>
+				<ResizableGroup id="workspace-right-panels-w1" groupRef={groupRef} orientation="vertical">
+					<ResizablePanel id="left">left</ResizablePanel>
+					<ResizeHandle />
+					<ResizablePanel id="right">right</ResizablePanel>
+				</ResizableGroup>
+			</PanelLayoutProvider>,
+		);
+
+		act(() => {
+			groupRef.current?.setLayout({ left: 40, right: 60 });
+		});
+
+		expect(save).toHaveBeenCalledWith("workspace-right-panels-w1", { left: 40, right: 60 });
 	});
 });

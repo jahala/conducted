@@ -8,18 +8,21 @@
  * The sidebar is sized in pixels with Conductor's sizes (default 256, min 192, max 480; ui-dimensions.md 3, in
  * ui/layout-sizes.ts) and keeps its width when the window resizes.
  * Our design choice: the centre has a minimum width so the chat stays usable. The window uses an overlay title
- * bar, so the top 40px of the sidebar is an empty drag strip under the floating window controls. The shell's
- * panel sizes are saved under `app-shell` and restored on the next launch.
+ * bar, so the top 40px of the sidebar is an empty drag strip under the floating window controls. The sidebar's
+ * open state and width are kept in the settings table (`left_panel_visible`, `left_panel_width`), in pixels, so
+ * a restart restores both. Workspace panel groups keep their own layout through layout-persistence.ts.
  * Must handle: collapsed sidebar (the `--shell-left-inset` variable tells headers to leave room for the
- * controls); sidebar and centre fail separately, each inside <NotBuiltYet>; the sidebar stays mounted while
- * collapsed so its state survives; a saved layout for panels that no longer exist is ignored; Cmd+A outside an
- * editable field is stopped before it selects the whole UI.
+ * controls); sidebar and centre fail separately, each inside <NotBuiltYet>, and a route change clears the
+ * centre's; the sidebar stays mounted while collapsed so its state survives; a saved layout for panels that no
+ * longer exist is ignored; Cmd+A outside an editable field is stopped before it selects the whole UI.
  * Test first: rendering the shell with unbuilt features shows "Not built yet" in the sidebar and still shows the
  * centre empty state.
  */
 import type { WorkspaceId } from "@conducted/shared";
 import { Outlet, useRouterState } from "@tanstack/react-router";
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import { useServices } from "../core/context.tsx";
+import { useSetting } from "../core/hooks.ts";
 import { Sidebar } from "../features/sidebar/Sidebar.tsx";
 import { appShellGroupId, centreMinSize, sidebarSize } from "../ui/layout-sizes.ts";
 import { NotBuiltYet } from "../ui/not-built-yet.tsx";
@@ -32,10 +35,13 @@ import {
 	usePanelRef,
 } from "../ui/resizable.tsx";
 import { setCurrentWorkspace } from "../ui/Toast.tsx";
-import { loadPanelLayout, savePanelLayout } from "./layout-persistence.ts";
+import {
+	loadPanelLayout,
+	savePanelLayout,
+	saveShellSidebar,
+	shellSidebarWidth,
+} from "./layout-persistence.ts";
 import { ShellControls } from "./ShellControls.tsx";
-
-const APP_SHELL_PANELS = ["sidebar", "main-content"] as const;
 
 const NON_TEXT_INPUT_TYPES = new Set([
 	"button",
@@ -62,8 +68,10 @@ function isTextEntry(target: EventTarget | null): boolean {
 
 export function AppShell() {
 	const sidebarRef = usePanelRef();
-	const savedLayout = useMemo(() => loadPanelLayout(appShellGroupId, APP_SHELL_PANELS), []);
-	const [sidebarOpen, setSidebarOpen] = useState(() => (savedLayout?.sidebar ?? 1) > 0);
+	const { settings } = useServices().services;
+	const savedVisible = useSetting<boolean>("left_panel_visible");
+	const [sidebarOpen, setSidebarOpen] = useState(savedVisible);
+	const [initialSidebarWidth] = useState(() => shellSidebarWidth(settings));
 	const workspaceId = useRouterState({
 		select: (state) => {
 			for (let index = state.matches.length - 1; index >= 0; index -= 1) {
@@ -73,19 +81,32 @@ export function AppShell() {
 			return null;
 		},
 	});
+	const routeKey = useRouterState({ select: (state) => state.location.pathname });
 	const layoutStore = useMemo<PanelLayoutStore>(
 		() => ({
-			load: (groupId) => loadPanelLayout(groupId),
+			load: (groupId, knownPanels) => loadPanelLayout(groupId, knownPanels),
 			save: (groupId, layout) => savePanelLayout(groupId, layout),
 		}),
 		[],
 	);
 
+	const persistSidebar = () => {
+		const panel = sidebarRef.current;
+		if (!panel) return;
+		saveShellSidebar(settings, panel.getSize());
+	};
+
 	const toggleSidebar = () => {
 		const panel = sidebarRef.current;
 		if (!panel) return;
-		if (panel.isCollapsed()) panel.expand();
-		else panel.collapse();
+		if (panel.isCollapsed()) {
+			const width = shellSidebarWidth(settings);
+			panel.resize(`${width}px`);
+			saveShellSidebar(settings, { inPixels: width });
+		} else {
+			panel.collapse();
+			saveShellSidebar(settings, { inPixels: 0 });
+		}
 	};
 
 	useEffect(() => {
@@ -112,11 +133,17 @@ export function AppShell() {
 		<div className="relative h-full bg-surface" style={style}>
 			<ShellControls sidebarOpen={sidebarOpen} onToggleSidebar={toggleSidebar} />
 			<PanelLayoutProvider store={layoutStore}>
-				<ResizableGroup id={appShellGroupId} orientation="horizontal" className="h-full w-full">
+				<ResizableGroup
+					id={appShellGroupId}
+					orientation="horizontal"
+					className="h-full w-full"
+					persist={false}
+					onLayoutChanged={persistSidebar}
+				>
 					<ResizablePanel
 						id="sidebar"
 						panelRef={sidebarRef}
-						defaultSize={sidebarSize.default}
+						defaultSize={sidebarOpen ? `${initialSidebarWidth}px` : sidebarSize.collapsed}
 						minSize={sidebarSize.min}
 						maxSize={sidebarSize.max}
 						collapsible
@@ -136,7 +163,9 @@ export function AppShell() {
 					<ResizeHandle />
 					<ResizablePanel id="main-content" minSize={centreMinSize}>
 						<main className="flex h-full min-w-0 flex-col bg-canvas">
-							<Outlet />
+							<NotBuiltYet area="Centre" resetKey={routeKey}>
+								<Outlet />
+							</NotBuiltYet>
 						</main>
 					</ResizablePanel>
 				</ResizableGroup>

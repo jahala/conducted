@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { SETTING_LAYERS } from "../services/settings.ts";
 import {
 	coerceSettingValue,
 	defaultValueOf,
@@ -91,6 +92,22 @@ describe("SET-01 setting table", () => {
 		for (const def of SETTINGS) {
 			if (def.scopes.includes("repo")) {
 				expect(def.fileLayers, def.key).toBe("user-and-repo");
+			}
+		}
+	});
+
+	it("lets an allow-repo key reach every repo file layer DATA-05 resolves", () => {
+		for (const layer of ["repo-remote", "repo-shared", "workspace-shared", "repo-local"] as const) {
+			expect(SETTING_LAYERS, layer).toContain(layer);
+		}
+		for (const def of SETTINGS) {
+			if (def.fileLayers === "user-and-repo") {
+				expect(def.scopes, def.key).toContain("repo");
+				expect(typeof def.tomlKey, def.key).toBe("string");
+			}
+			if (def.fileLayers === "user") {
+				expect(def.scopes, def.key).not.toContain("repo");
+				expect(typeof def.tomlKey, def.key).toBe("string");
 			}
 		}
 	});
@@ -264,7 +281,28 @@ describe("SET-01 checklist", () => {
 		expect(def.default).toBe(false);
 		expect(def.title).toBe("I'm not absolutely right, thank you very much");
 		expect(def.description).toContain("absolutely right");
+		expect(def.feature).toBe("CHAT-06");
 		expect(searchSettings("absolutely").map((s) => s.key)).toContain("not_absolutely_right");
+	});
+
+	it("declares the GitHub sign-in method the GitHub service reads", () => {
+		const def = must("gh_auth_method");
+		expect(def.page).toBe("account");
+		expect(def.scopes).toEqual(["user"]);
+		expect(def.type).toBe("enum");
+		expect(def.default).toBe("");
+		const values = def.type === "enum" ? def.options.map((o) => o.value) : [];
+		expect(values).toEqual(["", "cli", "pat"]);
+		expect(isFileBacked(def)).toBe(false);
+		expect(searchSettings("personal access token").map((s) => s.key)).toContain("gh_auth_method");
+	});
+
+	it("accepts the GitHub CLI and personal access token values and refuses Conductor's app value", () => {
+		const def = must("gh_auth_method");
+		expect(coerceSettingValue(def, "")).toEqual({ ok: true, value: "" });
+		expect(coerceSettingValue(def, "cli")).toEqual({ ok: true, value: "cli" });
+		expect(coerceSettingValue(def, "pat")).toEqual({ ok: true, value: "pat" });
+		expect(coerceSettingValue(def, "conductor-app").ok).toBe(false);
 	});
 
 	it("lets the pull request open target be github, linear or graphite", () => {
@@ -302,9 +340,26 @@ describe("SET-01 checklist", () => {
 		}
 	});
 
-	it("can preload a default for every key", () => {
+	it("can preload a default of the declared type for every key", () => {
 		for (const key of SETTING_KEYS) {
-			expect(defaultValueOf(key), key).not.toBeUndefined();
+			const def = must(key);
+			const value = defaultValueOf(key);
+			expect(value, key).not.toBeUndefined();
+			switch (def.type) {
+				case "bool":
+					expect(typeof value, key).toBe("boolean");
+					break;
+				case "string":
+				case "enum":
+					expect(typeof value, key).toBe("string");
+					break;
+				case "number":
+					expect(typeof value, key).toBe("number");
+					break;
+				case "string-list":
+					expect(Array.isArray(value), key).toBe(true);
+					break;
+			}
 		}
 	});
 });

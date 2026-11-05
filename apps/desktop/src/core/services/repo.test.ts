@@ -8,6 +8,7 @@ import {
 	initRepository,
 	remoteGetUrl,
 	remoteSetUrl,
+	revParse,
 	symbolicRefRemoteHead,
 } from "../git/commands.ts";
 import type { GitRunner } from "../git/runner.ts";
@@ -164,11 +165,8 @@ interface FakePlatform {
 	trash: ReturnType<typeof vi.fn>;
 }
 
-function makePlatform(
-	options: { dirs?: readonly string[]; gitFolders?: readonly string[]; confirm?: boolean } = {},
-): FakePlatform {
+function makePlatform(options: { dirs?: readonly string[]; confirm?: boolean } = {}): FakePlatform {
 	const dirs = new Set(options.dirs ?? []);
-	const gitFolders = new Set(options.gitFolders ?? []);
 	const confirm = vi.fn(async () => options.confirm ?? true);
 	const trash = vi.fn(async () => ok(undefined));
 	const fs = {
@@ -176,8 +174,8 @@ function makePlatform(
 			if (!dirs.has(path)) return err(appError("fs_missing", `missing ${path}`));
 			return ok({ path, isDirectory: true, isSymlink: false, size: 0, modifiedAt: 0 });
 		},
-		async exists(path: string) {
-			return gitFolders.has(path);
+		async exists() {
+			return false;
 		},
 		async readText() {
 			return err(appError("fs_missing", "no file"));
@@ -230,6 +228,16 @@ const must = <T>(result: Result<T>): T => {
 	return result.value;
 };
 
+/** Answers git's work-tree probe and the checked-out branch for a folder. */
+function markWorkTree(
+	ctx: ReturnType<typeof makeService>,
+	toplevel: string,
+	branch = "main",
+): void {
+	ctx.git.replies.set(commandKey(revParse("--show-toplevel")), output(0, `${toplevel}\n`));
+	ctx.git.replies.set(commandKey(branchShowCurrent()), output(0, `${branch}\n`));
+}
+
 describe("PRJ-01 path and remote helpers", () => {
 	it("treats a trailing slash as the same folder", () => {
 		expect(normaliseRootPath("/code/app/")).toBe("/code/app");
@@ -248,20 +256,26 @@ describe("PRJ-01 path and remote helpers", () => {
 		);
 	});
 
-	it("prefers the remote HEAD branch, then the checked-out branch, then main", () => {
-		expect(defaultBranchFrom("refs/remotes/origin/develop", "feature")).toBe("develop");
-		expect(defaultBranchFrom(null, "feature")).toBe("feature");
-		expect(defaultBranchFrom(null, null)).toBe("main");
-		expect(defaultBranchFrom(null, "")).toBe("main");
+	it("prefers the remote HEAD branch, then the checked-out branch", () => {
+		expect(must(defaultBranchFrom("refs/remotes/origin/develop", "feature"))).toBe("develop");
+		expect(must(defaultBranchFrom(null, "feature"))).toBe("feature");
+	});
+
+	it("fails instead of inventing a default branch when both are missing", () => {
+		const missing = defaultBranchFrom(null, null);
+		expect(missing.ok).toBe(false);
+		if (!missing.ok) expect(missing.error.code).toBe("repo_default_branch_unknown");
+
+		const empty = defaultBranchFrom(null, "");
+		expect(empty.ok).toBe(false);
+		if (!empty.ok) expect(empty.error.code).toBe("repo_default_branch_unknown");
 	});
 });
 
 describe("PRJ-01 adding a local folder", () => {
 	it("returns the same project when the same folder is added twice", async () => {
-		const ctx = makeService({
-			dirs: ["/code/app"],
-			gitFolders: ["/code/app/.git"],
-		});
+		const ctx = makeService({ dirs: ["/code/app"] });
+		markWorkTree(ctx, "/code/app");
 
 		const first = must(await ctx.service.addLocal("/code/app/"));
 		const second = must(await ctx.service.addLocal("/code/app"));
@@ -273,7 +287,7 @@ describe("PRJ-01 adding a local folder", () => {
 	});
 
 	it("asks before turning a folder without git into a repository", async () => {
-		const ctx = makeService({ dirs: ["/code/notes"], gitFolders: [], confirm: false });
+		const ctx = makeService({ dirs: ["/code/notes"], confirm: false });
 
 		const result = await ctx.service.addLocal("/code/notes");
 
@@ -287,7 +301,8 @@ describe("PRJ-01 adding a local folder", () => {
 	});
 
 	it("runs git init after the user agrees", async () => {
-		const ctx = makeService({ dirs: ["/code/notes"], gitFolders: [], confirm: true });
+		const ctx = makeService({ dirs: ["/code/notes"], confirm: true });
+		ctx.git.replies.set(commandKey(branchShowCurrent()), output(0, "main\n"));
 
 		const repo = must(await ctx.service.addLocal("/code/notes"));
 
@@ -298,8 +313,25 @@ describe("PRJ-01 adding a local folder", () => {
 		expect(ctx.repos.rows).toHaveLength(1);
 	});
 
+	it("adds a subfolder as the repository's root, without a nested git init", async () => {
+		const ctx = makeService({ dirs: ["/code/app", "/code/app/sub"] });
+		markWorkTree(ctx, "/code/app");
+
+		const fromSubfolder = must(await ctx.service.addLocal("/code/app/sub"));
+
+		expect(fromSubfolder.rootPath).toBe("/code/app");
+		expect(fromSubfolder.name).toBe("app");
+		expect(ctx.platform.confirm).not.toHaveBeenCalled();
+		expect(
+			ctx.git.calls.some((command) => commandKey(command) === commandKey(initRepository())),
+		).toBe(false);
+		const again = must(await ctx.service.addLocal("/code/app"));
+		expect(again.id).toBe(fromSubfolder.id);
+		expect(ctx.repos.rows).toHaveLength(1);
+	});
+
 	it("rejects a folder that does not exist", async () => {
-		const ctx = makeService({ dirs: [], gitFolders: [] });
+		const ctx = makeService({ dirs: [] });
 
 		const result = await ctx.service.addLocal("/code/missing");
 
@@ -309,10 +341,8 @@ describe("PRJ-01 adding a local folder", () => {
 	});
 
 	it("reads the remote URL and writes the normalised form back", async () => {
-		const ctx = makeService({
-			dirs: ["/code/app"],
-			gitFolders: ["/code/app/.git"],
-		});
+		const ctx = makeService({ dirs: ["/code/app"] });
+		markWorkTree(ctx, "/code/app");
 		ctx.git.replies.set(
 			commandKey(remoteGetUrl("origin")),
 			output(0, " git@github.com:owner/repo.git/ \n"),
@@ -331,15 +361,12 @@ describe("PRJ-01 adding a local folder", () => {
 	});
 
 	it("detects the default branch from the remote HEAD", async () => {
-		const ctx = makeService({
-			dirs: ["/code/app"],
-			gitFolders: ["/code/app/.git"],
-		});
+		const ctx = makeService({ dirs: ["/code/app"] });
+		markWorkTree(ctx, "/code/app", "feature");
 		ctx.git.replies.set(
 			commandKey(symbolicRefRemoteHead("origin")),
 			output(0, "refs/remotes/origin/develop\n"),
 		);
-		ctx.git.replies.set(commandKey(branchShowCurrent()), output(0, "feature\n"));
 
 		const repo = must(await ctx.service.addLocal("/code/app"));
 
@@ -347,19 +374,28 @@ describe("PRJ-01 adding a local folder", () => {
 	});
 
 	it("falls back to the checked-out branch when there is no remote HEAD", async () => {
-		const ctx = makeService({
-			dirs: ["/code/app"],
-			gitFolders: ["/code/app/.git"],
-		});
+		const ctx = makeService({ dirs: ["/code/app"] });
+		markWorkTree(ctx, "/code/app", "feature");
 		ctx.git.replies.set(
 			commandKey(symbolicRefRemoteHead("origin")),
 			output(128, "", "fatal: no such ref"),
 		);
-		ctx.git.replies.set(commandKey(branchShowCurrent()), output(0, "feature\n"));
 
 		const repo = must(await ctx.service.addLocal("/code/app"));
 
 		expect(repo.defaultBranch).toBe("feature");
+	});
+
+	it("shows an error when there is no remote HEAD and no checked-out branch", async () => {
+		const ctx = makeService({ dirs: ["/code/app"] });
+		ctx.git.replies.set(commandKey(revParse("--show-toplevel")), output(0, "/code/app\n"));
+		ctx.git.replies.set(commandKey(branchShowCurrent()), output(0, "\n"));
+
+		const result = await ctx.service.addLocal("/code/app");
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.code).toBe("repo_default_branch_unknown");
+		expect(ctx.repos.rows).toHaveLength(0);
 	});
 });
 
@@ -403,7 +439,8 @@ describe("PRJ-01 listing and removing projects", () => {
 	});
 
 	it("hides and shows a project without losing it", async () => {
-		const ctx = makeService({ dirs: ["/code/app"], gitFolders: ["/code/app/.git"] });
+		const ctx = makeService({ dirs: ["/code/app"] });
+		markWorkTree(ctx, "/code/app");
 		const repo = must(await ctx.service.addLocal("/code/app"));
 
 		must(await ctx.service.setHidden(repo.id, true));
@@ -415,7 +452,8 @@ describe("PRJ-01 listing and removing projects", () => {
 	});
 
 	it("removes the project's workspaces before deleting the row and leaves the main folder alone", async () => {
-		const ctx = makeService({ dirs: ["/code/app"], gitFolders: ["/code/app/.git"] });
+		const ctx = makeService({ dirs: ["/code/app"] });
+		markWorkTree(ctx, "/code/app");
 		const repo = must(await ctx.service.addLocal("/code/app"));
 
 		must(await ctx.service.remove(repo.id));

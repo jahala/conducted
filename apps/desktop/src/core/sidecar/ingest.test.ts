@@ -161,6 +161,8 @@ interface HarnessOptions {
 	viewing?: (sessionId: SessionId) => boolean;
 	sidecar?: Pick<SidecarClient, "notify">;
 	runInTransaction?: <T>(work: (repos: Repositories) => Promise<T>) => Promise<T>;
+	onStored?: IngestListener["onStored"];
+	log?: (level: "warn" | "error", message: string, data?: unknown) => void;
 }
 
 interface Harness {
@@ -173,7 +175,8 @@ function makeHarness(options: HarnessOptions = {}): Harness {
 	const repositories = createRepositories(wrapper, deps);
 	const stored: Harness["stored"] = [];
 	const listener: IngestListener = {
-		onStored: (id, envelope, idx) => stored.push({ sessionId: id, envelope, idx }),
+		onStored:
+			options.onStored ?? ((id, envelope, idx) => stored.push({ sessionId: id, envelope, idx })),
 		isViewing: options.viewing ?? (() => false),
 	};
 	const sidecar = options.sidecar ?? makeSidecar().sidecar;
@@ -186,7 +189,7 @@ function makeHarness(options: HarnessOptions = {}): Harness {
 		runInTransaction,
 		sidecar,
 		listener,
-		log: () => {},
+		log: options.log ?? (() => {}),
 	});
 	return { ingest, repositories, stored };
 }
@@ -389,6 +392,143 @@ describe("DATA-04 event ingest", () => {
 		);
 		session = must(await harness.repositories.sessions.get(sessionId));
 		expect(session?.unreadCount).toBe(1);
+	});
+});
+
+describe("DATA-04 event ingest treats a failing logger as a value", () => {
+	it("acknowledges a stored event when showing it fails and the logger throws", async () => {
+		seedWorkspace();
+		seedSession();
+		const { sidecar, acks } = makeSidecar();
+		const harness = makeHarness({
+			sidecar,
+			onStored: () => {
+				throw new Error("the chat view is gone");
+			},
+			log: () => {
+				throw new Error("the log is unavailable");
+			},
+		});
+
+		const result = await harness.ingest.ingest(envelope(userMessageEvent("e1", "t1", 5000), 0));
+
+		expect(result.ok).toBe(true);
+		expect(acks.map((ack) => ack.eventId)).toEqual(["e1"]);
+		expect(must(await harness.repositories.sessionEvents.listFrom(sessionId, 0, 10))).toHaveLength(
+			1,
+		);
+	});
+
+	it("returns an error instead of rejecting when the write fails and the logger throws", async () => {
+		seedWorkspace();
+		seedSession();
+		const { sidecar, acks } = makeSidecar();
+		const harness = makeHarness({
+			sidecar,
+			runInTransaction: async () => {
+				throw new Error("disk full");
+			},
+			log: () => {
+				throw new Error("the log is unavailable");
+			},
+		});
+
+		const result = await harness.ingest.ingest(envelope(userMessageEvent("e1", "t1", 5000), 0));
+
+		expect(result.ok).toBe(false);
+		expect(acks).toHaveLength(0);
+		expect(harness.stored).toHaveLength(0);
+	});
+
+	it("keeps the stored event when the acknowledgement fails and the logger throws", async () => {
+		seedWorkspace();
+		seedSession();
+		const sidecar: Pick<SidecarClient, "notify"> = {
+			notify: async () => {
+				throw new Error("the socket closed");
+			},
+		};
+		const harness = makeHarness({
+			sidecar,
+			log: () => {
+				throw new Error("the log is unavailable");
+			},
+		});
+
+		const result = await harness.ingest.ingest(envelope(userMessageEvent("e1", "t1", 5000), 0));
+
+		expect(result.ok).toBe(true);
+		expect(harness.stored).toHaveLength(1);
+		expect(must(await harness.repositories.sessionEvents.listFrom(sessionId, 0, 10))).toHaveLength(
+			1,
+		);
+	});
+});
+
+describe("DATA-04 event ingest after a turn ended", () => {
+	it("stores a late agent event for an ended turn without changing the chat", async () => {
+		seedWorkspace();
+		seedSession();
+		const harness = makeHarness({ viewing: () => false });
+		await harness.ingest.ingest(envelope(userMessageEvent("u1", "t1", 5000), 0));
+		await harness.ingest.ingest(envelope(turnEndedEvent("e2", "t1", 6000), 1));
+
+		const result = must(
+			await harness.ingest.ingest(envelope(agentEvent("a3", "t1", 7000, [usage(1200, 200000)]), 2)),
+		);
+
+		expect(result).toEqual({ stored: true, idx: 2 });
+		const session = must(await harness.repositories.sessions.get(sessionId));
+		expect(session?.lastUserMessageAt).toBe(5000);
+		expect(session?.contextUsedTokens).toBeNull();
+		expect(session?.unreadCount).toBe(0);
+		const stored = must(await harness.repositories.sessionEvents.listFrom(sessionId, 0, 10));
+		expect(stored.map((event) => event.eventId)).toEqual(["u1", "e2", "a3"]);
+	});
+
+	it("does not store a second turn_ended for an ended turn and still acknowledges it", async () => {
+		seedWorkspace();
+		seedSession();
+		const { sidecar, acks } = makeSidecar();
+		const harness = makeHarness({ sidecar });
+		await harness.ingest.ingest(envelope(userMessageEvent("u1", "t1", 5000), 0));
+		await harness.ingest.ingest(envelope(turnEndedEvent("repair", "t1", 6000), 1));
+
+		const result = must(
+			await harness.ingest.ingest(envelope(turnEndedEvent("real", "t1", 7000), 2)),
+		);
+
+		expect(result).toEqual({ stored: false, idx: null });
+		const stored = must(await harness.repositories.sessionEvents.listFrom(sessionId, 0, 10));
+		expect(stored.filter((event) => event.event.type === "turn_ended")).toHaveLength(1);
+		expect(stored.map((event) => event.eventId)).toEqual(["u1", "repair"]);
+		expect(acks.map((ack) => ack.eventId)).toEqual(["u1", "repair", "real"]);
+	});
+
+	it("stores events replayed after repair closed the turn, with no second end", async () => {
+		seedWorkspace();
+		seedSession();
+		const harness = makeHarness();
+		await harness.ingest.ingest(envelope(userMessageEvent("u1", "t1", 5000), 0));
+		await harness.ingest.ingest(envelope(turnEndedEvent("repair", "t1", 6000), 1));
+
+		const lateAgent = must(
+			await harness.ingest.ingest(
+				envelope(agentEvent("a2", "t1", 7000, [{ kind: "text", text: "done" }]), 2),
+			),
+		);
+		const lateEnd = must(
+			await harness.ingest.ingest(envelope(turnEndedEvent("real", "t1", 8000), 3)),
+		);
+
+		expect(lateAgent).toEqual({ stored: true, idx: 2 });
+		expect(lateEnd).toEqual({ stored: false, idx: null });
+		const stored = must(await harness.repositories.sessionEvents.listFrom(sessionId, 0, 10));
+		expect(stored.map((event) => [event.eventId, event.event.type])).toEqual([
+			["u1", "user_message"],
+			["repair", "turn_ended"],
+			["a2", "agent"],
+		]);
 	});
 });
 

@@ -1,26 +1,17 @@
 /**
- * @feature CHAT-01 Sessions service: chats, sending, cancelling, interactions
- * Owns: the list of chats per workspace, each chat's live state and stored events in memory, the
- * send and cancel paths to the sidecar, the open question or approval, and the chat view model.
- * Behaviour: sessions-and-chats.md ("What happens when you send a message", "While the agent is
- * working", "Questions, approvals and plans"), sessions.md 2, 5, 6, services-map.md 2.3.3 (session
- * operations), 2.4.2 (status values), ui-map.md 3.2 and 3.3.
- * Must handle: a send returns when the turn starts, not when it ends; the reply streams in as
- * events; the status is only idle or working and "idle" never shows before the last event of the
- * turn is stored; a message sent while working goes to the queue or steers, by the user's default
- * (`chooseDelivery`); the first message of a chat carries `firstMessage: true`; the agent's own
- * session id is saved when the sidecar reports it and sent back as `resume` afterwards; a failed
- * send leaves the draft and shows the error, nothing is stored; cancel marks the chat
- * "cancelling" until the sidecar says idle, withdraws the open interaction, and pauses the queue;
- * a new message or a cancel withdraws the open interaction; only one interaction is open per
- * chat, a new request replaces it; a late live state or event for a chat the user closed or
- * deleted is dropped; closing the last open chat of a workspace keeps the workspace; unread is
- * set when an agent event arrives for a chat nobody is looking at and cleared when it is shown;
- * only the newest answer wins when two config updates cross.
- * Our design choice: the sidecar writes the `user_message` event, so the message appears in the
- * chat when that event is stored; until then the view shows it as "sending". Cancel pauses the
- * queue. `sendInstruction` is how git and GitHub actions reach the agent.
+ * @feature CHAT-01 Sessions service: the chat list
+ * Owns: the list of chats per workspace, their stored live state and events in memory, and the
+ * create, close, reopen, rename, set-title-if-empty, delete and open paths.
+ * Behaviour: services-map.md 2.3.3 (session operations), 2.2 (the sessions table), ui-map.md 3.2.
+ * Must handle: a closed chat stays in history and leaves the open list; a reopened chat returns to
+ * the open list; an empty title is refused; stored events load once, in `idx` order.
+ * Our design choice: a chat starts with no title; the title generator fills it only once
+ * (`setTitleIfEmpty`), so a name the user typed is never overwritten.
  * Test first: create then close keeps the chat in history and out of the open list.
+ *
+ * The send, cancel, interaction, progress and unread paths live in the same service but belong to
+ * CHAT-02, CHAT-05, CHAT-10, CHAT-13, CHAT-18 and NAV-11. They are placeholders until those
+ * features build them, so this header claims only what CHAT-01 builds.
  */
 import type {
 	Interaction,
@@ -202,6 +193,13 @@ export class SessionsService implements AgentMessenger {
 		return created;
 	}
 
+	/** Starts a chat with the workspace's default config. */
+	async createFromDefaults(workspaceId: WorkspaceId): Promise<Result<Session>> {
+		const config = await this.#deps.defaultConfig(workspaceId);
+		if (!config.ok) return config;
+		return this.create(workspaceId, config.value);
+	}
+
 	/** Backs `Actions.sessions.close`: hides the tab, keeps the chat in history. */
 	async close(id: SessionId): Promise<Result<void>> {
 		const found = await this.#session(id);
@@ -262,6 +260,30 @@ export class SessionsService implements AgentMessenger {
 		if (!found.ok) return found;
 		const renamed = await this.#deps.repositories().sessions.setTitle(id, trimmed);
 		if (!renamed.ok) return renamed;
+		const at = this.#deps.now();
+		this.store.setState((state) => {
+			const current = state.sessions[id];
+			if (current === undefined) return {};
+			return {
+				sessions: { ...state.sessions, [id]: { ...current, title: trimmed, updatedAt: at } },
+			};
+		});
+		return ok(undefined);
+	}
+
+	/**
+	 * Sets the title only when the chat has none: what the title generator uses, so a name the
+	 * user typed is never overwritten.
+	 */
+	async setTitleIfEmpty(id: SessionId, title: string): Promise<Result<void>> {
+		const trimmed = title.trim();
+		if (trimmed.length === 0)
+			return { ok: false, error: appError("chat_title_empty", "Enter a chat name.") };
+		const found = await this.#session(id);
+		if (!found.ok) return found;
+		const written = await this.#deps.repositories().sessions.setTitleIfEmpty(id, trimmed);
+		if (!written.ok) return written;
+		if (!written.value) return ok(undefined);
 		const at = this.#deps.now();
 		this.store.setState((state) => {
 			const current = state.sessions[id];

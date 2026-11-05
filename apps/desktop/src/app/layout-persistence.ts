@@ -1,18 +1,22 @@
 /**
  * @feature NAV-01 Persisted panel sizes
- * Owns: saving and loading the size of each resizable panel group, so the window comes back as the user left it.
+ * Owns: saving and loading the size of each resizable workspace panel group, so a workspace comes back as the
+ * user left it, and the app shell's sidebar, which lives in the settings table instead.
  * Behaviour: ui-map.md 1.1 (persisted sidebar width with min and max; layout ids are persisted per workspace,
- * for example "workspace-right-panels-<workspaceId>"), frontend.md 4 (about 30 UI keys live in the settings table).
- * Our design choice: a group's layout is one small UI value, keyed by its group id and stored under a namespaced
- * browser-storage key. The panel library reports sizes as percentages, so that is the shape saved. Groups hand us
- * `onLayoutChanged`, which only fires after the pointer is released, so a drag writes once. A caller may pass the
- * storage it wants; the app uses the window's storage.
+ * for example "workspace-right-panels-<workspaceId>"), frontend.md 4 (about 30 UI keys live in the settings
+ * table), ui-dimensions.md 3 (left_panel_width and left_panel_visible hold the sidebar's width and open state).
+ * Our design choice: a workspace group's layout is one small UI value, keyed by its group id and stored under a
+ * namespaced browser-storage key. The panel library reports sizes as percentages, so that is the shape saved.
+ * Groups hand us `onLayoutChanged`, which only fires after the pointer is released, so a drag writes once. A
+ * caller may pass the storage it wants; the app uses the window's storage. The shell's facts are kept in the
+ * settings table, so there is one home: this module never stores an "app-shell" entry.
  * Must handle: a saved layout for panels that no longer exist is ignored; a layout that fails to parse is ignored
  * (the defaults apply); a collapsed panel is saved at 0 so it comes back collapsed; the layout of a deleted
- * workspace is removed with `clearPanelLayout`.
- * Test first: saving then loading a layout for "app-shell" returns the same sizes.
+ * workspace is removed with `clearPanelLayout`, called by WS-05 when it deletes or archives a workspace.
+ * Test first: saving then loading a layout for "workspace-right-panels-w1" returns the same sizes.
  */
 
+import { sidebarSize } from "../ui/layout-sizes.ts";
 import type { PanelLayout } from "../ui/resizable.tsx";
 
 export type { PanelLayout } from "../ui/resizable.tsx";
@@ -27,6 +31,44 @@ const STORAGE_PREFIX = "conducted.panel-layout:";
 
 /** The one key a group's layout is stored under. */
 export const panelLayoutStorageKey = (groupId: string): string => `${STORAGE_PREFIX}${groupId}`;
+
+/** The settings service as the shell persistence needs it: a sync read and an async write. */
+export interface PanelLayoutSettings {
+	get<T>(key: string): T;
+	set(key: string, value: unknown): Promise<unknown>;
+}
+
+const SIDEBAR_MIN = Number.parseFloat(sidebarSize.min);
+const SIDEBAR_MAX = Number.parseFloat(sidebarSize.max);
+const SIDEBAR_DEFAULT = Number.parseFloat(sidebarSize.default);
+
+/** A width in pixels, kept inside Conductor's 192px to 480px range. */
+function clampSidebarWidth(pixels: number): number {
+	return Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, Math.round(pixels)));
+}
+
+/** The sidebar width to restore, using the default when the stored value is not a number. */
+export function shellSidebarWidth(settings: PanelLayoutSettings): number {
+	const stored = settings.get<number>("left_panel_width");
+	const width = typeof stored === "number" && Number.isFinite(stored) ? stored : SIDEBAR_DEFAULT;
+	return clampSidebarWidth(width);
+}
+
+/**
+ * Writes what a finished resize or toggle means to the settings table: whether the sidebar is open, and its
+ * width in pixels when it is. Values that did not change are skipped, so mounting the shell writes nothing.
+ */
+export function saveShellSidebar(settings: PanelLayoutSettings, size: { inPixels: number }): void {
+	const open = size.inPixels > 0;
+	if (settings.get<boolean>("left_panel_visible") !== open) {
+		void settings.set("left_panel_visible", open);
+	}
+	if (!open) return;
+	const width = clampSidebarWidth(size.inPixels);
+	if (settings.get<number>("left_panel_width") !== width) {
+		void settings.set("left_panel_width", width);
+	}
+}
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value);

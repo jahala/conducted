@@ -11,6 +11,7 @@ import { findTerminalLinks, TerminalSurface } from "./TerminalSurface.tsx";
 import type { TerminalAppearance } from "./terminal-theme.ts";
 
 const xterm = vi.hoisted(() => {
+	const state: { keyHandler: ((event: KeyboardEvent) => boolean) | null } = { keyHandler: null };
 	const terminal = {
 		options: {} as Record<string, unknown>,
 		open: vi.fn(),
@@ -21,7 +22,9 @@ const xterm = vi.hoisted(() => {
 		onData: vi.fn(() => ({ dispose: vi.fn() })),
 		onResize: vi.fn(() => ({ dispose: vi.fn() })),
 		onExit: vi.fn(() => ({ dispose: vi.fn() })),
-		attachCustomKeyEventHandler: vi.fn(),
+		attachCustomKeyEventHandler: vi.fn((handler: (event: KeyboardEvent) => boolean) => {
+			state.keyHandler = handler;
+		}),
 		registerLinkProvider: vi.fn(() => ({ dispose: vi.fn() })),
 		hasSelection: vi.fn(() => false),
 		getSelection: vi.fn(() => ""),
@@ -36,7 +39,7 @@ const xterm = vi.hoisted(() => {
 		},
 	};
 	const fit = { fit: vi.fn(), dispose: vi.fn(), activate: vi.fn() };
-	return { terminal, fit };
+	return { terminal, fit, state };
 });
 
 vi.mock("@xterm/xterm", () => ({
@@ -83,6 +86,7 @@ afterEach(() => {
 	cleanup();
 	vi.unstubAllGlobals();
 	vi.clearAllMocks();
+	xterm.state.keyHandler = null;
 });
 
 describe("RUN-06 terminal surface", () => {
@@ -110,6 +114,7 @@ describe("RUN-06 terminal surface", () => {
 				connection={fakeConnection()}
 				appearance={appearance()}
 				visible
+				ended={false}
 				focusOnMount={false}
 			/>,
 		);
@@ -136,6 +141,7 @@ describe("RUN-06 terminal surface", () => {
 				connection={connection}
 				appearance={appearance()}
 				visible
+				ended={false}
 				focusOnMount={false}
 			/>,
 		);
@@ -160,6 +166,7 @@ describe("RUN-06 terminal surface", () => {
 				connection={connection}
 				appearance={appearance()}
 				visible
+				ended={false}
 				focusOnMount={false}
 			/>,
 		);
@@ -169,11 +176,69 @@ describe("RUN-06 terminal surface", () => {
 				connection={connection}
 				appearance={appearance({ fontSize: 15, theme: nextTheme })}
 				visible
+				ended={false}
 				focusOnMount={false}
 			/>,
 		);
 		expect(xterm.terminal.open).toHaveBeenCalledTimes(1);
 		expect(xterm.terminal.options.fontSize).toBe(15);
 		expect(xterm.terminal.options.theme).toBe(nextTheme);
+	});
+
+	it("leaves Cmd+V to the paste event instead of writing the clipboard twice", () => {
+		vi.stubGlobal(
+			"ResizeObserver",
+			class {
+				observe = vi.fn();
+				unobserve = vi.fn();
+				disconnect = vi.fn();
+			},
+		);
+		const connection = fakeConnection();
+		render(
+			<TerminalSurface
+				connection={connection}
+				appearance={appearance()}
+				visible
+				ended={false}
+				focusOnMount={false}
+			/>,
+		);
+		const handled = xterm.state.keyHandler?.({
+			type: "keydown",
+			metaKey: true,
+			ctrlKey: false,
+			altKey: false,
+			key: "v",
+		} as KeyboardEvent);
+		expect(handled).toBe(true);
+		expect(connection.write).not.toHaveBeenCalled();
+	});
+
+	it("inserts a newline on Shift+Enter", () => {
+		vi.stubGlobal(
+			"ResizeObserver",
+			class {
+				observe = vi.fn();
+				unobserve = vi.fn();
+				disconnect = vi.fn();
+			},
+		);
+		render(
+			<TerminalSurface
+				connection={fakeConnection()}
+				appearance={appearance()}
+				visible
+				ended={false}
+				focusOnMount={false}
+			/>,
+		);
+		const handled = xterm.state.keyHandler?.({
+			type: "keydown",
+			shiftKey: true,
+			key: "Enter",
+		} as KeyboardEvent);
+		expect(handled).toBe(false);
+		expect(xterm.terminal.input).toHaveBeenCalledWith("\n", false);
 	});
 });

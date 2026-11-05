@@ -167,6 +167,15 @@ describe("CHAT-01 sessions service", () => {
 		expect(must(await repositories.sessions.get(first.id))?.id).toBe(first.id);
 	});
 
+	it("creates a chat from the workspace's default config", async () => {
+		seedWorkspace();
+		const created = must(await service.createFromDefaults(workspaceId));
+
+		expect(created.config).toEqual(sampleSession.config);
+		expect(service.store.getState().sessions[created.id]?.config).toEqual(sampleSession.config);
+		expect(must(await repositories.sessions.get(created.id))?.config).toEqual(sampleSession.config);
+	});
+
 	it("closes a chat into history and reopens it", async () => {
 		seedWorkspace();
 		const created = must(await service.create(workspaceId, sampleSession.config));
@@ -199,6 +208,27 @@ describe("CHAT-01 sessions service", () => {
 
 		const empty = await service.rename(created.id, "   ");
 		expect(empty).toMatchObject({ ok: false, error: { code: "chat_title_empty" } });
+	});
+
+	it("sets the title only when the chat has none", async () => {
+		seedWorkspace();
+		const created = must(await service.create(workspaceId, sampleSession.config));
+
+		now = 6000;
+		expect(await service.setTitleIfEmpty(created.id, "  Fix login  ")).toEqual({
+			ok: true,
+			value: undefined,
+		});
+		expect(service.store.getState().sessions[created.id]?.title).toBe("Fix login");
+		expect(must(await repositories.sessions.get(created.id))?.title).toBe("Fix login");
+
+		now = 7000;
+		expect(await service.setTitleIfEmpty(created.id, "Generated title")).toEqual({
+			ok: true,
+			value: undefined,
+		});
+		expect(service.store.getState().sessions[created.id]?.title).toBe("Fix login");
+		expect(must(await repositories.sessions.get(created.id))?.title).toBe("Fix login");
 	});
 
 	it("loads a chat's stored events once, in order", async () => {

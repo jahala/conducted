@@ -43,6 +43,7 @@ interface FakeFs {
 	modified: Map<string, number>;
 	trashed: Set<string>;
 	now: () => number;
+	fail: { write: boolean; trash: boolean; mkdirp: boolean };
 }
 
 const parentOf = (path: string): string => path.slice(0, path.lastIndexOf("/"));
@@ -52,6 +53,7 @@ const fakeFs = (): FakeFs => {
 	const files = new Map<string, string>();
 	const modified = new Map<string, number>();
 	const trashed = new Set<string>();
+	const fail = { write: false, trash: false, mkdirp: false };
 	const now = () => clock++;
 	const statFor = (path: string): FileStat => {
 		const text = files.get(path) ?? "";
@@ -71,6 +73,7 @@ const fakeFs = (): FakeFs => {
 				: ok(text);
 		},
 		async writeTextAtomic(path, text) {
+			if (fail.write) return err(appError("fs_denied", "The draft file could not be written."));
 			files.set(path, text);
 			modified.set(path, now());
 			return ok(undefined);
@@ -82,6 +85,7 @@ const fakeFs = (): FakeFs => {
 			return files.has(path) ? ok(statFor(path)) : err(appError("fs_not_found", "missing"));
 		},
 		async mkdirp() {
+			if (fail.mkdirp) return err(appError("fs_denied", "The drafts folder could not be made."));
 			return ok(undefined);
 		},
 		async readDir(path) {
@@ -92,6 +96,7 @@ const fakeFs = (): FakeFs => {
 			return ok(entries);
 		},
 		async trash(path) {
+			if (fail.trash) return err(appError("fs_denied", "The draft file could not be trashed."));
 			files.delete(path);
 			modified.delete(path);
 			trashed.add(path);
@@ -99,7 +104,7 @@ const fakeFs = (): FakeFs => {
 		},
 		paths: { home: "/home", appData: "/app", temp: "/tmp", resources: "/resources" },
 	};
-	return { fs, files, modified, trashed, now };
+	return { fs, files, modified, trashed, now, fail };
 };
 
 interface Timers {
@@ -206,7 +211,7 @@ describe("COMP-01 drafts", () => {
 		expect(service.store.getState().drafts[sessionId]).toBeUndefined();
 	});
 
-	it("does not write a draft larger than the store limit", async () => {
+	it("reports a draft larger than the store limit instead of dropping it silently", async () => {
 		const { service, clock, files } = harness();
 		service.saveDraft(sessionId, {
 			text: "x".repeat(DRAFT_STORE_LIMIT_BYTES),
@@ -216,6 +221,33 @@ describe("COMP-01 drafts", () => {
 		await settle();
 		expect(files.has(file())).toBe(false);
 		expect(service.draftOf(sessionId).text).toHaveLength(DRAFT_STORE_LIMIT_BYTES);
+		expect(service.store.getState().errors[sessionId]?.code).toBe("draft_too_large");
+	});
+
+	it("reports a failed draft write and clears the error after a later success", async () => {
+		const { service, clock, fail } = harness();
+		fail.write = true;
+		service.saveDraft(sessionId, { text: "hello", attachmentPaths: [] });
+		clock.flush();
+		await settle();
+		expect(service.store.getState().errors[sessionId]?.code).toBe("fs_denied");
+
+		fail.write = false;
+		service.saveDraft(sessionId, { text: "hello again", attachmentPaths: [] });
+		clock.flush();
+		await settle();
+		expect(service.store.getState().errors[sessionId]).toBeUndefined();
+	});
+
+	it("reports a failed removal after a send", async () => {
+		const { service, clock, fail } = harness();
+		fail.trash = true;
+		service.saveDraft(sessionId, { text: "sent", attachmentPaths: [] });
+		clock.flush();
+		await settle();
+		const result = await service.clearDraft(sessionId);
+		expect(result.ok).toBe(false);
+		expect(service.store.getState().errors[sessionId]?.code).toBe("fs_denied");
 	});
 
 	it("moves the oldest other draft to the trash to make room", async () => {

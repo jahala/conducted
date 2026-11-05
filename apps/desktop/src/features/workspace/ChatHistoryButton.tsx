@@ -6,13 +6,15 @@
  * chats', 'No open chats' with 'New chat').
  * Data: useSessions(workspaceId) for the open chats and useClosedSessions(workspaceId) for the
  * closed ones.
- * Must handle: Loading; error; no chats ('New chat' button); a closed chat reopens in a new tab and
- * keeps its history; a very long list scrolls and can be searched by title.
+ * Must handle: Loading; error; no chats at all ('New chat' starts one from the workspace's default
+ * config); a closed chat reopens in a new tab and keeps its history; a very long list scrolls and
+ * can be searched by title.
  * Test first: Choosing a closed chat calls sessions.reopen(id) and opens its tab.
  */
 
 import type { WorkspaceId } from "@conducted/shared";
 import { useState } from "react";
+import { useServices } from "../../core/context.tsx";
 import { useActions, useClosedSessions, useSessions } from "../../core/hooks.ts";
 import type { Session } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
@@ -38,13 +40,13 @@ export function ChatHistoryButton({ workspaceId, onSearchChange }: ChatHistoryBu
 	const open = useSessions(workspaceId);
 	const closed = useClosedSessions(workspaceId);
 	const actions = useActions();
+	const sessions = useServices().services.sessions;
 	const [menuOpen, setMenuOpen] = useState(false);
 	const [query, setQuery] = useState("");
 	const [busy, setBusy] = useState(false);
 
 	const openSessions = open.state === "ready" ? [...open.data].sort(newestFirst) : [];
 	const closedSessions = closed.state === "ready" ? [...closed.data].sort(newestFirst) : [];
-	const recent = [...openSessions, ...closedSessions][0];
 
 	const show = (session: Session) => {
 		setMenuOpen(false);
@@ -65,10 +67,10 @@ export function ChatHistoryButton({ workspaceId, onSearchChange }: ChatHistoryBu
 	};
 
 	const newChat = async () => {
-		if (recent === undefined || busy) return;
+		if (busy) return;
 		setBusy(true);
 		try {
-			const created = await actions.sessions.create(workspaceId, recent.config);
+			const created = await sessions.createFromDefaults(workspaceId);
 			if (!created.ok) {
 				toastError("Couldn't start a chat", created.error);
 				return;
@@ -127,13 +129,7 @@ export function ChatHistoryButton({ workspaceId, onSearchChange }: ChatHistoryBu
 						{openSessions.length === 0 ? (
 							<div className="flex items-center justify-between gap-2 px-2 py-2">
 								<p className="text-sm text-fg-muted">No open chats</p>
-								<Button
-									size="xs"
-									variant="secondary"
-									disabled={recent === undefined}
-									loading={busy}
-									onClick={() => void newChat()}
-								>
+								<Button size="xs" variant="secondary" loading={busy} onClick={() => void newChat()}>
 									New chat
 								</Button>
 							</div>

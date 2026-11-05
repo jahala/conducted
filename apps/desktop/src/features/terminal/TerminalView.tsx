@@ -13,12 +13,11 @@
  * Must handle: a terminal that has ended (history shown, banner with exit code), a terminal that
  * cannot be found, the PTY failing to spawn, output arriving before the view is ready (buffer it),
  * output faster than rendering (acknowledge bytes only after they are written, for flow control),
- * a resize while hidden (fit on show), find with no matches, paste of large text, and an archived
- * workspace (history only, no input).
+ * a resize while hidden (fit on show), and find with no matches.
  * Test first: output written to a connection before mount appears in the terminal buffer after
  * mount, and bytes are acknowledged once.
  */
-import type { TerminalId } from "@conducted/shared";
+import type { TerminalId, WorkspaceId } from "@conducted/shared";
 import {
 	type KeyboardEvent as ReactKeyboardEvent,
 	useCallback,
@@ -27,8 +26,9 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { useActions, useTerminalConnection } from "../../core/hooks.ts";
+import { useActions, useSetting, useTerminalConnection, useTerminals } from "../../core/hooks.ts";
 import type { TerminalConnection, TerminalUnsubscribe } from "../../core/model.ts";
+import { terminalLimit as limitForMode } from "../../core/services/terminals.ts";
 import { Button } from "../../ui/Button.tsx";
 import { Dialog, DialogClose, DialogContent, DialogFooter } from "../../ui/Dialog.tsx";
 import { EmptyState } from "../../ui/EmptyState.tsx";
@@ -40,35 +40,36 @@ import {
 	type TerminalFindMatch,
 } from "./TerminalFindBar.tsx";
 import { TerminalSurface, type TerminalSurfaceHandle } from "./TerminalSurface.tsx";
-import {
-	DEFAULT_TERMINAL_SCROLLBACK_BYTES,
-	resolveTerminalAppearance,
-	type TerminalAppearance,
-} from "./terminal-theme.ts";
+import { resolveTerminalAppearance, type TerminalAppearance } from "./terminal-theme.ts";
 
 /**
- * Keeps output that arrives before the surface subscribes. The PTY is live as soon as the
- * connection exists, which can be a render before xterm has mounted.
+ * Keeps output that arrives before the surface subscribes. A later `start` subscribes again, so
+ * StrictMode's development remount does not leave the terminal without a PTY listener.
  */
 export class BufferedTerminalConnection implements TerminalConnection {
 	readonly history: Uint8Array;
-	readonly ended: { exitCode: number | null } | null;
 	readonly #source: TerminalConnection;
 	#unsubscribe: TerminalUnsubscribe | null = null;
 	#pending: Uint8Array[] = [];
 	readonly #listeners = new Set<(chunk: Uint8Array) => void>();
 	#started = false;
-	#disposed = false;
 
 	constructor(source: TerminalConnection) {
 		this.#source = source;
 		this.history = source.history;
-		this.ended = source.ended;
 	}
 
-	/** Subscribes to the PTY. Called from an effect, never during render. */
+	/** The exit state can change when a finished shell is restarted. */
+	get ended(): { exitCode: number | null } | null {
+		return this.#source.ended;
+	}
+
+	/**
+	 * Subscribes to the PTY. Called from an effect, never during render.
+	 * Restartable: React's development StrictMode runs every effect's cleanup and setup once more.
+	 */
 	start(): void {
-		if (this.#started || this.#disposed) return;
+		if (this.#started) return;
 		this.#started = true;
 		this.#unsubscribe = this.#source.onData((chunk) => {
 			if (this.#listeners.size === 0) {
@@ -103,10 +104,11 @@ export class BufferedTerminalConnection implements TerminalConnection {
 		return this.#source.onExit(listener);
 	}
 
+	/** Stops listening. A later `start` subscribes again, so StrictMode can remount the effect. */
 	dispose(): void {
-		if (this.#disposed) return;
-		this.#disposed = true;
+		this.#started = false;
 		this.#unsubscribe?.();
+		this.#unsubscribe = null;
 		this.#pending = [];
 		this.#listeners.clear();
 	}
@@ -128,6 +130,29 @@ function currentThemeType(): "light" | "dark" {
 	return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
+/** The light or dark theme as it stands now, and again whenever the document theme changes. */
+function useDocumentThemeType(): "light" | "dark" {
+	const [themeType, setThemeType] = useState<"light" | "dark">(currentThemeType);
+
+	useEffect(() => {
+		const update = () => setThemeType(currentThemeType());
+		const media = window.matchMedia?.("(prefers-color-scheme: dark)");
+		media?.addEventListener?.("change", update);
+		const observer =
+			typeof MutationObserver === "undefined" ? null : new MutationObserver(() => update());
+		observer?.observe(document.documentElement, {
+			attributes: true,
+			attributeFilter: ["data-theme"],
+		});
+		return () => {
+			media?.removeEventListener?.("change", update);
+			observer?.disconnect();
+		};
+	}, []);
+
+	return themeType;
+}
+
 /** Resolves one of our colour tokens through the browser, so `light-dark()` is applied. */
 export function readDocumentColorToken(name: string): string | null {
 	if (typeof document === "undefined") return null;
@@ -140,20 +165,34 @@ export function readDocumentColorToken(name: string): string | null {
 	return value.length > 0 && value !== "rgba(0, 0, 0, 0)" ? value : null;
 }
 
-function defaultAppearance(): TerminalAppearance | { error: string } {
-	const settings = {
-		fontFamily: null,
-		fontSize: null,
-		scrollbackLimitBytes: DEFAULT_TERMINAL_SCROLLBACK_BYTES,
-		themeType: currentThemeType(),
-	};
-	const result = resolveTerminalAppearance(settings, readDocumentColorToken);
-	if (!result.ok) return { error: result.error.message };
-	return result.value;
+/** The user's terminal settings and the current theme, resolved into xterm options. */
+function useResolvedTerminalAppearance(
+	explicit: TerminalAppearance | undefined,
+): { appearance: TerminalAppearance } | { error: string } {
+	const fontFamily = useSetting<string>("terminal_font_family");
+	const fontSize = useSetting<number>("terminal_font_size");
+	const scrollbackLimitBytes = useSetting<number>("terminal_scrollback_limit_bytes");
+	const themeType = useDocumentThemeType();
+
+	return useMemo(() => {
+		if (explicit) return { appearance: explicit };
+		const result = resolveTerminalAppearance(
+			{
+				fontFamily: fontFamily?.trim() ? fontFamily : null,
+				fontSize: fontSize ?? null,
+				scrollbackLimitBytes,
+				themeType,
+			},
+			readDocumentColorToken,
+		);
+		return result.ok ? { appearance: result.value } : { error: result.error.message };
+	}, [explicit, fontFamily, fontSize, scrollbackLimitBytes, themeType]);
 }
 
 export interface TerminalViewProps {
 	terminalId: TerminalId;
+	/** The workspace that owns the terminal; its live terminals decide whether New terminal is allowed. */
+	workspaceId: WorkspaceId;
 	/** The tab is on screen. Hidden views keep their buffer and fit when shown again. */
 	visible?: boolean;
 	focusOnMount?: boolean;
@@ -161,22 +200,26 @@ export interface TerminalViewProps {
 	appearance?: TerminalAppearance;
 	onClose?: () => void;
 	onNewTerminal?: () => void;
+	/** Overrides the limit the view derives from the workspace's live terminals. */
 	canStartNew?: boolean;
 	terminalLimit?: number;
 }
 
 export function TerminalView({
 	terminalId,
+	workspaceId,
 	visible = true,
 	focusOnMount = false,
 	appearance,
 	onClose,
 	onNewTerminal,
-	canStartNew = false,
+	canStartNew,
 	terminalLimit,
 }: TerminalViewProps) {
 	const connection = useTerminalConnection(terminalId);
 	const actions = useActions();
+	const workspaceTerminals = useTerminals(workspaceId);
+	const tabFreakMode = useSetting<boolean>("experimental_tab_freak_mode");
 	const [pendingLink, setPendingLink] = useState<string | null>(null);
 	const source = connection.state === "ready" ? connection.data : null;
 	const buffered = useMemo(
@@ -184,7 +227,7 @@ export function TerminalView({
 		[source],
 	);
 
-	const resolved = useMemo(() => (appearance ? { appearance } : defaultAppearance()), [appearance]);
+	const resolved = useResolvedTerminalAppearance(appearance);
 	const surfaceRef = useRef<TerminalSurfaceHandle>(null);
 	const [findOpen, setFindOpen] = useState(false);
 	const [query, setQuery] = useState("");
@@ -193,12 +236,33 @@ export function TerminalView({
 	const [hasMatch, setHasMatch] = useState<boolean | null>(null);
 	const matchRef = useRef<TerminalFindMatch | null>(null);
 	const [ended, setEnded] = useState<{ exitCode: number | null } | null>(null);
+	const [exitSubscription, setExitSubscription] = useState(0);
 
+	// A restart starts a new shell, so the exit listener is attached again.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: exitSubscription only forces that fresh subscription.
 	useEffect(() => {
 		setEnded(source?.ended ?? null);
 		if (!source) return;
 		return source.onExit((exitCode) => setEnded({ exitCode }));
-	}, [source]);
+	}, [source, exitSubscription]);
+
+	const effectiveLimit = terminalLimit ?? limitForMode(tabFreakMode);
+	const liveTerminals =
+		workspaceTerminals.state === "ready"
+			? workspaceTerminals.data.filter(
+					(terminal) => terminal.kind === "terminal" && terminal.endedAt === null,
+				).length
+			: 0;
+	const limitReached = workspaceTerminals.state === "ready" && liveTerminals >= effectiveLimit;
+	const startNewAllowed = canStartNew ?? !limitReached;
+
+	const restart = async () => {
+		const result = await actions.terminals.restart(terminalId);
+		if (result.ok) {
+			setEnded(null);
+			setExitSubscription((count) => count + 1);
+		}
+	};
 
 	const search = useCallback(
 		(direction: TerminalFindDirection, from: TerminalFindMatch | null) => {
@@ -238,7 +302,8 @@ export function TerminalView({
 	};
 
 	const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-		const meta = event.metaKey || event.ctrlKey;
+		// Cmd only: Ctrl+W and Ctrl+F belong to the shell, where they delete a word and move forward.
+		const meta = event.metaKey && !event.ctrlKey && !event.altKey;
 		if (meta && event.key.toLowerCase() === "f") {
 			event.preventDefault();
 			setFindOpen(true);
@@ -247,6 +312,11 @@ export function TerminalView({
 		if (meta && event.key.toLowerCase() === "w" && onClose) {
 			event.preventDefault();
 			onClose();
+			return;
+		}
+		if (meta && !event.shiftKey && event.key.toLowerCase() === "t" && onNewTerminal) {
+			event.preventDefault();
+			onNewTerminal();
 			return;
 		}
 		if (event.key === "Escape" && findOpen) {
@@ -277,6 +347,7 @@ export function TerminalView({
 									connection={buffered}
 									appearance={resolved.appearance}
 									visible={visible}
+									ended={ended !== null}
 									focusOnMount={focusOnMount}
 									onOpenLink={setPendingLink}
 								/>
@@ -306,9 +377,10 @@ export function TerminalView({
 			{ended ? (
 				<TerminalEndedBanner
 					exitCode={ended.exitCode}
-					canStartNew={canStartNew}
-					onNewTerminal={() => onNewTerminal?.()}
-					terminalLimit={terminalLimit}
+					canStartNew={startNewAllowed}
+					onNewTerminal={onNewTerminal}
+					onRestart={() => void restart()}
+					terminalLimit={limitReached ? effectiveLimit : undefined}
 				/>
 			) : null}
 			<Dialog

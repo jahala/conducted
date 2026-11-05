@@ -41,6 +41,8 @@ export interface TerminalSurfaceProps {
 	appearance: TerminalAppearance;
 	/** The surface is on screen. Fit runs when this turns true. */
 	visible: boolean;
+	/** The shell has ended. Input stays disabled until it is restarted. */
+	ended: boolean;
 	focusOnMount: boolean;
 	/** A Cmd-clicked link. The caller asks the user before opening it. */
 	onOpenLink?: (url: string) => void;
@@ -91,18 +93,20 @@ export function TerminalSurface({
 	connection,
 	appearance,
 	visible,
+	ended,
 	focusOnMount,
 	onOpenLink,
 	ref,
 }: TerminalSurfaceProps) {
 	const containerRef = useRef<HTMLElement>(null);
 	const terminalRef = useRef<Terminal | null>(null);
-	const fitRef = useRef<FitAddon | null>(null);
 	const scheduleFitRef = useRef<(() => void) | null>(null);
 	const visibleRef = useRef(visible);
+	const endedRef = useRef(ended);
 	const initialAppearance = useRef(appearance);
 	const openLinkRef = useRef(onOpenLink);
 	openLinkRef.current = onOpenLink;
+	endedRef.current = ended;
 
 	useImperativeHandle(
 		ref,
@@ -148,16 +152,14 @@ export function TerminalSurface({
 		terminal.loadAddon(fitAddon);
 		terminal.open(container);
 		terminalRef.current = terminal;
-		fitRef.current = fitAddon;
-
-		if (connection.ended) terminal.options.disableStdin = true;
+		terminal.options.disableStdin = endedRef.current;
 		if (focusOnMount) terminal.focus();
 
 		const sendSize = terminal.onResize(({ cols, rows }) => {
 			if (visibleRef.current) void connection.resize(cols, rows);
 		});
 		const userInput = terminal.onData((data) => {
-			if (connection.ended) return;
+			if (endedRef.current) return;
 			void connection.write(data);
 		});
 
@@ -174,9 +176,6 @@ export function TerminalSurface({
 			if (live) writeChunk(chunk);
 			else pending.push(chunk);
 		});
-		const exited = connection.onExit(() => {
-			terminal.options.disableStdin = true;
-		});
 
 		const linkProvider = terminal.registerLinkProvider({
 			provideLinks(lineNumber, callback) {
@@ -192,7 +191,10 @@ export function TerminalSurface({
 						start: { x: link.start + 1, y: lineNumber },
 						end: { x: link.end + 1, y: lineNumber },
 					},
-					activate: () => openLinkRef.current?.(link.text),
+					activate: (event: MouseEvent) => {
+						// Conductor opens a link only on Cmd-click, after the caller's confirm dialog.
+						if (event.metaKey) openLinkRef.current?.(link.text);
+					},
 				}));
 				callback(links.length > 0 ? links : undefined);
 			},
@@ -201,22 +203,22 @@ export function TerminalSurface({
 		terminal.attachCustomKeyEventHandler((event) => {
 			if (event.type !== "keydown") return true;
 
+			// Cmd+V is left to the browser's paste event, which xterm wraps for bracketed paste.
 			if (event.metaKey && !event.ctrlKey && !event.altKey) {
 				const key = event.key.toLowerCase();
 				if (key === "c" && terminal.hasSelection()) {
 					void navigator.clipboard?.writeText(terminal.getSelection());
 					return false;
 				}
-				if (key === "v" && navigator.clipboard) {
-					void navigator.clipboard.readText().then((text) => {
-						if (text && !connection.ended) void connection.write(text);
-					});
-					return false;
-				}
 				if (key === "k") {
 					terminal.clear();
 					return false;
 				}
+			}
+
+			if (event.shiftKey && event.key === "Enter") {
+				terminal.input("\n", false);
+				return false;
 			}
 
 			const sequence = sequenceFor(event);
@@ -252,16 +254,20 @@ export function TerminalSurface({
 			if (fitTimer !== null) clearTimeout(fitTimer);
 			observer.disconnect();
 			output();
-			exited();
 			userInput.dispose();
 			sendSize.dispose();
 			linkProvider.dispose();
 			terminal.dispose();
 			fitAddon.dispose();
 			terminalRef.current = null;
-			fitRef.current = null;
 		};
 	}, [connection, focusOnMount]);
+
+	useEffect(() => {
+		const terminal = terminalRef.current;
+		if (!terminal) return;
+		terminal.options.disableStdin = ended;
+	}, [ended]);
 
 	useEffect(() => {
 		const terminal = terminalRef.current;

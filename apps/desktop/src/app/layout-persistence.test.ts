@@ -2,9 +2,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	clearPanelLayout,
 	loadPanelLayout,
+	type PanelLayoutSettings,
 	panelLayoutStorageKey,
 	parsePanelLayout,
 	savePanelLayout,
+	saveShellSidebar,
+	shellSidebarWidth,
 } from "./layout-persistence.ts";
 
 beforeEach(() => window.localStorage.clear());
@@ -69,5 +72,63 @@ describe("NAV-01 persisted panel sizes", () => {
 		expect(parsePanelLayout([])).toBeNull();
 		expect(parsePanelLayout(null)).toBeNull();
 		expect(parsePanelLayout({})).toBeNull();
+	});
+});
+
+/** A settings service stand-in: sync reads and recorded writes. */
+function fakeSettings(values: Record<string, unknown> = {}): PanelLayoutSettings & {
+	writes: { key: string; value: unknown }[];
+} {
+	const writes: { key: string; value: unknown }[] = [];
+	return {
+		writes,
+		get<T>(key: string): T {
+			return values[key] as T;
+		},
+		async set(key: string, value: unknown) {
+			writes.push({ key, value });
+			values[key] = value;
+		},
+	};
+}
+
+describe("NAV-01 shell sidebar settings", () => {
+	it("saves the sidebar width in pixels, not percentages", async () => {
+		const settings = fakeSettings({ left_panel_visible: true, left_panel_width: 256 });
+
+		saveShellSidebar(settings, { inPixels: 318.6 });
+		await Promise.resolve();
+
+		expect(settings.writes).toEqual([{ key: "left_panel_width", value: 319 }]);
+	});
+
+	it("saves the collapsed state and keeps the last width", async () => {
+		const settings = fakeSettings({ left_panel_visible: true, left_panel_width: 300 });
+
+		saveShellSidebar(settings, { inPixels: 0 });
+		await Promise.resolve();
+
+		expect(settings.writes).toEqual([{ key: "left_panel_visible", value: false }]);
+		expect(settings.get<number>("left_panel_width")).toBe(300);
+	});
+
+	it("writes nothing when a mount reports the stored values again", async () => {
+		const settings = fakeSettings({ left_panel_visible: true, left_panel_width: 256 });
+
+		saveShellSidebar(settings, { inPixels: 256 });
+		await Promise.resolve();
+
+		expect(settings.writes).toEqual([]);
+	});
+
+	it("clamps a stored or measured width to the sidebar's range", () => {
+		expect(shellSidebarWidth(fakeSettings({ left_panel_width: 100 }))).toBe(192);
+		expect(shellSidebarWidth(fakeSettings({ left_panel_width: 900 }))).toBe(480);
+		expect(shellSidebarWidth(fakeSettings({ left_panel_width: "wide" }))).toBe(256);
+		expect(shellSidebarWidth(fakeSettings({}))).toBe(256);
+
+		const settings = fakeSettings({ left_panel_visible: true, left_panel_width: 256 });
+		saveShellSidebar(settings, { inPixels: 900 });
+		expect(settings.writes).toEqual([{ key: "left_panel_width", value: 480 }]);
 	});
 });

@@ -2,24 +2,30 @@
  * @feature COMP-01 Composer
  * Owns: The message box at the bottom of a chat: editor, toolbar (plus menu, model picker, mode
  * chips, context wheel, dictation) and the send or stop button.
- * Behaviour: ui-map.md 3.5 (Composer: TipTap editor, placeholder, toolbar, send or queue or save
- * button, stop button), 3.4 (send button icon and tooltip switch between 'Send message', 'Queue
- * message' and 'Save edit').
- * Our design choice: Narrow layouts move toolbar items into one 'More composer actions' menu. Until
- * those parts are built, the menu holds the MCP status check. The composer can minimise while a
- * file or diff tab is open, so the content gets the room. The accent colour is used once here: the
- * send button.
+ * Behaviour: ui-map.md 3.5 (Composer: TipTap editor, placeholder, toolbar, send or queue button,
+ * stop button), 3.4 (send button icon and tooltip switch between 'Send message', 'Queue message'
+ * and 'Save edit').
+ * Our design choice: Narrow composers (under 480px measured) move toolbar items into one 'More
+ * composer actions' menu; wide ones show the MCP status button directly. The accent colour is used
+ * once here: the send button.
+ * Keyboard: Cmd+L focuses the editor and Cmd+Shift+Backspace cancels the running agent. Both are
+ * window listeners because the shortcut dispatcher (NAV-14) and command runner are not built yet.
+ * This pair is the documented exception to the command registry until then.
  * Must handle: Archived or read-only workspace (ArchivedComposerBar instead); agent working (send
  * becomes queue or steer, a stop button appears); draft restored when the app restarts; empty text
  * (send disabled); attachments only (send enabled); the sidecar is down (message kept, error shown,
- * nothing lost); focus returns to the editor after sending; Cmd+L focuses the editor.
+ * nothing lost); a draft write that fails (error shown); focus returns to the editor after sending;
+ * Cmd+L focuses the editor.
+ * Moved: 'Save edit' belongs to the queued-message editor (CHAT-04); the composer minimising while
+ * a content tab is open belongs to the tab strip (NAV-10); the new-workspace form reusing this
+ * editor belongs to workspace creation (WS-01).
  * Test first: With text typed and the agent idle, the send button is enabled; while the agent works
  * it reads 'Queue message' and a Cancel button shows.
  */
 
 import type { SessionId, WorkspaceId } from "@conducted/shared";
 import type { Editor } from "@tiptap/react";
-import { useCallback, useEffect, useState } from "react";
+import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
 import type { Draft } from "../../core/api.ts";
 import { useServices } from "../../core/context.tsx";
@@ -42,6 +48,24 @@ export interface ComposerProps {
 	sessionId: SessionId;
 }
 
+/** Below this measured width the toolbar folds into the 'More composer actions' menu. */
+export const NARROW_COMPOSER_WIDTH = 480;
+
+/** Measures the composer so the toolbar can fold on narrow layouts. */
+function useNarrowLayout(ref: RefObject<HTMLDivElement | null>): boolean {
+	const [narrow, setNarrow] = useState(false);
+	useEffect(() => {
+		const node = ref.current;
+		if (node === null) return;
+		const measure = () => setNarrow(node.getBoundingClientRect().width < NARROW_COMPOSER_WIDTH);
+		measure();
+		const observer = new ResizeObserver(measure);
+		observer.observe(node);
+		return () => observer.disconnect();
+	}, [ref]);
+	return narrow;
+}
+
 function MoreIcon() {
 	return (
 		<svg
@@ -62,11 +86,14 @@ function MoreIcon() {
 export function Composer({ sessionId }: ComposerProps) {
 	const actions = useActions();
 	const { services } = useServices();
+	const containerRef = useRef<HTMLDivElement | null>(null);
+	const narrow = useNarrowLayout(containerRef);
 	const [editor, setEditor] = useState<Editor | null>(null);
 	const [attachments, setAttachments] = useState<string[]>([]);
 	const [text, setText] = useState("");
 	const [busy, setBusy] = useState(false);
 	const live = useStore(services.sessions.store, (state) => state.liveStates[sessionId]);
+	const draftError = useStore(services.composer.store, (state) => state.errors[sessionId]);
 	const sendKey = useStore(
 		services.settings.store,
 		(state) => state.values.message_send_key as string | undefined,
@@ -101,16 +128,33 @@ export function Composer({ sessionId }: ComposerProps) {
 		};
 	}, [editor]);
 
+	const stop = useCallback(async () => {
+		const result = await actions.sessions.cancel(sessionId);
+		if (!result.ok) toastError("Couldn't cancel the agent", result.error);
+	}, [actions, sessionId]);
+
 	useEffect(() => {
-		const focusEditor = (event: KeyboardEvent) => {
-			if (!event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
-			if (event.key.toLowerCase() !== "l") return;
-			event.preventDefault();
-			editor?.commands.focus();
+		if (draftError === undefined) return;
+		toastError("Couldn't save the draft", draftError);
+	}, [draftError]);
+
+	// Cmd+L and Cmd+Shift+Backspace are the documented exception until NAV-14's dispatcher exists.
+	useEffect(() => {
+		const handleShortcut = (event: KeyboardEvent) => {
+			if (event.ctrlKey || event.altKey) return;
+			if (event.metaKey && !event.shiftKey && event.key.toLowerCase() === "l") {
+				event.preventDefault();
+				editor?.commands.focus();
+				return;
+			}
+			if (event.metaKey && event.shiftKey && event.key === "Backspace" && working) {
+				event.preventDefault();
+				void stop();
+			}
 		};
-		window.addEventListener("keydown", focusEditor);
-		return () => window.removeEventListener("keydown", focusEditor);
-	}, [editor]);
+		window.addEventListener("keydown", handleShortcut);
+		return () => window.removeEventListener("keydown", handleShortcut);
+	}, [editor, stop, working]);
 
 	const send = async (intent: SendIntent) => {
 		if (editor === null) return;
@@ -134,18 +178,17 @@ export function Composer({ sessionId }: ComposerProps) {
 		}
 	};
 
-	const stop = async () => {
-		const result = await actions.sessions.cancel(sessionId);
-		if (!result.ok) toastError("Couldn't cancel the agent", result.error);
-	};
-
 	const checkMcp = async () => {
 		const result = await actions.mcp.refresh(sessionId);
 		if (!result.ok) toastError("Couldn't check the MCP servers", result.error);
 	};
 
 	return (
-		<div className="rounded-xl border border-border bg-surface shadow-xs">
+		<div
+			ref={containerRef}
+			className="rounded-xl border border-border bg-surface shadow-xs"
+			data-narrow={narrow ? "true" : "false"}
+		>
 			<div className="flex items-center gap-1 px-2 pt-2">
 				<div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
 					<NotBuiltYet area="Attachments" variant="inline" resetKey={sessionId}>
@@ -159,15 +202,18 @@ export function Composer({ sessionId }: ComposerProps) {
 					</NotBuiltYet>
 				</div>
 				<div className="flex shrink-0 items-center gap-1">
-					<IconButton size="xs" label="MCP status" icon={<WrenchIcon />} onClick={checkMcp} />
-					<Menu>
-						<MenuTrigger asChild>
-							<IconButton size="xs" label="More composer actions" icon={<MoreIcon />} />
-						</MenuTrigger>
-						<MenuContent align="end">
-							<MenuItem onSelect={checkMcp}>MCP status</MenuItem>
-						</MenuContent>
-					</Menu>
+					{narrow ? (
+						<Menu>
+							<MenuTrigger asChild>
+								<IconButton size="xs" label="More composer actions" icon={<MoreIcon />} />
+							</MenuTrigger>
+							<MenuContent align="end">
+								<MenuItem onSelect={checkMcp}>MCP status</MenuItem>
+							</MenuContent>
+						</Menu>
+					) : (
+						<IconButton size="xs" label="MCP status" icon={<WrenchIcon />} onClick={checkMcp} />
+					)}
 				</div>
 			</div>
 			<ComposerEditor
@@ -183,6 +229,7 @@ export function Composer({ sessionId }: ComposerProps) {
 					disabled={disabled}
 					busy={busy}
 					working={working}
+					sendWith={sendWith}
 					onSend={() => void send("submit")}
 					onStop={() => void stop()}
 				/>

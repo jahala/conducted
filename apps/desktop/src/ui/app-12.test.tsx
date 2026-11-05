@@ -33,6 +33,25 @@ describe("APP-12 Slider", () => {
 		expect(onValueChange).toHaveBeenCalledWith(110);
 	});
 
+	it("steps by ten steps with PageUp", () => {
+		const onValueChange = vi.fn();
+		render(
+			<Slider
+				value={100}
+				min={50}
+				max={300}
+				step={10}
+				onValueChange={onValueChange}
+				formatValue={(value) => `${value}%`}
+				aria-label="App zoom"
+			/>,
+		);
+		const thumb = screen.getByRole("slider", { name: "App zoom" });
+		thumb.focus();
+		fireEvent.keyDown(thumb, { key: "PageUp" });
+		expect(onValueChange).toHaveBeenCalledWith(200);
+	});
+
 	it("reads out the value with its unit", () => {
 		render(
 			<Slider
@@ -161,6 +180,26 @@ describe("APP-12 Input, Textarea and Label", () => {
 		expect(input.className).not.toContain("border-accent");
 	});
 
+	it("lets the caller choose the field width", () => {
+		render(
+			<>
+				<Input aria-label="Width" className="w-40" />
+				<Textarea aria-label="Notes width" className="w-40" />
+			</>,
+		);
+		for (const field of [screen.getByLabelText("Width"), screen.getByLabelText("Notes width")]) {
+			expect(field.className).toContain("w-40");
+			expect(field.className).not.toContain("w-full");
+		}
+	});
+
+	it("is styled read-only when the caller makes it read-only", () => {
+		render(<Input aria-label="Fixed" readOnly defaultValue="fixed" />);
+		const input = screen.getByLabelText("Fixed");
+		expect(input.hasAttribute("readonly")).toBe(true);
+		expect(input.className).toContain("read-only:bg-muted");
+	});
+
 	it("links an error message to its field", () => {
 		render(<Input id="email" aria-label="Email" error="Enter an email address" />);
 		const input = screen.getByLabelText("Email");
@@ -207,6 +246,21 @@ describe("APP-12 Select", () => {
 			<Select value="custom-theme" options={options} onValueChange={() => {}} aria-label="Theme" />,
 		);
 		expect(screen.getByRole("combobox", { name: "Theme" }).textContent).toContain("custom-theme");
+	});
+
+	it("scrolls a long list inside the popup", async () => {
+		const many = Array.from({ length: 40 }, (_, index) => ({
+			value: `option-${index}`,
+			label: `Option ${index}`,
+		}));
+		render(
+			<Select value="option-0" options={many} onValueChange={() => {}} aria-label="Long list" />,
+		);
+		fireEvent.keyDown(screen.getByRole("combobox", { name: "Long list" }), { key: "Enter" });
+		await screen.findByRole("option", { name: "Option 39" });
+		const viewport = document.querySelector("[data-radix-select-viewport]");
+		expect(viewport).not.toBeNull();
+		expect(viewport?.className).toContain("overflow-y-auto");
 	});
 
 	it("does not choose a disabled option", async () => {

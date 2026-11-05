@@ -192,6 +192,8 @@ interface Fixture {
 	aheadBehind?: string;
 	targetCount?: string;
 	log?: string;
+	/** Commands that fail before they run, to prove a poll reports the failure. */
+	fail?: (command: GitCommand) => boolean;
 }
 
 function changesRunner(fixture: Fixture = {}): {
@@ -204,6 +206,9 @@ function changesRunner(fixture: Fixture = {}): {
 	const runner = fakeRunner((command, options) => {
 		calls.push(command);
 		optionsSeen.push(options);
+		if (fixture.fail?.(command) === true) {
+			return err(appError("git_failed", `failed: git ${command.args.join(" ")}`));
+		}
 		if (command.program === "stat") {
 			const path = command.args.at(-1) ?? "";
 			if (path.startsWith("/git/")) {
@@ -239,7 +244,7 @@ function changesRunner(fixture: Fixture = {}): {
 		}
 		if (first === "ls-files") {
 			const paths = fixture.untracked ?? [];
-			return ok(output(paths.length === 0 ? "" : `${paths.join("\n")}\n`));
+			return ok(output(paths.join("\0")));
 		}
 		if (first === "rev-parse" && second === "HEAD") {
 			if (fixture.upstream === null) return ok(output("", "fatal: no upstream", 128));
@@ -422,6 +427,42 @@ describe("GIT-02 full changes refresh", () => {
 		).toBe(false);
 	});
 
+	it("keeps a non-ASCII untracked path unquoted and counts its lines", async () => {
+		const { runner, calls } = changesRunner({ untracked: ["café.ts"] });
+		const result = await refreshWorkspaceChanges(runner, input("full"));
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.files).toEqual([
+			{ path: "café.ts", status: "added", linesAdded: 3, linesRemoved: 0, binary: false },
+		]);
+		const listed = calls.find((command) => command.args[0] === "ls-files");
+		expect(listed?.args).toContain("-z");
+		expect(
+			calls.some((command) => command.program === "stat" && command.args.at(-1) === "café.ts"),
+		).toBe(true);
+	});
+
+	it("keeps a NUL-separated path that contains a newline in one piece", async () => {
+		const { runner } = changesRunner({ untracked: ["line\nbreak.ts"] });
+		const result = await refreshWorkspaceChanges(runner, input("full"));
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.files[0]?.path).toBe("line\nbreak.ts");
+	});
+
+	it("treats exit 128 from the upstream probe as no upstream", async () => {
+		const { runner } = changesRunner({ upstream: null });
+		const result = await refreshWorkspaceChanges(runner, input("full"));
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.sync).toEqual({
+			ahead: 0,
+			behind: 0,
+			rewritten: false,
+			hasUpstream: false,
+		});
+	});
+
 	it("picks the diff target from the supplied stack information", async () => {
 		const { runner, calls } = changesRunner({ nameStatus: "M\ta.ts\n", numstat: "1\t0\ta.ts\n" });
 		await refreshWorkspaceChanges(
@@ -437,5 +478,51 @@ describe("GIT-02 full changes refresh", () => {
 		);
 		const merge = calls.find((command) => command.args[0] === "merge-base");
 		expect(merge?.args).toEqual(["merge-base", "feature/parent", "feat"]);
+	});
+});
+
+describe("GIT-02 failed polls are reported, not shown as a clean branch", () => {
+	it("returns the error when an untracked line count fails", async () => {
+		const { runner } = changesRunner({
+			untracked: ["new.ts"],
+			fail: (command) => command.args.includes("--no-index"),
+		});
+		const result = await refreshWorkspaceChanges(runner, input("full"));
+		expect(result.ok).toBe(false);
+		if (result.ok) return;
+		expect(result.error.code).toBe("git_failed");
+	});
+
+	it("returns the error when the upstream probe fails", async () => {
+		const { runner } = changesRunner({
+			fail: (command) => command.args[0] === "rev-parse" && command.args[1] === "HEAD",
+		});
+		const result = await refreshWorkspaceChanges(runner, input("full"));
+		expect(result.ok).toBe(false);
+	});
+
+	it("returns the error when the upstream distance fails", async () => {
+		const { runner } = changesRunner({
+			fail: (command) => command.args[0] === "rev-list" && command.args.includes("--left-right"),
+		});
+		const result = await refreshWorkspaceChanges(runner, input("full"));
+		expect(result.ok).toBe(false);
+	});
+
+	it("returns the error when the distance behind the target fails", async () => {
+		const { runner } = changesRunner({
+			fail: (command) =>
+				command.args[0] === "rev-list" &&
+				command.args.includes("--count") &&
+				!command.args.includes("--left-right"),
+		});
+		const result = await refreshWorkspaceChanges(runner, input("full"));
+		expect(result.ok).toBe(false);
+	});
+
+	it("returns the error when the commit log fails", async () => {
+		const { runner } = changesRunner({ fail: (command) => command.args[0] === "log" });
+		const result = await refreshWorkspaceChanges(runner, input("full"));
+		expect(result.ok).toBe(false);
 	});
 });

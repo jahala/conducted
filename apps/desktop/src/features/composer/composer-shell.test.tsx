@@ -11,9 +11,13 @@ import { ComposerService, type ComposerServiceDeps } from "../../core/services/c
 import type { SessionsState } from "../../core/services/sessions.ts";
 import type { SettingsState } from "../../core/services/settings.ts";
 import type { FileStat, FileSystem, Platform } from "../../platform/platform.ts";
+import { toast } from "../../ui/Toast.tsx";
 import { Composer } from "./Composer.tsx";
 
-afterEach(cleanup);
+afterEach(() => {
+	cleanup();
+	vi.restoreAllMocks();
+});
 
 const sessionId = "chat-1" as SessionId;
 const workspaceId = "ws-1" as WorkspaceId;
@@ -22,6 +26,7 @@ const paths = { home: "/home", appData: "/app", temp: "/tmp", resources: "/res" 
 const fakeFs = () => {
 	const files = new Map<string, string>();
 	const modified = new Map<string, number>();
+	const fail = { write: false };
 	const statFor = (path: string): FileStat => ({
 		path,
 		isDirectory: false,
@@ -35,6 +40,7 @@ const fakeFs = () => {
 			return text === undefined ? err(appError("fs_not_found", "missing")) : ok(text);
 		},
 		async writeTextAtomic(path, text) {
+			if (fail.write) return err(appError("fs_denied", "The draft file could not be written."));
 			files.set(path, text);
 			modified.set(path, modified.size + 1);
 			return ok(undefined);
@@ -57,11 +63,18 @@ const fakeFs = () => {
 		},
 		paths,
 	};
-	return { fs, files };
+	return { fs, files, fail };
 };
 
-const harness = (options: { sendKey?: string; sendMode?: string } = {}) => {
-	const fake = fakeFs();
+interface HarnessOptions {
+	sendKey?: string;
+	sendMode?: string;
+	sendFails?: boolean;
+	fake?: ReturnType<typeof fakeFs>;
+}
+
+const harness = (options: HarnessOptions = {}) => {
+	const fake = options.fake ?? fakeFs();
 	const callbacks = new Map<number, () => void>();
 	let next = 1;
 	const deps: ComposerServiceDeps = {
@@ -95,13 +108,20 @@ const harness = (options: { sendKey?: string; sendMode?: string } = {}) => {
 		dropped: [],
 		warnings: [],
 	}));
-	const send = vi.fn(async () => ok(undefined));
+	const send = options.sendFails
+		? vi.fn(async () => err(appError("sidecar_down", "The sidecar is not running.")))
+		: vi.fn(async () => ok(undefined));
 	const cancel = vi.fn(async () => ok(undefined));
 	const refreshMcp = vi.fn(async () => ok(undefined));
 	const container = {
 		services: { composer, sessions: { store: sessions }, settings: { store: settings } },
 		actions: {
-			sessions: { send, cancel },
+			sessions: {
+				send,
+				cancel,
+				saveDraft: (id: SessionId, draft: { text: string; attachmentPaths: string[] }) =>
+					composer.saveDraft(id, draft),
+			},
 			mcp: { refresh: refreshMcp },
 		},
 	} as unknown as Container;
@@ -117,7 +137,18 @@ const harness = (options: { sendKey?: string; sendMode?: string } = {}) => {
 		sessions.setState((state) => ({
 			liveStates: { ...state.liveStates, [sessionId]: { ...idleLiveState, status: "working" } },
 		}));
-	return { composer, sessions, settings, send, cancel, refreshMcp, wrapper, flush, working };
+	return {
+		composer,
+		sessions,
+		settings,
+		send,
+		cancel,
+		refreshMcp,
+		wrapper,
+		flush,
+		working,
+		fake,
+	};
 };
 
 const seedDraft = (composer: ComposerService, text: string, attachmentPaths: string[] = []) => {
@@ -125,6 +156,28 @@ const seedDraft = (composer: ComposerService, text: string, attachmentPaths: str
 };
 
 const sendButton = () => screen.getByTestId("composer-send-button") as HTMLButtonElement;
+const editor = () => screen.getByLabelText("composer");
+const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
+/** Forces the measured width the composer sees, so both toolbar layouts can be tested. */
+const withWidth = (width: number) => {
+	const original = HTMLElement.prototype.getBoundingClientRect;
+	HTMLElement.prototype.getBoundingClientRect = () =>
+		({
+			width,
+			height: 0,
+			top: 0,
+			left: 0,
+			right: width,
+			bottom: 0,
+			x: 0,
+			y: 0,
+			toJSON: () => ({}),
+		}) as DOMRect;
+	return () => {
+		HTMLElement.prototype.getBoundingClientRect = original;
+	};
+};
 
 describe("COMP-01 Composer", () => {
 	it("enables the send button with text and sends it when the agent is idle", async () => {
@@ -169,14 +222,47 @@ describe("COMP-01 Composer", () => {
 		await waitFor(() => expect(cancel).toHaveBeenCalledWith(sessionId));
 	});
 
-	it("offers the MCP status button and the More composer actions menu", async () => {
-		const { composer, refreshMcp, wrapper } = harness();
+	it("cancels the running agent on Cmd+Shift+Backspace", async () => {
+		const { composer, cancel, wrapper, working } = harness();
 		seedDraft(composer, "hello");
+		working();
 		render(<Composer workspaceId={workspaceId} sessionId={sessionId} />, { wrapper });
-		await waitFor(() => expect(sendButton().disabled).toBe(false));
-		expect(screen.getByRole("button", { name: "More composer actions" })).toBeTruthy();
-		fireEvent.click(screen.getByRole("button", { name: "MCP status" }));
-		await waitFor(() => expect(refreshMcp).toHaveBeenCalledWith(sessionId));
+		await waitFor(() => expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy());
+		fireEvent.keyDown(window, { key: "Backspace", metaKey: true, shiftKey: true });
+		await waitFor(() => expect(cancel).toHaveBeenCalledWith(sessionId));
+	});
+
+	it("shows the MCP status button on a wide composer", async () => {
+		const restore = withWidth(900);
+		try {
+			const { composer, wrapper } = harness();
+			seedDraft(composer, "hello");
+			render(<Composer workspaceId={workspaceId} sessionId={sessionId} />, { wrapper });
+			await waitFor(() => expect(screen.getByRole("button", { name: "MCP status" })).toBeTruthy());
+			expect(screen.queryByRole("button", { name: "More composer actions" })).toBeNull();
+		} finally {
+			restore();
+		}
+	});
+
+	it("folds MCP status into the More composer actions menu on a narrow composer", async () => {
+		const restore = withWidth(400);
+		try {
+			const { composer, refreshMcp, wrapper } = harness();
+			seedDraft(composer, "hello");
+			render(<Composer workspaceId={workspaceId} sessionId={sessionId} />, { wrapper });
+			await waitFor(() =>
+				expect(screen.getByRole("button", { name: "More composer actions" })).toBeTruthy(),
+			);
+			expect(screen.queryByRole("button", { name: "MCP status" })).toBeNull();
+			const trigger = screen.getByRole("button", { name: "More composer actions" });
+			trigger.focus();
+			fireEvent.keyDown(trigger, { key: "Enter" });
+			fireEvent.click(await screen.findByRole("menuitem", { name: "MCP status" }));
+			await waitFor(() => expect(refreshMcp).toHaveBeenCalledWith(sessionId));
+		} finally {
+			restore();
+		}
 	});
 
 	it("focuses the editor on Cmd+L", async () => {
@@ -188,5 +274,68 @@ describe("COMP-01 Composer", () => {
 		await waitFor(() =>
 			expect(document.activeElement?.getAttribute("aria-label")).toBe("composer"),
 		);
+	});
+
+	it("restores a draft through the Composer after a restart", async () => {
+		const firstRun = harness();
+		firstRun.composer.saveDraft(sessionId, { text: "after restart", attachmentPaths: [] });
+		firstRun.flush();
+		await settle();
+
+		const secondRun = harness({ fake: firstRun.fake });
+		render(<Composer workspaceId={workspaceId} sessionId={sessionId} />, {
+			wrapper: secondRun.wrapper,
+		});
+		await waitFor(() => expect(editor().textContent).toBe("after restart"));
+		expect(sendButton().disabled).toBe(false);
+		secondRun.flush();
+	});
+
+	it("keeps the typed text and shows an error when sending fails", async () => {
+		const toastSpy = vi.spyOn(toast, "error").mockImplementation(() => "toast-id");
+		const { composer, send, wrapper } = harness({ sendFails: true });
+		seedDraft(composer, "hello");
+		render(<Composer workspaceId={workspaceId} sessionId={sessionId} />, { wrapper });
+		await waitFor(() => expect(sendButton().disabled).toBe(false));
+		fireEvent.click(sendButton());
+		await waitFor(() => expect(send).toHaveBeenCalledWith(sessionId, "hello", [], "auto"));
+		await waitFor(() =>
+			expect(toastSpy).toHaveBeenCalledWith("Couldn't send the message", expect.anything()),
+		);
+		expect(editor().textContent).toBe("hello");
+	});
+
+	it("tells the user when a draft write fails", async () => {
+		const toastSpy = vi.spyOn(toast, "error").mockImplementation(() => "toast-id");
+		const { composer, wrapper, flush, fake } = harness();
+		fake.fail.write = true;
+		seedDraft(composer, "hello");
+		render(<Composer workspaceId={workspaceId} sessionId={sessionId} />, { wrapper });
+		await waitFor(() => expect(editor().textContent).toBe("hello"));
+		flush();
+		await settle();
+		await waitFor(() =>
+			expect(toastSpy).toHaveBeenCalledWith("Couldn't save the draft", expect.anything()),
+		);
+	});
+
+	it("sends with the opposite follow-up behaviour on Cmd+Enter when the default is steer", async () => {
+		const { composer, send, wrapper, flush } = harness({ sendMode: "steer" });
+		seedDraft(composer, "hello");
+		render(<Composer workspaceId={workspaceId} sessionId={sessionId} />, { wrapper });
+		await waitFor(() => expect(sendButton().disabled).toBe(false));
+		fireEvent.keyDown(editor(), { key: "Enter", metaKey: true });
+		await waitFor(() => expect(send).toHaveBeenCalledWith(sessionId, "hello", [], "queue"));
+		flush();
+	});
+
+	it("steers on Cmd+Enter when the default follow-up behaviour is queue", async () => {
+		const { composer, send, wrapper, flush } = harness({ sendMode: "queue" });
+		seedDraft(composer, "hello");
+		render(<Composer workspaceId={workspaceId} sessionId={sessionId} />, { wrapper });
+		await waitFor(() => expect(sendButton().disabled).toBe(false));
+		fireEvent.keyDown(editor(), { key: "Enter", metaKey: true });
+		await waitFor(() => expect(send).toHaveBeenCalledWith(sessionId, "hello", [], "steer"));
+		flush();
 	});
 });

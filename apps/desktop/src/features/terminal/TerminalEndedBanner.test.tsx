@@ -18,7 +18,7 @@ describe("RUN-06 terminal ended banner", () => {
 		expect(onNewTerminal).toHaveBeenCalledTimes(1);
 	});
 
-	it("shows exit code 0 as a clean exit", () => {
+	it("shows exit code 0", () => {
 		render(<TerminalEndedBanner exitCode={0} canStartNew onNewTerminal={vi.fn()} />);
 		expect(screen.getByText("Shell exited with status 0.")).toBeTruthy();
 	});
@@ -40,5 +40,24 @@ describe("RUN-06 terminal ended banner", () => {
 		const button = screen.getByRole("button", { name: "New terminal" }) as HTMLButtonElement;
 		expect(button.disabled).toBe(true);
 		expect(screen.getByText("Maximum 5 terminals allowed")).toBeTruthy();
+	});
+
+	it("does not name a limit when the limit is not the reason", () => {
+		render(<TerminalEndedBanner exitCode={1} canStartNew={false} onNewTerminal={vi.fn()} />);
+		expect(screen.queryByText(/Maximum/)).toBeNull();
+	});
+
+	it("restarts the finished shell on request", () => {
+		const onRestart = vi.fn();
+		render(
+			<TerminalEndedBanner
+				exitCode={1}
+				canStartNew={false}
+				onNewTerminal={vi.fn()}
+				onRestart={onRestart}
+			/>,
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Restart" }));
+		expect(onRestart).toHaveBeenCalledTimes(1);
 	});
 });

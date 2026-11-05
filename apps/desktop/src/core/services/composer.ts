@@ -10,13 +10,15 @@
  * attachment (setting `auto_convert_long_text`); a dropped file is copied to the staging folder
  * first, the original is never moved; sending copies staged files into the workspace's
  * `.context/attachments/<id>/` and flips them from draft to sent in one transaction; a failed
- * copy blocks the send with the file name in the message; draft files of deleted chats are
- * removed by the data-lifetime job.
+ * copy blocks the send with the file name in the message; a failed write or an oversized draft is
+ * kept in `store.errors` so a screen can tell the user it did not save; draft files of deleted
+ * chats are removed by the data-lifetime job.
  * Our design choice: drafts are files (see core/app-paths.ts) because migration 0001 has no
  * drafts table. Attachment rows use the existing `attachments` table.
  * Test first: classifyAttachment("shot.PNG") is "image" and convertsToAttachment(6000 chars) is true.
  */
 import {
+	type AppError,
 	appError,
 	err,
 	notImplemented,
@@ -159,6 +161,8 @@ const byteLength = (text: string): number => new TextEncoder().encode(text).leng
 export interface ComposerState {
 	/** Drafts loaded so far. A missing entry means "not loaded yet", not "empty". */
 	drafts: Readonly<Record<string, Draft>>;
+	/** The last failed write of each chat, so a screen can tell the user the draft did not save. */
+	errors: Readonly<Record<string, AppError>>;
 }
 
 export interface ComposerServiceDeps {
@@ -179,7 +183,7 @@ export class ComposerService {
 
 	constructor(deps: ComposerServiceDeps) {
 		this.#deps = deps;
-		this.store = createStore<ComposerState>(() => ({ drafts: {} }));
+		this.store = createStore<ComposerState>(() => ({ drafts: {}, errors: {} }));
 	}
 
 	/** The draft currently in the store, or an empty one before it is loaded. */
@@ -220,10 +224,11 @@ export class ComposerService {
 		this.#pending.delete(sessionId);
 		const generation = this.#generation.get(sessionId) ?? 0;
 		if (isBlank(next)) {
-			void this.#enqueue(sessionId, async () => {
-				if (this.#generation.get(sessionId) !== generation) return;
-				await this.#removeFile(sessionId);
-			});
+			void this.#enqueue(sessionId, async () =>
+				this.#generation.get(sessionId) === generation
+					? this.#removeFile(sessionId)
+					: ok(undefined),
+			);
 			return;
 		}
 		const cancel = this.#deps.setDebounce(() => {
@@ -294,7 +299,7 @@ export class ComposerService {
 		this.store.setState((state) => ({ drafts: { ...state.drafts, [sessionId]: draft } }));
 	}
 
-	#enqueue(sessionId: SessionId, work: () => Promise<void>): Promise<Result<void>> {
+	#enqueue(sessionId: SessionId, work: () => Promise<Result<void>>): Promise<Result<void>> {
 		const previous = this.#writes.get(sessionId) ?? Promise.resolve();
 		const run = previous.then(work, work);
 		const tracked = run.then(
@@ -303,30 +308,57 @@ export class ComposerService {
 		);
 		this.#writes.set(sessionId, tracked);
 		return run.then(
-			() => ok(undefined),
-			(cause: unknown) =>
-				err(appError("draft_write_failed", "The draft could not be saved.", cause)),
+			(result) => {
+				this.#recordWrite(sessionId, result);
+				return result;
+			},
+			(cause: unknown) => {
+				const failure = err(appError("draft_write_failed", "The draft could not be saved.", cause));
+				this.#recordWrite(sessionId, failure);
+				return failure;
+			},
 		);
 	}
 
-	async #removeFile(sessionId: SessionId): Promise<void> {
-		const file = draftFile(this.#deps.platform.fs.paths, sessionId);
-		const exists = await this.#deps.platform.fs.exists(file);
-		if (!exists) return;
-		await this.#deps.platform.fs.trash(file);
+	/** Keeps the newest write error per chat so a screen can surface a failed save. */
+	#recordWrite(sessionId: SessionId, result: Result<void>): void {
+		const previous = this.store.getState().errors[sessionId];
+		const errors = { ...this.store.getState().errors };
+		if (result.ok) {
+			if (previous === undefined) return;
+			delete errors[sessionId];
+			this.store.setState({ errors });
+			return;
+		}
+		errors[sessionId] = result.error;
+		this.store.setState({ errors });
 	}
 
-	async #writeDraft(sessionId: SessionId, draft: Draft, generation: number): Promise<void> {
-		if (this.#generation.get(sessionId) !== generation) return;
+	async #removeFile(sessionId: SessionId): Promise<Result<void>> {
+		const file = draftFile(this.#deps.platform.fs.paths, sessionId);
+		const exists = await this.#deps.platform.fs.exists(file);
+		if (!exists) return ok(undefined);
+		return this.#deps.platform.fs.trash(file);
+	}
+
+	async #writeDraft(sessionId: SessionId, draft: Draft, generation: number): Promise<Result<void>> {
+		if (this.#generation.get(sessionId) !== generation) return ok(undefined);
 		const text = JSON.stringify(draft);
 		const bytes = byteLength(text);
-		if (bytes > DRAFT_STORE_LIMIT_BYTES) return;
+		if (bytes > DRAFT_STORE_LIMIT_BYTES) {
+			return err(
+				appError(
+					"draft_too_large",
+					"This draft is too large to save. Shorten it or attach a file instead.",
+				),
+			);
+		}
 		const folder = draftsDir(this.#deps.platform.fs.paths);
 		const made = await this.#deps.platform.fs.mkdirp(folder);
-		if (!made.ok) return;
+		if (!made.ok) return made;
 		await this.#makeRoom(sessionId, bytes);
-		if (this.#generation.get(sessionId) !== generation) return;
-		await this.#deps.platform.fs.writeTextAtomic(
+		if (this.#generation.get(sessionId) !== generation) return ok(undefined);
+		return this.#deps.platform.fs.writeTextAtomic(
 			draftFile(this.#deps.platform.fs.paths, sessionId),
 			text,
 		);
@@ -368,6 +400,8 @@ export class ComposerService {
 
 	/** Backs `Actions.attachments.addText`, for example a terminal selection. */
 	async addText(sessionId: SessionId, fileName: string, text: string): Promise<Result<string>> {
+		const loaded = await this.loadDraft(sessionId);
+		if (!loaded.ok) return loaded;
 		const name = attachmentFileName(fileName);
 		const fs = this.#deps.platform.fs;
 		const folder = draftAttachmentsDir(fs.paths, sessionId);

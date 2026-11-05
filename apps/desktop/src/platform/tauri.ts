@@ -14,7 +14,11 @@
  * than its `timeoutMs` is the Rust side's job (it kills the process group); the database opens
  * `sqlite:conducted.db` through the sql plugin and must run `PRAGMA journal_mode = WAL` and
  * `PRAGMA foreign_keys = ON` on its connection before the first statement; `Database.transaction`
- * must serialise: one open transaction at a time, because the plugin pools connections.
+ * must serialise: every statement goes through one queue, and a transaction holds it from
+ * BEGIN IMMEDIATE to COMMIT or ROLLBACK, so only one statement uses the plugin's pool at a time
+ * and the lazily grown pool does not open a second connection while the transaction is open.
+ * An explicit pool pin is PLAT-27. A write also clears merged selects that were in flight, so a
+ * read asked for after it cannot get a pre-write result.
  * Our design choice: the group builders take a `TauriBindings` value instead of importing `invoke`
  * themselves, so the helpers below can be tested without a webview. `realTauriBindings` is the
  * only place that holds the real functions. The argument names of each command are listed in
@@ -360,7 +364,7 @@ export function createTauriAppInfo(
 export interface TauriDatabaseOptions {
 	/** A statement at or above this many milliseconds is logged. Defaults to 1000. */
 	slowMs?: number;
-	/** Where slow statements go. The Platform passes `app.writeLog`. */
+	/** Where slow statements go, when a caller has a log sink. PLAT-18 will pass `app.writeLog`. */
 	log?: (level: "warn", message: string, data: unknown) => void;
 }
 
@@ -368,9 +372,12 @@ const DATABASE_URL = "sqlite:conducted.db";
 
 /**
  * tauri-plugin-sql: `Database.load("sqlite:conducted.db")`, then the pragmas named in the header.
- * `select` and `execute` map to the plugin's methods; `transaction` sends BEGIN IMMEDIATE and
- * COMMIT or ROLLBACK on one connection, queued behind any open transaction. Identical concurrent
- * `select` calls share one promise, and a statement slower than `slowMs` goes to the log.
+ * `select` and `execute` map to the plugin's methods. Every statement goes through one queue, so
+ * the plugin's pool never runs two at once. A transaction holds the queue from BEGIN IMMEDIATE to
+ * COMMIT or ROLLBACK; the work it runs gets a handle that skips the queue, because the queue is
+ * already held. Identical concurrent `select` calls share one promise, and a write clears those
+ * in-flight entries so a later read cannot get a pre-write result. A statement slower than
+ * `slowMs` goes to the log.
  */
 export async function createTauriDatabase(
 	bindings: Pick<TauriBindings, "sql"> = realTauriBindings,
@@ -432,17 +439,36 @@ export async function createTauriDatabase(
 	}
 
 	const pendingSelects = new Map<string, Promise<unknown[]>>();
-	let inTransaction = false;
-	let transactionQueue: Promise<unknown> = Promise.resolve();
+	const clearPendingSelects = (): void => {
+		pendingSelects.clear();
+	};
+
+	/** Runs one statement at a time, in call order, and keeps the queue alive after a failure. */
+	let queue: Promise<unknown> = Promise.resolve();
+	const enqueue = <T>(task: () => Promise<T>): Promise<T> => {
+		const run = queue.then(task);
+		queue = run.then(
+			() => undefined,
+			() => undefined,
+		);
+		return run;
+	};
+
+	const writeOutsideTransaction = (
+		sql: string,
+		params?: readonly unknown[],
+	): Promise<{ rowsAffected: number; lastInsertId?: number }> => {
+		clearPendingSelects();
+		return enqueue(() => write(sql, params));
+	};
 
 	const database: Database = {
-		execute: write,
+		execute: writeOutsideTransaction,
 		select: <Row>(sql: string, params?: readonly unknown[]): Promise<Row[]> => {
-			if (inTransaction) return read<Row>(sql, params);
 			const key = `${sql}\u0000${JSON.stringify(params ?? [])}`;
 			const existing = pendingSelects.get(key);
 			if (existing !== undefined) return existing as Promise<Row[]>;
-			const promise = read<Row>(sql, params);
+			const promise = enqueue(() => read<Row>(sql, params));
 			pendingSelects.set(key, promise as Promise<unknown[]>);
 			const settle = (): void => {
 				pendingSelects.delete(key);
@@ -451,29 +477,49 @@ export async function createTauriDatabase(
 			return promise;
 		},
 		transaction: <T>(work: (db: Database) => Promise<T>): Promise<T> => {
-			const run = transactionQueue.then(async () => {
-				await write("BEGIN IMMEDIATE");
-				inTransaction = true;
+			// A read asked for after this point must not join a select from before it.
+			clearPendingSelects();
+			return enqueue(async () => {
+				// The work's own statements run one at a time on a queue local to this
+				// transaction, so even a `Promise.all` inside it keeps one connection.
+				let transactionQueue: Promise<unknown> = Promise.resolve();
+				const transactionRun = <U>(task: () => Promise<U>): Promise<U> => {
+					const run = transactionQueue.then(task);
+					transactionQueue = run.then(
+						() => undefined,
+						() => undefined,
+					);
+					return run;
+				};
+				const transactionDatabase: Database = {
+					execute: (sql, params) => transactionRun(() => write(sql, params)),
+					select: <Row>(sql: string, params?: readonly unknown[]): Promise<Row[]> =>
+						transactionRun(() => read<Row>(sql, params)),
+					transaction: () =>
+						Promise.reject(
+							appError(
+								"transaction_nested",
+								"Database.transaction cannot start inside another transaction.",
+							),
+						),
+				};
+
+				await transactionRun(() => write("BEGIN IMMEDIATE"));
 				try {
-					const value = await work(database);
-					await write("COMMIT");
+					const value = await work(transactionDatabase);
+					await transactionRun(() => write("COMMIT"));
 					return value;
 				} catch (error) {
 					try {
-						await write("ROLLBACK");
+						await transactionRun(() => write("ROLLBACK"));
 					} catch {
 						// The failure that caused the rollback is the one the caller needs.
 					}
 					throw error;
 				} finally {
-					inTransaction = false;
+					clearPendingSelects();
 				}
 			});
-			transactionQueue = run.then(
-				() => undefined,
-				() => undefined,
-			);
-			return run;
 		},
 	};
 	return ok(database);
@@ -912,15 +958,9 @@ export async function createTauriPlatform(
 	if (!paths.ok) return paths;
 
 	const app = createTauriAppInfo(bindings, info.value);
-	const database = await createTauriDatabase(bindings, {
-		log: (level, message, data) => {
-			try {
-				app.writeLog(level, message, data);
-			} catch {
-				// Logging a slow statement must never turn a working query into a failure.
-			}
-		},
-	});
+	// The slow-statement log stays off until PLAT-18 builds app.writeLog. Wiring the placeholder
+	// here would throw on every slow query, and swallowing that error would be a fake success.
+	const database = await createTauriDatabase(bindings);
 	if (!database.ok) return database;
 
 	const platform: Platform = {

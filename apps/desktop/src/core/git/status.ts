@@ -8,8 +8,9 @@
  * `dir/{a => b}/f`); binary files (`-` counts); a branch with no upstream (probe exits 128);
  * a detached HEAD (empty `branch --show-current`); no merge base (empty file list plus an error
  * field, never a throw); more than 100 untracked files (listed up to the cap, flagged truncated);
- * untracked files over 300 KB (counted as 501 lines, not read); a stale answer for a branch that
- * changed while the read ran must be dropped by the caller.
+ * untracked files over 300 KB (counted as 501 lines, not read); a failed untracked count, sync
+ * probe, distance or log is returned as an error, never a clean-looking zero; a stale answer for
+ * a branch that changed while the read ran must be dropped by the caller.
  * Our design choice: the parsers return values or a Result and never throw, and the pipeline
  * gets its runner as a parameter. The refresh interval (5 s for the visible workspace) belongs
  * to services/git.ts.
@@ -440,58 +441,107 @@ async function readOperation(runner: GitRunner, cwd: string): Promise<GitOperati
 	return operationFromMarkers(present);
 }
 
-async function countUntrackedLines(runner: GitRunner, cwd: string, path: string): Promise<number> {
-	const result = await runner.stdout(diffNoIndexNumstat(path), { cwd });
-	if (!result.ok) return 0;
-	const [entry] = parseNumstat(result.value);
-	return entry?.linesAdded ?? 0;
+async function countUntrackedLines(
+	runner: GitRunner,
+	cwd: string,
+	path: string,
+): Promise<Result<number>> {
+	const result = await runner.run(diffNoIndexNumstat(path), { cwd });
+	if (!result.ok) return result;
+	// Exit 1 means the files differ. Any other exit code with a message is a real failure.
+	if (result.value.exitCode !== 0 && result.value.stderr.trim().length > 0) {
+		return err(appError("git_failed", result.value.stderr.trim()));
+	}
+	const [entry] = parseNumstat(result.value.stdout.trim());
+	return ok(entry?.linesAdded ?? 0);
 }
 
 /**
  * One untracked file as an added file. A file over `UNTRACKED_COUNT_MAX_BYTES` is not read; it
  * keeps the sentinel count so an enormous log or archive cannot stall a poll.
  */
-async function untrackedFile(runner: GitRunner, cwd: string, path: string): Promise<FileChange> {
+async function untrackedFile(
+	runner: GitRunner,
+	cwd: string,
+	path: string,
+): Promise<Result<FileChange>> {
 	const size = await runner.stdout(statCommand(path), { cwd });
 	const bytes = size.ok ? Number.parseInt(size.value, 10) : Number.NaN;
-	const linesAdded =
-		Number.isFinite(bytes) && bytes > UNTRACKED_COUNT_MAX_BYTES
-			? UNTRACKED_LARGE_FILE_LINES
-			: await countUntrackedLines(runner, cwd, path);
-	return { path, status: "added", linesAdded, linesRemoved: 0, binary: false };
+	if (Number.isFinite(bytes) && bytes > UNTRACKED_COUNT_MAX_BYTES) {
+		return ok({
+			path,
+			status: "added",
+			linesAdded: UNTRACKED_LARGE_FILE_LINES,
+			linesRemoved: 0,
+			binary: false,
+		});
+	}
+	const lines = await countUntrackedLines(runner, cwd, path);
+	if (!lines.ok) return lines;
+	return ok({ path, status: "added", linesAdded: lines.value, linesRemoved: 0, binary: false });
 }
 
 async function readUntracked(
 	runner: GitRunner,
 	cwd: string,
 ): Promise<Result<{ files: FileChange[]; truncated: boolean }>> {
-	const listed = await runner.stdout(lsFilesUntracked(), { cwd });
+	const listed = await runner.run(lsFilesUntracked(), { cwd });
 	if (!listed.ok) return listed;
-	const all = listed.value.split("\n").filter((line) => line.length > 0);
+	if (listed.value.exitCode !== 0) {
+		return err(
+			appError(
+				"git_failed",
+				listed.value.stderr.trim() || `git ls-files exited with code ${listed.value.exitCode}`,
+			),
+		);
+	}
+	// `-z` output is NUL separated and never quoted (services-map 3.0.5).
+	const all = listed.value.stdout.split("\0").filter((path) => path.length > 0);
 	const paths = all.slice(0, UNTRACKED_FILE_CAP);
 	const files: FileChange[] = [];
 	for (const batch of untrackedCountBatches(paths)) {
-		files.push(...(await Promise.all(batch.map((path) => untrackedFile(runner, cwd, path)))));
+		const results = await Promise.all(batch.map((path) => untrackedFile(runner, cwd, path)));
+		for (const result of results) {
+			if (!result.ok) return result;
+			files.push(result.value);
+		}
 	}
 	return ok({ files, truncated: all.length > UNTRACKED_FILE_CAP });
 }
 
-/** Reads how far the branch is ahead of and behind its upstream (services-map 3.3.2 step 8). */
-async function readUpstreamSync(runner: GitRunner, cwd: string): Promise<BranchSync> {
-	const refs = await runner.stdout(revParseHeadAndUpstream(), { cwd });
-	if (!refs.ok) return emptySync();
-	const [headOid, upstreamOid] = refs.value.split("\n").filter((line) => line.length > 0);
-	if (headOid === undefined || upstreamOid === undefined) return emptySync();
+/**
+ * Reads how far the branch is ahead of and behind its upstream (services-map 3.3.2 step 8).
+ * Exit 128 is the one normal "no upstream" answer; every other failure is returned.
+ */
+async function readUpstreamSync(runner: GitRunner, cwd: string): Promise<Result<BranchSync>> {
+	const refs = await runner.run(revParseHeadAndUpstream(), { cwd });
+	if (!refs.ok) return refs;
+	if (refs.value.exitCode === 128) return ok(emptySync());
+	if (refs.value.exitCode !== 0) {
+		return err(
+			appError(
+				"git_failed",
+				refs.value.stderr.trim() || `git rev-parse exited with code ${refs.value.exitCode}`,
+			),
+		);
+	}
+	const [headOid, upstreamOid] = refs.value.stdout
+		.trim()
+		.split("\n")
+		.filter((line) => line.length > 0);
+	if (headOid === undefined || upstreamOid === undefined) {
+		return err(appError("git_parse", "Unexpected rev-parse HEAD @{u} output."));
+	}
 	const counts = await runner.stdout(revListLeftRightCount(upstreamOid, headOid), { cwd });
-	if (!counts.ok) return { ...emptySync(), hasUpstream: true };
+	if (!counts.ok) return counts;
 	const parsed = parseLeftRightCount(counts.value);
-	if (!parsed.ok) return { ...emptySync(), hasUpstream: true };
-	return {
+	if (!parsed.ok) return parsed;
+	return ok({
 		ahead: parsed.value.right,
 		behind: parsed.value.left,
 		rewritten: false,
 		hasUpstream: true,
-	};
+	});
 }
 
 /** How many commits the target has that the branch lacks (services-map 3.3.2 step 9). */
@@ -499,11 +549,13 @@ async function readBehindTarget(
 	runner: GitRunner,
 	cwd: string,
 	targetRef: string,
-): Promise<number> {
+): Promise<Result<number>> {
 	const result = await runner.stdout(revListCount(`HEAD..${targetRef}`), { cwd });
-	if (!result.ok) return 0;
+	if (!result.ok) return result;
 	const count = Number.parseInt(result.value, 10);
-	return Number.isNaN(count) ? 0 : count;
+	return Number.isNaN(count)
+		? err(appError("git_parse", `Unexpected rev-list count: ${result.value}`))
+		: ok(count);
 }
 
 /** The branch's own commits over the target (services-map 3.3.2 step 10). */
@@ -511,9 +563,9 @@ async function readCommits(
 	runner: GitRunner,
 	cwd: string,
 	targetRef: string,
-): Promise<CommitSummary[]> {
+): Promise<Result<CommitSummary[]>> {
 	const result = await runner.stdout(logRange(`${targetRef}..HEAD`), { cwd });
-	return result.ok ? parseCommitLog(result.value) : [];
+	return result.ok ? ok(parseCommitLog(result.value)) : result;
 }
 
 interface SnapshotParts {
@@ -546,6 +598,9 @@ async function readChanges(
 		readBehindTarget(runner, cwd, targetRef),
 		readCommits(runner, cwd, targetRef),
 	]);
+	if (!sync.ok) return sync;
+	if (!behindTarget.ok) return behindTarget;
+	if (!commits.ok) return commits;
 
 	return ok({
 		...parts,
@@ -555,9 +610,9 @@ async function readChanges(
 		],
 		conflictedPaths: parseConflictedPaths(porcelain.value),
 		untrackedTruncated: untracked.value.truncated,
-		commits,
-		sync,
-		behindTarget,
+		commits: commits.value,
+		sync: sync.value,
+		behindTarget: behindTarget.value,
 	});
 }
 

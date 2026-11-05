@@ -40,6 +40,23 @@ describe("COMP-01 SendButton", () => {
 		).toBe(true);
 	});
 
+	it("shows the send shortcut for the send mode", async () => {
+		const { unmount } = render(<SendButton {...props({ sendWith: "enter" })} />);
+		fireEvent.focus(screen.getByRole("button", { name: "Send message" }));
+		expect(await screen.findByText("↵")).toBeTruthy();
+		unmount();
+
+		render(<SendButton {...props({ sendWith: "mod_enter" })} />);
+		fireEvent.focus(screen.getByRole("button", { name: "Send message" }));
+		expect(await screen.findByText("⌘↵")).toBeTruthy();
+	});
+
+	it("shows the cancel shortcut from the command registry", async () => {
+		render(<SendButton {...props({ working: true })} />);
+		fireEvent.focus(screen.getByRole("button", { name: "Cancel" }));
+		expect(await screen.findByText("⌘⇧⌫")).toBeTruthy();
+	});
+
 	it("sends and stops through the callbacks", () => {
 		const onSend = vi.fn();
 		const onStop = vi.fn();

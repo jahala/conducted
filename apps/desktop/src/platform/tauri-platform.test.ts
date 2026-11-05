@@ -390,6 +390,104 @@ describe("PLAT-02 Tauri database", () => {
 		await Promise.all([first, second]);
 		expect(events.join(",")).toBe("first-start,first-end,second-start,second-end");
 	});
+
+	it("PLAT-02 holds statements outside a transaction until it commits", async () => {
+		const events: string[] = [];
+		let releaseInside: () => void = () => {};
+		const inside = new Promise<void>((resolve) => {
+			releaseInside = resolve;
+		});
+		let markStarted: () => void = () => {};
+		const started = new Promise<void>((resolve) => {
+			markStarted = resolve;
+		});
+		const raw = fakeSql({
+			execute: async (sql) => {
+				events.push(sql);
+				return { rowsAffected: 0 };
+			},
+		});
+		const result = await createTauriDatabase({ sql: { load: async () => raw } });
+		if (!result.ok) throw new Error("the database did not open");
+
+		const transaction = result.value.transaction(async (tx) => {
+			markStarted();
+			await inside;
+			await tx.execute("INSERT INTO t (id) VALUES (1)");
+		});
+		await started;
+
+		const outside = result.value.execute("INSERT INTO t (id) VALUES (2)");
+		await Promise.resolve();
+		expect(events).not.toContain("INSERT INTO t (id) VALUES (2)");
+
+		releaseInside();
+		await Promise.all([transaction, outside]);
+		expect(events).toEqual([
+			"PRAGMA journal_mode = WAL",
+			"PRAGMA foreign_keys = ON",
+			"BEGIN IMMEDIATE",
+			"INSERT INTO t (id) VALUES (1)",
+			"COMMIT",
+			"INSERT INTO t (id) VALUES (2)",
+		]);
+	});
+
+	it("PLAT-02 does not share an in-flight select across a write", async () => {
+		let value = 1;
+		let releaseFirst: () => void = () => {};
+		const firstGate = new Promise<void>((resolve) => {
+			releaseFirst = resolve;
+		});
+		let selects = 0;
+		const raw = fakeSql({
+			execute: async () => {
+				value = 2;
+				return { rowsAffected: 1 };
+			},
+			select: async <Rows>(): Promise<Rows> => {
+				selects++;
+				if (selects === 1) await firstGate;
+				return [{ value }] as unknown as Rows;
+			},
+		});
+		const result = await createTauriDatabase({ sql: { load: async () => raw } });
+		if (!result.ok) throw new Error("the database did not open");
+
+		const first = result.value.select<{ value: number }>("SELECT value FROM t");
+		const write = result.value.execute("INSERT INTO t (value) VALUES ($1)", [2]);
+		const second = result.value.select<{ value: number }>("SELECT value FROM t");
+
+		releaseFirst();
+		await write;
+		await expect(first).resolves.toEqual([{ value: 1 }]);
+		await expect(second).resolves.toEqual([{ value: 2 }]);
+	});
+
+	it("PLAT-02 refuses a transaction inside a transaction", async () => {
+		const statements: string[] = [];
+		const raw = fakeSql({
+			execute: async (sql) => {
+				statements.push(sql);
+				return { rowsAffected: 0 };
+			},
+		});
+		const result = await createTauriDatabase({ sql: { load: async () => raw } });
+		if (!result.ok) throw new Error("the database did not open");
+
+		await expect(
+			result.value.transaction(async (tx) => {
+				await tx.transaction(async () => undefined);
+			}),
+		).rejects.toMatchObject({ code: "transaction_nested" });
+
+		expect(statements).toEqual([
+			"PRAGMA journal_mode = WAL",
+			"PRAGMA foreign_keys = ON",
+			"BEGIN IMMEDIATE",
+			"ROLLBACK",
+		]);
+	});
 });
 
 describe("PLAT-02 Tauri Platform build", () => {

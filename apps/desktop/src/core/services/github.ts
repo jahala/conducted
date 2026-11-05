@@ -1,35 +1,22 @@
 /**
- * @feature PR-01 GitHub service: access, PR polling and pull request actions
- * Owns: checking that `gh` is usable, polling pull request state for the workspaces on screen,
- * and the write actions (merge, auto-merge, ready, approve, edit, re-run checks).
- * Behaviour: services-map.md 3.9 (auth probes, health), 3.7 (create, read, write), 3.7.3 and
- * 5B.1.2 to 5B.1.5 (cadence, gate, fields, state), 3.8 (stacks, Graphite), 5B.1.7 (write
- * actions and their dedupe), 5B.1.9 (archive on merge), ui-map.md 3.6.
- * Must handle: `gh` missing or signed out (state tells the UI which, with the command to run);
- * only the "unauthorized" kind of failure marks access broken; no request when the branch was
- * never pushed and no PR number is bound; "no PR found" is remembered for 5 minutes; a closed,
- * unmerged PR is shown only while the local branch still matches its head; the same action
- * twice at once (merge, approve, ready) runs once; a merge is pinned to the local HEAD and
- * refused with a clear message when HEAD cannot be read; the merge method follows the repo's
- * allowed methods (squash, then rebase, then merge); an UNKNOWN mergeability never replaces a
- * known one for the same head commit; polling pauses when the window is not focused for the
- * sidebar workspaces; the batch and rate-limit rules come from pr-polling.ts; "archive on merge"
- * fires only on the transition to merged, and keeps the workspace while other PRs of its stack
- * are open.
- * Catching up a stack branch (PR-12, services-map.md 3.8.3, 5B.1.1): when GitHub rewrites a
- * stacked branch (for example after the PR below it merged), the local branch and its upstream
- * differ only by that rewrite. A guarded rebase puts the local commits on the new upstream tip.
- * It runs only when: the user may write to the repository; the branch, local commit and upstream
- * commit are the ones the plan was made for; the tree is clean with no rebase, merge, cherry-pick,
- * revert or sequencer in progress; no ignored file would be overwritten by a file the upstream
- * adds; and the local tip is the recorded baseline (`syncedBaselineRef`) or appears in the
- * upstream's reflog. The rebase asserts the same facts again through its sequence editor, and
- * the baseline moves to the new tip with a compare-and-swap. Any failed check skips, never forces.
+ * @feature PR-01 GitHub service: access, health, merge and the personal access token
+ * Owns: probing `gh` access (`gh auth status`, the user's login, the git protocol), the access
+ * health store, reading and writing the personal access token, and merging a workspace's pull
+ * request.
+ * Behaviour: services-map.md 3.9 (auth probes, method resolution, health), 5B.1.11 (failure
+ * classes; only unauthorized breaks access), 5B.1.7 (merge method and dedupe), ui-map.md 6
+ * (Account: GitHub through the `gh` CLI or a personal access token).
+ * Must handle: `gh` missing, signed out, unauthorized, offline, an SSO requirement and a missing
+ * scope, with the failure class kept on the access state; only unauthorized marks access broken;
+ * GH_TOKEN is passed only when the resolved method is pat; a merge is pinned to the local HEAD
+ * and refused when HEAD cannot be read; the merge method follows the repo's allowed methods
+ * (squash, then rebase, then merge); two merge calls at once send one `gh pr merge`; a token that
+ * does not look like one is a warning the caller can confirm, not a refusal; every `gh` result
+ * updates the health store.
  * Our design choice: access is the user's own `gh auth login`, or the personal access token the
  * user saved on the Account page (D029). The token is kept in the Keychain and given to `gh` as
- * GH_TOKEN; nothing is brokered per session. Graphite support is read-only and off unless the
- * setting is on. Creating a PR, committing and fixing checks are requests to the agent (see
- * agent-instructions.ts).
+ * GH_TOKEN; nothing is brokered per session. Creating a PR, polling, the other write actions and
+ * the stack catch-up belong to other features (PR-02, PR-03, PR-05, PR-06, PR-08, PR-10, PR-12).
  * Test first: two merge calls at once send one `gh pr merge`.
  */
 import {
@@ -88,7 +75,8 @@ export type GithubAccess =
 			gitProtocol: string | null;
 	  }
 	| { status: "gh_missing" }
-	| { status: "signed_out" }
+	/** `failure` keeps a class the UI must explain, such as an SSO requirement or a missing scope. */
+	| { status: "signed_out"; failure?: GithubFailureClass }
 	| { status: "unauthorized" }
 	| { status: "offline" };
 
@@ -228,6 +216,15 @@ export function looksLikeGithubToken(token: string): boolean {
 	return /^(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})$/.test(trimmed);
 }
 
+/**
+ * The warning the Account page shows before saving a value that is not shaped like a GitHub
+ * token. Null when the value looks right. Saving is the caller's decision after the user
+ * confirms, because an enterprise token can have an unexpected prefix.
+ */
+export function githubTokenWarning(token: string): string | null {
+	return looksLikeGithubToken(token) ? null : GITHUB_TOKEN_WARNING;
+}
+
 /** The merge method GitHub allows, in Conductor's preference order (services-map 5B.1.7). */
 export function chooseMergeMethod(output: string): MergeMethod | null {
 	let allowed: unknown;
@@ -272,6 +269,9 @@ function accessFromFailure(text: string): GithubAccess {
 	const failure = classifyGhFailure(text);
 	if (failure === "unauthorized") return { status: "unauthorized" };
 	if (failure === "offline") return { status: "offline" };
+	if (failure === "saml-sso-required" || failure === "missing-scope") {
+		return { status: "signed_out", failure };
+	}
 	return { status: "signed_out" };
 }
 
@@ -313,6 +313,12 @@ export type CatchUpOutcome =
 	| { kind: "rebased"; newTip: string }
 	| { kind: "skipped"; reason: CatchUpSkipReason };
 
+interface GhCallSettings {
+	authMethod: GithubAuthMethod;
+	/** GH_TOKEN, present only for the pat method. */
+	env: Readonly<Record<string, string>> | undefined;
+}
+
 export interface GithubServiceDeps {
 	git: GitRunner;
 	/** The last pull request info of each workspace, shown before the first poll answers (DATA-07). */
@@ -324,10 +330,10 @@ export interface GithubServiceDeps {
 	now: () => number;
 	/** The Keychain the Account page's token is kept in (D029). */
 	keychain?: Pick<Keychain, "get" | "set" | "delete">;
-	/** Reads `gh_auth_method`; the registry does not declare it yet (services-map 3.9). */
+	/** Reads `gh_auth_method` (services-map 3.9, D029). */
 	setting?: <T>(key: string) => T;
-	/** Folder for probes that belong to no workspace. Our design choice: "/" when not given. */
-	probeCwd?: string;
+	/** Folder for probes that belong to no workspace, normally the user's home folder. */
+	probeCwd: string;
 }
 
 export class GithubService {
@@ -354,13 +360,12 @@ export class GithubService {
 
 	/** Runs `gh auth status` and `gh api user`, reads the git protocol, and updates `access`. */
 	async checkAccess(): Promise<Result<GithubAccess>> {
-		const token = await this.#readToken();
-		if (!token.ok) {
+		const settings = await this.#ghSettings();
+		if (!settings.ok) {
 			this.#setAccess({ status: "unknown", reason: "check_failed" });
-			return err(token.error);
+			return err(settings.error);
 		}
-		const env = token.value === null ? undefined : { GH_TOKEN: token.value };
-		const runOptions = this.#runOptions(env);
+		const runOptions = this.#runOptions(settings.value);
 		const auth = await this.#deps.git.run(authStatus(), runOptions);
 		if (!auth.ok) return ok(this.#setAccessFromProbeError(auth.error.code));
 
@@ -394,7 +399,7 @@ export class GithubService {
 				login,
 				host: parsed.host ?? "github.com",
 				scopes: parsed.scopes,
-				usesToken: token.value !== null,
+				usesToken: settings.value.env !== undefined,
 				gitProtocol,
 			}),
 		);
@@ -457,10 +462,10 @@ export class GithubService {
 		);
 	}
 
-	#runOptions(env: Readonly<Record<string, string>> | undefined) {
+	#runOptions(settings: GhCallSettings, cwd = this.#deps.probeCwd) {
 		return {
-			cwd: this.#deps.probeCwd ?? "/",
-			...(env === undefined ? {} : { env }),
+			cwd,
+			...(settings.env === undefined ? {} : { env: settings.env }),
 		};
 	}
 
@@ -470,11 +475,28 @@ export class GithubService {
 		return keychain.get(GH_PAT_KEYCHAIN_KEY);
 	}
 
-	async #authMethod(): Promise<GithubAuthMethod> {
+	/**
+	 * One place for how a `gh` call is signed in. The saved token is read once and reaches `gh`
+	 * only when the resolved method is pat, so an explicit `cli` choice is never overridden by a
+	 * leftover Keychain value.
+	 */
+	async #ghSettings(): Promise<Result<GhCallSettings>> {
 		const setting = this.#deps.setting;
 		const explicit = setting === undefined ? null : setting<string>("gh_auth_method");
+		if (explicit === "cli") return ok({ authMethod: "cli", env: undefined });
 		const token = await this.#readToken();
-		return resolveGhAuthMethod(explicit, token.ok && token.value !== null);
+		if (!token.ok) return err(token.error);
+		const authMethod = resolveGhAuthMethod(explicit, token.value !== null);
+		const inject = authMethod === "pat" ? token.value : null;
+		return ok({
+			authMethod,
+			env: inject === null ? undefined : { GH_TOKEN: inject },
+		});
+	}
+
+	async #authMethod(): Promise<GithubAuthMethod> {
+		const settings = await this.#ghSettings();
+		return settings.ok ? settings.value.authMethod : "cli";
 	}
 
 	watch(_workspaceId: WorkspaceId, _role: PollRole): Unsubscribe {
@@ -518,6 +540,10 @@ export class GithubService {
 			}
 
 			const cwd = workspacePath;
+			const settings = await this.#ghSettings();
+			if (!settings.ok) return err(settings.error);
+			const runOptions = this.#runOptions(settings.value, cwd);
+
 			const head = await this.#deps.git.stdout(revParseHead(), { cwd });
 			if (!head.ok) return err(head.error);
 			if (head.value.length === 0) {
@@ -526,9 +552,14 @@ export class GithubService {
 				);
 			}
 
-			const allowed = await this.#deps.git.stdout(repoMergeMethodsQuery(), { cwd });
+			const mergeMethodsQuery = repoMergeMethodsQuery();
+			const allowed = await this.#deps.git.run(mergeMethodsQuery, runOptions);
 			if (!allowed.ok) return err(allowed.error);
-			const method = chooseMergeMethod(allowed.value);
+			await this.recordGhResult(allowed.value);
+			if (!isSuccessfulExit(mergeMethodsQuery, allowed.value.exitCode)) {
+				return err(failedCommandError(mergeMethodsQuery, allowed.value));
+			}
+			const method = chooseMergeMethod(allowed.value.stdout.trim());
 			if (method === null) {
 				return err(
 					appError(
@@ -540,7 +571,7 @@ export class GithubService {
 
 			const command = prMerge(prNumber, method, head.value, false);
 			return this.#deps.git.withWorktreeLock(workspacePath, async (): Promise<Result<void>> => {
-				const result = await this.#deps.git.run(command, { cwd });
+				const result = await this.#deps.git.run(command, runOptions);
 				if (!result.ok) return err(result.error);
 				await this.recordGhResult(result.value);
 				if (isSuccessfulExit(command, result.value.exitCode)) return ok(undefined);
@@ -607,7 +638,11 @@ export class GithubService {
 		return notImplemented("PR-11");
 	}
 
-	/** Backs `Actions.accounts.setGitHubToken`: the Keychain entry `gh` gets as GH_TOKEN (D029). */
+	/**
+	 * Backs `Actions.accounts.setGitHubToken`: the Keychain entry `gh` gets as GH_TOKEN (D029).
+	 * A value that is not shaped like a GitHub token is only a warning (`githubTokenWarning`),
+	 * which the caller confirms; it still saves, because enterprise tokens can use another prefix.
+	 */
 	async setToken(token: string | null): Promise<Result<void>> {
 		const keychain = this.#deps.keychain;
 		if (keychain === undefined) {
@@ -617,9 +652,6 @@ export class GithubService {
 					"The app can't reach the Keychain to store the GitHub token.",
 				),
 			);
-		}
-		if (token !== null && !looksLikeGithubToken(token)) {
-			return err(appError("github_token_invalid", GITHUB_TOKEN_WARNING));
 		}
 		return token === null
 			? keychain.delete(GH_PAT_KEYCHAIN_KEY)

@@ -1,20 +1,19 @@
 /**
- * @feature PRJ-01 Projects (repositories): add, clone, create, remove, configure
- * Owns: the list of repositories, adding one from a folder or from GitHub, starting a new one from
- * a template, removing one, and each repository's config (scripts, files to copy, prompts).
- * Behaviour: ui-map.md 3.9 (add project flows), services-map.md 3.2 (add repository steps: `git
- * init` when missing, remote URL, default branch detection, clone with progress), 4.2.4
- * (scripts, run mode, files to copy, prompts in settings.toml), 2.3.2 (repo operations).
- * Must handle: a folder that is not a git repository (offer `git init`, never silently); a path
- * already added (return the existing project); a repository with no commits (workspace creation
- * makes the first commit, not this service); the default branch comes from the remote's HEAD,
- * else the checked-out branch; a clone that fails halfway leaves no folder behind (move to the
- * Trash); removing a project stops its runs, archives nothing silently, moves its workspace
- * folders to the Trash and leaves the main clone alone; the repo's `.conducted/` folder is added
- * to the git exclude as needed (`settings.local.toml` stays local); a config write goes to the
- * local settings file, never the committed one.
+ * @feature PRJ-01 Projects (repositories): add and list from a local folder, remove
+ * Owns: the list of repositories, adding one from a local folder, removing one, and hiding one
+ * from the sidebar. Cloning, creating from a template, config and icons are placeholders for
+ * PRJ-02 to PRJ-05.
+ * Behaviour: ui-map.md 3.9 (add project), 4 item 8 (Add project menu), services-map.md 3.2 (add
+ * repository steps: `git init` when missing, remote URL read and normalised, default branch
+ * detection), 2.3.2 (repo operations).
+ * Must handle: a folder that is not a git repository (offer `git init`, never silently); a folder
+ * inside an existing repository (ask git for the work tree root, so no nested repository is made);
+ * a path already added (return the existing project); a repository with no commits (workspace
+ * creation makes the first commit, not this service); the default branch comes from the remote's
+ * HEAD, else the checked-out branch, and the add fails visibly when neither exists; removing a
+ * project asks its removal port to stop work and delete its workspaces before deleting the row.
  * Our design choice: scripts and prompts live in the settings files (see services/settings.ts),
- * not in table columns. This service only maps them to `RepoConfig`.
+ * so this service maps them to `RepoConfig` once PRJ-04 builds the config reads.
  * Test first: adding the same folder twice returns the same project without a second row.
  */
 import {
@@ -34,6 +33,7 @@ import {
 	initRepository,
 	remoteGetUrl,
 	remoteSetUrl,
+	revParse,
 	symbolicRefRemoteHead,
 } from "../git/commands.ts";
 import type { GitRunner } from "../git/runner.ts";
@@ -69,15 +69,25 @@ export function projectNameFromPath(path: string): string {
 }
 
 /**
- * The remote's HEAD branch when it has one, otherwise the checked-out branch, otherwise `main`.
+ * The remote's HEAD branch when it has one, otherwise the checked-out branch. Fails when neither
+ * exists (a detached HEAD with no remote HEAD), so a workspace never branches from an invented ref.
  * `remoteHead` is the full ref name such as `refs/remotes/origin/main`.
  */
-export function defaultBranchFrom(remoteHead: string | null, current: string | null): string {
+export function defaultBranchFrom(
+	remoteHead: string | null,
+	current: string | null,
+): Result<string> {
 	if (remoteHead !== null) {
 		const match = /^refs\/remotes\/[^/]+\/(.+)$/.exec(remoteHead);
-		if (match?.[1] !== undefined && match[1] !== "") return match[1];
+		if (match?.[1] !== undefined && match[1] !== "") return ok(match[1]);
 	}
-	return current !== null && current !== "" ? current : "main";
+	if (current !== null && current !== "") return ok(current);
+	return err(
+		appError(
+			"repo_default_branch_unknown",
+			"Can't tell which branch to start from: the repository has no remote HEAD and is not on a branch.",
+		),
+	);
 }
 
 /** Called before a repo is removed so running scripts stop and workspaces go. */
@@ -143,13 +153,6 @@ export class RepoService {
 			return err(appError("repo_path_missing", "Choose a folder to add."));
 		}
 
-		const existing = await this.#deps.repos.repos.getByRootPath(path);
-		if (!existing.ok) return existing;
-		if (existing.value !== null) {
-			this.#upsert(existing.value);
-			return ok(existing.value);
-		}
-
 		const folder = await this.#deps.platform.fs.stat(path);
 		if (!folder.ok) {
 			return err(appError("repo_path_missing", `Can't find the folder ${path}.`, folder.error));
@@ -158,36 +161,32 @@ export class RepoService {
 			return err(appError("repo_not_directory", `${path} is not a folder.`));
 		}
 
-		const hasGitFolder = await this.#deps.platform.fs.exists(`${path}/.git`);
-		if (!hasGitFolder) {
-			const agreed = await this.#deps.platform.dialogs.confirm({
-				title: "Turn this folder into a Git repository?",
-				message:
-					"This folder is not a Git repository yet. Create one so you can add it as a project?",
-				okLabel: "Create repository",
-			});
-			if (!agreed) {
-				return err(appError("not_git", "That folder is not a Git repository."));
-			}
-			const initialised = await this.#deps.git.runChecked(initRepository(), { cwd: path });
-			if (!initialised.ok) return initialised;
+		const rootPath = await this.#workTreeRoot(path);
+		if (!rootPath.ok) return rootPath;
+
+		const existing = await this.#deps.repos.repos.getByRootPath(rootPath.value);
+		if (!existing.ok) return existing;
+		if (existing.value !== null) {
+			this.#upsert(existing.value);
+			return ok(existing.value);
 		}
 
-		const remote = await this.#readRemoteUrl(path);
+		const remote = await this.#readRemoteUrl(rootPath.value);
 		if (!remote.ok) return remote;
-		const defaultBranch = await this.#detectDefaultBranch(path);
+		const defaultBranch = await this.#detectDefaultBranch(rootPath.value);
+		if (!defaultBranch.ok) return defaultBranch;
 
 		const created = await this.#deps.repos.repos.create({
-			name: projectNameFromPath(path),
-			rootPath: path,
+			name: projectNameFromPath(rootPath.value),
+			rootPath: rootPath.value,
 			remoteUrl: remote.value,
-			defaultBranch,
+			defaultBranch: defaultBranch.value,
 			icon: null,
 		});
 		if (!created.ok) {
 			// Two adds raced past the lookup: answer with the row the other add stored.
 			if (created.error.code === "db.conflict") {
-				const raced = await this.#deps.repos.repos.getByRootPath(path);
+				const raced = await this.#deps.repos.repos.getByRootPath(rootPath.value);
 				if (raced.ok && raced.value !== null) {
 					this.#upsert(raced.value);
 					return ok(raced.value);
@@ -292,6 +291,30 @@ export class RepoService {
 		});
 	}
 
+	/**
+	 * The folder's git work tree root, asked from git so a subfolder of an existing repository
+	 * resolves to that repository instead of becoming a nested one. When git does not see a work
+	 * tree, the user is offered `git init` and the folder itself becomes the root.
+	 */
+	async #workTreeRoot(path: string): Promise<Result<string>> {
+		const probe = await this.#deps.git.stdout(revParse("--show-toplevel"), { cwd: path });
+		if (probe.ok && probe.value !== "") {
+			return ok(normaliseRootPath(probe.value));
+		}
+		const agreed = await this.#deps.platform.dialogs.confirm({
+			title: "Turn this folder into a Git repository?",
+			message:
+				"This folder is not a Git repository yet. Create one so you can add it as a project?",
+			okLabel: "Create repository",
+		});
+		if (!agreed) {
+			return err(appError("not_git", "That folder is not a Git repository."));
+		}
+		const initialised = await this.#deps.git.runChecked(initRepository(), { cwd: path });
+		if (!initialised.ok) return initialised;
+		return ok(path);
+	}
+
 	/** Reads `origin`'s URL and writes the trimmed form back when it differs. */
 	async #readRemoteUrl(path: string): Promise<Result<string | null>> {
 		const read = await this.#deps.git.stdout(remoteGetUrl("origin"), { cwd: path });
@@ -307,8 +330,8 @@ export class RepoService {
 		return ok(canonical);
 	}
 
-	/** The remote's HEAD branch, else the checked-out branch, else `main`. */
-	async #detectDefaultBranch(path: string): Promise<string> {
+	/** The remote's HEAD branch, else the checked-out branch. Fails when neither exists. */
+	async #detectDefaultBranch(path: string): Promise<Result<string>> {
 		const remoteHead = await this.#deps.git.stdout(symbolicRefRemoteHead("origin"), { cwd: path });
 		const current = await this.#deps.git.stdout(branchShowCurrent(), { cwd: path });
 		return defaultBranchFrom(

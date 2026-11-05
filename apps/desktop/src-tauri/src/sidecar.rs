@@ -179,6 +179,15 @@ pub fn skill_plugin_dir(_app: &AppHandle) -> CommandResult<Option<PathBuf>> {
     not_implemented!("AGENT-18")
 }
 
+/// Program name the bundled sidecar prints for `--version`. The one home for the name on this
+/// side; a contract test compares it with packages/sidecar's `SIDECAR_PROGRAM_NAME`.
+pub const SIDECAR_PROGRAM_NAME: &str = "conducted-sidecar";
+
+/// The exact line `<sidecar> --version` must print for `app_version`.
+pub fn expected_version_line(app_version: &str) -> String {
+    format!("{SIDECAR_PROGRAM_NAME} {app_version}")
+}
+
 /// Runs `<binary> --version` and checks that it names `app_version`.
 pub async fn check_binary_version(binary: &Path, app_version: &str) -> CommandResult<()> {
     let binary = binary.to_path_buf();
@@ -213,7 +222,7 @@ fn check_version_blocking(binary: &Path, app_version: &str) -> CommandResult<()>
     }
     let answer = String::from_utf8_lossy(&output.stdout);
     let answer = answer.trim();
-    let expected = format!("conducted-sidecar {app_version}");
+    let expected = expected_version_line(app_version);
     if answer != expected {
         return Err(CommandError::Failed {
             code: "sidecar_version_mismatch",

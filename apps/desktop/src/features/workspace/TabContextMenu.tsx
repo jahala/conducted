@@ -4,11 +4,11 @@
  * Behaviour: ui-map.md 3.2 (chat tab menu: Mark as read or unread, Rename chat, Fork to new tab,
  * Copy concise transcript, Copy full transcript, Copy link, Close tab, Close others).
  * Our design choice: Copy session info is an internal item and is left out. Fork to new tab needs a
- * checkpoint and is disabled without one.
- * Must handle: Fork disabled without a checkpoint; a transcript copy that fails (including an empty
- * chat) shows a toast; Close others with one tab open is disabled by leaving its callback out; items
- * show shortcuts from the command registry.
- * Test first: Choosing 'Copy full transcript' calls sessions.copyTranscript(id, 'full').
+ * checkpoint and is disabled without one. Mark as read or unread waits for NAV-11 and the two
+ * transcript items wait for CHAT-17, so those items stay disabled until their services exist.
+ * Must handle: Fork disabled without a checkpoint; Close others with one tab open is disabled by
+ * leaving its callback out; items show shortcuts from the command registry.
+ * Test first: 'Rename chat' calls sessions.rename with the typed name.
  */
 
 import type { SessionId, WorkspaceId } from "@conducted/shared";
@@ -57,11 +57,6 @@ export function TabContextMenu({
 	const [name, setName] = useState(session?.title ?? "");
 	const [busy, setBusy] = useState(false);
 
-	const copyTranscript = async (detail: "concise" | "full") => {
-		const copied = await actions.sessions.copyTranscript(sessionId, detail);
-		if (!copied.ok) toastError("Couldn't copy the transcript", copied.error);
-	};
-
 	const copyLink = async () => {
 		if (workspaceId === undefined) return;
 		const copied = await actions.app.copyText(buildDeepLink(workspaceId, sessionId));
@@ -99,15 +94,7 @@ export function TabContextMenu({
 			<ContextMenu
 				items={
 					<>
-						<ContextMenuItem
-							onSelect={() =>
-								void (unread
-									? actions.sessions.markRead(sessionId)
-									: actions.sessions.markUnread(sessionId))
-							}
-						>
-							{unread ? "Mark as read" : "Mark as unread"}
-						</ContextMenuItem>
+						<ContextMenuItem disabled>{unread ? "Mark as read" : "Mark as unread"}</ContextMenuItem>
 						<ContextMenuItem
 							onSelect={() => {
 								setName(session?.title ?? "");
@@ -120,15 +107,10 @@ export function TabContextMenu({
 							Fork to new tab
 						</ContextMenuItem>
 						<ContextMenuSeparator />
-						<ContextMenuItem
-							shortcut={shortcutOf("chat.copyTranscript")}
-							onSelect={() => void copyTranscript("concise")}
-						>
+						<ContextMenuItem disabled shortcut={shortcutOf("chat.copyTranscript")}>
 							Copy concise transcript
 						</ContextMenuItem>
-						<ContextMenuItem onSelect={() => void copyTranscript("full")}>
-							Copy full transcript
-						</ContextMenuItem>
+						<ContextMenuItem disabled>Copy full transcript</ContextMenuItem>
 						<ContextMenuItem disabled={workspaceId === undefined} onSelect={() => void copyLink()}>
 							Copy link
 						</ContextMenuItem>

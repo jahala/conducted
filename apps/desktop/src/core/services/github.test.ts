@@ -14,6 +14,7 @@ import {
 	type GithubAccess,
 	GithubService,
 	githubFailureMessage,
+	githubTokenWarning,
 	isGithubRemoteUrl,
 	looksLikeGithubToken,
 	missingScopeFrom,
@@ -97,6 +98,7 @@ function makeService(
 	overrides: {
 		keychain?: Keychain;
 		now?: () => number;
+		setting?: <T>(key: string) => T;
 	} = {},
 ): GithubService {
 	return new GithubService({
@@ -107,6 +109,7 @@ function makeService(
 		onMerged: () => {},
 		now: overrides.now ?? (() => 1_000),
 		...(overrides.keychain === undefined ? {} : { keychain: overrides.keychain }),
+		...(overrides.setting === undefined ? {} : { setting: overrides.setting }),
 		probeCwd: "/tmp",
 	});
 }
@@ -268,6 +271,46 @@ describe("PR-01 access probes", () => {
 		expect(service.store.getState().health.authMethod).toBe("pat");
 	});
 
+	it("does not send a saved token when the chosen method is the gh CLI", async () => {
+		const keychain = memoryKeychain({ [GH_PAT_KEYCHAIN_KEY]: validToken });
+		const git = fakeGit({
+			run: (command) => {
+				if (command.args[0] === "auth") return ok(authOutput);
+				if (command.args[0] === "api") return output(0, "octocat\n");
+				if (command.args[0] === "config") return output(0, "https\n");
+				return output(0);
+			},
+		});
+		const service = makeService(git, {
+			keychain,
+			setting: <T>(_key: string): T => "cli" as T,
+		});
+
+		const result = await service.checkAccess();
+
+		expect(result.ok && result.value).toMatchObject({ status: "ok", usesToken: false });
+		for (const record of git.records) {
+			expect(record.options.env).toBeUndefined();
+		}
+		expect(service.store.getState().health.authMethod).toBe("cli");
+	});
+
+	it("keeps the SSO requirement and the missing scope on the access state", async () => {
+		const sso = makeService(
+			fakeGit({ run: () => output(1, "", "saml enforcement is on for this organization") }),
+		);
+		expect(await sso.checkAccess()).toEqual(
+			ok({ status: "signed_out", failure: "saml-sso-required" }),
+		);
+
+		const scope = makeService(
+			fakeGit({ run: () => output(1, "", "HTTP 403: missing scope workflow") }),
+		);
+		expect(await scope.checkAccess()).toEqual(
+			ok({ status: "signed_out", failure: "missing-scope" }),
+		);
+	});
+
 	it("reports an unauthorized probe to the UI and marks access broken", async () => {
 		const git = fakeGit({
 			run: (command) =>
@@ -333,15 +376,16 @@ describe("PR-01 health store", () => {
 });
 
 describe("PR-01 personal access token", () => {
-	it("rejects a value that is not shaped like a token and keeps the old one", async () => {
+	it("warns about a value that is not shaped like a token without blocking the save", async () => {
+		expect(githubTokenWarning(validToken)).toBeNull();
+		expect(githubTokenWarning("not a token")).toBe(GITHUB_TOKEN_WARNING);
+
 		const keychain = memoryKeychain({ [GH_PAT_KEYCHAIN_KEY]: validToken });
 		const service = makeService(fakeGit({}), { keychain });
+		const enterpriseToken = `gh_enterprise_${"c".repeat(30)}`;
 
-		const result = await service.setToken("not a token");
-
-		expect(result.ok).toBe(false);
-		expect(!result.ok && result.error.code).toBe("github_token_invalid");
-		expect(keychain.values.get(GH_PAT_KEYCHAIN_KEY)).toBe(validToken);
+		expect(await service.setToken(enterpriseToken)).toEqual(ok(undefined));
+		expect(keychain.values.get(GH_PAT_KEYCHAIN_KEY)).toBe(enterpriseToken);
 	});
 
 	it("saves a token, then removes it", async () => {
@@ -376,14 +420,11 @@ describe("PR-01 merge method and dedupe", () => {
 	it("sends one gh pr merge when merge is asked for twice at once", async () => {
 		const mergeCommands: GitCommand[] = [];
 		const git = fakeGit({
-			stdout: (command) => {
-				if (command.args[0] === "rev-parse") return ok("abc123");
-				if (command.args.some((arg) => arg.includes("squashMergeAllowed"))) {
-					return ok("[true,true,true]");
-				}
-				return ok("");
-			},
+			stdout: (command) => (command.args[0] === "rev-parse" ? ok("abc123") : ok("")),
 			run: (command) => {
+				if (command.args.some((arg) => arg.includes("squashMergeAllowed"))) {
+					return output(0, "[true,true,true]");
+				}
 				if (command.args[0] === "pr" && command.args[1] === "merge") {
 					mergeCommands.push(command);
 					return output(0);
@@ -424,6 +465,51 @@ describe("PR-01 merge method and dedupe", () => {
 			"--match-head-commit",
 			"abc123",
 		]);
+	});
+
+	it("signs every merge gh call with the saved token and records its health", async () => {
+		const keychain = memoryKeychain({ [GH_PAT_KEYCHAIN_KEY]: validToken });
+		const git = fakeGit({
+			stdout: (command) => (command.args[0] === "rev-parse" ? ok("abc123") : ok("")),
+			run: (command) => {
+				if (command.args.some((arg) => arg.includes("squashMergeAllowed"))) {
+					return output(0, "[true,true,true]");
+				}
+				return output(0);
+			},
+		});
+		const service = new GithubService({
+			git,
+			cache: {} as GitCache,
+			agent: {} as AgentMessenger,
+			contextOf: async () =>
+				ok({
+					workspaceId,
+					workspacePath: "/tmp/workspace",
+					branch: "feature",
+					remote: "origin",
+					prNumber: 12,
+				}),
+			onMerged: () => {},
+			now: () => 1_000,
+			keychain,
+			probeCwd: "/tmp",
+		});
+
+		expect(await service.merge(workspaceId)).toEqual(ok(undefined));
+
+		const ghRecords = git.records.filter((record) => record.command.program === "gh");
+		expect(ghRecords.map((record) => record.command.args.slice(0, 2))).toEqual([
+			["api", "graphql"],
+			["pr", "merge"],
+		]);
+		for (const record of ghRecords) {
+			expect(record.options.env).toEqual({ GH_TOKEN: validToken });
+		}
+		expect(service.store.getState().health).toMatchObject({
+			status: "ok",
+			authMethod: "pat",
+		});
 	});
 });
 

@@ -107,10 +107,11 @@ let raw: DatabaseSync;
 let database: Database;
 let now: number;
 let nextId: number;
+let existingPaths: Set<string>;
 
 const deps = () => ({
 	db: database,
-	fs: {} as FileSystem,
+	fs: { exists: async (path: string) => existingPaths.has(path) } as FileSystem,
 	clock: { now: () => now },
 	ids: { uuid: () => `generated-${++nextId}` },
 });
@@ -160,6 +161,7 @@ const seedCrash = (): void => {
 	insertWorkspace("init", "initializing", "/data/setup-logs/init.log");
 	insertWorkspace("already-failed", "failed", "/data/setup-logs/already-failed.log");
 	insertWorkspace("archiving", "archiving", null);
+	insertWorkspace("archiving-gone", "archiving", null);
 
 	run(SESSIONS_SQL.insert, must(sessionToParams(sampleSession)));
 	run(
@@ -190,6 +192,7 @@ beforeEach(() => {
 	database = new NodeDatabase(raw);
 	now = 9000;
 	nextId = 0;
+	existingPaths = new Set(["/code/workspaces/archiving"]);
 });
 
 afterEach(() => {
@@ -237,6 +240,28 @@ describe("DATA-03 startup repair closes turns cut off by a crash", () => {
 	});
 });
 
+describe("DATA-03 startup repair survives the sidecar replaying a closed turn", () => {
+	it("keeps the single interrupted end when the rest of the turn is replayed", async () => {
+		seedCrash();
+		const report = must(await runStartupRepair(deps()));
+		expect(report.interruptedTurns).toEqual([{ sessionId, turnId: "t1" }]);
+
+		// The write-ahead log still held the rest of t1. Ingest keeps the late agent output and
+		// drops the real turn_ended, because the turn already has one (DATA-04).
+		append(agentEvent("e5", "t1", 14, [{ kind: "text", text: "late output" }]));
+
+		const events = rows<{ type: string }>(SESSION_EVENTS_SQL.listByTurn, [sessionId, "t1"]);
+		expect(events.map((row) => row.type)).toEqual(["user_message", "agent", "turn_ended", "agent"]);
+		expect(events.filter((row) => row.type === "turn_ended")).toHaveLength(1);
+
+		const open = rows<{ session_id: string; turn_id: string }>(REPAIR_SQL.findInterruptedTurns);
+		expect(open).toEqual([]);
+
+		const second = must(await runStartupRepair(deps()));
+		expect(second.interruptedTurns).toEqual([]);
+	});
+});
+
 describe("DATA-03 startup repair resets stale working state", () => {
 	it("resets a working chat to idle and leaves an idle chat alone", async () => {
 		seedCrash();
@@ -258,6 +283,23 @@ describe("DATA-03 startup repair resets stale working state", () => {
 
 		const second = must(await runStartupRepair(deps()));
 		expect(second.liveStatesReset).toBe(0);
+	});
+
+	it("resets a row whose stored status cannot be read", async () => {
+		run(REPOS_SQL.insert, repoToParams(sampleRepo));
+		insertWorkspace(sampleWorkspace.id, "ready", null);
+		run(SESSIONS_SQL.insert, must(sessionToParams(sampleSession)));
+		run("INSERT INTO session_live_state (session_id, live_state, updated_at) VALUES ($1, $2, $3)", [
+			sessionId,
+			'{"backgroundTasks":[]}',
+			5,
+		]);
+
+		const report = must(await runStartupRepair(deps()));
+		expect(report.liveStatesReset).toBe(1);
+
+		const live = rows<{ live_state: string }>(SESSION_LIVE_STATE_SQL.listAll);
+		expect(live.map((row) => JSON.parse(row.live_state))).toEqual([idleLiveState]);
 	});
 });
 
@@ -293,13 +335,24 @@ describe("DATA-03 startup repair recovers the composer outbox", () => {
 });
 
 describe("DATA-03 startup repair keeps half-built workspaces", () => {
-	it("marks a cut-off workspace failed and reports an archiving one without changing it", async () => {
+	it("marks a cut-off workspace failed and reports archiving ones without changing them", async () => {
 		seedCrash();
 
 		const report = must(await runStartupRepair(deps()));
 		expect(report.workspacesFailed).toBe(1);
 		expect(report.archivingWorkspaces).toEqual([
-			{ id: "archiving", path: "/code/workspaces/archiving", archiveCommit: null },
+			{
+				id: "archiving",
+				path: "/code/workspaces/archiving",
+				archiveCommit: null,
+				folderExists: true,
+			},
+			{
+				id: "archiving-gone",
+				path: "/code/workspaces/archiving-gone",
+				archiveCommit: null,
+				folderExists: false,
+			},
 		]);
 
 		const states = rows<{ id: string; state: string; setup_log_path: string | null }>(
@@ -312,6 +365,7 @@ describe("DATA-03 startup repair keeps half-built workspaces", () => {
 				setup_log_path: "/data/setup-logs/already-failed.log",
 			},
 			{ id: "archiving", state: "archiving", setup_log_path: null },
+			{ id: "archiving-gone", state: "archiving", setup_log_path: null },
 			{ id: "init", state: "failed", setup_log_path: "/data/setup-logs/init.log" },
 			{ id: "ws-1", state: "ready", setup_log_path: null },
 		]);

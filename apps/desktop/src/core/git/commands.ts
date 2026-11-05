@@ -96,8 +96,9 @@ export const enablePushAutoSetupRemote = (): GitCommand =>
 	configSetWorktree("push.autoSetupRemote", "true");
 
 export const lsFiles = (): GitCommand => git(["ls-files"]);
+/** NUL separated, so git never quotes a path (services-map 3.0.5). */
 export const lsFilesUntracked = (): GitCommand =>
-	git(["ls-files", "--others", "--exclude-standard"]);
+	git(["ls-files", "--others", "--exclude-standard", "-z"]);
 export const lsFilesUnmerged = (): GitCommand => git(["ls-files", "-u"]);
 
 // ---------------------------------------------------------------- branches

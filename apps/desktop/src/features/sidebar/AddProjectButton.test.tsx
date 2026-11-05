@@ -18,7 +18,7 @@ vi.mock("../../core/hooks.ts", () => ({
 }));
 vi.mock("../../ui/Toast.tsx", () => ({ toastError: state.toastError }));
 
-const { AddProjectButton, recentProjects } = await import("./AddProjectButton.tsx");
+const { AddProjectButton } = await import("./AddProjectButton.tsx");
 
 const repo = (id: string, name: string, updatedAt: number): Repo => ({
 	id: id as Repo["id"],
@@ -102,13 +102,6 @@ describe("PRJ-01 AddProjectButton", () => {
 });
 
 describe("PRJ-01 Add project menu", () => {
-	it("lists the most recently updated projects first", () => {
-		const older = repo("repo-1", "older", 10);
-		const newer = repo("repo-2", "newer", 20);
-		expect(recentProjects([older, newer], 1)).toEqual([newer]);
-		expect(recentProjects([older, newer])).toEqual([newer, older]);
-	});
-
 	it("opens the folder dialog from Open project in the menu", async () => {
 		state.repos = { state: "ready", data: [repo("repo-1", "app", 10)] };
 		state.pick.mockResolvedValue(ok("/code/other"));
@@ -119,16 +112,11 @@ describe("PRJ-01 Add project menu", () => {
 		await waitFor(() => expect(state.addLocal).toHaveBeenCalledWith("/code/other"));
 	});
 
-	it("opens a recent project folder from the Recents group", async () => {
-		const app = repo("repo-1", "app", 10);
-		const site = repo("repo-2", "site", 20);
-		state.repos = { state: "ready", data: [app, site] };
-		state.addLocal.mockResolvedValue(ok({}));
+	it("has no Recents group, which the research does not describe", async () => {
+		state.repos = { state: "ready", data: [repo("repo-1", "app", 10)] };
 		render(<AddProjectButton />);
 		fireEvent.keyDown(screen.getByRole("button", { name: /Add a project/ }), { key: "Enter" });
-		expect(await screen.findByText("Recents")).toBeTruthy();
-		fireEvent.click(await screen.findByRole("menuitem", { name: "site" }));
-		await waitFor(() => expect(state.addLocal).toHaveBeenCalledWith("/code/site"));
-		expect(state.pick).not.toHaveBeenCalled();
+		expect(await screen.findByRole("menuitem", { name: "Open project..." })).toBeTruthy();
+		expect(screen.queryByText("Recents")).toBeNull();
 	});
 });
