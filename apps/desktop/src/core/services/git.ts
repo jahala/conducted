@@ -1,5 +1,5 @@
 /**
- * @feature GIT-02 Git service: polling change state
+ * @feature GIT-02 Git service: polling change state; GIT-13 Fetch on demand, at most once a minute
  * Owns: polling each shown workspace's git state at the requested depth, the four-slot limiter,
  * and the last error per workspace.
  * Behaviour: services-map.md 3.3.1 (schedule, depths, staleness, concurrency) and 3.3.3 (a
@@ -13,12 +13,12 @@
  * workspace or read as a git option is refused; discarding a file moves a file the branch added to
  * the Trash and stops when git cannot say whether the base has the file; viewed marks are saved
  * one write at a time per workspace.
- * Not built yet: only the visible workspace polling fast (GIT-13 owns the fetching rules).
+ * Also: GIT-13 decides when the pull request's base or head is newer than the local refs and
+ * fetches it at most once a minute for one repository and branch.
  * Our design choice: this class exposes snapshots only. The Git header state machine and the
  * merge with pull request info belong to GIT-04, the git actions (push, pull, retarget, rename,
  * discard and the rest) belong to their own features, and the restart cache belongs to DATA-07.
- * Their placeholders stay here until those features build them; the fetching rules belong to
- * GIT-13.
+ * Their placeholders stay here until those features build them.
  * Test first: a workspace watched at depth full runs its poll immediately and again once the
  * interval has passed.
  */
@@ -41,6 +41,7 @@ import { createKeyedQueue } from "../async/serial-queue.ts";
 import {
 	catFileExists,
 	diffWorkingTree,
+	fetch,
 	mergeBase,
 	removeCached,
 	restoreFromSource,
@@ -187,6 +188,12 @@ export const FETCH_MIN_GAP_MS = 60_000;
 
 /** The commits GitHub reports for a pull request, and what the local refs hold (GIT-13). */
 export interface FetchStaleness {
+	/** Name of the remote, for example "origin". */
+	remote: string;
+	/** The branch the workspace is diffed against, without a remote prefix, for example "main". */
+	targetBranch: string;
+	/** The workspace's branch name, for example "feat". */
+	branch: string;
 	/** The commit the PR's base branch is at on GitHub. */
 	prBaseOid: string;
 	/** The commit the PR's head branch is at on GitHub. */
@@ -203,16 +210,65 @@ export type FetchDecision =
 	| { fetch: false; reason: "in_sync" | "too_soon" | "stack_parent" }
 	| { fetch: true; refspecs: readonly string[] };
 
+/** The remote-tracking branch a refspec writes, so a fetch also refreshes the local ref. */
+function fetchRefspec(remote: string, branch: string): string {
+	return `+refs/heads/${branch}:refs/remotes/${remote}/${branch}`;
+}
+
+/**
+ * The plain branch name of a stored target such as "origin/main", "refs/remotes/origin/main" or
+ * "refs/heads/main". A target with no prefix is already a branch name.
+ */
+function plainBranchName(branch: string, remote: string): string {
+	if (branch.startsWith("refs/heads/")) return branch.slice("refs/heads/".length);
+	if (branch.startsWith("refs/remotes/")) {
+		const rest = branch.slice("refs/remotes/".length);
+		const slash = rest.indexOf("/");
+		return slash === -1 ? rest : rest.slice(slash + 1);
+	}
+	if (remote.length > 0 && branch.startsWith(`${remote}/`)) {
+		return branch.slice(remote.length + 1);
+	}
+	return branch;
+}
+
 /**
  * Whether to fetch now. `lastFetchedAt` is the time of the last fetch for the same repository and
  * branch, or null when there was none. Pure: the caller reads the refs and the clock.
+ *
+ * The base is fetched only when the diff target is a remote branch: a local stack parent has no
+ * remote ref to compare with. A stale head is fetched even when the base is a stack parent.
  */
 export function decideFetch(
-	_staleness: FetchStaleness,
-	_lastFetchedAt: number | null,
-	_now: number,
+	staleness: FetchStaleness,
+	lastFetchedAt: number | null,
+	now: number,
 ): FetchDecision {
-	return notImplemented("GIT-13");
+	const baseDiffers =
+		staleness.targetBranch.length > 0 &&
+		(staleness.localBaseOid === null || staleness.localBaseOid !== staleness.prBaseOid);
+	const headDiffers =
+		staleness.branch.length > 0 &&
+		(staleness.upstreamOid === null || staleness.upstreamOid !== staleness.prHeadOid);
+	const fetchBase = baseDiffers && !staleness.baseIsLocalStackParent;
+
+	if (!fetchBase && !headDiffers) {
+		return {
+			fetch: false,
+			reason: baseDiffers && staleness.baseIsLocalStackParent ? "stack_parent" : "in_sync",
+		};
+	}
+	if (lastFetchedAt !== null && now - lastFetchedAt < FETCH_MIN_GAP_MS) {
+		return { fetch: false, reason: "too_soon" };
+	}
+
+	const refspecs: string[] = [];
+	if (fetchBase) refspecs.push(fetchRefspec(staleness.remote, staleness.targetBranch));
+	if (headDiffers) {
+		const head = fetchRefspec(staleness.remote, staleness.branch);
+		if (!refspecs.includes(head)) refspecs.push(head);
+	}
+	return { fetch: true, refspecs };
 }
 
 export interface GitServiceDeps {
@@ -556,12 +612,74 @@ export class GitService {
 	 * at most once per `FETCH_MIN_GAP_MS` for one repository and branch, then refreshes the
 	 * workspace. `fetched` is false when `decideFetch` said not to.
 	 */
-	fetchIfStale(
-		_workspaceId: WorkspaceId,
-		_pullRequestOids: Pick<FetchStaleness, "prBaseOid" | "prHeadOid">,
+	async fetchIfStale(
+		workspaceId: WorkspaceId,
+		pullRequestOids: Pick<FetchStaleness, "prBaseOid" | "prHeadOid">,
 	): Promise<Result<{ fetched: boolean }>> {
-		void this.#lastFetchAt;
-		return notImplemented("GIT-13");
+		const found = await this.#deps.contextOf(workspaceId);
+		if (!found.ok) return found;
+		const context = found.value;
+
+		const baseRef =
+			context.targetBranch.length > 0 ? remoteTargetRef(context.targetBranch, context.remote) : "";
+		const upstreamRef =
+			context.branch.length > 0 ? remoteTargetRef(context.branch, context.remote) : "";
+		const [localBase, upstream] = await Promise.all([
+			this.#remoteOid(context.workspacePath, baseRef),
+			this.#remoteOid(context.workspacePath, upstreamRef),
+		]);
+		if (!localBase.ok) return localBase;
+		if (!upstream.ok) return upstream;
+
+		const now = this.#deps.now();
+		const key = `${context.repoRootPath}\u0000${context.branch}`;
+		const decision = decideFetch(
+			{
+				remote: context.remote,
+				targetBranch: plainBranchName(context.targetBranch, context.remote),
+				branch: context.branch,
+				prBaseOid: pullRequestOids.prBaseOid,
+				prHeadOid: pullRequestOids.prHeadOid,
+				localBaseOid: localBase.value,
+				upstreamOid: upstream.value,
+				// This service has no Graphite stack data, so the stored target is a remote branch.
+				baseIsLocalStackParent: false,
+			},
+			this.#lastFetchAt.get(key) ?? null,
+			now,
+		);
+		if (!decision.fetch) return ok({ fetched: false });
+
+		// Record the attempt before the command runs, so two overlapping calls cannot both fetch.
+		this.#lastFetchAt.set(key, now);
+		const fetched = await this.#deps.git.runChecked(fetch(context.remote, decision.refspecs), {
+			cwd: context.workspacePath,
+		});
+		if (!fetched.ok) return fetched;
+
+		const refreshed = await this.#refreshNow(workspaceId, "full");
+		if (!refreshed.ok) return refreshed;
+		return ok({ fetched: true });
+	}
+
+	/** The commit a remote-tracking ref points at, or null when the ref does not exist. */
+	async #remoteOid(cwd: string, ref: string): Promise<Result<string | null>> {
+		if (ref.length === 0) return ok(null);
+		const result = await this.#deps.git.run(revParseVerify(ref), { cwd });
+		if (!result.ok) return result;
+		if (result.value.exitCode === 0) {
+			const oid = result.value.stdout.trim();
+			return oid.length === 0
+				? err(appError("git_parse", `git rev-parse returned no commit for ${ref}.`))
+				: ok(oid);
+		}
+		if (result.value.exitCode === 1) return ok(null);
+		return err(
+			appError(
+				"git_failed",
+				result.value.stderr.trim() || `git rev-parse exited with code ${result.value.exitCode}`,
+			),
+		);
 	}
 
 	/** Backs `Actions.git.setViewed`. The mark resets when the file's modified time changes. */
