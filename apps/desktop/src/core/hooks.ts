@@ -177,7 +177,17 @@ function sessionsOf(
 	return { state: "ready", data };
 }
 
-export const useRepoConfig: Queries["useRepoConfig"] = () => notImplemented("PRJ-04");
+export const useRepoConfig: Queries["useRepoConfig"] = (repoId) => {
+	const service = useServices().services.repo;
+	const config = useStore(service.store, (state) => state.configs[repoId]);
+	const error = useStore(service.store, (state) => state.configErrors?.[repoId]);
+	useEffect(() => {
+		if (config === undefined) void service.loadConfig(repoId);
+	}, [service, repoId, config]);
+	if (error !== undefined) return { state: "error", error };
+	if (config === undefined) return { state: "loading" };
+	return { state: "ready", data: config };
+};
 export const useWorkspaces: Queries["useWorkspaces"] = () => notImplemented("NAV-03");
 export const useWorkspace: Queries["useWorkspace"] = () => notImplemented("WS-01");
 
