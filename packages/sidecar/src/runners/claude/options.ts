@@ -26,8 +26,17 @@
  * transcript they hold resume and no sessionId.
  */
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
-import { notImplemented } from "@conducted/shared";
+import type { Effort } from "@conducted/protocol";
+import { progressTrackerGuidance } from "../../prompt/system-additions.ts";
 import type { StartOptions } from "../runner.ts";
+import {
+	APP_TOOL_NAME_PREFIX,
+	CLAUDE_DISALLOWED_TOOLS,
+	CLAUDE_LAUNCH_ENV,
+	CLAUDE_MAX_TURNS,
+	CLAUDE_SETTING_SOURCES,
+	CLAUDE_TOOL_ALIASES,
+} from "./constants.ts";
 
 export interface ClaudeOptionsInput {
 	start: StartOptions;
@@ -44,6 +53,78 @@ export interface ClaudeOptionsInput {
 	onStderr(line: string): void;
 }
 
-export function buildClaudeOptions(_input: ClaudeOptionsInput): Options {
-	return notImplemented("AGENT-02");
+export function buildClaudeOptions(input: ClaudeOptionsInput): Options {
+	const config = input.start.config;
+	const progressGuidance = config.appTools.progressUpdates
+		? progressTrackerGuidance(`${APP_TOOL_NAME_PREFIX}UpdateProgress`)
+		: undefined;
+	return {
+		...sessionChoice(input.start, input.hasTranscript),
+		abortController: input.abortController,
+		pathToClaudeCodeExecutable: input.executablePath,
+		cwd: input.start.workspace.workspacePath,
+		env: { ...input.start.env, ...CLAUDE_LAUNCH_ENV },
+		model: config.model,
+		effort: effortOption(config.effort),
+		thinking: thinkingOption(config.effort),
+		// The process starts bypassing checks and the real mode is switched live (permissions.ts).
+		permissionMode: "bypassPermissions",
+		allowDangerouslySkipPermissions: true,
+		systemPrompt:
+			progressGuidance === undefined
+				? { type: "preset", preset: "claude_code" }
+				: { type: "preset", preset: "claude_code", append: progressGuidance },
+		settingSources: [...CLAUDE_SETTING_SOURCES],
+		maxTurns: CLAUDE_MAX_TURNS,
+		additionalDirectories: [...config.additionalDirectories],
+		disallowedTools: [...CLAUDE_DISALLOWED_TOOLS],
+		toolAliases: { ...CLAUDE_TOOL_ALIASES },
+		canUseTool: input.canUseTool,
+		hooks: input.hooks,
+		mcpServers: input.mcpServers,
+		sessionStore: input.sessionStore,
+		sessionStoreFlush: "eager",
+		stderr: input.onStderr,
+	};
+}
+
+/** New, resumed or forked: the session fields that decide which transcript Claude opens. */
+function sessionChoice(
+	start: StartOptions,
+	hasTranscript: boolean,
+): Pick<Options, "resume" | "sessionId" | "resumeSessionAt" | "forkSession"> {
+	const resume = start.resume;
+	if (resume === undefined) return { sessionId: start.sessionId };
+	if (resume.atNativeMessageId !== undefined) {
+		return {
+			resume: resume.agentSessionId,
+			sessionId: start.sessionId,
+			resumeSessionAt: resume.atNativeMessageId,
+			forkSession: true,
+		};
+	}
+	// Resuming an id with no transcript would fail the start, so a new session claims our id.
+	if (!hasTranscript) return { sessionId: start.sessionId };
+	return { resume: resume.agentSessionId };
+}
+
+/**
+ * The SDK's effort names are ours, except the levels Claude reads from its settings or does not
+ * support. "ultracode" is carried by the settings JSON (AGENT-16), so no effort flag is sent.
+ */
+function effortOption(effort: Effort): Options["effort"] | undefined {
+	switch (effort) {
+		case "none":
+		case "ultracode":
+			return undefined;
+		case "ultra":
+			return "max";
+		default:
+			return effort;
+	}
+}
+
+function thinkingOption(effort: Effort): Options["thinking"] {
+	if (effort === "none") return { type: "disabled" };
+	return { type: "adaptive", display: "summarized" };
 }

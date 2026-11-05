@@ -19,14 +19,32 @@
  *    contextUsage are all supported
  * Test first: detect() with a findExecutable that returns null resolves to null without probing.
  */
-import type { ModelInfo } from "@conducted/protocol";
-import { notImplemented } from "@conducted/shared";
+import type {
+	Query,
+	SDKUserMessage,
+	ModelInfo as SdkModelInfo,
+} from "@anthropic-ai/claude-agent-sdk";
+import type { Effort, ModelInfo } from "@conducted/protocol";
+import { appError } from "@conducted/shared";
+import { AGENT_NOT_INSTALLED } from "../../models/catalog.ts";
 import type { RunnerCommonDeps } from "../deps.ts";
 import type { AgentSession, Runner, RunnerCapabilities, StartOptions } from "../runner.ts";
-import type { ClaudeSessionDeps } from "./claude-session.ts";
+import { ClaudeSession, type ClaudeSessionDeps } from "./claude-session.ts";
+import { CLAUDE_PROBE_TIMEOUT_MS, CLAUDE_SETTING_SOURCES } from "./constants.ts";
 
 export type ClaudeRunnerDeps = RunnerCommonDeps &
-	Pick<ClaudeSessionDeps, "query" | "appTools" | "hasTranscript" | "realPath" | "newUuid">;
+	Pick<
+		ClaudeSessionDeps,
+		| "query"
+		| "translator"
+		| "appTools"
+		| "hasTranscript"
+		| "realPath"
+		| "newUuid"
+		| "scheduler"
+		| "createCanUseTool"
+		| "createMcpServers"
+	>;
 
 export class ClaudeRunner implements Runner {
 	readonly agent = "claude" as const;
@@ -40,25 +58,176 @@ export class ClaudeRunner implements Runner {
 		contextUsage: true,
 	};
 
+	private lastEnv: Readonly<Record<string, string>> = {};
+
 	constructor(protected readonly deps: ClaudeRunnerDeps) {}
 
-	detect(
-		_env: Readonly<Record<string, string>>,
+	async detect(
+		env: Readonly<Record<string, string>>,
 	): Promise<{ path: string; version: string } | null> {
-		return notImplemented("AGENT-02");
+		this.lastEnv = env;
+		const path = await this.deps.findExecutable("claude", env);
+		if (path === null) return null;
+		const probed = await this.deps.probe(path, ["--version"], {
+			env,
+			timeoutMs: CLAUDE_PROBE_TIMEOUT_MS,
+		});
+		if (!probed.ok) {
+			// Reported as installed but without a version, as the detector expects.
+			this.deps.logger.warn("Could not read the Claude version", {
+				path,
+				code: probed.error.code,
+			});
+			return { path, version: "" };
+		}
+		return { path, version: parseClaudeVersion(probed.value.stdout || probed.value.stderr) };
 	}
 
-	start(_options: StartOptions): Promise<AgentSession> {
-		return notImplemented("AGENT-02");
+	async start(options: StartOptions): Promise<AgentSession> {
+		const requested = options.workspace.workspacePath;
+		const resolved = await this.deps.realPath(requested);
+		if (resolved === null) {
+			throw new Error(`Workspace directory missing: ${requested}`);
+		}
+		if (resolved !== requested) {
+			// Claude names its transcript folder from the real path, so resume must use it too.
+			this.deps.logger.warn("Workspace path resolves through a symlink", {
+				path: requested,
+				realPath: resolved,
+			});
+		}
+		const executablePath = await this.deps.findExecutable("claude", options.env);
+		if (executablePath === null) {
+			throw appError(
+				AGENT_NOT_INSTALLED,
+				"Claude Code was not found. Install it in settings and try again.",
+			);
+		}
+		const start =
+			resolved === requested
+				? options
+				: { ...options, workspace: { ...options.workspace, workspacePath: resolved } };
+		return new ClaudeSession({ ...this.deps, executablePath }, start);
 	}
 
-	listModels(): Promise<ModelInfo[]> {
-		return notImplemented("AGENT-02");
+	async listModels(): Promise<ModelInfo[]> {
+		const executablePath = await this.requireExecutable();
+		const metadata = this.metadataQuery(executablePath);
+		try {
+			const models = await metadata.query.supportedModels();
+			return models.map(toModelInfo);
+		} finally {
+			metadata.end();
+		}
 	}
 
-	listSlashCommands(
-		_workspacePath: string,
+	async listSlashCommands(
+		workspacePath: string,
 	): Promise<{ name: string; description: string; argumentHint?: string }[]> {
-		return notImplemented("AGENT-02");
+		const executablePath = await this.requireExecutable();
+		const metadata = this.metadataQuery(executablePath, workspacePath);
+		try {
+			const commands = await metadata.query.supportedCommands();
+			return commands.map((command) => ({
+				name: command.name,
+				description: command.description,
+				...(command.argumentHint === "" ? {} : { argumentHint: command.argumentHint }),
+			}));
+		} finally {
+			metadata.end();
+		}
 	}
+
+	private async requireExecutable(): Promise<string> {
+		const path = await this.deps.findExecutable("claude", this.lastEnv);
+		if (path === null) {
+			throw appError(
+				AGENT_NOT_INSTALLED,
+				"Claude Code was not found. Install it in settings and try again.",
+			);
+		}
+		return path;
+	}
+
+	/**
+	 * A throwaway query for asking the CLI about models or slash commands. Its prompt never yields,
+	 * and `end()` aborts the process so nothing is left behind.
+	 */
+	private metadataQuery(executablePath: string, cwd?: string): { query: Query; end(): void } {
+		const abort = new AbortController();
+		const prompt = createMetadataPrompt();
+		const query = this.deps.query({
+			prompt: prompt.iterable,
+			options: {
+				abortController: abort,
+				pathToClaudeCodeExecutable: executablePath,
+				env: { ...this.lastEnv },
+				permissionMode: "default",
+				settingSources: [...CLAUDE_SETTING_SOURCES],
+				...(cwd === undefined ? {} : { cwd }),
+			},
+		});
+		return {
+			query,
+			end: () => {
+				prompt.finish();
+				abort.abort();
+			},
+		};
+	}
+}
+
+/** "2.0.14 (Claude Code)" gives "2.0.14"; text without a version is returned trimmed. */
+export function parseClaudeVersion(text: string): string {
+	const match = /(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)/.exec(text);
+	return match?.[1] ?? text.trim();
+}
+
+const EFFORT_LEVELS: ReadonlySet<string> = new Set([
+	"none",
+	"low",
+	"medium",
+	"high",
+	"xhigh",
+	"max",
+	"ultra",
+	"ultracode",
+]);
+
+function isOurEffort(value: string): value is Effort {
+	return EFFORT_LEVELS.has(value);
+}
+
+function toModelInfo(model: SdkModelInfo): ModelInfo {
+	const efforts = (model.supportedEffortLevels ?? []).filter(isOurEffort);
+	// The middle of the levels offered is the least surprising default when the SDK names none.
+	const middle = efforts[Math.floor((efforts.length - 1) / 2)];
+	return {
+		id: model.value,
+		label: model.displayName,
+		status: "picker",
+		isNew: false,
+		isDefault: false,
+		efforts,
+		defaultEffort: middle ?? "medium",
+		effortAxis: "effort",
+		liveEffortChange: efforts.length > 0,
+		supportsFastMode: model.supportsFastMode ?? false,
+	};
+}
+
+/** A prompt that yields nothing until `finish()` is called, for a metadata-only query. */
+function createMetadataPrompt(): { iterable: AsyncIterable<SDKUserMessage>; finish(): void } {
+	let finish: () => void = () => {};
+	const done = new Promise<void>((resolve) => {
+		finish = resolve;
+	});
+	const iterable: AsyncIterable<SDKUserMessage> = {
+		[Symbol.asyncIterator]() {
+			return {
+				next: () => done.then(() => ({ value: undefined, done: true })),
+			};
+		},
+	};
+	return { iterable, finish };
 }
