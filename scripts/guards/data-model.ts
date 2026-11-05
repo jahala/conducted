@@ -18,12 +18,15 @@ export interface TableInfo {
 	lifetime: string | null;
 }
 
+/** `CREATE [VIRTUAL] TABLE [IF NOT EXISTS] name`, in any case and indentation, quoted or not. */
+const CREATE_TABLE = /^\s*CREATE\s+(?:VIRTUAL\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["`[]?(\w+)/i;
+
 /** Reads each CREATE TABLE and the comment block right above it. */
 export function parseTables(sql: string, migration: string): TableInfo[] {
 	const lines = sql.split("\n");
 	const tables: TableInfo[] = [];
 	lines.forEach((line, index) => {
-		const match = /^CREATE TABLE (\w+)/.exec(line);
+		const match = CREATE_TABLE.exec(line);
 		if (!match?.[1]) return;
 		const comment: string[] = [];
 		for (let i = index - 1; i >= 0 && lines[i]?.startsWith("--"); i--) {

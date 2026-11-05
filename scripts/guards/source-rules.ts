@@ -5,11 +5,10 @@
  *  - markers: no TODO or FIXME comments, no `todo!`/`unimplemented!` in Rust, and no `rm` in
  *    scripts (scripts move files to the Trash).
  */
-import { type Problem, read, rel, walk } from "./lib.ts";
+import { type Problem, placeholdersIn, read, rel, walk } from "./lib.ts";
 
-const SOURCE = /^(apps|packages)\/.+\/src\/.+\.(ts|tsx|rs)$|^(bin|scripts)\/[^/]+\.(sh|ts)$/;
+const SOURCE = /^(apps|packages)\/.+\/src\/.+\.(ts|tsx|rs)$|^(bin|scripts)\/.+\.(sh|ts)$/;
 const EXEMPT = /\.test\.tsx?$|\.d\.ts$|(^|\/)index\.ts$|^scripts\/guards\/fixtures\//;
-const PLACEHOLDER = /not_?[iI]mplemented!?\s*\(?\s*"[A-Z]+-\d{2}"/;
 
 /** True when the first non-blank, non-shebang line starts a comment. */
 export function hasHeader(text: string): boolean {
@@ -27,7 +26,7 @@ export function checkHeaders(root: string): Problem[] {
 		const text = read(path);
 		if (!hasHeader(text)) {
 			problems.push({ guard: "headers", message: `${file} has no header comment` });
-		} else if (PLACEHOLDER.test(text) && !text.includes("@feature")) {
+		} else if (placeholdersIn(text).length > 0 && !text.includes("@feature")) {
 			problems.push({
 				guard: "headers",
 				message: `${file} has placeholders but its header names no @feature`,
