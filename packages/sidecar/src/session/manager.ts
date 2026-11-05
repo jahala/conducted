@@ -1,8 +1,8 @@
 /**
  * @feature SIDE-03 Session manager: per-session queue, duplicate guard, idle after flush
  * Owns: every chat the sidecar knows about, and the app's requests about them: sendMessage,
- * cancel, warmAgent, resetAgent, updateConfig, setAutoApproveEdits, getSessionStatus and
- * answerInteraction.
+ * cancel, warmAgent, resetAgent, updateConfig, setAutoApproveEdits, getSessionStatus,
+ * answerInteraction, and the ACP chat options of a live chat (AGENT-17).
  * Behaviour: research/conductor/sessions.md sections 2, 3 and 6, sessions-and-chats.md "What
  * happens when you send a message" and "While the agent is working", other-runners.md section 2.4
  * (steering policy). Conductor splits this over a server (`CJi`), a host (`PFe`) and a send
@@ -136,6 +136,14 @@ export interface SessionManager {
 	answerInteraction(
 		params: AppToSidecarRequestParams<"answerInteraction">,
 	): Promise<AppToSidecarHandlerValue<"answerInteraction">>;
+	/** ACP only: the chat's own options beyond the model, after the saved choices are applied. */
+	listAcpConfigOptions(
+		params: AppToSidecarRequestParams<"listAcpConfigOptions">,
+	): Promise<AppToSidecarHandlerValue<"listAcpConfigOptions">>;
+	/** ACP only: set one chat option between turns. */
+	setAcpConfigOption(
+		params: AppToSidecarRequestParams<"setAcpConfigOption">,
+	): Promise<AppToSidecarHandlerValue<"setAcpConfigOption">>;
 	/** Live state of a chat, for the process manager's busy and idle marks. */
 	liveStateOf(sessionId: SessionId): LiveState | undefined;
 	/** Called when the app connection attaches: resend open interactions. */
@@ -457,6 +465,78 @@ export class DefaultSessionManager implements SessionManager {
 		return ok(this.deps.interactions.answer(state.sessionId, params.interactionId, params.answer));
 	}
 
+	listAcpConfigOptions(
+		params: AppToSidecarRequestParams<"listAcpConfigOptions">,
+	): Promise<AppToSidecarHandlerValue<"listAcpConfigOptions">> {
+		return this.deps.queue.run(queueKey(params.sessionId), async () => {
+			const state = this.sessions.get(params.sessionId);
+			if (state === undefined) {
+				return err(appError("session_unknown", "The sidecar has no state for this chat."));
+			}
+			if (this.configRefused(state)) {
+				return err(
+					appError("acp_options_busy", "Chat options cannot change while a reply is running."),
+				);
+			}
+			const ensured = await this.ensureConfigAgent(state);
+			if (!ensured.ok) return err(ensured.error);
+			try {
+				const list = ensured.value.agent.listAcpConfigOptions;
+				if (list === undefined) {
+					return err(appError("acp_options_unsupported", "This agent has no chat options."));
+				}
+				const listed = await list.call(ensured.value.agent, state.config, (agentSessionId) =>
+					this.rememberAgentSessionId(state, agentSessionId),
+				);
+				if (!listed.ok) return err(listed.error);
+				return ok({ options: listed.value });
+			} finally {
+				ensured.value.release();
+			}
+		});
+	}
+
+	setAcpConfigOption(
+		params: AppToSidecarRequestParams<"setAcpConfigOption">,
+	): Promise<AppToSidecarHandlerValue<"setAcpConfigOption">> {
+		return this.deps.queue.run(queueKey(params.sessionId), async () => {
+			const state = this.sessions.get(params.sessionId);
+			if (state === undefined) {
+				return err(appError("session_unknown", "The sidecar has no state for this chat."));
+			}
+			if (this.configRefused(state)) {
+				return err(
+					appError("acp_options_busy", "Chat options cannot change while a reply is running."),
+				);
+			}
+			const ensured = await this.ensureConfigAgent(state);
+			if (!ensured.ok) return err(ensured.error);
+			try {
+				const set = ensured.value.agent.setAcpConfigOption;
+				if (set === undefined) {
+					return err(appError("acp_options_unsupported", "This agent has no chat options."));
+				}
+				const changed = await set.call(
+					ensured.value.agent,
+					params.optionId,
+					params.value,
+					state.config,
+					(agentSessionId) => this.rememberAgentSessionId(state, agentSessionId),
+				);
+				if (!changed.ok) return err(changed.error);
+				const next: SessionConfig = {
+					...state.config,
+					acpConfig: { ...(state.config.acpConfig ?? {}), [params.optionId]: params.value },
+				};
+				state.config = next;
+				if (state.agentConfig !== null) state.agentConfig = next;
+				return ok({ options: changed.value });
+			} finally {
+				ensured.value.release();
+			}
+		});
+	}
+
 	liveStateOf(sessionId: SessionId): LiveState | undefined {
 		if (!this.sessions.has(sessionId)) return undefined;
 		return this.deps.liveState.get(sessionId);
@@ -556,6 +636,25 @@ export class DefaultSessionManager implements SessionManager {
 			if (params.resume !== undefined) state.resume = params.resume;
 		}
 		return state;
+	}
+
+	private configRefused(state: SessionState): boolean {
+		return state.activeTurn !== null || this.liveStatus(state.sessionId) === "working";
+	}
+
+	/** The chat's live agent, started when it is not running yet, with the lease to give back. */
+	private async ensureConfigAgent(
+		state: SessionState,
+	): Promise<Result<{ agent: AgentSession; release: () => void }, AppError>> {
+		if (state.agent !== null) return ok({ agent: state.agent, release: () => {} });
+		const runner = this.runnerFor(state.config);
+		if (!runner.ok) return err(runner.error);
+		const claimed = await this.claimAgent(state, runner.value, state.config, state.workspace);
+		if (!claimed.ok) return err(claimed.error);
+		return ok({
+			agent: claimed.value.agent,
+			release: () => this.releaseLease(state, claimed.value.lease),
+		});
 	}
 
 	private runnerFor(config: SessionConfig): Result<Runner, AppError> {

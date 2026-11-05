@@ -96,8 +96,8 @@ export function buildHandlers(deps: HandlerDeps): {
 			setGoal: async () => notImplemented("AGENT-13"),
 			changeGoal: async () => notImplemented("AGENT-13"),
 			compact: async () => notImplemented("AGENT-14"),
-			listAcpConfigOptions: async () => notImplemented("AGENT-17"),
-			setAcpConfigOption: async () => notImplemented("AGENT-17"),
+			listAcpConfigOptions: (params) => deps.sessions.listAcpConfigOptions(params),
+			setAcpConfigOption: (params) => deps.sessions.setAcpConfigOption(params),
 		},
 		notifications: {
 			eventPersisted: async (params) => {
