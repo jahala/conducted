@@ -1,7 +1,8 @@
 /**
- * @feature WS-01 Worktree creation and removal
- * Owns: the git steps that create a workspace's worktree, set it up, and remove it again, plus
- * the rule that makes a branch or folder name unique.
+ * @feature WS-01 Worktree creation and removal; WS-05 archive snapshot and pin
+ * Owns: the git steps that create a workspace's worktree, set it up, and remove it again; the
+ * archive snapshot, its discard repair, the HEAD pin, and the removal fallback; plus the rule that
+ * makes a branch or folder name unique.
  * Behaviour: services-map.md 3.1 (workspace create), 3.13 (worktree-level config), 3.10 (archive
  * and unarchive), 3.15 (minimal command set).
  * Must handle: a repository with no commit yet (create an empty initial commit first); fetch
@@ -16,23 +17,30 @@
  * from exactly what was fetched. Removal of the folder goes through the Trash (fs.trash).
  * Test first: nextFreeName("oslo", taken: oslo, oslo-v1) returns "oslo-v2".
  */
-import { appError, err, notImplemented, ok, type Result } from "@conducted/shared";
+import { appError, err, ok, type Result } from "@conducted/shared";
 import type { FileSystem } from "../../platform/platform.ts";
 import { contextDir } from "../app-paths.ts";
 import {
+	addUpdatedPaths,
 	commitEmptyInitial,
 	configGetLocal,
 	configGetWorktree,
+	diffUnmergedPathsNul,
 	enablePushAutoSetupRemote,
 	enableWorktreeConfig,
 	fetchBranchRefspec,
 	revParse,
 	revParseGitCommonDir,
+	revParseGitPath,
 	revParseHead,
 	showRefVerify,
+	updateRef,
 	worktreeAddNewBranch,
 	worktreeList,
+	worktreePrune,
+	worktreeRemove,
 } from "./commands.ts";
+import { archiveCheckpointId, archiveRef, CHECKPOINTER_EXIT } from "./refs.ts";
 import type { GitRunner } from "./runner.ts";
 
 export const MAX_NAME_SUFFIX_TRIES = 1000;
@@ -302,13 +310,150 @@ export async function prepareWorktree(
 	return ok({ warning });
 }
 
+/** Shown when a checkpoint save finds an unfinished merge, rebase, cherry-pick or revert. */
+export const ARCHIVE_GIT_BUSY_MESSAGE =
+	"Git has an unfinished merge, rebase, cherry-pick or revert. Finish it, or discard it and archive again.";
+
+/** Git's in-progress operation files and folders, removed by the discard step (services-map 3.10). */
+export const GIT_OPERATION_PATHS = [
+	"MERGE_HEAD",
+	"MERGE_MSG",
+	"MERGE_MODE",
+	"AUTO_MERGE",
+	"SQUASH_MSG",
+	"CHERRY_PICK_HEAD",
+	"REVERT_HEAD",
+	"REBASE_HEAD",
+	"rebase-merge",
+	"rebase-apply",
+	"sequencer",
+] as const;
+
+const checkpointerSave = (checkpointerPath: string, id: string) => ({
+	program: checkpointerPath,
+	args: ["save", "--id", id, "--force"],
+});
+
+const absoluteGitPath = (worktreePath: string, path: string): string =>
+	path.startsWith("/") ? path : `${worktreePath.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+
+/**
+ * Resolves the unmerged paths and removes the leftover git operation files, so a checkpoint save
+ * can run (services-map 3.10). The caller asks the user first.
+ */
+export async function discardGitOperationState(
+	runner: GitRunner,
+	fs: Pick<FileSystem, "exists" | "trash">,
+	worktreePath: string,
+): Promise<Result<void>> {
+	const listed = await runner.run(diffUnmergedPathsNul(), { cwd: worktreePath });
+	if (!listed.ok) return listed;
+	const paths = listed.value.stdout.split("\0").filter((path) => path !== "");
+	if (paths.length > 0) {
+		const staged = await runner.runChecked(addUpdatedPaths(paths), { cwd: worktreePath });
+		if (!staged.ok) return staged;
+	}
+	for (const name of GIT_OPERATION_PATHS) {
+		const gitPath = await runner.stdout(revParseGitPath(name), { cwd: worktreePath });
+		if (!gitPath.ok) return gitPath;
+		if (gitPath.value === "") continue;
+		const path = absoluteGitPath(worktreePath, gitPath.value);
+		if (!(await fs.exists(path))) continue;
+		const removed = await fs.trash(path);
+		if (!removed.ok) return removed;
+	}
+	return ok(undefined);
+}
+
+export interface SaveArchiveSnapshotInput {
+	workspaceId: string;
+	checkpointerPath: string;
+	worktreePath: string;
+	/** The user agreed to discard a merge, rebase, cherry-pick or revert the save found. */
+	discardGitOperationState: boolean;
+	fs: Pick<FileSystem, "exists" | "trash">;
+}
+
+/**
+ * Saves the workspace's uncommitted state under the archive id (services-map 3.10). A save that
+ * reports an unfinished git operation is refused unless the caller passes the discard agreement;
+ * with it, the operation state is discarded and the save is tried once more.
+ */
+export async function saveArchiveSnapshot(
+	runner: GitRunner,
+	input: SaveArchiveSnapshotInput,
+): Promise<Result<{ discarded: boolean }>> {
+	const command = checkpointerSave(input.checkpointerPath, archiveCheckpointId(input.workspaceId));
+	const first = await runner.run(command, { cwd: input.worktreePath });
+	if (!first.ok) return first;
+	if (first.value.exitCode === 0) return ok({ discarded: false });
+	if (
+		first.value.exitCode !== CHECKPOINTER_EXIT.busy &&
+		first.value.exitCode !== CHECKPOINTER_EXIT.unmergedIndex
+	) {
+		return err(
+			appError(
+				"archive_snapshot_failed",
+				first.value.stderr.trim() || "Couldn't save the workspace before archiving.",
+			),
+		);
+	}
+	if (!input.discardGitOperationState) {
+		return err(appError("archive_git_busy", ARCHIVE_GIT_BUSY_MESSAGE));
+	}
+	const discarded = await discardGitOperationState(runner, input.fs, input.worktreePath);
+	if (!discarded.ok) return discarded;
+	const retry = await runner.run(command, { cwd: input.worktreePath });
+	if (!retry.ok) return retry;
+	if (retry.value.exitCode !== 0) {
+		return err(
+			appError(
+				"archive_snapshot_failed",
+				retry.value.stderr.trim() || "Couldn't save the workspace before archiving.",
+			),
+		);
+	}
+	return ok({ discarded: true });
+}
+
+/** Reads HEAD and pins it under the workspace's archive ref (services-map 3.10). */
+export async function pinArchiveHead(
+	runner: GitRunner,
+	workspaceId: string,
+	worktreePath: string,
+): Promise<Result<string>> {
+	const head = await runner.stdout(revParseHead(), { cwd: worktreePath });
+	if (!head.ok) return head;
+	if (head.value === "") {
+		return err(appError("git_parse", "git rev-parse HEAD printed nothing."));
+	}
+	const pinned = await runner.runChecked(updateRef(archiveRef(workspaceId), head.value), {
+		cwd: worktreePath,
+	});
+	return pinned.ok ? ok(head.value) : pinned;
+}
+
 /** Removes the worktree, falling back to the Trash and `worktree prune` (services-map 3.10). */
 export function removeWorktree(
-	_runner: GitRunner,
-	_fs: FileSystem,
-	_input: { repoRootPath: string; worktreePath: string },
+	runner: GitRunner,
+	fs: FileSystem,
+	input: { repoRootPath: string; worktreePath: string },
 ): Promise<Result<void>> {
-	return notImplemented("WS-05");
+	return runner.withWorktreeAndRepoLocks(input.worktreePath, input.repoRootPath, async () => {
+		const removed = await runner.run(worktreeRemove(input.worktreePath), {
+			cwd: input.repoRootPath,
+		});
+		// A command that could not start is a real failure; only a refusal by git falls through
+		// to the Trash and prune path below.
+		if (!removed.ok) return removed;
+		if (removed.value.exitCode === 0) return ok(undefined);
+		if (await fs.exists(input.worktreePath)) {
+			const trashed = await fs.trash(input.worktreePath);
+			if (!trashed.ok) return trashed;
+		}
+		const pruned = await runner.runChecked(worktreePrune(), { cwd: input.repoRootPath });
+		return pruned.ok ? ok(undefined) : pruned;
+	});
 }
 
 /**

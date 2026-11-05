@@ -18,11 +18,13 @@
  * Our design choice: setup runs with no `userEnv` for now. SET-04 owns the settings and Keychain
  * variables; until that service is wired here, no extra variables are passed rather than a
  * made-up set.
- * Built now (WS-03): `runSetup` and `stopAll` for the setup terminal. Everything else above is
- * RUN-01 and still a placeholder.
+ * Built now: `runSetup` and `stopAll` for the setup terminal (WS-03), and `runArchive` (WS-05),
+ * which runs the repository's archive script once through the shell before the worktree is
+ * removed. Everything else above is RUN-01 and still a placeholder.
  * Test first: starting an action while another runs in the same workspace stops the first.
  */
 import {
+	appError,
 	err,
 	notImplemented,
 	ok,
@@ -31,7 +33,7 @@ import {
 	type WorkspaceId,
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
-import type { FileSystem } from "../../platform/platform.ts";
+import type { FileSystem, Platform } from "../../platform/platform.ts";
 import type { RunState } from "../api.ts";
 import { setupLogFile } from "../app-paths.ts";
 import type { Repo, RepoConfig, SetupView, Workspace } from "../model.ts";
@@ -88,6 +90,11 @@ export interface RunScriptsServiceDeps {
 	workspaceFor: (workspaceId: WorkspaceId) => Promise<Result<Workspace>>;
 	repoFor: (workspaceId: WorkspaceId) => Promise<Result<Repo>>;
 	fs: Pick<FileSystem, "writeTextAtomic" | "mkdirp"> & { paths: FileSystem["paths"] };
+	/**
+	 * Runs the archive script, a one-shot shell command. The composition root supplies it; a test
+	 * of the setup path may leave it out, and archive then reports that it cannot run.
+	 */
+	shell?: Pick<Platform["shell"], "run">;
 }
 
 export class RunScriptsService {
@@ -199,9 +206,48 @@ export class RunScriptsService {
 		});
 	}
 
-	/** Runs the repo's archive script before a workspace is archived. */
-	runArchive(_workspaceId: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("WS-05");
+	/** Runs the repo's archive script before a workspace is archived (services-map 3.10). */
+	async runArchive(workspaceId: WorkspaceId): Promise<Result<void>> {
+		const config = await this.#deps.configFor(workspaceId);
+		if (!config.ok) return config;
+		const script = config.value.archiveScript?.trim() ?? "";
+		if (script === "") return ok(undefined);
+
+		const workspace = await this.#deps.workspaceFor(workspaceId);
+		if (!workspace.ok) return workspace;
+		const repo = await this.#deps.repoFor(workspaceId);
+		if (!repo.ok) return repo;
+		if (this.#deps.shell === undefined) {
+			return err(
+				appError(
+					"archive_script_failed",
+					"The archive script cannot run because the shell was not provided.",
+				),
+			);
+		}
+
+		const env = buildScriptEnv({
+			workspace: workspace.value,
+			repoRootPath: repo.value.rootPath,
+			defaultBranch: repo.value.defaultBranch,
+			userEnv: {},
+		});
+		const result = await this.#deps.shell.run({
+			program: "zsh",
+			args: ["-lc", script],
+			cwd: workspace.value.path,
+			env,
+		});
+		if (!result.ok) return result;
+		if (result.value.exitCode !== 0) {
+			return err(
+				appError(
+					"archive_script_failed",
+					`The archive script failed: ${result.value.stderr.trim() || `exit code ${result.value.exitCode}`}`,
+				),
+			);
+		}
+		return ok(undefined);
 	}
 
 	/** Stops the setup, run and Spotlight terminals of one workspace. */

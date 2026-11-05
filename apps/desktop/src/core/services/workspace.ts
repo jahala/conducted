@@ -1,7 +1,7 @@
 /**
  * @feature WS-01 Workspace service: create, set up, archive, unarchive, delete
  * Owns: the list of workspaces and their lifecycle as far as it is built: creating a worktree and
- * its first chat, and running the setup script.
+ * its first chat, running the setup script, and archiving a workspace.
  * Behaviour: frontend.md 6 (creation, naming, setup, archive), services-map.md 2.4.1 (state
  * machine), 3.1 (create), 3.2 and 5A.1.2 (setup), 3.10 (archive and unarchive), 3.11 (branch
  * rename), ui-map.md 3.9 and 3.1.
@@ -15,7 +15,15 @@
  * failed (a failed setup keeps the workspace, with a retry; a second retry while one runs is
  * ignored); creations run one at a time; a repo config or default-config read that fails is shown
  * as a warning, never hidden.
- * Not built yet (placeholders): archive, unarchive, delete to the Trash, the branch auto rename,
+ * Built now (WS-05): archive. It refuses while a chat is running, cancels a setup that is still
+ * running and the remaining chats, saves the archive snapshot, pins HEAD under the archive ref,
+ * runs the archive script, removes the worktree, optionally deletes the branch (never the default
+ * branch), and records the archive commit and time. Archive-on-merge is refused for a corrupted
+ * workspace and ignores a merged PR that is not the workspace's own. The stack rule for
+ * archive-on-merge, the open-PR check, the write-access refusal and the screen's discard
+ * confirmation are not built; the service refuses a busy checkout and accepts
+ * `discardGitOperationState` from a caller that has already asked.
+ * Not built yet (placeholders): unarchive, delete to the Trash, the branch auto rename,
  * `markRead` and the base from a pull request or issue. `classifyUnarchive` is their decision
  * rule and has no caller until WS-06.
  * Our design choice: creation is split in two so the sidebar shows the workspace at once
@@ -48,15 +56,25 @@ import type { Platform } from "../../platform/platform.ts";
 import type { Draft, NewWorkspaceInput, UnarchiveOutcome } from "../api.ts";
 import { setupLogFile } from "../app-paths.ts";
 import { createKeyedQueue } from "../async/serial-queue.ts";
+import { createSingleFlight } from "../async/single-flight.ts";
+import type { ArchivingWorkspace } from "../db/repair.ts";
 import type { Repositories } from "../db/repositories.ts";
-import { lsFiles, lsFilesIgnoredNul } from "../git/commands.ts";
+import {
+	branchDeleteForce,
+	branchShowCurrent,
+	lsFiles,
+	lsFilesIgnoredNul,
+} from "../git/commands.ts";
 import { apiUserLogin } from "../git/gh-commands.ts";
 import type { GitRunner } from "../git/runner.ts";
 import {
 	branchNameIsTaken,
 	createWorktree,
 	nextFreeName,
+	pinArchiveHead,
 	prepareWorktree,
+	removeWorktree,
+	saveArchiveSnapshot,
 } from "../git/worktree.ts";
 import type {
 	BacklogWorkspace,
@@ -558,6 +576,17 @@ export const SETUP_FAILED_MESSAGE = "Setup script failed. Check the setup tab fo
 /** Shown when a saved setup transcript cannot be read (ui-map.md 3.7). */
 export const SETUP_LOG_MISSING_MESSAGE = "No logs were recorded, or they have expired.";
 
+/** Shown when archive is asked for while a chat is still running (inventory:toast). */
+export const ARCHIVE_RUNNING_CHATS_MESSAGE =
+	"Stop the running chats before archiving this workspace.";
+
+/** Shown when a workspace that is still being created is asked to archive. */
+export const ARCHIVE_NOT_READY_MESSAGE = "This workspace is still being created.";
+
+/** Shown when archive-on-merge finds a ready workspace whose folder is gone (services-map 5B.1.9). */
+export const WORKSPACE_CORRUPTED_MESSAGE =
+	"This workspace's folder is missing, so it can't be archived. Check the folder or remove the workspace.";
+
 /** One setup run, kept in memory for the Setup tab while the app is open. */
 export interface SetupRun {
 	state: SetupState;
@@ -619,6 +648,8 @@ export interface WorkspaceServiceDeps {
 		runArchive(workspaceId: WorkspaceId): Promise<Result<void>>;
 		stopWorkspace(workspaceId: WorkspaceId): Promise<Result<void>>;
 	};
+	/** Path to the shipped checkpointer script, used for the archive snapshot (WS-05). */
+	checkpointerPath: string;
 	setting: <T>(key: string) => T;
 	now: () => number;
 }
@@ -629,6 +660,8 @@ export class WorkspaceService {
 
 	/** Creates pick a folder name, branch and port from one read, so they run one at a time. */
 	readonly #createQueue = createKeyedQueue();
+	/** A second archive of one workspace joins the first, so its steps never run twice at once. */
+	readonly #archives = createSingleFlight<string>();
 	/** Bumped by every start and cancel, so an older run cannot change the state after them. */
 	readonly #setupNonces = new Map<WorkspaceId, number>();
 	/** The nonce of a start that has not reached its first await yet, so a second one is ignored. */
@@ -1021,9 +1054,170 @@ export class WorkspaceService {
 		return notImplemented("WS-04");
 	}
 
-	/** Backs `Actions.workspaces.archive`. */
-	archive(_id: WorkspaceId, _options: { deleteBranch: boolean }): Promise<Result<void>> {
-		return notImplemented("WS-05");
+	/** Backs `Actions.workspaces.archive`: the six steps of services-map 3.10, then the row. */
+	archive(
+		id: WorkspaceId,
+		options: { deleteBranch: boolean; discardGitOperationState?: boolean },
+	): Promise<Result<void>> {
+		return this.#archives.run(`archive:${id}`, () => this.#archiveNow(id, options));
+	}
+
+	async #archiveNow(
+		id: WorkspaceId,
+		options: { deleteBranch: boolean; discardGitOperationState?: boolean },
+	): Promise<Result<void>> {
+		const found = await this.#deps.repos.workspaces.get(id);
+		if (!found.ok) return found;
+		const workspace = found.value;
+		if (workspace === null)
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		if (workspace.state === "archived") return ok(undefined);
+		if (workspace.state === "archiving") {
+			return err(appError("workspace_archiving", "This workspace is already being archived."));
+		}
+		if (workspace.state === "initializing") {
+			return err(appError("workspace_not_ready", ARCHIVE_NOT_READY_MESSAGE));
+		}
+		if (this.#deps.sessions.hasWorkingChats(id)) {
+			return err(appError("workspace_has_running_sessions", ARCHIVE_RUNNING_CHATS_MESSAGE));
+		}
+
+		const repoResult = await this.#deps.repos.repos.get(workspace.repoId);
+		if (!repoResult.ok) return repoResult;
+		const repo = repoResult.value;
+		if (repo === null) return err(appError("repo_unknown", "That project no longer exists."));
+
+		const moved = await this.#deps.repos.workspaces.transitionState(
+			id,
+			workspace.state,
+			"archiving",
+		);
+		if (!moved.ok) return moved;
+		if (!moved.value) {
+			return err(appError("workspace_not_ready", "This workspace cannot be archived now."));
+		}
+		this.#setArchiving(id, true);
+		this.#upsert({ ...workspace, state: "archiving", updatedAt: this.#deps.now() });
+
+		let worktreeRemoved = false;
+		const rollBack = async (error: AppError): Promise<Result<never>> => {
+			if (!worktreeRemoved) {
+				const back = await this.#deps.repos.workspaces.transitionState(
+					id,
+					"archiving",
+					workspace.state,
+				);
+				if (back.ok && back.value) {
+					this.#upsert({ ...workspace, updatedAt: this.#deps.now() });
+				}
+			}
+			this.#setArchiving(id, false);
+			return err(error);
+		};
+
+		try {
+			// A setup process can still be running on a row that has moved on. Stop it before the
+			// snapshot so no script writes into the worktree while it is archived (services-map 3.10).
+			const setupState = this.store.getState().setup[id];
+			if (setupState === "running" || setupState === "detecting" || setupState === "stopping") {
+				const stopped = await this.cancelSetup(id);
+				if (!stopped.ok) return await rollBack(stopped.error);
+			}
+
+			const cancelled = await this.#deps.sessions.cancelAll(id);
+			if (!cancelled.ok) return await rollBack(cancelled.error);
+
+			const snapshot = await saveArchiveSnapshot(this.#deps.git, {
+				workspaceId: id,
+				checkpointerPath: this.#deps.checkpointerPath,
+				worktreePath: workspace.path,
+				discardGitOperationState: options.discardGitOperationState === true,
+				fs: this.#deps.platform.fs,
+			});
+			if (!snapshot.ok) return await rollBack(snapshot.error);
+
+			const pinned = await pinArchiveHead(this.#deps.git, id, workspace.path);
+			if (!pinned.ok) return await rollBack(pinned.error);
+
+			const current = await this.#deps.git.stdout(branchShowCurrent(), {
+				cwd: workspace.path,
+			});
+			const branch = current.ok && current.value !== "" ? current.value : workspace.branch;
+			if (branch !== workspace.branch) {
+				const recorded = await this.#deps.repos.workspaces.setBranch(
+					id,
+					branch,
+					workspace.branchIsPlaceholder,
+				);
+				if (!recorded.ok) return await rollBack(recorded.error);
+			}
+
+			const scripted = await this.#deps.scripts.runArchive(id);
+			if (!scripted.ok) return await rollBack(scripted.error);
+
+			const removal = await removeWorktree(this.#deps.git, this.#deps.platform.fs, {
+				repoRootPath: repo.rootPath,
+				worktreePath: workspace.path,
+			});
+			if (!removal.ok) return await rollBack(removal.error);
+			worktreeRemoved = true;
+
+			const marked = await this.#deps.repos.workspaces.markArchived(id, pinned.value);
+			if (!marked.ok) {
+				this.#setArchiving(id, false);
+				return err(marked.error);
+			}
+			if (!marked.value) {
+				this.#setArchiving(id, false);
+				return err(appError("workspace_not_ready", "This workspace cannot be archived now."));
+			}
+
+			const at = this.#deps.now();
+			this.#upsert({
+				...workspace,
+				branch,
+				state: "archived",
+				archiveCommit: pinned.value,
+				archivedAt: at,
+				updatedAt: at,
+			});
+			this.#setArchiving(id, false);
+
+			const deleteBranch =
+				options.deleteBranch || this.#deps.setting<boolean>("delete_branch_on_archive");
+			if (deleteBranch && branch !== repo.defaultBranch) {
+				const deleted = await this.#deps.git.runChecked(branchDeleteForce(branch), {
+					cwd: repo.rootPath,
+				});
+				if (!deleted.ok) return deleted;
+			}
+			return ok(undefined);
+		} finally {
+			this.#setArchiving(id, false);
+		}
+	}
+
+	/**
+	 * Finishes or rolls back workspaces that a crash left in `archiving`. A missing folder means
+	 * the archive got as far as removing the worktree, so the row is finished with the commit
+	 * repair read; a folder still on disk means the archive stopped early, so the row goes back
+	 * to ready and can be archived again.
+	 */
+	async recoverArchiving(workspaces: readonly ArchivingWorkspace[]): Promise<Result<void>> {
+		for (const row of workspaces) {
+			if (row.folderExists) {
+				const back = await this.#deps.repos.workspaces.transitionState(
+					row.id,
+					"archiving",
+					"ready",
+				);
+				if (!back.ok) return back;
+			} else {
+				const finished = await this.#deps.repos.workspaces.markArchived(row.id, row.archiveCommit);
+				if (!finished.ok) return finished;
+			}
+		}
+		return ok(undefined);
 	}
 
 	/** Backs `Actions.workspaces.unarchive`. */
@@ -1049,9 +1243,30 @@ export class WorkspaceService {
 		return notImplemented("WS-10");
 	}
 
-	/** Called by the GitHub service when a PR merges; archives when the repo setting asks for it. */
-	onPullRequestMerged(_id: WorkspaceId, _prNumber: number): Promise<Result<void>> {
-		return notImplemented("WS-05");
+	/**
+	 * Called by the GitHub service when a PR merges; archives when `archive_on_merge` asks for it.
+	 * The stack rule is not built: without its open-PR data a stacked workspace archives too early.
+	 */
+	async onPullRequestMerged(id: WorkspaceId, prNumber: number): Promise<Result<void>> {
+		if (!this.#deps.setting<boolean>("archive_on_merge")) return ok(undefined);
+		const found = await this.#deps.repos.workspaces.get(id);
+		if (!found.ok) return found;
+		const workspace = found.value;
+		if (workspace === null) {
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		}
+		if (
+			workspace.state === "archived" ||
+			workspace.state === "archiving" ||
+			workspace.archiveCommit !== null
+		) {
+			return ok(undefined);
+		}
+		if (workspace.prNumber !== null && workspace.prNumber !== prNumber) return ok(undefined);
+		if (!(await this.#deps.platform.fs.exists(workspace.path))) {
+			return err(appError("workspace_corrupted", WORKSPACE_CORRUPTED_MESSAGE));
+		}
+		return this.archive(id, { deleteBranch: false });
 	}
 
 	async rename(id: WorkspaceId, name: string): Promise<Result<void>> {
@@ -1173,6 +1388,16 @@ export class WorkspaceService {
 	/** Backs `Actions.workspaces.removeFromBacklog`. */
 	removeFromBacklog(_id: WorkspaceId): Promise<Result<void>> {
 		return notImplemented("WS-11");
+	}
+
+	/** Keeps the ids of workspaces being archived, so the sidebar can show that state (1.5). */
+	#setArchiving(id: WorkspaceId, archiving: boolean): void {
+		this.store.setState((state) => {
+			const next = { ...state.archiving };
+			if (archiving) next[id] = true;
+			else delete next[id];
+			return { ...state, archiving: next };
+		});
 	}
 
 	/** Puts one workspace in the store, so the sidebar shows it before the git work finishes. */
