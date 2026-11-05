@@ -374,6 +374,8 @@ export const removeCached = (path: string): GitCommand =>
 export const configUserName = (): GitCommand => configGet("user.name");
 export const configUserEmail = (): GitCommand => configGet("user.email");
 export const configPullRebase = (): GitCommand => configGet("pull.rebase");
+/** `pull.ff` decides whether a pull may create a merge commit, or only fast-forward. */
+export const configPullFf = (): GitCommand => configGet("pull.ff");
 
 // ---------------------------------------------------------------- helper scripts (bin/)
 
