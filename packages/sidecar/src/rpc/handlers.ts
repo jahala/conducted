@@ -20,6 +20,7 @@ import type { ModelCatalog } from "../models/catalog.ts";
 import type { McpServerLister, SlashCommandLister } from "../models/slash-and-mcp.ts";
 import type { UsageReader } from "../models/usage.ts";
 import type { EventOutbox } from "../outbox/event-outbox.ts";
+import { agentProviders } from "../runners/launch-env.ts";
 import type { SessionManager } from "../session/manager.ts";
 import type { UtilityPromptRunner } from "../session/utility-prompt.ts";
 import type { ShellEnvProvider } from "../shell-env/capture.ts";
@@ -85,7 +86,8 @@ export function buildHandlers(deps: HandlerDeps): {
 				const cancelled = await deps.agents.cancelLogin(params.loginId);
 				return cancelled.ok ? ok({}) : cancelled;
 			},
-			listAgentProviders: async () => notImplemented("SIDE-21"),
+			listAgentProviders: async (params) =>
+				ok({ providers: agentProviders(params.agent, params.acpAgent) }),
 			getShellEnv: async (params) => {
 				const captured = await deps.shellEnv.get(params.workspacePath);
 				if (!captured.ok) return captured;
@@ -96,8 +98,8 @@ export function buildHandlers(deps: HandlerDeps): {
 			setGoal: async () => notImplemented("AGENT-13"),
 			changeGoal: async () => notImplemented("AGENT-13"),
 			compact: async () => notImplemented("AGENT-14"),
-			listAcpConfigOptions: async () => notImplemented("AGENT-17"),
-			setAcpConfigOption: async () => notImplemented("AGENT-17"),
+			listAcpConfigOptions: (params) => deps.sessions.listAcpConfigOptions(params),
+			setAcpConfigOption: (params) => deps.sessions.setAcpConfigOption(params),
 		},
 		notifications: {
 			eventPersisted: async (params) => {

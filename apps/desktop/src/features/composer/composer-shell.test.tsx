@@ -99,6 +99,7 @@ const harness = (options: HarnessOptions = {}) => {
 		events: {},
 		progress: {},
 		sending: {},
+		acpConfigOptions: { [sessionId]: { state: "ready", data: [] } },
 		openInteractions: {},
 		viewingSessionId: null,
 	}));
