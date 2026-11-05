@@ -211,6 +211,13 @@ fn temp_path_for(target: &Path) -> CommandResult<PathBuf> {
     Ok(parent.join(format!(".{name}.tmp-{}-{counter}", std::process::id())))
 }
 
+/// Renames one path over another. A named wrapper keeps the signature free of lifetime
+/// parameters, so it fits the higher-ranked `FnOnce` below (`fs::rename` itself is generic over
+/// both paths and does not).
+fn rename_file(from: &Path, to: &Path) -> io::Result<()> {
+    fs::rename(from, to)
+}
+
 /// Writes through a temp file, then renames it over the target. The rename is a parameter so a
 /// test can stop between the write and the rename and prove the old file survives.
 fn write_text_atomic_with<F>(path: &Path, text: &str, rename: F) -> CommandResult<()>
@@ -349,7 +356,7 @@ pub async fn fs_read_text(path: String) -> CommandResult<String> {
 pub async fn fs_write_text_atomic(path: String, text: String) -> CommandResult<()> {
     blocking(move || {
         let path = absolute_path(&path)?;
-        write_text_atomic_with(&path, &text, fs::rename)
+        write_text_atomic_with(&path, &text, rename_file)
     })
     .await
 }
@@ -498,7 +505,7 @@ mod tests {
         fs::write(&path, "old").expect("seed file");
         fs::set_permissions(&path, fs::Permissions::from_mode(0o640)).expect("set mode");
 
-        write_text_atomic_with(&path, "new", fs::rename).expect("write");
+        write_text_atomic_with(&path, "new", rename_file).expect("write");
 
         let mode = fs::metadata(&path).expect("metadata").permissions().mode() & 0o777;
         assert_eq!(mode, 0o640);
@@ -513,7 +520,7 @@ mod tests {
         fs::write(&target, "old").expect("seed target");
         symlink(&target, &link).expect("make link");
 
-        write_text_atomic_with(&link, "new", fs::rename).expect("write through link");
+        write_text_atomic_with(&link, "new", rename_file).expect("write through link");
 
         assert!(
             fs::symlink_metadata(&link)

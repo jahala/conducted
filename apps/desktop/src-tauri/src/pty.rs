@@ -825,8 +825,6 @@ mod tests {
     use std::sync::mpsc;
     use std::time::Duration;
 
-    use portable_pty::{Child, ChildKiller, MasterPty};
-
     use super::*;
 
     fn temp_cwd() -> String {
