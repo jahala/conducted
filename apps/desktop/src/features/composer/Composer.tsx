@@ -18,7 +18,7 @@
  * a content tab is open belongs to the tab strip (NAV-10); the new-workspace form reusing this
  * editor belongs to workspace creation (WS-01). The archived bar (ArchivedComposerBar) is not
  * rendered here: NAV-10's workspace gate replaces the whole screen of an archived workspace.
- * Dictation (COMP-08) and the context wheel (features/chat) are not mounted in this toolbar yet.
+ * Dictation (COMP-08) is not mounted in this toolbar yet.
  * Test first: With text typed and the agent idle, the send button is enabled; while the agent works
  * it reads 'Queue message' and a Cancel button shows.
  */
@@ -36,6 +36,7 @@ import { WrenchIcon } from "../../ui/icons.tsx";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { toastError } from "../../ui/Toast.tsx";
+import { ContextWheel } from "../chat/ContextWheel.tsx";
 import { ComposerEditor } from "./ComposerEditor.tsx";
 import { ModeChips } from "./ModeChips.tsx";
 import { ModelPicker } from "./ModelPicker.tsx";
@@ -200,6 +201,7 @@ export function Composer({ sessionId }: ComposerProps) {
 					</NotBuiltYet>
 				</div>
 				<div className="flex shrink-0 items-center gap-1">
+					<ContextWheel sessionId={sessionId} />
 					{narrow ? (
 						<Menu>
 							<MenuTrigger asChild>
