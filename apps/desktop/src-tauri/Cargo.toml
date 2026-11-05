@@ -45,6 +45,9 @@ ignore = "0.4"
 image = { version = "0.25.10", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "tiff", "webp"] }
 nucleo-matcher = "0.3"
 
+[dev-dependencies]
+# The mock app that lets a test hear the events a command emits (PLAT-36 builds on it).
+tauri = { version = "2", features = ["test"] }
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]

@@ -238,7 +238,11 @@ function onEvent<T>(
 
 // ---------------------------------------------------------------- names (docs/plans/tauri-commands.md)
 
-/** Command names registered by the Rust shell. Both sides use exactly these. */
+/**
+ * Command names registered by the Rust shell. Both sides use exactly these. A name the shell does
+ * not register yet carries the id of its backlog row in a trailing comment; the structure guard
+ * fails a name with no handler whose row is done.
+ */
 export const COMMANDS = {
 	health: "health",
 	appInfo: "app_info",
@@ -249,11 +253,11 @@ export const COMMANDS = {
 	logSetLevel: "log_set_level",
 	setQuitHandlerReady: "set_quit_handler_ready",
 	systemInfo: "system_info",
-	networkStatus: "network_status",
-	fullDiskAccessCheck: "full_disk_access_check",
-	fullDiskAccessOpenSettings: "full_disk_access_open_settings",
-	windowSetVibrancy: "window_set_vibrancy",
-	windowSetTrafficLights: "window_set_traffic_lights",
+	networkStatus: "network_status", // PLAT-26
+	fullDiskAccessCheck: "full_disk_access_check", // PLAT-24
+	fullDiskAccessOpenSettings: "full_disk_access_open_settings", // PLAT-24
+	windowSetVibrancy: "window_set_vibrancy", // PLAT-23
+	windowSetTrafficLights: "window_set_traffic_lights", // PLAT-23
 	windowToggleInspector: "window_toggle_inspector",
 	dbVersionCheck: "db_version_check",
 	shellRun: "shell_run",
@@ -270,7 +274,7 @@ export const COMMANDS = {
 	searchListTree: "search_list_tree",
 	searchFuzzy: "search_fuzzy",
 	searchGrep: "search_grep",
-	searchListArtifacts: "search_list_artifacts",
+	searchListArtifacts: "search_list_artifacts", // REV-10
 	ptySpawn: "pty_spawn",
 	ptyWrite: "pty_write",
 	ptyResize: "pty_resize",
@@ -298,20 +302,20 @@ export const COMMANDS = {
 	updaterCheck: "updater_check",
 	updaterInstall: "updater_install",
 	updaterRelaunch: "updater_relaunch",
-	updaterInstalledUpdate: "updater_installed_update",
+	updaterInstalledUpdate: "updater_installed_update", // PLAT-13
 	attachmentMaterialize: "attachment_materialize",
 	imageResize: "image_resize",
 	menuSetShortcuts: "menu_set_shortcuts",
-	programsState: "programs_state",
-	programInstall: "program_install",
-	programRedownload: "program_redownload",
-	programRemove: "program_remove",
-	programsPrefetch: "programs_prefetch",
+	programsState: "programs_state", // PLAT-28
+	programInstall: "program_install", // PLAT-28
+	programRedownload: "program_redownload", // PLAT-28
+	programRemove: "program_remove", // PLAT-28
+	programsPrefetch: "programs_prefetch", // PLAT-28
 	programsVerificationErrors: "programs_verification_errors",
-	programsSyncPathOverrides: "programs_sync_path_overrides",
-	httpFetch: "http_fetch",
-	httpDownload: "http_download",
-	httpCancel: "http_cancel",
+	programsSyncPathOverrides: "programs_sync_path_overrides", // SET-13
+	httpFetch: "http_fetch", // PLAT-30
+	httpDownload: "http_download", // PLAT-30
+	httpCancel: "http_cancel", // PLAT-30
 } as const;
 
 /** Events emitted by the Rust shell and by Tauri's own window. */

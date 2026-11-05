@@ -9,7 +9,10 @@ import {
 	auditPrompt,
 	deepseekBalance,
 	fixerPrompt,
+	joinNodeId,
+	joinPromptFor,
 	markDone,
+	needsJoin,
 	nodeId,
 	promptFor,
 	RULES,
@@ -109,4 +112,32 @@ test("the balance call fails on a missing key, a refusal and a missing USD entry
 			answer(200, { balance_infos: [{ currency: "USD", total_balance: "7.25" }] }),
 		),
 	).toBe("7.25");
+});
+
+test("a TypeScript batch of two or more features gets a joining node; Rust and single features do not", () => {
+	expect(needsJoin("core", 2)).toBe(true);
+	expect(needsJoin("ui", 8)).toBe(true);
+	expect(needsJoin("sidecar", 3)).toBe(true);
+	expect(needsJoin("core", 1)).toBe(false);
+	expect(needsJoin("rust", 6)).toBe(false);
+	expect(joinNodeId("s1-core-1")).toBe("join.s1-core-1");
+});
+
+test("the joining prompt names every feature, the composition root and the integration test file", () => {
+	const prompt = joinPromptFor("s2-core-1", "core", [row("CHAT-03"), row("GIT-03")]);
+	expect(prompt).toContain("CHAT-03");
+	expect(prompt).toContain("GIT-03");
+	expect(prompt).toContain("apps/desktop/src/core/container.ts");
+	expect(prompt).toContain("apps/desktop/src/core/s2-core-1.join.test.ts");
+	expect(prompt).toContain("createTestContainer");
+	const sidecar = joinPromptFor("s2-sidecar", "sidecar", [row("SIDE-21"), row("SIDE-13")]);
+	expect(sidecar).toContain("packages/sidecar/src/modes/sidecar-mode.ts");
+	expect(sidecar).toContain("packages/sidecar/src/modes/s2-sidecar.join.test.ts");
+});
+
+test("every builder prompt carries the reach-it-from-the-real-app rule (D054)", () => {
+	const prompt = promptFor(row("CHAT-03"), 42);
+	expect(prompt).toContain("Reach it from the real app (D054)");
+	expect(prompt).toContain("createTestContainer");
+	expect(RULES).toContain("Never assert placeholder text");
 });

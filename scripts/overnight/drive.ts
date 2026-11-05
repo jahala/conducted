@@ -49,7 +49,51 @@ export const RULES = `Rules:
 - Never run git commit, git push or anything with --no-verify. Use trash, never rm.
 - Match Conductor in everything a user sees or does (D020, D022), in our own words and code (D002).
 - The rules the audits enforce most, all in docs/engineering.md: your file headers say only what the code does (cut or move the claims you did not build); no silent failures (no empty catch, no catch that returns null, no unread Result, no invented default); an async read that writes a store lets only the newest answer win (createLatestWins), with a test of two overlapping calls; your code is called from a live path, or the wiring is a checklist item on the feature that owns the caller; use the shared helpers in docs/architecture.md (Shared helpers) instead of writing your own; whatever subscribes has a dispose; fakes hand out a new id on every call; screen tests use createTestContainer from apps/desktop/src/test/container.ts.
+- Reach it from the real app (D054): wire every service, hook or component you build into its composition root in this change (apps/desktop/src/core/container.ts, packages/sidecar/src/modes/sidecar-mode.ts, the router, or the screen that shows it), and add one test over createTestContainer (apps/desktop/src/test/container.ts) or the real sidecar host that reaches it. A dependency your tests pass in is passed by the composition root too. Take stand-ins from apps/desktop/src/test/ or the sidecar's test support, never a new fake in your test file. Never assert placeholder text or a backlog status. Test a shortcut by pressing its key into the mounted root dispatcher. Format any Markdown you write with pnpm exec biome format --write.
 - Finish with a short message: what you built, which checklist items have tests, and anything you could not do.`;
+
+/**
+ * A batch of two or more features in the TypeScript areas ends in a joining node (D054, and the
+ * pleach-plan skill's integration node): the siblings are built in parallel, so only a node that
+ * sees them merged can check that the composition root reaches each one. Rust batches have no
+ * joining node: their merges have been lockfile-only, and their integration test needs a build.
+ */
+export function needsJoin(program: string, featureCount: number): boolean {
+	return program !== "rust" && featureCount >= 2;
+}
+
+export function joinNodeId(batchId: string): string {
+	return `join.${batchId}`;
+}
+
+/** The joining node's prompt: merge, wire into the composition root, one integration test. */
+export function joinPromptFor(batchId: string, area: string, features: BacklogRow[]): string {
+	const root =
+		area === "sidecar"
+			? "packages/sidecar/src/modes/sidecar-mode.ts (and the handlers it builds)"
+			: "apps/desktop/src/core/container.ts for services, and the router or the screen that shows each part for UI";
+	const testFile =
+		area === "sidecar"
+			? `packages/sidecar/src/modes/${batchId}.join.test.ts`
+			: `apps/desktop/src/core/${batchId}.join.test.ts`;
+	return [
+		`You join batch ${batchId} of Conducted, a macOS app for running coding agents in parallel (repo jahala/conducted). Other agents built these features side by side, and this worktree already merges their verified branches: ${features.map((f) => `${f.id} ${f.title}`).join("; ")}.`,
+		"",
+		READ_FIRST,
+		"",
+		"Your job, in order:",
+		"1. Resolve every merge conflict marker left in the tree, keeping both features' work: never two definitions of one thing, and the real implementation over a placeholder. Combine file headers so they claim only what the merged code does.",
+		`2. Check that each feature is reached from the real composition root: ${root}. Wire any dependency or component a feature built but nothing passes or mounts (D054).`,
+		"3. Look for logic two features each wrote (a helper, a parser, a query) and keep one, pointing the other's callers at it.",
+		`4. Write ${testFile}: one integration test file, describe("${batchId} join ..."), that drives each feature of the batch at least once through the composition root, over createTestContainer from apps/desktop/src/test/container.ts${area === "sidecar" ? " or the real sidecar host and handlers" : ""}. Each test must fail if its feature's wiring were removed.`,
+		"",
+		RULES.replaceAll("{ID}", features[0]?.id ?? "").replaceAll(
+			"{SNAKE}",
+			(features[0]?.id ?? "").toLowerCase().replace("-", "_"),
+		),
+		"- You may edit the composition roots, the files with conflict markers, and your integration test file. Change no feature's behaviour beyond wiring and merging; if a feature is wrong, say so in your final message instead.",
+	].join("\n");
+}
 
 export function nodeId(id: string): string {
 	return id.toLowerCase().replace("-", ".");
@@ -241,14 +285,31 @@ async function main(command: string | undefined, args: string[]): Promise<void> 
 				goal: `Overnight batch ${batch.id}: ${features.map((f) => f.id).join(", ")}`,
 				source: `overnight/${batch.id}`,
 				maxConcurrency: max,
-				nodes: features.map((f) => ({
-					id: nodeId(f.id),
-					worker: { provider: "builder" },
-					setup: "pnpm install --frozen-lockfile",
-					work: { prompt: promptFor(f, issues.get(f.id)) },
-					accept: { smoke: `bun scripts/overnight/node-gate.ts ${f.id}` },
-					policy: { maxAttempts: 2, timeoutMs: 45 * 60 * 1000 },
-				})),
+				nodes: [
+					...features.map((f) => ({
+						id: nodeId(f.id),
+						worker: { provider: "builder" },
+						setup: "pnpm install --frozen-lockfile",
+						work: { prompt: promptFor(f, issues.get(f.id)) },
+						accept: { smoke: `bun scripts/overnight/node-gate.ts ${f.id}` },
+						policy: { maxAttempts: 2, timeoutMs: 45 * 60 * 1000 },
+					})),
+					...(needsJoin(batch.program, features.length)
+						? [
+								{
+									id: joinNodeId(batch.id),
+									needs: features.map((f) => nodeId(f.id)),
+									worker: { provider: "builder" },
+									setup: "pnpm install --frozen-lockfile",
+									work: { prompt: joinPromptFor(batch.id, batch.program, features) },
+									accept: {
+										smoke: `bun scripts/overnight/node-gate.ts ${features.map((f) => f.id).join(" ")}`,
+									},
+									policy: { maxAttempts: 2, timeoutMs: 45 * 60 * 1000 },
+								},
+							]
+						: []),
+				],
 			};
 			mkdirSync(join(work, "plans"), { recursive: true });
 			const base = join(work, "plans", `n${night}-${batch.id}`);
