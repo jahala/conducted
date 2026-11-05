@@ -13,9 +13,11 @@
  * workspace or read as a git option is refused; discarding a file moves a file the branch added to
  * the Trash and stops when git cannot say whether the base has the file; viewed marks are saved
  * one write at a time per workspace.
+ * GIT-09: the rename reads the checked-out branch, asks the git helpers for a free name, and
+ * renames under the worktree lock; a detached HEAD returns the plain "check out a branch" message.
  * Not built yet: only the visible workspace polling fast (GIT-13 owns the fetching rules).
  * Our design choice: this class exposes snapshots only. The Git header state machine and the
- * merge with pull request info belong to GIT-04, the git actions (push, pull, retarget, rename,
+ * merge with pull request info belong to GIT-04, the other git actions (push, pull, retarget,
  * discard and the rest) belong to their own features, and the restart cache belongs to DATA-07.
  * Their placeholders stay here until those features build them; the fetching rules belong to
  * GIT-13.
@@ -52,6 +54,7 @@ import {
 } from "../git/commands.ts";
 import { type ComparisonContext, resolveComparison } from "../git/diff.ts";
 import { checkpointRef, turnCheckpointId } from "../git/refs.ts";
+import { renameBranchInWorktree } from "../git/rename.ts";
 import type { GitRunner } from "../git/runner.ts";
 import {
 	type ChangesSnapshot,
@@ -66,6 +69,7 @@ import {
 import type { GitState } from "../model.ts";
 import type { GitCache } from "./git-cache.ts";
 import type { AgentMessenger } from "./sessions.ts";
+import { isSafeRefName } from "./workspace.ts";
 
 const DEPTH_RANK: Readonly<Record<PollDepth, number>> = { metadata: 0, uncommitted: 1, full: 2 };
 
@@ -222,6 +226,8 @@ export interface GitServiceDeps {
 	/** Looks up folders and branch names for a workspace. Fails for unknown ids. */
 	contextOf: (workspaceId: WorkspaceId) => Promise<Result<WorkspaceGitContext>>;
 	agent: AgentMessenger;
+	/** Saves a renamed branch in the workspace row and its store (GIT-09). */
+	renameWorkspaceBranch: (workspaceId: WorkspaceId, branch: string) => Promise<Result<void>>;
 	now: () => number;
 	/** Moves a discarded new file to the Trash, and stores the viewed marks. */
 	fs: Pick<FileSystem, "trash" | "readText" | "writeTextAtomic" | "mkdirp" | "stat" | "paths">;
@@ -739,9 +745,28 @@ export class GitService {
 		return notImplemented("GIT-08");
 	}
 
-	/** Backs `Actions.git.renameBranch`. */
-	renameBranch(_workspaceId: WorkspaceId, _name: string): Promise<Result<void>> {
-		return notImplemented("GIT-09");
+	/**
+	 * Backs `Actions.git.renameBranch`: checks the name, then renames and saves under the worktree
+	 * lock. The old remote branch is left in place.
+	 */
+	async renameBranch(workspaceId: WorkspaceId, rawName: string): Promise<Result<void>> {
+		const name = rawName.trim();
+		if (!isSafeRefName(name)) {
+			return err(
+				appError("workspace_branch_invalid", `"${name}" can't be used as a Git branch name.`),
+			);
+		}
+
+		const found = await this.#deps.contextOf(workspaceId);
+		if (!found.ok) return found;
+		const context = found.value;
+		return renameBranchInWorktree(this.#deps.git, {
+			worktreePath: context.workspacePath,
+			repoRootPath: context.repoRootPath,
+			remote: context.remote,
+			requestedName: name,
+			onRenamed: (branch) => this.#deps.renameWorkspaceBranch(workspaceId, branch),
+		});
 	}
 
 	/** Backs `Actions.git.switchBranch`. Has its own lock, apart from the other git actions. */
