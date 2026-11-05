@@ -658,13 +658,34 @@ export function createContainer(inputs: ContainerInputs): Container {
 		if (stopped) return;
 
 		// Keep-awake follows the setting and the chats' work, and re-checks every scan so a
-		// battery that falls low or a caffeinate that exited by itself is handled. Scans run in
-		// order, so a change made while one is in flight gets its own scan with the newer state.
+		// battery that falls low or a caffeinate that exited by itself is handled. A scan reads
+		// the live setting and chats, so a change made before it runs is already covered: only one
+		// scan waits at a time, and two quick changes must not start `caffeinate` twice. A change
+		// that arrives while a scan runs gets one more scan after it, with the newer state.
 		let keepAwakeScans: Promise<void> = Promise.resolve();
+		let keepAwakeScanQueued = false;
+		let keepAwakeScanRunning = false;
+		let keepAwakeScanAgain = false;
 		const runKeepAwakeScan = (): void => {
+			if (keepAwakeScanRunning) {
+				keepAwakeScanAgain = true;
+				return;
+			}
+			if (keepAwakeScanQueued) return;
+			keepAwakeScanQueued = true;
 			keepAwakeScans = keepAwakeScans.then(async () => {
-				const outcome = await keepAwake.scan();
-				if (!outcome.ok) log("warn", `Could not keep the Mac awake: ${outcome.error.message}`);
+				keepAwakeScanQueued = false;
+				keepAwakeScanRunning = true;
+				try {
+					const outcome = await keepAwake.scan();
+					if (!outcome.ok) log("warn", `Could not keep the Mac awake: ${outcome.error.message}`);
+				} finally {
+					keepAwakeScanRunning = false;
+					if (keepAwakeScanAgain) {
+						keepAwakeScanAgain = false;
+						runKeepAwakeScan();
+					}
+				}
 			});
 		};
 		// The stores fire on every change, and a working chat updates its store many times a

@@ -1296,15 +1296,14 @@ export class SessionsService implements AgentMessenger {
 				? (this.store.getState().openInteractions[sessionId]?.interactionId ?? null)
 				: null;
 		this.store.setState((state) => {
-			const loaded = state.events[sessionId];
-			const duplicate = loaded?.some((stored) => stored.idx === idx) ?? false;
-			const events =
-				loaded !== undefined && !duplicate
-					? {
-							...state.events,
-							[sessionId]: [...loaded, { idx, event, receivedAt, revertedAt: null }],
-						}
-					: state.events;
+			const loaded = state.events[sessionId] ?? [];
+			const duplicate = loaded.some((stored) => stored.idx === idx);
+			const events = duplicate
+				? state.events
+				: {
+						...state.events,
+						[sessionId]: [...loaded, { idx, event, receivedAt, revertedAt: null }],
+					};
 
 			const pending = state.sending[sessionId];
 			let settled = pending;

@@ -323,7 +323,7 @@ describe("RUN-01 run scripts service", () => {
 		await service.runSetup(ws);
 
 		expect(runScript).toHaveBeenCalledTimes(1);
-		expect(service.store.getState().byWorkspace[ws]?.running).toEqual([]);
+		expect(service.store.getState().byWorkspace[ws]?.running ?? []).toEqual([]);
 	});
 
 	it("reports a stop that did not confirm and still returns the button to Run", async () => {

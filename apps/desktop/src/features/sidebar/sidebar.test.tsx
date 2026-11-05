@@ -7,18 +7,23 @@ import { renderWithRouter } from "../../test/render-with-router.tsx";
 import { toast } from "../../ui/Toast.tsx";
 import { UnreadDot } from "./UnreadDot.tsx";
 
-const hooks = vi.hoisted(() => ({
-	repos: { state: "loading" } as Loadable<Repo[]>,
-	workspaces: { state: "loading" } as Loadable<Workspace[]>,
-	repoService: { start: vi.fn() },
-	workspaceService: { start: vi.fn() },
-	sectionsStore: {
-		getState: () => ({ loaded: true, sections: [] }),
-		getInitialState: () => ({ loaded: true, sections: [] }),
-		subscribe: () => () => {},
-		setState: () => {},
-	},
-}));
+const hooks = vi.hoisted(() => {
+	// A zustand store returns the same snapshot until state changes; a fresh object here
+	// makes useSyncExternalStore loop forever.
+	const snapshot = { loaded: true, sections: [] };
+	return {
+		repos: { state: "loading" } as Loadable<Repo[]>,
+		workspaces: { state: "loading" } as Loadable<Workspace[]>,
+		repoService: { start: vi.fn() },
+		workspaceService: { start: vi.fn() },
+		sectionsStore: {
+			getState: () => snapshot,
+			getInitialState: () => snapshot,
+			subscribe: () => () => {},
+			setState: () => {},
+		},
+	};
+});
 
 vi.mock("../../core/hooks.ts", () => ({
 	useRepos: () => hooks.repos,

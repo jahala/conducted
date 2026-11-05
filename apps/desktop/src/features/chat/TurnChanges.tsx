@@ -6,8 +6,8 @@
  * scope 'turn'), 3.6 (Changes list).
  * Must handle: No changes (renders nothing); many files (the first five, then 'and N more', which
  * expands the list); a deleted or renamed file (the old path is named); a binary file (no line
- * counts); the turn is reverted (every row is struck through); no handler for opening the diff
- * (the 'Open diff' action is shown disabled).
+ * counts); a zero line count on one side (that side is left out); the turn is reverted (every row
+ * is struck through); no handler for opening the diff (the 'Open diff' action is shown disabled).
  * Our design choice: the component cannot open the Changes view itself, so it hands the turn scope
  * to the optional `onOpenDiff` and the caller shows the view.
  * Test first: A turn with 12 changed files shows the first 5 and 'and 7 more'.
@@ -107,8 +107,12 @@ export function TurnChanges({ turn, sessionId, onOpenDiff }: TurnChangesProps) {
 							<span className="shrink-0 text-2xs text-fg-subtle">binary</span>
 						) : (
 							<span className="flex shrink-0 items-center gap-1.5 font-mono text-2xs">
-								<span className="text-git-added">+{file.linesAdded}</span>
-								<span className="text-git-removed">-{file.linesRemoved}</span>
+								{file.linesAdded > 0 ? (
+									<span className="text-git-added">+{file.linesAdded}</span>
+								) : null}
+								{file.linesRemoved > 0 ? (
+									<span className="text-git-removed">-{file.linesRemoved}</span>
+								) : null}
 							</span>
 						)}
 					</li>

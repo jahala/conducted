@@ -67,6 +67,7 @@ vi.mock("../../core/hooks.ts", () => ({
 	useTerminals: () => state.terminals,
 	useWorkspace: () => state.workspace,
 	useSetting: (key: string) => (key === "experimental_tab_freak_mode" ? state.freak : false),
+	useLiveShortcut: () => null,
 	useActions: () => ({
 		sessions: { close: state.close, reopen: state.reopen },
 		terminals: { close: state.closeTerminal, create: state.createTerminal },

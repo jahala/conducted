@@ -110,7 +110,8 @@ describe("NAV-02 route tree", () => {
 		await openApp("/all-workspaces");
 		const main = await screen.findByRole("main");
 		expect(await within(main).findByText("Home")).toBeTruthy();
-		expect(within(main).getByText("Not built yet: NAV-05")).toBeTruthy();
+		expect(await within(main).findByText("No workspaces yet")).toBeTruthy();
+		expect(within(main).getByRole("searchbox", { name: "Search workspaces" })).toBeTruthy();
 		expect(screen.getByRole("complementary", { name: "Sidebar" })).toBeTruthy();
 	});
 

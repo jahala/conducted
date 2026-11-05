@@ -1227,7 +1227,7 @@ export class GitService {
 		const context = await this.#deps.contextOf(workspaceId);
 		if (!context.ok) return context;
 		const found = context.value;
-		const strategy = await this.#pullStrategyOf(found.workspacePath);
+		const strategy = await this.#rebaseChoiceOf(found.workspacePath);
 		if (!strategy.ok) return strategy;
 		const promptFor = this.#deps.promptFor;
 		if (promptFor === undefined) {
@@ -1246,16 +1246,26 @@ export class GitService {
 			targetBranch: targetBranchName(found.targetBranch, found.remote),
 			branch: found.branch,
 			customPrompt: custom.value,
-			strategy: strategy.value.agent,
+			strategy: strategy.value,
 		});
 		const sent = await this.#deps.agent.sendInstruction(workspaceId, text);
 		return sent.ok ? ok(undefined) : err(sent.error);
 	}
 
 	/**
+	 * The rebase or merge choice from `pull.rebase` alone. Resolve conflicts follows this setting
+	 * whatever `pull.ff` says, because the agent is rewriting or merging the branch itself. An
+	 * unset key means merge (services-map 3.6.4).
+	 */
+	async #rebaseChoiceOf(cwd: string): Promise<Result<AgentPullStrategy>> {
+		const rebase = await this.#deps.git.stdout(configPullRebase(), { cwd });
+		return rebase.ok ? ok(pullRebaseStrategy(rebase.value)) : rebase;
+	}
+
+	/**
 	 * Reads `pull.rebase` and `pull.ff` once. `agent` is what an agent instruction asks for, so
-	 * Resolve conflicts follows `pull.rebase` even when `pull.ff = only` stops a pull from handing
-	 * work off. An unset key means merge (services-map 3.6.4).
+	 * a pull follows `pull.rebase` even when `pull.ff = only` stops it from handing work off. An
+	 * unset key means merge (services-map 3.6.4).
 	 */
 	async #pullStrategyOf(
 		cwd: string,

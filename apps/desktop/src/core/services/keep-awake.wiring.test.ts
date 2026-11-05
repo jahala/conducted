@@ -156,6 +156,38 @@ describe("PLAT-21 keep-awake wiring", () => {
 		expect(cancels).toContain("caffeinate");
 	});
 
+	it("runs one more scan, not one per change, when a change lands mid-scan", async () => {
+		const { test, starts } = build();
+		// Hold the first pmset read so a change can land while its scan runs.
+		const originalRun = test.memory.platform.shell.run.bind(test.memory.platform.shell);
+		const gate: { release: (() => void) | null } = { release: null };
+		let holdPmset = true;
+		test.memory.platform.shell.run = async (command) => {
+			if (command.program === "pmset" && holdPmset) {
+				holdPmset = false;
+				await new Promise<void>((resolve) => {
+					gate.release = resolve;
+				});
+			}
+			return originalRun(command);
+		};
+		await startContainer(test);
+
+		setWorking(test, true);
+		test.memory.controls.holdNextStart();
+		setSetting(test, true);
+		await vi.waitFor(() => expect(gate.release).not.toBeNull());
+
+		// Two changes while the scan waits get one trailing scan, not one each.
+		setSetting(test, false);
+		setSetting(test, true);
+		gate.release?.();
+		gate.release = null;
+
+		await vi.waitFor(() => expect(pmsetReads(test)).toHaveLength(2));
+		expect(caffeinateStarts(starts)).toHaveLength(1);
+	});
+
 	it("logs a warning when a scan fails", async () => {
 		const { test } = build({ pmsetFails: true });
 		await startContainer(test);

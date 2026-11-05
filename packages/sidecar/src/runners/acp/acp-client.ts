@@ -493,6 +493,7 @@ export class StdioAcpClient implements AcpClient {
 			this.stderrTail = keepTail(this.stderrTail + text, ACP_STDERR_TAIL_BYTES);
 		});
 		child.onExit((exitCode, signal) => {
+			const opened = this.opened;
 			this.opened = null;
 			if (this.closing) return;
 			const reason = `The ${this.deps.adapter.displayName} agent stopped (exit ${exitCode ?? "none"}${signal === null ? "" : `, ${signal}`}).${this.stderrTail === "" ? "" : ` ${this.stderrTail}`}`;
@@ -501,6 +502,7 @@ export class StdioAcpClient implements AcpClient {
 				exitCode,
 				signal,
 			});
+			opened?.connection.close(new Error(reason));
 			for (const listener of [...this.closeListeners]) listener(reason);
 		});
 

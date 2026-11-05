@@ -66,7 +66,7 @@ describe("CHAT-27 visible auto-retry", () => {
 		);
 	});
 
-	it("offers Retry in new chat from the auto-retry banner too", () => {
+	it("offers Retry in new chat from the auto-retry banner too", async () => {
 		renderWithRouter(
 			<ChatRetryBanner
 				retry={{ attempt: 1, maxAttempts: 3 }}
@@ -75,7 +75,7 @@ describe("CHAT-27 visible auto-retry", () => {
 			/>,
 		);
 
-		expect(screen.getByRole("button", { name: "Retry in new chat" })).toBeTruthy();
+		expect(await screen.findByRole("button", { name: "Retry in new chat" })).toBeTruthy();
 	});
 
 	it("keeps Retry in new chat out of the error card when the caller gives no turn", () => {

@@ -265,7 +265,7 @@ export function parseAuthStatus(text: string): ParsedAuthStatus {
 export function isGithubRemoteUrl(url: string): boolean {
 	const trimmed = url.trim();
 	if (trimmed.length === 0) return false;
-	const scp = /^[^@\s]+@([^:\s/]+):/.exec(trimmed);
+	const scp = hasUrlScheme(trimmed) ? null : SCP_LIKE_REMOTE.exec(trimmed);
 	if (scp !== null) return isGithubHost(scp[1]);
 	try {
 		return isGithubHost(new URL(trimmed).hostname);
@@ -273,6 +273,12 @@ export function isGithubRemoteUrl(url: string): boolean {
 		return false;
 	}
 }
+
+/** Whether the text names a URL with a scheme, such as `https://` or `ssh://`. */
+const hasUrlScheme = (url: string): boolean => /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(url);
+
+/** git's scp-like remote, `user@host:owner/repo`. Only used when there is no URL scheme. */
+const SCP_LIKE_REMOTE = /^[^@\s]+@([^:\s/]+):(.+)$/;
 
 const isGithubHost = (host: string | undefined): boolean => {
 	const name = (host ?? "").toLowerCase();
@@ -300,7 +306,7 @@ export function githubRepositoryFromRemote(url: string): Result<GithubRepository
 	const trimmed = url.trim();
 	if (trimmed === "") return err(appError("github_not_github", NOT_GITHUB_REMOTE));
 	let path: string;
-	const scp = /^[^@\s]+@([^:\s/]+):(.+)$/.exec(trimmed);
+	const scp = hasUrlScheme(trimmed) ? null : SCP_LIKE_REMOTE.exec(trimmed);
 	if (scp !== null) {
 		if (!isGithubHost(scp[1])) return err(appError("github_not_github", NOT_GITHUB_REMOTE));
 		path = scp[2] ?? "";

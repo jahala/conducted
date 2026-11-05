@@ -5,7 +5,8 @@
  * Behaviour: services-map.md 3.11 (retarget), 2.3.1 (set intended target branch), ui-map.md 3.6.
  * Test first: a clean branch still at its old target is fetched and reset to the new target.
  */
-import { readFile } from "node:fs/promises";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import type { ShellOutput } from "../../platform/platform.ts";
@@ -136,6 +137,19 @@ function makeService(
 
 const hasCommand = (commands: readonly GitCommand[], first: string): boolean =>
 	commands.some((command) => command.args[0] === first);
+
+/**
+ * Under vitest's jsdom environment `import.meta.url` is not a file URL, so the catalogue is found
+ * from the working directory, as `src/test/sqlite.ts` does for the migrations.
+ */
+const COMMANDS_SOURCE = [
+	resolve(process.cwd(), "src/core/git/commands.ts"),
+	resolve(process.cwd(), "apps/desktop/src/core/git/commands.ts"),
+].find((candidate) => existsSync(candidate));
+
+if (COMMANDS_SOURCE === undefined) {
+	throw new Error("commands.ts was not found from the test's working directory");
+}
 
 describe("GIT-08 change the target branch", () => {
 	it("fetches the new target and resets a clean branch still at the old target", async () => {
@@ -323,7 +337,7 @@ describe("GIT-08 change the target branch", () => {
 		);
 	});
 
-	it("is the only reset in the command catalogue, and it is a hard reset", async () => {
+	it("is the only reset in the command catalogue, and it is a hard reset", () => {
 		const resetLiterals = (source: string): number => (source.match(/"reset"/g) ?? []).length;
 		const sample = 'a(["reset", "--soft", "x"]); b(["reset", "--mixed", "y"])';
 		expect(resetLiterals(sample)).toBe(2);
@@ -333,7 +347,7 @@ describe("GIT-08 change the target branch", () => {
 			"--hard",
 			"refs/remotes/origin/develop",
 		]);
-		const source = await readFile(new URL("../git/commands.ts", import.meta.url), "utf8");
+		const source = readFileSync(COMMANDS_SOURCE, "utf8");
 		expect(resetLiterals(source)).toBe(1);
 	});
 });

@@ -109,14 +109,20 @@ describe("app shell", () => {
 });
 
 describe("routes", () => {
-	it.each([
-		["/all-workspaces", "Home", "NAV-05"],
-		["/dashboard", "Dashboard", "NAV-06"],
-	])("%s renders inside the shell", async (path, area, id) => {
-		await openApp(path);
+	it("/all-workspaces renders the Home grid inside the shell", async () => {
+		await openApp("/all-workspaces");
 		const main = await screen.findByRole("main");
-		expect(await within(main).findByText(area)).toBeTruthy();
-		expect(within(main).getByText(`Not built yet: ${id}`)).toBeTruthy();
+		expect(await within(main).findByText("Home")).toBeTruthy();
+		expect(await within(main).findByText("No workspaces yet")).toBeTruthy();
+		expect(within(main).getByRole("searchbox", { name: "Search workspaces" })).toBeTruthy();
+		expect(screen.getByRole("complementary", { name: "Sidebar" })).toBeTruthy();
+	});
+
+	it("/dashboard renders inside the shell", async () => {
+		await openApp("/dashboard");
+		const main = await screen.findByRole("main");
+		expect(await within(main).findByText("Dashboard")).toBeTruthy();
+		expect(within(main).getByText("Not built yet: NAV-06")).toBeTruthy();
 		expect(screen.getByRole("complementary", { name: "Sidebar" })).toBeTruthy();
 	});
 
@@ -132,8 +138,8 @@ describe("routes", () => {
 		const seeded = workspace("w1", project.id);
 		await openApp(`/repository/${project.id}/workspace/${seeded.id}?tab=pr`, [project], [seeded]);
 		const main = await screen.findByRole("main");
-		expect(await within(main).findByText("Git panel")).toBeTruthy();
-		expect(within(main).getByText("Scripts")).toBeTruthy();
+		expect(await within(main).findByRole("tab", { name: "All files" })).toBeTruthy();
+		expect(within(main).getByRole("tab", { name: "Setup" })).toBeTruthy();
 		expect(await within(main).findByRole("tablist", { name: "Workspace tabs" })).toBeTruthy();
 		expect(within(main).getByRole("tab", { name: "PR" })).toBeTruthy();
 		expect(within(main).getByRole("button", { name: seeded.branch })).toBeTruthy();
@@ -148,7 +154,7 @@ describe("routes", () => {
 	it("ignores a bad tab in the workspace URL instead of failing", async () => {
 		await openApp("/repository/r1/workspace/w1?tab=nonsense&line=0");
 		const main = await screen.findByRole("main");
-		expect(await within(main).findByText("Git panel")).toBeTruthy();
+		expect(await within(main).findByRole("tab", { name: "All files" })).toBeTruthy();
 	});
 
 	it.each([

@@ -109,10 +109,10 @@ describe("NAV-05 home-query", () => {
 	it("matches the repository name as well as the workspace fields", () => {
 		const page = queryHome({
 			workspaces: [
-				workspace("one", { repoId: "api" as RepoId, displayName: "one" }),
+				workspace("one", { repoId: "svc-1" as RepoId, displayName: "one" }),
 				workspace("two", { repoId: "app" as RepoId, displayName: "two" }),
 			],
-			repos: [repo("app"), repo("api-service")],
+			repos: [repo("app"), repo("svc-1", { name: "api-service" })],
 			filters: { ...FILTERS, search: "api" },
 			pageCount: 1,
 		});

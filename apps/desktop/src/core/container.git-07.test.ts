@@ -7,8 +7,8 @@
  * Test first: with a repository prompt saved, resolveConflicts sends that text rather than the
  * built-in one.
  */
-import { ok, type Result } from "@conducted/shared";
-import { describe, expect, it } from "vitest";
+import { ok, type Result, type SessionId } from "@conducted/shared";
+import { describe, expect, it, vi } from "vitest";
 import type { ShellOutput } from "../platform/platform.ts";
 import { createTestContainer, seedRepo, seedWorkspace } from "../test/container.ts";
 import { localSettingsFile } from "./app-paths.ts";
@@ -40,14 +40,20 @@ describe("GIT-07 repository prompt wiring", () => {
 				return null;
 			});
 
-			const result = await harness.container.services.git.resolveConflicts(workspace.id);
-			expect(result.ok).toBe(false);
+			const sent: string[] = [];
+			const sentTo: string[] = [];
+			vi.spyOn(harness.container.services.sessions, "sendInstruction").mockImplementation(
+				async (workspaceId, text) => {
+					sentTo.push(workspaceId);
+					sent.push(text);
+					return ok("test-session" as SessionId);
+				},
+			);
 
-			const sessions = harness.container.services.sessions.store.getState();
-			const sessionId = sessions.byWorkspace[workspace.id]?.[0];
-			expect(sessionId).toBeDefined();
-			const failed = sessionId === undefined ? [] : (sessions.failedSends?.[sessionId] ?? []);
-			expect(failed.map((entry) => entry.text)).toContain(CUSTOM_PROMPT);
+			const result = await harness.container.services.git.resolveConflicts(workspace.id);
+			expect(result).toEqual(ok(undefined));
+			expect(sent).toEqual([CUSTOM_PROMPT]);
+			expect(sentTo).toEqual([workspace.id]);
 		} finally {
 			harness.container.services.repo.dispose();
 			harness.close();
