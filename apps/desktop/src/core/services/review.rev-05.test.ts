@@ -23,6 +23,12 @@ function harness(overrides: Partial<ReviewServiceDeps> = {}): {
 		repos: {} as ReviewServiceDeps["repos"],
 		git: {} as GitRunner,
 		agent: {} as AgentMessenger,
+		fs: {
+			mkdirp: async () => ok(undefined),
+			writeTextAtomic: async () => ok(undefined),
+			exists: async () => false,
+		},
+		workspacePathOf: async () => ok("/code/workspaces/test"),
 		customPromptOf: async () => ok(null),
 		startReviewChat,
 		...overrides,
