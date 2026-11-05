@@ -54,6 +54,7 @@ import { NotBuiltYet } from "../ui/not-built-yet.tsx";
 import { AppShell } from "./AppShell.tsx";
 import { CreateWorkspacePage } from "./CreateWorkspacePage.tsx";
 import { CommandDispatcher, useCommandHandler } from "./command-dispatcher.ts";
+import { FileDropTarget } from "./FileDropTarget.tsx";
 import { FullPage } from "./FullPage.tsx";
 import { GlobalOverlays } from "./GlobalOverlays.tsx";
 import { NoWorkspaceSelected } from "./NoWorkspaceSelected.tsx";
@@ -147,6 +148,7 @@ function RootLayout() {
 			<RouteLocationPersistence />
 			<Outlet />
 			<GlobalOverlays />
+			<FileDropTarget />
 		</CommandDispatcher>
 	);
 }
