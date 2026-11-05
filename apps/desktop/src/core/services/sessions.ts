@@ -259,16 +259,12 @@ export interface SessionsServiceDeps {
 	 * A Promise is accepted because the launch reads the saved environment and keys from the
 	 * database and the Keychain.
 	 */
-<<<<<<< HEAD
-	launchFor?: (session: Session) => AgentLaunch;
+	launchFor?: (session: Session) => AgentLaunch | Promise<AgentLaunch>;
 	/**
 	 * Removes a chat's checkpoint refs before its row is deleted (DATA-06). The composition root
 	 * supplies it; a harness without it still deletes chats and leaves the refs alone.
 	 */
 	pruneCheckpoints?: (sessionId: SessionId, workspaceId: WorkspaceId) => Promise<Result<number>>;
-=======
-	launchFor?: (session: Session) => AgentLaunch | Promise<AgentLaunch>;
->>>>>>> node/join.s1-sidecar
 	/** Folders and branch facts the sidecar needs to place a chat on disk. */
 	workspaceContextOf: (workspaceId: WorkspaceId) => Promise<Result<WorkspaceContext>>;
 	/** Default config for a new chat, from settings and the last used model. */
