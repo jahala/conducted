@@ -8,7 +8,9 @@
  * local-git forge where the tab says a GitHub remote is needed.
  * Test first: state "no_pr" shows a Create PR action that calls onAction.
  */
-import { notImplemented } from "@conducted/shared";
+import { Button } from "../../ui/Button.tsx";
+import { EmptyState } from "../../ui/EmptyState.tsx";
+import { Spinner } from "../../ui/Spinner.tsx";
 
 export type PrEmptyKind =
 	| "no_pr"
@@ -23,6 +25,74 @@ export interface PrEmptyStateProps {
 	onAction: () => void;
 }
 
-export function PrEmptyState(_props: PrEmptyStateProps): never {
-	return notImplemented("APP-04");
+export function PrEmptyState({ kind, onAction }: PrEmptyStateProps) {
+	if (kind === "loading") {
+		return (
+			<div className="flex h-full items-center justify-center gap-2 p-6 text-fg-subtle">
+				<Spinner label="Loading PR info" />
+				<p className="text-sm text-fg-muted">Loading PR info...</p>
+			</div>
+		);
+	}
+	if (kind === "no_pr") {
+		return (
+			<EmptyState
+				title="No pull request yet"
+				body="Create a pull request to review changes, run checks and merge from here."
+				action={
+					<Button variant="default" onClick={onAction}>
+						Create PR
+					</Button>
+				}
+			/>
+		);
+	}
+	if (kind === "offline") {
+		return (
+			<EmptyState
+				tone="failed"
+				title="No internet connection"
+				body="Check your connection, then try again."
+				action={
+					<Button variant="secondary" onClick={onAction}>
+						Try again
+					</Button>
+				}
+			/>
+		);
+	}
+	if (kind === "no_github_access") {
+		return (
+			<EmptyState
+				tone="failed"
+				title="GitHub access required"
+				body="Sign in to GitHub to see this pull request."
+				action={
+					<Button variant="default" onClick={onAction}>
+						Open GitHub sign-in
+					</Button>
+				}
+			/>
+		);
+	}
+	if (kind === "not_github") {
+		return (
+			<EmptyState
+				title="No GitHub remote"
+				body="This repository has no GitHub remote. Add one to open pull requests."
+			/>
+		);
+	}
+	return (
+		<EmptyState
+			tone="failed"
+			title="PR info unavailable"
+			body="GitHub did not return the pull request. Try again in a moment."
+			action={
+				<Button variant="secondary" onClick={onAction}>
+					Try again
+				</Button>
+			}
+		/>
+	);
 }
