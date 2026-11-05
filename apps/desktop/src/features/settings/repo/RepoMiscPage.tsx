@@ -1,19 +1,20 @@
 /**
  * @feature SET-07 Repository Misc page
- * Owns: the per-repository Misc page: icon, locations, preview URLs, files to copy into new
- * workspaces, per-repository git overrides, and removing the repository.
+ * Owns: the per-repository Misc page: the saved icon, locations, preview URLs, files to copy into
+ * new workspaces, the branch new workspaces start from, and removing the repository.
  * Behaviour: ui-map.md 6, "Misc (repo)" table (Icon, Root path, Workspaces path, Preview URLs,
  * Files to copy, Remove repository) and "Git" table (rows with scope repository: branch new
  * workspaces from, remote origin). Files to copy is PRJ-04; the copy itself runs in the workspace
  * service.
  * Data: useRepos (path, icon, default branch), useRepoConfig (copyFiles, previewUrlTemplate,
  * remoteName), useWorkspaces (the count the removal dialog names), useSetting(conducted_root_path),
- * useActions().projects (updateConfig, setIcon, remove).
+ * useActions().projects (updateConfig, remove).
  * Children: FilesToCopyField, RemoveRepoDialog.
  * Must handle: root path and workspaces path shown read-only with the warning not to move them; a
  * preview URL template validated with the workspace port variable; a remote name saved to the
- * personal settings file; files to copy as patterns; an icon choice sent to the repository icon
- * service (PRJ-05); and removal that also removes workspaces (confirm with the count).
+ * personal settings file, with "origin" only as a placeholder; files to copy as patterns; and
+ * removal that also removes workspaces (confirm with the count). Icons are shown but not editable:
+ * saving an icon is PRJ-05. Choosing a base other than the default branch is WS-01.
  * Test first: removing a repository with two workspaces asks for confirmation naming the count.
  */
 import type { RepoId } from "@conducted/shared";
@@ -57,7 +58,6 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 	const workspaces = useWorkspaces();
 	const rootPath = useSetting<string>("conducted_root_path");
 	const actions = useActions();
-	const [icon, setIcon] = useState("");
 	const [remote, setRemote] = useState("");
 	const [preview, setPreview] = useState("");
 	const [previewError, setPreviewError] = useState<string | null>(null);
@@ -66,7 +66,9 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 
 	useEffect(() => {
 		if (readyConfig === null) return;
-		setRemote(readyConfig.remoteName ?? "origin");
+		// A repository with no remote_name uses "origin" when it creates a workspace. The field
+		// shows the saved value only, so the invented default never looks like saved text.
+		setRemote(readyConfig.remoteName ?? "");
 		setPreview(readyConfig.previewUrlTemplate ?? "");
 		setPreviewError(null);
 	}, [readyConfig]);
@@ -83,8 +85,6 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 	const saveRemote = () => {
 		if (config.state !== "ready") return;
 		const trimmed = remote.trim();
-		// "origin" is the shown default when the file names no remote, so it is not a change.
-		if (trimmed === (config.data.remoteName ?? "origin")) return;
 		const next = trimmed === "" ? null : trimmed;
 		if (next === config.data.remoteName) return;
 		void save({ ...config.data, remoteName: next });
@@ -98,11 +98,6 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 		const next = preview.trim() === "" ? null : preview.trim();
 		if (next === config.data.previewUrlTemplate) return;
 		void save({ ...config.data, previewUrlTemplate: next });
-	};
-
-	const saveIcon = async (choice: { kind: "emoji"; emoji: string } | null) => {
-		const saved = await actions.projects.setIcon(repoId, choice);
-		if (!saved.ok) toastError("Couldn't save the repository icon", saved.error);
 	};
 
 	const repoValue =
@@ -152,33 +147,18 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 										<p className="text-sm text-fg-muted">
 											Shown next to the repository name in the sidebar.
 										</p>
-										<div className="flex items-center gap-2">
-											<Input
-												id="repo-icon"
-												value={icon === "" ? (repoValue.icon ?? "") : icon}
-												placeholder="☕"
-												className="w-20 text-center"
-												onChange={(event) => setIcon(event.target.value)}
-											/>
-											<Button
-												variant="secondary"
-												onClick={() => {
-													const value = (icon === "" ? (repoValue.icon ?? "") : icon).trim();
-													void saveIcon(value === "" ? null : { kind: "emoji", emoji: value });
-												}}
-											>
-												Save icon
-											</Button>
-											<Button
-												variant="ghost"
-												onClick={() => {
-													setIcon("");
-													void saveIcon(null);
-												}}
-											>
-												Remove icon
-											</Button>
-										</div>
+										<Input
+											id="repo-icon"
+											value={repoValue.icon ?? ""}
+											placeholder="No icon"
+											className="w-20 text-center"
+											readOnly
+											disabled
+											aria-describedby="repo-icon-reason"
+										/>
+										<p id="repo-icon-reason" className="text-xs text-fg-muted">
+											Choosing an icon is not built yet (PRJ-05). The saved icon is shown here.
+										</p>
 									</div>
 
 									<div className="flex flex-col gap-3 border-t border-border pt-4">
@@ -206,7 +186,8 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 									<div className="flex flex-col gap-1.5 border-t border-border pt-4">
 										<Label htmlFor="repo-branch-base">Branch new workspaces from</Label>
 										<p className="text-sm text-fg-muted">
-											New workspaces branch from the repository's default branch.
+											New workspaces branch from the repository's default branch. Choosing another
+											base is not built yet (WS-01).
 										</p>
 										<Input
 											id="repo-branch-base"
@@ -224,6 +205,7 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 										<Input
 											id="repo-remote"
 											value={remote}
+											placeholder="origin"
 											className="w-64 font-mono"
 											onChange={(event) => setRemote(event.target.value)}
 											onBlur={saveRemote}
@@ -257,7 +239,6 @@ export function RepoMiscPage({ repoId }: { repoId: RepoId }) {
 										<FilesToCopyField
 											patterns={settings.copyFiles}
 											matches={null}
-											source="settings"
 											onChange={(patterns) => void save({ ...settings, copyFiles: patterns })}
 										/>
 									</div>

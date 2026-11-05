@@ -4,7 +4,7 @@
  * action runs, and the empty state.
  * Test first: with one action and no running process the toolbar shows "Run <label>".
  */
-import { ok, type TerminalId } from "@conducted/shared";
+import { appError, ok, type TerminalId } from "@conducted/shared";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearCommandHandlers, runCommandHandlers } from "../../../app/command-dispatcher.ts";
@@ -51,6 +51,7 @@ const containers: ReturnType<typeof createTestContainer>[] = [];
 afterEach(() => {
 	cleanup();
 	clearCommandHandlers();
+	globalThis.localStorage.clear();
 	for (const test of containers.splice(0)) test.close();
 });
 
@@ -124,6 +125,38 @@ describe("RUN-01 run tab", () => {
 
 		expect(runCommandHandlers("workspace.toggleRun")).toBe(true);
 		expect(start).toHaveBeenCalledWith(workspace.id, "dev");
+	});
+
+	it("keeps a stop that was not confirmed in view", async () => {
+		const { test, workspace } = await setup([dev]);
+		test.container.services.runScripts.store.setState((state) => ({
+			...state,
+			outcomes: { ...state.outcomes, [workspace.id]: "stop-unconfirmed" },
+		}));
+
+		render(
+			<ServicesProvider container={test.container}>
+				<RunTab workspaceId={workspace.id} />
+			</ServicesProvider>,
+		);
+
+		expect(await screen.findByText("The last action may still be running.")).toBeTruthy();
+	});
+
+	it("shows why a saved run history could not be read", async () => {
+		const { test, workspace } = await setup([dev]);
+		test.container.services.runScripts.store.setState((state) => ({
+			...state,
+			historyError: appError("run_history_invalid", "The saved run history is not readable."),
+		}));
+
+		render(
+			<ServicesProvider container={test.container}>
+				<RunTab workspaceId={workspace.id} />
+			</ServicesProvider>,
+		);
+
+		expect(await screen.findByText("The saved run history is not readable.")).toBeTruthy();
 	});
 
 	it("offers the empty state when the repository has no actions", async () => {

@@ -11,12 +11,17 @@
  * adopted status and any open interaction, and a failed live-state write is thrown so the tunnel
  * logs it; `agentSessionId` stores the agent's own session id so the next message resumes, and a
  * failed write is thrown so the tunnel logs it; `agentInstallsChanged` updates the agent catalog;
- * `agentConfigChanged` stores the config the agent chose and a failed write is thrown so the
- * tunnel logs it; `interactionClosed` marks a timed-out card and settles the pending request;
+ * `agentConfigChanged` stores the config the agent chose; a failed write is retried through the
+ * same single writer, and one that still fails is thrown so the tunnel logs it;
+ * `interactionClosed` marks a timed-out card and settles the pending request;
  * `shellEnvFailed` logs the folder, kind and message; a failed workspace diff becomes error text
- * the agent can read instead of a crash.
+ * the agent can read instead of a crash; a failed terminal output read throws, so the agent gets
+ * an RPC error instead of an error message dressed as terminal output.
  * Our design choice: handlers receive ports (small interfaces), not services, so each can be
- * tested with a plain object. Errors the agent should read go into the normal result as text.
+ * tested with a plain object. Errors the agent should read, such as the fixed no-terminal
+ * sentences, go into the normal result as text.
+ * Our design choice: one agentConfigChanged notification with a reason, not Conductor's separate
+ * enter-plan-mode notification.
  * Test first: a deliverEvent request for a stored event answers persisted true and sends the ack.
  */
 import type {
@@ -144,8 +149,8 @@ export function createSidecarRequestHandlers(ports: SidecarHandlerPorts): Sideca
 				params.source,
 				params.maxLines,
 			);
-			if (result.ok) return result.value;
-			return { output: result.error.message, source: "", running: false };
+			if (!result.ok) throw new Error(result.error.message);
+			return result.value;
 		},
 		setTargetBranch: async (params) => {
 			const result = await ports.targetBranch.setForSession(params.sessionId, params.branch);

@@ -50,10 +50,20 @@ describe("AGENT-12 ACP adapters", () => {
 	});
 
 	test("OpenCode's approval policy becomes its config environment", () => {
-		const ask = opencodeValue(ACP_ADAPTERS.opencode, true);
+		const ask = opencodeValue(ACP_ADAPTERS.opencode, true, { agentVersion: "1.18.18" });
 		expect(ask.permission).toEqual({ "*": "ask" });
-		const allow = opencodeValue(ACP_ADAPTERS.opencode, false);
+		const allow = opencodeValue(ACP_ADAPTERS.opencode, false, { agentVersion: "1.18.18" });
 		expect(allow.permission).toEqual({ "*": "allow" });
+	});
+
+	test("OpenCode refuses to guess a config shape when its version is unknown", () => {
+		const missing = ACP_ADAPTERS.opencode.permissionEnv(true);
+		expect(missing.ok).toBe(false);
+		if (!missing.ok) expect(missing.error.code).toBe("opencode_version_unknown");
+
+		const unreadable = ACP_ADAPTERS.opencode.permissionEnv(true, { agentVersion: "dev" });
+		expect(unreadable.ok).toBe(false);
+		if (!unreadable.ok) expect(unreadable.error.code).toBe("opencode_version_unknown");
 	});
 
 	test("OpenCode 1 and 2 each get the MCP tool timeout in their own config shape", () => {
@@ -98,6 +108,7 @@ describe("AGENT-12 ACP adapters", () => {
 
 	test("an existing config that is not a JSON object is reported, not dropped", () => {
 		const result = ACP_ADAPTERS.opencode.permissionEnv(true, {
+			agentVersion: "1.18.18",
 			env: { [OPENCODE_CONFIG_CONTENT]: "not json" },
 		});
 		expect(result.ok).toBe(false);
@@ -110,6 +121,8 @@ describe("AGENT-12 ACP adapters", () => {
 		if (check === undefined) return;
 		expect(check("/review the diff", ["review"]).ok).toBe(true);
 		expect(check("plain text", ["review"]).ok).toBe(true);
+		expect(check("/Users/me/file.ts fails to parse", ["review"]).ok).toBe(true);
+		expect(check("/tmp/a-file.ts", ["review"]).ok).toBe(true);
 		const unknown = check("/deploy now", ["review"]);
 		expect(unknown.ok).toBe(false);
 		if (!unknown.ok) expect(unknown.error.code).toBe("opencode_command_unknown");

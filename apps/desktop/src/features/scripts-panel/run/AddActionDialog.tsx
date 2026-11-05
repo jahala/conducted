@@ -1,7 +1,7 @@
 /**
  * @feature SET-07 Add or edit action dialog
  * Owns: the dialog for creating or editing a run action: name, command, folder, icon and default
- * flag. Used by the Run tab and by the repository Actions settings page.
+ * flag. Used by the repository Actions settings page; the Run tab's "Add action" route is RUN-01's.
  * Behaviour: ui-map.md 3.7 (Add-action dialog: "Action name", icon picker with search);
  * services-map.md 5A.1.6 (action fields; ids are normalised; labels come from the id; the shared
  * file is read-only, so a change to a shared action is written to the personal file).

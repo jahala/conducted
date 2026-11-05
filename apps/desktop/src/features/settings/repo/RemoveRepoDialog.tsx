@@ -5,7 +5,7 @@
  * workspaces from the app; do not move or delete the folders yourself).
  * Our design choice: removal never deletes the user's main clone. Workspace folders go to the
  * Trash, as all deletes in the app do (CLAUDE.md, deleting files).
- * Must handle: workspaces with running agents (listed, stopping them is part of confirming),
+ * Must handle: the count of workspaces with running agents (stopping them is part of confirming),
  * the delete failing (the dialog stays open with the failure), and Escape cancelling.
  * Test first: with two workspaces the dialog names the count and Confirm calls onConfirm once.
  */

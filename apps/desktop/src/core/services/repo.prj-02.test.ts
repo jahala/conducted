@@ -8,6 +8,7 @@ import {
 	checkout,
 	cloneWithProgress,
 	remoteGetUrl,
+	revParse,
 	symbolicRefRemoteHead,
 } from "../git/commands.ts";
 import { githubRepoClone } from "../git/gh-commands.ts";
@@ -398,5 +399,90 @@ describe("PRJ-02 refusing a clone", () => {
 		expect(result.ok).toBe(false);
 		if (!result.ok) expect(result.error.code).toBe("repo_remote_missing");
 		expect(ctx.repos.rows).toHaveLength(0);
+	});
+
+	it("reports a failed branch probe instead of skipping the default branch", async () => {
+		const url = "https://github.com/octo/repo.git";
+		const destination = "/code/repo";
+		const ctx = makeService({ dirs: ["/code"] });
+		seedCloneReplies(ctx, url, destination);
+		ctx.git.replies.set(commandKey(branchShowCurrent()), output(128, "", "fatal: bad HEAD"));
+
+		const result = await ctx.service.clone(url, "/code");
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.code).toBe("git_failed");
+		expect(ctx.repos.rows).toHaveLength(0);
+		expect(ctx.service.store.getState().cloneProgress?.state).toBe("failed");
+		expect(ctx.service.store.getState().cloneProgress?.output).toContain("bad HEAD");
+	});
+
+	it("answers with the project another clone stored when the insert races", async () => {
+		const url = "https://github.com/octo/repo.git";
+		const destination = "/code/repo";
+		const ctx = makeService({ dirs: ["/code"] });
+		seedCloneReplies(ctx, url, destination);
+		const raced: Repo = {
+			id: "repo-raced" as Repo["id"],
+			name: "repo",
+			rootPath: destination,
+			remoteUrl: url,
+			defaultBranch: "main",
+			icon: null,
+			displayOrder: 0,
+			hidden: false,
+			createdAt: 1000,
+			updatedAt: 1000,
+		};
+		const realGetByRootPath = ctx.repos.api.getByRootPath.bind(ctx.repos.api);
+		let lookups = 0;
+		ctx.repos.api.getByRootPath = async (rootPath) => {
+			if (rootPath !== destination) return realGetByRootPath(rootPath);
+			lookups += 1;
+			return ok(lookups === 1 ? null : raced);
+		};
+		ctx.repos.api.create = async () =>
+			err(appError("db.conflict", "That folder is already a project."));
+
+		const repo = must(await ctx.service.clone(url, "/code"));
+
+		expect(repo.id).toBe(raced.id);
+		expect(ctx.service.store.getState().reposById[raced.id]?.id).toBe(raced.id);
+		expect(lookups).toBe(2);
+	});
+});
+
+describe("PRJ-02 registering a folder", () => {
+	it("uses the same race handling when a local folder is added", async () => {
+		const ctx = makeService({ dirs: ["/code/app"] });
+		ctx.git.replies.set(commandKey(revParse("--show-toplevel")), output(0, "/code/app\n"));
+		ctx.git.replies.set(commandKey(branchShowCurrent()), output(0, "main\n"));
+		const raced: Repo = {
+			id: "repo-raced" as Repo["id"],
+			name: "app",
+			rootPath: "/code/app",
+			remoteUrl: null,
+			defaultBranch: "main",
+			icon: null,
+			displayOrder: 0,
+			hidden: false,
+			createdAt: 1000,
+			updatedAt: 1000,
+		};
+		const realGetByRootPath = ctx.repos.api.getByRootPath.bind(ctx.repos.api);
+		let lookups = 0;
+		ctx.repos.api.getByRootPath = async (rootPath) => {
+			if (rootPath !== "/code/app") return realGetByRootPath(rootPath);
+			lookups += 1;
+			return ok(lookups === 1 ? null : raced);
+		};
+		ctx.repos.api.create = async () =>
+			err(appError("db.conflict", "That folder is already a project."));
+
+		const repo = must(await ctx.service.addLocal("/code/app"));
+
+		expect(repo.id).toBe(raced.id);
+		expect(ctx.service.store.getState().reposById[raced.id]?.id).toBe(raced.id);
+		expect(lookups).toBe(2);
 	});
 });

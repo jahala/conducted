@@ -16,14 +16,17 @@
  * failed (a failed setup keeps the workspace, with a retry; a second retry while one runs is
  * ignored); creations run one at a time; a repo config or default-config read that fails is shown
  * as a warning, never hidden.
- * Built now (WS-05): archive. It refuses while a chat is running, cancels a setup that is still
- * running and the remaining chats, saves the archive snapshot, pins HEAD under the archive ref,
- * runs the archive script, removes the worktree, optionally deletes the branch (never the default
- * branch), and records the archive commit and time. Archive-on-merge is refused for a corrupted
- * workspace and ignores a merged PR that is not the workspace's own. The stack rule for
- * archive-on-merge, the open-PR check, the write-access refusal and the screen's discard
- * confirmation are not built; the service refuses a busy checkout and accepts
- * `discardGitOperationState` from a caller that has already asked.
+ * Built now (WS-05): archive. It refuses while a chat is running, stops a setup or run process
+ * that is still running and clears the workspace's run state, cancels the remaining chats, saves
+ * the archive snapshot, reads the branch git reports (a detached HEAD or a failed read stops the
+ * archive), pins HEAD under the archive ref, runs the archive script, removes the worktree,
+ * optionally deletes the branch (never the default branch; a failed delete is recorded as a
+ * warning because the archive already finished), and records the archive commit and time.
+ * Archive-on-merge is refused for a corrupted workspace and ignores a merged PR that is not the
+ * workspace's own. The stack rule for archive-on-merge, the open-PR check, the write-access
+ * refusal, the screen's discard confirmation and the screen that shows the branch-delete warning
+ * are not built; the service refuses a busy checkout and accepts `discardGitOperationState` from
+ * a caller that has already asked.
  * Not built yet (placeholders): unarchive, delete to the Trash, the branch auto rename,
  * `markRead` and the base from a pull request or issue. `classifyUnarchive` is their decision
  * rule and has no caller until WS-06.
@@ -584,6 +587,10 @@ export const ARCHIVE_RUNNING_CHATS_MESSAGE =
 /** Shown when a workspace that is still being created is asked to archive. */
 export const ARCHIVE_NOT_READY_MESSAGE = "This workspace is still being created.";
 
+/** Shown when the worktree is not on a branch, so archive cannot record which branch it keeps. */
+export const ARCHIVE_DETACHED_HEAD_MESSAGE =
+	"Git is not on a branch in this workspace. Check out its branch, then archive it again.";
+
 /** Shown when archive-on-merge finds a ready workspace whose folder is gone (services-map 5B.1.9). */
 export const WORKSPACE_CORRUPTED_MESSAGE =
 	"This workspace's folder is missing, so it can't be archived. Check the folder or remove the workspace.";
@@ -607,6 +614,8 @@ export interface WorkspaceState {
 	setupRuns?: Readonly<Record<string, SetupRun>>;
 	/** Workspaces whose archive is running. */
 	archiving: Readonly<Record<string, boolean>>;
+	/** In memory only: a side step that failed after a workspace was archived, for its screen to show. */
+	archiveWarnings?: Readonly<Record<string, string>>;
 	/** In memory only: warnings from a workspace's creation, for the create page to toast. */
 	warnings?: Readonly<Record<string, readonly string[]>>;
 	/** In memory only: the first-message input of a creation that failed, for Recover and Retry. */
@@ -648,6 +657,8 @@ export interface WorkspaceServiceDeps {
 		): Promise<Result<SetupRunResult>>;
 		runArchive(workspaceId: WorkspaceId): Promise<Result<void>>;
 		stopWorkspace(workspaceId: WorkspaceId): Promise<Result<void>>;
+		/** Forgets a workspace's run state after its processes are stopped. */
+		clearRuns(workspaceId: WorkspaceId): void;
 	};
 	/** Path to the shipped checkpointer script, used for the archive snapshot (WS-05). */
 	checkpointerPath: string;
@@ -676,6 +687,7 @@ export class WorkspaceService {
 			setup: {},
 			setupRuns: {},
 			archiving: {},
+			archiveWarnings: {},
 			warnings: {},
 			failedFirstInputs: {},
 			lastFailedCreate: null,
@@ -1117,13 +1129,17 @@ export class WorkspaceService {
 		};
 
 		try {
-			// A setup process can still be running on a row that has moved on. Stop it before the
-			// snapshot so no script writes into the worktree while it is archived (services-map 3.10).
+			// A setup process can still be running on a row that has moved on, and a run action can
+			// still be running too. Stop both before the snapshot so nothing writes into the worktree
+			// while it is archived (services-map 3.10, 1.4).
 			const setupState = this.store.getState().setup[id];
-			if (setupState === "running" || setupState === "detecting" || setupState === "stopping") {
-				const stopped = await this.cancelSetup(id);
-				if (!stopped.ok) return await rollBack(stopped.error);
-			}
+			const setupIsRunning =
+				setupState === "running" || setupState === "detecting" || setupState === "stopping";
+			const stopped = setupIsRunning
+				? await this.cancelSetup(id)
+				: await this.#deps.scripts.stopWorkspace(id);
+			if (!stopped.ok) return await rollBack(stopped.error);
+			this.#deps.scripts.clearRuns(id);
 
 			const cancelled = await this.#deps.sessions.cancelAll(id);
 			if (!cancelled.ok) return await rollBack(cancelled.error);
@@ -1137,13 +1153,16 @@ export class WorkspaceService {
 			});
 			if (!snapshot.ok) return await rollBack(snapshot.error);
 
-			const pinned = await pinArchiveHead(this.#deps.git, id, workspace.path);
-			if (!pinned.ok) return await rollBack(pinned.error);
-
+			// The branch git reports is the one the archive keeps. A detached HEAD or a failed read
+			// must stop the archive rather than record the name the row happened to have.
 			const current = await this.#deps.git.stdout(branchShowCurrent(), {
 				cwd: workspace.path,
 			});
-			const branch = current.ok && current.value !== "" ? current.value : workspace.branch;
+			if (!current.ok) return await rollBack(current.error);
+			if (current.value === "") {
+				return await rollBack(appError("git_detached_head", ARCHIVE_DETACHED_HEAD_MESSAGE));
+			}
+			const branch = current.value;
 			if (branch !== workspace.branch) {
 				const recorded = await this.#deps.repos.workspaces.setBranch(
 					id,
@@ -1152,6 +1171,9 @@ export class WorkspaceService {
 				);
 				if (!recorded.ok) return await rollBack(recorded.error);
 			}
+
+			const pinned = await pinArchiveHead(this.#deps.git, id, workspace.path);
+			if (!pinned.ok) return await rollBack(pinned.error);
 
 			const scripted = await this.#deps.scripts.runArchive(id);
 			if (!scripted.ok) return await rollBack(scripted.error);
@@ -1190,7 +1212,14 @@ export class WorkspaceService {
 				const deleted = await this.#deps.git.runChecked(branchDeleteForce(branch), {
 					cwd: repo.rootPath,
 				});
-				if (!deleted.ok) return deleted;
+				// The archive itself is finished. A branch that cannot be deleted is a warning for
+				// the workspace's screen, not a failed archive (services-map 3.10 step 6).
+				if (!deleted.ok) {
+					this.#setArchiveWarning(
+						id,
+						`Couldn't delete the branch "${branch}": ${deleted.error.message}`,
+					);
+				}
 			}
 			return ok(undefined);
 		} finally {
@@ -1432,6 +1461,14 @@ export class WorkspaceService {
 			else delete next[id];
 			return { ...state, archiving: next };
 		});
+	}
+
+	/** Keeps a side step's failure after the archive has finished, so a screen can show it. */
+	#setArchiveWarning(id: WorkspaceId, warning: string): void {
+		this.store.setState((state) => ({
+			...state,
+			archiveWarnings: { ...(state.archiveWarnings ?? {}), [id]: warning },
+		}));
 	}
 
 	/** Puts one workspace in the store, so the sidebar shows it before the git work finishes. */

@@ -1381,5 +1381,87 @@ describe("AGENT-02 Claude session", () => {
 			expect(await turn).toEqual({ kind: "success" });
 			await session.dispose();
 		});
+
+		test("SIDE-20 turning plan mode off in the app sends no agent config change", async () => {
+			const changes: { config: SessionConfig; reason: string }[] = [];
+			const { query } = scriptedQuery();
+			const session = new ClaudeSession(makeDeps({ query }), {
+				...start(),
+				config: { ...config(), planMode: true },
+				onConfigChanged: (next, reason) => changes.push({ config: next, reason }),
+			});
+			await session.warm();
+
+			expect(await session.applyConfig({ ...config(), planMode: false })).toBe("applied");
+
+			expect(changes).toHaveLength(0);
+			await session.dispose();
+		});
+
+		test("SIDE-20 an init that reports plan after the app turned it off keeps the app's choice", async () => {
+			const changes: { config: SessionConfig; reason: string }[] = [];
+			const { query } = scriptedQuery((message, s) => {
+				s.emit(init("s1", "plan"));
+				s.emit(resultMessage(String(message.uuid)));
+			});
+			const session = new ClaudeSession(makeDeps({ query }), {
+				...start(),
+				config: { ...config(), planMode: true },
+				onConfigChanged: (next, reason) => changes.push({ config: next, reason }),
+			});
+			await session.warm();
+			await session.applyConfig({ ...config(), planMode: false });
+
+			expect(
+				await session.runTurn(
+					{ ...turnInput(), config: { ...config(), planMode: false } },
+					callbacks([]),
+				),
+			).toEqual({ kind: "success" });
+
+			expect(changes).toHaveLength(0);
+			await session.dispose();
+		});
+
+		test("SIDE-20 an exit and a re-entry in one turn are reported in order", async () => {
+			const changes: { config: SessionConfig; reason: string }[] = [];
+			const planConfig = { ...config(), planMode: true, requireToolApproval: true };
+			const { query, script } = scriptedQuery();
+			const session = new ClaudeSession(
+				makeDeps({
+					query,
+					createCanUseTool: (deps) => new ClaudePermissionHandler(deps).canUseTool,
+				}),
+				{
+					...start(),
+					config: planConfig,
+					onConfigChanged: (next, reason) => changes.push({ config: next, reason }),
+				},
+			);
+			const turn = session.runTurn(
+				{ ...turnInput(), config: planConfig },
+				callbacks([], {
+					requestInteraction: async () => ({ kind: "plan_approval", approved: true }),
+				}),
+			);
+			await until(() => script.prompts.length === 1);
+
+			const approved = await script.options?.canUseTool?.(
+				"ExitPlanMode",
+				{ plan: "Change one file" },
+				{ signal: new AbortController().signal, toolUseID: "tool-1", requestId: "request-1" },
+			);
+			expect(approved).toMatchObject({ behavior: "allow" });
+
+			script.emit(toolUseMessage("EnterPlanMode"));
+			script.emit(resultMessage(String(script.prompts[0]?.uuid)));
+			expect(await turn).toEqual({ kind: "success" });
+
+			expect(changes.map((change) => change.reason)).toEqual([
+				"left_plan_mode",
+				"entered_plan_mode",
+			]);
+			await session.dispose();
+		});
 	});
 });

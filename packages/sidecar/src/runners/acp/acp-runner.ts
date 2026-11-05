@@ -11,17 +11,20 @@
  * Must handle:
  *  - detect(): program missing gives null; a version below the adapter's minimum is logged with the
  *    adapter and its minimum (the real version is still returned, so the detector can report it)
- *  - start(): one child per chat through StdioAcpClient; the app tools MCP server is passed to
- *    session/new when the caller supplies it; the adapter's environment, session storage and prompt
- *    check are applied
+ *  - start(): one child per chat through StdioAcpClient; an agent older than the adapter's minimum
+ *    is refused with an AgentUpdateNeededError before a child starts; the app tools MCP server is
+ *    passed to session/new when the caller supplies it; the adapter's environment, session storage
+ *    and prompt check are applied
  *  - listModels(): the throwaway session is always closed, also on error and on timeout; the model
- *    option may arrive in a config_option_update after session/new
+ *    option may arrive in a config_option_update after session/new; an adapter that asked to wait
+ *    and still has no model option fails with acp_model_list_timeout
  *  - listSlashCommands(): from the throwaway session's available commands, waiting up to 2 s
  *  - capabilities: interrupt true (session/cancel), steer false, resumeAt false, liveConfig true
  *    (model and options between turns), slashCommands true, mcpServers false, contextUsage true
  * Test first: capabilities.steer is false for both adapters.
  * Our design choice: a client factory is a dependency, so the model and command listing can be
- * tested without starting an agent process.
+ * tested without starting an agent process. The listing sessions use the environment from
+ * detect() only; they do not apply the adapter's approval policy or session storage.
  */
 import type {
 	ContentBlock,
@@ -52,12 +55,17 @@ import { AcpTranslator } from "./translate.ts";
 /** The tag every ACP runner log line carries. */
 const ACP_LOG_TAG = "AcpAgentRunner";
 
+/** The agent program is older than its adapter supports. */
+class AgentUpdateNeededError extends Error {
+	override readonly name = "AgentUpdateNeededError";
+}
+
 export type AcpRunnerDeps = RunnerCommonDeps & {
 	adapter: AcpAdapter;
 	spawn: SpawnAcpChild;
 	/** Builds the app tools MCP servers for a chat. Missing: no app tools are offered. */
 	appToolsServers?(options: StartOptions): readonly unknown[];
-	/** Makes the translator. AGENT-12 supplies it in the composition root. */
+	/** Overrides the translator; a test injection point the composition root leaves out. */
 	translator?(options: { adapter: AcpAdapter; logger: RunnerCommonDeps["logger"] }): AcpTranslator;
 	/** Makes a client for a chat or a throwaway session; the composition root leaves it out. */
 	createClient?(options: {
@@ -137,12 +145,20 @@ export class AcpRunner implements Runner {
 			);
 		}
 		const executablePath = detected.path;
+		if (
+			detected.version !== "" &&
+			isVersionBelow(detected.version, this.deps.adapter.minimumVersion)
+		) {
+			throw new AgentUpdateNeededError(
+				`The ${this.deps.adapter.displayName} agent is version ${detected.version}. This app needs ${this.deps.adapter.minimumVersion} or newer. Update ${this.deps.adapter.command.executable} and try again.`,
+			);
+		}
 		const storage = this.deps.adapter.sessionStorage?.(options.workspace.workspacePath);
 		const permission = this.deps.adapter.permissionEnv(options.config.requireToolApproval, {
 			agentVersion: detected.version === "" ? undefined : detected.version,
 			env: options.env,
 		});
-		if (!permission.ok) throw permission.error;
+		if (!permission.ok) throw new Error(permission.error.message);
 		const env = {
 			...options.env,
 			...(storage?.env ?? {}),
@@ -229,6 +245,12 @@ export class AcpRunner implements Runner {
 				const spent = this.deps.clock.now() - started;
 				const wait = modelCatalogWaitMs(this.deps.adapter.waitForModelCatalogMs, spent);
 				if (wait > 0) await collector.waitForModelOption(wait);
+				if (modelOptionFromConfig(collector.options) === undefined) {
+					throw appError(
+						"acp_model_list_timeout",
+						`The ${this.deps.adapter.displayName} agent did not report its model list in time. The provider may need sign-in.`,
+					);
+				}
 			}
 			return modelsFromConfigOptions(collector.options);
 		} finally {

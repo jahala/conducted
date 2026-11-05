@@ -12,6 +12,10 @@ describe("GIT-05 commitAndPushInstruction", () => {
 	it("asks the agent to commit every change and push the branch to the remote", () => {
 		const text = commitAndPushInstruction(base);
 
+		expect(text).toBe(
+			"Commit all the changes in this workspace with a clear message, then push the branch " +
+				"`feature/thing` to `origin`. Check that the push succeeded.",
+		);
 		expect(text.toLowerCase()).toContain("commit");
 		expect(text.toLowerCase()).toContain("push");
 		expect(text).toContain("feature/thing");

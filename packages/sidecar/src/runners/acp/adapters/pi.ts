@@ -8,6 +8,8 @@
  * downloads it, we do not, see decision 7 in docs/plans/scaffold.md), and no minimum version known
  * from the research (any version runs until a real one is found).
  * Test first: id and command are as stated and toolNameHints maps find to glob.
+ * Our design choice: Pi's approval goes through ACP session/request_permission only; permissionEnv
+ * adds nothing to the environment.
  */
 import { ok } from "@conducted/shared";
 import type { AcpAdapter } from "./adapter.ts";

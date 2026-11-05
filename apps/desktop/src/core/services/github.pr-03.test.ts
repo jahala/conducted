@@ -7,8 +7,9 @@ import type { GitCache } from "./git-cache.ts";
 import {
 	GithubService,
 	type PrWorkspaceContext,
+	parseGithubPullRequest,
 	parseGraphqlBudget,
-	parsePrBatchAnswer,
+	parsePrBatchAnswers,
 } from "./github.ts";
 import type { AgentMessenger } from "./sessions.ts";
 
@@ -79,6 +80,7 @@ function prNode(overrides: NodeOverrides = {}): Record<string, unknown> {
 function answer(node: Record<string, unknown> | null, overrides: NodeOverrides = {}): string {
 	return JSON.stringify({
 		data: {
+			rateLimit: { cost: 1, remaining: 5_000 },
 			repository: {
 				viewerPermission: "WRITE",
 				squashMergeAllowed: true,
@@ -92,8 +94,24 @@ function answer(node: Record<string, unknown> | null, overrides: NodeOverrides =
 	});
 }
 
+/** One answer carrying one node per workspace, in lookup order. */
+function batchAnswer(nodes: readonly (Record<string, unknown> | null)[]): string {
+	const repository: Record<string, unknown> = {
+		viewerPermission: "WRITE",
+		squashMergeAllowed: true,
+		rebaseMergeAllowed: true,
+		mergeCommitAllowed: true,
+	};
+	nodes.forEach((node, index) => {
+		repository[`pr${index}ByNumber`] = node;
+		repository[`pr${index}ByBranch`] = { nodes: node === null ? [] : [node] };
+	});
+	return JSON.stringify({ data: { rateLimit: { cost: 1 }, repository } });
+}
+
 interface FakeOptions {
-	graphql?: () => Promise<Result<ShellOutput>> | Result<ShellOutput>;
+	graphql?: (command: GitCommand) => Promise<Result<ShellOutput>> | Result<ShellOutput>;
+	rateLimit?: () => Result<ShellOutput>;
 	stdout?: (command: GitCommand) => Result<string> | undefined;
 }
 
@@ -109,9 +127,10 @@ function fakeGit(options: FakeOptions = {}): FakeGit {
 			runCommands.push(command);
 			if (command.program === "gh" && command.args[0] === "api") {
 				if (command.args[1] === "graphql" && options.graphql !== undefined) {
-					return options.graphql();
+					return options.graphql(command);
 				}
 				if (command.args[1] === "rate_limit") {
+					if (options.rateLimit !== undefined) return options.rateLimit();
 					return output(JSON.stringify({ resources: { graphql: { remaining: 5_000 } } }));
 				}
 				if (command.args[1] === "user") return output("octocat\n");
@@ -130,6 +149,16 @@ function fakeGit(options: FakeOptions = {}): FakeGit {
 				if (key.endsWith(".merge")) return ok("refs/heads/feature");
 				return ok("");
 			}
+			if (command.program === "git" && command.args[0] === "remote") {
+				return ok("git@github.com:o/r.git");
+			}
+			if (
+				command.program === "git" &&
+				command.args[0] === "rev-parse" &&
+				command.args[1] === "--git-common-dir"
+			) {
+				return ok("/tmp/repo/.git");
+			}
 			if (command.program === "git" && command.args[0] === "rev-parse") return ok("abc");
 			return ok("");
 		},
@@ -145,13 +174,14 @@ function fakeGit(options: FakeOptions = {}): FakeGit {
 function makeService(
 	git: GitRunner,
 	contextOf: (id: WorkspaceId) => Promise<Result<PrWorkspaceContext>> = async () => ok(context),
+	onMerged: (id: WorkspaceId, prNumber: number) => void = () => {},
 ): GithubService {
 	return new GithubService({
 		git,
 		cache: {} as GitCache,
 		agent: {} as AgentMessenger,
 		contextOf,
-		onMerged: () => {},
+		onMerged,
 		now: () => Date.now(),
 		probeCwd: "/tmp",
 	});
@@ -166,23 +196,32 @@ afterEach(() => {
 });
 
 describe("PR-03 batched answer", () => {
-	it("reads the node, the viewer's permission and the merge method", () => {
-		const parsed = parsePrBatchAnswer(answer(prNode(), { squashMergeAllowed: false }));
+	it("reads the node, the viewer's permission, the merge method and the cost", () => {
+		const parsed = parsePrBatchAnswers(answer(prNode(), { squashMergeAllowed: false }), 1);
 		expect(parsed.ok).toBe(true);
 		expect(parsed.ok && parsed.value.viewerCanMerge).toBe(true);
 		expect(parsed.ok && parsed.value.mergeMethod).toBe("rebase");
-		expect(parsed.ok && parsed.value.node?.number).toBe(4);
+		expect(parsed.ok && parsed.value.nodes[0]?.number).toBe(4);
+		expect(parsed.ok && parsed.value.cost).toBe(1);
 	});
 
 	it("finds no node when the branch has no PR", () => {
-		const parsed = parsePrBatchAnswer(answer(null));
-		expect(parsed.ok && parsed.value.node).toBeNull();
+		const parsed = parsePrBatchAnswers(answer(null), 1);
+		expect(parsed.ok && parsed.value.nodes[0]).toBeNull();
+	});
+
+	it("reads one node per lookup in order", () => {
+		const parsed = parsePrBatchAnswers(
+			batchAnswer([prNode({ number: 4 }), null, prNode({ number: 9 })]),
+			3,
+		);
+		expect(parsed.ok && parsed.value.nodes.map((node) => node?.number)).toEqual([4, undefined, 9]);
 	});
 
 	it("refuses a bad answer instead of inventing an empty PR", () => {
-		expect(parsePrBatchAnswer("not json").ok).toBe(false);
-		expect(parsePrBatchAnswer(JSON.stringify({ data: {} })).ok).toBe(false);
-		expect(parsePrBatchAnswer("null").ok).toBe(false);
+		expect(parsePrBatchAnswers("not json", 1).ok).toBe(false);
+		expect(parsePrBatchAnswers(JSON.stringify({ data: {} }), 1).ok).toBe(false);
+		expect(parsePrBatchAnswers("null", 1).ok).toBe(false);
 	});
 
 	it("reads the GraphQL budget and says when the host does not rate limit", () => {
@@ -378,5 +417,233 @@ describe("PR-03 watching a workspace", () => {
 		await vi.advanceTimersByTimeAsync(300_000);
 		await flush();
 		expect(polls).toBe(1);
+	});
+});
+
+describe("PR-03 live poll rules", () => {
+	it("asks gh with the ten-second GraphQL timeout", async () => {
+		const git = fakeGit({ graphql: () => output(answer(prNode())) });
+		const service = makeService(git);
+
+		await service.pollNow(workspaceId);
+
+		const graphql = git.runCommands.find(
+			(command) => command.program === "gh" && command.args[1] === "graphql",
+		);
+		expect(graphql?.timeoutMs).toBe(10_000);
+	});
+
+	it("stops a live watch timer below 500 calls left", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(Date.parse("2026-01-02T00:00:00Z"));
+		let remaining = 499;
+		let polls = 0;
+		const git = fakeGit({
+			graphql: () => {
+				polls += 1;
+				return output(answer(prNode()));
+			},
+			rateLimit: () => output(JSON.stringify({ resources: { graphql: { remaining } } })),
+		});
+		const service = makeService(git);
+
+		const stop = service.watch(workspaceId, "selected");
+		await vi.advanceTimersByTimeAsync(0);
+		await flush();
+		expect(polls).toBe(0);
+
+		remaining = 5_000;
+		await vi.advanceTimersByTimeAsync(5_000);
+		await flush();
+		expect(polls).toBe(1);
+
+		stop();
+	});
+
+	it("pauses a sidebar watch below 1000 while the selected workspace still polls", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(Date.parse("2026-01-02T00:00:00Z"));
+		const budget = () => output(JSON.stringify({ resources: { graphql: { remaining: 800 } } }));
+		let sidebarPolls = 0;
+		const sidebar = makeService(
+			fakeGit({
+				graphql: () => {
+					sidebarPolls += 1;
+					return output(answer(prNode()));
+				},
+				rateLimit: budget,
+			}),
+		);
+		const stopSidebar = sidebar.watch(workspaceId, "sidebar");
+		await vi.advanceTimersByTimeAsync(0);
+		await flush();
+		expect(sidebarPolls).toBe(0);
+
+		let selectedPolls = 0;
+		const selected = makeService(
+			fakeGit({
+				graphql: () => {
+					selectedPolls += 1;
+					return output(answer(prNode()));
+				},
+				rateLimit: budget,
+			}),
+		);
+		const stopSelected = selected.watch(workspaceId, "selected");
+		await vi.advanceTimersByTimeAsync(0);
+		await flush();
+		expect(selectedPolls).toBe(1);
+
+		stopSidebar();
+		stopSelected();
+	});
+
+	it("pauses and reports when the budget probe fails", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(Date.parse("2026-01-02T00:00:00Z"));
+		const git = fakeGit({
+			graphql: () => output(answer(prNode())),
+			rateLimit: () => err(appError("github_failed", "rate limit probe failed")),
+		});
+		const service = makeService(git);
+
+		const stop = service.watch(workspaceId, "selected");
+		await vi.advanceTimersByTimeAsync(0);
+		await flush();
+
+		expect(git.runCommands.some((command) => command.args[1] === "graphql")).toBe(false);
+		expect(service.store.getState().byWorkspace[workspaceId]?.unavailable).toBe("no_github_access");
+		stop();
+	});
+
+	it("skips a workspace whose forge has no remote and leaves its entry alone", async () => {
+		const git = fakeGit({
+			graphql: () => output(answer(prNode())),
+			stdout: (command) =>
+				command.program === "git" && command.args[0] === "remote" ? ok("") : undefined,
+		});
+		const service = makeService(git);
+		const before = {
+			pullRequest: null,
+			unavailable: "loading" as const,
+			fetchedAt: 1,
+		};
+		service.store.setState({ byWorkspace: { [workspaceId]: before } });
+
+		expect(await service.pollNow(workspaceId)).toEqual(ok(undefined));
+
+		expect(service.store.getState().byWorkspace[workspaceId]).toEqual(before);
+		expect(git.runCommands.some((command) => command.args[1] === "graphql")).toBe(false);
+	});
+
+	it("skips a poll while GitHub is offline", async () => {
+		const git = fakeGit({ graphql: () => output(answer(prNode())) });
+		const service = makeService(git);
+		service.store.setState({ access: { status: "offline" } });
+
+		await service.pollNow(workspaceId);
+
+		expect(git.runCommands.some((command) => command.args[1] === "graphql")).toBe(false);
+	});
+
+	it("batches watched siblings of one repository into one query", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(Date.parse("2026-01-02T00:00:00Z"));
+		const git = fakeGit({
+			graphql: () => output(batchAnswer([prNode({ number: 4 }), prNode({ number: 5 })])),
+		});
+		const second = "ws-2" as WorkspaceId;
+		const contexts: Record<string, PrWorkspaceContext> = {
+			[String(workspaceId)]: context,
+			[String(second)]: {
+				workspaceId: second,
+				workspacePath: "/tmp/wt-2",
+				branch: "local-name",
+				remote: "origin",
+				prNumber: null,
+			},
+		};
+		const service = makeService(git, async (id) => ok(contexts[String(id)] ?? context));
+
+		const stopFirst = service.watch(workspaceId, "sidebar");
+		const stopSecond = service.watch(second, "sidebar");
+		await vi.advanceTimersByTimeAsync(0);
+		await flush();
+
+		const graphql = git.runCommands.filter((command) => command.args[1] === "graphql");
+		expect(graphql).toHaveLength(1);
+		expect(graphql[0]?.args.some((arg) => arg.startsWith("headRefName1="))).toBe(true);
+		expect(service.store.getState().byWorkspace[String(workspaceId)]?.pullRequest?.number).toBe(4);
+		expect(service.store.getState().byWorkspace[String(second)]?.pullRequest?.number).toBe(5);
+		stopFirst();
+		stopSecond();
+	});
+
+	it("stops every timer when disposed", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(Date.parse("2026-01-02T00:00:00Z"));
+		let polls = 0;
+		const git = fakeGit({
+			graphql: () => {
+				polls += 1;
+				return output(answer(prNode()));
+			},
+		});
+		const service = makeService(git);
+
+		service.watch(workspaceId, "selected");
+		await vi.advanceTimersByTimeAsync(0);
+		await flush();
+		expect(polls).toBe(1);
+
+		service.dispose();
+		await vi.advanceTimersByTimeAsync(20_000);
+		await flush();
+		expect(polls).toBe(1);
+	});
+});
+
+describe("PR-03 draft mapping", () => {
+	it("reports a merged draft as merged, not draft", async () => {
+		const git = fakeGit({
+			graphql: () =>
+				output(answer(prNode({ state: "MERGED", isDraft: true, mergeable: "UNKNOWN" }))),
+		});
+		const service = makeService(git);
+
+		await service.pollNow(workspaceId);
+
+		expect(service.store.getState().byWorkspace[workspaceId]?.pullRequest?.state).toBe("merged");
+	});
+
+	it("reports a closed draft from the REST read as closed", () => {
+		const parsed = parseGithubPullRequest(
+			JSON.stringify({
+				number: 4,
+				title: "T",
+				html_url: "https://github.com/o/r/pull/4",
+				head: { ref: "feature" },
+				updated_at: "2026-01-02T00:00:00Z",
+				state: "closed",
+				draft: true,
+			}),
+		);
+		expect(parsed.ok && parsed.value.state).toBe("closed");
+	});
+
+	it("reports a merged draft from the REST read as merged", () => {
+		const parsed = parseGithubPullRequest(
+			JSON.stringify({
+				number: 4,
+				title: "T",
+				html_url: "https://github.com/o/r/pull/4",
+				head: { ref: "feature" },
+				updated_at: "2026-01-02T00:00:00Z",
+				state: "closed",
+				draft: true,
+				merged_at: "2026-01-02T00:00:00Z",
+			}),
+		);
+		expect(parsed.ok && parsed.value.state).toBe("merged");
 	});
 });

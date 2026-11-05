@@ -393,6 +393,25 @@ export function closedPrIsShown(
 }
 
 /**
+ * Our state for a pull request, from GitHub's state and draft flag. Draft only applies while the
+ * PR is open, so a merged or closed draft is reported as merged or closed. This is the one place
+ * the mapping lives: the GraphQL poll, the REST read and the model mapper all call it.
+ */
+export function pullRequestStateOf(
+	state: string | null | undefined,
+	isDraft: boolean,
+): PullRequest["state"] {
+	switch (state?.toUpperCase()) {
+		case "MERGED":
+			return "merged";
+		case "OPEN":
+			return isDraft ? "draft" : "open";
+		default:
+			return "closed";
+	}
+}
+
+/**
  * The branch as pushed, from `branch.<local>.remote` and `branch.<local>.merge`
  * (services-map 3.7.2). Returns null when the upstream is unset or not a local branch.
  */
@@ -488,14 +507,7 @@ export function toPullRequest(
 	extras: PullRequestExtras,
 	requiredCheckNames: ReadonlySet<string>,
 ): PullRequest {
-	const state: PullRequest["state"] =
-		raw.state === "MERGED"
-			? "merged"
-			: raw.state === "CLOSED"
-				? "closed"
-				: raw.isDraft
-					? "draft"
-					: "open";
+	const state = pullRequestStateOf(raw.state, raw.isDraft);
 	return {
 		number: raw.number,
 		url: raw.url,

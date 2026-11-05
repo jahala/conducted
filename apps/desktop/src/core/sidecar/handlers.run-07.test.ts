@@ -32,17 +32,17 @@ describe("RUN-07 getTerminalOutput handler", () => {
 		expect(result).toEqual({ output: "dev server ready", source: "Action", running: true });
 	});
 
-	it("gives the agent a failed read as text, not as an RPC error", async () => {
+	it("reports a real failed read as an RPC error, not as terminal output", async () => {
 		const handlers = createSidecarRequestHandlers(
 			ports(async () => err(appError("terminal_output_failed", "Couldn't read the terminal."))),
 		);
 
-		const result = await handlers.getTerminalOutput({
-			sessionId,
-			source: "auto",
-			maxLines: 1000,
-		});
-
-		expect(result).toEqual({ output: "Couldn't read the terminal.", source: "", running: false });
+		await expect(
+			handlers.getTerminalOutput({
+				sessionId,
+				source: "auto",
+				maxLines: 1000,
+			}),
+		).rejects.toThrow("Couldn't read the terminal.");
 	});
 });

@@ -554,29 +554,49 @@ export class RepoService {
 		const rootPath = await this.#workTreeRoot(path);
 		if (!rootPath.ok) return rootPath;
 
-		const existing = await this.#deps.repos.repos.getByRootPath(rootPath.value);
+		return this.#registerFolder(rootPath.value, async () => {
+			const remote = await this.#readRemoteUrl(rootPath.value);
+			if (!remote.ok) return remote;
+			const defaultBranch = await this.#detectDefaultBranch(rootPath.value);
+			if (!defaultBranch.ok) return defaultBranch;
+			return ok({
+				name: projectNameFromPath(rootPath.value),
+				remoteUrl: remote.value,
+				defaultBranch: defaultBranch.value,
+			});
+		});
+	}
+
+	/**
+	 * Adds a folder that is already on disk to the store: answers with the existing row, or reads
+	 * what git says about it and creates one. Two adds that race past the lookup share the row the
+	 * other stored, so `addLocal` and `clone` register a folder the same way.
+	 */
+	async #registerFolder(
+		rootPath: string,
+		details: () => Promise<
+			Result<{ name: string; remoteUrl: string | null; defaultBranch: string }>
+		>,
+	): Promise<Result<Repo>> {
+		const existing = await this.#deps.repos.repos.getByRootPath(rootPath);
 		if (!existing.ok) return existing;
 		if (existing.value !== null) {
 			this.#upsert(existing.value);
 			return ok(existing.value);
 		}
 
-		const remote = await this.#readRemoteUrl(rootPath.value);
-		if (!remote.ok) return remote;
-		const defaultBranch = await this.#detectDefaultBranch(rootPath.value);
-		if (!defaultBranch.ok) return defaultBranch;
-
+		const values = await details();
+		if (!values.ok) return values;
 		const created = await this.#deps.repos.repos.create({
-			name: projectNameFromPath(rootPath.value),
-			rootPath: rootPath.value,
-			remoteUrl: remote.value,
-			defaultBranch: defaultBranch.value,
+			name: values.value.name,
+			rootPath,
+			remoteUrl: values.value.remoteUrl,
+			defaultBranch: values.value.defaultBranch,
 			icon: null,
 		});
 		if (!created.ok) {
-			// Two adds raced past the lookup: answer with the row the other add stored.
 			if (created.error.code === "db.conflict") {
-				const raced = await this.#deps.repos.repos.getByRootPath(rootPath.value);
+				const raced = await this.#deps.repos.repos.getByRootPath(rootPath);
 				if (raced.ok && raced.value !== null) {
 					this.#upsert(raced.value);
 					return ok(raced.value);
@@ -591,7 +611,7 @@ export class RepoService {
 	/**
 	 * Backs `Actions.projects.clone`: clones into `<parentDir>/<repository name>` with `gh repo clone`
 	 * for a GitHub URL and `git clone --progress` otherwise, checks out the default branch, reads the
-	 * remote and adds the project. Progress is kept in the store for the dialog to show.
+	 * remote and adds the project. The store keeps the clone's state and final output for the dialog.
 	 */
 	async clone(rawUrl: string, rawParentDir: string): Promise<Result<Repo>> {
 		const url = normaliseRemoteUrl(rawUrl);
@@ -642,12 +662,6 @@ export class RepoService {
 			});
 			return cloned;
 		}
-		this.#setCloneProgress({
-			state: "cloning",
-			url,
-			destination,
-			output: (cloned.value.stderr || cloned.value.stdout).trim(),
-		});
 
 		const remote = await this.#readRemoteUrl(destination);
 		if (!remote.ok) {
@@ -684,7 +698,16 @@ export class RepoService {
 		}
 
 		const current = await this.#deps.git.stdout(branchShowCurrent(), { cwd: destination });
-		if (current.ok && current.value !== "" && current.value !== defaultBranch.value) {
+		if (!current.ok) {
+			this.#setCloneProgress({
+				state: "failed",
+				url,
+				destination,
+				output: current.error.message,
+			});
+			return current;
+		}
+		if (current.value !== "" && current.value !== defaultBranch.value) {
 			const checkedOut = await this.#deps.git.runChecked(checkout(defaultBranch.value), {
 				cwd: destination,
 			});
@@ -699,41 +722,20 @@ export class RepoService {
 			}
 		}
 
-		const already = await this.#deps.repos.repos.getByRootPath(destination);
-		if (!already.ok) return already;
-		if (already.value !== null) {
-			this.#upsert(already.value);
-			this.#setCloneProgress({ state: "done", url, destination, output: "" });
-			return ok(already.value);
-		}
-
-		const created = await this.#deps.repos.repos.create({
-			name,
-			rootPath: destination,
-			remoteUrl: remote.value,
-			defaultBranch: defaultBranch.value,
-			icon: null,
-		});
-		if (!created.ok) {
-			if (created.error.code === "db.conflict") {
-				const raced = await this.#deps.repos.repos.getByRootPath(destination);
-				if (raced.ok && raced.value !== null) {
-					this.#upsert(raced.value);
-					this.#setCloneProgress({ state: "done", url, destination, output: "" });
-					return ok(raced.value);
-				}
-			}
+		const registered = await this.#registerFolder(destination, async () =>
+			ok({ name, remoteUrl: remote.value, defaultBranch: defaultBranch.value }),
+		);
+		if (!registered.ok) {
 			this.#setCloneProgress({
 				state: "failed",
 				url,
 				destination,
-				output: created.error.message,
+				output: registered.error.message,
 			});
-			return created;
+			return registered;
 		}
-		this.#upsert(created.value);
 		this.#setCloneProgress({ state: "done", url, destination, output: "" });
-		return ok(created.value);
+		return ok(registered.value);
 	}
 
 	/** Backs `Actions.projects.createFromTemplate`. */

@@ -1,5 +1,6 @@
 // @vitest-environment node
-import { ok } from "@conducted/shared";
+import type { SessionConfig } from "@conducted/protocol";
+import { type AppError, appError, ok } from "@conducted/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "../../platform/platform.ts";
 import { openTestDatabase } from "../../test/sqlite.ts";
@@ -41,6 +42,7 @@ let nextId: number;
 
 const harness = (
 	settings: Record<string, unknown>,
+	options: { sendError?: AppError; baseConfig?: SessionConfig } = {},
 ): { service: SessionsService; calls: Call[] } => {
 	const calls: Call[] = [];
 	const deps = {
@@ -49,6 +51,9 @@ const harness = (
 		sidecar: {
 			request: async (method: string, params: Record<string, unknown>) => {
 				calls.push({ method, params });
+				if (method === "sendMessage" && options.sendError !== undefined) {
+					return { ok: false as const, error: options.sendError };
+				}
 				return ok({ deliveredAs: "new_turn" });
 			},
 			notify: async () => ok(undefined),
@@ -63,7 +68,7 @@ const harness = (
 		notifications: { onLiveStateChanged: vi.fn() },
 		launchFor: () => ({ env: {}, providerKeys: {} }),
 		workspaceContextOf: async () => ok(workspace),
-		defaultConfig: async () => ok(sampleSession.config),
+		defaultConfig: async () => ok(options.baseConfig ?? sampleSession.config),
 		setting: <T>(key: string) => settings[key] as T,
 		now: () => now,
 		newId: () => `generated-${++nextId}`,
@@ -156,5 +161,75 @@ describe("REV-05 startReviewChat", () => {
 		);
 		expect(listed).toEqual([]);
 		expect(h.calls.some((call) => call.method === "sendMessage")).toBe(false);
+	});
+
+	it("takes a Codex review's effort from the Codex thinking level", async () => {
+		seedWorkspace();
+		const codexConfig: SessionConfig = {
+			...sampleSession.config,
+			agent: "codex",
+			model: "gpt-5",
+			effort: "high",
+		};
+		const h = harness(
+			{
+				default_message_send_mode: "steer",
+				custom_prompt_general: "",
+				review_model: "",
+				review_fast_mode: false,
+				review_codex_thinking_level: "low",
+			},
+			{ baseConfig: codexConfig },
+		);
+
+		const created = await h.service.startReviewChat(workspaceId, "Review this change.");
+
+		expect(created.ok).toBe(true);
+		if (!created.ok) return;
+		expect(created.value.config).toMatchObject({ agent: "codex", effort: "low" });
+	});
+
+	it("turns fast mode off for a review even when the default chat is fast", async () => {
+		seedWorkspace();
+		const fastConfig: SessionConfig = { ...sampleSession.config, fastMode: true };
+		const h = harness(
+			{
+				default_message_send_mode: "steer",
+				custom_prompt_general: "",
+				review_model: "",
+				review_fast_mode: false,
+				review_claude_effort_level: "",
+			},
+			{ baseConfig: fastConfig },
+		);
+
+		const created = await h.service.startReviewChat(workspaceId, "Review this change.");
+
+		expect(created.ok).toBe(true);
+		if (!created.ok) return;
+		expect(created.value.config.fastMode).toBe(false);
+	});
+
+	it("removes the new chat when the review message cannot be sent", async () => {
+		seedWorkspace();
+		const h = harness(
+			{
+				default_message_send_mode: "steer",
+				custom_prompt_general: "",
+				review_model: "",
+				review_fast_mode: false,
+				review_claude_effort_level: "",
+			},
+			{ sendError: appError("sidecar_unavailable", "The sidecar is not running.") },
+		);
+
+		const result = await h.service.startReviewChat(workspaceId, "Review this change.");
+
+		expect(result).toMatchObject({ ok: false, error: { code: "sidecar_unavailable" } });
+		const listed = must(
+			await repositories.sessions.listByWorkspace(workspaceId, { includeClosed: true }),
+		);
+		expect(listed).toEqual([]);
+		expect(h.service.store.getState().byWorkspace[workspaceId] ?? []).toEqual([]);
 	});
 });

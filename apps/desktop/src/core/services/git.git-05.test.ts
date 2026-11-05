@@ -103,6 +103,10 @@ describe("GIT-05 commit and push", () => {
 		expect(agent.calls).toHaveLength(1);
 		expect(agent.calls[0]?.workspaceId).toBe(workspaceId);
 		const text = agent.calls[0]?.text ?? "";
+		expect(text).toBe(
+			"Commit all the changes in this workspace with a clear message, then push the branch " +
+				"`feature/thing` to `origin`. Check that the push succeeded.",
+		);
 		expect(text.toLowerCase()).toContain("commit");
 		expect(text.toLowerCase()).toContain("push");
 		expect(text).toContain("feature/thing");

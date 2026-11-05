@@ -12,11 +12,12 @@
  * repository; a start request while setup is still running waits for setup, then starts; every
  * async step checks its start attempt number and gives up if a newer start or a stop happened
  * (only the newest attempt changes state); stop asks the terminal service for a 20 second
- * watchdog, and a stop that is not confirmed is returned to the caller; quitting the app closes
- * all runs; "run after setup" starts the default action when setup succeeded; run output is not
- * saved to disk; only the last 20 action ids per workspace are remembered in memory.
+ * watchdog, and a stop that is not confirmed is returned to the caller and kept as the
+ * workspace's outcome until the next start; quitting the app closes all runs; "run after setup"
+ * starts the default action when setup succeeded; run output is not saved to disk. Run history is
+ * the last 20 action ids per workspace, kept in local storage so it survives a restart.
  * Our design choice: the terminal service owns the process; this service owns the rules around
- * it. Run history lives in memory, not in the settings table.
+ * it. Run history is in local storage, not in the settings table.
  * Our design choice: setup runs with no `userEnv` for now. SET-04 owns the settings and Keychain
  * variables; until that service is wired here, no extra variables are passed rather than a
  * made-up set.
@@ -26,6 +27,7 @@
  * Test first: starting an action while another runs in the same workspace stops the first.
  */
 import {
+	type AppError,
 	appError,
 	err,
 	notImplemented,
@@ -43,6 +45,13 @@ import { buildScriptEnv, STOP_WATCHDOG_MS, type TerminalsService } from "./termi
 
 export { STOP_WATCHDOG_MS };
 export const RUN_HISTORY_LIMIT = 20;
+
+/** Local storage key prefix for one workspace's run history. */
+export const RUN_HISTORY_STORAGE_PREFIX = "conducted.run-history:";
+
+/** The local storage key that holds one workspace's run history. */
+export const runHistoryStorageKey = (workspaceId: WorkspaceId): string =>
+	`${RUN_HISTORY_STORAGE_PREFIX}${workspaceId}`;
 
 const LOCAL_URL = /https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::\])(?::\d+)?[^\s"'<>)]*/g;
 const VARIABLE = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g;
@@ -99,6 +108,8 @@ export interface RunScriptsState {
 	history: Readonly<Record<string, readonly string[]>>;
 	/** A stop the terminal service could not confirm, kept until the next start. */
 	outcomes: Readonly<Record<string, "stop-unconfirmed">>;
+	/** A saved history that could not be read or written, for the Run tab to show. */
+	historyError: AppError | null;
 }
 
 /** The most output lines kept in a setup log. */
@@ -143,6 +154,13 @@ interface PendingRun {
 	attempt: number;
 }
 
+/** A start that is waiting for its terminal to open, before it has a process to stop. */
+interface LaunchingRun {
+	actionId: string;
+	attempt: number;
+	repoId: string;
+}
+
 const emptyRunState = (): RunState => ({
 	actions: [],
 	running: [],
@@ -159,18 +177,24 @@ export class RunScriptsService {
 	readonly #processes = new Map<WorkspaceId, RunProcess>();
 	/** Start requests parked while the workspace's setup script runs. */
 	readonly #pending = new Map<WorkspaceId, PendingRun>();
+	/** Starts whose terminal is still opening, so a stop can cancel them before a process exists. */
+	readonly #launching = new Map<WorkspaceId, LaunchingRun>();
 	/** The newest start attempt for each workspace; an older continuation bails out. */
 	readonly #attempts = new Map<WorkspaceId, number>();
+	/** One counter for all workspaces, so an attempt number is never reused after a clear. */
+	#attemptCounter = 0;
 	/** A counter per workspace, for the last started run. */
 	readonly #lastRunIds = new Map<WorkspaceId, number>();
 
 	constructor(deps: RunScriptsServiceDeps) {
 		this.#deps = deps;
+		const saved = this.#readSavedHistory();
 		this.store = createStore<RunScriptsState>(() => ({
 			byWorkspace: {},
 			phases: {},
-			history: {},
+			history: saved.history,
 			outcomes: {},
+			historyError: saved.error,
 		}));
 	}
 
@@ -198,9 +222,11 @@ export class RunScriptsService {
 		if (!this.#isCurrent(workspaceId, attempt)) return ok(undefined);
 		if (!repo.ok) return repo;
 
-		// A start always stops the workspace's previous action first.
-		await this.#stopProcess(workspaceId, attempt);
+		// A start always stops the workspace's previous action first. A stop that is not
+		// confirmed leaves the old process alive, so the new action must not start beside it.
+		const stopped = await this.#stopProcess(workspaceId, attempt);
 		if (!this.#isCurrent(workspaceId, attempt)) return ok(undefined);
+		if (!stopped.ok) return stopped;
 		this.#pending.delete(workspaceId);
 		this.#clearOutcome(workspaceId);
 		this.#setActions(workspaceId, config.value.runScripts);
@@ -224,6 +250,17 @@ export class RunScriptsService {
 				this.#setPhase(workspaceId, attempt, "stopped");
 				return ok(undefined);
 			}
+		}
+		const launching = this.#launching.get(workspaceId);
+		if (launching !== undefined) {
+			if (launching.actionId !== actionId) {
+				return err(appError("run_not_running", "No process to stop."));
+			}
+			// The terminal is still opening. Cancelling here makes the opening start bail out,
+			// stop its terminal and leave the button on Run instead of Starting forever.
+			this.#launching.delete(workspaceId);
+			this.#setPhase(workspaceId, attempt, "stopped");
+			return ok(undefined);
 		}
 		const process = this.#processes.get(workspaceId);
 		if (process === undefined) {
@@ -372,6 +409,9 @@ export class RunScriptsService {
 	async stopWorkspace(workspaceId: WorkspaceId): Promise<Result<void>> {
 		const attempt = this.#nextAttempt(workspaceId);
 		this.#pending.delete(workspaceId);
+		if (this.#launching.delete(workspaceId)) {
+			this.#setPhase(workspaceId, attempt, "stopped");
+		}
 		const failures: unknown[] = [];
 		const stopped = await this.#stopProcess(workspaceId, attempt);
 		if (!stopped.ok) failures.push(stopped.error);
@@ -388,11 +428,6 @@ export class RunScriptsService {
 				? (first as { code: string; message: string })
 				: appError("run_stop_failed", "Couldn't stop the workspace's processes.", failures),
 		);
-	}
-
-	/** Called when a workspace leaves setup: starts the default action if the repo asks for it. */
-	async onSetupFinished(workspaceId: WorkspaceId, setupSucceeded: boolean): Promise<Result<void>> {
-		return this.#afterSetup(workspaceId, setupSucceeded);
 	}
 
 	/** Stops everything of one repository. Used when the repository is removed. */
@@ -422,10 +457,14 @@ export class RunScriptsService {
 		return this.#lastRunIds.get(workspaceId) ?? null;
 	}
 
-	/** Forgets a workspace's run state without touching its processes. */
+	/** Forgets a workspace's run state, history and counters without touching its processes. */
 	clearRuns(workspaceId: WorkspaceId): void {
 		this.#pending.delete(workspaceId);
 		this.#processes.delete(workspaceId);
+		this.#launching.delete(workspaceId);
+		this.#attempts.delete(workspaceId);
+		this.#lastRunIds.delete(workspaceId);
+		this.#removeSavedHistory(workspaceId);
 		this.store.setState((state) => {
 			const byWorkspace = { ...state.byWorkspace };
 			delete byWorkspace[workspaceId];
@@ -433,7 +472,9 @@ export class RunScriptsService {
 			delete phases[workspaceId];
 			const outcomes = { ...state.outcomes };
 			delete outcomes[workspaceId];
-			return { ...state, byWorkspace, phases, outcomes };
+			const history = { ...state.history };
+			delete history[workspaceId];
+			return { ...state, byWorkspace, phases, outcomes, history };
 		});
 	}
 
@@ -447,6 +488,7 @@ export class RunScriptsService {
 		this.#lastTerminal.clear();
 		this.#processes.clear();
 		this.#pending.clear();
+		this.#launching.clear();
 		for (const workspaceId of this.#attempts.keys()) this.#nextAttempt(workspaceId);
 		const closed = await Promise.all(terminalIds.map((id) => this.#deps.terminals.close(id)));
 		for (const result of closed) {
@@ -531,6 +573,7 @@ export class RunScriptsService {
 
 		this.#setActions(workspaceId, config.runScripts);
 		this.#setPhase(workspaceId, attempt, "starting");
+		this.#launching.set(workspaceId, { actionId: action.id, attempt, repoId: repo.id });
 
 		let liveUrl: string | null = null;
 		let tail = "";
@@ -553,8 +596,13 @@ export class RunScriptsService {
 				}
 			},
 		});
+		if (this.#launching.get(workspaceId)?.attempt === attempt) {
+			this.#launching.delete(workspaceId);
+		}
 		if (!this.#isCurrent(workspaceId, attempt)) {
 			if (started.ok) await this.#deps.terminals.stop(started.value.terminalId);
+			// A stop with nothing newer to show still has to move the button off Starting.
+			this.#settleAbandoned(workspaceId, attempt);
 			return ok(undefined);
 		}
 		if (!started.ok) {
@@ -589,6 +637,12 @@ export class RunScriptsService {
 	}
 
 	async #stopOtherWorkspaces(repoId: string, keepWorkspaceId: WorkspaceId): Promise<Result<void>> {
+		for (const [workspaceId, launching] of [...this.#launching.entries()]) {
+			if (workspaceId === keepWorkspaceId || launching.repoId !== repoId) continue;
+			const attempt = this.#nextAttempt(workspaceId);
+			this.#launching.delete(workspaceId);
+			this.#setPhase(workspaceId, attempt, "stopped");
+		}
 		for (const [workspaceId, process] of [...this.#processes.entries()]) {
 			if (workspaceId === keepWorkspaceId || process.repoId !== repoId) continue;
 			const stopped = await this.#stopProcess(workspaceId, this.#nextAttempt(workspaceId));
@@ -625,13 +679,30 @@ export class RunScriptsService {
 	}
 
 	#nextAttempt(workspaceId: WorkspaceId): number {
-		const next = (this.#attempts.get(workspaceId) ?? 0) + 1;
-		this.#attempts.set(workspaceId, next);
-		return next;
+		this.#attemptCounter += 1;
+		this.#attempts.set(workspaceId, this.#attemptCounter);
+		return this.#attemptCounter;
 	}
 
 	#isCurrent(workspaceId: WorkspaceId, attempt: number): boolean {
 		return this.#attempts.get(workspaceId) === attempt;
+	}
+
+	/**
+	 * Moves a workspace's button off Starting after a launch was cancelled. A newer start or a
+	 * newer process owns the state, so it is left alone.
+	 */
+	#settleAbandoned(workspaceId: WorkspaceId, attempt: number): void {
+		const newest = this.#attempts.get(workspaceId);
+		if (newest === undefined || newest === attempt) return;
+		if (
+			this.#launching.has(workspaceId) ||
+			this.#processes.has(workspaceId) ||
+			this.#pending.has(workspaceId)
+		) {
+			return;
+		}
+		this.#setPhase(workspaceId, newest, "stopped");
 	}
 
 	#clearOutcome(workspaceId: WorkspaceId): void {
@@ -644,13 +715,125 @@ export class RunScriptsService {
 	}
 
 	#recordHistory(workspaceId: WorkspaceId, actionId: string): void {
-		this.store.setState((state) => ({
-			...state,
-			history: {
-				...state.history,
-				[workspaceId]: recordRunInHistory(state.history[workspaceId] ?? [], actionId),
-			},
-		}));
+		let saved: readonly string[] = [];
+		this.store.setState((state) => {
+			saved = recordRunInHistory(state.history[workspaceId] ?? [], actionId);
+			return { ...state, history: { ...state.history, [workspaceId]: saved } };
+		});
+		this.#saveHistory(workspaceId, saved);
+	}
+
+	/** The local storage that keeps run history, or the reason it cannot be reached. */
+	#historyStorage(): Result<Storage> {
+		if (typeof globalThis.localStorage === "undefined") {
+			return err(
+				appError("local_storage_unavailable", "Run history can't be read in this environment."),
+			);
+		}
+		try {
+			return ok(globalThis.localStorage);
+		} catch (cause) {
+			return err(
+				appError("local_storage_unavailable", "Run history can't be read on this Mac.", cause),
+			);
+		}
+	}
+
+	/** Reads every saved workspace history. A bad entry is reported, not thrown away silently. */
+	#readSavedHistory(): {
+		history: Record<string, readonly string[]>;
+		error: AppError | null;
+	} {
+		const storage = this.#historyStorage();
+		if (!storage.ok) return { history: {}, error: storage.error };
+		const history: Record<string, readonly string[]> = {};
+		let error: AppError | null = null;
+		for (let index = 0; index < storage.value.length; index += 1) {
+			let key: string | null;
+			try {
+				key = storage.value.key(index);
+			} catch (cause) {
+				return {
+					history,
+					error: appError(
+						"run_history_unreadable",
+						"Run history couldn't be read on this Mac.",
+						cause,
+					),
+				};
+			}
+			if (key === null || !key.startsWith(RUN_HISTORY_STORAGE_PREFIX)) continue;
+			const workspaceId = key.slice(RUN_HISTORY_STORAGE_PREFIX.length);
+			let raw: string | null;
+			try {
+				raw = storage.value.getItem(key);
+			} catch (cause) {
+				return {
+					history,
+					error: appError(
+						"run_history_unreadable",
+						"Run history couldn't be read on this Mac.",
+						cause,
+					),
+				};
+			}
+			if (raw === null) continue;
+			let parsed: unknown;
+			try {
+				parsed = JSON.parse(raw);
+			} catch (cause) {
+				error ??= appError("run_history_invalid", "The saved run history is not readable.", cause);
+				continue;
+			}
+			if (!Array.isArray(parsed) || !parsed.every((entry) => typeof entry === "string")) {
+				error ??= appError("run_history_invalid", "The saved run history is not readable.");
+				continue;
+			}
+			history[workspaceId] = parsed.slice(0, RUN_HISTORY_LIMIT);
+		}
+		return { history, error };
+	}
+
+	#saveHistory(workspaceId: WorkspaceId, history: readonly string[]): void {
+		const storage = this.#historyStorage();
+		if (!storage.ok) {
+			this.#setHistoryError(storage.error);
+			return;
+		}
+		try {
+			storage.value.setItem(runHistoryStorageKey(workspaceId), JSON.stringify(history));
+			this.#setHistoryError(null);
+		} catch (cause) {
+			this.#setHistoryError(
+				appError("run_history_unwritable", "The run history couldn't be saved on this Mac.", cause),
+			);
+		}
+	}
+
+	#removeSavedHistory(workspaceId: WorkspaceId): void {
+		const storage = this.#historyStorage();
+		if (!storage.ok) {
+			this.#setHistoryError(storage.error);
+			return;
+		}
+		try {
+			storage.value.removeItem(runHistoryStorageKey(workspaceId));
+			this.#setHistoryError(null);
+		} catch (cause) {
+			this.#setHistoryError(
+				appError(
+					"run_history_unwritable",
+					"The run history couldn't be cleared on this Mac.",
+					cause,
+				),
+			);
+		}
+	}
+
+	#setHistoryError(error: AppError | null): void {
+		this.store.setState((state) =>
+			state.historyError === error ? state : { ...state, historyError: error },
+		);
 	}
 
 	#setActions(workspaceId: WorkspaceId, actions: readonly RunAction[]): void {

@@ -245,6 +245,28 @@ describe("GIT-13 fetchIfStale", () => {
 		expect(service.store.getState().byWorkspace[workspaceId]).toBeUndefined();
 	});
 
+	it("fetches a target stored as a full remote ref under its plain branch name", async () => {
+		const { runner, recorder } = fetchRunner();
+		const service = makeService(runner, {
+			contextOf: async () => ok(context({ targetBranch: "refs/remotes/origin/main" })),
+		});
+
+		const result = await service.fetchIfStale(workspaceId, {
+			prBaseOid: "new-base",
+			prHeadOid: "head",
+		});
+
+		expect(result).toEqual(ok({ fetched: true }));
+		expect(recorder.fetches[0]?.args).toEqual([
+			"fetch",
+			"--no-write-fetch-head",
+			"--prune",
+			"--",
+			"origin",
+			baseRefspec,
+		]);
+	});
+
 	it("fetches at most once a minute for one repository and branch", async () => {
 		let now = start;
 		const { runner, recorder } = fetchRunner();

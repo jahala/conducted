@@ -13,7 +13,8 @@
  * Must handle: a closed chat stays in history and leaves the open list; a reopened chat returns to
  * the open list; an empty title is refused; stored events load once, in `idx` order; a message is
  * held in memory as pending before the sidecar is asked; a send that fails keeps its text for
- * Retry and Discard; a chat config is written only while the stored config is still the one the
+ * Retry and Discard; a chat whose first message cannot be sent is removed, so a retry does not
+ * leave an empty chat; a chat config is written only while the stored config is still the one the
  * caller saw, so a late answer cannot overwrite a newer choice; a cancel withdraws the open
  * interaction, takes back the messages the sidecar dropped and returns an in-flight send to the
  * draft; a sidecar that refuses the cancel changes nothing; cancelAll reaches every working chat
@@ -54,7 +55,6 @@ import {
 	type SessionConfig,
 	type SessionEvent,
 	type WorkspaceContext,
-	zEffort,
 } from "@conducted/protocol";
 import {
 	type AppError,
@@ -77,6 +77,7 @@ import { createKeyedQueue, type KeyedQueue } from "../async/serial-queue.ts";
 import { interruptedTurnEvent } from "../db/repair.ts";
 import type { Repositories } from "../db/repositories.ts";
 import { executeStatement, inTransaction, selectRows, stringifyJson } from "../db/row-codec.ts";
+import { parseEffortSetting } from "../lookups.ts";
 import type { ChatView, Session } from "../model.ts";
 import type { SidecarClient } from "../sidecar/tunnel.ts";
 import type { ComposerService } from "./composer.ts";
@@ -172,6 +173,9 @@ function sameConfig(a: SessionConfig, b: SessionConfig): boolean {
 	return canonicalJson(a) === canonicalJson(b);
 }
 
+/** A config write is tried this many times before its failure is reported. */
+const CONFIG_WRITE_ATTEMPTS = 3;
+
 /** The config of a review chat: the review model, fast mode and effort, on the default config. */
 function reviewConfigFrom(
 	base: SessionConfig,
@@ -184,20 +188,14 @@ function reviewConfigFrom(
 			: base.agent === "claude"
 				? "review_claude_effort_level"
 				: null;
-	const effortSetting = effortKey === null ? "" : setting<string>(effortKey).trim();
 	let effort = base.effort;
-	if (effortSetting.length > 0) {
-		const parsed = zEffort.safeParse(effortSetting);
-		if (!parsed.success) {
-			return err(
-				appError(
-					"setting_invalid",
-					`The review effort level "${effortSetting}" is not one a chat can use. Pick another in Settings.`,
-					parsed.error,
-				),
-			);
+	if (effortKey !== null) {
+		const effortSetting = setting<string>(effortKey).trim();
+		if (effortSetting.length > 0) {
+			const parsed = parseEffortSetting(effortKey, effortSetting);
+			if (!parsed.ok) return parsed;
+			effort = parsed.value;
 		}
-		effort = parsed.data;
 	}
 	return ok({
 		...base,
@@ -278,8 +276,11 @@ export class SessionsService implements AgentMessenger {
 	readonly #interactionPromises = new Map<string, Promise<InteractionAnswer>>();
 	/** Bumped by cancel, so a send that finishes afterwards returns to the draft instead of running. */
 	readonly #cancelVersions = new Map<string, number>();
-	/** Config changes the agent makes for one chat are stored in the order they arrived. */
-	readonly #agentConfigWrites: KeyedQueue<SessionId> = createKeyedQueue<SessionId>();
+	/**
+	 * Every config write for one chat, from the composer or from the agent, runs here in arrival
+	 * order. The agent's store and the composer's compare-and-set never interleave.
+	 */
+	readonly #configWrites: KeyedQueue<SessionId> = createKeyedQueue<SessionId>();
 	/** Loads of stored events in progress, with the events that arrived meanwhile. */
 	readonly #opening = new Map<
 		string,
@@ -375,6 +376,25 @@ export class SessionsService implements AgentMessenger {
 		const config = await this.#deps.defaultConfig(workspaceId);
 		if (!config.ok) return config;
 		return this.create(workspaceId, config.value);
+	}
+
+	/**
+	 * Creates a chat and sends its first message. When the send fails the new chat is deleted, so a
+	 * retry does not leave an empty chat in the workspace.
+	 */
+	async #createAndSend(
+		workspaceId: WorkspaceId,
+		config: SessionConfig,
+		text: string,
+		attachmentPaths: readonly string[],
+	): Promise<Result<Session>> {
+		const created = await this.create(workspaceId, config);
+		if (!created.ok) return created;
+		const sent = await this.send(created.value.id, text, attachmentPaths, "auto");
+		if (sent.ok) return created;
+		const removed = await this.delete(created.value.id);
+		if (!removed.ok) return err(appError(sent.error.code, sent.error.message, removed.error));
+		return sent;
 	}
 
 	/** Backs `Actions.sessions.close`: hides the tab, keeps the chat in history. */
@@ -1007,71 +1027,75 @@ export class SessionsService implements AgentMessenger {
 	/**
 	 * Backs `Actions.sessions.updateConfig`. Some changes apply live, some on the next turn.
 	 * The write is a compare-and-set on the config text: a late update cannot overwrite a newer
-	 * choice. When it loses, the newer stored config is adopted instead.
+	 * choice. When it loses, the newer stored config is adopted instead. It runs on the same
+	 * per-chat queue as the agent's config changes, so an older agent notification that arrived
+	 * first cannot land after the user's newer choice.
 	 */
 	async updateConfig(id: SessionId, config: SessionConfig): Promise<Result<void>> {
-		const found = await this.#session(id);
-		if (!found.ok) return found;
-		const session = found.value;
+		return this.#configWrites.run(id, async () => {
+			const found = await this.#session(id);
+			if (!found.ok) return found;
+			const session = found.value;
 
-		// Read the exact stored text first, so the guard below names the text the write replaces.
-		// Keys in another order or extra whitespace would make a re-serialised guard miss.
-		const raw = await selectRows<{ config: string }>(
-			this.#deps.db,
-			"SELECT config FROM sessions WHERE id = $1",
-			[id],
-			"Reading a chat config",
-		);
-		if (!raw.ok) return raw;
-		const storedText = raw.value[0]?.config;
-		if (storedText === undefined) {
-			return err(appError("session_unknown", "That chat no longer exists."));
-		}
-
-		// Read the stored row again: the cached config is what the caller saw, not what is there now.
-		const stored = await this.#deps.repositories().sessions.get(id);
-		if (!stored.ok) return stored;
-		if (stored.value === null) {
-			return err(appError("session_unknown", "That chat no longer exists."));
-		}
-		const storedSession = stored.value;
-
-		// The caller's choice is older than the stored one, so adopt the stored choice.
-		if (!sameConfig(storedSession.config, session.config)) {
-			this.#setConfig(id, storedSession.config, storedSession.updatedAt);
-			return ok(undefined);
-		}
-		if (sameConfig(storedSession.config, config)) return ok(undefined);
-
-		const next = stringifyJson(config, "sessions.config");
-		if (!next.ok) return next;
-
-		const at = this.#deps.now();
-		const written = await executeStatement(
-			this.#deps.db,
-			"UPDATE sessions SET config = $1, updated_at = $2 WHERE id = $3 AND config = $4",
-			[next.value, at, id, storedText],
-			"Saving a chat config",
-		);
-		if (!written.ok) return written;
-
-		if (written.value === 0) {
-			// Another writer got there first. Adopt its choice; if the row is gone, say so.
-			const latest = await this.#deps.repositories().sessions.get(id);
-			if (!latest.ok) return latest;
-			if (latest.value === null) {
+			// Read the exact stored text first, so the guard below names the text the write replaces.
+			// Keys in another order or extra whitespace would make a re-serialised guard miss.
+			const raw = await selectRows<{ config: string }>(
+				this.#deps.db,
+				"SELECT config FROM sessions WHERE id = $1",
+				[id],
+				"Reading a chat config",
+			);
+			if (!raw.ok) return raw;
+			const storedText = raw.value[0]?.config;
+			if (storedText === undefined) {
 				return err(appError("session_unknown", "That chat no longer exists."));
 			}
-			this.#setConfig(id, latest.value.config, latest.value.updatedAt);
-			return ok(undefined);
-		}
 
-		this.#setConfig(id, config, at);
-		const applied = await this.#deps.sidecar.request("updateConfig", {
-			sessionId: id,
-			config,
+			// Read the stored row again: the cached config is what the caller saw, not what is there now.
+			const stored = await this.#deps.repositories().sessions.get(id);
+			if (!stored.ok) return stored;
+			if (stored.value === null) {
+				return err(appError("session_unknown", "That chat no longer exists."));
+			}
+			const storedSession = stored.value;
+
+			// The caller's choice is older than the stored one, so adopt the stored choice.
+			if (!sameConfig(storedSession.config, session.config)) {
+				this.#setConfig(id, storedSession.config, storedSession.updatedAt);
+				return ok(undefined);
+			}
+			if (sameConfig(storedSession.config, config)) return ok(undefined);
+
+			const next = stringifyJson(config, "sessions.config");
+			if (!next.ok) return next;
+
+			const at = this.#deps.now();
+			const written = await executeStatement(
+				this.#deps.db,
+				"UPDATE sessions SET config = $1, updated_at = $2 WHERE id = $3 AND config = $4",
+				[next.value, at, id, storedText],
+				"Saving a chat config",
+			);
+			if (!written.ok) return written;
+
+			if (written.value === 0) {
+				// Another writer got there first. Adopt its choice; if the row is gone, say so.
+				const latest = await this.#deps.repositories().sessions.get(id);
+				if (!latest.ok) return latest;
+				if (latest.value === null) {
+					return err(appError("session_unknown", "That chat no longer exists."));
+				}
+				this.#setConfig(id, latest.value.config, latest.value.updatedAt);
+				return ok(undefined);
+			}
+
+			this.#setConfig(id, config, at);
+			const applied = await this.#deps.sidecar.request("updateConfig", {
+				sessionId: id,
+				config,
+			});
+			return applied.ok ? ok(undefined) : applied;
 		});
-		return applied.ok ? ok(undefined) : applied;
 	}
 
 	/**
@@ -1103,11 +1127,10 @@ export class SessionsService implements AgentMessenger {
 		workspaceId: WorkspaceId,
 		input: NewWorkspaceInput,
 	): Promise<Result<Session>> {
-		const created = await this.create(workspaceId, input.config);
-		if (!created.ok) return created;
-		if (input.prompt.trim() === "" && input.attachmentPaths.length === 0) return created;
-		const sent = await this.send(created.value.id, input.prompt, input.attachmentPaths, "auto");
-		return sent.ok ? created : sent;
+		if (input.prompt.trim() === "" && input.attachmentPaths.length === 0) {
+			return this.create(workspaceId, input.config);
+		}
+		return this.#createAndSend(workspaceId, input.config, input.prompt, input.attachmentPaths);
 	}
 
 	/** The first chat's draft, for "Recover prompt" after a failed creation (WS-01). */
@@ -1191,10 +1214,7 @@ export class SessionsService implements AgentMessenger {
 		if (!base.ok) return base;
 		const config = reviewConfigFrom(base.value, this.#deps.setting);
 		if (!config.ok) return config;
-		const created = await this.create(workspaceId, config.value);
-		if (!created.ok) return created;
-		const sent = await this.send(created.value.id, text, [], "auto");
-		return sent.ok ? created : sent;
+		return this.#createAndSend(workspaceId, config.value, text, []);
 	}
 
 	// ---- called by the sidecar side (core/sidecar) ----
@@ -1310,12 +1330,18 @@ export class SessionsService implements AgentMessenger {
 	}
 
 	/**
-	 * Stores a config the agent changed by itself, such as entering plan mode (SIDE-20). Writes for
-	 * one chat run in arrival order, so an older config never overwrites a newer one.
+	 * Stores a config the agent changed by itself, such as entering plan mode (SIDE-20). A failed
+	 * write is retried through this same writer before it is reported. It shares the per-chat queue
+	 * with the composer, so an older agent notification cannot land after a newer user choice.
 	 */
 	async applyAgentConfig(sessionId: SessionId, config: SessionConfig): Promise<Result<void>> {
-		return this.#agentConfigWrites.run(sessionId, async () => {
-			const written = await this.#deps.repositories().sessions.setConfig(sessionId, config);
+		return this.#configWrites.run(sessionId, async () => {
+			let written = await this.#deps.repositories().sessions.setConfig(sessionId, config);
+			for (let attempt = 1; attempt < CONFIG_WRITE_ATTEMPTS && !written.ok; attempt += 1) {
+				// Yield first, so a busy database gets its chance to finish.
+				await new Promise((resolve) => setTimeout(resolve, 0));
+				written = await this.#deps.repositories().sessions.setConfig(sessionId, config);
+			}
 			if (!written.ok) return written;
 			this.#setConfig(sessionId, config, this.#deps.now());
 			return ok(undefined);
@@ -1536,10 +1562,12 @@ export class SessionsService implements AgentMessenger {
 			);
 		}
 
-		const created = await this.create(session.workspaceId, session.config);
-		if (!created.ok) return created;
-		const sent = await this.send(created.value.id, message.text, message.attachmentPaths, "auto");
-		return sent.ok ? created : sent;
+		return this.#createAndSend(
+			session.workspaceId,
+			session.config,
+			message.text,
+			message.attachmentPaths,
+		);
 	}
 
 	/** /restart: `resetAgent`, then warm the agent again with resume. */

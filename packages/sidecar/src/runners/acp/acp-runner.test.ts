@@ -96,13 +96,14 @@ function makeRunner(
 		adapter?: AcpAdapter;
 		spawn?: ConstructorParameters<typeof AcpRunner>[0]["spawn"];
 		appToolsServers?: (options: StartOptions) => readonly unknown[];
+		probe?: AcpRunnerDeps["probe"];
 	} = {},
 ): AcpRunner {
 	return new AcpRunner({
 		logger: logger(),
 		clock: { now: () => 0 },
 		ids: nextIds(),
-		probe: async () => ok({ stdout: "1.18.18", stderr: "", exitCode: 0 }),
+		probe: options.probe ?? (async () => ok({ stdout: "1.18.18", stderr: "", exitCode: 0 })),
 		findExecutable: async (name: string) => `/fake/${name}`,
 		adapter: options.adapter ?? fakeAdapter,
 		spawn:
@@ -224,6 +225,16 @@ describe("AGENT-11 ACP runner", () => {
 	});
 });
 
+describe("AGENT-12 ACP runner version gate", () => {
+	test("start refuses an agent older than the adapter minimum", async () => {
+		const runner = makeRunner({
+			probe: async () => ok({ stdout: "1.16.1", stderr: "", exitCode: 0 }),
+		});
+
+		await expect(runner.start(startOptions)).rejects.toThrow("needs 1.16.2 or newer");
+	});
+});
+
 function fakeLogger(): Logger {
 	const fake: Logger = {
 		error: () => {},
@@ -309,7 +320,10 @@ function fakeClient(
 	};
 }
 
-function makeListingRunner(options: FakeClientOptions = {}): {
+function makeListingRunner(
+	options: FakeClientOptions = {},
+	overrides: { adapter?: AcpAdapter; clock?: Clock } = {},
+): {
 	runner: AcpRunner;
 	closed: () => number;
 	handlers: () => AcpClientHandlers | undefined;
@@ -317,7 +331,7 @@ function makeListingRunner(options: FakeClientOptions = {}): {
 	let closeCount = 0;
 	const handlersRef: { handlers?: AcpClientHandlers } = {};
 	const deps: AcpRunnerDeps = {
-		adapter: ACP_ADAPTERS.opencode,
+		adapter: overrides.adapter ?? ACP_ADAPTERS.opencode,
 		spawn: async () => err(appError("spawn_failed", "The test never starts an agent process.")),
 		createClient: ({ handlers }) => {
 			handlersRef.handlers = handlers;
@@ -333,7 +347,7 @@ function makeListingRunner(options: FakeClientOptions = {}): {
 			);
 		},
 		logger: fakeLogger(),
-		clock,
+		clock: overrides.clock ?? clock,
 		ids,
 		probe: async () => ok({ stdout: "1.18.18", stderr: "", exitCode: 0 }),
 		findExecutable: async () => "/fake/opencode",
@@ -368,6 +382,45 @@ describe("AGENT-12 ACP model and command listing", () => {
 		});
 		const models = await runner.listModels();
 		expect(models.map((model) => model.id)).toEqual(["m1", "m2"]);
+	});
+
+	test("a model list that never arrives is a named error, not an empty list", async () => {
+		const { runner } = makeListingRunner(
+			{ configOptions: [] },
+			{ adapter: { ...ACP_ADAPTERS.opencode, waitForModelCatalogMs: 5 } },
+		);
+
+		await expect(runner.listModels()).rejects.toMatchObject({
+			code: "acp_model_list_timeout",
+		});
+	});
+
+	test("the 90 s cap uses the clock's elapsed time, so a late listing does not wait", async () => {
+		let reads = 0;
+		const lateClock: Clock = {
+			now: () => {
+				reads += 1;
+				return reads === 1 ? 0 : 91_000;
+			},
+		};
+		const { runner } = makeListingRunner(
+			{ configOptions: [] },
+			{ adapter: ACP_ADAPTERS.opencode, clock: lateClock },
+		);
+		const started = Date.now();
+
+		await expect(runner.listModels()).rejects.toMatchObject({
+			code: "acp_model_list_timeout",
+		});
+		expect(Date.now() - started).toBeLessThan(1000);
+	});
+
+	test("Pi does not wait for a model list and reports none", async () => {
+		const { runner } = makeListingRunner({ configOptions: [] }, { adapter: ACP_ADAPTERS.pi });
+		const started = Date.now();
+
+		expect(await runner.listModels()).toEqual([]);
+		expect(Date.now() - started).toBeLessThan(1000);
 	});
 
 	test("a session that cannot open is an error, and the client is still closed", async () => {

@@ -1,5 +1,5 @@
 /**
- * @feature CHAT-15 Checkpoints: per-turn changes, revert and fork
+ * @feature CHAT-15 Checkpoints: per-turn changes, revert and fork; REV-09 Turn changes from checkpoints
  * Owns: reading the private checkpoint refs that the sidecar writes around each turn, listing
  * what a turn changed, counting files that changed since a checkpoint, and restoring the working
  * tree to a turn's start.
@@ -18,7 +18,8 @@
  * another chat's refs, even when ids share a prefix.
  * The per-turn change list is read with the checkpointer's own diff, so it includes untracked
  * files and honours the repository's ignore rules like the checkpoint itself. It is cached per
- * chat and turn; the cache holds at most 5 MB and evicts the oldest turns first.
+ * chat and turn; every caller gets its own copy of the list, so one caller's change cannot reach
+ * the cache. The cache holds at most 5 MB and evicts the oldest turns first.
  * Our design choice: a revert restores files and hides later events in one user action, and asks
  * the sidecar to reset the agent so its next turn resumes from the chosen message.
  * Test first: reverting to a turn without a start checkpoint returns an Err and changes nothing.
@@ -47,6 +48,9 @@ export const CHECKPOINT_READY_POLL_MS = 50;
 export const TURN_CHANGES_CACHE_BYTES = 5 * 1024 * 1024;
 
 const utf8 = new TextEncoder();
+
+/** A caller's own copy, so changing a result never reaches the cache. */
+const copyChanges = (files: FileChange[]): FileChange[] => files.map((file) => ({ ...file }));
 
 interface CachedTurnChanges {
 	files: FileChange[];
@@ -90,7 +94,7 @@ export class CheckpointService {
 	async changesForTurn(sessionId: SessionId, turnId: TurnId): Promise<Result<FileChange[]>> {
 		const key = `${sessionId}:${turnId}`;
 		const cached = this.#turnChanges.get(key);
-		if (cached !== undefined) return ok(cached.files.map((file) => ({ ...file })));
+		if (cached !== undefined) return ok(copyChanges(cached.files));
 
 		const folder = await this.#deps.workspacePathOf(sessionId);
 		if (!folder.ok) return folder;
@@ -118,7 +122,7 @@ export class CheckpointService {
 			parseNumstat(numstat.value.stdout),
 		);
 		this.#cacheTurnChanges(key, files);
-		return ok(files);
+		return ok(copyChanges(files));
 	}
 
 	/** Number of files that differ between a checkpoint and the working tree now. */

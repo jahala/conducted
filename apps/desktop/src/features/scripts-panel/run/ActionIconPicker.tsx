@@ -8,7 +8,7 @@
  * icon and reported in the log).
  * Test first: searching "play" narrows the grid to icons whose name contains it.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "../../../ui/cn.ts";
 import { Input } from "../../../ui/Input.tsx";
 
@@ -57,13 +57,15 @@ export interface ActionIconProps {
 	className?: string;
 }
 
-/** Draws one action icon. An unknown name falls back to the default and is reported. */
+/** Draws one action icon. An unknown name falls back to the default and is reported once. */
 export function ActionIcon({ name, className }: ActionIconProps) {
 	const found = name === null ? undefined : iconsByName.get(name);
 	const icon = found ?? iconsByName.get(DEFAULT_ICON);
-	if (name !== null && found === undefined) {
+	const unknown = name !== null && found === undefined;
+	useEffect(() => {
+		if (!unknown) return;
 		console.error(`Unknown action icon "${name}". Using the default icon.`);
-	}
+	}, [unknown, name]);
 	if (icon === undefined) return null;
 	return (
 		<svg

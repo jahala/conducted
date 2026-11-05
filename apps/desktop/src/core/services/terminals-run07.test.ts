@@ -19,6 +19,7 @@ import type { Terminal, Workspace } from "../model.ts";
 import {
 	DEFAULT_TERMINAL_OUTPUT_LINES,
 	NO_RUN_OUTPUT,
+	NO_SAVED_OUTPUT,
 	NO_SPOTLIGHT_OUTPUT,
 	NO_TERMINAL_OUTPUT,
 	snapshotText,
@@ -356,13 +357,22 @@ describe("RUN-07 outputFor falls back for an ended run", () => {
 		expect(askedScreen).not.toHaveBeenCalled();
 	});
 
-	it("returns an empty output when an ended terminal has no saved screen", async () => {
+	it("says there is no saved output when an ended terminal has no kept text or screen", async () => {
 		const service = serviceWith({
 			existing: [terminal({ endedAt: 1500, exitCode: 0 })],
 			getScreenState: async () => ok(null),
 		});
 		const result = await service.outputFor(workspaceId, "terminal", 10);
-		expect(result).toEqual(ok({ output: "", source: "Terminal", running: false }));
+		expect(result).toEqual(ok({ output: NO_SAVED_OUTPUT, source: "Terminal", running: false }));
+	});
+
+	it("says there is no saved output for an ended run script, whose screen is never saved", async () => {
+		const service = serviceWith({
+			existing: [terminal({ id: "run" as TerminalId, kind: "run", endedAt: 1500, exitCode: 0 })],
+			getScreenState: async () => ok(null),
+		});
+		const result = await service.outputFor(workspaceId, "run_script", 10);
+		expect(result).toEqual(ok({ output: NO_SAVED_OUTPUT, source: "Action", running: false }));
 	});
 
 	it("keeps the failure when the saved screen is not a screen snapshot", async () => {

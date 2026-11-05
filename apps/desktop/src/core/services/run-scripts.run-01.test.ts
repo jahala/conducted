@@ -1,7 +1,8 @@
 /**
  * @feature RUN-01 Run actions with start and stop, concurrent or exclusive
  * Owns: tests for starting and stopping actions, run mode, parked starts, auto-run after setup,
- * quoted arguments, folder variables, the URL found in output, and the newest-attempt rule.
+ * quoted arguments, folder variables, the URL found in output, the newest-attempt rule, a stop
+ * while a start is still opening, the saved history, and clearing a workspace's runs.
  * Test first: starting an action while another runs in the same workspace stops the first.
  */
 import {
@@ -13,10 +14,15 @@ import {
 	type TerminalId,
 	type WorkspaceId,
 } from "@conducted/shared";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FileSystem } from "../../platform/platform.ts";
 import type { Repo, RepoConfig, RunAction, Workspace } from "../model.ts";
-import { RunScriptsService, type SetupRunResult } from "./run-scripts.ts";
+import {
+	RUN_HISTORY_LIMIT,
+	RunScriptsService,
+	runHistoryStorageKey,
+	type SetupRunResult,
+} from "./run-scripts.ts";
 
 const repo: Repo = {
 	id: "r1" as RepoId,
@@ -134,10 +140,9 @@ function harness(
 	const stop = vi.fn(options.stop ?? (async () => ok(undefined) as Result<void>));
 	const close = vi.fn(async (_id: TerminalId) => ok(undefined) as Result<void>);
 	const outputFor = vi.fn(async () => ok({ output: "", source: "setup", running: false }));
+	const writeTextAtomic = vi.fn(async (_path: string, _text: string) => ok(undefined));
 	const fs = {
-		async writeTextAtomic() {
-			return ok(undefined);
-		},
+		writeTextAtomic,
 		async mkdirp() {
 			return ok(undefined);
 		},
@@ -156,11 +161,19 @@ function harness(
 		repoFor: async () => ok(repo),
 		fs,
 	});
-	return { service, runScript, stop, close };
+	return { service, runScript, stop, close, writeTextAtomic };
 }
 
 const ws = "w1" as WorkspaceId;
 const ws2 = "w2" as WorkspaceId;
+
+beforeEach(() => {
+	globalThis.localStorage.clear();
+});
+
+afterEach(() => {
+	globalThis.localStorage.clear();
+});
 
 describe("RUN-01 run scripts service", () => {
 	it("starts the default action with quoted args and the expanded folder variables", async () => {
@@ -227,38 +240,71 @@ describe("RUN-01 run scripts service", () => {
 	});
 
 	it("parks a start while setup runs and starts it when setup finishes", async () => {
+		let finishSetup = (code: number): void => {
+			void code;
+		};
+		const setupExit = new Promise<number | null>((resolve) => {
+			finishSetup = (code) => resolve(code);
+		});
 		const { service, runScript } = harness({
+			config: config({ setupScript: "bun install" }),
 			workspaces: [workspaceFor(ws, { state: "initializing" })],
+			runScript: async (input) => {
+				if (input.kind === "setup") {
+					return ok({ terminalId: "setup" as TerminalId, exit: setupExit });
+				}
+				return ok({ terminalId: "run" as TerminalId, exit: new Promise(() => undefined) });
+			},
 		});
 
+		const setup = service.runSetup(ws);
+		await vi.waitFor(() => expect(runScript).toHaveBeenCalledTimes(1));
 		await service.start(ws, "dev");
 
-		expect(runScript).not.toHaveBeenCalled();
 		expect(service.store.getState().phases[ws]).toBe("waiting_for_setup");
+		expect(service.store.getState().byWorkspace[ws]?.running).toEqual([]);
 
-		const finished = await service.onSetupFinished(ws, true);
+		finishSetup(0);
+		const finished = await setup;
 
 		expect(finished.ok).toBe(true);
-		expect(runScript).toHaveBeenCalledTimes(1);
+		expect(runScript).toHaveBeenCalledTimes(2);
 		expect(service.store.getState().phases[ws]).toBe("running");
 	});
 
 	it("does not start a parked action when setup fails", async () => {
+		let finishSetup = (code: number): void => {
+			void code;
+		};
+		const setupExit = new Promise<number | null>((resolve) => {
+			finishSetup = (code) => resolve(code);
+		});
 		const { service, runScript } = harness({
+			config: config({ setupScript: "bun install" }),
 			workspaces: [workspaceFor(ws, { state: "initializing" })],
+			runScript: async (input) => {
+				if (input.kind === "setup") {
+					return ok({ terminalId: "setup" as TerminalId, exit: setupExit });
+				}
+				return ok({ terminalId: "run" as TerminalId, exit: new Promise(() => undefined) });
+			},
 		});
 
+		const setup = service.runSetup(ws);
+		await vi.waitFor(() => expect(runScript).toHaveBeenCalledTimes(1));
 		await service.start(ws, "dev");
-		await service.onSetupFinished(ws, false);
+		finishSetup(1);
+		const finished = await setup;
 
-		expect(runScript).not.toHaveBeenCalled();
+		expect(finished.ok).toBe(true);
+		expect(runScript).toHaveBeenCalledTimes(1);
 		expect(service.store.getState().phases[ws]).toBe("stopped");
 	});
 
 	it("runs the default action after a successful setup when the repository asks for it", async () => {
 		const { service, runScript } = harness({ config: config({ autoRunAfterSetup: true }) });
 
-		const finished = await service.onSetupFinished(ws, true);
+		const finished = await service.runSetup(ws);
 
 		expect(finished.ok).toBe(true);
 		expect(runScript).toHaveBeenCalledTimes(1);
@@ -266,11 +312,18 @@ describe("RUN-01 run scripts service", () => {
 	});
 
 	it("does not run an action after a failed setup", async () => {
-		const { service, runScript } = harness({ config: config({ autoRunAfterSetup: true }) });
+		const { service, runScript } = harness({
+			config: config({ setupScript: "bun install", autoRunAfterSetup: true }),
+			runScript: async (input) =>
+				input.kind === "setup"
+					? ok({ terminalId: "setup" as TerminalId, exit: Promise.resolve(1) })
+					: ok({ terminalId: "run" as TerminalId, exit: new Promise(() => undefined) }),
+		});
 
-		await service.onSetupFinished(ws, false);
+		await service.runSetup(ws);
 
-		expect(runScript).not.toHaveBeenCalled();
+		expect(runScript).toHaveBeenCalledTimes(1);
+		expect(service.store.getState().byWorkspace[ws]?.running).toEqual([]);
 	});
 
 	it("reports a stop that did not confirm and still returns the button to Run", async () => {
@@ -380,6 +433,181 @@ describe("RUN-01 run scripts service", () => {
 
 		expect(service.isBusy(ws)).toBe(true);
 		expect(service.lastRunId(ws)).toBe(1);
+	});
+
+	it("stops a run whose terminal is still opening", async () => {
+		const opened = deferred<Result<{ terminalId: TerminalId; exit: Promise<number | null> }>>();
+		let reached = (): void => undefined;
+		const inFlight = new Promise<void>((resolve) => {
+			reached = resolve;
+		});
+		const { service, stop: stopTerminal } = harness({
+			runScript: async () => {
+				reached();
+				return opened.promise;
+			},
+		});
+
+		const starting = service.start(ws, "dev");
+		await inFlight;
+		expect(service.store.getState().phases[ws]).toBe("starting");
+
+		const stopped = await service.stop(ws, "dev");
+
+		expect(stopped.ok).toBe(true);
+		expect(service.store.getState().phases[ws]).toBe("stopped");
+
+		opened.resolve(ok({ terminalId: "t1" as TerminalId, exit: new Promise(() => undefined) }));
+		await starting;
+
+		expect(stopTerminal).toHaveBeenCalledWith("t1");
+		expect(service.store.getState().phases[ws]).toBe("stopped");
+		expect(service.store.getState().byWorkspace[ws]?.running).toEqual([]);
+	});
+
+	it("stops another workspace's start that is still opening in exclusive mode", async () => {
+		const opened = deferred<Result<{ terminalId: TerminalId; exit: Promise<number | null> }>>();
+		let reached = (): void => undefined;
+		const inFlight = new Promise<void>((resolve) => {
+			reached = resolve;
+		});
+		const { service, stop: stopTerminal } = harness({
+			config: config({ runMode: "exclusive" }),
+			runScript: async (_input, call) => {
+				if (call === 1) {
+					reached();
+					return opened.promise;
+				}
+				return ok({ terminalId: "t2" as TerminalId, exit: new Promise(() => undefined) });
+			},
+		});
+
+		const first = service.start(ws, "dev");
+		await inFlight;
+		await service.start(ws2, "dev");
+
+		expect(service.store.getState().phases[ws]).toBe("stopped");
+		expect(service.store.getState().byWorkspace[ws2]?.running[0]?.actionId).toBe("dev");
+
+		opened.resolve(ok({ terminalId: "t1" as TerminalId, exit: new Promise(() => undefined) }));
+		await first;
+
+		expect(stopTerminal).toHaveBeenCalledWith("t1");
+		expect(service.store.getState().phases[ws]).toBe("stopped");
+	});
+
+	it("cancels a start that is still opening when its workspace is stopped", async () => {
+		const opened = deferred<Result<{ terminalId: TerminalId; exit: Promise<number | null> }>>();
+		let reached = (): void => undefined;
+		const inFlight = new Promise<void>((resolve) => {
+			reached = resolve;
+		});
+		const { service, stop: stopTerminal } = harness({
+			runScript: async () => {
+				reached();
+				return opened.promise;
+			},
+		});
+
+		const starting = service.start(ws, "dev");
+		await inFlight;
+		await service.stopWorkspace(ws);
+
+		expect(service.store.getState().phases[ws]).toBe("stopped");
+
+		opened.resolve(ok({ terminalId: "t1" as TerminalId, exit: new Promise(() => undefined) }));
+		await starting;
+
+		expect(stopTerminal).toHaveBeenCalledWith("t1");
+		expect(service.store.getState().phases[ws]).toBe("stopped");
+	});
+
+	it("stops a start parked for setup without running anything", async () => {
+		const { service, runScript } = harness({
+			workspaces: [workspaceFor(ws, { state: "initializing" })],
+		});
+
+		await service.start(ws, "dev");
+		expect(service.store.getState().phases[ws]).toBe("waiting_for_setup");
+
+		const stopped = await service.stop(ws, "dev");
+
+		expect(stopped.ok).toBe(true);
+		expect(service.store.getState().phases[ws]).toBe("stopped");
+		expect(runScript).not.toHaveBeenCalled();
+	});
+
+	it("does not start a new action while the previous stop is not confirmed", async () => {
+		const { service, runScript } = harness({
+			config: config({
+				runScripts: [
+					action(),
+					action({ id: "test", label: "Tests", command: "bun test", isDefault: false }),
+				],
+			}),
+			stop: async () => err(appError("run_stop_unconfirmed", "Stop not confirmed.")),
+		});
+
+		await service.start(ws, "dev");
+		const started = await service.start(ws, "test");
+
+		expect(started).toMatchObject({ ok: false, error: { code: "run_stop_unconfirmed" } });
+		expect(runScript).toHaveBeenCalledTimes(1);
+		expect(service.store.getState().phases[ws]).toBe("stopped");
+		expect(service.store.getState().outcomes[ws]).toBe("stop-unconfirmed");
+	});
+
+	it("keeps the last 20 run ids per workspace across a new service", async () => {
+		const actions = [
+			action(),
+			action({ id: "test", label: "Tests", command: "bun test", isDefault: false }),
+		];
+		const first = harness({ config: config({ runScripts: actions }) });
+
+		await first.service.start(ws, "dev");
+		await first.service.start(ws, "test");
+
+		const second = harness({ config: config({ runScripts: actions }) });
+
+		expect(second.service.store.getState().history[ws]).toEqual(["test", "dev"]);
+		expect(JSON.parse(globalThis.localStorage.getItem(runHistoryStorageKey(ws)) ?? "[]")).toEqual([
+			"test",
+			"dev",
+		]);
+	});
+
+	it("keeps at most 20 run ids in a saved history", async () => {
+		const stored = Array.from({ length: RUN_HISTORY_LIMIT }, (_, index) => `old-${index}`);
+		globalThis.localStorage.setItem(runHistoryStorageKey(ws), JSON.stringify(stored));
+
+		const { service } = harness();
+
+		await service.start(ws, "dev");
+
+		const history = service.store.getState().history[ws] ?? [];
+		expect(history).toHaveLength(RUN_HISTORY_LIMIT);
+		expect(history[0]).toBe("dev");
+	});
+
+	it("clears a workspace's run state, history and last run id", async () => {
+		const { service } = harness();
+
+		await service.start(ws, "dev");
+		service.clearRuns(ws);
+
+		expect(service.store.getState().history[ws]).toBeUndefined();
+		expect(service.store.getState().phases[ws]).toBeUndefined();
+		expect(service.store.getState().byWorkspace[ws]).toBeUndefined();
+		expect(service.lastRunId(ws)).toBeNull();
+		expect(globalThis.localStorage.getItem(runHistoryStorageKey(ws))).toBeNull();
+	});
+
+	it("never writes run output to disk", async () => {
+		const { service, writeTextAtomic } = harness();
+
+		await service.start(ws, "dev");
+
+		expect(writeTextAtomic).not.toHaveBeenCalled();
 	});
 });
 

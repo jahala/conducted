@@ -1,10 +1,11 @@
 /**
  * @feature GIT-05 Commit and push from the git panel
  * Owns: the Commit and push button and Cmd+Shift+Y both reach `git.commitAndPush` for the panel's
- * workspace.
+ * workspace, and Cmd+Shift+Y does nothing when the header offers no commit and push action.
  * Behaviour: services-map.md 3.5 (the app asks the agent to commit and push) and ui-map.md 5.4
  * (Cmd+Shift+Y).
- * Test first: Cmd+Shift+Y maps to `git.commitAndPush` and calls the panel's handler.
+ * Test first: Cmd+Shift+Y maps to `git.commitAndPush` and calls the panel's handler when the
+ * header offers it; a clean header leaves the git service untouched.
  */
 import { ok, type WorkspaceId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -19,12 +20,19 @@ import { createShellContainer } from "../../app/shell-test-support.ts";
 import type { Loadable } from "../../core/api.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import type { GitState } from "../../core/model.ts";
+import type { GitHeader } from "../../core/status/git-header.ts";
 import "../../test/dom-polyfills.ts";
 
 const workspaceId = "w1" as WorkspaceId;
 
 const state = vi.hoisted(() => ({
 	git: { state: "loading" } as Loadable<GitState>,
+	header: {
+		kind: "changes",
+		title: "Changes",
+		tone: "attention",
+		action: { id: "commit_and_push", label: "Commit and push", waitingNote: null },
+	} as GitHeader,
 }));
 
 // GIT-04 owns the git state hook and the header model, so this test supplies both and runs
@@ -35,12 +43,7 @@ vi.mock("../../core/hooks.ts", async (importOriginal) => {
 });
 
 vi.mock("../../core/status/git-header.ts", () => ({
-	computeGitHeader: () => ({
-		kind: "changes",
-		title: "Changes",
-		tone: "attention",
-		action: { id: "commit_and_push", label: "Commit and push", waitingNote: null },
-	}),
+	computeGitHeader: () => state.header,
 }));
 
 vi.mock("./changes/ChangesTab.tsx", () => ({ ChangesTab: () => <div>changes body</div> }));
@@ -69,6 +72,12 @@ let container: ReturnType<typeof createShellContainer>["container"];
 beforeEach(() => {
 	clearCommandHandlers();
 	state.git = { state: "ready", data: gitState() };
+	state.header = {
+		kind: "changes",
+		title: "Changes",
+		tone: "attention",
+		action: { id: "commit_and_push", label: "Commit and push", waitingNote: null },
+	};
 	container = createShellContainer().container;
 	vi.spyOn(container.services.git, "commitAndPush").mockResolvedValue(ok(undefined));
 });
@@ -114,5 +123,13 @@ describe("GIT-05 git panel commit and push", () => {
 		await waitFor(() =>
 			expect(container.services.git.commitAndPush).toHaveBeenCalledWith(workspaceId),
 		);
+	});
+
+	it("does not ask the agent to commit and push when the header has no such action", () => {
+		state.header = { kind: "clean", title: "No changes", tone: "neutral", action: null };
+		renderPanel();
+
+		expect(runCommandHandlers("git.commitAndPush")).toBe(true);
+		expect(container.services.git.commitAndPush).not.toHaveBeenCalled();
 	});
 });
