@@ -112,6 +112,8 @@ export function createLookups(sources: LookupSources): Lookups {
 				branch: ws.value.branch,
 				remote: remoteOf(ws.value.targetBranch),
 				prNumber: ws.value.prNumber,
+				targetBranch: ws.value.targetBranch,
+				customPrompt: sources.repos().getState().configs[ws.value.repoId]?.prompts.createPr ?? null,
 			});
 		},
 		sidecarContext(id, userPreferences) {
