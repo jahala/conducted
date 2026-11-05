@@ -12,20 +12,192 @@
  *   Archive script                archiveScript                multi-line code field
  *   Run mode                      runMode                      select: runs may overlap across
  *                                                              workspaces, or only one workspace runs
- *   Start the default action      (proposed field              toggle
- *   after setup                   autoRunAfterSetup)
- * Our design choice: edits are saved to the personal settings file. Values that come from the
- * shared, committed file show as read-only with "Edit the file in your repository".
- * Must handle: loading and error, a value set in the shared file (read-only with its source), an
- * unsaved edit when navigating away (save on blur, no data loss), a save that fails (text kept),
- * and a script containing `$VARIABLE` names (the list of variables the app provides is shown as
- * help).
+ *   Start the default action      autoRunAfterSetup            switch
+ *                                                              after setup
+ * Our design choice: edits are saved to the personal settings file on blur, and the app never
+ * writes the shared file. Values are shown as a summary of what runs around a workspace.
+ * Must handle: loading and error, an unsaved edit kept until the field loses focus, a save that
+ * fails (text kept and the failure shown), and a script containing `$VARIABLE` names (the list of
+ * variables the app provides is shown as help).
  * Test first: editing the setup script and blurring calls updateConfig with the new setupScript and
  * every other field unchanged.
  */
 import type { RepoId } from "@conducted/shared";
-import { notImplemented } from "@conducted/shared";
+import { useEffect, useState } from "react";
+import { useActions, useRepoConfig } from "../../../core/hooks.ts";
+import type { RepoConfig } from "../../../core/model.ts";
+import { Button } from "../../../ui/Button.tsx";
+import { LoadableView } from "../../../ui/LoadableView.tsx";
+import { Label, Textarea } from "../../../ui/Input.tsx";
+import { Select } from "../../../ui/Select.tsx";
+import { Skeleton } from "../../../ui/Skeleton.tsx";
+import { Switch } from "../../../ui/Switch.tsx";
+import { toastError } from "../../../ui/Toast.tsx";
 
-export function RepoScriptsPage(_props: { repoId: RepoId }): never {
-	return notImplemented("SET-07");
+/** Variables the app adds to every setup, archive and run script (D027). */
+export const SCRIPT_VARIABLES: readonly string[] = [
+	"CONDUCTED_WORKSPACE_NAME",
+	"CONDUCTED_WORKSPACE_PATH",
+	"CONDUCTED_WORKSPACE_ID",
+	"CONDUCTED_ROOT_PATH",
+	"CONDUCTED_DEFAULT_BRANCH",
+	"CONDUCTED_PORT",
+];
+
+const RUN_MODES = [
+	{ value: "concurrent" as const, label: "Run together" },
+	{ value: "exclusive" as const, label: "One at a time" },
+];
+
+export function RepoScriptsPage({ repoId }: { repoId: RepoId }) {
+	const value = useRepoConfig(repoId);
+	const actions = useActions();
+	const [setupScript, setSetupScript] = useState("");
+	const [archiveScript, setArchiveScript] = useState("");
+	const [saveError, setSaveError] = useState<string | null>(null);
+	const ready = value.state === "ready" ? value.data : null;
+
+	useEffect(() => {
+		if (ready === null) return;
+		setSetupScript(ready.setupScript ?? "");
+		setArchiveScript(ready.archiveScript ?? "");
+	}, [ready]);
+
+	const save = async (config: RepoConfig) => {
+		const saved = await actions.projects.updateConfig(repoId, config);
+		if (!saved.ok) {
+			setSaveError(saved.error.message);
+			toastError("Couldn't save the scripts", saved.error);
+			return;
+		}
+		setSaveError(null);
+	};
+
+	const saveText = (field: "setupScript" | "archiveScript", text: string) => {
+		if (value.state !== "ready") return;
+		const next = text.trim() === "" ? null : text;
+		if (value.data[field] === next) return;
+		void save({ ...value.data, [field]: next });
+	};
+
+	const setRunMode = (runMode: RepoConfig["runMode"]) => {
+		if (value.state !== "ready" || value.data.runMode === runMode) return;
+		void save({ ...value.data, runMode });
+	};
+
+	const setAutoRun = (autoRunAfterSetup: boolean) => {
+		if (value.state !== "ready" || value.data.autoRunAfterSetup === autoRunAfterSetup) return;
+		void save({ ...value.data, autoRunAfterSetup });
+	};
+
+	const retry = () => {
+		if (value.state !== "ready") return;
+		void save({
+			...value.data,
+			setupScript: setupScript.trim() === "" ? null : setupScript,
+			archiveScript: archiveScript.trim() === "" ? null : archiveScript,
+		});
+	};
+
+	return (
+		<div className="flex flex-col gap-6">
+			<div className="flex flex-col gap-1">
+				<h1 className="text-2xl font-medium text-fg">Scripts</h1>
+				<p className="text-sm text-fg-muted">
+					Repository scripts run around a workspace's life: setup when it is created, archive
+					before it is archived.
+				</p>
+			</div>
+
+			<LoadableView
+				value={value}
+				loadingLabel="Loading scripts"
+				errorTitle="Couldn't load the scripts"
+				loading={
+					<div className="flex flex-col gap-4">
+						<Skeleton className="h-28 w-full" />
+						<Skeleton className="h-28 w-full" />
+					</div>
+				}
+			>
+				{(config) => (
+					<div className="flex flex-col gap-6">
+						<div className="flex flex-col gap-1.5 border-t border-border pt-4">
+							<Label htmlFor="repo-setup-script">Setup script</Label>
+							<p className="text-sm text-fg-muted">Runs when a new workspace is created.</p>
+							<Textarea
+								id="repo-setup-script"
+								value={setupScript}
+								className="font-mono"
+								placeholder="pnpm install"
+								onChange={(event) => setSetupScript(event.target.value)}
+								onBlur={() => saveText("setupScript", setupScript)}
+							/>
+						</div>
+
+						<div className="flex flex-col gap-1.5 border-t border-border pt-4">
+							<Label htmlFor="repo-archive-script">Archive script</Label>
+							<p className="text-sm text-fg-muted">Runs before a workspace is archived.</p>
+							<Textarea
+								id="repo-archive-script"
+								value={archiveScript}
+								className="font-mono"
+								placeholder="pnpm clean"
+								onChange={(event) => setArchiveScript(event.target.value)}
+								onBlur={() => saveText("archiveScript", archiveScript)}
+							/>
+						</div>
+
+						<div className="flex items-center justify-between gap-4 border-t border-border pt-4">
+							<div>
+								<p className="text-sm font-medium text-fg">Run mode</p>
+								<p className="text-sm text-fg-muted">
+									Whether several run actions can work at the same time or each one stops the
+									others.
+								</p>
+							</div>
+							<Select
+								aria-label="Run mode"
+								value={config.runMode}
+								options={RUN_MODES}
+								onValueChange={setRunMode}
+							/>
+						</div>
+
+						<div className="flex items-center justify-between gap-4 border-t border-border pt-4">
+							<div>
+								<p className="text-sm font-medium text-fg">
+									Start the default action after setup
+								</p>
+								<p className="text-sm text-fg-muted">
+									Start the repository's default action once the setup script has finished.
+								</p>
+							</div>
+							<Switch
+								checked={config.autoRunAfterSetup}
+								aria-label="Start the default action after setup"
+								onCheckedChange={setAutoRun}
+							/>
+						</div>
+
+						<div className="rounded-md bg-muted p-3 text-xs text-fg-muted">
+							<p className="font-medium text-fg">Variables in scripts</p>
+							<p className="mt-1 font-mono">{SCRIPT_VARIABLES.map((name) => `$${name}`).join("  ")}</p>
+						</div>
+
+						{saveError !== null ? (
+							<div className="flex items-center justify-between gap-3">
+								<p role="alert" className="text-sm text-danger">
+									{saveError}
+								</p>
+								<Button variant="secondary" onClick={retry}>
+									Try again
+								</Button>
+							</div>
+						) : null}
+					</div>
+				)}
+			</LoadableView>
+		</div>
+	);
 }

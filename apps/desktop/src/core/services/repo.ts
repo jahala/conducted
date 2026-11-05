@@ -24,6 +24,8 @@
  * Gaps against services-map.md 4.2: the remote default-branch copy of `settings.toml` and the
  * workspace-level shared file are not read. Keeping `settings.local.toml` out of git is DATA-05's;
  * linking it into every worktree is WS-01's.
+ * Also owns the per-user hidden run action ids (SET-07, services-map.md 5A.1.6): they live in
+ * local storage, never in a settings file.
  * Test first: the repo's scripts, prompts, globs and run mode are read from
  * `.conducted/settings.toml`.
  */
@@ -87,6 +89,76 @@ export function normaliseRootPath(path: string): string {
 /** Trims a remote URL and removes a trailing slash so the saved value is stable. */
 export function normaliseRemoteUrl(url: string): string {
 	return url.trim().replace(/\/+$/, "");
+}
+
+/** The local storage key that holds the shared run actions this user hid for one repository. */
+export const hiddenRunActionsStorageKey = (repoId: RepoId): string =>
+	`conducted.hidden-run-actions:${repoId}`;
+
+/** Local storage is the home for per-user hidden actions, not any settings file. */
+function hiddenRunActionsStorage(): Result<Storage> {
+	if (typeof globalThis.localStorage === "undefined") {
+		return err(
+			appError("local_storage_unavailable", "Hidden actions can't be read in this environment."),
+		);
+	}
+	try {
+		return ok(globalThis.localStorage);
+	} catch (cause) {
+		return err(
+			appError(
+				"local_storage_unavailable",
+				"Hidden actions can't be read in this environment.",
+				cause,
+			),
+		);
+	}
+}
+
+/** Reads the ids of the shared run actions this user hid for one repository. */
+export function readHiddenRunActions(repoId: RepoId): Result<readonly string[]> {
+	const store = hiddenRunActionsStorage();
+	if (!store.ok) return store;
+	let raw: string | null;
+	try {
+		raw = store.value.getItem(hiddenRunActionsStorageKey(repoId));
+	} catch (cause) {
+		return err(
+			appError("local_storage_unavailable", "Hidden actions can't be read on this Mac.", cause),
+		);
+	}
+	if (raw === null) return ok([]);
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(raw);
+	} catch (cause) {
+		return err(
+			appError("hidden_actions_invalid", "The saved hidden actions are not readable.", cause),
+		);
+	}
+	if (!Array.isArray(parsed) || !parsed.every((entry) => typeof entry === "string")) {
+		return err(
+			appError("hidden_actions_invalid", "The saved hidden actions are not readable."),
+		);
+	}
+	return ok(parsed);
+}
+
+/** Saves the ids of the shared run actions this user hid for one repository. */
+export function writeHiddenRunActions(
+	repoId: RepoId,
+	actionIds: readonly string[],
+): Result<void> {
+	const store = hiddenRunActionsStorage();
+	if (!store.ok) return store;
+	try {
+		store.value.setItem(hiddenRunActionsStorageKey(repoId), JSON.stringify(actionIds));
+	} catch (cause) {
+		return err(
+			appError("local_storage_unavailable", "Hidden actions can't be saved on this Mac.", cause),
+		);
+	}
+	return ok(undefined);
 }
 
 /** The folder's own name, used as the project name. */
@@ -702,14 +774,40 @@ export class RepoService {
 		return notImplemented("PRJ-03");
 	}
 
-	/** Backs `Actions.projects.resetRunAction`. */
-	resetRunAction(_repoId: RepoId, _actionId: string): Promise<Result<void>> {
-		return notImplemented("SET-07");
+	/**
+	 * Backs `Actions.projects.resetRunAction`: drops this Mac's change to a shared action by
+	 * rewriting the local file without that action, then forgets that it was hidden.
+	 */
+	async resetRunAction(repoId: RepoId, actionId: string): Promise<Result<void>> {
+		const loaded = await this.loadConfig(repoId);
+		if (!loaded.ok) return loaded;
+		const remaining = loaded.value.runScripts.filter(
+			(action) => !actionIdsEqual(action.id, actionId),
+		);
+		const saved = await this.updateConfig(repoId, {
+			...loaded.value,
+			runScripts: remaining,
+		});
+		if (!saved.ok) return saved;
+		return this.setRunActionHidden(repoId, actionId, false);
 	}
 
-	/** Backs `Actions.projects.setRunActionHidden`. Writes the local settings layer only. */
-	setRunActionHidden(_repoId: RepoId, _actionId: string, _hidden: boolean): Promise<Result<void>> {
-		return notImplemented("SET-07");
+	/** Backs `Actions.projects.setRunActionHidden`. Stores hidden ids in local storage only. */
+	async setRunActionHidden(
+		repoId: RepoId,
+		actionId: string,
+		hidden: boolean,
+	): Promise<Result<void>> {
+		const found = await this.#deps.repos.repos.get(repoId);
+		if (!found.ok) return found;
+		if (found.value === null) {
+			return err(appError("repo_unknown", "That project no longer exists."));
+		}
+		const current = readHiddenRunActions(repoId);
+		if (!current.ok) return current;
+		const next = current.value.filter((id) => !actionIdsEqual(id, actionId));
+		if (hidden) next.push(actionId);
+		return writeHiddenRunActions(repoId, next);
 	}
 
 	/** Stops the window focus listener. The composition root calls it on stop, and tests after use. */
