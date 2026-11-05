@@ -295,7 +295,14 @@ export function createTauriShell(bindings: TauriBindings): Shell {
 				},
 			};
 		},
-		loginEnv: () => notImplemented("PLAT-04"),
+		loginEnv: async () => {
+			const result = await invokeResult<{ shell: string; path: string }>(
+				bindings,
+				COMMANDS.shellLoginEnv,
+			);
+			if (!result.ok) throw result.error;
+			return result.value;
+		},
 	};
 }
 
