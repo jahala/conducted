@@ -5,8 +5,9 @@
  * Behaviour: ui-map.md 3.6, "Checks" paragraph ("with logs"); services-map.md 3.7.5.
  * Our design choice: render with a small ANSI-to-spans pure function, not xterm, because the log
  * is static text.
- * Must handle: empty log, a log of one very long line, loading, error, expired ("No logs were
- * recorded, or they have expired"), and a copy button.
+ * Must handle: empty log, a log of one very long line, loading, error (the error's message shows
+ * below the heading unless it repeats the heading), expired ("No logs were recorded, or they have
+ * expired"), and a copy button.
  * Test first: a log with the escape for red text renders that text in a span with the red class.
  */
 import { useEffect, useRef } from "react";
@@ -134,12 +135,15 @@ export function CheckLogView({ log, onRetry, onCopy }: CheckLogViewProps) {
 		);
 	}
 	if (log.state === "error") {
+		const title = errorText(log.error);
+		// The service's message is often the heading itself, and the same sentence twice reads as noise.
+		const body = log.error.message === title ? undefined : log.error.message;
 		return (
 			<EmptyState
 				compact
 				tone="failed"
-				title={errorText(log.error)}
-				body={log.error.message}
+				title={title}
+				body={body}
 				action={
 					<button
 						type="button"
