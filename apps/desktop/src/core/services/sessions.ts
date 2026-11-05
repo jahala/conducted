@@ -1,25 +1,36 @@
 /**
- * @feature CHAT-01 Sessions service: the chat list; CHAT-02 Send a message as a new turn
+ * @feature CHAT-01 Sessions service: the chat list; CHAT-02 Send a message as a new turn; CHAT-05
+ * Cancel a turn
  * Owns: the list of chats per workspace, their stored live state and events in memory, the
- * create, close, reopen, rename, set-title-if-empty, delete and open paths, and sending a user
- * message as a new turn or a steer.
- * Behaviour: services-map.md 2.3.3 (session operations), 2.2 (the sessions table), ui-map.md 3.2,
- * sessions-and-chats.md "What happens when you send a message".
+ * create, close, reopen, rename, set-title-if-empty, delete and open paths, sending a user
+ * message as a new turn or a steer, and cancelling a turn: pausing the follow-up queue, closing
+ * the open interaction, clearing the pending send and taking back the messages the sidecar
+ * dropped.
+ * Behaviour: services-map.md 2.3.3 (session operations), 2.2 (the sessions table), 2.3.4
+ * (composer outbox: restore to draft), ui-map.md 3.2, sessions-and-chats.md "What happens when
+ * you send a message" and "While the agent is working" (cancel), sessions.md 6.
  * Must handle: a closed chat stays in history and leaves the open list; a reopened chat returns to
  * the open list; an empty title is refused; stored events load once, in `idx` order; a message is
  * held in memory as pending before the sidecar is asked; a send that fails keeps its text for
  * Retry and Discard; a chat config is written only while the stored config is still the one the
- * caller saw, so a late answer cannot overwrite a newer choice.
+ * caller saw, so a late answer cannot overwrite a newer choice; a cancel clears the pending send,
+ * closes the open interaction and takes back the messages the sidecar dropped; a sidecar that
+ * refuses the cancel changes nothing; cancelAll reaches every working chat of a workspace and no
+ * idle one.
  * Our design choice: a chat starts with no title; the title generator fills it only once
  * (`setTitleIfEmpty`), so a name the user typed is never overwritten.
  * Our design choice: the pending send lives in memory until the sidecar stores its `user_message`
  * event; it is not a database row yet.
- * Test first: a send holds the pending message in memory before it reaches the sidecar, and a late
- * config write leaves the newer stored choice in place.
+ * Our design choice: cancelling pauses the app queue instead of dropping typed follow-ups (the
+ * queue service keeps them), while the messages the sidecar had not delivered come back into the
+ * composer draft with their attachments.
+ * Test first: a send holds the pending message in memory before it reaches the sidecar, a late
+ * config write leaves the newer stored choice in place, and a cancel pauses the queue and returns
+ * the dropped message to the draft.
  *
- * The cancel, interaction, progress and unread paths live in the same service but belong to
- * CHAT-05, CHAT-10, CHAT-13, CHAT-18 and NAV-11. They are placeholders until those features build
- * them. The chat view (turns built from stored events) belongs to CHAT-07.
+ * The interaction, progress and unread paths live in the same service but belong to CHAT-10,
+ * CHAT-13, CHAT-18 and NAV-11. They are placeholders until those features build them. The chat
+ * view (turns built from stored events) belongs to CHAT-07.
  */
 import {
 	type AgentLaunch,
@@ -671,9 +682,80 @@ export class SessionsService implements AgentMessenger {
 		return sent.ok ? ok(session.id) : sent;
 	}
 
-	/** Backs `Actions.sessions.cancel`. */
-	cancel(_id: SessionId): Promise<Result<void>> {
-		return notImplemented("CHAT-05");
+	/**
+	 * Backs `Actions.sessions.cancel`. Stops the turn through the sidecar, which takes the end
+	 * checkpoint, drops its queued messages and withdraws interactions. Here the app pauses its
+	 * own follow-up queue, closes the interaction it shows, clears the pending send, and puts the
+	 * messages the sidecar dropped back in the composer draft with their attachments.
+	 */
+	async cancel(id: SessionId): Promise<Result<void>> {
+		const found = await this.#session(id);
+		if (!found.ok) return found;
+
+		this.#setCancelling(id, true);
+		const cancelled = await this.#deps.sidecar.request("cancel", { sessionId: id });
+		if (!cancelled.ok) {
+			this.#setCancelling(id, false);
+			return cancelled;
+		}
+
+		this.#closeInteraction(id);
+		const dropped = new Set(cancelled.value.droppedMessageIds);
+		const pending = this.store.getState().sending[id] ?? [];
+		const toRestore = pending.filter((entry) => dropped.has(entry.messageId));
+		const paused = await this.#deps.queue.pauseOnCancel(id);
+		const restored = await this.#restoreDroppedToDraft(id, toRestore);
+		this.#clearSending(id);
+		this.#setCancelling(id, false);
+		return paused.ok ? restored : paused;
+	}
+
+	#setCancelling(sessionId: SessionId, cancelling: boolean): void {
+		this.store.setState((state) => ({
+			cancelling: { ...state.cancelling, [sessionId]: cancelling },
+		}));
+	}
+
+	#closeInteraction(sessionId: SessionId): void {
+		this.store.setState((state) => {
+			if (state.openInteractions[sessionId] === undefined) return {};
+			const openInteractions = { ...state.openInteractions };
+			delete openInteractions[sessionId];
+			return { openInteractions };
+		});
+	}
+
+	#clearSending(sessionId: SessionId): void {
+		this.store.setState((state) => {
+			if ((state.sending[sessionId] ?? []).length === 0) return {};
+			return { sending: { ...state.sending, [sessionId]: [] } };
+		});
+	}
+
+	/** Puts the messages the sidecar dropped before delivering them back in the composer draft. */
+	async #restoreDroppedToDraft(
+		sessionId: SessionId,
+		dropped: readonly PendingSend[],
+	): Promise<Result<void>> {
+		if (dropped.length === 0) return ok(undefined);
+		const loaded = await this.#deps.composer.loadDraft(sessionId);
+		if (!loaded.ok) return loaded;
+
+		const segments = dropped.map((entry) => entry.text).filter((text) => text.trim().length > 0);
+		const existing = loaded.value.text;
+		if (existing.trim().length > 0 && !segments.includes(existing)) segments.push(existing);
+
+		const attachmentPaths = [
+			...new Set([
+				...loaded.value.attachmentPaths,
+				...dropped.flatMap((entry) => entry.attachmentPaths),
+			]),
+		];
+		this.#deps.composer.saveDraft(sessionId, {
+			text: segments.join("\n\n"),
+			attachmentPaths,
+		});
+		return ok(undefined);
 	}
 
 	/** Backs `Actions.sessions.answer`. A superseded answer is not an error. */
@@ -812,12 +894,28 @@ export class SessionsService implements AgentMessenger {
 	}
 
 	/** Cancels every working chat of a workspace. Used before archive and delete. */
-	cancelAll(_workspaceId: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("CHAT-05");
+	async cancelAll(workspaceId: WorkspaceId): Promise<Result<void>> {
+		const ids = [...(this.store.getState().byWorkspace[workspaceId] ?? [])];
+		let failure: AppError | undefined;
+		for (const id of ids) {
+			if (!this.#chatIsWorking(id)) continue;
+			const cancelled = await this.cancel(id);
+			if (!cancelled.ok && failure === undefined) failure = cancelled.error;
+		}
+		return failure === undefined ? ok(undefined) : err(failure);
 	}
 
-	hasWorkingChats(_workspaceId: WorkspaceId): boolean {
-		return notImplemented("CHAT-05");
+	hasWorkingChats(workspaceId: WorkspaceId): boolean {
+		const ids = this.store.getState().byWorkspace[workspaceId] ?? [];
+		return ids.some((id) => this.#chatIsWorking(id));
+	}
+
+	/** A chat counts as working until its cancel has been answered and the chat is idle again. */
+	#chatIsWorking(sessionId: SessionId): boolean {
+		const state = this.store.getState();
+		return (
+			state.cancelling[sessionId] === true || state.liveStates[sessionId]?.status === "working"
+		);
 	}
 
 	/** Backs `Actions.workspaces.markRead`. */

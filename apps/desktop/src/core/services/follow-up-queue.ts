@@ -11,14 +11,23 @@
  * stays in place (the user retries or deletes it); an agent that cannot steer (ACP agents) gets
  * the message as a normal follow-up; a queued row is removed once its `user_message` event is
  * stored; the queue is only released when the chat is idle with no background tasks and no open
- * interaction; cancel drops nothing the user typed (cancel pauses the queue instead); edits to a
- * row that is already `sending` are refused; positions stay dense after a delete or reorder.
+ * interaction; cancel drops nothing the user typed (cancel pauses the queue instead) and moves a
+ * row that was already `sending` to the end as waiting again (CHAT-05); edits to a row that is
+ * already `sending` are refused; positions stay dense after a delete or reorder.
  * Our design choice: cancelling pauses the queue instead of deleting it, so typed follow-ups are
  * never lost. The user resumes with one click.
  * Test first: nextToSend returns the steer row before an earlier queue row.
  */
 import type { LiveState, SessionConfig } from "@conducted/protocol";
-import { type MessageId, notImplemented, type Result, type SessionId } from "@conducted/shared";
+import {
+	type AppError,
+	err,
+	type MessageId,
+	notImplemented,
+	ok,
+	type Result,
+	type SessionId,
+} from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Repositories } from "../db/repositories.ts";
 import type { QueuedMessage } from "../model.ts";
@@ -127,8 +136,50 @@ export class FollowUpQueue {
 		return notImplemented("CHAT-04");
 	}
 
-	/** Called by cancel: pauses the queue and keeps the rows. */
-	pauseOnCancel(_sessionId: SessionId): Promise<Result<void>> {
-		return notImplemented("CHAT-05");
+	/**
+	 * Called by cancel (CHAT-05): pauses the queue and keeps every waiting row. A row already
+	 * `sending` was handed to the sidecar but not delivered, so it goes back to waiting at the end
+	 * of the queue (services-map.md 2.3.3). The pause flag is the queue store's; persistence
+	 * belongs to `setPaused` (CHAT-04).
+	 */
+	async pauseOnCancel(sessionId: SessionId): Promise<Result<void>> {
+		this.store.setState((state) => ({
+			pausedSessionIds: { ...state.pausedSessionIds, [sessionId]: true },
+		}));
+
+		const listed = await this.#deps.repos.queuedMessages.listBySession(sessionId);
+		if (!listed.ok) return listed;
+		const sending = listed.value.filter((row) => row.state === "sending");
+		let failure: AppError | undefined;
+		const moved: MessageId[] = [];
+		for (const row of sending) {
+			const waiting = await this.#deps.repos.queuedMessages.setState(
+				row.id,
+				"sending",
+				"waiting",
+				null,
+			);
+			if (!waiting.ok) {
+				failure = waiting.error;
+				continue;
+			}
+			if (waiting.value) moved.push(row.id);
+		}
+
+		if (failure === undefined && moved.length === sending.length && moved.length > 0) {
+			const stayed = listed.value.filter((row) => row.state === "waiting").map((row) => row.id);
+			const reordered = await this.#deps.repos.queuedMessages.reorder(sessionId, [
+				...stayed,
+				...moved,
+			]);
+			if (!reordered.ok) failure = reordered.error;
+		}
+
+		const refreshed = await this.#deps.repos.queuedMessages.listBySession(sessionId);
+		if (!refreshed.ok) return failure === undefined ? refreshed : err(failure);
+		this.store.setState((state) => ({
+			bySession: { ...state.bySession, [sessionId]: refreshed.value },
+		}));
+		return failure === undefined ? ok(undefined) : err(failure);
 	}
 }
