@@ -8,7 +8,10 @@
  * dropped), a disabled option, a long list scrolling inside the popup, a visible focus ring on the trigger.
  * Test first: choosing an option from the keyboard calls onValueChange with its value.
  */
-import { notImplemented } from "@conducted/shared";
+import { Select as Radix } from "radix-ui";
+import { cn } from "./cn.ts";
+import { CheckIcon, ChevronDownIcon } from "./icons.tsx";
+import { menuContentClass } from "./Menu.tsx";
 
 export interface SelectOption<T extends string> {
 	value: T;
@@ -27,6 +30,74 @@ export interface SelectProps<T extends string> {
 	size?: "sm" | "md";
 }
 
-export function Select<T extends string>(_props: SelectProps<T>): never {
-	return notImplemented("APP-12");
+export function Select<T extends string>({
+	value,
+	options,
+	onValueChange,
+	"aria-label": ariaLabel,
+	id,
+	disabled = false,
+	size = "md",
+}: SelectProps<T>) {
+	const selected = options.find((option) => option.value === value);
+
+	return (
+		<Radix.Root
+			value={value}
+			disabled={disabled}
+			onValueChange={(next) => onValueChange(next as T)}
+		>
+			<Radix.Trigger
+				id={id}
+				aria-label={ariaLabel}
+				className={cn(
+					"inline-flex items-center justify-between gap-1 rounded-md border border-border-strong bg-transparent text-fg transition-colors",
+					"hover:bg-hover focus:border-accent disabled:cursor-not-allowed disabled:opacity-50",
+					size === "sm" ? "h-7 pl-2.5 pr-2 text-xs" : "h-8 pl-3 pr-2.5 text-sm",
+				)}
+			>
+				<Radix.Value>{selected?.label ?? value}</Radix.Value>
+				<Radix.Icon asChild>
+					<ChevronDownIcon className="size-3 shrink-0 text-fg-muted" />
+				</Radix.Icon>
+			</Radix.Trigger>
+			<Radix.Portal>
+				<Radix.Content
+					position="popper"
+					sideOffset={4}
+					className={cn(
+						menuContentClass,
+						"max-h-[var(--radix-select-content-available-height)] overflow-hidden",
+					)}
+				>
+					<Radix.ScrollUpButton className="flex h-6 items-center justify-center text-fg-muted">
+						<ChevronDownIcon className="size-3 rotate-180" />
+					</Radix.ScrollUpButton>
+					<Radix.Viewport className="overflow-y-auto">
+						{options.map((option) => (
+							<Radix.Item
+								key={option.value}
+								value={option.value}
+								disabled={option.disabled}
+								className={cn(
+									"relative flex w-full items-center rounded-md py-1.5 pl-2 pr-8 text-sm outline-none",
+									"data-[highlighted]:bg-hover data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+								)}
+							>
+								<Radix.ItemText>{option.label}</Radix.ItemText>
+								<span className="absolute right-2 flex size-4 items-center justify-center">
+									<Radix.ItemIndicator>
+										<CheckIcon className="size-4" />
+									</Radix.ItemIndicator>
+								</span>
+							</Radix.Item>
+						))}
+					</Radix.Viewport>
+					<Radix.ScrollDownButton className="flex h-6 items-center justify-center text-fg-muted">
+						<ChevronDownIcon className="size-3" />
+					</Radix.ScrollDownButton>
+				</Radix.Content>
+			</Radix.Portal>
+		</Radix.Root>
+	);
 }
