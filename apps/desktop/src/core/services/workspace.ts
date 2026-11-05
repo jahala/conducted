@@ -16,8 +16,8 @@
  * ignored); creations run one at a time; a repo config or default-config read that fails is shown
  * as a warning, never hidden.
  * Not built yet (placeholders): archive, unarchive, delete to the Trash, the branch auto rename,
- * `markRead`, pinning and the base from a pull request or issue. `classifyUnarchive` is their
- * decision rule and has no caller until WS-06.
+ * `markRead` and the base from a pull request or issue. `classifyUnarchive` is their decision
+ * rule and has no caller until WS-06.
  * Our design choice: creation is split in two so the sidebar shows the workspace at once
  * (`initializing`) and the slow git work happens after the row exists. Place names come from our
  * own tiered source in this file (`createPlaceNames`, D002), which the composition root should
@@ -1066,8 +1066,17 @@ export class WorkspaceService {
 		return ok(undefined);
 	}
 
-	setPinned(_id: WorkspaceId, _pinned: boolean): Promise<Result<void>> {
-		return notImplemented("NAV-04");
+	/** Pins a workspace at the top of the list, or unpins it. Backs `Actions.workspaces.setPinned`. */
+	async setPinned(id: WorkspaceId, pinned: boolean): Promise<Result<void>> {
+		const found = await this.#deps.repos.workspaces.get(id);
+		if (!found.ok) return found;
+		if (found.value === null)
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		const pinnedAt = pinned ? this.#deps.now() : null;
+		const written = await this.#deps.repos.workspaces.setPinned(id, pinnedAt);
+		if (!written.ok) return written;
+		this.#upsert({ ...found.value, pinnedAt, updatedAt: this.#deps.now() });
+		return ok(undefined);
 	}
 
 	setKanbanStatus(_id: WorkspaceId, _status: KanbanStatus): Promise<Result<void>> {
