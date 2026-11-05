@@ -84,7 +84,7 @@ How the Rust shell (`sidecar.rs`, PLAT-09) starts the sidecar, and what the side
 
 Command: `conducted-sidecar sidecar`. The separate logger mode goes when SIDE-18 is built (D026).
 
-Environment the Rust shell sets:
+Environment the Rust shell sets. Today the launcher sets the first four, the ones the sidecar reads; each later row is set when the feature that reads it is built, and a contract test compares the launcher's list with what `packages/sidecar/src` reads (PLAT-09):
 
 | Variable                                         | Meaning                                                                    |
 | ------------------------------------------------ | -------------------------------------------------------------------------- |

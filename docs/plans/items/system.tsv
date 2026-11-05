@@ -2778,3 +2778,42 @@ PLAT-25	rule	Add bundle.externalBin to apps/desktop/src-tauri/tauri.conf.json an
 WS-11	rule	Remove "unstarted" from the shared WorkspaceStatus union or produce it (moved from WS-09 by the step-3 audit).	docs/reports/audits/step-3	missing
 APP-01	rule	A container test proves settings load first at startup (moved from SET-01 by the step-3 audit).	docs/reports/audits/step-3	missing
 PLAT-02	operation	A Rust command returns the database file's path (moved from PLAT-02's audit; needs db.rs and lib.rs).	docs/reports/audits/step-3	missing
+NAV-07	rule	Add handlers for chat.openModelPicker, chat.toggleFastMode, chat.cycleEffort and chat.selectLoadout1..5, and route the picker's shortcuts through the NAV-14 dispatcher so keybinding_overrides_v1 applies to the keys, not only the hints (moved from COMP-02 by the step-4 audit).	docs/reports/audits/step-4	missing
+SET-02	rule	Link the disabled agent row to Settings > Agents once the settings route helper exists (moved from COMP-02 by the step-4 audit).	docs/reports/audits/step-4	missing
+DATA-01	rule	Add one repository call that takes the target list and applies insert/update/delete/reorder in a single transaction, then use it from FavoriteModelsService.remove/add (moved from COMP-02 by the step-4 audit).	docs/reports/audits/step-4	missing
+SET-02	rule	Move "Default model", "Codex personality and Claude output style", "fast mode, effort and thinking level for default and review", and "Default model setting picks the model new chats start with" (moved from COMP-02 by the step-4 audit).	docs/reports/audits/step-4	missing
+COMP-06	rule	Build the slash command and route it through the same config update as the picker (moved from COMP-02 by the step-4 audit).	docs/reports/audits/step-4	missing
+CHAT-02	rule	The protocol sendMessage config already carries them; the UI send path and its test belong to the chat send feature (moved from COMP-02 by the step-4 audit).	docs/reports/audits/step-4	missing
+REV-01	rule	Switch GitHeader from defaultShortcuts[0] to useLiveShortcut so its button hint follows rebinds (moved from NAV-07 by the step-4 audit).	docs/reports/audits/step-4	missing
+SET-02	rule	Render useShortcutOverrides().error where the user sees their shortcuts (moved from NAV-07 by the step-4 audit).	docs/reports/audits/step-4	missing
+PLAT-18	rule	Set CONDUCTED_APP_VERSION again when the sidecar reads it for logs (moved from PLAT-09 by the step-4 audit).	docs/reports/audits/step-4	missing
+PLAT-28	rule	Set CONDUCTED_AGENT_BINARIES_DIR again when the sidecar reads it (moved from PLAT-09 by the step-4 audit).	docs/reports/audits/step-4	missing
+SIDE-15	rule	Set CONDUCTED_ACP_PROVIDERS_DIR again when the sidecar reads it (moved from PLAT-09 by the step-4 audit).	docs/reports/audits/step-4	missing
+AGENT-09	rule	Set CONDUCTED_CURSOR_STORE_DIR again when the sidecar reads it (moved from PLAT-09 by the step-4 audit).	docs/reports/audits/step-4	missing
+SIDE-01	rule	Config.ts still says the Rust launcher stores stderr in the app log files (D026); the code writes sidecar-<pid>.log (moved from PLAT-09 by the step-4 audit).	docs/reports/audits/step-4	missing
+SIDE-23	rule	Resolve_binary still runs from resources; the packaged copy needs externalBin and the data-folder copy (moved from PLAT-09 by the step-4 audit).	docs/reports/audits/step-4	missing
+GIT-04	rule	UseGitState and computeGitHeader are still notImplemented("GIT-04"), useWorkspace is WS-01, and useBranches is WS-02, so GitPanel and ChangesTab throw in the real app and the real-header test cannot be written (moved from REV-01 by the step-4 audit).	docs/reports/audits/step-4	missing
+REV-02	rule	Actions.git.setViewed and the rule that resets a mark when the file changes again (moved from REV-01 by the step-4 audit).	docs/reports/audits/step-4	missing
+NAV-07	rule	Returning the truncation flag from changedFiles needs Queries.useChangedFiles and ChangedFile[] to change (moved from REV-01 by the step-4 audit).	docs/reports/audits/step-4	missing
+REV-02	rule	Restoring a file from a checkpoint tree (moved from REV-01 by the step-4 audit).	docs/reports/audits/step-4	missing
+GIT-02	rule	Reading the modified time and size of each changed file (moved from REV-01 by the step-4 audit).	docs/reports/audits/step-4	missing
+DATA-01	rule	The shared TanStack key module and the first git and workspace query (moved from REV-01 by the step-4 audit).	docs/reports/audits/step-4	missing
+DATA-01	rule	Invalidating the git and workspace query subtree on turn end, setup end, file revert and git action (moved from REV-01 by the step-4 audit).	docs/reports/audits/step-4	missing
+NAV-07	rule	The command handler for review.showUncommitted, review.openDiff and review.start, and the live shortcut labels (moved from REV-01 by the step-4 audit).	docs/reports/audits/step-4	missing
+SET-03	rule	The AgentCard middle-truncation copy (moved from REV-01 by the step-4 audit).	docs/reports/audits/step-4	missing
+GIT-04	rule	Making rev-01-panel use the real computeGitHeader instead of a mock (moved from REV-01 by the step-4 audit).	docs/reports/audits/step-4	missing
+PLAT-28	rule	The program manager (moved from SET-03 by the step-4 audit).	docs/reports/audits/step-4	missing
+PLAT-28	rule	The program manager (moved from SET-03 by the step-4 audit).	docs/reports/audits/step-4	missing
+PLAT-28	rule	Needs an update action from the program manager (moved from SET-03 by the step-4 audit).	docs/reports/audits/step-4	missing
+SET-09	rule	Provider forms (moved from SET-03 by the step-4 audit).	docs/reports/audits/step-4	missing
+SET-09	rule	Provider key forms (moved from SET-03 by the step-4 audit).	docs/reports/audits/step-4	missing
+SET-09	rule	Bedrock form (moved from SET-03 by the step-4 audit).	docs/reports/audits/step-4	missing
+SET-12	rule	Settings and config editors (moved from SET-03 by the step-4 audit).	docs/reports/audits/step-4	missing
+SET-02	rule	Advanced page fields with path keys (moved from SET-03 by the step-4 audit).	docs/reports/audits/step-4	missing
+CHAT-18	rule	Handler in core/sidecar/handlers.ts (moved from SET-03 by the step-4 audit).	docs/reports/audits/step-4	missing
+COMP-02	rule	The inline key strings in ModelPicker.tsx (moved from SET-03 by the step-4 audit).	docs/reports/audits/step-4	missing
+COMP-02	rule	FavoriteModels.tsx and ModelPicker.tsx keep their own (moved from SET-03 by the step-4 audit).	docs/reports/audits/step-4	missing
+DATA-01	rule	Pass the pull request's repository full name into prompt assembly; sendMessage cannot carry it and WorkspaceContext has no field, so add repositoryFullName to zWorkspaceContext and fill it in lookups.sidecarContext (moved from SIDE-03 by the step-4 audit).	docs/reports/audits/step-4	missing
+COMP-03	rule	The composer chip must call setAutoApproveEdits (or drop the action and the checklist item with a decision entry) and needs the UI to RPC to sidecar end-to-end test (moved from SIDE-03 by the step-4 audit).	docs/reports/audits/step-4	missing
+GIT-04	rule	The git header's key-cap hint reads the live binding of its command from the registry (moved from NAV-07 by the step-4 audit).	docs/reports/audits/step-4	missing
+APP-01	rule	The container's stop() disposes the repo service, which ends its focus listener (moved from PRJ-04 by the step-4 audit).	docs/reports/audits/step-4	missing
