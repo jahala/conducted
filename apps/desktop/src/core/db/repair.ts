@@ -19,19 +19,25 @@ import { idleLiveState, type SessionEvent } from "@conducted/protocol";
 import {
 	type Clock,
 	type EventId,
+	err,
 	type IdSource,
-	notImplemented,
+	ok,
 	type Result,
 	type SessionId,
 	type TurnId,
 	type WorkspaceId,
 } from "@conducted/shared";
 import type { Database, FileSystem } from "../../platform/platform.ts";
-import { SESSION_EVENTS_SQL } from "./session-events.ts";
+import { executeStatement, inTransaction, selectRows } from "./row-codec.ts";
+import { SESSION_EVENTS_SQL, sessionEventToParams } from "./session-events.ts";
 
 export const REPAIR_SQL = {
-	/** Step 1 (`$1` idle live state as JSON, `$2` now): every stored live state becomes idle. */
-	resetLiveStates: "UPDATE session_live_state SET live_state = $1, updated_at = $2",
+	/**
+	 * Step 1 (`$1` idle live state as JSON, `$2` now): every chat still marked working becomes
+	 * idle. A row already idle is left alone, so a second run changes nothing.
+	 */
+	resetLiveStates: `UPDATE session_live_state SET live_state = $1, updated_at = $2
+		WHERE json_extract(live_state, '$.status') <> 'idle'`,
 	/** Step 2a: turns with a user message and no turn_ended, as (session_id, turn_id) rows. */
 	findInterruptedTurns: SESSION_EVENTS_SQL.findInterruptedTurns,
 	/** Step 2b: appends the turn_ended event for each turn found, with the idempotent append. */
@@ -132,6 +138,100 @@ export interface RepairDeps {
  * `interruptedTurnEvent`, a new id from `ids` and the time from `clock`. Step 6 (unread counts)
  * does nothing on purpose.
  */
-export async function runStartupRepair(_deps: RepairDeps): Promise<Result<RepairReport>> {
-	return notImplemented("DATA-03");
+export async function runStartupRepair(deps: RepairDeps): Promise<Result<RepairReport>> {
+	const { db, clock, ids } = deps;
+	return inTransaction(db, "Repairing state left by a crash", async (tx) => {
+		const now = clock.now();
+
+		const liveStatesReset = await executeStatement(
+			tx,
+			REPAIR_SQL.resetLiveStates,
+			[idleLiveStateJson(), now],
+			"Resetting working chats to idle",
+		);
+		if (!liveStatesReset.ok) return err(liveStatesReset.error);
+
+		const turns = await selectRows<InterruptedTurnRow>(
+			tx,
+			REPAIR_SQL.findInterruptedTurns,
+			[],
+			"Finding turns cut off by a crash",
+		);
+		if (!turns.ok) return err(turns.error);
+		const interruptedTurns: RepairReport["interruptedTurns"] = [];
+		for (const turn of turns.value) {
+			const event = interruptedTurnEvent(turn.turn_id, ids.uuid() as EventId, now);
+			const params = sessionEventToParams(turn.session_id, event, now);
+			if (!params.ok) return err(params.error);
+			const appended = await selectRows<{ idx: number }>(
+				tx,
+				REPAIR_SQL.appendInterruptedEvent,
+				params.value,
+				"Closing a turn cut off by a crash",
+			);
+			if (!appended.ok) return err(appended.error);
+			if (appended.value.length > 0) {
+				interruptedTurns.push({ sessionId: turn.session_id, turnId: turn.turn_id });
+			}
+		}
+
+		const queuedDelivered = await executeStatement(
+			tx,
+			REPAIR_SQL.deleteDeliveredQueued,
+			[],
+			"Removing queued messages that were delivered",
+		);
+		if (!queuedDelivered.ok) return err(queuedDelivered.error);
+
+		const queuedRequeued = await executeStatement(
+			tx,
+			REPAIR_SQL.requeueSending,
+			[now],
+			"Returning half-sent messages to the queue",
+		);
+		if (!queuedRequeued.ok) return err(queuedRequeued.error);
+
+		const chatsPaused = await executeStatement(
+			tx,
+			REPAIR_SQL.pauseChatsWithQueue,
+			[now],
+			"Pausing chats that still have queued messages",
+		);
+		if (!chatsPaused.ok) return err(chatsPaused.error);
+
+		const workspacesFailed = await executeStatement(
+			tx,
+			REPAIR_SQL.failInitializingWorkspaces,
+			[now],
+			"Marking half-built workspaces as failed",
+		);
+		if (!workspacesFailed.ok) return err(workspacesFailed.error);
+
+		const archiving = await selectRows<ArchivingWorkspaceRow>(
+			tx,
+			REPAIR_SQL.listArchivingWorkspaces,
+			[],
+			"Listing workspaces left in archiving",
+		);
+		if (!archiving.ok) return err(archiving.error);
+
+		const terminalsEnded = await executeStatement(
+			tx,
+			REPAIR_SQL.endOpenTerminals,
+			[now],
+			"Closing terminals left open",
+		);
+		if (!terminalsEnded.ok) return err(terminalsEnded.error);
+
+		return ok({
+			liveStatesReset: liveStatesReset.value,
+			interruptedTurns,
+			queuedDelivered: queuedDelivered.value,
+			queuedRequeued: queuedRequeued.value,
+			chatsPaused: chatsPaused.value,
+			workspacesFailed: workspacesFailed.value,
+			archivingWorkspaces: archiving.value.map(archivingWorkspaceFromRow),
+			terminalsEnded: terminalsEnded.value,
+		});
+	});
 }
