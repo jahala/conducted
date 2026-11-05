@@ -5,7 +5,7 @@
  * off for Claude and replaced by this one under the same name; the tool call itself is the "wait
  * for the human" primitive; no timeout; the answer text lists one answer per question.
  * Must handle:
- *  - options may be plain strings or { label, description }; both become labels
+ *  - options may be plain strings or { label, description, preview }; both become options
  *  - the schema allows at most 4 options per question and at most 4 questions
  *  - "Other" is added by the app, so the description tells the agent not to include it
  *  - the user dismisses the question or sends a new message: the tool returns the dismissal text
@@ -14,15 +14,17 @@
  *    agent to retry once
  * Test first: execute() with a backend that answers [["A"]] returns the numbered answer text.
  */
-import { notImplemented } from "@conducted/shared";
+import { appError } from "@conducted/shared";
 import { z } from "zod";
-import type { ToolContext, ToolDefinition, ToolResult } from "./types.ts";
+import { formatQuestionAnswers, formatQuestionFailure, QUESTION_WITHDRAWN_TEXT } from "./format.ts";
+import type { Question, ToolContext, ToolDefinition, ToolResult } from "./types.ts";
 
 const option = z.union([
 	z.string().describe("The label of the choice"),
 	z.object({
 		label: z.string().describe("The label of the choice"),
 		description: z.string().optional().describe("One sentence on what this choice means"),
+		preview: z.string().optional().describe("Text or code shown while the option is chosen"),
 	}),
 ]);
 
@@ -48,10 +50,34 @@ export const askUserQuestion: ToolDefinition<typeof askUserQuestionShape> = {
 	readOnly: true,
 	idempotent: false,
 	alwaysLoad: true,
-	execute(
-		_args: z.infer<z.ZodObject<typeof askUserQuestionShape>>,
-		_context: ToolContext,
+	async execute(
+		args: z.infer<z.ZodObject<typeof askUserQuestionShape>>,
+		context: ToolContext,
 	): Promise<ToolResult> {
-		return notImplemented("SIDE-12");
+		const questions: Question[] = args.questions.map((question) => ({
+			header: question.header,
+			question: question.question,
+			options: question.options.map((option) =>
+				typeof option === "string" ? { label: option } : option,
+			),
+			multiSelect: question.multiSelect ?? false,
+		}));
+		const result = await context.backend.askQuestions(context.sessionId, questions);
+		if (!result.ok) return { text: formatQuestionFailure(result.error), isError: true };
+		if (result.value === "withdrawn") {
+			return { text: QUESTION_WITHDRAWN_TEXT, isError: false };
+		}
+		if (result.value.length !== questions.length) {
+			return {
+				text: formatQuestionFailure(
+					appError(
+						"wrong_answer_count",
+						`Got ${result.value.length} answers for ${questions.length} questions.`,
+					),
+				),
+				isError: true,
+			};
+		}
+		return { text: formatQuestionAnswers(questions, result.value), isError: false };
 	},
 };

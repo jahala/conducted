@@ -4,10 +4,21 @@ import type { Loadable } from "../../core/api.ts";
 import type { Repo, Workspace } from "../../core/model.ts";
 import { renderWithRouter } from "../../test/render-with-router.tsx";
 
-const hooks = vi.hoisted(() => ({
-	repos: { state: "ready", data: [] } as Loadable<Repo[]>,
-	workspaces: { state: "ready", data: [] } as Loadable<Workspace[]>,
-}));
+const hooks = vi.hoisted(() => {
+	// A zustand store returns the same snapshot until state changes; a fresh object here
+	// makes useSyncExternalStore loop forever.
+	const snapshot = { loaded: true, sections: [] };
+	return {
+		repos: { state: "ready", data: [] } as Loadable<Repo[]>,
+		workspaces: { state: "ready", data: [] } as Loadable<Workspace[]>,
+		sectionsStore: {
+			getState: () => snapshot,
+			getInitialState: () => snapshot,
+			subscribe: () => () => {},
+			setState: () => {},
+		},
+	};
+});
 
 vi.mock("../../core/hooks.ts", () => ({
 	useRepos: () => hooks.repos,
@@ -17,7 +28,13 @@ vi.mock("../../core/hooks.ts", () => ({
 }));
 
 vi.mock("../../core/context.tsx", () => ({
-	useServices: () => ({ services: { repo: { start: vi.fn() }, workspace: { start: vi.fn() } } }),
+	useServices: () => ({
+		services: {
+			repo: { start: vi.fn() },
+			workspace: { start: vi.fn() },
+			sections: { store: hooks.sectionsStore },
+		},
+	}),
 }));
 
 vi.mock("./AddProjectButton.tsx", () => ({

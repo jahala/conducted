@@ -9,8 +9,8 @@
  * hidden).
  * Test first: execute() with two comments returns them through formatDiffComments.
  */
-import { notImplemented } from "@conducted/shared";
 import { z } from "zod";
+import { formatDiffComments } from "./format.ts";
 import type { ToolContext, ToolDefinition, ToolResult } from "./types.ts";
 
 export const getDiffCommentsShape = {
@@ -25,10 +25,14 @@ export const getDiffCommentsTool: ToolDefinition<typeof getDiffCommentsShape> = 
 	readOnly: true,
 	idempotent: true,
 	enabledBy: "diffComments",
-	execute(
-		_args: z.infer<z.ZodObject<typeof getDiffCommentsShape>>,
-		_context: ToolContext,
+	async execute(
+		args: z.infer<z.ZodObject<typeof getDiffCommentsShape>>,
+		context: ToolContext,
 	): Promise<ToolResult> {
-		return notImplemented("SIDE-12");
+		const result = await context.backend.getDiffComments(context.sessionId, {
+			file: args.file,
+		});
+		if (!result.ok) return { text: result.error.message, isError: true };
+		return { text: formatDiffComments(result.value), isError: false };
 	},
 };

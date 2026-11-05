@@ -359,6 +359,33 @@ Several of these had no rule in the docs, and agents read only the docs and thei
 Chosen: `docs/engineering.md` states each pattern as a rule. `docs/architecture.md` lists the shared helpers to use before writing one. A shared `createTestContainer` and `openTestDatabase` replace hand-built test containers and five copies of a SQLite adapter. The builder and fixer prompts in `scripts/overnight/drive.ts` repeat the rules, and the audit prompt checks headers and each rule by name.
 Why: the agents start from the docs, so the docs must name what the audits were catching. The prompt carries it too, because a rule in a doc nobody quotes drifts. Nothing checks the header rule by script yet; the audit does.
 
+## D050. The fixed umbel and pleach, checked before slice 2 (2026-11-05)
+
+Context: the overnight build filed issues against umbel (#167 to #170) and pleach (#174 to #179). Both agents reported their fixes on master, and the local tools run from those versions: the global `umbel` is rebuilt, and the global `pleach` links to the checkout that holds the merge. Slice 2 runs about 100 features on them, so a 2-feature trial checked them first (AGENT-05 and AGENT-06, started side by side).
+Found:
+
+- pleach #174: node worktrees and the land stack live under `~/.cache/pleach/worktrees/`, outside `.git/`. Both nodes verified and landed. One empty base folder stays behind after the run (reported on #174).
+- pleach #175, #177 and #124: not exercised; the trial had no conflict, no failed spawn and no refused land.
+- umbel #169: two opencode workers spawned at the same moment without a database lock, so there was no retry to see. #170: `prune --prefix --repo` removed 227 dead sessions of this repository and kept live ones. #168: `logs` prints `<timestamp> <event>`. But `read` fails on a finished pleach worker, because the export runs in the removed worktree (reported on #168).
+  Chosen: slice 2 runs on the fixed tools. The night's workarounds stay where a fix is not proven: workers write their final message to a file, and the conductor merges conflicting nodes by hand when a land is refused.
+  Why: what the trial proved is used, and what it did not prove keeps its workaround.
+
+## D051. Every slice ends with a hardening pass (2026-11-05)
+
+Context: the first slice's hardening found bugs that would have broken real use: the first message of every chat deadlocked, every installed agent showed as not installed, and no shortcut or menu worked because the dispatcher was never mounted. The batch audits during the build had not caught them, because each audit sees one batch, not how the parts work together. The owner asked to repeat the pass after slice 2.
+Chosen: when the last step of a slice merges, five fresh Sonnet workers harden the code by area, as after slice 1: Rust shell, sidecar, desktop core, desktop UI, tests and scripts. Besides the rules in docs/engineering.md, each judges whether the code has the right shape for the whole plan, not only for what calls it today. It reads docs/plans/backlog.md, the item map and the open issues of its area, every priority and the cloud and Remote Control rows included.
+
+- Over-engineered: more shape than the roadmap needs. Examples are a general mechanism where the backlog has one case, configuration nobody will set, and a layer that only passes calls on. A seam later features need is right, for example the runner contract for four agents, the Platform interface or the planned cloud host.
+- Under-engineered: less shape than the roadmap needs. Examples are a feature that hard-codes what its own later siblings will need to vary, a one-off where several backlog features will want the same thing, and missing error paths and limits.
+- Each finding of either kind names the backlog features it checked. "Over-engineered" holds only when none of them uses the extra shape. Each fixes what it finds in its area, in one PR per area, and lists the rest for its owners. The slice's report follows the hardening.
+  Why: the foundation is checked after every slice, while what was just built is still small enough to change.
+
+## D052. Batch audits start before the step's CI (2026-11-05)
+
+Context: slice 2's first step runs nine batches, and the last ones finish long after the first. In slice 1 every audit waited for the whole step to land and for CI to go green. Four of the first five batches also met landing conflicts. In each case two features of one batch wrote the same file: AGENT-11 and AGENT-12 each wrote `acp-runner.ts`, and GIT-05, GIT-06 and GIT-07 all edit `agent-instructions.ts`. pleach pins such nodes for a rebuild on the clean stack of their siblings, kept under `refs/pleach/rebuild/<node>`.
+Chosen: a batch's audit starts as soon as its code is merged. It reads the landed branch, or a detached worktree of the batch's clean stack when the land was refused. Pinned nodes are rebuilt by pleach, not merged by hand, and are audited after they land. The audit prompt says that CI has not run, so the auditor leaves types, lint and failing tests to CI. CI still runs once for the whole step, and fixers check each audit finding against the code before acting on it.
+Why: audits are read-only, so they can run while other batches build, and that removes the wait. A rebuild is better than a hand merge when both sides wrote the same file from scratch: a hand merge of two separate designs would itself need review.
+
 ## D053. A test quality review before slice 2's second step (2026-11-05)
 
 Context: the owner asked for professional tests with no theater. Five Sonnet reviewers read every test file of slice 1 and slice 2's first step (448 files) against the code it tests. Each file got a verdict (REAL, WEAK or THEATER) and each finding names the mutation the tests would miss. A new coverage workflow measured main for the first time: desktop 86.9% lines and 75.2% branches, sidecar 90.6% lines, Rust 69.9% lines.
@@ -377,3 +404,15 @@ Why: a part that only tests call is not a feature, and an audit of one batch can
 Context: the new test-quality guards flag hundreds of existing violations, and the plan's first draft also proposed marking real failing tests as expected to fail (`it.fails`, `test.failing`) until their owner builds.
 Chosen: each guard reads a committed baseline of today's violations per file. A guard fails when a count rises, and also when the baseline is higher than the real count, so every fix lowers the file. There are no expected-failure marks. A test that fails because the product is broken lands in the same change as its fix, or is the acceptance test of the feature build that owns the fix, written test first in that build.
 Why: a baseline that can only fall lets the guards start today without hiding anything new. An expected-failure mark is a skip by another name, which the project's rules and weeder (T3) refuse.
+
+## D056. The DeepSeek budget has no fixed cap (2026-11-05)
+
+Context: the goal for slice 2 stopped DeepSeek spend at 35 USD. After slice 2's first step, the rest of the slice needed about as much as the cap had left, with no margin.
+Chosen: the owner raised the budget and set no fixed cap. One floor stays: a step does not start when the balance is under 3 USD, and the owner is asked to top up instead.
+Why: the floor keeps a step from running out of credit with workers half done, which would leave work to clean up by hand.
+
+## D057. A red step is fixed at its cause, not quarantined (2026-11-05)
+
+Context: D039 gave each step two CI fix rounds, then quarantine for the features still red. Quarantine kept main green by leaving a feature out. The owner asked for every failure to be understood and fixed instead. So far, every red run had a cause that could be fixed: a real bug, or two merged changes meeting for the first time.
+Chosen: CI failures get root-cause fixes, however many rounds that takes. After two rounds, the conductor diagnoses the failure itself, or hands it to an Opus agent with the full logs, before trying again. Quarantine remains only for a feature that cannot be built yet, for example one waiting on a contract change the owner must approve, and that case goes into the report for the owner.
+Why: leaving a broken feature out moves the problem into the next step, and main must stay green without features quietly dropped.

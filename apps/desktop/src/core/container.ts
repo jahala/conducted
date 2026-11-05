@@ -11,12 +11,13 @@
  * non-fatal failures (no GitHub access, a failed Spotlight heal) as warnings; the sidecar not
  * starting is fatal, because without it no chat can run (the failed state carries the sidecar log
  * path in `app/startup.ts`); `start` runs once (a second call returns the first result); after the
- * steps it wires the dock badge, notification clicks, the hourly update check, the quit guard and
- * the Spotlight heal; deep links have one subscriber, the command dispatcher (NAV-14), which is
- * mounted with the app root, so this file does not listen for them a second time; `stop`
- * removes those listeners, stops the settings reload listener and its timer, stops the update
- * timer, disposes the repo service, kills terminals and runs, waits for chat events that are
- * being stored, and detaches from the sidecar; every stop step runs even when an earlier one
+ * steps it wires the dock badge, notification clicks, the hourly update check, the keep-awake scan
+ * and its 10-second timer, the quit guard and the Spotlight heal; deep links have one subscriber,
+ * the command dispatcher (NAV-14), which is mounted with the app root, so this file does not
+ * listen for them a second time; `stop` removes those listeners, stops the settings reload
+ * listener and its timer, stops the update and keep-awake timers, cancels `caffeinate`, disposes
+ * the repo service, kills terminals and runs, waits for chat events that are being stored, and
+ * detaches from the sidecar; every stop step runs even when an earlier one
  * fails (the failure is logged), and a `stop` that comes during `start` lets the running
  * step finish, ends the start before it wires anything new, and then tears down; the
  * database-version check happens before `start` (see the proposed `Platform.app.dbVersionWarning`);
@@ -41,13 +42,13 @@ import type { Platform } from "../platform/platform.ts";
 import { createActions } from "./actions.ts";
 import type { Actions } from "./api.ts";
 import { checkpointerScript, spotlighterScript } from "./app-paths.ts";
+import { fireAndForget } from "./async/fire-and-forget.ts";
 import { DEFAULT_LIFETIME_LIMITS, runDataLifetimeJob } from "./db/lifetime.ts";
 import { runStartupRepair } from "./db/repair.ts";
 import { createRepositories } from "./db/repositories.ts";
 import { KeyedMutex } from "./git/locks.ts";
 import { ShellGitRunner } from "./git/runner.ts";
 import { createLookups, defaultSessionConfig, type Lookups } from "./lookups.ts";
-import type { Workspace } from "./model.ts";
 import { AgentCatalogService } from "./services/agent-catalog.ts";
 import { CheckpointService } from "./services/checkpoint.ts";
 import { CommandRunner, createCommandHandlers } from "./services/command-runner.ts";
@@ -58,10 +59,15 @@ import { FollowUpQueue } from "./services/follow-up-queue.ts";
 import { GitService } from "./services/git.ts";
 import { createGitCache } from "./services/git-cache.ts";
 import { GithubService } from "./services/github.ts";
+import {
+	KEEP_AWAKE_SCAN_MS,
+	KEEP_AWAKE_SETTING_KEY,
+	KeepAwakeService,
+} from "./services/keep-awake.ts";
 import { createCurlLinearHttp, LinearService } from "./services/linear.ts";
 import { LocalGitForge } from "./services/local-git-forge.ts";
 import { McpService } from "./services/mcp.ts";
-import { dockBadgeCount, NotificationService, type SoundPlayer } from "./services/notifications.ts";
+import { buildDeepLink, NotificationService, type SoundPlayer } from "./services/notifications.ts";
 import { PortService } from "./services/ports.ts";
 import { RepoService } from "./services/repo.ts";
 import { ReviewService } from "./services/review.ts";
@@ -163,6 +169,38 @@ interface StartStep {
 	run: () => Promise<Result<unknown>>;
 }
 
+/** What archive-on-merge needs to archive and, when that fails, tell the user why. */
+export interface ArchiveOnMergedPorts {
+	archive: (workspaceId: WorkspaceId, prNumber: number) => Promise<Result<void>>;
+	notify: (input: { title: string; body: string; deepLink?: string }) => Promise<void>;
+	/** Reports a failure of the notification itself, so it is not dropped. */
+	reportError: (message: string) => void;
+}
+
+/**
+ * Handles a merged pull request without waiting for the poll. A failed archive (a running chat, a
+ * corrupted workspace, a snapshot or script failure) reaches the user as a notification; the
+ * Result is never dropped.
+ */
+export function createArchiveOnMerged(
+	ports: ArchiveOnMergedPorts,
+): (workspaceId: WorkspaceId, prNumber: number) => void {
+	return (workspaceId, prNumber) => {
+		fireAndForget(
+			async () => {
+				const archived = await ports.archive(workspaceId, prNumber);
+				if (archived.ok) return;
+				await ports.notify({
+					title: "Couldn't archive the workspace",
+					body: archived.error.message,
+					deepLink: buildDeepLink(workspaceId, null),
+				});
+			},
+			(error) => ports.reportError(`Could not report a failed archive: ${String(error)}`),
+		);
+	};
+}
+
 /** Builds everything. Does no I/O. */
 export function createContainer(inputs: ContainerInputs): Container {
 	const { platform, clock, ids } = inputs;
@@ -198,7 +236,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 		log: (level, message, data) => platform.app.writeLog(level, message, data),
 	});
 	const handlerPorts: SidecarHandlerPorts = {
-		interactions: { request: (request) => sessions.requestInteraction(request) },
+		interactions: {
+			request: (request) => sessions.requestInteraction(request),
+			closed: (params) => sessions.interactionClosed(params),
+		},
 		ingest,
 		liveState: {
 			setLiveState: (p) => sessions.applyLiveState(p.sessionId, p.liveState),
@@ -206,6 +247,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 			setProgress: (p) => sessions.setProgress(p.sessionId, p.progress),
 		},
 		agentCatalog: { setAgentInstalls: (p) => agentCatalog.setInstalls(p.agents) },
+		agentConfig: {
+			setAgentConfig: (p) => sessions.applyAgentConfig(p.sessionId, p.config),
+		},
 		workspaceDiff: {
 			diffForSession: async (sessionId, file, statOnly) => {
 				const workspace = lookups.workspaceOfSession(sessionId);
@@ -251,7 +295,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		targetBranch: {
 			setForSession: async (sessionId, branch) => {
 				const found = lookups.workspaceOfSession(sessionId);
-				return found.ok ? git.setTargetBranch(found.value.id, branch) : found;
+				return found.ok ? git.setTargetBranchFromAgent(found.value.id, branch) : found;
 			},
 		},
 		shellEnv: {
@@ -323,6 +367,13 @@ export function createContainer(inputs: ContainerInputs): Container {
 		setting,
 		isViewing: (sessionId) => sessions.store.getState().viewingSessionId === sessionId,
 		windowFocused: inputs.windowFocused,
+		workspaces: () => {
+			const byId = workspace.store.getState().workspacesById;
+			return new Map(
+				Object.entries(byId).map(([id, row]) => [id as WorkspaceId, { state: row.state }]),
+			);
+		},
+		sessions: () => Object.values(sessions.store.getState().sessions),
 	});
 	const followUpQueue = new FollowUpQueue({
 		repos: repositories,
@@ -343,6 +394,13 @@ export function createContainer(inputs: ContainerInputs): Container {
 		now: () => clock.now(),
 		newId: () => ids.uuid(),
 	});
+	const anyChatWorking = (): boolean =>
+		Object.values(sessions.store.getState().liveStates).some((live) => live.status === "working");
+	const keepAwake = new KeepAwakeService({
+		platform,
+		setting,
+		anyChatWorking,
+	});
 	const runScripts = new RunScriptsService({
 		terminals,
 		configFor: async (workspaceId) => {
@@ -352,6 +410,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		workspaceFor: async (workspaceId) => lookups.workspace(workspaceId),
 		repoFor: async (workspaceId) => lookups.repoOf(workspaceId),
 		fs: platform.fs,
+		shell: platform.shell,
 	});
 	const repo: RepoService = new RepoService({
 		platform,
@@ -367,7 +426,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 		placeNames: inputs.placeNames,
 		sessions,
 		ports,
+		repoConfig: (repoId) => repo.loadConfig(repoId),
 		scripts: runScripts,
+		checkpointerPath: checkpointerScript(paths),
 		setting,
 		now: () => clock.now(),
 	});
@@ -388,21 +449,33 @@ export function createContainer(inputs: ContainerInputs): Container {
 		cache: gitCache,
 		contextOf: (id) => ready(lookups.gitContext(id)),
 		agent: sessions,
+		promptFor: async (id) => {
+			const found = lookups.repoOf(id);
+			if (!found.ok) return found;
+			const config = await repo.loadConfig(found.value.id);
+			return config.ok ? ok(config.value.prompts.resolveConflicts) : config;
+		},
+		renameWorkspaceBranch: (id, branch) => workspace.applyBranchRename(id, branch),
 		now: () => clock.now(),
 		fs: platform.fs,
+		setIntendedTargetBranch: (id, branch) => workspace.setIntendedTargetBranch(id, branch),
+		moveOpenPullRequestBase: (id, branch) => github.moveOpenPullRequestBase(id, branch),
 	});
 	const github = new GithubService({
 		git: gitRunner,
 		cache: gitCache,
 		agent: sessions,
 		contextOf: (id) => ready(lookups.prContext(id)),
-		onMerged: (id, prNumber) => {
-			void workspace.onPullRequestMerged(id, prNumber);
-		},
+		onMerged: createArchiveOnMerged({
+			archive: (id, prNumber) => workspace.onPullRequestMerged(id, prNumber),
+			notify: (input) => platform.notifications.notify(input),
+			reportError: (message) => log("warn", message),
+		}),
 		now: () => clock.now(),
 		keychain: platform.keychain,
 		setting,
 		probeCwd: platform.fs.paths.home,
+		fs: platform.fs,
 	});
 	const localGitForge = new LocalGitForge({
 		git: gitRunner,
@@ -429,6 +502,12 @@ export function createContainer(inputs: ContainerInputs): Container {
 		repos: repositories,
 		git: gitRunner,
 		agent: sessions,
+		customPromptOf: async (id) => {
+			const found = lookups.repoOf(id);
+			if (!found.ok) return found;
+			const config = await repo.loadConfig(found.value.id);
+			return config.ok ? ok(config.value.prompts.codeReview) : config;
+		},
 		startReviewChat: (id, text) => sessions.startReviewChat(id, text),
 	});
 	const spotlight = new SpotlightService({
@@ -498,7 +577,16 @@ export function createContainer(inputs: ContainerInputs): Container {
 			name: "repair",
 			phase: "settings",
 			fatal: true,
-			run: () => runStartupRepair({ db: platform.db, fs: platform.fs, clock, ids }),
+			run: async () => {
+				const repaired = await runStartupRepair({
+					db: platform.db,
+					fs: platform.fs,
+					clock,
+					ids,
+				});
+				if (!repaired.ok) return repaired;
+				return workspace.recoverArchiving(repaired.value.archivingWorkspaces);
+			},
 		},
 		{ name: "repos", phase: "services", fatal: true, run: () => repo.start() },
 		{ name: "workspaces", phase: "services", fatal: true, run: () => workspace.start() },
@@ -527,6 +615,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 	let detachReconnect: (() => void) | null = null;
 	const cleanups: (() => void)[] = [];
 	let updateTimer: ReturnType<typeof setInterval> | null = null;
+	let keepAwakeTimer: ReturnType<typeof setInterval> | null = null;
 	let wired = false;
 	let stopped = false;
 
@@ -534,14 +623,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 		appError("container_stopped", "The app stopped while it was starting.");
 
 	const updateDockBadge = (): void => {
-		const workspaces = new Map<WorkspaceId, Pick<Workspace, "state">>();
-		for (const [id, row] of Object.entries(workspace.store.getState().workspacesById)) {
-			workspaces.set(id as WorkspaceId, row);
-		}
-		const count = dockBadgeCount(workspaces, Object.values(sessions.store.getState().sessions));
-		void platform.notifications.setDockBadge(count === 0 ? null : count).catch((cause: unknown) => {
-			const message = cause instanceof Error ? cause.message : String(cause);
-			log("warn", `Could not set the dock badge: ${message}`);
+		void notifications.refreshDockBadge().then((result) => {
+			if (!result.ok) log("warn", `Could not set the dock badge: ${result.error.message}`);
 		});
 	};
 
@@ -573,6 +656,59 @@ export function createContainer(inputs: ContainerInputs): Container {
 		}
 		// `stop` ran during the heal and already cleaned what was wired above. Wire nothing more.
 		if (stopped) return;
+
+		// Keep-awake follows the setting and the chats' work, and re-checks every scan so a
+		// battery that falls low or a caffeinate that exited by itself is handled. A scan reads
+		// the live setting and chats, so a change made before it runs is already covered: only one
+		// scan waits at a time, and two quick changes must not start `caffeinate` twice. A change
+		// that arrives while a scan runs gets one more scan after it, with the newer state.
+		let keepAwakeScans: Promise<void> = Promise.resolve();
+		let keepAwakeScanQueued = false;
+		let keepAwakeScanRunning = false;
+		let keepAwakeScanAgain = false;
+		const runKeepAwakeScan = (): void => {
+			if (keepAwakeScanRunning) {
+				keepAwakeScanAgain = true;
+				return;
+			}
+			if (keepAwakeScanQueued) return;
+			keepAwakeScanQueued = true;
+			keepAwakeScans = keepAwakeScans.then(async () => {
+				keepAwakeScanQueued = false;
+				keepAwakeScanRunning = true;
+				try {
+					const outcome = await keepAwake.scan();
+					if (!outcome.ok) log("warn", `Could not keep the Mac awake: ${outcome.error.message}`);
+				} finally {
+					keepAwakeScanRunning = false;
+					if (keepAwakeScanAgain) {
+						keepAwakeScanAgain = false;
+						runKeepAwakeScan();
+					}
+				}
+			});
+		};
+		// The stores fire on every change, and a working chat updates its store many times a
+		// second, so a scan waits for the setting or whether a chat works to change.
+		let keepAwakeInputs: { enabled: boolean; working: boolean } | null = null;
+		const followKeepAwake = (): void => {
+			const enabled = setting<boolean>(KEEP_AWAKE_SETTING_KEY) === true;
+			const working = anyChatWorking();
+			if (
+				keepAwakeInputs !== null &&
+				keepAwakeInputs.enabled === enabled &&
+				keepAwakeInputs.working === working
+			) {
+				return;
+			}
+			keepAwakeInputs = { enabled, working };
+			runKeepAwakeScan();
+		};
+		cleanups.push(settings.store.subscribe(followKeepAwake));
+		cleanups.push(sessions.store.subscribe(followKeepAwake));
+		followKeepAwake();
+		keepAwakeTimer = setInterval(runKeepAwakeScan, KEEP_AWAKE_SCAN_MS);
+		(keepAwakeTimer as unknown as { unref?: () => void }).unref?.();
 
 		updateTimer = setInterval(() => {
 			void updates.check().then((outcome) => {
@@ -676,7 +812,13 @@ export function createContainer(inputs: ContainerInputs): Container {
 				if (updateTimer !== null) clearInterval(updateTimer);
 				updateTimer = null;
 			});
+			await step("the keep-awake timer", () => {
+				if (keepAwakeTimer !== null) clearInterval(keepAwakeTimer);
+				keepAwakeTimer = null;
+			});
+			await step("keep-awake", () => keepAwake.stop());
 			await step("the repo service", () => repo.dispose());
+			await step("GitHub polling", () => github.dispose());
 			await step("terminals", () => terminals.killAll());
 			await step("run scripts", () => runScripts.stopAll());
 			// Events the sidecar sent before the tunnel closes are written first, so none is lost.

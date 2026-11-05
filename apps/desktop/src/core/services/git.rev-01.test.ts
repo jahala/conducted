@@ -105,6 +105,7 @@ const makeService = (
 		cache: {} as never,
 		contextOf: async () => ({ ok: true, value: context }),
 		agent: {} as never,
+		renameWorkspaceBranch: async () => ok(undefined),
 		now: () => 0,
 		fs: {
 			trash,
@@ -114,6 +115,8 @@ const makeService = (
 			stat: async () => err(appError("fs_not_found", "missing")),
 			paths: { home: "", appData: "", temp: "", resources: "" },
 		},
+		setIntendedTargetBranch: async () => ok(undefined),
+		moveOpenPullRequestBase: async () => ok(false),
 	});
 
 // `--no-index` diffs count untracked files against /dev/null; they never compare with a revision.

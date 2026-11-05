@@ -29,8 +29,15 @@
  *    never runs in bypassPermissions; an effort change that needs a restart restarts the process
  *    before the message is sent
  *  - an approved plan records the permission mode the CLI switched to
- * Owned by later features: steer() is AGENT-05; while it is unbuilt it returns notImplemented with
- * its own id. The session header only promises what this feature builds.
+ *  - a plan mode the agent chose (an EnterPlanMode call, or an init that reports "plan" when the app
+ *    has not just asked for a non-plan mode) updates the session config and reports it through
+ *    onConfigChanged; an approved plan reports leaving it; an init that reports plan after the app
+ *    asked for a non-plan mode is ignored, so the app's choice wins
+ *  - steer() pushes a fresh user message into the open turn and reports when the transcript mirror
+ *    shows the agent read it (AGENT-05); with no open turn it throws NoActiveTurnError
+ *  - planUsage() asks the SDK's experimental usage request without the behavior scan and converts
+ *    the response with the SIDE-17 model; with no live process it reports no limits, and a refusal
+ *    is passed to the caller
  * Test first: with a scripted query function that yields init, assistant text and a result for
  * the pushed uuid, runTurn emits the text message and resolves with success.
  * Our design choice: the SDK's query function is a constructor parameter (Conductor does this
@@ -46,13 +53,14 @@ import type {
 	SDKMessage,
 	SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { Effort, SessionConfig } from "@conducted/protocol";
+import type { Effort, RateLimit, SessionConfig } from "@conducted/protocol";
 import type { SessionId } from "@conducted/shared";
-import { notImplemented } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
+import { rateLimitsFromSdk } from "../../models/usage.ts";
 import type { AppToolBackend } from "../../tools/backend.ts";
 import { AsyncQueue } from "../../util/async-queue.ts";
 import { messageOf } from "../../util/errors.ts";
+import { NoActiveTurnError } from "../errors.ts";
 import type {
 	AgentSession,
 	StartOptions,
@@ -144,8 +152,15 @@ export class ClaudeSession implements AgentSession {
 	private appliedModel: string | null = null;
 	private appliedEffort: Effort | null = null;
 	private appliedPermissionMode: PermissionMode | null = null;
+	/**
+	 * The plan mode the app last asked for, until the agent changes the mode itself. A stale CLI init
+	 * must not undo a choice the user just made in the app.
+	 */
+	private appPlanModeChoice: boolean | null = null;
 	private exited: Promise<void> = Promise.resolve();
 	private startPending: Promise<void> | null = null;
+	/** Resolves once the open turn's first user message is in the input stream. */
+	private firstMessage: Deferred<void> | null = null;
 	private readonly stderrTail: string[] = [];
 
 	constructor(
@@ -180,6 +195,7 @@ export class ClaudeSession implements AgentSession {
 		this.callbacks = callbacks;
 		const turn = deferred<TurnOutcome>();
 		this.turnDeferred = turn;
+		this.firstMessage = deferred<void>();
 		this.currentGate = once(() => callbacks.beforeFirstWrite());
 		this.config = input.config;
 		if (this.agentSessionId !== null && !this.agentSessionIdReported) {
@@ -240,7 +256,9 @@ export class ClaudeSession implements AgentSession {
 		const uuid = this.deps.newUuid();
 		this.tracker.expectTurn(uuid);
 		const queue = this.input;
-		if (queue === null || !queue.push(this.userMessage(input.text, uuid))) {
+		const pushed = queue?.push(this.userMessage(input.text, uuid)) ?? false;
+		this.firstMessage?.resolve();
+		if (!pushed) {
 			this.finishTurn();
 			return {
 				kind: "error",
@@ -254,8 +272,27 @@ export class ClaudeSession implements AgentSession {
 		return outcome;
 	}
 
-	steer(_input: TurnInput): Promise<{ consumed: Promise<void> }> {
-		return notImplemented("AGENT-05");
+	async steer(input: TurnInput): Promise<{ consumed: Promise<void> }> {
+		if (!this.turnOpen || this.turnSettled) throw new NoActiveTurnError();
+		// A steer can arrive while the turn is still starting. Wait for its first message so the
+		// steer joins the stream after it, never before it.
+		const first = this.firstMessage;
+		if (first !== null) await first.promise;
+		if (!this.turnOpen || this.turnSettled) throw new NoActiveTurnError();
+		const queue = this.input;
+		if (queue === null || queue.isClosed) throw new NoActiveTurnError();
+
+		const uuid = this.deps.newUuid();
+		const consumed = this.receipts.register(uuid);
+		// The tracker must know this uuid: a result that answers the steer can end the turn, and a
+		// result that arrives before the mirror shows it read is held back.
+		this.tracker.expectTurn(uuid);
+		if (!queue.push(this.userMessage(input.text, uuid))) {
+			// The turn ended between the check and the push, so no receipt is left waiting.
+			this.receipts.consume(uuid);
+			throw new NoActiveTurnError();
+		}
+		return { consumed };
 	}
 
 	async cancel(): Promise<void> {
@@ -284,6 +321,7 @@ export class ClaudeSession implements AgentSession {
 
 	async applyConfig(config: SessionConfig): Promise<"applied" | "restart"> {
 		const change = classifyConfigChange(this.config, config);
+		if (this.config.planMode !== config.planMode) this.appPlanModeChoice = config.planMode;
 		this.config = config;
 		if (change.kind === "restart") return "restart";
 		// A live change waits while a turn runs; runTurn applies it before the next message.
@@ -318,6 +356,15 @@ export class ClaudeSession implements AgentSession {
 			});
 			return null;
 		}
+	}
+
+	async planUsage(): Promise<RateLimit[]> {
+		const query = this.query;
+		if (query === null) return [];
+		const usage = await query.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({
+			skipBehaviors: true,
+		});
+		return rateLimitsFromSdk(usage);
 	}
 
 	async dispose(): Promise<void> {
@@ -381,7 +428,7 @@ export class ClaudeSession implements AgentSession {
 			}),
 			sessionStore: createMirrorStore((uuid) => {
 				this.receipts.consume(uuid);
-			}),
+			}, this.deps.logger),
 			abortController: abort,
 			onStderr: (line) => this.onStderr(line),
 		});
@@ -440,6 +487,7 @@ export class ClaudeSession implements AgentSession {
 
 	private handleMessage(message: SDKMessage): void {
 		this.noteSessionId(message);
+		this.notePlanMode(message);
 		const callbacks = this.callbacks;
 		const tasks = this.backgroundTasks.handle(message);
 		if (tasks !== null) callbacks?.onBackgroundTasks(tasks);
@@ -448,6 +496,41 @@ export class ClaudeSession implements AgentSession {
 		for (const agentMessage of this.deps.translator.translate(message)) {
 			callbacks.onMessage(agentMessage);
 		}
+	}
+
+	/**
+	 * The agent can enter plan mode by itself. An init message that reports plan mode, or an
+	 * EnterPlanMode call, tells the app so its stored config stays true.
+	 */
+	private notePlanMode(message: SDKMessage): void {
+		if (
+			message.type === "system" &&
+			message.subtype === "init" &&
+			message.permissionMode === "plan"
+		) {
+			// The app's newest choice wins over an init that still reports the mode it replaced.
+			if (this.appPlanModeChoice === false) return;
+			// The CLI is already in plan mode, so only the bookkeeping is updated.
+			this.appliedPermissionMode = "plan";
+			this.changePlanMode(true);
+			return;
+		}
+		if (message.type !== "assistant" || message.parent_tool_use_id != null) return;
+		for (const block of message.message.content) {
+			if (block.type === "tool_use" && block.name === "EnterPlanMode") {
+				this.appliedPermissionMode = "plan";
+				this.changePlanMode(true);
+			}
+		}
+	}
+
+	/** Records a plan mode the agent chose and tells the app, once per change. */
+	private changePlanMode(planMode: boolean): void {
+		if (this.config.planMode === planMode) return;
+		// The agent's own change is newer than any plan choice the app made before it.
+		this.appPlanModeChoice = null;
+		this.config = { ...this.config, planMode };
+		this.start.onConfigChanged?.(this.config, planMode ? "entered_plan_mode" : "left_plan_mode");
 	}
 
 	/** Reports the agent's own session id once, so the app can store it for resume. */
@@ -481,6 +564,8 @@ export class ClaudeSession implements AgentSession {
 	private settleTurn(outcome: TurnOutcome): void {
 		if (this.turnSettled) return;
 		this.turnSettled = true;
+		// A steer waiting for the turn's first message wakes up and sees the closed turn.
+		this.firstMessage?.resolve();
 		this.receipts.clear();
 		this.currentGate = undefined;
 		const final: TurnOutcome =
@@ -523,6 +608,8 @@ export class ClaudeSession implements AgentSession {
 
 	private finishTurn(): void {
 		this.turnOpen = false;
+		this.firstMessage?.resolve();
+		this.firstMessage = null;
 		this.callbacks = null;
 		this.currentGate = undefined;
 		this.turnDeferred = null;
@@ -582,9 +669,12 @@ export class ClaudeSession implements AgentSession {
 
 	/**
 	 * Switches the live process's permission mode and records it, so a plan approval leaves the
-	 * session knowing the mode the CLI is in. The app notice for that approval is SIDE-20.
+	 * session knowing the mode the CLI is in. An approved plan leaves plan mode through here, a
+	 * change the agent made, so the app is told. Leaving plan mode because the app asked for it is
+	 * not reported: applyConfig already set this.config and the app made the change itself.
 	 */
 	private async applyPermissionMode(mode: PermissionMode): Promise<void> {
+		if (mode !== "plan") this.changePlanMode(false);
 		if (this.appliedPermissionMode === mode) return;
 		const query = this.query;
 		if (query === null) return;

@@ -9,7 +9,20 @@
  * deliberate step.
  */
 import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
+import {
+	appBuildArguments,
+	type BundleReport,
+	bundleProblems,
+	createDiskImage,
+	diskImagePath,
+	notariseBundle,
+	notariseDiskImage,
+	runTool,
+	signBundle,
+	verifyBundle,
+	verifyDiskImage,
+} from "../apps/desktop/src-tauri/release/bundle.ts";
 import { VERSION_FILES } from "./guards/versions.ts";
 
 const root = join(import.meta.dir, "..");
@@ -24,11 +37,24 @@ if (!version || !/^\d+\.\d+\.\d+$/.test(version)) {
 interface Step {
 	say: string;
 	undo: string;
-	run: () => void;
+	run: () => void | Promise<void>;
 }
 
-function sh(cmd: string[], cwd = root): string {
-	const result = Bun.spawnSync(cmd, { cwd, stdout: "pipe", stderr: "pipe" });
+type ToolResult<T> = { ok: true; value: T } | { ok: false; error: { message: string } };
+
+async function must<T>(result: Promise<ToolResult<T>>): Promise<T> {
+	const value = await result;
+	if (!value.ok) throw new Error(value.error.message);
+	return value.value;
+}
+
+function rejectProblems(report: BundleReport): void {
+	const problems = bundleProblems(report);
+	if (problems.length > 0) throw new Error(problems.join("\n"));
+}
+
+function sh(cmd: readonly string[], cwd = root): string {
+	const result = Bun.spawnSync([...cmd], { cwd, stdout: "pipe", stderr: "pipe" });
 	if (result.exitCode !== 0) {
 		throw new Error(
 			`${cmd.join(" ")} failed:\n${result.stderr.toString()}${result.stdout.toString()}`,
@@ -83,6 +109,31 @@ const steps: Step[] = [
 		},
 	},
 	{
+		say: "Build the arm64 app alone, sign and notarise it, then make and verify the disk image",
+		undo: "nothing to undo; build output stays under apps/desktop/src-tauri/target",
+		run: async () => {
+			sh(["pnpm", "--filter", "@conducted/sidecar", "build"]);
+			sh(appBuildArguments("aarch64-apple-darwin", "src-tauri/tauri.release.conf.json"));
+			const appPath = join(
+				tauriDir,
+				"target",
+				"aarch64-apple-darwin",
+				"release",
+				"bundle",
+				"macos",
+				"Conducted.app",
+			);
+			await must(signBundle(runTool, appPath, process.env));
+			await must(notariseBundle(runTool, appPath, process.env));
+			rejectProblems(await must(verifyBundle(runTool, appPath)));
+
+			const dmgPath = diskImagePath(appPath);
+			await must(createDiskImage(runTool, appPath, dmgPath));
+			await must(notariseDiskImage(runTool, dmgPath, process.env));
+			rejectProblems(await must(verifyDiskImage(runTool, dmgPath, basename(appPath))));
+		},
+	},
+	{
 		say: `Commit "release: v${version}" and tag v${version}`,
 		undo: `git tag -d v${version} && git revert HEAD`,
 		run: () => {
@@ -98,7 +149,7 @@ for (const [index, step] of steps.entries()) {
 	console.log(`${index + 1}. ${step.say}\n   undo: ${step.undo}`);
 	if (!go) continue;
 	try {
-		step.run();
+		await step.run();
 	} catch (error) {
 		console.error(`\nStopped at step ${index + 1}: ${(error as Error).message}`);
 		process.exit(1);

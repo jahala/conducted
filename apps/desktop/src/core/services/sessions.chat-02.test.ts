@@ -596,3 +596,96 @@ describe("CHAT-02 retry keeps a message the sidecar was never asked about", () =
 		expect(sendMessageCalls(h.calls)).toHaveLength(1);
 	});
 });
+
+describe("SIDE-20 a config the agent changed is stored", () => {
+	it("keeps the newest config when two changes overlap", async () => {
+		seedWorkspace();
+		const h = harness();
+		const session = must(await h.service.create(workspaceId, sampleSession.config));
+		const entered = { ...sampleSession.config, planMode: true };
+		const left = { ...sampleSession.config, planMode: false };
+		const original = repositories.sessions.setConfig.bind(repositories.sessions);
+		let releaseFirst: () => void = () => {};
+		const firstGate = new Promise<void>((resolve) => {
+			releaseFirst = resolve;
+		});
+		let writes = 0;
+		vi.spyOn(repositories.sessions, "setConfig").mockImplementation(async (id, config) => {
+			writes += 1;
+			if (writes === 1) await firstGate;
+			return original(id, config);
+		});
+
+		const first = h.service.applyAgentConfig(session.id, entered);
+		const second = h.service.applyAgentConfig(session.id, left);
+		releaseFirst();
+		const results = await Promise.all([first, second]);
+
+		expect(results).toEqual([ok(undefined), ok(undefined)]);
+		expect(must(await repositories.sessions.get(session.id))?.config.planMode).toBe(false);
+		expect(h.service.store.getState().sessions[session.id]?.config.planMode).toBe(false);
+	});
+
+	it("retries a failed config write through the same writer", async () => {
+		seedWorkspace();
+		const h = harness();
+		const session = must(await h.service.create(workspaceId, sampleSession.config));
+		const original = repositories.sessions.setConfig.bind(repositories.sessions);
+		let calls = 0;
+		vi.spyOn(repositories.sessions, "setConfig").mockImplementation(async (id, config) => {
+			calls += 1;
+			if (calls === 1) return err(appError("db.failed", "The database is busy."));
+			return original(id, config);
+		});
+		const entered = { ...sampleSession.config, planMode: true };
+
+		expect(await h.service.applyAgentConfig(session.id, entered)).toEqual(ok(undefined));
+
+		expect(calls).toBe(2);
+		expect(must(await repositories.sessions.get(session.id))?.config.planMode).toBe(true);
+	});
+
+	it("keeps a composer change when an older agent notification writes during it", async () => {
+		seedWorkspace();
+		const h = harness();
+		const session = must(await h.service.create(workspaceId, sampleSession.config));
+		const entered = { ...sampleSession.config, planMode: true };
+		const original = repositories.sessions.setConfig.bind(repositories.sessions);
+		let release: () => void = () => {};
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		let writes = 0;
+		vi.spyOn(repositories.sessions, "setConfig").mockImplementation(async (id, config) => {
+			writes += 1;
+			if (writes === 1) await gate;
+			return original(id, config);
+		});
+
+		const olderAgentNotification = h.service.applyAgentConfig(session.id, entered);
+		const composer = h.service.updateConfig(session.id, {
+			...sampleSession.config,
+			model: "opus",
+		});
+		release();
+		const results = await Promise.all([olderAgentNotification, composer]);
+
+		expect(results).toEqual([ok(undefined), ok(undefined)]);
+		const stored = must(await repositories.sessions.get(session.id));
+		expect(stored?.config.planMode).toBe(false);
+		expect(stored?.config.model).toBe("opus");
+	});
+
+	it("sends the next message with the config the agent chose", async () => {
+		seedWorkspace();
+		const h = harness();
+		const session = must(await h.service.create(workspaceId, sampleSession.config));
+		const entered = { ...sampleSession.config, planMode: true };
+		must(await h.service.applyAgentConfig(session.id, entered));
+
+		must(await h.service.send(session.id, "next", [], "auto"));
+
+		const [call] = sendMessageCalls(h.calls);
+		expect(call?.params.config).toEqual(entered);
+	});
+});

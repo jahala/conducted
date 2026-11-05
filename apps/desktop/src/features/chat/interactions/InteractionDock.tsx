@@ -15,13 +15,15 @@ import { InteractionHost } from "./InteractionHost.tsx";
 export function InteractionDock({ sessionId }: { sessionId: SessionId }) {
 	const chat = useChat(sessionId);
 	if (chat.state !== "ready" || chat.data.openInteraction === null) return null;
-	const { interactionId, interaction } = chat.data.openInteraction;
+	const { interactionId, interaction, expiresAt, timedOut } = chat.data.openInteraction;
 	return (
 		<InteractionHost
 			key={interactionId}
 			sessionId={sessionId}
 			interactionId={interactionId}
 			interaction={interaction}
+			expiresAt={expiresAt}
+			timedOut={timedOut}
 		/>
 	);
 }

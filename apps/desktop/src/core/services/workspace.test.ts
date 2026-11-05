@@ -830,16 +830,6 @@ describe("WS-01 names that git or gh could read as options", () => {
 });
 
 describe("WS-01 failures that must reach the user", () => {
-	it("warns when the repository config cannot be read, instead of silently using origin", async () => {
-		const { service, rows } = makeHarness({ repoConfigError: true });
-
-		const result = await service.create({ ...newInput, prompt: "" });
-
-		expect(result.ok).toBe(true);
-		const warnings = service.store.getState().warnings?.[rows[0]?.id ?? ""] ?? [];
-		expect(warnings.some((warning) => warning.includes("settings.toml is invalid."))).toBe(true);
-	});
-
 	it("does not start the first chat with a guessed config when the default config fails", async () => {
 		const { service, rows, createFirstChat } = makeHarness({ defaultConfigError: true });
 
@@ -861,6 +851,18 @@ describe("WS-01 failures that must reach the user", () => {
 		expect(result.ok).toBe(false);
 		expect(service.store.getState().loaded).toBe(true);
 		expect(service.store.getState().workspacesById[workspace.id]).toBeDefined();
+	});
+});
+
+describe("DATA-09 one home for a repository's remote at creation", () => {
+	it("fails when the repository config cannot be read, instead of creating against origin", async () => {
+		const { service, rows } = makeHarness({ repoConfigError: true });
+
+		const result = await service.create({ ...newInput, prompt: "" });
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.code).toBe("settings_invalid");
+		expect(rows).toHaveLength(0);
 	});
 });
 

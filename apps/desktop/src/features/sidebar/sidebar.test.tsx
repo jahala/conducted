@@ -7,12 +7,23 @@ import { renderWithRouter } from "../../test/render-with-router.tsx";
 import { toast } from "../../ui/Toast.tsx";
 import { UnreadDot } from "./UnreadDot.tsx";
 
-const hooks = vi.hoisted(() => ({
-	repos: { state: "loading" } as Loadable<Repo[]>,
-	workspaces: { state: "loading" } as Loadable<Workspace[]>,
-	repoService: { start: vi.fn() },
-	workspaceService: { start: vi.fn() },
-}));
+const hooks = vi.hoisted(() => {
+	// A zustand store returns the same snapshot until state changes; a fresh object here
+	// makes useSyncExternalStore loop forever.
+	const snapshot = { loaded: true, sections: [] };
+	return {
+		repos: { state: "loading" } as Loadable<Repo[]>,
+		workspaces: { state: "loading" } as Loadable<Workspace[]>,
+		repoService: { start: vi.fn() },
+		workspaceService: { start: vi.fn() },
+		sectionsStore: {
+			getState: () => snapshot,
+			getInitialState: () => snapshot,
+			subscribe: () => () => {},
+			setState: () => {},
+		},
+	};
+});
 
 vi.mock("../../core/hooks.ts", () => ({
 	useRepos: () => hooks.repos,
@@ -20,7 +31,13 @@ vi.mock("../../core/hooks.ts", () => ({
 }));
 
 vi.mock("../../core/context.tsx", () => ({
-	useServices: () => ({ services: { repo: hooks.repoService, workspace: hooks.workspaceService } }),
+	useServices: () => ({
+		services: {
+			repo: hooks.repoService,
+			workspace: hooks.workspaceService,
+			sections: { store: hooks.sectionsStore },
+		},
+	}),
 }));
 
 // The grouped list is built later; this test is about which state the list region picks.

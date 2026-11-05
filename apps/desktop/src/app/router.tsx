@@ -38,9 +38,11 @@ import {
 	useRouterState,
 } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { z } from "zod";
 import { useStore } from "zustand";
 import { useServices } from "../core/context.tsx";
 import { canOpenWorkspace } from "../core/workspace-open.ts";
+import { NextUnreadController } from "../features/chat/NextUnreadButton.tsx";
 import { DashboardScreen } from "../features/dashboard/DashboardScreen.tsx";
 import { DiagnosticsScreen } from "../features/diagnostics/DiagnosticsScreen.tsx";
 import { HomeScreen } from "../features/home/HomeScreen.tsx";
@@ -141,6 +143,7 @@ function RootLayout() {
 	return (
 		<CommandDispatcher>
 			<NavigationShortcuts />
+			<NextUnreadController />
 			<RouteLocationPersistence />
 			<Outlet />
 			<GlobalOverlays />
@@ -295,9 +298,16 @@ const dashboardRoute = createRoute({
 	),
 });
 
+/** /create opens with a project or a section already chosen when a + action sent the user here. */
+const zCreateWorkspaceSearch = z.object({
+	repo: z.string().optional().catch(undefined),
+	section: z.string().optional().catch(undefined),
+});
+
 const createWorkspaceRoute = createRoute({
 	getParentRoute: () => mainLayoutRoute,
 	path: "/create",
+	validateSearch: zCreateWorkspaceSearch,
 	component: () => (
 		<NotBuiltYet area="New workspace">
 			<CreateWorkspacePage />

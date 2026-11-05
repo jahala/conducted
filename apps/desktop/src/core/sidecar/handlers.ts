@@ -11,18 +11,28 @@
  * adopted status and any open interaction, and a failed live-state write is thrown so the tunnel
  * logs it; `agentSessionId` stores the agent's own session id so the next message resumes, and a
  * failed write is thrown so the tunnel logs it; `agentInstallsChanged` updates the agent catalog;
- * `shellEnvFailed` logs the folder, kind and message; a failed workspace diff becomes error text
- * the agent can read instead of a crash.
+ * `agentConfigChanged` stores the config the agent chose; a failed write is retried through the
+ * same single writer, and one that still fails is thrown so the tunnel logs it;
+ * `interactionClosed` marks a timed-out card and settles the pending request;
+ * `shellEnvFailed` logs the folder, kind and message; a failed workspace diff is answered as an
+ * RPC error whose data carries the app's own error code, so the sidecar tool shows an error
+ * result instead of a fake diff; a failed terminal output read throws, so the agent gets an RPC
+ * error instead of an error message dressed as terminal output.
  * Our design choice: handlers receive ports (small interfaces), not services, so each can be
- * tested with a plain object. Errors the agent should read go into the normal result as text.
+ * tested with a plain object. Errors the agent should read, such as the fixed no-terminal
+ * sentences, go into the normal result as text.
+ * Our design choice: one agentConfigChanged notification with a reason, not Conductor's separate
+ * enter-plan-mode notification.
  * Test first: a deliverEvent request for a stored event answers persisted true and sends the ack.
  */
-import type {
-	InteractionAnswer,
-	InteractionRequest,
-	SessionEventEnvelope,
+import {
+	type InteractionAnswer,
+	type InteractionRequest,
+	RPC_ERRORS,
+	type SessionEventEnvelope,
 } from "@conducted/protocol";
 import { notImplemented, type Result, type SessionId } from "@conducted/shared";
+import { JSONRPCErrorException } from "json-rpc-2.0";
 import type { IngestOutcome } from "./ingest.ts";
 import type {
 	SidecarNotificationHandlers,
@@ -37,6 +47,11 @@ import type {
 export interface InteractionPort {
 	/** Shows the card and resolves with the user's answer, or `withdrawn` when it was cancelled. */
 	request(request: InteractionRequest): Promise<InteractionAnswer>;
+	/**
+	 * The agent stopped waiting for an answer, or an answer could not reach it. A timed-out card
+	 * stays on screen marked as timed out.
+	 */
+	closed(params: SidecarToAppNotificationParams<"interactionClosed">): void;
 }
 
 export interface IngestPort {
@@ -53,6 +68,13 @@ export interface LiveStatePort {
 
 export interface AgentCatalogPort {
 	setAgentInstalls(params: SidecarToAppNotificationParams<"agentInstallsChanged">): void;
+}
+
+export interface AgentConfigPort {
+	/** Stores a config the agent changed by itself, for example plan mode. */
+	setAgentConfig(
+		params: SidecarToAppNotificationParams<"agentConfigChanged">,
+	): Promise<Result<void>>;
 }
 
 export interface WorkspaceDiffPort {
@@ -97,6 +119,7 @@ export interface SidecarHandlerPorts {
 	ingest: IngestPort;
 	liveState: LiveStatePort;
 	agentCatalog: AgentCatalogPort;
+	agentConfig: AgentConfigPort;
 	workspaceDiff: WorkspaceDiffPort;
 	diffComments: DiffCommentsPort;
 	terminalOutput: TerminalOutputPort;
@@ -119,12 +142,30 @@ export function createSidecarRequestHandlers(ports: SidecarHandlerPorts): Sideca
 				params.file,
 				params.statOnly,
 			);
-			return { diff: result.ok ? result.value : result.error.message };
+			if (!result.ok) {
+				throw new JSONRPCErrorException(result.error.message, RPC_ERRORS.internalError, {
+					appErrorCode: result.error.code,
+				});
+			}
+			return { diff: result.value };
 		},
 		getDiffComments: () => notImplemented("REV-03"),
 		addDiffComments: () => notImplemented("REV-03"),
-		getTerminalOutput: () => notImplemented("RUN-07"),
-		setTargetBranch: () => notImplemented("GIT-08"),
+		getTerminalOutput: async (params) => {
+			const result = await ports.terminalOutput.outputForSession(
+				params.sessionId,
+				params.source,
+				params.maxLines,
+			);
+			if (!result.ok) throw new Error(result.error.message);
+			return result.value;
+		},
+		setTargetBranch: async (params) => {
+			const result = await ports.targetBranch.setForSession(params.sessionId, params.branch);
+			return result.ok
+				? { ok: true, message: `The target branch is now ${params.branch}.` }
+				: { ok: false, message: result.error.message };
+		},
 	};
 }
 
@@ -152,8 +193,15 @@ export function createSidecarNotificationHandlers(
 		agentInstallsChanged: async (params) => {
 			ports.agentCatalog.setAgentInstalls(params);
 		},
-		agentConfigChanged: () => notImplemented("SIDE-20"),
-		interactionClosed: () => notImplemented("CHAT-11"),
+		agentConfigChanged: async (params) => {
+			const written = await ports.agentConfig.setAgentConfig(params);
+			if (!written.ok) {
+				throw new Error(`Could not store the chat's config: ${written.error.message}`);
+			}
+		},
+		interactionClosed: async (params) => {
+			ports.interactions.closed(params);
+		},
 		goalChanged: () => notImplemented("COMP-10"),
 		shellEnvFailed: async (params) => {
 			ports.shellEnv.captureFailed(params);

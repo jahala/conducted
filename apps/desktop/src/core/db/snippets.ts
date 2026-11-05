@@ -10,10 +10,11 @@
  * Test first: two snippets with the same keyword cannot both be inserted, and two with no
  * keyword can.
  */
-import { notImplemented, type Result, type SnippetId } from "@conducted/shared";
+import { err, ok, type Result, type SnippetId } from "@conducted/shared";
 import type { Database } from "../../platform/platform.ts";
 import type { Snippet } from "../model.ts";
 import type { RepositoryDeps } from "./deps.ts";
+import { executeExisting, executeStatement, executeVoid, selectRows } from "./row-codec.ts";
 
 export interface SnippetRow {
 	id: SnippetId;
@@ -73,13 +74,56 @@ export interface SnippetRepository {
 	delete(id: SnippetId): Promise<Result<void>>;
 }
 
-export function createSnippetRepository(_db: Database, _deps: RepositoryDeps): SnippetRepository {
+export function createSnippetRepository(db: Database, deps: RepositoryDeps): SnippetRepository {
+	const now = (): number => deps.clock.now();
+	const list = async (
+		sql: string,
+		params: readonly unknown[],
+		what: string,
+	): Promise<Result<Snippet[]>> => {
+		const rows = await selectRows<SnippetRow>(db, sql, params, what);
+		return rows.ok ? ok(rows.value.map(snippetFromRow)) : err(rows.error);
+	};
+	const find = async (
+		sql: string,
+		params: readonly unknown[],
+		what: string,
+	): Promise<Result<Snippet | null>> => {
+		const rows = await selectRows<SnippetRow>(db, sql, params, what);
+		if (!rows.ok) return err(rows.error);
+		const row = rows.value[0];
+		return ok(row === undefined ? null : snippetFromRow(row));
+	};
 	return {
-		list: async () => notImplemented("DATA-08"),
-		get: async () => notImplemented("DATA-08"),
-		getByKeyword: async () => notImplemented("DATA-08"),
-		create: async () => notImplemented("DATA-08"),
-		update: async () => notImplemented("DATA-08"),
-		delete: async () => notImplemented("DATA-08"),
+		list: () => list(SNIPPETS_SQL.list, [], "Listing snippets"),
+		get: (id) => find(SNIPPETS_SQL.get, [id], "Reading a snippet"),
+		getByKeyword: (keyword) =>
+			find(SNIPPETS_SQL.getByKeyword, [keyword], "Reading a snippet by keyword"),
+		create: async (input) => {
+			const at = now();
+			const snippet: Snippet = {
+				id: deps.ids.uuid() as SnippetId,
+				name: input.name,
+				keyword: input.keyword,
+				prompt: input.prompt,
+				createdAt: at,
+				updatedAt: at,
+			};
+			const written = await executeStatement(
+				db,
+				SNIPPETS_SQL.insert,
+				snippetToParams(snippet),
+				"Creating a snippet",
+			);
+			return written.ok ? ok(snippet) : err(written.error);
+		},
+		update: (id, input) =>
+			executeExisting(
+				db,
+				SNIPPETS_SQL.update,
+				[input.name, input.keyword, input.prompt, now(), id],
+				"Updating a snippet",
+			),
+		delete: (id) => executeVoid(db, SNIPPETS_SQL.delete, [id], "Removing a snippet"),
 	};
 }

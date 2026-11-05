@@ -996,6 +996,49 @@ describe("SIDE-03 prompt, settings and warming", () => {
 		).toEqual(ok({ applied: "live" }));
 		expect(h.processes.disconnected).toContain("claude:session-1");
 	});
+
+	test("SIDE-20 a config the agent changed reaches the app with its reason", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams());
+		const onConfigChanged = h.runners.get("claude")?.started[0]?.onConfigChanged;
+		expect(onConfigChanged).toBeDefined();
+		const entered = baseConfig({ planMode: true });
+		const left = baseConfig({ planMode: false });
+
+		onConfigChanged?.(left, "left_plan_mode");
+		onConfigChanged?.(entered, "entered_plan_mode");
+
+		expect(h.app.notifications).toContainEqual({
+			method: "agentConfigChanged",
+			params: {
+				sessionId: sid("session-1"),
+				config: entered,
+				reason: "entered_plan_mode",
+			},
+		});
+		expect(h.app.notifications).toContainEqual({
+			method: "agentConfigChanged",
+			params: {
+				sessionId: sid("session-1"),
+				config: left,
+				reason: "left_plan_mode",
+			},
+		});
+
+		// The next message carries the config the app stored from the notification, so the live
+		// agent and the new turn run in the mode the agent chose.
+		await h.turns.last().succeed();
+		const agent = h.processes.agents.values().next().value as FakeAgentSession;
+		await h.manager.sendMessage(
+			sendParams({
+				messageId: mid("message-2"),
+				turnId: tid("turn-2"),
+				config: entered,
+			}),
+		);
+		expect(agent.appliedConfigs.at(-1)).toEqual(entered);
+		expect(h.turns.last().request.config.planMode).toBe(true);
+	});
 });
 
 describe("SIDE-03 session map and agent identity", () => {

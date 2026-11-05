@@ -15,7 +15,7 @@
  */
 import type { SessionConfig } from "@conducted/protocol";
 import type { RepoId, SectionId, WorkspaceId } from "@conducted/shared";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
 import type { NewWorkspaceInput } from "../core/api.ts";
@@ -38,6 +38,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	const repos = useRepos();
 	const services = useServices();
 	const navigate = useNavigate();
+	const search = useSearch({ strict: false }) as { section?: string };
 
 	const defaultModel = useSetting<string>("default_model");
 	const defaultEffort = useSetting<string>("default_claude_effort_level");
@@ -55,7 +56,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	const [prompt, setPrompt] = useState("");
 	const [model, setModel] = useState(defaultModel);
 	const [planMode, setPlanMode] = useState(defaultPlanMode);
-	const [sectionId, setSectionId] = useState("");
+	const [sectionId, setSectionId] = useState(() => search.section ?? "");
 	const [busy, setBusy] = useState(false);
 	const [failedId, setFailedId] = useState<WorkspaceId | null>(null);
 	const [branchTouched, setBranchTouched] = useState(false);
@@ -67,6 +68,12 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	useEffect(() => {
 		if (repoId === null && readyRepos[0] !== undefined) setRepoId(readyRepos[0].id);
 	}, [repoId, readyRepos]);
+
+	// A "Create in section" link on the sidebar names the section in the URL.
+	const sectionFromSearch = search.section ?? "";
+	useEffect(() => {
+		if (sectionFromSearch !== "") setSectionId(sectionFromSearch);
+	}, [sectionFromSearch]);
 
 	if (repos.state === "loading") {
 		return (

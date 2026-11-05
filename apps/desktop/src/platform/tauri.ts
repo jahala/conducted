@@ -34,10 +34,19 @@
  * and a plain string into code `tauri_error`.
  */
 
-import { type AppError, appError, err, notImplemented, ok, type Result } from "@conducted/shared";
+import {
+	type AppError,
+	appError,
+	err,
+	type ManagedProgram,
+	notImplemented,
+	ok,
+	type Result,
+} from "@conducted/shared";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { Image } from "@tauri-apps/api/image";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
 	writeImage as writeClipboardImage,
 	writeText as writeClipboardText,
@@ -60,6 +69,7 @@ import type {
 	FileSearch,
 	FileStat,
 	FileSystem,
+	GrepMatch,
 	Http,
 	Keychain,
 	Notifications,
@@ -75,6 +85,8 @@ import type {
 	SidecarTransport,
 	Speech,
 	SystemFacts,
+	SystemInfo,
+	TreeEntry,
 	Updater,
 } from "./platform.ts";
 
@@ -109,9 +121,16 @@ export interface TauriOpenerBindings {
 	openUrl(url: string): Promise<void>;
 }
 
+export interface TauriWindowBindings {
+	isFocused(): Promise<boolean>;
+	listen<T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn>;
+}
+
 export interface TauriBindings {
 	invoke<T>(command: string, args?: Record<string, unknown>): Promise<T>;
 	listen<T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn>;
+	/** The current window. Focus events arrive on it, not on the app-wide event bus. */
+	window?: TauriWindowBindings;
 	/** tauri-plugin-sql, present on the real bindings and in a test that opens a database. */
 	sql?: { load(path: string): Promise<SqlDatabase> };
 	/** tauri-plugin-dialog. */
@@ -149,6 +168,11 @@ async function decodeImageToRgba(
 export const realTauriBindings: TauriBindings = {
 	invoke: (command, args) => invoke(command, args),
 	listen: (event, handler) => listen(event, (e) => handler(e.payload as never)),
+	window: {
+		isFocused: () => getCurrentWindow().isFocused(),
+		listen: (event, handler) =>
+			getCurrentWindow().listen(event, (e) => handler(e.payload as never)),
+	},
 	sql: { load: (path) => Sql.load(path) as Promise<SqlDatabase> },
 	dialog: {
 		open: (options) => openDialog(options) as Promise<string | string[] | null>,
@@ -180,8 +204,12 @@ function requireBinding<T>(value: T | undefined, name: string): T {
  * Listens for an event and returns an unsubscribe function straight away. A listener that resolves
  * after the caller unsubscribed is released at once, so no listener leaks.
  */
+interface EventSource {
+	listen<T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn>;
+}
+
 function onEvent<T>(
-	bindings: Pick<TauriBindings, "listen">,
+	bindings: EventSource,
 	event: string,
 	handler: (payload: T) => void,
 ): () => void {
@@ -261,6 +289,7 @@ export const COMMANDS = {
 	keychainDelete: "keychain_delete",
 	notify: "notify",
 	setDockBadge: "set_dock_badge",
+	notificationTakePending: "notification_take_pending",
 	revealInFinder: "reveal_in_finder",
 	openWith: "open_with",
 	installedApps: "installed_apps",
@@ -287,8 +316,10 @@ export const COMMANDS = {
 	httpCancel: "http_cancel",
 } as const;
 
-/** Events emitted by the Rust shell. */
+/** Events emitted by the Rust shell and by Tauri's own window. */
 export const EVENTS = {
+	windowFocus: "tauri://focus",
+	windowBlur: "tauri://blur",
 	quitRequested: "app://quit-requested",
 	deepLink: "app://deep-link",
 	shellDone: "shell://done",
@@ -361,17 +392,50 @@ export function createTauriAppInfo(
 			await invokeResult(bindings, COMMANDS.appQuit);
 		},
 		resourceUsage: () => notImplemented("PLAT-14"),
-		writeLog: () => notImplemented("PLAT-18"),
-		setLogLevel: () => notImplemented("PLAT-18"),
-		exportLogs: () => notImplemented("PLAT-18"),
-		setQuitHandlerReady: () => notImplemented("PLAT-15"),
+		writeLog: (level, message, data) => {
+			const safe = serialisableLogData(data);
+			const args =
+				safe === undefined
+					? { record: { level, message } }
+					: { record: { level, message, data: safe } };
+			void bindings.invoke(COMMANDS.logWrite, args).catch((error: unknown) => {
+				console.error("Could not write an app log line", error);
+			});
+		},
+		setLogLevel: async (level) => {
+			const result = await invokeResult<void>(bindings, COMMANDS.logSetLevel, { level });
+			if (!result.ok) throw result.error;
+		},
+		exportLogs: () => invokeResult<string>(bindings, COMMANDS.logsExport),
+		setQuitHandlerReady: async () => {
+			const result = await invokeResult(bindings, COMMANDS.setQuitHandlerReady);
+			if (!result.ok) throw result.error;
+		},
 	};
+}
+
+/**
+ * Data passed to `log_write` must survive Tauri's serialiser. A value that cannot be turned
+ * into JSON is replaced by a marker, so `writeLog` never throws.
+ */
+function serialisableLogData(data: unknown): unknown {
+	if (data === undefined) return undefined;
+	try {
+		return JSON.parse(JSON.stringify(data)) as unknown;
+	} catch {
+		return "[unserialisable]";
+	}
+}
+
+/** The log sink for Rust calls that happen inside the UI, such as the slow SQLite statement log. */
+export function createAppLogSink(app: Pick<AppInfo, "writeLog">) {
+	return (level: "warn", message: string, data: unknown) => app.writeLog(level, message, data);
 }
 
 export interface TauriDatabaseOptions {
 	/** A statement at or above this many milliseconds is logged. Defaults to 1000. */
 	slowMs?: number;
-	/** Where slow statements go, when a caller has a log sink. PLAT-18 will pass `app.writeLog`. */
+	/** Where slow statements go. The Platform passes `app.writeLog`. */
 	log?: (level: "warn", message: string, data: unknown) => void;
 }
 
@@ -660,12 +724,14 @@ export function createTauriFileSystem(
 }
 
 /** `search_list_tree { root }`, `search_fuzzy { root, query, limit }`, `search_grep { root, query, options }`, `search_list_artifacts { workspacePath, cursor, limit }`. */
-export function createTauriFileSearch(_bindings: TauriBindings): FileSearch {
+export function createTauriFileSearch(bindings: TauriBindings): FileSearch {
 	return {
-		listTree: () => notImplemented("PLAT-06"),
+		listTree: (root) => invokeResult<TreeEntry[]>(bindings, COMMANDS.searchListTree, { root }),
 		listArtifacts: () => notImplemented("REV-10"),
-		fuzzyMatch: () => notImplemented("PLAT-06"),
-		grep: () => notImplemented("PLAT-06"),
+		fuzzyMatch: (root, query, limit) =>
+			invokeResult<TreeEntry[]>(bindings, COMMANDS.searchFuzzy, { root, query, limit }),
+		grep: (root, query, options) =>
+			invokeResult<GrepMatch[]>(bindings, COMMANDS.searchGrep, { root, query, options }),
 	};
 }
 
@@ -829,20 +895,63 @@ export function createTauriSidecar(bindings: TauriBindings): SidecarTransport {
 }
 
 /** `keychain_get { key }`, `keychain_set { key, value }`, `keychain_delete { key }`. */
-export function createTauriKeychain(_bindings: TauriBindings): Keychain {
+export function createTauriKeychain(bindings: TauriBindings): Keychain {
 	return {
-		get: () => notImplemented("PLAT-10"),
-		set: () => notImplemented("PLAT-10"),
-		delete: () => notImplemented("PLAT-10"),
+		get: (key) => invokeResult<string | null>(bindings, COMMANDS.keychainGet, { key }),
+		set: (key, value) => invokeResult<void>(bindings, COMMANDS.keychainSet, { key, value }),
+		delete: (key) => invokeResult<void>(bindings, COMMANDS.keychainDelete, { key }),
 	};
 }
 
-/** `notify { title, body, deepLink }` (after a permission check with plugin-notification), `set_dock_badge { count }`, event `notification://clicked`. */
-export function createTauriNotifications(_bindings: TauriBindings): Notifications {
+/**
+ * `notify { request: { title, body, deepLink } }` (the Rust command checks the notification
+ * permission and plays the system sound), `set_dock_badge { count }`,
+ * `notification_take_pending`. The `notification://clicked` event wakes the UI, which then drains
+ * the newest queued click so one that arrived before the listener is not lost. An older queued
+ * click is dropped by the Rust command.
+ */
+export function createTauriNotifications(bindings: TauriBindings): Notifications {
+	const takePending = async (): Promise<string[] | null> => {
+		const result = await invokeResult<string[]>(bindings, COMMANDS.notificationTakePending);
+		if (result.ok) return result.value;
+		console.error(`Could not read pending notification clicks: ${result.error.message}`);
+		return null;
+	};
+
+	const drain = async (
+		listener: (deepLink: string) => void,
+		active: () => boolean,
+	): Promise<void> => {
+		if (!active()) return;
+		const links = await takePending();
+		if (links === null || !active()) return;
+		for (const link of links) {
+			if (link.length > 0) listener(link);
+		}
+	};
+
 	return {
-		notify: () => notImplemented("PLAT-11"),
-		setDockBadge: () => notImplemented("PLAT-11"),
-		onClicked: () => notImplemented("PLAT-11"),
+		notify: async (input) => {
+			const result = await invokeResult<void>(bindings, COMMANDS.notify, {
+				request: { title: input.title, body: input.body, deepLink: input.deepLink },
+			});
+			if (!result.ok) throw result.error;
+		},
+		setDockBadge: async (count) => {
+			const result = await invokeResult<void>(bindings, COMMANDS.setDockBadge, { count });
+			if (!result.ok) throw result.error;
+		},
+		onClicked: (listener) => {
+			let active = true;
+			const unsubscribe = onEvent(bindings, EVENTS.notificationClicked, () => {
+				void drain(listener, () => active);
+			});
+			void drain(listener, () => active);
+			return () => {
+				active = false;
+				unsubscribe();
+			};
+		},
 	};
 }
 
@@ -880,9 +989,16 @@ export function createTauriDialogs(bindings: TauriBindings = realTauriBindings):
 export function createTauriOpener(bindings: TauriBindings = realTauriBindings): Opener {
 	return {
 		openUrl: (url) => requireBinding(bindings.opener, "opener").openUrl(url),
-		revealInFinder: () => notImplemented("PLAT-19"),
-		openWith: () => notImplemented("PLAT-19"),
-		installedApps: () => notImplemented("PLAT-19"),
+		revealInFinder: async (path) => {
+			const result = await invokeResult<void>(bindings, COMMANDS.revealInFinder, { path });
+			if (!result.ok) throw result.error;
+		},
+		openWith: (appName, path) => invokeResult<void>(bindings, COMMANDS.openWith, { appName, path }),
+		installedApps: async () => {
+			const result = await invokeResult<string[]>(bindings, COMMANDS.installedApps);
+			if (!result.ok) throw result.error;
+			return result.value;
+		},
 	};
 }
 
@@ -919,16 +1035,28 @@ export function createTauriUpdater(_bindings: TauriBindings): Updater {
  * Webview API: `onDragDropEvent`, `setZoom`. Commands: `window_set_vibrancy { enabled }`,
  * `window_set_traffic_lights { x, y }`, `window_toggle_inspector`.
  */
-export function createTauriWindow(_bindings: TauriBindings): AppWindow {
+export function createTauriWindow(bindings: TauriBindings): AppWindow {
+	const currentWindow = (): TauriWindowBindings => requireBinding(bindings.window, "window");
 	return {
-		isFocused: () => notImplemented("PLAT-31"),
-		onFocusChanged: () => notImplemented("PLAT-31"),
+		isFocused: () => currentWindow().isFocused(),
+		onFocusChanged: (listener) => {
+			const window = currentWindow();
+			const stopFocus = onEvent(window, EVENTS.windowFocus, () => listener(true));
+			const stopBlur = onEvent(window, EVENTS.windowBlur, () => listener(false));
+			return () => {
+				stopFocus();
+				stopBlur();
+			};
+		},
 		onFileDrop: () => notImplemented("PLAT-33"),
 		setZoom: () => notImplemented("PLAT-23"),
 		setVibrancy: () => notImplemented("PLAT-23"),
 		setTrafficLightPosition: () => notImplemented("PLAT-23"),
 		setTheme: () => notImplemented("PLAT-23"),
-		toggleInspector: () => notImplemented("PLAT-15"),
+		toggleInspector: async () => {
+			const result = await invokeResult(bindings, COMMANDS.windowToggleInspector);
+			if (!result.ok) throw result.error;
+		},
 	};
 }
 
@@ -941,9 +1069,9 @@ export function createTauriMenu(_bindings: TauriBindings): AppMenu {
 }
 
 /** `system_info`, `network_status`, event `network://changed`, `full_disk_access_check`, `full_disk_access_open_settings`. */
-export function createTauriSystem(_bindings: TauriBindings): SystemFacts {
+export function createTauriSystem(bindings: TauriBindings): SystemFacts {
 	return {
-		info: () => notImplemented("PLAT-32"),
+		info: () => bindings.invoke<SystemInfo>(COMMANDS.systemInfo),
 		isOnline: () => notImplemented("PLAT-26"),
 		onNetworkChanged: () => notImplemented("PLAT-26"),
 		hasFullDiskAccess: () => notImplemented("PLAT-24"),
@@ -965,7 +1093,7 @@ export function createTauriAttachments(_bindings: TauriBindings): AttachmentFile
  * `programs_sync_path_overrides { overrides }`, events `programs://status` and
  * `programs://verification-errors`.
  */
-export function createTauriPrograms(_bindings: TauriBindings): Programs {
+export function createTauriPrograms(bindings: TauriBindings): Programs {
 	return {
 		statuses: () => notImplemented("PLAT-28"),
 		onStatus: () => notImplemented("PLAT-28"),
@@ -973,7 +1101,14 @@ export function createTauriPrograms(_bindings: TauriBindings): Programs {
 		redownload: () => notImplemented("PLAT-28"),
 		remove: () => notImplemented("PLAT-28"),
 		prefetchForUpdate: () => notImplemented("PLAT-28"),
-		verificationErrors: () => notImplemented("PLAT-34"),
+		verificationErrors: async () => {
+			const result = await invokeResult<{ program: ManagedProgram; message: string }[]>(
+				bindings,
+				COMMANDS.programsVerificationErrors,
+			);
+			if (!result.ok) throw result.error;
+			return result.value;
+		},
 		syncPathOverrides: () => notImplemented("SET-13"),
 	};
 }
@@ -1015,9 +1150,7 @@ export async function createTauriPlatform(
 	if (!paths.ok) return paths;
 
 	const app = createTauriAppInfo(bindings, info.value);
-	// The slow-statement log stays off until PLAT-18 builds app.writeLog. Wiring the placeholder
-	// here would throw on every slow query, and swallowing that error would be a fake success.
-	const database = await createTauriDatabase(bindings);
+	const database = await createTauriDatabase(bindings, { log: createAppLogSink(app) });
 	if (!database.ok) return database;
 
 	const platform: Platform = {

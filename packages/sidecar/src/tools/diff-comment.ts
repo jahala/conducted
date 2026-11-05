@@ -10,9 +10,8 @@
  * Test first: execute() with two comments calls addDiffComments once and answers "Posted 2
  * comments on the diff."
  */
-import { notImplemented } from "@conducted/shared";
 import { z } from "zod";
-import type { ToolContext, ToolDefinition, ToolResult } from "./types.ts";
+import type { DiffCommentInput, ToolContext, ToolDefinition, ToolResult } from "./types.ts";
 
 export const diffCommentShape = {
 	comments: z
@@ -34,10 +33,28 @@ export const diffCommentTool: ToolDefinition<typeof diffCommentShape> = {
 	inputShape: diffCommentShape,
 	readOnly: false,
 	idempotent: false,
-	execute(
-		_args: z.infer<z.ZodObject<typeof diffCommentShape>>,
-		_context: ToolContext,
+	async execute(
+		args: z.infer<z.ZodObject<typeof diffCommentShape>>,
+		context: ToolContext,
 	): Promise<ToolResult> {
-		return notImplemented("SIDE-12");
+		const invalid = args.comments.find(
+			(comment) => comment.endLine !== undefined && comment.endLine < comment.lineNumber,
+		);
+		if (invalid !== undefined) {
+			return {
+				text: `The comment on ${invalid.file} ends at line ${invalid.endLine}, before it starts at line ${invalid.lineNumber}.`,
+				isError: true,
+			};
+		}
+		const comments: DiffCommentInput[] = args.comments.map((comment) => ({
+			file: comment.file,
+			line: comment.lineNumber,
+			endLine: comment.endLine,
+			body: comment.body,
+		}));
+		const result = await context.backend.addDiffComments(context.sessionId, comments);
+		if (!result.ok) return { text: result.error.message, isError: true };
+		const noun = result.value === 1 ? "comment" : "comments";
+		return { text: `Posted ${result.value} ${noun} on the diff.`, isError: false };
 	},
 };

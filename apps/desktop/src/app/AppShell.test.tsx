@@ -89,7 +89,7 @@ describe("NAV-01 app shell", () => {
 
 	it("tells the toast host which workspace is open", async () => {
 		await openApp("/repository/r1/workspace/w1");
-		await screen.findByText("Git panel");
+		await screen.findByRole("tab", { name: "All files" });
 
 		let own: string | null = null;
 		let other: string | null = null;
@@ -121,7 +121,7 @@ describe("NAV-01 app shell", () => {
 
 	it("dismisses a workspace toast when the route leaves that workspace", async () => {
 		const { router } = await openApp("/repository/r1/workspace/w1");
-		await screen.findByText("Git panel");
+		await screen.findByRole("tab", { name: "All files" });
 		act(() => {
 			workspaceToast("w1" as WorkspaceId, "Build finished", { duration: 60_000 });
 		});

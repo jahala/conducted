@@ -24,20 +24,39 @@
 //!   listing.
 //! - `fs_trash` moves to the macOS Trash and never deletes for good. A missing path is an error.
 //! - Paths must be absolute. Relative paths fail with `fs_relative_path`.
+//! - `fs_read_text` refuses a file larger than `MAX_READ_BYTES`, so a huge file cannot exhaust the
+//!   app's memory.
 //!
-//! Scope (PLAT-29, native-and-sidecar-map.md A3): the web view reads only listed paths, where the
-//! first version of every command above accepts any absolute path. `check_path_in_scope` is the
-//! one check every `fs_*` command will call first once PLAT-29 wires it in:
-//! - Allowed roots are the workspace folders, the app data folder, the temp folder, the user's
-//!   `~/.claude.json`, `~/.claude/`, and Claude Desktop's `claude_desktop_config.json`.
+//! Scope (PLAT-29, native-and-sidecar-map.md A3): every `fs_*` command first calls
+//! `check_path_in_scope` with the roots `allowed_roots` builds:
+//! - The app data folder, the resource folder and the temp folder.
+//! - The user's `~/.claude.json`, `~/.claude/`, `~/.conducted/` and Claude Desktop's
+//!   `claude_desktop_config.json`.
+//! - The default workspaces folder, `~/conducted/`.
 //! - The check resolves symlinks and `..` first, so a link inside a root cannot lead out of it.
 //! - A path outside every root fails with `fs_out_of_scope` and names the path.
-//! - The roots come from the app (workspaces change at run time), so the list is a parameter.
+//! - `fs_stat` resolves only the parent folder and then reads the link itself, so a link is
+//!   described as a link even when it points to another name.
+//! - The roots are a parameter, so a caller with a workspace outside the default folder can pass
+//!   its own list. The `fs_*` commands use `allowed_roots`, which cannot add a folder the user
+//!   picked: a repository outside `~/conducted` is out of scope. Registering it needs a method
+//!   on the shared `FileSystem` contract and a caller in the project and workspace services, so it
+//!   is not built here.
 //!
-//! The same change sets the limits that live in `capabilities/default.json`: the shell plugin
-//! scopes (bash, kill, which, open, the sidecar), and the opener and HTTP URL scopes (the hosts the
-//! app calls, `localhost`, and the schemes of IDE links such as `vscode://` and `linear://`; see
-//! `shell::check_program_allowed`). JSON has no comments, so those entries are listed here.
+//! Our design choice: the web view's file scope covers the folders the UI already uses, not all of
+//! the home folder. The whole app data folder and the whole temp folder are roots because drafts,
+//! setup logs, attachments and temporary files live there; the research names only the Claude
+//! files.
+//!
+//! Our design choice: `capabilities/default.json` drops the broad plugin defaults. The UI calls
+//! the app's own file and shell commands, so the file-system and shell plugins are not granted.
+//! Web links keep `https://*` and `http://*` because chat renders links to any host; the host list
+//! in the research (A3) is narrower than what the chat shows. `mailto:` stays because chat renders
+//! mail addresses as links. `tel:` is not granted because nothing renders a telephone link. The
+//! IDE and chat schemes and the Full Disk Access pane come from A3.
+//!
+//! Our design choice: `fs_stat` reports the link itself, not the file it points to, so the UI can
+//! show a link. The file size and kind still come from the target, as the PLAT-05 header says.
 //!
 //! Our design choice: `fs_stat` returns an optional value instead of failing on a missing path.
 //! `fs_trash` uses the Trash of the volume the item lives on, and picks "name 2.ext" when a
@@ -47,9 +66,10 @@
 //! Test first: `fs_write_text_atomic` over an existing file, interrupted between the temp write
 //! and the rename, leaves the old content readable and no temp file behind.
 
+use std::ffi::OsString;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::UNIX_EPOCH;
 
@@ -57,7 +77,6 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
 use crate::error::{CommandError, CommandResult};
-use crate::not_implemented;
 
 #[cfg(target_os = "macos")]
 unsafe extern "C" {
@@ -71,6 +90,12 @@ unsafe extern "C" {
 /// macOS flag that makes `renamex_np` fail instead of replacing an existing path.
 #[cfg(target_os = "macos")]
 const RENAME_EXCL: std::os::raw::c_uint = 0x4;
+
+/// Largest file `fs_read_text` will load.
+pub const MAX_READ_BYTES: u64 = 64 * 1024 * 1024;
+
+/// How many symbolic links one scope check follows before giving up.
+const MAX_LINK_HOPS: usize = 40;
 
 /// File facts. Mirrors `FileStat` in `apps/desktop/src/platform/platform.ts`.
 #[derive(Debug, Clone, Serialize)]
@@ -100,11 +125,148 @@ pub struct FsPaths {
 }
 
 /// Resolves `path` and checks that it lies inside one of `roots`. Returns the resolved path.
-pub fn check_path_in_scope(
-    _path: &str,
-    _roots: &[std::path::PathBuf],
-) -> CommandResult<std::path::PathBuf> {
-    not_implemented!("PLAT-29")
+pub fn check_path_in_scope(path: &str, roots: &[PathBuf]) -> CommandResult<PathBuf> {
+    let absolute = absolute_path(path)?;
+    let resolved = resolve_for_scope(&absolute).map_err(|error| CommandError::Failed {
+        code: "fs_scope_failed",
+        message: format!("Could not resolve {}: {error}", absolute.display()),
+    })?;
+    let inside = roots
+        .iter()
+        .any(|root| is_within(&resolved, &root_for_compare(root)));
+    if inside {
+        return Ok(resolved);
+    }
+    Err(CommandError::Failed {
+        code: "fs_out_of_scope",
+        message: format!(
+            "Path is outside the folders this window may reach: {}",
+            absolute.display()
+        ),
+    })
+}
+
+/// Resolves every symlink and `..` in `path`. A path that does not exist yet is resolved from its
+/// deepest existing ancestor, so a write or a new folder can be checked before it exists.
+fn resolve_for_scope(path: &Path) -> io::Result<PathBuf> {
+    match fs::canonicalize(path) {
+        Ok(resolved) => return Ok(resolved),
+        Err(error) if error.kind() != io::ErrorKind::NotFound => return Err(error),
+        Err(_) => {}
+    }
+    let mut missing: Vec<OsString> = Vec::new();
+    let mut current = path.to_path_buf();
+    for _ in 0..MAX_LINK_HOPS {
+        match fs::symlink_metadata(&current) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                let target = fs::read_link(&current)?;
+                current = if target.is_absolute() {
+                    target
+                } else {
+                    current
+                        .parent()
+                        .unwrap_or_else(|| Path::new("/"))
+                        .join(target)
+                };
+            }
+            Ok(_) => {
+                let mut resolved = fs::canonicalize(&current)?;
+                append_missing(&mut resolved, &missing);
+                return Ok(resolved);
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                let Some(name) = current.file_name().map(|name| name.to_os_string()) else {
+                    return Ok(normalise_lexically(path));
+                };
+                missing.push(name);
+                let Some(parent) = current.parent() else {
+                    return Ok(normalise_lexically(path));
+                };
+                current = parent.to_path_buf();
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    Err(io::Error::other("too many symbolic links"))
+}
+
+/// Appends the names that do not exist yet, resolving `.` and `..` without following links that
+/// are not there.
+fn append_missing(base: &mut PathBuf, missing: &[OsString]) {
+    for part in missing.iter().rev() {
+        match part.to_str() {
+            Some(".") => {}
+            Some("..") => {
+                base.pop();
+            }
+            _ => base.push(part),
+        }
+    }
+}
+
+/// Resolves `.` and `..` without touching the file system.
+fn normalise_lexically(path: &Path) -> PathBuf {
+    let mut resolved = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                resolved.pop();
+            }
+            other => resolved.push(other.as_os_str()),
+        }
+    }
+    resolved
+}
+
+/// Canonicalises a root when it exists, so a link in the root itself cannot hide a match.
+fn root_for_compare(root: &Path) -> PathBuf {
+    match fs::canonicalize(root) {
+        Ok(resolved) => resolved,
+        // A root that does not exist yet is compared as written. Nothing can be read under it
+        // until it is created, and a later check canonicalises it.
+        Err(_) => normalise_lexically(root),
+    }
+}
+
+/// True when `path` is `root` itself or lies below it. Components are compared, so `~/.claude`
+/// does not match `~/.claude-other`.
+fn is_within(path: &Path, root: &Path) -> bool {
+    path == root || path.starts_with(root)
+}
+
+/// The roots the web view may reach without a further registration: the folders Tauri owns, the
+/// Claude configuration files, the app's own settings folder, and the default workspaces folder.
+pub fn allowed_roots(app: &AppHandle) -> CommandResult<Vec<PathBuf>> {
+    let resolver = app.path();
+    let to_error = |error: tauri::Error| CommandError::Failed {
+        code: "fs_scope_failed",
+        message: error.to_string(),
+    };
+    let home = home_dir()?;
+    let mut roots = vec![
+        resolver.app_data_dir().map_err(to_error)?,
+        resolver.temp_dir().map_err(to_error)?,
+        resolver.resource_dir().map_err(to_error)?,
+    ];
+    roots.extend(home_roots(&home));
+    roots.sort();
+    roots.dedup();
+    Ok(roots)
+}
+
+/// The home-folder roots: the Claude configuration the UI imports and the folders the app owns.
+fn home_roots(home: &Path) -> Vec<PathBuf> {
+    vec![
+        home.join(".claude.json"),
+        home.join(".claude"),
+        home.join(".conducted"),
+        home.join("Library")
+            .join("Application Support")
+            .join("Claude")
+            .join("claude_desktop_config.json"),
+        home.join("conducted"),
+    ]
 }
 
 /// Runs a blocking file operation off the async runtime.
@@ -182,6 +344,21 @@ fn read_text_at(path: &Path) -> CommandResult<String> {
         code: "fs_not_utf8",
         message: format!("File is not UTF-8 text: {}", path.display()),
     })
+}
+
+/// Reads a file as text, refusing one over `MAX_READ_BYTES` before it is loaded.
+fn read_text_limited(path: &Path) -> CommandResult<String> {
+    let metadata = fs::metadata(path)?;
+    if metadata.len() > MAX_READ_BYTES {
+        return Err(CommandError::Failed {
+            code: "fs_file_too_large",
+            message: format!(
+                "File is larger than {MAX_READ_BYTES} bytes: {}",
+                path.display()
+            ),
+        });
+    }
+    read_text_at(path)
 }
 
 /// Follows a symlink chain to the file a write should replace, so the link itself stays.
@@ -419,62 +596,129 @@ fn trash_into(path: &Path, trash: &Path) -> CommandResult<()> {
     }
 }
 
-/// Reads a whole file as UTF-8 text.
-#[tauri::command]
-pub async fn fs_read_text(path: String) -> CommandResult<String> {
-    blocking(move || read_text_at(&absolute_path(&path)?)).await
+/// Checks the path against the roots and returns the resolved path. Commands act on that path, so
+/// a link swapped after the check cannot point them outside the root.
+fn checked_target(path: &str, roots: &[PathBuf]) -> CommandResult<PathBuf> {
+    check_path_in_scope(path, roots)
 }
 
-/// Writes text through a temp file and a rename.
-#[tauri::command]
-pub async fn fs_write_text_atomic(path: String, text: String) -> CommandResult<()> {
+/// Checks the path against the roots but keeps its last name. The parent is resolved, so a link in
+/// a parent folder cannot be swapped after the check, while `fs_stat` still describes the link
+/// itself. A link whose target leaves the roots is refused first.
+fn checked_link_target(path: &str, roots: &[PathBuf]) -> CommandResult<PathBuf> {
+    let resolved = check_path_in_scope(path, roots)?;
+    let absolute = absolute_path(path)?;
+    let name = absolute.file_name().ok_or_else(|| CommandError::Failed {
+        code: "fs_bad_path",
+        message: format!("Cannot describe this path: {}", absolute.display()),
+    })?;
+    let parent = absolute.parent().unwrap_or_else(|| Path::new("/"));
+    if parent.as_os_str().is_empty() {
+        return Ok(PathBuf::from("/").join(name));
+    }
+    let parent_text = parent.to_string_lossy().into_owned();
+    match check_path_in_scope(&parent_text, roots) {
+        Ok(resolved_parent) => Ok(resolved_parent.join(name)),
+        // A path that is itself a root has a parent outside every root. The full check above
+        // already resolved it, so its own location is safe to use.
+        Err(_) => Ok(resolved),
+    }
+}
+
+/// Read a text file after the scope check.
+async fn read_text_checked(path: String, roots: Vec<PathBuf>) -> CommandResult<String> {
     blocking(move || {
-        let path = absolute_path(&path)?;
+        let path = checked_target(&path, &roots)?;
+        read_text_limited(&path)
+    })
+    .await
+}
+
+/// Write text atomically after the scope check.
+async fn write_text_atomic_checked(
+    path: String,
+    text: String,
+    roots: Vec<PathBuf>,
+) -> CommandResult<()> {
+    blocking(move || {
+        let path = checked_target(&path, &roots)?;
         write_text_atomic_with(&path, &text, rename_file)
     })
     .await
 }
 
-/// Returns facts about a path, or `None` when it does not exist.
-#[tauri::command]
-pub async fn fs_stat(path: String) -> CommandResult<Option<FileStat>> {
+/// Read facts about a path after the scope check.
+async fn stat_checked(path: String, roots: Vec<PathBuf>) -> CommandResult<Option<FileStat>> {
     blocking(move || {
-        let path = absolute_path(&path)?;
+        let path = checked_link_target(&path, &roots)?;
         Ok(stat_at(&path)?)
     })
     .await
 }
 
-/// Creates a folder and any missing parents. Succeeds when it already exists.
-#[tauri::command]
-pub async fn fs_mkdirp(path: String) -> CommandResult<()> {
+/// Create a folder after the scope check.
+async fn mkdirp_checked(path: String, roots: Vec<PathBuf>) -> CommandResult<()> {
     blocking(move || {
-        let path = absolute_path(&path)?;
+        let path = checked_target(&path, &roots)?;
         fs::create_dir_all(path)?;
         Ok(())
     })
     .await
 }
 
-/// Lists the direct children of a folder.
-#[tauri::command]
-pub async fn fs_read_dir(path: String) -> CommandResult<Vec<FileStat>> {
+/// List a folder after the scope check.
+async fn read_dir_checked(path: String, roots: Vec<PathBuf>) -> CommandResult<Vec<FileStat>> {
     blocking(move || {
-        let path = absolute_path(&path)?;
+        let path = checked_target(&path, &roots)?;
         read_dir_at(&path)
     })
     .await
 }
 
-/// Moves a file or folder to the Trash.
-#[tauri::command]
-pub async fn fs_trash(path: String) -> CommandResult<()> {
+/// Move a path to the Trash after the scope check.
+async fn trash_checked(path: String, roots: Vec<PathBuf>) -> CommandResult<()> {
     blocking(move || {
-        let path = absolute_path(&path)?;
+        let path = checked_target(&path, &roots)?;
         let trash = trash_dir_for(&path)?;
         trash_into(&path, &trash)
     })
     .await
+}
+
+/// Reads a whole file as UTF-8 text.
+#[tauri::command]
+pub async fn fs_read_text(app: AppHandle, path: String) -> CommandResult<String> {
+    read_text_checked(path, allowed_roots(&app)?).await
+}
+
+/// Writes text through a temp file and a rename.
+#[tauri::command]
+pub async fn fs_write_text_atomic(app: AppHandle, path: String, text: String) -> CommandResult<()> {
+    write_text_atomic_checked(path, text, allowed_roots(&app)?).await
+}
+
+/// Returns facts about a path, or `None` when it does not exist.
+#[tauri::command]
+pub async fn fs_stat(app: AppHandle, path: String) -> CommandResult<Option<FileStat>> {
+    stat_checked(path, allowed_roots(&app)?).await
+}
+
+/// Creates a folder and any missing parents. Succeeds when it already exists.
+#[tauri::command]
+pub async fn fs_mkdirp(app: AppHandle, path: String) -> CommandResult<()> {
+    mkdirp_checked(path, allowed_roots(&app)?).await
+}
+
+/// Lists the direct children of a folder.
+#[tauri::command]
+pub async fn fs_read_dir(app: AppHandle, path: String) -> CommandResult<Vec<FileStat>> {
+    read_dir_checked(path, allowed_roots(&app)?).await
+}
+
+/// Moves a file or folder to the Trash.
+#[tauri::command]
+pub async fn fs_trash(app: AppHandle, path: String) -> CommandResult<()> {
+    trash_checked(path, allowed_roots(&app)?).await
 }
 
 /// Returns the well-known folders. The UI reads this once at startup.
@@ -562,12 +806,17 @@ mod tests {
     fn plat_05_write_text_atomic_writes_and_reads_back() {
         let folder = TempDir::new();
         let path = as_string(&folder.path().join("note.txt"));
+        let roots = vec![folder.path().to_path_buf()];
 
-        tauri::async_runtime::block_on(fs_write_text_atomic(path.clone(), "hello".to_string()))
-            .expect("write");
+        tauri::async_runtime::block_on(write_text_atomic_checked(
+            path.clone(),
+            "hello".to_string(),
+            roots.clone(),
+        ))
+        .expect("write");
 
         assert_eq!(
-            tauri::async_runtime::block_on(fs_read_text(path)).expect("read"),
+            tauri::async_runtime::block_on(read_text_checked(path, roots)).expect("read"),
             "hello"
         );
     }
@@ -658,8 +907,12 @@ mod tests {
 
     #[test]
     fn plat_05_relative_paths_fail() {
-        let error = tauri::async_runtime::block_on(fs_read_text("relative.txt".to_string()))
-            .expect_err("relative path is refused");
+        let folder = TempDir::new();
+        let error = tauri::async_runtime::block_on(read_text_checked(
+            "relative.txt".to_string(),
+            vec![folder.path().to_path_buf()],
+        ))
+        .expect_err("relative path is refused");
         assert!(matches!(
             error,
             CommandError::Failed {
@@ -673,9 +926,11 @@ mod tests {
     fn plat_05_mkdirp_creates_parents_and_accepts_existing() {
         let folder = TempDir::new();
         let nested = as_string(&folder.path().join("a/b/c"));
+        let roots = vec![folder.path().to_path_buf()];
 
-        tauri::async_runtime::block_on(fs_mkdirp(nested.clone())).expect("create");
-        tauri::async_runtime::block_on(fs_mkdirp(nested)).expect("already exists");
+        tauri::async_runtime::block_on(mkdirp_checked(nested.clone(), roots.clone()))
+            .expect("create");
+        tauri::async_runtime::block_on(mkdirp_checked(nested, roots)).expect("already exists");
 
         assert!(folder.path().join("a/b/c").is_dir());
     }
@@ -753,9 +1008,11 @@ mod tests {
     fn plat_05_read_dir_command_lists_a_folder() {
         let folder = TempDir::new();
         fs::write(folder.path().join("a.txt"), "hello").expect("seed file");
+        let roots = vec![folder.path().to_path_buf()];
 
-        let entries = tauri::async_runtime::block_on(fs_read_dir(as_string(folder.path())))
-            .expect("list folder");
+        let entries =
+            tauri::async_runtime::block_on(read_dir_checked(as_string(folder.path()), roots))
+                .expect("list folder");
 
         assert_eq!(entries.len(), 1);
         assert!(entries[0].path.ends_with("a.txt"));
@@ -801,9 +1058,10 @@ mod tests {
     fn plat_05_trash_command_fails_for_a_missing_path() {
         let folder = TempDir::new();
         let missing = as_string(&folder.path().join("missing.txt"));
+        let roots = vec![folder.path().to_path_buf()];
 
-        let error =
-            tauri::async_runtime::block_on(fs_trash(missing)).expect_err("missing path fails");
+        let error = tauri::async_runtime::block_on(trash_checked(missing, roots))
+            .expect_err("missing path fails");
 
         assert!(matches!(error, CommandError::Io(_)));
     }
@@ -878,5 +1136,330 @@ mod tests {
         } else {
             assert!(trash.ends_with(Path::new(".Trashes").join(home_metadata.uid().to_string())));
         }
+    }
+
+    #[test]
+    fn plat_29_home_roots_list_the_claude_files_and_the_workspace_folder() {
+        let home = Path::new("/Users/example");
+        let roots = home_roots(home);
+
+        assert!(roots.contains(&home.join(".claude.json")));
+        assert!(roots.contains(&home.join(".claude")));
+        assert!(roots.contains(&home.join(".conducted")));
+        assert!(
+            roots.contains(
+                &home
+                    .join("Library")
+                    .join("Application Support")
+                    .join("Claude")
+                    .join("claude_desktop_config.json")
+            )
+        );
+        assert!(roots.contains(&home.join("conducted")));
+    }
+
+    #[test]
+    fn plat_29_a_path_inside_a_root_is_allowed() {
+        let folder = TempDir::new();
+        let file = folder.path().join("note.txt");
+        fs::write(&file, "hello").expect("seed file");
+
+        let resolved = check_path_in_scope(&as_string(&file), &[folder.path().to_path_buf()])
+            .expect("a path inside the root is allowed");
+
+        assert_eq!(resolved, file.canonicalize().expect("canonical path"));
+    }
+
+    #[test]
+    fn plat_29_a_path_outside_every_root_is_refused_and_named() {
+        let folder = TempDir::new();
+        let outside = as_string(&folder.path().join("outside.txt"));
+        let root = folder.path().join("root");
+        fs::create_dir(&root).expect("root folder");
+
+        let error = check_path_in_scope(&outside, &[root]).expect_err("outside is refused");
+
+        match error {
+            CommandError::Failed { code, message } => {
+                assert_eq!(code, "fs_out_of_scope");
+                assert!(message.contains(&outside), "the error names the path");
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn plat_29_a_sibling_whose_name_starts_with_the_root_is_not_inside() {
+        let folder = TempDir::new();
+        let root = folder.path().join("root");
+        let sibling = folder.path().join("root-other");
+        fs::create_dir(&root).expect("root folder");
+        fs::create_dir(&sibling).expect("sibling folder");
+
+        let error = check_path_in_scope(&as_string(&sibling), &[root])
+            .expect_err("a name prefix is not a parent folder");
+
+        assert!(matches!(
+            error,
+            CommandError::Failed {
+                code: "fs_out_of_scope",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn plat_29_dot_dot_cannot_climb_out_of_a_root() {
+        let folder = TempDir::new();
+        let root = folder.path().join("root");
+        fs::create_dir(&root).expect("root folder");
+
+        let escape = as_string(&root.join("../outside.txt"));
+        let error = check_path_in_scope(&escape, &[root]).expect_err("the climb is refused");
+
+        assert!(matches!(
+            error,
+            CommandError::Failed {
+                code: "fs_out_of_scope",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn plat_29_a_symlink_that_leaves_the_root_is_refused() {
+        let folder = TempDir::new();
+        let root = folder.path().join("root");
+        let outside = folder.path().join("secret.txt");
+        fs::create_dir(&root).expect("root folder");
+        fs::write(&outside, "secret").expect("seed outside file");
+        let link = root.join("link.txt");
+        symlink(&outside, &link).expect("make link");
+
+        let error =
+            check_path_in_scope(&as_string(&link), &[root]).expect_err("the link is refused");
+
+        assert!(matches!(
+            error,
+            CommandError::Failed {
+                code: "fs_out_of_scope",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn plat_29_a_missing_path_inside_a_root_resolves_from_its_parent() {
+        let folder = TempDir::new();
+        let missing = folder.path().join("new").join("note.txt");
+
+        let resolved = check_path_in_scope(&as_string(&missing), &[folder.path().to_path_buf()])
+            .expect("a new path inside the root is allowed");
+
+        assert!(resolved.ends_with("new/note.txt"));
+    }
+
+    #[test]
+    fn plat_29_checked_target_returns_the_resolved_path() {
+        let folder = TempDir::new();
+        let real = folder.path().join("real");
+        fs::create_dir(&real).expect("real folder");
+        let link = folder.path().join("link");
+        symlink(&real, &link).expect("make link");
+        let target = link.join("note.txt");
+        fs::write(&target, "x").expect("seed file");
+
+        let checked = checked_target(&as_string(&target), &[folder.path().to_path_buf()])
+            .expect("the path is in scope");
+
+        assert_eq!(
+            checked,
+            real.canonicalize().expect("real path").join("note.txt")
+        );
+        assert!(
+            !checked.starts_with(&link),
+            "the command acts on the resolved path, not the link"
+        );
+    }
+
+    #[test]
+    fn plat_29_stat_keeps_the_link_name_after_resolving_its_parent() {
+        let folder = TempDir::new();
+        let real = folder.path().join("real");
+        fs::create_dir(&real).expect("real folder");
+        let link_dir = folder.path().join("linkdir");
+        symlink(&real, &link_dir).expect("make the folder link");
+        let target = real.join("file.txt");
+        fs::write(&target, "x").expect("seed file");
+        let link = link_dir.join("note.txt");
+        symlink(&target, &link).expect("make the file link");
+
+        let checked = checked_link_target(&as_string(&link), &[folder.path().to_path_buf()])
+            .expect("the link is in scope");
+
+        assert_eq!(
+            checked,
+            real.canonicalize().expect("real path").join("note.txt")
+        );
+        let stat = stat_at(&checked)
+            .expect("stat the link")
+            .expect("the link exists");
+        assert!(stat.is_symlink, "fs_stat reports the link, not its target");
+    }
+
+    #[test]
+    fn plat_29_every_file_command_refuses_an_outside_path() {
+        let folder = TempDir::new();
+        let root = folder.path().join("root");
+        fs::create_dir(&root).expect("root folder");
+        let outside = folder.path().join("outside.txt");
+        fs::write(&outside, "secret").expect("seed the outside file");
+        let outside_dir = folder.path().join("outside-dir");
+        fs::create_dir(&outside_dir).expect("outside folder");
+        let roots = vec![root.clone()];
+
+        let write = tauri::async_runtime::block_on(write_text_atomic_checked(
+            as_string(&outside),
+            "changed".to_string(),
+            roots.clone(),
+        ))
+        .expect_err("a write outside the roots is refused");
+        assert_out_of_scope(write);
+        assert_eq!(
+            fs::read_to_string(&outside).expect("the outside file"),
+            "secret"
+        );
+
+        let stat = tauri::async_runtime::block_on(stat_checked(as_string(&outside), roots.clone()))
+            .expect_err("a stat outside the roots is refused");
+        assert_out_of_scope(stat);
+
+        let new_folder = folder.path().join("new-folder");
+        let mkdir =
+            tauri::async_runtime::block_on(mkdirp_checked(as_string(&new_folder), roots.clone()))
+                .expect_err("a folder outside the roots is refused");
+        assert_out_of_scope(mkdir);
+        assert!(!new_folder.exists(), "a refused mkdirp creates nothing");
+
+        let listed = tauri::async_runtime::block_on(read_dir_checked(
+            as_string(&outside_dir),
+            roots.clone(),
+        ))
+        .expect_err("a listing outside the roots is refused");
+        assert_out_of_scope(listed);
+
+        let trash =
+            tauri::async_runtime::block_on(trash_checked(as_string(&outside), roots.clone()))
+                .expect_err("a trash outside the roots is refused");
+        assert_out_of_scope(trash);
+        assert!(outside.exists(), "a refused trash moves nothing");
+
+        let secret = folder.path().join("secret-target.txt");
+        fs::write(&secret, "secret").expect("seed the link target");
+        let escaping_link = root.join("escaping.txt");
+        symlink(&secret, &escaping_link).expect("make the escaping link");
+        let stat_link =
+            tauri::async_runtime::block_on(stat_checked(as_string(&escaping_link), roots.clone()))
+                .expect_err("a link that leaves the roots is refused");
+        assert_out_of_scope(stat_link);
+    }
+
+    fn assert_out_of_scope(error: CommandError) {
+        assert!(
+            matches!(
+                &error,
+                CommandError::Failed {
+                    code: "fs_out_of_scope",
+                    ..
+                }
+            ),
+            "expected fs_out_of_scope, got {error:?}"
+        );
+    }
+
+    #[test]
+    fn plat_29_read_text_refuses_a_file_over_the_size_limit() {
+        let folder = TempDir::new();
+        let file = folder.path().join("huge.txt");
+        let handle = fs::File::create(&file).expect("create sparse file");
+        handle
+            .set_len(MAX_READ_BYTES + 1)
+            .expect("set the file length");
+
+        let error = read_text_limited(&file).expect_err("the file is too large");
+
+        assert!(matches!(
+            error,
+            CommandError::Failed {
+                code: "fs_file_too_large",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn plat_29_read_text_outside_the_roots_is_refused() {
+        let folder = TempDir::new();
+        let file = folder.path().join("secret.txt");
+        fs::write(&file, "secret").expect("seed file");
+        let root = folder.path().join("root");
+        fs::create_dir(&root).expect("root folder");
+
+        let error = tauri::async_runtime::block_on(read_text_checked(as_string(&file), vec![root]))
+            .expect_err("the read is refused");
+
+        assert!(matches!(
+            error,
+            CommandError::Failed {
+                code: "fs_out_of_scope",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn plat_29_capabilities_limit_the_opener_and_drop_the_broad_plugin_defaults() {
+        let capabilities: serde_json::Value =
+            serde_json::from_str(include_str!("../capabilities/default.json"))
+                .expect("the capability file is valid JSON");
+        let permissions = capabilities["permissions"]
+            .as_array()
+            .expect("permissions is a list");
+
+        let mut opener_scopes: Vec<&str> = Vec::new();
+        for permission in permissions {
+            let identifier = permission["identifier"].as_str().unwrap_or("");
+            if identifier == "opener:allow-open-url" {
+                for entry in permission["allow"]
+                    .as_array()
+                    .expect("the opener allow list is a list")
+                {
+                    opener_scopes.push(entry["url"].as_str().expect("every opener entry is a URL"));
+                }
+            }
+            assert!(
+                !matches!(
+                    identifier,
+                    "opener:default" | "shell:default" | "fs:default"
+                ),
+                "the broad plugin default {identifier} is not granted"
+            );
+        }
+        assert_eq!(
+            opener_scopes,
+            vec![
+                "https://*",
+                "http://*",
+                "mailto:*",
+                "linear://*",
+                "vscode://*",
+                "slack://*",
+                "figma://*",
+                "notion://*",
+                "raycast://*",
+                "x-apple.systempreferences:*",
+            ],
+            "the opener scope is the exact list, not a broader web scope"
+        );
     }
 }

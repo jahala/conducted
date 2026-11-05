@@ -156,6 +156,12 @@ export const allChangesDiffNameStatus = (mergeBase: string): GitCommand =>
 export const allChangesDiffNumstat = (mergeBase: string): GitCommand => diffNumstat(mergeBase);
 export const diffNameOnlyNul = (from: string, to: string | null = null): GitCommand =>
 	git([...DIFF_BASE, "--name-only", "-z", from, ...(to === null ? [] : [to])]);
+/** Paths with unresolved merge conflicts, NUL separated (services-map 3.10 discard step). */
+export const diffUnmergedPathsNul = (): GitCommand =>
+	git(["diff", "--name-only", "--diff-filter=U", "-z"]);
+/** Marks conflicted paths as resolved without staging their content (services-map 3.10). */
+export const addUpdatedPaths = (paths: readonly string[]): GitCommand =>
+	git(["add", "-u", "--", ...paths]);
 /** Only used to find conflicted paths; untracked files are listed separately. */
 export const statusPorcelain = (): GitCommand =>
 	git(["status", "--porcelain", "--untracked-files=no"]);
@@ -368,6 +374,8 @@ export const removeCached = (path: string): GitCommand =>
 export const configUserName = (): GitCommand => configGet("user.name");
 export const configUserEmail = (): GitCommand => configGet("user.email");
 export const configPullRebase = (): GitCommand => configGet("pull.rebase");
+/** `pull.ff` decides whether a pull may create a merge commit, or only fast-forward. */
+export const configPullFf = (): GitCommand => configGet("pull.ff");
 
 // ---------------------------------------------------------------- helper scripts (bin/)
 

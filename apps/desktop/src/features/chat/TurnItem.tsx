@@ -1,25 +1,31 @@
 /**
- * @feature CHAT-06 Chat turn
+ * @feature CHAT-06 Chat turn; CHAT-27 Visible auto-retry with Retry now
  * Owns: One list item: the user's message, steers sent during the turn, the assistant's blocks,
- * banners and the turn footer.
+ * banners, the agent's own retry line with Retry now, Retry in new chat on a failed turn, and the
+ * turn footer.
  * Behaviour: frontend.md 5 (one item per turn), ui-map.md 3.3 (user message with attachments and
- * mention chips; assistant text; thinking; footer; 'Interrupted by user'; per-turn boundary).
+ * mention chips; assistant text; thinking; footer; 'Interrupted by user'; per-turn boundary;
+ * 'Something went wrong, retrying n/m' with Retry now and Retry in new chat).
  * Our design choice: Wrapped in the shared ErrorBoundary so one broken turn does not hide the
  * others. Blocks render through ChatBlockView.
  * Must handle: A running turn (spinner, no footer yet); a turn that ended in error,
  * cancelled ("Interrupted by user") or cut off by a crash (a different line, since the user did not stop it);
  * a block that streams keeps its place on screen (keys come from position, not text); a reverted turn (dimmed, labelled); steers not yet read by the
- * agent (marked pending); footer actions are always visible, on every turn.
+ * agent (marked pending); footer actions are always visible, on every turn; the agent's retry line names
+ * the attempt, Retry now stops the turn and sends the message again, and Retry in new chat hands the turn
+ * to the banner; a turn with no user message offers no Retry now or Try again.
  * Test first: A turn with one text block and a tool block renders both in order; a thrown render
- * error shows the boundary text and the next turn still renders.
+ * error shows the boundary text and the next turn still renders; Retry now cancels and resends.
  */
+import type { LiveState } from "@conducted/protocol";
 import type { SessionId } from "@conducted/shared";
-import { memo } from "react";
+import { memo, useRef } from "react";
+import { createSingleFlight } from "../../core/async/single-flight.ts";
 import { useActions } from "../../core/hooks.ts";
 import type { ChatBlock, ChatTurn } from "../../core/model.ts";
 import { ErrorBoundary } from "../../ui/ErrorBoundary.tsx";
 import { Spinner } from "../../ui/Spinner.tsx";
-import { ChatBanner } from "./ChatBanner.tsx";
+import { ChatBanner, ChatRetryBanner } from "./ChatBanner.tsx";
 import { ChatBlockView } from "./ChatBlockView.tsx";
 import { reportFailure } from "./report-failure.ts";
 import { TurnFooter } from "./TurnFooter.tsx";
@@ -28,6 +34,8 @@ import { UserMessage } from "./UserMessage.tsx";
 export interface TurnItemProps {
 	turn: ChatTurn;
 	sessionId: SessionId;
+	/** The agent's own retry, when this is the running turn that has one. */
+	retry?: LiveState["retry"];
 }
 
 /**
@@ -68,18 +76,44 @@ function outcomeBlock(turn: ChatTurn): Extract<ChatBlock, { kind: "notice" | "er
 	return null;
 }
 
-export const TurnItem = memo(function TurnItem({ turn, sessionId }: TurnItemProps) {
+export const TurnItem = memo(function TurnItem({ turn, sessionId, retry }: TurnItemProps) {
 	const actions = useActions();
-	const retry = () => {
-		const message = turn.userMessage;
-		if (message === null) return;
-		void reportFailure(
-			actions.sessions.send(sessionId, message.text, message.attachmentPaths, "auto"),
-			"Couldn't send the message again",
-		);
-	};
+	const retryFlight = useRef(createSingleFlight()).current;
+	const message = turn.userMessage;
+	// A turn the agent started by itself has no message to send again in this chat, so the actions
+	// that resend it are not offered. Showing one that does nothing would be a silent failure.
+	const retryMessage =
+		message === null
+			? undefined
+			: () => {
+					void reportFailure(
+						actions.sessions.send(sessionId, message.text, message.attachmentPaths, "auto"),
+						"Couldn't send the message again",
+					);
+				};
+	// Retry now stops the agent's waiting retry and sends the same message as a fresh turn. The
+	// sidecar starts a new turn when it has gone idle, so a steer request falls back correctly.
+	const retryNow =
+		message === null
+			? undefined
+			: () => {
+					void reportFailure(
+						retryFlight.run(`chat:${sessionId}:retry-now`, async () => {
+							const stopped = await actions.sessions.cancel(sessionId);
+							if (!stopped.ok) return stopped;
+							return actions.sessions.send(
+								sessionId,
+								message.text,
+								message.attachmentPaths,
+								"auto",
+							);
+						}),
+						"Couldn't retry now",
+					);
+				};
 	const banner = outcomeBlock(turn);
 	const blocks = keyedBlocks(turn.blocks);
+	const retryInNewChat = { sessionId, turnId: turn.turnId };
 
 	return (
 		<div
@@ -110,9 +144,20 @@ export const TurnItem = memo(function TurnItem({ turn, sessionId }: TurnItemProp
 					</div>
 				))}
 				{blocks.map(({ key, block }) => (
-					<ChatBlockView key={key} block={block} sessionId={sessionId} onRetry={retry} />
+					<ChatBlockView
+						key={key}
+						block={block}
+						sessionId={sessionId}
+						onRetry={retryMessage}
+						retryInNewChat={retryInNewChat}
+					/>
 				))}
-				{banner === null ? null : <ChatBanner block={banner} onRetry={retry} />}
+				{banner === null ? null : (
+					<ChatBanner block={banner} onRetry={retryMessage} retryInNewChat={retryInNewChat} />
+				)}
+				{retry === undefined ? null : (
+					<ChatRetryBanner retry={retry} onRetryNow={retryNow} retryInNewChat={retryInNewChat} />
+				)}
 				{turn.outcome === "running" ? (
 					<div className="flex items-center gap-2 px-1 text-xs text-fg-muted">
 						<Spinner size="sm" label="The agent is working" />

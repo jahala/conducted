@@ -49,6 +49,7 @@ const KNOWN_UNUSED_SETTINGS: readonly string[] = [
 	"big_terminal_custom_commands",
 	"claude_provider",
 	"codex_provider",
+	"codex_tool_approval_policy",
 	"default_claude_personality",
 	"default_codex_personality",
 	"default_codex_thinking_level",
@@ -56,6 +57,7 @@ const KNOWN_UNUSED_SETTINGS: readonly string[] = [
 	"experimental_new_workspace_page",
 	"experimental_sidebar_transparency",
 	"internal_workspace_status_matrix",
+	"last_clone_directory",
 	"using_split_view",
 	"vertex_project_id",
 	"wrap_lines",
@@ -63,6 +65,10 @@ const KNOWN_UNUSED_SETTINGS: readonly string[] = [
 
 /** Commands of a done feature that no handler or caller names yet. */
 const KNOWN_UNUSED_COMMANDS: readonly string[] = [
+	"app.quit",
+	"chat.approveTool",
+	"chat.approveToolAlternate",
+	"chat.denyTool",
 	"chat.question.focusOther",
 	"chat.question.next",
 	"chat.question.previous",
@@ -83,12 +89,13 @@ const KNOWN_UNUSED_COMMANDS: readonly string[] = [
 	"terminal.wordBack",
 	"terminal.wordForward",
 	"view.toggleTerminalPanel",
+	"workspace.moveToSection",
 ];
 
 describe("registry entries are used", () => {
 	it("reads the status of a feature from the backlog", () => {
 		expect(statusOf("SET-01")).toBe("done");
-		expect(statusOf("RUN-01")).toBe("stub");
+		expect(statusOf("PLAT-08")).toBe("stub");
 	});
 
 	it("names every setting of a done feature somewhere, except the known gaps", () => {

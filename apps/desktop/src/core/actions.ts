@@ -113,7 +113,12 @@ export function createActions(
 		},
 		git: {
 			commitAndPush: (workspaceId) => services.git.commitAndPush(workspaceId),
-			pull: (workspaceId) => services.git.pull(workspaceId),
+			pull: async (workspaceId) => {
+				// The Actions contract reports only success; the panel reads the outcome from the
+				// service to show its toast.
+				const result = await services.git.pull(workspaceId);
+				return result.ok ? ok(undefined) : result;
+			},
 			push: (workspaceId) => services.git.push(workspaceId),
 			resolveConflicts: (workspaceId) => services.git.resolveConflicts(workspaceId),
 			renameBranch: (workspaceId, name) => services.git.renameBranch(workspaceId, name),

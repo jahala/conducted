@@ -2,8 +2,9 @@
  * @feature PR-01 Catalogue of every gh (GitHub CLI) invocation the app makes
  * Owns: one pure function per `gh` call (and the read-only `gt` Graphite calls), each returning a
  * `GitCommand` value. The runner executes it, in the workspace folder, so `gh` finds the repo.
- * Behaviour: services-map.md 3.7 (PR create, read, write actions), 3.8 (stacks, Graphite),
- * 3.9 (auth probes), 5B.1 (fields, batching, rate-limit gate).
+ * Also owns the clone picker calls and `gh repo clone` for cloning from GitHub (PRJ-02).
+ * Behaviour: services-map.md 3.2 (cloning), 3.7 (PR create, read, write actions), 3.8 (stacks,
+ * Graphite), 3.9 (auth probes, org list), 5B.1 (fields, batching, rate-limit gate).
  * Must handle: every value reaches `gh` as its own argument; GraphQL variables go through
  * `-F`/`-f` flags, never string-built into the query; a merge is pinned to the local HEAD with
  * `--match-head-commit`, and an approval to the head commit id, so the app never acts on a PR
@@ -57,9 +58,16 @@ fragment PrFields on PullRequest {
   mergeStateStatus
   reviewDecision
   baseRefName
+  baseRef { target { oid } }
   headRefName
   headRefOid
+  createdAt
+  updatedAt
+  author { login avatarUrl }
   viewerDidAuthor
+  viewerLatestReview { state commit { oid } }
+  reviewRequests(first: 20) { nodes { requestedReviewer { ... on User { login avatarUrl } ... on Team { slug avatarUrl } } } }
+  latestReviews(first: 20) { nodes { author { login avatarUrl } state submittedAt } }
   autoMergeRequest { enabledAt }
   mergeQueueEntry { state position }
   headRef {
@@ -71,6 +79,14 @@ fragment PrFields on PullRequest {
               ... on CheckRun { name status conclusion detailsUrl startedAt completedAt checkSuite { workflowRun { workflow { name } } } }
               ... on StatusContext { context state targetUrl }
             }
+          }
+        }
+        deployments(first: 20, orderBy: { field: CREATED_AT, direction: DESC }) {
+          nodes {
+            environment
+            createdAt
+            updatedAt
+            latestStatus { state environmentUrl createdAt updatedAt }
           }
         }
       }
@@ -104,7 +120,10 @@ export const prBatchQuery = (lookups: readonly PrLookup[]): GitCommand => {
   viewer { login }
   rateLimit { cost remaining }
   repository(owner: $owner, name: $repo) {
-    viewerPermission${aliases}
+    viewerPermission
+    squashMergeAllowed
+    rebaseMergeAllowed
+    mergeCommitAllowed${aliases}
   }
 }
 ${PR_FIELDS_FRAGMENT}`;
@@ -249,6 +268,51 @@ export const jobLogs = (jobId: string): GitCommand =>
 	gh(["api", `repos/{owner}/{repo}/actions/jobs/${jobId}/logs`], { okExitCodes: [0, 1] });
 export const checkRunAnnotations = (checkRunUrl: string): GitCommand =>
 	gh(["api", `${checkRunUrl}/annotations`, "--paginate", "--jq", 'map(.message) | join("\\n\\n")']);
+
+// ---------------------------------------------------------------- REST reads (PR-11)
+
+const REST_READ_TIMEOUT_MS = 15_000;
+
+/** Open issues, newest first. The caller drops the entries that are pull requests. */
+export const repositoryIssues = (ownerSlashName: string): GitCommand =>
+	gh(["api", `repos/${ownerSlashName}/issues?state=open&per_page=50&sort=updated&direction=desc`], {
+		timeoutMs: REST_READ_TIMEOUT_MS,
+	});
+/** Open pull requests, newest first. */
+export const repositoryPullRequests = (ownerSlashName: string): GitCommand =>
+	gh(["api", `repos/${ownerSlashName}/pulls?state=open&per_page=50&sort=updated&direction=desc`], {
+		timeoutMs: REST_READ_TIMEOUT_MS,
+	});
+export const pullRequestByNumber = (ownerSlashName: string, number: number): GitCommand =>
+	gh(["api", `repos/${ownerSlashName}/pulls/${number}`], { timeoutMs: REST_READ_TIMEOUT_MS });
+export const issueByNumber = (ownerSlashName: string, number: number): GitCommand =>
+	gh(["api", `repos/${ownerSlashName}/issues/${number}`], { timeoutMs: REST_READ_TIMEOUT_MS });
+/** The user's repositories, most recently updated first, for the new-workspace pickers. */
+export const recentRepositories = (): GitCommand =>
+	gh(["api", "user/repos?per_page=8&sort=updated"], { timeoutMs: REST_READ_TIMEOUT_MS });
+
+// ---------------------------------------------------------------- clone pickers (PRJ-02)
+
+/** The organisations the signed-in user belongs to, one login per line. */
+export const githubUserOrganizations = (): GitCommand =>
+	gh(["api", "user/orgs", "--paginate", "--jq", ".[].login"], { timeoutMs: 15_000 });
+/** One owner's repositories, most recently updated first. */
+export const githubOwnerRepositories = (owner: string): GitCommand =>
+	gh(
+		[
+			"repo",
+			"list",
+			owner,
+			"--limit",
+			"100",
+			"--json",
+			"name,owner,description,isPrivate,url,sshUrl,updatedAt",
+		],
+		{ timeoutMs: 15_000 },
+	);
+/** Clones a repository through the user's own `gh` sign-in. */
+export const githubRepoClone = (url: string, destination: string): GitCommand =>
+	gh(["repo", "clone", url, destination], { network: true });
 
 // ---------------------------------------------------------------- stacks and Graphite (PR-08)
 

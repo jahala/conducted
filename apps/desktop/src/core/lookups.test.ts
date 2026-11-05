@@ -1,7 +1,7 @@
 import type { RepoId, SessionId, WorkspaceId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import { createStore } from "zustand/vanilla";
-import { createLookups, defaultSessionConfig, remoteOf } from "./lookups.ts";
+import { createLookups, defaultSessionConfig } from "./lookups.ts";
 import type { Repo, RepoConfig, Session, Workspace } from "./model.ts";
 import type { RepoState } from "./services/repo.ts";
 import type { SessionsState } from "./services/sessions.ts";
@@ -46,7 +46,7 @@ const workspace: Workspace = {
 	updatedAt: 1,
 };
 
-const repoConfig = (createPr: string | null): RepoConfig => ({
+const repoConfig = (createPr: string | null, remoteName: string | null = null): RepoConfig => ({
 	setupScript: null,
 	runScripts: [],
 	runMode: "concurrent",
@@ -55,7 +55,7 @@ const repoConfig = (createPr: string | null): RepoConfig => ({
 	previewUrlTemplate: null,
 	spotlightTesting: false,
 	autoRunAfterSetup: false,
-	remoteName: null,
+	remoteName,
 	prompts: {
 		general: null,
 		codeReview: null,
@@ -66,12 +66,17 @@ const repoConfig = (createPr: string | null): RepoConfig => ({
 	},
 });
 
-const makeLookups = (withRepo = true, configs: Record<string, RepoConfig> = {}) =>
-	createLookups({
+const makeLookups = (
+	withRepo = true,
+	configs: Record<string, RepoConfig> = {},
+	workspaceOverrides: Partial<Workspace> = {},
+) => {
+	const row = { ...workspace, ...workspaceOverrides };
+	return createLookups({
 		workspaces: () =>
 			createStore<WorkspaceState>(() => ({
 				loaded: true,
-				workspacesById: { [workspace.id]: workspace },
+				workspacesById: { [row.id]: row },
 				setup: {},
 				archiving: {},
 			})),
@@ -96,24 +101,20 @@ const makeLookups = (withRepo = true, configs: Record<string, RepoConfig> = {}) 
 				viewingSessionId: null,
 			})),
 	});
-
-describe("remoteOf", () => {
-	it("takes the part before the first slash, else origin", () => {
-		expect(remoteOf("upstream/dev")).toBe("upstream");
-		expect(remoteOf("main")).toBe("origin");
-	});
-});
+};
 
 describe("createLookups", () => {
 	it("builds the git context from the stores", () => {
-		const result = makeLookups().gitContext("w1" as WorkspaceId);
+		const result = makeLookups(true, {
+			[repo.id]: repoConfig(null, "origin"),
+		}).gitContext("w1" as WorkspaceId);
 		expect(result).toEqual({
 			ok: true,
 			value: {
 				workspaceId: "w1",
 				workspacePath: "/ws/oslo",
 				repoRootPath: "/repos/app",
-				remote: "upstream",
+				remote: "origin",
 				targetBranch: "upstream/dev",
 				branch: "me/oslo",
 			},
@@ -145,6 +146,95 @@ describe("createLookups", () => {
 		expect(result).toMatchObject({
 			ok: true,
 			value: { placeholderBranch: true, port: 55_000, targetBranch: "upstream/dev" },
+		});
+	});
+});
+
+describe("DATA-09 one home for a repository's remote", () => {
+	const lookupsWith = (remoteName: string | null, targetBranch = "upstream/dev") =>
+		makeLookups(true, { [repo.id]: repoConfig(null, remoteName) }, { targetBranch });
+
+	it("reads the remote name from the repo setting", () => {
+		expect(lookupsWith("upstream").remoteNameOf("w1" as WorkspaceId)).toEqual({
+			ok: true,
+			value: "upstream",
+		});
+	});
+
+	it("trims the configured name and falls back to origin when it is empty", () => {
+		expect(lookupsWith("  fork  ").remoteNameOf("w1" as WorkspaceId)).toEqual({
+			ok: true,
+			value: "fork",
+		});
+		expect(lookupsWith("").remoteNameOf("w1" as WorkspaceId)).toEqual({
+			ok: true,
+			value: "origin",
+		});
+		expect(lookupsWith("   ").remoteNameOf("w1" as WorkspaceId)).toEqual({
+			ok: true,
+			value: "origin",
+		});
+		expect(lookupsWith(null).remoteNameOf("w1" as WorkspaceId)).toEqual({
+			ok: true,
+			value: "origin",
+		});
+	});
+
+	it("refuses a configured remote name git could read as an option", () => {
+		const lookups = lookupsWith("--upload-pack=x");
+		for (const result of [
+			lookups.remoteNameOf("w1" as WorkspaceId),
+			lookups.gitContext("w1" as WorkspaceId),
+			lookups.prContext("w1" as WorkspaceId),
+		]) {
+			expect(result).toMatchObject({
+				ok: false,
+				error: { code: "workspace_branch_invalid" },
+			});
+		}
+	});
+
+	it("refuses to guess a remote before the config is loaded", () => {
+		expect(makeLookups().remoteNameOf("w1" as WorkspaceId)).toMatchObject({
+			ok: false,
+			error: { code: "repo_config_unloaded" },
+		});
+	});
+
+	it("returns an error for an unknown workspace", () => {
+		expect(lookupsWith("origin").remoteNameOf("nope" as WorkspaceId)).toMatchObject({
+			ok: false,
+			error: { code: "workspace_unknown" },
+		});
+	});
+
+	it("gives gitContext the configured remote, not the target branch's prefix", () => {
+		expect(lookupsWith("origin").gitContext("w1" as WorkspaceId)).toMatchObject({
+			ok: true,
+			value: { remote: "origin", targetBranch: "upstream/dev" },
+		});
+		expect(lookupsWith("fork").gitContext("w1" as WorkspaceId)).toMatchObject({
+			ok: true,
+			value: { remote: "fork" },
+		});
+	});
+
+	it("gives prContext the configured remote, not the target branch's prefix", () => {
+		expect(lookupsWith("upstream").prContext("w1" as WorkspaceId)).toMatchObject({
+			ok: true,
+			value: { remote: "upstream" },
+		});
+	});
+
+	it("refuses to build a git or PR context before the config is loaded", () => {
+		const lookups = makeLookups();
+		expect(lookups.gitContext("w1" as WorkspaceId)).toMatchObject({
+			ok: false,
+			error: { code: "repo_config_unloaded" },
+		});
+		expect(lookups.prContext("w1" as WorkspaceId)).toMatchObject({
+			ok: false,
+			error: { code: "repo_config_unloaded" },
 		});
 	});
 });

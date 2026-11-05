@@ -72,12 +72,15 @@ function setChat(
 
 function snapshot(overrides: Partial<ChangesSnapshot> = {}): ChangesSnapshot {
 	return {
+		depth: "full",
 		branch: "feature",
 		mergeBase: "abc123",
 		mergeBaseError: null,
 		files: [],
 		conflictedPaths: [],
 		untrackedTruncated: false,
+		uncommittedFiles: 0,
+		changedFiles: 0,
 		operation: "none",
 		commits: [],
 		sync: { ahead: 0, behind: 0, rewritten: false, hasUpstream: true },
@@ -225,9 +228,23 @@ describe("WS-09 useWorkspaceStatus", () => {
 		expect(withoutGit.result.current).toBeNull();
 
 		act(() => {
-			setGit(services, snapshot({ files: [changedFile("src/app.ts")] }));
+			setGit(
+				services,
+				snapshot({ files: [changedFile("src/app.ts")], uncommittedFiles: 1, changedFiles: 1 }),
+			);
 		});
 		expect(label(withoutGit.result.current)).toBe("git:changes");
+	});
+
+	it("reads the status from the git service's own counts", () => {
+		const services = makeServices();
+		setWorkspace(services, "ready");
+		setChat(services, idle);
+		// A working-tree change is enough for "changes" even when the file list itself is empty.
+		setGit(services, snapshot({ files: [], uncommittedFiles: 1, changedFiles: 0 }));
+
+		const { result } = renderStatus(services);
+		expect(label(result.current)).toBe("git:changes");
 	});
 
 	it("returns null for an unknown workspace", () => {

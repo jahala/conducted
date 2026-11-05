@@ -70,7 +70,7 @@ export interface CodexLocalImageInput {
 
 export type CodexUserInput = CodexUserInputText | CodexLocalImageInput;
 
-export type CodexApprovalPolicy = "untrusted" | "on-request" | "never";
+export type CodexApprovalPolicy = "untrusted" | "on-failure" | "on-request" | "never";
 export type CodexSandboxMode = "read-only" | "workspace-write" | "danger-full-access";
 
 export interface CodexThreadStartParams {
@@ -101,6 +101,7 @@ export interface CodexTurnStartParams {
 	model?: string | null;
 	effort?: string | null;
 	approvalPolicy?: CodexApprovalPolicy | null;
+	sandbox?: CodexSandboxMode | null;
 }
 
 export type CodexTurnStatus = "completed" | "interrupted" | "failed" | "inProgress";

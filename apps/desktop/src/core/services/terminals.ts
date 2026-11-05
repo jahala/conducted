@@ -11,8 +11,9 @@
  * configured number of terminals per workspace; `getTerminalOutput` source "auto" picks the
  * Spotlight terminal, then the run terminal, then the newest interactive one, and says which it
  * used; a request for output when nothing matches returns a plain sentence the agent can read
- * ("No run script is active"), not an error; script files are never written to disk (the command
- * goes to the shell as arguments).
+ * ("No action process active"), not an error; an ended terminal falls back to the text kept when it
+ * ended, then to its saved screen, then to a plain sentence when neither exists; script files are
+ * never written to disk (the command goes to the shell as arguments).
  * Shell integration (RUN-09, native-and-sidecar-map.md A5 and D1, services-map.md 5A.4.6): an
  * interactive terminal starts zsh with `ZDOTDIR` pointing at a folder of four small files
  * (`.zshenv`, `.zprofile`, `.zshrc`, `.zlogin`) that source the user's own dotfiles first and then
@@ -24,10 +25,11 @@
  * still read; output with a marker still reaches the screen unchanged.
  * Our design choice: environment variables are named CONDUCTED_*. Scripts run as
  * `<login shell> -l -c <script>` with the captured login environment, not from a temp file.
- * Built now (RUN-06): tabs, the live connection, restart, repo terminal, limit, folder check, kill on
- * quit, `buildScriptEnv`. Still placeholders: `runScript` and `stop` (RUN-01), `outputFor` (RUN-07),
- * the shell integration (RUN-09). The claims above about script exit codes, `getTerminalOutput`
- * and script files belong to those placeholders.
+ * Built now (RUN-06, RUN-07, RUN-01): tabs, the live connection, restart, repo terminal, limit,
+ * folder check, kill on quit, `buildScriptEnv`, `outputFor`, `runScript` and `stop`. `outputFor`
+ * reads the live screen, keeps the text of a finished terminal in memory, and falls back to the
+ * saved screen for an older one. A run or spotlight script never saves its screen, so its output
+ * stays off disk. Still a placeholder: the shell integration (RUN-09).
  * Test first: buildScriptEnv sets CONDUCTED_PORT and CONDUCTED_WORKSPACE_PATH from the workspace.
  */
 import {
@@ -119,11 +121,92 @@ export const terminalLimit = (tabFreakMode: boolean): number => (tabFreakMode ? 
 
 export type TerminalOutputSource = "auto" | "run_script" | "spotlight" | "terminal";
 
+/** Lines returned when the caller does not ask for a positive number. From the research. */
+export const DEFAULT_TERMINAL_OUTPUT_LINES = 1000;
+
+/** The text Conductor uses when the requested source has no terminal (services-map.md 5A.1.3). */
+export const NO_SPOTLIGHT_OUTPUT = "No spotlight process active";
+export const NO_RUN_OUTPUT = "No action process active";
+export const NO_TERMINAL_OUTPUT = "No terminal found for this workspace";
+
+/** The text for an ended process whose output was never kept and never saved. */
+export const NO_SAVED_OUTPUT = "No saved output for this process";
+
 export interface TerminalOutput {
 	output: string;
-	/** The source that was actually read. */
+	/** The source that was actually read, as the agent's label: Spotlight, Action or Terminal. */
 	source: string;
 	running: boolean;
+}
+
+const SOURCE_LABELS: Readonly<Record<Terminal["kind"], string>> = {
+	spotlight: "Spotlight",
+	run: "Action",
+	setup: "Action",
+	terminal: "Terminal",
+};
+
+const KIND_FOR_SOURCE: Readonly<Record<Exclude<TerminalOutputSource, "auto">, Terminal["kind"]>> = {
+	spotlight: "spotlight",
+	run_script: "run",
+	terminal: "terminal",
+};
+
+const MISSING_FOR_SOURCE: Readonly<Record<TerminalOutputSource, string>> = {
+	auto: NO_TERMINAL_OUTPUT,
+	spotlight: NO_SPOTLIGHT_OUTPUT,
+	run_script: NO_RUN_OUTPUT,
+	terminal: NO_TERMINAL_OUTPUT,
+};
+
+const sourceLabel = (source: TerminalOutputSource): string =>
+	SOURCE_LABELS[source === "auto" ? "terminal" : KIND_FOR_SOURCE[source]];
+
+const ANSI_SEQUENCE = new RegExp(`${String.fromCharCode(27)}\\[[0-9;?]*[ -/]*[@-~]`, "g");
+
+/** Plain text of a saved screen snapshot. Invalid JSON and a missing `data` field are errors. */
+export function snapshotText(json: string): Result<string> {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(json);
+	} catch (cause) {
+		return err(
+			appError("terminal_output_failed", "The saved terminal screen could not be read.", cause),
+		);
+	}
+	if (typeof parsed !== "object" || parsed === null) {
+		return err(appError("terminal_output_failed", "The saved terminal screen could not be read."));
+	}
+	const data = (parsed as { data?: unknown }).data;
+	if (typeof data !== "string") {
+		return err(appError("terminal_output_failed", "The saved terminal screen could not be read."));
+	}
+	return ok(data.replace(ANSI_SEQUENCE, "").replace(/\r/g, ""));
+}
+
+const lastLines = (text: string, maxLines: number): string => {
+	const lines = text.split("\n");
+	while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+	return lines.slice(Math.max(0, lines.length - maxLines)).join("\n");
+};
+
+const positiveLineCount = (maxLines: number): number =>
+	Number.isFinite(maxLines) && maxLines > 0 ? Math.floor(maxLines) : DEFAULT_TERMINAL_OUTPUT_LINES;
+
+/** Picks the terminal a source names. The newest row of that kind wins, including an ended one. */
+function pickTerminal(
+	terminals: readonly Terminal[],
+	source: TerminalOutputSource,
+): Terminal | null {
+	const kinds: readonly Terminal["kind"][] =
+		source === "auto" ? ["spotlight", "run", "terminal"] : [KIND_FOR_SOURCE[source]];
+	const candidates = terminals
+		.filter((terminal) => kinds.includes(terminal.kind))
+		.sort((left, right) => left.startedAt - right.startedAt);
+	const newestPerKind = kinds
+		.map((kind) => candidates.filter((terminal) => terminal.kind === kind).at(-1))
+		.find((terminal) => terminal !== undefined);
+	return newestPerKind ?? null;
 }
 
 export interface ScriptRun {
@@ -153,13 +236,23 @@ export interface TerminalsServiceDeps {
 	/** Maximum interactive terminals per workspace, from settings. */
 	maxPerWorkspace: () => number;
 	now: () => number;
+	/** Runs `callback` after `ms`; returns a function that cancels it. Injected so tests control time. */
+	setTimer?: (callback: () => void, ms: number) => () => void;
 }
+
+/** Milliseconds a stop waits for the process to exit before it reports "not confirmed". */
+export const STOP_WATCHDOG_MS = 20_000;
+export const STOP_NOT_CONFIRMED_MESSAGE = "Stop not confirmed, the process may still be running.";
 
 interface ConnectionRecord {
 	terminal: Terminal;
 	handle: PtyHandle | null;
 	history: Uint8Array;
 	ended: { exitCode: number | null } | null;
+	/** The end-of-run text, kept so an agent can still read it after the process exits. */
+	rendered: Promise<string | null> | null;
+	/** Identifies the newest end-of-run read, so an older one cannot replace it. */
+	screenTicket: number;
 	dataListeners: Set<(chunk: Uint8Array) => void>;
 	exitListeners: Set<(exitCode: number | null) => void>;
 	pending: Uint8Array[];
@@ -308,6 +401,8 @@ export class TerminalsService {
 			handle: null,
 			history: new Uint8Array(),
 			ended: terminal.endedAt === null ? null : { exitCode: terminal.exitCode },
+			rendered: null,
+			screenTicket: 0,
 			dataListeners: new Set(),
 			exitListeners: new Set(),
 			pending: [],
@@ -346,11 +441,20 @@ export class TerminalsService {
 		return record;
 	}
 
-	async #spawn(terminal: Terminal, existing?: ConnectionRecord): Promise<Result<void>> {
+	async #spawn(
+		terminal: Terminal,
+		existing?: ConnectionRecord,
+		options?: {
+			command?: { program: string; args: readonly string[] };
+			env?: Readonly<Record<string, string>>;
+		},
+	): Promise<Result<void>> {
 		const spawned = await this.#deps.platform.pty.spawn({
 			cwd: terminal.cwd,
 			cols: DEFAULT_COLS,
 			rows: DEFAULT_ROWS,
+			...(options?.command === undefined ? {} : { command: options.command }),
+			...(options?.env === undefined ? {} : { env: options.env }),
 		});
 		if (!spawned.ok) return spawned;
 
@@ -358,6 +462,9 @@ export class TerminalsService {
 		record.terminal = terminal;
 		record.handle = spawned.value;
 		record.ended = null;
+		// A restarted shell has no output yet; text from the previous one must not come back.
+		record.rendered = null;
+		record.screenTicket += 1;
 		record.unsubscribeData = spawned.value.onData((chunk) => this.#emit(record, chunk));
 		record.unsubscribeExit = spawned.value.onExit((exitCode) =>
 			this.#finish(terminal.id, exitCode),
@@ -392,7 +499,35 @@ export class TerminalsService {
 		const endedAt = this.#deps.now();
 		void this.#persistEnd(id, endedAt, exitCode);
 		this.#update(id, { endedAt, exitCode });
-		if (handle) void this.#saveScreen(id, handle);
+		if (handle) {
+			const ticket = ++record.screenTicket;
+			record.rendered = this.#captureScreenText(record, handle, ticket);
+			// Script output is never written to disk. Only an interactive terminal keeps a screen.
+			if (record.terminal.kind === "terminal") void this.#saveScreen(id, handle);
+		}
+	}
+
+	/**
+	 * Reads the end-of-run text while the handle is still alive. A failure is kept in the store so
+	 * the user is not left with a terminal that looks readable but is not.
+	 */
+	async #captureScreenText(
+		record: ConnectionRecord,
+		handle: PtyHandle,
+		ticket: number,
+	): Promise<string | null> {
+		let text: string;
+		try {
+			text = await handle.screenText(Number.MAX_SAFE_INTEGER);
+		} catch (cause) {
+			this.#setError(
+				`t:${record.terminal.id}`,
+				appError("terminal_output_failed", "Couldn't read the terminal output.", cause),
+			);
+			return null;
+		}
+		// Only the newest end may keep its text; an older read is dropped.
+		return record.screenTicket === ticket ? text : null;
 	}
 
 	/** Stores the end time. A failure is kept in the store, so the row is not left looking live. */
@@ -555,33 +690,214 @@ export class TerminalsService {
 	}
 
 	/** Starts a script (setup, run or spotlight) in its own terminal row. */
-	runScript(_input: {
+	async runScript(input: {
 		workspaceId: WorkspaceId;
 		kind: "setup" | "run" | "spotlight";
 		title: string;
 		command: string;
 		cwd: string;
 		env: Readonly<Record<string, string>>;
+		/** Receives the script's output as text, for URL detection. */
+		onOutput?: (text: string) => void;
 	}): Promise<Result<ScriptRun>> {
-		return notImplemented("RUN-01");
+		const workspace = await this.#deps.repos.workspaces.get(input.workspaceId);
+		if (!workspace.ok) return workspace;
+		if (workspace.value === null) {
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		}
+		const folder = await this.#requireFolder(input.cwd);
+		if (!folder.ok) return folder;
+
+		const started = await this.#deps.repos.terminals.start({
+			workspaceId: input.workspaceId,
+			repoId: workspace.value.repoId,
+			kind: input.kind,
+			title: input.title,
+			cwd: input.cwd,
+			startCommand: null,
+			cols: DEFAULT_COLS,
+			rows: DEFAULT_ROWS,
+		});
+		if (!started.ok) return started;
+
+		let login: { shell: string; path: string };
+		try {
+			login = await this.#deps.platform.shell.loginEnv();
+		} catch (cause) {
+			await this.#persistEnd(started.value.id, this.#deps.now(), null);
+			return err(
+				appError("shell_unknown", "Couldn't find your login shell to run the script.", cause),
+			);
+		}
+
+		const spawned = await this.#spawn(started.value, undefined, {
+			command: { program: login.shell, args: ["-l", "-c", input.command] },
+			env: input.env,
+		});
+		if (!spawned.ok) {
+			await this.#persistEnd(started.value.id, this.#deps.now(), null);
+			return spawned;
+		}
+
+		const record = this.#records.get(started.value.id);
+		if (record === undefined) {
+			return err(appError("terminal_unknown", "That terminal no longer exists."));
+		}
+
+		let unsubscribeOutput: (() => void) | null = null;
+		if (input.onOutput !== undefined) {
+			const decoder = new TextDecoder();
+			unsubscribeOutput = record.connection.onData((chunk) => {
+				input.onOutput?.(decoder.decode(chunk));
+			});
+		}
+		const exit = new Promise<number | null>((resolve) => {
+			const unsubscribeExit = record.connection.onExit((code) => {
+				unsubscribeExit();
+				unsubscribeOutput?.();
+				unsubscribeOutput = null;
+				resolve(code);
+			});
+		});
+
+		this.#loads.invalidate(`w:${input.workspaceId}`);
+		this.store.setState((state) => {
+			const current = state.byWorkspace[input.workspaceId] ?? [];
+			const next = current.some((terminal) => terminal.id === started.value.id)
+				? current
+				: [...current, started.value];
+			return { byWorkspace: { ...state.byWorkspace, [input.workspaceId]: next } };
+		});
+		return ok({ terminalId: started.value.id, exit });
 	}
 
-	/** Stops a script terminal: terminate, then kill after 20 seconds if it does not exit. */
-	stop(_id: TerminalId): Promise<Result<void>> {
-		return notImplemented("RUN-01");
+	/** Stops a script terminal: kill, then report a stop that did not confirm after 20 seconds. */
+	async stop(id: TerminalId): Promise<Result<void>> {
+		const record = this.#records.get(id);
+		if (record === undefined || record.handle === null) {
+			const found = await this.#deps.repos.terminals.get(id);
+			if (!found.ok) return found;
+			if (found.value === null || found.value.endedAt !== null) return ok(undefined);
+			const marked = await this.#deps.repos.terminals.markEnded(id, this.#deps.now(), null);
+			if (!marked.ok) return marked;
+			this.#update(id, { endedAt: this.#deps.now(), exitCode: null });
+			return ok(undefined);
+		}
+
+		const handle = record.handle;
+		try {
+			await handle.kill();
+		} catch (cause) {
+			return err(appError("terminal_stop_failed", "Couldn't stop the terminal.", cause));
+		}
+
+		let unsubscribeExit: () => void = () => {};
+		const exited = new Promise<void>((resolve) => {
+			unsubscribeExit = record.connection.onExit(() => {
+				unsubscribeExit();
+				unsubscribeExit = () => {};
+				resolve();
+			});
+		});
+		const timedOut = await new Promise<boolean>((resolve) => {
+			let settled = false;
+			let cancel: () => void = () => {};
+			const finish = (value: boolean): void => {
+				if (settled) return;
+				settled = true;
+				cancel();
+				resolve(value);
+			};
+			cancel = this.#setTimer(() => finish(true), STOP_WATCHDOG_MS);
+			void exited.then(() => finish(false));
+		});
+		if (timedOut) {
+			unsubscribeExit();
+			return err(appError("run_stop_unconfirmed", STOP_NOT_CONFIRMED_MESSAGE));
+		}
+		unsubscribeExit();
+		return ok(undefined);
+	}
+
+	#setTimer(callback: () => void, ms: number): () => void {
+		if (this.#deps.setTimer !== undefined) return this.#deps.setTimer(callback, ms);
+		const handle = setTimeout(callback, ms);
+		return () => clearTimeout(handle);
 	}
 
 	/**
 	 * Backs the `getTerminalOutput` request from the sidecar. A caller that already has the
-	 * terminal it wants passes `terminalId`; otherwise the source rule picks one.
+	 * terminal it wants passes `terminalId`; otherwise the source rule picks one. An ended
+	 * terminal keeps its text from this run, then falls back to the saved screen.
 	 */
-	outputFor(
-		_workspaceId: WorkspaceId,
-		_source: TerminalOutputSource,
-		_maxLines: number,
-		_terminalId?: TerminalId,
+	async outputFor(
+		workspaceId: WorkspaceId,
+		source: TerminalOutputSource,
+		maxLines: number,
+		terminalId?: TerminalId,
 	): Promise<Result<TerminalOutput>> {
-		return notImplemented("RUN-07");
+		const limit = positiveLineCount(maxLines);
+		let terminal: Terminal;
+		if (terminalId !== undefined) {
+			const found = await this.#deps.repos.terminals.get(terminalId);
+			if (!found.ok) return found;
+			if (found.value === null) {
+				return err(appError("terminal_unknown", "That terminal no longer exists."));
+			}
+			terminal = found.value;
+		} else {
+			const listed = await this.#deps.repos.terminals.listByWorkspace(workspaceId);
+			if (!listed.ok) return listed;
+			const picked = pickTerminal(listed.value, source);
+			if (picked === null) {
+				return ok({
+					output: MISSING_FOR_SOURCE[source],
+					source: sourceLabel(source),
+					running: false,
+				});
+			}
+			terminal = picked;
+		}
+
+		const read = await this.#readOutput(terminal, limit);
+		if (!read.ok) return read;
+		return ok({
+			output: read.value.output,
+			source: SOURCE_LABELS[terminal.kind],
+			running: read.value.running,
+		});
+	}
+
+	async #readOutput(
+		terminal: Terminal,
+		maxLines: number,
+	): Promise<Result<{ output: string; running: boolean }>> {
+		const record = this.#records.get(terminal.id);
+		if (record?.handle) {
+			try {
+				return ok({ output: await record.handle.screenText(maxLines), running: true });
+			} catch (cause) {
+				return err(appError("terminal_output_failed", "Couldn't read the terminal output.", cause));
+			}
+		}
+
+		if (record?.rendered) {
+			const text = await record.rendered;
+			if (text === null) {
+				return err(appError("terminal_output_failed", "Couldn't read the terminal output."));
+			}
+			return ok({ output: lastLines(text, maxLines), running: false });
+		}
+
+		const saved = await this.#deps.repos.terminals.getScreenState(terminal.id);
+		if (!saved.ok) return saved;
+		if (saved.value !== null) {
+			const text = snapshotText(saved.value);
+			if (!text.ok) return text;
+			return ok({ output: lastLines(text.value, maxLines), running: false });
+		}
+
+		return ok({ output: NO_SAVED_OUTPUT, running: false });
 	}
 
 	/** Kills every live terminal and stamps `ended_at`. Runs on quit. */

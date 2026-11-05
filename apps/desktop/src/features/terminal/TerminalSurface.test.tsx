@@ -5,6 +5,7 @@
  */
 import { appError, err, ok } from "@conducted/shared";
 import { act, cleanup, render, waitFor } from "@testing-library/react";
+import { Terminal } from "@xterm/xterm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TerminalConnection } from "../../core/model.ts";
 import { toast } from "../../ui/Toast.tsx";
@@ -200,6 +201,69 @@ describe("RUN-06 terminal surface", () => {
 		expect(xterm.terminal.open).toHaveBeenCalledTimes(1);
 		expect(xterm.terminal.options.fontSize).toBe(15);
 		expect(xterm.terminal.options.theme).toBe(nextTheme);
+	});
+
+	it("keeps the same terminal when the tab is hidden and shown, and moves focus on show", () => {
+		vi.stubGlobal(
+			"ResizeObserver",
+			class {
+				observe = vi.fn();
+				unobserve = vi.fn();
+				disconnect = vi.fn();
+			},
+		);
+		const connection = fakeConnection();
+		const onCopy = vi.fn();
+		// TerminalTabBody passes the same value for both props.
+		const surface = (shown: boolean) => (
+			<TerminalSurface
+				connection={connection}
+				appearance={appearance()}
+				visible={shown}
+				ended={false}
+				focusOnMount={shown}
+				onCopy={onCopy}
+			/>
+		);
+		const { rerender, container } = render(surface(false));
+		const screen = container.querySelector("[data-terminal-surface]");
+		expect(xterm.terminal.focus).not.toHaveBeenCalled();
+
+		rerender(surface(true));
+		expect(xterm.terminal.focus).toHaveBeenCalledTimes(1);
+
+		rerender(surface(false));
+		rerender(surface(true));
+		expect(xterm.terminal.focus).toHaveBeenCalledTimes(2);
+
+		// One terminal was built and none was disposed, so the screen kept its content.
+		expect(Terminal).toHaveBeenCalledTimes(1);
+		expect(xterm.terminal.open).toHaveBeenCalledTimes(1);
+		expect(xterm.terminal.dispose).not.toHaveBeenCalled();
+		expect(xterm.fit.dispose).not.toHaveBeenCalled();
+		expect(container.querySelector("[data-terminal-surface]")).toBe(screen);
+	});
+
+	it("focuses a terminal that is built already on screen", () => {
+		vi.stubGlobal(
+			"ResizeObserver",
+			class {
+				observe = vi.fn();
+				unobserve = vi.fn();
+				disconnect = vi.fn();
+			},
+		);
+		render(
+			<TerminalSurface
+				connection={fakeConnection()}
+				appearance={appearance()}
+				visible
+				ended={false}
+				focusOnMount
+				onCopy={vi.fn()}
+			/>,
+		);
+		expect(xterm.terminal.focus).toHaveBeenCalledTimes(1);
 	});
 
 	it("leaves Cmd+V to the paste event instead of writing the clipboard twice", () => {

@@ -19,6 +19,8 @@ export const CODEX_ITEM_TOOLS: Readonly<Record<string, CanonicalTool>> = {
 	dynamicToolCall: "mcp",
 	collabAgentToolCall: "sub_agent",
 	webSearch: "web_search",
+	imageView: "image_view",
+	imageGeneration: "image_generation",
 };
 
 export function toolForCodexItem(

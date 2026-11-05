@@ -24,10 +24,16 @@
  *    checkpoint, and reports wasWorking
  *  - shutdown(): stop every agent, take no checkpoint, wait up to 10 s for in-flight turns
  *  - the same agent session id is stored from the first callback and sent to the app once
+ *  - a config the agent changes by itself (plan mode) updates the chat's state and is sent to the
+ *    app with the reason, so the app's stored config agrees
  * Test first: two sendMessage calls with the same messageId start one turn; the second answer
  * repeats the first deliveredAs.
  * Our design choice: queued messages live in memory only. The app owns the persistent follow-up
  * queue (CHAT-04) and re-sends after a restart; this queue is the second line Conductor also has.
+ * Our design choice: one `agentConfigChanged` notification with a reason, plus one
+ * `onConfigChanged` runner callback, instead of Conductor's separate enter-plan-mode notification
+ * and `onEnterPlanMode` callback. `liveState` and `sessionEvent` keep their own shapes and do not
+ * echo the config, so a config change is never batched into an event notification.
  */
 import type {
 	AgentLaunch,
@@ -63,7 +69,13 @@ import {
 	SteerRevertedError,
 } from "../runners/errors.ts";
 import type { RunnerRegistry } from "../runners/registry.ts";
-import type { AgentSession, Runner, RunnerCapabilities, TurnOutcome } from "../runners/runner.ts";
+import type {
+	AgentConfigChangeReason,
+	AgentSession,
+	Runner,
+	RunnerCapabilities,
+	TurnOutcome,
+} from "../runners/runner.ts";
 import type { ShellEnvProvider } from "../shell-env/capture.ts";
 import { messageOf } from "../util/errors.ts";
 import type { DuplicateGuard } from "./duplicate-guard.ts";
@@ -443,6 +455,19 @@ export class DefaultSessionManager implements SessionManager {
 		return this.deps.liveState.get(sessionId);
 	}
 
+	/**
+	 * The chat's live agent and whether its runner reports context usage, for the usage reader
+	 * (SIDE-17). Null agent when the chat is known but no agent is running.
+	 */
+	find(sessionId: SessionId): { agent: AgentSession | null; contextUsage: boolean } | undefined {
+		const state = this.sessions.get(sessionId);
+		if (state === undefined) return undefined;
+		return {
+			agent: state.agent,
+			contextUsage: state.runner?.capabilities.contextUsage ?? false,
+		};
+	}
+
 	onAppAttached(): void {
 		for (const sessionId of this.sessions.keys()) {
 			const request = this.deps.interactions.openRequest(sessionId);
@@ -814,12 +839,28 @@ export class DefaultSessionManager implements SessionManager {
 			workspace,
 			env,
 			...(resume === undefined ? {} : { resume }),
+			onConfigChanged: (next, reason) => this.applyAgentConfig(state, next, reason),
 		});
 		state.agent = agent;
 		state.agentConfig = config;
 		state.runner = runner;
 		if (state.autoApproveEdits) agent.setAutoApproveEdits?.(true);
 		return agent;
+	}
+
+	/** Stores a config the agent changed by itself and tells the app, so its stored config agrees. */
+	private applyAgentConfig(
+		state: SessionState,
+		config: SessionConfig,
+		reason: AgentConfigChangeReason,
+	): void {
+		state.config = config;
+		if (state.agentConfig !== null) state.agentConfig = config;
+		this.deps.app.notify("agentConfigChanged", {
+			sessionId: state.sessionId,
+			config,
+			reason,
+		});
 	}
 
 	private async claimAgent(

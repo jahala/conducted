@@ -1,10 +1,11 @@
 /**
  * @feature WS-01 Workspace service: create, set up, archive, unarchive, delete
  * Owns: the list of workspaces and their lifecycle as far as it is built: creating a worktree and
- * its first chat, and running the setup script.
+ * its first chat, running the setup script, archiving a workspace, storing the intended target
+ * branch (GIT-08), and saving a renamed branch (GIT-09).
  * Behaviour: frontend.md 6 (creation, naming, setup, archive), services-map.md 2.4.1 (state
  * machine), 3.1 (create), 3.2 and 5A.1.2 (setup), 3.10 (archive and unarchive), 3.11 (branch
- * rename), ui-map.md 3.9 and 3.1.
+ * rename and the stored target branch), ui-map.md 3.9 and 3.1.
  * Must handle: state moves initializing -> ready (or failed), each guarded so a stale step cannot
  * move a workspace that already changed; the directory name is a unique place name for the repo
  * and the branch is prefix + name, suffixed -v1, -v2 when taken; a branch, prefix or remote name
@@ -13,19 +14,32 @@
  * files (for example `.env`) is part of creation and never overwrites a file already in the
  * worktree; setup runs in a terminal with the workspace variables and its result decides ready or
  * failed (a failed setup keeps the workspace, with a retry; a second retry while one runs is
- * ignored); creations run one at a time; a repo config or default-config read that fails is shown
- * as a warning, never hidden.
- * Not built yet (placeholders): archive, unarchive, delete to the Trash, the branch auto rename,
- * `markRead`, pinning and the base from a pull request or issue. `classifyUnarchive` is their
- * decision rule and has no caller until WS-06.
+ * ignored); creations run one at a time; a repository config that cannot be read for the remote
+ * name stops creation with its error, while a failed read of the file list or the default config
+ * is shown as a warning.
+ * Built now (WS-05): archive. It refuses while a chat is running, stops a setup or run process
+ * that is still running and clears the workspace's run state, cancels the remaining chats, saves
+ * the archive snapshot, reads the branch git reports (a detached HEAD or a failed read stops the
+ * archive), pins HEAD under the archive ref, runs the archive script, removes the worktree,
+ * optionally deletes the branch (never the default branch; a failed delete is recorded as a
+ * warning because the archive already finished), and records the archive commit and time.
+ * Archive-on-merge is refused for a corrupted workspace and ignores a merged PR that is not the
+ * workspace's own. The stack rule for archive-on-merge, the open-PR check, the write-access
+ * refusal, the screen's discard confirmation and the screen that shows the branch-delete warning
+ * are not built; the service refuses a busy checkout and accepts `discardGitOperationState` from
+ * a caller that has already asked.
+ * Not built yet (placeholders): unarchive, delete to the Trash, the branch auto rename,
+ * `markRead` and the base from a pull request or issue. `classifyUnarchive` is their decision
+ * rule and has no caller until WS-06.
  * Our design choice: creation is split in two so the sidebar shows the workspace at once
  * (`initializing`) and the slow git work happens after the row exists. Place names come from our
  * own tiered source in this file (`createPlaceNames`, D002), which the composition root should
  * pass in place of any other list. Creation copies the repository's included files, counts the
  * worktree files, then runs setup in a terminal. Warnings and the first message of a failed
  * creation live in the service's in-memory store: the contract's `Workspace` row has no field for
- * them, and the create page reads them back after the action returns. Calls to `repoConfig` and
- * `defaultConfig` are optional because the composition root passes them in a later wiring change.
+ * them, and the create page reads them back after the action returns. The composition root
+ * supplies the repository config reader; the default-config reader remains optional until the
+ * composition root passes it.
  * Test first: classifyUnarchive returns "branchTaken" when the branch is checked out elsewhere.
  */
 import type { SessionConfig } from "@conducted/protocol";
@@ -48,15 +62,25 @@ import type { Platform } from "../../platform/platform.ts";
 import type { Draft, NewWorkspaceInput, UnarchiveOutcome } from "../api.ts";
 import { setupLogFile } from "../app-paths.ts";
 import { createKeyedQueue } from "../async/serial-queue.ts";
+import { createSingleFlight } from "../async/single-flight.ts";
+import type { ArchivingWorkspace } from "../db/repair.ts";
 import type { Repositories } from "../db/repositories.ts";
-import { lsFiles, lsFilesIgnoredNul } from "../git/commands.ts";
+import {
+	branchDeleteForce,
+	branchShowCurrent,
+	lsFiles,
+	lsFilesIgnoredNul,
+} from "../git/commands.ts";
 import { apiUserLogin } from "../git/gh-commands.ts";
 import type { GitRunner } from "../git/runner.ts";
 import {
 	branchNameIsTaken,
 	createWorktree,
 	nextFreeName,
+	pinArchiveHead,
 	prepareWorktree,
+	removeWorktree,
+	saveArchiveSnapshot,
 } from "../git/worktree.ts";
 import type {
 	BacklogWorkspace,
@@ -519,6 +543,20 @@ export const invalidRefNameError = (name: string): AppError =>
 		`"${name}" can't be used as a Git branch or remote name. Check the branch prefix in settings.`,
 	);
 
+/** The remote a repository uses when its config names none (ui-map 6 Git, services-map 3.1). */
+export const DEFAULT_REMOTE_NAME = "origin";
+
+/**
+ * The remote name the repository config picks, or `DEFAULT_REMOTE_NAME` when it names none. One
+ * rule for creation and for every git and pull request caller (DATA-09). A configured name git
+ * could read as an option is an error, never passed to a command.
+ */
+export function remoteNameFromConfig(config: RepoConfig): Result<string> {
+	const name = config.remoteName?.trim() ?? "";
+	if (name === "") return ok(DEFAULT_REMOTE_NAME);
+	return isSafeRefName(name) ? ok(name) : err(invalidRefNameError(name));
+}
+
 /** Resolves `NewWorkspaceInput.from` to the branch the worktree starts from. */
 export function baseBranchFor(
 	defaultBranch: string,
@@ -558,6 +596,21 @@ export const SETUP_FAILED_MESSAGE = "Setup script failed. Check the setup tab fo
 /** Shown when a saved setup transcript cannot be read (ui-map.md 3.7). */
 export const SETUP_LOG_MISSING_MESSAGE = "No logs were recorded, or they have expired.";
 
+/** Shown when archive is asked for while a chat is still running (inventory:toast). */
+export const ARCHIVE_RUNNING_CHATS_MESSAGE =
+	"Stop the running chats before archiving this workspace.";
+
+/** Shown when a workspace that is still being created is asked to archive. */
+export const ARCHIVE_NOT_READY_MESSAGE = "This workspace is still being created.";
+
+/** Shown when the worktree is not on a branch, so archive cannot record which branch it keeps. */
+export const ARCHIVE_DETACHED_HEAD_MESSAGE =
+	"Git is not on a branch in this workspace. Check out its branch, then archive it again.";
+
+/** Shown when archive-on-merge finds a ready workspace whose folder is gone (services-map 5B.1.9). */
+export const WORKSPACE_CORRUPTED_MESSAGE =
+	"This workspace's folder is missing, so it can't be archived. Check the folder or remove the workspace.";
+
 /** One setup run, kept in memory for the Setup tab while the app is open. */
 export interface SetupRun {
 	state: SetupState;
@@ -577,6 +630,8 @@ export interface WorkspaceState {
 	setupRuns?: Readonly<Record<string, SetupRun>>;
 	/** Workspaces whose archive is running. */
 	archiving: Readonly<Record<string, boolean>>;
+	/** In memory only: a side step that failed after a workspace was archived, for its screen to show. */
+	archiveWarnings?: Readonly<Record<string, string>>;
 	/** In memory only: warnings from a workspace's creation, for the create page to toast. */
 	warnings?: Readonly<Record<string, readonly string[]>>;
 	/** In memory only: the first-message input of a creation that failed, for Recover and Retry. */
@@ -608,7 +663,7 @@ export interface WorkspaceServiceDeps {
 	 */
 	ports?: { allocateForNewWorkspace(): Promise<Result<number>> };
 	/** The repository's effective config, for the remote name. Supplied by the composition root. */
-	repoConfig?: (repoId: RepoId) => Promise<Result<RepoConfig>>;
+	repoConfig: (repoId: RepoId) => Promise<Result<RepoConfig>>;
 	/** The one default-config rule for a new chat. Supplied by the composition root. */
 	defaultConfig?: (workspaceId: WorkspaceId) => Promise<Result<SessionConfig>>;
 	scripts: {
@@ -618,7 +673,11 @@ export interface WorkspaceServiceDeps {
 		): Promise<Result<SetupRunResult>>;
 		runArchive(workspaceId: WorkspaceId): Promise<Result<void>>;
 		stopWorkspace(workspaceId: WorkspaceId): Promise<Result<void>>;
+		/** Forgets a workspace's run state after its processes are stopped. */
+		clearRuns(workspaceId: WorkspaceId): void;
 	};
+	/** Path to the shipped checkpointer script, used for the archive snapshot (WS-05). */
+	checkpointerPath: string;
 	setting: <T>(key: string) => T;
 	now: () => number;
 }
@@ -629,6 +688,8 @@ export class WorkspaceService {
 
 	/** Creates pick a folder name, branch and port from one read, so they run one at a time. */
 	readonly #createQueue = createKeyedQueue();
+	/** A second archive of one workspace joins the first, so its steps never run twice at once. */
+	readonly #archives = createSingleFlight<string>();
 	/** Bumped by every start and cancel, so an older run cannot change the state after them. */
 	readonly #setupNonces = new Map<WorkspaceId, number>();
 	/** The nonce of a start that has not reached its first await yet, so a second one is ignored. */
@@ -642,6 +703,7 @@ export class WorkspaceService {
 			setup: {},
 			setupRuns: {},
 			archiving: {},
+			archiveWarnings: {},
 			warnings: {},
 			failedFirstInputs: {},
 			lastFailedCreate: null,
@@ -705,7 +767,7 @@ export class WorkspaceService {
 		if (!target.ok) return target;
 		const remoteRead = await this.#remoteFor(repo);
 		if (!remoteRead.ok) return remoteRead;
-		const remote = remoteRead.value.name;
+		const remote = remoteRead.value;
 
 		const root = expandHome(
 			this.#deps.setting<string>("conducted_root_path"),
@@ -722,7 +784,6 @@ export class WorkspaceService {
 		if (!folder.ok) return folder;
 
 		const warnings: string[] = [];
-		if (remoteRead.value.warning !== null) warnings.push(remoteRead.value.warning);
 		const prefixType = this.#deps.setting<string>("branch_prefix_type");
 		const login = prefixType === "github_username" ? await this.#githubLogin(repo.rootPath) : null;
 		if (prefixType === "github_username" && login === null) {
@@ -1021,9 +1082,187 @@ export class WorkspaceService {
 		return notImplemented("WS-04");
 	}
 
-	/** Backs `Actions.workspaces.archive`. */
-	archive(_id: WorkspaceId, _options: { deleteBranch: boolean }): Promise<Result<void>> {
-		return notImplemented("WS-05");
+	/** Backs `Actions.workspaces.archive`: the six steps of services-map 3.10, then the row. */
+	archive(
+		id: WorkspaceId,
+		options: { deleteBranch: boolean; discardGitOperationState?: boolean },
+	): Promise<Result<void>> {
+		return this.#archives.run(`archive:${id}`, () => this.#archiveNow(id, options));
+	}
+
+	async #archiveNow(
+		id: WorkspaceId,
+		options: { deleteBranch: boolean; discardGitOperationState?: boolean },
+	): Promise<Result<void>> {
+		const found = await this.#deps.repos.workspaces.get(id);
+		if (!found.ok) return found;
+		const workspace = found.value;
+		if (workspace === null)
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		if (workspace.state === "archived") return ok(undefined);
+		if (workspace.state === "archiving") {
+			return err(appError("workspace_archiving", "This workspace is already being archived."));
+		}
+		if (workspace.state === "initializing") {
+			return err(appError("workspace_not_ready", ARCHIVE_NOT_READY_MESSAGE));
+		}
+		if (this.#deps.sessions.hasWorkingChats(id)) {
+			return err(appError("workspace_has_running_sessions", ARCHIVE_RUNNING_CHATS_MESSAGE));
+		}
+
+		const repoResult = await this.#deps.repos.repos.get(workspace.repoId);
+		if (!repoResult.ok) return repoResult;
+		const repo = repoResult.value;
+		if (repo === null) return err(appError("repo_unknown", "That project no longer exists."));
+
+		const moved = await this.#deps.repos.workspaces.transitionState(
+			id,
+			workspace.state,
+			"archiving",
+		);
+		if (!moved.ok) return moved;
+		if (!moved.value) {
+			return err(appError("workspace_not_ready", "This workspace cannot be archived now."));
+		}
+		this.#setArchiving(id, true);
+		this.#upsert({ ...workspace, state: "archiving", updatedAt: this.#deps.now() });
+
+		let worktreeRemoved = false;
+		const rollBack = async (error: AppError): Promise<Result<never>> => {
+			if (!worktreeRemoved) {
+				const back = await this.#deps.repos.workspaces.transitionState(
+					id,
+					"archiving",
+					workspace.state,
+				);
+				if (back.ok && back.value) {
+					this.#upsert({ ...workspace, updatedAt: this.#deps.now() });
+				}
+			}
+			this.#setArchiving(id, false);
+			return err(error);
+		};
+
+		try {
+			// A setup process can still be running on a row that has moved on, and a run action can
+			// still be running too. Stop both before the snapshot so nothing writes into the worktree
+			// while it is archived (services-map 3.10, 1.4).
+			const setupState = this.store.getState().setup[id];
+			const setupIsRunning =
+				setupState === "running" || setupState === "detecting" || setupState === "stopping";
+			const stopped = setupIsRunning
+				? await this.cancelSetup(id)
+				: await this.#deps.scripts.stopWorkspace(id);
+			if (!stopped.ok) return await rollBack(stopped.error);
+			this.#deps.scripts.clearRuns(id);
+
+			const cancelled = await this.#deps.sessions.cancelAll(id);
+			if (!cancelled.ok) return await rollBack(cancelled.error);
+
+			const snapshot = await saveArchiveSnapshot(this.#deps.git, {
+				workspaceId: id,
+				checkpointerPath: this.#deps.checkpointerPath,
+				worktreePath: workspace.path,
+				discardGitOperationState: options.discardGitOperationState === true,
+				fs: this.#deps.platform.fs,
+			});
+			if (!snapshot.ok) return await rollBack(snapshot.error);
+
+			// The branch git reports is the one the archive keeps. A detached HEAD or a failed read
+			// must stop the archive rather than record the name the row happened to have.
+			const current = await this.#deps.git.stdout(branchShowCurrent(), {
+				cwd: workspace.path,
+			});
+			if (!current.ok) return await rollBack(current.error);
+			if (current.value === "") {
+				return await rollBack(appError("git_detached_head", ARCHIVE_DETACHED_HEAD_MESSAGE));
+			}
+			const branch = current.value;
+			if (branch !== workspace.branch) {
+				const recorded = await this.#deps.repos.workspaces.setBranch(
+					id,
+					branch,
+					workspace.branchIsPlaceholder,
+				);
+				if (!recorded.ok) return await rollBack(recorded.error);
+			}
+
+			const pinned = await pinArchiveHead(this.#deps.git, id, workspace.path);
+			if (!pinned.ok) return await rollBack(pinned.error);
+
+			const scripted = await this.#deps.scripts.runArchive(id);
+			if (!scripted.ok) return await rollBack(scripted.error);
+
+			const removal = await removeWorktree(this.#deps.git, this.#deps.platform.fs, {
+				repoRootPath: repo.rootPath,
+				worktreePath: workspace.path,
+			});
+			if (!removal.ok) return await rollBack(removal.error);
+			worktreeRemoved = true;
+
+			const marked = await this.#deps.repos.workspaces.markArchived(id, pinned.value);
+			if (!marked.ok) {
+				this.#setArchiving(id, false);
+				return err(marked.error);
+			}
+			if (!marked.value) {
+				this.#setArchiving(id, false);
+				return err(appError("workspace_not_ready", "This workspace cannot be archived now."));
+			}
+
+			const at = this.#deps.now();
+			this.#upsert({
+				...workspace,
+				branch,
+				state: "archived",
+				archiveCommit: pinned.value,
+				archivedAt: at,
+				updatedAt: at,
+			});
+			this.#setArchiving(id, false);
+
+			const deleteBranch =
+				options.deleteBranch || this.#deps.setting<boolean>("delete_branch_on_archive");
+			if (deleteBranch && branch !== repo.defaultBranch) {
+				const deleted = await this.#deps.git.runChecked(branchDeleteForce(branch), {
+					cwd: repo.rootPath,
+				});
+				// The archive itself is finished. A branch that cannot be deleted is a warning for
+				// the workspace's screen, not a failed archive (services-map 3.10 step 6).
+				if (!deleted.ok) {
+					this.#setArchiveWarning(
+						id,
+						`Couldn't delete the branch "${branch}": ${deleted.error.message}`,
+					);
+				}
+			}
+			return ok(undefined);
+		} finally {
+			this.#setArchiving(id, false);
+		}
+	}
+
+	/**
+	 * Finishes or rolls back workspaces that a crash left in `archiving`. A missing folder means
+	 * the archive got as far as removing the worktree, so the row is finished with the commit
+	 * repair read; a folder still on disk means the archive stopped early, so the row goes back
+	 * to ready and can be archived again.
+	 */
+	async recoverArchiving(workspaces: readonly ArchivingWorkspace[]): Promise<Result<void>> {
+		for (const row of workspaces) {
+			if (row.folderExists) {
+				const back = await this.#deps.repos.workspaces.transitionState(
+					row.id,
+					"archiving",
+					"ready",
+				);
+				if (!back.ok) return back;
+			} else {
+				const finished = await this.#deps.repos.workspaces.markArchived(row.id, row.archiveCommit);
+				if (!finished.ok) return finished;
+			}
+		}
+		return ok(undefined);
 	}
 
 	/** Backs `Actions.workspaces.unarchive`. */
@@ -1049,9 +1288,48 @@ export class WorkspaceService {
 		return notImplemented("WS-10");
 	}
 
-	/** Called by the GitHub service when a PR merges; archives when the repo setting asks for it. */
-	onPullRequestMerged(_id: WorkspaceId, _prNumber: number): Promise<Result<void>> {
-		return notImplemented("WS-05");
+	/**
+	 * Called by the GitHub service when a PR merges; archives when `archive_on_merge` asks for it.
+	 * The stack rule is not built: without its open-PR data a stacked workspace archives too early.
+	 */
+	async onPullRequestMerged(id: WorkspaceId, prNumber: number): Promise<Result<void>> {
+		if (!this.#deps.setting<boolean>("archive_on_merge")) return ok(undefined);
+		const found = await this.#deps.repos.workspaces.get(id);
+		if (!found.ok) return found;
+		const workspace = found.value;
+		if (workspace === null) {
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		}
+		if (
+			workspace.state === "archived" ||
+			workspace.state === "archiving" ||
+			workspace.archiveCommit !== null
+		) {
+			return ok(undefined);
+		}
+		if (workspace.prNumber !== null && workspace.prNumber !== prNumber) return ok(undefined);
+		if (!(await this.#deps.platform.fs.exists(workspace.path))) {
+			return err(appError("workspace_corrupted", WORKSPACE_CORRUPTED_MESSAGE));
+		}
+		return this.archive(id, { deleteBranch: false });
+	}
+
+	/** GIT-09: saves the branch git renamed, so the header and sidebar show the new name. */
+	async applyBranchRename(id: WorkspaceId, branch: string): Promise<Result<void>> {
+		const found = await this.#deps.repos.workspaces.get(id);
+		if (!found.ok) return found;
+		if (found.value === null) {
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		}
+		const written = await this.#deps.repos.workspaces.setBranch(id, branch, false);
+		if (!written.ok) return written;
+		this.#upsert({
+			...found.value,
+			branch,
+			branchIsPlaceholder: false,
+			updatedAt: this.#deps.now(),
+		});
+		return ok(undefined);
 	}
 
 	async rename(id: WorkspaceId, name: string): Promise<Result<void>> {
@@ -1066,16 +1344,41 @@ export class WorkspaceService {
 		return ok(undefined);
 	}
 
-	setPinned(_id: WorkspaceId, _pinned: boolean): Promise<Result<void>> {
-		return notImplemented("NAV-04");
+	/** Pins a workspace at the top of the list, or unpins it. Backs `Actions.workspaces.setPinned`. */
+	async setPinned(id: WorkspaceId, pinned: boolean): Promise<Result<void>> {
+		const found = await this.#deps.repos.workspaces.get(id);
+		if (!found.ok) return found;
+		if (found.value === null)
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		const pinnedAt = pinned ? this.#deps.now() : null;
+		const written = await this.#deps.repos.workspaces.setPinned(id, pinnedAt);
+		if (!written.ok) return written;
+		this.#upsert({ ...found.value, pinnedAt, updatedAt: this.#deps.now() });
+		return ok(undefined);
+	}
+
+	/**
+	 * GIT-08: stores the workspace's intended target branch and keeps the loaded row in step. The
+	 * git work that follows (the open PR's base, or a fetch and reset) belongs to the GitService.
+	 */
+	async setIntendedTargetBranch(id: WorkspaceId, targetBranch: string): Promise<Result<void>> {
+		const found = await this.#deps.repos.workspaces.get(id);
+		if (!found.ok) return found;
+		if (found.value === null)
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		const written = await this.#deps.repos.workspaces.setTargetBranch(id, targetBranch);
+		if (!written.ok) return written;
+		this.#upsert({ ...found.value, targetBranch, updatedAt: this.#deps.now() });
+		return ok(undefined);
 	}
 
 	setKanbanStatus(_id: WorkspaceId, _status: KanbanStatus): Promise<Result<void>> {
 		return notImplemented("NAV-06");
 	}
 
-	markRead(_id: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("NAV-11");
+	/** Backs a workspace-level mark-read: the chats service clears the workspace's unread chats. */
+	markRead(id: WorkspaceId): Promise<Result<void>> {
+		return this.#deps.sessions.markAllRead(id);
 	}
 
 	/** Backs `Actions.workspaces.openIn`: opens the workspace folder in another app. */
@@ -1122,12 +1425,9 @@ export class WorkspaceService {
 
 		const remote = await this.#remoteFor(repo);
 		if (!remote.ok) return this.#fail(initializing, remote.error);
-		const materialised = await this.#materialise(initializing, repo, remote.value.name);
+		const materialised = await this.#materialise(initializing, repo, remote.value);
 		if (!materialised.ok) return materialised;
-		this.#addWarnings(id, [
-			...(remote.value.warning === null ? [] : [remote.value.warning]),
-			...materialised.value.warnings,
-		]);
+		this.#addWarnings(id, materialised.value.warnings);
 
 		// A failed creation kept its first message, so a successful retry can start the chat.
 		const firstInput = this.store.getState().failedFirstInputs?.[id];
@@ -1163,6 +1463,24 @@ export class WorkspaceService {
 	/** Backs `Actions.workspaces.removeFromBacklog`. */
 	removeFromBacklog(_id: WorkspaceId): Promise<Result<void>> {
 		return notImplemented("WS-11");
+	}
+
+	/** Keeps the ids of workspaces being archived, so the sidebar can show that state (1.5). */
+	#setArchiving(id: WorkspaceId, archiving: boolean): void {
+		this.store.setState((state) => {
+			const next = { ...state.archiving };
+			if (archiving) next[id] = true;
+			else delete next[id];
+			return { ...state, archiving: next };
+		});
+	}
+
+	/** Keeps a side step's failure after the archive has finished, so a screen can show it. */
+	#setArchiveWarning(id: WorkspaceId, warning: string): void {
+		this.store.setState((state) => ({
+			...state,
+			archiveWarnings: { ...(state.archiveWarnings ?? {}), [id]: warning },
+		}));
 	}
 
 	/** Puts one workspace in the store, so the sidebar shows it before the git work finishes. */
@@ -1202,23 +1520,14 @@ export class WorkspaceService {
 	}
 
 	/**
-	 * The remote the repository's config picks, or "origin" when the config names none
-	 * (ui-map 6 Git, services-map 3.1). A config that cannot be read still gives "origin", with a
-	 * warning that says so. A configured name git would refuse is an error.
+	 * The remote the repository's config picks, validated before any git command uses it
+	 * (ui-map 6 Git, services-map 3.1). A config that cannot be read stops creation with its
+	 * error: the service never falls back to a remote the user did not choose.
 	 */
-	async #remoteFor(repo: Repo): Promise<Result<{ name: string; warning: string | null }>> {
-		const configured =
-			this.#deps.repoConfig === undefined ? null : await this.#deps.repoConfig(repo.id);
-		if (configured === null) return ok({ name: "origin", warning: null });
-		if (!configured.ok) {
-			return ok({
-				name: "origin",
-				warning: `Couldn't read the repository's settings, so the remote "origin" is used: ${configured.error.message}`,
-			});
-		}
-		const name = configured.value.remoteName?.trim() ?? "";
-		if (name === "") return ok({ name: "origin", warning: null });
-		return isSafeRefName(name) ? ok({ name, warning: null }) : err(invalidRefNameError(name));
+	async #remoteFor(repo: Repo): Promise<Result<string>> {
+		const configured = await this.#deps.repoConfig(repo.id);
+		if (!configured.ok) return configured;
+		return remoteNameFromConfig(configured.value);
 	}
 
 	/**

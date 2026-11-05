@@ -1,6 +1,7 @@
 /**
  * @feature DATA-01 Query hook contract for screens
- * Owns: the workspace hooks, the status rule's private helpers, and the open-in-app list.
+ * Owns: the workspace hooks and the open-in-app list. The status rule reads git state through
+ * GitService.stateOf, so there is one builder for the sidebar and the Git panel.
  * Behaviour: services-map.md 1.3, 2.5; core/hooks.ts states the contract.
  * Must handle: a workspace that no longer exists, a status that has not loaded yet.
  * Test first: the test for a hook body lives with the feature that implements it.
@@ -12,9 +13,7 @@ import { useStore } from "zustand";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 import type { Loadable, Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
-import type { GitState, SetupView, Workspace } from "../model.ts";
-import type { WorkspaceGitEntry } from "../services/git.ts";
-import type { WorkspacePrEntry } from "../services/github.ts";
+import type { SetupView, Workspace } from "../model.ts";
 import type { SessionsState } from "../services/sessions.ts";
 import { type ChatStatusInput, deriveWorkspaceStatus } from "../status/workspace-status.ts";
 
@@ -49,35 +48,6 @@ function sameChatStatus(
 			chat.liveState.backgroundTasks.length === other.liveState.backgroundTasks.length
 		);
 	});
-}
-
-/** The git input the status rule needs, built from the two polled entries. */
-function gitStateOf(
-	gitEntry: WorkspaceGitEntry | undefined,
-	prEntry: WorkspacePrEntry | undefined,
-): GitState | null {
-	const snapshot = gitEntry?.snapshot ?? null;
-	if (snapshot === null) return null;
-	const changedFiles = snapshot.files.length;
-	return {
-		branch: snapshot.branch ?? "",
-		uncommittedFiles: changedFiles,
-		changedFiles,
-		linesAdded: snapshot.files.reduce((total, file) => total + file.linesAdded, 0),
-		linesRemoved: snapshot.files.reduce((total, file) => total + file.linesRemoved, 0),
-		hasConflicts: snapshot.conflictedPaths.length > 0,
-		operation: snapshot.operation,
-		sync: snapshot.sync,
-		pullRequest: prEntry?.pullRequest ?? null,
-		pullRequestUnavailable:
-			prEntry === undefined
-				? "loading"
-				: prEntry.unavailable === "no_pr"
-					? "none"
-					: prEntry.unavailable,
-		untrackedFilesTruncated: snapshot.untrackedTruncated,
-		pendingPullRequestAction: null,
-	};
 }
 
 export const useWorkspaces: Queries["useWorkspaces"] = () => {
@@ -118,18 +88,17 @@ export const useWorkspaceStatus: Queries["useWorkspaceStatus"] = (workspaceId) =
 		(s) => chatsFor(s, workspaceId),
 		sameChatStatus,
 	);
-	const gitEntry = useStore(git.store, (s) => s.byWorkspace[workspaceId]);
+	// Subscribe to the git entry so a new poll re-renders; stateOf reads the store itself.
+	useStore(git.store, (s) => s.byWorkspace[workspaceId]);
 	const prEntry = useStore(github.store, (s) => s.byWorkspace[workspaceId]);
 
-	return useMemo(() => {
-		if (state === undefined) return null;
-		return deriveWorkspaceStatus({
-			state,
-			settingUp,
-			chats,
-			git: gitStateOf(gitEntry, prEntry),
-		});
-	}, [state, settingUp, chats, gitEntry, prEntry]);
+	if (state === undefined) return null;
+	return deriveWorkspaceStatus({
+		state,
+		settingUp,
+		chats,
+		git: git.stateOf(workspaceId, prEntry, github.pendingAction(workspaceId)),
+	});
 };
 
 export const useInstalledApps: Queries["useInstalledApps"] = () => notImplemented("WS-08");

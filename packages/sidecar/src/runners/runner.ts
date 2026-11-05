@@ -10,9 +10,11 @@
  */
 import type {
 	AgentMessage,
+	appToSidecarRequests,
 	Interaction,
 	InteractionAnswer,
 	ModelInfo,
+	ResultOf,
 	SessionConfig,
 	WorkspaceContext,
 } from "@conducted/protocol";
@@ -59,6 +61,8 @@ export interface TurnCallbacks {
 	onFastModeUnavailable(): void;
 }
 
+export type AgentConfigChangeReason = "entered_plan_mode" | "left_plan_mode";
+
 export interface StartOptions {
 	sessionId: SessionId;
 	config: SessionConfig;
@@ -66,6 +70,12 @@ export interface StartOptions {
 	/** Captured login-shell environment with provider secrets removed. */
 	env: Readonly<Record<string, string>>;
 	resume?: { agentSessionId: string; atNativeMessageId?: string };
+	/**
+	 * The agent changed the chat's own settings, for example by entering plan mode. The session
+	 * manager stores the config and tells the app. Our design choice: one callback with a reason,
+	 * not a separate onEnterPlanMode callback.
+	 */
+	onConfigChanged?: (config: SessionConfig, reason: AgentConfigChangeReason) => void;
 }
 
 export interface TurnInput {
@@ -104,6 +114,17 @@ export interface AgentSession {
 	dispose(): Promise<void>;
 }
 
+/** One command or skill an agent offers, as the agent reports it. */
+export interface RunnerSlashCommand {
+	name: string;
+	description: string;
+	argumentHint?: string;
+	/** Where the command comes from, when the agent reports it. */
+	source?: "builtin" | "project" | "user" | "plugin" | "mcp";
+	/** command: a slash command. skill: an agent skill. Defaults to command. */
+	kind?: "command" | "skill";
+}
+
 /** The factory for one agent kind. */
 export interface Runner {
 	readonly agent: AgentKind;
@@ -112,7 +133,13 @@ export interface Runner {
 	detect(env: Readonly<Record<string, string>>): Promise<{ path: string; version: string } | null>;
 	start(options: StartOptions): Promise<AgentSession>;
 	listModels(): Promise<ModelInfo[]>;
-	listSlashCommands(
-		workspacePath: string,
-	): Promise<{ name: string; description: string; argumentHint?: string }[]>;
+	listSlashCommands(workspacePath: string): Promise<RunnerSlashCommand[]>;
+	/**
+	 * The agent's MCP servers and their status. Only runners whose capabilities.mcpServers is
+	 * true need it; the models/slash-and-mcp.ts lister calls it when it is present.
+	 */
+	listMcpServers?(workspacePath: string): Promise<McpServerView[]>;
 }
+
+/** One MCP server's status: the protocol's own listMcpServers server shape. */
+export type McpServerView = ResultOf<typeof appToSidecarRequests.listMcpServers>["servers"][number];

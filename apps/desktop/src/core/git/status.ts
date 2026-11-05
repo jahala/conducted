@@ -367,12 +367,18 @@ export function parseWorktreeList(text: string): WorktreeEntry[] {
 // ---------------------------------------------------------------- the refresh pipeline
 
 export interface ChangesSnapshot {
+	/** How much this poll read. A cheaper depth leaves later fields unknown. */
+	depth: "metadata" | "uncommitted" | "full";
 	branch: string | null;
 	mergeBase: string | null;
 	mergeBaseError: string | null;
 	files: FileChange[];
 	conflictedPaths: string[];
 	untrackedTruncated: boolean;
+	/** Working-tree changes against HEAD: tracked paths in the porcelain status plus untracked files. */
+	uncommittedFiles: number | null;
+	/** Files changed against the merge base. Null unless a full poll read the branch comparison. */
+	changedFiles: number | null;
 	operation: GitOperation;
 	/** Commits on the branch that are not on the target. */
 	commits: CommitSummary[];
@@ -438,7 +444,7 @@ const pathExists = async (
  * Checks the names git keeps in its directory while a multi-step operation is open. A lookup that
  * fails is returned, so an unreadable git directory never reads as "no operation".
  */
-async function readOperation(runner: GitRunner, cwd: string): Promise<Result<GitOperation>> {
+export async function readOperation(runner: GitRunner, cwd: string): Promise<Result<GitOperation>> {
 	const markers = await Promise.all(
 		OPERATION_MARKERS.map(async (marker): Promise<Result<string | null>> => {
 			const path = await runner.stdout(revParseGitPath(marker), { cwd });
@@ -507,7 +513,7 @@ async function untrackedFile(
 export async function readUntracked(
 	runner: GitRunner,
 	cwd: string,
-): Promise<Result<{ files: FileChange[]; truncated: boolean }>> {
+): Promise<Result<{ files: FileChange[]; truncated: boolean; total: number }>> {
 	const listed = await runner.run(lsFilesUntracked(), { cwd });
 	if (!listed.ok) return listed;
 	if (listed.value.exitCode !== 0) {
@@ -529,7 +535,7 @@ export async function readUntracked(
 			files.push(result.value);
 		}
 	}
-	return ok({ files, truncated: all.length > UNTRACKED_FILE_CAP });
+	return ok({ files, truncated: all.length > UNTRACKED_FILE_CAP, total: all.length });
 }
 
 /**
@@ -603,6 +609,11 @@ export interface ComparedChanges {
 	files: FileChange[];
 	conflictedPaths: string[];
 	untrackedTruncated: boolean;
+	/**
+	 * Working-tree changes against HEAD, counted from `git status` and the untracked list. Null
+	 * when both ends are commits, so the working tree was not part of the comparison.
+	 */
+	uncommittedFiles: number | null;
 }
 
 /**
@@ -627,7 +638,12 @@ export async function readComparedChanges(
 
 	const files = mergeChanges(parseNameStatus(nameStatus.value), parseNumstat(numstat.value));
 	if (to !== null) {
-		return ok({ files, conflictedPaths: [], untrackedTruncated: false });
+		return ok({
+			files,
+			conflictedPaths: [],
+			untrackedTruncated: false,
+			uncommittedFiles: null,
+		});
 	}
 
 	const [porcelain, untracked] = await Promise.all([
@@ -637,10 +653,14 @@ export async function readComparedChanges(
 	if (!porcelain.ok) return porcelain;
 	if (!untracked.ok) return untracked;
 
+	// Porcelain lists one line per changed tracked path and no untracked files. Together with the
+	// untracked total it is the working-tree count, independent of the ref `from` compares with.
+	const trackedChanges = porcelain.value.split("\n").filter((line) => line.length > 0).length;
 	return ok({
 		files: [...files, ...untracked.value.files],
 		conflictedPaths: parseConflictedPaths(porcelain.value),
 		untrackedTruncated: untracked.value.truncated,
+		uncommittedFiles: trackedChanges + untracked.value.total,
 	});
 }
 
@@ -650,6 +670,7 @@ async function readChanges(
 	from: string,
 	parts: SnapshotParts,
 	targetRef: string,
+	depth: "uncommitted" | "full",
 ): Promise<Result<ChangesSnapshot>> {
 	const compared = await readComparedChanges(runner, cwd, from, null);
 	if (!compared.ok) return compared;
@@ -665,7 +686,11 @@ async function readChanges(
 
 	return ok({
 		...parts,
+		depth,
 		files: compared.value.files,
+		// Only a full poll compared the branch with the merge base, so only it knows this count.
+		changedFiles: depth === "full" ? compared.value.files.length : null,
+		uncommittedFiles: compared.value.uncommittedFiles,
 		conflictedPaths: compared.value.conflictedPaths,
 		untrackedTruncated: compared.value.untrackedTruncated,
 		commits: commits.value,
@@ -678,9 +703,12 @@ async function readChanges(
  * Runs the polling commands of services-map 3.3.2 in the documented order, in parallel where
  * the research says so, and assembles one snapshot. Runs no lock (read-only commands).
  *
- * A metadata poll reads only the branch (the operation is reported as "none"). An uncommitted poll compares against
- * HEAD. A full poll compares against the merge base of the target and the branch, and adds the
- * untracked files, the upstream sync, the distance behind the target and the branch commits.
+ * A metadata poll reads only the branch (the operation is reported as "none") and leaves both
+ * file counts null. An uncommitted poll compares against HEAD and counts the working tree, but
+ * leaves `changedFiles` null. A full poll compares against the merge base of the target and the
+ * branch, sets `changedFiles` from that comparison and `uncommittedFiles` from the working tree,
+ * and adds the untracked files, the upstream sync, the distance behind the target and the branch
+ * commits.
  */
 export async function refreshWorkspaceChanges(
 	runner: GitRunner,
@@ -697,12 +725,15 @@ export async function refreshWorkspaceChanges(
 	// The cheapest poll reads only the local branch (services-map 3.3.3).
 	if (input.depth === "metadata") {
 		return ok({
+			depth: "metadata",
 			branch,
 			mergeBase: null,
 			mergeBaseError: null,
 			files: [],
 			conflictedPaths: [],
 			untrackedTruncated: false,
+			uncommittedFiles: null,
+			changedFiles: null,
 			operation: "none",
 			commits: [],
 			sync: emptySync(),
@@ -720,7 +751,7 @@ export async function refreshWorkspaceChanges(
 	};
 
 	if (input.depth === "uncommitted") {
-		return readChanges(runner, cwd, "HEAD", parts, targetRef);
+		return readChanges(runner, cwd, "HEAD", parts, targetRef, "uncommitted");
 	}
 
 	const mergedBase = await runner.stdout(mergeBase(targetRef, branch ?? "HEAD"), { cwd });
@@ -730,10 +761,13 @@ export async function refreshWorkspaceChanges(
 			: mergedBase.error.message;
 		return ok({
 			...parts,
+			depth: "full",
 			mergeBaseError,
 			files: [],
 			conflictedPaths: [],
 			untrackedTruncated: false,
+			uncommittedFiles: null,
+			changedFiles: null,
 			commits: [],
 			sync: emptySync(),
 			behindTarget: 0,
@@ -746,5 +780,6 @@ export async function refreshWorkspaceChanges(
 		mergedBase.value,
 		{ ...parts, mergeBase: mergedBase.value },
 		targetRef,
+		"full",
 	);
 }

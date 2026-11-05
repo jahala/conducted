@@ -7,10 +7,11 @@
  * (status text).
  * Our design choice: The row is a link to the workspace route. The current time is a prop, so the
  * list can refresh every row's "5m" with one timer. Status words come from
- * status-text.ts. Line counts need GIT-04, the Draft badge needs the pull request state and the
+ * status-text.ts. Line counts need GIT-04, the Draft badge needs the pull request state, and the
  * actions menu is NAV-10; each is left out until its owner is built. The "Archive workspace" badge
- * waits for the state that WS-09 gives it; archived workspaces are never listed here. The hover
- * keys are left out too: R read is NAV-11 and P pin is NAV-04.
+ * waits for the state that WS-09 gives it; archived workspaces are never listed here. Hovering a
+ * row and pressing the live `sidebar.toggleRead` binding toggles its read state, even when nothing
+ * is focused; P waits for NAV-04.
  * Must handle: A long name truncates; selected row is marked by background, not accent; unread dot
  * only when there are unread chats; no status yet (hook returns null); hover shows the live
  * Cmd+number hint for this row; keyboard focus ring.
@@ -18,10 +19,14 @@
  * above zero shows the unread dot.
  */
 import { Link } from "@tanstack/react-router";
-import { useLiveShortcut, useSessions, useWorkspaceStatus } from "../../core/hooks.ts";
+import { useEffect, useState } from "react";
+import { scopesForTarget } from "../../app/command-dispatcher.ts";
+import { useActions, useLiveShortcut, useSessions, useWorkspaceStatus } from "../../core/hooks.ts";
 import type { Repo, Workspace } from "../../core/model.ts";
+import { formatShortcut } from "../../core/registries/commands.ts";
 import { cn } from "../../ui/cn.ts";
 import { Kbd } from "../../ui/Kbd.tsx";
+import { toastError } from "../../ui/Toast.tsx";
 import { type StatusTone, statusText } from "../workspace/status-text.ts";
 import { WorkspaceStatusIcon } from "../workspace/WorkspaceStatusIcon.tsx";
 import { workspaceName } from "../workspace/workspace-name.ts";
@@ -44,6 +49,19 @@ const toneClass: Record<StatusTone, string> = {
 	success: "text-success",
 	neutral: "text-fg-muted",
 };
+
+/** The display form of the shortcut an event presses, as `useLiveShortcut` shows it. */
+function shortcutFromEvent(event: KeyboardEvent): string | null {
+	if (event.isComposing || event.repeat) return null;
+	const parts: string[] = [];
+	if (event.ctrlKey) parts.push("Ctrl");
+	if (event.altKey) parts.push("Alt");
+	if (event.metaKey) parts.push("Cmd");
+	if (event.shiftKey) parts.push("Shift");
+	const key = event.key === " " ? "Space" : event.key === "+" ? "Plus" : event.key;
+	parts.push(key.length === 1 ? key.toUpperCase() : key);
+	return formatShortcut(parts.join("+"));
+}
 
 /** A short, stable relative time such as "5m" or "3d". */
 export function relativeTime(at: number, now: number): string {
@@ -75,6 +93,7 @@ function RepoAvatar({ repo }: { repo: Repo }) {
 }
 
 export function WorkspaceRow({ workspace, repo, selected, shortcutIndex, now }: WorkspaceRowProps) {
+	const actions = useActions();
 	const status = useWorkspaceStatus(workspace.id);
 	const sessions = useSessions(workspace.id);
 	const unread =
@@ -83,12 +102,45 @@ export function WorkspaceRow({ workspace, repo, selected, shortcutIndex, now }: 
 	const liveShortcut = useLiveShortcut(
 		shortcutIndex === null ? "workspace.switch1" : `workspace.switch${shortcutIndex}`,
 	);
+	const [hovered, setHovered] = useState(false);
+	const readShortcut = useLiveShortcut("sidebar.toggleRead");
+
+	const toggleRead = () => {
+		const failure = unread
+			? "Couldn't mark the workspace as read"
+			: "Couldn't mark the workspace as unread";
+		void (
+			unread
+				? actions.workspaces.markRead(workspace.id)
+				: actions.workspaces.markUnread(workspace.id)
+		).then((result) => {
+			if (!result.ok) toastError(failure, result.error);
+		});
+	};
+
+	useEffect(() => {
+		if (!hovered || readShortcut === null) return;
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.defaultPrevented) return;
+			const scopes = scopesForTarget(event.target);
+			// A dialog, menu, palette or text field owns its keys; only the hovered row remains.
+			if (scopes.length !== 1 || scopes[0] !== "global") return;
+			const pressed = shortcutFromEvent(event);
+			if (pressed === null || pressed !== readShortcut) return;
+			event.preventDefault();
+			toggleRead();
+		};
+		document.addEventListener("keydown", onKeyDown);
+		return () => document.removeEventListener("keydown", onKeyDown);
+	});
 
 	return (
 		<Link
 			to="/repository/$repositoryId/workspace/$workspaceId"
 			params={{ repositoryId: repo.id, workspaceId: workspace.id }}
 			aria-current={selected ? "page" : undefined}
+			onMouseEnter={() => setHovered(true)}
+			onMouseLeave={() => setHovered(false)}
 			className={cn(
 				"group flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
 				selected ? "bg-active text-fg" : "text-fg-muted hover:bg-hover hover:text-fg",

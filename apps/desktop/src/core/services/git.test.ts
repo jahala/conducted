@@ -103,6 +103,7 @@ function makeService(
 		cache: {} as never,
 		contextOf: options.contextOf ?? (async () => ok(context())),
 		agent: {} as never,
+		renameWorkspaceBranch: async () => ok(undefined),
 		now: options.now ?? (() => Date.now()),
 		fs: {
 			trash: async () => ok(undefined),
@@ -112,6 +113,8 @@ function makeService(
 			stat: async () => err(appError("fs_not_found", "missing")),
 			paths: { home: "", appData: "", temp: "", resources: "" },
 		},
+		setIntendedTargetBranch: async () => ok(undefined),
+		moveOpenPullRequestBase: async () => ok(false),
 	});
 }
 

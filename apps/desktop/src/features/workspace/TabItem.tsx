@@ -23,6 +23,7 @@ import {
 	PullRequestIcon,
 	TerminalIcon,
 } from "../../ui/icons.tsx";
+import { UnreadDot } from "../sidebar/UnreadDot.tsx";
 import type { TabDescriptor } from "./tab-layout.ts";
 import { WorkspaceStatusIcon } from "./WorkspaceStatusIcon.tsx";
 
@@ -100,9 +101,7 @@ export function TabItem({
 				<TabIcon tab={tab} />
 			</span>
 			<span className="min-w-0 flex-1 truncate">{tab.title}</span>
-			{tab.unread ? (
-				<span role="img" aria-label="Unread" className="size-2 shrink-0 rounded-full bg-unread" />
-			) : null}
+			<UnreadDot unread={tab.unread === true} />
 			<button
 				type="button"
 				aria-label={`Close ${tab.title}`}

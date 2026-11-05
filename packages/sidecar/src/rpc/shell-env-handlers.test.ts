@@ -62,6 +62,7 @@ function deps(shellEnv: ShellEnvProvider): HandlerDeps {
 			contextUsage: async () => ok({ usedTokens: 1, windowTokens: 2, rateLimits: [] }),
 		},
 		shellEnv,
+		utilityPrompt: { run: async () => ok({ text: "" }) },
 		setLogLevel: () => {},
 	};
 }

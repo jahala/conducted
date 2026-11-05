@@ -1,38 +1,41 @@
 /**
  * @feature NAV-03 Grouped workspace list
- * Owns: Showing the sidebar's workspaces in groups: Pinned, the user's sections, then the main list
- * grouped by status or by project.
+ * Owns: Showing the sidebar's workspaces in the order the user sees them: Pinned, the user's
+ * sections, then the main list grouped by status or by project.
  * Behaviour: ui-map.md 4 items 4 to 7 and the View options menu (group by Status or Project, filter
- * by project, sort by Updated or Created).
+ * by project, sort by Updated or Created; manual order when it is on).
  * Our design choice: The view options (group, filter, sort) are kept in a setting so they survive a
  * restart. Status groups run in this order: done, in review, in progress, backlog, canceled, the
- * order Conductor uses. The user's own sections and their saved order come from NAV-04 and are left
- * out until that feature is built; until then the list always sorts by date and View options keeps
- * Sort by visible, because hiding it would leave no way to sort. The row actions menu comes from
- * NAV-10 and is left out here for the same reason.
+ * order Conductor uses. Pinned and the user's sections are rendered by PinnedSection and
+ * SectionList, which own their drag targets; this component supplies their data and the saved
+ * manual order. A row dragged within a main group saves its new order in the `sidebar_manual_order`
+ * setting. The row actions menu comes from NAV-10.
  * Must handle: A workspace in two places (pinned and in a section) shows once, in Pinned; a group
  * with no workspaces is hidden; a collapsed group shows its count; a project filter that matches
  * nothing shows a short empty note with a way to clear it; archived workspaces are never listed;
- * the selected workspace stays visible after a re-sort; a saved "section" grouping says it is not
- * available yet; Cmd+1..9 and Cmd+Alt+ArrowUp/Down move through the visible order, wrapping at
- * the ends.
- * The collapsed state lives here so the visible order can leave collapsed groups out; a row the
- * user cannot see gets no shortcut number. The "+" on a project header carries the project to the
+ * the selected workspace stays visible after a re-sort; Cmd+1..9 and Cmd+Alt+ArrowUp/Down move
+ * through the visible order, wrapping at the ends; a right click on the list offers "New section...".
+ * The collapsed state of the main groups lives here so the visible order can leave them out; a row
+ * the user cannot see gets no shortcut number. The "+" on a project header carries the project to the
  * create page as the search param `repo`.
  * Test first: Given three workspaces in two repos, grouping by project gives two groups; pinning
  * one moves it to Pinned and removes it from its group.
  */
 
-import type { WorkspaceId } from "@conducted/shared";
+import type { Result, WorkspaceId } from "@conducted/shared";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { useActions, useSetting } from "../../core/hooks.ts";
-import type { Repo, Workspace } from "../../core/model.ts";
+import type { Repo, Section, Workspace } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../ui/Collapsible.tsx";
+import { ContextMenu, ContextMenuItem } from "../../ui/ContextMenu.tsx";
 import { ChevronDownIcon, ChevronRightIcon, PlusIcon } from "../../ui/icons.tsx";
 import { toastError } from "../../ui/Toast.tsx";
+import { PinnedSection } from "./PinnedSection.tsx";
+import { SectionDialog } from "./SectionDialog.tsx";
+import { SectionList } from "./SectionList.tsx";
 import {
 	buildSidebarGroups,
 	orderedWorkspaceIds,
@@ -42,23 +45,62 @@ import {
 	writeGroupBySetting,
 } from "./sidebar-view.ts";
 import { useNow } from "./use-now.ts";
+import {
+	draggedSection,
+	draggedWorkspace,
+	useWorkspaceDrag,
+	WORKSPACE_DRAG_MIME,
+} from "./use-workspace-drag.ts";
 import { ViewOptionsMenu } from "./ViewOptionsMenu.tsx";
 import { WorkspaceRow } from "./WorkspaceRow.tsx";
 
 export interface GroupedWorkspacesProps {
 	repos: Repo[];
 	workspaces: Workspace[];
+	/** The user's sections, from the sections service. */
+	sections?: readonly Section[];
+}
+
+/** The saved per-list order: group key to workspace ids. */
+function readManualOrder(stored: string): Map<string, WorkspaceId[]> {
+	const result = new Map<string, WorkspaceId[]>();
+	if (stored.trim() === "") return result;
+	try {
+		const parsed: unknown = JSON.parse(stored);
+		if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return result;
+		for (const [key, value] of Object.entries(parsed)) {
+			if (!Array.isArray(value)) continue;
+			const ids = value.filter((id): id is WorkspaceId => typeof id === "string");
+			if (ids.length > 0) result.set(key, ids);
+		}
+	} catch {
+		// A hand-edited value that is not JSON: show the saved sort instead of failing the sidebar.
+		return result;
+	}
+	return result;
+}
+
+function writeManualOrder(
+	current: ReadonlyMap<string, WorkspaceId[]>,
+	key: string,
+	ids: readonly WorkspaceId[],
+): string {
+	const next: Record<string, WorkspaceId[]> = {};
+	for (const [entryKey, entryIds] of current) next[entryKey] = [...entryIds];
+	next[key] = [...ids];
+	return JSON.stringify(next);
 }
 
 function readView(
 	groupBy: SidebarView["groupBy"],
 	sortBy: string,
 	projectFilter: string,
+	manualOrder: boolean,
 ): SidebarView {
 	return {
 		groupBy,
 		sortBy: sortBy === "created" ? "created" : "updated",
-		manualOrder: false,
+		manualOrder,
 		projectFilter:
 			projectFilter === "" ? [] : (projectFilter.split(",") as SidebarView["projectFilter"]),
 	};
@@ -84,8 +126,10 @@ function GroupSection({
 	selectedId,
 	shortcutIndexes,
 	now,
+	manualOrder,
 	open,
 	onOpenChange,
+	onReorder,
 }: {
 	group: SidebarGroup;
 	rows: Map<WorkspaceId, { workspace: Workspace; repo: Repo }>;
@@ -93,12 +137,24 @@ function GroupSection({
 	selectedId: WorkspaceId | null;
 	shortcutIndexes: ReadonlyMap<WorkspaceId, number>;
 	now: number;
+	manualOrder: boolean;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
+	onReorder: (orderedIds: readonly WorkspaceId[]) => Promise<Result<unknown>> | undefined;
 }) {
+	const actions = useActions();
 	const repoId = group.key.kind === "project" ? group.key.repoId : null;
 	const repo =
 		repoId === null ? null : (repos.find((candidate) => candidate.id === repoId) ?? null);
+	const drag = useWorkspaceDrag({
+		order: group.workspaceIds,
+		sectionId: null,
+		manualOrder,
+		place: (workspaceId, sectionId, position) =>
+			actions.sections.place(workspaceId, sectionId, position),
+		reorder: onReorder,
+		onError: toastError,
+	});
 	return (
 		<section aria-label={group.label} className="mb-1">
 			<Collapsible open={open} onOpenChange={onOpenChange}>
@@ -128,14 +184,39 @@ function GroupSection({
 							const row = rows.get(workspaceId);
 							if (row === undefined) return null;
 							return (
-								<WorkspaceRow
+								// biome-ignore lint/a11y/noStaticElementInteractions: a sidebar row is a drag source; its link is the interactive part.
+								<div
 									key={workspaceId}
-									workspace={row.workspace}
-									repo={row.repo}
-									selected={selectedId === workspaceId}
-									shortcutIndex={shortcutIndexes.get(workspaceId) ?? null}
-									now={now}
-								/>
+									draggable
+									data-workspace-id={workspaceId}
+									onDragStart={(event) => {
+										event.dataTransfer?.setData(WORKSPACE_DRAG_MIME, workspaceId);
+										event.dataTransfer?.setData("text/plain", workspaceId);
+										drag.startDrag(workspaceId);
+									}}
+									onDragEnd={drag.cancel}
+									onDragOver={(event) => {
+										event.preventDefault();
+										event.stopPropagation();
+										drag.dragOver(`row:${workspaceId}`);
+									}}
+									onDrop={(event) => {
+										event.preventDefault();
+										event.stopPropagation();
+										if (draggedSection(event) !== null) return;
+										const carried = draggedWorkspace(event, drag.state.draggingId);
+										if (carried === null) return;
+										drag.dropOn(`row:${workspaceId}`, 1, carried);
+									}}
+								>
+									<WorkspaceRow
+										workspace={row.workspace}
+										repo={row.repo}
+										selected={selectedId === workspaceId}
+										shortcutIndex={shortcutIndexes.get(workspaceId) ?? null}
+										now={now}
+									/>
+								</div>
 							);
 						})}
 					</div>
@@ -145,39 +226,42 @@ function GroupSection({
 	);
 }
 
-export function GroupedWorkspaces({ repos, workspaces }: GroupedWorkspacesProps) {
+export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedWorkspacesProps) {
 	const actions = useActions();
 	const navigate = useNavigate();
 	const groupBy = useSetting<string>("sidebar_group_by");
 	const sortBy = useSetting<string>("sidebar_sort_by");
 	const projectFilter = useSetting<string>("sidebar_repo_filter");
+	const manualOrderSetting = useSetting<boolean>("manual_workspace_order");
+	const storedManualOrder = useSetting<string>("sidebar_manual_order");
 	const params = useParams({ strict: false });
 	const selectedId = (params as { workspaceId?: WorkspaceId }).workspaceId ?? null;
 	const now = useNow();
+	const [newSectionOpen, setNewSectionOpen] = useState(false);
 	const groupByMode = readGroupBySetting(groupBy);
 	const groupByView = groupByMode === "section" ? "project" : groupByMode;
 
 	const existingRepoIds = useMemo(() => new Set(repos.map((repo) => repo.id)), [repos]);
 	const view = useMemo(() => {
-		const parsed = readView(groupByView, sortBy, projectFilter);
+		const parsed = readView(groupByView, sortBy, projectFilter, manualOrderSetting);
 		return {
 			...parsed,
 			projectFilter: parsed.projectFilter.filter((repoId) => existingRepoIds.has(repoId)),
 		};
-	}, [groupByView, sortBy, projectFilter, existingRepoIds]);
+	}, [groupByView, sortBy, projectFilter, manualOrderSetting, existingRepoIds]);
+
+	const manualOrder = useMemo(() => readManualOrder(storedManualOrder), [storedManualOrder]);
 
 	const groups = useMemo(
 		() =>
 			buildSidebarGroups({
 				repos,
 				workspaces,
-				// NAV-04 supplies the user's sections.
-				sections: [],
+				sections: [...sections],
 				view,
-				// NAV-04 supplies the saved manual order.
-				manualOrder: new Map(),
+				manualOrder,
 			}),
-		[repos, workspaces, view],
+		[repos, workspaces, sections, view, manualOrder],
 	);
 
 	const rows = useMemo(() => {
@@ -189,6 +273,19 @@ export function GroupedWorkspaces({ repos, workspaces }: GroupedWorkspacesProps)
 		}
 		return result;
 	}, [repos, workspaces]);
+
+	const pinnedGroup = groups.find((group) => group.key.kind === "pinned");
+	const pinnedIds = useMemo(
+		() => new Set<WorkspaceId>(pinnedGroup?.workspaceIds ?? []),
+		[pinnedGroup],
+	);
+	const pinnedWorkspaces = (pinnedGroup?.workspaceIds ?? [])
+		.map((workspaceId) => rows.get(workspaceId)?.workspace)
+		.filter((workspace): workspace is Workspace => workspace !== undefined);
+
+	const mainGroups = groups.filter(
+		(group) => group.key.kind === "status" || group.key.kind === "project",
+	);
 
 	const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
 	const setGroupOpen = (key: string, open: boolean) => {
@@ -204,10 +301,21 @@ export function GroupedWorkspaces({ repos, workspaces }: GroupedWorkspacesProps)
 		});
 	};
 
-	const ordered = useMemo(
-		() => orderedWorkspaceIds(groups.filter((group) => !collapsed.has(groupKey(group)))),
-		[groups, collapsed],
-	);
+	const ordered = useMemo(() => {
+		const visible = groups.filter((group) => {
+			const key = group.key;
+			if (key.kind === "section") {
+				const sectionId = key.sectionId;
+				const section = sections.find((candidate) => candidate.id === sectionId);
+				return section !== undefined && !section.collapsed;
+			}
+			if (key.kind === "status" || key.kind === "project") {
+				return !collapsed.has(groupKey(group));
+			}
+			return true;
+		});
+		return orderedWorkspaceIds(visible);
+	}, [groups, sections, collapsed]);
 
 	const shortcutIndexes = useMemo(() => {
 		const result = new Map<WorkspaceId, number>();
@@ -273,51 +381,63 @@ export function GroupedWorkspaces({ repos, workspaces }: GroupedWorkspacesProps)
 		}
 	};
 
+	const saveOrder = (key: string) => (ids: readonly WorkspaceId[]) =>
+		actions.settings.set("sidebar_manual_order", writeManualOrder(manualOrder, key, ids));
+
 	const clearFilter = () => changeView({ ...view, projectFilter: [] });
 
 	return (
-		<div className="flex flex-col">
-			<div className="flex h-8 shrink-0 items-center justify-end px-2">
-				<ViewOptionsMenu view={view} repos={repos} onChange={changeView} />
+		<ContextMenu
+			items={
+				<ContextMenuItem onSelect={() => setNewSectionOpen(true)}>New section...</ContextMenuItem>
+			}
+		>
+			<div className="flex flex-col" data-sidebar-list="">
+				<div className="flex h-8 shrink-0 items-center justify-end px-2">
+					<ViewOptionsMenu view={view} repos={repos} onChange={changeView} />
+				</div>
+				<PinnedSection
+					workspaces={pinnedWorkspaces}
+					allWorkspaces={workspaces}
+					onReorder={saveOrder("pinned")}
+				/>
+				<SectionList
+					sections={sections}
+					workspaces={workspaces}
+					excludedIds={pinnedIds}
+					onNewSection={() => setNewSectionOpen(true)}
+				/>
+				{groups.length === 0 ? (
+					<div className="flex flex-col items-center gap-2 p-4 text-center text-sm text-fg-muted">
+						<p>No matching workspaces</p>
+						{view.projectFilter.length > 0 ? (
+							<Button variant="secondary" size="sm" onClick={clearFilter}>
+								Clear filter
+							</Button>
+						) : null}
+					</div>
+				) : (
+					mainGroups.map((group) => {
+						const key = groupKey(group);
+						return (
+							<GroupSection
+								key={key}
+								group={group}
+								rows={rows}
+								repos={repos}
+								selectedId={selectedId}
+								shortcutIndexes={shortcutIndexes}
+								now={now}
+								manualOrder={view.manualOrder}
+								open={!collapsed.has(key)}
+								onOpenChange={(open) => setGroupOpen(key, open)}
+								onReorder={saveOrder(key)}
+							/>
+						);
+					})
+				)}
+				<SectionDialog open={newSectionOpen} onOpenChange={setNewSectionOpen} section={null} />
 			</div>
-			{groupByMode === "section" ? (
-				<div className="flex flex-col items-center gap-2 p-4 text-center text-sm text-fg-muted">
-					<p>Grouping by section is not available yet.</p>
-					<Button
-						variant="secondary"
-						size="sm"
-						onClick={() => changeView({ ...view, groupBy: "project" })}
-					>
-						Group by project
-					</Button>
-				</div>
-			) : groups.length === 0 ? (
-				<div className="flex flex-col items-center gap-2 p-4 text-center text-sm text-fg-muted">
-					<p>No matching workspaces</p>
-					{view.projectFilter.length > 0 ? (
-						<Button variant="secondary" size="sm" onClick={clearFilter}>
-							Clear filter
-						</Button>
-					) : null}
-				</div>
-			) : (
-				groups.map((group) => {
-					const key = groupKey(group);
-					return (
-						<GroupSection
-							key={key}
-							group={group}
-							rows={rows}
-							repos={repos}
-							selectedId={selectedId}
-							shortcutIndexes={shortcutIndexes}
-							now={now}
-							open={!collapsed.has(key)}
-							onOpenChange={(open) => setGroupOpen(key, open)}
-						/>
-					);
-				})
-			)}
-		</div>
+		</ContextMenu>
 	);
 }

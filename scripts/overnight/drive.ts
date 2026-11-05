@@ -9,7 +9,7 @@
  *                                                         write night step n's pleach plan for the
  *                                                         batch, at most m workers at once, and the
  *                                                         batch's feature ids beside it
- *   bun scripts/overnight/drive.ts step <n>               list the step's batch ids
+ *   bun scripts/overnight/drive.ts step <n> [--priority <p>]               list the step's batch ids
  *   bun scripts/overnight/drive.ts preflight              the quick gate on the step branch itself,
  *                                                         before any worker starts from it
  *   bun scripts/overnight/drive.ts mark-done <tree> <ID...>
@@ -217,7 +217,8 @@ async function main(command: string | undefined, args: string[]): Promise<void> 
 		writeFileSync(join(work, "issues.json"), JSON.stringify(map, null, 2));
 		console.log(`${Object.keys(map).length} feature issues mapped.`);
 	} else if (command === "step" || command === "plan") {
-		const rows = backlog(root).filter((r) => r.status === "stub" && r.priority === 1);
+		const maxPriority = Number(flag(args, "--priority") ?? 1);
+		const rows = backlog(root).filter((r) => r.status === "stub" && r.priority <= maxPriority);
 		const batches = planBatches(rows);
 		if (command === "step") {
 			console.log(

@@ -1,18 +1,20 @@
 /**
  * @feature CHAT-01 Sessions service: the chat list; CHAT-02 Send a message as a new turn; CHAT-05
- * Cancel a turn
+ * Cancel a turn; CHAT-27 Retry a failed turn in a new chat
  * Owns: the list of chats per workspace, their stored live state and events in memory, the
- * create, close, reopen, rename, set-title-if-empty, delete and open paths, sending a user
- * message as a new turn or a steer, and cancelling a turn: pausing the follow-up queue,
- * withdrawing the open interaction, removing only the pending sends the sidecar dropped, and
- * putting a send that was still in flight back in the composer draft.
+ * create, close, reopen, rename, set-title-if-empty, delete and open paths, starting a review chat
+ * with the review model, sending a user message as a new turn or a steer, cancelling a turn:
+ * pausing the follow-up queue, withdrawing the open interaction, removing only the pending sends
+ * the sidecar dropped, and putting a send that was still in flight back in the composer draft,
+ * and starting a failed turn's message again in a new chat of the same workspace.
  * Behaviour: services-map.md 2.3.3 (session operations), 2.2 (the sessions table), 2.3.4
  * (composer outbox: restore to draft), ui-map.md 3.2, sessions-and-chats.md "What happens when
  * you send a message" and "While the agent is working" (cancel), sessions.md 6.
  * Must handle: a closed chat stays in history and leaves the open list; a reopened chat returns to
  * the open list; an empty title is refused; stored events load once, in `idx` order; a message is
  * held in memory as pending before the sidecar is asked; a send that fails keeps its text for
- * Retry and Discard; a chat config is written only while the stored config is still the one the
+ * Retry and Discard; a chat whose first message cannot be sent is removed, so a retry does not
+ * leave an empty chat; a chat config is written only while the stored config is still the one the
  * caller saw, so a late answer cannot overwrite a newer choice; a cancel withdraws the open
  * interaction, takes back the messages the sidecar dropped and returns an in-flight send to the
  * draft; a sidecar that refuses the cancel changes nothing; cancelAll reaches every working chat
@@ -20,7 +22,9 @@
  * open interaction in it becomes the chat's card, while a live state without one withdraws the
  * card; a chat the sidecar lost gets every open turn closed as `interrupted` in one transaction
  * and an idle live state, while its agent session id stays for resume and a failed live-state
- * write is returned.
+ * write is returned; a review chat uses the review model, fast mode and effort from settings,
+ * falls back to the default chat model when no review model is set, and does not start when a
+ * review setting cannot be used.
  * Our design choice: a chat starts with no title; the title generator fills it only once
  * (`setTitleIfEmpty`), so a name the user typed is never overwritten.
  * Our design choice: the pending send lives in memory until the sidecar stores its `user_message`
@@ -29,13 +33,16 @@
  * queue service keeps them), while the messages the sidecar had not delivered come back into the
  * composer draft with their attachments.
  * Test first: a send holds the pending message in memory before it reaches the sidecar, a late
- * config write leaves the newer stored choice in place, and a cancel pauses the queue and returns
- * the dropped message to the draft.
+ * config write leaves the newer stored choice in place, a cancel pauses the queue and returns
+ * the dropped message to the draft, and a retry in a new chat sends the failed turn's message
+ * there.
  *
- * The progress and unread paths live in the same service but belong to CHAT-13 and NAV-11. They
- * are placeholders until those features build them. The chat view (turns built from stored
- * events) belongs to CHAT-07. Cancel is CHAT-05's, and the interaction paths (answer,
+ * The progress path lives in the same service but belongs to CHAT-13. The chat view (turns built
+ * from stored events) belongs to CHAT-07. Cancel is CHAT-05's, and the interaction paths (answer,
  * requestInteraction) are CHAT-10's. CHAT-18 owns `applyLiveState` and `markInterrupted` here.
+ * Read state is NAV-11's: mark a chat or a workspace read or unread, and remember the chat on
+ * screen for notifications.
+ * SIDE-20 owns `applyAgentConfig`, which stores a config the agent changed by itself.
  */
 import {
 	type AgentLaunch,
@@ -66,9 +73,11 @@ import {
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Database } from "../../platform/platform.ts";
 import type { Draft, NewWorkspaceInput } from "../api.ts";
+import { createKeyedQueue, type KeyedQueue } from "../async/serial-queue.ts";
 import { interruptedTurnEvent } from "../db/repair.ts";
 import type { Repositories } from "../db/repositories.ts";
 import { executeStatement, inTransaction, selectRows, stringifyJson } from "../db/row-codec.ts";
+import { parseEffortSetting } from "../lookups.ts";
 import type { ChatView, Session } from "../model.ts";
 import type { SidecarClient } from "../sidecar/tunnel.ts";
 import type { ComposerService } from "./composer.ts";
@@ -129,7 +138,17 @@ export interface SessionsState {
 	/** Messages the sidecar did not accept, kept for Retry and Discard. */
 	failedSends?: Readonly<Record<string, readonly FailedSend[]>>;
 	openInteractions: Readonly<
-		Record<string, { interactionId: InteractionId; interaction: Interaction }>
+		Record<
+			string,
+			{
+				interactionId: InteractionId;
+				interaction: Interaction;
+				/** When Codex stops waiting, in milliseconds since the epoch. Null: no limit. */
+				expiresAt: number | null;
+				/** The agent stopped waiting before the user answered. */
+				timedOut: boolean;
+			}
+		>
 	>;
 	viewingSessionId: SessionId | null;
 }
@@ -152,6 +171,52 @@ function canonicalJson(value: unknown): string {
 /** Compares two chat configs by value, whatever order their keys were written in. */
 function sameConfig(a: SessionConfig, b: SessionConfig): boolean {
 	return canonicalJson(a) === canonicalJson(b);
+}
+
+/** A config write is tried this many times before its failure is reported. */
+const CONFIG_WRITE_ATTEMPTS = 3;
+
+/** The config of a review chat: the review model, fast mode and effort, on the default config. */
+function reviewConfigFrom(
+	base: SessionConfig,
+	setting: <T>(key: string) => T,
+): Result<SessionConfig> {
+	const model = setting<string>("review_model").trim();
+	const effortKey =
+		base.agent === "codex"
+			? "review_codex_thinking_level"
+			: base.agent === "claude"
+				? "review_claude_effort_level"
+				: null;
+	let effort = base.effort;
+	if (effortKey !== null) {
+		const effortSetting = setting<string>(effortKey).trim();
+		if (effortSetting.length > 0) {
+			const parsed = parseEffortSetting(effortKey, effortSetting);
+			if (!parsed.ok) return parsed;
+			effort = parsed.value;
+		}
+	}
+	return ok({
+		...base,
+		model: model.length > 0 ? model : base.model,
+		effort,
+		fastMode: setting<boolean>("review_fast_mode"),
+	});
+}
+
+/**
+ * True when a chat is blocked on the user right now: it has a card the user must answer, either in
+ * the app's own map or in the live state the sidecar sent.
+ */
+export function sessionWaitsForUser(
+	state: Pick<SessionsState, "openInteractions" | "liveStates">,
+	sessionId: SessionId,
+): boolean {
+	return (
+		state.openInteractions[sessionId] !== undefined ||
+		state.liveStates[sessionId]?.openInteraction !== undefined
+	);
 }
 
 /** Open chats are listed newest first, by the last message and then by creation time. */
@@ -225,6 +290,11 @@ export class SessionsService implements AgentMessenger {
 	readonly #interactionPromises = new Map<string, Promise<InteractionAnswer>>();
 	/** Bumped by cancel, so a send that finishes afterwards returns to the draft instead of running. */
 	readonly #cancelVersions = new Map<string, number>();
+	/**
+	 * Every config write for one chat, from the composer or from the agent, runs here in arrival
+	 * order. The agent's store and the composer's compare-and-set never interleave.
+	 */
+	readonly #configWrites: KeyedQueue<SessionId> = createKeyedQueue<SessionId>();
 	/** Loads of stored events in progress, with the events that arrived meanwhile. */
 	readonly #opening = new Map<
 		string,
@@ -320,6 +390,25 @@ export class SessionsService implements AgentMessenger {
 		const config = await this.#deps.defaultConfig(workspaceId);
 		if (!config.ok) return config;
 		return this.create(workspaceId, config.value);
+	}
+
+	/**
+	 * Creates a chat and sends its first message. When the send fails the new chat is deleted, so a
+	 * retry does not leave an empty chat in the workspace.
+	 */
+	async #createAndSend(
+		workspaceId: WorkspaceId,
+		config: SessionConfig,
+		text: string,
+		attachmentPaths: readonly string[],
+	): Promise<Result<Session>> {
+		const created = await this.create(workspaceId, config);
+		if (!created.ok) return created;
+		const sent = await this.send(created.value.id, text, attachmentPaths, "auto");
+		if (sent.ok) return created;
+		const removed = await this.delete(created.value.id);
+		if (!removed.ok) return err(appError(sent.error.code, sent.error.message, removed.error));
+		return sent;
 	}
 
 	/** Backs `Actions.sessions.close`: hides the tab, keeps the chat in history. */
@@ -866,6 +955,28 @@ export class SessionsService implements AgentMessenger {
 		return this.store.getState().openInteractions[sessionId] !== undefined;
 	}
 
+	/**
+	 * Backs the `interactionClosed` notification. A timed-out request keeps its card, marked as
+	 * timed out, and the agent's pending request settles as withdrawn. A delivery failure leaves
+	 * the card in place so the user can answer again.
+	 */
+	interactionClosed(params: {
+		sessionId: SessionId;
+		interactionId: InteractionId;
+		reason: "timed_out" | "delivery_failed";
+	}): void {
+		const open = this.store.getState().openInteractions[params.sessionId];
+		if (open === undefined || open.interactionId !== params.interactionId) return;
+		if (params.reason !== "timed_out") return;
+		this.store.setState((state) => ({
+			openInteractions: {
+				...state.openInteractions,
+				[params.sessionId]: { ...open, timedOut: true },
+			},
+		}));
+		this.#resolveInteraction(params.interactionId, { kind: "withdrawn" });
+	}
+
 	/** Called by the `requestInteraction` handler. Resolves when the user answers or it is withdrawn. */
 	requestInteraction(request: InteractionRequest): Promise<InteractionAnswer> {
 		const existing = this.#interactionPromises.get(request.interactionId);
@@ -897,6 +1008,8 @@ export class SessionsService implements AgentMessenger {
 				[request.sessionId]: {
 					interactionId: request.interactionId,
 					interaction: request.interaction,
+					expiresAt: request.expiresAt ?? null,
+					timedOut: false,
 				},
 			},
 		}));
@@ -904,9 +1017,6 @@ export class SessionsService implements AgentMessenger {
 
 	/** Answers the sidecar's open request and removes the card. A stale id is ignored. */
 	#settleInteraction(interactionId: InteractionId, answer: InteractionAnswer): void {
-		const resolve = this.#interactionResolvers.get(interactionId);
-		this.#interactionResolvers.delete(interactionId);
-		this.#interactionPromises.delete(interactionId);
 		this.store.setState((state) => {
 			const openInteractions = { ...state.openInteractions };
 			let changed = false;
@@ -917,77 +1027,89 @@ export class SessionsService implements AgentMessenger {
 			}
 			return changed ? { openInteractions } : {};
 		});
+		this.#resolveInteraction(interactionId, answer);
+	}
+
+	/** Resolves the sidecar's pending request without touching the card on screen. */
+	#resolveInteraction(interactionId: InteractionId, answer: InteractionAnswer): void {
+		const resolve = this.#interactionResolvers.get(interactionId);
+		this.#interactionResolvers.delete(interactionId);
+		this.#interactionPromises.delete(interactionId);
 		resolve?.(answer);
 	}
 
 	/**
 	 * Backs `Actions.sessions.updateConfig`. Some changes apply live, some on the next turn.
 	 * The write is a compare-and-set on the config text: a late update cannot overwrite a newer
-	 * choice. When it loses, the newer stored config is adopted instead.
+	 * choice. When it loses, the newer stored config is adopted instead. It runs on the same
+	 * per-chat queue as the agent's config changes, so an older agent notification that arrived
+	 * first cannot land after the user's newer choice.
 	 */
 	async updateConfig(id: SessionId, config: SessionConfig): Promise<Result<void>> {
-		const found = await this.#session(id);
-		if (!found.ok) return found;
-		const session = found.value;
+		return this.#configWrites.run(id, async () => {
+			const found = await this.#session(id);
+			if (!found.ok) return found;
+			const session = found.value;
 
-		// Read the exact stored text first, so the guard below names the text the write replaces.
-		// Keys in another order or extra whitespace would make a re-serialised guard miss.
-		const raw = await selectRows<{ config: string }>(
-			this.#deps.db,
-			"SELECT config FROM sessions WHERE id = $1",
-			[id],
-			"Reading a chat config",
-		);
-		if (!raw.ok) return raw;
-		const storedText = raw.value[0]?.config;
-		if (storedText === undefined) {
-			return err(appError("session_unknown", "That chat no longer exists."));
-		}
-
-		// Read the stored row again: the cached config is what the caller saw, not what is there now.
-		const stored = await this.#deps.repositories().sessions.get(id);
-		if (!stored.ok) return stored;
-		if (stored.value === null) {
-			return err(appError("session_unknown", "That chat no longer exists."));
-		}
-		const storedSession = stored.value;
-
-		// The caller's choice is older than the stored one, so adopt the stored choice.
-		if (!sameConfig(storedSession.config, session.config)) {
-			this.#setConfig(id, storedSession.config, storedSession.updatedAt);
-			return ok(undefined);
-		}
-		if (sameConfig(storedSession.config, config)) return ok(undefined);
-
-		const next = stringifyJson(config, "sessions.config");
-		if (!next.ok) return next;
-
-		const at = this.#deps.now();
-		const written = await executeStatement(
-			this.#deps.db,
-			"UPDATE sessions SET config = $1, updated_at = $2 WHERE id = $3 AND config = $4",
-			[next.value, at, id, storedText],
-			"Saving a chat config",
-		);
-		if (!written.ok) return written;
-
-		if (written.value === 0) {
-			// Another writer got there first. Adopt its choice; if the row is gone, say so.
-			const latest = await this.#deps.repositories().sessions.get(id);
-			if (!latest.ok) return latest;
-			if (latest.value === null) {
+			// Read the exact stored text first, so the guard below names the text the write replaces.
+			// Keys in another order or extra whitespace would make a re-serialised guard miss.
+			const raw = await selectRows<{ config: string }>(
+				this.#deps.db,
+				"SELECT config FROM sessions WHERE id = $1",
+				[id],
+				"Reading a chat config",
+			);
+			if (!raw.ok) return raw;
+			const storedText = raw.value[0]?.config;
+			if (storedText === undefined) {
 				return err(appError("session_unknown", "That chat no longer exists."));
 			}
-			this.#setConfig(id, latest.value.config, latest.value.updatedAt);
-			return ok(undefined);
-		}
 
-		this.#setConfig(id, config, at);
-		const applied = await this.#deps.sidecar.request("updateConfig", {
-			sessionId: id,
-			config,
+			// Read the stored row again: the cached config is what the caller saw, not what is there now.
+			const stored = await this.#deps.repositories().sessions.get(id);
+			if (!stored.ok) return stored;
+			if (stored.value === null) {
+				return err(appError("session_unknown", "That chat no longer exists."));
+			}
+			const storedSession = stored.value;
+
+			// The caller's choice is older than the stored one, so adopt the stored choice.
+			if (!sameConfig(storedSession.config, session.config)) {
+				this.#setConfig(id, storedSession.config, storedSession.updatedAt);
+				return ok(undefined);
+			}
+			if (sameConfig(storedSession.config, config)) return ok(undefined);
+
+			const next = stringifyJson(config, "sessions.config");
+			if (!next.ok) return next;
+
+			const at = this.#deps.now();
+			const written = await executeStatement(
+				this.#deps.db,
+				"UPDATE sessions SET config = $1, updated_at = $2 WHERE id = $3 AND config = $4",
+				[next.value, at, id, storedText],
+				"Saving a chat config",
+			);
+			if (!written.ok) return written;
+
+			if (written.value === 0) {
+				// Another writer got there first. Adopt its choice; if the row is gone, say so.
+				const latest = await this.#deps.repositories().sessions.get(id);
+				if (!latest.ok) return latest;
+				if (latest.value === null) {
+					return err(appError("session_unknown", "That chat no longer exists."));
+				}
+				this.#setConfig(id, latest.value.config, latest.value.updatedAt);
+				return ok(undefined);
+			}
+
+			this.#setConfig(id, config, at);
+			const applied = await this.#deps.sidecar.request("updateConfig", {
+				sessionId: id,
+				config,
+			});
+			return applied.ok ? ok(undefined) : applied;
 		});
-		return applied.ok ? ok(undefined) : applied;
 	}
 
 	/**
@@ -1019,11 +1141,10 @@ export class SessionsService implements AgentMessenger {
 		workspaceId: WorkspaceId,
 		input: NewWorkspaceInput,
 	): Promise<Result<Session>> {
-		const created = await this.create(workspaceId, input.config);
-		if (!created.ok) return created;
-		if (input.prompt.trim() === "" && input.attachmentPaths.length === 0) return created;
-		const sent = await this.send(created.value.id, input.prompt, input.attachmentPaths, "auto");
-		return sent.ok ? created : sent;
+		if (input.prompt.trim() === "" && input.attachmentPaths.length === 0) {
+			return this.create(workspaceId, input.config);
+		}
+		return this.#createAndSend(workspaceId, input.config, input.prompt, input.attachmentPaths);
 	}
 
 	/** The first chat's draft, for "Recover prompt" after a failed creation (WS-01). */
@@ -1066,9 +1187,48 @@ export class SessionsService implements AgentMessenger {
 		);
 	}
 
-	/** Backs `Actions.workspaces.markRead`. */
-	markAllRead(_workspaceId: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("NAV-11");
+	/**
+	 * Backs `Actions.workspaces.markRead`. Clears every chat of the workspace except the ones that
+	 * still wait for the user, so the dot disappears only when nothing needs attention.
+	 */
+	async markAllRead(workspaceId: WorkspaceId): Promise<Result<void>> {
+		const ids = Object.values(this.store.getState().sessions)
+			.filter((session) => session.workspaceId === workspaceId && session.unreadCount > 0)
+			.map((session) => session.id);
+		const cleared: SessionId[] = [];
+		for (const id of ids) {
+			// Read the state again: an interaction may have opened while an earlier write ran.
+			const current = this.store.getState();
+			const session = current.sessions[id];
+			if (session === undefined || session.unreadCount <= 0) continue;
+			if (sessionWaitsForUser(current, id)) continue;
+			const result = await this.#deps.repositories().sessions.clearUnread(id);
+			if (!result.ok) return result;
+			cleared.push(id);
+		}
+		if (cleared.length === 0) return ok(undefined);
+
+		// A new agent message may have raised the count while the writes above were in flight.
+		// The database is the newest word, so take each chat's count from it instead of writing 0.
+		const listed = await this.#deps.repositories().sessions.listByWorkspace(workspaceId, {
+			includeClosed: true,
+		});
+		if (!listed.ok) return listed;
+		const stored = new Map(listed.value.map((session) => [session.id, session.unreadCount]));
+		this.store.setState((current) => {
+			const sessions = { ...current.sessions };
+			let changed = false;
+			for (const id of cleared) {
+				const session = sessions[id];
+				const unreadCount = stored.get(id);
+				if (session === undefined || unreadCount === undefined) continue;
+				if (session.unreadCount === unreadCount) continue;
+				sessions[id] = { ...session, unreadCount };
+				changed = true;
+			}
+			return changed ? { sessions } : {};
+		});
+		return ok(undefined);
 	}
 
 	/** Deletes the chats, events and attachment files of a workspace that is being removed. */
@@ -1077,8 +1237,12 @@ export class SessionsService implements AgentMessenger {
 	}
 
 	/** Starts a chat with the review model and sends `text`. Used by the AI review. */
-	startReviewChat(_workspaceId: WorkspaceId, _text: string): Promise<Result<Session>> {
-		return notImplemented("REV-05");
+	async startReviewChat(workspaceId: WorkspaceId, text: string): Promise<Result<Session>> {
+		const base = await this.#deps.defaultConfig(workspaceId);
+		if (!base.ok) return base;
+		const config = reviewConfigFrom(base.value, this.#deps.setting);
+		if (!config.ok) return config;
+		return this.#createAndSend(workspaceId, config.value, text, []);
 	}
 
 	// ---- called by the sidecar side (core/sidecar) ----
@@ -1098,9 +1262,12 @@ export class SessionsService implements AgentMessenger {
 			const openInteractions = { ...state.openInteractions };
 			let changed = false;
 			if (nextOpen !== undefined) {
+				const same = previous?.interactionId === nextOpen.interactionId;
 				openInteractions[sessionId] = {
 					interactionId: nextOpen.interactionId,
 					interaction: nextOpen.interaction,
+					expiresAt: same ? (previous?.expiresAt ?? null) : null,
+					timedOut: same ? (previous?.timedOut ?? false) : false,
 				};
 				changed = true;
 			} else if (openInteractions[sessionId] !== undefined) {
@@ -1129,15 +1296,14 @@ export class SessionsService implements AgentMessenger {
 				? (this.store.getState().openInteractions[sessionId]?.interactionId ?? null)
 				: null;
 		this.store.setState((state) => {
-			const loaded = state.events[sessionId];
-			const duplicate = loaded?.some((stored) => stored.idx === idx) ?? false;
-			const events =
-				loaded !== undefined && !duplicate
-					? {
-							...state.events,
-							[sessionId]: [...loaded, { idx, event, receivedAt, revertedAt: null }],
-						}
-					: state.events;
+			const loaded = state.events[sessionId] ?? [];
+			const duplicate = loaded.some((stored) => stored.idx === idx);
+			const events = duplicate
+				? state.events
+				: {
+						...state.events,
+						[sessionId]: [...loaded, { idx, event, receivedAt, revertedAt: null }],
+					};
 
 			const pending = state.sending[sessionId];
 			let settled = pending;
@@ -1190,6 +1356,25 @@ export class SessionsService implements AgentMessenger {
 		return ok(undefined);
 	}
 
+	/**
+	 * Stores a config the agent changed by itself, such as entering plan mode (SIDE-20). A failed
+	 * write is retried through this same writer before it is reported. It shares the per-chat queue
+	 * with the composer, so an older agent notification cannot land after a newer user choice.
+	 */
+	async applyAgentConfig(sessionId: SessionId, config: SessionConfig): Promise<Result<void>> {
+		return this.#configWrites.run(sessionId, async () => {
+			let written = await this.#deps.repositories().sessions.setConfig(sessionId, config);
+			for (let attempt = 1; attempt < CONFIG_WRITE_ATTEMPTS && !written.ok; attempt += 1) {
+				// Yield first, so a busy database gets its chance to finish.
+				await new Promise((resolve) => setTimeout(resolve, 0));
+				written = await this.#deps.repositories().sessions.setConfig(sessionId, config);
+			}
+			if (!written.ok) return written;
+			this.#setConfig(sessionId, config, this.#deps.now());
+			return ok(undefined);
+		});
+	}
+
 	/** Replaces the chat's progress tracker. An update with no blocks clears it. */
 	setProgress(_sessionId: SessionId, _progress: Progress): void {
 		notImplemented("CHAT-13");
@@ -1230,8 +1415,13 @@ export class SessionsService implements AgentMessenger {
 
 	// ---- called by the views ----
 
-	setViewing(_sessionId: SessionId | null): void {
-		notImplemented("NAV-11");
+	/**
+	 * Remembers the chat on screen, so notifications can skip it. Opening a workspace's chat also
+	 * clears its unread chats through `markAllRead`; that call belongs to the chat screen.
+	 */
+	setViewing(sessionId: SessionId | null): void {
+		if (this.store.getState().viewingSessionId === sessionId) return;
+		this.store.setState({ viewingSessionId: sessionId });
 	}
 
 	/** Backs `useChat`. Null for an unknown chat. */
@@ -1262,8 +1452,8 @@ export class SessionsService implements AgentMessenger {
 					: {
 							interactionId: open.interactionId,
 							interaction: open.interaction,
-							expiresAt: null,
-							timedOut: false,
+							expiresAt: open.expiresAt,
+							timedOut: open.timedOut,
 						},
 			progress: null,
 			goal: null,
@@ -1277,17 +1467,49 @@ export class SessionsService implements AgentMessenger {
 
 	// ---- read state, failed sends and agent controls (Actions.sessions)
 
-	markRead(_id: SessionId): Promise<Result<void>> {
-		return notImplemented("NAV-11");
+	/** Backs `Actions.sessions.markRead`. Clears the chat's unread count. */
+	async markRead(id: SessionId): Promise<Result<void>> {
+		const found = await this.#session(id);
+		if (!found.ok) return found;
+		const cleared = await this.#deps.repositories().sessions.clearUnread(id);
+		if (!cleared.ok) return cleared;
+		this.#setUnreadCount(id, 0);
+		return ok(undefined);
 	}
 
-	markUnread(_id: SessionId): Promise<Result<void>> {
-		return notImplemented("NAV-11");
+	/**
+	 * Backs `Actions.sessions.markUnread`. A chat that already has unread messages keeps its count,
+	 * so toggling the menu item twice never grows the number.
+	 */
+	async markUnread(id: SessionId): Promise<Result<void>> {
+		const found = await this.#session(id);
+		if (!found.ok) return found;
+		if (found.value.unreadCount > 0) return ok(undefined);
+		const incremented = await this.#deps.repositories().sessions.incrementUnread(id);
+		if (!incremented.ok) return incremented;
+		this.#setUnreadCount(id, found.value.unreadCount + 1);
+		return ok(undefined);
 	}
 
 	/** Backs `Actions.workspaces.markUnread`: the workspace's newest chat becomes unread. */
-	markWorkspaceUnread(_workspaceId: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("NAV-11");
+	async markWorkspaceUnread(workspaceId: WorkspaceId): Promise<Result<void>> {
+		const newest = this.store.getState().byWorkspace[workspaceId]?.[0];
+		if (newest !== undefined) return this.markUnread(newest);
+		const listed = await this.#deps.repositories().sessions.listByWorkspace(workspaceId, {
+			includeClosed: false,
+		});
+		if (!listed.ok) return listed;
+		const first = [...listed.value].sort(compareNewest)[0];
+		return first === undefined ? ok(undefined) : this.markUnread(first.id);
+	}
+
+	/** Writes one chat's unread count in the store, keeping the rest of the row unchanged. */
+	#setUnreadCount(id: SessionId, unreadCount: number): void {
+		this.store.setState((state) => {
+			const current = state.sessions[id];
+			if (current === undefined || current.unreadCount === unreadCount) return {};
+			return { sessions: { ...state.sessions, [id]: { ...current, unreadCount } } };
+		});
 	}
 
 	/** Sends a message the sidecar did not accept again, with the same ids. */
@@ -1342,8 +1564,37 @@ export class SessionsService implements AgentMessenger {
 		return ok(undefined);
 	}
 
-	retryInNewChat(_id: SessionId, _turnId: TurnId): Promise<Result<Session>> {
-		return notImplemented("CHAT-27");
+	/**
+	 * Backs `Actions.sessions.retryInNewChat`: sends a failed turn's message again in a new chat of
+	 * the same workspace, with the failed chat's config. The old chat stays open and unchanged.
+	 */
+	async retryInNewChat(id: SessionId, turnId: TurnId): Promise<Result<Session>> {
+		const found = await this.#session(id);
+		if (!found.ok) return found;
+		const session = found.value;
+		const state = this.store.getState();
+		const liveState = state.liveStates[id] ?? idleLiveState;
+		const turns = buildTurns(state.events[id] ?? [], liveState);
+		const turn = turns.find((candidate) => candidate.turnId === turnId);
+		if (turn === undefined) {
+			return err(appError("chat_turn_unknown", "That turn is no longer in this chat."));
+		}
+		const message = turn.userMessage;
+		if (message === null) {
+			return err(
+				appError(
+					"chat_turn_no_message",
+					"This turn was not started by you, so there is no message to retry.",
+				),
+			);
+		}
+
+		return this.#createAndSend(
+			session.workspaceId,
+			session.config,
+			message.text,
+			message.attachmentPaths,
+		);
 	}
 
 	/** /restart: `resetAgent`, then warm the agent again with resume. */

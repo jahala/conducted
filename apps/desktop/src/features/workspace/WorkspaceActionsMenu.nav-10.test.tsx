@@ -42,6 +42,7 @@ const state = vi.hoisted(() => {
 });
 
 vi.mock("../../core/hooks.ts", () => ({
+	useLiveShortcut: () => null,
 	useWorkspace: () => state.workspace,
 	useSessions: () => state.sessions,
 	useActions: () => ({

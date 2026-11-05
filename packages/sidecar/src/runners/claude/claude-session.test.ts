@@ -14,6 +14,7 @@ import type { SessionId, WorkspaceId } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
 import type { AppToolBackend } from "../../tools/backend.ts";
 import { AsyncQueue } from "../../util/async-queue.ts";
+import { NoActiveTurnError } from "../errors.ts";
 import type { StartOptions, TurnCallbacks, TurnInput } from "../runner.ts";
 import { ClaudeSession, type ClaudeSessionDeps, type QueryFunction } from "./claude-session.ts";
 import { INTERRUPT_GRACE_MS, SETTLEMENT_WATCHDOG_MS } from "./constants.ts";
@@ -168,7 +169,7 @@ function scriptedQuery(
 	return { query: queryFn, script };
 }
 
-function init(sessionId = "s1"): SDKMessage {
+function init(sessionId = "s1", permissionMode = "bypassPermissions"): SDKMessage {
 	return {
 		type: "system",
 		subtype: "init",
@@ -178,13 +179,23 @@ function init(sessionId = "s1"): SDKMessage {
 		tools: [],
 		mcp_servers: [],
 		model: "claude-sonnet-5",
-		permissionMode: "bypassPermissions",
+		permissionMode,
 		slash_commands: [],
 		output_style: "default",
 		skills: [],
 		plugins: [],
 		uuid: "init-uuid",
 		session_id: sessionId,
+	} as unknown as SDKMessage;
+}
+
+function toolUseMessage(name: string, id = "tool-1", sessionId = "s1"): SDKMessage {
+	return {
+		type: "assistant",
+		message: { role: "assistant", content: [{ type: "tool_use", id, name, input: {} }] },
+		parent_tool_use_id: null,
+		session_id: sessionId,
+		uuid: "assistant-tool-uuid",
 	} as unknown as SDKMessage;
 }
 
@@ -1168,6 +1179,288 @@ describe("AGENT-02 Claude session", () => {
 			expect(script.starts).toBe(0);
 			await session.warm();
 			expect(script.options?.model).toBe("claude-opus-5");
+			await session.dispose();
+		});
+	});
+
+	describe("AGENT-05 steering", () => {
+		test("AGENT-05 a steer gets a fresh uuid and stays pending until the mirror reports it read", async () => {
+			let ids = 0;
+			const { query, script } = scriptedQuery((_user, s) => {
+				s.emit(init());
+			});
+			const session = new ClaudeSession(
+				makeDeps({
+					query,
+					newUuid: () => {
+						ids += 1;
+						return `uuid-${ids}`;
+					},
+				}),
+				start(),
+			);
+			let settled = false;
+			const turn = session.runTurn(turnInput(), callbacks([])).then((outcome) => {
+				settled = true;
+				return outcome;
+			});
+			await until(() => script.prompts.length === 1);
+			expect(String(script.prompts[0]?.uuid)).toBe("uuid-1");
+
+			let read = false;
+			const { consumed } = await session.steer({ ...turnInput(), text: "hold on" });
+			void consumed.then(() => {
+				read = true;
+			});
+			await until(() => script.prompts.length === 2);
+			expect(String(script.prompts[1]?.uuid)).toBe("uuid-2");
+			expect(script.prompts[1]?.message).toMatchObject({ role: "user", content: "hold on" });
+			await flushMicrotasks();
+			expect(read).toBe(false);
+
+			// The result for the pre-steer message is held back while the steer is unread.
+			script.emit(resultMessage("uuid-1"));
+			await flushMicrotasks();
+			expect(settled).toBe(false);
+
+			// The CLI writes the steer into its transcript, so the receipt resolves.
+			await script.options?.sessionStore?.append({ projectKey: "p", sessionId: "s1" }, [
+				{ type: "user", uuid: "uuid-2" },
+			]);
+			await until(() => read === true);
+
+			// The next result ends the turn.
+			script.emit(resultMessage("uuid-2"));
+			expect(await turn).toEqual({ kind: "success" });
+			await session.dispose();
+		});
+
+		test("AGENT-05 steering is refused when no turn is open", async () => {
+			let ids = 0;
+			const { query } = scriptedQuery((user, s) => {
+				s.emit(resultMessage(String(user.uuid)));
+			});
+			const session = new ClaudeSession(
+				makeDeps({
+					query,
+					newUuid: () => {
+						ids += 1;
+						return `uuid-${ids}`;
+					},
+				}),
+				start(),
+			);
+
+			await expect(session.steer(turnInput())).rejects.toBeInstanceOf(NoActiveTurnError);
+
+			await session.runTurn(turnInput(), callbacks([]));
+			await expect(session.steer(turnInput())).rejects.toBeInstanceOf(NoActiveTurnError);
+			await session.dispose();
+		});
+
+		test("AGENT-05 a steer sent while the turn starts is queued after its first message", async () => {
+			let releaseStart: () => void = () => {};
+			const startGate = new Promise<void>((resolve) => {
+				releaseStart = resolve;
+			});
+			let firstStart = true;
+			let ids = 0;
+			const { query, script } = scriptedQuery();
+			const session = new ClaudeSession(
+				makeDeps({
+					query,
+					hasTranscript: async () => {
+						if (firstStart) {
+							firstStart = false;
+							await startGate;
+						}
+						return false;
+					},
+					newUuid: () => {
+						ids += 1;
+						return `uuid-${ids}`;
+					},
+				}),
+				start(),
+			);
+
+			const turn = session.runTurn(turnInput(), callbacks([]));
+			await until(() => !firstStart);
+			const steered = session.steer({ ...turnInput(), text: "second" });
+			releaseStart();
+			await until(() => script.prompts.length === 2);
+
+			expect(script.prompts[0]?.message).toMatchObject({ role: "user", content: "hi" });
+			expect(script.prompts[1]?.message).toMatchObject({ role: "user", content: "second" });
+
+			const { consumed } = await steered;
+			await script.options?.sessionStore?.append({ projectKey: "p", sessionId: "s1" }, [
+				{ type: "user", uuid: "uuid-2" },
+			]);
+			await consumed;
+			script.emit(resultMessage("uuid-2"));
+			expect(await turn).toEqual({ kind: "success" });
+			await session.dispose();
+		});
+	});
+
+	describe("SIDE-20 plan mode changes the agent made", () => {
+		test("SIDE-20 an init that reports plan mode tells the app the chat entered plan mode", async () => {
+			const changes: { config: SessionConfig; reason: string }[] = [];
+			const { query } = scriptedQuery((message, s) => {
+				s.emit(init("s1", "plan"));
+				s.emit(resultMessage(String(message.uuid)));
+			});
+			const session = new ClaudeSession(makeDeps({ query }), {
+				...start(),
+				onConfigChanged: (config, reason) => changes.push({ config, reason }),
+			});
+
+			expect(await session.runTurn(turnInput(), callbacks([]))).toEqual({ kind: "success" });
+
+			expect(changes).toHaveLength(1);
+			expect(changes[0]?.reason).toBe("entered_plan_mode");
+			expect(changes[0]?.config.planMode).toBe(true);
+			await session.dispose();
+		});
+
+		test("SIDE-20 an EnterPlanMode call tells the app the chat entered plan mode", async () => {
+			const changes: { config: SessionConfig; reason: string }[] = [];
+			const { query } = scriptedQuery((message, s) => {
+				s.emit(init());
+				s.emit(toolUseMessage("EnterPlanMode"));
+				s.emit(resultMessage(String(message.uuid)));
+			});
+			const session = new ClaudeSession(makeDeps({ query }), {
+				...start(),
+				onConfigChanged: (config, reason) => changes.push({ config, reason }),
+			});
+
+			expect(await session.runTurn(turnInput(), callbacks([]))).toEqual({ kind: "success" });
+
+			expect(changes).toHaveLength(1);
+			expect(changes[0]?.reason).toBe("entered_plan_mode");
+			expect(changes[0]?.config.planMode).toBe(true);
+			await session.dispose();
+		});
+
+		test("SIDE-20 an approved plan tells the app the chat left plan mode", async () => {
+			const changes: { config: SessionConfig; reason: string }[] = [];
+			const planConfig = { ...config(), planMode: true, requireToolApproval: true };
+			const { query, script } = scriptedQuery();
+			const session = new ClaudeSession(
+				makeDeps({
+					query,
+					createCanUseTool: (deps) => new ClaudePermissionHandler(deps).canUseTool,
+				}),
+				{
+					...start(),
+					config: planConfig,
+					onConfigChanged: (next, reason) => changes.push({ config: next, reason }),
+				},
+			);
+			const turn = session.runTurn(
+				{ ...turnInput(), config: planConfig },
+				callbacks([], {
+					requestInteraction: async () => ({ kind: "plan_approval", approved: true }),
+				}),
+			);
+			await until(() => script.prompts.length === 1);
+
+			const approved = await script.options?.canUseTool?.(
+				"ExitPlanMode",
+				{ plan: "Change one file" },
+				{ signal: new AbortController().signal, toolUseID: "tool-1", requestId: "request-1" },
+			);
+
+			expect(approved).toMatchObject({ behavior: "allow" });
+			expect(changes).toHaveLength(1);
+			expect(changes[0]?.reason).toBe("left_plan_mode");
+			expect(changes[0]?.config.planMode).toBe(false);
+			script.emit(resultMessage(String(script.prompts[0]?.uuid)));
+			expect(await turn).toEqual({ kind: "success" });
+			await session.dispose();
+		});
+
+		test("SIDE-20 turning plan mode off in the app sends no agent config change", async () => {
+			const changes: { config: SessionConfig; reason: string }[] = [];
+			const { query } = scriptedQuery();
+			const session = new ClaudeSession(makeDeps({ query }), {
+				...start(),
+				config: { ...config(), planMode: true },
+				onConfigChanged: (next, reason) => changes.push({ config: next, reason }),
+			});
+			await session.warm();
+
+			expect(await session.applyConfig({ ...config(), planMode: false })).toBe("applied");
+
+			expect(changes).toHaveLength(0);
+			await session.dispose();
+		});
+
+		test("SIDE-20 an init that reports plan after the app turned it off keeps the app's choice", async () => {
+			const changes: { config: SessionConfig; reason: string }[] = [];
+			const { query } = scriptedQuery((message, s) => {
+				s.emit(init("s1", "plan"));
+				s.emit(resultMessage(String(message.uuid)));
+			});
+			const session = new ClaudeSession(makeDeps({ query }), {
+				...start(),
+				config: { ...config(), planMode: true },
+				onConfigChanged: (next, reason) => changes.push({ config: next, reason }),
+			});
+			await session.warm();
+			await session.applyConfig({ ...config(), planMode: false });
+
+			expect(
+				await session.runTurn(
+					{ ...turnInput(), config: { ...config(), planMode: false } },
+					callbacks([]),
+				),
+			).toEqual({ kind: "success" });
+
+			expect(changes).toHaveLength(0);
+			await session.dispose();
+		});
+
+		test("SIDE-20 an exit and a re-entry in one turn are reported in order", async () => {
+			const changes: { config: SessionConfig; reason: string }[] = [];
+			const planConfig = { ...config(), planMode: true, requireToolApproval: true };
+			const { query, script } = scriptedQuery();
+			const session = new ClaudeSession(
+				makeDeps({
+					query,
+					createCanUseTool: (deps) => new ClaudePermissionHandler(deps).canUseTool,
+				}),
+				{
+					...start(),
+					config: planConfig,
+					onConfigChanged: (next, reason) => changes.push({ config: next, reason }),
+				},
+			);
+			const turn = session.runTurn(
+				{ ...turnInput(), config: planConfig },
+				callbacks([], {
+					requestInteraction: async () => ({ kind: "plan_approval", approved: true }),
+				}),
+			);
+			await until(() => script.prompts.length === 1);
+
+			const approved = await script.options?.canUseTool?.(
+				"ExitPlanMode",
+				{ plan: "Change one file" },
+				{ signal: new AbortController().signal, toolUseID: "tool-1", requestId: "request-1" },
+			);
+			expect(approved).toMatchObject({ behavior: "allow" });
+
+			script.emit(toolUseMessage("EnterPlanMode"));
+			script.emit(resultMessage(String(script.prompts[0]?.uuid)));
+			expect(await turn).toEqual({ kind: "success" });
+
+			expect(changes.map((change) => change.reason)).toEqual([
+				"left_plan_mode",
+				"entered_plan_mode",
+			]);
 			await session.dispose();
 		});
 	});
