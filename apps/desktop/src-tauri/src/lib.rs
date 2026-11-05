@@ -413,6 +413,20 @@ mod system_info_tests {
         };
         let info = system_info().expect("system_info should read the build CPU");
         assert_eq!(info.build_arch, expected);
+
+        // The compiler flag above is the same source the code reads. The test executable's own
+        // header is a second source: it names the CPU this very build was made for.
+        let executable = std::env::current_exe().expect("the test executable has a path");
+        let header = command_stdout("/usr/bin/file", &["-b", &executable.to_string_lossy()])
+            .expect("file describes the test executable");
+        let from_header = if header.contains("arm64") {
+            CpuArchitecture::Arm64
+        } else if header.contains("x86_64") {
+            CpuArchitecture::X86_64
+        } else {
+            panic!("file did not name a supported CPU for the test executable: {header}");
+        };
+        assert_eq!(info.build_arch, from_header, "file said: {header}");
     }
 
     #[test]
