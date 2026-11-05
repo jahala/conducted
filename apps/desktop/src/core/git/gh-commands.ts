@@ -1,5 +1,6 @@
 /**
  * @feature PR-01 Catalogue of every gh (GitHub CLI) invocation the app makes
+ * @feature PR-06 the pull request write actions: merge, auto-merge, ready, edit, reviewers, approve
  * Owns: one pure function per `gh` call (and the read-only `gt` Graphite calls), each returning a
  * `GitCommand` value. The runner executes it, in the workspace folder, so `gh` finds the repo.
  * Also owns the clone picker calls and `gh repo clone` for cloning from GitHub (PRJ-02).
@@ -7,14 +8,16 @@
  * Graphite), 3.9 (auth probes, org list), 5B.1 (fields, batching, rate-limit gate).
  * Must handle: every value reaches `gh` as its own argument; GraphQL variables go through
  * `-F`/`-f` flags, never string-built into the query; a merge is pinned to the local HEAD with
- * `--match-head-commit`, and an approval to the head commit id, so the app never acts on a PR
- * that differs from what the user sees.
+ * `--match-head-commit`, and an approval to the pull request's head commit id, so the app never
+ * acts on a PR that differs from what the user sees; reviewers are added and removed through
+ * `gh pr edit`, one flag per login.
  * Our design choice: GitHub access is the user's own `gh auth login` (method `cli`), or the
  * personal access token saved on the Account page, which the service passes to `gh` as GH_TOKEN
  * (D029). These functions only build the argument list; nothing here reads a secret. The GraphQL
  * query is written from GitHub's public schema, not copied. `gh` comes from the captured
  * login-shell PATH.
  * Test first: prMerge(12, "squash", "abc", false) pins the merge with --match-head-commit.
+ * PR-06 test first: prEdit(3, { addReviewers: ["octocat"] }) adds a reviewer.
  */
 import type { GitCommand } from "./commands.ts";
 
@@ -236,10 +239,19 @@ export const prMergeDisableAuto = (number: number): GitCommand =>
 	gh(["pr", "merge", String(number), "--disable-auto"]);
 export const prViewState = (number: number): GitCommand =>
 	gh(["pr", "view", String(number), "--json", "state", "--jq", ".state"]);
+/** The pull request's head commit, so an approval is pinned to what GitHub is showing. */
+export const prViewHeadCommit = (number: number): GitCommand =>
+	gh(["pr", "view", String(number), "--json", "headRefOid", "--jq", ".headRefOid"]);
 export const prReady = (number: number): GitCommand => gh(["pr", "ready", String(number)]);
 export const prEdit = (
 	number: number,
-	changes: { title?: string; body?: string; base?: string },
+	changes: {
+		title?: string;
+		body?: string;
+		base?: string;
+		addReviewers?: readonly string[];
+		removeReviewers?: readonly string[];
+	},
 ): GitCommand =>
 	gh([
 		"pr",
@@ -248,6 +260,8 @@ export const prEdit = (
 		...(changes.title === undefined ? [] : ["--title", changes.title]),
 		...(changes.body === undefined ? [] : ["--body", changes.body]),
 		...(changes.base === undefined ? [] : ["--base", changes.base]),
+		...(changes.addReviewers ?? []).flatMap((login) => ["--add-reviewer", login]),
+		...(changes.removeReviewers ?? []).flatMap((login) => ["--remove-reviewer", login]),
 	]);
 export const prApprove = (number: number, headCommitId: string): GitCommand =>
 	gh([
