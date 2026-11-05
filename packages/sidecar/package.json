@@ -8,6 +8,7 @@
 	"scripts": {
 		"typecheck": "tsc -p .",
 		"test": "bun test",
+		"test:coverage": "bun test --coverage --coverage-reporter=text --coverage-reporter=lcov --coverage-dir=coverage",
 		"build": "bun src/packaging.ts"
 	},
 	"dependencies": {
