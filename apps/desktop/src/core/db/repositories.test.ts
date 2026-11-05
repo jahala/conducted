@@ -1,12 +1,9 @@
 // @vitest-environment node
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
-import { fileURLToPath } from "node:url";
+import type { DatabaseSync } from "node:sqlite";
 import { idleLiveState } from "@conducted/protocol";
 import type { MessageId, RepoId, SessionId, WorkspaceId } from "@conducted/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { Database } from "../../platform/platform.ts";
+import { openTestDatabase } from "../../test/sqlite.ts";
 import { REPOS_SQL, repoToParams } from "./repos.ts";
 import { createRepositories, type Repositories } from "./repositories.ts";
 import { SESSIONS_SQL, sessionToParams } from "./sessions.ts";
@@ -25,72 +22,34 @@ import {
 } from "./test-fixtures.ts";
 import { WORKSPACES_SQL, workspaceToParams } from "./workspaces.ts";
 
-const MIGRATIONS_DIR = fileURLToPath(new URL("../../../src-tauri/migrations/", import.meta.url));
-const MIGRATIONS = readdirSync(MIGRATIONS_DIR)
-	.filter((name) => name.endsWith(".sql"))
-	.sort()
-	.map((name) => readFileSync(join(MIGRATIONS_DIR, name), "utf8"));
-
 /** node:sqlite binds `$1..$n` by name, so a positional list becomes `{ $1: ... }`. */
 const bind = (params: readonly unknown[]): Record<string, never> =>
 	Object.fromEntries(params.map((value, index) => [`$${index + 1}`, value])) as never;
-
-/** The same Database interface the Tauri plugin offers, over node:sqlite. */
-class NodeDatabase implements Database {
-	readonly #db: DatabaseSync;
-
-	constructor(db: DatabaseSync) {
-		this.#db = db;
-	}
-
-	async execute(sql: string, params: readonly unknown[] = []) {
-		const result = this.#db.prepare(sql).run(bind(params));
-		return {
-			rowsAffected: Number(result.changes),
-			lastInsertId: Number(result.lastInsertRowid),
-		};
-	}
-
-	async select<Row>(sql: string, params: readonly unknown[] = []): Promise<Row[]> {
-		return this.#db.prepare(sql).all(bind(params)) as Row[];
-	}
-
-	async transaction<T>(work: (db: Database) => Promise<T>): Promise<T> {
-		this.#db.exec("BEGIN IMMEDIATE");
-		try {
-			const value = await work(this);
-			this.#db.exec("COMMIT");
-			return value;
-		} catch (cause) {
-			this.#db.exec("ROLLBACK");
-			throw cause;
-		}
-	}
-}
 
 const must = <T>(result: { ok: true; value: T } | { ok: false; error: unknown }): T => {
 	if (!result.ok) throw new Error(JSON.stringify(result.error));
 	return result.value;
 };
 
+let store: ReturnType<typeof openTestDatabase>;
 let raw: DatabaseSync;
 let repositories: Repositories;
 let now: number;
 let nextId: number;
 
 beforeEach(() => {
-	raw = new DatabaseSync(":memory:");
-	for (const sql of MIGRATIONS) raw.exec(sql);
+	store = openTestDatabase();
+	raw = store.raw;
 	now = 1000;
 	nextId = 0;
-	repositories = createRepositories(new NodeDatabase(raw), {
+	repositories = createRepositories(store.database, {
 		clock: { now: () => now },
 		ids: { uuid: () => `generated-${++nextId}` },
 	});
 });
 
 afterEach(() => {
-	raw.close();
+	store.close();
 });
 
 const seedRepo = (): void => {

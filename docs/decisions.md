@@ -342,3 +342,19 @@ Why: the rule is two fix rounds, then quarantine. A red test that is probably wr
 Context: the overnight run stopped with 11 first-slice features open (D046, D047). The owner asked in the morning to finish the slice, with about 7 USD left on the DeepSeek account.
 Chosen: one more run with the night's process (D039 to D047). It runs in two steps: nine features including NAV-03, then CHAT-18 and NAV-10. It stops if the DeepSeek balance falls below 1 USD. Before step 1, `core/hooks.ts` is split by hook group into `core/hooks/`. `core/hooks.ts` stays the one module screens import, so the layering rule does not change, and each feature edits its own group file instead of one shared file. That shared file caused land conflicts in every step of the night. NAV-03 starts from the code it had before quarantine (commit `7ba45d3`). Its node also gives the NAV-01 shell test the workspace store it lacked.
 Why: the owner's request, within the money left. The split removes the cost the night measured.
+
+## D049. What the audits kept finding becomes rules the agents read (2026-11-05)
+
+Context: the first overnight build's audits returned about 280 MUST findings in steps 3 to 6. They fell into a few repeated patterns:
+
+- a file header claiming what the code does not do (about 38%);
+- duplicated logic (15%);
+- a late async answer overwriting newer state (15%);
+- silent failures (13%);
+- tests that check nothing or use fakes that repeat ids (11%);
+- code nothing calls;
+- listeners never removed.
+
+Several of these had no rule in the docs, and agents read only the docs and their issue. Screen tests also kept failing because each hand-built a partial container.
+Chosen: `docs/engineering.md` states each pattern as a rule. `docs/architecture.md` lists the shared helpers to use before writing one. A shared `createTestContainer` and `openTestDatabase` replace hand-built test containers and five copies of a SQLite adapter. The builder and fixer prompts in `scripts/overnight/drive.ts` repeat the rules, and the audit prompt checks headers and each rule by name.
+Why: the agents start from the docs, so the docs must name what the audits were catching. The prompt carries it too, because a rule in a doc nobody quotes drifts. Nothing checks the header rule by script yet; the audit does.

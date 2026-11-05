@@ -1,12 +1,10 @@
 // @vitest-environment node
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
-import { fileURLToPath } from "node:url";
+import type { DatabaseSync } from "node:sqlite";
 import { idleLiveState } from "@conducted/protocol";
 import { ok, type SessionId } from "@conducted/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "../../platform/platform.ts";
+import { openTestDatabase } from "../../test/sqlite.ts";
 import { REPOS_SQL, repoToParams } from "../db/repos.ts";
 import { createRepositories, type Repositories } from "../db/repositories.ts";
 import {
@@ -22,54 +20,17 @@ import { defaultSessionConfig, type Lookups } from "../lookups.ts";
 import type { Workspace } from "../model.ts";
 import { SessionsService, type SessionsServiceDeps } from "./sessions.ts";
 
-const MIGRATIONS_DIR = fileURLToPath(new URL("../../../src-tauri/migrations/", import.meta.url));
-const MIGRATIONS = readdirSync(MIGRATIONS_DIR)
-	.filter((name) => name.endsWith(".sql"))
-	.sort()
-	.map((name) => readFileSync(join(MIGRATIONS_DIR, name), "utf8"));
-
 const bind = (params: readonly unknown[]): Record<string, never> =>
 	Object.fromEntries(params.map((value, index) => [`$${index + 1}`, value])) as never;
-
-class NodeDatabase implements Database {
-	readonly #db: DatabaseSync;
-
-	constructor(db: DatabaseSync) {
-		this.#db = db;
-		this.#db.exec("PRAGMA foreign_keys = ON");
-	}
-
-	async execute(sql: string, params: readonly unknown[] = []) {
-		const result = this.#db.prepare(sql).run(bind(params));
-		return {
-			rowsAffected: Number(result.changes),
-			lastInsertId: Number(result.lastInsertRowid),
-		};
-	}
-
-	async select<Row>(sql: string, params: readonly unknown[] = []): Promise<Row[]> {
-		return this.#db.prepare(sql).all(bind(params)) as Row[];
-	}
-
-	async transaction<T>(work: (db: Database) => Promise<T>): Promise<T> {
-		this.#db.exec("BEGIN IMMEDIATE");
-		try {
-			const value = await work(this);
-			this.#db.exec("COMMIT");
-			return value;
-		} catch (cause) {
-			this.#db.exec("ROLLBACK");
-			throw cause;
-		}
-	}
-}
 
 const must = <T>(result: { ok: true; value: T } | { ok: false; error: unknown }): T => {
 	if (!result.ok) throw new Error(JSON.stringify(result.error));
 	return result.value;
 };
 
+let store: ReturnType<typeof openTestDatabase>;
 let raw: DatabaseSync;
+let database: Database;
 let repositories: Repositories;
 let now: number;
 let nextId: number;
@@ -85,7 +46,7 @@ const settings: Record<string, unknown> = {
 
 const harness = (): SessionsService => {
 	const deps = {
-		db: new NodeDatabase(raw),
+		db: database,
 		repositories: () => repositories,
 		sidecar: { request: vi.fn(), notify: vi.fn() },
 		composer: { materializeForSend: vi.fn(), clearDraft: vi.fn() },
@@ -110,11 +71,12 @@ const seedWorkspace = (): void => {
 };
 
 beforeEach(() => {
-	raw = new DatabaseSync(":memory:");
-	for (const sql of MIGRATIONS) raw.exec(sql);
+	store = openTestDatabase();
+	raw = store.raw;
+	database = store.database;
 	now = 1000;
 	nextId = 0;
-	repositories = createRepositories(new NodeDatabase(raw), {
+	repositories = createRepositories(database, {
 		clock: { now: () => now },
 		ids: { uuid: () => `repo-${++nextId}` },
 	});
@@ -122,7 +84,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-	raw.close();
+	store.close();
 });
 
 describe("CHAT-01 sessions service", () => {

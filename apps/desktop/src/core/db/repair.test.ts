@@ -1,12 +1,10 @@
 // @vitest-environment node
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
-import { fileURLToPath } from "node:url";
+import type { DatabaseSync } from "node:sqlite";
 import { idleLiveState, type SessionEvent } from "@conducted/protocol";
 import type { MessageId, SessionId, WorkspaceId } from "@conducted/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Database, FileSystem } from "../../platform/platform.ts";
+import { openTestDatabase } from "../../test/sqlite.ts";
 import { QUEUED_MESSAGES_SQL, queuedMessageToParams } from "./queued-messages.ts";
 import { idleLiveStateJson, REPAIR_SQL, runStartupRepair } from "./repair.ts";
 import { REPOS_SQL, repoToParams } from "./repos.ts";
@@ -27,12 +25,6 @@ import {
 } from "./test-fixtures.ts";
 import { WORKSPACES_SQL, workspaceToParams } from "./workspaces.ts";
 
-const MIGRATIONS_DIR = fileURLToPath(new URL("../../../src-tauri/migrations/", import.meta.url));
-const MIGRATIONS = readdirSync(MIGRATIONS_DIR)
-	.filter((name) => name.endsWith(".sql"))
-	.sort()
-	.map((name) => readFileSync(join(MIGRATIONS_DIR, name), "utf8"));
-
 /** node:sqlite binds `$1..$n` by name, so a positional list becomes `{ $1: ... }`. */
 const bind = (params: readonly unknown[]): Record<string, never> =>
 	Object.fromEntries(params.map((value, index) => [`$${index + 1}`, value])) as never;
@@ -42,45 +34,12 @@ const must = <T>(result: { ok: true; value: T } | { ok: false; error: unknown })
 	return result.value;
 };
 
-/** The same Database interface the Tauri plugin offers, over node:sqlite. */
-class NodeDatabase implements Database {
-	readonly #db: DatabaseSync;
-
-	constructor(db: DatabaseSync) {
-		this.#db = db;
-	}
-
-	async execute(sql: string, params: readonly unknown[] = []) {
-		const result = this.#db.prepare(sql).run(bind(params));
-		return {
-			rowsAffected: Number(result.changes),
-			lastInsertId: Number(result.lastInsertRowid),
-		};
-	}
-
-	async select<Row>(sql: string, params: readonly unknown[] = []): Promise<Row[]> {
-		return this.#db.prepare(sql).all(bind(params)) as Row[];
-	}
-
-	async transaction<T>(work: (db: Database) => Promise<T>): Promise<T> {
-		this.#db.exec("BEGIN IMMEDIATE");
-		try {
-			const value = await work(this);
-			this.#db.exec("COMMIT");
-			return value;
-		} catch (cause) {
-			this.#db.exec("ROLLBACK");
-			throw cause;
-		}
-	}
-}
-
 /** Delegates to a real database, but fails when the archiving list is read. */
 class FailingOnArchivingDatabase implements Database {
-	readonly #inner: NodeDatabase;
+	readonly #inner: Database;
 	readonly #wrapped: Database;
 
-	constructor(inner: NodeDatabase) {
+	constructor(inner: Database) {
 		this.#inner = inner;
 		this.#wrapped = {
 			execute: (sql, params) => this.execute(sql, params),
@@ -103,6 +62,7 @@ class FailingOnArchivingDatabase implements Database {
 	}
 }
 
+let store: ReturnType<typeof openTestDatabase>;
 let raw: DatabaseSync;
 let database: Database;
 let now: number;
@@ -187,16 +147,16 @@ const seedCrash = (): void => {
 };
 
 beforeEach(() => {
-	raw = new DatabaseSync(":memory:");
-	for (const sql of MIGRATIONS) raw.exec(sql);
-	database = new NodeDatabase(raw);
+	store = openTestDatabase();
+	raw = store.raw;
+	database = store.database;
 	now = 9000;
 	nextId = 0;
 	existingPaths = new Set(["/code/workspaces/archiving"]);
 });
 
 afterEach(() => {
-	raw.close();
+	store.close();
 });
 
 describe("DATA-03 startup repair closes turns cut off by a crash", () => {
@@ -397,7 +357,7 @@ describe("DATA-03 startup repair closes terminals left open", () => {
 describe("DATA-03 startup repair is atomic", () => {
 	it("changes nothing when a later step fails", async () => {
 		seedCrash();
-		database = new FailingOnArchivingDatabase(database as NodeDatabase);
+		database = new FailingOnArchivingDatabase(database);
 
 		const result = await runStartupRepair(deps());
 		expect(result).toMatchObject({ ok: false, error: { code: "db.failed" } });
