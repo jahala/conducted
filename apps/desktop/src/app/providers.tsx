@@ -2,10 +2,15 @@
  * @feature APP-01 App providers
  * Owns: the React providers every screen needs: the query client and the toast host.
  * Behaviour: services-map.md 2.5 (query cache; Conductor keeps one client for the whole app).
- * Our design choice: the query client is made by `createQueryClient()` and passed in, so tests build their own.
- * The default options come from `query-options.ts`: no retries, no refetch on window focus and no staleness on
- * its own, because services own freshness through their stores. Queries that refresh themselves spread the
- * shared preset from the same file.
+ * Our design choice: the query client is made by `createQueryClient(log)` and passed in, so tests build their
+ * own. `log` is required: the live app passes `platform.app.writeLog`, and there is no console fallback to hide
+ * a failed query in the dev console. The default options come from `query-options.ts`: no retries, no refetch
+ * on window focus and no staleness on its own, because services own freshness through their stores. Queries
+ * that refresh themselves spread the shared preset from the same file.
+ * Redaction is by key name only. A mutation variable such as a chat message body or a file path is written in
+ * full. Our design choice: that is acceptable because the local log is the user's own account of their own
+ * work, and a message body is what makes a failure diagnosable. Secrets are named, so a key that holds one is
+ * replaced before the write.
  * Must handle: the client is created once per app, not per render; toasts render outside the router; a query or
  * mutation failure is written to the log with the mutation's variables redacted.
  * Test first: children render inside the provider and can read the client.
@@ -17,10 +22,6 @@ import { queryClientDefaults } from "./query-options.ts";
 
 /** Where query and mutation failures go. The app passes its Platform log; tests pass a recorder. */
 export type ErrorLogger = (message: string, data?: unknown) => void;
-
-const consoleLogger: ErrorLogger = (message, data) => {
-	console.error(message, data);
-};
 
 const SENSITIVE_KEY = /pass(word)?|token|secret|api[-_]?key|credential|authorization/i;
 
@@ -37,7 +38,7 @@ export function redactVariables(value: unknown, seen: WeakSet<object> = new Weak
 	return redacted;
 }
 
-export function createQueryClient(log: ErrorLogger = consoleLogger): QueryClient {
+export function createQueryClient(log: ErrorLogger): QueryClient {
 	return new QueryClient({
 		queryCache: new QueryCache({
 			onError: (error, query) => {
@@ -61,7 +62,7 @@ export function createQueryClient(log: ErrorLogger = consoleLogger): QueryClient
 }
 
 /** The three root callbacks React 19 calls when rendering fails, writing each to the log. */
-export function createRootErrorHandlers(log: ErrorLogger = consoleLogger): {
+export function createRootErrorHandlers(log: ErrorLogger): {
 	onCaughtError: (error: unknown, info: ErrorInfo) => void;
 	onUncaughtError: (error: unknown, info: ErrorInfo) => void;
 	onRecoverableError: (error: unknown, info: ErrorInfo) => void;

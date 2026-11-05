@@ -11,26 +11,43 @@
  * (core/services/command-runner.ts), so core keeps one table of service-level handlers.
  * Must handle: the same keys meaning different things in different scopes (chat input, terminal, diff,
  * dialog, palette, menu, chat cards); a key press during IME composition or key repeat (ignored); the
- * send-key swap (Enter versus Cmd+Enter) applied before lookup; the user's rebinds, read live; a focused
- * text field keeping plain letters while a global Cmd shortcut still works; two handlers for one command
- * (the higher priority runs; a handler that returns false passes the command on); a handler that
- * unmounts (its registration is removed); a command that is disabled (the key press does nothing and is
- * not swallowed); a menu pick for an id the registry does not know (reported, not thrown).
+ * send-key swap (Enter versus Cmd+Enter), which follows COMP-01's one rule in send-key.ts; the user's
+ * rebinds, read live; a focused text field keeping plain letters while a global Cmd shortcut still
+ * works; the composer's own Enter handling (the dispatcher leaves it to COMP-01); two handlers for one
+ * command (the higher priority runs; a handler that returns false passes the command on); a handler
+ * that unmounts (its registration is removed); a command that is disabled (neither a key press nor a
+ * menu pick runs it, and the key press is not swallowed); a menu pick for an id the registry does not
+ * know (reported, not thrown).
  * Our design choice: priorities are three named levels (`base`, `area`, `modal`), not numbers. A terminal
  * or diff area registers at `area`; a dialog registers at `modal`, so it wins while it is open.
  * Our design choice: a focus area marks itself with `data-command-scope="chat-input"` (or several scope
  * names, space separated). Without a mark, editable fields count as `chat-input` and the shared
  * `.xterm` and `[data-diff]` wrappers count as their area. Every lookup ends with `global`.
+ * Our design choice: the handler registry is an object the caller passes in (`CommandRegistry`).
+ * `CommandDispatcher` creates one per app root and provides it to `useCommandHandler`. The no-argument
+ * helpers keep a registry of their own so screens that have not moved to the provider still work; the
+ * container owning that registry is APP-01's change.
  * Our design choice: menu accelerators are the live first binding in Tauri's syntax, so a rebind changes
  * the menu bar without a second table. A deep link that names a settings page opens settings; links
  * that open a route stay with NAV-17, and the caller can pass `onDeepLink` to take them.
+ * Our design choice: `CommandHint` is the one keycap component. It reads the live binding, so a hint
+ * follows a rebind instead of showing the shipped key.
  * Test first: with a `base` and a `modal` handler registered for "palette.open", the dispatcher runs only
  * the `modal` one; after the modal handler unmounts, the `base` one runs.
  */
 import type { Result } from "@conducted/shared";
-import { useEffect, useMemo, useRef } from "react";
+import {
+	createContext,
+	createElement,
+	type ReactNode,
+	useContext,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { useServices } from "../core/context.tsx";
-import { useSetting, useShortcutOverrides } from "../core/hooks.ts";
+import { useLiveShortcut, useSetting, useShortcutOverrides } from "../core/hooks.ts";
 import {
 	COMMANDS,
 	type CommandId,
@@ -40,7 +57,9 @@ import {
 	parseShortcut,
 	type ShortcutOverrides,
 } from "../core/registries/commands.ts";
+import { resolveSendKey, type SendIntent, type SendWith } from "../features/composer/send-key.ts";
 import type { MenuShortcut } from "../platform/platform.ts";
+import { Kbd } from "../ui/Kbd.tsx";
 import { useOverlayStore } from "./overlay-store.ts";
 
 export type HandlerPriority = "base" | "area" | "modal";
@@ -67,18 +86,41 @@ export interface KeyBinding {
 }
 
 /**
- * The send-key setting's two modes. The names match `message_send_key`'s values and the composer's
- * `SendWith`, so nothing has to translate a third time.
+ * The send-key setting's two modes. This is COMP-01's `SendWith`, so the composer and the dispatcher
+ * use one type and one rule.
  */
-export type SendKeyMode = "enter" | "mod_enter";
+export type SendKeyMode = SendWith;
 
-/** Commands whose keys the send-key setting swaps, and the key each takes in Cmd+Enter mode. */
-const SEND_KEY_SWAP: Readonly<Record<string, string>> = {
-	"chat.newLine": "Enter",
-	"chat.submit": "Cmd+Enter",
-	"chat.submitOpposite": "Alt+Enter",
-	"chat.question.submit": "Cmd+Enter",
+/** The intent each chat command carries, so send-key.ts's rule can choose its live key. */
+const SEND_KEY_INTENTS: Readonly<Record<string, SendIntent>> = {
+	"chat.newLine": "newline",
+	"chat.submit": "submit",
+	"chat.submitOpposite": "submit_opposite",
+	"chat.question.submit": "submit",
 };
+
+/** Candidate Enter keys, most common first. send-key.ts decides which one means the intent. */
+const SEND_KEY_CANDIDATES: readonly string[] = ["Enter", "Cmd+Enter", "Alt+Enter", "Shift+Enter"];
+
+/** The key send-key.ts gives an intent in a mode, or null when the command has no send-key intent. */
+function sendKeyShortcut(commandId: string, mode: SendWith): string | null {
+	const intent = SEND_KEY_INTENTS[commandId];
+	if (intent === undefined) return null;
+	for (const spec of SEND_KEY_CANDIDATES) {
+		const parsed = parseShortcut(spec);
+		if (!parsed.ok) continue;
+		const press = {
+			key: "Enter",
+			shiftKey: parsed.value.shift,
+			metaKey: parsed.value.cmd,
+			altKey: parsed.value.alt,
+			ctrlKey: parsed.value.ctrl,
+			isComposing: false,
+		};
+		if (resolveSendKey(press, mode) === intent) return spec;
+	}
+	return null;
+}
 
 const SCOPES: ReadonlySet<string> = new Set([
 	"global",
@@ -199,12 +241,31 @@ function shortcutForm(spec: string): string | null {
 
 /** The live binding text after the send-key swap, unless the user rebound that command. */
 function swappedShortcut(commandId: string, shortcut: string, mode: SendKeyMode): string {
-	if (mode !== "mod_enter") return shortcut;
-	const swap = SEND_KEY_SWAP[commandId];
-	if (swap === undefined) return shortcut;
 	const command = getCommand(commandId);
 	if (command === undefined || !command.defaultShortcuts.includes(shortcut)) return shortcut;
-	return swap;
+	return sendKeyShortcut(commandId, mode) ?? shortcut;
+}
+
+/** True when COMP-01's composer owns the key, so the dispatcher must leave it alone. */
+function composerOwnsKey(
+	press: KeyPress,
+	scopes: readonly CommandScope[],
+	sendWith: SendWith,
+): boolean {
+	if (scopes[0] !== "chat-input") return false;
+	return (
+		resolveSendKey(
+			{
+				key: press.key,
+				shiftKey: press.shiftKey,
+				metaKey: press.metaKey,
+				altKey: press.altKey,
+				ctrlKey: press.ctrlKey,
+				isComposing: press.isComposing,
+			},
+			sendWith,
+		) !== null
+	);
 }
 
 /**
@@ -329,51 +390,98 @@ interface HandlerRegistration {
 	handler: CommandHandlerFn;
 }
 
-const registrations = new Map<string, HandlerRegistration[]>();
-let registrationOrder = 0;
+/** The handlers a screen registered. One registry owns its own map; the app creates and passes it in. */
+export interface CommandRegistry {
+	/** Registers a handler and returns the function that removes it. */
+	register(commandId: string, priority: HandlerPriority, handler: CommandHandlerFn): () => void;
+	/** Runs the registered handlers, highest priority first. True means one took the command. */
+	run(commandId: string): boolean;
+	/** Removes every registered handler. Test support, so one test cannot leak into the next. */
+	clear(): void;
+}
+
+export function createCommandRegistry(): CommandRegistry {
+	const registrations = new Map<string, HandlerRegistration[]>();
+	let registrationOrder = 0;
+	return {
+		register(commandId, priority, handler) {
+			const registration: HandlerRegistration = { priority, order: registrationOrder, handler };
+			registrationOrder += 1;
+			const current = registrations.get(commandId) ?? [];
+			current.push(registration);
+			registrations.set(commandId, current);
+			let active = true;
+			return () => {
+				if (!active) return;
+				active = false;
+				const list = registrations.get(commandId);
+				if (list === undefined) return;
+				const index = list.indexOf(registration);
+				if (index >= 0) list.splice(index, 1);
+				if (list.length === 0) registrations.delete(commandId);
+			};
+		},
+		run(commandId) {
+			const list = registrations.get(commandId);
+			if (list === undefined) return false;
+			const ordered = [...list].sort(
+				(a, b) => PRIORITY_RANK[b.priority] - PRIORITY_RANK[a.priority] || b.order - a.order,
+			);
+			for (const registration of ordered) {
+				if (registration.handler() !== false) return true;
+			}
+			return false;
+		},
+		clear() {
+			registrations.clear();
+			registrationOrder = 0;
+		},
+	};
+}
+
+/**
+ * The registry the no-argument helpers use. The app's real registry is created by `CommandDispatcher`
+ * and provided to the hooks; APP-01 moves this last shared instance into the container.
+ */
+const defaultRegistry = createCommandRegistry();
+
+const CommandRegistryContext = createContext<CommandRegistry | null>(null);
+
+/** Provides the registry `useCommandHandler` registers into. */
+export function CommandRegistryProvider({
+	registry,
+	children,
+}: {
+	registry: CommandRegistry;
+	children?: ReactNode;
+}) {
+	return createElement(CommandRegistryContext.Provider, { value: registry }, children);
+}
 
 /** Registers a handler and returns the function that removes it. Not a hook, so it can be unit tested. */
 export function registerCommandHandler(
 	commandId: string,
 	priority: HandlerPriority,
 	handler: CommandHandlerFn,
+	registry: CommandRegistry = defaultRegistry,
 ): () => void {
-	const registration: HandlerRegistration = { priority, order: registrationOrder, handler };
-	registrationOrder += 1;
-	const current = registrations.get(commandId) ?? [];
-	current.push(registration);
-	registrations.set(commandId, current);
-	let active = true;
-	return () => {
-		if (!active) return;
-		active = false;
-		const list = registrations.get(commandId);
-		if (list === undefined) return;
-		const index = list.indexOf(registration);
-		if (index >= 0) list.splice(index, 1);
-		if (list.length === 0) registrations.delete(commandId);
-	};
+	return registry.register(commandId, priority, handler);
 }
 
 /**
  * Runs the registered handlers for a command, highest priority first. A handler that returns false
  * passes the command to the next one. True means a handler took it.
  */
-export function runCommandHandlers(commandId: string): boolean {
-	const list = registrations.get(commandId);
-	if (list === undefined) return false;
-	const ordered = [...list].sort(
-		(a, b) => PRIORITY_RANK[b.priority] - PRIORITY_RANK[a.priority] || b.order - a.order,
-	);
-	for (const registration of ordered) {
-		if (registration.handler() !== false) return true;
-	}
-	return false;
+export function runCommandHandlers(
+	commandId: string,
+	registry: CommandRegistry = defaultRegistry,
+): boolean {
+	return registry.run(commandId);
 }
 
 /** Removes every registered handler. Test support, so one test cannot leak into the next. */
-export function clearCommandHandlers(): void {
-	registrations.clear();
+export function clearCommandHandlers(registry: CommandRegistry = defaultRegistry): void {
+	registry.clear();
 }
 
 /** Registers `handler` for `commandId` while the calling component is mounted. */
@@ -382,11 +490,13 @@ export function useCommandHandler(
 	priority: HandlerPriority,
 	handler: CommandHandlerFn,
 ): void {
+	const provided = useContext(CommandRegistryContext);
+	const registry = provided ?? defaultRegistry;
 	const latest = useRef(handler);
 	latest.current = handler;
 	useEffect(
-		() => registerCommandHandler(commandId, priority, () => latest.current()),
-		[commandId, priority],
+		() => registry.register(commandId, priority, () => latest.current()),
+		[registry, commandId, priority],
 	);
 }
 
@@ -394,6 +504,7 @@ export function useCommandHandler(
 
 /** The edges a dispatch needs. Passed in so the dispatch itself stays testable. */
 export interface CommandDispatchDeps {
+	registry: CommandRegistry;
 	isEnabled: (commandId: string) => boolean;
 	run: (commandId: string) => Promise<Result<void>>;
 	report: (message: string) => void;
@@ -401,14 +512,16 @@ export interface CommandDispatchDeps {
 
 /**
  * Runs a command by id: a focused screen handler first, then the service-level runner. An unknown
- * id or a failed run is reported, never thrown.
+ * id or a failed run is reported, never thrown. A disabled command runs neither path, so a menu pick
+ * cannot do what the same key press refuses to do.
  */
 export function dispatchCommand(commandId: string, deps: CommandDispatchDeps): void {
-	if (runCommandHandlers(commandId)) return;
 	if (getCommand(commandId) === undefined) {
 		deps.report(`No command named ${commandId}.`);
 		return;
 	}
+	if (!deps.isEnabled(commandId)) return;
+	if (deps.registry.run(commandId)) return;
 	void deps.run(commandId).then((result) => {
 		if (!result.ok) deps.report(result.error.message);
 	});
@@ -433,7 +546,10 @@ export interface CommandDispatcherOptions {
 }
 
 /** Mounts the key, menu and deep-link listeners once, at the root of the app. */
-export function useCommandDispatcher(options: CommandDispatcherOptions = {}): void {
+export function useCommandDispatcher(
+	registry: CommandRegistry = defaultRegistry,
+	options: CommandDispatcherOptions = {},
+): void {
 	const { services, platform } = useServices();
 	const { overrides } = useShortcutOverrides();
 	const sendKey = useSetting<string>("message_send_key");
@@ -447,11 +563,12 @@ export function useCommandDispatcher(options: CommandDispatcherOptions = {}): vo
 	);
 	const deps = useMemo<CommandDispatchDeps>(
 		() => ({
+			registry,
 			isEnabled: (commandId) => services.commands.isEnabled(commandId),
 			run: (commandId) => services.commands.run(commandId),
 			report: (message) => platform.app.writeLog("warn", message),
 		}),
-		[services, platform],
+		[registry, services, platform],
 	);
 
 	useEffect(() => {
@@ -467,6 +584,7 @@ export function useCommandDispatcher(options: CommandDispatcherOptions = {}): vo
 				repeat: event.repeat,
 			};
 			const scopes = scopesForTarget(event.target, useOverlayStore.getState().open);
+			if (composerOwnsKey(press, scopes, sendKeyMode)) return;
 			const commandId = commandForKeyPress(press, scopes, bindings, sendKeyMode);
 			if (commandId === null) return;
 			if (!deps.isEnabled(commandId)) return;
@@ -513,4 +631,37 @@ export function useCommandDispatcher(options: CommandDispatcherOptions = {}): vo
 			}),
 		[deps, onDeepLink, platform],
 	);
+}
+
+export interface CommandDispatcherProps extends CommandDispatcherOptions {
+	/** The registry handlers register into. One is created when the caller does not pass one. */
+	registry?: CommandRegistry;
+	children?: ReactNode;
+}
+
+/**
+ * Mounts the dispatcher once at the app root and provides its registry to every screen below.
+ * Our design choice: one component, not a bare hook, so `useCommandHandler` in a child sees the
+ * same registry the key and menu listeners dispatch into.
+ */
+export function CommandDispatcher({
+	registry: provided,
+	children,
+	...options
+}: CommandDispatcherProps) {
+	const [created] = useState(createCommandRegistry);
+	const registry = provided ?? created;
+	useCommandDispatcher(registry, options);
+	return createElement(CommandRegistryContext.Provider, { value: registry }, children);
+}
+
+/**
+ * A keycap for one command. It reads the live binding, so the hint follows a rebind.
+ * Renders nothing when the command is unknown or unbound.
+ */
+export function CommandHint({ commandId, className }: { commandId: string; className?: string }) {
+	const hint = useLiveShortcut(commandId);
+	if (hint === null) return null;
+	const props = { className, children: hint };
+	return createElement(Kbd, props);
 }

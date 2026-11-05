@@ -1,24 +1,34 @@
 import type { RepoId, WorkspaceId } from "@conducted/shared";
-import { cleanup, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+	createMemoryHistory,
+	createRootRoute,
+	createRoute,
+	createRouter,
+	RouterProvider,
+} from "@tanstack/react-router";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearCommandHandlers, runCommandHandlers } from "../../app/command-dispatcher.ts";
 import type { Repo, Workspace } from "../../core/model.ts";
 import { renderWithRouter } from "../../test/render-with-router.tsx";
+import type { SidebarView } from "./sidebar-view.ts";
 
 const settings = vi.hoisted(() => ({
 	group: "repo",
 	sort: "updated",
 	filter: "",
-	set: vi.fn(),
+	set: vi.fn(() => Promise.resolve({ ok: true })),
 }));
 
 vi.mock("../../core/hooks.ts", () => ({
 	useSetting: (key: string) => {
 		if (key === "sidebar_group_by") return settings.group;
 		if (key === "sidebar_sort_by") return settings.sort;
-		if (key === "manual_workspace_order") return false;
 		return settings.filter;
 	},
 	useActions: () => ({ settings: { set: settings.set } }),
+	useShortcutOverrides: () => ({ overrides: {}, error: null }),
 }));
 
 vi.mock("./WorkspaceRow.tsx", () => ({
@@ -28,12 +38,32 @@ vi.mock("./WorkspaceRow.tsx", () => ({
 }));
 
 vi.mock("./ViewOptionsMenu.tsx", () => ({
-	ViewOptionsMenu: () => <button type="button">View options</button>,
+	ViewOptionsMenu: ({
+		view,
+		onChange,
+	}: {
+		view: SidebarView;
+		onChange: (view: SidebarView) => void;
+	}) => (
+		<button type="button" onClick={() => onChange({ ...view, groupBy: "status" })}>
+			Group by status
+		</button>
+	),
 }));
 
 const { GroupedWorkspaces } = await import("./GroupedWorkspaces.tsx");
 
-afterEach(cleanup);
+beforeEach(() => {
+	settings.group = "repo";
+	settings.sort = "updated";
+	settings.filter = "";
+	settings.set.mockClear();
+});
+
+afterEach(() => {
+	cleanup();
+	clearCommandHandlers();
+});
 
 function repo(id: string): Repo {
 	return {
@@ -78,6 +108,26 @@ function workspace(id: string, overrides: Partial<Workspace> = {}): Workspace {
 		updatedAt: 0,
 		...overrides,
 	};
+}
+
+function renderInRouter(ui: ReactNode) {
+	const rootRoute = createRootRoute();
+	const indexRoute = createRoute({
+		getParentRoute: () => rootRoute,
+		path: "/",
+		component: () => <>{ui}</>,
+	});
+	const workspaceRoute = createRoute({
+		getParentRoute: () => rootRoute,
+		path: "/repository/$repositoryId/workspace/$workspaceId",
+		component: () => <p>workspace</p>,
+	});
+	const router = createRouter({
+		routeTree: rootRoute.addChildren([indexRoute, workspaceRoute]),
+		history: createMemoryHistory({ initialEntries: ["/"] }),
+	});
+	render(<RouterProvider router={router} />);
+	return router;
 }
 
 describe("NAV-03 GroupedWorkspaces", () => {
@@ -126,5 +176,102 @@ describe("NAV-03 GroupedWorkspaces", () => {
 		);
 		expect(await screen.findByText("No matching workspaces")).toBeTruthy();
 		settings.filter = "";
+	});
+
+	it("puts the project header and its + action in one row above the workspaces", async () => {
+		renderWithRouter(<GroupedWorkspaces repos={[repo("app")]} workspaces={[workspace("one")]} />);
+		const region = await screen.findByRole("region", { name: "app" });
+		const plus = within(region).getByRole("link", { name: "Create workspace in app" });
+		const trigger = within(region).getByRole("button", { name: "app" });
+		expect(plus.parentElement).toBe(trigger.parentElement);
+		const row = within(region).getByTestId("workspace-row");
+		expect(plus.parentElement?.contains(row)).toBe(false);
+	});
+
+	it("collapses a group and shows its count while closed", async () => {
+		renderWithRouter(
+			<GroupedWorkspaces repos={[repo("app")]} workspaces={[workspace("one"), workspace("two")]} />,
+		);
+		const region = await screen.findByRole("region", { name: "app" });
+		const trigger = within(region).getByRole("button", { name: "app" });
+		expect(trigger.getAttribute("aria-expanded")).toBe("true");
+		fireEvent.click(trigger);
+		expect(trigger.getAttribute("aria-expanded")).toBe("false");
+		expect(within(region).queryByTestId("workspace-row")).toBeNull();
+		expect(within(region).getByText("2")).toBeTruthy();
+		fireEvent.click(trigger);
+		expect(within(region).getAllByTestId("workspace-row")).toHaveLength(2);
+	});
+
+	it("saves only the view option that changed", async () => {
+		renderWithRouter(<GroupedWorkspaces repos={[repo("app")]} workspaces={[workspace("one")]} />);
+		fireEvent.click(await screen.findByRole("button", { name: "Group by status" }));
+		expect(settings.set).toHaveBeenCalledTimes(1);
+		expect(settings.set).toHaveBeenCalledWith("sidebar_group_by", "status");
+	});
+
+	it("explains that grouping by section is not available yet", async () => {
+		settings.group = "section";
+		renderWithRouter(<GroupedWorkspaces repos={[repo("app")]} workspaces={[workspace("one")]} />);
+		expect(await screen.findByText("Grouping by section is not available yet.")).toBeTruthy();
+		expect(screen.queryByRole("region", { name: "app" })).toBeNull();
+	});
+
+	it("uses the same row order for Cmd+1..9 and previous/next", async () => {
+		const router = renderInRouter(
+			<GroupedWorkspaces
+				repos={[repo("app")]}
+				workspaces={[
+					workspace("one", { lastActivityAt: 30 }),
+					workspace("two", { lastActivityAt: 20 }),
+					workspace("three", { lastActivityAt: 10 }),
+				]}
+			/>,
+		);
+		await screen.findByRole("region", { name: "app" });
+		await waitFor(() => expect(runCommandHandlers("workspace.switch2")).toBe(true));
+		await waitFor(() =>
+			expect(router.state.location.pathname).toBe("/repository/app/workspace/two"),
+		);
+	});
+
+	it("goes to the last workspace for previous and the first for next when none is open", async () => {
+		const previousRouter = renderInRouter(
+			<GroupedWorkspaces
+				repos={[repo("app")]}
+				workspaces={[
+					workspace("one", { lastActivityAt: 30 }),
+					workspace("two", { lastActivityAt: 20 }),
+					workspace("three", { lastActivityAt: 10 }),
+				]}
+			/>,
+		);
+		await screen.findByRole("region", { name: "app" });
+		await waitFor(() => expect(runCommandHandlers("workspace.previous")).toBe(true));
+		await waitFor(() =>
+			expect(previousRouter.state.location.pathname).toBe("/repository/app/workspace/three"),
+		);
+		cleanup();
+
+		const nextRouter = renderInRouter(
+			<GroupedWorkspaces
+				repos={[repo("app")]}
+				workspaces={[
+					workspace("one", { lastActivityAt: 30 }),
+					workspace("two", { lastActivityAt: 20 }),
+				]}
+			/>,
+		);
+		await screen.findByRole("region", { name: "app" });
+		await waitFor(() => expect(runCommandHandlers("workspace.next")).toBe(true));
+		await waitFor(() =>
+			expect(nextRouter.state.location.pathname).toBe("/repository/app/workspace/one"),
+		);
+	});
+
+	it("does not swallow a number shortcut past the end of the list", async () => {
+		renderWithRouter(<GroupedWorkspaces repos={[repo("app")]} workspaces={[workspace("one")]} />);
+		await screen.findByRole("region", { name: "app" });
+		await waitFor(() => expect(runCommandHandlers("workspace.switch9")).toBe(false));
 	});
 });

@@ -10,13 +10,13 @@
  * actions menu is NAV-10; each is left out until its owner is built. The "Archive workspace" badge
  * is not needed in this list because archived workspaces are never listed.
  * Must handle: A long name truncates; selected row is marked by background, not accent; unread dot
- * only when there are unread chats; no status yet (hook returns null); hover shows the Cmd+number
- * hint; keyboard focus ring.
+ * only when there are unread chats; no status yet (hook returns null); hover shows the live
+ * Cmd+number hint for this row; keyboard focus ring.
  * Test first: A workspace with a PR title and no display name shows the PR title; an unread count
  * above zero shows the unread dot.
  */
 import { Link } from "@tanstack/react-router";
-import { useSessions, useWorkspaceStatus } from "../../core/hooks.ts";
+import { useLiveShortcut, useSessions, useWorkspaceStatus } from "../../core/hooks.ts";
 import type { Repo, Workspace } from "../../core/model.ts";
 import { cn } from "../../ui/cn.ts";
 import { Kbd } from "../../ui/Kbd.tsx";
@@ -88,6 +88,9 @@ export function WorkspaceRow({ workspace, repo, selected, shortcutIndex }: Works
 		sessions.state === "ready" && sessions.data.some((session) => session.unreadCount > 0);
 	const subtitle = statusText(status);
 	const now = Date.now();
+	const liveShortcut = useLiveShortcut(
+		shortcutIndex === null ? "workspace.switch1" : `workspace.switch${shortcutIndex}`,
+	);
 
 	return (
 		<Link
@@ -117,9 +120,9 @@ export function WorkspaceRow({ workspace, repo, selected, shortcutIndex }: Works
 			>
 				{relativeTime(workspace.lastActivityAt, now)}
 			</time>
-			{shortcutIndex === null ? null : (
+			{shortcutIndex === null || liveShortcut === null ? null : (
 				<span className="hidden shrink-0 group-hover:inline-flex group-focus-visible:inline-flex">
-					<Kbd>{`⌘${shortcutIndex}`}</Kbd>
+					<Kbd>{liveShortcut}</Kbd>
 				</span>
 			)}
 		</Link>

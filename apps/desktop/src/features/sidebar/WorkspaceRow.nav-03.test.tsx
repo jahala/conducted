@@ -20,6 +20,7 @@ const hooks = vi.hoisted(() => ({
 vi.mock("../../core/hooks.ts", () => ({
 	useWorkspaceStatus: () => hooks.status,
 	useSessions: () => hooks.sessions,
+	useLiveShortcut: (commandId: string) => (commandId === "workspace.switch2" ? "⌃2" : null),
 }));
 
 const { WorkspaceRow, relativeTime, workspaceName } = await import("./WorkspaceRow.tsx");
@@ -121,6 +122,16 @@ describe("NAV-03 WorkspaceRow", () => {
 		expect(await screen.findByText("Need permission")).toBeTruthy();
 		const link = screen.getByRole("link");
 		expect(link.getAttribute("aria-current")).toBe("page");
+	});
+
+	it("shows the live shortcut hint from the binding, not a hard-coded one", async () => {
+		hooks.status = null;
+		hooks.sessions = { state: "ready", data: [] };
+		renderRow(
+			<WorkspaceRow workspace={workspace()} repo={repo()} selected={false} shortcutIndex={2} />,
+		);
+		expect(await screen.findByText("⌃2")).toBeTruthy();
+		expect(screen.queryByText("⌘2")).toBeNull();
 	});
 });
 

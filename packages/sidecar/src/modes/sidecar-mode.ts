@@ -98,7 +98,7 @@ import { MapRunnerRegistry } from "../runners/registry.ts";
 import type { Runner } from "../runners/runner.ts";
 import { BatchingEventPublisher } from "../session/event-batcher.ts";
 import { SessionInteractionBroker } from "../session/interactions.ts";
-import { LiveStateStore } from "../session/live-state.ts";
+import { LiveStateStore, reportWriteFailures } from "../session/live-state.ts";
 import { DefaultSessionManager, type ShutdownReason } from "../session/manager.ts";
 import { KeyedSerialQueue } from "../session/serial-queue.ts";
 import { LoginShellEnvProvider } from "../shell-env/capture.ts";
@@ -536,6 +536,7 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 		app,
 		flushed: (sessionId) => publisher.flush(sessionId),
 	});
+	reportWriteFailures({ publisher, liveState });
 	const interactions = new SessionInteractionBroker({ app, liveState, clock, ids, logger });
 	const backend = new RpcAppToolBackend({ app, interactions, logger });
 	const bridge = new AppToolsBridge({

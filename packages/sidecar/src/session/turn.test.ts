@@ -7,17 +7,25 @@ import type {
 	LiveState,
 	SessionConfig,
 	SessionEvent,
+	SidecarToAppNotification,
+	SidecarToAppRequest,
 	WorkspaceContext,
 } from "@conducted/protocol";
 import { idleLiveState } from "@conducted/protocol";
-import type { MessageId, SessionId, TurnId } from "@conducted/shared";
+import type { AppError, MessageId, Result, SessionId, TurnId } from "@conducted/shared";
+import { ok } from "@conducted/shared";
 import type {
 	CheckpointOutcome,
 	CheckpointRequest,
 	CheckpointService,
 } from "../checkpoints/checkpoint-service.ts";
 import { createLogger } from "../logging/logger.ts";
-import type { SidecarToApp } from "../rpc/types.ts";
+import type {
+	SidecarToApp,
+	SidecarToAppNotificationParams,
+	SidecarToAppRequestParams,
+	SidecarToAppRequestResult,
+} from "../rpc/types.ts";
 import type { AgentSession, TurnCallbacks, TurnInput, TurnOutcome } from "../runners/runner.ts";
 import type { EventPublisher } from "./event-batcher.ts";
 import type { InteractionBroker } from "./interactions.ts";
@@ -99,6 +107,34 @@ class RecordingLiveState extends LiveStateStore {
 
 	override drop(id: SessionId): void {
 		this.states.delete(id);
+	}
+}
+
+class NotifyingApp implements SidecarToApp {
+	connected = true;
+	readonly notifications: { method: SidecarToAppNotification; params: unknown }[] = [];
+
+	async request<K extends SidecarToAppRequest>(
+		_method: K,
+		_params: SidecarToAppRequestParams<K>,
+	): Promise<Result<SidecarToAppRequestResult<K>, AppError>> {
+		return ok({} as SidecarToAppRequestResult<K>);
+	}
+
+	notify<K extends SidecarToAppNotification>(
+		method: K,
+		params: SidecarToAppNotificationParams<K>,
+	): boolean {
+		this.notifications.push({ method, params });
+		return true;
+	}
+
+	onAttach(_listener: () => void): () => void {
+		return () => {};
+	}
+
+	onDetach(_listener: () => void): () => void {
+		return () => {};
 	}
 }
 
@@ -219,7 +255,7 @@ interface Harness {
 	agent: FakeAgentSession;
 	checkpoints: FakeCheckpoints;
 	publisher: FakePublisher;
-	liveState: RecordingLiveState;
+	liveState: LiveStateStore;
 	interactions: FakeInteractions;
 	runGuard: RunGuard;
 	order: string[];
@@ -227,7 +263,9 @@ interface Harness {
 	agentSessionIds: string[];
 }
 
-function harness(options: { startGate?: Promise<void>; runGuard?: RunGuard } = {}): Harness {
+function harness(
+	options: { startGate?: Promise<void>; runGuard?: RunGuard; liveState?: LiveStateStore } = {},
+): Harness {
 	const order: string[] = [];
 	const agent = new FakeAgentSession(sessionId);
 	const checkpoints = new FakeCheckpoints();
@@ -238,7 +276,7 @@ function harness(options: { startGate?: Promise<void>; runGuard?: RunGuard } = {
 		changes: [{ path: "a.ts", status: "modified", linesAdded: 2, linesRemoved: 1, binary: false }],
 	};
 	const publisher = new FakePublisher(order);
-	const liveState = new RecordingLiveState(order);
+	const liveState = options.liveState ?? new RecordingLiveState(order);
 	const interactions = new FakeInteractions();
 	const runGuard = options.runGuard ?? new Guard();
 	const settledRuns: RunNumber[] = [];
@@ -572,6 +610,35 @@ describe("SIDE-04 runner callbacks", () => {
 		await waiting;
 		expect(written).toBe(true);
 		expect(h.checkpoints.starts).toHaveLength(1);
+
+		h.agent.resolve({ kind: "success" });
+		await h.turn.settled();
+	});
+});
+
+describe("SIDE-05 waiting since from the runner callback", () => {
+	test("SIDE-05 a background-task callback sets waitingSince and a notification carries it", async () => {
+		const app = new NotifyingApp();
+		const liveState = new LiveStateStore({ app, flushed: async () => {} });
+		const h = harness({ liveState });
+		await h.turn.start();
+		const callbacks = h.agent.callbacks;
+		if (callbacks === null) throw new Error("The runner did not receive callbacks");
+		const tasks = [{ id: "task-1", kind: "shell" as const, description: "tests" }];
+
+		callbacks.onBackgroundTasks(tasks, 1234);
+		await until(() => liveState.get(sessionId).waitingSince === 1234, "waitingSince");
+
+		const notification = app.notifications.filter((item) => item.method === "liveState").at(-1);
+		const params = notification?.params as { liveState: LiveState } | undefined;
+		expect(params?.liveState.waitingSince).toBe(1234);
+		expect(params?.liveState.backgroundTasks).toEqual(tasks);
+
+		callbacks.onBackgroundTasks(tasks, undefined);
+		await until(
+			() => liveState.get(sessionId).waitingSince === undefined,
+			"the blocking wait to clear",
+		);
 
 		h.agent.resolve({ kind: "success" });
 		await h.turn.settled();

@@ -104,7 +104,14 @@ function makeService(
 		contextOf: options.contextOf ?? (async () => ok(context())),
 		agent: {} as never,
 		now: options.now ?? (() => Date.now()),
-		fs: { trash: async () => ok(undefined) },
+		fs: {
+			trash: async () => ok(undefined),
+			readText: async () => err(appError("fs_not_found", "missing")),
+			writeTextAtomic: async () => ok(undefined),
+			mkdirp: async () => ok(undefined),
+			stat: async () => err(appError("fs_not_found", "missing")),
+			paths: { home: "", appData: "", temp: "", resources: "" },
+		},
 	});
 }
 

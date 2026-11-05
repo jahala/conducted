@@ -56,7 +56,7 @@ async function openApp(path = "/", settings: TestSettings = testSettings()) {
 	const router = createAppRouter(createMemoryHistory({ initialEntries: [path] }));
 	render(
 		<ServicesProvider container={testContainer(settings)}>
-			<AppProviders client={createQueryClient()}>
+			<AppProviders client={createQueryClient(() => {})}>
 				<RouterProvider router={router} />
 			</AppProviders>
 		</ServicesProvider>,
@@ -103,7 +103,7 @@ describe("NAV-01 app shell", () => {
 
 		render(
 			<ServicesProvider container={testContainer()}>
-				<AppProviders client={createQueryClient()}>
+				<AppProviders client={createQueryClient(() => {})}>
 					<RouterProvider router={router} />
 				</AppProviders>
 			</ServicesProvider>,

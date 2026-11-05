@@ -1,50 +1,47 @@
 /**
  * @feature REV-02 Diff view
- * Owns: rendering one file's diff with @pierre/diffs, with inline comment threads and the comment
- * composer. It is used by the File tab (diff mode). It does not fetch anything.
+ * Owns: rendering one file's diff with @pierre/diffs, its warnings, and the error card when the
+ * renderer fails. It does not fetch anything and it draws no comments itself.
  * Behaviour: ui-map.md 3.6 ("Diff renderer: @pierre/diffs"), 3.2 (File tab, diff mode);
  * services-map.md 3.4.2 (the renderer computes the diff in the browser from the two file texts).
  * Renderer reference: `FileDiff`, `MultiFileDiff` and `PatchDiff` from "@pierre/diffs/react". Use
  * MultiFileDiff with oldFile and newFile ({ name, contents }) when both texts exist, and PatchDiff
- * with FileDiff.patch otherwise. Comments are `lineAnnotations` ({ side, lineNumber, metadata })
- * drawn by `renderAnnotation`; the add-comment affordance is `renderGutterUtility`; options come
- * from diff-options.ts.
- * Children: DiffToolbar (in the File tab header), DiffWarnings, CommentThread, CommentComposer,
- * GutterCommentButton.
+ * with FileDiff.patch otherwise. Options come from diff-options.ts.
+ * Comments: the comment layer (REV-03) computes the line annotations and supplies
+ * `renderAnnotation`, which draws a thread under its line. DiffView only places the slots. The
+ * gutter's add-comment control comes in as `renderGutterUtility`.
+ * Children: DiffWarnings.
  * Must handle: binary file (warning, no render), huge diff (guard from FileDiff.tooLarge: warning
  * with "Render anyway"), only-whitespace changes (warning with "Show whitespace changes"), file
- * added or deleted (one side empty), a diff that updates while the user is typing a comment (the
- * composer keeps its text and line), a comment on a line that no longer exists (shown as outdated
- * at the file top), renderer failure (error card "Failed to open editor", not a blank panel),
- * and light and dark theme switches.
- * Test first: given an old and new text that differ on line 3, one comment on additions line 3
- * renders its card under that line.
+ * added or deleted (one side empty), a diff that updates while it is on screen (the old diff stays
+ * with an "Updating diff" notice), renderer failure (error card "Failed to open editor", not a
+ * blank panel), and light and dark theme switches.
+ * Test first: given an old and new text that differ on line 3, the real renderer draws the new
+ * line under the split layout.
  */
 import type { CommentId } from "@conducted/shared";
 import { type DiffLineAnnotation, MultiFileDiff, PatchDiff } from "@pierre/diffs/react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { FileDiff } from "../../core/api.ts";
-import type { DiffComment } from "../../core/model.ts";
 import { ErrorBoundary } from "../../ui/ErrorBoundary.tsx";
-import { CommentComposer } from "./CommentComposer.tsx";
-import { CommentThread } from "./CommentThread.tsx";
 import { DiffWarning, type DiffWarningKind } from "./DiffWarnings.tsx";
-import { type CommentAnnotation, commentsToAnnotations } from "./diff-annotations.ts";
+import type { CommentAnnotation } from "./diff-annotations.ts";
 import { toDiffOptions } from "./diff-options.ts";
-import type { CommentHandlers, CommentTarget, DiffPreferences, DiffTheme } from "./diff-types.ts";
-import { GutterCommentButton } from "./GutterCommentButton.tsx";
+import type { DiffPreferences, DiffSide, DiffTheme } from "./diff-types.ts";
 
 export interface DiffViewProps {
 	diff: FileDiff;
-	/** Only the comments for this file. */
-	comments: DiffComment[];
 	preferences: DiffPreferences;
-	handlers: CommentHandlers;
-	/** The line the user is writing a new comment on, or null. */
-	composerTarget: CommentTarget | null;
-	onComposerTargetChange: (target: CommentTarget | null) => void;
+	/** Line annotations from the comment layer. No annotations means no comment slots. */
+	annotations?: DiffLineAnnotation<CommentAnnotation>[];
+	/** Draws one annotation under its line. Supplied by the comment layer (REV-03). */
+	renderAnnotation?: (annotation: DiffLineAnnotation<CommentAnnotation>) => ReactNode;
+	/** Draws the gutter's add-comment control. Supplied by the comment layer (REV-03). */
+	renderGutterUtility?: (
+		getHoveredLine: () => { lineNumber: number; side: DiffSide } | undefined,
+	) => ReactNode;
 	/** Scrolls to and highlights this comment, e.g. when opened from the Checks tab. */
-	focusCommentId: CommentId | null;
+	focusCommentId?: CommentId | null;
 	/** True when the user overrides the large-file guard. */
 	forceRender: boolean;
 	onForceRender: () => void;
@@ -77,12 +74,11 @@ const DEFAULT_THEME: DiffTheme = { name: "", type: "light" };
 
 export function DiffView({
 	diff,
-	comments,
 	preferences,
-	handlers,
-	composerTarget,
-	onComposerTargetChange,
-	focusCommentId,
+	annotations,
+	renderAnnotation,
+	renderGutterUtility,
+	focusCommentId = null,
 	forceRender,
 	onForceRender,
 	theme = DEFAULT_THEME,
@@ -96,14 +92,6 @@ export function DiffView({
 	const [dismissed, setDismissed] = useState<{ key: string; kind: DiffWarningKind } | null>(null);
 
 	const options = useMemo(() => toDiffOptions(preferences, theme), [preferences, theme]);
-	const byId = useMemo(
-		() => new Map(comments.map((comment) => [String(comment.id), comment])),
-		[comments],
-	);
-	const annotations = useMemo(
-		() => commentsToAnnotations(comments, diff.path),
-		[comments, diff.path],
-	);
 
 	useEffect(() => {
 		if (focusCommentId === null) return;
@@ -127,59 +115,6 @@ export function DiffView({
 
 	const visibleWarning =
 		dismissed !== null && dismissed.key === resetKey && dismissed.kind === warning ? null : warning;
-
-	const renderAnnotation = (annotation: DiffLineAnnotation<CommentAnnotation>): ReactNode => {
-		const threadComments = annotation.metadata.commentIds
-			.map((id) => byId.get(id))
-			.filter((comment): comment is DiffComment => comment !== undefined)
-			.sort((left, right) => left.createdAt - right.createdAt);
-		const target =
-			composerTarget !== null &&
-			composerTarget.filePath === diff.path &&
-			composerTarget.line === annotation.lineNumber &&
-			composerTarget.side === annotation.side
-				? composerTarget
-				: null;
-		return (
-			<div
-				data-comment-id={annotation.metadata.commentIds[0]}
-				className="border-l-2 border-border-strong bg-surface/60"
-			>
-				{threadComments.length > 0 ? (
-					<CommentThread comments={threadComments} handlers={handlers} />
-				) : null}
-				{target !== null ? (
-					<CommentComposer
-						mode="new"
-						initialBody=""
-						suggestionBase={null}
-						onSubmit={async (body, _suggestion) => {
-							const saved = await handlers.onAdd(target, body);
-							if (saved) onComposerTargetChange(null);
-							return saved;
-						}}
-						onCancel={() => onComposerTargetChange(null)}
-					/>
-				) : null}
-			</div>
-		);
-	};
-
-	const renderGutterUtility = (
-		getHoveredLine: () => { lineNumber: number; side: "deletions" | "additions" } | undefined,
-	) => (
-		<GutterCommentButton
-			getHoveredLine={getHoveredLine}
-			onAdd={(line) =>
-				onComposerTargetChange({
-					filePath: diff.path,
-					side: line.side,
-					line: line.lineNumber,
-					endLine: line.lineNumber,
-				})
-			}
-		/>
-	);
 
 	const rendererProps = {
 		options,
@@ -240,7 +175,11 @@ export function DiffView({
 			) : null}
 			{cannotRender ? null : (
 				<ErrorBoundary
-					resetKey={`${diff.path}:${diff.oldText?.length ?? -1}:${diff.newText?.length ?? -1}:${forceRender}`}
+					resetKey={`${diff.path}:${diff.oldText?.length ?? -1}:${diff.newText?.length ?? -1}:${
+						forceRender
+					}:${preferences.layout}:${preferences.wrapLines}:${
+						preferences.hideWhitespaceChanges
+					}:${preferences.entireFile}`}
 					fallback={(_error, reset) => (
 						<DiffWarning kind="render_failed" onAction={reset} onDismiss={reset} />
 					)}

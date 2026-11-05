@@ -10,6 +10,7 @@ import {
 	createWorktree,
 	nextFreeName,
 	OFFLINE_FALLBACK_MESSAGE,
+	OFFLINE_NO_CACHE_MESSAGE,
 	prepareWorktree,
 	WORKTREE_CONFIG_SKIPPED_MESSAGE,
 } from "./worktree.ts";
@@ -232,6 +233,97 @@ describe("WS-01 createWorktree", () => {
 				return output(1, "", "post-checkout hook failed");
 			if (matches(command, "git", ["worktree", "list", "--porcelain"]))
 				return output(0, "worktree /wt\nHEAD abc\nbranch refs/heads/oslo");
+			return undefined;
+		});
+
+		const result = await createWorktree(git, {
+			repoRootPath: "/repo",
+			remote: "origin",
+			baseBranch: "main",
+			newBranch: "oslo",
+			worktreePath: "/wt",
+			allowLocalBase: false,
+		});
+
+		expect(result.ok).toBe(true);
+		expect(result.ok && result.value.warning).toContain("post-checkout");
+	});
+
+	it("does not make an initial commit when the repository is broken, only when HEAD is unborn", async () => {
+		const { git, calls } = makeRunner((command, cwd) => {
+			if (matches(command, "git", ["rev-parse", "HEAD"]) && cwd === "/repo")
+				return output(128, "", "fatal: not a git repository");
+			return undefined;
+		});
+
+		const result = await createWorktree(git, {
+			repoRootPath: "/repo",
+			remote: "origin",
+			baseBranch: "main",
+			newBranch: "oslo",
+			worktreePath: "/wt",
+			allowLocalBase: false,
+		});
+
+		expect(result.ok).toBe(false);
+		expect(calls.some((call) => call.command.args[0] === "commit")).toBe(false);
+	});
+
+	it("tells the user the Mac is offline and there is no cached ref", async () => {
+		const { git } = makeRunner((command) => {
+			if (matches(command, "git", ["rev-parse", "HEAD"])) return output(0, "head-sha");
+			if (starts(command, "git", ["fetch"]))
+				return output(128, "", "fatal: Could not resolve host: github.com");
+			if (matches(command, "git", ["rev-parse", "refs/remotes/origin/main"])) return output(1);
+			return undefined;
+		});
+
+		const result = await createWorktree(git, {
+			repoRootPath: "/repo",
+			remote: "origin",
+			baseBranch: "main",
+			newBranch: "oslo",
+			worktreePath: "/wt",
+			allowLocalBase: false,
+		});
+
+		expect(result.ok).toBe(false);
+		expect(!result.ok && result.error.message).toBe(OFFLINE_NO_CACHE_MESSAGE);
+	});
+
+	it("keeps the real fetch error instead of claiming the base branch is missing", async () => {
+		const { git } = makeRunner((command) => {
+			if (matches(command, "git", ["rev-parse", "HEAD"])) return output(0, "head-sha");
+			if (starts(command, "git", ["fetch"]))
+				return output(128, "", "fatal: cannot lock ref 'refs/remotes/origin/main'");
+			return undefined;
+		});
+
+		const result = await createWorktree(git, {
+			repoRootPath: "/repo",
+			remote: "origin",
+			baseBranch: "main",
+			newBranch: "oslo",
+			worktreePath: "/wt",
+			allowLocalBase: false,
+		});
+
+		expect(result.ok).toBe(false);
+		expect(!result.ok && result.error.message).toContain("cannot lock ref");
+	});
+
+	it("finds an existing worktree through a symlinked root", async () => {
+		const { git } = makeRunner((command, cwd) => {
+			if (matches(command, "git", ["rev-parse", "HEAD"])) return output(0, "abc");
+			if (starts(command, "git", ["fetch"])) return output(0);
+			if (matches(command, "git", ["rev-parse", "refs/remotes/origin/main"]))
+				return output(0, "abc");
+			if (starts(command, "git", ["worktree", "add"]))
+				return output(1, "", "post-checkout hook failed");
+			if (matches(command, "git", ["worktree", "list", "--porcelain"]))
+				return output(0, "worktree /real/root/workspaces/Project/oslo\nHEAD abc");
+			if (matches(command, "git", ["rev-parse", "--show-toplevel"]) && cwd === "/wt")
+				return output(0, "/real/root/workspaces/Project/oslo");
 			return undefined;
 		});
 

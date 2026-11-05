@@ -1,22 +1,26 @@
 import type { CanonicalTool } from "@conducted/protocol";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "../../../test/dom-polyfills.ts";
 import type { ToolCallView } from "../../../core/model.ts";
+import { TOOL_CARDS } from "./registry.ts";
 
 const state = vi.hoisted(() => ({
 	expand: false,
-	set: vi.fn(),
 }));
 
 vi.mock("../../../core/hooks.ts", () => ({
 	useSetting: () => state.expand,
-	useActions: () => ({ settings: { set: state.set } }),
 }));
 
 const { ToolCard } = await import("./ToolCard.tsx");
 
 const sessionId = "s1" as Parameters<typeof ToolCard>[0]["sessionId"];
+const originalBashCard = TOOL_CARDS.bash;
+
+function ThrowingCard(): never {
+	throw new Error("render failed");
+}
 
 function view(
 	tool: CanonicalTool,
@@ -38,10 +42,12 @@ function view(
 
 beforeEach(() => {
 	state.expand = false;
-	state.set.mockReset();
 });
 
-afterEach(cleanup);
+afterEach(() => {
+	cleanup();
+	TOOL_CARDS.bash = originalBashCard;
+});
 
 describe("CHAT-08 tool card", () => {
 	it("renders the bash card for a bash call", () => {
@@ -58,11 +64,25 @@ describe("CHAT-08 tool card", () => {
 		expect(screen.getByText(/"foo": "bar"/)).toBeTruthy();
 	});
 
-	it("turns Garry mode on with Ctrl+O", () => {
+	it("shows the body of every card when the Expand all tool calls setting is on", () => {
+		state.expand = true;
+		render(
+			<ToolCard
+				call={view("bash", { command: "echo hi" }, "Bash", "hello")}
+				sessionId={sessionId}
+			/>,
+		);
+		expect(screen.getByText("hello")).toBeTruthy();
+	});
+
+	it("shows one error line naming the tool when its card throws", () => {
+		const log = vi.spyOn(console, "error").mockImplementation(() => {});
+		TOOL_CARDS.bash = ThrowingCard;
 		render(
 			<ToolCard call={view("bash", { command: "echo hi" }, "Bash", "hi")} sessionId={sessionId} />,
 		);
-		fireEvent.keyDown(window, { key: "o", ctrlKey: true });
-		expect(state.set).toHaveBeenCalledWith("expand_tool_calls", true);
+		expect(screen.getByRole("status").textContent).toBe("Tool: Bash: This part failed to load.");
+		expect(log).toHaveBeenCalled();
+		log.mockRestore();
 	});
 });

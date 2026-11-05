@@ -8,9 +8,12 @@
  * Must handle: construction does no I/O; services that need each other are wired through
  * closures that read the other service when called, so no construction order creates a cycle;
  * `start` runs the steps in order, stops at the first fatal failure and returns it, and records
- * non-fatal failures (the sidecar not starting, no GitHub access) as warnings; `start` runs once
- * (a second call returns the first result); after the steps it wires the dock badge, notification
- * clicks and deep links, the hourly update check, the quit guard and the Spotlight heal; `stop`
+ * non-fatal failures (no GitHub access, a failed Spotlight heal) as warnings; the sidecar not
+ * starting is fatal, because without it no chat can run (the failed state carries the sidecar log
+ * path in `app/startup.ts`); `start` runs once (a second call returns the first result); after the
+ * steps it wires the dock badge, notification clicks, the hourly update check, the quit guard and
+ * the Spotlight heal; deep links have one subscriber, the command dispatcher (NAV-14), which is
+ * mounted with the app root, so this file does not listen for them a second time; `stop`
  * removes those listeners, stops the update timer, kills terminals and runs, disposes the repo
  * service and detaches from the sidecar; the database-version check happens before `start` (see
  * the proposed `Platform.app.dbVersionWarning`); after the sidecar reconnects, chats are resumed.
@@ -481,7 +484,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		{ name: "chats", phase: "services", fatal: true, run: () => sessions.start() },
 		{ name: "github access", phase: "services", fatal: false, run: () => github.checkAccess() },
 		{ name: "programs", phase: "services", fatal: false, run: () => system.start() },
-		{ name: "sidecar", phase: "sidecar", fatal: false, run: () => tunnel.start() },
+		{ name: "sidecar", phase: "sidecar", fatal: true, run: () => tunnel.start() },
 		{ name: "resume chats", phase: "sidecar", fatal: false, run: () => resume.resume() },
 		{
 			name: "data lifetime",
@@ -508,10 +511,15 @@ export function createContainer(inputs: ContainerInputs): Container {
 			workspaces.set(id as WorkspaceId, row);
 		}
 		const count = dockBadgeCount(workspaces, Object.values(sessions.store.getState().sessions));
-		void platform.notifications.setDockBadge(count === 0 ? null : count);
+		void platform.notifications.setDockBadge(count === 0 ? null : count).catch((cause: unknown) => {
+			const message = cause instanceof Error ? cause.message : String(cause);
+			log("warn", `Could not set the dock badge: ${message}`);
+		});
 	};
 
 	const wireAfterStart = async (warnings: StartReport["warnings"]): Promise<void> => {
+		// Wired once, before the awaits below. A failed wireAfterStart is not retried: start runs
+		// once per container (see `start`), so there is no second caller to retry it.
 		if (wired) return;
 		wired = true;
 
@@ -520,9 +528,15 @@ export function createContainer(inputs: ContainerInputs): Container {
 		cleanups.push(workspace.store.subscribe(updateDockBadge));
 
 		const openLink = inputs.openLink;
-		if (openLink !== undefined) {
+		if (openLink === undefined) {
+			warnings.push({
+				step: "links",
+				message: "Notification clicks are not wired: no link opener was given to the container.",
+			});
+		} else {
+			// Deep links are not listened for here: the command dispatcher (NAV-14) is their one
+			// subscriber, so a link is not handled twice.
 			cleanups.push(platform.notifications.onClicked(openLink));
-			cleanups.push(platform.app.onDeepLink(openLink));
 		}
 
 		for (const project of Object.values(repo.store.getState().reposById)) {
@@ -537,10 +551,31 @@ export function createContainer(inputs: ContainerInputs): Container {
 		}, UPDATE_CHECK_INTERVAL_MS);
 		(updateTimer as unknown as { unref?: () => void }).unref?.();
 
+		let quitPromptOpen = false;
 		cleanups.push(
 			platform.app.onQuitRequested(() => {
-				if (!updates.isSafeToQuit()) return;
-				void platform.app.quit();
+				if (updates.isSafeToQuit()) {
+					void platform.app.quit();
+					return;
+				}
+				// Agents are still working. Ask before quitting, and only one prompt at a time.
+				if (quitPromptOpen) return;
+				quitPromptOpen = true;
+				void platform.dialogs
+					.confirm({
+						title: "Quit Conducted?",
+						message: "Agents are still working. Quitting stops their turns and running commands.",
+						okLabel: "Quit",
+					})
+					.then((confirmed) => {
+						quitPromptOpen = false;
+						if (confirmed) void platform.app.quit();
+					})
+					.catch((cause: unknown) => {
+						quitPromptOpen = false;
+						const message = cause instanceof Error ? cause.message : String(cause);
+						log("warn", `Could not ask whether to quit: ${message}`);
+					});
 			}),
 		);
 		await platform.app.setQuitHandlerReady();

@@ -11,8 +11,8 @@
  *  - write before send: the batch is appended to the outbox first; events that failed to write are
  *    never sent
  *  - a failed outbox write: retry with the delay table, keep order, surface the error after the
- *    last delay as a turn error instead of dropping events, and log "has not settled" every 60
- *    seconds while the batch is still stuck
+ *    last delay as the chat's live-state error instead of dropping events, and log "has not
+ *    settled" every 60 seconds while the batch is still stuck
  *  - a notification above the byte limit is shortened: long strings keep a head and a tail around
  *    a note with the original size, and large structured values become a small stub
  *  - the app is disconnected: events stay in the outbox and are replayed on attach (SIDE-06)
@@ -20,7 +20,9 @@
  *  - flush(): resolves when everything queued before the call has been written and sent; the live
  *    state store waits on it before it publishes a change, so a live-state notification always
  *    follows the events queued before it (sessions 5 step 3)
- * Test first: takeBatch on 120 small events returns 50, 50 and 20 in order.
+ * Test first: takeBatches on 120 small events returns 50, 50 and 20 in order.
+ * Our design choice: a batch is a write unit, not a wire unit. It groups one append to the
+ * write-ahead log. Each event still goes to the app as its own sessionEvent notification.
  * Our design choice: the retry table applies to the local write-ahead append. In Conductor it
  * guarded the socket send, which in our design cannot lose data because the log holds the events.
  */
@@ -44,10 +46,6 @@ const encoder = new TextEncoder();
 export function jsonBytes(value: unknown): number {
 	const text = JSON.stringify(value);
 	return text === undefined ? 0 : encoder.encode(text).length;
-}
-
-export function eventBytes(event: SessionEvent): number {
-	return jsonBytes(event);
 }
 
 export interface SizedEvent {
@@ -254,7 +252,7 @@ export class BatchingEventPublisher implements EventPublisher {
 
 	publish(sessionId: SessionId, event: SessionEvent): void {
 		const chat = this.chatFor(sessionId);
-		chat.events.push({ event, bytes: eventBytes(event) });
+		chat.events.push({ event, bytes: jsonBytes(event) });
 		chat.enqueued += 1;
 		this.scheduleDrain(sessionId, chat);
 	}

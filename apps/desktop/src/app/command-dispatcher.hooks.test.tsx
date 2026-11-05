@@ -15,7 +15,11 @@ import { tomlCodec } from "../core/services/toml-codec.ts";
 import { createMemoryPlatform } from "../platform/memory.ts";
 import type { Database, MenuShortcut, Platform } from "../platform/platform.ts";
 import {
+	CommandDispatcher,
 	type CommandHandlerFn,
+	CommandHint,
+	type CommandRegistry,
+	createCommandRegistry,
 	useCommandDispatcher,
 	useCommandHandler,
 } from "./command-dispatcher.ts";
@@ -86,23 +90,33 @@ function lastShortcutFor(calls: readonly (readonly MenuShortcut[])[], commandId:
 	return last.find((shortcut) => shortcut.commandId === commandId)?.accelerator ?? null;
 }
 
+function BaseRegistration({ handler }: { handler: CommandHandlerFn }) {
+	useCommandHandler("app.commandPalette", "base", handler);
+	return null;
+}
+
 function ModalRegistration({ handler }: { handler: CommandHandlerFn }) {
 	useCommandHandler("app.commandPalette", "modal", handler);
 	return null;
 }
 
 function HandlerHarness({
+	registry,
 	modalOpen,
 	base,
 	modal,
 }: {
+	registry: CommandRegistry;
 	modalOpen: boolean;
 	base: CommandHandlerFn;
 	modal: CommandHandlerFn;
 }) {
-	useCommandDispatcher();
-	useCommandHandler("app.commandPalette", "base", base);
-	return modalOpen ? <ModalRegistration handler={modal} /> : null;
+	return (
+		<CommandDispatcher registry={registry}>
+			<BaseRegistration handler={base} />
+			{modalOpen ? <ModalRegistration handler={modal} /> : null}
+		</CommandDispatcher>
+	);
 }
 
 beforeEach(() => {
@@ -117,7 +131,7 @@ afterEach(() => {
 describe("NAV-14 useCommandDispatcher", () => {
 	it("pushes the registry's accelerators to the menu on mount", async () => {
 		const { shortcutCalls, wrapper } = buildHarness();
-		renderHook(() => useCommandDispatcher(), { wrapper });
+		renderHook(() => useCommandDispatcher(createCommandRegistry()), { wrapper });
 
 		await waitFor(() => expect(shortcutCalls.length).toBeGreaterThan(0));
 		expect(shortcutCalls[0]).toContainEqual({
@@ -128,7 +142,7 @@ describe("NAV-14 useCommandDispatcher", () => {
 
 	it("updates the menu accelerators after a rebind", async () => {
 		const { container, shortcutCalls, wrapper } = buildHarness();
-		renderHook(() => useCommandDispatcher(), { wrapper });
+		renderHook(() => useCommandDispatcher(createCommandRegistry()), { wrapper });
 		await waitFor(() => expect(shortcutCalls.length).toBeGreaterThan(0));
 
 		act(() => {
@@ -149,7 +163,7 @@ describe("NAV-14 useCommandDispatcher", () => {
 	it("runs the command a menu event names", () => {
 		const { container, menuListeners, wrapper } = buildHarness();
 		const run = vi.spyOn(container.services.commands, "run").mockResolvedValue(ok(undefined));
-		renderHook(() => useCommandDispatcher(), { wrapper });
+		renderHook(() => useCommandDispatcher(createCommandRegistry()), { wrapper });
 
 		act(() => {
 			for (const listener of menuListeners) listener("app.commandPalette");
@@ -161,7 +175,7 @@ describe("NAV-14 useCommandDispatcher", () => {
 	it("reports a menu event for an id the registry does not know", () => {
 		const { container, memory, menuListeners, wrapper } = buildHarness();
 		const run = vi.spyOn(container.services.commands, "run").mockResolvedValue(ok(undefined));
-		renderHook(() => useCommandDispatcher(), { wrapper });
+		renderHook(() => useCommandDispatcher(createCommandRegistry()), { wrapper });
 
 		act(() => {
 			for (const listener of menuListeners) listener("no.such.command");
@@ -176,7 +190,7 @@ describe("NAV-14 useCommandDispatcher", () => {
 	it("turns a global key press into a command and swallows it", () => {
 		const { container, wrapper } = buildHarness();
 		const run = vi.spyOn(container.services.commands, "run").mockResolvedValue(ok(undefined));
-		renderHook(() => useCommandDispatcher(), { wrapper });
+		renderHook(() => useCommandDispatcher(createCommandRegistry()), { wrapper });
 
 		const event = new KeyboardEvent("keydown", {
 			key: "k",
@@ -195,7 +209,7 @@ describe("NAV-14 useCommandDispatcher", () => {
 	it("does not swallow the key of a disabled command", () => {
 		const { container, wrapper } = buildHarness();
 		const run = vi.spyOn(container.services.commands, "run").mockResolvedValue(ok(undefined));
-		renderHook(() => useCommandDispatcher(), { wrapper });
+		renderHook(() => useCommandDispatcher(createCommandRegistry()), { wrapper });
 
 		const event = new KeyboardEvent("keydown", {
 			key: "a",
@@ -212,11 +226,11 @@ describe("NAV-14 useCommandDispatcher", () => {
 		expect(run).not.toHaveBeenCalled();
 	});
 
-	it("uses the chat-input scope while a text field has focus", () => {
+	it("leaves the composer's Enter to the composer", () => {
 		const { container, wrapper } = buildHarness();
 		container.services.sessions.store.setState({ viewingSessionId: "s" as never });
 		const run = vi.spyOn(container.services.commands, "run").mockResolvedValue(ok(undefined));
-		renderHook(() => useCommandDispatcher(), { wrapper });
+		renderHook(() => useCommandDispatcher(createCommandRegistry()), { wrapper });
 
 		const input = document.createElement("textarea");
 		document.body.appendChild(input);
@@ -230,14 +244,57 @@ describe("NAV-14 useCommandDispatcher", () => {
 			input.dispatchEvent(event);
 		});
 
-		expect(event.defaultPrevented).toBe(true);
-		expect(run).toHaveBeenCalledWith("chat.submit");
+		expect(event.defaultPrevented).toBe(false);
+		expect(run).not.toHaveBeenCalled();
+	});
+
+	it("leaves Cmd+Enter to the composer in Cmd+Enter mode", () => {
+		const { container, wrapper } = buildHarness();
+		const state = container.services.settings.store.getState();
+		act(() => {
+			container.services.settings.store.setState({
+				values: { ...state.values, message_send_key: "cmd-enter" },
+			});
+		});
+		const run = vi.spyOn(container.services.commands, "run").mockResolvedValue(ok(undefined));
+		renderHook(() => useCommandDispatcher(createCommandRegistry()), { wrapper });
+
+		const input = document.createElement("textarea");
+		document.body.appendChild(input);
+		input.focus();
+		const event = new KeyboardEvent("keydown", {
+			key: "Enter",
+			metaKey: true,
+			bubbles: true,
+			cancelable: true,
+		});
+		act(() => {
+			input.dispatchEvent(event);
+		});
+
+		expect(event.defaultPrevented).toBe(false);
+		expect(run).not.toHaveBeenCalled();
+	});
+
+	it("does not run a menu command that is disabled", () => {
+		const { container, menuListeners, wrapper } = buildHarness();
+		const run = vi.spyOn(container.services.commands, "run").mockResolvedValue(ok(undefined));
+		renderHook(() => useCommandDispatcher(createCommandRegistry()), { wrapper });
+
+		act(() => {
+			for (const listener of menuListeners) listener("workspace.archive");
+		});
+
+		expect(run).not.toHaveBeenCalled();
 	});
 
 	it("forwards a deep link to the caller and stops listening on unmount", () => {
 		const { deepLinkListeners, menuListeners, wrapper } = buildHarness();
 		const onDeepLink = vi.fn();
-		const { unmount } = renderHook(() => useCommandDispatcher({ onDeepLink }), { wrapper });
+		const { unmount } = renderHook(
+			() => useCommandDispatcher(createCommandRegistry(), { onDeepLink }),
+			{ wrapper },
+		);
 
 		act(() => {
 			for (const listener of deepLinkListeners) listener("conducted://workspace?id=w1");
@@ -252,7 +309,7 @@ describe("NAV-14 useCommandDispatcher", () => {
 	it("opens settings for a settings deep link when no caller handles deep links", () => {
 		const { container, deepLinkListeners, wrapper } = buildHarness();
 		const run = vi.spyOn(container.services.commands, "run").mockResolvedValue(ok(undefined));
-		renderHook(() => useCommandDispatcher(), { wrapper });
+		renderHook(() => useCommandDispatcher(createCommandRegistry()), { wrapper });
 
 		act(() => {
 			for (const listener of deepLinkListeners) listener("conducted://settings");
@@ -264,7 +321,7 @@ describe("NAV-14 useCommandDispatcher", () => {
 	it("reports a deep link that no command opens", () => {
 		const { container, deepLinkListeners, memory, wrapper } = buildHarness();
 		const run = vi.spyOn(container.services.commands, "run").mockResolvedValue(ok(undefined));
-		renderHook(() => useCommandDispatcher(), { wrapper });
+		renderHook(() => useCommandDispatcher(createCommandRegistry()), { wrapper });
 
 		act(() => {
 			for (const listener of deepLinkListeners) listener("conducted://workspace?id=w1");
@@ -275,16 +332,62 @@ describe("NAV-14 useCommandDispatcher", () => {
 	});
 });
 
+describe("NAV-14 CommandDispatcher", () => {
+	it("mounts the listeners and sends a menu command through the shared registry", () => {
+		const { container, menuListeners, shortcutCalls, wrapper } = buildHarness();
+		const registry = createCommandRegistry();
+		const handler = vi.fn(() => true);
+		registry.register("app.commandPalette", "base", handler);
+		vi.spyOn(container.services.commands, "run").mockResolvedValue(ok(undefined));
+
+		render(<CommandDispatcher registry={registry} />, { wrapper });
+
+		expect(shortcutCalls.length).toBeGreaterThan(0);
+		act(() => {
+			for (const listener of menuListeners) listener("app.commandPalette");
+		});
+		expect(handler).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("NAV-14 CommandHint", () => {
+	it("reads the live binding and follows a rebind", async () => {
+		const { container, wrapper } = buildHarness();
+		const rendered = render(<CommandHint commandId="app.commandPalette" />, { wrapper });
+		expect(rendered.getByText("⌘K")).toBeTruthy();
+
+		act(() => {
+			const state = container.services.settings.store.getState();
+			container.services.settings.store.setState({
+				values: {
+					...state.values,
+					keybinding_overrides_v1: JSON.stringify({ "app.commandPalette": ["Cmd+J"] }),
+				},
+			});
+		});
+
+		await waitFor(() => expect(rendered.getByText("⌘J")).toBeTruthy());
+	});
+
+	it("renders nothing for an unbound command", () => {
+		const { wrapper } = buildHarness();
+		const rendered = render(<CommandHint commandId="nav.nextUnread" />, { wrapper });
+		expect(rendered.container.querySelector("kbd")).toBeNull();
+	});
+});
+
 describe("NAV-14 useCommandHandler", () => {
 	it("runs the modal handler while mounted, then the base handler after it unmounts", () => {
 		const { container, menuListeners, wrapper } = buildHarness();
+		const registry = createCommandRegistry();
 		const base = vi.fn(() => true);
 		const modal = vi.fn(() => true);
 		vi.spyOn(container.services.commands, "run").mockResolvedValue(ok(undefined));
 
-		const { rerender } = render(<HandlerHarness modalOpen base={base} modal={modal} />, {
-			wrapper,
-		});
+		const { rerender } = render(
+			<HandlerHarness registry={registry} modalOpen base={base} modal={modal} />,
+			{ wrapper },
+		);
 
 		act(() => {
 			for (const listener of menuListeners) listener("app.commandPalette");
@@ -292,7 +395,7 @@ describe("NAV-14 useCommandHandler", () => {
 		expect(modal).toHaveBeenCalledTimes(1);
 		expect(base).not.toHaveBeenCalled();
 
-		rerender(<HandlerHarness modalOpen={false} base={base} modal={modal} />);
+		rerender(<HandlerHarness registry={registry} modalOpen={false} base={base} modal={modal} />);
 		act(() => {
 			for (const listener of menuListeners) listener("app.commandPalette");
 		});

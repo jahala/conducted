@@ -170,7 +170,7 @@ function sessionEvents(app: FakeApp): SessionEventEnvelope[] {
 }
 
 describe("SIDE-05 event batching", () => {
-	test("SIDE-05 takeBatch on 120 small events returns 50, 50 and 20 in order", () => {
+	test("SIDE-05 takeBatches on 120 small events returns 50, 50 and 20 in order", () => {
 		const sized = (bytes: number): SizedEvent => ({ event: {} as SessionEvent, bytes });
 		const events = Array.from({ length: 120 }, () => sized(10));
 		expect(takeBatches(events).map((batch) => batch.length)).toEqual([50, 50, 20]);

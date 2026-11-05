@@ -159,7 +159,7 @@ function requestAt(app: FakeApp, index: number): InteractionRequest | undefined 
 }
 
 describe("SIDE-11 interactions", () => {
-	test("an answer must have the kind of its interaction, and withdrawn fits all", () => {
+	test("SIDE-11 an answer must have the kind of its interaction, and withdrawn fits all", () => {
 		expect(answerMatches(plan, { kind: "plan_approval", approved: true })).toBe(true);
 		expect(answerMatches(plan, { kind: "question", answers: [] })).toBe(false);
 		expect(answerMatches(plan, { kind: "withdrawn" })).toBe(true);
@@ -205,6 +205,10 @@ describe("SIDE-11 interactions", () => {
 		h.broker.answer(session, iid("interaction-1"), { kind: "question", answers: [["A"]] });
 		await until(() => h.app.requests.length === 2, "the second request to open");
 		expect(requestAt(h.app, 1)?.interaction).toEqual(plan);
+		await until(
+			() => h.liveState.get(session).openInteraction?.interactionId === iid("interaction-2"),
+			"live state to show the second interaction",
+		);
 
 		expect(
 			h.broker.answer(session, iid("interaction-1"), { kind: "question", answers: [["A"]] }),
@@ -226,7 +230,11 @@ describe("SIDE-11 interactions", () => {
 
 		h.broker.withdrawAll(session);
 		expect(await first).toEqual({ kind: "withdrawn" });
-		expect(await second).toEqual({ kind: "withdrawn" });
+		expect(await second).toEqual({
+			kind: "plan_approval",
+			approved: false,
+			feedback: "Plan not approved",
+		});
 		expect(h.broker.openRequest(session)).toBeUndefined();
 		expect(
 			h.broker.answer(session, iid("interaction-1"), { kind: "question", answers: [] }),
@@ -235,6 +243,21 @@ describe("SIDE-11 interactions", () => {
 			() => h.liveState.get(session).openInteraction === undefined,
 			"live state to clear",
 		);
+	});
+
+	test("SIDE-11 cancelling a plan review denies with the text Plan not approved", async () => {
+		const h = harness();
+		const session = sid("session-1");
+		const answer = h.broker.open(session, plan);
+		await until(() => h.app.requests.length === 1, "the plan request");
+
+		h.broker.withdrawAll(session);
+
+		expect(await answer).toEqual({
+			kind: "plan_approval",
+			approved: false,
+			feedback: "Plan not approved",
+		});
 	});
 
 	test("SIDE-11 refuses an answer of the wrong kind and keeps the interaction open", async () => {
@@ -262,7 +285,7 @@ describe("SIDE-11 interactions", () => {
 					feedback: "The app was not connected",
 				},
 			},
-			{ interaction: question, expected: { kind: "withdrawn" } },
+			{ interaction: question, expected: { kind: "question", answers: [] } },
 			{ interaction: approval, expected: { kind: "withdrawn" } },
 			{ interaction: permission, expected: { kind: "permission_grant", granted: false } },
 			{ interaction: form, expected: { kind: "mcp_form", action: "decline" } },
@@ -284,7 +307,7 @@ describe("SIDE-11 interactions", () => {
 		const answer = h.broker.open(session, question);
 		await until(() => h.app.requests.length === 1, "the request");
 		h.app.rejectNext(new Error("socket closed"));
-		expect(await answer).toEqual({ kind: "withdrawn" });
+		expect(await answer).toEqual({ kind: "question", answers: [] });
 	});
 
 	test("SIDE-11 resends only the open interaction after a reconnect", async () => {
@@ -335,6 +358,10 @@ describe("SIDE-11 interactions", () => {
 		h.broker.withdrawAll(sid("session-1"));
 		h.broker.withdrawAll(sid("session-2"));
 		expect(await first).toEqual({ kind: "withdrawn" });
-		expect(await second).toEqual({ kind: "withdrawn" });
+		expect(await second).toEqual({
+			kind: "plan_approval",
+			approved: false,
+			feedback: "Plan not approved",
+		});
 	});
 });

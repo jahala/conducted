@@ -12,6 +12,8 @@
  *  - a steer is pending from acceptance until the runner reports it consumed
  *  - an open interaction is cleared when it is answered or withdrawn
  *  - a blocking task-output wait sets waitingSince, and it is cleared when the wait or turn ends
+ *  - a failed event write is reported as the chat's error at once, because it leaves the
+ *    publisher unable to flush the events that a normal live-state update waits behind
  *  - an unchanged state is not published again, and updates for one chat are published in order
  * Test first: beginTurn on a state with an error returns working with no error and no pending
  * steers.
@@ -19,6 +21,7 @@
 import { type Interaction, idleLiveState, type LiveState } from "@conducted/protocol";
 import type { InteractionId, MessageId, SessionId } from "@conducted/shared";
 import type { SidecarToApp } from "../rpc/types.ts";
+import type { EventPublisher } from "./event-batcher.ts";
 
 export type BackgroundTask = LiveState["backgroundTasks"][number];
 
@@ -88,6 +91,12 @@ export function setWaitingSince(state: LiveState, since?: number): LiveState {
 	return since === undefined ? rest : { ...rest, waitingSince: since };
 }
 
+/** Records a failure on the chat's live state without changing its status. */
+export function setError(state: LiveState, error: string): LiveState {
+	if (state.error === error) return state;
+	return { ...state, error };
+}
+
 export function openInteraction(
 	state: LiveState,
 	interactionId: InteractionId,
@@ -141,6 +150,20 @@ export class LiveStateStore {
 		return run;
 	}
 
+	/**
+	 * Records an error and tells the app at once. A failed event write leaves the publisher's
+	 * flush unresolved, so this path waits for neither the flush nor an earlier update that is
+	 * blocked behind it: the user has to see why the chat stopped making progress.
+	 */
+	reportError(sessionId: SessionId, error: string): void {
+		if (!this.bySession.has(sessionId)) return;
+		const current = this.get(sessionId);
+		const next = setError(current, error);
+		if (sameLiveState(current, next)) return;
+		this.bySession.set(sessionId, next);
+		this.deps.app.notify("liveState", { sessionId, liveState: next });
+	}
+
 	/** Forgets a chat after resetAgent. */
 	drop(sessionId: SessionId): void {
 		this.bySession.delete(sessionId);
@@ -162,8 +185,21 @@ export class LiveStateStore {
 			if (this.bySession.get(sessionId) === next) this.bySession.delete(sessionId);
 			return;
 		}
-		this.deps.app.notify("liveState", { sessionId, liveState: next });
+		this.deps.app.notify("liveState", { sessionId, liveState: this.get(sessionId) });
 	}
+}
+
+/**
+ * Connects the publisher's terminal write failures to the chat's live state. Without this the
+ * publisher only logs and retries, and the chat never shows the error (sessions 5 step 4).
+ */
+export function reportWriteFailures(deps: {
+	publisher: Pick<EventPublisher, "onWriteFailure">;
+	liveState: LiveStateStore;
+}): void {
+	deps.publisher.onWriteFailure((sessionId, message) => {
+		deps.liveState.reportError(sessionId, message);
+	});
 }
 
 export { idleLiveState };

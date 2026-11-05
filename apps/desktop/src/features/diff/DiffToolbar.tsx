@@ -7,9 +7,10 @@
  * using_split_view, hide_whitespace_changes, wrap_lines in services-map.md 4.2.3).
  * Must handle: a narrow tab (split layout disabled below a width threshold, Our design choice), a
  * binary file (controls disabled), and changing a preference while a diff is loading.
+ * Our design choice: the parent measures the tab or pane and passes its width in. The toolbar is
+ * only as wide as its buttons, so measuring it would think every tab is narrow.
  * Test first: toggling "Wrap lines" calls onChange with wrapLines flipped and nothing else changed.
  */
-import { useEffect, useRef, useState } from "react";
 import { Button } from "../../ui/Button.tsx";
 import { Checkbox } from "../../ui/Checkbox.tsx";
 import { Popover } from "../../ui/Popover.tsx";
@@ -22,28 +23,16 @@ export interface DiffToolbarProps {
 	preferences: DiffPreferences;
 	onChange: (next: DiffPreferences) => void;
 	disabled: boolean;
+	/** Width of the tab or pane in pixels. Null or absent means it has not been measured yet. */
+	width?: number | null;
 }
 
-export function DiffToolbar({ preferences, onChange, disabled }: DiffToolbarProps) {
-	const containerRef = useRef<HTMLDivElement>(null);
-	const [width, setWidth] = useState<number | null>(null);
-
-	useEffect(() => {
-		const element = containerRef.current;
-		if (element === null) return;
-		const measure = () => setWidth(element.clientWidth > 0 ? element.clientWidth : null);
-		measure();
-		if (typeof ResizeObserver === "undefined") return;
-		const observer = new ResizeObserver(measure);
-		observer.observe(element);
-		return () => observer.disconnect();
-	}, []);
-
+export function DiffToolbar({ preferences, onChange, disabled, width = null }: DiffToolbarProps) {
 	const splitDisabled = disabled || (width !== null && width < SPLIT_MIN_WIDTH);
 	const update = (patch: Partial<DiffPreferences>) => onChange({ ...preferences, ...patch });
 
 	return (
-		<div ref={containerRef} className="flex min-w-0 items-center gap-1">
+		<div className="flex min-w-0 items-center gap-1">
 			<div className="flex items-center gap-0.5">
 				<Button
 					variant={preferences.layout === "unified" ? "secondary" : "ghost"}

@@ -6,13 +6,13 @@
  * Behaviour: ui-map.md 3.9 (New workspace flow; "Draft the first message, then create and send it.").
  * Our design choice: the page keeps the first message in a plain textarea until the composer editor can be
  * reused outside a chat; attachments wait for COMP-07. Pull request and issue bases wait for WS-02.
- * Must handle: no project yet (point to "Add a project"); a failed create keeps the draft ("Recover prompt");
- * creating shows progress and then opens the new workspace; an empty prompt creates the workspace without a chat.
+ * Must handle: no project yet (point to "Add a project"); a failed create keeps the draft with Retry setup
+ * and Recover prompt; creation warnings are toasted; an empty prompt creates the workspace without a chat.
  * Test first: submitting with a repository and a prompt calls workspaces.create with that input and navigates to
- * the new workspace.
+ * the new workspace; a failed create offers Retry setup and Recover prompt.
  */
 import type { SessionConfig } from "@conducted/protocol";
-import type { RepoId, SectionId } from "@conducted/shared";
+import type { RepoId, SectionId, WorkspaceId } from "@conducted/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useStore } from "zustand";
@@ -20,6 +20,7 @@ import type { NewWorkspaceInput } from "../core/api.ts";
 import { useServices } from "../core/context.tsx";
 import { useActions, useRepos, useSetting } from "../core/hooks.ts";
 import type { Section } from "../core/model.ts";
+import { FIRST_CHAT_APP_TOOLS } from "../core/services/workspace.ts";
 import { AddProjectButton } from "../features/sidebar/AddProjectButton.tsx";
 import { Button } from "../ui/Button.tsx";
 import { EmptyState } from "../ui/EmptyState.tsx";
@@ -53,7 +54,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	const [planMode, setPlanMode] = useState(defaultPlanMode);
 	const [sectionId, setSectionId] = useState("");
 	const [busy, setBusy] = useState(false);
-	const [error, setError] = useState<string | null>(null);
+	const [failedId, setFailedId] = useState<WorkspaceId | null>(null);
 
 	const readyRepos = repos.state === "ready" ? repos.data : [];
 	const selectedRepo = readyRepos.find((repo) => repo.id === repoId) ?? readyRepos[0];
@@ -92,11 +93,18 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 
 	if (selectedRepo === undefined) return null;
 
+	const openWorkspace = (repoId: RepoId, workspaceId: WorkspaceId) => {
+		void navigate({
+			to: "/repository/$repositoryId/workspace/$workspaceId",
+			params: { repositoryId: repoId, workspaceId },
+		});
+	};
+
 	const submit = async () => {
 		if (busy || selectedRepo === undefined) return;
-		setError(null);
+		setFailedId(null);
 		setBusy(true);
-		toast("Creating workspace…");
+		const progress = toast("Creating workspace…");
 		const config: SessionConfig = {
 			agent: "claude",
 			model: model.trim() === "" ? "default" : model.trim(),
@@ -105,7 +113,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 			planMode,
 			requireToolApproval: toolApprovals,
 			additionalDirectories: [],
-			appTools: { diffComments: true, progressUpdates: true, setTargetBranch: true },
+			appTools: FIRST_CHAT_APP_TOOLS,
 		};
 		const input: NewWorkspaceInput = {
 			repoId: selectedRepo.id,
@@ -116,19 +124,45 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 			sectionId: sectionId === "" ? null : (sectionId as SectionId),
 		};
 		const result = await actions.workspaces.create(input);
+		toast.dismiss(progress);
 		setBusy(false);
 		if (!result.ok) {
-			setError(result.error.message);
+			const failed = services.services.workspace.store.getState().lastFailedCreate;
+			if (failed !== null && failed !== undefined) setFailedId(failed.id);
 			toastError("Failed to create workspace", result.error);
 			return;
 		}
-		void navigate({
-			to: "/repository/$repositoryId/workspace/$workspaceId",
-			params: {
-				repositoryId: result.value.repoId,
-				workspaceId: result.value.id,
-			},
-		});
+		for (const warning of services.services.workspace.store.getState().warnings?.[
+			result.value.id
+		] ?? []) {
+			toast.warning(warning);
+		}
+		openWorkspace(result.value.repoId, result.value.id);
+	};
+
+	const retry = async () => {
+		if (failedId === null || selectedRepo === undefined) return;
+		setBusy(true);
+		const result = await actions.workspaces.retrySetup(failedId);
+		setBusy(false);
+		if (!result.ok) {
+			toastError("Failed to create workspace", result.error);
+			return;
+		}
+		const id = failedId;
+		setFailedId(null);
+		openWorkspace(selectedRepo.id, id);
+	};
+
+	const recover = async () => {
+		if (failedId === null) return;
+		const result = await actions.workspaces.recoverPrompt(failedId);
+		if (!result.ok) {
+			toastError("Couldn't recover the prompt", result.error);
+			return;
+		}
+		setPrompt(result.value.text);
+		toast("Prompt recovered");
 	};
 
 	const sectionOptions = [
@@ -234,10 +268,26 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 					Plan mode
 				</label>
 
-				{error === null ? null : (
-					<p role="alert" className="text-sm text-danger">
-						{error}
-					</p>
+				{failedId === null ? null : (
+					<div
+						role="alert"
+						className="flex flex-col gap-3 rounded-lg border border-border bg-raised p-4"
+					>
+						<div className="flex flex-col gap-1">
+							<p className="text-sm font-medium text-fg">Workspace initialization failed</p>
+							<p className="text-sm text-fg-muted">
+								Retry the setup, or recover the first message and try again.
+							</p>
+						</div>
+						<div className="flex gap-2">
+							<Button type="button" variant="default" size="sm" onClick={() => void retry()}>
+								Retry setup
+							</Button>
+							<Button type="button" variant="ghost" size="sm" onClick={() => void recover()}>
+								Recover prompt
+							</Button>
+						</div>
+					</div>
 				)}
 
 				<div className="flex justify-end">

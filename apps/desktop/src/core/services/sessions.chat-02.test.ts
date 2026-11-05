@@ -93,7 +93,7 @@ const workspace = {
 	port: sampleWorkspace.port,
 };
 
-const harness = (): Harness => {
+const harness = (overrides: Partial<SessionsServiceDeps> = {}): Harness => {
 	const calls: Call[] = [];
 	let reply: (method: string, params: Record<string, unknown>) => Promise<unknown> = async () =>
 		ok({});
@@ -129,11 +129,13 @@ const harness = (): Harness => {
 			store: { getState: () => ({ bySession: {}, pausedSessionIds: {} }) },
 		},
 		notifications: { onLiveStateChanged: vi.fn() },
+		launchFor: () => ({ env: {}, providerKeys: {} }),
 		workspaceContextOf: vi.fn(async () => ok(workspace)),
 		defaultConfig: async () => ok(sampleSession.config),
 		setting: <T>(key: string) => settings[key] as T,
 		now: () => now,
 		newId: () => `generated-${++nextId}`,
+		...overrides,
 	};
 	return {
 		service: new SessionsService(deps as unknown as SessionsServiceDeps),
@@ -171,11 +173,10 @@ afterEach(() => {
 });
 
 describe("CHAT-02 sends a message as a new turn", () => {
-	it("stores the message before the sidecar gets it and carries the query options", async () => {
+	it("holds the message in memory before the sidecar gets it and carries the query options", async () => {
 		seedWorkspace();
 		const h = harness();
 		h.settings.custom_prompt_general = "Be brief. Show the diff before editing.";
-		h.settings.claude_executable_path = "/opt/claude";
 		const session = must(await h.service.create(workspaceId, sampleSession.config));
 
 		let storedFirst = false;
@@ -202,8 +203,20 @@ describe("CHAT-02 sends a message as a new turn", () => {
 			config: session.config,
 			workspace: { ...workspace, userPreferences: "Be brief. Show the diff before editing." },
 		});
-		expect((params.launch as { executablePath?: string }).executablePath).toBe("/opt/claude");
+		expect(params.launch).toEqual({ env: {}, providerKeys: {} });
 		expect(params.resume).toBeUndefined();
+	});
+
+	it("fails clearly instead of inventing a launch when the composition root gave none", async () => {
+		seedWorkspace();
+		const h = harness({ launchFor: undefined });
+		const session = must(await h.service.create(workspaceId, sampleSession.config));
+
+		const result = await h.service.send(session.id, "Fix login", [], "auto");
+
+		expect(result).toMatchObject({ ok: false, error: { code: "chat_launch_missing" } });
+		expect(sendMessageCalls(h.calls)).toHaveLength(0);
+		expect(h.service.store.getState().sending[session.id] ?? []).toEqual([]);
 	});
 
 	it("marks later messages as follow-ups and keeps the preferences on every send", async () => {
@@ -278,6 +291,29 @@ describe("CHAT-02 sends a message as a new turn", () => {
 			} as unknown as SessionEvent,
 			2000,
 		);
+		expect(h.service.store.getState().sending[session.id]).toEqual([]);
+	});
+
+	it("clears the pending message when the turn completes", async () => {
+		seedWorkspace();
+		const h = harness();
+		const session = must(await h.service.create(workspaceId, sampleSession.config));
+
+		await h.service.send(session.id, "First", [], "auto");
+		const sent = sendMessageCalls(h.calls)[0]?.params ?? {};
+		h.service.applyStoredEvent(
+			session.id,
+			0,
+			{
+				type: "turn_ended",
+				eventId: "e-done",
+				at: 1500,
+				turnId: sent.turnId,
+				outcome: "success",
+			} as unknown as SessionEvent,
+			1500,
+		);
+
 		expect(h.service.store.getState().sending[session.id]).toEqual([]);
 	});
 
@@ -375,6 +411,41 @@ describe("CHAT-02 failed sends", () => {
 		});
 		expect(h.service.store.getState().failedSends?.[session.id]).toEqual([]);
 	});
+
+	it("does not put the text in twice when the composer kept it after the failure", async () => {
+		seedWorkspace();
+		const h = harness();
+		const session = must(await h.service.create(workspaceId, sampleSession.config));
+		h.replyTo(async () => err(appError("send_failed", "The agent did not answer.")));
+		await h.service.send(session.id, "Fix login", [], "auto");
+		const failed = h.service.store.getState().failedSends?.[session.id] ?? [];
+		h.composer.loadDraft.mockResolvedValue(ok({ text: "Fix login", attachmentPaths: [] }));
+
+		const result = await h.service.discardFailedSend(session.id, failed[0]?.messageId as never);
+
+		expect(result).toEqual(ok(undefined));
+		expect(h.composer.saveDraft).toHaveBeenCalledWith(session.id, {
+			text: "Fix login",
+			attachmentPaths: [],
+		});
+	});
+
+	it("restores the failed message's attachments when the draft is empty", async () => {
+		seedWorkspace();
+		const h = harness();
+		const session = must(await h.service.create(workspaceId, sampleSession.config));
+		h.replyTo(async () => err(appError("send_failed", "The agent did not answer.")));
+		await h.service.send(session.id, "Fix login", ["/draft/a.txt"], "auto");
+		const failed = h.service.store.getState().failedSends?.[session.id] ?? [];
+		h.composer.loadDraft.mockResolvedValue(ok({ text: "", attachmentPaths: [] }));
+
+		await h.service.discardFailedSend(session.id, failed[0]?.messageId as never);
+
+		expect(h.composer.saveDraft).toHaveBeenCalledWith(session.id, {
+			text: "Fix login",
+			attachmentPaths: ["/ws/.context/a.txt"],
+		});
+	});
 });
 
 describe("CHAT-02 config compare-and-set", () => {
@@ -394,6 +465,47 @@ describe("CHAT-02 config compare-and-set", () => {
 		expect(must(await repositories.sessions.get(session.id))?.config.model).toBe("sonnet");
 		expect(h.service.store.getState().sessions[session.id]?.config.model).toBe("sonnet");
 		expect(h.calls.some((call) => call.method === "updateConfig")).toBe(false);
+	});
+
+	it("writes even when the stored JSON has another key order and whitespace", async () => {
+		seedWorkspace();
+		const h = harness();
+		const session = must(await h.service.create(workspaceId, sampleSession.config));
+		const reordered = JSON.stringify(
+			{
+				appTools: sampleSession.config.appTools,
+				additionalDirectories: sampleSession.config.additionalDirectories,
+				requireToolApproval: sampleSession.config.requireToolApproval,
+				planMode: sampleSession.config.planMode,
+				fastMode: sampleSession.config.fastMode,
+				effort: sampleSession.config.effort,
+				model: sampleSession.config.model,
+				agent: sampleSession.config.agent,
+			},
+			null,
+			2,
+		);
+		raw.prepare("UPDATE sessions SET config = ? WHERE id = ?").run(reordered, session.id);
+
+		const result = await h.service.updateConfig(session.id, {
+			...sampleSession.config,
+			model: "haiku",
+		});
+
+		expect(result).toEqual(ok(undefined));
+		expect(must(await repositories.sessions.get(session.id))?.config.model).toBe("haiku");
+		expect(h.service.store.getState().sessions[session.id]?.config.model).toBe("haiku");
+	});
+
+	it("sends the chat's newest config with the message", async () => {
+		seedWorkspace();
+		const h = harness();
+		const session = must(await h.service.create(workspaceId, sampleSession.config));
+		must(await h.service.updateConfig(session.id, { ...sampleSession.config, model: "haiku" }));
+
+		await h.service.send(session.id, "Fix login", [], "auto");
+
+		expect(sendMessageCalls(h.calls)[0]?.params.config).toMatchObject({ model: "haiku" });
 	});
 
 	it("writes the newest config and tells the sidecar", async () => {

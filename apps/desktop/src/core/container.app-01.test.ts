@@ -303,7 +303,7 @@ describe("APP-01 after start", () => {
 		await harness.container.stop();
 	});
 
-	it("routes notification clicks and deep links to the app opener", async () => {
+	it("routes notification clicks to the app opener and leaves deep links to the dispatcher", async () => {
 		const opened: string[] = [];
 		const harness = build({ openLink: (url) => opened.push(url) });
 		stubStartup(harness);
@@ -312,10 +312,24 @@ describe("APP-01 after start", () => {
 		harness.memory.controls.emitNotificationClick("conducted://workspace?id=w&session=s");
 		harness.memory.controls.emitDeepLink("conducted://settings/general");
 
-		expect(opened).toEqual([
-			"conducted://workspace?id=w&session=s",
-			"conducted://settings/general",
-		]);
+		expect(opened).toEqual(["conducted://workspace?id=w&session=s"]);
+
+		await harness.container.stop();
+	});
+
+	it("reports a warning when no link opener was given", async () => {
+		const harness = build();
+		stubStartup(harness);
+
+		const result = await harness.container.start();
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value.warnings).toContainEqual({
+				step: "links",
+				message: "Notification clicks are not wired: no link opener was given to the container.",
+			});
+		}
 
 		await harness.container.stop();
 	});
@@ -345,15 +359,57 @@ describe("APP-01 after start", () => {
 			.spyOn(harness.container.services.updates, "isSafeToQuit")
 			.mockReturnValue(false);
 		const quit = vi.spyOn(harness.memory.platform.app, "quit").mockResolvedValue(undefined);
+		const confirm = vi.spyOn(harness.memory.platform.dialogs, "confirm");
 
 		await harness.container.start();
 
+		harness.memory.controls.queueDialogAnswers({ confirm: false });
 		harness.memory.controls.emitQuitRequested();
+		await vi.waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
 		expect(quit).not.toHaveBeenCalled();
 
 		safe.mockReturnValue(true);
 		harness.memory.controls.emitQuitRequested();
 		expect(quit).toHaveBeenCalledTimes(1);
+
+		await harness.container.stop();
+	});
+
+	it("asks the user before quitting while agents are working", async () => {
+		const harness = build();
+		stubStartup(harness);
+		vi.spyOn(harness.container.services.updates, "isSafeToQuit").mockReturnValue(false);
+		const quit = vi.spyOn(harness.memory.platform.app, "quit").mockResolvedValue(undefined);
+		const confirm = vi.spyOn(harness.memory.platform.dialogs, "confirm");
+
+		await harness.container.start();
+
+		harness.memory.controls.queueDialogAnswers({ confirm: false });
+		harness.memory.controls.emitQuitRequested();
+		await vi.waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
+		expect(quit).not.toHaveBeenCalled();
+
+		harness.memory.controls.queueDialogAnswers({ confirm: true });
+		harness.memory.controls.emitQuitRequested();
+		await vi.waitFor(() => expect(quit).toHaveBeenCalledTimes(1));
+
+		await harness.container.stop();
+	});
+
+	it("fails the start when the sidecar does not start", async () => {
+		const harness = build();
+		stubStartup(harness);
+		vi.mocked(harness.container.sidecar.start).mockResolvedValue(
+			err(appError("sidecar_failed", "The agent sidecar did not start.")),
+		);
+
+		const result = await harness.container.start();
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error.message).toContain("The agent sidecar did not start.");
+		}
+		expect(harness.container.services.sessions.start).toHaveBeenCalled();
 
 		await harness.container.stop();
 	});

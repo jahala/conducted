@@ -22,6 +22,8 @@ const output = (stdout = "", exitCode = 0, stderr = ""): ShellOutput => ({
 interface Replies {
 	/** Text of `git show <ref>:<path>`; null means the file is missing at that ref. */
 	show?: (ref: string, path: string) => string | null;
+	/** Overrides the whole `git show` answer, for git errors other than a missing file. */
+	showOutput?: (ref: string, path: string) => ShellOutput;
 	numstat?: string;
 	trackedPatch?: string;
 	untrackedPatch?: string;
@@ -39,8 +41,14 @@ function runner(replies: Replies = {}) {
 			const at = spec.indexOf(":");
 			const ref = spec.slice(0, at);
 			const path = spec.slice(at + 1);
+			const override = replies.showOutput?.(ref, path);
+			if (override !== undefined) return ok(override);
 			const text = replies.show?.(ref, path) ?? null;
-			return ok(text === null ? output("", 128) : output(text));
+			return ok(
+				text === null
+					? output("", 128, `fatal: path '${path}' does not exist in '${ref}'`)
+					: output(text),
+			);
 		}
 		return ok(output());
 	};
@@ -139,6 +147,35 @@ describe("REV-02 file diff sides", () => {
 		expect(diff.value.newText).toBe("a\nb\n");
 	});
 
+	it("reports a git show failure that is not a missing file", async () => {
+		const { git } = runner({
+			showOutput: () => output("", 128, "fatal: invalid object name 'nope'."),
+			numstat: "1\t1\ta.ts",
+		});
+		const diff = await service(git, {
+			readText: async () => ok("new\n"),
+			stat: async () => stat(7),
+		}).load(workspaceId, "a.ts", scope, { withPatch: false, ignoreWhitespace: false });
+		expect(diff.ok).toBe(false);
+		if (diff.ok) return;
+		expect(diff.error.code).toBe("git_failed");
+		expect(diff.error.message).toContain("invalid object name");
+	});
+
+	it("returns a disk read failure instead of calling the file binary", async () => {
+		const { git } = runner({
+			show: () => "old\n",
+			numstat: "1\t1\ta.ts",
+		});
+		const diff = await service(git, {
+			readText: async () => err(appError("fs_failed", "permission denied")),
+			stat: async () => stat(8),
+		}).load(workspaceId, "a.ts", scope, { withPatch: false, ignoreWhitespace: false });
+		expect(diff.ok).toBe(false);
+		if (diff.ok) return;
+		expect(diff.error.code).toBe("fs_failed");
+	});
+
 	it("returns binary with no texts", async () => {
 		const { git } = runner({ numstat: "-\t-\timg.png" });
 		const diff = await service(git, {
@@ -235,6 +272,41 @@ describe("REV-02 file diff cache", () => {
 		expect(commands.length).toBe(afterPrefetch);
 	});
 
+	it("does not refetch the two texts when only the whitespace preference changes", async () => {
+		const { git, commands } = runner({ show: () => "old\n", numstat: "1\t1\ta.ts" });
+		const svc = service(git, {
+			readText: async () => ok("new\n"),
+			stat: async () => stat(40),
+		});
+		await svc.load(workspaceId, "a.ts", scope, {
+			withPatch: false,
+			ignoreWhitespace: false,
+		});
+		const afterFirst = commands.length;
+		const second = await svc.load(workspaceId, "a.ts", scope, {
+			withPatch: false,
+			ignoreWhitespace: true,
+		});
+		expect(second.ok).toBe(true);
+		expect(commands.length).toBe(afterFirst);
+	});
+
+	it("keeps the whitespace preference in the key when a patch is built", async () => {
+		const { git, commands } = runner({
+			show: () => "old\n",
+			numstat: "1\t1\ta.ts",
+			trackedPatch: "diff --git a/a.ts b/a.ts\n",
+		});
+		const svc = service(git, {
+			readText: async () => ok("new\n"),
+			stat: async () => stat(41),
+		});
+		await svc.load(workspaceId, "a.ts", scope, { withPatch: true, ignoreWhitespace: false });
+		const afterFirst = commands.length;
+		await svc.load(workspaceId, "a.ts", scope, { withPatch: true, ignoreWhitespace: true });
+		expect(commands.length).toBeGreaterThan(afterFirst);
+	});
+
 	it("drops a workspace's entries on invalidate", async () => {
 		const { git, commands } = runner({
 			show: () => "old\n",
@@ -297,5 +369,5 @@ describe("REV-02 file diff cache", () => {
 });
 
 async function missingText(): Promise<Result<string>> {
-	return err(appError("not_found", "no file"));
+	return err(appError("fs_not_found", "no file"));
 }

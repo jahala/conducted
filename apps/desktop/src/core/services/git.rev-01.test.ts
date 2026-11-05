@@ -106,7 +106,14 @@ const makeService = (
 		contextOf: async () => ({ ok: true, value: context }),
 		agent: {} as never,
 		now: () => 0,
-		fs: { trash },
+		fs: {
+			trash,
+			readText: async () => err(appError("fs_not_found", "missing")),
+			writeTextAtomic: async () => ok(undefined),
+			mkdirp: async () => ok(undefined),
+			stat: async () => err(appError("fs_not_found", "missing")),
+			paths: { home: "", appData: "", temp: "", resources: "" },
+		},
 	});
 
 // `--no-index` diffs count untracked files against /dev/null; they never compare with a revision.

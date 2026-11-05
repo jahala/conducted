@@ -5,7 +5,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "../../test/dom-polyfills.ts";
-import { DiffToolbar } from "./DiffToolbar.tsx";
+import { DiffToolbar, SPLIT_MIN_WIDTH } from "./DiffToolbar.tsx";
 import type { DiffPreferences } from "./diff-types.ts";
 
 afterEach(cleanup);
@@ -47,5 +47,33 @@ describe("REV-02 DiffToolbar", () => {
 		for (const button of screen.getAllByRole("button")) {
 			expect((button as HTMLButtonElement).disabled).toBe(true);
 		}
+	});
+
+	it("disables the split layout when the tab is too narrow", () => {
+		render(
+			<DiffToolbar
+				preferences={preferences}
+				onChange={() => {}}
+				disabled={false}
+				width={SPLIT_MIN_WIDTH - 1}
+			/>,
+		);
+		expect((screen.getByRole("button", { name: "Split view" }) as HTMLButtonElement).disabled).toBe(
+			true,
+		);
+	});
+
+	it("allows the split layout at the threshold width", () => {
+		render(
+			<DiffToolbar
+				preferences={preferences}
+				onChange={() => {}}
+				disabled={false}
+				width={SPLIT_MIN_WIDTH}
+			/>,
+		);
+		expect((screen.getByRole("button", { name: "Split view" }) as HTMLButtonElement).disabled).toBe(
+			false,
+		);
 	});
 });

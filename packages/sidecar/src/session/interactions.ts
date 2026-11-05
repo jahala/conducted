@@ -9,16 +9,25 @@
  * Must handle:
  *  - a second request while one is open: it waits its turn and opens when the first closes
  *  - withdrawAll() on cancel, on a new non-steering message, on a steer, on resetAgent and on
- *    shutdown: every open or waiting interaction resolves with { kind: "withdrawn" }
+ *    shutdown: every open or waiting interaction resolves with { kind: "withdrawn" }, except a
+ *    plan approval, which resolves as a rejection with the feedback "Plan not approved" (the
+ *    text Conductor's Claude runner uses when a plan review is cancelled)
  *  - the app answers an interaction that was already withdrawn: answer() returns
  *    { accepted: false, superseded: true }
  *  - an answer whose kind does not match the interaction: refused, the interaction stays open
  *  - the app is disconnected or the request fails: a plan resolves as rejected with the feedback
- *    "The app was not connected", a question or approval resolves as withdrawn, and a Codex
- *    permission or MCP form resolves as declined. Conductor does the same for the first two
+ *    "The app was not connected", a question resolves with no answers, a tool approval resolves
+ *    as withdrawn, and a Codex permission or MCP form resolves as declined. Conductor does the
+ *    same for the plan and the question
  *  - reconnect: an interaction that is still open is sent again on attach, because the app may
  *    have lost it
  *  - the live state shows the open interaction and clears it when the answer arrives
+ * Our design choice: a stale or unknown answer is reported by interaction id as
+ * { accepted: false, superseded: true }; there is no separate sessionGone reply, because the
+ * interaction id identifies the request and a missing chat cannot answer it either.
+ * Our design choice: the live state shows only the one open interaction. Queued interactions are
+ * not published, because the UI shows one card at a time, so activeQuestions and
+ * activeUserInteraction fold into openInteraction.
  * Test first: open A, open B, answer A; B opens next, and answering A again returns superseded.
  */
 import type {
@@ -35,7 +44,7 @@ import { messageOf } from "../util/errors.ts";
 import { closeInteraction, type LiveStateStore, openInteraction } from "./live-state.ts";
 
 export interface InteractionBroker {
-	/** Opens an interaction and resolves with the user's answer, or "withdrawn". */
+	/** Opens an interaction and resolves with the user's answer, or the withdrawal answer. */
 	open(sessionId: SessionId, interaction: Interaction): Promise<InteractionAnswer>;
 	/** Called for answerInteraction requests from the app. */
 	answer(
@@ -43,7 +52,7 @@ export interface InteractionBroker {
 		interactionId: InteractionId,
 		answer: InteractionAnswer,
 	): { accepted: boolean; superseded: boolean };
-	/** Resolves every open and waiting interaction of the chat as withdrawn. */
+	/** Resolves every open and waiting interaction of the chat as answered by a withdrawal. */
 	withdrawAll(sessionId: SessionId): void;
 	/** The request to resend for a chat after a reconnect, if one is open. */
 	openRequest(sessionId: SessionId): InteractionRequest | undefined;
@@ -63,7 +72,6 @@ interface SessionInteractions {
 
 export class SessionInteractionBroker implements InteractionBroker {
 	private readonly sessions = new Map<SessionId, SessionInteractions>();
-	private readonly liveUpdates = new Map<SessionId, Promise<void>>();
 
 	constructor(
 		protected readonly deps: {
@@ -131,7 +139,7 @@ export class SessionInteractionBroker implements InteractionBroker {
 		for (const entry of entries) {
 			if (entry.settled) continue;
 			entry.settled = true;
-			entry.answer({ kind: "withdrawn" });
+			entry.answer(withdrawalAnswer(entry.interaction));
 		}
 	}
 
@@ -199,20 +207,13 @@ export class SessionInteractionBroker implements InteractionBroker {
 		entry.answer(answer);
 	}
 
-	/** Applies a live-state change in call order, so an open never overtakes its close. */
+	/** Applies a live-state change; the store chains updates per chat in call order. */
 	private publishLive(sessionId: SessionId, reducer: (state: LiveState) => LiveState): void {
-		const previous = this.liveUpdates.get(sessionId) ?? Promise.resolve();
-		const next = previous
-			.then(() => this.deps.liveState.update(sessionId, reducer))
-			.catch((cause: unknown) => {
-				this.deps.logger.warn("Could not update the chat's live state for an interaction", {
-					sessionId,
-					reason: messageOf(cause),
-				});
+		void this.deps.liveState.update(sessionId, reducer).catch((cause: unknown) => {
+			this.deps.logger.warn("Could not update the chat's live state for an interaction", {
+				sessionId,
+				reason: messageOf(cause),
 			});
-		this.liveUpdates.set(sessionId, next);
-		void next.then(() => {
-			if (this.liveUpdates.get(sessionId) === next) this.liveUpdates.delete(sessionId);
 		});
 	}
 }
@@ -220,6 +221,14 @@ export class SessionInteractionBroker implements InteractionBroker {
 /** Codex stops waiting for these on its own, so the request carries an expiry. */
 function needsExpiry(interaction: Interaction): boolean {
 	return interaction.kind === "permission_grant" || interaction.kind === "mcp_form";
+}
+
+/** What an agent gets when the interaction is withdrawn: a plan review becomes a denial. */
+function withdrawalAnswer(interaction: Interaction): InteractionAnswer {
+	if (interaction.kind === "plan_approval") {
+		return { kind: "plan_approval", approved: false, feedback: "Plan not approved" };
+	}
+	return { kind: "withdrawn" };
 }
 
 /** What an agent gets when the app cannot answer: stop safely, never hang. */
@@ -236,6 +245,7 @@ function unavailableAnswer(interaction: Interaction): InteractionAnswer {
 		case "mcp_form":
 			return { kind: "mcp_form", action: "decline" };
 		case "question":
+			return { kind: "question", answers: [] };
 		case "tool_approval":
 			return { kind: "withdrawn" };
 	}

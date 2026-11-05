@@ -18,7 +18,9 @@ import {
 	markFastModeUnavailable,
 	openInteraction,
 	removePendingSteer,
+	reportWriteFailures,
 	setBackgroundTasks,
+	setError,
 	setWaitingSince,
 } from "./live-state.ts";
 
@@ -72,6 +74,18 @@ function harness(flushed: (sessionId: SessionId) => Promise<void> = async () => 
 	const app = new FakeApp();
 	const store = new LiveStateStore({ app, flushed });
 	return { app, store };
+}
+
+class FakeWriteFailures {
+	private readonly listeners: ((sessionId: SessionId, message: string) => void)[] = [];
+
+	onWriteFailure(listener: (sessionId: SessionId, message: string) => void): void {
+		this.listeners.push(listener);
+	}
+
+	fail(sessionId: SessionId, message: string): void {
+		for (const listener of this.listeners) listener(sessionId, message);
+	}
 }
 
 function publishedStates(app: FakeApp): LiveState[] {
@@ -143,11 +157,51 @@ describe("SIDE-05 live-state reducers", () => {
 		expect(setWaitingSince(waiting, undefined).waitingSince).toBeUndefined();
 	});
 
+	test("SIDE-05 an error is a flag and does not change the status", () => {
+		const failed = setError(beginTurn(idleLiveState), "the disk refused the write");
+		expect(failed.status).toBe("working");
+		expect(failed.error).toBe("the disk refused the write");
+		expect(setError(failed, "the disk refused the write")).toBe(failed);
+	});
+
 	test("SIDE-05 fast mode unavailable is only a flag on the live state", () => {
 		const once = markFastModeUnavailable(beginTurn(idleLiveState));
 		expect(once.status).toBe("working");
 		expect(once.fastModeAvailable).toBe(false);
 		expect(markFastModeUnavailable(once)).toBe(once);
+	});
+});
+
+describe("SIDE-05 failed event writes", () => {
+	test("SIDE-05 a terminal write failure becomes the chat's error even while the flush is stuck", async () => {
+		const gate = deferred<void>();
+		const { app, store } = harness(() => gate.promise);
+		const working = store.update(sid("session-1"), beginTurn);
+		await settle();
+
+		const publisher = new FakeWriteFailures();
+		reportWriteFailures({ publisher, liveState: store });
+		publisher.fail(sid("session-1"), "The disk refused the write.");
+		await settle();
+
+		expect(publishedStates(app).at(-1)).toMatchObject({
+			status: "working",
+			error: "The disk refused the write.",
+		});
+
+		gate.resolve();
+		await working;
+	});
+
+	test("SIDE-05 a failure for a chat the store has dropped is ignored", () => {
+		const { app, store } = harness();
+		const publisher = new FakeWriteFailures();
+		reportWriteFailures({ publisher, liveState: store });
+
+		publisher.fail(sid("session-1"), "The disk refused the write.");
+
+		expect(publishedStates(app)).toHaveLength(0);
+		expect(store.get(sid("session-1"))).toEqual(idleLiveState);
 	});
 });
 

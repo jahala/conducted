@@ -90,6 +90,30 @@ describe("APP-01 startup gate", () => {
 		});
 	});
 
+	it("reports a sidecar that does not start as failed, with its log path", async () => {
+		const logs: LogLine[] = [];
+		const container = fakeContainer(
+			fakePlatform(logs),
+			vi.fn(async (onProgress?: (progress: { step: string; phase: "sidecar" }) => void) => {
+				onProgress?.({ step: "sidecar", phase: "sidecar" });
+				return err(appError("sidecar_failed", "The agent sidecar did not start."));
+			}) as unknown as Container["start"],
+		);
+		const states: StartupState[] = [];
+
+		const result = await runStartup(container, (state) => states.push(state), {
+			installHandlers: false,
+		});
+
+		expect(result.ok).toBe(false);
+		expect(states.at(-1)).toEqual({
+			kind: "failed",
+			phase: "sidecar",
+			message: "The agent sidecar did not start.",
+			logPath: "/tmp/sidecar.log",
+		});
+	});
+
 	it("reports ready after the container's ordered start", async () => {
 		const logs: LogLine[] = [];
 		const start = vi.fn(
@@ -123,12 +147,12 @@ describe("APP-01 startup gate", () => {
 		]);
 	});
 
-	it("reports a failure instead of throwing when a service is not built yet", async () => {
+	it("reports a failure instead of throwing when a start step throws", async () => {
 		const logs: LogLine[] = [];
 		const container = fakeContainer(
 			fakePlatform(logs),
 			vi.fn(async () => {
-				throw new Error('Not implemented yet: "WS-01".');
+				throw new Error("The settings file could not be read.");
 			}) as unknown as Container["start"],
 		);
 		const states: StartupState[] = [];
@@ -141,7 +165,7 @@ describe("APP-01 startup gate", () => {
 		expect(states.at(-1)).toMatchObject({
 			kind: "failed",
 			phase: "settings",
-			message: 'Not implemented yet: "WS-01".',
+			message: "The settings file could not be read.",
 		});
 		expect(logs.some((line) => line.message === "Startup failed")).toBe(true);
 	});

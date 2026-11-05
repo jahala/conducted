@@ -1,4 +1,4 @@
-import { ok, type RepoId, type WorkspaceId } from "@conducted/shared";
+import { appError, err, ok, type RepoId, type Result, type WorkspaceId } from "@conducted/shared";
 import {
 	createMemoryHistory,
 	createRootRoute,
@@ -16,6 +16,7 @@ import { ServicesProvider } from "../core/context.tsx";
 import type { Repo, Section, Workspace } from "../core/model.ts";
 import { RepoService, type RepoServiceDeps } from "../core/services/repo.ts";
 import "../test/dom-polyfills.ts";
+import { toast } from "../ui/Toast.tsx";
 import { CreateWorkspacePage } from "./CreateWorkspacePage.tsx";
 
 const repo: Repo = {
@@ -82,20 +83,33 @@ function makeContainer() {
 		loaded: true,
 		sections: [],
 	}));
-	const create = vi.fn(async (_input: NewWorkspaceInput) => ok(workspace));
+	const create = vi.fn(
+		async (_input: NewWorkspaceInput): Promise<Result<Workspace>> => ok(workspace),
+	);
+	const retrySetup = vi.fn(async () => ok(undefined));
+	const recoverPrompt = vi.fn(async () => ok({ text: "Fix the login bug", attachmentPaths: [] }));
+	const workspaceStore = createStore<{
+		lastFailedCreate: Workspace | null;
+		warnings: Record<string, readonly string[]>;
+	}>(() => ({ lastFailedCreate: null, warnings: {} }));
 	const container = {
-		services: { repo: repoService, settings, sections: { store: sections } },
+		services: {
+			repo: repoService,
+			settings,
+			sections: { store: sections },
+			workspace: { store: workspaceStore },
+		},
 		actions: {
-			workspaces: { create },
+			workspaces: { create, retrySetup, recoverPrompt },
 			app: { pickFolder: async () => ok(null) },
 			projects: { addLocal: async () => ok(repo) },
 		},
 	} as unknown as Container;
-	return { container, create };
+	return { container, create, retrySetup, recoverPrompt, workspaceStore };
 }
 
 async function renderCreatePage() {
-	const { container, create } = makeContainer();
+	const { container, create, retrySetup, recoverPrompt, workspaceStore } = makeContainer();
 	const rootRoute = createRootRoute({ component: () => <Outlet /> });
 	const createPageRoute = createRoute({
 		getParentRoute: () => rootRoute,
@@ -117,7 +131,7 @@ async function renderCreatePage() {
 		</ServicesProvider>,
 	);
 	await router.load();
-	return { router, create };
+	return { router, create, retrySetup, recoverPrompt, workspaceStore };
 }
 
 afterEach(cleanup);
@@ -138,6 +152,43 @@ describe("WS-01 CreateWorkspacePage", () => {
 			from: { kind: "default" },
 			sectionId: null,
 		});
+		await waitFor(() =>
+			expect(router.state.location.pathname).toBe(
+				`/repository/${repo.id}/workspace/${workspace.id}`,
+			),
+		);
+	});
+
+	it("toasts the warnings a creation returned", async () => {
+		const warning = vi.spyOn(toast, "warning");
+		const { create, workspaceStore } = await renderCreatePage();
+		workspaceStore.setState({ warnings: { [workspace.id]: ["Could not fetch, using cached."] } });
+
+		fireEvent.click(screen.getByRole("button", { name: "Create workspace" }));
+
+		await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+		await waitFor(() => expect(warning).toHaveBeenCalledWith("Could not fetch, using cached."));
+		warning.mockRestore();
+	});
+
+	it("offers Retry setup and Recover prompt after a failed creation", async () => {
+		const { create, retrySetup, recoverPrompt, workspaceStore, router } = await renderCreatePage();
+		create.mockImplementationOnce(async () => {
+			workspaceStore.setState({ lastFailedCreate: { ...workspace, state: "failed" } });
+			return err(appError("git_failed", "fatal: cannot create worktree"));
+		});
+
+		fireEvent.click(await screen.findByRole("button", { name: "Create workspace" }));
+
+		const retry = await screen.findByRole("button", { name: "Retry setup" });
+		fireEvent.click(screen.getByRole("button", { name: "Recover prompt" }));
+		await waitFor(() => expect(recoverPrompt).toHaveBeenCalledWith(workspace.id));
+		expect((screen.getByLabelText("First message") as HTMLTextAreaElement).value).toBe(
+			"Fix the login bug",
+		);
+
+		fireEvent.click(retry);
+		await waitFor(() => expect(retrySetup).toHaveBeenCalledWith(workspace.id));
 		await waitFor(() =>
 			expect(router.state.location.pathname).toBe(
 				`/repository/${repo.id}/workspace/${workspace.id}`,

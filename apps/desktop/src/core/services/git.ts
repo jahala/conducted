@@ -191,9 +191,8 @@ export interface GitServiceDeps {
 	contextOf: (workspaceId: WorkspaceId) => Promise<Result<WorkspaceGitContext>>;
 	agent: AgentMessenger;
 	now: () => number;
-	/** Moves a discarded new file to the Trash, and stores the viewed marks when it can. */
-	fs: Pick<FileSystem, "trash"> &
-		Partial<Pick<FileSystem, "readText" | "writeTextAtomic" | "mkdirp" | "stat" | "paths">>;
+	/** Moves a discarded new file to the Trash, and stores the viewed marks. */
+	fs: Pick<FileSystem, "trash" | "readText" | "writeTextAtomic" | "mkdirp" | "stat" | "paths">;
 }
 
 /** One file's viewed mark, together with the version of the file it was made on. */
@@ -529,7 +528,8 @@ export class GitService {
 	async setViewed(workspaceId: WorkspaceId, path: string, viewed: boolean): Promise<Result<void>> {
 		const found = await this.#deps.contextOf(workspaceId);
 		if (!found.ok) return found;
-		await this.#loadViewed(workspaceId);
+		const loaded = await this.#loadViewed(workspaceId);
+		if (!loaded.ok) return loaded;
 		const key = this.#viewedKey(workspaceId, path);
 		this.#viewed.set(key, {
 			viewed,
@@ -543,48 +543,53 @@ export class GitService {
 	}
 
 	async #viewedFingerprint(cwd: string, path: string): Promise<string> {
-		const stat = this.#deps.fs.stat;
-		if (stat === undefined) return "";
-		const result = await stat(`${cwd}/${path}`);
+		const result = await this.#deps.fs.stat(`${cwd}/${path}`);
 		return result.ok ? `${result.value.modifiedAt}:${result.value.size}` : "";
 	}
 
-	async #loadViewed(workspaceId: WorkspaceId): Promise<void> {
+	/**
+	 * Reads the saved marks once per workspace. A missing file means there are none. Any other
+	 * error, including damaged JSON, is returned so the caller does not save an empty map over the
+	 * user's marks. The workspace is only marked loaded after a successful read.
+	 */
+	async #loadViewed(workspaceId: WorkspaceId): Promise<Result<void>> {
 		const key = String(workspaceId);
-		if (this.#viewedLoaded.has(key)) return;
-		this.#viewedLoaded.add(key);
-		const { readText, paths } = this.#deps.fs;
-		if (readText === undefined || paths === undefined) return;
-		const read = await readText(viewedFilesFile(paths, key));
-		if (!read.ok) return;
-		try {
-			const parsed = JSON.parse(read.value) as Partial<ViewedFile>;
-			for (const [path, mark] of Object.entries(parsed.marks ?? {})) {
-				if (typeof mark?.viewed === "boolean" && typeof mark.fingerprint === "string") {
-					this.#viewed.set(this.#viewedKey(workspaceId, path), mark);
-				}
+		if (this.#viewedLoaded.has(key)) return ok(undefined);
+		const read = await this.#deps.fs.readText(viewedFilesFile(this.#deps.fs.paths, key));
+		if (!read.ok) {
+			if (read.error.code === "fs_not_found") {
+				this.#viewedLoaded.add(key);
+				return ok(undefined);
 			}
-		} catch {
-			// A damaged file is a cache miss; the user simply sees no viewed marks.
+			return read;
 		}
+		let parsed: Partial<ViewedFile>;
+		try {
+			parsed = JSON.parse(read.value) as Partial<ViewedFile>;
+		} catch (cause) {
+			return err(appError("invalid_json", "The viewed file marks could not be read.", cause));
+		}
+		for (const [path, mark] of Object.entries(parsed.marks ?? {})) {
+			if (typeof mark?.viewed === "boolean" && typeof mark.fingerprint === "string") {
+				this.#viewed.set(this.#viewedKey(workspaceId, path), mark);
+			}
+		}
+		this.#viewedLoaded.add(key);
+		return ok(undefined);
 	}
 
 	async #saveViewed(workspaceId: WorkspaceId): Promise<Result<void>> {
-		const { mkdirp, writeTextAtomic, paths } = this.#deps.fs;
-		if (mkdirp === undefined || writeTextAtomic === undefined || paths === undefined) {
-			return ok(undefined);
-		}
 		const prefix = `${String(workspaceId)}\u0000`;
 		const marks: Record<string, ViewedMark> = {};
 		for (const [key, mark] of this.#viewed) {
 			if (mark.viewed && key.startsWith(prefix)) marks[key.slice(prefix.length)] = mark;
 		}
-		const file = viewedFilesFile(paths, String(workspaceId));
+		const file = viewedFilesFile(this.#deps.fs.paths, String(workspaceId));
 		const folder = file.slice(0, file.lastIndexOf("/"));
-		const made = await mkdirp(folder);
+		const made = await this.#deps.fs.mkdirp(folder);
 		if (!made.ok) return made;
 		const body: ViewedFile = { version: 1, marks };
-		return writeTextAtomic(file, JSON.stringify(body));
+		return this.#deps.fs.writeTextAtomic(file, JSON.stringify(body));
 	}
 
 	async #applyViewed(
@@ -592,7 +597,9 @@ export class GitService {
 		cwd: string,
 		files: readonly FileChange[],
 	): Promise<(FileChange & { viewed: boolean })[]> {
-		await this.#loadViewed(workspaceId);
+		// A read failure leaves every file unviewed on screen; `setViewed` reports it and saves nothing.
+		const loaded = await this.#loadViewed(workspaceId);
+		if (!loaded.ok) return files.map((file) => ({ ...file, viewed: false }));
 		return Promise.all(
 			files.map(async (file) => {
 				const key = this.#viewedKey(workspaceId, file.path);

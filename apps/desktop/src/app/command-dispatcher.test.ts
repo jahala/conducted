@@ -9,16 +9,14 @@ import type { Result } from "@conducted/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { effectiveShortcuts, getCommand } from "../core/registries/commands.ts";
 import {
-	clearCommandHandlers,
 	commandForDeepLink,
 	commandForKeyPress,
+	createCommandRegistry,
 	dispatchCommand,
 	type KeyBinding,
 	type KeyPress,
 	keyBindings,
 	menuShortcuts,
-	registerCommandHandler,
-	runCommandHandlers,
 	scopesForTarget,
 } from "./command-dispatcher.ts";
 
@@ -38,10 +36,6 @@ const bindings: readonly KeyBinding[] = [
 	{ commandId: "dialog.confirm", scope: "dialog", shortcut: "Enter" },
 	{ commandId: "app.commandPalette", scope: "global", shortcut: "Cmd+K" },
 ];
-
-afterEach(() => {
-	clearCommandHandlers();
-});
 
 describe("NAV-14 commandForKeyPress", () => {
 	it("finds a command in the most specific active scope", () => {
@@ -131,45 +125,48 @@ describe("NAV-14 send-key swap", () => {
 
 describe("NAV-14 handler priority", () => {
 	it("runs only the modal handler, then the base one after the modal unmounts", () => {
+		const registry = createCommandRegistry();
 		const calls: string[] = [];
-		const offBase = registerCommandHandler("palette.open", "base", () => {
+		const offBase = registry.register("palette.open", "base", () => {
 			calls.push("base");
 			return true;
 		});
-		const offModal = registerCommandHandler("palette.open", "modal", () => {
+		const offModal = registry.register("palette.open", "modal", () => {
 			calls.push("modal");
 			return true;
 		});
 
-		expect(runCommandHandlers("palette.open")).toBe(true);
+		expect(registry.run("palette.open")).toBe(true);
 		expect(calls).toEqual(["modal"]);
 
 		offModal();
-		expect(runCommandHandlers("palette.open")).toBe(true);
+		expect(registry.run("palette.open")).toBe(true);
 		expect(calls).toEqual(["modal", "base"]);
 
 		offBase();
-		expect(runCommandHandlers("palette.open")).toBe(false);
+		expect(registry.run("palette.open")).toBe(false);
 	});
 
 	it("passes the command down while a handler returns false", () => {
+		const registry = createCommandRegistry();
 		const calls: string[] = [];
-		registerCommandHandler("app.commandPalette", "area", () => {
+		registry.register("app.commandPalette", "area", () => {
 			calls.push("area");
 			return false;
 		});
-		registerCommandHandler("app.commandPalette", "base", () => {
+		registry.register("app.commandPalette", "base", () => {
 			calls.push("base");
 			return true;
 		});
 
-		expect(runCommandHandlers("app.commandPalette")).toBe(true);
+		expect(registry.run("app.commandPalette")).toBe(true);
 		expect(calls).toEqual(["area", "base"]);
 	});
 });
 
 describe("NAV-14 dispatchCommand", () => {
-	const deps = (run: ReturnType<typeof vi.fn>, report = vi.fn()) => ({
+	const deps = (registry = createCommandRegistry(), run = vi.fn(), report = vi.fn()) => ({
+		registry,
 		isEnabled: () => true,
 		run: run as (commandId: string) => Promise<Result<void>>,
 		report,
@@ -177,21 +174,36 @@ describe("NAV-14 dispatchCommand", () => {
 
 	it("falls back to the service runner when no focused handler takes the command", () => {
 		const run = vi.fn().mockResolvedValue({ ok: true, value: undefined });
-		dispatchCommand("app.commandPalette", deps(run));
+		dispatchCommand("app.commandPalette", deps(createCommandRegistry(), run));
 		expect(run).toHaveBeenCalledWith("app.commandPalette");
 	});
 
 	it("runs a focused handler instead of the service runner", () => {
+		const registry = createCommandRegistry();
 		const run = vi.fn().mockResolvedValue({ ok: true, value: undefined });
-		registerCommandHandler("app.commandPalette", "base", () => true);
-		dispatchCommand("app.commandPalette", deps(run));
+		registry.register("app.commandPalette", "base", () => true);
+		dispatchCommand("app.commandPalette", deps(registry, run));
 		expect(run).not.toHaveBeenCalled();
+	});
+
+	it("does not run a disabled command", () => {
+		const registry = createCommandRegistry();
+		const run = vi.fn().mockResolvedValue({ ok: true, value: undefined });
+		const report = vi.fn();
+		dispatchCommand("workspace.archive", {
+			...deps(registry, run, report),
+			isEnabled: () => false,
+		});
+		expect(run).not.toHaveBeenCalled();
+		expect(report).not.toHaveBeenCalled();
 	});
 
 	it("reports an unknown id instead of throwing", () => {
 		const run = vi.fn().mockResolvedValue({ ok: true, value: undefined });
 		const report = vi.fn();
-		expect(() => dispatchCommand("no.such.command", deps(run, report))).not.toThrow();
+		expect(() =>
+			dispatchCommand("no.such.command", deps(createCommandRegistry(), run, report)),
+		).not.toThrow();
 		expect(run).not.toHaveBeenCalled();
 		expect(report).toHaveBeenCalledWith("No command named no.such.command.");
 	});
@@ -229,6 +241,12 @@ describe("NAV-14 menuShortcuts", () => {
 		const shortcuts = menuShortcuts({}, "mod_enter");
 		expect(shortcuts.find((shortcut) => shortcut.commandId === "chat.submit")?.accelerator).toBe(
 			"CmdOrCtrl+Enter",
+		);
+		expect(
+			shortcuts.find((shortcut) => shortcut.commandId === "chat.submitOpposite")?.accelerator,
+		).toBe("Alt+Enter");
+		expect(shortcuts.find((shortcut) => shortcut.commandId === "chat.newLine")?.accelerator).toBe(
+			"Enter",
 		);
 	});
 });

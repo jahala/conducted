@@ -41,9 +41,14 @@ export interface TurnCallbacks {
 	requestInteraction(interaction: Interaction): Promise<InteractionAnswer>;
 	/** The agent's own session id became known. Stored for resume. */
 	onAgentSessionId(agentSessionId: string): void;
-	/** Background work (sub-agents, shells) started or ended. */
+	/**
+	 * Background work (sub-agents, shells) started or ended. `waitingSince` is the epoch
+	 * millisecond when a blocking read of a background task's output began, or undefined when no
+	 * such wait is running.
+	 */
 	onBackgroundTasks(
 		tasks: { id: string; kind: "sub_agent" | "shell" | "other"; description: string }[],
+		waitingSince?: number,
 	): void;
 	/**
 	 * Called before the first tool that can change files. Resolves once the start checkpoint

@@ -50,6 +50,7 @@ import {
 	type LiveStateStore,
 	markFastModeUnavailable,
 	setBackgroundTasks,
+	setWaitingSince,
 } from "./live-state.ts";
 import type { RunGuard, RunNumber } from "./run-guard.ts";
 
@@ -288,9 +289,11 @@ export class Turn {
 			onMessage: (message) => this.onMessage(message),
 			requestInteraction: (interaction) => this.openInteraction(interaction),
 			onAgentSessionId: (agentSessionId) => this.deps.onAgentSessionId(agentSessionId),
-			onBackgroundTasks: (tasks) => {
+			onBackgroundTasks: (tasks, waitingSince) => {
 				if (!this.deps.runGuard.isCurrent(run)) return;
-				void this.updateLive((live) => setBackgroundTasks(live, tasks));
+				void this.updateLive((live) =>
+					setWaitingSince(setBackgroundTasks(live, tasks), waitingSince),
+				);
 			},
 			beforeFirstWrite: () => this.startCheckpoint ?? Promise.resolve(),
 			onFastModeUnavailable: () => {

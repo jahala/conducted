@@ -36,7 +36,7 @@ async function openApp(path: string) {
 	const router = createAppRouter(createMemoryHistory({ initialEntries: [path] }));
 	render(
 		<ServicesProvider container={testContainer()}>
-			<AppProviders client={createQueryClient()}>
+			<AppProviders client={createQueryClient(() => {})}>
 				<RouterProvider router={router} />
 			</AppProviders>
 		</ServicesProvider>,

@@ -1,12 +1,14 @@
 /**
  * @feature NAV-03 Sidebar grouping, filtering and sorting
- * Owns: The pure function that turns workspaces, repos and derived statuses into the groups the
- * sidebar shows, plus the view options type.
+ * Owns: The pure function that turns workspaces, repos and sections into the groups the sidebar
+ * shows, plus the view options type and its saved form.
  * Behaviour: ui-map.md 4 items 4 to 7 (Pinned, sections, main list by status or project; manual
- * order per list), 3.8 (status model).
+ * order per list).
  * Our design choice: A pure function with all inputs passed in, so it is tested without React or a
  * database. The main list's "status" groups are the user-set Kanban status (done, in review, in
- * progress, backlog, canceled), the order the research gives.
+ * progress, backlog, canceled), the order the research gives. Grouping by section needs NAV-04, so
+ * the saved "section" value is kept apart and the caller shows an explicit note; it never quietly
+ * shows projects instead.
  * Must handle: Pinned first; each workspace once; sections in their saved order; status groups in
  * the fixed status order; sort by last activity or creation time; manual order wins when on; ties
  * break by id so the order is stable; workspaces of hidden repos are left out; archived workspaces
@@ -16,7 +18,7 @@
  */
 
 import type { RepoId, WorkspaceId } from "@conducted/shared";
-import type { KanbanStatus, Repo, Section, Workspace, WorkspaceStatus } from "../../core/model.ts";
+import type { KanbanStatus, Repo, Section, Workspace } from "../../core/model.ts";
 
 export interface SidebarView {
 	groupBy: "status" | "project";
@@ -43,9 +45,38 @@ export interface SidebarViewInput {
 	repos: Repo[];
 	workspaces: Workspace[];
 	sections: Section[];
-	statuses: ReadonlyMap<WorkspaceId, WorkspaceStatus | null>;
 	view: SidebarView;
 	manualOrder: ReadonlyMap<string, WorkspaceId[]>;
+}
+
+/**
+ * The stored `sidebar_group_by` value for each view mode. The settings registry also offers
+ * "section"; NAV-04 owns that mode, so it is read on its own below.
+ */
+const GROUP_BY_SETTINGS = {
+	project: "repo",
+	status: "status",
+} as const;
+
+/**
+ * Reads the saved group-by value. "section" comes back as itself so the caller can say it is not
+ * available yet instead of showing projects under a different name. Any unknown value, including
+ * none, falls back to the setting's default, projects.
+ */
+export function readGroupBySetting(stored: string): SidebarView["groupBy"] | "section" {
+	if (stored === "section") return "section";
+	const match = Object.entries(GROUP_BY_SETTINGS).find(([, value]) => value === stored);
+	return (match?.[0] as SidebarView["groupBy"] | undefined) ?? "project";
+}
+
+/** The value to save for a view mode, so reading and writing share the table above. */
+export function writeGroupBySetting(groupBy: SidebarView["groupBy"]): string {
+	return GROUP_BY_SETTINGS[groupBy];
+}
+
+/** Every workspace id in the order the list shows them, for Cmd+1..9 and previous/next. */
+export function orderedWorkspaceIds(groups: readonly SidebarGroup[]): WorkspaceId[] {
+	return groups.flatMap((group) => group.workspaceIds);
 }
 
 /** The main-list status order Conductor shows: done first, then review, progress, backlog, canceled. */

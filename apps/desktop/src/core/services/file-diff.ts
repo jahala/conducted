@@ -10,7 +10,8 @@
  * binary files return `binary: true` and no text; files over the size or line limit return
  * `tooLarge: true` and no text; an untracked file is diffed against /dev/null; the cache key
  * includes the two refs and the file's modified time, so an edit invalidates it; the cache
- * evicts the oldest entries beyond 25 MB; a late answer for an older key is dropped.
+ * evicts the oldest entries beyond 25 MB; a late answer for an older key is not cached (the
+ * caller still receives it).
  * Our design choice: the diff itself is computed in the browser by the diff viewer from old and
  * new text; `patch` is only filled when a renderer asks for it (`withPatch`).
  * Test first: a deleted file returns oldText and a null newText.
@@ -46,7 +47,15 @@ interface CacheEntry {
 	bytes: number;
 }
 
-const textBytes = (text: string | null): number => (text === null ? 0 : text.length);
+const utf8 = new TextEncoder();
+
+const textBytes = (text: string | null): number => (text === null ? 0 : utf8.encode(text).length);
+
+/**
+ * The messages `git show` prints for a file that is not in the ref. Exit code 128 alone is not
+ * enough: a bad ref or a folder that is not a repository uses it too.
+ */
+const MISSING_AT_REF = /(path .* does not exist in|exists on disk, but not in)/i;
 
 /** Reads one side from a ref. A file missing at that ref is null, not an error. */
 async function readAtRef(
@@ -58,7 +67,7 @@ async function readAtRef(
 	const result = await git.run(showFileAt(ref, path), { cwd });
 	if (!result.ok) return result;
 	if (result.value.exitCode === 0) return ok(result.value.stdout);
-	if (result.value.exitCode === 128) return ok(null);
+	if (result.value.exitCode === 128 && MISSING_AT_REF.test(result.value.stderr)) return ok(null);
 	return err(
 		appError(
 			"git_failed",
@@ -121,14 +130,15 @@ export class FileDiffService {
 
 		const stat = to === null ? await this.#deps.fs.stat(`${cwd}/${path}`) : ok(null);
 		const mtimeMs = stat.ok && stat.value !== null ? stat.value.modifiedAt : 0;
+		// The whitespace flag only changes a patch. With two texts the renderer hides whitespace,
+		// so toggling the preference must not refetch the same texts.
 		const key = [
 			String(workspaceId),
 			from,
 			to ?? "",
 			path,
 			String(mtimeMs),
-			options.withPatch ? "patch" : "",
-			options.ignoreWhitespace ? "space" : "",
+			options.withPatch ? (options.ignoreWhitespace ? "patch-space" : "patch") : "",
 		].join("\u0000");
 		const ticket = this.#latest.begin(key);
 
@@ -236,17 +246,7 @@ export class FileDiffService {
 		let newText: Result<string | null>;
 		if (to === null) {
 			const onDisk = await this.#deps.fs.readText(`${cwd}/${path}`);
-			if (!onDisk.ok && sizeBytes > 0) {
-				// The file exists but its text could not be read: treat it as binary.
-				return ok({
-					path,
-					oldText: null,
-					newText: null,
-					patch: "",
-					binary: true,
-					tooLarge: false,
-				});
-			}
+			if (!onDisk.ok && onDisk.error.code !== "fs_not_found") return onDisk;
 			newText = onDisk.ok ? ok(onDisk.value) : ok(null);
 		} else {
 			newText = await readAtRef(this.#deps.git, cwd, to, path);

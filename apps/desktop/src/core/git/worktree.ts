@@ -7,10 +7,11 @@
  * Must handle: a repository with no commit yet (create an empty initial commit first); fetch
  * failures (no remote, no network: fall back to the cached remote ref and tell the user; a local
  * default branch when there is no remote at all); a post-checkout hook that fails after the
- * worktree exists (downgrade to a warning); a branch name already used locally, on the remote or
- * by an open or merged PR (suffix -v1, -v2, up to 1000 tries); `core.worktree` or `core.bare` set
- * (do not enable worktree config); `.context/` is excluded in the shared `info/exclude`, not in
- * `.gitignore`; removal falls back to trashing the folder and `worktree prune`.
+ * worktree exists (downgrade to a warning); a branch name already used locally or on the remote
+ * (suffix -v1, -v2, up to 1000 tries; services-map 3.1 checks these two, not pull requests);
+ * `core.worktree` or `core.bare` set (do not enable worktree config); `.context/` is excluded in
+ * the shared `info/exclude`, not in `.gitignore`; removal falls back to trashing the folder and
+ * `worktree prune`.
  * Our design choice: the base is always a commit id, never a ref name, so the worktree starts
  * from exactly what was fetched. Removal of the folder goes through the Trash (fs.trash).
  * Test first: nextFreeName("oslo", taken: oslo, oslo-v1) returns "oslo-v2".
@@ -49,6 +50,14 @@ export const BRANCH_AUTH_MESSAGE =
 
 export const BRANCH_CLASH_MESSAGE =
 	"Git won't let the app create that branch because another branch with a similar name already exists. Rename or delete it, or change the branch prefix in settings.";
+
+/** Shown when the Mac is offline and the repository has no cached copy of the base branch. */
+export const OFFLINE_NO_CACHE_MESSAGE =
+	"Couldn't reach the Git remote, and there is no cached copy of the base branch to use instead.";
+
+/** Git's messages for a repository whose HEAD has no commit yet. Anything else is a real failure. */
+const UNBORN_HEAD_PATTERN =
+	/ambiguous argument 'HEAD'|unknown revision|Needed a single revision|does not have any commits yet|bad revision 'HEAD'|unborn branch/i;
 
 const join = (left: string, right: string): string =>
 	`${left.replace(/\/+$/, "")}/${right.replace(/^\/+/, "")}`;
@@ -115,7 +124,11 @@ export interface CreatedWorktree {
 	warning: string | null;
 }
 
-/** True when the worktree list names `path`, which tells a hook failure from a real one. */
+/**
+ * True when the worktree list names `path`, which tells a hook failure from a real one.
+ * `git worktree list` prints real paths, so a symlinked workspaces root is resolved from inside
+ * the new folder before comparing.
+ */
 async function worktreeExists(
 	runner: GitRunner,
 	repoRootPath: string,
@@ -123,7 +136,13 @@ async function worktreeExists(
 ): Promise<boolean> {
 	const listed = await runner.stdout(worktreeList(), { cwd: repoRootPath });
 	if (!listed.ok) return false;
-	return listed.value.split("\n").includes(`worktree ${path}`);
+	const paths = listed.value
+		.split("\n")
+		.filter((line) => line.startsWith("worktree "))
+		.map((line) => line.slice("worktree ".length));
+	if (paths.includes(path)) return true;
+	const real = await runner.stdout(revParse("--show-toplevel"), { cwd: path });
+	return real.ok && real.value !== "" && paths.includes(real.value);
 }
 
 /** Steps of services-map 3.1: empty-HEAD guard, fetch, resolve the base id, `worktree add`. */
@@ -134,6 +153,7 @@ export async function createWorktree(
 	const cwd = input.repoRootPath;
 	const head = await runner.runChecked(revParseHead(), { cwd });
 	if (!head.ok) {
+		if (!UNBORN_HEAD_PATTERN.test(head.error.message)) return head;
 		const committed = await runner.runChecked(commitEmptyInitial(), { cwd });
 		if (!committed.ok) return committed;
 	}
@@ -173,7 +193,7 @@ export async function createWorktree(
 			} else if (failure === "auth") {
 				return err(appError("git_auth_required", BRANCH_AUTH_MESSAGE, fetched.error));
 			} else {
-				return fetched;
+				return err(appError("git_offline", OFFLINE_NO_CACHE_MESSAGE, fetched.error));
 			}
 		} else if (input.allowLocalBase && (failure === "remoteMissing" || failure === "baseMissing")) {
 			const local = await runner.stdout(revParse(`refs/heads/${input.baseBranch}`), { cwd });
@@ -185,7 +205,7 @@ export async function createWorktree(
 					appError("git_remote_missing", `Couldn't find remote "${input.remote}".`, fetched.error),
 				);
 			}
-			if (failure === "baseMissing" || failure === "other") {
+			if (failure === "baseMissing") {
 				return err(
 					appError(
 						"git_base_missing",
@@ -194,7 +214,7 @@ export async function createWorktree(
 					),
 				);
 			}
-			return fetched;
+			return err(appError("git_fetch_failed", fetched.error.message, fetched.error));
 		}
 	}
 	if (baseSha === null) {
@@ -292,7 +312,10 @@ export function removeWorktree(
 	return notImplemented("WS-05");
 }
 
-/** True when the name exists as a local branch or a remote-tracking branch. */
+/**
+ * True when the name exists as a local branch or a remote-tracking branch (services-map 3.1).
+ * Pull requests are not part of this check in the research.
+ */
 export async function branchNameIsTaken(
 	runner: GitRunner,
 	input: { repoRootPath: string; remote: string; name: string },

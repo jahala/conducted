@@ -6,26 +6,38 @@
  * by project, sort by Updated or Created).
  * Our design choice: The view options (group, filter, sort) are kept in a setting so they survive a
  * restart. Status groups run in this order: done, in review, in progress, backlog, canceled, the
- * order Conductor uses. The user's own sections come from NAV-04 and are left out until that
- * feature is built; pinned and the main groups work without them. The row actions menu comes from
+ * order Conductor uses. The user's own sections and their saved order come from NAV-04 and are left
+ * out until that feature is built; until then the list always sorts by date and View options keeps
+ * Sort by visible, because hiding it would leave no way to sort. The row actions menu comes from
  * NAV-10 and is left out here for the same reason.
  * Must handle: A workspace in two places (pinned and in a section) shows once, in Pinned; a group
  * with no workspaces is hidden; a collapsed group shows its count; a project filter that matches
  * nothing shows a short empty note with a way to clear it; archived workspaces are never listed;
- * the selected workspace stays visible after a re-sort.
+ * the selected workspace stays visible after a re-sort; a saved "section" grouping says it is not
+ * available yet; Cmd+1..9 and Cmd+Alt+ArrowUp/Down move through the visible order, wrapping at
+ * the ends.
  * Test first: Given three workspaces in two repos, grouping by project gives two groups; pinning
  * one moves it to Pinned and removes it from its group.
  */
 
 import type { WorkspaceId } from "@conducted/shared";
-import { Link, useParams } from "@tanstack/react-router";
+import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { useActions, useSetting } from "../../core/hooks.ts";
 import type { Repo, Workspace } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../ui/Collapsible.tsx";
 import { ChevronDownIcon, ChevronRightIcon, PlusIcon } from "../../ui/icons.tsx";
-import { buildSidebarGroups, type SidebarGroup, type SidebarView } from "./sidebar-view.ts";
+import { toastError } from "../../ui/Toast.tsx";
+import {
+	buildSidebarGroups,
+	orderedWorkspaceIds,
+	readGroupBySetting,
+	type SidebarGroup,
+	type SidebarView,
+	writeGroupBySetting,
+} from "./sidebar-view.ts";
 import { ViewOptionsMenu } from "./ViewOptionsMenu.tsx";
 import { WorkspaceRow } from "./WorkspaceRow.tsx";
 
@@ -34,18 +46,15 @@ export interface GroupedWorkspacesProps {
 	workspaces: Workspace[];
 }
 
-const NO_MANUAL_ORDER = new Map<string, WorkspaceId[]>();
-
 function readView(
-	groupBy: string,
+	groupBy: SidebarView["groupBy"],
 	sortBy: string,
 	projectFilter: string,
-	manualOrder: boolean,
 ): SidebarView {
 	return {
-		groupBy: groupBy === "status" ? "status" : "project",
+		groupBy,
 		sortBy: sortBy === "created" ? "created" : "updated",
-		manualOrder,
+		manualOrder: false,
 		projectFilter:
 			projectFilter === "" ? [] : (projectFilter.split(",") as SidebarView["projectFilter"]),
 	};
@@ -70,8 +79,8 @@ function GroupSection({
 		repoId === null ? null : (repos.find((candidate) => candidate.id === repoId) ?? null);
 	return (
 		<section aria-label={group.label} className="mb-1">
-			<div className="group/header flex items-center gap-1 px-2">
-				<Collapsible open={open} onOpenChange={setOpen}>
+			<Collapsible open={open} onOpenChange={setOpen}>
+				<div className="group/header flex items-center gap-1 px-2">
 					<CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-1 rounded-md px-1 py-1 text-xs font-medium text-sidebar-fg-muted hover:bg-hover hover:text-fg">
 						{open ? <ChevronDownIcon /> : <ChevronRightIcon />}
 						<span className="truncate">{group.label}</span>
@@ -79,66 +88,69 @@ function GroupSection({
 							<span className="ml-1 text-2xs text-fg-subtle">{group.workspaceIds.length}</span>
 						)}
 					</CollapsibleTrigger>
-					<CollapsibleContent>
-						<div className="flex flex-col gap-0.5 py-0.5">
-							{group.workspaceIds.map((workspaceId) => {
-								const row = rows.get(workspaceId);
-								if (row === undefined) return null;
-								return (
-									<WorkspaceRow
-										key={workspaceId}
-										workspace={row.workspace}
-										repo={row.repo}
-										selected={selectedId === workspaceId}
-										shortcutIndex={shortcutIndexes.get(workspaceId) ?? null}
-									/>
-								);
-							})}
-						</div>
-					</CollapsibleContent>
-				</Collapsible>
-				{repo === null ? null : (
-					<Link
-						to="/create"
-						aria-label={`Create workspace in ${repo.name}`}
-						title={`Create workspace in ${repo.name}`}
-						className="flex size-6 shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-hover hover:text-fg"
-					>
-						<PlusIcon />
-					</Link>
-				)}
-			</div>
+					{repo === null ? null : (
+						<Link
+							to="/create"
+							aria-label={`Create workspace in ${repo.name}`}
+							title={`Create workspace in ${repo.name}`}
+							className="flex size-6 shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-hover hover:text-fg"
+						>
+							<PlusIcon />
+						</Link>
+					)}
+				</div>
+				<CollapsibleContent>
+					<div className="flex flex-col gap-0.5 py-0.5">
+						{group.workspaceIds.map((workspaceId) => {
+							const row = rows.get(workspaceId);
+							if (row === undefined) return null;
+							return (
+								<WorkspaceRow
+									key={workspaceId}
+									workspace={row.workspace}
+									repo={row.repo}
+									selected={selectedId === workspaceId}
+									shortcutIndex={shortcutIndexes.get(workspaceId) ?? null}
+								/>
+							);
+						})}
+					</div>
+				</CollapsibleContent>
+			</Collapsible>
 		</section>
 	);
 }
 
 export function GroupedWorkspaces({ repos, workspaces }: GroupedWorkspacesProps) {
 	const actions = useActions();
+	const navigate = useNavigate();
 	const groupBy = useSetting<string>("sidebar_group_by");
 	const sortBy = useSetting<string>("sidebar_sort_by");
 	const projectFilter = useSetting<string>("sidebar_repo_filter");
-	const manualOrder = useSetting<boolean>("manual_workspace_order");
 	const params = useParams({ strict: false });
 	const selectedId = (params as { workspaceId?: WorkspaceId }).workspaceId ?? null;
+	const groupByMode = readGroupBySetting(groupBy);
+	const groupByView = groupByMode === "section" ? "project" : groupByMode;
 
 	const existingRepoIds = useMemo(() => new Set(repos.map((repo) => repo.id)), [repos]);
 	const view = useMemo(() => {
-		const parsed = readView(groupBy, sortBy, projectFilter, manualOrder);
+		const parsed = readView(groupByView, sortBy, projectFilter);
 		return {
 			...parsed,
 			projectFilter: parsed.projectFilter.filter((repoId) => existingRepoIds.has(repoId)),
 		};
-	}, [groupBy, sortBy, projectFilter, manualOrder, existingRepoIds]);
+	}, [groupByView, sortBy, projectFilter, existingRepoIds]);
 
 	const groups = useMemo(
 		() =>
 			buildSidebarGroups({
 				repos,
 				workspaces,
+				// NAV-04 supplies the user's sections.
 				sections: [],
-				statuses: new Map(),
 				view,
-				manualOrder: NO_MANUAL_ORDER,
+				// NAV-04 supplies the saved manual order.
+				manualOrder: new Map(),
 			}),
 		[repos, workspaces, view],
 	);
@@ -153,22 +165,70 @@ export function GroupedWorkspaces({ repos, workspaces }: GroupedWorkspacesProps)
 		return result;
 	}, [repos, workspaces]);
 
+	const ordered = useMemo(() => orderedWorkspaceIds(groups), [groups]);
+
 	const shortcutIndexes = useMemo(() => {
 		const result = new Map<WorkspaceId, number>();
-		let index = 0;
-		for (const group of groups) {
-			for (const workspaceId of group.workspaceIds) {
-				index += 1;
-				if (index <= 9) result.set(workspaceId, index);
-			}
+		for (const [index, workspaceId] of ordered.entries()) {
+			if (index < 9) result.set(workspaceId, index + 1);
 		}
 		return result;
-	}, [groups]);
+	}, [ordered]);
+
+	const currentIndex = selectedId === null ? -1 : ordered.indexOf(selectedId);
+
+	const goToIndex = (index: number): boolean => {
+		const workspaceId = ordered[index];
+		if (workspaceId === undefined) return false;
+		const row = rows.get(workspaceId);
+		if (row === undefined) return false;
+		void navigate({
+			to: "/repository/$repositoryId/workspace/$workspaceId",
+			params: { repositoryId: row.repo.id, workspaceId: row.workspace.id },
+		});
+		return true;
+	};
+
+	const goToPrevious = (): boolean => {
+		if (ordered.length === 0) return false;
+		return goToIndex(currentIndex <= 0 ? ordered.length - 1 : currentIndex - 1);
+	};
+
+	const goToNext = (): boolean => {
+		if (ordered.length === 0) return false;
+		return goToIndex(
+			currentIndex === -1 || currentIndex === ordered.length - 1 ? 0 : currentIndex + 1,
+		);
+	};
+
+	useCommandHandler("workspace.switch1", "base", () => goToIndex(0));
+	useCommandHandler("workspace.switch2", "base", () => goToIndex(1));
+	useCommandHandler("workspace.switch3", "base", () => goToIndex(2));
+	useCommandHandler("workspace.switch4", "base", () => goToIndex(3));
+	useCommandHandler("workspace.switch5", "base", () => goToIndex(4));
+	useCommandHandler("workspace.switch6", "base", () => goToIndex(5));
+	useCommandHandler("workspace.switch7", "base", () => goToIndex(6));
+	useCommandHandler("workspace.switch8", "base", () => goToIndex(7));
+	useCommandHandler("workspace.switch9", "base", () => goToIndex(8));
+	useCommandHandler("workspace.previous", "base", goToPrevious);
+	useCommandHandler("workspace.next", "base", goToNext);
 
 	const changeView = (next: SidebarView) => {
-		void actions.settings.set("sidebar_group_by", next.groupBy === "status" ? "status" : "repo");
-		void actions.settings.set("sidebar_sort_by", next.sortBy);
-		void actions.settings.set("sidebar_repo_filter", next.projectFilter.join(","));
+		const writes: [string, unknown][] = [];
+		if (next.groupBy !== groupByMode) {
+			writes.push(["sidebar_group_by", writeGroupBySetting(next.groupBy)]);
+		}
+		if (next.sortBy !== view.sortBy) {
+			writes.push(["sidebar_sort_by", next.sortBy]);
+		}
+		if (next.projectFilter.join(",") !== view.projectFilter.join(",")) {
+			writes.push(["sidebar_repo_filter", next.projectFilter.join(",")]);
+		}
+		for (const [key, value] of writes) {
+			void actions.settings.set(key, value).then((result) => {
+				if (!result.ok) toastError("Couldn't save the sidebar view", result.error);
+			});
+		}
 	};
 
 	const clearFilter = () => changeView({ ...view, projectFilter: [] });
@@ -178,7 +238,18 @@ export function GroupedWorkspaces({ repos, workspaces }: GroupedWorkspacesProps)
 			<div className="flex h-8 shrink-0 items-center justify-end px-2">
 				<ViewOptionsMenu view={view} repos={repos} onChange={changeView} />
 			</div>
-			{groups.length === 0 ? (
+			{groupByMode === "section" ? (
+				<div className="flex flex-col items-center gap-2 p-4 text-center text-sm text-fg-muted">
+					<p>Grouping by section is not available yet.</p>
+					<Button
+						variant="secondary"
+						size="sm"
+						onClick={() => changeView({ ...view, groupBy: "project" })}
+					>
+						Group by project
+					</Button>
+				</div>
+			) : groups.length === 0 ? (
 				<div className="flex flex-col items-center gap-2 p-4 text-center text-sm text-fg-muted">
 					<p>No matching workspaces</p>
 					{view.projectFilter.length > 0 ? (

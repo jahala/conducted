@@ -1,7 +1,13 @@
 import type { RepoId, WorkspaceId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import type { Repo, Workspace } from "../../core/model.ts";
-import { buildSidebarGroups, type SidebarView } from "./sidebar-view.ts";
+import {
+	buildSidebarGroups,
+	orderedWorkspaceIds,
+	readGroupBySetting,
+	type SidebarView,
+	writeGroupBySetting,
+} from "./sidebar-view.ts";
 
 function repo(id: string, overrides: Partial<Repo> = {}): Repo {
 	return {
@@ -67,7 +73,6 @@ const input = (props: {
 	repos: props.repos ?? [repo("app")],
 	workspaces: props.workspaces ?? [],
 	sections: props.sections ?? [],
-	statuses: new Map(),
 	view: view(props.view),
 	manualOrder: props.manualOrder ?? new Map<string, WorkspaceId[]>(),
 });
@@ -164,5 +169,43 @@ describe("NAV-03 buildSidebarGroups", () => {
 			}),
 		);
 		expect(groups[0]?.workspaceIds).toEqual(["newer", "older"]);
+	});
+
+	it("keeps 300 workspaces in one stable group order", () => {
+		const workspaces = Array.from({ length: 300 }, (_, index) =>
+			workspace(`w${index}`, { lastActivityAt: index }),
+		);
+		const groups = buildSidebarGroups(input({ workspaces }));
+		const ids = orderedWorkspaceIds(groups);
+		expect(ids).toHaveLength(300);
+		expect(new Set(ids).size).toBe(300);
+		expect(ids[0]).toBe("w299");
+		expect(ids[299]).toBe("w0");
+	});
+});
+
+describe("NAV-03 sidebar view setting", () => {
+	it("maps the saved group value to the view and back through one table", () => {
+		expect(readGroupBySetting("repo")).toBe("project");
+		expect(readGroupBySetting("status")).toBe("status");
+		expect(readGroupBySetting("section")).toBe("section");
+		expect(writeGroupBySetting("project")).toBe("repo");
+		expect(writeGroupBySetting("status")).toBe("status");
+	});
+
+	it("puts the visible rows in the order Cmd+1..9 and previous/next follow", () => {
+		const groups = buildSidebarGroups(
+			input({
+				repos: [repo("app", { displayOrder: 0 }), repo("api", { displayOrder: 1 })],
+				workspaces: [
+					workspace("pinned", { pinnedAt: 1, lastActivityAt: 5 }),
+					workspace("one", { repoId: "app" as RepoId, lastActivityAt: 20 }),
+					workspace("two", { repoId: "app" as RepoId, lastActivityAt: 30 }),
+					workspace("three", { repoId: "api" as RepoId, lastActivityAt: 10 }),
+				],
+				view: { groupBy: "project" },
+			}),
+		);
+		expect(orderedWorkspaceIds(groups)).toEqual(["pinned", "two", "one", "three"]);
 	});
 });

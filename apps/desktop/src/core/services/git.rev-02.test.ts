@@ -2,9 +2,12 @@
  * @feature REV-02 Viewed files
  * Tests that a viewed mark is saved, read back, and reset when the file changes.
  */
-import { appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
+import { type AppError, appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import type { FileStat, FileSystem, ShellOutput } from "../../platform/platform.ts";
+import { createActions } from "../actions.ts";
+import { viewedFilesFile } from "../app-paths.ts";
+import type { Services } from "../container.ts";
 import type { GitCommand } from "../git/commands.ts";
 import type { GitRunner } from "../git/runner.ts";
 import { GitService, type WorkspaceGitContext } from "./git.ts";
@@ -61,6 +64,7 @@ const context: WorkspaceGitContext = {
 function fakeFs() {
 	const files = new Map<string, string>();
 	let modifiedAt = 1;
+	let readError: AppError | null = null;
 	const writes: string[] = [];
 	const paths = {
 		home: "/Users/a",
@@ -73,8 +77,12 @@ function fakeFs() {
 		"trash" | "readText" | "writeTextAtomic" | "mkdirp" | "stat" | "paths"
 	> = {
 		trash: async () => ok(undefined),
-		readText: async (path) =>
-			files.has(path) ? ok(files.get(path) ?? "") : err(appError("not_found", path)),
+		readText: async (path) => {
+			if (readError !== null) return err(readError);
+			return files.has(path)
+				? ok(files.get(path) ?? "")
+				: err(appError("fs_not_found", `${path} does not exist.`));
+		},
 		writeTextAtomic: async (path, text) => {
 			files.set(path, text);
 			writes.push(path);
@@ -89,8 +97,12 @@ function fakeFs() {
 		fs,
 		writes,
 		files,
+		viewedFile: viewedFilesFile(paths, String(workspaceId)),
 		change: () => {
 			modifiedAt += 1;
+		},
+		setReadError: (error: AppError | null) => {
+			readError = error;
 		},
 	};
 }
@@ -152,5 +164,65 @@ describe("REV-02 viewed files", () => {
 		expect(files.ok).toBe(true);
 		if (!files.ok) return;
 		expect(files.value[0]?.viewed).toBe(false);
+	});
+
+	it("returns a read error and saves nothing rather than wiping the marks", async () => {
+		const fake = fakeFs();
+		const first = makeService(fake.fs);
+		await first.setViewed(workspaceId, "src/a.ts", true);
+		const saved = fake.files.get(fake.viewedFile);
+		expect(saved).toBeDefined();
+
+		fake.setReadError(appError("fs_failed", "permission denied"));
+		const second = makeService(fake.fs);
+		const result = await second.setViewed(workspaceId, "src/other.ts", true);
+		expect(result.ok).toBe(false);
+		if (result.ok) return;
+		expect(result.error.code).toBe("fs_failed");
+		expect(fake.files.get(fake.viewedFile)).toBe(saved);
+	});
+
+	it("retries the read after a failure once it can read again", async () => {
+		const fake = fakeFs();
+		const first = makeService(fake.fs);
+		await first.setViewed(workspaceId, "src/a.ts", true);
+
+		fake.setReadError(appError("fs_failed", "permission denied"));
+		const second = makeService(fake.fs);
+		expect((await second.setViewed(workspaceId, "src/a.ts", true)).ok).toBe(false);
+
+		fake.setReadError(null);
+		const third = makeService(fake.fs);
+		const result = await third.setViewed(workspaceId, "src/other.ts", true);
+		expect(result.ok).toBe(true);
+		const body = JSON.parse(fake.files.get(fake.viewedFile) ?? "{}") as {
+			marks?: Record<string, { viewed?: boolean }>;
+		};
+		expect(body.marks?.["src/a.ts"]?.viewed).toBe(true);
+		expect(body.marks?.["src/other.ts"]?.viewed).toBe(true);
+	});
+
+	it("returns an error for a damaged marks file instead of overwriting it", async () => {
+		const fake = fakeFs();
+		fake.files.set(fake.viewedFile, "{ not json");
+		const service = makeService(fake.fs);
+		const result = await service.setViewed(workspaceId, "src/a.ts", true);
+		expect(result.ok).toBe(false);
+		if (result.ok) return;
+		expect(result.error.code).toBe("invalid_json");
+		expect(fake.files.get(fake.viewedFile)).toBe("{ not json");
+		expect(fake.writes).toHaveLength(0);
+	});
+
+	it("reaches the service through Actions.git.setViewed", async () => {
+		const fake = fakeFs();
+		const service = makeService(fake.fs);
+		const actions = createActions(
+			{ git: service } as unknown as Services,
+			{} as unknown as Parameters<typeof createActions>[1],
+		);
+		const result = await actions.git.setViewed(workspaceId, "src/a.ts", true);
+		expect(result.ok).toBe(true);
+		expect(fake.writes).toHaveLength(1);
 	});
 });
