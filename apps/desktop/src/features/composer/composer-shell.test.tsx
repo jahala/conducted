@@ -27,7 +27,7 @@ const paths = { home: "/home", appData: "/app", temp: "/tmp", resources: "/res" 
 const fakeFs = () => {
 	const files = new Map<string, string>();
 	const modified = new Map<string, number>();
-	const fail = { write: false };
+	const fail = { write: false, trash: false };
 	const statFor = (path: string): FileStat => ({
 		path,
 		isDirectory: false,
@@ -59,6 +59,7 @@ const fakeFs = () => {
 			return ok([...files.keys()].map(statFor));
 		},
 		async trash(path) {
+			if (fail.trash) return err(appError("fs_denied", "The draft file could not be removed."));
 			files.delete(path);
 			return ok(undefined);
 		},
@@ -331,6 +332,22 @@ describe("COMP-01 Composer", () => {
 			expect(toastSpy).toHaveBeenCalledWith("Couldn't send the message", expect.anything()),
 		);
 		expect(editor().textContent).toBe("hello");
+	});
+
+	it("tells the user when clearing the draft after a send fails", async () => {
+		const toastSpy = vi.spyOn(toast, "error").mockImplementation(() => "toast-id");
+		const { composer, send, wrapper, flush, fake } = harness();
+		seedDraft(composer, "hello");
+		flush();
+		await settle();
+		fake.fail.trash = true;
+		render(<Composer workspaceId={workspaceId} sessionId={sessionId} />, { wrapper });
+		await waitFor(() => expect(sendButton().disabled).toBe(false));
+		fireEvent.click(sendButton());
+		await waitFor(() => expect(send).toHaveBeenCalled());
+		await waitFor(() =>
+			expect(toastSpy).toHaveBeenCalledWith("Couldn't clear the draft", expect.anything()),
+		);
 	});
 
 	it("keeps the typed text and shows no error when a send is cancelled", async () => {

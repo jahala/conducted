@@ -18,6 +18,10 @@ import type { AgentInstall } from "@conducted/protocol";
 import { agentDisplayName } from "../../../core/services/agent-catalog.ts";
 import { Badge, type BadgeTone } from "../../../ui/Badge.tsx";
 import { Button } from "../../../ui/Button.tsx";
+import { truncateMiddle } from "../../../ui/TruncatedText.tsx";
+
+/** Characters of a program path shown before the middle is cut. */
+const PATH_LENGTH = 52;
 
 export interface AgentCardProps {
 	install: AgentInstall;
@@ -39,15 +43,6 @@ export function agentState(install: AgentInstall): { label: string; tone: BadgeT
 	if (install.source === "managed") return { label: "Recommended", tone: "success" };
 	if (install.source === "user") return { label: "Custom path", tone: "neutral" };
 	return null;
-}
-
-/** Keeps both ends of a long path readable in a narrow card. */
-export function middleTruncate(value: string, max = 52): string {
-	if (value.length <= max) return value;
-	const keep = max - 1;
-	const head = Math.ceil(keep / 2);
-	const tail = Math.floor(keep / 2);
-	return `${value.slice(0, head)}…${value.slice(-tail)}`;
 }
 
 const authMethodLabel = (method: string): string => {
@@ -110,7 +105,7 @@ export function AgentCard({
 						className="min-w-0 flex-1 truncate font-mono text-xs text-fg-muted"
 						title={install.path}
 					>
-						{middleTruncate(install.path)}
+						{truncateMiddle(install.path, PATH_LENGTH)}
 					</code>
 					{onCopyPath ? (
 						<Button size="xs" variant="ghost" onClick={() => onCopyPath(install.path ?? "")}>

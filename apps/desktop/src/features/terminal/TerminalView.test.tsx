@@ -4,17 +4,19 @@
  * Test first: output written to a connection before mount appears in the terminal buffer after
  * mount, and bytes are acknowledged once.
  */
-import { ok, type TerminalId, type WorkspaceId } from "@conducted/shared";
+import { appError, err, ok, type TerminalId, type WorkspaceId } from "@conducted/shared";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { StrictMode, useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Loadable } from "../../core/api.ts";
 import type { Terminal, TerminalConnection } from "../../core/model.ts";
+import { toast } from "../../ui/Toast.tsx";
 import type { TerminalAppearance } from "./terminal-theme.ts";
 
 const state = vi.hoisted(() => ({
 	connection: { state: "loading" } as Loadable<TerminalConnection>,
 	openUrl: vi.fn(),
+	copyText: vi.fn(),
 	restart: vi.fn(),
 	terminals: { state: "ready", data: [] } as Loadable<Terminal[]>,
 	settings: {
@@ -31,7 +33,7 @@ const state = vi.hoisted(() => ({
 vi.mock("../../core/hooks.ts", () => ({
 	useTerminalConnection: () => state.connection,
 	useActions: () => ({
-		app: { openUrl: state.openUrl },
+		app: { openUrl: state.openUrl, copyText: state.copyText },
 		terminals: { restart: state.restart },
 	}),
 	useTerminals: () => state.terminals,
@@ -45,6 +47,7 @@ vi.mock("./TerminalSurface.tsx", () => ({
 		visible?: boolean;
 		ended?: boolean;
 		onOpenLink?: (url: string) => void;
+		onCopy?: (text: string) => void;
 		ref?: { current: typeof state.surface } | null;
 	}) => {
 		if (props.ref) props.ref.current = state.surface;
@@ -61,6 +64,9 @@ vi.mock("./TerminalSurface.tsx", () => ({
 			>
 				<button type="button" onClick={() => props.onOpenLink?.("https://example.com")}>
 					open-link
+				</button>
+				<button type="button" onClick={() => props.onCopy?.("picked text")}>
+					copy-selection
 				</button>
 			</div>
 		);
@@ -109,7 +115,10 @@ const workspaceId = "w1" as WorkspaceId;
 
 beforeEach(() => {
 	state.connection = { state: "loading" };
-	state.openUrl.mockClear();
+	state.openUrl.mockReset();
+	state.openUrl.mockResolvedValue(ok(undefined));
+	state.copyText.mockReset();
+	state.copyText.mockResolvedValue(ok(undefined));
 	state.restart.mockReset();
 	state.restart.mockResolvedValue(ok(undefined));
 	state.terminals = { state: "ready", data: [] };
@@ -384,6 +393,51 @@ describe("RUN-06 terminal view", () => {
 		await waitFor(() => expect(screen.queryByText("Shell exited with status 1.")).toBeNull());
 	});
 
+	it("tells the user when restarting a finished shell fails, and keeps the banner", async () => {
+		const toastSpy = vi.spyOn(toast, "error").mockImplementation(() => "toast-id");
+		state.connection = { state: "ready", data: fakeConnection({ ended: { exitCode: 1 } }) };
+		state.restart.mockResolvedValue(err(appError("pty_spawn", "The shell could not start.")));
+		render(
+			<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
+		);
+		fireEvent.click(await screen.findByRole("button", { name: "Restart" }));
+		await waitFor(() =>
+			expect(toastSpy).toHaveBeenCalledWith("Couldn't restart the terminal", expect.anything()),
+		);
+		expect(screen.getByText("Shell exited with status 1.")).toBeTruthy();
+		toastSpy.mockRestore();
+	});
+
+	it("tells the user when a confirmed terminal link cannot be opened", async () => {
+		const toastSpy = vi.spyOn(toast, "error").mockImplementation(() => "toast-id");
+		state.openUrl.mockResolvedValue(err(appError("open_failed", "No browser is set up.")));
+		state.connection = { state: "ready", data: fakeConnection() };
+		render(
+			<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
+		);
+		fireEvent.click(screen.getByRole("button", { name: "open-link" }));
+		fireEvent.click(screen.getByRole("button", { name: "Open" }));
+		await waitFor(() =>
+			expect(toastSpy).toHaveBeenCalledWith("Couldn't open the link", expect.anything()),
+		);
+		toastSpy.mockRestore();
+	});
+
+	it("copies the surface's selection through the app action and reports a failure", async () => {
+		const toastSpy = vi.spyOn(toast, "error").mockImplementation(() => "toast-id");
+		state.copyText.mockResolvedValue(err(appError("clipboard", "The clipboard is busy.")));
+		state.connection = { state: "ready", data: fakeConnection() };
+		render(
+			<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
+		);
+		fireEvent.click(screen.getByRole("button", { name: "copy-selection" }));
+		expect(state.copyText).toHaveBeenCalledWith("picked text");
+		await waitFor(() =>
+			expect(toastSpy).toHaveBeenCalledWith("Couldn't copy the selection", expect.anything()),
+		);
+		toastSpy.mockRestore();
+	});
+
 	describe("find", () => {
 		function openFind() {
 			const view = document.querySelector("[data-terminal-view]");
@@ -406,6 +460,19 @@ describe("RUN-06 terminal view", () => {
 				"next",
 				null,
 			);
+		});
+
+		it("shows 'Invalid pattern' and does not search for a broken regular expression", () => {
+			state.connection = { state: "ready", data: fakeConnection() };
+			render(
+				<TerminalView terminalId={terminalId} workspaceId={workspaceId} appearance={appearance} />,
+			);
+			const input = openFind();
+			fireEvent.click(screen.getByRole("button", { name: "Use regular expression" }));
+			fireEvent.change(input, { target: { value: "[" } });
+			expect(screen.getByText("Invalid pattern")).toBeTruthy();
+			expect(screen.queryByText("No results")).toBeNull();
+			expect(state.surface.find).not.toHaveBeenCalled();
 		});
 
 		it("searches again when the case or regex option changes", () => {

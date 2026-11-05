@@ -5,8 +5,9 @@
  * Behaviour: ui-map.md 3.7 ("Terminal N" tabs; "New terminal" Cmd+T when focused; "Close terminal"
  * Cmd+W; "Find in terminal" Cmd+F).
  * Children: terminal/TerminalView, which itself holds the find bar and the ended banner.
- * Must handle: the terminal not found (it was closed elsewhere), switching tabs keeping each
- * terminal's scrollback and find state, and shortcuts acting only on the focused terminal.
+ * Must handle: switching tabs keeping each terminal's scrollback and find state (a hidden tab
+ * stays mounted). A terminal that was closed elsewhere and shortcuts acting only on the focused
+ * terminal are for TerminalView and RUN-01's panel.
  * Test first: closing the active terminal selects its neighbour and does not unmount the others.
  */
 import type { TerminalId, WorkspaceId } from "@conducted/shared";

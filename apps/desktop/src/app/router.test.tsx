@@ -1,15 +1,14 @@
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createStore } from "zustand/vanilla";
 import type { Container } from "../core/container.ts";
 import { ServicesProvider } from "../core/context.tsx";
 import type { Repo, Workspace } from "../core/model.ts";
-import { RepoService, type RepoServiceDeps } from "../core/services/repo.ts";
 import "../test/dom-polyfills.ts";
 import { useOverlayStore } from "./overlay-store.ts";
 import { AppProviders, createQueryClient } from "./providers.tsx";
 import { createAppRouter } from "./router.tsx";
+import { createShellContainer } from "./shell-test-support.ts";
 
 afterEach(cleanup);
 beforeEach(() => useOverlayStore.getState().close());
@@ -58,68 +57,6 @@ function workspace(id: string, repoId: string): Workspace {
 	};
 }
 
-/** The sidebar reads the repo and workspace stores; the shell reads the sidebar settings. */
-function testContainer(repos: Repo[] = [], workspaces: Workspace[] = []): Container {
-	const settings = {
-		store: createStore<{ values: Record<string, unknown> }>(() => ({ values: {} })),
-		get: (key: string): unknown =>
-			({
-				left_panel_visible: true,
-				left_panel_width: 256,
-				keybinding_overrides_v1: "",
-				dashboard_enabled: false,
-			})[key],
-		set: async () => undefined,
-	};
-	const repoService = new RepoService({} as RepoServiceDeps);
-	repoService.store.setState({
-		loaded: true,
-		reposById: Object.fromEntries(repos.map((row) => [row.id, row])),
-		order: repos.map((row) => row.id),
-		configs: {},
-	});
-	const workspaceStore = createStore(() => ({
-		loaded: true,
-		workspacesById: Object.fromEntries(workspaces.map((row) => [row.id, row])),
-		setup: {},
-		archiving: {},
-	}));
-	const sectionsStore = createStore(() => ({ loaded: true, sections: [] }));
-	const sessionsStore = createStore(() => ({
-		loaded: true,
-		sessions: {},
-		byWorkspace: {},
-		liveStates: {},
-		cancelling: {},
-		events: {},
-		progress: {},
-		sending: {},
-		openInteractions: {},
-		viewingSessionId: null,
-	}));
-	const terminalsStore = createStore(() => ({
-		byWorkspace: {},
-		byRepo: {},
-		errors: {},
-		connections: {},
-	}));
-	return {
-		services: {
-			repo: repoService,
-			workspace: { store: workspaceStore },
-			sections: { store: sectionsStore },
-			sessions: { store: sessionsStore },
-			terminals: {
-				store: terminalsStore,
-				loadWorkspace: async () => ({ ok: true, value: undefined }),
-			},
-			review: { store: createStore(() => ({ byWorkspace: {} })) },
-			settings,
-		},
-		actions: {},
-	} as unknown as Container;
-}
-
 async function openContainerApp(path: string, container: Container) {
 	const router = createAppRouter(createMemoryHistory({ initialEntries: [path] }));
 	render(
@@ -134,7 +71,7 @@ async function openContainerApp(path: string, container: Container) {
 }
 
 async function openApp(path: string, repos: Repo[] = [], workspaces: Workspace[] = []) {
-	return openContainerApp(path, testContainer(repos, workspaces));
+	return openContainerApp(path, createShellContainer({ repos, workspaces }).container);
 }
 
 describe("app shell", () => {

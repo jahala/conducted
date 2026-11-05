@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createStore } from "zustand/vanilla";
 import "../../test/dom-polyfills.ts";
+import { CommandDispatcher } from "../../app/command-dispatcher.ts";
 import type { Actions } from "../../core/api.ts";
 import type { Container } from "../../core/container.ts";
 import { ServicesProvider } from "../../core/context.tsx";
@@ -69,6 +70,8 @@ interface HarnessOptions {
 	favorites?: FavoriteModel[];
 	/** The saved `keybinding_overrides_v1` text. */
 	keybindings?: string;
+	/** Loading another agent's models waits until the test resolves it. */
+	lateModels?: boolean;
 }
 
 const harness = (options: HarnessOptions = {}) => {
@@ -108,6 +111,9 @@ const harness = (options: HarnessOptions = {}) => {
 		openInteractions: {},
 		viewingSessionId: null,
 	}));
+	const loadModelsLater = {
+		calls: [] as { resolve: (models: ModelInfo[]) => void }[],
+	};
 	const agentCatalog = {
 		store: createStore<AgentCatalogState>(() => ({
 			installs: {
@@ -123,12 +129,22 @@ const harness = (options: HarnessOptions = {}) => {
 						installed: true,
 						authenticated: true,
 					},
+					{
+						agent: "cursor",
+						installed: true,
+						authenticated: true,
+					},
 				],
 			},
 			models: { claude: { state: "ready", data: modelList } },
 			slashCommands: {},
 		})),
-		loadModels: vi.fn(async () => ok(options.loadedModels ?? modelList)),
+		loadModels: vi.fn(async () => {
+			if (options.lateModels !== true) return ok(options.loadedModels ?? modelList);
+			return new Promise<ReturnType<typeof ok<ModelInfo[]>>>((resolve) => {
+				loadModelsLater.calls.push({ resolve: (models) => resolve(ok(models)) });
+			});
+		}),
 	};
 	const favoriteModels = {
 		store: createStore<FavoriteModelsState>(() => ({
@@ -154,8 +170,17 @@ const harness = (options: HarnessOptions = {}) => {
 	const actions = {
 		sessions: { updateConfig, create },
 	} as unknown as Actions;
+	const platform = {
+		app: { writeLog: vi.fn(), onDeepLink: () => () => {} },
+		menu: {
+			setShortcuts: vi.fn(async () => ok({ applied: [], rejected: [] })),
+			onCommand: () => () => {},
+		},
+	};
 	const container = {
+		platform,
 		services: {
+			commands: { isEnabled: vi.fn(() => true), run: vi.fn(async () => ok(undefined)) },
 			sessions: { store: sessions },
 			agentCatalog,
 			favoriteModels,
@@ -167,9 +192,11 @@ const harness = (options: HarnessOptions = {}) => {
 		actions,
 	} as unknown as Container;
 	const wrapper = ({ children }: { children: ReactNode }) => (
-		<ServicesProvider container={container}>{children}</ServicesProvider>
+		<ServicesProvider container={container}>
+			<CommandDispatcher>{children}</CommandDispatcher>
+		</ServicesProvider>
 	);
-	return { sessions, favoriteModels, updateConfig, create, wrapper };
+	return { sessions, favoriteModels, updateConfig, create, wrapper, loadModelsLater };
 };
 
 const openPicker = async () => {
@@ -242,7 +269,7 @@ describe("COMP-02 model picker", () => {
 			</>,
 			{ wrapper },
 		);
-		fireEvent.keyDown(window, { key: "1", metaKey: true, ctrlKey: true });
+		fireEvent.keyDown(document.body, { key: "1", metaKey: true, ctrlKey: true });
 		expect(await screen.findByText("That model is no longer available")).toBeTruthy();
 		expect(updateConfig).not.toHaveBeenCalled();
 	});
@@ -298,7 +325,7 @@ describe("COMP-02 model picker", () => {
 			favorites: [favorite("1", {}), favorite("2", { model: "m2" })],
 		});
 		render(<ModelPicker sessionId={sessionId} />, { wrapper });
-		fireEvent.keyDown(window, { key: "2", metaKey: true, ctrlKey: true });
+		fireEvent.keyDown(document.body, { key: "2", metaKey: true, ctrlKey: true });
 		await waitFor(() =>
 			expect(updateConfig).toHaveBeenCalledWith(
 				sessionId,
@@ -310,14 +337,14 @@ describe("COMP-02 model picker", () => {
 	it("opens with Cmd+/", async () => {
 		const { wrapper } = harness();
 		render(<ModelPicker sessionId={sessionId} />, { wrapper });
-		fireEvent.keyDown(window, { key: "/", metaKey: true });
+		fireEvent.keyDown(document.body, { key: "/", metaKey: true });
 		expect(await screen.findByRole("textbox", { name: "Search models" })).toBeTruthy();
 	});
 
 	it("toggles fast mode with Cmd+Shift+E", async () => {
 		const { updateConfig, wrapper } = harness();
 		render(<ModelPicker sessionId={sessionId} />, { wrapper });
-		fireEvent.keyDown(window, { key: "e", metaKey: true, shiftKey: true });
+		fireEvent.keyDown(document.body, { key: "e", metaKey: true, shiftKey: true });
 		await waitFor(() =>
 			expect(updateConfig).toHaveBeenCalledWith(
 				sessionId,
@@ -329,13 +356,49 @@ describe("COMP-02 model picker", () => {
 	it("cycles the effort with Cmd+Shift+/", async () => {
 		const { updateConfig, wrapper } = harness();
 		render(<ModelPicker sessionId={sessionId} />, { wrapper });
-		fireEvent.keyDown(window, { key: "/", metaKey: true, shiftKey: true });
+		fireEvent.keyDown(document.body, { key: "/", metaKey: true, shiftKey: true });
 		await waitFor(() =>
 			expect(updateConfig).toHaveBeenCalledWith(
 				sessionId,
 				expect.objectContaining({ effort: "low" }),
 			),
 		);
+	});
+
+	it("follows a rebind: the new key cycles the effort and the shipped key does not", async () => {
+		const { updateConfig, wrapper } = harness({
+			keybindings: JSON.stringify({ "chat.cycleEffort": ["Cmd+Alt+J"] }),
+		});
+		render(<ModelPicker sessionId={sessionId} />, { wrapper });
+		fireEvent.keyDown(document.body, { key: "/", metaKey: true, shiftKey: true });
+		expect(updateConfig).not.toHaveBeenCalled();
+		fireEvent.keyDown(document.body, { key: "j", metaKey: true, altKey: true });
+		await waitFor(() =>
+			expect(updateConfig).toHaveBeenCalledWith(
+				sessionId,
+				expect.objectContaining({ effort: "low" }),
+			),
+		);
+	});
+
+	it("applies only the newest of two agent choices whose models arrive out of order", async () => {
+		const { sessions, wrapper, loadModelsLater, updateConfig } = harness({ lateModels: true });
+		render(<ModelPicker sessionId={sessionId} />, { wrapper });
+		await openPicker();
+		fireEvent.click(screen.getByRole("button", { name: "Codex" }));
+		fireEvent.click(screen.getByRole("button", { name: "Cursor" }));
+		await waitFor(() => expect(loadModelsLater.calls.length).toBe(2));
+		loadModelsLater.calls[1]?.resolve([model({ id: "cursor-model", label: "Cursor Model" })]);
+		await waitFor(() =>
+			expect(updateConfig).toHaveBeenCalledWith(
+				sessionId,
+				expect.objectContaining({ agent: "cursor", model: "cursor-model" }),
+			),
+		);
+		loadModelsLater.calls[0]?.resolve([model({ id: "codex-model", label: "Codex Model" })]);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(updateConfig).toHaveBeenCalledTimes(1);
+		expect(sessions.getState().sessions[sessionId]).toBeDefined();
 	});
 
 	it("lists the ACP agents in the Agent section", async () => {

@@ -5,25 +5,36 @@
  * Behaviour: frontend.md 5 (tool cards keyed by kind, thinking and todo as their own kinds), ui-map.md 3.3
  * (banners in the list).
  * Must handle: every ChatBlock kind has a view (the switch is exhaustive, so a new kind fails to compile here);
- * an empty text block renders nothing; a streaming text block grows in place.
+ * an empty text block renders nothing; a streaming text block grows in place; a block whose view is a
+ * placeholder, or throws, is replaced by one line and the rest of the turn stays.
  * Test first: a tool block renders the tool card for its call; a notice block renders a banner.
  */
 import type { SessionId } from "@conducted/shared";
 import type { ChatBlock } from "../../core/model.ts";
+import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { AssistantText } from "./AssistantText.tsx";
 import { ChatBanner } from "./ChatBanner.tsx";
 import { ThinkingBlock } from "./ThinkingBlock.tsx";
 import { TodoBlock } from "./TodoBlock.tsx";
 import { ToolCard } from "./tools/ToolCard.tsx";
 
-export function ChatBlockView({
+/** The name a block shows when its view is not built yet or fails to render. */
+const BLOCK_AREA = {
+	text: "Message",
+	thinking: "Thinking",
+	tool: "Tool call",
+	todo: "Todo list",
+	notice: "Notice",
+	error: "Error",
+} as const satisfies Record<ChatBlock["kind"], string>;
+
+function BlockContent({
 	block,
 	sessionId,
 	onRetry,
 }: {
 	block: ChatBlock;
 	sessionId: SessionId;
-	/** Resends the last message, for a retryable error block. */
 	onRetry?: () => void;
 }) {
 	switch (block.kind) {
@@ -39,4 +50,29 @@ export function ChatBlockView({
 		case "error":
 			return <ChatBanner block={block} onRetry={onRetry} />;
 	}
+}
+
+/**
+ * One block in its own `NotBuiltYet` boundary. A block whose view is a placeholder (thinking and todo until
+ * CHAT-09 is built) shows "Not built yet" in its place. Without this, the placeholder's error would pass the
+ * turn's `ErrorBoundary`, which re-throws it, and replace the whole message list.
+ */
+export function ChatBlockView({
+	block,
+	sessionId,
+	onRetry,
+}: {
+	block: ChatBlock;
+	sessionId: SessionId;
+	/** Resends the last message, for a retryable error block. */
+	onRetry?: () => void;
+}) {
+	// A streaming block that failed on half a sentence gets another try when more text arrives.
+	const resetKey =
+		block.kind === "text" || block.kind === "thinking" ? block.text.length : undefined;
+	return (
+		<NotBuiltYet area={BLOCK_AREA[block.kind]} variant="inline" resetKey={resetKey}>
+			<BlockContent block={block} sessionId={sessionId} onRetry={onRetry} />
+		</NotBuiltYet>
+	);
 }

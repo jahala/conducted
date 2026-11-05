@@ -61,6 +61,11 @@ vi.mock("./WorkspaceActionsMenu.tsx", () => ({
 	WorkspaceActionsMenu: () => <button type="button">Workspace actions</button>,
 }));
 
+// OpenInMenu is WS-08's and still a placeholder. A stand-in keeps these tests about the header.
+vi.mock("../open-in/OpenInMenu.tsx", () => ({
+	OpenInMenu: () => <button type="button">Open in</button>,
+}));
+
 const { WorkspaceHeader } = await import("./WorkspaceHeader.tsx");
 
 const workspaceId = "w1" as WorkspaceId;
@@ -91,8 +96,17 @@ describe("NAV-10 WorkspaceHeader", () => {
 		expect(screen.getByText("Conducted")).toBeTruthy();
 		expect(screen.getByText("fix-login")).toBeTruthy();
 		expect(screen.getByText("Fix login")).toBeTruthy();
-		expect(screen.getByText(/Open in/)).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Open in" })).toBeTruthy();
 		expect(screen.getByRole("button", { name: "Workspace actions" })).toBeTruthy();
+	});
+
+	it("names the workspace by its folder when it has no name, PR title or branch", () => {
+		state.workspace = {
+			state: "ready",
+			data: workspace({ displayName: null, prTitle: null, branch: "" }),
+		};
+		renderHeader();
+		expect(screen.getByTitle("quiet-meadow").textContent).toBe("quiet-meadow");
 	});
 
 	it("reports the right panel state and toggles it", () => {
@@ -183,6 +197,6 @@ describe("NAV-10 WorkspaceHeader", () => {
 	it("hides Open in for an archived workspace", () => {
 		state.workspace = { state: "ready", data: workspace({ state: "archived" }) };
 		renderHeader();
-		expect(screen.queryByText(/Open in/)).toBeNull();
+		expect(screen.queryByRole("button", { name: "Open in" })).toBeNull();
 	});
 });

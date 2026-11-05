@@ -46,6 +46,30 @@ describe("APP-04 NotBuiltYet", () => {
 		log.mockRestore();
 	});
 
+	it("shows the message of any other error and tries again on request", () => {
+		const log = vi.spyOn(console, "error").mockImplementation(() => {});
+		flaky.shouldThrow = true;
+		render(
+			<NotBuiltYet area="Chat">
+				<Flaky />
+			</NotBuiltYet>,
+		);
+		expect(screen.getByText("render failed")).toBeTruthy();
+		flaky.shouldThrow = false;
+		fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+		expect(screen.getByText("recovered")).toBeTruthy();
+		log.mockRestore();
+	});
+
+	it("offers no retry for a placeholder", () => {
+		render(
+			<NotBuiltYet area="Chat">
+				<Missing id="CHAT-06" />
+			</NotBuiltYet>,
+		);
+		expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+	});
+
 	it("renders its children when nothing throws", () => {
 		render(
 			<NotBuiltYet area="Chat">

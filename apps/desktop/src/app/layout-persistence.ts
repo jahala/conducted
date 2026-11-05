@@ -16,6 +16,7 @@
  * Test first: saving then loading a layout for "workspace-right-panels-w1" returns the same sizes.
  */
 
+import { ok, type Result } from "@conducted/shared";
 import { sidebarSize } from "../ui/layout-sizes.ts";
 import type { PanelLayout } from "../ui/resizable.tsx";
 
@@ -35,7 +36,7 @@ export const panelLayoutStorageKey = (groupId: string): string => `${STORAGE_PRE
 /** The settings service as the shell persistence needs it: a sync read and an async write. */
 export interface PanelLayoutSettings {
 	get<T>(key: string): T;
-	set(key: string, value: unknown): Promise<unknown>;
+	set(key: string, value: unknown): Promise<Result<void>>;
 }
 
 const SIDEBAR_MIN = Number.parseFloat(sidebarSize.min);
@@ -57,17 +58,23 @@ export function shellSidebarWidth(settings: PanelLayoutSettings): number {
 /**
  * Writes what a finished resize or toggle means to the settings table: whether the sidebar is open, and its
  * width in pixels when it is. Values that did not change are skipped, so mounting the shell writes nothing.
+ * The first failed write is returned, so the caller can tell the user.
  */
-export function saveShellSidebar(settings: PanelLayoutSettings, size: { inPixels: number }): void {
+export async function saveShellSidebar(
+	settings: PanelLayoutSettings,
+	size: { inPixels: number },
+): Promise<Result<void>> {
 	const open = size.inPixels > 0;
 	if (settings.get<boolean>("left_panel_visible") !== open) {
-		void settings.set("left_panel_visible", open);
+		const saved = await settings.set("left_panel_visible", open);
+		if (!saved.ok) return saved;
 	}
-	if (!open) return;
+	if (!open) return ok(undefined);
 	const width = clampSidebarWidth(size.inPixels);
 	if (settings.get<number>("left_panel_width") !== width) {
-		void settings.set("left_panel_width", width);
+		return settings.set("left_panel_width", width);
 	}
+	return ok(undefined);
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

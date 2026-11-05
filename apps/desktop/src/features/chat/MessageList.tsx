@@ -15,7 +15,7 @@
  * (EmptyChat with starters, or none in an archived workspace; the composer bar says the workspace
  * is read-only); a turn added while the user reads old messages (no jump, show Scroll to bottom);
  * the chat switches (list resets to the bottom); a very long turn; each turn in its own boundary
- * 'This chat turn failed to render. Other turns are still available.'; 5000 turns stay smooth.
+ * 'This chat turn failed to render. Other turns are still available.'; 2000 turns stay smooth (tested at that size).
  * Test first: With 2000 turns only a small window of TurnItem is mounted; appending a block to the
  * last turn re-renders only that item.
  */
@@ -28,6 +28,7 @@ import type { ChatView } from "../../core/model.ts";
 import { LoadableView } from "../../ui/LoadableView.tsx";
 import { Skeleton } from "../../ui/Skeleton.tsx";
 import { EmptyChat } from "./EmptyChat.tsx";
+import { reportFailure } from "./report-failure.ts";
 import { ScrollToBottomButton } from "./ScrollToBottomButton.tsx";
 import { TurnItem } from "./TurnItem.tsx";
 
@@ -69,7 +70,10 @@ export function MessageList({ sessionId, workspaceId }: MessageListProps) {
 	const [atBottom, setAtBottom] = useState(true);
 
 	useCommandHandler("chat.expandAllToolCalls", "area", () => {
-		void actions.settings.set("expand_tool_calls", !expandAll);
+		void reportFailure(
+			actions.settings.set("expand_tool_calls", !expandAll),
+			"Couldn't change the tool call setting",
+		);
 		return true;
 	});
 
@@ -99,13 +103,7 @@ export function MessageList({ sessionId, workspaceId }: MessageListProps) {
 							ref={listRef}
 							data={data.turns}
 							computeItemKey={(_, turn) => turn.turnId}
-							itemContent={(index, turn) => (
-								<TurnItem
-									turn={turn}
-									sessionId={sessionId}
-									isLast={index === data.turns.length - 1}
-								/>
-							)}
+							itemContent={(_, turn) => <TurnItem turn={turn} sessionId={sessionId} />}
 							initialTopMostItemIndex={Math.max(0, data.turns.length - 1)}
 							increaseViewportBy={600}
 							followOutput={(isAtBottom) => (isAtBottom ? "smooth" : false)}

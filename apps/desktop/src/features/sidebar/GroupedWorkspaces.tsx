@@ -41,6 +41,7 @@ import {
 	type SidebarView,
 	writeGroupBySetting,
 } from "./sidebar-view.ts";
+import { useNow } from "./use-now.ts";
 import { ViewOptionsMenu } from "./ViewOptionsMenu.tsx";
 import { WorkspaceRow } from "./WorkspaceRow.tsx";
 
@@ -82,6 +83,7 @@ function GroupSection({
 	repos,
 	selectedId,
 	shortcutIndexes,
+	now,
 	open,
 	onOpenChange,
 }: {
@@ -90,6 +92,7 @@ function GroupSection({
 	repos: Repo[];
 	selectedId: WorkspaceId | null;
 	shortcutIndexes: ReadonlyMap<WorkspaceId, number>;
+	now: number;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 }) {
@@ -131,6 +134,7 @@ function GroupSection({
 									repo={row.repo}
 									selected={selectedId === workspaceId}
 									shortcutIndex={shortcutIndexes.get(workspaceId) ?? null}
+									now={now}
 								/>
 							);
 						})}
@@ -149,6 +153,7 @@ export function GroupedWorkspaces({ repos, workspaces }: GroupedWorkspacesProps)
 	const projectFilter = useSetting<string>("sidebar_repo_filter");
 	const params = useParams({ strict: false });
 	const selectedId = (params as { workspaceId?: WorkspaceId }).workspaceId ?? null;
+	const now = useNow();
 	const groupByMode = readGroupBySetting(groupBy);
 	const groupByView = groupByMode === "section" ? "project" : groupByMode;
 
@@ -306,6 +311,7 @@ export function GroupedWorkspaces({ repos, workspaces }: GroupedWorkspacesProps)
 							repos={repos}
 							selectedId={selectedId}
 							shortcutIndexes={shortcutIndexes}
+							now={now}
 							open={!collapsed.has(key)}
 							onOpenChange={(open) => setGroupOpen(key, open)}
 						/>

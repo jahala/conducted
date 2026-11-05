@@ -34,7 +34,8 @@ import {
 	ResizeHandle,
 	usePanelRef,
 } from "../ui/resizable.tsx";
-import { setCurrentWorkspace } from "../ui/Toast.tsx";
+import { setCurrentWorkspace, toastError } from "../ui/Toast.tsx";
+import { isTextEntry } from "./command-dispatcher.ts";
 import {
 	loadPanelLayout,
 	savePanelLayout,
@@ -42,29 +43,6 @@ import {
 	shellSidebarWidth,
 } from "./layout-persistence.ts";
 import { ShellControls } from "./ShellControls.tsx";
-
-const NON_TEXT_INPUT_TYPES = new Set([
-	"button",
-	"checkbox",
-	"color",
-	"file",
-	"hidden",
-	"image",
-	"radio",
-	"range",
-	"reset",
-	"submit",
-]);
-
-/** True when the key event belongs to a field that should keep its own select-all. */
-function isTextEntry(target: EventTarget | null): boolean {
-	if (!(target instanceof HTMLElement)) return false;
-	const field = target.closest("input, textarea, [contenteditable]");
-	if (field === null) return false;
-	if (field instanceof HTMLInputElement) return !NON_TEXT_INPUT_TYPES.has(field.type);
-	if (field.getAttribute("contenteditable") === "false") return false;
-	return true;
-}
 
 export function AppShell() {
 	const sidebarRef = usePanelRef();
@@ -90,10 +68,17 @@ export function AppShell() {
 		[],
 	);
 
+	/** Writes the sidebar's state to the settings table. A failed write is shown, not lost. */
+	const saveSidebar = (size: { inPixels: number }) => {
+		void saveShellSidebar(settings, size).then((saved) => {
+			if (!saved.ok) toastError("Couldn't save the sidebar layout", saved.error);
+		});
+	};
+
 	const persistSidebar = () => {
 		const panel = sidebarRef.current;
 		if (!panel) return;
-		saveShellSidebar(settings, panel.getSize());
+		saveSidebar(panel.getSize());
 	};
 
 	const toggleSidebar = () => {
@@ -102,10 +87,10 @@ export function AppShell() {
 		if (panel.isCollapsed()) {
 			const width = shellSidebarWidth(settings);
 			panel.resize(`${width}px`);
-			saveShellSidebar(settings, { inPixels: width });
+			saveSidebar({ inPixels: width });
 		} else {
 			panel.collapse();
-			saveShellSidebar(settings, { inPixels: 0 });
+			saveSidebar({ inPixels: 0 });
 		}
 	};
 
@@ -114,7 +99,7 @@ export function AppShell() {
 			if (event.defaultPrevented) return;
 			if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return;
 			if (event.key.toLowerCase() !== "a") return;
-			if (isTextEntry(event.target)) return;
+			if (event.target instanceof Element && isTextEntry(event.target)) return;
 			event.preventDefault();
 		};
 		document.addEventListener("keydown", onKeyDown, true);

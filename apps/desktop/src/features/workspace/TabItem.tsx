@@ -81,6 +81,8 @@ export function TabItem({
 				}
 			}}
 			onKeyDown={(event) => {
+				// A key pressed on the close button belongs to that button, not to the tab.
+				if (event.target !== event.currentTarget) return;
 				if (event.key === "Enter" || event.key === " ") {
 					event.preventDefault();
 					onSelect();

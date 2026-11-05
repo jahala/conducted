@@ -7,16 +7,19 @@
  * Our design choice: the page keeps the first message in a plain textarea until the composer editor can be
  * reused outside a chat; attachments wait for COMP-07. Pull request and issue bases wait for WS-02.
  * Must handle: no project yet (point to "Add a project"); a failed create keeps the draft with Retry setup
- * and Recover prompt; creation warnings are toasted; an empty prompt creates the workspace without a chat.
+ * and Recover prompt; creation warnings are toasted; an empty prompt creates the workspace without a chat;
+ * "Create from" a branch with no branch name is refused with a message under the field; a second press while
+ * a create or a retry runs does nothing.
  * Test first: submitting with a repository and a prompt calls workspaces.create with that input and navigates to
  * the new workspace; a failed create offers Retry setup and Recover prompt.
  */
 import type { SessionConfig } from "@conducted/protocol";
 import type { RepoId, SectionId, WorkspaceId } from "@conducted/shared";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
 import type { NewWorkspaceInput } from "../core/api.ts";
+import { createSingleFlight } from "../core/async/single-flight.ts";
 import { useServices } from "../core/context.tsx";
 import { useActions, useRepos, useSetting } from "../core/hooks.ts";
 import type { Section } from "../core/model.ts";
@@ -55,6 +58,8 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	const [sectionId, setSectionId] = useState("");
 	const [busy, setBusy] = useState(false);
 	const [failedId, setFailedId] = useState<WorkspaceId | null>(null);
+	const [branchTouched, setBranchTouched] = useState(false);
+	const flight = useRef(createSingleFlight()).current;
 
 	const readyRepos = repos.state === "ready" ? repos.data : [];
 	const selectedRepo = readyRepos.find((repo) => repo.id === repoId) ?? readyRepos[0];
@@ -100,58 +105,71 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 		});
 	};
 
+	const toastWarnings = (workspaceId: WorkspaceId) => {
+		const warnings = services.services.workspace.store.getState().warnings?.[workspaceId] ?? [];
+		for (const warning of warnings) toast.warning(warning);
+	};
+
+	const branchMissing = fromKind === "branch" && branchName.trim() === "";
+
 	const submit = async () => {
-		if (busy || selectedRepo === undefined) return;
-		setFailedId(null);
-		setBusy(true);
-		const progress = toast("Creating workspace…");
-		const config: SessionConfig = {
-			agent: "claude",
-			model: model.trim() === "" ? "default" : model.trim(),
-			effort: (defaultEffort === "" ? "high" : defaultEffort) as SessionConfig["effort"],
-			fastMode: defaultFastMode,
-			planMode,
-			requireToolApproval: toolApprovals,
-			additionalDirectories: [],
-			appTools: FIRST_CHAT_APP_TOOLS,
-		};
-		const input: NewWorkspaceInput = {
-			repoId: selectedRepo.id,
-			from: fromKind === "branch" ? { kind: "branch", name: branchName } : { kind: "default" },
-			prompt,
-			attachmentPaths: [],
-			config,
-			sectionId: sectionId === "" ? null : (sectionId as SectionId),
-		};
-		const result = await actions.workspaces.create(input);
-		toast.dismiss(progress);
-		setBusy(false);
-		if (!result.ok) {
-			const failed = services.services.workspace.store.getState().lastFailedCreate;
-			if (failed !== null && failed !== undefined) setFailedId(failed.id);
-			toastError("Failed to create workspace", result.error);
+		if (selectedRepo === undefined) return;
+		if (branchMissing) {
+			setBranchTouched(true);
 			return;
 		}
-		for (const warning of services.services.workspace.store.getState().warnings?.[
-			result.value.id
-		] ?? []) {
-			toast.warning(warning);
-		}
-		openWorkspace(result.value.repoId, result.value.id);
+		await flight.run("create", async () => {
+			setFailedId(null);
+			setBusy(true);
+			const progress = toast("Creating workspace…");
+			const config: SessionConfig = {
+				agent: "claude",
+				model: model.trim() === "" ? "default" : model.trim(),
+				effort: (defaultEffort === "" ? "high" : defaultEffort) as SessionConfig["effort"],
+				fastMode: defaultFastMode,
+				planMode,
+				requireToolApproval: toolApprovals,
+				additionalDirectories: [],
+				appTools: FIRST_CHAT_APP_TOOLS,
+			};
+			const input: NewWorkspaceInput = {
+				repoId: selectedRepo.id,
+				from:
+					fromKind === "branch" ? { kind: "branch", name: branchName.trim() } : { kind: "default" },
+				prompt,
+				attachmentPaths: [],
+				config,
+				sectionId: sectionId === "" ? null : (sectionId as SectionId),
+			};
+			const result = await actions.workspaces.create(input);
+			toast.dismiss(progress);
+			setBusy(false);
+			if (!result.ok) {
+				const failed = services.services.workspace.store.getState().lastFailedCreate;
+				if (failed !== null && failed !== undefined) setFailedId(failed.id);
+				toastError("Failed to create workspace", result.error);
+				return;
+			}
+			toastWarnings(result.value.id);
+			openWorkspace(result.value.repoId, result.value.id);
+		});
 	};
 
 	const retry = async () => {
 		if (failedId === null || selectedRepo === undefined) return;
-		setBusy(true);
-		const result = await actions.workspaces.retrySetup(failedId);
-		setBusy(false);
-		if (!result.ok) {
-			toastError("Failed to create workspace", result.error);
-			return;
-		}
 		const id = failedId;
-		setFailedId(null);
-		openWorkspace(selectedRepo.id, id);
+		await flight.run("create", async () => {
+			setBusy(true);
+			const result = await actions.workspaces.retrySetup(id);
+			setBusy(false);
+			if (!result.ok) {
+				toastError("Failed to create workspace", result.error);
+				return;
+			}
+			setFailedId(null);
+			toastWarnings(id);
+			openWorkspace(selectedRepo.id, id);
+		});
 	};
 
 	const recover = async () => {
@@ -218,6 +236,9 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 							onChange={(event) => setBranchName(event.target.value)}
 							placeholder={selectedRepo.defaultBranch}
 							disabled={busy}
+							{...(branchTouched && branchMissing
+								? { error: "Enter the branch to start from." }
+								: {})}
 						/>
 					</div>
 				) : null}
@@ -280,10 +301,22 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 							</p>
 						</div>
 						<div className="flex gap-2">
-							<Button type="button" variant="default" size="sm" onClick={() => void retry()}>
+							<Button
+								type="button"
+								variant="default"
+								size="sm"
+								disabled={busy}
+								onClick={() => void retry()}
+							>
 								Retry setup
 							</Button>
-							<Button type="button" variant="ghost" size="sm" onClick={() => void recover()}>
+							<Button
+								type="button"
+								variant="ghost"
+								size="sm"
+								disabled={busy}
+								onClick={() => void recover()}
+							>
 								Recover prompt
 							</Button>
 						</div>

@@ -84,4 +84,16 @@ describe("CHAT-08 tool card frame", () => {
 		render(<ToolCardFrame title="Read" status="done" body={<p>excerpt</p>} expandAll />);
 		expect(screen.getByText("excerpt")).toBeTruthy();
 	});
+
+	it("follows Garry mode when it is switched on and off while the card is on screen", () => {
+		const card = (expandAll: boolean) => (
+			<ToolCardFrame title="Read" status="done" body={<p>excerpt</p>} expandAll={expandAll} />
+		);
+		const view = render(card(false));
+		expect(screen.queryByText("excerpt")).toBeNull();
+		view.rerender(card(true));
+		expect(screen.getByText("excerpt")).toBeTruthy();
+		view.rerender(card(false));
+		expect(screen.queryByText("excerpt")).toBeNull();
+	});
 });

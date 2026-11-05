@@ -8,8 +8,8 @@
  * `resetKey` changes, so moving to another workspace or tab gets a fresh try. The `overlay` variant is for
  * dialogs and palettes, which have no region of their own: it shows a small card over the window with a
  * close button. The `inline` variant is one line of small text, for footers and toolbars.
- * Must handle: a NotImplemented error shows its feature id; any other error shows a generic card and is
- * logged; a new `resetKey` clears the error; `overlay` without `onDismiss` still renders (no close button).
+ * Must handle: a NotImplemented error shows its feature id; any other error shows a generic card with the
+ * error's message and, in the region variant, "Try again", and is logged; a new `resetKey` clears the error; `overlay` without `onDismiss` still renders (no close button).
  * Test first: a child that calls notImplemented for a feature renders "Not built yet: <id>".
  */
 import { NotImplemented } from "@conducted/shared";
@@ -42,6 +42,10 @@ export class NotBuiltYet extends Component<Props, State> {
 		if (props.resetKey !== state.resetKey) return { error: null, resetKey: props.resetKey };
 		return null;
 	}
+
+	retry = (): void => {
+		this.setState({ error: null });
+	};
 
 	override componentDidCatch(error: Error, info: ErrorInfo): void {
 		if (!(error instanceof NotImplemented)) console.error(error, info.componentStack);
@@ -87,6 +91,18 @@ export class NotBuiltYet extends Component<Props, State> {
 			>
 				<p className="text-sm font-medium text-fg">{area}</p>
 				<p className="text-xs text-fg-muted">{message}</p>
+				{missing === null ? (
+					<>
+						<p className="max-w-prose text-xs text-fg-subtle">{error.message}</p>
+						<button
+							type="button"
+							onClick={this.retry}
+							className="mt-2 h-7 rounded-md border border-border-strong px-3 text-sm font-medium text-fg hover:bg-hover"
+						>
+							Try again
+						</button>
+					</>
+				) : null}
 			</div>
 		);
 	}

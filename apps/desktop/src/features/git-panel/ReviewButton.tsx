@@ -11,7 +11,7 @@
  * Test first: clicking the main part calls requestAiReview with null instructions, and the menu
  * item opens the prompt editor without calling it.
  */
-import { formatShortcut, getCommand } from "../../core/registries/commands.ts";
+import { useLiveShortcut } from "../../core/hooks.ts";
 import { Button } from "../../ui/Button.tsx";
 import { ChevronDownIcon } from "../../ui/icons.tsx";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
@@ -24,18 +24,17 @@ export interface ReviewButtonProps {
 	onReviewWithEdit: () => void;
 }
 
-const SHORTCUT = formatShortcut(getCommand("review.start")?.defaultShortcuts[0] ?? "");
-
 export function ReviewButton({
 	disabled,
 	disabledReason,
 	onReview,
 	onReviewWithEdit,
 }: ReviewButtonProps) {
+	const shortcut = useLiveShortcut("review.start");
 	const tooltip = disabled && disabledReason !== null ? disabledReason : "Get an AI code review";
 	return (
 		<div className="flex items-center">
-			<Tooltip content={tooltip} shortcut={disabled ? undefined : SHORTCUT}>
+			<Tooltip content={tooltip} shortcut={disabled || shortcut === null ? undefined : shortcut}>
 				<Button
 					variant="secondary"
 					size="sm"

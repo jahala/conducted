@@ -1,4 +1,5 @@
 import { idleLiveState } from "@conducted/protocol";
+import { appError, err } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { VirtuosoMockContext } from "react-virtuoso";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,6 +14,7 @@ const state = vi.hoisted(() => ({
 	setSetting: vi.fn(),
 	saveDraft: vi.fn(),
 	send: vi.fn(),
+	toastError: vi.fn(),
 	renders: {} as Record<string, number>,
 }));
 
@@ -28,6 +30,8 @@ vi.mock("../../core/hooks.ts", () => ({
 		sessions: { saveDraft: state.saveDraft, send: state.send },
 	}),
 }));
+
+vi.mock("../../ui/Toast.tsx", () => ({ toastError: state.toastError }));
 
 vi.mock("./UserMessage.tsx", () => ({
 	UserMessage: ({ turn }: { turn: ChatTurn }) => {
@@ -149,6 +153,7 @@ beforeEach(() => {
 	clearCommandHandlers();
 	state.renders = {};
 	state.expand = false;
+	state.toastError.mockReset();
 	state.chat = { state: "ready", data: view([makeTurn(0)]) };
 	state.workspace = { state: "ready", data: workspace() };
 	for (const fn of [state.setSetting, state.saveDraft, state.send]) fn.mockReset();
@@ -216,5 +221,24 @@ describe("CHAT-06 message list", () => {
 		await screen.findByTestId("user-message");
 		expect(runCommandHandlers("chat.expandAllToolCalls")).toBe(true);
 		expect(state.setSetting).toHaveBeenCalledWith("expand_tool_calls", true);
+	});
+
+	it("tells the user when the Expand all tool calls setting could not be saved", async () => {
+		const error = appError("write_failed", "The settings file is read-only.");
+		state.setSetting.mockResolvedValue(err(error));
+		render(wrap(<MessageList sessionId={sessionId} workspaceId={workspaceId} />));
+		await screen.findByTestId("user-message");
+		runCommandHandlers("chat.expandAllToolCalls");
+		await waitFor(() =>
+			expect(state.toastError).toHaveBeenCalledWith("Couldn't change the tool call setting", error),
+		);
+	});
+
+	it("turns Expand all tool calls off when it is on", async () => {
+		state.expand = true;
+		render(wrap(<MessageList sessionId={sessionId} workspaceId={workspaceId} />));
+		await screen.findByTestId("user-message");
+		runCommandHandlers("chat.expandAllToolCalls");
+		expect(state.setSetting).toHaveBeenCalledWith("expand_tool_calls", false);
 	});
 });

@@ -29,6 +29,7 @@ import { RenameDialog } from "./RenameDialog.tsx";
 import { WorkspaceActionsMenu } from "./WorkspaceActionsMenu.tsx";
 import type { RightPanelControls } from "./WorkspaceLayout.tsx";
 import { WorkspaceRenameDialog } from "./WorkspaceRenameDialog.tsx";
+import { workspaceName } from "./workspace-name.ts";
 
 export interface WorkspaceHeaderProps {
 	repoId: RepoId;
@@ -47,7 +48,7 @@ export function WorkspaceHeader({ repoId, workspaceId, controls }: WorkspaceHead
 	const data = workspace.state === "ready" ? workspace.data : null;
 	const repo = repos.state === "ready" ? repos.data.find((item) => item.id === repoId) : undefined;
 	const archived = data?.state === "archived";
-	const name = data?.displayName ?? data?.prTitle ?? data?.branch ?? data?.directoryName ?? "";
+	const name = data === null ? "" : workspaceName(data);
 	const branch = data?.branch ?? "";
 
 	const copy = (title: string, text: string) => {

@@ -1,5 +1,6 @@
 import type { CanonicalTool } from "@conducted/protocol";
 import type { SessionId } from "@conducted/shared";
+import { notImplemented, ok } from "@conducted/shared";
 import {
 	createMemoryHistory,
 	createRootRoute,
@@ -9,9 +10,12 @@ import {
 } from "@tanstack/react-router";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import "../../../../test/dom-polyfills.ts";
+import type { Container } from "../../../../core/container.ts";
+import { ServicesProvider } from "../../../../core/context.tsx";
 import type { ToolCallView } from "../../../../core/model.ts";
+import { TOOL_CARDS } from "../registry.ts";
 import { AppToolCard } from "./AppToolCard.tsx";
 import { BashCard } from "./BashCard.tsx";
 import { BashOutputCard } from "./BashOutputCard.tsx";
@@ -32,6 +36,15 @@ import { WebSearchCard } from "./WebSearchCard.tsx";
 import { WriteCard } from "./WriteCard.tsx";
 
 const sessionId = "s1" as SessionId;
+
+const openUrl = vi.fn();
+
+/** The web cards open addresses through the action table; `createTestContainer` needs a node environment. */
+const withActions = (ui: ReactNode) => (
+	<ServicesProvider container={{ actions: { app: { openUrl } } } as unknown as Container}>
+		{ui}
+	</ServicesProvider>
+);
 
 let sequence = 0;
 
@@ -75,7 +88,10 @@ async function renderInRouter(ui: ReactNode) {
 	return router;
 }
 
-afterEach(cleanup);
+afterEach(() => {
+	cleanup();
+	openUrl.mockReset();
+});
 
 describe("CHAT-08 slash command card", () => {
 	it("renders the command with its arguments", () => {
@@ -148,6 +164,46 @@ describe("CHAT-08 sub-agent card", () => {
 		expect(screen.getByText("Look into it")).toBeTruthy();
 		expect(screen.getAllByText("Bash")).toHaveLength(1);
 		expect(screen.getAllByText("Read")).toHaveLength(1);
+	});
+
+	it("shows the sub-agent's final answer", async () => {
+		await renderInRouter(
+			<SubAgentCard
+				call={view("sub_agent", { description: "Look into it" }, { output: "Found two callers." })}
+				sessionId={sessionId}
+				defaultExpanded
+			/>,
+		);
+		expect(screen.getByText("Found two callers.")).toBeTruthy();
+	});
+
+	it("keeps the other nested cards when one nested card throws, and when one is a placeholder", async () => {
+		const original = { bash: TOOL_CARDS.bash, task_create: TOOL_CARDS.task_create };
+		const log = vi.spyOn(console, "error").mockImplementation(() => {});
+		TOOL_CARDS.bash = () => {
+			throw new Error("render failed");
+		};
+		TOOL_CARDS.task_create = () => notImplemented("CHAT-09");
+		try {
+			const children = [
+				view("bash", { command: "ls" }, { rawName: "Bash" }),
+				view("task_create", {}, { rawName: "TaskCreate" }),
+				view("read", { file_path: "src/a.ts" }, { rawName: "Read" }),
+			];
+			await renderInRouter(
+				<SubAgentCard
+					call={view("sub_agent", { description: "Look into it" }, { children })}
+					sessionId={sessionId}
+					defaultExpanded
+				/>,
+			);
+			expect(screen.getByText("Tool: Bash: This part failed to load.")).toBeTruthy();
+			expect(screen.getByText("Tool: TaskCreate: Not built yet: CHAT-09")).toBeTruthy();
+			expect(screen.getByText("Read")).toBeTruthy();
+		} finally {
+			Object.assign(TOOL_CARDS, original);
+			log.mockRestore();
+		}
 	});
 });
 
@@ -388,23 +444,28 @@ describe("CHAT-08 generic tool card", () => {
 
 describe("CHAT-08 web search card", () => {
 	it("shows the query and one row per result", () => {
+		openUrl.mockResolvedValue(ok(undefined));
 		render(
-			<WebSearchCard
-				call={view(
-					"web_search",
-					{ query: "weather" },
-					{ output: "Result one\nhttps://one.test\nResult two\nhttps://two.test" },
-				)}
-				sessionId={sessionId}
-				defaultExpanded
-			/>,
+			withActions(
+				<WebSearchCard
+					call={view(
+						"web_search",
+						{ query: "weather" },
+						{ output: "Result one\nhttps://one.test\nResult two\nhttps://two.test" },
+					)}
+					sessionId={sessionId}
+					defaultExpanded
+				/>,
+			),
 		);
 		expect(screen.getByText("weather")).toBeTruthy();
 		expect(screen.getByText("Result one")).toBeTruthy();
 		expect(screen.getByText("Result two")).toBeTruthy();
-		expect(screen.getByRole("link", { name: "Result one" }).getAttribute("href")).toBe(
-			"https://one.test",
-		);
+		const link = screen.getByRole("link", { name: "Result one" });
+		expect(link.getAttribute("href")).toBe("https://one.test");
+		expect(link.getAttribute("target")).toBeNull();
+		fireEvent.click(link);
+		expect(openUrl).toHaveBeenCalledWith("https://one.test");
 	});
 });
 
@@ -430,13 +491,30 @@ describe("CHAT-08 notebook edit card", () => {
 describe("CHAT-08 web fetch card", () => {
 	it("shows the host and the full address on hover", () => {
 		const address = "https://example.com/page";
+		openUrl.mockResolvedValue(ok(undefined));
 		render(
-			<WebFetchCard
-				call={view("web_fetch", { url: address }, { output: "Some page text" })}
-				sessionId={sessionId}
-			/>,
+			withActions(
+				<WebFetchCard
+					call={view("web_fetch", { url: address }, { output: "Some page text" })}
+					sessionId={sessionId}
+				/>,
+			),
 		);
 		expect(screen.getByText("example.com")).toBeTruthy();
-		expect(screen.getByTitle(address)).toBeTruthy();
+		fireEvent.click(screen.getByTitle(address));
+		expect(openUrl).toHaveBeenCalledWith(address);
+	});
+
+	it("shows an address that is not a web address as text, not a link", () => {
+		render(
+			withActions(
+				<WebFetchCard
+					call={view("web_fetch", { url: "javascript:alert(1)" }, { output: "x" })}
+					sessionId={sessionId}
+				/>,
+			),
+		);
+		expect(screen.queryByRole("link")).toBeNull();
+		expect(screen.getByText("javascript:alert(1)")).toBeTruthy();
 	});
 });

@@ -16,6 +16,8 @@ vi.mock("../../core/hooks.ts", () => ({
 	useSessions: () => state.open,
 	useClosedSessions: () => state.closed,
 	useActions: () => ({ sessions: { reopen: state.reopen } }),
+	useWorkspace: () => ({ state: "ready", data: { port: 0 } }),
+	useSetting: () => false,
 }));
 
 vi.mock("../../core/context.tsx", () => ({

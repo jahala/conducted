@@ -2,7 +2,7 @@ import type { AgentInstall } from "@conducted/protocol";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { agentDisplayName } from "../../../core/services/agent-catalog.ts";
-import { AgentCard, agentState, middleTruncate } from "./AgentCard.tsx";
+import { AgentCard, agentState } from "./AgentCard.tsx";
 
 const install = (changes: Partial<AgentInstall> = {}): AgentInstall => ({
 	agent: "claude",
@@ -94,13 +94,16 @@ describe("SET-03 agent names and paths", () => {
 		expect(agentDisplayName({ agent, acpAgent })).toBe(expected);
 	});
 
-	it("keeps both ends of a long path", () => {
-		const path = `/Users/me/.local/share/conducted/agents/claude/2.0.0/bin/claude`;
-		const cut = middleTruncate(path, 32);
+	it("keeps both ends of a long path and the full path in the tooltip", () => {
+		const path =
+			"/Users/me/.local/share/conducted/agents/claude/2.0.0/node_modules/.bin/bin/claude";
+		renderCard(install({ path }));
 
-		expect(cut.length).toBe(32);
-		expect(cut.startsWith("/Users/me")).toBe(true);
-		expect(cut.endsWith("/bin/claude")).toBe(true);
+		const shown = screen.getByTitle(path);
+		expect((shown.textContent ?? "").length).toBeLessThan(path.length);
+		expect(shown.textContent?.startsWith("/Users/me")).toBe(true);
+		expect(shown.textContent?.endsWith("/bin/claude")).toBe(true);
+		expect(shown.textContent).toContain("…");
 	});
 
 	it("maps the install source and sign-in method to Conductor's state words", () => {

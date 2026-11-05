@@ -2,7 +2,7 @@
  * @feature CHAT-06 Code block
  * Owns: A highlighted code block with a language label and a copy button.
  * Behaviour: ui-map.md 3.3 (code blocks with copy), 8 (Shiki for highlight; CodeBlockMemoized).
- * Our design choice: Highlighting runs through shiki, loaded on first use, and falls back to plain
+ * Our design choice: Highlighting runs through shiki, loaded on first use, and shows plain
  * monospace text while it loads. Themes follow the app's light or dark mode.
  * Must handle: Unknown language (plain text); a very large block (cut off with 'Show all');
  * streaming code (re-highlight without flicker, memoised on the text); copy confirms with a short
@@ -55,18 +55,26 @@ export interface CodeBlockProps {
 	language: string | null;
 }
 
+/** Highlighted tokens and the exact text they were made from. */
+interface Highlighted {
+	source: string;
+	lines: HighlightToken[][];
+}
+
 export function CodeBlock({ code, language }: CodeBlockProps) {
 	const actions = useActions();
 	const theme = useDocumentTheme();
-	const [tokens, setTokens] = useState<HighlightToken[][] | null>(null);
+	const [highlighted, setHighlighted] = useState<Highlighted | null>(null);
 	const [showAll, setShowAll] = useState(false);
 	const tooLarge = code.length > LARGE_BLOCK && !showAll;
 	const shown = tooLarge ? code.slice(0, LARGE_BLOCK) : code;
 
 	useEffect(() => {
 		let cancelled = false;
-		setTokens(null);
-		if (language === null || language.length === 0) return;
+		if (language === null || language.length === 0) {
+			setHighlighted(null);
+			return;
+		}
 		const lang: string = language;
 		async function highlight() {
 			try {
@@ -76,14 +84,16 @@ export function CodeBlock({ code, language }: CodeBlockProps) {
 					theme: theme === "dark" ? "github-dark" : "github-light",
 				});
 				if (!cancelled) {
-					setTokens(
-						rendered.tokens.map((line) =>
+					setHighlighted({
+						source: shown,
+						lines: rendered.tokens.map((line) =>
 							line.map((token) => ({ content: token.content, color: token.color })),
 						),
-					);
+					});
 				}
 			} catch {
-				if (!cancelled) setTokens(null);
+				// An unknown language or a failed load leaves the plain text, which is already on screen.
+				if (!cancelled) setHighlighted(null);
 			}
 		}
 		void highlight();
@@ -92,12 +102,15 @@ export function CodeBlock({ code, language }: CodeBlockProps) {
 		};
 	}, [shown, language, theme]);
 
+	// While a reply streams, the text grows after the last highlight. The old colours stay and the new tail
+	// shows as plain text until the next highlight arrives, so the block never flashes back to plain.
+	const known = highlighted !== null && shown.startsWith(highlighted.source) ? highlighted : null;
+	const tail = known === null ? "" : shown.slice(known.source.length);
 	let offset = 0;
-	const highlighted =
-		tokens === null
+	const coloured =
+		known === null
 			? null
-			: tokens.map((line) => {
-					const lineKey = `line-${offset}`;
+			: known.lines.map((line, lineIndex) => {
 					const cells = line.map((token) => {
 						const key = `token-${offset}`;
 						offset += token.content.length;
@@ -110,9 +123,12 @@ export function CodeBlock({ code, language }: CodeBlockProps) {
 							</span>
 						);
 					});
+					const lineKey = `line-${offset}-${lineIndex}`;
+					offset += 1;
 					return (
-						<span key={lineKey} className="block">
-							{cells.length === 0 ? " " : cells}
+						<span key={lineKey}>
+							{cells}
+							{lineIndex < known.lines.length - 1 ? "\n" : ""}
 						</span>
 					);
 				});
@@ -130,7 +146,10 @@ export function CodeBlock({ code, language }: CodeBlockProps) {
 			</div>
 			<div className="overflow-x-auto">
 				<pre className="m-0 p-3 font-mono text-code text-fg">
-					<code>{highlighted ?? shown}</code>
+					<code>
+						{coloured ?? shown}
+						{tail}
+					</code>
 				</pre>
 			</div>
 			{tooLarge ? (

@@ -9,7 +9,8 @@
  * browser tab is the tab the URL names, so the URL stays the one source of truth for the open tab.
  * The tab limit is five, or ten with Tab Freak Mode. A browser URL that does not parse is shown as-is.
  * Must handle: Many tabs (scroll); at the tab limit (new-tab menu disabled); closing the active tab
- * opens its neighbour while closing another keeps the current tab; error card 'Tabs failed to load'
+ * opens its neighbour while closing another keeps the current tab; 'Close others' closes the other
+ * chats and terminals and keeps the chosen tab; error card 'Tabs failed to load'
  * with Retry; reopening the last closed chat; a split group's tabs are left out of the main strip.
  * Test first: Closing the active middle tab selects the tab to its right; at the limit the '+'
  * menu is disabled.
@@ -226,23 +227,39 @@ export function TabStrip({ workspaceId, search, onSearchChange, excludeRefs }: T
 		else select(neighbour);
 	};
 
-	const close = async (tab: TabDescriptor) => {
+	/** Closes the chat or terminal behind a tab. Other tab kinds close by leaving the URL. */
+	const closeBacking = async (tab: TabDescriptor): Promise<boolean> => {
 		if (tab.kind === "session" && tab.sessionId !== undefined) {
 			const result = await actions.sessions.close(tab.sessionId);
 			if (!result.ok) {
 				toastError("Couldn't close the chat", result.error);
-				return;
+				return false;
 			}
 		}
 		if (tab.kind === "terminal" && tab.terminalId !== undefined) {
 			const result = await actions.terminals.close(tab.terminalId);
 			if (!result.ok) {
 				toastError("Couldn't close the terminal", result.error);
-				return;
+				return false;
 			}
 		}
+		return true;
+	};
+
+	const close = async (tab: TabDescriptor) => {
+		if (!(await closeBacking(tab))) return;
 		lastClosed.current = tab;
 		if (tab.ref === activeRef) showNeighbour(tab);
+	};
+
+	const closeOthers = async (keep: TabDescriptor) => {
+		for (const other of tabs) {
+			if (other.ref === keep.ref) continue;
+			if (other.kind !== "session" && other.kind !== "terminal") continue;
+			if (!(await closeBacking(other))) return;
+			lastClosed.current = other;
+		}
+		if (keep.ref !== activeRef) select(keep);
 	};
 
 	const go = (offset: number) => {
@@ -275,6 +292,7 @@ export function TabStrip({ workspaceId, search, onSearchChange, excludeRefs }: T
 	const active = tabs.find((tab) => tab.ref === activeRef) ?? null;
 	const closable = openSessions.length + terminalTabs(openTerminals).length;
 	const atTabLimit = closable >= limit;
+	const hasOtherClosable = closable > 1;
 
 	useCommandHandler("chat.newTab", "base", () => {
 		if (atTabLimit) return false;
@@ -346,6 +364,7 @@ export function TabStrip({ workspaceId, search, onSearchChange, excludeRefs }: T
 			{tabs.map((tab) => {
 				const item = (
 					<TabItem
+						key={tab.ref}
 						tab={tab}
 						active={tab.ref === activeRef}
 						onSelect={() => select(tab)}
@@ -371,6 +390,7 @@ export function TabStrip({ workspaceId, search, onSearchChange, excludeRefs }: T
 						session={session}
 						workspaceId={workspaceId}
 						onClose={() => void close(tab)}
+						onCloseOthers={hasOtherClosable ? () => void closeOthers(tab) : undefined}
 					>
 						<div className="flex shrink-0">{item}</div>
 					</TabContextMenu>

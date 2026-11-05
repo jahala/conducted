@@ -7,21 +7,22 @@
  * tab', 'Fork to new workspace', 'Reset chat', copy options).
  * Our design choice: Fork to a new workspace is not in the scaffold backlog beyond CHAT-16; its
  * item is shown disabled with the reason until built.
- * Must handle: A running turn (no footer); no usage reported (the hover card says so); no
- * checkpoint (Fork and Reset disabled with a reason); a cancelled or errored turn (footer still
- * copies); reduced width (actions collapse into the More menu).
+ * Must handle: A running turn (no footer, TurnItem shows the spinner instead); no usage reported (the hover card
+ * says so); no checkpoint (Fork and Reset disabled with a reason); a cancelled or errored turn (footer still
+ * copies); a copy, fork or reset that fails (a toast). The More menu repeats the copy actions; the row wraps
+ * at a narrow width instead of collapsing into the menu.
  * Test first: A finished turn with usage shows token counts in the hover card; without a checkpoint
  * Reset is disabled.
  */
-import type { Result, SessionId } from "@conducted/shared";
+import type { SessionId } from "@conducted/shared";
 import { useActions } from "../../core/hooks.ts";
 import type { ChatTurn } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
 import { CopyButton } from "../../ui/CopyButton.tsx";
 import { ChevronDownIcon, ClockIcon } from "../../ui/icons.tsx";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "../../ui/Menu.tsx";
-import { toastError } from "../../ui/Toast.tsx";
 import { Tooltip } from "../../ui/Tooltip.tsx";
+import { reportFailure } from "./report-failure.ts";
 
 export interface TurnFooterProps {
 	turn: ChatTurn;
@@ -70,10 +71,8 @@ export function TurnFooter({ turn, sessionId }: TurnFooterProps) {
 	const canReset = turn.startCheckpointId !== null;
 	const canFork = turn.endCheckpointId !== null || canReset;
 	const copy = (text: string) => actions.app.copyText(text);
-
-	const share = async (run: () => Promise<Result<unknown>>, message: string) => {
-		const result = await run();
-		if (!result.ok) toastError(message, result.error);
+	const copyFromMenu = (text: string) => {
+		void reportFailure(copy(text), "Couldn't copy the text");
 	};
 
 	return (
@@ -106,9 +105,10 @@ export function TurnFooter({ turn, sessionId }: TurnFooterProps) {
 				<MenuContent>
 					<MenuItem
 						disabled={!canFork}
+						title={canFork ? undefined : "This turn has no checkpoint to fork from."}
 						onSelect={() => {
-							void share(
-								() => actions.sessions.forkFrom(sessionId, turn.turnId),
+							void reportFailure(
+								actions.sessions.forkFrom(sessionId, turn.turnId),
 								"Couldn't fork the chat",
 							);
 						}}
@@ -122,8 +122,8 @@ export function TurnFooter({ turn, sessionId }: TurnFooterProps) {
 						disabled={!canReset}
 						title={canReset ? undefined : "This turn has no checkpoint to reset to."}
 						onSelect={() => {
-							void share(
-								() => actions.sessions.revertTo(sessionId, turn.turnId),
+							void reportFailure(
+								actions.sessions.revertTo(sessionId, turn.turnId),
 								"Couldn't reset the chat",
 							);
 						}}
@@ -131,8 +131,13 @@ export function TurnFooter({ turn, sessionId }: TurnFooterProps) {
 						Reset chat
 					</MenuItem>
 					<MenuSeparator />
-					<MenuItem onSelect={() => void copy(finalMessage)}>Copy final message</MenuItem>
-					<MenuItem onSelect={() => void copy(summary)}>Copy summary</MenuItem>
+					<MenuItem
+						disabled={finalMessage.length === 0}
+						onSelect={() => copyFromMenu(finalMessage)}
+					>
+						Copy final message
+					</MenuItem>
+					<MenuItem onSelect={() => copyFromMenu(summary)}>Copy summary</MenuItem>
 				</MenuContent>
 			</Menu>
 		</div>

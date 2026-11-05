@@ -6,6 +6,7 @@
  * on click; redirects (final address shown); a very long page (cut).
  * Test first: A web_fetch call shows the host prominently and the full address on hover.
  */
+import { ExternalLink } from "../../ExternalLink.tsx";
 import { asRecord, ToolCardFrame, textField, textLines, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
@@ -39,15 +40,9 @@ export function WebFetchCard({ call, defaultExpanded }: ToolCardProps) {
 			}
 			footer={
 				address.length > 0 ? (
-					<a
-						href={address}
-						title={address}
-						target="_blank"
-						rel="noreferrer"
-						className="truncate text-link hover:underline"
-					>
+					<ExternalLink url={address} className="truncate text-link hover:underline">
 						{address}
-					</a>
+					</ExternalLink>
 				) : undefined
 			}
 		/>

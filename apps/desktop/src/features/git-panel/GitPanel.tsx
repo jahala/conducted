@@ -4,7 +4,9 @@
  * active tab: All files, Changes or Checks. Entry point embedded by the workspace screen.
  * Behaviour: ui-map.md 3.6 (tab strip, header, tabs); frontend layout in structure-map.md 3.2.
  * Data: useGitState, useWorkspaceStatus (agent working), useActions().
- * Children: GitHeader, GitPanelTabs, changes/ChangesTab, files/FilesTab, checks/ChecksTab.
+ * Children: GitHeader, GitPanelTabs, changes/ChangesTab, files/FilesTab, checks/ChecksTab. Each tab
+ * body sits in its own NotBuiltYet boundary, keyed by the tab, so an unbuilt tab (All files, Checks)
+ * shows which feature is missing while the header and the tab strip stay usable.
  * The "Artifacts", "Desktop" and "Chat" tabs of Conductor are cloud or team features and are left
  * out.
  * The workspace URL state (workspace/workspace-search.ts) holds `gitTab`, `scope` and the open
@@ -12,9 +14,10 @@
  * `scope`, `onScopeChange` and `onOpenFile`. A prop that is left out means the panel keeps that
  * value in its own state (and, without `onOpenFile`, cannot open a file tab).
  * Must handle: git state loading (skeleton header), git state error with retry, no git status
- * because a rebase or merge is underway ("Finish rebasing or merging to see changes"), keyboard
- * shortcuts for the header actions only while the panel is mounted, one review request at a time,
- * and a workspace switch mid-request (only the newest result may change state).
+ * because a rebase or merge is underway (the Changes tab says so), the commands "Create PR" and
+ * "Show uncommitted changes" handled only while the panel is mounted, through the command
+ * dispatcher so a rebind applies, one review request at a time per workspace, and a workspace
+ * switch mid-request (the old request's result does not touch the new workspace's dialog).
  * Test first: with a GitState of two uncommitted files the header reads "Uncommitted changes" and
  * the main action is "Commit and push".
  */
@@ -22,11 +25,17 @@ import type { WorkspaceId } from "@conducted/shared";
 import { useEffect, useRef, useState } from "react";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import type { DiffScope } from "../../core/api.ts";
+import { createSingleFlight } from "../../core/async/single-flight.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions, useGitState, useSetting, useWorkspaceStatus } from "../../core/hooks.ts";
 import type { GitPanelTab } from "../../core/model.ts";
-import { computeGitHeader, type GitHeaderActionId } from "../../core/status/git-header.ts";
+import {
+	computeGitHeader,
+	type GitHeaderActionId,
+	type GitHeaderInputs,
+} from "../../core/status/git-header.ts";
 import { Button } from "../../ui/Button.tsx";
+import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { Skeleton } from "../../ui/Skeleton.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { ChangesTab } from "./changes/ChangesTab.tsx";
@@ -57,6 +66,26 @@ function HeaderSkeleton() {
 	);
 }
 
+/**
+ * The header for a loaded git state. The model comes from computeGitHeader, which is not built yet
+ * (GIT-04); in its own function so that gap stays inside the header's NotBuiltYet boundary and the
+ * tabs below keep working.
+ */
+function ComputedHeader({
+	inputs,
+	onAction,
+}: {
+	inputs: GitHeaderInputs;
+	onAction: (action: GitHeaderActionId) => Promise<void>;
+}) {
+	const computed = computeGitHeader(inputs);
+	// "Add all comments to chat" needs the review comment store (REV-03). Until it exists,
+	// offer no button rather than one that silently does nothing.
+	const model =
+		computed.action?.id === "add_comments_to_chat" ? { ...computed, action: null } : computed;
+	return <GitHeader model={model} onAction={onAction} />;
+}
+
 export function GitPanel({
 	workspaceId,
 	tab: tabProp,
@@ -75,8 +104,11 @@ export function GitPanel({
 	const [ownTab, setOwnTab] = useState<GitPanelTab>("changes");
 	const [ownScope, setOwnScope] = useState<DiffScope>(DEFAULT_SCOPE);
 	const [reviewPromptOpen, setReviewPromptOpen] = useState(false);
-	const [reviewBusy, setReviewBusy] = useState(false);
-	const reviewBusyRef = useRef(false);
+	const [reviewingFor, setReviewingFor] = useState<WorkspaceId | null>(null);
+	const [reviewFlight] = useState(() => createSingleFlight());
+	const currentWorkspace = useRef(workspaceId);
+	currentWorkspace.current = workspaceId;
+	const reviewBusy = reviewingFor === workspaceId;
 	const tab = tabProp ?? ownTab;
 	const scope = scopeProp ?? ownScope;
 
@@ -89,17 +121,17 @@ export function GitPanel({
 		if (scopeProp === undefined) setOwnScope(next);
 	};
 
-	// Cmd+Alt+U shows uncommitted changes from anywhere in the panel.
+	// A new workspace starts with the review prompt closed.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: the workspace id is the trigger.
 	useEffect(() => {
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.metaKey && event.altKey && event.key.toLowerCase() === "u") {
-				event.preventDefault();
-				setTab("changes");
-				setScope({ kind: "uncommitted" });
-			}
-		};
-		window.addEventListener("keydown", onKeyDown);
-		return () => window.removeEventListener("keydown", onKeyDown);
+		setReviewPromptOpen(false);
+	}, [workspaceId]);
+
+	// Cmd+Alt+U (or the user's rebind) shows uncommitted changes while the panel is mounted.
+	useCommandHandler("review.showUncommitted", "area", () => {
+		setTab("changes");
+		setScope({ kind: "uncommitted" });
+		return true;
 	});
 
 	const refresh = async (): Promise<void> => {
@@ -174,20 +206,23 @@ export function GitPanel({
 	});
 
 	const startReview = async (extraInstructions: string | null): Promise<void> => {
-		// One review at a time: a second press or the dialog's Send must not start another chat.
-		if (reviewBusyRef.current) return;
-		reviewBusyRef.current = true;
-		setReviewBusy(true);
+		// One review at a time per workspace: a second press or the dialog's Send must not start
+		// another chat.
+		const key = `review:${workspaceId}`;
+		if (reviewFlight.isRunning(key)) return;
+		setReviewingFor(workspaceId);
 		try {
-			const result = await actions.pullRequests.requestAiReview(workspaceId, extraInstructions);
+			const result = await reviewFlight.run(key, () =>
+				actions.pullRequests.requestAiReview(workspaceId, extraInstructions),
+			);
 			if (!result.ok) {
 				toastError("Couldn't start the review", result.error);
 				return;
 			}
-			setReviewPromptOpen(false);
+			// The user may have moved to another workspace while the request ran.
+			if (currentWorkspace.current === workspaceId) setReviewPromptOpen(false);
 		} finally {
-			reviewBusyRef.current = false;
-			setReviewBusy(false);
+			setReviewingFor((current) => (current === workspaceId ? null : current));
 		}
 	};
 
@@ -205,19 +240,22 @@ export function GitPanel({
 				</div>
 			);
 		}
-		const computed = computeGitHeader({
-			git: git.data,
-			agentWorking: status?.kind === "agent" && status.label === "working",
-			forge: git.data.pullRequestUnavailable === "not_github" ? "local" : "github",
-			automergeSettingOn: automergeEnabled,
-			treatOptionalChecksAsBlocking: optionalChecksBlocking,
-			stack: null,
-		});
-		// "Add all comments to chat" needs the review comment store (REV-03). Until it exists,
-		// offer no button rather than one that silently does nothing.
-		const model =
-			computed.action?.id === "add_comments_to_chat" ? { ...computed, action: null } : computed;
-		return <GitHeader model={model} onAction={runAction} />;
+		return (
+			<NotBuiltYet area="Git header" variant="inline" resetKey={workspaceId}>
+				<ComputedHeader
+					key={workspaceId}
+					inputs={{
+						git: git.data,
+						agentWorking: status?.kind === "agent" && status.label === "working",
+						forge: git.data.pullRequestUnavailable === "not_github" ? "local" : "github",
+						automergeSettingOn: automergeEnabled,
+						treatOptionalChecksAsBlocking: optionalChecksBlocking,
+						stack: null,
+					}}
+					onAction={runAction}
+				/>
+			</NotBuiltYet>
+		);
 	})();
 
 	const changedCount = git.state === "ready" ? git.data.changedFiles : 0;
@@ -243,7 +281,9 @@ export function GitPanel({
 			/>
 			<div className="min-h-0 flex-1 overflow-hidden">
 				{tab === "files" ? (
-					<FilesTab workspaceId={workspaceId} onOpenFile={(path) => openFile(path, "edit")} />
+					<NotBuiltYet area="All files" resetKey={`${workspaceId}:files`}>
+						<FilesTab workspaceId={workspaceId} onOpenFile={(path) => openFile(path, "edit")} />
+					</NotBuiltYet>
 				) : tab === "changes" ? (
 					<ChangesTab
 						workspaceId={workspaceId}
@@ -252,7 +292,9 @@ export function GitPanel({
 						onOpenFile={(path) => openFile(path, "diff")}
 					/>
 				) : (
-					<ChecksTab workspaceId={workspaceId} />
+					<NotBuiltYet area="Checks" resetKey={`${workspaceId}:checks`}>
+						<ChecksTab workspaceId={workspaceId} />
+					</NotBuiltYet>
 				)}
 			</div>
 			<ReviewPromptDialog

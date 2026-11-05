@@ -1,7 +1,8 @@
 /**
  * @feature NAV-02 Restore the last place
- * Owns: choosing where the app opens at launch, and which tab a workspace opens on when its URL has none. Also
- * the saved-location codec the router reads at "/" and writes whenever a workspace route settles.
+ * Owns: choosing where the app opens at launch, and the saved-location codec the router reads at "/" and
+ * writes whenever a workspace route settles. The workspace route in router.tsx reopens the chat tab a
+ * workspace had open when its URL has none.
  * Behaviour: ui-map.md 2 (the "/" route restores the last workspace route on launch and skips archived ones;
  * with no search set the workspace route restores the last active search for that workspace).
  * Our design choice: the decision is a pure function. The caller supplies the saved location and the

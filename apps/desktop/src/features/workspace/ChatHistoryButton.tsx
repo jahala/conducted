@@ -5,7 +5,7 @@
  * Behaviour: ui-map.md 3.2 ('View chat history' lists all chats, including closed ones; 'Loading
  * chats', 'No open chats' with 'New chat').
  * Data: useSessions(workspaceId) for the open chats and useClosedSessions(workspaceId) for the
- * closed ones.
+ * closed ones. 'New chat' is useNewTab's, the same action as the '+' menu and Cmd+T.
  * Must handle: Loading; error; no chats at all ('New chat' starts one from the workspace's default
  * config); a closed chat reopens in a new tab and keeps its history; a very long list scrolls and
  * can be searched by title.
@@ -14,13 +14,13 @@
 
 import type { WorkspaceId } from "@conducted/shared";
 import { useState } from "react";
-import { useServices } from "../../core/context.tsx";
 import { useActions, useClosedSessions, useSessions } from "../../core/hooks.ts";
 import type { Session } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
 import { ClockIcon, SearchIcon } from "../../ui/icons.tsx";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
 import { toastError } from "../../ui/Toast.tsx";
+import { useNewTab } from "./useNewTab.tsx";
 import type { WorkspaceSearch } from "./workspace-search.ts";
 
 export interface ChatHistoryButtonProps {
@@ -40,7 +40,7 @@ export function ChatHistoryButton({ workspaceId, onSearchChange }: ChatHistoryBu
 	const open = useSessions(workspaceId);
 	const closed = useClosedSessions(workspaceId);
 	const actions = useActions();
-	const sessions = useServices().services.sessions;
+	const newTab = useNewTab({ workspaceId, onSearchChange });
 	const [menuOpen, setMenuOpen] = useState(false);
 	const [query, setQuery] = useState("");
 	const [busy, setBusy] = useState(false);
@@ -66,17 +66,12 @@ export function ChatHistoryButton({ workspaceId, onSearchChange }: ChatHistoryBu
 		show(session);
 	};
 
+	// useNewTab creates the chat, toasts a failure and opens the tab. It shares one single-flight
+	// with the '+' menu and Cmd+T, so two requests at once start one chat.
 	const newChat = async () => {
-		if (busy) return;
 		setBusy(true);
 		try {
-			const created = await sessions.createFromDefaults(workspaceId);
-			if (!created.ok) {
-				toastError("Couldn't start a chat", created.error);
-				return;
-			}
-			setMenuOpen(false);
-			onSearchChange({ tab: "session", sessionId: created.value.id });
+			if (await newTab.newChat(false)) setMenuOpen(false);
 		} finally {
 			setBusy(false);
 		}

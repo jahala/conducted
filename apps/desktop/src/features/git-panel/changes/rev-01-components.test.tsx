@@ -1,15 +1,17 @@
 import type { WorkspaceId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChangedFile } from "../../../core/api.ts";
 import type { BranchCommit } from "../../../core/model.ts";
 import "../../../test/dom-polyfills.ts";
+import { Menu, MenuContent, MenuTrigger } from "../../../ui/Menu.tsx";
 import { ChangedFileList } from "./ChangedFileList.tsx";
 import { ChangedFileRow } from "./ChangedFileRow.tsx";
 import { ChangedFolderRow } from "./ChangedFolderRow.tsx";
 import { ChangesToolbar } from "./ChangesToolbar.tsx";
 import { CommitScopeList } from "./CommitScopeList.tsx";
-import { buildChangedTree } from "./changed-file-tree.ts";
+import { buildChangedTree, type ChangedTreeNode } from "./changed-file-tree.ts";
 import { ScopeBackBar } from "./ScopeBackBar.tsx";
 import { TargetBranchPicker } from "./TargetBranchPicker.tsx";
 
@@ -18,6 +20,7 @@ vi.mock("../../../core/hooks.ts", () => ({
 	useBranchCommits: () => ({ state: "ready", data: [] }),
 	useWorkspace: () => ({ state: "loading" }),
 	useBranches: () => ({ state: "ready", data: [] }),
+	useLiveShortcut: () => null,
 }));
 
 afterEach(cleanup);
@@ -72,6 +75,27 @@ describe("REV-01 changed file row", () => {
 		expect(screen.getByText("from src/old.ts")).toBeTruthy();
 		expect(screen.getByText("renamed")).toBeTruthy();
 		expect(screen.getByTitle("renamed").textContent).toContain("R");
+	});
+});
+
+describe("REV-01 changed file row discard", () => {
+	it("asks before discarding and discards only on confirm", async () => {
+		const onDiscard = vi.fn();
+		render(
+			<ChangedFileRow
+				file={file("src/a.ts")}
+				depth={0}
+				selected={false}
+				onOpen={vi.fn()}
+				onDiscard={onDiscard}
+			/>,
+		);
+		fireEvent.contextMenu(screen.getByLabelText("Open src/a.ts"));
+		fireEvent.click(await screen.findByText("Discard changes"));
+		expect(onDiscard).not.toHaveBeenCalled();
+		expect(await screen.findByRole("heading", { name: "Discard changes?" })).toBeTruthy();
+		fireEvent.click(screen.getByRole("button", { name: "Discard" }));
+		expect(onDiscard).toHaveBeenCalledTimes(1);
 	});
 });
 
@@ -135,18 +159,53 @@ describe("REV-01 changed file list", () => {
 	});
 });
 
+function ScrollHarness({ nodes }: { nodes: ChangedTreeNode[] }) {
+	const [selected, setSelected] = useState<string | null>("src/f0000.ts");
+	return (
+		<ChangedFileList
+			nodes={nodes}
+			selectedPath={selected}
+			onSelect={setSelected}
+			onOpen={vi.fn()}
+			onToggleFolder={vi.fn()}
+			collapsedFolders={new Set()}
+		/>
+	);
+}
+
+describe("REV-01 changed file list scrolling", () => {
+	it("scrolls the selected row into the window when the arrows pass its end", () => {
+		const files = Array.from({ length: 200 }, (_, index) =>
+			file(`src/f${String(index).padStart(4, "0")}.ts`),
+		);
+		const nodes = buildChangedTree(files, "flat", new Set());
+		render(<ScrollHarness nodes={nodes} />);
+		const grid = screen.getByRole("grid", { name: "Changed files" });
+		expect(screen.queryByLabelText("Open src/f0050.ts")).toBeNull();
+		for (let press = 0; press < 50; press += 1) fireEvent.keyDown(grid, { key: "ArrowDown" });
+		expect(grid.scrollTop).toBeGreaterThan(0);
+		const row = screen.getByLabelText("Open src/f0050.ts").closest('[role="row"]');
+		expect(row?.getAttribute("aria-selected")).toBe("true");
+	});
+});
+
 describe("REV-01 commit scope list", () => {
 	it("renders commits in order and marks the selected one", () => {
 		render(
-			<CommitScopeList
-				commits={[
-					commit("aaa1111", "First"),
-					commit("bbb2222", "Second"),
-					commit("ccc3333", "Third"),
-				]}
-				selectedSha="bbb2222"
-				onSelect={vi.fn()}
-			/>,
+			<Menu open>
+				<MenuTrigger>Open</MenuTrigger>
+				<MenuContent>
+					<CommitScopeList
+						commits={[
+							commit("aaa1111", "First"),
+							commit("bbb2222", "Second"),
+							commit("ccc3333", "Third"),
+						]}
+						selectedSha="bbb2222"
+						onSelect={vi.fn()}
+					/>
+				</MenuContent>
+			</Menu>,
 		);
 		const entries = screen.getAllByRole("menuitemradio");
 		expect(entries.map((entry) => entry.textContent)).toEqual([
@@ -170,6 +229,20 @@ describe("REV-01 scope back bar", () => {
 });
 
 describe("REV-01 target branch picker", () => {
+	it("says why the list is empty when the branches could not be loaded", () => {
+		render(
+			<TargetBranchPicker
+				branches={[]}
+				current=""
+				onSelect={vi.fn()}
+				loading={false}
+				error="git said no"
+			/>,
+		);
+		expect(screen.getByRole("alert").textContent).toContain("git said no");
+		expect(screen.queryByText("No branches match")).toBeNull();
+	});
+
 	it("narrows the list as the user types", () => {
 		render(
 			<TargetBranchPicker
@@ -177,7 +250,7 @@ describe("REV-01 target branch picker", () => {
 				current="main"
 				onSelect={vi.fn()}
 				loading={false}
-				offline={false}
+				error={null}
 			/>,
 		);
 		fireEvent.change(screen.getByRole("textbox", { name: "Select target branch" }), {

@@ -22,17 +22,17 @@ export interface HighlightPart {
 
 /** Splits `text` into the parts that match `query` and the parts between them. */
 export function splitHighlight(text: string, query: string): HighlightPart[] {
-	const needle = query.toLowerCase();
-	if (needle.length === 0) return [{ text, match: false, start: 0 }];
-	const haystack = text.toLowerCase();
+	if (query.length === 0) return [{ text, match: false, start: 0 }];
+	// The `iu` flags (ui-map.md 8) match case-insensitively on the original text, so offsets stay right for
+	// letters whose lower-case form has another length (for example "İ").
+	const matcher = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "giu");
 	const parts: HighlightPart[] = [];
 	let from = 0;
-	while (from < text.length) {
-		const at = haystack.indexOf(needle, from);
-		if (at === -1) break;
+	for (const found of text.matchAll(matcher)) {
+		const at = found.index;
 		if (at > from) parts.push({ text: text.slice(from, at), match: false, start: from });
-		parts.push({ text: text.slice(at, at + needle.length), match: true, start: at });
-		from = at + needle.length;
+		parts.push({ text: found[0], match: true, start: at });
+		from = at + found[0].length;
 	}
 	if (from < text.length) parts.push({ text: text.slice(from), match: false, start: from });
 	return parts;

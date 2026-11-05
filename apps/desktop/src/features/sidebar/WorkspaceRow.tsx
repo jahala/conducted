@@ -5,7 +5,8 @@
  * Behaviour: ui-map.md 4 (workspace row: name from the user-set name, PR title, branch or
  * directory; badges Draft and Archive workspace; Cmd+1..9 switch; hover keys R read and P pin), 3.8
  * (status text).
- * Our design choice: The row is a link to the workspace route. Status words come from
+ * Our design choice: The row is a link to the workspace route. The current time is a prop, so the
+ * list can refresh every row's "5m" with one timer. Status words come from
  * status-text.ts. Line counts need GIT-04, the Draft badge needs the pull request state and the
  * actions menu is NAV-10; each is left out until its owner is built. The "Archive workspace" badge
  * waits for the state that WS-09 gives it; archived workspaces are never listed here. The hover
@@ -23,6 +24,7 @@ import { cn } from "../../ui/cn.ts";
 import { Kbd } from "../../ui/Kbd.tsx";
 import { type StatusTone, statusText } from "../workspace/status-text.ts";
 import { WorkspaceStatusIcon } from "../workspace/WorkspaceStatusIcon.tsx";
+import { workspaceName } from "../workspace/workspace-name.ts";
 import { UnreadDot } from "./UnreadDot.tsx";
 
 export interface WorkspaceRowProps {
@@ -31,6 +33,8 @@ export interface WorkspaceRowProps {
 	selected: boolean;
 	/** 1 to 9 for the first nine rows, which have a Cmd+number shortcut. */
 	shortcutIndex: number | null;
+	/** The current time. The list reads it once a minute and hands it to every row. */
+	now: number;
 }
 
 const toneClass: Record<StatusTone, string> = {
@@ -56,18 +60,6 @@ export function relativeTime(at: number, now: number): string {
 	return `${Math.floor(months / 12)}y`;
 }
 
-/** The name Conductor shows: user-set name, then PR title, branch, and finally the folder name. */
-export function workspaceName(
-	workspace: Pick<Workspace, "displayName" | "prTitle" | "branch" | "directoryName">,
-): string {
-	return (
-		workspace.displayName?.trim() ||
-		workspace.prTitle?.trim() ||
-		workspace.branch?.trim() ||
-		workspace.directoryName
-	);
-}
-
 function RepoAvatar({ repo }: { repo: Repo }) {
 	const icon = repo.icon?.trim();
 	const text =
@@ -82,13 +74,12 @@ function RepoAvatar({ repo }: { repo: Repo }) {
 	);
 }
 
-export function WorkspaceRow({ workspace, repo, selected, shortcutIndex }: WorkspaceRowProps) {
+export function WorkspaceRow({ workspace, repo, selected, shortcutIndex, now }: WorkspaceRowProps) {
 	const status = useWorkspaceStatus(workspace.id);
 	const sessions = useSessions(workspace.id);
 	const unread =
 		sessions.state === "ready" && sessions.data.some((session) => session.unreadCount > 0);
 	const subtitle = statusText(status);
-	const now = Date.now();
 	const liveShortcut = useLiveShortcut(
 		shortcutIndex === null ? "workspace.switch1" : `workspace.switch${shortcutIndex}`,
 	);
@@ -104,7 +95,7 @@ export function WorkspaceRow({ workspace, repo, selected, shortcutIndex }: Works
 			)}
 		>
 			<span className="flex size-4 shrink-0 items-center justify-center">
-				<WorkspaceStatusIcon status={status} />
+				<WorkspaceStatusIcon status={status} decorative />
 			</span>
 			<span className="flex min-w-0 flex-1 flex-col">
 				<span className="truncate font-book">{workspaceName(workspace)}</span>

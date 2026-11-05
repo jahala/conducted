@@ -1,4 +1,5 @@
 import type { CanonicalTool } from "@conducted/protocol";
+import { notImplemented } from "@conducted/shared";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "../../../test/dom-polyfills.ts";
@@ -84,5 +85,11 @@ describe("CHAT-08 tool card", () => {
 		expect(screen.getByRole("status").textContent).toBe("Tool: Bash: This part failed to load.");
 		expect(log).toHaveBeenCalled();
 		log.mockRestore();
+	});
+
+	it("names the missing feature when a card is a placeholder, without leaving the turn", () => {
+		TOOL_CARDS.bash = () => notImplemented("CHAT-09");
+		render(<ToolCard call={view("bash", { command: "echo hi" }, "Bash")} sessionId={sessionId} />);
+		expect(screen.getByRole("status").textContent).toBe("Tool: Bash: Not built yet: CHAT-09");
 	});
 });

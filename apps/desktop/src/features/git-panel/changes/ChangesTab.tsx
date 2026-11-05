@@ -7,17 +7,21 @@
  * Data: useChangedFiles(workspaceId, scope), useGitState (conflicts, rebase underway),
  * useActions().git.discardFile.
  * Children: ChangesToolbar, ScopeBackBar, ChangedFileList, ChangesEmpty, StackView.
- * Keyboard: ArrowUp and ArrowDown move the selected file, Cmd+Alt+J and Cmd+Alt+K move between
- * comments, Cmd+Shift+D opens the selected file's diff (ui-map.md 3.6).
- * Must handle: loading (skeleton rows), error with retry, no git status (rebase or merge
- * underway), no changes, a filter that matches nothing, untracked files cut off at the cap, a very
+ * Keyboard: ArrowUp and ArrowDown move the selected file (in ChangedFileList). The command
+ * "Open the diff view" (Cmd+Shift+D, or the user's rebind) opens the selected file's diff through
+ * the command dispatcher. Moving between comments (Cmd+Alt+J and K) belongs to REV-03.
+ * Discard is offered only for the whole-branch scopes: it puts a file back to the target branch,
+ * which would be a surprise from a one-commit or one-turn view.
+ * Must handle: loading (skeleton rows), an error with its message (the list reloads by itself on
+ * the next poll), no git status (rebase or merge underway), no changes, a filter that matches nothing, untracked files cut off at the cap, a very
  * long list (virtualised), conflicted files first, and a scope change while a request is in
  * flight (only the newest answer may update the list). The Viewed mark belongs to REV-02; this
  * tab leaves its checkbox out until that store exists.
  * Test first: with three ChangedFile rows and the filter "src/a", only the matching row renders.
  */
 import type { WorkspaceId } from "@conducted/shared";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useCommandHandler } from "../../../app/command-dispatcher.ts";
 import type { DiffScope } from "../../../core/api.ts";
 import { useActions, useBranchCommits, useChangedFiles, useGitState } from "../../../core/hooks.ts";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
@@ -78,18 +82,13 @@ export function ChangesTab({ workspaceId, scope, onScopeChange, onOpenFile }: Ch
 			: null;
 	const commitList = commits.state === "ready" ? commits.data : [];
 
-	// The command dispatcher opens the diff from anywhere; this keeps the panel working on its own.
-	useEffect(() => {
-		if (selected === null) return;
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.metaKey && event.shiftKey && event.key.toLowerCase() === "d") {
-				event.preventDefault();
-				onOpenFile(selected);
-			}
-		};
-		window.addEventListener("keydown", onKeyDown);
-		return () => window.removeEventListener("keydown", onKeyDown);
-	}, [selected, onOpenFile]);
+	// Cmd+Shift+D (or the user's rebind) opens the selected file's diff. With no file selected the
+	// command passes on to the next handler.
+	useCommandHandler("review.openDiff", "area", () => {
+		if (selected === null) return false;
+		onOpenFile(selected);
+		return true;
+	});
 
 	const toggleFolder = (folderPath: string) => {
 		setCollapsedFolders((current) => {
@@ -116,9 +115,13 @@ export function ChangesTab({ workspaceId, scope, onScopeChange, onOpenFile }: Ch
 		if (operation !== "none") {
 			return <ChangesEmpty reason="operation_in_progress" operation={operation} />;
 		}
-		if (git.state === "error") return <ChangesEmpty reason="no_git_status" />;
+		if (git.state === "error") {
+			return <ChangesEmpty reason="no_git_status" message={git.error.message} />;
+		}
 		if (files.state === "loading") return <LoadingRows />;
-		if (files.state === "error") return <ChangesEmpty reason="no_git_status" />;
+		if (files.state === "error") {
+			return <ChangesEmpty reason="no_git_status" message={files.error.message} />;
+		}
 		if (allFiles.length === 0) return <ChangesEmpty reason="no_changes" />;
 		if (filtered.length === 0) {
 			return <ChangesEmpty reason="filter_no_match" onClearFilter={() => setFilter("")} />;
@@ -132,7 +135,7 @@ export function ChangesTab({ workspaceId, scope, onScopeChange, onOpenFile }: Ch
 					onOpen={onOpenFile}
 					onToggleFolder={toggleFolder}
 					collapsedFolders={collapsedFolders}
-					onDiscard={discard}
+					onDiscard={narrowed ? undefined : discard}
 				/>
 				{git.state === "ready" && git.data.untrackedFilesTruncated && includesWorkingTree ? (
 					<ChangesEmpty reason="untracked_truncated" />
