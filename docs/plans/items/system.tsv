@@ -2853,3 +2853,22 @@ APP-01	rule	The dialog variant, experimental_new_workspace_page, deep links with
 PR-03	rule	Shell-environment warm-up after the worktree exists -> SIDE-10/PLAT-09; the later push.autoSetupRemote re-check with a caller (moved from WS-01 by the step-5 audit).	docs/reports/audits/step-5	missing
 DATA-03	rule	Retry and Recover buttons on the workspace screen for failed rows, using the actions now in place (moved from WS-01 by the step-5 audit).	docs/reports/audits/step-5	missing
 NAV-13	rule	Country and coordinates for the place list (moved from WS-01 by the step-5 audit).	docs/reports/audits/step-5	missing
+AGENT-07	rule	Emit distinct per-agent auth codes and render "ChatGPT login expired", "Codex authentication required" and "Cursor API key required" (moved from CHAT-06 by the step-6 audit).	docs/reports/audits/step-6	missing
+DATA-02	rule	Persist open interactions in a named store with a stated lifetime and restore them on start (moved from CHAT-10 by the step-6 audit).	docs/reports/audits/step-6	missing
+APP-01	rule	No CommandDispatcher is mounted at the app root, so registered commands, including these new nav handlers, are never dispatched (moved from NAV-02 by the step-6 audit).	docs/reports/audits/step-6	missing
+NAV-02	rule	Session and workspace visibility stores that tell which chat and workspace are on screen (moved from NAV-02 by the step-6 audit).	docs/reports/audits/step-6	missing
+GIT-02	rule	Poll git and GitHub only for the workspace on screen (moved from NAV-02 by the step-6 audit).	docs/reports/audits/step-6	missing
+NAV-10	rule	Persist closed tabs and a recent-workspace list (moved from NAV-02 by the step-6 audit).	docs/reports/audits/step-6	missing
+NAV-17	rule	Read the repo search param on /create and preselect that project -> WS-01 (CreateWorkspacePage.tsx), with the route's search schema (moved from NAV-03 by the step-6 audit).	docs/reports/audits/step-6	missing
+WS-09	rule	Render "Planning..." while an agent is planning (moved from NAV-03 by the step-6 audit).	docs/reports/audits/step-6	missing
+GIT-04	rule	Show the +/- counts, coloured by colored_sidebar_diffs (moved from NAV-03 by the step-6 audit).	docs/reports/audits/step-6	missing
+GIT-04	rule	Show the Draft badge from pull request state (moved from NAV-03 by the step-6 audit).	docs/reports/audits/step-6	missing
+WS-09	rule	Show the Archive workspace badge from workspace archive state (moved from NAV-03 by the step-6 audit).	docs/reports/audits/step-6	missing
+WS-09	rule	Animate the row icon when internal_workspace_status_matrix is on (moved from NAV-03 by the step-6 audit).	docs/reports/audits/step-6	missing
+NAV-11	rule	Mark the hovered workspace read or unread (moved from NAV-03 by the step-6 audit).	docs/reports/audits/step-6	missing
+NAV-04	rule	Pin or unpin the hovered workspace (moved from NAV-03 by the step-6 audit).	docs/reports/audits/step-6	missing
+PR-04	rule	Add Actions.pullRequests.openOnGithub (contract change in core/api.ts and mapping in core/actions.ts) and wire the button in PrSummaryHeader.tsx / PrTab.tsx (moved from PR-02 by the step-6 audit).	docs/reports/audits/step-6	missing
+SIDE-06	rule	Compare apps/desktop/src/core/git/refs.ts with packages/sidecar/src/checkpoints/checkpoint-id.ts (prefix, phase, exit codes, id format) (moved from SIDE-06 by the step-6 audit).	docs/reports/audits/step-6	missing
+RUN-01	rule	TerminalsService.runScript, TerminalsService.outputFor and RunScriptsService.stopWorkspace are still notImplemented, so creating a workspace with a setup script and Cancel cannot run the real path; add RUN-01 and RUN-07 to WS-03's blockers and build them there, including the real TerminalsService test with a fake PTY (moved from WS-03 by the step-6 audit).	docs/reports/audits/step-6	missing
+PR-02	rule	Move SETUP_FIX_PROMPT, ADD_SETUP_PROMPT and the log-tail wording into agent-instructions.ts; PR-02 owns that file and is being edited in parallel (moved from WS-03 by the step-6 audit).	docs/reports/audits/step-6	missing
+SET-07	rule	The two "Files to copy" checklist items need FilesToCopyField, which is still notImplemented("SET-07") (moved from WS-03 by the step-6 audit).	docs/reports/audits/step-6	missing

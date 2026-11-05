@@ -337,6 +337,12 @@ Context: after step 5's two CI fix rounds, two NAV-01 shell tests still failed. 
 Chosen: NAV-03 leaves step 5. Its files go back to their `main` versions with its placeholders, its row goes back to `stub` and its issue stays open. Its built work and its audit fixes are kept on the branch `quarantine/nav.03` (pushed) for the next run. The next run should start from that branch and give the NAV-01 shell test a workspace store.
 Why: the rule is two fix rounds, then quarantine. A red test that is probably wrong is still red.
 
+## D048. A second run finishes the first slice (2026-11-05)
+
+Context: the overnight run stopped with 11 first-slice features open (D046, D047). The owner asked in the morning to finish the slice, with about 7 USD left on the DeepSeek account.
+Chosen: one more run with the night's process (D039 to D047). It runs in two steps: nine features including NAV-03, then CHAT-18 and NAV-10. It stops if the DeepSeek balance falls below 1 USD. Before step 1, `core/hooks.ts` is split by hook group into `core/hooks/`. `core/hooks.ts` stays the one module screens import, so the layering rule does not change, and each feature edits its own group file instead of one shared file. That shared file caused land conflicts in every step of the night. NAV-03 starts from the code it had before quarantine (commit `7ba45d3`). Its node also gives the NAV-01 shell test the workspace store it lacked.
+Why: the owner's request, within the money left. The split removes the cost the night measured.
+
 ## D049. What the audits kept finding becomes rules the agents read (2026-11-05)
 
 Context: the first overnight build's audits returned about 280 MUST findings in steps 3 to 6. They fell into a few repeated patterns:

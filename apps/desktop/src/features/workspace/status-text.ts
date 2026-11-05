@@ -26,6 +26,8 @@ export function statusText(status: WorkspaceStatus | null): StatusText {
 	switch (status.kind) {
 		case "lifecycle":
 			switch (status.label) {
+				case "unstarted":
+					return { text: "Unstarted", tone: "neutral" };
 				case "initializing":
 					return { text: "Initializing…", tone: "active" };
 				case "setting_up":

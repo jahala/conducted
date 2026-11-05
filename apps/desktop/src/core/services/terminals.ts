@@ -512,11 +512,15 @@ export class TerminalsService {
 		return notImplemented("RUN-01");
 	}
 
-	/** Backs the `getTerminalOutput` request from the sidecar. */
+	/**
+	 * Backs the `getTerminalOutput` request from the sidecar. A caller that already has the
+	 * terminal it wants passes `terminalId`; otherwise the source rule picks one.
+	 */
 	outputFor(
 		_workspaceId: WorkspaceId,
 		_source: TerminalOutputSource,
 		_maxLines: number,
+		_terminalId?: TerminalId,
 	): Promise<Result<TerminalOutput>> {
 		return notImplemented("RUN-07");
 	}

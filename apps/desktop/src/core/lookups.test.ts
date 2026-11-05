@@ -2,7 +2,7 @@ import type { RepoId, SessionId, WorkspaceId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import { createStore } from "zustand/vanilla";
 import { createLookups, remoteOf } from "./lookups.ts";
-import type { Repo, Session, Workspace } from "./model.ts";
+import type { Repo, RepoConfig, Session, Workspace } from "./model.ts";
 import type { RepoState } from "./services/repo.ts";
 import type { SessionsState } from "./services/sessions.ts";
 import type { WorkspaceState } from "./services/workspace.ts";
@@ -46,7 +46,27 @@ const workspace: Workspace = {
 	updatedAt: 1,
 };
 
-const makeLookups = (withRepo = true) =>
+const repoConfig = (createPr: string | null): RepoConfig => ({
+	setupScript: null,
+	runScripts: [],
+	runMode: "concurrent",
+	archiveScript: null,
+	copyFiles: [],
+	previewUrlTemplate: null,
+	spotlightTesting: false,
+	autoRunAfterSetup: false,
+	remoteName: null,
+	prompts: {
+		general: null,
+		codeReview: null,
+		createPr,
+		fixErrors: null,
+		resolveConflicts: null,
+		renameBranch: null,
+	},
+});
+
+const makeLookups = (withRepo = true, configs: Record<string, RepoConfig> = {}) =>
 	createLookups({
 		workspaces: () =>
 			createStore<WorkspaceState>(() => ({
@@ -60,7 +80,7 @@ const makeLookups = (withRepo = true) =>
 				loaded: true,
 				reposById: withRepo ? { [repo.id]: repo } : {},
 				order: [],
-				configs: {},
+				configs,
 			})),
 		sessions: () =>
 			createStore<SessionsState>(() => ({
@@ -126,5 +146,35 @@ describe("createLookups", () => {
 			ok: true,
 			value: { placeholderBranch: true, port: 55_000, targetBranch: "upstream/dev" },
 		});
+	});
+});
+
+describe("PR-02 custom prompt from the loaded repo config", () => {
+	it("returns the repo's Create PR prompt once its config is loaded", () => {
+		const result = makeLookups(true, { [repo.id]: repoConfig("Use the release notes.") }).prContext(
+			"w1" as WorkspaceId,
+		);
+
+		expect(result).toMatchObject({
+			ok: true,
+			value: { workspaceId: "w1", customPrompt: "Use the release notes." },
+		});
+	});
+
+	it("refuses to guess a Create PR prompt before the config is loaded", () => {
+		const result = makeLookups().prContext("w1" as WorkspaceId);
+
+		expect(result).toMatchObject({
+			ok: false,
+			error: { code: "repo_config_unloaded" },
+		});
+	});
+
+	it("keeps an empty Create PR prompt as null", () => {
+		const result = makeLookups(true, { [repo.id]: repoConfig(null) }).prContext(
+			"w1" as WorkspaceId,
+		);
+
+		expect(result).toMatchObject({ ok: true, value: { customPrompt: null } });
 	});
 });

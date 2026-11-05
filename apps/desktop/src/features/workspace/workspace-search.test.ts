@@ -21,6 +21,23 @@ describe("zWorkspaceSearch", () => {
 	it("accepts an empty search", () => {
 		expect(zWorkspaceSearch.parse({})).toEqual({});
 	});
+
+	it("keeps the pull request number the PR tab shows", () => {
+		expect(zWorkspaceSearch.parse({ tab: "pr", pr: 42 })).toEqual({ tab: "pr", pr: 42 });
+		expect(zWorkspaceSearch.parse({ tab: "pr", pr: "42" })).toEqual({ tab: "pr", pr: 42 });
+	});
+
+	it("drops a pull request number that is not a positive whole number", () => {
+		expect(zWorkspaceSearch.parse({ tab: "pr", pr: 0 }).pr).toBeUndefined();
+		expect(zWorkspaceSearch.parse({ tab: "pr", pr: "nope" }).pr).toBeUndefined();
+	});
+
+	it("keeps the git panel tab and diff scope", () => {
+		expect(zWorkspaceSearch.parse({ gitTab: "changes", scope: "target:main" })).toEqual({
+			gitTab: "changes",
+			scope: "target:main",
+		});
+	});
 });
 
 describe("diff scope codec", () => {

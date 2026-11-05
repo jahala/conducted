@@ -97,11 +97,9 @@ describe("app shell", () => {
 		expect(within(nav).getByRole("link", { name: "Home" }).getAttribute("href")).toBe(
 			"/all-workspaces",
 		);
-		expect(within(nav).getByRole("link", { name: "New workspace" }).getAttribute("href")).toBe(
-			"/create",
-		);
-		// The workspace list needs data hooks that are not built; only that region says so.
-		expect(screen.getByText("Not built yet: NAV-03")).toBeTruthy();
+		expect(within(nav).getByRole("link", { name: "Create" }).getAttribute("href")).toBe("/create");
+		// The workspace list is built now and shows its empty state, while the footer keeps its own boundary.
+		expect(screen.getByText("No projects yet")).toBeTruthy();
 	});
 
 	it("opens the command palette from the Search row", async () => {

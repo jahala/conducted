@@ -15,8 +15,8 @@
  * updates the health store.
  * Our design choice: access is the user's own `gh auth login`, or the personal access token the
  * user saved on the Account page (D029). The token is kept in the Keychain and given to `gh` as
- * GH_TOKEN; nothing is brokered per session. Creating a PR, polling, the other write actions and
- * the stack catch-up belong to other features (PR-02, PR-03, PR-05, PR-06, PR-08, PR-10, PR-12).
+ * GH_TOKEN; nothing is brokered per session. Polling, the other write actions and the stack
+ * catch-up belong to other features (PR-03, PR-05, PR-06, PR-08, PR-10, PR-12).
  * Test first: two merge calls at once send one `gh pr merge`.
  */
 import {
@@ -30,20 +30,30 @@ import {
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Keychain, Unsubscribe } from "../../platform/platform.ts";
 import { createSingleFlight, type SingleFlight } from "../async/single-flight.ts";
-import { revParseHead } from "../git/commands.ts";
+import { lsFiles, remoteGetUrl, revParseHead, statusPorcelainAll } from "../git/commands.ts";
 import {
 	apiUserLogin,
 	authStatus,
 	configGetGitProtocol,
 	type MergeMethod,
+	prCreateWeb,
 	prMerge,
 	repoMergeMethodsQuery,
 } from "../git/gh-commands.ts";
 import { failedCommandError, type GitRunner, isSuccessfulExit } from "../git/runner.ts";
 import type { GitHubAccess as GitHubAccessView, IssueView, PullRequest } from "../model.ts";
+import { createPrInstruction } from "./agent-instructions.ts";
 import type { GitCache } from "./git-cache.ts";
+import { buildDeepLink } from "./notifications.ts";
 import type { PollRole } from "./pr-polling.ts";
 import type { AgentMessenger } from "./sessions.ts";
+
+/** The paths GitHub reads a pull request template from, in the order the research lists them. */
+export const PR_TEMPLATE_PATHS = [
+	"pull_request_template.md",
+	".github/pull_request_template.md",
+	"docs/pull_request_template.md",
+] as const;
 
 /** The Keychain entry the Account page writes and `gh` receives as GH_TOKEN (D029). */
 export const GH_PAT_KEYCHAIN_KEY = "gh_pat_token";
@@ -197,6 +207,19 @@ export function forgeForRemoteUrl(url: string): "github" | "local" {
 }
 
 /**
+ * The repository's pull request template, when it has one. GitHub looks for the three names
+ * below; the comparison ignores case because GitHub's does too.
+ */
+export function findPrTemplate(paths: readonly string[]): string | null {
+	const byLower = new Map(paths.map((path) => [path.toLowerCase(), path]));
+	for (const candidate of PR_TEMPLATE_PATHS) {
+		const found = byLower.get(candidate);
+		if (found !== undefined) return found;
+	}
+	return null;
+}
+
+/**
  * The sign-in method Conductor offers (D029): an explicit `gh_auth_method` wins, otherwise a
  * saved token means pat and nothing saved means the user's own gh login.
  */
@@ -295,6 +318,10 @@ export interface PrWorkspaceContext {
 	/** Name of the remote, for example "origin". */
 	remote: string;
 	prNumber: number | null;
+	/** The target branch as stored, for example "origin/main". */
+	targetBranch?: string;
+	/** The repository's custom Create PR prompt, read from its loaded config. */
+	customPrompt?: string | null;
 }
 
 /** Why a catch-up did not rebase. Every one is a normal answer, not an error. */
@@ -508,13 +535,95 @@ export class GithubService {
 	}
 
 	/** Backs `Actions.pullRequests.create`: asks the agent to open the PR. */
-	create(_workspaceId: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("PR-02");
+	async create(workspaceId: WorkspaceId): Promise<Result<void>> {
+		const context = await this.#deps.contextOf(workspaceId);
+		if (!context.ok) return err(context.error);
+		const found = context.value;
+		const target = this.#targetBranchOf(found);
+		if (!target.ok) return target;
+		const forge = await this.#assertGithubRemote(found);
+		if (!forge.ok) return forge;
+
+		const cwd = found.workspacePath;
+		const [status, files] = await Promise.all([
+			this.#deps.git.stdout(statusPorcelainAll(), { cwd }),
+			this.#deps.git.stdout(lsFiles(), { cwd }),
+		]);
+		if (!status.ok) return err(status.error);
+		if (!files.ok) return err(files.error);
+
+		const includeLink = this.#deps.setting?.<boolean>("include_workspace_link_in_pr") ?? false;
+		const text = createPrInstruction({
+			remote: found.remote,
+			targetBranch: target.value,
+			branch: found.branch,
+			customPrompt: found.customPrompt ?? null,
+			prTemplatePath: findPrTemplate(
+				files.value
+					.split("\n")
+					.map((path) => path.trim())
+					.filter((path) => path.length > 0),
+			),
+			hasUncommittedChanges: status.value.trim().length > 0,
+			workspaceLink: includeLink ? buildDeepLink(found.workspaceId, null) : null,
+		});
+		const sent = await this.#deps.agent.sendInstruction(workspaceId, text);
+		return sent.ok ? ok(undefined) : err(sent.error);
 	}
 
 	/** Opens GitHub's new-PR page in the browser. */
-	openOnGithub(_workspaceId: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("PR-02");
+	async openOnGithub(workspaceId: WorkspaceId): Promise<Result<void>> {
+		const context = await this.#deps.contextOf(workspaceId);
+		if (!context.ok) return err(context.error);
+		const found = context.value;
+		const target = this.#targetBranchOf(found);
+		if (!target.ok) return target;
+		const forge = await this.#assertGithubRemote(found);
+		if (!forge.ok) return forge;
+
+		const settings = await this.#ghSettings();
+		if (!settings.ok) return err(settings.error);
+		const command = prCreateWeb(target.value, found.branch);
+		const result = await this.#deps.git.run(
+			command,
+			this.#runOptions(settings.value, found.workspacePath),
+		);
+		if (!result.ok) return err(result.error);
+		await this.recordGhResult(result.value);
+		if (isSuccessfulExit(command, result.value.exitCode)) return ok(undefined);
+		const text = `${result.value.stderr}\n${result.value.stdout}`;
+		const message = githubFailureMessage(classifyGhFailure(text), text);
+		return err(
+			message === null
+				? failedCommandError(command, result.value)
+				: appError("github_failed", message),
+		);
+	}
+
+	/** The target branch without its remote prefix, as `gh pr create --base` expects it. */
+	#targetBranchOf(context: PrWorkspaceContext): Result<string> {
+		const stored = context.targetBranch?.trim() ?? "";
+		if (stored.length === 0) {
+			return err(appError("github_target_unknown", "This workspace has no target branch."));
+		}
+		const prefix = `${context.remote}/`;
+		return ok(
+			context.remote.length > 0 && stored.startsWith(prefix) ? stored.slice(prefix.length) : stored,
+		);
+	}
+
+	/** Refuses to act on a repository without a GitHub remote. */
+	async #assertGithubRemote(context: PrWorkspaceContext): Promise<Result<void>> {
+		if (context.remote.trim().length === 0) {
+			return err(appError("github_not_github", "This repository has no GitHub remote."));
+		}
+		const url = await this.#deps.git.stdout(remoteGetUrl(context.remote), {
+			cwd: context.workspacePath,
+		});
+		if (!url.ok) return err(url.error);
+		return forgeForRemoteUrl(url.value) === "github"
+			? ok(undefined)
+			: err(appError("github_not_github", "This repository has no GitHub remote."));
 	}
 
 	/** Backs `Actions.pullRequests.fixErrors`: sends failing checks and log tails to the agent. */

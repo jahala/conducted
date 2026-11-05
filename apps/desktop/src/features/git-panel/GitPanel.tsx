@@ -20,6 +20,7 @@
  */
 import type { WorkspaceId } from "@conducted/shared";
 import { useEffect, useRef, useState } from "react";
+import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import type { DiffScope } from "../../core/api.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions, useGitState, useSetting, useWorkspaceStatus } from "../../core/hooks.ts";
@@ -164,6 +165,13 @@ export function GitPanel({
 				return refresh();
 		}
 	};
+
+	// Cmd+Shift+P. The panel knows the active workspace, so the shortcut reaches the same action
+	// as the header's Create PR button instead of a service that has no workspace to act on.
+	useCommandHandler("git.createPr", "area", () => {
+		void runAction("create_pr");
+		return true;
+	});
 
 	const startReview = async (extraInstructions: string | null): Promise<void> => {
 		// One review at a time: a second press or the dialog's Send must not start another chat.

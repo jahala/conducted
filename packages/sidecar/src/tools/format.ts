@@ -1,27 +1,32 @@
 /**
  * @feature SIDE-12 App tools: result text
  * Owns: the plain text each tool returns to the agent. Pure functions, no I/O.
- * Behaviour: research/conductor/claude-runner.md section 3.4 (a question tool answers with a
- * numbered list of the user's answers; a cancel is reported so the agent carries on) and
- * section 4.2 (comments listed with file, line and author; terminal output labelled with its
- * source and whether it still runs). The wording is ours.
+ * Behaviour: research/conductor/claude-runner.md section 3.4 and ui-map.md 3.3 (the tool answers
+ * with each question, the answer given and "(Skipped)" when the question was skipped; a cancel is
+ * reported so the agent carries on) and section 4.2 (comments listed with file, line and author;
+ * terminal output labelled with its source and whether it still runs). The wording is ours.
  * Must handle: no comments (a plain sentence), a multi-line comment body (indented under its
  * header), several answers for one multi-select question, an empty answer list, and zero lines of
  * terminal output.
- * Test first: formatQuestionAnswers for one multi-select question with two answers lists both on
- * indented lines under item 1.
+ * Test first: formatQuestionAnswers for one multi-select question with two answers lists the
+ * question and both answers on indented lines under item 1.
  */
 import type { DiffCommentView } from "./types.ts";
 
-export function formatQuestionAnswers(answers: readonly (readonly string[])[]): string {
-	if (answers.length === 0) return "The user gave no answers.";
+export function formatQuestionAnswers(
+	questions: readonly { question: string }[],
+	answers: readonly (readonly string[])[],
+): string {
+	if (questions.length === 0 || answers.length === 0) return "The user gave no answers.";
 	const lines = ["The user answered:"];
-	answers.forEach((answer, index) => {
-		const number = index + 1;
-		if (answer.length <= 1) {
-			lines.push(`${number}. ${answer[0] ?? "(no answer)"}`);
+	questions.forEach((question, index) => {
+		const answer = answers[index] ?? [];
+		lines.push(`${index + 1}. ${question.question}`);
+		if (answer.length === 0) {
+			lines.push("   (Skipped)");
+		} else if (answer.length === 1) {
+			lines.push(`   ${answer[0]}`);
 		} else {
-			lines.push(`${number}.`);
 			for (const item of answer) lines.push(`   - ${item}`);
 		}
 	});

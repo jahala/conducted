@@ -329,6 +329,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 			const found = lookups.workspace(workspaceId);
 			return found.ok ? repo.loadConfig(found.value.repoId) : found;
 		},
+		workspaceFor: async (workspaceId) => lookups.workspace(workspaceId),
+		repoFor: async (workspaceId) => lookups.repoOf(workspaceId),
+		fs: platform.fs,
 	});
 	const repo: RepoService = new RepoService({
 		platform,
