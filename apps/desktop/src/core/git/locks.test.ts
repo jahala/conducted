@@ -9,7 +9,7 @@ const deferred = () => {
 	return { promise, resolve };
 };
 
-describe("KeyedMutex", () => {
+describe("GIT-01 KeyedMutex", () => {
 	it("runs tasks on one key one after the other", async () => {
 		const mutex = new KeyedMutex();
 		const log: string[] = [];
