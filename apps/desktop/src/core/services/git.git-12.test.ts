@@ -234,7 +234,8 @@ describe("GIT-12 branch lists", () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(start);
 		const h = harness(branchListAnswer("main\n", "origin/main\n", "worktree /repo\nHEAD aaa\n"));
-		const service = makeService(h.runner);
+		// The poller judges staleness by the injected clock, so it must move with the fake timers.
+		const service = makeService(h.runner, { now: () => Date.now() });
 		const firstUpdate = nextBranchUpdate(service);
 		const stop = service.watchBranches(repoRoot, "origin", "foreground");
 		await firstUpdate;
@@ -255,7 +256,8 @@ describe("GIT-12 branch lists", () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(start);
 		const h = harness(branchListAnswer("main\n", "origin/main\n", "worktree /repo\nHEAD aaa\n"));
-		const service = makeService(h.runner);
+		// The poller judges staleness by the injected clock, so it must move with the fake timers.
+		const service = makeService(h.runner, { now: () => Date.now() });
 		const firstUpdate = nextBranchUpdate(service);
 		const stop = service.watchBranches(repoRoot, "origin", "background");
 		await firstUpdate;
