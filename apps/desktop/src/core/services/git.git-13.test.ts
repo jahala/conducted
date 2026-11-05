@@ -1,6 +1,7 @@
 import { appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import type { ShellOutput } from "../../platform/platform.ts";
+import { FakeGitRunner } from "../../test/fake-git-runner.ts";
 import type { GitCommand } from "../git/commands.ts";
 import type { GitRunner, GitRunOptions } from "../git/runner.ts";
 import {
@@ -142,33 +143,7 @@ function fetchRunner(): { runner: GitRunner; recorder: FetchRecorder } {
 		return ok(output(""));
 	};
 
-	const run = async (command: GitCommand): Promise<Result<ShellOutput>> => reply(command);
-	const runChecked = async (command: GitCommand): Promise<Result<ShellOutput>> => {
-		const result = await run(command);
-		if (!result.ok) return result;
-		const codes = command.okExitCodes ?? [0];
-		return codes.includes(result.value.exitCode)
-			? result
-			: err(appError("git_failed", result.value.stderr.trim() || "git failed"));
-	};
-	const stdout = async (command: GitCommand): Promise<Result<string>> => {
-		const result = await runChecked(command);
-		return result.ok ? ok(result.value.stdout.trim()) : result;
-	};
-
-	return {
-		recorder,
-		runner: {
-			run,
-			runChecked,
-			stdout,
-			start: async () => {
-				throw new Error("start is not used by the fetch tests");
-			},
-			withWorktreeLock: (_path, work) => work(),
-			withWorktreeAndRepoLocks: (_path, _root, work) => work(),
-		},
-	};
+	return { recorder, runner: new FakeGitRunner(reply) };
 }
 
 const context = (overrides: Partial<WorkspaceGitContext> = {}): WorkspaceGitContext => ({

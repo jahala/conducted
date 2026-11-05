@@ -7,6 +7,7 @@
 import { appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import type { ShellOutput } from "../../platform/platform.ts";
+import { FakeGitRunner } from "../../test/fake-git-runner.ts";
 import type { GitCommand } from "../git/commands.ts";
 import type { GitRunner, GitRunOptions } from "../git/runner.ts";
 import { GitService, type WorkspaceGitContext } from "./git.ts";
@@ -31,40 +32,8 @@ const context = (over: Partial<WorkspaceGitContext> = {}): WorkspaceGitContext =
 
 function fakeRunner(
 	handler: (command: GitCommand, options: GitRunOptions) => Result<ShellOutput>,
-): GitRunner & { commands: GitCommand[]; locks: string[] } {
-	const commands: GitCommand[] = [];
-	const locks: string[] = [];
-	const run = async (command: GitCommand, options: GitRunOptions) => {
-		commands.push(command);
-		return handler(command, options);
-	};
-	const runChecked = async (command: GitCommand, options: GitRunOptions) => {
-		const result = await run(command, options);
-		if (!result.ok) return result;
-		const codes = command.okExitCodes ?? [0];
-		return codes.includes(result.value.exitCode)
-			? result
-			: err(appError("git_failed", result.value.stderr.trim() || "git failed"));
-	};
-	const stdout = async (command: GitCommand, options: GitRunOptions) => {
-		const result = await runChecked(command, options);
-		return result.ok ? ok(result.value.stdout.trim()) : result;
-	};
-	return {
-		commands,
-		locks,
-		run,
-		runChecked,
-		stdout,
-		start: async () => {
-			throw new Error("start is not used by rename");
-		},
-		withWorktreeLock: async (path, work) => {
-			locks.push(path);
-			return work();
-		},
-		withWorktreeAndRepoLocks: (_worktreePath, _repoRootPath, work) => work(),
-	};
+): FakeGitRunner {
+	return new FakeGitRunner(handler);
 }
 
 function makeService(
@@ -140,7 +109,7 @@ describe("GIT-09 GitService.renameBranch", () => {
 
 		expect(result.ok).toBe(true);
 		expect(saved).toEqual(["fix-login"]);
-		expect(runner.locks).toEqual(["/repo/worktree"]);
+		expect(runner.worktreeLocks).toEqual(["/repo/worktree"]);
 		const rename = runner.commands.find(
 			(command) => command.args[0] === "branch" && command.args[1] === "-m",
 		);

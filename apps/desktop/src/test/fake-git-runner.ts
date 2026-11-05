@@ -61,6 +61,12 @@ export const commandText = (command: GitCommand): string =>
 
 export class FakeGitRunner implements GitRunner {
 	readonly calls: FakeGitCall[] = [];
+	/** The commands run so far, in order. The same array for the life of the runner. */
+	readonly commands: GitCommand[] = [];
+	/** Worktree paths locked so far, in order. */
+	readonly worktreeLocks: string[] = [];
+	/** Repo root paths locked so far, in order. */
+	readonly repoLocks: string[] = [];
 	readonly locks: KeyedMutex;
 	readonly #handler: GitHandler;
 	readonly #start: FakeGitRunnerOptions["start"];
@@ -71,13 +77,9 @@ export class FakeGitRunner implements GitRunner {
 		this.#start = options.start;
 	}
 
-	/** The commands run so far, in order. */
-	get commands(): GitCommand[] {
-		return this.calls.map((call) => call.command);
-	}
-
 	async run(command: GitCommand, options: GitRunOptions): Promise<Result<ShellOutput>> {
 		this.calls.push({ command, options });
+		this.commands.push(command);
 		return this.#handler(command, options);
 	}
 
@@ -98,10 +100,12 @@ export class FakeGitRunner implements GitRunner {
 			throw new Error(`start was not scripted for: ${commandText(command)}`);
 		}
 		this.calls.push({ command, options });
+		this.commands.push(command);
 		return this.#start(command, options);
 	}
 
 	withWorktreeLock<T>(worktreePath: string, work: () => Promise<T>): Promise<T> {
+		this.worktreeLocks.push(worktreePath);
 		return this.locks.run(worktreeLockKey(worktreePath), work);
 	}
 
@@ -110,8 +114,9 @@ export class FakeGitRunner implements GitRunner {
 		repoRootPath: string,
 		work: () => Promise<T>,
 	): Promise<T> {
-		return this.withWorktreeLock(worktreePath, () =>
-			this.locks.run(repoLockKey(repoRootPath), work),
-		);
+		return this.withWorktreeLock(worktreePath, () => {
+			this.repoLocks.push(repoRootPath);
+			return this.locks.run(repoLockKey(repoRootPath), work);
+		});
 	}
 }

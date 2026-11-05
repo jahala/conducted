@@ -10,9 +10,10 @@ import { resolve } from "node:path";
 import { appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import type { ShellOutput } from "../../platform/platform.ts";
+import { FakeGitRunner } from "../../test/fake-git-runner.ts";
 import type { GitCommand } from "../git/commands.ts";
 import { resetHard } from "../git/commands.ts";
-import type { GitRunner, GitRunOptions } from "../git/runner.ts";
+import type { GitRunner } from "../git/runner.ts";
 import { GitService, parseTargetBranch, type WorkspaceGitContext } from "./git.ts";
 
 const workspaceId = "workspace-1" as WorkspaceId;
@@ -35,10 +36,7 @@ function fakeRunner(options: RunnerOptions = {}): {
 	git: GitRunner;
 	commands: GitCommand[];
 } {
-	const commands: GitCommand[] = [];
-
 	const reply = (command: GitCommand): ShellOutput => {
-		commands.push(command);
 		const [first, second] = command.args;
 		if (first === "fetch") {
 			return options.fetchFails ? output("", "fatal: couldn't find remote ref", 1) : output();
@@ -58,36 +56,8 @@ function fakeRunner(options: RunnerOptions = {}): {
 		return output();
 	};
 
-	const run = async (command: GitCommand): Promise<Result<ShellOutput>> => ok(reply(command));
-	const runChecked = async (
-		command: GitCommand,
-		_options: GitRunOptions,
-	): Promise<Result<ShellOutput>> => {
-		const result = await run(command);
-		if (!result.ok) return result;
-		const codes = command.okExitCodes ?? [0];
-		return codes.includes(result.value.exitCode)
-			? result
-			: err(appError("git_failed", result.value.stderr.trim() || "git failed"));
-	};
-	const stdout = async (command: GitCommand): Promise<Result<string>> => {
-		const result = await runChecked(command, { cwd: "/wt" });
-		return result.ok ? ok(result.value.stdout.trim()) : result;
-	};
-
-	return {
-		commands,
-		git: {
-			run,
-			runChecked,
-			stdout,
-			start: async () => {
-				throw new Error("start is not used");
-			},
-			withWorktreeLock: (_path, work) => work(),
-			withWorktreeAndRepoLocks: (_path, _root, work) => work(),
-		},
-	};
+	const git = new FakeGitRunner((command) => ok(reply(command)));
+	return { commands: git.commands, git };
 }
 
 const context: WorkspaceGitContext = {

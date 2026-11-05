@@ -1,6 +1,7 @@
 import { appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ShellOutput } from "../../platform/platform.ts";
+import { FakeGitRunner } from "../../test/fake-git-runner.ts";
 import type { GitCommand } from "../git/commands.ts";
 import type { GitRunner, GitRunOptions } from "../git/runner.ts";
 import {
@@ -19,29 +20,7 @@ const output = (stdout = "", stderr = "", exitCode = 0): ShellOutput => ({
 function fakeRunner(
 	handler: (command: GitCommand, options: GitRunOptions) => Result<ShellOutput>,
 ): GitRunner {
-	const run = async (command: GitCommand, options: GitRunOptions) => handler(command, options);
-	const runChecked = async (command: GitCommand, options: GitRunOptions) => {
-		const result = await run(command, options);
-		if (!result.ok) return result;
-		const codes = command.okExitCodes ?? [0];
-		return codes.includes(result.value.exitCode)
-			? result
-			: err(appError("git_failed", result.value.stderr.trim() || "git failed"));
-	};
-	const stdout = async (command: GitCommand, options: GitRunOptions) => {
-		const result = await runChecked(command, options);
-		return result.ok ? ok(result.value.stdout.trim()) : result;
-	};
-	return {
-		run,
-		runChecked,
-		stdout,
-		start: async () => {
-			throw new Error("start is not used by the changes pipeline");
-		},
-		withWorktreeLock: (_worktreePath, work) => work(),
-		withWorktreeAndRepoLocks: (_worktreePath, _repoRootPath, work) => work(),
-	};
+	return new FakeGitRunner(handler);
 }
 
 const fileIn = (cwd: string): string => (cwd === "/old" ? "old" : "new");

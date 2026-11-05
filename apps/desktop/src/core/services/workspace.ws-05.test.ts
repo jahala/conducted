@@ -1,9 +1,10 @@
 import { appError, err, ok, type RepoId, type Result, type WorkspaceId } from "@conducted/shared";
 import { describe, expect, it, vi } from "vitest";
 import type { FileSystem, ShellOutput } from "../../platform/platform.ts";
+import { FakeGitRunner } from "../../test/fake-git-runner.ts";
 import type { ArchivingWorkspace } from "../db/repair.ts";
 import type { GitCommand } from "../git/commands.ts";
-import { type GitRunner, isSuccessfulExit } from "../git/runner.ts";
+import type { GitRunner } from "../git/runner.ts";
 import type { Repo, Workspace } from "../model.ts";
 import { WorkspaceService, type WorkspaceServiceDeps } from "./workspace.ts";
 
@@ -89,38 +90,11 @@ function makeRunner(options: {
 		}
 		return output(0);
 	};
-	const run: GitRunner["run"] = async (command, runOptions) => {
+	const git = new FakeGitRunner((command, runOptions) => {
 		calls.push({ command, cwd: runOptions.cwd });
 		return ok(reply(command));
-	};
-	const runChecked: GitRunner["runChecked"] = async (command, runOptions) => {
-		const result = await run(command, runOptions);
-		if (!result.ok) return result;
-		return isSuccessfulExit(command, result.value.exitCode)
-			? result
-			: err(appError("git_failed", result.value.stderr.trim() || "git failed"));
-	};
-	const stdout: GitRunner["stdout"] = async (command, runOptions) => {
-		const result = await runChecked(command, runOptions);
-		return result.ok ? ok(result.value.stdout.trim()) : result;
-	};
-	return {
-		calls,
-		git: {
-			run,
-			runChecked,
-			stdout,
-			async start() {
-				throw new Error("start is not used in these tests");
-			},
-			async withWorktreeLock(_path, work) {
-				return work();
-			},
-			async withWorktreeAndRepoLocks(_worktree, _root, work) {
-				return work();
-			},
-		},
-	};
+	});
+	return { calls, git };
 }
 
 function makeFs(folderExists = true): { fs: FileSystem; trashed: string[] } {

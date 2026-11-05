@@ -9,6 +9,7 @@ import {
 } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import type { ShellOutput } from "../../platform/platform.ts";
+import { FakeGitRunner } from "../../test/fake-git-runner.ts";
 import type { GitCommand } from "../git/commands.ts";
 import type { GitRunner } from "../git/runner.ts";
 import { GitService, type WorkspaceGitContext } from "./git.ts";
@@ -29,10 +30,7 @@ function runner(override?: (command: GitCommand) => ShellOutput | null): {
 	git: GitRunner;
 	recorder: Recorder;
 } {
-	const recorder: Recorder = { commands: [] };
-
 	const reply = (command: GitCommand): ShellOutput => {
-		recorder.commands.push(command);
 		const replaced = override?.(command);
 		if (replaced !== null && replaced !== undefined) return replaced;
 		const args = command.args;
@@ -59,32 +57,8 @@ function runner(override?: (command: GitCommand) => ShellOutput | null): {
 		return output("");
 	};
 
-	const run = async (command: GitCommand): Promise<Result<ShellOutput>> => ok(reply(command));
-	const runChecked = async (command: GitCommand): Promise<Result<ShellOutput>> => {
-		const result = await run(command);
-		if (!result.ok) return result;
-		const codes = command.okExitCodes ?? [0];
-		if (codes.includes(result.value.exitCode)) return result;
-		return err(appError("git_failed", result.value.stderr.trim() || "git failed"));
-	};
-	const stdout = async (command: GitCommand): Promise<Result<string>> => {
-		const result = await runChecked(command);
-		return result.ok ? ok(result.value.stdout.trim()) : result;
-	};
-
-	return {
-		git: {
-			run,
-			runChecked,
-			stdout,
-			start: async () => {
-				throw new Error("start is not used");
-			},
-			withWorktreeLock: (_path, work) => work(),
-			withWorktreeAndRepoLocks: (_path, _root, work) => work(),
-		},
-		recorder,
-	};
+	const git = new FakeGitRunner((command) => ok(reply(command)));
+	return { git, recorder: { commands: git.commands } };
 }
 
 const context: WorkspaceGitContext = {
