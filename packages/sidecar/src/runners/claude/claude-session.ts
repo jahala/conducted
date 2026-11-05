@@ -134,6 +134,8 @@ export class ClaudeSession implements AgentSession {
 	private disposed = false;
 	private agentSessionId: string | null = null;
 	private agentSessionIdReported = false;
+	/** The app's auto-accept edits control: true or false wins over an answer based grant. */
+	private autoApproveEditsOverride: boolean | undefined;
 	/** The settings the live process is known to run with, for live reconfiguration. */
 	private appliedModel: string | null = null;
 	private appliedEffort: Effort | null = null;
@@ -272,6 +274,11 @@ export class ClaudeSession implements AgentSession {
 			});
 			return "restart";
 		}
+	}
+
+	/** Turns the app's auto-accept edits control on or off for the live chat (AGENT-04). */
+	setAutoApproveEdits(enabled: boolean): void {
+		this.autoApproveEditsOverride = enabled;
 	}
 
 	async contextUsage(): Promise<{ usedTokens: number; windowTokens: number } | null> {
@@ -556,6 +563,7 @@ export class ClaudeSession implements AgentSession {
 			setPermissionMode: async (mode) => {
 				await this.query?.setPermissionMode(mode);
 			},
+			autoApproveEditsOverride: () => this.autoApproveEditsOverride,
 		};
 	}
 

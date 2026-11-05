@@ -39,6 +39,8 @@ interface HarnessOptions {
 		| ((interaction: Interaction) => InteractionAnswer | Promise<InteractionAnswer>);
 	realPath?: (path: string) => Promise<string | null>;
 	live?: boolean;
+	/** The app's auto-accept edits control. */
+	autoApproveEdits?: boolean;
 }
 
 interface Harness {
@@ -74,6 +76,7 @@ function harness(over: HarnessOptions = {}): Harness {
 		setPermissionMode: async (mode) => {
 			modes.push(mode);
 		},
+		autoApproveEditsOverride: () => over.autoApproveEdits,
 	};
 	return { handler: new ClaudePermissionHandler(deps), interactions, modes };
 }
@@ -215,6 +218,23 @@ describe("AGENT-04 Claude permission handler", () => {
 		expect(edits.handler.editsAutoApproved).toBe(true);
 		await edits.handler.canUseTool("Edit", { file_path: "/work/app/b.ts" }, toolOptions());
 		expect(edits.interactions).toHaveLength(1);
+	});
+
+	test("the app's auto-accept edits control allows an edit without asking", async () => {
+		const enabled = harness({ autoApproveEdits: true });
+
+		const result = await enabled.handler.canUseTool(
+			"Edit",
+			{ file_path: "/work/app/src/a.ts" },
+			toolOptions(),
+		);
+
+		expect(result?.behavior).toBe("allow");
+		expect(enabled.interactions).toHaveLength(0);
+
+		const disabled = harness({ autoApproveEdits: false });
+		await disabled.handler.canUseTool("Edit", { file_path: "/work/app/src/a.ts" }, toolOptions());
+		expect(disabled.interactions).toHaveLength(1);
 	});
 
 	test("allow with suggested rules applies the SDK's suggestions", async () => {

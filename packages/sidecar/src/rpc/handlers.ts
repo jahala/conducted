@@ -48,7 +48,7 @@ export function buildHandlers(deps: HandlerDeps): {
 			warmAgent: (params) => deps.sessions.warmAgent(params),
 			resetAgent: (params) => deps.sessions.resetAgent(params),
 			updateConfig: (params) => deps.sessions.updateConfig(params),
-			setAutoApproveEdits: async () => notImplemented("AGENT-04"),
+			setAutoApproveEdits: (params) => deps.sessions.setAutoApproveEdits(params),
 			getSessionStatus: (params) => deps.sessions.getSessionStatus(params),
 			answerInteraction: (params) => deps.sessions.answerInteraction(params),
 			getContextUsage: (params) => deps.usage.contextUsage(params.sessionId),

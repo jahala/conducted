@@ -17,6 +17,7 @@ import { AsyncQueue } from "../../util/async-queue.ts";
 import type { StartOptions, TurnCallbacks, TurnInput } from "../runner.ts";
 import { ClaudeSession, type ClaudeSessionDeps, type QueryFunction } from "./claude-session.ts";
 import { INTERRUPT_GRACE_MS, SETTLEMENT_WATCHDOG_MS } from "./constants.ts";
+import { ClaudePermissionHandler } from "./permission-handler.ts";
 import type { ClaudeTranslator } from "./translate.ts";
 import type { Scheduler } from "./turn-tracker.ts";
 
@@ -867,6 +868,28 @@ describe("AGENT-02 Claude session", () => {
 			});
 
 			expect(script.actions.permissionModes).toEqual(["plan", "default", "auto"]);
+			await session.dispose();
+		});
+
+		test("AGENT-04 setAutoApproveEdits lets the live chat accept an edit without asking", async () => {
+			const { query, script } = scriptedQuery();
+			const session = new ClaudeSession(
+				makeDeps({
+					query,
+					createCanUseTool: (deps) => new ClaudePermissionHandler(deps).canUseTool,
+				}),
+				{ ...start(), config: { ...config(), requireToolApproval: true } },
+			);
+			await session.warm();
+
+			session.setAutoApproveEdits(true);
+			const result = await script.options?.canUseTool?.(
+				"Edit",
+				{ file_path: "/work/app/src/a.ts" },
+				{ signal: new AbortController().signal, toolUseID: "tool-1", requestId: "request-1" },
+			);
+
+			expect(result).toMatchObject({ behavior: "allow" });
 			await session.dispose();
 		});
 

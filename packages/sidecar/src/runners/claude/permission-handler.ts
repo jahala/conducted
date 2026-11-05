@@ -48,6 +48,11 @@ export interface PermissionHandlerDeps {
 	realPath(path: string): Promise<string | null>;
 	isSessionLive(): boolean;
 	setPermissionMode(mode: PermissionMode): Promise<void>;
+	/**
+	 * The app's auto-accept edits control for this chat (AGENT-04). undefined leaves the answer
+	 * based grant alone; true or false is an explicit choice that wins.
+	 */
+	autoApproveEditsOverride?(): boolean | undefined;
 }
 
 export class ClaudePermissionHandler {
@@ -98,13 +103,14 @@ export class ClaudePermissionHandler {
 				return (await this.deps.realPath(directory)) ?? directory;
 			}),
 		);
+		const autoApproveEdits = this.deps.autoApproveEditsOverride?.() ?? this.autoApproveEdits;
 		return classifyToolUse({
 			toolName,
 			input,
 			resolvedEditPath,
 			allowedRoots,
 			requireToolApproval: config.requireToolApproval,
-			autoApproveEdits: this.autoApproveEdits,
+			autoApproveEdits,
 			sessionLive: this.deps.isSessionLive(),
 		});
 	}

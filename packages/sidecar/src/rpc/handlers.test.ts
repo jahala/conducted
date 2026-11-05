@@ -28,6 +28,7 @@ function deps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
 			warmAgent: async () => ({}),
 			resetAgent: async () => ({}),
 			updateConfig: async () => ({ applied: "live" }),
+			setAutoApproveEdits: async () => ({}),
 			getSessionStatus: async () => ({ known: true }),
 			answerInteraction: async () => ({ accepted: true, superseded: false }),
 			liveStateOf: () => undefined,
@@ -140,6 +141,28 @@ describe("SIDE-02 handler wiring", () => {
 			droppedMessageIds: [],
 		});
 		expect(calls).toEqual(["session-1"]);
+	});
+
+	test("SIDE-02 setAutoApproveEdits is passed to the session manager", async () => {
+		const calls: { sessionId: string; enabled: boolean }[] = [];
+		const handlers = buildHandlers(
+			deps({
+				sessions: {
+					...deps().sessions,
+					setAutoApproveEdits: async (params) => {
+						calls.push(params);
+						return {};
+					},
+				},
+			}),
+		);
+		await expect(
+			handlers.requests.setAutoApproveEdits({
+				sessionId: "session-1" as SessionId,
+				enabled: true,
+			}),
+		).resolves.toEqual({});
+		expect(calls).toEqual([{ sessionId: "session-1", enabled: true }]);
 	});
 
 	test("SIDE-02 eventPersisted acknowledges the event in the outbox", async () => {
