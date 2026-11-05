@@ -1,6 +1,7 @@
 /**
  * @feature DATA-01 Query hook contract for screens
- * Owns: the GitHub hooks: access, checks, pull requests, issues and repository lists.
+ * Owns: the GitHub hooks: access, checks, pull requests, issues, and the owners and repositories
+ * the clone picker lists (PRJ-02).
  * Behaviour: services-map.md 2.5 (queries for GitHub data); core/hooks.ts states the contract.
  * Must handle: a GitHub token of unknown status, a check log that cannot be read.
  * Test first: the test for a hook body lives with the feature that implements it.

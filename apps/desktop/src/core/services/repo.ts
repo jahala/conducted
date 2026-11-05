@@ -1,9 +1,10 @@
 /**
  * @feature PRJ-01 Projects (repositories): add and list from a local folder, remove
- * Owns: the list of repositories, adding one from a local folder, removing one, and hiding one
- * from the sidebar. Also owns PRJ-04's config reads: scripts, files to copy and prompts come from
- * `.conducted/settings.toml`, with `.conducted/settings.local.toml` overriding it. Cloning from
- * GitHub is PRJ-02; creating from a template and icons are placeholders for PRJ-03 and PRJ-05.
+ * Owns: the list of repositories, adding one from a local folder, cloning one from GitHub or any
+ * git URL (PRJ-02), removing one, and hiding one from the sidebar. Also owns PRJ-04's config
+ * reads: scripts, files to copy and prompts come from `.conducted/settings.toml`, with
+ * `.conducted/settings.local.toml` overriding it. Creating from a template and icons are
+ * placeholders for PRJ-03 and PRJ-05.
  * Behaviour: ui-map.md 3.9 (add project), 4 item 8 (Add project menu), services-map.md 3.2 (add
  * repository steps: `git init` when missing, remote URL read and normalised, default branch
  * detection), 2.3.2 (repo operations), 1.4 (config group), 4.2 (the repo settings file),
@@ -53,8 +54,8 @@ import {
 import { githubRepoClone } from "../git/gh-commands.ts";
 import type { GitRunner } from "../git/runner.ts";
 import type { Repo, RepoConfig, RepoIconChoice, RunAction } from "../model.ts";
-import { isGithubRemoteUrl } from "./github.ts";
 import { coerceSettingValue, getSettingDef, type SettingValue } from "../registries/settings.ts";
+import { isGithubRemoteUrl } from "./github.ts";
 import {
 	actionIdsEqual,
 	actionLabel,
@@ -80,7 +81,7 @@ export interface CloneProgress {
 export interface RepoState {
 	loaded: boolean;
 	/** The clone in progress or the one just finished, so the dialog can show its progress. */
-	cloneProgress: CloneProgress | null;
+	cloneProgress?: CloneProgress | null;
 	reposById: Readonly<Record<string, Repo>>;
 	/** Ids in sidebar order. Hidden repositories are not listed. */
 	order: readonly RepoId[];
@@ -590,6 +591,19 @@ export class RepoService {
 				output: remote.error.message,
 			});
 			return remote;
+		}
+		if (remote.value === null) {
+			const missing = appError(
+				"repo_remote_missing",
+				`The clone at ${destination} has no origin remote.`,
+			);
+			this.#setCloneProgress({
+				state: "failed",
+				url,
+				destination,
+				output: missing.message,
+			});
+			return err(missing);
 		}
 		const defaultBranch = await this.#detectDefaultBranch(destination);
 		if (!defaultBranch.ok) {

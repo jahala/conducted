@@ -1,8 +1,8 @@
 /**
  * @feature PR-01 GitHub service: access, health, merge and the personal access token
  * Owns: probing `gh` access (`gh auth status`, the user's login, the git protocol), the access
- * health store, reading and writing the personal access token, and merging a workspace's pull
- * request.
+ * health store, reading and writing the personal access token, merging a workspace's pull
+ * request, and the owners and repositories the clone picker lists (PRJ-02).
  * Behaviour: services-map.md 3.9 (auth probes, method resolution, health), 5B.1.11 (failure
  * classes; only unauthorized breaks access), 5B.1.7 (merge method and dedupe), ui-map.md 6
  * (Account: GitHub through the `gh` CLI or a personal access token).
@@ -21,6 +21,7 @@
  * Test first: two merge calls at once send one `gh pr merge`.
  */
 import {
+	type AppError,
 	appError,
 	err,
 	notImplemented,
@@ -356,6 +357,7 @@ interface RawGithubRepository {
 	description?: unknown;
 	isPrivate?: unknown;
 	sshUrl?: unknown;
+	url?: unknown;
 	updatedAt?: unknown;
 }
 
@@ -365,14 +367,10 @@ export function parseGithubRepositories(text: string): Result<GitHubRepoSummary[
 	try {
 		parsed = JSON.parse(text);
 	} catch {
-		return err(
-			appError("github_response_invalid", "GitHub's repository list could not be read."),
-		);
+		return err(appError("github_response_invalid", "GitHub's repository list could not be read."));
 	}
 	if (!Array.isArray(parsed)) {
-		return err(
-			appError("github_response_invalid", "GitHub's repository list could not be read."),
-		);
+		return err(appError("github_response_invalid", "GitHub's repository list could not be read."));
 	}
 	const repositories: GitHubRepoSummary[] = [];
 	for (const entry of parsed) {
@@ -402,12 +400,13 @@ export function parseGithubRepositories(text: string): Result<GitHubRepoSummary[
 			);
 		}
 		const sshUrl = typeof raw.sshUrl === "string" && raw.sshUrl !== "" ? raw.sshUrl : null;
+		const webUrl = typeof raw.url === "string" && raw.url !== "" ? raw.url : null;
 		repositories.push({
 			owner,
 			name,
 			description: typeof raw.description === "string" ? raw.description : null,
 			isPrivate: raw.isPrivate,
-			cloneUrl: sshUrl ?? `https://github.com/${owner}/${name}.git`,
+			cloneUrl: sshUrl ?? webUrl ?? `https://github.com/${owner}/${name}.git`,
 			updatedAt: updatedAtMs,
 		});
 	}
@@ -418,7 +417,9 @@ export function parseGithubRepositories(text: string): Result<GitHubRepoSummary[
 function ghCommandError(command: GitCommand, output: ShellOutput): AppError {
 	const text = `${output.stderr}\n${output.stdout}`;
 	const message = githubFailureMessage(classifyGhFailure(text), text);
-	return message === null ? failedCommandError(command, output) : appError("github_failed", message);
+	return message === null
+		? failedCommandError(command, output)
+		: appError("github_failed", message);
 }
 
 /** The repositories whose name, owner/name or description contains the query. */
