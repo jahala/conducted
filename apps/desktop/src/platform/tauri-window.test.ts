@@ -1,14 +1,15 @@
 /**
  * @feature PLAT-31 Window focus and blur events
- * Owns: tests for the Tauri window door: asking whether the window has focus and subscribing to
- * focus and blur.
+ * Owns: tests for the Tauri window door: asking whether the window has focus, subscribing to
+ * focus and blur, and turning Tauri's drag and drop events into the Platform's file drop events
+ * (PLAT-33).
  * Behaviour: services-map.md 1.1 and 6, native-and-sidecar-map.md A4 (`tauri://focus`,
- * `tauri://blur`).
+ * `tauri://blur`, drag and drop).
  */
 
 import { describe, expect, it } from "vitest";
-import type { Unsubscribe } from "./platform.ts";
-import { createTauriWindow, EVENTS, type TauriBindings } from "./tauri.ts";
+import type { FileDropEvent, Unsubscribe } from "./platform.ts";
+import { createTauriWindow, EVENTS, type TauriBindings, type TauriDragDropEvent } from "./tauri.ts";
 
 type WindowHandler = () => void;
 
@@ -17,12 +18,15 @@ interface FakeWindow {
 	focused: boolean;
 	listened: string[];
 	stopped: string[];
+	dragHandlers: Set<(event: TauriDragDropEvent) => void>;
 	emit(event: string): void;
+	emitDrag(event: TauriDragDropEvent): void;
 	listenerCount(): number;
 }
 
 function fakeWindow(focused = true): FakeWindow {
 	const listeners = new Map<string, Set<WindowHandler>>();
+	const dragHandlers = new Set<(event: TauriDragDropEvent) => void>();
 	const listened: string[] = [];
 	const stopped: string[] = [];
 	const state: FakeWindow = {
@@ -46,15 +50,23 @@ function fakeWindow(focused = true): FakeWindow {
 						handlers.delete(wrapped);
 					};
 				},
+				onDragDropEvent: async (handler) => {
+					dragHandlers.add(handler);
+					return () => dragHandlers.delete(handler);
+				},
 			},
 		} as TauriBindings,
 		listened,
 		stopped,
+		dragHandlers,
 		emit: (event: string) => {
 			for (const handler of [...(listeners.get(event) ?? [])]) handler();
 		},
+		emitDrag: (event) => {
+			for (const handler of [...dragHandlers]) handler(event);
+		},
 		listenerCount: () => {
-			let count = 0;
+			let count = dragHandlers.size;
 			for (const handlers of listeners.values()) count += handlers.size;
 			return count;
 		},
@@ -126,6 +138,7 @@ describe("PLAT-31 Tauri window focus", () => {
 					new Promise<() => void>((resolve) => {
 						late.push(() => resolve(() => stopped.push(event)));
 					}),
+				onDragDropEvent: async () => () => {},
 			},
 		});
 
@@ -135,5 +148,48 @@ describe("PLAT-31 Tauri window focus", () => {
 		await flush();
 
 		expect(stopped).toEqual([EVENTS.windowFocus, EVENTS.windowBlur]);
+	});
+});
+
+describe("PLAT-33 Tauri file drop events", () => {
+	it("PLAT-33 turns drag enter, over, drop and leave into real paths and pixel positions", async () => {
+		const fake = fakeWindow();
+		const window = createTauriWindow(fake.bindings);
+		const seen: FileDropEvent[] = [];
+
+		const stop = window.onFileDrop((event) => seen.push(event));
+		await flush();
+
+		fake.emitDrag({
+			type: "enter",
+			paths: ["/Users/me/one.txt", "/Users/me/two.png"],
+			position: { x: 12, y: 34 },
+		});
+		fake.emitDrag({ type: "over", position: { x: 20, y: 40 } });
+		fake.emitDrag({ type: "drop", paths: ["/Users/me/one.txt"], position: { x: 22, y: 44 } });
+		fake.emitDrag({ type: "leave" });
+
+		expect(seen).toEqual([
+			{ kind: "enter", paths: ["/Users/me/one.txt", "/Users/me/two.png"], x: 12, y: 34 },
+			{ kind: "over", x: 20, y: 40 },
+			{ kind: "drop", paths: ["/Users/me/one.txt"], x: 22, y: 44 },
+			{ kind: "leave" },
+		]);
+		stop();
+	});
+
+	it("PLAT-33 unsubscribing twice releases the drag listener once", async () => {
+		const fake = fakeWindow();
+		const window = createTauriWindow(fake.bindings);
+		const seen: FileDropEvent[] = [];
+
+		const stop = window.onFileDrop((event) => seen.push(event));
+		await flush();
+		stop();
+		stop();
+
+		fake.emitDrag({ type: "over", position: { x: 1, y: 2 } });
+		expect(seen).toEqual([]);
+		expect(fake.listenerCount()).toBe(0);
 	});
 });

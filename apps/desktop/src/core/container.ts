@@ -50,7 +50,7 @@ import { KeyedMutex } from "./git/locks.ts";
 import { ShellGitRunner } from "./git/runner.ts";
 import { createLookups, defaultSessionConfig, type Lookups } from "./lookups.ts";
 import { AgentCatalogService } from "./services/agent-catalog.ts";
-import { CheckpointService } from "./services/checkpoint.ts";
+import { CHECKPOINT_PRUNE_AFTER_DAYS, CheckpointService } from "./services/checkpoint.ts";
 import { CommandRunner, createCommandHandlers } from "./services/command-runner.ts";
 import { ComposerService } from "./services/composer.ts";
 import { FavoriteModelsService } from "./services/favorite-models.ts";
@@ -371,6 +371,11 @@ export function createContainer(inputs: ContainerInputs): Container {
 		setting,
 		isViewing: (sessionId) => sessions.store.getState().viewingSessionId === sessionId,
 		windowFocused: inputs.windowFocused,
+		sessionOf: (sessionId) => sessions.store.getState().sessions[sessionId],
+		workspaceOf: (workspaceId) => workspace.store.getState().workspacesById[workspaceId],
+		liveStateOf: (sessionId) => sessions.store.getState().liveStates[sessionId],
+		queuedCountOf: (sessionId) =>
+			(followUpQueue.store.getState().bySession[sessionId] ?? []).length,
 		workspaces: () => {
 			const byId = workspace.store.getState().workspacesById;
 			return new Map(
@@ -378,6 +383,11 @@ export function createContainer(inputs: ContainerInputs): Container {
 			);
 		},
 		sessions: () => Object.values(sessions.store.getState().sessions),
+		setTimer: (callback, ms) => {
+			const handle = setTimeout(callback, ms);
+			return () => clearTimeout(handle);
+		},
+		log,
 	});
 	const followUpQueue = new FollowUpQueue({
 		repos: repositories,
@@ -392,6 +402,17 @@ export function createContainer(inputs: ContainerInputs): Container {
 		composer,
 		queue: followUpQueue,
 		notifications,
+		pruneCheckpoints: async (sessionId, workspaceId) => {
+			const workspace = await repositories.workspaces.get(workspaceId);
+			if (!workspace.ok) return workspace;
+			if (workspace.value === null)
+				return err(appError("workspace_unknown", "That workspace no longer exists."));
+			const repository = await repositories.repos.get(workspace.value.repoId);
+			if (!repository.ok) return repository;
+			if (repository.value === null)
+				return err(appError("repo_unknown", "That project was removed."));
+			return checkpoint.pruneForChat(sessionId, repository.value.rootPath);
+		},
 		workspaceContextOf: (id) => ready(lookups.sidecarContext(id, undefined)),
 		defaultConfig: (id) => ready(defaultSessionConfig(id, lookups, setting)),
 		setting,
@@ -491,6 +512,11 @@ export function createContainer(inputs: ContainerInputs): Container {
 		git: gitRunner,
 		checkpointerPath: checkpointerScript(paths),
 		workspacePathOf: (sessionId) => ready(lookups.workspacePathOfSession(sessionId)),
+		events: repositories.sessionEvents,
+		markViewReverted: (sessionId, turnId, at) => sessions.markReverted(sessionId, turnId, at),
+		setting,
+		repositories: () => repositories,
+		now: () => clock.now(),
 	});
 	const fileDiff = new FileDiffService({
 		git: gitRunner,
@@ -602,6 +628,12 @@ export function createContainer(inputs: ContainerInputs): Container {
 		{ name: "programs", phase: "services", fatal: false, run: () => system.start() },
 		{ name: "sidecar", phase: "sidecar", fatal: true, run: () => tunnel.start() },
 		{ name: "resume chats", phase: "sidecar", fatal: false, run: () => resume.resume() },
+		{
+			name: "checkpoint pruning",
+			phase: "sidecar",
+			fatal: false,
+			run: () => checkpoint.pruneArchived(CHECKPOINT_PRUNE_AFTER_DAYS),
+		},
 		{
 			name: "data lifetime",
 			phase: "sidecar",
@@ -821,6 +853,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 				keepAwakeTimer = null;
 			});
 			await step("keep-awake", () => keepAwake.stop());
+			await step("notifications", () => notifications.stop());
 			await step("the repo service", () => repo.dispose());
 			await step("GitHub polling", () => github.dispose());
 			await step("terminals", () => terminals.killAll());

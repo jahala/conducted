@@ -19,9 +19,13 @@
 		"apps/desktop/src/app/SurfaceLayer.tsx": 2,
 		"apps/desktop/src/core/async/optimistic.ts": 1,
 		"apps/desktop/src/core/db/sections.ts": 1,
+<<<<<<< HEAD
 		"apps/desktop/src/core/git/commands.ts": 13,
+=======
+		"apps/desktop/src/core/fuzzy.ts": 1,
+		"apps/desktop/src/core/git/commands.ts": 12,
+>>>>>>> 39937f3211e151d274644aa9ebe82374a3463c7c
 		"apps/desktop/src/core/git/gh-commands.ts": 2,
-		"apps/desktop/src/core/git/status.ts": 1,
 		"apps/desktop/src/core/hooks/git.ts": 1,
 		"apps/desktop/src/core/hooks/github.ts": 2,
 		"apps/desktop/src/core/hooks/sections.ts": 1,
@@ -45,10 +49,8 @@
 		"apps/desktop/src/ui/contrast.ts": 2,
 		"apps/desktop/src/ui/PanelHeader.tsx": 2,
 		"apps/desktop/src/ui/Separator.tsx": 1,
-		"apps/desktop/src/ui/Slider.tsx": 1,
 		"apps/desktop/src/ui/Table.tsx": 7,
 		"apps/desktop/src/ui/Tabs.tsx": 1,
-		"apps/desktop/src/ui/theme-variants.ts": 1,
 		"apps/desktop/src/ui/Toast.tsx": 2,
 		"apps/desktop/src/ui/TruncatedText.tsx": 1,
 		"packages/sidecar/src/config.ts": 1,

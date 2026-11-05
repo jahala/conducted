@@ -9,12 +9,14 @@
  * item is shown disabled with the reason until built.
  * Must handle: A running turn (no footer, TurnItem shows the spinner instead); no usage reported (the hover card
  * says so); no checkpoint (Fork and Reset disabled with a reason); a cancelled or errored turn (footer still
- * copies); a copy, fork or reset that fails (a toast). The More menu repeats the copy actions; the row wraps
- * at a narrow width instead of collapsing into the menu.
+ * copies); a copy or fork that fails (a toast); Reset opens the confirmation dialog instead of changing
+ * anything at once. The More menu repeats the copy actions; the row wraps at a narrow width instead of
+ * collapsing into the menu.
  * Test first: A finished turn with usage shows token counts in the hover card; without a checkpoint
  * Reset is disabled.
  */
 import type { SessionId } from "@conducted/shared";
+import { useState } from "react";
 import { useActions } from "../../core/hooks.ts";
 import type { ChatTurn } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
@@ -22,6 +24,7 @@ import { CopyButton } from "../../ui/CopyButton.tsx";
 import { ChevronDownIcon, ClockIcon } from "../../ui/icons.tsx";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "../../ui/Menu.tsx";
 import { Tooltip } from "../../ui/Tooltip.tsx";
+import { ResetChatDialog } from "./ResetChatDialog.tsx";
 import { reportFailure } from "./report-failure.ts";
 
 export interface TurnFooterProps {
@@ -66,6 +69,7 @@ function detailsOf(turn: ChatTurn): string {
 
 export function TurnFooter({ turn, sessionId }: TurnFooterProps) {
 	const actions = useActions();
+	const [resetOpen, setResetOpen] = useState(false);
 	const finalMessage = finalMessageOf(turn);
 	const summary = summaryOf(turn, finalMessage);
 	const canReset = turn.startCheckpointId !== null;
@@ -116,12 +120,7 @@ export function TurnFooter({ turn, sessionId }: TurnFooterProps) {
 					<MenuItem
 						disabled={!canReset}
 						title={canReset ? undefined : "This turn has no checkpoint to reset to."}
-						onSelect={() => {
-							void reportFailure(
-								actions.sessions.revertTo(sessionId, turn.turnId),
-								"Couldn't reset the chat",
-							);
-						}}
+						onSelect={() => setResetOpen(true)}
 					>
 						Reset chat
 					</MenuItem>
@@ -135,6 +134,14 @@ export function TurnFooter({ turn, sessionId }: TurnFooterProps) {
 					<MenuItem onSelect={() => copyFromMenu(summary)}>Copy summary</MenuItem>
 				</MenuContent>
 			</Menu>
+			<ResetChatDialog
+				open={resetOpen}
+				onOpenChange={setResetOpen}
+				sessionId={sessionId}
+				turnId={turn.turnId}
+				changedFileCount={turn.changes.length}
+				busy={turn.outcome === "running"}
+			/>
 		</div>
 	);
 }
