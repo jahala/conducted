@@ -40,25 +40,41 @@
 //! Must handle: a source file that cannot be copied (the command returns an error); a program
 //! that cannot start, exits nonzero, or does not finish within the timeout (reported after one
 //! re-copy); a dev build with no bundled bin folder (nothing to verify); a destination that
-//! already holds the files (the copy replaces them).
+//! already holds the files (the copy replaces them); a destination program that is still running
+//! from an earlier launch (the new copy is written to a sibling temporary file and renamed over
+//! the old one, so the running program keeps its own file and the write never hits "text file
+//! busy").
 //! Our design choice: a program is verified by running it with `--version` and requiring exit 0.
 //! Our design choice: only the four managed programs are run. The helper scripts are copied but
 //! not executed, because they need a caller and their arguments are not a version check.
+//! Our design choice: the check runs once at launch on a worker thread and its result lives in
+//! `BinariesState`; the command reads that result instead of copying and running again. Until the
+//! launch check finishes, the command answers with an empty list.
+//! Our design choice: every launch copies the whole bin folder. The source markers, quarantine
+//! strip and unknown-file removal in A9 are not built yet, so a launch copies the 308 MB every
+//! time (PLAT-34's later items).
+//! Our design choice: the research and the issue call the pair `get_binary_verification_errors`
+//! and `binary_verification_errors`; our names are `programs_verification_errors` and
+//! `programs://verification-errors`, as recorded in docs/plans/tauri-commands.md.
 //! Test first: a bundled `gh` that exits nonzero is copied, run again after a re-copy, and
 //! reported as a verification error.
 
 use std::fmt;
 use std::fs;
+use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Mutex, MutexGuard};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::error::{CommandError, CommandResult};
 use crate::not_implemented;
+use crate::process_group;
 
 /// Event that carries the programs which failed the launch check.
 pub const EVENT_VERIFICATION_ERRORS: &str = "programs://verification-errors";
@@ -112,9 +128,9 @@ pub struct VerificationError {
 
 /// Copies the bundled bin folder into the app data folder and checks each managed program.
 ///
-/// A program that fails is copied once more from the bundle and run again. Programs that still
-/// fail are returned in the list, newest run first. A missing source folder means a dev build
-/// with no bundled programs, so the list is empty. A copy that cannot be made is an error.
+/// A program that fails is copied once more from the bundle and run again. A missing source
+/// folder means a dev build with no bundled programs, so the list is empty. A copy that cannot be
+/// made is an error.
 pub fn verify_bundled_programs(
     source: &Path,
     destination: &Path,
@@ -144,8 +160,107 @@ pub fn verify_bundled_programs(
     Ok(errors)
 }
 
-/// Runs the launch check and returns the programs that failed it.
-pub fn verification_errors(app: &AppHandle) -> CommandResult<Vec<VerificationError>> {
+/// The whole check failed before it could name a program: the app folders could not be found or
+/// the copy itself failed. Kept apart from `VerificationError` because it names no program.
+#[derive(Debug, Clone)]
+struct StoredFailure {
+    code: &'static str,
+    message: String,
+}
+
+impl StoredFailure {
+    fn from_error(error: &CommandError) -> Self {
+        match error {
+            CommandError::Failed { code, message } => Self {
+                code,
+                message: message.clone(),
+            },
+            other => Self {
+                code: "binary_verification_failed",
+                message: other.to_string(),
+            },
+        }
+    }
+
+    fn to_error(&self) -> CommandError {
+        CommandError::Failed {
+            code: self.code,
+            message: self.message.clone(),
+        }
+    }
+}
+
+/// What the launch check produced. `None` in `errors` means the check has not finished yet.
+#[derive(Debug, Default)]
+struct VerificationOutcome {
+    errors: Option<Vec<VerificationError>>,
+    failure: Option<StoredFailure>,
+}
+
+/// The launch check's result, managed once by `lib.rs` and read by the command.
+///
+/// One thread runs the check at a time: `claim_run` returns true for the first caller only. The
+/// command never starts a check, so asking it during launch cannot copy or run anything.
+#[derive(Debug, Default)]
+pub struct BinariesState {
+    outcome: Mutex<VerificationOutcome>,
+    started: AtomicBool,
+}
+
+impl BinariesState {
+    fn claim_run(&self) -> bool {
+        !self.started.swap(true, Ordering::AcqRel)
+    }
+
+    fn finish(&self, result: &CommandResult<Vec<VerificationError>>) {
+        let mut outcome = lock_outcome(&self.outcome);
+        match result {
+            Ok(errors) => outcome.errors = Some(errors.clone()),
+            Err(error) => outcome.failure = Some(StoredFailure::from_error(error)),
+        }
+    }
+
+    fn snapshot(&self) -> CommandResult<Vec<VerificationError>> {
+        let outcome = lock_outcome(&self.outcome);
+        if let Some(failure) = &outcome.failure {
+            return Err(failure.to_error());
+        }
+        Ok(outcome.errors.clone().unwrap_or_default())
+    }
+}
+
+/// A lock whose owner panicked is still readable, so a later command gets the last result.
+fn lock_outcome(outcome: &Mutex<VerificationOutcome>) -> MutexGuard<'_, VerificationOutcome> {
+    outcome
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+/// Starts the launch check once, on a worker thread, and reports its result on the event.
+///
+/// Called from `setup` in `lib.rs`. If the check has already started, this does nothing. A check
+/// that fails before it can name a program is kept in the state, and the command returns the
+/// error; the event carries per-program results only.
+pub fn start_verification(app: AppHandle) {
+    {
+        let state = app.state::<BinariesState>();
+        if !state.claim_run() {
+            return;
+        }
+    }
+    thread::spawn(move || {
+        let result = launch_verification(&app);
+        app.state::<BinariesState>().finish(&result);
+        if let Ok(errors) = &result {
+            if let Err(error) = app.emit(EVENT_VERIFICATION_ERRORS, errors) {
+                eprintln!("could not report the programs that failed verification: {error}");
+            }
+        }
+    });
+}
+
+/// Runs the launch check against the app's resource and data folders.
+fn launch_verification(app: &AppHandle) -> CommandResult<Vec<VerificationError>> {
     let resources = app
         .path()
         .resource_dir()
@@ -163,20 +278,13 @@ pub fn verification_errors(app: &AppHandle) -> CommandResult<Vec<VerificationErr
     verify_bundled_programs(&resources.join("bin"), &data.join("bin"))
 }
 
-/// Runs the launch check and reports its result to the UI on the verification event.
-pub fn emit_verification_errors(app: &AppHandle) -> CommandResult<()> {
-    let errors = verification_errors(app)?;
-    app.emit(EVENT_VERIFICATION_ERRORS, &errors)
-        .map_err(|error| CommandError::Failed {
-            code: "binary_verification_event_failed",
-            message: format!("Could not report the programs that failed verification: {error}"),
-        })
-}
-
-/// Lists the programs that failed the launch check.
+/// Lists the programs that failed the launch check. Answers from the launch result and never
+/// copies or runs a program itself. An empty list before the launch check has finished.
 #[tauri::command]
-pub fn programs_verification_errors(app: AppHandle) -> CommandResult<Vec<VerificationError>> {
-    verification_errors(&app)
+pub fn programs_verification_errors(
+    state: State<'_, BinariesState>,
+) -> CommandResult<Vec<VerificationError>> {
+    state.snapshot()
 }
 
 fn copy_bin_folder(source: &Path, destination: &Path) -> CommandResult<()> {
@@ -204,10 +312,46 @@ fn copy_entry(from: &Path, to: &Path) -> CommandResult<()> {
     if let Some(parent) = to.parent() {
         fs::create_dir_all(parent).map_err(|error| copy_failed(from, to, error))?;
     }
-    fs::copy(from, to).map_err(|error| copy_failed(from, to, error))?;
-    fs::set_permissions(to, metadata.permissions())
-        .map_err(|error| copy_failed(from, to, error))?;
-    Ok(())
+    copy_file(from, to, &metadata)
+}
+
+/// Copies one file through a sibling temporary file and renames it into place.
+///
+/// Writing straight onto a program that is running fails with "text file busy" on macOS. The
+/// rename replaces the directory entry instead, so a running program keeps the file it started
+/// from and the new copy appears at once.
+fn copy_file(from: &Path, to: &Path, metadata: &fs::Metadata) -> CommandResult<()> {
+    let temporary = temporary_copy_path(to);
+    fs::copy(from, &temporary).map_err(|error| copy_failed(from, &temporary, error))?;
+    fs::set_permissions(&temporary, metadata.permissions())
+        .map_err(|error| copy_failed(from, &temporary, error))?;
+    fs::rename(&temporary, to).map_err(|error| rename_failed(from, to, &temporary, error))
+}
+
+fn rename_failed(from: &Path, to: &Path, temporary: &Path, error: std::io::Error) -> CommandError {
+    match fs::remove_file(temporary) {
+        Ok(()) => copy_failed(from, to, error),
+        Err(cleanup_error) => CommandError::Failed {
+            code: "binary_copy_failed",
+            message: format!(
+                "Could not copy {} to {}: {error}. The temporary copy {} could not be removed either: {cleanup_error}",
+                from.display(),
+                to.display(),
+                temporary.display()
+            ),
+        },
+    }
+}
+
+/// A sibling of `to` that no other copy uses, so two copies cannot meet in the same temporary file.
+fn temporary_copy_path(to: &Path) -> PathBuf {
+    static COPY_COUNTER: AtomicU64 = AtomicU64::new(0);
+    let counter = COPY_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let name = to
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    to.with_file_name(format!(".{name}.copy-{}-{counter}", std::process::id()))
 }
 
 fn copy_failed(from: &Path, to: &Path, error: std::io::Error) -> CommandError {
@@ -231,8 +375,10 @@ fn run_program_with_timeout(path: &Path, timeout: Duration) -> Result<(), String
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
+        .process_group(0)
         .spawn()
         .map_err(|error| format!("it could not be started: {error}"))?;
+    let pid = child.id();
     let started = Instant::now();
     loop {
         match child.try_wait() {
@@ -240,20 +386,17 @@ fn run_program_with_timeout(path: &Path, timeout: Duration) -> Result<(), String
             Ok(Some(status)) => return Err(format!("it exited with {status}")),
             Ok(None) => {
                 if started.elapsed() >= timeout {
-                    let stopped = child.kill();
+                    process_group::terminate_group(
+                        pid,
+                        Duration::from_millis(crate::shell::KILL_GRACE_MS),
+                    );
                     let reaped = child.wait();
-                    return Err(match (stopped, reaped) {
-                        (Ok(()), Ok(_)) => {
-                            format!("it did not finish within {} ms", timeout.as_millis())
+                    let base = format!("it did not finish within {} ms", timeout.as_millis());
+                    return Err(match reaped {
+                        Ok(_) => base,
+                        Err(wait_error) => {
+                            format!("{base} and could not be collected: {wait_error}")
                         }
-                        (Err(kill_error), _) => format!(
-                            "it did not finish within {} ms and could not be stopped: {kill_error}",
-                            timeout.as_millis()
-                        ),
-                        (Ok(()), Err(wait_error)) => format!(
-                            "it did not finish within {} ms and could not be collected: {wait_error}",
-                            timeout.as_millis()
-                        ),
                     });
                 }
                 thread::sleep(Duration::from_millis(10));
@@ -501,6 +644,75 @@ mod tests {
     }
 
     #[test]
+    fn plat_34_replaces_a_stale_copy_in_the_destination() {
+        let folder = TempDir::new();
+        let source = folder.folder("source");
+        let destination = folder.folder("destination");
+        write_script(&source, "gh", "exit 0");
+        let stale = destination.join("gh");
+        fs::write(&stale, "#!/bin/sh\nexit 7\n").expect("seed a stale copy");
+        fs::set_permissions(&stale, fs::Permissions::from_mode(0o755)).expect("make it executable");
+
+        let errors = verify_bundled_programs(&source, &destination).expect("verification");
+
+        assert!(
+            errors.is_empty(),
+            "the replaced copy answers the version check"
+        );
+        assert_eq!(
+            fs::read_to_string(destination.join("gh")).expect("replaced program"),
+            "#!/bin/sh\nexit 0\n"
+        );
+        let leftovers: Vec<String> = fs::read_dir(&destination)
+            .expect("list the destination")
+            .map(|entry| {
+                entry
+                    .expect("read an entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .filter(|name| name.contains(".copy-"))
+            .collect();
+        assert!(
+            leftovers.is_empty(),
+            "no temporary copy is left: {leftovers:?}"
+        );
+    }
+
+    #[test]
+    fn plat_34_replaces_a_copy_that_is_still_running() {
+        let folder = TempDir::new();
+        let source = folder.folder("source");
+        let destination = folder.folder("destination");
+        write_script(&source, "gh", "exit 0");
+        // A copy of a real program, because macOS refuses writes to a running Mach-O binary.
+        let old = destination.join("gh");
+        fs::copy("/bin/sleep", &old).expect("place a real program in the destination");
+        let mut running = Command::new(&old)
+            .arg("2")
+            .spawn()
+            .expect("start the old copy");
+
+        let errors = verify_bundled_programs(&source, &destination).expect("verification");
+
+        assert!(errors.is_empty(), "the new copy answers the version check");
+        assert_eq!(
+            fs::read_to_string(destination.join("gh")).expect("replaced program"),
+            "#!/bin/sh\nexit 0\n"
+        );
+        assert!(
+            running
+                .try_wait()
+                .expect("read the old copy's state")
+                .is_none(),
+            "renaming the new copy must leave the running one alone"
+        );
+        running.kill().expect("stop the old copy");
+        running.wait().expect("collect the old copy");
+    }
+
+    #[test]
     fn plat_34_stops_a_program_that_does_not_finish() {
         let folder = TempDir::new();
         let program = write_script(folder.path(), "slow", "exec sleep 5");
@@ -511,6 +723,39 @@ mod tests {
         assert!(
             error.contains("did not finish within 25 ms"),
             "the error was {error}"
+        );
+    }
+
+    #[test]
+    fn plat_34_stops_the_children_a_program_started() {
+        let folder = TempDir::new();
+        let started = folder.path().join("child-started");
+        let ran = folder.path().join("child-ran");
+        let program = write_script(
+            folder.path(),
+            "spawner",
+            &format!(
+                "( sleep 0.5; echo ran > \"{}\" ) &\necho started > \"{}\"\nwait",
+                ran.display(),
+                started.display()
+            ),
+        );
+
+        let error = run_program_with_timeout(&program, Duration::from_millis(200))
+            .expect_err("the program outlives the timeout");
+
+        assert!(
+            error.contains("did not finish within 200 ms"),
+            "the error was {error}"
+        );
+        assert!(
+            started.is_file(),
+            "the child must have started before the timeout"
+        );
+        thread::sleep(Duration::from_millis(700));
+        assert!(
+            !ran.exists(),
+            "the whole process group must be stopped, not only the parent"
         );
     }
 
@@ -528,8 +773,38 @@ mod tests {
     }
 
     #[test]
-    fn plat_34_the_event_name_is_the_one_the_platform_listens_for() {
-        assert_eq!(EVENT_VERIFICATION_ERRORS, "programs://verification-errors");
+    fn plat_34_the_command_reads_the_launch_result() {
+        let state = BinariesState::default();
+        let error = VerificationError {
+            program: ManagedProgram::Gh,
+            message: "the bundled gh exited with 3".to_string(),
+        };
+        state.finish(&Ok(vec![error.clone()]));
+
+        assert_eq!(state.snapshot().expect("the launch result"), vec![error]);
+    }
+
+    #[test]
+    fn plat_34_the_command_reports_a_failed_launch_check() {
+        let state = BinariesState::default();
+        state.finish(&Err(CommandError::Failed {
+            code: "binary_copy_failed",
+            message: "Could not copy the bundled programs.".to_string(),
+        }));
+
+        let error = state
+            .snapshot()
+            .expect_err("the launch failure is handed on");
+
+        assert_eq!(error_code(error), "binary_copy_failed");
+    }
+
+    #[test]
+    fn plat_34_starts_the_launch_check_once() {
+        let state = BinariesState::default();
+
+        assert!(state.claim_run(), "the first caller starts the check");
+        assert!(!state.claim_run(), "a later caller does not start it again");
     }
 
     #[test]

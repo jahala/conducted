@@ -301,11 +301,13 @@ pub fn run() {
                 eprintln!("could not route the menu item {item_id}: {error}");
             }
         })
+        .manage(binaries::BinariesState::default())
         .setup(|app| {
             let logger_state = app.state::<logger::LoggerState>();
             logger::start_writer(app.handle(), &logger_state)?;
             navigation::install_guard(app.handle())?;
             shell::start_background_capture(app.handle().clone());
+            binaries::start_verification(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -364,6 +366,7 @@ pub fn run() {
             attachments::attachment_materialize,
             attachments::image_resize,
             menu::menu_set_shortcuts,
+            binaries::programs_verification_errors,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Conducted")
@@ -447,5 +450,91 @@ mod system_info_tests {
     fn plat_32_an_unknown_cpu_is_an_error_not_a_default() {
         assert_eq!(parse_machine_arch(None, Some("sparc")), None);
         assert_eq!(parse_machine_arch(None, None), None);
+    }
+
+    /// The command names listed in `lib.rs`'s `tauri::generate_handler!` block.
+    fn registered_command_names(lib_source: &str) -> std::collections::HashSet<String> {
+        let block = lib_source
+            .split("tauri::generate_handler![")
+            .nth(1)
+            .and_then(|rest| rest.split("])").next())
+            .expect("lib.rs registers its commands in tauri::generate_handler!");
+        block
+            .split(|character: char| {
+                character == ',' || character.is_whitespace() || character == '#'
+            })
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .map(|name| name.rsplit("::").next().unwrap_or(name).to_string())
+            .collect()
+    }
+
+    /// The function names that carry the `tauri::command` attribute in one source file.
+    fn command_function_names(source: &str) -> Vec<String> {
+        let marker = format!("#[tauri::{}]", "command");
+        let mut names = Vec::new();
+        let mut rest = source;
+        while let Some(index) = rest.find(&marker) {
+            rest = &rest[index + marker.len()..];
+            let Some(function_index) = rest.find("fn ") else {
+                break;
+            };
+            let after = &rest[function_index + 3..];
+            let name: String = after
+                .chars()
+                .take_while(|character| character.is_alphanumeric() || *character == '_')
+                .collect();
+            if !name.is_empty() {
+                names.push(name);
+            }
+            rest = after;
+        }
+        names
+    }
+
+    #[test]
+    fn plat_34_every_tauri_command_is_registered() {
+        let source_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let lib_source = std::fs::read_to_string(source_dir.join("lib.rs")).expect("read lib.rs");
+        let registered = registered_command_names(&lib_source);
+        assert!(!registered.is_empty(), "the handler list was found");
+
+        let mut missing = Vec::new();
+        for entry in std::fs::read_dir(&source_dir).expect("list the crate's source files") {
+            let path = entry.expect("read a source entry").path();
+            if path.extension().and_then(|extension| extension.to_str()) != Some("rs") {
+                continue;
+            }
+            let source = std::fs::read_to_string(&path).expect("read a source file");
+            for name in command_function_names(&source) {
+                if !registered.contains(&name) {
+                    missing.push(format!(
+                        "{name} ({})",
+                        path.file_name()
+                            .map(|name| name.to_string_lossy().into_owned())
+                            .unwrap_or_default()
+                    ));
+                }
+            }
+        }
+        missing.sort();
+        assert!(
+            missing.is_empty(),
+            "these commands never reach generate_handler!: {missing:?}"
+        );
+    }
+
+    #[test]
+    fn plat_34_the_registration_guard_flags_a_forgotten_command() {
+        let marker = format!("#[tauri::{}]", "command");
+        let source = format!("{marker}\npub fn listed() {{}}\n{marker}\npub fn forgotten() {{}}");
+        let registered = registered_command_names("tauri::generate_handler![listed])");
+
+        let missing: Vec<String> = command_function_names(&source)
+            .into_iter()
+            .filter(|name| !registered.contains(name))
+            .collect();
+
+        assert_eq!(missing, vec!["forgotten".to_string()]);
     }
 }
