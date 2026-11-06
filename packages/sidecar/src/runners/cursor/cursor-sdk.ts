@@ -4,9 +4,9 @@
  * the SDK. Our code never imports the SDK package directly.
  * Behaviour: research/conductor/other-runners.md section 2.3: the SDK is loaded lazily in process;
  * an agent is resumed by id and created when resume fails for a reason other than sign-in; the
- * options hold the API key, a model with parameters (fast, effort), the local working folder and
- * the MCP servers; `send` returns a run; the run streams messages, can be awaited, can be steered
- * (outcome "complete_delivered" means delivered) and cancelled.
+ * options hold the API key, a model with parameters (fast, effort), the local working folder, the
+ * local run store folder and the MCP servers; `send` returns a run; the run streams messages, can
+ * be awaited, can be steered (outcome "complete_delivered" means delivered) and cancelled.
  * Licence note: @cursor/sdk has a proprietary licence and is not installed in this scaffold, so
  * none of its types are imported. This file describes only what we call. When the package is
  * added, check each member below against its published type definitions and change this file, not
@@ -27,7 +27,7 @@ export interface CursorModelParam {
 export interface CursorAgentOptions {
 	apiKey: string;
 	model: { id: string; params: CursorModelParam[] };
-	local: { cwd: string };
+	local: { cwd: string; storeDir?: string };
 	mcpServers?: Record<string, unknown>;
 }
 
