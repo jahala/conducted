@@ -796,6 +796,7 @@ pub fn run() {
             binaries::program_redownload,
             binaries::program_remove,
             binaries::programs_prefetch,
+            binaries::programs_sync_path_overrides,
         ])
         .build(context)
         .expect("error while building Conducted")

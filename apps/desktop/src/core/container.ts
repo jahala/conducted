@@ -396,6 +396,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		toml: inputs.toml,
 		git: gitRunner,
 	});
+	const system = new SystemService({ platform, setting });
 	/**
 	 * Builds how one chat's agent starts (SIDE-21): the program the user chose, the provider and its
 	 * region or project, the Environment page's variables (a repository's replacing the global one
@@ -544,6 +545,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		repos: repositories,
 		maxPerWorkspace: () => terminalLimit(setting<boolean>("experimental_tab_freak_mode")),
 		now: () => clock.now(),
+		pathPrefixFor: () => system.pathPrefix(),
 	});
 	const composer = new ComposerService({
 		platform,
@@ -662,6 +664,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		ports,
 		log,
 		environmentFor: (repoId) => settings.environmentFor(repoId),
+		pathPrefixFor: () => system.pathPrefix(),
 	});
 	const repo: RepoService = new RepoService({
 		platform,
@@ -823,7 +826,6 @@ export function createContainer(inputs: ContainerInputs): Container {
 			Object.values(sessions.store.getState().liveStates).some((live) => live.status === "working"),
 		setting,
 	});
-	const system = new SystemService({ platform, setting });
 	const commands = new CommandRunner({
 		handlers: () =>
 			createCommandHandlers(services, {
