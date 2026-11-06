@@ -27,9 +27,8 @@ const TAURI_SKIPS: Readonly<Record<string, string>> = {
 	"pty.kill": `${NEEDS_RUST}: a real pseudo-terminal`,
 	"keychain.roundtrip": `${NEEDS_RUST}: the macOS Keychain`,
 	"opener.installed-apps": `${NEEDS_RUST}: lists /Applications`,
-	"speech.available": `${NEEDS_RUST}: Apple dictation, and the adapter is a placeholder (PLAT-12)`,
-	"speech.stop-ends": `${NEEDS_RUST}: Apple dictation, and the adapter is a placeholder (PLAT-12)`,
-	"window.setters": `${NEEDS_RUST}: a real window, and the adapter is a placeholder (PLAT-23)`,
+	"speech.available": `${NEEDS_RUST}: Apple dictation over a real speech recognizer`,
+	"speech.stop-ends": `${NEEDS_RUST}: Apple dictation over a real speech recognizer`,
 	"system.info": `${NEEDS_RUST}: the macOS version and CPU`,
 };
 
@@ -42,7 +41,6 @@ const TAURI_SKIPS: Readonly<Record<string, string>> = {
 const NOT_BUILT: Readonly<Record<string, { feature: string; method: string }>> = {
 	"updater.check": { feature: "PLAT-13", method: "updater.check" },
 	"updater.installed-update": { feature: "PLAT-13", method: "updater.installedUpdate" },
-	"system.online-and-access": { feature: "PLAT-26", method: "system.isOnline" },
 };
 
 const TAURI_RUN_SKIPS: Readonly<Record<string, string>> = {

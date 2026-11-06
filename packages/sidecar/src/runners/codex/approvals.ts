@@ -30,6 +30,7 @@
  */
 import type { AgentMessage, Interaction, InteractionAnswer } from "@conducted/protocol";
 import type { ToolUseId } from "@conducted/shared";
+import { asRecord, readString } from "../../util/records.ts";
 
 type PermissionPath = Extract<Interaction, { kind: "permission_grant" }>["paths"][number];
 
@@ -438,15 +439,4 @@ function permissionProfile(
 		profile.fileSystem = permissions.fileSystem;
 	}
 	return profile;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-	return typeof value === "object" && value !== null && !Array.isArray(value)
-		? (value as Record<string, unknown>)
-		: null;
-}
-
-function readString(value: Record<string, unknown> | null | undefined, key: string): string | null {
-	const field = value?.[key];
-	return typeof field === "string" ? field : null;
 }

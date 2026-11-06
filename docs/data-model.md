@@ -41,7 +41,9 @@ Generated from the migrations by `bun scripts/guards/data-model.ts --write`. `pn
 |---|---|---|---|
 | Sidecar write-ahead event log | `$CONDUCTED_OUTBOX_ROOT/<session>` | An entry is removed when the UI confirms it. At most 20,000 pending entries per chat. A chat's file with nothing pending and no activity for 30 days moves to the Trash. | SIDE-06 |
 | App logs | app data `logs/` | 14 days; files roll over at 20 MB. Exports are removed after 7 days. | PLAT-18 |
-| Sidecar log buffer | memory | 64 MiB, oldest dropped first. | SIDE-18 |
+| Slash command cache | app data `sidecar-v2-completions/slash-command-snapshots.json` | An entry expires 30 days after its last refresh. At most 500 entries and 5 MiB; the oldest go first. | SIDE-22 |
+| Cursor SDK run stores | app data `cursor-sdk-store/<hash of the workspace path>/` | Written by the Cursor SDK, which is not bundled (D010), so nothing writes here today. Nothing removes a workspace's folder yet; that removal is owed by AGENT-09 before the SDK can run. | none |
+| Sidecar log files | app data `logs/sidecar-<pid>.log` | The Rust shell writes the sidecar's redacted stderr there; the newest five files are kept and older ones are removed. | PLAT-09 |
 | Terminal scrollback | app data `terminal-history/` | 14 days after the terminal ends, and at most 50 MB in total, oldest first. | PLAT-08 |
 | Draft attachments | app data `draft-attachments/` | 7 days for drafts never sent. | DATA-02 |
 | Composer drafts | app data `drafts/<session>.json` | 30 days without an edit, and when the chat is deleted. | DATA-02 |

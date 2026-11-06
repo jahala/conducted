@@ -1431,3 +1431,115 @@ describe("SIDE-07 and SIDE-14 the agents the manager keeps", () => {
 		expect(runner.listModelsCalls).toBe(1);
 	});
 });
+
+describe("AGENT-14 Codex compact", () => {
+	test("AGENT-14 compact starts a /compact turn for a Codex chat", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams({ config: baseConfig({ agent: "codex" }) }));
+		await h.turns.last().succeed();
+
+		const result = await h.manager.compact({ sessionId: sid("session-1") });
+
+		expect(result).toEqual(ok({ started: true }));
+		expect(h.turns.turns).toHaveLength(2);
+		const request = h.turns.last().request;
+		expect(request.text).toBe("/compact");
+		expect(request.agentText).toBe("/compact");
+		expect(request.config.agent).toBe("codex");
+	});
+
+	test("AGENT-14 compact answers started false while a turn runs", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams({ config: baseConfig({ agent: "codex" }) }));
+
+		const result = await h.manager.compact({ sessionId: sid("session-1") });
+
+		expect(result).toEqual(ok({ started: false }));
+		expect(h.turns.turns).toHaveLength(1);
+	});
+
+	test("AGENT-14 a typed /compact while a Codex turn runs is queued, never steered", async () => {
+		const h = harness();
+		const codex = baseConfig({ agent: "codex" });
+		await h.manager.sendMessage(sendParams({ config: codex }));
+		const agent = h.processes.agents.values().next().value as FakeAgentSession;
+
+		const sent = await h.manager.sendMessage(
+			sendParams({
+				messageId: mid("message-2"),
+				turnId: tid("turn-2"),
+				text: "/compact",
+				delivery: "steer",
+				config: codex,
+			}),
+		);
+
+		expect(sent).toEqual(ok({ deliveredAs: "queued" }));
+		expect(agent.steerCalls).toBe(0);
+		await h.turns.last().succeed();
+		await until(() => h.turns.turns.length === 2, "the queued compact to start");
+		expect(h.turns.last().request.text).toBe("/compact");
+	});
+
+	test("AGENT-14 a typed /compact steered into a Claude turn is an ordinary steer", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams());
+		const agent = h.processes.agents.values().next().value as FakeAgentSession;
+
+		const sent = await h.manager.sendMessage(
+			sendParams({
+				messageId: mid("message-2"),
+				turnId: tid("turn-2"),
+				text: "/compact",
+				delivery: "steer",
+			}),
+		);
+
+		expect(sent).toEqual(ok({ deliveredAs: "steer" }));
+		expect(agent.steerCalls).toBe(1);
+	});
+
+	test("AGENT-14 compact refuses an unknown chat and another agent", async () => {
+		const h = harness();
+
+		const unknown = await h.manager.compact({ sessionId: sid("missing") });
+		expect(unknown).toMatchObject({ ok: false, error: { code: "session_unknown" } });
+
+		await h.manager.sendMessage(sendParams());
+		await h.turns.last().succeed();
+		const claude = await h.manager.compact({ sessionId: sid("session-1") });
+		expect(claude).toMatchObject({ ok: false, error: { code: "compact_unsupported" } });
+		expect(h.turns.turns).toHaveLength(1);
+	});
+});
+
+describe("AGENT-13 /goal messages", () => {
+	test("AGENT-13 /goal alone to an idle Codex chat answers a usage error and starts no turn", async () => {
+		const h = harness();
+
+		const sent = await h.manager.sendMessage(
+			sendParams({ text: "/goal", config: baseConfig({ agent: "codex" }) }),
+		);
+
+		expect(sent).toMatchObject({ ok: false, error: { code: "goal_usage" } });
+		expect(h.turns.turns).toHaveLength(0);
+	});
+
+	test("AGENT-13 /goal alone steered into a Claude turn is an ordinary steer", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams());
+		const agent = h.processes.agents.values().next().value as FakeAgentSession;
+
+		const sent = await h.manager.sendMessage(
+			sendParams({
+				messageId: mid("message-2"),
+				turnId: tid("turn-2"),
+				text: "/goal",
+				delivery: "steer",
+			}),
+		);
+
+		expect(sent).toEqual(ok({ deliveredAs: "steer" }));
+		expect(agent.steerCalls).toBe(1);
+	});
+});

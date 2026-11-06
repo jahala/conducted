@@ -47,6 +47,7 @@ import {
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { Image } from "@tauri-apps/api/image";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
 	writeImage as writeClipboardImage,
@@ -79,6 +80,7 @@ import type {
 	Notifications,
 	Opener,
 	Platform,
+	ProcessUsage,
 	ProgramStatus,
 	Programs,
 	Pty,
@@ -89,6 +91,7 @@ import type {
 	ShellOutput,
 	SidecarTransport,
 	Speech,
+	SpeechEvent,
 	SystemFacts,
 	SystemInfo,
 	TreeEntry,
@@ -137,6 +140,11 @@ export interface TauriWindowBindings {
 	isFocused(): Promise<boolean>;
 	listen<T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn>;
 	onDragDropEvent(handler: (event: TauriDragDropEvent) => void): Promise<UnlistenFn>;
+	setTheme(theme: "light" | "dark" | null): Promise<void>;
+}
+
+export interface TauriWebviewBindings {
+	setZoom(factor: number): Promise<void>;
 }
 
 export interface TauriBindings {
@@ -144,6 +152,8 @@ export interface TauriBindings {
 	listen<T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn>;
 	/** The current window. Focus events arrive on it, not on the app-wide event bus. */
 	window?: TauriWindowBindings;
+	/** The current webview, for its zoom. */
+	webview?: TauriWebviewBindings;
 	/** tauri-plugin-sql, present on the real bindings and in a test that opens a database. */
 	sql?: { load(path: string): Promise<SqlDatabase> };
 	/** tauri-plugin-dialog. */
@@ -187,6 +197,10 @@ export const realTauriBindings: TauriBindings = {
 			getCurrentWindow().listen(event, (e) => handler(e.payload as never)),
 		onDragDropEvent: (handler) =>
 			getCurrentWindow().onDragDropEvent((event) => handler(event.payload)),
+		setTheme: (theme) => getCurrentWindow().setTheme(theme),
+	},
+	webview: {
+		setZoom: (factor) => getCurrentWebview().setZoom(factor),
 	},
 	sql: { load: (path) => Sql.load(path) as Promise<SqlDatabase> },
 	dialog: {
@@ -298,11 +312,11 @@ export const COMMANDS = {
 	logSetLevel: "log_set_level",
 	setQuitHandlerReady: "set_quit_handler_ready",
 	systemInfo: "system_info",
-	networkStatus: "network_status", // PLAT-26
-	fullDiskAccessCheck: "full_disk_access_check", // PLAT-24
-	fullDiskAccessOpenSettings: "full_disk_access_open_settings", // PLAT-24
-	windowSetVibrancy: "window_set_vibrancy", // PLAT-23
-	windowSetTrafficLights: "window_set_traffic_lights", // PLAT-23
+	networkStatus: "network_status",
+	fullDiskAccessCheck: "full_disk_access_check",
+	fullDiskAccessOpenSettings: "full_disk_access_open_settings",
+	windowSetVibrancy: "window_set_vibrancy",
+	windowSetTrafficLights: "window_set_traffic_lights",
 	windowToggleInspector: "window_toggle_inspector",
 	dbVersionCheck: "db_version_check",
 	shellRun: "shell_run",
@@ -380,6 +394,9 @@ export const EVENTS = {
 	programsStatus: "programs://status",
 	programsVerificationErrors: "programs://verification-errors",
 } as const;
+
+/** The deep-link plugin's command that returns the URLs which launched the app. */
+const DEEP_LINK_CURRENT = "plugin:deep-link|get_current";
 
 // ---------------------------------------------------------------- errors (real)
 
@@ -465,12 +482,36 @@ export function createTauriAppInfo(
 			}
 			return ok(null);
 		},
-		onDeepLink: () => notImplemented("PLAT-16"),
+		onDeepLink: (listener) => {
+			let active = true;
+			const stop = onEvent<string>(bindings, EVENTS.deepLink, (url) => {
+				if (active) listener(url);
+			});
+			void bindings
+				.invoke<string[] | null>(DEEP_LINK_CURRENT)
+				.then((urls) => {
+					if (!active || urls === null) return;
+					for (const url of urls) listener(url);
+				})
+				.catch((error: unknown) => {
+					console.error("Could not read the launch deep link", error);
+				});
+			return () => {
+				active = false;
+				stop();
+			};
+		},
 		onQuitRequested: (listener) => onEvent(bindings, EVENTS.quitRequested, () => listener()),
 		quit: async () => {
 			await invokeResult(bindings, COMMANDS.appQuit);
 		},
-		resourceUsage: () => notImplemented("PLAT-14"),
+		resourceUsage: async () => {
+			const result = await invokeResult<ProcessUsage[]>(bindings, COMMANDS.resourceUsage, {
+				workspacePaths: [],
+			});
+			if (!result.ok) throw result.error;
+			return result.value;
+		},
 		writeLog: (level, message, data) => {
 			const safe = serialisableLogData(data);
 			const args =
@@ -867,7 +908,13 @@ export function createTauriPty(bindings: TauriBindings): Pty {
 			};
 			return ok(handle);
 		},
-		loadHistory: () => notImplemented("PLAT-08"),
+		loadHistory: async (terminalId) => {
+			const result = await invokeResult<string>(bindings, COMMANDS.ptyLoadHistory, {
+				terminalId,
+			});
+			if (!result.ok) return result;
+			return ok(decodeBase64(result.value));
+		},
 	};
 }
 
@@ -1003,12 +1050,26 @@ export function createTauriClipboard(bindings: TauriBindings = realTauriBindings
 }
 
 /** `speech_available`, `speech_start { onEvent: Channel }`, `speech_stop`, `speech_cancel`. */
-export function createTauriSpeech(_bindings: TauriBindings): Speech {
+export function createTauriSpeech(bindings: TauriBindings): Speech {
 	return {
-		available: () => notImplemented("PLAT-12"),
-		start: () => notImplemented("PLAT-12"),
-		stop: () => notImplemented("PLAT-12"),
-		cancel: () => notImplemented("PLAT-12"),
+		available: async () => {
+			const result = await invokeResult<boolean>(bindings, COMMANDS.speechAvailable);
+			// The interface has no failure channel. A failed check hides the button, as the
+			// platform layer does for `fs.exists`.
+			return result.ok && result.value;
+		},
+		start: (onEvent) => {
+			const channel = new Channel<SpeechEvent>((event) => onEvent(event));
+			return invokeResult<void>(bindings, COMMANDS.speechStart, { onEvent: channel });
+		},
+		stop: async () => {
+			const result = await invokeResult<void>(bindings, COMMANDS.speechStop);
+			if (!result.ok) throw result.error;
+		},
+		cancel: async () => {
+			const result = await invokeResult<void>(bindings, COMMANDS.speechCancel);
+			if (!result.ok) throw result.error;
+		},
 	};
 }
 
@@ -1047,10 +1108,24 @@ export function createTauriWindow(bindings: TauriBindings): AppWindow {
 				(event) => listener(toFileDropEvent(event)),
 			);
 		},
-		setZoom: () => notImplemented("PLAT-23"),
-		setVibrancy: () => notImplemented("PLAT-23"),
-		setTrafficLightPosition: () => notImplemented("PLAT-23"),
-		setTheme: () => notImplemented("PLAT-23"),
+		setZoom: async (factor) => {
+			try {
+				await requireBinding(bindings.webview, "webview").setZoom(factor);
+				return ok(undefined);
+			} catch (error) {
+				return err(toAppError(error));
+			}
+		},
+		setVibrancy: (enabled) => invokeResult<void>(bindings, COMMANDS.windowSetVibrancy, { enabled }),
+		setTrafficLightPosition: (x, y) =>
+			invokeResult<void>(bindings, COMMANDS.windowSetTrafficLights, { x, y }),
+		setTheme: async (theme) => {
+			try {
+				await currentWindow().setTheme(theme);
+			} catch (error) {
+				throw toAppError(error);
+			}
+		},
 		toggleInspector: async () => {
 			const result = await invokeResult(bindings, COMMANDS.windowToggleInspector);
 			if (!result.ok) throw result.error;
@@ -1071,10 +1146,14 @@ export function createTauriMenu(bindings: TauriBindings): AppMenu {
 export function createTauriSystem(bindings: TauriBindings): SystemFacts {
 	return {
 		info: () => bindings.invoke<SystemInfo>(COMMANDS.systemInfo),
-		isOnline: () => notImplemented("PLAT-26"),
-		onNetworkChanged: () => notImplemented("PLAT-26"),
-		hasFullDiskAccess: () => notImplemented("PLAT-24"),
-		openFullDiskAccessSettings: () => notImplemented("PLAT-24"),
+		isOnline: () => bindings.invoke<boolean>(COMMANDS.networkStatus),
+		onNetworkChanged: (listener) => onEvent<boolean>(bindings, EVENTS.networkChanged, listener),
+		hasFullDiskAccess: async () => {
+			const result = await invokeResult<boolean>(bindings, COMMANDS.fullDiskAccessCheck);
+			if (!result.ok) throw result.error;
+			return result.value;
+		},
+		openFullDiskAccessSettings: () => invokeResult(bindings, COMMANDS.fullDiskAccessOpenSettings),
 	};
 }
 

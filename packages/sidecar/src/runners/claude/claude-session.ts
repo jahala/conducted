@@ -38,6 +38,9 @@
  *  - planUsage() asks the SDK's experimental usage request without the behavior scan and converts
  *    the response with the SIDE-17 model; with no live process it reports no limits, and a refusal
  *    is passed to the caller
+ *  - the bundled skill plugin folder is passed to the options when the build has one; a missing
+ *    folder is logged, the chat starts without it, and the first turn after that start tells the
+ *    user in a notice, once per chat (AGENT-18)
  * Test first: with a scripted query function that yields init, assistant text and a result for
  * the pushed uuid, runTurn emits the text message and resolves with success.
  * Our design choice: the SDK's query function is a constructor parameter (Conductor does this
@@ -45,6 +48,7 @@
  * translator, the permission handler and the app tools server are injected as well, so this
  * feature can be built and tested before AGENT-03, AGENT-04 and SIDE-12 exist.
  */
+import { existsSync } from "node:fs";
 import type {
 	CanUseTool,
 	Options,
@@ -78,6 +82,7 @@ import { buildClaudeOptions } from "./options.ts";
 import type { PermissionHandlerDeps } from "./permission-handler.ts";
 import { permissionModeFor } from "./permissions.ts";
 import { createMirrorStore } from "./session-mirror.ts";
+import { bundledSkillPlugins } from "./skill-plugin.ts";
 import { SteerReceipts } from "./steer-receipts.ts";
 import type { ClaudeTranslator } from "./translate.ts";
 import { ClaudeTurnTracker, type Scheduler } from "./turn-tracker.ts";
@@ -99,6 +104,8 @@ export interface ClaudeSessionDeps {
 	translator: ClaudeTranslator;
 	/** Checks for a resumable transcript on disk. */
 	hasTranscript(sessionId: SessionId, cwd: string): Promise<boolean>;
+	/** Folder of the app's bundled skill plugin, when the build has one (AGENT-18). */
+	skillPluginDir?: string;
 	/** Resolves symlinks for the edit-path check. Returns null when the path cannot be resolved. */
 	realPath(path: string): Promise<string | null>;
 	newUuid(): string;
@@ -152,6 +159,9 @@ export class ClaudeSession implements AgentSession {
 	/** Resolves once the open turn's first user message is in the input stream. */
 	private firstMessage: Deferred<void> | null = null;
 	private readonly stderrTail: string[] = [];
+	/** Why the bundled skill was left out, until the user has been told once (AGENT-18). */
+	private skillPluginProblem: string | null = null;
+	private skillPluginToldUser = false;
 
 	constructor(
 		protected readonly deps: ClaudeSessionDeps,
@@ -206,6 +216,7 @@ export class ClaudeSession implements AgentSession {
 			this.finishTurn();
 			return outcome;
 		}
+		this.tellSkillPluginProblem(callbacks);
 
 		// A config change deferred while the last turn ran is applied before this message. A
 		// failure must end the turn: the process is still in bypassPermissions until the mode
@@ -373,6 +384,28 @@ export class ClaudeSession implements AgentSession {
 		await exited;
 	}
 
+	/**
+	 * Tells the user once per chat that the app's bundled skill was left out, so a packaged build that
+	 * lost its skill does not fail quietly. Our design choice: a notice in the chat; the research
+	 * does not say what Conductor shows.
+	 */
+	private tellSkillPluginProblem(callbacks: TurnCallbacks): void {
+		const problem = this.skillPluginProblem;
+		if (problem === null || this.skillPluginToldUser) return;
+		this.skillPluginToldUser = true;
+		this.skillPluginProblem = null;
+		callbacks.onMessage({
+			agent: "claude",
+			items: [
+				{
+					kind: "notice",
+					notice: "info",
+					text: `${problem} This chat runs without the app's bundled skill, so Claude may not know the app's settings files and scripts.`,
+				},
+			],
+		});
+	}
+
 	/** Starts the one process for this chat, unless one already runs or is starting. */
 	private ensureStarted(): Promise<void> {
 		if (this.disposed) return Promise.reject(new Error("The Claude session was disposed."));
@@ -404,11 +437,22 @@ export class ClaudeSession implements AgentSession {
 						resume: { agentSessionId: this.agentSessionId ?? this.sessionId },
 					}
 				: this.start;
+		// A missing bundled skill starts the chat without it. The log names what was wrong, and the
+		// next turn tells the user once (tellSkillPluginProblem).
+		const plugins = bundledSkillPlugins(this.deps.skillPluginDir, existsSync);
+		if (!plugins.ok) {
+			this.deps.logger.warn("The bundled skill plugin was not loaded", {
+				sessionId: this.sessionId,
+				reason: plugins.error.message,
+			});
+			if (!this.skillPluginToldUser) this.skillPluginProblem = plugins.error.message;
+		}
 		const options = buildClaudeOptions({
 			start: { ...start, config: this.config },
 			executablePath: this.deps.executablePath,
 			viaRuntime: this.deps.viaRuntime === true,
 			hasTranscript,
+			plugins: plugins.ok ? plugins.value : undefined,
 			canUseTool: this.deps.createCanUseTool(this.permissionDeps()),
 			hooks: { PreToolUse: [createCheckpointHook(gate)] },
 			mcpServers: this.deps.createMcpServers({
@@ -452,6 +496,7 @@ export class ClaudeSession implements AgentSession {
 			for await (const message of query) {
 				// A replaced process must not feed the turn that runs on its successor.
 				if (this.query !== query) continue;
+				this.debugTap("downstream", message);
 				this.handleMessage(message);
 			}
 			if (this.query === query) this.tracker.onStreamEnded(this.streamEndedError());
@@ -723,13 +768,24 @@ export class ClaudeSession implements AgentSession {
 	}
 
 	private userMessage(text: string, uuid: string): SDKUserMessage {
-		return {
+		const message: SDKUserMessage = {
 			type: "user",
 			message: { role: "user", content: text },
 			parent_tool_use_id: null,
 			session_id: this.agentSessionId ?? this.sessionId,
 			uuid: uuid as SDKUserMessage["uuid"],
 		};
+		this.debugTap("upstream", message);
+		return message;
+	}
+
+	/** Logs one SDK message in either direction so a debug log shows the whole exchange (SIDE-18). */
+	private debugTap(direction: "upstream" | "downstream", data: unknown): void {
+		this.deps.logger.debug("workspace <> SDK", {
+			direction,
+			sessionId: this.sessionId,
+			data,
+		});
 	}
 }
 

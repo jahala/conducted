@@ -281,6 +281,11 @@
 	--color-surface: var(--color-sidebar-translucent);
 }
 
+/* Let the window's own material show through the sidebar. The centre panel keeps its opaque canvas. */
+:root[data-vibrancy="on"] body {
+	background: transparent;
+}
+
 /* Durations and layout sizes that are not on the spacing scale. Panel sizes that the resizable panels
    need in script live in src/ui/layout-sizes.ts. */
 :root {

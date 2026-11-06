@@ -9,6 +9,7 @@ import { createLogger, type LogRecord } from "../logging/logger.ts";
 import type { ShutdownStep } from "../shutdown.ts";
 import {
 	announceAgentInstalls,
+	createDefaultIo,
 	createPromptFiles,
 	createScheduler,
 	createShellEnvProvider,
@@ -39,11 +40,23 @@ async function tempDir(prefix: string): Promise<string> {
 	return created;
 }
 
-function envFor(config: SidecarConfig): Record<string, string> {
+const TEST_LOG_LEVEL = "info";
+const TEST_APP_VERSION = "1.2.3";
+
+function envFor(
+	config: Pick<
+		SidecarConfig,
+		"binDir" | "outboxRoot" | "completionsDir" | "cursorStoreDir" | "logDir"
+	>,
+): Record<string, string> {
 	return {
 		CONDUCTED_BIN_DIR: config.binDir,
 		CONDUCTED_OUTBOX_ROOT: config.outboxRoot,
+		CONDUCTED_COMPLETIONS_DIR: config.completionsDir,
+		CONDUCTED_CURSOR_STORE_DIR: config.cursorStoreDir,
 		CONDUCTED_LOG_DIR: config.logDir,
+		CONDUCTED_APP_VERSION: TEST_APP_VERSION,
+		CONDUCTED_LOG_LEVEL: TEST_LOG_LEVEL,
 	};
 }
 
@@ -86,13 +99,19 @@ describe("SIDE-01 sidecar mode", () => {
 		const config = {
 			binDir: path.join(base, "bin"),
 			outboxRoot: path.join(base, "outbox"),
+			completionsDir: path.join(base, "completions"),
+			cursorStoreDir: path.join(base, "cursor-sdk-store"),
 			logDir: path.join(base, "logs"),
 		};
 		const io = fakeIo();
 		const code = await runSidecarMode(envFor(config), ["sidecar"], io);
 		expect(code).toBe(0);
 		expect(io.started).toHaveLength(1);
-		expect(io.started[0]?.config).toEqual(config);
+		expect(io.started[0]?.config).toEqual({
+			...config,
+			appVersion: TEST_APP_VERSION,
+			logLevel: TEST_LOG_LEVEL,
+		});
 	});
 
 	test("SIDE-01 an unwritable outbox folder exits 1 and names the folder", async () => {
@@ -100,6 +119,8 @@ describe("SIDE-01 sidecar mode", () => {
 		const config = {
 			binDir: path.join(base, "bin"),
 			outboxRoot: path.join(base, "outbox"),
+			completionsDir: path.join(base, "completions"),
+			cursorStoreDir: path.join(base, "cursor-sdk-store"),
 			logDir: path.join(base, "logs"),
 		};
 		await mkdir(config.binDir, { recursive: true });
@@ -141,6 +162,114 @@ describe("SIDE-01 sidecar mode", () => {
 		const code = await runSidecarMode({ HOME: "/Users/someone" }, ["sidecar"], io);
 		expect(code).toBe(64);
 		expect(io.started).toEqual([]);
+	});
+});
+
+describe("SIDE-18 sidecar logging", () => {
+	test("SIDE-18 the logger takes its level and app version from the launcher's environment", async () => {
+		const base = await tempDir("log-settings");
+		const config = {
+			binDir: path.join(base, "bin"),
+			outboxRoot: path.join(base, "outbox"),
+			completionsDir: path.join(base, "completions"),
+			cursorStoreDir: path.join(base, "cursor-sdk-store"),
+			logDir: path.join(base, "logs"),
+		};
+		const received: SidecarConfig[] = [];
+		const io = fakeIo({
+			createLogger: (parsed) => {
+				received.push(parsed);
+				return recordingLogger().logger;
+			},
+		});
+		const code = await runSidecarMode(
+			{
+				...envFor(config),
+				CONDUCTED_LOG_LEVEL: "debug",
+				CONDUCTED_APP_VERSION: "9.9.9",
+			},
+			["sidecar"],
+			io,
+		);
+		expect(code).toBe(0);
+		expect(received[0]).toMatchObject({ logLevel: "debug", appVersion: "9.9.9" });
+	});
+
+	test("SIDE-18 the mode writes a startup line carrying the app version", async () => {
+		const base = await tempDir("log-start");
+		const config = {
+			binDir: path.join(base, "bin"),
+			outboxRoot: path.join(base, "outbox"),
+			completionsDir: path.join(base, "completions"),
+			cursorStoreDir: path.join(base, "cursor-sdk-store"),
+			logDir: path.join(base, "logs"),
+		};
+		const { logger, records } = recordingLogger();
+		const io = fakeIo({ createLogger: () => logger });
+
+		await runSidecarMode(envFor(config), ["sidecar"], io);
+
+		expect(records).toContainEqual(
+			expect.objectContaining({
+				message: "The sidecar is starting",
+				data: expect.objectContaining({
+					appVersion: TEST_APP_VERSION,
+					logLevel: TEST_LOG_LEVEL,
+				}),
+			}),
+		);
+	});
+	test("SIDE-18 the mode's own logger turns console output into redacted JSON lines on stderr, folding repeats", async () => {
+		const base = await tempDir("log-wiring");
+		const config = {
+			binDir: path.join(base, "bin"),
+			outboxRoot: path.join(base, "outbox"),
+			completionsDir: path.join(base, "completions"),
+			cursorStoreDir: path.join(base, "cursor-sdk-store"),
+			logDir: path.join(base, "logs"),
+		};
+		const stderr: string[] = [];
+		const io: SidecarModeIo = {
+			...createDefaultIo({ writeError: (text) => stderr.push(text), writeOut: () => {} }),
+			preflight: async () => ok(undefined),
+			installErrorHandlers: () => () => {},
+			startHost: async (input) => {
+				console.log("from the console", { step: 1 });
+				console.error("the same failure");
+				console.error("the same failure");
+				input.logger.info("an agent environment", {
+					env: { GH_TOKEN: "ghp-secret", HOME: "/home/me" },
+				});
+				return 0;
+			},
+		};
+
+		expect(await runSidecarMode(envFor(config), ["sidecar"], io)).toBe(0);
+
+		const records = stderr
+			.join("")
+			.split("\n")
+			.filter((line) => line !== "")
+			.map((line) => JSON.parse(line) as LogRecord);
+		expect(records).toContainEqual(
+			expect.objectContaining({
+				level: "info",
+				scope: "sidecar:console",
+				message: 'from the console {"step":1}',
+			}),
+		);
+		expect(
+			records
+				.filter((record) => record.message.startsWith("the same failure"))
+				.map((record) => record.message),
+		).toEqual(["the same failure", "the same failure (repeated 1 time)"]);
+		expect(records).toContainEqual(
+			expect.objectContaining({
+				message: "an agent environment",
+				data: { env: { GH_TOKEN: "<redacted:10>", HOME: "/home/me" } },
+			}),
+		);
+		expect(stderr.join("")).not.toContain("ghp-secret");
 	});
 });
 
@@ -362,6 +491,8 @@ describe("SIDE-01 startup error handler wiring", () => {
 		const config = {
 			binDir: path.join(base, "bin"),
 			outboxRoot: path.join(base, "outbox"),
+			completionsDir: path.join(base, "completions"),
+			cursorStoreDir: path.join(base, "cursor-sdk-store"),
 			logDir: path.join(base, "logs"),
 		};
 		const events: string[] = [];
@@ -384,6 +515,8 @@ describe("SIDE-01 startup error handler wiring", () => {
 		const config = {
 			binDir: path.join(base, "bin"),
 			outboxRoot: path.join(base, "outbox"),
+			completionsDir: path.join(base, "completions"),
+			cursorStoreDir: path.join(base, "cursor-sdk-store"),
 			logDir: path.join(base, "logs"),
 		};
 		const events: string[] = [];
@@ -420,6 +553,8 @@ describe("SIDE-01 startup folders", () => {
 		const config = {
 			binDir: path.join(base, "bin"),
 			outboxRoot: path.join(base, "outbox"),
+			completionsDir: path.join(base, "completions"),
+			cursorStoreDir: path.join(base, "cursor-sdk-store"),
 			logDir: path.join(base, "logs"),
 		};
 		await mkdir(config.binDir, { recursive: true });

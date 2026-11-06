@@ -23,6 +23,7 @@
  */
 import { join } from "node:path";
 import { type AppError, appError, err, ok, type Result } from "@conducted/shared";
+import { isRecord } from "../../../util/records.ts";
 import { safeJsonParse } from "../../output.ts";
 import type { AcpAdapter, AcpAdapterContext, AcpSessionStorage } from "./adapter.ts";
 
@@ -35,10 +36,6 @@ export const OPENCODE_CONFIG_CONTENT = "OPENCODE_CONFIG_CONTENT";
 function majorVersion(version: string): number | null {
 	const major = Number.parseInt(version.split(".")[0] ?? "", 10);
 	return Number.isFinite(major) ? major : null;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /** Deep merge so the user's other config keys survive; our policy and timeout keys win. */

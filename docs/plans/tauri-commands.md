@@ -82,26 +82,26 @@ Commands outside the Platform interface:
 
 How the Rust shell (`sidecar.rs`, PLAT-09) starts the sidecar, and what the sidecar (`packages/sidecar`) expects. Both sides follow this list.
 
-Command: `conducted-sidecar sidecar`. The separate logger mode goes when SIDE-18 is built (D026).
+Command: `conducted-sidecar sidecar`. There is no logger mode; the sidecar writes its log lines to stderr (D026).
 
-Environment the Rust shell sets. Today the launcher sets the first four, the ones the sidecar reads; each later row is set when the feature that reads it is built, and a contract test compares the launcher's list with what `packages/sidecar/src` reads (PLAT-09):
+Environment the Rust shell sets. Today the launcher sets every row the sidecar reads: all of them except `CONDUCTED_AGENT_BINARIES_DIR` and `CONDUCTED_ACP_PROVIDERS_DIR`, which are set when the features that read them are built (PLAT-28, SIDE-15), and `CONDUCTED_SKILL_PLUGIN_DIR` only when the build ships the skill. A contract test compares the launcher's list with what `packages/sidecar/src` reads (PLAT-09):
 
-| Variable                                         | Meaning                                                                    |
-| ------------------------------------------------ | -------------------------------------------------------------------------- |
-| `CONDUCTED_PARENT_PID`                           | The app's process id. The sidecar exits when its parent changes (SIDE-19). |
-| `CONDUCTED_OUTBOX_ROOT`                          | Folder for the write-ahead event log (SIDE-06).                            |
-| `CONDUCTED_LOG_DIR`                              | Folder for sidecar log files.                                              |
-| `CONDUCTED_BIN_DIR`                              | Folder holding `checkpointer.sh`, `git-busy-check.sh`, `spotlighter.sh`.   |
-| `CONDUCTED_APP_VERSION`                          | The app version, for logs.                                                 |
-| `CONDUCTED_AGENT_BINARIES_DIR`                   | Folder of the managed agent programs, `<program>/<version>/` (PLAT-28).    |
-| `CONDUCTED_ACP_PROVIDERS_DIR`                    | Folder where the sidecar installs ACP adapters (OpenCode, Pi) (SIDE-15).   |
-| `CONDUCTED_SKILL_PLUGIN_DIR`                     | The bundled skill that teaches agents the app, given to Claude (AGENT-18). |
-| `CONDUCTED_COMPLETIONS_DIR`                      | Folder for the saved slash-command lists (SIDE-22).                        |
-| `CONDUCTED_CURSOR_STORE_DIR`                     | Folder for the Cursor SDK's local run store (AGENT-09).                    |
-| `CONDUCTED_LOGGER_TOKEN`, `CONDUCTED_LOGGER_DIR` | Logger mode only; removed with it (D026).                                  |
+| Variable                       | Meaning                                                                           |
+| ------------------------------ | --------------------------------------------------------------------------------- |
+| `CONDUCTED_PARENT_PID`         | The app's process id. The sidecar exits when its parent changes (SIDE-19).        |
+| `CONDUCTED_OUTBOX_ROOT`        | Folder for the write-ahead event log (SIDE-06).                                   |
+| `CONDUCTED_LOG_DIR`            | Folder for sidecar log files.                                                     |
+| `CONDUCTED_BIN_DIR`            | Folder holding `checkpointer.sh`, `git-busy-check.sh`, `spotlighter.sh`.          |
+| `CONDUCTED_APP_VERSION`        | The app version, for logs.                                                        |
+| `CONDUCTED_LOG_LEVEL`          | The most detailed level the sidecar writes (SIDE-18).                             |
+| `CONDUCTED_AGENT_BINARIES_DIR` | Folder of the managed agent programs, `<program>/<version>/` (PLAT-28).           |
+| `CONDUCTED_ACP_PROVIDERS_DIR`  | Folder where the sidecar installs ACP adapters (OpenCode, Pi) (SIDE-15).          |
+| `CONDUCTED_SKILL_PLUGIN_DIR`   | The bundled skill that teaches agents the app, given to Claude (AGENT-18).        |
+| `CONDUCTED_COMPLETIONS_DIR`    | Folder for the saved slash-command lists (SIDE-22).                               |
+| `CONDUCTED_CURSOR_STORE_DIR`   | `<app data>/cursor-sdk-store`, one Cursor SDK run store per workspace (AGENT-09). |
 
 The sidecar never reads the database, so it gets no database path.
 
-Handshake: the sidecar prints one line `SOCKET_PATH=<path>` on stdout once its Unix socket listens. Everything else on stdout and stderr is log output, which the Rust shell writes into the app log files with a sidecar tag (D026).
+Handshake: the sidecar prints one line `SOCKET_PATH=<path>` on stdout once its Unix socket listens. Everything else on stdout and stderr is log output, which the Rust shell writes to `<app data>/logs/sidecar-<pid>.log`. Routing it into the app log files with a sidecar tag (D026) is a SIDE-18 item that is not built yet.
 
 Environment the sidecar sets for each agent process: `CONDUCTED_WORKSPACE_ID`, `CONDUCTED_WORKSPACE_NAME`, `CONDUCTED_WORKSPACE_PATH`, `CONDUCTED_ROOT_PATH`, `CONDUCTED_DEFAULT_BRANCH`, `CONDUCTED_PORT`, `CONDUCTED_SESSION_ID`, and `CONDUCTED_APP_TOOLS_TOKEN` for the app-tools bridge. `spotlighter.sh` also needs `CONDUCTED_CHECKPOINTER_PATH`, `CONDUCTED_WATCHEXEC_PATH` and `CONDUCTED_ROOT_PATH`; the app downloads and updates `watchexec` (PLAT-35, D024).

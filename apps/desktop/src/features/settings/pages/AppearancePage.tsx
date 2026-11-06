@@ -21,7 +21,8 @@
  * Children: appearance/CodePreview, appearance/TerminalPreview; rows from ../SettingRow.tsx inside
  * ../SettingsPageFrame.tsx.
  * Our design choice: this page only edits the values. AppearanceController, mounted once at the app
- * root, writes them onto <html> and owns the theme and zoom shortcuts, so they work on every screen.
+ * root, writes the theme onto <html>, sends the zoom and window appearance on, and owns the theme
+ * and zoom shortcuts, so they work on every screen.
  * Rows with a plain control come from the registry (RegistrySettingRowByKey). The zoom slider and
  * the two font rows are SettingRow with their own control, saved through useSettingSaves. The
  * "Default" font is the registry's default for that key.

@@ -20,6 +20,8 @@
  *  - the turn ends with status interrupted: outcome cancelled; failed: error outcome with the
  *    turn error message, retryable only for rate-limit errors
  *  - the thread id is reported through onAgentSessionId as soon as thread/started arrives
+ *  - a message that is `/compact` (AGENT-14) runs `thread/compact/start` instead of `turn/start`;
+ *    its notice is emitted when `thread/compacted` arrives, which also ends the compact run
  *  - applyConfig: model, effort, approval policy and personality are per-turn overrides (live);
  *    an approval policy, sandbox or personality change re-opens the thread with the new settings;
  *    additional directories or app-tool changes need a new thread config, so they return
@@ -31,18 +33,23 @@
  *  - every app server it connects answers Codex's approval, question, permission and form requests
  *    through a CodexApprovalBridge (AGENT-08) that asks the running turn's callbacks; the bridge of
  *    a replaced or closed server is disposed, so its waiting requests are withdrawn
+ *  - a goal call uses the chat's thread, starting or resuming it when needed, and goal
+ *    notifications from the server are forwarded through onGoalEvent whether or not a turn runs
+ *    (AGENT-13)
  * Test first: with a fake client, runTurn sends thread/start then turn/start and resolves success
  * when turn/completed with status completed arrives.
  */
 import type { SessionConfig } from "@conducted/protocol";
-import type { AppError, Result, SessionId } from "@conducted/shared";
+import { type AppError, appError, err, ok, type Result, type SessionId } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
 import { createDeferred, type Deferred } from "../../util/deferred.ts";
 import { asAppError } from "../../util/errors.ts";
+import { asRecord, readString } from "../../util/records.ts";
 import { sameStrings } from "../../util/string-set.ts";
 import { NoActiveTurnError } from "../errors.ts";
 import type {
 	AgentSession,
+	GoalEvent,
 	StartOptions,
 	TurnCallbacks,
 	TurnInput,
@@ -50,9 +57,11 @@ import type {
 } from "../runner.ts";
 import type { CodexAppServerClient } from "./app-server-client.ts";
 import { CodexApprovalBridge } from "./approval-bridge.ts";
+import { CODEX_GOAL_NOTIFICATIONS, type CodexGoalClient, CodexThreadGoalClient } from "./goals.ts";
 import {
 	CODEX_CLIENT_METHODS,
 	CODEX_SERVER_NOTIFICATIONS,
+	type CodexThreadCompactParams,
 	type CodexThreadResumeParams,
 	type CodexThreadStartParams,
 	type CodexThreadTokenUsage,
@@ -87,6 +96,8 @@ export interface CodexSessionDeps {
 	sleep(ms: number): Promise<void>;
 	/** Runs once when the session is disposed: the runner gives the app tools token back. */
 	onDispose?: () => void;
+	/** A goal change from a `/goal` steer or from the app server (AGENT-13). */
+	onGoalEvent?: (event: GoalEvent) => void;
 }
 
 interface PendingTurn {
@@ -95,6 +106,8 @@ interface PendingTurn {
 	callbacks: TurnCallbacks;
 	completion: Deferred<CodexTurn>;
 	cancellation: Deferred<void>;
+	/** True when this turn is a `/compact` run rather than a model turn. */
+	compacting: boolean;
 }
 
 type ThreadResult = { ok: true; threadId: string } | { ok: false; outcome: TurnOutcome };
@@ -135,6 +148,11 @@ export function friendlyCodexError(message: string): string {
 		return "Codex is busy right now. Try again in a moment.";
 	}
 	return message;
+}
+
+/** True when a message asks Codex to compact the thread instead of starting a turn. */
+export function isCompactCommand(text: string): boolean {
+	return /^\/compact(?:\s|$)/.test(text.trim());
 }
 
 export class CodexSession implements AgentSession {
@@ -182,26 +200,32 @@ export class CodexSession implements AgentSession {
 		const client = connected.value;
 		if (this.stopGeneration !== generation) return { kind: "cancelled" };
 
-		const thread = await this.ensureThread(client, callbacks, generation);
+		const thread = await this.ensureThread(client, callbacks.onAgentSessionId, generation);
 		if (!thread.ok) return thread.outcome;
 		if (this.stopGeneration !== generation) return { kind: "cancelled" };
 
+		const compacting = isCompactCommand(input.text);
 		const pending: PendingTurn = {
 			id: null,
 			generation,
 			callbacks,
 			completion: createDeferred<CodexTurn>(),
 			cancellation: createDeferred<void>(),
+			compacting,
 		};
 		this.activeTurn = pending;
 		this.serverActiveTurnId = null;
 
 		try {
-			const started = await this.requestWithRetries<{ turn?: CodexTurn; turnId?: unknown }>(
-				client,
-				CODEX_CLIENT_METHODS.turnStart,
-				this.turnStartParams(thread.threadId, input, effort.value),
-			);
+			const started = compacting
+				? await this.requestWithRetries<unknown>(client, CODEX_CLIENT_METHODS.threadCompactStart, {
+						threadId: thread.threadId,
+					} satisfies CodexThreadCompactParams)
+				: await this.requestWithRetries<{ turn?: CodexTurn; turnId?: unknown }>(
+						client,
+						CODEX_CLIENT_METHODS.turnStart,
+						this.turnStartParams(thread.threadId, input, effort.value),
+					);
 			if (!started.ok) {
 				return {
 					kind: "error",
@@ -209,7 +233,7 @@ export class CodexSession implements AgentSession {
 					retryable: isCodexRateLimitError(started.error.message),
 				};
 			}
-			const startedId = readTurnId(started.value);
+			const startedId = compacting ? null : readTurnId(started.value);
 			if (startedId !== null) pending.id = startedId;
 
 			if (this.stopGeneration !== generation) {
@@ -261,6 +285,29 @@ export class CodexSession implements AgentSession {
 			throw new Error(friendlyCodexError(steered.error.message));
 		}
 		return { consumed: Promise.resolve() };
+	}
+
+	/** The chat's thread and its goal calls, starting or resuming the thread when needed. */
+	async goalClient(
+		onAgentSessionId: (agentSessionId: string) => void = () => {},
+	): Promise<Result<{ threadId: string; goals: CodexGoalClient }, AppError>> {
+		const connected = await this.ensureClient();
+		if (!connected.ok) return connected;
+		const client = connected.value;
+		const thread = await this.ensureThread(client, onAgentSessionId, this.stopGeneration);
+		if (!thread.ok) {
+			const outcome = thread.outcome;
+			return err(
+				appError(
+					"codex_goal_thread_failed",
+					outcome.kind === "error" ? outcome.message : "The Codex thread did not start.",
+				),
+			);
+		}
+		return ok({
+			threadId: thread.threadId,
+			goals: new CodexThreadGoalClient({ rpc: client, logger: this.deps.logger }),
+		});
 	}
 
 	async cancel(): Promise<void> {
@@ -392,9 +439,20 @@ export class CodexSession implements AgentSession {
 		});
 		client.onNotification(CODEX_SERVER_NOTIFICATIONS.threadCompacted, (params) => {
 			this.translateNotification(client, CODEX_SERVER_NOTIFICATIONS.threadCompacted, params);
+			const active = this.activeTurn;
+			if (active === null || !active.compacting) return;
+			const turnId = readTurnId(params) ?? active.id ?? "";
+			if (active.id === null) active.id = turnId;
+			active.completion.resolve({ id: turnId, status: "completed", error: null });
 		});
 		client.onNotification(CODEX_SERVER_NOTIFICATIONS.error, (params) => {
 			this.translateNotification(client, CODEX_SERVER_NOTIFICATIONS.error, params);
+		});
+		client.onNotification(CODEX_GOAL_NOTIFICATIONS.updated, (params) => {
+			if (this.client === client) this.deps.onGoalEvent?.({ notification: "updated", params });
+		});
+		client.onNotification(CODEX_GOAL_NOTIFICATIONS.cleared, (params) => {
+			if (this.client === client) this.deps.onGoalEvent?.({ notification: "cleared", params });
 		});
 		client.onNotification(CODEX_SERVER_NOTIFICATIONS.itemStarted, (params) => {
 			this.translateItem(client, "started", params);
@@ -451,7 +509,7 @@ export class CodexSession implements AgentSession {
 
 	private async ensureThread(
 		client: CodexAppServerClient,
-		callbacks: TurnCallbacks,
+		onAgentSessionId: (agentSessionId: string) => void,
 		generation: number,
 	): Promise<ThreadResult> {
 		if (this.threadId !== null && this.threadClient === client) {
@@ -469,7 +527,7 @@ export class CodexSession implements AgentSession {
 				const threadId = readThreadId(resumed.value) ?? resumeId;
 				this.threadId = threadId;
 				this.threadClient = client;
-				callbacks.onAgentSessionId(threadId);
+				onAgentSessionId(threadId);
 				return { ok: true, threadId };
 			}
 			if (isCodexAuthError(resumed.error)) {
@@ -519,7 +577,7 @@ export class CodexSession implements AgentSession {
 		}
 		this.threadId = threadId;
 		this.threadClient = client;
-		callbacks.onAgentSessionId(threadId);
+		onAgentSessionId(threadId);
 		return { ok: true, threadId };
 	}
 
@@ -592,31 +650,16 @@ function isStaleTurnError(error: AppError): boolean {
 	return text.includes("expected") || text.includes("active turn") || text.includes("no turn");
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-	return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
-}
-
-function readString(value: Record<string, unknown>, key: string): string | undefined {
-	const field = value[key];
-	return typeof field === "string" ? field : undefined;
-}
-
 function readThreadId(params: unknown): string | null {
 	const root = asRecord(params);
 	if (root === null) return null;
-	const direct = readString(root, "threadId");
-	if (direct !== undefined) return direct;
-	const thread = asRecord(root.thread);
-	return thread === null ? null : (readString(thread, "id") ?? null);
+	return readString(root, "threadId") ?? readString(asRecord(root.thread), "id");
 }
 
 function readTurnId(params: unknown): string | null {
 	const root = asRecord(params);
 	if (root === null) return null;
-	const direct = readString(root, "turnId");
-	if (direct !== undefined) return direct;
-	const turn = asRecord(root.turn);
-	return turn === null ? null : (readString(turn, "id") ?? null);
+	return readString(root, "turnId") ?? readString(asRecord(root.turn), "id");
 }
 
 function readTurn(params: unknown): CodexTurn | null {
@@ -626,12 +669,11 @@ function readTurn(params: unknown): CodexTurn | null {
 	const id = readString(candidate, "id") ?? readString(root, "turnId") ?? "";
 	const status = candidate.status;
 	if (!isTurnStatus(status)) return null;
-	const errorRecord = asRecord(candidate.error);
-	const message = errorRecord === null ? undefined : readString(errorRecord, "message");
+	const message = readString(asRecord(candidate.error), "message");
 	return {
 		id,
 		status,
-		error: message === undefined ? null : { message },
+		error: message === null ? null : { message },
 	};
 }
 

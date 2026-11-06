@@ -90,3 +90,48 @@ describe("SET-02 GeneralPage", () => {
 		expect(screen.getByText(/in settings\.toml: unknown setting/)).toBeTruthy();
 	});
 });
+
+describe("PLAT-24 Full Disk Access row", () => {
+	async function mountGeneral(prepare?: (mounted: TestContainer) => void) {
+		test = createTestContainer();
+		await test.container.services.settings.start();
+		prepare?.(test);
+		render(
+			<ServicesProvider container={test.container}>
+				<GeneralPage />
+			</ServicesProvider>,
+		);
+		return test;
+	}
+
+	it("PLAT-24 shows the permission as granted when the check allows it", async () => {
+		await mountGeneral();
+
+		expect(await screen.findByText("Granted")).toBeTruthy();
+		expect(screen.getByText("Full disk access permissions")).toBeTruthy();
+	});
+
+	it("PLAT-24 shows no access and opens System Settings from the row", async () => {
+		const mounted = await mountGeneral((mounted) =>
+			mounted.memory.controls.setFullDiskAccess(false),
+		);
+		await screen.findByText("Not granted");
+		const open = vi.spyOn(mounted.container.platform.system, "openFullDiskAccessSettings");
+
+		fireEvent.click(screen.getByRole("button", { name: "Open System Settings" }));
+
+		await waitFor(() => expect(open).toHaveBeenCalledTimes(1));
+	});
+
+	it("PLAT-24 tells the user to grant the permission by hand when System Settings cannot open", async () => {
+		const mounted = await mountGeneral();
+		await screen.findByText("Granted");
+		mounted.memory.controls.failOpenFullDiskAccessSettings("Launch Services refused the link.");
+
+		fireEvent.click(screen.getByRole("button", { name: "Open System Settings" }));
+
+		expect(
+			await screen.findByText(/Grant Full Disk Access under Privacy & Security yourself/),
+		).toBeTruthy();
+	});
+});

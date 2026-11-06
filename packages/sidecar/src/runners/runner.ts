@@ -6,6 +6,7 @@
  * Queueing, status, checkpoints, events and the write-ahead log live once in session/, above
  * the runners.
  * AGENT-17 adds two ACP-only optional methods for a chat's config options beyond the model.
+ * AGENT-13 adds a Codex-only optional goal accessor and a goal-change callback.
  * SIDE-21 adds the program the user chose (`StartOptions.executablePath`), which each runner starts
  * through `findAgentProgram` in launch-env.ts.
  * Our design choices: messages arrive already translated into the neutral AgentMessage format,
@@ -23,6 +24,7 @@ import type {
 	WorkspaceContext,
 } from "@conducted/protocol";
 import type { AgentKind, AppError, Result, SessionId } from "@conducted/shared";
+import type { CodexGoalClient } from "./codex/goals.ts";
 
 /** What a runner can do. The session manager checks this before calling optional methods. */
 export interface RunnerCapabilities {
@@ -90,6 +92,14 @@ export interface StartOptions {
 	 * not a separate onEnterPlanMode callback.
 	 */
 	onConfigChanged?: (config: SessionConfig, reason: AgentConfigChangeReason) => void;
+	/** Codex only: a goal changed by the agent or by a `/goal` message (AGENT-13). */
+	onGoalEvent?: (event: GoalEvent) => void;
+}
+
+/** One goal notification of the agent: which one it was, and its payload as the agent sent it. */
+export interface GoalEvent {
+	notification: "updated" | "cleared";
+	params: unknown;
 }
 
 export interface TurnInput {
@@ -138,6 +148,13 @@ export interface AgentSession {
 		config: SessionConfig,
 		onAgentSessionId?: (agentSessionId: string) => void,
 	): Promise<Result<AcpConfigOption[], AppError>>;
+	/**
+	 * Codex only: the chat's thread and its goal calls, starting or resuming the thread first
+	 * (AGENT-13). Other runners omit it.
+	 */
+	goalClient?(
+		onAgentSessionId?: (agentSessionId: string) => void,
+	): Promise<Result<{ threadId: string; goals: CodexGoalClient }, AppError>>;
 	contextUsage(): Promise<{ usedTokens: number; windowTokens: number } | null>;
 	/** Ends the agent process and releases everything it holds. */
 	dispose(): Promise<void>;
@@ -158,8 +175,11 @@ export interface RunnerSlashCommand {
 export interface Runner {
 	readonly agent: AgentKind;
 	readonly capabilities: RunnerCapabilities;
-	/** Finds the agent program on the user's PATH and reports its version. */
-	detect(env: Readonly<Record<string, string>>): Promise<{ path: string; version: string } | null>;
+	/**
+	 * Finds the agent program on the user's PATH and reports its version. The version is absent when
+	 * the agent has no way to report one (Cursor's SDK), never an invented value.
+	 */
+	detect(env: Readonly<Record<string, string>>): Promise<{ path: string; version?: string } | null>;
 	start(options: StartOptions): Promise<AgentSession>;
 	listModels(): Promise<ModelInfo[]>;
 	listSlashCommands(workspacePath: string): Promise<RunnerSlashCommand[]>;

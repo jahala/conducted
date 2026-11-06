@@ -19,7 +19,9 @@
 				"minWidth": 960,
 				"minHeight": 600,
 				"titleBarStyle": "Overlay",
-				"hiddenTitle": true
+				"hiddenTitle": true,
+				"transparent": true,
+				"trafficLightPosition": { "x": 13, "y": 13 }
 			}
 		],
 		"security": {
@@ -31,7 +33,9 @@
 		"active": true,
 		"targets": "all",
 		"resources": {
-			"../../../bin/*": "bin/"
+			"../../../bin/*": "bin/",
+			"conducted-skill/.claude-plugin/plugin.json": "conducted-skill/.claude-plugin/plugin.json",
+			"conducted-skill/skills/conducted/SKILL.md": "conducted-skill/skills/conducted/SKILL.md"
 		},
 		"icon": [
 			"icons/32x32.png",

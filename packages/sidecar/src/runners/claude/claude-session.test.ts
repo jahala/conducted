@@ -457,20 +457,23 @@ function recordingLogger(): {
 	logger: Logger;
 	errors: { message: string; data?: Record<string, unknown> }[];
 	debugLines: string[];
+	taps: { message: string; data?: Record<string, unknown> }[];
 } {
 	const errors: { message: string; data?: Record<string, unknown> }[] = [];
 	const debugLines: string[] = [];
+	const taps: { message: string; data?: Record<string, unknown> }[] = [];
 	const logger: Logger = {
 		error: (message, data) => errors.push({ message, data }),
 		warn: () => {},
 		info: () => {},
-		debug: (_message, data) => {
+		debug: (message, data) => {
+			taps.push({ message, data });
 			if (typeof data?.line === "string") debugLines.push(data.line);
 		},
 		child: () => logger,
 		setLevel: () => {},
 	};
-	return { logger, errors, debugLines };
+	return { logger, errors, debugLines, taps };
 }
 
 describe("AGENT-02 Claude session", () => {
@@ -492,6 +495,35 @@ describe("AGENT-02 Claude session", () => {
 		});
 		expect(script.prompts).toHaveLength(1);
 		expect(script.prompts[0]?.message).toMatchObject({ role: "user", content: "hi" });
+		await session.dispose();
+	});
+
+	test("AGENT-18 a missing bundled skill is told to the user once per chat", async () => {
+		const { query, script } = scriptedQuery((user, s) => {
+			s.emit(init());
+			s.emit(resultMessage(String(user.uuid)));
+		});
+		const session = new ClaudeSession(
+			makeDeps({ query, skillPluginDir: "/nowhere/conducted-skill" }),
+			start(),
+		);
+		const first: AgentMessage[] = [];
+		const second: AgentMessage[] = [];
+
+		expect(await session.runTurn(turnInput(), callbacks(first))).toEqual({ kind: "success" });
+		expect(await session.runTurn(turnInput(), callbacks(second))).toEqual({ kind: "success" });
+
+		const notices = (messages: AgentMessage[]) =>
+			messages.flatMap((message) => message.items).filter((item) => item.kind === "notice");
+		expect(notices(first)).toEqual([
+			{
+				kind: "notice",
+				notice: "info",
+				text: "The bundled skill folder /nowhere/conducted-skill was not found. This chat runs without the app's bundled skill, so Claude may not know the app's settings files and scripts.",
+			},
+		]);
+		expect(notices(second)).toEqual([]);
+		expect(script.options?.plugins).toBeUndefined();
 		await session.dispose();
 	});
 
@@ -1464,5 +1496,30 @@ describe("AGENT-02 Claude session", () => {
 			]);
 			await session.dispose();
 		});
+	});
+});
+
+describe("SIDE-18 SDK debug tap", () => {
+	test("SIDE-18 a debug tap logs every SDK message in both directions", async () => {
+		const recorder = recordingLogger();
+		const { query } = scriptedQuery((user, script) => {
+			script.emit(init());
+			script.emit(assistantMessage("Hello"));
+			script.emit(resultMessage(String(user.uuid)));
+		});
+		const session = new ClaudeSession(makeDeps({ query, logger: recorder.logger }), start());
+
+		await session.runTurn(turnInput(), callbacks([]));
+
+		const taps = recorder.taps.filter((tap) => tap.message === "workspace <> SDK");
+		const upstream = taps.filter((tap) => tap.data?.direction === "upstream");
+		const downstream = taps.filter((tap) => tap.data?.direction === "downstream");
+		expect(upstream).toHaveLength(1);
+		expect(upstream[0]?.data?.data).toMatchObject({
+			type: "user",
+			message: { role: "user", content: "hi" },
+		});
+		expect(downstream.length).toBeGreaterThanOrEqual(3);
+		await session.dispose();
 	});
 });

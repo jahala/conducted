@@ -1,25 +1,29 @@
 /**
  * @feature SIDE-01 Entry point and modes: the "sidecar" mode
+ * @feature SIDE-22 Slash command cache that works before a chat starts
  * Owns: starting the agent host. It is the composition root: the one place that creates every
- * real port (processes, files, sockets, clocks) and passes them to the modules.
+ * real port (processes, files, sockets, clocks) and passes them to the modules. That includes the
+ * slash-command cache, built over the folder from `config.ts` (SIDE-22).
  * Behaviour: research/conductor/native-and-sidecar-map.md A6 and B1 and sessions.md sections 0, 5
  * and 8. Startup order:
  *  1. read the settings from the environment (config.ts); a bad value prints a message and exits 64
- *  2. create the logger (logging/logger.ts) writing one JSON object per line to stderr, which the
- *     Rust launcher stores in the app log files (D026)
+ *  2. create the logger (logging/logger.ts) writing one redacted JSON object per line to stderr,
+ *     with repeated error lines folded and console calls rerouted into it; the Rust launcher writes
+ *     that stderr to `<app data>/logs/sidecar-<pid>.log` (routing it into the app log files with a
+ *     sidecar tag, D026, is not built)
  *  3. capture the login-shell environment (shell-env) in the background; it is needed by the first
  *     agent start, not before
  *  4. open the write-ahead log (outbox/); a failure is fatal: exit 1 with the reason. Conductor
  *     continues without a backup after 1 s; we do not, because the log is what makes delivery safe
  *  5. build the runners, process manager, session manager, interaction broker, publisher and the
  *     app tools backend and bridge
- *  6. start the app tools bridge, then listen on the Unix socket (rpc/server.ts) and print
- *     SOCKET_PATH=<path> as one line on stdout
- *  7. start the parent watchdog (watchdog.ts: the parent check and the idle sweep run on separate
- *     2-second timers), install one SIGINT and one SIGTERM handler that logs under SIGNAL and
- *     starts the graceful shutdown, install the uncaughtException and unhandledRejection handlers
- *     (log, do not exit), and ask the agent detector for the current list; a detection failure is
- *     logged and never fails the start
+ *  6. start the app tools bridge, then listen on the Unix socket (rpc/server.ts)
+ *  7. install one SIGINT and one SIGTERM handler that logs under SIGNAL and starts the graceful
+ *     shutdown, and only then print SOCKET_PATH=<path> as one line on stdout, so a stop sent right
+ *     after the handshake is always handled; then start the parent watchdog (watchdog.ts: the
+ *     parent check and the idle sweep run on separate 2-second timers), install the
+ *     uncaughtException and unhandledRejection handlers (log, do not exit), and ask the agent
+ *     detector for the current list; a detection failure is logged and never fails the start
  *  8. when the app attaches: replay the write-ahead log and resend the open interactions. The
  *     agent list is sent when detection changes, and the app reads it with getAgentInstalls
  * Must handle: a second sidecar already running for the same app (the launcher kills orphans; the
@@ -31,10 +35,10 @@
  * outbox directory exits with code 1 and a message that names the directory.
  * Covered by a real process: sidecar-mode.host.test.ts starts the host on a temporary socket,
  * makes one request, checks the app tools bridge folder and stops it with SIGTERM.
- * The app tools reach Codex and ACP agents from here: each agent start registers the chat's bridge
- * token and its session's dispose gives it back; an agent cannot start while the bridge is down (an
- * error value, never an agent without its tools); a Codex config of the user's or the repository's
- * that already defines the reserved server name keeps ours out (tools/mcp-launch.ts).
+ * The app tools reach Codex, ACP and Cursor agents from here: each agent start registers the chat's
+ * bridge token and its session's dispose gives it back; an agent cannot start while the bridge is
+ * down (an error value, never an agent without its tools); a Codex config of the user's or the
+ * repository's that already defines the reserved server name keeps ours out (tools/mcp-launch.ts).
  * Our design choice: the entry only dispatches. All behaviour lives in modes/, so tests call the
  * mode functions without starting a process. The host itself is injected, so a test starts a
  * fake host without touching a real socket. `composeSidecar` builds every module from the outside
@@ -72,9 +76,10 @@ import {
 import { runCheckpointer } from "../checkpoints/run-checkpointer.ts";
 import { parseSidecarConfig, type SidecarConfig } from "../config.ts";
 import { EXIT_START_FAILED, EXIT_USAGE } from "../exit-codes.ts";
-import { createLogger, type Logger, type LogSink } from "../logging/logger.ts";
+import { createLogger, type Logger, type LogSink, redactRecord } from "../logging/logger.ts";
 import { type AgentDetector, DefaultAgentDetector } from "../models/agent-detection.ts";
 import { RunnerModelCatalog } from "../models/catalog.ts";
+import { createNodeCompletionsFiles, FileCompletionsCache } from "../models/completions-cache.ts";
 import { RunnerMcpServerLister, RunnerSlashCommandLister } from "../models/slash-and-mcp.ts";
 import { SessionUsageReader } from "../models/usage.ts";
 import { FileEventOutbox } from "../outbox/event-outbox.ts";
@@ -104,9 +109,10 @@ import { ClaudeTranslator } from "../runners/claude/translate.ts";
 import type { Scheduler } from "../runners/claude/turn-tracker.ts";
 import type { JsonRpcChild, SpawnJsonRpcChild } from "../runners/codex/app-server-client.ts";
 import { type CodexAppTools, CodexRunner } from "../runners/codex/codex-runner.ts";
-import { CursorRunner } from "../runners/cursor/cursor-runner.ts";
-import type { CursorSdk, LoadCursorSdk } from "../runners/cursor/cursor-sdk.ts";
+import { type CursorAppTools, CursorRunner } from "../runners/cursor/cursor-runner.ts";
+import type { LoadCursorSdk } from "../runners/cursor/cursor-sdk.ts";
 import { EnvLock } from "../runners/cursor/env-lock.ts";
+import { createCursorSdkLoader } from "../runners/cursor/load-sdk.ts";
 import type { FindExecutable, ProbeCommand, RunnerCommonDeps } from "../runners/deps.ts";
 import type { RunnerRegistry, RunnerSelector } from "../runners/registry.ts";
 import { MapRunnerRegistry } from "../runners/registry.ts";
@@ -160,7 +166,7 @@ export type StartSidecarHost = (input: SidecarHostInput) => Promise<number>;
 export interface SidecarModeIo {
 	writeError(text: string): void;
 	writeOut(text: string): void;
-	createLogger(): Logger;
+	createLogger(config: SidecarConfig): Logger;
 	/** Checks that the host can write where it must. A failure names the folder. */
 	preflight(config: SidecarConfig): Promise<Result<void, AppError>>;
 	/** Installs the process error handlers and returns the function that removes them. */
@@ -174,10 +180,12 @@ export const PARENT_PID_ENV = "CONDUCTED_PARENT_PID";
 /**
  * Checks the folders the sidecar writes to. A missing bin folder or an unwritable outbox is a
  * startup failure: there is no silent fallback to a default path under the user's home (D027,
- * native-and-sidecar-map D2). The log folder is required by config.ts but is not probed here:
- * nothing writes it yet, and SIDE-18 will own the log file.
+ * native-and-sidecar-map D2). The log folder is required by config.ts but is not probed here: the
+ * Rust launcher creates it and writes the sidecar's stderr there (D026).
  */
-export async function preflightDirectories(config: SidecarConfig): Promise<Result<void, AppError>> {
+export async function preflightDirectories(
+	config: Pick<SidecarConfig, "binDir" | "outboxRoot">,
+): Promise<Result<void, AppError>> {
 	const bin = await directoryExists(config.binDir);
 	if (!bin) {
 		return err(
@@ -214,10 +222,13 @@ async function probeWritable(label: string, folder: string): Promise<Result<void
 	}
 }
 
-/** A sink that writes one JSON object per line, as the Rust launcher expects (D026). */
+/**
+ * A sink that writes one JSON object per line, as the Rust launcher expects (D026). Every record's
+ * data is redacted first, so a secret under a secret-looking name never leaves the process.
+ */
 export function stderrLogSink(write: (text: string) => void): LogSink {
 	return (record) => {
-		write(`${JSON.stringify(record)}\n`);
+		write(`${JSON.stringify(redactRecord(record))}\n`);
 	};
 }
 
@@ -368,7 +379,7 @@ export interface ShutdownEffects {
  * The production shutdown steps in the order the sidecar runs them: stop the agents (no
  * checkpoint), flush the events the app has not confirmed, close the socket, then the app tools
  * bridge. Flushing is the outbox's only shutdown work: our write-ahead log has no handle to close
- * (D007, SIDE-06). There is no HTTP server (D028) and no logger close.
+ * (D007, SIDE-06). There is no HTTP server (D028); the mode flushes the logger after the host ends.
  */
 export function createShutdownSteps(
 	reason: ShutdownReason,
@@ -428,20 +439,37 @@ export class ShutdownCoordinator {
 	}
 }
 
-const defaultIo: SidecarModeIo = {
+/**
+ * The mode's real effects over two output streams. Production passes the process's stdout and
+ * stderr; a test passes its own, so it runs the same logger wiring: redacted JSON lines on stderr,
+ * folded repeats and the console reroute.
+ */
+export function createDefaultIo(streams: {
+	writeError(text: string): void;
+	writeOut(text: string): void;
+}): SidecarModeIo {
+	return {
+		writeError: (text) => streams.writeError(text),
+		writeOut: (text) => streams.writeOut(text),
+		createLogger: (config) =>
+			createLogger({
+				sink: stderrLogSink((text) => streams.writeError(text)),
+				clock: systemClock,
+				level: config.logLevel,
+				scope: "sidecar",
+				foldRepeats: true,
+				rerouteConsole: true,
+			}),
+		preflight: preflightDirectories,
+		installErrorHandlers: (logger) => installErrorHandlers(logger),
+		startHost: (input) => startSidecarHost(input),
+	};
+}
+
+const defaultIo: SidecarModeIo = createDefaultIo({
 	writeError: (text) => process.stderr.write(text),
 	writeOut: (text) => process.stdout.write(text),
-	createLogger: () =>
-		createLogger({
-			sink: stderrLogSink((text) => process.stderr.write(text)),
-			clock: systemClock,
-			level: "info",
-			scope: "sidecar",
-		}),
-	preflight: preflightDirectories,
-	installErrorHandlers: (logger) => installErrorHandlers(logger),
-	startHost: (input) => startSidecarHost(input),
-};
+});
 
 /**
  * Runs the sidecar mode. A bad environment exits 64 before anything is created; an unwritable
@@ -462,7 +490,11 @@ export async function runSidecarMode(
 		io.writeError(`${ready.error.message}\n`);
 		return EXIT_START_FAILED;
 	}
-	const logger = io.createLogger();
+	const logger = io.createLogger(parsed.value);
+	logger.info("The sidecar is starting", {
+		appVersion: parsed.value.appVersion,
+		logLevel: parsed.value.logLevel,
+	});
 	const removeErrorHandlers = io.installErrorHandlers(logger);
 	try {
 		return await io.startHost({
@@ -474,6 +506,7 @@ export async function runSidecarMode(
 		});
 	} finally {
 		removeErrorHandlers();
+		logger.dispose?.();
 	}
 }
 
@@ -567,7 +600,8 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 		query: (params) => sdkQuery(params as Parameters<typeof sdkQuery>[0]),
 		spawnCodex: (options) => spawnJsonRpcChild(options, logger),
 		spawnAcp: (options) => spawnAcpChild(options, logger),
-		loadCursorSdk,
+		// Cursor cannot run until its SDK is bundled, and D010 keeps it out (runners/cursor/load-sdk.ts).
+		loadCursorSdk: createCursorSdkLoader((specifier) => import(specifier)),
 		probe: probeCommand,
 		findExecutable: createFindExecutable(env),
 		shellEnv: createShellEnvProvider(env, logger, (failure) => {
@@ -634,7 +668,6 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 	}
 	const swept = await outbox.sweepIdle();
 	if (!swept.ok) logger.warn("Old outbox files were not swept", { reason: swept.error.message });
-	writeOut(`${handshakeLine(socketPath)}\n`);
 
 	let finish: (code: number) => void = () => {};
 	const done = new Promise<number>((resolve) => {
@@ -681,6 +714,9 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 	removeSignalHandlers = installSignalHandlers(logger, processSignals, () => {
 		void coordinator.shutdown("signal");
 	});
+	// Ready only now: a SIGTERM sent right after the handshake must reach the handler above, or the
+	// signal's default action ends the process with the bridge folder and socket left behind.
+	writeOut(`${handshakeLine(socketPath)}\n`);
 	watchdog.start();
 	void refreshAgentInstalls({ agents, logger });
 	return done;
@@ -728,6 +764,7 @@ export interface SidecarComposition {
 	publisher: BatchingEventPublisher;
 	processes: AgentProcessManager;
 	agents: DefaultAgentDetector;
+	completions: FileCompletionsCache;
 }
 
 /** Builds every module of the host from the ports, in dependency order. Starts nothing. */
@@ -757,7 +794,13 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 		makeTempDir: ports.makeTempDir,
 	});
 
-	const runners = createRunnerRegistry({ ports, appTools: backend, bridge });
+	const runners = createRunnerRegistry({
+		ports,
+		appTools: backend,
+		bridge,
+		skillPluginDir: config.skillPluginDir,
+		cursorStoreDir: config.cursorStoreDir,
+	});
 	const models = new RunnerModelCatalog({ runners, logger, clock });
 	const shellEnv = ports.shellEnv;
 	const utilityPrompt = new AgentUtilityPromptRunner({
@@ -803,19 +846,37 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 		ids,
 		logger,
 	});
+	const completions = new FileCompletionsCache({
+		dir: config.completionsDir,
+		files: createNodeCompletionsFiles(),
+		clock,
+		logger,
+	});
 	const handlers = buildHandlers({
 		sessions,
 		outbox,
 		models,
 		agents,
 		slashCommands: new RunnerSlashCommandLister({ runners, logger }),
+		completions,
 		mcpServers: new RunnerMcpServerLister({ runners, logger }),
 		usage: new SessionUsageReader({ logger, sessions }),
 		shellEnv,
 		utilityPrompt,
 		setLogLevel: (level) => logger.setLevel(level),
+		logger,
 	});
-	return { runners, sessions, handlers, bridge, outbox, publisher, processes, agents };
+	return {
+		runners,
+		sessions,
+		handlers,
+		bridge,
+		outbox,
+		publisher,
+		processes,
+		agents,
+		completions,
+	};
 }
 
 function parentPidFrom(env: Readonly<Record<string, string | undefined>>): number {
@@ -977,6 +1038,10 @@ function createRunnerRegistry(input: {
 	ports: SidecarPorts;
 	appTools: RpcAppToolBackend;
 	bridge: AppToolsBridge;
+	/** The app's bundled skill plugin folder, when the build has one (AGENT-18). */
+	skillPluginDir: string | undefined;
+	/** The root of the Cursor SDK's local run stores (AGENT-09). */
+	cursorStoreDir: string;
 }): RunnerRegistry {
 	const { ports, bridge } = input;
 	const { logger } = ports;
@@ -1038,6 +1103,10 @@ function createRunnerRegistry(input: {
 		const { entry, release } = appToolsEntry(options);
 		return { servers: [acpMcpServer(entry)], release };
 	};
+	const cursorAppTools = async (options: StartOptions): Promise<CursorAppTools> => {
+		const { entry, release } = appToolsEntry(options);
+		return { server: { command: entry.command, args: entry.args, env: entry.env }, release };
+	};
 
 	const entries: { selector: RunnerSelector; runner: Runner }[] = [
 		{
@@ -1046,6 +1115,7 @@ function createRunnerRegistry(input: {
 				...common,
 				query: ports.query,
 				appTools: input.appTools,
+				skillPluginDir: input.skillPluginDir,
 				translator: () => new ClaudeTranslator({ logger }),
 				hasTranscript: ports.hasTranscript,
 				realPath,
@@ -1073,6 +1143,8 @@ function createRunnerRegistry(input: {
 				...common,
 				loadSdk: ports.loadCursorSdk,
 				envLock: new EnvLock({ queue: queueForCursor, target: process.env }),
+				storeRoot: input.cursorStoreDir,
+				appToolsServer: cursorAppTools,
 			}),
 		},
 	];
@@ -1095,27 +1167,6 @@ const realPath = async (target: string): Promise<string | null> => {
 		return await realpath(target);
 	} catch {
 		return null;
-	}
-};
-
-const loadCursorSdk: LoadCursorSdk = async () => {
-	try {
-		const specifier = "@cursor/sdk";
-		const loaded = (await import(specifier)) as {
-			createAgent?: unknown;
-			resumeAgent?: unknown;
-			default?: { createAgent?: unknown; resumeAgent?: unknown };
-		};
-		const candidate = (loaded.default ?? loaded) as Partial<CursorSdk>;
-		if (
-			typeof candidate.createAgent === "function" &&
-			typeof candidate.resumeAgent === "function"
-		) {
-			return ok(candidate as CursorSdk);
-		}
-		return err(appError("cursor_sdk_missing", "Cursor's SDK is not installed."));
-	} catch {
-		return err(appError("cursor_sdk_missing", "Cursor's SDK is not installed."));
 	}
 };
 

@@ -85,7 +85,7 @@ pub const SIDECAR_MAX_BYTES: u64 = 100 * 1024 * 1024;
 pub const SIDECAR_KEEP_HOURS: u64 = 24;
 
 const CHANNEL_CAPACITY: usize = 4096;
-const LOG_FOLDER: &str = "logs";
+pub const LOG_FOLDER: &str = "logs";
 const EXPORT_FOLDER: &str = "exports";
 const REDACTED: &str = "[redacted]";
 const TRUNCATED: &str = "[truncated]";
