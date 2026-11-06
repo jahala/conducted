@@ -75,6 +75,7 @@ const sampleSession: Session = {
 	title: null,
 	config: sampleConfig,
 	agentSessionId: null,
+	forkResumeNativeMessageId: null,
 	unreadCount: 0,
 	contextUsedTokens: null,
 	contextWindowTokens: null,
@@ -153,6 +154,8 @@ interface Harness {
 	moveWorkspace: ReturnType<typeof vi.fn>;
 	runSetup: ReturnType<typeof vi.fn>;
 	calls: { command: GitCommand; cwd: string }[];
+	/** Folders given to `fs.registerRoot`, in order. */
+	registered: string[];
 }
 
 /** A backlog repository that keeps its rows in memory, with a new id on every create. */
@@ -238,6 +241,7 @@ function makeHarness(
 	const worktreePath = worktreeFolderFor("/Users/test/conducted", "Project", "oslo");
 	const { git, calls } = makeRunner(options.gitReply ?? defaultGitReply(worktreePath));
 	const made: string[] = [];
+	const registered: string[] = [];
 	const texts = new Map<string, string>();
 	const fs = {
 		async readText(path: string): Promise<Result<string>> {
@@ -263,6 +267,13 @@ function makeHarness(
 		},
 		async trash() {
 			return ok(undefined);
+		},
+		async registerRoot(path: string) {
+			registered.push(path);
+			return ok(undefined);
+		},
+		assetUrl(path: string) {
+			return `asset://localhost/${encodeURIComponent(path)}`;
 		},
 		paths: { home: "/Users/test", appData: "/app", temp: "/tmp", resources: "/res" },
 	} satisfies FileSystem;
@@ -461,6 +472,7 @@ function makeHarness(
 		moveWorkspace,
 		runSetup,
 		calls,
+		registered,
 	};
 }
 
@@ -574,6 +586,18 @@ describe("WS-01 WorkspaceService.create", () => {
 		expect(createFirstChat.mock.calls[0]?.[1]).toEqual(newInput);
 		const stored = service.store.getState().workspacesById[rows[0]?.id ?? ""];
 		expect(stored?.state).toBe("ready");
+	});
+
+	it("PLAT-02 registers the workspaces folder a new worktree goes to", async () => {
+		const { service, rows, registered } = makeHarness({
+			settings: { conducted_root_path: "/Volumes/fast" },
+		});
+
+		const result = await service.create(newInput);
+
+		expect(result.ok).toBe(true);
+		expect(rows[0]?.path).toBe("/Volumes/fast/workspaces/Project/oslo");
+		expect(registered).toEqual(["/Volumes/fast"]);
 	});
 
 	it("uses the custom branch prefix", async () => {

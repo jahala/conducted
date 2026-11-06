@@ -34,6 +34,7 @@ import type {
 	WorkspaceContext,
 } from "@conducted/protocol";
 import type { Clock, EventId, IdSource, MessageId, SessionId, TurnId } from "@conducted/shared";
+import { messageOf } from "@conducted/shared";
 import type {
 	CheckpointOutcome,
 	CheckpointRequest,
@@ -41,7 +42,6 @@ import type {
 } from "../checkpoints/checkpoint-service.ts";
 import type { Logger } from "../logging/logger.ts";
 import type { AgentSession, TurnCallbacks, TurnOutcome } from "../runners/runner.ts";
-import { messageOf } from "../util/errors.ts";
 import type { EventPublisher } from "./event-batcher.ts";
 import type { InteractionBroker } from "./interactions.ts";
 import {

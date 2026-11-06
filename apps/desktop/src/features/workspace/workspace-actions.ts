@@ -15,7 +15,7 @@
  * service asked for one.
  * Test first: a restore with uncommittedChangesLost shows the "couldn't be recovered" warning.
  */
-import { appError, err, type Result, type WorkspaceId } from "@conducted/shared";
+import { appError, err, messageOf, type Result, type WorkspaceId } from "@conducted/shared";
 import type { Actions, UnarchiveOutcome } from "../../core/api.ts";
 import { toast, toastError } from "../../ui/Toast.tsx";
 
@@ -43,7 +43,7 @@ export async function runUnarchive(
 	try {
 		result = await actions.workspaces.unarchive(workspaceId, options);
 	} catch (caught) {
-		const message = caught instanceof Error ? caught.message : String(caught);
+		const message = messageOf(caught);
 		result = err(appError("unarchive_failed", message, caught));
 	}
 	if (!result.ok) {

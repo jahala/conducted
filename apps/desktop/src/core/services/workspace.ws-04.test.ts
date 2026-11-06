@@ -58,6 +58,7 @@ function sampleSession(changes: Partial<Session> = {}): Session {
 		title: null,
 		config: CONFIG,
 		agentSessionId: null,
+		forkResumeNativeMessageId: null,
 		unreadCount: 0,
 		contextUsedTokens: null,
 		contextWindowTokens: null,

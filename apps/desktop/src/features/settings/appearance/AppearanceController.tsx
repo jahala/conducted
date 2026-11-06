@@ -17,7 +17,9 @@
  * gives Light.
  * Test first: on /settings/general, Cmd+Alt+T stores "dark" and writes data-theme="dark".
  */
+
 import type { Result } from "@conducted/shared";
+import { messageOf } from "@conducted/shared";
 import { useLayoutEffect } from "react";
 import { useCommandHandler } from "../../../app/command-dispatcher.ts";
 import { fireAndForget } from "../../../core/async/fire-and-forget.ts";
@@ -94,7 +96,7 @@ export function AppearanceController() {
 		);
 		const report = (title: string) => (error: unknown) => {
 			platform.app.writeLog("warn", title, {
-				error: error instanceof Error ? error.message : String(error),
+				error: messageOf(error),
 			});
 		};
 		const reportResult = (result: Promise<Result<void>>, title: string) => {

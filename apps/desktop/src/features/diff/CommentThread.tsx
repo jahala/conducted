@@ -8,12 +8,14 @@
  * Children: CommentCard, CommentComposer.
  * Must handle: a resolved thread (collapsed, expandable; Resolve and Reopen change every comment of
  * the thread, replies included), an outdated comment (marker), a thread
- * from GitHub (no local edit), a thread the agent wrote (author label), and a failed action
+ * from GitHub (no local edit), a thread the agent wrote (author label), a reply (it answers the
+ * thread's first comment, on that comment's side, and joins its thread), and a failed action
  * (shown beside the thread).
  * Test first: a thread with a root and two replies renders three cards in time order.
  */
 import type { CommentId } from "@conducted/shared";
 import { useState } from "react";
+import type { CommentSuggestion } from "../../core/api.ts";
 import type { DiffComment } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
 import { CommentCard } from "./CommentCard.tsx";
@@ -46,8 +48,12 @@ export function CommentThread({ comments, handlers }: CommentThreadProps) {
 		endLine: root.endLine,
 	};
 
-	const saveEdit = async (id: CommentId, body: string): Promise<boolean> => {
-		const saved = await handlers.onEdit(id, body);
+	const saveEdit = async (
+		id: CommentId,
+		body: string,
+		suggestion: CommentSuggestion | null | undefined,
+	): Promise<boolean> => {
+		const saved = await handlers.onEdit(id, body, suggestion === undefined ? {} : { suggestion });
 		if (saved) setEditing(null);
 		else setError("The comment could not be saved.");
 		return saved;
@@ -97,7 +103,7 @@ export function CommentThread({ comments, handlers }: CommentThreadProps) {
 					comment={comment}
 					editing={editing === comment.id}
 					onStartEdit={() => setEditing(comment.id)}
-					onSaveEdit={(body) => saveEdit(comment.id, body)}
+					onSaveEdit={(body, suggestion) => saveEdit(comment.id, body, suggestion)}
 					onCancelEdit={() => setEditing(null)}
 					onDelete={() => {
 						void remove(comment.id);
@@ -112,7 +118,12 @@ export function CommentThread({ comments, handlers }: CommentThreadProps) {
 						suggestionBase={null}
 						onCancel={() => setReplying(false)}
 						onSubmit={async (body) => {
-							const added = await handlers.onAdd(target, body);
+							// A reply answers the thread's first comment and joins its thread.
+							const added = await handlers.onAdd(target, body, {
+								side: root.side,
+								replyToId: root.id,
+								threadId: root.threadId ?? root.id,
+							});
 							if (added) setReplying(false);
 							else setError("The reply could not be saved.");
 							return added;

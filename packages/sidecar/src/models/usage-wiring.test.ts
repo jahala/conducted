@@ -10,6 +10,7 @@ import type {
 import {
 	type AppError,
 	appError,
+	createKeyedQueue,
 	type EventId,
 	err,
 	type MessageId,
@@ -26,6 +27,7 @@ import type {
 } from "../checkpoints/checkpoint-service.ts";
 import { createLogger, type Logger } from "../logging/logger.ts";
 import type { AgentDetector } from "../models/agent-detection.ts";
+import { AgentProgramChoices } from "../models/agent-programs.ts";
 import { type ModelCatalog, RunnerModelCatalog } from "../models/catalog.ts";
 import type { McpServerLister, SlashCommandLister } from "../models/slash-and-mcp.ts";
 import type { EventOutbox } from "../outbox/event-outbox.ts";
@@ -48,7 +50,6 @@ import {
 	type SessionTurn,
 } from "../session/manager.ts";
 import type { RunNumber } from "../session/run-guard.ts";
-import { KeyedSerialQueue } from "../session/serial-queue.ts";
 import type { UtilityPromptRunner } from "../session/utility-prompt.ts";
 import type { CapturedShellEnv, ShellEnvProvider } from "../shell-env/capture.ts";
 import { FakeApp } from "../test-support/fake-app.ts";
@@ -194,8 +195,13 @@ function buildManager(agent: AgentSession, logger: Logger): DefaultSessionManage
 		publisher: new FakePublisher(),
 		liveState: new LiveStateStore({ app, flushed: async () => {} }),
 		interactions: new FakeInteractions(),
-		queue: new KeyedSerialQueue(),
-		models: new RunnerModelCatalog({ runners: registry, logger, clock: { now: () => 1000 } }),
+		queue: createKeyedQueue(),
+		models: new RunnerModelCatalog({
+			runners: registry,
+			shellEnv: fakeShellEnv(),
+			logger,
+			clock: { now: () => 1000 },
+		}),
 		clock: { now: () => 1000 },
 		ids: { uuid: () => `id-${++nextId}` },
 		logger,
@@ -248,6 +254,7 @@ function handlerDeps(manager: DefaultSessionManager, logger: Logger): HandlerDep
 		outbox,
 		models: catalog,
 		agents,
+		agentPrograms: new AgentProgramChoices(),
 		slashCommands,
 		completions: { read: async () => ok(null), write: async () => ok(undefined) },
 		mcpServers,

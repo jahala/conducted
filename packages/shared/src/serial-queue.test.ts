@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { createKeyedQueue, persistThenAck } from "./serial-queue.ts";
 
 const deferred = <T = void>() => {
@@ -11,18 +11,16 @@ const deferred = <T = void>() => {
 	return { promise, resolve, reject };
 };
 
-const flush = async (): Promise<void> => {
-	for (let turn = 0; turn < 5; turn += 1) await Promise.resolve();
-};
-
 describe("APP-11 serial queue", () => {
 	it("runs three tasks on one key in order even when the first is slowest", async () => {
 		const queue = createKeyedQueue<"a">();
 		const gate = deferred();
+		const firstStarted = deferred();
 		const log: string[] = [];
 
 		const first = queue.run("a", async () => {
 			log.push("1:start");
+			firstStarted.resolve();
 			await gate.promise;
 			log.push("1:end");
 			return 1;
@@ -36,7 +34,7 @@ describe("APP-11 serial queue", () => {
 			return 3;
 		});
 
-		await flush();
+		await firstStarted.promise;
 		expect(log).toEqual(["1:start"]);
 
 		gate.resolve();
@@ -76,18 +74,23 @@ describe("APP-11 serial queue", () => {
 		const queue = createKeyedQueue();
 		const gateA = deferred();
 		const gateB = deferred();
+		const aStarted = deferred();
+		const bStarted = deferred();
 		const started: string[] = [];
 
 		const a = queue.run("a", async () => {
 			started.push("a");
+			aStarted.resolve();
 			await gateA.promise;
 		});
 		const b = queue.run("b", async () => {
 			started.push("b");
+			bStarted.resolve();
 			await gateB.promise;
 		});
 
-		await flush();
+		// b starts while a still waits on its gate, so the keys run side by side.
+		await Promise.all([aStarted.promise, bStarted.promise]);
 		expect(started).toEqual(["a", "b"]);
 		gateA.resolve();
 		gateB.resolve();
@@ -99,20 +102,28 @@ describe("APP-11 serial queue", () => {
 		const gateA = deferred();
 		const gateB = deferred();
 		const gateBarrier = deferred();
+		const aStarted = deferred();
+		const bStarted = deferred();
+		const barrierStarted = deferred();
 		const log: string[] = [];
 
 		const a = queue.run("a", async () => {
 			log.push("a:start");
+			aStarted.resolve();
 			await gateA.promise;
 			log.push("a:end");
 		});
 		const b = queue.run("b", async () => {
 			log.push("b:start");
+			bStarted.resolve();
 			await gateB.promise;
 			log.push("b:end");
 		});
 		const barrier = queue.runBarrier(["a", "b"], async () => {
+			// Checked when the barrier starts: both keys have ended by then.
+			expect(log).toEqual(["a:start", "b:start", "a:end", "b:end"]);
 			log.push("barrier:start");
+			barrierStarted.resolve();
 			await gateBarrier.promise;
 			log.push("barrier:end");
 		});
@@ -120,17 +131,16 @@ describe("APP-11 serial queue", () => {
 			log.push("after");
 		});
 
-		await flush();
+		await Promise.all([aStarted.promise, bStarted.promise]);
 		expect(log).toEqual(["a:start", "b:start"]);
 
 		gateA.resolve();
 		await a;
-		await flush();
 		expect(log).toEqual(["a:start", "b:start", "a:end"]);
 
 		gateB.resolve();
 		await b;
-		await flush();
+		await barrierStarted.promise;
 		expect(log).toEqual(["a:start", "b:start", "a:end", "b:end", "barrier:start"]);
 
 		gateBarrier.resolve();
@@ -163,6 +173,7 @@ describe("APP-11 serial queue", () => {
 	it("acknowledges a session event only after it is persisted, in queue order", async () => {
 		const queue = createKeyedQueue();
 		const gate = deferred();
+		const persistStarted = deferred();
 		const log: string[] = [];
 
 		const first = persistThenAck(
@@ -170,6 +181,7 @@ describe("APP-11 serial queue", () => {
 			"session-1",
 			async () => {
 				log.push("persist:start");
+				persistStarted.resolve();
 				await gate.promise;
 				log.push("persist:end");
 				return { ok: true as const, value: undefined };
@@ -190,7 +202,7 @@ describe("APP-11 serial queue", () => {
 			},
 		);
 
-		await flush();
+		await persistStarted.promise;
 		expect(log).toEqual(["persist:start"]);
 
 		gate.resolve();
@@ -223,7 +235,7 @@ describe("APP-11 serial queue", () => {
 		expect(queue.activeKeys()).toBe(0);
 		await queue.run("a", async () => 1);
 		await queue.run("b", async () => 2);
-		await flush();
+		// The queue drops a key before the task's caller resumes, so no wait is needed.
 		expect(queue.activeKeys()).toBe(0);
 	});
 
@@ -236,7 +248,6 @@ describe("APP-11 serial queue", () => {
 		expect(queue.isBusy("b")).toBe(false);
 		gate.resolve();
 		await first;
-		await flush();
 		expect(queue.isBusy("a")).toBe(false);
 	});
 
@@ -245,7 +256,6 @@ describe("APP-11 serial queue", () => {
 		await Promise.all(
 			Array.from({ length: 5000 }, (_, n) => queue.run(`chat-${n}`, async () => n)),
 		);
-		await flush();
 		expect(queue.activeKeys()).toBe(0);
 	});
 

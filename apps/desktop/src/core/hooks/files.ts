@@ -29,7 +29,7 @@ import type { FileContent } from "../model.ts";
 import { type FileDraft, fileDraftKey } from "../services/workspace-files.ts";
 
 /** Search in files shows this many matches; the service returns one more when the list was cut. */
-export { CONTENT_SEARCH_LIMIT, type FileDraft, previewUrlOf } from "../services/workspace-files.ts";
+export { CONTENT_SEARCH_LIMIT, type FileDraft } from "../services/workspace-files.ts";
 
 /** How often an open file's modified time is read (services-map.md 2.5.2). */
 const FILE_POLL_MS = 5_000;

@@ -289,6 +289,38 @@ describe("CHAT-16 fork a chat from a turn", () => {
 		});
 	});
 
+	it("keeps the fork's resume point across a restart before its first send", async () => {
+		const { workspaceId } = await seedChat();
+		const before = harness();
+		const created = await before.service.create(workspaceId, sampleSession.config);
+		if (!created.ok) throw new Error(JSON.stringify(created.error));
+		const originId = created.value.id;
+		await before.service.setAgentSessionId(originId, "agent-session-1");
+		await append(originId, userMessageEvent("u1", "t1", 10));
+		await append(originId, checkpointEvent("c1", "t1", 11, "start", "start-1"));
+		await append(originId, agentWithNativeId("a1", "t1", 12, "native-1"));
+		await append(originId, checkpointEvent("c2", "t1", 13, "end", "end-1"));
+		await append(originId, turnEndedEvent("e1", "t1", 14));
+		const forked = await before.service.forkFrom(originId, "t1" as TurnId);
+		if (!forked.ok) throw new Error(JSON.stringify(forked.error));
+
+		// A new service over the same database is the app after a restart: it knows only what was
+		// stored.
+		const after = harness();
+		expect(await after.service.start()).toEqual(ok(undefined));
+		const sent = await after.service.send(forked.value.id, "Carry on", [], "auto");
+
+		expect(sent).toEqual(ok(undefined));
+		const call = after.calls.find((entry) => entry.method === "sendMessage");
+		expect(call?.params).toMatchObject({
+			resume: { agentSessionId: "agent-session-1", atNativeMessageId: "native-1" },
+		});
+		expect(await repositories.sessions.get(forked.value.id)).toMatchObject({
+			ok: true,
+			value: { forkResumeNativeMessageId: "native-1" },
+		});
+	});
+
 	it("refuses a fork with no agent message to resume at, so two chats never share a session", async () => {
 		const { workspaceId } = await seedChat();
 		const h = harness();

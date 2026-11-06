@@ -44,7 +44,7 @@ import {
 	ok,
 	type Result,
 } from "@conducted/shared";
-import { Channel, invoke } from "@tauri-apps/api/core";
+import { Channel, convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { Image } from "@tauri-apps/api/image";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -95,6 +95,7 @@ import type {
 	SystemFacts,
 	SystemInfo,
 	TreeEntry,
+	Unsubscribe,
 	Updater,
 } from "./platform.ts";
 import {
@@ -150,6 +151,8 @@ export interface TauriWebviewBindings {
 export interface TauriBindings {
 	invoke<T>(command: string, args?: Record<string, unknown>): Promise<T>;
 	listen<T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn>;
+	/** Tauri's `convertFileSrc`: the asset protocol URL of a local file. */
+	assetUrl?: (path: string) => string;
 	/** The current window. Focus events arrive on it, not on the app-wide event bus. */
 	window?: TauriWindowBindings;
 	/** The current webview, for its zoom. */
@@ -191,6 +194,7 @@ async function decodeImageToRgba(
 export const realTauriBindings: TauriBindings = {
 	invoke: (command, args) => invoke(command, args),
 	listen: (event, handler) => listen(event, (e) => handler(e.payload as never)),
+	assetUrl: (path) => convertFileSrc(path),
 	window: {
 		isFocused: () => getCurrentWindow().isFocused(),
 		listen: (event, handler) =>
@@ -330,6 +334,8 @@ export const COMMANDS = {
 	fsReadDir: "fs_read_dir",
 	fsTrash: "fs_trash",
 	fsPaths: "fs_paths",
+	fsRegisterRoot: "fs_register_root",
+	deepLinkLaunch: "deep_link_launch",
 	searchListTree: "search_list_tree",
 	searchFuzzy: "search_fuzzy",
 	searchGrep: "search_grep",
@@ -364,6 +370,8 @@ export const COMMANDS = {
 	updaterInstalledUpdate: "updater_installed_update", // PLAT-13
 	attachmentMaterialize: "attachment_materialize",
 	imageResize: "image_resize",
+	attachmentWriteBytes: "attachment_write_bytes",
+	clipboardReadFilePaths: "clipboard_read_file_paths",
 	menuSetShortcuts: "menu_set_shortcuts",
 	programsState: "programs_state", // PLAT-28
 	programInstall: "program_install", // PLAT-28
@@ -383,6 +391,7 @@ export const EVENTS = {
 	windowBlur: "tauri://blur",
 	quitRequested: "app://quit-requested",
 	deepLink: "app://deep-link",
+	deepLinkRejected: "app://deep-link-rejected",
 	shellDone: "shell://done",
 	ptyExit: "pty://exit",
 	sidecarLine: "sidecar://line",
@@ -395,8 +404,11 @@ export const EVENTS = {
 	programsVerificationErrors: "programs://verification-errors",
 } as const;
 
-/** The deep-link plugin's command that returns the URLs which launched the app. */
-const DEEP_LINK_CURRENT = "plugin:deep-link|get_current";
+/** The answer of `deep_link_launch`: the links that launched the app, sorted by deep_link.rs. */
+interface LaunchLinks {
+	urls: string[];
+	rejected: { code: string; message: string }[];
+}
 
 // ---------------------------------------------------------------- errors (real)
 
@@ -448,7 +460,7 @@ interface DbVersionCheck {
 	message: string | null;
 }
 
-/** `app_info` -> `{ version, channel }`; `app_quit`; `resource_usage`; `log_write`; `log_set_level { level }`; `logs_export`; `set_quit_handler_ready`; `db_version_check`. Events: quit, deep link. */
+/** `app_info` -> `{ version, channel }`; `app_quit`; `resource_usage { workspacePaths }`; `log_write`; `log_set_level { level }`; `logs_export`; `set_quit_handler_ready`; `db_version_check`; `deep_link_launch`. Events: quit, deep link, refused deep link. */
 export function createTauriAppInfo(
 	bindings: TauriBindings,
 	info: { version: string; channel: "dev" | "release" },
@@ -482,36 +494,28 @@ export function createTauriAppInfo(
 			}
 			return ok(null);
 		},
-		onDeepLink: (listener) => {
-			let active = true;
-			const stop = onEvent<string>(bindings, EVENTS.deepLink, (url) => {
-				if (active) listener(url);
-			});
-			void bindings
-				.invoke<string[] | null>(DEEP_LINK_CURRENT)
-				.then((urls) => {
-					if (!active || urls === null) return;
-					for (const url of urls) listener(url);
-				})
-				.catch((error: unknown) => {
-					console.error("Could not read the launch deep link", error);
-				});
-			return () => {
-				active = false;
-				stop();
-			};
-		},
+		onDeepLink: (listener) =>
+			onLaunchAndEvent<string>(
+				bindings,
+				EVENTS.deepLink,
+				(links) => links.urls,
+				(url) => listener(url),
+			),
+		onDeepLinkRejected: (listener) =>
+			onLaunchAndEvent<{ code: string; message: string }>(
+				bindings,
+				EVENTS.deepLinkRejected,
+				(links) => links.rejected,
+				(rejection) => listener(appError(rejection.code, rejection.message)),
+			),
 		onQuitRequested: (listener) => onEvent(bindings, EVENTS.quitRequested, () => listener()),
 		quit: async () => {
 			await invokeResult(bindings, COMMANDS.appQuit);
 		},
-		resourceUsage: async () => {
-			const result = await invokeResult<ProcessUsage[]>(bindings, COMMANDS.resourceUsage, {
-				workspacePaths: [],
-			});
-			if (!result.ok) throw result.error;
-			return result.value;
-		},
+		resourceUsage: (workspacePaths) =>
+			invokeResult<ProcessUsage[]>(bindings, COMMANDS.resourceUsage, {
+				workspacePaths: [...workspacePaths],
+			}),
 		writeLog: (level, message, data) => {
 			const safe = serialisableLogData(data);
 			const args =
@@ -531,6 +535,34 @@ export function createTauriAppInfo(
 			const result = await invokeResult(bindings, COMMANDS.setQuitHandlerReady);
 			if (!result.ok) throw result.error;
 		},
+	};
+}
+
+/**
+ * Listens for a deep-link event and also hands the listener the matching links that launched the
+ * app, read from `deep_link_launch`, so a cold-start link is not missed.
+ */
+function onLaunchAndEvent<T>(
+	bindings: TauriBindings,
+	event: string,
+	pick: (links: LaunchLinks) => readonly T[],
+	listener: (value: T) => void,
+): Unsubscribe {
+	let active = true;
+	const stop = onEvent<T>(bindings, event, (value) => {
+		if (active) listener(value);
+	});
+	void invokeResult<LaunchLinks>(bindings, COMMANDS.deepLinkLaunch).then((links) => {
+		if (!links.ok) {
+			console.error("Could not read the launch deep link", links.error);
+			return;
+		}
+		if (!active) return;
+		for (const value of pick(links.value)) listener(value);
+	});
+	return () => {
+		active = false;
+		stop();
 	};
 }
 
@@ -631,7 +663,7 @@ interface ShellDonePayload {
 	error: { code: string; message: string } | null;
 }
 
-/** `shell_run { command }`, `shell_start { id, command }` + `shell_cancel { id }` + event `shell://done`, `shell_login_env`. */
+/** `shell_run { command }`, `shell_start { id, command }` + `shell_cancel { id }` + event `shell://done`, `shell_login_env { cwd }`. */
 export function createTauriShell(bindings: TauriBindings): Shell {
 	const pending = new Map<string, (result: Result<ShellOutput>) => void>();
 	let listening: Promise<void> | null = null;
@@ -712,10 +744,11 @@ export function createTauriShell(bindings: TauriBindings): Shell {
 				},
 			};
 		},
-		loginEnv: async () => {
+		loginEnv: async (cwd) => {
 			const result = await invokeResult<{ shell: string; path: string }>(
 				bindings,
 				COMMANDS.shellLoginEnv,
+				{ cwd: cwd ?? null },
 			);
 			if (!result.ok) throw result.error;
 			return result.value;
@@ -723,7 +756,7 @@ export function createTauriShell(bindings: TauriBindings): Shell {
 	};
 }
 
-/** `fs_read_text { path }`, `fs_write_text_atomic { path, text }`, `fs_stat { path }`, `fs_mkdirp`, `fs_read_dir`, `fs_trash`, `fs_paths`. */
+/** `fs_read_text { path }`, `fs_write_text_atomic { path, text }`, `fs_stat { path }`, `fs_mkdirp`, `fs_read_dir`, `fs_trash`, `fs_register_root { path }`, `fs_paths`; `assetUrl` is Tauri's `convertFileSrc`. */
 export function createTauriFileSystem(
 	bindings: TauriBindings,
 	paths: FileSystem["paths"],
@@ -747,6 +780,8 @@ export function createTauriFileSystem(
 		mkdirp: (path) => invokeResult<void>(bindings, COMMANDS.fsMkdirp, { path }),
 		readDir: (path) => invokeResult<FileStat[]>(bindings, COMMANDS.fsReadDir, { path }),
 		trash: (path) => invokeResult<void>(bindings, COMMANDS.fsTrash, { path }),
+		registerRoot: (path) => invokeResult<void>(bindings, COMMANDS.fsRegisterRoot, { path }),
+		assetUrl: (path) => requireBinding(bindings.assetUrl, "asset URL")(path),
 		paths,
 	};
 }
@@ -768,6 +803,16 @@ export function createTauriFileSearch(bindings: TauriBindings): FileSearch {
 	};
 }
 
+/** Base64 of raw bytes, built in slices so a large image does not overflow the argument list. */
+export function encodeBase64(bytes: Uint8Array): string {
+	const SLICE = 0x8000;
+	let binary = "";
+	for (let start = 0; start < bytes.length; start += SLICE) {
+		binary += String.fromCharCode(...bytes.subarray(start, start + SLICE));
+	}
+	return btoa(binary);
+}
+
 function decodeBase64(value: string): Uint8Array {
 	const binary = atob(value);
 	const bytes = new Uint8Array(binary.length);
@@ -775,24 +820,37 @@ function decodeBase64(value: string): Uint8Array {
 	return bytes;
 }
 
+/** Payload of `pty://exit`, as pty.rs sends it. */
+interface PtyExitPayload {
+	id: string;
+	exitCode: number | null;
+	historyError?: { code: string; message: string } | null;
+}
+
 /** `pty_spawn { request, onOutput: Channel }`, `pty_write { id, data }`, `pty_resize`, `pty_kill`, `pty_ack { id, bytes }`, `pty_screen_text { id, maxLines }`, `pty_screen_snapshot { id }`, `pty_load_history { terminalId }`, event `pty://exit`. */
 export function createTauriPty(bindings: TauriBindings): Pty {
 	return {
 		spawn: async (options: PtySpawn) => {
 			const dataListeners = new Set<(chunk: Uint8Array) => void>();
-			const exitListeners = new Set<(exitCode: number | null) => void>();
+			const exitListeners = new Set<
+				(exitCode: number | null, historyError: AppError | null) => void
+			>();
 			const early: Uint8Array[] = [];
 			let resolved = false;
-			let exitCode: number | null | undefined;
+			let ended: { code: number | null; historyError: AppError | null } | undefined;
 			let handleId: string | null = null;
 			// Exits seen before the spawn answer named the id. A short-lived command can end first.
-			const earlyExits = new Map<string, number | null>();
+			const earlyExits = new Map<string, PtyExitPayload>();
 			let stopExitListener: (() => void) | null = null;
 
-			const finishExit = (code: number | null): void => {
-				if (exitCode !== undefined) return;
-				exitCode = code;
-				for (const listener of [...exitListeners]) listener(code);
+			const finishExit = (payload: PtyExitPayload): void => {
+				if (ended !== undefined) return;
+				const historyError =
+					payload.historyError === null || payload.historyError === undefined
+						? null
+						: appError(payload.historyError.code, payload.historyError.message);
+				ended = { code: payload.exitCode, historyError };
+				for (const listener of [...exitListeners]) listener(payload.exitCode, historyError);
 				exitListeners.clear();
 				stopExitListener?.();
 				stopExitListener = null;
@@ -817,16 +875,13 @@ export function createTauriPty(bindings: TauriBindings): Pty {
 			// Listen before the spawn, so an exit that arrives before the answer is not lost.
 			let stopListening: UnlistenFn;
 			try {
-				stopListening = await bindings.listen<{ id: string; exitCode: number | null }>(
-					EVENTS.ptyExit,
-					(payload) => {
-						if (handleId === null) {
-							earlyExits.set(payload.id, payload.exitCode);
-						} else if (payload.id === handleId) {
-							finishExit(payload.exitCode);
-						}
-					},
-				);
+				stopListening = await bindings.listen<PtyExitPayload>(EVENTS.ptyExit, (payload) => {
+					if (handleId === null) {
+						earlyExits.set(payload.id, payload);
+					} else if (payload.id === handleId) {
+						finishExit(payload);
+					}
+				});
 			} catch (error) {
 				return err(toAppError(error));
 			}
@@ -846,10 +901,9 @@ export function createTauriPty(bindings: TauriBindings): Pty {
 			const spawnedId = spawned.value.id;
 			handleId = spawnedId;
 			resolved = true;
-			const exitedEarly = earlyExits.has(spawnedId);
-			const earlyCode = earlyExits.get(spawnedId) ?? null;
+			const earlyExit = earlyExits.get(spawnedId);
 			earlyExits.clear();
-			if (exitedEarly) finishExit(earlyCode);
+			if (earlyExit !== undefined) finishExit(earlyExit);
 
 			const handle: PtyHandle = {
 				id: spawnedId,
@@ -881,13 +935,11 @@ export function createTauriPty(bindings: TauriBindings): Pty {
 						dataListeners.delete(listener);
 					};
 				},
-				ack: (bytes) => {
-					void invokeResult<void>(bindings, COMMANDS.ptyAck, { id: spawnedId, bytes });
-				},
+				ack: (bytes) => invokeResult<void>(bindings, COMMANDS.ptyAck, { id: spawnedId, bytes }),
 				onExit: (listener) => {
-					if (exitCode !== undefined) {
-						const code = exitCode;
-						queueMicrotask(() => listener(code));
+					if (ended !== undefined) {
+						const { code, historyError } = ended;
+						queueMicrotask(() => listener(code, historyError));
 						return () => {};
 					}
 					exitListeners.add(listener);
@@ -1041,11 +1093,12 @@ export function createTauriOpener(bindings: TauriBindings = realTauriBindings): 
 	};
 }
 
-/** plugin-clipboard-manager: `writeText`, `writeImage`. */
+/** plugin-clipboard-manager: `writeText`, `writeImage`; `clipboard_read_file_paths`. */
 export function createTauriClipboard(bindings: TauriBindings = realTauriBindings): Clipboard {
 	return {
 		writeText: (text) => requireBinding(bindings.clipboard, "clipboard").writeText(text),
 		writeImage: (pngBytes) => requireBinding(bindings.clipboard, "clipboard").writeImage(pngBytes),
+		readFilePaths: () => invokeResult<string[]>(bindings, COMMANDS.clipboardReadFilePaths),
 	};
 }
 
@@ -1157,7 +1210,7 @@ export function createTauriSystem(bindings: TauriBindings): SystemFacts {
 	};
 }
 
-/** `attachment_materialize { sourcePath, destinationPath, resizeImage }`, `image_resize { sourcePath, destinationPath }`. */
+/** `attachment_materialize { sourcePath, destinationPath, resizeImage }`, `image_resize { sourcePath, destinationPath }`, `attachment_write_bytes { data, destinationPath, resizeImage }` (data is base64). */
 export function createTauriAttachments(bindings: TauriBindings): AttachmentFiles {
 	return {
 		materialize: (sourcePath, destinationPath, options) =>
@@ -1168,6 +1221,12 @@ export function createTauriAttachments(bindings: TauriBindings): AttachmentFiles
 			}),
 		resizeImage: (sourcePath, destinationPath) =>
 			invokeResult(bindings, COMMANDS.imageResize, { sourcePath, destinationPath }),
+		writeBytes: (bytes, destinationPath, options) =>
+			invokeResult(bindings, COMMANDS.attachmentWriteBytes, {
+				data: encodeBase64(bytes),
+				destinationPath,
+				resizeImage: options.resizeImage,
+			}),
 	};
 }
 

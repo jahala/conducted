@@ -104,6 +104,42 @@ describe("COMP-07 attachments service", () => {
 		expect(result.error.message).toBe("Image too large");
 	});
 
+	it("stages pasted image bytes as an image attachment on the draft", async () => {
+		const { test, session, composer } = await setup();
+
+		const added = must(
+			await composer.addBytes(session.id, "image.png", new TextEncoder().encode("png bytes")),
+		);
+
+		expect(added.kind).toBe("image");
+		expect(test.memory.controls.files.get(added.path)).toBe("png bytes");
+		expect(composer.draftOf(session.id).attachmentPaths).toEqual([added.path]);
+		expect(await rowsFor(test, session.id)).toEqual([
+			expect.objectContaining({ is_draft: 1, kind: "image", original_name: "image.png" }),
+		]);
+	});
+
+	it("refuses pasted image bytes over 5 MB with 'Image too large' and stages nothing", async () => {
+		const { test, session, composer } = await setup();
+
+		const result = await composer.addBytes(
+			session.id,
+			"huge.png",
+			new Uint8Array(MAX_IMAGE_ATTACHMENT_BYTES + 1),
+		);
+
+		expect(result.ok ? null : result.error.message).toBe("Image too large");
+		expect(await rowsFor(test, session.id)).toEqual([]);
+	});
+
+	it("refuses pasted bytes with no file name as unavailable", async () => {
+		const { session, composer } = await setup();
+
+		const result = await composer.addBytes(session.id, "", new TextEncoder().encode("x"));
+
+		expect(result.ok ? null : result.error.message).toBe("Attachments not available");
+	});
+
 	it("removes a draft attachment, trashes its staged file and updates the draft", async () => {
 		const { test, session, composer } = await setup();
 		addFile(test, "/tmp/one.txt", "one");

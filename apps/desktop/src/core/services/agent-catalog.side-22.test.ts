@@ -27,6 +27,7 @@ const skill: SlashCommand = {
 function serviceWith(request: SidecarClient["request"]): AgentCatalogService {
 	return new AgentCatalogService({
 		sidecar: { request },
+		launchFor: async () => ok({ env: {}, providerKeys: {} }),
 		workspacePathOf: async () => ok("/workspace"),
 		repoRootPathOf: async () => ok("/repo"),
 	});

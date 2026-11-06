@@ -227,7 +227,10 @@ export class FollowUpQueue {
 		return paused ? ok(undefined) : this.release(sessionId);
 	}
 
-	/** Turns a failed row back into waiting and tries it now when the chat can take it. */
+	/**
+	 * Backs `Actions.sessions.queue.retry`. Turns a failed row back into waiting and tries it now
+	 * when the chat can take it.
+	 */
 	async retry(messageId: MessageId): Promise<Result<void>> {
 		const found = await this.#deps.repos.queuedMessages.get(messageId);
 		if (!found.ok) return found;

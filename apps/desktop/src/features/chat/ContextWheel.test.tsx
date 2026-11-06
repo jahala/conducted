@@ -11,7 +11,12 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import { ServicesProvider } from "../../core/context.tsx";
-import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
+import {
+	createTestContainer,
+	seedContextWindow,
+	seedWorkspace,
+	type TestContainer,
+} from "../../test/container.ts";
 import { Composer } from "../composer/Composer.tsx";
 import { ContextWheel } from "./ContextWheel.tsx";
 
@@ -174,6 +179,32 @@ describe("CHAT-14 context wheel", () => {
 			render(<ContextWheel sessionId={session.id} />, { wrapper });
 			fireEvent.focus(screen.getByRole("button", { name: "Context usage: not available" }));
 			expect(await screen.findByText("Context window size not yet available.")).toBeTruthy();
+		} finally {
+			await teardown(test);
+		}
+	});
+
+	it("uses the window the same model reported in another chat when this one has none", async () => {
+		const { test, session, wrapper } = await setup();
+		try {
+			// An earlier chat of this agent and model reported its window, which the app remembers.
+			test.container.services.contextWindows.remember("claude", CONFIG.model, 100_000);
+			addUsage(test, session.id, { contextWindowTokens: undefined });
+			render(<ContextWheel sessionId={session.id} />, { wrapper });
+			expect(screen.getByRole("button", { name: "Context usage: 72%" })).toBeTruthy();
+		} finally {
+			await teardown(test);
+		}
+	});
+
+	it("loads the remembered windows from the database when the app starts", async () => {
+		const { test, session, wrapper } = await setup();
+		try {
+			await seedContextWindow(test.container, "claude", CONFIG.model, 100_000);
+			expect((await test.container.services.contextWindows.start()).ok).toBe(true);
+			addUsage(test, session.id, { contextWindowTokens: undefined });
+			render(<ContextWheel sessionId={session.id} />, { wrapper });
+			expect(screen.getByRole("button", { name: "Context usage: 72%" })).toBeTruthy();
 		} finally {
 			await teardown(test);
 		}

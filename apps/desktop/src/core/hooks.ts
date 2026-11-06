@@ -17,7 +17,7 @@
  *   workspaces.ts useWorkspaces, useWorkspace, useWorkspaceStatus, useBacklogWorkspaces,
  *                 useSetupState, useInstalledApps
  *   sections.ts   useSections
- *   chats.ts      useSessions, useChat, useClosedSessions, usePlans
+ *   chats.ts      useSessions, useChat, useClosedSessions, usePlans, useChangedSinceTurn
  *   composer.ts   useDraft, useSnippets
  *   git.ts        useGitState, useChangedFiles, useFileDiff, useBranchCommits, useBranches
  *   github.ts     useCheckLog, usePullRequestActivity, useStack, useIssues, usePullRequestList,

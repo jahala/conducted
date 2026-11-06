@@ -10,6 +10,7 @@
  * Test first: none. The compiler checks every file that uses these types.
  */
 import type { CommentId } from "@conducted/shared";
+import type { CommentDetails } from "../../core/api.ts";
 
 /** The side of a diff a line number belongs to. Matches the renderer's own naming. */
 export type DiffSide = "deletions" | "additions";
@@ -38,8 +39,14 @@ export interface CommentTarget {
 }
 
 export interface CommentHandlers {
-	onAdd: (target: CommentTarget, body: string) => Promise<boolean>;
-	onEdit: (id: CommentId, body: string) => Promise<boolean>;
+	/** A new comment or a reply: its side, suggested change and thread are in `details`. */
+	onAdd: (target: CommentTarget, body: string, details: CommentDetails) => Promise<boolean>;
+	/** `details.suggestion` left out keeps the comment's suggested change as it is. */
+	onEdit: (
+		id: CommentId,
+		body: string,
+		details: Pick<CommentDetails, "suggestion">,
+	) => Promise<boolean>;
 	onDelete: (id: CommentId) => Promise<boolean>;
 	onSetResolved: (id: CommentId, resolved: boolean) => Promise<boolean>;
 	onSendToChat: (ids: CommentId[]) => void;

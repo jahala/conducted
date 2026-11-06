@@ -20,7 +20,7 @@
  * Test first: osVersion "13.6.1" with minimum "14.0" shows the warning; "14.0" shows nothing; dismissing
  * hides it.
  */
-import { appError, err, ok, type Result } from "@conducted/shared";
+import { appError, err, messageOf, ok, type Result } from "@conducted/shared";
 import { useState } from "react";
 import { useServices } from "../../core/context.tsx";
 import { useSystemInfo } from "../../core/hooks.ts";
@@ -52,10 +52,6 @@ function browserStorage(): Result<WarningStorage> {
 	} catch (cause) {
 		return err(appError("storage_unavailable", messageOf(cause), cause));
 	}
-}
-
-function messageOf(cause: unknown): string {
-	return cause instanceof Error ? cause.message : String(cause);
 }
 
 /** The stored app version whose warning was dismissed, null when none was, or why it cannot be read. */

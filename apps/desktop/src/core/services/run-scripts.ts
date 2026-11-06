@@ -27,7 +27,9 @@
  * (SET-04): the global values, with the repository's own values replacing them. The values come
  * from the Keychain through the composition root, never from a file.
  * All three also receive `CONDUCTED_PATH_PREFIX` (SET-13): the shim folder for the program paths
- * chosen in settings, or the bundled bin folder when none are chosen or staging fails.
+ * chosen in settings, or the bundled bin folder when none are chosen or staging fails. All three
+ * start from the login environment of the workspace folder (PLAT-07, services-map.md 5A.8.3): the
+ * archive script through `envFromCwd`, setup and run through the terminal service.
  * Built now: `runSetup` and `stopAll` (WS-03 and RUN-01), `runArchive` (WS-05), which runs the
  * repository's archive script once through the shell before the worktree is removed, the run
  * actions above (RUN-01), and the RUN-03 paths: polling the workspace's listening ports into
@@ -435,6 +437,8 @@ export class RunScriptsService {
 			args: ["-lc", script],
 			cwd: workspace.value.path,
 			env,
+			// A script runs in its folder's login environment, as Conductor's scripts do (5A.8.3).
+			envFromCwd: true,
 		});
 		if (!result.ok) return result;
 		if (result.value.exitCode !== 0) {

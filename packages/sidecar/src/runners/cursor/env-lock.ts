@@ -12,7 +12,7 @@
  * Our design choice: the target environment object is a parameter (process.env in production), so
  * the test uses a plain object.
  */
-import type { KeyedSerialQueue } from "../../session/serial-queue.ts";
+import type { KeyedQueue } from "@conducted/shared";
 
 /** One queue key, so every Cursor SDK call waits for the one before it. */
 const ENV_LOCK_KEY = "cursor";
@@ -20,7 +20,7 @@ const ENV_LOCK_KEY = "cursor";
 export class EnvLock {
 	constructor(
 		protected readonly deps: {
-			queue: KeyedSerialQueue;
+			queue: KeyedQueue;
 			target: Record<string, string | undefined>;
 		},
 	) {}

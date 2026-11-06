@@ -76,6 +76,7 @@ function comment(id: string, over: Partial<DiffComment> = {}): DiffComment {
 		threadId: null,
 		replyToId: null,
 		suggestion: null,
+		suggestionBaseCode: null,
 		remoteUrl: null,
 		resolved: false,
 		outdated: false,
@@ -105,6 +106,95 @@ describe("REV-03 review comment store over the real container", () => {
 
 		expect(await review.remove(added.value.id)).toEqual(ok(undefined));
 		expect(review.store.getState().byWorkspace[workspace.id]).toEqual([]);
+	});
+
+	it("stores a comment's side, suggested change and reply through the actions", async () => {
+		test = createTestContainer();
+		const workspace = await seedWorkspace(test.container);
+		const comments = test.container.actions.comments;
+
+		const root = await comments.add(workspace.id, "src/a.ts", 7, 8, "Use a constant", {
+			side: "deletions",
+			suggestion: { code: "const limit = 10;", baseCode: "let limit = 10;" },
+		});
+		if (!root.ok) throw new Error(root.error.message);
+		expect(root.value).toMatchObject({
+			side: "deletions",
+			suggestion: "const limit = 10;",
+			suggestionBaseCode: "let limit = 10;",
+			replyToId: null,
+		});
+
+		const reply = await comments.add(workspace.id, "src/a.ts", 7, 8, "Agreed", {
+			side: "deletions",
+			replyToId: root.value.id,
+			threadId: root.value.id,
+		});
+		if (!reply.ok) throw new Error(reply.error.message);
+
+		const stored = test.container.services.review.store.getState().byWorkspace[workspace.id];
+		expect(stored?.find((entry) => entry.id === reply.value.id)).toMatchObject({
+			side: "deletions",
+			replyToId: root.value.id,
+			threadId: root.value.id,
+			suggestion: null,
+			suggestionBaseCode: null,
+		});
+	});
+
+	it("edits a suggested change, keeps it when only the text changes, and clears it", async () => {
+		test = createTestContainer();
+		const workspace = await seedWorkspace(test.container);
+		const comments = test.container.actions.comments;
+		const added = await comments.add(workspace.id, "src/a.ts", 2, null, "Shorter", {
+			suggestion: { code: "a", baseCode: "abc" },
+		});
+		if (!added.ok) throw new Error(added.error.message);
+		const read = () =>
+			test?.container.services.review.store
+				.getState()
+				.byWorkspace[workspace.id]?.find((entry) => entry.id === added.value.id);
+
+		expect(
+			await comments.edit(added.value.id, "Shorter still", {
+				suggestion: { code: "", baseCode: "abc" },
+			}),
+		).toEqual(ok(undefined));
+		expect(read()).toMatchObject({
+			body: "Shorter still",
+			suggestion: "",
+			suggestionBaseCode: "abc",
+		});
+
+		expect(await comments.edit(added.value.id, "Only the text")).toEqual(ok(undefined));
+		expect(read()).toMatchObject({
+			body: "Only the text",
+			suggestion: "",
+			suggestionBaseCode: "abc",
+		});
+
+		expect(await comments.edit(added.value.id, "No change", { suggestion: null })).toEqual(
+			ok(undefined),
+		);
+		expect(read()).toMatchObject({ suggestion: null, suggestionBaseCode: null });
+	});
+
+	it("refuses a reply to a comment that is not in the workspace", async () => {
+		test = createTestContainer();
+		const workspace = await seedWorkspace(test.container);
+		const reply = await test.container.actions.comments.add(
+			workspace.id,
+			"src/a.ts",
+			1,
+			null,
+			"Orphan",
+			{ replyToId: "gone" as CommentId },
+		);
+		expect(reply.ok).toBe(false);
+		if (!reply.ok) expect(reply.error.code).toBe("db.not_found");
+		expect(test.container.services.review.store.getState().byWorkspace[workspace.id] ?? []).toEqual(
+			[],
+		);
 	});
 
 	it("loads the workspace rows once when the store is empty", async () => {

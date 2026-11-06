@@ -36,10 +36,9 @@
  * same 3 events with sequences 0, 1, 2; acknowledge the middle one; pending() has 0 and 2.
  */
 import type { SessionEvent, SessionEventEnvelope } from "@conducted/protocol";
-import type { AppError, Clock, EventId, Result, SessionId } from "@conducted/shared";
+import type { AppError, Clock, EventId, KeyedQueue, Result, SessionId } from "@conducted/shared";
 import { appError, err, ok } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
-import type { KeyedSerialQueue } from "../session/serial-queue.ts";
 import {
 	fileNameFor,
 	OUTBOX_FILE_VERSION,
@@ -98,7 +97,7 @@ export class FileEventOutbox implements EventOutbox {
 	constructor(
 		protected readonly deps: {
 			storage: OutboxStorage;
-			queue: KeyedSerialQueue;
+			queue: KeyedQueue;
 			clock: Clock;
 			logger: Logger;
 		},

@@ -16,10 +16,11 @@
  * Test first: with a fake scheduler and a parent pid that changes from 100 to 1, the next check
  * calls onParentGone once and a second check does not call it again.
  */
+
+import { messageOf } from "@conducted/shared";
 import type { Logger } from "./logging/logger.ts";
 import { SWEEP_INTERVAL_MS } from "./process/idle-policy.ts";
 import type { ProcessManager } from "./process/process-manager.ts";
-import { messageOf } from "./util/errors.ts";
 
 export interface IntervalScheduler {
 	/** Calls `fn` every `ms`. Returns the function that stops it. */

@@ -30,10 +30,17 @@
  * every old file a miss.
  * Test first: `entriesToEvict` returns the oldest files until the rest fit under the limit.
  */
-import { type AppError, appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
+import {
+	type AppError,
+	appError,
+	createKeyedQueue,
+	err,
+	ok,
+	type Result,
+	type WorkspaceId,
+} from "@conducted/shared";
 import type { FileStat, FileSystem } from "../../platform/platform.ts";
 import { type AppPaths, appDataPath } from "../app-paths.ts";
-import { createKeyedQueue } from "../async/serial-queue.ts";
 import { trashIfPresent } from "../fs-helpers.ts";
 import type { ChangesSnapshot } from "../git/status.ts";
 import type { WorkspacePrEntry } from "./github.ts";

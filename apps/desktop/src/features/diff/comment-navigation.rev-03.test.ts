@@ -23,6 +23,7 @@ function comment(id: string, filePath: string, line: number, over: Partial<DiffC
 		threadId: null,
 		replyToId: null,
 		suggestion: null,
+		suggestionBaseCode: null,
 		remoteUrl: null,
 		resolved: false,
 		outdated: false,

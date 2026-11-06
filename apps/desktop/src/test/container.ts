@@ -11,7 +11,7 @@
  * Test first: a seeded project is visible through the repo service's store and two ids differ.
  */
 import type { SessionEvent } from "@conducted/protocol";
-import type { Clock, SessionId } from "@conducted/shared";
+import type { Clock, MessageId, SessionId } from "@conducted/shared";
 import { type Container, type ContainerInputs, createContainer } from "../core/container.ts";
 import type { NewRepo } from "../core/db/repos.ts";
 import { createRepositories } from "../core/db/repositories.ts";
@@ -39,7 +39,10 @@ const createTestPlaceNames = (): PlaceNames => ({
 	},
 });
 
-export type TestContainerOptions = Partial<Omit<ContainerInputs, "platform">>;
+export type TestContainerOptions = Partial<Omit<ContainerInputs, "platform">> & {
+	/** The in-memory file commands refuse paths outside the app's file scope, as files.rs does. */
+	enforceFileScope?: boolean;
+};
 
 export interface TestContainer {
 	container: Container;
@@ -59,6 +62,7 @@ export function createTestContainer(options: TestContainerOptions = {}): TestCon
 		database: store.database,
 		version: "0.0.0-test",
 		channel: "dev",
+		enforceFileScope: options.enforceFileScope,
 	});
 	const container = createContainer({
 		platform: memory.platform,
@@ -138,4 +142,38 @@ export async function seedWorkspace(
 	});
 	must(await container.services.workspace.start());
 	return must(created);
+}
+
+/**
+ * Stores a queued follow-up that failed to send, as the queue leaves one after a failed send. The
+ * queue service reads it when the chat's queue loads.
+ */
+export async function seedFailedQueuedMessage(
+	container: Container,
+	sessionId: SessionId,
+	text: string,
+	lastError: string,
+): Promise<MessageId> {
+	const repositories = seedRepositories(container);
+	const row = must(
+		await repositories.queuedMessages.enqueue({
+			id: crypto.randomUUID() as MessageId,
+			sessionId,
+			text,
+			attachmentPaths: [],
+			delivery: "queue",
+		}),
+	);
+	must(await repositories.queuedMessages.setState(row.id, "waiting", "failed", lastError));
+	return row.id;
+}
+
+/** Stores the context window an agent reported for a model, as the event ingest records it. */
+export async function seedContextWindow(
+	container: Container,
+	agent: string,
+	model: string,
+	windowTokens: number,
+): Promise<void> {
+	must(await seedRepositories(container).modelContextWindows.record(agent, model, windowTokens));
 }

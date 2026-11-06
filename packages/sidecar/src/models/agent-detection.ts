@@ -22,7 +22,9 @@
  * Our design choice: the Codex app-server and Cursor SDK calls arrive as ports (CodexAuthPort,
  * CursorAuthPort). This module owns the state machine; the agent's own protocol stays in its
  * runner. The app's managed copies and the executable paths in Settings arrive through
- * findManagedProgram and executablePath, because their folders are the composition root's data.
+ * findManagedProgram and executablePath, because their folders are the composition root's data;
+ * the paths are the ones the app last sent with setAgentPrograms (models/agent-programs.ts), and a
+ * chosen path wins over the managed and PATH copies, as in a chat's start.
  * Our design choice: only the newest detection run may replace the cached list, so an older answer
  * that arrives late cannot undo a newer one.
  */
@@ -31,8 +33,10 @@ import type { AcpAgent, AgentKind, IdSource } from "@conducted/shared";
 import {
 	type AppError,
 	appError,
+	asAppError,
 	type Clock,
 	err,
+	messageOf,
 	ok,
 	type Result,
 	systemClock,
@@ -41,7 +45,6 @@ import type { Logger } from "../logging/logger.ts";
 import type { ProbeCommand } from "../runners/deps.ts";
 import { type RunnerRegistry, type RunnerSelector, selectorKey } from "../runners/registry.ts";
 import type { ShellEnvProvider } from "../shell-env/capture.ts";
-import { asAppError, messageOf } from "../util/errors.ts";
 
 /** The longest a version or auth probe may take. Conductor kills Claude's probe at 5 s. */
 export const VERSION_PROBE_TIMEOUT_MS = 5_000;
@@ -122,8 +125,8 @@ export interface AgentDetectorDeps {
 	probe: ProbeCommand;
 	/** The clock behind the Claude auth cache. Defaults to the system clock. */
 	clock?: Clock;
-	/** The program path the user chose in Settings, when there is one. */
-	executablePath?(agent: AgentKind): string | undefined;
+	/** The program path the user chose in Settings, when there is one (`setAgentPrograms`). */
+	executablePath?(selector: RunnerSelector): string | undefined;
 	/** The app's own copy of an agent program (D021), when one is installed. */
 	findManagedProgram?(
 		selector: RunnerSelector,
@@ -389,18 +392,9 @@ export class DefaultAgentDetector implements AgentDetector {
 		} | null>,
 		env: Readonly<Record<string, string>>,
 	): Promise<ProgramFound | { warning: string } | null> {
-		const managed = this.deps.findManagedProgram
-			? await this.deps.findManagedProgram(selector, env)
-			: null;
-		if (managed !== null) {
-			return {
-				path: managed.path,
-				source: "managed",
-				...(managed.version === "" ? {} : { version: managed.version }),
-			};
-		}
-
-		const configured = this.deps.executablePath?.(selector.agent);
+		// The order a chat's start uses (launch-env.ts, resolveAgentProgram): the user's path, the
+		// managed copy, then the PATH copy, so the list shows the program a chat runs.
+		const configured = this.deps.executablePath?.(selector);
 		if (configured !== undefined && configured !== "") {
 			const probed = await this.probeVersion(configured, env);
 			if (probed === null) {
@@ -412,6 +406,17 @@ export class DefaultAgentDetector implements AgentDetector {
 				path: configured,
 				source: "user",
 				...(probed === "" ? {} : { version: probed }),
+			};
+		}
+
+		const managed = this.deps.findManagedProgram
+			? await this.deps.findManagedProgram(selector, env)
+			: null;
+		if (managed !== null) {
+			return {
+				path: managed.path,
+				source: "managed",
+				...(managed.version === "" ? {} : { version: managed.version }),
 			};
 		}
 

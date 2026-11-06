@@ -15,7 +15,9 @@
  * an event for a turn that already has a `turn_ended` is still stored for its audit trail but its
  * effects are not applied, and a second `turn_ended` for that turn is acknowledged without being
  * stored; a logger that throws never changes the ingest result; `turn_ended` clears the turn's
- * open interaction; a `usage` item updates the chat's context columns; a `user_message` sets
+ * open interaction; a `usage` item updates the chat's context columns and stores the window size it
+ * reports for the chat's agent and model (CHAT-14), which the listener hears after the commit; a
+ * `user_message` sets
  * `last_user_message_at`; an agent event in a chat the user is not looking at raises the unread
  * flag.
  * Our design choice: one transaction per event covers the event row and the chat columns it
@@ -27,15 +29,17 @@ import type { AgentMessage, SessionEvent, SessionEventEnvelope } from "@conducte
 import {
 	type AppError,
 	appError,
+	createKeyedQueue,
 	err,
 	ok,
+	persistThenAck,
 	type Result,
 	type SessionId,
 	type TurnId,
 } from "@conducted/shared";
-import { createKeyedQueue, persistThenAck } from "../async/serial-queue.ts";
 import type { Repositories } from "../db/repositories.ts";
 import type { Session } from "../model.ts";
+import { contextWindowAgent, reportedContextWindow } from "../services/context-windows.ts";
 import type { SidecarClient } from "./tunnel.ts";
 
 export interface IngestOutcome {
@@ -50,6 +54,15 @@ export interface IngestListener {
 	onStored(sessionId: SessionId, envelope: SessionEventEnvelope, idx: number): void;
 	/** Whether the user is looking at this chat in a focused window (decides the unread flag). */
 	isViewing(sessionId: SessionId): boolean;
+	/** A model's context window size was stored, after the commit. Must not throw. */
+	onContextWindow(agent: string, model: string, windowTokens: number): void;
+}
+
+/** A context window size an event reported and the ingest stored for its agent and model. */
+interface StoredContextWindow {
+	agent: string;
+	model: string;
+	windowTokens: number;
 }
 
 export interface EventIngestDeps {
@@ -81,16 +94,21 @@ function lastUsage(
 	return usage;
 }
 
-/** Applies the stored columns an event changes. Reads happen before the caller commits. */
+/**
+ * Applies the stored columns an event changes. Reads happen before the caller commits. Answers the
+ * context window size it stored for the chat's model, if the event reported one (CHAT-14).
+ */
 async function applyEffects(
 	repos: Repositories,
 	session: Session,
 	event: SessionEvent,
 	viewing: boolean,
-): Promise<Result<void>> {
+): Promise<Result<StoredContextWindow | null>> {
 	switch (event.type) {
-		case "user_message":
-			return repos.sessions.recordUserMessage(session.id, event.at);
+		case "user_message": {
+			const recorded = await repos.sessions.recordUserMessage(session.id, event.at);
+			return recorded.ok ? ok(null) : recorded;
+		}
 		case "agent": {
 			const usage = lastUsage(event.message.items);
 			if (
@@ -103,12 +121,24 @@ async function applyEffects(
 				});
 				if (!written.ok) return written;
 			}
-			if (!viewing && session.unreadCount === 0) return repos.sessions.incrementUnread(session.id);
-			return ok(undefined);
+			const windowTokens = reportedContextWindow(event.message.items);
+			let stored: StoredContextWindow | null = null;
+			if (windowTokens !== null) {
+				const agent = contextWindowAgent(session.config);
+				const model = session.config.model;
+				const recorded = await repos.modelContextWindows.record(agent, model, windowTokens);
+				if (!recorded.ok) return recorded;
+				stored = { agent, model, windowTokens };
+			}
+			if (!viewing && session.unreadCount === 0) {
+				const raised = await repos.sessions.incrementUnread(session.id);
+				if (!raised.ok) return raised;
+			}
+			return ok(stored);
 		}
 		case "checkpoint":
 		case "turn_ended":
-			return ok(undefined);
+			return ok(null);
 	}
 }
 
@@ -161,6 +191,7 @@ export class EventIngest {
 	async #store(envelope: SessionEventEnvelope): Promise<Result<IngestOutcome>> {
 		const { sessionId } = envelope;
 		try {
+			let contextWindow: StoredContextWindow | null = null;
 			const outcome = await this.#deps.runInTransaction(async (repos): Promise<IngestOutcome> => {
 				const session = await repos.sessions.get(sessionId);
 				if (!session.ok) throw new IngestFailure(session.error);
@@ -191,6 +222,7 @@ export class EventIngest {
 						this.#deps.listener.isViewing(sessionId),
 					);
 					if (!effects.ok) throw new IngestFailure(effects.error);
+					contextWindow = effects.value;
 				}
 				return { stored: true, idx: appended.value.idx };
 			});
@@ -198,6 +230,7 @@ export class EventIngest {
 			if (outcome.stored && outcome.idx !== null) {
 				this.#show(sessionId, envelope, outcome.idx);
 			}
+			if (contextWindow !== null) this.#rememberWindow(contextWindow);
 			return ok(outcome);
 		} catch (cause) {
 			const error =
@@ -226,6 +259,14 @@ export class EventIngest {
 			this.#deps.log(level, message, data);
 		} catch {
 			// The logger is unavailable. There is nowhere left to report that.
+		}
+	}
+
+	#rememberWindow(stored: StoredContextWindow): void {
+		try {
+			this.#deps.listener.onContextWindow(stored.agent, stored.model, stored.windowTokens);
+		} catch (cause) {
+			this.#log("error", "Showing a model's context window failed", cause);
 		}
 	}
 

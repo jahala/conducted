@@ -53,6 +53,7 @@ const session: Session = {
 	title: null,
 	config: sampleConfig,
 	agentSessionId: null,
+	forkResumeNativeMessageId: null,
 	unreadCount: 0,
 	contextUsedTokens: null,
 	contextWindowTokens: null,
@@ -118,6 +119,12 @@ function makeHarness(options: HarnessOptions = {}) {
 		},
 		async trash() {
 			return ok(undefined);
+		},
+		async registerRoot() {
+			return ok(undefined);
+		},
+		assetUrl(path: string) {
+			return `asset://localhost/${encodeURIComponent(path)}`;
 		},
 		paths: { home: "/Users/test", appData: "/app", temp: "/tmp", resources: "/res" },
 	} satisfies FileSystem;

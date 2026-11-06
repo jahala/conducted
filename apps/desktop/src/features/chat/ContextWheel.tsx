@@ -10,6 +10,8 @@
  * Our design choice: the ring is neutral until 85 percent, warning until 95, then danger. The card
  * also opens on keyboard focus.
  * Moved: plan usage (Claude's 5-hour and weekly windows) is drawn by UsageAccountRows (CHAT-28).
+ * A chat whose agent has not reported its window yet uses the size the same agent last reported
+ * for the same model in any chat (ContextWindowService); no sizes ship with the app.
  * Must handle: window size unknown (the note and an empty ring, no invented percentage); Cursor
  * (its note); usage above the window (clamped at 100 percent); the setting off and usage at or
  * below 70 percent (nothing rendered); no usage event yet (the chat's stored context tokens); a
@@ -23,6 +25,7 @@ import { useStore } from "zustand";
 import { useServices } from "../../core/context.tsx";
 import { useSetting } from "../../core/hooks.ts";
 import type { Session } from "../../core/model.ts";
+import { contextWindowKey } from "../../core/services/context-windows.ts";
 import { Button } from "../../ui/Button.tsx";
 import { Popover } from "../../ui/Popover.tsx";
 
@@ -125,6 +128,10 @@ export function ContextWheel({ sessionId }: ContextWheelProps) {
 		(state) => state.sessions[sessionId],
 	);
 	const events = useStore(services.sessions.store, (state) => state.events[sessionId]);
+	// The size this agent last reported for the chat's model in any chat (CHAT-14).
+	const knownWindow = useStore(services.contextWindows.store, (state) =>
+		session === undefined ? undefined : state.byModel[contextWindowKey(session.config)],
+	);
 	const alwaysShow = useSetting<boolean>("always_show_context_wheel");
 	const showCost = useSetting<boolean>("experimental_show_agent_cost");
 
@@ -132,7 +139,8 @@ export function ContextWheel({ sessionId }: ContextWheelProps) {
 
 	const usage = latestUsage(events);
 	const usedTokens = usage?.contextUsedTokens ?? session.contextUsedTokens;
-	const windowTokens = usage?.contextWindowTokens ?? session.contextWindowTokens;
+	const windowTokens =
+		usage?.contextWindowTokens ?? session.contextWindowTokens ?? knownWindow ?? null;
 	const share = shareOf(usedTokens, windowTokens);
 	const percent = percentOf(share);
 	const isCursor = session.config.agent === "cursor";

@@ -1,11 +1,19 @@
 /**
  * @feature DATA-01 Query hook contract for screens
+ * @feature CHAT-15 Revert to a turn: the count of files a reset puts back
  * Owns: the chat hooks and the session-store helpers they share.
  * Behaviour: services-map.md 1.3; core/hooks.ts states the contract.
  * Must handle: a chat that no longer exists, a session whose events have not arrived.
  * Test first: the test for a hook body lives with the feature that implements it.
  */
-import { type AppError, appError, notImplemented, type SessionId } from "@conducted/shared";
+import {
+	type AppError,
+	appError,
+	notImplemented,
+	type SessionId,
+	type TurnId,
+} from "@conducted/shared";
+import { useQuery } from "@tanstack/react-query";
 import { useMemo, useSyncExternalStore } from "react";
 import { useStore } from "zustand";
 import type { Loadable, Queries } from "../api.ts";
@@ -85,3 +93,26 @@ export const useChat: Queries["useChat"] = (sessionId) => {
 export const useClosedSessions: Queries["useClosedSessions"] = (workspaceId) =>
 	useSessionList(workspaceId, true);
 export const usePlans: Queries["usePlans"] = () => notImplemented("CHAT-26");
+
+const changedSinceTurnKey = (sessionId: SessionId, turnId: TurnId) =>
+	["checkpoint", sessionId, turnId, "changed-since"] as const;
+
+/**
+ * Reads the count with the checkpointer's diff each time a screen asks for it. It does not poll:
+ * the reset dialog asks once when it opens.
+ */
+export const useChangedSinceTurn: Queries["useChangedSinceTurn"] = (sessionId, turnId) => {
+	const checkpoint = useServices().services.checkpoint;
+	const query = useQuery<number, AppError>({
+		queryKey: changedSinceTurnKey(sessionId, turnId),
+		queryFn: async () => {
+			const result = await checkpoint.changedSinceTurn(sessionId, turnId);
+			if (!result.ok) throw result.error;
+			return result.value;
+		},
+		staleTime: 0,
+	});
+	if (query.isError && query.error !== null) return { state: "error", error: query.error };
+	if (query.data === undefined) return { state: "loading" };
+	return { state: "ready", data: query.data };
+};

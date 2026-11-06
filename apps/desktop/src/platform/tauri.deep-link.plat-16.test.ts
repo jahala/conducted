@@ -8,12 +8,20 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
-import { createTauriAppInfo, EVENTS, type TauriBindings } from "./tauri.ts";
+import { COMMANDS, createTauriAppInfo, EVENTS, type TauriBindings } from "./tauri.ts";
 
-function listenableApp(launchUrls: string[] | null = null) {
+interface Launch {
+	urls: string[];
+	rejected: { code: string; message: string }[];
+}
+
+function listenableApp(launch: Launch = { urls: [], rejected: [] }) {
 	const listeners = new Map<string, (payload: unknown) => void>();
 	const bindings: TauriBindings = {
-		invoke: async <T>(): Promise<T> => launchUrls as T,
+		invoke: async <T>(command: string): Promise<T> => {
+			if (command !== COMMANDS.deepLinkLaunch) throw new Error(`unexpected ${command}`);
+			return launch as T;
+		},
 		listen: async <T>(event: string, handler: (payload: T) => void) => {
 			listeners.set(event, handler as (payload: unknown) => void);
 			return () => {
@@ -41,7 +49,7 @@ describe("PLAT-16 Tauri deep-link event", () => {
 	});
 
 	it("PLAT-16 delivers the URL that launched the app when it subscribes", async () => {
-		const { app } = listenableApp(["conducted://workspace?id=launch"]);
+		const { app } = listenableApp({ urls: ["conducted://workspace?id=launch"], rejected: [] });
 		const received: string[] = [];
 
 		const unsubscribe = app.onDeepLink((url) => received.push(url));
@@ -62,5 +70,41 @@ describe("PLAT-16 Tauri deep-link event", () => {
 		listener?.("conducted://workspace?id=late");
 
 		expect(received).toEqual([]);
+	});
+});
+
+describe("PLAT-16 refused deep links", () => {
+	const tooLong = {
+		code: "deep_link_too_long",
+		message: "A deep link longer than 65536 bytes was dropped.",
+	};
+
+	it("PLAT-16 hands a refusal from the shell event to the listener as an AppError", async () => {
+		const { app, listeners } = listenableApp();
+		const received: string[] = [];
+
+		const unsubscribe = app.onDeepLinkRejected((rejection) =>
+			received.push(`${rejection.code}: ${rejection.message}`),
+		);
+		await vi.waitFor(() => expect(listeners.has(EVENTS.deepLinkRejected)).toBe(true));
+		listeners.get(EVENTS.deepLinkRejected)?.(tooLong);
+
+		expect(received).toEqual([`${tooLong.code}: ${tooLong.message}`]);
+		unsubscribe();
+		expect(listeners.has(EVENTS.deepLinkRejected)).toBe(false);
+	});
+
+	it("PLAT-16 hands a refused launch link to the listener, and not to onDeepLink", async () => {
+		const { app } = listenableApp({ urls: [], rejected: [tooLong] });
+		const refused: string[] = [];
+		const opened: string[] = [];
+
+		const stopRefused = app.onDeepLinkRejected((rejection) => refused.push(rejection.code));
+		const stopOpened = app.onDeepLink((url) => opened.push(url));
+
+		await vi.waitFor(() => expect(refused).toEqual(["deep_link_too_long"]));
+		expect(opened).toEqual([]);
+		stopRefused();
+		stopOpened();
 	});
 });

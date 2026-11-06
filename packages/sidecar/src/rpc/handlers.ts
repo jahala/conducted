@@ -7,22 +7,24 @@
  * Behaviour: research/conductor/sessions.md section 10 (Conductor registers every method in one
  * setup function on each connection).
  * eventPersisted acknowledges the event in the write-ahead log (outbox/); setLogLevel changes the
- * root logger; compact asks the session manager to start a Codex `/compact` turn (AGENT-14).
+ * root logger; setAgentPrograms replaces the program paths chosen in Settings and detects the agents
+ * again when they changed (SIDE-21); compact asks the session manager to start a Codex `/compact` turn (AGENT-14).
  * Must handle: every key of appToSidecarRequests and appToSidecarNotifications has a handler (the
  * type enforces it), a module's Result error is passed through so the peer can answer with its
  * JSON-RPC code, and a session request goes straight to the session manager, which decides whether
  * the chat is known.
  * Test first: the keys of the returned tables equal the keys of the protocol tables.
  */
+import { agentProviders } from "@conducted/protocol";
 import { err, ok } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
 import type { AgentDetector } from "../models/agent-detection.ts";
+import type { AgentProgramChoices } from "../models/agent-programs.ts";
 import type { ModelCatalog } from "../models/catalog.ts";
 import type { CompletionsCache } from "../models/completions-cache.ts";
 import type { McpServerLister, SlashCommandLister } from "../models/slash-and-mcp.ts";
 import type { UsageReader } from "../models/usage.ts";
 import type { EventOutbox } from "../outbox/event-outbox.ts";
-import { agentProviders } from "../runners/launch-env.ts";
 import type { SessionManager } from "../session/manager.ts";
 import type { UtilityPromptRunner } from "../session/utility-prompt.ts";
 import type { ShellEnvProvider } from "../shell-env/capture.ts";
@@ -33,6 +35,8 @@ export interface HandlerDeps {
 	outbox: EventOutbox;
 	models: ModelCatalog;
 	agents: AgentDetector;
+	/** The program paths chosen in Settings, which `setAgentPrograms` replaces (SIDE-21). */
+	agentPrograms: AgentProgramChoices;
 	slashCommands: SlashCommandLister;
 	/** Saved slash-command lists for a repository, used before a workspace exists (SIDE-22). */
 	completions: CompletionsCache;
@@ -80,6 +84,7 @@ export function buildHandlers(deps: HandlerDeps): {
 					params.agent,
 					params.acpAgent,
 					params.workspacePath,
+					params.launch,
 				);
 				if (!listed.ok) {
 					deps.logger.warn("Could not refresh the slash command cache; keeping the last list", {
@@ -109,12 +114,13 @@ export function buildHandlers(deps: HandlerDeps): {
 					params.agent,
 					params.acpAgent,
 					params.workspacePath,
+					params.launch,
 				);
 				if (!listed.ok) return listed;
 				return ok({ servers: listed.value });
 			},
 			listModels: async (params) => {
-				const listed = await deps.models.list(params.agent, params.acpAgent);
+				const listed = await deps.models.list(params.agent, params.acpAgent, params.launch);
 				if (!listed.ok) return listed;
 				return ok({ models: listed.value });
 			},
@@ -146,6 +152,10 @@ export function buildHandlers(deps: HandlerDeps): {
 				if (!acknowledged.ok) throw acknowledged.error;
 			},
 			setLogLevel: (params) => deps.setLogLevel(params.level),
+			// New paths are probed at once, and a changed list reaches the app as agentInstallsChanged.
+			setAgentPrograms: async (params) => {
+				if (deps.agentPrograms.replace(params.programs)) await deps.agents.detectAll();
+			},
 		},
 	};
 }

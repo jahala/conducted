@@ -27,7 +27,15 @@ import {
 	sidecarToAppNotifications,
 	sidecarToAppRequests,
 } from "@conducted/protocol";
-import { type AppError, appError, NotImplemented, ok, type Result } from "@conducted/shared";
+import {
+	type AppError,
+	appError,
+	isAppError,
+	messageOf,
+	NotImplemented,
+	ok,
+	type Result,
+} from "@conducted/shared";
 import {
 	createJSONRPCErrorResponse,
 	JSONRPCClient,
@@ -36,7 +44,6 @@ import {
 	JSONRPCServerAndClient,
 } from "json-rpc-2.0";
 import type { Logger } from "../logging/logger.ts";
-import { isAppError, messageOf } from "../util/errors.ts";
 import { encodeLine, LineDecoder } from "./ndjson.ts";
 import type {
 	AppToSidecarHandlers,

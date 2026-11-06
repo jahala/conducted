@@ -21,6 +21,7 @@
  */
 
 import type { WorkspaceId } from "@conducted/shared";
+import { messageOf } from "@conducted/shared";
 import { useState } from "react";
 import { useStore } from "zustand";
 import { useServices } from "../../../core/context.tsx";
@@ -215,7 +216,7 @@ function LiveArtifactsTab({ workspaceId }: { workspaceId: WorkspaceId }) {
 				});
 			} catch (error) {
 				toastError("Couldn't open the file picker", {
-					message: error instanceof Error ? error.message : String(error),
+					message: messageOf(error),
 				});
 				return;
 			}

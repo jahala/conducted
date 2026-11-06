@@ -39,6 +39,7 @@ export interface SessionRow {
 	last_user_message_at: number | null;
 	created_at: number;
 	updated_at: number;
+	fork_resume_native_message_id: string | null;
 }
 
 export function sessionFromRow(row: SessionRow): Result<Session> {
@@ -60,6 +61,7 @@ export function sessionFromRow(row: SessionRow): Result<Session> {
 			lastUserMessageAt: row.last_user_message_at,
 			createdAt: row.created_at,
 			updatedAt: row.updated_at,
+			forkResumeNativeMessageId: row.fork_resume_native_message_id,
 		},
 	};
 }
@@ -84,13 +86,14 @@ export function sessionToParams(session: Session): Result<readonly unknown[]> {
 			session.lastUserMessageAt,
 			session.createdAt,
 			session.updatedAt,
+			session.forkResumeNativeMessageId,
 		],
 	};
 }
 
 const COLUMNS = `id, workspace_id, title, config, agent_session_id, unread_count,
 	context_used_tokens, context_window_tokens, queue_paused_at, closed_at, last_user_message_at,
-	created_at, updated_at`;
+	created_at, updated_at, fork_resume_native_message_id`;
 
 /** Every statement the repository runs. Parameters are `$1..$n` in order of first appearance. */
 export const SESSIONS_SQL = {
@@ -100,16 +103,23 @@ export const SESSIONS_SQL = {
 		AND closed_at IS NULL ORDER BY created_at, id`,
 	get: `SELECT ${COLUMNS} FROM sessions WHERE id = $1`,
 	insert: `INSERT INTO sessions (${COLUMNS})
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
 	setTitle: "UPDATE sessions SET title = $1, updated_at = $2 WHERE id = $3",
 	setTitleIfEmpty:
 		"UPDATE sessions SET title = $1, updated_at = $2 WHERE id = $3 AND title IS NULL",
 	setConfig: "UPDATE sessions SET config = $1, updated_at = $2 WHERE id = $3",
 	setAgentSessionId: "UPDATE sessions SET agent_session_id = $1, updated_at = $2 WHERE id = $3",
+	setForkResume: `UPDATE sessions SET fork_resume_native_message_id = $1, updated_at = $2
+		WHERE id = $3`,
 	setContextUsage: `UPDATE sessions SET context_used_tokens = $1, context_window_tokens = $2
 		WHERE id = $3`,
+	/**
+	 * A user message reached the agent. A fork's resume point is used up by its first one, so it is
+	 * cleared in the same statement (CHAT-16).
+	 */
 	recordUserMessage: `UPDATE sessions SET last_user_message_at =
-		MAX(COALESCE(last_user_message_at, 0), $1), updated_at = MAX(updated_at, $1) WHERE id = $2`,
+		MAX(COALESCE(last_user_message_at, 0), $1), updated_at = MAX(updated_at, $1),
+		fork_resume_native_message_id = NULL WHERE id = $2`,
 	incrementUnread: "UPDATE sessions SET unread_count = unread_count + 1 WHERE id = $1",
 	clearUnread: "UPDATE sessions SET unread_count = 0 WHERE id = $1 AND unread_count > 0",
 	clearWorkspaceUnread: `UPDATE sessions SET unread_count = 0
@@ -144,6 +154,8 @@ export interface SessionRepository {
 	setConfig(id: SessionId, config: Session["config"]): Promise<Result<void>>;
 	/** SESSIONS_SQL.setAgentSessionId, kept so the next turn can resume. */
 	setAgentSessionId(id: SessionId, agentSessionId: string | null): Promise<Result<void>>;
+	/** SESSIONS_SQL.setForkResume: where a forked chat's first send resumes its agent. */
+	setForkResume(id: SessionId, nativeMessageId: string | null): Promise<Result<void>>;
 	/** SESSIONS_SQL.setContextUsage. Does not touch updated_at. */
 	setContextUsage(
 		id: SessionId,
@@ -198,6 +210,7 @@ export function createSessionRepository(db: Database, deps: RepositoryDeps): Ses
 					title: input.title,
 					config: input.config,
 					agentSessionId: null,
+					forkResumeNativeMessageId: null,
 					unreadCount: 0,
 					contextUsedTokens: null,
 					contextWindowTokens: null,
@@ -244,6 +257,13 @@ export function createSessionRepository(db: Database, deps: RepositoryDeps): Ses
 				SESSIONS_SQL.setAgentSessionId,
 				[agentSessionId, now(), id],
 				"Saving an agent session id",
+			),
+		setForkResume: (id, nativeMessageId) =>
+			executeExisting(
+				db,
+				SESSIONS_SQL.setForkResume,
+				[nativeMessageId, now(), id],
+				"Saving where a forked chat resumes",
 			),
 		setContextUsage: (id, usage) =>
 			executeVoid(

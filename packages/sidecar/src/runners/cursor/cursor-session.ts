@@ -34,8 +34,8 @@
  */
 import type { AgentMessage, SessionConfig } from "@conducted/protocol";
 import type { SessionId } from "@conducted/shared";
+import { messageOf } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
-import { messageOf } from "../../util/errors.ts";
 import { NoActiveTurnError, SteerNotSupportedError, SteerRevertedError } from "../errors.ts";
 import type {
 	AgentSession,
