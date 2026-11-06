@@ -6,6 +6,7 @@
  * Test first: typing '@app' offers the repository's file and choosing it inserts its path; typing
  * '/ski' offers the saved skill and choosing it inserts its name.
  */
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
 	createMemoryHistory,
 	createRootRoute,
@@ -21,7 +22,13 @@ import { preWorkspaceSlashKey } from "../core/services/agent-catalog.ts";
 import { createTestContainer, seedRepo } from "../test/container.ts";
 import { CreateWorkspacePage, fileMentionAt, slashMentionAt } from "./CreateWorkspacePage.tsx";
 
-afterEach(cleanup);
+let client: QueryClient | null = null;
+
+afterEach(() => {
+	cleanup();
+	client?.clear();
+	client = null;
+});
 
 async function renderPage() {
 	const test = createTestContainer();
@@ -38,10 +45,15 @@ async function renderPage() {
 		routeTree: rootRoute.addChildren([createPageRoute]),
 		history: createMemoryHistory({ initialEntries: ["/create"] }),
 	});
+	// The '@' list reads the repository through a query, so the page needs the query client that
+	// main.tsx provides above the services.
+	client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 	render(
-		<ServicesProvider container={test.container}>
-			<RouterProvider router={router} />
-		</ServicesProvider>,
+		<QueryClientProvider client={client}>
+			<ServicesProvider container={test.container}>
+				<RouterProvider router={router} />
+			</ServicesProvider>
+		</QueryClientProvider>,
 	);
 	await router.load();
 	return { test, repo, router };
