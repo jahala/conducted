@@ -156,6 +156,39 @@ describe("PR-08 GitHub stack read", () => {
 	});
 });
 
+describe("PR-08 GitHub stack merge", () => {
+	it("merges the stack with the repository's first allowed method", async () => {
+		const git = new FakeGitRunner((command) => {
+			if (command.program === "git" && command.args.includes("--git-common-dir")) {
+				return gitOutput("/wt/.git\n");
+			}
+			if (command.program === "gh" && command.args.includes("graphql")) {
+				return gitOutput("[true,false,false]\n");
+			}
+			return gitOutput();
+		});
+		const service = makeService(git);
+
+		expect(await service.mergeStack(workspaceId)).toEqual(ok(undefined));
+		const merge = git.commands.find(
+			(command) =>
+				command.program === "gh" && command.args[0] === "stack" && command.args[1] === "merge",
+		);
+		expect(merge?.args).toEqual(["stack", "merge", "12", "--yes", "--squash"]);
+	});
+
+	it("refuses a stack merge while stacked pull requests are turned off", async () => {
+		const git = new FakeGitRunner(() => gitOutput());
+		const service = makeService(git, { setting: settingOff });
+
+		const merged = await service.mergeStack(workspaceId);
+		expect(merged.ok).toBe(false);
+		if (merged.ok) return;
+		expect(merged.error.code).toBe("github_stacks_disabled");
+		expect(git.commands).toHaveLength(0);
+	});
+});
+
 describe("PR-08 GitHub stack sync", () => {
 	it("says how to install the extension when gh does not know the stack command", async () => {
 		const git = new FakeGitRunner(() => gitOutput("", 'unknown command "stack" for "gh"', 1));
@@ -175,6 +208,13 @@ describe("PR-08 GitHub stack sync", () => {
 		expect(sync.ok).toBe(false);
 		if (sync.ok) return;
 		expect(sync.error.code).toBe("github_stack_sync_aborted");
+	});
+
+	it("succeeds when gh syncs the stack without a cross mark", async () => {
+		const git = new FakeGitRunner(() => gitOutput("✓ synced\n"));
+		const service = makeService(git);
+
+		expect(await service.syncStack(workspaceId)).toEqual(ok(undefined));
 	});
 
 	it("refuses when stacked pull requests are turned off", async () => {

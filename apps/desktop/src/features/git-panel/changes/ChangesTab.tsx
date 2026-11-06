@@ -5,8 +5,9 @@
  * Behaviour: ui-map.md 3.6, "Changes" paragraph; services-map.md 3.3 (what the list is made of)
  * and 3.4.1 (the diff scopes).
  * Data: useChangedFiles(workspaceId, scope), useGitState (conflicts, rebase underway),
+ * useStack (the stacked pull requests), useSetting("github_stacked_prs_enabled"),
  * useActions().git.discardFile.
- * Children: ChangesToolbar, ScopeBackBar, ChangedFileList, ChangesEmpty, StackView.
+ * Children: ChangesToolbar, StackView, ScopeBackBar, ChangedFileList, ChangesEmpty.
  * Keyboard: ArrowUp and ArrowDown move the selected file (in ChangedFileList). The command
  * "Open the diff view" (Cmd+Shift+D, or the user's rebind) opens the selected file's diff through
  * the command dispatcher. Moving between comments (Cmd+Alt+J and K) belongs to REV-03.
@@ -25,7 +26,16 @@ import type { WorkspaceId } from "@conducted/shared";
 import { useState } from "react";
 import { useCommandHandler } from "../../../app/command-dispatcher.ts";
 import type { DiffScope } from "../../../core/api.ts";
-import { useActions, useBranchCommits, useChangedFiles, useGitState } from "../../../core/hooks.ts";
+import {
+	useActions,
+	useBranchCommits,
+	useChangedFiles,
+	useGitState,
+	useSetting,
+	useStack,
+	useWorkspace,
+	useWorkspaceStatus,
+} from "../../../core/hooks.ts";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
 import { ChangedFileList } from "./ChangedFileList.tsx";
@@ -33,6 +43,7 @@ import { ChangesEmpty } from "./ChangesEmpty.tsx";
 import { ChangesToolbar } from "./ChangesToolbar.tsx";
 import { buildChangedTree, filterChangedFiles } from "./changed-file-tree.ts";
 import { ScopeBackBar } from "./ScopeBackBar.tsx";
+import { StackView } from "./StackView.tsx";
 
 export interface ChangesTabProps {
 	workspaceId: WorkspaceId;
@@ -68,6 +79,10 @@ export function ChangesTab({ workspaceId, scope, onScopeChange, onOpenFile }: Ch
 	const files = useChangedFiles(workspaceId, scope);
 	const git = useGitState(workspaceId);
 	const commits = useBranchCommits(workspaceId);
+	const stack = useStack(workspaceId);
+	const stacksEnabled = useSetting<boolean>("github_stacked_prs_enabled");
+	const workspace = useWorkspace(workspaceId);
+	const status = useWorkspaceStatus(workspaceId);
 	const actions = useActions();
 
 	const [filter, setFilter] = useState("");
@@ -83,6 +98,10 @@ export function ChangesTab({ workspaceId, scope, onScopeChange, onOpenFile }: Ch
 			? selectedPath
 			: null;
 	const commitList = commits.state === "ready" ? commits.data : [];
+	const trunk =
+		workspace.state === "ready" ? workspace.data.targetBranch.replace(/^[^/]+\//, "") : "main";
+	const stackEntries = stack.state === "ready" ? stack.data : [];
+	const agentRunning = status?.kind === "agent" && status.label === "working";
 
 	// Cmd+Shift+D (or the user's rebind) opens the selected file's diff. With no file selected the
 	// command passes on to the next handler.
@@ -98,6 +117,18 @@ export function ChangesTab({ workspaceId, scope, onScopeChange, onOpenFile }: Ch
 			if (next.has(folderPath)) next.delete(folderPath);
 			else next.add(folderPath);
 			return next;
+		});
+	};
+
+	const checkoutStackBranch = (branch: string) => {
+		void actions.git.switchBranch(workspaceId, branch).then((result) => {
+			if (!result.ok) toastError("Couldn't switch branch", result.error);
+		});
+	};
+
+	const markStackReady = () => {
+		void actions.pullRequests.markReady(workspaceId).then((result) => {
+			if (!result.ok) toastError("Couldn't mark the pull request ready", result.error);
 		});
 	};
 
@@ -161,6 +192,15 @@ export function ChangesTab({ workspaceId, scope, onScopeChange, onOpenFile }: Ch
 				scope={scope}
 				onScopeChange={onScopeChange}
 			/>
+			{stacksEnabled && stackEntries.length > 0 ? (
+				<StackView
+					trunk={trunk}
+					entries={stackEntries}
+					onCheckout={checkoutStackBranch}
+					onMarkReady={markStackReady}
+					agentRunning={agentRunning}
+				/>
+			) : null}
 			{narrowed ? (
 				<ScopeBackBar
 					label={scopeTitle(scope, commitList)}

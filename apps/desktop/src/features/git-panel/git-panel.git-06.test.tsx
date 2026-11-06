@@ -7,6 +7,7 @@
  * Test first: Cmd+Shift+L maps to `git.pullLatest` and calls the panel's handler.
  */
 import { ok, type WorkspaceId } from "@conducted/shared";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -15,6 +16,7 @@ import {
 	keyBindings,
 	runCommandHandlers,
 } from "../../app/command-dispatcher.ts";
+import { createQueryClient } from "../../app/providers.tsx";
 import { createShellContainer } from "../../app/shell-test-support.ts";
 import type { Loadable } from "../../core/api.ts";
 import { ServicesProvider } from "../../core/context.tsx";
@@ -33,6 +35,7 @@ const state = vi.hoisted(() => ({
 vi.mock("../../ui/Toast.tsx", () => ({
 	toast: { success: state.toast },
 	toastError: state.toastError,
+	Toaster: () => null,
 }));
 
 // GIT-04 owns the git state hook and the header model, so this test supplies both and runs
@@ -90,7 +93,9 @@ afterEach(() => {
 const renderPanel = () =>
 	render(
 		<ServicesProvider container={container}>
-			<GitPanel workspaceId={workspaceId} />
+			<QueryClientProvider client={createQueryClient(() => {})}>
+				<GitPanel workspaceId={workspaceId} />
+			</QueryClientProvider>
 		</ServicesProvider>,
 	);
 

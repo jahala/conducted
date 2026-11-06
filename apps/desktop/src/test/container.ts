@@ -11,7 +11,7 @@
  * Test first: a seeded project is visible through the repo service's store and two ids differ.
  */
 import type { SessionEvent } from "@conducted/protocol";
-import type { Clock, MessageId, SessionId } from "@conducted/shared";
+import type { Clock, MessageId, SessionId, WorkspaceId } from "@conducted/shared";
 import { type Container, type ContainerInputs, createContainer } from "../core/container.ts";
 import type { NewRepo } from "../core/db/repos.ts";
 import { createRepositories } from "../core/db/repositories.ts";
@@ -142,6 +142,15 @@ export async function seedWorkspace(
 	});
 	must(await container.services.workspace.start());
 	return must(created);
+}
+
+/** Stores the pull request a workspace is linked to. */
+export async function seedPullRequest(
+	container: Container,
+	workspaceId: WorkspaceId,
+	pr: { number: number; title: string; description: string | null },
+): Promise<void> {
+	must(await seedRepositories(container).workspaces.setPullRequest(workspaceId, pr));
 }
 
 /**

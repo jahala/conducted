@@ -30,6 +30,9 @@ vi.mock("../../../core/hooks.ts", () => ({
 	useGitState: () => state.git,
 	useBranchCommits: () => state.commits,
 	useWorkspace: () => state.workspace,
+	useWorkspaceStatus: () => null,
+	useSetting: () => false,
+	useStack: () => ({ state: "ready", data: [] }),
 	useBranches: () => {
 		if (state.branchesThrow !== null) throw state.branchesThrow;
 		return state.branches;

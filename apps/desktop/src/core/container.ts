@@ -71,6 +71,7 @@ import { FollowUpQueue } from "./services/follow-up-queue.ts";
 import { GitService } from "./services/git.ts";
 import { connectGitCache, createGitCache, type GitCache } from "./services/git-cache.ts";
 import { GithubService } from "./services/github.ts";
+import { GraphiteService } from "./services/graphite.ts";
 import {
 	KEEP_AWAKE_SCAN_MS,
 	KEEP_AWAKE_SETTING_KEY,
@@ -139,6 +140,7 @@ export interface Services {
 	mcp: McpService;
 	linear: LinearService;
 	git: GitService;
+	graphite: GraphiteService;
 	gitCache: GitCache;
 	github: GithubService;
 	localGitForge: LocalGitForge;
@@ -739,8 +741,14 @@ export function createContainer(inputs: ContainerInputs): Container {
 		},
 		now: () => clock.now(),
 	});
+	const graphite = new GraphiteService({
+		git: gitRunner,
+		setting,
+		now: () => clock.now(),
+	});
 	const git = new GitService({
 		git: gitRunner,
+		graphite,
 		contextOf: (id) => ready(lookups.gitContext(id)),
 		agent: sessions,
 		promptFor: async (id) => {
@@ -786,6 +794,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		},
 		probeCwd: platform.fs.paths.home,
 		fs: platform.fs,
+		graphite,
 	});
 	const gitCacheConnection = connectGitCache({
 		cache: gitCache,
@@ -906,6 +915,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		mcp,
 		linear,
 		git,
+		graphite,
 		gitCache,
 		github,
 		localGitForge,
@@ -1223,6 +1233,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		await step("agent programs", () => system.dispose());
 		await step("the repo service", () => repo.dispose());
 		await step("git polling", () => git.dispose());
+		await step("Graphite polling", () => graphite.dispose());
 		await step("GitHub polling", () => github.dispose());
 		await step("the git cache", () => gitCacheConnection.stop());
 		await step("composer drafts", () => composer.flush());

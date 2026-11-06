@@ -3,6 +3,8 @@
  * @feature PRJ-03 The repository-name check and repository creation Quick start uses
  * @feature PR-06 the pull request write actions: merge, auto-merge, ready, edit, reviewers, approve
  * @feature REV-04 the review-comment queries and the resolve-thread mutation
+ * @feature PR-08 the stack commands: sync, merge, members and the optional stackEntry query; the
+ * read-only Graphite probe, state and checkout
  * Owns: one pure function per `gh` call (and the read-only `gt` Graphite calls), each returning a
  * `GitCommand` value. The runner executes it, in the workspace folder, so `gh` finds the repo.
  * Also owns the clone picker calls and `gh repo clone` for cloning from GitHub (PRJ-02), the

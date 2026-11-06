@@ -9,8 +9,8 @@
  * @feature GIT-08 moving an open pull request's base when the target branch changes
  * @feature PR-04 the Checks tab's calls: one job's log (an expired log has its own error) and
  * re-running the failed workflow runs, one `gh run rerun --failed` per run
- * @feature PR-08 GitHub stacks: reading a pull request's stack and running the stack sync; the
- * stack merge is not built yet
+ * @feature PR-08 GitHub stacks: reading a pull request's stack, running the stack sync and
+ * merging the stack
  * @feature REV-04 GitHub review comment sync: reading review threads and general comments, and
  * resolving a review thread
  * Owns: probing `gh` access (`gh auth status`, the user's login, the git protocol), the access
@@ -54,8 +54,9 @@
  * workspace and leaves its last entry alone; a failed budget probe pauses polling and is reported
  * on the workspace; only the newest poll writes a workspace's entry; `dispose` stops every timer;
  * a stack read with no pull request or no stack is an empty answer, an unknown `stackEntry` field
- * is retried without and remembered per repository, and a stack sync that sees the extension
- * missing or a cross mark is an error, never a success; a review-comment read needs a pull request
+ * is retried without and remembered per repository, a stack sync that sees the extension missing
+ * or a cross mark is an error, never a success, and a stack merge runs `gh stack merge` with the
+ * repository's first allowed merge method; a review-comment read needs a pull request
  * and an owner/name GitHub remote, follows every thread page and every thread's extra comment
  * page, and a resolve sends the raw thread id as a variable.
  * Our design choice: access is the user's own `gh auth login`, or the personal access token the
@@ -132,6 +133,7 @@ import {
 	reviewThreadCommentsQuery,
 	reviewThreadsQuery,
 	stackMembers,
+	stackMerge,
 	stackSync,
 } from "../git/gh-commands.ts";
 import {
@@ -1025,6 +1027,8 @@ const PENDING_ACTION_ORDER: readonly PullRequestAction[] = [
 export interface PrWorkspaceContext {
 	workspaceId: WorkspaceId;
 	workspacePath: string;
+	/** The repository's main worktree, where Graphite state is read. */
+	repoRootPath?: string;
 	branch: string;
 	/** Name of the remote, for example "origin". */
 	remote: string;
@@ -1083,6 +1087,11 @@ export interface GithubServiceDeps {
 	probeCwd: string;
 	/** Writes a context file into a workspace (PR-11). */
 	fs?: Pick<FileSystem, "mkdirp" | "writeTextAtomic">;
+	/**
+	 * The Graphite stack state, so a stack entry can show its restack flag (PR-08). The container
+	 * always supplies it; tests that read no Graphite state may leave it out.
+	 */
+	graphite?: { needsRestackOf(repoRootPath: string, branch: string): boolean };
 }
 
 interface PollWatcher {
@@ -2817,9 +2826,33 @@ export class GithubService {
 		return edited.ok ? ok(true) : err(edited.error);
 	}
 
-	/** Backs `Actions.pullRequests.mergeStack`: `gh stack merge` (services-map 3.8.2). */
-	mergeStack(_workspaceId: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("PR-08");
+	/**
+	 * Backs `Actions.pullRequests.mergeStack`: `gh stack merge` for the workspace's pull request
+	 * (services-map 3.8.2). The merge method is the repository's first allowed one, as with a single
+	 * merge. Stacked pull requests switched off are refused, so the action follows the setting.
+	 */
+	mergeStack(workspaceId: WorkspaceId): Promise<Result<void>> {
+		const setting = this.#deps.setting;
+		if (setting !== undefined && setting<boolean>("github_stacked_prs_enabled") !== true) {
+			return Promise.resolve(
+				err(
+					appError("github_stacks_disabled", "Stacked pull requests are turned off in Settings."),
+				),
+			);
+		}
+		return this.#writeAction("mergeStack", "merging", workspaceId, async () => {
+			const prepared = await this.#preparePullRequestWrite(workspaceId);
+			if (!prepared.ok) return err(prepared.error);
+			const { found, prNumber, runOptions } = prepared.value;
+			const method = await this.#mergeMethodFor(found, runOptions);
+			if (!method.ok) return err(method.error);
+			return this.#runPullRequestCommand(
+				found,
+				runOptions,
+				stackMerge(prNumber, method.value),
+				true,
+			);
+		});
 	}
 
 	/**
@@ -2904,11 +2937,12 @@ export class GithubService {
 		if (!members.ok) return err(members.error);
 		const parsedMembers = parseStackMembers(members.value);
 		if (!parsedMembers.ok) return err(parsedMembers.error);
+		const repoRootPath = found.repoRootPath ?? found.workspacePath;
 		return ok(
 			parsedMembers.value.map((member) => ({
 				...member,
 				isCurrent: member.branch === found.branch,
-				needsRestack: false,
+				needsRestack: this.#deps.graphite?.needsRestackOf(repoRootPath, member.branch) ?? false,
 			})),
 		);
 	}

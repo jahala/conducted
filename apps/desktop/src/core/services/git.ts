@@ -40,9 +40,9 @@
  * created: workspace creation writes `push.autoSetupRemote` for the new worktree (GIT-01, WS-01).
  * Push itself does not read it.
  * Also: GIT-13 decides when the pull request's base or head is newer than the local refs and
- * fetches it at most once a minute for one repository and branch. The diff target is always a
- * remote branch: this service holds no Graphite stack data, so a local stack parent never
- * reaches the decision.
+ * fetches it at most once a minute for one repository and branch. PR-08 supplies the Graphite
+ * parent of the branch, and that local parent is then the diff target; the pull request base is
+ * used when Graphite reports none.
  * GIT-09: the rename reads the checked-out branch, asks the git helpers for a free name, and
  * renames under the worktree lock; a detached HEAD returns the plain "check out a branch" message.
  * The workspace folder rename, its short-lived symlink and the old-remote-branch toast are not
@@ -531,8 +531,20 @@ export function decideFetch(
 	return { fetch: true, refspecs };
 }
 
+/** The Graphite answers the git service reads for a branch (PR-08). */
+export interface GraphitePort {
+	parentBranchOf(repoRootPath: string, branch: string): string | null;
+	containsBranch(repoRootPath: string, branch: string): boolean;
+	checkout(workspacePath: string, branch: string): Promise<Result<void>>;
+}
+
 export interface GitServiceDeps {
 	git: GitRunner;
+	/**
+	 * The Graphite stack state. The container always supplies it. Tests that never read a stack may
+	 * leave it out, and then the diff target is the remote branch as before.
+	 */
+	graphite?: GraphitePort;
 	/** Looks up folders and branch names for a workspace. Fails for unknown ids. */
 	contextOf: (workspaceId: WorkspaceId) => Promise<Result<WorkspaceGitContext>>;
 	agent: AgentMessenger;
@@ -884,7 +896,8 @@ export class GitService {
 
 		const found = context.value;
 		const target = diffTargetOf({
-			graphiteParentBranch: null,
+			graphiteParentBranch:
+				this.#deps.graphite?.parentBranchOf(found.repoRootPath, found.branch) ?? null,
 			pullRequestBaseBranch: null,
 			intendedTargetBranch: found.targetBranch,
 			remote: found.remote,
@@ -1182,8 +1195,14 @@ export class GitService {
 		if (!found.ok) return found;
 		const context = found.value;
 
+		const graphiteParent =
+			this.#deps.graphite?.parentBranchOf(context.repoRootPath, context.branch) ?? null;
+		const targetBranch =
+			graphiteParent ?? branchNameWithoutRemote(context.targetBranch, context.remote);
 		const baseRef =
-			context.targetBranch.length > 0 ? remoteTargetRef(context.targetBranch, context.remote) : "";
+			graphiteParent === null && context.targetBranch.length > 0
+				? remoteTargetRef(context.targetBranch, context.remote)
+				: "";
 		const upstreamRef =
 			context.branch.length > 0 ? remoteTargetRef(context.branch, context.remote) : "";
 		const [localBase, upstream] = await Promise.all([
@@ -1198,14 +1217,13 @@ export class GitService {
 		const decision = decideFetch(
 			{
 				remote: context.remote,
-				targetBranch: branchNameWithoutRemote(context.targetBranch, context.remote),
+				targetBranch,
 				branch: context.branch,
 				prBaseOid: pullRequestOids.prBaseOid,
 				prHeadOid: pullRequestOids.prHeadOid,
-				localBaseOid: localBase.value,
+				localBaseOid: graphiteParent === null ? localBase.value : null,
 				upstreamOid: upstream.value,
-				// This service has no Graphite stack data, so the stored target is a remote branch.
-				baseIsLocalStackParent: false,
+				baseIsLocalStackParent: graphiteParent !== null,
 			},
 			this.#lastFetchAt.get(key) ?? null,
 			now,
@@ -1787,7 +1805,13 @@ export class GitService {
 
 		const cwd = context.workspacePath;
 		const remote = context.remote.trim();
+		const graphiteBranch = this.#deps.graphite?.containsBranch(context.repoRootPath, name) ?? false;
 		const switched = await this.#deps.git.withWorktreeLock(cwd, async (): Promise<Result<void>> => {
+			// Graphite owns the checkout of its own stack branches, so use its command when it knows
+			// this branch. The plain fetch and checkout stay for every other branch.
+			if (graphiteBranch && this.#deps.graphite !== undefined) {
+				return this.#deps.graphite.checkout(cwd, name);
+			}
 			// A branch that exists locally can still be checked out when the fetch fails, because
 			// the user may be offline; a branch known only on the remote needs the fetch.
 			if (remote.length > 0) {
@@ -1812,7 +1836,7 @@ export class GitService {
 				);
 			}
 
-			if (remote.length === 0) return ok(undefined);
+			if (graphiteBranch || remote.length === 0) return ok(undefined);
 			const remoteRef = `refs/remotes/${remote}/${name}`;
 			const exists = await this.#refExists(cwd, remoteRef);
 			if (!exists.ok) return exists;

@@ -5,6 +5,7 @@
  * @feature PR-06 Cmd+Shift+M merges the pull request
  * @feature GIT-17 Continue after a merge or from a detached HEAD
  * @feature GIT-14 Local-git forge: header state and the merge request to the agent
+ * @feature PR-08 the stack size the header reads for its "Merge stack" action
  * Owns: right panel, top half. A header (status chip and main action), a tab strip, and the
  * active tab: Artifacts (when its setting is on), All files, Changes or Checks. Entry point
  * embedded by the workspace screen.
@@ -51,6 +52,7 @@ import {
 	useActions,
 	useGitState,
 	useSetting,
+	useStack,
 	useWorkspace,
 	useWorkspaceStatus,
 } from "../../core/hooks.ts";
@@ -162,6 +164,7 @@ export function GitPanel({
 		localForgeEnabled &&
 		repoRemoteUrl !== undefined &&
 		forgeForRemoteUrl(repoRemoteUrl) === "local";
+	const stack = useStack(workspaceId);
 	const localForgeEntry = useStore(localGitForge.store, (state) => state.byWorkspace[workspaceId]);
 	const localForgeInfo = localForgeActive ? (localForgeEntry?.info ?? null) : undefined;
 	const localForgeError = localForgeActive ? (localForgeEntry?.error ?? null) : undefined;
@@ -179,7 +182,10 @@ export function GitPanel({
 					localForgeError,
 					automergeSettingOn: automergeEnabled,
 					treatOptionalChecksAsBlocking: optionalChecksBlocking,
-					stack: null,
+					stack:
+						stack.state === "ready" && stack.data.length > 1
+							? { size: stack.data.length, blockedReason: null }
+							: null,
 				}
 			: null;
 

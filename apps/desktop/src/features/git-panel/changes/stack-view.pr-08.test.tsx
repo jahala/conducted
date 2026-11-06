@@ -83,6 +83,28 @@ describe("PR-08 Stack view", () => {
 		expect(screen.queryByRole("button", { name: /restack/i })).toBeNull();
 	});
 
+	it("asks before switching while an agent is working", () => {
+		const onCheckout = vi.fn();
+		render(
+			<StackView
+				trunk="main"
+				entries={entries}
+				onCheckout={onCheckout}
+				onMarkReady={vi.fn()}
+				agentRunning
+			/>,
+		);
+
+		const first = screen.getAllByTestId("stack-entry")[0];
+		if (first === undefined) throw new Error("missing first stack entry");
+		fireEvent.click(within(first).getByRole("button", { name: "Checkout this branch" }));
+		expect(onCheckout).not.toHaveBeenCalled();
+		expect(screen.getByText("Switch branch?")).toBeTruthy();
+
+		fireEvent.click(screen.getByRole("button", { name: "Switch anyway" }));
+		expect(onCheckout).toHaveBeenCalledWith("feature/parser");
+	});
+
 	it("draws nothing when the pull request is not in a stack", () => {
 		const { container } = render(
 			<StackView trunk="main" entries={[]} onCheckout={vi.fn()} onMarkReady={vi.fn()} />,
