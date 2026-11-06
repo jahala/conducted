@@ -188,6 +188,22 @@ describe("COMP-05 # mentions in the composer", () => {
 		await waitFor(() => expect(editor().getText()).toContain(`⟦file:${relative}⟧`));
 	});
 
+	it("Enter on the open '#' menu chooses its row, and with no row yet sends nothing", async () => {
+		const { test, workspace, editor } = await setup({ pullNumbers: [12], issues: [] });
+		const send = vi.spyOn(test.container.actions.sessions, "send");
+		const textbox = screen.getByRole("textbox", { name: "composer" });
+
+		act(() => editor().commands.insertContent("#12"));
+		fireEvent.keyDown(textbox, { key: "Enter" });
+		await screen.findByRole("option", { name: /#12/ });
+		fireEvent.keyDown(textbox, { key: "Enter" });
+
+		const path = `${workspace.path}/.context/pull-requests/12.md`;
+		await waitFor(() => expect(test.memory.controls.files.has(path)).toBe(true));
+		await waitFor(() => expect(editor().getText()).toContain("⟦pr:12⟧"));
+		expect(send).not.toHaveBeenCalled();
+	});
+
 	it("tells a signed-out user how to connect GitHub", async () => {
 		const { editor } = await setup({ access: { status: "signed_out" } });
 

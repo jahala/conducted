@@ -27,6 +27,7 @@ import type { Draft } from "../../core/api.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions } from "../../core/hooks.ts";
 import { toastError } from "../../ui/Toast.tsx";
+import { textToDocument } from "./text-content.ts";
 
 export interface DraftSyncProps {
 	sessionId: SessionId;
@@ -38,33 +39,6 @@ export interface DraftSyncProps {
 	 * (CHAT-26), the Files tab, or the composer service adding a file. The composer shows them.
 	 */
 	onStoredAttachments?: (paths: string[]) => void;
-}
-
-interface TextNode {
-	type: "text";
-	text: string;
-}
-
-interface HardBreakNode {
-	type: "hardBreak";
-}
-
-/** Turns the editor's plain text back into paragraphs and line breaks, so a restart keeps them. */
-export function draftToContent(text: string): {
-	type: "doc";
-	content: { type: "paragraph"; content?: (TextNode | HardBreakNode)[] }[];
-} {
-	const paragraphs = text.split("\n\n").map((paragraph) => {
-		const content: (TextNode | HardBreakNode)[] = [];
-		for (const [index, line] of paragraph.split("\n").entries()) {
-			if (index > 0) content.push({ type: "hardBreak" });
-			if (line.length > 0) content.push({ type: "text", text: line });
-		}
-		return content.length === 0
-			? { type: "paragraph" as const }
-			: { type: "paragraph" as const, content };
-	});
-	return { type: "doc", content: paragraphs };
 }
 
 /** A stable key for a list of attachment paths, so a change is noticed by value. */
@@ -124,7 +98,7 @@ export function useDraftSync({
 			}
 			const draft = result.value;
 			if (!typedSinceRestore.current && editor.getText() !== draft.text) {
-				editor.commands.setContent(draftToContent(draft.text), { emitUpdate: false });
+				editor.commands.setContent(textToDocument(draft.text), { emitUpdate: false });
 			}
 			attachmentsBySession.current.set(sessionId, draft.attachmentPaths);
 			lastSavedAttachments.current.set(sessionId, keyOf(draft.attachmentPaths));

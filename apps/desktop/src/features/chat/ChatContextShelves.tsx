@@ -9,7 +9,9 @@
  * all when both shelves are empty; an item being attached shows a spinner and cannot be picked.
  * Must handle: a chat with no messages left ("No messages in this chat"); a transcript or plan
  * that cannot be saved ("Failed to attach chat transcript", "Failed to attach plan"); the plans
- * list failing to load (the shelf is left out, the chats still show).
+ * list failing to load (a line says so where the plans shelf would be, and the chats still show).
+ * Our design choice: the wording of that line, "Couldn't load the plans: <reason>"; the research
+ * has no message for it.
  * Our design choice: an item counts as attached when the draft holds a file of its name. The
  * plan's hover preview that Conductor shows is not built.
  * Test first: an empty chat lists "Add chat transcripts:" and "Add plans:" and attaching a chat
@@ -131,8 +133,17 @@ export function ChatContextShelves({ sessionId, workspaceId, directory }: ChatCo
 			.sort((a, b) => (b.lastUserMessageAt ?? 0) - (a.lastUserMessageAt ?? 0));
 	}, [sessions, sessionId]);
 	const planList = plans.state === "ready" ? plans.data : [];
-	if (chats.length === 0 && planList.length === 0) return null;
-	return <Shelves sessionId={sessionId} directory={directory} chats={chats} plans={planList} />;
+	const plansError = plans.state === "error" ? plans.error.message : null;
+	if (chats.length === 0 && planList.length === 0 && plansError === null) return null;
+	return (
+		<Shelves
+			sessionId={sessionId}
+			directory={directory}
+			chats={chats}
+			plans={planList}
+			plansError={plansError}
+		/>
+	);
 }
 
 interface ShelvesProps {
@@ -140,9 +151,11 @@ interface ShelvesProps {
 	directory: string;
 	chats: readonly Session[];
 	plans: readonly PlanEntry[];
+	/** Why the plans could not be read, or null when they could. */
+	plansError: string | null;
 }
 
-function Shelves({ sessionId, directory, chats, plans: planList }: ShelvesProps) {
+function Shelves({ sessionId, directory, chats, plans: planList, plansError }: ShelvesProps) {
 	const { services } = useServices();
 	const actions = useActions();
 	const attached = useDraft(sessionId).attachmentPaths;
@@ -195,6 +208,9 @@ function Shelves({ sessionId, directory, chats, plans: planList }: ShelvesProps)
 						/>
 					)}
 				/>
+			)}
+			{plansError === null ? null : (
+				<p className="text-xs text-danger">Couldn't load the plans: {plansError}</p>
 			)}
 			{planList.length === 0 ? null : (
 				<Shelf

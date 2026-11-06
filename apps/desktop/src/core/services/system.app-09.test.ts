@@ -126,4 +126,42 @@ describe("APP-09 send feedback", () => {
 		expect(body).toContain('{"line":3999}');
 		expect(body).not.toContain('{"line":0}\n');
 	});
+
+	it("APP-09 says the logs were left out when not even one line fits in the link", async () => {
+		const { test, openUrl } = await setup(`{"msg":"${"x".repeat(MAX_FEEDBACK_URL_CHARS)}"}`);
+
+		const sent = await test.container.actions.app.sendFeedback({
+			message: "Crash on start",
+			email: null,
+			imagePaths: [],
+			includeLogs: true,
+		});
+
+		expect(sent.ok).toBe(true);
+		expect(String(openUrl.mock.calls[0]?.[0]).length).toBeLessThanOrEqual(MAX_FEEDBACK_URL_CHARS);
+		const body = openedIssue(openUrl).body;
+		expect(body).toContain("Crash on start");
+		expect(body).toContain("(Logs left out: they did not fit in the link.)");
+		expect(body).not.toContain("xxxx");
+	});
+
+	it("APP-09 refuses a message too long for the issue link and opens nothing", async () => {
+		const { test, openUrl } = await setup(null);
+
+		const sent = await test.container.actions.app.sendFeedback({
+			message: "word ".repeat(MAX_FEEDBACK_URL_CHARS),
+			email: null,
+			imagePaths: [],
+			includeLogs: false,
+		});
+
+		expect(sent.ok).toBe(false);
+		if (!sent.ok) {
+			expect(sent.error.code).toBe("feedback_too_long");
+			expect(sent.error.message).toBe(
+				"The message is too long for the issue link. Shorten it and send again.",
+			);
+		}
+		expect(openUrl).not.toHaveBeenCalled();
+	});
 });

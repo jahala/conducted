@@ -7,24 +7,30 @@
  * 5.4 (Cmd+Alt+F, fixed); native-and-sidecar-map.md A5 (Help > Send Feedback); Conductor's dialog
  * (renderApp `Oel`) for the wording: the message placeholder, "your.email@example.com",
  * "Attach images", "Include recent app logs (may include personal data)",
- * "View", "Send feedback" and "Sending...", the errors "Please enter your feedback message.",
+ * "View", "Send feedback" and "Sending...", and the errors "Please enter your feedback message.",
  * "Please select image files only.", "Please drop image files only.", "Maximum 5 images
- * allowed." and "Failed to open app logs.", and the toast "Thank you for your feedback!".
+ * allowed." and "Failed to open app logs.".
  * Must handle: an empty message (Send stays disabled, and Cmd+Enter says to write one); a sixth
  * image (refused); a file that is not a png, jpg, jpeg, gif or webp (refused); a file dropped on
- * the window while the dialog is open (added as an image); a log export or an
- * issue page that fails (the error is shown and the dialog stays open with the text kept).
+ * the window while the dialog is open (added as an image, and not to the open chat's draft); a
+ * second Cmd+Enter or click while a send runs (ignored, so one issue page opens); a log export,
+ * a message too long for the link or an issue page that fails (the error is shown and the dialog
+ * stays open with the text kept).
  * Our design choice: Conductor sends the form to its own service; ours opens the project's
  * GitHub issue page (APP-09's row), so the email is optional and goes into the issue only if the
  * user types it, and images are listed by path because a link cannot upload them. Conductor's
  * "You can also reach us at support@conductor.build" line is left out: we have no support
- * address. The toast's second line names this app.
- * Test first: Cmd+Alt+F opens the dialog; sending a message opens the issue page and says thanks.
+ * address. Conductor's toast, "Thank you for your feedback!", says the feedback arrived; nothing
+ * has arrived when our page opens, so ours says "Opened the feedback page" and asks the user to
+ * submit the issue there.
+ * Test first: Cmd+Alt+F opens the dialog; sending a message opens the issue page and says so.
  */
 import { messageOf } from "@conducted/shared";
 import { useEffect, useRef, useState } from "react";
+import { createSingleFlight } from "../../core/async/single-flight.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions } from "../../core/hooks.ts";
+import { isImagePath } from "../../core/media-files.ts";
 import { Button } from "../../ui/Button.tsx";
 import { Checkbox } from "../../ui/Checkbox.tsx";
 import { Dialog, DialogContent } from "../../ui/Dialog.tsx";
@@ -37,7 +43,8 @@ import { toast } from "../../ui/Toast.tsx";
 
 /** At most this many images, as Conductor allows. */
 const MAX_IMAGES = 5;
-const IMAGE_FILE = /\.(png|jpe?g|gif|webp)$/i;
+/** The image kinds Conductor's dialog takes, fewer than the chat shows. */
+const FEEDBACK_IMAGE_EXTENSIONS: readonly string[] = ["png", "jpg", "jpeg", "gif", "webp"];
 
 const fileName = (path: string): string => path.split("/").pop() ?? path;
 
@@ -50,9 +57,11 @@ export function FeedbackDialog({ open, onOpenChange }: OverlayProps) {
 	const [includeLogs, setIncludeLogs] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [sending, setSending] = useState(false);
+	// Cmd+Enter and the button both send; a second press while the first runs opens no second page.
+	const flight = useRef(createSingleFlight()).current;
 
 	const addImages = (paths: readonly string[], refusal: string) => {
-		const accepted = paths.filter((path) => IMAGE_FILE.test(path));
+		const accepted = paths.filter((path) => isImagePath(path, FEEDBACK_IMAGE_EXTENSIONS));
 		const next = [...images];
 		let full = false;
 		for (const path of accepted) {
@@ -98,29 +107,30 @@ export function FeedbackDialog({ open, onOpenChange }: OverlayProps) {
 		if (!opened.ok) setError("Failed to open app logs.");
 	};
 
-	const send = async () => {
-		setError(null);
-		if (message.trim() === "") {
-			setError("Please enter your feedback message.");
-			return;
-		}
-		setSending(true);
-		const sent = await actions.app.sendFeedback({
-			message,
-			email: email.trim() === "" ? null : email.trim(),
-			imagePaths: images,
-			includeLogs,
+	const send = () =>
+		flight.run("send", async () => {
+			setError(null);
+			if (message.trim() === "") {
+				setError("Please enter your feedback message.");
+				return;
+			}
+			setSending(true);
+			const sent = await actions.app.sendFeedback({
+				message,
+				email: email.trim() === "" ? null : email.trim(),
+				imagePaths: images,
+				includeLogs,
+			});
+			setSending(false);
+			if (!sent.ok) {
+				setError(sent.error.message);
+				return;
+			}
+			toast.success("Opened the feedback page", {
+				description: "Submit the issue there to send your feedback.",
+			});
+			onOpenChange(false);
 		});
-		setSending(false);
-		if (!sent.ok) {
-			setError(sent.error.message);
-			return;
-		}
-		toast.success("Thank you for your feedback!", {
-			description: "Thanks for making Conducted better.",
-		});
-		onOpenChange(false);
-	};
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>

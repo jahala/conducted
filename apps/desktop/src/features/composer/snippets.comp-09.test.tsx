@@ -10,6 +10,7 @@ import type { SessionConfig } from "@conducted/protocol";
 import { appError, err } from "@conducted/shared";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { Editor } from "@tiptap/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandDispatcher } from "../../app/command-dispatcher.ts";
 import { useOverlayStore } from "../../app/overlay-store.ts";
@@ -231,7 +232,7 @@ describe("COMP-09 snippet dialogs", () => {
 });
 
 describe("COMP-09 composer snippets", () => {
-	async function mountComposer() {
+	async function mountComposer(onEditorReady?: (editor: Editor | null) => void) {
 		const test = newContainer();
 		const workspace = await seedWorkspace(test.container);
 		const session = must(await test.container.services.sessions.create(workspace.id, CONFIG));
@@ -242,7 +243,11 @@ describe("COMP-09 composer snippets", () => {
 		render(
 			<ServicesProvider container={test.container}>
 				<CommandDispatcher>
-					<Composer workspaceId={workspace.id} sessionId={session.id} />
+					<Composer
+						workspaceId={workspace.id}
+						sessionId={session.id}
+						{...(onEditorReady === undefined ? {} : { onEditorReady })}
+					/>
 					<SnippetOverlays />
 				</CommandDispatcher>
 			</ServicesProvider>,
@@ -275,6 +280,47 @@ describe("COMP-09 composer snippets", () => {
 		await waitFor(() =>
 			expect(screen.getByLabelText("composer").textContent).toContain("Review this change."),
 		);
+	});
+
+	it("keeps a multi-line prompt's line breaks from the '+' menu and from the § trigger", async () => {
+		let editor: Editor | null = null;
+		const { test } = await mountComposer((next) => {
+			editor = next;
+		});
+		const prompt = "Review this change.\nThen run the tests.";
+		await seedSnippet(test, "Review", "rev", prompt);
+		const send = vi.spyOn(test.container.actions.sessions, "send");
+		await waitFor(() => expect(editor).not.toBeNull());
+		const current = () => editor as unknown as Editor;
+
+		await openPlusMenu();
+		fireEvent.click(await screen.findByRole("menuitem", { name: /Insert snippet/ }));
+		fireEvent.click(await screen.findByText("Review"));
+		await waitFor(() => expect(current().getText()).toBe(prompt));
+
+		act(() => current().commands.setContent(""));
+		act(() => current().commands.insertContent("§rev"));
+		await screen.findByRole("listbox", { name: "Snippets" });
+		fireEvent.keyDown(screen.getByRole("textbox", { name: "composer" }), { key: "Enter" });
+
+		await waitFor(() => expect(current().getText()).toBe(prompt));
+		expect(send).not.toHaveBeenCalled();
+	});
+
+	it("inserts a prompt with angle brackets as plain text from the '+' menu", async () => {
+		let editor: Editor | null = null;
+		const { test } = await mountComposer((next) => {
+			editor = next;
+		});
+		const prompt = "Wrap the list in <ul> tags & keep <b>bold</b> as typed.";
+		await seedSnippet(test, "Review", "rev", prompt);
+		await waitFor(() => expect(editor).not.toBeNull());
+
+		await openPlusMenu();
+		fireEvent.click(await screen.findByRole("menuitem", { name: /Insert snippet/ }));
+		fireEvent.click(await screen.findByText("Review"));
+
+		await waitFor(() => expect((editor as unknown as Editor).getText()).toBe(prompt));
 	});
 
 	it("opens the snippet picker on Cmd+;", async () => {

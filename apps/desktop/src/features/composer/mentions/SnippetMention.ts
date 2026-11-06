@@ -8,9 +8,11 @@
  * rather than a chip, because the agent receives plain text. The list is read through getters so a
  * snippet list that arrives after the trigger opened can redraw without rebuilding the editor.
  * Must handle: the list still loading; a failed read; no snippets; no match; Escape keeping the
- * typed trigger; a trigger inside a word not opening; Enter and Tab choosing.
+ * typed trigger; a trigger inside a word not opening; Enter and Tab choosing, and doing nothing
+ * while no row matches; a prompt's line breaks (hard breaks) and angle brackets (plain text).
  * Test first: typing "§rev" offers the snippet named Review and Enter inserts its prompt.
  */
+import { Fragment } from "@tiptap/pm/model";
 import type { EditorState, Transaction } from "@tiptap/pm/state";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
@@ -19,7 +21,9 @@ import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type { Snippet } from "../../../core/model.ts";
 import { filterSnippets } from "../snippet-model.ts";
+import { inlineTextContent } from "../text-content.ts";
 import { SuggestionPopup, type SuggestionRow } from "./SuggestionPopup.tsx";
+import type { TriggerMenuSpec } from "./trigger-menu.ts";
 
 export const SNIPPET_TRIGGER = "§";
 export const SNIPPET_MENTION_LIMIT = 20;
@@ -110,9 +114,12 @@ function stateAtEditor(state: EditorState, deps: SnippetMentionDeps): SnippetMen
 function chooseSuggestion(view: EditorView, state: SnippetMentionState, index: number): boolean {
 	const item = state.items[index];
 	if (item === undefined) return false;
-	const transaction = view.state.tr.delete(state.from, state.to);
-	transaction.insertText(item.prompt, state.from);
-	const end = Math.min(state.from + item.prompt.length, transaction.doc.content.size);
+	const { schema } = view.state;
+	const prompt = Fragment.from(
+		inlineTextContent(item.prompt).map((node) => schema.nodeFromJSON(node)),
+	);
+	const transaction = view.state.tr.replaceWith(state.from, state.to, prompt);
+	const end = Math.min(state.from + prompt.size, transaction.doc.content.size);
 	transaction.setSelection(TextSelection.near(transaction.doc.resolve(end)));
 	view.dispatch(transaction.scrollIntoView());
 	return true;
@@ -198,7 +205,11 @@ class SnippetPopupView {
 }
 
 function createSnippetPlugin(deps: SnippetMentionDeps): Plugin<SnippetMentionState> {
+	const spec: TriggerMenuSpec = {
+		triggerMenuOpen: (state) => snippetMentionKey.getState(state)?.active === true,
+	};
 	return new Plugin<SnippetMentionState>({
+		...spec,
 		key: snippetMentionKey,
 		state: {
 			init: (_config, state) => stateAtEditor(state, deps),
@@ -250,8 +261,10 @@ function createSnippetPlugin(deps: SnippetMentionDeps): Plugin<SnippetMentionSta
 					);
 					return true;
 				}
-				if ((event.key === "Enter" || event.key === "Tab") && count > 0) {
-					return chooseSuggestion(view, state, state.selectedIndex);
+				if (event.key === "Enter" || event.key === "Tab") {
+					// With no matching snippet the key does nothing, so Enter never sends "§zzzz".
+					chooseSuggestion(view, state, state.selectedIndex);
+					return true;
 				}
 				return false;
 			},

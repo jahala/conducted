@@ -3,13 +3,12 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { Editor } from "@tiptap/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "../../../test/dom-polyfills.ts";
+import type {
+	PrMentionItem,
+	PrMentionSearchResult,
+} from "../../../core/services/mention-search.ts";
 import { composerBaseKit } from "../composer-extensions.ts";
-import {
-	createPrMention,
-	type PrMentionDeps,
-	type PrMentionItem,
-	type PrMentionSearchResult,
-} from "./PrMention.ts";
+import { createPrMention, type PrMentionDeps } from "./PrMention.ts";
 
 const pullRequest: PrMentionItem = {
 	kind: "pull_request",
@@ -129,6 +128,26 @@ describe("COMP-05 PrMention", () => {
 		await waitFor(() => expect(onError).toHaveBeenCalledTimes(1));
 		expect(onError.mock.calls[0]?.[0]).toMatchObject({ code: "github_context_unavailable" });
 		expect(chips(editor)).toEqual([]);
+	});
+
+	it("keeps Enter and Tab while the search runs or finds nothing, so a half-typed '#12' is not sent", async () => {
+		const pending = deferred<Result<PrMentionSearchResult>>();
+		const search = vi
+			.fn<(query: string) => Promise<Result<PrMentionSearchResult>>>()
+			.mockReturnValue(pending.promise);
+		const editor = mount(depsWith({ search }));
+
+		type(editor, "#12");
+		await waitFor(() => expect(search).toHaveBeenCalledWith("12"));
+		const enterWhileLoading = fireEvent.keyDown(editor.view.dom, { key: "Enter" });
+		pending.resolve(ok({ items: [] }));
+		await screen.findByText("No pull requests or issues found");
+		const tabWithNoRows = fireEvent.keyDown(editor.view.dom, { key: "Tab" });
+		const enterWithNoRows = fireEvent.keyDown(editor.view.dom, { key: "Enter" });
+
+		expect([enterWhileLoading, tabWithNoRows, enterWithNoRows]).toEqual([false, false, false]);
+		expect(editor.getJSON().content).toHaveLength(1);
+		expect(editor.getText()).toBe("#12");
 	});
 
 	it("does not open inside a word", () => {

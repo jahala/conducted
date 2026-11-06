@@ -31,8 +31,6 @@ export interface SnippetCacheDeps<S extends SnippetCacheState> {
 export interface SnippetCache {
 	/** Reads the list and writes it to the store unless a newer read has begun. */
 	load(): Promise<void>;
-	/** Drops any running read's answer, for a store that is being torn down. */
-	invalidate(): void;
 }
 
 export function createSnippetCache<S extends SnippetCacheState>(
@@ -50,9 +48,6 @@ export function createSnippetCache<S extends SnippetCacheState>(
 				return;
 			}
 			deps.store.setState({ snippetError: listed.error } as Partial<S>);
-		},
-		invalidate() {
-			latest.invalidate("snippets");
 		},
 	};
 }

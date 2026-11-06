@@ -20,13 +20,15 @@
  * Must handle: a folder (refused with "Folders can't be uploaded"); a failed copy (the others
  * still succeed); a cancelled picker; a pasted file with no path or no name; the setting that turns long-text
  * conversion off; a drop from the window, taken only by the composer of the chat on screen (the
- * sessions store's viewing chat), so a second chat in a split pane does not get the same files.
+ * sessions store's viewing chat), so a second chat in a split pane does not get the same files,
+ * and by none while a window-level overlay such as the Feedback dialog is open.
  * Test first: dropping two files adds two paths to the draft in order.
  */
 import { ok, type Result, type SessionId } from "@conducted/shared";
 import type { Editor } from "@tiptap/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
+import { useOverlayStore } from "../../app/overlay-store.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions, useSetting } from "../../core/hooks.ts";
 import { convertsToAttachment } from "../../core/services/composer.ts";
@@ -224,11 +226,14 @@ export function useAttachments({
 	}, [add, addPastedText, autoConvert, editor]);
 
 	// A drop arrives from the window, so every mounted composer hears it. Only the chat on screen
-	// takes it; with split panes, a second chat beside it would otherwise get the same files.
+	// takes it; with split panes, a second chat beside it would otherwise get the same files. A
+	// window-level overlay (the Feedback dialog takes drops itself) covers the chat, so the chat
+	// takes no drop while one is open.
 	useEffect(
 		() =>
 			platform.window.onFileDrop((event) => {
 				if (event.kind !== "drop") return;
+				if (useOverlayStore.getState().open !== null) return;
 				if (services.sessions.store.getState().viewingSessionId !== sessionId) return;
 				void addPaths(event.paths);
 			}),

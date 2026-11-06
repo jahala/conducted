@@ -38,7 +38,8 @@
  * opening an issue without the logs the user asked for; a message longer than an issue title
  * becomes a shorter title; images are listed in the body because a browser link cannot attach
  * them; logs that would make the link longer than `MAX_FEEDBACK_URL_CHARS` keep only their most
- * recent lines.
+ * recent whole lines, and when not one line fits the issue says the logs were left out; a message
+ * or image list too long for the link on its own is refused with a message, and nothing opens.
  * Our design choice: Conductor posts the feedback to its own service; ours opens the project's
  * issue page, as the backlog row says. The dialog is features/diagnostics/FeedbackDialog.tsx.
  * Test first: a message, email, image and logs become a GitHub issue URL that holds all four.
@@ -63,7 +64,6 @@ import {
 	err,
 	type ManagedProgram,
 	messageOf,
-	notImplemented,
 	ok,
 	type Result,
 } from "@conducted/shared";
@@ -74,6 +74,7 @@ import { programsBinDir } from "../app-paths.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
 import { copyFileKeepingMode } from "../fs-helpers.ts";
 import { openXcodeLicenseTerminal } from "../git/xcode-license.ts";
+import { isImagePath } from "../media-files.ts";
 import type { AgentProgramView, DiagnosticsCapture } from "../model.ts";
 
 export interface SystemState {
@@ -127,8 +128,6 @@ trap 'rm -f "$out"' EXIT
 sips -s format png "$1" --out "$out" >/dev/null 2>&1 || exit 1
 base64 -i "$out"`;
 
-const IMAGE_FILE = /\.(png|jpe?g|gif|webp|avif|svg|bmp|tiff?|heic)$/i;
-
 /** Base64 text, with any line breaks `base64` adds, as bytes. */
 function decodeBase64(text: string): Uint8Array {
 	const binary = atob(text.replace(/\s+/g, ""));
@@ -145,7 +144,8 @@ export const FEEDBACK_ISSUE_URL = "https://github.com/jahala/conducted/issues/ne
 const MAX_FEEDBACK_TITLE = 120;
 /**
  * Longest issue link the feedback opens. GitHub refuses very long new-issue links, so the logs
- * are cut from the front until the link fits. Our dial: the research has no number.
+ * are cut from the front until the link fits, and a message that alone is too long is refused.
+ * Our dial: the research has no number.
  */
 export const MAX_FEEDBACK_URL_CHARS = 8_000;
 
@@ -427,7 +427,7 @@ export class SystemService {
 		let destination: string | null;
 		try {
 			destination = await this.#deps.platform.dialogs.pickSavePath({
-				title: IMAGE_FILE.test(path) ? "Save image" : "Save file",
+				title: isImagePath(path) ? "Save image" : "Save file",
 				defaultPath: path.slice(path.lastIndexOf("/") + 1),
 			});
 		} catch (cause) {
@@ -467,8 +467,9 @@ export class SystemService {
 			version: this.#deps.platform.app.version,
 			channel: this.#deps.platform.app.channel,
 		});
+		if (!url.ok) return url;
 		try {
-			await this.#deps.platform.opener.openUrl(url);
+			await this.#deps.platform.opener.openUrl(url.value);
 			return ok(undefined);
 		} catch (cause) {
 			return err(
@@ -594,41 +595,65 @@ interface FeedbackBodyInput {
 	message: string;
 	email: string;
 	imagePaths: readonly string[];
+	/** The log text to include, or null for none. */
 	logs: string | null;
+	/** The user asked for logs and none fit in the link, so the body says so. */
+	logsLeftOut: boolean;
 	version: string;
 	channel: string;
 }
+
+const LOGS_CUT_NOTE = "(Only the most recent lines fit in the link.)";
+const LOGS_LEFT_OUT_NOTE = "(Logs left out: they did not fit in the link.)";
 
 function issueUrl(title: string, body: string): string {
 	return `${FEEDBACK_ISSUE_URL}?${new URLSearchParams({ title, body }).toString()}`;
 }
 
+/** The whole lines among the last `kept` characters of the logs. */
+function recentLines(logs: string, kept: number): string {
+	if (kept >= logs.length) return logs;
+	const tail = logs.slice(logs.length - kept);
+	if (logs[logs.length - kept - 1] === "\n") return tail;
+	const lineStart = tail.indexOf("\n");
+	return lineStart === -1 ? "" : tail.slice(lineStart + 1);
+}
+
 /**
- * The new-issue link. Logs that would make it longer than `MAX_FEEDBACK_URL_CHARS` keep only their
- * most recent lines, found by a binary search over how much of the end is kept.
+ * The new-issue link, never longer than `MAX_FEEDBACK_URL_CHARS`. Logs that do not fit keep only
+ * their most recent whole lines, found by a binary search over how much of the end is kept; when
+ * not one line fits, the body says the logs were left out. A message or image list that alone
+ * makes the link too long is an error, so the user can shorten it instead of losing part of it.
  */
-function feedbackUrl(input: FeedbackBodyInput): string {
+function feedbackUrl(input: Omit<FeedbackBodyInput, "logsLeftOut">): Result<string> {
 	const title = feedbackTitle(input.message);
-	const whole = issueUrl(title, feedbackBody(input));
-	if (input.logs === null || whole.length <= MAX_FEEDBACK_URL_CHARS) return whole;
+	const urlWith = (logs: string | null, logsLeftOut: boolean): string =>
+		issueUrl(title, feedbackBody({ ...input, logs, logsLeftOut }));
+	const whole = urlWith(input.logs, false);
+	if (whole.length <= MAX_FEEDBACK_URL_CHARS) return ok(whole);
 	const logs = input.logs;
-	const withTail = (kept: number): string => {
-		const tail = logs.slice(logs.length - kept);
-		const lineStart = tail.indexOf("\n");
-		const lines = kept === logs.length || lineStart === -1 ? tail : tail.slice(lineStart + 1);
-		return issueUrl(
-			title,
-			feedbackBody({ ...input, logs: `(Only the most recent lines fit in the link.)\n${lines}` }),
-		);
-	};
-	let low = 0;
-	let high = logs.length;
-	while (low < high) {
-		const middle = Math.ceil((low + high) / 2);
-		if (withTail(middle).length <= MAX_FEEDBACK_URL_CHARS) low = middle;
-		else high = middle - 1;
+	if (logs !== null) {
+		const withTail = (kept: number): string =>
+			urlWith(`${LOGS_CUT_NOTE}\n${recentLines(logs, kept)}`, false);
+		let low = 0;
+		let high = logs.length - 1;
+		while (low < high) {
+			const middle = Math.ceil((low + high) / 2);
+			if (withTail(middle).length <= MAX_FEEDBACK_URL_CHARS) low = middle;
+			else high = middle - 1;
+		}
+		if (recentLines(logs, low) !== "" && withTail(low).length <= MAX_FEEDBACK_URL_CHARS) {
+			return ok(withTail(low));
+		}
+		const leftOut = urlWith(null, true);
+		if (leftOut.length <= MAX_FEEDBACK_URL_CHARS) return ok(leftOut);
 	}
-	return low === 0 ? issueUrl(title, feedbackBody({ ...input, logs: null })) : withTail(low);
+	return err(
+		appError(
+			"feedback_too_long",
+			"The message is too long for the issue link. Shorten it and send again.",
+		),
+	);
 }
 
 /** The issue body: the message first, then the contact and environment facts the sheet collected. */
@@ -648,6 +673,8 @@ function feedbackBody(input: FeedbackBodyInput): string {
 	}
 	if (input.logs !== null) {
 		parts.push(["Recent app logs:", "", "```", input.logs, "```"].join("\n"));
+	} else if (input.logsLeftOut) {
+		parts.push(LOGS_LEFT_OUT_NOTE);
 	}
 	return parts.join("\n\n");
 }

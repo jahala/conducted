@@ -1,14 +1,15 @@
 /**
  * @feature COMP-04 Composer extensions
  * Owns: The list of TipTap extensions the editor loads, built from the trigger extensions for @, #
- * and /.
+ * and /. The composer adds the fourth trigger, § for saved snippets (COMP-09,
+ * mentions/SnippetMention.ts), after this list.
  * Behaviour: ui-map.md 3.5 (triggers: '@' files and directories, plans, terminal output, linked
  * directories; '#' pull requests and issues; '/' built-in commands, project commands and skills).
  * Our design choice: A function from dependencies to extensions, so the editor can be tested with
  * stand-in search functions. The trigger builders are inputs for tests; the default builders are
  * each trigger's own feature. The '#' trigger is loaded only when the caller passes its
- * dependencies; the composer passes them, so the app loads all three. The fourth Conductor
- * trigger (a section sign for saved snippets) is not verified and is left out.
+ * dependencies; the composer passes them, so the app loads all three. The research names a fourth
+ * trigger for saved snippets but not its character; § is our inference (SnippetMention.ts).
  * Must handle: each trigger is an independent extension; a trigger the caller leaves out is not
  * loaded; the base kit removes the marks and blocks the plain-text composer does not use.
  * Test first: buildComposerExtensions returns one extension for each of the three triggers plus the

@@ -165,8 +165,44 @@ describe("n16-s1-ui-1 join: every feature of the batch runs from the app root", 
 		fireEvent.change(screen.getByLabelText("Message"), { target: { value: "Works well" } });
 		fireEvent.click(screen.getByRole("button", { name: /Send feedback/ }));
 
-		expect(await screen.findByText("Thank you for your feedback!")).toBeTruthy();
+		expect(await screen.findByText("Opened the feedback page")).toBeTruthy();
 		expect(String(openUrl.mock.calls[0]?.[0]).startsWith(`${FEEDBACK_ISSUE_URL}?`)).toBe(true);
+	});
+
+	it("APP-09 an image dropped on the open Feedback dialog goes to the dialog, not the chat's draft", async () => {
+		const mounted = await seed();
+		mounted.test.memory.controls.files.set("/Users/me/shot.png", "png");
+		mounted.test.memory.controls.files.set("/Users/me/later.png", "png");
+		await mountChat(mounted);
+		fireEvent.keyDown(document, { key: "f", metaKey: true, altKey: true });
+		await screen.findByRole("dialog", { name: "Feedback" });
+
+		act(() =>
+			mounted.test.memory.controls.emitFileDrop({
+				kind: "drop",
+				paths: ["/Users/me/shot.png"],
+				x: 10,
+				y: 10,
+			}),
+		);
+		expect(await screen.findByRole("img", { name: "shot.png" })).toBeTruthy();
+		act(() => useOverlayStore.getState().close());
+		await waitFor(() => expect(screen.queryByRole("dialog", { name: "Feedback" })).toBeNull());
+		// Drops are added in order, so once the later drop is in the draft the first would be too.
+		act(() =>
+			mounted.test.memory.controls.emitFileDrop({
+				kind: "drop",
+				paths: ["/Users/me/later.png"],
+				x: 10,
+				y: 10,
+			}),
+		);
+
+		const drafts = mounted.test.container.services.composer;
+		await waitFor(() => expect(drafts.draftOf(mounted.session.id).attachmentPaths).toHaveLength(1));
+		expect(drafts.draftOf(mounted.session.id).attachmentPaths[0]?.endsWith("/later.png")).toBe(
+			true,
+		);
 	});
 
 	it("CHAT-26 an empty chat attaches an earlier chat's transcript to its composer", async () => {

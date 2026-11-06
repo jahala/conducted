@@ -21,6 +21,7 @@ import type { SessionId } from "@conducted/shared";
 import { type ReactNode, useState } from "react";
 import { useServices } from "../../core/context.tsx";
 import { useActions } from "../../core/hooks.ts";
+import { isImagePath, isVideoPath } from "../../core/media-files.ts";
 import type { ChatTurn } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
 import { ContextMenu, ContextMenuItem } from "../../ui/ContextMenu.tsx";
@@ -33,8 +34,6 @@ import { fileNameOf } from "./tools/ToolCardFrame.tsx";
 import { useWorkspaceLinks } from "./workspace-links.ts";
 
 const LONG_MESSAGE = 800;
-const IMAGE = /\.(png|jpe?g|gif|webp|avif|svg)$/i;
-const VIDEO = /\.(mp4|m4v|mov|webm|ogv|avi|mkv)$/i;
 
 export interface UserMessageProps {
 	turn: ChatTurn;
@@ -51,8 +50,8 @@ function AttachmentItem({ path }: { path: string }) {
 	const [failed, setFailed] = useState(false);
 	const [viewerOpen, setViewerOpen] = useState(false);
 	const name = fileNameOf(path);
-	const image = IMAGE.test(path);
-	const video = !image && VIDEO.test(path);
+	const image = isImagePath(path);
+	const video = !image && isVideoPath(path);
 	const kind = image ? "image" : video ? "video" : null;
 
 	const figure = (

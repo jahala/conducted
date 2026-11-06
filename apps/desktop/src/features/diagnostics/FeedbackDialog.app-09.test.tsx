@@ -1,10 +1,12 @@
 /**
  * @feature APP-09 Send feedback
  * Owns: the tests that the Feedback dialog opens from Cmd+Alt+F and the palette at the app root,
- * and that sending it opens the project's issue page and thanks the user.
+ * that sending it opens the project's issue page and says so, and that a second Cmd+Enter while
+ * the first send runs opens no second page.
  * Behaviour: ui-map.md 5.1 (palette action "Send feedback"), 5.2 (the Feedback dialog), 5.4
- * (Cmd+Alt+F); inventory:toast row 983 ("Thank you for your feedback!").
- * Test first: Cmd+Alt+F opens the dialog; sending a message opens the issue page and says thanks.
+ * (Cmd+Alt+F). Conductor's toast (inventory:toast row 983) thanks the user for feedback it has
+ * received; ours says that the issue page opened, because nothing is sent until the user submits it.
+ * Test first: Cmd+Alt+F opens the dialog; sending a message opens the issue page and says so.
  */
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -76,7 +78,7 @@ describe("APP-09 the Feedback dialog", () => {
 		expect(await screen.findByRole("dialog", { name: "Feedback" })).toBeTruthy();
 	});
 
-	it("APP-09 sending opens the issue page with the message and says thanks", async () => {
+	it("APP-09 sending opens the issue page with the message and says the page opened", async () => {
 		const { test, openUrl } = await mountRoot();
 		test.memory.controls.files.set("/Users/me/shot.png", "png");
 		test.memory.controls.queueDialogAnswers({
@@ -92,7 +94,9 @@ describe("APP-09 the Feedback dialog", () => {
 		expect(screen.getByRole("img", { name: "shot.png" })).toBeTruthy();
 		fireEvent.click(screen.getByRole("button", { name: /Send feedback/ }));
 
-		expect(await screen.findByText("Thank you for your feedback!")).toBeTruthy();
+		expect(await screen.findByText("Opened the feedback page")).toBeTruthy();
+		expect(screen.getByText("Submit the issue there to send your feedback.")).toBeTruthy();
+		expect(screen.queryByText("Thank you for your feedback!")).toBeNull();
 		await waitFor(() => expect(screen.queryByRole("dialog", { name: "Feedback" })).toBeNull());
 		const url = new URL(String(openUrl.mock.calls[0]?.[0]));
 		expect(`${url.origin}${url.pathname}`).toBe(FEEDBACK_ISSUE_URL);
@@ -115,6 +119,18 @@ describe("APP-09 the Feedback dialog", () => {
 		expect(screen.getByRole("dialog", { name: "Feedback" })).toBeTruthy();
 		expect((screen.getByLabelText("Message") as HTMLTextAreaElement).value).toBe("Crash on start");
 		expect(openUrl).not.toHaveBeenCalled();
+	});
+
+	it("APP-09 a second Cmd+Enter while the first send runs opens one issue page", async () => {
+		const { openUrl } = await mountRoot();
+		const dialog = await openWithShortcut();
+		fireEvent.change(screen.getByLabelText("Message"), { target: { value: "Twice" } });
+
+		fireEvent.keyDown(dialog, { key: "Enter", metaKey: true });
+		fireEvent.keyDown(dialog, { key: "Enter", metaKey: true });
+
+		expect(await screen.findByText("Opened the feedback page")).toBeTruthy();
+		expect(openUrl).toHaveBeenCalledTimes(1);
 	});
 
 	it("APP-09 a sixth image is refused", async () => {

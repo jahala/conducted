@@ -17,12 +17,13 @@
  * focus returns to the editor after sending; Cmd+L focuses the editor; the file list fails to load
  * (error shown) or an older list arrives after a newer one (dropped); a terminal for a slash
  * command that cannot be created (shown on the bar, with Reopen terminal).
- * The editor loads the `@` trigger (COMP-04), the `#` trigger (COMP-05) and the `/` trigger
- * (COMP-06) from this composer, so all read the chat's service. The `@` menu lists the workspace's
- * files and its linked folders, read again each time the menu opens, and offers "Attach current
- * terminal output" and "Select working directories" (WS-07). The `#` menu lists the project's pull
- * requests and issues, writes the chosen item's context file and inserts a chip; a failed write
- * shows "Failed to save PR context". A slash command the user picks does what
+ * The editor loads the `@` trigger (COMP-04), the `#` trigger (COMP-05), the `/` trigger
+ * (COMP-06) and the `§` snippet trigger (COMP-09) from this composer, so all read the chat's
+ * service. The `@` menu lists the workspace's files and its linked folders, read again each time
+ * the menu opens, and offers "Attach current terminal output" and "Select working directories"
+ * (WS-07). The `#` menu lists the project's pull requests and issues
+ * (core/services/mention-search.ts), writes the chosen item's context file and inserts a chip; a
+ * failed write shows "Failed to save PR context". A slash command the user picks does what
  * `slashCommandAction` says: /clear opens a new
  * chat tab (the tab strip's own Cmd+T handler) and closes this one, /restart restarts the agent,
  * /compact asks a Codex chat to summarise its history, /add-dir opens the Link workspaces and
@@ -49,15 +50,7 @@
  */
 
 import type { SlashCommand } from "@conducted/protocol";
-import {
-	type AppError,
-	appError,
-	err,
-	ok,
-	type SessionId,
-	type TerminalId,
-	type WorkspaceId,
-} from "@conducted/shared";
+import type { AppError, SessionId, TerminalId, WorkspaceId } from "@conducted/shared";
 import type { Editor } from "@tiptap/react";
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
@@ -65,6 +58,11 @@ import { useCommandHandler, useRunCommandHandlers } from "../../app/command-disp
 import type { Draft } from "../../core/api.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions, useSlashCommands, useWorkspace } from "../../core/hooks.ts";
+import {
+	attachPrMention,
+	type PrMentionItem,
+	searchPrMentions,
+} from "../../core/services/mention-search.ts";
 import { IconButton } from "../../ui/IconButton.tsx";
 import { WrenchIcon } from "../../ui/icons.tsx";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
@@ -85,11 +83,6 @@ import { ModeChips } from "./ModeChips.tsx";
 import { ModelPicker } from "./ModelPicker.tsx";
 import type { FileMentionItem } from "./mentions/FileMention.ts";
 import {
-	PR_MENTION_LIMIT,
-	type PrMentionItem,
-	type PrMentionSearchResult,
-} from "./mentions/PrMention.ts";
-import {
 	COMMAND_UNAVAILABLE,
 	PLAN_MODE_UNAVAILABLE,
 	type SlashListState,
@@ -103,6 +96,7 @@ import { openSnippetPicker } from "./SnippetOverlays.tsx";
 import type { SendIntent, SendWith } from "./send-key.ts";
 import { useSnippetDialogsStore } from "./snippet-dialogs-store.ts";
 import { TerminalCommandBar } from "./TerminalCommandBar.tsx";
+import { inlineTextContent } from "./text-content.ts";
 import { useAttachments } from "./use-attachments.ts";
 import { useDraftSync } from "./use-draft-sync.ts";
 
@@ -288,113 +282,13 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 		view?.dispatch(view.state.tr);
 	}, [services, workspaceId]);
 
-	const searchPrMentions = useCallback(
-		async (query: string) => {
-			const row = services.workspace.store.getState().workspacesById[workspaceId];
-			const repo =
-				row === undefined ? undefined : services.repo.store.getState().reposById[row.repoId];
-			const remoteUrl = repo?.remoteUrl ?? null;
-			const access = services.github.store.getState().access;
-			const items: PrMentionItem[] = [];
-			const notices: string[] = [];
-			const errors: AppError[] = [];
-			if (remoteUrl === null) {
-				notices.push("This project has no GitHub remote.");
-			} else if (access.status === "gh_missing") {
-				notices.push("Install GitHub CLI (gh) to list pull requests and issues.");
-			} else if (access.status === "signed_out" || access.status === "unauthorized") {
-				notices.push('Run "gh auth login" to connect GitHub.');
-			} else if (access.status === "offline") {
-				notices.push("You're offline. Pull requests and issues can't be listed.");
-			} else {
-				const [pulls, issues] = await Promise.all([
-					services.github.listPullRequests(remoteUrl, query),
-					services.github.listIssues(remoteUrl, query),
-				]);
-				if (pulls.ok) {
-					items.push(
-						...pulls.value.map((pull) => ({
-							kind: "pull_request" as const,
-							provider: "github" as const,
-							number: pull.number,
-							identifier: `#${pull.number}`,
-							title: pull.title,
-							id: String(pull.number),
-						})),
-					);
-				} else {
-					errors.push(pulls.error);
-				}
-				if (issues.ok) {
-					items.push(
-						...issues.value.map((issue) => ({
-							kind: "issue" as const,
-							provider: "github" as const,
-							number: Number(issue.id),
-							identifier: issue.identifier,
-							title: issue.title,
-							url: issue.url,
-							id: issue.id,
-						})),
-					);
-				} else {
-					errors.push(issues.error);
-				}
-			}
-			if (services.linear.store.getState().connection === "connected") {
-				const found =
-					query.trim() === ""
-						? await services.linear.loadMyIssues()
-						: await services.linear.search(query);
-				if (found.ok) {
-					items.push(
-						...found.value.map((issue) => ({
-							kind: "issue" as const,
-							provider: "linear" as const,
-							number: null,
-							identifier: issue.identifier,
-							title: issue.title,
-							url: issue.url,
-							id: issue.id,
-						})),
-					);
-				} else {
-					errors.push(found.error);
-				}
-			}
-			if (items.length === 0 && errors.length > 0) {
-				const first = errors[0];
-				if (first !== undefined) return err(first);
-			}
-			if (errors.length > 0 && items.length > 0) {
-				const first = errors[0];
-				if (first !== undefined) notices.push(first.message);
-			}
-			const value: PrMentionSearchResult = {
-				items: items.slice(0, PR_MENTION_LIMIT),
-				notice: notices.length > 0 ? notices.join(" ") : undefined,
-			};
-			return ok(value);
-		},
+	const searchMentionRows = useCallback(
+		(query: string) => searchPrMentions(services, workspaceId, query),
 		[services, workspaceId],
 	);
 
-	const attachPrMention = useCallback(
-		async (item: PrMentionItem) => {
-			if (item.kind === "pull_request") {
-				if (item.number === null) {
-					return err(appError("pr_mention_unknown", "That pull request has no number to write."));
-				}
-				return services.github.attachPullRequestToWorkspace(workspaceId, item.number);
-			}
-			if (item.provider === "linear") {
-				return services.linear.attachToWorkspace(workspaceId, item.id);
-			}
-			return services.github.attachIssueToWorkspace(workspaceId, {
-				provider: "github",
-				id: item.id,
-			});
-		},
+	const attachMentionRow = useCallback(
+		(item: PrMentionItem) => attachPrMention(services, workspaceId, item),
 		[services, workspaceId],
 	);
 
@@ -517,8 +411,8 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 					],
 				},
 				pullRequests: {
-					search: searchPrMentions,
-					attach: attachPrMention,
+					search: searchMentionRows,
+					attach: attachMentionRow,
 					onError: reportPrMentionError,
 				},
 				slash: {
@@ -544,12 +438,12 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 			}),
 		],
 		[
-			attachPrMention,
+			attachMentionRow,
 			attachTerminalOutput,
 			loadFiles,
 			reportPrMentionError,
 			runSlashCommand,
-			searchPrMentions,
+			searchMentionRows,
 			services,
 		],
 	);
@@ -625,9 +519,10 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 		editorRef.current?.commands.focus("end");
 	}, []);
 
-	// Dictation (COMP-08) and snippets (COMP-09) both put text at the cursor.
+	// Dictation (COMP-08) and snippets (COMP-09) both put text at the cursor, as plain text with
+	// its line breaks (a string would be read as HTML).
 	const insertText = useCallback((text: string) => {
-		editorRef.current?.chain().focus().insertContent(text).run();
+		editorRef.current?.chain().focus().insertContent(inlineTextContent(text)).run();
 	}, []);
 	useCommandHandler("chat.insertSnippet", "area", () => {
 		if (services.sessions.store.getState().viewingSessionId !== sessionId) return false;

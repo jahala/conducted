@@ -272,4 +272,19 @@ describe("CHAT-26 empty chat context shelves", () => {
 
 		expect(await screen.findByText("Failed to attach chat transcript")).toBeTruthy();
 	});
+
+	it("says the plans could not be read, and still lists the earlier chats", async () => {
+		const { test, workspace, current, earlier } = await setup();
+		await seedSessionEvent(test.container, earlier.id, planEvent("Fix the parser"), 12);
+		// A stored plan event that no longer reads as an event makes the plans read fail.
+		await test.database.execute(
+			"UPDATE session_events SET content = json_set(content, '$.message.agent', 7) WHERE type = 'agent'",
+		);
+
+		renderShelves(test, workspace, current);
+
+		expect(await screen.findByText(/^Couldn't load the plans/)).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Login fix" })).toBeTruthy();
+		expect(screen.queryByText("Add plans:")).toBeNull();
+	});
 });

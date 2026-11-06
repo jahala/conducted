@@ -1,10 +1,11 @@
 /**
  * @feature CHAT-30 Fast mode unavailable banner
- * Tests the warning's copy and dismiss control, the Add credit link, and the composer that shows it.
+ * Tests the warning's copy and dismiss control, that it has no Add credit button (the research
+ * does not give the page Conductor's opens), and the composer that shows it.
  */
 import { idleLiveState, type SessionConfig } from "@conducted/protocol";
-import { appError, err, ok, type SessionId } from "@conducted/shared";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { ok, type SessionId } from "@conducted/shared";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "../../test/dom-polyfills.ts";
@@ -16,7 +17,6 @@ import { FastModeUnavailableBanner } from "./FastModeUnavailableBanner.tsx";
 afterEach(cleanup);
 
 const MESSAGE = "Fast mode is disabled because extra usage is out of credits.";
-const USAGE_URL = "https://claude.ai/settings/usage";
 const chatId = "chat-1" as SessionId;
 
 const config = (over: Partial<SessionConfig> = {}): SessionConfig => ({
@@ -46,12 +46,12 @@ const banner = (over: { fastModeRequested?: boolean; fastModeAvailable?: boolean
 );
 
 describe("CHAT-30 Fast mode unavailable banner", () => {
-	it("shows the sentence with Add credit and a dismiss control", () => {
+	it("shows the sentence and a dismiss control, and no Add credit button", () => {
 		const test = createTestContainer();
 		try {
 			render(banner(), { wrapper: wrapperFor(test) });
 			expect(screen.getByText(MESSAGE)).toBeTruthy();
-			expect(screen.getByRole("button", { name: "Add credit" })).toBeTruthy();
+			expect(screen.queryByRole("button", { name: "Add credit" })).toBeNull();
 			expect(screen.getByRole("button", { name: "Dismiss fast mode warning" })).toBeTruthy();
 		} finally {
 			test.close();
@@ -98,30 +98,39 @@ describe("CHAT-30 Fast mode unavailable banner", () => {
 		}
 	});
 
-	it("opens the Claude usage page from Add credit", async () => {
+	it("opens no page: its one control is the dismiss button", () => {
 		const test = createTestContainer();
+		// seam: CHAT-30 the browser is outside the app; the test checks that nothing asks for it.
 		const openUrl = vi
 			.spyOn(test.container.actions.app, "openUrl")
 			.mockResolvedValue(ok(undefined));
 		try {
 			render(banner(), { wrapper: wrapperFor(test) });
-			fireEvent.click(screen.getByRole("button", { name: "Add credit" }));
-			await waitFor(() => expect(openUrl).toHaveBeenCalledWith(USAGE_URL));
+			const controls = screen.getAllByRole("button");
+			expect(controls.map((control) => control.getAttribute("aria-label"))).toEqual([
+				"Dismiss fast mode warning",
+			]);
+			for (const control of controls) fireEvent.click(control);
+			expect(openUrl).not.toHaveBeenCalled();
 		} finally {
 			test.close();
 		}
 	});
 
-	it("shows the failure beside Add credit when the page cannot be opened", async () => {
+	it("is dismissed for its own chat only", () => {
 		const test = createTestContainer();
-		vi.spyOn(test.container.actions.app, "openUrl").mockResolvedValue(
-			err(appError("open_url_failed", "The link could not be opened.")),
-		);
 		try {
-			render(banner(), { wrapper: wrapperFor(test) });
-			fireEvent.click(screen.getByRole("button", { name: "Add credit" }));
-			const alert = await screen.findByRole("alert");
-			expect(alert.textContent).toBe("The link could not be opened.");
+			const view = render(banner(), { wrapper: wrapperFor(test) });
+			fireEvent.click(screen.getByRole("button", { name: "Dismiss fast mode warning" }));
+			expect(screen.queryByText(MESSAGE)).toBeNull();
+
+			view.rerender(
+				<FastModeUnavailableBanner
+					sessionId={"chat-2" as SessionId}
+					fastModeRequested
+					fastModeAvailable={false}
+				/>,
+			);
 			expect(screen.getByText(MESSAGE)).toBeTruthy();
 		} finally {
 			test.close();

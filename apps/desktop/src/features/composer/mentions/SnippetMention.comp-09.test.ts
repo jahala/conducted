@@ -124,4 +124,29 @@ describe("COMP-09 SnippetMention", () => {
 		fireEvent.keyDown(editor.view.dom, { key: "Tab" });
 		expect(editor.getText()).toBe("Review this change.");
 	});
+
+	it("inserts a prompt's line breaks as line breaks, keeping its text", async () => {
+		const prompt = "Review this change.\nThen run the tests.\n\nSay what failed.";
+		const editor = mount(() => [{ ...(snippets[0] as Snippet), prompt }]);
+		type(editor, "§rev");
+		await screen.findByRole("listbox", { name: "Snippets" });
+		fireEvent.keyDown(editor.view.dom, { key: "Enter" });
+
+		expect(editor.getText()).toBe(prompt);
+		const inline = editor.getJSON().content?.[0]?.content ?? [];
+		expect(inline.filter((node) => node.type === "hardBreak")).toHaveLength(3);
+		expect(inline.some((node) => "text" in node && String(node.text).includes("\n"))).toBe(false);
+	});
+
+	it("keeps Enter and Tab while no snippet matches, so the typed text is not sent", async () => {
+		const editor = mount(() => snippets);
+		type(editor, "§zzzz");
+		await screen.findByText("No snippets found");
+
+		const keys = ["Tab", "Enter"].map((key) => fireEvent.keyDown(editor.view.dom, { key }));
+
+		expect(keys).toEqual([false, false]);
+		expect(editor.getText()).toBe("§zzzz");
+		expect(editor.getJSON().content).toHaveLength(1);
+	});
 });

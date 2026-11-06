@@ -14,19 +14,24 @@
  * Must handle: Partial Markdown while streaming (an open code fence or list must not flash); very
  * long lines wrap; links open outside the app through the opener, never inside the window; raw HTML
  * is not rendered; an image that fails to load shows its alt text; an image from a web address is never loaded
- * (a reply could carry data out in the address), it shows as a link instead; text is selectable.
+ * (a reply could carry data out in the address), it shows as a link instead; an image target
+ * relative to the workspace is saved, copied and viewed from the workspace folder, as a video
+ * target is, and shows its alt text when the reply has no workspace; text is selectable.
  * Test first: A text with an unclosed code fence renders as a code block without throwing; the
  * "not_absolutely_right" setting controls whether a leading absolutely-right phrase is removed.
  */
 import type { WorkspaceId } from "@conducted/shared";
 import { type ReactNode, useState } from "react";
+import { useStore } from "zustand";
+import { useServices } from "../../core/context.tsx";
 import { useActions, useSetting } from "../../core/hooks.ts";
+import { isVideoPath, targetPath } from "../../core/media-files.ts";
 import { ContextMenu, ContextMenuItem } from "../../ui/ContextMenu.tsx";
 import { cn } from "../../ui/cn.ts";
 import { toastError } from "../../ui/Toast.tsx";
 import { AttachmentViewer } from "../file-viewer/AttachmentViewer.tsx";
 import { useAttachmentActions } from "../file-viewer/use-attachment-actions.ts";
-import { ChatVideo, isVideoSource } from "./ChatVideo.tsx";
+import { ChatVideo } from "./ChatVideo.tsx";
 import { CodeBlock } from "./CodeBlock.tsx";
 import { ExternalLink } from "./ExternalLink.tsx";
 import { MermaidDiagram } from "./MermaidDiagram.tsx";
@@ -238,9 +243,7 @@ function MarkdownImage({
 	workspaceId?: WorkspaceId;
 }) {
 	const actions = useActions();
-	const attachmentActions = useAttachmentActions();
 	const [failed, setFailed] = useState(false);
-	const [viewerOpen, setViewerOpen] = useState(false);
 	const label = alt.length > 0 ? alt : src;
 	if (REMOTE_IMAGE.test(src) && !INLINE_IMAGE.test(src)) {
 		return (
@@ -261,7 +264,7 @@ function MarkdownImage({
 			/>
 		);
 	}
-	if (isVideoSource(src)) {
+	if (isVideoPath(src)) {
 		if (workspaceId === undefined) return <span className="text-fg-muted">{label}</span>;
 		return (
 			<ChatVideo
@@ -276,6 +279,51 @@ function MarkdownImage({
 			/>
 		);
 	}
+	const absolute = src.startsWith("/") ? targetPath("/", src) : null;
+	if (absolute !== null) return <FileImage src={src} path={absolute} alt={alt} label={label} />;
+	if (workspaceId === undefined) return <span className="text-fg-muted">{label}</span>;
+	return <WorkspaceImage workspaceId={workspaceId} src={src} alt={alt} label={label} />;
+}
+
+/** A relative image target names a file in the chat's workspace, as a video target does. */
+function WorkspaceImage({
+	workspaceId,
+	src,
+	alt,
+	label,
+}: {
+	workspaceId: WorkspaceId;
+	src: string;
+	alt: string;
+	label: string;
+}) {
+	const { services } = useServices();
+	const loaded = useStore(services.workspace.store, (state) => state.loaded);
+	const root = useStore(
+		services.workspace.store,
+		(state) => state.workspacesById[workspaceId]?.path ?? null,
+	);
+	if (!loaded) return null;
+	const path = root === null ? null : targetPath(root, src);
+	if (path === null) return <span className="text-fg-muted">{label}</span>;
+	return <FileImage src={src} path={path} alt={alt} label={label} />;
+}
+
+/** An image backed by a file: Save image and Copy image in its menu, and the viewer on a click. */
+function FileImage({
+	src,
+	path,
+	alt,
+	label,
+}: {
+	src: string;
+	path: string;
+	alt: string;
+	label: string;
+}) {
+	const attachmentActions = useAttachmentActions();
+	const [failed, setFailed] = useState(false);
+	const [viewerOpen, setViewerOpen] = useState(false);
 	if (failed) {
 		return <span className="text-fg-muted">{label}</span>;
 	}
@@ -284,10 +332,10 @@ function MarkdownImage({
 			<ContextMenu
 				items={
 					<>
-						<ContextMenuItem onSelect={() => attachmentActions.saveFile(src, "image")}>
+						<ContextMenuItem onSelect={() => attachmentActions.saveFile(path, "image")}>
 							Save image
 						</ContextMenuItem>
-						<ContextMenuItem onSelect={() => attachmentActions.copyImage(src)}>
+						<ContextMenuItem onSelect={() => attachmentActions.copyImage(path)}>
 							Copy image
 						</ContextMenuItem>
 					</>
@@ -309,7 +357,7 @@ function MarkdownImage({
 			</ContextMenu>
 			{viewerOpen ? (
 				<AttachmentViewer
-					path={src}
+					path={path}
 					fileName={label}
 					kind="image"
 					onClose={() => setViewerOpen(false)}

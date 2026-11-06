@@ -7,9 +7,10 @@
  * Behaviour: ui-map.md 3.5 ('#': pull requests and issues; selecting writes a PR context file and
  * inserts a chip), services-map.md 5B.8.2 (GitHub's open issues), 5B.8.3 (`.context/pull-requests/
  * <n>.md` and `[GITHUB]-<n>.md`).
- * Data: `search` is passed in and asks the workspace's GitHub and Linear sources; `attach` writes
- * the chosen item's context file and returns its workspace-relative path; `onError` reports a
- * failed write so the composer shows "Failed to save PR context".
+ * Data: `search` is passed in and asks the workspace's GitHub and Linear sources (the composer
+ * passes core/services/mention-search.ts); `attach` writes the chosen item's context file and
+ * returns its workspace-relative path; `onError` reports a failed write so the composer shows
+ * "Failed to save PR context".
  * Our design choice: the trigger is one ProseMirror plugin rather than TipTap's suggestion helper,
  * because the editor carries no extra TipTap packages. The plugin holds the query, the request
  * number, the matching rows and the selected row, and draws them with SuggestionPopup. Only the
@@ -17,8 +18,10 @@
  * belongs to, and an older one is dropped. A short pause after the last key limits the requests.
  * Must handle: a source that cannot be searched (its notice shows above the rows); a failed search
  * (its message replaces the rows); no matches; Escape closes the popup and keeps the typed '#';
- * Arrow keys wrap; Enter and Tab choose; a trigger inside a word does not open; a context file that
- * cannot be written (no chip, `onError` called).
+ * Arrow keys wrap; Enter and Tab choose, and do nothing while the search runs or finds no row (so
+ * Enter never sends a message ending in a half-typed '#12'; Escape or a space closes the popup);
+ * a trigger inside a word does not open; a context file that cannot be written (no chip,
+ * `onError` called).
  * Test first: Typing '#12' offers PR 12 when it exists; choosing it inserts a chip with the number
  * and title.
  */
@@ -30,27 +33,13 @@ import type { EditorView } from "@tiptap/pm/view";
 import { Node } from "@tiptap/react";
 import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import {
+	PR_MENTION_LIMIT,
+	type PrMentionItem,
+	type PrMentionSearchResult,
+} from "../../../core/services/mention-search.ts";
 import { SuggestionPopup, type SuggestionRow } from "./SuggestionPopup.tsx";
-
-export interface PrMentionItem {
-	kind: "pull_request" | "issue";
-	provider: "github" | "linear";
-	/** The pull request or GitHub issue number; null for a Linear issue. */
-	number: number | null;
-	/** What the user sees: "#12" or "ENG-12". */
-	identifier: string;
-	title: string;
-	/** The item's web address, when its source reports one. */
-	url?: string;
-	/** The provider's id, for attaching an issue. */
-	id: string;
-}
-
-export interface PrMentionSearchResult {
-	items: readonly PrMentionItem[];
-	/** One line above the rows when a source is unavailable but another can answer. */
-	notice?: string;
-}
+import type { TriggerMenuSpec } from "./trigger-menu.ts";
 
 export interface PrMentionDeps {
 	search: (query: string) => Promise<Result<PrMentionSearchResult>>;
@@ -61,7 +50,6 @@ export interface PrMentionDeps {
 }
 
 export const PR_MENTION_NODE_NAME = "prMention";
-export const PR_MENTION_LIMIT = 20;
 const SEARCH_PAUSE_MS = 120;
 const TRIGGER = /(?:^|[\s([{])#([^\s#]*)$/;
 
@@ -135,7 +123,11 @@ function stateAtEditor(state: EditorState, previousRequest: number): PrMentionSt
 }
 
 function createMentionPlugin(deps: PrMentionDeps): Plugin<PrMentionState> {
+	const spec: TriggerMenuSpec = {
+		triggerMenuOpen: (state) => mentionPluginKey.getState(state)?.active === true,
+	};
 	return new Plugin<PrMentionState>({
+		...spec,
 		key: mentionPluginKey,
 		state: {
 			init: (_config, state) => stateAtEditor(state, 0),
@@ -202,10 +194,11 @@ function createMentionPlugin(deps: PrMentionDeps): Plugin<PrMentionState> {
 					);
 					return true;
 				}
-				if ((event.key === "Enter" || event.key === "Tab") && count > 0) {
+				if (event.key === "Enter" || event.key === "Tab") {
+					// With no row yet (still searching) or none at all, the key does nothing: Enter must
+					// not send a message that still ends in a half-typed '#12'.
 					const item = state.items[state.selectedIndex];
-					if (item === undefined) return false;
-					void chooseItem(view, item, state.request, deps);
+					if (item !== undefined) void chooseItem(view, item, state.request, deps);
 					return true;
 				}
 				return false;

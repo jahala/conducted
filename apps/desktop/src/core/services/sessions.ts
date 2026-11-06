@@ -1268,10 +1268,6 @@ export class SessionsService implements AgentMessenger {
 	}
 
 	/**
-	 * Asks the sidecar for a chat's Remote Control link, for a chat shown after the app reloaded. A
-	 * chat the sidecar does not know has none running.
-	 */
-	/**
 	 * Asks the sidecar for a chat's context and plan usage and its signed-in account, for the
 	 * context card (SIDE-17, CHAT-28). Read on demand; nothing is kept here.
 	 */
@@ -1279,6 +1275,10 @@ export class SessionsService implements AgentMessenger {
 		return this.#deps.sidecar.request("getContextUsage", { sessionId });
 	}
 
+	/**
+	 * Asks the sidecar for a chat's Remote Control link, for a chat shown after the app reloaded. A
+	 * chat the sidecar does not know has none running.
+	 */
 	async refreshRemoteControl(sessionId: SessionId): Promise<Result<void>> {
 		const ticket = this.#remoteControlRequests.begin(sessionId);
 		const status = await this.#deps.sidecar.request("getSessionStatus", { sessionId });
