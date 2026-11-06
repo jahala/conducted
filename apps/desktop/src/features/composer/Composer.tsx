@@ -199,7 +199,10 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 	);
 	const session = useStore(services.sessions.store, (state) => state.sessions[sessionId]);
 	const workspaceRow = useWorkspace(workspaceId);
-	const linkedPaths = workspaceRow.state === "ready" ? workspaceRow.data.linkedPaths : [];
+	// Read through a ref, like the file list: a rename or pin replaces the row with new arrays, and
+	// the editor must not be rebuilt under the user each time (it would drop unsaved typing).
+	const linkedPaths = useRef<readonly string[]>([]);
+	linkedPaths.current = workspaceRow.state === "ready" ? workspaceRow.data.linkedPaths : [];
 	const slash = useSlashCommands(sessionId);
 	const working = live?.status === "working";
 	const sendWith: SendWith = sendKey === "cmd-enter" ? "mod_enter" : "enter";
@@ -343,7 +346,7 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 			buildComposerExtensions({
 				files: {
 					search: () => [
-						...linkedPaths.map((path) => ({ path, isDirectory: true })),
+						...linkedPaths.current.map((path) => ({ path, isDirectory: true })),
 						...files.current,
 					],
 					onOpen: () => void loadFiles(),
@@ -376,7 +379,7 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 					onRun: runSlashCommand,
 				},
 			}),
-		[attachTerminalOutput, linkedPaths, loadFiles, runSlashCommand],
+		[attachTerminalOutput, loadFiles, runSlashCommand],
 	);
 
 	const restore = useCallback((draft: Draft) => {
