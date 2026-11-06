@@ -11,22 +11,8 @@
  *
  * Usage: bun scripts/overnight/node-gate.ts <FEATURE-ID>... (a batch's joining node passes every id)
  */
-import { readFileSync } from "node:fs";
-import { join, relative } from "node:path";
-import { isTestFile, placeholderPattern, walk } from "../guards/lib.ts";
-
-const TOP_FOLDERS = ["apps", "packages", "bin"];
-
-/** Every source file under the repo's code folders, as [path relative to root, text]. */
-export function readSources(root: string): [string, string][] {
-	const files: [string, string][] = [];
-	for (const top of TOP_FOLDERS) {
-		for (const path of walk(root, join(root, top), /\.(ts|tsx|rs|sh)$/)) {
-			files.push([relative(root, path), readFileSync(path, "utf8")]);
-		}
-	}
-	return files;
-}
+import { join } from "node:path";
+import { isTestFile, placeholderPattern, readCodeFiles } from "../guards/lib.ts";
 
 /** Files that still hold a placeholder for the id. Test files do not count, as in `pnpm stubs`. */
 export function placeholdersFor(id: string, files: Iterable<[string, string]>): string[] {
@@ -61,7 +47,7 @@ if (import.meta.main) {
 		process.exit(64);
 	}
 	const root = process.cwd();
-	const files = readSources(root);
+	const files = readCodeFiles(root);
 	const counts: string[] = [];
 	for (const id of ids) {
 		const left = placeholdersFor(id, files);

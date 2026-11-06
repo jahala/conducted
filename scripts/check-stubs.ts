@@ -11,12 +11,11 @@
  * Usage: bun scripts/check-stubs.ts [--list]
  */
 import { readFileSync } from "node:fs";
-import { join, relative } from "node:path";
-import { isTestFile, placeholdersIn, walk } from "./guards/lib.ts";
+import { join } from "node:path";
+import { isTestFile, placeholdersIn, readCodeFiles } from "./guards/lib.ts";
 import { type BacklogRow, scanBacklog } from "./issues/model.ts";
 
 const ROOT = join(import.meta.dir, "..");
-const SCAN = ["apps", "packages", "bin"];
 
 /** Placeholder ids and the files that hold them. */
 export type Found = Map<string, string[]>;
@@ -48,16 +47,12 @@ export function stubProblems(
 	return problems;
 }
 
-/** Reads every source file under the scanned folders and collects its placeholders. */
+/** Reads every code file outside the tests and collects its placeholders. */
 export function findPlaceholders(root: string): Found {
 	const found: Found = new Map();
-	for (const top of SCAN) {
-		for (const path of walk(root, join(root, top), /\.(ts|tsx|rs|sh)$/)) {
-			if (isTestFile(path)) continue;
-			for (const id of placeholdersIn(readFileSync(path, "utf8"))) {
-				found.set(id, [...(found.get(id) ?? []), relative(root, path)]);
-			}
-		}
+	for (const [path, text] of readCodeFiles(root)) {
+		if (isTestFile(path)) continue;
+		for (const id of placeholdersIn(text)) found.set(id, [...(found.get(id) ?? []), path]);
 	}
 	return found;
 }
