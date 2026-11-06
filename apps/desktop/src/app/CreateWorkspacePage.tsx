@@ -7,7 +7,9 @@
  * picker (default branch, an existing local branch, a pull request or an issue), first message editor with a
  * model field and plan mode, section picker, and the "Create workspace" button. Typing '@' in the
  * first message offers the chosen repository's own files before any workspace exists (SIDE-22).
- * A draft can be saved to the backlog, and a saved backlog workspace opens with a Start button.
+ * A draft can be saved to the backlog, and a saved backlog workspace opens with a Start button. A deep
+ * link may open the page with its project, branch and first message already filled; a project it names
+ * that is not loaded gives "Repository not found", and the page keeps its usual first project.
  * Behaviour: ui-map.md 3.9 (New workspace flow; "Draft the first message, then create and send it."), 5.4
  * (Cmd+I toggles the create-from picker, Alt+Enter adds the draft to the backlog, and Cmd+Enter
  * starts a backlog workspace).
@@ -26,7 +28,6 @@
  * the new workspace; a failed create offers Retry setup and Recover prompt; Alt+Enter saves the draft to
  * the backlog.
  */
-import type { SessionConfig } from "@conducted/protocol";
 import type { RepoId, SectionId, WorkspaceId } from "@conducted/shared";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
@@ -46,7 +47,7 @@ import {
 	useSetting,
 } from "../core/hooks.ts";
 import type { IssueView, PullRequestSummary, Section } from "../core/model.ts";
-import { FIRST_CHAT_APP_TOOLS } from "../core/services/workspace.ts";
+import { newWorkspaceSessionConfig } from "../core/services/workspace.ts";
 import { SuggestionPopup } from "../features/composer/mentions/SuggestionPopup.tsx";
 import { AddProjectButton } from "../features/sidebar/AddProjectButton.tsx";
 import { Button } from "../ui/Button.tsx";
@@ -58,6 +59,14 @@ import { useCommandHandler } from "./command-dispatcher.ts";
 
 type FromKind = "default" | "branch" | "pull_request" | "issue";
 type IssueProvider = IssueView["provider"];
+
+/** The loaded project a link names, by id or by name. */
+function namedRepo<T extends { id: RepoId; name: string }>(
+	repos: readonly T[],
+	named: string,
+): T | undefined {
+	return repos.find((repo) => repo.id === named || repo.name === named);
+}
 
 /** The '@' query under the caret in the first-message field. */
 interface FileMentionQuery {
@@ -156,7 +165,13 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	const repos = useRepos();
 	const services = useServices();
 	const navigate = useNavigate();
-	const search = useSearch({ strict: false }) as { section?: string; backlog?: string };
+	const search = useSearch({ strict: false }) as {
+		section?: string;
+		backlog?: string;
+		repo?: string;
+		branch?: string;
+		prompt?: string;
+	};
 
 	const defaultModel = useSetting<string>("default_model");
 	const defaultEffort = useSetting<string>("default_claude_effort_level");
@@ -176,15 +191,22 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 			? undefined
 			: backlog.data.find((entry) => entry.id === search.backlog);
 
-	const [repoId, setRepoId] = useState<RepoId | null>(null);
-	const [fromKind, setFromKind] = useState<FromKind>("default");
+	// The project a link names is looked up in the loaded list, never taken from the URL as is.
+	const [repoId, setRepoId] = useState<RepoId | null>(() =>
+		repos.state === "ready" && search.repo !== undefined
+			? (namedRepo(repos.data, search.repo)?.id ?? null)
+			: null,
+	);
+	const [fromKind, setFromKind] = useState<FromKind>(
+		search.branch === undefined ? "default" : "branch",
+	);
 	const [pickerOpen, setPickerOpen] = useState(true);
-	const [branchName, setBranchName] = useState("");
+	const [branchName, setBranchName] = useState(search.branch ?? "");
 	const [showBranchList, setShowBranchList] = useState(false);
 	const [selectedPullRequest, setSelectedPullRequest] = useState<PullRequestSummary | null>(null);
 	const [issueProvider, setIssueProvider] = useState<IssueProvider>("github");
 	const [selectedIssue, setSelectedIssue] = useState<IssueView | null>(null);
-	const [prompt, setPrompt] = useState("");
+	const [prompt, setPrompt] = useState(search.prompt ?? "");
 	const [mention, setMention] = useState<FileMentionQuery | null>(null);
 	const [slashMention, setSlashMention] = useState<FileMentionQuery | null>(null);
 	const [model, setModel] = useState(defaultModel);
@@ -202,6 +224,38 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	useEffect(() => {
 		if (repoId === null && readyRepos[0] !== undefined) setRepoId(readyRepos[0].id);
 	}, [repoId, readyRepos]);
+
+	// A link to /create names its project in the URL. Resolve it once the list has loaded, and again
+	// when a later link names another project while this page stays open. A project that is not
+	// loaded is reported once per link, so the user knows the page did not open on it.
+	const repoFromSearch = search.repo;
+	const reportedMissingRepo = useRef<string | null>(null);
+	const reposReady = repos.state === "ready";
+	useEffect(() => {
+		if (repoFromSearch === undefined || !reposReady) return;
+		const named = namedRepo(readyRepos, repoFromSearch);
+		if (named !== undefined) {
+			setRepoId(named.id);
+			return;
+		}
+		if (reportedMissingRepo.current === repoFromSearch) return;
+		reportedMissingRepo.current = repoFromSearch;
+		toastError("Repository not found", {
+			message: `There is no project called "${repoFromSearch}".`,
+		});
+	}, [readyRepos, repoFromSearch, reposReady]);
+
+	const promptFromSearch = search.prompt;
+	useEffect(() => {
+		if (promptFromSearch !== undefined) setPrompt(promptFromSearch);
+	}, [promptFromSearch]);
+
+	const branchFromSearch = search.branch;
+	useEffect(() => {
+		if (branchFromSearch === undefined) return;
+		setBranchName(branchFromSearch);
+		setFromKind("branch");
+	}, [branchFromSearch]);
 
 	useCommandHandler("workspace.toggleCreateFromPicker", "modal", () => {
 		setPickerOpen((open) => !open);
@@ -314,16 +368,13 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 			}
 			from = { kind: "issue", provider: selectedIssue.provider, id: selectedIssue.id };
 		}
-		const config: SessionConfig = {
-			agent: "claude",
-			model: model.trim() === "" ? "default" : model.trim(),
-			effort: (defaultEffort === "" ? "high" : defaultEffort) as SessionConfig["effort"],
+		const config = newWorkspaceSessionConfig({
+			model,
+			effort: defaultEffort,
 			fastMode: defaultFastMode,
 			planMode,
 			requireToolApproval: toolApprovals,
-			additionalDirectories: [],
-			appTools: FIRST_CHAT_APP_TOOLS,
-		};
+		});
 		return {
 			repoId: repo.id,
 			from,

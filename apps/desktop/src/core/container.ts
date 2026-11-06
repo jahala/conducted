@@ -15,8 +15,8 @@
  * and its 10-second timer, the quit guard and the Spotlight heal; a quit (asked for, or confirmed
  * while agents work) runs `stop` first and then quits, because the Rust shell exits at once; editor
  * drafts of a workspace that left the store are dropped; deep links have one subscriber,
- * the command dispatcher (NAV-14), which is mounted with the app root, so this file does not
- * listen for them a second time; `stop` removes those listeners, stops the settings reload
+ * the command dispatcher (NAV-14), which is mounted with the app root and hands them to NAV-17's
+ * opener, so this file does not listen for them a second time; `stop` removes those listeners, stops the settings reload
  * listener and its timer, stops the update and keep-awake timers, cancels `caffeinate`, disposes
  * the repo service, stops every git poll and branch watcher, writes composer drafts still waiting
  * for their debounce, kills terminals and runs, waits for chat events that are being stored, and
@@ -794,6 +794,13 @@ export function createContainer(inputs: ContainerInputs): Container {
 		markViewReverted: (sessionId, turnId, at) => sessions.markReverted(sessionId, turnId, at),
 		setting,
 		repositories: () => repositories,
+		createWorkspaceFromCommit: (input, baseSha) => workspace.createFromCommit(input, baseSha),
+		forkSessionInto: (sessionId, turnId, workspaceId) =>
+			sessions.forkIntoWorkspace(sessionId, turnId, workspaceId),
+		removeWorkspace: (workspaceId) => workspace.remove(workspaceId),
+		forkCheckpointOf: (sessionId, turnId) => sessions.forkCheckpoint(sessionId, turnId),
+		setActiveSession: (workspaceId, sessionId) =>
+			workspace.setActiveSession(workspaceId, sessionId),
 		now: () => clock.now(),
 	});
 	const fileDiff = new FileDiffService({

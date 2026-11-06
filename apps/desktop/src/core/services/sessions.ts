@@ -1,14 +1,16 @@
 /**
  * @feature CHAT-01 Sessions service: the chat list; CHAT-02 Send a message as a new turn;
  * CHAT-05 Cancel a turn; CHAT-16 Fork a chat from a turn; CHAT-17 Copy transcript and search chat
- * history; CHAT-27 Retry a failed turn in a new chat; WS-10 Delete a workspace's chats
+ * history; CHAT-21 Fork a chat to a new workspace; CHAT-27 Retry a failed turn in a new chat;
+ * WS-10 Delete a workspace's chats
  * Owns: the list of chats per workspace, their stored live state and events in memory, the
  * create, close, reopen, rename, set-title-if-empty, delete (which also removes the chat's
  * checkpoint refs) and open paths, deleting every chat of a workspace with its attachment files
  * and drafts, starting a review chat with the review model, sending a user message as a new turn
  * or a steer, running the composition root's first-message hook (WS-04's branch rename),
- * forking a chat up to a checkpointed turn into a new chat and resuming its agent at that turn's
- * last message, cancelling a turn:
+ * forking a chat up to a checkpointed turn into a new chat of the same or another workspace and
+ * resuming its agent at that turn's last message (one turn lookup names the checkpoint for both
+ * forks), cancelling a turn:
  * pausing the follow-up queue, withdrawing the open interaction, removing only the pending sends
  * the sidecar dropped, and putting a send that was still in flight back in the composer draft,
  * and starting a failed turn's message again in a new chat of the same workspace, handing a
@@ -54,7 +56,8 @@
  * config write leaves the newer stored choice in place, a cancel pauses the queue and returns
  * the dropped message to the draft, and a retry in a new chat sends the failed turn's message
  * there. For CHAT-16, a fork copies the events of the chosen turn and the turns before it into
- * a new chat and resumes the agent at the turn's last message.
+ * a new chat and resumes the agent at the turn's last message. For CHAT-21, the same copy can be
+ * made into a different workspace.
  *
  * The progress path lives in the same service but belongs to CHAT-13. The chat view (turns built
  * from stored events) belongs to CHAT-07. Cancel is CHAT-05's, and the interaction paths (answer,
@@ -1854,28 +1857,40 @@ export class SessionsService implements AgentMessenger {
 	async forkFrom(id: SessionId, turnId: TurnId): Promise<Result<Session>> {
 		const found = await this.#session(id);
 		if (!found.ok) return found;
+		return this.#forkInto(id, turnId, found.value.workspaceId);
+	}
+
+	/**
+	 * Backs CHAT-21: copies the chat up to and including the chosen turn into a chat of another
+	 * workspace. The new chat keeps the origin's title, config and agent session id, and its first
+	 * send resumes the agent at the turn's last message with a forked session. The copy rules and
+	 * refusals are the same as `forkFrom`.
+	 */
+	async forkIntoWorkspace(
+		id: SessionId,
+		turnId: TurnId,
+		workspaceId: WorkspaceId,
+	): Promise<Result<Session>> {
+		return this.#forkInto(id, turnId, workspaceId);
+	}
+
+	async #forkInto(
+		id: SessionId,
+		turnId: TurnId,
+		workspaceId: WorkspaceId,
+	): Promise<Result<Session>> {
+		const found = await this.#session(id);
+		if (!found.ok) return found;
 		const origin = found.value;
 
-		const stored = await this.#storedEvents(id);
-		if (!stored.ok) return stored;
-		const turnEvents = stored.value.filter((row) => row.event.turnId === turnId);
-		if (turnEvents.length === 0) {
-			return err(
-				appError("chat_fork_turn_unknown", "Unable to fork chat: that turn is no longer here."),
-			);
-		}
-		const checkpointed = turnEvents.some(
-			(row) => row.event.type === "checkpoint" && row.event.checkpointId !== undefined,
-		);
-		if (!checkpointed) {
-			return err(appError("chat_fork_no_checkpoint", "Checkpoint not found for this turn."));
-		}
+		const point = await this.#forkPoint(id, turnId);
+		if (!point.ok) return point;
+		const { stored, cutoff } = point.value;
 
-		const cutoff = turnEvents[turnEvents.length - 1]?.idx ?? -1;
 		// Resume at the last agent message the fork contains, so a turn with no answer of its
 		// own still never resumes past a later turn.
 		let nativeMessageId: string | undefined;
-		for (const row of stored.value) {
+		for (const row of stored) {
 			if (row.idx > cutoff) break;
 			if (row.event.type === "agent" && row.event.message.nativeId !== undefined) {
 				nativeMessageId = row.event.message.nativeId;
@@ -1892,7 +1907,7 @@ export class SessionsService implements AgentMessenger {
 			);
 		}
 
-		const created = await this.create(origin.workspaceId, origin.config);
+		const created = await this.create(workspaceId, origin.config);
 		if (!created.ok) return created;
 		const forked = created.value;
 		const discard = async (failure: AppError): Promise<Result<Session>> => {
@@ -1916,7 +1931,7 @@ export class SessionsService implements AgentMessenger {
 		// the fork's restore points in place.
 		const copiedEvents: StoredSessionEvent[] = [];
 		const pairs: [from: string, to: string][] = [];
-		for (const row of stored.value) {
+		for (const row of stored) {
 			if (row.idx > cutoff) break;
 			const event = row.event;
 			if (event.type === "checkpoint" && event.checkpointId !== undefined) {
@@ -1951,6 +1966,47 @@ export class SessionsService implements AgentMessenger {
 			});
 		}
 		return this.#session(forked.id);
+	}
+
+	/**
+	 * Backs CHAT-21: the checkpoint a fork of this turn starts from, which the fork to a new
+	 * workspace restores there. It is the turn's newest checkpoint: its end checkpoint, or its start
+	 * when the turn has none. The refusals are the same as `forkFrom`'s, because both read
+	 * `#forkPoint`.
+	 */
+	async forkCheckpoint(id: SessionId, turnId: TurnId): Promise<Result<CheckpointId>> {
+		const point = await this.#forkPoint(id, turnId);
+		return point.ok ? ok(point.value.checkpointId) : point;
+	}
+
+	/**
+	 * The one turn lookup both forks use: the chat's stored events, the last index the fork copies,
+	 * and the turn's newest checkpoint. A turn that is not in the chat, or that has no checkpoint,
+	 * is refused.
+	 */
+	async #forkPoint(
+		id: SessionId,
+		turnId: TurnId,
+	): Promise<Result<{ stored: StoredSessionEvent[]; cutoff: number; checkpointId: CheckpointId }>> {
+		const stored = await this.#storedEvents(id);
+		if (!stored.ok) return stored;
+		const turnEvents = stored.value.filter((row) => row.event.turnId === turnId);
+		const last = turnEvents[turnEvents.length - 1];
+		if (last === undefined) {
+			return err(
+				appError("chat_fork_turn_unknown", "Unable to fork chat: that turn is no longer here."),
+			);
+		}
+		let checkpointId: CheckpointId | undefined;
+		for (const row of turnEvents) {
+			if (row.event.type === "checkpoint" && row.event.checkpointId !== undefined) {
+				checkpointId = row.event.checkpointId;
+			}
+		}
+		if (checkpointId === undefined) {
+			return err(appError("chat_fork_no_checkpoint", "Checkpoint not found for this turn."));
+		}
+		return ok({ stored: stored.value, cutoff: last.idx, checkpointId });
 	}
 
 	/** Every stored event of a chat in log order. */

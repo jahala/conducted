@@ -1,12 +1,13 @@
 /**
  * @feature s1-core Join the batch's features through the composition root
- * Owns: one test per feature of the batch (CHAT-04, GIT-17, PR-05 and REV-12), each driven through
- * createTestContainer with the real service and the real screen that shows it.
+ * Owns: one test per feature of the batch (CHAT-04, GIT-17, PR-05 and REV-12), and the later
+ * s1-core batch (CHAT-21 and NAV-17), each driven through createTestContainer with the real service,
+ * the real screen or the real app route that shows it.
  * Behaviour: D054 (a feature is reachable from the composition root).
  * Test first: each test fails when its feature's container wiring or screen mount is removed.
  */
 import { idleLiveState, type SessionConfig } from "@conducted/protocol";
-import { ok, type Result, type SessionId } from "@conducted/shared";
+import { ok, type Result, type SessionId, type TurnId } from "@conducted/shared";
 import {
 	createMemoryHistory,
 	createRootRoute,
@@ -14,7 +15,7 @@ import {
 	createRouter,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { VirtuosoMockContext } from "react-virtuoso";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -23,10 +24,19 @@ import { CommandDispatcher } from "../app/command-dispatcher.ts";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
 import { AppProviders, createQueryClient } from "../app/providers.tsx";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
+import { createAppRouter } from "../app/router.tsx";
+// biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
 import { ChatPane } from "../features/chat/ChatPane.tsx";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
 import { GitPanel } from "../features/git-panel/GitPanel.tsx";
 import type { ShellCommand, ShellOutput } from "../platform/platform.ts";
+import {
+	agentEvent,
+	appendChatEvents,
+	checkpointEvent,
+	turnEndedEvent,
+	userMessageEvent,
+} from "../test/chat-events.ts";
 import {
 	createTestContainer,
 	seedRepo,
@@ -35,6 +45,7 @@ import {
 } from "../test/container.ts";
 import { ServicesProvider } from "./context.tsx";
 import { createRepositories } from "./db/repositories.ts";
+import { checkpointRef } from "./git/refs.ts";
 import type { CheckRun, PullRequest, Workspace } from "./model.ts";
 
 const CONFIG: SessionConfig = {
@@ -66,6 +77,51 @@ const Virtuoso = VirtuosoMockContext.Provider as unknown as LooseComponent;
 /** The git arguments without the runner's `-c core.quotePath=false` prefix. */
 const argv = (command: ShellCommand): readonly string[] =>
 	command.program === "git" && command.args[0] === "-c" ? command.args.slice(2) : command.args;
+
+const CHECKPOINTER = /\/checkpointer\.sh$/;
+const FORK_HEAD = "checkpoint-head-sha";
+
+/** Answers the git and checkpointer calls a fork makes, as a real repository would. */
+function scriptFork(test: TestContainer, refs: Set<string>): void {
+	test.memory.controls.scriptShell((command) => {
+		const args = argv(command);
+		if (CHECKPOINTER.test(command.program)) {
+			return args[0] === "restore" ? output() : null;
+		}
+		if (command.program === "lsof") return output("", "", 1);
+		if (command.program !== "git") return null;
+		const [first, second] = args;
+		if (first === "cat-file" && second === "commit") {
+			return output(
+				`checkpoint:${args[2]}\nhead ${FORK_HEAD}\nindex-tree tree\nworktree-tree tree\n`,
+			);
+		}
+		if (first === "show-ref") {
+			const ref = args.at(-1) ?? "";
+			return output("", "", refs.has(ref) ? 0 : 1);
+		}
+		if (first === "rev-parse" && second === "HEAD") return output(`${FORK_HEAD}\n`);
+		if (first === "rev-parse" && second === "--git-common-dir") return output(".git\n");
+		if (first === "worktree" && second === "add") return output();
+		if (first === "config") return output();
+		if (first === "ls-files") return output();
+		if (first === "for-each-ref") {
+			const prefix = args.at(-1) ?? "";
+			const listed = [...refs].filter((ref) => ref.startsWith(prefix));
+			return output(listed.map((ref) => `${ref}\n`).join(""));
+		}
+		if (first === "update-ref" && second === "--stdin") {
+			for (const line of (command.stdin ?? "").split("\n")) {
+				if (line.length === 0) continue;
+				const created = line.split(" ")[1];
+				if (created !== undefined) refs.add(created);
+			}
+			return output();
+		}
+		if (first === "remote" && second === "get-url") return output("", "no remote", 2);
+		return null;
+	});
+}
 
 const check = (state: CheckRun["state"]): CheckRun => ({
 	name: "build",
@@ -367,6 +423,91 @@ describe("s1-core join", () => {
 			expect(await repositories.attachments.listByComment(second.id)).toEqual(
 				ok([expect.objectContaining({ sessionId: chat.id, commentId: second.id })]),
 			);
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("CHAT-21 forks a chat to a new workspace through the container's actions", async () => {
+		const test = createTestContainer();
+		try {
+			must(await test.container.services.settings.start());
+			must(await test.container.services.settings.set("branch_prefix_type", "none"));
+			const repo = await seedRepo(test.container, {
+				rootPath: "/code/projects/s1-core-chat-21",
+				remoteUrl: null,
+			});
+			const originWorkspace = await seedWorkspace(test.container, {
+				repoId: repo.id,
+				path: "/code/workspaces/s1-core-chat-21",
+				targetBranch: "main",
+			});
+			const origin = must(
+				await test.container.services.sessions.create(originWorkspace.id, CONFIG),
+			);
+			await appendChatEvents(test.container, origin.id, [
+				userMessageEvent("u1", "t1", 10),
+				checkpointEvent("c1", "t1", 11, "start", "start-1"),
+				agentEvent("a1", "t1", 12, [{ kind: "text", text: "First answer" }]),
+				checkpointEvent("c2", "t1", 13, "end", "end-1"),
+				turnEndedEvent("e1", "t1", 14),
+			]);
+			const refs = new Set([checkpointRef("start-1"), checkpointRef("end-1")]);
+			scriptFork(test, refs);
+
+			const forked = must(
+				await test.container.actions.sessions.forkToWorkspace(origin.id, "t1" as TurnId),
+			);
+
+			expect(forked.id).not.toBe(originWorkspace.id);
+			expect(forked.repoId).toBe(repo.id);
+			expect(forked.state).toBe("ready");
+			const added = test.memory.controls.shellCalls.find((command) => {
+				const args = argv(command);
+				return args[0] === "worktree" && args[1] === "add";
+			});
+			expect(added === undefined ? [] : argv(added)).toEqual([
+				"worktree",
+				"add",
+				forked.path,
+				"-b",
+				forked.branch,
+				FORK_HEAD,
+			]);
+			const copies = test.container.services.sessions.store.getState().byWorkspace[forked.id];
+			expect(copies).toHaveLength(1);
+			expect(forked.activeSessionId).toBe(copies?.[0]);
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("NAV-17 opens a deep link through the app route", async () => {
+		const test = createTestContainer();
+		try {
+			const repo = await seedRepo(test.container, { rootPath: "/code/projects/s1-core-nav-17" });
+			await seedWorkspace(test.container, { repoId: repo.id });
+			const router = createAppRouter(createMemoryHistory({ initialEntries: ["/all-workspaces"] }));
+			render(
+				createElement(
+					Services,
+					{ container: test.container },
+					createElement(
+						App,
+						{ client: createQueryClient(() => {}) },
+						createElement(RouterProvider, { router }),
+					),
+				),
+			);
+			await router.load();
+
+			act(() => {
+				test.memory.controls.emitDeepLink("conducted://settings/experimental");
+			});
+
+			await waitFor(() => expect(router.state.location.pathname).toBe("/settings/experimental"));
 		} finally {
 			await test.container.stop();
 			test.close();

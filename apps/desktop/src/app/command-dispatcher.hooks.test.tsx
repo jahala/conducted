@@ -397,19 +397,7 @@ describe("NAV-14 useCommandDispatcher", () => {
 		expect(menuListeners.size).toBe(0);
 	});
 
-	it("opens settings for a settings deep link when no caller handles deep links", () => {
-		const { container, deepLinkListeners, wrapper } = buildHarness();
-		const run = vi.spyOn(container.services.commands, "run").mockResolvedValue(ok(undefined));
-		renderHook(() => useCommandDispatcher(createCommandRegistry()), { wrapper });
-
-		act(() => {
-			for (const listener of deepLinkListeners) listener("conducted://settings");
-		});
-
-		expect(run).toHaveBeenCalledWith("app.openSettings");
-	});
-
-	it("reports a deep link that no command opens", () => {
+	it("reports a deep link when no opener is mounted", () => {
 		const { container, deepLinkListeners, memory, wrapper } = buildHarness();
 		const run = vi.spyOn(container.services.commands, "run").mockResolvedValue(ok(undefined));
 		renderHook(() => useCommandDispatcher(createCommandRegistry()), { wrapper });
@@ -419,7 +407,9 @@ describe("NAV-14 useCommandDispatcher", () => {
 		});
 
 		expect(run).not.toHaveBeenCalled();
-		expect(memory.controls.logs.some((entry) => entry.message.includes("deep link"))).toBe(true);
+		expect(memory.controls.logs.some((entry) => entry.message.includes("deep-link opener"))).toBe(
+			true,
+		);
 	});
 });
 

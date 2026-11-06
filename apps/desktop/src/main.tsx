@@ -10,13 +10,15 @@
  * Must handle: a Platform that cannot be built (logged, no root mounted); the loading, blocked, failed and
  * wrong-CPU states drawn by APP-08's StartupScreen and StartupFailure (the blocked and failed states are also
  * logged); query and mutation failures, React render failures and unhandled errors all reaching the app log;
- * the toast host inside the providers; one query client for the whole app.
+ * the toast host inside the providers; one query client for the whole app; a notification click opened
+ * through NAV-17's deep-link opener, the same one Platform deep links use.
  * Test first: mounting the entry builds a container, runs the startup sequence and renders the router.
  */
 import { cryptoIds, type Result, systemClock } from "@conducted/shared";
 import type { QueryClient } from "@tanstack/react-query";
 import { StrictMode, useState, useSyncExternalStore } from "react";
 import { createRoot } from "react-dom/client";
+import { createDeepLinkOpener } from "./app/deep-link-routes.ts";
 import { AppProviders, createQueryClient, createRootErrorHandlers } from "./app/providers.tsx";
 import { AppRoutes, createAppRouter } from "./app/router.tsx";
 import { type StartupBlocker, StartupFailure } from "./app/StartupFailure.tsx";
@@ -25,7 +27,7 @@ import { runStartup, type StartupState } from "./app/startup.ts";
 import { type Container, type ContainerInputs, createContainer } from "./core/container.ts";
 import { ServicesProvider } from "./core/context.tsx";
 import { useSystemInfo } from "./core/hooks.ts";
-import { parseDeepLink, type SoundPlayer } from "./core/services/notifications.ts";
+import type { SoundPlayer } from "./core/services/notifications.ts";
 import { tomlCodec } from "./core/services/toml-codec.ts";
 import type { PlaceNames } from "./core/services/workspace.ts";
 import { isWrongCpuBuild } from "./features/updates/RosettaConfirm.tsx";
@@ -130,36 +132,6 @@ export function createAppContainer(
 		...(options.openLink === undefined ? {} : { openLink: options.openLink }),
 	};
 	return createContainer(inputs);
-}
-
-/**
- * Opens a notification click. Notifications carry a `conducted://workspace` link, which is the one
- * deep link the app entry owns; every other link goes to the command dispatcher (NAV-14).
- */
-function openWorkspaceLink(
-	container: Container,
-	router: ReturnType<typeof createAppRouter>,
-	platform: Platform,
-	url: string,
-): void {
-	const link = parseDeepLink(url);
-	if (link === null) {
-		platform.app.writeLog("warn", `A notification link could not be read: ${url}`);
-		return;
-	}
-	const workspace = container.services.workspace.store.getState().workspacesById[link.workspaceId];
-	if (workspace === undefined) {
-		platform.app.writeLog(
-			"warn",
-			`A notification link names a workspace that is not loaded: ${link.workspaceId}`,
-		);
-		return;
-	}
-	void router.navigate({
-		to: "/repository/$repositoryId/workspace/$workspaceId",
-		params: { repositoryId: workspace.repoId, workspaceId: link.workspaceId },
-		search: link.sessionId === null ? {} : { sessionId: link.sessionId },
-	});
 }
 
 /** The start-up screen state, plus the wrong-CPU blocker that needs the machine facts. */
@@ -294,7 +266,10 @@ function StartupRoot({
 export interface StartAppOptions {
 	root: HTMLElement;
 	platform: Platform;
-	/** Opens a notification click. Deep links are the command dispatcher's (NAV-14). */
+	/**
+	 * Opens a notification click. By default NAV-17's deep-link opener, the same one the command
+	 * dispatcher hands Platform deep links to. A test may pass its own.
+	 */
 	openLink?: (url: string) => void;
 	/** Installs the process-wide error and drag-and-drop handlers. On unless a test says otherwise. */
 	installHandlers?: boolean;
@@ -328,7 +303,7 @@ export function startApp(options: StartAppOptions): StartedApp {
 		options.openLink ??
 		((url: string) => {
 			if (openedContainer === null) return;
-			openWorkspaceLink(openedContainer, router, platform, url);
+			createDeepLinkOpener(openedContainer, router.navigate)(url);
 		});
 	const container = createAppContainer({ platform, openLink });
 	openedContainer = container;

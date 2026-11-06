@@ -157,7 +157,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | NAV-14 | Shortcut and menu dispatcher                                             | D/app                                   | ui-map 5.4, 8                                  | 1   | done   | NAV-07, DATA-05                |
 | NAV-15 | Terminals and previews that survive tab switches                         | D/app                                   | ui-map 1.1, 8                                  | 2   | done   | NAV-10, RUN-06                 |
 | NAV-16 | Draft markers on the Create row and on workspaces                        | D/features/sidebar, D/features/composer | ui-map 4.3                                     | 3   | stub   | NAV-03, COMP-01, WS-01         |
-| NAV-17 | Deep-link routes: settings, browser tab, create with a prompt            | D/core/services, D/app                  | native-and-sidecar-map A8; services-map 5B.2.5 | 3   | stub   | PLAT-16, WS-01, SET-02         |
+| NAV-17 | Deep-link routes: settings, browser tab, create with a prompt            | D/core/services, D/app                  | native-and-sidecar-map A8; services-map 5B.2.5 | 3   | done   | PLAT-16, WS-01, SET-02         |
 
 ## Chat (CHAT)
 
@@ -183,7 +183,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | CHAT-18 | Resume after restart and reconnect                                     | D/core/sidecar                                | sessions 8                                      | 1   | done   | SIDE-06, DATA-03, DATA-04, PLAT-09 |
 | CHAT-19 | Notify when a chat finishes or needs the user                          | D/core/services                               | ui-map 6                                        | 2   | done   | PLAT-11                            |
 | CHAT-20 | More tool cards: tasks, images, REPL, monitor and others               | D/features/chat, packages/protocol, S/runners | ui-map 3.3; frontend 5                          | 2   | done   | CHAT-08, AGENT-03, AGENT-07        |
-| CHAT-21 | Fork a chat to a new workspace                                         | D/core/services, D/features/chat              | ui-map 3.3                                      | 3   | stub   | CHAT-16, WS-01                     |
+| CHAT-21 | Fork a chat to a new workspace                                         | D/core/services, D/features/chat              | ui-map 3.3                                      | 3   | done   | CHAT-16, WS-01                     |
 | CHAT-22 | Codex visualizations in the chat                                       | D/features/chat                               | ui-map 3.3                                      | 3   | stub   | CHAT-06, AGENT-07, REV-08          |
 | CHAT-23 | Run button on shell code blocks                                        | D/features/chat, D/core/services              | ui-map 3.3                                      | 3   | stub   | CHAT-06, RUN-06                    |
 | CHAT-24 | Mermaid diagrams and video in replies                                  | D/features/chat                               | ui-map 3.3, 8                                   | 3   | stub   | CHAT-06                            |
