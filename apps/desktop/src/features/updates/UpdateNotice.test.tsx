@@ -301,6 +301,26 @@ describe("APP-06 UpdateNotice", () => {
 		await waitFor(() => expect(check).toHaveBeenCalledTimes(1));
 	});
 
+	it("shows the in-progress message when a Retry is refused", async () => {
+		const test = build();
+		setStatus(test, {
+			state: "error",
+			version: null,
+			notesUrl: null,
+			error: "Could not reach the update feed",
+		});
+		vi.spyOn(test.container.actions.app, "checkForUpdates").mockResolvedValue(
+			err(
+				appError("update_check_in_progress", "An update check is already in progress."),
+			),
+		);
+
+		renderNotice(test);
+		fireEvent.click(await screen.findByRole("button", { name: "Retry" }));
+
+		expect(await screen.findByText("An update check is already in progress.")).toBeTruthy();
+	});
+
 	it("says so when the installed update cannot be read", async () => {
 		const test = build();
 		vi.spyOn(test.container.platform.updater, "installedUpdate").mockResolvedValue(

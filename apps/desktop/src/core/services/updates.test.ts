@@ -1,6 +1,8 @@
 /**
  * @feature PLAT-13 Self-update that waits until agents are idle
- * Owns: tests for the updates service's install-and-restart path and the quit check.
+ * @feature APP-06 Update notice and restart when idle
+ * Owns: tests for the updates service's install-and-restart path, its check, its retries and the
+ * quit check.
  * Test first: with the setting on, the state moves to a restart when the last working chat goes idle.
  */
 import { idleLiveState } from "@conducted/protocol";
@@ -209,6 +211,61 @@ describe("APP-06 UpdatesService.check", () => {
 		}
 		expect(await first).toEqual(ok(undefined));
 		expect(check).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps a staged update and the restart the user asked for", async () => {
+		const test = build();
+		const updates = test.container.services.updates;
+		setAuto(test, false);
+		setWorking(test, true);
+		updates.store.setState({
+			state: "ready_when_idle",
+			version: "0.2.0",
+			notesUrl: "https://example.test/notes",
+			error: null,
+		});
+		vi.spyOn(test.container.platform.updater, "check").mockResolvedValue(
+			ok({ version: "0.3.0", notes: "" }),
+		);
+		const relaunch = vi.spyOn(test.container.platform.updater, "relaunch");
+
+		// The user chooses Restart when idle while a chat works.
+		expect(await test.container.actions.app.installUpdate()).toEqual(ok(undefined));
+
+		// The hourly check runs while the update waits for idle.
+		expect(await test.container.actions.app.checkForUpdates()).toEqual(ok(undefined));
+		expect(updates.store.getState()).toMatchObject({
+			state: "ready_when_idle",
+			version: "0.2.0",
+			notesUrl: "https://example.test/notes",
+		});
+		expect(relaunch).not.toHaveBeenCalled();
+
+		// The last working chat goes idle, and the restart the user asked for still happens.
+		setWorking(test, false);
+		updates.onActivityChanged();
+		await vi.waitFor(() => expect(relaunch).toHaveBeenCalledTimes(1));
+	});
+
+	it("leaves a download in progress alone when a check runs", async () => {
+		const test = build();
+		const updates = test.container.services.updates;
+		updates.store.setState({
+			state: "downloading",
+			version: "0.2.0",
+			notesUrl: null,
+			error: null,
+		});
+		vi.spyOn(test.container.platform.updater, "check").mockResolvedValue(
+			ok({ version: "0.3.0", notes: "" }),
+		);
+
+		expect(await test.container.actions.app.checkForUpdates()).toEqual(ok(undefined));
+
+		expect(updates.store.getState()).toMatchObject({
+			state: "downloading",
+			version: "0.2.0",
+		});
 	});
 
 	it("lets a release build skip a pre-release version", async () => {

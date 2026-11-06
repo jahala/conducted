@@ -135,7 +135,8 @@ export function UpdateNotice() {
 
 	const checkNow = async (): Promise<void> => {
 		const outcome = await actions.app.checkForUpdates();
-		if (!outcome.ok) return;
+		if (outcome.ok) return;
+		toastError("Couldn't check for updates", outcome.error);
 	};
 
 	const installNow = async (): Promise<void> => {
