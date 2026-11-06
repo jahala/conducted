@@ -687,6 +687,7 @@ dependencies = [
  "objc2-foundation",
  "portable-pty",
  "reqwest",
+ "ring",
  "rusqlite",
  "ruzstd",
  "security-framework",
