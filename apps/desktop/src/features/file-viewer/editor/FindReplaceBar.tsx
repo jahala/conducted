@@ -3,8 +3,9 @@
  * Owns: the bar above the editor for searching in the open file.
  * Behaviour: ui-map.md 3.2 (edit mode: find and replace bar with Replace, Replace All, Previous,
  * Next).
- * Our design choice: this is our own bar driving the editor's search state, so it matches the app's
- * design instead of the library default.
+ * Our design choice: this is our own bar instead of the library's search panel, so it matches the
+ * app's design. It only shows the state: the editor pane finds the matches, selects the current
+ * one in the editor and scrolls to it, and Replace with no current match replaces the first.
  * Must handle: no match (count shows 0, buttons disabled), regex errors (inline, no throw), match
  * case and whole word toggles, Enter for next and Shift+Enter for previous, and Escape closing.
  * Test first: with the query "a" in "banana", the count reads 3 and Next moves between matches.

@@ -1,6 +1,6 @@
 /**
  * @feature REV-08 Video preview
- * Tests the error card and the player's keyboard shortcuts.
+ * Tests the error card, Retry, and the player's keyboard shortcuts.
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -38,5 +38,16 @@ describe("REV-08 VideoPreview", () => {
 		const video = screen.getByLabelText("clip.mp4") as HTMLVideoElement;
 		fireEvent.keyDown(video, { key: "m" });
 		expect(video.muted).toBe(true);
+	});
+
+	it("offers Retry and no Open in another app when the caller cannot open files", () => {
+		const { container } = render(<VideoPreview url="clip.mp4?v=1" fileName="clip.mp4" />);
+		const video = container.querySelector("video");
+		if (video !== null) fireEvent.error(video);
+		expect(screen.queryByRole("button", { name: "Open in another app" })).toBeNull();
+
+		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+		expect(container.querySelector("video")?.getAttribute("src")).toBe("clip.mp4?v=1");
 	});
 });

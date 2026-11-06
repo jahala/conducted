@@ -2,9 +2,10 @@
  * @feature REV-08 Image preview
  * Owns: showing a raster image from a file, fitted to the tab, with zoom.
  * Behaviour: ui-map.md 3.2 (previews; error text "Failed to load image" in 7.4).
- * Must handle: a huge image (downscaled by the browser), a broken file (error card), transparency
- * (checkerboard background), the image changing on disk (reload when the URL changes), and the
- * original size shown in a caption.
+ * Must handle: a huge image (downscaled by the browser), a broken file (error card with Retry),
+ * transparency (checkerboard background), the image changing on disk (the URL carries the modified
+ * time, so a new URL loads again and clears an earlier failure), and the original size shown in a
+ * caption.
  * Test first: an image URL that fails to load shows the error card with the file name.
  */
 import { useState } from "react";
@@ -20,12 +21,22 @@ const ZOOM_STEPS = [0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4];
 
 export function ImagePreview({ url, fileName }: ImagePreviewProps) {
 	const [zoom, setZoom] = useState(1);
-	const [failed, setFailed] = useState(false);
+	// The failure belongs to one URL and one attempt: a new URL or Retry loads the image again.
+	const [failedUrl, setFailedUrl] = useState<string | null>(null);
+	const [attempt, setAttempt] = useState(0);
 	const [size, setSize] = useState<{ width: number; height: number } | null>(null);
 
-	if (failed) {
+	if (failedUrl === url) {
 		return (
-			<PreviewUnavailable fileName={fileName} sizeBytes={null} reason="Failed to load image." />
+			<PreviewUnavailable
+				fileName={fileName}
+				sizeBytes={null}
+				reason="Failed to load image."
+				onRetry={() => {
+					setFailedUrl(null);
+					setAttempt((value) => value + 1);
+				}}
+			/>
 		);
 	}
 
@@ -57,11 +68,12 @@ export function ImagePreview({ url, fileName }: ImagePreviewProps) {
 				}}
 			>
 				<img
+					key={attempt}
 					src={url}
 					alt={fileName}
 					className="max-h-full max-w-full object-contain"
 					style={{ transform: `scale(${zoom})`, transformOrigin: "center" }}
-					onError={() => setFailed(true)}
+					onError={() => setFailedUrl(url)}
 					onLoad={(event) => {
 						const image = event.currentTarget;
 						setSize({ width: image.naturalWidth, height: image.naturalHeight });

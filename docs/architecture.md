@@ -66,6 +66,7 @@ Use these before writing your own. A second copy is a finding in review.
 | A database write that returns nothing      | `executeVoid`                                    | `apps/desktop/src/core/db/row-codec.ts`                                 |
 | Parse a JSON column, collect results       | `parseJsonColumn`, `collectResults`              | `apps/desktop/src/core/db/row-codec.ts`                                 |
 | Show an error toast from a `Result`        | `toastError`                                     | `apps/desktop/src/ui/Toast.tsx`                                         |
+| Light or dark mode for code views          | `useThemeType`                                   | `apps/desktop/src/ui/use-theme-type.ts`                                 |
 | Menu and context-menu parts and classes    | `menuItemClass`, `MenuItemContents` and siblings | `apps/desktop/src/ui/Menu.tsx`                                          |
 | Error text and error checks in the sidecar | `messageOf`, `isAppError`                        | `packages/sidecar/src/util/errors.ts`                                   |
 | Signal a process group (Rust)              | `process_group`                                  | `apps/desktop/src-tauri/src/process_group.rs`                           |

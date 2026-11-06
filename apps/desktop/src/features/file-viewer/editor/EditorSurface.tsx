@@ -4,11 +4,13 @@
  * with props, and destroys it on unmount.
  * Behaviour: ui-map.md 3.2 and 8 (CodeMirror 6 for file editing; ligatures setting applies to
  * editors and diffs), 5.3 (the editor's right-click menu has Cut, Copy and Paste with key hints).
- * Library reference: `EditorView` from "@codemirror/view" and `EditorState` from
+ * Library reference: `EditorView` from "@codemirror/view" and `StateEffect` from
  * "@codemirror/state". Language packages are not installed, so the document is plain text.
- * Must handle: the document being replaced from outside (disk reload) without losing the cursor
- * when possible, destroy on unmount with no leaked listeners, focus on open, read-only mode, and
- * a theme or wrapping change while the editor is open (a reconfigure, not a new view).
+ * Must handle: the document being replaced from outside (disk reload, discard) without losing the
+ * cursor when possible and without calling `onChange`, destroy on unmount, focus on open,
+ * read-only mode, the find bar's current match (selected and scrolled into view), "Select all
+ * text" from the right-click menu, and a theme or wrapping change while the editor is open (a
+ * reconfigure, not a new view).
  * Test first: mounting then unmounting leaves no editor DOM and no listeners behind.
  */
 import { StateEffect } from "@codemirror/state";
@@ -19,17 +21,28 @@ import {
 	createEditorState,
 	type EditorSurfaceOptions,
 	editorExtensions,
+	externalChange,
 } from "./codemirror-setup.ts";
 
 export interface EditorSurfaceProps {
 	path: string;
 	text: string;
 	options: EditorSurfaceOptions;
+	/** The find bar's current match, selected and scrolled into view. Null selects nothing. */
+	selection?: { from: number; to: number } | null;
+	/** Called for the user's own edits only, never for a `text` prop the surface was given. */
 	onChange: (text: string) => void;
 	onSave: () => void;
 }
 
-export function EditorSurface({ path, text, options, onChange, onSave }: EditorSurfaceProps) {
+export function EditorSurface({
+	path,
+	text,
+	options,
+	selection = null,
+	onChange,
+	onSave,
+}: EditorSurfaceProps) {
 	const hostRef = useRef<HTMLDivElement>(null);
 	const viewRef = useRef<EditorView | null>(null);
 	const hooksRef = useRef({ onChange, onSave });
@@ -64,8 +77,19 @@ export function EditorSurface({ path, text, options, onChange, onSave }: EditorS
 		view.dispatch({
 			changes: { from: 0, to: view.state.doc.length, insert: text },
 			selection: { anchor },
+			annotations: externalChange.of(true),
 		});
 	}, [text]);
+
+	const selectFrom = selection?.from ?? null;
+	const selectTo = selection?.to ?? null;
+	// Only a new match moves the selection, so typing while the find bar is open keeps the cursor.
+	useEffect(() => {
+		const view = viewRef.current;
+		if (view === null || selectFrom === null || selectTo === null) return;
+		if (selectTo > view.state.doc.length) return;
+		view.dispatch({ selection: { anchor: selectFrom, head: selectTo }, scrollIntoView: true });
+	}, [selectFrom, selectTo]);
 
 	useEffect(() => {
 		const view = viewRef.current;
@@ -79,6 +103,13 @@ export function EditorSurface({ path, text, options, onChange, onSave }: EditorS
 			),
 		});
 	}, [path, options]);
+
+	const selectAll = (): void => {
+		const view = viewRef.current;
+		if (view === null) return;
+		view.dispatch({ selection: { anchor: 0, head: view.state.doc.length } });
+		view.focus();
+	};
 
 	const selectedText = (): string => {
 		const view = viewRef.current;
@@ -145,9 +176,7 @@ export function EditorSurface({ path, text, options, onChange, onSave }: EditorS
 						Paste
 					</ContextMenuItem>
 					<ContextMenuSeparator />
-					<ContextMenuItem onSelect={() => viewRef.current?.focus()}>
-						Select all text
-					</ContextMenuItem>
+					<ContextMenuItem onSelect={selectAll}>Select all text</ContextMenuItem>
 				</>
 			}
 		>

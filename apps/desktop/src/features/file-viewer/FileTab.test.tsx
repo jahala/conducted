@@ -1,12 +1,14 @@
 /**
  * @feature REV-08 FileTab
- * Tests the mode switch, the Cmd+E shortcut through the mounted dispatcher, and the preview mode,
+ * Tests the mode switch, the Cmd+E shortcut through the mounted dispatcher, the preview mode, the
+ * unsaved draft kept across Cmd+E, and the header's renamed path, save spinner and save error,
  * over the real container and the real child panes.
  */
 
-import { ok } from "@conducted/shared";
+import { EditorView } from "@codemirror/view";
+import { appError, err, ok, type Result } from "@conducted/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandDispatcher } from "../../app/command-dispatcher.ts";
@@ -50,6 +52,28 @@ function wrapper(
 			</ServicesProvider>
 		</QueryClientProvider>
 	);
+}
+
+/** Types at the end of the mounted editor, as one user transaction. */
+async function typeInEditor(text: string): Promise<EditorView> {
+	let view: EditorView | null = null;
+	await waitFor(() => {
+		const editor = document.querySelector<HTMLElement>(".cm-editor");
+		view = editor === null ? null : EditorView.findFromDOM(editor);
+		expect(view).not.toBeNull();
+	});
+	const found = view as EditorView | null;
+	if (found === null) throw new Error("No editor is mounted.");
+	act(() => {
+		found.dispatch({ changes: { from: found.state.doc.length, insert: text } });
+	});
+	return found;
+}
+
+function pressCmd(key: string): void {
+	const root = document.querySelector("[data-file-viewer]");
+	if (root === null) throw new Error("No file viewer root.");
+	fireEvent.keyDown(root, { key, metaKey: true });
 }
 
 describe("REV-08 FileTab", () => {
@@ -96,6 +120,107 @@ describe("REV-08 FileTab", () => {
 			expect(root).not.toBeNull();
 			if (root !== null) fireEvent.keyDown(root, { key: "e", metaKey: true });
 			await waitFor(() => expect(document.querySelector(".cm-editor")).not.toBeNull());
+		} finally {
+			client.clear();
+			test.close();
+		}
+	});
+
+	it("keeps unsaved edits when Cmd+E goes to Diff and back", async () => {
+		const { test, client, workspace } = await setup("/code/workspaces/tab-keep-draft");
+		try {
+			render(
+				<FileTab
+					workspaceId={workspace.id}
+					path="notes.md"
+					mode="edit"
+					scope={{ kind: "branch" }}
+				/>,
+				{ wrapper: wrapper(test.container, client) },
+			);
+			await typeInEditor(" edited");
+			expect(screen.getByRole("status", { name: "Unsaved edits" })).toBeTruthy();
+
+			pressCmd("e");
+			await waitFor(() => expect(document.querySelector(".cm-editor")).toBeNull());
+			expect(screen.getByRole("status", { name: "Unsaved edits" })).toBeTruthy();
+			pressCmd("e");
+
+			await waitFor(() =>
+				expect(document.querySelector(".cm-content")?.textContent).toBe(
+					"# Hello from the tab edited",
+				),
+			);
+		} finally {
+			client.clear();
+			test.close();
+		}
+	});
+
+	it("shows the old path of a renamed file", async () => {
+		const { test, client, workspace } = await setup("/code/workspaces/tab-renamed");
+		try {
+			vi.spyOn(test.container.services.git, "changedFiles").mockResolvedValue(
+				ok([
+					{
+						path: "notes.md",
+						oldPath: "old-notes.md",
+						status: "renamed",
+						linesAdded: 0,
+						linesRemoved: 0,
+						binary: false,
+						conflicted: false,
+						viewed: false,
+					},
+				]),
+			);
+			render(
+				<FileTab
+					workspaceId={workspace.id}
+					path="notes.md"
+					mode="diff"
+					scope={{ kind: "branch" }}
+				/>,
+				{ wrapper: wrapper(test.container, client) },
+			);
+
+			expect(await screen.findByText("from old-notes.md")).toBeTruthy();
+		} finally {
+			client.clear();
+			test.close();
+		}
+	});
+
+	it("shows the save in flight and then its error in the header", async () => {
+		const { test, client, workspace } = await setup("/code/workspaces/tab-saving");
+		try {
+			let finish: (result: Result<{ modifiedAt: number }>) => void = () => {};
+			vi.spyOn(test.container.services.workspaceFiles, "saveFile").mockImplementation(
+				() =>
+					new Promise((resolve) => {
+						finish = resolve;
+					}),
+			);
+			render(
+				<FileTab
+					workspaceId={workspace.id}
+					path="notes.md"
+					mode="edit"
+					scope={{ kind: "branch" }}
+				/>,
+				{ wrapper: wrapper(test.container, client) },
+			);
+			await typeInEditor(" edited");
+
+			fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+			expect(await screen.findByRole("status", { name: "Saving file" })).toBeTruthy();
+			await act(async () => {
+				finish(err(appError("other", "The disk is full.")));
+			});
+			await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("The disk is full."));
+			expect(screen.queryByRole("status", { name: "Saving file" })).toBeNull();
+			expect(screen.getByRole("status", { name: "Unsaved edits" })).toBeTruthy();
 		} finally {
 			client.clear();
 			test.close();

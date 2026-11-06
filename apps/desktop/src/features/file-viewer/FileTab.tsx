@@ -7,25 +7,30 @@
  * previews for Markdown, SVG, images, PDF, CSV and video, "File changed on disk" banner);
  * services-map.md 3.4.2 (diff texts come from git and from disk).
  * Data: useWorkspace (archived state), useSetting for the diff preferences, useChangedFiles for
- * the previous and next file commands. File text comes from useFileContent.
+ * the previous and next file commands and a renamed file's old path. File text comes from
+ * useFileContent. The unsaved dot, the save spinner and a save error come from useFileDraft, the
+ * draft the editor pane writes; it outlives this tab, so leaving the tab keeps the edits.
  * Children: FileTabHeader, FileDiffPane, FileEditorPane, FilePreviewPane, FileTabState.
  * Our design choice: a file with a previewable type can be switched to Preview; the URL's
  * `fileMode` still chooses diff or edit first. Saving is explicit with Cmd+S.
  * Must handle: loading, error with retry, file deleted or missing, binary file, file too large to
  * edit, archived workspace ("Workspace archived. Unarchive to view files"), the file changing on
- * disk while the user has edits (the editor's banner), a mode or scope change while a request is
- * in flight (newest answer wins through the query key).
+ * disk while the user has edits (the editor's banner), unsaved edits kept across Cmd+E and across
+ * previous and next file, a mode or scope change while a request is in flight (newest answer wins
+ * through the query key), and a link in a Markdown preview to another workspace file (opened in
+ * this tab, in Edit mode).
  * Test first: with mode "diff" and a FileDiff of one changed line the tab shows the diff pane, and
  * switching to "edit" shows the editor with the new text.
  */
 import type { WorkspaceId } from "@conducted/shared";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCommandHandler, useRunCommandHandlers } from "../../app/command-dispatcher.ts";
 import type { DiffScope } from "../../core/api.ts";
 import {
 	useActions,
 	useChangedFiles,
 	useFileContent,
+	useFileDraft,
 	useSetting,
 	useWorkspace,
 } from "../../core/hooks.ts";
@@ -43,24 +48,16 @@ export interface FileTabProps {
 	path: string;
 	mode: "diff" | "edit";
 	scope: DiffScope;
-	/** Called when the file gains or loses unsaved edits. */
-	onDirtyChange?: (dirty: boolean) => void;
 	/** Opens another file in the centre, so previous and next file can move the tab. */
 	onOpenFile?: (path: string, mode: "diff" | "edit") => void;
 }
 
-export function FileTab({
-	workspaceId,
-	path,
-	mode,
-	scope,
-	onDirtyChange,
-	onOpenFile,
-}: FileTabProps) {
+export function FileTab({ workspaceId, path, mode, scope, onOpenFile }: FileTabProps) {
 	const actions = useActions();
 	const workspace = useWorkspace(workspaceId);
 	const content = useFileContent(workspaceId, path);
 	const changedFiles = useChangedFiles(workspaceId, scope);
+	const { draft } = useFileDraft(workspaceId, path);
 	const runCommand = useRunCommandHandlers();
 
 	const splitView = useSetting<boolean>("using_split_view");
@@ -70,14 +67,12 @@ export function FileTab({
 
 	const [tabMode, setTabMode] = useState<FileTabMode>(mode);
 	const [entireFile, setEntireFile] = useState(false);
-	const [dirty, setDirty] = useState(false);
 	const [width, setWidth] = useState<number | null>(null);
 	const rootRef = useRef<HTMLDivElement>(null);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: a new file starts in its URL mode.
 	useEffect(() => {
 		setTabMode(mode);
-		setDirty(false);
 	}, [mode, path]);
 
 	useEffect(() => {
@@ -91,15 +86,11 @@ export function FileTab({
 		return () => observer.disconnect();
 	}, []);
 
-	const handleDirtyChange = useCallback(
-		(next: boolean) => {
-			setDirty(next);
-			onDirtyChange?.(next);
-		},
-		[onDirtyChange],
-	);
-
 	const archived = workspace.state === "ready" && workspace.data.state === "archived";
+	const changedEntry =
+		changedFiles.state === "ready"
+			? changedFiles.data.find((file) => file.path === path)
+			: undefined;
 	const contentKind = content.state === "ready" ? content.data.kind : null;
 	const previewKind = contentKind === null ? null : classifyPreview(path, contentKind === "binary");
 	const previewAvailable =
@@ -107,8 +98,9 @@ export function FileTab({
 		contentKind !== "missing" &&
 		contentKind !== "too_large" &&
 		previewKind !== "binary";
+	// A file deleted while it had unsaved edits stays editable, so its banner can offer Keep mine.
 	const editDisabledReason =
-		contentKind === "missing"
+		contentKind === "missing" && draft === undefined
 			? "This file was deleted, so there is nothing to edit."
 			: contentKind === "binary"
 				? "Binary files can't be edited."
@@ -207,16 +199,16 @@ export function FileTab({
 		<div ref={rootRef} data-file-viewer className="flex h-full flex-col overflow-hidden">
 			<FileTabHeader
 				path={path}
-				oldPath={null}
+				oldPath={changedEntry?.oldPath ?? null}
 				mode={showMode}
 				onModeChange={changeMode}
 				editDisabledReason={editDisabledReason}
 				previewAvailable={previewAvailable}
 				preferences={preferences}
 				onPreferencesChange={changePreferences}
-				dirty={dirty}
-				saving={false}
-				saveError={null}
+				dirty={draft !== undefined}
+				saving={draft?.saving ?? false}
+				saveError={draft?.saveError ?? null}
 				onSave={() => {
 					runCommand("review.saveFile");
 				}}
@@ -231,7 +223,7 @@ export function FileTab({
 						preferences={preferences}
 					/>
 				) : showMode === "edit" ? (
-					<FileEditorPane workspaceId={workspaceId} path={path} onDirtyChange={handleDirtyChange} />
+					<FileEditorPane workspaceId={workspaceId} path={path} />
 				) : contentKind === null || contentKind === "missing" || contentKind === "too_large" ? (
 					<FileTabState
 						kind={
@@ -242,10 +234,13 @@ export function FileTab({
 									: "loading"
 						}
 						detail={null}
-						onAction={() => {}}
 					/>
 				) : (
-					<FilePreviewPane workspaceId={workspaceId} path={path} />
+					<FilePreviewPane
+						workspaceId={workspaceId}
+						path={path}
+						onOpenFile={(target) => onOpenFile?.(target, "edit")}
+					/>
 				)}
 			</div>
 		</div>
