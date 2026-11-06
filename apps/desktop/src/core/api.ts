@@ -597,9 +597,12 @@ export interface Actions {
 		open: Act<[workspaceId: WorkspaceId, path: string, mode: "diff" | "edit", scope: DiffScope]>;
 		/**
 		 * Resolves the conflicts of a file with one choice per conflict, saves it, and stages it when
-		 * no conflict markers remain.
+		 * no conflict markers remain. `seenText` is the text the choices were made on; a file that no
+		 * longer holds it is refused unchanged.
 		 */
-		resolveConflicts: Act<[workspaceId: WorkspaceId, path: string, choices: ConflictChoice[]]>;
+		resolveConflicts: Act<
+			[workspaceId: WorkspaceId, path: string, choices: ConflictChoice[], seenText: string]
+		>;
 		/** Shows a workspace file selected in a Finder window. */
 		reveal: Act<[workspaceId: WorkspaceId, path: string]>;
 		/** Opens a workspace file in the named app, the one the "Open in" menu opens by default. */
