@@ -9,13 +9,14 @@
  * load runs once per workspace and only the newest read writes the store; writes for one
  * workspace run in order, so an insert finishes before a later write; an inactive (outdated or
  * resolved) comment cannot be sent to chat; sending to chat writes each comment as a small file
- * in the workspace; editing a comment that was sent rewrites its file; the AI review creates a
- * new chat with the review model and sends the review instruction, using the repository's review
- * prompt when it has one.
- * Not built here: GitHub sync and the hidden/ready/reviewed states are REV-04 and REV-12, so
- * sending to chat does not mark a comment reviewed. A comment's side, its suggested change and its
- * place in a reply thread are stored by the repositories but not yet taken by `add`, whose screen
- * API (core/api.ts) has no parameters for them.
+ * in the workspace and marks the comments reviewed only after the chat accepted the message;
+ * hiding a comment keeps it hidden until the user brings it back; every pending open comment can
+ * be made ready in one step; editing a comment that was sent rewrites its file; the AI review
+ * creates a new chat with the review model and sends the review instruction, using the
+ * repository's review prompt when it has one.
+ * Not built here: GitHub sync (REV-04). A comment's side, its suggested change and its place in a
+ * reply thread are stored by the repositories but not yet taken by `add`, whose screen API
+ * (core/api.ts) has no parameters for them.
  * Our design choice: sending to chat asks the active chat through AgentMessenger, because the
  * composer's attachment pipeline belongs to COMP-01.
  * Test first: create, edit, resolve and remove each write SQLite and re-read the workspace rows.
@@ -284,45 +285,53 @@ export class ReviewService {
 	/** Backs `Actions.comments.sendToChat`. */
 	async sendToChat(workspaceId: WorkspaceId, ids: readonly CommentId[]): Promise<Result<void>> {
 		if (ids.length === 0) return ok(undefined);
-		const found: DiffComment[] = [];
-		for (const id of ids) {
-			const comment = await this.#deps.repos.diffComments.get(id);
-			if (!comment.ok) return comment;
-			if (comment.value === null || comment.value.workspaceId !== workspaceId) {
-				return err(appError("db.not_found", "That comment no longer exists."));
+		return this.#writes.run(workspaceId, async () => {
+			const found: DiffComment[] = [];
+			for (const id of ids) {
+				const comment = await this.#deps.repos.diffComments.get(id);
+				if (!comment.ok) return comment;
+				if (comment.value === null || comment.value.workspaceId !== workspaceId) {
+					return err(appError("db.not_found", "That comment no longer exists."));
+				}
+				if (
+					comment.value.outdated ||
+					comment.value.resolved ||
+					comment.value.state === "hidden" ||
+					comment.value.state === "superseded"
+				) {
+					return inactiveComment();
+				}
+				found.push(comment.value);
 			}
-			if (
-				comment.value.outdated ||
-				comment.value.resolved ||
-				comment.value.state === "hidden" ||
-				comment.value.state === "superseded"
-			) {
-				return inactiveComment();
-			}
-			found.push(comment.value);
-		}
-		const workspacePath = await this.#deps.workspacePathOf(workspaceId);
-		if (!workspacePath.ok) return workspacePath;
-		const folder = join(workspacePath.value, COMMENT_FOLDER);
-		const made = await this.#deps.fs.mkdirp(folder);
-		if (!made.ok) return made;
+			const workspacePath = await this.#deps.workspacePathOf(workspaceId);
+			if (!workspacePath.ok) return workspacePath;
+			const folder = join(workspacePath.value, COMMENT_FOLDER);
+			const made = await this.#deps.fs.mkdirp(folder);
+			if (!made.ok) return made;
 
-		const mentions: string[] = [];
-		for (const comment of found) {
-			const path = join(COMMENT_FOLDER, commentFileName(comment.id));
-			const written = await this.#deps.fs.writeTextAtomic(
-				join(workspacePath.value, path),
-				commentFileText(comment),
+			const mentions: string[] = [];
+			for (const comment of found) {
+				const path = join(COMMENT_FOLDER, commentFileName(comment.id));
+				const written = await this.#deps.fs.writeTextAtomic(
+					join(workspacePath.value, path),
+					commentFileText(comment),
+				);
+				if (!written.ok) return written;
+				mentions.push(formatFileMention(path));
+			}
+
+			const sent = await this.#deps.agent.sendInstruction(
+				workspaceId,
+				`Review these comments on the diff:\n\n${mentions.join("\n")}`,
 			);
-			if (!written.ok) return written;
-			mentions.push(formatFileMention(path));
-		}
-
-		const sent = await this.#deps.agent.sendInstruction(
-			workspaceId,
-			`Review these comments on the diff:\n\n${mentions.join("\n")}`,
-		);
-		return sent.ok ? ok(undefined) : sent;
+			if (!sent.ok) return sent;
+			for (const comment of found) {
+				const reviewed = await this.#deps.repos.diffComments.setState(comment.id, "reviewed");
+				if (!reviewed.ok) return reviewed;
+			}
+			const refreshed = await this.#read(workspaceId);
+			return refreshed.ok ? ok(undefined) : refreshed;
+		});
 	}
 
 	/** Pulls review threads and general comments of the workspace's PR into the table. */
@@ -359,13 +368,29 @@ export class ReviewService {
 		return this.#deps.startReviewChat(workspaceId, text);
 	}
 
-	/** Backs `Actions.comments.setHidden`. */
-	setHidden(_id: CommentId, _hidden: boolean): Promise<Result<void>> {
-		return notImplemented("REV-12");
+	/** Backs `Actions.comments.setHidden`. Bringing a hidden comment back makes it pending. */
+	async setHidden(id: CommentId, hidden: boolean): Promise<Result<void>> {
+		const found = await this.#deps.repos.diffComments.get(id);
+		if (!found.ok) return found;
+		if (found.value === null)
+			return err(appError("db.not_found", "That comment no longer exists."));
+		const workspaceId = found.value.workspaceId;
+		return this.#writes.run(workspaceId, async () => {
+			const written = await this.#deps.repos.diffComments.setState(
+				id,
+				hidden ? "hidden" : "pending",
+			);
+			if (!written.ok) return written;
+			return this.#read(workspaceId);
+		});
 	}
 
-	/** Backs `Actions.comments.markAllReady`. */
-	markAllReady(_workspaceId: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("REV-12");
+	/** Backs `Actions.comments.markAllReady`: pending open comments become ready for review. */
+	async markAllReady(workspaceId: WorkspaceId): Promise<Result<void>> {
+		return this.#writes.run(workspaceId, async () => {
+			const marked = await this.#deps.repos.diffComments.markReadyForReview(workspaceId);
+			if (!marked.ok) return marked;
+			return this.#read(workspaceId);
+		});
 	}
 }

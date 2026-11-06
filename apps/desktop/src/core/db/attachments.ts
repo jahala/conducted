@@ -1,7 +1,8 @@
 /**
  * @feature DATA-01 Repository for the attachments table
  * Owns: rows for files attached to a draft or a sent message. The files themselves live under
- * the app data folder.
+ * the app data folder. A review attachment also names the comment it carried (REV-12), so a
+ * comment can be found from the messages and chats that received it.
  * Behaviour: services-map.md 2.3.5 (attachments: add draft, attach drafts to a message, restore
  * to draft, remove) and 5A.6.2 (draft staging folder).
  * Must handle: attaching drafts to a message is one statement over a JSON list of ids; removing
@@ -14,7 +15,6 @@ import {
 	type AttachmentId,
 	type CommentId,
 	err,
-	notImplemented,
 	ok,
 	type Result,
 	type SessionId,
@@ -159,7 +159,8 @@ export function createAttachmentRepository(
 			list(ATTACHMENTS_SQL.listDraftsBySession, [sessionId], "Listing draft attachments"),
 		listByMessage: (messageId) =>
 			list(ATTACHMENTS_SQL.listByMessage, [messageId], "Listing a message's attachments"),
-		listByComment: async () => notImplemented("REV-12"),
+		listByComment: (commentId) =>
+			list(ATTACHMENTS_SQL.listByComment, [commentId], "Listing a comment's attachments"),
 		addDraft: async (input) =>
 			inTransaction(db, "Adding a draft attachment", async (tx) => {
 				const attachment: AttachmentInsert = {

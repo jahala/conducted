@@ -2,20 +2,24 @@
  * @feature DATA-01 Repository for the diff_comments table
  * Owns: review comments on a workspace diff, from the user, an agent or GitHub.
  * Behaviour: services-map.md 2.3.5 (diff_comments: create or sync from GitHub, resolve thread,
- * delete comments GitHub no longer has). The review state (REV-12) is its own column since
- * migration 0004; resolved and outdated stay flags. A comment on the pull request itself has
- * location 'pull_request' and an empty file_path, which the model shows as a null file path.
+ * delete comments GitHub no longer has) and 5A.7.1 (state moves, upsert rules). The review state
+ * (REV-12) is its own column since migration 0004; resolved and outdated stay flags. A comment on
+ * the pull request itself has location 'pull_request' and an empty file_path, which the model
+ * shows as a null file path.
  * Must handle: a sync from GitHub upserts by id and must not undo a local resolve; a sync never
- * rewrites a comment that belongs to another workspace, and refuses a list that names one; a setter
- * on a missing comment returns `db.not_found`; threads are resolved together; the sync delete only touches author_kind 'github' rows and receives the ids
- * to keep as a JSON list (no giant IN clause); replies point to their parent by reply_to_id.
+ * rewrites a comment that belongs to another workspace, and refuses a list that names one; a
+ * hidden or reviewed comment stays put until GitHub edits its body, then returns to pending; a
+ * superseded comment is never updated or deleted; a setter on a missing comment returns
+ * `db.not_found`; threads are resolved together; every pending open comment can be made ready,
+ * and a workspace's comments can be superseded, in one statement; the sync delete only touches
+ * author_kind 'github' rows and receives the ids to keep as a JSON list (no giant IN clause);
+ * replies point to their parent by reply_to_id.
  * Test first: diffCommentToParams then diffCommentFromRow gives back the same comment.
  */
 import {
 	appError,
 	type CommentId,
 	err,
-	notImplemented,
 	ok,
 	type Result,
 	type WorkspaceId,
@@ -123,25 +127,44 @@ export const DIFF_COMMENTS_SQL = {
 	/**
 	 * Sync from GitHub. A comment that exists keeps its local `resolved` flag, so a resolve done
 	 * in the app survives a later sync. Text, suggestion, outdated and the link follow GitHub.
+	 * A hidden or reviewed comment is left alone until GitHub changes its body; then it returns to
+	 * `pending`. A superseded comment is never updated.
 	 */
 	upsertRemote: `INSERT INTO diff_comments (${COLUMNS}) VALUES (${VALUES})
 		ON CONFLICT (id) DO UPDATE SET
+			state = CASE
+				WHEN diff_comments.state IN ('hidden', 'reviewed') THEN 'pending'
+				ELSE diff_comments.state
+			END,
 			body = excluded.body, suggestion = excluded.suggestion, line = excluded.line,
 			end_line = excluded.end_line, outdated = excluded.outdated,
 			remote_url = excluded.remote_url, author_avatar_url = excluded.author_avatar_url,
 			updated_at = excluded.updated_at
-		WHERE diff_comments.workspace_id = excluded.workspace_id`,
+		WHERE diff_comments.workspace_id = excluded.workspace_id
+		AND (
+			diff_comments.state NOT IN ('hidden', 'reviewed', 'superseded')
+			OR (diff_comments.state IN ('hidden', 'reviewed') AND diff_comments.body <> excluded.body)
+		)`,
 	setBody: "UPDATE diff_comments SET body = $1, suggestion = $2, updated_at = $3 WHERE id = $4",
 	setResolved: "UPDATE diff_comments SET resolved = $1, updated_at = $2 WHERE id = $3",
 	setState: "UPDATE diff_comments SET state = $1, updated_at = $2 WHERE id = $3",
+	/** Every pending, open comment of the workspace becomes ready for review. */
+	markReadyForReview: `UPDATE diff_comments SET state = 'ready_for_review', updated_at = $2
+		WHERE workspace_id = $1 AND state = 'pending' AND resolved = 0 AND outdated = 0`,
+	/** Every comment of the workspace becomes superseded, so an older review freezes as one. */
+	supersedeWorkspace: `UPDATE diff_comments SET state = 'superseded', updated_at = $2
+		WHERE workspace_id = $1 AND state <> 'superseded'`,
 	setThreadResolved: `UPDATE diff_comments SET resolved = $1, updated_at = $2
 		WHERE workspace_id = $3 AND thread_id = $4`,
 	setOutdated: "UPDATE diff_comments SET outdated = $1, updated_at = $2 WHERE id = $3",
 	setRemoteUrl: "UPDATE diff_comments SET remote_url = $1, updated_at = $2 WHERE id = $3",
 	delete: "DELETE FROM diff_comments WHERE id = $1",
-	/** `$2` is a JSON list of GitHub comment ids that still exist; all other GitHub rows go. */
+	/**
+	 * `$2` is a JSON list of GitHub comment ids that still exist; all other GitHub rows go, except
+	 * superseded ones, which stay frozen.
+	 */
 	deleteRemoteNotIn: `DELETE FROM diff_comments
-		WHERE workspace_id = $1 AND author_kind = 'github'
+		WHERE workspace_id = $1 AND author_kind = 'github' AND state <> 'superseded'
 		AND id NOT IN (SELECT value FROM json_each($2))`,
 } as const;
 
@@ -185,6 +208,10 @@ export interface DiffCommentRepository {
 	setResolved(id: CommentId, resolved: boolean): Promise<Result<void>>;
 	/** DIFF_COMMENTS_SQL.setState: hide, mark ready, reviewed or superseded (REV-12). */
 	setState(id: CommentId, state: ReviewCommentState): Promise<Result<void>>;
+	/** DIFF_COMMENTS_SQL.markReadyForReview: pending, open comments become ready. */
+	markReadyForReview(workspaceId: WorkspaceId): Promise<Result<number>>;
+	/** DIFF_COMMENTS_SQL.supersedeWorkspace: every comment of the workspace is superseded. */
+	supersedeWorkspace(workspaceId: WorkspaceId): Promise<Result<number>>;
 	/** DIFF_COMMENTS_SQL.setThreadResolved. Resolves or reopens the whole thread. */
 	setThreadResolved(
 		workspaceId: WorkspaceId,
@@ -317,7 +344,31 @@ export function createDiffCommentRepository(
 				[toFlag(resolved), now(), id],
 				"Resolving a review comment",
 			),
-		setState: async () => notImplemented("REV-12"),
+		setState: (id, state) =>
+			executeExisting(
+				db,
+				DIFF_COMMENTS_SQL.setState,
+				[state, now(), id],
+				"Changing a review comment's state",
+			),
+		markReadyForReview: async (workspaceId) => {
+			const marked = await executeStatement(
+				db,
+				DIFF_COMMENTS_SQL.markReadyForReview,
+				[workspaceId, now()],
+				"Marking review comments ready",
+			);
+			return marked.ok ? ok(marked.value) : err(marked.error);
+		},
+		supersedeWorkspace: async (workspaceId) => {
+			const superseded = await executeStatement(
+				db,
+				DIFF_COMMENTS_SQL.supersedeWorkspace,
+				[workspaceId, now()],
+				"Superseding review comments",
+			);
+			return superseded.ok ? ok(superseded.value) : err(superseded.error);
+		},
 		setThreadResolved: (workspaceId, threadId, resolved) =>
 			executeVoid(
 				db,
