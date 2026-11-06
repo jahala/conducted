@@ -97,6 +97,7 @@ import {
 import { UPDATE_CHECK_INTERVAL_MS, UpdatesService } from "./services/updates.ts";
 import { type PlaceNames, WorkspaceService } from "./services/workspace.ts";
 import { WorkspaceFilesService } from "./services/workspace-files.ts";
+import { chosenAgentPrograms, followAgentPrograms } from "./sidecar/agent-programs.ts";
 import {
 	createSidecarNotificationHandlers,
 	createSidecarRequestHandlers,
@@ -1031,6 +1032,21 @@ export function createContainer(inputs: ContainerInputs): Container {
 		}
 		// `stop` ran during the heal and already cleaned what was wired above. Wire nothing more.
 		if (stopped) return;
+
+		// The sidecar's agent list reports the program paths chosen in Settings (SIDE-21).
+		cleanups.push(
+			followAgentPrograms({
+				programs: () =>
+					chosenAgentPrograms((agent, acpAgent) => {
+						const key = programPathSetting(agent, acpAgent);
+						return key === null ? "" : setting<string>(key);
+					}),
+				onSettingsChanged: (listener) => settings.store.subscribe(listener),
+				onReconnected: (listener) => tunnel.onReconnected(listener),
+				send: (params) => client.notify("setAgentPrograms", params),
+				log: (message) => log("warn", message),
+			}),
+		);
 
 		// Keep-awake follows the setting and the chats' work, and re-checks every scan so a
 		// battery that falls low or a caffeinate that exited by itself is handled. A scan reads

@@ -44,6 +44,7 @@ import {
 import type { Options, Query, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import type {
 	AcpConfigOption,
+	AgentInstall,
 	AgentLaunch,
 	SessionConfig,
 	SlashCommand,
@@ -1090,6 +1091,36 @@ describe("s1-sidecar join the batch through the composition root", () => {
 				expect(options.env?.HTTPS_PROXY).toBe("http://proxy");
 				expect(options.env?.OPENAI_API_KEY).toBeUndefined();
 			}
+		} finally {
+			await h.host.sessions.shutdown("app_quit");
+		}
+	});
+
+	test("SIDE-21 the agent list reports the program paths the app sends with setAgentPrograms", async () => {
+		const folder = await workspaceFolder();
+		const h = await harness(folder);
+		try {
+			const before = unwrap<{ agents: AgentInstall[] }>(await h.handlers.getAgentInstalls({}));
+			expect(before.agents.find((install) => install.agent === "claude")).toMatchObject({
+				path: "/usr/bin/claude",
+				source: "login_path",
+			});
+
+			await h.host.handlers.notifications.setAgentPrograms({
+				programs: [{ agent: "claude", path: "/opt/claude/bin/claude" }],
+			});
+
+			const after = unwrap<{ agents: AgentInstall[] }>(await h.handlers.getAgentInstalls({}));
+			expect(after.agents.find((install) => install.agent === "claude")).toMatchObject({
+				path: "/opt/claude/bin/claude",
+				source: "user",
+			});
+			// The change reached the app without it asking (agentInstallsChanged).
+			expect(
+				h.app
+					.notified("agentInstallsChanged")
+					.some((sent) => sent.agents.some((install) => install.path === "/opt/claude/bin/claude")),
+			).toBe(true);
 		} finally {
 			await h.host.sessions.shutdown("app_quit");
 		}

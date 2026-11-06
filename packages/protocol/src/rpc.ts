@@ -385,6 +385,15 @@ export const appToSidecarNotifications = {
 	/** The UI has stored this event. The sidecar may drop it from its write-ahead log. */
 	eventPersisted: z.object({ sessionId: zSessionId, eventId: zEventId }),
 	setLogLevel: z.object({ level: z.enum(["error", "warn", "info", "debug"]) }),
+	/**
+	 * The program paths chosen in Settings, every one at once; an agent missing from the list has
+	 * none. Sent when the sidecar connects and whenever a path changes (SIDE-21). The agent list
+	 * (`getAgentInstalls`, `agentInstallsChanged`) reports these programs. A chat's launch still
+	 * names its own program.
+	 */
+	setAgentPrograms: z.object({
+		programs: z.array(z.object({ ...zAgentRef, path: z.string().min(1) })),
+	}),
 } as const;
 
 // ---------------------------------------------------------------- sidecar -> UI

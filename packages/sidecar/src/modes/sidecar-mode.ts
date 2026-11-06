@@ -80,6 +80,7 @@ import { parseSidecarConfig, type SidecarConfig } from "../config.ts";
 import { EXIT_START_FAILED, EXIT_USAGE } from "../exit-codes.ts";
 import { createLogger, type Logger, type LogSink, redactRecord } from "../logging/logger.ts";
 import { type AgentDetector, DefaultAgentDetector } from "../models/agent-detection.ts";
+import { AgentProgramChoices } from "../models/agent-programs.ts";
 import { RunnerModelCatalog } from "../models/catalog.ts";
 import { createNodeCompletionsFiles, FileCompletionsCache } from "../models/completions-cache.ts";
 import { RunnerMcpServerLister, RunnerSlashCommandLister } from "../models/slash-and-mcp.ts";
@@ -810,9 +811,11 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 		ids,
 		logger,
 	});
+	const agentPrograms = new AgentProgramChoices();
 	const agents = new DefaultAgentDetector({
 		runners,
 		shellEnv,
+		executablePath: (selector) => agentPrograms.pathFor(selector),
 		onChanged: (installs) => {
 			announceAgentInstalls({ models, app, logger }, installs);
 		},
@@ -857,6 +860,7 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 		outbox,
 		models,
 		agents,
+		agentPrograms,
 		slashCommands: new RunnerSlashCommandLister({ runners, shellEnv, logger }),
 		completions,
 		mcpServers: new RunnerMcpServerLister({ runners, shellEnv, logger }),

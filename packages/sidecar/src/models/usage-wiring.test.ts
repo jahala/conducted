@@ -27,6 +27,7 @@ import type {
 } from "../checkpoints/checkpoint-service.ts";
 import { createLogger, type Logger } from "../logging/logger.ts";
 import type { AgentDetector } from "../models/agent-detection.ts";
+import { AgentProgramChoices } from "../models/agent-programs.ts";
 import { type ModelCatalog, RunnerModelCatalog } from "../models/catalog.ts";
 import type { McpServerLister, SlashCommandLister } from "../models/slash-and-mcp.ts";
 import type { EventOutbox } from "../outbox/event-outbox.ts";
@@ -253,6 +254,7 @@ function handlerDeps(manager: DefaultSessionManager, logger: Logger): HandlerDep
 		outbox,
 		models: catalog,
 		agents,
+		agentPrograms: new AgentProgramChoices(),
 		slashCommands,
 		completions: { read: async () => ok(null), write: async () => ok(undefined) },
 		mcpServers,
