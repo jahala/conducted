@@ -6,7 +6,7 @@
  * Test first: a finished notice waits two seconds, then plays the sound before the notification.
  */
 import type { Interaction, LiveState, SessionConfig } from "@conducted/protocol";
-import type { InteractionId, MessageId, SessionId, ToolUseId } from "@conducted/shared";
+import type { InteractionId, ToolUseId } from "@conducted/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestContainer, seedWorkspace } from "../../test/container.ts";
 import { createRepositories } from "../db/repositories.ts";
@@ -420,23 +420,20 @@ describe("CHAT-19 waiting turns and queued follow-ups", () => {
 	it("stays quiet while a follow-up is queued", async () => {
 		const h = await harness();
 		try {
-			h.test.container.services.followUpQueue.store.setState({
-				bySession: {
-					[h.session.id]: [
-						{
-							id: "message-1" as MessageId,
-							sessionId: h.session.id as SessionId,
-							text: "Run the tests again",
-							attachmentPaths: [],
-							delivery: "queue",
-							position: 0,
-							state: "waiting",
-							lastError: null,
-						},
-					],
-				},
-			});
+			// A follow-up still waits when the turn settles only while the queue is paused: an
+			// unpaused queue sends it the moment the chat goes idle (CHAT-04).
+			const queue = h.test.container.services.followUpQueue;
+			must(
+				await queue.enqueue({
+					sessionId: h.session.id,
+					text: "Run the tests again",
+					attachmentPaths: [],
+					delivery: "queue",
+				}),
+			);
+			must(await queue.setPaused(h.session.id, true));
 			await finish(h);
+			expect(queue.store.getState().bySession[h.session.id]).toHaveLength(1);
 			expect(h.test.memory.controls.notificationsShown).toHaveLength(0);
 		} finally {
 			await stop(h);

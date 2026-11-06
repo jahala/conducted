@@ -47,7 +47,7 @@ describe("PR-05 fixErrorsInstruction", () => {
 		});
 
 		expect(text).toContain("Find the cause");
-		expect(text).toContain("run the affected checks");
+		expect(text).toContain("Run the affected checks");
 	});
 
 	it("replaces the default text with the repository's Fix errors prompt", () => {

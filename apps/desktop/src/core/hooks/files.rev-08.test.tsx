@@ -94,10 +94,13 @@ describe("REV-08 useFileDraft", () => {
 
 			expect(saved).toEqual({ ok: true, value: true });
 			expect(result.current.draft.draft).toBeUndefined();
-			expect(result.current.content).toMatchObject({
-				state: "ready",
-				data: { text: "saved text" },
-			});
+			// React Query hands a cache write to its observers on its next tick, after act returns.
+			await waitFor(() =>
+				expect(result.current.content).toMatchObject({
+					state: "ready",
+					data: { text: "saved text" },
+				}),
+			);
 			expect(readContent).toHaveBeenCalledTimes(1);
 		} finally {
 			client.clear();

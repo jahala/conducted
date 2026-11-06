@@ -151,20 +151,20 @@ export const DIFF_COMMENTS_SQL = {
 	setResolved: "UPDATE diff_comments SET resolved = $1, updated_at = $2 WHERE id = $3",
 	setState: "UPDATE diff_comments SET state = $1, updated_at = $2 WHERE id = $3",
 	/** Hides a comment. A superseded comment stays frozen. */
-	hide: `UPDATE diff_comments SET state = 'hidden', updated_at = $2
-		WHERE id = $1 AND state <> 'superseded'`,
+	hide: `UPDATE diff_comments SET state = 'hidden', updated_at = $1
+		WHERE id = $2 AND state <> 'superseded'`,
 	/** Brings a hidden comment back as pending (services-map.md 5A.7.1, `unhideComment`). */
-	unhide: `UPDATE diff_comments SET state = 'pending', updated_at = $2
-		WHERE id = $1 AND state = 'hidden'`,
-	/** `$1` is a JSON list of comment ids. Every one that is not superseded becomes reviewed. */
-	markReviewed: `UPDATE diff_comments SET state = 'reviewed', updated_at = $2
-		WHERE id IN (SELECT value FROM json_each($1)) AND state <> 'superseded'`,
+	unhide: `UPDATE diff_comments SET state = 'pending', updated_at = $1
+		WHERE id = $2 AND state = 'hidden'`,
+	/** `$2` is a JSON list of comment ids. Every one that is not superseded becomes reviewed. */
+	markReviewed: `UPDATE diff_comments SET state = 'reviewed', updated_at = $1
+		WHERE id IN (SELECT value FROM json_each($2)) AND state <> 'superseded'`,
 	/** Every pending, open comment of the workspace becomes ready for review. */
-	markReadyForReview: `UPDATE diff_comments SET state = 'ready_for_review', updated_at = $2
-		WHERE workspace_id = $1 AND state = 'pending' AND resolved = 0 AND outdated = 0`,
+	markReadyForReview: `UPDATE diff_comments SET state = 'ready_for_review', updated_at = $1
+		WHERE workspace_id = $2 AND state = 'pending' AND resolved = 0 AND outdated = 0`,
 	/** Every comment of the workspace becomes superseded, so an older review freezes as one. */
-	supersedeWorkspace: `UPDATE diff_comments SET state = 'superseded', updated_at = $2
-		WHERE workspace_id = $1 AND state <> 'superseded'`,
+	supersedeWorkspace: `UPDATE diff_comments SET state = 'superseded', updated_at = $1
+		WHERE workspace_id = $2 AND state <> 'superseded'`,
 	setThreadResolved: `UPDATE diff_comments SET resolved = $1, updated_at = $2
 		WHERE workspace_id = $3 AND thread_id = $4`,
 	setOutdated: "UPDATE diff_comments SET outdated = $1, updated_at = $2 WHERE id = $3",
@@ -372,7 +372,7 @@ export function createDiffCommentRepository(
 			const hidden = await executeStatement(
 				db,
 				DIFF_COMMENTS_SQL.hide,
-				[id, now()],
+				[now(), id],
 				"Hiding a review comment",
 			);
 			return hidden.ok ? ok(hidden.value > 0) : err(hidden.error);
@@ -381,7 +381,7 @@ export function createDiffCommentRepository(
 			const shown = await executeStatement(
 				db,
 				DIFF_COMMENTS_SQL.unhide,
-				[id, now()],
+				[now(), id],
 				"Bringing back a review comment",
 			);
 			return shown.ok ? ok(shown.value > 0) : err(shown.error);
@@ -392,7 +392,7 @@ export function createDiffCommentRepository(
 			const marked = await executeStatement(
 				db,
 				DIFF_COMMENTS_SQL.markReviewed,
-				[json.value, now()],
+				[now(), json.value],
 				"Marking review comments reviewed",
 			);
 			return marked.ok ? ok(marked.value) : err(marked.error);
@@ -401,7 +401,7 @@ export function createDiffCommentRepository(
 			const marked = await executeStatement(
 				db,
 				DIFF_COMMENTS_SQL.markReadyForReview,
-				[workspaceId, now()],
+				[now(), workspaceId],
 				"Marking review comments ready",
 			);
 			return marked.ok ? ok(marked.value) : err(marked.error);
@@ -410,7 +410,7 @@ export function createDiffCommentRepository(
 			const superseded = await executeStatement(
 				db,
 				DIFF_COMMENTS_SQL.supersedeWorkspace,
-				[workspaceId, now()],
+				[now(), workspaceId],
 				"Superseding review comments",
 			);
 			return superseded.ok ? ok(superseded.value) : err(superseded.error);
