@@ -710,10 +710,10 @@ WS-01	rule	Git work after submit: fetch, worktree, names, setup	frontend 6	cover
 PRJ-01	control	'Open project' in the Add project menu	ui-map 3.9	covered
 PRJ-01	region	'Recents' group of recently opened project folders in the Add project menu	inventory text R@10176291	missing
 PRJ-02	rule	Clone with owner and repo picker from GitHub	services-map 3.2, 3.9	missing
-PR-09	dialog	Link issue dialog: 'Connect Linear', 'Search issues...', 'No open issues found'	ui-map 3.10	missing
+PR-09	dialog	Link issue dialog: 'Connect Linear', 'Search issues...', 'No open issues found'	ui-map 3.10	covered
 PR-11	rule	Issues list is disabled when there is no GitHub remote or access	services-map 5B.8.2	missing
 PR-11	action	A GitHub issue or PR becomes a context file in the workspace	services-map 5B.8.3	missing
-PR-09	rule	Linear issue context carries comments and times	services-map 5B.8.1	partly
+PR-09	rule	Linear issue context carries comments and times	services-map 5B.8.1	covered
 WS-07	dialog	Link workspaces and directories: 'Select working directories', 'Link a directory or workspace'	ui-map 3.10	missing
 SET-05	dialog	MCP status: 'MCP status', 'No MCP servers configured.', 'Refresh MCP status', logs	ui-map 3.10	covered
 SET-05	state	MCP server status shows an error reason when a server failed	services-map 5B.6	partly
