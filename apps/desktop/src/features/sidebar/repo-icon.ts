@@ -13,9 +13,7 @@
  * its favicon.
  */
 import type { Repo } from "../../core/model.ts";
-
-export const EMOJI_PREFIX = "emoji:";
-export const FILE_PREFIX = "file:";
+import { EMOJI_PREFIX, FILE_PREFIX } from "../../core/repo-icon-value.ts";
 
 export type RepoIconSource =
 	| { kind: "emoji"; emoji: string }
@@ -59,17 +57,6 @@ export function githubOwnerOf(remoteUrl: string | null): string | null {
 export function faviconUrlOf(remoteUrl: string | null): string | null {
 	const remote = remoteLocation(remoteUrl);
 	return remote === null ? null : `https://${remote.host}/favicon.ico`;
-}
-
-/** The stored value for a picked emoji or symbol. */
-export const emojiIconValue = (emoji: string): string => `${EMOJI_PREFIX}${emoji}`;
-
-/** The stored value for an uploaded image copied into app storage. */
-export const fileIconValue = (path: string): string => `${FILE_PREFIX}${path}`;
-
-/** The path of an uploaded icon, or null when the value is not one. */
-export function fileIconPath(value: string | null): string | null {
-	return value !== null && value.startsWith(FILE_PREFIX) ? value.slice(FILE_PREFIX.length) : null;
 }
 
 /** The avatar source for a repository, in the order the research gives the fallbacks. */

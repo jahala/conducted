@@ -84,6 +84,7 @@ import { githubRepoClone, githubRepoCreate, githubRepoUrl } from "../git/gh-comm
 import type { GitRunner } from "../git/runner.ts";
 import type { Repo, RepoConfig, RepoIconChoice, RunAction } from "../model.ts";
 import { coerceSettingValue, getSettingDef, type SettingValue } from "../registries/settings.ts";
+import { emojiIconValue, fileIconPath, fileIconValue } from "../repo-icon-value.ts";
 import { isGithubRemoteUrl } from "./github.ts";
 import {
 	GSTACK_TEMPLATE_URL,
@@ -270,13 +271,6 @@ const ICON_FAILED_MESSAGE = "Failed to set the icon. Try a different image.";
 
 /** Where uploaded repository icons live under the app data folder. */
 export const repoIconsDir = (paths: Platform["fs"]["paths"]): string => appDataPath(paths, "icons");
-
-/** The stored value of an uploaded icon starts with this, then its path in the icons folder. */
-const FILE_ICON_PREFIX = "file:";
-
-/** The uploaded image a stored icon value points to, or null for an emoji or no icon. */
-const uploadedIconPath = (icon: string | null): string | null =>
-	icon?.startsWith(FILE_ICON_PREFIX) === true ? icon.slice(FILE_ICON_PREFIX.length) : null;
 
 /** The lower-case extension of a file name, or null when it has none. */
 function iconExtension(path: string): string | null {
@@ -920,7 +914,7 @@ export class RepoService {
 			order: state.order.filter((id) => id !== repoId),
 		});
 		// An uploaded icon belongs to its project and goes to the Trash with it.
-		const icon = uploadedIconPath(found.value.icon);
+		const icon = fileIconPath(found.value.icon);
 		if (icon === null) return ok(undefined);
 		const trashed = await trashIfPresent(this.#deps.platform.fs, icon);
 		return trashed.ok ? ok(undefined) : trashed;
@@ -1095,7 +1089,7 @@ export class RepoService {
 			if (emoji === "") {
 				return err(appError("repo_icon_empty", "Choose an emoji first."));
 			}
-			stored = `emoji:${emoji}`;
+			stored = emojiIconValue(emoji);
 		} else {
 			const extension = iconExtension(icon.path);
 			if (extension === null || !ICON_EXTENSIONS.has(extension)) {
@@ -1126,7 +1120,7 @@ export class RepoService {
 			if (!copied.ok) {
 				return err(appError("repo_icon_failed", ICON_FAILED_MESSAGE, copied.error));
 			}
-			stored = `${FILE_ICON_PREFIX}${destination}`;
+			stored = fileIconValue(destination);
 			copiedTo = destination;
 		}
 
@@ -1148,7 +1142,7 @@ export class RepoService {
 
 		this.#upsert({ ...repo, icon: stored });
 		// The database no longer points to the earlier upload, so it goes to the Trash.
-		const previous = uploadedIconPath(repo.icon);
+		const previous = fileIconPath(repo.icon);
 		if (previous !== null && previous !== copiedTo) {
 			const removed = await trashIfPresent(this.#deps.platform.fs, previous);
 			if (!removed.ok) {

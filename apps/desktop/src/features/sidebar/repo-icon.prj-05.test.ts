@@ -6,13 +6,8 @@
 import type { RepoId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import type { Repo } from "../../core/model.ts";
-import {
-	emojiIconValue,
-	fileIconPath,
-	fileIconValue,
-	githubOwnerOf,
-	repoIconSource,
-} from "./repo-icon.ts";
+import { emojiIconValue, fileIconPath, fileIconValue } from "../../core/repo-icon-value.ts";
+import { githubOwnerOf, repoIconSource } from "./repo-icon.ts";
 
 function repo(changes: Partial<Repo> = {}): Repo {
 	return {
