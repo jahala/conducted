@@ -46,6 +46,19 @@
  *    reports it through StartOptions.selfStartedTurns; a stream that ends or throws ends that work,
  *    and dispose stops the reports. A late result of a cancelled turn is held back, so it never
  *    looks like new work
+ *  - Remote Control (RC-02, D019, path A of D074): `config.remoteControl` turns it on for each
+ *    process this chat starts, and off again, through remote-control.ts; one change at a time, in
+ *    order. A chat that cannot use it (an API key, a base URL away from Anthropic) reports
+ *    unavailable with the reason and never asks the SDK. The link and every bridge_state go to
+ *    StartOptions.remoteControl; a process that ends reports disconnected, and dispose reports off.
+ *    setRemoteControl applies the switch at once, even during a turn
+ *  - input from claude.ai (RC-03): with Remote Control on in this process, a frame naming a user
+ *    message uuid this session did not push is a message typed on claude.ai. It is reported once,
+ *    when first seen, with its text read from Claude's transcript (asked again every
+ *    REMOTE_TEXT_RETRY_MS, REMOTE_TEXT_ATTEMPTS times). An approval asked while no turn of ours is
+ *    open goes to the self-started callbacks, so a turn started on claude.ai can ask the app. An
+ *    approval card still open when the SDK withdraws it while Remote Control is on was answered on
+ *    claude.ai: the chat gets the notice ANSWERED_VIA_CLAUDE
  * Test first: with a scripted query function that yields init, assistant text and a result for
  * the pushed uuid, runTurn emits the text message and resolves with success.
  * Our design choice: the SDK's query function is a constructor parameter (Conductor does this
@@ -62,7 +75,15 @@ import type {
 	SDKMessage,
 	SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { Effort, RateLimit, SessionConfig } from "@conducted/protocol";
+import type {
+	AgentMessage,
+	Effort,
+	Interaction,
+	InteractionAnswer,
+	RateLimit,
+	RemoteControlStatus,
+	SessionConfig,
+} from "@conducted/protocol";
 import type { SessionId } from "@conducted/shared";
 import { messageOf } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
@@ -86,6 +107,15 @@ import { claudeEffortOption } from "./launch-settings.ts";
 import { buildClaudeOptions } from "./options.ts";
 import type { PermissionHandlerDeps } from "./permission-handler.ts";
 import { permissionModeFor } from "./permissions.ts";
+import {
+	ANSWERED_VIA_CLAUDE,
+	bridgeStatusOf,
+	REMOTE_TEXT_ATTEMPTS,
+	REMOTE_TEXT_RETRY_MS,
+	remoteControlBlocker,
+	remoteUserMessageUuids,
+	setRemoteControl,
+} from "./remote-control.ts";
 import { SelfStartedTurnTracker } from "./self-started-turns.ts";
 import { createMirrorStore } from "./session-mirror.ts";
 import { bundledSkillPlugins } from "./skill-plugin.ts";
@@ -110,6 +140,11 @@ export interface ClaudeSessionDeps {
 	translator: ClaudeTranslator;
 	/** Checks for a resumable transcript on disk. */
 	hasTranscript(sessionId: SessionId, cwd: string): Promise<boolean>;
+	/**
+	 * Reads the text of one user message from the chat's transcript by uuid, null when it is not
+	 * there (yet). Gives the text of a message typed on claude.ai (RC-03).
+	 */
+	readUserMessageText(agentSessionId: string, cwd: string, uuid: string): Promise<string | null>;
 	/** Folder of the app's bundled skill plugin, when the build has one (AGENT-18). */
 	skillPluginDir?: string;
 	/** Resolves symlinks for the edit-path check. Returns null when the path cannot be resolved. */
@@ -170,6 +205,15 @@ export class ClaudeSession implements AgentSession {
 	/** Why the bundled skill was left out, until the user has been told once (AGENT-18). */
 	private skillPluginProblem: string | null = null;
 	private skillPluginToldUser = false;
+	/** True once the live process answered that Remote Control is on (RC-02). */
+	private remoteControlOn = false;
+	private remoteControl: RemoteControlStatus = { state: "off" };
+	/** Remote Control changes run one at a time, in order. */
+	private remoteControlWork: Promise<void> = Promise.resolve();
+	/** Uuids of the user messages this session pushed. Any other is a message from claude.ai. */
+	private readonly ownUuids = new Set<string>();
+	/** Uuids of messages from claude.ai already reported, so each is reported once. */
+	private readonly remoteUuids = new Set<string>();
 
 	constructor(
 		protected readonly deps: ClaudeSessionDeps,
@@ -234,6 +278,7 @@ export class ClaudeSession implements AgentSession {
 			return outcome;
 		}
 		this.tellSkillPluginProblem(callbacks);
+		this.syncRemoteControl();
 
 		// A config change deferred while the last turn ran is applied before this message. A
 		// failure must end the turn: the process is still in bypassPermissions until the mode
@@ -272,6 +317,7 @@ export class ClaudeSession implements AgentSession {
 		}
 
 		const uuid = this.deps.newUuid();
+		this.ownUuids.add(uuid);
 		this.tracker.expectTurn(uuid);
 		const queue = this.input;
 		const pushed = queue?.push(this.userMessage(input.text, uuid)) ?? false;
@@ -301,6 +347,7 @@ export class ClaudeSession implements AgentSession {
 		if (queue === null || queue.isClosed) throw new NoActiveTurnError();
 
 		const uuid = this.deps.newUuid();
+		this.ownUuids.add(uuid);
 		const consumed = this.receipts.register(uuid);
 		// The tracker must know this uuid: a result that answers the steer can end the turn, and a
 		// result that arrives before the mirror shows it read is held back.
@@ -342,6 +389,7 @@ export class ClaudeSession implements AgentSession {
 		if (this.config.planMode !== config.planMode) this.appPlanModeChoice = config.planMode;
 		this.config = config;
 		if (change.kind === "restart") return "restart";
+		this.syncRemoteControl();
 		// A live change waits while a turn runs; runTurn applies it before the next message.
 		if (this.turnOpen) return "applied";
 		if (this.query === null) return "applied";
@@ -354,6 +402,12 @@ export class ClaudeSession implements AgentSession {
 			});
 			return "restart";
 		}
+	}
+
+	/** Turns the chat's Remote Control switch on or off at once, even during a turn (RC-02). */
+	setRemoteControl(enabled: boolean): void {
+		this.config = { ...this.config, remoteControl: enabled };
+		this.syncRemoteControl();
 	}
 
 	/** Turns the app's auto-accept edits control on or off for the live chat (AGENT-04). */
@@ -400,6 +454,8 @@ export class ClaudeSession implements AgentSession {
 		input?.close();
 		abort?.abort();
 		await exited;
+		this.remoteControlOn = false;
+		if (this.remoteControl.state !== "off") this.reportRemoteControl({ state: "off" });
 	}
 
 	/**
@@ -501,7 +557,9 @@ export class ClaudeSession implements AgentSession {
 		});
 		const query = this.deps.query({ prompt: input, options });
 		this.query = query;
+		this.remoteControlOn = false;
 		void this.consume(query, input, resolveExit);
+		this.syncRemoteControl();
 	}
 
 	/** Reads the SDK stream until the process ends, forwarding messages and settling turns. */
@@ -539,6 +597,7 @@ export class ClaudeSession implements AgentSession {
 				this.query = null;
 				this.input = null;
 				this.abortController = null;
+				this.remoteControlLost();
 			}
 			// This process's exit, never the one a later process is still waiting on.
 			resolveExit();
@@ -546,6 +605,14 @@ export class ClaudeSession implements AgentSession {
 	}
 
 	private handleMessage(message: SDKMessage): void {
+		const bridge = bridgeStatusOf(message);
+		if (bridge !== null) {
+			// The link's own state; it is no part of any turn.
+			// A new state replaces the last one's detail: a link that works again has no old error.
+			const { detail: _previous, ...link } = this.remoteControl;
+			this.reportRemoteControl({ ...link, ...bridge });
+			return;
+		}
 		this.noteSessionId(message);
 		this.notePlanMode(message);
 		const callbacks = this.callbacks;
@@ -555,6 +622,7 @@ export class ClaudeSession implements AgentSession {
 		if (decision.action === "hold_back") return;
 		// With no turn of ours open, the message belongs to work the CLI started by itself.
 		this.selfStarted?.onSdkMessage(message);
+		this.noteRemoteUserMessages(message);
 		if (callbacks === null) return;
 		for (const agentMessage of this.deps.translator.translate(message)) {
 			callbacks.onMessage(agentMessage);
@@ -703,6 +771,7 @@ export class ClaudeSession implements AgentSession {
 		this.input = null;
 		this.query = null;
 		this.abortController = null;
+		this.remoteControlLost();
 		input?.close();
 		abort?.abort();
 	}
@@ -779,7 +848,7 @@ export class ClaudeSession implements AgentSession {
 				this.start.workspace.workspacePath,
 				...this.config.additionalDirectories,
 			],
-			callbacks: () => this.callbacks ?? undefined,
+			callbacks: () => this.interactionCallbacks(),
 			realPath: (path) => this.deps.realPath(path),
 			isSessionLive: () => !this.disposed && this.query !== null,
 			setPermissionMode: (mode) => this.applyPermissionMode(mode),
@@ -792,6 +861,157 @@ export class ClaudeSession implements AgentSession {
 		const tail = this.stderrTail.join("\n").trim();
 		if (tail === "") return undefined;
 		return new Error(`The Claude session ended unexpectedly.\n${tail}`);
+	}
+
+	/**
+	 * Where an approval goes: the open turn, else the host's callbacks for work the CLI started by
+	 * itself (a turn started on claude.ai). An approval the SDK withdraws while still open, with
+	 * Remote Control on, was answered on claude.ai, so the chat says so where the card was.
+	 */
+	private interactionCallbacks(): Pick<TurnCallbacks, "requestInteraction"> | undefined {
+		const turn = this.callbacks;
+		const host = turn ?? this.start.selfStartedTurns;
+		if (host === null || host === undefined) return undefined;
+		const notify = (message: AgentMessage): void => {
+			if (turn !== null) turn.onMessage(message);
+			else this.start.selfStartedTurns?.onMessage(message);
+		};
+		return {
+			requestInteraction: (interaction: Interaction, signal?: AbortSignal) => {
+				const pending = host.requestInteraction(interaction, signal);
+				if (signal === undefined) return pending;
+				let settled = false;
+				const onAbort = (): void => {
+					if (settled || !this.remoteControlOn) return;
+					notify({
+						agent: "claude",
+						items: [{ kind: "notice", notice: "info", text: ANSWERED_VIA_CLAUDE }],
+					});
+				};
+				signal.addEventListener("abort", onAbort, { once: true });
+				return pending.then(
+					(answer: InteractionAnswer) => {
+						settled = true;
+						signal.removeEventListener("abort", onAbort);
+						return answer;
+					},
+					(cause: unknown) => {
+						settled = true;
+						signal.removeEventListener("abort", onAbort);
+						throw cause;
+					},
+				);
+			},
+		};
+	}
+
+	/** Applies the Remote Control switch to the live process, after any change still running. */
+	private syncRemoteControl(): void {
+		this.remoteControlWork = this.remoteControlWork
+			.then(() => this.applyRemoteControl())
+			.catch((cause: unknown) => {
+				this.deps.logger.warn("Could not change Remote Control", {
+					sessionId: this.sessionId,
+					message: messageOf(cause),
+				});
+			});
+	}
+
+	private async applyRemoteControl(): Promise<void> {
+		const query = this.query;
+		if (query === null || this.disposed) return;
+		const wanted = this.config.remoteControl === true;
+		if (wanted === this.remoteControlOn) {
+			if (!wanted && this.remoteControl.state === "unavailable")
+				this.reportRemoteControl({ state: "off" });
+			return;
+		}
+		if (wanted) {
+			const blocker = remoteControlBlocker(this.start.env);
+			if (blocker !== null) {
+				if (this.remoteControl.state !== "unavailable" || this.remoteControl.detail !== blocker) {
+					this.reportRemoteControl({ state: "unavailable", detail: blocker });
+				}
+				return;
+			}
+			this.reportRemoteControl({ state: "connecting" });
+		}
+		const answer = await setRemoteControl(query, wanted);
+		// A process that ended or was replaced meanwhile has no link to report.
+		if (this.query !== query) return;
+		if (!answer.ok) {
+			this.deps.logger.warn("Claude did not change Remote Control", {
+				sessionId: this.sessionId,
+				enabled: wanted,
+				code: answer.error.code,
+				message: answer.error.message,
+			});
+			this.reportRemoteControl(
+				wanted
+					? { state: "failed", detail: answer.error.message }
+					: { ...this.remoteControl, detail: answer.error.message },
+			);
+			return;
+		}
+		this.remoteControlOn = wanted;
+		if (!wanted) {
+			this.reportRemoteControl({ state: "off" });
+			return;
+		}
+		const sessionUrl = answer.value.sessionUrl;
+		this.reportRemoteControl({
+			...this.remoteControl,
+			...(sessionUrl === undefined ? {} : { sessionUrl }),
+		});
+		// A change that arrived while Claude answered is applied next.
+		if ((this.config.remoteControl === true) !== wanted) this.syncRemoteControl();
+	}
+
+	/** The process behind the link ended. The next process turns Remote Control on again. */
+	private remoteControlLost(): void {
+		const wasOn = this.remoteControlOn;
+		this.remoteControlOn = false;
+		if (!wasOn || this.disposed) return;
+		this.reportRemoteControl({ state: "disconnected" });
+	}
+
+	private reportRemoteControl(status: RemoteControlStatus): void {
+		this.remoteControl = status;
+		this.start.remoteControl?.onStatus(status);
+	}
+
+	/**
+	 * A frame that names a user message this session did not push, while Remote Control is on, is
+	 * answering a message typed on claude.ai. It is reported once, with its text from the transcript.
+	 */
+	private noteRemoteUserMessages(message: SDKMessage): void {
+		if (!this.remoteControlOn) return;
+		const callbacks = this.start.remoteControl;
+		if (callbacks === undefined) return;
+		for (const uuid of remoteUserMessageUuids(message)) {
+			if (this.ownUuids.has(uuid) || this.remoteUuids.has(uuid)) continue;
+			this.remoteUuids.add(uuid);
+			callbacks.onUserMessage({ uuid, text: this.readRemoteText(uuid) });
+		}
+	}
+
+	/** The text of a message typed on claude.ai, asked of the transcript until it is there. */
+	private async readRemoteText(uuid: string): Promise<string | null> {
+		const agentSessionId = this.agentSessionId ?? this.sessionId;
+		const cwd = this.start.workspace.workspacePath;
+		for (let attempt = 1; attempt <= REMOTE_TEXT_ATTEMPTS; attempt += 1) {
+			const text = await this.deps.readUserMessageText(agentSessionId, cwd, uuid);
+			if (text !== null) return text;
+			if (attempt === REMOTE_TEXT_ATTEMPTS || this.disposed) break;
+			await new Promise<void>((resolve) => {
+				this.deps.scheduler.after(REMOTE_TEXT_RETRY_MS, resolve);
+			});
+		}
+		this.deps.logger.warn("A message sent from claude.ai was not found in Claude's transcript", {
+			sessionId: this.sessionId,
+			uuid,
+		});
+		return null;
 	}
 
 	private userMessage(text: string, uuid: string): SDKUserMessage {

@@ -107,7 +107,11 @@ import { type AcpAppTools, AcpRunner } from "../runners/acp/acp-runner.ts";
 import { ACP_ADAPTERS } from "../runners/acp/adapters/registry.ts";
 import { ClaudeRunner, type ClaudeRunnerDeps } from "../runners/claude/claude-runner.ts";
 import { ClaudePermissionHandler } from "../runners/claude/permission-handler.ts";
-import { claudeConfigDir, createTranscriptCheck } from "../runners/claude/transcript.ts";
+import {
+	claudeConfigDir,
+	createTranscriptCheck,
+	createUserMessageReader,
+} from "../runners/claude/transcript.ts";
 import { ClaudeTranslator } from "../runners/claude/translate.ts";
 import type { Scheduler } from "../runners/claude/turn-tracker.ts";
 import type { JsonRpcChild, SpawnJsonRpcChild } from "../runners/codex/app-server-client.ts";
@@ -615,6 +619,7 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 		sidecarExecutable: process.execPath,
 		// Pinned once, so a later environment change cannot move the transcript path.
 		hasTranscript: createTranscriptCheck(claudeConfigDir(env)),
+		readUserMessageText: createUserMessageReader(claudeConfigDir(env)),
 		newToken: () => randomBytes(32).toString("base64url"),
 		clock: systemClock,
 		ids: cryptoIds,
@@ -748,6 +753,8 @@ export interface SidecarPorts {
 	/** The program agents start in "app-tools-mcp" mode: the sidecar itself. */
 	sidecarExecutable: string;
 	hasTranscript(sessionId: SessionId, cwd: string): Promise<boolean>;
+	/** The text of one user message in a Claude transcript, by uuid (RC-03). */
+	readUserMessageText(agentSessionId: string, cwd: string, uuid: string): Promise<string | null>;
 	/** A new bridge token: 32 random bytes, base64url encoded. */
 	newToken(): string;
 	clock: Clock;
@@ -1122,6 +1129,7 @@ function createRunnerRegistry(input: {
 				skillPluginDir: input.skillPluginDir,
 				translator: () => new ClaudeTranslator({ logger }),
 				hasTranscript: ports.hasTranscript,
+				readUserMessageText: ports.readUserMessageText,
 				realPath,
 				newUuid: () => ports.ids.uuid(),
 				scheduler,

@@ -187,6 +187,7 @@ function makeDeps(overrides: Partial<ClaudeRunnerDeps> = {}): ClaudeRunnerDeps {
 		translator: recordingTranslator().template,
 		appTools: {} as AppToolBackend,
 		hasTranscript: async () => false,
+		readUserMessageText: async () => null,
 		realPath: async (path) => path,
 		newUuid: () => {
 			turn += 1;

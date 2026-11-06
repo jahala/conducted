@@ -29,6 +29,7 @@ interface Entry {
 	activeLeases: number;
 	busy: boolean;
 	hasBackgroundTasks: boolean;
+	remoteControl: boolean;
 	lastIdleAt: number | null;
 	idleGeneration: number;
 	started: Promise<AgentSession | null>;
@@ -42,6 +43,7 @@ export class FakeProcesses implements ProcessManager {
 	readonly busy: string[] = [];
 	readonly idle: string[] = [];
 	readonly backgroundTaskCalls: { key: string; hasTasks: boolean }[] = [];
+	readonly remoteControlCalls: { key: string; on: boolean }[] = [];
 	/** Errors thrown by an agent's dispose. The real manager logs them and goes on. */
 	readonly disposeErrors: unknown[] = [];
 	stopAllCalls = 0;
@@ -106,6 +108,12 @@ export class FakeProcesses implements ProcessManager {
 		if (entry !== undefined) entry.hasBackgroundTasks = hasTasks;
 	}
 
+	setRemoteControl(key: string, on: boolean): void {
+		this.remoteControlCalls.push({ key, on });
+		const entry = this.entries.get(key);
+		if (entry !== undefined) entry.remoteControl = on;
+	}
+
 	holds(key: string, agent: AgentSession): boolean {
 		const entry = this.entries.get(key);
 		if (entry === undefined || entry.disconnected) return false;
@@ -160,6 +168,7 @@ export class FakeProcesses implements ProcessManager {
 			activeLeases: 0,
 			busy: false,
 			hasBackgroundTasks: false,
+			remoteControl: false,
 			lastIdleAt: null,
 			idleGeneration: 0,
 			started: Promise.resolve(null),
@@ -205,6 +214,7 @@ export class FakeProcesses implements ProcessManager {
 			activeLeases: entry.activeLeases,
 			busy: entry.busy,
 			hasBackgroundTasks: entry.hasBackgroundTasks,
+			remoteControl: entry.remoteControl,
 			lastIdleAt: entry.lastIdleAt,
 		};
 	}

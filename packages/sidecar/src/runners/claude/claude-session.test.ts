@@ -9,7 +9,14 @@ import type {
 	ModelInfo as SdkModelInfo,
 	SlashCommand,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { AgentMessage, SessionConfig, WorkspaceContext } from "@conducted/protocol";
+import type {
+	AgentMessage,
+	Interaction,
+	InteractionAnswer,
+	RemoteControlStatus,
+	SessionConfig,
+	WorkspaceContext,
+} from "@conducted/protocol";
 import type { SessionId, WorkspaceId } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
 import { countingIds } from "../../test-support/ids.ts";
@@ -19,7 +26,8 @@ import { NoActiveTurnError } from "../errors.ts";
 import type { StartOptions, TurnCallbacks, TurnInput } from "../runner.ts";
 import { ClaudeSession, type ClaudeSessionDeps, type QueryFunction } from "./claude-session.ts";
 import { INTERRUPT_GRACE_MS, SETTLEMENT_WATCHDOG_MS } from "./constants.ts";
-import { ClaudePermissionHandler } from "./permission-handler.ts";
+import { ClaudePermissionHandler, type PermissionHandlerDeps } from "./permission-handler.ts";
+import { REMOTE_TEXT_ATTEMPTS, REMOTE_TEXT_RETRY_MS } from "./remote-control.ts";
 import type { ClaudeTranslator } from "./translate.ts";
 import type { Scheduler } from "./turn-tracker.ts";
 
@@ -88,6 +96,8 @@ interface Script {
 		permissionModes: PermissionMode[];
 		models: string[];
 		flags: unknown[];
+		/** Each enableRemoteControl call, by its `enabled` argument. */
+		remoteControl: boolean[];
 	};
 	models: SdkModelInfo[];
 	commands: SlashCommand[];
@@ -100,7 +110,11 @@ interface Script {
 
 function scriptedQuery(
 	respond?: (message: SDKUserMessage, script: Script) => void,
-	options: { setPermissionModeError?: Error } = {},
+	options: {
+		setPermissionModeError?: Error;
+		/** Gives the query object an enableRemoteControl method answering this way (RC-02). */
+		remoteControl?: (enabled: boolean) => Promise<unknown>;
+	} = {},
 ): {
 	query: QueryFunction;
 	script: Script;
@@ -110,7 +124,7 @@ function scriptedQuery(
 	const script: Script = {
 		prompts: [],
 		starts: 0,
-		actions: { interrupt: 0, permissionModes: [], models: [], flags: [] },
+		actions: { interrupt: 0, permissionModes: [], models: [], flags: [], remoteControl: [] },
 		models: [],
 		commands: [],
 		usage: { totalTokens: 0, maxTokens: 0 },
@@ -152,6 +166,14 @@ function scriptedQuery(
 		supportedModels: async () => script.models,
 		supportedCommands: async () => script.commands,
 		getContextUsage: async () => script.usage,
+		...(options.remoteControl === undefined
+			? {}
+			: {
+					enableRemoteControl: (enabled: boolean) => {
+						script.actions.remoteControl.push(enabled);
+						return options.remoteControl?.(enabled);
+					},
+				}),
 	} as unknown as Query;
 
 	const queryFn: QueryFunction = ({ prompt, options }) => {
@@ -304,6 +326,7 @@ function makeDeps(overrides: Partial<ClaudeSessionDeps> = {}): ClaudeSessionDeps
 		logger: fakeLogger(),
 		translator: translator(),
 		hasTranscript: async () => false,
+		readUserMessageText: async () => null,
 		realPath: async (path) => path,
 		newUuid: countingIds("turn").uuid,
 		scheduler: fakeScheduler(),
@@ -401,18 +424,24 @@ interface Process {
 	stream: Stream<SDKMessage>;
 	options: Options | undefined;
 	prompts: SDKUserMessage[];
+	/** Each enableRemoteControl call on this process, by its `enabled` argument (RC-02). */
+	remoteControl: boolean[];
 }
 
 /** A query function that starts a fresh stream for every process, so a respawn is visible. */
 function multiProcessQuery(
 	onPrompt?: (message: SDKUserMessage, process: Process, index: number) => void,
-	options: { closeOnAbort?: boolean; models?: SdkModelInfo[] } = {},
+	options: {
+		closeOnAbort?: boolean;
+		models?: SdkModelInfo[];
+		remoteControl?: (enabled: boolean) => Promise<unknown>;
+	} = {},
 ): { query: QueryFunction; processes: Process[] } {
 	const processes: Process[] = [];
 	const closeOnAbort = options.closeOnAbort ?? true;
 	const query: QueryFunction = ({ prompt, options: queryOptions }) => {
 		const stream = testStream<SDKMessage>();
-		const process: Process = { stream, options: queryOptions, prompts: [] };
+		const process: Process = { stream, options: queryOptions, prompts: [], remoteControl: [] };
 		const index = processes.length;
 		processes.push(process);
 		queryOptions?.abortController?.signal.addEventListener(
@@ -448,6 +477,14 @@ function multiProcessQuery(
 			supportedModels: async () => options.models ?? [],
 			supportedCommands: async () => [],
 			getContextUsage: async () => ({ totalTokens: 0, maxTokens: 0 }),
+			...(options.remoteControl === undefined
+				? {}
+				: {
+						enableRemoteControl: (enabled: boolean) => {
+							process.remoteControl.push(enabled);
+							return options.remoteControl?.(enabled);
+						},
+					}),
 		} as unknown as Query;
 	};
 	return { query, processes };
@@ -1521,5 +1558,492 @@ describe("SIDE-18 SDK debug tap", () => {
 		});
 		expect(downstream.length).toBeGreaterThanOrEqual(3);
 		await session.dispose();
+	});
+});
+
+describe("RC-02 Remote Control for a Claude chat", () => {
+	const link = {
+		session_url: "https://claude.ai/code/session_1",
+		bridge_session_id: "session_1",
+		bridge_epoch: 1,
+	};
+	const sessionUrl = link.session_url;
+
+	function bridge(state: string, detail?: string): SDKMessage {
+		return {
+			type: "system",
+			subtype: "bridge_state",
+			state,
+			...(detail === undefined ? {} : { detail }),
+			bridge_epoch: 1,
+			uuid: `bridge-${state}`,
+			session_id: "s1",
+		} as unknown as SDKMessage;
+	}
+
+	interface Recorded {
+		statuses: RemoteControlStatus[];
+		users: { uuid: string; text: Promise<string | null> }[];
+		selfMessages: AgentMessage[];
+		selfInteractions: Interaction[];
+	}
+
+	function remoteStart(
+		remoteControl: boolean,
+		env: Record<string, string> = { PATH: "/usr/bin" },
+	): { options: StartOptions; recorded: Recorded } {
+		const recorded: Recorded = {
+			statuses: [],
+			users: [],
+			selfMessages: [],
+			selfInteractions: [],
+		};
+		const options: StartOptions = {
+			...start(),
+			env,
+			config: { ...config(), remoteControl },
+			remoteControl: {
+				onStatus: (status) => recorded.statuses.push(status),
+				onUserMessage: (message) => recorded.users.push(message),
+			},
+			selfStartedTurns: {
+				onInProgressChanged: () => {},
+				onMessage: (message) => recorded.selfMessages.push(message),
+				requestInteraction: (interaction) => {
+					recorded.selfInteractions.push(interaction);
+					return new Promise<InteractionAnswer>(() => {});
+				},
+			},
+		};
+		return { options, recorded };
+	}
+
+	test("RC-02 a chat with the switch on turns Remote Control on and reports the link and its state", async () => {
+		const { query, script } = scriptedQuery(undefined, { remoteControl: async () => link });
+		const { options, recorded } = remoteStart(true);
+		const session = new ClaudeSession(makeDeps({ query }), options);
+
+		await session.warm();
+		await until(() => recorded.statuses.length >= 2);
+		expect(script.actions.remoteControl).toEqual([true]);
+		expect(recorded.statuses).toEqual([
+			{ state: "connecting" },
+			{ state: "connecting", sessionUrl },
+		]);
+
+		script.emit(bridge("ready"));
+		script.emit(bridge("connected"));
+		await until(() => recorded.statuses.length >= 4);
+		expect(recorded.statuses.slice(2)).toEqual([
+			{ state: "ready", sessionUrl },
+			{ state: "connected", sessionUrl },
+		]);
+
+		await session.dispose();
+		expect(recorded.statuses.at(-1)).toEqual({ state: "off" });
+	});
+
+	test("RC-02 a chat with the switch off never asks for Remote Control", async () => {
+		const { query, script } = scriptedQuery(undefined, { remoteControl: async () => link });
+		const { options, recorded } = remoteStart(false);
+		const session = new ClaudeSession(makeDeps({ query }), options);
+
+		await session.warm();
+		await flushMicrotasks();
+		expect(script.actions.remoteControl).toEqual([]);
+		expect(recorded.statuses).toEqual([]);
+		await session.dispose();
+	});
+
+	test("RC-02 a chat on an API key is unavailable, says why, and never asks the SDK", async () => {
+		const { query, script } = scriptedQuery(undefined, { remoteControl: async () => link });
+		const { options, recorded } = remoteStart(true, { PATH: "/usr/bin", ANTHROPIC_API_KEY: "k" });
+		const session = new ClaudeSession(makeDeps({ query }), options);
+
+		await session.warm();
+		await until(() => recorded.statuses.length >= 1);
+		expect(script.actions.remoteControl).toEqual([]);
+		expect(recorded.statuses).toEqual([
+			{
+				state: "unavailable",
+				detail: "Remote Control needs a claude.ai login. This chat runs on an API key.",
+			},
+		]);
+		await session.dispose();
+	});
+
+	test("RC-02 an answer without the session link fails with a reason (contract, D074)", async () => {
+		const { query } = scriptedQuery(undefined, {
+			remoteControl: async () => ({ session_url: sessionUrl }),
+		});
+		const { options, recorded } = remoteStart(true);
+		const session = new ClaudeSession(makeDeps({ query }), options);
+
+		await session.warm();
+		await until(() => recorded.statuses.length >= 2);
+		expect(recorded.statuses[1]).toEqual({
+			state: "failed",
+			detail: "Claude turned Remote Control on but did not say where to open the chat.",
+		});
+		await session.dispose();
+	});
+
+	test("RC-02 an SDK without enableRemoteControl fails with a reason (contract, D074)", async () => {
+		const { query } = scriptedQuery();
+		const { options, recorded } = remoteStart(true);
+		const session = new ClaudeSession(makeDeps({ query }), options);
+
+		await session.warm();
+		await until(() => recorded.statuses.length >= 2);
+		expect(recorded.statuses[1]).toEqual({
+			state: "failed",
+			detail: "This version of the Claude Agent SDK cannot start Remote Control.",
+		});
+		await session.dispose();
+	});
+
+	test("RC-02 turning the switch off on a live chat turns Remote Control off", async () => {
+		const { query, script } = scriptedQuery(undefined, {
+			remoteControl: async (enabled) => (enabled ? link : undefined),
+		});
+		const { options, recorded } = remoteStart(true);
+		const session = new ClaudeSession(makeDeps({ query }), options);
+		await session.warm();
+		await until(() => recorded.statuses.length >= 2);
+
+		expect(await session.applyConfig({ ...config(), remoteControl: false })).toBe("applied");
+		await until(() => recorded.statuses.at(-1)?.state === "off");
+		expect(script.actions.remoteControl).toEqual([true, false]);
+		await session.dispose();
+	});
+
+	test("RC-02 the switch turned on during a turn applies at once", async () => {
+		const { query, script } = scriptedQuery(undefined, { remoteControl: async () => link });
+		const { options, recorded } = remoteStart(false);
+		const session = new ClaudeSession(makeDeps({ query }), options);
+		const turn = session.runTurn(turnInput(), callbacks([]));
+		await until(() => script.prompts.length === 1);
+
+		session.setRemoteControl(true);
+		await until(() => recorded.statuses.length >= 2);
+		expect(script.actions.remoteControl).toEqual([true]);
+		expect(recorded.statuses.at(-1)).toEqual({ state: "connecting", sessionUrl });
+
+		script.emit(resultMessage(String(script.prompts[0]?.uuid)));
+		expect(await turn).toEqual({ kind: "success" });
+		await session.dispose();
+	});
+
+	test("RC-02 a process that ends drops the link, and the next process turns it on again", async () => {
+		const { query, processes } = multiProcessQuery(undefined, {
+			remoteControl: async () => link,
+		});
+		const { options, recorded } = remoteStart(true);
+		const session = new ClaudeSession(makeDeps({ query }), options);
+		await session.warm();
+		await until(() => recorded.statuses.length >= 2);
+
+		processes[0]?.stream.close();
+		await until(() => recorded.statuses.at(-1)?.state === "disconnected");
+
+		await session.warm();
+		await until(() => processes[1]?.remoteControl.length === 1);
+		await until(() => recorded.statuses.at(-1)?.sessionUrl === sessionUrl);
+		expect(recorded.statuses.at(-1)).toEqual({ state: "connecting", sessionUrl });
+		await session.dispose();
+	});
+});
+
+describe("RC-03 input from claude.ai", () => {
+	const link = {
+		session_url: "https://claude.ai/code/session_1",
+		bridge_session_id: "session_1",
+		bridge_epoch: 1,
+	};
+
+	function answering(text: string, uuid = "remote-1", sessionId = "s1"): SDKMessage {
+		return {
+			type: "assistant",
+			message: { role: "assistant", content: [{ type: "text", text }] },
+			parent_tool_use_id: null,
+			session_id: sessionId,
+			uuid: `assistant-${uuid}`,
+			user_message_uuid: uuid,
+		} as unknown as SDKMessage;
+	}
+
+	function running(): SDKMessage {
+		return {
+			type: "system",
+			subtype: "session_state_changed",
+			state: "running",
+			uuid: "state-running",
+			session_id: "s1",
+		} as unknown as SDKMessage;
+	}
+
+	/** The app sends the chat's stored switch with every message. */
+	function remoteTurnInput(remoteControl = true): TurnInput {
+		return { ...turnInput(), config: { ...config(), remoteControl } };
+	}
+
+	interface Recorded {
+		users: { uuid: string; text: Promise<string | null> }[];
+		selfMessages: AgentMessage[];
+		selfInteractions: Interaction[];
+	}
+
+	function remoteStart(remoteControl: boolean): { options: StartOptions; recorded: Recorded } {
+		const recorded: Recorded = { users: [], selfMessages: [], selfInteractions: [] };
+		return {
+			recorded,
+			options: {
+				...start(),
+				config: { ...config(), remoteControl },
+				remoteControl: {
+					onStatus: () => {},
+					onUserMessage: (message) => recorded.users.push(message),
+				},
+				selfStartedTurns: {
+					onInProgressChanged: () => {},
+					onMessage: (message) => recorded.selfMessages.push(message),
+					requestInteraction: (interaction) => {
+						recorded.selfInteractions.push(interaction);
+						return new Promise<InteractionAnswer>(() => {});
+					},
+				},
+			},
+		};
+	}
+
+	async function connected(
+		remoteControl: boolean,
+		overrides: Partial<ClaudeSessionDeps> = {},
+	): Promise<{
+		session: ClaudeSession;
+		script: Script;
+		recorded: Recorded;
+		permissions: () => PermissionHandlerDeps;
+	}> {
+		const { query, script } = scriptedQuery(undefined, { remoteControl: async () => link });
+		const { options, recorded } = remoteStart(remoteControl);
+		let captured: PermissionHandlerDeps | null = null;
+		const session = new ClaudeSession(
+			makeDeps({
+				query,
+				createCanUseTool: (deps) => {
+					captured = deps;
+					return new ClaudePermissionHandler(deps).canUseTool;
+				},
+				...overrides,
+			}),
+			options,
+		);
+		await session.warm();
+		if (remoteControl) await until(() => script.actions.remoteControl.length === 1);
+		await flushMicrotasks();
+		return {
+			session,
+			script,
+			recorded,
+			permissions: () => {
+				if (captured === null) throw new Error("the permission handler was not built");
+				return captured;
+			},
+		};
+	}
+
+	test("RC-03 a message typed on claude.ai is reported with its text from Claude's transcript", async () => {
+		const reads: { agentSessionId: string; cwd: string; uuid: string }[] = [];
+		const { session, script, recorded } = await connected(true, {
+			readUserMessageText: async (agentSessionId, cwd, uuid) => {
+				reads.push({ agentSessionId, cwd, uuid });
+				return uuid === "remote-1" ? "From the phone" : null;
+			},
+		});
+
+		script.emit(init());
+		script.emit(running());
+		script.emit(answering("On it"));
+		script.emit(answering("Still on it"));
+		await until(() => recorded.users.length === 1);
+
+		expect(recorded.users[0]?.uuid).toBe("remote-1");
+		expect(await recorded.users[0]?.text).toBe("From the phone");
+		expect(reads).toEqual([{ agentSessionId: "s1", cwd: "/work/app", uuid: "remote-1" }]);
+		expect(recorded.selfMessages.flatMap((message) => message.items)).toContainEqual({
+			kind: "text",
+			text: "On it",
+		});
+		await flushMicrotasks();
+		expect(recorded.users).toHaveLength(1);
+		await session.dispose();
+	});
+
+	test("RC-03 the app's own messages are never reported as sent from claude.ai", async () => {
+		const { session, script, recorded } = await connected(true, {
+			readUserMessageText: async () => "unused",
+		});
+		const turn = session.runTurn(remoteTurnInput(), callbacks([]));
+		await until(() => script.prompts.length === 1);
+		const own = String(script.prompts[0]?.uuid);
+
+		script.emit(answering("Hello", own));
+		script.emit(resultMessage(own));
+		expect(await turn).toEqual({ kind: "success" });
+		await flushMicrotasks();
+		expect(recorded.users).toEqual([]);
+		await session.dispose();
+	});
+
+	test("RC-03 a message folded into the app's running turn from claude.ai is reported", async () => {
+		const { session, script, recorded } = await connected(true, {
+			readUserMessageText: async () => "Also add tests",
+		});
+		const turn = session.runTurn(remoteTurnInput(), callbacks([]));
+		await until(() => script.prompts.length === 1);
+		const own = String(script.prompts[0]?.uuid);
+
+		script.emit({
+			...(answering("Adding tests", "remote-2") as object),
+			user_message_uuids: [own, "remote-2"],
+		} as unknown as SDKMessage);
+		await until(() => recorded.users.length === 1);
+		expect(recorded.users[0]?.uuid).toBe("remote-2");
+		expect(await recorded.users[0]?.text).toBe("Also add tests");
+
+		script.emit(resultMessage(own));
+		expect(await turn).toEqual({ kind: "success" });
+		await session.dispose();
+	});
+
+	test("RC-03 with Remote Control off, an unknown uuid is not taken for claude.ai", async () => {
+		const { session, script, recorded } = await connected(false, {
+			readUserMessageText: async () => "unused",
+		});
+		script.emit(running());
+		script.emit(answering("Background work"));
+		await flushMicrotasks();
+		expect(recorded.users).toEqual([]);
+		await session.dispose();
+	});
+
+	test("RC-03 a transcript line written late is read again, and one never written reads as null", async () => {
+		const scheduler = fakeScheduler();
+		let available = false;
+		let asked = 0;
+		const { session, script, recorded } = await connected(true, {
+			scheduler,
+			readUserMessageText: async (_id, _cwd, uuid) => {
+				asked += 1;
+				return available && uuid === "remote-1" ? "Late text" : null;
+			},
+		});
+
+		script.emit(running());
+		script.emit(answering("First", "remote-1"));
+		script.emit(answering("Second", "remote-9"));
+		await until(() => recorded.users.length === 2);
+		await until(() => asked === 2);
+
+		available = true;
+		scheduler.fire(REMOTE_TEXT_RETRY_MS);
+		expect(await recorded.users[0]?.text).toBe("Late text");
+
+		for (let attempt = 2; attempt < REMOTE_TEXT_ATTEMPTS; attempt += 1) {
+			await flushMicrotasks();
+			scheduler.fire(REMOTE_TEXT_RETRY_MS);
+		}
+		expect(await recorded.users[1]?.text).toBeNull();
+		await session.dispose();
+	});
+
+	test("RC-03 an approval asked during work the CLI started goes to the host", async () => {
+		const { session, permissions, recorded } = await connected(true, {
+			readUserMessageText: async () => null,
+		});
+		const interaction: Interaction = {
+			kind: "tool_approval",
+			toolUseId: "tool-1" as never,
+			toolName: "Bash",
+			input: { command: "ls" },
+		};
+		const host = permissions().callbacks();
+		expect(host).toBeDefined();
+		void host?.requestInteraction(interaction, new AbortController().signal);
+		expect(recorded.selfInteractions).toEqual([interaction]);
+		await session.dispose();
+	});
+
+	test("RC-03 an approval answered on claude.ai closes the app's card and says so in the chat", async () => {
+		const { session, script, permissions } = await connected(true, {
+			readUserMessageText: async () => null,
+		});
+		const messages: AgentMessage[] = [];
+		const turn = session.runTurn(
+			remoteTurnInput(),
+			callbacks(messages, { requestInteraction: () => new Promise<InteractionAnswer>(() => {}) }),
+		);
+		await until(() => script.prompts.length === 1);
+		const sdkSignal = new AbortController();
+		const interaction: Interaction = {
+			kind: "tool_approval",
+			toolUseId: "tool-1" as never,
+			toolName: "Write",
+			input: { file_path: "/work/app/a.ts" },
+		};
+		void permissions().callbacks()?.requestInteraction(interaction, sdkSignal.signal);
+
+		sdkSignal.abort();
+		await flushMicrotasks();
+		expect(messages.flatMap((message) => message.items)).toContainEqual({
+			kind: "notice",
+			notice: "info",
+			text: "Answered via Claude.",
+		});
+
+		script.emit(resultMessage(String(script.prompts[0]?.uuid)));
+		expect(await turn).toEqual({ kind: "success" });
+		await session.dispose();
+	});
+
+	test("RC-03 an approval answered in the app, or withdrawn with Remote Control off, says nothing", async () => {
+		for (const remoteControl of [true, false]) {
+			const { session, script, permissions } = await connected(remoteControl, {
+				readUserMessageText: async () => null,
+			});
+			const messages: AgentMessage[] = [];
+			let answer: (value: InteractionAnswer) => void = () => {};
+			const turn = session.runTurn(
+				remoteTurnInput(remoteControl),
+				callbacks(messages, {
+					requestInteraction: () =>
+						new Promise<InteractionAnswer>((resolve) => {
+							answer = resolve;
+						}),
+				}),
+			);
+			await until(() => script.prompts.length === 1);
+			const sdkSignal = new AbortController();
+			const pending = permissions()
+				.callbacks()
+				?.requestInteraction(
+					{ kind: "tool_approval", toolUseId: "t" as never, toolName: "Bash", input: {} },
+					sdkSignal.signal,
+				);
+			if (remoteControl) {
+				answer({ kind: "tool_approval", decision: "allow" } as unknown as InteractionAnswer);
+				await pending;
+			}
+			sdkSignal.abort();
+			await flushMicrotasks();
+			expect(
+				messages.flatMap((message) => message.items).filter((item) => item.kind === "notice"),
+			).toEqual([]);
+
+			script.emit(resultMessage(String(script.prompts[0]?.uuid)));
+			expect(await turn).toEqual({ kind: "success" });
+			await session.dispose();
+		}
 	});
 });

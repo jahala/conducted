@@ -8,7 +8,8 @@
  * Must handle: work that starts while a turn of ours runs (ignored: the turn owns the state); work
  * that starts on an idle chat (working, with no user message); the end (events flushed, then idle,
  * with the outcome the runner reports); a chat that was reset (a late report is dropped, by the run
- * guard); the process manager (`markBusy` and `markIdle` follow the live state).
+ * guard); the process manager (`markBusy` and `markIdle` follow the live state); a message typed on
+ * claude.ai that names this work after it ended (`turnIdOf` keeps the newest turn, RC-03).
  * A user message that arrives during such work belongs to the manager's queue (SIDE-03); this class
  * does not receive it or start anything from it. The session manager makes one per agent start and
  * hands its callbacks to the runner (`StartOptions.selfStartedTurns`); `onSettled` is the manager's
@@ -43,6 +44,8 @@ export type SelfStartedTurnEnd =
 
 export class SelfStartedTurns {
 	private readonly active = new Map<SessionId, ActiveTurn>();
+	/** The newest such turn of each chat, open or ended, for a message that names it late (RC-03). */
+	private readonly latest = new Map<SessionId, TurnId>();
 
 	constructor(
 		protected readonly deps: {
@@ -83,6 +86,14 @@ export class SelfStartedTurns {
 		await this.finish(turn, end ?? { outcome: "interrupted" });
 	}
 
+	/**
+	 * The open self-started turn of a chat, else its newest one: a message typed on claude.ai is
+	 * named by a frame of the turn it started, which may already have ended (RC-03).
+	 */
+	turnIdOf(sessionId: SessionId): TurnId | undefined {
+		return this.active.get(sessionId)?.turnId ?? this.latest.get(sessionId);
+	}
+
 	/** One message of such a turn. */
 	onMessage(sessionId: SessionId, message: AgentMessage): void {
 		let turn = this.active.get(sessionId);
@@ -116,6 +127,7 @@ export class SelfStartedTurns {
 			run,
 		};
 		this.active.set(sessionId, turn);
+		this.latest.set(sessionId, turn.turnId);
 		return turn;
 	}
 

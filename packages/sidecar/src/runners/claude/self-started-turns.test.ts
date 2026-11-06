@@ -66,6 +66,7 @@ function harness() {
 				ends.push(end);
 			},
 			onMessage: (message) => messages.push(message),
+			requestInteraction: async () => ({ kind: "withdrawn" }),
 		},
 		ownTurnOpen: () => ownTurn,
 		translate,

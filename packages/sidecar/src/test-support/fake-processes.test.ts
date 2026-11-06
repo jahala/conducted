@@ -209,6 +209,22 @@ const scenarios: Scenario[] = [
 		expected: { withTasks: { a: 0 }, withoutTasks: { a: 1 } },
 	},
 	{
+		name: "Remote Control spares an idle process until it is turned off",
+		run: async (manager, w) => {
+			const lease = await manager.claimActive("k", w.agent("a"));
+			lease.release();
+			manager.markIdle("k");
+			manager.setRemoteControl("k", true);
+			w.clock.advance(justOver);
+			await manager.sweep();
+			const shared = w.disposals();
+			manager.setRemoteControl("k", false);
+			await manager.sweep();
+			return { shared, notShared: w.disposals() };
+		},
+		expected: { shared: { a: 0 }, notShared: { a: 1 } },
+	},
+	{
 		name: "disconnect stops the process once, and the next claim starts a new one",
 		run: async (manager, w) => {
 			const first = await manager.claimActive("k", w.agent("a"));

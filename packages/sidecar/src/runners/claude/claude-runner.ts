@@ -64,6 +64,7 @@ export type ClaudeRunnerDeps = RunnerCommonDeps &
 			| "translator"
 			| "appTools"
 			| "hasTranscript"
+			| "readUserMessageText"
 			| "skillPluginDir"
 			| "realPath"
 			| "newUuid"
