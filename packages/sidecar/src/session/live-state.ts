@@ -53,6 +53,9 @@ function sameLiveState(left: LiveState, right: LiveState): boolean {
 	return sameValue(left, right);
 }
 
+/** The live state's error after the user cancels the chat's work (sessions.md 2, SessionCancelledError). */
+export const CANCELLED_BY_USER = "aborted by user";
+
 export function beginTurn(state: LiveState): LiveState {
 	const { error: _cleared, waitingSince: _waiting, retry: _retry, ...rest } = state;
 	return { ...rest, status: "working", pendingSteerIds: [] };

@@ -57,7 +57,8 @@
  *  - work the agent starts by itself (AGENT-15): every agent start gets the callbacks of its own
  *    SelfStartedTurns, which shows the chat working, stores the work's messages under a turn of
  *    its own and returns to idle; when it ends, the queued messages start (the same drain as after
- *    a turn). A report while a turn of ours is open is dropped: that turn owns the chat
+ *    a turn). A report while a turn of ours is open is dropped: that turn owns the chat. A cancel
+ *    during such work stops the agent as a turn's cancel does and stores the work as cancelled
  * Test first: two sendMessage calls with the same messageId start one turn; the second answer
  * repeats the first deliveredAs.
  * Our design choice: queued messages live in memory only. The app owns the persistent follow-up
@@ -126,7 +127,7 @@ import { DuplicateGuard as Guard } from "./duplicate-guard.ts";
 import type { EventPublisher } from "./event-batcher.ts";
 import type { InteractionBroker } from "./interactions.ts";
 import type { LiveStateStore } from "./live-state.ts";
-import { addPendingSteer, endTurn, removePendingSteer } from "./live-state.ts";
+import { addPendingSteer, CANCELLED_BY_USER, endTurn, removePendingSteer } from "./live-state.ts";
 import type { QueuedMessages } from "./queued-messages.ts";
 import { QueuedMessages as Queue } from "./queued-messages.ts";
 import type { RunNumber } from "./run-guard.ts";
@@ -258,6 +259,8 @@ interface SessionState {
 	cancelEpoch: number;
 	/** The key of the chat's agent process in the process manager, once a lease was taken. */
 	processKey: string | null;
+	/** The host side of work the newest agent start begins by itself (AGENT-15), for cancel. */
+	selfStarted: SelfStartedTurns | null;
 }
 
 interface StartParams {
@@ -431,7 +434,18 @@ export class DefaultSessionManager implements SessionManager {
 			// The cancelled run is stale, so turnSettled ignores it. The process is idle now.
 			this.markProcessIdleWhenNoTurn(state);
 		} else {
-			await this.deps.liveState.update(state.sessionId, (live) => endTurn(live, "aborted by user"));
+			// Work the agent started by itself is stopped the way a turn of ours is.
+			const agent = this.liveAgent(state);
+			const stoppedOwnWork =
+				state.selfStarted !== null &&
+				(await state.selfStarted.cancel(state.sessionId, async () => {
+					if (agent !== null) await agent.cancel();
+				}));
+			if (!stoppedOwnWork) {
+				await this.deps.liveState.update(state.sessionId, (live) =>
+					endTurn(live, CANCELLED_BY_USER),
+				);
+			}
 		}
 		return ok({ wasWorking, droppedMessageIds });
 	}
@@ -842,6 +856,7 @@ export class DefaultSessionManager implements SessionManager {
 				autoApproveEdits: false,
 				cancelEpoch: 0,
 				processKey: null,
+				selfStarted: null,
 			};
 			this.sessions.set(params.sessionId, state);
 		} else {
@@ -1289,6 +1304,7 @@ export class DefaultSessionManager implements SessionManager {
 			processKey: processKey(config.agent, config.acpAgent, state.sessionId),
 			onSettled: (run) => this.turnSettled(state, run),
 		});
+		state.selfStarted = turns;
 		return {
 			onInProgressChanged: (inProgress, end) => {
 				if (inProgress && state.activeTurn !== null) return;
