@@ -1463,12 +1463,22 @@ fn prefetch(
 }
 
 /// Prepares the agent programs at launch (A2: `lib.rs` prepares the agent binaries at startup).
-/// Called from `setup` in `lib.rs`; the installs run in the background.
-pub fn prepare_on_launch<R: Runtime>(app: &AppHandle<R>) -> CommandResult<()> {
-    let ctx = InstallContext::for_app(app)?;
+/// Called from `setup` in `lib.rs`; the installs run in the background. It never stops the app
+/// from starting: a failure is kept on each agent's status, where the Agents page reads it.
+pub fn prepare_on_launch<R: Runtime>(app: &AppHandle<R>) {
     let state = app.state::<ProgramsState>();
-    prefetch(&ctx, state.inner(), Arc::new(app.clone()))?;
-    Ok(())
+    let prepared = InstallContext::for_app(app)
+        .and_then(|ctx| prefetch(&ctx, state.inner(), Arc::new(app.clone())).map(|_| ()));
+    keep_launch_error(prepared, state.inner());
+}
+
+/// Keeps a failed launch preparation on every agent's status, so the window can read why.
+fn keep_launch_error(prepared: CommandResult<()>, state: &ProgramsState) {
+    if let Err(error) = prepared {
+        for program in ManagedProgram::AGENTS {
+            state.keep_error(program, &error);
+        }
+    }
 }
 
 fn require_agent(program: ManagedProgram) -> CommandResult<()> {
@@ -3028,6 +3038,35 @@ mod tests {
             recorder.states(ManagedProgram::Claude),
             vec![ProgramState::Ready]
         );
+    }
+
+    #[test]
+    fn plat_28_a_launch_preparation_that_fails_is_kept_on_every_agent_and_does_not_stop_launch() {
+        let state = ProgramsState::default();
+
+        keep_launch_error(
+            Err(CommandError::Failed {
+                code: "program_data_dir_failed",
+                message: "Could not find the app data folder: no home".to_string(),
+            }),
+            &state,
+        );
+
+        for program in ManagedProgram::AGENTS {
+            let status = state.status(program);
+            assert_eq!(status.state, ProgramState::Missing);
+            assert!(
+                status
+                    .error
+                    .as_deref()
+                    .is_some_and(|error| error.contains("Could not find the app data folder")),
+                "{program}: {:?}",
+                status.error
+            );
+        }
+        let before = state.status(ManagedProgram::Claude).error;
+        keep_launch_error(Ok(()), &state);
+        assert_eq!(state.status(ManagedProgram::Claude).error, before);
     }
 
     #[test]

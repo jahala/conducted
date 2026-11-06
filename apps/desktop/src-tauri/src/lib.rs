@@ -311,7 +311,7 @@ pub fn run() {
             navigation::install_guard(app.handle())?;
             shell::start_background_capture(app.handle().clone());
             binaries::start_verification(app.handle().clone());
-            binaries::prepare_on_launch(app.handle())?;
+            binaries::prepare_on_launch(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
