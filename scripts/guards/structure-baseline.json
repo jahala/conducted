@@ -34,7 +34,6 @@
 		"apps/desktop/src/ui/Table.tsx": 1,
 		"apps/desktop/src/ui/Tabs.tsx": 1,
 		"apps/desktop/src/ui/Toast.tsx": 2,
-		"packages/sidecar/src/config.ts": 1,
 		"packages/sidecar/src/models/catalog.ts": 1,
 		"packages/sidecar/src/packaging.ts": 1,
 		"packages/sidecar/src/runners/claude/self-started-turns.ts": 1,

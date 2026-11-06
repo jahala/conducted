@@ -2,8 +2,9 @@
  * @feature REV-06 Workspace files: tree, quick open, search, read and write
  * @feature REV-08 File content for the viewer, the editor's unsaved drafts and the open-in-tab request
  * @feature REV-10 Artifacts tab: the workspace's `.context` files, more pages and uploads
+ * @feature SIDE-22 Slash command cache that works before a chat starts
  * Owns: listing a workspace's files, fuzzy file search, content search, reading and saving a file
- * for the viewer and editor, the modified time the viewer polls, the editor's unsaved drafts, and
+ * for the viewer and editor, fuzzy search of a repository's main clone before a workspace exists, the modified time the viewer polls, the editor's unsaved drafts, and
  * the pages of the Artifacts list. The drafts live in this service's store, keyed by workspace and
  * path, so they outlive the tab: switching tabs, toggling Diff and Edit, or moving to the next file
  * keeps them. A draft is kept in memory until it is saved or discarded, its workspace is removed
@@ -232,6 +233,20 @@ export class WorkspaceFilesService {
 		const found = await this.#deps.search.fuzzyMatch(root.value, trimmed, count);
 		if (!found.ok) return found;
 		return ok(toEntries(root.value, found.value));
+	}
+
+	/** Backs `useRepoFileSearch`: a repository's own files, before any workspace exists (SIDE-22). */
+	async quickOpenRoot(
+		rootPath: string,
+		query: string,
+		limit: number,
+	): Promise<Result<FileEntry[]>> {
+		const trimmed = query.trim();
+		const count = Math.max(0, Math.floor(limit));
+		if (trimmed.length < 2 || count === 0) return ok([]);
+		const found = await this.#deps.search.fuzzyMatch(rootPath, trimmed, count);
+		if (!found.ok) return found;
+		return ok(toEntries(rootPath, found.value));
 	}
 
 	async grep(

@@ -5,7 +5,15 @@ import {
 	type ModelInfo,
 } from "@conducted/protocol";
 import { appError, type EventId, err, ok, type SessionId } from "@conducted/shared";
+import { createLogger } from "../logging/logger.ts";
 import { buildHandlers, type HandlerDeps } from "./handlers.ts";
+
+const testLogger = createLogger({
+	sink: () => {},
+	clock: { now: () => 0 },
+	level: "error",
+	scope: "test",
+});
 
 const model: ModelInfo = {
 	id: "claude-sonnet",
@@ -31,8 +39,14 @@ function deps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
 			setAutoApproveEdits: async () => ({}),
 			getSessionStatus: async () => ({ known: true }),
 			answerInteraction: async () => ({ accepted: true, superseded: false }),
+			compact: async () => ({ started: true }),
 			listAcpConfigOptions: async () => ({ options: [] }),
 			setAcpConfigOption: async () => ({ options: [] }),
+			getGoal: async () => ({ goal: null }),
+			setGoal: async (params) => ({
+				goal: { objective: params.objective, status: "active" as const },
+			}),
+			changeGoal: async () => ({ goal: null }),
 			onAppAttached: () => {},
 			shutdown: async () => {},
 		},
@@ -56,6 +70,7 @@ function deps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
 			cancelLogin: async () => ok(undefined),
 		},
 		slashCommands: { list: async () => ok([]) },
+		completions: { read: async () => ok(null), write: async () => ok(undefined) },
 		mcpServers: { list: async () => ok([]) },
 		usage: {
 			contextUsage: async () => ok({ usedTokens: 1, windowTokens: 2, rateLimits: [] }),
@@ -67,6 +82,7 @@ function deps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
 		},
 		utilityPrompt: { run: async () => ok({ text: "" }) },
 		setLogLevel: () => {},
+		logger: testLogger,
 		...overrides,
 	};
 }
@@ -246,14 +262,24 @@ describe("SIDE-02 handler wiring", () => {
 		);
 	});
 
-	test("SIDE-02 a method owned by another feature answers not implemented", async () => {
-		const handlers = buildHandlers(deps());
+	test("AGENT-14 compact is answered by the session manager", async () => {
+		const asked: SessionId[] = [];
+		const handlers = buildHandlers(
+			deps({
+				sessions: {
+					...deps().sessions,
+					compact: async (params) => {
+						asked.push(params.sessionId);
+						return { started: true };
+					},
+				},
+			}),
+		);
+
 		await expect(
 			handlers.requests.compact({ sessionId: "session-1" as SessionId }),
-		).rejects.toMatchObject({
-			name: "NotImplemented",
-			featureId: "AGENT-14",
-		});
+		).resolves.toEqual({ started: true });
+		expect(asked).toEqual(["session-1" as SessionId]);
 	});
 });
 

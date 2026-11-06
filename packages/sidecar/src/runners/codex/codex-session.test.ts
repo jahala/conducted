@@ -1,7 +1,7 @@
 /**
  * @feature AGENT-06 Codex: threads, steer, interrupt
- * Owns: tests for the thread lifecycle, turns, steering, cancel, resume fallback, retries and
- * context usage of codex-session.ts.
+ * Owns: tests for the thread lifecycle, turns, steering, cancel, resume fallback, retries,
+ * context usage and the `/compact` run (AGENT-14) of codex-session.ts.
  * Test first: runTurn sends thread/start then turn/start and resolves success.
  */
 import { describe, expect, test } from "bun:test";
@@ -24,9 +24,10 @@ import {
 	CodexSession,
 	friendlyCodexError,
 	isCodexRateLimitError,
+	isCompactCommand,
 } from "./codex-session.ts";
 import { CODEX_SERVER_NOTIFICATIONS } from "./protocol.ts";
-import type { CodexTranslator } from "./translate.ts";
+import { CodexTranslator } from "./translate.ts";
 
 type RequestAnswer = (params: unknown, client: FakeClient) => Result<unknown, AppError>;
 
@@ -148,12 +149,13 @@ function makeSession(
 		resume?: string;
 		random?: () => number;
 		sleeps?: number[];
+		translator?: CodexTranslator;
 	} = {},
 ): CodexSession {
 	return new CodexSession(
 		{
 			connectClient: async () => client,
-			translator: translator(),
+			translator: options.translator ?? translator(),
 			logger: logger(),
 			random: options.random ?? (() => 0),
 			sleep: async (ms) => {
@@ -603,5 +605,62 @@ describe("AGENT-16 Codex thread options", () => {
 			threadId: "thread-1",
 			personality: "friendly",
 		});
+	});
+});
+
+describe("AGENT-14 Codex /compact", () => {
+	test("agent_14_compact_runs_through_thread_compact_start", async () => {
+		const client = new FakeClient();
+		answerThreadStart(client);
+		client.answers.set("thread/compact/start", () => {
+			queueMicrotask(() => {
+				client.emit(CODEX_SERVER_NOTIFICATIONS.threadCompacted, {
+					threadId: "thread-1",
+					turnId: "turn-c",
+				});
+			});
+			return ok({});
+		});
+		const session = makeSession(client, {
+			translator: new CodexTranslator({ logger: logger() }),
+		});
+		const messages: AgentMessage[] = [];
+
+		const outcome = await session.runTurn(turnInput("/compact"), {
+			...callbacks(),
+			onMessage: (message) => messages.push(message),
+		});
+
+		expect(outcome).toEqual({ kind: "success" });
+		expect(client.methods()).toEqual(["thread/start", "thread/compact/start"]);
+		expect(client.requests[1]?.params).toEqual({ threadId: "thread-1" });
+		expect(messages.flatMap((message) => message.items)).toEqual([
+			{ kind: "notice", notice: "compacted", text: "Chat history compacted" },
+		]);
+	});
+
+	test("agent_14_compact_reports_a_refusal", async () => {
+		const client = new FakeClient();
+		answerThreadStart(client);
+		client.answers.set("thread/compact/start", () =>
+			err(appError("codex_rpc_error", "compaction is not available for this thread")),
+		);
+		const session = makeSession(client);
+
+		const outcome = await session.runTurn(turnInput("/compact"), callbacks());
+
+		expect(outcome).toEqual({
+			kind: "error",
+			message: "compaction is not available for this thread",
+			retryable: false,
+		});
+	});
+
+	test("agent_14_only_the_compact_command_takes_the_compact_path", () => {
+		expect(isCompactCommand("/compact")).toBe(true);
+		expect(isCompactCommand("  /compact  ")).toBe(true);
+		expect(isCompactCommand("/compact the old turns")).toBe(true);
+		expect(isCompactCommand("/compacted")).toBe(false);
+		expect(isCompactCommand("please /compact")).toBe(false);
 	});
 });

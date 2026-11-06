@@ -1,9 +1,10 @@
 /**
  * @feature SET-03 Agent catalogue: installs, models, slash commands, sign-in; SET-09 provider keys;
  * SET-10 OpenCode providers and their keys
+ * @feature SIDE-22 Slash command cache that works before a chat starts
  * Owns: what the sidecar says about agents: which are installed and signed in, the model list per
- * agent, the slash commands of a workspace, starting a sign-in flow, an agent's provider keys
- * and the providers an agent can use.
+ * agent, the slash commands of a workspace and of a repository before a workspace exists, starting
+ * a sign-in flow, an agent's provider keys and the providers an agent can use.
  * Also the display name and catalogue key that the Agents page and the model picker share.
  * Behaviour: other-runners.md 5 (model catalog, detection), claude-runner.md 7 (slash commands),
  * services-map.md 5B.5 (model catalog and favourites), ui-map.md 6 (Agents page states and provider
@@ -59,6 +60,8 @@ export interface AgentCatalogState {
 	/** Keyed by `agentKey(agent, acpAgent)`. */
 	models: Readonly<Record<string, Loadable<ModelInfo[]>>>;
 	slashCommands: Readonly<Record<string, Loadable<SlashCommand[]>>>;
+	/** Saved lists for a repository, keyed by `preWorkspaceSlashKey`, before a workspace exists. */
+	preWorkspaceSlashCommands?: Readonly<Record<string, Loadable<SlashCommand[]>>>;
 	/** Keyed by `agentKey(agent, acpAgent)`. Optional so older test stores need no new slice. */
 	providerKeys?: Readonly<Record<string, Loadable<ProviderKeyView[]>>>;
 	/** The providers an agent can use, keyed by `agentKey(agent, acpAgent)`. */
@@ -67,6 +70,13 @@ export interface AgentCatalogState {
 
 export const agentKey = (agent: AgentKind, acpAgent?: AcpAgent): string =>
 	acpAgent === undefined ? agent : `${agent}:${acpAgent}`;
+
+/** The store key of a repository's saved list, before any workspace exists (SIDE-22). */
+export const preWorkspaceSlashKey = (
+	repoRootPath: string,
+	agent: AgentKind,
+	acpAgent?: AcpAgent,
+): string => `repo:${repoRootPath}:${agentKey(agent, acpAgent)}`;
 
 /** The name the user sees. ACP agents share one agent kind but keep their own names. */
 export function agentDisplayName(choice: { agent: AgentKind; acpAgent?: AcpAgent }): string {
@@ -119,6 +129,8 @@ export class AgentCatalogService {
 	#installRequest = 0;
 	/** Only the newest slash-command request for a chat changes state. */
 	readonly #slashRequests = createLatestWins<SessionId>();
+	/** Only the newest saved-list request for one repository and agent changes state. */
+	readonly #preWorkspaceSlashRequests = createLatestWins<string>();
 	/** Only the newest provider-key request for an agent changes state. */
 	readonly #providerKeyRequests = createLatestWins<string>();
 	/** Only the newest provider-list request for an agent changes state. */
@@ -130,6 +142,7 @@ export class AgentCatalogService {
 			installs: { state: "loading" },
 			models: {},
 			slashCommands: {},
+			preWorkspaceSlashCommands: {},
 			providerKeys: {},
 			providers: {},
 		}));
@@ -232,6 +245,51 @@ export class AgentCatalogService {
 			slashCommands: {
 				...state.slashCommands,
 				[sessionId]: { state: "ready", data: result.value.commands },
+			},
+		}));
+		return ok(result.value.commands);
+	}
+
+	/**
+	 * Loads the saved slash commands and skills of a repository, before any workspace path exists.
+	 * The sidecar answers from its cache (SIDE-22). Only the newest request for the key wins.
+	 */
+	async loadPreWorkspaceSlashCommands(
+		repoRootPath: string,
+		agent: AgentKind,
+		acpAgent?: AcpAgent,
+	): Promise<Result<SlashCommand[]>> {
+		const key = preWorkspaceSlashKey(repoRootPath, agent, acpAgent);
+		const ticket = this.#preWorkspaceSlashRequests.begin(key);
+		this.store.setState((state) => ({
+			preWorkspaceSlashCommands: {
+				...state.preWorkspaceSlashCommands,
+				[key]: { state: "loading" },
+			},
+		}));
+		const result = await this.#deps.sidecar.request("listSlashCommands", {
+			agent,
+			acpAgent,
+			repoRootPath,
+		});
+		if (!this.#preWorkspaceSlashRequests.isLatest(ticket)) {
+			this.#preWorkspaceSlashRequests.settle(ticket);
+			return result.ok ? ok(result.value.commands) : err(result.error);
+		}
+		this.#preWorkspaceSlashRequests.settle(ticket);
+		if (!result.ok) {
+			this.store.setState((state) => ({
+				preWorkspaceSlashCommands: {
+					...state.preWorkspaceSlashCommands,
+					[key]: { state: "error", error: result.error },
+				},
+			}));
+			return err(result.error);
+		}
+		this.store.setState((state) => ({
+			preWorkspaceSlashCommands: {
+				...state.preWorkspaceSlashCommands,
+				[key]: { state: "ready", data: result.value.commands },
 			},
 		}));
 		return ok(result.value.commands);

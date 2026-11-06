@@ -12,8 +12,10 @@
  * Our design choice: the target environment object is a parameter (process.env in production), so
  * the test uses a plain object.
  */
-import { notImplemented } from "@conducted/shared";
 import type { KeyedSerialQueue } from "../../session/serial-queue.ts";
+
+/** One queue key, so every Cursor SDK call waits for the one before it. */
+const ENV_LOCK_KEY = "cursor";
 
 export class EnvLock {
 	constructor(
@@ -23,7 +25,21 @@ export class EnvLock {
 		},
 	) {}
 
-	withEnv<T>(_env: Readonly<Record<string, string>>, _fn: () => Promise<T>): Promise<T> {
-		return notImplemented("AGENT-09");
+	withEnv<T>(env: Readonly<Record<string, string>>, fn: () => Promise<T>): Promise<T> {
+		return this.deps.queue.run(ENV_LOCK_KEY, async () => {
+			const previous = new Map<string, string | undefined>();
+			for (const [name, value] of Object.entries(env)) {
+				previous.set(name, this.deps.target[name]);
+				this.deps.target[name] = value;
+			}
+			try {
+				return await fn();
+			} finally {
+				for (const [name, value] of previous) {
+					if (value === undefined) delete this.deps.target[name];
+					else this.deps.target[name] = value;
+				}
+			}
+		});
 	}
 }

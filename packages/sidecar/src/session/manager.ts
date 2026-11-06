@@ -2,7 +2,8 @@
  * @feature SIDE-03 Session manager: per-session queue, duplicate guard, idle after flush
  * Owns: every chat the sidecar knows about, and the app's requests about them: sendMessage,
  * cancel, warmAgent, resetAgent, updateConfig, setAutoApproveEdits, getSessionStatus,
- * answerInteraction, and the ACP chat options of a live chat (AGENT-17). It also builds each
+ * answerInteraction, a Codex chat's goal (AGENT-13) and its compact turn (AGENT-14), and the ACP
+ * chat options of a live chat (AGENT-17). It also builds each
  * agent's environment from the chat's launch settings, hands the runner the program the launch
  * names, and restarts an agent whose launch changed once no turn and no background task runs
  * (SIDE-21, `decideLaunchChange` in process/launch-fingerprint.ts).
@@ -26,6 +27,8 @@
  *    or a background task runs leaves the agent alone, and a launch changed back to the running one
  *    restarts nothing
  *  - getSessionStatus for a chat the sidecar does not know: known false (it restarted)
+ *  - compact starts a `/compact` turn for a Codex chat, answers started false while a turn runs,
+ *    and refuses a chat the sidecar does not know or a chat run by another agent
  *  - the first message adds the workspace instruction block (prompt/); later ones do not
  *  - cancel drops queued messages, withdraws interactions, asks the running turn to take the end
  *    checkpoint, and reports wasWorking
@@ -43,6 +46,8 @@
  *  - the same agent session id is stored from the first callback and sent to the app once
  *  - a config the agent changes by itself (plan mode) updates the chat's state and is sent to the
  *    app with the reason, so the app's stored config agrees
+ *  - a goal call on a chat that is not Codex answers invalid_params, and a goal call starts or
+ *    resumes the chat's Codex thread and announces every change to the app (AGENT-13)
  *  - a plan answer the broker accepts with feedback is stored as a user_message with delivery
  *    plan_feedback in the running turn, so the chat keeps what the user asked for (CHAT-12,
  *    claude-runner 3.5); an approval, a denial with no feedback and a refused answer store nothing
@@ -85,6 +90,12 @@ import type {
 	AppToSidecarRequestParams,
 	SidecarToApp,
 } from "../rpc/types.ts";
+import {
+	CodexGoalController,
+	type CodexGoalHandle,
+	type GoalCommand,
+	parseGoalCommand,
+} from "../runners/codex/goals.ts";
 import {
 	NoActiveTurnError,
 	SteerNotSupportedError,
@@ -140,6 +151,13 @@ export interface SessionManager {
 	resetAgent(
 		params: AppToSidecarRequestParams<"resetAgent">,
 	): Promise<AppToSidecarHandlerValue<"resetAgent">>;
+	/**
+	 * Codex only (AGENT-14): start a turn whose text is `/compact`, which the runner sends to
+	 * `thread/compact/start` instead of `turn/start`. The answer says whether it started.
+	 */
+	compact(
+		params: AppToSidecarRequestParams<"compact">,
+	): Promise<AppToSidecarHandlerValue<"compact">>;
 	updateConfig(
 		params: AppToSidecarRequestParams<"updateConfig">,
 	): Promise<AppToSidecarHandlerValue<"updateConfig">>;
@@ -164,6 +182,18 @@ export interface SessionManager {
 	setAcpConfigOption(
 		params: AppToSidecarRequestParams<"setAcpConfigOption">,
 	): Promise<AppToSidecarHandlerValue<"setAcpConfigOption">>;
+	/** Codex only: the chat's goal, or null when it has none (AGENT-13). */
+	getGoal(
+		params: AppToSidecarRequestParams<"getGoal">,
+	): Promise<AppToSidecarHandlerValue<"getGoal">>;
+	/** Codex only: set or replace the chat's goal (AGENT-13). */
+	setGoal(
+		params: AppToSidecarRequestParams<"setGoal">,
+	): Promise<AppToSidecarHandlerValue<"setGoal">>;
+	/** Codex only: pause, resume or clear the chat's goal (AGENT-13). */
+	changeGoal(
+		params: AppToSidecarRequestParams<"changeGoal">,
+	): Promise<AppToSidecarHandlerValue<"changeGoal">>;
 	/** Called when the app connection attaches: resend open interactions. */
 	onAppAttached(): void;
 	shutdown(reason: ShutdownReason): Promise<void>;
@@ -239,9 +269,20 @@ function queueKey(sessionId: SessionId): string {
 export class DefaultSessionManager implements SessionManager {
 	private readonly sessions = new Map<SessionId, SessionState>();
 	private readonly createTurn: TurnFactory;
+	private readonly goals: CodexGoalController;
 
 	constructor(protected readonly deps: SessionManagerDeps) {
 		this.createTurn = deps.createTurn ?? ((turnDeps, request) => new Turn(turnDeps, request));
+		this.goals = new CodexGoalController({
+			clientFor: (sessionId) => this.goalClientFor(sessionId),
+			announce: (sessionId, goal) => {
+				const sent = this.deps.app.notify("goalChanged", { sessionId, goal });
+				if (!sent) {
+					this.deps.logger.debug("Could not announce a Codex goal change", { sessionId });
+				}
+			},
+			logger: this.deps.logger,
+		});
 	}
 
 	sendMessage(
@@ -430,6 +471,34 @@ export class DefaultSessionManager implements SessionManager {
 		});
 	}
 
+	compact(
+		params: AppToSidecarRequestParams<"compact">,
+	): Promise<AppToSidecarHandlerValue<"compact">> {
+		return this.deps.queue.run(queueKey(params.sessionId), async () => {
+			const state = this.sessions.get(params.sessionId);
+			if (state === undefined) {
+				return err(appError("session_unknown", "The sidecar has no state for this chat."));
+			}
+			if (state.config.agent !== "codex") {
+				return err(appError("compact_unsupported", "Only a Codex chat can compact its history."));
+			}
+			if (state.activeTurn !== null) return ok({ started: false });
+			const request: TurnRequest = {
+				sessionId: state.sessionId,
+				messageId: this.deps.ids.uuid() as MessageId,
+				turnId: this.deps.ids.uuid() as TurnId,
+				text: "/compact",
+				agentText: "/compact",
+				attachmentPaths: [],
+				config: state.config,
+				workspace: state.workspace,
+			};
+			const started = await this.startTurn(state, request);
+			if (!started.ok) return started;
+			return ok({ started: true });
+		});
+	}
+
 	updateConfig(
 		params: AppToSidecarRequestParams<"updateConfig">,
 	): Promise<AppToSidecarHandlerValue<"updateConfig">> {
@@ -589,6 +658,60 @@ export class DefaultSessionManager implements SessionManager {
 			} finally {
 				ensured.value.release();
 			}
+		});
+	}
+
+	async getGoal(
+		params: AppToSidecarRequestParams<"getGoal">,
+	): Promise<AppToSidecarHandlerValue<"getGoal">> {
+		const goal = await this.goals.get(params.sessionId);
+		return goal.ok ? ok({ goal: goal.value }) : goal;
+	}
+
+	async setGoal(
+		params: AppToSidecarRequestParams<"setGoal">,
+	): Promise<AppToSidecarHandlerValue<"setGoal">> {
+		const goal = await this.goals.set(params.sessionId, params.objective, params.tokenBudget);
+		return goal.ok ? ok({ goal: goal.value }) : goal;
+	}
+
+	async changeGoal(
+		params: AppToSidecarRequestParams<"changeGoal">,
+	): Promise<AppToSidecarHandlerValue<"changeGoal">> {
+		const goal = await this.goals.change(params.sessionId, params.action);
+		return goal.ok ? ok({ goal: goal.value }) : goal;
+	}
+
+	/**
+	 * The goal calls of a Codex chat's thread. The chat keeps a process lease until the call ends,
+	 * and a chat that is not Codex is an invalid-params failure.
+	 */
+	private async goalClientFor(sessionId: SessionId): Promise<Result<CodexGoalHandle, AppError>> {
+		const state = this.sessions.get(sessionId);
+		if (state === undefined) {
+			return err(appError("session_unknown", "The sidecar has no state for this chat."));
+		}
+		if (state.config.agent !== "codex") {
+			return err(appError("invalid_params", "Only Codex chats have goals."));
+		}
+		const ensured = await this.ensureConfigAgent(state);
+		if (!ensured.ok) return err(ensured.error);
+		const goalClient = ensured.value.agent.goalClient;
+		if (goalClient === undefined) {
+			ensured.value.release();
+			return err(appError("invalid_params", "This chat's agent does not have goals."));
+		}
+		const client = await goalClient.call(ensured.value.agent, (agentSessionId) =>
+			this.rememberAgentSessionId(state, agentSessionId),
+		);
+		if (!client.ok) {
+			ensured.value.release();
+			return err(client.error);
+		}
+		return ok({
+			threadId: client.value.threadId,
+			goals: client.value.goals,
+			release: ensured.value.release,
 		});
 	}
 
@@ -872,6 +995,14 @@ export class DefaultSessionManager implements SessionManager {
 		request: TurnRequest,
 		signal: AbortSignal,
 	): Promise<AppToSidecarHandlerValue<"sendMessage">> {
+		const command = parseGoalCommand(request.text);
+		if (!command.ok) {
+			state.duplicates.forget(request.messageId);
+			return err(command.error);
+		}
+		if (command.value !== null && request.config.agent === "codex") {
+			return this.deliverGoalCommand(state, request, command.value);
+		}
 		const runnerResult = this.runnerFor(request.config);
 		if (!runnerResult.ok) {
 			state.duplicates.forget(request.messageId);
@@ -943,6 +1074,27 @@ export class DefaultSessionManager implements SessionManager {
 		} finally {
 			this.releaseLease(state, lease);
 		}
+	}
+
+	/** A `/goal` steer changes the chat's Codex goal instead of reaching the running turn. */
+	private async deliverGoalCommand(
+		state: SessionState,
+		request: TurnRequest,
+		command: GoalCommand,
+	): Promise<AppToSidecarHandlerValue<"sendMessage">> {
+		const changed =
+			command.action === "set"
+				? await this.goals.set(state.sessionId, command.objective)
+				: await this.goals.change(state.sessionId, command.action);
+		if (!changed.ok) {
+			state.duplicates.forget(request.messageId);
+			return err(changed.error);
+		}
+		state.duplicates.markHandled(request.messageId);
+		state.duplicates.rememberDelivery(request.messageId, "steer");
+		this.deps.interactions.withdrawAll(state.sessionId);
+		this.publishUserMessage(request, "steer");
+		return ok({ deliveredAs: "steer" });
 	}
 
 	private async steerFailed(
@@ -1060,6 +1212,7 @@ export class DefaultSessionManager implements SessionManager {
 				: { executablePath: state.launch.executablePath }),
 			...(resume === undefined ? {} : { resume }),
 			onConfigChanged: (next, reason) => this.applyAgentConfig(state, next, reason),
+			onGoalEvent: (event) => this.goals.onServerGoalEvent(state.sessionId, event),
 		});
 		state.agent = agent;
 		state.agentConfig = config;

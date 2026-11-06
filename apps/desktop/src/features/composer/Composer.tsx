@@ -21,10 +21,11 @@
  * menu opens, and offers "Attach current terminal output". The `#` trigger is left out until
  * COMP-05 builds pull request search. A slash command the user picks does what
  * `slashCommandAction` says: /clear opens a new chat tab (the tab strip's own Cmd+T handler) and
- * closes this one, /restart restarts the agent, /plan and /fast run the plan and fast mode
- * toggles of the toolbar, a command the agent lists is sent to it, and any other says it is not
- * available. A terminal-effect command opens a terminal that runs it and shows the terminal
- * command bar above the composer; the bar follows that terminal (closed, finished, failed) and
+ * closes this one, /restart restarts the agent, /compact asks a Codex chat to summarise its
+ * history, /plan and /fast run the plan and fast mode toggles of the toolbar, a command the agent
+ * lists is sent to it, and any other says it is not available. A terminal-effect command opens a
+ * terminal that runs it and shows the terminal command bar above the composer; the bar follows
+ * that terminal (closed, finished, failed) and
  * restarts the agent when the user clicks Done. Attachments are added from the '+' menu, a drop or
  * a paste by the COMP-07 hook, shown in AttachmentBar, and materialised when the message is sent.
  * Moved: 'Save edit' belongs to the queued-message editor (CHAT-04); the composer minimising while
@@ -291,6 +292,11 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 				case "restart":
 					void actions.sessions.restartAgent(sessionId).then((result) => {
 						if (!result.ok) toastError("Couldn't restart the agent", result.error);
+					});
+					return;
+				case "compact":
+					void actions.sessions.compact(sessionId).then((result) => {
+						if (!result.ok) toastError("Couldn't compact the chat", result.error);
 					});
 					return;
 				case "screen":

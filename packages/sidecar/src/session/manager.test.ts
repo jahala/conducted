@@ -1431,3 +1431,43 @@ describe("SIDE-07 and SIDE-14 the agents the manager keeps", () => {
 		expect(runner.listModelsCalls).toBe(1);
 	});
 });
+
+describe("AGENT-14 Codex compact", () => {
+	test("AGENT-14 compact starts a /compact turn for a Codex chat", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams({ config: baseConfig({ agent: "codex" }) }));
+		await h.turns.last().succeed();
+
+		const result = await h.manager.compact({ sessionId: sid("session-1") });
+
+		expect(result).toEqual(ok({ started: true }));
+		expect(h.turns.turns).toHaveLength(2);
+		const request = h.turns.last().request;
+		expect(request.text).toBe("/compact");
+		expect(request.agentText).toBe("/compact");
+		expect(request.config.agent).toBe("codex");
+	});
+
+	test("AGENT-14 compact answers started false while a turn runs", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams({ config: baseConfig({ agent: "codex" }) }));
+
+		const result = await h.manager.compact({ sessionId: sid("session-1") });
+
+		expect(result).toEqual(ok({ started: false }));
+		expect(h.turns.turns).toHaveLength(1);
+	});
+
+	test("AGENT-14 compact refuses an unknown chat and another agent", async () => {
+		const h = harness();
+
+		const unknown = await h.manager.compact({ sessionId: sid("missing") });
+		expect(unknown).toMatchObject({ ok: false, error: { code: "session_unknown" } });
+
+		await h.manager.sendMessage(sendParams());
+		await h.turns.last().succeed();
+		const claude = await h.manager.compact({ sessionId: sid("session-1") });
+		expect(claude).toMatchObject({ ok: false, error: { code: "compact_unsupported" } });
+		expect(h.turns.turns).toHaveLength(1);
+	});
+});

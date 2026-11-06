@@ -16,15 +16,29 @@
  * folder, it holds none.
  */
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
-import { notImplemented, type Result } from "@conducted/shared";
+import { appError, err, ok, type Result } from "@conducted/shared";
 
 /** Name of the environment variable that holds the bundled skill folder. */
 export const SKILL_PLUGIN_ENV = "CONDUCTED_SKILL_PLUGIN_DIR";
 
 /** The `plugins` option for `buildClaudeOptions`. Undefined when there is no bundled skill. */
 export function bundledSkillPlugins(
-	_skillPluginDir: string | undefined,
-	_exists: (path: string) => boolean,
+	skillPluginDir: string | undefined,
+	exists: (path: string) => boolean,
 ): Result<Options["plugins"] | undefined> {
-	return notImplemented("AGENT-18");
+	if (skillPluginDir === undefined || skillPluginDir === "") return ok(undefined);
+	if (!skillPluginDir.startsWith("/")) {
+		return err(
+			appError(
+				"skill_plugin_path_relative",
+				`The bundled skill folder ${skillPluginDir} must be an absolute path.`,
+			),
+		);
+	}
+	if (!exists(skillPluginDir)) {
+		return err(
+			appError("skill_plugin_missing", `The bundled skill folder ${skillPluginDir} was not found.`),
+		);
+	}
+	return ok([{ type: "local", path: skillPluginDir }]);
 }

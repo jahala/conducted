@@ -1,18 +1,31 @@
 /**
- * @feature SIDE-13, SIDE-21, AGENT-16, AGENT-17 the s1-sidecar batch joined
- * Owns: the integration tests of the batch, driven through `composeSidecar`, the function the
- * sidecar's composition root (`startSidecarHost`) builds the host with. They prove that the chat
- * options, the launch settings, the ACP choices and the app tools bridge reach the live path, for
- * Claude, Codex and ACP chats.
+ * @feature AGENT-09 Cursor: SDK in process
+ * @feature AGENT-10 Cursor: translate to the neutral format
+ * @feature AGENT-13 Codex goals: set, pause, resume, clear
+ * @feature AGENT-14 Codex /compact
+ * @feature AGENT-18 Bundled skill that teaches agents the app
+ * @feature SIDE-13 App tools bridge
+ * @feature SIDE-18 Sidecar logs go to the Rust shell's log files
+ * @feature SIDE-21 Agent launch settings
+ * @feature SIDE-22 Slash command cache that works before a chat starts
+ * @feature AGENT-16 Claude chat options
+ * @feature AGENT-17 ACP chat options
+ * Owns: the integration tests of the joined sidecar batches, driven through `composeSidecar`, the
+ * function the sidecar's composition root (`startSidecarHost`) builds the host with, and through
+ * `runSidecarMode`. They prove that the Cursor SDK and its translation, the Codex goals and compact
+ * turn, the bundled skill plugin, the slash-command cache, the log settings, the chat options, the
+ * launch settings and the app tools bridge all reach the live path.
  * Behaviour: modes/sidecar-mode.ts (composeSidecar and the runner registry it builds),
- * runners/claude/options.ts, runners/codex/codex-runner.ts, runners/acp/acp-session.ts,
- * runners/launch-env.ts, process/launch-fingerprint.ts, tools/socket-bridge.ts, tools/mcp-launch.ts.
+ * runners/cursor/cursor-session.ts and translate.ts, runners/codex/goals.ts and codex-session.ts,
+ * runners/claude/options.ts, runners/claude/skill-plugin.ts, models/completions-cache.ts,
+ * runners/acp/acp-session.ts, runners/launch-env.ts, process/launch-fingerprint.ts,
+ * tools/socket-bridge.ts, tools/mcp-launch.ts.
  * Test first: this file.
  * Our design choice: everything the composition root builds is real; only the outside world is
- * scripted through `SidecarPorts`: the SDK's query, the Codex and ACP child processes, the program
- * lookup, the login-shell capture, the checkpoint script and the file reads. So a wiring line
- * removed from the root fails here. The app is FakeApp and the outbox storage MemoryStorage, both
- * from test-support. The last test starts the real sidecar process.
+ * scripted through `SidecarPorts`: the Claude SDK's query, the Cursor SDK, the Codex and ACP child
+ * processes, the program lookup, the login-shell capture, the checkpoint script and the file
+ * reads. So a wiring line removed from the root fails here. The app is FakeApp and the outbox
+ * storage MemoryStorage, both from test-support. The last test starts the real sidecar process.
  */
 import { afterEach, describe, expect, test } from "bun:test";
 import { type ChildProcess, spawn } from "node:child_process";
@@ -33,6 +46,7 @@ import type {
 	AcpConfigOption,
 	AgentLaunch,
 	SessionConfig,
+	SlashCommand,
 	WorkspaceContext,
 } from "@conducted/protocol";
 import {
@@ -46,9 +60,12 @@ import {
 	type TurnId,
 	type WorkspaceId,
 } from "@conducted/shared";
+import type { SidecarConfig } from "../config.ts";
 import { createLogger, type Logger, type LogRecord } from "../logging/logger.ts";
 import type { AcpChild } from "../runners/acp/acp-client.ts";
 import type { JsonRpcChild } from "../runners/codex/app-server-client.ts";
+import type { CursorSdk } from "../runners/cursor/cursor-sdk.ts";
+import { FakeCursorRun, FakeCursorSdk } from "../test-support/cursor-fakes.ts";
 import { FakeApp } from "../test-support/fake-app.ts";
 import { FakeChild, type JsonRpcMessage } from "../test-support/fake-child.ts";
 import { FakeInteractions } from "../test-support/fake-interactions.ts";
@@ -57,7 +74,13 @@ import { RpcAppToolBackend } from "../tools/backend.ts";
 import { appToolsMcpEntry, BRIDGE_TOKEN_ENV } from "../tools/mcp-launch.ts";
 import { callBridgeOverSocket } from "../tools/mcp-stdio-server.ts";
 import { AppToolsBridge } from "../tools/socket-bridge.ts";
-import { composeSidecar, PARENT_PID_ENV, type SidecarComposition } from "./sidecar-mode.ts";
+import {
+	composeSidecar,
+	PARENT_PID_ENV,
+	runSidecarMode,
+	type SidecarComposition,
+	stderrLogSink,
+} from "./sidecar-mode.ts";
 
 const cleanups: (() => Promise<void>)[] = [];
 
@@ -123,6 +146,24 @@ const unwrap = <T>(value: unknown): T => {
 	return value as T;
 };
 
+async function waitFor(check: () => boolean, what: string): Promise<void> {
+	const deadline = Date.now() + 5000;
+	while (!check()) {
+		if (Date.now() > deadline) throw new Error(`Timed out waiting for ${what}.`);
+		await new Promise((resolve) => setTimeout(resolve, 1));
+	}
+}
+
+/** Waits for a new idle live-state notification for the chat. */
+async function waitForIdle(h: Harness, sessionId: SessionId): Promise<void> {
+	const idleCount = (): number =>
+		h.app
+			.notified("liveState")
+			.filter((entry) => entry.sessionId === sessionId && entry.liveState.status === "idle").length;
+	const before = idleCount();
+	await waitFor(() => idleCount() > before, "the chat to become idle");
+}
+
 /** What the scripted outside world saw. */
 interface Seen {
 	claudeOptions: { options: Options }[];
@@ -152,7 +193,12 @@ interface Harness {
  */
 async function harness(
 	folder: string,
-	options: { acpOptions?: SessionConfigOption[]; files?: Map<string, string> } = {},
+	options: {
+		acpOptions?: SessionConfigOption[];
+		files?: Map<string, string>;
+		skillPluginDir?: string;
+		cursorSdk?: CursorSdk;
+	} = {},
 ): Promise<Harness> {
 	const app = new FakeApp();
 	const home = path.join(folder, "home");
@@ -172,7 +218,15 @@ async function harness(
 		providerSecrets: {},
 	};
 	const host = composeSidecar(
-		{ binDir: BIN_DIR, outboxRoot: path.join(folder, "outbox"), logDir: path.join(folder, "log") },
+		{
+			binDir: BIN_DIR,
+			outboxRoot: path.join(folder, "outbox"),
+			completionsDir: path.join(folder, "completions"),
+			logDir: path.join(folder, "log"),
+			skillPluginDir: options.skillPluginDir,
+			appVersion: "0.0.0",
+			logLevel: "info",
+		},
 		{
 			app,
 			query: scriptedQuery(seen.claudeOptions),
@@ -184,9 +238,10 @@ async function harness(
 				return ok(child satisfies JsonRpcChild);
 			},
 			spawnAcp: scriptedAcp(options.acpOptions ?? [], seen.acpNewSessions),
-			// As on a Mac without Cursor's SDK; no test here starts a Cursor chat.
 			loadCursorSdk: async () =>
-				err(appError("cursor_sdk_missing", "Cursor's SDK is not installed.")),
+				options.cursorSdk === undefined
+					? err(appError("cursor_sdk_missing", "Cursor's SDK is not installed."))
+					: ok(options.cursorSdk),
 			probe: async (command) =>
 				ok({ stdout: command.endsWith("opencode") ? "1.18.18" : "1.0.0", stderr: "", exitCode: 0 }),
 			// Every program is on the PATH, and a path the user chose is taken as it is.
@@ -252,17 +307,57 @@ const sessionOptions = (captured: { options: Options }[]): Options[] =>
 		.map((entry) => entry.options)
 		.filter((options) => options.env?.CONDUCTED_SESSION_ID !== undefined);
 
-/** A Codex app server that answers the handshake, starts a thread and completes every turn. */
+/** A Codex app server that keeps a goal, answers the handshake and thread calls, and compacts. */
 function scriptedCodex(): FakeChild {
 	const child = new FakeChild();
+	let goal: Record<string, unknown> | null = null;
 	const answer = (message: JsonRpcMessage, result: unknown): void => {
 		queueMicrotask(() => child.emit({ jsonrpc: "2.0", id: message.id, result }));
 	};
 	child.onWrite = (message) => {
 		if (message.id === undefined) return;
+		const params = (message.params ?? {}) as Record<string, unknown>;
 		if (message.method === "initialize") answer(message, { serverVersion: "0.154.0" });
+		else if (message.method === "model/list") answer(message, { data: [], nextCursor: null });
 		else if (message.method === "thread/start") {
 			answer(message, { thread: { id: "thread-1" }, model: "gpt-5" });
+		} else if (message.method === "thread/goal/get") {
+			answer(message, { goal });
+		} else if (message.method === "thread/goal/set") {
+			goal = {
+				threadId: "thread-1",
+				objective:
+					typeof params.objective === "string" ? params.objective : (goal?.objective ?? "ship"),
+				status: typeof params.status === "string" ? params.status : "active",
+				tokenBudget: typeof params.tokenBudget === "number" ? params.tokenBudget : null,
+				tokensUsed: 0,
+				timeUsedSeconds: 0,
+				createdAt: 1,
+				updatedAt: 2,
+			};
+			answer(message, { goal });
+			child.emit({
+				jsonrpc: "2.0",
+				method: "thread/goal/updated",
+				params: { threadId: "thread-1", turnId: null, goal },
+			});
+		} else if (message.method === "thread/goal/clear") {
+			goal = null;
+			answer(message, { cleared: true });
+			child.emit({
+				jsonrpc: "2.0",
+				method: "thread/goal/cleared",
+				params: { threadId: "thread-1" },
+			});
+		} else if (message.method === "thread/compact/start") {
+			answer(message, {});
+			queueMicrotask(() =>
+				child.emit({
+					jsonrpc: "2.0",
+					method: "thread/compacted",
+					params: { threadId: "thread-1" },
+				}),
+			);
 		} else if (message.method === "turn/start") {
 			answer(message, { turn: { id: "turn-1", status: "inProgress", error: null } });
 			queueMicrotask(() =>
@@ -392,6 +487,48 @@ describe("s1-sidecar join the batch through the composition root", () => {
 		} finally {
 			await h.host.sessions.shutdown("app_quit");
 		}
+	});
+
+	describe("AGENT-18 the bundled skill plugin reaches Claude", () => {
+		test("AGENT-18 the bundled skill plugin reaches the Claude session", async () => {
+			const folder = await workspaceFolder();
+			const skillDir = path.join(folder, "conducted-skill");
+			await mkdir(skillDir, { recursive: true });
+			const h = await harness(folder, { skillPluginDir: skillDir });
+			try {
+				await h.handlers.warmAgent({
+					sessionId: "session-1" as SessionId,
+					config: baseConfig(),
+					workspace: workspaceFor(folder),
+					launch: { env: {}, providerKeys: {} },
+				});
+
+				const options = sessionOptions(h.seen.claudeOptions);
+				expect(options).toHaveLength(1);
+				expect(options[0]?.plugins).toEqual([{ type: "local", path: skillDir }]);
+			} finally {
+				await h.host.sessions.shutdown("app_quit");
+			}
+		});
+
+		test("AGENT-18 a build without a skill folder starts Claude without plugins", async () => {
+			const folder = await workspaceFolder();
+			const h = await harness(folder);
+			try {
+				await h.handlers.warmAgent({
+					sessionId: "session-1" as SessionId,
+					config: baseConfig(),
+					workspace: workspaceFor(folder),
+					launch: { env: {}, providerKeys: {} },
+				});
+
+				const options = sessionOptions(h.seen.claudeOptions);
+				expect(options).toHaveLength(1);
+				expect(options[0]?.plugins).toBeUndefined();
+			} finally {
+				await h.host.sessions.shutdown("app_quit");
+			}
+		});
 	});
 
 	test("AGENT-17 the ACP chat options are listed and set through the handlers", async () => {
@@ -706,6 +843,204 @@ describe("s1-sidecar join the batch through the composition root", () => {
 		expect(options[0]?.executable).toBe("node");
 	});
 
+	test("AGENT-09 AGENT-10 a Cursor chat starts the SDK in process and translates its output", async () => {
+		const folder = await workspaceFolder();
+		const run = new FakeCursorRun();
+		run.messages.push({
+			type: "assistant",
+			content: [{ type: "text", text: "from cursor" }],
+		});
+		run.finish();
+		const sdk = new FakeCursorSdk(run);
+		const h = await harness(folder, { cursorSdk: sdk });
+		const sessionId = "session-1" as SessionId;
+		try {
+			const sent = await h.handlers.sendMessage(
+				sendParams(folder, baseConfig({ agent: "cursor", model: "cursor-composer-2-5" }), {
+					env: { CURSOR_API_KEY: "cursor-key" },
+					providerKeys: {},
+				}),
+			);
+			expect(unwrap<{ deliveredAs: string }>(sent)).toEqual({ deliveredAs: "new_turn" });
+			await waitForIdle(h, sessionId);
+
+			expect(sdk.resumeCalls).toHaveLength(1);
+			expect(sdk.resumeCalls[0]?.agentId).toBe(sessionId);
+			expect(sdk.resumeCalls[0]?.options.apiKey).toBe("cursor-key");
+			expect(sdk.resumeCalls[0]?.options.model.id).toBe("cursor-composer-2-5");
+			expect(sdk.agent.sent).toEqual(["hello"]);
+
+			const agentMessages = h.app
+				.notified("sessionEvent")
+				.filter((entry) => entry.sessionId === sessionId && entry.event.type === "agent")
+				.flatMap((entry) => (entry.event.type === "agent" ? [entry.event.message] : []));
+			expect(agentMessages.map((message) => message.agent)).toContain("cursor");
+			const textItems = agentMessages
+				.flatMap((message) => message.items)
+				.filter((item) => item.kind === "text")
+				.map((item) => (item.kind === "text" ? item.text : ""));
+			expect(textItems).toContain("from cursor");
+		} finally {
+			await h.host.sessions.shutdown("app_quit");
+		}
+	});
+
+	test("AGENT-13 a Codex chat sets, reads, pauses, resumes and clears its goal", async () => {
+		const folder = await workspaceFolder();
+		const h = await harness(folder);
+		const sessionId = "session-1" as SessionId;
+		try {
+			await h.handlers.sendMessage(
+				sendParams(folder, baseConfig({ agent: "codex", model: "gpt-5" })),
+			);
+			await waitForIdle(h, sessionId);
+
+			const set = unwrap<{ goal: { objective: string; status: string; tokenBudget?: number } }>(
+				await h.handlers.setGoal({
+					sessionId,
+					objective: "ship the join",
+					tokenBudget: 500,
+				}),
+			);
+			expect(set.goal).toMatchObject({
+				objective: "ship the join",
+				status: "active",
+				tokenBudget: 500,
+			});
+
+			const read = unwrap<{ goal: { objective: string } | null }>(
+				await h.handlers.getGoal({ sessionId }),
+			);
+			expect(read.goal?.objective).toBe("ship the join");
+
+			const paused = unwrap<{ goal: { status: string } | null }>(
+				await h.handlers.changeGoal({ sessionId, action: "pause" }),
+			);
+			expect(paused.goal?.status).toBe("paused");
+
+			const resumed = unwrap<{ goal: { status: string } | null }>(
+				await h.handlers.changeGoal({ sessionId, action: "resume" }),
+			);
+			expect(resumed.goal?.status).toBe("active");
+
+			const cleared = unwrap<{ goal: unknown }>(
+				await h.handlers.changeGoal({ sessionId, action: "clear" }),
+			);
+			expect(cleared.goal).toBeNull();
+			expect(h.app.notified("goalChanged").length).toBeGreaterThanOrEqual(4);
+		} finally {
+			await h.host.sessions.shutdown("app_quit");
+		}
+	});
+
+	test("AGENT-14 a Codex chat compacts its history through the compact handler", async () => {
+		const folder = await workspaceFolder();
+		const h = await harness(folder);
+		const sessionId = "session-1" as SessionId;
+		try {
+			await h.handlers.sendMessage(
+				sendParams(folder, baseConfig({ agent: "codex", model: "gpt-5" })),
+			);
+			await waitForIdle(h, sessionId);
+
+			const started = unwrap<{ started: boolean }>(await h.handlers.compact({ sessionId }));
+			expect(started).toEqual({ started: true });
+			await waitForIdle(h, sessionId);
+
+			expect(
+				h.seen.codexChildren[0]?.lines.some((line) => line.method === "thread/compact/start"),
+			).toBe(true);
+			const notices = h.app
+				.notified("sessionEvent")
+				.filter((entry) => entry.sessionId === sessionId && entry.event.type === "agent")
+				.flatMap((entry) => (entry.event.type === "agent" ? entry.event.message.items : []))
+				.filter((item) => item.kind === "notice");
+			expect(notices.some((item) => item.kind === "notice" && item.notice === "compacted")).toBe(
+				true,
+			);
+		} finally {
+			await h.host.sessions.shutdown("app_quit");
+		}
+	});
+
+	test("SIDE-18 the mode reads the launcher's log settings and writes JSON log lines", async () => {
+		const folder = await workspaceFolder();
+		const config: SidecarConfig = {
+			binDir: BIN_DIR,
+			outboxRoot: path.join(folder, "outbox"),
+			completionsDir: path.join(folder, "completions"),
+			logDir: path.join(folder, "log"),
+			appVersion: "9.9.9",
+			logLevel: "debug",
+		};
+		const received: SidecarConfig[] = [];
+		const lines: string[] = [];
+		const code = await runSidecarMode(
+			{
+				CONDUCTED_BIN_DIR: config.binDir,
+				CONDUCTED_OUTBOX_ROOT: config.outboxRoot,
+				CONDUCTED_COMPLETIONS_DIR: config.completionsDir,
+				CONDUCTED_LOG_DIR: config.logDir,
+				CONDUCTED_APP_VERSION: config.appVersion,
+				CONDUCTED_LOG_LEVEL: config.logLevel,
+			},
+			["sidecar"],
+			{
+				writeError: () => {},
+				writeOut: () => {},
+				createLogger: (parsed) => {
+					received.push(parsed);
+					return createLogger({
+						sink: stderrLogSink((text) => lines.push(text)),
+						clock: systemClock,
+						level: parsed.logLevel,
+						scope: "sidecar",
+					});
+				},
+				preflight: async () => ({ ok: true, value: undefined }),
+				installErrorHandlers: () => () => {},
+				startHost: async (input) => {
+					input.writeOut("");
+					return 0;
+				},
+			},
+		);
+		expect(code).toBe(0);
+		expect(received[0]).toMatchObject({ appVersion: "9.9.9", logLevel: "debug" });
+		const records = lines.map((line) => JSON.parse(line) as LogRecord);
+		expect(records).toContainEqual(
+			expect.objectContaining({
+				level: "info",
+				scope: "sidecar",
+				message: "The sidecar is starting",
+				data: expect.objectContaining({ appVersion: "9.9.9", logLevel: "debug" }),
+			}),
+		);
+	});
+
+	test("SIDE-22 the slash command cache answers before a chat starts", async () => {
+		const folder = await workspaceFolder();
+		const h = await harness(folder);
+		const command: SlashCommand = {
+			name: "review",
+			description: "Review the change",
+			source: "project",
+			kind: "command",
+		};
+		try {
+			unwrap(await h.host.completions.write({ repoRootPath: folder, agent: "claude" }, [command]));
+			const answered = unwrap<{ commands: SlashCommand[]; fromCache: boolean }>(
+				await h.handlers.listSlashCommands({
+					agent: "claude",
+					repoRootPath: folder,
+				}),
+			);
+			expect(answered).toEqual({ commands: [command], fromCache: true });
+		} finally {
+			await h.host.sessions.shutdown("app_quit");
+		}
+	});
+
 	test("SIDE-13 the real sidecar host starts its bridge folder and removes it on stop", async () => {
 		const folder = await workspaceFolder();
 		const home = path.join(folder, "home");
@@ -718,7 +1053,10 @@ describe("s1-sidecar join the batch through the composition root", () => {
 				TMPDIR: folder,
 				CONDUCTED_BIN_DIR: BIN_DIR,
 				CONDUCTED_OUTBOX_ROOT: path.join(folder, "outbox"),
+				CONDUCTED_COMPLETIONS_DIR: path.join(folder, "completions"),
 				CONDUCTED_LOG_DIR: path.join(folder, "log"),
+				CONDUCTED_APP_VERSION: "0.0.0",
+				CONDUCTED_LOG_LEVEL: "info",
 				[PARENT_PID_ENV]: String(process.pid),
 			},
 			stdio: ["ignore", "pipe", "pipe"],
