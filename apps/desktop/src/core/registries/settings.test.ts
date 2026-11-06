@@ -231,6 +231,15 @@ describe("SET-01 coerceSettingValue", () => {
 		}
 	});
 
+	it("clamps the terminal scrollback limit to 1 MB to 1 GB", () => {
+		const def = must("terminal_scrollback_limit_bytes");
+		expect(def.default).toBe(10_000_000);
+		expect(coerceSettingValue(def, 999_999).ok).toBe(false);
+		expect(coerceSettingValue(def, 1_000_000).ok).toBe(true);
+		expect(coerceSettingValue(def, 1_000_000_000).ok).toBe(true);
+		expect(coerceSettingValue(def, 1_000_000_001).ok).toBe(false);
+	});
+
 	it("accepts numbers and numeric text inside the range", () => {
 		const def = must("terminal_font_size");
 		expect(coerceSettingValue(def, 14)).toEqual({ ok: true, value: 14 });

@@ -73,7 +73,7 @@ const KNOWN_UNUSED_COMMANDS: readonly string[] = [
 describe("registry entries are used", () => {
 	it("reads the status of a feature from the backlog", () => {
 		expect(statusOf("SET-01")).toBe("done");
-		expect(statusOf("PLAT-08")).toBe("stub");
+		expect(statusOf("PLAT-12")).toBe("stub");
 	});
 
 	it("names every setting of a done feature somewhere, except the known gaps", () => {

@@ -1410,7 +1410,7 @@ const SETTINGS_TABLE = [
 		type: "bool",
 		default: true,
 	},
-	// Our design choice: the range 100 KB to 1 GB bounds memory and disk use.
+	// The research clamps this between 1 MB and 1 GB (services-map 5A.4.8).
 	{
 		key: "terminal_scrollback_limit_bytes",
 		page: "advanced",
@@ -1421,7 +1421,7 @@ const SETTINGS_TABLE = [
 		feature: "PLAT-08",
 		type: "number",
 		default: 10000000,
-		min: 100000,
+		min: 1000000,
 		max: 1000000000,
 	},
 	{
