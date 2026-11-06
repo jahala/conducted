@@ -19,7 +19,8 @@
  * works; the composer's own Enter handling (the dispatcher leaves it to COMP-01); two handlers for one
  * command (the higher priority runs; a handler that returns false passes the command on); a handler
  * that unmounts (its registration is removed); a command that is disabled (neither a key press nor a
- * menu pick runs it, and the key press is not swallowed); a menu pick for an id the registry does not
+ * menu pick runs it, and the key press is not swallowed); a dialog command no open dialog handles
+ * (Cmd+Enter in a dialog without a confirm action passes on, with no error); a menu pick for an id the registry does not
  * know (reported, not thrown); a modal's focus trap that takes Tab and Shift+Tab before the root
  * listener sees them (the modal runs its own scope's keys first through `useScopeKeyDown`); a bare
  * character or caret key in a focused text field, which is the field's typing (`fieldOwnsKey`).
@@ -732,6 +733,13 @@ export function useCommandDispatcher(
 			const commandId = commandForKeyPress(press, scopes, bindings, sendKeyMode);
 			if (commandId === null) return false;
 			if (!deps.isEnabled(commandId)) return false;
+			// A dialog command acts on the open dialog and has no app-wide handler, so a press no open
+			// dialog takes (Cmd+Enter in quick open, which has no confirm action) passes on unswallowed.
+			if (getCommand(commandId)?.scope === "dialog") {
+				if (!deps.registry.run(commandId)) return false;
+				event.preventDefault();
+				return true;
+			}
 			event.preventDefault();
 			dispatchCommand(commandId, deps);
 			return true;
