@@ -1,13 +1,16 @@
 //! @feature PLAT-06 File search: tree, fuzzy match, grep (gitignore-aware)
+//! @feature REV-10 List the workspace's `.context` artifacts in pages
 //!
-//! Owns: listing a workspace's files, ranking them against a typed query, and searching their
-//! contents. All three skip what git ignores.
+//! Owns: listing a workspace's files, ranking them against a typed query, searching their
+//! contents, and paging the files of the workspace's `.context` folder for the Artifacts tab.
+//! The first three skip what git ignores.
 //!
 //! Behaviour: docs/research/conductor/native-and-sidecar-map.md A1 (search crates: a gitignore
 //! walker, a fuzzy matcher, an in-process ripgrep engine) and A2 (`list_file_tree`,
-//! `fuzzy_filter_files`, `fuzzy_match_files`, `grep_workspace`). ui-map.md covers the file
-//! picker and search panel that call these. Watching files (the `notify` crate in Conductor) is
-//! not part of these commands; the UI polls the tree (REV-06).
+//! `fuzzy_filter_files`, `fuzzy_match_files`, `grep_workspace`, `list_workspace_artifacts`).
+//! ui-map.md covers the file picker, search panel and Artifacts tab that call these. Watching
+//! files (the `notify` crate in Conductor) is not part of these commands; the UI polls the tree
+//! (REV-06).
 //!
 //! Must handle:
 //! - Honour `.gitignore`, `.git/info/exclude` and the global ignore file. Never list `.git`.
@@ -26,17 +29,25 @@
 //!   slow older walk may finish late. Rust does not cancel it, but must not hold locks.
 //! - Fuzzy matching ranks by score, then shorter path, then alphabetical, so equal scores are
 //!   stable between runs.
+//! - The artifacts walk covers `.context` itself, ignores gitignore rules (the folder is usually
+//!   ignored), follows no symlink, sorts newest first, and leaves out the reserved paths and names
+//!   named in services-map.md 5A.6.2. It lists regular files only: a folder or a symlink takes no
+//!   page slot. `omitted` is the number of excluded files in the whole folder, the same total on
+//!   every page. A missing `.context` is an empty page, not an error. A bad cursor fails with
+//!   `invalid_cursor`.
 //!
 //! Our design choice: every path in a result is absolute, like the paths the rest of the Platform
 //! uses. The walker's own filters are the standard ignore set; a small built-in set always keeps
 //! `.git` out even when a custom filter would allow hidden folders.
 //!
 //! Test first: in a temp repo with an ignored `node_modules` folder, `search_list_tree` lists
-//! tracked and untracked files but nothing from `node_modules` or `.git`.
+//! tracked and untracked files but nothing from `node_modules` or `.git`; `search_list_artifacts`
+//! leaves `todos.md` and the reserved folders out of the `.context` page, and lists no folder.
 
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::time::UNIX_EPOCH;
 
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use grep_matcher::Matcher as _;
@@ -48,6 +59,7 @@ use nucleo_matcher::{Config, Matcher, Utf32Str};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{CommandError, CommandResult, blocking};
+use crate::files::FileStat;
 
 /// Most paths one tree listing returns.
 pub const MAX_TREE_ENTRIES: usize = 200_000;
@@ -55,6 +67,186 @@ pub const MAX_TREE_ENTRIES: usize = 200_000;
 pub const MAX_GREP_FILE_BYTES: u64 = 4 * 1024 * 1024;
 /// Longest preview grep keeps for one matching line.
 const MAX_PREVIEW_CHARS: usize = 300;
+/// Most artifact entries one page returns.
+pub const MAX_ARTIFACT_PAGE: u32 = 200;
+
+/// One page of the Artifacts tab. Mirrors `ArtifactPage` in platform.ts.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArtifactPage {
+    /// Files of the workspace's `.context` folder, as absolute paths.
+    pub entries: Vec<FileStat>,
+    /// Pass back to get the next page. Null on the last page.
+    pub next_cursor: Option<String>,
+    /// How many files the exclusions left out of the whole folder. Every page carries the total.
+    pub omitted: u32,
+}
+
+/// The `.context` files Conductor keeps out of the Artifacts list (services-map.md 5A.6.2). A path
+/// here matches only from the folder's root; a name matches at any depth.
+const ARTIFACT_EXCLUDED_PATHS: &[&str] = &[
+    "todos.md",
+    "conductor",
+    "pull-requests",
+    "attachments/comments",
+];
+const ARTIFACT_EXCLUDED_NAMES: &[&str] = &[
+    "PR instructions.md",
+    "Review request.md",
+    "Fix errors instructions.md",
+];
+
+/// Whether a path below `.context` is one of the files the tab leaves out.
+fn is_excluded_artifact(relative: &str) -> bool {
+    let normalised = relative.replace('\\', "/");
+    if ARTIFACT_EXCLUDED_PATHS.iter().any(|excluded| {
+        normalised == *excluded
+            || normalised
+                .strip_prefix(excluded)
+                .is_some_and(|rest| rest.starts_with('/'))
+    }) {
+        return true;
+    }
+    let name = normalised.rsplit('/').next().unwrap_or(&normalised);
+    if ARTIFACT_EXCLUDED_NAMES.contains(&name) {
+        return true;
+    }
+    if let Some(stem) = name
+        .strip_prefix("[GITHUB]-")
+        .and_then(|rest| rest.strip_suffix(".md"))
+    {
+        return !stem.is_empty() && stem.chars().all(|character| character.is_ascii_digit());
+    }
+    if let Some(stem) = name
+        .strip_prefix("[LINEAR]-")
+        .and_then(|rest| rest.strip_suffix(".md"))
+    {
+        return stem.rsplit_once('-').is_some_and(|(_, number)| {
+            !number.is_empty() && number.chars().all(|c| c.is_ascii_digit())
+        });
+    }
+    name.starts_with("terminal-output") && name.ends_with(".txt")
+}
+
+/// One file of `.context`, or `None` when the file went away during the walk.
+fn artifact_entry(path: &Path) -> Option<FileStat> {
+    let metadata = fs::symlink_metadata(path).ok()?;
+    let modified_at = metadata
+        .modified()
+        .ok()
+        .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+        .map(|duration| duration.as_millis() as i64)
+        .unwrap_or(0);
+    Some(FileStat {
+        path: path.to_string_lossy().into_owned(),
+        is_directory: metadata.is_dir(),
+        is_symlink: metadata.file_type().is_symlink(),
+        size: if metadata.is_dir() { 0 } else { metadata.len() },
+        modified_at,
+    })
+}
+
+/// Lists the workspace's `.context` folder, newest first, one page at a time.
+fn list_artifacts(
+    workspace_path: &Path,
+    cursor: Option<&str>,
+    limit: u32,
+) -> CommandResult<ArtifactPage> {
+    let context = workspace_path.join(".context");
+    match fs::metadata(&context) {
+        Ok(metadata) if metadata.is_dir() => {}
+        Ok(_) => return Ok(empty_artifact_page()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(empty_artifact_page()),
+        Err(error) => {
+            return Err(CommandError::Failed {
+                code: "artifact_read_failed",
+                message: format!("Could not read {}: {error}", context.display()),
+            });
+        }
+    }
+
+    let mut entries = Vec::new();
+    let mut omitted = 0_u32;
+    for result in WalkBuilder::new(&context)
+        .standard_filters(false)
+        .hidden(false)
+        .follow_links(false)
+        .build()
+    {
+        let Some(entry) = walk_entry(result)? else {
+            continue;
+        };
+        // Only regular files are artifacts. A folder is walked into but takes no page slot, and a
+        // symlink is neither followed nor listed.
+        if !entry.file_type().is_some_and(|kind| kind.is_file()) {
+            continue;
+        }
+        let relative = entry
+            .path()
+            .strip_prefix(&context)
+            .map(|path| path.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_default();
+        if is_excluded_artifact(&relative) {
+            omitted = omitted.saturating_add(1);
+            continue;
+        }
+        if let Some(stat) = artifact_entry(entry.path()) {
+            entries.push(stat);
+        }
+    }
+    entries.sort_by(|left, right| {
+        right
+            .modified_at
+            .cmp(&left.modified_at)
+            .then_with(|| left.path.cmp(&right.path))
+    });
+
+    let start = match cursor {
+        None => 0,
+        Some(value) => match value.parse::<usize>() {
+            Ok(index) if index <= entries.len() => index,
+            _ => {
+                return Err(CommandError::Failed {
+                    code: "invalid_cursor",
+                    message: format!("{value} is not a page cursor."),
+                });
+            }
+        },
+    };
+    let page_size = limit.clamp(1, MAX_ARTIFACT_PAGE) as usize;
+    let end = start.saturating_add(page_size).min(entries.len());
+    let next_cursor = if end < entries.len() {
+        Some(end.to_string())
+    } else {
+        None
+    };
+    Ok(ArtifactPage {
+        entries: entries[start..end].to_vec(),
+        next_cursor,
+        omitted,
+    })
+}
+
+fn empty_artifact_page() -> ArtifactPage {
+    ArtifactPage {
+        entries: Vec::new(),
+        next_cursor: None,
+        omitted: 0,
+    }
+}
+
+/// Lists one page of the workspace's `.context` folder for the Artifacts tab.
+#[tauri::command]
+pub async fn search_list_artifacts(
+    workspace_path: String,
+    cursor: Option<String>,
+    limit: u32,
+) -> CommandResult<ArtifactPage> {
+    blocking("search_task_failed", move || {
+        list_artifacts(Path::new(&workspace_path), cursor.as_deref(), limit)
+    })
+    .await
+}
 
 /// One path under the root. Mirrors `TreeEntry` in platform.ts.
 #[derive(Debug, Clone, Serialize)]
@@ -888,5 +1080,169 @@ mod tests {
             .expect("search contents");
 
         assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn rev_10_list_artifacts_pages_through_the_context_folder() {
+        let folder = TempDir::new();
+        let workspace = folder.path();
+        write(workspace, ".context/one.json", b"1");
+        write(workspace, ".context/nested/two.png", b"2");
+        write(workspace, ".context/a.md", b"3");
+
+        let first = list_artifacts(workspace, None, 2).expect("first page");
+        assert_eq!(first.entries.len(), 2);
+        assert!(first.next_cursor.is_some());
+
+        let second =
+            list_artifacts(workspace, first.next_cursor.as_deref(), 10).expect("second page");
+        assert_eq!(second.entries.len(), 1);
+        assert!(second.next_cursor.is_none());
+        assert!(
+            second.entries[0].path.ends_with(".context/one.json"),
+            "unexpected entry {:?}",
+            second.entries
+        );
+    }
+
+    #[test]
+    fn rev_10_list_artifacts_leaves_out_reserved_paths_and_names() {
+        let folder = TempDir::new();
+        let workspace = folder.path();
+        write(workspace, ".context/keep.md", b"keep");
+        write(workspace, ".context/plans/plan.md", b"plan");
+        write(workspace, ".context/todos.md", b"todos");
+        write(workspace, ".context/conductor/settings.json", b"{}");
+        write(workspace, ".context/pull-requests/1.md", b"pr");
+        write(workspace, ".context/attachments/comments/1.md", b"comment");
+        write(workspace, ".context/PR instructions.md", b"pr");
+        write(workspace, ".context/Review request.md", b"review");
+        write(workspace, ".context/Fix errors instructions.md", b"fix");
+        write(workspace, ".context/[GITHUB]-12.md", b"github");
+        write(workspace, ".context/[LINEAR]-ABC-3.md", b"linear");
+        write(workspace, ".context/terminal-output-1.txt", b"output");
+
+        let page = list_artifacts(workspace, None, 50).expect("artifacts page");
+        let paths: Vec<&str> = page
+            .entries
+            .iter()
+            .map(|entry| entry.path.as_str())
+            .collect();
+
+        assert!(paths.iter().any(|path| path.ends_with(".context/keep.md")));
+        assert!(
+            paths
+                .iter()
+                .any(|path| path.ends_with(".context/plans/plan.md"))
+        );
+        assert!(!paths.iter().any(|path| path.contains("todos.md")));
+        assert!(!paths.iter().any(|path| path.contains("/conductor/")));
+        assert!(!paths.iter().any(|path| path.contains("/pull-requests/")));
+        assert!(
+            !paths
+                .iter()
+                .any(|path| path.contains("/attachments/comments/"))
+        );
+        assert!(!paths.iter().any(|path| path.contains("PR instructions.md")));
+        assert!(!paths.iter().any(|path| path.contains("Review request.md")));
+        assert!(
+            !paths
+                .iter()
+                .any(|path| path.contains("Fix errors instructions.md"))
+        );
+        assert!(!paths.iter().any(|path| path.contains("[GITHUB]-12.md")));
+        assert!(!paths.iter().any(|path| path.contains("[LINEAR]-ABC-3.md")));
+        assert!(
+            !paths
+                .iter()
+                .any(|path| path.contains("terminal-output-1.txt"))
+        );
+        assert_eq!(page.omitted, 10);
+    }
+
+    #[test]
+    fn rev_10_list_artifacts_lists_files_and_no_folders() {
+        let folder = TempDir::new();
+        let workspace = folder.path();
+        write(workspace, ".context/nested/two.png", b"2");
+        fs::create_dir_all(workspace.join(".context/empty")).expect("create empty folder");
+
+        let page = list_artifacts(workspace, None, 50).expect("artifacts page");
+        let paths: Vec<&str> = page
+            .entries
+            .iter()
+            .map(|entry| entry.path.as_str())
+            .collect();
+
+        assert_eq!(paths.len(), 1, "unexpected entries {paths:?}");
+        assert!(paths[0].ends_with(".context/nested/two.png"));
+        assert!(page.entries.iter().all(|entry| !entry.is_directory));
+        assert!(page.next_cursor.is_none());
+    }
+
+    #[test]
+    fn rev_10_list_artifacts_carries_the_same_omitted_total_on_every_page() {
+        let folder = TempDir::new();
+        let workspace = folder.path();
+        write(workspace, ".context/one.md", b"1");
+        write(workspace, ".context/two.md", b"2");
+        write(workspace, ".context/three.md", b"3");
+        write(workspace, ".context/todos.md", b"todos");
+        write(workspace, ".context/conductor/settings.json", b"{}");
+
+        let first = list_artifacts(workspace, None, 2).expect("first page");
+        let second =
+            list_artifacts(workspace, first.next_cursor.as_deref(), 2).expect("second page");
+
+        assert_eq!(first.entries.len(), 2);
+        assert_eq!(second.entries.len(), 1);
+        assert_eq!(first.omitted, 2);
+        assert_eq!(second.omitted, 2);
+    }
+
+    #[test]
+    fn rev_10_list_artifacts_leaves_out_todos_only_at_the_context_root() {
+        let folder = TempDir::new();
+        let workspace = folder.path();
+        write(workspace, ".context/todos.md", b"todos");
+        write(workspace, ".context/plans/todos.md", b"plan todos");
+
+        let page = list_artifacts(workspace, None, 50).expect("artifacts page");
+        let paths: Vec<&str> = page
+            .entries
+            .iter()
+            .map(|entry| entry.path.as_str())
+            .collect();
+
+        assert_eq!(paths.len(), 1, "unexpected entries {paths:?}");
+        assert!(paths[0].ends_with(".context/plans/todos.md"));
+        assert_eq!(page.omitted, 1);
+    }
+
+    #[test]
+    fn rev_10_list_artifacts_is_empty_without_a_context_folder() {
+        let folder = TempDir::new();
+
+        let page = list_artifacts(folder.path(), None, 10).expect("artifacts page");
+
+        assert!(page.entries.is_empty());
+        assert!(page.next_cursor.is_none());
+        assert_eq!(page.omitted, 0);
+    }
+
+    #[test]
+    fn rev_10_list_artifacts_rejects_a_cursor_it_did_not_hand_out() {
+        let folder = TempDir::new();
+        write(folder.path(), ".context/one.md", b"1");
+
+        let error = list_artifacts(folder.path(), Some("abc"), 10).expect_err("bad cursor");
+
+        assert!(matches!(
+            error,
+            CommandError::Failed {
+                code: "invalid_cursor",
+                ..
+            }
+        ));
     }
 }

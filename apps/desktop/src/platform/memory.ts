@@ -15,9 +15,10 @@
  * scripted, and an unscripted command is an `Err` with code `shell_unscripted`, never a made-up
  * success; a cancelled `shell.start` ends with Err `shell_cancelled`, as shell.rs reports it; a
  * queued dialog answer is used only by the dialog kind it was queued for; an unreadable
- * `listArtifacts` cursor is an Err; `app.writeLog` keeps the level and message, not the data; the
- * file system keeps text only, with folders as path prefixes, and resolves `.` and `..` in a path
- * the way the real one does.
+ * `listArtifacts` cursor is an Err, and `listArtifacts` leaves out the reserved `.context` files
+ * and counts them in `omitted` the way file_search.rs does (the contract cases hold both);
+ * `app.writeLog` keeps the level and message, not the data; the file system keeps text only, with
+ * folders as path prefixes, and resolves `.` and `..` in a path the way the real one does.
  * Our design choice: the stand-in is a factory returning the Platform together with its controls,
  * so production code cannot reach the controls through the Platform type.
  * Test first: the contract case "fs: write then read returns the same text" passes on it.
@@ -149,6 +150,32 @@ const normalizePath = (path: string): string => {
 	const joined = parts.join("/");
 	if (joined === "") return "/";
 	return absolute ? `/${joined}` : joined;
+};
+
+/** Most artifact entries one page returns, as file_search.rs `MAX_ARTIFACT_PAGE`. */
+const MAX_ARTIFACT_PAGE = 200;
+/** As file_search.rs: paths match from the `.context` root, names match at any depth. */
+const ARTIFACT_EXCLUDED_PATHS = ["todos.md", "conductor", "pull-requests", "attachments/comments"];
+const ARTIFACT_EXCLUDED_NAMES = [
+	"PR instructions.md",
+	"Review request.md",
+	"Fix errors instructions.md",
+];
+
+/** Whether a file below `.context` is one the Artifacts list leaves out (services-map.md 5A.6.2). */
+const isExcludedArtifact = (relative: string): boolean => {
+	if (
+		ARTIFACT_EXCLUDED_PATHS.some(
+			(excluded) => relative === excluded || relative.startsWith(`${excluded}/`),
+		)
+	) {
+		return true;
+	}
+	const name = relative.slice(relative.lastIndexOf("/") + 1);
+	if (ARTIFACT_EXCLUDED_NAMES.includes(name)) return true;
+	if (/^\[GITHUB\]-\d+\.md$/.test(name)) return true;
+	if (/^\[LINEAR\]-.*-\d+\.md$/.test(name)) return true;
+	return name.startsWith("terminal-output") && name.endsWith(".txt");
 };
 
 const parentPath = (path: string): string => {
@@ -456,8 +483,13 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	) => {
 		const context = `${normalizePath(workspacePath)}/.context`;
 		const entries: FileStat[] = [];
+		let omitted = 0;
 		for (const file of files.keys()) {
 			if (!file.startsWith(`${context}/`)) continue;
+			if (isExcludedArtifact(file.slice(context.length + 1))) {
+				omitted += 1;
+				continue;
+			}
 			entries.push(statForFile(file));
 		}
 		entries.sort(
@@ -469,9 +501,13 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			if (start < 0)
 				return err(appError("invalid_cursor", `${paging.cursor} is not a page cursor.`));
 		}
-		const page = entries.slice(start, start + paging.limit);
-		const nextCursor = start + paging.limit < entries.length ? String(start + paging.limit) : null;
-		return ok({ entries: page, nextCursor, omitted: 0 });
+		if (start > entries.length) {
+			return err(appError("invalid_cursor", `${paging.cursor} is not a page cursor.`));
+		}
+		const limit = Math.min(Math.max(Math.floor(paging.limit), 1), MAX_ARTIFACT_PAGE);
+		const page = entries.slice(start, start + limit);
+		const nextCursor = start + limit < entries.length ? String(start + limit) : null;
+		return ok({ entries: page, nextCursor, omitted });
 	};
 
 	const fuzzyMatch = async (

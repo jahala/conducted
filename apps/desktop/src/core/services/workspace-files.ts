@@ -1,16 +1,21 @@
 /**
  * @feature REV-06 Workspace files: tree, quick open, search, read and write
  * @feature REV-08 File content for the viewer, the editor's unsaved drafts and the open-in-tab request
+ * @feature REV-10 Artifacts tab: the workspace's `.context` files, more pages and uploads
  * Owns: listing a workspace's files, fuzzy file search, content search, reading and saving a file
- * for the viewer and editor, the modified time the viewer polls, and the editor's unsaved drafts.
- * The drafts live in this service's store, keyed by workspace and path, so they outlive the tab:
- * switching tabs, toggling Diff and Edit, or moving to the next file keeps them. A draft is kept
- * in memory until it is saved or discarded, its workspace is removed (the container calls
- * `dropDraftsExcept` when the workspace store changes), or the app quits. An archived workspace
- * keeps its drafts, because Restore brings the same folder back.
+ * for the viewer and editor, the modified time the viewer polls, the editor's unsaved drafts, and
+ * the pages of the Artifacts list. The drafts live in this service's store, keyed by workspace and
+ * path, so they outlive the tab: switching tabs, toggling Diff and Edit, or moving to the next file
+ * keeps them. A draft is kept in memory until it is saved or discarded, its workspace is removed
+ * (the container calls `dropDraftsExcept` when the workspace store changes), or the app quits. An
+ * archived workspace keeps its drafts, because Restore brings the same folder back. The artifact
+ * pages are also kept per workspace, until the tab reads the first page again. The absolute path
+ * of an artifact, for "Attach to chat", comes from here too, so the root and `.context` folder
+ * rule has one home.
  * Behaviour: services-map.md 5A.5 (transport pattern, UI queries, minimum search length 2, polling
- * the tree), ui-map.md 3.6 (All files tab, quick open, search in files). The tab polls `tree`
- * because JS file watchers do nothing under CEF (services-map.md 5A.9).
+ * the tree, the artifacts command), ui-map.md 3.6 (All files tab, quick open, search in files, the
+ * Artifacts tab). The tab polls `tree` because JS file watchers do nothing under CEF
+ * (services-map.md 5A.9).
  * Must handle: paths outside the workspace folder (and its linked folders) are refused before any
  * file is read or written; the tree respects `.gitignore` (done by the Rust search commands); a
  * query under two characters returns no rows; a bad regular expression returns the platform's
@@ -18,7 +23,14 @@
  * opened (returns a conflict Err with the new modified time); a draft the user kept after the
  * file was deleted is saved by writing the file again, and refused if the file came back; an edit
  * that brings the text back to the disk text drops the draft; a second save while one runs is
- * ignored; typing during a save keeps the newer text as a draft.
+ * ignored; typing during a save keeps the newer text as a draft. Only the newest artifact read for a
+ * workspace changes its pages, so an older page cannot land after a newer one. The omitted count
+ * is the platform's total for the whole folder, taken as it is from the newest page. An upload
+ * copies the picked files into the workspace's `.context` folder, then reads the first page
+ * again; a picked file whose name is already in `.context` is refused and the other files are
+ * still copied; the first failure is returned.
+ * Our design choice: an upload never replaces an artifact. A name clash is refused with a message
+ * that names the file, so the user renames it rather than losing the agent's file.
  * Our design choice: a preview URL carries the file's modified time as a query string. The asset
  * handler reads only the path, and the webview loads the file again when it changes.
  * Our design choice: before every file call the path is checked in TypeScript: it must be relative
@@ -38,17 +50,30 @@ import {
 	type WorkspaceId,
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
-import type { FileSearch, FileSystem, GrepMatch, TreeEntry } from "../../platform/platform.ts";
+import type {
+	FileSearch,
+	FileStat,
+	FileSystem,
+	GrepMatch,
+	Shell,
+	TreeEntry,
+} from "../../platform/platform.ts";
 import type { ConflictChoice, DiffScope, FileEntry } from "../api.ts";
-import type { FileContent } from "../model.ts";
+import { createLatestWins } from "../async/latest-wins.ts";
+import { copyFileKeepingMode, FILE_COPY_FAILED } from "../fs-helpers.ts";
+import type { ArtifactEntry, FileContent } from "../model.ts";
 import { workspaceRelativePath } from "./git.ts";
 
 /** Search in files shows this many matches, and asks for a narrower query when there are more. */
 export const CONTENT_SEARCH_LIMIT = 200;
+/** The Artifacts tab reads this many entries at a time. */
+const ARTIFACTS_PAGE_SIZE = 50;
 
 export interface WorkspaceFilesServiceDeps {
 	fs: FileSystem;
 	search: FileSearch;
+	/** Copies picked files into `.context` on upload. */
+	shell: Pick<Shell, "run">;
 	/** Workspace folder plus linked folders that are allowed. */
 	rootsOf: (workspaceId: WorkspaceId) => Promise<Result<string[]>>;
 }
@@ -79,6 +104,30 @@ export interface FileDraftsState {
 	drafts: Readonly<Record<string, FileDraft>>;
 }
 
+/** One workspace's pages of the Artifacts tab. */
+interface ArtifactsPageState {
+	entries: readonly ArtifactEntry[];
+	hasMore: boolean;
+	omitted: number;
+	cursor: string | null;
+	loading: boolean;
+	/** Set only when reading the first page failed, so the tab shows the error instead of a list. */
+	error: ReturnType<typeof appError> | null;
+}
+
+interface ArtifactsState {
+	byWorkspace: Readonly<Record<string, ArtifactsPageState>>;
+}
+
+const EMPTY_ARTIFACTS_PAGE: ArtifactsPageState = {
+	entries: [],
+	hasMore: false,
+	omitted: 0,
+	cursor: null,
+	loading: false,
+	error: null,
+};
+
 /** The store key of a file's draft. */
 export const fileDraftKey = (workspaceId: WorkspaceId, relativePath: string): string =>
 	`${workspaceId}\u0000${relativePath}`;
@@ -105,6 +154,9 @@ interface ResolvedPath {
 
 const trimRoot = (root: string): string => (root === "/" ? "" : root.replace(/\/+$/, ""));
 
+/** The workspace's `.context` folder, with no trailing slash. */
+const contextFolderOf = (root: string): string => `${trimRoot(root)}/.context`;
+
 /** A path as the UI shows it: relative to the root that was searched, or null when outside it. */
 const relativeTo = (root: string, path: string): string | null => {
 	const base = trimRoot(root);
@@ -124,11 +176,27 @@ const toEntries = (root: string, entries: readonly TreeEntry[]): FileEntry[] => 
 	return result.sort((left, right) => left.path.localeCompare(right.path));
 };
 
+const artifactEntryFrom = (context: string, entry: FileStat): ArtifactEntry | null => {
+	const relative = relativeTo(context, entry.path);
+	if (relative === null || relative.length === 0) return null;
+	return {
+		path: relative,
+		isDirectory: entry.isDirectory,
+		sizeBytes: entry.size,
+		modifiedAt: entry.modifiedAt,
+	};
+};
+
 export class WorkspaceFilesService {
 	readonly #deps: WorkspaceFilesServiceDeps;
 	readonly #openListeners = new Set<OpenFileListener>();
+	readonly #artifactReads = createLatestWins<WorkspaceId>();
 	/** The editor's unsaved drafts. See the header for their lifetime. */
 	readonly drafts: StoreApi<FileDraftsState> = createStore<FileDraftsState>(() => ({ drafts: {} }));
+	/** The Artifacts tab's pages. See the header for their lifetime. */
+	readonly artifactsStore: StoreApi<ArtifactsState> = createStore<ArtifactsState>(() => ({
+		byWorkspace: {},
+	}));
 
 	constructor(deps: WorkspaceFilesServiceDeps) {
 		this.#deps = deps;
@@ -417,14 +485,141 @@ export class WorkspaceFilesService {
 		return notImplemented("REV-11");
 	}
 
-	/** Backs `Actions.artifacts.loadMore`. */
-	loadMoreArtifacts(_workspaceId: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("REV-10");
+	/** Reads the first page of the Artifacts tab, replacing the pages the tab held. */
+	loadArtifacts(workspaceId: WorkspaceId): Promise<Result<void>> {
+		this.#setArtifactsPage(workspaceId, (current) => ({
+			...(current ?? EMPTY_ARTIFACTS_PAGE),
+			loading: true,
+			error: null,
+		}));
+		return this.#readArtifacts(workspaceId, null, true);
 	}
 
-	/** Backs `Actions.artifacts.upload`. */
-	uploadArtifacts(_workspaceId: WorkspaceId, _paths: readonly string[]): Promise<Result<void>> {
-		return notImplemented("REV-10");
+	/** Backs `Actions.artifacts.loadMore`: appends the next page, or does nothing on the last one. */
+	async loadMoreArtifacts(workspaceId: WorkspaceId): Promise<Result<void>> {
+		const current = this.artifactsStore.getState().byWorkspace[workspaceId];
+		if (current === undefined || current.loading || current.cursor === null) return ok(undefined);
+		this.#setArtifactsPage(workspaceId, (state) => ({
+			...(state ?? EMPTY_ARTIFACTS_PAGE),
+			loading: true,
+		}));
+		return this.#readArtifacts(workspaceId, current.cursor, false);
+	}
+
+	/** The absolute path of an artifact, from its path relative to the `.context` folder. */
+	async artifactPath(workspaceId: WorkspaceId, relativePath: string): Promise<Result<string>> {
+		const checked = workspaceRelativePath(relativePath);
+		if (!checked.ok) return checked;
+		const root = await this.#rootOf(workspaceId);
+		if (!root.ok) return root;
+		return ok(`${contextFolderOf(root.value)}/${checked.value}`);
+	}
+
+	/** Backs `Actions.artifacts.upload`: copies the files into `.context`, then reads the first page. */
+	async uploadArtifacts(workspaceId: WorkspaceId, paths: readonly string[]): Promise<Result<void>> {
+		if (paths.length === 0) return ok(undefined);
+		const root = await this.#rootOf(workspaceId);
+		if (!root.ok) return root;
+		const context = contextFolderOf(root.value);
+		const made = await this.#deps.fs.mkdirp(context);
+		if (!made.ok) return made;
+		let failure: ReturnType<typeof appError> | null = null;
+		for (const source of paths) {
+			const name = source
+				.split("/")
+				.filter((part) => part !== "")
+				.at(-1);
+			if (name === undefined) {
+				failure ??= appError("artifact_copy_failed", `"${source}" is not a file.`);
+				continue;
+			}
+			const target = `${context}/${name}`;
+			if (await this.#deps.fs.exists(target)) {
+				failure ??= appError(
+					"artifact_exists",
+					`"${name}" is already in the .context folder. Rename the file and upload it again.`,
+				);
+				continue;
+			}
+			const copied = await copyFileKeepingMode(this.#deps.shell, source, target);
+			if (!copied.ok) {
+				failure ??=
+					copied.error.code === FILE_COPY_FAILED
+						? appError("artifact_copy_failed", `Could not copy "${name}": ${copied.error.message}`)
+						: copied.error;
+			}
+		}
+		const read = await this.loadArtifacts(workspaceId);
+		if (failure !== null) return err(failure);
+		return read;
+	}
+
+	/** Reads one page and lets only the newest answer for the workspace write the store. */
+	async #readArtifacts(
+		workspaceId: WorkspaceId,
+		cursor: string | null,
+		replace: boolean,
+	): Promise<Result<void>> {
+		const ticket = this.#artifactReads.begin(workspaceId);
+		const root = await this.#rootOf(workspaceId);
+		if (!this.#artifactReads.isLatest(ticket)) return ok(undefined);
+		if (!root.ok) {
+			this.#artifactReads.settle(ticket);
+			this.#failArtifactsPage(workspaceId, replace, root.error);
+			return root;
+		}
+		const page = await this.#deps.search.listArtifacts(root.value, {
+			cursor,
+			limit: ARTIFACTS_PAGE_SIZE,
+		});
+		if (!this.#artifactReads.isLatest(ticket)) return ok(undefined);
+		this.#artifactReads.settle(ticket);
+		if (!page.ok) {
+			this.#failArtifactsPage(workspaceId, replace, page.error);
+			return page;
+		}
+		const context = contextFolderOf(root.value);
+		const entries = page.value.entries
+			.map((entry) => artifactEntryFrom(context, entry))
+			.filter((entry): entry is ArtifactEntry => entry !== null);
+		this.#setArtifactsPage(workspaceId, (current) => {
+			const base = current ?? EMPTY_ARTIFACTS_PAGE;
+			return {
+				entries: replace ? entries : [...base.entries, ...entries],
+				hasMore: page.value.nextCursor !== null,
+				// The platform counts the whole folder on every page, so the newest total stands.
+				omitted: page.value.omitted,
+				cursor: page.value.nextCursor,
+				loading: false,
+				error: null,
+			};
+		});
+		return ok(undefined);
+	}
+
+	#failArtifactsPage(
+		workspaceId: WorkspaceId,
+		replace: boolean,
+		error: ReturnType<typeof appError>,
+	): void {
+		this.#setArtifactsPage(workspaceId, (current) => {
+			const base = current ?? EMPTY_ARTIFACTS_PAGE;
+			return replace
+				? { ...EMPTY_ARTIFACTS_PAGE, error }
+				: { ...base, loading: false, error: null };
+		});
+	}
+
+	#setArtifactsPage(
+		workspaceId: WorkspaceId,
+		update: (current: ArtifactsPageState | undefined) => ArtifactsPageState,
+	): void {
+		this.artifactsStore.setState((state) => ({
+			byWorkspace: {
+				...state.byWorkspace,
+				[workspaceId]: update(state.byWorkspace[workspaceId]),
+			},
+		}));
 	}
 
 	/** Writes a file that was deleted on disk. Refused when it came back in the meantime. */

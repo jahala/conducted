@@ -4,7 +4,8 @@
  * Plan: docs/plans/overnight-build.md. Output: docs/plans/batches.md (generated; do not edit).
  *
  * Rules:
- *  - a feature joins a batch only when everything it needs is in an earlier step;
+ *  - a feature joins a batch only when everything it needs is done or in an earlier step; a need
+ *    on a planned row (or a stub beyond the priority) keeps it waiting (buildableRows);
  *  - a batch holds features of one program (rust, sidecar, core, ui), so they rarely share files;
  *  - at most MAX_BATCH features per batch;
  *  - batches in the same step run side by side, each with its own CI run.
@@ -109,12 +110,31 @@ export function renderBatches(batches: Batch[], scope: string): string {
 	return `${lines.join("\n").trimEnd()}\n`;
 }
 
+/**
+ * The stub rows up to priority `max` that can be built: everything a row needs is done, or is itself
+ * buildable (so it lands in an earlier step). A need on a planned row, a stub beyond `max`, or a
+ * missing row keeps the row waiting, and so does everything that needs it.
+ */
+export function buildableRows(all: readonly BacklogRow[], max: number): BacklogRow[] {
+	const status = new Map(all.map((r) => [r.id, r.status]));
+	let candidates = all.filter((r) => r.status === "stub" && r.priority <= max);
+	for (;;) {
+		const ids = new Set(candidates.map((r) => r.id));
+		const kept = candidates.filter((r) =>
+			r.needs.every((need) => status.get(need) === "done" || ids.has(need)),
+		);
+		if (kept.length === candidates.length) return kept;
+		candidates = kept;
+	}
+}
+
 if (import.meta.main) {
 	const root = join(import.meta.dir, "../..");
 	const at = process.argv.indexOf("--priority");
 	const max = at === -1 ? 1 : Number(process.argv[at + 1]);
-	const rows = parseBacklog(readFileSync(join(root, "docs/plans/backlog.md"), "utf8")).filter(
-		(r) => r.status === "stub" && r.priority <= max,
+	const rows = buildableRows(
+		parseBacklog(readFileSync(join(root, "docs/plans/backlog.md"), "utf8")),
+		max,
 	);
 	const output = renderBatches(planBatches(rows), `priority ${max === 1 ? "1" : `1 to ${max}`}`);
 	if (process.argv.includes("--write")) writeFileSync(join(root, "docs/plans/batches.md"), output);

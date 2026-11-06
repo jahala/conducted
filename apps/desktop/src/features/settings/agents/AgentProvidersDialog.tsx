@@ -1,24 +1,28 @@
 /**
- * @feature SET-09 Agent provider keys
+ * @feature SET-09 Agent provider keys; SET-10 OpenCode providers and their keys
  * Owns: the Providers dialog and its Custom provider form on the Agents page. It chooses an agent's
  * provider, collects its key (or the choice to use the key from this Mac), the Amazon Bedrock
  * credentials, the Vertex project, the Codex ChatGPT account and a custom provider's optional
- * workspace ID, then saves or removes them through Actions.agents.
+ * workspace ID. For OpenCode and Pi it lists OpenCode's provider catalogue and a key for each, and
+ * edits the filter that decides the models the picker shows; it saves or removes them through
+ * Actions.agents.
  * Behaviour: ui-map.md 6, "Agents page" (Claude Code subscription token, Anthropic API key and "Use
  * the key from this Mac", Amazon Bedrock with a Bedrock API key or AWS access keys, Codex API key or
  * ChatGPT account, Cursor API key, Custom provider with an optional workspace ID); ui-map.md 5.2
  * (the Providers and Custom provider dialogs); services-map.md 4.2.8 (provider keys); D033 (keys
  * reach only their own agent).
- * Data: useProviderKeys(agent, acpAgent), useSetting(claude_provider or codex_provider),
+ * Data: useProviderKeys(agent, acpAgent), useAgentProviders(agent, acpAgent), useSetting for the
+ * chosen provider, the Bedrock region, the Vertex project and the models the picker shows,
  * useActions().agents.setProviderKey and removeProviderKey, and Actions.settings for the Bedrock
- * region and Vertex project.
+ * region, the Vertex project and the model filter.
  * Must handle: a key already saved (shown as configured, never its value), saving over one key,
+ * an OpenCode variable two providers share (shown as saved under both, one value for both),
  * removing a key, "use the key from this Mac" (the sidecar reads it from the login shell), a missing
  * required Bedrock field, the region included ("Enter all required Bedrock fields."), Bedrock
  * credentials of the other mode left from an earlier save (removed), a saved test model the user
  * removes, a failed save or removal (shown and toasted, never shown as saved; a save of several parts
- * stops at the first failure), a provider with no key yet, and a custom provider without a workspace
- * ID.
+ * stops at the first failure), a provider with no key yet, a custom provider without a workspace
+ * ID, an OpenCode provider list that is loading or failed, and a model filter that cannot be saved.
  * Our design choice: the subscription token is saved under the Anthropic provider because both sign
  * Claude Code in; the Bedrock test model is saved as `ANTHROPIC_MODEL`; a custom workspace ID is
  * saved as the workspace variable its agent family uses.
@@ -27,7 +31,7 @@
 import type { AgentInstall } from "@conducted/protocol";
 import type { AcpAgent, AgentKind } from "@conducted/shared";
 import { useEffect, useState } from "react";
-import { useActions, useProviderKeys, useSetting } from "../../../core/hooks.ts";
+import { useActions, useAgentProviders, useProviderKeys, useSetting } from "../../../core/hooks.ts";
 import type { ProviderKeyView } from "../../../core/model.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { Checkbox } from "../../../ui/Checkbox.tsx";
@@ -60,6 +64,11 @@ interface KeyFormProps {
 	label: string;
 	description: string;
 	keys: readonly ProviderKeyView[];
+	/**
+	 * OpenCode and Pi: the variable is the key, whichever provider saved it, because the agent reads
+	 * every stored key and several providers share one variable.
+	 */
+	sharedVariable?: boolean;
 	onSave: (key: KeyRef, value: string | null, fromMac: boolean) => Promise<void>;
 	onRemove: (key: KeyRef) => Promise<void>;
 }
@@ -76,10 +85,13 @@ function KeyForm({
 	label,
 	description,
 	keys,
+	sharedVariable = false,
 	onSave,
 	onRemove,
 }: KeyFormProps) {
-	const saved = keys.find((key) => key.provider === provider && key.envVar === envVar);
+	const saved = keys.find(
+		(key) => key.envVar === envVar && (sharedVariable || key.provider === provider),
+	);
 	const [value, setValue] = useState("");
 	const [fromMac, setFromMac] = useState(saved?.source === "this_mac");
 	const [busy, setBusy] = useState(false);
@@ -136,9 +148,121 @@ function KeyForm({
 				<p className="text-xs text-fg-muted">
 					{saved.source === "this_mac"
 						? "Using the key from this Mac's environment."
-						: "A key is saved for this provider."}
+						: saved.provider === provider
+							? "A key is saved for this provider."
+							: `A key saved for another provider fills ${envVar}, so it is used here too.`}
 				</p>
 			) : null}
+		</div>
+	);
+}
+
+interface AcpProviderKeysProps {
+	agent: AgentKind;
+	acpAgent: AcpAgent | null;
+	keys: readonly ProviderKeyView[];
+	onSave: (key: KeyRef, value: string | null, fromMac: boolean) => Promise<void>;
+	onRemove: (key: KeyRef) => Promise<void>;
+}
+
+/**
+ * OpenCode and Pi: a key for each provider in OpenCode's catalogue, and the models the picker
+ * shows. The catalogue comes from the sidecar (SET-10), so it stays the agent's own list.
+ */
+function AcpProviderKeys({ agent, acpAgent, keys, onSave, onRemove }: AcpProviderKeysProps) {
+	const providers = useAgentProviders(agent, acpAgent ?? undefined);
+	const visible = useSetting<string>("visible_provider_models");
+	const actions = useActions();
+	const [selectedId, setSelectedId] = useState("");
+	const [filter, setFilter] = useState(visible);
+	const [filterBusy, setFilterBusy] = useState(false);
+
+	useEffect(() => setFilter(visible), [visible]);
+
+	if (providers.state === "loading") {
+		return <p className="text-sm text-fg-muted">Loading providers…</p>;
+	}
+	if (providers.state === "error") {
+		return (
+			<p role="alert" className="text-sm text-danger">
+				{providers.error.message}
+			</p>
+		);
+	}
+
+	const listed = providers.data.filter((provider) => provider.id !== "custom");
+	const selected = listed.find((provider) => provider.id === selectedId) ?? listed[0];
+
+	const saveFilter = async () => {
+		setFilterBusy(true);
+		const result = await actions.settings.set("visible_provider_models", filter.trim());
+		setFilterBusy(false);
+		if (!result.ok) {
+			toastError("Couldn't save the model filter", result.error);
+			return;
+		}
+		toast("Model filter saved");
+	};
+
+	return (
+		<div className="flex flex-col gap-4">
+			{listed.length === 0 ? (
+				<p className="text-sm text-fg-muted">No providers are available for this agent.</p>
+			) : (
+				<div className="flex flex-col gap-1.5">
+					<Label htmlFor={`${agent}-provider-key`}>Provider</Label>
+					<Select
+						id={`${agent}-provider-key`}
+						aria-label="Provider"
+						value={selected?.id ?? ""}
+						options={listed.map((provider) => ({ value: provider.id, label: provider.label }))}
+						onValueChange={(next) => setSelectedId(next)}
+					/>
+				</div>
+			)}
+
+			{selected !== undefined ? (
+				<div className="flex flex-col gap-3" key={selected.id}>
+					{selected.keyEnvVars.map((envVar) => (
+						<KeyForm
+							key={envVar}
+							agent={agent}
+							acpAgent={acpAgent}
+							provider={selected.id}
+							envVar={envVar}
+							label={
+								selected.keyEnvVars.length === 1 ? selected.label : `${selected.label} — ${envVar}`
+							}
+							description={`The key is stored in the Keychain as ${envVar}.`}
+							keys={keys}
+							sharedVariable
+							onSave={onSave}
+							onRemove={onRemove}
+						/>
+					))}
+				</div>
+			) : null}
+
+			<div className="flex flex-col gap-1.5">
+				<Label htmlFor={`${agent}-filter-models`}>Filter models</Label>
+				<p className="text-sm text-fg-muted">
+					Only show the models whose id or name you list, separated by commas or spaces. Leave it
+					empty to show every model.
+				</p>
+				<div className="flex flex-wrap items-end gap-2">
+					<Input
+						id={`${agent}-filter-models`}
+						aria-label="Filter models"
+						value={filter}
+						placeholder="For example, anthropic/claude-sonnet, openai/gpt"
+						className="w-96"
+						onChange={(event) => setFilter(event.target.value)}
+					/>
+					<Button variant="secondary" loading={filterBusy} onClick={() => void saveFilter()}>
+						Save filter
+					</Button>
+				</div>
+			</div>
 		</div>
 	);
 }
@@ -498,6 +622,7 @@ export function AgentProvidersDialog({
 	const actions = useActions();
 	const agent = install.agent;
 	const acpAgent = install.acpAgent ?? null;
+	const isAcp = agent === "acp";
 	const settingKey = providerSettingKey(agent);
 	const setting = useSetting<string>(settingKey ?? "");
 	const keys = useProviderKeys(agent, install.acpAgent);
@@ -654,7 +779,8 @@ export function AgentProvidersDialog({
 		toast("API key saved");
 	};
 
-	const title = choice === "custom" ? "Custom provider" : "Providers";
+	const customOnly = !isAcp && choice === "custom";
+	const title = customOnly ? "Custom provider" : "Providers";
 	const envVar = keyEnvVarFor(agent, choice);
 
 	return (
@@ -662,12 +788,22 @@ export function AgentProvidersDialog({
 			<DialogContent
 				title={title}
 				description={
-					choice === "custom"
+					customOnly
 						? `A custom provider for ${agentName(agent, acpAgent)}.`
 						: `Provider sign-in and keys for ${agentName(agent, acpAgent)}.`
 				}
 			>
 				<div className="flex flex-col gap-4">
+					{isAcp ? (
+						<AcpProviderKeys
+							agent={agent}
+							acpAgent={acpAgent}
+							keys={saved}
+							onSave={saveKey}
+							onRemove={removeKey}
+						/>
+					) : null}
+
 					{choices.length > 1 ? (
 						<div className="flex flex-col gap-1.5">
 							<Label htmlFor={`${agent}-provider-choice`}>Provider</Label>

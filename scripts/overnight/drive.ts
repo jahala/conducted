@@ -31,7 +31,7 @@ import { basename, join, relative } from "node:path";
 import { readCodeFiles } from "../guards/lib.ts";
 import { type BacklogRow, parseBacklog } from "../issues/model.ts";
 import { placeholdersFor } from "./node-gate.ts";
-import { type Batch, planBatches } from "./plan-batches.ts";
+import { type Batch, buildableRows, planBatches } from "./plan-batches.ts";
 
 const root = join(import.meta.dir, "../..");
 const work = join(root, ".context/overnight");
@@ -309,7 +309,7 @@ async function main(command: string | undefined, args: string[]): Promise<void> 
 		console.log(`${Object.keys(map).length} feature issues mapped.`);
 	} else if (command === "step" || command === "plan") {
 		const maxPriority = Number(flag(args, "--priority") ?? 1);
-		const rows = backlog(root).filter((r) => r.status === "stub" && r.priority <= maxPriority);
+		const rows = buildableRows(backlog(root), maxPriority);
 		const batches = planBatches(rows);
 		if (command === "step") {
 			console.log(

@@ -10,6 +10,7 @@ function serviceFor(test: ReturnType<typeof createTestContainer>) {
 	return new WorkspaceFilesService({
 		fs: test.memory.platform.fs,
 		search: test.memory.platform.fileSearch,
+		shell: test.memory.platform.shell,
 		rootsOf: async () => ok([root]),
 	});
 }
@@ -94,6 +95,7 @@ describe("REV-06 workspace files service", () => {
 			const service = new WorkspaceFilesService({
 				fs: test.memory.platform.fs,
 				search: test.memory.platform.fileSearch,
+				shell: test.memory.platform.shell,
 				rootsOf: async () => ok([]),
 			});
 			const tree = await service.tree(workspaceId);

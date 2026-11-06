@@ -1,18 +1,19 @@
 /**
  * @feature s1-ui Join the batch's features through the composition root
  * Owns: one test per feature in the batch: APP-08 start-up screens and notices, COMP-07 attachments,
- * REV-08 the file viewer, SET-04 environment variables and SET-09 provider keys, plus the launch a chat
- * sends: the variables the repository scripts get, and only the chosen sign-in's keys. Each test builds
- * the real container with createTestContainer, then mounts the app's own route tree or the screen the
- * app mounts, and drives the feature the way a user does.
+ * REV-08 the file viewer, REV-10 the Artifacts tab, SET-04 environment variables, SET-09 provider keys
+ * and SET-10 OpenCode providers, plus the launch a chat sends: the variables the repository scripts
+ * get, only the chosen sign-in's keys, and one value for an OpenCode variable two providers share.
+ * Each test builds the real container with createTestContainer, then mounts the app's own route
+ * tree or the screen the app mounts, and drives the feature the way a user does.
  * Behaviour: D054 (a feature is reachable from the composition root).
  * Test first: each test fails when its feature's container wiring or mount is removed.
  */
 import { EditorView } from "@codemirror/view";
-import type { AgentInstall, AgentLaunch, SessionConfig } from "@conducted/protocol";
+import type { AgentInstall, AgentLaunch, AgentProvider, SessionConfig } from "@conducted/protocol";
 import { ok } from "@conducted/shared";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
@@ -425,6 +426,205 @@ describe("s1-ui join", () => {
 			expect(sends.last()?.params.launch?.providerKeys).toEqual({
 				ANTHROPIC_API_KEY: { value: "", source: "this_mac" },
 			});
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+});
+
+describe("s1-ui join REV-10 and SET-10", () => {
+	it("REV-10 lists the workspace's .context artifacts in the git panel and attaches one", async () => {
+		const test = createTestContainer();
+		try {
+			await test.container.services.settings.start();
+			const workspace = await seedWorkspace(test.container, { path: "/join/rev-10" });
+			test.memory.controls.files.set("/join/rev-10/.context/notes.md", "notes");
+			test.memory.controls.files.set("/join/picked/artifact.txt", "picked");
+			test.memory.controls.queueDialogAnswers({ files: ["/join/picked/artifact.txt"] });
+			test.memory.controls.scriptShell((command) => {
+				if (command.program !== "cp") return null;
+				const [, source, target] = command.args;
+				const contents = source === undefined ? undefined : test.memory.controls.files.get(source);
+				if (contents === undefined || target === undefined) {
+					return ok({ exitCode: 1, stdout: "", stderr: "missing source" });
+				}
+				test.memory.controls.files.set(target, contents);
+				return ok({ exitCode: 0, stdout: "", stderr: "" });
+			});
+			const session = must(await test.container.services.sessions.create(workspace.id, CONFIG));
+			must(await test.container.services.workspace.setActiveSession(workspace.id, session.id));
+
+			await openApp(test.container, `/repository/${workspace.repoId}/workspace/${workspace.id}`);
+
+			fireEvent.mouseDown(await screen.findByRole("tab", { name: "Artifacts" }), {
+				button: 0,
+			});
+
+			expect(await screen.findByText("notes.md")).toBeTruthy();
+			fireEvent.click(screen.getByRole("button", { name: "Upload files" }));
+
+			const uploaded = await screen.findByText("artifact.txt");
+			const card = uploaded.closest("li");
+			if (card === null) throw new Error("the uploaded artifact has no card");
+			fireEvent.click(within(card).getByRole("button", { name: "Attach to chat" }));
+
+			await waitFor(() =>
+				expect(test.container.services.composer.draftOf(session.id).attachmentPaths).toEqual([
+					"/join/rev-10/.context/artifact.txt",
+				]),
+			);
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("SET-10 lists the OpenCode providers, saves a key, filters models, and sends the key", async () => {
+		const test = createTestContainer();
+		try {
+			const sends = captureSends(test);
+			must(await test.container.sidecar.start());
+			await test.container.services.settings.start();
+			await test.container.services.repo.start();
+			const workspace = await seedWorkspace(test.container, { path: "/join/set-10" });
+			const install: AgentInstall = {
+				agent: "acp",
+				acpAgent: "opencode",
+				installed: true,
+			};
+			test.container.services.agentCatalog.setInstalls([install]);
+			vi.spyOn(test.container.actions.agents, "refresh").mockResolvedValue(ok(undefined));
+
+			await openApp(test.container, "/settings/agents");
+			fireEvent.click(await screen.findByRole("button", { name: "Providers" }));
+
+			await waitFor(() =>
+				expect(
+					test.memory.controls.sidecarSent.some((line) => line.includes('"listAgentProviders"')),
+				).toBe(true),
+			);
+			const request = test.memory.controls.sidecarSent
+				.flatMap((line) => {
+					try {
+						return [JSON.parse(line) as { id?: number; method?: string }];
+					} catch {
+						return [];
+					}
+				})
+				.find((sent) => sent.method === "listAgentProviders");
+			if (request?.id === undefined) throw new Error("no listAgentProviders request");
+			const providers: AgentProvider[] = [
+				{ id: "deepseek", label: "DeepSeek", keyEnvVars: ["DEEPSEEK_API_KEY"] },
+				{
+					id: "custom",
+					label: "Custom provider",
+					keyEnvVars: ["OPENAI_API_KEY", "OPENCODE_WORKSPACE_ID"],
+				},
+			];
+			test.memory.controls.emitSidecarLine(
+				JSON.stringify({ jsonrpc: "2.0", id: request.id, result: { providers } }),
+			);
+
+			// The answer reaches the store a few microtasks later, so wait for the catalogue to show.
+			fireEvent.keyDown(await screen.findByRole("combobox", { name: "Provider" }), {
+				key: "Enter",
+			});
+			fireEvent.keyDown(await screen.findByRole("option", { name: "DeepSeek" }), {
+				key: "Enter",
+			});
+
+			fireEvent.change(await screen.findByLabelText("DeepSeek"), {
+				target: { value: "sk-deepseek-join" },
+			});
+			// The Custom provider form below the catalogue has a Save key button of its own.
+			const deepseekRow = screen.getByLabelText("DeepSeek").parentElement;
+			if (deepseekRow === null) throw new Error("no field row for DeepSeek");
+			fireEvent.click(within(deepseekRow).getByRole("button", { name: "Save key" }));
+
+			const key = {
+				agent: "acp" as const,
+				acpAgent: "opencode" as const,
+				provider: "deepseek",
+				envVar: "DEEPSEEK_API_KEY",
+			};
+			await waitFor(async () => {
+				expect(await test.memory.platform.keychain.get(providerKeychainRef(key))).toEqual({
+					ok: true,
+					value: "sk-deepseek-join",
+				});
+			});
+
+			fireEvent.change(screen.getByLabelText("Filter models"), {
+				target: { value: "deepseek/deepseek-chat" },
+			});
+			fireEvent.click(screen.getByRole("button", { name: "Save filter" }));
+			await waitFor(() =>
+				expect(test.container.services.settings.get("visible_provider_models")).toBe(
+					"deepseek/deepseek-chat",
+				),
+			);
+
+			const session = must(
+				await test.container.services.sessions.create(workspace.id, {
+					...CONFIG,
+					agent: "acp",
+					acpAgent: "opencode",
+					model: "deepseek/deepseek-chat",
+				}),
+			);
+			must(await test.container.services.sessions.send(session.id, "hello", [], "auto"));
+			expect(sends.last()?.params.launch?.providerKeys).toEqual({
+				DEEPSEEK_API_KEY: { value: "sk-deepseek-join", source: "entered" },
+			});
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("SET-10 launches OpenCode with the newest key of a variable two providers share", async () => {
+		const test = createTestContainer();
+		try {
+			const sends = captureSends(test);
+			must(await test.container.sidecar.start());
+			await test.container.services.settings.start();
+			const workspace = await seedWorkspace(test.container, { path: "/join/set-10-shared" });
+			const shared = {
+				agent: "acp" as const,
+				acpAgent: "opencode" as const,
+				envVar: "ZHIPU_API_KEY",
+			};
+			const keys = test.container.actions.agents;
+			must(
+				await keys.setProviderKey(
+					{ ...shared, provider: "zhipuai" },
+					{ kind: "entered", value: "older" },
+				),
+			);
+			must(
+				await keys.setProviderKey(
+					{ ...shared, provider: "zai" },
+					{ kind: "entered", value: "newer" },
+				),
+			);
+			const session = must(
+				await test.container.services.sessions.create(workspace.id, {
+					...CONFIG,
+					agent: "acp",
+					acpAgent: "opencode",
+					model: "zai/glm-4.6",
+				}),
+			);
+
+			must(await test.container.services.sessions.send(session.id, "hello", [], "auto"));
+			expect(sends.last()?.params.launch?.providerKeys).toEqual({
+				ZHIPU_API_KEY: { value: "newer", source: "entered" },
+			});
+
+			must(await keys.removeProviderKey({ ...shared, provider: "zhipuai" }));
+			must(await test.container.services.sessions.send(session.id, "again", [], "auto"));
+			expect(sends.last()?.params.launch?.providerKeys).toEqual({});
 		} finally {
 			await test.container.stop();
 			test.close();

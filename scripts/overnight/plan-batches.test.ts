@@ -4,7 +4,7 @@
  */
 import { expect, test } from "bun:test";
 import type { BacklogRow } from "../issues/model.ts";
-import { MAX_BATCH, planBatches, renderBatches } from "./plan-batches.ts";
+import { buildableRows, MAX_BATCH, planBatches, renderBatches } from "./plan-batches.ts";
 
 const row = (id: string, owner: string, needs: string[] = []): BacklogRow => ({
 	id,
@@ -54,4 +54,24 @@ test("the rendered file has no double blank lines, so the formatter leaves it al
 	const text = renderBatches(batches, "test");
 	expect(text).not.toContain("\n\n\n");
 	expect(text.endsWith("\n")).toBe(true);
+});
+
+test("a feature waits while something it needs is neither done nor being built", () => {
+	const at = (id: string, status: BacklogRow["status"], needs: string[] = []): BacklogRow => ({
+		...row(id, "R/x.rs", needs),
+		status,
+	});
+	const all = [
+		at("PLAT-28", "planned"),
+		at("PLAT-35", "stub", ["PLAT-28"]),
+		at("PLAT-36", "stub", ["PLAT-35"]),
+		at("SET-09", "done"),
+		at("SET-10", "stub", ["SET-09"]),
+		at("REV-10", "stub", ["SET-10"]),
+	];
+	// PLAT-35 needs a planned row, and PLAT-36 needs PLAT-35, so both wait. SET-10's need is done,
+	// and REV-10's need is built in an earlier step.
+	expect(buildableRows(all, 1).map((r) => r.id)).toEqual(["SET-10", "REV-10"]);
+	expect(buildableRows([at("CHAT-01", "stub", ["GONE-01"])], 1)).toEqual([]);
+	expect(buildableRows([{ ...at("CHAT-02", "stub"), priority: 3 }], 2)).toEqual([]);
 });

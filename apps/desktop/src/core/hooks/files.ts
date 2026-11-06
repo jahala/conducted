@@ -1,6 +1,7 @@
 /**
  * @feature DATA-01 Query hook contract for screens
  * @feature REV-08 File content query and the editor's draft for the viewer
+ * @feature REV-10 Artifact pages query
  * Owns: the file hooks: trees, file text, searches and the artifact pages; and, outside the
  * Queries contract, `useFileDraft` (the editor's unsaved draft of one file) and `fileQueryKey`.
  * Behaviour: services-map.md 2.5 (queries for file data), 2.5.2 (an open file's modified time is
@@ -23,6 +24,7 @@ import {
 	type WorkspaceId,
 } from "@conducted/shared";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { useStore } from "zustand";
 import type { ContentMatch, FileEntry, Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
@@ -190,4 +192,22 @@ export const useContentSearch: Queries["useContentSearch"] = (workspaceId, query
 	return { state: "ready", data: result.data };
 };
 export const useRepoFileSearch: Queries["useRepoFileSearch"] = () => notImplemented("SIDE-22");
-export const useArtifacts: Queries["useArtifacts"] = () => notImplemented("REV-10");
+export const useArtifacts: Queries["useArtifacts"] = (workspaceId) => {
+	const service = useServices().services.workspaceFiles;
+	const page = useStore(service.artifactsStore, (state) => state.byWorkspace[workspaceId]);
+	useEffect(() => {
+		void service.loadArtifacts(workspaceId);
+	}, [service, workspaceId]);
+	if (page === undefined || (page.loading && page.entries.length === 0)) {
+		return { state: "loading" };
+	}
+	if (page.error !== null) return { state: "error", error: page.error };
+	return {
+		state: "ready",
+		data: {
+			entries: [...page.entries],
+			hasMore: page.hasMore,
+			omitted: page.omitted,
+		},
+	};
+};

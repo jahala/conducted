@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { GrepMatch, TreeEntry } from "./platform.ts";
+import type { ArtifactPage, GrepMatch, TreeEntry } from "./platform.ts";
 import { COMMANDS, createTauriFileSearch, type TauriBindings } from "./tauri.ts";
 
 interface Call {
@@ -70,6 +70,34 @@ describe("PLAT-06 Tauri file search", () => {
 			{
 				command: COMMANDS.searchGrep,
 				args: { root: "/repo", query: "retry", options },
+			},
+		]);
+	});
+
+	it("pages the artifacts through search_list_artifacts", async () => {
+		const page: ArtifactPage = {
+			entries: [
+				{
+					path: "/repo/.context/note.md",
+					isDirectory: false,
+					isSymlink: false,
+					size: 4,
+					modifiedAt: 10,
+				},
+			],
+			nextCursor: "1",
+			omitted: 2,
+		};
+		const { calls, bindings: fake } = bindings(() => page);
+		const search = createTauriFileSearch(fake);
+
+		const result = await search.listArtifacts("/repo", { cursor: null, limit: 50 });
+
+		expect(result).toEqual({ ok: true, value: page });
+		expect(calls).toEqual([
+			{
+				command: COMMANDS.searchListArtifacts,
+				args: { workspacePath: "/repo", cursor: null, limit: 50 },
 			},
 		]);
 	});

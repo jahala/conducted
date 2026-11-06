@@ -447,6 +447,12 @@ Context: slice 2 step 3 built PLAT-28's program manager: install, re-download, r
 Chosen: PLAT-28's backlog row is `planned`, not `stub` or `done`. Its issue stays open. The night's batches leave it alone. The feed and its packaging go to the owner as a product and release question. The built code stays on main.
 Why: `done` would close the issue over a feature no user can use; a placeholder written only to satisfy the stubs check would be theater. `planned` is the status for work that needs a spike or a decision before it can be built.
 
+## D063. A feature waits for needs that are not done or being built (2026-11-06)
+
+Context: plan-batches read only the stub rows and dropped any need outside them, so a need on a planned row counted as met. After D062 set PLAT-28 to planned, it offered PLAT-35 (gh and watchexec), which needs PLAT-28 and the same missing release feed.
+Chosen: `buildableRows` keeps a stub row only when every need is done or is itself buildable, repeated until nothing changes. A need on a planned row, a stub beyond the priority, or a missing row keeps the feature waiting, with everything that needs it. Slice 2 step 4 is REV-10 and SET-10; PLAT-35 waits for PLAT-28's feed.
+Why: building a feature whose dependency cannot work yet repeats PLAT-28's blocked state and spends a step on code no user can reach (D054).
+
 ## D064. A quit stops the app first, for at most five seconds (2026-11-06)
 
 Context: the core hardening found that `Container.stop()` ran only in tests. A real quit called `app_quit` at once, so a composer draft on its debounce, chat events being stored, terminals and runs got no orderly end. Running the stop first can hang on one step (a stuck disk write, a sidecar that never answers), and then Cmd+Q would do nothing.

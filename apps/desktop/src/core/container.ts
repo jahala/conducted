@@ -750,6 +750,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 	const workspaceFiles = new WorkspaceFilesService({
 		fs: platform.fs,
 		search: platform.fileSearch,
+		shell: platform.shell,
 		rootsOf: (id) => ready(lookups.allowedRoots(id)),
 	});
 	const review = new ReviewService({
