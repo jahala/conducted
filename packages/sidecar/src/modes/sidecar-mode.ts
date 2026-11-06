@@ -17,13 +17,13 @@
  *     continues without a backup after 1 s; we do not, because the log is what makes delivery safe
  *  5. build the runners, process manager, session manager, interaction broker, publisher and the
  *     app tools backend and bridge
- *  6. start the app tools bridge, then listen on the Unix socket (rpc/server.ts) and print
- *     SOCKET_PATH=<path> as one line on stdout
- *  7. start the parent watchdog (watchdog.ts: the parent check and the idle sweep run on separate
- *     2-second timers), install one SIGINT and one SIGTERM handler that logs under SIGNAL and
- *     starts the graceful shutdown, install the uncaughtException and unhandledRejection handlers
- *     (log, do not exit), and ask the agent detector for the current list; a detection failure is
- *     logged and never fails the start
+ *  6. start the app tools bridge, then listen on the Unix socket (rpc/server.ts)
+ *  7. install one SIGINT and one SIGTERM handler that logs under SIGNAL and starts the graceful
+ *     shutdown, and only then print SOCKET_PATH=<path> as one line on stdout, so a stop sent right
+ *     after the handshake is always handled; then start the parent watchdog (watchdog.ts: the
+ *     parent check and the idle sweep run on separate 2-second timers), install the
+ *     uncaughtException and unhandledRejection handlers (log, do not exit), and ask the agent
+ *     detector for the current list; a detection failure is logged and never fails the start
  *  8. when the app attaches: replay the write-ahead log and resend the open interactions. The
  *     agent list is sent when detection changes, and the app reads it with getAgentInstalls
  * Must handle: a second sidecar already running for the same app (the launcher kills orphans; the
@@ -668,7 +668,6 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 	}
 	const swept = await outbox.sweepIdle();
 	if (!swept.ok) logger.warn("Old outbox files were not swept", { reason: swept.error.message });
-	writeOut(`${handshakeLine(socketPath)}\n`);
 
 	let finish: (code: number) => void = () => {};
 	const done = new Promise<number>((resolve) => {
@@ -715,6 +714,9 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 	removeSignalHandlers = installSignalHandlers(logger, processSignals, () => {
 		void coordinator.shutdown("signal");
 	});
+	// Ready only now: a SIGTERM sent right after the handshake must reach the handler above, or the
+	// signal's default action ends the process with the bridge folder and socket left behind.
+	writeOut(`${handshakeLine(socketPath)}\n`);
 	watchdog.start();
 	void refreshAgentInstalls({ agents, logger });
 	return done;
