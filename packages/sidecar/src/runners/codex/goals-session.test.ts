@@ -137,6 +137,9 @@ describe("AGENT-13 Codex session goals", () => {
 		child.emit({ jsonrpc: "2.0", method: "thread/goal/updated", params: updated });
 		child.emit({ jsonrpc: "2.0", method: "thread/goal/cleared", params: cleared });
 
-		expect(events).toEqual([updated, cleared]);
+		expect(events).toEqual([
+			{ notification: "updated", params: updated },
+			{ notification: "cleared", params: cleared },
+		]);
 	});
 });

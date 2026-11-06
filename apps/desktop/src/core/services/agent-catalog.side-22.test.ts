@@ -28,6 +28,7 @@ function serviceWith(request: SidecarClient["request"]): AgentCatalogService {
 	return new AgentCatalogService({
 		sidecar: { request },
 		workspacePathOf: async () => ok("/workspace"),
+		repoRootPathOf: async () => ok("/repo"),
 	});
 }
 

@@ -7,8 +7,10 @@
  * Behaviour: research/conductor/native-and-sidecar-map.md A6 and B1 and sessions.md sections 0, 5
  * and 8. Startup order:
  *  1. read the settings from the environment (config.ts); a bad value prints a message and exits 64
- *  2. create the logger (logging/logger.ts) writing one JSON object per line to stderr, which the
- *     Rust launcher stores in the app log files (D026)
+ *  2. create the logger (logging/logger.ts) writing one redacted JSON object per line to stderr,
+ *     with repeated error lines folded and console calls rerouted into it; the Rust launcher writes
+ *     that stderr to `<app data>/logs/sidecar-<pid>.log` (routing it into the app log files with a
+ *     sidecar tag, D026, is not built)
  *  3. capture the login-shell environment (shell-env) in the background; it is needed by the first
  *     agent start, not before
  *  4. open the write-ahead log (outbox/); a failure is fatal: exit 1 with the reason. Conductor
@@ -33,10 +35,10 @@
  * outbox directory exits with code 1 and a message that names the directory.
  * Covered by a real process: sidecar-mode.host.test.ts starts the host on a temporary socket,
  * makes one request, checks the app tools bridge folder and stops it with SIGTERM.
- * The app tools reach Codex and ACP agents from here: each agent start registers the chat's bridge
- * token and its session's dispose gives it back; an agent cannot start while the bridge is down (an
- * error value, never an agent without its tools); a Codex config of the user's or the repository's
- * that already defines the reserved server name keeps ours out (tools/mcp-launch.ts).
+ * The app tools reach Codex, ACP and Cursor agents from here: each agent start registers the chat's
+ * bridge token and its session's dispose gives it back; an agent cannot start while the bridge is
+ * down (an error value, never an agent without its tools); a Codex config of the user's or the
+ * repository's that already defines the reserved server name keeps ours out (tools/mcp-launch.ts).
  * Our design choice: the entry only dispatches. All behaviour lives in modes/, so tests call the
  * mode functions without starting a process. The host itself is injected, so a test starts a
  * fake host without touching a real socket. `composeSidecar` builds every module from the outside
@@ -74,7 +76,7 @@ import {
 import { runCheckpointer } from "../checkpoints/run-checkpointer.ts";
 import { parseSidecarConfig, type SidecarConfig } from "../config.ts";
 import { EXIT_START_FAILED, EXIT_USAGE } from "../exit-codes.ts";
-import { createLogger, type Logger, type LogSink } from "../logging/logger.ts";
+import { createLogger, type Logger, type LogSink, redactRecord } from "../logging/logger.ts";
 import { type AgentDetector, DefaultAgentDetector } from "../models/agent-detection.ts";
 import { RunnerModelCatalog } from "../models/catalog.ts";
 import { createNodeCompletionsFiles, FileCompletionsCache } from "../models/completions-cache.ts";
@@ -107,9 +109,10 @@ import { ClaudeTranslator } from "../runners/claude/translate.ts";
 import type { Scheduler } from "../runners/claude/turn-tracker.ts";
 import type { JsonRpcChild, SpawnJsonRpcChild } from "../runners/codex/app-server-client.ts";
 import { type CodexAppTools, CodexRunner } from "../runners/codex/codex-runner.ts";
-import { CursorRunner } from "../runners/cursor/cursor-runner.ts";
-import type { CursorSdk, LoadCursorSdk } from "../runners/cursor/cursor-sdk.ts";
+import { type CursorAppTools, CursorRunner } from "../runners/cursor/cursor-runner.ts";
+import type { LoadCursorSdk } from "../runners/cursor/cursor-sdk.ts";
 import { EnvLock } from "../runners/cursor/env-lock.ts";
+import { createCursorSdkLoader } from "../runners/cursor/load-sdk.ts";
 import type { FindExecutable, ProbeCommand, RunnerCommonDeps } from "../runners/deps.ts";
 import type { RunnerRegistry, RunnerSelector } from "../runners/registry.ts";
 import { MapRunnerRegistry } from "../runners/registry.ts";
@@ -219,10 +222,13 @@ async function probeWritable(label: string, folder: string): Promise<Result<void
 	}
 }
 
-/** A sink that writes one JSON object per line, as the Rust launcher expects (D026). */
+/**
+ * A sink that writes one JSON object per line, as the Rust launcher expects (D026). Every record's
+ * data is redacted first, so a secret under a secret-looking name never leaves the process.
+ */
 export function stderrLogSink(write: (text: string) => void): LogSink {
 	return (record) => {
-		write(`${JSON.stringify(record)}\n`);
+		write(`${JSON.stringify(redactRecord(record))}\n`);
 	};
 }
 
@@ -433,22 +439,37 @@ export class ShutdownCoordinator {
 	}
 }
 
-const defaultIo: SidecarModeIo = {
+/**
+ * The mode's real effects over two output streams. Production passes the process's stdout and
+ * stderr; a test passes its own, so it runs the same logger wiring: redacted JSON lines on stderr,
+ * folded repeats and the console reroute.
+ */
+export function createDefaultIo(streams: {
+	writeError(text: string): void;
+	writeOut(text: string): void;
+}): SidecarModeIo {
+	return {
+		writeError: (text) => streams.writeError(text),
+		writeOut: (text) => streams.writeOut(text),
+		createLogger: (config) =>
+			createLogger({
+				sink: stderrLogSink((text) => streams.writeError(text)),
+				clock: systemClock,
+				level: config.logLevel,
+				scope: "sidecar",
+				foldRepeats: true,
+				rerouteConsole: true,
+			}),
+		preflight: preflightDirectories,
+		installErrorHandlers: (logger) => installErrorHandlers(logger),
+		startHost: (input) => startSidecarHost(input),
+	};
+}
+
+const defaultIo: SidecarModeIo = createDefaultIo({
 	writeError: (text) => process.stderr.write(text),
 	writeOut: (text) => process.stdout.write(text),
-	createLogger: (config) =>
-		createLogger({
-			sink: stderrLogSink((text) => process.stderr.write(text)),
-			clock: systemClock,
-			level: config.logLevel,
-			scope: "sidecar",
-			foldRepeats: true,
-			rerouteConsole: true,
-		}),
-	preflight: preflightDirectories,
-	installErrorHandlers: (logger) => installErrorHandlers(logger),
-	startHost: (input) => startSidecarHost(input),
-};
+});
 
 /**
  * Runs the sidecar mode. A bad environment exits 64 before anything is created; an unwritable
@@ -579,7 +600,8 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 		query: (params) => sdkQuery(params as Parameters<typeof sdkQuery>[0]),
 		spawnCodex: (options) => spawnJsonRpcChild(options, logger),
 		spawnAcp: (options) => spawnAcpChild(options, logger),
-		loadCursorSdk,
+		// Cursor cannot run until its SDK is bundled, and D010 keeps it out (runners/cursor/load-sdk.ts).
+		loadCursorSdk: createCursorSdkLoader((specifier) => import(specifier)),
 		probe: probeCommand,
 		findExecutable: createFindExecutable(env),
 		shellEnv: createShellEnvProvider(env, logger, (failure) => {
@@ -775,6 +797,7 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 		appTools: backend,
 		bridge,
 		skillPluginDir: config.skillPluginDir,
+		cursorStoreDir: config.cursorStoreDir,
 	});
 	const models = new RunnerModelCatalog({ runners, logger, clock });
 	const shellEnv = ports.shellEnv;
@@ -1015,6 +1038,8 @@ function createRunnerRegistry(input: {
 	bridge: AppToolsBridge;
 	/** The app's bundled skill plugin folder, when the build has one (AGENT-18). */
 	skillPluginDir: string | undefined;
+	/** The root of the Cursor SDK's local run stores (AGENT-09). */
+	cursorStoreDir: string;
 }): RunnerRegistry {
 	const { ports, bridge } = input;
 	const { logger } = ports;
@@ -1076,6 +1101,10 @@ function createRunnerRegistry(input: {
 		const { entry, release } = appToolsEntry(options);
 		return { servers: [acpMcpServer(entry)], release };
 	};
+	const cursorAppTools = async (options: StartOptions): Promise<CursorAppTools> => {
+		const { entry, release } = appToolsEntry(options);
+		return { server: { command: entry.command, args: entry.args, env: entry.env }, release };
+	};
 
 	const entries: { selector: RunnerSelector; runner: Runner }[] = [
 		{
@@ -1112,6 +1141,8 @@ function createRunnerRegistry(input: {
 				...common,
 				loadSdk: ports.loadCursorSdk,
 				envLock: new EnvLock({ queue: queueForCursor, target: process.env }),
+				storeRoot: input.cursorStoreDir,
+				appToolsServer: cursorAppTools,
 			}),
 		},
 	];
@@ -1134,27 +1165,6 @@ const realPath = async (target: string): Promise<string | null> => {
 		return await realpath(target);
 	} catch {
 		return null;
-	}
-};
-
-const loadCursorSdk: LoadCursorSdk = async () => {
-	try {
-		const specifier = "@cursor/sdk";
-		const loaded = (await import(specifier)) as {
-			createAgent?: unknown;
-			resumeAgent?: unknown;
-			default?: { createAgent?: unknown; resumeAgent?: unknown };
-		};
-		const candidate = (loaded.default ?? loaded) as Partial<CursorSdk>;
-		if (
-			typeof candidate.createAgent === "function" &&
-			typeof candidate.resumeAgent === "function"
-		) {
-			return ok(candidate as CursorSdk);
-		}
-		return err(appError("cursor_sdk_missing", "Cursor's SDK is not installed."));
-	} catch {
-		return err(appError("cursor_sdk_missing", "Cursor's SDK is not installed."));
 	}
 };
 

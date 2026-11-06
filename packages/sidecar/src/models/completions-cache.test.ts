@@ -165,7 +165,7 @@ describe("SIDE-22 completions cache", () => {
 		expect(records.some((record) => record.message.includes("wrong shape"))).toBe(true);
 	});
 
-	test("SIDE-22 an unchanged list is not rewritten", async () => {
+	test("SIDE-22 an unchanged list keeps its commands and moves its save time forward", async () => {
 		const folder = await tempFolder();
 		const { clock, advance } = clockAt(1_700_000_000_000);
 		const cache = cacheAt(folder, clock);
@@ -174,7 +174,42 @@ describe("SIDE-22 completions cache", () => {
 		await cache.write({ repoRootPath: "/code/app", agent: "claude" }, [command()]);
 
 		const read = await cache.read({ repoRootPath: "/code/app", agent: "claude" });
-		expect(read.ok && read.value?.savedAt).toBe(1_700_000_000_000);
+		expect(read.ok && read.value?.savedAt).toBe(1_700_000_000_000 + 60 * 60 * 1000);
+		expect(read.ok && read.value?.commands).toEqual([command()]);
+	});
+
+	test("SIDE-22 a list refreshed unchanged at day 20 is still cached at day 40", async () => {
+		const folder = await tempFolder();
+		const day = 24 * 60 * 60 * 1000;
+		const { clock, advance } = clockAt(1_700_000_000_000);
+		const cache = cacheAt(folder, clock);
+		await cache.write({ repoRootPath: "/code/app", agent: "claude" }, [command()]);
+		advance(20 * day);
+		await cache.write({ repoRootPath: "/code/app", agent: "claude" }, [command()]);
+		advance(20 * day);
+
+		const read = await cache.read({ repoRootPath: "/code/app", agent: "claude" });
+		expect(read.ok && read.value?.commands).toEqual([command()]);
+	});
+
+	test("SIDE-22 writes for different repositories at the same time all land", async () => {
+		const folder = await tempFolder();
+		const { clock } = clockAt(1_700_000_000_000);
+		const cache = cacheAt(folder, clock);
+		const roots = Array.from({ length: 8 }, (_unused, index) => `/code/app-${index}`);
+
+		const results = await Promise.all(
+			roots.map((repoRootPath) =>
+				cache.write({ repoRootPath, agent: "claude" }, [command({ name: repoRootPath })]),
+			),
+		);
+
+		expect(roots).toHaveLength(8);
+		expect(results).toEqual(roots.map(() => ok(undefined)));
+		for (const repoRootPath of roots) {
+			const read = await cache.read({ repoRootPath, agent: "claude" });
+			expect(read.ok && read.value?.commands.map((entry) => entry.name)).toEqual([repoRootPath]);
+		}
 	});
 
 	test("SIDE-22 an expired entry is dropped by the next write", async () => {

@@ -8,37 +8,69 @@
  * launch puts the key the user entered or chose from this Mac (SIDE-21, D033). The shell-env
  * capture strips it from the login shell, and the sidecar's own environment is never read for it.
  * A user's own MCP servers in ~/.cursor/mcp.json and <workspace>/.cursor/mcp.json are read and
- * forwarded, with the workspace file winning on a shared name.
+ * forwarded, with the workspace file winning on a shared name. The app tools are added to the same
+ * `mcpServers` option under APP_TOOL_SERVER, and they win over a user server of that name.
  * Must handle:
  *  - detect(): the `cursor-agent` program on PATH is optional; the runner works through the SDK,
- *    so detect() reports the SDK's presence when it can load, else null
+ *    so detect() reports the SDK's presence when it can load, else null. It reports no version:
+ *    the narrow interface has no call that reads one, and none is invented
  *  - listModels(): a static list owned by this file, taken from Cursor's published model list
  *  - the user's MCP files: a missing file is fine, a broken file is logged and skipped; ${env:NAME},
  *    ${NAME} and ${NAME:-default} are filled from the environment; a server without a command or a
  *    url is dropped with a warning naming it, and the rest stay; remote fields such as headers, an
  *    OAuth client and a CA bundle are kept as they are
- *  - the local run store: when the sidecar has CONDUCTED_CURSOR_STORE_DIR, each workspace gets its
- *    own folder under cursor-sdk-store/<hash of the workspace path>
+ *  - the local run store: the root folder comes from `config.ts` (CONDUCTED_CURSOR_STORE_DIR, which
+ *    the Rust launcher sets to <app data>/cursor-sdk-store and creates), and each workspace gets
+ *    its own folder <root>/<hash of the workspace path>
+ *  - the app tools: each start registers the chat's bridge token through `appToolsServer`, and the
+ *    session's dispose gives it back; a bridge that is down fails the start
  *  - capabilities: steer true (when the run supports it), interrupt true, everything else false
  * Test first: capabilities.resumeAt is false and slashCommands is false.
+ * Our design choice: the app tools reach Cursor as the same stdio MCP server Codex and ACP get
+ * (tools/mcp-launch.ts), in the `{ command, args, env }` shape of Cursor's own mcp.json. Conductor
+ * passes SDK tool objects instead; the research does not describe that object API and the SDK is
+ * not installed (D010), so we use the shape the research does give. AskUserQuestion is not among
+ * them, as in Conductor (the bridge never offers it).
  */
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import type { Effort, ModelInfo } from "@conducted/protocol";
+import { APP_TOOL_SERVER, type Effort, type ModelInfo } from "@conducted/protocol";
 import type { Logger } from "../../logging/logger.ts";
 import { messageOf } from "../../util/errors.ts";
+import { isRecord } from "../../util/records.ts";
 import type { RunnerCommonDeps } from "../deps.ts";
 import type { AgentSession, Runner, RunnerCapabilities, StartOptions } from "../runner.ts";
 import type { LoadCursorSdk } from "./cursor-sdk.ts";
 import { CURSOR_LOG_TAG, CursorSession } from "./cursor-session.ts";
 import type { EnvLock } from "./env-lock.ts";
+import { CURSOR_SDK_PACKAGE } from "./load-sdk.ts";
 import { CursorTranslator } from "./translate.ts";
 
 export type CursorRunnerDeps = RunnerCommonDeps & {
 	loadSdk: LoadCursorSdk;
 	envLock: EnvLock;
+	/** The root of the Cursor local run stores, from `config.ts`. */
+	storeRoot: string;
+	/**
+	 * Builds the app tools MCP server for a chat, and the release that ends the chat's bridge token
+	 * when the session is disposed.
+	 */
+	appToolsServer(options: StartOptions): Promise<CursorAppTools>;
 };
+
+/** One stdio MCP server in the shape of Cursor's mcp.json. */
+export interface CursorStdioServer {
+	command: string;
+	args: string[];
+	env: Record<string, string>;
+}
+
+/** The app tools server for one Cursor session. */
+export interface CursorAppTools {
+	server: CursorStdioServer;
+	release(): void;
+}
 
 /** The effort levels Cursor accepts, from other-runners.md section 5. */
 const CURSOR_EFFORTS: readonly Effort[] = ["low", "medium", "high", "xhigh"];
@@ -101,10 +133,27 @@ export const CURSOR_MODELS: readonly ModelInfo[] = [
 const ENV_PLACEHOLDER =
 	/\$\{env:([A-Za-z_][A-Za-z0-9_]*)\}|\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}/g;
 
-/** The folder for one workspace's Cursor local run store. */
+/** The folder for one workspace's Cursor local run store, under the store root. */
 export function cursorStoreFolder(root: string, workspacePath: string): string {
 	const digest = createHash("sha256").update(workspacePath).digest("hex").slice(0, 16);
-	return path.join(root, "cursor-sdk-store", digest);
+	return path.join(root, digest);
+}
+
+/**
+ * The servers a Cursor chat gets: the user's own, then the app tools under APP_TOOL_SERVER. A user
+ * server with the same name is replaced, and the warning names it.
+ */
+export function withAppToolsServer(
+	userServers: Readonly<Record<string, unknown>>,
+	appTools: CursorStdioServer,
+	logger: Logger,
+): Record<string, unknown> {
+	if (APP_TOOL_SERVER in userServers) {
+		logger.warn("A Cursor MCP server has the app tools' name; the app tools replace it", {
+			server: APP_TOOL_SERVER,
+		});
+	}
+	return { ...userServers, [APP_TOOL_SERVER]: appTools };
 }
 
 /** Fills ${env:NAME}, ${NAME} and ${NAME:-default} from the environment, in every string. */
@@ -127,10 +176,6 @@ export function expandCursorEnv(value: unknown, env: Readonly<Record<string, str
 		return out;
 	}
 	return value;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isCursorMcpServer(value: unknown): boolean {
@@ -220,38 +265,35 @@ export class CursorRunner implements Runner {
 		this.log = deps.logger.child(CURSOR_LOG_TAG);
 	}
 
-	async detect(
-		env: Readonly<Record<string, string>>,
-	): Promise<{ path: string; version: string } | null> {
+	async detect(_env: Readonly<Record<string, string>>): Promise<{ path: string } | null> {
 		const loaded = await this.deps.loadSdk();
 		if (!loaded.ok) {
-			this.log.debug("Cursor's SDK is not available", { code: loaded.error.code });
+			this.log.debug("Cursor's SDK is not available", {
+				code: loaded.error.code,
+				reason: loaded.error.message,
+			});
 			return null;
 		}
-		this.log.debug("Cursor's SDK is available", { env: Object.keys(env).length });
-		return { path: "@cursor/sdk", version: "" };
+		return { path: CURSOR_SDK_PACKAGE };
 	}
 
 	async start(options: StartOptions): Promise<AgentSession> {
-		const storeRoot = process.env.CONDUCTED_CURSOR_STORE_DIR;
-		const storeDir =
-			storeRoot === undefined || storeRoot === ""
-				? undefined
-				: cursorStoreFolder(storeRoot, options.workspace.workspacePath);
-		const mcpServers = await readCursorMcpServers({
+		const userServers = await readCursorMcpServers({
 			home: options.env.HOME,
 			workspacePath: options.workspace.workspacePath,
 			env: options.env,
 			logger: this.log,
 		});
+		const appTools = await this.deps.appToolsServer(options);
 		return new CursorSession(
 			{
 				loadSdk: this.deps.loadSdk,
 				envLock: this.deps.envLock,
 				translator: new CursorTranslator({ logger: this.log }),
 				apiKey: options.env.CURSOR_API_KEY,
-				mcpServers,
-				...(storeDir === undefined ? {} : { storeDir }),
+				mcpServers: withAppToolsServer(userServers, appTools.server, this.log),
+				storeDir: cursorStoreFolder(this.deps.storeRoot, options.workspace.workspacePath),
+				onDispose: () => appTools.release(),
 				logger: this.deps.logger,
 			},
 			options,

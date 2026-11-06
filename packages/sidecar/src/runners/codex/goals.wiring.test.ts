@@ -63,6 +63,14 @@ const codexConfig: SessionConfig = {
 	appTools: { diffComments: false, progressUpdates: false, setTargetBranch: false },
 };
 
+async function waitFor(check: () => boolean, what: string): Promise<void> {
+	const deadline = Date.now() + 5000;
+	while (!check()) {
+		if (Date.now() > deadline) throw new Error(`Timed out waiting for ${what}.`);
+		await new Promise((resolve) => setTimeout(resolve, 1));
+	}
+}
+
 const unwrap = <T>(value: unknown): T => {
 	if (typeof value === "object" && value !== null && "ok" in value) {
 		const result = value as { ok: boolean; value?: unknown; error?: { message?: string } };
@@ -141,6 +149,7 @@ async function harness(): Promise<{
 			binDir: folder,
 			outboxRoot: path.join(folder, "outbox"),
 			completionsDir: path.join(folder, "completions"),
+			cursorStoreDir: path.join(folder, "cursor-sdk-store"),
 			logDir: path.join(folder, "log"),
 			appVersion: "0.0.0",
 			logLevel: "info",
@@ -277,6 +286,58 @@ describe("AGENT-13 Codex goals through the sidecar composition root", () => {
 			objective: "ship the importer",
 		});
 		await host.handlers.requests.cancel({ sessionId });
+	});
+
+	test("AGENT-13 a /goal message to an idle Codex chat sets the goal and starts no turn", async () => {
+		const { host, app, children, sessionId, workspace } = await harness();
+
+		const sent = unwrap<{ deliveredAs: string }>(
+			await host.handlers.requests.sendMessage({
+				sessionId,
+				messageId: "message-1" as MessageId,
+				turnId: "turn-1" as TurnId,
+				text: "/goal ship the importer",
+				attachmentPaths: [],
+				delivery: "new_turn",
+				firstMessage: false,
+				config: codexConfig,
+				workspace,
+				launch: { env: {}, providerKeys: {} },
+			}),
+		);
+
+		expect(sent.deliveredAs).toBe("new_turn");
+		const child = children.at(-1);
+		if (child === undefined) throw new Error("No Codex child process was started.");
+		expect(child.lines.find((line) => line.method === "thread/goal/set")?.params).toEqual({
+			threadId: "thread-1",
+			objective: "ship the importer",
+		});
+		expect(child.lines.some((line) => line.method === "turn/start")).toBe(false);
+		expect(app.notifications.some((entry) => entry.method === "goalChanged")).toBe(true);
+
+		// The chat stores the message as a turn that already ended, so it never shows as running.
+		const events = () =>
+			app
+				.notified("sessionEvent")
+				.filter((entry) => entry.sessionId === sessionId)
+				.map((entry) => entry.event);
+		await waitFor(
+			() => events().some((event) => event.type === "turn_ended"),
+			"the goal message's turn to end",
+		);
+		expect(
+			events().map((event) =>
+				event.type === "user_message"
+					? { type: event.type, text: event.text, delivery: event.delivery }
+					: event.type === "turn_ended"
+						? { type: event.type, outcome: event.outcome }
+						: { type: event.type },
+			),
+		).toEqual([
+			{ type: "user_message", text: "/goal ship the importer", delivery: "new_turn" },
+			{ type: "turn_ended", outcome: "success" },
+		]);
 	});
 
 	test("AGENT-13 goal notifications from the server reach the app", async () => {

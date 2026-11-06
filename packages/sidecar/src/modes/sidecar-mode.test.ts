@@ -9,6 +9,7 @@ import { createLogger, type LogRecord } from "../logging/logger.ts";
 import type { ShutdownStep } from "../shutdown.ts";
 import {
 	announceAgentInstalls,
+	createDefaultIo,
 	createPromptFiles,
 	createScheduler,
 	createShellEnvProvider,
@@ -43,12 +44,16 @@ const TEST_LOG_LEVEL = "info";
 const TEST_APP_VERSION = "1.2.3";
 
 function envFor(
-	config: Pick<SidecarConfig, "binDir" | "outboxRoot" | "completionsDir" | "logDir">,
+	config: Pick<
+		SidecarConfig,
+		"binDir" | "outboxRoot" | "completionsDir" | "cursorStoreDir" | "logDir"
+	>,
 ): Record<string, string> {
 	return {
 		CONDUCTED_BIN_DIR: config.binDir,
 		CONDUCTED_OUTBOX_ROOT: config.outboxRoot,
 		CONDUCTED_COMPLETIONS_DIR: config.completionsDir,
+		CONDUCTED_CURSOR_STORE_DIR: config.cursorStoreDir,
 		CONDUCTED_LOG_DIR: config.logDir,
 		CONDUCTED_APP_VERSION: TEST_APP_VERSION,
 		CONDUCTED_LOG_LEVEL: TEST_LOG_LEVEL,
@@ -95,6 +100,7 @@ describe("SIDE-01 sidecar mode", () => {
 			binDir: path.join(base, "bin"),
 			outboxRoot: path.join(base, "outbox"),
 			completionsDir: path.join(base, "completions"),
+			cursorStoreDir: path.join(base, "cursor-sdk-store"),
 			logDir: path.join(base, "logs"),
 		};
 		const io = fakeIo();
@@ -114,6 +120,7 @@ describe("SIDE-01 sidecar mode", () => {
 			binDir: path.join(base, "bin"),
 			outboxRoot: path.join(base, "outbox"),
 			completionsDir: path.join(base, "completions"),
+			cursorStoreDir: path.join(base, "cursor-sdk-store"),
 			logDir: path.join(base, "logs"),
 		};
 		await mkdir(config.binDir, { recursive: true });
@@ -165,6 +172,7 @@ describe("SIDE-18 sidecar logging", () => {
 			binDir: path.join(base, "bin"),
 			outboxRoot: path.join(base, "outbox"),
 			completionsDir: path.join(base, "completions"),
+			cursorStoreDir: path.join(base, "cursor-sdk-store"),
 			logDir: path.join(base, "logs"),
 		};
 		const received: SidecarConfig[] = [];
@@ -193,6 +201,7 @@ describe("SIDE-18 sidecar logging", () => {
 			binDir: path.join(base, "bin"),
 			outboxRoot: path.join(base, "outbox"),
 			completionsDir: path.join(base, "completions"),
+			cursorStoreDir: path.join(base, "cursor-sdk-store"),
 			logDir: path.join(base, "logs"),
 		};
 		const { logger, records } = recordingLogger();
@@ -209,6 +218,58 @@ describe("SIDE-18 sidecar logging", () => {
 				}),
 			}),
 		);
+	});
+	test("SIDE-18 the mode's own logger turns console output into redacted JSON lines on stderr, folding repeats", async () => {
+		const base = await tempDir("log-wiring");
+		const config = {
+			binDir: path.join(base, "bin"),
+			outboxRoot: path.join(base, "outbox"),
+			completionsDir: path.join(base, "completions"),
+			cursorStoreDir: path.join(base, "cursor-sdk-store"),
+			logDir: path.join(base, "logs"),
+		};
+		const stderr: string[] = [];
+		const io: SidecarModeIo = {
+			...createDefaultIo({ writeError: (text) => stderr.push(text), writeOut: () => {} }),
+			preflight: async () => ok(undefined),
+			installErrorHandlers: () => () => {},
+			startHost: async (input) => {
+				console.log("from the console", { step: 1 });
+				console.error("the same failure");
+				console.error("the same failure");
+				input.logger.info("an agent environment", {
+					env: { GH_TOKEN: "ghp-secret", HOME: "/home/me" },
+				});
+				return 0;
+			},
+		};
+
+		expect(await runSidecarMode(envFor(config), ["sidecar"], io)).toBe(0);
+
+		const records = stderr
+			.join("")
+			.split("\n")
+			.filter((line) => line !== "")
+			.map((line) => JSON.parse(line) as LogRecord);
+		expect(records).toContainEqual(
+			expect.objectContaining({
+				level: "info",
+				scope: "sidecar:console",
+				message: 'from the console {"step":1}',
+			}),
+		);
+		expect(
+			records
+				.filter((record) => record.message.startsWith("the same failure"))
+				.map((record) => record.message),
+		).toEqual(["the same failure", "the same failure (repeated 1 time)"]);
+		expect(records).toContainEqual(
+			expect.objectContaining({
+				message: "an agent environment",
+				data: { env: { GH_TOKEN: "<redacted:10>", HOME: "/home/me" } },
+			}),
+		);
+		expect(stderr.join("")).not.toContain("ghp-secret");
 	});
 });
 
@@ -431,6 +492,7 @@ describe("SIDE-01 startup error handler wiring", () => {
 			binDir: path.join(base, "bin"),
 			outboxRoot: path.join(base, "outbox"),
 			completionsDir: path.join(base, "completions"),
+			cursorStoreDir: path.join(base, "cursor-sdk-store"),
 			logDir: path.join(base, "logs"),
 		};
 		const events: string[] = [];
@@ -454,6 +516,7 @@ describe("SIDE-01 startup error handler wiring", () => {
 			binDir: path.join(base, "bin"),
 			outboxRoot: path.join(base, "outbox"),
 			completionsDir: path.join(base, "completions"),
+			cursorStoreDir: path.join(base, "cursor-sdk-store"),
 			logDir: path.join(base, "logs"),
 		};
 		const events: string[] = [];
@@ -491,6 +554,7 @@ describe("SIDE-01 startup folders", () => {
 			binDir: path.join(base, "bin"),
 			outboxRoot: path.join(base, "outbox"),
 			completionsDir: path.join(base, "completions"),
+			cursorStoreDir: path.join(base, "cursor-sdk-store"),
 			logDir: path.join(base, "logs"),
 		};
 		await mkdir(config.binDir, { recursive: true });

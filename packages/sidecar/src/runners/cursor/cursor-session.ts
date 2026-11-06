@@ -12,7 +12,9 @@
  *  - a missing or rejected API key: an error outcome whose message points to Settings, never the
  *    key itself
  *  - cancel during the start or the stream: the loop ends, the outcome is cancelled, late messages
- *    are dropped
+ *    are dropped, and text buffered before the cancel is still emitted
+ *  - every end of a turn (success, cancel, error) flushes the translator, so the next turn starts
+ *    with no text and no call ids of the last one
  *  - steer on a run without steer(): SteerNotSupportedError; a non-delivered outcome:
  *    SteerRevertedError (the manager queues it)
  *  - text and thinking chunks are buffered and flushed as one message at a tool boundary or the end
@@ -20,7 +22,13 @@
  *  - applyConfig: any model, effort or fast-mode change returns "restart" (a new agent with new
  *    options)
  *  - contextUsage: null (the SDK reports none)
- *  - dispose ends a live run and refuses later turns
+ *  - dispose ends a live run, stops a turn that is still starting (a run that `send` hands back
+ *    later is cancelled at once), refuses later turns, and gives the app tools token back
+ *  - a sign-in failure is told apart from other failures by whole words and phrases ("401
+ *    Unauthorized", "invalid API key", "not signed in"), never by a substring such as "auth" in
+ *    "author". The research names no SDK error class or code for it (other-runners.md 5 says only
+ *    that a rejected key gets a message pointing to Settings); when the SDK is installed, match its
+ *    own error type here instead
  * Test first: with a fake SDK whose run streams one text message and finishes, runTurn emits one
  * text message and resolves success.
  */
@@ -55,10 +63,12 @@ export interface CursorSessionDeps {
 	translator: CursorTranslator;
 	/** The API key for this chat: CURSOR_API_KEY of its start environment. Undefined if unset. */
 	apiKey: string | undefined;
-	/** The user's local Cursor MCP servers, already read and validated by the runner. */
+	/** The user's local Cursor MCP servers, read and validated by the runner, plus the app tools. */
 	mcpServers: Record<string, unknown>;
-	/** The folder for this chat's Cursor local run store, when the sidecar has one. */
-	storeDir?: string;
+	/** The folder for this chat's Cursor local run store. */
+	storeDir: string;
+	/** Runs once when the session is disposed: gives the chat's app tools token back. */
+	onDispose(): void;
 	logger: Logger;
 }
 
@@ -69,20 +79,22 @@ interface ActiveRun {
 
 type AgentResult = { ok: true; agent: CursorAgent } | { ok: false; outcome: TurnOutcome };
 
+/** Whole words and phrases that say the key was refused or the account is not signed in. */
+const AUTH_PHRASES: readonly RegExp[] = [
+	/\bunauthori[sz]ed\b/i,
+	/\bunauthenticated\b/i,
+	/\bauth(?:enticat(?:e|ed|ion)|ori[sz]ation)?\b/i,
+	/\bapi[ _-]?key\b/i,
+	/\bnot (?:signed|logged) in\b/i,
+	/\b(?:sign|log)[ -]?in (?:required|expired|failed)\b/i,
+	/^\s*40[13]\b/,
+	/\b(?:status|status code|http|error)\s*:?\s*40[13]\b/i,
+];
+
 /** True when the agent refused the key or the account is not signed in. */
 export function isCursorAuthError(error: unknown): boolean {
-	const text = messageOf(error).toLowerCase();
-	return (
-		text.includes("auth") ||
-		text.includes("api key") ||
-		text.includes("apikey") ||
-		text.includes("unauthor") ||
-		text.includes("sign in") ||
-		text.includes("sign-in") ||
-		text.includes("login") ||
-		text.includes("401") ||
-		text.includes("403")
-	);
+	const text = messageOf(error);
+	return AUTH_PHRASES.some((phrase) => phrase.test(text));
 }
 
 function authOutcome(): TurnOutcome {
@@ -174,7 +186,6 @@ export class CursorSession implements AgentSession {
 				if (this.cancelledGeneration === generation) return { kind: "cancelled" };
 				await run.wait();
 				if (this.cancelledGeneration === generation) return { kind: "cancelled" };
-				this.emit(this.deps.translator.flush(), callbacks);
 				return { kind: "success" };
 			} catch (cause) {
 				if (this.cancelledGeneration === generation) return { kind: "cancelled" };
@@ -182,6 +193,9 @@ export class CursorSession implements AgentSession {
 				return { kind: "error", message: messageOf(cause), retryable: false };
 			}
 		} finally {
+			// Every end of the turn emits what is still buffered and clears the translator's calls, so
+			// partial text survives a cancel or a failure and the next turn starts clean.
+			this.emit(this.deps.translator.flush(), callbacks);
 			this.starting = false;
 			this.active = null;
 		}
@@ -240,12 +254,12 @@ export class CursorSession implements AgentSession {
 	async dispose(): Promise<void> {
 		if (this.disposed) return;
 		this.disposed = true;
+		// A turn still starting stops at its next check; a run its send hands back is cancelled.
+		this.cancelledGeneration = this.generation;
 		const active = this.active;
-		if (active !== null) {
-			this.cancelledGeneration = active.generation;
-			await this.cancelRun(active.run);
-		}
+		if (active !== null) await this.cancelRun(active.run);
 		this.agent = null;
+		this.deps.onDispose();
 	}
 
 	private async ensureAgent(config: SessionConfig): Promise<AgentResult> {
@@ -300,21 +314,16 @@ export class CursorSession implements AgentSession {
 	}
 
 	private agentOptions(config: SessionConfig): CursorAgentOptions {
-		const local: CursorAgentOptions["local"] = { cwd: this.start.workspace.workspacePath };
-		if (this.deps.storeDir !== undefined) local.storeDir = this.deps.storeDir;
-		const options: CursorAgentOptions = {
+		return {
 			apiKey: this.deps.apiKey ?? "",
 			model: { id: config.model, params: cursorModelParams(config) },
-			local,
+			local: { cwd: this.start.workspace.workspacePath, storeDir: this.deps.storeDir },
 			mcpServers: this.deps.mcpServers,
 		};
-		return options;
 	}
 
 	private sdkEnv(): Record<string, string> {
-		const env: Record<string, string> = { ...this.start.env };
-		if (this.deps.storeDir !== undefined) env.CONDUCTED_CURSOR_STORE_DIR = this.deps.storeDir;
-		return env;
+		return { ...this.start.env, CONDUCTED_CURSOR_STORE_DIR: this.deps.storeDir };
 	}
 
 	private emit(messages: AgentMessage[], callbacks: TurnCallbacks): void {

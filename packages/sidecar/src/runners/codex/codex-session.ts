@@ -44,10 +44,12 @@ import { type AppError, appError, err, ok, type Result, type SessionId } from "@
 import type { Logger } from "../../logging/logger.ts";
 import { createDeferred, type Deferred } from "../../util/deferred.ts";
 import { asAppError } from "../../util/errors.ts";
+import { asRecord, readString } from "../../util/records.ts";
 import { sameStrings } from "../../util/string-set.ts";
 import { NoActiveTurnError } from "../errors.ts";
 import type {
 	AgentSession,
+	GoalEvent,
 	StartOptions,
 	TurnCallbacks,
 	TurnInput,
@@ -95,7 +97,7 @@ export interface CodexSessionDeps {
 	/** Runs once when the session is disposed: the runner gives the app tools token back. */
 	onDispose?: () => void;
 	/** A goal change from a `/goal` steer or from the app server (AGENT-13). */
-	onGoalEvent?: (event: unknown) => void;
+	onGoalEvent?: (event: GoalEvent) => void;
 }
 
 interface PendingTurn {
@@ -447,10 +449,10 @@ export class CodexSession implements AgentSession {
 			this.translateNotification(client, CODEX_SERVER_NOTIFICATIONS.error, params);
 		});
 		client.onNotification(CODEX_GOAL_NOTIFICATIONS.updated, (params) => {
-			if (this.client === client) this.deps.onGoalEvent?.(params);
+			if (this.client === client) this.deps.onGoalEvent?.({ notification: "updated", params });
 		});
 		client.onNotification(CODEX_GOAL_NOTIFICATIONS.cleared, (params) => {
-			if (this.client === client) this.deps.onGoalEvent?.(params);
+			if (this.client === client) this.deps.onGoalEvent?.({ notification: "cleared", params });
 		});
 		client.onNotification(CODEX_SERVER_NOTIFICATIONS.itemStarted, (params) => {
 			this.translateItem(client, "started", params);
@@ -648,31 +650,16 @@ function isStaleTurnError(error: AppError): boolean {
 	return text.includes("expected") || text.includes("active turn") || text.includes("no turn");
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-	return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
-}
-
-function readString(value: Record<string, unknown>, key: string): string | undefined {
-	const field = value[key];
-	return typeof field === "string" ? field : undefined;
-}
-
 function readThreadId(params: unknown): string | null {
 	const root = asRecord(params);
 	if (root === null) return null;
-	const direct = readString(root, "threadId");
-	if (direct !== undefined) return direct;
-	const thread = asRecord(root.thread);
-	return thread === null ? null : (readString(thread, "id") ?? null);
+	return readString(root, "threadId") ?? readString(asRecord(root.thread), "id");
 }
 
 function readTurnId(params: unknown): string | null {
 	const root = asRecord(params);
 	if (root === null) return null;
-	const direct = readString(root, "turnId");
-	if (direct !== undefined) return direct;
-	const turn = asRecord(root.turn);
-	return turn === null ? null : (readString(turn, "id") ?? null);
+	return readString(root, "turnId") ?? readString(asRecord(root.turn), "id");
 }
 
 function readTurn(params: unknown): CodexTurn | null {
@@ -682,12 +669,11 @@ function readTurn(params: unknown): CodexTurn | null {
 	const id = readString(candidate, "id") ?? readString(root, "turnId") ?? "";
 	const status = candidate.status;
 	if (!isTurnStatus(status)) return null;
-	const errorRecord = asRecord(candidate.error);
-	const message = errorRecord === null ? undefined : readString(errorRecord, "message");
+	const message = readString(asRecord(candidate.error), "message");
 	return {
 		id,
 		status,
-		error: message === undefined ? null : { message },
+		error: message === null ? null : { message },
 	};
 }
 

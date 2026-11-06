@@ -3,13 +3,15 @@
  * @feature SIDE-18 Sidecar logs go to the Rust shell's log files
  * @feature SIDE-22 Slash command cache that works before a chat starts
  * @feature AGENT-18 Bundled skill that teaches agents the app
+ * @feature AGENT-09 Cursor: SDK in process
  * Owns: reading the sidecar startup settings from the environment the Rust shell sets: the bin
- * folder, the outbox root, the slash-command cache folder, the log folder, the app version, the
- * log level and, when the build has one, the bundled skill plugin folder. Nothing else. Every
- * other module receives plain values from here, never process.env.
+ * folder, the outbox root, the slash-command cache folder, the Cursor run store folder, the log
+ * folder, the app version, the log level and, when the build has one, the bundled skill plugin
+ * folder. Nothing else. Every other module receives plain values from here, never process.env.
  * Behaviour: research/conductor/native-and-sidecar-map.md A6 steps 6 and 7 and B4 (Rust passes
- * these through environment variables). SIDE-18 reads the app version and log level; SIDE-22
- * reads the slash-command cache folder; AGENT-18 reads the skill plugin folder.
+ * these through environment variables), other-runners.md 2.3 (the Cursor SDK's local run store).
+ * SIDE-18 reads the app version and log level; SIDE-22 reads the slash-command cache folder;
+ * AGENT-18 reads the skill plugin folder; AGENT-09 reads the Cursor run store folder.
  * Must handle: a missing or empty variable (return an error that names it, no silent default), a
  * relative path (refused: every path must be absolute), an unknown log level (refused), and
  * unknown variables (ignored). The skill plugin folder is optional: a build without one leaves it
@@ -29,6 +31,8 @@ export const SIDECAR_ENV = {
 	outboxRoot: "CONDUCTED_OUTBOX_ROOT",
 	/** Folder for the saved slash-command lists the new-workspace composer reads (SIDE-22). */
 	completionsDir: "CONDUCTED_COMPLETIONS_DIR",
+	/** Root of the Cursor SDK's local run stores, one folder per workspace inside (AGENT-09). */
+	cursorStoreDir: "CONDUCTED_CURSOR_STORE_DIR",
 	/** Folder where the Rust launcher keeps the sidecar's log files (D026). */
 	logDir: "CONDUCTED_LOG_DIR",
 	/** Folder of the app's bundled Claude skill plugin, when the build has one (AGENT-18). */
@@ -48,6 +52,7 @@ const zSidecarConfig = z.object({
 	binDir: absolutePath,
 	outboxRoot: absolutePath,
 	completionsDir: absolutePath,
+	cursorStoreDir: absolutePath,
 	logDir: absolutePath,
 	skillPluginDir: absolutePath.optional(),
 	appVersion: z.string().min(1),
@@ -62,6 +67,7 @@ export function parseSidecarConfig(
 		binDir: env[SIDECAR_ENV.binDir],
 		outboxRoot: env[SIDECAR_ENV.outboxRoot],
 		completionsDir: env[SIDECAR_ENV.completionsDir],
+		cursorStoreDir: env[SIDECAR_ENV.cursorStoreDir],
 		logDir: env[SIDECAR_ENV.logDir],
 		skillPluginDir: env[SIDECAR_ENV.skillPluginDir],
 		appVersion: env[SIDECAR_ENV.appVersion],

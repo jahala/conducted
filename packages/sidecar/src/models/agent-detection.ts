@@ -358,7 +358,7 @@ export class DefaultAgentDetector implements AgentDetector {
 		selector: RunnerSelector,
 		detect: (env: Readonly<Record<string, string>>) => Promise<{
 			path: string;
-			version: string;
+			version?: string;
 		} | null>,
 		env: Readonly<Record<string, string>>,
 	): Promise<AgentInstall> {
@@ -385,7 +385,7 @@ export class DefaultAgentDetector implements AgentDetector {
 		selector: RunnerSelector,
 		detect: (env: Readonly<Record<string, string>>) => Promise<{
 			path: string;
-			version: string;
+			version?: string;
 		} | null>,
 		env: Readonly<Record<string, string>>,
 	): Promise<ProgramFound | { warning: string } | null> {
@@ -420,7 +420,7 @@ export class DefaultAgentDetector implements AgentDetector {
 		return {
 			path: found.path,
 			source: "login_path",
-			...(found.version === "" ? {} : { version: found.version }),
+			...(found.version === undefined || found.version === "" ? {} : { version: found.version }),
 		};
 	}
 

@@ -135,6 +135,7 @@ describe("SET-09 provider key lists", () => {
 		const service = new AgentCatalogService({
 			sidecar: { request: vi.fn() },
 			workspacePathOf: async () => ok("/workspace"),
+			repoRootPathOf: async () => ok("/repo"),
 			providerKeys: repository,
 			keychain: current.memory.platform.keychain,
 		});

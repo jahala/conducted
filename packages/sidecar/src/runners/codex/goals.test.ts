@@ -257,9 +257,46 @@ describe("AGENT-13 Codex goal controller", () => {
 			logger: logger(),
 		});
 
-		controller.onServerGoalEvent(SESSION, { threadId: "thread-1", goal: serverGoal });
-		controller.onServerGoalEvent(SESSION, { threadId: "thread-1" });
+		controller.onServerGoalEvent(SESSION, {
+			notification: "updated",
+			params: { threadId: "thread-1", goal: serverGoal },
+		});
+		controller.onServerGoalEvent(SESSION, {
+			notification: "cleared",
+			params: { threadId: "thread-1" },
+		});
 
 		expect(announced.map((goal) => goal?.objective ?? null)).toEqual(["ship the importer", null]);
+	});
+
+	test("AGENT-13 the notification's name decides, not the payload's shape", () => {
+		const announced: (CodexGoal | null)[] = [];
+		const records: LogRecord[] = [];
+		const controller = new CodexGoalController({
+			clientFor: async () => ok({ threadId: "thread-1", goals: goalClient(), release: () => {} }),
+			announce: (_sessionId, goal) => announced.push(goal),
+			logger: logger(records),
+		});
+
+		// An update with a null goal, and one with a thread and no goal key, clear nothing.
+		controller.onServerGoalEvent(SESSION, {
+			notification: "updated",
+			params: { threadId: "thread-1", goal: null },
+		});
+		controller.onServerGoalEvent(SESSION, {
+			notification: "updated",
+			params: { threadId: "thread-1" },
+		});
+		expect(announced).toEqual([]);
+		expect(
+			records.filter((record) => record.message === "Ignored a Codex goal update with no goal"),
+		).toHaveLength(2);
+
+		// A cleared notification clears, whatever its payload holds.
+		controller.onServerGoalEvent(SESSION, {
+			notification: "cleared",
+			params: { threadId: "thread-1", goal: serverGoal },
+		});
+		expect(announced).toEqual([null]);
 	});
 });

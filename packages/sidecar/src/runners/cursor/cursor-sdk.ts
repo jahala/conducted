@@ -7,14 +7,15 @@
  * options hold the API key, a model with parameters (fast, effort), the local working folder, the
  * local run store folder and the MCP servers; `send` returns a run; the run streams messages, can
  * be awaited, can be steered (outcome "complete_delivered" means delivered) and cancelled.
- * Licence note: @cursor/sdk has a proprietary licence and is not installed in this scaffold, so
- * none of its types are imported. This file describes only what we call. When the package is
- * added, check each member below against its published type definitions and change this file, not
- * the runner.
+ * Licence note: @cursor/sdk has a proprietary licence and is not bundled (D010), so none of its
+ * types are imported and no member below has been checked against the real package. This file
+ * describes only what we call. When the package is added, check each member below, the export
+ * shape load-sdk.ts looks for, and the message fields translate.ts reads against its published
+ * type definitions, and change these files, not the runner.
  * Must handle: the SDK reads process.env for some settings (see env-lock.ts), message objects
  * have shapes we do not list (kept as a loose record and checked field by field in translate.ts),
  * and the SDK may be absent at run time (load() returns an error value, the runner reports "Cursor
- * is not installed").
+ * is not installed"; load-sdk.ts).
  * Test first: none (types only). AGENT-10 adds translate.test.ts for the messages we do read.
  */
 import type { AppError, Result } from "@conducted/shared";

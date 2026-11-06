@@ -5,8 +5,9 @@
  * this scaffold (D010), so these doubles stand in for the package the narrow interface describes;
  * the session tests drive the real CursorSession on them.
  * Contract test: packages/sidecar/src/runners/cursor/cursor-session.test.ts
- * Must handle: a run that streams messages and then waits, a run that is cancelled, a steer that
- * is delivered or handed back, and a run without steer.
+ * Must handle: a run that streams messages and then waits, a run that is cancelled, a run whose
+ * wait fails, a steer that is delivered or handed back, a run without steer, a send that is still
+ * pending, and an agent that hands out a new run for each turn.
  * Test first: cursor-session.test.ts, "a run that streams one text message emits it and resolves
  * success".
  */
@@ -27,6 +28,10 @@ export class FakeCursorRun implements CursorRun {
 	steerOutcome = "complete_delivered";
 	cancelCalls = 0;
 	waitCalls = 0;
+	/** How many streamed messages the consumer has finished with and asked past. */
+	consumed = 0;
+	/** When set, wait() rejects with it, as a run that fails after streaming. */
+	waitError: Error | undefined;
 	steer?: (text: string) => Promise<string>;
 
 	private readonly finished = createDeferred<void>();
@@ -49,6 +54,7 @@ export class FakeCursorRun implements CursorRun {
 		for (const message of this.messages) {
 			if (this.cancelled) return;
 			yield message;
+			this.consumed += 1;
 		}
 		await this.finished.promise;
 		for (const message of this.lateMessages) yield message;
@@ -56,6 +62,7 @@ export class FakeCursorRun implements CursorRun {
 
 	async wait(): Promise<void> {
 		this.waitCalls += 1;
+		if (this.waitError !== undefined) throw this.waitError;
 	}
 
 	async cancel(): Promise<void> {
@@ -67,12 +74,17 @@ export class FakeCursorRun implements CursorRun {
 
 export class FakeCursorAgent implements CursorAgent {
 	readonly sent: string[] = [];
+	/** Runs for the next sends, in order; once empty, every send gets `run`. */
+	readonly nextRuns: FakeCursorRun[] = [];
+	/** When set, a send records its text and then waits for this before it returns its run. */
+	sendGate: Promise<void> | undefined;
 
 	constructor(readonly run: FakeCursorRun = new FakeCursorRun()) {}
 
 	async send(text: string): Promise<CursorRun> {
 		this.sent.push(text);
-		return this.run;
+		if (this.sendGate !== undefined) await this.sendGate;
+		return this.nextRuns.shift() ?? this.run;
 	}
 }
 

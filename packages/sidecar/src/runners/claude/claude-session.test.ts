@@ -498,6 +498,35 @@ describe("AGENT-02 Claude session", () => {
 		await session.dispose();
 	});
 
+	test("AGENT-18 a missing bundled skill is told to the user once per chat", async () => {
+		const { query, script } = scriptedQuery((user, s) => {
+			s.emit(init());
+			s.emit(resultMessage(String(user.uuid)));
+		});
+		const session = new ClaudeSession(
+			makeDeps({ query, skillPluginDir: "/nowhere/conducted-skill" }),
+			start(),
+		);
+		const first: AgentMessage[] = [];
+		const second: AgentMessage[] = [];
+
+		expect(await session.runTurn(turnInput(), callbacks(first))).toEqual({ kind: "success" });
+		expect(await session.runTurn(turnInput(), callbacks(second))).toEqual({ kind: "success" });
+
+		const notices = (messages: AgentMessage[]) =>
+			messages.flatMap((message) => message.items).filter((item) => item.kind === "notice");
+		expect(notices(first)).toEqual([
+			{
+				kind: "notice",
+				notice: "info",
+				text: "The bundled skill folder /nowhere/conducted-skill was not found. This chat runs without the app's bundled skill, so Claude may not know the app's settings files and scripts.",
+			},
+		]);
+		expect(notices(second)).toEqual([]);
+		expect(script.options?.plugins).toBeUndefined();
+		await session.dispose();
+	});
+
 	test("two starts at once share one process", async () => {
 		const { query, script } = scriptedQuery();
 		const session = new ClaudeSession(makeDeps({ query }), start());

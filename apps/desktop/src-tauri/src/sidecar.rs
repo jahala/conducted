@@ -2,6 +2,7 @@
 //! @feature SIDE-22 Slash command cache that works before a chat starts
 //! @feature SIDE-23 Sidecar packaging: version flag, one program per CPU
 //! @feature AGENT-18 Bundled skill that teaches agents the app
+//! @feature AGENT-09 Cursor: SDK in process
 //!
 //! Owns: starting the Bun-compiled sidecar program, relaying its newline-delimited JSON between
 //! its Unix socket and the webview, restarting it when it dies, and making sure it never outlives
@@ -53,20 +54,22 @@
 //!   logger (PLAT-18) owns the file's lifetime: at start the launcher removes logs by age and size
 //!   and keeps the five newest, and it cuts a log to its newest third when it reaches its cap.
 //!   `sidecar_log_path` returns the current one. D026 routes these lines into the app log files
-//!   with a sidecar tag; that routing (PLAT-18) is not built yet, so this file is their current
-//!   home.
+//!   with a sidecar tag; that routing is a SIDE-18 item that is not built yet, so this file is
+//!   their current home.
 //!
 //! Our design choice: the restart loop in Rust (Conductor has none: the UI calls ensure again).
 //! Our design choice: no HTTP health endpoint and no bearer token. A child that is alive and
 //! connected is healthy, and the socket is private to the user (mode 0600 in a 0700 folder).
 //! Our design choice: environment variables are fixed here and must match packages/sidecar and
 //! docs/plans/tauri-commands.md ("Sidecar launch"). We set the variables the sidecar reads today
-//! (the parent pid, the outbox root, the slash-command cache folder, the log folder and the bin
-//! folder) plus the app version and log level its logger reads (SIDE-18). Agent binary folders,
-//! ACP provider folder and Cursor store arrive with the features that read them (PLAT-28,
-//! SIDE-15, AGENT-09). AGENT-18 sets `CONDUCTED_SKILL_PLUGIN_DIR` to the bundled skill folder
-//! when the build ships one. There is no database path (the app owns the database) and no logger
-//! token or folder (D026, D028).
+//! (the parent pid, the outbox root, the slash-command cache folder, the Cursor run store folder,
+//! the log folder and the bin folder) plus the app version and log level its logger reads
+//! (SIDE-18). Agent binary folders and the ACP provider folder arrive with the features that read
+//! them (PLAT-28, SIDE-15). AGENT-09 sets `CONDUCTED_CURSOR_STORE_DIR` to
+//! `<app data>/cursor-sdk-store`, which the launcher creates at mode 0700 like the other folders;
+//! the sidecar keeps one folder per workspace inside it (other-runners.md 2.3). AGENT-18 sets
+//! `CONDUCTED_SKILL_PLUGIN_DIR` to the bundled skill folder when the build ships one. There is
+//! no database path (the app owns the database) and no logger token or folder (D026, D028).
 //! Packaging the sidecar needs `bundle.externalBin` in tauri.conf.json, which requires the
 //! compiled file to exist at build time. In development `CONDUCTED_SIDECAR_BIN` points at a
 //! binary or a wrapper script.
@@ -125,6 +128,10 @@ pub const ENV_COMPLETIONS_DIR: &str = "CONDUCTED_COMPLETIONS_DIR";
 pub const ENV_SKILL_PLUGIN_DIR: &str = "CONDUCTED_SKILL_PLUGIN_DIR";
 /// Folder name of the bundled skill plugin inside the app's resources.
 pub const SKILL_PLUGIN_FOLDER: &str = "conducted-skill";
+/// Folder inside the app data dir that holds the Cursor SDK's local run stores.
+pub const CURSOR_STORE_FOLDER: &str = "cursor-sdk-store";
+/// Environment variable that tells the sidecar where the Cursor run stores live.
+pub const ENV_CURSOR_STORE_DIR: &str = "CONDUCTED_CURSOR_STORE_DIR";
 
 /// Why a sidecar process ended.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -542,11 +549,11 @@ pub fn plan_restart(recent: &mut Vec<i64>, now_ms: i64) -> RestartPlan {
 }
 
 /// The folders the sidecar reads at start: the parent pid, the outbox root, the slash-command
-/// cache folder, the log folder, the bin folder and, when the build has one, the bundled skill
-/// plugin folder (AGENT-18). The launcher creates the folders it owns before the spawn, and
-/// `launch_environment` adds the app version and log level. Agent binaries, ACP providers and the
-/// Cursor store wait for the features that read them. There is no database path and no logger
-/// token or folder (D026, D028).
+/// cache folder, the Cursor run store folder (AGENT-09), the log folder, the bin folder and, when
+/// the build has one, the bundled skill plugin folder (AGENT-18). The launcher creates the folders
+/// it owns before the spawn, and `launch_environment` adds the app version and log level. Agent
+/// binaries and ACP providers wait for the features that read them. There is no database path and
+/// no logger token or folder (D026, D028).
 pub fn sidecar_environment(
     pid: u32,
     data_dir: &Path,
@@ -556,11 +563,13 @@ pub fn sidecar_environment(
     let bin_dir = data_dir.join("bin");
     let outbox_root = data_dir.join("sidecar-v2-session-event-outbox");
     let completions_dir = completions_folder_under(data_dir);
+    let cursor_store_dir = data_dir.join(CURSOR_STORE_FOLDER);
     let text = |path: &Path| path.to_string_lossy().into_owned();
     let mut environment = vec![
         ("CONDUCTED_PARENT_PID".to_string(), pid.to_string()),
         ("CONDUCTED_OUTBOX_ROOT".to_string(), text(&outbox_root)),
         (ENV_COMPLETIONS_DIR.to_string(), text(&completions_dir)),
+        (ENV_CURSOR_STORE_DIR.to_string(), text(&cursor_store_dir)),
         ("CONDUCTED_LOG_DIR".to_string(), text(&log_dir)),
         ("CONDUCTED_BIN_DIR".to_string(), text(&bin_dir)),
     ];
@@ -1677,6 +1686,7 @@ mod tests {
             "CONDUCTED_PARENT_PID",
             "CONDUCTED_OUTBOX_ROOT",
             "CONDUCTED_COMPLETIONS_DIR",
+            "CONDUCTED_CURSOR_STORE_DIR",
             "CONDUCTED_LOG_DIR",
             "CONDUCTED_BIN_DIR",
         ] {
@@ -1754,6 +1764,41 @@ mod tests {
             !guide.contains("CONDUCTOR_"),
             "the guide must name only CONDUCTED_* variables (D027)"
         );
+    }
+
+    #[test]
+    fn agent_09_the_launch_environment_gives_the_sidecar_a_cursor_store_folder() {
+        let environment = sidecar_environment(42, Path::new("/tmp/conducted-data"), None);
+        let map: HashMap<&str, &str> = environment
+            .iter()
+            .map(|(key, value)| (key.as_str(), value.as_str()))
+            .collect();
+        assert_eq!(
+            map.get(ENV_CURSOR_STORE_DIR),
+            Some(&"/tmp/conducted-data/cursor-sdk-store")
+        );
+        assert!(
+            is_folder_variable(ENV_CURSOR_STORE_DIR),
+            "the launcher must create the Cursor store folder before the spawn"
+        );
+        let source = sidecar_env_names();
+        assert!(
+            source.contains(&format!("\"{ENV_CURSOR_STORE_DIR}\"")),
+            "the launcher sets {ENV_CURSOR_STORE_DIR}, but packages/sidecar never reads it"
+        );
+    }
+
+    #[test]
+    fn agent_09_the_cursor_store_folder_is_created_owner_only() {
+        let folder = TempDir::new();
+        let path = folder.path().join(CURSOR_STORE_FOLDER);
+        let created = ensure_dir(&path, 0o700).expect("create the Cursor store folder");
+        assert_eq!(created, path);
+        let mode = fs::metadata(&path)
+            .expect("stat the Cursor store folder")
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o700);
     }
 
     #[test]
