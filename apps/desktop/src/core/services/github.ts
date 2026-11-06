@@ -5,18 +5,22 @@
  * @feature PR-05 sending failing checks and their log tails to the agent
  * @feature PR-11 REST reads for issues and pull requests, and the context files they write
  * @feature PRJ-02 the owners and repositories the clone picker lists
+ * @feature PRJ-03 the repository-name check the Create project dialog shows
  * @feature GIT-08 moving an open pull request's base when the target branch changes
  * @feature PR-04 the Checks tab's calls: one job's log (an expired log has its own error) and
  * re-running the failed workflow runs, one `gh run rerun --failed` per run
+ * @feature PR-08 GitHub stacks: reading a pull request's stack and running the stack sync
  * Owns: probing `gh` access (`gh auth status`, the user's login, the git protocol), the access
  * health store, reading and writing the personal access token, every pull request write action
  * (merge, auto-merge on and off, mark ready, edit title and body, request and remove reviewers,
  * approve), the Fix errors instruction that sends failing checks to the agent, PR-03's polling of
- * watched pull requests, PR-11's REST reads, PRJ-02's clone pickers, and GIT-08's base move.
+ * watched pull requests, PR-11's REST reads, PRJ-02's clone pickers, PRJ-03's repository-name check,
+ * GIT-08's base move, and PR-08's stack read and stack sync.
  * Behaviour: services-map.md 3.9 (auth probes, method resolution, health), 5B.1.11 (failure
  * classes; only unauthorized breaks access), 3.7.5 and 5B.1.7 (the write actions, the merge
  * method cached per repo, and one call at a time for each action), 3.7.6 (fixing CI errors goes to
- * the agent as an instruction), 3.7.2 and 5B.1.2 to 5B.1.4
+ * the agent as an instruction), 3.8.2 (the stack members, the optional `stackEntry` field, and
+ * `gh stack sync`), 3.7.2 and 5B.1.2 to 5B.1.4
  * (the PR poll: batched queries per repository, adaptive batch size, cadence, skip rules and
  * rate-limit gate), 2.5.2 and 5B.1.10 (GitHub reads for the workspace pickers), 5B.8.2 (open
  * issues, 50 newest), 5B.8.3 (an issue becomes `[GITHUB]-<n>.md`, a pull request
@@ -42,16 +46,19 @@
  * response the app cannot parse is an error, not an empty list; a context file is reported as
  * written only after the file was written; a poll skips an offline, unlinked or remote-less
  * workspace and leaves its last entry alone; a failed budget probe pauses polling and is reported
- * on the workspace; only the newest poll writes a workspace's entry; `dispose` stops every timer.
+ * on the workspace; only the newest poll writes a workspace's entry; `dispose` stops every timer;
+ * a stack read with no pull request or no stack is an empty answer, an unknown `stackEntry` field
+ * is retried without and remembered per repository, and a stack sync that sees the extension
+ * missing or a cross mark is an error, never a success.
  * Our design choice: access is the user's own `gh auth login`, or the personal access token the
  * user saved on the Account page (D029). The token is kept in the Keychain and given to `gh` as
  * GH_TOKEN; nothing is brokered per session. The poll schedule and gate are pure functions in
  * pr-polling.ts; this file applies them and owns the timers. The poll batch groups workspaces by
  * their repository (the git common dir) so siblings share one `gh api graphql` call. Required
  * check names are not part of the poll answer, so no check is marked required (NO_REQUIRED_CHECKS);
- * the Checks tab's required marks need the branch-protection read. The stack actions and the stack
- * catch-up belong to other features (PR-08, PR-12); re-running failed checks belongs to PR-04,
- * which owns the Checks tab's button. The
+ * the Checks tab's required marks need the branch-protection read. The stack catch-up belongs to
+ * PR-12; re-running failed checks belongs to PR-04, which owns the Checks tab's button. Graphite
+ * (`gt state`, `gt checkout`) is not read here. The
  * sidebar and selected workspace subscriptions belong to the screens that own them; this file
  * calls `onMerged` and the workspace service archives the workspace.
  * Test first: two merge calls at once send one `gh pr merge`.
@@ -59,6 +66,8 @@
  * PR-05 test first: two failing checks send one instruction with both log tails.
  * PR-06 test first: enabling auto-merge sends `gh pr merge --auto` pinned to the local HEAD.
  * PR-11 test first: an issue with a `pull_request` field is left out of the issues list.
+ * PR-08 test first: a stack member list comes back from trunk up with the workspace branch marked
+ * as current.
  */
 import {
 	type AppError,
@@ -99,13 +108,17 @@ import {
 	prMerge,
 	prMergeDisableAuto,
 	prReady,
+	prStackQuery,
 	prViewHeadCommit,
 	prViewState,
 	pullRequestByNumber as pullRequestByNumberCommand,
 	recentRepositories,
+	repoCanView,
 	repoMergeMethodsQuery,
 	repositoryIssues,
 	repositoryPullRequests,
+	stackMembers,
+	stackSync,
 } from "../git/gh-commands.ts";
 import {
 	failedCommandError,
@@ -122,6 +135,8 @@ import type {
 	PullRequest,
 	PullRequestAction,
 	PullRequestSummary,
+	RepoNameCheck,
+	StackEntryView,
 } from "../model.ts";
 import {
 	createPrInstruction,
@@ -156,6 +171,7 @@ import {
 	requestedInterval,
 	shouldQueryPr,
 } from "./pr-polling.ts";
+import { projectFolderName } from "./project-templates.ts";
 import type { AgentMessenger } from "./sessions.ts";
 
 /** The paths GitHub reads a pull request template from, in the order the research lists them. */
@@ -552,6 +568,114 @@ export function parseGithubPullRequest(text: string): Result<GithubPullRequestRe
 	const json = parseJson(text);
 	if (!json.ok) return err(json.error);
 	return parsePullRequestRecord(json.value);
+}
+
+/** The stack a pull request reports, without its members. */
+export interface PrStackInfo {
+	number: number;
+	size: number;
+	position: number;
+	baseRefName: string | null;
+}
+
+/** One member of a GitHub stack, as the members endpoint reports it. */
+export interface StackMember {
+	number: number;
+	title: string;
+	branch: string;
+	state: StackEntryView["state"];
+}
+
+/**
+ * Reads the optional `stackEntry` out of the pull request answer. A null entry means the pull
+ * request is not in a stack, which is a normal answer, not an error.
+ */
+export function parsePrStackEntry(text: string): Result<PrStackInfo | null> {
+	const json = parseJson(text);
+	if (!json.ok) return err(json.error);
+	if (!isRecord(json.value)) return err(responseInvalid());
+	const data = json.value.data;
+	if (!isRecord(data)) return err(responseInvalid());
+	const repository = data.repository;
+	if (!isRecord(repository)) return err(responseInvalid());
+	const pullRequest = repository.pullRequest;
+	if (!isRecord(pullRequest)) return err(responseInvalid());
+	const entry = pullRequest.stackEntry;
+	if (entry === undefined || entry === null) return ok(null);
+	if (!isRecord(entry)) return err(responseInvalid());
+	const stack = entry.stack;
+	if (!isRecord(stack)) return err(responseInvalid());
+	const number = stack.number;
+	const size = stack.size;
+	if (typeof number !== "number" || !Number.isSafeInteger(number) || number <= 0) {
+		return err(responseInvalid());
+	}
+	if (typeof size !== "number" || !Number.isSafeInteger(size) || size < 0) {
+		return err(responseInvalid());
+	}
+	const position = entry.position;
+	return ok({
+		number,
+		size,
+		position: typeof position === "number" ? position : 0,
+		baseRefName: stringField(stack, "baseRefName"),
+	});
+}
+
+/** The message shown when `gh stack` is not installed (services-map 3.8.2). */
+export const STACK_EXTENSION_MESSAGE =
+	"GitHub's stack extension is needed. Install it with `gh extension install github/gh-stack`.";
+
+/** Whether `gh` said it does not know the `stack` command. */
+export function isStackExtensionMissing(text: string): boolean {
+	return /unknown command[^\n]*\bstack\b|\bstack\b[^\n]*unknown command|is not a gh command/i.test(
+		text,
+	);
+}
+
+/** Whether a stack sync stopped partway: a line starting with a cross mark, or its abort notice. */
+export function hasStackSyncAbort(text: string): boolean {
+	return /^\s*✗/m.test(text) || /Sync aborted/i.test(text);
+}
+
+/** Whether a GraphQL failure is the optional `stackEntry` field being unknown to this host. */
+export function isUndefinedStackFieldError(message: string): boolean {
+	return /undefinedField|undefinedType|Cannot query field ["']?stackEntry|Field ["']?stackEntry["']? doesn't exist|does not exist on type/i.test(
+		message,
+	);
+}
+
+/** Reads the members of a GitHub stack, in the order the endpoint reports them. */
+export function parseStackMembers(text: string): Result<StackMember[]> {
+	const json = parseJson(text);
+	if (!json.ok) return err(json.error);
+	if (!isRecord(json.value)) return err(responseInvalid());
+	const list = json.value.pull_requests;
+	if (!Array.isArray(list)) return err(responseInvalid());
+	const members: StackMember[] = [];
+	for (const item of list) {
+		if (!isRecord(item)) return err(responseInvalid());
+		const number = item.number;
+		const title = stringField(item, "title");
+		const head = item.head;
+		const branch = isRecord(head) ? stringField(head, "ref") : null;
+		if (
+			typeof number !== "number" ||
+			!Number.isSafeInteger(number) ||
+			number <= 0 ||
+			title === null ||
+			branch === null
+		) {
+			return err(responseInvalid());
+		}
+		const merged = stringField(item, "merged_at") !== null;
+		const state = pullRequestStateOf(
+			merged ? "MERGED" : stringField(item, "state"),
+			item.draft === true,
+		);
+		members.push({ number, title, branch, state });
+	}
+	return ok(members);
 }
 
 export function parseGithubRepos(text: string): Result<GitHubRepoSummary[]> {
@@ -1147,6 +1271,8 @@ export class GithubService {
 	readonly #pollingRepos = new Set<string>();
 	/** Each repository's merge method, read once from GitHub (services-map 3.7.5). */
 	readonly #mergeMethodByRepo = new Map<string, MergeMethod>();
+	/** GitHub hosts that refused the optional `stackEntry` field, remembered per repository. */
+	readonly #stackEntryUnsupported = new Set<string>();
 	/** The adaptive batch size: starts at five, halves on a failed query, then grows. */
 	#batchSizes = initialBatchSizes();
 	readonly #rateGate: RateLimitGate;
@@ -1327,6 +1453,32 @@ export class GithubService {
 		const parsed = parseGithubRepositories(result.value);
 		if (!parsed.ok) return parsed;
 		return ok(filterGithubRepositories(parsed.value, query));
+	}
+
+	/**
+	 * Backs `useRepoNameCheck`: asks `gh repo view` whether an owner already has this repository.
+	 * A name with no letters or numbers is invalid before GitHub is asked. A 404 answer means the
+	 * name is free; any other failure is reported rather than turned into "available".
+	 */
+	async checkRepoName(owner: string, name: string): Promise<Result<RepoNameCheck>> {
+		const folder = projectFolderName(name);
+		if (folder === "") return ok("invalid");
+		const trimmedOwner = owner.trim();
+		if (trimmedOwner === "") {
+			return err(appError("github_owner_missing", "Choose a GitHub account or organisation."));
+		}
+		const settings = await this.#ghSettings();
+		if (!settings.ok) return err(settings.error);
+		const command = repoCanView(`${trimmedOwner}/${folder}`);
+		const result = await this.#deps.git.run(command, this.#runOptions(settings.value));
+		if (!result.ok) return err(result.error);
+		await this.recordGhResult(result.value);
+		if (result.value.exitCode === 0) return ok("taken");
+		const text = `${result.value.stderr}\n${result.value.stdout}`.toLowerCase();
+		if (/not found|http 404|could not resolve to a repository/.test(text)) {
+			return ok("available");
+		}
+		return err(ghCommandError(command, result.value));
 	}
 
 	/**
@@ -2385,9 +2537,94 @@ export class GithubService {
 		return edited.ok ? ok(true) : err(edited.error);
 	}
 
-	/** Runs `gh stack sync` for a stacked branch. */
-	syncStack(_workspaceId: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("PR-08");
+	/**
+	 * Runs `gh stack sync` for a stacked branch (services-map 3.8.2). A command that `gh` does not
+	 * know means the stack extension is missing; a cross mark or "Sync aborted" means the sync
+	 * stopped partway. Both are errors, so a partial sync is never reported as done.
+	 */
+	syncStack(workspaceId: WorkspaceId): Promise<Result<void>> {
+		const setting = this.#deps.setting;
+		if (setting !== undefined && setting<boolean>("github_stacked_prs_enabled") !== true) {
+			return Promise.resolve(
+				err(
+					appError("github_stacks_disabled", "Stacked pull requests are turned off in Settings."),
+				),
+			);
+		}
+		return this.#writeAction("syncStack", "syncing_stack", workspaceId, async () => {
+			const context = await this.#deps.contextOf(workspaceId);
+			if (!context.ok) return err(context.error);
+			const settings = await this.#ghSettings();
+			if (!settings.ok) return err(settings.error);
+			const runOptions = this.#runOptions(settings.value, context.value.workspacePath);
+			const command = stackSync();
+			const result = await this.#deps.git.run(command, runOptions);
+			if (!result.ok) return err(result.error);
+			await this.recordGhResult(result.value);
+			const text = `${result.value.stderr}\n${result.value.stdout}`;
+			if (isStackExtensionMissing(text)) {
+				return err(appError("github_stack_extension_missing", STACK_EXTENSION_MESSAGE));
+			}
+			if (!isSuccessfulExit(command, result.value.exitCode)) {
+				return err(this.#writeError(command, result.value));
+			}
+			if (hasStackSyncAbort(text)) {
+				return err(
+					appError(
+						"github_stack_sync_aborted",
+						"The stack sync stopped before it finished. Nothing was reported as done.",
+					),
+				);
+			}
+			return ok(undefined);
+		});
+	}
+
+	/**
+	 * Reads the GitHub stack the workspace's pull request belongs to, from trunk up
+	 * (services-map 3.8.2). A pull request outside a stack, or stacks turned off in Settings, is an
+	 * empty answer, not an error. The optional `stackEntry` field is retried without when the host
+	 * does not know it, and that host is remembered.
+	 */
+	async readStack(workspaceId: WorkspaceId): Promise<Result<StackEntryView[]>> {
+		const setting = this.#deps.setting;
+		if (setting !== undefined && setting<boolean>("github_stacked_prs_enabled") !== true) {
+			return ok([]);
+		}
+		const context = await this.#deps.contextOf(workspaceId);
+		if (!context.ok) return err(context.error);
+		const found = context.value;
+		const prNumber = found.prNumber;
+		if (prNumber === null) return ok([]);
+
+		const repository = await this.#repositoryOf(found);
+		if (!repository.ok) return err(repository.error);
+		const repositoryKey = repositoryPath(repository.value);
+		const includeStackEntry = !this.#stackEntryUnsupported.has(repositoryKey);
+
+		const readDetails = (withField: boolean) =>
+			this.#readGh(prStackQuery(prNumber, withField), found.workspacePath);
+		let details = await readDetails(includeStackEntry);
+		if (includeStackEntry && !details.ok && isUndefinedStackFieldError(details.error.message)) {
+			this.#stackEntryUnsupported.add(repositoryKey);
+			details = await readDetails(false);
+		}
+		if (!details.ok) return err(details.error);
+		const parsedStack = parsePrStackEntry(details.value);
+		if (!parsedStack.ok) return err(parsedStack.error);
+		if (parsedStack.value === null) return ok([]);
+
+		const members = await this.#readGh(stackMembers(parsedStack.value.number), found.workspacePath);
+		if (!members.ok) return err(members.error);
+		const parsedMembers = parseStackMembers(members.value);
+		if (!parsedMembers.ok) return err(parsedMembers.error);
+		return ok(
+			parsedMembers.value.map((member) => ({
+				...member,
+				isCurrent: member.branch === found.branch,
+				needsRestack: false,
+			})),
+		);
 	}
 
 	/**

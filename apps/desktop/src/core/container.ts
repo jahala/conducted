@@ -65,14 +65,14 @@ import { FavoriteModelsService } from "./services/favorite-models.ts";
 import { FileDiffService } from "./services/file-diff.ts";
 import { FollowUpQueue } from "./services/follow-up-queue.ts";
 import { GitService } from "./services/git.ts";
-import { createGitCache } from "./services/git-cache.ts";
+import { createGitCache, type GitCache } from "./services/git-cache.ts";
 import { GithubService } from "./services/github.ts";
 import {
 	KEEP_AWAKE_SCAN_MS,
 	KEEP_AWAKE_SETTING_KEY,
 	KeepAwakeService,
 } from "./services/keep-awake.ts";
-import { createCurlLinearHttp, LinearService } from "./services/linear.ts";
+import { createLinearHttp, LinearService } from "./services/linear.ts";
 import { LocalGitForge } from "./services/local-git-forge.ts";
 import { McpService } from "./services/mcp.ts";
 import { buildDeepLink, NotificationService, type SoundPlayer } from "./services/notifications.ts";
@@ -133,6 +133,7 @@ export interface Services {
 	mcp: McpService;
 	linear: LinearService;
 	git: GitService;
+	gitCache: GitCache;
 	github: GithubService;
 	localGitForge: LocalGitForge;
 	checkpoint: CheckpointService;
@@ -637,6 +638,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		},
 		log,
 		setting,
+		copyText: (text) => system.copyText(text),
 		now: () => clock.now(),
 		newId: () => ids.uuid(),
 	});
@@ -689,8 +691,14 @@ export function createContainer(inputs: ContainerInputs): Container {
 	const favoriteModels = new FavoriteModelsService({ repos: repositories });
 	const mcp = new McpService({ sidecar: client });
 	const linear = new LinearService({
-		http: createCurlLinearHttp(platform.shell),
+		http: createLinearHttp(platform.http),
 		keychain: platform.keychain,
+		fs: platform.fs,
+		workspacePathOf: async (id) => {
+			const found = lookups.workspace(id);
+			return found.ok ? ok(found.value.path) : found;
+		},
+		now: () => clock.now(),
 	});
 	const gitCache = createGitCache({ fs: platform.fs });
 	const git = new GitService({
@@ -816,6 +824,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		mcp,
 		linear,
 		git,
+		gitCache,
 		github,
 		localGitForge,
 		checkpoint,

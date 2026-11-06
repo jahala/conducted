@@ -31,8 +31,8 @@
  * Not built yet: the agent is not rewound. Its own transcript still holds the reverted turns, so
  * its next turn remembers them although the chat no longer shows them. Rewinding it (the sidecar's
  * `resetAgent`, then a resume at the chosen turn with `resume.atNativeMessageId`) is an open item
- * on CHAT-15's checklist. Fork from a turn (`forkFrom`) is CHAT-16's placeholder and fork to a
- * new workspace (`forkToWorkspace`) is CHAT-21's; neither is built here.
+ * on CHAT-15's checklist. Fork to a new workspace (`forkToWorkspace`) is CHAT-21's; the same-tab
+ * fork belongs to CHAT-16 and lives in the sessions service.
  * Test first: reverting to a turn without a start checkpoint returns an Err and changes nothing.
  */
 import type { FileChange } from "@conducted/protocol";
@@ -63,7 +63,7 @@ import {
 } from "../git/refs.ts";
 import type { GitRunner } from "../git/runner.ts";
 import { mergeChanges, parseNameStatus, parseNumstat } from "../git/status.ts";
-import type { Session, Workspace } from "../model.ts";
+import type { Workspace } from "../model.ts";
 
 /** How long a finished turn's change list waits for its two checkpoint refs. */
 export const CHECKPOINT_READY_TIMEOUT_MS = 2_000;
@@ -431,11 +431,6 @@ export class CheckpointService {
 		if (!marked.ok) return marked;
 		markViewReverted(sessionId, turnId, at);
 		return ok(undefined);
-	}
-
-	/** Backs `Actions.sessions.forkFrom`. */
-	forkFrom(_sessionId: SessionId, _turnId: TurnId): Promise<Result<Session>> {
-		return notImplemented("CHAT-16");
 	}
 
 	/** Backs `Actions.sessions.forkToWorkspace`. */

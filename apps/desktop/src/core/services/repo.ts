@@ -1,18 +1,22 @@
 /**
  * @feature PRJ-01 Projects (repositories): add and list from a local folder, remove
+ * @feature PRJ-03 Quick start a new project from a template
  * Owns: the list of repositories, adding one from a local folder, cloning one from GitHub or any
  * git URL (PRJ-02), removing one, and hiding one from the sidebar. Also owns PRJ-04's config
  * reads: scripts, files to copy and prompts come from `.conducted/settings.toml`, with
- * `.conducted/settings.local.toml` overriding it. Creating from a template and icons are
- * placeholders for PRJ-03 and PRJ-05.
- * Behaviour: ui-map.md 3.9 (add project), 4 item 8 (Add project menu), services-map.md 3.2 (add
- * repository steps: `git init` when missing, remote URL read and normalised, default branch
- * detection), 2.3.2 (repo operations), 1.4 (config group), 4.2 (the repo settings file),
- * 2.5.2 (reload on focus), frontend.md 6 (scripts config in settings.toml).
+ * `.conducted/settings.local.toml` overriding it. Also owns Quick start: creating a project from
+ * one of the three templates and creating its private GitHub repository (PRJ-03). Icons are a
+ * placeholder for PRJ-05.
+ * Behaviour: ui-map.md 3.9 (add project, Create project), 4 item 8 (Add project menu),
+ * services-map.md 3.2 (add repository steps: `git init` when missing, remote URL read and
+ * normalised, default branch detection; the create-a-new-GitHub-repo flow), 2.3.2 (repo
+ * operations), 1.4 (config group), 4.2 (the repo settings file), 2.5.2 (reload on focus),
+ * frontend.md 6 (scripts config in settings.toml).
  * Must handle: a folder that is not a git repository (offer `git init`, never silently); a folder
  * inside an existing repository (ask git for the work tree root, so no nested repository is made);
- * a path already added (return the existing project); a repository with no commits (workspace
- * creation makes the first commit, not this service); the default branch comes from the remote's
+ * a path already added (return the existing project); a folder added from disk with no commits
+ * (workspace creation makes its first commit); creating the GitHub repository makes a first commit
+ * when the folder has none; the default branch comes from the remote's
  * HEAD, else the checked-out branch, and the add fails visibly when neither exists; removing a
  * project asks its removal port to stop work and delete its workspaces before deleting the row;
  * an invalid settings file is reported instead of replaced; a config edit made outside the app is
@@ -29,6 +33,7 @@
  * local storage, never in a settings file.
  * Test first: the repo's scripts, prompts, globs and run mode are read from
  * `.conducted/settings.toml`.
+ * PRJ-03 test first: an empty template creates its folder, first commit and project row.
  */
 import {
 	type AppError,
@@ -44,20 +49,32 @@ import type { Platform } from "../../platform/platform.ts";
 import { localSettingsFile, sharedSettingsFile } from "../app-paths.ts";
 import type { Repositories } from "../db/repositories.ts";
 import {
+	addAll,
 	branchShowCurrent,
 	checkout,
 	cloneWithProgress,
+	commitAll,
 	initRepository,
+	pushSetUpstreamHead,
 	remoteGetUrl,
+	remoteRename,
 	remoteSetUrl,
 	revParse,
+	revParseVerify,
+	statusPorcelainAll,
 	symbolicRefRemoteHead,
 } from "../git/commands.ts";
-import { githubRepoClone } from "../git/gh-commands.ts";
+import { githubRepoClone, githubRepoCreate, githubRepoUrl } from "../git/gh-commands.ts";
 import type { GitRunner } from "../git/runner.ts";
 import type { Repo, RepoConfig, RepoIconChoice, RunAction } from "../model.ts";
 import { coerceSettingValue, getSettingDef, type SettingValue } from "../registries/settings.ts";
 import { isGithubRemoteUrl } from "./github.ts";
+import {
+	GSTACK_TEMPLATE_URL,
+	isProjectTemplate,
+	type ProjectTemplate,
+	projectFolderName,
+} from "./project-templates.ts";
 import {
 	actionIdsEqual,
 	actionLabel,
@@ -738,9 +755,66 @@ export class RepoService {
 		return ok(registered.value);
 	}
 
-	/** Backs `Actions.projects.createFromTemplate`. */
-	createFromTemplate(_name: string, _parentDir: string, _template: string): Promise<Result<Repo>> {
-		return notImplemented("PRJ-03");
+	/**
+	 * Backs `Actions.projects.createFromTemplate`: makes `<parent>/<slug>`, applies the chosen
+	 * template, and adds the folder as a project. A folder this call made is moved to the Trash when
+	 * a later step fails, so a failed Quick start leaves nothing behind.
+	 */
+	async createFromTemplate(
+		rawName: string,
+		rawParentDir: string,
+		template: string,
+	): Promise<Result<Repo>> {
+		const folder = projectFolderName(rawName);
+		if (folder === "") {
+			return err(appError("repo_name_invalid", "Project name must include letters or numbers."));
+		}
+		const parentDir = normaliseRootPath(rawParentDir);
+		if (parentDir === "") {
+			return err(appError("repo_location_missing", "Choose a folder for the new project."));
+		}
+		if (!isProjectTemplate(template)) {
+			return err(appError("repo_template_unknown", "Choose one of the offered templates."));
+		}
+		const location = await this.#deps.platform.fs.stat(parentDir);
+		if (!location.ok) {
+			return err(
+				appError("repo_location_missing", `Can't find the folder ${parentDir}.`, location.error),
+			);
+		}
+		if (!location.value.isDirectory) {
+			return err(appError("repo_location_missing", `${parentDir} is not a folder.`));
+		}
+
+		const destination = joinFolder(parentDir, folder);
+		const existing = await this.#deps.platform.fs.stat(destination);
+		if (existing.ok) {
+			return err(appError("repo_destination_exists", `The folder ${destination} already exists.`));
+		}
+		const made = await this.#deps.platform.fs.mkdirp(destination);
+		if (!made.ok) {
+			return err(
+				appError("repo_location_missing", `Can't create the folder ${destination}.`, made.error),
+			);
+		}
+
+		const prepared = await this.#prepareTemplate(parentDir, destination, folder, template);
+		if (!prepared.ok) {
+			const cleaned = await this.#removeCreatedFolder(destination, prepared.error);
+			return cleaned.ok ? prepared : err(cleaned.error);
+		}
+		const registered = await this.#registerFolder(destination, async () => {
+			const remote = await this.#readRemoteUrl(destination);
+			if (!remote.ok) return remote;
+			const branch = await this.#detectDefaultBranch(destination);
+			if (!branch.ok) return branch;
+			return ok({ name: folder, remoteUrl: remote.value, defaultBranch: branch.value });
+		});
+		if (!registered.ok) {
+			const cleaned = await this.#removeCreatedFolder(destination, registered.error);
+			return cleaned.ok ? registered : err(cleaned.error);
+		}
+		return registered;
 	}
 
 	/** Backs `Actions.projects.remove`. */
@@ -952,12 +1026,199 @@ export class RepoService {
 		return ok(undefined);
 	}
 
-	/** Backs `Actions.projects.createGitHubRepo`. Undoes the earlier steps when a later one fails. */
-	createGitHubRepo(
-		_repoId: RepoId,
-		_input: { owner: string; name: string; isPrivate: boolean },
+	/**
+	 * Backs `Actions.projects.createGitHubRepo`: renames an existing origin to upstream, creates the
+	 * repository from this folder, pushes the current branch with its upstream set, and returns the
+	 * repository's web URL. A failure after the rename puts origin back, so the project's remotes
+	 * are as they were.
+	 */
+	async createGitHubRepo(
+		repoId: RepoId,
+		input: { owner: string; name: string; isPrivate: boolean },
 	): Promise<Result<string>> {
-		return notImplemented("PRJ-03");
+		const found = await this.#deps.repos.repos.get(repoId);
+		if (!found.ok) return found;
+		if (found.value === null) {
+			return err(appError("repo_unknown", "That project no longer exists."));
+		}
+		const name = projectFolderName(input.name);
+		if (name === "") {
+			return err(appError("repo_name_invalid", "Repository name must include letters or numbers."));
+		}
+		const owner = input.owner.trim();
+		if (owner === "") {
+			return err(appError("repo_owner_missing", "Choose a GitHub account or organisation."));
+		}
+		const rootPath = found.value.rootPath;
+		const gitDir = await this.#deps.platform.fs.stat(`${rootPath}/.git`);
+		if (!gitDir.ok) {
+			const initialised = await this.#deps.git.runChecked(initRepository(), { cwd: rootPath });
+			if (!initialised.ok) {
+				return err(
+					appError(
+						"github_repo_init_failed",
+						`Couldn't initialize Git in ${rootPath}. ${initialised.error.message}`,
+						initialised.error,
+					),
+				);
+			}
+		}
+
+		const origin = await this.#deps.git.run(remoteGetUrl("origin"), { cwd: rootPath });
+		const hasOrigin = origin.ok && origin.value.exitCode === 0 && origin.value.stdout.trim() !== "";
+		let renamed = false;
+		if (hasOrigin) {
+			const upstream = await this.#deps.git.run(remoteGetUrl("upstream"), { cwd: rootPath });
+			const hasUpstream =
+				upstream.ok && upstream.value.exitCode === 0 && upstream.value.stdout.trim() !== "";
+			if (hasUpstream) {
+				return err(
+					appError(
+						"repo_upstream_exists",
+						"This project already has an upstream remote. Rename or remove it, then try again.",
+					),
+				);
+			}
+			const moved = await this.#deps.git.runChecked(remoteRename("origin", "upstream"), {
+				cwd: rootPath,
+			});
+			if (!moved.ok) {
+				return err(
+					appError(
+						"github_repo_rename_failed",
+						`Couldn't move the existing origin remote aside. ${moved.error.message}`,
+						moved.error,
+					),
+				);
+			}
+			renamed = true;
+		}
+
+		const fail = async (failure: AppError): Promise<Result<string>> => {
+			if (!renamed) return err(failure);
+			const restored = await this.#deps.git.runChecked(remoteRename("upstream", "origin"), {
+				cwd: rootPath,
+			});
+			if (!restored.ok) {
+				return err(
+					appError(
+						"github_repo_restore_failed",
+						`${failure.message} The original origin remote could not be restored. ${restored.error.message}`,
+						failure,
+					),
+				);
+			}
+			return err(failure);
+		};
+
+		const head = await this.#deps.git.run(revParseVerify("HEAD"), { cwd: rootPath });
+		if (!head.ok) {
+			return fail(
+				appError(
+					"github_repo_head_failed",
+					`Couldn't read the project's commits. ${head.error.message}`,
+					head.error,
+				),
+			);
+		}
+		if (head.value.exitCode !== 0) {
+			const status = await this.#deps.git.stdout(statusPorcelainAll(), { cwd: rootPath });
+			if (!status.ok) {
+				return fail(
+					appError(
+						"github_repo_head_failed",
+						`Couldn't read the project's changes. ${status.error.message}`,
+						status.error,
+					),
+				);
+			}
+			if (status.value === "") {
+				const keep = await this.#deps.platform.fs.writeTextAtomic(`${rootPath}/.gitkeep`, "");
+				if (!keep.ok) {
+					return fail(
+						appError(
+							"github_repo_commit_failed",
+							`Couldn't prepare the first commit. ${keep.error.message}`,
+							keep.error,
+						),
+					);
+				}
+			}
+			const added = await this.#deps.git.runChecked(addAll(), { cwd: rootPath });
+			if (!added.ok) {
+				return fail(
+					appError(
+						"github_repo_commit_failed",
+						`Couldn't stage the first commit. ${added.error.message}`,
+						added.error,
+					),
+				);
+			}
+			const committed = await this.#deps.git.runChecked(commitAll("Initial commit"), {
+				cwd: rootPath,
+			});
+			if (!committed.ok) {
+				return fail(
+					appError(
+						"github_repo_commit_failed",
+						`Couldn't make the first commit. ${committed.error.message}`,
+						committed.error,
+					),
+				);
+			}
+		}
+
+		const ownerSlashName = `${owner}/${name}`;
+		const created = await this.#deps.git.runChecked(
+			githubRepoCreate(ownerSlashName, `A repository for ${name}`, input.isPrivate, "."),
+			{ cwd: rootPath },
+		);
+		if (!created.ok) {
+			return fail(
+				appError(
+					"github_repo_create_failed",
+					`Couldn't create the GitHub repository ${ownerSlashName}. ${created.error.message}`,
+					created.error,
+				),
+			);
+		}
+		const pushed = await this.#deps.git.runChecked(pushSetUpstreamHead("origin"), {
+			cwd: rootPath,
+		});
+		if (!pushed.ok) {
+			return fail(
+				appError(
+					"github_repo_push_failed",
+					`The repository was created, but the current branch could not be pushed. ${pushed.error.message}`,
+					pushed.error,
+				),
+			);
+		}
+		const remote = await this.#deps.git.stdout(remoteGetUrl("origin"), { cwd: rootPath });
+		if (!remote.ok || remote.value === "") {
+			return fail(
+				appError(
+					"github_repo_remote_missing",
+					"The new repository's origin remote could not be read.",
+					remote.ok ? undefined : remote.error,
+				),
+			);
+		}
+		const url = await this.#deps.git.stdout(githubRepoUrl(ownerSlashName), { cwd: rootPath });
+		if (!url.ok || url.value === "") {
+			return fail(
+				appError(
+					"github_repo_url_missing",
+					"The new repository's web address could not be read.",
+					url.ok ? undefined : url.error,
+				),
+			);
+		}
+		const canonical = normaliseRemoteUrl(remote.value);
+		const saved = await this.#deps.repos.repos.setRemoteUrl(repoId, canonical);
+		if (!saved.ok) return err(saved.error);
+		this.#upsert({ ...found.value, remoteUrl: canonical });
+		return ok(url.value);
 	}
 
 	/**
@@ -1061,6 +1322,153 @@ export class RepoService {
 			reposById,
 			order: visibleOrder(reposById),
 		});
+	}
+
+	/** Runs the commands a template needs inside the folder Quick start made. */
+	async #prepareTemplate(
+		parentDir: string,
+		destination: string,
+		folder: string,
+		template: ProjectTemplate,
+	): Promise<Result<void>> {
+		if (template === "empty") {
+			const initialised = await this.#deps.git.runChecked(initRepository(), {
+				cwd: destination,
+			});
+			if (!initialised.ok) {
+				return err(
+					appError(
+						"repo_template_failed",
+						`Couldn't initialize Git in ${destination}. ${initialised.error.message}`,
+						initialised.error,
+					),
+				);
+			}
+			const keep = await this.#deps.platform.fs.writeTextAtomic(`${destination}/.gitkeep`, "");
+			if (!keep.ok) return keep;
+			return this.#firstCommit(destination, "Initial commit");
+		}
+
+		if (template === "nextjs") {
+			const made = await this.#deps.git.runChecked(
+				{
+					program: "zsh",
+					args: [
+						"-lc",
+						`npx --yes create-next-app@latest ${folder} --yes --typescript --tailwind --eslint --app --src-dir --import-alias "@/*" --use-pnpm`,
+					],
+					timeoutMs: 10 * 60_000,
+				},
+				{ cwd: parentDir },
+			);
+			if (!made.ok) {
+				return err(
+					appError(
+						"repo_template_failed",
+						`Couldn't create the Next.js project. ${made.error.message}`,
+						made.error,
+					),
+				);
+			}
+			const env = await this.#deps.platform.fs.writeTextAtomic(`${destination}/.env.local`, "");
+			return env.ok ? ok(undefined) : env;
+		}
+
+		const initialised = await this.#deps.git.runChecked(initRepository(), { cwd: destination });
+		if (!initialised.ok) {
+			return err(
+				appError(
+					"repo_template_failed",
+					`Couldn't initialize Git in ${destination}. ${initialised.error.message}`,
+					initialised.error,
+				),
+			);
+		}
+		const skills = await this.#deps.platform.fs.mkdirp(`${destination}/.claude/skills`);
+		if (!skills.ok) return skills;
+		const gstackPath = `${destination}/.claude/skills/gstack`;
+		const cloned = await this.#deps.git.runChecked(
+			cloneWithProgress(GSTACK_TEMPLATE_URL, gstackPath),
+			{ cwd: parentDir },
+		);
+		if (!cloned.ok) {
+			return err(
+				appError(
+					"repo_template_failed",
+					`Couldn't download the gstack template. ${cloned.error.message}`,
+					cloned.error,
+				),
+			);
+		}
+		for (const host of ["claude", "codex"] as const) {
+			const setup = await this.#deps.git.runChecked(
+				{ program: "zsh", args: ["-lc", `./setup --host ${host}`] },
+				{ cwd: gstackPath },
+			);
+			if (!setup.ok) {
+				return err(
+					appError(
+						"repo_template_failed",
+						`Couldn't set up gstack for ${host}. ${setup.error.message}`,
+						setup.error,
+					),
+				);
+			}
+		}
+		const nestedGit = `${gstackPath}/.git`;
+		if (await this.#deps.platform.fs.exists(nestedGit)) {
+			const removed = await this.#deps.platform.fs.trash(nestedGit);
+			if (!removed.ok) {
+				return err(
+					appError(
+						"repo_template_failed",
+						`Couldn't finish the gstack template. ${removed.error.message}`,
+						removed.error,
+					),
+				);
+			}
+		}
+		return this.#firstCommit(destination, "Initial commit with gstack");
+	}
+
+	/** Stages everything and commits it once, for a folder Quick start made. */
+	async #firstCommit(path: string, message: string): Promise<Result<void>> {
+		const added = await this.#deps.git.runChecked(addAll(), { cwd: path });
+		if (!added.ok) {
+			return err(
+				appError(
+					"repo_template_failed",
+					`Couldn't stage the first commit. ${added.error.message}`,
+					added.error,
+				),
+			);
+		}
+		const committed = await this.#deps.git.runChecked(commitAll(message), { cwd: path });
+		if (!committed.ok) {
+			return err(
+				appError(
+					"repo_template_failed",
+					`Couldn't make the first commit. ${committed.error.message}`,
+					committed.error,
+				),
+			);
+		}
+		return ok(undefined);
+	}
+
+	/** Moves a failed Quick start's folder to the Trash, and reports both failures if that fails. */
+	async #removeCreatedFolder(destination: string, failure: AppError): Promise<Result<void>> {
+		const removed = await this.#deps.platform.fs.trash(destination);
+		if (!removed.ok) {
+			return err(
+				appError(
+					"repo_template_cleanup_failed",
+					`${failure.message} The folder ${destination} could not be removed: ${removed.error.message}`,
+					failure,
+				),
+			);
+		}
+		return ok(undefined);
 	}
 
 	/**

@@ -1,6 +1,8 @@
 /**
  * @feature DATA-01 Query hook contract for screens
- * Owns: the GitHub hooks: access, checks, pull requests, issues and repository lists.
+ * @feature PRJ-03 The repository-name check hook the Create project dialog shows
+ * Owns: the GitHub hooks: access, checks, pull requests, issues, repository lists, stacks and the
+ * repository-name check.
  * Behaviour: services-map.md 2.5 (queries for GitHub data); core/hooks.ts states the contract.
  * Must handle: a GitHub token of unknown status, a check log that cannot be read.
  * Test first: the test for a hook body lives with the feature that implements it.
@@ -11,12 +13,21 @@ import { useMemo } from "react";
 import { useStore } from "zustand";
 import type { Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
-import type { GitHubOwner, GitHubRepoSummary, IssueView, PullRequestSummary } from "../model.ts";
+import type {
+	GitHubOwner,
+	GitHubRepoSummary,
+	IssueView,
+	PullRequestSummary,
+	RepoNameCheck,
+	StackEntryView,
+} from "../model.ts";
 import {
 	canListGithubIssues,
 	canListGithubPullRequests,
 	toGitHubAccessView,
 } from "../services/github.ts";
+import { linearIssueToView } from "../services/linear.ts";
+import { projectFolderName } from "../services/project-templates.ts";
 
 export const useCheckLog: Queries["useCheckLog"] = (workspaceId, checkName) => {
 	const { services } = useServices();
@@ -47,7 +58,23 @@ export const useCheckLog: Queries["useCheckLog"] = (workspaceId, checkName) => {
 };
 export const usePullRequestActivity: Queries["usePullRequestActivity"] = () =>
 	notImplemented("PR-07");
-export const useStack: Queries["useStack"] = () => notImplemented("PR-08");
+export const useStack: Queries["useStack"] = (workspaceId) => {
+	const { services } = useServices();
+	const result = useQuery<StackEntryView[], AppError>({
+		queryKey: ["github", "stack", workspaceId],
+		// Stack info is slow-changing; GitHub's own refresh interval for it is 60 seconds.
+		staleTime: 60_000,
+		refetchInterval: 60_000,
+		queryFn: async () => {
+			const found = await services.github.readStack(workspaceId);
+			if (!found.ok) throw found.error;
+			return found.value;
+		},
+	});
+	if (result.isError && result.error !== null) return { state: "error", error: result.error };
+	if (result.data === undefined) return { state: "loading" };
+	return { state: "ready", data: result.data };
+};
 export const useGitHubAccess: Queries["useGitHubAccess"] = () => {
 	const { github } = useServices().services;
 	const access = useStore(github.store, (s) => s.access);
@@ -63,14 +90,32 @@ export const useIssues: Queries["useIssues"] = (repoId, provider, query) => {
 	const { services } = useServices();
 	const repo = useStore(services.repo.store, (state) => state.reposById[repoId]);
 	const access = useStore(services.github.store, (state) => state.access);
+	const linearConnection = useStore(services.linear.store, (state) => state.connection);
 	const github = provider === "github";
 	const accessLoading = github && access.status === "unknown" && access.reason === undefined;
 	const available = !github || canListGithubIssues(repo?.remoteUrl ?? null, access);
+	const linearError = github
+		? null
+		: linearConnection === "not_connected"
+			? appError("linear_not_connected", "Connect Linear to list issues.")
+			: linearConnection === "key_rejected"
+				? appError(
+						"linear_key_rejected",
+						"Linear rejected the API key. Enter a new key in Settings.",
+					)
+				: null;
 	const result = useQuery<IssueView[], AppError>({
-		queryKey: ["github", "issues", repoId, provider, query],
-		enabled: available && !accessLoading && (!github || repo !== undefined),
+		queryKey: ["issues", repoId, provider, query, github ? null : linearConnection],
+		enabled: github ? available && !accessLoading && repo !== undefined : linearError === null,
 		queryFn: async () => {
-			if (!github) notImplemented("PR-09");
+			if (!github) {
+				const found =
+					query.trim() === ""
+						? await services.linear.loadMyIssues()
+						: await services.linear.search(query);
+				if (!found.ok) throw found.error;
+				return found.value.map(linearIssueToView);
+			}
 			if (repo === undefined) throw appError("repo_unknown", "That project was removed.");
 			if (repo.remoteUrl === null) {
 				throw appError("github_not_github", "This repository has no GitHub remote.");
@@ -79,9 +124,10 @@ export const useIssues: Queries["useIssues"] = (repoId, provider, query) => {
 			if (!found.ok) throw found.error;
 			return found.value;
 		},
-		staleTime: 30_000,
+		staleTime: github ? 30_000 : 15_000,
 	});
 	if (accessLoading || (github && repo === undefined)) return { state: "loading" };
+	if (linearError !== null) return { state: "error", error: linearError };
 	if (!available) {
 		return {
 			state: "error",
@@ -184,4 +230,36 @@ export const useGitHubRepos: Queries["useGitHubRepos"] = (owner, query) => {
 	if (result.data === undefined) return { state: "loading" };
 	return { state: "ready", data: result.data };
 };
-export const useRepoNameCheck: Queries["useRepoNameCheck"] = () => notImplemented("PRJ-03");
+export const useRepoNameCheck: Queries["useRepoNameCheck"] = (owner, name) => {
+	const { services } = useServices();
+	const access = useStore(services.github.store, (state) => state.access);
+	const loading = access.status === "unknown" && access.reason === undefined;
+	const available = access.status === "ok";
+	const trimmedOwner = owner.trim();
+	const folder = projectFolderName(name);
+	const invalid = name.trim() !== "" && folder === "";
+	const result = useQuery<RepoNameCheck, AppError>({
+		queryKey: ["github", "repo-name", trimmedOwner, folder],
+		enabled: available && trimmedOwner !== "" && folder !== "" && !invalid,
+		queryFn: async () => {
+			const found = await services.github.checkRepoName(trimmedOwner, folder);
+			if (!found.ok) throw found.error;
+			return found.value;
+		},
+	});
+	if (invalid) return { state: "ready", data: "invalid" };
+	if (loading) return { state: "loading" };
+	if (!available) {
+		return {
+			state: "error",
+			error: appError(
+				"github_repo_name_unavailable",
+				"Sign in to GitHub to check a repository name.",
+			),
+		};
+	}
+	if (trimmedOwner === "" || folder === "") return { state: "loading" };
+	if (result.isError && result.error !== null) return { state: "error", error: result.error };
+	if (result.data === undefined) return { state: "loading" };
+	return { state: "ready", data: result.data };
+};
