@@ -20,7 +20,8 @@
  * that unmounts (its registration is removed); a command that is disabled (neither a key press nor a
  * menu pick runs it, and the key press is not swallowed); a menu pick for an id the registry does not
  * know (reported, not thrown); a modal's focus trap that takes Tab and Shift+Tab before the root
- * listener sees them (the modal runs its own scope's keys first through `useScopeKeyDown`).
+ * listener sees them (the modal runs its own scope's keys first through `useScopeKeyDown`); a bare
+ * character or caret key in a focused text field, which is the field's typing (`fieldOwnsKey`).
  * Our design choice: priorities are three named levels (`base`, `area`, `modal`), not numbers. A terminal
  * or diff area registers at `area`; a dialog registers at `modal`, so it wins while it is open.
  * Our design choice: a focus area marks itself with `data-command-scope="chat-input"` (or several scope
@@ -274,6 +275,34 @@ function composerOwnsKey(
 			sendWith,
 		) !== null
 	);
+}
+
+/** Keys that move the caret or delete text in a field, as opposed to Tab, Enter and Escape. */
+const CARET_KEYS: ReadonlySet<string> = new Set([
+	"ArrowUp",
+	"ArrowDown",
+	"ArrowLeft",
+	"ArrowRight",
+	"Backspace",
+	"Delete",
+	"Home",
+	"End",
+	"PageUp",
+	"PageDown",
+]);
+
+/**
+ * True when a key press is a focused text field's own typing or caret movement, so no command may
+ * take it: a character, an arrow, Backspace, Delete, Home, End or a page key, with no Cmd, Ctrl or
+ * Alt. Without this, the diff's bare ArrowUp and ArrowDown (previous and next file), the question
+ * card's digits and the queue's E would fire while the user types in the file editor, the "Other"
+ * answer or the queued message's editor. Tab, Enter, Escape and modified keys still reach the
+ * dispatcher, which the palette, the composer and every shortcut rely on.
+ */
+export function fieldOwnsKey(press: KeyPress, target: Element | null): boolean {
+	if (target === null || !isTextEntry(target)) return false;
+	if (press.metaKey || press.ctrlKey || press.altKey) return false;
+	return press.key.length === 1 || CARET_KEYS.has(press.key);
 }
 
 /**
@@ -642,6 +671,7 @@ export function useCommandDispatcher(
 			const active = scopesForTarget(event.target, useOverlayStore.getState().open);
 			const scopes = onlyScope === null ? active : active.filter((scope) => scope === onlyScope);
 			if (composerOwnsKey(press, scopes, sendKeyMode)) return false;
+			if (fieldOwnsKey(press, event.target instanceof Element ? event.target : null)) return false;
 			const commandId = commandForKeyPress(press, scopes, bindings, sendKeyMode);
 			if (commandId === null) return false;
 			if (!deps.isEnabled(commandId)) return false;
