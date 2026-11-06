@@ -6,7 +6,8 @@
  * minutes, sweep every 2 s, a process with background tasks is skipped, and at most 2 warm
  * processes (retention "warm", no leases) are kept; the least recently idle go first.
  * Must handle: a leased process is never stopped, a busy one (working) is never stopped, a process
- * with background tasks survives the idle sweep, a process that was never idle (lastIdleAt null)
+ * with background tasks survives the idle sweep, a process shared through Remote Control (RC-02)
+ * is spared by both rules, so claude.ai keeps its session, a process that was never idle (lastIdleAt null)
  * is not stopped by the idle rule, and ties in the warm cap break by oldest first.
  * Test first: three warm unleased entries with idle times 1, 2, 3 and cap 2 evict the one idle at 1.
  * Our design choice: the numbers are Conductor's, stated as ours: 30 minutes, 2 s, 2 warm.
@@ -24,6 +25,8 @@ export interface ProcessEntryView {
 	/** True while the chat is working. */
 	busy: boolean;
 	hasBackgroundTasks: boolean;
+	/** True while the chat is shared through Remote Control (RC-02). */
+	remoteControl: boolean;
 	/** When the process last went idle (ms since epoch), or null if it never did. */
 	lastIdleAt: number | null;
 }
@@ -40,6 +43,7 @@ export function selectIdleToStop(
 				entry.activeLeases === 0 &&
 				!entry.busy &&
 				!entry.hasBackgroundTasks &&
+				!entry.remoteControl &&
 				entry.lastIdleAt !== null &&
 				now - entry.lastIdleAt >= idleStopAfterMs,
 		)
@@ -47,8 +51,9 @@ export function selectIdleToStop(
 }
 
 /**
- * Keys of warm, unleased processes beyond the cap, least recently idle first. A busy process or
- * one with background tasks is never a candidate and does not count toward the cap.
+ * Keys of warm, unleased processes beyond the cap, least recently idle first. A busy process, one
+ * with background tasks and one shared through Remote Control is never a candidate and does not
+ * count toward the cap.
  */
 export function selectWarmToEvict(
 	entries: readonly ProcessEntryView[],
@@ -60,7 +65,8 @@ export function selectWarmToEvict(
 				entry.retention === "warm" &&
 				entry.activeLeases === 0 &&
 				!entry.busy &&
-				!entry.hasBackgroundTasks,
+				!entry.hasBackgroundTasks &&
+				!entry.remoteControl,
 		)
 		.sort((a, b) => (a.lastIdleAt ?? 0) - (b.lastIdleAt ?? 0));
 	return warm.slice(0, Math.max(0, warm.length - maxWarm)).map((entry) => entry.key);

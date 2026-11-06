@@ -183,6 +183,30 @@ export const zAgentLogin = z.object({
 });
 export type AgentLogin = z.infer<typeof zAgentLogin>;
 
+/**
+ * A Claude chat's Remote Control link (D019). off: not asked for, or the agent is not running.
+ * connecting: asked for, with no answer yet. ready, connected, reconnecting, disconnected and
+ * failed: the link's state as Claude reports it. unavailable: this chat cannot use Remote Control,
+ * and `detail` says why (an API key, or a base URL away from Anthropic).
+ */
+export const zRemoteControlStatus = z.object({
+	state: z.enum([
+		"off",
+		"connecting",
+		"ready",
+		"connected",
+		"reconnecting",
+		"disconnected",
+		"failed",
+		"unavailable",
+	]),
+	/** The page that opens the chat in claude.ai/code or the Claude app. */
+	sessionUrl: z.string().optional(),
+	/** Why it failed or cannot start, in plain words. */
+	detail: z.string().optional(),
+});
+export type RemoteControlStatus = z.infer<typeof zRemoteControlStatus>;
+
 const zAgentRef = { agent: zAgentKind, acpAgent: zAcpAgent.optional() };
 
 // ---------------------------------------------------------------- UI -> sidecar
@@ -238,7 +262,12 @@ export const appToSidecarRequests = {
 	/** Ask the sidecar what it knows. "known: false" means it restarted and has no state for this chat. */
 	getSessionStatus: method(
 		z.object({ sessionId: zSessionId }),
-		z.object({ known: z.boolean(), liveState: zLiveState.optional() }),
+		z.object({
+			known: z.boolean(),
+			liveState: zLiveState.optional(),
+			/** A Claude chat's Remote Control link, when the sidecar knows the chat (RC-02). */
+			remoteControl: zRemoteControlStatus.optional(),
+		}),
 	),
 	answerInteraction: method(
 		z.object({ sessionId: zSessionId, interactionId: zInteractionId, answer: zInteractionAnswer }),
@@ -429,6 +458,8 @@ export const sidecarToAppNotifications = {
 		interactionId: zInteractionId,
 		reason: zInteractionClosedReason,
 	}),
+	/** A Claude chat's Remote Control link changed: asked for, connected, lost or turned off (RC-02). */
+	remoteControlState: z.object({ sessionId: zSessionId, status: zRemoteControlStatus }),
 	/** Codex's goal for the chat changed or was cleared (null). */
 	goalChanged: z.object({ sessionId: zSessionId, goal: zCodexGoal.nullable() }),
 	/**

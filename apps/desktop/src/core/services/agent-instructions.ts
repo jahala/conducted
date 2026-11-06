@@ -4,10 +4,11 @@
  * @feature GIT-05 Commit and push, done by the agent on request
  * @feature GIT-07 Resolve conflicts, done by the agent on request
  * @feature GIT-14 Local-git forge: merge into target as an agent request
+ * @feature PR-08 the request to resolve a branch that is incompatible with its remote
  * Owns now: the text of the "create a pull request" request, the "reconcile with the target"
  * request (GIT-04), the "commit and push" request (GIT-05), the "resolve conflicts" request
  * (GIT-07), the "fix failing checks" request (PR-05), the local-git "merge into target" request
- * (GIT-14), plus the `pull.rebase` choice between rebasing and merging, and the AI code review
+ * (GIT-14), the "resolve the incompatibility with the remote" request (PR-08), plus the `pull.rebase` choice between rebasing and merging, and the AI code review
  * request. Renaming the branch is not a chat instruction here: WS-04 asks the sidecar's utility
  * prompt through ChatTitleService instead (D030).
  * Behaviour: structure-map.md section 6 pattern 5 (delegate risky git work to the agent),
@@ -26,8 +27,10 @@
  * steps, and its rebase steps finish with a leased force push; the extra review instructions from
  * "Edit before sending" are added after the chosen base; the Fix errors request names the branch,
  * each failing check and its log tail when one was read, or why its log could not be read.
- * Our design choice: all wording is our own. Each function returns plain text with no hidden
- * markers. The text is the message the user sees in the chat, so it must be readable.
+ * Our design choice: all wording is our own, except the one-line incompatibility request, which is
+ * Conductor's own short chat message so the user sees what Conductor shows (D020). Each function
+ * returns plain text with no hidden markers. The text is the message the user sees in the chat, so
+ * it must be readable.
  * Test first: commitAndPushInstruction names the branch and remote; createPrInstruction mentions
  * the target branch, `gh pr create` and the PR template path; resolveConflictsInstruction names
  * the target and the rebase or merge steps when the repository has no prompt; aiReviewInstruction
@@ -158,6 +161,12 @@ function rebaseOrMergeSteps(input: {
 				: "Push the branch with `git push`.";
 	return { start, push };
 }
+
+/**
+ * The message the header's Resolve sends when the branch is incompatible with its remote and no
+ * stack sync fixed it. Conductor sends this one line, with no repository prompt and no steps.
+ */
+export const RESOLVE_INCOMPATIBLE_INSTRUCTION = "Resolve branch incompatibility with remote";
 
 /**
  * The instruction for "Resolve conflicts". A repository prompt replaces the default text

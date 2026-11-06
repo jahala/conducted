@@ -40,9 +40,16 @@
  * created: workspace creation writes `push.autoSetupRemote` for the new worktree (GIT-01, WS-01).
  * Push itself does not read it.
  * Also: GIT-13 decides when the pull request's base or head is newer than the local refs and
- * fetches it at most once a minute for one repository and branch. The diff target is always a
- * remote branch: this service holds no Graphite stack data, so a local stack parent never
- * reaches the decision.
+ * fetches it at most once a minute for one repository and branch. PR-08 supplies the Graphite
+ * parent of the branch, and that local parent is then the diff target; the pull request base is
+ * used when Graphite reports none.
+ * PR-08 Resolve on a branch incompatible with its remote: when no stack sync fixed it, the agent
+ * gets Conductor's one-line request (`resolveIncompatible`), with no repository prompt.
+ * PR-08 range scope: resolves the workspace's stack pull requests in its repository
+ * (git/stack-range.ts), fetching the branches of missing commits at most once a minute for one
+ * repository and branch, apart from the GIT-13 fetch, and compares the run the scope names. A
+ * failed fetch travels as the cause of the "can't show" error (Conductor only logs it). The stack
+ * members come from the GitHub service's last stack read (`stackOf`).
  * GIT-09: the rename reads the checked-out branch, asks the git helpers for a free name, and
  * renames under the worktree lock; a detached HEAD returns the plain "check out a branch" message.
  * The workspace folder rename, its short-lived symlink and the old-remote-branch toast are not
@@ -143,6 +150,13 @@ import { checkpointRef, turnCheckpointId } from "../git/refs.ts";
 import { freeBranchName, renameBranchInWorktree } from "../git/rename.ts";
 import type { GitRunner } from "../git/runner.ts";
 import {
+	resolvePullRequestRanges,
+	type StackRangeMember,
+	type StackRunSelection,
+	selectStackRun,
+	stackRangePullRequests,
+} from "../git/stack-range.ts";
+import {
 	type ChangesSnapshot,
 	diffTargetOf,
 	mergeChanges,
@@ -163,6 +177,7 @@ import {
 	commitAndPushInstruction,
 	pullRebaseStrategy,
 	pullStrategy,
+	RESOLVE_INCOMPATIBLE_INSTRUCTION,
 	reconcileInstruction,
 	resolveConflictsInstruction,
 } from "./agent-instructions.ts";
@@ -531,8 +546,20 @@ export function decideFetch(
 	return { fetch: true, refspecs };
 }
 
+/** The Graphite answers the git service reads for a branch (PR-08). */
+export interface GraphitePort {
+	parentBranchOf(repoRootPath: string, branch: string): string | null;
+	containsBranch(repoRootPath: string, branch: string): boolean;
+	checkout(workspacePath: string, branch: string): Promise<Result<void>>;
+}
+
 export interface GitServiceDeps {
 	git: GitRunner;
+	/**
+	 * The Graphite stack state. The container always supplies it. Tests that never read a stack may
+	 * leave it out, and then the diff target is the remote branch as before.
+	 */
+	graphite?: GraphitePort;
 	/** Looks up folders and branch names for a workspace. Fails for unknown ids. */
 	contextOf: (workspaceId: WorkspaceId) => Promise<Result<WorkspaceGitContext>>;
 	agent: AgentMessenger;
@@ -551,6 +578,12 @@ export interface GitServiceDeps {
 	setIntendedTargetBranch: (workspaceId: WorkspaceId, branch: string) => Promise<Result<void>>;
 	/** Moves an open pull request's base; false when there is no open pull request (GIT-08). */
 	moveOpenPullRequestBase: (workspaceId: WorkspaceId, branch: string) => Promise<Result<boolean>>;
+	/**
+	 * The members of the workspace's GitHub stack, from trunk up, for the range scope (PR-08). The
+	 * container always supplies it. Tests that never compare a range may leave it out; a range
+	 * scope then returns an error instead of guessing.
+	 */
+	stackOf?: (workspaceId: WorkspaceId) => Promise<Result<readonly StackRangeMember[]>>;
 }
 
 /**
@@ -598,6 +631,13 @@ export class GitService {
 	readonly #deps: GitServiceDeps;
 	/** When each repository and branch was last fetched, keyed by root path and branch. */
 	readonly #lastFetchAt = new Map<string, number>();
+	/**
+	 * When each repository and branch was last fetched for a range's missing commits, kept apart
+	 * from the staleness fetch above, as Conductor keeps its two fetchers apart (PR-08).
+	 */
+	readonly #lastRangeFetchAt = new Map<string, number>();
+	/** Range fetches still running, by the same key, so a second caller waits for the first. */
+	readonly #rangeFetches = new Map<string, Promise<Result<void>>>();
 	readonly #watchers = new Map<string, Watcher>();
 	readonly #branchWatchers = new Map<string, BranchWatcher>();
 	readonly #latest = createLatestWins<string>();
@@ -884,7 +924,8 @@ export class GitService {
 
 		const found = context.value;
 		const target = diffTargetOf({
-			graphiteParentBranch: null,
+			graphiteParentBranch:
+				this.#deps.graphite?.parentBranchOf(found.repoRootPath, found.branch) ?? null,
 			pullRequestBaseBranch: null,
 			intendedTargetBranch: found.targetBranch,
 			remote: found.remote,
@@ -1059,9 +1100,18 @@ export class GitService {
 		const targetRef =
 			context.targetBranch.length > 0 ? remoteTargetRef(context.targetBranch, context.remote) : "";
 
+		let stackRun: StackRunSelection | undefined;
+		let rangeFetchError: AppError | null = null;
+		if (scope.kind === "range") {
+			const run = await this.#stackRun(workspaceId, context, scope.prNumbers);
+			if (!run.ok) return run;
+			stackRun = run.value.selection;
+			rangeFetchError = run.value.fetchError;
+		}
+
 		let mergeBaseWithTarget: string | null = null;
 		let mergeBaseWithScopeTarget: string | null = null;
-		if (scope.kind === "branch") {
+		if (scope.kind === "branch" || stackRun?.kind === "checkedOut") {
 			const base = await this.#mergeBase(cwd, targetRef, branch);
 			if (!base.ok) return base;
 			mergeBaseWithTarget = base.value;
@@ -1107,10 +1157,100 @@ export class GitService {
 			mergeBaseWithScopeTarget,
 			turnCheckpoints,
 			commitParentExists,
+			...(stackRun === undefined ? {} : { stackRun }),
 		};
 		const comparison = resolveComparison(scope, comparisonContext);
-		if (!comparison.ok) return comparison;
+		if (!comparison.ok) {
+			// A range whose commits stayed missing carries the fetch that failed to bring them.
+			if (comparison.error.code === "stack_range_unavailable" && rangeFetchError !== null) {
+				return err(appError(comparison.error.code, comparison.error.message, rangeFetchError));
+			}
+			return comparison;
+		}
 		return ok({ cwd, from: comparison.value.from, to: comparison.value.to });
+	}
+
+	/**
+	 * Resolves the workspace's stack pull requests in its repository and picks the run the range
+	 * names (PR-08, services-map 3.4.5). The checked-out branch is the live pull request.
+	 */
+	async #stackRun(
+		workspaceId: WorkspaceId,
+		context: WorkspaceGitContext,
+		prNumbers: readonly number[],
+	): Promise<Result<{ selection: StackRunSelection; fetchError: AppError | null }>> {
+		const stackOf = this.#deps.stackOf;
+		if (stackOf === undefined) {
+			return err(appError("stack_range_unresolved", "The stack's pull requests were not read."));
+		}
+		const members = await stackOf(workspaceId);
+		if (!members.ok) return members;
+		const resolved = await resolvePullRequestRanges(this.#deps.git, {
+			cwd: context.workspacePath,
+			pullRequests: stackRangePullRequests(members.value),
+			liveBranch: context.branch,
+			fetchBranches: (branches) => this.#fetchRangeBranches(context, branches),
+		});
+		if (!resolved.ok) return resolved;
+		return ok({
+			selection: selectStackRun(resolved.value.pullRequests, prNumbers),
+			fetchError: resolved.value.fetchError,
+		});
+	}
+
+	/**
+	 * Fetches the branches of a range's missing commits in one `git fetch`, each repository and
+	 * branch at most once per `FETCH_MIN_GAP_MS`. A branch whose fetch is still running is waited
+	 * for, not fetched again. Returns the first failure, so the caller can say why.
+	 */
+	async #fetchRangeBranches(
+		context: WorkspaceGitContext,
+		branches: readonly string[],
+	): Promise<Result<void>> {
+		const now = this.#deps.now();
+		const waits: Promise<Result<void>>[] = [];
+		const due: { branch: string; key: string }[] = [];
+		for (const branch of new Set(branches)) {
+			if (!isSafeRefName(branch)) {
+				waits.push(
+					Promise.resolve(
+						err(appError("git_bad_revision", `"${branch}" can't be used as a Git branch name.`)),
+					),
+				);
+				continue;
+			}
+			const key = `${context.repoRootPath}\u0000${branch}`;
+			const running = this.#rangeFetches.get(key);
+			if (running !== undefined) {
+				waits.push(running);
+				continue;
+			}
+			const last = this.#lastRangeFetchAt.get(key);
+			if (last === undefined || now - last >= FETCH_MIN_GAP_MS) due.push({ branch, key });
+		}
+		if (due.length > 0) {
+			const run = this.#deps.git
+				.runChecked(
+					fetch(
+						context.remote,
+						due.map((entry) => entry.branch),
+					),
+					{ cwd: context.workspacePath },
+				)
+				.then((result): Result<void> => (result.ok ? ok(undefined) : result));
+			for (const entry of due) {
+				this.#recordFetchAttempt(this.#lastRangeFetchAt, entry.key, now);
+				this.#rangeFetches.set(entry.key, run);
+			}
+			const settled = run.finally(() => {
+				for (const entry of due) {
+					if (this.#rangeFetches.get(entry.key) === run) this.#rangeFetches.delete(entry.key);
+				}
+			});
+			waits.push(settled);
+		}
+		const results = await Promise.all(waits);
+		return results.find((result) => !result.ok) ?? ok(undefined);
 	}
 
 	/**
@@ -1182,8 +1322,14 @@ export class GitService {
 		if (!found.ok) return found;
 		const context = found.value;
 
+		const graphiteParent =
+			this.#deps.graphite?.parentBranchOf(context.repoRootPath, context.branch) ?? null;
+		const targetBranch =
+			graphiteParent ?? branchNameWithoutRemote(context.targetBranch, context.remote);
 		const baseRef =
-			context.targetBranch.length > 0 ? remoteTargetRef(context.targetBranch, context.remote) : "";
+			graphiteParent === null && context.targetBranch.length > 0
+				? remoteTargetRef(context.targetBranch, context.remote)
+				: "";
 		const upstreamRef =
 			context.branch.length > 0 ? remoteTargetRef(context.branch, context.remote) : "";
 		const [localBase, upstream] = await Promise.all([
@@ -1198,14 +1344,13 @@ export class GitService {
 		const decision = decideFetch(
 			{
 				remote: context.remote,
-				targetBranch: branchNameWithoutRemote(context.targetBranch, context.remote),
+				targetBranch,
 				branch: context.branch,
 				prBaseOid: pullRequestOids.prBaseOid,
 				prHeadOid: pullRequestOids.prHeadOid,
-				localBaseOid: localBase.value,
+				localBaseOid: graphiteParent === null ? localBase.value : null,
 				upstreamOid: upstream.value,
-				// This service has no Graphite stack data, so the stored target is a remote branch.
-				baseIsLocalStackParent: false,
+				baseIsLocalStackParent: graphiteParent !== null,
 			},
 			this.#lastFetchAt.get(key) ?? null,
 			now,
@@ -1213,7 +1358,7 @@ export class GitService {
 		if (!decision.fetch) return ok({ fetched: false });
 
 		// Record the attempt before the command runs, so two overlapping calls cannot both fetch.
-		this.#recordFetchAttempt(key, now);
+		this.#recordFetchAttempt(this.#lastFetchAt, key, now);
 		const fetched = await this.#deps.git.runChecked(fetch(context.remote, decision.refspecs), {
 			cwd: context.workspacePath,
 		});
@@ -1228,11 +1373,11 @@ export class GitService {
 	 * Records when a fetch was attempted. An entry older than the minimum gap can no longer block
 	 * a fetch, so it is dropped here instead of growing the map for the life of the process.
 	 */
-	#recordFetchAttempt(key: string, now: number): void {
-		for (const [storedKey, at] of this.#lastFetchAt) {
-			if (now - at >= FETCH_MIN_GAP_MS) this.#lastFetchAt.delete(storedKey);
+	#recordFetchAttempt(times: Map<string, number>, key: string, now: number): void {
+		for (const [storedKey, at] of times) {
+			if (now - at >= FETCH_MIN_GAP_MS) times.delete(storedKey);
 		}
-		this.#lastFetchAt.set(key, now);
+		times.set(key, now);
 	}
 
 	/** The commit a remote-tracking ref points at, or null when the ref does not exist. */
@@ -1622,6 +1767,20 @@ export class GitService {
 	}
 
 	/**
+	 * Asks the agent to resolve a branch that is incompatible with its remote. The Git panel calls
+	 * it for the header's Resolve on a diverged branch, after a stack sync failed or when the pull
+	 * request is not in a GitHub stack (services-map 3.8.2). The message carries no steps: the
+	 * agent reads the branch state itself, as in Conductor.
+	 */
+	async resolveIncompatible(workspaceId: WorkspaceId): Promise<Result<void>> {
+		const sent = await this.#deps.agent.sendInstruction(
+			workspaceId,
+			RESOLVE_INCOMPATIBLE_INSTRUCTION,
+		);
+		return sent.ok ? ok(undefined) : err(sent.error);
+	}
+
+	/**
 	 * The rebase or merge choice from `pull.rebase` alone. Resolve conflicts follows this setting
 	 * whatever `pull.ff` says, because the agent is rewriting or merging the branch itself. An
 	 * unset key means merge (services-map 3.6.4).
@@ -1787,7 +1946,13 @@ export class GitService {
 
 		const cwd = context.workspacePath;
 		const remote = context.remote.trim();
+		const graphiteBranch = this.#deps.graphite?.containsBranch(context.repoRootPath, name) ?? false;
 		const switched = await this.#deps.git.withWorktreeLock(cwd, async (): Promise<Result<void>> => {
+			// Graphite owns the checkout of its own stack branches, so use its command when it knows
+			// this branch. The plain fetch and checkout stay for every other branch.
+			if (graphiteBranch && this.#deps.graphite !== undefined) {
+				return this.#deps.graphite.checkout(cwd, name);
+			}
 			// A branch that exists locally can still be checked out when the fetch fails, because
 			// the user may be offline; a branch known only on the remote needs the fetch.
 			if (remote.length > 0) {
@@ -1812,7 +1977,7 @@ export class GitService {
 				);
 			}
 
-			if (remote.length === 0) return ok(undefined);
+			if (graphiteBranch || remote.length === 0) return ok(undefined);
 			const remoteRef = `refs/remotes/${remote}/${name}`;
 			const exists = await this.#refExists(cwd, remoteRef);
 			if (!exists.ok) return exists;

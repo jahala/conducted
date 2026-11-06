@@ -74,6 +74,9 @@
 	--color-hover: light-dark(#14100f0d, #ffffff0d);
 	--color-active: light-dark(#eae9e8, #312e2c);
 	--color-overlay: #00000080;
+	/* The letterbox behind a video and the text drawn on it, the same in light and dark. */
+	--color-media: #000000;
+	--color-on-media: #ffffff;
 
 	/* Lines. border and separator are decorative. border-strong marks input edges and meets 3:1. */
 	--color-border: light-dark(#eae8e6, #ffffff1a);

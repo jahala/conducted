@@ -327,6 +327,7 @@ describe("AGENT-09 Cursor runner", () => {
 			readText: async () => ok(null),
 			sidecarExecutable: "/bin/sidecar",
 			hasTranscript: async () => false,
+			readUserMessageText: async () => null,
 			newToken: () => "token",
 			clock: systemClock,
 			ids: cryptoIds,

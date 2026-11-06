@@ -9,8 +9,8 @@
  * @feature GIT-08 moving an open pull request's base when the target branch changes
  * @feature PR-04 the Checks tab's calls: one job's log (an expired log has its own error) and
  * re-running the failed workflow runs, one `gh run rerun --failed` per run
- * @feature PR-08 GitHub stacks: reading a pull request's stack and running the stack sync; the
- * stack merge is not built yet
+ * @feature PR-08 GitHub stacks: reading a pull request's stack, running the stack sync and
+ * merging the stack
  * @feature REV-04 GitHub review comment sync: reading review threads and general comments, and
  * resolving a review thread
  * Owns: probing `gh` access (`gh auth status`, the user's login, the git protocol), the access
@@ -18,13 +18,14 @@
  * (merge, auto-merge on and off, mark ready, edit title and body, request and remove reviewers,
  * approve), the Fix errors instruction that sends failing checks to the agent, PR-03's polling of
  * watched pull requests, PR-11's REST reads, PRJ-02's clone pickers, PRJ-03's repository-name check,
- * GIT-08's base move, PR-08's stack read and stack sync, and REV-04's review-thread and general
- * comment reads and thread resolve.
+ * GIT-08's base move, PR-08's stack read, stack sync and stack merge, and REV-04's review-thread
+ * and general comment reads and thread resolve.
  * Behaviour: services-map.md 3.9 (auth probes, method resolution, health), 5B.1.11 (failure
  * classes; only unauthorized breaks access), 3.7.5 and 5B.1.7 (the write actions, the merge
  * method cached per repo, and one call at a time for each action), 3.7.6 (fixing CI errors goes to
- * the agent as an instruction), 3.8.2 (the stack members, the optional `stackEntry` field, and
- * `gh stack sync`), 3.7.4 and 5A.7.3 (review threads, their extra comment pages, general comments
+ * the agent as an instruction), 3.8.2 (the stack members, the optional `stackEntry` field, each
+ * member's readiness, and `gh stack sync`), 3.0.3 (`gh stack sync` holds the worktree lock, then
+ * the repo lock), 3.7.4 and 5A.7.3 (review threads, their extra comment pages, general comments
  * and `resolveReviewThread`), 3.7.2 and 5B.1.2 to 5B.1.4
  * (the PR poll: batched queries per repository, adaptive batch size, cadence, skip rules and
  * rate-limit gate), 2.5.2 and 5B.1.10 (GitHub reads for the workspace pickers), 5B.8.2 (open
@@ -38,9 +39,11 @@
  * and refused when HEAD cannot be read, and a head mismatch gets a blocked message instead of the
  * raw `gh` error; auto-merge on is the same merge pinned to HEAD, and auto-merge off is
  * `--disable-auto`; mark ready, edit, reviewer and approve calls refuse a workspace with no PR;
- * an approval is pinned to the pull request's head commit; the merge method follows the repo's
- * allowed methods (squash, then rebase, then merge) and is cached per repository; each action runs
- * once while it is in flight, and the pending action state in the store names it; a write that
+ * an approval is pinned to the pull request's head commit; mark ready can take the number of
+ * another pull request of the stack, so the stack view marks the row clicked; the merge method
+ * follows the repo's allowed methods (squash, then rebase, then merge) and is cached per
+ * repository; each action runs once while it is in flight, and the pending action state in the
+ * store names it; a write that
  * succeeded polls the workspace before its pending state clears, so the header shows GitHub's new
  * state without waiting for the next timed poll; every write and the base move share one `gh`
  * runner, so their failures are mapped alike; Fix errors refuses when no check failed, reads each
@@ -54,8 +57,18 @@
  * workspace and leaves its last entry alone; a failed budget probe pauses polling and is reported
  * on the workspace; only the newest poll writes a workspace's entry; `dispose` stops every timer;
  * a stack read with no pull request or no stack is an empty answer, an unknown `stackEntry` field
- * is retried without and remembered per repository, and a stack sync that sees the extension
- * missing or a cross mark is an error, never a success; a review-comment read needs a pull request
+ * is retried without and remembered per remote host, each stack entry carries the restack flag
+ * the Graphite service last read for its branch (false before that repository was ever read), its
+ * head and base commit ids, and GitHub's merge state from one readiness query for every member
+ * (a readiness read that fails leaves every merge state unknown and keeps the stack, as Conductor
+ * does; a member without its commit ids is an error), a stack sync runs under the worktree lock
+ * and then the repo lock and is refused when the main worktree is not known, a
+ * stack sync or stack merge that `gh` answers with an unknown command gets the install message
+ * naming that action, a stack sync that prints a cross mark or its abort notice is an error, never
+ * a success, and a stack merge runs `gh stack merge` with the repository's first allowed merge
+ * method; the members the last stack read found, with each base branch, are kept per workspace
+ * for the range diff scope (PR-08, services-map 3.4.5), which reads the stack itself only when
+ * nothing has; a review-comment read needs a pull request
  * and an owner/name GitHub remote, follows every thread page and every thread's extra comment
  * page, and a resolve sends the raw thread id as a variable.
  * Our design choice: access is the user's own `gh auth login`, or the personal access token the
@@ -65,8 +78,10 @@
  * their repository (the git common dir) so siblings share one `gh api graphql` call. Required
  * check names are not part of the poll answer, so no check is marked required (NO_REQUIRED_CHECKS);
  * the Checks tab's required marks need the branch-protection read. The stack catch-up belongs to
- * PR-12; re-running failed checks belongs to PR-04, which owns the Checks tab's button. Graphite
- * (`gt state`, `gt checkout`) is not read here. The
+ * PR-12; re-running failed checks belongs to PR-04, which owns the Checks tab's button.
+ * `gt state` and `gt checkout` run in graphite.ts; the stack read only asks that service for a
+ * restack flag. The readiness rules that read the merge states live in
+ * core/status/stack-readiness.ts. The
  * sidebar and selected workspace subscriptions belong to the screens that own them; this file
  * calls `onMerged` and the workspace service archives the workspace, and calls
  * `onPullRequestChanged` when an open pull request's `updatedAt` changes so review comments sync.
@@ -132,6 +147,8 @@ import {
 	reviewThreadCommentsQuery,
 	reviewThreadsQuery,
 	stackMembers,
+	stackMerge,
+	stackReadinessQuery,
 	stackSync,
 } from "../git/gh-commands.ts";
 import {
@@ -146,6 +163,7 @@ import type {
 	GitHubOwner,
 	GitHubRepoSummary,
 	IssueView,
+	MergeStateStatus,
 	PullRequest,
 	PullRequestAction,
 	PullRequestSummary,
@@ -365,17 +383,30 @@ export interface GithubRepository {
 
 const NOT_GITHUB_REMOTE = "This repository has no GitHub remote.";
 
+/** A GitHub remote: the host it names and the repository's owner and name. */
+interface GithubRemote extends GithubRepository {
+	/** The host name, lower case, for example "github.com" or "ssh.github.com". */
+	host: string;
+}
+
 /**
  * Reads `owner/name` out of a GitHub remote URL, in any of the shapes git stores: HTTPS, scp-like
  * SSH and an ssh:// URL. Every other host is refused, the same rule as `isGithubRemoteUrl`.
  */
 export function githubRepositoryFromRemote(url: string): Result<GithubRepository> {
+	const remote = githubRemoteFromUrl(url);
+	return remote.ok ? ok({ owner: remote.value.owner, name: remote.value.name }) : remote;
+}
+
+/** The one parser behind `githubRepositoryFromRemote`, keeping the host as well. */
+function githubRemoteFromUrl(url: string): Result<GithubRemote> {
 	const trimmed = url.trim();
 	if (trimmed === "") return err(appError("github_not_github", NOT_GITHUB_REMOTE));
+	let host: string;
 	let path: string;
 	const scp = hasUrlScheme(trimmed) ? null : SCP_LIKE_REMOTE.exec(trimmed);
 	if (scp !== null) {
-		if (!isGithubHost(scp[1])) return err(appError("github_not_github", NOT_GITHUB_REMOTE));
+		host = scp[1] ?? "";
 		path = scp[2] ?? "";
 	} else {
 		let parsed: URL;
@@ -384,11 +415,10 @@ export function githubRepositoryFromRemote(url: string): Result<GithubRepository
 		} catch {
 			return err(appError("github_not_github", NOT_GITHUB_REMOTE));
 		}
-		if (!isGithubHost(parsed.hostname)) {
-			return err(appError("github_not_github", NOT_GITHUB_REMOTE));
-		}
+		host = parsed.hostname;
 		path = parsed.pathname;
 	}
+	if (!isGithubHost(host)) return err(appError("github_not_github", NOT_GITHUB_REMOTE));
 	const parts = path
 		.replace(/^\/+/, "")
 		.replace(/\/+$/, "")
@@ -400,7 +430,7 @@ export function githubRepositoryFromRemote(url: string): Result<GithubRepository
 	if (owner === undefined || name === undefined) {
 		return err(appError("github_not_github", NOT_GITHUB_REMOTE));
 	}
-	return ok({ owner, name });
+	return ok({ host: host.toLowerCase(), owner, name });
 }
 
 /** Whether the issues tab may ask GitHub for this repository (services-map 5B.8.2). */
@@ -600,6 +630,10 @@ export interface StackMember {
 	title: string;
 	branch: string;
 	state: StackEntryView["state"];
+	headSha: string;
+	baseSha: string;
+	/** The branch the pull request merges into, which a range fetches when its commit is missing. */
+	baseBranch: string;
 }
 
 /**
@@ -638,9 +672,13 @@ export function parsePrStackEntry(text: string): Result<PrStackInfo | null> {
 	});
 }
 
-/** The message shown when `gh stack` is not installed (services-map 3.8.2). */
-export const STACK_EXTENSION_MESSAGE =
-	"GitHub's stack extension is needed. Install it with `gh extension install github/gh-stack`.";
+/** The stack commands, named as the install message names them. */
+export type StackAction = "Syncing" | "Merging";
+
+/** The message shown when `gh stack` is not installed, naming what needed it (services-map 3.8.2). */
+export function stackExtensionMessage(action: StackAction): string {
+	return `${action} a stack needs GitHub's stack extension. Install it with \`gh extension install github/gh-stack\`.`;
+}
 
 /** Whether `gh` said it does not know the `stack` command. */
 export function isStackExtensionMissing(text: string): boolean {
@@ -674,13 +712,20 @@ export function parseStackMembers(text: string): Result<StackMember[]> {
 		const number = item.number;
 		const title = stringField(item, "title");
 		const head = item.head;
+		const base = item.base;
 		const branch = isRecord(head) ? stringField(head, "ref") : null;
+		const headSha = isRecord(head) ? stringField(head, "sha") : null;
+		const baseSha = isRecord(base) ? stringField(base, "sha") : null;
+		const baseBranch = isRecord(base) ? stringField(base, "ref") : null;
 		if (
 			typeof number !== "number" ||
 			!Number.isSafeInteger(number) ||
 			number <= 0 ||
 			title === null ||
-			branch === null
+			branch === null ||
+			headSha === null ||
+			baseSha === null ||
+			baseBranch === null
 		) {
 			return err(responseInvalid());
 		}
@@ -689,9 +734,48 @@ export function parseStackMembers(text: string): Result<StackMember[]> {
 			merged ? "MERGED" : stringField(item, "state"),
 			item.draft === true,
 		);
-		members.push({ number, title, branch, state });
+		members.push({ number, title, branch, state, headSha, baseSha, baseBranch });
 	}
 	return ok(members);
+}
+
+const MERGE_STATE_STATUSES: readonly MergeStateStatus[] = [
+	"CLEAN",
+	"DIRTY",
+	"BEHIND",
+	"UNSTABLE",
+	"BLOCKED",
+	"DRAFT",
+	"HAS_HOOKS",
+	"UNKNOWN",
+];
+
+function isMergeStateStatus(value: unknown): value is MergeStateStatus {
+	return MERGE_STATE_STATUSES.some((status) => status === value);
+}
+
+/**
+ * Reads the answer of `stackReadinessQuery`: GitHub's merge state by pull request number. A null
+ * alias (a pull request GitHub did not return) is left out; any other shape is an error.
+ */
+export function parseStackReadiness(text: string): Result<Map<number, MergeStateStatus>> {
+	const json = parseJson(text);
+	if (!json.ok) return err(json.error);
+	if (!isRecord(json.value)) return err(responseInvalid());
+	const data = json.value.data;
+	if (!isRecord(data)) return err(responseInvalid());
+	const repository = data.repository;
+	if (!isRecord(repository)) return err(responseInvalid());
+	const statuses = new Map<number, MergeStateStatus>();
+	for (const pullRequest of Object.values(repository)) {
+		if (pullRequest === null) continue;
+		if (!isRecord(pullRequest)) return err(responseInvalid());
+		const number = pullRequest.number;
+		const status = pullRequest.mergeStateStatus;
+		if (typeof number !== "number" || !isMergeStateStatus(status)) return err(responseInvalid());
+		statuses.set(number, status);
+	}
+	return ok(statuses);
 }
 
 export function parseGithubRepos(text: string): Result<GitHubRepoSummary[]> {
@@ -1025,6 +1109,8 @@ const PENDING_ACTION_ORDER: readonly PullRequestAction[] = [
 export interface PrWorkspaceContext {
 	workspaceId: WorkspaceId;
 	workspacePath: string;
+	/** The repository's main worktree, where Graphite state is read. */
+	repoRootPath?: string;
 	branch: string;
 	/** Name of the remote, for example "origin". */
 	remote: string;
@@ -1083,6 +1169,11 @@ export interface GithubServiceDeps {
 	probeCwd: string;
 	/** Writes a context file into a workspace (PR-11). */
 	fs?: Pick<FileSystem, "mkdirp" | "writeTextAtomic">;
+	/**
+	 * The Graphite stack state, so a stack entry can show its restack flag (PR-08). The container
+	 * always supplies it; tests that read no Graphite state may leave it out.
+	 */
+	graphite?: { needsRestackOf(repoRootPath: string, branch: string): boolean };
 }
 
 interface PollWatcher {
@@ -1538,8 +1629,14 @@ export class GithubService {
 	readonly #pollingRepos = new Set<string>();
 	/** Each repository's merge method, read once from GitHub (services-map 3.7.5). */
 	readonly #mergeMethodByRepo = new Map<string, MergeMethod>();
-	/** GitHub hosts that refused the optional `stackEntry` field, remembered per repository. */
+	/** The remote hosts that refused the optional `stackEntry` field (services-map 3.7.2). */
 	readonly #stackEntryUnsupported = new Set<string>();
+	/**
+	 * The members the last stack read found, per workspace, for the range diff scope. One entry per
+	 * workspace whose stack was read: each read replaces it, a read that finds no stack removes it,
+	 * and `dispose` clears them all.
+	 */
+	readonly #stackMembers = new Map<string, readonly StackMember[]>();
 	/** The adaptive batch size: starts at five, halves on a failed query, then grows. */
 	#batchSizes = initialBatchSizes();
 	readonly #rateGate: RateLimitGate;
@@ -1859,6 +1956,7 @@ export class GithubService {
 		this.#lastPolledAt.clear();
 		this.#headByWorkspace.clear();
 		this.#repoKeyByWorkspace.clear();
+		this.#stackMembers.clear();
 	}
 
 	/**
@@ -2719,13 +2817,22 @@ export class GithubService {
 		return ok(oid);
 	}
 
-	/** Backs `Actions.pullRequests.markReady`: `gh pr ready` (services-map 3.7.5). */
-	markReady(workspaceId: WorkspaceId): Promise<Result<void>> {
-		return this.#writeAction("markReady", "marking_ready", workspaceId, async () => {
+	/**
+	 * Backs `Actions.pullRequests.markReady`: `gh pr ready` (services-map 3.7.5). The stack view
+	 * passes the number of the entry it shows, which may be another pull request of the stack than
+	 * the workspace's own (PR-08). Each pull request runs one mark at a time.
+	 */
+	markReady(workspaceId: WorkspaceId, prNumber?: number): Promise<Result<void>> {
+		const key = prNumber === undefined ? "markReady" : `markReady#${prNumber}`;
+		return this.#writeAction(key, "marking_ready", workspaceId, async () => {
 			const prepared = await this.#preparePullRequestWrite(workspaceId);
 			if (!prepared.ok) return err(prepared.error);
-			const { found, prNumber, runOptions } = prepared.value;
-			return this.#runPullRequestCommand(found, runOptions, prReady(prNumber));
+			const { found, runOptions } = prepared.value;
+			return this.#runPullRequestCommand(
+				found,
+				runOptions,
+				prReady(prNumber ?? prepared.value.prNumber),
+			);
 		});
 	}
 
@@ -2817,16 +2924,65 @@ export class GithubService {
 		return edited.ok ? ok(true) : err(edited.error);
 	}
 
-	/** Backs `Actions.pullRequests.mergeStack`: `gh stack merge` (services-map 3.8.2). */
-	mergeStack(_workspaceId: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("PR-08");
+	/**
+	 * Backs `Actions.pullRequests.mergeStack`: `gh stack merge` for the workspace's pull request
+	 * (services-map 3.8.2). The merge method is the repository's first allowed one, as with a single
+	 * merge. Stacked pull requests switched off are refused, so the action follows the setting.
+	 */
+	mergeStack(workspaceId: WorkspaceId): Promise<Result<void>> {
+		const setting = this.#deps.setting;
+		if (setting !== undefined && setting<boolean>("github_stacked_prs_enabled") !== true) {
+			return Promise.resolve(
+				err(
+					appError("github_stacks_disabled", "Stacked pull requests are turned off in Settings."),
+				),
+			);
+		}
+		return this.#writeAction("mergeStack", "merging", workspaceId, async () => {
+			const prepared = await this.#preparePullRequestWrite(workspaceId);
+			if (!prepared.ok) return err(prepared.error);
+			const { found, prNumber, runOptions } = prepared.value;
+			const method = await this.#mergeMethodFor(found, runOptions);
+			if (!method.ok) return err(method.error);
+			return this.#deps.git.withWorktreeLock(found.workspacePath, async () => {
+				const merged = await this.#runStackCommand(
+					stackMerge(prNumber, method.value),
+					runOptions,
+					"Merging",
+				);
+				return merged.ok ? ok(undefined) : err(merged.error);
+			});
+		});
+	}
+
+	/**
+	 * Runs one `gh stack` command and records its health answer. A command `gh` does not know means
+	 * the stack extension is missing, which gets the install message for this action instead of the
+	 * raw `gh` error. Any other failed exit is the write error.
+	 */
+	async #runStackCommand(
+		command: GitCommand,
+		runOptions: GitRunOptions,
+		action: StackAction,
+	): Promise<Result<{ text: string }>> {
+		const result = await this.#deps.git.run(command, runOptions);
+		if (!result.ok) return err(result.error);
+		await this.recordGhResult(result.value);
+		const text = `${result.value.stderr}\n${result.value.stdout}`;
+		if (isStackExtensionMissing(text)) {
+			return err(appError("github_stack_extension_missing", stackExtensionMessage(action)));
+		}
+		if (!isSuccessfulExit(command, result.value.exitCode)) {
+			return err(this.#writeError(command, result.value));
+		}
+		return ok({ text });
 	}
 
 	/**
 	 * Backs `Actions.pullRequests.syncStack`. Runs `gh stack sync` for a stacked branch
-	 * (services-map 3.8.2). A command that `gh` does not
-	 * know means the stack extension is missing; a cross mark or "Sync aborted" means the sync
-	 * stopped partway. Both are errors, so a partial sync is never reported as done.
+	 * (services-map 3.8.2) under the worktree lock and then the repo lock (3.0.3). A command that
+	 * `gh` does not know means the stack extension is missing; a cross mark or "Sync aborted" means
+	 * the sync stopped partway. Both are errors, so a partial sync is never reported as done.
 	 */
 	syncStack(workspaceId: WorkspaceId): Promise<Result<void>> {
 		const setting = this.#deps.setting;
@@ -2840,77 +2996,127 @@ export class GithubService {
 		return this.#writeAction("syncStack", "syncing_stack", workspaceId, async () => {
 			const context = await this.#deps.contextOf(workspaceId);
 			if (!context.ok) return err(context.error);
-			const settings = await this.#ghSettings();
-			if (!settings.ok) return err(settings.error);
-			const runOptions = this.#runOptions(settings.value, context.value.workspacePath);
-			const command = stackSync();
-			const result = await this.#deps.git.run(command, runOptions);
-			if (!result.ok) return err(result.error);
-			await this.recordGhResult(result.value);
-			const text = `${result.value.stderr}\n${result.value.stdout}`;
-			if (isStackExtensionMissing(text)) {
-				return err(appError("github_stack_extension_missing", STACK_EXTENSION_MESSAGE));
-			}
-			if (!isSuccessfulExit(command, result.value.exitCode)) {
-				return err(this.#writeError(command, result.value));
-			}
-			if (hasStackSyncAbort(text)) {
+			const { workspacePath, repoRootPath } = context.value;
+			if (repoRootPath === undefined) {
 				return err(
 					appError(
-						"github_stack_sync_aborted",
-						"The stack sync stopped before it finished. Nothing was reported as done.",
+						"github_repo_root_unknown",
+						"The stack sync needs the repository's main folder, which is not known.",
 					),
 				);
 			}
-			return ok(undefined);
+			const settings = await this.#ghSettings();
+			if (!settings.ok) return err(settings.error);
+			const runOptions = this.#runOptions(settings.value, workspacePath);
+			// The sync rewrites the workspace branch and the branch config of the whole repository.
+			return this.#deps.git.withWorktreeAndRepoLocks(workspacePath, repoRootPath, async () => {
+				const synced = await this.#runStackCommand(stackSync(), runOptions, "Syncing");
+				if (!synced.ok) return err(synced.error);
+				if (hasStackSyncAbort(synced.value.text)) {
+					return err(
+						appError(
+							"github_stack_sync_aborted",
+							"The stack sync stopped before it finished. Nothing was reported as done.",
+						),
+					);
+				}
+				return ok(undefined);
+			});
 		});
 	}
 
 	/**
-	 * Reads the GitHub stack the workspace's pull request belongs to, from trunk up
-	 * (services-map 3.8.2). A pull request outside a stack, or stacks turned off in Settings, is an
-	 * empty answer, not an error. The optional `stackEntry` field is retried without when the host
-	 * does not know it, and that host is remembered.
+	 * Reads the GitHub stack the workspace's pull request belongs to, from trunk up, with each
+	 * member's commit ids and merge state (services-map 3.8.2). A pull request outside a stack, or
+	 * stacks turned off in Settings, is an empty answer, not an error. The optional `stackEntry`
+	 * field is retried without when the host does not know it, and that host is remembered.
 	 */
 	async readStack(workspaceId: WorkspaceId): Promise<Result<StackEntryView[]>> {
+		const key = String(workspaceId);
 		const setting = this.#deps.setting;
 		if (setting !== undefined && setting<boolean>("github_stacked_prs_enabled") !== true) {
+			this.#stackMembers.delete(key);
 			return ok([]);
 		}
 		const context = await this.#deps.contextOf(workspaceId);
 		if (!context.ok) return err(context.error);
 		const found = context.value;
 		const prNumber = found.prNumber;
-		if (prNumber === null) return ok([]);
+		if (prNumber === null) {
+			this.#stackMembers.delete(key);
+			return ok([]);
+		}
 
-		const repository = await this.#repositoryOf(found);
-		if (!repository.ok) return err(repository.error);
-		const repositoryKey = repositoryPath(repository.value);
-		const includeStackEntry = !this.#stackEntryUnsupported.has(repositoryKey);
+		const remote = await this.#remoteOf(found);
+		if (!remote.ok) return err(remote.error);
+		// A host that refused the field once is asked without it from then on, for every repository.
+		const host = remote.value.host;
+		const includeStackEntry = !this.#stackEntryUnsupported.has(host);
 
 		const readDetails = (withField: boolean) =>
 			this.#readGh(prStackQuery(prNumber, withField), found.workspacePath);
 		let details = await readDetails(includeStackEntry);
 		if (includeStackEntry && !details.ok && isUndefinedStackFieldError(details.error.message)) {
-			this.#stackEntryUnsupported.add(repositoryKey);
+			this.#stackEntryUnsupported.add(host);
 			details = await readDetails(false);
 		}
 		if (!details.ok) return err(details.error);
 		const parsedStack = parsePrStackEntry(details.value);
 		if (!parsedStack.ok) return err(parsedStack.error);
-		if (parsedStack.value === null) return ok([]);
+		if (parsedStack.value === null) {
+			this.#stackMembers.delete(key);
+			return ok([]);
+		}
 
 		const members = await this.#readGh(stackMembers(parsedStack.value.number), found.workspacePath);
 		if (!members.ok) return err(members.error);
 		const parsedMembers = parseStackMembers(members.value);
 		if (!parsedMembers.ok) return err(parsedMembers.error);
+		const readiness = await this.#readStackReadiness(
+			parsedMembers.value.map((member) => member.number),
+			found.workspacePath,
+		);
+		this.#stackMembers.set(key, parsedMembers.value);
+		const repoRootPath = found.repoRootPath ?? found.workspacePath;
 		return ok(
-			parsedMembers.value.map((member) => ({
+			parsedMembers.value.map(({ baseBranch: _baseBranch, ...member }) => ({
 				...member,
 				isCurrent: member.branch === found.branch,
-				needsRestack: false,
+				needsRestack: this.#deps.graphite?.needsRestackOf(repoRootPath, member.branch) ?? false,
+				mergeStateStatus: readiness.get(member.number) ?? null,
 			})),
 		);
+	}
+
+	/**
+	 * The members of the workspace's stack for the range diff scope (PR-08): the ones the last
+	 * stack read found, so a range listed every few seconds does not ask GitHub each time. The stack
+	 * view reads the stack every minute; when nothing has read it yet, this reads it.
+	 */
+	async stackMembersOf(workspaceId: WorkspaceId): Promise<Result<readonly StackMember[]>> {
+		const key = String(workspaceId);
+		const known = this.#stackMembers.get(key);
+		if (known !== undefined) return ok(known);
+		const read = await this.readStack(workspaceId);
+		if (!read.ok) return read;
+		return ok(this.#stackMembers.get(key) ?? []);
+	}
+
+	/**
+	 * GitHub's merge state of each stack member, in one query (services-map 3.8.2). A failed read
+	 * or an answer the app cannot parse leaves every entry's readiness unknown and keeps the stack:
+	 * the readiness rules treat unknown as "not known yet", so the stack view still shows, with
+	 * no verdict, as Conductor does.
+	 */
+	async #readStackReadiness(
+		prNumbers: readonly number[],
+		cwd: string,
+	): Promise<Map<number, MergeStateStatus>> {
+		if (prNumbers.length === 0) return new Map();
+		const answer = await this.#readGh(stackReadinessQuery(prNumbers), cwd);
+		if (!answer.ok) return new Map();
+		const parsed = parseStackReadiness(answer.value);
+		return parsed.ok ? parsed.value : new Map();
 	}
 
 	/**
@@ -3229,11 +3435,17 @@ export class GithubService {
 
 	/** The GitHub repository of a workspace, from its configured remote. */
 	async #repositoryOf(context: PrWorkspaceContext): Promise<Result<GithubRepository>> {
+		const remote = await this.#remoteOf(context);
+		return remote.ok ? ok({ owner: remote.value.owner, name: remote.value.name }) : remote;
+	}
+
+	/** The workspace's configured remote, with its host. */
+	async #remoteOf(context: PrWorkspaceContext): Promise<Result<GithubRemote>> {
 		const url = await this.#deps.git.stdout(remoteGetUrl(context.remote), {
 			cwd: context.workspacePath,
 		});
 		if (!url.ok) return err(url.error);
-		return githubRepositoryFromRemote(url.value);
+		return githubRemoteFromUrl(url.value);
 	}
 
 	/** Writes a context file under the workspace, creating its folder first. */

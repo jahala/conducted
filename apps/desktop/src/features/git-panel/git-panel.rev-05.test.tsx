@@ -16,6 +16,7 @@ import {
 	keyBindings,
 	runCommandHandlers,
 } from "../../app/command-dispatcher.ts";
+import { AppProviders, createQueryClient } from "../../app/providers.tsx";
 import type { Loadable } from "../../core/api.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import type { GitState } from "../../core/model.ts";
@@ -59,7 +60,11 @@ const render = (ui: ReactElement) =>
 	renderDom(ui, {
 		wrapper: ({ children }: { children: ReactNode }) => {
 			if (test === undefined) throw new Error("The test container is built in beforeEach.");
-			return <ServicesProvider container={test.container}>{children}</ServicesProvider>;
+			return (
+				<ServicesProvider container={test.container}>
+					<AppProviders client={createQueryClient(() => {})}>{children}</AppProviders>
+				</ServicesProvider>
+			);
 		},
 	});
 

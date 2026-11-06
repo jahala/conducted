@@ -113,7 +113,7 @@ export function VideoPreview({ url, fileName, onOpenExternally }: VideoPreviewPr
 	};
 
 	return (
-		<div className="relative flex h-full items-center justify-center bg-black p-3">
+		<div className="relative flex h-full items-center justify-center bg-media p-3">
 			<video
 				key={attempt}
 				ref={videoRef}
@@ -128,7 +128,7 @@ export function VideoPreview({ url, fileName, onOpenExternally }: VideoPreviewPr
 				<track kind="captions" />
 			</video>
 			{playFailed ? (
-				<p role="alert" className="absolute bottom-4 text-xs text-white">
+				<p role="alert" className="absolute bottom-4 text-xs text-on-media">
 					The video could not play.
 				</p>
 			) : null}

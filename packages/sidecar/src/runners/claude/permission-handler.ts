@@ -19,7 +19,8 @@
  *  - the answer kind does not match the question: treated as withdrawn
  *  - approval granted with "allow_edits_for_session": later edit calls skip the question
  *  - after an approved plan, setPermissionMode is called on the query with the next mode
- *  - callbacks are those of the current turn; between turns a call is denied as "no active turn"
+ *  - callbacks are those of the current turn, or of work the CLI started by itself (a turn started
+ *    on claude.ai, RC-03); with neither, a call is denied as "no active turn"
  * Test first: a Bash call with approvals on opens a tool_approval interaction with the tool name
  * and input, and an "allow" answer yields behavior allow.
  */
@@ -51,7 +52,7 @@ export interface PermissionHandlerDeps {
 	 * first entry is the workspace, which a relative edit target is resolved against.
 	 */
 	allowedDirectories(): readonly string[];
-	callbacks(): TurnCallbacks | undefined;
+	callbacks(): Pick<TurnCallbacks, "requestInteraction"> | undefined;
 	realPath(path: string): Promise<string | null>;
 	isSessionLive(): boolean;
 	setPermissionMode(mode: PermissionMode): Promise<void>;

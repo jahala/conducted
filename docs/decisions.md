@@ -507,6 +507,12 @@ Context: Conductor rewrites a whole settings file on every save. It sorts the ke
 Chosen: an existing settings file is patched in place with `@decimalturn/toml-patch` (MIT, no dependencies, released monthly). Only entries whose values change are rewritten; comments, blank lines and key order stay. A new file is written whole and sorted, as before. A comment beside or directly above an entry that the save removes goes with that entry. When a save would drop any other comment (a legacy `[tasks]` table moved to `scripts.run`, or a file the patch cannot edit), the first such save is refused with a warning that quotes the comments, and the next save that would drop the same ones goes ahead. The warning's wording is ours: the research has none, because Conductor drops comments without a word.
 Why: a hand-written file belongs to the user, and a save that deletes their notes removes information. Keeping the user's key order differs from Conductor's sorted output; sorting an existing file would move the user's own lines. A hand-rolled format-preserving TOML editor would be a second TOML parser to maintain, with TOML's four string kinds, dotted keys and inline tables to get right.
 
+## D073. PR-08's stack readiness and range diffs change two contracts (2026-11-06)
+
+Context: PR-08's audit (slice 3 part 1d) found stack readiness and the PR and stack range diffs unbuilt. Readiness needs each stack entry's merge state and commit ids, which `StackEntryView` did not carry; the range view needs a range kind of diff scope, which `DiffScope` did not have. The approved contract list (D069) named neither.
+Chosen: the lead approved both, and only what they need: `mergeStateStatus`, `headSha` and `baseSha` on `StackEntryView` (with a `MergeStateStatus` type), and `{ kind: "range"; prNumbers }` on `DiffScope`. The readiness rules follow Conductor's own code (D002: behaviour, not code).
+Why: one feature needed them, so the kill rule (a contract change blocking more than one feature) did not apply, and the owner's ruling for today makes these the lead's calls.
+
 ## D074. Remote Control goes ahead on path A (2026-11-06)
 
 Context: the Remote Control spike (RC-01, docs/plans/cloud-and-remote.md Part 2) passed all three checks with the owner on claude.ai: the chat appears, a message typed there starts a turn in our stream, and an approval answered there settles our own. It works through the query object's `enableRemoteControl`, which the SDK ships but does not put in its public types; the documented `remoteControlAtStartup` setting does nothing for an SDK chat.
@@ -518,3 +524,15 @@ Why: the kill criterion drops the feature only when it needs a reverse-engineere
 Context: the cloud spike (CLOUD-02, docs/plans/cloud-and-remote.md Part 1) passed all four kill criteria on the owner's Cloudflare account: warm start 2.3 to 8.8 s, cold start 14.5 s, about 0.02 US dollars per active hour (0.11 at worst on `standard-1`), and work kept across a restart through an R2 backup. Every `conducted-spike-*` resource was deleted and the lead confirmed none is left.
 Chosen: the cloud rows are scaffolded and built through the loop, starting with the host seam (CLOUD-01). The build takes from the spike: the sidecar runs unchanged behind a WebSocket bridge, the Rust shell owns the cloud connection, the backup runs at each turn end, and an uninstall deletes the container application with the Worker.
 Why: the spike's own criteria decide (D018); all four passed with margin.
+
+## D076. A short message the app sends as the user's own chat line is on-screen wording (2026-11-06)
+
+Context: PR-08's Resolve on a diverged stacked branch falls back to asking the agent; Conductor sends "Resolve branch incompatibility with remote", which the chat shows as the user's message. D002 forbids copying prompt text; D020 asks for Conductor's wording on screen.
+Chosen: a short message the app sends in the user's name, which the chat shows as the user's line, is on-screen wording and matches Conductor (D020). Longer instructions to the agent that the user does not see as their own line stay in our own words (D002).
+Why: the user reads that line in the chat like any label.
+
+## D077. DeepSeek builders run outside the three-agent cap (2026-11-06)
+
+Context: the owner's cap of three agents at once covered the DeepSeek builders too, so with Opus fixers and builds holding two slots, a batch's eight features built one after another (53 minutes for s1-ui-1, about 7 minutes each). The builders do not use the Claude subscription, and their gates are about 15 seconds of type-check, lint and guards.
+Chosen by the owner: DeepSeek builders run outside the cap, in parallel as needed. The cap of three still holds for Claude agents (Opus and Sonnet). The lead runs at most two batch plans at once with three builders each, and still lands one batch at a time; Rust builds and full test suites stay one at a time.
+Why: the builders were the bottleneck, and they cost the owner's subscription nothing.

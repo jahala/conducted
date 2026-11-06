@@ -3,6 +3,8 @@
  * @feature PRJ-03 The repository-name check and repository creation Quick start uses
  * @feature PR-06 the pull request write actions: merge, auto-merge, ready, edit, reviewers, approve
  * @feature REV-04 the review-comment queries and the resolve-thread mutation
+ * @feature PR-08 the stack commands: sync, merge, members, the readiness query and the optional
+ * stackEntry query; the read-only Graphite probe, state and checkout
  * Owns: one pure function per `gh` call (and the read-only `gt` Graphite calls), each returning a
  * `GitCommand` value. The runner executes it, in the workspace folder, so `gh` finds the repo.
  * Also owns the clone picker calls and `gh repo clone` for cloning from GitHub (PRJ-02), the
@@ -461,6 +463,35 @@ export const prStackQuery = (prNumber: number, includeStackEntry: boolean): GitC
 			"repo={repo}",
 			"-F",
 			`prNumber=${prNumber}`,
+			"-f",
+			`query=${query}`,
+		],
+		{ timeoutMs: GH_GRAPHQL_TIMEOUT_MS },
+	);
+};
+/**
+ * GitHub's merge state of each stack member, one aliased field per pull request (`pr0`, `pr1`,
+ * ...), so the stack's readiness takes one call. Each number is its own `-F` variable.
+ */
+export const stackReadinessQuery = (prNumbers: readonly number[]): GitCommand => {
+	const variables = prNumbers.map((_, i) => `, $pr${i}: Int!`).join("");
+	const fields = prNumbers
+		.map((_, i) => `    pr${i}: pullRequest(number: $pr${i}) { number mergeStateStatus }`)
+		.join("\n");
+	const query = `query($owner: String!, $repo: String!${variables}) {
+  repository(owner: $owner, name: $repo) {
+${fields}
+  }
+}`;
+	return gh(
+		[
+			"api",
+			"graphql",
+			"-F",
+			"owner={owner}",
+			"-F",
+			"repo={repo}",
+			...prNumbers.flatMap((number, i) => ["-F", `pr${i}=${number}`]),
 			"-f",
 			`query=${query}`,
 		],

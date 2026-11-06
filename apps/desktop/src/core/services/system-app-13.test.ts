@@ -7,6 +7,7 @@ function serviceWithClipboard(writeText: (text: string) => Promise<void>): Syste
 			clipboard: { writeText, writeImage: async () => {} },
 		} as unknown as SystemServiceDeps["platform"],
 		setting: (() => undefined) as unknown as SystemServiceDeps["setting"],
+		now: () => 0,
 	});
 }
 

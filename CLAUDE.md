@@ -1,6 +1,6 @@
 # Conducted
 
-A local-first macOS app for running coding agents in parallel. Each task gets a git worktree ("workspace"), one or more chats ("sessions") with an agent, and a review flow from diff to merged pull request. It matches the local features of Conductor 0.92.1, without its team features. An optional cloud host on the user's own Cloudflare account and Claude Remote Control are planned (D018, D019, `docs/plans/cloud-and-remote.md`).
+A local-first macOS app for running coding agents in parallel. Each task gets a git worktree ("workspace"), one or more chats ("sessions") with an agent, and a review flow from diff to merged pull request. It matches the local features of Conductor 0.92.1, without its team features. An optional cloud host on the user's own Cloudflare account is planned (D018, `docs/plans/cloud-and-remote.md`). Claude Remote Control is built: any Claude chat can be opened in claude.ai/code or the Claude app (D019).
 
 Status: scaffold. Most bodies are placeholders that throw a named error. The plan is `docs/plans/scaffold.md`; the feature list is `docs/plans/backlog.md`.
 

@@ -5,8 +5,8 @@
  * the palette and the header offer the same actions.
  * Behaviour: ui-map.md 3.6, table "Header status chip and action"; services-map.md 3.5 to 3.7 (what
  * each action does). Commit, conflict fixes and PR creation are sent to the agent as chat messages
- * (structure-map.md section 6, point 5). Only pull, push, ready, merge, approve and auto-merge run
- * commands directly.
+ * (structure-map.md section 6, point 5). Only pull, push, ready, merge, approve, auto-merge and the
+ * stack sync behind Resolve on a stacked branch (PR-08) run commands directly.
  *
  * The cases, first match wins. The research lists the states but not their order, so the order
  * below is Our design choice: local problems first (they can be seen offline), then PR state.
@@ -25,8 +25,9 @@
  *   pr_unavailable        local-git forge, info could not be read      PR info unavailable         Retry
  *   loading               local-git forge, info not read yet           Loading PR info...          none
  *   changes / clean       local-git forge, nothing ahead               Changes / No changes        none
- *   diverged              ahead and behind both > 0, or sync.rewritten Incompatible with remote /  Resolve (agent)
- *                                                                      Remote branch was rebased
+ *   diverged              ahead and behind both > 0, or sync.rewritten Incompatible with remote /  Resolve: `gh stack sync`
+ *                                                                      Remote branch was rebased   for a stacked PR, else or
+ *                                                                                                  on failure the agent
  *   behind                sync.behind > 0, ahead is 0                  Behind by N commit(s)       Pull
  *   ahead                 sync.ahead > 0, behind is 0                  Ahead by N commit(s)        Push
  *   loading               pullRequestUnavailable "loading"             Loading PR info...          none
@@ -49,12 +50,16 @@
  *   blocked               mergeable unknown after checks reported,     Blocked from merging        none
  *                         or a required check was skipped
  *   checking_mergeability mergeable "unknown", no checks reported yet  Checking mergeability...    none
- *   stack_blocked         PR is in a stack and a lower PR is not ready A message naming the        none
- *                                                                      blocking PR
+ *   stack_blocked         ready to merge, but its stack is not: a      Stack needs a rebase /      none
+ *                         draft, a lower PR not ready, or a branch     #N is still a draft /
+ *                         not on the head below it                     #N isn't ready to merge
  *   ready_to_merge        mergeable, checks pass, no review needed     Ready to merge              Merge (label from the merge
  *                                                                                                  method: squash, rebase or
- *                                                                                                  merge commit), "Merge stack"
- *                                                                                                  when in a stack
+ *                                                                                                  merge commit), or "Merge
+ *                                                                                                  stack" with the tooltip
+ *                                                                                                  "Merge N PRs from bottom to
+ *                                                                                                  top" when the stack merge
+ *                                                                                                  takes more than one PR
  *   unable                closed PR, or no rule above applies          Unable to merge             none
  *   clean                 no PR, no changes, nothing to push or pull   No changes                  none
  *
@@ -89,6 +94,7 @@ export type GitHeaderActionId =
 	| "pull"
 	| "push"
 	| "resolve"
+	| "resolve_incompatible"
 	| "add_comments_to_chat"
 	| "ready_for_review"
 	| "fix_errors"
@@ -133,6 +139,10 @@ export interface GitHeaderAction {
 	label: string;
 	/** Shown instead of a button when the viewer cannot act, e.g. "Waiting for a reviewer". */
 	waitingNote: string | null;
+	/** The button's tooltip, when it says more than the label ("Merge 3 PRs from bottom to top"). */
+	tooltip?: string;
+	/** A number the button shows next to its label: the pull requests a stack merge takes. */
+	count?: number;
 }
 
 export interface GitHeader {
@@ -158,7 +168,12 @@ export interface GitHeaderInputs {
 	localForgeError?: AppError | null;
 	automergeSettingOn: boolean;
 	treatOptionalChecksAsBlocking: boolean;
-	stack: { size: number; blockedReason: string | null } | null;
+	/**
+	 * The GitHub stack the pull request is in, from core/status/stack-readiness.ts: how many pull
+	 * requests a stack merge takes, and the header's title when an entry blocks it. Null outside a
+	 * stack.
+	 */
+	stack: { mergeCount: number; blockedReason: string | null } | null;
 }
 
 function action(
@@ -322,7 +337,7 @@ export function computeGitHeader(inputs: GitHeaderInputs): GitHeader {
 			kind: "diverged",
 			title: git.sync.rewritten ? "Remote branch was rebased" : "Incompatible with remote",
 			tone: "danger",
-			action: action("resolve", "Resolve"),
+			action: action("resolve_incompatible", "Resolve"),
 		};
 	}
 	if (git.sync.behind > 0 && git.sync.ahead === 0) {
@@ -455,10 +470,6 @@ export function computeGitHeader(inputs: GitHeaderInputs): GitHeader {
 			action: null,
 		};
 	}
-	if (stack !== null && stack.blockedReason !== null) {
-		return { kind: "stack_blocked", title: stack.blockedReason, tone: "danger", action: null };
-	}
-
 	const ready =
 		active.state === "open" &&
 		active.mergeable === "mergeable" &&
@@ -466,12 +477,21 @@ export function computeGitHeader(inputs: GitHeaderInputs): GitHeader {
 		failing.length === 0 &&
 		pending.length === 0;
 	if (ready) {
-		const inStack = stack !== null && stack.size > 1;
+		// A pull request that could merge on its own still waits for the stack below it.
+		if (stack !== null && stack.blockedReason !== null) {
+			return { kind: "stack_blocked", title: stack.blockedReason, tone: "attention", action: null };
+		}
+		// A stack merge takes every open pull request from the bottom up to this one.
+		const stackCount = stack !== null && stack.mergeCount > 1 ? stack.mergeCount : null;
 		const mergeAction =
 			active.viewerCanMerge === false
 				? null
-				: inStack
-					? action("merge_stack", "Merge stack")
+				: stackCount !== null
+					? {
+							...action("merge_stack", "Merge stack"),
+							tooltip: `Merge ${stackCount} PRs from bottom to top`,
+							count: stackCount,
+						}
 					: action("merge", mergeLabel(active.mergeMethod));
 		return {
 			kind: "ready_to_merge",

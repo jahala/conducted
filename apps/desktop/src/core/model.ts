@@ -459,6 +459,17 @@ export interface BranchCommit {
 	at: number;
 }
 
+/** GitHub's `mergeStateStatus` of a pull request, which the stack readiness rules read. */
+export type MergeStateStatus =
+	| "CLEAN"
+	| "DIRTY"
+	| "BEHIND"
+	| "UNSTABLE"
+	| "BLOCKED"
+	| "DRAFT"
+	| "HAS_HOOKS"
+	| "UNKNOWN";
+
 /** One member of a stacked-PR chain, in order from trunk. */
 export interface StackEntryView {
 	number: number;
@@ -467,6 +478,12 @@ export interface StackEntryView {
 	state: "open" | "draft" | "merged" | "closed";
 	isCurrent: boolean;
 	needsRestack: boolean;
+	/** GitHub's merge state of this pull request; null when the readiness read gave no answer. */
+	mergeStateStatus: MergeStateStatus | null;
+	/** The commit id of the pull request's head branch. */
+	headSha: string;
+	/** The commit id of the pull request's base, which is the head of the entry below in a synced stack. */
+	baseSha: string;
 }
 
 /** One entry of the PR tab's activity list, built from the GitHub data the services fetch. */

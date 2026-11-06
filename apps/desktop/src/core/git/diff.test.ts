@@ -1,5 +1,6 @@
 import type { SessionId, TurnId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
+import type { DiffScope } from "../api.ts";
 import { type ComparisonContext, isTooLargeToRender, resolveComparison } from "./diff.ts";
 
 const context: ComparisonContext = {
@@ -66,5 +67,21 @@ describe("REV-01 isTooLargeToRender", () => {
 		expect(isTooLargeToRender(10, 10)).toBe(false);
 		expect(isTooLargeToRender(3 * 1024 * 1024, 1)).toBe(true);
 		expect(isTooLargeToRender(1, 50_000)).toBe(true);
+	});
+});
+
+describe("PR-08 resolveComparison for a range", () => {
+	const range: DiffScope = { kind: "range", prNumbers: [1, 2] };
+	it("compares like the branch scope when only the checked-out pull request is chosen", () => {
+		expect(resolveComparison(range, { ...context, stackRun: { kind: "checkedOut" } })).toEqual({
+			ok: true,
+			value: { from: "mb1", to: null },
+		});
+	});
+	it("gives no comparison before the stack's pull requests are resolved", () => {
+		const result = resolveComparison(range, context);
+		expect(result.ok).toBe(false);
+		if (result.ok) return;
+		expect(result.error.code).toBe("stack_range_unresolved");
 	});
 });

@@ -16,6 +16,8 @@
  * `remoteNameOf` and the workspace service apply the same rule (`remoteNameFromConfig`): empty
  * means "origin", and a name git could read as an option is refused.
  * Stores are passed as getters so construction order does not matter.
+ * `defaultSessionConfig` builds a new chat's config from settings, including the Remote Control
+ * switch for new chats (RC-04).
  * Test first: a repo whose config names "upstream" gives "upstream" to gitContext and prContext,
  * even when the workspace's target branch names "origin/dev".
  */
@@ -129,6 +131,8 @@ export function createLookups(sources: LookupSources): Lookups {
 		prContext(id) {
 			const ws = workspace(id);
 			if (!ws.ok) return ws;
+			const repo = repoOf(id);
+			if (!repo.ok) return repo;
 			const remote = remoteNameOf(id);
 			if (!remote.ok) return remote;
 			const config = sources.repos().getState().configs[ws.value.repoId];
@@ -136,6 +140,7 @@ export function createLookups(sources: LookupSources): Lookups {
 			return ok({
 				workspaceId: id,
 				workspacePath: ws.value.path,
+				repoRootPath: repo.value.rootPath,
 				branch: ws.value.branch,
 				remote: remote.value,
 				prNumber: ws.value.prNumber,
@@ -224,6 +229,8 @@ export function defaultSessionConfig(
 		additionalDirectories: workspace.value.linkedPaths,
 		appTools: { diffComments: true, progressUpdates: true, setTargetBranch: true },
 		...options.value,
+		// RC-04: a new Claude chat starts with Remote Control on when the user chose so.
+		...(setting<boolean>("remote_control_new_chats") ? { remoteControl: true } : {}),
 	});
 }
 

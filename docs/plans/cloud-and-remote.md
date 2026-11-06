@@ -121,6 +121,6 @@ Verdict against the kill criterion: path A works without reverse-engineering a p
 ## Order
 
 1. Add the `Host` seam to the shared contracts now, while `core/` is still placeholders (CLOUD-01).
-2. Run the Remote Control spike (small, local, needs a claude.ai subscription).
-3. Run the cloud spike on a test Cloudflare account.
-4. Scaffold the parts the spikes confirm, as backlog items with ids.
+2. Run the Remote Control spike (small, local, needs a claude.ai subscription). Done: path A passed (D074).
+3. Run the cloud spike on a test Cloudflare account. Done: it passed (D075).
+4. Build the parts the spikes confirm. Remote Control is built (RC-02 to RC-04): a per-chat switch in a Claude chat's composer, messages and approvals from claude.ai, and its settings page. The cloud rows (CLOUD-01, CLOUD-03 to CLOUD-18) are next.

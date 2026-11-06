@@ -19,6 +19,7 @@ It drives the agents you already use: Claude Code, Codex, Cursor, OpenCode and P
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Workspaces     | One worktree and branch per task, setup and archive scripts, a port each, linked folders, a sidebar grouped by status or project, sections and pins                            |
 | Chats          | Several chats per workspace as tabs and split panes, any agent and model per chat, queue and steer, questions and plan approval, a progress tracker, context and cost per turn |
+| Remote Control | Open any Claude chat in claude.ai/code or the Claude app to follow it, send follow-ups and answer approvals while it runs on your Mac                                          |
 | Snapshots      | A hidden git ref before and after every turn: revert to a turn, fork a chat, see what each turn changed                                                                        |
 | Review         | Changed files by scope, a split or unified diff, review comments for the agent, file tree, quick open, search in files, an editor and previews                                 |
 | Git and GitHub | Commit, push and pull; create, check, fix and merge pull requests; stacked PRs; Linear and GitHub issues as context                                                            |
@@ -39,9 +40,8 @@ Coding agents are good enough to work in parallel, but a terminal per agent does
 ## Coming next
 
 - **Cloud workspaces on your own Cloudflare account,** so agents keep working while your Mac sleeps. You deploy it to your account; there is no hosted service.
-- **Claude Remote Control,** to follow and steer any Claude chat from claude.ai or the Claude app on your phone.
 
-Both start with a small test of the idea, described in [docs/plans/cloud-and-remote.md](docs/plans/cloud-and-remote.md).
+It starts with a small test of the idea, described in [docs/plans/cloud-and-remote.md](docs/plans/cloud-and-remote.md).
 
 ## How it is built
 

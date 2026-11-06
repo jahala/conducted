@@ -11,10 +11,31 @@ import { useEffect, useState } from "react";
 import { useStore } from "zustand";
 import type { Loadable, Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
-import type { SystemInfo } from "../model.ts";
+import type { DiagnosticsCapture, SystemInfo } from "../model.ts";
 
 export const useUpdateStatus: Queries["useUpdateStatus"] = () => notImplemented("APP-06");
-export const useDiagnostics: Queries["useDiagnostics"] = () => notImplemented("APP-03");
+
+const DIAGNOSTICS_KEY = ["system", "diagnostics"] as const;
+
+/**
+ * Captures the app and the user's environment for the diagnostics page. Every mount captures
+ * again, because the environment and the logs belong to the moment the user asks for help.
+ */
+export const useDiagnostics: Queries["useDiagnostics"] = () => {
+	const { services } = useServices();
+	const query = useQuery<DiagnosticsCapture, AppError>({
+		queryKey: DIAGNOSTICS_KEY,
+		queryFn: async () => {
+			const captured = await services.system.captureDiagnostics();
+			if (!captured.ok) throw captured.error;
+			return captured.value;
+		},
+		staleTime: 0,
+	});
+	if (query.isError && query.error !== null) return { state: "error", error: query.error };
+	if (query.data === undefined) return { state: "loading" };
+	return { state: "ready", data: query.data };
+};
 
 /** PLAT-28: the program store the system service fills at startup and on every status event. */
 export const useAgentPrograms: Queries["useAgentPrograms"] = () =>

@@ -13,6 +13,8 @@
  * and keys a chat would.
  * AGENT-15 adds the host callbacks for work the agent starts by itself (`StartOptions.selfStartedTurns`),
  * which the Claude runner reports.
+ * RC-02 and RC-03 add Claude's Remote Control: the host callbacks for its link and for messages typed
+ * on claude.ai (`StartOptions.remoteControl`), and `setRemoteControl` for the switch during a turn.
  * Our design choices: messages arrive already translated into the neutral AgentMessage format,
  * and capabilities are declared up front instead of discovered by catching "not supported".
  */
@@ -28,6 +30,7 @@ import type {
 	WorkspaceContext,
 } from "@conducted/protocol";
 import type { AgentKind, AppError, Result, SessionId } from "@conducted/shared";
+import type { RemoteControlCallbacks } from "./claude/remote-control.ts";
 import type { SelfStartedTurnCallbacks } from "./claude/self-started-turns.ts";
 import type { CodexGoalClient } from "./codex/goals.ts";
 
@@ -104,6 +107,11 @@ export interface StartOptions {
 	 * finished and woke it (AGENT-15). The session manager passes them for every chat.
 	 */
 	selfStartedTurns?: SelfStartedTurnCallbacks;
+	/**
+	 * Claude only: the chat's Remote Control link and the messages typed on claude.ai (RC-02, RC-03).
+	 * The session manager passes them for every chat; `config.remoteControl` says whether to connect.
+	 */
+	remoteControl?: RemoteControlCallbacks;
 }
 
 /** One goal notification of the agent: which one it was, and its payload as the agent sent it. */
@@ -143,6 +151,11 @@ export interface AgentSession {
 	 * auto-accept edits control (AGENT-04). Other runners omit it.
 	 */
 	setAutoApproveEdits?(enabled: boolean): void;
+	/**
+	 * Claude only: turn the chat's Remote Control switch on or off at once, even during a turn
+	 * (RC-02). Other runners omit it.
+	 */
+	setRemoteControl?(enabled: boolean): void;
 	/**
 	 * ACP only: the agent's own chat options beyond the model, applied from the saved config first
 	 * (AGENT-17). Other runners omit it.

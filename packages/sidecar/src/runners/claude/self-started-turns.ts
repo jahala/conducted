@@ -14,7 +14,9 @@
  * message); no repeated reports of the same state; `dispose` (no report after it). `working` and
  * `whenEnded` let the session's cancel interrupt the work and wait for it to stop.
  * Messages of such work are translated and handed to `onMessage`, so the host stores them. Work
- * that starts before its first state report starts on its first translated message instead.
+ * that starts before its first state report starts on its first translated message instead. An
+ * approval such work asks for goes to `requestInteraction` (RC-03: a turn started on claude.ai can
+ * ask the app); `ClaudeSession` routes it there when no turn of ours is open.
  * Our design choice: `onInProgressChanged` is a separate callback object, not a new field of
  * `TurnCallbacks`, because it is called outside `runTurn`, when no turn callbacks exist. The host
  * passes it as `StartOptions.selfStartedTurns`, and `ClaudeSession` feeds this tracker every SDK
@@ -23,7 +25,7 @@
  * `onInProgressChanged(true)` then `onInProgressChanged(false, {outcome:"success"})`.
  */
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import type { AgentMessage } from "@conducted/protocol";
+import type { AgentMessage, Interaction, InteractionAnswer } from "@conducted/protocol";
 import type { SelfStartedTurnEnd } from "../../session/self-started-turns.ts";
 
 /** What the host gives the runner for work the agent starts by itself. */
@@ -32,6 +34,12 @@ export interface SelfStartedTurnCallbacks {
 	onInProgressChanged(inProgress: boolean, end?: SelfStartedTurnEnd): void;
 	/** One translated message of such a turn. */
 	onMessage(message: AgentMessage): void;
+	/**
+	 * The agent asks the user during such work, for example a tool approval in a turn started on
+	 * claude.ai (RC-03). Resolves like `TurnCallbacks.requestInteraction`; an abort of `signal`
+	 * withdraws it.
+	 */
+	requestInteraction(interaction: Interaction, signal?: AbortSignal): Promise<InteractionAnswer>;
 }
 
 export class SelfStartedTurnTracker {

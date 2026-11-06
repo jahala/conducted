@@ -45,6 +45,18 @@ test("a builder prompt names its feature, its issue and its test-name rule", () 
 	expect(promptFor(row("CHAT-03"), undefined)).toContain("the backlog row CHAT-03");
 });
 
+test("a builder prompt names the files its placeholders are in and its own gate command", () => {
+	const prompt = promptFor(row("COMP-10"), 7, [
+		"apps/desktop/src/core/services/sessions.ts",
+		"apps/desktop/src/core/sidecar/handlers.ts",
+	]);
+	expect(prompt).toContain("apps/desktop/src/core/services/sessions.ts");
+	expect(prompt).toContain("apps/desktop/src/core/sidecar/handlers.ts");
+	expect(prompt).toContain("even where the issue's owner list does not name them");
+	expect(prompt).toContain("bun scripts/overnight/node-gate.ts COMP-10");
+	expect(promptFor(row("COMP-10"), 7, [])).not.toContain("placeholders are in these files");
+});
+
 test("the audit prompt points each feature at its own issue", () => {
 	const prompt = auditPrompt(
 		"n1-s1-core",

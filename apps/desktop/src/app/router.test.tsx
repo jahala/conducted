@@ -166,8 +166,7 @@ describe("routes", () => {
 
 	it("/diagnostics renders without the sidebar", async () => {
 		await openApp("/diagnostics");
-		expect(await screen.findByText("Diagnostics")).toBeTruthy();
-		expect(screen.getByText("Not built yet: APP-03")).toBeTruthy();
+		expect(await screen.findByRole("heading", { name: "Diagnostics" })).toBeTruthy();
 		expect(screen.queryByRole("complementary", { name: "Sidebar" })).toBeNull();
 	});
 

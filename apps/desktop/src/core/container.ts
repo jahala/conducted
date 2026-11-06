@@ -68,7 +68,7 @@ import { createRepositories } from "./db/repositories.ts";
 import { KeyedMutex } from "./git/locks.ts";
 import { ShellGitRunner } from "./git/runner.ts";
 import { createLookups, defaultSessionConfig, type Lookups } from "./lookups.ts";
-import type { Session } from "./model.ts";
+import type { DiagnosticsCapture, Session } from "./model.ts";
 import { AgentCatalogService, agentKey } from "./services/agent-catalog.ts";
 import { ChatTitleService } from "./services/chat-titles.ts";
 import { CHECKPOINT_PRUNE_AFTER_DAYS, CheckpointService } from "./services/checkpoint.ts";
@@ -81,10 +81,12 @@ import { FollowUpQueue } from "./services/follow-up-queue.ts";
 import { GitService } from "./services/git.ts";
 import { connectGitCache, createGitCache, type GitCache } from "./services/git-cache.ts";
 import { GithubService } from "./services/github.ts";
+import { GraphiteService } from "./services/graphite.ts";
 import {
 	KEEP_AWAKE_SCAN_MS,
 	KEEP_AWAKE_SETTING_KEY,
 	KeepAwakeService,
+	REMOTE_KEEP_AWAKE_SETTING_KEY,
 } from "./services/keep-awake.ts";
 import { createLinearHttp, LinearService } from "./services/linear.ts";
 import { LocalGitForge } from "./services/local-git-forge.ts";
@@ -136,6 +138,14 @@ export interface ContainerInputs {
 	windowFocused: () => boolean;
 	/** Opens a notification click or deep link in the app. The app entry passes its router opener. */
 	openLink?: (url: string) => void;
+	/**
+	 * Writes the redacted diagnostics report for a new chat and returns its path (APP-03). The app
+	 * entry passes the writer, because redaction lives with the diagnostics screen.
+	 */
+	writeDiagnosticsReport?: (
+		capture: DiagnosticsCapture,
+		fileName: string,
+	) => Promise<Result<string>>;
 }
 
 export interface Services {
@@ -149,6 +159,7 @@ export interface Services {
 	mcp: McpService;
 	linear: LinearService;
 	git: GitService;
+	graphite: GraphiteService;
 	gitCache: GitCache;
 	github: GithubService;
 	localGitForge: LocalGitForge;
@@ -292,6 +303,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 	const ready = <T>(result: Result<T>): Promise<Result<T>> => Promise.resolve(result);
 	const setting = <T>(key: string): T => settings.get(key);
 	const paths = platform.fs.paths;
+	const writeDiagnosticsReport = inputs.writeDiagnosticsReport;
 
 	// ---- sidecar side: built first, with closures into services that come later ----
 	const client: SidecarClient = {
@@ -329,6 +341,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 		agentCatalog: { setAgentInstalls: (p) => agentCatalog.setInstalls(p.agents) },
 		agentConfig: {
 			setAgentConfig: (p) => sessions.applyAgentConfig(p.sessionId, p.config),
+		},
+		remoteControl: {
+			setStatus: (p) => sessions.applyRemoteControlState(p.sessionId, p.status),
 		},
 		workspaceDiff: {
 			diffForSession: async (sessionId, file, statOnly) => {
@@ -447,7 +462,15 @@ export function createContainer(inputs: ContainerInputs): Container {
 		toml: inputs.toml,
 		git: gitRunner,
 	});
-	const system = new SystemService({ platform, setting });
+	const system = new SystemService({
+		platform,
+		setting,
+		now: () => clock.now(),
+		agentInstalls: () => {
+			const installs = agentCatalog.store.getState().installs;
+			return installs.state === "ready" ? installs.data : [];
+		},
+	});
 	/**
 	 * Builds how one chat's agent starts (SIDE-21): the program the user chose, the provider and its
 	 * region or project, the Environment page's variables (a repository's replacing the global one
@@ -695,15 +718,25 @@ export function createContainer(inputs: ContainerInputs): Container {
 		log,
 		setting,
 		copyText: (text) => system.copyText(text),
+		captureDiagnostics: () => system.captureDiagnostics(),
+		writeDiagnosticsReport:
+			writeDiagnosticsReport === undefined
+				? undefined
+				: (capture) => writeDiagnosticsReport(capture, ids.uuid()),
 		now: () => clock.now(),
 		newId: () => ids.uuid(),
 	});
 	const anyChatWorking = (): boolean =>
 		Object.values(sessions.store.getState().liveStates).some((live) => live.status === "working");
+	const anyRemoteControlConnected = (): boolean =>
+		Object.values(sessions.store.getState().remoteControl ?? {}).some(
+			(status) => status.state === "connected",
+		);
 	const keepAwake = new KeepAwakeService({
 		platform,
 		setting,
 		anyChatWorking,
+		anyRemoteControlConnected,
 	});
 	const runScripts = new RunScriptsService({
 		terminals,
@@ -762,8 +795,14 @@ export function createContainer(inputs: ContainerInputs): Container {
 		},
 		now: () => clock.now(),
 	});
+	const graphite = new GraphiteService({
+		git: gitRunner,
+		setting,
+		now: () => clock.now(),
+	});
 	const git = new GitService({
 		git: gitRunner,
+		graphite,
 		contextOf: (id) => ready(lookups.gitContext(id)),
 		agent: sessions,
 		promptFor: async (id) => {
@@ -777,6 +816,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		fs: platform.fs,
 		setIntendedTargetBranch: (id, branch) => workspace.setIntendedTargetBranch(id, branch),
 		moveOpenPullRequestBase: (id, branch) => github.moveOpenPullRequestBase(id, branch),
+		stackOf: (id) => github.stackMembersOf(id),
 	});
 	const github = new GithubService({
 		git: gitRunner,
@@ -809,6 +849,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		},
 		probeCwd: platform.fs.paths.home,
 		fs: platform.fs,
+		graphite,
 	});
 	const gitCacheConnection = connectGitCache({
 		cache: gitCache,
@@ -905,6 +946,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		handlers: () =>
 			createCommandHandlers(services, {
 				pickFolder: (title) => platform.dialogs.pickFolder({ title }),
+				toggleInspector: () => platform.window.toggleInspector(),
 			}),
 		context: () => {
 			const workspaces = workspace.store.getState().workspacesById;
@@ -929,6 +971,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		mcp,
 		linear,
 		git,
+		graphite,
 		gitCache,
 		github,
 		localGitForge,
@@ -1138,18 +1181,16 @@ export function createContainer(inputs: ContainerInputs): Container {
 		};
 		// The stores fire on every change, and a working chat updates its store many times a
 		// second, so a scan waits for the setting or whether a chat works to change.
-		let keepAwakeInputs: { enabled: boolean; working: boolean } | null = null;
+		let keepAwakeInputs: string | null = null;
 		const followKeepAwake = (): void => {
-			const enabled = setting<boolean>(KEEP_AWAKE_SETTING_KEY) === true;
-			const working = anyChatWorking();
-			if (
-				keepAwakeInputs !== null &&
-				keepAwakeInputs.enabled === enabled &&
-				keepAwakeInputs.working === working
-			) {
-				return;
-			}
-			keepAwakeInputs = { enabled, working };
+			const inputs = JSON.stringify([
+				setting<boolean>(KEEP_AWAKE_SETTING_KEY) === true,
+				anyChatWorking(),
+				setting<boolean>(REMOTE_KEEP_AWAKE_SETTING_KEY) === true,
+				anyRemoteControlConnected(),
+			]);
+			if (keepAwakeInputs === inputs) return;
+			keepAwakeInputs = inputs;
 			runKeepAwakeScan();
 		};
 		cleanups.push(settings.store.subscribe(followKeepAwake));
@@ -1259,6 +1300,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		await step("agent programs", () => system.dispose());
 		await step("the repo service", () => repo.dispose());
 		await step("git polling", () => git.dispose());
+		await step("Graphite polling", () => graphite.dispose());
 		await step("GitHub polling", () => github.dispose());
 		await step("the git cache", () => gitCacheConnection.stop());
 		await step("composer drafts", () => composer.flush());
