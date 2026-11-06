@@ -12,6 +12,7 @@ import type {
 import type { AgentMessage, SessionConfig, WorkspaceContext } from "@conducted/protocol";
 import type { SessionId, WorkspaceId } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
+import { countingIds } from "../../test-support/ids.ts";
 import type { AppToolBackend } from "../../tools/backend.ts";
 import { AsyncQueue } from "../../util/async-queue.ts";
 import { NoActiveTurnError } from "../errors.ts";
@@ -304,7 +305,7 @@ function makeDeps(overrides: Partial<ClaudeSessionDeps> = {}): ClaudeSessionDeps
 		translator: translator(),
 		hasTranscript: async () => false,
 		realPath: async (path) => path,
-		newUuid: () => "turn-uuid",
+		newUuid: countingIds("turn").uuid,
 		scheduler: fakeScheduler(),
 		createCanUseTool: () =>
 			(async () => ({ behavior: "allow", updatedInput: {} })) as unknown as CanUseTool,

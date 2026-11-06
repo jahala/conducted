@@ -11,7 +11,12 @@ export interface Sample {
 }
 
 export interface PlantedSample extends Sample {
-	guard: "tests-cannot-fail" | "mocking-the-thing" | "stand-in-home" | "time-and-leaks";
+	guard:
+		| "tests-cannot-fail"
+		| "mocking-the-thing"
+		| "stand-in-home"
+		| "time-and-leaks"
+		| "tests-cannot-pass";
 	check: string;
 	/** File that must carry the finding. */
 	file: string;
@@ -24,6 +29,16 @@ const COMPONENT = "apps/desktop/src/features/panel/Panel.test.tsx";
 const SIDECAR = "packages/sidecar/src/session/turn.test.ts";
 const RUST = "apps/desktop/src-tauri/src/engine.rs";
 const HOME_FAKES = "apps/desktop/src/test/fakes.ts";
+const PANEL = "apps/desktop/src/features/panel/Panel.tsx";
+const PROVIDERS = "apps/desktop/src/app/providers.tsx";
+const TOAST = "apps/desktop/src/ui/Toast.tsx";
+
+/** The code a component test reaches: the panel renders the providers, which render the toast host. */
+const REACHED: Record<string, string> = {
+	[TOAST]: `/** Toasts. */\nexport function Toaster() {\n\treturn null;\n}\nexport function toastError(): void {}\n`,
+	[PROVIDERS]: `/** Providers. */\nimport { Toaster } from "../ui/Toast.tsx";\n\nexport const AppProviders = () => Toaster();\n`,
+	[PANEL]: `/** Panel. */\nimport { AppProviders } from "../../app/providers.tsx";\nimport type { Thing } from "../../ui/Toast.tsx";\n\nexport const Panel = (_thing?: Thing) => AppProviders();\n`,
+};
 
 const test = (body: string): string => `import { expect, it, vi } from "vitest";\n\n${body}\n`;
 
@@ -345,6 +360,33 @@ export const PLANTED: PlantedSample[] = [
 			[RUST]: `//! Sample.\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn cleans_up() {\n        let dir = make();\n        assert!(dir.exists());\n        std::fs::remove_dir_all(&dir).ok();\n    }\n}\n`,
 		},
 	},
+
+	// Guard 11: tests that cannot pass.
+	{
+		name: "text queries with whitespace that Testing Library trims away",
+		guard: "tests-cannot-pass",
+		check: "untrimmed-text",
+		file: COMPONENT,
+		count: 3,
+		files: {
+			[COMPONENT]: test(
+				`it("finds the button", () => {\n\texpect(screen.getByText("Save ")).toBeDefined();\n\texpect(screen.getByRole("button", { name: " Save" })).toBeDefined();\n\texpect(screen.queryByLabelText("Branch  name")).toBeNull();\n});`,
+			),
+		},
+	},
+	{
+		name: "a mock that leaves out an export the rendered code imports",
+		guard: "tests-cannot-pass",
+		check: "mock-gap",
+		file: COMPONENT,
+		count: 1,
+		files: {
+			...REACHED,
+			[COMPONENT]: test(
+				`import { Panel } from "./Panel.tsx";\n\nvi.mock("../../ui/Toast.tsx", () => ({ toastError: vi.fn() }));\n\nit("renders", () => {\n\texpect(Panel()).toBeNull();\n});`,
+			),
+		},
+	},
 ];
 
 /** Look-alikes that a guard must leave alone. Every one must produce no finding at all. */
@@ -428,6 +470,29 @@ export const CLEAN: Sample[] = [
 			[SIDECAR]: `import { afterAll, expect, test } from "bun:test";\nimport { mkdtempSync, rmSync } from "node:fs";\n\nconst folder = mkdtempSync("/tmp/sample-");\n\nafterAll(() => {\n\trmSync(folder, { recursive: true, force: true });\n});\n\ntest("uses it", () => {\n\texpect(folder).toBeDefined();\n});\n`,
 			[COMPONENT]: test(
 				`it("restores in a finally block", () => {\n\tconst log = vi.spyOn(console, "error").mockImplementation(() => {});\n\ttry {\n\t\texpect(log).toBeDefined();\n\t} finally {\n\t\tlog.mockRestore();\n\t}\n});`,
+			),
+		},
+	},
+	{
+		name: "trimmed text, a substring match, a custom normaliser, and spaces outside a query",
+		files: {
+			[COMPONENT]: test(
+				`it("finds the button", async () => {\n\texpect(screen.getByText("Save")).toBeDefined();\n\texpect(screen.getByText("Save ", { exact: false })).toBeDefined();\n\texpect(screen.getByText(" Save ", { normalizer: (text: string) => text })).toBeDefined();\n\texpect(screen.getByRole("button", { name: "Save" })).toBeDefined();\n\tawait user.type(input, "hello ");\n\texpect(input.value).toBe("hello ");\n});`,
+			),
+		},
+	},
+	{
+		name: "mocks that start from the real module, hold every name the code imports, or are never reached",
+		files: {
+			...REACHED,
+			[COMPONENT]: test(
+				`import { Panel } from "./Panel.tsx";\n\nvi.mock("../../ui/Toast.tsx", async (importOriginal) => ({\n\t...(await importOriginal<object>()),\n\ttoastError: vi.fn(),\n}));\n\nit("renders", () => {\n\texpect(Panel()).toBeNull();\n});`,
+			),
+			"apps/desktop/src/features/panel/Other.test.tsx": test(
+				`import { Panel } from "./Panel.tsx";\n\nvi.mock("../../ui/Toast.tsx", () => {\n\treturn { Toaster: () => null, toastError: vi.fn() };\n});\n\nit("renders", () => {\n\texpect(Panel()).toBeNull();\n});`,
+			),
+			"apps/desktop/src/features/panel/Alone.test.tsx": test(
+				`vi.mock("../../ui/Toast.tsx", () => ({ toastError: vi.fn() }));\n\nit("reaches nothing that needs the toast host", () => {\n\texpect(1).toBe(1);\n});`,
 			),
 		},
 	},

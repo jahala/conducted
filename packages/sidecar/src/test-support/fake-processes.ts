@@ -6,6 +6,7 @@
  * Behaviour: process/process-manager.ts. The idle rule and the warm cap are the real functions of
  * process/idle-policy.ts. fake-processes.test.ts runs one script on this class and on
  * AgentProcessManager and compares which agents each one stops.
+ * Contract test: fake-processes.test.ts
  * Must handle: single flight on one key, release() that leaves a process busy unless it went idle
  * after the claim, a process that was never idle (never stopped by the idle rule), background
  * tasks, a disconnect while a start is pending, and a dispose that throws during stopAll.

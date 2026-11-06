@@ -35,6 +35,24 @@ export function* walk(root: string, dir: string, match: RegExp): Generator<strin
 export const read = (path: string): string => readFileSync(path, "utf8");
 export const rel = (root: string, path: string): string => relative(root, path);
 
+/** The folders and file kinds that hold the product's code: where placeholders and headers live. */
+const CODE_FOLDERS = ["apps", "packages", "bin"] as const;
+const CODE_FILE = /\.(ts|tsx|rs|sh)$/;
+
+/**
+ * Every code file under the code folders, as [path from the root, text]. One home for the scope, so
+ * the stub check, the node gate and the issue sync read the same files.
+ */
+export function readCodeFiles(root: string): [string, string][] {
+	const files: [string, string][] = [];
+	for (const top of CODE_FOLDERS) {
+		for (const path of walk(root, join(root, top), CODE_FILE)) {
+			files.push([relative(root, path), readFileSync(path, "utf8")]);
+		}
+	}
+	return files;
+}
+
 /** A test file: it may mention a placeholder (to assert it throws) without being one. */
 export const TEST_FILE = /\.test\.tsx?$/;
 export const isTestFile = (path: string): boolean => TEST_FILE.test(path);

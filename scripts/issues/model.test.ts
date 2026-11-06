@@ -80,6 +80,20 @@ test("an issue lists items by kind, links blockers, and carries its marker", () 
 const HEAD =
 	"| ID | Feature | Owner | Research | P | Status | Needs |\n|---|---|---|---|---|---|---|\n";
 
+test("a planned issue names the cloud plan only for cloud and Remote Control rows", () => {
+	const text = `## Platform (PLAT)\n\n${HEAD}| PLAT-28 | Program manager | R/binaries.rs | A2 | 2 | planned |  |\n\n## Planned: cloud workspaces and Remote Control (CLOUD, RC)\n\n${HEAD}| CLOUD-02 | Cloud spike | apps/cloud | Part 1 | 1 | planned |  |\n| RC-01 | Remote Control spike | S/runners | Part 2 | 2 | planned |  |\n`;
+	const [plat, cloud, remote] = parseBacklog(text);
+	if (!plat || !cloud || !remote) throw new Error("rows missing");
+	const plan = "docs/plans/cloud-and-remote.md";
+	expect(renderIssue(cloud, [], [], new Map())).toContain(plan);
+	expect(renderIssue(remote, [], [], new Map())).toContain(plan);
+	const body = renderIssue(plat, [], [], new Map());
+	expect(body).not.toContain(plan);
+	expect(body).toContain(
+		"Planned: not ready to build yet; it waits for a spike or a decision first.",
+	);
+});
+
 test("a row with a bad status, priority or need is reported, never dropped or defaulted", () => {
 	const text = `## Chat (CHAT)\n\n${HEAD}| CHAT-01 | A | D/core | r | 1 | wip |  |\n| CHAT-02 | B | D/core | r | 9 | stub |  |\n| CHAT-03 | C | D/core | r | 1 | stub | SIDE-3 |\n`;
 	const { rows, problems } = scanBacklog(text);

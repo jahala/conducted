@@ -4,6 +4,7 @@
  * and records the writes, the files sent to the Trash and the clean-up calls.
  * Behaviour: outbox/node-storage.ts. memory-storage.test.ts runs the same cases on this class and
  * on `createOutboxStorage` over a real folder and compares the answers.
+ * Contract test: memory-storage.test.ts
  * Must handle: a write that fails on demand (`failWrites` and `failCode`), a directory sync that
  * fails after the file landed (`failCode` "outbox_dir_sync_failed"), and a hook that runs before a
  * file goes to the Trash (`beforeTrash`).

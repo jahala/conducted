@@ -28,8 +28,9 @@
  */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join, relative } from "node:path";
+import { readCodeFiles } from "../guards/lib.ts";
 import { type BacklogRow, parseBacklog } from "../issues/model.ts";
-import { placeholdersFor, readSources } from "./node-gate.ts";
+import { placeholdersFor } from "./node-gate.ts";
 import { type Batch, buildableRows, planBatches } from "./plan-batches.ts";
 
 const root = join(import.meta.dir, "../..");
@@ -160,6 +161,20 @@ export function auditPrompt(
 	].join("\n");
 }
 
+/** How much of a failure log a fixer prompt carries. */
+export const LOG_LIMIT = 12_000;
+
+/**
+ * A log cut to `limit` characters: its start and its end, with a line that says how much is gone.
+ * Both test runners print their list of failures last, so the end is the part a fixer needs most.
+ */
+export function clipLog(log: string, limit = LOG_LIMIT): string {
+	if (log.length <= limit) return log;
+	const half = Math.floor(limit / 2);
+	const cut = log.length - 2 * half;
+	return `${log.slice(0, half)}\n[... ${cut} characters of the log cut here ...]\n${log.slice(-half)}`;
+}
+
 export function fixerPrompt(ids: string[], log: string): string {
 	return [
 		`You are fixing one group of failures in Conducted, a macOS app for running coding agents in parallel (repo jahala/conducted). Features: ${ids.join(", ")}.`,
@@ -172,7 +187,7 @@ export function fixerPrompt(ids: string[], log: string): string {
 		"What failed (from CI or from the batch audit):",
 		"",
 		"```",
-		log.slice(0, 12_000),
+		clipLog(log),
 		"```",
 		"",
 		RULES.replaceAll("{ID}", ids[0] ?? "").replaceAll(
@@ -229,7 +244,6 @@ export function selectFeatures(batch: Batch, only: string | undefined): BacklogR
 	return batch.features.filter((f) => wanted.includes(f.id));
 }
 
-/** Sets stub rows to done in backlog text. Refuses an id with no stub row. */
 /** Runs `pnpm -s <script>` in `cwd`. */
 function pnpmScript(cwd: string, script: string): CheckRun {
 	const run = Bun.spawnSync(["pnpm", "-s", script], { cwd, stdout: "pipe", stderr: "pipe" });
@@ -261,6 +275,7 @@ export function runQuickChecks(
 	return null;
 }
 
+/** Sets stub rows to done in backlog text. Refuses an id with no stub row. */
 export function markDone(text: string, ids: string[]): string {
 	let next = text;
 	for (const id of ids) {
@@ -361,7 +376,7 @@ async function main(command: string | undefined, args: string[]): Promise<void> 
 	} else if (command === "mark-done") {
 		const [tree, ...ids] = args;
 		if (!tree || ids.length === 0) throw new Error("Usage: mark-done <tree> <ID...>");
-		const files = readSources(tree);
+		const files = readCodeFiles(tree);
 		for (const id of ids) {
 			if (placeholdersFor(id, files).length > 0) throw new Error(`${id} still has placeholders`);
 		}

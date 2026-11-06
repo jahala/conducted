@@ -13,6 +13,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { type StartedApp, startApp } from "./main.tsx";
 import { createMemoryPlatform } from "./platform/memory.ts";
 import type { Database } from "./platform/platform.ts";
+import { createTestIds } from "./test/ids.ts";
 
 /** Stubs the run scripts and sidecar stop placeholders, then unmounts. */
 async function stopApp(app: StartedApp, root: HTMLElement): Promise<void> {
@@ -43,7 +44,7 @@ describe("APP-01 entry", () => {
 		document.body.appendChild(root);
 		const memory = createMemoryPlatform({
 			clock: { now: () => 1_000 },
-			ids: { uuid: () => "id" },
+			ids: createTestIds(),
 			database: emptyDatabase(),
 		});
 		let app!: StartedApp;
@@ -71,7 +72,7 @@ describe("APP-01 entry", () => {
 		document.body.appendChild(root);
 		const memory = createMemoryPlatform({
 			clock: { now: () => 1_000 },
-			ids: { uuid: () => "id" },
+			ids: createTestIds(),
 			database: emptyDatabase(),
 		});
 		let app!: StartedApp;
