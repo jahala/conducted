@@ -1,5 +1,6 @@
 /**
  * @feature REV-06 Workspace files: tree, quick open, search, read and write
+ * @feature REV-08 File content for the viewer and the open-in-tab request
  * Owns: listing a workspace's files, fuzzy file search, content search, and reading and saving a
  * file for the viewer and editor.
  * Behaviour: services-map.md 5A.5 (transport pattern, UI queries, minimum search length 2, polling
@@ -28,6 +29,7 @@ import {
 } from "@conducted/shared";
 import type { FileSearch, FileSystem, GrepMatch, TreeEntry } from "../../platform/platform.ts";
 import type { ConflictChoice, DiffScope, FileEntry } from "../api.ts";
+import type { FileContent } from "../model.ts";
 import { workspaceRelativePath } from "./git.ts";
 
 /** Search in files shows this many matches, and asks for a narrower query when there are more. */
@@ -39,6 +41,16 @@ export interface WorkspaceFilesServiceDeps {
 	/** Workspace folder plus linked folders that are allowed. */
 	rootsOf: (workspaceId: WorkspaceId) => Promise<Result<string[]>>;
 }
+
+/** One request from the Git panel or a shortcut to show a file in the centre. */
+export interface OpenFileRequest {
+	workspaceId: WorkspaceId;
+	path: string;
+	mode: "diff" | "edit";
+	scope: DiffScope;
+}
+
+type OpenFileListener = (request: OpenFileRequest) => void;
 
 interface ResolvedPath {
 	root: string;
@@ -70,9 +82,18 @@ const toEntries = (root: string, entries: readonly TreeEntry[]): FileEntry[] => 
 
 export class WorkspaceFilesService {
 	readonly #deps: WorkspaceFilesServiceDeps;
+	readonly #openListeners = new Set<OpenFileListener>();
 
 	constructor(deps: WorkspaceFilesServiceDeps) {
 		this.#deps = deps;
+	}
+
+	/** The workspace screen subscribes here so `Actions.files.open` reaches the URL. */
+	onOpen(listener: OpenFileListener): () => void {
+		this.#openListeners.add(listener);
+		return () => {
+			this.#openListeners.delete(listener);
+		};
 	}
 
 	/** Backs `useFileTree`. The platform lists the whole tree; the tab shows depth 1 until expanded. */
@@ -136,14 +157,60 @@ export class WorkspaceFilesService {
 		return ok({ text: read.value, modifiedAt: stat.value.modifiedAt });
 	}
 
+	/** Reads a file for the viewer, with a URL for the previews the webview can draw. */
+	async readContent(workspaceId: WorkspaceId, relativePath: string): Promise<Result<FileContent>> {
+		const resolved = await this.#resolve(workspaceId, relativePath);
+		if (!resolved.ok) return resolved;
+		const absolute = resolved.value.absolute;
+		const stat = await this.#deps.fs.stat(absolute);
+		if (!stat.ok) {
+			if (stat.error.code === "fs_not_found") return ok({ kind: "missing" });
+			return stat;
+		}
+		if (stat.value.isDirectory) {
+			return err(appError("fs_is_a_directory", `"${relativePath}" is a folder.`));
+		}
+		const sizeBytes = stat.value.size;
+		const modifiedAt = stat.value.modifiedAt;
+		const read = await this.#deps.fs.readText(absolute);
+		if (read.ok) {
+			return ok({ kind: "text", text: read.value, modifiedAt, sizeBytes });
+		}
+		if (read.error.code === "fs_not_utf8") {
+			return ok({
+				kind: "binary",
+				sizeBytes,
+				modifiedAt,
+				previewUrl: `asset://localhost/${encodeURIComponent(absolute)}`,
+			});
+		}
+		if (read.error.code === "fs_file_too_large") return ok({ kind: "too_large", sizeBytes });
+		if (read.error.code === "fs_not_found") return ok({ kind: "missing" });
+		return read;
+	}
+
 	/** Backs `Actions.files.open`: asks the workspace screen to show the file in a tab. */
-	open(
-		_workspaceId: WorkspaceId,
-		_relativePath: string,
-		_mode: "diff" | "edit",
-		_scope: DiffScope,
+	async open(
+		workspaceId: WorkspaceId,
+		relativePath: string,
+		mode: "diff" | "edit",
+		scope: DiffScope,
 	): Promise<Result<void>> {
-		return notImplemented("REV-08");
+		const checked = workspaceRelativePath(relativePath);
+		if (!checked.ok) return checked;
+		if (this.#openListeners.size === 0) {
+			return err(
+				appError("file_open_unavailable", "No workspace screen is open to show this file."),
+			);
+		}
+		const request: OpenFileRequest = {
+			workspaceId,
+			path: checked.value,
+			mode,
+			scope,
+		};
+		for (const listener of this.#openListeners) listener(request);
+		return ok(undefined);
 	}
 
 	/** Backs `Actions.files.write`. Fails with code "changed_on_disk" when the file moved on. */

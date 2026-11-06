@@ -16,6 +16,8 @@
  * Test first: renders the header, centre content, Git panel and Scripts panel regions for a workspace id.
  */
 import type { RepoId, WorkspaceId } from "@conducted/shared";
+import { useEffect } from "react";
+import { useServices } from "../../core/context.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { GitPanel } from "../git-panel/GitPanel.tsx";
 import { ScriptsPanel } from "../scripts-panel/ScriptsPanel.tsx";
@@ -38,6 +40,20 @@ export function WorkspaceScreen({
 	search,
 	onSearchChange,
 }: WorkspaceScreenProps) {
+	const workspaceFiles = useServices().services.workspaceFiles;
+	useEffect(
+		() =>
+			workspaceFiles.onOpen((request) => {
+				if (request.workspaceId !== workspaceId) return;
+				onSearchChange({
+					tab: "file",
+					path: request.path,
+					fileMode: request.mode,
+					scope: formatDiffScope(request.scope),
+				});
+			}),
+		[workspaceFiles, workspaceId, onSearchChange],
+	);
 	// The Git panel's tab and diff scope are URL state, so "Open diff" under a turn can show a turn.
 	const gitScope =
 		search.scope === undefined ? undefined : (parseDiffScope(search.scope) ?? undefined);
