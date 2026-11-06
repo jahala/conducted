@@ -24,7 +24,6 @@ import type { PlaceNames } from "../core/services/workspace.ts";
 import { writeRedactedReport } from "../features/diagnostics/diagnostics-report.ts";
 import { createMemoryPlatform, type MemoryPlatform } from "../platform/memory.ts";
 import type { Database } from "../platform/platform.ts";
-import { toastError } from "../ui/Toast.tsx";
 import { createTestIds } from "./ids.ts";
 import { openTestDatabase } from "./sqlite.ts";
 
@@ -56,6 +55,8 @@ export interface TestContainer {
 	container: Container;
 	memory: MemoryPlatform;
 	database: Database;
+	/** What the container told the user about background work that failed (`reportFailure`). */
+	reported: { title: string; message: string }[];
 	close(): void;
 }
 
@@ -72,6 +73,7 @@ export function createTestContainer(options: TestContainerOptions = {}): TestCon
 		channel: "dev",
 		enforceFileScope: options.enforceFileScope,
 	});
+	const reported: { title: string; message: string }[] = [];
 	const container = createContainer({
 		platform: memory.platform,
 		clock,
@@ -81,9 +83,9 @@ export function createTestContainer(options: TestContainerOptions = {}): TestCon
 		sound: options.sound ?? SILENT_SOUND,
 		windowFocused: options.windowFocused ?? (() => false),
 		openLink: options.openLink,
-		// The app entry's own reporter, so a test sees the toast a user would.
+		// The app entry toasts these; a test reads what would have been told from `reported`.
 		reportFailure: (title, error) => {
-			toastError(title, error);
+			reported.push({ title, message: error.message });
 		},
 		writeDiagnosticsReport:
 			options.writeDiagnosticsReport ??
@@ -93,6 +95,7 @@ export function createTestContainer(options: TestContainerOptions = {}): TestCon
 		container,
 		memory,
 		database: store.database,
+		reported,
 		close: () => store.close(),
 	};
 }

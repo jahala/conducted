@@ -52,19 +52,29 @@ test("writes the feed in Tauri's static format with the signature text for Apple
 	});
 });
 
-test("looks the updater key up in the keychain by service and account, printing nothing", () => {
-	expect(UPDATER_KEY_ITEMS).toEqual({
-		TAURI_SIGNING_PRIVATE_KEY: "conducted-updater-key",
-		TAURI_SIGNING_PRIVATE_KEY_PASSWORD: "conducted-updater-key-password",
-	});
-	expect(updaterKeyLookup("conducted-updater-key")).toEqual([
-		"security",
-		"find-generic-password",
-		"-s",
-		"conducted-updater-key",
-		"-a",
-		"conducted",
-		"-w",
+test("looks each updater key item up in the keychain by service and account, printing nothing", () => {
+	const lookups = Object.entries(UPDATER_KEY_ITEMS).map(([variable, service]) => [
+		variable,
+		updaterKeyLookup(service),
+	]);
+
+	expect(lookups).toEqual([
+		[
+			"TAURI_SIGNING_PRIVATE_KEY",
+			["security", "find-generic-password", "-s", "conducted-updater-key", "-a", "conducted", "-w"],
+		],
+		[
+			"TAURI_SIGNING_PRIVATE_KEY_PASSWORD",
+			[
+				"security",
+				"find-generic-password",
+				"-s",
+				"conducted-updater-key-password",
+				"-a",
+				"conducted",
+				"-w",
+			],
+		],
 	]);
 });
 

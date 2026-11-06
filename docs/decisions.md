@@ -553,9 +553,10 @@ Why: the plugin is the maintained implementation of exactly this job, and a seco
 
 Context: the part-1e fixers left loose ends in COMP-04, COMP-06, CHAT-26, CHAT-30, SET-05, REV-11, RUN-09 and PLAT-13. Four of them could not be fixed without changing a shared contract, and the contracts are being changed on another branch today. The lead approved the changes below, each for one feature.
 Chosen: the smallest change each fix needs, each in its own commit.
+
 - CHAT-26: `PlanEntry` gains `planId` (`${eventId}:${callIndex}`), and `attachments.addPlan` takes it in place of the turn id (`model.ts`, `api.ts`). A turn that calls exit_plan_mode twice has two plans, and each attaches its own text.
 - SET-05: `McpServerView.source` is `"user" | "project" | "local" | "plugin" | null` and `transport` is `"stdio" | "http" | "sse" | null` (`model.ts`). The service passes the sidecar's values through instead of inventing "User" and "stdio", and the screens print a dash for null.
 - REV-11: `files.resolveConflicts` takes `seenText`, the text the choices were made on (`api.ts`). The service refuses, unchanged, a file whose disk text differs, in the same read it applies the choices to.
 - RUN-09: `Shell.loginEnv` also returns `zdotdir`, the `ZDOTDIR` the app was launched with, or null (`platform.ts`, `shell.rs`). The terminal shim reads the user's dotfiles from it.
-The PR-12 audit fix in the same branch adds a required container input, `reportFailure`, which the app entry fills with its error toast. `container.ts` is not a shared contract; it is named here so the input is not a surprise.
-Why: each change serves one feature, so the kill rule (a contract change that blocks more than one feature) does not apply. Every changed field is filled from a real source; none has a default that hides a missing value.
+  The PR-12 audit fix in the same branch adds a required container input, `reportFailure`, which the app entry fills with its error toast. `container.ts` is not a shared contract; it is named here so the input is not a surprise.
+  Why: each change serves one feature, so the kill rule (a contract change that blocks more than one feature) does not apply. Every changed field is filled from a real source; none has a default that hides a missing value.
