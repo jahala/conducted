@@ -135,37 +135,34 @@ export function WorkspaceCard({ workspace, repo, now, display }: WorkspaceCardPr
 	const archived = isArchived(workspace);
 	const subtitle = statusText(status);
 
+	// Conductor's Home is a list: one row per workspace with the status, the title, the project and the
+	// age at the right; the branch and status words stay as ours under the title.
 	const body = (
 		<>
-			<div className="flex items-start justify-between gap-2">
-				<span className="min-w-0 flex-1 truncate text-sm font-medium text-fg">
-					{workspaceName(workspace)}
+			<span className="flex size-4 shrink-0 items-center justify-center">
+				{archived ? null : <WorkspaceStatusIcon status={status} decorative />}
+			</span>
+			<span className="flex min-w-0 flex-1 flex-col">
+				<span className="flex min-w-0 items-center gap-2">
+					<span className="min-w-0 truncate text-sm text-fg">{workspaceName(workspace)}</span>
+					{archived ? <Badge>Archived</Badge> : null}
 				</span>
-				{archived ? (
-					<Badge>Archived</Badge>
-				) : (
-					<span className="flex size-4 shrink-0 items-center justify-center">
-						<WorkspaceStatusIcon status={status} decorative />
-					</span>
+				{subtitle.text === "" ? null : (
+					<span className={cn("truncate text-xs", toneClass[subtitle.tone])}>{subtitle.text}</span>
 				)}
-			</div>
-			{subtitle.text === "" ? null : (
-				<p className={cn("truncate text-xs", toneClass[subtitle.tone])}>{subtitle.text}</p>
-			)}
-			<div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-muted">
-				<span className="flex min-w-0 items-center gap-1">
+				<span className="flex min-w-0 items-center gap-1 text-xs text-fg-muted">
 					<GitBranchIcon className="size-3 shrink-0" />
 					<span className="truncate">{workspace.branch}</span>
 				</span>
-				{display.has("repository") ? (
-					<span className="truncate text-fg-subtle">{repo.name}</span>
-				) : null}
-			</div>
+			</span>
+			{display.has("repository") ? (
+				<span className="w-40 shrink-0 truncate text-sm text-fg-muted">{repo.name}</span>
+			) : null}
 			{display.has("lastActive") ? (
 				<time
 					dateTime={new Date(workspace.lastActivityAt).toISOString()}
 					title={new Date(workspace.lastActivityAt).toLocaleString()}
-					className="text-2xs text-fg-subtle"
+					className="w-10 shrink-0 text-right text-sm text-fg-muted"
 				>
 					{relativeTime(workspace.lastActivityAt, now)}
 				</time>
@@ -178,9 +175,9 @@ export function WorkspaceCard({ workspace, repo, now, display }: WorkspaceCardPr
 			<article
 				data-testid="home-workspace-card"
 				data-archived="true"
-				className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-4"
+				className="flex flex-col gap-2 border-b border-border px-4 py-3"
 			>
-				{body}
+				<div className="flex min-w-0 items-center gap-3">{body}</div>
 				<ArchivedActions workspace={workspace} />
 			</article>
 		);
@@ -191,7 +188,7 @@ export function WorkspaceCard({ workspace, repo, now, display }: WorkspaceCardPr
 			to="/repository/$repositoryId/workspace/$workspaceId"
 			params={{ repositoryId: repo.id, workspaceId: workspace.id }}
 			data-testid="home-workspace-card"
-			className="flex flex-col gap-2 rounded-lg border border-border bg-raised p-4 text-left transition-colors hover:bg-hover"
+			className="flex min-w-0 items-center gap-3 border-b border-border px-4 py-3 text-left transition-colors hover:bg-hover"
 		>
 			{body}
 		</Link>

@@ -11,8 +11,9 @@
  * Test first: at the terminal limit the new-terminal button is disabled and says why.
  */
 import type { TerminalId } from "@conducted/shared";
-import { Button } from "../../ui/Button.tsx";
 import { cn } from "../../ui/cn.ts";
+import { IconButton } from "../../ui/IconButton.tsx";
+import { ChevronDownIcon, ChevronRightIcon, PlusIcon } from "../../ui/icons.tsx";
 
 export type ScriptsPanelTabId =
 	| { kind: "setup" }
@@ -78,7 +79,7 @@ export function ScriptsPanelTabs({
 				if (id.kind === "terminal" && event.button === 1) onCloseTerminal(id.terminalId);
 			}}
 			className={cn(
-				"inline-flex h-8 shrink-0 items-center gap-1.5 border-b-2 px-2.5 text-xs transition-colors",
+				"inline-flex h-8 shrink-0 items-center gap-1.5 border-b-2 px-2 text-xs font-medium transition-colors",
 				sameTab(active, id)
 					? "border-[var(--color-accent)] text-fg"
 					: "border-transparent text-fg-muted hover:text-fg",
@@ -90,8 +91,22 @@ export function ScriptsPanelTabs({
 	);
 
 	return (
-		<div className="flex shrink-0 items-center gap-1 border-b border-separator px-2">
-			<div role="tablist" className="flex min-w-0 flex-1 items-center overflow-x-auto">
+		<div className="flex h-8 shrink-0 items-center gap-1 border-b border-separator px-2">
+			<IconButton
+				size="xs"
+				variant="ghost"
+				label={collapsed ? "Expand panel" : "Collapse panel"}
+				icon={
+					collapsed ? (
+						<ChevronRightIcon className="size-3.5" />
+					) : (
+						<ChevronDownIcon className="size-3.5" />
+					)
+				}
+				className="text-fg-muted"
+				onClick={onToggleCollapsed}
+			/>
+			<div role="tablist" className="flex min-w-0 items-center gap-1.5 overflow-x-auto">
 				{tab(
 					{ kind: "setup" },
 					"Setup",
@@ -103,18 +118,16 @@ export function ScriptsPanelTabs({
 					tab({ kind: "terminal", terminalId: terminal.id }, terminal.title, undefined),
 				)}
 			</div>
-			<Button
+			<IconButton
+				size="xs"
 				variant="ghost"
-				size="sm"
+				label="New terminal"
+				icon={<PlusIcon className="size-3.5" />}
+				className="text-fg-muted"
 				disabled={atLimit}
 				title={atLimit ? reason : undefined}
 				onClick={onNewTerminal}
-			>
-				New terminal
-			</Button>
-			<Button variant="ghost" size="sm" onClick={onToggleCollapsed}>
-				{collapsed ? "Expand panel" : "Collapse panel"}
-			</Button>
+			/>
 		</div>
 	);
 }

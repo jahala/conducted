@@ -34,7 +34,7 @@ The values are Conductor 0.92.1's, measured in `research/conductor/ui-dimensions
 | Sidebar rows                  | nav row 32px, workspace row 36px, section header 28px; 6px side padding and 6px radius                                                                             |
 | Lists                         | file tree row 28px with 20px indent; changes row 28px; commit row 32px                                                                                             |
 | Menus                         | item 32px (8px by 6px padding); content 4px padding, 8px radius, at least 128px wide                                                                               |
-| Command palette               | 576px wide, at most 500px tall; input 44px; items 44px                                                                                                             |
+| Command palette               | 672px wide as measured on the owner's capture (the bundle's research says 576px), at most 500px tall; input 44px; items 44px                                       |
 | Dialogs                       | 512px default with 24px padding and 16px gap; sizes 384, 448, 512, 576, 672, 768, 896px                                                                            |
 | Buttons                       | 24, 28, 32 (default) and 44px tall; icon buttons 24, 28 and 32px square                                                                                            |
 | Inputs                        | input and select 32px; textarea at least 60px; checkbox 16px; switch 40 by 20px with a 16px thumb                                                                  |

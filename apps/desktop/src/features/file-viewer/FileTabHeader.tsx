@@ -12,6 +12,7 @@
  */
 
 import { Button } from "../../ui/Button.tsx";
+import { FileTextIcon } from "../../ui/icons.tsx";
 import { Spinner } from "../../ui/Spinner.tsx";
 import { TruncatedText } from "../../ui/TruncatedText.tsx";
 import { DiffToolbar } from "../diff/DiffToolbar.tsx";
@@ -56,7 +57,10 @@ export function FileTabHeader({
 		<div className="flex flex-col border-b border-border bg-surface">
 			<div className="flex h-10 min-w-0 items-center gap-2 px-3">
 				<div className="flex min-w-0 flex-1 items-center gap-2">
-					<TruncatedText text={path} maxLength={80} className="text-sm text-fg" />
+					<span className="inline-flex h-6 min-w-0 items-center gap-1.5 rounded-sm border border-border px-1.5">
+						<FileTextIcon className="size-3.5 shrink-0 text-fg-muted" />
+						<TruncatedText text={path} maxLength={80} className="text-sm text-fg" />
+					</span>
 					{oldPath === null ? null : (
 						<span className="truncate text-xs text-fg-muted">from {oldPath}</span>
 					)}

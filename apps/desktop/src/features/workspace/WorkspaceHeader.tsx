@@ -21,7 +21,14 @@ import { useActions, useRepos, useWorkspace } from "../../core/hooks.ts";
 import { Button } from "../../ui/Button.tsx";
 import { ContextMenu, ContextMenuItem } from "../../ui/ContextMenu.tsx";
 import { cn } from "../../ui/cn.ts";
-import { ChevronDownIcon, FolderPlusIcon, PencilIcon, SidebarRightIcon } from "../../ui/icons.tsx";
+import {
+	ChevronDownIcon,
+	ChevronRightIcon,
+	FolderPlusIcon,
+	MoreHorizontalIcon,
+	PencilIcon,
+	SidebarRightIcon,
+} from "../../ui/icons.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { OpenInMenu } from "../open-in/OpenInMenu.tsx";
@@ -76,19 +83,19 @@ export function WorkspaceHeader({ repoId, workspaceId, controls }: WorkspaceHead
 
 	return (
 		<div className="flex h-full min-w-0 items-center gap-2 px-2">
-			<div className="flex min-w-0 items-center gap-1.5">
+			<div className="flex shrink-0 items-center gap-2">
 				<span
 					aria-hidden="true"
-					className="flex size-5 shrink-0 items-center justify-center rounded-sm bg-muted text-2xs font-medium text-fg-muted"
+					className="flex size-4 shrink-0 items-center justify-center rounded-sm bg-hover text-3xs font-medium text-fg-muted"
 				>
 					{repo?.name.slice(0, 1).toUpperCase() ?? "R"}
 				</span>
-				<span className="max-w-32 truncate text-sm text-fg-muted">{repo?.name ?? ""}</span>
+				<span className="max-w-40 truncate text-sm text-fg-muted" title={repo?.name}>
+					{repo?.name ?? ""}
+				</span>
 			</div>
 
-			<span aria-hidden="true" className="text-fg-subtle">
-				/
-			</span>
+			<ChevronRightIcon aria-hidden="true" className="size-3.5 shrink-0 text-fg-muted" />
 
 			<ContextMenu
 				items={
@@ -152,7 +159,7 @@ export function WorkspaceHeader({ repoId, workspaceId, controls }: WorkspaceHead
 				</Button>
 				<WorkspaceActionsMenu workspaceId={workspaceId}>
 					<Button variant="ghost" size="sm" className="w-7 px-0" aria-label="Workspace actions">
-						<ChevronDownIcon />
+						<MoreHorizontalIcon className="size-3.5" />
 					</Button>
 				</WorkspaceActionsMenu>
 			</div>

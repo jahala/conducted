@@ -1,6 +1,6 @@
 /**
  * @feature NAV-05 Home
- * Owns: the Home route: a card grid of all workspaces with search, filters, sort, a Display menu,
+ * Owns: the Home route: a list of all workspaces (Conductor's full-width rows) with search, filters, sort, a Display menu,
  * a pinned group and paging.
  * Behaviour: ui-map.md 2 (/all-workspaces: search, filters for projects and active or archived,
  * sort, "Display" card fields, pinned group, paging by 50; empty: "No matching workspaces"),
@@ -45,7 +45,7 @@ const INITIAL_FILTERS: HomeFilterState = {
 
 function HomeSkeleton() {
 	return (
-		<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+		<div className="flex flex-col">
 			{["a", "b", "c", "d", "e", "f"].map((key) => (
 				<Skeleton key={key} className="h-32" />
 			))}
@@ -66,7 +66,7 @@ function CardGrid({
 	display: HomeDisplay;
 }) {
 	return (
-		<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+		<div className="flex flex-col">
 			{workspaces.map((workspace) => {
 				const repo = reposById.get(workspace.repoId);
 				if (repo === undefined) return null;
@@ -123,7 +123,7 @@ function HomeContent({
 	const empty = page.pinned.length === 0 && page.items.length === 0;
 
 	return (
-		<div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-6">
+		<div className="flex w-full flex-col gap-4 py-2">
 			<HomeFilters
 				filters={filters}
 				repos={repos}
@@ -140,8 +140,8 @@ function HomeContent({
 			) : (
 				<>
 					{page.pinned.length === 0 ? null : (
-						<section aria-label="Pinned" className="flex flex-col gap-3">
-							<h2 className="text-sm font-medium text-fg">Pinned</h2>
+						<section aria-label="Pinned" className="flex flex-col">
+							<h2 className="px-4 py-2 text-xs font-medium text-fg-muted">Pinned</h2>
 							<CardGrid
 								workspaces={page.pinned}
 								reposById={reposById}
@@ -151,13 +151,13 @@ function HomeContent({
 						</section>
 					)}
 					{page.items.length === 0 ? null : (
-						<section aria-label="All workspaces" className="flex flex-col gap-3">
-							<h2 className="text-sm font-medium text-fg">All workspaces</h2>
+						<section aria-label="All workspaces" className="flex flex-col">
+							<h2 className="px-4 py-2 text-xs font-medium text-fg-muted">All workspaces</h2>
 							<CardGrid workspaces={page.items} reposById={reposById} now={now} display={display} />
 						</section>
 					)}
 					{page.hasMore ? (
-						<div className="flex items-center gap-3">
+						<div className="flex items-center gap-3 px-4">
 							<Button variant="secondary" onClick={onShowMore}>
 								Show more
 							</Button>

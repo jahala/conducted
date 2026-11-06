@@ -13,10 +13,13 @@
  * Test first: with two workspaces and the query "fix", only the one named "fix-login" is returned, under
  * Workspaces.
  */
+
 import type { CommandEntry } from "../../core/api.ts";
 import { rankFuzzy } from "../../core/fuzzy.ts";
 import type { Repo, Section, Session, Workspace } from "../../core/model.ts";
 import { SETTING_PAGES, type SettingPage } from "../../core/registries/settings.ts";
+import { relativeTime } from "../sidebar/WorkspaceRow.tsx";
+import { workspaceName } from "../workspace/workspace-name.ts";
 
 export type PaletteTab = "all" | "workspaces" | "projects" | "actions" | "settings";
 
@@ -31,6 +34,8 @@ export const PALETTE_TABS: readonly PaletteTab[] = [
 export interface PaletteItem {
 	id: string;
 	label: string;
+	/** The project's mark for a workspace row (its icon or first letter). */
+	avatar?: string;
 	hint: string | null;
 	shortcut: string | null;
 	disabled: boolean;
@@ -51,6 +56,8 @@ export interface PaletteInput {
 	sessions?: readonly Session[];
 	installedApps?: readonly string[];
 	defaultOpenInApp?: string | null;
+	/** The current time, for the age of a recent workspace ("1d"). */
+	now?: number;
 }
 
 interface CommandSpec {
@@ -160,13 +167,26 @@ function uniqueWorkspaces(workspaces: readonly Workspace[]): Workspace[] {
 	return result;
 }
 
-function workspaceItem(workspace: Workspace, reposById: ReadonlyMap<string, Repo>): PaletteItem {
-	const label = workspace.displayName ?? workspace.directoryName;
+/**
+ * A workspace row, named as the sidebar names it (user-set name, then pull request title, then branch).
+ * Recent rows show the workspace's age as Conductor does ("1d"); other rows the project's name.
+ */
+function workspaceItem(
+	workspace: Workspace,
+	reposById: ReadonlyMap<string, Repo>,
+	now?: number,
+): PaletteItem {
 	const repo = reposById.get(workspace.repoId);
+	const icon = repo?.icon?.trim();
 	return {
 		id: `workspace:${workspace.id}`,
-		label,
-		hint: repo?.name ?? workspace.branch,
+		label: workspaceName(workspace),
+		avatar:
+			icon !== undefined && icon !== "" ? icon : (repo?.name.slice(0, 1).toUpperCase() ?? "?"),
+		hint:
+			now === undefined
+				? (repo?.name ?? workspace.branch)
+				: relativeTime(workspace.lastActivityAt, now),
 		shortcut: null,
 		disabled: false,
 	};
@@ -236,16 +256,21 @@ export function buildPaletteGroups(props: PaletteInput): PaletteGroup[] {
 	const recent = [...active]
 		.sort((left, right) => right.lastActivityAt - left.lastActivityAt)
 		.slice(0, 5)
-		.map((workspace) => workspaceItem(workspace, reposById));
-	if (query.trim() === "") addGroup("Recent workspaces", recent);
-	addGroup(
-		"Workspaces",
-		active.map((workspace) => workspaceItem(workspace, reposById)),
-	);
-	addGroup(
-		"Archived",
-		archived.map((workspace) => workspaceItem(workspace, reposById)),
-	);
+		.map((workspace) => workspaceItem(workspace, reposById, props.now));
+	const browsing = query.trim() === "";
+	if (browsing) addGroup("Recent workspaces", recent);
+	// Conductor's All tab opens on the recent workspaces only; the full lists come with a query or on
+	// the Workspaces tab, so All does not show the same workspaces twice.
+	if (!(browsing && props.tab === "all")) {
+		addGroup(
+			"Workspaces",
+			active.map((workspace) => workspaceItem(workspace, reposById)),
+		);
+		addGroup(
+			"Archived",
+			archived.map((workspace) => workspaceItem(workspace, reposById)),
+		);
+	}
 
 	if (props.currentWorkspaceId !== null && props.sessions !== undefined) {
 		addGroup(

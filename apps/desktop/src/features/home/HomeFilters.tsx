@@ -84,7 +84,7 @@ export function HomeFilters({
 	const selectedProject = filters.projects[0] ?? "all";
 
 	return (
-		<div className="flex flex-wrap items-center gap-2">
+		<div className="flex flex-wrap items-center gap-2 px-4">
 			<Input
 				type="search"
 				aria-label="Search workspaces"
