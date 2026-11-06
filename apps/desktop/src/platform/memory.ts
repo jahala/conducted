@@ -91,6 +91,12 @@ export interface MemoryPlatformControls {
 	setSystemInfo(info: SystemInfo): void;
 	/** Makes the next `system.info` calls fail with this message. */
 	failSystemInfo(message: string): void;
+	/** Changes what `system.hasFullDiskAccess` reports. */
+	setFullDiskAccess(granted: boolean): void;
+	/** Makes `system.hasFullDiskAccess` fail with this message; null restores the answer. */
+	failFullDiskAccessCheck(message: string | null): void;
+	/** Makes `system.openFullDiskAccessSettings` fail with this message; null restores success. */
+	failOpenFullDiskAccessSettings(message: string | null): void;
 	/** Every command given to `shell.run` and `shell.start`, in order. */
 	readonly shellCalls: readonly ShellCommand[];
 	/** Text files by absolute path. Reading and writing through `fs` use this map. */
@@ -305,6 +311,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	let holdNextStart = false;
 	let systemInfo: SystemInfo = { osVersion: "15.0", machineArch: "arm64", buildArch: "arm64" };
 	let systemInfoFailure: string | null = null;
+	let fullDiskAccess = true;
+	let fullDiskAccessFailure: string | null = null;
+	let fullDiskAccessOpenFailure: string | null = null;
 	let windowFocused = true;
 
 	const sidecarLineListeners = new Set<ValueListener<string>>();
@@ -834,8 +843,14 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		},
 		isOnline: async () => true,
 		onNetworkChanged: (listener) => listen(networkListeners, listener),
-		hasFullDiskAccess: async () => true,
-		openFullDiskAccessSettings: async () => ok(undefined),
+		hasFullDiskAccess: async () => {
+			if (fullDiskAccessFailure !== null) throw new Error(fullDiskAccessFailure);
+			return fullDiskAccess;
+		},
+		openFullDiskAccessSettings: async () =>
+			fullDiskAccessOpenFailure === null
+				? ok(undefined)
+				: err(appError("full_disk_access_open_failed", fullDiskAccessOpenFailure)),
 	};
 
 	const materialize = async (
@@ -962,6 +977,15 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		},
 		failSystemInfo: (message) => {
 			systemInfoFailure = message;
+		},
+		setFullDiskAccess: (granted) => {
+			fullDiskAccess = granted;
+		},
+		failFullDiskAccessCheck: (message) => {
+			fullDiskAccessFailure = message;
+		},
+		failOpenFullDiskAccessSettings: (message) => {
+			fullDiskAccessOpenFailure = message;
 		},
 		get shellCalls() {
 			return shellCalls;

@@ -7,8 +7,9 @@
  */
 import { type AppError, appError, notImplemented } from "@conducted/shared";
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { useStore } from "zustand";
-import type { Queries } from "../api.ts";
+import type { Loadable, Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
 import type { SystemInfo } from "../model.ts";
 
@@ -44,4 +45,33 @@ export const useSystemInfo: Queries["useSystemInfo"] = () => {
 	return { state: "ready", data: query.data };
 };
 
-export const useFullDiskAccess: Queries["useFullDiskAccess"] = () => notImplemented("PLAT-24");
+/** PLAT-24: whether macOS lets the app read protected folders, read when the page opens. */
+export const useFullDiskAccess: Queries["useFullDiskAccess"] = () => {
+	const { platform } = useServices();
+	const [access, setAccess] = useState<Loadable<boolean>>({ state: "loading" });
+
+	useEffect(() => {
+		let active = true;
+		void platform.system.hasFullDiskAccess().then(
+			(granted) => {
+				if (active) setAccess({ state: "ready", data: granted });
+			},
+			(cause: unknown) => {
+				if (!active) return;
+				setAccess({
+					state: "error",
+					error: appError(
+						"full_disk_access_check_failed",
+						"Full Disk Access could not be checked.",
+						cause,
+					),
+				});
+			},
+		);
+		return () => {
+			active = false;
+		};
+	}, [platform]);
+
+	return access;
+};

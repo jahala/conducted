@@ -16,8 +16,9 @@
  * Xcode licence fix opens Terminal and reports a Terminal that cannot be opened.
  * Our design choice: one service for these Mac-level actions, so screens get them through
  * `Actions` like everything else and the Platform stays out of `features/`.
- * Built now: the program store and the install, re-download and remove actions. The other
- * Mac-level actions are placeholders owned by CHAT-29, APP-09, APP-03 and PLAT-24.
+ * Built now: the program store, the install, re-download and remove actions, and opening the
+ * Privacy & Security pane for Full Disk Access. The other Mac-level actions are placeholders
+ * owned by CHAT-29, APP-09 and APP-03.
  * Test first: install while a download of the same program runs starts no second download.
  */
 import {
@@ -191,8 +192,16 @@ export class SystemService {
 	}
 
 	/** Backs `Actions.app.openFullDiskAccessSettings`. */
-	openFullDiskAccessSettings(): Promise<Result<void>> {
-		return notImplemented("PLAT-24");
+	async openFullDiskAccessSettings(): Promise<Result<void>> {
+		const opened = await this.#deps.platform.system.openFullDiskAccessSettings();
+		if (opened.ok) return ok(undefined);
+		return err(
+			appError(
+				"full_disk_access_settings_unavailable",
+				"System Settings could not be opened. Grant Full Disk Access under Privacy & Security yourself.",
+				opened.error,
+			),
+		);
 	}
 
 	/** Backs `Actions.app.runXcodeLicenseFix`: opens Terminal with the accept command. */
