@@ -6,7 +6,10 @@
  * checkpoint controls.
  * Must handle: Files option off (only the chat rewinds); the revert fails (message in the dialog,
  * chat unchanged, dialog stays open); Cmd+Enter confirms; an agent that is working is cancelled
- * first, and a failed cancel leaves the chat untouched.
+ * first, and a failed cancel leaves the chat untouched. The file count is every file that differs
+ * between the turn's start and the working tree now (useChangedSinceTurn), read only while the
+ * dialog is open; while it loads, or when it cannot be read, no count shows, and the reset itself
+ * reports why it cannot restore files.
  * Our design choice: the checkbox is remembered as the `reset_chat_also_reset_files` setting, and
  * it is written before the revert so the service reads the same choice the user saw.
  * Test first: Confirming with 'Also reset files' ticked calls sessions.revertTo(id, turnId); the
@@ -15,7 +18,7 @@
 import type { SessionId, TurnId } from "@conducted/shared";
 import { useEffect, useRef, useState } from "react";
 import { createSingleFlight } from "../../core/async/single-flight.ts";
-import { useActions, useSetting } from "../../core/hooks.ts";
+import { useActions, useChangedSinceTurn, useSetting } from "../../core/hooks.ts";
 import { Button } from "../../ui/Button.tsx";
 import { Checkbox } from "../../ui/Checkbox.tsx";
 import { Dialog, DialogContent, DialogFooter } from "../../ui/Dialog.tsx";
@@ -27,7 +30,6 @@ export interface ResetChatDialogProps {
 	onOpenChange: (open: boolean) => void;
 	sessionId: SessionId;
 	turnId: TurnId;
-	changedFileCount: number;
 	/** The agent is still working on this turn. It is cancelled before the reset. */
 	busy?: boolean;
 }
@@ -37,7 +39,6 @@ export function ResetChatDialog({
 	onOpenChange,
 	sessionId,
 	turnId,
-	changedFileCount,
 	busy = false,
 }: ResetChatDialogProps) {
 	const actions = useActions();
@@ -85,8 +86,6 @@ export function ResetChatDialog({
 			}
 		});
 
-	const count = changedFileCount === 1 ? "1 file changed" : `${changedFileCount} files changed`;
-
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent
@@ -103,7 +102,7 @@ export function ResetChatDialog({
 							aria-label="Also reset files"
 						/>
 						<span>Also reset files</span>
-						<span className="text-xs text-fg-subtle">{count}</span>
+						<ChangedFileCount sessionId={sessionId} turnId={turnId} />
 					</div>
 					{error === null ? null : <p className="text-sm text-danger">{error}</p>}
 				</div>
@@ -122,5 +121,17 @@ export function ResetChatDialog({
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>
+	);
+}
+
+/** The files a reset with "Also reset files" puts back. Mounted only while the dialog is open. */
+function ChangedFileCount({ sessionId, turnId }: { sessionId: SessionId; turnId: TurnId }) {
+	const changed = useChangedSinceTurn(sessionId, turnId);
+	if (changed.state !== "ready") return null;
+	const count = changed.data;
+	return (
+		<span className="text-xs text-fg-subtle">
+			{count === 1 ? "1 file changed" : `${count} files changed`}
+		</span>
 	);
 }

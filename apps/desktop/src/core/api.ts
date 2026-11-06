@@ -289,6 +289,11 @@ export interface Queries {
 	): Loadable<ContentMatch[]>;
 	/** Chats of the workspace that were closed and can be reopened. */
 	useClosedSessions(workspaceId: WorkspaceId): Loadable<Session[]>;
+	/**
+	 * How many files differ between the start of a turn and the working tree now: what a reset to
+	 * that turn with "Also reset files" puts back.
+	 */
+	useChangedSinceTurn(sessionId: SessionId, turnId: TurnId): Loadable<number>;
 	/** Workspaces saved to the backlog, not started yet. */
 	useBacklogWorkspaces(): Loadable<BacklogWorkspace[]>;
 	/** Open issues of a repository's GitHub project or of the user's Linear workspace, filtered by the query. */
