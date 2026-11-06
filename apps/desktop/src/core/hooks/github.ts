@@ -1,11 +1,8 @@
 /**
  * @feature DATA-01 Query hook contract for screens
-<<<<<<< HEAD
- * Owns: the GitHub hooks: access, checks, pull requests, issues, repository lists and stacks.
-=======
  * @feature PRJ-03 The repository-name check hook the Create project dialog shows
- * Owns: the GitHub hooks: access, checks, pull requests, issues and repository lists.
->>>>>>> 6b6a8790429251f25614cb4a59860aa1a424f8dd
+ * Owns: the GitHub hooks: access, checks, pull requests, issues, repository lists, stacks and the
+ * repository-name check.
  * Behaviour: services-map.md 2.5 (queries for GitHub data); core/hooks.ts states the contract.
  * Must handle: a GitHub token of unknown status, a check log that cannot be read.
  * Test first: the test for a hook body lives with the feature that implements it.
@@ -21,22 +18,16 @@ import type {
 	GitHubRepoSummary,
 	IssueView,
 	PullRequestSummary,
-<<<<<<< HEAD
-	StackEntryView,
-=======
 	RepoNameCheck,
->>>>>>> 6b6a8790429251f25614cb4a59860aa1a424f8dd
+	StackEntryView,
 } from "../model.ts";
 import {
 	canListGithubIssues,
 	canListGithubPullRequests,
 	toGitHubAccessView,
 } from "../services/github.ts";
-<<<<<<< HEAD
 import { linearIssueToView } from "../services/linear.ts";
-=======
 import { projectFolderName } from "../services/project-templates.ts";
->>>>>>> 6b6a8790429251f25614cb4a59860aa1a424f8dd
 
 export const useCheckLog: Queries["useCheckLog"] = (workspaceId, checkName) => {
 	const { services } = useServices();

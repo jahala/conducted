@@ -65,7 +65,7 @@ import { FavoriteModelsService } from "./services/favorite-models.ts";
 import { FileDiffService } from "./services/file-diff.ts";
 import { FollowUpQueue } from "./services/follow-up-queue.ts";
 import { GitService } from "./services/git.ts";
-import { createGitCache } from "./services/git-cache.ts";
+import { createGitCache, type GitCache } from "./services/git-cache.ts";
 import { GithubService } from "./services/github.ts";
 import {
 	KEEP_AWAKE_SCAN_MS,
@@ -133,6 +133,7 @@ export interface Services {
 	mcp: McpService;
 	linear: LinearService;
 	git: GitService;
+	gitCache: GitCache;
 	github: GithubService;
 	localGitForge: LocalGitForge;
 	checkpoint: CheckpointService;
@@ -817,6 +818,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		mcp,
 		linear,
 		git,
+		gitCache,
 		github,
 		localGitForge,
 		checkpoint,

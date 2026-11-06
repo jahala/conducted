@@ -14,13 +14,8 @@
  * health store, reading and writing the personal access token, every pull request write action
  * (merge, auto-merge on and off, mark ready, edit title and body, request and remove reviewers,
  * approve), the Fix errors instruction that sends failing checks to the agent, PR-03's polling of
-<<<<<<< HEAD
- * watched pull requests, PR-11's REST reads, PRJ-02's clone pickers, GIT-08's base move, and
- * PR-08's stack read and stack sync.
-=======
  * watched pull requests, PR-11's REST reads, PRJ-02's clone pickers, PRJ-03's repository-name check,
- * and GIT-08's base move.
->>>>>>> 6b6a8790429251f25614cb4a59860aa1a424f8dd
+ * GIT-08's base move, and PR-08's stack read and stack sync.
  * Behaviour: services-map.md 3.9 (auth probes, method resolution, health), 5B.1.11 (failure
  * classes; only unauthorized breaks access), 3.7.5 and 5B.1.7 (the write actions, the merge
  * method cached per repo, and one call at a time for each action), 3.7.6 (fixing CI errors goes to
@@ -140,11 +135,8 @@ import type {
 	PullRequest,
 	PullRequestAction,
 	PullRequestSummary,
-<<<<<<< HEAD
-	StackEntryView,
-=======
 	RepoNameCheck,
->>>>>>> 6b6a8790429251f25614cb4a59860aa1a424f8dd
+	StackEntryView,
 } from "../model.ts";
 import {
 	createPrInstruction,

@@ -1,13 +1,7 @@
 /**
-<<<<<<< HEAD
- * @feature CHAT-01 Sessions service: the chat list; CHAT-02 Send a message as a new turn; CHAT-05
- * Cancel a turn; CHAT-16 Fork a chat from a turn; CHAT-27 Retry a failed turn in a new chat; WS-10
- * Delete a workspace's chats
-=======
  * @feature CHAT-01 Sessions service: the chat list; CHAT-02 Send a message as a new turn;
- * CHAT-05 Cancel a turn; CHAT-17 Copy transcript and search chat history; CHAT-27 Retry a failed
- * turn in a new chat; WS-10 Delete a workspace's chats
->>>>>>> d0b4e67ffbb5d5c8bdabb62857491a968e79789d
+ * CHAT-05 Cancel a turn; CHAT-16 Fork a chat from a turn; CHAT-17 Copy transcript and search chat
+ * history; CHAT-27 Retry a failed turn in a new chat; WS-10 Delete a workspace's chats
  * Owns: the list of chats per workspace, their stored live state and events in memory, the
  * create, close, reopen, rename, set-title-if-empty, delete (which also removes the chat's
  * checkpoint refs) and open paths, deleting every chat of a workspace with its attachment files
@@ -356,16 +350,13 @@ export class SessionsService implements AgentMessenger {
 	readonly #configWrites: KeyedQueue<SessionId> = createKeyedQueue<SessionId>();
 	/** The newest option-list request per chat. An older answer never changes the store. */
 	readonly #acpOptionRequests: LatestWins<string> = createLatestWins<string>();
-<<<<<<< HEAD
 	/**
 	 * A forked chat's agent resume, used by its first send. The session id is the origin's, and
 	 * the native message id is the last agent message of the forked turn (CHAT-16).
 	 */
 	readonly #forkResumes = new Map<string, { agentSessionId: string; atNativeMessageId?: string }>();
-=======
 	/** The stored-history search over the event log. */
 	readonly #historySearch: (query: string, limit: number) => Promise<Result<HistoryHit[]>>;
->>>>>>> d0b4e67ffbb5d5c8bdabb62857491a968e79789d
 	/** Loads of stored events in progress, with the events that arrived meanwhile. */
 	readonly #opening = new Map<
 		string,
