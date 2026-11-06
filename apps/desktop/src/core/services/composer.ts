@@ -1,7 +1,9 @@
 /**
  * @feature COMP-01 Composer data: drafts that survive restarts and attachments
- * Owns: the unsent text and attachments of each chat, saved as one JSON file per chat, and the
- * staging of attachments until a message is sent.
+ * @feature CHAT-26 Start a chat with earlier chats and plans
+ * Owns: the unsent text and attachments of each chat, saved as one JSON file per chat, the
+ * staging of attachments until a message is sent, and attaching an earlier chat's transcript or
+ * an agent's plan.
  * Behaviour: services-map.md 5A.6 (attachment kinds, local pipeline, paste rule, sweep of old
  * staging folders), 2.7.2 (drafts have a size limit), ui-map.md 3.5 (composer).
  * Must handle: saving is debounced and the newest text wins (an older write that finishes late
@@ -10,7 +12,9 @@
  * attachment by `convertsToAttachment` (the paste handler is in the COMP-07 attachments hook); a
  * failed write, a failed room-making pass or an oversized draft is kept in `store.errors` so a
  * screen can tell the user it did not save; the drafts folder is capped at 5 MiB by trashing the
- * oldest other drafts.
+ * oldest other drafts; another chat with no messages is refused with "No messages in this chat",
+ * and a transcript or plan that cannot be read or written says "Failed to attach chat transcript"
+ * or "Failed to attach plan".
  * Dropped or picked files, and the bytes of a pasted image (`addBytes`, COMP-07), are copied into
  * the chat's staging folder and get an attachment row; a
  * file named like one of the app's own context files is attached under another name. A
@@ -218,6 +222,15 @@ export interface ComposerServiceDeps {
 	terminalOutputOf?: (
 		sessionId: SessionId,
 	) => Promise<Result<{ text: string; source: string } | null>>;
+	/** Another chat's title and concise transcript, for attaching it (CHAT-26). */
+	transcriptOf?: (
+		sessionId: SessionId,
+	) => Promise<Result<{ title: string | null; text: string }>>;
+	/** The text of a plan an agent proposed in a turn, for attaching it (CHAT-26). */
+	planOf?: (
+		sessionId: SessionId,
+		turnId: TurnId,
+	) => Promise<Result<{ title: string; text: string }>>;
 }
 
 export class ComposerService {
@@ -718,16 +731,51 @@ export class ComposerService {
 	}
 
 	/** Backs `Actions.attachments.addChatTranscript`. */
-	addChatTranscript(_sessionId: SessionId, _fromSessionId: SessionId): Promise<Result<string>> {
-		return notImplemented("CHAT-26");
+	async addChatTranscript(sessionId: SessionId, fromSessionId: SessionId): Promise<Result<string>> {
+		const read = this.#deps.transcriptOf;
+		if (read === undefined) {
+			return err(
+				appError("chat_transcript_failed", "Failed to attach chat transcript"),
+			);
+		}
+		const transcript = await read(fromSessionId);
+		if (!transcript.ok) {
+			return err(
+				appError("chat_transcript_failed", "Failed to attach chat transcript", transcript.error),
+			);
+		}
+		if (transcript.value.text.trim().length === 0) {
+			return err(appError("chat_transcript_empty", "No messages in this chat"));
+		}
+		const title = transcript.value.title?.trim() ?? "";
+		const name = `Transcript of ${title.length === 0 ? "Untitled chat" : title}.md`;
+		const attached = await this.addText(sessionId, name, transcript.value.text);
+		if (!attached.ok) {
+			return err(
+				appError("chat_transcript_failed", "Failed to attach chat transcript", attached.error),
+			);
+		}
+		return attached;
 	}
 
 	/** Backs `Actions.attachments.addPlan`. */
-	addPlan(
-		_sessionId: SessionId,
-		_plan: { sessionId: SessionId; turnId: TurnId },
+	async addPlan(
+		sessionId: SessionId,
+		plan: { sessionId: SessionId; turnId: TurnId },
 	): Promise<Result<string>> {
-		return notImplemented("CHAT-26");
+		const read = this.#deps.planOf;
+		if (read === undefined) {
+			return err(appError("chat_plan_failed", "Failed to attach plan"));
+		}
+		const found = await read(plan.sessionId, plan.turnId);
+		if (!found.ok) {
+			return err(appError("chat_plan_failed", "Failed to attach plan", found.error));
+		}
+		const attached = await this.addText(sessionId, `Plan - ${found.value.title}.md`, found.value.text);
+		if (!attached.ok) {
+			return err(appError("chat_plan_failed", "Failed to attach plan", attached.error));
+		}
+		return attached;
 	}
 
 	/** Backs `Actions.attachments.addTerminalOutput`. */
