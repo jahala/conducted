@@ -1,0 +1,2778 @@
+{
+	"inventory": "title",
+	"source": ".context/conductor-re/inventory/title.tsv",
+	"entries": [
+		{
+			"id": "title:M948377",
+			"text": "GitHub sign-in expired",
+			"file": "main-BE1h_1MP.js",
+			"offset": 948377
+		},
+		{
+			"id": "title:M952355",
+			"text": "GitHub token rejected",
+			"file": "main-BE1h_1MP.js",
+			"offset": 952355
+		},
+		{
+			"id": "title:M1183209",
+			"text": "You don't have access to this workspace",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1183209
+		},
+		{
+			"id": "title:M1183322",
+			"text": "Workspace not found",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1183322
+		},
+		{
+			"id": "title:M1183476",
+			"text": "You can't open this workspace",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1183476
+		},
+		{
+			"id": "title:M3096088",
+			"text": "Couldn't load your shell environment",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3096088
+		},
+		{
+			"id": "title:M3096230",
+			"text": "Couldn't find your login shell",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3096230
+		},
+		{
+			"id": "title:M3645197",
+			"text": ",i);return}}function Kyn(){const t=Y.c(3),e=sSe();let n;t[0]===Symbol.for(",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3645197
+		},
+		{
+			"id": "title:M3778786",
+			"text": "Command palette",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3778786
+		},
+		{
+			"id": "title:M3778939",
+			"text": "Next tab (Command palette)",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3778939
+		},
+		{
+			"id": "title:M3779187",
+			"text": "Previous tab (Command palette)",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3779187
+		},
+		{
+			"id": "title:M3779431",
+			"text": "Edit highlighted item (Command palette)",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3779431
+		},
+		{
+			"id": "title:M3779676",
+			"text": "Delete highlighted item (Command palette)",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3779676
+		},
+		{
+			"id": "title:M3779901",
+			"text": "Toggle theme (dark/light)",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3779901
+		},
+		{
+			"id": "title:M3780088",
+			"text": "Shortcuts help",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3780088
+		},
+		{
+			"id": "title:M3780229",
+			"text": "Settings",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3780229
+		},
+		{
+			"id": "title:M3780370",
+			"text": "Quit",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3780370
+		},
+		{
+			"id": "title:M3780509",
+			"text": "Search settings",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3780509
+		},
+		{
+			"id": "title:M3780630",
+			"text": "Close settings",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3780630
+		},
+		{
+			"id": "title:M3780784",
+			"text": "Confirm dialog",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3780784
+		},
+		{
+			"id": "title:M3780923",
+			"text": "Close diagnostics",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3780923
+		},
+		{
+			"id": "title:M3781083",
+			"text": "Send feedback",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3781083
+		},
+		{
+			"id": "title:M3781243",
+			"text": "Open debug tools",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3781243
+		},
+		{
+			"id": "title:M3781392",
+			"text": "Open sidecar logs",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3781392
+		},
+		{
+			"id": "title:M3781544",
+			"text": "Open app log viewer",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3781544
+		},
+		{
+			"id": "title:M3781724",
+			"text": "Protect page from select all",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3781724
+		},
+		{
+			"id": "title:M3781876",
+			"text": "Toggle Garry mode (expand tool calls)",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3781876
+		},
+		{
+			"id": "title:M3782313",
+			"text": "Toggle right sidebar",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3782313
+		},
+		{
+			"id": "title:M3782464",
+			"text": "Toggle terminal panel",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3782464
+		},
+		{
+			"id": "title:M3782604",
+			"text": "Toggle zen mode",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3782604
+		},
+		{
+			"id": "title:M3783058",
+			"text": "Reset zoom",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3783058
+		},
+		{
+			"id": "title:M3783186",
+			"text": "Navigate back",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3783186
+		},
+		{
+			"id": "title:M3783329",
+			"text": "Navigate forward",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3783329
+		},
+		{
+			"id": "title:M3783469",
+			"text": "Go to Home",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3783469
+		},
+		{
+			"id": "title:M3783722",
+			"text": "Go to previous tab",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3783722
+		},
+		{
+			"id": "title:M3783957",
+			"text": "Go to next tab",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3783957
+		},
+		{
+			"id": "title:M3784084",
+			"text": "Close tab",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3784084
+		},
+		{
+			"id": "title:M3784208",
+			"text": "Reopen closed tab",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3784208
+		},
+		{
+			"id": "title:M3784334",
+			"text": "New tab",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3784334
+		},
+		{
+			"id": "title:M3784448",
+			"text": "Split tab",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3784448
+		},
+		{
+			"id": "title:M3784582",
+			"text": "Quick open file",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3784582
+		},
+		{
+			"id": "title:M3784739",
+			"text": "Search in files",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3784739
+		},
+		{
+			"id": "title:M3784912",
+			"text": "Add repository",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3784912
+		},
+		{
+			"id": "title:M3785070",
+			"text": "Switch to organization 1",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3785070
+		},
+		{
+			"id": "title:M3785219",
+			"text": "Switch to organization 2",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3785219
+		},
+		{
+			"id": "title:M3785368",
+			"text": "Switch to organization 3",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3785368
+		},
+		{
+			"id": "title:M3785517",
+			"text": "Switch to organization 4",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3785517
+		},
+		{
+			"id": "title:M3785666",
+			"text": "Switch to organization 5",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3785666
+		},
+		{
+			"id": "title:M3785815",
+			"text": "Switch to organization 6",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3785815
+		},
+		{
+			"id": "title:M3785964",
+			"text": "Switch to organization 7",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3785964
+		},
+		{
+			"id": "title:M3786113",
+			"text": "Switch to organization 8",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3786113
+		},
+		{
+			"id": "title:M3786262",
+			"text": "Switch to organization 9",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3786262
+		},
+		{
+			"id": "title:M3786417",
+			"text": "Create new workspace",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3786417
+		},
+		{
+			"id": "title:M3786591",
+			"text": "Create new workspace from PR, branch, or issue",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3786591
+		},
+		{
+			"id": "title:M3786826",
+			"text": "Add to backlog",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3786826
+		},
+		{
+			"id": "title:M3787238",
+			"text": "Next tab (Create workspace page)",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3787238
+		},
+		{
+			"id": "title:M3787477",
+			"text": "Previous tab (Create workspace page)",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3787477
+		},
+		{
+			"id": "title:M3787653",
+			"text": "Toggle create-from picker",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3787653
+		},
+		{
+			"id": "title:M3787827",
+			"text": "Archive workspace",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3787827
+		},
+		{
+			"id": "title:M3787989",
+			"text": "Open in app",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3787989
+		},
+		{
+			"id": "title:M3788154",
+			"text": "Open cloud workspace remotely in app",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3788154
+		},
+		{
+			"id": "title:M3788318",
+			"text": "Open in menu",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3788318
+		},
+		{
+			"id": "title:M3788454",
+			"text": "Copy link",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3788454
+		},
+		{
+			"id": "title:M3788589",
+			"text": "Start or stop action",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3788589
+		},
+		{
+			"id": "title:M3788757",
+			"text": "Toggle port forwarding",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3788757
+		},
+		{
+			"id": "title:M3788915",
+			"text": "Toggle file edit mode",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3788915
+		},
+		{
+			"id": "title:M3789075",
+			"text": "Toggle read state",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3789075
+		},
+		{
+			"id": "title:M3789239",
+			"text": "Toggle pin",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3789239
+		},
+		{
+			"id": "title:M3789385",
+			"text": "Switch to workspace 1",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3789385
+		},
+		{
+			"id": "title:M3789532",
+			"text": "Switch to workspace 2",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3789532
+		},
+		{
+			"id": "title:M3789679",
+			"text": "Switch to workspace 3",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3789679
+		},
+		{
+			"id": "title:M3789826",
+			"text": "Switch to workspace 4",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3789826
+		},
+		{
+			"id": "title:M3789973",
+			"text": "Switch to workspace 5",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3789973
+		},
+		{
+			"id": "title:M3790120",
+			"text": "Switch to workspace 6",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3790120
+		},
+		{
+			"id": "title:M3790267",
+			"text": "Switch to workspace 7",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3790267
+		},
+		{
+			"id": "title:M3790414",
+			"text": "Switch to workspace 8",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3790414
+		},
+		{
+			"id": "title:M3790561",
+			"text": "Switch to workspace 9",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3790561
+		},
+		{
+			"id": "title:M3790712",
+			"text": "Previous workspace",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3790712
+		},
+		{
+			"id": "title:M3790854",
+			"text": "Next workspace",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3790854
+		},
+		{
+			"id": "title:M3790981",
+			"text": "New line in chat",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3790981
+		},
+		{
+			"id": "title:M3791157",
+			"text": "Submit message",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3791157
+		},
+		{
+			"id": "title:M3791358",
+			"text": "Submit with opposite follow-up behavior",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3791358
+		},
+		{
+			"id": "title:M3791543",
+			"text": "Save queued message edit",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3791543
+		},
+		{
+			"id": "title:M3791718",
+			"text": "Save queued message and steer",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3791718
+		},
+		{
+			"id": "title:M3791871",
+			"text": "Edit queued message",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3791871
+		},
+		{
+			"id": "title:M3792026",
+			"text": "Delete queued message",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3792026
+		},
+		{
+			"id": "title:M3792177",
+			"text": "Steer with queued message",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3792177
+		},
+		{
+			"id": "title:M3792351",
+			"text": "Paste copied files as paths",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3792351
+		},
+		{
+			"id": "title:M3792513",
+			"text": "Submit plan response",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3792513
+		},
+		{
+			"id": "title:M3792660",
+			"text": "Cancel queued message edit",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3792660
+		},
+		{
+			"id": "title:M3792811",
+			"text": "Save goal",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3792811
+		},
+		{
+			"id": "title:M3792952",
+			"text": "Previous question",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3792952
+		},
+		{
+			"id": "title:M3793094",
+			"text": "Next question",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3793094
+		},
+		{
+			"id": "title:M3793241",
+			"text": "Select answer 1",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3793241
+		},
+		{
+			"id": "title:M3793390",
+			"text": "Select answer 2",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3793390
+		},
+		{
+			"id": "title:M3793539",
+			"text": "Select answer 3",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3793539
+		},
+		{
+			"id": "title:M3793688",
+			"text": "Select answer 4",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3793688
+		},
+		{
+			"id": "title:M3793837",
+			"text": "Select answer 5",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3793837
+		},
+		{
+			"id": "title:M3793986",
+			"text": "Select answer 6",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3793986
+		},
+		{
+			"id": "title:M3794135",
+			"text": "Select answer 7",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3794135
+		},
+		{
+			"id": "title:M3794284",
+			"text": "Select answer 8",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3794284
+		},
+		{
+			"id": "title:M3794433",
+			"text": "Select answer 9",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3794433
+		},
+		{
+			"id": "title:M3794576",
+			"text": "Focus other answer",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3794576
+		},
+		{
+			"id": "title:M3794736",
+			"text": "Submit answer",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3794736
+		},
+		{
+			"id": "title:M3794894",
+			"text": "Focus chat input",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3794894
+		},
+		{
+			"id": "title:M3795033",
+			"text": "Toggle plan mode while typing a message",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3795033
+		},
+		{
+			"id": "title:M3795223",
+			"text": "Approve plan",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3795223
+		},
+		{
+			"id": "title:M3795349",
+			"text": "Approve tool request",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3795349
+		},
+		{
+			"id": "title:M3795502",
+			"text": "Use alternate tool approval action",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3795502
+		},
+		{
+			"id": "title:M3795680",
+			"text": "Deny tool request",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3795680
+		},
+		{
+			"id": "title:M3795810",
+			"text": "Cancel agent",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3795810
+		},
+		{
+			"id": "title:M3795935",
+			"text": "Link issue",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3795935
+		},
+		{
+			"id": "title:M3796083",
+			"text": "Add attachment",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3796083
+		},
+		{
+			"id": "title:M3796220",
+			"text": "Open model picker",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3796220
+		},
+		{
+			"id": "title:M3796358",
+			"text": "Toggle Fast mode",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3796358
+		},
+		{
+			"id": "title:M3796527",
+			"text": "Cycle effort level",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3796527
+		},
+		{
+			"id": "title:M3796684",
+			"text": "Select loadout 1",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3796684
+		},
+		{
+			"id": "title:M3796839",
+			"text": "Select loadout 2",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3796839
+		},
+		{
+			"id": "title:M3796994",
+			"text": "Select loadout 3",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3796994
+		},
+		{
+			"id": "title:M3797149",
+			"text": "Select loadout 4",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3797149
+		},
+		{
+			"id": "title:M3797304",
+			"text": "Select loadout 5",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3797304
+		},
+		{
+			"id": "title:M3797455",
+			"text": "Next chat needing attention",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3797455
+		},
+		{
+			"id": "title:M3797587",
+			"text": "Search chat",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3797587
+		},
+		{
+			"id": "title:M3797711",
+			"text": "Find next match",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3797711
+		},
+		{
+			"id": "title:M3797847",
+			"text": "Find previous match",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3797847
+		},
+		{
+			"id": "title:M3798001",
+			"text": "Scroll to current match",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3798001
+		},
+		{
+			"id": "title:M3798163",
+			"text": "Copy concise transcript",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3798163
+		},
+		{
+			"id": "title:M3798446",
+			"text": "Insert snippet",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3798446
+		},
+		{
+			"id": "title:M3798590",
+			"text": "Toggle speech to text",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3798590
+		},
+		{
+			"id": "title:M3798747",
+			"text": "Create PR",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3798747
+		},
+		{
+			"id": "title:M3798878",
+			"text": "Commit and push",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3798878
+		},
+		{
+			"id": "title:M3798997",
+			"text": "Pull latest from main",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3798997
+		},
+		{
+			"id": "title:M3799128",
+			"text": "Merge PR",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3799128
+		},
+		{
+			"id": "title:M3799380",
+			"text": "Open PR",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3799380
+		},
+		{
+			"id": "title:M3799515",
+			"text": "Start review",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3799515
+		},
+		{
+			"id": "title:M3799695",
+			"text": "Show uncommitted changes",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3799695
+		},
+		{
+			"id": "title:M3799889",
+			"text": "Save routine",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3799889
+		},
+		{
+			"id": "title:M3800071",
+			"text": "Save edited file",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3800071
+		},
+		{
+			"id": "title:M3800221",
+			"text": "Open code editor search",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3800221
+		},
+		{
+			"id": "title:M3800362",
+			"text": "Open diff view",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3800362
+		},
+		{
+			"id": "title:M3800493",
+			"text": "Go to previous file in diff",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3800493
+		},
+		{
+			"id": "title:M3800660",
+			"text": "Go to next file in diff",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3800660
+		},
+		{
+			"id": "title:M3800858",
+			"text": "Go to previous comment in diff",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3800858
+		},
+		{
+			"id": "title:M3801026",
+			"text": "Go to next comment in diff",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3801026
+		},
+		{
+			"id": "title:M3801176",
+			"text": "Toggle file as viewed",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3801176
+		},
+		{
+			"id": "title:M3801366",
+			"text": "Play or pause",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3801366
+		},
+		{
+			"id": "title:M3801514",
+			"text": "Back 10 seconds",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3801514
+		},
+		{
+			"id": "title:M3801662",
+			"text": "Forward 10 seconds",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3801662
+		},
+		{
+			"id": "title:M3801856",
+			"text": "Previous frame",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3801856
+		},
+		{
+			"id": "title:M3802039",
+			"text": "Next frame",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3802039
+		},
+		{
+			"id": "title:M3802186",
+			"text": "Decrease playback speed",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3802186
+		},
+		{
+			"id": "title:M3802346",
+			"text": "Increase playback speed",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3802346
+		},
+		{
+			"id": "title:M3802500",
+			"text": "Mute or unmute",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3802500
+		},
+		{
+			"id": "title:M3802657",
+			"text": "Toggle fullscreen",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3802657
+		},
+		{
+			"id": "title:M3802816",
+			"text": "New terminal tab (when terminal focused)",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3802816
+		},
+		{
+			"id": "title:M3802979",
+			"text": "New terminal tab",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3802979
+		},
+		{
+			"id": "title:M3803126",
+			"text": "Close terminal tab (when terminal focused)",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3803126
+		},
+		{
+			"id": "title:M3803299",
+			"text": "Open localhost URL",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3803299
+		},
+		{
+			"id": "title:M3803434",
+			"text": "Find in terminal",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3803434
+		},
+		{
+			"id": "title:M3803616",
+			"text": "Insert terminal newline",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3803616
+		},
+		{
+			"id": "title:M3803815",
+			"text": "Clear terminal scrollback",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3803815
+		},
+		{
+			"id": "title:M3804014",
+			"text": "Delete terminal line",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3804014
+		},
+		{
+			"id": "title:M3804214",
+			"text": "Move to terminal line start",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3804214
+		},
+		{
+			"id": "title:M3804418",
+			"text": "Move to terminal line end",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3804418
+		},
+		{
+			"id": "title:M3804621",
+			"text": "Move back one terminal word",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3804621
+		},
+		{
+			"id": "title:M3804829",
+			"text": "Move forward one terminal word",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3804829
+		},
+		{
+			"id": "title:M3805021",
+			"text": "Find in file",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3805021
+		},
+		{
+			"id": "title:M3805156",
+			"text": "Next onboarding slide",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3805156
+		},
+		{
+			"id": "title:M3805321",
+			"text": "Continue onboarding",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3805321
+		},
+		{
+			"id": "title:M3805477",
+			"text": "Continue cloud onboarding",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3805477
+		},
+		{
+			"id": "title:M3805636",
+			"text": "Select menu item 1",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3805636
+		},
+		{
+			"id": "title:M3805769",
+			"text": "Select menu item 2",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3805769
+		},
+		{
+			"id": "title:M3805902",
+			"text": "Select menu item 3",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3805902
+		},
+		{
+			"id": "title:M3806035",
+			"text": "Select menu item 4",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3806035
+		},
+		{
+			"id": "title:M3806168",
+			"text": "Select menu item 5",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3806168
+		},
+		{
+			"id": "title:M3806301",
+			"text": "Select menu item 6",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3806301
+		},
+		{
+			"id": "title:M3806434",
+			"text": "Select menu item 7",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3806434
+		},
+		{
+			"id": "title:M3806567",
+			"text": "Select menu item 8",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3806567
+		},
+		{
+			"id": "title:M3806700",
+			"text": "Select menu item 9",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3806700
+		},
+		{
+			"id": "title:M3847163",
+			"text": "Try to match",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3847163
+		},
+		{
+			"id": "title:M3847315",
+			"text": "Always use port range",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3847315
+		},
+		{
+			"id": "title:R1717947",
+			"text": "Select project directory",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1717947
+		},
+		{
+			"id": "title:R1892068",
+			"text": "Choose where to clone the repository",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1892068
+		},
+		{
+			"id": "title:R2031302",
+			"text": "Choose where to create the project",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2031302
+		},
+		{
+			"id": "title:R2093263",
+			"text": "Loading chats",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2093263
+		},
+		{
+			"id": "title:R2093709",
+			"text": "No open chats",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2093709
+		},
+		{
+			"id": "title:R2137781",
+			"text": "PR info unavailable",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2137781
+		},
+		{
+			"id": "title:R2138221",
+			"text": "GitHub access required",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2138221
+		},
+		{
+			"id": "title:R2139138",
+			"text": "No internet connection",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2139138
+		},
+		{
+			"id": "title:R2140922",
+			"text": "Merged",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2140922
+		},
+		{
+			"id": "title:R2141079",
+			"text": "Loading status...",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2141079
+		},
+		{
+			"id": "title:R2141745",
+			"text": "PR review required",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2141745
+		},
+		{
+			"id": "title:R2142068",
+			"text": "Blocked from merging",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2142068
+		},
+		{
+			"id": "title:R2144510",
+			"text": "Working...",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2144510
+		},
+		{
+			"id": "title:R2144808",
+			"text": "Uncommitted changes",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2144808
+		},
+		{
+			"id": "title:R2145200",
+			"text": "Merge conflicts",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2145200
+		},
+		{
+			"id": "title:R2145377",
+			"text": "PR changes requested",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2145377
+		},
+		{
+			"id": "title:R2145600",
+			"text": "Draft PR open",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2145600
+		},
+		{
+			"id": "title:R2147980",
+			"text": "Ready to merge",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2147980
+		},
+		{
+			"id": "title:R2148149",
+			"text": "Unable to merge",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2148149
+		},
+		{
+			"id": "title:R2148550",
+			"text": "Changes",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2148550
+		},
+		{
+			"id": "title:R2623659",
+			"text": "Close filter",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2623659
+		},
+		{
+			"id": "title:R2649785",
+			"text": "Conflicts",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2649785
+		},
+		{
+			"id": "title:R2649847",
+			"text": "Clean",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2649847
+		},
+		{
+			"id": "title:R2667864",
+			"text": "Select adjacent PRs to see their changes",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2667864
+		},
+		{
+			"id": "title:R2987339",
+			"text": "You need edit access to use the cloud desktop",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2987339
+		},
+		{
+			"id": "title:R2987505",
+			"text": "Waiting for workspace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2987505
+		},
+		{
+			"id": "title:R2987644",
+			"text": "Cloud desktop is available in cloud workspaces",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2987644
+		},
+		{
+			"id": "title:R2990233",
+			"text": "Couldn't connect to the cloud desktop",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2990233
+		},
+		{
+			"id": "title:R3621572",
+			"text": "setup draw",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3621572
+		},
+		{
+			"id": "title:R3975899",
+			"text": "Preview unavailable. Open the file to try again.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3975899
+		},
+		{
+			"id": "title:R3989871",
+			"text": "Preview URL",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3989871
+		},
+		{
+			"id": "title:R3990668",
+			"text": "Forwarded port",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3990668
+		},
+		{
+			"id": "title:R3991091",
+			"text": "Upload files",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3991091
+		},
+		{
+			"id": "title:R4363426",
+			"text": "Open link?",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4363426
+		},
+		{
+			"id": "title:R4405982",
+			"text": "Local terminal unavailable",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4405982
+		},
+		{
+			"id": "title:R4407471",
+			"text": "Sync files is off",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4407471
+		},
+		{
+			"id": "title:R4407601",
+			"text": "Sync folder unavailable",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4407601
+		},
+		{
+			"id": "title:R4409943",
+			"text": "Sync files failed",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4409943
+		},
+		{
+			"id": "title:R5529409",
+			"text": "Remove association",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5529409
+		},
+		{
+			"id": "title:R5685048",
+			"text": "Select directory to link",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5685048
+		},
+		{
+			"id": "title:R8048580",
+			"text": "Expand diagram",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8048580
+		},
+		{
+			"id": "title:R8050074",
+			"text": "Zoom in",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8050074
+		},
+		{
+			"id": "title:R8050390",
+			"text": "Zoom out",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8050390
+		},
+		{
+			"id": "title:R8050707",
+			"text": "Reset view",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8050707
+		},
+		{
+			"id": "title:R8062343",
+			"text": "Note",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8062343
+		},
+		{
+			"id": "title:R8062469",
+			"text": "Tip",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8062469
+		},
+		{
+			"id": "title:R8062604",
+			"text": "Important",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8062604
+		},
+		{
+			"id": "title:R8062746",
+			"text": "Warning",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8062746
+		},
+		{
+			"id": "title:R8062882",
+			"text": "Caution",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8062882
+		},
+		{
+			"id": "title:R8864204",
+			"text": "Requested",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8864204
+		},
+		{
+			"id": "title:R8864972",
+			"text": "Returned",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8864972
+		},
+		{
+			"id": "title:R9608858",
+			"text": "This chat turn failed to render",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9608858
+		},
+		{
+			"id": "title:R9617731",
+			"text": "Error loading messages",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9617731
+		},
+		{
+			"id": "title:R9949267",
+			"text": "Failed to open editor",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9949267
+		},
+		{
+			"id": "title:R9975554",
+			"text": "Couldn't load file changes",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9975554
+		},
+		{
+			"id": "title:R9976123",
+			"text": "No files match this filter",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9976123
+		},
+		{
+			"id": "title:R9999611",
+			"text": "Open comment on GitHub",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9999611
+		},
+		{
+			"id": "title:R10001462",
+			"text": "Open comment",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10001462
+		},
+		{
+			"id": "title:R10009303",
+			"text": "Open commit on GitHub",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10009303
+		},
+		{
+			"id": "title:R10045277",
+			"text": "Closed",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10045277
+		},
+		{
+			"id": "title:R10045411",
+			"text": "Draft",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10045411
+		},
+		{
+			"id": "title:R10045807",
+			"text": "Blocked",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10045807
+		},
+		{
+			"id": "title:R10046191",
+			"text": "Checking mergeability...",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10046191
+		},
+		{
+			"id": "title:R10062089",
+			"text": "Workspace archived",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10062089
+		},
+		{
+			"id": "title:R10065307",
+			"text": "This chat tab failed to render",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10065307
+		},
+		{
+			"id": "title:R10145685",
+			"text": "Create in section",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10145685
+		},
+		{
+			"id": "title:R10146833",
+			"text": "Create workspace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10146833
+		},
+		{
+			"id": "title:R10146911",
+			"text": "Start workspace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10146911
+		},
+		{
+			"id": "title:R10199869",
+			"text": "Error loading workspace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10199869
+		},
+		{
+			"id": "title:R10292639",
+			"text": "Toggle left sidebar",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10292639
+		},
+		{
+			"id": "title:R10303877",
+			"text": "Activity",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10303877
+		},
+		{
+			"id": "title:R10308714",
+			"text": "Models",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10308714
+		},
+		{
+			"id": "title:R10312940",
+			"text": "Loadout",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10312940
+		},
+		{
+			"id": "title:R10335251",
+			"text": "Fix errors",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10335251
+		},
+		{
+			"id": "title:R10584451",
+			"text": "Get coding agents working in parallel",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10584451
+		},
+		{
+			"id": "title:R10584608",
+			"text": "See at a glance what each agent is working on",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10584608
+		},
+		{
+			"id": "title:R10584784",
+			"text": "Review changes and create PRs",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10584784
+		},
+		{
+			"id": "title:R10675110",
+			"text": "Appearance",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10675110
+		},
+		{
+			"id": "title:R10678486",
+			"text": "Big terminal",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10678486
+		},
+		{
+			"id": "title:R10691516",
+			"text": "Select env file",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10691516
+		},
+		{
+			"id": "title:R10693409",
+			"text": "Browse for env file. Press Cmd+Shift+. to show hidden files.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10693409
+		},
+		{
+			"id": "title:R10694304",
+			"text": "Env files",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10694304
+		},
+		{
+			"id": "title:R10718705",
+			"text": "Inherited from Repo shared",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10718705
+		},
+		{
+			"id": "title:R10718848",
+			"text": "Inherited from User",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10718848
+		},
+		{
+			"id": "title:R10719254",
+			"text": "Environment",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10719254
+		},
+		{
+			"id": "title:R10792274",
+			"text": "Repositories",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10792274
+		},
+		{
+			"id": "title:R10820435",
+			"text": "Choose repositories",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10820435
+		},
+		{
+			"id": "title:R10867821",
+			"text": "Install software",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10867821
+		},
+		{
+			"id": "title:R10895989",
+			"text": "Finish setting up your cloud computer",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10895989
+		},
+		{
+			"id": "title:R10900080",
+			"text": "Members",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10900080
+		},
+		{
+			"id": "title:R10911785",
+			"text": "General preferences",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10911785
+		},
+		{
+			"id": "title:R10912930",
+			"text": "Prompts",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10912930
+		},
+		{
+			"id": "title:R10967435",
+			"text": "Select Conductor root directory",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10967435
+		},
+		{
+			"id": "title:R10970126",
+			"text": "Browse for executable",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10970126
+		},
+		{
+			"id": "title:R10975658",
+			"text": "Browse for SSH key",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10975658
+		},
+		{
+			"id": "title:R10976627",
+			"text": "Select SSH private key",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10976627
+		},
+		{
+			"id": "title:R10993925",
+			"text": "Claude settings",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10993925
+		},
+		{
+			"id": "title:R10994173",
+			"text": "Codex config",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10994173
+		},
+		{
+			"id": "title:R10995392",
+			"text": "Use Claude Code with Chrome",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10995392
+		},
+		{
+			"id": "title:R11006890",
+			"text": "Codex personality for new chats",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11006890
+		},
+		{
+			"id": "title:R11009804",
+			"text": "Agents",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11009804
+		},
+		{
+			"id": "title:R11026670",
+			"text": "Setup script",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11026670
+		},
+		{
+			"id": "title:R11027006",
+			"text": "Archive script",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11027006
+		},
+		{
+			"id": "title:R11028868",
+			"text": "Scripts",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11028868
+		},
+		{
+			"id": "title:R11057103",
+			"text": "gh CLI auth",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11057103
+		},
+		{
+			"id": "title:R11058782",
+			"text": "Personal access token",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11058782
+		},
+		{
+			"id": "title:R11092223",
+			"text": "Account and integrations",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11092223
+		},
+		{
+			"id": "title:R11095831",
+			"text": "Enterprise data privacy",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11095831
+		},
+		{
+			"id": "title:R11096456",
+			"text": "Claude Code tool approvals",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11096456
+		},
+		{
+			"id": "title:R11097271",
+			"text": "Codex tool approvals",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11097271
+		},
+		{
+			"id": "title:R11097911",
+			"text": "Sign out",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11097911
+		},
+		{
+			"id": "title:R11098344",
+			"text": "Conductor root directory",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11098344
+		},
+		{
+			"id": "title:R11098664",
+			"text": "Claude Code executable path",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11098664
+		},
+		{
+			"id": "title:R11098984",
+			"text": "Codex executable path",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11098984
+		},
+		{
+			"id": "title:R11099298",
+			"text": "OpenCode executable path",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11099298
+		},
+		{
+			"id": "title:R11099567",
+			"text": "SSH private key path",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11099567
+		},
+		{
+			"id": "title:R11099826",
+			"text": "Remote execution MCP",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11099826
+		},
+		{
+			"id": "title:R11100102",
+			"text": "Always allow local commands",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11100102
+		},
+		{
+			"id": "title:R11100407",
+			"text": "Enable file sync in new cloud workspaces",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11100407
+		},
+		{
+			"id": "title:R11101187",
+			"text": "Set upstream on plain git push",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11101187
+		},
+		{
+			"id": "title:R11101563",
+			"text": "Scrollback limit",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11101563
+		},
+		{
+			"id": "title:R11103087",
+			"text": "Use default internal and experimental settings",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11103087
+		},
+		{
+			"id": "title:R11103522",
+			"text": "Auto permission mode",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11103522
+		},
+		{
+			"id": "title:R11104241",
+			"text": "Big terminal mode",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11104241
+		},
+		{
+			"id": "title:R11104607",
+			"text": "New workspace page",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11104607
+		},
+		{
+			"id": "title:R11105050",
+			"text": "Tab Freak Mode",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11105050
+		},
+		{
+			"id": "title:R11105418",
+			"text": "Split tabs",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11105418
+		},
+		{
+			"id": "title:R11105778",
+			"text": "Fork chat to new tab",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11105778
+		},
+		{
+			"id": "title:R11106237",
+			"text": "In-app browser preview",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11106237
+		},
+		{
+			"id": "title:R11106695",
+			"text": "Use legacy file preview and editing",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11106695
+		},
+		{
+			"id": "title:R11107135",
+			"text": "Show agent cost",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11107135
+		},
+		{
+			"id": "title:R11107549",
+			"text": "Workspace status matrix for local workspaces",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11107549
+		},
+		{
+			"id": "title:R11108007",
+			"text": "Add projects without GitHub",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11108007
+		},
+		{
+			"id": "title:R11108532",
+			"text": "Auto-run after setup",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11108532
+		},
+		{
+			"id": "title:R11108935",
+			"text": "Dashboard",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11108935
+		},
+		{
+			"id": "title:R11109216",
+			"text": "Voice mode",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11109216
+		},
+		{
+			"id": "title:R11109622",
+			"text": "Show sidebar resource usage",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11109622
+		},
+		{
+			"id": "title:R11110023",
+			"text": "Pokes",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11110023
+		},
+		{
+			"id": "title:R11110370",
+			"text": "Sidebar transparency",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11110370
+		},
+		{
+			"id": "title:R11110866",
+			"text": "Graphite stack support",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11110866
+		},
+		{
+			"id": "title:R11116941",
+			"text": "Send messages with",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11116941
+		},
+		{
+			"id": "title:R11117812",
+			"text": "Follow-up behavior",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11117812
+		},
+		{
+			"id": "title:R11118555",
+			"text": "Agent notifications",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11118555
+		},
+		{
+			"id": "title:R11118865",
+			"text": "@ notifications",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11118865
+		},
+		{
+			"id": "title:R11119160",
+			"text": "Completion sound",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11119160
+		},
+		{
+			"id": "title:R11119757",
+			"text": "Full disk access permissions",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11119757
+		},
+		{
+			"id": "title:R11120404",
+			"text": "Arrange workspaces manually",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11120404
+		},
+		{
+			"id": "title:R11120661",
+			"text": "Auto-convert long text",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11120661
+		},
+		{
+			"id": "title:R11121007",
+			"text": "I'm not absolutely right, thank you very much",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11121007
+		},
+		{
+			"id": "title:R11121384",
+			"text": "Always show context usage",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11121384
+		},
+		{
+			"id": "title:R11121768",
+			"text": "Caffeinate while agents are running",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11121768
+		},
+		{
+			"id": "title:R11122198",
+			"text": "Workspace API access",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11122198
+		},
+		{
+			"id": "title:R11122788",
+			"text": "Restart automatically on update",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11122788
+		},
+		{
+			"id": "title:R11123192",
+			"text": "Show Artifacts tab",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11123192
+		},
+		{
+			"id": "title:R11123479",
+			"text": "Don't collapse tool calls (Garry Mode)",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11123479
+		},
+		{
+			"id": "title:R11123996",
+			"text": "Sync agent configs",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11123996
+		},
+		{
+			"id": "title:R11134725",
+			"text": "Git identity",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11134725
+		},
+		{
+			"id": "title:R11135227",
+			"text": "Branch new workspaces from",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11135227
+		},
+		{
+			"id": "title:R11136024",
+			"text": "Remote origin",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11136024
+		},
+		{
+			"id": "title:R11136632",
+			"text": "Open pull requests in",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11136632
+		},
+		{
+			"id": "title:R11137132",
+			"text": "Include link to workspace in PR description",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11137132
+		},
+		{
+			"id": "title:R11137875",
+			"text": "Branch name prefix",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11137875
+		},
+		{
+			"id": "title:R11139381",
+			"text": "Automatically rename new branches",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11139381
+		},
+		{
+			"id": "title:R11139747",
+			"text": "Rename workspace when branch is named",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11139747
+		},
+		{
+			"id": "title:R11140161",
+			"text": "Delete branch on archive",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11140161
+		},
+		{
+			"id": "title:R11141583",
+			"text": "Archive on merge",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11141583
+		},
+		{
+			"id": "title:R11141930",
+			"text": "Automerge",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11141930
+		},
+		{
+			"id": "title:R11142369",
+			"text": "Treat optional checks as blocking",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11142369
+		},
+		{
+			"id": "title:R11143279",
+			"text": "Use GitHub stacked PRs",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11143279
+		},
+		{
+			"id": "title:R11159986",
+			"text": "Exclusive port forwarding",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11159986
+		},
+		{
+			"id": "title:R11160334",
+			"text": "Forwarding strategies",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11160334
+		},
+		{
+			"id": "title:R11161279",
+			"text": "Local port range",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11161279
+		},
+		{
+			"id": "title:R11161641",
+			"text": "Manual overrides",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11161641
+		},
+		{
+			"id": "title:R11167715",
+			"text": "Details",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11167715
+		},
+		{
+			"id": "title:R11189763",
+			"text": "Regenerate",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11189763
+		},
+		{
+			"id": "title:R11193893",
+			"text": "Remote control",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11193893
+		},
+		{
+			"id": "title:R11194105",
+			"text": "Allow remote control",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11194105
+		},
+		{
+			"id": "title:R11194314",
+			"text": "Keep this Mac awake",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11194314
+		},
+		{
+			"id": "title:R11194716",
+			"text": "Devices that can control this Mac",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11194716
+		},
+		{
+			"id": "title:R11198884",
+			"text": "Conductor app logs",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11198884
+		},
+		{
+			"id": "title:R11207697",
+			"text": "Roundhouse",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11207697
+		},
+		{
+			"id": "title:R11208689",
+			"text": "Cloud workspace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11208689
+		},
+		{
+			"id": "title:R11210772",
+			"text": "Developer metrics bar",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11210772
+		},
+		{
+			"id": "title:R11211103",
+			"text": "Use workspace tabs",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11211103
+		},
+		{
+			"id": "title:R11211910",
+			"text": "Initial Claude permission mode",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11211910
+		},
+		{
+			"id": "title:R11212638",
+			"text": "Initial Codex approval policy and sandbox",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11212638
+		},
+		{
+			"id": "title:R11213393",
+			"text": "Unstarted workspaces",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11213393
+		},
+		{
+			"id": "title:R11213726",
+			"text": "Pull requests page",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11213726
+		},
+		{
+			"id": "title:R11214088",
+			"text": "Principals",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11214088
+		},
+		{
+			"id": "title:R11214301",
+			"text": "Workspace chat",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11214301
+		},
+		{
+			"id": "title:R11214661",
+			"text": "Native fork to new tab",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11214661
+		},
+		{
+			"id": "title:R11215015",
+			"text": "Prompt snippets",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11215015
+		},
+		{
+			"id": "title:R11215329",
+			"text": "Team artifacts",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11215329
+		},
+		{
+			"id": "title:R11215645",
+			"text": "Agent pizza tracker",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11215645
+		},
+		{
+			"id": "title:R11216074",
+			"text": "Sidecar HTTP health",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11216074
+		},
+		{
+			"id": "title:R11216989",
+			"text": "Build commit",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11216989
+		},
+		{
+			"id": "title:R11217997",
+			"text": "Piccolo agent (cloud)",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11217997
+		},
+		{
+			"id": "title:R11218339",
+			"text": "Muse Code (cloud)",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11218339
+		},
+		{
+			"id": "title:R11218663",
+			"text": "Log viewer",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11218663
+		},
+		{
+			"id": "title:R11218868",
+			"text": "App logger token",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11218868
+		},
+		{
+			"id": "title:R11219014",
+			"text": "Onboarding",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11219014
+		},
+		{
+			"id": "title:R11219659",
+			"text": "New member onboarding state",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11219659
+		},
+		{
+			"id": "title:R11220189",
+			"text": "Terminal render debug log",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11220189
+		},
+		{
+			"id": "title:R11220759",
+			"text": "Frame drop logging",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11220759
+		},
+		{
+			"id": "title:R11221261",
+			"text": "Keep cloud workspaces independent from local repositories",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11221261
+		},
+		{
+			"id": "title:R11221723",
+			"text": "Request metadata",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11221723
+		},
+		{
+			"id": "title:R11222132",
+			"text": "Claude token usage tracking",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11222132
+		},
+		{
+			"id": "title:R11222546",
+			"text": "Verbose logging",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11222546
+		},
+		{
+			"id": "title:R11222900",
+			"text": "Tauri HTTP proxy",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11222900
+		},
+		{
+			"id": "title:R11223739",
+			"text": "Save workspace session logs",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11223739
+		},
+		{
+			"id": "title:R11224273",
+			"text": "Crash test",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11224273
+		},
+		{
+			"id": "title:R11224964",
+			"text": "Error reporting test",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11224964
+		},
+		{
+			"id": "title:R11225303",
+			"text": "Agent binaries",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11225303
+		},
+		{
+			"id": "title:R11225710",
+			"text": "Feature flags",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11225710
+		},
+		{
+			"id": "title:R11262722",
+			"text": "Default model",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11262722
+		},
+		{
+			"id": "title:R11263302",
+			"text": "Codex personality",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11263302
+		},
+		{
+			"id": "title:R11263667",
+			"text": "Claude output style",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11263667
+		},
+		{
+			"id": "title:R11264376",
+			"text": "Review model",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11264376
+		},
+		{
+			"id": "title:R11264596",
+			"text": "Default to plan mode in new chats",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11264596
+		},
+		{
+			"id": "title:R11264843",
+			"text": "Custom actions",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11264843
+		},
+		{
+			"id": "title:R11265341",
+			"text": "Use spotlight testing",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11265341
+		},
+		{
+			"id": "title:R11266402",
+			"text": "Code review preferences",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11266402
+		},
+		{
+			"id": "title:R11266590",
+			"text": "Create PR preferences",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11266590
+		},
+		{
+			"id": "title:R11266781",
+			"text": "Fix errors preferences",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11266781
+		},
+		{
+			"id": "title:R11266999",
+			"text": "Resolve conflicts preferences",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11266999
+		},
+		{
+			"id": "title:R11267212",
+			"text": "Branch rename preferences",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11267212
+		},
+		{
+			"id": "title:R11295025",
+			"text": "Icon",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11295025
+		},
+		{
+			"id": "title:R11295405",
+			"text": "Root path",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11295405
+		},
+		{
+			"id": "title:R11296047",
+			"text": "Workspaces path",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11296047
+		},
+		{
+			"id": "title:R11296771",
+			"text": "Preview URLs",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11296771
+		},
+		{
+			"id": "title:R11297385",
+			"text": "Files to copy",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11297385
+		},
+		{
+			"id": "title:R11297857",
+			"text": "Remove repository",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11297857
+		},
+		{
+			"id": "title:R11298858",
+			"text": "Colored sidebar diffs",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11298858
+		},
+		{
+			"id": "title:R11299108",
+			"text": "Code ligatures",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11299108
+		},
+		{
+			"id": "title:R11299304",
+			"text": "Theme",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11299304
+		},
+		{
+			"id": "title:R11299537",
+			"text": "Low-contrast dark mode",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11299537
+		},
+		{
+			"id": "title:R11299805",
+			"text": "App zoom",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11299805
+		},
+		{
+			"id": "title:R11300029",
+			"text": "Accessible colors",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11300029
+		},
+		{
+			"id": "title:R11300277",
+			"text": "Code theme",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11300277
+		},
+		{
+			"id": "title:R11300496",
+			"text": "Mono Font",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11300496
+		},
+		{
+			"id": "title:R11300719",
+			"text": "Markdown Style",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11300719
+		},
+		{
+			"id": "title:R11300919",
+			"text": "Terminal font",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11300919
+		},
+		{
+			"id": "title:R11301147",
+			"text": "Appearance settings",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11301147
+		},
+		{
+			"id": "title:R11301365",
+			"text": "Claude Code harness",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11301365
+		},
+		{
+			"id": "title:R11301736",
+			"text": "Codex harness",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11301736
+		},
+		{
+			"id": "title:R11301935",
+			"text": "Cursor harness",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11301935
+		},
+		{
+			"id": "title:R11302128",
+			"text": "Agent settings",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11302128
+		},
+		{
+			"id": "title:R11302401",
+			"text": "Environment settings",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11302401
+		},
+		{
+			"id": "title:R11302737",
+			"text": "Repository scripts",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11302737
+		},
+		{
+			"id": "title:R11302969",
+			"text": "Big terminal settings",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11302969
+		},
+		{
+			"id": "title:R11303199",
+			"text": "Organization members",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11303199
+		},
+		{
+			"id": "title:R11303413",
+			"text": "Cloud computer",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11303413
+		},
+		{
+			"id": "title:R11304233",
+			"text": "MCPs",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11304233
+		},
+		{
+			"id": "title:R11343023",
+			"text": "Community artifacts",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11343023
+		},
+		{
+			"id": "title:R11399995",
+			"text": "Archive workspace?",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11399995
+		},
+		{
+			"id": "title:R11415774",
+			"text": "MCP servers",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11415774
+		},
+		{
+			"id": "title:R11415905",
+			"text": "Slash commands",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11415905
+		},
+		{
+			"id": "title:R11416042",
+			"text": "Skills",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11416042
+		},
+		{
+			"id": "title:R11425962",
+			"text": "Restore to new branch?",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11425962
+		},
+		{
+			"id": "title:R11557358",
+			"text": "Connect GitHub",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11557358
+		},
+		{
+			"id": "title:R11559291",
+			"text": "Workspaces now run in the cloud",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11559291
+		},
+		{
+			"id": "title:R11591831",
+			"text": "Subscription",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11591831
+		},
+		{
+			"id": "title:R11592829",
+			"text": "API key",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11592829
+		},
+		{
+			"id": "title:R11594431",
+			"text": "Custom provider",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11594431
+		},
+		{
+			"id": "title:R11608905",
+			"text": "You're all set",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11608905
+		},
+		{
+			"id": "title:R11624198",
+			"text": "Add a harness",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11624198
+		},
+		{
+			"id": "title:R11624393",
+			"text": "Start a workspace",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11624393
+		},
+		{
+			"id": "title:R11669096",
+			"text": "Poke",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11669096
+		},
+		{
+			"id": "title:R11687823",
+			"text": "Workspace unavailable",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11687823
+		},
+		{
+			"id": "title:R11709032",
+			"text": "General",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11709032
+		},
+		{
+			"id": "title:R11709075",
+			"text": "Experimental",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11709075
+		},
+		{
+			"id": "title:R11709293",
+			"text": "Default models",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11709293
+		},
+		{
+			"id": "title:R11709351",
+			"text": "Git",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11709351
+		},
+		{
+			"id": "title:R11709389",
+			"text": "Connections",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11709389
+		},
+		{
+			"id": "title:R11709519",
+			"text": "Advanced",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11709519
+		},
+		{
+			"id": "title:R11709559",
+			"text": "Internal",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11709559
+		},
+		{
+			"id": "title:R11709690",
+			"text": "Actions",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11709690
+		},
+		{
+			"id": "title:R11709812",
+			"text": "Misc",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11709812
+		},
+		{
+			"id": "title:R11709907",
+			"text": "Account",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11709907
+		},
+		{
+			"id": "title:R11746360",
+			"text": "Keyboard shortcuts",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11746360
+		},
+		{
+			"id": "title:R12038786",
+			"text": "Database rollback",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12038786
+		}
+	]
+}

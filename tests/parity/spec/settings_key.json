@@ -1,0 +1,1164 @@
+{
+	"inventory": "settings_key",
+	"source": "docs/research/conductor/services-map.md 4.2.3.2, each key found in the bundle",
+	"entries": [
+		{
+			"id": "settings_key:run_script",
+			"text": "run_script",
+			"file": "main-BE1h_1MP.js",
+			"offset": 152504
+		},
+		{
+			"id": "settings_key:custom_prompt_general",
+			"text": "custom_prompt_general",
+			"file": "main-BE1h_1MP.js",
+			"offset": 163011
+		},
+		{
+			"id": "settings_key:custom_prompt_code_review",
+			"text": "custom_prompt_code_review",
+			"file": "main-BE1h_1MP.js",
+			"offset": 163038
+		},
+		{
+			"id": "settings_key:custom_prompt_create_pr",
+			"text": "custom_prompt_create_pr",
+			"file": "main-BE1h_1MP.js",
+			"offset": 163069
+		},
+		{
+			"id": "settings_key:custom_prompt_fix_errors",
+			"text": "custom_prompt_fix_errors",
+			"file": "main-BE1h_1MP.js",
+			"offset": 163098
+		},
+		{
+			"id": "settings_key:custom_prompt_resolve_merge_conflicts",
+			"text": "custom_prompt_resolve_merge_conflicts",
+			"file": "main-BE1h_1MP.js",
+			"offset": 163128
+		},
+		{
+			"id": "settings_key:custom_prompt_rename_branch",
+			"text": "custom_prompt_rename_branch",
+			"file": "main-BE1h_1MP.js",
+			"offset": 163171
+		},
+		{
+			"id": "settings_key:environment_variable_files",
+			"text": "environment_variable_files",
+			"file": "main-BE1h_1MP.js",
+			"offset": 293788
+		},
+		{
+			"id": "settings_key:default_model",
+			"text": "default_model",
+			"file": "main-BE1h_1MP.js",
+			"offset": 297795
+		},
+		{
+			"id": "settings_key:review_model",
+			"text": "review_model",
+			"file": "main-BE1h_1MP.js",
+			"offset": 297815
+		},
+		{
+			"id": "settings_key:default_fast_mode",
+			"text": "default_fast_mode",
+			"file": "main-BE1h_1MP.js",
+			"offset": 297834
+		},
+		{
+			"id": "settings_key:review_fast_mode",
+			"text": "review_fast_mode",
+			"file": "main-BE1h_1MP.js",
+			"offset": 297861
+		},
+		{
+			"id": "settings_key:default_plan_mode",
+			"text": "default_plan_mode",
+			"file": "main-BE1h_1MP.js",
+			"offset": 297884
+		},
+		{
+			"id": "settings_key:default_codex_thinking_level",
+			"text": "default_codex_thinking_level",
+			"file": "main-BE1h_1MP.js",
+			"offset": 297908
+		},
+		{
+			"id": "settings_key:review_codex_thinking_level",
+			"text": "review_codex_thinking_level",
+			"file": "main-BE1h_1MP.js",
+			"offset": 297943
+		},
+		{
+			"id": "settings_key:default_codex_personality",
+			"text": "default_codex_personality",
+			"file": "main-BE1h_1MP.js",
+			"offset": 297977
+		},
+		{
+			"id": "settings_key:default_claude_personality",
+			"text": "default_claude_personality",
+			"file": "main-BE1h_1MP.js",
+			"offset": 298009
+		},
+		{
+			"id": "settings_key:default_claude_effort_level",
+			"text": "default_claude_effort_level",
+			"file": "main-BE1h_1MP.js",
+			"offset": 298055
+		},
+		{
+			"id": "settings_key:review_claude_effort_level",
+			"text": "review_claude_effort_level",
+			"file": "main-BE1h_1MP.js",
+			"offset": 298089
+		},
+		{
+			"id": "settings_key:visible_provider_models",
+			"text": "visible_provider_models",
+			"file": "main-BE1h_1MP.js",
+			"offset": 298122
+		},
+		{
+			"id": "settings_key:setup_script",
+			"text": "setup_script",
+			"file": "main-BE1h_1MP.js",
+			"offset": 298152
+		},
+		{
+			"id": "settings_key:archive_script",
+			"text": "archive_script",
+			"file": "main-BE1h_1MP.js",
+			"offset": 298188
+		},
+		{
+			"id": "settings_key:run_script_mode",
+			"text": "run_script_mode",
+			"file": "main-BE1h_1MP.js",
+			"offset": 298209
+		},
+		{
+			"id": "settings_key:auto_run_after_setup",
+			"text": "auto_run_after_setup",
+			"file": "main-BE1h_1MP.js",
+			"offset": 298231
+		},
+		{
+			"id": "settings_key:enterprise_data_privacy",
+			"text": "enterprise_data_privacy",
+			"file": "main-BE1h_1MP.js",
+			"offset": 298294
+		},
+		{
+			"id": "settings_key:file_include_globs",
+			"text": "file_include_globs",
+			"file": "main-BE1h_1MP.js",
+			"offset": 298327
+		},
+		{
+			"id": "settings_key:spotlight_testing",
+			"text": "spotlight_testing",
+			"file": "main-BE1h_1MP.js",
+			"offset": 298352
+		},
+		{
+			"id": "settings_key:tool_approvals_enabled",
+			"text": "tool_approvals_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 298575
+		},
+		{
+			"id": "settings_key:codex_tool_approval_policy",
+			"text": "codex_tool_approval_policy",
+			"file": "main-BE1h_1MP.js",
+			"offset": 298607
+		},
+		{
+			"id": "settings_key:claude_executable_path",
+			"text": "claude_executable_path",
+			"file": "main-BE1h_1MP.js",
+			"offset": 298653
+		},
+		{
+			"id": "settings_key:codex_executable_path",
+			"text": "codex_executable_path",
+			"file": "main-BE1h_1MP.js",
+			"offset": 298682
+		},
+		{
+			"id": "settings_key:opencode_executable_path",
+			"text": "opencode_executable_path",
+			"file": "main-BE1h_1MP.js",
+			"offset": 298710
+		},
+		{
+			"id": "settings_key:claude_provider",
+			"text": "claude_provider",
+			"file": "main-BE1h_1MP.js",
+			"offset": 298741
+		},
+		{
+			"id": "settings_key:codex_provider",
+			"text": "codex_provider",
+			"file": "main-BE1h_1MP.js",
+			"offset": 298763
+		},
+		{
+			"id": "settings_key:bedrock_region",
+			"text": "bedrock_region",
+			"file": "main-BE1h_1MP.js",
+			"offset": 298784
+		},
+		{
+			"id": "settings_key:vertex_project_id",
+			"text": "vertex_project_id",
+			"file": "main-BE1h_1MP.js",
+			"offset": 298805
+		},
+		{
+			"id": "settings_key:ssh_key_path",
+			"text": "ssh_key_path",
+			"file": "main-BE1h_1MP.js",
+			"offset": 298829
+		},
+		{
+			"id": "settings_key:delete_branch_on_archive",
+			"text": "delete_branch_on_archive",
+			"file": "main-BE1h_1MP.js",
+			"offset": 298848
+		},
+		{
+			"id": "settings_key:archive_on_merge",
+			"text": "archive_on_merge",
+			"file": "main-BE1h_1MP.js",
+			"offset": 298882
+		},
+		{
+			"id": "settings_key:worktree_push_auto_setup_remote",
+			"text": "worktree_push_auto_setup_remote",
+			"file": "main-BE1h_1MP.js",
+			"offset": 298905
+		},
+		{
+			"id": "settings_key:branch_prefix_type",
+			"text": "branch_prefix_type",
+			"file": "main-BE1h_1MP.js",
+			"offset": 298943
+		},
+		{
+			"id": "settings_key:branch_prefix_custom",
+			"text": "branch_prefix_custom",
+			"file": "main-BE1h_1MP.js",
+			"offset": 298986
+		},
+		{
+			"id": "settings_key:always_allow_local_execution",
+			"text": "always_allow_local_execution",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299013
+		},
+		{
+			"id": "settings_key:auto_sync_files_in_new_cloud_workspaces",
+			"text": "auto_sync_files_in_new_cloud_workspaces",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299051
+		},
+		{
+			"id": "settings_key:always_show_context_wheel",
+			"text": "always_show_context_wheel",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299100
+		},
+		{
+			"id": "settings_key:auto_convert_long_text",
+			"text": "auto_convert_long_text",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299132
+		},
+		{
+			"id": "settings_key:auto_rename_new_branches",
+			"text": "auto_rename_new_branches",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299161
+		},
+		{
+			"id": "settings_key:auto_rename_workspace_on_branch_name_set",
+			"text": "auto_rename_workspace_on_branch_name_set",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299195
+		},
+		{
+			"id": "settings_key:auto_restart_on_update_when_idle",
+			"text": "auto_restart_on_update_when_idle",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299245
+		},
+		{
+			"id": "settings_key:artifacts_tab_enabled",
+			"text": "artifacts_tab_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299287
+		},
+		{
+			"id": "settings_key:automerge_enabled",
+			"text": "automerge_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299318
+		},
+		{
+			"id": "settings_key:treat_optional_checks_as_blocking",
+			"text": "treat_optional_checks_as_blocking",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299342
+		},
+		{
+			"id": "settings_key:manual_workspace_order",
+			"text": "manual_workspace_order",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299382
+		},
+		{
+			"id": "settings_key:github_stacked_prs_enabled",
+			"text": "github_stacked_prs_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299411
+		},
+		{
+			"id": "settings_key:big_terminal_custom_commands",
+			"text": "big_terminal_custom_commands",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299447
+		},
+		{
+			"id": "settings_key:big_terminal_preset",
+			"text": "big_terminal_preset",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299482
+		},
+		{
+			"id": "settings_key:caffeinate_while_agents_running",
+			"text": "caffeinate_while_agents_running",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299508
+		},
+		{
+			"id": "settings_key:remote_control_keep_awake",
+			"text": "remote_control_keep_awake",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299549
+		},
+		{
+			"id": "settings_key:chrome_mode_enabled",
+			"text": "chrome_mode_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299584
+		},
+		{
+			"id": "settings_key:claude_subscription_sign_in_enabled",
+			"text": "claude_subscription_sign_in_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299610
+		},
+		{
+			"id": "settings_key:client_instance_id",
+			"text": "client_instance_id",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299652
+		},
+		{
+			"id": "settings_key:codex_goals_disabled",
+			"text": "codex_goals_disabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299677
+		},
+		{
+			"id": "settings_key:code_theme",
+			"text": "code_theme",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299704
+		},
+		{
+			"id": "settings_key:codex_api_key",
+			"text": "codex_api_key",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299734
+		},
+		{
+			"id": "settings_key:codex_base_url",
+			"text": "codex_base_url",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299754
+		},
+		{
+			"id": "settings_key:color_vision",
+			"text": "color_vision",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299775
+		},
+		{
+			"id": "settings_key:cloud_in_data_privacy_mode_enabled",
+			"text": "cloud_in_data_privacy_mode_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299807
+		},
+		{
+			"id": "settings_key:queue_messages_disabled",
+			"text": "queue_messages_disabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299848
+		},
+		{
+			"id": "settings_key:routine_webhook_triggers_enabled",
+			"text": "routine_webhook_triggers_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299878
+		},
+		{
+			"id": "settings_key:pr_roundhouse_state_enabled",
+			"text": "pr_roundhouse_state_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299917
+		},
+		{
+			"id": "settings_key:user_message_footer_enabled",
+			"text": "user_message_footer_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299951
+		},
+		{
+			"id": "settings_key:read_aloud_enabled",
+			"text": "read_aloud_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 299985
+		},
+		{
+			"id": "settings_key:colored_sidebar_diffs",
+			"text": "colored_sidebar_diffs",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300010
+		},
+		{
+			"id": "settings_key:conductor_api_token",
+			"text": "conductor_api_token",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300041
+		},
+		{
+			"id": "settings_key:opencode_provider_api_keys",
+			"text": "opencode_provider_api_keys",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300067
+		},
+		{
+			"id": "settings_key:conductor_config_repo_root_migration_complete",
+			"text": "conductor_config_repo_root_migration_complete",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300100
+		},
+		{
+			"id": "settings_key:conductor_json_migration_dismissed_repos",
+			"text": "conductor_json_migration_dismissed_repos",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300152
+		},
+		{
+			"id": "settings_key:conductor_root_path",
+			"text": "conductor_root_path",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300199
+		},
+		{
+			"id": "settings_key:dashboard_enabled",
+			"text": "dashboard_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300225
+		},
+		{
+			"id": "settings_key:default_message_send_mode",
+			"text": "default_message_send_mode",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300249
+		},
+		{
+			"id": "settings_key:default_open_in",
+			"text": "default_open_in",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300281
+		},
+		{
+			"id": "settings_key:default_thinking_enabled",
+			"text": "default_thinking_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300303
+		},
+		{
+			"id": "settings_key:disable_external_logging",
+			"text": "disable_external_logging",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300334
+		},
+		{
+			"id": "settings_key:kill_switch_presence_enabled",
+			"text": "kill_switch_presence_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300365
+		},
+		{
+			"id": "settings_key:experimental_agent_progress",
+			"text": "experimental_agent_progress",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300400
+		},
+		{
+			"id": "settings_key:experimental_auto_permission_mode",
+			"text": "experimental_auto_permission_mode",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300437
+		},
+		{
+			"id": "settings_key:experimental_big_terminal_mode",
+			"text": "experimental_big_terminal_mode",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300480
+		},
+		{
+			"id": "settings_key:experimental_configurable_center_panel",
+			"text": "experimental_configurable_center_panel",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300520
+		},
+		{
+			"id": "settings_key:experimental_new_workspace_page",
+			"text": "experimental_new_workspace_page",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300568
+		},
+		{
+			"id": "settings_key:experimental_fork_to_new_tab",
+			"text": "experimental_fork_to_new_tab",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300609
+		},
+		{
+			"id": "settings_key:experimental_in_app_browser_preview",
+			"text": "experimental_in_app_browser_preview",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300647
+		},
+		{
+			"id": "settings_key:experimental_legacy_file_preview_and_editing",
+			"text": "experimental_legacy_file_preview_and_editing",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300692
+		},
+		{
+			"id": "settings_key:experimental_show_agent_cost",
+			"text": "experimental_show_agent_cost",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300746
+		},
+		{
+			"id": "settings_key:experimental_sidebar_transparency",
+			"text": "experimental_sidebar_transparency",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300784
+		},
+		{
+			"id": "settings_key:experimental_tab_freak_mode",
+			"text": "experimental_tab_freak_mode",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300827
+		},
+		{
+			"id": "settings_key:file_ligatures_enabled",
+			"text": "file_ligatures_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300864
+		},
+		{
+			"id": "settings_key:first_time_onboarding_step",
+			"text": "first_time_onboarding_step",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300893
+		},
+		{
+			"id": "settings_key:garry_mode",
+			"text": "garry_mode",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300926
+		},
+		{
+			"id": "settings_key:gh_auth_method",
+			"text": "gh_auth_method",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300946
+		},
+		{
+			"id": "settings_key:gh_pat_expires_at",
+			"text": "gh_pat_expires_at",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300967
+		},
+		{
+			"id": "settings_key:gh_pat_token",
+			"text": "gh_pat_token",
+			"file": "main-BE1h_1MP.js",
+			"offset": 300991
+		},
+		{
+			"id": "settings_key:gh_token",
+			"text": "gh_token",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301010
+		},
+		{
+			"id": "settings_key:gh_token_app_client_id",
+			"text": "gh_token_app_client_id",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301025
+		},
+		{
+			"id": "settings_key:gh_token_expires_at",
+			"text": "gh_token_expires_at",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301054
+		},
+		{
+			"id": "settings_key:gh_token_source",
+			"text": "gh_token_source",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301080
+		},
+		{
+			"id": "settings_key:gh_cloud_auth_method",
+			"text": "gh_cloud_auth_method",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301102
+		},
+		{
+			"id": "settings_key:gh_cloud_pat_expires_at",
+			"text": "gh_cloud_pat_expires_at",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301129
+		},
+		{
+			"id": "settings_key:gh_cloud_pat_token",
+			"text": "gh_cloud_pat_token",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301159
+		},
+		{
+			"id": "settings_key:gh_cloud_token",
+			"text": "gh_cloud_token",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301184
+		},
+		{
+			"id": "settings_key:gh_cloud_token_app_client_id",
+			"text": "gh_cloud_token_app_client_id",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301205
+		},
+		{
+			"id": "settings_key:gh_cloud_token_expires_at",
+			"text": "gh_cloud_token_expires_at",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301240
+		},
+		{
+			"id": "settings_key:gh_cloud_token_source",
+			"text": "gh_cloud_token_source",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301272
+		},
+		{
+			"id": "settings_key:graphite_disabled",
+			"text": "graphite_disabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301300
+		},
+		{
+			"id": "settings_key:hide_whitespace_changes",
+			"text": "hide_whitespace_changes",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301324
+		},
+		{
+			"id": "settings_key:http_proxy",
+			"text": "http_proxy",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301357
+		},
+		{
+			"id": "settings_key:internal_codex_message_log",
+			"text": "internal_codex_message_log",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301374
+		},
+		{
+			"id": "settings_key:internal_desktop_remote_access",
+			"text": "internal_desktop_remote_access",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301407
+		},
+		{
+			"id": "settings_key:internal_developer_metrics",
+			"text": "internal_developer_metrics",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301447
+		},
+		{
+			"id": "settings_key:internal_codex_initial_permission_config",
+			"text": "internal_codex_initial_permission_config",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301483
+		},
+		{
+			"id": "settings_key:internal_frame_drop_logging",
+			"text": "internal_frame_drop_logging",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301530
+		},
+		{
+			"id": "settings_key:internal_session_transcript_prefetch_disabled",
+			"text": "internal_session_transcript_prefetch_disabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301564
+		},
+		{
+			"id": "settings_key:internal_claude_token_usage_tracking",
+			"text": "internal_claude_token_usage_tracking",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301619
+		},
+		{
+			"id": "settings_key:internal_claude_initial_permission_mode",
+			"text": "internal_claude_initial_permission_mode",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301662
+		},
+		{
+			"id": "settings_key:internal_cloud_workspaces_independent_of_local_repos",
+			"text": "internal_cloud_workspaces_independent_of_local_repos",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301708
+		},
+		{
+			"id": "settings_key:internal_pull_requests_page",
+			"text": "internal_pull_requests_page",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301770
+		},
+		{
+			"id": "settings_key:internal_principals",
+			"text": "internal_principals",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301807
+		},
+		{
+			"id": "settings_key:internal_workspace_chat",
+			"text": "internal_workspace_chat",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301836
+		},
+		{
+			"id": "settings_key:internal_native_fork",
+			"text": "internal_native_fork",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301869
+		},
+		{
+			"id": "settings_key:internal_verbose_logging",
+			"text": "internal_verbose_logging",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301899
+		},
+		{
+			"id": "settings_key:internal_sidecar_exp_session_log",
+			"text": "internal_sidecar_exp_session_log",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301930
+		},
+		{
+			"id": "settings_key:internal_terminal_render_debug_log",
+			"text": "internal_terminal_render_debug_log",
+			"file": "main-BE1h_1MP.js",
+			"offset": 301969
+		},
+		{
+			"id": "settings_key:internal_remote_local_execution_mcp",
+			"text": "internal_remote_local_execution_mcp",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302010
+		},
+		{
+			"id": "settings_key:internal_request_metadata",
+			"text": "internal_request_metadata",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302052
+		},
+		{
+			"id": "settings_key:internal_prompt_snippets",
+			"text": "internal_prompt_snippets",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302084
+		},
+		{
+			"id": "settings_key:internal_team_artifacts",
+			"text": "internal_team_artifacts",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302115
+		},
+		{
+			"id": "settings_key:internal_pic_agent_enabled",
+			"text": "internal_pic_agent_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302145
+		},
+		{
+			"id": "settings_key:internal_muse_code_enabled",
+			"text": "internal_muse_code_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302181
+		},
+		{
+			"id": "settings_key:internal_settings_enabled",
+			"text": "internal_settings_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302217
+		},
+		{
+			"id": "settings_key:internal_settings_use_defaults",
+			"text": "internal_settings_use_defaults",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302249
+		},
+		{
+			"id": "settings_key:internal_tauri_http_proxy_url",
+			"text": "internal_tauri_http_proxy_url",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302286
+		},
+		{
+			"id": "settings_key:internal_workspace_tabs",
+			"text": "internal_workspace_tabs",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302322
+		},
+		{
+			"id": "settings_key:internal_workspace_status_matrix",
+			"text": "internal_workspace_status_matrix",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302352
+		},
+		{
+			"id": "settings_key:local_repositories_without_github_enabled",
+			"text": "local_repositories_without_github_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302394
+		},
+		{
+			"id": "settings_key:local_git_forge_enabled",
+			"text": "local_git_forge_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302442
+		},
+		{
+			"id": "settings_key:local_env_vars_import_banner_dismissed",
+			"text": "local_env_vars_import_banner_dismissed",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302472
+		},
+		{
+			"id": "settings_key:last_clone_directory",
+			"text": "last_clone_directory",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302520
+		},
+		{
+			"id": "settings_key:last_seen_announcement",
+			"text": "last_seen_announcement",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302547
+		},
+		{
+			"id": "settings_key:model_catalog_cache",
+			"text": "model_catalog_cache",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302576
+		},
+		{
+			"id": "settings_key:keybinding_overrides_v1",
+			"text": "keybinding_overrides_v1",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302602
+		},
+		{
+			"id": "settings_key:left_panel_visible",
+			"text": "left_panel_visible",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302632
+		},
+		{
+			"id": "settings_key:left_panel_width",
+			"text": "left_panel_width",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302657
+		},
+		{
+			"id": "settings_key:low_contrast_dark_mode",
+			"text": "low_contrast_dark_mode",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302680
+		},
+		{
+			"id": "settings_key:markdown_style",
+			"text": "markdown_style",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302712
+		},
+		{
+			"id": "settings_key:message_send_key",
+			"text": "message_send_key",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302746
+		},
+		{
+			"id": "settings_key:mono_font",
+			"text": "mono_font",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302780
+		},
+		{
+			"id": "settings_key:not_absolutely_right",
+			"text": "not_absolutely_right",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302796
+		},
+		{
+			"id": "settings_key:notifications_enabled",
+			"text": "notifications_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302826
+		},
+		{
+			"id": "settings_key:mention_notifications_enabled",
+			"text": "mention_notifications_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302857
+		},
+		{
+			"id": "settings_key:onboarding_step",
+			"text": "onboarding_step",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302896
+		},
+		{
+			"id": "settings_key:onboarding_workspace_id",
+			"text": "onboarding_workspace_id",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302918
+		},
+		{
+			"id": "settings_key:open_url_template",
+			"text": "open_url_template",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302948
+		},
+		{
+			"id": "settings_key:open_in_mru_order",
+			"text": "open_in_mru_order",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302972
+		},
+		{
+			"id": "settings_key:pokes_enabled",
+			"text": "pokes_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 302996
+		},
+		{
+			"id": "settings_key:pull_request_open_target",
+			"text": "pull_request_open_target",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303019
+		},
+		{
+			"id": "settings_key:pr_activity_sort_order",
+			"text": "pr_activity_sort_order",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303062
+		},
+		{
+			"id": "settings_key:react_profiler_enabled",
+			"text": "react_profiler_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303110
+		},
+		{
+			"id": "settings_key:review_thinking_enabled",
+			"text": "review_thinking_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303139
+		},
+		{
+			"id": "settings_key:right_panel_visible",
+			"text": "right_panel_visible",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303169
+		},
+		{
+			"id": "settings_key:roundhouse_client_url_override",
+			"text": "roundhouse_client_url_override",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303195
+		},
+		{
+			"id": "settings_key:roundhouse_client_user_id",
+			"text": "roundhouse_client_user_id",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303232
+		},
+		{
+			"id": "settings_key:roundhouse_credentials",
+			"text": "roundhouse_credentials",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303264
+		},
+		{
+			"id": "settings_key:repo_conductor_config_file_migration_complete",
+			"text": "repo_conductor_config_file_migration_complete",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303293
+		},
+		{
+			"id": "settings_key:repo_conductor_config_file_migration_v2_complete",
+			"text": "repo_conductor_config_file_migration_v2_complete",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303345
+		},
+		{
+			"id": "settings_key:repo_custom_prompt_file_migration_complete",
+			"text": "repo_custom_prompt_file_migration_complete",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303400
+		},
+		{
+			"id": "settings_key:repo_local_settings_file_migration_complete",
+			"text": "repo_local_settings_file_migration_complete",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303449
+		},
+		{
+			"id": "settings_key:sample_project_onboarding_seed_status",
+			"text": "sample_project_onboarding_seed_status",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303499
+		},
+		{
+			"id": "settings_key:sidebar_group_by",
+			"text": "sidebar_group_by",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303543
+		},
+		{
+			"id": "settings_key:sidebar_repo_filter",
+			"text": "sidebar_repo_filter",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303566
+		},
+		{
+			"id": "settings_key:sidebar_sort_by",
+			"text": "sidebar_sort_by",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303592
+		},
+		{
+			"id": "settings_key:sidecar_inspect",
+			"text": "sidecar_inspect",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303614
+		},
+		{
+			"id": "settings_key:sidecar_inspect_brk",
+			"text": "sidecar_inspect_brk",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303639
+		},
+		{
+			"id": "settings_key:sidebar_resource_usage",
+			"text": "sidebar_resource_usage",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303668
+		},
+		{
+			"id": "settings_key:sound_type",
+			"text": "sound_type",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303700
+		},
+		{
+			"id": "settings_key:terminal_font_family",
+			"text": "terminal_font_family",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303717
+		},
+		{
+			"id": "settings_key:terminal_font_size",
+			"text": "terminal_font_size",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303744
+		},
+		{
+			"id": "settings_key:terminal_max_buffered_lines",
+			"text": "terminal_max_buffered_lines",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303769
+		},
+		{
+			"id": "settings_key:terminal_scrollback_limit_bytes",
+			"text": "terminal_scrollback_limit_bytes",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303803
+		},
+		{
+			"id": "settings_key:using_split_view",
+			"text": "using_split_view",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303845
+		},
+		{
+			"id": "settings_key:voice_mode",
+			"text": "voice_mode",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303871
+		},
+		{
+			"id": "settings_key:unstarted_workspaces_enabled",
+			"text": "unstarted_workspaces_enabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303888
+		},
+		{
+			"id": "settings_key:wrap_lines",
+			"text": "wrap_lines",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303926
+		},
+		{
+			"id": "settings_key:zoom_level_v2",
+			"text": "zoom_level_v2",
+			"file": "main-BE1h_1MP.js",
+			"offset": 303946
+		},
+		{
+			"id": "settings_key:file_backed_settings_migration_complete",
+			"text": "file_backed_settings_migration_complete",
+			"file": "main-BE1h_1MP.js",
+			"offset": 368875
+		}
+	]
+}

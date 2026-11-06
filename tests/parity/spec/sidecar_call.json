@@ -1,0 +1,552 @@
+{
+	"inventory": "sidecar_call",
+	"source": ".context/day/conductor-ref/call-inventory.json (sidecar)",
+	"entries": [
+		{
+			"id": "sidecar_call:codexGoalClear",
+			"text": "codexGoalClear",
+			"file": "",
+			"offset": null,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:codexGoalGet",
+			"text": "codexGoalGet",
+			"file": "",
+			"offset": null,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:codexGoalSet",
+			"text": "codexGoalSet",
+			"file": "",
+			"offset": null,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:getShellEnv",
+			"text": "getShellEnv",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2977080,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:message",
+			"text": "message",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3097668,
+			"direction": "from-sidecar"
+		},
+		{
+			"id": "sidecar_call:queryError",
+			"text": "queryError",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3097757,
+			"direction": "from-sidecar"
+		},
+		{
+			"id": "sidecar_call:codexMcpConsentDeliveryFailed",
+			"text": "codexMcpConsentDeliveryFailed",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3097943,
+			"direction": "from-sidecar"
+		},
+		{
+			"id": "sidecar_call:sessionEventNotification",
+			"text": "sessionEventNotification",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3098071,
+			"direction": "from-sidecar"
+		},
+		{
+			"id": "sidecar_call:deliverSessionEvent",
+			"text": "deliverSessionEvent",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3098171,
+			"direction": "from-sidecar"
+		},
+		{
+			"id": "sidecar_call:sessionStatusNotification",
+			"text": "sessionStatusNotification",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3098452,
+			"direction": "from-sidecar"
+		},
+		{
+			"id": "sidecar_call:sessionStateNotification",
+			"text": "sessionStateNotification",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3098566,
+			"direction": "from-sidecar"
+		},
+		{
+			"id": "sidecar_call:fastModeUnavailableNotification",
+			"text": "fastModeUnavailableNotification",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3098678,
+			"direction": "from-sidecar"
+		},
+		{
+			"id": "sidecar_call:shellEnvCaptureNotification",
+			"text": "shellEnvCaptureNotification",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3098805,
+			"direction": "from-sidecar"
+		},
+		{
+			"id": "sidecar_call:exitPlanMode",
+			"text": "exitPlanMode",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3099105,
+			"direction": "from-sidecar"
+		},
+		{
+			"id": "sidecar_call:askUserQuestion",
+			"text": "askUserQuestion",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3099928,
+			"direction": "from-sidecar"
+		},
+		{
+			"id": "sidecar_call:codexMcpElicitation",
+			"text": "codexMcpElicitation",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3100399,
+			"direction": "from-sidecar"
+		},
+		{
+			"id": "sidecar_call:codexPermissionApproval",
+			"text": "codexPermissionApproval",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3100955,
+			"direction": "from-sidecar"
+		},
+		{
+			"id": "sidecar_call:toolApproval",
+			"text": "toolApproval",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3101532,
+			"direction": "from-sidecar"
+		},
+		{
+			"id": "sidecar_call:getDiff",
+			"text": "getDiff",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3102250,
+			"direction": "from-sidecar"
+		},
+		{
+			"id": "sidecar_call:getDiffComments",
+			"text": "getDiffComments",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3102358,
+			"direction": "from-sidecar"
+		},
+		{
+			"id": "sidecar_call:diffComment",
+			"text": "diffComment",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3102503,
+			"direction": "from-sidecar"
+		},
+		{
+			"id": "sidecar_call:getTerminalOutput",
+			"text": "getTerminalOutput",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3102841,
+			"direction": "from-sidecar"
+		},
+		{
+			"id": "sidecar_call:enterPlanModeNotification",
+			"text": "enterPlanModeNotification",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3102972,
+			"direction": "from-sidecar"
+		},
+		{
+			"id": "sidecar_call:checkpointCreated",
+			"text": "checkpointCreated",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3103087,
+			"direction": "from-sidecar"
+		},
+		{
+			"id": "sidecar_call:frontendRelay",
+			"text": "frontendRelay",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3103209,
+			"direction": "from-sidecar"
+		},
+		{
+			"id": "sidecar_call:keepAwake",
+			"text": "keepAwake",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3103269,
+			"direction": "from-sidecar"
+		},
+		{
+			"id": "sidecar_call:remoteControlState",
+			"text": "remoteControlState",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3103304,
+			"direction": "from-sidecar"
+		},
+		{
+			"id": "sidecar_call:remoteControlPairedDevicesChanged",
+			"text": "remoteControlPairedDevicesChanged",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3103417,
+			"direction": "from-sidecar"
+		},
+		{
+			"id": "sidecar_call:query",
+			"text": "query",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3103767,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:steer",
+			"text": "steer",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3103859,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:cancel",
+			"text": "cancel",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3104257,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:updatePermissionMode",
+			"text": "updatePermissionMode",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3109015,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:setClaudeEditAutoAccept",
+			"text": "setClaudeEditAutoAccept",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3109143,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:resetGenerator",
+			"text": "resetGenerator",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3109284,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:setVerboseLogging",
+			"text": "setVerboseLogging",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3109408,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:setInternalUser",
+			"text": "setInternalUser",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3109500,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:setAppLoggerUrl",
+			"text": "setAppLoggerUrl",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3109613,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:setPostHogDistinctId",
+			"text": "setPostHogDistinctId",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3109750,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:setExternalLoggingDisabled",
+			"text": "setExternalLoggingDisabled",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3109868,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:setModelCatalog",
+			"text": "setModelCatalog",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3109971,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:claudeAuth",
+			"text": "claudeAuth",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3110059,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:codexAuth",
+			"text": "codexAuth",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3110203,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:codexCloudAuthStart",
+			"text": "codexCloudAuthStart",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3110361,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:codexCloudAuthFinish",
+			"text": "codexCloudAuthFinish",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3110544,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:cursorCloudAuthStart",
+			"text": "cursorCloudAuthStart",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3110732,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:cursorCloudAuthFinish",
+			"text": "cursorCloudAuthFinish",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3110918,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:cursorCloudAuthCancel",
+			"text": "cursorCloudAuthCancel",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3111109,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:fetchAvailableMCP",
+			"text": "fetchAvailableMCP",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3111287,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:fetchSlashCommands",
+			"text": "fetchSlashCommands",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3111456,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:fetchPreWorkspaceCompletions",
+			"text": "fetchPreWorkspaceCompletions",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3111643,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:listAcpModels",
+			"text": "listAcpModels",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3111835,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:fetchAcpSessionConfigOptions",
+			"text": "fetchAcpSessionConfigOptions",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3112012,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:syncAcpSessionModel",
+			"text": "syncAcpSessionModel",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3112212,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:setAcpSessionConfigOption",
+			"text": "setAcpSessionConfigOption",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3112398,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:listCodexModels",
+			"text": "listCodexModels",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3112605,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:warmAgent",
+			"text": "warmAgent",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3112766,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:warmShellEnv",
+			"text": "warmShellEnv",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3112859,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:persistedSessionEvent",
+			"text": "persistedSessionEvent",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3113002,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:remoteControlChanges",
+			"text": "remoteControlChanges",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3113121,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:remoteControlStart",
+			"text": "remoteControlStart",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3113229,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:remoteControlStop",
+			"text": "remoteControlStop",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3113397,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:remoteControlStatus",
+			"text": "remoteControlStatus",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3113567,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:remoteControlCreatePairingOffer",
+			"text": "remoteControlCreatePairingOffer",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3113751,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:remoteControlClearPairingOffer",
+			"text": "remoteControlClearPairingOffer",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3113947,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:remoteControlListPairedDevices",
+			"text": "remoteControlListPairedDevices",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3114124,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:remoteControlRemovePairedDevice",
+			"text": "remoteControlRemovePairedDevice",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3114323,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:codexRollback",
+			"text": "codexRollback",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3115531,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:codexCompact",
+			"text": "codexCompact",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3115912,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:contextUsage",
+			"text": "contextUsage",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3116058,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:acpOneShotPrompt",
+			"text": "acpOneShotPrompt",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3116220,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:cursorOneShotPrompt",
+			"text": "cursorOneShotPrompt",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3116428,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:getSessionStatus",
+			"text": "getSessionStatus",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3116606,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:answerUserQuestion",
+			"text": "answerUserQuestion",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3116777,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:startAgentationProxy",
+			"text": "startAgentationProxy",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3116954,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:listLocalhostPorts",
+			"text": "listLocalhostPorts",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3117133,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:getHarnessVersions",
+			"text": "getHarnessVersions",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3117471,
+			"direction": "to-sidecar"
+		},
+		{
+			"id": "sidecar_call:harnessVersionsNotification",
+			"text": "harnessVersionsNotification",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3117632,
+			"direction": "from-sidecar"
+		},
+		{
+			"id": "sidecar_call:crashTest",
+			"text": "crashTest",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11224729,
+			"direction": "to-sidecar"
+		}
+	]
+}

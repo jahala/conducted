@@ -1,0 +1,576 @@
+{
+	"inventory": "route",
+	"source": ".context/conductor-re/inventory/route.tsv",
+	"entries": [
+		{
+			"id": "route:M1114939",
+			"text": "/workspaces",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1114939
+		},
+		{
+			"id": "route:M2049475",
+			"text": "/shell/execute",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2049475
+		},
+		{
+			"id": "route:M2683127",
+			"text": "/muni.svg",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2683127
+		},
+		{
+			"id": "route:M2683168",
+			"text": "/mta.svg",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2683168
+		},
+		{
+			"id": "route:M2683223",
+			"text": "/metro-de-paris.svg",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2683223
+		},
+		{
+			"id": "route:M2683270",
+			"text": "/sncf.svg",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2683270
+		},
+		{
+			"id": "route:M2683348",
+			"text": "/chime.mp3",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2683348
+		},
+		{
+			"id": "route:M2683417",
+			"text": "/choo-choo.mp3",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2683417
+		},
+		{
+			"id": "route:M2683502",
+			"text": "/odysseus-pluck.mp3",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2683502
+		},
+		{
+			"id": "route:M2683574",
+			"text": "/fahhhh.mp3",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2683574
+		},
+		{
+			"id": "route:M2683636",
+			"text": "/quack.mp3",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2683636
+		},
+		{
+			"id": "route:M2683727",
+			"text": "/sf-muni-inbound-train-chime.mp3",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2683727
+		},
+		{
+			"id": "route:M2683815",
+			"text": "/sf-muni-gong.mp3",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2683815
+		},
+		{
+			"id": "route:M2683900",
+			"text": "/nyc-metro-door-chime.mp3",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2683900
+		},
+		{
+			"id": "route:M2683994",
+			"text": "/nyc-subway-door-chime.mp3",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2683994
+		},
+		{
+			"id": "route:M2684082",
+			"text": "/nyc-subway.mp3",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2684082
+		},
+		{
+			"id": "route:M2684160",
+			"text": "/paris-metro-chime.mp3",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2684160
+		},
+		{
+			"id": "route:M2684275",
+			"text": "/paris-metro-pickpockets.mp3",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2684275
+		},
+		{
+			"id": "route:M2684365",
+			"text": "/sncf-jingle.mp3",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2684365
+		},
+		{
+			"id": "route:M3823917",
+			"text": "/version",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3823917
+		},
+		{
+			"id": "route:M3891730",
+			"text": "/files/write-stream",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3891730
+		},
+		{
+			"id": "route:M3892443",
+			"text": "/files/stat",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3892443
+		},
+		{
+			"id": "route:M3894130",
+			"text": "/files/list",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3894130
+		},
+		{
+			"id": "route:M3894542",
+			"text": "/files/read",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3894542
+		},
+		{
+			"id": "route:M3896165",
+			"text": "/files/read-text",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3896165
+		},
+		{
+			"id": "route:M3896556",
+			"text": "/files/write-text",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3896556
+		},
+		{
+			"id": "route:R1713000",
+			"text": "/create",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1713000
+		},
+		{
+			"id": "route:R1714453",
+			"text": "/repository/$repositoryId/workspace/$localWorkspaceId",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1714453
+		},
+		{
+			"id": "route:R1715305",
+			"text": "/",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1715305
+		},
+		{
+			"id": "route:R1864102",
+			"text": "/profile/$orgSlug/$userId",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1864102
+		},
+		{
+			"id": "route:R1960039",
+			"text": "/settings/user/account",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1960039
+		},
+		{
+			"id": "route:R2049956",
+			"text": "/all-workspaces",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2049956
+		},
+		{
+			"id": "route:R2960849",
+			"text": "/settings/repos",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2960849
+		},
+		{
+			"id": "route:R2960925",
+			"text": "/settings/repos/$repoId/scripts",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2960925
+		},
+		{
+			"id": "route:R2961215",
+			"text": "/settings/repos/$repoId/actions",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2961215
+		},
+		{
+			"id": "route:R2983757",
+			"text": "/settings/user/providers",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2983757
+		},
+		{
+			"id": "route:R2986285",
+			"text": "/settings/organization/repositories/$owner/$repo",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2986285
+		},
+		{
+			"id": "route:R3034458",
+			"text": "/files/media-token",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3034458
+		},
+		{
+			"id": "route:R5008856",
+			"text": "/settings/repos/$repoId/misc",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5008856
+		},
+		{
+			"id": "route:R9253487",
+			"text": "/settings/user/models",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9253487
+		},
+		{
+			"id": "route:R9524664",
+			"text": "/routines/new",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9524664
+		},
+		{
+			"id": "route:R9542870",
+			"text": "/settings/user/general",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9542870
+		},
+		{
+			"id": "route:R10181173",
+			"text": "/diagnostics",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10181173
+		},
+		{
+			"id": "route:R10198052",
+			"text": "/settings/organization/computer",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10198052
+		},
+		{
+			"id": "route:R10407696",
+			"text": "/dashboard",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10407696
+		},
+		{
+			"id": "route:R10410820",
+			"text": "/routines",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10410820
+		},
+		{
+			"id": "route:R10411413",
+			"text": "/pull-requests",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10411413
+		},
+		{
+			"id": "route:R10854854",
+			"text": "/settings/organization/environment",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10854854
+		},
+		{
+			"id": "route:R10912759",
+			"text": "/settings/organization/prompts",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10912759
+		},
+		{
+			"id": "route:R11216772",
+			"text": "/first-run-onboarding",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11216772
+		},
+		{
+			"id": "route:R11216830",
+			"text": "/cloud-collab-onboarding",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11216830
+		},
+		{
+			"id": "route:R11216892",
+			"text": "/new-member-onboarding",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11216892
+		},
+		{
+			"id": "route:R11298182",
+			"text": "/settings/user/git",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11298182
+		},
+		{
+			"id": "route:R11312381",
+			"text": "/settings/user/internal",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11312381
+		},
+		{
+			"id": "route:R11641644",
+			"text": "/routines/$automationId",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11641644
+		},
+		{
+			"id": "route:R11704796",
+			"text": "/login",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11704796
+		},
+		{
+			"id": "route:R11732135",
+			"text": "/settings/user/experimental",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11732135
+		},
+		{
+			"id": "route:R11736341",
+			"text": "/settings/organization/repositories/$owner/$repo/git",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11736341
+		},
+		{
+			"id": "route:R11736410",
+			"text": "/settings/organization/repositories/$owner/$repo/actions",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11736410
+		},
+		{
+			"id": "route:R11768782",
+			"text": "/settings/organization/repositories/$owner/$repo/scripts",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11768782
+		},
+		{
+			"id": "route:R11779761",
+			"text": "/settings/user",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11779761
+		},
+		{
+			"id": "route:R11783496",
+			"text": "/settings",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11783496
+		},
+		{
+			"id": "route:R11783578",
+			"text": "/user",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11783578
+		},
+		{
+			"id": "route:R11783949",
+			"text": "/providers",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11783949
+		},
+		{
+			"id": "route:R11784032",
+			"text": "/environment",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11784032
+		},
+		{
+			"id": "route:R11784112",
+			"text": "/connections",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11784112
+		},
+		{
+			"id": "route:R11784178",
+			"text": "/ports",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11784178
+		},
+		{
+			"id": "route:R11784222",
+			"text": "/settings/user/connections",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11784222
+		},
+		{
+			"id": "route:R11784338",
+			"text": "/remote-control",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11784338
+		},
+		{
+			"id": "route:R11784428",
+			"text": "/key-bindings",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11784428
+		},
+		{
+			"id": "route:R11784537",
+			"text": "/terminal",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11784537
+		},
+		{
+			"id": "route:R11784600",
+			"text": "/internal",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11784600
+		},
+		{
+			"id": "route:R11785462",
+			"text": "/repos",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11785462
+		},
+		{
+			"id": "route:R11785714",
+			"text": "/repos/$repoId",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11785714
+		},
+		{
+			"id": "route:R11785937",
+			"text": "/git",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11785937
+		},
+		{
+			"id": "route:R11785995",
+			"text": "/scripts",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11785995
+		},
+		{
+			"id": "route:R11786057",
+			"text": "/actions",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11786057
+		},
+		{
+			"id": "route:R11786119",
+			"text": "/misc",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11786119
+		},
+		{
+			"id": "route:R11786178",
+			"text": "/organization",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11786178
+		},
+		{
+			"id": "route:R11786352",
+			"text": "/github",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11786352
+		},
+		{
+			"id": "route:R11786413",
+			"text": "/members",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11786413
+		},
+		{
+			"id": "route:R11786475",
+			"text": "/computer",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11786475
+		},
+		{
+			"id": "route:R11786604",
+			"text": "/mcp",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11786604
+		},
+		{
+			"id": "route:R11786662",
+			"text": "/mcp-servers",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11786662
+		},
+		{
+			"id": "route:R11786702",
+			"text": "/settings/organization/mcp",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11786702
+		},
+		{
+			"id": "route:R11786789",
+			"text": "/prompts",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11786789
+		},
+		{
+			"id": "route:R11786851",
+			"text": "/repositories/$owner/$repo",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11786851
+		},
+		{
+			"id": "route:R11929822",
+			"text": "/routines/$automationId/fork",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11929822
+		},
+		{
+			"id": "route:R11930114",
+			"text": "/routines/new/$suggestionId",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11930114
+		},
+		{
+			"id": "route:R12032539",
+			"text": "/dev/simulated-route-error",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12032539
+		},
+		{
+			"id": "route:R12033165",
+			"text": "/automations",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12033165
+		},
+		{
+			"id": "route:R12033275",
+			"text": "/automations/$automationId",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12033275
+		},
+		{
+			"id": "route:R12033432",
+			"text": "/automations/new",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12033432
+		},
+		{
+			"id": "route:R12033550",
+			"text": "/automations/new/$suggestionId",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12033550
+		},
+		{
+			"id": "route:R12033715",
+			"text": "/automations/$automationId/fork",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12033715
+		}
+	]
+}

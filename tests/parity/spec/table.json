@@ -1,0 +1,180 @@
+{
+	"inventory": "table",
+	"source": ".context/day/conductor-ref/{conductor,cache}-schema.sql; offsets from call-inventory.json (sql)",
+	"entries": [
+		{
+			"id": "table:settings",
+			"text": "settings",
+			"file": "main-BE1h_1MP.js",
+			"offset": 368952
+		},
+		{
+			"id": "table:env_vars",
+			"text": "env_vars",
+			"file": "main-BE1h_1MP.js",
+			"offset": 460831
+		},
+		{
+			"id": "table:identity_associations",
+			"text": "identity_associations",
+			"file": "main-BE1h_1MP.js",
+			"offset": 587576
+		},
+		{
+			"id": "table:repos",
+			"text": "repos",
+			"file": "main-BE1h_1MP.js",
+			"offset": 861411
+		},
+		{
+			"id": "table:workspaces",
+			"text": "workspaces",
+			"file": "main-BE1h_1MP.js",
+			"offset": 876512
+		},
+		{
+			"id": "table:symlinks_pending_deletion",
+			"text": "symlinks_pending_deletion",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1153216
+		},
+		{
+			"id": "table:session_messages_outbox",
+			"text": "session_messages_outbox",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1209573
+		},
+		{
+			"id": "table:session_pending_messages_state",
+			"text": "session_pending_messages_state",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1213029
+		},
+		{
+			"id": "table:session_pending_messages",
+			"text": "session_pending_messages",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1213218
+		},
+		{
+			"id": "table:session_assets_outbox",
+			"text": "session_assets_outbox",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1216310
+		},
+		{
+			"id": "table:attachments",
+			"text": "attachments",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1218314
+		},
+		{
+			"id": "table:client_cache_session_state",
+			"text": "client_cache_session_state",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1403143
+		},
+		{
+			"id": "table:session_messages",
+			"text": "session_messages",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1403302
+		},
+		{
+			"id": "table:client_cache_session_segments",
+			"text": "client_cache_session_segments",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1403375
+		},
+		{
+			"id": "table:session_events",
+			"text": "session_events",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1548674
+		},
+		{
+			"id": "table:session_state",
+			"text": "session_state",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1549782
+		},
+		{
+			"id": "table:diff_comments",
+			"text": "diff_comments",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1871111
+		},
+		{
+			"id": "table:session_messages_outbox_state",
+			"text": "session_messages_outbox_state",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1905816
+		},
+		{
+			"id": "table:sessions",
+			"text": "sessions",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2449715
+		},
+		{
+			"id": "table:terminal_sessions",
+			"text": "terminal_sessions",
+			"file": "main-BE1h_1MP.js",
+			"offset": 2969778
+		},
+		{
+			"id": "table:port_forwards",
+			"text": "port_forwards",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3837802
+		},
+		{
+			"id": "table:favorite_models",
+			"text": "favorite_models",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 238712
+		},
+		{
+			"id": "table:navigation_sections",
+			"text": "navigation_sections",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 276546
+		},
+		{
+			"id": "table:navigation_section_memberships",
+			"text": "navigation_section_memberships",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 276686
+		},
+		{
+			"id": "table:_sqlx_migrations",
+			"text": "_sqlx_migrations",
+			"file": "schema",
+			"offset": null
+		},
+		{
+			"id": "table:identity_acceptances",
+			"text": "identity_acceptances",
+			"file": "schema",
+			"offset": null
+		},
+		{
+			"id": "table:local_workspace_deletion_tombstones",
+			"text": "local_workspace_deletion_tombstones",
+			"file": "schema",
+			"offset": null
+		},
+		{
+			"id": "table:local_workspace_revision_counter",
+			"text": "local_workspace_revision_counter",
+			"file": "schema",
+			"offset": null
+		},
+		{
+			"id": "table:migration_rollbacks",
+			"text": "migration_rollbacks",
+			"file": "schema",
+			"offset": null
+		}
+	]
+}
