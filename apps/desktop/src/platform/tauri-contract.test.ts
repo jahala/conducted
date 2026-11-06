@@ -30,6 +30,7 @@ const TAURI_SKIPS: Readonly<Record<string, string>> = {
 	"speech.available": `${NEEDS_RUST}: Apple dictation over a real speech recognizer`,
 	"speech.stop-ends": `${NEEDS_RUST}: Apple dictation over a real speech recognizer`,
 	"system.info": `${NEEDS_RUST}: the macOS version and CPU`,
+	"app.resource-usage": `${NEEDS_RUST}: reads the process table (resource_usage.rs tests own it)`,
 };
 
 /**

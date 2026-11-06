@@ -296,7 +296,11 @@ export interface AppInfo {
 	onDeepLink(listener: (url: string) => void): Unsubscribe;
 	onQuitRequested(listener: () => void): Unsubscribe;
 	quit(): Promise<void>;
-	resourceUsage(): Promise<ProcessUsage[]>;
+	/**
+	 * CPU and memory of the app's own processes (PLAT-14). A process belongs to the longest of
+	 * `workspacePaths` its working folder lies in; one in none of them has no `workspacePath`.
+	 */
+	resourceUsage(workspacePaths: readonly string[]): Promise<Result<ProcessUsage[]>>;
 	writeLog(level: "error" | "warn" | "info" | "debug", message: string, data?: unknown): void;
 	/** Changes how much the Rust shell writes to the log, at run time. */
 	setLogLevel(level: "error" | "warn" | "info" | "debug"): Promise<void>;

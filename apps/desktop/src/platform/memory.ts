@@ -97,6 +97,8 @@ export interface MemoryPlatformControls {
 	queuePtyExit(code: number | null): void;
 	/** Makes every terminal's `ack` fail with this message; null makes them succeed again. */
 	failPtyAcks(message: string | null): void;
+	/** The app's processes `app.resourceUsage` reports, each with its working folder. */
+	setProcesses(processes: readonly MemoryProcess[]): void;
 	/** Changes what `system.info` reports, for a test about a Mac other than the default. */
 	setSystemInfo(info: SystemInfo): void;
 	/** Makes the next `system.info` calls fail with this message. */
@@ -154,6 +156,16 @@ export interface MemoryPlatformControls {
 	readonly logs: readonly { level: string; message: string }[];
 	/** Returns the number of listeners handed out by the Platform that were never unsubscribed. */
 	dispose(): number;
+}
+
+/** One process of the app, as the process table lists it. */
+export interface MemoryProcess {
+	pid: number;
+	name: string;
+	cpuPercent: number;
+	memoryBytes: number;
+	/** Its working folder, which places it in a workspace. */
+	cwd: string;
 }
 
 export interface MemoryPlatform {
@@ -362,6 +374,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	let clipboardText: string | null = null;
 	let clipboardFilePaths: string[] = [];
 	let ptyAckFailure: string | null = null;
+	let processes: MemoryProcess[] = [];
 	let holdNextStart = false;
 	let systemInfo: SystemInfo = { osVersion: "15.0", machineArch: "arm64", buildArch: "arm64" };
 	let systemInfoFailure: string | null = null;
@@ -1079,7 +1092,15 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		onDeepLink: (listener) => listen(deepLinkListeners, listener),
 		onQuitRequested: (listener) => listen(quitListeners, listener),
 		quit: async () => {},
-		resourceUsage: async () => [],
+		resourceUsage: async (workspacePaths) =>
+			ok(
+				processes.map(({ cwd, ...usage }) => {
+					const owner = workspacePaths
+						.filter((path) => isWithinRoot(cwd, path))
+						.sort((left, right) => right.length - left.length)[0];
+					return owner === undefined ? usage : { ...usage, workspacePath: owner };
+				}),
+			),
 		// The data argument is not kept, so a value that cannot be serialised cannot break logging.
 		writeLog: (level, message) => {
 			logs.push({ level, message });
@@ -1101,6 +1122,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		},
 		failPtyAcks: (message) => {
 			ptyAckFailure = message;
+		},
+		setProcesses: (next) => {
+			processes = [...next];
 		},
 		setSystemInfo: (info) => {
 			systemInfo = info;

@@ -333,6 +333,13 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"Files copied in Finder come back as their paths in order; with none copied the list is empty.",
 		"controls",
 	),
+	c(
+		"app",
+		"resource-usage",
+		"resourceUsage places each process in the longest workspace that holds its folder",
+		"A process in a folder inside two given workspace paths reports the inner one, a process in none reports no workspace, and the call is Ok.",
+		"controls",
+	),
 	c("app", "health", "health is Ok", "health() returns Ok when the shell is up."),
 	c(
 		"app",
@@ -508,6 +515,16 @@ export interface ContractControls {
 	emitNetworkChanged?(online: boolean): void | Promise<void>;
 	/** Puts files on the clipboard, as if copied in Finder. */
 	setClipboardFilePaths?(paths: readonly string[]): void;
+	/** The app's processes the process table lists, each with its working folder. */
+	setProcesses?(
+		processes: readonly {
+			pid: number;
+			name: string;
+			cpuPercent: number;
+			memoryBytes: number;
+			cwd: string;
+		}[],
+	): void;
 	/** What the layer below the platform last received. */
 	readonly dockBadge?: number | null;
 	readonly clipboardText?: string | null;
@@ -1425,6 +1442,27 @@ const STEPS: Record<string, ContractStep> = {
 		);
 	},
 
+	"app.resource-usage": async (ctx) => {
+		const outer = ctx.path("workspaces");
+		const inner = ctx.path("workspaces/oslo");
+		ctx.controls?.setProcesses?.([
+			{ pid: 11, name: "node", cpuPercent: 1.5, memoryBytes: 2048, cwd: `${inner}/web` },
+			{ pid: 12, name: "zsh", cpuPercent: 0, memoryBytes: 1024, cwd: ctx.path("elsewhere") },
+		]);
+		const rows = expectOk(
+			ctx,
+			await ctx.platform.app.resourceUsage([outer, inner]),
+			"resourceUsage",
+		);
+		const node = rows.find((row) => row.pid === 11);
+		const zsh = rows.find((row) => row.pid === 12);
+		ctx.assert(node?.workspacePath === inner, `node was placed in ${String(node?.workspacePath)}`);
+		ctx.assert(
+			zsh !== undefined && zsh.workspacePath === undefined,
+			`zsh was placed in ${String(zsh?.workspacePath)}`,
+		);
+	},
+
 	"app.health": async (ctx) => {
 		expectOk(ctx, await ctx.platform.app.health(), "health");
 	},
@@ -1820,6 +1858,7 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 	"clipboard.write-text": ["clipboard.writeText"],
 	"clipboard.read-file-paths": ["clipboard.readFilePaths"],
 	"app.health": ["app.health"],
+	"app.resource-usage": ["app.resourceUsage"],
 	"app.write-log-never-throws": ["app.writeLog"],
 	"app.version": [],
 	"dialogs.pick-folder": ["dialogs.pickFolder"],
@@ -1889,7 +1928,6 @@ export const UNCOVERED_METHODS: Readonly<Record<string, string>> = {
 	"app.onDeepLink": "PLAT-16 builds it.",
 	"app.onQuitRequested": "Needs the Rust quit hook; the Rust job owns it.",
 	"app.quit": "Quits the app; cannot run inside a test.",
-	"app.resourceUsage": "PLAT-14 builds it.",
 	"app.setLogLevel": "Changes the Rust logger; the Rust logger tests own it.",
 	"app.exportLogs": "Zips the Rust log folder; the Rust logger tests own it.",
 	"app.setQuitHandlerReady": "Needs the Rust quit hook; the Rust job owns it.",

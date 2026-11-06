@@ -454,7 +454,7 @@ interface DbVersionCheck {
 	message: string | null;
 }
 
-/** `app_info` -> `{ version, channel }`; `app_quit`; `resource_usage`; `log_write`; `log_set_level { level }`; `logs_export`; `set_quit_handler_ready`; `db_version_check`. Events: quit, deep link. */
+/** `app_info` -> `{ version, channel }`; `app_quit`; `resource_usage { workspacePaths }`; `log_write`; `log_set_level { level }`; `logs_export`; `set_quit_handler_ready`; `db_version_check`. Events: quit, deep link. */
 export function createTauriAppInfo(
 	bindings: TauriBindings,
 	info: { version: string; channel: "dev" | "release" },
@@ -511,13 +511,10 @@ export function createTauriAppInfo(
 		quit: async () => {
 			await invokeResult(bindings, COMMANDS.appQuit);
 		},
-		resourceUsage: async () => {
-			const result = await invokeResult<ProcessUsage[]>(bindings, COMMANDS.resourceUsage, {
-				workspacePaths: [],
-			});
-			if (!result.ok) throw result.error;
-			return result.value;
-		},
+		resourceUsage: (workspacePaths) =>
+			invokeResult<ProcessUsage[]>(bindings, COMMANDS.resourceUsage, {
+				workspacePaths: [...workspacePaths],
+			}),
 		writeLog: (level, message, data) => {
 			const safe = serialisableLogData(data);
 			const args =
