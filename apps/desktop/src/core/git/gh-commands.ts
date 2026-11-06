@@ -335,6 +335,37 @@ export const stackMerge = (number: number, method: MergeMethod): GitCommand =>
 	gh(["stack", "merge", String(number), "--yes", `--${method}`]);
 export const stackMembers = (stackNumber: number): GitCommand =>
 	gh(["api", `repos/{owner}/{repo}/stacks/${stackNumber}`]);
+/**
+ * The stack a pull request belongs to, read from the optional `stackEntry` field. GitHub hosts
+ * that do not know the field are asked again without it, so the caller can remember the host.
+ */
+export const prStackQuery = (prNumber: number, includeStackEntry: boolean): GitCommand => {
+	const fields = includeStackEntry
+		? "number stackEntry { position stack { number size baseRefName } }"
+		: "number";
+	const query = `query($owner: String!, $repo: String!, $prNumber: Int!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $prNumber) {
+      ${fields}
+    }
+  }
+}`;
+	return gh(
+		[
+			"api",
+			"graphql",
+			"-F",
+			"owner={owner}",
+			"-F",
+			"repo={repo}",
+			"-F",
+			`prNumber=${prNumber}`,
+			"-f",
+			`query=${query}`,
+		],
+		{ timeoutMs: GH_GRAPHQL_TIMEOUT_MS },
+	);
+};
 export const graphiteInstalled = (): GitCommand => ({
 	program: "gt",
 	args: ["--version"],
