@@ -455,6 +455,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 		},
 		providerKeys: repositories.providerKeys,
 		keychain: platform.keychain,
+		files: platform.fs,
+		toml: inputs.toml,
 	});
 	const settings = new SettingsService({
 		platform,
