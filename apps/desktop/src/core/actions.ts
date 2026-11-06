@@ -216,6 +216,7 @@ export function createActions(
 			set: (key, value) => services.settings.set(key, value),
 			setEnvVar: (name, value, scope) => services.settings.setEnvVar(name, value, scope),
 			removeEnvVar: (name, scope) => services.settings.removeEnvVar(name, scope),
+			resetForRepo: (repoId, key) => services.settings.resetForRepo(repoId, key),
 		},
 		agents: {
 			login: (agent, acpAgent) => services.agentCatalog.login(agent, acpAgent),

@@ -604,6 +604,11 @@ export interface Actions {
 		set: Act<[key: string, value: unknown]>;
 		setEnvVar: Act<[name: string, value: string, scope: { repoId: RepoId } | "global"]>;
 		removeEnvVar: Act<[name: string, scope: { repoId: RepoId } | "global"]>;
+		/**
+		 * Removes one repository's own value of a setting from its local settings file, so the
+		 * repository's shared settings.toml (or a layer above it) applies again.
+		 */
+		resetForRepo: Act<[repoId: RepoId, key: string]>;
 	};
 	agents: {
 		login: Act<[agent: AgentKind, acpAgent?: AcpAgent], AgentLogin>;
