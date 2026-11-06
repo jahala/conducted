@@ -50,6 +50,7 @@ futures-util = "0.3"
 sha2 = "0.10"
 tokio = { version = "1", features = ["fs", "io-util", "macros", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
+sysinfo = { version = "0.40.1", default-features = false, features = ["system"] }
 
 [dev-dependencies]
 # The mock app that lets a test hear the events a command emits (PLAT-36 builds on it).
