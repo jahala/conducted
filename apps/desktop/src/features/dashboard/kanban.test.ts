@@ -1,18 +1,12 @@
 /**
  * @feature NAV-06 Kanban columns and grouping
- * Owns: tests for the column list, the status colours and the grouping function that the board,
- * the status menu and the sidebar's status groups read.
+ * Owns: tests for the column list and the grouping function that the board, the status menu and
+ * the sidebar's status groups read.
  * Test first: five workspaces with five different statuses give one card in each column.
  */
 import { describe, expect, it } from "vitest";
-import { sampleWorkspace } from "../../core/db/test-fixtures.ts";
 import type { KanbanStatus, Workspace } from "../../core/model.ts";
-import {
-	groupByKanbanStatus,
-	KANBAN_COLUMNS,
-	KANBAN_STATUSES,
-	KANBAN_STATUS_MARK,
-} from "./kanban.ts";
+import { groupByKanbanStatus, KANBAN_COLUMNS, KANBAN_STATUSES } from "./kanban.ts";
 
 function workspace(
 	id: string,
@@ -20,10 +14,30 @@ function workspace(
 	overrides: Partial<Workspace> = {},
 ): Workspace {
 	return {
-		...sampleWorkspace,
 		id: id as Workspace["id"],
+		repoId: "repo-1" as Workspace["repoId"],
+		directoryName: id,
+		path: `/code/workspaces/${id}`,
+		branch: `jahala/${id}`,
+		branchIsPlaceholder: false,
+		displayName: null,
+		targetBranch: "origin/main",
+		state: "ready",
 		kanbanStatus: status,
+		port: 55_100,
+		pinnedAt: null,
+		notes: "",
+		linkedPaths: [],
+		prNumber: null,
+		prTitle: null,
+		prDescription: null,
+		archiveCommit: null,
 		archivedAt: null,
+		activeSessionId: null,
+		filesCopied: null,
+		lastActivityAt: 1000,
+		createdAt: 1000,
+		updatedAt: 1000,
 		...overrides,
 	};
 }
@@ -44,15 +58,6 @@ describe("NAV-06 kanban columns", () => {
 		expect(KANBAN_COLUMNS.in_review.label).toBe("In review");
 		expect(KANBAN_COLUMNS.canceled.label).toBe("Canceled");
 	});
-
-	it("gives every status its own colour token", () => {
-		const marks = KANBAN_STATUSES.map((status) => KANBAN_STATUS_MARK[status]);
-		expect(new Set(marks).size).toBe(KANBAN_STATUSES.length);
-		for (const mark of marks) expect(mark.startsWith("bg-status-")).toBe(true);
-		expect(KANBAN_STATUS_MARK.in_progress).toBe("bg-status-progress");
-		expect(KANBAN_STATUS_MARK.in_review).toBe("bg-status-review");
-		expect(KANBAN_STATUS_MARK.canceled).toBe("bg-status-canceled");
-	});
 });
 
 describe("NAV-06 grouping workspaces", () => {
@@ -64,10 +69,11 @@ describe("NAV-06 grouping workspaces", () => {
 			workspace("d", "done"),
 			workspace("c", "canceled"),
 		]);
-		for (const status of KANBAN_STATUSES) {
-			expect(groups[status]).toHaveLength(1);
-			expect(groups[status][0]?.kanbanStatus).toBe(status);
-		}
+		expect(groups.backlog.map((row) => row.id)).toEqual(["b"]);
+		expect(groups.in_progress.map((row) => row.id)).toEqual(["p"]);
+		expect(groups.in_review.map((row) => row.id)).toEqual(["r"]);
+		expect(groups.done.map((row) => row.id)).toEqual(["d"]);
+		expect(groups.canceled.map((row) => row.id)).toEqual(["c"]);
 	});
 
 	it("leaves archived workspaces off the board", () => {

@@ -4,31 +4,33 @@
  * chips, drag and drop between columns, and an optimistic move that rolls back when the write fails.
  * Behaviour: ui-map.md 2 (/dashboard: Backlog, In progress, In review, Done, Canceled; drag a card
  * to change status; project filter chips, top 5 plus more; empty: 'New workspace'; behind the
- * setting 'Dashboard'), 6 (the setting is under Experimental).
- * Our design choice: The route is reachable only when the 'Dashboard' setting is on; with it off
- * the route shows a short explanation and a link to the setting. A moved card shows in its new
- * column at once; a failed write puts it back and shows a toast.
- * Must handle: Setting off; loading; error; no workspaces ('New workspace' button); a column with
- * no cards shows its own quiet empty note; a failed status change returns the card to its column
- * and shows a toast; archived workspaces are not on the board.
+ * setting 'Dashboard'), 6 (the setting is under Experimental). As in Conductor's frontend bundle,
+ * the route sends the user to Home while the setting is off (the sidebar hides its row too), the
+ * filter shows only with more than one project, and an empty board is one centred 'New workspace'
+ * button that opens the create screen for the chosen project.
+ * Our design choice: A moved card shows in its new column at once; a failed write puts it back and
+ * shows a toast.
+ * Must handle: Setting off (waits for the settings to load, then goes to Home); loading; error; no
+ * workspaces ('New workspace'); a failed status change returns the card to its column and shows a
+ * toast; archived workspaces are not on the board.
  * Test first: Dropping a card on 'Done' calls workspaces.setKanbanStatus(id, 'done'); a failure
  * moves it back.
  */
 import type { RepoId, Result } from "@conducted/shared";
-import { Link } from "@tanstack/react-router";
-import { useCallback, useMemo, useState } from "react";
+import { Navigate, useNavigate } from "@tanstack/react-router";
+import { useCallback, useState } from "react";
+import { useStore } from "zustand";
 import { useServices } from "../../core/context.tsx";
 import { useActions, useRepos, useSetting, useWorkspaces } from "../../core/hooks.ts";
 import type { KanbanStatus, Repo, Workspace } from "../../core/model.ts";
-import { Button, buttonClassName } from "../../ui/Button.tsx";
-import { EmptyState } from "../../ui/EmptyState.tsx";
+import { Button } from "../../ui/Button.tsx";
 import { LoadableView } from "../../ui/LoadableView.tsx";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
 import { Skeleton } from "../../ui/Skeleton.tsx";
 import { TitleBarInset } from "../../ui/TitleBarInset.tsx";
 import { toastError } from "../../ui/Toast.tsx";
-import { KANBAN_STATUSES, groupByKanbanStatus } from "./kanban.ts";
 import { KanbanColumn } from "./KanbanColumn.tsx";
+import { groupByKanbanStatus, KANBAN_STATUSES } from "./kanban.ts";
 
 /** How many projects get their own chip before the rest move under More. */
 export const DASHBOARD_PROJECT_CHIPS = 5;
@@ -54,9 +56,12 @@ function ProjectFilter({
 }) {
 	const top = repos.slice(0, DASHBOARD_PROJECT_CHIPS);
 	const rest = repos.slice(DASHBOARD_PROJECT_CHIPS);
-	if (repos.length === 0) return null;
+	if (repos.length < 2) return null;
 	return (
-		<div role="group" aria-label="Filter by project" className="flex flex-wrap items-center gap-1.5">
+		<fieldset
+			aria-label="Filter by project"
+			className="m-0 flex min-w-0 flex-wrap items-center gap-1.5 border-0 p-0"
+		>
 			<Button
 				variant={selected === null ? "secondary" : "ghost"}
 				size="xs"
@@ -92,34 +97,19 @@ function ProjectFilter({
 					</MenuContent>
 				</Menu>
 			)}
-		</div>
-	);
-}
-
-function SettingsOff() {
-	return (
-		<EmptyState
-			title="Dashboard is off"
-			body="The Kanban board is experimental. Turn on the Dashboard setting to show it."
-			action={
-				<Link
-					to="/settings/$page"
-					params={{ page: "experimental" }}
-					className={buttonClassName({ variant: "default" })}
-				>
-					Open Settings
-				</Link>
-			}
-		/>
+		</fieldset>
 	);
 }
 
 export function DashboardScreen() {
 	const enabled = useSetting<boolean>("dashboard_enabled");
+	const { services } = useServices();
+	const settingsLoaded = useStore(services.settings.store, (state) => state.loaded);
+	const navigate = useNavigate();
 	const repos = useRepos();
 	const workspaces = useWorkspaces();
 	const actions = useActions();
-	const { repo, workspace } = useServices().services;
+	const { repo, workspace } = services;
 	const [project, setProject] = useState<RepoId | null>(null);
 	const [overrides, setOverrides] = useState<Record<string, KanbanStatus>>({});
 
@@ -146,6 +136,8 @@ export function DashboardScreen() {
 		});
 	};
 
+	if (settingsLoaded && !enabled) return <Navigate to="/" replace />;
+
 	return (
 		<div className="flex h-full min-h-0 flex-col bg-canvas">
 			<header
@@ -155,11 +147,6 @@ export function DashboardScreen() {
 				<TitleBarInset />
 				<h1 className="text-sm font-medium text-fg">Dashboard</h1>
 			</header>
-			{enabled ? null : (
-				<div className="min-h-0 flex-1 overflow-y-auto">
-					<SettingsOff />
-				</div>
-			)}
 			{enabled ? (
 				<div className="min-h-0 flex-1 overflow-y-auto">
 					<LoadableView
@@ -187,15 +174,16 @@ export function DashboardScreen() {
 							>
 								{(workspaceRows) => {
 									const reposById = new Map(repoRows.map((row) => [row.id, row]));
-									const effective = workspaceRows.map((row) =>
-										overrides[row.id] === undefined
-											? row
-											: { ...row, kanbanStatus: overrides[row.id] },
-									);
+									const effective = workspaceRows.map((row): Workspace => {
+										const moved = overrides[row.id];
+										return moved === undefined ? row : { ...row, kanbanStatus: moved };
+									});
+									// One project needs no filter: its workspaces are the whole board.
+									const chosen =
+										project ?? (repoRows.length === 1 ? (repoRows[0]?.id ?? null) : null);
 									const visible = effective.filter(
 										(row) =>
-											reposById.has(row.repoId) &&
-											(project === null || row.repoId === project),
+											reposById.has(row.repoId) && (chosen === null || row.repoId === chosen),
 									);
 									const groups = groupByKanbanStatus(visible);
 									const total = KANBAN_STATUSES.reduce(
@@ -204,33 +192,23 @@ export function DashboardScreen() {
 									);
 									return (
 										<div className="flex h-full min-h-0 flex-col gap-3 p-4">
-											<ProjectFilter
-												repos={repoRows}
-												selected={project}
-												onSelect={setProject}
-											/>
+											<ProjectFilter repos={repoRows} selected={project} onSelect={setProject} />
 											{total === 0 ? (
-												<div className="min-h-0 flex-1">
-													<EmptyState
-														title={
-															project === null
-																? "No workspaces yet"
-																: "No workspaces in this project"
+												<div className="flex min-h-0 flex-1 items-center justify-center">
+													<Button
+														onClick={() =>
+															void navigate({
+																to: "/create",
+																search: chosen === null ? {} : { repo: chosen },
+															})
 														}
-														body="Create a workspace to give a task its own copy of the code and its own chats."
-														action={
-															<Link
-																to="/create"
-																className={buttonClassName({ variant: "default" })}
-															>
-																New workspace
-															</Link>
-														}
-													/>
+													>
+														New workspace
+													</Button>
 												</div>
 											) : (
 												<div className="min-h-0 flex-1 overflow-x-auto">
-													<div className="grid h-full min-w-[900px] grid-cols-5 gap-3">
+													<div className="flex h-full gap-6">
 														{KANBAN_STATUSES.map((status) => (
 															<KanbanColumn
 																key={status}

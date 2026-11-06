@@ -1,10 +1,12 @@
 /**
  * @feature NAV-06 Kanban card
  * Owns: One draggable card: workspace name, repository, derived status text and line changes,
- * plus the "Move" menu keyboard users change a card's status with.
+ * plus the status menu (the status mark as a button) that keyboard users change a card's status
+ * with, as on Conductor's card.
  * Behaviour: ui-map.md 2 (Dashboard cards), 3.8 (derived status is separate from the Kanban status).
  * Our design choice: the card is a link that opens the workspace, with the status menu beside the
- * link rather than nested inside it. The drag payload names the workspace id, so a column does not
+ * link rather than nested inside it. The status button's accessible name ("Status: Backlog") is
+ * ours; Conductor's button shows only the mark. The drag payload names the workspace id, so a column does not
  * need to hold the dragged card itself.
  * Must handle: Dragging starts after the card moves (the browser's own drag threshold) so a click
  * still opens the workspace; the card is also a link; a card being dragged is dimmed in place;
@@ -16,23 +18,11 @@ import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useGitState, useWorkspaceStatus } from "../../core/hooks.ts";
 import type { KanbanStatus, Repo, Workspace } from "../../core/model.ts";
-import { Button } from "../../ui/Button.tsx";
 import { cn } from "../../ui/cn.ts";
-import {
-	KANBAN_STATUSES,
-	KANBAN_COLUMNS,
-	KANBAN_DRAG_TYPE,
-} from "./kanban.ts";
-import {
-	Menu,
-	MenuContent,
-	MenuItem,
-	MenuLabel,
-	MenuTrigger,
-} from "../../ui/Menu.tsx";
-import { statusText } from "../workspace/status-text.ts";
+import { Menu, MenuContent, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "../../ui/Menu.tsx";
+import { type StatusTone, statusText } from "../workspace/status-text.ts";
 import { workspaceName } from "../workspace/workspace-name.ts";
-import { type StatusTone } from "../workspace/status-text.ts";
+import { KANBAN_COLUMNS, KANBAN_DRAG_TYPE, KANBAN_STATUS_MARK, KANBAN_STATUSES } from "./kanban.ts";
 
 export interface KanbanCardProps {
 	workspace: Workspace;
@@ -81,9 +71,7 @@ export function KanbanCard({ workspace, repo, onMove }: KanbanCardProps) {
 				<span className="truncate text-sm font-medium text-fg">{name}</span>
 				<span className="truncate text-xs text-fg-subtle">{repo.name}</span>
 				{subtitle.text === "" ? null : (
-					<span className={cn("truncate text-xs", toneClass[subtitle.tone])}>
-						{subtitle.text}
-					</span>
+					<span className={cn("truncate text-xs", toneClass[subtitle.tone])}>{subtitle.text}</span>
 				)}
 				{lines !== null && (lines.linesAdded > 0 || lines.linesRemoved > 0) ? (
 					<span className="flex items-center gap-2 text-2xs">
@@ -98,26 +86,35 @@ export function KanbanCard({ workspace, repo, onMove }: KanbanCardProps) {
 			</Link>
 			<Menu>
 				<MenuTrigger asChild>
-					<Button
-						variant="ghost"
-						size="xs"
-						aria-label={`Move ${name}`}
-						onClick={(event) => event.stopPropagation()}
+					<button
+						type="button"
+						aria-label={`Status: ${KANBAN_COLUMNS[workspace.kanbanStatus].label}`}
+						className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-sm hover:bg-hover focus-visible:outline-2 focus-visible:outline-focus"
 					>
-						Move
-					</Button>
+						<span
+							aria-hidden="true"
+							className={cn("size-2 rounded-full", KANBAN_STATUS_MARK[workspace.kanbanStatus])}
+						/>
+					</button>
 				</MenuTrigger>
-				<MenuContent align="end" aria-label={`Move ${name}`}>
-					<MenuLabel>Status</MenuLabel>
-					{KANBAN_STATUSES.map((statusOption) => (
-						<MenuItem
-							key={statusOption}
-							disabled={statusOption === workspace.kanbanStatus}
-							onSelect={() => onMove(workspace.id, statusOption)}
-						>
-							{KANBAN_COLUMNS[statusOption].label}
-						</MenuItem>
-					))}
+				<MenuContent align="start" aria-label={`Status of ${name}`}>
+					<MenuRadioGroup value={workspace.kanbanStatus}>
+						{KANBAN_STATUSES.map((option) => (
+							<MenuRadioItem
+								key={option}
+								value={option}
+								onSelect={() => onMove(workspace.id, option)}
+							>
+								<span className="flex items-center gap-2">
+									<span
+										aria-hidden="true"
+										className={cn("size-2 rounded-full", KANBAN_STATUS_MARK[option])}
+									/>
+									{KANBAN_COLUMNS[option].label}
+								</span>
+							</MenuRadioItem>
+						))}
+					</MenuRadioGroup>
 				</MenuContent>
 			</Menu>
 		</article>
