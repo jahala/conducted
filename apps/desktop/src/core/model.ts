@@ -434,6 +434,15 @@ export interface DeploymentView {
 	updatedAt: number;
 }
 
+/** A workspace's sparse checkout, which git itself stores (services-map.md 3.11, 5A.5.3). */
+export interface SparseCheckoutSettings {
+	enabled: boolean;
+	/** The directories git includes, empty when sparse checkout is off. */
+	directories: string[];
+	/** The top-level folders of the checked-out commit, the choices to offer the user. */
+	topLevelDirectories: string[];
+}
+
 /** One commit on the workspace branch that is not on the target branch yet. */
 export interface BranchCommit {
 	sha: string;

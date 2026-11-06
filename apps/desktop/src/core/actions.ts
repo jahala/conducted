@@ -129,6 +129,9 @@ export function createActions(
 			continueOnNewBranch: (workspaceId, name) =>
 				services.git.continueOnNewBranch(workspaceId, name),
 			openInDiffTool: (workspaceId, path) => services.git.openInDiffTool(workspaceId, path),
+			sparseCheckoutSettings: (workspaceId) => services.git.sparseCheckoutSettings(workspaceId),
+			setSparseCheckoutDirectories: (workspaceId, directories) =>
+				services.git.setSparseCheckoutDirectories(workspaceId, directories),
 		},
 		pullRequests: {
 			create: (workspaceId) => services.github.create(workspaceId),

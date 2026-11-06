@@ -70,6 +70,7 @@ import type {
 	Session,
 	SetupView,
 	Snippet,
+	SparseCheckoutSettings,
 	StackEntryView,
 	SystemInfo,
 	Terminal,
@@ -490,6 +491,10 @@ export interface Actions {
 		continueOnNewBranch: Act<[workspaceId: WorkspaceId, name: string | null]>;
 		/** Opens the file's diff in the external diff tool chosen in settings. */
 		openInDiffTool: Act<[workspaceId: WorkspaceId, path: string]>;
+		/** The workspace's sparse checkout and the top-level folders it can include. */
+		sparseCheckoutSettings: Act<[workspaceId: WorkspaceId], SparseCheckoutSettings>;
+		/** Includes only these directories in the worktree. An empty list turns sparse checkout off. */
+		setSparseCheckoutDirectories: Act<[workspaceId: WorkspaceId, directories: string[]]>;
 	};
 	pullRequests: {
 		/** Asks the agent to open the PR, with written instructions. */
