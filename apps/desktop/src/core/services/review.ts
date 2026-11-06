@@ -37,7 +37,6 @@
  * Test first: create, edit, resolve and remove each write SQLite and re-read the workspace rows.
  * REV-04 test first: a failed general-comment fetch keeps thread comments that vanished from GitHub.
  */
-import { join } from "node:path";
 import { formatFileMention } from "@conducted/protocol";
 import {
 	appError,
@@ -95,7 +94,7 @@ export interface ReviewServiceDeps {
 	startReviewChat: (workspaceId: WorkspaceId, text: string) => Promise<Result<Session>>;
 }
 
-const COMMENT_FOLDER = join(".context", "attachments", "comments");
+const COMMENT_FOLDER = ".context/attachments/comments";
 
 function commentFileName(id: CommentId): string {
 	return `${encodeURIComponent(id)}.md`;
@@ -523,15 +522,15 @@ export class ReviewService {
 			}
 			const workspacePath = await this.#deps.workspacePathOf(workspaceId);
 			if (!workspacePath.ok) return workspacePath;
-			const folder = join(workspacePath.value, COMMENT_FOLDER);
+			const folder = `${workspacePath.value}/${COMMENT_FOLDER}`;
 			const made = await this.#deps.fs.mkdirp(folder);
 			if (!made.ok) return made;
 
 			const mentions: string[] = [];
 			for (const comment of found) {
-				const path = join(COMMENT_FOLDER, commentFileName(comment.id));
+				const path = `${COMMENT_FOLDER}/${commentFileName(comment.id)}`;
 				const written = await this.#deps.fs.writeTextAtomic(
-					join(workspacePath.value, path),
+					`${workspacePath.value}/${path}`,
 					commentFileText(comment),
 				);
 				if (!written.ok) return written;
@@ -576,7 +575,7 @@ export class ReviewService {
 				messageId: null,
 				kind: "review",
 				originalName: fileName,
-				path: join(workspacePath, COMMENT_FOLDER, fileName),
+				path: `${workspacePath}/${COMMENT_FOLDER}/${fileName}`,
 				commentId: comment.id,
 			});
 			if (!recorded.ok) return notRecorded(recorded.error);
@@ -684,7 +683,7 @@ export class ReviewService {
 		if (comment.filePath === null) return ok(undefined);
 		const workspacePath = await this.#deps.workspacePathOf(comment.workspaceId);
 		if (!workspacePath.ok) return workspacePath;
-		const path = join(workspacePath.value, COMMENT_FOLDER, commentFileName(comment.id));
+		const path = `${workspacePath.value}/${COMMENT_FOLDER}/${commentFileName(comment.id)}`;
 		if (!(await this.#deps.fs.exists(path))) return ok(undefined);
 		return this.#deps.fs.writeTextAtomic(path, commentFileText(comment));
 	}

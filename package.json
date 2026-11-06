@@ -4,7 +4,7 @@
 	"type": "module",
 	"packageManager": "pnpm@9.15.9",
 	"scripts": {
-		"dev": "pnpm --filter @conducted/desktop tauri dev",
+		"dev": "pnpm --filter @conducted/sidecar build && pnpm --filter @conducted/desktop tauri dev --config src-tauri/tauri.release.conf.json",
 		"typecheck": "pnpm -r --parallel typecheck && tsc -p scripts",
 		"lint": "biome check . && shellcheck bin/*.sh",
 		"format": "biome format --write .",

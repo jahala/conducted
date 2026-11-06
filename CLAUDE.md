@@ -60,7 +60,7 @@ Each one fails a check when it is broken.
 | `pnpm stubs`                                                                   | Placeholders against the backlog                                                 | Every change                       |
 | `pnpm check`                                                                   | All of the above, stopping at the first failure                                  | Before a PR                        |
 | `cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test` | Rust, in `apps/desktop/src-tauri`                                                | Every Rust change                  |
-| `pnpm dev`                                                                     | Run the app (`tauri dev`, port 1420)                                             | Manual checks                      |
+| `pnpm dev`                                                                     | Build the sidecar, then run the app (`tauri dev`, port 1420)                     | Manual checks                      |
 | `pnpm release <x.y.z> [--go]`                                                  | Dry run, or check main's CI, bump, build, sign, commit and tag                   | Releases                           |
 
 ## When tests run
