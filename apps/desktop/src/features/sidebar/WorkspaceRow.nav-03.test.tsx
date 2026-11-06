@@ -136,13 +136,17 @@ describe("NAV-03 WorkspaceRow", () => {
 		expect(await screen.findByRole("img", { name: "Unread" })).toBeTruthy();
 	});
 
-	it("shows the status subtitle and marks the selected row", async () => {
+	// Conductor's row is one line: the status words sit on the status icon, not on a second line
+	// (renderApp @10437578). This test asserted the old subtitle and now asserts the icon's name.
+	it("names the status on its icon, with no second line, and marks the selected row", async () => {
 		hooks.status = { kind: "agent", label: "needs_permission" };
 		hooks.sessions = { state: "ready", data: [] };
 		renderRow(
 			<WorkspaceRow workspace={workspace()} repo={repo()} selected shortcutIndex={1} now={NOW} />,
 		);
-		expect(await screen.findByText("Need permission")).toBeTruthy();
+		const icon = await screen.findByRole("img", { name: "Need permission" });
+		expect(icon.getAttribute("title")).toBe("Need permission");
+		expect(screen.queryByText("Need permission")).toBeNull();
 		const link = screen.getByRole("link");
 		expect(link.getAttribute("aria-current")).toBe("page");
 	});
@@ -164,8 +168,32 @@ describe("NAV-03 WorkspaceRow", () => {
 	});
 });
 
+describe("NAV-03 row padding", () => {
+	it("pads the row by where it sits: 20px in the groups, 12px in Pinned, 6px in sections", async () => {
+		hooks.status = null;
+		hooks.sessions = { state: "ready", data: [] };
+		const padding = { grouped: "pl-5", pinned: "pl-3", flush: "pl-1.5" } as const;
+		for (const [indent, expected] of Object.entries(padding) as [keyof typeof padding, string][]) {
+			const view = renderRow(
+				<WorkspaceRow
+					workspace={workspace()}
+					repo={repo()}
+					selected={false}
+					shortcutIndex={null}
+					now={NOW}
+					indent={indent}
+				/>,
+			);
+			const link = await screen.findByRole("link");
+			expect(link.className.split(" ")).toContain(expected);
+			view.unmount();
+		}
+	});
+});
+
 describe("NAV-03 row status", () => {
-	it("prints the status text and leaves the spinner out of the live regions", async () => {
+	// Was "prints the status text": the words moved from a second line to the icon's name (see above).
+	it("names the working status on its icon and leaves the spinner out of the live regions", async () => {
 		hooks.status = { kind: "agent", label: "working" };
 		hooks.sessions = { state: "ready", data: [] };
 		renderRow(
@@ -177,7 +205,8 @@ describe("NAV-03 row status", () => {
 				now={NOW}
 			/>,
 		);
-		expect(await screen.findByText("Working…")).toBeTruthy();
+		expect(await screen.findByRole("img", { name: "Working…" })).toBeTruthy();
+		expect(screen.queryByText("Working…")).toBeNull();
 		expect(screen.queryByRole("status")).toBeNull();
 	});
 });

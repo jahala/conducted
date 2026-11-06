@@ -2,7 +2,7 @@
  * @feature NAV-03 Workspace status text
  * Owns: the words and the tone for a workspace's derived status, and the text colour of each tone,
  * shared by the sidebar row, the Home card, the dashboard card and the tab.
- * Behaviour: ui-map.md 3.8 (sidebar row subtitle text: "Review plan", "Need permission", "Answer question",
+ * Behaviour: ui-map.md 3.8 (status words: "Review plan", "Need permission", "Answer question",
  * "Planning...", "Working...", "Cancelling...", "Waiting...", "Initializing...", "Initialization failed",
  * "Setting up...", "Archiving..."; git and PR labels, first match wins).
  * Our design choice: the research writes the progress words with three dots ("Working..."); we print

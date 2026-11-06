@@ -326,7 +326,7 @@ Verified in `CWt`, `wMe`, `YZi` (@10225603-10228000).
 - Session aggregate status order: `needs_plan_response` > `needs_user_permission` > `needs_user_input` > `working` > `cancelling` > `waiting` > idle.
 - Workspace lifecycle labels: Unstarted, Setting up, Failed.
 - Git and PR derived labels, first match wins: Merged, In merge queue, Ready to merge, Draft pull request, Merge conflict, Checks failing, Checks running (git status only), Pull request open, Local workspace, Ready (has branch).
-- Sidebar row subtitle text: "Review plan", "Need permission", "Answer question" (all in the unread colour), "Planning...", "Working...", "Cancelling...", "Waiting...", "Initializing...", "Initialization failed", "Setting up...", "Archiving...". VERIFIED @10324184-10325904.
+- Status words (in the workspace hover card that opens after 700ms over a sidebar row, and on Home cards; the sidebar row itself is one line with no subtitle, VERIFIED @10437578, @10452011): "Review plan", "Need permission", "Answer question" (all in the unread colour), "Planning...", "Working...", "Cancelling...", "Waiting...", "Initializing...", "Initialization failed", "Setting up...", "Archiving...". VERIFIED @10324184-10325904.
 - Row icon: unread dot, typing loader, waiting loader, setting-up loader, red alert, or a branch glyph. Optional "status matrix" canvas animation for working local workspaces (setting "Workspace status matrix for local workspaces"). VERIFIED @8904800 (`vQo` canvas), @11107549.
 - Kanban status (user-set, separate): Backlog, In progress, In review, Done, Canceled, each with its own colour token `--status-*`. VERIFIED @5541996.
 
@@ -372,7 +372,7 @@ Top to bottom:
 
 "View options" menu (sort icon "Sort workspaces"): Group by (Status or Project), Filter by project (searchable when 5 or more repos), Sort by (Updated or Created; hidden when manual order is on). VERIFIED @10489205.
 
-Workspace row (`jU`): status icon, name (from user-set name, PR title, branch or directory name), repo avatar (emoji, uploaded icon, favicon, owner avatar or letter), line change counts (+/-, always coloured with "Colored sidebar diffs"), unread dot, relative time, subtitle status text (3.8), badges: Draft, Archive workspace, Admin workspace (can edit settings), Forwarding ports, Private workspace. Keyboard: `Cmd+1..9` switch, `Cmd+Alt+ArrowUp/Down` previous/next, hover keys `R` read, `P` pin. Context menu = Workspace actions (3.1). VERIFIED @10425000-10435354, M@3782527.
+Workspace row (`jU`): status icon, name (from user-set name, PR title, branch or directory name), repo avatar (emoji, uploaded icon, favicon, owner avatar or letter), line change counts (+/-, always coloured with "Colored sidebar diffs"), unread dot, relative time, a hover card with the status words (3.8; the row has no second line), badges: Draft, Archive workspace, Admin workspace (can edit settings), Forwarding ports, Private workspace. Keyboard: `Cmd+1..9` switch, `Cmd+Alt+ArrowUp/Down` previous/next, hover keys `R` read, `P` pin. Context menu = Workspace actions (3.1). VERIFIED @10425000-10435354, M@3782527.
 
 Drag and drop: workspaces drag into sections, Pinned, or reorder when "Arrange workspaces manually" is on (order stored per org in route state `manualWorkspaceOrders`). While dragging, a global style sets `cursor: grabbing` and disables link pointer events. VERIFIED @10524580, @10470539 area (`Ctr`, `lTa`).
 

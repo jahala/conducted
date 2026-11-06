@@ -20,6 +20,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../ui/Co
 import { cn } from "../../ui/cn.ts";
 import { ChevronRightIcon, PinIcon } from "../../ui/icons.tsx";
 import { toastError } from "../../ui/Toast.tsx";
+import { HeaderChevron, HeaderCount } from "./section-header.tsx";
 import { useNow } from "./use-now.ts";
 import {
 	draggedWorkspace,
@@ -110,14 +111,10 @@ export function PinnedSection({
 		>
 			<Collapsible open={open} onOpenChange={setOpen}>
 				<div className="group/header mt-0.5 mb-1 flex items-center gap-0.5">
-					<CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1.5 text-left text-xs font-medium text-sidebar-fg-muted hover:bg-hover">
+					<CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1.5 text-left text-xs font-semibold text-sidebar-fg-muted hover:bg-hover">
 						<span className="min-w-0 truncate">Pinned</span>
-						{open ? null : (
-							<span className="shrink-0 text-sidebar-fg-muted">{workspaces.length}</span>
-						)}
-						{open ? null : (
-							<ChevronRightIcon className="ml-auto size-3.5 shrink-0 text-sidebar-fg-muted" />
-						)}
+						<HeaderCount open={open} count={workspaces.length} />
+						<HeaderChevron open={open} />
 					</CollapsibleTrigger>
 				</div>
 				<CollapsibleContent>
@@ -170,6 +167,7 @@ export function PinnedSection({
 												selected={selectedId === workspace.id}
 												shortcutIndex={null}
 												now={now}
+												indent="pinned"
 											/>
 										)}
 									</div>

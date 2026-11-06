@@ -2,19 +2,22 @@
  * @feature NAV-03 Workspace row
  * @feature NAV-16 Draft markers on the Create row and on workspaces
  * Owns: One row of the sidebar list: project avatar (outside project groups), status icon, name,
- * unread dot, the "Open draft" marker, line change counts or the relative time, status text and
- * badges.
+ * unread dot, the "Open draft" marker, line change counts or the relative time, and badges.
  * Behaviour: ui-map.md 4 (workspace row: name from the user-set name, PR title, branch or
  * directory; the repo avatar's emoji, uploaded icon, favicon, owner avatar or letter; badges Draft
  * and Archive workspace; Cmd+1..9 switch; hover keys R read and P pin), 3.8 (status text), 5.3
  * (right-clicking the repo icon offers Change repository icon).
- * Measured from Conductor 0.92.1 (renderApp @10438500): a 6px-radius row, 8px top and bottom, 6px
- * right, its left padding set by where it sits (20px in a project group, 12px in Pinned and sections);
+ * Measured from Conductor 0.92.1 (renderApp @10437578): a 6px-radius row, 8px top and bottom, 6px
+ * right, one 20px line, so 36px tall; its left padding set by where it sits (20px in the status and
+ * project groups, 12px in Pinned, 6px in the user's sections, @10474003);
  * hover and selected use the 5% tint; the leading visuals are 16px boxes 6px apart (the project avatar,
  * then the status icon); the name is a 20px line in weight 450 and the muted sidebar colour, 500 and the
  * stronger colour when selected, 600 when unread; at the right the added and removed line counts in
  * small monospace ("+4.1k -3"), compact past a thousand. The draft marker sits just before the counts
  * or the time, as in Conductor's trailing cluster (renderApp @10431468).
+ * Conductor's row has no second line: its status words ("Working...", "Need permission") live in the
+ * hover card and the row shows the status only through its icon (@10442724, @10452011). Ours names
+ * the status on the icon (its tooltip and accessible name), since the hover card is not built.
  * Our design choice: a row with no line counts shows the relative time in that place, so the time stays on
  * screen for clean workspaces (Conductor shows it only through a display option).
  * Our design choice: The row is a link to the workspace route. The current time is a prop, so the
@@ -47,7 +50,7 @@ import { cn } from "../../ui/cn.ts";
 import { Kbd } from "../../ui/Kbd.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { useWorkspaceDraft } from "../composer/draft-sources.ts";
-import { STATUS_TONE_CLASS, statusText } from "../workspace/status-text.ts";
+import { statusText } from "../workspace/status-text.ts";
 import { WorkspaceStatusIcon } from "../workspace/WorkspaceStatusIcon.tsx";
 import { workspaceName } from "../workspace/workspace-name.ts";
 import { DraftMarker } from "./DraftMarker.tsx";
@@ -64,9 +67,17 @@ export interface WorkspaceRowProps {
 	now: number;
 	/** The project's avatar leads the row; off inside a project's own group, whose header shows it. */
 	showRepo?: boolean;
-	/** Left padding by where the row sits: 20px in a project group, 12px in Pinned and sections. */
-	indent?: "group" | "section";
+	/** Left padding by where the row sits: 20px in the main groups, 12px in Pinned, 6px in sections. */
+	indent?: RowIndent;
 }
+
+export type RowIndent = "grouped" | "pinned" | "flush";
+
+const INDENT_CLASS: Readonly<Record<RowIndent, string>> = {
+	grouped: "pl-5",
+	pinned: "pl-3",
+	flush: "pl-1.5",
+};
 
 /** Line counts as Conductor writes them in a row: 552, 4.1k, 16k. */
 export function compactCount(value: number): string {
@@ -113,7 +124,7 @@ export function WorkspaceRow({
 	shortcutIndex,
 	now,
 	showRepo = true,
-	indent = "section",
+	indent = "grouped",
 }: WorkspaceRowProps) {
 	const actions = useActions();
 	const navigate = useNavigate();
@@ -130,7 +141,7 @@ export function WorkspaceRow({
 	);
 	const unread =
 		sessions.state === "ready" && sessions.data.some((session) => session.unreadCount > 0);
-	const subtitle = statusText(status);
+	const statusWords = statusText(status).text;
 	const liveShortcut = useLiveShortcut(
 		shortcutIndex === null ? "workspace.switch1" : `workspace.switch${shortcutIndex}`,
 	);
@@ -184,7 +195,7 @@ export function WorkspaceRow({
 			onMouseLeave={() => setHovered(false)}
 			className={cn(
 				"group relative flex min-w-0 items-start gap-1.5 rounded-md py-2 pr-1.5 text-sm text-sidebar-fg transition-colors hover:bg-hover",
-				indent === "group" ? "pl-5" : "pl-3",
+				INDENT_CLASS[indent],
 				selected && "bg-hover",
 			)}
 		>
@@ -193,7 +204,12 @@ export function WorkspaceRow({
 					<RepoIconAvatar repo={repo} className="text-sidebar-fg-muted" />
 				</span>
 			) : null}
-			<span className="mt-0.5 flex size-4 shrink-0 items-center justify-center overflow-hidden">
+			<span
+				{...(statusWords === ""
+					? {}
+					: { role: "img", "aria-label": statusWords, title: statusWords })}
+				className="mt-0.5 flex size-4 shrink-0 items-center justify-center overflow-hidden"
+			>
 				<WorkspaceStatusIcon status={status} decorative />
 			</span>
 			<span className="flex min-w-0 flex-1 flex-col">
@@ -238,11 +254,6 @@ export function WorkspaceRow({
 						</span>
 					)}
 				</span>
-				{subtitle.text === "" ? null : (
-					<span className={cn("truncate text-xs", STATUS_TONE_CLASS[subtitle.tone])}>
-						{subtitle.text}
-					</span>
-				)}
 			</span>
 		</Link>
 	);

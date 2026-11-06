@@ -31,13 +31,16 @@ import type { Repo, Section, Workspace } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../ui/Collapsible.tsx";
 import { ContextMenu, ContextMenuItem } from "../../ui/ContextMenu.tsx";
-import { ChevronRightIcon, PlusIcon } from "../../ui/icons.tsx";
+import { cn } from "../../ui/cn.ts";
+import { ChevronDownIcon, ChevronRightIcon, PlusIcon } from "../../ui/icons.tsx";
 import { toastError } from "../../ui/Toast.tsx";
+import { KANBAN_STATUS_MARK } from "../dashboard/kanban.ts";
 import { AddProjectMenu } from "./AddProjectButton.tsx";
 import { PinnedSection } from "./PinnedSection.tsx";
 import { RepoAvatar } from "./RepoAvatar.tsx";
 import { SectionDialog } from "./SectionDialog.tsx";
 import { SectionList } from "./SectionList.tsx";
+import { HeaderChevron, HeaderCount } from "./section-header.tsx";
 import {
 	buildSidebarGroups,
 	orderedWorkspaceIds,
@@ -161,15 +164,28 @@ function GroupSection({
 		<section aria-label={group.label} className="px-1.5 pt-1.5 pb-3">
 			<Collapsible open={open} onOpenChange={onOpenChange}>
 				<div className="group/header mt-0.5 mb-1 flex items-center gap-0.5">
-					<CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1.5 text-left text-xs font-medium text-sidebar-fg-muted hover:bg-hover">
-						{repo === null ? null : <RepoAvatar repo={repo} />}
+					<CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1.5 text-left text-sm font-semibold text-sidebar-fg-muted hover:bg-hover">
+						{repo !== null ? (
+							<span className="relative flex size-4 shrink-0 items-center justify-center">
+								<span className="group-hover/header:invisible">
+									<RepoAvatar repo={repo} />
+								</span>
+								<span className="invisible absolute inset-0 flex items-center justify-center group-hover/header:visible">
+									{open ? (
+										<ChevronDownIcon className="size-3" />
+									) : (
+										<ChevronRightIcon className="size-3" />
+									)}
+								</span>
+							</span>
+						) : group.key.kind === "status" ? (
+							<span aria-hidden="true" className="flex size-4 shrink-0 items-center justify-center">
+								<span className={cn("size-2 rounded-full", KANBAN_STATUS_MARK[group.key.status])} />
+							</span>
+						) : null}
 						<span className="min-w-0 truncate">{group.label}</span>
-						{open ? null : (
-							<span className="shrink-0 text-sidebar-fg-muted">{group.workspaceIds.length}</span>
-						)}
-						{open ? null : (
-							<ChevronRightIcon className="ml-auto size-3.5 shrink-0 text-sidebar-fg-muted" />
-						)}
+						<HeaderCount open={open} count={group.workspaceIds.length} variant="group" />
+						{repo === null ? <HeaderChevron open={open} variant="group" /> : null}
 					</CollapsibleTrigger>
 					{repo === null ? null : (
 						<Link
@@ -177,9 +193,9 @@ function GroupSection({
 							search={{ repo: repo.id }}
 							aria-label={`Create workspace in ${repo.name}`}
 							title={`Create workspace in ${repo.name}`}
-							className="flex size-6 shrink-0 items-center justify-center rounded-md text-sidebar-fg-muted opacity-0 hover:bg-hover hover:text-fg focus-visible:opacity-100 group-hover/header:opacity-100"
+							className="flex size-6 shrink-0 items-center justify-center rounded-md text-sidebar-fg-muted hover:bg-hover hover:text-fg"
 						>
-							<PlusIcon className="size-3.5" />
+							<PlusIcon className="size-4" />
 						</Link>
 					)}
 				</div>
@@ -221,7 +237,7 @@ function GroupSection({
 										shortcutIndex={shortcutIndexes.get(workspaceId) ?? null}
 										now={now}
 										showRepo={group.key.kind !== "project"}
-										indent={group.key.kind === "project" ? "group" : "section"}
+										indent="grouped"
 									/>
 								</div>
 							);

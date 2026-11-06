@@ -29,6 +29,7 @@ import { ChevronRightIcon, PencilIcon, PlusIcon } from "../../ui/icons.tsx";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "../../ui/Menu.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { SectionDialog } from "./SectionDialog.tsx";
+import { HeaderChevron, HeaderCount } from "./section-header.tsx";
 import { useNow } from "./use-now.ts";
 import {
 	draggedSection,
@@ -305,10 +306,8 @@ function SectionGroup({
 							</span>
 						)}
 						<span className="min-w-0 truncate">{section.name}</span>
-						{open ? null : <span className="shrink-0 text-sidebar-fg-muted">{members.length}</span>}
-						{open ? null : (
-							<ChevronRightIcon className="ml-auto size-3.5 shrink-0 text-sidebar-fg-muted" />
-						)}
+						<HeaderCount open={open} count={members.length} />
+						<HeaderChevron open={open} />
 					</CollapsibleTrigger>
 					<Link
 						to="/create"
@@ -387,6 +386,7 @@ function SectionGroup({
 											selected={selectedId === workspace.id}
 											shortcutIndex={null}
 											now={now}
+											indent="flush"
 										/>
 									)}
 								</div>
