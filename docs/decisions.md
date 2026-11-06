@@ -464,3 +464,9 @@ Why: an orderly stop keeps the user's last edit and every stored event; a quit t
 Context: slice 3 is 65 features. plan-batches puts 54 of them in its first step, in 8 batches. Under the three-agent cap (D060), with one plan building at a time (D061), that step cannot be built, audited, fixed and through CI as one PR before the morning. The night's goal asks that a step that starts either merges or stops cleanly.
 Chosen: the first step lands in parts, each its own branch and PR (`slice3/step-1a`, `-1b`, ...), with one to three batches each and one CI run per part. A part starts only when the balance is above 3 USD and the part before it has merged or stopped cleanly. The rust batch starts while the last slice-2 hardening runs, because its files do not overlap.
 Why: a part that merges is finished work in the morning; a 54-feature PR left half built is not.
+
+## D066. AGENT-09 is planned until Cursor's SDK can ship (2026-11-06)
+
+Context: slice 3 built AGENT-09, the Cursor runner that runs Cursor's SDK inside the sidecar: the loader, the run, the translation (AGENT-10), the store folder and the app tools, reached from the composition root. It cannot run in the app, because the SDK is not bundled, and D010 forbids bundling it. The loader now reports "Cursor's SDK is not installed" instead of a false "not installed" for a broken package. Its sign-in check also cannot read the key the app keeps in the Keychain.
+Chosen: AGENT-09's backlog row is `planned` and its issue stays open, as with PLAT-28 (D062). AGENT-10, the translation, is done: it is complete and tested on its own. Whether and how the SDK ships, and how the sidecar learns that Cursor is signed in, go to the owner. For the second, the fixer's proposal is that the app sets Cursor's signed-in state from its own provider keys, a desktop-only change.
+Why: `done` would close the issue over a runner no user can start.
