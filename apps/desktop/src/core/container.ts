@@ -357,6 +357,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 	const agentCatalog = new AgentCatalogService({
 		sidecar: client,
 		workspacePathOf: (sessionId) => ready(lookups.workspacePathOfSession(sessionId)),
+		providerKeys: repositories.providerKeys,
+		keychain: platform.keychain,
 	});
 	const settings = new SettingsService({
 		platform,

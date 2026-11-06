@@ -8,11 +8,10 @@
  * by the program manager (PLAT-28, D021), not by this page.
  * Data: useAgentInstalls() (AgentInstall: agent, acpAgent, installed, path, version,
  * authenticated), useActions().agents (login, finishLogin, cancelLogin, refresh).
- * Children: agents/AgentCard, agents/AgentLoginDialog. The MCP servers section belongs to SET-05,
- * which adds it here when built.
- * Other owners: provider keys, Bedrock and custom providers are SET-09; Claude settings and Codex
- * config are SET-12; "Use Claude Code with Chrome" is SET-12; the Advanced program paths are
- * SET-02 with the path keys in SIDE-21.
+ * Children: agents/AgentCard, agents/AgentLoginDialog, agents/AgentProvidersDialog. The MCP
+ * servers section belongs to SET-05, which adds it here when built.
+ * Other owners: Claude settings and Codex config are SET-12; "Use Claude Code with Chrome" is
+ * SET-12; the Advanced program paths are SET-02 with the path keys in SIDE-21.
  * Must handle: a retry after a failed sign-in (the first one is cancelled first), loading and error, a provider filter with no match ("No providers match your
  * search."), nothing installed (the page leads with install help), a program found but failing its
  * version check ("Validation failed" with its warning), a sign-in in progress, and a refresh after
@@ -32,6 +31,7 @@ import { Skeleton } from "../../../ui/Skeleton.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
 import { AgentCard } from "../agents/AgentCard.tsx";
 import { AgentLoginDialog, type AgentLoginFlow } from "../agents/AgentLoginDialog.tsx";
+import { AgentProvidersDialog } from "../agents/AgentProvidersDialog.tsx";
 
 interface AgentSelector {
 	agent: AgentKind;
@@ -67,6 +67,7 @@ export function AgentsPage() {
 	const [query, setQuery] = useState("");
 	const [busyKey, setBusyKey] = useState<string | null>(null);
 	const [login, setLogin] = useState<LoginState | null>(null);
+	const [providers, setProviders] = useState<AgentInstall | null>(null);
 	const announced = useRef<string | null>(null);
 
 	useEffect(() => {
@@ -278,6 +279,7 @@ export function AgentsPage() {
 									install={install}
 									signInBusy={busyKey === agentKey(install.agent, install.acpAgent)}
 									onSignIn={() => void startLogin(install)}
+									onProviders={() => setProviders(install)}
 									onRefresh={() => void actions.agents.refresh()}
 									onCopyPath={(path) => void copy(path, "Copied the program path")}
 								/>
@@ -286,6 +288,22 @@ export function AgentsPage() {
 					);
 				}}
 			</LoadableView>
+
+			{providers ? (
+				<AgentProvidersDialog
+					open
+					install={providers}
+					onOpenChange={(open) => {
+						if (!open) setProviders(null);
+					}}
+					onSignIn={() => {
+						const target = providers;
+						if (target === null) return;
+						setProviders(null);
+						void startLogin(target);
+					}}
+				/>
+			) : null}
 
 			{login ? (
 				<AgentLoginDialog
