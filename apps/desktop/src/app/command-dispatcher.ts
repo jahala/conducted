@@ -1,10 +1,11 @@
 /**
  * @feature NAV-14 Shortcut and menu dispatcher
  * Owns: turning key presses, menu picks and deep links into command ids, and handing each command to the
- * right handler. Four hooks: `useCommandDispatcher` mounts the root listeners once; `useCommandHandler`
+ * right handler. Five hooks: `useCommandDispatcher` mounts the root listeners once; `useCommandHandler`
  * lets a screen register a handler for one command id with a priority; `useRunCommandHandlers` lets a
  * screen run a command's handlers, as a slash command does for /plan and /fast; `useScopeKeyDown` lets
- * a focus-trapping dialog run its own scope's keys before its trap takes them.
+ * a focus-trapping dialog run its own scope's keys before its trap takes them. `useScopedKeyMatch` lets a
+ * card that handles its own keys (question, tool approval) look a key up in its scope with the live rebinds.
  * Behaviour: ui-map.md 5.4 (shortcuts by scope), 8 ("Kn(commandId, handler, opts)" registers a handler with a
  * priority; a hint component reads the live binding so tooltips follow rebinds), 1.1 (root listeners for
  * menu events and deep links); structure-map.md 3.2 (one registry feeds menus, palette and shortcuts).
@@ -327,6 +328,71 @@ export function commandForKeyPress(
 	return null;
 }
 
+/** A command a key press means in one scope, and which of the command's live shortcuts matched. */
+export interface ScopedKeyMatch {
+	commandId: CommandId;
+	/**
+	 * The position of the matched shortcut in the command's live list. A command with one shortcut per
+	 * target uses it as the target: the question card's "Pick an answer option by number" binds 1 to 9,
+	 * so the shortcut at index 1 picks the second option.
+	 */
+	index: number;
+}
+
+/**
+ * Finds the command a key press means in one scope, with the user's rebinds and the send-key swap.
+ * A card that owns its keys (the question card, the tool approval card) calls this instead of
+ * comparing key names, so a rebind on the Keyboard shortcuts page reaches it.
+ */
+function matchScopedKey(
+	press: KeyPress,
+	scope: CommandScope,
+	overrides: ShortcutOverrides,
+	sendKeyMode: SendKeyMode = "enter",
+): ScopedKeyMatch | null {
+	const form = eventKeyForm(press);
+	if (form === null) return null;
+	for (const command of COMMANDS) {
+		if (command.scope !== scope) continue;
+		const shortcuts = effectiveShortcuts(command, overrides);
+		for (const [index, shortcut] of shortcuts.entries()) {
+			if (shortcutForm(swappedShortcut(command.id, shortcut, sendKeyMode)) === form) {
+				return { commandId: command.id, index };
+			}
+		}
+	}
+	return null;
+}
+
+/** The parts of a DOM keyboard event a lookup reads. */
+export function keyPressOf(event: KeyboardEvent): KeyPress {
+	return {
+		key: event.key,
+		metaKey: event.metaKey,
+		ctrlKey: event.ctrlKey,
+		altKey: event.altKey,
+		shiftKey: event.shiftKey,
+		isComposing: event.isComposing,
+		repeat: event.repeat,
+	};
+}
+
+/** The send-key setting as the dispatcher's mode. */
+function useSendKeyMode(): SendKeyMode {
+	const sendKey = useSetting<string>("message_send_key");
+	return sendKey === "cmd-enter" ? "mod_enter" : "enter";
+}
+
+/** `matchScopedKey` for one scope, reading the live rebinds and send-key setting. */
+export function useScopedKeyMatch(scope: CommandScope): (press: KeyPress) => ScopedKeyMatch | null {
+	const { overrides } = useShortcutOverrides();
+	const sendKeyMode = useSendKeyMode();
+	return useCallback(
+		(press: KeyPress) => matchScopedKey(press, scope, overrides, sendKeyMode),
+		[scope, overrides, sendKeyMode],
+	);
+}
+
 /** Every live binding in table order, with the user's overrides applied. */
 export function keyBindings(overrides: ShortcutOverrides = {}): KeyBinding[] {
 	return COMMANDS.flatMap((command) =>
@@ -633,8 +699,7 @@ export function useCommandDispatcher(
 ): DispatchKey {
 	const { services, platform } = useServices();
 	const { overrides } = useShortcutOverrides();
-	const sendKey = useSetting<string>("message_send_key");
-	const sendKeyMode: SendKeyMode = sendKey === "cmd-enter" ? "mod_enter" : "enter";
+	const sendKeyMode = useSendKeyMode();
 	const { onDeepLink } = options;
 
 	const bindings = useMemo(() => keyBindings(overrides), [overrides]);
@@ -659,15 +724,7 @@ export function useCommandDispatcher(
 	const dispatchKey = useCallback<DispatchKey>(
 		(event, onlyScope = null) => {
 			if (event.defaultPrevented) return false;
-			const press: KeyPress = {
-				key: event.key,
-				metaKey: event.metaKey,
-				ctrlKey: event.ctrlKey,
-				altKey: event.altKey,
-				shiftKey: event.shiftKey,
-				isComposing: event.isComposing,
-				repeat: event.repeat,
-			};
+			const press = keyPressOf(event);
 			const active = scopesForTarget(event.target, useOverlayStore.getState().open);
 			const scopes = onlyScope === null ? active : active.filter((scope) => scope === onlyScope);
 			if (composerOwnsKey(press, scopes, sendKeyMode)) return false;

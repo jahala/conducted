@@ -11,12 +11,17 @@ import { QuestionCard } from "./QuestionCard.tsx";
 const state = vi.hoisted(() => ({
 	answer: vi.fn(),
 	cancel: vi.fn(),
+	overrides: {} as Record<string, string[]>,
 }));
 
 vi.mock("../../../core/hooks.ts", () => ({
 	useActions: () => ({
 		sessions: { answer: state.answer, cancel: state.cancel },
 	}),
+	// The card reads the user's rebinds and the send-key setting, as the Keyboard shortcuts page saves them.
+	useShortcutOverrides: () => ({ overrides: state.overrides, error: null }),
+	useSetting: () => "enter",
+	useLiveShortcut: () => null,
 }));
 
 type Question = Extract<Interaction, { kind: "question" }>["questions"][number];
@@ -43,6 +48,7 @@ const renderCard = (questions: Question[]) =>
 const card = () => screen.getByRole("group", { name: "Agent question" });
 
 beforeEach(() => {
+	state.overrides = {};
 	state.answer.mockReset().mockResolvedValue(ok(undefined));
 	state.cancel.mockReset().mockResolvedValue(ok(undefined));
 });
@@ -158,6 +164,33 @@ describe("CHAT-10 question card", () => {
 			expect(state.answer).toHaveBeenCalledWith(sessionId, interactionId, {
 				kind: "question",
 				answers: [["SQLite"], ["EU"]],
+			}),
+		);
+	});
+
+	it("follows the user's rebinds: N goes to the next question, and A and B pick options", async () => {
+		state.overrides = {
+			"chat.question.next": ["N"],
+			"chat.question.selectOption": ["A", "B"],
+		};
+		renderCard([
+			question({ question: "Which database?", options: [option("SQLite"), option("Postgres")] }),
+			question({ question: "Which host?", options: [option("Fly"), option("Render")] }),
+		]);
+
+		fireEvent.keyDown(card(), { key: "b" });
+		fireEvent.keyDown(card(), { key: "ArrowRight" });
+		expect(screen.getByText("Which database?")).toBeTruthy();
+
+		fireEvent.keyDown(card(), { key: "n" });
+		expect(screen.getByText("Which host?")).toBeTruthy();
+		fireEvent.keyDown(card(), { key: "a" });
+		fireEvent.keyDown(card(), { key: "Enter" });
+
+		await waitFor(() =>
+			expect(state.answer).toHaveBeenCalledWith(sessionId, interactionId, {
+				kind: "question",
+				answers: [["Postgres"], ["Fly"]],
 			}),
 		);
 	});
