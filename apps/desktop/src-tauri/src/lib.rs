@@ -311,6 +311,7 @@ pub fn run() {
             navigation::install_guard(app.handle())?;
             shell::start_background_capture(app.handle().clone());
             binaries::start_verification(app.handle().clone());
+            binaries::prepare_on_launch(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -383,6 +384,8 @@ pub fn run() {
         .expect("error while building Conducted")
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
+                // Agent program downloads stop, also those waiting to retry (PLAT-28).
+                app.state::<binaries::ProgramsState>().cancel_all();
                 // Commands started with `shell_start` run in their own process groups, so they
                 // would outlive the app. End them before the sidecar.
                 shell::terminate_all(
