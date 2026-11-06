@@ -59,7 +59,7 @@ export function DialogContent({
 	);
 	return (
 		<Radix.Portal>
-			<Radix.Overlay className="fixed inset-0 z-40 bg-overlay" />
+			<Radix.Overlay className="fixed inset-0 z-40 bg-overlay backdrop-blur-xs" />
 			<Radix.Content
 				className={cn(
 					"fixed left-1/2 top-[max(2rem,calc(50%-250px))] z-50 flex max-h-[calc(100%-4rem)] w-[calc(100%-2rem)]",

@@ -21,19 +21,17 @@ import { toastError } from "../../ui/Toast.tsx";
 import { CloneGithubDialog } from "./CloneGithubDialog.tsx";
 import { QuickStartFlow } from "./CreateProjectDialog.tsx";
 
-export function AddProjectButton({
-	variant = "secondary",
-	size = "md",
-	className,
-}: Pick<ButtonProps, "variant" | "size" | "className">) {
+/**
+ * The three ways to add a project, shared by this button and the new-workspace project menu: open a
+ * folder, clone from GitHub, or quick start from a template. `dialogs` renders the clone and quick start
+ * dialogs; place it once next to the menu that opens them.
+ */
+export function useAddProject() {
 	const actions = useActions();
-	const repos = useRepos();
 	const [busy, setBusy] = useState(false);
 	const [cloneOpen, setCloneOpen] = useState(false);
 	const [quickStartOpen, setQuickStartOpen] = useState(false);
 	const flight = useRef(createSingleFlight()).current;
-	const hasProjects = repos.state === "ready" && repos.data.length > 0;
-	const label = variant === "default" && size === "lg" ? "Open project" : "Add a project";
 
 	// A second request while one runs gets the first one's promise, so the dialog opens once.
 	const addProject = () =>
@@ -53,14 +51,40 @@ export function AddProjectButton({
 			}
 		});
 
+	const dialogs = (
+		<>
+			{cloneOpen ? <CloneGithubDialog open onOpenChange={setCloneOpen} /> : null}
+			<QuickStartFlow open={quickStartOpen} onOpenChange={setQuickStartOpen} />
+		</>
+	);
+
+	return {
+		busy,
+		addProject,
+		openClone: () => setCloneOpen(true),
+		openQuickStart: () => setQuickStartOpen(true),
+		dialogs,
+	};
+}
+
+export function AddProjectButton({
+	variant = "secondary",
+	size = "md",
+	className,
+}: Pick<ButtonProps, "variant" | "size" | "className">) {
+	const repos = useRepos();
+	const add = useAddProject();
+	const hasProjects = repos.state === "ready" && repos.data.length > 0;
+	const label = variant === "default" && size === "lg" ? "Open project" : "Add a project";
+
 	if (!hasProjects) {
 		return (
 			<Button
 				variant={variant}
 				size={size}
-				loading={busy}
+				loading={add.busy}
 				className={className}
-				onClick={() => void addProject()}
+				onClick={() => void add.addProject()}
 			>
 				<FolderPlusIcon />
 				{label}
@@ -72,26 +96,25 @@ export function AddProjectButton({
 		<>
 			<Menu>
 				<MenuTrigger asChild>
-					<Button variant={variant} size={size} loading={busy} className={className}>
+					<Button variant={variant} size={size} loading={add.busy} className={className}>
 						<FolderPlusIcon />
 						{label}
 						<ChevronDownIcon />
 					</Button>
 				</MenuTrigger>
 				<MenuContent align="start">
-					<MenuItem icon={<FolderPlusIcon />} onSelect={() => void addProject()}>
+					<MenuItem icon={<FolderPlusIcon />} onSelect={() => void add.addProject()}>
 						Open project...
 					</MenuItem>
-					<MenuItem icon={<GitBranchIcon />} onSelect={() => setCloneOpen(true)}>
+					<MenuItem icon={<GitBranchIcon />} onSelect={add.openClone}>
 						Open GitHub project...
 					</MenuItem>
-					<MenuItem icon={<FolderPlusIcon />} onSelect={() => setQuickStartOpen(true)}>
+					<MenuItem icon={<FolderPlusIcon />} onSelect={add.openQuickStart}>
 						Quick start...
 					</MenuItem>
 				</MenuContent>
 			</Menu>
-			{cloneOpen ? <CloneGithubDialog open onOpenChange={setCloneOpen} /> : null}
-			<QuickStartFlow open={quickStartOpen} onOpenChange={setQuickStartOpen} />
+			{add.dialogs}
 		</>
 	);
 }

@@ -523,7 +523,8 @@ describe("NAV-17 the app reaches deep links through its Platform event", () => {
 
 			expect(await screen.findByText("Repository not found")).toBeTruthy();
 			expect(screen.getByText('There is no project called "missing-project".')).toBeTruthy();
-			const repository = await screen.findByRole("combobox", { name: "Repository" });
+			// The dialog names its project in the project picker at its top left, as Conductor does.
+			const repository = await screen.findByRole("button", { name: /^Project: / });
 			expect(repository.textContent).toContain(repo.name);
 		} finally {
 			test.close();
@@ -542,7 +543,8 @@ describe("NAV-17 the app reaches deep links through its Platform event", () => {
 			});
 
 			await waitFor(() => expect(router.state.location.pathname).toBe("/create"));
-			const repository = await screen.findByRole("combobox", { name: "Repository" });
+			// The dialog names its project in the project picker at its top left, as Conductor does.
+			const repository = await screen.findByRole("button", { name: /^Project: / });
 			expect(repository.textContent).toContain(repo.name);
 			expect((screen.getByLabelText("First message") as HTMLTextAreaElement).value).toBe(
 				"Fix the login",

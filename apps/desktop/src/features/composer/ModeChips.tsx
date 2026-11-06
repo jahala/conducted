@@ -26,7 +26,6 @@ import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions, useLiveShortcut } from "../../core/hooks.ts";
 import { Button } from "../../ui/Button.tsx";
-import { cn } from "../../ui/cn.ts";
 import { ListTodoIcon } from "../../ui/icons.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { Tooltip } from "../../ui/Tooltip.tsx";

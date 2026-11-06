@@ -160,6 +160,7 @@ export const PlayIcon = (p: P) => <Icon d="M5 3.5l7.5 4.5L5 12.5z" {...p} />;
 export const BlocksIcon = (p: P) => (
 	<Icon d="M2.5 6.5h4v7h-4zM6.5 9.5h7v4h-7zM9.5 2.5h4v4h-4z" {...p} />
 );
+export const FolderIcon = (p: P) => <Icon d="M2 4.5h4l1.5 1.5H14v6.5H2z" {...p} />;
 export const SlashIcon = (p: P) => <Icon d="M11 2.5L5 13.5" {...p} />;
 export const SendIcon = (p: P) => <Icon d="M14 2L7 9M14 2l-4.5 12-2.5-5-5-2.5z" {...p} />;
 export const SquareCheckIcon = (p: P) => <Icon d="M2.5 2.5h11v11h-11zM5.5 8l2 2 3.5-4" {...p} />;

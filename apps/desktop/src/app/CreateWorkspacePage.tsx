@@ -3,20 +3,27 @@
  * @feature WS-02 Create from a branch, PR or issue
  * @feature SIDE-22 Slash command cache that works before a chat starts
  * @feature WS-11 Backlog workspaces: save now, start later
- * Owns: the full-page "new workspace" flow at /create: repository picker, the toggleable "create from"
- * picker (default branch, an existing local branch, a pull request or an issue), first message editor with a
- * model field and plan mode, section picker, and the "Create workspace" button. Typing '@' in the
+ * Owns: the "new workspace" dialog at /create: the project picker (with Open project, Open GitHub project,
+ * Quick start and the projects under Recents), the "···" options (section, plan mode, Backlog), the
+ * toggleable "create from" picker (default branch, an existing local branch, a pull request or an issue),
+ * the first message with a model field, and the "Create ↵" button. Typing '@' in the
  * first message offers the chosen repository's own files before any workspace exists (SIDE-22).
  * A draft can be saved to the backlog, and a saved backlog workspace opens with a Start button. A deep
  * link may open the page with its project, branch and first message already filled; a project it names
  * that is not loaded gives "Repository not found", and the page keeps its usual first project.
- * Behaviour: ui-map.md 3.9 (New workspace flow; "Draft the first message, then create and send it."), 5.4
+ * Behaviour: measured from Conductor 0.92.1 and the owner's captures: a modal over the blurred screen,
+ * 768px wide with a 12px radius in the muted fill; a 48px top row with the project name and its chevron, a
+ * "···" button and, at the right, the create-from source with its chevron; a borderless text area with "What
+ * do you want to work on?"; a bottom row with the model at the left and "Create ↵" at the right. Escape or a
+ * click outside closes it and returns to the screen it opened over. ui-map.md 3.9 (New workspace flow), 5.4
  * (Cmd+I toggles the create-from picker, Alt+Enter adds the draft to the backlog, and Cmd+Enter
  * starts a backlog workspace).
  * Our design choice: the page marks itself as a dialog scope, so inside it Cmd+Enter arrives as
  * "Confirm the open dialog"; in start mode Start answers that command as well as its own.
- * Our design choice: the page keeps the first message in a plain textarea until the composer editor can be
- * reused outside a chat; attachments wait for COMP-07.
+ * Our design choice: the dialog keeps the first message in a plain textarea until the composer editor can be
+ * reused outside a chat; attachments wait for COMP-07, so Conductor's "+" is not drawn. The model is a
+ * free-text field until the composer's model picker can be used without a chat. "Add to backlog" stays a
+ * visible button beside Create (ours).
  * Must handle: no project yet (point to "Add a project"); a failed create keeps the draft with Retry setup
  * and Recover prompt; creation warnings are toasted; an empty prompt creates the workspace without a chat;
  * "Create from" a branch with no branch name is refused with a message under the field; a pull request that
@@ -29,7 +36,7 @@
  * the backlog.
  */
 import type { RepoId, SectionId, WorkspaceId } from "@conducted/shared";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useNavigate, useRouter, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
 import type { NewWorkspaceInput } from "../core/api.ts";
@@ -49,10 +56,20 @@ import {
 import type { IssueView, PullRequestSummary, Section } from "../core/model.ts";
 import { newWorkspaceSessionConfig } from "../core/services/workspace.ts";
 import { SuggestionPopup } from "../features/composer/mentions/SuggestionPopup.tsx";
-import { AddProjectButton } from "../features/sidebar/AddProjectButton.tsx";
+import { AddProjectButton, useAddProject } from "../features/sidebar/AddProjectButton.tsx";
 import { Button } from "../ui/Button.tsx";
+import { Dialog, DialogContent } from "../ui/Dialog.tsx";
 import { EmptyState } from "../ui/EmptyState.tsx";
-import { Input, Label, Textarea } from "../ui/Input.tsx";
+import { Input, Label } from "../ui/Input.tsx";
+import {
+	ChevronDownIcon,
+	FolderIcon,
+	FolderPlusIcon,
+	GitBranchIcon,
+	GlobeIcon,
+	MoreHorizontalIcon,
+} from "../ui/icons.tsx";
+import { Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger } from "../ui/Menu.tsx";
 import { Select } from "../ui/Select.tsx";
 import { toast, toastError } from "../ui/Toast.tsx";
 import { useCommandHandler } from "./command-dispatcher.ts";
@@ -165,6 +182,12 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	const repos = useRepos();
 	const services = useServices();
 	const navigate = useNavigate();
+	const router = useRouter();
+	// Closing the dialog returns to the screen it opened over, or Home when it was opened directly.
+	const close = () => {
+		if (window.history.length > 1) router.history.back();
+		else void navigate({ to: "/" });
+	};
 	const search = useSearch({ strict: false }) as {
 		section?: string;
 		backlog?: string;
@@ -200,7 +223,8 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	const [fromKind, setFromKind] = useState<FromKind>(
 		search.branch === undefined ? "default" : "branch",
 	);
-	const [pickerOpen, setPickerOpen] = useState(true);
+	const [pickerOpen, setPickerOpen] = useState(false);
+	const [optionsOpen, setOptionsOpen] = useState(false);
 	const [branchName, setBranchName] = useState(search.branch ?? "");
 	const [showBranchList, setShowBranchList] = useState(false);
 	const [selectedPullRequest, setSelectedPullRequest] = useState<PullRequestSummary | null>(null);
@@ -255,6 +279,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 		if (branchFromSearch === undefined) return;
 		setBranchName(branchFromSearch);
 		setFromKind("branch");
+		setPickerOpen(true);
 	}, [branchFromSearch]);
 
 	useCommandHandler("workspace.toggleCreateFromPicker", "modal", () => {
@@ -475,59 +500,64 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 		...sections.map((section) => ({ value: section.id, label: section.name })),
 	];
 
+	const fromLabel =
+		fromKind === "branch"
+			? branchName.trim() || "Branch"
+			: fromKind === "pull_request"
+				? selectedPullRequest === null
+					? "Pull request"
+					: `#${selectedPullRequest.number}`
+				: fromKind === "issue"
+					? (selectedIssue?.identifier ?? "Issue")
+					: selectedRepo.defaultBranch;
+
 	return (
-		<div
-			data-command-scope="dialog"
-			className="mx-auto flex h-full w-full max-w-2xl flex-col gap-6 overflow-y-auto p-8"
+		<Dialog
+			open
+			onOpenChange={(open) => {
+				if (!open) close();
+			}}
 		>
-			<header className="flex items-start justify-between gap-3">
-				<div className="flex flex-col gap-1">
-					<h1 className="text-2xl font-medium text-fg">New workspace</h1>
-					<p className="text-sm text-fg-muted">
-						{startMode
-							? "This workspace starts as it was saved to the backlog."
-							: "Draft the first message, then create and send it."}
-					</p>
-				</div>
-				{backlogEnabled ? (
-					<Button variant="ghost" size="sm" onClick={() => void navigate({ to: "/backlog" })}>
-						Backlog
-					</Button>
-				) : null}
-			</header>
-
-			<form
-				className="flex flex-col gap-5"
-				onSubmit={(event) => {
-					event.preventDefault();
-					void submit();
-				}}
+			<DialogContent
+				title="New workspace"
+				hideTitle
+				size="3xl"
+				className="gap-0! rounded-xl! bg-muted! p-0!"
 			>
-				<div className="flex flex-col gap-1.5">
-					<Label htmlFor="create-workspace-repo">Repository</Label>
-					<Select
-						id="create-workspace-repo"
-						value={selectedRepo.id}
-						options={readyRepos.map((repo) => ({ value: repo.id, label: repo.name }))}
-						onValueChange={(value) => {
-							setRepoId(value as RepoId);
-							setSelectedPullRequest(null);
-							setSelectedIssue(null);
-							setShowBranchList(false);
-							setMention(null);
-							setSlashMention(null);
-						}}
-						disabled={fieldsLocked}
-					/>
-				</div>
-
-				<div className="flex flex-col gap-3">
-					<div className="flex items-center justify-between gap-3">
-						{pickerOpen ? (
-							<Label htmlFor="create-workspace-from">Create from</Label>
-						) : (
-							<span className="text-sm font-medium leading-none text-fg">Create from</span>
-						)}
+				<form
+					data-command-scope="dialog"
+					className="flex flex-col"
+					onSubmit={(event) => {
+						event.preventDefault();
+						void submit();
+					}}
+				>
+					<header className="flex h-12 items-center gap-1 border-b border-border px-3">
+						<ProjectMenu
+							repos={readyRepos}
+							selected={selectedRepo}
+							disabled={fieldsLocked}
+							onPick={(value) => {
+								setRepoId(value);
+								setSelectedPullRequest(null);
+								setSelectedIssue(null);
+								setShowBranchList(false);
+								setMention(null);
+								setSlashMention(null);
+							}}
+						/>
+						<Button
+							type="button"
+							variant="ghost"
+							size="xs"
+							aria-label="More options"
+							aria-expanded={optionsOpen}
+							aria-controls="create-options"
+							onClick={() => setOptionsOpen((open) => !open)}
+						>
+							<MoreHorizontalIcon className="size-3.5" />
+						</Button>
+						<span className="flex-1" />
 						<Button
 							type="button"
 							variant="ghost"
@@ -536,14 +566,28 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 							aria-expanded={pickerOpen}
 							aria-controls="create-from-picker"
 							disabled={fieldsLocked}
+							title="Create from"
+							className="max-w-56 gap-1.5 font-normal text-fg-muted"
 							onClick={() => setPickerOpen((open) => !open)}
 						>
-							{pickerOpen ? "Hide sources" : "Show sources"}
+							<GitBranchIcon className="size-3.5 shrink-0" />
+							<span className="truncate">{fromLabel}</span>
+							<ChevronDownIcon className="size-3 shrink-0" />
 						</Button>
-					</div>
+					</header>
+
+					{startMode ? (
+						<p className="px-4 pt-3 text-xs text-fg-muted">
+							This workspace starts as it was saved to the backlog.
+						</p>
+					) : null}
 
 					{pickerOpen ? (
-						<div id="create-from-picker" className="flex flex-col gap-3">
+						<div
+							id="create-from-picker"
+							className="flex flex-col gap-3 border-b border-border px-4 py-3"
+						>
+							<Label htmlFor="create-workspace-from">Create from</Label>
 							<Select<FromKind>
 								id="create-workspace-from"
 								value={fromKind}
@@ -614,147 +658,252 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 							) : null}
 						</div>
 					) : null}
-				</div>
 
-				<div className="flex flex-col gap-1.5">
-					<Label htmlFor="create-workspace-prompt">First message</Label>
-					<Textarea
-						id="create-workspace-prompt"
-						aria-label="First message"
-						value={prompt}
-						onChange={(event) => {
-							const caret = event.target.selectionStart ?? event.target.value.length;
-							setPrompt(event.target.value);
-							setMention(fileMentionAt(event.target.value, caret));
-							setSlashMention(slashMentionAt(event.target.value, caret));
-						}}
-						onKeyDown={(event) => {
-							if (event.key === "Escape") {
-								setMention(null);
-								setSlashMention(null);
-							}
-						}}
-						placeholder="What do you want to work on?"
-						rows={5}
-						disabled={busy}
-						readOnly={startMode}
-					/>
-					{mention !== null && mention.query.length >= 2 ? (
-						<RepoFileSuggestions
-							repoId={selectedRepo.id}
-							query={mention.query}
-							onPick={(path) => {
-								setPrompt(`${prompt.slice(0, mention.start)}@${path} ${prompt.slice(mention.end)}`);
-								setMention(null);
-							}}
-						/>
+					{optionsOpen ? (
+						<div
+							id="create-options"
+							className="flex flex-wrap items-end gap-4 border-b border-border px-4 py-3"
+						>
+							<div className="flex w-60 flex-col gap-1.5">
+								<Label htmlFor="create-workspace-section">Create in section</Label>
+								<Select
+									id="create-workspace-section"
+									value={sectionId}
+									options={sectionOptions}
+									onValueChange={setSectionId}
+									disabled={fieldsLocked || sections.length === 0}
+								/>
+							</div>
+							<label className="flex h-8 items-center gap-2 text-sm text-fg">
+								<input
+									type="checkbox"
+									checked={planMode}
+									onChange={(event) => setPlanMode(event.target.checked)}
+									disabled={fieldsLocked}
+								/>
+								Plan mode
+							</label>
+							{backlogEnabled ? (
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									onClick={() => void navigate({ to: "/backlog" })}
+								>
+									Backlog
+								</Button>
+							) : null}
+						</div>
 					) : null}
-					{slashMention !== null ? (
-						<RepoSlashSuggestions
-							repoRootPath={selectedRepo.rootPath}
-							query={slashMention.query}
-							onPick={(command) => {
-								setPrompt(
-									`${prompt.slice(0, slashMention.start)}/${command.name} ${prompt.slice(slashMention.end)}`,
-								);
-								setSlashMention(null);
-							}}
-						/>
-					) : null}
-				</div>
 
-				<div className="grid grid-cols-2 gap-4">
-					<div className="flex flex-col gap-1.5">
-						<Label htmlFor="create-workspace-model">Model</Label>
-						<Input
-							id="create-workspace-model"
-							value={model}
-							onChange={(event) => setModel(event.target.value)}
-							placeholder="default"
+					<div className="relative px-4 pt-4">
+						<label htmlFor="create-workspace-prompt" className="sr-only">
+							First message
+						</label>
+						<textarea
+							id="create-workspace-prompt"
+							aria-label="First message"
+							value={prompt}
+							onChange={(event) => {
+								const caret = event.target.selectionStart ?? event.target.value.length;
+								setPrompt(event.target.value);
+								setMention(fileMentionAt(event.target.value, caret));
+								setSlashMention(slashMentionAt(event.target.value, caret));
+							}}
+							onKeyDown={(event) => {
+								if (event.key === "Escape" && (mention !== null || slashMention !== null)) {
+									event.stopPropagation();
+									setMention(null);
+									setSlashMention(null);
+								}
+							}}
+							placeholder="What do you want to work on?"
 							disabled={busy}
 							readOnly={startMode}
+							autoFocus
+							className="block min-h-40 w-full resize-none bg-transparent text-sm font-light text-fg outline-none placeholder:text-fg-subtle"
 						/>
+						{mention !== null && mention.query.length >= 2 ? (
+							<RepoFileSuggestions
+								repoId={selectedRepo.id}
+								query={mention.query}
+								onPick={(path) => {
+									setPrompt(
+										`${prompt.slice(0, mention.start)}@${path} ${prompt.slice(mention.end)}`,
+									);
+									setMention(null);
+								}}
+							/>
+						) : null}
+						{slashMention !== null ? (
+							<RepoSlashSuggestions
+								repoRootPath={selectedRepo.rootPath}
+								query={slashMention.query}
+								onPick={(command) => {
+									setPrompt(
+										`${prompt.slice(0, slashMention.start)}/${command.name} ${prompt.slice(slashMention.end)}`,
+									);
+									setSlashMention(null);
+								}}
+							/>
+						) : null}
 					</div>
-					<div className="flex flex-col gap-1.5">
-						<Label htmlFor="create-workspace-section">Create in section</Label>
-						<Select
-							id="create-workspace-section"
-							value={sectionId}
-							options={sectionOptions}
-							onValueChange={setSectionId}
-							disabled={fieldsLocked || sections.length === 0}
-						/>
-					</div>
-				</div>
 
-				<label className="flex items-center gap-2 text-sm text-fg">
-					<input
-						type="checkbox"
-						checked={planMode}
-						onChange={(event) => setPlanMode(event.target.checked)}
-						disabled={fieldsLocked}
-					/>
-					Plan mode
-				</label>
-
-				{failedId === null ? null : (
-					<div
-						role="alert"
-						className="flex flex-col gap-3 rounded-lg border border-border bg-raised p-4"
-					>
-						<div className="flex flex-col gap-1">
-							<p className="text-sm font-medium text-fg">Workspace initialization failed</p>
-							<p className="text-sm text-fg-muted">
-								Retry the setup, or recover the first message and try again.
-							</p>
+					{failedId === null ? null : (
+						<div
+							role="alert"
+							className="mx-4 mt-3 flex flex-col gap-3 rounded-lg border border-border bg-raised p-4"
+						>
+							<div className="flex flex-col gap-1">
+								<p className="text-sm font-medium text-fg">Workspace initialization failed</p>
+								<p className="text-sm text-fg-muted">
+									Retry the setup, or recover the first message and try again.
+								</p>
+							</div>
+							<div className="flex gap-2">
+								<Button
+									type="button"
+									variant="default"
+									size="sm"
+									disabled={busy}
+									onClick={() => void retry()}
+								>
+									Retry setup
+								</Button>
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									disabled={busy}
+									onClick={() => void recover()}
+								>
+									Recover prompt
+								</Button>
+							</div>
 						</div>
-						<div className="flex gap-2">
-							<Button
-								type="button"
-								variant="default"
-								size="sm"
+					)}
+
+					<footer className="flex items-center gap-2 px-3 pt-2 pb-3">
+						<label className="flex min-w-0 items-center gap-1 rounded-md px-2 text-sm hover:bg-hover">
+							<span className="sr-only">Model</span>
+							<input
+								id="create-workspace-model"
+								aria-label="Model"
+								value={model}
+								onChange={(event) => setModel(event.target.value)}
+								placeholder="Default model"
 								disabled={busy}
-								onClick={() => void retry()}
-							>
-								Retry setup
-							</Button>
+								readOnly={startMode}
+								className="h-7 w-36 min-w-0 bg-transparent text-sm text-fg outline-none placeholder:text-fg"
+							/>
+							<ChevronDownIcon className="size-3 shrink-0 text-fg-muted" />
+						</label>
+						<span className="flex-1" />
+						{startMode ? (
 							<Button
 								type="button"
 								variant="ghost"
 								size="sm"
-								disabled={busy}
-								onClick={() => void recover()}
+								onClick={() => void navigate({ to: "/backlog" })}
 							>
-								Recover prompt
+								Cancel
 							</Button>
-						</div>
-					</div>
-				)}
-
-				<div className="flex items-center justify-between gap-2">
-					{startMode ? (
-						<Button variant="ghost" size="sm" onClick={() => void navigate({ to: "/backlog" })}>
-							Cancel
-						</Button>
-					) : backlogEnabled ? (
+						) : backlogEnabled ? (
+							<Button
+								type="button"
+								variant="ghost"
+								size="sm"
+								aria-label="Add to backlog"
+								disabled={busy}
+								onClick={() => void saveToBacklog()}
+							>
+								Add to backlog
+							</Button>
+						) : null}
 						<Button
-							type="button"
-							variant="outline"
-							aria-label="Add to backlog"
-							disabled={busy}
-							onClick={() => void saveToBacklog()}
+							type="submit"
+							size="sm"
+							loading={busy}
+							aria-label={startMode ? "Start" : "Create workspace"}
+							className="gap-1.5"
 						>
-							Add to backlog
+							{startMode ? "Start" : "Create"}
+							<span aria-hidden="true" className="text-xs opacity-70">
+								↵
+							</span>
 						</Button>
-					) : (
-						<span />
-					)}
-					<Button type="submit" loading={busy}>
-						{startMode ? "Start" : "Create workspace"}
+					</footer>
+				</form>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+/** "~/code/project" for a folder under the home folder. */
+function shortPath(path: string): string {
+	const home = /^\/Users\/[^/]+/.exec(path)?.[0];
+	return home === undefined ? path : `~${path.slice(home.length)}`;
+}
+
+/**
+ * The project picker at the top of the new-workspace dialog: the chosen project's name; its menu adds a
+ * project (Open project, Open GitHub project, Quick start) or picks one of the projects under "Recents".
+ */
+function ProjectMenu({
+	repos,
+	selected,
+	disabled,
+	onPick,
+}: {
+	repos: readonly { id: RepoId; name: string; rootPath: string }[];
+	selected: { id: RepoId; name: string };
+	disabled: boolean;
+	onPick: (id: RepoId) => void;
+}) {
+	const add = useAddProject();
+	return (
+		<>
+			<Menu>
+				<MenuTrigger asChild>
+					<Button
+						type="button"
+						variant="ghost"
+						size="sm"
+						disabled={disabled}
+						aria-label={`Project: ${selected.name}`}
+						className="gap-1.5 px-2 text-sm font-medium text-fg"
+					>
+						<span className="max-w-60 truncate">{selected.name}</span>
+						<ChevronDownIcon className="size-3 shrink-0 text-fg-muted" />
 					</Button>
-				</div>
-			</form>
-		</div>
+				</MenuTrigger>
+				<MenuContent align="start" className="w-80">
+					<MenuItem icon={<FolderIcon />} onSelect={() => void add.addProject()}>
+						Open project
+					</MenuItem>
+					<MenuItem icon={<GlobeIcon />} onSelect={add.openClone}>
+						Open GitHub project
+					</MenuItem>
+					<MenuItem icon={<FolderPlusIcon />} onSelect={add.openQuickStart}>
+						Quick start
+					</MenuItem>
+					<MenuLabel>Recents</MenuLabel>
+					{repos.map((repo) => (
+						<MenuItem
+							key={repo.id}
+							icon={<FolderIcon />}
+							onSelect={() => onPick(repo.id)}
+							className="text-xs"
+						>
+							<span className="truncate" title={repo.name}>
+								{shortPath(repo.rootPath)}
+							</span>
+						</MenuItem>
+					))}
+				</MenuContent>
+			</Menu>
+			{add.dialogs}
+		</>
 	);
 }
 

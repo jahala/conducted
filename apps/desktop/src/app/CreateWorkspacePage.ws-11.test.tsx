@@ -303,6 +303,8 @@ describe("WS-11 start a backlog workspace", () => {
 		const prompt = screen.getByLabelText("First message") as HTMLTextAreaElement;
 		expect(prompt.readOnly).toBe(true);
 		expect((screen.getByLabelText("Model") as HTMLInputElement).readOnly).toBe(true);
+		// Plan mode sits behind the dialog's "···" options, as Conductor's dialog keeps it.
+		fireEvent.click(screen.getByRole("button", { name: "More options" }));
 		expect((screen.getByRole("checkbox", { name: "Plan mode" }) as HTMLInputElement).disabled).toBe(
 			true,
 		);

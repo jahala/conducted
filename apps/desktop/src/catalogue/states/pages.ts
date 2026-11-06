@@ -40,12 +40,25 @@ export const PAGE_STATES: CatalogueState[] = [
 	{
 		id: "new-workspace",
 		group: "Pages",
-		title: "New workspace page, project chosen",
+		title: "New workspace dialog, project chosen",
 		seed: async (world) => {
 			const cast = await seedCast(world);
 			return {
 				route: `/create?repo=${cast.atlas.id}`,
-				ready: (document) => shows(document, "atlas"),
+				ready: (document) => document.querySelector('[role="dialog"] textarea') !== null,
+			};
+		},
+	},
+	{
+		id: "new-workspace-project-menu",
+		group: "Pages",
+		title: "New workspace dialog with its project menu open",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/create?repo=${cast.atlas.id}`,
+				after: ({ document }) => click(document, "button", "Project: atlas"),
+				ready: (document) => shows(document, "Recents"),
 			};
 		},
 	},

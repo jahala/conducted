@@ -147,8 +147,12 @@ async function renderCreatePage(path = "/create", sectionRows: readonly Section[
 
 afterEach(cleanup);
 
-/** Picks "Branch" in the "Create from" select with the keyboard, as app-12's select tests do. */
+/**
+ * Opens the create-from picker (closed by default, as in Conductor's dialog) and picks "Branch" in its
+ * select with the keyboard, as app-12's select tests do.
+ */
 async function chooseBranchSource() {
+	fireEvent.click(screen.getByRole("button", { name: "Show or hide the create-from picker" }));
 	fireEvent.keyDown(screen.getByRole("combobox", { name: "Create from" }), { key: "Enter" });
 	fireEvent.keyDown(await screen.findByRole("option", { name: "Branch" }), { key: "Enter" });
 }
@@ -282,6 +286,8 @@ describe("NAV-04 Create in section", () => {
 	it("starts with the section named in the URL and creates the workspace there", async () => {
 		const { create } = await renderCreatePage("/create?section=s1", [section]);
 
+		// The section picker sits behind the dialog's "···" options, as Conductor's dialog keeps it.
+		fireEvent.click(await screen.findByRole("button", { name: "More options" }));
 		const trigger = await screen.findByRole("combobox", { name: "Create in section" });
 		expect(trigger.textContent).toContain("Review");
 		fireEvent.click(screen.getByRole("button", { name: "Create workspace" }));
