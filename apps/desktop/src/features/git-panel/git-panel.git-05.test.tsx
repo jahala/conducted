@@ -18,6 +18,7 @@ import {
 	keyBindings,
 	runCommandHandlers,
 } from "../../app/command-dispatcher.ts";
+import { AppProviders, createQueryClient } from "../../app/providers.tsx";
 import { createShellContainer } from "../../app/shell-test-support.ts";
 import type { Loadable } from "../../core/api.ts";
 import { ServicesProvider } from "../../core/context.tsx";
@@ -92,7 +93,9 @@ afterEach(() => {
 const renderPanel = () =>
 	render(
 		<ServicesProvider container={container}>
-			<GitPanel workspaceId={workspaceId} />
+			<AppProviders client={createQueryClient(() => {})}>
+				<GitPanel workspaceId={workspaceId} />
+			</AppProviders>
 		</ServicesProvider>,
 	);
 

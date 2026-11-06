@@ -80,19 +80,8 @@ describe("design tokens", () => {
 
 /** Every colour must come from the tokens: no hex values and no default Tailwind palette in components. */
 describe("components use tokens only", () => {
-	const roots = [
-		"ui",
-		"app",
-		"features/sidebar",
-		"features/home",
-		"features/dashboard",
-		"features/passport",
-		"features/workspace",
-		"features/chat",
-		"features/composer",
-		"features/palette",
-		"features/onboarding",
-	];
+	// Every screen folder: a folder left out here is a folder nothing checks.
+	const roots = ["ui", "app", "features"];
 	const files: string[] = [];
 	const walk = (dir: string) => {
 		for (const name of readdirSync(dir)) {

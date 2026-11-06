@@ -119,7 +119,7 @@ describe("GIT-04 git header state machine", () => {
 				}),
 				kind: "diverged",
 				title: "Incompatible with remote",
-				action: "resolve",
+				action: "resolve_incompatible",
 			},
 			{
 				name: "behind",
@@ -247,10 +247,10 @@ describe("GIT-04 git header state machine", () => {
 				name: "stack blocked",
 				input: inputs({
 					git: gitState({ pullRequest: pullRequest() }),
-					stack: { size: 2, blockedReason: "Waiting for #7 to merge" },
+					stack: { mergeCount: 2, blockedReason: "#7 isn't ready to merge" },
 				}),
 				kind: "stack_blocked",
-				title: "Waiting for #7 to merge",
+				title: "#7 isn't ready to merge",
 				action: null,
 			},
 			{
@@ -486,12 +486,47 @@ describe("GIT-04 git header state machine", () => {
 		const header = computeGitHeader(
 			inputs({
 				git: gitState({ pullRequest: pullRequest() }),
-				stack: { size: 2, blockedReason: null },
+				stack: { mergeCount: 2, blockedReason: null },
 			}),
 		);
 		expect(header.kind).toBe("ready_to_merge");
 		expect(header.action?.id).toBe("merge_stack");
 		expect(header.action?.label).toBe("Merge stack");
+		expect(header.action?.tooltip).toBe("Merge 2 PRs from bottom to top");
+		expect(header.action?.count).toBe(2);
+	});
+
+	it("keeps the plain merge when the stack merge would take only this pull request", () => {
+		const header = computeGitHeader(
+			inputs({
+				git: gitState({ pullRequest: pullRequest() }),
+				stack: { mergeCount: 1, blockedReason: null },
+			}),
+		);
+		expect(header.action?.id).toBe("merge");
+		expect(header.action?.label).toBe("Squash and merge");
+		expect(header.action?.tooltip).toBeUndefined();
+	});
+
+	it("names a stack blocker only when the pull request itself could merge", () => {
+		const blocked = computeGitHeader(
+			inputs({
+				git: gitState({ pullRequest: pullRequest() }),
+				stack: { mergeCount: 2, blockedReason: "Stack needs a rebase" },
+			}),
+		);
+		expect(blocked.kind).toBe("stack_blocked");
+		expect(blocked.tone).toBe("attention");
+		expect(blocked.action).toBeNull();
+
+		// A pull request that is not ready itself shows its own state, not the stack's.
+		const closed = computeGitHeader(
+			inputs({
+				git: gitState({ pullRequest: pullRequest({ mergeable: "unknown" }) }),
+				stack: { mergeCount: 2, blockedReason: "Stack needs a rebase" },
+			}),
+		);
+		expect(closed.kind).toBe("checking_mergeability");
 	});
 
 	it("keeps Merge for a local-git forge", () => {

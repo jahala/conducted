@@ -3,10 +3,10 @@
  * Owns: installing, downloading again and removing the programs the app manages (D021, D024) and
  * their status store; and small actions on the Mac that screens may not reach the Platform for:
  * copying text and images, saving or opening a file in its own app, Full Disk Access, the sidecar
- * log, the feedback form and the Xcode licence fix.
+ * log, the app log, the diagnostics capture, the feedback form and the Xcode licence fix.
  * Behaviour: native-and-sidecar-map.md A9 (binary manager), services-map.md 5A.8.1 (download
- * states, retry, send gate), ui-map.md 6 (Agents and Advanced pages, Full Disk Access row), 5.1 and
- * 5.2 (Send feedback), 7.4 (Xcode licence).
+ * states, retry, send gate), ui-map.md 6 (Agents and Advanced pages, Full Disk Access row), 2 and
+ * 5.4 (diagnostics, sidecar and app logs), 5.1 and 5.2 (Send feedback), 7.4 (Xcode licence).
  * Must handle: a program that is already downloading (a second install joins it); a failed
  * download keeps its retry state and the Retry button calls install again; a program the user
  * points at a path of their own is shown as theirs and never downloaded over; a message to Claude
@@ -16,14 +16,17 @@
  * that is not an image file fails with a plain message; a save the user cancels is `ok(null)`;
  * System Settings that will not open says where to grant Full Disk Access by hand; feedback opens
  * the project's issue page with the text filled in and never sends logs anywhere by itself; the
- * Xcode licence fix opens Terminal and reports a Terminal that cannot be opened.
+ * Xcode licence fix opens Terminal and reports a Terminal that cannot be opened; the diagnostics
+ * capture reports a login shell or environment it cannot read instead of inventing one; the
+ * sidecar and app logs open in their default app, and a missing log path is an error value.
  * Our design choice: one service for these Mac-level actions, so screens get them through
  * `Actions` like everything else and the Platform stays out of `features/`.
- * Built now: the program store, the install, re-download and remove actions, the send gate, and
- * opening the Privacy & Security pane for Full Disk Access.
+ * Built now: the program store, the install, re-download and remove actions, the send gate,
+ * opening the Privacy & Security pane for Full Disk Access, the diagnostics capture, and opening the
+ * sidecar and app logs.
  * Our design choice: a copy that failed or is missing does not hold a message, so a copy on the
- * user's PATH runs instead (D021). Conductor holds until the copy is ready. The other Mac-level actions are placeholders
- * owned by CHAT-29, APP-09 and APP-03.
+ * user's PATH runs instead (D021). Conductor holds until the copy is ready. Copying and saving
+ * attachments and the feedback form are placeholders owned by CHAT-29 and APP-09.
  * Test first: install while a download of the same program runs starts no second download.
  *
  * @feature SET-13 Chosen program paths reach terminals and scripts
@@ -39,11 +42,13 @@
  * switch to another program breaks the rule against silent failures.
  * Test first: the chosen Claude and Codex paths reach the command, and its folder is returned.
  */
+import type { AgentInstall } from "@conducted/protocol";
 import {
 	type AgentKind,
 	appError,
 	err,
 	type ManagedProgram,
+	messageOf,
 	notImplemented,
 	ok,
 	type Result,
@@ -54,7 +59,7 @@ import type { FeedbackInput, Loadable } from "../api.ts";
 import { programsBinDir } from "../app-paths.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
 import { openXcodeLicenseTerminal } from "../git/xcode-license.ts";
-import type { AgentProgramView } from "../model.ts";
+import type { AgentProgramView, DiagnosticsCapture } from "../model.ts";
 
 export interface SystemState {
 	programs: Loadable<AgentProgramView[]>;
@@ -72,6 +77,9 @@ export interface SystemServiceDeps {
 		"programs" | "clipboard" | "dialogs" | "opener" | "system" | "sidecar" | "shell" | "fs" | "app"
 	>;
 	setting: <T>(key: string) => T;
+	now: () => number;
+	/** The agent programs the sidecar reports, for the diagnostics capture (APP-03). */
+	agentInstalls?: () => readonly AgentInstall[];
 }
 
 /**
@@ -252,6 +260,82 @@ export class SystemService {
 		return trimmed === "" ? null : trimmed;
 	}
 
+	/**
+	 * Captures what the diagnostics page shows: the app and the machine, the login shell and its
+	 * PATH, the environment, the agent programs and the sidecar. Secrets stay in the capture; the
+	 * diagnostics report hashes them before it is shown or copied.
+	 */
+	async captureDiagnostics(): Promise<Result<DiagnosticsCapture>> {
+		const { platform } = this.#deps;
+		let login: { shell: string; path: string };
+		try {
+			login = await platform.shell.loginEnv();
+		} catch (cause) {
+			return err(
+				appError(
+					"diagnostics_shell_failed",
+					"The login shell and its PATH could not be captured.",
+					cause,
+				),
+			);
+		}
+		const environment = await platform.shell.run({
+			program: login.shell,
+			args: ["-lc", "env"],
+			cwd: platform.fs.paths.home,
+		});
+		if (!environment.ok) return environment;
+		if (environment.value.exitCode !== 0) {
+			const reason = environment.value.stderr.trim();
+			return err(
+				appError(
+					"diagnostics_environment_failed",
+					reason === ""
+						? "The environment could not be captured."
+						: `The environment could not be captured: ${reason}`,
+				),
+			);
+		}
+		let os: { osVersion: string; machineArch: "arm64" | "x86_64" };
+		try {
+			os = await platform.system.info();
+		} catch (cause) {
+			return err(
+				appError(
+					"diagnostics_system_failed",
+					"The Mac's system information could not be read.",
+					cause,
+				),
+			);
+		}
+		let logPath: string | null = null;
+		try {
+			logPath = await platform.sidecar.logPath();
+		} catch (cause) {
+			platform.app.writeLog("warn", "The sidecar log path could not be read", {
+				message: messageOf(cause),
+			});
+		}
+		const sidecar = await platform.sidecar.ensureStarted();
+		const installs = this.#deps.agentInstalls?.() ?? [];
+		return ok({
+			app: { version: platform.app.version, channel: platform.app.channel },
+			os: { name: "macOS", version: os.osVersion, arch: os.machineArch },
+			shell: login.shell,
+			path: login.path,
+			env: parseEnvironment(environment.value.stdout),
+			agents: installs.map((install) => ({
+				name:
+					install.acpAgent === undefined ? install.agent : `${install.agent} (${install.acpAgent})`,
+				installed: install.installed,
+				version: install.version ?? null,
+				path: install.path ?? null,
+			})),
+			sidecar: { running: sidecar.ok, logPath },
+			capturedAt: this.#deps.now(),
+		});
+	}
+
 	/** Backs `Actions.app.copyText`. */
 	async copyText(text: string): Promise<Result<void>> {
 		try {
@@ -282,9 +366,40 @@ export class SystemService {
 		return notImplemented("APP-09");
 	}
 
-	/** Backs `Actions.app.openSidecarLogs`. */
-	openSidecarLogs(): Promise<Result<void>> {
-		return notImplemented("APP-03");
+	/** Backs `Actions.app.openSidecarLogs`: opens the sidecar log file in its default app. */
+	async openSidecarLogs(): Promise<Result<void>> {
+		let path: string;
+		try {
+			path = await this.#deps.platform.sidecar.logPath();
+		} catch (cause) {
+			return err(
+				appError("sidecar_log_path_failed", "The sidecar log file could not be found.", cause),
+			);
+		}
+		return this.#openFile(path);
+	}
+
+	/** Backs `app.openLogViewer`: exports the app log and opens the file in its default app. */
+	async openAppLogs(): Promise<Result<void>> {
+		const exported = await this.#deps.platform.app.exportLogs();
+		if (!exported.ok) return exported;
+		return this.#openFile(exported.value);
+	}
+
+	async #openFile(path: string): Promise<Result<void>> {
+		const opened = await this.#deps.platform.shell.run({
+			program: "open",
+			args: [path],
+			cwd: this.#deps.platform.fs.paths.home,
+		});
+		if (!opened.ok) return opened;
+		if (opened.value.exitCode !== 0) {
+			const reason = opened.value.stderr.trim();
+			return err(
+				appError("log_open_failed", reason === "" ? "The log file could not be opened." : reason),
+			);
+		}
+		return ok(undefined);
 	}
 
 	/** Backs `Actions.app.openFullDiskAccessSettings`. */
@@ -304,6 +419,22 @@ export class SystemService {
 	runXcodeLicenseFix(): Promise<Result<void>> {
 		return openXcodeLicenseTerminal(this.#deps.platform.shell, this.#deps.platform.fs.paths.home);
 	}
+}
+
+/**
+ * Reads `env` output into a record. Only lines shaped like an assignment are kept; a later value
+ * for the same name replaces the earlier one, as an environment does.
+ */
+function parseEnvironment(text: string): Record<string, string> {
+	const env: Record<string, string> = {};
+	for (const line of text.split("\n")) {
+		const equals = line.indexOf("=");
+		if (equals <= 0) continue;
+		const name = line.slice(0, equals);
+		if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) continue;
+		env[name] = line.slice(equals + 1);
+	}
+	return env;
 }
 
 /** Claude first, then Codex, so the Agents page keeps a stable order. */

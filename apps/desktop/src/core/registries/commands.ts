@@ -132,7 +132,7 @@ export const COMMANDS = [
 		defaultShortcuts: ["Cmd+Alt+F"],
 		configurable: false,
 		scope: "global",
-		feature: "APP-03",
+		feature: "APP-09",
 	},
 	{
 		id: "app.openDebugTools",
@@ -156,6 +156,15 @@ export const COMMANDS = [
 		id: "app.openSidecarLogs",
 		// Unbound because Cmd+Shift+L is Pull latest, as ui-map.md 5.4 notes.
 		title: "Open sidecar logs",
+		category: "General",
+		defaultShortcuts: [],
+		configurable: true,
+		scope: "global",
+		feature: "APP-03",
+	},
+	{
+		id: "app.openDiagnostics",
+		title: "Open diagnostics",
 		category: "General",
 		defaultShortcuts: [],
 		configurable: true,

@@ -92,7 +92,13 @@ export type DiffScope =
 	| { kind: "uncommitted" }
 	| { kind: "target"; branch: string }
 	| { kind: "commit"; sha: string }
-	| { kind: "turn"; sessionId: SessionId; turnId: TurnId };
+	| { kind: "turn"; sessionId: SessionId; turnId: TurnId }
+	/**
+	 * A run of adjacent pull requests of the workspace's GitHub stack, chosen in the stack view
+	 * (PR-08, services-map 3.4.1 view mode `range`, 3.4.5). Numbers in the stack's order from trunk
+	 * up. Only the checked-out pull request, or none of the stack's, shows the branch's own changes.
+	 */
+	| { kind: "range"; prNumbers: number[] };
 
 export interface ChangedFile extends FileChange {
 	conflicted: boolean;

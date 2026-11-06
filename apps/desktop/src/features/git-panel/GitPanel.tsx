@@ -5,12 +5,22 @@
  * @feature PR-06 Cmd+Shift+M merges the pull request
  * @feature GIT-17 Continue after a merge or from a detached HEAD
  * @feature GIT-14 Local-git forge: header state and the merge request to the agent
+ * @feature PR-08 the stack readiness the header reads for its "Merge stack" action, which runs the
+ * stack merge, the header's Resolve on a branch incompatible with its remote, which syncs a GitHub
+ * stack first, and the Graphite poll for the repository of the workspace on screen
  * Owns: right panel, top half. A header (status chip and main action), a tab strip, and the
  * active tab: Artifacts (when its setting is on), All files, Changes or Checks. Entry point
  * embedded by the workspace screen.
  * Behaviour: ui-map.md 3.6 (tab strip, header, tabs), 5.4 (Cmd+Shift+X fix errors); frontend
  * layout in structure-map.md 3.2.
- * Data: useGitState, useWorkspaceStatus (agent working), useActions().
+ * Data: useGitState, useWorkspaceStatus (agent working), useStack (the stack, judged for the
+ * workspace's pull request by core/status/stack-readiness.ts), useActions().
+ * While mounted, the panel watches its workspace's repository with the Graphite service and
+ * releases the watch on unmount or when the workspace moves to another repository, so `gt state`
+ * runs only for the repository on screen (services-map.md 3.8.1). It reads the stack of the
+ * checked-out branch from that poll (use-graphite-stack.ts) and hands it to the Changes tab. In a
+ * Graphite stack the header reads "N branches stacked" (the branches above the trunk) with no pull
+ * request action, and Cmd+Shift+L passes on, as Conductor's panel does.
  * Children: GitHeader, GitPanelTabs, artifacts/ArtifactsTab, changes/ChangesTab, files/FilesTab,
  * checks/ChecksTab. Each unbuilt tab body sits in its own NotBuiltYet boundary, keyed by the tab,
  * so a tab that is not built or fails shows which feature it is while the header and the tab strip
@@ -51,6 +61,7 @@ import {
 	useActions,
 	useGitState,
 	useSetting,
+	useStack,
 	useWorkspace,
 	useWorkspaceStatus,
 } from "../../core/hooks.ts";
@@ -67,6 +78,7 @@ import {
 	type GitHeaderActionId,
 	type GitHeaderInputs,
 } from "../../core/status/git-header.ts";
+import { headerStackInput, isInGitHubStack } from "../../core/status/stack-readiness.ts";
 import { Button } from "../../ui/Button.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { Skeleton } from "../../ui/Skeleton.tsx";
@@ -79,6 +91,7 @@ import { FilesTab } from "./files/FilesTab.tsx";
 import { GitHeader } from "./GitHeader.tsx";
 import { GitPanelTabs, type GitPanelViewTab } from "./GitPanelTabs.tsx";
 import { ReviewPromptDialog } from "./ReviewPromptDialog.tsx";
+import { useGraphiteStack } from "./use-graphite-stack.ts";
 
 export interface GitPanelProps {
 	workspaceId: WorkspaceId;
@@ -138,6 +151,19 @@ export function GitPanel({
 			? (state.reposById[workspace.data.repoId]?.remoteUrl ?? null)
 			: undefined,
 	);
+	const repoRootPath = useStore(services.repo.store, (state) =>
+		workspace.state === "ready" ? (state.reposById[workspace.data.repoId]?.rootPath ?? null) : null,
+	);
+	const graphite = services.graphite;
+	// Graphite polls only the repository of the workspace on screen (services-map.md 3.8.1).
+	useEffect(() => {
+		if (repoRootPath === null) return;
+		return graphite.watch(repoRootPath);
+	}, [graphite, repoRootPath]);
+	const graphiteStack = useGraphiteStack(
+		repoRootPath,
+		git.state === "ready" ? git.data.branch : null,
+	);
 	const automergeEnabled = useSetting<boolean>("automerge_enabled");
 	const optionalChecksBlocking = useSetting<boolean>("treat_optional_checks_as_blocking");
 	const artifactsTabEnabled = useSetting<boolean>("artifacts_tab_enabled");
@@ -162,6 +188,7 @@ export function GitPanel({
 		localForgeEnabled &&
 		repoRemoteUrl !== undefined &&
 		forgeForRemoteUrl(repoRemoteUrl) === "local";
+	const stack = useStack(workspaceId);
 	const localForgeEntry = useStore(localGitForge.store, (state) => state.byWorkspace[workspaceId]);
 	const localForgeInfo = localForgeActive ? (localForgeEntry?.info ?? null) : undefined;
 	const localForgeError = localForgeActive ? (localForgeEntry?.error ?? null) : undefined;
@@ -179,7 +206,10 @@ export function GitPanel({
 					localForgeError,
 					automergeSettingOn: automergeEnabled,
 					treatOptionalChecksAsBlocking: optionalChecksBlocking,
-					stack: null,
+					stack:
+						stack.state === "ready" && git.data.pullRequest !== null
+							? headerStackInput(stack.data, git.data.pullRequest.number)
+							: null,
 				}
 			: null;
 
@@ -277,6 +307,20 @@ export function GitPanel({
 				return run(actions.git.push(workspaceId), "Couldn't push");
 			case "resolve":
 				return run(actions.git.resolveConflicts(workspaceId), "Couldn't ask the agent to resolve");
+			case "resolve_incompatible": {
+				// A stacked branch first tries `gh stack sync`, as Conductor does. When the sync fails,
+				// Conductor shows no error of its own: it asks the agent instead, and so does this.
+				const pullRequest = git.state === "ready" ? git.data.pullRequest : null;
+				const entries = stack.state === "ready" ? stack.data : null;
+				if (isInGitHubStack(pullRequest, entries)) {
+					const synced = await actions.pullRequests.syncStack(workspaceId);
+					if (synced.ok) return;
+				}
+				return run(
+					gitService.resolveIncompatible(workspaceId),
+					"Couldn't ask the agent to resolve",
+				);
+			}
 			case "ready_for_review":
 				return run(
 					actions.pullRequests.markReady(workspaceId),
@@ -287,7 +331,6 @@ export function GitPanel({
 			case "approve":
 				return run(actions.pullRequests.approve(workspaceId), "Couldn't approve the pull request");
 			case "merge":
-			case "merge_stack":
 				// Only the GitHub forge can merge on the remote. A repository without a GitHub remote
 				// has the agent merge in the main worktree, like commit and push (GIT-14).
 				return run(
@@ -298,6 +341,9 @@ export function GitPanel({
 						? "Couldn't merge the pull request"
 						: "Couldn't ask the agent to merge",
 				);
+			case "merge_stack":
+				// A stack is read from GitHub, so only the GitHub forge offers this action.
+				return run(actions.pullRequests.mergeStack(workspaceId), "Couldn't merge the stack");
 			case "toggle_automerge": {
 				const pr = git.state === "ready" ? git.data.pullRequest : null;
 				return run(
@@ -352,8 +398,10 @@ export function GitPanel({
 		return true;
 	});
 
-	// Cmd+Shift+L reaches the same action as the header's Pull latest button.
+	// Cmd+Shift+L reaches the same action as the header's Pull latest button. A branch in a
+	// Graphite stack follows its Graphite parent, so the shortcut passes on, as in Conductor.
 	useCommandHandler("git.pullLatest", "area", () => {
+		if (graphiteStack.isInStack) return false;
 		void runGuarded("pull");
 		return true;
 	});
@@ -416,6 +464,18 @@ export function GitPanel({
 				</div>
 			);
 		}
+		// In a Graphite stack the header says how big the stack is and offers no pull request
+		// action: Graphite owns submitting and merging its stack (Conductor does the same).
+		if (graphiteStack.isInStack) {
+			const count = graphiteStack.branches.filter((branch) => !branch.trunk).length;
+			return (
+				<div className="flex h-10 items-center gap-2 border-b border-separator px-3">
+					<p className="min-w-0 flex-1 truncate text-sm font-medium text-fg-muted">
+						{count} {count === 1 ? "branch" : "branches"} stacked
+					</p>
+				</div>
+			);
+		}
 		if (headerInputs === null) return null;
 		return <ComputedHeader key={workspaceId} inputs={headerInputs} onAction={runGuarded} />;
 	})();
@@ -457,6 +517,7 @@ export function GitPanel({
 						scope={scope}
 						onScopeChange={setScope}
 						onOpenFile={(path) => openFile(path, "diff")}
+						graphiteStack={graphiteStack}
 					/>
 				) : (
 					<NotBuiltYet area="Checks" resetKey={`${workspaceId}:checks`}>

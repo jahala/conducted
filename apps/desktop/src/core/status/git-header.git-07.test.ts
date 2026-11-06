@@ -3,7 +3,8 @@
  * Owns: a test that the Git panel header offers the resolve action for a conflicted pull request.
  * Behaviour: ui-map.md 3.6 (header status chip and action), services-map.md 3.7.6 (the app detects
  * conflicts and sends the agent the resolve request).
- * Test first: a conflicted or diverged branch has the resolve action; a clean tree does not.
+ * Test first: a conflicted branch has the resolve action, a diverged one has PR-08's incompatibility
+ * Resolve instead; a clean tree has neither.
  */
 import { describe, expect, it } from "vitest";
 import type { GitState } from "../model.ts";
@@ -42,13 +43,14 @@ describe("GIT-07 Git header resolve action", () => {
 		expect(header.action?.id).toBe("resolve");
 	});
 
-	it("offers resolve when the branch has diverged from its target", () => {
+	it("offers the incompatibility Resolve, not the conflicts one, when the branch has diverged from its remote", () => {
 		const header = computeGitHeader(
 			inputs(gitState({ sync: { ahead: 1, behind: 1, rewritten: false, hasUpstream: true } })),
 		);
 
 		expect(header.kind).toBe("diverged");
-		expect(header.action?.id).toBe("resolve");
+		expect(header.action?.id).toBe("resolve_incompatible");
+		expect(header.action?.label).toBe("Resolve");
 	});
 
 	it("does not offer resolve when the branch is clean", () => {

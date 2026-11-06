@@ -74,7 +74,12 @@ export type SettingDef = {
 	feature: string;
 } & FileBacking &
 	(
-		| { type: "bool"; default: boolean }
+		| {
+				type: "bool";
+				default: boolean;
+				/** The stored key says the opposite of the title, so the switch shows the value inverted. */
+				shownInverted?: true;
+		  }
 		| { type: "string"; default: string }
 		| { type: "number"; default: number; min?: number; max?: number }
 		| { type: "enum"; default: string; options: readonly { value: string; label: string }[] }
@@ -816,28 +821,38 @@ const SETTINGS_TABLE = [
 		type: "bool",
 		default: false,
 	},
+	// Default on (services-map.md 4.2). Besides what its description says, the switch gates the stack
+	// read, sync and merge here. Conductor gates the stack sync and the stack readiness with it
+	// (services-map.md 5B.1.7, 5B.1.8).
 	{
 		key: "github_stacked_prs_enabled",
 		page: "git",
 		scopes: ["user"],
-		title: "Allow stacked pull requests",
-		description: "Tell agents they may use the gh stack command to build stacked pull requests.",
+		title: "Use GitHub stacked PRs",
+		description: "Instruct agents that they can use `gh stack` for PR stacking.",
 		searchTerms: ["stack", "stacked", "gh stack", "pull request"],
 		feature: "PR-08",
 		type: "bool",
 		default: true,
 	},
-	// Our design choice: off, so detection stays on, as the research gives no default.
+	// The stored key says disabled and the switch says support, as in Conductor (services-map.md
+	// 4.1.5), so the switch shows the opposite of the stored value. Graphite support starts off, so
+	// the app runs no `gt` until the user turns it on: Conductor's defaults hold `graphite_disabled`
+	// true (services-map.md 4.1) and a migration turns Graphite stacks off by default
+	// (native-and-sidecar-map.md). Conductor's description goes on about cloud workspaces, which
+	// this app does not have, so that sentence is left out.
 	{
 		key: "graphite_disabled",
-		page: "git",
+		page: "experimental",
 		scopes: ["user"],
-		title: "Turn off Graphite stack detection",
-		description: "Skip detecting Graphite stacks and hide the stack-aware parts of the git panel.",
-		searchTerms: ["graphite", "stack", "detect"],
+		title: "Graphite stack support",
+		description:
+			"Detect Graphite stacks for the active local workspace and show stack-aware UI in the git panel.",
+		searchTerms: ["graphite", "stack", "detect", "gt"],
 		feature: "PR-08",
 		type: "bool",
-		default: false,
+		default: true,
+		shownInverted: true,
 	},
 	{
 		key: "tool_approvals_enabled",
@@ -1679,6 +1694,18 @@ const SETTINGS_TABLE = [
 		feature: "APP-06",
 		type: "string",
 		default: "",
+	},
+	// Our design choice: one list for every callout, so "Reset callout dismissals" clears one value.
+	{
+		key: "dismissed_callouts",
+		page: "state",
+		scopes: ["user"],
+		title: "Dismissed callouts",
+		description: "Ids of the hints you dismissed, so they stay hidden.",
+		searchTerms: ["callout", "hint", "coach mark", "dismiss"],
+		feature: "APP-10",
+		type: "string-list",
+		default: [],
 	},
 	{
 		key: "local_env_vars_import_banner_dismissed",

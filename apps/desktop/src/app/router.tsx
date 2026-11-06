@@ -73,6 +73,16 @@ import { NotFoundScreen, RouteErrorScreen } from "./route-states.tsx";
 function NavigationShortcuts() {
 	const router = useRouter();
 	const navigate = useNavigate();
+	const pathname = useRouterState({ select: (state) => state.location.pathname });
+	useCommandHandler("app.openDiagnostics", "base", () => {
+		void navigate({ to: "/diagnostics" });
+		return true;
+	});
+	useCommandHandler("app.closeDiagnostics", "base", () => {
+		if (pathname !== "/diagnostics") return false;
+		void navigate({ to: "/" });
+		return true;
+	});
 	useCommandHandler("nav.back", "base", () => {
 		router.history.back();
 		return true;

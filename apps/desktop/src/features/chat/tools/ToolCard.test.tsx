@@ -10,9 +10,10 @@ const state = vi.hoisted(() => ({
 	expand: false,
 }));
 
-vi.mock("../../../core/hooks.ts", () => ({
-	useSetting: () => state.expand,
-}));
+vi.mock("../../../core/hooks.ts", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../../../core/hooks.ts")>();
+	return { ...actual, useSetting: () => state.expand };
+});
 
 const { ToolCard } = await import("./ToolCard.tsx");
 

@@ -90,7 +90,7 @@ describe("DATA-01 useSessions", () => {
 			store.setState({
 				liveStates: { a: idleLiveState },
 				events: { a: [] },
-				progress: { a: { steps: [] } },
+				progress: { a: { blocks: [] } },
 			});
 		});
 

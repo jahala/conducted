@@ -47,16 +47,26 @@ describe("diff scope codec", () => {
 		{ kind: "target", branch: "release/1.0" },
 		{ kind: "commit", sha: "abc1234" },
 		{ kind: "turn", sessionId: "s-1" as SessionId, turnId: "t-1" as TurnId },
+		{ kind: "range", prNumbers: [10] },
+		{ kind: "range", prNumbers: [10, 11, 12] },
 	];
 
 	it.each(scopes)("round-trips %j", (scope) => {
 		expect(parseDiffScope(formatDiffScope(scope))).toEqual(scope);
 	});
 
-	it.each(["", "other", "target:", "commit", "turn:only-one", "turn:a:b:c"])(
-		"rejects %j",
-		(text) => {
-			expect(parseDiffScope(text)).toBeNull();
-		},
-	);
+	it.each([
+		"",
+		"other",
+		"target:",
+		"commit",
+		"turn:only-one",
+		"turn:a:b:c",
+		"range:",
+		"range:0",
+		"range:1:x",
+		"range:-2",
+	])("rejects %j", (text) => {
+		expect(parseDiffScope(text)).toBeNull();
+	});
 });

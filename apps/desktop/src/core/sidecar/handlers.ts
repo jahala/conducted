@@ -11,7 +11,8 @@
  * adopted status and any open interaction, and a failed live-state write is thrown so the tunnel
  * logs it; `agentSessionId` stores the agent's own session id so the next message resumes, and a
  * failed write is thrown so the tunnel logs it; `agentInstallsChanged` updates the agent catalog;
- * `agentConfigChanged` stores the config the agent chose; a failed write is retried through the
+ * `progress` hands the agent's tracker to the live-state port; `agentConfigChanged` stores the
+ * config the agent chose; a failed write is retried through the
  * same single writer, and one that still fails is thrown so the tunnel logs it;
  * `interactionClosed` marks a timed-out card and settles the pending request;
  * `shellEnvFailed` logs the folder, kind and message; `remoteControlState` shows a Claude chat's
@@ -212,7 +213,9 @@ export function createSidecarNotificationHandlers(
 				throw new Error(`Could not store the agent session id: ${written.error.message}`);
 			}
 		},
-		progress: () => notImplemented("CHAT-13"),
+		progress: async (params) => {
+			ports.liveState.setProgress(params);
+		},
 		agentInstallsChanged: async (params) => {
 			ports.agentCatalog.setAgentInstalls(params);
 		},

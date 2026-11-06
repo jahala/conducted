@@ -7,12 +7,13 @@
  * Must handle: no action (chip only), an action in flight (spinner, clicks ignored), a failed
  * action (button usable again; the parent shows the error toast from the Result), a waiting note
  * instead of a button (reviewer cannot approve own PR), the user's current key binding shown on
- * the button, the Retry action for missing PR info, and narrow panel widths (title truncates,
- * button keeps its label).
+ * the button, the Retry action for missing PR info, narrow panel widths (title truncates,
+ * button keeps its label), and an action's tooltip and count ("Merge stack" shows how many pull
+ * requests it merges, and says so in its tooltip).
  * Test first: a model with kind "ready_to_merge" renders a Merge button, and clicking it calls
  * onAction with "merge" once even if clicked twice while busy.
  */
-import { useState } from "react";
+import { type ReactElement, useState } from "react";
 import { createSingleFlight } from "../../core/async/single-flight.ts";
 import { useLiveShortcut } from "../../core/hooks.ts";
 import type {
@@ -24,6 +25,7 @@ import { Badge, type BadgeTone } from "../../ui/Badge.tsx";
 import { Button } from "../../ui/Button.tsx";
 import { Kbd } from "../../ui/Kbd.tsx";
 import { Popover } from "../../ui/Popover.tsx";
+import { Tooltip } from "../../ui/Tooltip.tsx";
 
 export interface GitHeaderProps {
 	model: GitHeaderModel;
@@ -96,22 +98,40 @@ export function GitHeader({ model, onAction }: GitHeaderProps) {
 			{model.action !== null && model.action.waitingNote !== null ? (
 				<span className="shrink-0 text-xs text-fg-muted">{model.action.waitingNote}</span>
 			) : model.action !== null ? (
-				<Button
-					size="sm"
-					loading={busy}
-					disabled={busy}
-					onClick={() => run(model.action?.id ?? "retry")}
-					className="shrink-0"
-				>
-					{model.action.label}
-					{shortcut !== null ? (
-						// The key glyphs are a visual hint. A screen reader should hear only the action's name.
-						<span aria-hidden="true">
-							<Kbd>{shortcut}</Kbd>
-						</span>
-					) : null}
-				</Button>
+				<ActionTooltip content={model.action.tooltip}>
+					<Button
+						size="sm"
+						loading={busy}
+						disabled={busy}
+						onClick={() => run(model.action?.id ?? "retry")}
+						className="shrink-0"
+					>
+						{model.action.label}
+						{model.action.count !== undefined ? (
+							<span className="rounded-full bg-canvas/20 px-1.5 tabular-nums">
+								{model.action.count}
+							</span>
+						) : null}
+						{shortcut !== null ? (
+							// The key glyphs are a visual hint. A screen reader should hear only the action's name.
+							<span aria-hidden="true">
+								<Kbd>{shortcut}</Kbd>
+							</span>
+						) : null}
+					</Button>
+				</ActionTooltip>
 			) : null}
 		</div>
 	);
+}
+
+/** Wraps the action button in its tooltip, when the action has one. */
+function ActionTooltip({
+	content,
+	children,
+}: {
+	content: string | undefined;
+	children: ReactElement;
+}) {
+	return content === undefined ? children : <Tooltip content={content}>{children}</Tooltip>;
 }

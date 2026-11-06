@@ -47,6 +47,7 @@ const SERVICE_NAMES = Object.keys({
 	mcp: true,
 	linear: true,
 	git: true,
+	graphite: true,
 	gitCache: true,
 	github: true,
 	localGitForge: true,

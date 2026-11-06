@@ -131,6 +131,8 @@ export function createLookups(sources: LookupSources): Lookups {
 		prContext(id) {
 			const ws = workspace(id);
 			if (!ws.ok) return ws;
+			const repo = repoOf(id);
+			if (!repo.ok) return repo;
 			const remote = remoteNameOf(id);
 			if (!remote.ok) return remote;
 			const config = sources.repos().getState().configs[ws.value.repoId];
@@ -138,6 +140,7 @@ export function createLookups(sources: LookupSources): Lookups {
 			return ok({
 				workspaceId: id,
 				workspacePath: ws.value.path,
+				repoRootPath: repo.value.rootPath,
 				branch: ws.value.branch,
 				remote: remote.value,
 				prNumber: ws.value.prNumber,
