@@ -512,3 +512,9 @@ Why: one feature needed them, so the kill rule (a contract change blocking more 
 Context: PR-08's Resolve on a diverged stacked branch falls back to asking the agent; Conductor sends "Resolve branch incompatibility with remote", which the chat shows as the user's message. D002 forbids copying prompt text; D020 asks for Conductor's wording on screen.
 Chosen: a short message the app sends in the user's name, which the chat shows as the user's line, is on-screen wording and matches Conductor (D020). Longer instructions to the agent that the user does not see as their own line stay in our own words (D002).
 Why: the user reads that line in the chat like any label.
+
+## D077. DeepSeek builders run outside the three-agent cap (2026-11-06)
+
+Context: the owner's cap of three agents at once covered the DeepSeek builders too, so with Opus fixers and builds holding two slots, a batch's eight features built one after another (53 minutes for s1-ui-1, about 7 minutes each). The builders do not use the Claude subscription, and their gates are about 15 seconds of type-check, lint and guards.
+Chosen by the owner: DeepSeek builders run outside the cap, in parallel as needed. The cap of three still holds for Claude agents (Opus and Sonnet). The lead runs at most two batch plans at once with three builders each, and still lands one batch at a time; Rust builds and full test suites stay one at a time.
+Why: the builders were the bottleneck, and they cost the owner's subscription nothing.
