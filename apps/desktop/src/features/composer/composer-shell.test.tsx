@@ -154,7 +154,7 @@ const harness = (options: HarnessOptions = {}) => {
 		loadSlashCommands: vi.fn(async () => ok([])),
 	};
 	const platform = {
-		app: { writeLog: vi.fn(), onDeepLink: () => () => {} },
+		app: { writeLog: vi.fn(), onDeepLink: () => () => {}, onDeepLinkRejected: () => () => {} },
 		menu: {
 			setShortcuts: vi.fn(async () => ok({ applied: [], rejected: [] })),
 			onCommand: () => () => {},
