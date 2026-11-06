@@ -33,17 +33,19 @@ async function setup(text: string) {
 		workspace,
 		absolute,
 		gitCalls,
+		/** The text the screen read and drew its rows from. */
+		seen: text,
 		service: test.container.services.workspaceFiles,
 	};
 }
 
 describe("REV-11 WorkspaceFilesService conflict resolution", () => {
 	it("replaces a conflict with the current side and stages the file", async () => {
-		const { test, workspace, absolute, gitCalls, service } = await setup(
+		const { test, workspace, absolute, gitCalls, seen, service } = await setup(
 			conflict("ours", "theirs"),
 		);
 		try {
-			const result = await service.resolveConflicts(workspace.id, "a.ts", ["current"]);
+			const result = await service.resolveConflicts(workspace.id, "a.ts", ["current"], seen);
 
 			expect(result).toEqual(ok(undefined));
 			expect(test.memory.controls.files.get(absolute)).toBe("ours\n");
@@ -70,9 +72,14 @@ describe("REV-11 WorkspaceFilesService conflict resolution", () => {
 			">>>>>>> feature",
 			"last line",
 		].join("\n");
-		const { test, workspace, absolute, service } = await setup(text);
+		const { test, workspace, absolute, seen, service } = await setup(text);
 		try {
-			const result = await service.resolveConflicts(workspace.id, "a.ts", ["both", "incoming"]);
+			const result = await service.resolveConflicts(
+				workspace.id,
+				"a.ts",
+				["both", "incoming"],
+				seen,
+			);
 
 			expect(result).toEqual(ok(undefined));
 			expect(test.memory.controls.files.get(absolute)).toBe(
@@ -93,9 +100,9 @@ describe("REV-11 WorkspaceFilesService conflict resolution", () => {
 			"theirs",
 			">>>>>>> feature",
 		].join("\n");
-		const { test, workspace, absolute, service } = await setup(text);
+		const { test, workspace, absolute, seen, service } = await setup(text);
 		try {
-			const result = await service.resolveConflicts(workspace.id, "a.ts", ["both"]);
+			const result = await service.resolveConflicts(workspace.id, "a.ts", ["both"], seen);
 
 			expect(result).toEqual(ok(undefined));
 			expect(test.memory.controls.files.get(absolute)).toBe("ours\ntheirs");
@@ -106,9 +113,9 @@ describe("REV-11 WorkspaceFilesService conflict resolution", () => {
 
 	it("refuses malformed markers without changing the file or staging it", async () => {
 		const text = "<<<<<<< HEAD\nours\n>>>>>>> feature\n";
-		const { test, workspace, absolute, gitCalls, service } = await setup(text);
+		const { test, workspace, absolute, gitCalls, seen, service } = await setup(text);
 		try {
-			const result = await service.resolveConflicts(workspace.id, "a.ts", ["current"]);
+			const result = await service.resolveConflicts(workspace.id, "a.ts", ["current"], seen);
 
 			expect(result.ok).toBe(false);
 			if (!result.ok) expect(result.error.code).toBe("conflict_markers_malformed");
@@ -121,9 +128,9 @@ describe("REV-11 WorkspaceFilesService conflict resolution", () => {
 
 	it("refuses a choice count that does not match the file, without writing", async () => {
 		const text = `${conflict("one", "two")}${conflict("three", "four")}`;
-		const { test, workspace, absolute, gitCalls, service } = await setup(text);
+		const { test, workspace, absolute, gitCalls, seen, service } = await setup(text);
 		try {
-			const result = await service.resolveConflicts(workspace.id, "a.ts", ["both"]);
+			const result = await service.resolveConflicts(workspace.id, "a.ts", ["both"], seen);
 
 			expect(result.ok).toBe(false);
 			if (!result.ok) expect(result.error.code).toBe("conflict_choice_count");
@@ -135,14 +142,14 @@ describe("REV-11 WorkspaceFilesService conflict resolution", () => {
 	});
 
 	it("reports a save that landed but could not be staged as its own failure", async () => {
-		const { test, workspace, absolute, service } = await setup(conflict("ours", "theirs"));
+		const { test, workspace, absolute, seen, service } = await setup(conflict("ours", "theirs"));
 		test.memory.controls.scriptShell((command) =>
 			command.program === "git" && command.args.includes("add")
 				? ok({ stdout: "", stderr: "fatal: Unable to create '.git/index.lock'", exitCode: 128 })
 				: null,
 		);
 		try {
-			const result = await service.resolveConflicts(workspace.id, "a.ts", ["current"]);
+			const result = await service.resolveConflicts(workspace.id, "a.ts", ["current"], seen);
 
 			expect(result.ok).toBe(false);
 			if (!result.ok) {
@@ -155,10 +162,33 @@ describe("REV-11 WorkspaceFilesService conflict resolution", () => {
 		}
 	});
 
-	it("refuses a file with no conflict markers, so an unrelated file is not staged", async () => {
-		const { test, workspace, absolute, gitCalls, service } = await setup("plain text");
+	it("refuses with nothing written when the file changed after the screen read it", async () => {
+		const { test, workspace, absolute, gitCalls, seen, service } = await setup(
+			conflict("ours", "theirs"),
+		);
+		const rewritten = conflict("rewritten", "by the agent");
+		test.memory.controls.files.set(absolute, rewritten);
 		try {
-			const result = await service.resolveConflicts(workspace.id, "a.ts", []);
+			const result = await service.resolveConflicts(workspace.id, "a.ts", ["current"], seen);
+
+			expect(result.ok).toBe(false);
+			if (!result.ok) {
+				expect(result.error.code).toBe("conflict_changed_on_disk");
+				expect(result.error.message).toBe(
+					'"a.ts" changed on disk after its conflicts were shown. Check them again.',
+				);
+			}
+			expect(test.memory.controls.files.get(absolute)).toBe(rewritten);
+			expect(gitCalls).toEqual([]);
+		} finally {
+			test.close();
+		}
+	});
+
+	it("refuses a file with no conflict markers, so an unrelated file is not staged", async () => {
+		const { test, workspace, absolute, gitCalls, seen, service } = await setup("plain text");
+		try {
+			const result = await service.resolveConflicts(workspace.id, "a.ts", [], seen);
 
 			expect(result.ok).toBe(false);
 			if (!result.ok) expect(result.error.code).toBe("conflict_markers_missing");
