@@ -37,7 +37,7 @@
  * a content tab is open belongs to the tab strip (NAV-10); the new-workspace form reusing this
  * editor belongs to workspace creation (WS-01). The archived bar (ArchivedComposerBar) is not
  * rendered here: NAV-10's workspace gate replaces the whole screen of an archived workspace.
- * Dictation (COMP-08) is not mounted in this toolbar yet.
+ * The toolbar also holds the dictation button (COMP-08), which inserts its transcript at the caret.
  * Test first: With text typed and the agent idle, the send button is enabled; while the agent works
  * it reads 'Queue message' and a Cancel button shows.
  */
@@ -62,6 +62,7 @@ import { AcpOptions } from "./AcpOptions.tsx";
 import { AttachmentBar } from "./AttachmentBar.tsx";
 import { ComposerEditor } from "./ComposerEditor.tsx";
 import { buildComposerExtensions } from "./composer-extensions.ts";
+import { DictationButton } from "./DictationButton.tsx";
 import { LinkDirectoriesDialog } from "./LinkDirectoriesDialog.tsx";
 import { LinkIssueDialog } from "./LinkIssueDialog.tsx";
 import { ModeChips } from "./ModeChips.tsx";
@@ -440,6 +441,12 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 		editorRef.current?.commands.focus("end");
 	}, []);
 
+	const insertTranscript = useCallback((text: string) => {
+		const current = editorRef.current;
+		if (current === null) return;
+		current.chain().focus().insertContent(text).run();
+	}, []);
+
 	useCommandHandler("chat.cancelAgent", "area", () => {
 		if (!working) return false;
 		void stop();
@@ -509,6 +516,7 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 					<AcpOptions sessionId={sessionId} />
 				</div>
 				<div className="flex shrink-0 items-center gap-1">
+					<DictationButton onTranscript={insertTranscript} />
 					<RemoteControlButton sessionId={sessionId} />
 					<ContextWheel sessionId={sessionId} />
 					{narrow ? (
