@@ -9,9 +9,8 @@
 import { describe, expect, test } from "bun:test";
 import type { AgentMessage, SessionConfig } from "@conducted/protocol";
 import type { SessionId, ToolUseId, WorkspaceId } from "@conducted/shared";
-import { ok } from "@conducted/shared";
+import { createKeyedQueue, ok } from "@conducted/shared";
 import { createLogger, type LogRecord } from "../../logging/logger.ts";
-import { KeyedSerialQueue } from "../../session/serial-queue.ts";
 import {
 	FakeCursorRun,
 	FakeCursorSdk,
@@ -108,7 +107,7 @@ function makeSession(
 ) {
 	const translator = new FakeCursorTranslator();
 	const target: Record<string, string | undefined> = {};
-	const envLock = new EnvLock({ queue: new KeyedSerialQueue(), target });
+	const envLock = new EnvLock({ queue: createKeyedQueue(), target });
 	let loads = 0;
 	let disposals = 0;
 	const session = new CursorSession(
@@ -431,7 +430,7 @@ describe("AGENT-09 Cursor session", () => {
 		const session = new CursorSession(
 			{
 				loadSdk: async () => ok(sdk),
-				envLock: new EnvLock({ queue: new KeyedSerialQueue(), target }),
+				envLock: new EnvLock({ queue: createKeyedQueue(), target }),
 				translator: new FakeCursorTranslator() as unknown as CursorTranslator,
 				apiKey: "cursor-key",
 				mcpServers: {},

@@ -10,7 +10,7 @@ What the parts are, what each may depend on, and where each kind of logic lives.
 | Web UI     | `apps/desktop/src`       | the WebKit view inside the app | Everything visible, all database reads and writes, all git and `gh` commands, the follow-up queue, settings                                                           |
 | Sidecar    | `packages/sidecar`       | a separate Bun process         | Agent processes (one per active chat), turns, steering, interactions, checkpoints, prompt assembly, the write-ahead event log, the app tools agents call              |
 | Protocol   | `packages/protocol`      | library                        | Zod schemas for every message between the UI and the sidecar, the session events, live state and the neutral agent-message format                                     |
-| Shared     | `packages/shared`        | library                        | Branded ids, `Result`, `notImplemented`, `Clock`, `IdSource` and the error helpers                                                                                    |
+| Shared     | `packages/shared`        | library                        | Branded ids, `Result`, `notImplemented`, `Clock`, `IdSource`, the error helpers and the keyed serial queue                                                            |
 | Scripts    | `bin/`                   | shell                          | Git snapshots (`checkpointer.sh`), the busy-repo check, Spotlight                                                                                                     |
 
 How they talk:
@@ -55,8 +55,8 @@ Use these before writing your own. A second copy is a finding in review.
 
 | Need                                       | Use                                              | Lives in                                                                |
 | ------------------------------------------ | ------------------------------------------------ | ----------------------------------------------------------------------- |
-| Run work one at a time per key             | `createKeyedQueue`                               | `apps/desktop/src/core/async/serial-queue.ts`                           |
-| Store, then acknowledge, in order          | `persistThenAck`                                 | `apps/desktop/src/core/async/serial-queue.ts`                           |
+| Run work one at a time per key             | `createKeyedQueue`                               | `packages/shared/src/serial-queue.ts`                                   |
+| Store, then acknowledge, in order          | `persistThenAck`                                 | `packages/shared/src/serial-queue.ts`                                   |
 | Ignore a second request while one runs     | `createSingleFlight`                             | `apps/desktop/src/core/async/single-flight.ts`                          |
 | Let only the newest answer change state    | `createLatestWins`                               | `apps/desktop/src/core/async/latest-wins.ts`                            |
 | Optimistic change with rollback            | `createOptimisticStore`                          | `apps/desktop/src/core/async/optimistic.ts`                             |

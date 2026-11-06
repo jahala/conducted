@@ -27,13 +27,14 @@ import type { AgentMessage, SessionEvent, SessionEventEnvelope } from "@conducte
 import {
 	type AppError,
 	appError,
+	createKeyedQueue,
 	err,
 	ok,
+	persistThenAck,
 	type Result,
 	type SessionId,
 	type TurnId,
 } from "@conducted/shared";
-import { createKeyedQueue, persistThenAck } from "../async/serial-queue.ts";
 import type { Repositories } from "../db/repositories.ts";
 import type { Session } from "../model.ts";
 import type { SidecarClient } from "./tunnel.ts";

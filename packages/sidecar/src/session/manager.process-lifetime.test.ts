@@ -12,6 +12,7 @@ import type { SessionConfig, WorkspaceContext } from "@conducted/protocol";
 import {
 	type AppError,
 	type Clock,
+	createKeyedQueue,
 	type MessageId,
 	ok,
 	type Result,
@@ -43,7 +44,6 @@ import { FakeInteractions } from "../test-support/fake-interactions.ts";
 import { FakePublisher } from "../test-support/fake-publisher.ts";
 import { LiveStateStore } from "./live-state.ts";
 import { DefaultSessionManager } from "./manager.ts";
-import { KeyedSerialQueue } from "./serial-queue.ts";
 
 const sessionId = "session-1" as SessionId;
 
@@ -199,7 +199,7 @@ function harness() {
 		publisher,
 		liveState,
 		interactions: new FakeInteractions(),
-		queue: new KeyedSerialQueue(),
+		queue: createKeyedQueue(),
 		models: new RunnerModelCatalog({ runners: registry, logger, clock }),
 		clock,
 		ids: { uuid: () => `id-${++nextId}` },

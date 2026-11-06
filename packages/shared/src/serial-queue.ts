@@ -1,13 +1,16 @@
 /**
  * @feature APP-11 Serial queue per key
+ * @feature SIDE-03 Session manager: per-session queue
  * Owns: running async tasks one after another for one key (a chat, a database, a local file), or at the same
- * time with barriers that wait for everything before them.
+ * time with barriers that wait for everything before them. Both runtimes use this one queue: the desktop's
+ * services and the sidecar's session manager, write-ahead log, live state and slash-command cache.
  * Behaviour: services-map.md 1.5 (task queue `Ns`: type "serial" or "concurrent", tasks of type "barrier"),
  * 2.5.3 (write queues: one per chat, one per database for navigation sections, one for local-storage writes;
  * a barrier across several queues; a per-session promise chain that orders transcript writes), appendix copy
- * order 4 (a per-session serial queue, ack after persist).
+ * order 4 (a per-session serial queue, ack after persist); sessions.md section 2 (`query` and `steer` run on
+ * a serial queue per session; `cancel` is deliberately not on it).
  * Our design choice: a factory returns a queue object; the state lives in that object, never in the module
- * (docs/architecture.md, State and time). The container creates one per owner and passes it to services.
+ * (docs/architecture.md, State and time). Each composition root creates one per owner and passes it on.
  * `persistThenAck` is the copy-order-4 protocol on top of one queue: write the event, then acknowledge it
  * to its sender only when the write succeeded.
  * Must handle: a task that rejects (the next task still runs; the failure reaches only its own caller);
@@ -19,7 +22,7 @@
  * Test first: three tasks queued on key "a" run in order even when the first is slowest; a failing first
  * task does not stop the second; a failed write is not acknowledged.
  */
-import type { Result } from "@conducted/shared";
+import type { Result } from "./result.ts";
 
 export interface KeyedQueue<K extends string = string> {
 	/** Runs `task` after every task already queued on `key`. Resolves or rejects with the task's outcome. */

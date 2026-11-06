@@ -23,14 +23,22 @@
  * Test first: a repo shared value beats the user file for a repo-scoped key, and is ignored for a
  * user-only key.
  */
-import { type AppError, appError, err, ok, type RepoId, type Result } from "@conducted/shared";
+import {
+	type AppError,
+	appError,
+	createKeyedQueue,
+	err,
+	type KeyedQueue,
+	ok,
+	type RepoId,
+	type Result,
+} from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform } from "../../platform/platform.ts";
 import type { Loadable } from "../api.ts";
 import { localSettingsFile, sharedSettingsFile, userSettingsFile } from "../app-paths.ts";
 import { fireAndForget } from "../async/fire-and-forget.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
-import { createKeyedQueue, type KeyedQueue } from "../async/serial-queue.ts";
 import type { EnvVar } from "../db/env-vars.ts";
 import type { RepoRepository } from "../db/repos.ts";
 import type { Repositories } from "../db/repositories.ts";

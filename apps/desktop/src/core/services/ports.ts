@@ -18,9 +18,15 @@
  * and any other failure as `ports_unavailable` naming what could not be read.
  * Test first: allocatePort with 55000 and 55010 taken returns 55020.
  */
-import { appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
+import {
+	appError,
+	createKeyedQueue,
+	err,
+	ok,
+	type Result,
+	type WorkspaceId,
+} from "@conducted/shared";
 import type { Platform } from "../../platform/platform.ts";
-import { createKeyedQueue } from "../async/serial-queue.ts";
 import type { Repositories } from "../db/repositories.ts";
 
 export const PORT_BASE = 55_000;

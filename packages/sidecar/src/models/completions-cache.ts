@@ -34,6 +34,7 @@ import {
 	type AppError,
 	appError,
 	type Clock,
+	createKeyedQueue,
 	err,
 	messageOf,
 	ok,
@@ -41,7 +42,6 @@ import {
 } from "@conducted/shared";
 import { z } from "zod";
 import type { Logger } from "../logging/logger.ts";
-import { KeyedSerialQueue } from "../session/serial-queue.ts";
 
 export const COMPLETIONS_FILE_NAME = "slash-command-snapshots.json";
 export const COMPLETIONS_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
@@ -167,7 +167,7 @@ function isUnexpired(entry: CompletionsEntry, now: number): boolean {
 
 export class FileCompletionsCache implements CompletionsCache {
 	/** Writes to the cache file run one at a time, so two chats refreshing at once both land. */
-	private readonly writes = new KeyedSerialQueue();
+	private readonly writes = createKeyedQueue();
 
 	constructor(
 		protected readonly deps: {

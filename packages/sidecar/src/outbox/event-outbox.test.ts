@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import type { SessionEvent } from "@conducted/protocol";
 import type { EventId, SessionId, TurnId } from "@conducted/shared";
+import { createKeyedQueue } from "@conducted/shared";
 import { createLogger, type LogRecord } from "../logging/logger.ts";
-import { KeyedSerialQueue } from "../session/serial-queue.ts";
 import { MemoryStorage } from "../test-support/memory-storage.ts";
 import {
 	FileEventOutbox,
@@ -40,7 +40,7 @@ function harness() {
 	const build = () =>
 		new FileEventOutbox({
 			storage,
-			queue: new KeyedSerialQueue(),
+			queue: createKeyedQueue(),
 			clock,
 			logger,
 		});

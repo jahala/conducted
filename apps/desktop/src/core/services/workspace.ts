@@ -83,6 +83,7 @@ import type { SessionConfig } from "@conducted/protocol";
 import {
 	type AppError,
 	appError,
+	createKeyedQueue,
 	err,
 	notImplemented,
 	ok,
@@ -98,7 +99,6 @@ import { globToRegExp } from "../../platform/glob.ts";
 import type { Platform } from "../../platform/platform.ts";
 import type { Draft, NewWorkspaceInput, UnarchiveOutcome } from "../api.ts";
 import { setupLogFile, viewedFilesFile } from "../app-paths.ts";
-import { createKeyedQueue } from "../async/serial-queue.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
 import type { ArchivingWorkspace } from "../db/repair.ts";
 import type { Repositories } from "../db/repositories.ts";

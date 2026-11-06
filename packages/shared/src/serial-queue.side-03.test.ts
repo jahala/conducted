@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { KeyedSerialQueue } from "./serial-queue.ts";
+import { createKeyedQueue } from "./serial-queue.ts";
 
 function deferred() {
 	let resolve!: () => void;
@@ -10,7 +10,7 @@ function deferred() {
 }
 
 test("jobs on one key run in arrival order even when the first is slowest", async () => {
-	const queue = new KeyedSerialQueue();
+	const queue = createKeyedQueue();
 	const order: string[] = [];
 	const gate = deferred();
 	const a = queue.run("s", async () => {
@@ -29,7 +29,7 @@ test("jobs on one key run in arrival order even when the first is slowest", asyn
 });
 
 test("a rejected job does not stop the next one, and its caller sees the rejection", async () => {
-	const queue = new KeyedSerialQueue();
+	const queue = createKeyedQueue();
 	const failing = queue.run("s", async () => {
 		throw new Error("boom");
 	});
@@ -39,14 +39,12 @@ test("a rejected job does not stop the next one, and its caller sees the rejecti
 });
 
 test("different keys do not wait for each other and leave no state behind", async () => {
-	const queue = new KeyedSerialQueue();
+	const queue = createKeyedQueue();
 	const gate = deferred();
 	const slow = queue.run("one", () => gate.promise);
 	const fast = await queue.run("two", async () => "done");
 	expect(fast).toBe("done");
 	gate.resolve();
 	await slow;
-	await Promise.resolve();
-	await Promise.resolve();
-	expect(queue.activeKeys).toBe(0);
+	expect(queue.activeKeys()).toBe(0);
 });

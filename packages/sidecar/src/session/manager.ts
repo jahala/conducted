@@ -75,6 +75,7 @@ import type {
 	Clock,
 	EventId,
 	IdSource,
+	KeyedQueue,
 	MessageId,
 	Result,
 	SessionId,
@@ -125,7 +126,6 @@ import type { QueuedMessages } from "./queued-messages.ts";
 import { QueuedMessages as Queue } from "./queued-messages.ts";
 import type { RunNumber } from "./run-guard.ts";
 import { RunGuard } from "./run-guard.ts";
-import type { KeyedSerialQueue } from "./serial-queue.ts";
 import { chooseDelivery, resolveSteerFailure, type SteerFailure } from "./steering.ts";
 import { Turn, type TurnDeps, type TurnRequest } from "./turn.ts";
 
@@ -212,7 +212,7 @@ export interface SessionManagerDeps {
 	publisher: EventPublisher;
 	liveState: LiveStateStore;
 	interactions: InteractionBroker;
-	queue: KeyedSerialQueue;
+	queue: KeyedQueue;
 	/** The one home for each agent's model list, with its cache (SIDE-14). warmAgent reads it. */
 	models: Pick<ModelCatalog, "list">;
 	clock: Clock;

@@ -10,6 +10,7 @@ import type {
 import {
 	type AppError,
 	appError,
+	createKeyedQueue,
 	type EventId,
 	err,
 	type MessageId,
@@ -48,7 +49,6 @@ import {
 	type SessionTurn,
 } from "../session/manager.ts";
 import type { RunNumber } from "../session/run-guard.ts";
-import { KeyedSerialQueue } from "../session/serial-queue.ts";
 import type { UtilityPromptRunner } from "../session/utility-prompt.ts";
 import type { CapturedShellEnv, ShellEnvProvider } from "../shell-env/capture.ts";
 import { FakeApp } from "../test-support/fake-app.ts";
@@ -194,7 +194,7 @@ function buildManager(agent: AgentSession, logger: Logger): DefaultSessionManage
 		publisher: new FakePublisher(),
 		liveState: new LiveStateStore({ app, flushed: async () => {} }),
 		interactions: new FakeInteractions(),
-		queue: new KeyedSerialQueue(),
+		queue: createKeyedQueue(),
 		models: new RunnerModelCatalog({ runners: registry, logger, clock: { now: () => 1000 } }),
 		clock: { now: () => 1000 },
 		ids: { uuid: () => `id-${++nextId}` },

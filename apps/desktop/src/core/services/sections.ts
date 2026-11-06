@@ -15,6 +15,7 @@
  */
 import {
 	appError,
+	createKeyedQueue,
 	err,
 	ok,
 	type Result,
@@ -24,7 +25,6 @@ import {
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Database } from "../../platform/platform.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
-import { createKeyedQueue } from "../async/serial-queue.ts";
 import type { Repositories } from "../db/repositories.ts";
 import type { Section } from "../model.ts";
 
