@@ -8,7 +8,9 @@
  * Must handle: `--version` anywhere else than the first argument (not a flag, so the usage message
  * applies); a version that is empty (an error value, no guess); an unknown CPU (an error value that
  * names the CPU); the Tauri file name, which is the program name plus the Rust target triple; the
- * Rust shell's copy of the program name (one constant on each side, compared by a contract test).
+ * Rust shell's copy of the program name (one constant on each side, compared by a contract test);
+ * a package on disk whose entry sits in a subfolder, such as Cursor's SDK in app data (AGENT-09):
+ * the build reads package.json files at run time (`COMPILE_FLAGS`, packaging.compile.test.ts).
  * Our design choice: one compiled program per CPU, named for Tauri's `externalBin` rule
  * (`conducted-sidecar-<triple>`). The package `build` script runs this file and compiles both CPUs
  * into `apps/desktop/src-tauri/binaries`; PLAT-25 adds `bundle.externalBin` to `tauri.conf.json`,
@@ -64,13 +66,20 @@ export function externalBinName(target: SidecarTarget): string {
 	return `${SIDECAR_PROGRAM_NAME}-${target.rustTriple}`;
 }
 
+/**
+ * The flags every sidecar build is compiled with. A Bun standalone program reads no package.json
+ * at run time by default, so it cannot import a package on disk whose entry is in a subfolder;
+ * Cursor's SDK, which the sidecar loads from app data (AGENT-09), needs that.
+ */
+export const COMPILE_FLAGS: readonly string[] = ["--compile", "--compile-autoload-package-json"];
+
 /** The `bun build --compile` command line for one CPU, with the output folder given. */
 export function compileArguments(target: SidecarTarget, outDir: string): readonly string[] {
 	return [
 		"bun",
 		"build",
 		"src/main.ts",
-		"--compile",
+		...COMPILE_FLAGS,
 		"--target",
 		target.bunTarget,
 		"--outfile",

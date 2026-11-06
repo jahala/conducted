@@ -100,7 +100,7 @@ import { SectionsService } from "./services/sections.ts";
 import { SessionsService } from "./services/sessions.ts";
 import { SettingsService, type TomlCodec } from "./services/settings.ts";
 import { SpotlightService } from "./services/spotlight.ts";
-import { SystemService } from "./services/system.ts";
+import { SystemService, type SystemState } from "./services/system.ts";
 import {
 	DEFAULT_TERMINAL_OUTPUT_LINES,
 	NO_TERMINAL_OUTPUT,
@@ -284,6 +284,17 @@ function launchTakesKey(
 	return (
 		key.provider.toLowerCase() === signIn.provider && signInEnvVars(signIn).includes(key.envVar)
 	);
+}
+
+/** True when Cursor's SDK is ready in `next` and was not in `previous` (AGENT-09). */
+function cursorBecameReady(
+	previous: SystemState["programs"],
+	next: SystemState["programs"],
+): boolean {
+	const ready = (programs: SystemState["programs"]): boolean =>
+		programs.state === "ready" &&
+		programs.data.some((view) => view.status.program === "cursor" && view.status.state === "ready");
+	return ready(next) && !ready(previous);
 }
 
 /** Builds everything. Does no I/O. */
@@ -1074,6 +1085,13 @@ export function createContainer(inputs: ContainerInputs): Container {
 	cleanups.push(
 		system.store.subscribe((state, previous) => {
 			if (state.programs === previous.programs) return;
+			// Cursor's SDK is found by the sidecar's agent detection, which runs when asked: once the
+			// SDK becomes ready, the agent list is read again, so Cursor can be picked (AGENT-09).
+			if (cursorBecameReady(previous.programs, state.programs)) {
+				void agentCatalog.refresh().then((result) => {
+					if (!result.ok) log("warn", `Could not read the agent list: ${result.error.message}`);
+				});
+			}
 			for (const sessionId of Object.keys(followUpQueue.store.getState().bySession)) {
 				void followUpQueue.release(sessionId as SessionId).then((result) => {
 					if (!result.ok) {

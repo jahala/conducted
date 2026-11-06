@@ -12,6 +12,7 @@ import type { SessionId, ToolUseId, WorkspaceId } from "@conducted/shared";
 import { createKeyedQueue, ok } from "@conducted/shared";
 import { createLogger, type LogRecord } from "../../logging/logger.ts";
 import {
+	FakeCursorAuthenticationError,
 	FakeCursorRun,
 	FakeCursorSdk,
 	FakeCursorTranslator,
@@ -26,7 +27,7 @@ import { CursorTranslator } from "./translate.ts";
 
 const baseConfig: SessionConfig = {
 	agent: "cursor",
-	model: "cursor-composer-2-5",
+	model: "composer-2.5",
 	effort: "medium",
 	fastMode: false,
 	planMode: false,
@@ -206,7 +207,7 @@ describe("AGENT-09 Cursor session", () => {
 		expect(sdk.resumeCalls[0]?.agentId).toBe("session-1");
 		expect(sdk.resumeCalls[0]?.options.apiKey).toBe("cursor-key");
 		expect(sdk.resumeCalls[0]?.options.model).toEqual({
-			id: "cursor-composer-2-5",
+			id: "composer-2.5",
 			params: [
 				{ id: "fast", value: "true" },
 				{ id: "effort", value: "high" },
@@ -317,7 +318,7 @@ describe("AGENT-09 Cursor session", () => {
 
 	test("a steer the run hands back becomes a follow-up", async () => {
 		const run = new FakeCursorRun();
-		run.steerOutcome = "complete_not_sent";
+		run.steerOutcome = "revert_to_followup";
 		const sdk = new FakeCursorSdk(run);
 		const { session } = makeSession(sdk);
 
@@ -370,15 +371,15 @@ describe("AGENT-09 Cursor session", () => {
 		const { session } = makeSession(sdk);
 
 		expect(await session.applyConfig({ ...baseConfig })).toBe("applied");
-		expect(await session.applyConfig({ ...baseConfig, model: "gpt-5-6-sol" })).toBe("restart");
-		expect(await session.applyConfig({ ...baseConfig, model: "gpt-5-6-sol" })).toBe("applied");
-		expect(await session.applyConfig({ ...baseConfig, model: "gpt-5-6-sol", effort: "high" })).toBe(
+		expect(await session.applyConfig({ ...baseConfig, model: "grok-4.6" })).toBe("restart");
+		expect(await session.applyConfig({ ...baseConfig, model: "grok-4.6" })).toBe("applied");
+		expect(await session.applyConfig({ ...baseConfig, model: "grok-4.6", effort: "high" })).toBe(
 			"restart",
 		);
 		expect(
 			await session.applyConfig({
 				...baseConfig,
-				model: "gpt-5-6-sol",
+				model: "grok-4.6",
 				effort: "high",
 				fastMode: true,
 			}),
@@ -395,9 +396,9 @@ describe("AGENT-09 Cursor session", () => {
 		run.finish();
 		await first;
 
-		await session.applyConfig({ ...baseConfig, model: "gpt-5-6-sol" });
+		await session.applyConfig({ ...baseConfig, model: "grok-4.6" });
 		const second = session.runTurn(
-			turnInput({ config: { ...baseConfig, model: "gpt-5-6-sol" } }),
+			turnInput({ config: { ...baseConfig, model: "grok-4.6" } }),
 			callbacks(),
 		);
 		await waitFor(() => sdk.agent.sent.length === 2, "the second send");
@@ -405,7 +406,7 @@ describe("AGENT-09 Cursor session", () => {
 		await second;
 
 		expect(sdk.resumeCalls).toHaveLength(2);
-		expect(sdk.resumeCalls[1]?.options.model.id).toBe("gpt-5-6-sol");
+		expect(sdk.resumeCalls[1]?.options.model.id).toBe("grok-4.6");
 	});
 
 	test("context usage is null and dispose ends a live run", async () => {
@@ -423,7 +424,7 @@ describe("AGENT-09 Cursor session", () => {
 		expect(later.kind).toBe("error");
 	});
 
-	test("the run store folder and its variable reach the SDK calls", async () => {
+	test("the run store folder opens the platform, and the native package variables reach the SDK calls", async () => {
 		const run = new FakeCursorRun();
 		const sdk = new FakeCursorSdk(run);
 		const target: Record<string, string | undefined> = {};
@@ -442,15 +443,17 @@ describe("AGENT-09 Cursor session", () => {
 		);
 
 		sdk.onResume = () => {
-			expect(target.CONDUCTED_CURSOR_STORE_DIR).toBe("/app-data/cursor-sdk-store/abc");
+			expect(target.CURSOR_RIPGREP_PATH).toBe("/sdk/native/bin/rg");
 		};
 		const outcome = session.runTurn(turnInput(), callbacks());
 		await waitFor(() => sdk.agent.sent.length === 1, "the send");
 		run.finish();
 		await outcome;
 
-		expect(sdk.resumeCalls[0]?.options.local.storeDir).toBe("/app-data/cursor-sdk-store/abc");
-		expect(target.CONDUCTED_CURSOR_STORE_DIR).toBeUndefined();
+		expect(sdk.platformCalls).toEqual([
+			{ stateRoot: "/app-data/cursor-sdk-store/abc", workspaceRef: "/workspace/one" },
+		]);
+		expect(target.CURSOR_RIPGREP_PATH).toBeUndefined();
 	});
 
 	test("run start, steer and cancel log under the CursorAgentRunner tag", async () => {
@@ -581,6 +584,85 @@ describe("AGENT-09 Cursor session", () => {
 				auth: false,
 			});
 		}
+	});
+
+	test("a run whose result is an error ends the turn with its message", async () => {
+		const run = new FakeCursorRun();
+		run.messages.push({ type: "assistant", content: [{ type: "text", text: "started" }] });
+		run.result = {
+			status: "error",
+			error: { message: "The model is overloaded", code: "unavailable" },
+		};
+		run.finish();
+		const sdk = new FakeCursorSdk(run);
+		const { session } = makeSession(sdk, { realTranslator: true });
+		const recorded = callbacks();
+
+		expect(await session.runTurn(turnInput(), recorded)).toEqual({
+			kind: "error",
+			message: "The model is overloaded",
+			retryable: false,
+		});
+		expect(recorded.messages.map((message) => message.items)).toEqual([
+			[{ kind: "text", text: "started" }],
+		]);
+	});
+
+	test("a run that ends cancelled on the server ends the turn cancelled", async () => {
+		const run = new FakeCursorRun();
+		run.result = { status: "cancelled" };
+		run.finish();
+		const { session } = makeSession(new FakeCursorSdk(run));
+
+		expect(await session.runTurn(turnInput(), callbacks())).toEqual({ kind: "cancelled" });
+	});
+
+	test("the SDK's AuthenticationError points to Settings, whatever its message", async () => {
+		const run = new FakeCursorRun();
+		const sdk = new FakeCursorSdk(run);
+		sdk.resumeError = new FakeCursorAuthenticationError("Request refused");
+		const { session } = makeSession(sdk);
+
+		const outcome = await session.runTurn(turnInput(), callbacks());
+		expect(outcome.kind).toBe("error");
+		if (outcome.kind === "error") expect(outcome.message).toContain("Settings");
+		expect(sdk.createCalls).toHaveLength(0);
+	});
+
+	test("an error result with a refused key points to Settings", async () => {
+		const run = new FakeCursorRun();
+		run.result = { status: "error", error: { message: "Invalid User API Key" } };
+		run.finish();
+		const { session } = makeSession(new FakeCursorSdk(run));
+
+		const outcome = await session.runTurn(turnInput(), callbacks());
+		expect(outcome.kind).toBe("error");
+		if (outcome.kind === "error") expect(outcome.message).toContain("Settings");
+	});
+
+	test("dispose and a restart close the agent they leave", async () => {
+		const run = new FakeCursorRun();
+		run.finish();
+		const sdk = new FakeCursorSdk(run);
+		const { session } = makeSession(sdk);
+
+		await session.runTurn(turnInput(), callbacks());
+		expect(await session.applyConfig({ ...baseConfig, model: "grok-4.6" })).toBe("restart");
+		expect(sdk.agent.closeCalls).toBe(1);
+		await session.runTurn(turnInput({ config: { ...baseConfig, model: "grok-4.6" } }), callbacks());
+		await session.dispose();
+		expect(sdk.agent.closeCalls).toBe(2);
+	});
+
+	test("a missing SDK says how to install it", async () => {
+		const { session } = makeSession(null, { loadError: true });
+
+		const outcome = await session.runTurn(turnInput(), callbacks());
+		expect(outcome).toEqual({
+			kind: "error",
+			message: "Cursor is not available: Cursor's SDK is not installed.",
+			retryable: false,
+		});
 	});
 
 	test("a resume that fails with a message that only contains 'author' creates a new agent", async () => {

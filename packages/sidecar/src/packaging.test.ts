@@ -61,6 +61,7 @@ describe("SIDE-23 sidecar packaging", () => {
 			"build",
 			"src/main.ts",
 			"--compile",
+			"--compile-autoload-package-json",
 			"--target",
 			"bun-darwin-arm64",
 			"--outfile",

@@ -12,8 +12,9 @@
  * Test first: saving a non-existent program path shows the error and does not call settings.set.
  *
  * PLAT-28 also renders the Agent binaries section here: the state of the Claude Code and Codex
- * programs, with Install or Retry, Re-download and Remove. The programs themselves are downloaded
- * and verified by the system service, not by this page.
+ * programs and of Cursor's SDK (AGENT-09, installed only from here, D083), with Install or Retry,
+ * Re-download and Remove. The programs themselves are downloaded and verified by the system
+ * service, not by this page.
  */
 import type { ManagedProgram, Result } from "@conducted/shared";
 import { useState } from "react";
@@ -138,7 +139,8 @@ function AgentBinaries() {
 			<div className="flex flex-col gap-1">
 				<p className="text-sm font-medium text-fg">Agent binaries</p>
 				<p className="max-w-prose text-sm text-fg-muted">
-					The Claude Code and Codex programs the app downloads, verifies and keeps up to date.
+					The Claude Code and Codex programs and the Cursor SDK, which the app downloads, verifies
+					and keeps up to date.
 				</p>
 			</div>
 			{programs.state === "loading" ? (
@@ -189,7 +191,7 @@ function AgentBinaryRow({
 	onRemove: () => void;
 }) {
 	const { status } = view;
-	const name = status.program === "claude" ? "Claude Code" : "Codex";
+	const name = PROGRAM_NAMES[status.program] ?? status.program;
 	const detail =
 		view.userPath !== null
 			? `Using the program at ${view.userPath}.`
@@ -227,6 +229,13 @@ function AgentBinaryRow({
 		</li>
 	);
 }
+
+/** The names the Agent binaries section shows. */
+const PROGRAM_NAMES: Partial<Record<ManagedProgram, string>> = {
+	claude: "Claude Code",
+	codex: "Codex",
+	cursor: "Cursor SDK",
+};
 
 function describeProgramStatus(
 	state: AgentProgramView["status"]["state"],
