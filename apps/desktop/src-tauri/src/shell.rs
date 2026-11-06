@@ -30,6 +30,7 @@
 //! - The first `shell_login_env` call and the startup warm-up share one capture.
 //! - The capture picks flags by shell name (`-ilc` for zsh and bash, `-i -l -c` for fish), reads
 //!   the environment between a delimiter, and retries once with a plain login zsh (5 s, then 3 s).
+//!   When both fail, the error names the cause of each.
 //! - Provider keys and exported shell functions are removed from the captured environment.
 //!
 //! Scope (PLAT-29, native-and-sidecar-map.md A3): `shell_run` and `shell_start` first call
@@ -74,7 +75,7 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
-use crate::error::{CommandError, CommandResult};
+use crate::error::{CommandError, CommandResult, blocking};
 use crate::process_group;
 
 /// Event delivered when a command started with `shell_start` ends.
@@ -936,17 +937,29 @@ fn capture_with_timeouts(
         Some("zsh" | "bash" | "fish")
     );
 
-    if known {
+    let primary_error = if known {
         let marker = new_marker();
         let command = capture_command_for(shell_path, &marker);
-        if let Ok(vars) = run_capture(&command, cwd, &marker, primary) {
-            return Ok(login_env_from(shell_path.to_string(), vars));
+        match run_capture(&command, cwd, &marker, primary) {
+            Ok(vars) => return Ok(login_env_from(shell_path.to_string(), vars)),
+            Err(error) => Some(error),
         }
-    }
+    } else {
+        None
+    };
 
     let marker = new_marker();
     let command = fallback_capture_command_at(fallback_shell, &marker);
-    let vars = run_capture(&command, cwd, &marker, fallback)?;
+    // When both shells fail, the error names both causes: the user's own shell is the one to fix.
+    let vars =
+        run_capture(&command, cwd, &marker, fallback).map_err(
+            |fallback_error| match primary_error {
+                Some(primary_error) => login_env_error(format!(
+                    "{shell_path}: {primary_error} Then {fallback_shell}: {fallback_error}"
+                )),
+                None => fallback_error,
+            },
+        )?;
     Ok(login_env_from(fallback_shell.to_string(), vars))
 }
 
@@ -1131,13 +1144,10 @@ pub async fn shell_run(
     let base_env = captured_env(&state).await?;
     let roots = program_roots(&app);
     let timeout_ms = command.timeout_ms;
-    let joined =
-        tauri::async_runtime::spawn_blocking(move || run_blocking(&command, &base_env, &roots))
-            .await
-            .map_err(|error| CommandError::Failed {
-                code: "shell_wait_failed",
-                message: format!("The command task failed: {error}"),
-            })??;
+    let joined = blocking("shell_wait_failed", move || {
+        run_blocking(&command, &base_env, &roots)
+    })
+    .await?;
 
     run_output(joined, timeout_ms)
 }
@@ -1183,13 +1193,11 @@ pub async fn shell_cancel(state: State<'_, ShellState>, id: String) -> CommandRe
     let Some(pid) = request_cancel(&state.running, &id) else {
         return Ok(());
     };
-    tauri::async_runtime::spawn_blocking(move || terminate_group(pid))
-        .await
-        .map_err(|error| CommandError::Failed {
-            code: "shell_cancel_failed",
-            message: format!("The cancellation task failed: {error}"),
-        })?;
-    Ok(())
+    blocking("shell_cancel_failed", move || {
+        terminate_group(pid);
+        Ok(())
+    })
+    .await
 }
 
 /// Returns the login shell and its PATH, capturing them on the first call. Later calls reuse the
@@ -1200,9 +1208,7 @@ pub async fn shell_login_env(state: State<'_, ShellState>) -> CommandResult<Logi
     if let Some(login) = cached.as_ref() {
         return Ok(login.clone());
     }
-    let login = tauri::async_runtime::spawn_blocking(capture_login_env)
-        .await
-        .map_err(|error| login_env_error(format!("The capture task failed: {error}")))??;
+    let login = blocking("login_env_failed", capture_login_env).await?;
     repair_process_path(&login);
     *cached = Some(login.clone());
     Ok(login)
@@ -1488,6 +1494,33 @@ mod tests {
         assert_eq!(login.shell, fallback.to_str().expect("the path is UTF-8"));
         assert!(!login.path.is_empty());
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn plat_04_a_failed_capture_names_why_both_shells_failed() {
+        let dir = TempProgramDir::new();
+        let broken = write_script(dir.path(), "zsh", "#!/bin/sh\nprintf 'no marker'\n");
+        let silent = write_script(dir.path(), "fallback-shell", "#!/bin/sh\nsleep 30\n");
+
+        let error = capture_with_timeouts(
+            broken.to_str().expect("the path is UTF-8"),
+            dir.path(),
+            silent.to_str().expect("the path is UTF-8"),
+            Duration::from_secs(30),
+            Duration::from_millis(150),
+        )
+        .expect_err("neither shell prints an environment");
+
+        let message = error.to_string();
+        assert!(
+            message.contains("printed no environment marker"),
+            "the user's shell is named: {message}"
+        );
+        assert!(
+            message.contains("did not finish within 150 ms"),
+            "the fallback is named: {message}"
+        );
+        assert_eq!(error_code(error), "login_env_failed");
     }
 
     #[test]
@@ -2214,5 +2247,39 @@ mod tests {
 
         assert_eq!(status.signal(), Some(9), "SIGKILL ended it after the grace");
         assert!(!process_group::group_exists(pid));
+    }
+
+    #[test]
+    fn plat_25_the_bundle_ships_every_helper_script_the_window_may_run() {
+        // The UI runs the scripts from `<resources>/bin` and the sidecar from the copy PLAT-34
+        // makes of it, so the bundle must carry each script the program list allows.
+        let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let config: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(manifest.join("tauri.conf.json")).expect("read the config"),
+        )
+        .expect("the config is JSON");
+        let resources = config["bundle"]["resources"]
+            .as_object()
+            .expect("the bundle maps its resources");
+        let source = resources
+            .iter()
+            .find_map(|(source, target)| (target == "bin/").then_some(source))
+            .expect("the bundle ships a bin folder");
+        let folder = manifest.join(source.strip_suffix("/*").unwrap_or(source));
+
+        let scripts: Vec<&str> = ALLOWED_PROGRAMS
+            .iter()
+            .copied()
+            .filter(|name| name.ends_with(".sh"))
+            .collect();
+        assert!(!scripts.is_empty(), "the program list names the scripts");
+        for script in scripts {
+            let metadata = std::fs::metadata(folder.join(script))
+                .unwrap_or_else(|error| panic!("{script} is not in the bundled folder: {error}"));
+            assert!(
+                metadata.permissions().mode() & 0o111 != 0,
+                "{script} is not executable"
+            );
+        }
     }
 }

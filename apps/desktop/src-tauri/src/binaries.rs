@@ -90,8 +90,10 @@
 //! Our design choice: only the four managed programs are run. The helper scripts are copied but
 //! not executed, because they need a caller and their arguments are not a version check.
 //! Our design choice: the check runs once at launch on a worker thread and its result lives in
-//! `BinariesState`; the command reads that result instead of copying and running again. Until the
-//! launch check finishes, the command answers with an empty list.
+//! `BinariesState`; the command reads that result instead of copying and running again. A command
+//! that arrives while the check still runs waits for its result, so the command alone gives the
+//! window the full list. The event only wakes a window that listens; one that could not be sent
+//! loses nothing. A panic in the check is not caught: release builds abort on a panic.
 //! Our design choice: every launch copies the whole bin folder. The source markers, quarantine
 //! strip and unknown-file removal in A9 are not built yet, so a launch copies the 308 MB every
 //! time (PLAT-34's later items).
@@ -110,7 +112,7 @@ use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -241,21 +243,32 @@ impl StoredFailure {
     }
 }
 
-/// What the launch check produced. `None` in `errors` means the check has not finished yet.
-#[derive(Debug, Default)]
-struct VerificationOutcome {
-    errors: Option<Vec<VerificationError>>,
-    failure: Option<StoredFailure>,
+/// What the finished launch check produced: the programs that failed, or the error that stopped
+/// the whole check before it could name a program.
+#[derive(Debug, Clone)]
+enum LaunchOutcome {
+    Checked(Vec<VerificationError>),
+    Failed(StoredFailure),
 }
 
 /// The launch check's result, managed once by `lib.rs` and read by the command.
 ///
 /// One thread runs the check at a time: `claim_run` returns true for the first caller only. The
-/// command never starts a check, so asking it during launch cannot copy or run anything.
-#[derive(Debug, Default)]
+/// command never starts a check, so asking it during launch cannot copy or run anything. It waits
+/// for the check instead: `None` means the check is still running, never "no errors".
+#[derive(Debug)]
 pub struct BinariesState {
-    outcome: Mutex<VerificationOutcome>,
+    outcome: tokio::sync::watch::Sender<Option<LaunchOutcome>>,
     started: AtomicBool,
+}
+
+impl Default for BinariesState {
+    fn default() -> Self {
+        Self {
+            outcome: tokio::sync::watch::Sender::new(None),
+            started: AtomicBool::new(false),
+        }
+    }
 }
 
 impl BinariesState {
@@ -264,27 +277,34 @@ impl BinariesState {
     }
 
     fn finish(&self, result: &CommandResult<Vec<VerificationError>>) {
-        let mut outcome = lock_outcome(&self.outcome);
-        match result {
-            Ok(errors) => outcome.errors = Some(errors.clone()),
-            Err(error) => outcome.failure = Some(StoredFailure::from_error(error)),
-        }
+        let outcome = match result {
+            Ok(errors) => LaunchOutcome::Checked(errors.clone()),
+            Err(error) => LaunchOutcome::Failed(StoredFailure::from_error(error)),
+        };
+        self.outcome.send_replace(Some(outcome));
     }
 
-    fn snapshot(&self) -> CommandResult<Vec<VerificationError>> {
-        let outcome = lock_outcome(&self.outcome);
-        if let Some(failure) = &outcome.failure {
-            return Err(failure.to_error());
+    /// The launch check's result. Waits while the check still runs, so a caller that asks early
+    /// gets the real list and not an empty one.
+    async fn result(&self) -> CommandResult<Vec<VerificationError>> {
+        let mut receiver = self.outcome.subscribe();
+        let ready = receiver
+            .wait_for(Option::is_some)
+            .await
+            .map_err(|_| no_launch_result())?;
+        match &*ready {
+            Some(LaunchOutcome::Checked(errors)) => Ok(errors.clone()),
+            Some(LaunchOutcome::Failed(failure)) => Err(failure.to_error()),
+            None => Err(no_launch_result()),
         }
-        Ok(outcome.errors.clone().unwrap_or_default())
     }
 }
 
-/// A lock whose owner panicked is still readable, so a later command gets the last result.
-fn lock_outcome(outcome: &Mutex<VerificationOutcome>) -> MutexGuard<'_, VerificationOutcome> {
-    outcome
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
+fn no_launch_result() -> CommandError {
+    CommandError::Failed {
+        code: "binary_verification_failed",
+        message: "The launch check of the bundled programs ended without a result.".to_string(),
+    }
 }
 
 /// Starts the launch check once, on a worker thread, and reports its result on the event.
@@ -312,10 +332,11 @@ fn report_verification<R: Runtime>(
     result: &CommandResult<Vec<VerificationError>>,
 ) {
     app.state::<BinariesState>().finish(result);
-    if let Ok(errors) = result
-        && let Err(error) = app.emit(EVENT_VERIFICATION_ERRORS, errors)
-    {
-        eprintln!("could not report the programs that failed verification: {error}");
+    if let Ok(errors) = result {
+        // The event only wakes a window that is listening. `programs_verification_errors` waits
+        // for this same result and returns it, so an event that could not be sent loses nothing
+        // the window can read, and there is no one else to tell.
+        let _ = app.emit(EVENT_VERIFICATION_ERRORS, errors);
     }
 }
 
@@ -339,12 +360,12 @@ fn launch_verification(app: &AppHandle) -> CommandResult<Vec<VerificationError>>
 }
 
 /// Lists the programs that failed the launch check. Answers from the launch result and never
-/// copies or runs a program itself. An empty list before the launch check has finished.
+/// copies or runs a program itself. Called while the check still runs, it waits for the result.
 #[tauri::command]
-pub fn programs_verification_errors(
+pub async fn programs_verification_errors(
     state: State<'_, BinariesState>,
 ) -> CommandResult<Vec<VerificationError>> {
-    state.snapshot()
+    state.result().await
 }
 
 fn copy_bin_folder(source: &Path, destination: &Path) -> CommandResult<()> {
@@ -929,6 +950,8 @@ impl ProgramsState {
 }
 
 /// Reads the release feed. A missing feed is a named error: the app never invents a download.
+/// Each hash is checked and kept in lower case here, so the download and the install compare the
+/// same text.
 pub fn read_release_manifest(path: &Path) -> CommandResult<ReleaseManifest> {
     let text = fs::read_to_string(path).map_err(|error| CommandError::Failed {
         code: "program_release_missing",
@@ -937,10 +960,24 @@ pub fn read_release_manifest(path: &Path) -> CommandResult<ReleaseManifest> {
             path.display()
         ),
     })?;
-    serde_json::from_str(&text).map_err(|error| CommandError::Failed {
-        code: "program_release_invalid",
-        message: format!("The agent program release feed could not be understood: {error}"),
-    })
+    let mut manifest: ReleaseManifest =
+        serde_json::from_str(&text).map_err(|error| CommandError::Failed {
+            code: "program_release_invalid",
+            message: format!("The agent program release feed could not be understood: {error}"),
+        })?;
+    for release in [manifest.claude.as_mut(), manifest.codex.as_mut()]
+        .into_iter()
+        .flatten()
+    {
+        for asset in [&mut release.darwin_arm64, &mut release.darwin_x64] {
+            asset.sha256 =
+                crate::http::parse_sha256(&asset.sha256).map_err(|error| CommandError::Failed {
+                    code: "program_release_invalid",
+                    message: format!("The agent program release feed has a bad hash: {error}"),
+                })?;
+        }
+    }
+    Ok(manifest)
 }
 
 fn now_ms() -> u64 {
@@ -1879,7 +1916,73 @@ mod tests {
         };
         state.finish(&Ok(vec![error.clone()]));
 
-        assert_eq!(state.snapshot().expect("the launch result"), vec![error]);
+        assert_eq!(
+            launch_result(&state).expect("the launch result"),
+            vec![error]
+        );
+    }
+
+    /// The command's answer, read the way the command reads it.
+    fn launch_result(state: &BinariesState) -> CommandResult<Vec<VerificationError>> {
+        tauri::async_runtime::block_on(state.result())
+    }
+
+    #[test]
+    fn plat_34_the_command_waits_for_a_launch_check_still_running() {
+        use futures_util::FutureExt;
+
+        let state = BinariesState::default();
+        let error = VerificationError {
+            program: ManagedProgram::Gh,
+            message: "the bundled gh exited with 3".to_string(),
+        };
+
+        assert!(
+            state.result().now_or_never().is_none(),
+            "an early call waits instead of answering with an empty list"
+        );
+        state.finish(&Ok(vec![error.clone()]));
+
+        let answer = state
+            .result()
+            .now_or_never()
+            .expect("the call answers once the check has finished");
+        assert_eq!(answer.expect("the launch result"), vec![error]);
+    }
+
+    #[test]
+    fn plat_34_a_call_waiting_for_the_launch_check_gets_its_result() {
+        let state = Arc::new(BinariesState::default());
+        let (asking, asked) = std::sync::mpsc::channel();
+        let waiter = {
+            let state = Arc::clone(&state);
+            thread::spawn(move || {
+                tauri::async_runtime::block_on(async {
+                    let mut answer = Box::pin(state.result());
+                    // Polled once, the call is waiting on the check before the test finishes it.
+                    let first = futures_util::poll!(answer.as_mut());
+                    asking
+                        .send(first.is_pending())
+                        .expect("tell the test the call waits");
+                    answer.await
+                })
+            })
+        };
+        let waiting = asked
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the call is made");
+        assert!(waiting, "the call waits while the check runs");
+
+        state.finish(&Err(CommandError::Failed {
+            code: "binary_copy_failed",
+            message: "Could not copy the bundled programs.".to_string(),
+        }));
+
+        let error = waiter
+            .join()
+            .expect("the waiting call returns")
+            .expect_err("the launch failure is handed on");
+        assert_eq!(error_code(error), "binary_copy_failed");
     }
 
     #[test]
@@ -1890,9 +1993,7 @@ mod tests {
             message: "Could not copy the bundled programs.".to_string(),
         }));
 
-        let error = state
-            .snapshot()
-            .expect_err("the launch failure is handed on");
+        let error = launch_result(&state).expect_err("the launch failure is handed on");
 
         assert_eq!(error_code(error), "binary_copy_failed");
     }
@@ -1969,8 +2070,7 @@ mod tests {
             serde_json::json!([{"program": "gh", "message": "the bundled gh exited with 3"}])
         );
         assert_eq!(
-            app.state::<BinariesState>()
-                .snapshot()
+            launch_result(&app.state::<BinariesState>())
                 .expect("the command reads the same result"),
             vec![failure]
         );
@@ -1997,9 +2097,7 @@ mod tests {
             .recv_timeout(Duration::from_secs(5))
             .expect("the marker arrives");
         assert_eq!(first, "\"marker\"");
-        let error = app
-            .state::<BinariesState>()
-            .snapshot()
+        let error = launch_result(&app.state::<BinariesState>())
             .expect_err("the command hands the failure on");
         assert_eq!(error_code(error), "binary_copy_failed");
     }
@@ -2068,6 +2166,45 @@ mod tests {
         );
         assert_eq!(pinned_version(ManagedProgram::Claude), Some("2.1.308"));
         assert_eq!(pinned_version(ManagedProgram::Gh), None);
+    }
+
+    #[test]
+    fn plat_28_the_release_feed_hash_is_read_in_lower_case_and_checked() {
+        let folder = TempDir::new();
+        let path = folder.path().join("manifest.json");
+        let upper = ProgramRelease {
+            darwin_arm64: ReleaseAsset {
+                sha256: "AB".repeat(32),
+                ..release_asset()
+            },
+            ..release("2.1.308")
+        };
+        let manifest = ReleaseManifest {
+            claude: Some(upper),
+            codex: None,
+        };
+        fs::write(&path, serde_json::to_string(&manifest).expect("serialise")).expect("write feed");
+
+        let read = read_release_manifest(&path).expect("read feed");
+
+        let claude = read
+            .release(ManagedProgram::Claude)
+            .expect("Claude is offered");
+        assert_eq!(claude.darwin_arm64.sha256, "ab".repeat(32));
+
+        let short = ReleaseManifest {
+            claude: None,
+            codex: Some(ProgramRelease {
+                darwin_x64: ReleaseAsset {
+                    sha256: "abc".to_string(),
+                    ..release_asset()
+                },
+                ..release("0.164.0")
+            }),
+        };
+        fs::write(&path, serde_json::to_string(&short).expect("serialise")).expect("write feed");
+        let error = read_release_manifest(&path).expect_err("a short hash is refused");
+        assert_eq!(error_code(error), "program_release_invalid");
     }
 
     #[test]

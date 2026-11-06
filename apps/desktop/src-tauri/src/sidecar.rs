@@ -48,7 +48,8 @@
 //!   scans the process table for an orphan (parent pid 1) whose executable is the sidecar binary
 //!   and kills it with SIGKILL. A sidecar that still has a live parent belongs to another running
 //!   app and is left alone.
-//! - stdout and stderr go to a log file: `<app data>/logs/sidecar-<pid>.log`, mode 0600. The
+//! - stdout and stderr go to a log file: `<app data>/logs/sidecar-<pid>.log`, mode 0600. Each line
+//!   passes through the app log's redaction first, because the log export bundles this file. The
 //!   logger (PLAT-18) owns the file's lifetime: at start the launcher removes logs by age and size
 //!   and keeps the five newest, and it cuts a log to its newest third when it reaches its cap.
 //!   `sidecar_log_path` returns the current one. D026 routes these lines into the app log files
@@ -89,7 +90,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 
-use crate::error::{CommandError, CommandResult};
+use crate::error::{CommandError, CommandResult, blocking};
 use crate::logger;
 use crate::not_implemented;
 use crate::process_group;
@@ -221,12 +222,10 @@ pub fn expected_version_line(app_version: &str) -> String {
 pub async fn check_binary_version(binary: &Path, app_version: &str) -> CommandResult<()> {
     let binary = binary.to_path_buf();
     let app_version = app_version.to_string();
-    tauri::async_runtime::spawn_blocking(move || check_version_blocking(&binary, &app_version))
-        .await
-        .map_err(|error| CommandError::Failed {
-            code: "sidecar_version_check_failed",
-            message: format!("The sidecar version check task failed: {error}"),
-        })?
+    blocking("sidecar_version_check_failed", move || {
+        check_version_blocking(&binary, &app_version)
+    })
+    .await
 }
 
 /// Runs the version command and compares the one line it prints with the app version.
@@ -520,10 +519,10 @@ pub fn plan_restart(recent: &mut Vec<i64>, now_ms: i64) -> RestartPlan {
     }
 }
 
-/// The environment the sidecar reads at start. Folder values are created by the launcher before
-/// the spawn. Only variables the sidecar reads today are set; the app version, agent binaries,
-/// ACP providers and Cursor store wait for the features that read them. There is no database path
-/// and no logger token or folder (D026, D028).
+/// The folders the sidecar reads at start: the parent pid, the outbox root, the log folder and the
+/// bin folder. The launcher creates each folder before the spawn, and `launch_environment` adds the
+/// app version and log level. Agent binaries, ACP providers and the Cursor store wait for the
+/// features that read them. There is no database path and no logger token or folder (D026, D028).
 pub fn sidecar_environment(pid: u32, data_dir: &Path) -> Vec<(String, String)> {
     let log_dir = data_dir.join("logs");
     let bin_dir = data_dir.join("bin");
@@ -560,12 +559,10 @@ pub async fn start_process<R: Runtime>(
 ) -> CommandResult<StartedSidecar> {
     let app = app.clone();
     let binary = binary.to_path_buf();
-    tauri::async_runtime::spawn_blocking(move || blocking_start(&app, &binary, generation))
-        .await
-        .map_err(|error| CommandError::Failed {
-            code: "sidecar_start_task_failed",
-            message: format!("The sidecar start task failed: {error}"),
-        })?
+    blocking("sidecar_start_task_failed", move || {
+        blocking_start(&app, &binary, generation)
+    })
+    .await
 }
 
 pub struct StartedSidecar {
@@ -831,6 +828,8 @@ fn log_line_with_cap(log: &Arc<Mutex<File>>, stream: &str, line: &str, max_bytes
         eprintln!("sidecar: the log lock is poisoned");
         return;
     };
+    // The export bundles this file for a bug report, so key shapes are cut out as the app log does.
+    let line = logger::redact_text(line);
     if let Err(error) = writeln!(file, "[{stream}] {line}") {
         eprintln!("sidecar: could not write its log: {error}");
         return;
@@ -1096,14 +1095,11 @@ pub async fn shutdown(state: &SidecarState) -> CommandResult<()> {
             _ => return Ok(()),
         }
     };
-    let stopped = tauri::async_runtime::spawn_blocking(move || {
+    blocking("sidecar_stop_failed", move || {
         process_group::terminate_group(pid, Duration::from_millis(KILL_GRACE_MS));
+        Ok(())
     })
-    .await;
-    stopped.map_err(|error| CommandError::Failed {
-        code: "sidecar_stop_failed",
-        message: format!("The sidecar stop task failed: {error}"),
-    })
+    .await
 }
 
 /// Starts the sidecar if it is not running. Returns when the socket is connected.
@@ -1812,6 +1808,25 @@ mod tests {
         assert_eq!(spawned.socket_path, socket);
         process_group::terminate_group(spawned.pid, Duration::from_millis(500));
         let _ = spawned.child.wait();
+    }
+
+    #[test]
+    fn plat_09_a_sidecar_log_line_is_redacted_before_it_reaches_disk() {
+        let folder = TempDir::new();
+        let path = folder.path().join("sidecar-1.log");
+        let log = Arc::new(Mutex::new(open_log_file(&path).expect("create log")));
+
+        log_line(
+            &log,
+            "stderr",
+            "agent said: invalid key sk-fake for task-queue",
+        );
+
+        let written = fs::read_to_string(&path).expect("read log");
+        assert_eq!(
+            written,
+            "[stderr] agent said: invalid key sk-[redacted] for task-queue\n"
+        );
     }
 
     #[test]

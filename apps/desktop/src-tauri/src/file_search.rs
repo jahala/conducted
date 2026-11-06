@@ -58,7 +58,7 @@ use nucleo_matcher::pattern::{AtomKind, CaseMatching, Normalization, Pattern};
 use nucleo_matcher::{Config, Matcher, Utf32Str};
 use serde::{Deserialize, Serialize};
 
-use crate::error::{CommandError, CommandResult};
+use crate::error::{CommandError, CommandResult, blocking};
 use crate::files::FileStat;
 
 /// Most paths one tree listing returns.
@@ -242,7 +242,10 @@ pub async fn search_list_artifacts(
     cursor: Option<String>,
     limit: u32,
 ) -> CommandResult<ArtifactPage> {
-    blocking(move || list_artifacts(Path::new(&workspace_path), cursor.as_deref(), limit)).await
+    blocking("search_task_failed", move || {
+        list_artifacts(Path::new(&workspace_path), cursor.as_deref(), limit)
+    })
+    .await
 }
 
 /// One path under the root. Mirrors `TreeEntry` in platform.ts.
@@ -352,21 +355,6 @@ fn checked_root(root: &str) -> CommandResult<PathBuf> {
         Err(error) => Err(CommandError::Failed {
             code: "search_bad_root",
             message: format!("Cannot search {}: {error}", path.display()),
-        }),
-    }
-}
-
-/// Runs a blocking search off the async runtime.
-async fn blocking<T, F>(work: F) -> CommandResult<T>
-where
-    T: Send + 'static,
-    F: FnOnce() -> CommandResult<T> + Send + 'static,
-{
-    match tauri::async_runtime::spawn_blocking(work).await {
-        Ok(result) => result,
-        Err(error) => Err(CommandError::Failed {
-            code: "search_task_failed",
-            message: error.to_string(),
         }),
     }
 }
@@ -628,7 +616,7 @@ fn grep_workspace(
 /// Lists every non-ignored file and folder under `root`.
 #[tauri::command]
 pub async fn search_list_tree(root: String) -> CommandResult<Vec<TreeEntry>> {
-    blocking(move || {
+    blocking("search_task_failed", move || {
         let root = checked_root(&root)?;
         collect_tree(&root, MAX_TREE_ENTRIES)
     })
@@ -642,7 +630,7 @@ pub async fn search_fuzzy(
     query: String,
     limit: u32,
 ) -> CommandResult<Vec<TreeEntry>> {
-    blocking(move || {
+    blocking("search_task_failed", move || {
         let root = checked_root(&root)?;
         let files = collect_files(&root)?;
         let mut matcher = new_matcher();
@@ -659,7 +647,7 @@ pub async fn search_grep(
     query: String,
     options: GrepOptions,
 ) -> CommandResult<Vec<GrepMatch>> {
-    blocking(move || {
+    blocking("search_task_failed", move || {
         let root = checked_root(&root)?;
         grep_workspace(&root, &query, &options)
     })
