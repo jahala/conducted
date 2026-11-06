@@ -36,8 +36,8 @@
  * helpers keep a registry of their own so screens that have not moved to the provider still work; the
  * container owning that registry is APP-01's change.
  * Our design choice: menu accelerators are the live first binding in Tauri's syntax, so a rebind changes
- * the menu bar without a second table. A deep link that names a settings page opens settings; links
- * that open a route stay with NAV-17, and the caller can pass `onDeepLink` to take them.
+ * the menu bar without a second table. Every deep link goes to the caller's `onDeepLink` opener, which
+ * NAV-17 owns; without one the link is reported to the log rather than parsed in a second place.
  * Our design choice: `CommandHint` is the one keycap component. It reads the live binding, so a hint
  * follows a rebind instead of showing the shipped key.
  * Test first: with a `base` and a `modal` handler registered for "palette.open", the dispatcher runs only
@@ -648,21 +648,8 @@ export function dispatchCommand(commandId: string, deps: CommandDispatchDeps): v
 	});
 }
 
-/** The command a deep link opens, or null when its route belongs to NAV-17. */
-export function commandForDeepLink(url: string): CommandId | null {
-	let parsed: URL;
-	try {
-		parsed = new URL(url);
-	} catch {
-		return null;
-	}
-	if (parsed.protocol !== "conducted:") return null;
-	if (parsed.hostname === "settings") return "app.openSettings";
-	return null;
-}
-
 export interface CommandDispatcherOptions {
-	/** Takes deep links that open a route. When absent, this file opens the ones it knows. */
+	/** Opens a deep link. The app passes NAV-17's opener; without one the link is reported, not parsed here. */
 	onDeepLink?: (url: string) => void;
 }
 
@@ -774,12 +761,7 @@ export function useCommandDispatcher(
 					onDeepLink(url);
 					return;
 				}
-				const commandId = commandForDeepLink(url);
-				if (commandId === null) {
-					deps.report(`No command handles the deep link ${url}.`);
-					return;
-				}
-				dispatchCommand(commandId, deps);
+				deps.report(`No deep-link opener is mounted for ${url}.`);
 			}),
 		[deps, onDeepLink, platform],
 	);
