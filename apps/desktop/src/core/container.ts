@@ -838,6 +838,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 				(error) => log("warn", `Could not sync review comments: ${String(error)}`),
 			);
 		},
+		onCatchUpError: (_id, error) =>
+			log("warn", `Could not catch up the stack branch: ${error.message}`),
 		now: () => clock.now(),
 		keychain: platform.keychain,
 		setting,

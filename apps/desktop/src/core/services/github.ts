@@ -13,18 +13,21 @@
  * merging the stack
  * @feature REV-04 GitHub review comment sync: reading review threads and general comments, and
  * resolving a review thread
+ * @feature PR-12 the guarded automatic catch-up of a stack branch after GitHub rewrites it
  * Owns: probing `gh` access (`gh auth status`, the user's login, the git protocol), the access
  * health store, reading and writing the personal access token, every pull request write action
  * (merge, auto-merge on and off, mark ready, edit title and body, request and remove reviewers,
  * approve), the Fix errors instruction that sends failing checks to the agent, PR-03's polling of
  * watched pull requests, PR-11's REST reads, PRJ-02's clone pickers, PRJ-03's repository-name check,
- * GIT-08's base move, PR-08's stack read, stack sync and stack merge, and REV-04's review-thread
- * and general comment reads and thread resolve.
+ * GIT-08's base move, PR-08's stack read, stack sync and stack merge, REV-04's review-thread
+ * and general comment reads and thread resolve, and PR-12's guarded catch-up rebase that runs
+ * after a timed poll.
  * Behaviour: services-map.md 3.9 (auth probes, method resolution, health), 5B.1.11 (failure
  * classes; only unauthorized breaks access), 3.7.5 and 5B.1.7 (the write actions, the merge
  * method cached per repo, and one call at a time for each action), 3.7.6 (fixing CI errors goes to
  * the agent as an instruction), 3.8.2 (the stack members, the optional `stackEntry` field, each
- * member's readiness, and `gh stack sync`), 3.0.3 (`gh stack sync` holds the worktree lock, then
+ * member's readiness, and `gh stack sync`), 3.8.3 (the guarded automatic catch-up rebase of a
+ * rewritten stack branch), 3.0.3 (`gh stack sync` and the catch-up hold the worktree lock, then
  * the repo lock), 3.7.4 and 5A.7.3 (review threads, their extra comment pages, general comments
  * and `resolveReviewThread`), 3.7.2 and 5B.1.2 to 5B.1.4
  * (the PR poll: batched queries per repository, adaptive batch size, cadence, skip rules and
@@ -66,7 +69,16 @@
  * stack sync or stack merge that `gh` answers with an unknown command gets the install message
  * naming that action, a stack sync that prints a cross mark or its abort notice is an error, never
  * a success, and a stack merge runs `gh stack merge` with the repository's first allowed merge
- * method; the members the last stack read found, with each base branch, are kept per workspace
+ * method; the automatic catch-up only runs for an open stacked branch the user may write, reads
+ * the branch, its head, its upstream and the remote before doing anything, and skips a detached
+ * head, a changed identity, a branch that is not diverged, a missing baseline the upstream reflog
+ * never held, a dirty tree, another git operation, an ignored file the rebase would overwrite, a
+ * branch outside a stack, and a user without write permission; the catch-up moves the branch
+ * onto the upstream tip under the worktree lock and then the repo lock, its sequence
+ * editor re-checks the branch and remote before git starts, a rebase that stops partway is
+ * aborted, and the baseline ref takes the new tip with a compare-and-swap; a catch-up failure is
+ * reported to its caller, never recorded as a failed poll; the members the last stack read found,
+ * with each base branch, are kept per workspace
  * for the range diff scope (PR-08, services-map 3.4.5), which reads the stack itself only when
  * nothing has; a review-comment read needs a pull request
  * and an owner/name GitHub remote, follows every thread page and every thread's extra comment
@@ -77,8 +89,9 @@
  * pr-polling.ts; this file applies them and owns the timers. The poll batch groups workspaces by
  * their repository (the git common dir) so siblings share one `gh api graphql` call. Required
  * check names are not part of the poll answer, so no check is marked required (NO_REQUIRED_CHECKS);
- * the Checks tab's required marks need the branch-protection read. The stack catch-up belongs to
- * PR-12; re-running failed checks belongs to PR-04, which owns the Checks tab's button.
+ * the Checks tab's required marks need the branch-protection read. The catch-up runs at the end of
+ * a timed poll and reports its own failures through `onCatchUpError`; re-running failed checks
+ * belongs to PR-04, which owns the Checks tab's button.
  * `gt state` and `gt checkout` run in graphite.ts; the stack read only asks that service for a
  * restack flag. The readiness rules that read the merge states live in
  * core/status/stack-readiness.ts. The
@@ -92,6 +105,8 @@
  * PR-11 test first: an issue with a `pull_request` field is left out of the issues list.
  * PR-08 test first: a stack member list comes back from trunk up with the workspace branch marked
  * as current.
+ * PR-12 test first: a diverged stack branch whose local tip the upstream reflog once held is
+ * rebased onto the rewritten upstream, and the baseline ref takes the new tip.
  */
 import {
 	type AppError,
@@ -109,13 +124,22 @@ import { createLatestWins, type LatestTicket } from "../async/latest-wins.ts";
 import { createSingleFlight, type SingleFlight } from "../async/single-flight.ts";
 import {
 	configGet,
+	diffTreeAddedNul,
 	type GitCommand,
+	hashObjectStdin,
 	lsFiles,
+	lsFilesIgnoredNul,
+	rebaseOntoUpstream,
+	reflogHashes,
 	remoteGetUrl,
+	revListLeftRightCount,
 	revParseGitCommonDir,
 	revParseHead,
 	revParseVerify,
 	statusPorcelainAll,
+	symbolicRefHead,
+	updateRefStdin,
+	upstreamFullName,
 } from "../git/commands.ts";
 import {
 	apiRateLimit,
@@ -157,6 +181,14 @@ import {
 	type GitRunOptions,
 	isSuccessfulExit,
 } from "../git/runner.ts";
+import {
+	catchUpGuardEnv,
+	hasIgnoredPathCollision,
+	parseNulPaths,
+	rebaseAbortCommand,
+	syncedBaselineRef,
+} from "../git/stack-catch-up.ts";
+import { parseLeftRightCount, readOperation } from "../git/status.ts";
 import type {
 	CheckRun,
 	GitHubAccess as GitHubAccessView,
@@ -1154,6 +1186,11 @@ export interface GithubServiceDeps {
 	 * (REV-04). The container always supplies it; tests that never poll may leave it out.
 	 */
 	onPullRequestChanged?: (workspaceId: WorkspaceId) => void;
+	/**
+	 * Reports a failure of the automatic stack catch-up. The container always supplies it; tests
+	 * that never reach a catch-up may leave it out.
+	 */
+	onCatchUpError?: (workspaceId: WorkspaceId, error: AppError) => void;
 	now: () => number;
 	/** The Keychain the Account page's token is kept in (D029). */
 	keychain?: Pick<Keychain, "get" | "set" | "delete">;
@@ -2044,6 +2081,8 @@ export class GithubService {
 				this.#deps.now() - (this.#lastPolledAt.get(key) ?? 0) >= decision.value.intervalMs
 			) {
 				await this.#pollWatched(workspaceId, decision.value.requestedOnly);
+				// Polling is where a stack branch's rewrite is noticed; catch it up on its own.
+				await this.#catchUpAfterPoll(workspaceId);
 			}
 		} catch (cause) {
 			this.#recordPollFailure(workspaceId, pollCrashError(cause));
@@ -3226,11 +3265,225 @@ export class GithubService {
 	}
 
 	/**
-	 * Catches a stack branch up with its rewritten upstream (PR-12). Runs on its own when polling
-	 * sees the branch fall behind; skipping is the normal result, see `CatchUpSkipReason`.
+	 * Catches a stack branch up with its rewritten upstream (PR-12, services-map 3.8.3). Runs on
+	 * its own when polling sees the branch fall behind; skipping is the normal result, see
+	 * `CatchUpSkipReason`. The guarded rebase moves the branch onto the rewritten upstream tip,
+	 * after the clean-tree, operation, ignored-file and identity checks. It holds the worktree lock
+	 * and then the repo lock, as Conductor does. The baseline ref records the new tip, so the next
+	 * catch-up knows the branch was here.
 	 */
-	catchUpStackBranch(_workspaceId: WorkspaceId): Promise<Result<CatchUpOutcome>> {
-		return notImplemented("PR-12");
+	async catchUpStackBranch(workspaceId: WorkspaceId): Promise<Result<CatchUpOutcome>> {
+		const skip = (reason: CatchUpSkipReason): Result<CatchUpOutcome> =>
+			ok({ kind: "skipped", reason });
+		const setting = this.#deps.setting;
+		if (setting !== undefined && setting<boolean>("github_stacked_prs_enabled") !== true) {
+			return skip("not_in_stack");
+		}
+		// The stack read needs GitHub, so an offline poll does not try to catch anything up.
+		if (this.#githubIsOffline()) return skip("not_in_stack");
+		const context = await this.#deps.contextOf(workspaceId);
+		if (!context.ok) return err(context.error);
+		const found = context.value;
+		const key = String(workspaceId);
+		const pullRequest = this.store.getState().byWorkspace[key]?.pullRequest ?? null;
+		if (found.prNumber === null || pullRequest === null) return skip("not_in_stack");
+		if (pullRequest.state !== "open" && pullRequest.state !== "draft") return skip("not_in_stack");
+		if (!pullRequest.viewerCanMerge) return skip("no_write_permission");
+		const repoRootPath = found.repoRootPath;
+		if (repoRootPath === undefined) {
+			return err(
+				appError(
+					"github_repo_root_unknown",
+					"The stack catch-up needs the repository's main folder, which is not known.",
+				),
+			);
+		}
+		const cwd = found.workspacePath;
+
+		// Step 2: the branch, its head, its upstream and the remote must agree with the workspace.
+		const branchRef = await this.#deps.git.stdout(symbolicRefHead(), { cwd });
+		if (!branchRef.ok) return err(branchRef.error);
+		if (branchRef.value === "") return skip("detached_head");
+		if (branchRef.value !== `refs/heads/${found.branch}`) return skip("identity_changed");
+		const head = await this.#deps.git.stdout(revParseHead(), { cwd });
+		if (!head.ok) return err(head.error);
+		if (head.value === "") {
+			return err(appError("git_parse", "git rev-parse HEAD printed nothing."));
+		}
+		const upstreamRef = await this.#deps.git.stdout(upstreamFullName(), { cwd });
+		if (!upstreamRef.ok) return err(upstreamRef.error);
+		if (upstreamRef.value === "") return skip("not_diverged");
+		const upstream = await this.#deps.git.stdout(revParseVerify(upstreamRef.value), { cwd });
+		if (!upstream.ok) return err(upstream.error);
+		if (upstream.value === "") return skip("not_diverged");
+		const remote = await this.#deps.git.stdout(configGet(`branch.${found.branch}.remote`), {
+			cwd,
+		});
+		if (!remote.ok) return err(remote.error);
+		if (remote.value === "" || remote.value !== found.remote) return skip("identity_changed");
+		const upstreamPrefix = `refs/remotes/${found.remote}/`;
+		const upstreamBranch = upstreamRef.value.startsWith(upstreamPrefix)
+			? upstreamRef.value.slice(upstreamPrefix.length)
+			: null;
+		if (upstreamBranch !== found.branch) return skip("identity_changed");
+		if (head.value === upstream.value) return skip("not_diverged");
+		const counts = await this.#deps.git.stdout(revListLeftRightCount(upstream.value, head.value), {
+			cwd,
+		});
+		if (!counts.ok) return err(counts.error);
+		const parsedCounts = parseLeftRightCount(counts.value);
+		if (!parsedCounts.ok) return err(parsedCounts.error);
+		// A branch that is only ahead or only behind has nothing to catch up after a rewrite.
+		if (parsedCounts.value.left === 0 || parsedCounts.value.right === 0) {
+			return skip("not_diverged");
+		}
+
+		// The branch takes part in a GitHub stack. This is the expensive read, so it runs only
+		// after the cheap checks above say a catch-up may be needed.
+		const stack = await this.readStack(workspaceId);
+		// A repository with no GitHub remote cannot be in a GitHub stack; that is a normal skip.
+		if (!stack.ok && stack.error.code === "github_not_github") return skip("not_in_stack");
+		if (!stack.ok) return err(stack.error);
+		if (!stack.value.some((entry) => entry.isCurrent)) return skip("not_in_stack");
+
+		// Steps 3 and 4: the remote's identity and the baseline ref, with the reflog fallback.
+		const remoteUrl = await this.#deps.git.stdout(remoteGetUrl(found.remote), { cwd });
+		if (!remoteUrl.ok) return err(remoteUrl.error);
+		const remoteIdentity = await this.#deps.git.stdout(hashObjectStdin(remoteUrl.value), { cwd });
+		if (!remoteIdentity.ok) return err(remoteIdentity.error);
+		if (remoteIdentity.value === "") {
+			return err(appError("git_parse", "git hash-object printed nothing for the remote URL."));
+		}
+		const tuple = [branchRef.value, upstreamRef.value, found.remote, remoteIdentity.value].join(
+			"\n",
+		);
+		const tupleHash = await this.#deps.git.stdout(hashObjectStdin(tuple), { cwd });
+		if (!tupleHash.ok) return err(tupleHash.error);
+		const baselineRef = syncedBaselineRef(tupleHash.value);
+		const baseline = await this.#deps.git.stdout(revParseVerify(baselineRef), { cwd });
+		if (!baseline.ok) return err(baseline.error);
+		if (baseline.value !== head.value) {
+			const reflog = await this.#deps.git.stdout(reflogHashes(upstreamRef.value), { cwd });
+			if (!reflog.ok) return err(reflog.error);
+			const seen = reflog.value.split("\n").some((line) => line.trim() === head.value);
+			if (!seen) return skip(baseline.value === "" ? "no_baseline" : "identity_changed");
+		}
+
+		// Step 5: a clean tree and no other git operation.
+		const status = await this.#deps.git.stdout(statusPorcelainAll(), { cwd });
+		if (!status.ok) return err(status.error);
+		if (status.value.trim().length > 0) return skip("dirty_tree");
+		const operation = await readOperation(this.#deps.git, cwd);
+		if (!operation.ok) return err(operation.error);
+		if (operation.value !== "none") return skip("operation_in_progress");
+
+		// Step 6: an ignored file the rebase would overwrite.
+		const ignored = await this.#nulPaths(lsFilesIgnoredNul(), cwd);
+		if (!ignored.ok) return err(ignored.error);
+		const added = await this.#nulPaths(diffTreeAddedNul(head.value, upstream.value), cwd);
+		if (!added.ok) return err(added.error);
+		if (hasIgnoredPathCollision(ignored.value, added.value)) {
+			return skip("ignored_file_collision");
+		}
+
+		// Step 7: the guarded rebase, under the worktree lock and then the repo lock (3.0.3).
+		const guardEnv = catchUpGuardEnv({
+			headRef: branchRef.value,
+			localOid: head.value,
+			upstreamRef: upstreamRef.value,
+			upstreamOid: upstream.value,
+			remote: found.remote,
+			remoteIdentity: remoteIdentity.value,
+		});
+		return this.#deps.git.withWorktreeAndRepoLocks(cwd, repoRootPath, async () => {
+			const command = rebaseOntoUpstream(upstream.value, head.value);
+			const rebased = await this.#deps.git.run(command, { cwd, env: guardEnv });
+			if (!rebased.ok) return err(rebased.error);
+			if (!isSuccessfulExit(command, rebased.value.exitCode)) {
+				return err(await this.#abortFailedCatchUp(command, rebased.value, cwd));
+			}
+			const newTip = await this.#deps.git.stdout(revParseHead(), { cwd });
+			if (!newTip.ok) return err(newTip.error);
+			// Step 8: compare-and-swap the baseline ref to the new tip.
+			const update = updateRefStdin([
+				baseline.value === ""
+					? `create ${baselineRef} ${newTip.value}`
+					: `update ${baselineRef} ${newTip.value} ${baseline.value}`,
+			]);
+			const updated = await this.#deps.git.run(update, { cwd });
+			if (!updated.ok) return err(updated.error);
+			if (!isSuccessfulExit(update, updated.value.exitCode)) {
+				return err(failedCommandError(update, updated.value));
+			}
+			return ok({ kind: "rebased", newTip: newTip.value });
+		});
+	}
+
+	/** Reads a NUL-separated path list, refusing a command that did not succeed. */
+	async #nulPaths(command: GitCommand, cwd: string): Promise<Result<string[]>> {
+		const result = await this.#deps.git.run(command, { cwd });
+		if (!result.ok) return err(result.error);
+		if (!isSuccessfulExit(command, result.value.exitCode)) {
+			return err(failedCommandError(command, result.value));
+		}
+		return ok(parseNulPaths(result.value.stdout));
+	}
+
+	/**
+	 * Stops a refused or failed catch-up rebase so the worktree is not left in the middle of one,
+	 * and hands back the rebase's own failure. An abort that also fails is named, so the user can
+	 * stop the rebase themselves.
+	 */
+	async #abortFailedCatchUp(
+		command: GitCommand,
+		output: ShellOutput,
+		cwd: string,
+	): Promise<AppError> {
+		const failure = failedCommandError(command, output);
+		const state = await readOperation(this.#deps.git, cwd);
+		if (!state.ok) {
+			return appError(
+				"github_stack_catch_up_failed",
+				`${failure.message} The git state could not be read either: ${state.error.message}`,
+				failure,
+			);
+		}
+		if (state.value !== "rebase") return failure;
+		const abortCommand = rebaseAbortCommand();
+		const aborted = await this.#deps.git.run(abortCommand, { cwd });
+		if (!aborted.ok) {
+			return appError(
+				"github_stack_catch_up_failed",
+				`${failure.message} The rebase could not be aborted either: ${aborted.error.message}`,
+				failure,
+			);
+		}
+		if (!isSuccessfulExit(abortCommand, aborted.value.exitCode)) {
+			const message = aborted.value.stderr.trim() || "git rebase --abort failed";
+			return appError(
+				"github_stack_catch_up_failed",
+				`${failure.message} The rebase could not be aborted: ${message}`,
+				failure,
+			);
+		}
+		return failure;
+	}
+
+	/**
+	 * Runs the automatic catch-up after a timed poll. It never turns a catch-up failure into a
+	 * poll failure: the workspace's last PR answer stands, and the failure goes to the caller's
+	 * reporter instead.
+	 */
+	async #catchUpAfterPoll(workspaceId: WorkspaceId): Promise<void> {
+		try {
+			const result = await this.catchUpStackBranch(workspaceId);
+			if (!result.ok) this.#deps.onCatchUpError?.(workspaceId, result.error);
+		} catch (cause) {
+			this.#deps.onCatchUpError?.(
+				workspaceId,
+				appError("github_stack_catch_up_crashed", messageOf(cause)),
+			);
+		}
 	}
 
 	/** Backs `Actions.pullRequests.requestReview`: adds each GitHub user as a reviewer. */

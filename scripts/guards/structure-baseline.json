@@ -15,7 +15,7 @@
 		"apps/desktop/src/app/command-dispatcher.ts": 4,
 		"apps/desktop/src/core/async/optimistic.ts": 1,
 		"apps/desktop/src/core/db/sections.ts": 1,
-		"apps/desktop/src/core/git/commands.ts": 8,
+		"apps/desktop/src/core/git/commands.ts": 7,
 		"apps/desktop/src/core/registries/commands.ts": 1,
 		"apps/desktop/src/core/registries/settings.ts": 3,
 		"apps/desktop/src/core/services/pr-mapping.ts": 1,
