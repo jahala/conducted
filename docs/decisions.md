@@ -452,3 +452,9 @@ Why: `done` would close the issue over a feature no user can use; a placeholder 
 Context: plan-batches read only the stub rows and dropped any need outside them, so a need on a planned row counted as met. After D062 set PLAT-28 to planned, it offered PLAT-35 (gh and watchexec), which needs PLAT-28 and the same missing release feed.
 Chosen: `buildableRows` keeps a stub row only when every need is done or is itself buildable, repeated until nothing changes. A need on a planned row, a stub beyond the priority, or a missing row keeps the feature waiting, with everything that needs it. Slice 2 step 4 is REV-10 and SET-10; PLAT-35 waits for PLAT-28's feed.
 Why: building a feature whose dependency cannot work yet repeats PLAT-28's blocked state and spends a step on code no user can reach (D054).
+
+## D064. A quit stops the app first, for at most five seconds (2026-11-06)
+
+Context: the core hardening found that `Container.stop()` ran only in tests. A real quit called `app_quit` at once, so a composer draft on its debounce, chat events being stored, terminals and runs got no orderly end. Running the stop first can hang on one step (a stuck disk write, a sidecar that never answers), and then Cmd+Q would do nothing.
+Chosen: a quit runs the container's stop and then quits, and quits anyway after `QUIT_STOP_LIMIT_MS` (5 seconds) if the stop has not ended, with a log line. The research gives no limit; 5 seconds is our dial.
+Why: an orderly stop keeps the user's last edit and every stored event; a quit that never happens is worse than one that skips the last step.

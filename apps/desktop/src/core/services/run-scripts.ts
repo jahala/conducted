@@ -47,6 +47,7 @@ import type { FileSystem, Platform } from "../../platform/platform.ts";
 import type { RunState } from "../api.ts";
 import { binDir, setupLogFile } from "../app-paths.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
+import { createSingleFlight } from "../async/single-flight.ts";
 import type { Repo, RepoConfig, RunAction, SetupView, Workspace } from "../model.ts";
 import type { PortService } from "./ports.ts";
 import { buildScriptEnv, STOP_WATCHDOG_MS, type TerminalsService } from "./terminals.ts";
@@ -195,7 +196,7 @@ const emptyRunState = (): RunState => ({
 export class RunScriptsService {
 	readonly store: StoreApi<RunScriptsState>;
 	readonly #deps: RunScriptsServiceDeps;
-	readonly #running = new Map<WorkspaceId, Promise<Result<SetupRunResult>>>();
+	readonly #running = createSingleFlight<WorkspaceId>();
 	readonly #lastTerminal = new Map<WorkspaceId, TerminalId>();
 	/** One run process per workspace, as the action store requires. */
 	readonly #processes = new Map<WorkspaceId, RunProcess>();
@@ -312,13 +313,7 @@ export class RunScriptsService {
 		workspaceId: WorkspaceId,
 		onStarted?: (terminalId: TerminalId) => void,
 	): Promise<Result<SetupRunResult>> {
-		const existing = this.#running.get(workspaceId);
-		if (existing !== undefined) return existing;
-		const run = this.#runSetup(workspaceId, onStarted).finally(() => {
-			this.#running.delete(workspaceId);
-		});
-		this.#running.set(workspaceId, run);
-		return run;
+		return this.#running.run(workspaceId, () => this.#runSetup(workspaceId, onStarted));
 	}
 
 	async #runSetup(

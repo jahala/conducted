@@ -17,6 +17,7 @@
  * Test first: running an id without a handler returns `command_unavailable`.
  */
 import { appError, err, ok, type Result } from "@conducted/shared";
+import { createSingleFlight } from "../async/single-flight.ts";
 import type { Services } from "../container.ts";
 import { type CommandId, getCommand } from "../registries/commands.ts";
 
@@ -94,7 +95,7 @@ async function settle(title: string, handler: CommandHandler): Promise<Result<vo
 export class CommandRunner {
 	readonly #deps: CommandRunnerDeps;
 	/** A command already running answers later calls with the same promise, so it runs once. */
-	readonly #running = new Map<CommandId, Promise<Result<void>>>();
+	readonly #running = createSingleFlight<CommandId>();
 
 	constructor(deps: CommandRunnerDeps) {
 		this.#deps = deps;
@@ -118,11 +119,7 @@ export class CommandRunner {
 				err(appError("command_disabled", `${def.title} is not available now.`)),
 			);
 		}
-		const alreadyRunning = this.#running.get(commandId);
-		if (alreadyRunning !== undefined) return alreadyRunning;
-		const started = settle(def.title, handler).finally(() => this.#running.delete(commandId));
-		this.#running.set(commandId, started);
-		return started;
+		return this.#running.run(commandId, () => settle(def.title, handler));
 	}
 
 	/** Backs `useCommands`' enabled flag. */

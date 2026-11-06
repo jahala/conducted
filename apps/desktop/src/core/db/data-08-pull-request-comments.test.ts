@@ -27,9 +27,10 @@ let repositories: Repositories;
 beforeEach(() => {
 	store = openTestDatabase();
 	raw = store.raw;
+	let nextId = 0;
 	repositories = createRepositories(store.database, {
 		clock: { now: () => 5000 },
-		ids: { uuid: () => "comment-on-pull-request" },
+		ids: { uuid: () => `comment-on-pull-request-${++nextId}` },
 	});
 	raw.prepare(REPOS_SQL.insert).run(bind(repoToParams(sampleRepo)));
 	raw.prepare(WORKSPACES_SQL.insert).run(bind(must(workspaceToParams(sampleWorkspace))));

@@ -6,10 +6,12 @@
  * for the viewer and editor, the modified time the viewer polls, the editor's unsaved drafts, and
  * the pages of the Artifacts list. The drafts live in this service's store, keyed by workspace and
  * path, so they outlive the tab: switching tabs, toggling Diff and Edit, or moving to the next file
- * keeps them. A draft is kept in memory until it is saved or discarded, or the app quits. The
- * artifact pages are also kept per workspace, until the tab reads the first page again. The
- * absolute path of an artifact, for "Attach to chat", comes from here too, so the root and
- * `.context` folder rule has one home.
+ * keeps them. A draft is kept in memory until it is saved or discarded, its workspace is removed
+ * (the container calls `dropDraftsExcept` when the workspace store changes), or the app quits. An
+ * archived workspace keeps its drafts, because Restore brings the same folder back. The artifact
+ * pages are also kept per workspace, until the tab reads the first page again. The absolute path
+ * of an artifact, for "Attach to chat", comes from here too, so the root and `.context` folder
+ * rule has one home.
  * Behaviour: services-map.md 5A.5 (transport pattern, UI queries, minimum search length 2, polling
  * the tree, the artifacts command), ui-map.md 3.6 (All files tab, quick open, search in files, the
  * Artifacts tab). The tab polls `tree` because JS file watchers do nothing under CEF
@@ -129,6 +131,10 @@ const EMPTY_ARTIFACTS_PAGE: ArtifactsPageState = {
 /** The store key of a file's draft. */
 export const fileDraftKey = (workspaceId: WorkspaceId, relativePath: string): string =>
 	`${workspaceId}\u0000${relativePath}`;
+
+/** The workspace a draft key belongs to. Ids never hold the separator, so the first one splits. */
+const workspaceOfDraftKey = (key: string): WorkspaceId =>
+	key.slice(0, key.indexOf("\u0000")) as WorkspaceId;
 
 /**
  * The URL the webview loads a file's preview from. The modified time changes the URL when the file
@@ -344,6 +350,18 @@ export class WorkspaceFilesService {
 	/** Discard my edits: the editor shows the disk version again. */
 	discardDraft(workspaceId: WorkspaceId, relativePath: string): void {
 		this.#removeDraft(fileDraftKey(workspaceId, relativePath));
+	}
+
+	/** Drops the drafts of every workspace `keep` says no to, for example one that was removed. */
+	dropDraftsExcept(keep: (workspaceId: WorkspaceId) => boolean): void {
+		const drafts = this.drafts.getState().drafts;
+		const kept: Record<string, FileDraft> = {};
+		let dropped = false;
+		for (const [key, draft] of Object.entries(drafts)) {
+			if (keep(workspaceOfDraftKey(key))) kept[key] = draft;
+			else dropped = true;
+		}
+		if (dropped) this.drafts.setState({ drafts: kept });
 	}
 
 	/**

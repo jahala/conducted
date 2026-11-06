@@ -838,6 +838,8 @@ export class SettingsService {
 	readonly #touchedAt = new Map<string, number>();
 	#unsubscribeFocus: (() => void) | null = null;
 	#reloadTimer: ReturnType<typeof setInterval> | null = null;
+	/** Set by `stop`. A start still reading when the stop came installs no listener or timer. */
+	#stopped = false;
 
 	constructor(deps: SettingsServiceDeps) {
 		this.#deps = deps;
@@ -1092,8 +1094,9 @@ export class SettingsService {
 		return ok(parseSettingsDocument(parsed.value, path));
 	}
 
-	/** Stops the reload timer and the window focus listener. */
+	/** Stops the reload timer and the window focus listener, also for a start still running. */
 	stop(): void {
+		this.#stopped = true;
 		this.#unsubscribeFocus?.();
 		this.#unsubscribeFocus = null;
 		if (this.#reloadTimer !== null) {
@@ -1310,6 +1313,7 @@ export class SettingsService {
 	}
 
 	#startReloading(): void {
+		if (this.#stopped) return;
 		if (this.#unsubscribeFocus === null) {
 			const window = this.#deps.platform.window;
 			if (window !== undefined) {
