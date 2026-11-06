@@ -41,7 +41,6 @@ import {
 	type Result,
 	type SessionId,
 	type SnippetId,
-	type TurnId,
 	type WorkspaceId,
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
@@ -248,10 +247,10 @@ export interface ComposerServiceDeps {
 	) => Promise<Result<{ text: string; source: string } | null>>;
 	/** Another chat's title and concise transcript, for attaching it (CHAT-26). */
 	transcriptOf?: (sessionId: SessionId) => Promise<Result<{ title: string | null; text: string }>>;
-	/** The text of a plan an agent proposed in a turn, for attaching it (CHAT-26). */
+	/** The text of one plan an agent proposed, by its `PlanEntry.planId`, for attaching it (CHAT-26). */
 	planOf?: (
 		sessionId: SessionId,
-		turnId: TurnId,
+		planId: string,
 	) => Promise<Result<{ title: string; text: string }>>;
 }
 
@@ -821,13 +820,13 @@ export class ComposerService {
 	/** Backs `Actions.attachments.addPlan`. */
 	async addPlan(
 		sessionId: SessionId,
-		plan: { sessionId: SessionId; turnId: TurnId },
+		plan: { sessionId: SessionId; planId: string },
 	): Promise<Result<string>> {
 		const read = this.#deps.planOf;
 		if (read === undefined) {
 			return err(appError("chat_plan_failed", "Failed to attach plan"));
 		}
-		const found = await read(plan.sessionId, plan.turnId);
+		const found = await read(plan.sessionId, plan.planId);
 		if (!found.ok) {
 			return err(appError("chat_plan_failed", "Failed to attach plan", found.error));
 		}

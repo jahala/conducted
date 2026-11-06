@@ -624,7 +624,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		},
 		// CHAT-26: another chat's transcript and one plan, read when the user attaches them.
 		transcriptOf: (sessionId) => sessions.transcriptOf(sessionId),
-		planOf: (sessionId, turnId) => sessions.planFor(sessionId, turnId),
+		planOf: (sessionId, planId) => sessions.planFor(sessionId, planId),
 	});
 	const notifications = new NotificationService({
 		platform,
