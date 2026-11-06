@@ -224,6 +224,18 @@ const SETTINGS_TABLE = [
 		default: false,
 	},
 	{
+		key: "artifacts_tab_enabled",
+		page: "general",
+		scopes: ["user"],
+		title: "Show Artifacts tab",
+		description:
+			"Show a tab that lists the files the agent keeps in the workspace's .context folder.",
+		searchTerms: ["artifacts", "context", "files", "tab", "notes", "plans"],
+		feature: "REV-10",
+		type: "bool",
+		default: true,
+	},
+	{
 		key: "enterprise_data_privacy",
 		page: "general",
 		scopes: ["user", "repo"],

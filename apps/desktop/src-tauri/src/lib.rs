@@ -343,6 +343,7 @@ pub fn run() {
             file_search::search_list_tree,
             file_search::search_fuzzy,
             file_search::search_grep,
+            file_search::search_list_artifacts,
             pty::pty_spawn,
             pty::pty_write,
             pty::pty_resize,

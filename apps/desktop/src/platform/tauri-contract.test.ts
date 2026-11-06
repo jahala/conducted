@@ -17,6 +17,7 @@ const TAURI_SKIPS: Readonly<Record<string, string>> = {
 	"fileSearch.list-tree-ignores": `${NEEDS_RUST}: the ignore crate`,
 	"fileSearch.fuzzy": `${NEEDS_RUST}: file_search.rs`,
 	"fileSearch.grep-bad-regex": `${NEEDS_RUST}: the regex crate's error text`,
+	"fileSearch.list-artifacts": `${NEEDS_RUST}: file_search.rs`,
 	"pty.spawn-echo": `${NEEDS_RUST}: a real pseudo-terminal`,
 	"pty.exit-code": `${NEEDS_RUST}: a real pseudo-terminal`,
 	"pty.screen-text": `${NEEDS_RUST}: a real pseudo-terminal`,
@@ -36,7 +37,6 @@ const TAURI_SKIPS: Readonly<Record<string, string>> = {
  * must come off this list. `pnpm stubs` already fails a done feature that keeps a placeholder.
  */
 const NOT_BUILT: Readonly<Record<string, { feature: string; method: string }>> = {
-	"fileSearch.list-artifacts": { feature: "REV-10", method: "fileSearch.listArtifacts" },
 	"updater.check": { feature: "PLAT-13", method: "updater.check" },
 	"updater.installed-update": { feature: "PLAT-13", method: "updater.installedUpdate" },
 	"system.online-and-access": { feature: "PLAT-26", method: "system.isOnline" },

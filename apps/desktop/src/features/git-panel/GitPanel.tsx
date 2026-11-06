@@ -5,16 +5,18 @@
  * @feature PR-06 Cmd+Shift+M merges the pull request
  * @feature GIT-17 Continue after a merge or from a detached HEAD
  * Owns: right panel, top half. A header (status chip and main action), a tab strip, and the
- * active tab: All files, Changes or Checks. Entry point embedded by the workspace screen.
+ * active tab: Artifacts (when its setting is on), All files, Changes or Checks. Entry point
+ * embedded by the workspace screen.
  * Behaviour: ui-map.md 3.6 (tab strip, header, tabs), 5.4 (Cmd+Shift+X fix errors); frontend
  * layout in structure-map.md 3.2.
  * Data: useGitState, useWorkspaceStatus (agent working), useActions().
- * Children: GitHeader, GitPanelTabs, changes/ChangesTab, files/FilesTab, checks/ChecksTab. Each tab
- * body sits in its own NotBuiltYet boundary, keyed by the tab, so a tab that is not built or fails
- * shows which feature it is while the header and the tab strip stay usable. The Checks tab is marked
- * failing when a check that blocks the merge failed (checks-summary.ts, the header's rule).
- * The "Artifacts", "Desktop" and "Chat" tabs of Conductor are cloud or team features and are left
- * out.
+ * Children: GitHeader, GitPanelTabs, artifacts/ArtifactsTab, changes/ChangesTab, files/FilesTab,
+ * checks/ChecksTab. Each unbuilt tab body sits in its own NotBuiltYet boundary, keyed by the tab,
+ * so a tab that is not built or fails shows which feature it is while the header and the tab strip
+ * stay usable. The Checks tab is marked failing when a check that blocks the merge failed
+ * (checks-summary.ts, the header's rule). The Artifacts tab is kept by the panel itself, not by the
+ * workspace URL, so the URL's `gitTab` still holds only the three tabs it already had. The
+ * "Desktop" and "Chat" tabs of Conductor are cloud or team features and are left out.
  * The workspace URL state (workspace/workspace-search.ts) holds `gitTab`, `scope` and the open
  * file. The workspace screen passes them in through the optional props `tab`, `onTabChange`,
  * `scope`, `onScopeChange` and `onOpenFile`. A prop that is left out means the panel keeps that
@@ -58,12 +60,13 @@ import { Button } from "../../ui/Button.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { Skeleton } from "../../ui/Skeleton.tsx";
 import { toast, toastError } from "../../ui/Toast.tsx";
+import { ArtifactsTab } from "./artifacts/ArtifactsTab.tsx";
 import { ChangesTab } from "./changes/ChangesTab.tsx";
 import { ChecksTab } from "./checks/ChecksTab.tsx";
 import { summarizeChecks } from "./checks/checks-summary.ts";
 import { FilesTab } from "./files/FilesTab.tsx";
 import { GitHeader } from "./GitHeader.tsx";
-import { GitPanelTabs } from "./GitPanelTabs.tsx";
+import { GitPanelTabs, type GitPanelViewTab } from "./GitPanelTabs.tsx";
 import { ReviewPromptDialog } from "./ReviewPromptDialog.tsx";
 
 export interface GitPanelProps {
@@ -117,8 +120,10 @@ export function GitPanel({
 	const gitService = useServices().services.git;
 	const automergeEnabled = useSetting<boolean>("automerge_enabled");
 	const optionalChecksBlocking = useSetting<boolean>("treat_optional_checks_as_blocking");
+	const artifactsTabEnabled = useSetting<boolean>("artifacts_tab_enabled");
 
 	const [ownTab, setOwnTab] = useState<GitPanelTab>("changes");
+	const [showArtifacts, setShowArtifacts] = useState(false);
 	const [ownScope, setOwnScope] = useState<DiffScope>(DEFAULT_SCOPE);
 	const [reviewPromptOpen, setReviewPromptOpen] = useState(false);
 	const [reviewingFor, setReviewingFor] = useState<WorkspaceId | null>(null);
@@ -128,6 +133,8 @@ export function GitPanel({
 	currentWorkspace.current = workspaceId;
 	const reviewBusy = reviewingFor === workspaceId;
 	const tab = tabProp ?? ownTab;
+	const artifactsVisible = artifactsTabEnabled === true && showArtifacts;
+	const view: GitPanelViewTab = artifactsVisible ? "artifacts" : tab;
 	const scope = scopeProp ?? ownScope;
 	const headerInputs: GitHeaderInputs | null =
 		git.state === "ready"
@@ -145,15 +152,24 @@ export function GitPanel({
 		if (onTabChange !== undefined) onTabChange(next);
 		if (tabProp === undefined) setOwnTab(next);
 	};
+	const selectView = (next: GitPanelViewTab) => {
+		if (next === "artifacts") {
+			setShowArtifacts(true);
+			return;
+		}
+		setShowArtifacts(false);
+		setTab(next);
+	};
 	const setScope = (next: DiffScope) => {
 		if (onScopeChange !== undefined) onScopeChange(next);
 		if (scopeProp === undefined) setOwnScope(next);
 	};
 
-	// A new workspace starts with the review prompt closed.
+	// A new workspace starts with the review prompt closed and the Artifacts tab hidden.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: the workspace id is the trigger.
 	useEffect(() => {
 		setReviewPromptOpen(false);
+		setShowArtifacts(false);
 	}, [workspaceId]);
 
 	// Cmd+Alt+U (or the user's rebind) shows uncommitted changes while the panel is mounted.
@@ -355,8 +371,9 @@ export function GitPanel({
 		<div className="flex h-full min-h-0 flex-col">
 			{header}
 			<GitPanelTabs
-				active={tab}
-				onSelect={setTab}
+				active={view}
+				onSelect={selectView}
+				showArtifacts={artifactsTabEnabled === true}
 				changedCount={changedCount}
 				checksFailing={checksFailing}
 				reviewDisabled={reviewBusy || changedCount === 0}
@@ -367,7 +384,9 @@ export function GitPanel({
 				onReviewWithEdit={() => setReviewPromptOpen(true)}
 			/>
 			<div className="min-h-0 flex-1 overflow-hidden">
-				{tab === "files" ? (
+				{view === "artifacts" ? (
+					<ArtifactsTab workspaceId={workspaceId} />
+				) : view === "files" ? (
 					<NotBuiltYet area="All files" resetKey={`${workspaceId}:files`}>
 						<FilesTab workspaceId={workspaceId} onOpenFile={(path) => openFile(path, "edit")} />
 					</NotBuiltYet>

@@ -63,6 +63,7 @@ import type {
 	AppInfo,
 	AppMenu,
 	AppWindow,
+	ArtifactPage,
 	AttachmentFiles,
 	Clipboard,
 	Database,
@@ -713,7 +714,12 @@ export function createTauriFileSystem(
 export function createTauriFileSearch(bindings: TauriBindings): FileSearch {
 	return {
 		listTree: (root) => invokeResult<TreeEntry[]>(bindings, COMMANDS.searchListTree, { root }),
-		listArtifacts: () => notImplemented("REV-10"),
+		listArtifacts: (workspacePath, options) =>
+			invokeResult<ArtifactPage>(bindings, COMMANDS.searchListArtifacts, {
+				workspacePath,
+				cursor: options.cursor,
+				limit: options.limit,
+			}),
 		fuzzyMatch: (root, query, limit) =>
 			invokeResult<TreeEntry[]>(bindings, COMMANDS.searchFuzzy, { root, query, limit }),
 		grep: (root, query, options) =>

@@ -23,6 +23,7 @@ import {
 	type WorkspaceId,
 } from "@conducted/shared";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { useStore } from "zustand";
 import type { ContentMatch, FileEntry, Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
@@ -190,4 +191,22 @@ export const useContentSearch: Queries["useContentSearch"] = (workspaceId, query
 	return { state: "ready", data: result.data };
 };
 export const useRepoFileSearch: Queries["useRepoFileSearch"] = () => notImplemented("SIDE-22");
-export const useArtifacts: Queries["useArtifacts"] = () => notImplemented("REV-10");
+export const useArtifacts: Queries["useArtifacts"] = (workspaceId) => {
+	const service = useServices().services.workspaceFiles;
+	const page = useStore(service.artifactsStore, (state) => state.byWorkspace[workspaceId]);
+	useEffect(() => {
+		void service.loadArtifacts(workspaceId);
+	}, [service, workspaceId]);
+	if (page === undefined || (page.loading && page.entries.length === 0)) {
+		return { state: "loading" };
+	}
+	if (page.error !== null) return { state: "error", error: page.error };
+	return {
+		state: "ready",
+		data: {
+			entries: [...page.entries],
+			hasMore: page.hasMore,
+			omitted: page.omitted,
+		},
+	};
+};
