@@ -204,6 +204,29 @@ describe("CHAT-06 chat pane", () => {
 		}
 	});
 
+	it("leaves the chat another pane recorded since when it closes", async () => {
+		const test = createTestContainer();
+		try {
+			const workspace = await seedWorkspace(test.container);
+			const sessions = test.container.services.sessions;
+			const first = must(await sessions.create(workspace.id, CONFIG));
+			const second = must(await sessions.create(workspace.id, CONFIG));
+			must(await sessions.start());
+			const view = await mount(test, workspace.id, first.id, second.id);
+			await waitFor(() => expect(sessions.store.getState().viewingSessionId).toBe(first.id));
+
+			// A split pane opens the second chat beside this one, then this pane closes.
+			sessions.setViewing(second.id);
+			view.unmount();
+
+			expect(sessions.store.getState().viewingSessionId).toBe(second.id);
+		} finally {
+			cleanup();
+			await test.container.stop();
+			test.close();
+		}
+	});
+
 	it("tells the user when the workspace could not be marked read", async () => {
 		const test = createTestContainer();
 		try {
