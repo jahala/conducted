@@ -202,4 +202,228 @@ describe("SET-08 config sync preview and copy", () => {
 			ok("Good command\n"),
 		);
 	});
+
+	it("SET-08 maps a Claude HTTP server and a stdio server to Codex's keys", async () => {
+		test = createTestContainer();
+		const mounted = test;
+		const home = homeOf(mounted);
+		await seedFile(
+			mounted,
+			`${home}/.claude.json`,
+			JSON.stringify({
+				mcpServers: {
+					search: {
+						type: "http",
+						url: "https://search.example/mcp",
+						headers: { Authorization: "Bearer abc" },
+					},
+					docs: { type: "stdio", command: "npx", args: ["-y", "docs"], env: { LEVEL: "1" } },
+				},
+			}),
+		);
+
+		const service = mounted.container.services.agentCatalog;
+		const result = await service.syncConfigs("claude", ["mcp_servers"]);
+
+		expect(result).toEqual(ok({ applied: 2, failures: [] }));
+		const codex = await mounted.container.platform.fs.readText(`${home}/.codex/config.toml`);
+		if (!codex.ok) throw new Error(codex.error.message);
+		const parsed = tomlCodec.parse(codex.value);
+		if (!parsed.ok) throw new Error(parsed.error.message);
+		expect(parsed.value).toEqual({
+			mcp_servers: {
+				search: {
+					url: "https://search.example/mcp",
+					http_headers: { Authorization: "Bearer abc" },
+				},
+				docs: { command: "npx", args: ["-y", "docs"], env: { LEVEL: "1" } },
+			},
+		});
+	});
+
+	it("SET-08 lists a server the other agent cannot run as a failure, in the preview too", async () => {
+		test = createTestContainer();
+		const mounted = test;
+		const home = homeOf(mounted);
+		await seedFile(
+			mounted,
+			`${home}/.claude.json`,
+			JSON.stringify({
+				mcpServers: {
+					events: { type: "sse", url: "https://events.example/sse" },
+					docs: { command: "npx" },
+				},
+			}),
+		);
+
+		const service = mounted.container.services.agentCatalog;
+		const preview = await service.loadConfigSyncPreview("claude", ["mcp_servers"]);
+		if (!preview.ok) throw new Error(preview.error.message);
+		expect(preview.value.map((change) => change.name)).toEqual(["docs", "events"]);
+		expect(preview.value[1]?.diff).toContain("Not copied: Codex has no SSE transport.");
+
+		const result = await service.syncConfigs("claude", ["mcp_servers"]);
+
+		expect(result).toEqual(
+			ok({
+				applied: 1,
+				failures: [
+					{ category: "mcp_servers", name: "events", message: "Codex has no SSE transport." },
+				],
+			}),
+		);
+		const codex = await mounted.container.platform.fs.readText(`${home}/.codex/config.toml`);
+		if (!codex.ok) throw new Error(codex.error.message);
+		expect(codex.value).not.toContain("events");
+	});
+
+	it("SET-08 maps Codex servers to Claude's keys and refuses the keys Claude has no place for", async () => {
+		test = createTestContainer();
+		const mounted = test;
+		const home = homeOf(mounted);
+		await seedFile(
+			mounted,
+			`${home}/.codex/config.toml`,
+			[
+				"[mcp_servers.search]",
+				'url = "https://search.example/mcp"',
+				'bearer_token_env_var = "SEARCH_TOKEN"',
+				"",
+				"[mcp_servers.docs]",
+				'command = "npx"',
+				'args = ["-y", "docs"]',
+				"",
+				"[mcp_servers.web]",
+				'url = "https://web.example/mcp"',
+				"",
+			].join("\n"),
+		);
+		await seedFile(mounted, `${home}/.claude.json`, JSON.stringify({ theme: "light" }));
+
+		const service = mounted.container.services.agentCatalog;
+		const result = await service.syncConfigs("codex", ["mcp_servers"]);
+
+		expect(result).toEqual(
+			ok({
+				applied: 2,
+				failures: [
+					{
+						category: "mcp_servers",
+						name: "search",
+						message: "Claude Code has no setting for bearer_token_env_var.",
+					},
+				],
+			}),
+		);
+		const claude = await mounted.container.platform.fs.readText(`${home}/.claude.json`);
+		if (!claude.ok) throw new Error(claude.error.message);
+		expect(JSON.parse(claude.value)).toEqual({
+			theme: "light",
+			mcpServers: {
+				docs: { type: "stdio", command: "npx", args: ["-y", "docs"] },
+				web: { type: "http", url: "https://web.example/mcp" },
+			},
+		});
+	});
+
+	it("SET-08 refuses a skill whose folder holds other files, and copies none of it", async () => {
+		test = createTestContainer();
+		const mounted = test;
+		const home = homeOf(mounted);
+		await seedFolder(mounted, `${home}/.claude/skills/tool/scripts`);
+		await seedFile(mounted, `${home}/.claude/skills/tool/SKILL.md`, "# Tool\nRun scripts/go.sh\n");
+		await seedFile(mounted, `${home}/.claude/skills/tool/scripts/go.sh`, "echo go\n");
+		await seedFolder(mounted, `${home}/.claude/skills/plain`);
+		await seedFile(mounted, `${home}/.claude/skills/plain/SKILL.md`, "# Plain\n");
+
+		const service = mounted.container.services.agentCatalog;
+		const preview = await service.loadConfigSyncPreview("claude", ["skills"]);
+		if (!preview.ok) throw new Error(preview.error.message);
+		expect(preview.value.map((change) => change.name)).toEqual(["plain", "tool"]);
+		expect(preview.value[1]?.diff).toContain("Not copied: ");
+
+		const result = await service.syncConfigs("claude", ["skills"]);
+
+		expect(result).toEqual(
+			ok({
+				applied: 1,
+				failures: [
+					{
+						category: "skills",
+						name: "tool",
+						message: "The skill folder holds more than SKILL.md (scripts), so copy it by hand.",
+					},
+				],
+			}),
+		);
+		expect(await mounted.container.platform.fs.exists(`${home}/.codex/skills/tool`)).toBe(false);
+		expect(
+			await mounted.container.platform.fs.readText(`${home}/.codex/skills/plain/SKILL.md`),
+		).toEqual(ok("# Plain\n"));
+	});
+
+	it("SET-08 refuses to write ~/.claude.json when Claude Code changed it during the sync", async () => {
+		let now = 1_000;
+		test = createTestContainer({ clock: { now: () => (now += 1_000) } });
+		const mounted = test;
+		const home = homeOf(mounted);
+		const fs = mounted.container.platform.fs;
+		const claudeJson = `${home}/.claude.json`;
+		await fs.writeTextAtomic(claudeJson, JSON.stringify({ projects: { a: 1 } }));
+		await seedFile(mounted, `${home}/.codex/config.toml`, '[mcp_servers.docs]\ncommand = "npx"\n');
+		const read = fs.readText.bind(fs);
+		const write = fs.writeTextAtomic.bind(fs);
+		let claudeReads = 0;
+		const concurrent = JSON.stringify({ projects: { a: 1, b: 2 } });
+		vi.spyOn(fs, "readText").mockImplementation(async (path) => {
+			const result = await read(path);
+			// Claude Code rewrites its file just after the sync read it for the write.
+			if (path === claudeJson && ++claudeReads === 2) await write(claudeJson, concurrent);
+			return result;
+		});
+
+		const service = mounted.container.services.agentCatalog;
+		const result = await service.syncConfigs("codex", ["mcp_servers"]);
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) throw new Error(result.error.message);
+		expect(result.value.applied).toBe(0);
+		expect(result.value.failures).toEqual([
+			{
+				category: "mcp_servers",
+				name: "docs",
+				message: `${claudeJson} changed while the sync was writing it. Nothing was written; run the sync again.`,
+			},
+		]);
+		expect(await read(claudeJson)).toEqual(ok(concurrent));
+	});
+
+	it("SET-08 keeps the indentation of ~/.claude.json and changes only its MCP table", async () => {
+		test = createTestContainer();
+		const mounted = test;
+		const home = homeOf(mounted);
+		const original = `${JSON.stringify({ theme: "dark", numStartups: 3 }, null, "\t")}\n`;
+		await seedFile(mounted, `${home}/.claude.json`, original);
+		await seedFile(mounted, `${home}/.codex/config.toml`, '[mcp_servers.docs]\ncommand = "npx"\n');
+
+		const service = mounted.container.services.agentCatalog;
+		expect(await service.syncConfigs("codex", ["mcp_servers"])).toEqual(
+			ok({ applied: 1, failures: [] }),
+		);
+
+		const claude = await mounted.container.platform.fs.readText(`${home}/.claude.json`);
+		expect(claude).toEqual(
+			ok(
+				`${JSON.stringify(
+					{
+						theme: "dark",
+						numStartups: 3,
+						mcpServers: { docs: { type: "stdio", command: "npx" } },
+					},
+					null,
+					"\t",
+				)}\n`,
+			),
+		);
+	});
 });

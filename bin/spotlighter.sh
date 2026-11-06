@@ -8,8 +8,13 @@
 # Must handle:
 #   - required environment (see below); a missing one prints which and exits 1
 #   - run with the workspace as the current folder
-#   - bursts of changes: watchexec runs one job at a time and queues the latest event, so the root
-#     ends up equal to the latest workspace state
+#   - bursts of changes: watchexec runs one job at a time, and `--on-busy-update=queue` runs the
+#     job once more when changes arrived during a run, so the root ends up equal to the latest
+#     workspace state
+# Our design choice: Conductor's command line passes no busy mode. watchexec's default
+#   (`do-nothing`, checked against watchexec 2.3.2) drops changes that arrive during a sync, which
+#   leaves the root behind until the next change. The research describes the queued behaviour,
+#   so this script asks for it.
 #   - ignore noise: *.tmp.* files and the .context folder
 #   - a merge or rebase in the workspace (checkpointer exit 101) or a failed save: skip this round
 #     and keep watching
@@ -141,6 +146,7 @@ trap on_signal INT TERM
   --shell=none \
   --watch . \
   --project-origin . \
+  --on-busy-update=queue \
   --emit-events-to=environment \
   --ignore '*.tmp.*' \
   --ignore '.context/**' \

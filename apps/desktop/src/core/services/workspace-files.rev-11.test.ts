@@ -134,6 +134,27 @@ describe("REV-11 WorkspaceFilesService conflict resolution", () => {
 		}
 	});
 
+	it("reports a save that landed but could not be staged as its own failure", async () => {
+		const { test, workspace, absolute, service } = await setup(conflict("ours", "theirs"));
+		test.memory.controls.scriptShell((command) =>
+			command.program === "git" && command.args.includes("add")
+				? ok({ stdout: "", stderr: "fatal: Unable to create '.git/index.lock'", exitCode: 128 })
+				: null,
+		);
+		try {
+			const result = await service.resolveConflicts(workspace.id, "a.ts", ["current"]);
+
+			expect(result.ok).toBe(false);
+			if (!result.ok) {
+				expect(result.error.code).toBe("conflict_saved_not_staged");
+				expect(result.error.message).toContain("a.ts");
+			}
+			expect(test.memory.controls.files.get(absolute)).toBe("ours\n");
+		} finally {
+			test.close();
+		}
+	});
+
 	it("refuses a file with no conflict markers, so an unrelated file is not staged", async () => {
 		const { test, workspace, absolute, gitCalls, service } = await setup("plain text");
 		try {

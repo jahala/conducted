@@ -4,7 +4,7 @@
  * Test first: with the setting on, the state moves to a restart when the last working chat goes idle.
  */
 import { idleLiveState } from "@conducted/protocol";
-import { appError, err } from "@conducted/shared";
+import { appError, err, ok } from "@conducted/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTestContainer, type TestContainer } from "../../test/container.ts";
 
@@ -46,6 +46,84 @@ describe("PLAT-13 UpdatesService.isSafeToQuit", () => {
 		expect(updates.isSafeToQuit()).toBe(false);
 		setWorking(test, false);
 		expect(updates.isSafeToQuit()).toBe(true);
+	});
+});
+
+describe("PLAT-13 UpdatesService.check", () => {
+	it("shows the version the feed offers", async () => {
+		const test = build();
+		vi.spyOn(test.container.platform.updater, "check").mockResolvedValue(
+			ok({ version: "0.2.0", notes: "Faster diffs." }),
+		);
+
+		const checked = await test.container.actions.app.checkForUpdates();
+
+		expect(checked).toEqual(ok(undefined));
+		expect(test.container.services.updates.store.getState()).toEqual({
+			state: "available",
+			version: "0.2.0",
+			notesUrl: null,
+			error: null,
+		});
+	});
+
+	it("goes back to idle when the app is up to date", async () => {
+		const test = build();
+		const check = vi.spyOn(test.container.platform.updater, "check").mockResolvedValue(ok(null));
+
+		const checked = await test.container.actions.app.checkForUpdates();
+
+		expect(checked).toEqual(ok(undefined));
+		expect(check).toHaveBeenCalledTimes(1);
+		expect(test.container.services.updates.store.getState()).toMatchObject({
+			state: "idle",
+			version: null,
+			error: null,
+		});
+	});
+
+	it("shows a failed check as an error, never as up to date", async () => {
+		const test = build();
+		vi.spyOn(test.container.platform.updater, "check").mockResolvedValue(
+			err(appError("updater_network", "Could not reach the update feed")),
+		);
+
+		const checked = await test.container.actions.app.checkForUpdates();
+
+		expect(checked.ok).toBe(false);
+		expect(test.container.services.updates.store.getState()).toMatchObject({
+			state: "error",
+			error: "Could not reach the update feed",
+		});
+	});
+
+	it("answers a check that starts while one runs with the same result", async () => {
+		const test = build();
+		let answer: (value: ReturnType<typeof ok<{ version: string; notes: string } | null>>) => void =
+			() => {};
+		const check = vi.spyOn(test.container.platform.updater, "check").mockReturnValue(
+			new Promise((resolve) => {
+				answer = resolve;
+			}),
+		);
+
+		const first = test.container.actions.app.checkForUpdates();
+		const second = test.container.actions.app.checkForUpdates();
+		answer(ok({ version: "0.2.0", notes: "" }));
+
+		expect(await first).toEqual(ok(undefined));
+		expect(await second).toEqual(ok(undefined));
+		expect(check).toHaveBeenCalledTimes(1);
+	});
+
+	it("runs from the palette's Check for updates command", async () => {
+		const test = build();
+		const check = vi.spyOn(test.container.platform.updater, "check").mockResolvedValue(ok(null));
+
+		expect(await test.container.services.commands.run("app.checkForUpdates")).toEqual(
+			ok(undefined),
+		);
+		expect(check).toHaveBeenCalledTimes(1);
 	});
 });
 

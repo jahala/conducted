@@ -1,15 +1,16 @@
 /**
  * @feature SET-12 Claude settings and Codex config editors
  * Owns: the dialog that edits one agent's own settings file on the Agents page: the file's path,
- * its text in a code editor, a save that refuses to overwrite a change made elsewhere, and the
- * state of a file that does not exist yet.
+ * its text in a monospace text field, a save that refuses to overwrite a change made elsewhere,
+ * and the state of a file that does not exist yet.
  * Behaviour: ui-map.md 6, "Agents page" ("Claude settings JSON", "Codex config"). The research
  * gives no further behaviour for the editors, so this is our design choice: a plain text editor
  * over the file the agent itself reads.
  * Data: useAgentConfigFile(agent) and Actions.agents.saveConfigFile.
  * Must handle: loading, a read that fails (with Try again), a missing file (saving creates it), a
- * save in flight, a file that changed on disk (the draft stays and the reason shows), and a save
- * that fails.
+ * save in flight, a file that changed on disk (the draft stays and the reason shows), text that is
+ * not valid JSON or TOML (the service refuses it; the draft stays and the parse error shows), and
+ * a save that fails.
  * Test first: editing Claude's settings and saving writes the new text to ~/.claude/settings.json.
  */
 

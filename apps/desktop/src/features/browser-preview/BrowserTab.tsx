@@ -9,10 +9,11 @@
  * Our design choice: the tab draws the page it was opened with. A typed address on another origin
  * opens in the system browser, and a failure to open there shows the "Couldn't open browser tab"
  * toast. The workspace gate hides this tab for an archived workspace.
- * Must handle: the server not running or not yet listening ("Starting preview..." then a timeout
- * with a Retry), the page failing to load, a navigation to another origin opening outside the
- * app, the setting being off (the tab says previews open in the system browser and offers that),
- * and a system-browser failure.
+ * Must handle: the server not running or not yet listening ("Starting preview..." while the frame
+ * probes the address, then after the timeout the failed state with a Retry; the frame keeps
+ * probing and shows the page without a click once the server answers), the page failing to load,
+ * a navigation to another origin opening outside the app, the setting being off (the tab says
+ * previews open in the system browser and offers that), and a system-browser failure.
  * Test first: with the server not listening the tab shows "Starting preview" and, after the
  * timeout, a Retry action.
  */
@@ -161,9 +162,5 @@ function detailFor(
 			return `The connection to ${address} was refused.`;
 		case "timeout":
 			return `The preview at ${address} did not answer in time.`;
-		case "blocked":
-			return "This page cannot be shown inside the app.";
-		case "other":
-			return "The preview could not be loaded.";
 	}
 }

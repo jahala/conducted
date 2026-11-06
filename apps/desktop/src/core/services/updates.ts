@@ -12,15 +12,19 @@
  * Our design choice: we check at start, then once an hour and after the window regains focus
  * after 10 minutes, instead of every minute. There is no release holdout and no random delay,
  * because there is no shared CDN to protect.
- * Built now: `isSafeToQuit` (no chat is working) and PLAT-13's install-and-restart path. Checking
- * is still APP-06's placeholder.
+ * Built now: `isSafeToQuit` (no chat is working), PLAT-13's check (the palette command, the
+ * hourly timer and `Actions.app.checkForUpdates` reach it) and its install-and-restart path. The
+ * feed publishes notes as text, not a page, so `notesUrl` stays null. Not built here, and APP-06's:
+ * the focus re-check, the pre-release channel, the retry toasts, the "You're up to date!" and
+ * "already in progress" toasts and the update notice that reads this store.
  * Test first: with the setting on, the state moves to a restart when the last working chat goes idle.
  */
-import { appError, err, messageOf, notImplemented, ok, type Result } from "@conducted/shared";
+import { appError, err, messageOf, ok, type Result } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform } from "../../platform/platform.ts";
 import type { UpdateStatus } from "../api.ts";
 import { fireAndForget } from "../async/fire-and-forget.ts";
+import { createSingleFlight } from "../async/single-flight.ts";
 
 export const UPDATE_CHECK_INTERVAL_MS = 3_600_000;
 export const UPDATE_FOCUS_RECHECK_MS = 600_000;
@@ -36,6 +40,8 @@ export interface UpdatesServiceDeps {
 export class UpdatesService {
 	readonly store: StoreApi<UpdateStatus>;
 	readonly #deps: UpdatesServiceDeps;
+	/** A check asked for while one runs gets that check's answer. */
+	readonly #checks = createSingleFlight<"check">();
 	#restarting = false;
 
 	constructor(deps: UpdatesServiceDeps) {
@@ -48,10 +54,26 @@ export class UpdatesService {
 		}));
 	}
 
-	/** Backs `Actions.app.checkForUpdates`. */
+	/**
+	 * Backs `Actions.app.checkForUpdates`, the palette's Check for updates and the hourly check.
+	 * A failed check is an error state, never "up to date".
+	 */
 	check(): Promise<Result<void>> {
-		void this.#deps;
-		return notImplemented("APP-06");
+		return this.#checks.run("check", async () => {
+			this.store.setState({ state: "checking", error: null });
+			const found = await this.#deps.platform.updater.check();
+			if (!found.ok) {
+				this.store.setState({ state: "error", error: found.error.message });
+				return found;
+			}
+			this.store.setState({
+				state: found.value === null ? "idle" : "available",
+				version: found.value?.version ?? null,
+				notesUrl: null,
+				error: null,
+			});
+			return ok(undefined);
+		});
 	}
 
 	/** Backs `Actions.app.installUpdate`: download, then restart now or when idle. */

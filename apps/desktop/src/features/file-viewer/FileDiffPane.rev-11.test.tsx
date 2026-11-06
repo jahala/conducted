@@ -106,11 +106,13 @@ describe("REV-11 FileDiffPane conflict rows", () => {
 	it("shows the failure toast when the file cannot be saved", async () => {
 		const { test, client, absolute } = await setup(
 			conflict("ours", "theirs"),
-			"<<<<<<< HEAD\nours\n>>>>>>> feature\n",
+			conflict("ours", "theirs"),
 		);
 		const toastError = vi.spyOn(toast, "error");
 		try {
 			fireEvent.click(await screen.findByRole("button", { name: "Accept both" }));
+			// The file breaks on disk after the rows were drawn, so saving must not touch it.
+			test.memory.controls.files.set(absolute, "<<<<<<< HEAD\nours\n>>>>>>> feature\n");
 			fireEvent.click(screen.getByRole("button", { name: "Save resolution" }));
 
 			await waitFor(() =>
@@ -122,6 +124,75 @@ describe("REV-11 FileDiffPane conflict rows", () => {
 			expect(test.memory.controls.files.get(absolute)).toBe(
 				"<<<<<<< HEAD\nours\n>>>>>>> feature\n",
 			);
+		} finally {
+			toastError.mockRestore();
+			client.clear();
+			test.close();
+		}
+	});
+
+	it("draws the rows from the working file, not from the side the diff compares", async () => {
+		const { test, client } = await setup(conflict("stale", "older"), conflict("ours", "theirs"));
+		try {
+			expect(await screen.findByText("ours")).toBeTruthy();
+			expect(screen.getByText("theirs")).toBeTruthy();
+			expect(screen.queryByText("stale")).toBeNull();
+		} finally {
+			client.clear();
+			test.close();
+		}
+	});
+
+	it("refuses to save when the agent rewrote the file after the rows were drawn", async () => {
+		const { test, client, absolute, gitCalls } = await setup(
+			conflict("ours", "theirs"),
+			conflict("ours", "theirs"),
+		);
+		const toastError = vi.spyOn(toast, "error");
+		try {
+			fireEvent.click(await screen.findByRole("button", { name: "Accept current change" }));
+			test.memory.controls.files.set(absolute, conflict("rewritten", "by the agent"));
+			fireEvent.click(screen.getByRole("button", { name: "Save resolution" }));
+
+			await waitFor(() =>
+				expect(toastError).toHaveBeenCalledWith("Failed to save conflict resolution", {
+					description: '"a.ts" changed on disk after its conflicts were shown. Check them again.',
+				}),
+			);
+			expect(test.memory.controls.files.get(absolute)).toBe(conflict("rewritten", "by the agent"));
+			expect(gitCalls.some((call) => call.includes("add"))).toBe(false);
+		} finally {
+			toastError.mockRestore();
+			client.clear();
+			test.close();
+		}
+	});
+
+	it("says the resolution was saved when only staging it failed", async () => {
+		const { test, client, absolute } = await setup(
+			conflict("ours", "theirs"),
+			conflict("ours", "theirs"),
+		);
+		test.memory.controls.scriptShell((command) =>
+			command.program === "git" && command.args.includes("add")
+				? ok({ stdout: "", stderr: "fatal: index.lock exists", exitCode: 128 })
+				: null,
+		);
+		const toastError = vi.spyOn(toast, "error");
+		try {
+			fireEvent.click(await screen.findByRole("button", { name: "Accept current change" }));
+			fireEvent.click(screen.getByRole("button", { name: "Save resolution" }));
+
+			await waitFor(() =>
+				expect(toastError).toHaveBeenCalledWith("Saved, but could not stage the file", {
+					description: expect.stringContaining("a.ts"),
+				}),
+			);
+			expect(toastError).not.toHaveBeenCalledWith(
+				"Failed to save conflict resolution",
+				expect.anything(),
+			);
+			expect(test.memory.controls.files.get(absolute)).toBe("ours\n");
 		} finally {
 			toastError.mockRestore();
 			client.clear();

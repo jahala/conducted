@@ -5,6 +5,8 @@
  * Test first: with the server not listening the tab shows "Starting preview" and, after the
  * timeout, a Retry action.
  */
+import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
 import type { WorkspaceId } from "@conducted/shared";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { toast } from "sonner";
@@ -40,13 +42,48 @@ const config: RepoConfig = {
 };
 
 const containers: TestContainer[] = [];
+const servers: Server[] = [];
 
-afterEach(() => {
+afterEach(async () => {
 	cleanup();
 	vi.useRealTimers();
 	vi.restoreAllMocks();
 	for (const test of containers.splice(0)) test.close();
+	await Promise.all(servers.splice(0).map(close));
 });
+
+function close(server: Server): Promise<void> {
+	return new Promise((resolve) => {
+		if (!server.listening) {
+			resolve();
+			return;
+		}
+		server.close(() => resolve());
+	});
+}
+
+/** A real dev server stand-in on a port the system picks; its address is the preview URL. */
+function serve(): Promise<Server> {
+	return new Promise((resolve, reject) => {
+		const server = createServer((_request, response) => response.end("<p>dev server</p>"));
+		server.once("error", reject);
+		server.listen(0, "127.0.0.1", () => {
+			servers.push(server);
+			resolve(server);
+		});
+	});
+}
+
+const urlOf = (server: Server): string =>
+	`http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+
+/** The address of a port nothing listens on: a server took it from the system and closed. */
+async function closedUrl(): Promise<string> {
+	const server = await serve();
+	const url = urlOf(server);
+	await close(server);
+	return url;
+}
 
 async function setup(previewOn = true) {
 	const test = createTestContainer();
@@ -78,8 +115,9 @@ function renderTab(
 describe("RUN-04 browser tab", () => {
 	it("with the server not listening it shows Starting preview, then a Retry action", async () => {
 		const { test, workspace } = await setup();
+		const url = await closedUrl();
 		vi.useFakeTimers();
-		renderTab(test, workspace.id);
+		renderTab(test, workspace.id, url);
 
 		expect(screen.getByText("Starting preview...")).toBeTruthy();
 		act(() => {
@@ -102,14 +140,15 @@ describe("RUN-04 browser tab", () => {
 	it("opens an address on another origin in the system browser", async () => {
 		const { test, workspace } = await setup();
 		const opened = vi.spyOn(test.memory.platform.opener, "openUrl").mockResolvedValue(undefined);
-		renderTab(test, workspace.id);
+		const url = urlOf(await serve());
+		renderTab(test, workspace.id, url);
 
 		const address = screen.getByLabelText("Address");
 		fireEvent.change(address, { target: { value: "https://example.com" } });
 		fireEvent.keyDown(address, { key: "Enter" });
 
 		await waitFor(() => expect(opened).toHaveBeenCalledWith("https://example.com/"));
-		expect(screen.getByTitle("Preview").getAttribute("src")).toBe("http://localhost:5173");
+		expect((await screen.findByTitle("Preview")).getAttribute("src")).toBe(url);
 	});
 
 	it("shows the Couldn't open browser tab toast when the system browser fails", async () => {

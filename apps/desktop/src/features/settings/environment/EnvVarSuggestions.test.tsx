@@ -1,10 +1,12 @@
+import { AGENT_PROVIDER_TABLE, signInEnvVars } from "@conducted/protocol";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../../core/context.tsx";
 import { createTestContainer, type TestContainer } from "../../../test/container.ts";
 import "../../../test/dom-polyfills.ts";
+import { isReservedEnvVarName } from "../../../core/services/settings.ts";
 import { EnvironmentPage } from "../pages/EnvironmentPage.tsx";
-import { EnvVarSuggestions } from "./EnvVarSuggestions.tsx";
+import { EnvVarSuggestions, suggestEnvVars } from "./EnvVarSuggestions.tsx";
 
 let test: TestContainer | undefined;
 
@@ -59,6 +61,35 @@ describe("SET-11 EnvVarSuggestions", () => {
 
 		const names = screen.getAllByRole("button").map((button) => button.textContent ?? "");
 		expect(names.some((name) => name.startsWith("CONDUCTED_"))).toBe(false);
+		// The list itself holds no reserved name: nothing filters them out at run time.
+		expect(suggestEnvVars("", []).filter((entry) => isReservedEnvVarName(entry.name))).toEqual([]);
+	});
+
+	it("names outside the agent-provider table are only the ones the table does not own", () => {
+		const tableNames = new Set(
+			(["claude", "codex", "cursor"] as const).flatMap((agent) => {
+				const facts = AGENT_PROVIDER_TABLE[agent];
+				return [
+					...(facts.baseUrlEnvVar === undefined ? [] : [facts.baseUrlEnvVar]),
+					...facts.signIns.flatMap((signIn) => [
+						...signInEnvVars(signIn),
+						...(signIn.routingEnvVar === undefined ? [] : [signIn.routingEnvVar]),
+					]),
+				];
+			}),
+		);
+
+		const outside = suggestEnvVars("", [])
+			.filter((entry) => entry.group !== "proxy" && !tableNames.has(entry.name))
+			.map((entry) => entry.name);
+
+		expect(outside).toEqual([
+			"ANTHROPIC_AUTH_TOKEN",
+			"AWS_REGION",
+			"AWS_PROFILE",
+			"CODEX_API_KEY",
+			"CODEX_ACCESS_TOKEN",
+		]);
 	});
 
 	it("says a secret's value goes to the Keychain", () => {

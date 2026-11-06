@@ -1,68 +1,57 @@
 //! @feature PLAT-13 Self-update that waits until agents are idle
 //!
-//! Owns: checking a release feed for a newer app version, downloading and verifying that version,
-//! staging it for a relaunch, and reporting the notes of an update installed since the last launch.
-//! The Rust side moves bytes and verifies them. The UI decides when it is safe to relaunch.
+//! Owns: the app's update commands over `tauri-plugin-updater`: checking our release feed,
+//! downloading and verifying the update with retries, installing it and restarting, and the record
+//! of the update installed just before this launch. The plugin reads the feed, downloads the
+//! package, checks its minisign signature and replaces the app bundle (D079). This module adds what
+//! the plugin leaves to the app: retry with backoff, one download shared by callers that ask at
+//! once, the status event, the sidecar's stop before the restart, and the installed record behind
+//! the release notes after relaunch. The UI decides when it is safe to relaunch.
 //!
-//! Behaviour: docs/research/conductor/native-and-sidecar-map.md A9 (Updater: a release feed,
-//! minisign signatures, a manual update path with retry and persisted state, release notes after
-//! relaunch) and A2 (`check_for_updates`, `get_installed_manual_update`).
+//! Behaviour: docs/research/conductor/native-and-sidecar-map.md A9 (the Tauri updater plugin does
+//! the update with minisign signatures; a manual path retries the download and shows the release
+//! notes after relaunch) and A2 (`check_for_updates`, `get_installed_manual_update`).
 //!
 //! Must handle:
 //! - `updater_check` returns `None` when the app is current. A network or feed failure is an error
-//!   (`updater_network`, `updater_feed_invalid`), never "no update".
-//! - The feed and its public key come from `CONDUCTED_UPDATE_FEED` and
-//!   `CONDUCTED_UPDATE_PUBLIC_KEY`, set by the build or the environment. When either is missing the
-//!   command fails with `updater_config_missing`; no URL or key is invented.
-//! - A bad signature fails with `updater_bad_signature` and the downloaded file is discarded.
-//!   Nothing unsigned is staged. The minisign `Ed` (raw Ed25519) scheme is verified; the prehashed
-//!   `ED` scheme is refused with `updater_signature_unsupported`, because this module has no
-//!   BLAKE2b implementation.
-//! - `updater_install` downloads and stages the update, then reports `Ready`. It does not restart
-//!   the app. The UI calls `updater_relaunch` once no agent is working.
-//! - Calling `updater_install` twice at once joins the first download. Calling it with no checked
-//!   update fails with `updater_nothing_pending`.
-//! - A download that fails in a way a retry can fix retries with backoff and reports `Downloading`
-//!   again. After the last attempt the status is `Failed`.
-//! - The pending update, including its staged file, is written beside the app data so a restart
-//!   keeps it. A state file that cannot be read is an error, never an empty state.
-//! - `updater_relaunch` stops the sidecar, records the update for the next launch, and restarts the
-//!   app. Replacing the bundle is the job of the Tauri updater plugin when it is added; the record
-//!   is returned by `updater_installed_update` only when the running version matches it, so an
-//!   update that did not apply never claims it did.
-//! - Every status change is emitted as `updater://status` with the full status. A late listener
-//!   reads the stored status through the next event.
+//!   (`updater_network`, `updater_feed_invalid`, `updater_platform_missing`), never "no update".
+//! - The feed URL and the public key are `plugins.updater` in tauri.conf.json. Nothing is defaulted.
+//! - `updater_install` downloads and verifies the update, keeps the package in memory and reports
+//!   `Ready`. It does not install: a bundle replaced while the app runs would hand a restarted
+//!   sidecar the next version's files. A package whose signature does not match fails with
+//!   `updater_bad_signature`, and nothing is kept, so the next install downloads it again.
+//! - Two `updater_install` calls at once share one download. With no checked update the call fails
+//!   with `updater_nothing_pending`.
+//! - A download failure that another attempt can fix (the network, an error answer) is tried again
+//!   with backoff and reports `Downloading` again. After the last attempt the status is `Failed`.
+//!   The feed request may take `FEED_TIMEOUT_MS` in all; a download waits at most
+//!   `READ_TIMEOUT_MS` for its next bytes, so a large download on a slow line is not cut off.
+//! - `updater_relaunch` records the update for the next launch, then installs it. When either step
+//!   fails nothing has been stopped: the status is `Failed` and the app keeps running. After the
+//!   install the sidecar is stopped and the app restarts, also when the stop fails, because the
+//!   bundle on disk is already the new version.
+//! - `updater_installed_update` returns the record once, and only when the running version is that
+//!   update, so an update that did not apply never claims it did. A record that cannot be read is
+//!   an error, never "no update".
+//! - Every status change is emitted as `updater://status` with the full status.
 //!
-//! Our design choice: this module is written against our own command names and does not add
-//! `tauri-plugin-updater` yet. The plugin needs a signing key pair and a release feed, which do not
-//! exist. Setup when they do: run `cargo tauri signer generate`, put the public key in
-//! `plugins.updater.pubkey` and the feed URL in `plugins.updater.endpoints` in tauri.conf.json,
-//! set `bundle.createUpdaterArtifacts`, add `tauri-plugin-updater` and `updater:default` to the
-//! capability file, register `.plugin(tauri_plugin_updater::Builder::new().build())`, and build
-//! releases with `TAURI_SIGNING_PRIVATE_KEY` set. Conductor's CrabNebula feed is theirs and is
-//! not reused.
-//! Our design choice: minisign verification uses `ring`'s Ed25519 verifier directly, and the feed
-//! format is Tauri's (`version`, `notes`, `platforms` with `url` and `signature`). Our feed will
-//! use raw `Ed` signatures so no second hash implementation is needed.
+//! Our design choice: a downloaded package stays in memory until the relaunch. A quit before then
+//! drops it, and the next check finds the update again. Only the installed record is kept on disk.
+//! Our design choice: Conductor's feed is CrabNebula's; ours is `latest.json` on this repository's
+//! GitHub releases, signed with our own key (D079).
 //!
 //! Test first: with a local feed that serves a newer signed manifest, the check returns the version
-//! and notes; with an altered signature the download is refused with `updater_bad_signature` and
-//! leaves no staged file.
+//! and notes; with a package the signature does not cover, the install fails with
+//! `updater_bad_signature` and keeps nothing.
 
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD;
-use futures_util::StreamExt;
-use reqwest::Client;
-use ring::signature::{ED25519, UnparsedPublicKey};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
-use tokio::io::AsyncWriteExt;
+use tauri_plugin_updater::{Error as PluginError, Update, Updater, UpdaterExt};
 
 use crate::error::{CommandError, CommandResult, lock};
 
@@ -72,35 +61,26 @@ pub const EVENT_STATUS: &str = "updater://status";
 pub const MAX_DOWNLOAD_ATTEMPTS: u32 = 5;
 /// Pause before each retry. The last value repeats.
 pub const RETRY_DELAYS_MS: [u64; 4] = [1_000, 2_000, 4_000, 8_000];
-/// Largest feed document read into memory.
-pub const MAX_FEED_BYTES: usize = 1_024 * 1_024;
-/// Largest update file this app will download.
-pub const MAX_UPDATE_BYTES: u64 = 512 * 1_024 * 1_024;
-/// How long a feed request or a download may wait for the answer or the next bytes.
-pub const NETWORK_TIMEOUT_MS: u64 = 30_000;
-/// Environment variable holding our own update feed URL.
-pub const FEED_ENV: &str = "CONDUCTED_UPDATE_FEED";
-/// Environment variable holding our minisign public key text.
-pub const PUBLIC_KEY_ENV: &str = "CONDUCTED_UPDATE_PUBLIC_KEY";
-/// Pending update state file inside the updater folder.
-const PENDING_FILE: &str = "pending.json";
+/// How long the feed request may take in all.
+pub const FEED_TIMEOUT_MS: u64 = 30_000;
+/// How long a request may wait for its next bytes. A download as a whole has no limit.
+pub const READ_TIMEOUT_MS: u64 = 30_000;
+/// The folder in the app data folder that holds the installed record.
+const UPDATES_FOLDER: &str = "updates";
 /// Record of the update installed just before this launch.
 const INSTALLED_FILE: &str = "installed.json";
 
-/// Makes each partial download name unique within the process.
-static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
-
 /// An available update. Mirrors the object `Updater.check` returns in platform.ts.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateInfo {
     pub version: String,
-    /// Release notes as markdown.
+    /// Release notes as markdown. Empty when the feed publishes none.
     pub notes: String,
 }
 
 /// Where the updater is. Sent as `updater://status`.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(tag = "state", rename_all = "camelCase")]
 pub enum UpdaterStatus {
     Idle,
@@ -113,7 +93,7 @@ pub enum UpdaterStatus {
         received: u64,
         total: Option<u64>,
     },
-    /// Staged and verified. Waiting for `updater_relaunch`.
+    /// Downloaded and verified. Waiting for `updater_relaunch`.
     Ready {
         version: String,
     },
@@ -121,63 +101,6 @@ pub enum UpdaterStatus {
         code: String,
         message: String,
     },
-}
-
-/// An update that was found and maybe staged.
-#[derive(Debug, Clone)]
-pub struct PendingUpdate {
-    pub info: UpdateInfo,
-    /// Where the verified download can be fetched from.
-    pub url: String,
-    /// The minisign signature of the downloaded file.
-    pub signature: String,
-    /// Set once the download is verified.
-    pub staged_at: Option<PathBuf>,
-}
-
-/// The feed's platform entry for the update file.
-#[derive(Debug, Clone, Deserialize)]
-struct UpdateAsset {
-    url: String,
-    signature: String,
-}
-
-/// Tauri's update manifest shape. `notes` is optional so a feed may publish no notes.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct UpdateManifest {
-    version: String,
-    #[serde(default)]
-    notes: String,
-    #[serde(default)]
-    platforms: HashMap<String, UpdateAsset>,
-}
-
-/// The pending update written to disk, so a restart keeps it.
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct PendingRecord {
-    version: String,
-    notes: String,
-    url: String,
-    signature: String,
-    staged_path: Option<String>,
-}
-
-/// The update record read after a relaunch.
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct InstalledRecord {
-    version: String,
-    notes: String,
-}
-
-/// Where a command reads the feed, the key and the staging folder.
-#[derive(Debug, Clone)]
-pub struct UpdaterConfig {
-    pub feed_url: String,
-    pub public_key: String,
-    pub staging_dir: PathBuf,
 }
 
 /// Retry policy for a download. Tests use a policy with no waits.
@@ -209,6 +132,13 @@ impl RetryPolicy {
     }
 }
 
+/// The update the last check found, and its verified package once downloaded.
+#[derive(Clone)]
+struct Pending {
+    update: Update,
+    package: Option<Arc<Vec<u8>>>,
+}
+
 /// An install that callers join instead of starting a second download.
 #[derive(Default)]
 struct InstallJob {
@@ -221,20 +151,10 @@ struct InstallJob {
 type StoredOutcome = std::result::Result<(), (&'static str, String)>;
 
 /// Shared state, registered once with `.manage(UpdaterState::default())`.
+#[derive(Default)]
 pub struct UpdaterState {
-    pub pending: Mutex<Option<PendingUpdate>>,
-    pub status: Mutex<Option<UpdaterStatus>>,
+    pending: Mutex<Option<Pending>>,
     install: tokio::sync::Mutex<Option<Arc<InstallJob>>>,
-}
-
-impl Default for UpdaterState {
-    fn default() -> Self {
-        Self {
-            pending: Mutex::new(None),
-            status: Mutex::new(None),
-            install: tokio::sync::Mutex::new(None),
-        }
-    }
 }
 
 fn failed(code: &'static str, message: impl Into<String>) -> CommandError {
@@ -242,6 +162,36 @@ fn failed(code: &'static str, message: impl Into<String>) -> CommandError {
         code,
         message: message.into(),
     }
+}
+
+/// The plugin's error as a command error with a code the UI can read.
+fn plugin_error(error: PluginError) -> CommandError {
+    let code = match &error {
+        PluginError::Minisign(_)
+        | PluginError::Base64(_)
+        | PluginError::SignatureUtf8(_)
+        | PluginError::SignedVersionMismatch { .. }
+        | PluginError::MissingSignedVersion => "updater_bad_signature",
+        PluginError::Reqwest(_) | PluginError::Network(_) => "updater_network",
+        PluginError::ReleaseNotFound
+        | PluginError::Serialization(_)
+        | PluginError::Semver(_)
+        | PluginError::UrlParse(_) => "updater_feed_invalid",
+        PluginError::TargetNotFound(_)
+        | PluginError::TargetsNotFound(_)
+        | PluginError::UnsupportedArch
+        | PluginError::UnsupportedOs => "updater_platform_missing",
+        PluginError::EmptyEndpoints | PluginError::InsecureTransportProtocol => {
+            "updater_config_missing"
+        }
+        _ => "updater_failed",
+    };
+    failed(code, error.to_string())
+}
+
+/// A failure that another attempt can fix: the connection, or an error answer from the server.
+fn retryable(error: &PluginError) -> bool {
+    matches!(error, PluginError::Reqwest(_) | PluginError::Network(_))
 }
 
 fn stored_outcome(error: &CommandError) -> StoredOutcome {
@@ -254,53 +204,16 @@ fn restore_outcome(outcome: &StoredOutcome) -> CommandResult<()> {
         .map_err(|(code, message)| CommandError::Failed { code, message })
 }
 
-/// Configures the updater from the build or the environment. Nothing is defaulted.
-fn config_from_app<R: Runtime>(app: &AppHandle<R>) -> CommandResult<UpdaterConfig> {
-    let feed_url = configured(FEED_ENV, option_env!("CONDUCTED_UPDATE_FEED"))?;
-    let public_key = configured(PUBLIC_KEY_ENV, option_env!("CONDUCTED_UPDATE_PUBLIC_KEY"))?;
-    let data_dir = app.path().app_data_dir().map_err(|error| {
-        failed(
-            "updater_data_dir",
-            format!("The app data folder is unknown: {error}"),
-        )
-    })?;
-    Ok(UpdaterConfig {
-        feed_url,
-        public_key,
-        staging_dir: data_dir.join("updates"),
-    })
-}
-
-fn configured(name: &str, build_value: Option<&'static str>) -> CommandResult<String> {
-    if let Ok(value) = std::env::var(name)
-        && !value.trim().is_empty()
-    {
-        return Ok(value);
-    }
-    if let Some(value) = build_value
-        && !value.trim().is_empty()
-    {
-        return Ok(value.to_string());
-    }
-    Err(failed(
-        "updater_config_missing",
-        format!("{name} is not set, so Conducted has no update feed or public key."),
-    ))
-}
-
-/// Stores a status and reports it to the window. A window that cannot be reached does not make
-/// the status wrong; the stored value is what the next call reads.
-fn set_status<R: Runtime>(app: &AppHandle<R>, state: &UpdaterState, status: UpdaterStatus) {
-    *lock(&state.status) = Some(status.clone());
+/// Reports a status to the window. A window that cannot be reached does not change the update.
+fn set_status<R: Runtime>(app: &AppHandle<R>, status: UpdaterStatus) {
     if let Err(error) = app.emit(EVENT_STATUS, status) {
         eprintln!("could not send the updater status: {error}");
     }
 }
 
-fn fail<R: Runtime>(app: &AppHandle<R>, state: &UpdaterState, error: &CommandError) {
+fn fail<R: Runtime>(app: &AppHandle<R>, error: &CommandError) {
     set_status(
         app,
-        state,
         UpdaterStatus::Failed {
             code: error.code().to_string(),
             message: error.to_string(),
@@ -308,634 +221,137 @@ fn fail<R: Runtime>(app: &AppHandle<R>, state: &UpdaterState, error: &CommandErr
     );
 }
 
-/// The manifest key for this Mac, as Tauri's updater names its platforms.
-fn platform_key() -> CommandResult<String> {
-    let arch = match std::env::consts::ARCH {
-        "aarch64" => "aarch64",
-        "x86_64" => "x86_64",
-        other => {
-            return Err(failed(
-                "updater_platform_missing",
-                format!("Conducted has no update for the {other} CPU."),
-            ));
-        }
-    };
-    Ok(format!("darwin-{arch}"))
+fn info_of(update: &Update) -> UpdateInfo {
+    UpdateInfo {
+        version: update.version.clone(),
+        notes: update.body.clone().unwrap_or_default(),
+    }
 }
 
-/// Splits a version into its numeric parts. Anything after `-` or `+` is not compared.
-fn version_parts(version: &str) -> CommandResult<Vec<u64>> {
-    let core = version.split(['-', '+']).next().unwrap_or(version);
-    let mut parts = Vec::new();
-    for part in core.split('.') {
-        let number = part.parse::<u64>().map_err(|_| {
-            failed(
-                "updater_version_invalid",
-                format!("The version {version} is not a number this app can compare."),
-            )
-        })?;
-        parts.push(number);
-    }
-    if parts.is_empty() {
-        return Err(failed(
-            "updater_version_invalid",
-            format!("The version {version} is empty."),
-        ));
-    }
-    Ok(parts)
-}
-
-/// True when `candidate` is newer than `current`.
-pub fn is_newer(candidate: &str, current: &str) -> CommandResult<bool> {
-    let candidate = version_parts(candidate)?;
-    let current = version_parts(current)?;
-    for (left, right) in candidate.iter().zip(current.iter()) {
-        if left != right {
-            return Ok(left > right);
-        }
-    }
-    Ok(candidate.len() > current.len())
-}
-
-/// Picks the update for this platform, when the feed has a newer one.
-fn pending_from_manifest(
-    manifest: &UpdateManifest,
-    current_version: &str,
-) -> CommandResult<Option<PendingUpdate>> {
-    if !is_newer(&manifest.version, current_version)? {
-        return Ok(None);
-    }
-    let key = platform_key()?;
-    let asset = manifest.platforms.get(&key).ok_or_else(|| {
-        failed(
-            "updater_platform_missing",
-            format!("The update feed has no file for {key}."),
-        )
-    })?;
-    Ok(Some(PendingUpdate {
-        info: UpdateInfo {
-            version: manifest.version.clone(),
-            notes: manifest.notes.clone(),
-        },
-        url: asset.url.clone(),
-        signature: asset.signature.clone(),
-        staged_at: None,
-    }))
-}
-
-/// Reads the feed. A network failure is an error, never an empty update list.
-async fn fetch_manifest(config: &UpdaterConfig) -> CommandResult<UpdateManifest> {
-    let client = Client::builder()
-        .timeout(Duration::from_millis(NETWORK_TIMEOUT_MS))
+/// The plugin's updater for our feed, with our timeouts.
+fn updater<R: Runtime>(app: &AppHandle<R>) -> CommandResult<Updater> {
+    app.updater_builder()
+        .timeout(Duration::from_millis(FEED_TIMEOUT_MS))
+        .configure_client(|client| client.read_timeout(Duration::from_millis(READ_TIMEOUT_MS)))
         .build()
-        .map_err(|error| {
-            failed(
-                "updater_network",
-                format!("Could not build the HTTP client: {error}"),
-            )
-        })?;
-    let response = client.get(&config.feed_url).send().await.map_err(|error| {
+        .map_err(plugin_error)
+}
+
+/// The folder of the installed record, inside the app data folder.
+fn updates_dir<R: Runtime>(app: &AppHandle<R>) -> CommandResult<PathBuf> {
+    let data_dir = app.path().app_data_dir().map_err(|error| {
         failed(
-            "updater_network",
-            format!("Could not reach the update feed: {error}"),
+            "updater_data_dir",
+            format!("The app data folder is unknown: {error}"),
         )
     })?;
-    if !response.status().is_success() {
-        return Err(failed(
-            "updater_network",
-            format!("The update feed answered {}", response.status()),
-        ));
-    }
-    let bytes = response.bytes().await.map_err(|error| {
-        failed(
-            "updater_network",
-            format!("Could not read the update feed: {error}"),
-        )
-    })?;
-    if bytes.len() > MAX_FEED_BYTES {
-        return Err(failed(
-            "updater_feed_invalid",
-            "The update feed is larger than this app accepts.",
-        ));
-    }
-    serde_json::from_slice(&bytes).map_err(|error| {
-        failed(
-            "updater_feed_invalid",
-            format!("The update feed could not be read: {error}"),
-        )
-    })
+    Ok(data_dir.join(UPDATES_FOLDER))
 }
 
-/// The first base64 line of a minisign document, after its comments.
-fn minisign_block(text: &str) -> CommandResult<Vec<u8>> {
-    let line = text
-        .lines()
-        .map(str::trim)
-        .find(|line| {
-            !line.is_empty()
-                && !line.starts_with("untrusted comment:")
-                && !line.starts_with("trusted comment:")
-        })
-        .ok_or_else(|| failed("updater_bad_signature", "The minisign document is empty."))?;
-    STANDARD.decode(line).map_err(|error| {
-        failed(
-            "updater_bad_signature",
-            format!("The minisign document is not base64: {error}"),
-        )
-    })
-}
-
-/// True when the minisign algorithm says the file was signed without a prehash.
-fn is_raw_signature(algorithm: &[u8]) -> bool {
-    algorithm == b"Ed"
-}
-
-/// Verifies a raw minisign `Ed` signature over the downloaded bytes.
-fn verify_signature(data: &[u8], signature_text: &str, public_key_text: &str) -> CommandResult<()> {
-    let public = minisign_block(public_key_text)?;
-    if public.len() != 42 {
-        return Err(failed(
-            "updater_bad_signature",
-            "The minisign public key is not 42 bytes.",
-        ));
-    }
-    if !is_raw_signature(&public[0..2]) {
-        return Err(failed(
-            "updater_signature_unsupported",
-            "The update public key uses a minisign scheme this app cannot verify.",
-        ));
-    }
-    let signature = minisign_block(signature_text)?;
-    if signature.len() != 74 {
-        return Err(failed(
-            "updater_bad_signature",
-            "The minisign signature is not 74 bytes.",
-        ));
-    }
-    if !is_raw_signature(&signature[0..2]) {
-        return Err(failed(
-            "updater_signature_unsupported",
-            "The update uses a prehashed minisign signature, which this app cannot verify yet.",
-        ));
-    }
-    if public[2..10] != signature[2..10] {
-        return Err(failed(
-            "updater_bad_signature",
-            "The update was signed with a different key than the app's public key.",
-        ));
-    }
-    UnparsedPublicKey::new(&ED25519, &public[10..42])
-        .verify(data, &signature[10..74])
-        .map_err(|_| {
-            failed(
-                "updater_bad_signature",
-                "The update signature does not match.",
-            )
-        })
-}
-
-/// A download failure, with whether another attempt can succeed.
-struct DownloadFailure {
-    code: &'static str,
-    message: String,
-    retryable: bool,
-}
-
-impl DownloadFailure {
-    fn into_error(self) -> CommandError {
-        failed(self.code, self.message)
-    }
-}
-
-/// Downloads one file to `partial`, reporting its progress.
-async fn download_once<F>(
-    url: &str,
-    partial: &Path,
-    version: &str,
-    mut on_status: F,
-) -> std::result::Result<(), DownloadFailure>
-where
-    F: FnMut(UpdaterStatus),
-{
-    let client = Client::builder()
-        .timeout(Duration::from_millis(NETWORK_TIMEOUT_MS))
-        .build()
-        .map_err(|error| DownloadFailure {
-            code: "updater_network",
-            message: format!("Could not build the HTTP client: {error}"),
-            retryable: false,
-        })?;
-    let response = client
-        .get(url)
-        .send()
-        .await
-        .map_err(|error| DownloadFailure {
-            code: "updater_network",
-            message: format!("Could not reach the update file: {error}"),
-            retryable: true,
-        })?;
-    if !response.status().is_success() {
-        let status = response.status();
-        return Err(DownloadFailure {
-            code: "updater_network",
-            message: format!("The update file answered {status}"),
-            retryable: status.is_server_error() || status.as_u16() == 429,
-        });
-    }
-    let total = response.content_length();
-    if total.is_some_and(|size| size > MAX_UPDATE_BYTES) {
-        return Err(DownloadFailure {
-            code: "updater_package_too_large",
-            message: "The update file is larger than this app accepts.".to_string(),
-            retryable: false,
-        });
-    }
-    let mut file = tokio::fs::File::create(partial)
-        .await
-        .map_err(|error| DownloadFailure {
-            code: "updater_state_write",
-            message: format!("Could not create the download file: {error}"),
-            retryable: false,
-        })?;
-    let mut received = 0_u64;
-    let mut stream = response.bytes_stream();
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|error| DownloadFailure {
-            code: "updater_network",
-            message: format!("The update download stopped: {error}"),
-            retryable: true,
-        })?;
-        received += chunk.len() as u64;
-        if received > MAX_UPDATE_BYTES {
-            return Err(DownloadFailure {
-                code: "updater_package_too_large",
-                message: "The update file is larger than this app accepts.".to_string(),
-                retryable: false,
-            });
-        }
-        file.write_all(&chunk)
-            .await
-            .map_err(|error| DownloadFailure {
-                code: "updater_state_write",
-                message: format!("Could not write the update file: {error}"),
-                retryable: false,
-            })?;
-        on_status(UpdaterStatus::Downloading {
-            version: version.to_string(),
-            received,
-            total,
-        });
-    }
-    file.flush().await.map_err(|error| DownloadFailure {
-        code: "updater_state_write",
-        message: format!("Could not finish the update file: {error}"),
-        retryable: false,
-    })?;
-    Ok(())
-}
-
-/// Removes a half-written download. Nothing there is fine; a file that stays is reported, because
-/// the caller is already returning the error that matters.
-async fn remove_partial(path: &Path) {
-    if let Err(error) = tokio::fs::remove_file(path).await
-        && error.kind() != std::io::ErrorKind::NotFound
-    {
-        eprintln!(
-            "could not remove the partial download {}: {error}",
-            path.display()
-        );
-    }
-}
-
-/// A version safe to use in a file name.
-fn safe_version(version: &str) -> String {
-    version
-        .chars()
-        .map(|character| {
-            if character.is_ascii_alphanumeric() || character == '.' || character == '-' {
-                character
-            } else {
-                '_'
-            }
-        })
-        .collect()
-}
-
-/// Downloads, verifies and stages one update. Retries failures another attempt can fix.
-async fn download_and_stage<F>(
-    config: &UpdaterConfig,
-    pending: &PendingUpdate,
-    policy: &RetryPolicy,
-    mut on_status: F,
-) -> CommandResult<PathBuf>
-where
-    F: FnMut(UpdaterStatus),
-{
-    tokio::fs::create_dir_all(&config.staging_dir)
-        .await
-        .map_err(|error| {
-            failed(
-                "updater_state_write",
-                format!("Could not create the update folder: {error}"),
-            )
-        })?;
-    let staged = config.staging_dir.join(format!(
-        "Conducted-{}.app.tar.gz",
-        safe_version(&pending.info.version)
-    ));
-    if staged.exists() {
-        let data = tokio::fs::read(&staged).await.map_err(|error| {
-            failed(
-                "updater_state_read",
-                format!("Could not read the staged update: {error}"),
-            )
-        })?;
-        verify_signature(&data, &pending.signature, &config.public_key)?;
-        return Ok(staged);
-    }
-    let partial = config.staging_dir.join(format!(
-        ".download-{}-{}.part",
-        std::process::id(),
-        TEMP_COUNTER.fetch_add(1, Ordering::Relaxed)
-    ));
-    let attempts = policy.attempts.max(1);
-    let mut last: Option<DownloadFailure> = None;
-    for attempt in 1..=attempts {
-        match download_once(&pending.url, &partial, &pending.info.version, |status| {
-            on_status(status)
-        })
-        .await
-        {
-            Ok(()) => {
-                let data = tokio::fs::read(&partial).await.map_err(|error| {
-                    failed(
-                        "updater_state_read",
-                        format!("Could not read the download: {error}"),
-                    )
-                })?;
-                if let Err(error) = verify_signature(&data, &pending.signature, &config.public_key)
-                {
-                    remove_partial(&partial).await;
-                    return Err(error);
-                }
-                tokio::fs::rename(&partial, &staged)
-                    .await
-                    .map_err(|error| {
-                        failed(
-                            "updater_state_write",
-                            format!("Could not stage the update: {error}"),
-                        )
-                    })?;
-                return Ok(staged);
-            }
-            Err(failure) => {
-                remove_partial(&partial).await;
-                if !failure.retryable || attempt == attempts {
-                    return Err(failure.into_error());
-                }
-                tokio::time::sleep(policy.delay(attempt)).await;
-                last = Some(failure);
-            }
-        }
-    }
-    Err(last
-        .map(DownloadFailure::into_error)
-        .unwrap_or_else(|| failed("updater_network", "The update download did not start.")))
-}
-
-fn pending_path(config: &UpdaterConfig) -> PathBuf {
-    config.staging_dir.join(PENDING_FILE)
-}
-
-fn installed_path(config: &UpdaterConfig) -> PathBuf {
-    config.staging_dir.join(INSTALLED_FILE)
-}
-
-/// Writes the pending update after every change, so a restart keeps it.
-fn save_pending(config: &UpdaterConfig, pending: &PendingUpdate) -> CommandResult<()> {
-    std::fs::create_dir_all(&config.staging_dir).map_err(|error| {
-        failed(
-            "updater_state_write",
-            format!("Could not create the update folder: {error}"),
-        )
-    })?;
-    let record = PendingRecord {
-        version: pending.info.version.clone(),
-        notes: pending.info.notes.clone(),
-        url: pending.url.clone(),
-        signature: pending.signature.clone(),
-        staged_path: pending
-            .staged_at
-            .as_ref()
-            .map(|path| path.to_string_lossy().into_owned()),
-    };
-    let text = serde_json::to_vec_pretty(&record).map_err(|error| {
-        failed(
-            "updater_state_write",
-            format!("Could not write the update state: {error}"),
-        )
-    })?;
-    std::fs::write(pending_path(config), text).map_err(|error| {
-        failed(
-            "updater_state_write",
-            format!("Could not save the update state: {error}"),
-        )
-    })
-}
-
-/// Reads the pending update. A missing file is an empty state; a broken one is an error.
-fn load_pending(config: &UpdaterConfig) -> CommandResult<Option<PendingUpdate>> {
-    let text = match std::fs::read(pending_path(config)) {
-        Ok(text) => text,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => {
-            return Err(failed(
-                "updater_state_read",
-                format!("Could not read the update state: {error}"),
-            ));
-        }
-    };
-    let record: PendingRecord = serde_json::from_slice(&text).map_err(|error| {
-        failed(
-            "updater_state_unreadable",
-            format!("The update state could not be read: {error}"),
-        )
-    })?;
-    Ok(Some(PendingUpdate {
-        info: UpdateInfo {
-            version: record.version,
-            notes: record.notes,
-        },
-        url: record.url,
-        signature: record.signature,
-        staged_at: record.staged_path.map(PathBuf::from),
-    }))
-}
-
-/// Removes a state file, treating "already gone" as done.
-fn remove_file(path: &Path) -> CommandResult<()> {
-    match std::fs::remove_file(path) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(failed(
-            "updater_state_write",
-            format!("Could not remove {}: {error}", path.display()),
-        )),
-    }
-}
-
-fn save_installed(config: &UpdaterConfig, info: &UpdateInfo) -> CommandResult<()> {
-    std::fs::create_dir_all(&config.staging_dir).map_err(|error| {
-        failed(
-            "updater_state_write",
-            format!("Could not create the update folder: {error}"),
-        )
-    })?;
-    let record = InstalledRecord {
-        version: info.version.clone(),
-        notes: info.notes.clone(),
-    };
-    let text = serde_json::to_vec_pretty(&record).map_err(|error| {
-        failed(
-            "updater_state_write",
-            format!("Could not write the installed update: {error}"),
-        )
-    })?;
-    std::fs::write(installed_path(config), text).map_err(|error| {
-        failed(
-            "updater_state_write",
-            format!("Could not save the installed update: {error}"),
-        )
-    })
-}
-
-/// Returns the update installed just before this launch, once, and only if the running version
-/// is that update. A record for another version means the bundle was not replaced.
-fn take_installed_update(
-    config: &UpdaterConfig,
-    current_version: &str,
+/// Asks the feed whether a newer version exists, and keeps the answer for the install.
+pub async fn check_update<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &UpdaterState,
 ) -> CommandResult<Option<UpdateInfo>> {
-    let text = match std::fs::read(installed_path(config)) {
-        Ok(text) => text,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => {
-            return Err(failed(
-                "updater_state_read",
-                format!("Could not read the installed update: {error}"),
-            ));
-        }
+    set_status(app, UpdaterStatus::Checking);
+    let found = match updater(app) {
+        Ok(updater) => updater.check().await.map_err(plugin_error),
+        Err(error) => Err(error),
     };
-    let record: InstalledRecord = serde_json::from_slice(&text).map_err(|error| {
-        failed(
-            "updater_state_unreadable",
-            format!("The installed update could not be read: {error}"),
-        )
-    })?;
-    remove_file(&installed_path(config))?;
-    if record.version != current_version {
-        return Ok(None);
-    }
-    Ok(Some(UpdateInfo {
-        version: record.version,
-        notes: record.notes,
-    }))
-}
-
-/// Asks the release feed whether a newer version exists.
-#[tauri::command]
-pub async fn updater_check(
-    app: AppHandle,
-    state: State<'_, UpdaterState>,
-) -> CommandResult<Option<UpdateInfo>> {
-    let current_version = app.package_info().version.to_string();
-    let config = match config_from_app(&app) {
-        Ok(config) => config,
+    match found {
         Err(error) => {
-            fail(&app, &state, &error);
-            return Err(error);
+            fail(app, &error);
+            Err(error)
         }
-    };
-    set_status(&app, &state, UpdaterStatus::Checking);
-    let manifest = match fetch_manifest(&config).await {
-        Ok(manifest) => manifest,
-        Err(error) => {
-            fail(&app, &state, &error);
-            return Err(error);
+        Ok(None) => {
+            *lock(&state.pending) = None;
+            set_status(app, UpdaterStatus::Idle);
+            Ok(None)
         }
-    };
-    let pending = match pending_from_manifest(&manifest, &current_version) {
-        Ok(pending) => pending,
-        Err(error) => {
-            fail(&app, &state, &error);
-            return Err(error);
-        }
-    };
-    match pending {
-        Some(pending) => {
-            if let Err(error) = save_pending(&config, &pending) {
-                fail(&app, &state, &error);
-                return Err(error);
+        Ok(Some(update)) => {
+            let info = info_of(&update);
+            {
+                let mut pending = lock(&state.pending);
+                // A package already downloaded for this version is kept.
+                let package = pending
+                    .as_ref()
+                    .filter(|current| current.update.version == update.version)
+                    .and_then(|current| current.package.clone());
+                *pending = Some(Pending { update, package });
             }
-            let info = pending.info.clone();
-            *lock(&state.pending) = Some(pending);
             set_status(
-                &app,
-                &state,
+                app,
                 UpdaterStatus::Available {
                     version: info.version.clone(),
                 },
             );
             Ok(Some(info))
         }
-        None => {
-            *lock(&state.pending) = None;
-            if let Err(error) = remove_file(&pending_path(&config)) {
-                fail(&app, &state, &error);
-                return Err(error);
+    }
+}
+
+/// Downloads the package, trying again on failures another attempt can fix.
+async fn download_with_retry<F>(
+    update: &Update,
+    policy: &RetryPolicy,
+    mut on_status: F,
+) -> CommandResult<Vec<u8>>
+where
+    F: FnMut(UpdaterStatus),
+{
+    let attempts = policy.attempts.max(1);
+    let mut attempt = 1;
+    loop {
+        let mut received = 0_u64;
+        on_status(UpdaterStatus::Downloading {
+            version: update.version.clone(),
+            received,
+            total: None,
+        });
+        let downloaded = update
+            .download(
+                |chunk, total| {
+                    received += chunk as u64;
+                    on_status(UpdaterStatus::Downloading {
+                        version: update.version.clone(),
+                        received,
+                        total,
+                    });
+                },
+                || {},
+            )
+            .await;
+        match downloaded {
+            Ok(package) => return Ok(package),
+            Err(error) if retryable(&error) && attempt < attempts => {
+                tokio::time::sleep(policy.delay(attempt)).await;
+                attempt += 1;
             }
-            set_status(&app, &state, UpdaterStatus::Idle);
-            Ok(None)
+            Err(error) => return Err(plugin_error(error)),
         }
     }
 }
 
-/// Downloads and verifies the update found by the last check.
-#[tauri::command]
-pub async fn updater_install(app: AppHandle, state: State<'_, UpdaterState>) -> CommandResult<()> {
-    let config = match config_from_app(&app) {
-        Ok(config) => config,
-        Err(error) => {
-            fail(&app, &state, &error);
-            return Err(error);
-        }
-    };
-    let pending = {
-        let in_memory = lock(&state.pending).clone();
-        match in_memory {
-            Some(pending) => Some(pending),
-            None => match load_pending(&config) {
-                Ok(pending) => pending,
-                Err(error) => {
-                    fail(&app, &state, &error);
-                    return Err(error);
-                }
-            },
-        }
-    };
-    let Some(pending) = pending else {
+/// Downloads and verifies the update the last check found. Callers that ask at once share one
+/// download.
+pub async fn install_update<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &UpdaterState,
+    policy: &RetryPolicy,
+) -> CommandResult<()> {
+    let Some(pending) = lock(&state.pending).clone() else {
         let error = failed(
             "updater_nothing_pending",
             "No update has been checked, so there is nothing to install.",
         );
-        fail(&app, &state, &error);
+        fail(app, &error);
         return Err(error);
     };
-    if pending.staged_at.as_ref().is_some_and(|path| path.exists()) {
+    if pending.package.is_some() {
         set_status(
-            &app,
-            &state,
+            app,
             UpdaterStatus::Ready {
-                version: pending.info.version.clone(),
+                version: pending.update.version.clone(),
             },
         );
         return Ok(());
@@ -964,7 +380,7 @@ pub async fn updater_install(app: AppHandle, state: State<'_, UpdaterState>) -> 
             notified.as_mut().await;
         }
     }
-    let result = run_install(&app, &state, &config, pending).await;
+    let result = run_install(app, state, pending, policy).await;
     *lock(&job.outcome) = Some(match &result {
         Ok(()) => Ok(()),
         Err(error) => stored_outcome(error),
@@ -982,115 +398,181 @@ pub async fn updater_install(app: AppHandle, state: State<'_, UpdaterState>) -> 
     result
 }
 
-async fn run_install(
-    app: &AppHandle,
+async fn run_install<R: Runtime>(
+    app: &AppHandle<R>,
     state: &UpdaterState,
-    config: &UpdaterConfig,
-    pending: PendingUpdate,
+    pending: Pending,
+    policy: &RetryPolicy,
 ) -> CommandResult<()> {
-    set_status(
-        app,
-        state,
-        UpdaterStatus::Downloading {
-            version: pending.info.version.clone(),
-            received: 0,
-            total: None,
-        },
-    );
-    let staged = match download_and_stage(config, &pending, &RetryPolicy::default(), |status| {
-        set_status(app, state, status)
+    let package = match download_with_retry(&pending.update, policy, |status| {
+        set_status(app, status)
     })
     .await
     {
-        Ok(staged) => staged,
+        Ok(package) => Arc::new(package),
         Err(error) => {
-            fail(app, state, &error);
+            fail(app, &error);
             return Err(error);
         }
     };
-    let mut updated = pending.clone();
-    updated.staged_at = Some(staged);
-    if let Err(error) = save_pending(config, &updated) {
-        fail(app, state, &error);
-        return Err(error);
+    let version = pending.update.version.clone();
+    {
+        let mut current = lock(&state.pending);
+        // A check that found another version while this one downloaded wins.
+        if let Some(current) = current.as_mut()
+            && current.update.version == version
+        {
+            current.package = Some(package);
+        }
     }
-    *lock(&state.pending) = Some(updated.clone());
-    set_status(
-        app,
-        state,
-        UpdaterStatus::Ready {
-            version: updated.info.version,
-        },
-    );
+    set_status(app, UpdaterStatus::Ready { version });
     Ok(())
 }
 
-/// Applies a staged update and restarts the app.
-#[tauri::command]
-pub async fn updater_relaunch(app: AppHandle, state: State<'_, UpdaterState>) -> CommandResult<()> {
-    let config = match config_from_app(&app) {
-        Ok(config) => config,
-        Err(error) => {
-            fail(&app, &state, &error);
-            return Err(error);
-        }
-    };
-    let pending = {
-        let in_memory = lock(&state.pending).clone();
-        match in_memory {
-            Some(pending) => Some(pending),
-            None => match load_pending(&config) {
-                Ok(pending) => pending,
-                Err(error) => {
-                    fail(&app, &state, &error);
-                    return Err(error);
-                }
-            },
-        }
-    };
-    let Some(pending) = pending else {
+/// Records and installs the kept update, so the app can restart into it. Nothing is stopped here;
+/// a failure leaves the running app as it was.
+pub fn install_for_relaunch<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &UpdaterState,
+    dir: &Path,
+) -> CommandResult<()> {
+    let Some(pending) = lock(&state.pending).clone() else {
         let error = failed(
             "updater_nothing_pending",
             "No update is ready, so there is nothing to relaunch into.",
         );
-        fail(&app, &state, &error);
+        fail(app, &error);
         return Err(error);
     };
-    let Some(staged) = pending.staged_at.clone() else {
+    let Some(package) = pending.package.clone() else {
         let error = failed(
             "updater_not_staged",
             "The update has not been downloaded and verified yet.",
         );
-        fail(&app, &state, &error);
+        fail(app, &error);
         return Err(error);
     };
-    if !staged.exists() {
-        let error = failed(
-            "updater_not_staged",
-            "The staged update file is gone, so it must be downloaded again.",
-        );
-        fail(&app, &state, &error);
+    // The record comes first: it is only read when the running version matches it, so a record
+    // left by an install that failed is dropped at the next launch.
+    if let Err(error) = save_installed(dir, &info_of(&pending.update)) {
+        fail(app, &error);
         return Err(error);
     }
-    if let Err(error) = save_installed(&config, &pending.info) {
-        fail(&app, &state, &error);
+    if let Err(error) = pending.update.install(package.as_slice()) {
+        let error = match plugin_error(error) {
+            CommandError::Failed {
+                code: "updater_failed",
+                message,
+            } => failed("updater_install_failed", message),
+            other => other,
+        };
+        fail(app, &error);
         return Err(error);
     }
+    Ok(())
+}
+
+fn installed_path(dir: &Path) -> PathBuf {
+    dir.join(INSTALLED_FILE)
+}
+
+fn save_installed(dir: &Path, info: &UpdateInfo) -> CommandResult<()> {
+    std::fs::create_dir_all(dir).map_err(|error| {
+        failed(
+            "updater_state_write",
+            format!("Could not create the update folder: {error}"),
+        )
+    })?;
+    let text = serde_json::to_vec_pretty(info).map_err(|error| {
+        failed(
+            "updater_state_write",
+            format!("Could not write the installed update: {error}"),
+        )
+    })?;
+    std::fs::write(installed_path(dir), text).map_err(|error| {
+        failed(
+            "updater_state_write",
+            format!("Could not save the installed update: {error}"),
+        )
+    })
+}
+
+/// Returns the update installed just before this launch, once, and only if the running version
+/// is that update. A record for another version means the bundle was not replaced.
+pub fn take_installed_update(
+    dir: &Path,
+    current_version: &str,
+) -> CommandResult<Option<UpdateInfo>> {
+    let path = installed_path(dir);
+    let text = match std::fs::read(&path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(failed(
+                "updater_state_read",
+                format!("Could not read the installed update: {error}"),
+            ));
+        }
+    };
+    let record: UpdateInfo = serde_json::from_slice(&text).map_err(|error| {
+        failed(
+            "updater_state_unreadable",
+            format!("The installed update could not be read: {error}"),
+        )
+    })?;
+    match std::fs::remove_file(&path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(failed(
+                "updater_state_write",
+                format!("Could not remove {}: {error}", path.display()),
+            ));
+        }
+    }
+    Ok((record.version == current_version).then_some(record))
+}
+
+/// Asks the release feed whether a newer version exists.
+#[tauri::command]
+pub async fn updater_check(
+    app: AppHandle,
+    state: State<'_, UpdaterState>,
+) -> CommandResult<Option<UpdateInfo>> {
+    check_update(&app, &state).await
+}
+
+/// Downloads and verifies the update found by the last check.
+#[tauri::command]
+pub async fn updater_install(app: AppHandle, state: State<'_, UpdaterState>) -> CommandResult<()> {
+    install_update(&app, &state, &RetryPolicy::default()).await
+}
+
+/// Installs the downloaded update, stops the sidecar and restarts the app.
+#[tauri::command]
+pub async fn updater_relaunch(app: AppHandle, state: State<'_, UpdaterState>) -> CommandResult<()> {
+    let dir = match updates_dir(&app) {
+        Ok(dir) => dir,
+        Err(error) => {
+            fail(&app, &error);
+            return Err(error);
+        }
+    };
+    install_for_relaunch(&app, &state, &dir)?;
     let sidecar = app.state::<crate::sidecar::SidecarState>();
     if let Err(error) = crate::sidecar::shutdown(&sidecar).await {
-        fail(&app, &state, &error);
-        return Err(error);
+        // The bundle is already the new version, so the restart goes ahead. Nothing is left to
+        // hand the error to: this process ends now.
+        eprintln!("the sidecar did not stop before the update restart: {error}");
     }
-    remove_file(&pending_path(&config))?;
     app.restart();
 }
 
 /// The update installed just before this launch, so its release notes can be shown once.
 #[tauri::command]
 pub fn updater_installed_update(app: AppHandle) -> CommandResult<Option<UpdateInfo>> {
-    let config = config_from_app(&app)?;
-    let current_version = app.package_info().version.to_string();
-    take_installed_update(&config, &current_version)
+    let dir = updates_dir(&app)?;
+    take_installed_update(&dir, &app.package_info().version.to_string())
 }
 
 #[cfg(test)]
@@ -1098,12 +580,20 @@ mod tests {
     use super::*;
     use std::io::{Read, Write};
     use std::net::TcpListener;
+    use std::sync::atomic::AtomicU64;
     use std::sync::mpsc;
     use std::thread;
 
+    use base64::Engine;
+    use base64::engine::general_purpose::STANDARD;
     use ring::rand::SystemRandom;
     use ring::signature::{Ed25519KeyPair, KeyPair};
+    use tauri::Listener;
+    use tauri::test::MockRuntime;
 
+    static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+    /// A folder of the run's own, removed when the test ends.
     struct TempDir {
         path: PathBuf,
     }
@@ -1126,51 +616,55 @@ mod tests {
 
     impl Drop for TempDir {
         fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.path);
+            if let Err(error) = std::fs::remove_dir_all(&self.path) {
+                eprintln!("could not remove {}: {error}", self.path.display());
+            }
         }
     }
 
     const KEY_ID: [u8; 8] = [1, 2, 3, 4, 5, 6, 7, 8];
 
+    /// A minisign key pair of the test's own, in the text form `tauri signer` writes.
     struct SigningKey {
         pair: Ed25519KeyPair,
-        public_text: String,
+        /// The public key file's text, base64-encoded as `plugins.updater.pubkey` holds it.
+        pubkey: String,
     }
 
-    fn signing_key() -> SigningKey {
+    fn signing_key(key_id: [u8; 8]) -> SigningKey {
         let rng = SystemRandom::new();
         let pkcs8 = Ed25519KeyPair::generate_pkcs8(&rng).expect("generate a test key");
         let pair = Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).expect("read the test key");
         let mut blob = Vec::new();
         blob.extend_from_slice(b"Ed");
-        blob.extend_from_slice(&KEY_ID);
+        blob.extend_from_slice(&key_id);
         blob.extend_from_slice(pair.public_key().as_ref());
-        let public_text = format!(
-            "untrusted comment: conducted test key\n{}\n",
+        let text = format!(
+            "untrusted comment: minisign public key: test\n{}\n",
             STANDARD.encode(blob)
         );
-        SigningKey { pair, public_text }
+        SigningKey {
+            pair,
+            pubkey: STANDARD.encode(text),
+        }
     }
 
-    fn signature_text(key: &SigningKey, data: &[u8]) -> String {
+    /// The `.sig` file of `data`, base64-encoded as a feed's `signature` holds it.
+    fn signature(key: &SigningKey, key_id: [u8; 8], data: &[u8]) -> String {
         let signature = key.pair.sign(data);
         let mut blob = Vec::new();
         blob.extend_from_slice(b"Ed");
-        blob.extend_from_slice(&KEY_ID);
+        blob.extend_from_slice(&key_id);
         blob.extend_from_slice(signature.as_ref());
-        format!(
-            "untrusted comment: conducted test signature\n{}\ntrusted comment: test\n{}\n",
+        let trusted = "timestamp:0\tfile:Conducted.app.tar.gz";
+        let mut global = signature.as_ref().to_vec();
+        global.extend_from_slice(trusted.as_bytes());
+        let text = format!(
+            "untrusted comment: signature from tauri secret key\n{}\ntrusted comment: {trusted}\n{}\n",
             STANDARD.encode(blob),
-            STANDARD.encode(b"global signature")
-        )
-    }
-
-    fn config(folder: &TempDir, feed_url: &str, public_text: &str) -> UpdaterConfig {
-        UpdaterConfig {
-            feed_url: feed_url.to_string(),
-            public_key: public_text.to_string(),
-            staging_dir: folder.path().join("updates"),
-        }
+            STANDARD.encode(key.pair.sign(&global).as_ref())
+        );
+        STANDARD.encode(text)
     }
 
     struct Response {
@@ -1178,8 +672,9 @@ mod tests {
         body: Vec<u8>,
     }
 
-    /// A local feed server. Each answer is sent to one request, then the server stops.
-    fn serve(answers: Vec<Response>) -> (String, thread::JoinHandle<usize>) {
+    /// A local server on a port the system picks. Each answer goes to one request, then the
+    /// server stops and reports how many it served.
+    fn serve(path: &str, answers: Vec<Response>) -> (String, thread::JoinHandle<usize>) {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind the test server");
         let address = listener.local_addr().expect("read the test server address");
         let (ready_tx, ready_rx) = mpsc::channel();
@@ -1217,329 +712,410 @@ mod tests {
                 stream
                     .write_all(&answer.body)
                     .expect("write the answer body");
-                let _ = stream.flush();
+                stream.flush().expect("send the answer");
                 served += 1;
             }
             served
         });
         ready_rx.recv().expect("the test server starts");
-        (format!("http://{address}/feed"), server)
+        (format!("http://{address}/{path}"), server)
     }
 
-    fn manifest_json(url: &str, signature: &str, version: &str) -> Vec<u8> {
-        let key = platform_key().expect("this test CPU has an update key");
+    fn ok(body: Vec<u8>) -> Response {
+        Response { status: 200, body }
+    }
+
+    fn server_error() -> Response {
+        Response {
+            status: 500,
+            body: Vec::new(),
+        }
+    }
+
+    /// The feed for this Mac, as `pnpm release` writes `latest.json`.
+    fn feed(version: &str, package_url: &str, signature: &str) -> Vec<u8> {
+        let platform = format!("darwin-{}", std::env::consts::ARCH);
         serde_json::to_vec(&serde_json::json!({
             "version": version,
             "notes": "The notes for this version.",
-            "platforms": {
-                key: { "url": url, "signature": signature }
-            }
+            "platforms": { platform: { "url": package_url, "signature": signature } }
         }))
-        .expect("write the manifest")
+        .expect("write the feed")
     }
 
-    #[test]
-    fn plat_13_a_feed_manifest_names_the_update_file_and_signature() {
-        let body = manifest_json("https://example.test/app.tar.gz", "signature", "0.2.0");
-        let manifest: UpdateManifest =
-            serde_json::from_slice(&body).expect("the feed shape is read");
-        assert_eq!(manifest.version, "0.2.0");
-        let asset = manifest
-            .platforms
-            .get(&platform_key().expect("this test CPU has an update key"))
-            .expect("the file for this Mac is in the feed");
-        assert_eq!(asset.url, "https://example.test/app.tar.gz");
-        assert_eq!(asset.signature, "signature");
-    }
-
-    #[test]
-    fn plat_13_a_newer_version_is_an_update() {
-        assert!(is_newer("0.2.0", "0.1.9").expect("both versions are valid"));
-        assert!(is_newer("1.0.0", "0.99.99").expect("both versions are valid"));
-        assert!(!is_newer("1.0.0", "1.0.0").expect("both versions are valid"));
-        assert!(!is_newer("1.0.0", "1.0.1").expect("both versions are valid"));
-    }
-
-    #[test]
-    fn plat_13_an_invalid_version_is_an_error_not_an_answer() {
-        assert_eq!(
-            is_newer("next", "1.0.0")
-                .expect_err("a word is not a version")
-                .code(),
-            "updater_version_invalid"
+    /// The mock app with the updater plugin set to the test feed and key, as tauri.conf.json sets
+    /// them for the real app. Its version is 0.1.0.
+    fn app(feed_url: &str, pubkey: &str) -> tauri::App<MockRuntime> {
+        let mut context = tauri::test::mock_context(tauri::test::noop_assets());
+        context.config_mut().plugins.0.insert(
+            "updater".to_string(),
+            serde_json::json!({
+                "pubkey": pubkey,
+                "endpoints": [feed_url],
+                "dangerousInsecureTransportProtocol": true
+            }),
         );
+        tauri::test::mock_builder()
+            .plugin(tauri_plugin_updater::Builder::new().build())
+            .manage(UpdaterState::default())
+            .build(context)
+            .expect("build the mock app")
     }
 
-    #[test]
-    fn plat_13_a_manifest_for_this_platform_becomes_a_pending_update() {
-        let key = platform_key().expect("this test CPU has an update key");
-        let manifest = UpdateManifest {
-            version: "0.2.0".to_string(),
-            notes: "Fixed the thing.".to_string(),
-            platforms: HashMap::from([(
-                key,
-                UpdateAsset {
-                    url: "https://example.test/app.tar.gz".to_string(),
-                    signature: "signature".to_string(),
-                },
-            )]),
-        };
-        let pending = pending_from_manifest(&manifest, "0.1.0")
-            .expect("the manifest is valid")
-            .expect("the version is newer");
-        assert_eq!(pending.info.version, "0.2.0");
-        assert_eq!(pending.info.notes, "Fixed the thing.");
-        assert_eq!(pending.staged_at, None);
+    fn statuses(app: &tauri::App<MockRuntime>) -> Arc<Mutex<Vec<serde_json::Value>>> {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let sink = seen.clone();
+        app.listen(EVENT_STATUS, move |event| {
+            let value = serde_json::from_str(event.payload()).expect("a status is JSON");
+            lock(&sink).push(value);
+        });
+        seen
     }
 
-    #[test]
-    fn plat_13_the_current_version_is_not_an_update() {
-        let manifest = UpdateManifest {
-            version: "0.1.0".to_string(),
-            notes: String::new(),
-            platforms: HashMap::new(),
-        };
-        assert!(
-            pending_from_manifest(&manifest, "0.1.0")
-                .expect("the manifest is valid")
-                .is_none()
-        );
-    }
-
-    #[test]
-    fn plat_13_a_missing_platform_entry_is_an_error() {
-        let manifest = UpdateManifest {
-            version: "0.2.0".to_string(),
-            notes: String::new(),
-            platforms: HashMap::new(),
-        };
-        assert_eq!(
-            pending_from_manifest(&manifest, "0.1.0")
-                .expect_err("there is no file for this Mac")
-                .code(),
-            "updater_platform_missing"
-        );
-    }
-
-    #[test]
-    fn plat_13_a_signature_for_other_bytes_is_refused() {
-        let key = signing_key();
-        let error = verify_signature(
-            b"the update",
-            &signature_text(&key, b"other bytes"),
-            &key.public_text,
-        )
-        .expect_err("the signature does not cover these bytes");
-        assert_eq!(error.code(), "updater_bad_signature");
-    }
-
-    #[test]
-    fn plat_13_a_signature_with_a_different_key_is_refused() {
-        let signer = signing_key();
-        let other = signing_key();
-        let error = verify_signature(
-            b"the update",
-            &signature_text(&signer, b"the update"),
-            &other.public_text,
-        )
-        .expect_err("the keys do not match");
-        assert_eq!(error.code(), "updater_bad_signature");
+    fn no_wait(attempts: u32) -> RetryPolicy {
+        RetryPolicy {
+            attempts,
+            delays_ms: vec![0],
+        }
     }
 
     #[tokio::test]
-    async fn plat_13_a_verified_download_is_staged() {
-        let folder = TempDir::new();
-        let key = signing_key();
-        let body = b"the signed update".to_vec();
-        let signature = signature_text(&key, &body);
-        let (url, server) = serve(vec![Response {
-            status: 200,
-            body: body.clone(),
-        }]);
-        let config = config(&folder, &url, &key.public_text);
-        let pending = PendingUpdate {
-            info: UpdateInfo {
-                version: "0.2.0".to_string(),
-                notes: String::new(),
-            },
-            url,
-            signature,
-            staged_at: None,
-        };
-        let staged = download_and_stage(&config, &pending, &RetryPolicy::default(), |_| {})
+    async fn plat_13_a_newer_signed_version_in_the_feed_is_an_update() {
+        let key = signing_key(KEY_ID);
+        let (feed_url, feed_server) = serve(
+            "latest.json",
+            vec![ok(feed("0.2.0", "https://example.invalid/a.tar.gz", "sig"))],
+        );
+        let app = app(&feed_url, &key.pubkey);
+        let state = app.state::<UpdaterState>();
+
+        let found = check_update(app.handle(), &state)
             .await
-            .expect("a correctly signed update is staged");
-        assert_eq!(std::fs::read(&staged).expect("read the staged file"), body);
-        assert!(staged.ends_with("Conducted-0.2.0.app.tar.gz"));
-        assert_eq!(server.join().expect("the server ends"), 1);
+            .expect("the feed answers");
+
+        assert_eq!(
+            found,
+            Some(UpdateInfo {
+                version: "0.2.0".to_string(),
+                notes: "The notes for this version.".to_string(),
+            })
+        );
+        assert_eq!(feed_server.join().expect("the server ends"), 1);
     }
 
     #[tokio::test]
-    async fn plat_13_a_bad_signature_leaves_no_staged_file() {
-        let folder = TempDir::new();
-        let key = signing_key();
-        let downloaded = b"the downloaded update".to_vec();
-        let signature = signature_text(&key, b"the update we signed");
-        let (url, server) = serve(vec![Response {
-            status: 200,
-            body: downloaded,
-        }]);
-        let config = config(&folder, &url, &key.public_text);
-        let pending = PendingUpdate {
-            info: UpdateInfo {
-                version: "0.2.0".to_string(),
-                notes: String::new(),
-            },
-            url,
-            signature,
-            staged_at: None,
-        };
-        let error = download_and_stage(&config, &pending, &RetryPolicy::default(), |_| {})
+    async fn plat_13_the_current_version_is_not_an_update() {
+        let key = signing_key(KEY_ID);
+        let (feed_url, feed_server) = serve(
+            "latest.json",
+            vec![ok(feed("0.1.0", "https://example.invalid/a.tar.gz", "sig"))],
+        );
+        let app = app(&feed_url, &key.pubkey);
+        let state = app.state::<UpdaterState>();
+
+        assert_eq!(
+            check_update(app.handle(), &state)
+                .await
+                .expect("the feed answers"),
+            None
+        );
+        assert_eq!(feed_server.join().expect("the server ends"), 1);
+    }
+
+    #[tokio::test]
+    async fn plat_13_a_feed_that_cannot_be_read_is_an_error_not_an_answer() {
+        let key = signing_key(KEY_ID);
+        let (feed_url, feed_server) = serve(
+            "latest.json",
+            vec![ok(br#"{"version":"not a version","platforms":{}}"#.to_vec())],
+        );
+        let app = app(&feed_url, &key.pubkey);
+        let state = app.state::<UpdaterState>();
+
+        let error = check_update(app.handle(), &state)
+            .await
+            .expect_err("a broken feed is not 'no update'");
+
+        assert_eq!(error.code(), "updater_feed_invalid");
+        assert_eq!(feed_server.join().expect("the server ends"), 1);
+    }
+
+    #[tokio::test]
+    async fn plat_13_a_feed_with_no_file_for_this_mac_is_an_error() {
+        let key = signing_key(KEY_ID);
+        let body = serde_json::to_vec(&serde_json::json!({
+            "version": "0.2.0",
+            "platforms": { "windows-x86_64": { "url": "https://example.invalid/a.zip", "signature": "sig" } }
+        }))
+        .expect("write the feed");
+        let (feed_url, feed_server) = serve("latest.json", vec![ok(body)]);
+        let app = app(&feed_url, &key.pubkey);
+        let state = app.state::<UpdaterState>();
+
+        let error = check_update(app.handle(), &state)
+            .await
+            .expect_err("there is no file for this Mac");
+
+        assert_eq!(error.code(), "updater_platform_missing");
+        assert_eq!(feed_server.join().expect("the server ends"), 1);
+    }
+
+    #[tokio::test]
+    async fn plat_13_a_verified_download_is_ready_for_the_relaunch() {
+        let key = signing_key(KEY_ID);
+        let package = b"the signed update".to_vec();
+        let (package_url, package_server) = serve("a.tar.gz", vec![ok(package.clone())]);
+        let (feed_url, feed_server) = serve(
+            "latest.json",
+            vec![ok(feed(
+                "0.2.0",
+                &package_url,
+                &signature(&key, KEY_ID, &package),
+            ))],
+        );
+        let app = app(&feed_url, &key.pubkey);
+        let seen = statuses(&app);
+        let state = app.state::<UpdaterState>();
+        check_update(app.handle(), &state)
+            .await
+            .expect("the feed answers");
+
+        install_update(app.handle(), &state, &no_wait(1))
+            .await
+            .expect("a correctly signed package is kept");
+
+        let kept = lock(&state.pending)
+            .as_ref()
+            .and_then(|pending| pending.package.clone())
+            .expect("the package is kept for the relaunch");
+        assert_eq!(kept.as_slice(), package.as_slice());
+        assert_eq!(
+            lock(&seen).last(),
+            Some(&serde_json::json!({ "state": "ready", "version": "0.2.0" }))
+        );
+        assert_eq!(feed_server.join().expect("the feed server ends"), 1);
+        assert_eq!(package_server.join().expect("the package server ends"), 1);
+    }
+
+    #[tokio::test]
+    async fn plat_13_a_signature_for_other_bytes_is_refused_and_nothing_is_kept() {
+        let key = signing_key(KEY_ID);
+        let (package_url, package_server) =
+            serve("a.tar.gz", vec![ok(b"the downloaded update".to_vec())]);
+        let (feed_url, feed_server) = serve(
+            "latest.json",
+            vec![ok(feed(
+                "0.2.0",
+                &package_url,
+                &signature(&key, KEY_ID, b"the update we signed"),
+            ))],
+        );
+        let app = app(&feed_url, &key.pubkey);
+        let seen = statuses(&app);
+        let state = app.state::<UpdaterState>();
+        check_update(app.handle(), &state)
+            .await
+            .expect("the feed answers");
+
+        let error = install_update(app.handle(), &state, &no_wait(3))
             .await
             .expect_err("the signature does not cover the download");
+
         assert_eq!(error.code(), "updater_bad_signature");
-        let staged = config.staging_dir.join("Conducted-0.2.0.app.tar.gz");
-        assert!(!staged.exists(), "nothing unsigned is staged");
-        let leftovers: Vec<_> = std::fs::read_dir(&config.staging_dir)
-            .expect("the staging folder exists")
-            .filter_map(std::result::Result::ok)
-            .map(|entry| entry.file_name())
-            .collect();
         assert!(
-            leftovers.is_empty(),
-            "the partial file is removed: {leftovers:?}"
+            lock(&state.pending)
+                .as_ref()
+                .is_some_and(|pending| pending.package.is_none()),
+            "nothing unsigned is kept"
         );
-        assert_eq!(server.join().expect("the server ends"), 1);
+        assert_eq!(
+            lock(&seen).last().and_then(|status| status.get("state")),
+            Some(&serde_json::json!("failed"))
+        );
+        assert_eq!(feed_server.join().expect("the feed server ends"), 1);
+        assert_eq!(
+            package_server.join().expect("the package server ends"),
+            1,
+            "a bad signature is not tried again"
+        );
+    }
+
+    #[tokio::test]
+    async fn plat_13_a_signature_with_a_different_key_is_refused() {
+        let key = signing_key(KEY_ID);
+        let other = signing_key([9, 9, 9, 9, 9, 9, 9, 9]);
+        let package = b"the signed update".to_vec();
+        let (package_url, package_server) = serve("a.tar.gz", vec![ok(package.clone())]);
+        let (feed_url, feed_server) = serve(
+            "latest.json",
+            vec![ok(feed(
+                "0.2.0",
+                &package_url,
+                &signature(&other, [9, 9, 9, 9, 9, 9, 9, 9], &package),
+            ))],
+        );
+        let app = app(&feed_url, &key.pubkey);
+        let state = app.state::<UpdaterState>();
+        check_update(app.handle(), &state)
+            .await
+            .expect("the feed answers");
+
+        let error = install_update(app.handle(), &state, &no_wait(1))
+            .await
+            .expect_err("another key signed the package");
+
+        assert_eq!(error.code(), "updater_bad_signature");
+        assert_eq!(feed_server.join().expect("the feed server ends"), 1);
+        assert_eq!(package_server.join().expect("the package server ends"), 1);
     }
 
     #[tokio::test]
     async fn plat_13_a_download_retries_and_then_succeeds() {
-        let folder = TempDir::new();
-        let key = signing_key();
-        let body = b"the signed update".to_vec();
-        let signature = signature_text(&key, &body);
-        let (url, server) = serve(vec![
-            Response {
-                status: 500,
-                body: Vec::new(),
-            },
-            Response {
-                status: 200,
-                body: body.clone(),
-            },
-        ]);
-        let config = config(&folder, &url, &key.public_text);
-        let pending = PendingUpdate {
-            info: UpdateInfo {
-                version: "0.2.0".to_string(),
-                notes: String::new(),
-            },
-            url,
-            signature,
-            staged_at: None,
-        };
-        let policy = RetryPolicy {
-            attempts: 2,
-            delays_ms: vec![0],
-        };
-        let staged = download_and_stage(&config, &pending, &policy, |_| {})
+        let key = signing_key(KEY_ID);
+        let package = b"the signed update".to_vec();
+        let (package_url, package_server) =
+            serve("a.tar.gz", vec![server_error(), ok(package.clone())]);
+        let (feed_url, feed_server) = serve(
+            "latest.json",
+            vec![ok(feed(
+                "0.2.0",
+                &package_url,
+                &signature(&key, KEY_ID, &package),
+            ))],
+        );
+        let app = app(&feed_url, &key.pubkey);
+        let seen = statuses(&app);
+        let state = app.state::<UpdaterState>();
+        check_update(app.handle(), &state)
+            .await
+            .expect("the feed answers");
+
+        install_update(app.handle(), &state, &no_wait(2))
             .await
             .expect("the second attempt succeeds");
-        assert_eq!(std::fs::read(&staged).expect("read the staged file"), body);
-        assert_eq!(server.join().expect("the server ends"), 2);
+
+        let starts = lock(&seen)
+            .iter()
+            .filter(|status| {
+                status.get("state") == Some(&serde_json::json!("downloading"))
+                    && status.get("received") == Some(&serde_json::json!(0))
+            })
+            .count();
+        assert_eq!(starts, 2, "each attempt reports Downloading again");
+        assert_eq!(feed_server.join().expect("the feed server ends"), 1);
+        assert_eq!(package_server.join().expect("the package server ends"), 2);
     }
 
     #[tokio::test]
     async fn plat_13_a_failed_download_stops_after_the_attempt_limit() {
-        let folder = TempDir::new();
-        let key = signing_key();
-        let (url, server) = serve(vec![
-            Response {
-                status: 500,
-                body: Vec::new(),
-            },
-            Response {
-                status: 500,
-                body: Vec::new(),
-            },
-        ]);
-        let config = config(&folder, &url, &key.public_text);
-        let pending = PendingUpdate {
-            info: UpdateInfo {
-                version: "0.2.0".to_string(),
-                notes: String::new(),
-            },
-            url,
-            signature: "unused".to_string(),
-            staged_at: None,
-        };
-        let policy = RetryPolicy {
-            attempts: 2,
-            delays_ms: vec![0],
-        };
-        let error = download_and_stage(&config, &pending, &policy, |_| {})
+        let key = signing_key(KEY_ID);
+        let (package_url, package_server) = serve("a.tar.gz", vec![server_error(), server_error()]);
+        let (feed_url, feed_server) = serve(
+            "latest.json",
+            vec![ok(feed("0.2.0", &package_url, "unused"))],
+        );
+        let app = app(&feed_url, &key.pubkey);
+        let state = app.state::<UpdaterState>();
+        check_update(app.handle(), &state)
+            .await
+            .expect("the feed answers");
+
+        let error = install_update(app.handle(), &state, &no_wait(2))
             .await
             .expect_err("both attempts fail");
+
         assert_eq!(error.code(), "updater_network");
+        assert_eq!(feed_server.join().expect("the feed server ends"), 1);
+        assert_eq!(package_server.join().expect("the package server ends"), 2);
+    }
+
+    #[tokio::test]
+    async fn plat_13_two_installs_at_once_share_one_download() {
+        let key = signing_key(KEY_ID);
+        let package = b"the signed update".to_vec();
+        // The server answers one download only. A second download would find no server.
+        let (package_url, package_server) = serve("a.tar.gz", vec![ok(package.clone())]);
+        let (feed_url, feed_server) = serve(
+            "latest.json",
+            vec![ok(feed(
+                "0.2.0",
+                &package_url,
+                &signature(&key, KEY_ID, &package),
+            ))],
+        );
+        let app = app(&feed_url, &key.pubkey);
+        let state = app.state::<UpdaterState>();
+        check_update(app.handle(), &state)
+            .await
+            .expect("the feed answers");
+
+        let policy = no_wait(1);
+        let (first, second) = tokio::join!(
+            install_update(app.handle(), &state, &policy),
+            install_update(app.handle(), &state, &policy)
+        );
+
+        first.expect("the first install succeeds");
+        second.expect("the second install joins the first");
+        assert_eq!(feed_server.join().expect("the feed server ends"), 1);
+        assert_eq!(package_server.join().expect("the package server ends"), 1);
+    }
+
+    #[tokio::test]
+    async fn plat_13_an_install_with_no_checked_update_fails() {
+        let key = signing_key(KEY_ID);
+        let app = app("http://127.0.0.1:9/latest.json", &key.pubkey);
+        let state = app.state::<UpdaterState>();
+
+        let error = install_update(app.handle(), &state, &no_wait(1))
+            .await
+            .expect_err("nothing was checked");
+
+        assert_eq!(error.code(), "updater_nothing_pending");
+    }
+
+    #[tokio::test]
+    async fn plat_13_a_relaunch_before_the_download_stops_nothing_and_records_nothing() {
+        let folder = TempDir::new();
+        let key = signing_key(KEY_ID);
+        let (feed_url, feed_server) = serve(
+            "latest.json",
+            vec![ok(feed("0.2.0", "https://example.invalid/a.tar.gz", "sig"))],
+        );
+        let app = app(&feed_url, &key.pubkey);
+        let state = app.state::<UpdaterState>();
+
+        let nothing = install_for_relaunch(app.handle(), &state, folder.path())
+            .expect_err("nothing was checked");
+        assert_eq!(nothing.code(), "updater_nothing_pending");
+
+        check_update(app.handle(), &state)
+            .await
+            .expect("the feed answers");
+        let not_staged = install_for_relaunch(app.handle(), &state, folder.path())
+            .expect_err("nothing was downloaded");
+        assert_eq!(not_staged.code(), "updater_not_staged");
         assert!(
-            std::fs::read_dir(&config.staging_dir)
-                .expect("the staging folder exists")
-                .next()
-                .is_none()
+            !installed_path(folder.path()).exists(),
+            "no update is claimed for the next launch"
         );
-        assert_eq!(server.join().expect("the server ends"), 2);
-    }
-
-    #[test]
-    fn plat_13_a_pending_update_survives_a_restart() {
-        let folder = TempDir::new();
-        let config = config(&folder, "https://example.test/feed", "unused");
-        let pending = PendingUpdate {
-            info: UpdateInfo {
-                version: "0.2.0".to_string(),
-                notes: "Notes".to_string(),
-            },
-            url: "https://example.test/app.tar.gz".to_string(),
-            signature: "signature".to_string(),
-            staged_at: Some(folder.path().join("Conducted-0.2.0.app.tar.gz")),
-        };
-        save_pending(&config, &pending).expect("the state is written");
-        let loaded = load_pending(&config)
-            .expect("the state is readable")
-            .expect("a pending update is there");
-        assert_eq!(loaded.info.version, "0.2.0");
-        assert_eq!(loaded.staged_at, pending.staged_at);
-    }
-
-    #[test]
-    fn plat_13_an_unreadable_state_file_is_an_error() {
-        let folder = TempDir::new();
-        let config = config(&folder, "https://example.test/feed", "unused");
-        std::fs::create_dir_all(&config.staging_dir).expect("create the staging folder");
-        std::fs::write(pending_path(&config), b"not json").expect("write a broken state");
-        assert_eq!(
-            load_pending(&config)
-                .expect_err("a broken state is not an empty state")
-                .code(),
-            "updater_state_unreadable"
-        );
+        assert_eq!(feed_server.join().expect("the server ends"), 1);
     }
 
     #[test]
     fn plat_13_installed_notes_only_come_back_for_the_running_version() {
         let folder = TempDir::new();
-        let config = config(&folder, "https://example.test/feed", "unused");
         let info = UpdateInfo {
             version: "0.2.0".to_string(),
             notes: "The notes.".to_string(),
         };
-        save_installed(&config, &info).expect("the record is written");
-        let taken = take_installed_update(&config, "0.2.0")
+        save_installed(folder.path(), &info).expect("the record is written");
+        let taken = take_installed_update(folder.path(), "0.2.0")
             .expect("the record is readable")
             .expect("the running version matches");
         assert_eq!(taken.notes, "The notes.");
         assert!(
-            take_installed_update(&config, "0.2.0")
+            take_installed_update(folder.path(), "0.2.0")
                 .expect("the record is gone")
                 .is_none()
         );
@@ -1548,21 +1124,42 @@ mod tests {
     #[test]
     fn plat_13_installed_notes_are_dropped_when_the_bundle_did_not_change() {
         let folder = TempDir::new();
-        let config = config(&folder, "https://example.test/feed", "unused");
         let info = UpdateInfo {
             version: "0.2.0".to_string(),
             notes: "The notes.".to_string(),
         };
-        save_installed(&config, &info).expect("the record is written");
+        save_installed(folder.path(), &info).expect("the record is written");
         assert!(
-            take_installed_update(&config, "0.1.0")
+            take_installed_update(folder.path(), "0.1.0")
                 .expect("the record is readable")
                 .is_none(),
             "an unchanged app version is not an installed update"
         );
         assert!(
-            !installed_path(&config).exists(),
+            !installed_path(folder.path()).exists(),
             "the stale record is removed"
         );
+    }
+
+    #[test]
+    fn plat_13_an_unreadable_installed_record_is_an_error() {
+        let folder = TempDir::new();
+        std::fs::write(installed_path(folder.path()), b"not json").expect("write a broken record");
+        assert_eq!(
+            take_installed_update(folder.path(), "0.2.0")
+                .expect_err("a broken record is not 'no update'")
+                .code(),
+            "updater_state_unreadable"
+        );
+    }
+
+    #[test]
+    fn plat_13_the_default_retry_waits_longer_each_time_and_then_repeats_the_last_wait() {
+        let policy = RetryPolicy::default();
+        assert_eq!(policy.attempts, MAX_DOWNLOAD_ATTEMPTS);
+        let waits: Vec<u64> = (1..=5)
+            .map(|attempt| policy.delay(attempt).as_millis() as u64)
+            .collect();
+        assert_eq!(waits, vec![1_000, 2_000, 4_000, 8_000, 8_000]);
     }
 }
