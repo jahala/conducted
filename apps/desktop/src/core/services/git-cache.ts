@@ -1,18 +1,21 @@
 /**
  * @feature DATA-07 Cache of the last changes and pull request info of each workspace
  * Owns: saving the last changed-file snapshot and the last pull request info of each workspace to
- * files, reading them back at startup so the screens paint at once, and keeping the two caches
- * under their size limits.
+ * files, reading them back for a caller that paints before the first poll answers, and keeping the
+ * two caches under their size limits.
  * Behaviour: services-map.md 2.7.2 (limits: 25 MB for workspace changes, 5 MB for PR info; when a
  * write goes over, the oldest entries go first), 3.3.1 (the last changes are cached so a restart
  * paints at once), 5B.1.5 (one entry per workspace with the branch and the time it was seen,
  * written only when the content changed).
- * Must handle: a file that is missing, damaged or from another version is a cache miss
- * (`ok(null)`) and the file is moved to the Trash, never a failure; an entry for a branch other
- * than the workspace's current one is a miss; a write whose content equals the stored content is
- * skipped; writes are atomic; one entry that alone exceeds its limit is not stored; removing a
- * workspace removes its entries; a cached entry is shown as old until a poll replaces it, so
- * callers pass `observedAt` through to the screen.
+ * Must handle: a missing file is a cache miss (`ok(null)`); a damaged file or one from another
+ * version is a cache miss after it is moved to the Trash, and a Trash that fails is returned; a
+ * read error other than a missing file is returned; an entry for a branch other than the
+ * workspace's current one is a miss and is left for the next save; a write whose content equals
+ * the stored content is skipped; writes are atomic; one entry that alone exceeds its limit is an
+ * error and is not stored; a write that would go over the limit moves the oldest other files to
+ * the Trash first; removing a workspace moves both of its files to the Trash; the entry carries
+ * `observedAt` so a caller can show the cached value as old until a poll replaces it; saves and
+ * removes of one cache run one at a time, so two writes cannot evict the same file twice.
  * Our design choice: files under the app data folder (`git-cache/changes` and `git-cache/pr-info`,
  * named by `changesCacheFile` and `prInfoCacheFile` below), one JSON file per workspace, because
  * decision D038 has no `cache.db`. The limits count the bytes of the files. An entry carries
@@ -20,9 +23,11 @@
  * every old file a miss.
  * Test first: `entriesToEvict` returns the oldest files until the rest fit under the limit.
  */
-import { notImplemented, type Result, type WorkspaceId } from "@conducted/shared";
+import { type AppError, appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
 import type { FileStat, FileSystem } from "../../platform/platform.ts";
 import { type AppPaths, appDataPath } from "../app-paths.ts";
+import { createKeyedQueue } from "../async/serial-queue.ts";
+import { trashIfPresent } from "../fs-helpers.ts";
 import type { ChangesSnapshot } from "../git/status.ts";
 import type { WorkspacePrEntry } from "./github.ts";
 
@@ -54,11 +59,48 @@ export interface GitCacheEntry<T> {
 
 /** Paths of the files to move to the Trash so the rest fit in `limitBytes`, oldest first. */
 export function entriesToEvict(
-	_files: readonly Pick<FileStat, "path" | "size" | "modifiedAt">[],
-	_limitBytes: number,
+	files: readonly Pick<FileStat, "path" | "size" | "modifiedAt">[],
+	limitBytes: number,
 ): string[] {
-	return notImplemented("DATA-07");
+	const oldestFirst = [...files].sort(
+		(left, right) => left.modifiedAt - right.modifiedAt || left.path.localeCompare(right.path),
+	);
+	let total = oldestFirst.reduce((sum, file) => sum + file.size, 0);
+	const evicted: string[] = [];
+	for (const file of oldestFirst) {
+		if (total <= limitBytes) break;
+		evicted.push(file.path);
+		total -= file.size;
+	}
+	return evicted;
 }
+
+const utf8 = new TextEncoder();
+const byteLength = (text: string): number => utf8.encode(text).length;
+
+type ParsedEntry<T> = { kind: "hit"; entry: GitCacheEntry<T> } | { kind: "miss" };
+
+/** Reads the envelope a cache file holds. Anything else is a miss and is trashed by the caller. */
+function parseEntry<T>(text: string, workspaceId: string): ParsedEntry<T> {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(text);
+	} catch {
+		return { kind: "miss" };
+	}
+	if (typeof parsed !== "object" || parsed === null) return { kind: "miss" };
+	const candidate = parsed as Record<string, unknown>;
+	if (candidate.version !== GIT_CACHE_VERSION) return { kind: "miss" };
+	if (candidate.workspaceId !== workspaceId) return { kind: "miss" };
+	if (typeof candidate.branch !== "string") return { kind: "miss" };
+	if (typeof candidate.observedAt !== "number" || !Number.isFinite(candidate.observedAt)) {
+		return { kind: "miss" };
+	}
+	if (typeof candidate.value !== "object" || candidate.value === null) return { kind: "miss" };
+	return { kind: "hit", entry: candidate as unknown as GitCacheEntry<T> };
+}
+
+const parentFolder = (path: string): string => path.slice(0, path.lastIndexOf("/"));
 
 export interface GitCache {
 	/** The cached changes of a workspace on `branch`. A miss is `ok(null)`. */
@@ -80,15 +122,139 @@ export interface GitCache {
 }
 
 export interface GitCacheDeps {
-	fs: Pick<FileSystem, "readText" | "writeTextAtomic" | "mkdirp" | "readDir" | "trash" | "paths">;
+	fs: Pick<
+		FileSystem,
+		"readText" | "writeTextAtomic" | "mkdirp" | "readDir" | "trash" | "exists" | "paths"
+	>;
+	/** A smaller limit for tests. The real limits are the constants above. */
+	changesMaxBytes?: number;
+	/** A smaller limit for tests. The real limits are the constants above. */
+	prInfoMaxBytes?: number;
 }
 
-export function createGitCache(_deps: GitCacheDeps): GitCache {
-	return {
-		loadChanges: async () => notImplemented("DATA-07"),
-		saveChanges: async () => notImplemented("DATA-07"),
-		loadPrInfo: async () => notImplemented("DATA-07"),
-		savePrInfo: async () => notImplemented("DATA-07"),
-		remove: async () => notImplemented("DATA-07"),
-	};
+const CHANGES_CACHE = "changes";
+const PR_INFO_CACHE = "pr-info";
+
+class FileGitCache implements GitCache {
+	readonly #fs: GitCacheDeps["fs"];
+	readonly #changesMaxBytes: number;
+	readonly #prInfoMaxBytes: number;
+	/** One writer per cache folder, so two saves cannot evict the same file at once. */
+	readonly #writes = createKeyedQueue<string>();
+
+	constructor(deps: GitCacheDeps) {
+		this.#fs = deps.fs;
+		this.#changesMaxBytes = deps.changesMaxBytes ?? CHANGES_CACHE_MAX_BYTES;
+		this.#prInfoMaxBytes = deps.prInfoMaxBytes ?? PR_INFO_CACHE_MAX_BYTES;
+	}
+
+	loadChanges(
+		workspaceId: WorkspaceId,
+		branch: string,
+	): Promise<Result<GitCacheEntry<ChangesSnapshot> | null>> {
+		return this.#load<ChangesSnapshot>(
+			changesCacheFile(this.#fs.paths, String(workspaceId)),
+			workspaceId,
+			branch,
+		);
+	}
+
+	saveChanges(entry: GitCacheEntry<ChangesSnapshot>): Promise<Result<void>> {
+		const file = changesCacheFile(this.#fs.paths, String(entry.workspaceId));
+		return this.#writes.run(CHANGES_CACHE, () => this.#save(file, entry, this.#changesMaxBytes));
+	}
+
+	loadPrInfo(
+		workspaceId: WorkspaceId,
+		branch: string,
+	): Promise<Result<GitCacheEntry<WorkspacePrEntry> | null>> {
+		return this.#load<WorkspacePrEntry>(
+			prInfoCacheFile(this.#fs.paths, String(workspaceId)),
+			workspaceId,
+			branch,
+		);
+	}
+
+	savePrInfo(entry: GitCacheEntry<WorkspacePrEntry>): Promise<Result<void>> {
+		const file = prInfoCacheFile(this.#fs.paths, String(entry.workspaceId));
+		return this.#writes.run(PR_INFO_CACHE, () => this.#save(file, entry, this.#prInfoMaxBytes));
+	}
+
+	remove(workspaceId: WorkspaceId): Promise<Result<void>> {
+		return this.#writes.runBarrier([CHANGES_CACHE, PR_INFO_CACHE], async () => {
+			const paths = this.#fs.paths;
+			let failure: AppError | null = null;
+			for (const file of [
+				changesCacheFile(paths, String(workspaceId)),
+				prInfoCacheFile(paths, String(workspaceId)),
+			]) {
+				const removed = await trashIfPresent(this.#fs, file);
+				if (!removed.ok && failure === null) failure = removed.error;
+			}
+			return failure === null ? ok(undefined) : err(failure);
+		});
+	}
+
+	async #load<T>(
+		file: string,
+		workspaceId: WorkspaceId,
+		branch: string,
+	): Promise<Result<GitCacheEntry<T> | null>> {
+		const read = await this.#fs.readText(file);
+		if (!read.ok) {
+			if (read.error.code === "fs_not_found") return ok(null);
+			return read;
+		}
+		const parsed = parseEntry<T>(read.value, String(workspaceId));
+		if (parsed.kind === "miss") {
+			const trashed = await trashIfPresent(this.#fs, file);
+			return trashed.ok ? ok(null) : trashed;
+		}
+		// The value belongs to another branch. Leave it for the next save to replace.
+		if (parsed.entry.branch !== branch) return ok(null);
+		return ok(parsed.entry);
+	}
+
+	async #save<T>(file: string, entry: GitCacheEntry<T>, limitBytes: number): Promise<Result<void>> {
+		const text = JSON.stringify(entry);
+		const bytes = byteLength(text);
+		if (bytes > limitBytes) {
+			return err(
+				appError(
+					"cache_too_large",
+					`A cache entry of ${bytes} bytes is larger than the ${limitBytes} byte limit.`,
+				),
+			);
+		}
+		const existing = await this.#fs.readText(file);
+		if (!existing.ok && existing.error.code !== "fs_not_found") return existing;
+		if (existing.ok && existing.value === text) return ok(undefined);
+		const folder = parentFolder(file);
+		const made = await this.#fs.mkdirp(folder);
+		if (!made.ok) return made;
+		const room = await this.#makeRoom(folder, file, bytes, limitBytes);
+		if (!room.ok) return room;
+		return this.#fs.writeTextAtomic(file, text);
+	}
+
+	/** Moves the oldest other files of `folder` to the Trash until `incomingBytes` fits. */
+	async #makeRoom(
+		folder: string,
+		ownFile: string,
+		incomingBytes: number,
+		limitBytes: number,
+	): Promise<Result<void>> {
+		const listing = await this.#fs.readDir(folder);
+		if (!listing.ok) return listing;
+		const others = listing.value.filter((entry) => !entry.isDirectory && entry.path !== ownFile);
+		for (const path of entriesToEvict(others, limitBytes - incomingBytes)) {
+			const trashed = await this.#fs.trash(path);
+			if (!trashed.ok) return trashed;
+		}
+		return ok(undefined);
+	}
+}
+
+export function createGitCache(deps: GitCacheDeps): GitCache {
+	return new FileGitCache(deps);
 }
