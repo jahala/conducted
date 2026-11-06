@@ -108,6 +108,8 @@ function harness(overrides: Partial<SessionsServiceDeps> = {}): Harness {
 		repos: repositories,
 		deliver: async () => ok(undefined),
 		liveStateOf: () => undefined,
+		newId: () => `queue-${++nextId}`,
+		now: () => 1000,
 	});
 	const deps = {
 		db: store.database,

@@ -576,6 +576,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 		deliver: (row) =>
 			sessions.send(row.sessionId, row.text, row.attachmentPaths, row.delivery, row.id),
 		liveStateOf: (sessionId) => sessions.store.getState().liveStates[sessionId],
+		newId: () => ids.uuid(),
+		now: () => clock.now(),
+		log,
 	});
 	const sessions: SessionsService = new SessionsService({
 		db: platform.db,
@@ -855,6 +858,15 @@ export function createContainer(inputs: ContainerInputs): Container {
 	let started: Promise<Result<StartReport>> | null = null;
 	let detachReconnect: (() => void) | null = null;
 	const cleanups: (() => void)[] = [];
+	// The queue drains when a chat can take a message, and pauses when a turn adds an error.
+	// Watching the store here covers every chat, not only the one on screen.
+	cleanups.push(
+		sessions.store.subscribe((state) => {
+			for (const sessionId of Object.keys(state.liveStates)) {
+				followUpQueue.observeLiveState(sessionId as SessionId);
+			}
+		}),
+	);
 	let updateTimer: ReturnType<typeof setInterval> | null = null;
 	let keepAwakeTimer: ReturnType<typeof setInterval> | null = null;
 	let wired = false;

@@ -127,6 +127,8 @@ const harness = (overrides: Partial<SessionsServiceDeps> = {}): Harness => {
 		repos: repositories,
 		deliver: async () => ok(undefined),
 		liveStateOf: () => undefined,
+		newId: () => `queue-${++nextId}`,
+		now: () => now,
 	});
 	const deps = {
 		db: new NodeDatabase(raw),

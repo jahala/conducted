@@ -1,26 +1,27 @@
 /**
  * @feature CHAT-04 Follow-up queue and steering
  * Owns now: the rules for choosing a delivery (`chooseDelivery`), for releasing the queue
- * (`canReleaseQueue`) and for picking the next row (`nextToSend`), `pauseOnCancel`, and
- * `sendNowAsSteer` (CHAT-03: turn one queued row into a steer and hand it over now).
- * Not built yet (placeholders): load, enqueue, edit, remove, reorder, setPaused and release
- * (CHAT-04).
+ * (`canReleaseQueue`) and for picking the next row (`nextToSend`); the persistent queue itself
+ * (`load`, `enqueue`, `edit`, `remove`, `reorder`, `setPaused`, `retry` and `release`); and
+ * `sendNowAsSteer` and `pauseOnCancel`.
  * Behaviour: sessions-and-chats.md "While the agent is working" (queue, steer, cancel),
  * sessions.md 6 (delivery modes, steer falls back to a normal follow-up), services-map.md 2.3.3,
  * 2.3.4 and 2.4.4 (local drainer: steer rows first, then the first queued row unless paused), ui-map.md 3.4.
  * Must handle: steer rows go before queue rows; a paused queue releases no queue row; nothing is
- * picked while a row is `sending`; failed rows are skipped; an agent that cannot steer (ACP
- * agents) gets a message sent with the default mode as a normal follow-up, while an explicit
- * steer (a send with steer delivery, or send-now-as-steer) fails visibly and a queued row stays
- * queued (other-runners.md 2.4); a row is delivered under its own id, so startup repair finds its
- * stored user message and never sends it twice; the queue is released only when the
- * chat is idle with no background tasks and no open interaction; cancel drops nothing the user
- * typed (cancel pauses the queue instead) and moves a row that was already `sending` to the end
+ * picked while a row is `sending`; failed rows are skipped and the next one is tried; a message
+ * that fails to send becomes `failed` with its error; a stale load never overwrites a newer one;
+ * an agent that cannot steer (ACP agents) gets a message sent with the default mode as a normal
+ * follow-up, while an explicit steer (a send with steer delivery, or send-now-as-steer) fails
+ * visibly and a queued row stays queued (other-runners.md 2.4); a row is delivered under its own
+ * id, so startup repair finds its stored user message and never sends it twice; the queue is
+ * released only when the chat is idle with no background tasks and no open interaction; after a
+ * failed turn the queue is paused so nothing fires into a broken chat; cancel pauses the queue
+ * instead of dropping what the user typed, and moves a row that was already `sending` to the end
  * as waiting again (CHAT-05).
  * Our design choice: cancelling pauses the queue instead of deleting it, so typed follow-ups are
- * never lost. The pause flag lives in the queue store only until `setPaused` stores it.
- * Test first: nextToSend returns the steer row before an earlier queue row; sendNowAsSteer hands
- * a queued row over as a steer and removes it once accepted.
+ * never lost. The pause flag is written to `sessions.queue_paused_at` by `setPaused`.
+ * Test first: nextToSend returns the steer row before an earlier queue row; loading twice keeps
+ * only the newest answer; a failed send marks its row failed and the next row is tried.
  */
 import type { LiveState, SessionConfig } from "@conducted/protocol";
 import {
@@ -28,12 +29,12 @@ import {
 	appError,
 	err,
 	type MessageId,
-	notImplemented,
 	ok,
 	type Result,
 	type SessionId,
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
+import { createLatestWins } from "../async/latest-wins.ts";
 import type { Repositories } from "../db/repositories.ts";
 import type { QueuedMessage } from "../model.ts";
 
@@ -93,49 +94,149 @@ export interface FollowUpQueueDeps {
 	deliver: (row: QueuedMessage) => Promise<Result<void>>;
 	/** Undefined for a chat that is not loaded. */
 	liveStateOf: (sessionId: SessionId) => LiveState | undefined;
+	/** A fresh id for a queued message. */
+	newId: () => string;
+	/** The time written when a queue is paused. */
+	now: () => number;
+	/** Reports a send or pause that failed while nobody waits for it. */
+	log?: (level: "warn" | "info", message: string) => void;
 }
+
+const unknownMessage = (): AppError =>
+	appError("queue_unknown", "That queued message no longer exists.");
+
+const alreadySending = (): AppError =>
+	appError("queue_not_waiting", "That message is already being sent.");
 
 export class FollowUpQueue {
 	readonly store: StoreApi<FollowUpQueueState>;
 	readonly #deps: FollowUpQueueDeps;
+	/** Only the newest load of a chat may replace its rows. */
+	readonly #loads = createLatestWins<SessionId>();
+	/** Whether each chat could release a row at the last live-state change. */
+	readonly #releaseable = new Map<SessionId, boolean>();
+	/** The last error a chat reported, so one failure pauses the queue once. */
+	readonly #lastError = new Map<SessionId, string>();
 
 	constructor(deps: FollowUpQueueDeps) {
 		this.#deps = deps;
 		this.store = createStore<FollowUpQueueState>(() => ({ bySession: {}, pausedSessionIds: {} }));
 	}
 
-	load(_sessionId: SessionId): Promise<Result<void>> {
-		void this.#deps;
-		return notImplemented("CHAT-04");
+	/** Reads a chat's rows and its pause flag. A stale answer never replaces a newer load. */
+	async load(sessionId: SessionId): Promise<Result<void>> {
+		const ticket = this.#loads.begin(sessionId);
+		const [rows, session] = await Promise.all([
+			this.#deps.repos.queuedMessages.listBySession(sessionId),
+			this.#deps.repos.sessions.get(sessionId),
+		]);
+		if (!this.#loads.isLatest(ticket)) return ok(undefined);
+		this.#loads.settle(ticket);
+		if (!rows.ok) return rows;
+		if (!session.ok) return session;
+		const paused = session.value?.queuePausedAt != null;
+		this.store.setState((state) => ({
+			bySession: { ...state.bySession, [sessionId]: rows.value },
+			pausedSessionIds: { ...state.pausedSessionIds, [sessionId]: paused },
+		}));
+		return ok(undefined);
 	}
 
-	enqueue(_input: {
+	/** Adds a follow-up at the end of its chat's queue. */
+	async enqueue(input: {
 		sessionId: SessionId;
 		text: string;
 		attachmentPaths: readonly string[];
 		delivery: "queue" | "steer";
 	}): Promise<Result<QueuedMessage>> {
-		return notImplemented("CHAT-04");
+		const created = await this.#deps.repos.queuedMessages.enqueue({
+			id: this.#deps.newId() as MessageId,
+			sessionId: input.sessionId,
+			text: input.text,
+			attachmentPaths: [...input.attachmentPaths],
+			delivery: input.delivery,
+		});
+		if (!created.ok) return created;
+		this.#loads.invalidate(input.sessionId);
+		this.#appendRow(created.value);
+		return created;
 	}
 
 	/** Backs `Actions.sessions.queue.edit`. */
-	edit(_messageId: MessageId, _text: string): Promise<Result<void>> {
-		return notImplemented("CHAT-04");
+	async edit(messageId: MessageId, text: string): Promise<Result<void>> {
+		const found = await this.#deps.repos.queuedMessages.get(messageId);
+		if (!found.ok) return found;
+		const row = found.value;
+		if (row === null) return err(unknownMessage());
+		if (row.state === "sending") return err(alreadySending());
+		const written = await this.#deps.repos.queuedMessages.setContent(messageId, {
+			text,
+			attachmentPaths: row.attachmentPaths,
+		});
+		if (!written.ok) return written;
+		if (!written.value) return err(alreadySending());
+		this.#loads.invalidate(row.sessionId);
+		this.#replaceRow({ ...row, text });
+		return ok(undefined);
 	}
 
-	/** Backs `Actions.sessions.queue.remove`. */
-	remove(_messageId: MessageId): Promise<Result<void>> {
-		return notImplemented("CHAT-04");
+	/** Backs `Actions.sessions.queue.remove`. A row already sending is left alone. */
+	async remove(messageId: MessageId): Promise<Result<void>> {
+		const found = await this.#deps.repos.queuedMessages.get(messageId);
+		if (!found.ok) return found;
+		const row = found.value;
+		if (row === null) return err(unknownMessage());
+		const removed = await this.#deps.repos.queuedMessages.cancel(messageId);
+		if (!removed.ok) return removed;
+		if (!removed.value) return err(alreadySending());
+		this.#loads.invalidate(row.sessionId);
+		this.#removeRow(row.sessionId, messageId);
+		return ok(undefined);
 	}
 
-	/** Backs `Actions.sessions.queue.reorder`. */
-	reorder(_sessionId: SessionId, _orderedIds: readonly MessageId[]): Promise<Result<void>> {
-		return notImplemented("CHAT-04");
+	/** Backs `Actions.sessions.queue.reorder`. The list names every waiting row of the chat. */
+	async reorder(sessionId: SessionId, orderedIds: readonly MessageId[]): Promise<Result<void>> {
+		const written = await this.#deps.repos.queuedMessages.reorder(sessionId, orderedIds);
+		if (!written.ok) return written;
+		this.#loads.invalidate(sessionId);
+		this.#applyOrder(sessionId, orderedIds);
+		return ok(undefined);
 	}
 
-	/** Backs `Actions.sessions.queue.setPaused`. */
-	setPaused(_sessionId: SessionId, _paused: boolean): Promise<Result<void>> {
-		return notImplemented("CHAT-04");
+	/** Backs `Actions.sessions.queue.setPaused`. Resuming lets the chat send its next row. */
+	async setPaused(sessionId: SessionId, paused: boolean): Promise<Result<void>> {
+		if (paused) {
+			const written = await this.#deps.repos.sessions.pauseQueue(sessionId, this.#deps.now());
+			if (!written.ok) return written;
+		} else {
+			const written = await this.#deps.repos.sessions.resumeQueue(sessionId);
+			if (!written.ok) return written;
+		}
+		this.#loads.invalidate(sessionId);
+		this.store.setState((state) => ({
+			pausedSessionIds: { ...state.pausedSessionIds, [sessionId]: paused },
+		}));
+		return paused ? ok(undefined) : this.release(sessionId);
+	}
+
+	/** Turns a failed row back into waiting and tries it now when the chat can take it. */
+	async retry(messageId: MessageId): Promise<Result<void>> {
+		const found = await this.#deps.repos.queuedMessages.get(messageId);
+		if (!found.ok) return found;
+		const row = found.value;
+		if (row === null) return err(unknownMessage());
+		if (row.state !== "failed") return err(alreadySending());
+		const written = await this.#deps.repos.queuedMessages.setState(
+			messageId,
+			"failed",
+			"waiting",
+			null,
+		);
+		if (!written.ok) return written;
+		if (!written.value) return err(alreadySending());
+		this.#loads.invalidate(row.sessionId);
+		this.#replaceRow({ ...row, state: "waiting", lastError: null });
+		return this.release(row.sessionId);
 	}
 
 	/**
@@ -149,10 +250,10 @@ export class FollowUpQueue {
 		if (!found.ok) return found;
 		const row = found.value;
 		if (row === null) {
-			return err(appError("queue_unknown", "That queued message no longer exists."));
+			return err(unknownMessage());
 		}
 		if (row.state !== "waiting") {
-			return err(appError("queue_not_waiting", "That message is already being sent."));
+			return err(alreadySending());
 		}
 
 		const session = await this.#deps.repos.sessions.get(row.sessionId);
@@ -172,7 +273,7 @@ export class FollowUpQueue {
 			const marked = await this.#deps.repos.queuedMessages.setDelivery(row.id, "steer");
 			if (!marked.ok) return marked;
 			if (!marked.value) {
-				return err(appError("queue_not_waiting", "That message is already being sent."));
+				return err(alreadySending());
 			}
 		}
 		const claimed = await this.#deps.repos.queuedMessages.setState(
@@ -183,7 +284,7 @@ export class FollowUpQueue {
 		);
 		if (!claimed.ok) return claimed;
 		if (!claimed.value) {
-			return err(appError("queue_not_waiting", "That message is already being sent."));
+			return err(alreadySending());
 		}
 
 		this.#replaceRow({ ...row, delivery: "steer", state: "sending" });
@@ -226,6 +327,14 @@ export class FollowUpQueue {
 		});
 	}
 
+	/** Adds one row to the loaded queue, or starts the queue if this chat has no rows loaded. */
+	#appendRow(row: QueuedMessage): void {
+		this.store.setState((state) => {
+			const rows = [...(state.bySession[row.sessionId] ?? []), row].sort(byPosition);
+			return { bySession: { ...state.bySession, [row.sessionId]: rows } };
+		});
+	}
+
 	/** Drops one row from the loaded queue after its message was accepted. */
 	#removeRow(sessionId: SessionId, messageId: MessageId): void {
 		this.store.setState((state) => {
@@ -240,21 +349,132 @@ export class FollowUpQueue {
 		});
 	}
 
-	/** Called when a chat goes idle or the user resumes the queue. Sends at most one row. */
-	release(_sessionId: SessionId): Promise<Result<void>> {
-		return notImplemented("CHAT-04");
+	/** Shows the rows in the given order. Rows not named keep their order after them. */
+	#applyOrder(sessionId: SessionId, orderedIds: readonly MessageId[]): void {
+		this.store.setState((state) => {
+			const rows = state.bySession[sessionId];
+			if (rows === undefined) return {};
+			const byId = new Map(rows.map((row) => [row.id, row]));
+			const named = orderedIds.flatMap((id) => {
+				const row = byId.get(id);
+				return row === undefined ? [] : [row];
+			});
+			const chosen = new Set(orderedIds);
+			const rest = rows.filter((row) => !chosen.has(row.id)).sort(byPosition);
+			const next = [...named, ...rest].map((row, index) => ({ ...row, position: index + 1 }));
+			return { bySession: { ...state.bySession, [sessionId]: next } };
+		});
+	}
+
+	/**
+	 * Called when a chat's live state may have changed. Sends one row when the chat becomes able
+	 * to take one, and pauses the queue once when a new turn failure appears. A send or pause that
+	 * fails is logged.
+	 */
+	observeLiveState(sessionId: SessionId): void {
+		const live = this.#deps.liveStateOf(sessionId);
+		const error = live?.error ?? null;
+		const previous = this.#lastError.get(sessionId) ?? null;
+		const newError = error !== null && error !== previous;
+		if (error === null) this.#lastError.delete(sessionId);
+		else this.#lastError.set(sessionId, error);
+
+		const releaseable = live !== undefined && canReleaseQueue(live);
+		const wasReleaseable = this.#releaseable.get(sessionId) ?? false;
+		this.#releaseable.set(sessionId, releaseable);
+
+		// A failed turn pauses first: its queued follow-ups must not fire into the broken chat.
+		if (newError) {
+			void this.setPaused(sessionId, true).then((result) => {
+				if (!result.ok) {
+					this.#deps.log?.(
+						"warn",
+						`Failed to pause queue after failed turn: ${result.error.message}`,
+					);
+				}
+			});
+			return;
+		}
+
+		if (releaseable && !wasReleaseable) {
+			void this.release(sessionId).then((result) => {
+				if (!result.ok) {
+					this.#deps.log?.("warn", `Failed to send a queued message: ${result.error.message}`);
+				}
+			});
+		}
+	}
+
+	/**
+	 * Called when a chat goes idle or the user resumes the queue. Sends at most one message: the
+	 * first steer row, or the first queue row unless paused. A failed row is marked failed and
+	 * the next waiting row is tried.
+	 */
+	async release(sessionId: SessionId): Promise<Result<void>> {
+		const live = this.#deps.liveStateOf(sessionId);
+		if (live === undefined || !canReleaseQueue(live)) return ok(undefined);
+
+		if (this.store.getState().bySession[sessionId] === undefined) {
+			const loaded = await this.load(sessionId);
+			if (!loaded.ok) return loaded;
+		}
+
+		let failure: AppError | undefined;
+		for (;;) {
+			const state = this.store.getState();
+			const rows = state.bySession[sessionId] ?? [];
+			const paused = state.pausedSessionIds[sessionId] ?? false;
+			const next = nextToSend(rows, paused);
+			if (next === null) break;
+
+			const claimed = await this.#deps.repos.queuedMessages.setState(
+				next.id,
+				"waiting",
+				"sending",
+				null,
+			);
+			if (!claimed.ok) return claimed;
+			if (!claimed.value) {
+				const reloaded = await this.load(sessionId);
+				if (!reloaded.ok) return reloaded;
+				continue;
+			}
+
+			const sending: QueuedMessage = { ...next, state: "sending" };
+			this.#replaceRow(sending);
+			const sent = await this.#deps.deliver(sending);
+			if (!sent.ok) {
+				failure ??= sent.error;
+				const failed = await this.#deps.repos.queuedMessages.setState(
+					next.id,
+					"sending",
+					"failed",
+					sent.error.message,
+				);
+				if (!failed.ok) return failed;
+				if (failed.value) {
+					this.#replaceRow({ ...next, state: "failed", lastError: sent.error.message });
+				}
+				this.#deps.log?.("warn", `Failed to send a queued message: ${sent.error.message}`);
+				continue;
+			}
+
+			const removed = await this.#deps.repos.queuedMessages.remove(next.id);
+			if (!removed.ok) return removed;
+			this.#removeRow(sessionId, next.id);
+			return ok(undefined);
+		}
+		return failure === undefined ? ok(undefined) : err(failure);
 	}
 
 	/**
 	 * Called by cancel (CHAT-05): pauses the queue and keeps every waiting row. A row already
 	 * `sending` was handed to the sidecar but not delivered, so it goes back to waiting at the end
-	 * of the queue (services-map.md 2.3.3). The pause flag is the queue store's; persistence
-	 * belongs to `setPaused` (CHAT-04).
+	 * of the queue (services-map.md 2.3.3).
 	 */
 	async pauseOnCancel(sessionId: SessionId): Promise<Result<void>> {
-		this.store.setState((state) => ({
-			pausedSessionIds: { ...state.pausedSessionIds, [sessionId]: true },
-		}));
+		const paused = await this.setPaused(sessionId, true);
+		if (!paused.ok) return paused;
 
 		const listed = await this.#deps.repos.queuedMessages.listBySession(sessionId);
 		if (!listed.ok) return listed;
@@ -291,4 +511,9 @@ export class FollowUpQueue {
 		}));
 		return failure === undefined ? ok(undefined) : err(failure);
 	}
+}
+
+/** Queue rows are shown in their stored order. */
+function byPosition(a: QueuedMessage, b: QueuedMessage): number {
+	return a.position - b.position || a.id.localeCompare(b.id);
 }

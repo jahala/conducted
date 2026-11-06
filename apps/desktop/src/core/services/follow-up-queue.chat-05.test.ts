@@ -107,6 +107,8 @@ beforeEach(async () => {
 		repos: repositories,
 		deliver: async () => ok(undefined),
 		liveStateOf: () => undefined,
+		newId: () => `queue-${++nextId}`,
+		now: () => now,
 	});
 });
 
