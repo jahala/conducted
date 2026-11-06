@@ -538,6 +538,8 @@ export interface GitWorld {
 	arborFiles?: ScriptedFile[];
 	/** Pull requests GitHub knows, by head branch. */
 	prs?: ScriptedPr[];
+	/** arbor's folder is no longer a git repository, so every git command fails. */
+	arborBroken?: boolean;
 }
 
 /**
@@ -582,10 +584,24 @@ export function plantGit(world: World, cast: Cast, options: GitWorld = {}): void
 					at: (CATALOGUE_NOW - 11 * MINUTE) / 1000,
 				},
 			],
-			upstream: { ahead: 1, behind: 0 },
+			upstream: { ahead: arborFiles.every((file) => file.committed) ? 0 : 1, behind: 0 },
 			behindTarget: 2,
 		}),
 	);
+	if (options.arborBroken === true) {
+		world.scriptShell((command) =>
+			command.program === "git" && command.cwd === cast.arbor.path
+				? {
+						ok: true,
+						value: {
+							stdout: "",
+							stderr: "fatal: not a git repository (or any of the parent directories): .git\n",
+							exitCode: 128,
+						},
+					}
+				: null,
+		);
+	}
 	world.scriptShell(scriptGitHub(options.prs ?? []));
 	for (const repo of [cast.atlas, cast.relay]) {
 		world.memory.controls.files.set(`${repo.rootPath}/.conducted/settings.toml`, PROJECT_SETTINGS);

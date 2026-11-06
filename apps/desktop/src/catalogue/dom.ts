@@ -49,6 +49,8 @@ export async function click(
 	element.dispatchEvent(new PointerEvent("pointerup", init));
 	element.dispatchEvent(new MouseEvent("mouseup", init));
 	element.click();
+	// A pointer click shows no focus ring; a scripted one would, so leave focus where a pointer would.
+	if (document.activeElement === element) element.blur();
 }
 
 /** Presses a key on the focused element, or on the body. */

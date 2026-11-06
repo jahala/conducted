@@ -7,6 +7,8 @@
  */
 import type { CatalogueState } from "../state.ts";
 import { CHAT_STATES } from "./chat.ts";
+import { COMPOSER_STATES } from "./composer.ts";
+import { GIT_STATES } from "./git.ts";
 import { PAGE_STATES } from "./pages.ts";
 import { SHELL_STATES } from "./shell.ts";
 
@@ -14,6 +16,8 @@ export const CATALOGUE_STATES: readonly CatalogueState[] = [
 	...SHELL_STATES,
 	...PAGE_STATES,
 	...CHAT_STATES,
+	...COMPOSER_STATES,
+	...GIT_STATES,
 ];
 
 const seen = new Set<string>();

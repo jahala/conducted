@@ -123,6 +123,10 @@ export function scriptGitHub(prs: readonly ScriptedPr[]): ShellScript {
 			return out("github.com\n  ✓ Logged in to github.com account sam\n");
 		if (joined.startsWith("api user")) return out("sam\n");
 		if (joined === "config get git_protocol") return out("ssh\n");
+		if (joined === "api rate_limit") {
+			const graphql = { limit: 5_000, used: 10, remaining: 4_990, reset: 1_793_966_400 };
+			return out(JSON.stringify({ resources: { graphql, core: graphql }, rate: graphql }));
+		}
 		if (args[0] === "api" && args[1] === "graphql") {
 			const query = args.find((arg) => arg.startsWith("query=")) ?? "";
 			if (query.includes("reviewThreads")) {
@@ -174,6 +178,7 @@ export function scriptGitHub(prs: readonly ScriptedPr[]): ShellScript {
 				}),
 			);
 		}
+		console.info("[catalogue] unscripted gh command:", joined.slice(0, 120));
 		return null;
 	};
 }

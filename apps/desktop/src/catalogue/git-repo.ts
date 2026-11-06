@@ -119,6 +119,10 @@ export function scriptRepo(repo: ScriptedRepo): ShellScript {
 			})
 			.join("");
 
+	// An upstream with nothing to push or pull points at the same commit as HEAD.
+	const inSync = repo.upstream !== null && repo.upstream.ahead === 0 && repo.upstream.behind === 0;
+	const upstreamSha = inSync ? HEAD : UPSTREAM;
+
 	return (command: ShellCommand) => {
 		if (command.cwd !== repo.path) return null;
 		if (command.program === "stat") {
@@ -154,17 +158,31 @@ export function scriptRepo(repo: ScriptedRepo): ShellScript {
 			if (repo.upstream === null) return out("", 128, "fatal: no upstream configured\n");
 			if (args.includes("--abbrev-ref")) return out(`origin/${repo.branch}\n`);
 			if (args.includes("--symbolic-full-name")) return out(`refs/remotes/origin/${repo.branch}\n`);
-			return out(`${HEAD}\n${UPSTREAM}\n`);
+			return out(`${HEAD}\n${upstreamSha}\n`);
 		}
-		if (verb === "rev-parse" && args[1] === "--verify") return out("", 1);
+		if (verb === "rev-parse" && args[1] === "--verify") {
+			const pushed = repo.upstream !== null && args.at(-1) === `refs/remotes/origin/${repo.branch}`;
+			return pushed ? out(`${upstreamSha}\n`) : out("", 1);
+		}
 		if (verb === "show-ref") return out("", 1);
-		if (verb === "reflog") return out(`${UPSTREAM}\n`);
+		if (verb === "reflog") return out(`${upstreamSha}\n`);
 		if (verb === "rev-list" && args[1] === "--left-right") {
-			const range = args[3] ?? "";
-			if (range.includes("@{u}") || range.includes(`origin/${repo.branch}`)) {
-				return out(`${repo.upstream?.ahead ?? 0}\t${repo.upstream?.behind ?? 0}\n`);
+			// `<a>...<b>` prints the commits only in a, a tab, then the commits only in b.
+			const [left = "", right = ""] = (args[3] ?? "").split("...");
+			const isSha = (ref: string): boolean => ref === HEAD || ref === UPSTREAM;
+			if (isSha(left) && isSha(right)) {
+				const ahead = repo.upstream?.ahead ?? 0;
+				const behind = repo.upstream?.behind ?? 0;
+				return out(
+					left === HEAD && right !== HEAD ? `${ahead}\t${behind}\n` : `${behind}\t${ahead}\n`,
+				);
 			}
-			return out(`${repo.commits.length}\t${repo.behindTarget}\n`);
+			const branchFirst = left === repo.branch || left === "HEAD";
+			return out(
+				branchFirst
+					? `${repo.commits.length}\t${repo.behindTarget}\n`
+					: `${repo.behindTarget}\t${repo.commits.length}\n`,
+			);
 		}
 		if (verb === "rev-list" && args[1] === "--count") {
 			const range = args[2] ?? "";
@@ -241,6 +259,10 @@ export function scriptRepo(repo: ScriptedRepo): ShellScript {
 			return out(`${repo.branch}\nmain\n`);
 		}
 		if (verb === "for-each-ref") return out("origin/main\norigin/release\n");
+		if (verb === "config" && args[1] === "--get" && repo.upstream !== null) {
+			if (args[2] === `branch.${repo.branch}.remote`) return out("origin\n");
+			if (args[2] === `branch.${repo.branch}.merge`) return out(`refs/heads/${repo.branch}\n`);
+		}
 		if (verb === "config") return out("", 1);
 		if (verb === "remote" && args[1] === "get-url") return out("git@github.com:acme/atlas.git\n");
 		if (verb === "merge-tree") return out(`${HEAD}\n`);

@@ -117,7 +117,8 @@ export async function addWorkspace(
 }
 
 export interface ChatSeed {
-	title: string;
+	/** Null, as for a chat that has no title yet. */
+	title: string | null;
 	config?: SessionConfig;
 	unread?: number;
 	/** Makes this the chat the workspace opens on. */
