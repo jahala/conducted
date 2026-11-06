@@ -2,8 +2,17 @@
  * @feature SET-02 Account settings page
  * Owns: the Account page of Settings, local parts only: GitHub access through the `gh` command, a
  * personal access token, the Linear API key, data privacy, and tool approval modes.
- * Behaviour: ui-map.md 6, "Account" table. Left out: the Conductor account, billing, display name
- * and photo, sign out and every hosted sign-in (they need a service we do not have).
+ * Behaviour: ui-map.md 6, "Account" table. Left out: the Conductor account, billing, sign out and
+ * every hosted sign-in (D004, D025, D035: they need a service we do not have).
+ * Measured from Conductor 0.92.1 (renderApp @11052485-11098059 and the owner's capture): a profile
+ * header (a 64px round avatar, the name in 18px medium, muted lines under it) over a rule, then one row
+ * per connection: a 40px bordered tile with the service's mark, the name and a muted description, and
+ * the actions at the right ("Manage" with a check when connected, "Connect" when not); then the
+ * setting rows (data privacy, tool approvals).
+ * Our design choice: the header shows the GitHub sign-in: its avatar and login, with the letter when
+ * the avatar cannot load. Conductor's "Edit photo" and "Display name" are not built: there is nowhere
+ * to keep them yet. The token field sits under the GitHub row and the Linear key field opens under
+ * the Linear row from "Connect"; the service marks are our own glyphs (D002).
  * Data: useGitHubAccess() for the `gh` status, useLinearAccess() for the Linear connection, the
  * GitHub store for the failure class,
  * RegistrySettingRowByKey for stored values, Actions.accounts for the token and Linear key.
@@ -16,7 +25,7 @@
  * confirmation.
  * Test first: with `gh` not installed the page shows the install help and no sign-in command.
  */
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { useStore } from "zustand";
 import { useServices } from "../../../core/context.tsx";
 import { useActions, useGitHubAccess, useLinearAccess } from "../../../core/hooks.ts";
@@ -25,6 +34,7 @@ import { AlertDialog, AlertDialogContent } from "../../../ui/AlertDialog.tsx";
 import { Button } from "../../../ui/Button.tsx";
 import { Dialog, DialogContent, DialogFooter } from "../../../ui/Dialog.tsx";
 import { Input, Label } from "../../../ui/Input.tsx";
+import { CheckIcon, GitBranchIcon, ListTodoIcon, RefreshIcon } from "../../../ui/icons.tsx";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
 import { RegistrySettingRowByKey } from "../SettingRow.tsx";
@@ -47,6 +57,8 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 	const [linearError, setLinearError] = useState<string | null>(null);
 	const [disconnectLinear, setDisconnectLinear] = useState(false);
 	const [savingLinear, setSavingLinear] = useState(false);
+	const [linearFormOpen, setLinearFormOpen] = useState(false);
+	const [avatarFailed, setAvatarFailed] = useState(false);
 
 	const failure = raw.status === "signed_out" ? raw.failure : undefined;
 	const failureMessage = failure === undefined ? null : githubFailureMessage(failure, "");
@@ -96,6 +108,7 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 		}
 		setLinearKey("");
 		setLinearError(null);
+		setLinearFormOpen(false);
 		toast("Linear key saved");
 	};
 
@@ -108,13 +121,46 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 			{...load}
 			focusSettingKey={focusSettingKey}
 		>
-			<div className="flex flex-col gap-2 border-t border-border py-4 first:border-t-0 first:pt-0">
-				<div className="flex items-center justify-between gap-3">
-					<p className="text-sm font-medium text-fg">GitHub access</p>
-					<Button variant="secondary" size="sm" onClick={() => void checkAgain()}>
-						Check again
-					</Button>
-				</div>
+			<ProfileHeader
+				login={
+					signedIn && access.state === "ready" && access.data.state === "signed_in"
+						? access.data.login
+						: null
+				}
+				detail={
+					access.state === "ready" && access.data.state === "signed_in"
+						? access.data.usesToken
+							? `Signed in to ${access.data.host} with a personal access token`
+							: `Signed in to ${access.data.host} with gh`
+						: "Not signed in to GitHub"
+				}
+				avatarFailed={avatarFailed}
+				onAvatarError={() => setAvatarFailed(true)}
+			/>
+
+			<ConnectionRow
+				icon={<GitBranchIcon className="size-5" />}
+				title="GitHub"
+				description="Connect GitHub to clone repos, create PRs, load comments and more."
+				actions={
+					<>
+						<Button variant="ghost" size="sm" onClick={() => void checkAgain()}>
+							<RefreshIcon className="size-3.5" />
+							Check again
+						</Button>
+						{signedIn ? (
+							<Button variant="outline" size="sm" onClick={() => setAccountOpen(true)}>
+								Manage
+								<CheckIcon className="size-3.5 text-success" />
+							</Button>
+						) : access.state === "ready" && access.data.state === "signed_out" ? (
+							<Button variant="outline" size="sm" onClick={() => setConnectOpen(true)}>
+								Connect GitHub
+							</Button>
+						) : null}
+					</>
+				}
+			>
 				{access.state === "loading" ? <Skeleton className="h-5 w-64" /> : null}
 				{access.state === "error" ? (
 					<p role="alert" className="text-xs text-danger">
@@ -132,16 +178,13 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 					</div>
 				) : null}
 				{access.state === "ready" && access.data.state === "signed_out" ? (
-					<div className="flex flex-col gap-2">
+					<div className="flex flex-col gap-1">
 						<p className="text-sm text-fg-muted">GitHub is not signed in.</p>
 						{failureMessage ? (
 							<p role="alert" className="text-xs text-danger">
 								{failureMessage}
 							</p>
 						) : null}
-						<Button variant="secondary" size="sm" onClick={() => setConnectOpen(true)}>
-							Connect GitHub
-						</Button>
 					</div>
 				) : null}
 				{access.state === "ready" && access.data.state === "unknown" ? (
@@ -150,51 +193,69 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 					</p>
 				) : null}
 				{signedIn && access.state === "ready" && access.data.state === "signed_in" ? (
-					<div className="flex flex-wrap items-center justify-between gap-3">
-						<p className="text-sm text-fg-muted">
-							Signed in as {access.data.login} on {access.data.host}
-							{access.data.scopes.length > 0 ? ` (${access.data.scopes.join(", ")})` : ""}.
-						</p>
-						<Button variant="secondary" size="sm" onClick={() => setAccountOpen(true)}>
-							GitHub account
-						</Button>
-					</div>
-				) : null}
-			</div>
-
-			<div className="flex flex-col gap-2 border-t border-border py-4">
-				<Label htmlFor="github-token">Personal access token</Label>
-				<p className="text-sm text-fg-muted">
-					Optional. Stored in the Keychain and given to gh as GH_TOKEN. It is never shown again.
-				</p>
-				<div className="flex items-end gap-2">
-					<Input
-						id="github-token"
-						type="password"
-						value={token}
-						autoComplete="off"
-						className="w-72"
-						onChange={(event) => {
-							setToken(event.target.value);
-							setTokenError(null);
-						}}
-					/>
-					<Button variant="secondary" onClick={() => void saveToken()}>
-						Save token
-					</Button>
-				</div>
-				{tokenError ? (
-					<p role="alert" className="text-xs text-danger">
-						{tokenError}
+					<p className="text-sm text-fg-muted">
+						Signed in as {access.data.login} on {access.data.host}
+						{access.data.scopes.length > 0 ? ` (${access.data.scopes.join(", ")})` : ""}.
 					</p>
 				) : null}
-			</div>
+				<div className="flex flex-col gap-2 pt-2">
+					<Label htmlFor="github-token">Personal access token</Label>
+					<p className="text-sm text-fg-muted">
+						Optional. Stored in the Keychain and given to gh as GH_TOKEN. It is never shown again.
+					</p>
+					<div className="flex items-end gap-2">
+						<Input
+							id="github-token"
+							type="password"
+							value={token}
+							autoComplete="off"
+							placeholder="ghp_..."
+							className="w-72"
+							onChange={(event) => {
+								setToken(event.target.value);
+								setTokenError(null);
+							}}
+						/>
+						<Button variant="outline" onClick={() => void saveToken()}>
+							Save token
+						</Button>
+					</div>
+					{tokenError ? (
+						<p role="alert" className="text-xs text-danger">
+							{tokenError}
+						</p>
+					) : null}
+				</div>
+			</ConnectionRow>
 
-			<div className="flex flex-col gap-2 border-t border-border py-4">
-				<Label htmlFor="linear-key">Linear API key</Label>
-				<p className="text-sm text-fg-muted">
-					A personal Linear API key, stored in the Keychain. It is never shown again.
-				</p>
+			<ConnectionRow
+				icon={<ListTodoIcon className="size-5" />}
+				title="Linear"
+				description="Connect Linear so the app can use issue context from your account."
+				actions={
+					linearAccess.state === "ready" &&
+					(linearAccess.data.state === "signed_in" ||
+						linearAccess.data.state === "key_rejected") ? (
+						<Button
+							variant="outlineDestructive"
+							size="sm"
+							onClick={() => setDisconnectLinear(true)}
+						>
+							Disconnect Linear
+						</Button>
+					) : (
+						<Button
+							variant="outline"
+							size="sm"
+							aria-expanded={linearFormOpen}
+							aria-controls="linear-key-form"
+							onClick={() => setLinearFormOpen((open) => !open)}
+						>
+							Connect
+						</Button>
+					)
+				}
+			>
 				{linearAccess.state === "loading" ? <Skeleton className="h-5 w-56" /> : null}
 				{linearAccess.state === "error" ? (
 					<p role="alert" className="text-xs text-danger">
@@ -217,35 +278,37 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 						<p className="text-sm text-fg-muted">Not connected</p>
 					)
 				) : null}
-				<div className="flex items-end gap-2">
-					<Input
-						id="linear-key"
-						type="password"
-						value={linearKey}
-						autoComplete="off"
-						className="w-72"
-						onChange={(event) => {
-							setLinearKey(event.target.value);
-							setLinearError(null);
-						}}
-					/>
-					<Button variant="secondary" loading={savingLinear} onClick={() => void saveLinearKey()}>
-						Save key
-					</Button>
-					{linearAccess.state === "ready" &&
-					(linearAccess.data.state === "signed_in" ||
-						linearAccess.data.state === "key_rejected") ? (
-						<Button variant="outlineDestructive" onClick={() => setDisconnectLinear(true)}>
-							Disconnect Linear
-						</Button>
-					) : null}
-				</div>
-				{linearError ? (
-					<p role="alert" className="text-xs text-danger">
-						{linearError}
-					</p>
+				{linearFormOpen ||
+				(linearAccess.state === "ready" && linearAccess.data.state === "key_rejected") ? (
+					<div id="linear-key-form" className="flex flex-col gap-2 pt-2">
+						<Label htmlFor="linear-key">Linear API key</Label>
+						<p className="text-sm text-fg-muted">
+							A personal Linear API key, stored in the Keychain. It is never shown again.
+						</p>
+						<div className="flex items-end gap-2">
+							<Input
+								id="linear-key"
+								type="password"
+								value={linearKey}
+								autoComplete="off"
+								className="w-72"
+								onChange={(event) => {
+									setLinearKey(event.target.value);
+									setLinearError(null);
+								}}
+							/>
+							<Button variant="outline" loading={savingLinear} onClick={() => void saveLinearKey()}>
+								Save key
+							</Button>
+						</div>
+						{linearError ? (
+							<p role="alert" className="text-xs text-danger">
+								{linearError}
+							</p>
+						) : null}
+					</div>
 				) : null}
-			</div>
+			</ConnectionRow>
 
 			<RegistrySettingRowByKey
 				settingKey="enterprise_data_privacy"
@@ -376,5 +439,75 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 				/>
 			</AlertDialog>
 		</SettingsPageFrame>
+	);
+}
+
+/**
+ * Conductor's profile block: a 64px round avatar with a hairline outline, the name in 18px medium and a
+ * muted line under it. Ours names the GitHub sign-in; the avatar falls back to the login's letter.
+ */
+function ProfileHeader({
+	login,
+	detail,
+	avatarFailed,
+	onAvatarError,
+}: {
+	login: string | null;
+	detail: string;
+	avatarFailed: boolean;
+	onAvatarError: () => void;
+}) {
+	const letter = login === null ? "?" : (login.trim()[0] ?? "?").toUpperCase();
+	return (
+		<div className="flex items-center gap-4 border-b border-border pb-6">
+			<span className="relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-lg font-medium text-fg-muted outline outline-1 outline-border">
+				{letter}
+				{login !== null && !avatarFailed ? (
+					<img
+						src={`https://github.com/${encodeURIComponent(login)}.png?size=128`}
+						alt=""
+						className="absolute inset-0 size-full object-cover"
+						onError={onAvatarError}
+					/>
+				) : null}
+			</span>
+			<div className="flex min-w-0 flex-col">
+				<p className="truncate text-lg font-medium text-fg">{login ?? "GitHub not connected"}</p>
+				<p className="truncate text-sm text-fg-muted">{detail}</p>
+			</div>
+		</div>
+	);
+}
+
+/** One connection: a 40px bordered tile, the name over a muted description, actions at the right. */
+function ConnectionRow({
+	icon,
+	title,
+	description,
+	actions,
+	children,
+}: {
+	icon: ReactNode;
+	title: string;
+	description: string;
+	actions: ReactNode;
+	children?: ReactNode;
+}) {
+	return (
+		<section aria-label={title} className="flex flex-col gap-2 border-b border-border py-5">
+			<div className="flex items-center justify-between gap-3">
+				<div className="flex min-w-0 items-center gap-3">
+					<span className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-border bg-muted text-fg">
+						{icon}
+					</span>
+					<div className="min-w-0">
+						<p className="text-sm font-medium text-fg">{title}</p>
+						<p className="text-sm text-fg-muted">{description}</p>
+					</div>
+				</div>
+				<div className="flex shrink-0 items-center gap-2">{actions}</div>
+			</div>
+			{children === undefined ? null : <div className="flex flex-col gap-1 pl-13">{children}</div>}
+		</section>
 	);
 }

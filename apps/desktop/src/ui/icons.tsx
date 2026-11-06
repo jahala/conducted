@@ -45,6 +45,12 @@ export const ArchiveIcon = (p: P) => <Icon d="M2.5 3h11v3h-11zM3.5 6v7h9V6M6.5 8
 export const ArrowUpDownIcon = (p: P) => (
 	<Icon d="M5 13V3M2.5 5.5L5 3l2.5 2.5M11 3v10M8.5 10.5L11 13l2.5-2.5" {...p} />
 );
+export const RefreshIcon = (p: P) => (
+	<Icon
+		d="M13 3.5v3h-3M3 12.5v-3h3M12.4 6.5A4.75 4.75 0 0 0 3.6 6M3.6 9.5a4.75 4.75 0 0 0 8.8.5"
+		{...p}
+	/>
+);
 export const PlusIcon = (p: P) => <Icon d="M8 3v10M3 8h10" {...p} />;
 export const CloseIcon = (p: P) => <Icon d="M4 4l8 8M12 4l-8 8" {...p} />;
 export const ChevronDownIcon = (p: P) => <Icon d="M4 6l4 4 4-4" {...p} />;
