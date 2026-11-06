@@ -7,16 +7,17 @@
  * Must handle: a GitHub token of unknown status, a check log that cannot be read.
  * Test first: the test for a hook body lives with the feature that implements it.
  */
-import { type AppError, appError, notImplemented } from "@conducted/shared";
+import { type AppError, appError } from "@conducted/shared";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useStore } from "zustand";
-import type { Queries } from "../api.ts";
+import type { Loadable, Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
 import type {
 	GitHubOwner,
 	GitHubRepoSummary,
 	IssueView,
+	PrActivityEntry,
 	PullRequestSummary,
 	RepoNameCheck,
 	StackEntryView,
@@ -28,6 +29,8 @@ import {
 } from "../services/github.ts";
 import { linearIssueToView } from "../services/linear.ts";
 import { projectFolderName } from "../services/project-templates.ts";
+import { useBranchCommits } from "./git.ts";
+import { useDiffComments } from "./review.ts";
 
 export const useCheckLog: Queries["useCheckLog"] = (workspaceId, checkName) => {
 	const { services } = useServices();
@@ -56,8 +59,44 @@ export const useCheckLog: Queries["useCheckLog"] = (workspaceId, checkName) => {
 	if (result.data === undefined) return { state: "loading" };
 	return { state: "ready", data: result.data };
 };
-export const usePullRequestActivity: Queries["usePullRequestActivity"] = () =>
-	notImplemented("PR-07");
+export const usePullRequestActivity: Queries["usePullRequestActivity"] = (workspaceId) => {
+	const commits = useBranchCommits(workspaceId);
+	const comments = useDiffComments(workspaceId);
+	return useMemo<Loadable<PrActivityEntry[]>>(() => {
+		if (commits.state === "error") return { state: "error", error: commits.error };
+		if (comments.state === "error") return { state: "error", error: comments.error };
+		if (commits.state === "loading" || comments.state === "loading") {
+			return { state: "loading" };
+		}
+		const entries: PrActivityEntry[] = [];
+		for (const commit of commits.data) {
+			entries.push({
+				kind: "commit",
+				id: `commit:${commit.sha}`,
+				at: commit.at,
+				sha: commit.sha,
+				subject: commit.subject,
+				authorName: commit.authorName,
+			});
+		}
+		for (const comment of comments.data) {
+			if (comment.author.kind !== "github") continue;
+			if (comment.state === "hidden" || comment.state === "superseded") continue;
+			entries.push({
+				kind: "comment",
+				id: `comment:${comment.id}`,
+				at: comment.createdAt,
+				authorLogin: comment.author.name ?? "GitHub user",
+				authorAvatarUrl: comment.author.avatarUrl,
+				body: comment.body,
+				filePath: comment.filePath,
+				line: comment.line,
+				commentId: comment.id,
+			});
+		}
+		return { state: "ready", data: entries };
+	}, [commits, comments]);
+};
 export const useStack: Queries["useStack"] = (workspaceId) => {
 	const { services } = useServices();
 	const result = useQuery<StackEntryView[], AppError>({
