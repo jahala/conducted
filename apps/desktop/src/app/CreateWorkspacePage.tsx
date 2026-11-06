@@ -91,9 +91,17 @@ import {
 } from "../ui/Menu.tsx";
 import { Select } from "../ui/Select.tsx";
 import { toast, toastError } from "../ui/Toast.tsx";
+import { ToggleGroup, ToggleGroupItem } from "../ui/Toggle.tsx";
 import { useCommandHandler } from "./command-dispatcher.ts";
 
 type FromKind = "default" | "branch" | "pull_request" | "issue";
+
+/** Conductor's "Create from" tabs, in its order (renderApp @11459154). None chosen means the default branch. */
+const FROM_TABS: readonly { value: Exclude<FromKind, "default">; label: string }[] = [
+	{ value: "pull_request", label: "PRs" },
+	{ value: "branch", label: "Branches" },
+	{ value: "issue", label: "Issues" },
+];
 type IssueProvider = IssueView["provider"];
 
 /** The loaded project a link names, by id or by name. */
@@ -653,19 +661,37 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 							id="create-from-picker"
 							className="flex flex-col gap-3 border-b border-border px-4 py-3"
 						>
-							<Label htmlFor="create-workspace-from">Create from</Label>
-							<Select<FromKind>
-								id="create-workspace-from"
-								value={fromKind}
-								options={[
-									{ value: "default", label: `Default branch (${selectedRepo.defaultBranch})` },
-									{ value: "branch", label: "Branch" },
-									{ value: "pull_request", label: "Pull request" },
-									{ value: "issue", label: "Issue" },
-								]}
-								onValueChange={setFromKind}
+							<div className="flex items-center justify-between gap-2">
+								<span id="create-workspace-from" className="text-sm font-medium text-fg">
+									Create from
+								</span>
+								{fromKind === "default" ? (
+									<span className="truncate text-xs text-fg-muted">
+										Starts from {selectedRepo.defaultBranch}
+									</span>
+								) : null}
+							</div>
+							<ToggleGroup
+								type="single"
+								aria-labelledby="create-workspace-from"
+								value={fromKind === "default" ? "" : fromKind}
+								onValueChange={(value) =>
+									setFromKind(value === "" ? "default" : (value as FromKind))
+								}
 								disabled={fieldsLocked}
-							/>
+								className="gap-1"
+							>
+								{FROM_TABS.map((tab) => (
+									<ToggleGroupItem
+										key={tab.value}
+										value={tab.value}
+										size="sm"
+										className="h-7 px-2.5 text-fg-muted hover:text-fg data-[state=on]:bg-muted data-[state=on]:text-fg"
+									>
+										{tab.label}
+									</ToggleGroupItem>
+								))}
+							</ToggleGroup>
 
 							{fromKind === "branch" ? (
 								<div className="flex flex-col gap-2">

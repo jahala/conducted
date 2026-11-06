@@ -7,7 +7,7 @@ import {
 	Outlet,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createStore } from "zustand/vanilla";
 import type { NewWorkspaceInput } from "../core/api.ts";
@@ -189,13 +189,14 @@ async function renderCreatePage(path = "/create", sectionRows: readonly Section[
 afterEach(cleanup);
 
 /**
- * Opens the create-from picker (closed by default, as in Conductor's dialog) and picks "Branch" in its
- * select with the keyboard, as app-12's select tests do.
+ * Opens the create-from picker (closed by default, as in Conductor's dialog) and picks its "Branches"
+ * tab.
  */
 async function chooseBranchSource() {
 	fireEvent.click(screen.getByRole("button", { name: "Show or hide the create-from picker" }));
-	fireEvent.keyDown(screen.getByRole("combobox", { name: "Create from" }), { key: "Enter" });
-	fireEvent.keyDown(await screen.findByRole("option", { name: "Branch" }), { key: "Enter" });
+	// The sources are Conductor's tabs ("PRs", "Branches", "Issues") in place of a select.
+	const group = await screen.findByRole("radiogroup", { name: "Create from" });
+	fireEvent.click(within(group).getByRole("radio", { name: "Branches" }));
 }
 
 describe("WS-01 CreateWorkspacePage", () => {
