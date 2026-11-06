@@ -4,7 +4,8 @@
  * personal access token, the Linear API key, data privacy, and tool approval modes.
  * Behaviour: ui-map.md 6, "Account" table. Left out: the Conductor account, billing, display name
  * and photo, sign out and every hosted sign-in (they need a service we do not have).
- * Data: useGitHubAccess() for the `gh` status, the GitHub store for the failure class,
+ * Data: useGitHubAccess() for the `gh` status, useLinearAccess() for the Linear connection, the
+ * GitHub store for the failure class,
  * RegistrySettingRowByKey for stored values, Actions.accounts for the token and Linear key.
  * Our design choice: the page never starts `gh auth login`, because it is interactive. It shows the
  * command with a copy button and a "Check again" action. A token that does not look like a GitHub
@@ -18,7 +19,7 @@
 import { useState } from "react";
 import { useStore } from "zustand";
 import { useServices } from "../../../core/context.tsx";
-import { useActions, useGitHubAccess } from "../../../core/hooks.ts";
+import { useActions, useGitHubAccess, useLinearAccess } from "../../../core/hooks.ts";
 import { githubFailureMessage, githubTokenWarning } from "../../../core/services/github.ts";
 import { AlertDialog, AlertDialogContent } from "../../../ui/AlertDialog.tsx";
 import { Button } from "../../../ui/Button.tsx";
@@ -34,6 +35,7 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 	const actions = useActions();
 	const services = useServices().services;
 	const access = useGitHubAccess();
+	const linearAccess = useLinearAccess();
 	const raw = useStore(services.github.store, (state) => state.access);
 	const [accountOpen, setAccountOpen] = useState(false);
 	const [connectOpen, setConnectOpen] = useState(false);
@@ -193,6 +195,28 @@ export function AccountPage({ focusSettingKey = null }: { focusSettingKey?: stri
 				<p className="text-sm text-fg-muted">
 					A personal Linear API key, stored in the Keychain. It is never shown again.
 				</p>
+				{linearAccess.state === "loading" ? <Skeleton className="h-5 w-56" /> : null}
+				{linearAccess.state === "error" ? (
+					<p role="alert" className="text-xs text-danger">
+						{linearAccess.error.message}
+					</p>
+				) : null}
+				{linearAccess.state === "ready" ? (
+					linearAccess.data.state === "signed_in" ? (
+						<p className="text-sm text-fg">
+							Connected as {linearAccess.data.name}
+							{linearAccess.data.organization === null
+								? ""
+								: ` (${linearAccess.data.organization})`}
+						</p>
+					) : linearAccess.data.state === "key_rejected" ? (
+						<p role="alert" className="text-xs text-danger">
+							Linear rejected the API key. Enter a new key.
+						</p>
+					) : (
+						<p className="text-sm text-fg-muted">Not connected</p>
+					)
+				) : null}
 				<div className="flex items-end gap-2">
 					<Input
 						id="linear-key"

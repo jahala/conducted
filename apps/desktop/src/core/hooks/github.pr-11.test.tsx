@@ -79,7 +79,10 @@ function containerWith(options: {
 				listPullRequests:
 					options.listPullRequests ?? vi.fn(async () => ({ ok: true, value: [pullRequest] })),
 			},
-			linear: { search: vi.fn() },
+			linear: {
+				store: createStore(() => ({ connection: "unknown", myIssues: [], account: null })),
+				search: vi.fn(),
+			},
 		},
 	} as unknown as Container;
 }

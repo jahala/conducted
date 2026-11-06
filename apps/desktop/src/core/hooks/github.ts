@@ -17,6 +17,7 @@ import {
 	canListGithubPullRequests,
 	toGitHubAccessView,
 } from "../services/github.ts";
+import { linearIssueToView } from "../services/linear.ts";
 
 export const useCheckLog: Queries["useCheckLog"] = (workspaceId, checkName) => {
 	const { services } = useServices();
@@ -63,14 +64,32 @@ export const useIssues: Queries["useIssues"] = (repoId, provider, query) => {
 	const { services } = useServices();
 	const repo = useStore(services.repo.store, (state) => state.reposById[repoId]);
 	const access = useStore(services.github.store, (state) => state.access);
+	const linearConnection = useStore(services.linear.store, (state) => state.connection);
 	const github = provider === "github";
 	const accessLoading = github && access.status === "unknown" && access.reason === undefined;
 	const available = !github || canListGithubIssues(repo?.remoteUrl ?? null, access);
+	const linearError = github
+		? null
+		: linearConnection === "not_connected"
+			? appError("linear_not_connected", "Connect Linear to list issues.")
+			: linearConnection === "key_rejected"
+				? appError(
+						"linear_key_rejected",
+						"Linear rejected the API key. Enter a new key in Settings.",
+					)
+				: null;
 	const result = useQuery<IssueView[], AppError>({
-		queryKey: ["github", "issues", repoId, provider, query],
-		enabled: available && !accessLoading && (!github || repo !== undefined),
+		queryKey: ["issues", repoId, provider, query, github ? null : linearConnection],
+		enabled: github ? available && !accessLoading && repo !== undefined : linearError === null,
 		queryFn: async () => {
-			if (!github) notImplemented("PR-09");
+			if (!github) {
+				const found =
+					query.trim() === ""
+						? await services.linear.loadMyIssues()
+						: await services.linear.search(query);
+				if (!found.ok) throw found.error;
+				return found.value.map(linearIssueToView);
+			}
 			if (repo === undefined) throw appError("repo_unknown", "That project was removed.");
 			if (repo.remoteUrl === null) {
 				throw appError("github_not_github", "This repository has no GitHub remote.");
@@ -79,9 +98,10 @@ export const useIssues: Queries["useIssues"] = (repoId, provider, query) => {
 			if (!found.ok) throw found.error;
 			return found.value;
 		},
-		staleTime: 30_000,
+		staleTime: github ? 30_000 : 15_000,
 	});
 	if (accessLoading || (github && repo === undefined)) return { state: "loading" };
+	if (linearError !== null) return { state: "error", error: linearError };
 	if (!available) {
 		return {
 			state: "error",
