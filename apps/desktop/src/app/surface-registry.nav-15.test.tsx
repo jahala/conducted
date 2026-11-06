@@ -173,9 +173,8 @@ describe("NAV-15 terminal tabs draw through the shell's surface layer", () => {
 		fireEvent.click(centreTab("Alpha chat"));
 		await waitFor(() => expect(surfaceOf(terminalId).dataset.surfaceVisible).toBe("false"));
 
-		// The terminal ends and its row is removed, as the lifetime job does; the strip reloads.
+		// Closed while hidden: the close removes its row, and the strip reloads from the database.
 		must(await test.container.actions.terminals.close(terminalId));
-		await test.database.execute("DELETE FROM terminals WHERE id = $1", [terminalId]);
 		await act(async () => {
 			must(await test.container.services.terminals.loadWorkspace(workspace.id as WorkspaceId));
 		});
@@ -186,6 +185,27 @@ describe("NAV-15 terminal tabs draw through the shell's surface layer", () => {
 		);
 		expect(terminalElement(terminalId)).toBeNull();
 		expect(document.querySelector("[data-surface-id]")).toBeNull();
+	});
+
+	it("closing the terminal tab removes the tab and unmounts its terminal", async () => {
+		const { test, terminalId } = await openTerminalTab();
+		await waitFor(() => expect(surfaceOf(terminalId).dataset.surfaceVisible).toBe("true"));
+		const strip = screen.getByRole("tablist", { name: "Workspace tabs" });
+
+		fireEvent.click(within(strip).getByRole("button", { name: "Close Terminal 1" }));
+
+		await waitFor(() =>
+			expect(within(strip).queryByRole("tab", { name: "Terminal 1" })).toBeNull(),
+		);
+		expect(terminalElement(terminalId)).toBeNull();
+		expect(document.querySelector("[data-surface-id]")).toBeNull();
+		// The Scripts panel lists the same terminals; the closed one is gone there too.
+		expect(document.querySelector(`[data-terminal-tab="${terminalId}"]`)).toBeNull();
+		const rows = await test.database.select<{ id: string }>(
+			"SELECT id FROM terminals WHERE id = $1",
+			[terminalId],
+		);
+		expect(rows).toEqual([]);
 	});
 
 	it("unmounts the terminal when its workspace is archived", async () => {

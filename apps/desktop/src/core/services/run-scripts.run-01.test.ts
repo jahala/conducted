@@ -138,7 +138,7 @@ function harness(
 		return ok({ terminalId: `t${nextTerminal}` as TerminalId, exit: never });
 	});
 	const stop = vi.fn(options.stop ?? (async () => ok(undefined) as Result<void>));
-	const close = vi.fn(async (_id: TerminalId) => ok(undefined) as Result<void>);
+	const end = vi.fn(async (_id: TerminalId) => ok(undefined) as Result<void>);
 	const outputFor = vi.fn(async () => ok({ output: "", source: "setup", running: false }));
 	const writeTextAtomic = vi.fn(async (_path: string, _text: string) => ok(undefined));
 	const fs = {
@@ -154,14 +154,14 @@ function harness(
 		options.workspaces ??
 		(["w1", "w2"] as WorkspaceId[]).map((id) => workspaceFor(id as WorkspaceId));
 	const service = new RunScriptsService({
-		terminals: { runScript, stop, close, outputFor },
+		terminals: { runScript, stop, end, outputFor },
 		configFor: async () => ok(options.config ?? config()),
 		workspaceFor: async (id) =>
 			ok(workspaces.find((workspace) => workspace.id === id) ?? workspaceFor(id)),
 		repoFor: async () => ok(repo),
 		fs,
 	});
-	return { service, runScript, stop, close, writeTextAtomic };
+	return { service, runScript, stop, end, writeTextAtomic };
 }
 
 const ws = "w1" as WorkspaceId;

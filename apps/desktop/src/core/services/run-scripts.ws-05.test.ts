@@ -93,7 +93,7 @@ function harness(options: {
 	const deps = {
 		terminals: {
 			runScript: vi.fn(),
-			close: vi.fn(),
+			end: vi.fn(),
 			stop: vi.fn(),
 			outputFor: vi.fn(),
 		},
