@@ -21,7 +21,6 @@
 		"apps/desktop/src/core/services/pr-mapping.ts": 1,
 		"apps/desktop/src/core/services/workspace.ts": 1,
 		"apps/desktop/src/features/composer/ArchivedComposerBar.tsx": 1,
-		"apps/desktop/src/features/pr/PrEmptyState.tsx": 1,
 		"apps/desktop/src/features/workspace/tab-layout.ts": 1,
 		"apps/desktop/src/platform/memory.ts": 1,
 		"apps/desktop/src/ui/Card.tsx": 6,

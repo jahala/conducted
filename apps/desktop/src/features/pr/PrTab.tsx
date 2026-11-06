@@ -1,8 +1,9 @@
 /**
  * @feature PR-07 PrTab
- * Owns: a center tab for the workspace's pull request: editable title and description, activity,
- * checks, review state, merge, and "Open on GitHub". Entry point embedded by the workspace tab
- * strip.
+ * Owns: a center tab for the workspace's pull request: the title with its "Edit PR title" dialog,
+ * the "#<number>" link that opens the pull request where "Open pull requests in" says (with its
+ * right-click menu), the description, activity, checks, review state and merge. Entry point
+ * embedded by the workspace tab strip.
  * Behaviour: ui-map.md 3.2, "Tab content: PR" (PR title editable, Description, Activity, Checks,
  * Review, Merge, Open on GitHub); services-map.md 3.7 (read, edit with `gh pr edit`, merge).
  * Data: useGitState (pullRequest and why it may be missing), useWorkspace (whether the workspace
@@ -16,15 +17,14 @@
  * workspace URL to the Comment tab.
  * Must handle: no PR yet (empty state with Create PR), PR info loading, offline, no GitHub access,
  * a repository without a GitHub remote, a merged or closed PR (read-only, no merge), a draft PR
- * (Mark ready first), and an archived workspace. Cmd+Shift+G opens the pull request while it is
- * on screen.
+ * (Mark ready first), and an archived workspace. Cmd+Shift+G is the Git panel's (it opens the
+ * pull request from anywhere in the workspace).
  * Test first: with a PR in state "draft" the merge bar shows "Mark ready" and no Merge button.
  */
 import type { WorkspaceId } from "@conducted/shared";
 import { messageOf } from "@conducted/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { useServices } from "../../core/context.tsx";
 import {
 	useActions,
@@ -35,15 +35,16 @@ import {
 } from "../../core/hooks.ts";
 import type { PrActivityEntry, PullRequest } from "../../core/model.ts";
 import { Badge, type BadgeTone } from "../../ui/Badge.tsx";
-import { Button } from "../../ui/Button.tsx";
 import { toast, toastError } from "../../ui/Toast.tsx";
 import { PrActivityList } from "./PrActivityList.tsx";
 import { PrChecksSummary } from "./PrChecksSummary.tsx";
 import { PrDescriptionEditor } from "./PrDescriptionEditor.tsx";
 import { type PrEmptyKind, PrEmptyState } from "./PrEmptyState.tsx";
 import { PrMergeBar } from "./PrMergeBar.tsx";
+import { PrNumberLink } from "./PrNumberLink.tsx";
 import { PrReviewSection } from "./PrReviewSection.tsx";
 import { PrTitleEditor } from "./PrTitleEditor.tsx";
+import { openTargetOf } from "./pr-open-target.ts";
 
 const STATE_LABEL: Readonly<Record<PullRequest["state"], string>> = {
 	open: "Open",
@@ -87,6 +88,7 @@ export function PrTab({ workspaceId }: { workspaceId: WorkspaceId }) {
 	const navigate = useNavigate();
 	const activityOrder = useSetting<"newest-first" | "oldest-first">("pr_activity_sort_order");
 	const archiveOnMerge = useSetting<boolean>("archive_on_merge");
+	const openTarget = openTargetOf(useSetting<string>("pull_request_open_target"));
 
 	const [blockedReason, setBlockedReason] = useState<string | null>(null);
 
@@ -104,15 +106,11 @@ export function PrTab({ workspaceId }: { workspaceId: WorkspaceId }) {
 
 	const pullRequest = git.state === "ready" ? git.data.pullRequest : null;
 
-	const openPullRequest = (url: string) => {
-		openUrl(url);
+	const copy = (text: string) => {
+		void actions.app.copyText(text).then((result) => {
+			if (!result.ok) toastError("Couldn't copy the text", result.error);
+		});
 	};
-
-	useCommandHandler("pr.open", "area", () => {
-		if (pullRequest === null) return false;
-		openPullRequest(pullRequest.url);
-		return true;
-	});
 
 	const runAction = async (
 		title: string,
@@ -254,16 +252,17 @@ export function PrTab({ workspaceId }: { workspaceId: WorkspaceId }) {
 		<div className="flex h-full min-h-0 flex-col overflow-auto">
 			<section aria-label="Pull request" className="border-b border-separator px-3 py-3">
 				<div className="flex items-start gap-2">
-					<span className="shrink-0 pt-1 font-mono text-xs text-fg-muted">
-						#{pullRequest.number}
-					</span>
 					<div className="min-w-0 flex-1">
 						<PrTitleEditor title={pullRequest.title} editable={editable} onSave={saveTitle} />
 					</div>
+					<PrNumberLink
+						prUrl={pullRequest.url}
+						prNumber={pullRequest.number}
+						target={openTarget}
+						onOpen={openUrl}
+						onCopy={copy}
+					/>
 					<Badge tone={STATE_TONE[pullRequest.state]}>{STATE_LABEL[pullRequest.state]}</Badge>
-					<Button variant="outline" size="xs" onClick={() => openPullRequest(pullRequest.url)}>
-						Open on GitHub
-					</Button>
 				</div>
 			</section>
 

@@ -130,18 +130,23 @@ describe("PR-07 PrTab", () => {
 		expect(screen.queryByRole("button", { name: "Squash and merge" })).toBeNull();
 	});
 
-	it("opens the pull request with Cmd+Shift+G", async () => {
+	it("opens the pull request where 'Open pull requests in' says from its number", async () => {
 		const { test: harness, workspace } = await seedTab(pullRequest());
+		await harness.container.services.settings.start();
+		const set = await harness.container.services.settings.set(
+			"pull_request_open_target",
+			"graphite",
+		);
+		if (!set.ok) throw new Error(set.error.message);
 		const openUrl = vi
 			.spyOn(harness.container.actions.app, "openUrl")
 			.mockResolvedValue(ok(undefined));
 		await renderTab(harness, workspace);
-		await screen.findByRole("button", { name: "Open on GitHub" });
 
-		fireEvent.keyDown(document.body, { key: "g", metaKey: true, shiftKey: true });
+		fireEvent.click(await screen.findByRole("link", { name: "#12" }));
 
 		await waitFor(() =>
-			expect(openUrl).toHaveBeenCalledWith("https://github.com/me/project/pull/12"),
+			expect(openUrl).toHaveBeenCalledWith("https://app.graphite.com/github/pr/me/project/12"),
 		);
 	});
 });

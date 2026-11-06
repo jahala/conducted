@@ -134,7 +134,7 @@ export function GoalBar({ sessionId }: { sessionId: SessionId }) {
 						placeholder="Goal"
 						aria-label="Goal"
 						disabled={saving}
-						// biome-ignore lint/a11y/noAutofocus: Edit goal and /goal open the field to type in
+						// biome-ignore lint/a11y/noAutofocus: Edit goal opens the field to type in
 						autoFocus
 						onChange={(event) => setDraft(event.target.value)}
 						onKeyDown={(event) => {
