@@ -1,11 +1,11 @@
 /**
  * @feature CHAT-30 Fast mode unavailable banner
- * Tests the warning's copy and dismiss control, that it has no Add credit button (the research
- * does not give the page Conductor's opens), and the composer that shows it.
+ * Tests the warning's copy, its Add credit button (it opens Claude's usage page, as Conductor's
+ * does: renderApp `zda`, `t1a`), its dismiss control, and the composer that shows it.
  */
 import { idleLiveState, type SessionConfig } from "@conducted/protocol";
-import { ok, type SessionId } from "@conducted/shared";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import type { SessionId } from "@conducted/shared";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "../../test/dom-polyfills.ts";
@@ -46,12 +46,12 @@ const banner = (over: { fastModeRequested?: boolean; fastModeAvailable?: boolean
 );
 
 describe("CHAT-30 Fast mode unavailable banner", () => {
-	it("shows the sentence and a dismiss control, and no Add credit button", () => {
+	it("shows the sentence, an Add credit button and a dismiss control", () => {
 		const test = createTestContainer();
 		try {
 			render(banner(), { wrapper: wrapperFor(test) });
 			expect(screen.getByText(MESSAGE)).toBeTruthy();
-			expect(screen.queryByRole("button", { name: "Add credit" })).toBeNull();
+			expect(screen.getByRole("button", { name: "Add credit" })).toBeTruthy();
 			expect(screen.getByRole("button", { name: "Dismiss fast mode warning" })).toBeTruthy();
 		} finally {
 			test.close();
@@ -98,20 +98,21 @@ describe("CHAT-30 Fast mode unavailable banner", () => {
 		}
 	});
 
-	it("opens no page: its one control is the dismiss button", () => {
+	it("opens Claude's usage page from Add credit, and only from Add credit", async () => {
 		const test = createTestContainer();
-		// seam: CHAT-30 the browser is outside the app; the test checks that nothing asks for it.
-		const openUrl = vi
-			.spyOn(test.container.actions.app, "openUrl")
-			.mockResolvedValue(ok(undefined));
+		// seam: CHAT-30 the browser is outside the app; the test reads what the opener was asked.
+		const openUrl = vi.spyOn(test.memory.platform.opener, "openUrl").mockResolvedValue(undefined);
 		try {
 			render(banner(), { wrapper: wrapperFor(test) });
 			const controls = screen.getAllByRole("button");
-			expect(controls.map((control) => control.getAttribute("aria-label"))).toEqual([
-				"Dismiss fast mode warning",
-			]);
-			for (const control of controls) fireEvent.click(control);
-			expect(openUrl).not.toHaveBeenCalled();
+			expect(
+				controls.map((control) => control.textContent || control.getAttribute("aria-label")),
+			).toEqual(["Add credit", "Dismiss fast mode warning"]);
+			fireEvent.click(screen.getByRole("button", { name: "Add credit" }));
+			await waitFor(() => expect(openUrl).toHaveBeenCalledWith("https://claude.ai/settings/usage"));
+			expect(screen.getByText(MESSAGE)).toBeTruthy();
+			fireEvent.click(screen.getByRole("button", { name: "Dismiss fast mode warning" }));
+			expect(openUrl).toHaveBeenCalledTimes(1);
 		} finally {
 			test.close();
 		}
