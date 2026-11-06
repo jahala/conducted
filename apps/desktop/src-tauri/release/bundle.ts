@@ -32,7 +32,6 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { appError, err, ok, type Result } from "@conducted/shared";
-import tauriConfig from "../tauri.conf.json" with { type: "json" };
 import releaseConfig from "../tauri.release.conf.json" with { type: "json" };
 
 /** Entitlement keys the signed app must hold. */
@@ -469,20 +468,29 @@ export async function verifyBundle(run: RunTool, appPath: string): Promise<Resul
 	});
 }
 
+/** What the release expects of the bundle it just built. */
+export interface ExpectedBundle {
+	identifier: string;
+	/** The version the release set, read after the bump. */
+	version: string;
+	/** Whether this release notarises; a signed-only release needs no ticket. */
+	notarised: boolean;
+}
+
 /** Every problem that stops this bundle from being released. Empty means ready. */
-export function bundleProblems(report: BundleReport): string[] {
+export function bundleProblems(report: BundleReport, expected: ExpectedBundle): string[] {
 	const problems: string[] = [];
 	if (report.bundleIdentifier === null) {
 		problems.push("The bundle has no CFBundleIdentifier.");
-	} else if (report.bundleIdentifier !== tauriConfig.identifier) {
+	} else if (report.bundleIdentifier !== expected.identifier) {
 		problems.push(
-			`The bundle identifier is ${report.bundleIdentifier}; expected ${tauriConfig.identifier}.`,
+			`The bundle identifier is ${report.bundleIdentifier}; expected ${expected.identifier}.`,
 		);
 	}
 	if (report.version === null) {
 		problems.push("The bundle has no version.");
-	} else if (report.version !== tauriConfig.version) {
-		problems.push(`The bundle version is ${report.version}; expected ${tauriConfig.version}.`);
+	} else if (report.version !== expected.version) {
+		problems.push(`The bundle version is ${report.version}; expected ${expected.version}.`);
 	}
 	for (const key of report.missingPrivacyKeys) {
 		problems.push(`Info.plist has no privacy string for ${key}.`);
@@ -504,7 +512,8 @@ export function bundleProblems(report: BundleReport): string[] {
 	for (const key of report.sidecarMissingEntitlements) {
 		problems.push(`The sidecar signature has no ${key} entitlement.`);
 	}
-	if (!report.notarised) problems.push("The app has no stapled notarisation ticket.");
+	if (expected.notarised && !report.notarised)
+		problems.push("The app has no stapled notarisation ticket.");
 	return problems;
 }
 
