@@ -261,6 +261,12 @@ export const MoreVerticalIcon = (p: P) => (
 	<Icon d="M8 3.5v.01M8 8v.01M8 12.5v.01" strokeWidth="2.25" {...p} />
 );
 export const ColumnsIcon = (p: P) => <Icon d="M2.5 3h11v10h-11zM8 3v10" {...p} />;
+export const DatabaseIcon = (p: P) => (
+	<Icon
+		d="M8 5.5c3 0 5-.9 5-2s-2-2-5-2-5 .9-5 2 2 2 5 2zM3 3.5v9c0 1.1 2 2 5 2s5-.9 5-2v-9M3 8c0 1.1 2 2 5 2s5-.9 5-2"
+		{...p}
+	/>
+);
 export const ArrowUpIcon = (p: P) => <Icon d="M8 13V3M4 7l4-4 4 4" {...p} />;
 export const UndoIcon = (p: P) => (
 	<Icon d="M5.5 9.5L2.5 6.5l3-3M2.5 6.5h7a3.5 3.5 0 0 1 0 7H7" {...p} />

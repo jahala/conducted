@@ -6,7 +6,7 @@ import {
 	createRouter,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Loadable } from "../../core/api.ts";
@@ -149,6 +149,10 @@ describe("NAV-03 WorkspaceRow", () => {
 		expect(screen.queryByText("Need permission")).toBeNull();
 		const link = screen.getByRole("link");
 		expect(link.getAttribute("aria-current")).toBe("page");
+		// Conductor marks the selected row by its fill only; the name keeps weight 450 (@10427352).
+		const name = within(link).getByText("fix-login");
+		expect(name.className).toContain("font-book");
+		expect(name.className).not.toContain("font-medium");
 	});
 
 	it("shows the live shortcut hint from the binding, not a hard-coded one", async () => {

@@ -325,7 +325,7 @@ Row heights marked INFERRED are padding plus the 20px line of text-sm or the 16p
 | Sidebar nav row (Home, Create, Search) | 6px padding on all sides, 8px gap, 6px radius, 16px icon box. Height 32px INFERRED | R@10407551 |
 | Sidebar nav block | Column with 2px gap, 6px padding, bottom border | R@10407150 |
 | Workspace row | 8px top and bottom, 6px right, left 6px, 12px or 20px by nesting depth, 6px radius. First line is 20px tall with 6px gap; leading icon 16px with 2px top offset. Height 36px INFERRED | R@10438956, R@10441050, R@10441767 |
-| Workspace row states | Hover and selected fill sidebar-accent; selected text sidebar-accent-foreground. Name weight 450 by default, 500 selected, 600 unread (weight mapping INFERRED) | R@10438815, R@10427501 |
+| Workspace row states | Hover and selected fill sidebar-accent; selected text sidebar-accent-foreground. Name weight 450 and the muted sidebar colour whether selected or not, 600 (500 with the status matrix on) and the selected-text colour when unread (VERIFIED R@10427352) | R@10438815, R@10427501 |
 | Workspace row extras | Diff counts text-xs; "Draft" pill text-3xs with 4px by 2px padding; badge icons 12px | R@10430669, R@10429339 |
 | Sidebar section header | 6px padding, 8px gap, 6px radius; title text-xs medium in sidebar-muted-foreground at 70%. Height 28px INFERRED | R@10458024, R@10459644 |
 | Sidebar section block | 6px sides, 6px top, 12px bottom; rows 4px apart | R@10462269, R@10464029 |

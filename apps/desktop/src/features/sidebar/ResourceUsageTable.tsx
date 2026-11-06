@@ -1,13 +1,18 @@
 /**
  * @feature APP-07 Resource usage table
- * Owns: The table of CPU and memory per process, grouped by workspace, in a "Resources" popover
- * in the sidebar footer. It also writes a log line for a process over the memory threshold.
+ * Owns: The table of CPU and memory per process, grouped by workspace, in a popover under the
+ * memory chip in the sidebar's top strip. It also writes a log line for a process over the memory
+ * threshold.
  * Behaviour: ui-map.md 1.3 and 4 item 8 ('Resources' table: Name, CPU, Mem; rows grouped by
  * workspace, sortable, 'Copy resource usage'; shown by the setting 'Show sidebar resource usage'),
  * 5.2 (Popover: Resources).
  * Data: `platform.app.resourceUsage` (PLAT-14), the setting `sidebar_resource_usage`, and
  * `useWorkspaces` for the group names.
- * Our design choice: The trigger is one footer row named Resources; the table opens above it. The
+ * Measured from Conductor 0.92.1 (renderApp @10365848, @10538807): the trigger is a chip in the
+ * sidebar's top strip, beside Go back and Go forward: a 12px drive icon and the total memory in 11px
+ * tabular figures, a 1px border and 6px radius, named "Resource usage: <total>"; the table opens
+ * under it. (Its setting text says "sidebar footer"; the code mounts it in the top strip.)
+ * Our design choice: while the first reading loads the chip shows its icon only. The
  * table sorts by CPU first, then by Name, CPU or Mem when a header is chosen. A process with no
  * workspace goes under "Other". The high-memory log line runs while the sidebar is mounted, even
  * with the table hidden, because the research puts that logger in the app's startup.
@@ -25,8 +30,8 @@ import { useServices } from "../../core/context.tsx";
 import { useActions, useSetting, useWorkspaces } from "../../core/hooks.ts";
 import type { Workspace } from "../../core/model.ts";
 import type { ProcessUsage } from "../../platform/platform.ts";
-import { Button } from "../../ui/Button.tsx";
 import { CopyButton } from "../../ui/CopyButton.tsx";
+import { DatabaseIcon } from "../../ui/icons.tsx";
 import { Popover } from "../../ui/Popover.tsx";
 import { Skeleton } from "../../ui/Skeleton.tsx";
 import {
@@ -268,15 +273,25 @@ export function ResourceUsageTable({ pollIntervalMs = POLL_INTERVAL_MS }: Resour
 
 	if (!enabled) return null;
 
+	const total =
+		usage.state === "ready"
+			? memoryText(usage.data.reduce((sum, row) => sum + row.memoryBytes, 0))
+			: null;
+
 	return (
 		<Popover
-			side="top"
+			side="bottom"
 			align="start"
 			className="w-96"
 			trigger={
-				<Button variant="ghost" size="md" className="w-full justify-start">
-					Resources
-				</Button>
+				<button
+					type="button"
+					aria-label={total === null ? "Resource usage" : `Resource usage: ${total}`}
+					className="flex h-6 items-center gap-1 rounded-md border border-border px-2 text-2xs text-sidebar-fg-muted transition-colors hover:bg-hover hover:text-fg"
+				>
+					<DatabaseIcon className="size-3" />
+					{total === null ? null : <span className="tabular-nums">{total}</span>}
+				</button>
 			}
 		>
 			<div className="flex flex-col gap-2">

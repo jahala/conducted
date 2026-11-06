@@ -11,8 +11,9 @@
  * right, one 20px line, so 36px tall; its left padding set by where it sits (20px in the status and
  * project groups, 12px in Pinned, 6px in the user's sections, @10474003);
  * hover and selected use the 5% tint; the leading visuals are 16px boxes 6px apart (the project avatar,
- * then the status icon); the name is a 20px line in weight 450 and the muted sidebar colour, 500 and the
- * stronger colour when selected, 600 when unread; at the right the added and removed line counts in
+ * then the status icon); the name is a 20px line in weight 450 and the muted sidebar colour, selected or
+ * not (the selected row shows only through its fill, renderApp @10427352), 600 and the stronger colour
+ * when unread; at the right the added and removed line counts in
  * small monospace ("+4.1k -3"), compact past a thousand. The draft marker sits just before the counts
  * or the time, as in Conductor's trailing cluster (renderApp @10431468).
  * Conductor's row has no second line: its status words ("Working...", "Need permission") live in the
@@ -217,11 +218,7 @@ export function WorkspaceRow({
 					<span
 						className={cn(
 							"min-w-0 truncate",
-							unread
-								? "font-semibold text-fg"
-								: selected
-									? "font-medium text-fg"
-									: "font-book text-sidebar-fg-muted",
+							unread ? "font-semibold text-fg" : "font-book text-sidebar-fg-muted",
 						)}
 					>
 						{workspaceName(workspace)}
