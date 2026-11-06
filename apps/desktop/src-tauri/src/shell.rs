@@ -2298,8 +2298,12 @@ mod tests {
         let built = build_command(&command, &test_env(), &test_program_roots())
             .expect("the command is built");
 
+        let path = built
+            .get_envs()
+            .find(|(key, _)| *key == "PATH")
+            .and_then(|(_, value)| value);
         assert_eq!(
-            built.get_env("PATH"),
+            path,
             Some(std::ffi::OsStr::new(
                 "/data/bin-overrides/abc:/usr/bin:/bin:/usr/sbin:/sbin"
             ))
