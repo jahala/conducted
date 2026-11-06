@@ -28,7 +28,8 @@
  * (the PR poll: batched queries per repository, adaptive batch size, cadence, skip rules and
  * rate-limit gate), 2.5.2 and 5B.1.10 (GitHub reads for the workspace pickers), 5B.8.2 (open
  * issues, 50 newest), 5B.8.3 (an issue becomes `[GITHUB]-<n>.md`, a pull request
- * `.context/pull-requests/<n>.md`), ui-map.md 3.6 and 6 (the Fix errors action and its repo prompt;
+ * `.context/pull-requests/<n>.md`; PR-09's Link issue dialog adds the same `[GITHUB]-<n>.md` to a
+ * chat's draft instead), ui-map.md 3.6 and 6 (the Fix errors action and its repo prompt;
  * Account: GitHub through the `gh` CLI or a personal access token).
  * Must handle: `gh` missing, signed out, unauthorized, offline, an SSO requirement and a missing
  * scope, with the failure class kept on the access state; only unauthorized marks access broken;
@@ -727,12 +728,25 @@ export function sanitizeIssueKey(key: string): string {
 
 /** Relative path of a GitHub issue's context file inside a workspace. */
 export function githubIssueContextPath(id: string): string {
-	return `.context/attachments/${sanitizeIssueKey(`github:${id}`)}/[GITHUB]-${id}.md`;
+	return `.context/attachments/${sanitizeIssueKey(`github:${id}`)}/${githubIssueFileName(id)}`;
 }
 
 /** Relative path of a pull request's context file inside a workspace. */
 export function pullRequestContextPath(number: number): string {
 	return `.context/pull-requests/${number}.md`;
+}
+
+/** A linked issue as a text attachment for a chat's draft (PR-09's Link issue dialog). */
+export interface IssueAttachment {
+	fileName: string;
+	text: string;
+	/** The branch name the provider suggests for the issue, when it has one (Linear). */
+	branchName: string | null;
+}
+
+/** The file name a GitHub issue's context file has, here and as a chat attachment. */
+export function githubIssueFileName(id: string): string {
+	return `[GITHUB]-${id}.md`;
 }
 
 export function githubIssueContextFile(record: GithubIssueRecord): string {
@@ -3121,7 +3135,39 @@ export class GithubService {
 				appError("issue_provider_unsupported", "Only GitHub issues become GitHub context files."),
 			);
 		}
-		const number = issueNumber(issue.id);
+		const read = await this.#readIssue(workspaceId, issue.id);
+		if (!read.ok) return err(read.error);
+		const { context, number, record } = read.value;
+		// GitHub's issue endpoint also returns pull requests. They get the pull request file name.
+		if (record.pullRequest) {
+			return this.attachPullRequestToWorkspace(workspaceId, number);
+		}
+		const relativePath = githubIssueContextPath(issue.id);
+		const written = await this.#writeContextFile(
+			context.workspacePath,
+			relativePath,
+			githubIssueContextFile(record),
+		);
+		return written.ok ? ok(relativePath) : err(written.error);
+	}
+
+	/** Backs PR-09's Link issue dialog: the issue as a `[GITHUB]-<n>.md` attachment for a chat's draft. */
+	async issueAttachment(workspaceId: WorkspaceId, id: string): Promise<Result<IssueAttachment>> {
+		const read = await this.#readIssue(workspaceId, id);
+		if (!read.ok) return err(read.error);
+		return ok({
+			fileName: githubIssueFileName(String(read.value.number)),
+			text: githubIssueContextFile(read.value.record),
+			branchName: null,
+		});
+	}
+
+	/** Reads one issue of the workspace's GitHub repository by its number. */
+	async #readIssue(
+		workspaceId: WorkspaceId,
+		id: string,
+	): Promise<Result<{ context: PrWorkspaceContext; number: number; record: GithubIssueRecord }>> {
+		const number = issueNumber(id);
 		if (!number.ok) return err(number.error);
 		const context = await this.#deps.contextOf(workspaceId);
 		if (!context.ok) return err(context.error);
@@ -3134,17 +3180,7 @@ export class GithubService {
 		if (!fetched.ok) return err(fetched.error);
 		const parsed = parseGithubIssue(fetched.value);
 		if (!parsed.ok) return err(parsed.error);
-		// GitHub's issue endpoint also returns pull requests. They get the pull request file name.
-		if (parsed.value.pullRequest) {
-			return this.attachPullRequestToWorkspace(workspaceId, number.value);
-		}
-		const relativePath = githubIssueContextPath(issue.id);
-		const written = await this.#writeContextFile(
-			context.value.workspacePath,
-			relativePath,
-			githubIssueContextFile(parsed.value),
-		);
-		return written.ok ? ok(relativePath) : err(written.error);
+		return ok({ context: context.value, number: number.value, record: parsed.value });
 	}
 
 	/** Writes a pull request as `.context/pull-requests/<n>.md`. Returns the relative path. */
