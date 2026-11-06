@@ -13,8 +13,10 @@
  * paths passed to `diff` use the `:(literal)` pathspec; exit codes that carry meaning (1 from
  * `--verify --quiet`, 1 from `--no-index`) are listed in `okExitCodes`.
  * Our design choice: the app never runs `commit`, `rebase`, `merge` (except fast-forward) or
- * conflict repair itself. The agent does that on request (see services/agent-instructions.ts).
- * The only `reset --hard` is `resetHard` for the retarget case in services-map 3.11.
+ * conflict repair itself, except the first commit of a folder Quick start creates or turns into a
+ * GitHub repository (PRJ-03, services-map 3.2). The agent does every later commit on request (see
+ * services/agent-instructions.ts). The only `reset --hard` is `resetHard` for the retarget case in
+ * services-map 3.11.
  * Test first: revParseVerify("refs/heads/x") lists exit codes 0 and 1 as success.
  */
 
@@ -68,6 +70,8 @@ export const remoteGetUrl = (remote: string): GitCommand =>
 	git(["remote", "get-url", "--", remote]);
 export const remoteSetUrl = (remote: string, url: string): GitCommand =>
 	git(["remote", "set-url", "--", remote, url]);
+export const remoteRename = (oldName: string, newName: string): GitCommand =>
+	git(["remote", "rename", oldName, newName]);
 export const symbolicRefRemoteHead = (remote: string): GitCommand =>
 	git(["symbolic-ref", `refs/remotes/${remote}/HEAD`], { okExitCodes: [0, 128] });
 export const catFileCommit = (ref: string): GitCommand => git(["cat-file", "commit", ref]);
@@ -78,6 +82,8 @@ export const catFileExists = (object: string): GitCommand =>
 
 export const commitEmptyInitial = (): GitCommand =>
 	git(["commit", "--allow-empty", "-m", "Initial commit"]);
+export const commitAll = (message: string): GitCommand => git(["commit", "-m", message]);
+export const addAll = (): GitCommand => git(["add", "-A"]);
 export const initRepository = (): GitCommand => git(["init"]);
 export const cloneWithProgress = (url: string, destination: string): GitCommand =>
 	git(["clone", "--progress", "--", url, destination], { network: true, retryOnLock: false });
@@ -337,6 +343,8 @@ export const pushHeadTo = (remote: string, remoteBranch: string): GitCommand =>
 	git(["push", "--", remote, `HEAD:${remoteBranch}`], { network: true });
 export const pushHeadSetUpstream = (remote: string, remoteBranch: string): GitCommand =>
 	git(["push", "-u", "--", remote, `HEAD:${remoteBranch}`], { network: true });
+export const pushSetUpstreamHead = (remote: string): GitCommand =>
+	git(["push", "-u", remote, "HEAD"], { network: true });
 export const pushPlain = (): GitCommand => git(["push"], { network: true });
 export const pull = (): GitCommand => git(["pull"], { network: true });
 export const mergeFastForwardOnly = (ref: string): GitCommand => git(["merge", "--ff-only", ref]);

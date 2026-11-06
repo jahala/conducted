@@ -1,9 +1,11 @@
 /**
  * @feature PR-01 Catalogue of every gh (GitHub CLI) invocation the app makes
+ * @feature PRJ-03 The repository-name check and repository creation Quick start uses
  * @feature PR-06 the pull request write actions: merge, auto-merge, ready, edit, reviewers, approve
  * Owns: one pure function per `gh` call (and the read-only `gt` Graphite calls), each returning a
  * `GitCommand` value. The runner executes it, in the workspace folder, so `gh` finds the repo.
- * Also owns the clone picker calls and `gh repo clone` for cloning from GitHub (PRJ-02).
+ * Also owns the clone picker calls and `gh repo clone` for cloning from GitHub (PRJ-02), and the
+ * repository-name check and creation calls Quick start uses (PRJ-03).
  * Behaviour: services-map.md 3.2 (cloning), 3.7 (PR create, read, write actions), 3.8 (stacks,
  * Graphite), 3.9 (auth probes, org list), 5B.1 (fields, batching, rate-limit gate).
  * Must handle: every value reaches `gh` as its own argument; GraphQL variables go through
@@ -44,6 +46,31 @@ export const apiRateLimit = (): GitCommand =>
 	gh(["api", "rate_limit"], { timeoutMs: GH_GRAPHQL_TIMEOUT_MS });
 export const repoCanView = (ownerSlashName: string): GitCommand =>
 	gh(["repo", "view", ownerSlashName, "--json", "name", "-q", ".name"], { okExitCodes: [0, 1] });
+/** Creates a repository from the folder the command runs in and names it `origin`. */
+export const githubRepoCreate = (
+	ownerSlashName: string,
+	description: string,
+	isPrivate: boolean,
+	source: string,
+): GitCommand =>
+	gh(
+		[
+			"repo",
+			"create",
+			ownerSlashName,
+			"--description",
+			description,
+			isPrivate ? "--private" : "--public",
+			"--source",
+			source,
+			"--remote",
+			"origin",
+		],
+		{ network: true },
+	);
+/** The web URL of a repository this account can see. */
+export const githubRepoUrl = (ownerSlashName: string): GitCommand =>
+	gh(["repo", "view", ownerSlashName, "--json", "url", "-q", ".url"]);
 
 // ---------------------------------------------------------------- reading PR state (PR-03)
 

@@ -3,8 +3,8 @@
  * Owns: the button that adds a project: ask for a folder (app.pickFolder), call projects.addLocal, show the outcome.
  * Behaviour: ui-map.md 3.9 and 4 item 8 ("Add project...", "Open project"), 7.2 ("Add a project to get started.").
  * Our design choice: with no project yet the button opens the folder dialog directly, so a first run is one click.
- * Once a project exists it opens the Add project menu with "Open project..." and "Open GitHub project...".
- * Quick start (PRJ-03) joins that menu once its service exists.
+ * Once a project exists it opens the Add project menu with "Open project...", "Open GitHub project..."
+ * and "Quick start...".
  * Must handle: the user cancels the folder dialog (no message, no change); the dialog fails (a toast); the folder is not a git repository or
  * is already added (the action returns an error, shown as a toast with its plain-language message); a second
  * click while one add is running does nothing; the button shows progress while working.
@@ -19,6 +19,7 @@ import { ChevronDownIcon, FolderPlusIcon, GitBranchIcon } from "../../ui/icons.t
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { CloneGithubDialog } from "./CloneGithubDialog.tsx";
+import { QuickStartFlow } from "./CreateProjectDialog.tsx";
 
 export function AddProjectButton({
 	variant = "secondary",
@@ -29,6 +30,7 @@ export function AddProjectButton({
 	const repos = useRepos();
 	const [busy, setBusy] = useState(false);
 	const [cloneOpen, setCloneOpen] = useState(false);
+	const [quickStartOpen, setQuickStartOpen] = useState(false);
 	const flight = useRef(createSingleFlight()).current;
 	const hasProjects = repos.state === "ready" && repos.data.length > 0;
 	const label = variant === "default" && size === "lg" ? "Open project" : "Add a project";
@@ -83,9 +85,13 @@ export function AddProjectButton({
 					<MenuItem icon={<GitBranchIcon />} onSelect={() => setCloneOpen(true)}>
 						Open GitHub project...
 					</MenuItem>
+					<MenuItem icon={<FolderPlusIcon />} onSelect={() => setQuickStartOpen(true)}>
+						Quick start...
+					</MenuItem>
 				</MenuContent>
 			</Menu>
 			{cloneOpen ? <CloneGithubDialog open onOpenChange={setCloneOpen} /> : null}
+			<QuickStartFlow open={quickStartOpen} onOpenChange={setQuickStartOpen} />
 		</>
 	);
 }
