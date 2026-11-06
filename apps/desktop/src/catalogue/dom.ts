@@ -92,6 +92,10 @@ export async function typeInto(
 	element.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
+/** True when an element matching `selector` is named `name`: an icon button counts by its aria-label. */
+export const has = (document: Document, selector: string, name: string): boolean =>
+	[...document.querySelectorAll(selector)].some((element) => nameOf(element) === name);
+
 /** True when the page shows `text` anywhere. */
 export const shows = (document: Document, text: string): boolean =>
 	document.body.textContent?.includes(text) === true;

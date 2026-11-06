@@ -37,6 +37,8 @@ import { AppProviders, createQueryClient } from "../app/providers.tsx";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
 import { createAppRouter } from "../app/router.tsx";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
+import { ShellControls } from "../app/ShellControls.tsx";
+// biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
 import { ChatPane } from "../features/chat/ChatPane.tsx";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
 import { MessageList } from "../features/chat/MessageList.tsx";
@@ -48,6 +50,8 @@ import { Composer } from "../features/composer/Composer.tsx";
 import { GitPanel } from "../features/git-panel/GitPanel.tsx";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
 import { GeneralPage } from "../features/settings/pages/GeneralPage.tsx";
+// biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
+import { ResourceUsageTable } from "../features/sidebar/ResourceUsageTable.tsx";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
 import { Sidebar } from "../features/sidebar/Sidebar.tsx";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
@@ -949,7 +953,7 @@ describe("s1-ui-1 join batch features", () => {
 		expect(screen.getByText("LANG")).toBeTruthy();
 	});
 
-	it("APP-07 shows the resource table in the sidebar footer", async () => {
+	it("APP-07 shows the resource table from the resource chip in the sidebar's top strip", async () => {
 		const test = batchContainer();
 		const workspace = await seedWorkspace(test.container, {
 			branch: "alpha",
@@ -968,9 +972,17 @@ describe("s1-ui-1 join batch features", () => {
 			...state,
 			values: { ...state.values, sidebar_resource_usage: true },
 		}));
-		await renderBatchUi(test, createElement(Sidebar));
+		// AppShell mounts the chip in the window controls' strip above the sidebar (renderApp @10538807).
+		await renderBatchUi(
+			test,
+			createElement(ShellControls, {
+				sidebarOpen: true,
+				onToggleSidebar: () => undefined,
+				resources: createElement(ResourceUsageTable),
+			}),
+		);
 
-		fireEvent.click(await screen.findByRole("button", { name: "Resources" }));
+		fireEvent.click(await screen.findByRole("button", { name: /^Resource usage/ }));
 		const table = await screen.findByRole("table", { name: "Resources" });
 		expect(within(table).getByText("node")).toBeTruthy();
 		expect(within(table).getByText("alpha")).toBeTruthy();
