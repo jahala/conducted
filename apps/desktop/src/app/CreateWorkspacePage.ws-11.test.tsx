@@ -186,6 +186,23 @@ describe("WS-11 create page backlog controls", () => {
 			expect(screen.queryByRole("button", { name: "Add to backlog" })).toBeNull(),
 		);
 	});
+
+	it("is a real setting, on by default, that the user can turn off", async () => {
+		const { container, repoId } = await renderPage();
+		expect(container.services.settings.get<boolean>("unstarted_workspaces_enabled")).toBe(true);
+		expect(screen.getByRole("button", { name: "Add to backlog" })).toBeTruthy();
+
+		expect(await container.services.settings.set("unstarted_workspaces_enabled", false)).toEqual(
+			ok(undefined),
+		);
+
+		await waitFor(() =>
+			expect(screen.queryByRole("button", { name: "Add to backlog" })).toBeNull(),
+		);
+		const refused = await container.actions.workspaces.addToBacklog({ ...input, repoId });
+		expect(refused.ok).toBe(false);
+		if (!refused.ok) expect(refused.error.code).toBe("backlog_off");
+	});
 });
 
 describe("WS-11 start a backlog workspace", () => {
@@ -242,6 +259,54 @@ describe("WS-11 start a backlog workspace", () => {
 		);
 		expect(screen.getByRole("button", { name: "Start" })).toBeTruthy();
 		expect(screen.queryByRole("button", { name: "Add to backlog" })).toBeNull();
+	});
+
+	it("starts from the saved row, so the fields it would ignore cannot be edited", async () => {
+		test = createTestContainer();
+		const repo = await seedRepo(test.container, {
+			name: "Project",
+			rootPath: "/repo",
+			remoteUrl: "git@github.com:me/project.git",
+		});
+		await test.container.services.workspace.start();
+		const saved = await test.container.actions.workspaces.addToBacklog({
+			...input,
+			repoId: repo.id,
+		});
+		if (!saved.ok) throw new Error(saved.error.message);
+		const container = test.container;
+		const rootRoute = createRootRoute({ component: () => <Outlet /> });
+		const createPageRoute = createRoute({
+			getParentRoute: () => rootRoute,
+			path: "/create",
+			validateSearch: (search: Record<string, unknown>) =>
+				search as { section?: string; backlog?: string },
+			component: () => <CreateWorkspacePage />,
+		});
+		const router = createRouter({
+			routeTree: rootRoute.addChildren([createPageRoute]),
+			history: createMemoryHistory({ initialEntries: [`/create?backlog=${saved.value.id}`] }),
+		});
+		client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+		render(
+			<QueryClientProvider client={client}>
+				<ServicesProvider container={container}>
+					<CommandDispatcher>
+						<RouterProvider router={router} />
+					</CommandDispatcher>
+				</ServicesProvider>
+			</QueryClientProvider>,
+		);
+		await router.load();
+		await screen.findByRole("button", { name: "Start" });
+
+		const prompt = screen.getByLabelText("First message") as HTMLTextAreaElement;
+		expect(prompt.readOnly).toBe(true);
+		expect((screen.getByLabelText("Model") as HTMLInputElement).readOnly).toBe(true);
+		expect((screen.getByRole("checkbox", { name: "Plan mode" }) as HTMLInputElement).disabled).toBe(
+			true,
+		);
+		expect(screen.getByText("This workspace starts as it was saved to the backlog.")).toBeTruthy();
 	});
 
 	it("starts the saved workspace when Cmd+Enter is pressed", async () => {

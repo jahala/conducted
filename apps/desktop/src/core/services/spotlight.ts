@@ -10,16 +10,21 @@
  * `pre-spotlight` checkpoint from a crash is restored and removed before a new start; starting
  * Spotlight stops any other Spotlight (one root, one workspace at a time) and the workspace's run
  * actions; the sync loop is `bin/spotlighter.sh` in a terminal of kind "spotlight"; stopping
- * restores the root, and a failed restore keeps the checkpoint so the next start can heal it;
- * quitting the app does not restore (the next start does); the root's branch pointer moves while
- * Spotlight runs, because the sync loop resets the root to the workspace's commit.
+ * restores the root, and a failed restore keeps the checkpoint so the next start can heal it; a
+ * stop the terminal service cannot confirm within its 20 second watchdog restores nothing, keeps
+ * the checkpoint and leaves Spotlight on, because the sync may still write to the root; a sync
+ * loop that ends by itself (the script fails, the terminal is closed) restores the root as a stop
+ * does; a failed restore stays in `problems` for the Run tab; quitting the app does not restore
+ * (the next start does); the root's branch pointer moves while Spotlight runs, because the sync
+ * loop resets the root to the workspace's commit, and the Run tab says so.
+ * The run list gets a synthetic Spotlight entry while the setting is on (`runListFor`).
  * Built now: preflight, start, stop and `healAfterCrash`. App start runs `healAfterCrash` for every
  * project (services-map 5A.2.2 step 1 and 5A.2.5): with no `pre-spotlight` ref it changes nothing;
  * otherwise it restores the root from the ref under the root's worktree lock and then deletes the
  * ref. A failed restore keeps the ref and returns an error. Starting heals a leftover checkpoint,
  * checks the root, saves a new checkpoint and runs the sync loop. Stopping kills the sync, waits
- * for the terminal service's 20 second watchdog, then restores the root and removes the sync loop's
- * `cp-spotlight-*` checkpoints.
+ * for the terminal service's 20 second watchdog, and only when the sync has ended restores the
+ * root and removes the sync loop's `cp-spotlight-*` checkpoints.
  * Our design choice: the saved id and the helper scripts come from core/git/refs.ts and
  * core/app-paths.ts, so bin/ and the UI agree. File watching is done by the script, not the UI.
  * Watchexec comes from the PATH until PLAT-35 installs a managed copy.
@@ -48,14 +53,51 @@ import {
 } from "../git/commands.ts";
 import { CHECKPOINT_REF_PREFIX, checkpointRef, PRE_SPOTLIGHT_CHECKPOINT_ID } from "../git/refs.ts";
 import type { GitRunner } from "../git/runner.ts";
-import type { Repo, RepoConfig, Terminal, Workspace } from "../model.ts";
+import type { Repo, RepoConfig, RunAction, Terminal, Workspace } from "../model.ts";
 import { quoteShellArg } from "./run-scripts.ts";
 import type { TerminalsService } from "./terminals.ts";
 
 export interface SpotlightState {
 	/** The workspace whose changes are mirrored into its repository root, if any. */
 	active: Readonly<Record<string, RunState["spotlight"]>>;
+	/**
+	 * Per workspace, the last stop or exit whose restore of the repository root failed. The Run
+	 * tab shows it, because the root may still hold the workspace's files.
+	 */
+	problems: Readonly<Record<string, { code: string; message: string }>>;
 }
+
+/** The id of the synthetic Spotlight entry in the run list (services-map.md 5A.2.1). */
+export const SPOTLIGHT_ACTION_ID = "spotlight";
+
+/**
+ * A repository's run list: its own actions, then the synthetic Spotlight entry when "Use
+ * spotlight testing" is on (services-map.md 5A.2.1: id "spotlight", label "Spotlight", icon
+ * "lamp-desk"). The entry is in no settings file; its `origin` is never read.
+ */
+export function runListFor(
+	config: Pick<RepoConfig, "runScripts" | "spotlightTesting">,
+): RunAction[] {
+	if (!config.spotlightTesting) return config.runScripts;
+	return [
+		...config.runScripts,
+		{
+			id: SPOTLIGHT_ACTION_ID,
+			label: "Spotlight",
+			command: "",
+			args: [],
+			cwd: null,
+			isDefault: false,
+			hidden: false,
+			icon: "lamp-desk",
+			origin: "local",
+		},
+	];
+}
+
+/** Shown in the Run tab while Spotlight runs (services-map.md 5A.2.5, the moved branch pointer). */
+export const SPOTLIGHT_BRANCH_NOTICE =
+	"Spotlight is running. Until you stop it, the repository root's branch points at this workspace's latest changes.";
 
 export interface SpotlightPreflight {
 	ok: boolean;
@@ -126,7 +168,7 @@ export class SpotlightService {
 
 	constructor(deps: SpotlightServiceDeps) {
 		this.#deps = deps;
-		this.store = createStore<SpotlightState>(() => ({ active: {} }));
+		this.store = createStore<SpotlightState>(() => ({ active: {}, problems: {} }));
 	}
 
 	/** Checks the root repository: no merge or rebase in progress and a branch is checked out. */
@@ -266,12 +308,15 @@ export class SpotlightService {
 			return started;
 		}
 
+		const terminalId = started.value.terminalId;
 		this.#roots.set(workspaceId, rootPath);
-		this.#setActive(workspaceId, started.value.terminalId);
-		void started.value.exit.then(
-			() => this.#deactivate(workspaceId, started.value.terminalId),
-			() => this.#deactivate(workspaceId, started.value.terminalId),
-		);
+		this.#setActive(workspaceId, terminalId);
+		// The sync loop can end without a stop: the script fails, or the user closes its terminal.
+		// The root is then restored the same way a stop restores it, in this workspace's queue.
+		const onExit = (): void => {
+			void this.#operations.run(workspaceId, () => this.#restoreAfterExit(workspaceId, terminalId));
+		};
+		void started.value.exit.then(onExit, onExit);
 
 		const openRepoTerminal = this.#deps.openRepoTerminal;
 		if (openRepoTerminal !== undefined) {
@@ -291,9 +336,28 @@ export class SpotlightService {
 		if (current?.active !== true) return ok(undefined);
 
 		const terminalId = current.terminalId;
-		const rootPath = this.#roots.get(workspaceId);
 		const stopped =
 			terminalId === null ? ok(undefined) : await this.#deps.terminals.stop(terminalId);
+		// A sync loop that is still alive after the watchdog could write over a restored root. So an
+		// unconfirmed stop restores nothing, keeps the checkpoint and leaves Spotlight shown as on.
+		if (!stopped.ok) return stopped;
+		return this.#restore(workspaceId, terminalId);
+	}
+
+	/** Runs when the sync loop's terminal ended by itself; a stop has already restored the root. */
+	async #restoreAfterExit(workspaceId: WorkspaceId, terminalId: TerminalId): Promise<Result<void>> {
+		const current = this.store.getState().active[workspaceId];
+		if (current?.active !== true || current.terminalId !== terminalId) return ok(undefined);
+		return this.#restore(workspaceId, terminalId);
+	}
+
+	/**
+	 * Restores the root from the pre-spotlight checkpoint, removes the sync loop's checkpoints and
+	 * marks Spotlight off. A failure stays in `problems`, so the Run tab can say the root may still
+	 * hold the workspace's files; the checkpoint is kept for the next start.
+	 */
+	async #restore(workspaceId: WorkspaceId, terminalId: TerminalId | null): Promise<Result<void>> {
+		const rootPath = this.#roots.get(workspaceId);
 		const restored =
 			rootPath === undefined
 				? err(
@@ -305,9 +369,18 @@ export class SpotlightService {
 
 		this.#roots.delete(workspaceId);
 		this.#deactivate(workspaceId, terminalId);
-		if (!restored.ok) return restored;
-		if (!syncDeleted.ok) return syncDeleted;
-		return stopped;
+		const result: Result<void> = !restored.ok ? restored : syncDeleted;
+		this.#setProblem(workspaceId, result);
+		return result;
+	}
+
+	#setProblem(workspaceId: WorkspaceId, result: Result<void>): void {
+		this.store.setState((state) => {
+			const problems = { ...state.problems };
+			if (result.ok) delete problems[workspaceId];
+			else problems[workspaceId] = { code: result.error.code, message: result.error.message };
+			return { ...state, problems };
+		});
 	}
 
 	async #savePreSpotlight(rootPath: string): Promise<Result<void>> {

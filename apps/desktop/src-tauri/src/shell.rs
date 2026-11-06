@@ -3,8 +3,8 @@
 //! @feature PLAT-29 Limit the paths, programs and links the webview can reach
 //! @feature SET-13 Chosen program paths reach terminals and scripts
 //!
-//! SET-13 owns one thing here: `path_with_prefix`, which puts the folder named by
-//! `CONDUCTED_PATH_PREFIX` first on a child's PATH. Every script run through `shell_run` and every
+//! SET-13 owns one thing here: `prefixed_path` (with `path_with_prefix`), which puts the folder
+//! named by `CONDUCTED_PATH_PREFIX` first on a child's PATH. Every script run through `shell_run` and every
 //! terminal started by `pty_spawn` uses it, so a chosen program shim and the bundled bin folder
 //! reach both through one variable. Behaviour: services-map.md 5A.8.2 (path overrides) and
 //! 5A.1.2 (the bundled bin folder on PATH).
@@ -381,6 +381,22 @@ pub fn path_with_prefix(prefix: &str, path: &str) -> String {
     format!("{prefix}:{path}")
 }
 
+/// The PATH a child gets when its env overlay carries `CONDUCTED_PATH_PREFIX`: the prefix first,
+/// then the overlay's PATH, or the base PATH when the overlay has none. None without the variable.
+/// `shell_run` and `pty_spawn` both use it, so the rule has one home.
+pub fn prefixed_path(
+    overlay: &HashMap<String, String>,
+    base_env: &HashMap<String, String>,
+) -> Option<String> {
+    let prefix = overlay.get("CONDUCTED_PATH_PREFIX")?;
+    let path = overlay
+        .get("PATH")
+        .or_else(|| base_env.get("PATH"))
+        .map(String::as_str)
+        .unwrap_or("");
+    Some(path_with_prefix(prefix, path))
+}
+
 /// Finds a bare program name on the PATH the child will see.
 fn resolve_program(program: &str, path: Option<&str>) -> CommandResult<PathBuf> {
     if program.contains('/') {
@@ -440,13 +456,8 @@ fn build_command(
         for (key, value) in env {
             command.env(key, value);
         }
-        if let Some(prefix) = env.get("CONDUCTED_PATH_PREFIX") {
-            let path = env
-                .get("PATH")
-                .or_else(|| base_env.get("PATH"))
-                .map(String::as_str)
-                .unwrap_or("");
-            command.env("PATH", path_with_prefix(prefix, path));
+        if let Some(path) = prefixed_path(env, base_env) {
+            command.env("PATH", path);
         }
     }
     command.process_group(0);
@@ -2287,8 +2298,12 @@ mod tests {
         let built = build_command(&command, &test_env(), &test_program_roots())
             .expect("the command is built");
 
+        let path = built
+            .get_envs()
+            .find(|(key, _)| *key == "PATH")
+            .and_then(|(_, value)| value);
         assert_eq!(
-            built.get_env("PATH"),
+            path,
             Some(std::ffi::OsStr::new(
                 "/data/bin-overrides/abc:/usr/bin:/bin:/usr/sbin:/sbin"
             ))
@@ -2303,6 +2318,33 @@ mod tests {
         );
         assert_eq!(path_with_prefix("/shims/abc", ""), "/shims/abc");
         assert_eq!(path_with_prefix("", "/usr/bin"), "/usr/bin");
+    }
+
+    #[test]
+    fn set_13_prefixed_path_prefers_the_overlay_path_and_needs_the_variable() {
+        let base = HashMap::from([("PATH".to_string(), "/usr/bin".to_string())]);
+        let with_path = HashMap::from([
+            (
+                "CONDUCTED_PATH_PREFIX".to_string(),
+                "/shims/abc".to_string(),
+            ),
+            ("PATH".to_string(), "/opt/bin".to_string()),
+        ]);
+        let without_path = HashMap::from([(
+            "CONDUCTED_PATH_PREFIX".to_string(),
+            "/shims/abc".to_string(),
+        )]);
+        let without_prefix = HashMap::from([("PATH".to_string(), "/opt/bin".to_string())]);
+
+        assert_eq!(
+            prefixed_path(&with_path, &base),
+            Some("/shims/abc:/opt/bin".to_string())
+        );
+        assert_eq!(
+            prefixed_path(&without_path, &base),
+            Some("/shims/abc:/usr/bin".to_string())
+        );
+        assert_eq!(prefixed_path(&without_prefix, &base), None);
     }
 
     #[test]

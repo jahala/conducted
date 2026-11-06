@@ -17,6 +17,10 @@
  * Run), a saved history that could not be read (the reason is shown), a process that exits by itself
  * (output stays, button back to Run again), exclusive mode stopping another workspace's run (the
  * service does it), and an archived workspace.
+ * RUN-02: with "Use spotlight testing" on, the list has the synthetic Spotlight entry and it is
+ * picked first, so the button reads "Start spotlight" or "Stop spotlight"; while Spotlight runs a
+ * line says the root's branch points at the workspace's changes, and a failed restore of the root
+ * is named in a line above the toolbar.
  * Test first: with one action and no running process the toolbar shows "Run <label>".
  */
 import type { RepoId, TerminalId, WorkspaceId } from "@conducted/shared";
@@ -27,6 +31,7 @@ import { useCommandHandler } from "../../../app/command-dispatcher.ts";
 import { useServices } from "../../../core/context.tsx";
 import { useActions, useRepoConfig, useRunState, useWorkspace } from "../../../core/hooks.ts";
 import { defaultRunAction } from "../../../core/services/run-scripts.ts";
+import { SPOTLIGHT_ACTION_ID, SPOTLIGHT_BRANCH_NOTICE } from "../../../core/services/spotlight.ts";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { Spinner } from "../../../ui/Spinner.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
@@ -119,28 +124,52 @@ export function RunTab({ workspaceId }: RunTabProps) {
 	const workspace = useWorkspace(workspaceId);
 	const actions = useActions();
 	const navigate = useNavigate();
-	const runService = useServices().services.runScripts;
+	const services = useServices().services;
+	const runService = services.runScripts;
 	const storedPhase = useStore(runService.store, (state) => state.phases[workspaceId]);
 	const history = useStore(runService.store, (state) => state.history[workspaceId]) ?? [];
 	const outcome = useStore(runService.store, (state) => state.outcomes[workspaceId]);
 	const historyError = useStore(runService.store, (state) => state.historyError);
+	const spotlightProblem = useStore(
+		services.spotlight.store,
+		(state) => state.problems[workspaceId],
+	);
 	const [selectedId, setSelectedId] = useState<string | null>(null);
 	const [lastTerminal, setLastTerminal] = useState<TerminalId | null>(null);
+	const [spotlightBusy, setSpotlightBusy] = useState(false);
 
 	const available = run.state === "ready" ? run.data.actions.filter((entry) => !entry.hidden) : [];
+	// With "Use spotlight testing" on, Spotlight replaces Run, so its entry is picked first.
+	const spotlightEntry = available.find((entry) => entry.id === SPOTLIGHT_ACTION_ID);
 	const selected =
 		available.find((entry) => entry.id === selectedId) ??
+		spotlightEntry ??
 		defaultRunAction(available) ??
 		available[0] ??
 		null;
+	const isSpotlight = selected?.id === SPOTLIGHT_ACTION_ID;
+	const spotlight =
+		run.state === "ready" ? run.data.spotlight : { active: false, terminalId: null };
 	const running = run.state === "ready" ? run.data.running : [];
 	const active = running.find((entry) => entry.actionId === selected?.id) ?? running[0];
-	const phase = phaseFor(storedPhase ?? "stopped", active?.actionId ?? null, selected?.id ?? null);
+	// While a Spotlight start or stop runs, the button is disabled, so a second press cannot
+	// restart it.
+	const spotlightPhase: RunPhase = spotlightBusy
+		? spotlight.active
+			? "stopping"
+			: "starting"
+		: spotlight.active
+			? "running"
+			: "stopped";
+	const phase: RunPhase = isSpotlight
+		? spotlightPhase
+		: phaseFor(storedPhase ?? "stopped", active?.actionId ?? null, selected?.id ?? null);
 	const button = runButtonModel(
-		{ id: selected?.id ?? "", label: selected?.label ?? "", isSpotlight: false },
+		{ id: selected?.id ?? "", label: selected?.label ?? "", isSpotlight },
 		phase,
 		selected === null ? false : history.includes(selected.id),
 	);
+	const outputTerminal = isSpotlight ? spotlight.terminalId : (active?.terminalId ?? null);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: a new workspace starts on its default action.
 	useEffect(() => {
 		setSelectedId(null);
@@ -148,9 +177,9 @@ export function RunTab({ workspaceId }: RunTabProps) {
 	}, [workspaceId]);
 
 	useEffect(() => {
-		if (active === undefined) return;
-		setLastTerminal(active.terminalId);
-	}, [active]);
+		if (outputTerminal === null) return;
+		setLastTerminal(outputTerminal);
+	}, [outputTerminal]);
 
 	const openSettings = (page: "actions" | "scripts"): void => {
 		if (workspace.state !== "ready") return;
@@ -165,6 +194,8 @@ export function RunTab({ workspaceId }: RunTabProps) {
 		const effect = button.click;
 		const actionId = selected.id;
 		void (async () => {
+			const forSpotlight = effect === "start_spotlight" || effect === "stop_spotlight";
+			if (forSpotlight) setSpotlightBusy(true);
 			const result =
 				effect === "start"
 					? await actions.run.start(workspaceId, actionId)
@@ -173,13 +204,17 @@ export function RunTab({ workspaceId }: RunTabProps) {
 						: effect === "start_spotlight"
 							? await actions.run.startSpotlight(workspaceId)
 							: await actions.run.stopSpotlight(workspaceId);
+			if (forSpotlight) setSpotlightBusy(false);
 			if (!result.ok) {
-				toastError(
-					effect === "stop" || effect === "stop_spotlight"
-						? "Couldn't stop the action"
-						: "Couldn't run the action",
-					result.error,
-				);
+				const title =
+					effect === "start_spotlight"
+						? "Couldn't start Spotlight"
+						: effect === "stop_spotlight"
+							? "Couldn't stop Spotlight"
+							: effect === "stop"
+								? "Couldn't stop the action"
+								: "Couldn't run the action";
+				toastError(title, result.error);
 			}
 		})();
 	};
@@ -224,6 +259,22 @@ export function RunTab({ workspaceId }: RunTabProps) {
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
+			{spotlightProblem !== undefined ? (
+				<p
+					role="status"
+					className="shrink-0 border-b border-separator px-3 py-2 text-xs text-warning"
+				>
+					{spotlightProblem.message}
+				</p>
+			) : null}
+			{spotlight.active ? (
+				<p
+					role="status"
+					className="shrink-0 border-b border-separator px-3 py-2 text-xs text-fg-muted"
+				>
+					{SPOTLIGHT_BRANCH_NOTICE}
+				</p>
+			) : null}
 			{outcome === "stop-unconfirmed" ? (
 				<p
 					role="status"

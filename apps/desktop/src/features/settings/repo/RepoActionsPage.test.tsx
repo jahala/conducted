@@ -1,4 +1,4 @@
-import { ok, type Result } from "@conducted/shared";
+import { appError, err, ok, type Result } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { localSettingsFile, sharedSettingsFile } from "../../../core/app-paths.ts";
@@ -7,6 +7,7 @@ import type { Repo } from "../../../core/model.ts";
 import { hiddenRunActionsStorageKey } from "../../../core/services/repo.ts";
 import { createTestContainer, seedRepo, type TestContainer } from "../../../test/container.ts";
 import "../../../test/dom-polyfills.ts";
+import { Toaster, toast } from "../../../ui/Toast.tsx";
 import { RepoActionsPage } from "./RepoActionsPage.tsx";
 
 let test: TestContainer | undefined;
@@ -15,6 +16,8 @@ beforeEach(() => localStorage.clear());
 
 afterEach(() => {
 	cleanup();
+	toast.dismiss();
+	vi.restoreAllMocks();
 	test?.close();
 	test = undefined;
 	localStorage.clear();
@@ -152,5 +155,26 @@ describe("SET-07 RepoActionsPage", () => {
 		fireEvent.click(await screen.findByRole("button", { name: "Reset" }));
 
 		await waitFor(() => expect(reset).toHaveBeenCalledWith(repo.id, "dev"));
+	});
+
+	it("names a failed Spotlight switch 'Failed to update spotlight testing'", async () => {
+		const testContainer = createTestContainer();
+		test = testContainer;
+		const container = testContainer.container;
+		const repo = await seedRepo(container);
+		vi.spyOn(container.actions.projects, "updateConfig").mockResolvedValue(
+			err(appError("settings_write_failed", "The settings file is read-only.")),
+		);
+		render(
+			<ServicesProvider container={container}>
+				<RepoActionsPage repoId={repo.id} />
+				<Toaster />
+			</ServicesProvider>,
+		);
+
+		fireEvent.click(await screen.findByRole("switch", { name: "Use Spotlight testing" }));
+
+		expect(await screen.findByText("Failed to update spotlight testing")).toBeTruthy();
+		expect(screen.queryByText("Couldn't save the actions")).toBeNull();
 	});
 });

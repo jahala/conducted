@@ -17,7 +17,9 @@
  * and Recover prompt; creation warnings are toasted; an empty prompt creates the workspace without a chat;
  * "Create from" a branch with no branch name is refused with a message under the field; a pull request that
  * was not loaded and an issue that was not picked are refused with a message; a second press while a create,
- * a backlog save or a start runs does nothing; "Add to backlog" is hidden when unstarted workspaces are off.
+ * a backlog save or a start runs does nothing; "Add to backlog" is hidden when unstarted workspaces are off;
+ * in start mode every field shows the saved row and is locked, because Start creates from that row, and
+ * Alt+Enter does not save a second copy.
  * Test first: submitting with a repository and a prompt calls workspaces.create with that input and navigates to
  * the new workspace; a failed create offers Retry setup and Recover prompt; Alt+Enter saves the draft to
  * the backlog.
@@ -159,9 +161,8 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	const defaultFastMode = useSetting<boolean>("default_fast_mode");
 	const defaultPlanMode = useSetting<boolean>("default_plan_mode");
 	const toolApprovals = useSetting<boolean>("tool_approvals_enabled");
-	// Conductor gates the backlog behind its unstarted-workspaces switch. An absent value means on,
-	// because our registry leaves that internal switch out.
-	const backlogEnabled = useSetting<boolean | undefined>("unstarted_workspaces_enabled") !== false;
+	// Conductor gates the backlog behind its unstarted-workspaces switch (the settings registry).
+	const backlogEnabled = useSetting<boolean>("unstarted_workspaces_enabled");
 	const sections: readonly Section[] = useStore(
 		services.services.sections.store,
 		(state) => state.sections,
@@ -224,7 +225,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	}, [backlogEntry]);
 
 	useCommandHandler("workspace.addToBacklog", "modal", () => {
-		if (!backlogEnabled || busy) return false;
+		if (!backlogEnabled || busy || startMode) return false;
 		void saveToBacklog();
 		return true;
 	});
@@ -277,6 +278,9 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	};
 
 	const branchMissing = fromKind === "branch" && branchName.trim() === "";
+	// A backlog workspace starts from its saved row, so the fields show it and cannot be edited.
+	// The text fields are read-only rather than disabled, so focus and Cmd+Enter still work.
+	const fieldsLocked = busy || startMode;
 
 	function makeInput(repo: typeof selectedRepo): NewWorkspaceInput | null {
 		if (repo === undefined) {
@@ -421,7 +425,11 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 			<header className="flex items-start justify-between gap-3">
 				<div className="flex flex-col gap-1">
 					<h1 className="text-2xl font-medium text-fg">New workspace</h1>
-					<p className="text-sm text-fg-muted">Draft the first message, then create and send it.</p>
+					<p className="text-sm text-fg-muted">
+						{startMode
+							? "This workspace starts as it was saved to the backlog."
+							: "Draft the first message, then create and send it."}
+					</p>
 				</div>
 				{backlogEnabled ? (
 					<Button variant="ghost" size="sm" onClick={() => void navigate({ to: "/backlog" })}>
@@ -451,7 +459,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 							setMention(null);
 							setSlashMention(null);
 						}}
-						disabled={busy}
+						disabled={fieldsLocked}
 					/>
 				</div>
 
@@ -469,7 +477,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 							aria-label="Show or hide the create-from picker"
 							aria-expanded={pickerOpen}
 							aria-controls="create-from-picker"
-							disabled={busy}
+							disabled={fieldsLocked}
 							onClick={() => setPickerOpen((open) => !open)}
 						>
 							{pickerOpen ? "Hide sources" : "Show sources"}
@@ -488,7 +496,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 									{ value: "issue", label: "Issue" },
 								]}
 								onValueChange={setFromKind}
-								disabled={busy}
+								disabled={fieldsLocked}
 							/>
 
 							{fromKind === "branch" ? (
@@ -499,7 +507,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 										value={branchName}
 										onChange={(event) => setBranchName(event.target.value)}
 										placeholder={selectedRepo.defaultBranch}
-										disabled={busy}
+										disabled={fieldsLocked}
 										{...(branchTouched && branchMissing
 											? { error: "Enter the branch to start from." }
 											: {})}
@@ -510,7 +518,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 										size="sm"
 										aria-expanded={showBranchList}
 										aria-controls="create-branch-list"
-										disabled={busy}
+										disabled={fieldsLocked}
 										onClick={() => setShowBranchList((shown) => !shown)}
 									>
 										Browse branches
@@ -571,6 +579,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 						placeholder="What do you want to work on?"
 						rows={5}
 						disabled={busy}
+						readOnly={startMode}
 					/>
 					{mention !== null && mention.query.length >= 2 ? (
 						<RepoFileSuggestions
@@ -605,6 +614,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 							onChange={(event) => setModel(event.target.value)}
 							placeholder="default"
 							disabled={busy}
+							readOnly={startMode}
 						/>
 					</div>
 					<div className="flex flex-col gap-1.5">
@@ -614,7 +624,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 							value={sectionId}
 							options={sectionOptions}
 							onValueChange={setSectionId}
-							disabled={busy || sections.length === 0}
+							disabled={fieldsLocked || sections.length === 0}
 						/>
 					</div>
 				</div>
@@ -624,7 +634,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 						type="checkbox"
 						checked={planMode}
 						onChange={(event) => setPlanMode(event.target.checked)}
-						disabled={busy}
+						disabled={fieldsLocked}
 					/>
 					Plan mode
 				</label>

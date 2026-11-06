@@ -67,7 +67,7 @@ describe("SET-13 SystemService path prefix", () => {
 		}
 	});
 
-	it("logs a staging failure and falls back to the bundled bin folder", async () => {
+	it("logs a staging failure, records it for the notice and uses the bundled bin folder", async () => {
 		const test = createTestContainer();
 		try {
 			vi.spyOn(test.container.platform.programs, "syncPathOverrides").mockResolvedValue(
@@ -89,6 +89,10 @@ describe("SET-13 SystemService path prefix", () => {
 					message: expect.stringContaining("Failed to stage agent PATH override shims"),
 				}),
 			);
+			expect(service.store.getState().pathOverrideProblem).toEqual({
+				serial: 1,
+				message: "The chosen Claude path cannot be used.",
+			});
 		} finally {
 			test.close();
 		}

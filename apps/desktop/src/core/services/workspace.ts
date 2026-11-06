@@ -2102,8 +2102,20 @@ export class WorkspaceService {
 	static readonly NO_READY_REPOSITORY_MESSAGE =
 		"No ready repository. Pick one to start this workspace.";
 
-	/** Backs `Actions.workspaces.addToBacklog`: saves the draft without making a worktree. */
+	/**
+	 * Backs `Actions.workspaces.addToBacklog`: saves the draft without making a worktree. Refused
+	 * while the "Unstarted workspaces" setting is off, which is where the rule lives; screens only
+	 * hide the button.
+	 */
 	async addToBacklog(input: NewWorkspaceInput): Promise<Result<BacklogWorkspace>> {
+		if (this.#deps.setting<boolean>("unstarted_workspaces_enabled") === false) {
+			return err(
+				appError(
+					"backlog_off",
+					"The backlog is turned off. Turn on Unstarted workspaces in Settings, Experimental.",
+				),
+			);
+		}
 		const found = await this.#deps.repos.repos.get(input.repoId);
 		if (!found.ok) return found;
 		if (found.value === null) {
@@ -2143,6 +2155,12 @@ export class WorkspaceService {
 		if (repo.value === null) {
 			return err(appError("repo_unknown", WorkspaceService.NO_READY_REPOSITORY_MESSAGE));
 		}
+		// The entry goes first: a removal that fails starts nothing, so a second Start can never
+		// make a second workspace from the same draft.
+		const removed = await this.#deps.repos.backlogWorkspaces.delete(id);
+		if (!removed.ok) return removed;
+		this.#forgetBacklog(id);
+		const failedBefore = this.store.getState().lastFailedCreate;
 		const created = await this.create({
 			repoId: entry.repoId,
 			from: { kind: "default" },
@@ -2151,10 +2169,24 @@ export class WorkspaceService {
 			config: entry.config,
 			sectionId: entry.sectionId,
 		});
-		if (!created.ok) return created;
-		const removed = await this.#deps.repos.backlogWorkspaces.delete(id);
-		if (!removed.ok) return removed;
-		this.#forgetBacklog(id);
+		if (created.ok) return created;
+		// A create that made a failed workspace keeps the draft there (Retry setup, Recover prompt),
+		// so the entry stays gone. One that failed before that puts the entry back as it was.
+		const failedAfter = this.store.getState().lastFailedCreate;
+		if (failedAfter !== null && failedAfter !== undefined && failedAfter !== failedBefore) {
+			return created;
+		}
+		const restored = await this.#deps.repos.backlogWorkspaces.restore(entry);
+		if (!restored.ok) {
+			return err(
+				appError(
+					"backlog_restore_failed",
+					`${created.error.message} The backlog entry could not be put back: ${restored.error.message}`,
+					restored.error,
+				),
+			);
+		}
+		this.#upsertBacklog(entry);
 		return created;
 	}
 

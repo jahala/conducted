@@ -13,7 +13,8 @@
  * Our design choice: prompts for Review, Create PR and the others are on RepoPromptsPage, not here.
  * Must handle: no actions (designed empty state), a shared action (hide for this user only, never
  * delete), a shared action changed on this Mac (Reset), the default action marked and changed,
- * and a save that fails (the user sees it and the list keeps its previous form).
+ * and a save that fails (the user sees it and the list keeps its previous form; the Spotlight
+ * switch says "Failed to update spotlight testing").
  * Test first: hiding a shared action stores it as hidden for the user and leaves the file unchanged.
  */
 import type { RepoId } from "@conducted/shared";
@@ -65,10 +66,13 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 		setHiddenError(read.error.message);
 	}, [repoId]);
 
-	const save = async (config: RepoConfig): Promise<boolean> => {
+	const save = async (
+		config: RepoConfig,
+		failureTitle = "Couldn't save the actions",
+	): Promise<boolean> => {
 		const saved = await actions.projects.updateConfig(repoId, config);
 		if (!saved.ok) {
-			toastError("Couldn't save the actions", saved.error);
+			toastError(failureTitle, saved.error);
 			return false;
 		}
 		return true;
@@ -190,7 +194,8 @@ export function RepoActionsPage({ repoId }: { repoId: RepoId }) {
 
 	const setSpotlight = async (spotlightTesting: boolean) => {
 		if (value.state !== "ready") return;
-		await save({ ...value.data, spotlightTesting });
+		// RUN-02: inventory toast row 903 names this failure on its own.
+		await save({ ...value.data, spotlightTesting }, "Failed to update spotlight testing");
 	};
 
 	return (

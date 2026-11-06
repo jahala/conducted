@@ -8,9 +8,11 @@
  * comments), useActions().pullRequests (rerunFailedChecks, fixErrors) and comments. The check rows
  * load their own logs through useCheckLog. Reviewers and deployments are fields of PullRequest.
  * "Open on GitHub" opens the pull request's own page; with no pull request, "Create PR" opens
- * GitHub's new pull request page. Resolving a GitHub thread calls REV-04's resolve and shows
- * "Comment resolved on GitHub"; the comments offer no "Hide" until comment states are built
- * (REV-12).
+ * GitHub's new pull request page. Resolving a GitHub thread goes through
+ * `actions.comments.setResolved`, which resolves it on GitHub (REV-04), and then shows "Comment
+ * resolved on GitHub"; unresolving one is refused with the service's message. A failed GitHub
+ * sync shows a line above the comments saying they may be out of date. The comments offer no
+ * "Hide" until comment states are built (REV-12).
  * Children: PrSummaryHeader, ChecksList, DeploymentsList, PrCommentsList, ReviewersList.
  * Must handle: no PR yet (explain, offer Create PR), PR info loading, offline, no GitHub access
  * (explain how to sign in with `gh auth login`), and a repository without a GitHub remote (the tab
@@ -20,6 +22,7 @@
  */
 import type { CommentId, WorkspaceId } from "@conducted/shared";
 import { useState } from "react";
+import { useStore } from "zustand";
 import { useServices } from "../../../core/context.tsx";
 import { useActions, useDiffComments, useGitState, useSetting } from "../../../core/hooks.ts";
 import type { GitState, PullRequest } from "../../../core/model.ts";
@@ -53,6 +56,7 @@ export function ChecksTab({ workspaceId }: ChecksTabProps) {
 	const comments = useDiffComments(workspaceId);
 	const actions = useActions();
 	const services = useServices().services;
+	const syncError = useStore(services.review.store, (state) => state.syncErrors[workspaceId]);
 	const optionalBlocking = useSetting<boolean>("treat_optional_checks_as_blocking");
 
 	const [rerunBusy, setRerunBusy] = useState(false);
@@ -135,20 +139,13 @@ export function ChecksTab({ workspaceId }: ChecksTabProps) {
 	};
 
 	const resolveComment = (id: CommentId, resolved: boolean) => {
-		const comment = githubComments.find((entry) => entry.id === id);
-		if (resolved && comment?.threadId != null) {
-			void services.review.resolveOnGithub(id).then((result) => {
-				if (!result.ok) {
-					toastError("Couldn't resolve the comment", result.error);
-					return;
-				}
-				toast.success("Comment resolved on GitHub");
-			});
-			return;
-		}
-		void runAction("Couldn't resolve the comment", () =>
-			actions.comments.setResolved(id, resolved),
-		);
+		const onGithub = githubComments.find((entry) => entry.id === id)?.threadId != null;
+		void runAction(
+			resolved ? "Couldn't resolve the comment" : "Couldn't unresolve the comment",
+			() => actions.comments.setResolved(id, resolved),
+		).then((done) => {
+			if (done && resolved && onGithub) toast.success("Comment resolved on GitHub");
+		});
 	};
 
 	const openComment = (id: CommentId) => {
@@ -224,6 +221,11 @@ export function ChecksTab({ workspaceId }: ChecksTabProps) {
 					});
 				}}
 			/>
+			{syncError === undefined ? null : (
+				<p role="alert" className="px-3 py-1 text-2xs text-warning">
+					Couldn't sync comments from GitHub, so they may be out of date. {syncError.message}
+				</p>
+			)}
 			<PrCommentsList
 				comments={githubComments}
 				onAddToChat={addCommentsToChat}
