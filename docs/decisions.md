@@ -500,3 +500,15 @@ Why: D020, checked against Conductor itself where the research is silent.
 Context: the contract PR's CI failed in `composer-shell.test.tsx`: the context wheel now reads the new `contextWindows` service, and the test hands the app a partial container cast as `Container`, so the service was missing. 17 desktop test files build such a container; the slice-2 tests hardening listed 15 of them for `createTestContainer` (APP-16).
 Chosen: the failing test's container gets the service now, so the contract PR can land. Moving every hand-built container to `createTestContainer` is the tests-and-scripts hardening's job today (APP-16), where the whole set is changed and checked at once.
 Why: the cause is the hand-built container, and fixing the set belongs in one change with a guard, not in a contract PR.
+
+## D073. PR-08's stack readiness and range diffs change two contracts (2026-11-06)
+
+Context: PR-08's audit (slice 3 part 1d) found stack readiness and the PR and stack range diffs unbuilt. Readiness needs each stack entry's merge state and commit ids, which `StackEntryView` did not carry; the range view needs a range kind of diff scope, which `DiffScope` did not have. The approved contract list (D069) named neither.
+Chosen: the lead approved both, and only what they need: `mergeStateStatus`, `headSha` and `baseSha` on `StackEntryView` (with a `MergeStateStatus` type), and `{ kind: "range"; prNumbers }` on `DiffScope`. The readiness rules follow Conductor's own code (D002: behaviour, not code).
+Why: one feature needed them, so the kill rule (a contract change blocking more than one feature) did not apply, and the owner's ruling for today makes these the lead's calls.
+
+## D076. A short message the app sends as the user's own chat line is on-screen wording (2026-11-06)
+
+Context: PR-08's Resolve on a diverged stacked branch falls back to asking the agent; Conductor sends "Resolve branch incompatibility with remote", which the chat shows as the user's message. D002 forbids copying prompt text; D020 asks for Conductor's wording on screen.
+Chosen: a short message the app sends in the user's name, which the chat shows as the user's line, is on-screen wording and matches Conductor (D020). Longer instructions to the agent that the user does not see as their own line stay in our own words (D002).
+Why: the user reads that line in the chat like any label.
