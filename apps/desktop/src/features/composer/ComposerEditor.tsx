@@ -6,13 +6,14 @@
  * Our design choice: Plain text with no marks; headings, lists and other marks from StarterKit are
  * switched off because the agent receives plain text. Send keys come from resolveSendKey
  * (send-key.ts). Use useEditor and EditorContent from @tiptap/react.
- * Must handle: IME composition (Enter must not send); Shift+Enter line break; undo and redo
+ * Must handle: IME composition (Enter must not send); an open '#' or '§' menu (Enter goes to the
+ * menu, mentions/trigger-menu.ts); Shift+Enter line break; undo and redo
  * (StarterKit's UndoRedo); the draft text is saved on a short pause (use-draft-sync.ts); screen
  * reader name 'composer'.
- * The composer passes the trigger extensions here: `@` file mentions (COMP-04) and `/` slash
- * commands (COMP-06). Without them the editor is plain text, as it was before those triggers.
- * Moved: `#` PR and issue mentions (COMP-05), paste of files and images, and long pasted text
- * becoming an attachment (COMP-07).
+ * The composer passes the trigger extensions here: `@` file mentions (COMP-04), `#` PR and issue
+ * mentions (COMP-05) and `/` slash commands (COMP-06). Without them the editor is plain text, as
+ * it was before those triggers.
+ * Moved: paste of files and images, and long pasted text becoming an attachment (COMP-07).
  * Test first: Typing 'hello' and pressing Enter calls onSubmit('submit') with the text 'hello';
  * Shift+Enter inserts a line break instead.
  */
@@ -28,6 +29,7 @@ import {
 import StarterKit from "@tiptap/starter-kit";
 import type { KeyboardEvent } from "react";
 import { useEffect } from "react";
+import { triggerMenuOpen } from "./mentions/trigger-menu.ts";
 import { resolveSendKey, type SendIntent, type SendWith } from "./send-key.ts";
 
 export interface ComposerEditorProps {
@@ -106,6 +108,8 @@ export function ComposerEditor({
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
 		if (disabled) return;
+		// An open trigger menu takes Enter itself (it chooses a row); the message is not sent.
+		if (editor !== null && triggerMenuOpen(editor.state)) return;
 		const native = event.nativeEvent;
 		const intent = resolveSendKey(
 			{

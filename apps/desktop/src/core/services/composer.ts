@@ -1,7 +1,12 @@
 /**
  * @feature COMP-01 Composer data: drafts that survive restarts and attachments
- * Owns: the unsent text and attachments of each chat, saved as one JSON file per chat, and the
- * staging of attachments until a message is sent.
+ * @feature COMP-09 Prompt snippets
+ * @feature CHAT-26 Start a chat with earlier chats and plans
+ * Owns: the unsent text and attachments of each chat, saved as one JSON file per chat, the
+ * staging of attachments until a message is sent, the saved snippets the composer inserts, and
+ * attaching an earlier chat's transcript or an agent's plan.
+ * The snippet list lives in this service's store and is read through `loadSnippets`, so the picker,
+ * the editor trigger and the palette share one copy.
  * Behaviour: services-map.md 5A.6 (attachment kinds, local pipeline, paste rule, sweep of old
  * staging folders), 2.7.2 (drafts have a size limit), ui-map.md 3.5 (composer).
  * Must handle: saving is debounced and the newest text wins (an older write that finishes late
@@ -10,8 +15,10 @@
  * attachment by `convertsToAttachment` (the paste handler is in the COMP-07 attachments hook); a
  * failed write, a failed room-making pass or an oversized draft is kept in `store.errors` so a
  * screen can tell the user it did not save; the drafts folder is capped at 5 MiB by trashing the
- * oldest other drafts. `savedDraftIds` lists which chats have a draft file with one folder read,
- * for the sidebar's draft markers (NAV-16).
+ * oldest other drafts; another chat with no messages is refused with "No messages in this chat",
+ * and a transcript or plan that cannot be read or written says "Failed to attach chat transcript"
+ * or "Failed to attach plan". `savedDraftIds` lists which chats have a draft file with one folder
+ * read, for the sidebar's draft markers (NAV-16).
  * Dropped or picked files, and the bytes of a pasted image (`addBytes`, COMP-07), are copied into
  * the chat's staging folder and get an attachment row; a
  * file named like one of the app's own context files is attached under another name. A
@@ -51,6 +58,7 @@ import { createSingleFlight } from "../async/single-flight.ts";
 import type { Repositories } from "../db/repositories.ts";
 import { trashIfPresent } from "../fs-helpers.ts";
 import type { Attachment, Snippet } from "../model.ts";
+import { createSnippetCache } from "./snippets-cache.ts";
 
 export const PASTE_ATTACHMENT_MIN_LINES = 90;
 export const PASTE_ATTACHMENT_MIN_CHARS = 5_000;
@@ -169,6 +177,20 @@ export function attachmentFileName(name: string): string {
 	return base.includes(".") ? base : `${base}.txt`;
 }
 
+/**
+ * The file name an attached chat transcript is saved under (CHAT-26). Conductor names a chat with
+ * no title "chat" here.
+ */
+export function chatTranscriptFileName(title: string | null): string {
+	const trimmed = title?.trim() ?? "";
+	return attachmentFileName(`Transcript of ${trimmed.length === 0 ? "chat" : trimmed}.md`);
+}
+
+/** The file name an attached plan is saved under: its title, as Markdown (CHAT-26). */
+export function planFileName(title: string): string {
+	return attachmentFileName(title.toLowerCase().endsWith(".md") ? title : `${title}.md`);
+}
+
 const emptyDraft = (): Draft => ({ text: "", attachmentPaths: [] });
 
 const isBlank = (draft: Draft): boolean =>
@@ -208,11 +230,15 @@ export interface ComposerState {
 	drafts: Readonly<Record<string, Draft>>;
 	/** The last failed write of each chat, so a screen can tell the user the draft did not save. */
 	errors: Readonly<Record<string, AppError>>;
+	/** The saved snippets read so far. Null until the first read answers. */
+	snippets: Snippet[] | null;
+	/** The last failed read of the snippet list. */
+	snippetError: AppError | null;
 }
 
 export interface ComposerServiceDeps {
 	platform: Pick<Platform, "fs" | "dialogs" | "clipboard"> & Partial<Pick<Platform, "attachments">>;
-	repos: Pick<Repositories, "attachments">;
+	repos: Pick<Repositories, "attachments" | "snippets">;
 	setDebounce: (callback: () => void, ms: number) => () => void;
 	/** The chat tab open in a workspace, for "Attach in chat" (REV-06). */
 	activeSessionOf?: (workspaceId: WorkspaceId) => Result<SessionId | null>;
@@ -220,6 +246,13 @@ export interface ComposerServiceDeps {
 	terminalOutputOf?: (
 		sessionId: SessionId,
 	) => Promise<Result<{ text: string; source: string } | null>>;
+	/** Another chat's title and concise transcript, for attaching it (CHAT-26). */
+	transcriptOf?: (sessionId: SessionId) => Promise<Result<{ title: string | null; text: string }>>;
+	/** The text of a plan an agent proposed in a turn, for attaching it (CHAT-26). */
+	planOf?: (
+		sessionId: SessionId,
+		turnId: TurnId,
+	) => Promise<Result<{ title: string; text: string }>>;
 }
 
 export class ComposerService {
@@ -239,10 +272,21 @@ export class ComposerService {
 	#savedDraftIds: ReadonlySet<string> | null = null;
 	/** Rows that ask for the listing at the same time share one. */
 	readonly #listing = createSingleFlight<"drafts">();
+	/** Reads the snippet list, keeping only the newest answer. */
+	readonly #snippets: ReturnType<typeof createSnippetCache<ComposerState>>;
 
 	constructor(deps: ComposerServiceDeps) {
 		this.#deps = deps;
-		this.store = createStore<ComposerState>(() => ({ drafts: {}, errors: {} }));
+		this.store = createStore<ComposerState>(() => ({
+			drafts: {},
+			errors: {},
+			snippets: null,
+			snippetError: null,
+		}));
+		this.#snippets = createSnippetCache({
+			store: this.store,
+			list: () => this.#deps.repos.snippets.list(),
+		});
 	}
 
 	/** The draft currently in the store, or an empty one before it is loaded. */
@@ -747,16 +791,55 @@ export class ComposerService {
 	}
 
 	/** Backs `Actions.attachments.addChatTranscript`. */
-	addChatTranscript(_sessionId: SessionId, _fromSessionId: SessionId): Promise<Result<string>> {
-		return notImplemented("CHAT-26");
+	async addChatTranscript(sessionId: SessionId, fromSessionId: SessionId): Promise<Result<string>> {
+		const read = this.#deps.transcriptOf;
+		if (read === undefined) {
+			return err(appError("chat_transcript_failed", "Failed to attach chat transcript"));
+		}
+		const transcript = await read(fromSessionId);
+		if (!transcript.ok) {
+			return err(
+				appError("chat_transcript_failed", "Failed to attach chat transcript", transcript.error),
+			);
+		}
+		if (transcript.value.text.trim().length === 0) {
+			return err(appError("chat_transcript_empty", "No messages in this chat"));
+		}
+		const attached = await this.addText(
+			sessionId,
+			chatTranscriptFileName(transcript.value.title),
+			transcript.value.text,
+		);
+		if (!attached.ok) {
+			return err(
+				appError("chat_transcript_failed", "Failed to attach chat transcript", attached.error),
+			);
+		}
+		return attached;
 	}
 
 	/** Backs `Actions.attachments.addPlan`. */
-	addPlan(
-		_sessionId: SessionId,
-		_plan: { sessionId: SessionId; turnId: TurnId },
+	async addPlan(
+		sessionId: SessionId,
+		plan: { sessionId: SessionId; turnId: TurnId },
 	): Promise<Result<string>> {
-		return notImplemented("CHAT-26");
+		const read = this.#deps.planOf;
+		if (read === undefined) {
+			return err(appError("chat_plan_failed", "Failed to attach plan"));
+		}
+		const found = await read(plan.sessionId, plan.turnId);
+		if (!found.ok) {
+			return err(appError("chat_plan_failed", "Failed to attach plan", found.error));
+		}
+		const attached = await this.addText(
+			sessionId,
+			planFileName(found.value.title),
+			found.value.text,
+		);
+		if (!attached.ok) {
+			return err(appError("chat_plan_failed", "Failed to attach plan", attached.error));
+		}
+		return attached;
 	}
 
 	/** Backs `Actions.attachments.addTerminalOutput`. */
@@ -809,18 +892,39 @@ export class ComposerService {
 		return ok(path);
 	}
 
+	/** Reads the user's snippets into the store, keeping only the newest answer. */
+	async loadSnippets(): Promise<void> {
+		await this.#snippets.load();
+	}
+
 	/** Backs `Actions.snippets.create`. A keyword another snippet uses is refused. */
-	createSnippet(_input: SnippetInput): Promise<Result<Snippet>> {
-		return notImplemented("COMP-09");
+	async createSnippet(input: SnippetInput): Promise<Result<Snippet>> {
+		const created = await this.#deps.repos.snippets.create(normalizedSnippet(input));
+		if (created.ok) await this.#snippets.load();
+		return created;
 	}
 
 	/** Backs `Actions.snippets.update`. */
-	updateSnippet(_id: SnippetId, _input: SnippetInput): Promise<Result<void>> {
-		return notImplemented("COMP-09");
+	async updateSnippet(id: SnippetId, input: SnippetInput): Promise<Result<void>> {
+		const updated = await this.#deps.repos.snippets.update(id, normalizedSnippet(input));
+		if (updated.ok) await this.#snippets.load();
+		return updated;
 	}
 
 	/** Backs `Actions.snippets.remove`. */
-	removeSnippet(_id: SnippetId): Promise<Result<void>> {
-		return notImplemented("COMP-09");
+	async removeSnippet(id: SnippetId): Promise<Result<void>> {
+		const removed = await this.#deps.repos.snippets.delete(id);
+		if (removed.ok) await this.#snippets.load();
+		return removed;
 	}
+}
+
+/** Trims the name and keyword the way the repository expects; a blank keyword means none. */
+function normalizedSnippet(input: SnippetInput): SnippetInput {
+	const keyword = input.keyword?.trim() ?? "";
+	return {
+		name: input.name.trim(),
+		keyword: keyword === "" ? null : keyword,
+		prompt: input.prompt,
+	};
 }

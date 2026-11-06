@@ -664,3 +664,68 @@ describe("AGENT-14 Codex /compact", () => {
 		expect(isCompactCommand("please /compact")).toBe(false);
 	});
 });
+
+describe("CHAT-28 Codex account and plan limits", () => {
+	test("CHAT-28 account() reads account/read from the chat's app server", async () => {
+		const client = new FakeClient();
+		answerThreadStart(client);
+		answerCompletedTurn(client);
+		client.answers.set("account/read", () =>
+			ok({
+				account: { type: "chatgpt", email: "person@example.com", planType: "pro" },
+				requiresOpenaiAuth: true,
+			}),
+		);
+		const session = makeSession(client);
+		await session.runTurn(turnInput(), callbacks());
+
+		expect(await session.account()).toEqual({
+			provider: "OpenAI",
+			plan: "Pro",
+			auth: "ChatGPT login",
+			email: "person@example.com",
+		});
+	});
+
+	test("CHAT-28 planUsage() reads account/rateLimits/read without reset credit details", async () => {
+		const client = new FakeClient();
+		answerThreadStart(client);
+		answerCompletedTurn(client);
+		client.answers.set("account/rateLimits/read", () =>
+			ok({
+				rateLimits: {
+					primary: { usedPercent: 42, windowDurationMins: 300, resetsAt: 1_800_000_000 },
+					secondary: null,
+				},
+			}),
+		);
+		const session = makeSession(client);
+		await session.runTurn(turnInput(), callbacks());
+
+		expect(await session.planUsage()).toEqual([
+			{ label: "Primary limit", usedPercent: 42, windowMinutes: 300, resetsAt: 1_800_000_000_000 },
+		]);
+		const read = client.requests.find((request) => request.method === "account/rateLimits/read");
+		expect(read?.params).toEqual({ excludeResetCreditDetails: true });
+	});
+
+	test("CHAT-28 a refused read throws, so the usage reader leaves the rows out", async () => {
+		const client = new FakeClient();
+		answerThreadStart(client);
+		answerCompletedTurn(client);
+		client.answers.set("account/rateLimits/read", () =>
+			err(appError("codex_request_failed", "not signed in")),
+		);
+		const session = makeSession(client);
+		await session.runTurn(turnInput(), callbacks());
+
+		await expect(session.planUsage()).rejects.toThrow("not signed in");
+	});
+
+	test("CHAT-28 before the app server runs there is no account and no limits", async () => {
+		const session = makeSession(new FakeClient());
+
+		expect(await session.account()).toBeUndefined();
+		expect(await session.planUsage()).toEqual([]);
+	});
+});

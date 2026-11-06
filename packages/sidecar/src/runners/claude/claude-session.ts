@@ -35,6 +35,7 @@
  *    asked for a non-plan mode is ignored, so the app's choice wins
  *  - steer() pushes a fresh user message into the open turn and reports when the transcript mirror
  *    shows the agent read it (AGENT-05); with no open turn it throws NoActiveTurnError
+ *  - account() reads the SDK's account info for the usage popover's rows (CHAT-28)
  *  - planUsage() asks the SDK's experimental usage request without the behavior scan and converts
  *    the response with the SIDE-17 model; with no live process it reports no limits, and a refusal
  *    is passed to the caller
@@ -88,7 +89,7 @@ import type {
 import type { SessionId } from "@conducted/shared";
 import { messageOf } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
-import { rateLimitsFromSdk } from "../../models/usage.ts";
+import { accountFromSdk, rateLimitsFromSdk, type UsageAccountView } from "../../models/usage.ts";
 import type { AppToolBackend } from "../../tools/backend.ts";
 import { AsyncQueue } from "../../util/async-queue.ts";
 import { createDeferred, type Deferred } from "../../util/deferred.ts";
@@ -456,6 +457,13 @@ export class ClaudeSession implements AgentSession {
 			});
 			return null;
 		}
+	}
+
+	/** Who the chat is signed in as, from the SDK's account info (CHAT-28). */
+	async account(): Promise<UsageAccountView | undefined> {
+		const query = this.query;
+		if (query === null) return undefined;
+		return accountFromSdk(await query.accountInfo());
 	}
 
 	async planUsage(): Promise<RateLimit[]> {

@@ -12,7 +12,7 @@
  * Test first: a seeded project is visible through the repo service's store and two ids differ.
  */
 import type { SessionEvent } from "@conducted/protocol";
-import type { Clock, MessageId, SessionId, WorkspaceId } from "@conducted/shared";
+import type { Clock, MessageId, SessionId, TurnId, WorkspaceId } from "@conducted/shared";
 import { type Container, type ContainerInputs, createContainer } from "../core/container.ts";
 import type { NewRepo } from "../core/db/repos.ts";
 import { createRepositories } from "../core/db/repositories.ts";
@@ -112,6 +112,38 @@ export async function seedSessionEvent(
 	receivedAt: number,
 ): Promise<void> {
 	must(await seedRepositories(container).sessionEvents.append(sessionId, event, receivedAt));
+}
+
+/**
+ * Writes a chat's user message and records its time, as the event ingest does, then reloads the
+ * chat list so the store sees `lastUserMessageAt`.
+ */
+export async function seedUserMessage(
+	container: Container,
+	sessionId: SessionId,
+	event: Extract<SessionEvent, { type: "user_message" }>,
+	receivedAt: number,
+): Promise<void> {
+	const repositories = seedRepositories(container);
+	must(await repositories.sessionEvents.append(sessionId, event, receivedAt));
+	must(await repositories.sessions.recordUserMessage(sessionId, event.at));
+	must(await container.services.sessions.start());
+}
+
+/** Marks a chat's events from a turn on as reverted, as a revert to that turn does (CHAT-15). */
+export async function seedRevertFromTurn(
+	container: Container,
+	sessionId: SessionId,
+	turnId: TurnId,
+	revertedAt: number,
+): Promise<void> {
+	must(
+		await seedRepositories(container).sessionEvents.markRevertedFromTurn(
+			sessionId,
+			turnId,
+			revertedAt,
+		),
+	);
 }
 
 /** Writes one project through the repositories and loads the repo store from the database. */

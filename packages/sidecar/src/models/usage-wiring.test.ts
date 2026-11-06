@@ -56,14 +56,17 @@ import { FakeApp } from "../test-support/fake-app.ts";
 import { FakeInteractions } from "../test-support/fake-interactions.ts";
 import { FakeProcesses } from "../test-support/fake-processes.ts";
 import { FakePublisher } from "../test-support/fake-publisher.ts";
-import { SessionUsageReader } from "./usage.ts";
+import { SessionUsageReader, type UsageAccountView } from "./usage.ts";
 
 const sessionId = "session-1" as SessionId;
 
 class FakeAgentSession implements AgentSession {
 	readonly sessionId = sessionId;
 
-	constructor(private readonly limits: RateLimit[]) {}
+	constructor(
+		private readonly limits: RateLimit[],
+		private readonly signedIn?: UsageAccountView,
+	) {}
 
 	async runTurn(_input: TurnInput, _callbacks: TurnCallbacks): Promise<TurnOutcome> {
 		return { kind: "success" };
@@ -85,6 +88,10 @@ class FakeAgentSession implements AgentSession {
 
 	async planUsage(): Promise<RateLimit[]> {
 		return this.limits;
+	}
+
+	async account(): Promise<UsageAccountView | undefined> {
+		return this.signedIn;
 	}
 
 	async dispose(): Promise<void> {}
@@ -304,6 +311,18 @@ describe("SIDE-17 the getContextUsage request is answered by a real session mana
 		const answer = await handlers.requests.getContextUsage({ sessionId });
 
 		expect(answer).toEqual(ok({ usedTokens: 11, windowTokens: 100, rateLimits: limits }));
+	});
+
+	test("CHAT-28 the answer carries the live agent's account beside its limits", async () => {
+		const account: UsageAccountView = { plan: "Max", loginMethod: "Claude account" };
+		const log = logger();
+		const manager = buildManager(new FakeAgentSession([], account), log);
+		const handlers = buildHandlers(handlerDeps(manager, log));
+		await sendOne(manager);
+
+		const answer = await handlers.requests.getContextUsage({ sessionId });
+
+		expect(answer).toEqual(ok({ usedTokens: 11, windowTokens: 100, rateLimits: [], account }));
 	});
 
 	test("SIDE-17 a chat the manager does not know answers session_unknown", async () => {

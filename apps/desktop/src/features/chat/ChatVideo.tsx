@@ -20,6 +20,7 @@ import { useEffect, useRef } from "react";
 import { useStore } from "zustand";
 import { useServices } from "../../core/context.tsx";
 import { useActions } from "../../core/hooks.ts";
+import { bareTarget, targetPath } from "../../core/media-files.ts";
 import { Button } from "../../ui/Button.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { VideoPreview } from "../file-viewer/preview/VideoPreview.tsx";
@@ -32,45 +33,13 @@ export interface ChatVideoProps {
 	onOpenExternally: () => void;
 }
 
-const VIDEO_EXTENSIONS = new Set(["mp4", "m4v", "mov", "webm", "ogv", "avi", "mkv"]);
 const REMOTE = /^(?:\/\/|[a-z][a-z0-9+.-]*:)/i;
-
-/** The bare target, without a query string or fragment. */
-const bareTarget = (src: string): string => src.split(/[?#]/)[0] ?? "";
-
-function extensionOf(target: string): string {
-	const name = target.slice(target.lastIndexOf("/") + 1);
-	const dot = name.lastIndexOf(".");
-	if (dot <= 0 || dot === name.length - 1) return "";
-	return name.slice(dot + 1).toLowerCase();
-}
-
-/** True when a Markdown target names a video file. */
-export function isVideoSource(src: string): boolean {
-	return VIDEO_EXTENSIONS.has(extensionOf(bareTarget(src)));
-}
-
-function normalizePath(path: string): string {
-	const parts: string[] = [];
-	for (const part of path.split("/")) {
-		if (part.length === 0 || part === ".") continue;
-		if (part === "..") {
-			parts.pop();
-			continue;
-		}
-		parts.push(part);
-	}
-	return `/${parts.join("/")}`;
-}
 
 /** The absolute path inside the workspace, or null when the target climbs out of it. */
 export function videoPathInWorkspace(root: string, src: string): string | null {
-	const target = bareTarget(src);
-	if (target.length === 0) return null;
-	const absolute = target.startsWith("/")
-		? normalizePath(target)
-		: normalizePath(`${root}/${target}`);
-	const base = normalizePath(root);
+	const absolute = targetPath(root, src);
+	if (absolute === null) return null;
+	const base = targetPath("/", root) ?? "/";
 	if (absolute === base) return null;
 	return absolute.startsWith(`${base}/`) ? absolute : null;
 }

@@ -305,6 +305,10 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 			showOverlay("shortcuts");
 			return;
 		}
+		if (item.id === "app.sendFeedback") {
+			showOverlay("feedback");
+			return;
+		}
 		if (item.id === "app.openPassport") {
 			showOverlay("passport");
 			return;

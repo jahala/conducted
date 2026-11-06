@@ -27,6 +27,7 @@ export const CODEX_CLIENT_METHODS = {
 	turnInterrupt: "turn/interrupt",
 	modelList: "model/list",
 	accountRead: "account/read",
+	accountRateLimitsRead: "account/rateLimits/read",
 	accountLoginStart: "account/login/start",
 	accountLoginCancel: "account/login/cancel",
 	mcpServerStatusList: "mcpServerStatus/list",

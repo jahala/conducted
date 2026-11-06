@@ -2,7 +2,8 @@
  * @feature CHAT-01 Sessions service: the chat list; CHAT-02 Send a message as a new turn;
  * CHAT-05 Cancel a turn; CHAT-13 Progress tracker above the composer; CHAT-16 Fork a chat from a
  * turn; CHAT-17 Copy transcript and search chat history; CHAT-21 Fork a chat to a new workspace;
- * CHAT-27 Retry a failed turn in a new chat; WS-10 Delete a workspace's chats
+ * CHAT-26 Start a chat with earlier chats and plans; CHAT-27 Retry a failed turn in a new chat;
+ * WS-10 Delete a workspace's chats
  * Owns: the list of chats per workspace, their stored live state and events in memory, the
  * create, close, reopen, rename, set-title-if-empty, delete (which also removes the chat's
  * checkpoint refs) and open paths, deleting every chat of a workspace with its attachment files
@@ -14,8 +15,10 @@
  * pausing the follow-up queue, withdrawing the open interaction, removing only the pending sends
  * the sidecar dropped, and putting a send that was still in flight back in the composer draft,
  * and starting a failed turn's message again in a new chat of the same workspace, handing a
- * plan to a chosen chat or a new one, copying a chat's concise or full transcript, and searching
- * stored message text for the command palette.
+ * plan to a chosen chat or a new one, copying a chat's concise or full transcript, searching
+ * stored message text for the command palette, listing the plans an agent proposed in a workspace,
+ * and reading a chat's transcript or one plan for an attachment. A stored user message moves the
+ * chat's `lastUserMessageAt` forward in memory too, as the ingest does on the row.
  * Behaviour: services-map.md 2.3.1 (workspace delete deletes its chats), 2.3.3 (session
  * operations), 2.2 (the sessions table), 2.3.4 (composer outbox: restore to draft), ui-map.md
  * 3.2, sessions-and-chats.md "What happens when
@@ -96,6 +99,7 @@
 import {
 	type AcpConfigOption,
 	type AgentLaunch,
+	type appToSidecarRequests,
 	type CodexGoal,
 	type Interaction,
 	type InteractionAnswer,
@@ -104,9 +108,11 @@ import {
 	type LiveState,
 	type Progress,
 	type RemoteControlStatus,
+	type ResultOf,
 	type SessionConfig,
 	type SessionEvent,
 	type WorkspaceContext,
+	zSessionEvent,
 } from "@conducted/protocol";
 import {
 	type AgentKind,
@@ -132,12 +138,19 @@ import { fireAndForget } from "../async/fire-and-forget.ts";
 import { createLatestWins, type LatestWins } from "../async/latest-wins.ts";
 import { interruptedTurnEvent } from "../db/repair.ts";
 import type { Repositories } from "../db/repositories.ts";
-import { executeStatement, inTransaction, selectRows, stringifyJson } from "../db/row-codec.ts";
+import {
+	collectResults,
+	executeStatement,
+	inTransaction,
+	parseJsonColumn,
+	selectRows,
+	stringifyJson,
+} from "../db/row-codec.ts";
 import type { StoredSessionEvent } from "../db/session-events.ts";
 import { trashIfPresent } from "../fs-helpers.ts";
 import { turnCheckpointId } from "../git/refs.ts";
 import { parseEffortSetting } from "../lookups.ts";
-import type { ChatView, DiagnosticsCapture, Session } from "../model.ts";
+import type { ChatView, DiagnosticsCapture, PlanEntry, Session } from "../model.ts";
 import type { SidecarClient } from "../sidecar/tunnel.ts";
 import type { ComposerService } from "./composer.ts";
 import { agentCanSteer, chooseDelivery, type FollowUpQueue } from "./follow-up-queue.ts";
@@ -146,6 +159,8 @@ import {
 	createHistorySearch,
 	formatTranscript,
 	type HistoryHit,
+	plansInEvent,
+	planTextInEvent,
 	searchHistory,
 } from "./transcript.ts";
 import { buildTurns, classifyTurnsChange, type StoredEvent } from "./turn-builder.ts";
@@ -368,8 +383,25 @@ export interface SessionsServiceDeps {
 	newId: () => string;
 }
 
+/** The sidecar's usage answer for one chat (SIDE-17, CHAT-28). */
+export type ContextUsageAnswer = ResultOf<(typeof appToSidecarRequests)["getContextUsage"]>;
+
 /** The message that carries the diagnostics report into the new chat. Our words. */
 const DIAGNOSTICS_CHAT_PROMPT = "Here is my Conducted diagnostics report.";
+
+/** Every stored plan call of a workspace's chats, newest event first (CHAT-26). */
+const WORKSPACE_PLANS_SQL = `SELECT e.session_id AS session_id, e.content AS content,
+  e.received_at AS received_at, s.title AS session_title
+FROM session_events e
+JOIN sessions s ON s.id = e.session_id
+WHERE s.workspace_id = $1
+  AND e.type = 'agent'
+  AND e.reverted_at IS NULL
+  AND EXISTS (
+    SELECT 1 FROM json_each(e.content, '$.message.items') item
+    WHERE json_extract(item.value, '$.kind') = 'tool_call'
+      AND json_extract(item.value, '$.tool') = 'exit_plan_mode')
+ORDER BY e.received_at DESC`;
 
 /**
  * Reuses the turns that did not change, so a memoised list item sees the same object while a
@@ -1239,6 +1271,14 @@ export class SessionsService implements AgentMessenger {
 	}
 
 	/**
+	 * Asks the sidecar for a chat's context and plan usage and its signed-in account, for the
+	 * context card (SIDE-17, CHAT-28). Read on demand; nothing is kept here.
+	 */
+	contextUsage(sessionId: SessionId): Promise<Result<ContextUsageAnswer>> {
+		return this.#deps.sidecar.request("getContextUsage", { sessionId });
+	}
+
+	/**
 	 * Asks the sidecar for a chat's Remote Control link, for a chat shown after the app reloaded. A
 	 * chat the sidecar does not know has none running.
 	 */
@@ -1445,6 +1485,68 @@ export class SessionsService implements AgentMessenger {
 			return err(appError("chat_copy_unavailable", "Copying is not available right now."));
 		}
 		return copyText(text);
+	}
+
+	/**
+	 * Reads a chat's title and concise transcript, for attaching it to another chat (CHAT-26).
+	 */
+	async transcriptOf(id: SessionId): Promise<Result<{ title: string | null; text: string }>> {
+		const found = await this.#session(id);
+		if (!found.ok) return found;
+		const opened = await this.open(id);
+		if (!opened.ok) return opened;
+		const state = this.store.getState();
+		const liveState = state.liveStates[id] ?? idleLiveState;
+		const pending = (state.sending[id] ?? []).map((send) => ({
+			...send,
+			messageId: send.messageId as MessageId,
+		}));
+		const text = formatTranscript(
+			buildTurns(state.events[id] ?? [], liveState, pending),
+			"concise",
+		);
+		return ok({ title: found.value.title, text });
+	}
+
+	/** Reads one plan an agent proposed in a chat, for attaching it (CHAT-26). */
+	async planFor(id: SessionId, turnId: TurnId): Promise<Result<{ title: string; text: string }>> {
+		const opened = await this.open(id);
+		if (!opened.ok) return opened;
+		const state = this.store.getState();
+		const events = (state.events[id] ?? []).filter(
+			(entry) => entry.event.turnId === turnId && entry.revertedAt === null,
+		);
+		for (const stored of events) {
+			const text = planTextInEvent(stored.event, turnId);
+			if (text === null) continue;
+			const plan = plansInEvent(stored.event, id, null, stored.receivedAt, false)[0];
+			return ok({ title: plan?.title ?? "Plan", text });
+		}
+		return err(appError("chat_plan_unknown", "That plan is no longer in this chat."));
+	}
+
+	/** Lists the plans agents proposed in a workspace, newest first (CHAT-26). */
+	async listPlans(workspaceId: WorkspaceId): Promise<Result<PlanEntry[]>> {
+		const rows = await selectRows<{
+			session_id: SessionId;
+			content: string;
+			received_at: number;
+			session_title: string | null;
+		}>(this.#deps.db, WORKSPACE_PLANS_SQL, [workspaceId], "Reading workspace plans");
+		if (!rows.ok) return rows;
+		const events = collectResults(
+			rows.value.map((row) =>
+				parseJsonColumn(row.content, zSessionEvent, "session_events.content"),
+			),
+		);
+		if (!events.ok) return events;
+		const plans: PlanEntry[] = [];
+		for (const [index, event] of events.value.entries()) {
+			const row = rows.value[index];
+			if (row === undefined) continue;
+			plans.push(...plansInEvent(event, row.session_id, row.session_title, row.received_at, false));
+		}
+		return ok(plans);
 	}
 
 	/** Backs chat history search, newest matching stored text first. */
@@ -1661,12 +1763,30 @@ export class SessionsService implements AgentMessenger {
 				event.type === "user_message" &&
 				event.delivery === "new_turn" &&
 				state.progress[sessionId] !== undefined;
-			if (events === state.events && !closeInteraction && !sendingChanged && !clearProgress) {
+			// The ingest stores the user message's time on the row; the list in memory follows it, so
+			// a chat's last user message is current without a reload (CHAT-26 lists chats by it).
+			const session = state.sessions[sessionId];
+			const datedSession =
+				event.type === "user_message" &&
+				session !== undefined &&
+				(session.lastUserMessageAt ?? Number.NEGATIVE_INFINITY) < event.at
+					? { ...session, lastUserMessageAt: event.at }
+					: undefined;
+			if (
+				events === state.events &&
+				!closeInteraction &&
+				!sendingChanged &&
+				!clearProgress &&
+				datedSession === undefined
+			) {
 				return {};
 			}
 
 			const next: Partial<SessionsState> = {};
 			if (events !== state.events) next.events = events;
+			if (datedSession !== undefined) {
+				next.sessions = { ...state.sessions, [sessionId]: datedSession };
+			}
 			if (sendingChanged) {
 				next.sending = { ...state.sending, [sessionId]: settled ?? [] };
 			}

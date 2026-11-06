@@ -622,6 +622,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 			if (output.value.output === NO_TERMINAL_OUTPUT) return ok(null);
 			return ok({ text: output.value.output, source: output.value.source });
 		},
+		// CHAT-26: another chat's transcript and one plan, read when the user attaches them.
+		transcriptOf: (sessionId) => sessions.transcriptOf(sessionId),
+		planOf: (sessionId, turnId) => sessions.planFor(sessionId, turnId),
 	});
 	const notifications = new NotificationService({
 		platform,
