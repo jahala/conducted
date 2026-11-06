@@ -1,6 +1,6 @@
 import { appError, err, ok, type RepoId, type Result } from "@conducted/shared";
 import { describe, expect, it, vi } from "vitest";
-import type { Dialogs, FileSystem, Opener, ShellOutput } from "../../platform/platform.ts";
+import type { Dialogs, FileSystem, Opener, Shell, ShellOutput } from "../../platform/platform.ts";
 import type { NewRepo, RepoRepository } from "../db/repos.ts";
 import type { GitCommand } from "../git/commands.ts";
 import {
@@ -181,7 +181,7 @@ function makePlatform(options: { dirs?: readonly string[] } = {}): FakePlatform 
 		pickFiles: async () => [],
 		pickSavePath: async () => null,
 	} as Dialogs;
-	return { platform: { fs, dialogs, opener: {} as Opener } };
+	return { platform: { fs, dialogs, opener: {} as Opener, shell: {} as Shell } };
 }
 
 function makeService(options: { dirs?: readonly string[] } = {}) {

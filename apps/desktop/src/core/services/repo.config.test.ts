@@ -1,6 +1,6 @@
 import { appError, err, ok, type RepoId, type Result } from "@conducted/shared";
 import { describe, expect, it, vi } from "vitest";
-import type { Dialogs, FileSystem, Opener } from "../../platform/platform.ts";
+import type { Dialogs, FileSystem, Opener, Shell } from "../../platform/platform.ts";
 import { localSettingsFile, sharedSettingsFile } from "../app-paths.ts";
 import type { RepoRepository } from "../db/repos.ts";
 import type { GitRunner } from "../git/runner.ts";
@@ -89,6 +89,7 @@ function makeService(options: { withWindow?: boolean; repo?: Repo | null } = {})
 		fs,
 		dialogs: {} as Dialogs,
 		opener: {} as Opener,
+		shell: {} as Shell,
 		...(options.withWindow === true
 			? {
 					window: {
