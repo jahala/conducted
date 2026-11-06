@@ -15,19 +15,32 @@
  * watchexec are managed too but stay off the agent programs list (PLAT-35); copying an image
  * that is not an image file fails with a plain message; a save the user cancels is `ok(null)`;
  * System Settings that will not open says where to grant Full Disk Access by hand; feedback opens
- * the project's issue page with the text filled in and never sends logs anywhere by itself; the
- * Xcode licence fix opens Terminal and reports a Terminal that cannot be opened; the diagnostics
- * capture reports a login shell or environment it cannot read instead of inventing one; the
- * sidecar and app logs open in their default app, and a missing log path is an error value.
+ * the project's issue page with the text filled in, adding recent logs only when the user asks;
+ * the Xcode licence fix opens Terminal and reports a Terminal that cannot be opened; the
+ * diagnostics capture reports a login shell or environment it cannot read instead of inventing
+ * one; the sidecar and app logs open in their default app, and a missing log path is an error
+ * value.
  * Our design choice: one service for these Mac-level actions, so screens get them through
  * `Actions` like everything else and the Platform stays out of `features/`.
  * Built now: the program store, the install, re-download and remove actions, the send gate,
  * opening the Privacy & Security pane for Full Disk Access, the diagnostics capture, opening the
- * sidecar and app logs, and copying, saving and opening an attachment in its own app (CHAT-29).
+ * sidecar and app logs, copying, saving and opening an attachment in its own app (CHAT-29), and
+ * sending feedback (APP-09).
  * Our design choice: a copy that failed or is missing does not hold a message, so a copy on the
- * user's PATH runs instead (D021). Conductor holds until the copy is ready. The feedback form is a
- * placeholder owned by APP-09.
+ * user's PATH runs instead (D021). Conductor holds until the copy is ready.
  * Test first: install while a download of the same program runs starts no second download.
+ *
+ * @feature APP-09 Send feedback
+ * Owns: turning the feedback form into a new issue on the project's GitHub page.
+ * Behaviour: ui-map.md 5.2 (the Feedback dialog's message, email, images and recent logs),
+ * native-and-sidecar-map.md A5 (Help > Send Feedback).
+ * Must handle: an empty message is refused; a failed log export or read is reported instead of
+ * opening an issue without the logs the user asked for; a message longer than an issue title
+ * becomes a shorter title; images are listed in the body because a browser link cannot attach
+ * them.
+ * Our design choice: Conductor posts the feedback to its own service; ours opens the project's
+ * issue page, as the backlog row says.
+ * Test first: a message, email, image and logs become a GitHub issue URL that holds all four.
  *
  * @feature SET-13 Chosen program paths reach terminals and scripts
  * Owns: the folder to put first on PATH, built from the executable paths chosen in Advanced
@@ -124,6 +137,13 @@ function decodeBase64(text: string): Uint8Array {
 	}
 	return bytes;
 }
+
+/** The project's new-issue page. The feedback form fills its title and body. */
+const FEEDBACK_ISSUE_URL = "https://github.com/jahala/conducted/issues/new";
+/** Longest title the issue page gets; the rest of the message stays in the body. */
+const MAX_FEEDBACK_TITLE = 120;
+/** Most log text an issue link carries, so a long export does not break the browser URL. */
+const MAX_FEEDBACK_LOG_CHARS = 20_000;
 
 export class SystemService {
 	readonly store: StoreApi<SystemState>;
@@ -420,8 +440,68 @@ export class SystemService {
 	}
 
 	/** Backs `Actions.app.sendFeedback`. */
-	sendFeedback(_input: FeedbackInput): Promise<Result<void>> {
-		return notImplemented("APP-09");
+	async sendFeedback(input: FeedbackInput): Promise<Result<void>> {
+		const message = input.message.trim();
+		if (message === "") {
+			return err(appError("feedback_message_empty", "Write a message before sending feedback."));
+		}
+		const email = input.email?.trim() ?? "";
+		const imagePaths = [...new Set(input.imagePaths.map((path) => path.trim()))].filter(
+			(path) => path !== "",
+		);
+		let logs: string | null = null;
+		if (input.includeLogs) {
+			const recent = await this.#recentLogs();
+			if (!recent.ok) return recent;
+			logs = recent.value;
+		}
+		const body = feedbackBody({
+			message,
+			email,
+			imagePaths,
+			logs,
+			version: this.#deps.platform.app.version,
+			channel: this.#deps.platform.app.channel,
+		});
+		const url = `${FEEDBACK_ISSUE_URL}?${new URLSearchParams({
+			title: feedbackTitle(message),
+			body,
+		}).toString()}`;
+		try {
+			await this.#deps.platform.opener.openUrl(url);
+			return ok(undefined);
+		} catch (cause) {
+			return err(
+				appError("feedback_open_failed", "The feedback issue page could not be opened.", cause),
+			);
+		}
+	}
+
+	/** The redacted log export, cut to the most recent part so the issue URL stays usable. */
+	async #recentLogs(): Promise<Result<string>> {
+		const exported = await this.#deps.platform.app.exportLogs();
+		if (!exported.ok) {
+			return err(
+				appError(
+					"feedback_logs_failed",
+					"The recent app logs could not be exported.",
+					exported.error,
+				),
+			);
+		}
+		const read = await this.#deps.platform.fs.readText(exported.value);
+		if (!read.ok) {
+			return err(
+				appError("feedback_logs_failed", "The recent app logs could not be read.", read.error),
+			);
+		}
+		const text = read.value.trimEnd();
+		if (text.length <= MAX_FEEDBACK_LOG_CHARS) return ok(text);
+		return ok(
+			`(Showing the most recent ${MAX_FEEDBACK_LOG_CHARS} characters.)\n${text.slice(
+				-MAX_FEEDBACK_LOG_CHARS,
+			)}`,
+		);
 	}
 
 	/** Backs `Actions.app.openSidecarLogs`: opens the sidecar log file in its default app. */
@@ -506,4 +586,42 @@ function orderOf(program: ManagedProgram): number {
 	if (program === "claude") return 0;
 	if (program === "codex") return 1;
 	return 2;
+}
+
+/** The issue title: the message's first line, cut when it is too long for a title. */
+function feedbackTitle(message: string): string {
+	const firstLine = message.split(/\r?\n/, 1)[0]?.trim() ?? "";
+	if (firstLine === "") return "Feedback about Conducted";
+	if (firstLine.length <= MAX_FEEDBACK_TITLE) return firstLine;
+	return `${firstLine.slice(0, MAX_FEEDBACK_TITLE - 1)}…`;
+}
+
+interface FeedbackBodyInput {
+	message: string;
+	email: string;
+	imagePaths: readonly string[];
+	logs: string | null;
+	version: string;
+	channel: string;
+}
+
+/** The issue body: the message first, then the contact and environment facts the sheet collected. */
+function feedbackBody(input: FeedbackBodyInput): string {
+	const parts = [input.message];
+	if (input.email !== "") parts.push(`Contact email: ${input.email}`);
+	parts.push(`Sent from Conducted ${input.version} (${input.channel}).`);
+	if (input.imagePaths.length > 0) {
+		parts.push(
+			[
+				"Images to attach:",
+				...input.imagePaths.map((path) => `- ${path}`),
+				"",
+				"A link cannot upload them, so drag the files above into this issue.",
+			].join("\n"),
+		);
+	}
+	if (input.logs !== null) {
+		parts.push(["Recent app logs:", "", "```", input.logs, "```"].join("\n"));
+	}
+	return parts.join("\n\n");
 }
