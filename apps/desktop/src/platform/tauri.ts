@@ -313,17 +313,10 @@ export const COMMANDS = {
 	setQuitHandlerReady: "set_quit_handler_ready",
 	systemInfo: "system_info",
 	networkStatus: "network_status", // PLAT-26
-<<<<<<< HEAD
 	fullDiskAccessCheck: "full_disk_access_check",
 	fullDiskAccessOpenSettings: "full_disk_access_open_settings",
-	windowSetVibrancy: "window_set_vibrancy", // PLAT-23
-	windowSetTrafficLights: "window_set_traffic_lights", // PLAT-23
-=======
-	fullDiskAccessCheck: "full_disk_access_check", // PLAT-24
-	fullDiskAccessOpenSettings: "full_disk_access_open_settings", // PLAT-24
 	windowSetVibrancy: "window_set_vibrancy",
 	windowSetTrafficLights: "window_set_traffic_lights",
->>>>>>> node/plat.23
 	windowToggleInspector: "window_toggle_inspector",
 	dbVersionCheck: "db_version_check",
 	shellRun: "shell_run",
