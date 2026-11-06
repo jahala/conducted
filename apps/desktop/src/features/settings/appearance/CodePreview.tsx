@@ -139,7 +139,7 @@ function paletteFor(themeName: string): Palette | null {
 	const theme = THEMES[themeName];
 	if (theme === undefined) return null;
 	const colors = theme.colors ?? {};
-	const text = colors["editor.foreground"] ?? colors.foreground ?? "#000000";
+	const text = colors["editor.foreground"] ?? colors.foreground ?? "var(--color-fg)";
 	return {
 		background: colors["editor.background"] ?? colors.background ?? "transparent",
 		text,

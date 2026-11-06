@@ -144,7 +144,7 @@ export function ChatVideo({ workspaceId, src, alt, onOpenExternally }: ChatVideo
 	return (
 		<div
 			ref={container}
-			className="my-3 h-64 w-full overflow-hidden rounded-lg border border-border bg-black [&_video]:rounded-md [&_video]:focus-visible:outline-2 [&_video]:focus-visible:outline-offset-2 [&_video]:focus-visible:outline-accent"
+			className="my-3 h-64 w-full overflow-hidden rounded-lg border border-border bg-media [&_video]:rounded-md [&_video]:focus-visible:outline-2 [&_video]:focus-visible:outline-offset-2 [&_video]:focus-visible:outline-accent"
 		>
 			<VideoPreview url={url} fileName={fileName} onOpenExternally={openInAnotherApp} />
 		</div>
