@@ -368,6 +368,8 @@ export const COMMANDS = {
 	updaterInstalledUpdate: "updater_installed_update", // PLAT-13
 	attachmentMaterialize: "attachment_materialize",
 	imageResize: "image_resize",
+	attachmentWriteBytes: "attachment_write_bytes",
+	clipboardReadFilePaths: "clipboard_read_file_paths",
 	menuSetShortcuts: "menu_set_shortcuts",
 	programsState: "programs_state", // PLAT-28
 	programInstall: "program_install", // PLAT-28
@@ -774,6 +776,16 @@ export function createTauriFileSearch(bindings: TauriBindings): FileSearch {
 	};
 }
 
+/** Base64 of raw bytes, built in slices so a large image does not overflow the argument list. */
+export function encodeBase64(bytes: Uint8Array): string {
+	const SLICE = 0x8000;
+	let binary = "";
+	for (let start = 0; start < bytes.length; start += SLICE) {
+		binary += String.fromCharCode(...bytes.subarray(start, start + SLICE));
+	}
+	return btoa(binary);
+}
+
 function decodeBase64(value: string): Uint8Array {
 	const binary = atob(value);
 	const bytes = new Uint8Array(binary.length);
@@ -1047,11 +1059,12 @@ export function createTauriOpener(bindings: TauriBindings = realTauriBindings): 
 	};
 }
 
-/** plugin-clipboard-manager: `writeText`, `writeImage`. */
+/** plugin-clipboard-manager: `writeText`, `writeImage`; `clipboard_read_file_paths`. */
 export function createTauriClipboard(bindings: TauriBindings = realTauriBindings): Clipboard {
 	return {
 		writeText: (text) => requireBinding(bindings.clipboard, "clipboard").writeText(text),
 		writeImage: (pngBytes) => requireBinding(bindings.clipboard, "clipboard").writeImage(pngBytes),
+		readFilePaths: () => invokeResult<string[]>(bindings, COMMANDS.clipboardReadFilePaths),
 	};
 }
 
@@ -1163,7 +1176,7 @@ export function createTauriSystem(bindings: TauriBindings): SystemFacts {
 	};
 }
 
-/** `attachment_materialize { sourcePath, destinationPath, resizeImage }`, `image_resize { sourcePath, destinationPath }`. */
+/** `attachment_materialize { sourcePath, destinationPath, resizeImage }`, `image_resize { sourcePath, destinationPath }`, `attachment_write_bytes { data, destinationPath, resizeImage }` (data is base64). */
 export function createTauriAttachments(bindings: TauriBindings): AttachmentFiles {
 	return {
 		materialize: (sourcePath, destinationPath, options) =>
@@ -1174,6 +1187,12 @@ export function createTauriAttachments(bindings: TauriBindings): AttachmentFiles
 			}),
 		resizeImage: (sourcePath, destinationPath) =>
 			invokeResult(bindings, COMMANDS.imageResize, { sourcePath, destinationPath }),
+		writeBytes: (bytes, destinationPath, options) =>
+			invokeResult(bindings, COMMANDS.attachmentWriteBytes, {
+				data: encodeBase64(bytes),
+				destinationPath,
+				resizeImage: options.resizeImage,
+			}),
 	};
 }
 

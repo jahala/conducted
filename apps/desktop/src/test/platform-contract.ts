@@ -320,6 +320,13 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"writeText resolves, and the text reaches the layer below it unchanged.",
 		"controls",
 	),
+	c(
+		"clipboard",
+		"read-file-paths",
+		"readFilePaths lists the copied files",
+		"Files copied in Finder come back as their paths in order; with none copied the list is empty.",
+		"controls",
+	),
 	c("app", "health", "health is Ok", "health() returns Ok when the shell is up."),
 	c(
 		"app",
@@ -446,6 +453,12 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 	),
 	c(
 		"attachments",
+		"write-bytes",
+		"writeBytes writes bytes the web view holds",
+		"The destination exists afterwards with the bytes, and the result names it with their size.",
+	),
+	c(
+		"attachments",
 		"resize-image",
 		"resizeImage copies and reports the result",
 		"The destination exists and the returned file names it.",
@@ -487,6 +500,8 @@ export interface ContractControls {
 	emitNotificationClick?(deepLink: string): void | Promise<void>;
 	emitWindowFocus?(focused: boolean): void | Promise<void>;
 	emitNetworkChanged?(online: boolean): void | Promise<void>;
+	/** Puts files on the clipboard, as if copied in Finder. */
+	setClipboardFilePaths?(paths: readonly string[]): void;
 	/** What the layer below the platform last received. */
 	readonly dockBadge?: number | null;
 	readonly clipboardText?: string | null;
@@ -1380,6 +1395,17 @@ const STEPS: Record<string, ContractStep> = {
 		);
 	},
 
+	"clipboard.read-file-paths": async (ctx) => {
+		const none = expectOk(ctx, await ctx.platform.clipboard.readFilePaths(), "readFilePaths");
+		ctx.assert(none.length === 0, `an empty clipboard gave ${JSON.stringify(none)}`);
+		ctx.controls?.setClipboardFilePaths?.(["/tmp/b file.txt", "/tmp/a.png"]);
+		const copied = expectOk(ctx, await ctx.platform.clipboard.readFilePaths(), "readFilePaths");
+		ctx.assert(
+			copied.join("|") === "/tmp/b file.txt|/tmp/a.png",
+			`the copied files came back as ${JSON.stringify(copied)}`,
+		);
+	},
+
 	"app.health": async (ctx) => {
 		expectOk(ctx, await ctx.platform.app.health(), "health");
 	},
@@ -1600,6 +1626,24 @@ const STEPS: Record<string, ContractStep> = {
 		);
 	},
 
+	"attachments.write-bytes": async (ctx) => {
+		const destination = ctx.path("attachments/pasted.txt");
+		const bytes = new TextEncoder().encode("pasted bytes");
+		expectOk(ctx, await ctx.platform.fs.mkdirp(ctx.path("attachments")), "mkdirp");
+		const file = expectOk(
+			ctx,
+			await ctx.platform.attachments.writeBytes(bytes, destination, { resizeImage: false }),
+			"writeBytes",
+		);
+		ctx.assert(file.path === destination, `writeBytes returned ${file.path}`);
+		ctx.assert(file.sizeBytes === bytes.length, `sizeBytes was ${file.sizeBytes}`);
+		ctx.assert(
+			expectOk(ctx, await ctx.platform.fs.readText(destination), "read destination") ===
+				"pasted bytes",
+			"the file holds different bytes",
+		);
+	},
+
 	"attachments.resize-image": async (ctx) => {
 		const source = ctx.path("attachments/image.png");
 		const destination = ctx.path("attachments/image-small.png");
@@ -1754,6 +1798,7 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 	"notifications.badge": ["notifications.setDockBadge"],
 	"notifications.click": ["notifications.onClicked"],
 	"clipboard.write-text": ["clipboard.writeText"],
+	"clipboard.read-file-paths": ["clipboard.readFilePaths"],
 	"app.health": ["app.health"],
 	"app.write-log-never-throws": ["app.writeLog"],
 	"app.version": [],
@@ -1784,6 +1829,7 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 		"attachments.materialize",
 		"fs.readText",
 	],
+	"attachments.write-bytes": ["fs.mkdirp", "attachments.writeBytes", "fs.readText"],
 	"attachments.resize-image": [
 		"fs.mkdirp",
 		"fs.writeTextAtomic",

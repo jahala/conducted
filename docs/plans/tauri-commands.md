@@ -4,7 +4,7 @@ The names the Rust shell registers and `apps/desktop/src/platform/tauri.ts` call
 
 Binary data (terminal output, history, images) travels as base64 strings or through a `tauri::ipc::Channel`, never as JSON number arrays.
 
-Dialogs, clipboard, opening URLs, notifications permission and the SQL database use their Tauri plugins directly from `platform/tauri.ts`. Window focus, theme and drag and drop, and the webview zoom, use Tauri's window and webview API (the zoom needs `core:webview:allow-set-webview-zoom` in `capabilities/default.json`). They need no custom command.
+Dialogs, clipboard text and images, opening URLs, notifications permission and the SQL database use their Tauri plugins directly from `platform/tauri.ts`. Window focus, theme and drag and drop, and the webview zoom, use Tauri's window and webview API (the zoom needs `core:webview:allow-set-webview-zoom` in `capabilities/default.json`). They need no custom command.
 
 | Platform method                                  | Command                                                                      | Rust module         | Events emitted                         |
 | ------------------------------------------------ | ---------------------------------------------------------------------------- | ------------------- | -------------------------------------- |
@@ -57,6 +57,8 @@ Dialogs, clipboard, opening URLs, notifications permission and the SQL database 
 | `updater.check`, `.install`, `.relaunch`         | `updater_check`, `updater_install`, `updater_relaunch`                       | updater.rs          | `updater://status`                     |
 | `updater.installedUpdate`                        | `updater_installed_update`                                                   | updater.rs          |                                        |
 | `attachments.materialize`, `.resizeImage`        | `attachment_materialize`, `image_resize`                                     | attachments.rs      |                                        |
+| `attachments.writeBytes`                         | `attachment_write_bytes` (bytes as base64)                                   | attachments.rs      |                                        |
+| `clipboard.readFilePaths`                        | `clipboard_read_file_paths`                                                  | pasteboard.rs       |                                        |
 | `menu.setShortcuts`, `menu.onCommand`            | `menu_set_shortcuts`                                                         | menu.rs             | `menu://command` (payload: command id) |
 | `window.isFocused`, `.onFocusChanged`            | (window API)                                                                 |                     | `tauri://focus`, `tauri://blur`        |
 | `window.onFileDrop`                              | (webview API `onDragDropEvent`)                                              |                     |                                        |

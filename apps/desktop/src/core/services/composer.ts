@@ -35,7 +35,7 @@ import {
 	type WorkspaceId,
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
-import type { Platform } from "../../platform/platform.ts";
+import type { AttachmentFiles, MaterializedFile, Platform } from "../../platform/platform.ts";
 import type { Draft, SnippetInput } from "../api.ts";
 import {
 	draftAttachmentsDir,
@@ -334,8 +334,59 @@ export class ComposerService {
 			return err(appError("attachment_is_directory", "Folders can't be uploaded"));
 		}
 		const originalName = userAttachmentName(sourcePath.split("/").pop() ?? sourcePath);
+		return this.#stage(
+			sessionId,
+			originalName,
+			stat.value.size,
+			(files, destination, resizeImage) =>
+				files.materialize(sourcePath, destination, { resizeImage }),
+		);
+	}
+
+	/**
+	 * Stages bytes the web view holds, such as a pasted image or screenshot, under `fileName` and
+	 * adds an attachment row (COMP-07). The rules for a dropped file apply.
+	 */
+	async addBytes(
+		sessionId: SessionId,
+		fileName: string,
+		bytes: Uint8Array,
+	): Promise<Result<Attachment>> {
+		this.#beginBusy(sessionId);
+		try {
+			const loaded = await this.loadDraft(sessionId);
+			if (!loaded.ok) return loaded;
+			if (fileName.trim().length === 0) {
+				return err(appError("attachment_unavailable", "Attachments not available"));
+			}
+			return await this.#stage(
+				sessionId,
+				userAttachmentName(fileName),
+				bytes.length,
+				(files, destination, resizeImage) => files.writeBytes(bytes, destination, { resizeImage }),
+			);
+		} finally {
+			this.#endBusy(sessionId);
+		}
+	}
+
+	/**
+	 * Writes one file into the chat's staging folder with `write`, adds its attachment row and puts
+	 * it on the draft. An image over 5 MB is refused before anything is written.
+	 */
+	async #stage(
+		sessionId: SessionId,
+		originalName: string,
+		sizeBytes: number,
+		write: (
+			files: AttachmentFiles,
+			destination: string,
+			resizeImage: boolean,
+		) => Promise<Result<MaterializedFile>>,
+	): Promise<Result<Attachment>> {
+		const fs = this.#deps.platform.fs;
 		const kind = attachmentKindOf(originalName);
-		if (kind === "image" && stat.value.size > MAX_IMAGE_ATTACHMENT_BYTES) {
+		if (kind === "image" && sizeBytes > MAX_IMAGE_ATTACHMENT_BYTES) {
 			return err(appError("attachment_too_large", "Image too large"));
 		}
 		const files = this.#deps.platform.attachments;
@@ -346,9 +397,7 @@ export class ComposerService {
 		const made = await fs.mkdirp(folder);
 		if (!made.ok) return made;
 		const destination = await this.#freePath(folder, attachmentFileName(originalName));
-		const materialized = await files.materialize(sourcePath, destination, {
-			resizeImage: kind === "image",
-		});
+		const materialized = await write(files, destination, kind === "image");
 		if (!materialized.ok) return err(this.#copyError(materialized.error));
 		const added = await this.#deps.repos.attachments.addDraft({
 			sessionId,

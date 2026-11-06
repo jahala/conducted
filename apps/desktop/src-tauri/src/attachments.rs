@@ -32,6 +32,11 @@
 //! - Decoding runs on the blocking pool because large images take real time. Memory use is bounded
 //!   by refusing sources over `MAX_SOURCE_BYTES` with `attachment_too_large`.
 //!
+//! - `attachment_write_bytes` (COMP-07) takes bytes the web view holds, such as a pasted image,
+//!   as base64. They are written to a hidden file in the draft folder and then go through the same
+//!   copy as a dropped file, so every rule above holds; the hidden file is removed afterwards.
+//!   Data that is not base64 fails with `attachment_bad_data`.
+//!
 //! Draft file cleanup belongs to DATA-02: it removes files in `draft-attachments/` that are never
 //! sent and the matching `attachments` rows. This module only writes into that folder.
 //!
@@ -112,6 +117,23 @@ pub async fn attachment_materialize(
     let destination = PathBuf::from(destination_path);
     blocking("attachment_task_failed", move || {
         materialize_into(&source, &destination, resize_image, &draft_root)
+    })
+    .await
+}
+
+/// Writes bytes the web view holds, such as a pasted image or screenshot, into the draft folder
+/// (COMP-07). `data` is base64. The bytes then follow the same rules as a dropped file.
+#[tauri::command]
+pub async fn attachment_write_bytes(
+    app: AppHandle,
+    data: String,
+    destination_path: String,
+    resize_image: bool,
+) -> CommandResult<MaterializedAttachment> {
+    let draft_root = draft_root(&app)?;
+    let destination = PathBuf::from(destination_path);
+    blocking("attachment_task_failed", move || {
+        write_bytes_into(&data, &destination, resize_image, &draft_root)
     })
     .await
 }
@@ -317,6 +339,47 @@ fn materialize_into(
         height: Some(image.height),
         resized: false,
     })
+}
+
+/// Decodes base64 `data` into a hidden file in the draft folder, then materializes that file at
+/// `destination`, so pasted bytes get every rule a dropped file gets. The hidden file is removed
+/// whatever happens.
+fn write_bytes_into(
+    data: &str,
+    destination: &Path,
+    resize_image: bool,
+    draft_root: &Path,
+) -> CommandResult<MaterializedAttachment> {
+    use base64::Engine as _;
+    if data.len() as u64 / 4 * 3 > MAX_SOURCE_BYTES {
+        return Err(too_large(format!(
+            "Pasted data is larger than {MAX_SOURCE_BYTES} bytes"
+        )));
+    }
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(data)
+        .map_err(|error| {
+            failed(
+                "attachment_bad_data",
+                format!("The pasted data is not base64: {error}"),
+            )
+        })?;
+    fs::create_dir_all(draft_root)?;
+    let counter = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let incoming = draft_root.join(format!(".incoming-{}-{counter}", std::process::id()));
+    let written = (|| -> io::Result<()> {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&incoming)?;
+        file.write_all(&bytes)?;
+        file.sync_all()
+    })();
+    let result = written
+        .map_err(CommandError::Io)
+        .and_then(|()| materialize_into(&incoming, destination, resize_image, draft_root));
+    remove_temp(&incoming);
+    result
 }
 
 /// A re-encoded image is JPEG, so its file name says so: `wide.png` is written as `wide.jpg`.
@@ -557,7 +620,7 @@ mod tests {
     use super::{
         JPEG_QUALITIES, MAX_IMAGE_BYTES, MAX_PIXEL_DIMENSION, MAX_SOURCE_BYTES,
         MaterializedAttachment, encode_jpeg, encode_jpeg_within_limit, flatten_on_white,
-        materialize_into, write_bytes_atomic,
+        materialize_into, write_bytes_atomic, write_bytes_into,
     };
     use crate::error::CommandError;
 
@@ -655,6 +718,85 @@ mod tests {
             CommandError::Failed { code: actual, .. } => assert_eq!(actual, code),
             other => panic!("expected {code}, got {other:?}"),
         }
+    }
+
+    fn png_base64(width: u32, height: u32) -> (Vec<u8>, String) {
+        use base64::Engine as _;
+        let mut bytes = Vec::new();
+        RgbaImage::from_pixel(width, height, Rgba([10, 20, 30, 255]))
+            .write_to(&mut std::io::Cursor::new(&mut bytes), ImageFormat::Png)
+            .expect("encode png");
+        let encoded = base64::engine::general_purpose::STANDARD.encode(&bytes);
+        (bytes, encoded)
+    }
+
+    #[test]
+    fn comp_07_pasted_image_bytes_land_in_the_draft_folder() {
+        let folder = TempDir::new();
+        let (bytes, encoded) = png_base64(100, 50);
+        let destination = folder.destination("image.png");
+        let draft_root = folder.draft_root();
+
+        let result = write_bytes_into(&encoded, &destination, true, &draft_root)
+            .expect("the pasted bytes are written");
+
+        assert_eq!(result.path, as_string(&destination));
+        assert_eq!(result.size_bytes, bytes.len() as u64);
+        assert!(result.is_image);
+        assert_eq!((result.width, result.height), (Some(100), Some(50)));
+        assert!(!result.resized);
+        assert_eq!(fs::read(&destination).expect("the copy"), bytes);
+        let left: Vec<PathBuf> = entries_under(&draft_root)
+            .into_iter()
+            .filter(|path| path.is_file())
+            .collect();
+        assert_eq!(left, vec![destination], "no temp file is left behind");
+    }
+
+    #[test]
+    fn comp_07_pasted_image_over_the_pixel_limit_is_shrunk() {
+        let folder = TempDir::new();
+        let (_, encoded) = png_base64(9_000, 100);
+        let destination = folder.destination("wide.png");
+
+        let result = write_bytes_into(&encoded, &destination, true, &folder.draft_root())
+            .expect("the pasted bytes are written");
+
+        assert!(result.resized);
+        assert!(result.width.expect("a width") <= MAX_PIXEL_DIMENSION);
+        assert!(result.path.ends_with("wide.jpg"));
+    }
+
+    #[test]
+    fn comp_07_pasted_bytes_outside_the_draft_folder_are_refused_and_leave_nothing() {
+        let folder = TempDir::new();
+        let (_, encoded) = png_base64(10, 10);
+        let outside = folder.path().join("elsewhere/image.png");
+        let draft_root = folder.draft_root();
+
+        let error = write_bytes_into(&encoded, &outside, false, &draft_root)
+            .expect_err("a destination outside the draft folder is refused");
+
+        assert_code(error, "attachment_bad_destination");
+        assert!(!outside.exists());
+        assert!(
+            entries_under(&draft_root).is_empty(),
+            "the refused write left {:?}",
+            entries_under(&draft_root)
+        );
+    }
+
+    #[test]
+    fn comp_07_data_that_is_not_base64_is_refused() {
+        let folder = TempDir::new();
+        let error = write_bytes_into(
+            "not base64!",
+            &folder.destination("image.png"),
+            false,
+            &folder.draft_root(),
+        )
+        .expect_err("the data is refused");
+        assert_code(error, "attachment_bad_data");
     }
 
     #[test]

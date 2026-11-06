@@ -55,6 +55,7 @@ pub mod navigation;
 pub mod network;
 pub mod notifications;
 pub mod open_with;
+pub mod pasteboard;
 pub mod permissions;
 mod process_group;
 pub mod pty;
@@ -792,6 +793,8 @@ pub fn run() {
             updater::updater_relaunch,
             attachments::attachment_materialize,
             attachments::image_resize,
+            attachments::attachment_write_bytes,
+            pasteboard::clipboard_read_file_paths,
             menu::menu_set_shortcuts,
             binaries::programs_verification_errors,
             binaries::programs_state,

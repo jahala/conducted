@@ -229,6 +229,8 @@ export interface Opener {
 export interface Clipboard {
 	writeText(text: string): Promise<void>;
 	writeImage(pngBytes: Uint8Array): Promise<void>;
+	/** The files copied in Finder, as absolute paths in order. Empty when none are copied. */
+	readFilePaths(): Promise<Result<string[]>>;
 }
 
 /** One message from dictation, as speech.rs sends it. `ended` is always the last one. */
@@ -380,6 +382,16 @@ export interface AttachmentFiles {
 		options: { resizeImage: boolean },
 	): Promise<Result<MaterializedFile>>;
 	resizeImage(sourcePath: string, destinationPath: string): Promise<Result<MaterializedFile>>;
+	/**
+	 * Writes bytes the web view holds, such as a pasted image, to `destinationPath`. The same rules
+	 * as `materialize` apply: the destination lies in the attachment draft folder and is new, and
+	 * an image is shrunk when `resizeImage` is set.
+	 */
+	writeBytes(
+		bytes: Uint8Array,
+		destinationPath: string,
+		options: { resizeImage: boolean },
+	): Promise<Result<MaterializedFile>>;
 }
 
 // ---------------------------------------------------------------- programs the app manages (D021, D024)

@@ -138,6 +138,8 @@ export interface MemoryPlatformControls {
 	readonly dockBadge: number | null;
 	/** The last text written to the clipboard. */
 	readonly clipboardText: string | null;
+	/** Puts files on the clipboard, as if copied in Finder. */
+	setClipboardFilePaths(paths: readonly string[]): void;
 	/** Answers for dialogs, consumed in order. */
 	queueDialogAnswers(answers: {
 		folder?: string | null;
@@ -356,6 +358,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	const ptyExitCodes: (number | null)[] = [];
 	let dockBadge: number | null = null;
 	let clipboardText: string | null = null;
+	let clipboardFilePaths: string[] = [];
 	let holdNextStart = false;
 	let systemInfo: SystemInfo = { osVersion: "15.0", machineArch: "arm64", buildArch: "arm64" };
 	let systemInfoFailure: string | null = null;
@@ -885,6 +888,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			clipboardText = text;
 		},
 		writeImage: async () => {},
+		readFilePaths: async () => ok([...clipboardFilePaths]),
 	};
 
 	let speechListener: ((event: SpeechEvent) => void) | null = null;
@@ -978,6 +982,19 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	const attachments: AttachmentFiles = {
 		materialize: async (sourcePath, destinationPath) => materialize(sourcePath, destinationPath),
 		resizeImage: async (sourcePath, destinationPath) => materialize(sourcePath, destinationPath),
+		writeBytes: async (bytes, destinationPath) => {
+			// The stand-in keeps text only, so the bytes are kept as UTF-8 text.
+			const written = await writeTextAtomic(destinationPath, new TextDecoder().decode(bytes));
+			if (!written.ok) return written;
+			return ok({
+				path: normalizePath(destinationPath),
+				sizeBytes: bytes.length,
+				isImage: false,
+				width: null,
+				height: null,
+				resized: false,
+			});
+		},
 	};
 
 	const statusFor = (program: ManagedProgram): ProgramStatus =>
@@ -1138,6 +1155,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		},
 		get clipboardText() {
 			return clipboardText;
+		},
+		setClipboardFilePaths: (paths) => {
+			clipboardFilePaths = [...paths];
 		},
 		queueDialogAnswers: (answers) => {
 			dialogAnswers.push(answers);

@@ -212,6 +212,7 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 	let tempCounter = 0;
 	let dockBadge: number | null = null;
 	let clipboardText: string | null = null;
+	let clipboardFilePaths: string[] = [];
 	const pendingClicks: string[] = [];
 	const folderAnswers: (string | null)[] = [];
 	const fileAnswers: string[][] = [];
@@ -325,6 +326,21 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 				const entries = await Promise.all(names.map((name) => statOf(join(folder, name))));
 				return entries.filter((entry): entry is FileStat => entry !== null);
 			}
+			case COMMANDS.attachmentWriteBytes: {
+				const destination = String(args.destinationPath);
+				const bytes = Buffer.from(String(args.data), "base64");
+				await writeAtomic(destination, bytes.toString("utf8"));
+				return {
+					path: destination,
+					sizeBytes: bytes.length,
+					isImage: false,
+					width: null,
+					height: null,
+					resized: false,
+				};
+			}
+			case COMMANDS.clipboardReadFilePaths:
+				return [...clipboardFilePaths];
 			case COMMANDS.attachmentMaterialize:
 			case COMMANDS.imageResize: {
 				const source = String(args.sourcePath);
@@ -522,6 +538,9 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 		},
 		get clipboardText() {
 			return clipboardText;
+		},
+		setClipboardFilePaths: (paths) => {
+			clipboardFilePaths = [...paths];
 		},
 	};
 
