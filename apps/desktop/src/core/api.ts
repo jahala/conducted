@@ -486,6 +486,8 @@ export interface Actions {
 		removeReviewRequest: Act<[workspaceId: WorkspaceId, login: string]>;
 		/** Links an existing pull request by its URL or number. */
 		link: Act<[workspaceId: WorkspaceId, urlOrNumber: string]>;
+		/** Opens GitHub's page for creating a pull request from the workspace branch. */
+		openOnGithub: Act<[workspaceId: WorkspaceId]>;
 	};
 	issues: {
 		/** Writes the issue as a context file in the workspace and returns its path. */

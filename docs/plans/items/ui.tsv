@@ -613,7 +613,7 @@ PR-04	action	'Queue checks'	ui-map 3.6	partly
 PR-04	region	Deployments with states Deployed, Failed, Deploying, Pending, Inactive and provider icons	ui-map 3.6	covered
 PR-04	region	PR comments with Resolved and Outdated markers and 'Resolve'	ui-map 3.6	covered
 PR-04	action	Comments: 'Add to chat' and 'Add all to chat'	ui-map 3.6	covered
-PR-04	action	Comments: 'Hide' (stored or local, still to decide)	ui-map 3.6	partly
+PR-04	action	Comments: 'Hide' (the comment's stored state becomes hidden through comments.setHidden; a sync keeps it hidden)	ui-map 3.6	covered
 PR-06	region	Reviewers with Approved, Changes requested, Commented, Dismissed, Awaiting review	ui-map 3.6	covered
 PR-06	action	'Request review'	ui-map 3.6	partly
 PR-06	action	Add or remove reviewers	services-map 3.7.5	missing

@@ -2378,7 +2378,7 @@ export class GithubService {
 		return sent.ok ? ok(undefined) : err(sent.error);
 	}
 
-	/** Opens GitHub's new-PR page in the browser. */
+	/** Backs `Actions.pullRequests.openOnGithub`: opens GitHub's new-PR page in the browser. */
 	async openOnGithub(workspaceId: WorkspaceId): Promise<Result<void>> {
 		const context = await this.#deps.contextOf(workspaceId);
 		if (!context.ok) return err(context.error);

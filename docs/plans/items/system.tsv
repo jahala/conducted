@@ -2354,7 +2354,7 @@ PR-04	operation	Check logs open from a check row, with messages for logs that ca
 PR-04	operation	Queue checks is offered on the checks list; what it does is not yet known.	ui-map 3.6	partly
 PR-03	state	Deployments show states Deployed, Failed, Deploying, Pending and Inactive for known providers.	ui-map 3.6	covered
 PR-04	git	PR comments show Resolved and Outdated markers and can be resolved.	ui-map 3.6	covered
-PR-04	operation	PR comments can be hidden; there is no stored flag or API action for it.	ui-map 3.6	partly
+PR-04	operation	PR comments can be hidden: the stored comment state is hidden, set with Actions.comments.setHidden.	ui-map 3.6	covered
 PR-03	state	Reviewers show Approved, Changes requested, Commented, Dismissed or Awaiting review.	ui-map 3.6	covered
 PR-06	git	Request review asks GitHub for a review from a reviewer; the API has no such action.	ui-map 3.6	partly
 CLOUD-16	capability	The git panel can have a Desktop tab with the cloud desktop stream.	ui-map 3.6	missing
@@ -2867,7 +2867,7 @@ WS-09	rule	Show the Archive workspace badge from workspace archive state (moved 
 WS-09	rule	Animate the row icon when internal_workspace_status_matrix is on (moved from NAV-03 by the step-6 audit).	docs/reports/audits/step-6	missing
 NAV-11	rule	Mark the hovered workspace read or unread (moved from NAV-03 by the step-6 audit).	docs/reports/audits/step-6	missing
 NAV-04	rule	Pin or unpin the hovered workspace (moved from NAV-03 by the step-6 audit).	docs/reports/audits/step-6	missing
-PR-04	rule	Add Actions.pullRequests.openOnGithub (contract change in core/api.ts and mapping in core/actions.ts) and wire the button in PrSummaryHeader.tsx / PrTab.tsx (moved from PR-02 by the step-6 audit).	docs/reports/audits/step-6	missing
+PR-04	rule	Actions.pullRequests.openOnGithub opens GitHub's new pull request page; the Checks tab's Create PR calls it (PrTab is PR-07's) (moved from PR-02 by the step-6 audit).	docs/reports/audits/step-6	covered
 SIDE-06	rule	Compare apps/desktop/src/core/git/refs.ts with packages/sidecar/src/checkpoints/checkpoint-id.ts (prefix, phase, exit codes, id format) (moved from SIDE-06 by the step-6 audit).	docs/reports/audits/step-6	missing
 RUN-01	rule	TerminalsService.runScript, TerminalsService.outputFor and RunScriptsService.stopWorkspace are still notImplemented, so creating a workspace with a setup script and Cancel cannot run the real path; add RUN-01 and RUN-07 to WS-03's blockers and build them there, including the real TerminalsService test with a fake PTY (moved from WS-03 by the step-6 audit).	docs/reports/audits/step-6	missing
 PR-02	rule	Move SETUP_FIX_PROMPT, ADD_SETUP_PROMPT and the log-tail wording into agent-instructions.ts; PR-02 owns that file and is being edited in parallel (moved from WS-03 by the step-6 audit).	docs/reports/audits/step-6	missing
