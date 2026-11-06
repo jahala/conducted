@@ -25,27 +25,27 @@ The values are Conductor 0.92.1's, measured in `research/conductor/ui-dimensions
 
 ## Component dimensions
 
-| Part                          | Size                                                                                                                                                               |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Left sidebar                  | 256px default, 192px to 480px, collapses to 0; 8px resize rail                                                                                                     |
-| Centre and right panel        | 65% and 35%, each at least 30%; the right panel collapses to 0 (Conductor asks for 70 and 35 and rescales)                                                         |
-| Right panel split             | 50% and 50%; the scripts panel is at least 20% and collapses to its 32px tab strip                                                                                 |
-| Title bar, headers, tab strip | 40px (`--titlebar-height`); scripts panel tabs 32px; traffic-light clearance 66px                                                                                  |
-| Tabs                          | chat tab 176px; other tabs 128px (80px to 160px); 2px accent underline when active; close button 20px                                                              |
-| Sidebar rows                  | nav row 32px, workspace row 36px, section header 28px; 6px side padding and 6px radius                                                                             |
-| Lists                         | file tree row 28px with 20px indent; changes row 28px; commit row 32px                                                                                             |
-| Menus                         | item 32px (8px by 6px padding); content 4px padding, 8px radius, at least 128px wide                                                                               |
-| Command palette               | 672px wide as measured on the owner's capture (the bundle's research says 576px), at most 500px tall; input 44px; items 44px                                       |
-| Dialogs                       | 512px default with 24px padding and 16px gap; sizes 384, 448, 512, 576, 672, 768, 896px                                                                            |
-| Buttons                       | 24, 28, 32 (default) and 44px tall; icon buttons 24, 28 and 32px square                                                                                            |
-| Inputs                        | input and select 32px; textarea at least 60px; checkbox 16px; switch 40 by 20px with a 16px thumb                                                                  |
-| Chat                          | column at most 896px with 28px side padding; user bubble at most 576px (768px on wide windows) with 12px by 16px padding                                           |
-| Chat rows                     | tool call and thinking rows 32px (6px by 8px, pulled out 8px), 12px icon; a finished turn folds runs of three or more into one row; tool output in the `well` fill |
-| Composer                      | 12px radius, at least 152px tall; editor 88px to 188px; send button 24px                                                                                           |
-| Settings                      | 256px nav; content at most 896px with 40px side padding; rows split by a 1px line and 20px space                                                                   |
-| Toasts                        | 356px wide                                                                                                                                                         |
-| Terminal and diff             | terminal 12px text at 1.2 line height with 8px padding; diff 13px on 20px lines                                                                                    |
-| Icons                         | 12px, 14px and 16px for nearly everything                                                                                                                          |
+| Part                          | Size                                                                                                                                                                     |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Left sidebar                  | 256px default, 192px to 480px, collapses to 0; 8px resize rail                                                                                                           |
+| Centre and right panel        | 65% and 35%, each at least 30%; the right panel collapses to 0 (Conductor asks for 70 and 35 and rescales)                                                               |
+| Right panel split             | 50% and 50%; the scripts panel is at least 20% and collapses to its 32px tab strip                                                                                       |
+| Title bar, headers, tab strip | 40px (`--titlebar-height`); scripts panel tabs 32px; traffic-light clearance 66px                                                                                        |
+| Tabs                          | chat tab 176px; other tabs 128px (80px to 160px); 2px accent underline when active; close button 20px                                                                    |
+| Sidebar rows                  | nav row 32px, workspace row 36px, section header 28px; 6px side padding and 6px radius                                                                                   |
+| Lists                         | file tree row 28px with 20px indent; changes row 28px; commit row 32px                                                                                                   |
+| Menus                         | item 32px (8px by 6px padding); content 4px padding, 8px radius, at least 128px wide                                                                                     |
+| Command palette               | 672px wide as measured on the owner's capture (the bundle's research says 576px), at most 500px tall; input 44px; items 44px                                             |
+| Dialogs                       | 512px default with 24px padding and 16px gap; sizes 384, 448, 512, 576, 672, 768, 896px                                                                                  |
+| Buttons                       | 24, 28, 32 (default) and 44px tall; icon buttons 24, 28 and 32px square                                                                                                  |
+| Inputs                        | input and select 32px; textarea at least 60px; checkbox 16px; switch 40 by 20px with a 16px thumb                                                                        |
+| Chat                          | column at most 896px with 28px side padding; user bubble aligned right, at most 576px (768px on wide windows) with 12px by 16px padding, in the `highlight-surface` fill |
+| Chat rows                     | tool call and thinking rows 32px (6px by 8px, pulled out 8px), 12px icon; a finished turn folds runs of three or more into one row; tool output in the `well` fill       |
+| Composer                      | 12px radius, at least 152px tall; editor 88px to 188px; send button 24px                                                                                                 |
+| Settings                      | 256px nav; content at most 896px with 40px side padding; rows split by a 1px line and 20px space                                                                         |
+| Toasts                        | 356px wide                                                                                                                                                               |
+| Terminal and diff             | terminal 12px text at 1.2 line height with 8px padding; diff 13px on 20px lines                                                                                          |
+| Icons                         | 12px, 14px and 16px for nearly everything                                                                                                                                |
 
 ## AA adjustments
 

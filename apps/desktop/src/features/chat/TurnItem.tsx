@@ -28,6 +28,7 @@ import { memo, useRef } from "react";
 import { createSingleFlight } from "../../core/async/single-flight.ts";
 import { useActions } from "../../core/hooks.ts";
 import type { ChatBlock, ChatTurn } from "../../core/model.ts";
+import { cn } from "../../ui/cn.ts";
 import { ErrorBoundary } from "../../ui/ErrorBoundary.tsx";
 import { ChatBanner, ChatRetryBanner } from "./ChatBanner.tsx";
 import { ChatBlockView } from "./ChatBlockView.tsx";
@@ -178,7 +179,16 @@ export const TurnItem = memo(function TurnItem({
 				) : null}
 				{turn.steers.map((steer) => (
 					<div key={steer.messageId} className="flex justify-end">
-						<div className="max-w-[min(100%,var(--user-bubble-width))] rounded-sm bg-muted px-4 py-3 text-sm text-fg lg:max-w-[min(100%,var(--user-bubble-width-wide))]">
+						<div
+							className={cn(
+								"max-w-[min(100%,var(--user-bubble-width))] overflow-hidden break-words rounded-sm px-4 py-3 text-sm transition-colors duration-300 lg:max-w-[min(100%,var(--user-bubble-width-wide))]",
+								// Conductor's tones: a steer the agent has read is the user's own bubble; one still
+								// waiting is drawn as queued, in the muted pair.
+								steer.consumed
+									? "bg-highlight-surface text-highlight-fg"
+									: "bg-muted text-fg-muted",
+							)}
+						>
 							<p className="whitespace-pre-wrap break-words select-text">{steer.text}</p>
 							{steer.consumed ? null : <p className="mt-1 text-2xs text-fg-subtle">Pending</p>}
 						</div>

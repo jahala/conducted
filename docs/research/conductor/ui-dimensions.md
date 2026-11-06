@@ -142,7 +142,7 @@ Light is `:root, .light` (CSS@400245). Dark is `.dark` (CSS@403276). Translucent
 | sidebar-background | #fafaf9 | #211e1c | Sidebar, headers and tab strips (drawn at 60% opacity over the window) |
 | card | #ffffff | #2c2826 | Cards |
 | popover | #ffffff | #2c2826 | Menus, popovers |
-| muted | #fafaf9 | #211e1c | Composer, user bubble, code blocks |
+| muted | #fafaf9 | #211e1c | Composer, queued user bubble, code blocks |
 | accent | #fafaf9 | #2c2826 | Neutral hover or active fill (not the brand accent) |
 | secondary | #fafaf9 | #211e1c | Secondary button |
 | foreground | #2c2826 | #eae8e6 | Body text, default button fill |
@@ -179,7 +179,7 @@ Light is `:root, .light` (CSS@400245). Dark is `.dark` (CSS@403276). Translucent
 | border-highlight | #a4847f | #cca694 | Accent border |
 | unread | #a4847f | #cca694 | Unread dot and icons |
 | plan-border | #cca694 | #836967 | Plan mode border |
-| highlight | #faf7f5 | #2a1e1d | Highlight surface |
+| highlight | #faf7f5 | #2a1e1d | Highlight surface; the user's own chat bubble (R@9519197) |
 | highlight-foreground | #594545 | #f3ece7 | Text on highlight |
 | warning | #faf7f5 | #413030 | Warning surface |
 | warning-foreground | #594545 | #f3ece7 | Warning text |
@@ -362,7 +362,7 @@ Row heights marked INFERRED are padding plus the 20px line of text-sm or the 16p
 | Turn block | 28px sides, 8px top and bottom, 4px gap | R@9595770 |
 | Gap between messages in a turn | 4px | R@9595236 |
 | User message | Extra 12px top and bottom | R@9594110 |
-| User bubble | Right aligned; max width 576px, 768px on windows 1024px and wider; 12px top and bottom, 16px sides; 4px radius; muted fill; text-sm with preserved line breaks; colour change 300ms | R@9519197, R@9519641 |
+| User bubble | Right aligned; max width 576px, 768px on windows 1024px and wider; 12px top and bottom, 16px sides; 4px radius; the highlight pair for the user's own message (tone "current"), muted fill with muted text while queued, muted for another person's message; text-sm with preserved line breaks; colour change 300ms | R@9519197, R@9519641 |
 | Assistant text | Markdown at 14px on a 24px line (ratio 1.714); paragraphs 16px apart | CSS@39516, R@8131838, R@9738096 |
 | Tool call row (collapsed) | 8px gap, 6px top and bottom, 8px sides pulled out by 8px so text aligns, 4px radius, hover fill muted at 50%. Height 32px INFERRED | R@8747084 |
 | Tool output block | Mono text-xs medium, 12px padding, 6px radius, 1px border, accent (neutral) fill. Errors use destructive at 10% fill and 20% border | R@8748778, R@8751079 |

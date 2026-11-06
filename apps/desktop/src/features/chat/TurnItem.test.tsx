@@ -185,6 +185,21 @@ describe("CHAT-06 chat turn", () => {
 		expect(screen.getByText("This turn was reverted.")).toBeTruthy();
 	});
 
+	// Conductor's tones: a read steer is the user's own highlight bubble, a waiting one the muted queued one.
+	it("draws a read steer in the highlight fill and a waiting one in the muted fill", () => {
+		const value = turn({
+			steers: [
+				{ messageId: "m2" as never, text: "wait", at: 12, consumed: false },
+				{ messageId: "m3" as never, text: "also this", at: 13, consumed: true },
+			],
+		});
+		render(<TurnItem turn={value} sessionId={sessionId} />);
+		expect(screen.getByText("also this").parentElement?.className).toContain(
+			"bg-highlight-surface",
+		);
+		expect(screen.getByText("wait").parentElement?.className).toContain("bg-muted");
+	});
+
 	it("does not show a footer while the turn runs", () => {
 		const value = turn({ outcome: "running", endedAt: null, usage: null });
 		render(<TurnItem turn={value} sessionId={sessionId} />);
