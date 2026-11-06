@@ -182,6 +182,8 @@ export const textPairs: [string, string][] = [
 	...on("code-function", ["muted"]),
 	...on("code-class", ["muted"]),
 	...on("code-tag", ["muted"]),
+	...on("merged", ["surface"]),
+	["on-merged", "merged"],
 	...on("callout-note", ["canvas"]),
 	...on("callout-tip", ["canvas"]),
 	...on("callout-important", ["canvas"]),

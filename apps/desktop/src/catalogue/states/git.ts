@@ -109,7 +109,7 @@ export const GIT_STATES: CatalogueState[] = [
 		title: "Changes tab, nothing changed (empty)",
 		seed: arborScene({
 			git: { arborFiles: [] },
-			ready: (document) => shows(document, "Changes appear here"),
+			ready: (document) => shows(document, "No file changes yet"),
 		}),
 	},
 	{

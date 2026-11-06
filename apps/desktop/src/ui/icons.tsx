@@ -167,6 +167,12 @@ export const GearIcon = (p: P) => (
 		{...p}
 	/>
 );
+export const GitCompareIcon = (p: P) => (
+	<Icon
+		d="M4.5 5.75a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5zM11.5 12.75a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5zM4.5 5.75V11a1.5 1.5 0 0 0 1.5 1.5h2M11.5 10.25V5a1.5 1.5 0 0 0-1.5-1.5H8"
+		{...p}
+	/>
+);
 export const SlashIcon = (p: P) => <Icon d="M11 2.5L5 13.5" {...p} />;
 export const SendIcon = (p: P) => <Icon d="M14 2L7 9M14 2l-4.5 12-2.5-5-5-2.5z" {...p} />;
 export const SquareCheckIcon = (p: P) => <Icon d="M2.5 2.5h11v11h-11zM5.5 8l2 2 3.5-4" {...p} />;

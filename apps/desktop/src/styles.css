@@ -146,6 +146,10 @@
 	--color-success: light-dark(#12853c, #4ade80);
 	--color-info: light-dark(#0c9adc, #3c83f6);
 
+	/* A merged pull request: the git header's word and tint (Conductor's purple, AA-adjusted in light). */
+	--color-merged: light-dark(#9333ea, #c084fc);
+	--color-on-merged: light-dark(#ffffff, #141110);
+
 	/* Workspace status marks. They sit on sidebar rows, so they meet 3:1 on the hover tint too. */
 	--color-status-backlog: #8e8885;
 	--color-status-progress: light-dark(#a28700, #ffdc2e);

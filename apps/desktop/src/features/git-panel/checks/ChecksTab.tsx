@@ -15,7 +15,10 @@
  * state to hidden through `actions.comments.setHidden` (REV-12); hidden and superseded comments
  * are left out of the list, and a sync keeps a hidden GitHub comment hidden.
  * Children: PrSummaryHeader, ChecksList, DeploymentsList, PrCommentsList, ReviewersList.
- * Must handle: no PR yet (explain, offer Create PR), PR info loading, offline, no GitHub access
+ * Before a pull request exists the tab shows the workspace's title, its drafted description and "Git
+ * status" rows ("No PR open" with Create PR, "N uncommitted changes" with Commit and push, "N commits
+ * behind the remote branch" with Pull), measured from Conductor's Checks tab and the owner's capture.
+ * Must handle: no PR yet (the Git status rows), PR info loading, offline, no GitHub access
  * (explain how to sign in with `gh auth login`), and a repository without a GitHub remote (the tab
  * says checks need GitHub).
  * Test first: with a PR that has one failed check, the tab shows the failed check and a "Re-run
@@ -29,8 +32,10 @@ import { useStore } from "zustand";
 import { useServices } from "../../../core/context.tsx";
 import { useActions, useDiffComments, useGitState, useSetting } from "../../../core/hooks.ts";
 import type { GitState, PullRequest } from "../../../core/model.ts";
+import type { GitHeaderActionId } from "../../../core/status/git-header.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
+import { CircleIcon } from "../../../ui/icons.tsx";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
 import { Spinner } from "../../../ui/Spinner.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
@@ -42,6 +47,11 @@ import { ReviewersList } from "./ReviewersList.tsx";
 
 export interface ChecksTabProps {
 	workspaceId: WorkspaceId;
+	/** Runs a git header action (Create PR, Commit and push, Pull) from a Git status row. */
+	onGitAction?: (action: GitHeaderActionId) => void;
+	/** The workspace's title and the pull request description drafted for it, shown above Git status. */
+	title?: string;
+	description?: string | null;
 }
 
 function LoadingChecks() {
@@ -54,7 +64,7 @@ function LoadingChecks() {
 	);
 }
 
-export function ChecksTab({ workspaceId }: ChecksTabProps) {
+export function ChecksTab({ workspaceId, onGitAction, title, description }: ChecksTabProps) {
 	const git = useGitState(workspaceId);
 	const comments = useDiffComments(workspaceId);
 	const actions = useActions();
@@ -190,6 +200,18 @@ export function ChecksTab({ workspaceId }: ChecksTabProps) {
 	}
 
 	const pullRequest: PullRequest | null = git.data.pullRequest;
+	const unavailable = git.data.pullRequestUnavailable;
+	if (pullRequest === null && (unavailable === null || unavailable === "none")) {
+		return (
+			<GitStatusView
+				git={git.data}
+				title={title}
+				description={description ?? null}
+				onGitAction={onGitAction}
+				onCreatePr={createOnGithub}
+			/>
+		);
+	}
 	if (pullRequest === null) {
 		return (
 			<div className="flex h-full min-h-0 flex-col overflow-auto">
@@ -256,6 +278,87 @@ export function ChecksTab({ workspaceId }: ChecksTabProps) {
 					);
 				}}
 			/>
+		</div>
+	);
+}
+
+/** A Git status row: an open circle, the sentence, and the action at the right. */
+function StatusRow({
+	text,
+	action,
+	onAction,
+}: {
+	text: string;
+	action: string;
+	onAction?: () => void;
+}) {
+	return (
+		<li className="flex h-10 items-center gap-2 text-sm text-fg">
+			<CircleIcon className="size-4 shrink-0 text-fg-muted" />
+			<span className="min-w-0 flex-1 truncate">{text}</span>
+			{onAction === undefined ? null : (
+				<Button variant="ghost" size="xs" className="shrink-0 text-fg-muted" onClick={onAction}>
+					{action}
+				</Button>
+			)}
+		</li>
+	);
+}
+
+const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
+
+/**
+ * The Checks tab before a pull request exists, after Conductor: the workspace's title and its drafted
+ * description, then "Git status" with what is left to do and the action for each.
+ */
+function GitStatusView({
+	git,
+	title,
+	description,
+	onGitAction,
+	onCreatePr,
+}: {
+	git: GitState;
+	title: string | undefined;
+	description: string | null;
+	onGitAction?: (action: GitHeaderActionId) => void;
+	/** Create PR here opens GitHub's new pull request page, as this tab did before. */
+	onCreatePr: () => void;
+}) {
+	const act = (action: GitHeaderActionId) =>
+		onGitAction === undefined ? undefined : () => onGitAction(action);
+	return (
+		<div className="flex h-full min-h-0 flex-col gap-4 overflow-auto px-4 py-3">
+			{title === undefined ? null : (
+				<div className="flex min-h-0 flex-col gap-1">
+					<h2 className="truncate text-sm font-medium text-fg">{title}</h2>
+					{description === null || description.trim() === "" ? null : (
+						<p className="max-h-60 overflow-auto whitespace-pre-wrap text-xs text-fg-muted select-text">
+							{description}
+						</p>
+					)}
+				</div>
+			)}
+			<section aria-label="Git status">
+				<h3 className="mb-1 text-xs text-fg-muted">Git status</h3>
+				<ul className="flex flex-col">
+					<StatusRow text="No PR open" action="Create PR" onAction={onCreatePr} />
+					{git.uncommittedFiles > 0 ? (
+						<StatusRow
+							text={plural(git.uncommittedFiles, "uncommitted change")}
+							action="Commit and push"
+							onAction={act("commit_and_push")}
+						/>
+					) : null}
+					{git.sync.behind > 0 ? (
+						<StatusRow
+							text={`${plural(git.sync.behind, "commit")} behind the remote branch`}
+							action="Pull"
+							onAction={act("pull")}
+						/>
+					) : null}
+				</ul>
+			</section>
 		</div>
 	);
 }

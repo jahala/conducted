@@ -125,6 +125,8 @@ describe("REV-01 changes tab", () => {
 		renderChanges();
 		expect(screen.getByLabelText("Open src/a/x.ts")).toBeTruthy();
 		expect(screen.getByLabelText("Open src/b/y.ts")).toBeTruthy();
+		// The filter opens from a search icon, as in Conductor's Changes tab.
+		fireEvent.click(screen.getByRole("button", { name: "Search changed files" }));
 		fireEvent.change(screen.getByRole("textbox", { name: "Filter changed files" }), {
 			target: { value: "src/a" },
 		});
@@ -202,7 +204,8 @@ describe("REV-01 changes tab", () => {
 
 	it("says changes appear here when the list is empty", () => {
 		renderChanges();
-		expect(screen.getByRole("heading", { name: "Changes appear here" })).toBeTruthy();
+		// Conductor's empty Changes tab: "No file changes yet", then "Changes appear here."
+		expect(screen.getByRole("heading", { name: "No file changes yet" })).toBeTruthy();
 	});
 
 	it("CHAT-15 refuses a single-file revert in a per-turn view", async () => {

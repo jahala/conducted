@@ -301,8 +301,22 @@ export function ChangesTab({
 		if (filtered.length === 0) {
 			return <ChangesEmpty reason="filter_no_match" onClearFilter={() => setFilter("")} />;
 		}
+		const totalAdded = filtered.reduce((sum, file) => sum + (file.binary ? 0 : file.linesAdded), 0);
+		const totalRemoved = filtered.reduce(
+			(sum, file) => sum + (file.binary ? 0 : file.linesRemoved),
+			0,
+		);
 		return (
 			<div className="flex min-h-0 flex-1 flex-col">
+				<div className="flex h-8 shrink-0 items-center gap-2 border-b border-separator px-5 text-sm text-fg">
+					<span className="flex-1">
+						{filtered.length} {filtered.length === 1 ? "file" : "files"} changed
+					</span>
+					<span className="flex items-center gap-1 font-mono text-xs">
+						<span className="text-git-added">+{totalAdded}</span>
+						<span className="text-git-removed">-{totalRemoved}</span>
+					</span>
+				</div>
 				<ChangedFileList
 					nodes={nodes}
 					selectedPath={selected}
