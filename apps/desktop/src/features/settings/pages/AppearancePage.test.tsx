@@ -222,7 +222,7 @@ describe("SET-06 AppearancePage", () => {
 
 		fireEvent.keyDown(document, { key: "0", metaKey: true });
 		await waitFor(() => expect(values(test).zoom_level_v2).toBe(1));
-		await waitFor(() => expect(document.documentElement.style.getPropertyValue("zoom")).toBe("1"));
+		await waitFor(() => expect(test.memory.controls.windowZoom).toBe(1));
 	});
 
 	it("puts the stored terminal font size back when the save is refused", async () => {

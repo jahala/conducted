@@ -47,6 +47,7 @@ import {
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { Image } from "@tauri-apps/api/image";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
 	writeImage as writeClipboardImage,
@@ -139,6 +140,11 @@ export interface TauriWindowBindings {
 	isFocused(): Promise<boolean>;
 	listen<T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn>;
 	onDragDropEvent(handler: (event: TauriDragDropEvent) => void): Promise<UnlistenFn>;
+	setTheme(theme: "light" | "dark" | null): Promise<void>;
+}
+
+export interface TauriWebviewBindings {
+	setZoom(factor: number): Promise<void>;
 }
 
 export interface TauriBindings {
@@ -146,6 +152,8 @@ export interface TauriBindings {
 	listen<T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn>;
 	/** The current window. Focus events arrive on it, not on the app-wide event bus. */
 	window?: TauriWindowBindings;
+	/** The current webview, for its zoom. */
+	webview?: TauriWebviewBindings;
 	/** tauri-plugin-sql, present on the real bindings and in a test that opens a database. */
 	sql?: { load(path: string): Promise<SqlDatabase> };
 	/** tauri-plugin-dialog. */
@@ -189,6 +197,10 @@ export const realTauriBindings: TauriBindings = {
 			getCurrentWindow().listen(event, (e) => handler(e.payload as never)),
 		onDragDropEvent: (handler) =>
 			getCurrentWindow().onDragDropEvent((event) => handler(event.payload)),
+		setTheme: (theme) => getCurrentWindow().setTheme(theme),
+	},
+	webview: {
+		setZoom: (factor) => getCurrentWebview().setZoom(factor),
 	},
 	sql: { load: (path) => Sql.load(path) as Promise<SqlDatabase> },
 	dialog: {
@@ -301,10 +313,17 @@ export const COMMANDS = {
 	setQuitHandlerReady: "set_quit_handler_ready",
 	systemInfo: "system_info",
 	networkStatus: "network_status", // PLAT-26
+<<<<<<< HEAD
 	fullDiskAccessCheck: "full_disk_access_check",
 	fullDiskAccessOpenSettings: "full_disk_access_open_settings",
 	windowSetVibrancy: "window_set_vibrancy", // PLAT-23
 	windowSetTrafficLights: "window_set_traffic_lights", // PLAT-23
+=======
+	fullDiskAccessCheck: "full_disk_access_check", // PLAT-24
+	fullDiskAccessOpenSettings: "full_disk_access_open_settings", // PLAT-24
+	windowSetVibrancy: "window_set_vibrancy",
+	windowSetTrafficLights: "window_set_traffic_lights",
+>>>>>>> node/plat.23
 	windowToggleInspector: "window_toggle_inspector",
 	dbVersionCheck: "db_version_check",
 	shellRun: "shell_run",
@@ -1096,10 +1115,24 @@ export function createTauriWindow(bindings: TauriBindings): AppWindow {
 				(event) => listener(toFileDropEvent(event)),
 			);
 		},
-		setZoom: () => notImplemented("PLAT-23"),
-		setVibrancy: () => notImplemented("PLAT-23"),
-		setTrafficLightPosition: () => notImplemented("PLAT-23"),
-		setTheme: () => notImplemented("PLAT-23"),
+		setZoom: async (factor) => {
+			try {
+				await requireBinding(bindings.webview, "webview").setZoom(factor);
+				return ok(undefined);
+			} catch (error) {
+				return err(toAppError(error));
+			}
+		},
+		setVibrancy: (enabled) => invokeResult<void>(bindings, COMMANDS.windowSetVibrancy, { enabled }),
+		setTrafficLightPosition: (x, y) =>
+			invokeResult<void>(bindings, COMMANDS.windowSetTrafficLights, { x, y }),
+		setTheme: async (theme) => {
+			try {
+				await currentWindow().setTheme(theme);
+			} catch (error) {
+				throw toAppError(error);
+			}
+		},
 		toggleInspector: async () => {
 			const result = await invokeResult(bindings, COMMANDS.windowToggleInspector);
 			if (!result.ok) throw result.error;

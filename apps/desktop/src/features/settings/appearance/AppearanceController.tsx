@@ -1,9 +1,10 @@
 /**
  * @feature SET-06 Appearance applied to the whole app
- * Owns: writing the appearance settings (theme, softer dark theme, colour-vision palette, sidebar
- * transparency and app zoom) onto <html> for every screen, the four shortcuts that change them from
- * any screen (Cmd+Alt+T switches the theme, Cmd++ or Cmd+= zooms in, Cmd+- zooms out, Cmd+0 resets
- * the zoom), and the zoom range the Appearance page shares.
+ * Owns: writing the theme, softer dark theme, colour-vision palette and sidebar transparency onto
+ * <html> for every screen, handing the theme, zoom, sidebar transparency and traffic-light inset
+ * to the window through the Platform (PLAT-23), the four shortcuts that change them from any
+ * screen (Cmd+Alt+T switches the theme, Cmd++ or Cmd+= zooms in, Cmd+- zooms out, Cmd+0 resets the
+ * zoom), and the zoom range the Appearance page shares.
  * Behaviour: ui-map.md 5.4 (the four shortcuts), 6 (Appearance), 8 (themes and colour variants).
  * Our design choice: mounted once in the root layout (app/router.tsx). A layout effect writes the
  * attributes before the browser paints the root, and the store listener writes them again in the
@@ -11,13 +12,15 @@
  * so the first shell it draws already has the saved theme and zoom. The zoom limits and default are
  * the registry's (`zoom_level_v2`); one step is 10%.
  * Must handle: an unknown stored value (no attribute, logged), a stored zoom outside the registry's
- * range (clamped to it), a save that fails (toast), and "System" theme: Cmd+Alt+T switches away from
- * the theme the user sees, so on a dark Mac the first press gives Light.
+ * range (clamped to it), a save that fails (toast), a window call that fails (logged), and "System"
+ * theme: Cmd+Alt+T switches away from the theme the user sees, so on a dark Mac the first press
+ * gives Light.
  * Test first: on /settings/general, Cmd+Alt+T stores "dark" and writes data-theme="dark".
  */
 import type { Result } from "@conducted/shared";
 import { useLayoutEffect } from "react";
 import { useCommandHandler } from "../../../app/command-dispatcher.ts";
+import { fireAndForget } from "../../../core/async/fire-and-forget.ts";
 import { useServices } from "../../../core/context.tsx";
 import { useActions } from "../../../core/hooks.ts";
 import { getSettingDef } from "../../../core/registries/settings.ts";
@@ -47,15 +50,8 @@ function steppedZoom(value: number, direction: 1 | -1): number {
 	return clampZoom(value + direction * ZOOM.step);
 }
 
-/** Writes the app zoom onto the document element. Returns the value that was applied. */
-function applyZoom(
-	root: { style: { setProperty(name: string, value: string): void } },
-	value: number,
-): number {
-	const applied = clampZoom(value);
-	root.style.setProperty("zoom", String(applied));
-	return applied;
-}
+/** Where the window puts the close, minimise and zoom buttons, in points from the top left. */
+const TRAFFIC_LIGHT_INSET = { x: 13, y: 13 } as const;
 
 /**
  * The theme Cmd+Alt+T stores: the opposite of the one on screen. A stored value other than light or
@@ -96,14 +92,40 @@ export function AppearanceController() {
 				platform.app.writeLog("warn", "Unknown appearance setting value", { key, value });
 			},
 		);
-		const applyStoredZoom = () => {
-			applyZoom(root, services.settings.get<number>("zoom_level_v2"));
+		const report = (title: string) => (error: unknown) => {
+			platform.app.writeLog("warn", title, {
+				error: error instanceof Error ? error.message : String(error),
+			});
 		};
-		applyStoredZoom();
-		const disposeZoom = services.settings.store.subscribe(applyStoredZoom);
+		const reportResult = (result: Promise<Result<void>>, title: string) => {
+			fireAndForget(async () => {
+				const outcome = await result;
+				if (!outcome.ok) throw outcome.error;
+			}, report(title));
+		};
+		const applyWindowLook = () => {
+			const zoom = clampZoom(services.settings.get<number>("zoom_level_v2"));
+			reportResult(platform.window.setZoom(zoom), "Couldn't zoom the window");
+
+			const storedTheme = services.settings.get<unknown>("theme");
+			const windowTheme = storedTheme === "light" || storedTheme === "dark" ? storedTheme : null;
+			fireAndForget(
+				() => platform.window.setTheme(windowTheme),
+				report("Couldn't set the window theme"),
+			);
+
+			const vibrancy = services.settings.get<unknown>("experimental_sidebar_transparency") === true;
+			reportResult(platform.window.setVibrancy(vibrancy), "Couldn't set the window transparency");
+			reportResult(
+				platform.window.setTrafficLightPosition(TRAFFIC_LIGHT_INSET.x, TRAFFIC_LIGHT_INSET.y),
+				"Couldn't move the traffic lights",
+			);
+		};
+		applyWindowLook();
+		const disposeWindowLook = services.settings.store.subscribe(applyWindowLook);
 		return () => {
 			disposeTheme();
-			disposeZoom();
+			disposeWindowLook();
 		};
 	}, [platform, services]);
 
