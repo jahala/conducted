@@ -91,6 +91,12 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0007_session_fork_resume.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 8,
+            description: "backlog_repo_optional",
+            sql: include_str!("../migrations/0008_backlog_repo_optional.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

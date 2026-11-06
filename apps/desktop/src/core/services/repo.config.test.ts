@@ -150,7 +150,7 @@ function makeService(options: { withWindow?: boolean; repo?: Repo | null } = {})
 		git: {} as GitRunner,
 		repos: { repos, settings: {} as RepoServiceDeps["repos"]["settings"] },
 		settings,
-		removal: { removeWorkspacesOf: async () => ok(undefined) },
+		removal: { removeWorkspacesOf: async () => ok(undefined), releaseBacklogOf: () => {} },
 	});
 
 	return {

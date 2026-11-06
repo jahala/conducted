@@ -408,6 +408,8 @@ export interface Actions {
 		/** Starts a backlog workspace: worktree, setup, and the first message. */
 		startFromBacklog: Act<[id: WorkspaceId], Workspace>;
 		removeFromBacklog: Act<[id: WorkspaceId]>;
+		/** Chooses the repository a backlog workspace starts in, when its own was removed. */
+		setBacklogRepo: Act<[id: WorkspaceId, repoId: RepoId]>;
 	};
 	sections: {
 		create: Act<[name: string, emoji: string | null], Section>;

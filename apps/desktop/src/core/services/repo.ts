@@ -255,6 +255,8 @@ export function defaultBranchFrom(
 /** Called before a repo is removed so running scripts stop and workspaces go. */
 export interface RepoRemovalPort {
 	removeWorkspacesOf(repoId: RepoId): Promise<Result<void>>;
+	/** After the repository row is gone: its backlog drafts now have no repository (WS-11). */
+	releaseBacklogOf(repoId: RepoId): void;
 }
 
 export interface RepoServiceDeps {
@@ -834,6 +836,8 @@ export class RepoService {
 		if (!workspaces.ok) return workspaces;
 		const deleted = await this.#deps.repos.repos.delete(repoId);
 		if (!deleted.ok) return deleted;
+		// Its backlog drafts stay, with no repository (WS-11).
+		this.#deps.removal.releaseBacklogOf(repoId);
 		// A config read still running must not put the removed project back in the store.
 		this.#nextConfigLoad(repoId);
 

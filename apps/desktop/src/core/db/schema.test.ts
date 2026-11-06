@@ -794,7 +794,7 @@ describe("lifetime statements", () => {
 });
 
 describe("the tables of migration 0004", () => {
-	it("backlog workspaces round-trip and go with their repo", () => {
+	it("backlog workspaces round-trip and outlive their repo with no repository", () => {
 		run(REPOS_SQL.insert, repoToParams(sampleRepo));
 		const entry = {
 			id: workspaceId,
@@ -817,7 +817,15 @@ describe("the tables of migration 0004", () => {
 		).toEqual(entry);
 		expect(rows(BACKLOG_WORKSPACES_SQL.listByRepo, [repoId])).toHaveLength(1);
 		run(REPOS_SQL.delete, [repoId]);
-		expect(rows(BACKLOG_WORKSPACES_SQL.list)).toHaveLength(0);
+		expect(rows(BACKLOG_WORKSPACES_SQL.list)).toHaveLength(1);
+		expect(rows(BACKLOG_WORKSPACES_SQL.listByRepo, [repoId])).toHaveLength(0);
+		expect(
+			must(
+				backlogWorkspaceFromRow(
+					one<BacklogWorkspaceRow>(BACKLOG_WORKSPACES_SQL.get, [workspaceId]),
+				),
+			).repoId,
+		).toBeNull();
 	});
 
 	it("a backlog workspace with a config that is not a SessionConfig is an error", () => {

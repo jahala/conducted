@@ -63,6 +63,7 @@ export function createActions(
 			addToBacklog: (input) => services.workspace.addToBacklog(input),
 			startFromBacklog: (id) => services.workspace.startFromBacklog(id),
 			removeFromBacklog: (id) => services.workspace.removeFromBacklog(id),
+			setBacklogRepo: (id, repoId) => services.workspace.setBacklogRepo(id, repoId),
 		},
 		sections: {
 			create: (name, emoji) => services.sections.create(name, emoji),

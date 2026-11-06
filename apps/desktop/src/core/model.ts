@@ -1,6 +1,6 @@
 /**
  * The app's domain types, shared by services (src/core) and screens (src/features).
- * Rows mirror the migrations (0001 to 0004) after parsing; view models are what screens render.
+ * Rows mirror the migrations (0001 to 0008) after parsing; view models are what screens render.
  * Screens never read the database: they get these types from services through hooks.
  */
 import type {
@@ -134,7 +134,8 @@ export interface Workspace {
  */
 export interface BacklogWorkspace {
 	id: WorkspaceId;
-	repoId: RepoId;
+	/** Null when its repository was removed; the user picks another before starting it. */
+	repoId: RepoId | null;
 	/** The name the user gave it, shown in the sidebar. Null: the first line of the prompt. */
 	displayName: string | null;
 	/** The first message for the first chat. */

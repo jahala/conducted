@@ -2038,7 +2038,7 @@ WS-02	message	Creating from a pull request that is not in the loaded list shows 
 PR-09	message	Creating a workspace from an issue that gives no branch name shows "Cannot create workspace from this issue".	inventory:toast row 921	missing
 WS-02	message	Creating a workspace from a PR or issue with no repository chosen shows "No repository selected".	inventory:toast row 922	missing
 WS-11	message	"Added to backlog" confirms a workspace saved without a worktree.	ui-map 3.9, inventory:toast row 923	missing
-WS-11	message	Starting a backlog workspace with no ready repository shows "No ready repository. Pick one to start this workspace."	ui-map 3.9, inventory:toast row 634	missing
+WS-11	message	Starting a backlog workspace with no ready repository shows "No ready repository. Pick one to start this workspace."; removing a repository keeps its drafts (migration 0008) and the row's "Switch repo" picker gives one a repository.	ui-map 3.9, inventory:toast row 634	covered
 COMP-07	rule	Sending while an attachment is still being copied or shrunk is refused with "Wait for attachments to finish processing."	inventory:toast row 726	missing
 COMP-06	message	A typed slash command the agent or workspace does not offer shows "This command isn't available in this workspace."	inventory:toast row 729	missing
 COMP-06	message	Typing /plan for an agent without plan mode shows "Plan mode is not available in this chat."	inventory:toast row 730	missing
