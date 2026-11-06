@@ -79,6 +79,12 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0005_diff_comment_suggestion_base.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 6,
+            description: "model_context_windows",
+            sql: include_str!("../migrations/0006_model_context_windows.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

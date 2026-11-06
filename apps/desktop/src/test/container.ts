@@ -163,3 +163,13 @@ export async function seedFailedQueuedMessage(
 	must(await repositories.queuedMessages.setState(row.id, "waiting", "failed", lastError));
 	return row.id;
 }
+
+/** Stores the context window an agent reported for a model, as the event ingest records it. */
+export async function seedContextWindow(
+	container: Container,
+	agent: string,
+	model: string,
+	windowTokens: number,
+): Promise<void> {
+	must(await seedRepositories(container).modelContextWindows.record(agent, model, windowTokens));
+}

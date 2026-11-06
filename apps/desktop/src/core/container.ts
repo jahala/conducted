@@ -61,6 +61,7 @@ import { ChatTitleService } from "./services/chat-titles.ts";
 import { CHECKPOINT_PRUNE_AFTER_DAYS, CheckpointService } from "./services/checkpoint.ts";
 import { CommandRunner, createCommandHandlers } from "./services/command-runner.ts";
 import { ComposerService } from "./services/composer.ts";
+import { ContextWindowService } from "./services/context-windows.ts";
 import { FavoriteModelsService } from "./services/favorite-models.ts";
 import { FileDiffService } from "./services/file-diff.ts";
 import { FollowUpQueue } from "./services/follow-up-queue.ts";
@@ -129,6 +130,7 @@ export interface Services {
 	workspace: WorkspaceService;
 	sections: SectionsService;
 	favoriteModels: FavoriteModelsService;
+	contextWindows: ContextWindowService;
 	agentCatalog: AgentCatalogService;
 	mcp: McpService;
 	linear: LinearService;
@@ -257,6 +259,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 		request: (method, params) => tunnel.request(method, params),
 		notify: (method, params) => tunnel.notify(method, params),
 	};
+	const contextWindows = new ContextWindowService({
+		repository: () => repositories.modelContextWindows,
+	});
 	const ingest = new EventIngest({
 		repositories: () => repositories,
 		runInTransaction: (work) =>
@@ -266,6 +271,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 			onStored: (sessionId, envelope, idx) =>
 				sessions.applyStoredEvent(sessionId, idx, envelope.event, clock.now()),
 			isViewing: (sessionId) => sessions.store.getState().viewingSessionId === sessionId,
+			onContextWindow: (agent, model, windowTokens) =>
+				contextWindows.remember(agent, model, windowTokens),
 		},
 		log: (level, message, data) => platform.app.writeLog(level, message, data),
 	});
@@ -877,6 +884,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		workspace,
 		sections,
 		favoriteModels,
+		contextWindows,
 		agentCatalog,
 		mcp,
 		linear,
@@ -937,6 +945,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		},
 		{ name: "sections", phase: "services", fatal: false, run: () => sections.start() },
 		{ name: "favorite models", phase: "services", fatal: false, run: () => favoriteModels.start() },
+		{ name: "context windows", phase: "services", fatal: false, run: () => contextWindows.start() },
 		{ name: "terminals", phase: "services", fatal: false, run: () => terminals.start() },
 		{ name: "chats", phase: "services", fatal: true, run: () => sessions.start() },
 		{ name: "github access", phase: "services", fatal: false, run: () => github.checkAccess() },

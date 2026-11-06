@@ -42,6 +42,7 @@ const SERVICE_NAMES = Object.keys({
 	workspace: true,
 	sections: true,
 	favoriteModels: true,
+	contextWindows: true,
 	agentCatalog: true,
 	mcp: true,
 	linear: true,
