@@ -1,17 +1,29 @@
 /**
  * @feature SET-03 Agents settings page
+ * @feature SET-12 Claude settings and Codex config editors, Claude in Chrome switch
  * Owns: the Agents page of Settings: for each agent program, whether it is installed, its version
- * and path, whether it is signed in, and the sign-in action.
+ * and path, whether it is signed in, and the sign-in action. Also the Claude in Chrome switch and
+ * the way into each agent's own config editor (SET-12).
  * Behaviour: ui-map.md 6, "Agents" table and "Agents page" (provider search, one card per
  * provider: Claude Code, Codex, Cursor, OpenCode and Pi; states "Loaded from env", "API key
- * configured", "Validation failed", "Recommended"). Programs are downloaded, updated and removed
- * by the program manager (PLAT-28, D021), not by this page.
+ * configured", "Validation failed", "Recommended"; "Claude settings JSON", "Codex config" and
+ * "Use Claude Code with Chrome"). Programs are downloaded, updated and removed by the program
+ * manager (PLAT-28, D021), not by this page.
  * Data: useAgentInstalls() (AgentInstall: agent, acpAgent, installed, path, version,
+<<<<<<< HEAD
  * authenticated), useActions().agents (login, finishLogin, cancelLogin, refresh).
  * Children: agents/AgentCard, agents/AgentLoginDialog, agents/AgentProvidersDialog, and the MCP
  * servers region (SET-05: agents/McpServersSection.tsx).
  * Other owners: Claude settings and Codex config are SET-12; "Use Claude Code with Chrome" is
  * SET-12; the Advanced program paths are SET-02 with the path keys in SIDE-21.
+=======
+ * authenticated), useActions().agents (login, finishLogin, cancelLogin, refresh), and the
+ * chrome_mode_enabled setting.
+ * Children: agents/AgentCard, agents/AgentLoginDialog, agents/AgentProvidersDialog,
+ * agents/AgentConfigDialog. The MCP servers section belongs to SET-05, which adds it here when
+ * built.
+ * Other owners: the Advanced program paths are SET-02 with the path keys in SIDE-21.
+>>>>>>> ae65f4dbcf4fb5ca8db05e0e598779fdaeef6796
  * Must handle: a retry after a failed sign-in (the first one is cancelled first), loading and error, a provider filter with no match ("No providers match your
  * search."), nothing installed (the page leads with install help), a program found but failing its
  * version check ("Validation failed" with its warning), a sign-in in progress, and a refresh after
@@ -30,9 +42,14 @@ import { LoadableView } from "../../../ui/LoadableView.tsx";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
 import { AgentCard } from "../agents/AgentCard.tsx";
+import { AgentConfigDialog } from "../agents/AgentConfigDialog.tsx";
 import { AgentLoginDialog, type AgentLoginFlow } from "../agents/AgentLoginDialog.tsx";
 import { AgentProvidersDialog } from "../agents/AgentProvidersDialog.tsx";
+<<<<<<< HEAD
 import { McpServersPanel } from "../agents/McpServersSection.tsx";
+=======
+import { RegistrySettingRowByKey } from "../SettingRow.tsx";
+>>>>>>> ae65f4dbcf4fb5ca8db05e0e598779fdaeef6796
 
 interface AgentSelector {
 	agent: AgentKind;
@@ -69,6 +86,7 @@ export function AgentsPage() {
 	const [busyKey, setBusyKey] = useState<string | null>(null);
 	const [login, setLogin] = useState<LoginState | null>(null);
 	const [providers, setProviders] = useState<AgentInstall | null>(null);
+	const [configAgent, setConfigAgent] = useState<"claude" | "codex" | null>(null);
 	const announced = useRef<string | null>(null);
 
 	useEffect(() => {
@@ -212,6 +230,10 @@ export function AgentsPage() {
 				</p>
 			</div>
 
+			<div className="rounded-md border border-border bg-raised px-4">
+				<RegistrySettingRowByKey settingKey="chrome_mode_enabled" />
+			</div>
+
 			<div className="max-w-sm">
 				<Input
 					type="search"
@@ -283,6 +305,13 @@ export function AgentsPage() {
 									onProviders={() => setProviders(install)}
 									onRefresh={() => void actions.agents.refresh()}
 									onCopyPath={(path) => void copy(path, "Copied the program path")}
+									configAction={
+										install.agent === "claude"
+											? { label: "Claude settings", onClick: () => setConfigAgent("claude") }
+											: install.agent === "codex"
+												? { label: "Codex config", onClick: () => setConfigAgent("codex") }
+												: undefined
+									}
 								/>
 							))}
 						</div>
@@ -304,6 +333,16 @@ export function AgentsPage() {
 						if (target === null) return;
 						setProviders(null);
 						void startLogin(target);
+					}}
+				/>
+			) : null}
+
+			{configAgent ? (
+				<AgentConfigDialog
+					agent={configAgent}
+					open
+					onOpenChange={(open) => {
+						if (!open) setConfigAgent(null);
 					}}
 				/>
 			) : null}
