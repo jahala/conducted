@@ -205,6 +205,9 @@ describe("CHAT-17 chat search bar", () => {
 		await waitFor(() =>
 			expect(test?.container.services.sessions.store.getState().viewingSessionId).not.toBeNull(),
 		);
+		// The list mounts its turns only after its first scroll to the newest turn, a few frames
+		// after it renders. The first match is in turn t1, which must be mounted to scroll into view.
+		await waitFor(() => expect(document.querySelector('[data-turn="t1"]')).not.toBeNull());
 
 		const input = await openFindBar();
 		fireEvent.change(input, { target: { value: "foo" } });
@@ -316,6 +319,9 @@ describe("CHAT-17 chat search bar", () => {
 			sessions.applyStoredEvent(chat.id, turn, userMessage(`t${turn}`, text, turn), turn);
 		}
 		const revealed: number[] = [];
+		// The chat pane records its chat as the one on screen, and the find bar's shortcuts need an
+		// open chat. This test shows the bar without the pane, so it records the chat itself.
+		sessions.setViewing(chat.id);
 
 		render(
 			<ServicesProvider container={test.container}>

@@ -59,7 +59,6 @@ const KNOWN_UNUSED_SETTINGS: readonly string[] = [
 /** Commands of a done feature that no handler or caller names yet. */
 const KNOWN_UNUSED_COMMANDS: readonly string[] = [
 	"app.quit",
-	"dialog.confirm",
 	"terminal.clear",
 	"terminal.close",
 	"terminal.deleteLine",
