@@ -18,9 +18,9 @@
 //!   `runners/managed-programs.ts`), so `gh` and `watchexec` resolve without any install by the
 //!   user. Without a managed copy, the copy on the user's PATH runs.
 //!
-//! Not built: the `gh stack` extension (`install_gh_stack_extension`). The research names it and
-//! its version (gh-stack 0.1.0) but not where it comes from, and the release feed does not carry
-//! it. No setting chooses a gh or watchexec of the user's own: Conductor has none, so a copy on
+//! The `gh stack` extension is not installed by the app: Conductor ships no copy of it (its bin
+//! folder holds gh and watchexec) and tells the user to run `gh extension install github/gh-stack`
+//! when a stack command needs it (renderApp's stack error); PR-08 shows that message. No setting chooses a gh or watchexec of the user's own: Conductor has none, so a copy on
 //! PATH is used only when there is no managed copy. ripgrep: Conductor ships one, but the research
 //! does not show what runs it, so it is not managed.
 //!
@@ -140,7 +140,6 @@ use tokio_util::sync::CancellationToken;
 
 use crate::error::{CommandError, CommandResult};
 use crate::files;
-use crate::not_implemented;
 use crate::process_group;
 
 /// Event that carries the programs which failed the launch check.
@@ -503,13 +502,6 @@ fn run_program_with_timeout(path: &Path, timeout: Duration) -> Result<(), String
             Err(error) => return Err(format!("its status could not be read: {error}")),
         }
     }
-}
-
-/// Installs the `gh stack` extension with the given `gh`. Not built: the research names the
-/// extension and its version (gh-stack 0.1.0) but not where it comes from, and the release feed
-/// does not carry it.
-pub async fn install_gh_stack_extension(_gh_path: &Path) -> CommandResult<()> {
-    not_implemented!("PLAT-35")
 }
 
 // ------------------------------------------------------------------ SET-13 path overrides
