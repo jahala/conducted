@@ -455,6 +455,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 		},
 		providerKeys: repositories.providerKeys,
 		keychain: platform.keychain,
+		files: platform.fs,
+		toml: inputs.toml,
 	});
 	const settings = new SettingsService({
 		platform,
@@ -784,7 +786,22 @@ export function createContainer(inputs: ContainerInputs): Container {
 	});
 	const sections = new SectionsService({ db: platform.db, repos: repositories });
 	const favoriteModels = new FavoriteModelsService({ repos: repositories });
-	const mcp = new McpService({ sidecar: client });
+	const mcp = new McpService({
+		sidecar: client,
+		workspacePathOf: (sessionId) => ready(lookups.workspacePathOfSession(sessionId)),
+		agentOf: (sessionId) => {
+			const session = sessions.store.getState().sessions[sessionId];
+			if (session === undefined) {
+				return err(appError("session_unknown", "That chat no longer exists."));
+			}
+			return ok({ agent: session.config.agent, acpAgent: session.config.acpAgent });
+		},
+		launchFor: (agent, acpAgent, sessionId) => {
+			if (sessionId === null) return launchForAgent(agent, acpAgent, null);
+			const ws = lookups.workspaceOfSession(sessionId);
+			return ws.ok ? launchForAgent(agent, acpAgent, ws.value.repoId) : ready(ws);
+		},
+	});
 	const linear = new LinearService({
 		http: createLinearHttp(platform.http),
 		keychain: platform.keychain,
@@ -894,6 +911,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		fs: platform.fs,
 		search: platform.fileSearch,
 		shell: platform.shell,
+		git: gitRunner,
 		rootsOf: (id) => ready(lookups.allowedRoots(id)),
 		opener: platform.opener,
 	});

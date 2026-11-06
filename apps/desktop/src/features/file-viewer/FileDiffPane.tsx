@@ -1,13 +1,17 @@
 /**
  * @feature REV-08 File diff pane
+ * @feature REV-11 Resolve conflicts inline: current, incoming or both
  * Owns: the diff mode of the File tab. It loads the file's diff and comments through hooks and
- * hands them to DiffView.
- * Behaviour: ui-map.md 3.2 (File tab, diff mode); services-map.md 3.4 (diff sources per scope).
- * Data: useFileDiff, useDiffComments, useActions().comments.
- * Children: diff/DiffView, FileTabState (loading and error).
+ * hands them to DiffView. When the new side still holds conflict markers it puts the conflict
+ * rows above the diff, so each conflict can be resolved without leaving the tab.
+ * Behaviour: ui-map.md 3.2 (File tab, diff mode); services-map.md 3.4 (diff sources per scope);
+ * inventory-messages-sidecar.md "Merge conflicts in the editor".
+ * Data: useFileDiff, useDiffComments, useActions().comments and files.resolveConflicts.
+ * Children: diff/DiffView, ConflictResolver, FileTabState (loading and error).
  * Must handle: loading, error with retry, an unchanged file in this scope ("No changes in this
  * scope"), the diff reloading while the agent writes (keep the old diff on screen with an
- * "Updating diff" notice, never blank it), and a renderer failure (DiffView's own warning).
+ * "Updating diff" notice, never blank it), a renderer failure (DiffView's own warning), and a
+ * conflicted file whose markers the conflict rows resolve.
  * Test first: while a second request is in flight the previous diff stays rendered.
  */
 import type { WorkspaceId } from "@conducted/shared";
@@ -20,6 +24,7 @@ import { toastError } from "../../ui/Toast.tsx";
 import { useThemeType } from "../../ui/use-theme-type.ts";
 import { DiffView } from "../diff/DiffView.tsx";
 import type { CommentHandlers, DiffPreferences } from "../diff/diff-types.ts";
+import { ConflictResolver } from "./ConflictResolver.tsx";
 import { FileTabState } from "./FileTabState.tsx";
 
 export interface FileDiffPaneProps {
@@ -112,17 +117,20 @@ export function FileDiffPane({ workspaceId, path, scope, preferences }: FileDiff
 	}
 
 	return (
-		<div className="h-full overflow-auto" data-diff>
-			<DiffView
-				diff={shown}
-				preferences={preferences}
-				comments={comments.state === "ready" ? comments.data : undefined}
-				commentHandlers={handlers}
-				forceRender={forceRender}
-				onForceRender={() => setForceRender(true)}
-				theme={{ name: "", type: themeType }}
-				updating={diff.state === "loading" && previous !== null}
-			/>
+		<div className="flex h-full min-h-0 flex-col overflow-hidden">
+			<ConflictResolver workspaceId={workspaceId} path={path} text={shown.newText ?? ""} />
+			<div className="min-h-0 flex-1 overflow-auto" data-diff>
+				<DiffView
+					diff={shown}
+					preferences={preferences}
+					comments={comments.state === "ready" ? comments.data : undefined}
+					commentHandlers={handlers}
+					forceRender={forceRender}
+					onForceRender={() => setForceRender(true)}
+					theme={{ name: "", type: themeType }}
+					updating={diff.state === "loading" && previous !== null}
+				/>
+			</div>
 		</div>
 	);
 }

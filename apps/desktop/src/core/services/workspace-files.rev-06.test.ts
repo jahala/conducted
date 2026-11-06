@@ -1,16 +1,19 @@
 import { ok, type WorkspaceId } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
 import { createTestContainer } from "../../test/container.ts";
+import { FakeGitRunner, gitOutput } from "../../test/fake-git-runner.ts";
 import { WorkspaceFilesService } from "./workspace-files.ts";
 
 const workspaceId = "ws-1" as WorkspaceId;
 const root = "/code/workspaces/ws-1";
+const unusedGit = () => new FakeGitRunner(() => gitOutput());
 
 function serviceFor(test: ReturnType<typeof createTestContainer>) {
 	return new WorkspaceFilesService({
 		fs: test.memory.platform.fs,
 		search: test.memory.platform.fileSearch,
 		shell: test.memory.platform.shell,
+		git: unusedGit(),
 		opener: test.memory.platform.opener,
 		rootsOf: async () => ok([root]),
 	});
@@ -97,6 +100,7 @@ describe("REV-06 workspace files service", () => {
 				fs: test.memory.platform.fs,
 				search: test.memory.platform.fileSearch,
 				shell: test.memory.platform.shell,
+				git: unusedGit(),
 				opener: test.memory.platform.opener,
 				rootsOf: async () => ok([]),
 			});

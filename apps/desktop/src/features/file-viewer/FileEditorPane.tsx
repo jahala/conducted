@@ -1,20 +1,25 @@
 /**
  * @feature REV-08 File editor pane
- * Owns: the edit mode of the File tab: the editor, save, the find and replace bar, and the banner
- * for a disk change. The draft itself lives in the files service (useFileDraft), so it survives
- * the pane unmounting: a tab switch, Cmd+E back to Diff, or moving to another file and back.
+ * @feature REV-11 Resolve conflicts inline: current, incoming or both
+ * Owns: the edit mode of the File tab: the editor, save, the find and replace bar, the banner
+ * for a disk change, and the conflict rows for a file that still holds conflict markers. The
+ * draft itself lives in the files service (useFileDraft), so it survives the pane unmounting: a
+ * tab switch, Cmd+E back to Diff, or moving to another file and back.
  * Behaviour: ui-map.md 3.2 (edit uses CodeMirror, find and replace bar, "File changed on disk":
- * "Discard my edits" or "Keep mine").
+ * "Discard my edits" or "Keep mine"); inventory-messages-sidecar.md "Merge conflicts in the editor".
  * Data: useFileContent (its modified time is polled every 5 seconds, services-map.md 2.5.2, so an
  * agent's write is noticed early) and useFileDraft. The tab header shows the save state and a save
  * error; this pane toasts the error.
- * Children: editor/EditorSurface, editor/FindReplaceBar, ExternalChangeBanner, FileTabState.
+ * Children: editor/EditorSurface, editor/FindReplaceBar, ExternalChangeBanner, ConflictResolver,
+ * FileTabState.
  * Must handle: save failing (draft kept, error shown), disk change while clean (the new text
  * shows, the file stays clean), disk change while dirty (the "changed" banner), the file deleted
  * while dirty (the "deleted" banner), a kept change or deletion staying quiet while the user types,
  * very large files (read-only), the find bar's current match selected in the editor, Replace
- * with no current match (it replaces the first), and a binary or too-large file (it cannot be
- * edited; "Open in another app" opens it in the default "Open in" app).
+ * with no current match (it replaces the first), a binary or too-large file (it cannot be
+ * edited; "Open in another app" opens it in the default "Open in" app), and conflict markers in
+ * the saved file while there are no unsaved edits (the conflict rows resolve them, then the editor
+ * reloads the saved text).
  * Test first: with a dirty draft and a newer modified time on disk, the banner shows and the draft
  * is unchanged.
  */
@@ -25,6 +30,7 @@ import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { fileQueryKey, useFileContent, useFileDraft, useSetting } from "../../core/hooks.ts";
 import { toastError } from "../../ui/Toast.tsx";
 import { useThemeType } from "../../ui/use-theme-type.ts";
+import { ConflictResolver } from "./ConflictResolver.tsx";
 import { ExternalChangeBanner } from "./ExternalChangeBanner.tsx";
 import { EditorSurface } from "./editor/EditorSurface.tsx";
 import { FindReplaceBar } from "./editor/FindReplaceBar.tsx";
@@ -70,6 +76,11 @@ export function FileEditorPane({ workspaceId, path, onDirtyChange }: FileEditorP
 			? { text: content.data.text, modifiedAt: content.data.modifiedAt }
 			: null;
 	const text = draft?.text ?? disk?.text ?? "";
+	// Conflict rows act on the saved file, so they step aside while an unsaved edit is open.
+	const conflictText =
+		draft === undefined && content.state === "ready" && content.data.kind === "text"
+			? content.data.text
+			: "";
 
 	const banner: "changed" | "deleted" | null =
 		draft === undefined || content.state !== "ready"
@@ -178,6 +189,7 @@ export function FileEditorPane({ workspaceId, path, onDirtyChange }: FileEditorP
 			{banner === null ? null : (
 				<ExternalChangeBanner kind={banner} onDiscardMine={discard} onKeepMine={keepMine} />
 			)}
+			<ConflictResolver workspaceId={workspaceId} path={path} text={conflictText} />
 			{findOpen ? (
 				<FindReplaceBar
 					query={query}
