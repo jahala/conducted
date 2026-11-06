@@ -127,7 +127,7 @@ exit 0
 
 watcher_pid=""
 
-# shellcheck disable=SC2329 # the trap below invokes it
+# shellcheck disable=SC2317,SC2329 # the trap below invokes it (0.11 reports SC2329, older versions SC2317)
 on_signal() {
   trap '' INT TERM
   if [ -n "$watcher_pid" ]; then
