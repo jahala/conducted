@@ -669,9 +669,10 @@ export type GitHubAccess =
 /** One MCP server row for the list and the status dialog. */
 export interface McpServerView {
 	name: string;
-	/** Where the server was configured: the user's agent config or the project's. */
-	source: "user" | "project";
-	transport: "stdio" | "http" | "sse";
+	/** Where the agent says the server was configured; null when it does not say. */
+	source: "user" | "project" | "local" | "plugin" | null;
+	/** How the agent says it reaches the server; null when it does not say. */
+	transport: "stdio" | "http" | "sse" | null;
 	status: "connected" | "needs_auth" | "failed" | "pending" | "disabled";
 	toolCount: number | null;
 	error: string | null;
