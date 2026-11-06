@@ -1,6 +1,6 @@
 # Overnight build, 5 to 6 November 2026
 
-The night finished slice 2 and started slice 3. Slice 2's last three steps merged (#307, #308, #311), the five-area hardening merged (#309, #310, #312, #313, #314), main is green, and the slice report is merged ([slice-2.md](slice-2.md)). Slice 3 started at 03:25 UTC. Part 1a (the rust and sidecar batches) merged as #316 with 14 issues closed. Part 1b (the core batches) is #317: 11 features built, audited and fixed, in its second CI round when this report was written. AGENT-09, PR-08 and PR-09 are built in part but planned (D066, D067). The ui batches and step 2 were not started: a part begun after 07:00 could not merge before morning.
+The night finished slice 2 and started slice 3. Slice 2's last three steps merged (#307, #308, #311), the five-area hardening merged (#309, #310, #312, #313, #314), main is green, and the slice report is merged ([slice-2.md](slice-2.md)). Slice 3 started at 03:25 UTC. Part 1a (the rust and sidecar batches) merged as #316 with 14 issues closed. Part 1b (the core batches) merged as #317 at 07:41 with 11 issues closed, after two CI rounds. AGENT-09, PR-08 and PR-09 are built in part but planned (D066, D067). The ui batches and step 2 were not started: a part begun after 07:00 could not merge before morning.
 
 Slice 2's detail (steps, issues, audits, hardening by area, and what needs you for slice 2) is in [slice-2.md](slice-2.md). This page covers slice 3 and the night's own decisions.
 
@@ -28,6 +28,7 @@ Slice 2's detail (steps, issues, audits, hardening by area, and what needs you f
   - The backlog is on by default (`unstarted_workspaces_enabled`); Conductor keeps it internal and off in release builds.
   - An unconfirmed Spotlight stop restores nothing, and the branch-pointer notice wording is ours; the research is silent on both.
   - Terminals get `resources/bin` on PATH, while PLAT-28 writes managed shims to `app_data/bin` (PLAT-35).
+- **Cmd+Enter in a dialog scope** shows "Couldn't confirm the open dialog": nothing handles `dialog.confirm` outside the backlog start page, which #317 fixed. The research does not say whether Conductor creates a workspace on Cmd+Enter in the create page.
 - **The CI summary step** names a failed bun test but prints no error message for it.
 - **Stale branches added tonight** (the guard blocks force-deletes): local `slice3/step-1a`, `slice3/step-1b`, `fix/ci-316`, `fix/ci-317-panel`, `fix/ci-317-chat`, `report/slice-2`, `report/overnight-2026-11-06` and the new `node/*` branches; remote `slice3/step-1a`, `slice3/step-1b`, `report/slice-2` and `report/overnight-2026-11-06`.
 
@@ -35,10 +36,10 @@ Slice 2's detail (steps, issues, audits, hardening by area, and what needs you f
 
 D065: the first step (54 features in 8 batches) lands in parts, each its own PR with one CI run.
 
-| Part | PR   | Batches        | Features                                                                                                                          | Started (UTC) | Merged (UTC)    | Spend (USD)                                                     |
-| ---- | ---- | -------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------- | --------------- | --------------------------------------------------------------- |
-| 1a   | #316 | rust, sidecar  | 14 done (PLAT-08, 12, 14, 16, 23, 24, 26, 27; AGENT-10, 13, 14, 18; SIDE-18, 22), AGENT-09 planned (D066)                         | 03:25         | 06:14           | about 3.9 (25.70 to about 21.8, with core-1 building alongside) |
-| 1b   | #317 | core-1, core-2 | 11 done (CHAT-16, CHAT-17, DATA-07, GIT-14, GIT-15, PRJ-03, REV-04, RUN-02, SET-13, WS-07, WS-11), PR-08 and PR-09 planned (D067) | 05:05         | in CI (round 2) | about 2.5 (with part 1a's tail)                                 |
+| Part | PR   | Batches        | Features                                                                                                                          | Started (UTC) | Merged (UTC) | Spend (USD)                                                     |
+| ---- | ---- | -------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------- | ------------ | --------------------------------------------------------------- |
+| 1a   | #316 | rust, sidecar  | 14 done (PLAT-08, 12, 14, 16, 23, 24, 26, 27; AGENT-10, 13, 14, 18; SIDE-18, 22), AGENT-09 planned (D066)                         | 03:25         | 06:14        | about 3.9 (25.70 to about 21.8, with core-1 building alongside) |
+| 1b   | #317 | core-1, core-2 | 11 done (CHAT-16, CHAT-17, DATA-07, GIT-14, GIT-15, PRJ-03, REV-04, RUN-02, SET-13, WS-07, WS-11), PR-08 and PR-09 planned (D067) | 05:05         | 07:41        | about 2.5 (with part 1a's tail)                                 |
 
 ### What the audits found
 
@@ -65,6 +66,6 @@ DeepSeek: 33.68 USD when the night's goal began (slice 2 step 2), 20.66 USD at t
 ## What went wrong, and what changed because of it
 
 - The node gates passed work that failed later. The guards could go red only after rows were marked done (D061: `mark-done` now runs them), and Rust is not compiled in node gates (the lead compiles after each land).
-- Tests the fixers wrote first ran in CI, because agents may not run tests on this Mac. A step's first CI round therefore found 29, 45, 7, 3 and 37 failures. The tests hardening added a guard for two classes of tests that can never pass, and a CI summary that names each failed test by file. It named every failure after it merged.
+- Tests the fixers wrote first ran in CI, because agents may not run tests on this Mac. A step's first CI round therefore found 29, 45, 7, 3 and 37 failures. Part 1b's round also found the composer rebuilding its editor on every rename (it could drop typed text); the lead fixed it with a test. The tests hardening added a guard for two classes of tests that can never pass, and a CI summary that names each failed test by file. It named every failure after it merged.
 - Hand edits to a backlog status broke the table's alignment twice; status changes should go through a script.
 - One CI watcher stopped on a network blip; the watchers now retry.
