@@ -64,7 +64,7 @@ use crate::error::{CommandError, CommandResult};
 /// programs come from the vendors' own hosts; GitHub's API stays on `gh` (D024, D029).
 pub const ALLOWED_HOSTS: &[&str] = &[
     "api.linear.app",
-    "claude.ai",
+    "downloads.claude.ai",
     "downloads.cursor.com",
     "github.com",
     "objects.githubusercontent.com",
