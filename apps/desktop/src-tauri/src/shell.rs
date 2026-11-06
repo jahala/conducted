@@ -2215,4 +2215,38 @@ mod tests {
         assert_eq!(status.signal(), Some(9), "SIGKILL ended it after the grace");
         assert!(!process_group::group_exists(pid));
     }
+
+    #[test]
+    fn plat_25_the_bundle_ships_every_helper_script_the_window_may_run() {
+        // The UI runs the scripts from `<resources>/bin` and the sidecar from the copy PLAT-34
+        // makes of it, so the bundle must carry each script the program list allows.
+        let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let config: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(manifest.join("tauri.conf.json")).expect("read the config"),
+        )
+        .expect("the config is JSON");
+        let resources = config["bundle"]["resources"]
+            .as_object()
+            .expect("the bundle maps its resources");
+        let source = resources
+            .iter()
+            .find_map(|(source, target)| (target == "bin/").then_some(source))
+            .expect("the bundle ships a bin folder");
+        let folder = manifest.join(source.strip_suffix("/*").unwrap_or(source));
+
+        let scripts: Vec<&str> = ALLOWED_PROGRAMS
+            .iter()
+            .copied()
+            .filter(|name| name.ends_with(".sh"))
+            .collect();
+        assert!(!scripts.is_empty(), "the program list names the scripts");
+        for script in scripts {
+            let metadata = std::fs::metadata(folder.join(script))
+                .unwrap_or_else(|error| panic!("{script} is not in the bundled folder: {error}"));
+            assert!(
+                metadata.permissions().mode() & 0o111 != 0,
+                "{script} is not executable"
+            );
+        }
+    }
 }
