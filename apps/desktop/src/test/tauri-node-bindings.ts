@@ -21,7 +21,7 @@ import { constants as osConstants } from "node:os";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { UnlistenFn } from "@tauri-apps/api/event";
-import { defaultFileRoots, isWithinRoot } from "../platform/memory.ts";
+import { assetUrlOf, defaultFileRoots, isWithinRoot } from "../platform/memory.ts";
 import type { FileStat, ProgramStatus, ShellCommand, ShellOutput } from "../platform/platform.ts";
 import { COMMANDS, EVENTS, type TauriBindings } from "../platform/tauri.ts";
 import { createNodeSqlDatabase } from "./node-sql.ts";
@@ -455,6 +455,7 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 	const bindings: TauriBindings = {
 		invoke: (command, args) => invoke(command, args) as Promise<never>,
 		listen: events.listen,
+		assetUrl: assetUrlOf,
 		window: {
 			isFocused: async () => focused,
 			listen: windowEvents.listen,

@@ -44,7 +44,7 @@ import {
 	ok,
 	type Result,
 } from "@conducted/shared";
-import { Channel, invoke } from "@tauri-apps/api/core";
+import { Channel, convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { Image } from "@tauri-apps/api/image";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -150,6 +150,8 @@ export interface TauriWebviewBindings {
 export interface TauriBindings {
 	invoke<T>(command: string, args?: Record<string, unknown>): Promise<T>;
 	listen<T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn>;
+	/** Tauri's `convertFileSrc`: the asset protocol URL of a local file. */
+	assetUrl?: (path: string) => string;
 	/** The current window. Focus events arrive on it, not on the app-wide event bus. */
 	window?: TauriWindowBindings;
 	/** The current webview, for its zoom. */
@@ -191,6 +193,7 @@ async function decodeImageToRgba(
 export const realTauriBindings: TauriBindings = {
 	invoke: (command, args) => invoke(command, args),
 	listen: (event, handler) => listen(event, (e) => handler(e.payload as never)),
+	assetUrl: (path) => convertFileSrc(path),
 	window: {
 		isFocused: () => getCurrentWindow().isFocused(),
 		listen: (event, handler) =>
@@ -724,7 +727,7 @@ export function createTauriShell(bindings: TauriBindings): Shell {
 	};
 }
 
-/** `fs_read_text { path }`, `fs_write_text_atomic { path, text }`, `fs_stat { path }`, `fs_mkdirp`, `fs_read_dir`, `fs_trash`, `fs_register_root { path }`, `fs_paths`. */
+/** `fs_read_text { path }`, `fs_write_text_atomic { path, text }`, `fs_stat { path }`, `fs_mkdirp`, `fs_read_dir`, `fs_trash`, `fs_register_root { path }`, `fs_paths`; `assetUrl` is Tauri's `convertFileSrc`. */
 export function createTauriFileSystem(
 	bindings: TauriBindings,
 	paths: FileSystem["paths"],
@@ -749,6 +752,7 @@ export function createTauriFileSystem(
 		readDir: (path) => invokeResult<FileStat[]>(bindings, COMMANDS.fsReadDir, { path }),
 		trash: (path) => invokeResult<void>(bindings, COMMANDS.fsTrash, { path }),
 		registerRoot: (path) => invokeResult<void>(bindings, COMMANDS.fsRegisterRoot, { path }),
+		assetUrl: (path) => requireBinding(bindings.assetUrl, "asset URL")(path),
 		paths,
 	};
 }

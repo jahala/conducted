@@ -106,6 +106,9 @@ const fakeFs = (): FakeFs => {
 		async registerRoot() {
 			return ok(undefined);
 		},
+		assetUrl(path: string) {
+			return `asset://localhost/${encodeURIComponent(path)}`;
+		},
 		paths: { home: "/home", appData: "/app", temp: "/tmp", resources: "/resources" },
 	};
 	return { fs, files, modified, trashed, now, fail };

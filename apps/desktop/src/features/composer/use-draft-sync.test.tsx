@@ -53,6 +53,9 @@ const fakeFs = () => {
 		async registerRoot() {
 			return ok(undefined);
 		},
+		assetUrl(path: string) {
+			return `asset://localhost/${encodeURIComponent(path)}`;
+		},
 		paths,
 	};
 	return { fs, files };

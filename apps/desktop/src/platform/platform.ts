@@ -90,6 +90,12 @@ export interface FileSystem {
 	 * yet. A relative path is an Err with `fs_relative_path`.
 	 */
 	registerRoot(path: string): Promise<Result<void>>;
+	/**
+	 * A URL the web view can load a local file from, for image, PDF and video previews. The Rust
+	 * shell serves only files under a registered folder or the attachment draft folder; any other
+	 * file fails to load the way a missing one does.
+	 */
+	assetUrl(path: string): string;
 	paths: { home: string; appData: string; temp: string; resources: string };
 }
 

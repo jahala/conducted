@@ -54,7 +54,7 @@ use image::{
     AnimationDecoder, DynamicImage, ImageDecoder, ImageFormat, ImageReader, Rgb, RgbImage,
 };
 use serde::Serialize;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Runtime};
 
 use crate::error::{CommandError, CommandResult, blocking};
 
@@ -132,8 +132,11 @@ pub async fn image_resize(
     .await
 }
 
+/// The attachment draft folder's name under the app data folder.
+pub const DRAFT_FOLDER: &str = "draft-attachments";
+
 /// The folder every attachment destination must sit under.
-fn draft_root(app: &AppHandle) -> CommandResult<PathBuf> {
+fn draft_root<R: Runtime>(app: &AppHandle<R>) -> CommandResult<PathBuf> {
     let data = app
         .path()
         .app_data_dir()
@@ -141,7 +144,13 @@ fn draft_root(app: &AppHandle) -> CommandResult<PathBuf> {
             code: "attachment_app_data",
             message: error.to_string(),
         })?;
-    Ok(data.join("draft-attachments"))
+    Ok(data.join(DRAFT_FOLDER))
+}
+
+/// Lets the web view load the draft attachments through the asset protocol, so the composer and
+/// the chat can show a pasted or dropped image before it is sent. Called once from `run()`.
+pub fn allow_draft_assets<R: Runtime>(app: &AppHandle<R>) -> CommandResult<()> {
+    crate::files::allow_assets_under(app, &draft_root(app)?)
 }
 
 fn failed(code: &'static str, message: impl Into<String>) -> CommandError {
@@ -1178,5 +1187,23 @@ mod tests {
         result.extend_from_slice(&app1);
         result.extend_from_slice(&jpeg[2..]);
         result
+    }
+
+    #[test]
+    fn plat_02_draft_attachments_can_be_loaded_as_assets_and_the_rest_of_app_data_cannot() {
+        use super::{DRAFT_FOLDER, allow_draft_assets};
+        use tauri::Manager;
+
+        let app = tauri::test::mock_builder()
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .expect("build a mock app");
+        let data = app.path().app_data_dir().expect("the app data folder");
+        let draft = data.join(DRAFT_FOLDER).join("session-1").join("shot.png");
+        let other = data.join("conducted.db");
+
+        allow_draft_assets(app.handle()).expect("the draft folder joins the asset scope");
+
+        assert!(app.asset_protocol_scope().is_allowed(&draft));
+        assert!(!app.asset_protocol_scope().is_allowed(&other));
     }
 }

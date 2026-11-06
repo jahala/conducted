@@ -313,6 +313,12 @@ export const defaultFileRoots = (paths: FileSystem["paths"]): string[] => [
 	`${paths.home}/conducted`,
 ];
 
+/**
+ * The URL Tauri's `convertFileSrc` gives on macOS: the asset protocol with the whole path
+ * percent-encoded as one segment.
+ */
+export const assetUrlOf = (path: string): string => `asset://localhost/${encodeURIComponent(path)}`;
+
 /** True when `path` is `root` or lies below it, compared by spelling after `.` and `..`. */
 export const isWithinRoot = (path: string, root: string): boolean => {
 	const target = normalizePath(path);
@@ -669,6 +675,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		readDir,
 		trash,
 		registerRoot,
+		assetUrl: assetUrlOf,
 		paths,
 	};
 

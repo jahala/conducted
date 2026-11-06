@@ -18,9 +18,9 @@
 import type { WorkspaceId } from "@conducted/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useServices } from "../../core/context.tsx";
 import {
 	fileQueryKey,
-	previewUrlOf,
 	useActions,
 	useFileContent,
 	useSetting,
@@ -53,6 +53,7 @@ export function FilePreviewPane({ workspaceId, path, onOpenFile }: FilePreviewPa
 	const queryClient = useQueryClient();
 	const markdownStyle = useSetting<"default" | "tufte">("markdown_style");
 	const actions = useActions();
+	const { platform } = useServices();
 	const [svgView, setSvgView] = useState<"rendered" | "source">("rendered");
 
 	const retry = (): void => {
@@ -68,7 +69,7 @@ export function FilePreviewPane({ workspaceId, path, onOpenFile }: FilePreviewPa
 	const workspaceRoot =
 		workspace.state === "ready" ? workspace.data.path.replace(/\/+$/, "") : null;
 	const imageUrlFor = (relativePath: string): string | null =>
-		workspaceRoot === null ? null : previewUrlOf(`${workspaceRoot}/${relativePath}`, null);
+		workspaceRoot === null ? null : platform.fs.assetUrl(`${workspaceRoot}/${relativePath}`);
 
 	if (content.state === "loading") {
 		return <FileTabState kind="loading" detail={null} onAction={retry} />;

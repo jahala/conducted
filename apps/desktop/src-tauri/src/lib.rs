@@ -720,6 +720,7 @@ pub fn run() {
             logger::start_writer(app.handle(), &logger_state)?;
             navigation::install_guard(app.handle())?;
             deep_link::register(app.handle())?;
+            attachments::allow_draft_assets(app.handle())?;
             shell::start_background_capture(app.handle().clone());
             network::start_watcher(app.handle().clone())?;
             binaries::start_verification(app.handle().clone());

@@ -199,6 +199,9 @@ function harness(options: HarnessOptions = {}) {
 		async registerRoot() {
 			return ok(undefined);
 		},
+		assetUrl(path: string) {
+			return `asset://localhost/${encodeURIComponent(path)}`;
+		},
 		paths: { home: "/Users/test", appData: "/app", temp: "/tmp", resources: "/res" },
 	} satisfies FileSystem;
 	// seam: WS-06 the workspace service's outside world (git, repositories) is scripted here.

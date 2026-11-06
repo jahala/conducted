@@ -1,10 +1,11 @@
 import type { CanonicalTool } from "@conducted/protocol";
 import type { SessionId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import { ServicesProvider } from "../../../../core/context.tsx";
 import type { ToolCallView } from "../../../../core/model.ts";
-import { createTestContainer } from "../../../../test/container.ts";
+import { createTestContainer, type TestContainer } from "../../../../test/container.ts";
 import { ToolCard } from "../ToolCard.tsx";
 import { ImageGenerationCard } from "./ImageGenerationCard.tsx";
 import { ImageViewCard } from "./ImageViewCard.tsx";
@@ -21,7 +22,22 @@ import { ToolSearchCard } from "./ToolSearchCard.tsx";
 
 const sessionId = "s1" as SessionId;
 
-afterEach(cleanup);
+const containers: TestContainer[] = [];
+
+afterEach(async () => {
+	cleanup();
+	for (const test of containers.splice(0)) {
+		await test.container.stop();
+		test.close();
+	}
+});
+
+/** Renders a card that turns a file path into a URL through the real container's platform. */
+function renderWithServices(ui: ReactElement) {
+	const test = createTestContainer();
+	containers.push(test);
+	return render(<ServicesProvider container={test.container}>{ui}</ServicesProvider>);
+}
 
 let sequence = 0;
 
@@ -227,7 +243,7 @@ describe("CHAT-20 schedule wake-up card", () => {
 
 describe("CHAT-20 preview image card", () => {
 	it("renders 'Preview image' with the file name", () => {
-		render(
+		renderWithServices(
 			<ImageViewCard
 				call={view(
 					"image_view",
@@ -244,7 +260,7 @@ describe("CHAT-20 preview image card", () => {
 	});
 
 	it("keeps the name and says so when the image cannot be loaded", () => {
-		render(
+		renderWithServices(
 			<ImageViewCard
 				call={view("image_view", { path: "/work/gone.png" }, { output: "/work/gone.png" })}
 				sessionId={sessionId}
@@ -257,7 +273,7 @@ describe("CHAT-20 preview image card", () => {
 	});
 
 	it("does not take a result that is not a path as the image", () => {
-		render(
+		renderWithServices(
 			<ImageViewCard
 				call={view("image_view", {}, { output: "done" })}
 				sessionId={sessionId}
@@ -269,18 +285,20 @@ describe("CHAT-20 preview image card", () => {
 	});
 
 	it("takes the path the result names when the input has none", () => {
-		render(
+		renderWithServices(
 			<ImageViewCard
 				call={view("image_view", {}, { output: "Read the image\n/work/shots/plot" })}
 				sessionId={sessionId}
 				defaultExpanded
 			/>,
 		);
-		expect(screen.getByRole("img", { name: "plot" }).getAttribute("src")).toBe("/work/shots/plot");
+		expect(screen.getByRole("img", { name: "plot" }).getAttribute("src")).toBe(
+			"asset://localhost/%2Fwork%2Fshots%2Fplot",
+		);
 	});
 
 	it("says 'Loading image' while the image is still being read", () => {
-		render(
+		renderWithServices(
 			<ImageViewCard call={view("image_view", { path: "/work/a.png" })} sessionId={sessionId} />,
 		);
 		expect(screen.getByText("Loading image.")).toBeTruthy();
@@ -289,7 +307,7 @@ describe("CHAT-20 preview image card", () => {
 
 describe("CHAT-20 task update card", () => {
 	it("shows the subject and the new status when a task is marked done", () => {
-		render(
+		renderWithServices(
 			<TaskUpdateCard
 				call={view(
 					"task_update",
@@ -306,7 +324,7 @@ describe("CHAT-20 task update card", () => {
 	});
 
 	it("reads the subject from the result for a status-only change", () => {
-		render(
+		renderWithServices(
 			<TaskUpdateCard
 				call={view(
 					"task_update",
@@ -324,7 +342,7 @@ describe("CHAT-20 task update card", () => {
 
 describe("CHAT-20 send message card", () => {
 	it("names the chat it went to", () => {
-		render(
+		renderWithServices(
 			<SendMessageCard
 				call={view(
 					"send_message",
@@ -343,7 +361,7 @@ describe("CHAT-20 send message card", () => {
 
 describe("CHAT-20 task created card", () => {
 	it("renders 'Task created' and the task subject", () => {
-		render(
+		renderWithServices(
 			<TaskCreateCard
 				call={view(
 					"task_create",
@@ -362,7 +380,7 @@ describe("CHAT-20 task created card", () => {
 
 describe("CHAT-20 image generation card", () => {
 	it("shows the image preview when generation finished", () => {
-		render(
+		renderWithServices(
 			<ImageGenerationCard
 				call={view(
 					"image_generation",
@@ -374,12 +392,14 @@ describe("CHAT-20 image generation card", () => {
 			/>,
 		);
 		expect(screen.getByText("Preview image")).toBeTruthy();
-		expect(screen.getByRole("img", { name: "cat.png" })).toBeTruthy();
+		expect(screen.getByRole("img", { name: "cat.png" }).getAttribute("src")).toBe(
+			"asset://localhost/%2Fwork%2F.context%2Fimages%2Fcat.png",
+		);
 		expect(screen.getByText("a cat")).toBeTruthy();
 	});
 
 	it("shows 'Loading image' while generation runs", () => {
-		render(
+		renderWithServices(
 			<ImageGenerationCard
 				call={view("image_generation", { prompt: "a cat" })}
 				sessionId={sessionId}

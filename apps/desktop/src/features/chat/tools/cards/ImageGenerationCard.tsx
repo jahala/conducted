@@ -8,6 +8,7 @@
  * Test first: A finished image_generation call shows the image preview.
  */
 import { useState } from "react";
+import { useServices } from "../../../../core/context.tsx";
 import { EyeIcon } from "../../../../ui/icons.tsx";
 import {
 	asRecord,
@@ -28,6 +29,7 @@ export function ImageGenerationCard({ call, defaultExpanded }: ToolCardProps) {
 		imagePathOf(textField(input, "path", "savedPath", "saved_path", "file_path"));
 	const name = path === null ? null : fileNameOf(path);
 	const status = toolStatus(call);
+	const { platform } = useServices();
 	const [failedPath, setFailedPath] = useState<string | null>(null);
 	const failed = path !== null && failedPath === path;
 	const output = call.result?.output.trim() ?? "";
@@ -42,7 +44,7 @@ export function ImageGenerationCard({ call, defaultExpanded }: ToolCardProps) {
 				<div className="flex flex-col gap-2">
 					{path !== null && !failed ? (
 						<img
-							src={path}
+							src={platform.fs.assetUrl(path)}
 							alt={name ?? "Generated image"}
 							onError={() => setFailedPath(path)}
 							className="max-h-80 max-w-full rounded-sm object-contain"

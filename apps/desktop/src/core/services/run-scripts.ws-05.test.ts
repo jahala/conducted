@@ -79,6 +79,9 @@ function makeFs(): FileSystem {
 		async registerRoot() {
 			return ok(undefined);
 		},
+		assetUrl(path: string) {
+			return `asset://localhost/${encodeURIComponent(path)}`;
+		},
 		paths: { home: "/home", appData: "/app", temp: "/tmp", resources: "/res" },
 	};
 }

@@ -101,6 +101,12 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 	),
 	c(
 		"fs",
+		"asset-url",
+		"assetUrl names one file",
+		"Two paths give two URLs, the same path gives the same URL, and a space in a path is percent-encoded.",
+	),
+	c(
+		"fs",
 		"trash",
 		"trash removes from the folder without deleting for good",
 		"After trash the path no longer exists; on the Tauri side the item is in the macOS Trash.",
@@ -684,6 +690,15 @@ const STEPS: Record<string, ContractStep> = {
 		expectOk(ctx, await ctx.platform.fs.writeTextAtomic(file, "after"), "writeTextAtomic");
 		const read = expectOk(ctx, await ctx.platform.fs.readText(file), "readText");
 		ctx.assert(read === "after", `readText returned ${JSON.stringify(read)}`);
+	},
+
+	"fs.asset-url": async (ctx) => {
+		const first = ctx.platform.fs.assetUrl(ctx.path("shots/one shot.png"));
+		const again = ctx.platform.fs.assetUrl(ctx.path("shots/one shot.png"));
+		const second = ctx.platform.fs.assetUrl(ctx.path("shots/two.png"));
+		ctx.assert(first === again, `the same path gave ${first} and ${again}`);
+		ctx.assert(first !== second, "two paths gave the same URL");
+		ctx.assert(!first.includes(" "), `the space was not encoded: ${first}`);
 	},
 
 	"fs.trash": async (ctx) => {
@@ -1682,6 +1697,7 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 	"fs.read-dir": ["fs.mkdirp", "fs.writeTextAtomic", "fs.readDir"],
 	"fs.dot-segments": ["fs.mkdirp", "fs.writeTextAtomic", "fs.exists", "fs.readText"],
 	"fs.register-root": ["fs.writeTextAtomic", "fs.registerRoot", "fs.mkdirp", "fs.readText"],
+	"fs.asset-url": ["fs.assetUrl"],
 	"fs.trash": ["fs.mkdirp", "fs.writeTextAtomic", "fs.trash", "fs.exists"],
 	"db.roundtrip": ["db.execute", "db.select"],
 	"db.rows-affected": ["db.execute"],
