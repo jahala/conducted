@@ -13,12 +13,13 @@
  * Children: FileTabHeader, FileDiffPane, FileEditorPane, FilePreviewPane, FileTabState.
  * Our design choice: a file with a previewable type can be switched to Preview; the URL's
  * `fileMode` still chooses diff or edit first. Saving is explicit with Cmd+S.
- * Must handle: loading, error with retry, file deleted or missing, binary file, file too large to
- * edit, archived workspace ("Workspace archived. Unarchive to view files"), the file changing on
- * disk while the user has edits (the editor's banner), unsaved edits kept across Cmd+E and across
- * previous and next file, a mode or scope change while a request is in flight (newest answer wins
- * through the query key), and a link in a Markdown preview to another workspace file (opened in
- * this tab, in Edit mode).
+ * Must handle: loading (Edit and Cmd+E work while the file loads; the editor pane shows the load),
+ * error with retry, file deleted or missing, binary file, file too large to edit, archived
+ * workspace ("Workspace archived. Unarchive to view files"), the file changing on disk while the
+ * user has edits (the editor's banner), unsaved edits kept across Cmd+E and across previous and
+ * next file, a mode or scope change while a request is in flight (newest answer wins through the
+ * query key), and a link in a Markdown preview to another workspace file (opened in this tab, in
+ * Edit mode).
  * Test first: with mode "diff" and a FileDiff of one changed line the tab shows the diff pane, and
  * switching to "edit" shows the editor with the new text.
  */
@@ -99,6 +100,8 @@ export function FileTab({ workspaceId, path, mode, scope, onOpenFile }: FileTabP
 		contentKind !== "too_large" &&
 		previewKind !== "binary";
 	// A file deleted while it had unsaved edits stays editable, so its banner can offer Keep mine.
+	// A file still loading can be switched to Edit: the editor pane shows the load, and a file that
+	// turns out binary, too large or deleted falls back to Diff through `showMode` below.
 	const editDisabledReason =
 		contentKind === "missing" && draft === undefined
 			? "This file was deleted, so there is nothing to edit."
@@ -106,9 +109,7 @@ export function FileTab({ workspaceId, path, mode, scope, onOpenFile }: FileTabP
 				? "Binary files can't be edited."
 				: contentKind === "too_large"
 					? "This file is too large to edit."
-					: content.state === "loading"
-						? "The file is still loading."
-						: null;
+					: null;
 
 	const preferences: DiffPreferences = {
 		layout: splitView ? "split" : "unified",
