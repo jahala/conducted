@@ -25,7 +25,6 @@
 		"apps/desktop/src/core/registries/settings.ts": 3,
 		"apps/desktop/src/core/services/composer.ts": 2,
 		"apps/desktop/src/core/services/pr-mapping.ts": 1,
-		"apps/desktop/src/core/services/settings.ts": 2,
 		"apps/desktop/src/core/services/workspace.ts": 1,
 		"apps/desktop/src/features/composer/ArchivedComposerBar.tsx": 1,
 		"apps/desktop/src/features/diff/DiffToolbar.tsx": 1,

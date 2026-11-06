@@ -23,24 +23,20 @@
  * Test first: a repo shared value beats the user file for a repo-scoped key, and is ignored for a
  * user-only key.
  */
-import {
-	type AppError,
-	appError,
-	err,
-	notImplemented,
-	ok,
-	type RepoId,
-	type Result,
-} from "@conducted/shared";
+import { type AppError, appError, err, ok, type RepoId, type Result } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform } from "../../platform/platform.ts";
+import type { Loadable } from "../api.ts";
 import { localSettingsFile, sharedSettingsFile, userSettingsFile } from "../app-paths.ts";
 import { fireAndForget } from "../async/fire-and-forget.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
 import { createKeyedQueue, type KeyedQueue } from "../async/serial-queue.ts";
+import type { EnvVar } from "../db/env-vars.ts";
+import type { RepoRepository } from "../db/repos.ts";
 import type { Repositories } from "../db/repositories.ts";
 import { showSettingsFileAt, symbolicRefRemoteHead } from "../git/commands.ts";
 import type { GitRunner } from "../git/runner.ts";
+import type { EnvScope, EnvVarView } from "../model.ts";
 import {
 	coerceSettingValue,
 	getSettingDef,
@@ -458,6 +454,30 @@ export const validateEnvVarName = (name: string): Result<string> =>
 export const envVarKeychainKey = (scope: "global" | { repoId: RepoId }, name: string): string =>
 	`env:${scope === "global" ? "global" : `repo:${scope.repoId}`}:${name}`;
 
+/** A stable key for one environment variable scope, for the store and for the hook. */
+export const envScopeKey = (scope: EnvScope): string =>
+	scope === "global" ? "global" : `repo:${scope.repoId}`;
+
+/**
+ * Names the app fills in itself. They are refused in the form so a saved variable never fights the
+ * app's own value (services-map.md 4.2.8 and 5A.1.2).
+ */
+export const RESERVED_ENV_VAR_NAMES: readonly string[] = [
+	"CONDUCTED_WORKSPACE_ID",
+	"CONDUCTED_WORKSPACE_NAME",
+	"CONDUCTED_WORKSPACE_PATH",
+	"CONDUCTED_ROOT_PATH",
+	"CONDUCTED_DEFAULT_BRANCH",
+	"CONDUCTED_PORT",
+	"CONDUCTED_PATH_PREFIX",
+];
+
+export const isReservedEnvVarName = (name: string): boolean =>
+	name.startsWith("CONDUCTED_") || RESERVED_ENV_VAR_NAMES.includes(name);
+
+export const ENV_SAVE_FAILED_MESSAGE = "Couldn't update your environment variables";
+export const ENV_FILES_FAILED_MESSAGE = "Failed to update env files";
+
 /** A settings file's sentinel for "this value is in the Keychain". */
 export const ENV_VAR_KEYCHAIN_MARKER = "conductor-keychain";
 /** A settings file's sentinel for "remove the inherited value". */
@@ -756,6 +776,8 @@ export interface SettingsState {
 	dropped: readonly DroppedSetting[];
 	/** Load or exclude problems the app shows but does not stop for. */
 	warnings: readonly SettingsWarning[];
+	/** Variables of each scope that has been read, keyed by `envScopeKey`. */
+	envVars?: Readonly<Record<string, Loadable<EnvVarView[]>>>;
 }
 
 export type SettingsPlatform = Pick<Platform, "fs" | "keychain" | "app"> & {
@@ -764,7 +786,10 @@ export type SettingsPlatform = Pick<Platform, "fs" | "keychain" | "app"> & {
 
 export interface SettingsServiceDeps {
 	platform: SettingsPlatform;
-	repos: Pick<Repositories, "settings" | "envVars">;
+	repos: Pick<Repositories, "settings" | "envVars"> & {
+		/** The repository list, so a global variable can say how many repositories override it. */
+		repos?: Pick<RepoRepository, "list">;
+	};
 	toml: TomlCodec;
 	/** The GIT-01 runner. The remote default-branch layer reads through it. */
 	git?: Pick<GitRunner, "stdout">;
@@ -806,6 +831,8 @@ export class SettingsService {
 	readonly #pending = new Map<string, PendingWrite>();
 	/** Only the newest reload may change the store. */
 	readonly #reloads = createLatestWins<"reload">();
+	/** Only the newest environment-variable read of one scope may change the store. */
+	readonly #envReads = createLatestWins<string>();
 	/** Counts store changes made by writes. A reload keeps what a write changed after it began. */
 	#epoch = 0;
 	readonly #touchedAt = new Map<string, number>();
@@ -1076,21 +1103,188 @@ export class SettingsService {
 	}
 
 	/** Backs `Actions.settings.setEnvVar`: value into the Keychain, name and scope into `env_vars`. */
-	setEnvVar(
-		_name: string,
-		_value: string,
-		_scope: "global" | { repoId: RepoId },
+	async setEnvVar(
+		name: string,
+		value: string,
+		scope: "global" | { repoId: RepoId },
 	): Promise<Result<void>> {
-		return notImplemented("SET-04");
+		const valid = validateEnvVarName(name);
+		if (!valid.ok) return valid;
+		if (isReservedEnvVarName(name)) {
+			return err(
+				appError("env_name_reserved", `The app sets ${name} itself. Choose another name.`),
+			);
+		}
+		const keychainRef = envVarKeychainKey(scope, name);
+		const saved = await this.#deps.platform.keychain.set(keychainRef, value);
+		if (!saved.ok) {
+			return err(appError("env_save_failed", ENV_SAVE_FAILED_MESSAGE, saved.error));
+		}
+		const row = await this.#deps.repos.envVars.set({
+			name,
+			scope: scope === "global" ? "global" : "repo",
+			repoId: scope === "global" ? null : scope.repoId,
+			keychainRef,
+		});
+		if (!row.ok) {
+			const undone = await this.#deps.platform.keychain.delete(keychainRef);
+			if (!undone.ok) {
+				this.#deps.platform.app.writeLog("warn", `Could not undo the Keychain entry ${name}`, {
+					cause: undone.error.message,
+				});
+			}
+			return err(appError("env_save_failed", ENV_SAVE_FAILED_MESSAGE, row.error));
+		}
+		await this.loadEnvVars(scope);
+		return ok(undefined);
 	}
 
-	removeEnvVar(_name: string, _scope: "global" | { repoId: RepoId }): Promise<Result<void>> {
-		return notImplemented("SET-04");
+	/** Backs `Actions.settings.removeEnvVar`. The row goes first, then its Keychain entry. */
+	async removeEnvVar(name: string, scope: "global" | { repoId: RepoId }): Promise<Result<void>> {
+		const keychainRef = envVarKeychainKey(scope, name);
+		const removed = await this.#deps.repos.envVars.delete(
+			name,
+			scope === "global" ? "global" : "repo",
+			scope === "global" ? null : scope.repoId,
+		);
+		if (!removed.ok) {
+			return err(appError("env_save_failed", ENV_SAVE_FAILED_MESSAGE, removed.error));
+		}
+		const deleted = await this.#deps.platform.keychain.delete(keychainRef);
+		if (!deleted.ok) {
+			return err(appError("env_save_failed", ENV_SAVE_FAILED_MESSAGE, deleted.error));
+		}
+		await this.loadEnvVars(scope);
+		return ok(undefined);
+	}
+
+	/** Reads one value for the reveal button. Null means no value is stored. */
+	async revealEnvVar(
+		name: string,
+		scope: "global" | { repoId: RepoId },
+	): Promise<Result<string | null>> {
+		const read = await this.#deps.platform.keychain.get(envVarKeychainKey(scope, name));
+		return read.ok ? ok(read.value) : err(appError("env_read_failed", read.error.message));
+	}
+
+	/**
+	 * Reads the variables of one scope into the store. Only the newest read of a scope may change
+	 * the store, so two overlapping reads never put the older answer back.
+	 */
+	async loadEnvVars(scope: "global" | { repoId: RepoId }): Promise<Result<void>> {
+		const key = envScopeKey(scope);
+		const previous = this.store.getState().envVars ?? {};
+		if (previous[key] === undefined) {
+			this.store.setState({ envVars: { ...previous, [key]: { state: "loading" } } });
+		}
+		const ticket = this.#envReads.begin(key);
+		const views = await this.#envViews(scope);
+		if (!this.#envReads.isLatest(ticket)) return ok(undefined);
+		this.#envReads.settle(ticket);
+		const latest = this.store.getState().envVars ?? {};
+		this.store.setState({
+			envVars: {
+				...latest,
+				[key]: views.ok
+					? { state: "ready", data: views.value }
+					: { state: "error", error: views.error },
+			},
+		});
+		return views.ok ? ok(undefined) : err(views.error);
 	}
 
 	/** Environment for an agent or script of one repository: global, then repo values. */
-	environmentFor(_repoId: RepoId): Promise<Result<Record<string, string>>> {
-		return notImplemented("SET-04");
+	async environmentFor(repoId: RepoId): Promise<Result<Record<string, string>>> {
+		const listed = await this.#deps.repos.envVars.listForRepo(repoId);
+		if (!listed.ok) return listed;
+		const env: Record<string, string> = {};
+		for (const entry of listed.value) {
+			const read = await this.#deps.platform.keychain.get(entry.keychainRef);
+			if (!read.ok) {
+				return err(
+					appError(
+						"env_read_failed",
+						`The value of ${entry.name} could not be read from the Keychain: ${read.error.message}`,
+						read.error,
+					),
+				);
+			}
+			if (read.value === null) {
+				return err(
+					appError("env_value_missing", `The value of ${entry.name} is missing from the Keychain.`),
+				);
+			}
+			env[entry.name] = read.value;
+		}
+		return ok(env);
+	}
+
+	async #envViews(scope: "global" | { repoId: RepoId }): Promise<Result<EnvVarView[]>> {
+		const global = await this.#deps.repos.envVars.listGlobal();
+		if (!global.ok) return global;
+		const ids = await this.#repoIds();
+		if (!ids.ok) return ids;
+		const overrides = new Map<string, number>();
+		for (const repoId of ids.value) {
+			const rows = await this.#deps.repos.envVars.listByRepo(repoId);
+			if (!rows.ok) return rows;
+			for (const row of rows.value) {
+				overrides.set(row.name, (overrides.get(row.name) ?? 0) + 1);
+			}
+		}
+		const globalNames = new Set(global.value.map((row) => row.name));
+		const ownRows: EnvVar[] = [];
+		if (scope !== "global") {
+			const listed = await this.#deps.repos.envVars.listByRepo(scope.repoId);
+			if (!listed.ok) return listed;
+			ownRows.push(...listed.value);
+		}
+		const ownNames = new Set(ownRows.map((row) => row.name));
+		const rows: { name: string; rowScope: EnvScope; keychainRef: string }[] = global.value
+			.filter((row) => !ownNames.has(row.name))
+			.map((row) => ({
+				name: row.name,
+				rowScope: "global",
+				keychainRef: row.keychainRef,
+			}));
+		if (scope !== "global") {
+			rows.push(
+				...ownRows.map((row) => ({
+					name: row.name,
+					rowScope: scope,
+					keychainRef: row.keychainRef,
+				})),
+			);
+		}
+		const views: EnvVarView[] = [];
+		for (const row of rows) {
+			const read = await this.#deps.platform.keychain.get(row.keychainRef);
+			if (!read.ok) {
+				return err(
+					appError(
+						"env_read_failed",
+						`The value of ${row.name} could not be read from the Keychain: ${read.error.message}`,
+						read.error,
+					),
+				);
+			}
+			views.push({
+				name: row.name,
+				scope: row.rowScope,
+				hasValue: read.value !== null,
+				overridesGlobal: row.rowScope !== "global" && globalNames.has(row.name),
+				overriddenInRepos: row.rowScope === "global" ? (overrides.get(row.name) ?? 0) : 0,
+			});
+		}
+		views.sort((left, right) => left.name.localeCompare(right.name));
+		return ok(views);
+	}
+
+	async #repoIds(): Promise<Result<readonly RepoId[]>> {
+		const repositories = this.#deps.repos.repos;
+		if (repositories === undefined) return ok([]);
+		const listed = await repositories.list({ includeHidden: true });
+		return listed.ok ? ok(listed.value.map((repo) => repo.id)) : listed;
 	}
 
 	// -------------------------------------------------------------- internals

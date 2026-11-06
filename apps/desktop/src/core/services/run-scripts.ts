@@ -23,9 +23,9 @@
  * returns an error rather than opening it silently.
  * Our design choice: the terminal service owns the process; this service owns the rules around
  * it. Run history is in local storage, not in the settings table.
- * Our design choice: setup runs with no `userEnv` for now. SET-04 owns the settings and Keychain
- * variables; until that service is wired here, no extra variables are passed rather than a
- * made-up set.
+ * Setup, archive and run scripts receive the Environment page's variables for the repository
+ * (SET-04): the global values, with the repository's own values replacing them. The values come
+ * from the Keychain through the composition root, never from a file.
  * Built now: `runSetup` and `stopAll` (WS-03 and RUN-01), `runArchive` (WS-05), which runs the
  * repository's archive script once through the shell before the worktree is removed, the run
  * actions above (RUN-01), and the RUN-03 paths: polling the workspace's listening ports into
@@ -37,6 +37,7 @@ import {
 	appError,
 	err,
 	ok,
+	type RepoId,
 	type Result,
 	type TerminalId,
 	type WorkspaceId,
@@ -156,6 +157,11 @@ export interface RunScriptsServiceDeps {
 	ports?: Pick<PortService, "listListening">;
 	/** Receives a failed port scan so a detection problem is not silent. */
 	log?: (level: "warn" | "info", message: string) => void;
+	/**
+	 * The Environment page's variables for one repository (SET-04). The composition root supplies
+	 * it; a test of another path may leave it out, and no extra variables are then passed.
+	 */
+	environmentFor?: (repoId: RepoId) => Promise<Result<Record<string, string>>>;
 }
 
 interface RunProcess {
@@ -344,11 +350,13 @@ export class RunScriptsService {
 			this.#lastTerminal.delete(workspaceId);
 		}
 
+		const userEnv = await this.#userEnv(repo.value.id);
+		if (!userEnv.ok) return userEnv;
 		const env = buildScriptEnv({
 			workspace: workspace.value,
 			repoRootPath: repo.value.rootPath,
 			defaultBranch: repo.value.defaultBranch,
-			userEnv: {},
+			userEnv: userEnv.value,
 		});
 		const started = await this.#deps.terminals.runScript({
 			workspaceId,
@@ -406,11 +414,13 @@ export class RunScriptsService {
 			);
 		}
 
+		const userEnv = await this.#userEnv(repo.value.id);
+		if (!userEnv.ok) return userEnv;
 		const env = buildScriptEnv({
 			workspace: workspace.value,
 			repoRootPath: repo.value.rootPath,
 			defaultBranch: repo.value.defaultBranch,
-			userEnv: {},
+			userEnv: userEnv.value,
 		});
 		const result = await this.#deps.shell.run({
 			program: "zsh",
@@ -668,6 +678,12 @@ export class RunScriptsService {
 		}
 	}
 
+	/** The variables saved on the Environment page for a repository, or none when it is not wired. */
+	async #userEnv(repoId: RepoId): Promise<Result<Record<string, string>>> {
+		if (this.#deps.environmentFor === undefined) return ok({});
+		return this.#deps.environmentFor(repoId);
+	}
+
 	async #afterSetup(workspaceId: WorkspaceId, succeeded: boolean): Promise<Result<void>> {
 		const pending = this.#pending.get(workspaceId);
 		if (pending !== undefined) {
@@ -727,11 +743,13 @@ export class RunScriptsService {
 			if (!stoppedOthers.ok) return stoppedOthers;
 		}
 
+		const userEnv = await this.#userEnv(repo.id);
+		if (!userEnv.ok) return userEnv;
 		const env = buildScriptEnv({
 			workspace,
 			repoRootPath: repo.rootPath,
 			defaultBranch: repo.defaultBranch,
-			userEnv: {},
+			userEnv: userEnv.value,
 		});
 		env.CONDUCTED_PATH_PREFIX = binDir(this.#deps.fs.paths);
 		const cwd = expandActionCwd(action.cwd ?? workspace.path, env);

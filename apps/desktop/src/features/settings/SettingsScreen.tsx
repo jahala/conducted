@@ -90,11 +90,7 @@ function UserPage({
 				</NotBuiltYet>
 			);
 		case "environment":
-			return (
-				<NotBuiltYet area="Environment settings" resetKey="environment">
-					<EnvironmentPage />
-				</NotBuiltYet>
-			);
+			return <EnvironmentPage focusSettingKey={focusSettingKey} />;
 	}
 }
 

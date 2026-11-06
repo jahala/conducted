@@ -636,6 +636,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		shell: platform.shell,
 		ports,
 		log,
+		environmentFor: (repoId) => settings.environmentFor(repoId),
 	});
 	const repo: RepoService = new RepoService({
 		platform,
