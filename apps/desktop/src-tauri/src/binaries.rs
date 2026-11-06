@@ -950,6 +950,8 @@ impl ProgramsState {
 }
 
 /// Reads the release feed. A missing feed is a named error: the app never invents a download.
+/// Each hash is checked and kept in lower case here, so the download and the install compare the
+/// same text.
 pub fn read_release_manifest(path: &Path) -> CommandResult<ReleaseManifest> {
     let text = fs::read_to_string(path).map_err(|error| CommandError::Failed {
         code: "program_release_missing",
@@ -958,10 +960,24 @@ pub fn read_release_manifest(path: &Path) -> CommandResult<ReleaseManifest> {
             path.display()
         ),
     })?;
-    serde_json::from_str(&text).map_err(|error| CommandError::Failed {
-        code: "program_release_invalid",
-        message: format!("The agent program release feed could not be understood: {error}"),
-    })
+    let mut manifest: ReleaseManifest =
+        serde_json::from_str(&text).map_err(|error| CommandError::Failed {
+            code: "program_release_invalid",
+            message: format!("The agent program release feed could not be understood: {error}"),
+        })?;
+    for release in [manifest.claude.as_mut(), manifest.codex.as_mut()]
+        .into_iter()
+        .flatten()
+    {
+        for asset in [&mut release.darwin_arm64, &mut release.darwin_x64] {
+            asset.sha256 =
+                crate::http::parse_sha256(&asset.sha256).map_err(|error| CommandError::Failed {
+                    code: "program_release_invalid",
+                    message: format!("The agent program release feed has a bad hash: {error}"),
+                })?;
+        }
+    }
+    Ok(manifest)
 }
 
 fn now_ms() -> u64 {
@@ -2150,6 +2166,45 @@ mod tests {
         );
         assert_eq!(pinned_version(ManagedProgram::Claude), Some("2.1.308"));
         assert_eq!(pinned_version(ManagedProgram::Gh), None);
+    }
+
+    #[test]
+    fn plat_28_the_release_feed_hash_is_read_in_lower_case_and_checked() {
+        let folder = TempDir::new();
+        let path = folder.path().join("manifest.json");
+        let upper = ProgramRelease {
+            darwin_arm64: ReleaseAsset {
+                sha256: "AB".repeat(32),
+                ..release_asset()
+            },
+            ..release("2.1.308")
+        };
+        let manifest = ReleaseManifest {
+            claude: Some(upper),
+            codex: None,
+        };
+        fs::write(&path, serde_json::to_string(&manifest).expect("serialise")).expect("write feed");
+
+        let read = read_release_manifest(&path).expect("read feed");
+
+        let claude = read
+            .release(ManagedProgram::Claude)
+            .expect("Claude is offered");
+        assert_eq!(claude.darwin_arm64.sha256, "ab".repeat(32));
+
+        let short = ReleaseManifest {
+            claude: None,
+            codex: Some(ProgramRelease {
+                darwin_x64: ReleaseAsset {
+                    sha256: "abc".to_string(),
+                    ..release_asset()
+                },
+                ..release("0.164.0")
+            }),
+        };
+        fs::write(&path, serde_json::to_string(&short).expect("serialise")).expect("write feed");
+        let error = read_release_manifest(&path).expect_err("a short hash is refused");
+        assert_eq!(error_code(error), "program_release_invalid");
     }
 
     #[test]
