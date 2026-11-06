@@ -188,7 +188,6 @@
 	"time-and-leaks": {
 		"apps/desktop/src-tauri/src/shell.rs": 4,
 		"apps/desktop/src/app/CreateWorkspacePage.test.tsx": 2,
-		"apps/desktop/src/app/command-dispatcher.hooks.test.tsx": 1,
 		"apps/desktop/src/core/async/fire-and-forget.test.ts": 1,
 		"apps/desktop/src/core/async/serial-queue.test.ts": 1,
 		"apps/desktop/src/core/db/migration-0004.test.ts": 1,

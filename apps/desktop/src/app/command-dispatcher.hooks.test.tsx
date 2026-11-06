@@ -33,7 +33,9 @@ const unusedDatabase: Database = {
 };
 
 const clock = { now: () => 1_000 };
-const ids = { uuid: () => "id" };
+let nextId = 0;
+/** A new id on every call, as the real id source gives. */
+const ids = { uuid: () => `dispatcher-test-id-${++nextId}` };
 
 function buildHarness() {
 	const memory = createMemoryPlatform({ clock, ids, database: unusedDatabase });
