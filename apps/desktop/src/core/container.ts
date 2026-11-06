@@ -894,6 +894,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		fs: platform.fs,
 		search: platform.fileSearch,
 		shell: platform.shell,
+		git: gitRunner,
 		rootsOf: (id) => ready(lookups.allowedRoots(id)),
 		opener: platform.opener,
 	});

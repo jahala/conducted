@@ -2,9 +2,11 @@
  * @feature REV-06 Workspace files: tree, quick open, search, read and write
  * @feature REV-08 File content for the viewer, the editor's unsaved drafts and the open-in-tab request
  * @feature REV-10 Artifacts tab: the workspace's `.context` files, more pages and uploads
+ * @feature REV-11 Resolve conflicts inline: current, incoming or both
  * @feature SIDE-22 Slash command cache that works before a chat starts
  * Owns: listing a workspace's files, fuzzy file search, content search, reading and saving a file
- * for the viewer and editor, fuzzy search of a repository's main clone before a workspace exists, the modified time the viewer polls, the editor's unsaved drafts, and
+ * for the viewer and editor, fuzzy search of a repository's main clone before a workspace exists, the modified time the viewer polls, the editor's unsaved drafts,
+ * parsing a file's conflict markers and replacing them with the current side, the incoming side or both, and
  * the pages of the Artifacts list. The drafts live in this service's store, keyed by workspace and
  * path, so they outlive the tab: switching tabs, toggling Diff and Edit, or moving to the next file
  * keeps them. A draft is kept in memory until it is saved or discarded, its workspace is removed
@@ -29,7 +31,10 @@
  * is the platform's total for the whole folder, taken as it is from the newest page. An upload
  * copies the picked files into the workspace's `.context` folder, then reads the first page
  * again; a picked file whose name is already in `.context` is refused and the other files are
- * still copied; the first failure is returned.
+ * still copied; the first failure is returned. A conflict resolution needs one choice per conflict
+ * and the same number as the file holds; malformed markers or a count that does not match fail
+ * before the file is written. The save is atomic, and after it leaves no markers the file is
+ * staged with `git add`.
  * Our design choice: an upload never replaces an artifact. A name clash is refused with a message
  * that names the file, so the user renames it rather than losing the agent's file.
  * Our design choice: a preview URL carries the file's modified time as a query string. The asset
@@ -41,15 +46,10 @@
  * Our design choice: `grep` asks the platform for one match more than CONTENT_SEARCH_LIMIT, so the
  * caller can tell a list that was cut from one that holds exactly the limit.
  * Test first: readFile("../outside") returns an Err with code `path_outside_workspace`.
+ * Test first: resolveConflicts with one "current" choice replaces that conflict's markers with the
+ * current side and stages the file.
  */
-import {
-	appError,
-	err,
-	notImplemented,
-	ok,
-	type Result,
-	type WorkspaceId,
-} from "@conducted/shared";
+import { appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type {
 	FileSearch,
@@ -63,6 +63,8 @@ import type {
 import type { ConflictChoice, DiffScope, FileEntry } from "../api.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
 import { copyFileKeepingMode, FILE_COPY_FAILED } from "../fs-helpers.ts";
+import { addPath } from "../git/commands.ts";
+import type { GitRunner } from "../git/runner.ts";
 import type { ArtifactEntry, FileContent } from "../model.ts";
 import { workspaceRelativePath } from "./git.ts";
 
@@ -76,6 +78,8 @@ export interface WorkspaceFilesServiceDeps {
 	search: FileSearch;
 	/** Copies picked files into `.context` on upload. */
 	shell: Pick<Shell, "run">;
+	/** Stages a file whose conflicts are resolved, so the change list sees it as staged. */
+	git: Pick<GitRunner, "runChecked">;
 	/** Workspace folder plus linked folders that are allowed. */
 	rootsOf: (workspaceId: WorkspaceId) => Promise<Result<string[]>>;
 	/** Reveals a file in Finder and opens one in another app, for the file viewer. */
@@ -194,6 +198,143 @@ const artifactEntryFrom = (context: string, entry: FileStat): ArtifactEntry | nu
 		modifiedAt: entry.modifiedAt,
 	};
 };
+
+/** One conflict region in a file, in the order it appears. */
+export interface ConflictHunk {
+	/** 0-based, top to bottom. */
+	index: number;
+	/** 1-based line of the `<<<<<<<` marker. */
+	startLine: number;
+	/** 1-based line of the `>>>>>>>` marker. */
+	endLine: number;
+	/** The lines between `<<<<<<<` and `=======` (or the diff3 base marker), joined by `\n`. */
+	currentText: string;
+	/** The lines between `=======` and `>>>>>>>`, joined by `\n`. */
+	incomingText: string;
+	/** The current side split into lines, so a blank side stays empty when it is applied. */
+	currentLines: readonly string[];
+	/** The incoming side split into lines, so a blank side stays empty when it is applied. */
+	incomingLines: readonly string[];
+}
+
+type ConflictMarker = "start" | "base" | "separator" | "end";
+
+/** The marker a line is, ignoring a Windows line ending. Any other line is null. */
+const conflictMarkerOf = (line: string): ConflictMarker | null => {
+	const body = line.endsWith("\r") ? line.slice(0, -1) : line;
+	if (/^<{7}(?: .*)?$/.test(body)) return "start";
+	if (/^\|{7}(?: .*)?$/.test(body)) return "base";
+	if (/^={7}$/.test(body)) return "separator";
+	if (/^>{7}(?: .*)?$/.test(body)) return "end";
+	return null;
+};
+
+/** A malformed marker can leave a file half resolved, so it is refused before anything is written. */
+const malformedConflict = (line: number): Result<never> =>
+	err(
+		appError(
+			"conflict_markers_malformed",
+			`The conflict markers in this file are malformed near line ${line}. Fix them by hand.`,
+		),
+	);
+
+/**
+ * Reads the conflict regions top to bottom. Malformed markers return an Err, so a caller never
+ * writes a file it only partly understood.
+ */
+export function parseConflictMarkers(text: string): Result<ConflictHunk[]> {
+	const lines = text.split("\n");
+	const hunks: ConflictHunk[] = [];
+	let at = 0;
+	while (at < lines.length) {
+		const marker = conflictMarkerOf(lines[at] ?? "");
+		if (marker === "start") {
+			const startLine = at + 1;
+			const currentLines: string[] = [];
+			at += 1;
+			while (
+				at < lines.length &&
+				conflictMarkerOf(lines[at] ?? "") !== "separator" &&
+				conflictMarkerOf(lines[at] ?? "") !== "base"
+			) {
+				const inside = conflictMarkerOf(lines[at] ?? "");
+				if (inside === "start" || inside === "end") return malformedConflict(at + 1);
+				currentLines.push(lines[at] ?? "");
+				at += 1;
+			}
+			if (at >= lines.length) return malformedConflict(startLine);
+			if (conflictMarkerOf(lines[at] ?? "") === "base") {
+				at += 1;
+				while (at < lines.length && conflictMarkerOf(lines[at] ?? "") !== "separator") {
+					const inside = conflictMarkerOf(lines[at] ?? "");
+					if (inside !== null) return malformedConflict(at + 1);
+					at += 1;
+				}
+				if (at >= lines.length) return malformedConflict(startLine);
+			}
+			if (conflictMarkerOf(lines[at] ?? "") !== "separator") return malformedConflict(at + 1);
+			at += 1;
+			const incomingLines: string[] = [];
+			while (at < lines.length && conflictMarkerOf(lines[at] ?? "") !== "end") {
+				const inside = conflictMarkerOf(lines[at] ?? "");
+				if (inside !== null) return malformedConflict(at + 1);
+				incomingLines.push(lines[at] ?? "");
+				at += 1;
+			}
+			if (at >= lines.length) return malformedConflict(startLine);
+			hunks.push({
+				index: hunks.length,
+				startLine,
+				endLine: at + 1,
+				currentText: currentLines.join("\n"),
+				incomingText: incomingLines.join("\n"),
+				currentLines,
+				incomingLines,
+			});
+			at += 1;
+			continue;
+		}
+		if (marker === "end" || marker === "base") return malformedConflict(at + 1);
+		at += 1;
+	}
+	return ok(hunks);
+}
+
+/** Replaces every conflict with its chosen side. An unknown choice or a count mismatch is refused. */
+function applyConflictChoices(text: string, choices: readonly ConflictChoice[]): Result<string> {
+	const parsed = parseConflictMarkers(text);
+	if (!parsed.ok) return parsed;
+	if (parsed.value.length === 0) {
+		return err(
+			appError("conflict_markers_missing", "That file has no conflict markers to resolve."),
+		);
+	}
+	if (parsed.value.length !== choices.length) {
+		return err(
+			appError(
+				"conflict_choice_count",
+				`This file has ${parsed.value.length} conflicts, but ${choices.length} choices were given.`,
+			),
+		);
+	}
+	const lines = text.split("\n");
+	const output: string[] = [];
+	let cursor = 0;
+	for (const hunk of parsed.value) {
+		const choice = choices[hunk.index];
+		if (choice !== "current" && choice !== "incoming" && choice !== "both") {
+			return err(appError("conflict_choice_invalid", "A conflict choice was not recognised."));
+		}
+		const start = hunk.startLine - 1;
+		const end = hunk.endLine - 1;
+		output.push(...lines.slice(cursor, start));
+		if (choice === "current" || choice === "both") output.push(...hunk.currentLines);
+		if (choice === "incoming" || choice === "both") output.push(...hunk.incomingLines);
+		cursor = end + 1;
+	}
+	output.push(...lines.slice(cursor));
+	return ok(output.join("\n"));
+}
 
 export class WorkspaceFilesService {
 	readonly #deps: WorkspaceFilesServiceDeps;
@@ -524,13 +665,37 @@ export class WorkspaceFilesService {
 		return ok({ modifiedAt: after.value.modifiedAt });
 	}
 
-	/** Backs `Actions.files.resolveConflicts`. Malformed markers fail without changing the file. */
-	resolveConflicts(
-		_workspaceId: WorkspaceId,
-		_path: string,
-		_choices: readonly ConflictChoice[],
+	/**
+	 * Backs `Actions.files.resolveConflicts`. Malformed markers fail without changing the file.
+	 * When the saved text has no markers left, the file is staged so it leaves the conflicted list.
+	 */
+	async resolveConflicts(
+		workspaceId: WorkspaceId,
+		relativePath: string,
+		choices: readonly ConflictChoice[],
 	): Promise<Result<void>> {
-		return notImplemented("REV-11");
+		const resolved = await this.#resolve(workspaceId, relativePath);
+		if (!resolved.ok) return resolved;
+		const read = await this.#deps.fs.readText(resolved.value.absolute);
+		if (!read.ok) return read;
+		const applied = applyConflictChoices(read.value, choices);
+		if (!applied.ok) return applied;
+		const remaining = parseConflictMarkers(applied.value);
+		if (!remaining.ok) return remaining;
+		if (remaining.value.length > 0) {
+			return err(
+				appError(
+					"conflict_markers_malformed",
+					"Resolving those conflicts would leave markers in the file, so nothing was written.",
+				),
+			);
+		}
+		const written = await this.#deps.fs.writeTextAtomic(resolved.value.absolute, applied.value);
+		if (!written.ok) return err(appError("other", written.error.message, written.error));
+		const staged = await this.#deps.git.runChecked(addPath(resolved.value.relative), {
+			cwd: resolved.value.root,
+		});
+		return staged.ok ? ok(undefined) : err(staged.error);
 	}
 
 	/** Reads the first page of the Artifacts tab, replacing the pages the tab held. */
