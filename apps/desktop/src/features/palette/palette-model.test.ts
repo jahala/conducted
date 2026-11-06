@@ -118,6 +118,7 @@ describe("NAV-08 palette model", () => {
 			"Show uncommitted changes",
 			"Show all files",
 			"Show checks",
+			"Link pull request",
 			"Link issue",
 			"Copy URL",
 			"Move to section",

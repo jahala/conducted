@@ -65,6 +65,7 @@ const WORKSPACE_ACTIONS: readonly CommandSpec[] = [
 	{ commandId: "review.showUncommitted", label: "Show uncommitted changes" },
 	{ commandId: "review.showAllFiles", label: "Show all files" },
 	{ commandId: "pr.showChecks", label: "Show checks" },
+	{ commandId: "pr.link", label: "Link pull request" },
 	{ commandId: "chat.linkIssue", label: "Link issue" },
 	{ commandId: "workspace.copyLink", label: "Copy URL" },
 	{ commandId: "workspace.moveToSection", label: "Move to section" },

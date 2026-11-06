@@ -9,7 +9,9 @@
  * Our design choice: annotations are held in this tab's state until sent, then cleared. They are
  * not stored in the database. The picker attaches to the preview frame's own document, so it works
  * while the app may script that page; a page the app may not script says annotations are
- * unavailable for it. The frame is never navigated or reloaded by this layer.
+ * unavailable for it. The frame is never navigated or reloaded by this layer. The picker rebinds
+ * to the frame's new document on every load, and each annotation takes a fresh random id, so a
+ * reload cannot reuse one.
  * Must handle: annotating off (overlay inert, page clickable), a selector that no longer matches
  * after navigation (annotation kept with an outdated mark), many annotations (numbered, list
  * scrolls), Escape cancelling the current note, sending with no active chat (the action creates
@@ -17,13 +19,13 @@
  * says annotations are unavailable for this page).
  * Test first: two annotations produce one chat message listing both in order.
  */
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Badge } from "../../ui/Badge.tsx";
 import { Button } from "../../ui/Button.tsx";
 import { IconButton } from "../../ui/IconButton.tsx";
 import { Label, Textarea } from "../../ui/Input.tsx";
 import { CloseIcon, TargetIcon } from "../../ui/icons.tsx";
-import { formatAnnotations, type PageAnnotation } from "./annotation-format.ts";
+import { formatAnnotations, MAX_ELEMENT_TEXT, type PageAnnotation } from "./annotation-format.ts";
 
 export interface AnnotationOverlayProps {
 	annotations: PageAnnotation[];
@@ -41,9 +43,6 @@ interface PendingAnnotation {
 	selector: string;
 	elementText: string | null;
 }
-
-/** The visible text one annotation carries, before the message cuts it to 200 characters. */
-const MAX_ELEMENT_TEXT = 200;
 
 /** The id of a selector with anything CSS reads specially escaped. */
 function escapeIdentifier(value: string): string {
@@ -77,11 +76,15 @@ export function selectorFor(element: Element): string {
 	return parts.join(" > ");
 }
 
-/** The address the preview frame was opened with. */
+/** The address the preview frame shows now: the live page when we may read it, else its src. */
 function frameUrl(frame: HTMLIFrameElement): string {
-	const source = frame.getAttribute("src");
-	if (source !== null && source !== "" && source !== "about:blank") return source;
-	return frame.contentDocument?.location?.href ?? "";
+	try {
+		const live = frame.contentDocument?.location?.href;
+		if (live !== undefined && live !== "" && live !== "about:blank") return live;
+	} catch {
+		// A page on another origin does not expose its location.
+	}
+	return frame.getAttribute("src") ?? "";
 }
 
 /** True when the annotation's element can still be found on the page. */
@@ -127,7 +130,6 @@ export function AnnotationOverlay({
 	const [note, setNote] = useState("");
 	const [pageState, setPageState] = useState<PageState>("idle");
 	const [outdated, setOutdated] = useState<Set<string>>(new Set());
-	const sequence = useRef(0);
 	const noteId = useId();
 
 	useEffect(() => {
@@ -138,35 +140,11 @@ export function AnnotationOverlay({
 			return;
 		}
 
-		let pageDocument: Document | null;
-		try {
-			pageDocument = frame.contentDocument;
-		} catch {
-			// A page on another origin does not expose its document; the overlay says so.
-			pageDocument = null;
-		}
-		if (pageDocument === null) {
-			setPageState("unavailable");
-			return;
-		}
-		const page = pageDocument;
-		const window = page.defaultView;
-		if (window === null) {
-			setPageState("unavailable");
-			return;
-		}
-
-		const url = frameUrl(frame);
 		const colour = accentColour();
+		let page: Document | null = null;
+		let previousCursor = "";
 		let highlighted: HTMLElement | null = null;
 		let previous: { outline: string; offset: string } | null = null;
-		const previousCursor = page.body?.style.cursor ?? "";
-		if (page.body !== null) page.body.style.cursor = "crosshair";
-
-		const elementOf = (event: MouseEvent): Element | null => {
-			const target = event.target;
-			return target instanceof window.Element ? target : null;
-		};
 
 		const clearHighlight = () => {
 			if (highlighted === null || previous === null) return;
@@ -174,6 +152,12 @@ export function AnnotationOverlay({
 			highlighted.style.outlineOffset = previous.offset;
 			highlighted = null;
 			previous = null;
+		};
+
+		const elementOf = (event: MouseEvent): Element | null => {
+			const view = page?.defaultView;
+			const target = event.target;
+			return view !== null && view !== undefined && target instanceof view.Element ? target : null;
 		};
 
 		const onMove = (event: MouseEvent) => {
@@ -197,29 +181,55 @@ export function AnnotationOverlay({
 			clearHighlight();
 			const text = (element.textContent ?? "").replace(/\s+/g, " ").trim();
 			setPending({
-				url,
+				url: frameUrl(frame),
 				selector: selectorFor(element),
 				elementText: text === "" ? null : text.slice(0, MAX_ELEMENT_TEXT),
 			});
 			setNote("");
 		};
 
-		const attach = () => {
-			setPageState("ready");
-			setOutdated(outdatedIds(page, annotations, frameUrl(frame)));
+		const detach = () => {
+			if (page === null) return;
+			page.removeEventListener("mousemove", onMove, true);
+			page.removeEventListener("click", onClick, true);
+			clearHighlight();
+			if (page.body !== null) page.body.style.cursor = previousCursor;
+			page = null;
 		};
 
-		page.addEventListener("mousemove", onMove, true);
-		page.addEventListener("click", onClick, true);
+		// Every load may hand the frame a new document. Resolve it here, so the picker and the
+		// outdated check always follow the page the user is looking at.
+		const attach = () => {
+			let next: Document | null;
+			try {
+				next = frame.contentDocument;
+			} catch {
+				// A page on another origin does not expose its document; the overlay says so.
+				next = null;
+			}
+			if (next === null || next.defaultView === null) {
+				detach();
+				setPageState("unavailable");
+				return;
+			}
+			if (next !== page) {
+				detach();
+				page = next;
+				previousCursor = page.body?.style.cursor ?? "";
+				if (page.body !== null) page.body.style.cursor = "crosshair";
+				page.addEventListener("mousemove", onMove, true);
+				page.addEventListener("click", onClick, true);
+			}
+			setPageState("ready");
+			setOutdated(outdatedIds(next, annotations, frameUrl(frame)));
+		};
+
 		frame.addEventListener("load", attach);
 		attach();
 
 		return () => {
-			page.removeEventListener("mousemove", onMove, true);
-			page.removeEventListener("click", onClick, true);
 			frame.removeEventListener("load", attach);
-			clearHighlight();
-			if (page.body !== null) page.body.style.cursor = previousCursor;
+			detach();
 		};
 	}, [annotating, pending, annotations]);
 
@@ -237,9 +247,8 @@ export function AnnotationOverlay({
 
 	const save = () => {
 		if (pending === null) return;
-		sequence.current += 1;
 		onAdd({
-			id: `annotation-${sequence.current}`,
+			id: crypto.randomUUID(),
 			url: pending.url,
 			selector: pending.selector,
 			elementText: pending.elementText,
@@ -251,7 +260,12 @@ export function AnnotationOverlay({
 	};
 
 	const send = () => {
-		const message = formatAnnotations(annotations);
+		const message = formatAnnotations(
+			annotations.map((annotation) => ({
+				...annotation,
+				stillMatches: annotation.stillMatches && !outdated.has(annotation.id),
+			})),
+		);
 		if (message === null) return;
 		onSendToChat(message);
 	};

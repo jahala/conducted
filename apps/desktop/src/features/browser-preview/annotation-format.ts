@@ -4,7 +4,7 @@
  * Behaviour: native-and-sidecar-map.md (Agentation formats annotations for the agent). The wording
  * is ours.
  * Our design choice: one numbered entry per annotation with the page URL, the element selector,
- * the visible text (cut to 200 characters) and the user's note. Annotations on the same page share
+ * the visible text (cut to MAX_ELEMENT_TEXT) and the user's note. Annotations on the same page share
  * one URL heading, in the order the user made them. No screenshot in the first version.
  * Must handle: no annotations (returns null, nothing to send), annotations on several pages
  * (grouped by URL), notes with Markdown characters (escaped so the list stays readable), an
@@ -23,8 +23,8 @@ export interface PageAnnotation {
 	stillMatches: boolean;
 }
 
-/** The most visible text one annotation carries into the message. */
-const MAX_ELEMENT_TEXT = 200;
+/** The most visible text one annotation carries, at capture and in the message. */
+export const MAX_ELEMENT_TEXT = 200;
 
 /** Characters that would lay out the list differently, escaped so a note reads as written. */
 const MARKDOWN_CHARACTER = /([\\`*_[\]()<>#|~])/g;

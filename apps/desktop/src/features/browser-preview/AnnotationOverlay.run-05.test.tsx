@@ -1,15 +1,16 @@
 /**
  * @feature RUN-05 Annotation overlay
  * Owns: tests for pointing at a page element in the preview, writing a note, the numbered list,
- * Escape, the unavailable page, removing and clearing, the disabled chat action, and the one
- * message "Add to chat" sends.
+ * Escape, the unavailable page, removing and clearing, the disabled chat action, the one message
+ * "Add to chat" sends, rebinding after a navigation, the outdated marker in that message, the id
+ * a remounted overlay gives a new annotation, and the one element-text cap.
  * Test first: two annotations produce one chat message listing both in order.
  */
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { type ReactNode, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AnnotationOverlay } from "./AnnotationOverlay.tsx";
-import type { PageAnnotation } from "./annotation-format.ts";
+import { MAX_ELEMENT_TEXT, type PageAnnotation } from "./annotation-format.ts";
 
 afterEach(cleanup);
 
@@ -44,9 +45,11 @@ async function frameWithButton(): Promise<HTMLIFrameElement> {
 /** A real owner of the annotations list, so saving, removing and clearing are seen in the UI. */
 function Harness({
 	onAdd,
+	onSend,
 	initial = [],
 }: {
 	onAdd?: (annotation: PageAnnotation) => void;
+	onSend?: (message: string) => void;
 	initial?: PageAnnotation[];
 }) {
 	const [annotations, setAnnotations] = useState<PageAnnotation[]>(initial);
@@ -59,7 +62,7 @@ function Harness({
 				setAnnotations((current) => [...current, item]);
 			}}
 			onRemove={(id) => setAnnotations((current) => current.filter((item) => item.id !== id))}
-			onSendToChat={() => {}}
+			onSendToChat={(message) => onSend?.(message)}
 			onClear={() => setAnnotations([])}
 		/>
 	);
@@ -229,5 +232,134 @@ describe("RUN-05 annotation overlay", () => {
 		);
 
 		expect(screen.getByText("Outdated")).toBeTruthy();
+	});
+
+	it("rebinds the picker and the outdated check to a new document after navigation", async () => {
+		const onAdd = vi.fn();
+		const replacement = document.createElement("iframe");
+		document.body.appendChild(replacement);
+		try {
+			render(
+				withFrame(
+					<Harness
+						onAdd={onAdd}
+						initial={[annotation({ id: "old", selector: "#buy", url: "", note: "Old" })]}
+					/>,
+				),
+			);
+			fireEvent.click(screen.getByRole("button", { name: "Annotate" }));
+			const frame = await frameWithButton();
+
+			await waitFor(() => expect(replacement.contentDocument?.body).toBeTruthy());
+			const next = replacement.contentDocument;
+			if (next === null) throw new Error("the new page is not scriptable");
+			next.body.innerHTML = '<button id="next">Next</button>';
+			Object.defineProperty(frame, "contentDocument", { value: next, configurable: true });
+			Object.defineProperty(frame, "contentWindow", {
+				value: replacement.contentWindow,
+				configurable: true,
+			});
+			fireEvent.load(frame);
+
+			// The old annotation's element is gone from the new document.
+			expect(await screen.findByText("Outdated")).toBeTruthy();
+
+			const button = next.querySelector("#next");
+			if (button === null) throw new Error("the new page has no button");
+			fireEvent.click(button);
+			fireEvent.change(screen.getByLabelText("Note"), { target: { value: "After navigation" } });
+			fireEvent.click(screen.getByRole("button", { name: "Save annotation" }));
+
+			await screen.findByText("After navigation");
+			expect(onAdd).toHaveBeenCalledWith(
+				expect.objectContaining({ selector: "#next", elementText: "Next" }),
+			);
+		} finally {
+			replacement.remove();
+		}
+	});
+
+	it("tells the agent when an annotation's element is gone", async () => {
+		const onSend = vi.fn();
+		render(withFrame(<Harness onSend={onSend} />));
+		fireEvent.click(screen.getByRole("button", { name: "Annotate" }));
+		const frame = await frameWithButton();
+		const button = frame.contentDocument?.querySelector("#buy");
+		if (button === null || button === undefined) throw new Error("the preview has no button");
+		fireEvent.click(button);
+		fireEvent.click(screen.getByRole("button", { name: "Save annotation" }));
+		await screen.findByText("#buy");
+
+		const page = frame.contentDocument;
+		if (page === null) throw new Error("the preview is not scriptable");
+		page.body.innerHTML = "<p>The page changed.</p>";
+		fireEvent.load(frame);
+		await screen.findByText("Outdated");
+
+		fireEvent.click(screen.getByRole("button", { name: "Add to chat" }));
+
+		expect(onSend).toHaveBeenCalledOnce();
+		const message = onSend.mock.calls[0]?.[0] as string;
+		expect(message).toContain("The element was not found again after the page changed.");
+	});
+
+	it("gives a new annotation a fresh id after the overlay remounts", async () => {
+		const first = vi.fn();
+		const mounted = render(withFrame(<Harness onAdd={first} />));
+		fireEvent.click(screen.getByRole("button", { name: "Annotate" }));
+		const frame = await frameWithButton();
+		const button = frame.contentDocument?.querySelector("#buy");
+		if (button === null || button === undefined) throw new Error("the preview has no button");
+		fireEvent.click(button);
+		fireEvent.click(screen.getByRole("button", { name: "Save annotation" }));
+		await screen.findByText("#buy");
+		const firstCall = first.mock.calls[0];
+		if (firstCall === undefined) throw new Error("the first annotation was not added");
+		const firstId = (firstCall[0] as PageAnnotation).id;
+		mounted.unmount();
+
+		const second = vi.fn();
+		render(
+			withFrame(
+				<Harness
+					onAdd={second}
+					initial={[annotation({ id: firstId, selector: "#buy", url: "", note: "First" })]}
+				/>,
+			),
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Annotate" }));
+		const reloadedFrame = await frameWithButton();
+		const reloadedButton = reloadedFrame.contentDocument?.querySelector("#buy");
+		if (reloadedButton === null || reloadedButton === undefined) {
+			throw new Error("the reloaded preview has no button");
+		}
+		fireEvent.click(reloadedButton);
+		fireEvent.change(screen.getByLabelText("Note"), { target: { value: "Second" } });
+		fireEvent.click(screen.getByRole("button", { name: "Save annotation" }));
+		await screen.findByText("Second");
+
+		const secondCall = second.mock.calls[0];
+		if (secondCall === undefined) throw new Error("the second annotation was not added");
+		const secondId = (secondCall[0] as PageAnnotation).id;
+		expect(secondId).not.toBe(firstId);
+	});
+
+	it("cuts the element text to the one shared cap", async () => {
+		const onAdd = vi.fn();
+		render(withFrame(<Harness onAdd={onAdd} />));
+		fireEvent.click(screen.getByRole("button", { name: "Annotate" }));
+		const frame = await frameWithButton();
+		const page = frame.contentDocument;
+		if (page === null) throw new Error("the preview is not scriptable");
+		page.body.innerHTML = `<p id="long">${"x".repeat(MAX_ELEMENT_TEXT + 50)}</p>`;
+		fireEvent.load(frame);
+		const long = page.querySelector("#long");
+		if (long === null) throw new Error("the preview has no long element");
+		fireEvent.click(long);
+		fireEvent.click(screen.getByRole("button", { name: "Save annotation" }));
+
+		await waitFor(() => expect(onAdd).toHaveBeenCalledOnce());
+		const saved = onAdd.mock.calls[0]?.[0] as PageAnnotation;
+		expect(saved.elementText).toHaveLength(MAX_ELEMENT_TEXT);
 	});
 });

@@ -781,6 +781,72 @@ describe("s1-ui join PR-10 link a pull request", () => {
 	});
 });
 
+describe("s1-ui join PR-10 link from the workspace actions menu", () => {
+	it("opens the Link pull request dialog with no keybinding", async () => {
+		const remoteUrl = "https://github.com/octo/repo.git";
+		const prJson = JSON.stringify({
+			number: 123,
+			title: "Link me",
+			html_url: "https://github.com/octo/repo/pull/123",
+			state: "open",
+			draft: false,
+			merged_at: null,
+			updated_at: "2026-11-05T09:00:00Z",
+			body: "The pull request body",
+			user: { login: "ada", avatar_url: "https://avatars.example/ada.png" },
+			head: { ref: "feature/link" },
+		});
+		const test = createTestContainer();
+		try {
+			await test.container.services.settings.start();
+			const repo = await seedRepo(test.container, {
+				rootPath: "/join/pr-10-menu",
+				remoteUrl,
+			});
+			must(await test.container.services.repo.loadConfig(repo.id));
+			const workspace = await seedWorkspace(test.container, {
+				repoId: repo.id,
+				path: "/code/workspaces/join-pr-10-menu",
+				branch: "feature/link",
+			});
+			test.memory.controls.scriptShell((command) => {
+				if (command.program === "git" && command.args.includes("get-url")) {
+					return ok({ exitCode: 0, stdout: `${remoteUrl}\n`, stderr: "" });
+				}
+				if (
+					command.program === "gh" &&
+					command.args[0] === "api" &&
+					command.args[1]?.endsWith("/pulls/123") === true
+				) {
+					return ok({ exitCode: 0, stdout: prJson, stderr: "" });
+				}
+				return ok({ exitCode: 0, stdout: "", stderr: "" });
+			});
+
+			await openApp(test.container, `/repository/${repo.id}/workspace/${workspace.id}`);
+
+			const trigger = await screen.findByRole("button", { name: "Workspace actions" });
+			trigger.focus();
+			fireEvent.keyDown(trigger, { key: "Enter" });
+			fireEvent.click(await screen.findByRole("menuitem", { name: "Link pull request" }));
+
+			fireEvent.change(await screen.findByLabelText("PR URL or number"), {
+				target: { value: "123" },
+			});
+			fireEvent.click(screen.getByRole("button", { name: "Link" }));
+
+			await waitFor(() => {
+				const stored =
+					test.container.services.workspace.store.getState().workspacesById[workspace.id];
+				expect(stored?.prNumber).toBe(123);
+			});
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+});
+
 describe("s1-ui join RUN-05 page annotations", () => {
 	it("sends annotations made in the workspace's browser tab to its chat", async () => {
 		const test = createTestContainer();

@@ -26,7 +26,9 @@ import {
 	type TestContainer,
 } from "../../test/container.ts";
 import "../../test/dom-polyfills.ts";
-import { PrLevelComments } from "./PrLevelComments.tsx";
+import { AuthorAvatar } from "../../ui/AuthorAvatar.tsx";
+import { PrActivityItem } from "./PrActivityItem.tsx";
+import { isPrLevelComment, PrLevelComments } from "./PrLevelComments.tsx";
 import { PrTab } from "./PrTab.tsx";
 
 let test: TestContainer | null = null;
@@ -108,6 +110,41 @@ async function renderTab(harness: TestContainer, workspaceId: WorkspaceId) {
 }
 
 describe("REV-13 pull request comments without a file", () => {
+	it("splits PR-level comments from file comments with one predicate", () => {
+		expect(isPrLevelComment(comment("pr", "On the pull request"))).toBe(true);
+		expect(
+			isPrLevelComment(comment("file", "On a file", { filePath: "src/app.ts", line: 4 })),
+		).toBe(false);
+		expect(
+			isPrLevelComment({
+				kind: "review",
+				id: "review",
+				at: 1_000,
+				authorLogin: "octocat",
+				authorAvatarUrl: null,
+				state: "approved",
+				body: "",
+			}),
+		).toBe(false);
+	});
+
+	it("uses the one shared author avatar", () => {
+		const entry = comment("shared", "Same avatar everywhere", {
+			authorAvatarUrl: "https://avatars.example/octocat.png",
+		});
+		const activity = render(<PrActivityItem entry={entry} onOpen={() => {}} />);
+		const activityImage = activity.container.querySelector("img");
+		if (activityImage === null) throw new Error("the activity row has no avatar");
+		activity.unmount();
+
+		render(<AuthorAvatar login={entry.authorLogin} avatarUrl={entry.authorAvatarUrl} />);
+		const sharedImage = document.querySelector("img");
+		if (sharedImage === null) throw new Error("the shared avatar did not render");
+
+		expect(sharedImage.outerHTML).toBe(activityImage.outerHTML);
+		expect(sharedImage.getAttribute("src")).toBe(entry.authorAvatarUrl);
+	});
+
 	it("shows only the comments with no file, not the one on a file", () => {
 		render(
 			<PrLevelComments

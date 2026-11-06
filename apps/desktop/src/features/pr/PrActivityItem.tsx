@@ -1,14 +1,15 @@
 /**
  * @feature PR-07 PR activity item
- * Owns: one line or card in the activity list, by entry kind.
+ * Owns: one line or card in the activity list, by entry kind, and the author-and-body part of a
+ * comment, which the PR-level comment list shares.
  * Behaviour: ui-map.md 3.2 (PR tab: "Activity"); the kinds are listed in pr-activity.ts.
  * Must handle: each kind having its own icon and text, a review with a body (card) versus a bare
  * approval (one line), an author whose avatar is missing or fails to load (a letter), times
  * shown relative with the exact time in a tooltip, and an entry with no usable time (no time shown).
  * Test first: a "review" entry with state "changes_requested" renders the author and that state.
  */
-import { useState } from "react";
 import type { PrActivityEntry } from "../../core/model.ts";
+import { AuthorAvatar } from "../../ui/AuthorAvatar.tsx";
 import { Badge, type BadgeTone } from "../../ui/Badge.tsx";
 import { ChatIcon, CircleIcon, GitCommitIcon, GitMergeIcon } from "../../ui/icons.tsx";
 import { reviewerStateLabel } from "../git-panel/checks/ReviewersList.tsx";
@@ -37,25 +38,26 @@ const STATUS_LABEL: Readonly<
 	reopened: "Reopened",
 };
 
-function AuthorAvatar({ login, avatarUrl }: { login: string; avatarUrl: string | null }) {
-	const [failed, setFailed] = useState(false);
-	if (avatarUrl !== null && !failed) {
-		return (
-			<img
-				src={avatarUrl}
-				alt=""
-				className="size-4 shrink-0 rounded-full bg-muted"
-				onError={() => setFailed(true)}
-			/>
-		);
-	}
+type CommentEntry = Extract<PrActivityEntry, { kind: "comment" }>;
+
+/** The author, file and body of a comment. The activity row and the PR-level list share it. */
+export function PrCommentContent({ entry }: { entry: CommentEntry }) {
 	return (
-		<span
-			aria-hidden="true"
-			className="flex size-4 shrink-0 items-center justify-center rounded-full bg-hover text-3xs font-medium text-fg-muted"
-		>
-			{login.slice(0, 1).toUpperCase() || "?"}
-		</span>
+		<>
+			<span className="flex flex-wrap items-center gap-1.5">
+				<AuthorAvatar login={entry.authorLogin} avatarUrl={entry.authorAvatarUrl} />
+				<span className="text-sm font-medium text-fg">{entry.authorLogin}</span>
+				{entry.filePath === null ? null : (
+					<span className="truncate font-mono text-2xs text-fg-subtle">
+						{entry.filePath}
+						{entry.line === null ? "" : `:${entry.line}`}
+					</span>
+				)}
+			</span>
+			<span className="mt-0.5 block whitespace-pre-wrap break-words text-sm text-fg">
+				{entry.body}
+			</span>
+		</>
 	);
 }
 
@@ -114,21 +116,7 @@ export function PrActivityItem({ entry, onOpen }: PrActivityItemProps) {
 						)}
 					</>
 				) : entry.kind === "comment" ? (
-					<>
-						<span className="flex flex-wrap items-center gap-1.5">
-							<AuthorAvatar login={entry.authorLogin} avatarUrl={entry.authorAvatarUrl} />
-							<span className="text-sm font-medium text-fg">{entry.authorLogin}</span>
-							{entry.filePath === null ? null : (
-								<span className="truncate font-mono text-2xs text-fg-subtle">
-									{entry.filePath}
-									{entry.line === null ? "" : `:${entry.line}`}
-								</span>
-							)}
-						</span>
-						<span className="mt-0.5 block whitespace-pre-wrap break-words text-sm text-fg">
-							{entry.body}
-						</span>
-					</>
+					<PrCommentContent entry={entry} />
 				) : (
 					<span className="block text-sm text-fg">{STATUS_LABEL[entry.change]}</span>
 				)}

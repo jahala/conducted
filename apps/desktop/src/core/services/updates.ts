@@ -4,7 +4,8 @@
  * Owns: checking for a new version, downloading it, and restarting only when no chat is working.
  * Behaviour: services-map.md 5B.4.1 (auto update: eligibility poll, download retries, restart
  * when idle), 5B.4.2 (manual update), ui-map.md 1.3 (update notice).
- * Must handle: a check while one runs returns the in-progress error; a failed download retries
+ * Must handle: a check while one runs returns the in-progress error; a check during a download or
+ * a staged update leaves it and any requested restart alone; a failed download retries
  * twice with a pause and then shows an error state; `ready_when_idle` flips to the restart as soon
  * as the last working chat goes idle, and also when the user chose Restart when idle while the
  * automatic setting is off; the quit handler asks this service whether quitting is safe; a release
@@ -91,6 +92,12 @@ export class UpdatesService {
 			);
 		}
 		return this.#checks.run("check", async () => {
+			const current = this.store.getState().state;
+			if (current === "ready_when_idle" || current === "downloading") {
+				// A staged update or a running download owns the store, and a staged update may
+				// also hold the user's Restart when idle. A check must leave both alone.
+				return ok(undefined);
+			}
 			this.store.setState({ state: "checking", error: null });
 			const found = await this.#deps.platform.updater.check();
 			if (!found.ok) {
@@ -102,7 +109,6 @@ export class UpdatesService {
 				versionFitsChannel(found.value.version, this.#deps.platform.app.channel)
 					? found.value
 					: null;
-			this.#restartRequested = false;
 			this.store.setState({
 				state: offered === null ? "idle" : "available",
 				version: offered?.version ?? null,
