@@ -655,11 +655,13 @@ export class SessionsService implements AgentMessenger {
 	): Promise<Result<void>> {
 		const workspace = await this.#workspaceContext(session.workspaceId);
 		if (!workspace.ok) return workspace;
+		const resolvedMessageId = messageId ?? (this.#deps.newId() as MessageId);
 		let paths = attachmentPaths;
 		if (paths.length > 0) {
 			const materialized = await this.#deps.composer.materializeForSend(
 				session.id,
 				workspace.value.workspacePath,
+				resolvedMessageId,
 			);
 			if (!materialized.ok) return materialized;
 			paths = materialized.value;
@@ -667,7 +669,7 @@ export class SessionsService implements AgentMessenger {
 		return this.#submit(
 			session,
 			{
-				messageId: messageId ?? (this.#deps.newId() as MessageId),
+				messageId: resolvedMessageId,
 				turnId: this.#deps.newId() as TurnId,
 				text,
 				attachmentPaths: paths,

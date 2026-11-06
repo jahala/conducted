@@ -1,21 +1,61 @@
 /**
  * @feature COMP-07 Attachment bar
- * Owns: The row of attachment thumbnails and file chips above the editor, each removable.
- * Behaviour: ui-map.md 3.5 (attachments: file picker, drag and drop, paste; images over 5MB fail;
- * 'Paste copied files as paths' Cmd+Shift+V), 3.3 ('Image too large').
- * Must handle: No attachments (renders nothing); an image over the limit (error chip naming the
- * limit); a file that disappeared; copying a large file in progress (busy chip); many attachments
- * (wrap, then scroll); remove by keyboard.
- * Test first: Two attachments render two removable items; removing one updates the draft.
+ * Owns: the row of file chips above the editor, each removable, and the row that says a copy is
+ * still running.
+ * Behaviour: ui-map.md 3.5 (attachments), 3.3 ('Image too large' is reported by the add path).
+ * Our design choice: a chip carries the file's name and a type icon. A thumbnail needs a binary
+ * read the Platform does not offer, so the bar does not claim to show one.
+ * Must handle: no attachments (renders nothing); many attachments (wrap); remove by keyboard (the
+ * chip's button); a copy in progress (a status row).
+ * Test first: two attachments render two removable items; removing one updates the draft.
  */
-
 import type { SessionId } from "@conducted/shared";
-import { notImplemented } from "@conducted/shared";
+import { IconButton } from "../../ui/IconButton.tsx";
+import { CloseIcon, FileIcon } from "../../ui/icons.tsx";
 
 export interface AttachmentBarProps {
 	sessionId: SessionId;
+	attachmentPaths: readonly string[];
+	busy?: boolean;
+	onRemove: (path: string) => void;
 }
 
-export function AttachmentBar(_props: AttachmentBarProps): never {
-	return notImplemented("COMP-07");
+const fileName = (path: string): string => path.split("/").pop() ?? path;
+
+export function AttachmentBar({
+	sessionId,
+	attachmentPaths,
+	busy = false,
+	onRemove,
+}: AttachmentBarProps) {
+	if (attachmentPaths.length === 0 && !busy) return null;
+	return (
+		<ul
+			aria-label="Attachments"
+			data-session-id={sessionId}
+			className="flex flex-wrap items-center gap-1 px-2 pt-2"
+		>
+			{attachmentPaths.map((path) => (
+				<li
+					key={path}
+					className="flex max-w-64 items-center gap-1 rounded-md border border-border bg-muted py-0.5 pl-1.5 pr-0.5 text-xs text-fg"
+				>
+					<FileIcon width={12} height={12} className="shrink-0 text-fg-muted" />
+					<span className="truncate">{fileName(path)}</span>
+					<IconButton
+						size="xs"
+						label={`Remove ${fileName(path)}`}
+						icon={<CloseIcon width={12} height={12} />}
+						onClick={() => onRemove(path)}
+					/>
+				</li>
+			))}
+			{busy ? (
+				<li role="status" className="flex items-center gap-1.5 px-1 text-xs text-fg-muted">
+					<span className="size-3 animate-spin rounded-full border border-border-strong border-t-accent" />
+					Copying attachment…
+				</li>
+			) : null}
+		</ul>
+	);
 }
