@@ -5,11 +5,13 @@
  * tip, then the guarded rebase moves the branch onto the new upstream tip and records the new
  * baseline.
  * Behaviour: services-map.md 3.8.3 (a remote rewrite, the guarded rebase, the baseline ref).
+ * A change between planning and the rebase (the upstream moves, or the remote's URL changes) trips
+ * the sequence-editor guard: git stops before it replays a commit and the branch stays as it was.
  * Test first: a diverged stack branch whose local tip the upstream reflog once held is rebased onto
  * the rewritten upstream, and the baseline ref takes the new tip.
  */
 import { execFileSync, spawn } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { appError, err, ok, type WorkspaceId } from "@conducted/shared";
@@ -199,10 +201,16 @@ function pullRequest(): PullRequest {
 	};
 }
 
-function makeService(): { service: GithubService; gitRunner: FakeGitRunner } {
-	const gitRunner = new FakeGitRunner((command, options) =>
-		command.program === "gh" ? ghAnswer(command) : realGit.run(command, options),
-	);
+/** `beforeRebase` runs just before git starts the guarded rebase, after the catch-up planned it. */
+function makeService(beforeRebase: () => void = () => {}): {
+	service: GithubService;
+	gitRunner: FakeGitRunner;
+} {
+	const gitRunner = new FakeGitRunner((command, options) => {
+		if (command.program === "gh") return ghAnswer(command);
+		if (command.args[0] === "rebase" && command.args[1] === "--interactive") beforeRebase();
+		return realGit.run(command, options);
+	});
 	const service = new GithubService({
 		git: gitRunner,
 		agent: {} as never,
@@ -228,6 +236,39 @@ function makeService(): { service: GithubService; gitRunner: FakeGitRunner } {
 }
 
 describe("PR-12 a real rewritten stack branch", () => {
+	const changes = [
+		{
+			name: "the upstream moves",
+			change: () => git(workspace, "update-ref", "refs/remotes/origin/feat-b", base),
+			undo: () => git(workspace, "update-ref", "refs/remotes/origin/feat-b", upstreamTip),
+		},
+		{
+			name: "the remote's URL changes",
+			change: () => git(workspace, "remote", "set-url", "origin", "git@github.com:o/other.git"),
+			undo: () => git(workspace, "remote", "set-url", "origin", "git@github.com:o/r.git"),
+		},
+	];
+	for (const { name, change, undo } of changes) {
+		it(`stops before any commit is replayed when ${name} after planning`, async () => {
+			const { service } = makeService(change);
+			try {
+				const result = await service.catchUpStackBranch(workspaceId, () => false);
+
+				expect(result.ok).toBe(false);
+				expect(git(workspace, "rev-parse", "HEAD")).toBe(localTip);
+				expect(git(workspace, "rev-parse", "refs/heads/feat-b")).toBe(localTip);
+				expect(git(workspace, "symbolic-ref", "HEAD")).toBe("refs/heads/feat-b");
+				const rebaseDir = git(workspace, "rev-parse", "--git-path", "rebase-merge");
+				expect(existsSync(join(workspace, rebaseDir))).toBe(false);
+				expect(
+					git(workspace, "for-each-ref", "--format=%(refname)", "refs/worktree/conducted/synced"),
+				).toBe("");
+			} finally {
+				undo();
+			}
+		});
+	}
+
 	it("moves the branch onto the rewritten upstream and records the baseline", async () => {
 		// The setup made the local tip and the rewritten upstream diverge.
 		expect(git(workspace, "rev-parse", "HEAD")).toBe(localTip);
@@ -237,7 +278,7 @@ describe("PR-12 a real rewritten stack branch", () => {
 		);
 
 		const { service } = makeService();
-		const result = await service.catchUpStackBranch(workspaceId);
+		const result = await service.catchUpStackBranch(workspaceId, () => false);
 
 		expect(result.ok, result.ok ? "" : result.error.message).toBe(true);
 		if (!result.ok || result.value.kind !== "rebased") return;
@@ -259,7 +300,7 @@ describe("PR-12 a real rewritten stack branch", () => {
 		const { service } = makeService();
 		const before = git(workspace, "rev-parse", "HEAD");
 
-		await service.catchUpStackBranch(workspaceId);
+		await service.catchUpStackBranch(workspaceId, () => false);
 
 		expect(git(workspace, "rev-parse", "HEAD")).toBe(before);
 	});

@@ -24,6 +24,7 @@ import type { PlaceNames } from "../core/services/workspace.ts";
 import { writeRedactedReport } from "../features/diagnostics/diagnostics-report.ts";
 import { createMemoryPlatform, type MemoryPlatform } from "../platform/memory.ts";
 import type { Database } from "../platform/platform.ts";
+import { toastError } from "../ui/Toast.tsx";
 import { createTestIds } from "./ids.ts";
 import { openTestDatabase } from "./sqlite.ts";
 
@@ -80,6 +81,10 @@ export function createTestContainer(options: TestContainerOptions = {}): TestCon
 		sound: options.sound ?? SILENT_SOUND,
 		windowFocused: options.windowFocused ?? (() => false),
 		openLink: options.openLink,
+		// The app entry's own reporter, so a test sees the toast a user would.
+		reportFailure: (title, error) => {
+			toastError(title, error);
+		},
 		writeDiagnosticsReport:
 			options.writeDiagnosticsReport ??
 			((capture, fileName) => writeRedactedReport(memory.platform, capture, fileName)),

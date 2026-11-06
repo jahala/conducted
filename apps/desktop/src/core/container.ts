@@ -139,6 +139,11 @@ export interface ContainerInputs {
 	/** Opens a notification click or deep link in the app. The app entry passes its router opener. */
 	openLink?: (url: string) => void;
 	/**
+	 * Tells the user that work the app started on its own failed, with a title and the failure's
+	 * message. The app entry passes its error toast, the way a failed pull or push is told.
+	 */
+	reportFailure: (title: string, error: { message: string }) => void;
+	/**
 	 * Writes the redacted diagnostics report for a new chat and returns its path (APP-03). The app
 	 * entry passes the writer, because redaction lives with the diagnostics screen.
 	 */
@@ -860,8 +865,10 @@ export function createContainer(inputs: ContainerInputs): Container {
 				(error) => log("warn", `Could not sync review comments: ${String(error)}`),
 			);
 		},
-		onCatchUpError: (_id, error) =>
-			log("warn", `Could not catch up the stack branch: ${error.message}`),
+		onCatchUpError: (_id, error) => {
+			log("warn", `Could not catch up the stack branch: ${error.message}`);
+			inputs.reportFailure("Couldn't catch up the stack branch", error);
+		},
 		now: () => clock.now(),
 		keychain: platform.keychain,
 		setting,
