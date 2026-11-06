@@ -289,7 +289,7 @@ export class Turn {
 	private callbacks(run: RunNumber): TurnCallbacks {
 		return {
 			onMessage: (message) => this.onMessage(message),
-			requestInteraction: (interaction) => this.openInteraction(interaction),
+			requestInteraction: (interaction, signal) => this.openInteraction(interaction, signal),
 			onAgentSessionId: (agentSessionId) => this.deps.onAgentSessionId(agentSessionId),
 			onBackgroundTasks: (tasks, waitingSince) => {
 				if (!this.deps.runGuard.isCurrent(run)) return;
@@ -306,9 +306,12 @@ export class Turn {
 		};
 	}
 
-	private openInteraction(interaction: Interaction): Promise<InteractionAnswer> {
+	private openInteraction(
+		interaction: Interaction,
+		signal?: AbortSignal,
+	): Promise<InteractionAnswer> {
 		if (!this.isCurrent()) return Promise.resolve({ kind: "withdrawn" });
-		return this.deps.interactions.open(this.request.sessionId, interaction);
+		return this.deps.interactions.open(this.request.sessionId, interaction, signal);
 	}
 
 	private async updateLive(reducer: (state: LiveState) => LiveState): Promise<void> {

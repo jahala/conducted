@@ -24,6 +24,7 @@ import type {
 	CheckpointService,
 } from "../checkpoints/checkpoint-service.ts";
 import { createLogger } from "../logging/logger.ts";
+import { RunnerModelCatalog } from "../models/catalog.ts";
 import { IDLE_STOP_AFTER_MS } from "../process/idle-policy.ts";
 import { AgentProcessManager } from "../process/process-manager.ts";
 import type { PromptAssembler, PromptInput } from "../prompt/assemble.ts";
@@ -199,6 +200,7 @@ function harness() {
 		liveState,
 		interactions: new FakeInteractions(),
 		queue: new KeyedSerialQueue(),
+		models: new RunnerModelCatalog({ runners: registry, logger, clock }),
 		clock,
 		ids: { uuid: () => `id-${++nextId}` },
 		logger,

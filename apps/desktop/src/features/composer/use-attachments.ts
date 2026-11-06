@@ -18,7 +18,8 @@
  * change to the Platform contract (platform/platform.ts), which the owner approves.
  * Must handle: a folder (refused with "Folders can't be uploaded"); a failed copy (the others
  * still succeed); a cancelled picker; a paste with no file path; the setting that turns long-text
- * conversion off; a drop from the window.
+ * conversion off; a drop from the window, taken only by the composer of the chat on screen (the
+ * sessions store's viewing chat), so a second chat in a split pane does not get the same files.
  * Test first: dropping two files adds two paths to the draft in order.
  */
 import type { SessionId } from "@conducted/shared";
@@ -216,12 +217,16 @@ export function useAttachments({
 		return () => dom.removeEventListener("paste", onPaste);
 	}, [add, addPastedText, autoConvert, editor]);
 
+	// A drop arrives from the window, so every mounted composer hears it. Only the chat on screen
+	// takes it; with split panes, a second chat beside it would otherwise get the same files.
 	useEffect(
 		() =>
 			platform.window.onFileDrop((event) => {
-				if (event.kind === "drop") void addPaths(event.paths);
+				if (event.kind !== "drop") return;
+				if (services.sessions.store.getState().viewingSessionId !== sessionId) return;
+				void addPaths(event.paths);
 			}),
-		[addPaths, platform],
+		[addPaths, platform, services, sessionId],
 	);
 
 	return {

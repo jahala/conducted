@@ -243,6 +243,29 @@ const scenarios: Scenario[] = [
 		expected: { claim: "refused", disposals: { a: 1 } },
 	},
 	{
+		name: "holds answers for the live agent, and no longer once the idle stop ended it",
+		run: async (manager, w) => {
+			const lease = await manager.claimActive("k", w.agent("a"));
+			const agent = lease.agent;
+			lease.release();
+			manager.markIdle("k");
+			const live = manager.holds("k", agent);
+			const otherKey = manager.holds("other", agent);
+			w.clock.advance(justOver);
+			await manager.sweep();
+			const stopped = manager.holds("k", agent);
+			const next = await manager.claimActive("k", w.agent("b"));
+			return {
+				live,
+				otherKey,
+				stopped,
+				oldAfterRestart: manager.holds("k", agent),
+				next: manager.holds("k", next.agent),
+			};
+		},
+		expected: { live: true, otherKey: false, stopped: false, oldAfterRestart: false, next: true },
+	},
+	{
 		name: "stopAll stops every process, and a dispose that throws does not stop the others",
 		run: async (manager, w) => {
 			(await manager.claimActive("one", w.agent("a", { failDispose: true }))).release();

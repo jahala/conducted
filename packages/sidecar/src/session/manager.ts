@@ -33,6 +33,13 @@
  *  - the chat's agent process is marked idle when no turn runs (a turn ends, a cancel finishes, a
  *    lease is given back with no turn), so the process manager's idle stop applies; open
  *    background tasks are reported to it so the stop spares the process
+ *  - an agent the process manager stopped by itself (idle stop, warm cap) is forgotten before any
+ *    request uses it (`holds`), keeping the resume token, so no request reaches a disposed agent
+ *  - a turn that cannot start answers sendMessage with that start's own error (a missing program, a
+ *    key the login shell lacks, the app tools bridge down); a queued message that cannot start is
+ *    stored as its user_message and a turn_ended error with the reason, so it never vanishes
+ *  - warmAgent checks the model against the model catalog's list (SIDE-14), never the runner's
+ *    directly, so a warm costs no extra agent process once the list is cached
  *  - the same agent session id is stored from the first callback and sent to the app once
  *  - a config the agent changes by itself (plan mode) updates the chat's state and is sent to the
  *    app with the reason, so the app's stored config agrees
@@ -50,7 +57,6 @@
  */
 import type {
 	AgentLaunch,
-	LiveState,
 	SessionConfig,
 	SessionEvent,
 	SessionStatus,
@@ -69,6 +75,7 @@ import type {
 import { appError, err, ok } from "@conducted/shared";
 import type { CheckpointService } from "../checkpoints/checkpoint-service.ts";
 import type { Logger } from "../logging/logger.ts";
+import type { ModelCatalog } from "../models/catalog.ts";
 import { decideLaunchChange, launchFingerprint } from "../process/launch-fingerprint.ts";
 import type { ProcessManager } from "../process/process-manager.ts";
 import { processKey } from "../process/process-manager.ts";
@@ -157,8 +164,6 @@ export interface SessionManager {
 	setAcpConfigOption(
 		params: AppToSidecarRequestParams<"setAcpConfigOption">,
 	): Promise<AppToSidecarHandlerValue<"setAcpConfigOption">>;
-	/** Live state of a chat, for the process manager's busy and idle marks. */
-	liveStateOf(sessionId: SessionId): LiveState | undefined;
 	/** Called when the app connection attaches: resend open interactions. */
 	onAppAttached(): void;
 	shutdown(reason: ShutdownReason): Promise<void>;
@@ -175,6 +180,8 @@ export interface SessionManagerDeps {
 	liveState: LiveStateStore;
 	interactions: InteractionBroker;
 	queue: KeyedSerialQueue;
+	/** The one home for each agent's model list, with its cache (SIDE-14). warmAgent reads it. */
+	models: Pick<ModelCatalog, "list">;
 	clock: Clock;
 	ids: IdSource;
 	logger: Logger;
@@ -300,11 +307,11 @@ export class DefaultSessionManager implements SessionManager {
 							return err(appError("cancelled", "The message was cancelled before it was sent."));
 						}
 						const started = await this.startTurn(state, prepared.value, setup.signal);
-						if (!started) {
+						if (!started.ok) {
 							if (setup.signal.aborted) {
 								return err(appError("cancelled", "The message was cancelled before it was sent."));
 							}
-							return err(appError("send_failed", "The message could not start a turn."));
+							return err(started.error);
 						}
 						return ok({ deliveredAs: "new_turn" });
 					}
@@ -366,15 +373,7 @@ export class DefaultSessionManager implements SessionManager {
 				return ok({});
 			}
 
-			let config = params.config;
-			try {
-				config = await this.warmConfig(runnerResult.value, config);
-			} catch (cause) {
-				this.deps.logger.warn("Could not check the model before warming the agent", {
-					sessionId: state.sessionId,
-					reason: messageOf(cause),
-				});
-			}
+			const config = await this.warmConfig(state.sessionId, params.config);
 			state.config = config;
 			await this.replaceAgentIfKindChanged(state, config);
 
@@ -447,10 +446,11 @@ export class DefaultSessionManager implements SessionManager {
 			state.config = params.config;
 			await this.replaceAgentIfKindChanged(state, params.config);
 
-			if (state.agent === null) return ok({ applied: "live" });
+			const agent = this.liveAgent(state);
+			if (agent === null) return ok({ applied: "live" });
 
 			try {
-				const applied = await state.agent.applyConfig(params.config);
+				const applied = await agent.applyConfig(params.config);
 				if (applied === "restart") {
 					await this.disposeAgent(state, agentConfig ?? params.config, true);
 				}
@@ -472,7 +472,7 @@ export class DefaultSessionManager implements SessionManager {
 		const state = this.sessions.get(params.sessionId);
 		if (state === undefined) return ok({});
 		state.autoApproveEdits = params.enabled;
-		state.agent?.setAutoApproveEdits?.(params.enabled);
+		this.liveAgent(state)?.setAutoApproveEdits?.(params.enabled);
 		return ok({});
 	}
 
@@ -592,11 +592,6 @@ export class DefaultSessionManager implements SessionManager {
 		});
 	}
 
-	liveStateOf(sessionId: SessionId): LiveState | undefined {
-		if (!this.sessions.has(sessionId)) return undefined;
-		return this.deps.liveState.get(sessionId);
-	}
-
 	/**
 	 * The chat's live agent and whether its runner reports context usage, for the usage reader
 	 * (SIDE-17). Null agent when the chat is known but no agent is running.
@@ -604,9 +599,10 @@ export class DefaultSessionManager implements SessionManager {
 	find(sessionId: SessionId): { agent: AgentSession | null; contextUsage: boolean } | undefined {
 		const state = this.sessions.get(sessionId);
 		if (state === undefined) return undefined;
+		const agent = this.liveAgent(state);
 		return {
-			agent: state.agent,
-			contextUsage: state.runner?.capabilities.contextUsage ?? false,
+			agent,
+			contextUsage: agent === null ? false : (state.runner?.capabilities.contextUsage ?? false),
 		};
 	}
 
@@ -645,7 +641,8 @@ export class DefaultSessionManager implements SessionManager {
 			const active = state.activeTurn;
 			state.activeTurn = null;
 			if (active !== null) waiting.push(active.turn.settled());
-			if (state.agent !== null) waiting.push(state.agent.cancel());
+			const agent = this.liveAgent(state);
+			if (agent !== null) waiting.push(agent.cancel());
 		}
 
 		this.deps.logger.info("Stopping every agent", {
@@ -700,7 +697,7 @@ export class DefaultSessionManager implements SessionManager {
 	 * again with the launch it carries, so a launch changed back to the running one restarts nothing.
 	 */
 	private async restartForLaunchChange(state: SessionState): Promise<void> {
-		if (state.agent === null) return;
+		if (this.liveAgent(state) === null) return;
 		const change = decideLaunchChange({
 			previous: state.agentLaunchFingerprint,
 			next: launchFingerprint(state.launch),
@@ -736,7 +733,8 @@ export class DefaultSessionManager implements SessionManager {
 	private async ensureConfigAgent(
 		state: SessionState,
 	): Promise<Result<{ agent: AgentSession; release: () => void }, AppError>> {
-		if (state.agent !== null) return ok({ agent: state.agent, release: () => {} });
+		const live = this.liveAgent(state);
+		if (live !== null) return ok({ agent: live, release: () => {} });
 		const runner = this.runnerFor(state.config);
 		if (!runner.ok) return err(runner.error);
 		const claimed = await this.claimAgent(state, runner.value, state.config, state.workspace);
@@ -745,6 +743,24 @@ export class DefaultSessionManager implements SessionManager {
 			agent: claimed.value.agent,
 			release: () => this.releaseLease(state, claimed.value.lease),
 		});
+	}
+
+	/**
+	 * The chat's agent, or null when there is none. The process manager stops an idle agent by
+	 * itself (the idle stop, the warm cap), so an agent it no longer holds is forgotten here before
+	 * anyone uses it; the conversation is kept, and the next start resumes it.
+	 */
+	private liveAgent(state: SessionState): AgentSession | null {
+		const agent = state.agent;
+		const config = state.agentConfig;
+		if (agent === null || config === null) return agent;
+		const key = processKey(config.agent, config.acpAgent, state.sessionId);
+		if (this.deps.processes.holds(key, agent)) return agent;
+		state.agent = null;
+		state.agentConfig = null;
+		state.runner = null;
+		state.agentLaunchFingerprint = null;
+		return null;
 	}
 
 	private runnerFor(config: SessionConfig): Result<Runner, AppError> {
@@ -783,14 +799,18 @@ export class DefaultSessionManager implements SessionManager {
 		});
 	}
 
+	/**
+	 * Starts a turn for the request. A failure keeps its own code and message (a missing program, a
+	 * key the login shell lacks, a stopped app tools bridge), so the app can show the user why.
+	 */
 	private async startTurn(
 		state: SessionState,
 		request: TurnRequest,
 		signal?: AbortSignal,
-	): Promise<boolean> {
+	): Promise<Result<void, AppError>> {
 		this.deps.interactions.withdrawAll(state.sessionId);
 		await this.replaceAgentIfKindChanged(state, request.config);
-		if (state.agent !== null) {
+		if (this.liveAgent(state) !== null) {
 			await this.applyConfigToLiveAgent(state, request.config);
 		}
 
@@ -802,7 +822,7 @@ export class DefaultSessionManager implements SessionManager {
 				message: runnerResult.error.message,
 			});
 			state.duplicates.forget(request.messageId);
-			return false;
+			return err(runnerResult.error);
 		}
 
 		const claimed = await this.claimAgent(
@@ -818,14 +838,14 @@ export class DefaultSessionManager implements SessionManager {
 				message: claimed.error.message,
 			});
 			state.duplicates.forget(request.messageId);
-			return false;
+			return err(claimed.error);
 		}
 
 		const { agent, lease } = claimed.value;
 		if (signal?.aborted) {
 			this.releaseLease(state, lease);
 			state.duplicates.forget(request.messageId);
-			return false;
+			return err(appError("cancelled", "The message was cancelled before it was sent."));
 		}
 		const turn = this.createTurn(this.turnDeps(state, agent), request);
 		state.duplicates.markRunning(request.messageId);
@@ -833,7 +853,7 @@ export class DefaultSessionManager implements SessionManager {
 		state.activeTurn = { turn, messageId: request.messageId, turnId: request.turnId };
 		try {
 			await turn.start();
-			return true;
+			return ok(undefined);
 		} catch (cause) {
 			if (state.activeTurn?.turn === turn) state.activeTurn = null;
 			state.duplicates.forget(request.messageId);
@@ -841,7 +861,7 @@ export class DefaultSessionManager implements SessionManager {
 				sessionId: state.sessionId,
 				reason: messageOf(cause),
 			});
-			return false;
+			return err(appError("turn_start_failed", messageOf(cause), cause));
 		} finally {
 			this.releaseLease(state, lease);
 		}
@@ -940,8 +960,8 @@ export class DefaultSessionManager implements SessionManager {
 		switch (fallback.action) {
 			case "new_turn": {
 				const started = await this.startTurn(state, request);
-				if (started) return ok({ deliveredAs: "new_turn" });
-				return err(appError("send_failed", "The message could not start a turn."));
+				if (started.ok) return ok({ deliveredAs: "new_turn" });
+				return err(started.error);
 			}
 			case "queue":
 				state.duplicates.forget(request.messageId);
@@ -1002,7 +1022,7 @@ export class DefaultSessionManager implements SessionManager {
 	 * A restart keeps the agent's session id so the new process resumes the same conversation.
 	 */
 	private async applyConfigToLiveAgent(state: SessionState, config: SessionConfig): Promise<void> {
-		const agent = state.agent;
+		const agent = this.liveAgent(state);
 		if (agent === null) return;
 		try {
 			const applied = await agent.applyConfig(config);
@@ -1193,8 +1213,36 @@ export class DefaultSessionManager implements SessionManager {
 			const next = state.queued.dequeue();
 			if (next === undefined) return;
 			const started = await this.startTurn(state, next);
-			if (started) return;
+			if (started.ok) return;
+			this.publishUnstarted(next, started.error);
 		}
+	}
+
+	/**
+	 * A queued message whose turn could not start. The app was told it was queued and hears nothing
+	 * else about it, so it is stored as a user message whose turn ended with the reason, and the
+	 * chat shows both instead of losing the message.
+	 */
+	private publishUnstarted(request: TurnRequest, error: AppError): void {
+		this.deps.publisher.publish(request.sessionId, {
+			type: "user_message",
+			eventId: this.deps.ids.uuid() as EventId,
+			at: this.deps.clock.now(),
+			messageId: request.messageId,
+			turnId: request.turnId,
+			text: request.text,
+			attachmentPaths: request.attachmentPaths,
+			delivery: "new_turn",
+			config: request.config,
+		});
+		this.deps.publisher.publish(request.sessionId, {
+			type: "turn_ended",
+			eventId: this.deps.ids.uuid() as EventId,
+			at: this.deps.clock.now(),
+			turnId: request.turnId,
+			outcome: "error",
+			error: error.message,
+		});
 	}
 
 	private publishUserMessage(request: TurnRequest, delivery: "steer"): void {
@@ -1212,8 +1260,21 @@ export class DefaultSessionManager implements SessionManager {
 		this.deps.publisher.publish(request.sessionId, event);
 	}
 
-	private async warmConfig(runner: Runner, config: SessionConfig): Promise<SessionConfig> {
-		const models = await runner.listModels();
+	/**
+	 * The config to warm with: the chosen model when the agent offers it, else the agent's default
+	 * (sessions.md 3). The list comes from the model catalog, so warming twice lists once.
+	 */
+	private async warmConfig(sessionId: SessionId, config: SessionConfig): Promise<SessionConfig> {
+		const listed = await this.deps.models.list(config.agent, config.acpAgent);
+		if (!listed.ok) {
+			this.deps.logger.warn("Could not check the model before warming the agent", {
+				sessionId,
+				code: listed.error.code,
+				message: listed.error.message,
+			});
+			return config;
+		}
+		const models = listed.value;
 		if (models.some((model) => model.id === config.model)) return config;
 		const fallback = models.find((model) => model.isDefault);
 		if (fallback === undefined) return config;

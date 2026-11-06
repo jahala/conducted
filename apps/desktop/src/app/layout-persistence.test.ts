@@ -1,6 +1,9 @@
 import { appError, err, ok } from "@conducted/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createTestContainer, seedWorkspace } from "../test/container.ts";
+import { workspaceLayoutGroupId, workspaceRightPanelsGroupId } from "../ui/layout-sizes.ts";
 import {
+	clearLayoutsOfClosedWorkspaces,
 	clearPanelLayout,
 	loadPanelLayout,
 	type PanelLayoutSettings,
@@ -65,6 +68,43 @@ describe("NAV-01 persisted panel sizes", () => {
 		savePanelLayout("workspace-right-panels-w1", { "git-panel": 50, "scripts-panel": 50 });
 		clearPanelLayout("workspace-right-panels-w1");
 		expect(loadPanelLayout("workspace-right-panels-w1")).toBeNull();
+	});
+
+	it("removes the saved sizes of a workspace that is archived or deleted, and keeps the others", async () => {
+		const test = createTestContainer();
+		try {
+			const archived = await seedWorkspace(test.container);
+			const deleted = await seedWorkspace(test.container);
+			const kept = await seedWorkspace(test.container);
+			for (const workspace of [archived, deleted, kept]) {
+				savePanelLayout(workspaceLayoutGroupId(workspace.id), { "main-content": 60 });
+				savePanelLayout(workspaceRightPanelsGroupId(workspace.id), { "git-panel": 40 });
+			}
+			const store = test.container.services.workspace.store;
+			const stop = clearLayoutsOfClosedWorkspaces(store);
+
+			store.setState((state) => ({
+				workspacesById: {
+					...state.workspacesById,
+					[archived.id]: { ...archived, archivedAt: 1_000 },
+				},
+			}));
+			store.setState((state) => {
+				const workspacesById = { ...state.workspacesById };
+				delete workspacesById[deleted.id];
+				return { workspacesById };
+			});
+			stop();
+
+			for (const workspace of [archived, deleted]) {
+				expect(loadPanelLayout(workspaceLayoutGroupId(workspace.id))).toBeNull();
+				expect(loadPanelLayout(workspaceRightPanelsGroupId(workspace.id))).toBeNull();
+			}
+			expect(loadPanelLayout(workspaceLayoutGroupId(kept.id))).toEqual({ "main-content": 60 });
+			expect(loadPanelLayout(workspaceRightPanelsGroupId(kept.id))).toEqual({ "git-panel": 40 });
+		} finally {
+			test.close();
+		}
 	});
 
 	it("reads only the sizes the library understands", () => {

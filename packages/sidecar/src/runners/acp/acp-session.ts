@@ -547,15 +547,22 @@ export class AcpSession implements AgentSession {
 
 	private ask(turn: ActiveTurn, interaction: Interaction): Promise<InteractionAnswer> {
 		const cancelled = createDeferred<InteractionAnswer>();
-		const cancel = () => cancelled.resolve({ kind: "withdrawn" });
+		// A cancel or dispose stops waiting here and also withdraws the card at the broker.
+		const asking = new AbortController();
+		const cancel = () => {
+			asking.abort();
+			cancelled.resolve({ kind: "withdrawn" });
+		};
 		this.pendingCancels.add(cancel);
-		const asked = turn.callbacks.requestInteraction(interaction).catch((cause: unknown) => {
-			this.deps.logger.warn("Could not deliver an ACP interaction", {
-				adapter: this.deps.adapter.id,
-				reason: messageOf(cause),
+		const asked = turn.callbacks
+			.requestInteraction(interaction, asking.signal)
+			.catch((cause: unknown) => {
+				this.deps.logger.warn("Could not deliver an ACP interaction", {
+					adapter: this.deps.adapter.id,
+					reason: messageOf(cause),
+				});
+				return { kind: "withdrawn" } as const;
 			});
-			return { kind: "withdrawn" } as const;
-		});
 		return Promise.race([asked, cancelled.promise]).finally(() => {
 			this.pendingCancels.delete(cancel);
 		});

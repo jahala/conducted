@@ -28,13 +28,18 @@
  *  - an effort Codex does not take (Claude's ultracode, kept when a chat changes agent): the turn
  *    fails with a message before Codex starts (AGENT-16, thread-settings.ts)
  *  - dispose runs the runner's onDispose once, which gives the app tools token back (SIDE-13)
+ *  - every app server it connects answers Codex's approval, question, permission and form requests
+ *    through a CodexApprovalBridge (AGENT-08) that asks the running turn's callbacks; the bridge of
+ *    a replaced or closed server is disposed, so its waiting requests are withdrawn
  * Test first: with a fake client, runTurn sends thread/start then turn/start and resolves success
  * when turn/completed with status completed arrives.
  */
 import type { SessionConfig } from "@conducted/protocol";
 import type { AppError, Result, SessionId } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
+import { createDeferred, type Deferred } from "../../util/deferred.ts";
 import { asAppError } from "../../util/errors.ts";
+import { sameStrings } from "../../util/string-set.ts";
 import { NoActiveTurnError } from "../errors.ts";
 import type {
 	AgentSession,
@@ -44,6 +49,7 @@ import type {
 	TurnOutcome,
 } from "../runner.ts";
 import type { CodexAppServerClient } from "./app-server-client.ts";
+import { CodexApprovalBridge } from "./approval-bridge.ts";
 import {
 	CODEX_CLIENT_METHODS,
 	CODEX_SERVER_NOTIFICATIONS,
@@ -81,19 +87,6 @@ export interface CodexSessionDeps {
 	sleep(ms: number): Promise<void>;
 	/** Runs once when the session is disposed: the runner gives the app tools token back. */
 	onDispose?: () => void;
-}
-
-interface Deferred<T> {
-	promise: Promise<T>;
-	resolve(value: T): void;
-}
-
-function createDeferred<T>(): Deferred<T> {
-	let resolve: (value: T) => void = () => {};
-	const promise = new Promise<T>((settle) => {
-		resolve = settle;
-	});
-	return { promise, resolve };
 }
 
 interface PendingTurn {
@@ -148,6 +141,8 @@ export class CodexSession implements AgentSession {
 	readonly sessionId: SessionId;
 
 	private client: CodexAppServerClient | null = null;
+	/** Answers the server requests of the current client (AGENT-08). */
+	private approvals: CodexApprovalBridge | null = null;
 	private threadId: string | null = null;
 	private threadClient: CodexAppServerClient | null = null;
 	private activeTurn: PendingTurn | null = null;
@@ -332,6 +327,8 @@ export class CodexSession implements AgentSession {
 		const client = this.client;
 		this.client = null;
 		this.threadClient = null;
+		this.approvals?.dispose();
+		this.approvals = null;
 		try {
 			if (client !== null) await client.close();
 		} finally {
@@ -358,6 +355,14 @@ export class CodexSession implements AgentSession {
 	}
 
 	private attach(client: CodexAppServerClient): void {
+		this.approvals?.dispose();
+		const approvals = new CodexApprovalBridge({
+			client,
+			callbacks: () => (this.client === client ? this.activeTurn?.callbacks : undefined),
+			logger: this.deps.logger,
+		});
+		approvals.register();
+		this.approvals = approvals;
 		client.onNotification(CODEX_SERVER_NOTIFICATIONS.threadStarted, (params) => {
 			const threadId = readThreadId(params);
 			if (threadId === null) return;
@@ -400,6 +405,8 @@ export class CodexSession implements AgentSession {
 		client.onClose((reason) => {
 			if (this.client === client) this.client = null;
 			if (this.threadClient === client) this.threadClient = null;
+			if (this.approvals === approvals) this.approvals = null;
+			approvals.dispose();
 			const active = this.activeTurn;
 			if (active !== null) {
 				active.completion.resolve({
@@ -578,13 +585,6 @@ function toUserInput(input: TurnInput): CodexUserInput[] {
 		items.push({ type: "localImage", path });
 	}
 	return items;
-}
-
-function sameStrings(left: readonly string[], right: readonly string[]): boolean {
-	if (left.length !== right.length) return false;
-	const a = [...left].sort();
-	const b = [...right].sort();
-	return a.every((value, index) => value === b[index]);
 }
 
 function isStaleTurnError(error: AppError): boolean {

@@ -6,12 +6,21 @@
  * Our design choice: the centre and right panel keep 65% and 35%. Conductor asks for 70% and 35%, which the
  * library rescales (ui-dimensions.md 11). Conductor also caps the sidebar at 40% of the window; one maximum is
  * kept here, the 480px one. The centre keeps a minimum width so the chat stays usable.
- * Must handle: sizes are strings with a unit, as ui/resizable.tsx requires.
+ * Must handle: sizes are strings with a unit, as ui/resizable.tsx requires. The group ids live here too, so
+ * the layout that names a group and the cleanup that removes its saved sizes use one name.
  * Test first: none; these are values read by AppShell and WorkspaceLayout.
  */
 
 /** The id the shell's panel layout is saved under. */
 export const appShellGroupId = "app-shell";
+
+/** The panel group that splits a workspace's main content from its right panel. */
+export const workspaceLayoutGroupId = (workspaceId: string): string =>
+	`workspace-layout-${workspaceId}`;
+
+/** The panel group that splits a workspace's Git panel from its scripts panel. */
+export const workspaceRightPanelsGroupId = (workspaceId: string): string =>
+	`workspace-right-panels-${workspaceId}`;
 
 export const sidebarSize = {
 	default: "256px",

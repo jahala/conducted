@@ -15,7 +15,9 @@
  * Must handle: A blocked path outside the workspace (shown with the path); shortcuts fire only
  * while the card or one of its controls has focus and never while the user types in any field; one
  * decision per card, then the card shows what was chosen. The card does not take focus when it
- * arrives, so a person typing a message keeps their place in the composer.
+ * arrives, so a person typing a message keeps their place in the composer. The keys are the live
+ * bindings of chat.approveTool, chat.approveToolAlternate and chat.denyTool, so a rebind on the
+ * Keyboard shortcuts page reaches the card.
  * Test first: Pressing Enter on a bash approval calls sessions.answer with decision 'allow';
  * Backspace sends 'deny'.
  */
@@ -23,6 +25,7 @@
 import type { Interaction, InteractionAnswer } from "@conducted/protocol";
 import type { InteractionId, SessionId } from "@conducted/shared";
 import { type KeyboardEvent, useId, useState } from "react";
+import { keyPressOf, useScopedKeyMatch } from "../../../app/command-dispatcher.ts";
 import type { ToolCallView } from "../../../core/model.ts";
 import { Badge } from "../../../ui/Badge.tsx";
 import { Button } from "../../../ui/Button.tsx";
@@ -54,6 +57,7 @@ const OUTCOME: Record<Decision, string> = {
 export function ToolApprovalCard({ sessionId, interactionId, request }: ToolApprovalCardProps) {
 	const [message, setMessage] = useState("");
 	const messageId = useId();
+	const matchKey = useScopedKeyMatch("chat-card");
 	const answerState = useInteractionAnswer<Extract<InteractionAnswer, { kind: "tool_approval" }>>({
 		sessionId,
 		interactionId,
@@ -91,24 +95,26 @@ export function ToolApprovalCard({ sessionId, interactionId, request }: ToolAppr
 	}
 
 	function onKeyDown(event: KeyboardEvent<HTMLFieldSetElement>): void {
-		if (event.nativeEvent.isComposing || chosen !== null) return;
+		if (chosen !== null) return;
 		const target = event.target as HTMLElement;
 		const typing = target.tagName === "INPUT" || target.tagName === "TEXTAREA";
 		const onButton = target.closest("button") !== null;
 
 		if (typing) return;
-		if (event.metaKey && event.key === "Enter") {
+		const match = matchKey(keyPressOf(event.nativeEvent));
+		if (match === null) return;
+		if (match.commandId === "chat.approveToolAlternate") {
 			event.preventDefault();
 			send(alternateDecision);
 			return;
 		}
 		if (onButton) return;
-		if (event.key === "Enter") {
+		if (match.commandId === "chat.approveTool") {
 			event.preventDefault();
 			send("allow");
 			return;
 		}
-		if (event.key === "Backspace") {
+		if (match.commandId === "chat.denyTool") {
 			event.preventDefault();
 			send("deny");
 		}

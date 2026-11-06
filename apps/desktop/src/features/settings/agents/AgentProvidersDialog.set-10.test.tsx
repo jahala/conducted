@@ -85,16 +85,6 @@ async function mounted() {
 	return test;
 }
 
-/**
- * The Save key button beside the key field labelled `label`. OpenCode's dialog also shows the Custom
- * provider form (SET-09), which has a Save key button of its own.
- */
-function saveKeyBeside(label: string): HTMLElement {
-	const row = screen.getByLabelText(label).parentElement;
-	if (row === null) throw new Error(`no field row for ${label}`);
-	return within(row).getByRole("button", { name: "Save key" });
-}
-
 async function choose(selectName: string, optionName: string) {
 	fireEvent.keyDown(screen.getByRole("combobox", { name: selectName }), { key: "Enter" });
 	fireEvent.keyDown(await screen.findByRole("option", { name: optionName }), { key: "Enter" });
@@ -109,7 +99,7 @@ describe("SET-10 OpenCode providers", () => {
 		fireEvent.change(screen.getByLabelText("DeepSeek"), {
 			target: { value: "sk-deepseek" },
 		});
-		fireEvent.click(saveKeyBeside("DeepSeek"));
+		fireEvent.click(screen.getByRole("button", { name: "Save DeepSeek key" }));
 
 		await waitFor(() => expect(toasts.toast).toHaveBeenCalledWith("API key saved"));
 		const key = {
@@ -138,12 +128,24 @@ describe("SET-10 OpenCode providers", () => {
 		});
 	});
 
+	it("labels the Custom provider form apart from the provider keys, with Save buttons that say which key", async () => {
+		await mounted();
+
+		await choose("Provider", "DeepSeek");
+		expect(await screen.findByLabelText("DeepSeek")).toBeTruthy();
+		const custom = screen.getByRole("group", { name: "Custom provider" });
+		expect(within(custom).getByLabelText("API key")).toBeTruthy();
+		expect(within(custom).getByRole("button", { name: "Save custom provider key" })).toBeTruthy();
+		expect(within(custom).queryByRole("button", { name: "Save DeepSeek key" })).toBeNull();
+		expect(screen.getByRole("button", { name: "Save DeepSeek key" })).toBeTruthy();
+	});
+
 	it("shows a variable two providers share as saved under both, and removes it from both", async () => {
 		const current = await mounted();
 
 		await choose("Provider", "Z.AI");
 		fireEvent.change(await screen.findByLabelText("Z.AI"), { target: { value: "sk-zhipu" } });
-		fireEvent.click(saveKeyBeside("Z.AI"));
+		fireEvent.click(screen.getByRole("button", { name: "Save Z.AI key" }));
 		await waitFor(() => expect(toasts.toast).toHaveBeenCalledWith("API key saved"));
 
 		await choose("Provider", "Zhipu AI");

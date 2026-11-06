@@ -18,7 +18,11 @@
  */
 import type { WorkspaceId } from "@conducted/shared";
 import { type ReactNode, useState } from "react";
-import { scriptsPanelCollapsedSize } from "../../ui/layout-sizes.ts";
+import {
+	scriptsPanelCollapsedSize,
+	workspaceLayoutGroupId,
+	workspaceRightPanelsGroupId,
+} from "../../ui/layout-sizes.ts";
 import { ResizableGroup, ResizablePanel, ResizeHandle, usePanelRef } from "../../ui/resizable.tsx";
 import { TitleBarInset } from "../../ui/TitleBarInset.tsx";
 
@@ -58,7 +62,7 @@ export function WorkspaceLayout({
 	return (
 		<ResizableGroup
 			key={workspaceId}
-			id={`workspace-layout-${workspaceId}`}
+			id={workspaceLayoutGroupId(workspaceId)}
 			orientation="horizontal"
 			className="h-full w-full"
 		>
@@ -90,7 +94,7 @@ export function WorkspaceLayout({
 					className="h-full bg-surface"
 				>
 					<ResizableGroup
-						id={`workspace-right-panels-${workspaceId}`}
+						id={workspaceRightPanelsGroupId(workspaceId)}
 						orientation="vertical"
 						className="h-full w-full"
 					>

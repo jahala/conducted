@@ -108,6 +108,27 @@ describe("CHAT-11 tool approval card", () => {
 		);
 	});
 
+	it("follows a rebind of No from the Keyboard shortcuts page", async () => {
+		test.container.services.settings.store.setState((state) => ({
+			values: {
+				...state.values,
+				keybinding_overrides_v1: JSON.stringify({ "chat.denyTool": ["D"] }),
+			},
+		}));
+		await renderCard();
+
+		fireEvent.keyDown(card(), { key: "Backspace" });
+		expect(answer).not.toHaveBeenCalled();
+		fireEvent.keyDown(card(), { key: "d" });
+
+		await waitFor(() =>
+			expect(answer).toHaveBeenCalledWith(sessionId, interactionId, {
+				kind: "tool_approval",
+				decision: "deny",
+			}),
+		);
+	});
+
 	it("offers Yes always for a command and sends it on Cmd+Enter", async () => {
 		await renderCard();
 

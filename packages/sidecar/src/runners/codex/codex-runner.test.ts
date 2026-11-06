@@ -5,8 +5,8 @@
  * Test first: detect() parses "codex-cli 0.154.0" to version "0.154.0".
  */
 import { describe, expect, test } from "bun:test";
-import type { SessionConfig, WorkspaceContext } from "@conducted/protocol";
-import type { AppError, Result, SessionId, WorkspaceId } from "@conducted/shared";
+import type { Interaction, SessionConfig, WorkspaceContext } from "@conducted/protocol";
+import type { AppError, Result, SessionId, ToolUseId, WorkspaceId } from "@conducted/shared";
 import { appError, err, ok } from "@conducted/shared";
 import { createLogger } from "../../logging/logger.ts";
 import { FakeChild, type JsonRpcMessage } from "../../test-support/fake-child.ts";
@@ -487,4 +487,83 @@ describe("SIDE-21 and SIDE-13 a Codex chat's program and app tools token", () =>
 
 		expect(released).toEqual(["s1"]);
 	});
+
+	test("AGENT-08 a command approval from the app server reaches the turn and Codex gets the answer", async () => {
+		const child = new FakeChild();
+		const results: Record<string, unknown> = {
+			initialize: { serverVersion: "0.154.0" },
+			"thread/start": { thread: { id: "thread-1" } },
+			"turn/start": { turn: { id: "turn-1", status: "inProgress" } },
+		};
+		child.onWrite = (message) => {
+			const id = message.id;
+			const method = message.method;
+			if (id === undefined || id === null || method === undefined) return;
+			if (!(method in results)) return;
+			queueMicrotask(() => child.emit({ jsonrpc: "2.0", id, result: results[method] }));
+		};
+		const runner = makeRunner({ spawn: async () => ok(child) });
+		const approvalsOn = { ...config, requireToolApproval: true };
+		const asked: Interaction[] = [];
+		const session = await runner.start({
+			sessionId: "s1" as SessionId,
+			config: approvalsOn,
+			workspace,
+			env: { PATH: "/usr/local/bin" },
+		});
+
+		const turn = session.runTurn(
+			{ text: "run the tests", attachmentPaths: [], config: approvalsOn },
+			{
+				...callbacks,
+				requestInteraction: async (interaction) => {
+					asked.push(interaction);
+					return { kind: "tool_approval", decision: "allow" };
+				},
+			},
+		);
+		await waitFor(() => child.lines.some((line) => line.method === "turn/start"));
+		child.emit({
+			jsonrpc: "2.0",
+			id: "approval-1",
+			method: "item/commandExecution/requestApproval",
+			params: {
+				threadId: "thread-1",
+				turnId: "turn-1",
+				itemId: "item-1",
+				command: "pnpm test",
+				cwd: "/work/lisbon",
+			},
+		});
+		await waitFor(() => child.lines.some((line) => line.id === "approval-1"));
+
+		expect(asked).toEqual([
+			{
+				kind: "tool_approval",
+				toolUseId: "item-1" as ToolUseId,
+				toolName: "Bash",
+				input: { command: "pnpm test", cwd: "/work/lisbon" },
+			},
+		]);
+		const reply = child.lines.find((line) => line.id === "approval-1");
+		expect(reply?.error).toBeUndefined();
+		expect(reply?.result).toEqual({ decision: "accept" });
+
+		child.emit({
+			jsonrpc: "2.0",
+			method: "turn/completed",
+			params: { threadId: "thread-1", turn: { id: "turn-1", status: "completed" } },
+		});
+		expect(await turn).toEqual({ kind: "success" });
+		await session.dispose();
+	});
 });
+
+/** Waits for something the scripted child or the client does a few promise steps later. */
+async function waitFor(check: () => boolean): Promise<void> {
+	for (let step = 0; step < 1000; step += 1) {
+		if (check()) return;
+		await new Promise<void>((resolve) => setTimeout(resolve, 0));
+	}
+	throw new Error("The expected Codex message never arrived.");
+}

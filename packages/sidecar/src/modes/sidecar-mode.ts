@@ -798,6 +798,7 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 		liveState,
 		interactions,
 		queue,
+		models,
 		clock,
 		ids,
 		logger,
@@ -1072,7 +1073,6 @@ function createRunnerRegistry(input: {
 				...common,
 				loadSdk: ports.loadCursorSdk,
 				envLock: new EnvLock({ queue: queueForCursor, target: process.env }),
-				apiKey: () => process.env.CURSOR_API_KEY,
 			}),
 		},
 	];

@@ -13,7 +13,6 @@
 	},
 	"test-only-exports": {
 		"apps/desktop/src/app/command-dispatcher.ts": 4,
-		"apps/desktop/src/app/layout-persistence.ts": 1,
 		"apps/desktop/src/app/SurfaceLayer.tsx": 2,
 		"apps/desktop/src/core/async/optimistic.ts": 1,
 		"apps/desktop/src/core/db/sections.ts": 1,
@@ -39,7 +38,6 @@
 		"packages/sidecar/src/models/catalog.ts": 1,
 		"packages/sidecar/src/packaging.ts": 1,
 		"packages/sidecar/src/runners/claude/self-started-turns.ts": 1,
-		"packages/sidecar/src/runners/codex/approval-bridge.ts": 1,
 		"packages/sidecar/src/session/self-started-turns.ts": 1
 	},
 	"unwired-deps": {
