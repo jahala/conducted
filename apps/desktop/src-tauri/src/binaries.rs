@@ -3052,7 +3052,7 @@ mod tests {
             &state,
         );
 
-        for program in ManagedProgram::AGENTS {
+        for program in [ManagedProgram::Claude, ManagedProgram::Codex] {
             let status = state.status(program);
             assert_eq!(status.state, ProgramState::Missing);
             assert!(
