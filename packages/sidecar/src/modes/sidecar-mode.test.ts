@@ -43,7 +43,7 @@ const TEST_LOG_LEVEL = "info";
 const TEST_APP_VERSION = "1.2.3";
 
 function envFor(
-	config: Pick<SidecarConfig, "binDir" | "outboxRoot" | "logDir">,
+	config: Pick<SidecarConfig, "binDir" | "outboxRoot" | "completionsDir" | "logDir">,
 ): Record<string, string> {
 	return {
 		CONDUCTED_BIN_DIR: config.binDir,
@@ -164,6 +164,7 @@ describe("SIDE-18 sidecar logging", () => {
 		const config = {
 			binDir: path.join(base, "bin"),
 			outboxRoot: path.join(base, "outbox"),
+			completionsDir: path.join(base, "completions"),
 			logDir: path.join(base, "logs"),
 		};
 		const received: SidecarConfig[] = [];
@@ -191,6 +192,7 @@ describe("SIDE-18 sidecar logging", () => {
 		const config = {
 			binDir: path.join(base, "bin"),
 			outboxRoot: path.join(base, "outbox"),
+			completionsDir: path.join(base, "completions"),
 			logDir: path.join(base, "logs"),
 		};
 		const { logger, records } = recordingLogger();

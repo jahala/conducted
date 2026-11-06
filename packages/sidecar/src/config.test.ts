@@ -18,14 +18,10 @@ describe("SIDE-01 sidecar settings", () => {
 			value: {
 				binDir: "/app/bin",
 				outboxRoot: "/data/outbox",
-<<<<<<< HEAD
+				completionsDir: "/data/completions",
 				logDir: "/data/logs",
 				appVersion: "1.2.3",
 				logLevel: "info",
-=======
-				completionsDir: "/data/completions",
-				logDir: "/data/logs",
->>>>>>> b4a6951929ba98e7d41acdc123993e987fe8afaf
 			},
 		});
 	});
@@ -72,6 +68,7 @@ describe("SIDE-18 sidecar log settings", () => {
 			value: {
 				binDir: "/app/bin",
 				outboxRoot: "/data/outbox",
+				completionsDir: "/data/completions",
 				logDir: "/data/logs",
 				appVersion: "0.4.0",
 				logLevel: "debug",

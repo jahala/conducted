@@ -50,7 +50,7 @@ async function folder(prefix: string): Promise<string> {
 	return made;
 }
 
-const slot = (inner: string): string => `$${inner}`;
+const slot = (inner: string): string => `\${${inner}}`;
 
 const baseConfig: SessionConfig = {
 	agent: "cursor",
@@ -317,7 +317,10 @@ describe("AGENT-09 Cursor runner", () => {
 				{
 					binDir: root,
 					outboxRoot: path.join(root, "outbox"),
+					completionsDir: path.join(root, "completions"),
 					logDir: path.join(root, "log"),
+					appVersion: "0.0.0",
+					logLevel: "info",
 				},
 				ports,
 			);

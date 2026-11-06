@@ -137,7 +137,14 @@ async function harness(): Promise<{
 		providerSecrets: {},
 	};
 	const host = composeSidecar(
-		{ binDir: folder, outboxRoot: path.join(folder, "outbox"), logDir: path.join(folder, "log") },
+		{
+			binDir: folder,
+			outboxRoot: path.join(folder, "outbox"),
+			completionsDir: path.join(folder, "completions"),
+			logDir: path.join(folder, "log"),
+			appVersion: "0.0.0",
+			logLevel: "info",
+		},
 		{
 			app,
 			query: () => {

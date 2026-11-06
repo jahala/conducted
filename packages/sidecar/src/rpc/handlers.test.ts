@@ -262,16 +262,6 @@ describe("SIDE-02 handler wiring", () => {
 		);
 	});
 
-	test("SIDE-02 a method owned by another feature answers not implemented", async () => {
-		const handlers = buildHandlers(deps());
-		await expect(
-			handlers.requests.getGoal({ sessionId: "session-1" as SessionId }),
-		).rejects.toMatchObject({
-			name: "NotImplemented",
-			featureId: "AGENT-13",
-		});
-	});
-
 	test("AGENT-14 compact is answered by the session manager", async () => {
 		const asked: SessionId[] = [];
 		const handlers = buildHandlers(

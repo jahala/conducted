@@ -13,10 +13,8 @@
  * JSON-RPC code, and a session request goes straight to the session manager, which decides whether
  * the chat is known.
  * Test first: the keys of the returned tables equal the keys of the protocol tables.
- * Our design choice: the methods owned by other features call notImplemented with that feature's
- * id, so an unbuilt method answers -32001 instead of pretending to work.
  */
-import { err, notImplemented, ok } from "@conducted/shared";
+import { err, ok } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
 import type { AgentDetector } from "../models/agent-detection.ts";
 import type { ModelCatalog } from "../models/catalog.ts";
@@ -135,17 +133,10 @@ export function buildHandlers(deps: HandlerDeps): {
 				return ok({ shell: captured.value.shell, path: captured.value.path });
 			},
 			runUtilityPrompt: (params) => deps.utilityPrompt.run(params),
-<<<<<<< HEAD
 			getGoal: (params) => deps.sessions.getGoal(params),
 			setGoal: (params) => deps.sessions.setGoal(params),
 			changeGoal: (params) => deps.sessions.changeGoal(params),
-			compact: async () => notImplemented("AGENT-14"),
-=======
-			getGoal: async () => notImplemented("AGENT-13"),
-			setGoal: async () => notImplemented("AGENT-13"),
-			changeGoal: async () => notImplemented("AGENT-13"),
 			compact: (params) => deps.sessions.compact(params),
->>>>>>> fc40aa3a330e54642eeaa156a03a2270bc504f44
 			listAcpConfigOptions: (params) => deps.sessions.listAcpConfigOptions(params),
 			setAcpConfigOption: (params) => deps.sessions.setAcpConfigOption(params),
 		},

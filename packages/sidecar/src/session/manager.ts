@@ -2,13 +2,8 @@
  * @feature SIDE-03 Session manager: per-session queue, duplicate guard, idle after flush
  * Owns: every chat the sidecar knows about, and the app's requests about them: sendMessage,
  * cancel, warmAgent, resetAgent, updateConfig, setAutoApproveEdits, getSessionStatus,
-<<<<<<< HEAD
- * answerInteraction, the ACP chat options of a live chat (AGENT-17), and a Codex chat's goal
- * (AGENT-13). It also builds each
-=======
- * answerInteraction, the Codex compact turn (AGENT-14), and the ACP chat options of a live chat
- * (AGENT-17). It also builds each
->>>>>>> fc40aa3a330e54642eeaa156a03a2270bc504f44
+ * answerInteraction, a Codex chat's goal (AGENT-13) and its compact turn (AGENT-14), and the ACP
+ * chat options of a live chat (AGENT-17). It also builds each
  * agent's environment from the chat's launch settings, hands the runner the program the launch
  * names, and restarts an agent whose launch changed once no turn and no background task runs
  * (SIDE-21, `decideLaunchChange` in process/launch-fingerprint.ts).
