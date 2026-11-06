@@ -3,7 +3,8 @@
  * Owns: one pure function per git (or helper script) invocation, each returning a `GitCommand`
  * value. Nothing here runs a process. The runner (runner.ts) executes the value.
  * Behaviour: services-map.md part 3 (3.1 create, 3.3 polling, 3.4 diffs, 3.6 push and pull,
- * 3.10 archive, 3.11 rename and retarget, 3.12 checkpoints, 3.13 worktree config, 3.15 minimal set).
+ * 3.10 archive, 3.11 rename, retarget, sparse checkout and external diff, 3.12 checkpoints,
+ * 3.13 worktree config, 3.15 minimal set).
  * Must handle: arguments are an array and are never joined into a shell string, so a name cannot
  * add shell syntax; remote and branch names for fetch, push, remote and branch commands come after
  * `--`, so a name that looks like an option is read as a name; revision arguments (checkout,
@@ -357,6 +358,46 @@ export const firstPushSteps = (
 	configSet(`branch.${localBranch}.merge`, `refs/heads/${remoteBranch}`),
 	fetchBranchRefspec(remote, remoteBranch),
 ];
+
+// ---------------------------------------------------------------- git extras (3.11)
+
+/**
+ * `git diff --quiet HEAD` exits 1 when the file has changes. The path is a literal pathspec, so
+ * a name git could read as an option stays a name.
+ */
+export const diffQuietHead = (path?: string): GitCommand =>
+	git(["diff", "--quiet", "HEAD", ...(path === undefined ? [] : ["--", `:(literal)${path}`])], {
+		okExitCodes: PROBE,
+	});
+
+/** The Kaleidoscope diff command Conductor configures for `git difftool` (services-map 3.11). */
+const KSDIFF_DIFF_COMMAND =
+	'ksdiff --partial-changeset --relative-path "$MERGED" -- "$LOCAL" "$REMOTE"';
+
+/** Opens the file's changes, or the whole working tree, in Kaleidoscope. */
+export const diffToolKsdiff = (path?: string): GitCommand =>
+	git(
+		[
+			"-c",
+			`difftool.ksdiff.cmd=${KSDIFF_DIFF_COMMAND}`,
+			"difftool",
+			"--tool=ksdiff",
+			"--no-prompt",
+			"HEAD",
+			...(path === undefined ? [] : ["--", `:(literal)${path}`]),
+		],
+		{ retryOnLock: false },
+	);
+
+export const sparseCheckoutConfig = (): GitCommand => configGet("core.sparseCheckout");
+export const sparseCheckoutInitCone = (): GitCommand => git(["sparse-checkout", "init", "--cone"]);
+export const sparseCheckoutList = (): GitCommand => git(["sparse-checkout", "list"]);
+export const sparseCheckoutSet = (directories: readonly string[]): GitCommand =>
+	git(["sparse-checkout", "set", "--", ...directories]);
+export const sparseCheckoutDisable = (): GitCommand => git(["sparse-checkout", "disable"]);
+/** The top-level folders of the checked-out commit, the choices a cone-mode sparse checkout has. */
+export const lsTreeTopLevelDirectories = (): GitCommand =>
+	git(["ls-tree", "-d", "--name-only", "HEAD"]);
 
 // ---------------------------------------------------------------- restoring files (3.11)
 
