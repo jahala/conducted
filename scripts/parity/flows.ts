@@ -25,7 +25,8 @@ const HANG_MS = 15_000;
 
 interface Step {
 	step: string;
-	run(page: Page): Promise<void>;
+	/** `logged` grows with the catalogue's console lines while the step runs. */
+	run(page: Page, logged: string[]): Promise<void>;
 }
 
 interface Flow {
@@ -165,9 +166,16 @@ export const FLOWS: Flow[] = [
 						.click(),
 			},
 			{
-				step: "The header shows the new pull request's number",
-				run: (page) =>
-					page.getByText(/^#\d+/).first().waitFor({ state: "visible", timeout: HANG_MS }),
+				// services-map.md 3.7.1: Create PR sends the agent a message; the agent makes the PR. The
+				// catalogue has no agent, so the step ends where the request reaches the sidecar.
+				step: "The request goes to the agent as a chat message",
+				run: async (page, logged) => {
+					if (logged.some((line) => line.includes("sendMessage"))) return;
+					await page.waitForEvent("console", {
+						predicate: (message) => message.text().includes("sendMessage"),
+						timeout: HANG_MS,
+					});
+				},
 			},
 		],
 	},
@@ -280,7 +288,7 @@ async function runFlow(browser: Browser, url: string, flow: Flow): Promise<FlowR
 		}
 		for (const step of flow.steps) {
 			try {
-				await step.run(page);
+				await step.run(page, unscripted);
 				result.steps.push({ step: step.step, ok: true });
 			} catch (cause) {
 				const message = cause instanceof Error ? cause.message.split("\n")[0] : String(cause);
