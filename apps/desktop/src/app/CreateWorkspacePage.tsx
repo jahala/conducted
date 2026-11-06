@@ -11,6 +11,8 @@
  * Behaviour: ui-map.md 3.9 (New workspace flow; "Draft the first message, then create and send it."), 5.4
  * (Cmd+I toggles the create-from picker, Alt+Enter adds the draft to the backlog, and Cmd+Enter
  * starts a backlog workspace).
+ * Our design choice: the page marks itself as a dialog scope, so inside it Cmd+Enter arrives as
+ * "Confirm the open dialog"; in start mode Start answers that command as well as its own.
  * Our design choice: the page keeps the first message in a plain textarea until the composer editor can be
  * reused outside a chat; attachments wait for COMP-07.
  * Must handle: no project yet (point to "Add a project"); a failed create keeps the draft with Retry setup
@@ -229,11 +231,16 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 		void saveToBacklog();
 		return true;
 	});
-	useCommandHandler("workspace.startFromBacklog", "modal", () => {
+	// The page is a dialog scope, where Cmd+Enter is "Confirm the open dialog" before it is the
+	// global "Start the backlog workspace". In start mode, Start is this page's confirm, so it
+	// answers both: the first from a field on the page, the second from anywhere else.
+	const startFromKey = () => {
 		if (!startMode || backlogEntry === undefined || busy) return false;
 		void submit();
 		return true;
-	});
+	};
+	useCommandHandler("workspace.startFromBacklog", "modal", startFromKey);
+	useCommandHandler("dialog.confirm", "modal", startFromKey);
 
 	if (repos.state === "loading") {
 		return (

@@ -85,7 +85,10 @@ describe("CHAT-01 chat tab context menu; CHAT-17 copy transcript", () => {
 		await openMenu();
 		fireEvent.click(await screen.findByRole("menuitem", { name: /Copy concise transcript/ }));
 		await waitFor(() => expect(state.copyTranscript).toHaveBeenCalledWith(sessionId, "concise"));
-		fireEvent.click(screen.getByRole("menuitem", { name: /Copy full transcript/ }));
+		// Picking an item closes the menu, so the second pick opens it again.
+		await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+		fireEvent.contextMenu(screen.getByText("Chat tab"));
+		fireEvent.click(await screen.findByRole("menuitem", { name: /Copy full transcript/ }));
 		await waitFor(() => expect(state.copyTranscript).toHaveBeenCalledWith(sessionId, "full"));
 	});
 
