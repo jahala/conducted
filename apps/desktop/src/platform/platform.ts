@@ -99,11 +99,14 @@ export interface GrepMatch {
 
 /** Fast, gitignore-aware search done in Rust (file_search.rs). */
 export interface ArtifactPage {
-	/** Files and folders of the workspace's `.context` folder, relative to it. */
+	/** Files (never folders) of the workspace's `.context` folder, as absolute paths. */
 	entries: FileStat[];
 	/** Pass back to get the next page. Null on the last page. */
 	nextCursor: string | null;
-	/** How many entries the exclusions left out (build output, dependency folders, large files). */
+	/**
+	 * How many files of the whole folder the list leaves out: the `.context` files the app keeps
+	 * for itself (file_search.rs). Every page carries the same total.
+	 */
 	omitted: number;
 }
 

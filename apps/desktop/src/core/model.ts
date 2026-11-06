@@ -737,7 +737,10 @@ export interface ArtifactsView {
 	entries: ArtifactEntry[];
 	/** True while more pages are left to load. */
 	hasMore: boolean;
-	/** How many files the list leaves out (build output, dependency folders, large files). */
+	/**
+	 * How many files of the whole `.context` folder the list leaves out: the files the app keeps
+	 * for itself. Every page reports the same total.
+	 */
 	omitted: number;
 }
 
