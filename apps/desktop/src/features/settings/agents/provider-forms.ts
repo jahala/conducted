@@ -8,11 +8,14 @@
  * D033 (each key reaches only its own agent).
  * Our design choice: the subscription token is kept under the Anthropic provider because both sign
  * Claude Code in; the Bedrock test model is given to Claude as `ANTHROPIC_MODEL`; a custom provider's
- * optional workspace ID is passed as the workspace variable the agent's family uses.
+ * optional workspace ID is passed as the workspace variable the agent's family uses. Each choice stores
+ * its own setting value, and the dialog shows the stored choice: an empty `claude_provider` is the
+ * standard sign-in, the Claude Code subscription, and "anthropic" is the Anthropic API key. An empty
+ * `codex_provider` is the ChatGPT account. The launch passes only the chosen credential
+ * (core/container.ts, LEFT_OUT_BY_SIGN_IN).
  * Test first: the provider-choice test in AgentProvidersDialog.set-09.test.tsx.
  */
 import type { AcpAgent, AgentKind } from "@conducted/shared";
-import type { ProviderKeyView } from "../../../core/model.ts";
 
 export type ProviderChoiceId =
 	| "subscription"
@@ -32,7 +35,7 @@ export interface ProviderChoice {
 }
 
 const CLAUDE_CHOICES: readonly ProviderChoice[] = [
-	{ id: "subscription", label: "Claude Code subscription", settingValue: "anthropic" },
+	{ id: "subscription", label: "Claude Code subscription", settingValue: "" },
 	{ id: "anthropic", label: "Anthropic API key", settingValue: "anthropic" },
 	{ id: "bedrock", label: "Amazon Bedrock", settingValue: "bedrock" },
 	{ id: "vertex", label: "Google Vertex AI", settingValue: "vertex" },
@@ -95,25 +98,13 @@ export function workspaceIdEnvVarFor(agent: AgentKind): string {
 	return "OPENAI_ORG_ID";
 }
 
-/** Which choice to show first, from the stored setting and the keys already saved. */
-export function initialProviderChoice(
-	agent: AgentKind,
-	setting: string,
-	keys: readonly ProviderKeyView[],
-	authMethod: string | undefined,
-): ProviderChoiceId {
-	const has = (envVar: string): boolean => keys.some((key) => key.envVar === envVar);
+/** Which choice to show first: the one the provider setting stores. */
+export function initialProviderChoice(agent: AgentKind, setting: string): ProviderChoiceId {
 	const chosen = setting.trim().toLowerCase();
-	if (agent === "claude") {
-		if (chosen === "bedrock" || chosen === "vertex" || chosen === "custom") return chosen;
-		return has("CLAUDE_CODE_OAUTH_TOKEN") ? "subscription" : "anthropic";
-	}
-	if (agent === "codex") {
-		if (chosen === "custom") return "custom";
-		if (chosen === "openai") return "openai";
-		if (authMethod === "chatgpt") return "chatgpt";
-		return has("OPENAI_API_KEY") ? "openai" : "chatgpt";
-	}
+	const stored = providerChoices(agent).find((choice) => choice.settingValue === chosen);
+	if (stored !== undefined) return stored.id;
 	if (agent === "cursor") return "cursor";
-	return "custom";
+	if (agent === "acp") return "custom";
+	// A value the dialog does not offer (set in a settings file) shows the standard sign-in.
+	return agent === "claude" ? "subscription" : "chatgpt";
 }

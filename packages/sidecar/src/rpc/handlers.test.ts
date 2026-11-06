@@ -62,8 +62,9 @@ function deps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
 			contextUsage: async () => ok({ usedTokens: 1, windowTokens: 2, rateLimits: [] }),
 		},
 		shellEnv: {
-			get: async () => ok({ shell: "/bin/zsh", path: "/usr/bin", env: {} }),
-			refresh: async () => ok({ shell: "/bin/zsh", path: "/usr/bin", env: {} }),
+			get: async () => ok({ shell: "/bin/zsh", path: "/usr/bin", env: {}, providerSecrets: {} }),
+			refresh: async () =>
+				ok({ shell: "/bin/zsh", path: "/usr/bin", env: {}, providerSecrets: {} }),
 		},
 		utilityPrompt: { run: async () => ok({ text: "" }) },
 		setLogLevel: () => {},

@@ -6,7 +6,9 @@
  * state "No variables set. Add a variable to make it available in this environment.").
  * Must handle: no variables (designed empty state), a value revealed for a short time only (hides
  * again on blur or after 10 seconds, Our design choice), reveal failing (the row keeps a short
- * message), remove asking first, sorting by name, and keyboard access to every action.
+ * message), an edit that changed nothing (Save stays off, so the stored value is never replaced by
+ * an empty field; Cancel keeps it), remove asking first, sorting by name, and keyboard access to
+ * every action.
  * Test first: clicking reveal asks for the value once and hides it again after blur.
  */
 import { useEffect, useState } from "react";
@@ -28,6 +30,8 @@ export interface EnvVarTableProps {
 interface Editing {
 	name: string;
 	value: string;
+	/** What the field held when Edit opened: the revealed value, or empty when it was hidden. */
+	initial: string;
 }
 
 export function EnvVarTable({ vars, onReveal, onEdit, onRemove }: EnvVarTableProps) {
@@ -59,7 +63,7 @@ export function EnvVarTable({ vars, onReveal, onEdit, onRemove }: EnvVarTablePro
 	};
 
 	const saveEdit = async () => {
-		if (editing === null) return;
+		if (editing === null || editing.value === editing.initial) return;
 		setSaving(true);
 		const saved = await onEdit(editing.name, editing.value);
 		setSaving(false);
@@ -112,22 +116,34 @@ export function EnvVarTable({ vars, onReveal, onEdit, onRemove }: EnvVarTablePro
 								<td className="py-2 pr-3 font-mono text-code text-fg">{variable.name}</td>
 								<td className="py-2 pr-3">
 									{editing?.name === variable.name ? (
-										<div className="flex items-center gap-2">
-											<Input
-												aria-label={`New value for ${variable.name}`}
-												type="password"
-												value={editing.value}
-												autoComplete="off"
-												onChange={(event) =>
-													setEditing({ name: variable.name, value: event.target.value })
-												}
-											/>
-											<Button size="sm" loading={saving} onClick={() => void saveEdit()}>
-												Save
-											</Button>
-											<Button size="sm" variant="ghost" onClick={() => setEditing(null)}>
-												Cancel
-											</Button>
+										<div className="flex flex-col gap-1">
+											<div className="flex items-center gap-2">
+												<Input
+													aria-label={`New value for ${variable.name}`}
+													aria-describedby={`env-edit-${variable.name}`}
+													type="password"
+													value={editing.value}
+													placeholder="Enter a new value"
+													autoComplete="off"
+													onChange={(event) =>
+														setEditing({ ...editing, value: event.target.value })
+													}
+												/>
+												<Button
+													size="sm"
+													loading={saving}
+													disabled={editing.value === editing.initial}
+													onClick={() => void saveEdit()}
+												>
+													Save
+												</Button>
+												<Button size="sm" variant="ghost" onClick={() => setEditing(null)}>
+													Cancel
+												</Button>
+											</div>
+											<p id={`env-edit-${variable.name}`} className="text-xs text-fg-muted">
+												The saved value stays until you save a new one.
+											</p>
 										</div>
 									) : !variable.hasValue ? (
 										<span className="text-fg-muted">Not set</span>
@@ -165,9 +181,10 @@ export function EnvVarTable({ vars, onReveal, onEdit, onRemove }: EnvVarTablePro
 										<Button
 											size="sm"
 											variant="ghost"
-											onClick={() =>
-												setEditing({ name: variable.name, value: revealed?.value ?? "" })
-											}
+											onClick={() => {
+												const initial = isRevealed ? revealed.value : "";
+												setEditing({ name: variable.name, value: initial, initial });
+											}}
 										>
 											Edit
 										</Button>

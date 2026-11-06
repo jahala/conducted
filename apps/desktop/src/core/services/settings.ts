@@ -1193,10 +1193,23 @@ export class SettingsService {
 		return views.ok ? ok(undefined) : err(views.error);
 	}
 
-	/** Environment for an agent or script of one repository: global, then repo values. */
+	/**
+	 * The Environment page's variables for one repository, the one rule both its scripts and its agents'
+	 * launch use. Rows come in name order with the global row before the repository's (env-vars.ts), so
+	 * a repository's value replaces the global one of the same name. A value the Keychain cannot give
+	 * back fails the whole read with a message that names the variable, never the global value instead.
+	 */
 	async environmentFor(repoId: RepoId): Promise<Result<Record<string, string>>> {
 		const listed = await this.#deps.repos.envVars.listForRepo(repoId);
-		if (!listed.ok) return listed;
+		if (!listed.ok) {
+			return err(
+				appError(
+					"env_list_failed",
+					`The environment variables could not be read: ${listed.error.message}`,
+					listed.error,
+				),
+			);
+		}
 		const env: Record<string, string> = {};
 		for (const entry of listed.value) {
 			const read = await this.#deps.platform.keychain.get(entry.keychainRef);
@@ -1211,7 +1224,10 @@ export class SettingsService {
 			}
 			if (read.value === null) {
 				return err(
-					appError("env_value_missing", `The value of ${entry.name} is missing from the Keychain.`),
+					appError(
+						"env_value_missing",
+						`The value of ${entry.name} is missing from the Keychain. Enter it again in Settings.`,
+					),
 				);
 			}
 			env[entry.name] = read.value;

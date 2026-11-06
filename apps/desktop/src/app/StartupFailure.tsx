@@ -10,9 +10,12 @@
  * in your region" (hosted service checks, D025).
  * Data: `StartupState` from app/startup.ts for the first and third screens. The CPU facts come from
  * useSystemInfo (core/hooks/system.ts, PLAT-32): `machineArch` arm64 with `buildArch` x86_64. Update runs
- * `Actions.app.checkForUpdates`; diagnostics copy through `Actions.app.copyText`.
+ * `Actions.app.checkForUpdates`; diagnostics copy through `Actions.app.copyText`. The wrong-CPU screen's
+ * "Download for Apple silicon" opens the release page main.tsx passes in, through `Actions.app.openUrl`.
  * Our design choice: the wrong-CPU screen offers "Continue anyway" through the softer confirm dialog in
- * features/updates/RosettaConfirm.tsx, so the hard block is not the only way forward.
+ * features/updates/RosettaConfirm.tsx, so the hard block is not the only way forward. Only that dialog's
+ * "Continue anyway" lets the app in; a download, Escape or an outside click leaves the screen up. The
+ * wrong-CPU screen has no Update button, because an update would install the Intel build again.
  * Product name: the screens say "Conducted" (see StartupScreen.tsx).
  * Must handle: a database newer than the app (the screen names both versions and says the data is untouched,
  * and Update is the one primary action); a failed start with or without a log path (the message is shown, and
@@ -23,7 +26,7 @@
  */
 import { useState } from "react";
 import type { SystemInfo } from "../core/model.ts";
-import { RosettaConfirm } from "../features/updates/RosettaConfirm.tsx";
+import { RosettaConfirm, useOpenDownload } from "../features/updates/RosettaConfirm.tsx";
 import { Button } from "../ui/Button.tsx";
 import { EmptyState } from "../ui/EmptyState.tsx";
 import { FullPage } from "./FullPage.tsx";
@@ -41,7 +44,7 @@ export interface StartupFailureProps {
 	onQuit: () => void;
 	/** Wrong-CPU screen only: continue with this build after the confirm dialog. */
 	onContinueAnyway?: () => void;
-	/** Where the build for this Mac can be downloaded. Null when unknown. */
+	/** Wrong-CPU screen only: where the build for this Mac can be downloaded. Null when unknown. */
 	downloadUrl?: string | null;
 }
 
@@ -54,42 +57,14 @@ export function StartupFailure({
 	onContinueAnyway,
 	downloadUrl = null,
 }: StartupFailureProps) {
-	const [confirmOpen, setConfirmOpen] = useState(false);
-
 	if (blocker.kind === "wrong_cpu_build") {
 		return (
-			<FullPage>
-				<EmptyState
-					tone="failed"
-					title="Wrong version of Conducted for this Mac"
-					body="This is the Intel build of Conducted, and this Mac has Apple silicon. Download the Apple silicon build to get the fastest, most reliable version."
-					action={
-						<div className="flex flex-col items-center gap-2">
-							<div className="flex flex-wrap justify-center gap-2">
-								<Button onClick={onUpdate}>Update</Button>
-								<Button variant="secondary" onClick={() => setConfirmOpen(true)}>
-									Continue anyway
-								</Button>
-								<Button variant="ghost" onClick={onQuit}>
-									Quit
-								</Button>
-							</div>
-							<p className="max-w-prose text-xs text-fg-subtle">
-								Conducted works under Rosetta, but slowly and with some features missing.
-							</p>
-						</div>
-					}
-				/>
-				<RosettaConfirm
-					open={confirmOpen}
-					onOpenChange={(open) => {
-						setConfirmOpen(open);
-						if (!open) onContinueAnyway?.();
-					}}
-					system={blocker.system}
-					downloadUrl={downloadUrl}
-				/>
-			</FullPage>
+			<WrongCpuScreen
+				system={blocker.system}
+				downloadUrl={downloadUrl}
+				onQuit={onQuit}
+				onContinueAnyway={onContinueAnyway}
+			/>
 		);
 	}
 
@@ -136,6 +111,58 @@ export function StartupFailure({
 						</div>
 					</div>
 				}
+			/>
+		</FullPage>
+	);
+}
+
+/** The full-window "Wrong version" screen: download the right build, continue through the confirm, or quit. */
+function WrongCpuScreen({
+	system,
+	downloadUrl,
+	onQuit,
+	onContinueAnyway,
+}: {
+	system: SystemInfo;
+	downloadUrl: string | null;
+	onQuit: () => void;
+	onContinueAnyway: (() => void) | undefined;
+}) {
+	const [confirmOpen, setConfirmOpen] = useState(false);
+	const { openDownload, opening } = useOpenDownload(downloadUrl);
+	return (
+		<FullPage>
+			<EmptyState
+				tone="failed"
+				title="Wrong version of Conducted for this Mac"
+				body="This is the Intel build of Conducted, and this Mac has Apple silicon. Download the Apple silicon build to get the fastest, most reliable version."
+				action={
+					<div className="flex flex-col items-center gap-2">
+						<div className="flex flex-wrap justify-center gap-2">
+							{downloadUrl === null ? null : (
+								<Button loading={opening} onClick={() => void openDownload()}>
+									Download for Apple silicon
+								</Button>
+							)}
+							<Button variant="secondary" onClick={() => setConfirmOpen(true)}>
+								Continue anyway
+							</Button>
+							<Button variant="ghost" onClick={onQuit}>
+								Quit
+							</Button>
+						</div>
+						<p className="max-w-prose text-xs text-fg-subtle">
+							Conducted works under Rosetta, but slowly and with some features missing.
+						</p>
+					</div>
+				}
+			/>
+			<RosettaConfirm
+				open={confirmOpen}
+				onOpenChange={setConfirmOpen}
+				onContinue={() => onContinueAnyway?.()}
+				system={system}
+				downloadUrl={downloadUrl}
 			/>
 		</FullPage>
 	);

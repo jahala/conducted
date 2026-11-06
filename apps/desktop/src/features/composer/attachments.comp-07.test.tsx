@@ -217,6 +217,52 @@ describe("COMP-07 attachments in the composer", () => {
 		}
 	});
 
+	it("leaves the folder and size rules to the attachment service, which reads a dropped file once", async () => {
+		const { test, session, workspace, wrapper, close } = await setup();
+		try {
+			addFile(test, "/tmp/one.txt", "one");
+			const stat = vi.spyOn(test.memory.platform.fs, "stat");
+			render(<Composer workspaceId={workspace.id} sessionId={session.id} />, { wrapper });
+
+			test.memory.controls.emitFileDrop({ kind: "drop", paths: ["/tmp/one.txt"], x: 10, y: 10 });
+
+			await waitFor(() => expect(attachmentNames()).toHaveLength(1));
+			const ofDropped = stat.mock.calls.filter(([path]) => path === "/tmp/one.txt");
+			expect(ofDropped).toHaveLength(1);
+		} finally {
+			close();
+		}
+	});
+
+	it("attaches a file named like an app context file under another name", async () => {
+		const { test, session, workspace, wrapper, close } = await setup();
+		try {
+			addFile(test, "/tmp/PR instructions.md", "mine");
+			addFile(test, "/tmp/[GITHUB]-12.md", "mine too");
+			addFile(test, "/tmp/notes.md", "plain");
+			render(<Composer workspaceId={workspace.id} sessionId={session.id} />, { wrapper });
+
+			test.memory.controls.emitFileDrop({
+				kind: "drop",
+				paths: ["/tmp/PR instructions.md", "/tmp/[GITHUB]-12.md", "/tmp/notes.md"],
+				x: 10,
+				y: 10,
+			});
+
+			await waitFor(() =>
+				expect(test.container.services.composer.draftOf(session.id).attachmentPaths).toHaveLength(
+					3,
+				),
+			);
+			const names = test.container.services.composer
+				.draftOf(session.id)
+				.attachmentPaths.map((path) => path.slice(path.lastIndexOf("/") + 1));
+			expect(names).toEqual(["attached-PR instructions.md", "attached-[GITHUB]-12.md", "notes.md"]);
+		} finally {
+			close();
+		}
+	});
+
 	it("opens the picker on Cmd+U", async () => {
 		const { test, session, workspace, wrapper, close } = await setup();
 		try {

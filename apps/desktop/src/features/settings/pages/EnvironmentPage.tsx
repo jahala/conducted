@@ -1,19 +1,21 @@
 /**
  * @feature SET-04 Environment settings page
- * Owns: the Environment page of Settings: environment variables given to setup scripts, actions
- * and terminals of new workspaces, and the files that hold more variables.
+ * Owns: the Environment page of Settings: environment variables given to agents, setup scripts and
+ * actions, and the files that hold more variables. Interactive terminals do not receive them.
  * Behaviour: ui-map.md 6, "Environment" table and "Environment page" (Variables table: Name,
  * Value, "Locally overwritten", "Not set"; empty state "No variables set"; env files list; a
  * banner for importing local variables); services-map.md 4.2.8 (env_vars table; values are secrets).
  * Data: useEnvVars(scope), useActions().settings.setEnvVar and removeEnvVar, useSetting for the
- * environment file list and the dismissed banner.
+ * dismissed banner. The environment file list belongs to the scope: "All repositories" reads and
+ * writes the user's list (useSetting, Actions.settings.set); a repository reads the list that applies
+ * to it (SettingsService.getForRepo) and writes its own local settings file (setForRepo).
  * Children: environment/EnvVarTable, environment/AddEnvVarForm, environment/EnvFilesList.
  * Our design choice: values live in the Keychain; the database holds names only (SET-04). The page
  * has a scope switch: all repositories, or one repository whose values override the global ones.
  * Must handle: no variables (designed empty state), a name that is invalid or reserved (names of
  * variables the app sets itself are refused), a value hidden until revealed, a Keychain error (a
- * short message, nothing is lost), an overridden variable (shows which scope wins), and values
- * never written to logs.
+ * short message, nothing is lost), an overridden variable (shows which scope wins), an import where
+ * some variables fail (each failure named, the banner stays), and values never written to logs.
  * Test first: adding a variable calls setEnvVar with the scope and shows the row with a hidden
  * value.
  */
@@ -51,6 +53,7 @@ export function EnvironmentPage({ focusSettingKey = null }: { focusSettingKey?: 
 	const [files, setFiles] = useState<{ path: string; exists: boolean }[]>([]);
 	const [candidates, setCandidates] = useState<string[]>([]);
 	const [importing, setImporting] = useState(false);
+	const [repoFiles, setRepoFiles] = useState<{ root: string; paths: string[] } | null>(null);
 
 	const repoList = repos.state === "ready" ? repos.data : [];
 	const selectedRepo = repoList.find((repo) => repo.id === repoChoice) ?? null;
@@ -60,12 +63,38 @@ export function EnvironmentPage({ focusSettingKey = null }: { focusSettingKey?: 
 	);
 	const scopeValue = repoChoice ?? "all";
 	const vars = useEnvVars(scope);
-	const storedFiles = useSetting<string[]>(ENV_FILES_KEY);
+	const userFiles = useSetting<string[]>(ENV_FILES_KEY);
+	const repoRoot = selectedRepo?.rootPath ?? null;
+	const storedFiles =
+		repoRoot === null ? userFiles : repoFiles?.root === repoRoot ? repoFiles.paths : [];
 	const filesKey = storedFiles.join("\n");
 	const bannerDismissed = useSetting<boolean>(BANNER_DISMISSED_KEY);
 	const root = selectedRepo?.rootPath ?? platform.fs.paths.home;
 
 	const existingNames = vars.state === "ready" ? vars.data.map((row) => row.name) : [];
+
+	// A repository's list: its own local file, else the layers above it. Only the newest read is kept.
+	useEffect(() => {
+		if (repoRoot === null) return;
+		let cancelled = false;
+		const read = async () => {
+			const resolved = await services.settings.getForRepo(ENV_FILES_KEY, repoRoot, null);
+			if (cancelled) return;
+			if (!resolved.ok) {
+				toastError(ENV_FILES_FAILED_MESSAGE, resolved.error);
+				return;
+			}
+			const value = resolved.value.value;
+			const paths = Array.isArray(value)
+				? value.filter((entry): entry is string => typeof entry === "string")
+				: [];
+			setRepoFiles({ root: repoRoot, paths });
+		};
+		void read();
+		return () => {
+			cancelled = true;
+		};
+	}, [repoRoot, services.settings]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -108,12 +137,18 @@ export function EnvironmentPage({ focusSettingKey = null }: { focusSettingKey?: 
 		};
 	}, [filesKey, root, platform.fs]);
 
+	/** Writes the list of the selected scope: the user's, or the repository's own local file. */
 	const saveFiles = async (next: string[]): Promise<boolean> => {
-		const saved = await actions.settings.set(ENV_FILES_KEY, next);
+		const saved =
+			repoRoot === null
+				? await actions.settings.set(ENV_FILES_KEY, next)
+				: await services.settings.setForRepo(repoRoot, ENV_FILES_KEY, next);
 		if (!saved.ok) {
 			toastError(ENV_FILES_FAILED_MESSAGE, saved.error);
 			return false;
 		}
+		// The repository's own file is the top layer, so what was written is now its list.
+		if (repoRoot !== null) setRepoFiles({ root: repoRoot, paths: next });
 		return true;
 	};
 
@@ -184,12 +219,23 @@ export function EnvironmentPage({ focusSettingKey = null }: { focusSettingKey?: 
 			return;
 		}
 		let imported = 0;
+		const failed: { name: string; message: string }[] = [];
 		for (const pair of parseDotenv(text.value)) {
 			if (existingNames.includes(pair.name)) continue;
 			const saved = await actions.settings.setEnvVar(pair.name, pair.value, scope);
 			if (saved.ok) imported += 1;
+			else failed.push({ name: pair.name, message: saved.error.message });
 		}
 		setImporting(false);
+		// A failed variable keeps the banner, so the user can fix the file and import again.
+		if (failed.length > 0) {
+			toastError(
+				`Imported ${imported} of ${imported + failed.length} variables`,
+				{ message: failed.map((entry) => `${entry.name}: ${entry.message}`).join(" ") },
+				{ duration: Number.POSITIVE_INFINITY },
+			);
+			return;
+		}
 		const dismissed = await actions.settings.set(BANNER_DISMISSED_KEY, true);
 		if (!dismissed.ok) toastError("Couldn't dismiss the import banner", dismissed.error);
 		toast(
@@ -218,7 +264,7 @@ export function EnvironmentPage({ focusSettingKey = null }: { focusSettingKey?: 
 	return (
 		<SettingsPageFrame
 			title="Environment"
-			description="Variables given to setup scripts, actions and terminals of new workspaces. Values stay in the macOS Keychain."
+			description="Variables given to agents, setup scripts and actions. Values stay in the macOS Keychain."
 			{...load}
 			focusSettingKey={focusSettingKey}
 		>

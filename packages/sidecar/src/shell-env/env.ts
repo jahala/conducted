@@ -65,6 +65,20 @@ export function stripProviderSecrets(
 	return out;
 }
 
+/**
+ * The provider keys the capture found, kept apart from the stripped environment. They reach an agent only
+ * through a launch key the user chose as "Use the key from this Mac" (D033, SET-09).
+ */
+export function providerSecretsOf(env: Readonly<Record<string, string>>): Record<string, string> {
+	const out: Record<string, string> = {};
+	for (const name of STRIPPED_ENV_NAMES) {
+		if (name === "CONDUCTED_CWD") continue;
+		const value = env[name];
+		if (value !== undefined) out[name] = value;
+	}
+	return out;
+}
+
 /** The variables every agent process gets so scripts and tools can find the workspace. */
 export function workspaceEnv(
 	sessionId: SessionId,

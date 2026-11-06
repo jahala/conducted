@@ -13,9 +13,12 @@
  * useActions().agents.setProviderKey and removeProviderKey, and Actions.settings for the Bedrock
  * region and Vertex project.
  * Must handle: a key already saved (shown as configured, never its value), saving over one key,
- * removing a key, "use the key from this Mac", a missing required Bedrock field ("Enter all required
- * Bedrock fields."), a failed save or removal (shown and toasted, never shown as saved), a provider
- * with no key yet, and a custom provider without a workspace ID.
+ * removing a key, "use the key from this Mac" (the sidecar reads it from the login shell), a missing
+ * required Bedrock field, the region included ("Enter all required Bedrock fields."), Bedrock
+ * credentials of the other mode left from an earlier save (removed), a saved test model the user
+ * removes, a failed save or removal (shown and toasted, never shown as saved; a save of several parts
+ * stops at the first failure), a provider with no key yet, and a custom provider without a workspace
+ * ID.
  * Our design choice: the subscription token is saved under the Anthropic provider because both sign
  * Claude Code in; the Bedrock test model is saved as `ANTHROPIC_MODEL`; a custom workspace ID is
  * saved as the workspace variable its agent family uses.
@@ -144,11 +147,32 @@ interface BedrockFormProps {
 	agent: AgentKind;
 	keys: readonly ProviderKeyView[];
 	region: string;
-	onSave: (entries: readonly { envVar: string; value: string }[], region: string) => Promise<void>;
+	/**
+	 * Saves the credentials of the chosen mode and removes `remove`: the other mode's variables, and the
+	 * test model when its field was cleared. Resolves true when everything was saved.
+	 */
+	onSave: (
+		entries: readonly { envVar: string; value: string }[],
+		remove: readonly string[],
+		region: string,
+	) => Promise<boolean>;
 	onRemove: (keys: readonly string[]) => Promise<void>;
 }
 
-/** Amazon Bedrock: one Bedrock API key, or AWS access keys with an optional session token. */
+const BEDROCK_API_KEY_VARS = ["AWS_BEARER_TOKEN_BEDROCK"] as const;
+const BEDROCK_ACCESS_KEY_VARS = [
+	"AWS_ACCESS_KEY_ID",
+	"AWS_SECRET_ACCESS_KEY",
+	"AWS_SESSION_TOKEN",
+] as const;
+const BEDROCK_TEST_MODEL_VAR = "ANTHROPIC_MODEL";
+
+/**
+ * Amazon Bedrock: one Bedrock API key, or AWS access keys with an optional session token, the region and
+ * an optional test model. Saving one mode removes the other mode's credentials, because the AWS SDK
+ * prefers a Bedrock API key over access keys and an old one would win. The region is required: Claude Code
+ * reads it from `AWS_REGION` and does not take it from the AWS profile.
+ */
 function BedrockForm({ agent, keys, region, onSave, onRemove }: BedrockFormProps) {
 	const [mode, setMode] = useState<"api_key" | "access_keys">(
 		hasKey(keys, "bedrock", "AWS_ACCESS_KEY_ID") ? "access_keys" : "api_key",
@@ -158,18 +182,26 @@ function BedrockForm({ agent, keys, region, onSave, onRemove }: BedrockFormProps
 	const [secretKey, setSecretKey] = useState("");
 	const [sessionToken, setSessionToken] = useState("");
 	const [testModel, setTestModel] = useState("");
+	const [clearTestModel, setClearTestModel] = useState(false);
 	const [regionValue, setRegionValue] = useState(region);
 	const [error, setError] = useState<string | null>(null);
 	const [busy, setBusy] = useState(false);
+	const testModelSaved = hasKey(keys, "bedrock", BEDROCK_TEST_MODEL_VAR);
 
 	const save = async () => {
 		const entries: { envVar: string; value: string }[] = [];
+		const remove: string[] = [];
+		if (regionValue.trim() === "") {
+			setError("Enter all required Bedrock fields.");
+			return;
+		}
 		if (mode === "api_key") {
 			if (apiKey.trim() === "") {
 				setError("Enter all required Bedrock fields.");
 				return;
 			}
 			entries.push({ envVar: "AWS_BEARER_TOKEN_BEDROCK", value: apiKey.trim() });
+			remove.push(...BEDROCK_ACCESS_KEY_VARS.filter((envVar) => hasKey(keys, "bedrock", envVar)));
 		} else {
 			if (accessKeyId.trim() === "" || secretKey.trim() === "") {
 				setError("Enter all required Bedrock fields.");
@@ -179,26 +211,26 @@ function BedrockForm({ agent, keys, region, onSave, onRemove }: BedrockFormProps
 			entries.push({ envVar: "AWS_SECRET_ACCESS_KEY", value: secretKey.trim() });
 			if (sessionToken.trim() !== "") {
 				entries.push({ envVar: "AWS_SESSION_TOKEN", value: sessionToken.trim() });
+			} else if (hasKey(keys, "bedrock", "AWS_SESSION_TOKEN")) {
+				remove.push("AWS_SESSION_TOKEN");
 			}
+			remove.push(...BEDROCK_API_KEY_VARS.filter((envVar) => hasKey(keys, "bedrock", envVar)));
 		}
 		if (testModel.trim() !== "") {
-			entries.push({ envVar: "ANTHROPIC_MODEL", value: testModel.trim() });
+			entries.push({ envVar: BEDROCK_TEST_MODEL_VAR, value: testModel.trim() });
+		} else if (clearTestModel && testModelSaved) {
+			remove.push(BEDROCK_TEST_MODEL_VAR);
 		}
 		setError(null);
 		setBusy(true);
-		await onSave(entries, regionValue.trim());
+		const saved = await onSave(entries, remove, regionValue.trim());
 		setBusy(false);
+		if (saved) setClearTestModel(false);
 	};
 
 	const remove = async () => {
 		setBusy(true);
-		await onRemove([
-			"AWS_BEARER_TOKEN_BEDROCK",
-			"AWS_ACCESS_KEY_ID",
-			"AWS_SECRET_ACCESS_KEY",
-			"AWS_SESSION_TOKEN",
-			"ANTHROPIC_MODEL",
-		]);
+		await onRemove([...BEDROCK_API_KEY_VARS, ...BEDROCK_ACCESS_KEY_VARS, BEDROCK_TEST_MODEL_VAR]);
 		setBusy(false);
 	};
 
@@ -281,12 +313,28 @@ function BedrockForm({ agent, keys, region, onSave, onRemove }: BedrockFormProps
 					<Input
 						id={`${agent}-bedrock-test-model`}
 						value={testModel}
-						placeholder="For example, a Claude model id"
+						placeholder={
+							testModelSaved && !clearTestModel
+								? "Saved. Enter a new model to replace it."
+								: "For example, a Claude model id"
+						}
 						className="w-64"
 						onChange={(event) => setTestModel(event.target.value)}
 					/>
 				</div>
 			</div>
+			{testModelSaved ? (
+				<div className="flex items-center gap-2">
+					<Checkbox
+						id={`${agent}-bedrock-clear-test-model`}
+						checked={clearTestModel}
+						onCheckedChange={(checked) => setClearTestModel(checked)}
+					/>
+					<Label htmlFor={`${agent}-bedrock-clear-test-model`}>
+						Remove the saved test model on save
+					</Label>
+				</div>
+			) : null}
 			{error ? (
 				<p role="alert" className="text-sm text-danger">
 					{error}
@@ -464,7 +512,7 @@ export function AgentProvidersDialog({
 	}, [open]);
 
 	const saved = keys.state === "ready" ? keys.data : [];
-	const choice = selected ?? initialProviderChoice(agent, setting, saved, install.authMethod);
+	const choice = selected ?? initialProviderChoice(agent, setting);
 	const current = choices.find((entry) => entry.id === choice) ?? choices[0];
 
 	const choose = (id: ProviderChoiceId) => {
@@ -500,6 +548,7 @@ export function AgentProvidersDialog({
 		toast("API key removed");
 	};
 
+	/** Saves each entry in order and stops at the first failure, which it shows. */
 	const saveMany = async (
 		provider: string,
 		entries: readonly { envVar: string; value: string }[],
@@ -514,48 +563,58 @@ export function AgentProvidersDialog({
 				return false;
 			}
 		}
-		toast("API key saved");
+		return true;
+	};
+
+	/** Removes each variable in order and stops at the first failure, which it shows. */
+	const removeEach = async (provider: string, envVars: readonly string[]): Promise<boolean> => {
+		for (const envVar of envVars) {
+			const result = await actions.agents.removeProviderKey({ agent, acpAgent, provider, envVar });
+			if (!result.ok) {
+				toastError("Couldn't remove the API key", result.error);
+				return false;
+			}
+		}
 		return true;
 	};
 
 	const removeMany = async (provider: string, envVars: readonly string[]): Promise<void> => {
-		for (const envVar of envVars) {
-			const result = await actions.agents.removeProviderKey({
-				agent,
-				acpAgent,
-				provider,
-				envVar,
-			});
-			if (!result.ok) {
-				toastError("Couldn't remove the API key", result.error);
-				return;
-			}
-		}
-		toast("API key removed");
+		if (await removeEach(provider, envVars)) toast("API key removed");
 	};
 
+	/** Saves the Bedrock credentials, removes the stale ones, then the region. Stops at the first failure. */
 	const saveBedrock = async (
 		entries: readonly { envVar: string; value: string }[],
+		remove: readonly string[],
 		region: string,
-	): Promise<void> => {
+	): Promise<boolean> => {
 		setBusy(true);
-		const savedKeys = await saveMany("bedrock", entries);
-		if (savedKeys) {
-			const result = await actions.settings.set("bedrock_region", region);
-			if (!result.ok) toastError("Couldn't save the Bedrock region", result.error);
-		}
+		const saved =
+			(await saveMany("bedrock", entries)) &&
+			(await removeEach("bedrock", remove)) &&
+			(await saveSetting("bedrock_region", region, "Couldn't save the Bedrock region"));
 		setBusy(false);
+		if (saved) toast("API key saved");
+		return saved;
 	};
 
+	/** Saves the Vertex credentials, then the project. Stops at the first failure and reports one result. */
 	const saveVertex = async (project: string, credentials: string | null): Promise<void> => {
 		setBusy(true);
-		if (credentials !== null) {
-			await saveMany("vertex", [{ envVar: "GOOGLE_APPLICATION_CREDENTIALS", value: credentials }]);
-		}
-		const result = await actions.settings.set("vertex_project_id", project);
-		if (!result.ok) toastError("Couldn't save the Vertex project", result.error);
-		else toast("Vertex settings saved");
+		const saved =
+			(credentials === null ||
+				(await saveMany("vertex", [
+					{ envVar: "GOOGLE_APPLICATION_CREDENTIALS", value: credentials },
+				]))) &&
+			(await saveSetting("vertex_project_id", project, "Couldn't save the Vertex project"));
 		setBusy(false);
+		if (saved) toast("Vertex settings saved");
+	};
+
+	const saveSetting = async (key: string, value: string, failure: string): Promise<boolean> => {
+		const result = await actions.settings.set(key, value);
+		if (!result.ok) toastError(failure, result.error);
+		return result.ok;
 	};
 
 	const saveCustom = async (
