@@ -361,17 +361,22 @@ function waitForWorking(app: StartedApp, sessionId: Session["id"]): Promise<void
 }
 
 /**
- * Loads the workspace's project settings, then runs one full git refresh and one pull request poll
- * through the app's own services.
+ * Loads the workspace's project settings, then runs one full git refresh and, unless told not to, one
+ * pull request poll through the app's own services.
  * The app polls git every five seconds once the clock moves on; the catalogue's clock stands still, so
  * the first poll would be the only one and could run before the settings are read.
  */
-export async function refreshGit(app: StartedApp, workspace: Workspace): Promise<void> {
+export async function refreshGit(
+	app: StartedApp,
+	workspace: Workspace,
+	options: { pullRequest?: boolean } = {},
+): Promise<void> {
 	const { repo, git } = app.container.services;
 	const config = await repo.loadConfig(workspace.repoId);
 	if (!config.ok) throw new Error(`Loading the project settings failed: ${config.error.message}`);
 	const refreshed = await git.refresh(workspace.id, "full");
 	if (!refreshed.ok) console.info("[catalogue] git refresh failed:", refreshed.error.message);
+	if (options.pullRequest === false) return;
 	const polled = await app.container.services.github.pollNow(workspace.id);
 	if (!polled.ok) console.info("[catalogue] pull request poll failed:", polled.error.message);
 }
@@ -548,13 +553,29 @@ export interface GitWorld {
  */
 export function plantGit(world: World, cast: Cast, options: GitWorld = {}): void {
 	const arborFiles = options.arborFiles ?? ARBOR_FILES;
-	world.scriptShell((command) =>
-		command.program === "xcodebuild"
-			? { ok: true, value: { stdout: "", stderr: "", exitCode: 0 } }
-			: null,
-	);
+	// The Xcode licence is accepted, and nothing listens on a port (lsof exits 1 when nothing matches).
+	world.scriptShell((command) => {
+		if (command.program === "xcodebuild") {
+			return { ok: true, value: { stdout: "", stderr: "", exitCode: 0 } };
+		}
+		if (command.program === "lsof")
+			return { ok: true, value: { stdout: "", stderr: "", exitCode: 1 } };
+		return null;
+	});
 	for (const repo of [cast.atlas, cast.relay]) {
 		world.scriptShell(scriptRepo(cleanRepo(repo.rootPath, repo.defaultBranch)));
+	}
+	for (const place of [cast.atlas.rootPath, cast.relay.rootPath])
+		world.memory.controls.addFolder(place);
+	for (const workspace of [
+		cast.arbor,
+		cast.beacon,
+		cast.canyon,
+		cast.ember,
+		cast.fjord,
+		cast.grove,
+	]) {
+		world.memory.controls.addFolder(workspace.path);
 	}
 	for (const workspace of [
 		cast.beacon,

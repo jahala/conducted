@@ -55,6 +55,10 @@ export interface World {
 	scriptShell(script: ShellScript): void;
 	/** Adds sidecar answers. A later answer is tried first. */
 	answerSidecar(answers: SidecarAnswers): void;
+	/** Leaves every request for `method` unanswered, as a sidecar still working on it would. */
+	holdSidecar(method: AppToSidecarRequest): void;
+	/** Answers every request for `method` with an error. */
+	failSidecar(method: AppToSidecarRequest): void;
 	/** Delivers a notification from the sidecar to the app. */
 	notify(method: string, params: unknown): void;
 	/** Sends a request from the sidecar to the app, such as `requestInteraction`. */
@@ -164,6 +168,7 @@ export async function createWorld(): Promise<World> {
 	});
 
 	const answers: SidecarAnswers[] = [DEFAULT_ANSWERS];
+	const held = new Map<string, "hold" | "fail">();
 	const emit = (message: RpcMessage): void => {
 		queueMicrotask(() => memory.controls.emitSidecarLine(JSON.stringify(message)));
 	};
@@ -175,6 +180,16 @@ export async function createWorld(): Promise<World> {
 		const message = JSON.parse(line) as RpcMessage;
 		if (message.method === undefined || message.id === undefined) return sent;
 		const { id, method, params } = message;
+		const mode = held.get(method);
+		if (mode === "hold") return sent;
+		if (mode === "fail") {
+			emit({
+				jsonrpc: "2.0",
+				id,
+				error: { code: -32000, message: `${method} failed: the agent program did not answer.` },
+			});
+			return sent;
+		}
 		for (const table of [...answers].reverse()) {
 			const answer = table[method as AppToSidecarRequest] as
 				| ((params: unknown) => unknown)
@@ -200,6 +215,8 @@ export async function createWorld(): Promise<World> {
 		repositories,
 		scriptShell: (script) => memory.controls.scriptShell(script),
 		answerSidecar: (answer) => answers.push(answer),
+		holdSidecar: (method) => held.set(method, "hold"),
+		failSidecar: (method) => held.set(method, "fail"),
 		notify: (method, params) => emit({ jsonrpc: "2.0", method, params }),
 		request: (method, params) => emit({ jsonrpc: "2.0", id: nextRequestId++, method, params }),
 	};

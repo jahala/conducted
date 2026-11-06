@@ -32,6 +32,11 @@ export interface Scene {
 	after?(context: AfterContext): Promise<void>;
 	/** True once the screen shows what the state is about. Checked on every frame until it holds. */
 	ready?(document: Document): boolean;
+	/**
+	 * How the app's start ends. "ready" (the default) waits for it and fails the state if it fails;
+	 * "pending" and "fails" are start-up states, which settle without waiting for the start to end.
+	 */
+	start?: "ready" | "pending" | "fails";
 }
 
 export interface AfterContext {

@@ -28,6 +28,8 @@ interface GitScene {
 	search?: Record<string, string>;
 	after?: (context: AfterContext) => Promise<void>;
 	ready?: Scene["ready"];
+	/** Leave the pull request unpolled, so the header still loads. */
+	skipPullRequest?: boolean;
 }
 
 /** The cast with arbor open, its git described by `scene.git`. */
@@ -43,7 +45,7 @@ const arborScene =
 		return {
 			route,
 			after: async (context) => {
-				await refreshGit(context.app, workspace);
+				await refreshGit(context.app, workspace, { pullRequest: scene.skipPullRequest !== true });
 				await scene.after?.(context);
 			},
 			ready: scene.ready,
@@ -143,6 +145,12 @@ export const GIT_STATES: CatalogueState[] = [
 		group: "Pull request header",
 		title: "No pull request yet: the branch is pushed",
 		seed: arborScene({ git: { arborFiles: COMMITTED_ONLY } }),
+	},
+	{
+		id: "pr-loading",
+		group: "Pull request header",
+		title: "Pull request info loading",
+		seed: arborScene({ git: prOf("open"), skipPullRequest: true }),
 	},
 	{
 		id: "pr-open",

@@ -121,8 +121,10 @@ async function mountState(
 		ids: world.ids,
 		history: createMemoryHistory({ initialEntries: [scene.route] }),
 	});
-	const started = await app.started;
-	if (!started.ok) throw new Error(`The app did not start: ${started.error.message}`);
+	if ((scene.start ?? "ready") === "ready") {
+		const started = await app.started;
+		if (!started.ok) throw new Error(`The app did not start: ${started.error.message}`);
+	}
 	await waitFor("the router is loading", () => app.router.state.status === "idle");
 	if (scene.after !== undefined) {
 		await withinFrames("the state's after-step", scene.after({ world, app, document }));

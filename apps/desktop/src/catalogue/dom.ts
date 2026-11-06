@@ -53,14 +53,40 @@ export async function click(
 	if (document.activeElement === element) element.blur();
 }
 
-/** Presses a key on the focused element, or on the body. */
-export function press(document: Document, key: string, modifiers: { meta?: boolean } = {}): void {
-	const target = document.activeElement ?? document.body;
+/**
+ * Presses a key with nothing focused, as after clicking an empty part of the window. Returns whether
+ * the app took the key (its handler prevented the default).
+ */
+export function press(
+	document: Document,
+	key: string,
+	modifiers: { meta?: boolean } = {},
+): boolean {
+	if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+	const target = document.body;
 	const init = { key, bubbles: true, cancelable: true, metaKey: modifiers.meta === true };
-	target.dispatchEvent(new KeyboardEvent("keydown", init));
+	const down = new KeyboardEvent("keydown", init);
+	target.dispatchEvent(down);
 	target.dispatchEvent(new KeyboardEvent("keyup", init));
+	return down.defaultPrevented;
 }
 
 /** True when the page shows `text` anywhere. */
 export const shows = (document: Document, text: string): boolean =>
 	document.body.textContent?.includes(text) === true;
+
+/**
+ * Presses a shortcut until the app takes it, one try a frame. The key listener reads the user's key
+ * bindings, which load a moment after the screen first draws.
+ */
+export async function pressUntilTaken(
+	document: Document,
+	key: string,
+	modifiers: { meta?: boolean } = {},
+): Promise<void> {
+	for (let frame = 0; frame < MAX_FRAMES; frame++) {
+		if (press(document, key, modifiers)) return;
+		await nextFrame();
+	}
+	throw new Error(`The app never took the key ${modifiers.meta === true ? "Cmd+" : ""}${key}.`);
+}
