@@ -3,9 +3,9 @@
  * Owns: one test per feature in the batch: APP-08 start-up screens and notices, COMP-07 attachments,
  * REV-08 the file viewer, REV-10 the Artifacts tab, SET-04 environment variables, SET-09 provider keys
  * and SET-10 OpenCode providers, plus the launch a chat sends: the variables the repository scripts
- * get, and only the chosen sign-in's keys. Each test builds the real container with
- * createTestContainer, then mounts the app's own route tree or the screen the app mounts, and drives
- * the feature the way a user does.
+ * get, only the chosen sign-in's keys, and one value for an OpenCode variable two providers share.
+ * Each test builds the real container with createTestContainer, then mounts the app's own route
+ * tree or the screen the app mounts, and drives the feature the way a user does.
  * Behaviour: D054 (a feature is reachable from the composition root).
  * Test first: each test fails when its feature's container wiring or mount is removed.
  */
@@ -573,6 +573,54 @@ describe("s1-ui join REV-10 and SET-10", () => {
 			expect(sends.last()?.params.launch?.providerKeys).toEqual({
 				DEEPSEEK_API_KEY: { value: "sk-deepseek-join", source: "entered" },
 			});
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("SET-10 launches OpenCode with the newest key of a variable two providers share", async () => {
+		const test = createTestContainer();
+		try {
+			const sends = captureSends(test);
+			must(await test.container.sidecar.start());
+			await test.container.services.settings.start();
+			const workspace = await seedWorkspace(test.container, { path: "/join/set-10-shared" });
+			const shared = {
+				agent: "acp" as const,
+				acpAgent: "opencode" as const,
+				envVar: "ZHIPU_API_KEY",
+			};
+			const keys = test.container.actions.agents;
+			must(
+				await keys.setProviderKey(
+					{ ...shared, provider: "zhipuai" },
+					{ kind: "entered", value: "older" },
+				),
+			);
+			must(
+				await keys.setProviderKey(
+					{ ...shared, provider: "zai" },
+					{ kind: "entered", value: "newer" },
+				),
+			);
+			const session = must(
+				await test.container.services.sessions.create(workspace.id, {
+					...CONFIG,
+					agent: "acp",
+					acpAgent: "opencode",
+					model: "zai/glm-4.6",
+				}),
+			);
+
+			must(await test.container.services.sessions.send(session.id, "hello", [], "auto"));
+			expect(sends.last()?.params.launch?.providerKeys).toEqual({
+				ZHIPU_API_KEY: { value: "newer", source: "entered" },
+			});
+
+			must(await keys.removeProviderKey({ ...shared, provider: "zhipuai" }));
+			must(await test.container.services.sessions.send(session.id, "again", [], "auto"));
+			expect(sends.last()?.params.launch?.providerKeys).toEqual({});
 		} finally {
 			await test.container.stop();
 			test.close();

@@ -91,7 +91,7 @@ import { createKeyedQueue } from "../async/serial-queue.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
 import type { ArchivingWorkspace } from "../db/repair.ts";
 import type { Repositories } from "../db/repositories.ts";
-import { trashIfPresent } from "../fs-helpers.ts";
+import { copyFileKeepingMode, FILE_COPY_FAILED, trashIfPresent } from "../fs-helpers.ts";
 import {
 	branchDeleteForce,
 	branchShowCurrent,
@@ -528,10 +528,10 @@ async function copyFile(
 	const parent = target.slice(0, target.lastIndexOf("/"));
 	const made = await deps.fs.mkdirp(parent);
 	if (!made.ok) return made;
-	const copied = await deps.shell.run({ program: "cp", args: ["-p", source, target], cwd: parent });
-	if (!copied.ok) return copied;
-	if (copied.value.exitCode !== 0) {
-		warnings.push(`Couldn't copy ${displayPath}: ${copied.value.stderr.trim() || "cp failed"}`);
+	const copied = await copyFileKeepingMode(deps.shell, source, target);
+	if (!copied.ok) {
+		if (copied.error.code !== FILE_COPY_FAILED) return copied;
+		warnings.push(`Couldn't copy ${displayPath}: ${copied.error.message}`);
 	}
 	return ok(undefined);
 }

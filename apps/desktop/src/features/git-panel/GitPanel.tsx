@@ -15,7 +15,8 @@
  * so a tab that is not built or fails shows which feature it is while the header and the tab strip
  * stay usable. The Checks tab is marked failing when a check that blocks the merge failed
  * (checks-summary.ts, the header's rule). The Artifacts tab is kept by the panel itself, not by the
- * workspace URL, so the URL's `gitTab` still holds only the three tabs it already had. The
+ * workspace URL, so the URL's `gitTab` still holds only the three tabs it already had. Any tab
+ * change leaves Artifacts: choosing a tab, Cmd+Alt+U, and a URL that sets `gitTab` or `scope`. The
  * "Desktop" and "Chat" tabs of Conductor are cloud or team features and are left out.
  * The workspace URL state (workspace/workspace-search.ts) holds `gitTab`, `scope` and the open
  * file. The workspace screen passes them in through the optional props `tab`, `onTabChange`,
@@ -148,7 +149,9 @@ export function GitPanel({
 				}
 			: null;
 
+	// Any tab change leaves Artifacts: a shortcut or a link that asks for a tab must show it.
 	const setTab = (next: GitPanelTab) => {
+		setShowArtifacts(false);
 		if (onTabChange !== undefined) onTabChange(next);
 		if (tabProp === undefined) setOwnTab(next);
 	};
@@ -157,7 +160,6 @@ export function GitPanel({
 			setShowArtifacts(true);
 			return;
 		}
-		setShowArtifacts(false);
 		setTab(next);
 	};
 	const setScope = (next: DiffScope) => {
@@ -171,6 +173,14 @@ export function GitPanel({
 		setReviewPromptOpen(false);
 		setShowArtifacts(false);
 	}, [workspaceId]);
+
+	// A tab or scope the URL sets (a link from the chat, Back or Forward) shows that tab, so the
+	// Artifacts tab, which the URL does not hold, gives way to it.
+	const urlScopeKey = scopeProp === undefined ? null : JSON.stringify(scopeProp);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: the URL's tab and scope are the trigger.
+	useEffect(() => {
+		setShowArtifacts(false);
+	}, [tabProp, urlScopeKey]);
 
 	// Cmd+Alt+U (or the user's rebind) shows uncommitted changes while the panel is mounted.
 	useCommandHandler("review.showUncommitted", "area", () => {

@@ -37,6 +37,8 @@ const install: AgentInstall = {
 const providers: AgentProvider[] = [
 	{ id: "deepseek", label: "DeepSeek", keyEnvVars: ["DEEPSEEK_API_KEY"] },
 	{ id: "openrouter", label: "OpenRouter", keyEnvVars: ["OPENROUTER_API_KEY"] },
+	{ id: "zai", label: "Z.AI", keyEnvVars: ["ZHIPU_API_KEY"] },
+	{ id: "zhipuai", label: "Zhipu AI", keyEnvVars: ["ZHIPU_API_KEY"] },
 	{
 		id: "custom",
 		label: "Custom provider",
@@ -121,6 +123,40 @@ describe("SET-10 OpenCode providers", () => {
 					source: "entered",
 				},
 			],
+		});
+	});
+
+	it("shows a variable two providers share as saved under both, and removes it from both", async () => {
+		const current = await mounted();
+
+		await choose("Provider", "Z.AI");
+		fireEvent.change(await screen.findByLabelText("Z.AI"), { target: { value: "sk-zhipu" } });
+		fireEvent.click(screen.getByRole("button", { name: "Save key" }));
+		await waitFor(() => expect(toasts.toast).toHaveBeenCalledWith("API key saved"));
+
+		await choose("Provider", "Zhipu AI");
+		expect(await screen.findByLabelText("Zhipu AI")).toBeTruthy();
+		expect(
+			screen.getByText(
+				"A key saved for another provider fills ZHIPU_API_KEY, so it is used here too.",
+			),
+		).toBeTruthy();
+		fireEvent.click(screen.getByRole("button", { name: "Remove key" }));
+
+		await waitFor(() =>
+			expect(
+				current.container.services.agentCatalog.store.getState().providerKeys?.["acp:opencode"],
+			).toEqual({ state: "ready", data: [] }),
+		);
+		const zai = {
+			agent: "acp" as const,
+			acpAgent: "opencode" as const,
+			provider: "zai",
+			envVar: "ZHIPU_API_KEY",
+		};
+		expect(await current.memory.platform.keychain.get(providerKeychainRef(zai))).toEqual({
+			ok: true,
+			value: null,
 		});
 	});
 

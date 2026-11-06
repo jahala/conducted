@@ -208,6 +208,24 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"Files under .context are listed newest first; a page returns at most `limit` entries and a next cursor while more remain.",
 	),
 	c(
+		"fileSearch",
+		"list-artifacts-files-only",
+		"listArtifacts lists files, not folders",
+		"A folder under .context takes no entry and no page slot; only the files inside it are listed.",
+	),
+	c(
+		"fileSearch",
+		"list-artifacts-exclusions",
+		"listArtifacts leaves out the reserved .context files",
+		"The reserved paths (todos.md at the root, conductor/, pull-requests/, attachments/comments/) and names ([GITHUB]-N.md, terminal-output*.txt and the instruction files) are not listed; todos.md below the root is.",
+	),
+	c(
+		"fileSearch",
+		"list-artifacts-omitted",
+		"listArtifacts counts the excluded files on every page",
+		"`omitted` is the number of excluded files in the whole folder, and every page carries the same total.",
+	),
+	c(
 		"pty",
 		"spawn-echo",
 		"spawn, write, read output",
@@ -972,6 +990,96 @@ const STEPS: Record<string, ContractStep> = {
 		);
 	},
 
+	"fileSearch.list-artifacts-files-only": async (ctx) => {
+		const workspace = ctx.path("artifacts-files-only");
+		const context = joinPath(workspace, ".context");
+		expectOk(ctx, await ctx.platform.fs.mkdirp(joinPath(context, "empty")), "mkdirp empty");
+		expectOk(ctx, await ctx.platform.fs.mkdirp(joinPath(context, "nested")), "mkdirp nested");
+		expectOk(
+			ctx,
+			await ctx.platform.fs.writeTextAtomic(joinPath(context, "nested/two.png"), "2"),
+			"write two.png",
+		);
+		const page = expectOk(
+			ctx,
+			await ctx.platform.fileSearch.listArtifacts(workspace, { cursor: null, limit: 1 }),
+			"listArtifacts page",
+		);
+		const paths = page.entries.map((entry) => entry.path);
+		ctx.assert(
+			JSON.stringify(paths) === JSON.stringify([joinPath(context, "nested/two.png")]),
+			`the page listed ${JSON.stringify(paths)}`,
+		);
+		ctx.assert(page.nextCursor === null, "a folder took a page slot");
+	},
+
+	"fileSearch.list-artifacts-exclusions": async (ctx) => {
+		const workspace = ctx.path("artifacts-exclusions");
+		const context = joinPath(workspace, ".context");
+		const names = [
+			"keep.md",
+			"plans/todos.md",
+			"todos.md",
+			"conductor/settings.json",
+			"pull-requests/1.md",
+			"attachments/comments/1.md",
+			"PR instructions.md",
+			"[GITHUB]-12.md",
+			"[LINEAR]-ABC-3.md",
+			"terminal-output-1.txt",
+		];
+		for (const name of names) {
+			const path = joinPath(context, name);
+			expectOk(ctx, await ctx.platform.fs.mkdirp(path.slice(0, path.lastIndexOf("/"))), "mkdirp");
+			expectOk(ctx, await ctx.platform.fs.writeTextAtomic(path, name), `write ${name}`);
+		}
+		const page = expectOk(
+			ctx,
+			await ctx.platform.fileSearch.listArtifacts(workspace, { cursor: null, limit: 50 }),
+			"listArtifacts page",
+		);
+		const listed = page.entries.map((entry) => entry.path.slice(context.length + 1)).sort();
+		ctx.assert(
+			JSON.stringify(listed) === JSON.stringify(["keep.md", "plans/todos.md"]),
+			`the page listed ${JSON.stringify(listed)}`,
+		);
+		ctx.assert(page.omitted === 8, `omitted was ${page.omitted}`);
+	},
+
+	"fileSearch.list-artifacts-omitted": async (ctx) => {
+		const workspace = ctx.path("artifacts-omitted");
+		const context = joinPath(workspace, ".context");
+		expectOk(ctx, await ctx.platform.fs.mkdirp(joinPath(context, "conductor")), "mkdirp");
+		for (const name of ["one.md", "two.md", "three.md", "todos.md", "conductor/settings.json"]) {
+			expectOk(
+				ctx,
+				await ctx.platform.fs.writeTextAtomic(joinPath(context, name), name),
+				`write ${name}`,
+			);
+		}
+		const first = expectOk(
+			ctx,
+			await ctx.platform.fileSearch.listArtifacts(workspace, { cursor: null, limit: 2 }),
+			"first listArtifacts page",
+		);
+		const second = expectOk(
+			ctx,
+			await ctx.platform.fileSearch.listArtifacts(workspace, {
+				cursor: first.nextCursor,
+				limit: 2,
+			}),
+			"second listArtifacts page",
+		);
+		ctx.assert(
+			first.entries.length === 2 && second.entries.length === 1,
+			`the pages had ${first.entries.length} and ${second.entries.length} entries`,
+		);
+		ctx.assert(
+			first.omitted === 2 && second.omitted === 2,
+			`omitted was ${first.omitted} and then ${second.omitted}`,
+		);
+	},
+
 	"pty.spawn-echo": async (ctx) => {
 		const handle = expectOk(
 			ctx,
@@ -1528,6 +1636,21 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 	"fileSearch.fuzzy": ["fs.mkdirp", "fs.writeTextAtomic", "fileSearch.fuzzyMatch"],
 	"fileSearch.grep-bad-regex": ["fileSearch.grep"],
 	"fileSearch.list-artifacts": ["fs.mkdirp", "fs.writeTextAtomic", "fileSearch.listArtifacts"],
+	"fileSearch.list-artifacts-files-only": [
+		"fs.mkdirp",
+		"fs.writeTextAtomic",
+		"fileSearch.listArtifacts",
+	],
+	"fileSearch.list-artifacts-exclusions": [
+		"fs.mkdirp",
+		"fs.writeTextAtomic",
+		"fileSearch.listArtifacts",
+	],
+	"fileSearch.list-artifacts-omitted": [
+		"fs.mkdirp",
+		"fs.writeTextAtomic",
+		"fileSearch.listArtifacts",
+	],
 	"pty.spawn-echo": [
 		"pty.spawn",
 		"pty.handle.write",
