@@ -1,9 +1,9 @@
 /**
  * @feature NAV-08 Global overlay host
  * Owns: mounting whichever window-level overlay is open (command palette, shortcuts dialog, Passport, quick
- * open, search in files) and the prompt snippet dialogs (COMP-09), once, at the root of the app,
- * and registering the Cmd+P and Cmd+Shift+F
- * commands that show quick open and search in files.
+ * open, search in files, Feedback) and the prompt snippet dialogs (COMP-09), once, at the root of
+ * the app, and registering the Cmd+P and Cmd+Shift+F commands that show quick open and search in
+ * files, and Send feedback (Cmd+Alt+F and Help > Send Feedback, APP-09).
  * Behaviour: ui-map.md 5.1 (the palette is a dialog mounted once), 3.10 (quick open and search in files),
  * 1.1 (global overlays are mounted once at the root).
  * Our design choice: an overlay is mounted only while it is open. Its state resets on every open, and an
@@ -17,6 +17,7 @@ import type { WorkspaceId } from "@conducted/shared";
 import { useRouterState } from "@tanstack/react-router";
 import type { ComponentType } from "react";
 import { SnippetOverlays } from "../features/composer/SnippetOverlays.tsx";
+import { FeedbackDialog } from "../features/diagnostics/FeedbackDialog.tsx";
 import { CommandPalette } from "../features/palette/CommandPalette.tsx";
 import { QuickOpen } from "../features/palette/QuickOpen.tsx";
 import { SearchInFiles } from "../features/palette/SearchInFiles.tsx";
@@ -33,6 +34,7 @@ const overlays: Record<OverlayId, { area: string; Component: ComponentType<Overl
 	passport: { area: "Passport", Component: PassportDialog },
 	"quick-open": { area: "Quick open", Component: QuickOpen },
 	"search-files": { area: "Search in files", Component: SearchInFiles },
+	feedback: { area: "Feedback", Component: FeedbackDialog },
 };
 
 export function GlobalOverlays() {
@@ -54,6 +56,10 @@ export function GlobalOverlays() {
 	});
 	useCommandHandler("nav.searchInFiles", "base", () => {
 		show("search-files");
+		return true;
+	});
+	useCommandHandler("app.sendFeedback", "base", () => {
+		show("feedback");
 		return true;
 	});
 	useCommandHandler("app.commandPalette", "base", () => {

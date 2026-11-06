@@ -86,6 +86,7 @@ const ACTIONS: readonly CommandSpec[] = [
 	{ commandId: "view.toggleLeftSidebar", label: "Toggle left sidebar" },
 	{ commandId: "view.toggleRightSidebar", label: "Toggle right sidebar" },
 	{ commandId: "view.toggleZenMode", label: "Toggle zen mode" },
+	{ commandId: "app.sendFeedback", label: "Send feedback" },
 	{ commandId: "app.showShortcuts", label: "Show keyboard shortcuts" },
 	{ commandId: "app.checkForUpdates", label: "Check for updates" },
 	{ commandId: "app.openChangelog", label: "Open changelog" },

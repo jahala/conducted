@@ -37,9 +37,10 @@
  * Must handle: an empty message is refused; a failed log export or read is reported instead of
  * opening an issue without the logs the user asked for; a message longer than an issue title
  * becomes a shorter title; images are listed in the body because a browser link cannot attach
- * them.
+ * them; logs that would make the link longer than `MAX_FEEDBACK_URL_CHARS` keep only their most
+ * recent lines.
  * Our design choice: Conductor posts the feedback to its own service; ours opens the project's
- * issue page, as the backlog row says.
+ * issue page, as the backlog row says. The dialog is features/diagnostics/FeedbackDialog.tsx.
  * Test first: a message, email, image and logs become a GitHub issue URL that holds all four.
  *
  * @feature SET-13 Chosen program paths reach terminals and scripts
@@ -139,11 +140,14 @@ function decodeBase64(text: string): Uint8Array {
 }
 
 /** The project's new-issue page. The feedback form fills its title and body. */
-const FEEDBACK_ISSUE_URL = "https://github.com/jahala/conducted/issues/new";
+export const FEEDBACK_ISSUE_URL = "https://github.com/jahala/conducted/issues/new";
 /** Longest title the issue page gets; the rest of the message stays in the body. */
 const MAX_FEEDBACK_TITLE = 120;
-/** Most log text an issue link carries, so a long export does not break the browser URL. */
-const MAX_FEEDBACK_LOG_CHARS = 20_000;
+/**
+ * Longest issue link the feedback opens. GitHub refuses very long new-issue links, so the logs
+ * are cut from the front until the link fits. Our dial: the research has no number.
+ */
+export const MAX_FEEDBACK_URL_CHARS = 8_000;
 
 export class SystemService {
 	readonly store: StoreApi<SystemState>;
@@ -455,7 +459,7 @@ export class SystemService {
 			if (!recent.ok) return recent;
 			logs = recent.value;
 		}
-		const body = feedbackBody({
+		const url = feedbackUrl({
 			message,
 			email,
 			imagePaths,
@@ -463,10 +467,6 @@ export class SystemService {
 			version: this.#deps.platform.app.version,
 			channel: this.#deps.platform.app.channel,
 		});
-		const url = `${FEEDBACK_ISSUE_URL}?${new URLSearchParams({
-			title: feedbackTitle(message),
-			body,
-		}).toString()}`;
 		try {
 			await this.#deps.platform.opener.openUrl(url);
 			return ok(undefined);
@@ -495,13 +495,7 @@ export class SystemService {
 				appError("feedback_logs_failed", "The recent app logs could not be read.", read.error),
 			);
 		}
-		const text = read.value.trimEnd();
-		if (text.length <= MAX_FEEDBACK_LOG_CHARS) return ok(text);
-		return ok(
-			`(Showing the most recent ${MAX_FEEDBACK_LOG_CHARS} characters.)\n${text.slice(
-				-MAX_FEEDBACK_LOG_CHARS,
-			)}`,
-		);
+		return ok(read.value.trimEnd());
 	}
 
 	/** Backs `Actions.app.openSidecarLogs`: opens the sidecar log file in its default app. */
@@ -603,6 +597,38 @@ interface FeedbackBodyInput {
 	logs: string | null;
 	version: string;
 	channel: string;
+}
+
+function issueUrl(title: string, body: string): string {
+	return `${FEEDBACK_ISSUE_URL}?${new URLSearchParams({ title, body }).toString()}`;
+}
+
+/**
+ * The new-issue link. Logs that would make it longer than `MAX_FEEDBACK_URL_CHARS` keep only their
+ * most recent lines, found by a binary search over how much of the end is kept.
+ */
+function feedbackUrl(input: FeedbackBodyInput): string {
+	const title = feedbackTitle(input.message);
+	const whole = issueUrl(title, feedbackBody(input));
+	if (input.logs === null || whole.length <= MAX_FEEDBACK_URL_CHARS) return whole;
+	const logs = input.logs;
+	const withTail = (kept: number): string => {
+		const tail = logs.slice(logs.length - kept);
+		const lineStart = tail.indexOf("\n");
+		const lines = kept === logs.length || lineStart === -1 ? tail : tail.slice(lineStart + 1);
+		return issueUrl(
+			title,
+			feedbackBody({ ...input, logs: `(Only the most recent lines fit in the link.)\n${lines}` }),
+		);
+	};
+	let low = 0;
+	let high = logs.length;
+	while (low < high) {
+		const middle = Math.ceil((low + high) / 2);
+		if (withTail(middle).length <= MAX_FEEDBACK_URL_CHARS) low = middle;
+		else high = middle - 1;
+	}
+	return low === 0 ? issueUrl(title, feedbackBody({ ...input, logs: null })) : withTail(low);
 }
 
 /** The issue body: the message first, then the contact and environment facts the sheet collected. */

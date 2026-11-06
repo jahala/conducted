@@ -159,6 +159,7 @@ describe("NAV-08 palette model", () => {
 			"Toggle left sidebar",
 			"Toggle right sidebar",
 			"Toggle zen mode",
+			"Send feedback",
 			"Show keyboard shortcuts",
 			"Check for updates",
 			"Open changelog",
