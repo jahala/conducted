@@ -1,0 +1,4267 @@
+{
+	"text:R206903": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R218908": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R1719080": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R1719883": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R1720468": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R1853248": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 1.3 Weights"
+	},
+	"text:R1855374": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 1.3 Weights"
+	},
+	"text:R1855635": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 1.3 Weights"
+	},
+	"text:R1856290": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 1.3 Weights"
+	},
+	"text:R1859869": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R1859949": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R1860885": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R1861963": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R1892943": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R1893004": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R1893165": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R1894370": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R1894726": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R1895265": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R1897964": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 1.7 Motion"
+	},
+	"text:R1898879": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 1.7 Motion"
+	},
+	"text:R1944728": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R1957512": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R1957806": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R1959093": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R1959931": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R1960086": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R1960727": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R1961386": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R1961474": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R1961592": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R1961706": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R1961805": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R1961905": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R1962412": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R2035603": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R2035684": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R2035905": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R2036417": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R2036542": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R2036884": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R2037314": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R2086010": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R2093609": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R2184278": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R2186426": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R2186860": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R2202229": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R2213837": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R2224224": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R2256696": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R2256762": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R2260361": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R2261476": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R2262911": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R2263133": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R2270584": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R2272875": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R2273464": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R2273904": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R2275374": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R2275695": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R2277683": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R2277819": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R2501184": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R2506945": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R2530910": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R2532074": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R2554516": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R2554858": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R2556165": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R2556484": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R2557374": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R2614665": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R2628436": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R2628976": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R2629550": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R2630397": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R2630914": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R2631426": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R2640313": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R2640500": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R2644707": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R2668400": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R2669333": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R2669415": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R2671291": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R2673271": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R2739550": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R2754302": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R2754470": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R2754604": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R2759094": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R2759246": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R2759518": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R2760150": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R2760613": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R2762831": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R2763588": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R2765188": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R2975489": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 1.1 Fonts"
+	},
+	"text:R2975741": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 1.1 Fonts"
+	},
+	"text:R2978975": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 1.1 Fonts"
+	},
+	"text:R2979610": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 1.1 Fonts"
+	},
+	"text:R2979782": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 1.1 Fonts"
+	},
+	"text:R2980149": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 1.1 Fonts"
+	},
+	"text:R2980413": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 1.1 Fonts"
+	},
+	"text:R2980653": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 1.1 Fonts"
+	},
+	"text:R2982552": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R2982812": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R2984256": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R2990037": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R2991628": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R2997030": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R3010419": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R3012162": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R3983808": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R4005057": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R4005165": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R4008336": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R4011003": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R4026205": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R4420842": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R4421898": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R4633180": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R4971674": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R4971853": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R4972025": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R4987742": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5014678": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R5015072": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R5017572": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R5018396": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R5018754": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R5019114": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R5019283": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R5019401": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R5019486": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R5019758": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R5019845": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R5020313": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R5020935": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R5021705": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R5022582": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R5022850": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R5433730": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 1.7 Motion"
+	},
+	"text:R5434210": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 1.7 Motion"
+	},
+	"text:R5435078": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 1.7 Motion"
+	},
+	"text:R5436101": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 1.7 Motion"
+	},
+	"text:R5444654": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 1.7 Motion"
+	},
+	"text:R5446468": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 1.7 Motion"
+	},
+	"text:R5447177": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 1.7 Motion"
+	},
+	"text:R5457681": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5497424": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5499680": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5500082": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5501288": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5504246": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5508915": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5509774": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R5509816": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R5512152": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5512199": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5512389": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R5525229": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5527323": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5527487": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5527669": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5528300": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5528478": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5530577": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5530730": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5530976": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5533444": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5543955": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5544139": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5560559": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5562242": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5584687": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5584915": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5585079": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5587920": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5588145": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5589114": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5591397": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5592461": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5607740": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5609780": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R5611945": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5615725": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5618963": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R5623840": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5626154": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R5627542": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R5628290": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R5664987": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.1 Buttons"
+	},
+	"text:R5665380": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.1 Buttons"
+	},
+	"text:R5666002": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.1 Buttons"
+	},
+	"text:R5676817": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R5679832": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R5686320": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5687206": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5693367": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5694226": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R5694380": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R8047584": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8047788": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R8049769": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8061041": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8113678": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R8113966": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R8133849": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R8134174": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R8135916": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R8136350": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R8138015": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R8173658": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8174862": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8175062": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8175687": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8176460": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R8178859": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R8183776": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8683825": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R8685730": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R8717420": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R8750078": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R8750377": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R8754647": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R8772995": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8778272": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8779913": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8780546": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8784090": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8786178": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8789191": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8789608": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R8791800": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R8792002": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R8792236": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R8792501": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R8795249": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8796070": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8798797": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8799662": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8799937": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8802449": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8802663": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8803962": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8806931": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8807889": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8811680": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8812957": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8813616": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8815338": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8816516": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8822048": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R8822365": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8823423": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R8824972": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R8825965": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8831385": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8833980": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R8834124": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R8839892": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R8840402": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R8840488": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R8843206": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8855401": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8859618": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8860458": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R8868546": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8868777": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R8869123": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R8869549": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R8875135": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R8876144": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8881063": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R8881215": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R8907303": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R8907434": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R8908110": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R8908351": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R8912157": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R8912549": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R8915802": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R8916905": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R8917278": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R9037926": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R9083099": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R9119284": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R9120201": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R9121155": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R9226849": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R9233520": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R9241138": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R9257521": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R9260827": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R9261443": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R9268515": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R9306566": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R9307039": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R9307562": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R9383052": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R9397918": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R9497410": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R9498625": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R9498978": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R9500681": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 1.7 Motion"
+	},
+	"text:R9502437": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 1.7 Motion"
+	},
+	"text:R9511048": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 1.7 Motion"
+	},
+	"text:R9511126": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 1.7 Motion"
+	},
+	"text:R9511468": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 1.7 Motion"
+	},
+	"text:R9511562": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 1.7 Motion"
+	},
+	"text:R9512686": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 1.7 Motion"
+	},
+	"text:R9512754": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 1.7 Motion"
+	},
+	"text:R9521544": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R9525735": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R9534245": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R9539350": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R9540417": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R9542567": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R9542747": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R9543479": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R9543653": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R9544396": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R9544627": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R9544970": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R9546417": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R9547376": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R9557324": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R9562178": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R9573319": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R9573354": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R9573684": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R9586422": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R9586815": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R9587041": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R9587290": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R9587550": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R9626830": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R9629760": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R9629966": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R9630110": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R9637583": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R9637908": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R9638032": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R9638941": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R9643764": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R9652412": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R9655838": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R9659929": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R9662211": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R9730742": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R9736615": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R9740205": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R9741101": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R9741520": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R9756537": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"text:R9957571": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R9959555": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R9959684": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R9959802": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R9976019": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R9982885": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R9984446": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R9988523": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R9992592": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10000509": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10000794": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10007781": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10014580": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10030326": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10031601": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10038377": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10057113": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 1.6 Layers (z-index)"
+	},
+	"text:R10057491": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 1.6 Layers (z-index)"
+	},
+	"text:R10060117": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 1.6 Layers (z-index)"
+	},
+	"text:R10069947": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 1.6 Layers (z-index)"
+	},
+	"text:R10070194": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 1.6 Layers (z-index)"
+	},
+	"text:R10076586": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10076883": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10076955": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10077276": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10077327": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10128649": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10145998": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10149011": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10176291": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10177915": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10178871": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10179244": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10179596": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10179959": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10180387": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10180754": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10181093": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10181424": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10181731": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10188886": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10190028": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10193558": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10214243": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10221548": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10247990": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10277002": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10277077": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10277162": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10289703": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 1.6 Layers (z-index)"
+	},
+	"text:R10303954": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10304284": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10304342": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10312421": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10312870": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10314024": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10317240": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10317410": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10318297": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10318808": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10324184": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10324361": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10324537": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10324717": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10324889": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10325053": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10325216": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10325382": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10325545": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10325730": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10341254": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10341617": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10359782": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10362249": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10377244": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10377924": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10382893": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10384363": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10385019": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10385358": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10385907": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10386200": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10386666": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10408451": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10409533": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10411074": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10411671": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10432702": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10433830": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10434714": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10435354": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10462484": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10465481": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10474958": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10480595": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10493981": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10502058": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10502494": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10502967": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10534590": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10552591": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10553428": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10574411": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10574584": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10576215": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10576554": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10576999": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10577409": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R10581067": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10581463": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10583110": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10583225": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10583575": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10584340": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10662089": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10662643": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10662685": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10662728": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10663577": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10664733": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10665334": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10665424": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10666063": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10666149": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10666456": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10666519": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10666587": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10667356": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10667435": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10668642": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10668720": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10669114": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10669800": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10670104": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10670143": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10670205": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10670896": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10670979": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10671582": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10671665": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10672006": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10672817": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R10673328": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10673659": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10674386": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10674436": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10674477": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10678723": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10678806": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10686757": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10692019": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10693634": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10695202": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10695776": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10699838": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10701209": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10705286": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10705371": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R10715045": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10715128": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10725742": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10725877": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10725931": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10725984": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10726669": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10726955": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10734876": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10735245": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10735883": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10736417": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10737019": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10738808": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10738847": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10739035": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10739612": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10739707": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10764556": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10764770": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10765806": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10767373": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10769991": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10770341": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10770489": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10771891": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10778940": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10778993": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10784516": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10790883": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10791514": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10792464": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10795626": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10795811": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10797876": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10800087": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10800355": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10809103": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10810641": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10818111": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10820086": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10821137": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10821338": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10832356": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10833056": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10838270": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10838314": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10840413": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10840584": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10841229": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10841873": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10854681": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10854974": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10855274": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10863207": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10863288": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10864137": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10868139": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10868186": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10868457": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10869464": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10876329": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10878586": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10882913": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10882949": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10885210": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10886088": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10886799": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10891604": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10892460": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10896349": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10900470": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10900696": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10907838": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10913403": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10913709": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10926386": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10926628": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10926760": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10927168": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10927644": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10928079": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10929825": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10932513": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10933927": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10945315": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10948699": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10950763": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10955177": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10962716": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10967695": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10971526": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10976147": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10977415": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10978033": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R10982001": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10985659": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R10991508": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11017379": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11019107": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11022869": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11023100": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11023334": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11023365": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11026106": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11027519": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11028395": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11043472": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11048106": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11052485": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11052560": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11092800": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11092993": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11094439": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11094514": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11094925": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11095412": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11095488": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11095701": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11097816": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11104016": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11111478": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11120103": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11120292": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11122592": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11130319": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11130377": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11137042": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11138708": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11140791": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11141184": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11141442": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11143599": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11143929": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11143975": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11144267": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11154299": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11155309": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11155409": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11160803": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11160879": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11164868": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11168401": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11171365": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11185800": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11186725": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11186950": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11187613": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11187774": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11192869": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11201369": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11201987": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11202804": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11205120": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11205556": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11217431": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11220580": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11224113": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11224642": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11224752": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11224862": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11226114": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11231761": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11264124": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11274850": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11277107": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11277413": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11277725": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11281817": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11282175": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11285835": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11291806": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11292135": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11292330": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11292529": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11292729": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11319971": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11320596": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11324211": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11338967": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11339276": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11339424": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11339519": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11342386": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11342532": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11385000": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11405274": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11406943": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11407412": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11407755": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11419402": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11419444": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11445293": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11448022": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11455832": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11456439": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11456954": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11457027": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11458209": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11463277": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11464130": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11464188": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11464249": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11502876": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11502916": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11503507": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11504834": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11508077": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11510910": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11515751": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11516719": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11524020": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11525093": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11525602": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11527318": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11528266": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11533432": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11534506": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11534878": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11535620": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11541757": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11542973": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11544294": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11548768": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11550058": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11551086": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11551241": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11552795": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11560949": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11570220": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11570668": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11571676": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11574947": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11584038": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11585673": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11585847": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11587101": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11590939": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11595958": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11601498": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11601595": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11603747": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11609141": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11610071": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11619039": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11647782": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11647820": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11648197": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11648843": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11655044": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11655076": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11655591": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11656078": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11656536": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11657459": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11657833": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11658123": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11660855": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11661522": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11676567": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R11677710": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R11678490": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R11679495": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R11687853": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R11709231": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R11716261": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11721389": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11721557": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11723529": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11723855": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11727140": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11728441": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11741989": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11744268": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R11751146": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R11753959": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"text:R11769791": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R11772171": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"text:R11775650": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R11792675": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"text:R11912205": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11919698": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11920769": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11923551": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11923634": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11923869": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11927789": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11928069": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11940194": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11940260": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11942619": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11942799": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11943065": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11943333": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11946938": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11947654": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11947778": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11969530": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11974262": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11975061": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11975847": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R11976120": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11977555": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11977747": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11979063": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11979189": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11984757": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11986381": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11986444": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11986791": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R11998723": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R12001976": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R12002022": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R12002183": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R12008617": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R12009533": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R12015056": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R12015314": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R12019613": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R12026769": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R12030373": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R12035093": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R12036295": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R12039927": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R12041464": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R12044893": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R12044977": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R12046593": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R12047732": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R12095445": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R12095642": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R12095810": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"text:R12097500": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R12097713": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R12097931": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"text:R12098172": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	}
+}

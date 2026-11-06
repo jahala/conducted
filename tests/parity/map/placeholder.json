@@ -1,0 +1,353 @@
+{
+	"placeholder:R1894594": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R1898620": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 1.7 Motion"
+	},
+	"placeholder:R1959277": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"placeholder:R2255965": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"placeholder:R2256260": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"placeholder:R2623020": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"placeholder:R2754036": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"placeholder:R3015224": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R4379343": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 1.3 Weights"
+	},
+	"placeholder:R4632855": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R4978748": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R4987113": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R5444083": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 1.7 Motion"
+	},
+	"placeholder:R5533685": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R5645838": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.1 Buttons"
+	},
+	"placeholder:R5652247": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.1 Buttons"
+	},
+	"placeholder:R5664306": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.1 Buttons"
+	},
+	"placeholder:R5685793": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R5692826": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R8148331": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"placeholder:R8170318": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R9000620": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "The editor library's default placeholder. Conductor replaces it in its composer (renderApp @9294579), so no screen shows it.",
+		"by": "hand"
+	},
+	"placeholder:R9234039": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R9369318": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R9420608": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R9730040": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"placeholder:R9856436": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R9856783": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R10182992": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R10189388": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"placeholder:R10195168": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"placeholder:R10669494": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"placeholder:R10672939": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"placeholder:R10680280": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"placeholder:R10696051": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"placeholder:R10770889": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R10779334": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R10780577": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R10807790": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R10944937": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R10958311": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R10975212": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11021601": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11117637": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11129925": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11133626": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11133908": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11138955": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11204617": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11208176": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11267721": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11281056": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11319420": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11338494": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11343051": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11389948": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11503912": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11515575": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11570753": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11656136": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11661267": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11661650": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11728075": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11761913": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"placeholder:R11944793": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11951077": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11951147": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11951239": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"placeholder:R11995732": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"placeholder:R12000604": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	}
+}

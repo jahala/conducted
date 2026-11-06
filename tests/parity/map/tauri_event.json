@@ -1,0 +1,202 @@
+{
+	"tauri_event:tauri://resize": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:tauri://move": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:tauri://close-requested": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:tauri://drag-enter": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:tauri://drag-over": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:tauri://drag-drop": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:tauri://drag-leave": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:tauri://focus": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:tauri://blur": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:tauri://scale-change": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:tauri://theme-changed": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:rpc_from_sidecar": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:pty-ready": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:pty-data": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:pty-exit": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:raw-websocket-event": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:remote-file-sync-direct-info-request": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:remote-file-sync-status": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:agent_binary_progress": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:port-forward-token-request": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:port-forward-event": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:deep-link://new-url": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:binary_verification_errors": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:tauri://destroyed": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:tauri://error": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:open_settings_page": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:open_keyboard_shortcuts_dialog": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:open_feedback_dialog": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:open_documentation_url": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:open_best_practices_url": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:open_changelog_url": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:open_diagnostics_page": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:open_submit_prompt_dialog": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:toggle_left_sidebar": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:toggle_right_sidebar": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:manual_update_status": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:notification-deep-link-click": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:quit_requested": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:tauri://created": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	},
+	"tauri_event:network-changed": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Backend"
+	}
+}

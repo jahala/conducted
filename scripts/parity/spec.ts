@@ -154,7 +154,7 @@ function walk(dir: string, keep: (path: string) => boolean): string[] {
 }
 
 /** Our UI source: the desktop's screens, without tests, the test kit or the catalogue's sample data. */
-function uiSourceFiles(): string[] {
+export function uiSourceFiles(): string[] {
 	const src = join(ROOT, "apps/desktop/src");
 	return walk(src, (path) => {
 		const rel = relative(src, path);

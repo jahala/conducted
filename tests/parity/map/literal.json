@@ -1,0 +1,1928 @@
+{
+	"literal:M18192": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M212284": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M212345": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M212405": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M212464": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M212522": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M212582": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M212644": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M212767": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M212832": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M212958": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M213020": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M213144": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M213207": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M213265": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M213327": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M213511": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M213691": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M213754": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M213823": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M214014": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M214268": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M214515": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M214638": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M214761": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M214821": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M214883": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M214942": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M215007": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M215066": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M215377": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M215439": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M215562": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M215871": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M216867": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M216993": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M217051": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M217173": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M217233": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M217784": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M217842": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M217970": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M218034": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M218098": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M218162": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M218222": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M218347": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M218474": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M218534": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M218656": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M218715": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M218774": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M218835": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M223549": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M224894": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M225011": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M227608": {
+		"status": "decided",
+		"decision": "D086",
+		"note": "A city name both apps can give a workspace. It is sample data, not wording; our list is our own (D002).",
+		"by": "rule:place-name"
+	},
+	"literal:M271945": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M272041": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M320106": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 7. Diff and terminal"
+	},
+	"literal:M320119": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 7. Diff and terminal"
+	},
+	"literal:M320133": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 7. Diff and terminal"
+	},
+	"literal:M320146": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 7. Diff and terminal"
+	},
+	"literal:M320163": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 7. Diff and terminal"
+	},
+	"literal:M320179": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 7. Diff and terminal"
+	},
+	"literal:M321953": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 7. Diff and terminal"
+	},
+	"literal:M345281": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M345301": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M345323": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M345346": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M346428": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M347948": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M433895": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 1.1 Fonts"
+	},
+	"literal:M586780": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M643934": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M643972": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M667863": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M795341": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M919743": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M958089": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M1077722": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M1086777": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M1373821": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M1419600": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M1520540": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2044531": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2044552": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2044572": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2044601": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2127772": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2128258": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2128298": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2128475": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2128654": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2128823": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2136907": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2277052": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2298484": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2325013": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2329048": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2375276": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2515566": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2515610": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2516003": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2656909": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M2685005": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-map 6. Settings"
+	},
+	"literal:M2685029": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-map 6. Settings"
+	},
+	"literal:M3099729": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M3100221": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M3236681": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M3236722": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M3736277": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M3777807": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-map 3.3 Chat view"
+	},
+	"literal:M3809603": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M3809609": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M3815626": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M3815658": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:M3833560": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R108074": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R495352": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R495687": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R496045": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R496563": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R496750": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R496935": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R497089": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R497465": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R498265": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R498455": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R498591": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R498754": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R498926": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R499098": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R499293": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R499400": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R499635": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R499764": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R499858": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R500118": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R500245": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R500355": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R500461": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R500605": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R500771": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R500939": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R501124": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R710800": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R715089": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R853678": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R1361690": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2141251": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"literal:R2141279": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"literal:R2149903": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R2180430": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"literal:R2180468": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"literal:R2182206": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"literal:R2195770": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"literal:R2195902": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"literal:R2195969": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"literal:R2202503": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2215964": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2216204": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2216274": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2216298": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2223970": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2224794": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2226671": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2236069": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"literal:R2271909": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2271954": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2517578": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R2517763": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R2518339": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R2557248": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"literal:R2644212": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"literal:R2644422": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"literal:R2734987": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 1.6 Layers (z-index)"
+	},
+	"literal:R2763995": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2764012": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2826600": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2826688": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2826700": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2827004": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2827190": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R2972645": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 1.1 Fonts"
+	},
+	"literal:R3081534": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3081756": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3083063": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3119108": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3122139": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3122276": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3122529": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3122801": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3123099": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3123193": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3167503": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3352836": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3352892": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3396439": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3408782": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3409124": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3418027": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3420339": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3424646": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3444964": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3458066": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3465496": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3465826": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3468980": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3470217": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3471013": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3477303": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3494596": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3501304": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3896817": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3896824": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3896839": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R3897624": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R4011805": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R4381706": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 1.3 Weights"
+	},
+	"literal:R4950293": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R4986695": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R4988948": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R4997852": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"literal:R5023567": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"literal:R5531377": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R5534203": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R5545346": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R5545591": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R5558100": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R5558580": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R5558634": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R5601737": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R5646000": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.1 Buttons"
+	},
+	"literal:R5655678": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.1 Buttons"
+	},
+	"literal:R5655738": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.1 Buttons"
+	},
+	"literal:R5664567": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.1 Buttons"
+	},
+	"literal:R5664589": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.1 Buttons"
+	},
+	"literal:R5664683": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.1 Buttons"
+	},
+	"literal:R5664700": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.1 Buttons"
+	},
+	"literal:R5673483": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R5673831": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R6636483": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R7864999": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R7998295": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8034448": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8057713": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8137322": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"literal:R8150453": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+	},
+	"literal:R8418352": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8684721": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"literal:R8718221": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"literal:R8768165": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"literal:R8768197": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"literal:R8798002": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8798014": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8816971": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8820980": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8830530": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8830609": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8830720": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8830802": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8830857": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8830911": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8830959": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8852793": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8877958": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8878057": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R8906865": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"literal:R8907820": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"literal:R8909467": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"literal:R8909486": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"literal:R8911246": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"literal:R8914823": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"literal:R8914848": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"literal:R9234615": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R9235510": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R9245336": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R9294532": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 1.5 Shadows"
+	},
+	"literal:R9294586": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 1.5 Shadows"
+	},
+	"literal:R9324600": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"literal:R9324615": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"literal:R9325309": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"literal:R9328642": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"literal:R9352425": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R9352645": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R9367029": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R9367052": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R9367074": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R9367102": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R9367137": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R9367168": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R9368492": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R9378722": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R9381975": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R9387065": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R9482757": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R9536630": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"literal:R9559666": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R9588439": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"literal:R9588564": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"literal:R9588756": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"literal:R9591015": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"literal:R9744963": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"literal:R9745476": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"literal:R9755407": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"literal:R9984405": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10013192": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10029987": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10076553": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"literal:R10089377": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"literal:R10218572": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"literal:R10218594": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"literal:R10218617": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"literal:R10222441": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"literal:R10222950": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"literal:R10222980": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"literal:R10223000": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"literal:R10223032": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"literal:R10224116": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"literal:R10227903": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10228149": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10228299": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10228381": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10228429": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10228473": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10228517": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10228554": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10245473": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10361135": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10470389": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"literal:R10476438": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"literal:R10477343": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"literal:R10495167": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R10574968": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"literal:R10576510": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"literal:R10694047": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"literal:R10902737": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11034934": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11088872": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11285199": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11342763": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11345973": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11346070": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11346111": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11346152": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11351405": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11374229": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11374674": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11375161": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11375549": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11375732": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11376118": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11376885": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11378588": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11379238": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11379842": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11381205": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11381448": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11381672": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11382152": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11382700": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11382892": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11384431": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11510134": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11521402": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11521421": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11652846": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11653021": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11653153": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11654231": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11655766": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"literal:R11708982": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"literal:R11713772": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 3. App shell"
+	}
+}

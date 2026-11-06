@@ -1,0 +1,127 @@
+{
+	"tooltip:M1432993": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"tooltip:M2690256": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-map 6. Settings"
+	},
+	"tooltip:R1717507": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"tooltip:R2973448": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 1.1 Fonts"
+	},
+	"tooltip:R5588285": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"tooltip:R5591578": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"tooltip:R5592527": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"tooltip:R5608488": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"tooltip:R8048058": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"tooltip:R8414164": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"tooltip:R8800031": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"tooltip:R8821619": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"tooltip:R8843427": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"tooltip:R8922004": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"tooltip:R8925669": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"tooltip:R8966854": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"tooltip:R9523634": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"tooltip:R9525824": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"tooltip:R9535913": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"tooltip:R9587964": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"tooltip:R9642788": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"tooltip:R10033594": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"tooltip:R10720405": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"tooltip:R11579984": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "Unplaced"
+	},
+	"tooltip:R11916650": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	}
+}

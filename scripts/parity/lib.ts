@@ -66,7 +66,7 @@ export interface SpecFile {
 }
 
 /** How a string reaches a person in our DOM. */
-export type Via = "text" | "aria-label" | "placeholder" | "title" | "alt";
+export type Via = "text" | "aria-label" | "placeholder" | "title" | "alt" | "testid";
 
 export type MapEntry =
 	| {
@@ -89,6 +89,8 @@ export type MapFile = Record<string, MapEntry>;
 /** A name of ours the check accepts with no Conductor entry: a decision, or the owner's keep ruling. */
 export interface OursOnly {
 	text: string;
+	/** A backend inventory, for one of our backend names; absent for a string on screen. */
+	inventory?: BackendInventory;
 	/** Limits it to one state; absent means every state. */
 	state?: string;
 	decision?: string;
@@ -114,6 +116,8 @@ export interface LayoutReading {
 
 export interface DumpState {
 	id: string;
+	/** The catalogue's heading for the state, which the report groups by. */
+	group: string;
 	route: string | null;
 	error: string | null;
 	names: DomName[];
@@ -123,6 +127,8 @@ export interface DumpState {
 export interface Dump {
 	commit: string;
 	viewport: { width: number; height: number };
+	/** The string literals of the dumped app's catalogue: the sample data its states show. */
+	sample: string[];
 	states: DumpState[];
 }
 

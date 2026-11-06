@@ -1,0 +1,92 @@
+{
+	"test_id:R2597888": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"test_id:R2608648": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"test_id:R2987806": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"test_id:R5587249": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"test_id:R8915522": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 5. Chat and composer"
+	},
+	"test_id:R9050252": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"test_id:R9473251": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"test_id:R10139472": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 3. App shell"
+	},
+	"test_id:R10242215": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"test_id:R10242406": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"test_id:R10242632": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"test_id:R10242893": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"test_id:R10432376": {
+		"status": "gap",
+		"reason": "unshown",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"test_id:R10434951": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"test_id:R10441458": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"test_id:R10441716": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "ui-dimensions 4. Lists and rows"
+	},
+	"test_id:R11550278": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	},
+	"test_id:R12001662": {
+		"status": "gap",
+		"reason": "missing",
+		"screen": "Unplaced"
+	}
+}

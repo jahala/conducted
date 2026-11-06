@@ -595,3 +595,9 @@ Chosen: these 24 rows stay open, each for the reason named.
 - APP-16 (`planned`): it gathers the hardening findings on done features. The slice-3 hardening did not start today. Its inputs are in docs/reports/day-2026-11-06.md, "Findings by area", and in D071, D084 and D078.
 - CLOUD-01 and CLOUD-03 to CLOUD-18 (`planned`): the cloud spike passed (D075), and the rows are built through the loop, starting with CLOUD-01, the host seam. None started today, because the spike, Remote Control and the priority-3 rows came first in the goal's order.
   Why: each reason is a dependency or the goal's own order and time rule. No row is held for a missing input from the owner.
+
+## D086. Conductor strings that are not wording on its screens are decided out of the parity spec (2026-11-06)
+
+Context: the parity harness (`docs/plans/parity-harness.md`) maps every entry of Conductor's inventories to our screen or to a decision. The inventories were read from the bundle by pattern, so they also hold strings no person reads as Conductor's wording: a bundled library's default that Conductor replaces (the editor's "Write something …" placeholder, which Conductor's composer never shows), code identifiers the pattern caught, and city names, which both apps use as sample workspace names.
+Chosen: such an entry is mapped to D086 with a one-line reason per entry, or through a named rule in `scripts/parity/rules.ts`. It is never used to account for a string of ours. Wording Conductor does show stays a match or a gap, however small.
+Why: a gap list that mixes these in hides the real gaps, and matching our text to a library default would let a wrong placeholder pass.
