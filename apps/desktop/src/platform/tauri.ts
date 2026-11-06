@@ -330,6 +330,7 @@ export const COMMANDS = {
 	fsReadDir: "fs_read_dir",
 	fsTrash: "fs_trash",
 	fsPaths: "fs_paths",
+	fsRegisterRoot: "fs_register_root",
 	searchListTree: "search_list_tree",
 	searchFuzzy: "search_fuzzy",
 	searchGrep: "search_grep",
@@ -723,7 +724,7 @@ export function createTauriShell(bindings: TauriBindings): Shell {
 	};
 }
 
-/** `fs_read_text { path }`, `fs_write_text_atomic { path, text }`, `fs_stat { path }`, `fs_mkdirp`, `fs_read_dir`, `fs_trash`, `fs_paths`. */
+/** `fs_read_text { path }`, `fs_write_text_atomic { path, text }`, `fs_stat { path }`, `fs_mkdirp`, `fs_read_dir`, `fs_trash`, `fs_register_root { path }`, `fs_paths`. */
 export function createTauriFileSystem(
 	bindings: TauriBindings,
 	paths: FileSystem["paths"],
@@ -747,6 +748,7 @@ export function createTauriFileSystem(
 		mkdirp: (path) => invokeResult<void>(bindings, COMMANDS.fsMkdirp, { path }),
 		readDir: (path) => invokeResult<FileStat[]>(bindings, COMMANDS.fsReadDir, { path }),
 		trash: (path) => invokeResult<void>(bindings, COMMANDS.fsTrash, { path }),
+		registerRoot: (path) => invokeResult<void>(bindings, COMMANDS.fsRegisterRoot, { path }),
 		paths,
 	};
 }

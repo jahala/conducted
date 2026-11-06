@@ -95,6 +95,12 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 	),
 	c(
 		"fs",
+		"register-root",
+		"a registered folder outside the default scope becomes reachable",
+		"A write outside the default roots is an Err with fs_out_of_scope; after registerRoot of its folder the same write and a read succeed. Registering a relative path is an Err with fs_relative_path.",
+	),
+	c(
+		"fs",
 		"trash",
 		"trash removes from the folder without deleting for good",
 		"After trash the path no longer exists; on the Tauri side the item is in the macOS Trash.",
@@ -485,6 +491,8 @@ export interface ContractContext {
 	kind: "memory" | "tauri";
 	/** A scratch folder the case may write under. */
 	root: string;
+	/** A scratch folder outside the default file scope, for the case that registers it. */
+	outside: string;
 	controls?: ContractControls;
 	assert(condition: boolean, message: string): void;
 	/** An absolute path under `root`. */
@@ -501,8 +509,10 @@ export interface ContractHarness {
 
 export interface PlatformUnderTest {
 	platform: Platform;
-	/** A scratch folder the cases may use. */
+	/** A scratch folder the cases may use, inside the default file scope. */
 	root: string;
+	/** A scratch folder outside the default file scope. */
+	outside: string;
 	controls?: ContractControls;
 	/** Removes everything the run created. Called after every case, even a failed one. */
 	cleanup(): Promise<void>;
@@ -653,6 +663,27 @@ const STEPS: Record<string, ContractStep> = {
 			!(await ctx.platform.fs.exists(joinPath(folder, "inner/note.txt"))),
 			"the file landed inside inner",
 		);
+	},
+
+	"fs.register-root": async (ctx) => {
+		const file = joinPath(ctx.outside, "project/note.txt");
+		const refused = expectErr(
+			ctx,
+			await ctx.platform.fs.writeTextAtomic(file, "before"),
+			"a write outside the default scope",
+		);
+		ctx.assert(refused.code === "fs_out_of_scope", `the error code was ${refused.code}`);
+		const relative = expectErr(
+			ctx,
+			await ctx.platform.fs.registerRoot("relative/folder"),
+			"registering a relative path",
+		);
+		ctx.assert(relative.code === "fs_relative_path", `the error code was ${relative.code}`);
+		expectOk(ctx, await ctx.platform.fs.registerRoot(ctx.outside), "registerRoot");
+		expectOk(ctx, await ctx.platform.fs.mkdirp(joinPath(ctx.outside, "project")), "mkdirp");
+		expectOk(ctx, await ctx.platform.fs.writeTextAtomic(file, "after"), "writeTextAtomic");
+		const read = expectOk(ctx, await ctx.platform.fs.readText(file), "readText");
+		ctx.assert(read === "after", `readText returned ${JSON.stringify(read)}`);
 	},
 
 	"fs.trash": async (ctx) => {
@@ -1650,6 +1681,7 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 	"fs.mkdirp-idempotent": ["fs.mkdirp", "fs.exists"],
 	"fs.read-dir": ["fs.mkdirp", "fs.writeTextAtomic", "fs.readDir"],
 	"fs.dot-segments": ["fs.mkdirp", "fs.writeTextAtomic", "fs.exists", "fs.readText"],
+	"fs.register-root": ["fs.writeTextAtomic", "fs.registerRoot", "fs.mkdirp", "fs.readText"],
 	"fs.trash": ["fs.mkdirp", "fs.writeTextAtomic", "fs.trash", "fs.exists"],
 	"db.roundtrip": ["db.execute", "db.select"],
 	"db.rows-affected": ["db.execute"],
@@ -1887,6 +1919,7 @@ export function runPlatformContract(
 					platform: recordCalls(underTest.platform, called),
 					kind,
 					root: underTest.root,
+					outside: underTest.outside,
 					controls: underTest.controls,
 					assert: harness.assert,
 					path: (name) => joinPath(underTest.root, name),

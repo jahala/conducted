@@ -24,7 +24,10 @@
  * project asks its removal port to stop work and delete its workspaces before deleting the row;
  * an invalid settings file is reported instead of replaced; a config edit made outside the app is
  * read again when the window regains focus; only the newest load may change the store, and a
- * read that ends after its project was removed changes nothing.
+ * read that ends after its project was removed changes nothing; the file commands reach a folder
+ * outside `~/conducted` only once it is registered (PLAT-02), so a start registers every saved
+ * project's folder, an add registers the picked folder and its work tree root before reading
+ * them, and a clone or Quick start registers the folder chosen to hold the new project.
  * Our design choice: `RepoConfig` is the shared file overlaid by the local file. The shared file
  * stays committed and read-only in the UI; `updateConfig` writes the local file only, and writes a
  * key only when it differs from the shared value. A key that matches is removed, so a later edit
@@ -546,6 +549,14 @@ export class RepoService {
 			this.store.setState((state) => ({ ...state, loaded: true, error: listed.error }));
 			return err(listed.error);
 		}
+		// The file commands reach a project's folder only once it is registered, on every start.
+		for (const repo of listed.value) {
+			const registered = await this.#deps.platform.fs.registerRoot(repo.rootPath);
+			if (!registered.ok) {
+				this.store.setState((state) => ({ ...state, loaded: true, error: registered.error }));
+				return registered;
+			}
+		}
 		const reposById: Record<string, Repo> = {};
 		for (const repo of listed.value) reposById[repo.id] = repo;
 		this.store.setState((state) => ({
@@ -564,6 +575,8 @@ export class RepoService {
 		if (path === "") {
 			return err(appError("repo_path_missing", "Choose a folder to add."));
 		}
+		const reachable = await this.#deps.platform.fs.registerRoot(path);
+		if (!reachable.ok) return reachable;
 
 		const folder = await this.#deps.platform.fs.stat(path);
 		if (!folder.ok) {
@@ -575,6 +588,11 @@ export class RepoService {
 
 		const rootPath = await this.#workTreeRoot(path);
 		if (!rootPath.ok) return rootPath;
+		// The picked folder can sit inside the repository, whose root is then a parent of it.
+		if (rootPath.value !== path) {
+			const root = await this.#deps.platform.fs.registerRoot(rootPath.value);
+			if (!root.ok) return root;
+		}
 
 		return this.#registerFolder(rootPath.value, async () => {
 			const remote = await this.#readRemoteUrl(rootPath.value);
@@ -648,6 +666,8 @@ export class RepoService {
 		if (name === null) {
 			return err(appError("repo_url_invalid", "That doesn't look like a Git repository URL."));
 		}
+		const reachable = await this.#deps.platform.fs.registerRoot(parentDir);
+		if (!reachable.ok) return reachable;
 
 		const location = await this.#deps.platform.fs.stat(parentDir);
 		if (!location.ok) {
@@ -781,6 +801,8 @@ export class RepoService {
 		if (!isProjectTemplate(template)) {
 			return err(appError("repo_template_unknown", "Choose one of the offered templates."));
 		}
+		const reachable = await this.#deps.platform.fs.registerRoot(parentDir);
+		if (!reachable.ok) return reachable;
 		const location = await this.#deps.platform.fs.stat(parentDir);
 		if (!location.ok) {
 			return err(

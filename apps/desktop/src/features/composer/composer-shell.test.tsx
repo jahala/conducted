@@ -76,6 +76,9 @@ const fakeFs = () => {
 			files.delete(path);
 			return ok(undefined);
 		},
+		async registerRoot() {
+			return ok(undefined);
+		},
 		paths,
 	};
 	return { fs, files, fail };

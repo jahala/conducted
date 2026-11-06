@@ -29,6 +29,7 @@ Dialogs, clipboard, opening URLs, notifications permission and the SQL database 
 | `fs.readDir`                                     | `fs_read_dir`                                                                | files.rs            |                                        |
 | `fs.trash`                                       | `fs_trash`                                                                   | files.rs            |                                        |
 | `fs.paths`                                       | `fs_paths`                                                                   | files.rs            |                                        |
+| `fs.registerRoot`                                | `fs_register_root`                                                           | files.rs            |                                        |
 | `fileSearch.listTree`                            | `search_list_tree`                                                           | file_search.rs      |                                        |
 | `fileSearch.fuzzyMatch`                          | `search_fuzzy`                                                               | file_search.rs      |                                        |
 | `fileSearch.grep`                                | `search_grep`                                                                | file_search.rs      |                                        |

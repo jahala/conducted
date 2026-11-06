@@ -78,6 +78,9 @@ function makeFs(overrides: Partial<FileSystem> = {}): {
 			trashed.push(path);
 			return ok(undefined);
 		},
+		async registerRoot() {
+			return ok(undefined);
+		},
 		paths: { home: "/Users/test", appData: "/app", temp: "/tmp", resources: "/res" },
 		...overrides,
 	} satisfies FileSystem;

@@ -18,13 +18,16 @@
  * `listArtifacts` cursor is an Err, and `listArtifacts` leaves out the reserved `.context` files
  * and counts them in `omitted` the way file_search.rs does (the contract cases hold both);
  * `app.writeLog` keeps the level and message, not the data; the file system keeps text only, with
- * folders as path prefixes, and resolves `.` and `..` in a path the way the real one does.
+ * folders as path prefixes, and resolves `.` and `..` in a path the way the real one does; with
+ * `enforceFileScope` the file commands refuse a path outside the default roots and the registered
+ * ones with `fs_out_of_scope`, as files.rs does (the contract case "fs.register-root" holds it),
+ * and without it every path is reachable, so a service test can seed files anywhere.
  * Our design choice: the stand-in is a factory returning the Platform together with its controls,
  * so production code cannot reach the controls through the Platform type.
  * Test first: the contract case "fs: write then read returns the same text" passes on it.
  */
 
-import type { Clock, IdSource, ManagedProgram } from "@conducted/shared";
+import type { AppError, Clock, IdSource, ManagedProgram } from "@conducted/shared";
 import { appError, err, ok, type Result } from "@conducted/shared";
 import { globToRegExp } from "./glob.ts";
 import type {
@@ -78,6 +81,11 @@ export interface MemoryPlatformOptions {
 	appData?: string;
 	temp?: string;
 	resources?: string;
+	/**
+	 * Refuse paths outside the default roots and the registered ones with `fs_out_of_scope`, as
+	 * files.rs does. Off by default, so a service test can seed files anywhere.
+	 */
+	enforceFileScope?: boolean;
 }
 
 export interface MemoryPlatformControls {
@@ -101,6 +109,10 @@ export interface MemoryPlatformControls {
 	readonly shellCalls: readonly ShellCommand[];
 	/** Text files by absolute path. Reading and writing through `fs` use this map. */
 	readonly files: Map<string, string>;
+	/** Folders registered with `fs.registerRoot`, in order, as stored. */
+	readonly registeredRoots: readonly string[];
+	/** Makes a folder and its parents exist on the user's disk, outside the app's file scope. */
+	addFolder(path: string): void;
 	/** Lines the app sent to the sidecar, in order. */
 	readonly sidecarSent: readonly string[];
 	/** Delivers a line to `sidecar.onLine` listeners. */
@@ -286,6 +298,28 @@ const fuzzyScore = (path: string, query: string): number => {
 	return score - haystack.length * 0.01;
 };
 
+/**
+ * The folders the file commands reach without a registration, as files.rs `allowed_roots` lists
+ * them: the app's own folders, the Claude configuration and the default workspaces folder.
+ */
+export const defaultFileRoots = (paths: FileSystem["paths"]): string[] => [
+	paths.appData,
+	paths.temp,
+	paths.resources,
+	`${paths.home}/.claude.json`,
+	`${paths.home}/.claude`,
+	`${paths.home}/.conducted`,
+	`${paths.home}/Library/Application Support/Claude/claude_desktop_config.json`,
+	`${paths.home}/conducted`,
+];
+
+/** True when `path` is `root` or lies below it, compared by spelling after `.` and `..`. */
+export const isWithinRoot = (path: string, root: string): boolean => {
+	const target = normalizePath(path);
+	const base = normalizePath(root);
+	return target === base || target.startsWith(base === "/" ? "/" : `${base}/`);
+};
+
 // ---------------------------------------------------------------- the stand-in
 
 export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlatform {
@@ -301,6 +335,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 
 	const files = new Map<string, string>();
 	const directories = new Set<string>(["/"]);
+	const registeredRoots: string[] = [];
 	const modified = new Map<string, number>();
 	const trashed = new Map<string, string>();
 	const secrets = new Map<string, string>();
@@ -379,7 +414,32 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		for (const ancestor of ancestors(path)) directories.add(ancestor);
 	};
 
+	/** The files.rs scope check, when the test asked for it. Null means the path may be used. */
+	const outOfScope = (path: string): AppError | null => {
+		if (options.enforceFileScope !== true) return null;
+		if (!path.startsWith("/")) {
+			return appError("fs_relative_path", `Path must be absolute: ${path}`);
+		}
+		const roots = [...defaultFileRoots(paths), ...registeredRoots];
+		if (roots.some((root) => isWithinRoot(path, root))) return null;
+		return appError(
+			"fs_out_of_scope",
+			`Path is outside the folders this window may reach: ${path}`,
+		);
+	};
+
+	const registerRoot = async (path: string): Promise<Result<void>> => {
+		if (!path.startsWith("/")) {
+			return err(appError("fs_relative_path", `Path must be absolute: ${path}`));
+		}
+		const root = normalizePath(path);
+		if (!registeredRoots.includes(root)) registeredRoots.push(root);
+		return ok(undefined);
+	};
+
 	const writeTextAtomic = async (path: string, text: string): Promise<Result<void>> => {
+		const refused = outOfScope(path);
+		if (refused !== null) return err(refused);
 		const target = normalizePath(path);
 		for (const ancestor of ancestors(target)) {
 			if (files.has(ancestor)) {
@@ -396,6 +456,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	};
 
 	const readText = async (path: string): Promise<Result<string>> => {
+		const refused = outOfScope(path);
+		if (refused !== null) return err(refused);
 		const target = normalizePath(path);
 		const text = files.get(target);
 		return text === undefined
@@ -404,11 +466,14 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	};
 
 	const exists = async (path: string): Promise<boolean> => {
+		if (outOfScope(path) !== null) return false;
 		const target = normalizePath(path);
 		return files.has(target) || directories.has(target);
 	};
 
 	const stat = async (path: string): Promise<Result<FileStat>> => {
+		const refused = outOfScope(path);
+		if (refused !== null) return err(refused);
 		const target = normalizePath(path);
 		if (files.has(target)) return ok(statForFile(target));
 		if (directories.has(target)) return ok(statForFolder(target));
@@ -416,6 +481,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	};
 
 	const mkdirp = async (path: string): Promise<Result<void>> => {
+		const refused = outOfScope(path);
+		if (refused !== null) return err(refused);
 		const target = normalizePath(path);
 		for (const folder of [...ancestors(target), target]) {
 			if (files.has(folder)) {
@@ -432,6 +499,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	};
 
 	const readDir = async (path: string): Promise<Result<FileStat[]>> => {
+		const refused = outOfScope(path);
+		if (refused !== null) return err(refused);
 		const folder = normalizePath(path);
 		if (!directories.has(folder)) {
 			return err(appError("fs_not_found", `${folder} is not a folder.`));
@@ -448,6 +517,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	};
 
 	const trash = async (path: string): Promise<Result<void>> => {
+		const refused = outOfScope(path);
+		if (refused !== null) return err(refused);
 		const target = normalizePath(path);
 		const text = files.get(target);
 		if (text !== undefined) {
@@ -597,6 +668,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		mkdirp,
 		readDir,
 		trash,
+		registerRoot,
 		paths,
 	};
 
@@ -1014,6 +1086,14 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			return shellCalls;
 		},
 		files,
+		get registeredRoots() {
+			return registeredRoots;
+		},
+		addFolder: (path) => {
+			const target = normalizePath(path);
+			addParentFolders(target);
+			directories.add(target);
+		},
 		get sidecarSent() {
 			return sidecarSent;
 		},

@@ -190,6 +190,9 @@ function makePlatform(options: { dirs?: readonly string[]; confirm?: boolean } =
 			return ok([]);
 		},
 		trash,
+		async registerRoot() {
+			return ok(undefined);
+		},
 		paths: { home: "/home/me", appData: "/app", temp: "/tmp", resources: "/resources" },
 	} as unknown as FileSystem;
 	const dialogs = {

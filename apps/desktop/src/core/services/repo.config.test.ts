@@ -78,6 +78,9 @@ function makeService(options: { withWindow?: boolean; repo?: Repo | null } = {})
 		async trash() {
 			return ok(undefined);
 		},
+		async registerRoot() {
+			return ok(undefined);
+		},
 		paths: { home: "/home/me", appData: "/app", temp: "/tmp", resources: "/resources" },
 	} as unknown as FileSystem;
 

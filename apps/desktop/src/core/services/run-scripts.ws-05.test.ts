@@ -76,6 +76,9 @@ function makeFs(): FileSystem {
 		async trash() {
 			return ok(undefined);
 		},
+		async registerRoot() {
+			return ok(undefined);
+		},
 		paths: { home: "/home", appData: "/app", temp: "/tmp", resources: "/res" },
 	};
 }

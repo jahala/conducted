@@ -124,6 +124,9 @@ function makeFs(folderExists = true): { fs: FileSystem; trashed: string[] } {
 				trashed.push(path);
 				return ok(undefined);
 			},
+			async registerRoot() {
+				return ok(undefined);
+			},
 			paths: { home: "/Users/test", appData: "/app", temp: "/tmp", resources: "/res" },
 		} satisfies FileSystem,
 	};

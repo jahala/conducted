@@ -82,6 +82,14 @@ export interface FileSystem {
 	readDir(path: string): Promise<Result<FileStat[]>>;
 	/** Moves to the macOS Trash. The app never deletes user files for good. */
 	trash(path: string): Promise<Result<void>>;
+	/**
+	 * Lets the file commands reach `path` and everything below it until the app quits (PLAT-02).
+	 * Without it they reach only the app's own folders, the Claude configuration and
+	 * `~/conducted`, and refuse anything else with `fs_out_of_scope`. The project and workspace
+	 * services register their folders whenever they add or load them. The folder need not exist
+	 * yet. A relative path is an Err with `fs_relative_path`.
+	 */
+	registerRoot(path: string): Promise<Result<void>>;
 	paths: { home: string; appData: string; temp: string; resources: string };
 }
 

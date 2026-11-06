@@ -8,7 +8,8 @@
  * shell.rs for what each command promises.
  * Must handle: a command answers as Rust does where the contract looks (an absent path stats as
  * null, a timeout is `shell_timeout`, a cancel is `shell_cancelled`, a send before the sidecar
- * started is `sidecar_not_started`); a command Rust owns and Node cannot do honestly (Trash,
+ * started is `sidecar_not_started`, a file path outside the default roots and the registered ones is
+ * `fs_out_of_scope`); a command Rust owns and Node cannot do honestly (Trash,
  * pty, keychain, the ignore and regex crates, macOS facts) is not answered, and the contract run
  * skips those cases by name. `dispose` stops every process, closes every database and drops
  * every listener, even when a case failed.
@@ -20,6 +21,7 @@ import { constants as osConstants } from "node:os";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { UnlistenFn } from "@tauri-apps/api/event";
+import { defaultFileRoots, isWithinRoot } from "../platform/memory.ts";
 import type { FileStat, ProgramStatus, ShellCommand, ShellOutput } from "../platform/platform.ts";
 import { COMMANDS, EVENTS, type TauriBindings } from "../platform/tauri.ts";
 import { createNodeSqlDatabase } from "./node-sql.ts";
@@ -29,8 +31,10 @@ export interface NodeTauriRun {
 	bindings: TauriBindings;
 	/** The outside events and read-backs the contract's `controls` cases use. */
 	controls: ContractControls;
-	/** A folder the cases may write under. */
+	/** A folder the cases may write under: the default workspaces folder, inside the file scope. */
 	root: string;
+	/** A folder outside the default file scope. */
+	outside: string;
 	/** Stops every process, closes every database, drops every listener. Safe to call twice. */
 	dispose(): Promise<void>;
 }
@@ -178,15 +182,25 @@ const requirePath = (args: Record<string, unknown> | undefined): string => {
 	return path;
 };
 
+/** The files.rs scope check over the default roots and the registered ones. */
+const requireInScope = (path: string, roots: readonly string[]): string => {
+	if (roots.some((root) => isWithinRoot(path, root))) return path;
+	return fail("fs_out_of_scope", `Path is outside the folders this window may reach: ${path}`);
+};
+
 /** `dir` is a folder the caller made and removes. Everything the bindings create lives in it. */
 export function createNodeTauriBindings(dir: string): NodeTauriRun {
-	const root = join(dir, "root");
 	const paths = {
 		home: join(dir, "home"),
 		appData: join(dir, "app-data"),
 		temp: join(dir, "temp"),
 		resources: join(dir, "resources"),
 	};
+	const root = join(paths.home, "conducted");
+	const outside = join(dir, "outside");
+	const registeredRoots: string[] = [];
+	const scopedPath = (args: Record<string, unknown> | undefined): string =>
+		requireInScope(requirePath(args), [...defaultFileRoots(paths), ...registeredRoots]);
 	const events = createEmitter();
 	const windowEvents = createEmitter();
 	const databases: DatabaseSync[] = [];
@@ -288,20 +302,25 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 				return fail("http_offline", "The Node-backed contract bindings make no network requests.");
 			}
 			case COMMANDS.fsReadText:
-				return readFile(requirePath(args), "utf8").catch((error: Error) =>
+				return readFile(scopedPath(args), "utf8").catch((error: Error) =>
 					fail("fs_io", error.message),
 				);
 			case COMMANDS.fsWriteTextAtomic:
-				return writeAtomic(requirePath(args), String(args.text));
+				return writeAtomic(scopedPath(args), String(args.text));
 			case COMMANDS.fsStat:
-				return statOf(requirePath(args));
+				return statOf(scopedPath(args));
 			case COMMANDS.fsMkdirp:
-				await mkdir(requirePath(args), { recursive: true }).catch((error: Error) =>
+				await mkdir(scopedPath(args), { recursive: true }).catch((error: Error) =>
 					fail("fs_io", error.message),
 				);
 				return undefined;
-			case COMMANDS.fsReadDir: {
+			case COMMANDS.fsRegisterRoot: {
 				const folder = requirePath(args);
+				if (!registeredRoots.includes(folder)) registeredRoots.push(folder);
+				return undefined;
+			}
+			case COMMANDS.fsReadDir: {
+				const folder = scopedPath(args);
 				const names = await readdir(folder).catch((error: Error) => fail("fs_io", error.message));
 				const entries = await Promise.all(names.map((name) => statOf(join(folder, name))));
 				return entries.filter((entry): entry is FileStat => entry !== null);
@@ -509,6 +528,7 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 		bindings,
 		controls,
 		root,
+		outside,
 		dispose: async () => {
 			if (disposed) return;
 			disposed = true;

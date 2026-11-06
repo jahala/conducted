@@ -702,6 +702,7 @@ pub fn run() {
         .manage(network::NetworkState::default())
         .manage(logger::LoggerState::default())
         .manage(http::HttpState::default())
+        .manage(files::FsScopeState::default())
         .menu(|app| {
             let state = app.state::<menu::MenuState>();
             menu::build_menu(app, state.inner())
@@ -753,6 +754,7 @@ pub fn run() {
             files::fs_read_dir,
             files::fs_trash,
             files::fs_paths,
+            files::fs_register_root,
             http::http_fetch,
             http::http_download,
             http::http_cancel,

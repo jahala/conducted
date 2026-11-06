@@ -103,6 +103,9 @@ const fakeFs = (): FakeFs => {
 			trashed.add(path);
 			return ok(undefined);
 		},
+		async registerRoot() {
+			return ok(undefined);
+		},
 		paths: { home: "/home", appData: "/app", temp: "/tmp", resources: "/resources" },
 	};
 	return { fs, files, modified, trashed, now, fail };
