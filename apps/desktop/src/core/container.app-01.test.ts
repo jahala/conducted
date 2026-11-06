@@ -11,7 +11,7 @@ import { appError, err, ok } from "@conducted/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMemoryPlatform, type MemoryPlatform } from "../platform/memory.ts";
 import type { Database } from "../platform/platform.ts";
-import { createContainer } from "./container.ts";
+import { createContainer, QUIT_STOP_LIMIT_MS } from "./container.ts";
 import type { Repo, Session, Workspace } from "./model.ts";
 import { tomlCodec } from "./services/toml-codec.ts";
 import { UPDATE_CHECK_INTERVAL_MS } from "./services/updates.ts";
@@ -393,6 +393,27 @@ describe("APP-01 after start", () => {
 		await vi.waitFor(() => expect(quit).toHaveBeenCalledTimes(1));
 
 		await harness.container.stop();
+	});
+
+	it("quits once the stop limit passes, even when a stop step never ends", async () => {
+		const harness = build();
+		stubStartup(harness);
+		vi.spyOn(harness.container.services.updates, "isSafeToQuit").mockReturnValue(true);
+		const quit = vi.spyOn(harness.memory.platform.app, "quit").mockResolvedValue(undefined);
+		// A composer flush that hangs, as a stuck disk write would.
+		vi.spyOn(harness.container.services.composer, "flush").mockReturnValue(new Promise(() => {}));
+
+		await harness.container.start();
+		vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+		try {
+			harness.memory.controls.emitQuitRequested();
+			await vi.advanceTimersByTimeAsync(QUIT_STOP_LIMIT_MS - 1);
+			expect(quit).not.toHaveBeenCalled();
+			await vi.advanceTimersByTimeAsync(1);
+			expect(quit).toHaveBeenCalledTimes(1);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("stops the container before it quits, so drafts and stored events are written first", async () => {

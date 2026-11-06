@@ -103,6 +103,12 @@ import { EventIngest } from "./sidecar/ingest.ts";
 import { SessionResume } from "./sidecar/resume.ts";
 import { type SidecarClient, SidecarTunnel } from "./sidecar/tunnel.ts";
 
+/**
+ * How long a quit waits for the container to stop before the app quits anyway. Our choice (D064):
+ * the research gives no limit, and a hung step must not leave Cmd+Q doing nothing.
+ */
+export const QUIT_STOP_LIMIT_MS = 5_000;
+
 export interface ContainerInputs {
 	platform: Platform;
 	clock: Clock;
@@ -1100,14 +1106,26 @@ export function createContainer(inputs: ContainerInputs): Container {
 
 	// The Rust shell quits at once when asked (`app_quit`), so the work in flight is flushed first:
 	// composer drafts, chat events being stored, terminals and runs. A second request while that
-	// runs is ignored.
+	// runs is ignored. A stop step that hangs must not keep the app open, so the quit goes ahead
+	// after QUIT_STOP_LIMIT_MS whatever the stop has reached.
 	let quitting = false;
 	const stopThenQuit = (): void => {
 		if (quitting) return;
 		quitting = true;
 		fireAndForget(
 			async () => {
-				await stop();
+				let limit: ReturnType<typeof setTimeout> | undefined;
+				const elapsed = new Promise<void>((resolve) => {
+					limit = setTimeout(() => {
+						log("warn", `Quitting before every stop step ended (${QUIT_STOP_LIMIT_MS} ms).`);
+						resolve();
+					}, QUIT_STOP_LIMIT_MS);
+				});
+				try {
+					await Promise.race([stop(), elapsed]);
+				} finally {
+					clearTimeout(limit);
+				}
 				await platform.app.quit();
 			},
 			(cause) => {
