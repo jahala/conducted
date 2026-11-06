@@ -12,6 +12,7 @@ import type { RunState } from "../../../core/api.ts";
 import { ServicesProvider } from "../../../core/context.tsx";
 import type { RepoConfig, RunAction, Workspace } from "../../../core/model.ts";
 import { createTestContainer, seedRepo, seedWorkspace } from "../../../test/container.ts";
+import { WithSurfaces } from "../../../test/surfaces.tsx";
 import { RunTab } from "./RunTab.tsx";
 
 const dev: RunAction = {
@@ -73,7 +74,9 @@ describe("RUN-01 run tab", () => {
 
 		render(
 			<ServicesProvider container={test.container}>
-				<RunTab workspaceId={workspace.id} />
+				<WithSurfaces>
+					<RunTab workspaceId={workspace.id} />
+				</WithSurfaces>
 			</ServicesProvider>,
 		);
 
@@ -103,7 +106,9 @@ describe("RUN-01 run tab", () => {
 
 		render(
 			<ServicesProvider container={test.container}>
-				<RunTab workspaceId={workspace.id} />
+				<WithSurfaces>
+					<RunTab workspaceId={workspace.id} />
+				</WithSurfaces>
 			</ServicesProvider>,
 		);
 
@@ -118,7 +123,9 @@ describe("RUN-01 run tab", () => {
 
 		render(
 			<ServicesProvider container={test.container}>
-				<RunTab workspaceId={workspace.id} />
+				<WithSurfaces>
+					<RunTab workspaceId={workspace.id} />
+				</WithSurfaces>
 			</ServicesProvider>,
 		);
 		await screen.findByRole("button", { name: "Run Dev server" });
@@ -136,7 +143,9 @@ describe("RUN-01 run tab", () => {
 
 		render(
 			<ServicesProvider container={test.container}>
-				<RunTab workspaceId={workspace.id} />
+				<WithSurfaces>
+					<RunTab workspaceId={workspace.id} />
+				</WithSurfaces>
 			</ServicesProvider>,
 		);
 
@@ -152,7 +161,9 @@ describe("RUN-01 run tab", () => {
 
 		render(
 			<ServicesProvider container={test.container}>
-				<RunTab workspaceId={workspace.id} />
+				<WithSurfaces>
+					<RunTab workspaceId={workspace.id} />
+				</WithSurfaces>
 			</ServicesProvider>,
 		);
 
@@ -164,7 +175,9 @@ describe("RUN-01 run tab", () => {
 
 		render(
 			<ServicesProvider container={test.container}>
-				<RunTab workspaceId={workspace.id} />
+				<WithSurfaces>
+					<RunTab workspaceId={workspace.id} />
+				</WithSurfaces>
 			</ServicesProvider>,
 		);
 
