@@ -7,7 +7,8 @@
  * picker (default branch, an existing local branch, a pull request or an issue), first message editor with a
  * model field and plan mode, section picker, and the "Create workspace" button. Typing '@' in the
  * first message offers the chosen repository's own files before any workspace exists (SIDE-22).
- * A draft can be saved to the backlog, and a saved backlog workspace opens with a Start button.
+ * A draft can be saved to the backlog, and a saved backlog workspace opens with a Start button. A deep
+ * link may open the page with its project, branch and first message already filled.
  * Behaviour: ui-map.md 3.9 (New workspace flow; "Draft the first message, then create and send it."), 5.4
  * (Cmd+I toggles the create-from picker, Alt+Enter adds the draft to the backlog, and Cmd+Enter
  * starts a backlog workspace).
@@ -26,7 +27,6 @@
  * the new workspace; a failed create offers Retry setup and Recover prompt; Alt+Enter saves the draft to
  * the backlog.
  */
-import type { SessionConfig } from "@conducted/protocol";
 import type { RepoId, SectionId, WorkspaceId } from "@conducted/shared";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
@@ -46,7 +46,7 @@ import {
 	useSetting,
 } from "../core/hooks.ts";
 import type { IssueView, PullRequestSummary, Section } from "../core/model.ts";
-import { FIRST_CHAT_APP_TOOLS } from "../core/services/workspace.ts";
+import { newWorkspaceSessionConfig } from "../core/services/workspace.ts";
 import { SuggestionPopup } from "../features/composer/mentions/SuggestionPopup.tsx";
 import { AddProjectButton } from "../features/sidebar/AddProjectButton.tsx";
 import { Button } from "../ui/Button.tsx";
@@ -156,7 +156,13 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	const repos = useRepos();
 	const services = useServices();
 	const navigate = useNavigate();
-	const search = useSearch({ strict: false }) as { section?: string; backlog?: string };
+	const search = useSearch({ strict: false }) as {
+		section?: string;
+		backlog?: string;
+		repo?: string;
+		branch?: string;
+		prompt?: string;
+	};
 
 	const defaultModel = useSetting<string>("default_model");
 	const defaultEffort = useSetting<string>("default_claude_effort_level");
@@ -176,15 +182,19 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 			? undefined
 			: backlog.data.find((entry) => entry.id === search.backlog);
 
-	const [repoId, setRepoId] = useState<RepoId | null>(null);
-	const [fromKind, setFromKind] = useState<FromKind>("default");
+	const [repoId, setRepoId] = useState<RepoId | null>(
+		() => (search.repo as RepoId | undefined) ?? null,
+	);
+	const [fromKind, setFromKind] = useState<FromKind>(
+		search.branch === undefined ? "default" : "branch",
+	);
 	const [pickerOpen, setPickerOpen] = useState(true);
-	const [branchName, setBranchName] = useState("");
+	const [branchName, setBranchName] = useState(search.branch ?? "");
 	const [showBranchList, setShowBranchList] = useState(false);
 	const [selectedPullRequest, setSelectedPullRequest] = useState<PullRequestSummary | null>(null);
 	const [issueProvider, setIssueProvider] = useState<IssueProvider>("github");
 	const [selectedIssue, setSelectedIssue] = useState<IssueView | null>(null);
-	const [prompt, setPrompt] = useState("");
+	const [prompt, setPrompt] = useState(search.prompt ?? "");
 	const [mention, setMention] = useState<FileMentionQuery | null>(null);
 	const [slashMention, setSlashMention] = useState<FileMentionQuery | null>(null);
 	const [model, setModel] = useState(defaultModel);
@@ -202,6 +212,29 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	useEffect(() => {
 		if (repoId === null && readyRepos[0] !== undefined) setRepoId(readyRepos[0].id);
 	}, [repoId, readyRepos]);
+
+	// A link to /create names its project in the URL. Resolve it once the list has loaded, and again
+	// when a later link names another project while this page stays open.
+	const repoFromSearch = search.repo;
+	useEffect(() => {
+		if (repoFromSearch === undefined) return;
+		const named = readyRepos.find(
+			(repo) => repo.id === repoFromSearch || repo.name === repoFromSearch,
+		);
+		if (named !== undefined) setRepoId(named.id);
+	}, [readyRepos, repoFromSearch]);
+
+	const promptFromSearch = search.prompt;
+	useEffect(() => {
+		if (promptFromSearch !== undefined) setPrompt(promptFromSearch);
+	}, [promptFromSearch]);
+
+	const branchFromSearch = search.branch;
+	useEffect(() => {
+		if (branchFromSearch === undefined) return;
+		setBranchName(branchFromSearch);
+		setFromKind("branch");
+	}, [branchFromSearch]);
 
 	useCommandHandler("workspace.toggleCreateFromPicker", "modal", () => {
 		setPickerOpen((open) => !open);
@@ -314,16 +347,13 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 			}
 			from = { kind: "issue", provider: selectedIssue.provider, id: selectedIssue.id };
 		}
-		const config: SessionConfig = {
-			agent: "claude",
-			model: model.trim() === "" ? "default" : model.trim(),
-			effort: (defaultEffort === "" ? "high" : defaultEffort) as SessionConfig["effort"],
+		const config = newWorkspaceSessionConfig({
+			model,
+			effort: defaultEffort,
 			fastMode: defaultFastMode,
 			planMode,
 			requireToolApproval: toolApprovals,
-			additionalDirectories: [],
-			appTools: FIRST_CHAT_APP_TOOLS,
-		};
+		});
 		return {
 			repoId: repo.id,
 			from,

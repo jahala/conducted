@@ -134,7 +134,8 @@ export function createAppContainer(
 
 /**
  * Opens a notification click. Notifications carry a `conducted://workspace` link, which is the one
- * deep link the app entry owns; every other link goes to the command dispatcher (NAV-14).
+ * deep link the app entry owns; every other link goes to the command dispatcher, which hands it to
+ * NAV-17's opener.
  */
 function openWorkspaceLink(
 	container: Container,
@@ -294,7 +295,7 @@ function StartupRoot({
 export interface StartAppOptions {
 	root: HTMLElement;
 	platform: Platform;
-	/** Opens a notification click. Deep links are the command dispatcher's (NAV-14). */
+	/** Opens a notification click. Other deep links are the command dispatcher's, handed to NAV-17. */
 	openLink?: (url: string) => void;
 	/** Installs the process-wide error and drag-and-drop handlers. On unless a test says otherwise. */
 	installHandlers?: boolean;

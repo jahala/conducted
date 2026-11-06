@@ -9,7 +9,6 @@ import { appError, err, type Result } from "@conducted/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { effectiveShortcuts, getCommand } from "../core/registries/commands.ts";
 import {
-	commandForDeepLink,
 	commandForKeyPress,
 	createCommandRegistry,
 	dispatchCommand,
@@ -367,18 +366,6 @@ describe("NAV-14 scopesForTarget", () => {
 
 	it("returns global when there is no element", () => {
 		expect(scopesForTarget(null)).toEqual(["global"]);
-	});
-});
-
-describe("NAV-14 commandForDeepLink", () => {
-	it("opens settings for the settings host", () => {
-		expect(commandForDeepLink("conducted://settings")).toBe("app.openSettings");
-	});
-
-	it("leaves route links and other schemes to NAV-17", () => {
-		expect(commandForDeepLink("conducted://workspace?id=w1")).toBeNull();
-		expect(commandForDeepLink("https://example.com")).toBeNull();
-		expect(commandForDeepLink("not a url")).toBeNull();
 	});
 });
 

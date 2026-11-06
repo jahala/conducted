@@ -355,6 +355,30 @@ export const FIRST_CHAT_APP_TOOLS = {
 	setTargetBranch: true,
 } as const;
 
+/** The settings a new workspace's first chat takes from the create form or a deep link. */
+export interface NewWorkspaceSessionDefaults {
+	model: string;
+	effort: string;
+	fastMode: boolean;
+	planMode: boolean;
+	requireToolApproval: boolean;
+}
+
+/** The first chat's config for a workspace that does not exist yet. */
+export function newWorkspaceSessionConfig(defaults: NewWorkspaceSessionDefaults): SessionConfig {
+	const model = defaults.model.trim();
+	return {
+		agent: "claude",
+		model: model === "" ? "default" : model,
+		effort: (defaults.effort === "" ? "high" : defaults.effort) as SessionConfig["effort"],
+		fastMode: defaults.fastMode,
+		planMode: defaults.planMode,
+		requireToolApproval: defaults.requireToolApproval,
+		additionalDirectories: [],
+		appTools: FIRST_CHAT_APP_TOOLS,
+	};
+}
+
 /** Shown when the workspace is made but cannot join the chosen section. */
 export const SECTION_PLACEMENT_FAILED_MESSAGE =
 	"The workspace was created, but it couldn't be added to the section. You can move it from the sidebar.";
