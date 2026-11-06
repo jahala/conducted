@@ -1,7 +1,8 @@
 /**
  * @feature NAV-17 Deep-link routes: settings, browser tab, create with a prompt
  * Owns: the pure step from a `conducted://` URL to a typed route the app can open. The Rust side only
- * checks the scheme and passes the string on (PLAT-16); this file owns the route table.
+ * checks the length and passes every link on, whatever its scheme (PLAT-16); this file owns the scheme
+ * rule and the route table.
  * Behaviour: native-and-sidecar-map.md A8 (the URL host selects the route: `workspace?id&session`,
  * `settings/...`, `settings-enable?key`, `browser?url&workspace-id&navigate`, `async?repo&plan=<base64>`;
  * any other host is split on `&` into `key=value` and creates a workspace with a prefilled prompt:

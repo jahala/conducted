@@ -45,7 +45,9 @@
 //!   colours, attributes or cursor position, and scrollback appears as visible lines. The full
 //!   screen state is not built yet.
 //! - Saving history is PLAT-08. The reader collects output into `HistoryRecorder`; the exit
-//!   watcher saves it to the history folder.
+//!   watcher saves it to the history folder, and `save_live_histories` saves every running
+//!   terminal when the app quits. A failed save is written to the app log. The UI cannot show it
+//!   yet: `PtyHandle.onExit` in platform.ts carries only the exit code.
 //! - `pty-ready` is dropped by design: `pty_spawn` returns once the process exists.
 //!
 //! Our design choice: ids are made in Rust and are unique across restarts (start time plus a
@@ -72,7 +74,7 @@ use serde::{Deserialize, Serialize};
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Emitter, Manager, State};
 
-use crate::error::{CommandError, CommandResult};
+use crate::error::{CommandError, CommandResult, lock};
 use crate::process_group;
 use crate::terminal_history::{HistoryRecorder, history_dir};
 
@@ -197,7 +199,7 @@ impl FlowControl {
 
     /// Adds bytes just sent to the UI.
     pub fn record_sent(&self, bytes: usize) -> CommandResult<()> {
-        let mut unacked = self.unacked.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut unacked = lock(&self.unacked);
         *unacked = (*unacked).saturating_add(bytes);
         self.below_low_water.notify_all();
         Ok(())
@@ -205,7 +207,7 @@ impl FlowControl {
 
     /// Blocks the reader thread while `unacked` is at or above `HIGH_WATER_BYTES`.
     pub fn wait_for_room(&self) -> CommandResult<()> {
-        let mut unacked = self.unacked.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut unacked = lock(&self.unacked);
         while *unacked >= HIGH_WATER_BYTES && !self.closed.load(Ordering::SeqCst) {
             unacked = self
                 .below_low_water
@@ -217,7 +219,7 @@ impl FlowControl {
 
     /// Subtracts acknowledged bytes, never going below zero, and wakes the reader when needed.
     pub fn acknowledge(&self, bytes: usize) -> CommandResult<()> {
-        let mut unacked = self.unacked.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut unacked = lock(&self.unacked);
         *unacked = (*unacked).saturating_sub(bytes);
         if *unacked < LOW_WATER_BYTES {
             self.below_low_water.notify_all();
@@ -240,7 +242,7 @@ impl FlowControl {
     /// the counter instead of from the messages. Returns once the terminal closes.
     #[cfg(test)]
     fn wait_for_high_water(&self) -> CommandResult<()> {
-        let mut unacked = self.unacked.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut unacked = lock(&self.unacked);
         while *unacked < HIGH_WATER_BYTES && !self.is_closed() {
             unacked = self
                 .below_low_water
@@ -253,7 +255,7 @@ impl FlowControl {
     /// Waits until bytes are sent or the terminal closes, so a test ack loop never spins.
     #[cfg(test)]
     fn wait_for_progress(&self) -> CommandResult<()> {
-        let mut unacked = self.unacked.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut unacked = lock(&self.unacked);
         while *unacked == 0 && !self.is_closed() {
             unacked = self
                 .below_low_water
@@ -370,7 +372,7 @@ pub struct PtyState {
 impl PtyState {
     /// Finds a live terminal. Fails with `pty_not_found` for an unknown or ended id.
     pub fn get(&self, id: &str) -> CommandResult<Arc<PtySession>> {
-        let sessions = self.sessions.lock().unwrap_or_else(PoisonError::into_inner);
+        let sessions = lock(&self.sessions);
         sessions
             .get(id)
             .cloned()
@@ -582,12 +584,11 @@ pub fn start_io_threads(
         let history = Arc::clone(&reader_session.history);
         let _ = pump_output(&mut reader, &flow, |bytes| {
             {
-                let mut mirror = mirror.lock().unwrap_or_else(PoisonError::into_inner);
+                let mut mirror = lock(&mirror);
                 let _ = mirror.feed(bytes);
             }
             {
-                let mut history = history.lock().unwrap_or_else(PoisonError::into_inner);
-                let _ = history.push_output(bytes);
+                lock(&history).push_output(bytes);
             }
             output
                 .send(PtyChunk {
@@ -610,25 +611,17 @@ pub fn start_io_threads(
         let _ = reader_done_rx.recv_timeout(Duration::from_millis(DRAIN_AFTER_EXIT_MS));
         let (exit_code, signal) = exit_details(status);
 
-        match history_dir(&app) {
-            Ok(dir) => {
-                let history = session
-                    .history
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner);
-                if let Err(error) = history.save(&dir) {
-                    eprintln!("could not save the terminal's history: {error}");
-                }
-            }
-            Err(error) => eprintln!("could not prepare the terminal history folder: {error}"),
+        let saved = history_dir(&app).and_then(|dir| lock(&session.history).save(&dir));
+        if let Err(error) = saved {
+            let message = format!(
+                "could not save the history of terminal {}: {error}",
+                session.id
+            );
+            crate::log_or_stderr(&app, "error", &message);
         }
 
         let state = app.state::<PtyState>();
-        state
-            .sessions
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .remove(&session.id);
+        lock(&state.sessions).remove(&session.id);
 
         let _ = app.emit(
             EVENT_EXIT,
@@ -641,6 +634,22 @@ pub fn start_io_threads(
     });
 
     Ok(())
+}
+
+/// Saves the history of every terminal still running into `dir` (PLAT-08). The app calls this
+/// when it quits, before it ends the terminals, because their exit watchers may not get to run
+/// before the process ends. Returns one line per terminal whose history could not be saved.
+pub fn save_live_histories(state: &PtyState, dir: &std::path::Path) -> Vec<String> {
+    let sessions: Vec<Arc<PtySession>> = lock(&state.sessions).values().cloned().collect();
+    sessions
+        .iter()
+        .filter_map(|session| {
+            lock(&session.history)
+                .save(dir)
+                .err()
+                .map(|error| format!("{}: {error}", session.id))
+        })
+        .collect()
 }
 
 /// Starts a terminal. Output arrives on `on_output`; the end arrives as `pty://exit`.
@@ -658,11 +667,7 @@ pub async fn pty_spawn(
     let spawned = spawn_terminal(&request, &login.shell, &login.vars, state.next_id())?;
     let id = spawned.session.id.clone();
     let pid = spawned.session.pid;
-    state
-        .sessions
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .insert(id.clone(), Arc::clone(&spawned.session));
+    lock(&state.sessions).insert(id.clone(), Arc::clone(&spawned.session));
 
     start_io_threads(
         &app,
@@ -680,16 +685,10 @@ pub async fn pty_spawn(
 pub async fn pty_write(state: State<'_, PtyState>, id: String, data: String) -> CommandResult<()> {
     let session = state.get(&id)?;
     {
-        let mut history = session
-            .history
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
+        let mut history = lock(&session.history);
         history.mark_input();
     }
-    let mut writer = session
-        .writer
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner);
+    let mut writer = lock(&session.writer);
     writer
         .write_all(data.as_bytes())
         .map_err(|error| CommandError::Failed {
@@ -715,10 +714,7 @@ pub async fn pty_resize(
     }
     let session = state.get(&id)?;
     {
-        let master = session
-            .master
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
+        let master = lock(&session.master);
         master
             .resize(PtySize {
                 rows,
@@ -731,10 +727,7 @@ pub async fn pty_resize(
                 message: error.to_string(),
             })?;
     }
-    let mut mirror = session
-        .mirror
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner);
+    let mut mirror = lock(&session.mirror);
     mirror.resize(cols, rows)
 }
 
@@ -760,20 +753,14 @@ fn kill_session(session: &PtySession) {
         // Under job control the foreground group is not the shell's own group. A dev server the
         // user started is there, so signal that group first and fall back to the child's group.
         let foreground = {
-            let master = session
-                .master
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner);
+            let master = lock(&session.master);
             foreground_group(&**master)
         };
         if let Some(pgrp) = foreground.or(session.pid) {
             let _ = process_group::signal_group(pgrp, SIGHUP);
         }
     }
-    let mut killer = session
-        .killer
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner);
+    let mut killer = lock(&session.killer);
     let _ = killer.kill();
 }
 
@@ -804,10 +791,7 @@ pub async fn pty_screen_text(
     max_lines: usize,
 ) -> CommandResult<String> {
     let session = state.get(&id)?;
-    let mirror = session
-        .mirror
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner);
+    let mirror = lock(&session.mirror);
     mirror.text(max_lines)
 }
 
@@ -819,10 +803,7 @@ pub async fn pty_screen_snapshot(
     id: String,
 ) -> CommandResult<PtyScreenSnapshot> {
     let session = state.get(&id)?;
-    let mirror = session
-        .mirror
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner);
+    let mirror = lock(&session.mirror);
     mirror.snapshot()
 }
 

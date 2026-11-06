@@ -16,19 +16,26 @@
 //! - Only one dictation runs at a time. A second `speech_start` fails with `speech_busy`.
 //! - Microphone permission denied sends `microphone_denied` with "Microphone access denied.",
 //!   then `Ended`.
-//! - Speech permission or language assets missing sends `unavailable` with "Failed to initialize
-//!   speech-to-text.", then `Ended`. `speech_available` answers false on the same conditions so
-//!   the UI hides the button.
+//! - Speech permission denied or restricted, or language assets missing, sends `unavailable` with
+//!   "Failed to initialize speech-to-text.", then `Ended`. `speech_available` answers false on the
+//!   same conditions so the UI hides the button (`available_from`). A speech permission not asked
+//!   yet stays available, because the first start asks for it.
 //! - A recording failure sends `recording_failed` with "Speech recording failed.", then `Ended`.
 //! - `speech_stop` ends the phrase and waits at most five seconds for the final text. When the
 //!   deadline passes it sends the live transcript as `Final`, then `Ended`, and releases the
 //!   microphone.
 //! - `speech_cancel` drops everything and sends only `Ended`.
 //! - Stop or cancel with nothing running succeeds.
-//! - The channel is the only way text leaves. When the webview goes away mid-dictation the send
-//!   fails, and dictation stops and releases the microphone.
+//! - The channel is the only way text and failures leave. An engine that is unavailable or cannot
+//!   start reports `Error` and `Ended` on the channel, and `speech_start` still succeeds, so the UI
+//!   hears each failure once. Only `speech_busy` is a start error, because the channel then
+//!   belongs to the dictation already running.
+//! - When the webview goes away mid-dictation the send fails, and dictation stops and releases the
+//!   microphone.
 //! - Audio never leaves the machine: the Swift bridge requires on-device recognition.
-//! - The audio engine is released on every path, including errors, by the session's `Drop`.
+//! - The audio engine is released on every path, including errors, by the session's `Drop`. The
+//!   release runs on a thread of its own: the last reference to a session can be the one a bridge
+//!   callback holds, and freeing the bridge from its own queue would wait on that queue forever.
 //!
 //! Our design choice: the bridge is a Swift static library built by `build.rs` and linked into
 //! the Rust binary, the same shape Conductor uses. It records with `AVAudioEngine` and transcribes
@@ -36,11 +43,13 @@
 //! `NSSpeechRecognitionUsageDescription` is in `Info.plist` along with the microphone string.
 //! The level mapping to 0..1 has one home here (`level_from_dbfs`); the bridge only reports dBFS.
 //!
-//! Test first: with a recorded audio fixture fed in place of the microphone, the channel receives
-//! at least one `Partial`, one `Final` with the spoken words, then `Ended`.
+//! Test first: with the levels of a recorded audio fixture fed through a stand-in engine, the
+//! channel receives levels in range, a `Partial`, the engine's `Final`, then `Ended`. The
+//! recogniser itself is not run by the tests: it needs the Mac's speech assets and both
+//! permissions, so whether it turns speech into the right words is checked by hand.
 
 use std::sync::atomic::AtomicU64;
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use serde::Serialize;
@@ -49,7 +58,7 @@ use tauri::ipc::Channel;
 use tokio::sync::Notify;
 use tokio::time::timeout;
 
-use crate::error::{CommandError, CommandResult};
+use crate::error::{CommandError, CommandResult, lock};
 
 /// How long `speech_stop` waits for the final text before using the live transcript.
 pub const STOP_TIMEOUT: Duration = Duration::from_secs(5);
@@ -84,13 +93,6 @@ impl SpeechFailure {
         Self {
             code: code.into(),
             message: message.into(),
-        }
-    }
-
-    fn start_error(&self) -> CommandError {
-        CommandError::Failed {
-            code: "speech_start_failed",
-            message: self.message.clone(),
         }
     }
 }
@@ -130,16 +132,28 @@ pub trait SpeechSink: Send + Sync + 'static {
     fn send(&self, event: SpeechEvent) -> bool;
 }
 
+/// `SFSpeechRecognizer.authorizationStatus()` before the user was asked.
+pub const SPEECH_PERMISSION_NOT_DETERMINED: i32 = 0;
+/// `SFSpeechRecognizer.authorizationStatus()` after the user allowed speech recognition.
+pub const SPEECH_PERMISSION_AUTHORIZED: i32 = 3;
+
+/// Whether dictation can start: the Mac recognises speech on the device for the current language,
+/// and the speech permission is granted or not asked yet. Denied, restricted and any value Apple
+/// may add later answer false, so the button only shows when a start can work.
+pub fn available_from(supports_on_device: bool, speech_permission: i32) -> bool {
+    supports_on_device
+        && matches!(
+            speech_permission,
+            SPEECH_PERMISSION_NOT_DETERMINED | SPEECH_PERMISSION_AUTHORIZED
+        )
+}
+
 /// Maps a bridge level in dBFS to the 0..1 meter value (services-map 5B.3.1).
 pub fn level_from_dbfs(decibels: f32) -> f32 {
     if !decibels.is_finite() {
         return 0.0;
     }
     ((decibels + 55.0) / 40.0).clamp(0.0, 1.0)
-}
-
-fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
-    mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 struct ChannelSink {
@@ -196,7 +210,7 @@ impl Session {
     }
 
     /// Cancels the native capture without freeing the bridge session. The bridge session is freed
-    /// when the `Dictation` drops its last reference, from a thread that is not the audio callback.
+    /// when the session itself drops, on a thread of its own (see `Drop for Session`).
     fn cancel_engine(&self) {
         if let Some(engine_session) = lock(&self.engine_session).as_ref() {
             engine_session.cancel();
@@ -292,6 +306,24 @@ impl EngineSink for Session {
     }
 }
 
+impl Drop for Session {
+    /// Frees the engine session on a thread of its own. The last reference to a session can be the
+    /// one a bridge callback holds while it runs on the bridge's queue. Freeing the bridge there
+    /// would wait on that same queue, which never finishes.
+    fn drop(&mut self) {
+        let Some(engine_session) = lock(&self.engine_session).take() else {
+            return;
+        };
+        let released = std::thread::Builder::new()
+            .name("speech-release".to_owned())
+            .spawn(move || drop(engine_session));
+        if let Err(error) = released {
+            // The closure, and the engine session with it, was dropped on this thread instead.
+            eprintln!("dictation: could not start the thread that frees the recogniser: {error}");
+        }
+    }
+}
+
 /// The dictation state machine. One instance is registered with the app.
 pub struct Dictation {
     engine: Arc<dyn DictationEngine>,
@@ -324,17 +356,13 @@ impl Dictation {
         }
 
         if !self.engine.available() {
-            let unavailable =
-                SpeechFailure::new("unavailable", "Failed to initialize speech-to-text.");
+            // The channel carries the failure, so the start itself succeeds.
             sink.send(SpeechEvent::Error {
-                code: unavailable.code,
-                message: unavailable.message,
-            });
-            sink.send(SpeechEvent::Ended);
-            return Err(CommandError::Failed {
-                code: "speech_unavailable",
+                code: "unavailable".to_owned(),
                 message: "Failed to initialize speech-to-text.".to_owned(),
             });
+            sink.send(SpeechEvent::Ended);
+            return Ok(());
         }
 
         let id = self
@@ -355,9 +383,10 @@ impl Dictation {
                 Ok(())
             }
             Err(failure) => {
+                // The channel carries the failure, so the start itself succeeds.
                 session.report_failure(&failure);
                 *active = None;
-                Err(failure.start_error())
+                Ok(())
             }
         }
     }
@@ -417,7 +446,8 @@ mod apple {
     type BridgeCallback = unsafe extern "C" fn(*mut c_void, i32, *const c_char, *const c_char, f32);
 
     unsafe extern "C" {
-        fn conducted_speech_available() -> bool;
+        fn conducted_speech_supports_on_device() -> bool;
+        fn conducted_speech_authorization() -> i32;
         fn conducted_speech_start(callback: BridgeCallback, context: *mut c_void) -> *mut c_void;
         fn conducted_speech_stop(session: *mut c_void);
         fn conducted_speech_cancel(session: *mut c_void);
@@ -470,8 +500,14 @@ mod apple {
 
     impl DictationEngine for AppleSpeechEngine {
         fn available(&self) -> bool {
-            // SAFETY: the bridge function only reads Apple's speech availability.
-            unsafe { conducted_speech_available() }
+            // SAFETY: both bridge functions only read Apple's speech support and permission.
+            let (supports_on_device, permission) = unsafe {
+                (
+                    conducted_speech_supports_on_device(),
+                    conducted_speech_authorization(),
+                )
+            };
+            super::available_from(supports_on_device, permission)
         }
 
         fn start(
@@ -598,8 +634,9 @@ mod tests {
 
     use super::*;
 
-    /// The words in fixtures/dictation.wav, spoken into the fixture.
-    const FIXTURE_WORDS: &str = "the quick brown fox";
+    /// The final text the stand-in engine reports. The recogniser is not run in tests, so this
+    /// text is not read from the audio; only the fixture's levels are.
+    const STAND_IN_FINAL_TEXT: &str = "the quick brown fox";
     const FIXTURE_WAV: &[u8] = include_bytes!("../fixtures/dictation.wav");
 
     struct RecordingSink {
@@ -673,6 +710,14 @@ mod tests {
 
     enum Behaviour {
         Replay(Vec<EngineEvent>),
+        StartFails,
+        /// Hands the session to a capture thread that delivers `Ended` and drops its reference
+        /// only when the test says so, so that thread holds the last reference.
+        HoldUntilReleased {
+            release: Mutex<Option<Receiver<()>>>,
+            capture_thread: Sender<thread::ThreadId>,
+            freed_on: Sender<thread::ThreadId>,
+        },
         PartialThenHang(String),
         Hang,
         Denied,
@@ -735,6 +780,29 @@ mod tests {
                         join: Some(join),
                     }))
                 }
+                Behaviour::StartFails => Err(SpeechFailure::new(
+                    "unavailable",
+                    "Failed to initialize speech-to-text.",
+                )),
+                Behaviour::HoldUntilReleased {
+                    release,
+                    capture_thread,
+                    freed_on,
+                } => {
+                    let release = lock(release).take().expect("the engine starts once");
+                    let capture_thread = capture_thread.clone();
+                    thread::spawn(move || {
+                        capture_thread
+                            .send(thread::current().id())
+                            .expect("the test still listens");
+                        release.recv().expect("the test releases the capture");
+                        sink.deliver(EngineEvent::Ended);
+                        // `sink` drops here, on the capture thread, as the last reference.
+                    });
+                    Ok(Box::new(ThreadRecordingSession {
+                        freed_on: freed_on.clone(),
+                    }))
+                }
                 Behaviour::PartialThenHang(text) => {
                     sink.deliver(EngineEvent::Partial(text.clone()));
                     self.hang(sink, cancelled)
@@ -757,6 +825,25 @@ mod tests {
                     Ok(Box::new(FakeSession::idle(cancelled)))
                 }
             }
+        }
+    }
+
+    /// An engine session that reports which thread freed it.
+    struct ThreadRecordingSession {
+        freed_on: Sender<thread::ThreadId>,
+    }
+
+    impl EngineSession for ThreadRecordingSession {
+        fn stop(&self) {}
+
+        fn cancel(&self) {}
+    }
+
+    impl Drop for ThreadRecordingSession {
+        fn drop(&mut self) {
+            self.freed_on
+                .send(thread::current().id())
+                .expect("the test still listens");
         }
     }
 
@@ -839,7 +926,7 @@ mod tests {
             .map(|window| EngineEvent::Level(samples_to_dbfs(window)))
             .collect();
         engine_events.push(EngineEvent::Partial("the quick".to_owned()));
-        engine_events.push(EngineEvent::Final(FIXTURE_WORDS.to_owned()));
+        engine_events.push(EngineEvent::Final(STAND_IN_FINAL_TEXT.to_owned()));
         engine_events.push(EngineEvent::Ended);
 
         let (engine, _cancelled) = FakeEngine::new(Behaviour::Replay(engine_events), true);
@@ -861,10 +948,10 @@ mod tests {
             "no partial arrived: {events:?}"
         );
         assert!(
-            events
-                .iter()
-                .any(|event| matches!(event, SpeechEvent::Final { text } if text == FIXTURE_WORDS)),
-            "no final with the spoken words: {events:?}"
+            events.iter().any(
+                |event| matches!(event, SpeechEvent::Final { text } if text == STAND_IN_FINAL_TEXT)
+            ),
+            "no final with the engine's text: {events:?}"
         );
         assert!(
             events.iter().any(
@@ -936,10 +1023,11 @@ mod tests {
         let dictation = Dictation::new(engine, Duration::from_millis(100));
         let (sink, _received) = RecordingSink::new(false);
 
-        let error = dictation
-            .start(sink.clone())
-            .expect_err("an unavailable engine refuses");
-        assert_eq!(error_code(&error), "speech_unavailable");
+        let started = dictation.start(sink.clone());
+        assert!(
+            started.is_ok(),
+            "the channel carries the failure, so the start must not report it too: {started:?}"
+        );
         assert_eq!(
             sink.events(),
             vec![
@@ -1083,5 +1171,83 @@ mod tests {
             .recv_timeout(Duration::from_secs(5))
             .expect("the capture is cancelled");
         dictation.cancel().expect("cancel succeeds");
+    }
+
+    #[test]
+    fn plat_12_an_engine_that_cannot_start_reports_once_on_the_channel() {
+        let (engine, _cancelled) = FakeEngine::new(Behaviour::StartFails, true);
+        let dictation = Dictation::new(engine, Duration::from_millis(100));
+        let (sink, _received) = RecordingSink::new(false);
+
+        let started = dictation.start(sink.clone());
+        assert!(
+            started.is_ok(),
+            "the channel carries the failure, so the start must not report it too: {started:?}"
+        );
+        assert_eq!(
+            sink.events(),
+            vec![
+                SpeechEvent::Error {
+                    code: "unavailable".to_owned(),
+                    message: "Failed to initialize speech-to-text.".to_owned()
+                },
+                SpeechEvent::Ended
+            ]
+        );
+    }
+
+    #[test]
+    fn plat_12_denied_or_restricted_speech_permission_hides_dictation() {
+        assert!(available_from(true, SPEECH_PERMISSION_AUTHORIZED));
+        assert!(
+            available_from(true, SPEECH_PERMISSION_NOT_DETERMINED),
+            "the first start asks for the permission"
+        );
+        assert!(!available_from(true, 1), "denied");
+        assert!(!available_from(true, 2), "restricted");
+        assert!(!available_from(true, 99), "a status Apple adds later");
+        assert!(
+            !available_from(false, SPEECH_PERMISSION_AUTHORIZED),
+            "no on-device recognition for this language"
+        );
+    }
+
+    #[test]
+    fn plat_12_a_session_whose_last_reference_is_a_capture_thread_is_freed_elsewhere() {
+        let (release, released) = mpsc::channel();
+        let (capture_thread, capture_thread_id) = mpsc::channel();
+        let (freed_on, freed_on_id) = mpsc::channel();
+        let (engine, _cancelled) = FakeEngine::new(
+            Behaviour::HoldUntilReleased {
+                release: Mutex::new(Some(released)),
+                capture_thread,
+                freed_on,
+            },
+            true,
+        );
+        let dictation = Dictation::new(engine, Duration::from_millis(100));
+        let (sink, received) = RecordingSink::new(false);
+
+        dictation.start(sink).expect("dictation starts");
+        let capture = capture_thread_id
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the capture thread runs");
+        // Cancel drops the dictation's reference, so the capture thread now holds the last one.
+        dictation.cancel().expect("cancel succeeds");
+        assert_eq!(
+            received
+                .recv_timeout(Duration::from_secs(5))
+                .expect("cancel ends the dictation"),
+            SpeechEvent::Ended
+        );
+        release.send(()).expect("the capture thread waits");
+
+        let freed = freed_on_id
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the engine session is freed");
+        assert_ne!(
+            freed, capture,
+            "the engine session was freed on the thread that delivered the callback"
+        );
     }
 }

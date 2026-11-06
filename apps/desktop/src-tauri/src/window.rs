@@ -1,5 +1,6 @@
 //! @feature PLAT-23 Window look: vibrancy, traffic lights and zoom
-//! Owns: the two Rust commands behind the window's material and title-bar controls. Tauri's own
+//! Owns: the two Rust commands behind the window's material and title-bar controls, and
+//! `main_window`, the one lookup of the main window that every Rust module uses. Tauri's own
 //! window and webview APIs handle the theme and the webview zoom from `platform/tauri.ts`.
 //! Behaviour: docs/research/conductor/native-and-sidecar-map.md A2 and A5 (`update_window_vibrancy`
 //! applies an `NSVisualEffectView`, `update_traffic_light_position` moves the window's buttons), and
@@ -14,7 +15,7 @@
 
 use tauri::utils::config::WindowEffectsConfig;
 use tauri::window::{Effect, EffectState, EffectsBuilder};
-use tauri::{AppHandle, Manager, WebviewWindow};
+use tauri::{AppHandle, Manager, Runtime, WebviewWindow};
 
 use crate::error::{CommandError, CommandResult};
 
@@ -40,8 +41,12 @@ pub fn shifted_traffic_light_origins(current: [(f64, f64); 3], x: f64, y: f64) -
     current.map(|(current_x, current_y)| (current_x + dx, current_y + dy))
 }
 
-fn main_window(app: &AppHandle) -> CommandResult<WebviewWindow> {
-    app.get_webview_window("main")
+/// The label of the app's one window, from `tauri.conf.json`.
+pub const MAIN_WINDOW: &str = "main";
+
+/// The main window, or a `window_missing` error when it is not open.
+pub fn main_window<R: Runtime>(app: &AppHandle<R>) -> CommandResult<WebviewWindow<R>> {
+    app.get_webview_window(MAIN_WINDOW)
         .ok_or_else(|| CommandError::Failed {
             code: "window_missing",
             message: "The main window is not open.".to_string(),
@@ -137,6 +142,50 @@ fn move_traffic_lights(_window: &WebviewWindow, _x: f64, _y: f64) -> CommandResu
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The source files under `src/` that write the "main window is missing" error themselves.
+    fn files_building_window_missing(files: &[(String, String)]) -> Vec<String> {
+        let message = format!("The main window is {} open.", "not");
+        files
+            .iter()
+            .filter(|(_, source)| source.contains(&message))
+            .map(|(name, _)| name.clone())
+            .collect()
+    }
+
+    #[test]
+    fn plat_23_a_missing_main_window_is_a_window_missing_error() {
+        let app = tauri::test::mock_app();
+        let error = main_window(app.handle()).expect_err("the mock app opens no window");
+        assert!(matches!(
+            error,
+            CommandError::Failed {
+                code: "window_missing",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn plat_23_the_main_window_lookup_has_one_home() {
+        assert_eq!(
+            files_building_window_missing(&crate::error::crate_sources()),
+            vec!["window.rs".to_string()]
+        );
+    }
+
+    #[test]
+    fn plat_23_the_window_lookup_guard_flags_a_second_copy() {
+        let copy = format!("message: \"The main window is {} open.\"", "not");
+        let files = vec![
+            ("notifications.rs".to_string(), copy.clone()),
+            ("window.rs".to_string(), copy),
+        ];
+        assert_eq!(
+            files_building_window_missing(&files),
+            vec!["notifications.rs".to_string(), "window.rs".to_string()]
+        );
+    }
 
     #[test]
     fn plat_23_vibrancy_on_asks_for_the_sidebar_material() {

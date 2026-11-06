@@ -1,7 +1,7 @@
 //! @feature PLAT-08 Saved terminal scrollback
 //!
-//! Owns: writing a terminal's output to disk when it ends, reading it back after a restart, and
-//! keeping the folder within its size and age limits.
+//! Owns: writing a terminal's output to disk when it ends or the app quits, reading it back after
+//! a restart, and keeping the folder within its size and age limits.
 //!
 //! Behaviour: docs/research/conductor/native-and-sidecar-map.md A2 (`terminal_history_storage.rs`:
 //! `pty_load_terminal_history`, `pty_persist_terminal_history`, the 50 MiB limit with eviction of
@@ -12,8 +12,13 @@
 //!   each file mode 0600.
 //! - A terminal that never received user input is not saved: a finished setup script has its log
 //!   file already. The recorder tracks `has_received_input`.
-//! - Each file holds at most `MAX_ENTRY_BYTES`, the newest bytes. Cutting must not start in the
-//!   middle of an escape sequence: drop everything up to the first newline.
+//! - Each file holds at most `MAX_ENTRY_BYTES`, the newest bytes. The cut moves forward to just
+//!   after the first newline in the kept bytes, so it does not start inside an escape sequence or
+//!   a character. Without a newline it moves to the first escape character, which starts a
+//!   sequence. With neither it moves to the next UTF-8 character start; then the first kept bytes
+//!   can be the printable tail of a sequence cut before them (a few characters such as `31m`).
+//! - A quit saves every terminal still running (`pty::save_live_histories` from `lib.rs`), before
+//!   the terminals are ended, so the history of a terminal open at quit is on disk.
 //! - Writes are atomic (temp file plus rename), so a crash never leaves a half entry. A temp
 //!   file left by a crash is removed once it is a day old.
 //! - Eviction runs whenever the folder is opened for a load and after each save. It removes
@@ -29,11 +34,13 @@
 //! of the `terminals` table rows in migration 0001.
 //!
 //! Our design choice: one record holds at most 20 MiB and the whole folder at most 50 MiB, so the
-//! 60 MiB test below evicts the oldest terminal. The UI's scrollback setting bounds the live
-//! screen; the shell owns the saved file so a restart needs no UI call.
+//! 60 MiB test below evicts the oldest terminal.
+//! Not built yet: the Advanced setting "terminal scrollback limit" does not reach this file, so
+//! it does not cap saved history. That needs a scrollback limit in `PtySpawn` (platform.ts),
+//! which is a shared contract.
 //!
-//! Our design choice: output is appended as it arrives and written when the child exits, so there
-//! is no debounce timer and no UI persist call.
+//! Our design choice: output is appended as it arrives and written when the child exits or the
+//! app quits, so there is no debounce timer and no UI persist call.
 //!
 //! Test first: saving 60 MiB of entries over three terminals leaves the folder at or under
 //! 50 MiB, and the oldest terminal is the one that is gone.
@@ -81,7 +88,7 @@ impl HistoryRecorder {
     }
 
     /// Appends output, dropping the oldest bytes past `MAX_ENTRY_BYTES`.
-    pub fn push_output(&mut self, bytes: &[u8]) -> CommandResult<()> {
+    pub fn push_output(&mut self, bytes: &[u8]) {
         self.bytes.extend_from_slice(bytes);
         if self.bytes.len() > MAX_ENTRY_BYTES {
             let keep_from = {
@@ -90,7 +97,6 @@ impl HistoryRecorder {
             };
             self.bytes.drain(..keep_from);
         }
-        Ok(())
     }
 
     /// Notes that the user typed into the terminal.
@@ -229,16 +235,28 @@ struct Entry {
     size: u64,
 }
 
-/// The last `limit` bytes, starting after a newline when one exists inside the window.
+/// The escape character that starts every terminal control sequence.
+const ESC: u8 = 0x1b;
+
+/// The last `limit` bytes at most, starting just after the first newline inside them, else at
+/// the first escape character, else at the first UTF-8 character start.
 fn newest_bytes(bytes: &[u8], limit: usize) -> &[u8] {
     if bytes.len() <= limit {
         return bytes;
     }
-    let cut = bytes.len() - limit;
-    match bytes[cut..].iter().position(|byte| *byte == b'\n') {
-        Some(offset) => &bytes[cut + offset + 1..],
-        None => &bytes[cut..],
+    let window = &bytes[bytes.len() - limit..];
+    if let Some(newline) = window.iter().position(|byte| *byte == b'\n') {
+        return &window[newline + 1..];
     }
+    if let Some(escape) = window.iter().position(|byte| *byte == ESC) {
+        return &window[escape..];
+    }
+    // A UTF-8 continuation byte has the bit pattern 10xxxxxx.
+    let start = window
+        .iter()
+        .position(|byte| byte & 0b1100_0000 != 0b1000_0000)
+        .unwrap_or(window.len());
+    &window[start..]
 }
 
 /// Turns an id into a file inside `dir`, refusing anything that could leave it.
@@ -457,7 +475,7 @@ mod tests {
     fn recorder(terminal_id: &str, bytes: &[u8]) -> HistoryRecorder {
         let mut recorder = HistoryRecorder::new(terminal_id.to_string());
         recorder.mark_input();
-        recorder.push_output(bytes).expect("collect output");
+        recorder.push_output(bytes);
         recorder
     }
 
@@ -473,7 +491,7 @@ mod tests {
             let mut recorder = HistoryRecorder::new(id.clone());
             recorder.mark_input();
             for _ in 0..20 {
-                recorder.push_output(&block).expect("collect output");
+                recorder.push_output(&block);
             }
             recorder.save(folder.path()).expect("save history");
         }
@@ -495,9 +513,7 @@ mod tests {
     fn plat_08_a_terminal_without_input_is_not_saved() {
         let folder = TempDir::new("quiet");
         let mut quiet = HistoryRecorder::new("pty-quiet".to_string());
-        quiet
-            .push_output(b"setup output\n")
-            .expect("collect output");
+        quiet.push_output(b"setup output\n");
         quiet.save(folder.path()).expect("save history");
         assert!(!folder.entry("pty-quiet").exists());
 
@@ -564,11 +580,24 @@ mod tests {
     }
 
     #[test]
+    fn plat_08_a_cut_without_a_newline_never_starts_inside_a_sequence_or_a_character() {
+        // The raw cut lands inside `\x1b[31m`; the kept bytes start at the next sequence.
+        assert_eq!(
+            newest_bytes(b"\x1b[31mabc\x1b[0mdef", 13),
+            &b"\x1b[0mdef"[..]
+        );
+        // The raw cut lands inside a two-byte character; the kept bytes start at the next one.
+        let text = "\u{e9}\u{e9}\u{e9}".as_bytes();
+        assert_eq!(newest_bytes(text, 3), "\u{e9}".as_bytes());
+        assert!(std::str::from_utf8(newest_bytes(text, 5)).is_ok());
+    }
+
+    #[test]
     fn plat_08_push_output_keeps_at_most_one_entry_limit() {
         let mut recorder = HistoryRecorder::new("pty-big".to_string());
         let chunk = vec![b'a'; 1024 * 1024];
         for _ in 0..21 {
-            recorder.push_output(&chunk).expect("collect output");
+            recorder.push_output(&chunk);
         }
         assert!(
             recorder.bytes.len() <= MAX_ENTRY_BYTES,

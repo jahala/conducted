@@ -53,6 +53,8 @@ sha2 = "0.10"
 tokio = { version = "1", features = ["fs", "io-util", "macros", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 sysinfo = { version = "0.40.1", default-features = false, features = ["system"] }
+# The same app data folder rule Tauri uses, read before Tauri starts (PLAT-27, `lib.rs`).
+dirs = "7"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"

@@ -272,13 +272,22 @@ private final class SpeechSession {
     }
 }
 
-@_cdecl("conducted_speech_available")
-public func conductedSpeechAvailable() -> Bool {
+// The facts behind `speech_available`. Rust decides from them (`available_from` in speech.rs), so
+// the rule has one home and is tested without a Mac's speech settings.
+@_cdecl("conducted_speech_supports_on_device")
+public func conductedSpeechSupportsOnDevice() -> Bool {
     if #available(macOS 10.15, *) {
         guard let recognizer = SFSpeechRecognizer(locale: Locale.current) else { return false }
         return recognizer.supportsOnDeviceRecognition
     }
     return false
+}
+
+// The speech permission as Apple's raw value: 0 not determined, 1 denied, 2 restricted,
+// 3 authorized.
+@_cdecl("conducted_speech_authorization")
+public func conductedSpeechAuthorization() -> Int32 {
+    Int32(SFSpeechRecognizer.authorizationStatus().rawValue)
 }
 
 @_cdecl("conducted_speech_start")
