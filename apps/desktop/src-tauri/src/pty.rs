@@ -22,9 +22,8 @@
 //!   `pty_screen_text` never shows less than the UI has seen.
 //! - When the child exits, the exit watcher closes flow control and wakes a paused reader, then
 //!   waits only `DRAIN_AFTER_EXIT_MS` for the reader to drain. A background process that keeps
-//!   the PTY open cannot delay the exit. The exit code is collected, the history recorder is
-//!   asked to save (PLAT-08 owns saving; it fails today), the session leaves the table, and
-//!   `pty://exit` fires once.
+//!   the PTY open cannot delay the exit. The exit code is collected, the history recorder saves
+//!   the scrollback (PLAT-08), the session leaves the table, and `pty://exit` fires once.
 //! - `pty_kill` on a terminal that already ended succeeds. A kill sends SIGHUP to the terminal's
 //!   foreground process group, found with `tcgetpgrp` on the master, so `npm run dev` children
 //!   stop with the shell even when job control put them in another group.
@@ -45,14 +44,13 @@
 //! - `pty_screen_snapshot` redraws the visible grid as clear-screen plus plain text. It keeps no
 //!   colours, attributes or cursor position, and scrollback appears as visible lines. The full
 //!   screen state is not built yet.
-//! - Saving history is PLAT-08. `HistoryRecorder::push_output` and `save` are placeholders that
-//!   return an error today, so the reader and the exit watcher discard those errors.
+//! - Saving history is PLAT-08. The reader collects output into `HistoryRecorder`; the exit
+//!   watcher saves it to the history folder.
 //! - `pty-ready` is dropped by design: `pty_spawn` returns once the process exists.
 //!
 //! Our design choice: ids are made in Rust and are unique across restarts (start time plus a
 //! counter), so the history file name can be the id. The UI stores the id in its `terminals` row.
-//! Our design choice: once PLAT-08 lands, Rust saves history when the child exits, so the UI has
-//! no persist call.
+//! Our design choice: Rust saves history when the child exits, so the UI has no persist call.
 //!
 //! Test first: spawn `printf` of 3 MiB with the UI never acking; the reader pauses near
 //! `HIGH_WATER_BYTES`; acking everything lets it finish and `pty://exit` arrives once.
@@ -567,7 +565,7 @@ pub fn spawn_terminal(
 /// Starts the reader thread and the exit watcher for a new session. The reader honours flow
 /// control, feeds the mirror and the history recorder, then sends chunks on `output`. The
 /// watcher closes flow control, waits briefly for the reader, collects the exit status, asks the
-/// history recorder to save (PLAT-08 owns saving), removes the session and emits `pty://exit`.
+/// history recorder to save (PLAT-08), removes the session and emits `pty://exit`.
 pub fn start_io_threads(
     app: &AppHandle,
     _state: &PtyState,
@@ -612,12 +610,17 @@ pub fn start_io_threads(
         let _ = reader_done_rx.recv_timeout(Duration::from_millis(DRAIN_AFTER_EXIT_MS));
         let (exit_code, signal) = exit_details(status);
 
-        if let Ok(dir) = history_dir(&app) {
-            let history = session
-                .history
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner);
-            let _ = history.save(&dir);
+        match history_dir(&app) {
+            Ok(dir) => {
+                let history = session
+                    .history
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner);
+                if let Err(error) = history.save(&dir) {
+                    eprintln!("could not save the terminal's history: {error}");
+                }
+            }
+            Err(error) => eprintln!("could not prepare the terminal history folder: {error}"),
         }
 
         let state = app.state::<PtyState>();
@@ -890,7 +893,7 @@ fn signal_number(text: &str) -> Option<i32> {
 const BASE64_ALPHABET: &[u8; 64] =
     b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-fn encode_base64(bytes: &[u8]) -> String {
+pub(crate) fn encode_base64(bytes: &[u8]) -> String {
     let mut encoded = String::with_capacity(bytes.len().div_ceil(3) * 4);
     for chunk in bytes.chunks(3) {
         let first = chunk[0];

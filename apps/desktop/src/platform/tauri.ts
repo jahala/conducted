@@ -867,7 +867,13 @@ export function createTauriPty(bindings: TauriBindings): Pty {
 			};
 			return ok(handle);
 		},
-		loadHistory: () => notImplemented("PLAT-08"),
+		loadHistory: async (terminalId) => {
+			const result = await invokeResult<string>(bindings, COMMANDS.ptyLoadHistory, {
+				terminalId,
+			});
+			if (!result.ok) return result;
+			return ok(decodeBase64(result.value));
+		},
 	};
 }
 
