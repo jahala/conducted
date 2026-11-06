@@ -1,0 +1,132 @@
+{
+	"command": "turn",
+	"startedAt": "2026-11-06T11:55:27.489Z",
+	"sandbox": "conducted-spike-ws1",
+	"chat": "chat-b",
+	"sessionId": "d162f1a7-fc9e-417b-ad8a-79ce5fc7b959",
+	"turnId": "10ce112f-4e6f-418c-b106-09bd43a30fed",
+	"prompt": "What does notes.txt say? Answer in one short sentence.",
+	"model": "claude-haiku-5-5",
+	"outcome": "ended",
+	"start": {
+		"started": false,
+		"readyMs": 10,
+		"health": {
+			"bootedAt": 1793965500609,
+			"sidecarReadyAt": 1793965501142,
+			"sidecarMs": 533
+		},
+		"instance": "basic"
+	},
+	"startHttpMs": 345,
+	"deliveredAs": {
+		"deliveredAs": "new_turn"
+	},
+	"marks": {
+		"sandboxReady": 346,
+		"socketOpen": 579,
+		"sendAcknowledged": 665,
+		"firstAgentEvent": 4094,
+		"firstToken": 5254,
+		"turnEnded": 6876
+	},
+	"disconnect": null,
+	"events": [
+		{
+			"at": 661,
+			"sequence": 0,
+			"type": "user_message",
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 1079,
+			"sequence": 1,
+			"type": "checkpoint",
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 4093,
+			"sequence": 2,
+			"type": "agent",
+			"items": ["notice"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 5253,
+			"sequence": 3,
+			"type": "agent",
+			"items": ["tool_call"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 5583,
+			"sequence": 4,
+			"type": "agent",
+			"items": ["tool_result"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 6478,
+			"sequence": 5,
+			"type": "agent",
+			"items": ["text"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 6501,
+			"sequence": 6,
+			"type": "agent",
+			"items": ["usage"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 6873,
+			"sequence": 7,
+			"type": "checkpoint",
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 6875,
+			"sequence": 8,
+			"type": "turn_ended",
+			"outcome": "success",
+			"via": "notification"
+		}
+	],
+	"liveStates": [
+		{
+			"at": 661,
+			"status": "working"
+		},
+		{
+			"at": 6877,
+			"status": "idle"
+		}
+	],
+	"notes": ["agentSessionId stored"],
+	"storedEventsForChat": 9,
+	"storedEventsThisTurn": 9,
+	"finalText": "notes.txt says \"cloud spike\".",
+	"usage": [
+		{
+			"kind": "usage",
+			"inputTokens": 4,
+			"outputTokens": 106,
+			"cacheReadTokens": 32196,
+			"cacheWriteTokens": 4301,
+			"costUsd": 0.0009129850000000001,
+			"contextWindowTokens": 1000000,
+			"model": "claude-haiku-5-5",
+			"fastMode": false,
+			"serviceTier": "standard"
+		}
+	]
+}

@@ -1,0 +1,160 @@
+{
+	"command": "turn",
+	"startedAt": "2026-11-06T12:00:40.096Z",
+	"sandbox": "conducted-spike-ws1",
+	"chat": "chat-a",
+	"sessionId": "fcb27f77-031a-42c6-ac4a-6fb611510bb7",
+	"turnId": "4ae0f719-1a57-4663-80f5-04c4de18bee0",
+	"prompt": "Run the shell command 'sleep 20' first. After it finishes, write the word finished into done.txt. Then reply with one short sentence.",
+	"model": "claude-haiku-5-5",
+	"outcome": "ended",
+	"start": {
+		"started": false,
+		"readyMs": 8,
+		"health": {
+			"bootedAt": 1793965500609,
+			"sidecarReadyAt": 1793965501142,
+			"sidecarMs": 533
+		},
+		"instance": "basic"
+	},
+	"startHttpMs": 245,
+	"deliveredAs": {
+		"deliveredAs": "new_turn"
+	},
+	"marks": {
+		"sandboxReady": 245,
+		"socketOpen": 470,
+		"sendAcknowledged": 543,
+		"firstAgentEvent": 867,
+		"firstToken": 2451,
+		"disconnected": 2616,
+		"reconnected": 48482,
+		"turnEnded": 48872
+	},
+	"disconnect": {
+		"afterAckMs": 2000,
+		"awayMs": 45000,
+		"eventsBefore": 4,
+		"restart": {
+			"started": false,
+			"readyMs": 9,
+			"health": {
+				"bootedAt": 1793965500609,
+				"sidecarReadyAt": 1793965501142,
+				"sidecarMs": 533
+			},
+			"instance": "basic"
+		}
+	},
+	"events": [
+		{
+			"at": 539,
+			"sequence": 18,
+			"type": "user_message",
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 860,
+			"sequence": 19,
+			"type": "checkpoint",
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 866,
+			"sequence": 20,
+			"type": "agent",
+			"items": ["notice"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 2450,
+			"sequence": 21,
+			"type": "agent",
+			"items": ["tool_call"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 48483,
+			"sequence": 22,
+			"type": "agent",
+			"items": ["tool_result"],
+			"outcome": "appended",
+			"via": "replay"
+		},
+		{
+			"at": 48546,
+			"sequence": 23,
+			"type": "agent",
+			"items": ["tool_call"],
+			"outcome": "appended",
+			"via": "replay"
+		},
+		{
+			"at": 48609,
+			"sequence": 24,
+			"type": "agent",
+			"items": ["tool_result"],
+			"outcome": "appended",
+			"via": "replay"
+		},
+		{
+			"at": 48675,
+			"sequence": 25,
+			"type": "agent",
+			"items": ["text"],
+			"outcome": "appended",
+			"via": "replay"
+		},
+		{
+			"at": 48745,
+			"sequence": 26,
+			"type": "agent",
+			"items": ["usage"],
+			"outcome": "appended",
+			"via": "replay"
+		},
+		{
+			"at": 48809,
+			"sequence": 27,
+			"type": "checkpoint",
+			"outcome": "appended",
+			"via": "replay"
+		},
+		{
+			"at": 48871,
+			"sequence": 28,
+			"type": "turn_ended",
+			"outcome": "success",
+			"via": "replay"
+		}
+	],
+	"liveStates": [
+		{
+			"at": 539,
+			"status": "working"
+		}
+	],
+	"notes": [],
+	"storedEventsForChat": 29,
+	"storedEventsThisTurn": 11,
+	"finalText": "I ran `sleep 20` and then wrote \"finished\" into `done.txt`.",
+	"usage": [
+		{
+			"kind": "usage",
+			"inputTokens": 6,
+			"outputTokens": 193,
+			"cacheReadTokens": 51633,
+			"cacheWriteTokens": 5009,
+			"costUsd": 0.006351945000000001,
+			"contextWindowTokens": 1000000,
+			"model": "claude-haiku-5-5",
+			"fastMode": false,
+			"serviceTier": "standard"
+		}
+	]
+}

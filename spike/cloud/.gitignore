@@ -1,0 +1,4 @@
+node_modules/
+container/build/
+.wrangler/
+worker/worker-configuration.d.ts

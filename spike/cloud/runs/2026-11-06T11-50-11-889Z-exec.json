@@ -1,0 +1,17 @@
+{
+	"command": "exec",
+	"startedAt": "2026-11-06T11:50:11.538Z",
+	"sandbox": "conducted-spike-ws1",
+	"argv": [
+		"sh",
+		"-c",
+		"cat /proc/stat | head -1; grep -E \"MemTotal|MemAvailable\" /proc/meminfo; cat /sys/fs/cgroup/memory.peak /sys/fs/cgroup/memory.current 2>&1; nproc; cat /sys/fs/cgroup/cpu.stat 2>&1 | head -3; cat /sys/fs/cgroup/cpu.max 2>&1; uptime; ps -eo pid,rss,etime,args --sort=-rss | head -8 | cut -c1-120; df -h / | tail -1"
+	],
+	"status": 200,
+	"json": {
+		"exitCode": 0,
+		"stdout": "cpu  400 0 358 1299373 67 0 33 155 0 0\nMemTotal:         998024 kB\nMemAvailable:     746652 kB\ncat: /sys/fs/cgroup/memory.peak: No such file or directory\ncat: /sys/fs/cgroup/memory.current: No such file or directory\n1\nusage_usec 7932428\nuser_usec 4004176\nsystem_usec 3928252\ncat: /sys/fs/cgroup/cpu.max: No such file or directory\n 11:50:11 up 27 min,  0 users,  load average: 0.00, 0.04, 0.01\n    PID   RSS     ELAPSED COMMAND\n     25 181916      05:10 /usr/local/bin/claude --output-format stream-json --verbose --input-format stream-json --think\n      5 100980      05:11 /opt/conducted/conducted-sidecar sidecar\n      1 43788       05:11 /opt/conducted/bridge\n    184  3580       00:00 ps -eo pid,rss,etime,args --sort=-rss\n    174  1944       00:00 sh -c cat /proc/stat | head -1; grep -E \"MemTotal|MemAvailable\" /proc/meminfo; cat /sys/fs/cgr\n    186  1740       00:00 cut -c1-120\n    185  1652       00:00 head -8\n/dev/vdb        3.8G  706M  2.9G  20% /\n",
+		"stderr": ""
+	},
+	"ms": 349
+}

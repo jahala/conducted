@@ -1,0 +1,17 @@
+{
+	"name": "conducted-spike-cloud",
+	"private": true,
+	"type": "module",
+	"description": "CLOUD-02 spike: our sidecar in a Cloudflare sandbox. Not part of the pnpm workspace.",
+	"dependencies": {
+		"@cloudflare/sandbox": "1.0.3"
+	},
+	"devDependencies": {
+		"typescript": "5.9.3",
+		"wrangler": "4.158.0"
+	},
+	"scripts": {
+		"types": "wrangler types --env-interface Env worker/worker-configuration.d.ts",
+		"typecheck": "tsc -p . && tsc -p tsconfig.driver.json"
+	}
+}

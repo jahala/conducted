@@ -1,0 +1,132 @@
+{
+	"command": "turn",
+	"startedAt": "2026-11-06T11:50:23.010Z",
+	"sandbox": "conducted-spike-ws1",
+	"chat": "chat-a",
+	"sessionId": "fcb27f77-031a-42c6-ac4a-6fb611510bb7",
+	"turnId": "b16d5345-9114-47d2-8a14-e87b4ff23f62",
+	"prompt": "Create a file notes.txt containing the line 'cloud spike'. Reply with one short sentence.",
+	"model": "claude-haiku-5-5",
+	"outcome": "ended",
+	"start": {
+		"started": false,
+		"readyMs": 15,
+		"health": {
+			"bootedAt": 1793965500609,
+			"sidecarReadyAt": 1793965501142,
+			"sidecarMs": 533
+		},
+		"instance": "basic"
+	},
+	"startHttpMs": 241,
+	"deliveredAs": {
+		"deliveredAs": "new_turn"
+	},
+	"marks": {
+		"sandboxReady": 242,
+		"socketOpen": 468,
+		"sendAcknowledged": 549,
+		"firstAgentEvent": 1052,
+		"firstToken": 2288,
+		"turnEnded": 3448
+	},
+	"disconnect": null,
+	"events": [
+		{
+			"at": 548,
+			"sequence": 9,
+			"type": "user_message",
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 944,
+			"sequence": 10,
+			"type": "checkpoint",
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 1052,
+			"sequence": 11,
+			"type": "agent",
+			"items": ["notice"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 2287,
+			"sequence": 12,
+			"type": "agent",
+			"items": ["tool_call"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 2344,
+			"sequence": 13,
+			"type": "agent",
+			"items": ["tool_result"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 3078,
+			"sequence": 14,
+			"type": "agent",
+			"items": ["text"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 3100,
+			"sequence": 15,
+			"type": "agent",
+			"items": ["usage"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 3445,
+			"sequence": 16,
+			"type": "checkpoint",
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 3448,
+			"sequence": 17,
+			"type": "turn_ended",
+			"outcome": "success",
+			"via": "notification"
+		}
+	],
+	"liveStates": [
+		{
+			"at": 548,
+			"status": "working"
+		},
+		{
+			"at": 3448,
+			"status": "idle"
+		}
+	],
+	"notes": [],
+	"storedEventsForChat": 18,
+	"storedEventsThisTurn": 9,
+	"finalText": "I created `notes.txt` in the workspace with the line \"cloud spike\".",
+	"usage": [
+		{
+			"kind": "usage",
+			"inputTokens": 4,
+			"outputTokens": 112,
+			"cacheReadTokens": 18502,
+			"cacheWriteTokens": 18654,
+			"costUsd": 0.0051123900000000005,
+			"contextWindowTokens": 1000000,
+			"model": "claude-haiku-5-5",
+			"fastMode": false,
+			"serviceTier": "standard"
+		}
+	]
+}

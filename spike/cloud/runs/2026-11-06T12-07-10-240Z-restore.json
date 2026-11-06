@@ -1,0 +1,19 @@
+{
+	"command": "restore",
+	"startedAt": "2026-11-06T12:07:09.888Z",
+	"sandbox": "conducted-spike-ws1",
+	"dir": "/root/.claude",
+	"status": 200,
+	"json": {
+		"ms": 134,
+		"record": {
+			"id": "dac0c2cd-0df1-4794-b0b9-1badb8c12683",
+			"dir": "/root/.claude",
+			"size": 51839,
+			"sha256": "adaa8068b2c9b5e2f0c430475dad70b082f14f6336d40bad77e3c1cb735970f6",
+			"format": "tar+zstd/1",
+			"name": "conducted-spike /root/.claude"
+		}
+	},
+	"ms": 350
+}

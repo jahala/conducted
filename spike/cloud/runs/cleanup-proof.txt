@@ -1,0 +1,13 @@
+== wrangler containers list | grep -c conducted
+0
+== wrangler containers images list | grep -c conducted
+0
+== wrangler r2 bucket list | grep -c conducted
+0
+== wrangler deployments list --name conducted-spike-cloud
+✘ [ERROR] A request to the Cloudflare API (/accounts/<account id>/workers/scripts/conducted-spike-cloud/deployments) failed.
+  This Worker does not exist on your account. [code: 10007]
+== GET the worker URL
+404
+== wrangler secret list --name conducted-spike-cloud
+Worker "conducted-spike-cloud" not found.

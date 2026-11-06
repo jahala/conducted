@@ -1,0 +1,116 @@
+{
+	"command": "turn",
+	"startedAt": "2026-11-06T13:11:20.898Z",
+	"sandbox": "conducted-spike-ws1",
+	"chat": "chat-c",
+	"sessionId": "3ae30225-87df-4389-98fe-54a25c88e0bd",
+	"turnId": "eb6462da-d9be-4938-a4d6-2ace688172b8",
+	"prompt": "Reply with one short sentence: what is 2 + 2?",
+	"model": "claude-haiku-5-5",
+	"outcome": "ended",
+	"start": {
+		"started": true,
+		"readyMs": 1024,
+		"health": {
+			"bootedAt": 1793970682212,
+			"sidecarReadyAt": 1793970682763,
+			"sidecarMs": 551
+		},
+		"instance": "basic"
+	},
+	"startHttpMs": 2047,
+	"deliveredAs": {
+		"deliveredAs": "new_turn"
+	},
+	"marks": {
+		"sandboxReady": 2048,
+		"socketOpen": 2459,
+		"sendAcknowledged": 2667,
+		"firstAgentEvent": 4320,
+		"firstToken": 5411,
+		"turnEnded": 5760
+	},
+	"disconnect": null,
+	"events": [
+		{
+			"at": 2660,
+			"sequence": 0,
+			"type": "user_message",
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 3038,
+			"sequence": 1,
+			"type": "checkpoint",
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 4319,
+			"sequence": 2,
+			"type": "agent",
+			"items": ["notice"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 5410,
+			"sequence": 3,
+			"type": "agent",
+			"items": ["text"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 5520,
+			"sequence": 4,
+			"type": "agent",
+			"items": ["usage"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 5759,
+			"sequence": 5,
+			"type": "checkpoint",
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 5760,
+			"sequence": 6,
+			"type": "turn_ended",
+			"outcome": "success",
+			"via": "notification"
+		}
+	],
+	"liveStates": [
+		{
+			"at": 2660,
+			"status": "working"
+		},
+		{
+			"at": 5761,
+			"status": "idle"
+		}
+	],
+	"notes": ["notification agentInstallsChanged", "agentSessionId stored"],
+	"storedEventsForChat": 7,
+	"storedEventsThisTurn": 7,
+	"finalText": "4",
+	"usage": [
+		{
+			"kind": "usage",
+			"inputTokens": 2,
+			"outputTokens": 3,
+			"cacheReadTokens": 0,
+			"cacheWriteTokens": 18183,
+			"costUsd": 0.002274575,
+			"contextWindowTokens": 1000000,
+			"model": "claude-haiku-5-5",
+			"fastMode": false,
+			"serviceTier": "standard"
+		}
+	]
+}

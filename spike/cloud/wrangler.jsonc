@@ -1,0 +1,31 @@
+// CLOUD-02 spike. Every resource here is named conducted-spike-* and is deleted after the spike.
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "conducted-spike-cloud",
+	"main": "worker/index.ts",
+	"compatibility_date": "2026-11-06",
+	"compatibility_flags": ["nodejs_compat"],
+	"observability": { "enabled": true },
+	"workers_dev": true,
+	"vars": {
+		// The smallest named type the sidecar and Claude Code run in (see RESULTS.md).
+		"INSTANCE_TYPE": "basic"
+	},
+	"containers": [
+		{
+			"name": "conducted-spike-cloud-sandbox",
+			"class_name": "ConductedSpikeWorkspace",
+			"scheduling_policy": "durable_object",
+			"images": {
+				"sandbox": { "dockerfile": "./container/Dockerfile" }
+			}
+		}
+	],
+	"durable_objects": {
+		"bindings": [{ "class_name": "ConductedSpikeWorkspace", "name": "WORKSPACE" }]
+	},
+	"exports": {
+		"ConductedSpikeWorkspace": { "type": "durable-object", "storage": "sqlite" }
+	},
+	"r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "conducted-spike-cloud-backups" }]
+}

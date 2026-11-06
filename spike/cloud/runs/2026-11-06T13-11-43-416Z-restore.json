@@ -1,0 +1,19 @@
+{
+	"command": "restore",
+	"startedAt": "2026-11-06T13:11:42.766Z",
+	"sandbox": "conducted-spike-ws1",
+	"dir": "/workspace",
+	"status": 200,
+	"json": {
+		"ms": 237,
+		"record": {
+			"id": "928835d1-1874-4058-bed7-7b94c4aada15",
+			"dir": "/workspace",
+			"size": 21431,
+			"sha256": "a3db17daa1156e214c9589162239eb1b7fc07ffe91d4cb9c8233de19ac61ef39",
+			"format": "tar+zstd/1",
+			"name": "conducted-spike /workspace"
+		}
+	},
+	"ms": 649
+}

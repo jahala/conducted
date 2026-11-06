@@ -1,0 +1,16 @@
+{
+	"command": "rtt",
+	"startedAt": "2026-11-06T13:12:35Z",
+	"sandbox": "conducted-spike-ws1",
+	"workerColo": "OSL",
+	"result": {
+		"samples": 20,
+		"minMs": 148,
+		"medianMs": 159,
+		"maxMs": 257,
+		"all": [
+			148, 149, 151, 152, 152, 153, 155, 157, 157, 158, 159, 159, 163, 164, 164, 168, 171, 177, 181,
+			257
+		]
+	}
+}

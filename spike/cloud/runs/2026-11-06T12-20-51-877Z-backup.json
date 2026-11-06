@@ -1,0 +1,17 @@
+{
+	"command": "backup",
+	"startedAt": "2026-11-06T12:20:50.730Z",
+	"sandbox": "conducted-spike-ws1",
+	"dir": "/workspace",
+	"status": 200,
+	"json": {
+		"id": "f2de38c2-0d0a-451c-adbd-aaa66012acaa",
+		"dir": "/workspace",
+		"size": 16392,
+		"sha256": "a2a6f05572ab5ac0062dfaa539cfd9e9b241b2ed583fed85f3defde1e197839d",
+		"format": "tar+zstd/1",
+		"name": "conducted-spike /workspace",
+		"ms": 615
+	},
+	"ms": 1145
+}

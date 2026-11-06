@@ -1,0 +1,156 @@
+{
+	"command": "turn",
+	"startedAt": "2026-11-06T13:16:42.207Z",
+	"sandbox": "conducted-spike-ws2",
+	"chat": "chat-d",
+	"sessionId": "ae90cfc0-1931-4f95-822f-c56fe403e304",
+	"turnId": "7493484f-43fa-4ee1-b5f2-e5d00005129f",
+	"prompt": "Write a short Python script hello.py that prints the numbers 1 to 5, run it with python3 if it exists or explain if not, and reply in one sentence.",
+	"model": "claude-haiku-5-5",
+	"outcome": "ended",
+	"start": {
+		"started": false,
+		"readyMs": 6,
+		"health": {
+			"bootedAt": 1793970785304,
+			"sidecarReadyAt": 1793970785888,
+			"sidecarMs": 584
+		},
+		"instance": "basic"
+	},
+	"startHttpMs": 423,
+	"deliveredAs": {
+		"deliveredAs": "new_turn"
+	},
+	"marks": {
+		"sandboxReady": 424,
+		"socketOpen": 810,
+		"sendAcknowledged": 939,
+		"firstAgentEvent": 1434,
+		"firstToken": 3124,
+		"turnEnded": 6555
+	},
+	"disconnect": null,
+	"events": [
+		{
+			"at": 935,
+			"sequence": 9,
+			"type": "user_message",
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 1433,
+			"sequence": 10,
+			"type": "agent",
+			"items": ["notice"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 1973,
+			"sequence": 11,
+			"type": "checkpoint",
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 3124,
+			"sequence": 12,
+			"type": "agent",
+			"items": ["tool_call"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 3235,
+			"sequence": 13,
+			"type": "agent",
+			"items": ["tool_result"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 3535,
+			"sequence": 14,
+			"type": "agent",
+			"items": ["tool_call"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 3612,
+			"sequence": 15,
+			"type": "agent",
+			"items": ["tool_result"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 5782,
+			"sequence": 16,
+			"type": "agent",
+			"items": ["thinking"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 5783,
+			"sequence": 17,
+			"type": "agent",
+			"items": ["text"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 5830,
+			"sequence": 18,
+			"type": "agent",
+			"items": ["usage"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 6420,
+			"sequence": 19,
+			"type": "checkpoint",
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 6555,
+			"sequence": 20,
+			"type": "turn_ended",
+			"outcome": "success",
+			"via": "notification"
+		}
+	],
+	"liveStates": [
+		{
+			"at": 935,
+			"status": "working"
+		},
+		{
+			"at": 6555,
+			"status": "idle"
+		}
+	],
+	"notes": [],
+	"storedEventsForChat": 21,
+	"storedEventsThisTurn": 12,
+	"finalText": "Python 3 isn't installed here, so I couldn't run `hello.py`; I created it at `/workspace/repo/hello.py` with a loop that prints 1 to 5.",
+	"usage": [
+		{
+			"kind": "usage",
+			"inputTokens": 4,
+			"outputTokens": 377,
+			"cacheReadTokens": 36703,
+			"cacheWriteTokens": 411,
+			"costUsd": 0.0015218100000000002,
+			"contextWindowTokens": 1000000,
+			"model": "claude-haiku-5-5",
+			"fastMode": false,
+			"serviceTier": "standard"
+		}
+	]
+}

@@ -1,0 +1,11 @@
+{
+	"command": "backup",
+	"startedAt": "2026-11-06T12:20:51.956Z",
+	"sandbox": "conducted-spike-ws1",
+	"dir": "/root/.claude",
+	"status": 500,
+	"json": {
+		"error": "backup '/root/.claude': /root/.claude: No such file or directory (os error 2)"
+	},
+	"ms": 248
+}

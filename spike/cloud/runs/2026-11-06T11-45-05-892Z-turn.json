@@ -1,0 +1,132 @@
+{
+	"command": "turn",
+	"startedAt": "2026-11-06T11:44:49.818Z",
+	"sandbox": "conducted-spike-ws1",
+	"chat": "chat-a",
+	"sessionId": "fcb27f77-031a-42c6-ac4a-6fb611510bb7",
+	"turnId": "3949a77e-9962-437e-bf84-e82d1d866e84",
+	"prompt": "List the files in this folder, then reply in one short sentence.",
+	"model": "claude-haiku-5-5",
+	"outcome": "ended",
+	"start": {
+		"started": true,
+		"readyMs": 10695,
+		"health": {
+			"bootedAt": 1793965500609,
+			"sidecarReadyAt": 1793965501142,
+			"sidecarMs": 533
+		},
+		"instance": "basic"
+	},
+	"startHttpMs": 11413,
+	"deliveredAs": {
+		"deliveredAs": "new_turn"
+	},
+	"marks": {
+		"sandboxReady": 11414,
+		"socketOpen": 11704,
+		"sendAcknowledged": 11820,
+		"firstAgentEvent": 13375,
+		"firstToken": 14547,
+		"turnEnded": 15571
+	},
+	"disconnect": null,
+	"events": [
+		{
+			"at": 11805,
+			"sequence": 0,
+			"type": "user_message",
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 12102,
+			"sequence": 1,
+			"type": "checkpoint",
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 13375,
+			"sequence": 2,
+			"type": "agent",
+			"items": ["notice"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 14547,
+			"sequence": 3,
+			"type": "agent",
+			"items": ["tool_call"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 14695,
+			"sequence": 4,
+			"type": "agent",
+			"items": ["tool_result"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 15450,
+			"sequence": 5,
+			"type": "agent",
+			"items": ["text"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 15566,
+			"sequence": 6,
+			"type": "agent",
+			"items": ["usage"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 15567,
+			"sequence": 7,
+			"type": "checkpoint",
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 15571,
+			"sequence": 8,
+			"type": "turn_ended",
+			"outcome": "success",
+			"via": "notification"
+		}
+	],
+	"liveStates": [
+		{
+			"at": 11811,
+			"status": "working"
+		},
+		{
+			"at": 15571,
+			"status": "idle"
+		}
+	],
+	"notes": ["notification agentInstallsChanged", "agentSessionId stored"],
+	"storedEventsForChat": 9,
+	"storedEventsThisTurn": 9,
+	"finalText": "The folder holds a `README.md` file and a `.git` directory.",
+	"usage": [
+		{
+			"kind": "usage",
+			"inputTokens": 4,
+			"outputTokens": 109,
+			"cacheReadTokens": 18182,
+			"cacheWriteTokens": 18420,
+			"costUsd": 0.00253922,
+			"contextWindowTokens": 1000000,
+			"model": "claude-haiku-5-5",
+			"fastMode": false,
+			"serviceTier": "standard"
+		}
+	]
+}

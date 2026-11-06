@@ -1,0 +1,13 @@
+{
+	"command": "exec",
+	"startedAt": "2026-11-06T13:16:49.510Z",
+	"sandbox": "conducted-spike-ws2",
+	"argv": ["sh", "-c", "date +%s%3N; head -1 /sys/fs/cgroup/cpu.stat"],
+	"status": 200,
+	"json": {
+		"exitCode": 0,
+		"stdout": "1793971009814\nusage_usec 59795042\n",
+		"stderr": ""
+	},
+	"ms": 508
+}

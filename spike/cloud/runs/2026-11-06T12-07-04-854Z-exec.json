@@ -1,0 +1,13 @@
+{
+	"command": "exec",
+	"startedAt": "2026-11-06T12:07:04.549Z",
+	"sandbox": "conducted-spike-ws1",
+	"argv": ["sh", "-c", "cat /workspace/repo/wip.txt; git status --short; ls /root/.claude"],
+	"status": 200,
+	"json": {
+		"exitCode": 2,
+		"stdout": "",
+		"stderr": "cat: /workspace/repo/wip.txt: No such file or directory\nls: cannot access '/root/.claude': No such file or directory\n"
+	},
+	"ms": 304
+}

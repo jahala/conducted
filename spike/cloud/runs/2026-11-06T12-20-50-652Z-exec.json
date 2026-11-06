@@ -1,0 +1,11 @@
+{
+	"command": "exec",
+	"startedAt": "2026-11-06T12:20:50.371Z",
+	"sandbox": "conducted-spike-ws1",
+	"argv": ["sh", "-c", "date +%s; head -1 /sys/fs/cgroup/cpu.stat; ps -o etime= -p 1"],
+	"status": 500,
+	"json": {
+		"error": "The sandbox is not running"
+	},
+	"ms": 279
+}

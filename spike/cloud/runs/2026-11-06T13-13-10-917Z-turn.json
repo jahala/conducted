@@ -1,0 +1,132 @@
+{
+	"command": "turn",
+	"startedAt": "2026-11-06T13:12:59.312Z",
+	"sandbox": "conducted-spike-ws2",
+	"chat": "chat-d",
+	"sessionId": "ae90cfc0-1931-4f95-822f-c56fe403e304",
+	"turnId": "e97e3aad-6ec6-4f2c-8b97-ad1535ba288a",
+	"prompt": "Count the lines of README.md with a shell command and reply with one short sentence.",
+	"model": "claude-haiku-5-5",
+	"outcome": "ended",
+	"start": {
+		"started": true,
+		"readyMs": 6033,
+		"health": {
+			"bootedAt": 1793970785304,
+			"sidecarReadyAt": 1793970785888,
+			"sidecarMs": 584
+		},
+		"instance": "basic"
+	},
+	"startHttpMs": 6782,
+	"deliveredAs": {
+		"deliveredAs": "new_turn"
+	},
+	"marks": {
+		"sandboxReady": 6782,
+		"socketOpen": 7162,
+		"sendAcknowledged": 7376,
+		"firstAgentEvent": 9056,
+		"firstToken": 10327,
+		"turnEnded": 11100
+	},
+	"disconnect": null,
+	"events": [
+		{
+			"at": 7330,
+			"sequence": 0,
+			"type": "user_message",
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 7659,
+			"sequence": 1,
+			"type": "checkpoint",
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 9055,
+			"sequence": 2,
+			"type": "agent",
+			"items": ["notice"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 10326,
+			"sequence": 3,
+			"type": "agent",
+			"items": ["tool_call"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 10329,
+			"sequence": 4,
+			"type": "agent",
+			"items": ["tool_result"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 11051,
+			"sequence": 5,
+			"type": "agent",
+			"items": ["text"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 11053,
+			"sequence": 6,
+			"type": "agent",
+			"items": ["usage"],
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 11098,
+			"sequence": 7,
+			"type": "checkpoint",
+			"outcome": "appended",
+			"via": "notification"
+		},
+		{
+			"at": 11099,
+			"sequence": 8,
+			"type": "turn_ended",
+			"outcome": "success",
+			"via": "notification"
+		}
+	],
+	"liveStates": [
+		{
+			"at": 7337,
+			"status": "working"
+		},
+		{
+			"at": 11099,
+			"status": "idle"
+		}
+	],
+	"notes": ["notification agentInstallsChanged", "agentSessionId stored"],
+	"storedEventsForChat": 9,
+	"storedEventsThisTurn": 9,
+	"finalText": "README.md has 1 line, according to `wc -l`.",
+	"usage": [
+		{
+			"kind": "usage",
+			"inputTokens": 4,
+			"outputTokens": 111,
+			"cacheReadTokens": 32198,
+			"cacheWriteTokens": 4293,
+			"costUsd": 0.000914505,
+			"contextWindowTokens": 1000000,
+			"model": "claude-haiku-5-5",
+			"fastMode": false,
+			"serviceTier": "standard"
+		}
+	]
+}

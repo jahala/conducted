@@ -1,0 +1,17 @@
+{
+	"command": "exec",
+	"startedAt": "2026-11-06T12:06:40.836Z",
+	"sandbox": "conducted-spike-ws1",
+	"argv": [
+		"sh",
+		"-c",
+		"printf \"work in progress, written %s\\n\" \"$(date -u +%FT%TZ)\" > /workspace/repo/wip.txt && cat wip.txt && git status --short && ls -la /root/.claude | head && du -sh /workspace /root/.claude"
+	],
+	"status": 200,
+	"json": {
+		"exitCode": 0,
+		"stdout": "work in progress, written 2026-11-06T12:06:41Z\n?? done.txt\n?? notes.txt\n?? wip.txt\ntotal 24\ndrwxr-xr-x 1 root root  398 Nov  6 11:55 .\ndrwx------ 1 root root   96 Nov  6 11:45 ..\n-rw-r--r-- 1 root root   24 Nov  6 12:05 .last-cleanup\ndrwxr-xr-x 1 root root   66 Nov  6 11:45 backups\ndrwx------ 1 root root   10 Nov  6 11:45 plugins\n-rw------- 1 root root  847 Nov  6 11:45 policy-limits.json\n-rw------- 1 root root 2939 Nov  6 11:55 policy-limits.json.signature.json\n-rw------- 1 root root  223 Nov  6 11:55 policy-limits.json.stamp.json\ndrwxr-xr-x 1 root root   30 Nov  6 11:45 projects\n208K\t/workspace\n388K\t/root/.claude\n",
+		"stderr": ""
+	},
+	"ms": 343
+}

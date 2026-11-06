@@ -1,0 +1,17 @@
+{
+	"command": "exec",
+	"startedAt": "2026-11-06T13:13:11.193Z",
+	"sandbox": "conducted-spike-ws2",
+	"argv": [
+		"sh",
+		"-c",
+		"date +%s; head -1 /sys/fs/cgroup/cpu.stat; ps -o etime= -p 1; cut -d\" \" -f1 /proc/uptime; head -1 /proc/stat; grep MemAvailable /proc/meminfo"
+	],
+	"status": 200,
+	"json": {
+		"exitCode": 0,
+		"stdout": "1793970791\nusage_usec 56510638\n      00:06\n15253.37\ncpu  2785 0 2566 12193089 77 0 299 1206 0 0\nMemAvailable:     711968 kB\n",
+		"stderr": ""
+	},
+	"ms": 686
+}

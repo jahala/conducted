@@ -1,0 +1,10 @@
+{
+	"command": "destroy",
+	"startedAt": "2026-11-06T12:06:58.959Z",
+	"sandbox": "conducted-spike-ws1",
+	"status": 200,
+	"json": {
+		"wasRunning": true
+	},
+	"ms": 392
+}

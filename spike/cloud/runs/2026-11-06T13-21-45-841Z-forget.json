@@ -1,0 +1,10 @@
+{
+	"command": "forget",
+	"startedAt": "2026-11-06T13:21:45.445Z",
+	"sandbox": "conducted-spike-ws2",
+	"status": 200,
+	"json": {
+		"deleted": []
+	},
+	"ms": 394
+}

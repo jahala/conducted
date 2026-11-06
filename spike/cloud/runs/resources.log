@@ -1,0 +1,26 @@
+2026-11-06T11:42:29Z CREATE r2 bucket conducted-spike-cloud-backups
+2026-11-06T11:44:27Z CREATE worker conducted-spike-cloud (version 0b64e69d), durable object class ConductedSpikeWorkspace, image conducted-spike-cloud-conductedspikeworkspace-sandbox:wrangler-mw4wnflu
+2026-11-06T11:44:44Z CREATE secrets PAIRING_TOKEN, ANTHROPIC_API_KEY on worker conducted-spike-cloud
+2026-11-06T11:44:49Z sandbox start #1 (cold, first after deploy) turn #1
+2026-11-06T11:50:22Z turn #2 (warm, same chat)
+2026-11-06T11:55:27Z turn #3 (warm sandbox, new chat)
+2026-11-06T12:00:40Z turn #4 (disconnect 2 s after ack, away 45 s)
+2026-11-06T12:06:51Z destroy sandbox (restart for keep test)
+2026-11-06T12:07:02Z sandbox start #2 (after destroy; keep test)
+2026-11-06T12:07:16Z turn #5 (resume chat-a after restart + restore)
+2026-11-06T12:25:02Z NOTE sandbox had stopped by inactivity timeout (last request 12:07:35); backup call at 12:20:50 started it again = sandbox start #3 (spike bug: backup must not start)
+2026-11-06T12:25:41Z UPDATE worker conducted-spike-cloud redeployed (version b26dc57b): backup/restore no longer start a stopped sandbox
+2026-11-06T12:26:18Z destroy (start #3 instance)
+2026-11-06T12:26:22Z sandbox start #4 (cold) turn #6 new chat-c
+2026-11-06T13:11:20Z NOTE previous line did not run (timeout(1) missing); retrying start #4 / turn #6
+2026-11-06T13:11:33Z destroy; then sandbox start #5 + restore (records 928835d1, dac0c2cd) + turn #7 resume chat-a
+2026-11-06T13:12:43Z destroy ws1 (start #5 instance)
+2026-11-06T13:12:59Z sandbox start #6 (cold, new name conducted-spike-ws2) turn #8
+2026-11-06T13:16:42Z turn #9 (warm, same chat-d, CPU measured)
+2026-11-06T13:21:44Z destroy ws2 (start #6 instance)
+2026-11-06T13:21:45Z DELETE backup objects (forget ws1, ws2) and DO storage
+2026-11-06T13:22:16Z DELETE worker conducted-spike-cloud (its secrets go with it; wrangler cannot list Durable Object namespaces)
+2026-11-06T13:22:21Z DELETE container application conducted-spike-cloud-sandbox (62fd892f)
+2026-11-06T13:22:31Z DELETE image conducted-spike-cloud-conductedspikeworkspace-sandbox:wrangler-mw4wnflu
+2026-11-06T13:22:39Z DELETE r2 bucket conducted-spike-cloud-backups (empty: delete succeeds only on an empty bucket)
+2026-11-06T13:24:20Z VERIFY lists show no conducted-spike resource

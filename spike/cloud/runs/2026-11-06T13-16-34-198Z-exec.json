@@ -1,0 +1,17 @@
+{
+	"command": "exec",
+	"startedAt": "2026-11-06T13:13:33.808Z",
+	"sandbox": "conducted-spike-ws2",
+	"argv": [
+		"sh",
+		"-c",
+		"date +%s; head -1 /sys/fs/cgroup/cpu.stat; sleep 180; date +%s; head -1 /sys/fs/cgroup/cpu.stat; ps -o etime= -p 1; ps -eo rss,args --sort=-rss | head -4 | cut -c1-60"
+	],
+	"status": 200,
+	"json": {
+		"exitCode": 0,
+		"stdout": "1793970813\nusage_usec 56982407\n1793970993\nusage_usec 58754860\n      03:28\n  RSS COMMAND\n183516 /usr/local/bin/claude --output-format stream-json --v\n99260 /opt/conducted/conducted-sidecar sidecar\n43728 /opt/conducted/bridge\n",
+		"stderr": ""
+	},
+	"ms": 180387
+}

@@ -1,0 +1,17 @@
+{
+	"command": "exec",
+	"startedAt": "2026-11-06T13:17:24.620Z",
+	"sandbox": "conducted-spike-ws2",
+	"argv": [
+		"sh",
+		"-c",
+		"pid=$(pgrep -x claude | head -1); echo \"claude pid found: $([ -n \"$pid\" ] && echo yes)\"; echo \"placeholder key lines: $(tr \"\\0\" \"\\n\" < /proc/$pid/environ | grep -c \"^ANTHROPIC_API_KEY=provided-by-worker$\")\"; echo \"any other ANTHROPIC_API_KEY value: $(tr \"\\0\" \"\\n\" < /proc/$pid/environ | grep \"^ANTHROPIC_API_KEY=\" | grep -vc \"=provided-by-worker$\")\"; node -e \"fetch(\\\"https://example.com/\\\").then(r=>console.log(\\\"example.com status\\\", r.status)).catch(e=>console.log(\\\"example.com error\\\", e.cause?.code ?? e.message))\"; node -e \"fetch(\\\"https://registry.npmjs.org/\\\").then(r=>console.log(\\\"npm registry status\\\", r.status)).catch(e=>console.log(\\\"npm error\\\", e.message))\""
+	],
+	"status": 200,
+	"json": {
+		"exitCode": 0,
+		"stdout": "claude pid found: yes\nplaceholder key lines: 1\nany other ANTHROPIC_API_KEY value: 0\nexample.com status 403\nnpm registry status 403\n",
+		"stderr": ""
+	},
+	"ms": 3003
+}

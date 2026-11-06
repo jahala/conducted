@@ -1,0 +1,17 @@
+{
+	"command": "start",
+	"startedAt": "2026-11-06T12:07:02.983Z",
+	"sandbox": "conducted-spike-ws1",
+	"status": 200,
+	"json": {
+		"started": true,
+		"readyMs": 1233,
+		"health": {
+			"bootedAt": 1793966823654,
+			"sidecarReadyAt": 1793966824349,
+			"sidecarMs": 695
+		},
+		"instance": "basic"
+	},
+	"ms": 1486
+}
