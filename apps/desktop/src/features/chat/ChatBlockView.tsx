@@ -10,7 +10,7 @@
  * error block's banner.
  * Test first: a tool block renders the tool card for its call; a notice block renders a banner.
  */
-import type { SessionId } from "@conducted/shared";
+import type { SessionId, WorkspaceId } from "@conducted/shared";
 import type { ChatBlock } from "../../core/model.ts";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { AssistantText } from "./AssistantText.tsx";
@@ -32,17 +32,21 @@ const BLOCK_AREA = {
 function BlockContent({
 	block,
 	sessionId,
+	workspaceId,
+	streaming,
 	onRetry,
 	retryInNewChat,
 }: {
 	block: ChatBlock;
 	sessionId: SessionId;
+	workspaceId?: WorkspaceId;
+	streaming?: boolean;
 	onRetry?: () => void;
 	retryInNewChat?: RetryInNewChatTarget;
 }) {
 	switch (block.kind) {
 		case "text":
-			return <AssistantText text={block.text} />;
+			return <AssistantText text={block.text} workspaceId={workspaceId} streaming={streaming} />;
 		case "thinking":
 			return <ThinkingBlock text={block.text} summarized={block.summarized} />;
 		case "tool":
@@ -63,11 +67,17 @@ function BlockContent({
 export function ChatBlockView({
 	block,
 	sessionId,
+	workspaceId,
+	streaming,
 	onRetry,
 	retryInNewChat,
 }: {
 	block: ChatBlock;
 	sessionId: SessionId;
+	/** The workspace a relative file or video target in the text belongs to. */
+	workspaceId?: WorkspaceId;
+	/** The reply's text is still arriving from the agent. */
+	streaming?: boolean;
 	/** Resends the last message, for a retryable error block. */
 	onRetry?: () => void;
 	/** The failed turn to send again in a new chat, for an error block. */
@@ -81,6 +91,8 @@ export function ChatBlockView({
 			<BlockContent
 				block={block}
 				sessionId={sessionId}
+				workspaceId={workspaceId}
+				streaming={streaming}
 				onRetry={onRetry}
 				retryInNewChat={retryInNewChat}
 			/>

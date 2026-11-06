@@ -18,7 +18,7 @@
  * error shows the boundary text and the next turn still renders; Retry now cancels and resends.
  */
 import type { LiveState } from "@conducted/protocol";
-import type { SessionId } from "@conducted/shared";
+import type { SessionId, WorkspaceId } from "@conducted/shared";
 import { memo, useRef } from "react";
 import { createSingleFlight } from "../../core/async/single-flight.ts";
 import { useActions } from "../../core/hooks.ts";
@@ -36,6 +36,8 @@ import { useWorkspaceLinks } from "./workspace-links.ts";
 export interface TurnItemProps {
 	turn: ChatTurn;
 	sessionId: SessionId;
+	/** The workspace a relative file or video target in the text belongs to. */
+	workspaceId?: WorkspaceId;
 	/** The agent's own retry, when this is the running turn that has one. */
 	retry?: LiveState["retry"];
 }
@@ -78,7 +80,12 @@ function outcomeBlock(turn: ChatTurn): Extract<ChatBlock, { kind: "notice" | "er
 	return null;
 }
 
-export const TurnItem = memo(function TurnItem({ turn, sessionId, retry }: TurnItemProps) {
+export const TurnItem = memo(function TurnItem({
+	turn,
+	sessionId,
+	workspaceId,
+	retry,
+}: TurnItemProps) {
 	const actions = useActions();
 	const links = useWorkspaceLinks();
 	const retryFlight = useRef(createSingleFlight()).current;
@@ -151,6 +158,8 @@ export const TurnItem = memo(function TurnItem({ turn, sessionId, retry }: TurnI
 						key={key}
 						block={block}
 						sessionId={sessionId}
+						workspaceId={workspaceId}
+						streaming={turn.outcome === "running"}
 						onRetry={retryMessage}
 						retryInNewChat={retryInNewChat}
 					/>

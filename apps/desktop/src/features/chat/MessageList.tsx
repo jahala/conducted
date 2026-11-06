@@ -115,6 +115,7 @@ export function MessageList({ sessionId, workspaceId, listRef: parentListRef }: 
 								<TurnItem
 									turn={turn}
 									sessionId={sessionId}
+									workspaceId={workspaceId}
 									retry={index === data.turns.length - 1 ? data.liveState.retry : undefined}
 								/>
 							)}
