@@ -35,13 +35,13 @@ import {
 	appError,
 	type Clock,
 	err,
+	messageOf,
 	ok,
 	type Result,
 } from "@conducted/shared";
 import { z } from "zod";
 import type { Logger } from "../logging/logger.ts";
 import { KeyedSerialQueue } from "../session/serial-queue.ts";
-import { messageOf } from "../util/errors.ts";
 
 export const COMPLETIONS_FILE_NAME = "slash-command-snapshots.json";
 export const COMPLETIONS_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;

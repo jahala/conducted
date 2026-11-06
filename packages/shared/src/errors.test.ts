@@ -15,6 +15,13 @@ describe("SIDE-01 error helpers", () => {
 		).toBe("The program at /x cannot run.");
 	});
 
+	test("messageOf reads the message of a thrown object that has one, as the database plugin throws", () => {
+		expect(messageOf({ message: "UNIQUE constraint failed: repos.root_path" })).toBe(
+			"UNIQUE constraint failed: repos.root_path",
+		);
+		expect(messageOf({ message: 7 })).toBe("[object Object]");
+	});
+
 	test("SIDE-01 isAppError accepts a code and a message, and refuses look-alikes", () => {
 		expect(isAppError({ code: "x", message: "y" })).toBe(true);
 		expect(isAppError({ code: "x" })).toBe(false);

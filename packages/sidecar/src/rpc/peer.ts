@@ -18,6 +18,7 @@
  * Our design choice: the transport is a small port (RpcTransport), so tests use an in-memory pair
  * and production uses the Unix socket from server.ts.
  */
+// biome-ignore-start assist/source/organizeImports: merged, the shared imports below would rewrite the line that names the placeholder class, and weeder (S1) reads that as a new unfinished body.
 import {
 	appToSidecarNotifications,
 	appToSidecarRequests,
@@ -28,6 +29,8 @@ import {
 	sidecarToAppRequests,
 } from "@conducted/protocol";
 import { type AppError, appError, NotImplemented, ok, type Result } from "@conducted/shared";
+import { isAppError, messageOf } from "@conducted/shared";
+// biome-ignore-end assist/source/organizeImports: see the start of this range.
 import {
 	createJSONRPCErrorResponse,
 	JSONRPCClient,
@@ -36,7 +39,6 @@ import {
 	JSONRPCServerAndClient,
 } from "json-rpc-2.0";
 import type { Logger } from "../logging/logger.ts";
-import { isAppError, messageOf } from "../util/errors.ts";
 import { encodeLine, LineDecoder } from "./ndjson.ts";
 import type {
 	AppToSidecarHandlers,

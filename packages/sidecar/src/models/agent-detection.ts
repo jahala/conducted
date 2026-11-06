@@ -31,8 +31,10 @@ import type { AcpAgent, AgentKind, IdSource } from "@conducted/shared";
 import {
 	type AppError,
 	appError,
+	asAppError,
 	type Clock,
 	err,
+	messageOf,
 	ok,
 	type Result,
 	systemClock,
@@ -41,7 +43,6 @@ import type { Logger } from "../logging/logger.ts";
 import type { ProbeCommand } from "../runners/deps.ts";
 import { type RunnerRegistry, type RunnerSelector, selectorKey } from "../runners/registry.ts";
 import type { ShellEnvProvider } from "../shell-env/capture.ts";
-import { asAppError, messageOf } from "../util/errors.ts";
 
 /** The longest a version or auth probe may take. Conductor kills Claude's probe at 5 s. */
 export const VERSION_PROBE_TIMEOUT_MS = 5_000;

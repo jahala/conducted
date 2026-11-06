@@ -28,10 +28,10 @@
  */
 import type { SessionEvent, SessionEventEnvelope } from "@conducted/protocol";
 import type { Clock, SessionId } from "@conducted/shared";
+import { messageOf } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
 import type { EventOutbox } from "../outbox/event-outbox.ts";
 import type { SidecarToApp } from "../rpc/types.ts";
-import { messageOf } from "../util/errors.ts";
 
 export const MAX_BATCH_EVENTS = 50;
 /** 80 percent of 1 MiB, leaving room for the envelope. */

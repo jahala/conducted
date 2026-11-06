@@ -23,7 +23,9 @@
  * "Open in" group without a word).
  * Test first: Typing "arch" lists "Archive workspace" when a workspace is open and not when none is.
  */
+
 import type { SectionId, WorkspaceId } from "@conducted/shared";
+import { messageOf } from "@conducted/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { Command } from "cmdk";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -121,7 +123,7 @@ export function CommandPalette({ open, onOpenChange, workspaceId }: OverlayProps
 			(cause: unknown) => {
 				const latest = latestApps.isLatest(ticket);
 				latestApps.settle(ticket);
-				const message = cause instanceof Error ? cause.message : String(cause);
+				const message = messageOf(cause);
 				services.platform.app.writeLog("warn", `Could not list installed apps: ${message}`);
 				if (latest) setAppsError(message);
 			},

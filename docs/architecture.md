@@ -10,7 +10,7 @@ What the parts are, what each may depend on, and where each kind of logic lives.
 | Web UI     | `apps/desktop/src`       | the WebKit view inside the app | Everything visible, all database reads and writes, all git and `gh` commands, the follow-up queue, settings                                                           |
 | Sidecar    | `packages/sidecar`       | a separate Bun process         | Agent processes (one per active chat), turns, steering, interactions, checkpoints, prompt assembly, the write-ahead event log, the app tools agents call              |
 | Protocol   | `packages/protocol`      | library                        | Zod schemas for every message between the UI and the sidecar, the session events, live state and the neutral agent-message format                                     |
-| Shared     | `packages/shared`        | library                        | Branded ids, `Result`, `notImplemented`, `Clock` and `IdSource`                                                                                                       |
+| Shared     | `packages/shared`        | library                        | Branded ids, `Result`, `notImplemented`, `Clock`, `IdSource` and the error helpers                                                                                    |
 | Scripts    | `bin/`                   | shell                          | Git snapshots (`checkpointer.sh`), the busy-repo check, Spotlight                                                                                                     |
 
 How they talk:
@@ -69,7 +69,7 @@ Use these before writing your own. A second copy is a finding in review.
 | Show an error toast from a `Result`        | `toastError`                                     | `apps/desktop/src/ui/Toast.tsx`                                         |
 | Light or dark mode for code views          | `useThemeType`                                   | `apps/desktop/src/ui/use-theme-type.ts`                                 |
 | Menu and context-menu parts and classes    | `menuItemClass`, `MenuItemContents` and siblings | `apps/desktop/src/ui/Menu.tsx`                                          |
-| Error text and error checks in the sidecar | `messageOf`, `isAppError`                        | `packages/sidecar/src/util/errors.ts`                                   |
+| Error text and error checks                | `messageOf`, `isAppError`, `asAppError`          | `packages/shared/src/errors.ts`                                         |
 | Signal a process group (Rust)              | `process_group`                                  | `apps/desktop/src-tauri/src/process_group.rs`                           |
 | Lock a mutex, even a poisoned one (Rust)   | `lock`                                           | `apps/desktop/src-tauri/src/error.rs`                                   |
 | The main window or `window_missing` (Rust) | `main_window`                                    | `apps/desktop/src-tauri/src/window.rs`                                  |

@@ -30,11 +30,10 @@
  */
 import type { ModelInfo, SessionConfig } from "@conducted/protocol";
 import type { AcpAgent, AgentKind, Clock } from "@conducted/shared";
-import { type AppError, appError, err, ok, type Result } from "@conducted/shared";
+import { type AppError, appError, asAppError, err, ok, type Result } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
 import { type RunnerRegistry, selectorKey } from "../runners/registry.ts";
 import type { Runner } from "../runners/runner.ts";
-import { asAppError } from "../util/errors.ts";
 
 /** How long a discovered list is reused. Conductor refreshes its catalog every hour. */
 export const MODEL_CATALOG_TTL_MS = 60 * 60 * 1000;

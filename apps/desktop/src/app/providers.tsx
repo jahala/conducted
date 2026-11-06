@@ -15,6 +15,7 @@
  * mutation failure is written to the log with the mutation's variables redacted.
  * Test first: children render inside the provider and can read the client.
  */
+import { messageOf } from "@conducted/shared";
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ErrorInfo, ReactNode } from "react";
 import { Toaster } from "../ui/Toast.tsx";
@@ -82,7 +83,7 @@ export function createRootErrorHandlers(log: ErrorLogger): {
 
 function describeError(error: unknown): { name?: string; message: string } {
 	if (error instanceof Error) return { name: error.name, message: error.message };
-	return { message: String(error) };
+	return { message: messageOf(error) };
 }
 
 export function AppProviders({ client, children }: { client: QueryClient; children: ReactNode }) {

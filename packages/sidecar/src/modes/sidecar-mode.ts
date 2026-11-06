@@ -64,6 +64,7 @@ import {
 	cryptoIds,
 	err,
 	type IdSource,
+	messageOf,
 	ok,
 	type Result,
 	type SessionId,
@@ -144,7 +145,6 @@ import {
 	type McpStdioEntry,
 } from "../tools/mcp-launch.ts";
 import { AppToolsBridge } from "../tools/socket-bridge.ts";
-import { messageOf } from "../util/errors.ts";
 import { ParentWatchdog } from "../watchdog.ts";
 
 export { EXIT_START_FAILED };

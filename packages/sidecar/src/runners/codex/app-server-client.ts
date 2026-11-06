@@ -23,7 +23,7 @@
  * child and production passes Bun.spawn.
  */
 import type { AppError, Result } from "@conducted/shared";
-import { appError, err, ok } from "@conducted/shared";
+import { appError, err, messageOf, ok } from "@conducted/shared";
 import {
 	createJSONRPCErrorResponse,
 	createJSONRPCSuccessResponse,
@@ -36,7 +36,6 @@ import {
 	type JSONRPCRequest,
 } from "json-rpc-2.0";
 import type { Logger } from "../../logging/logger.ts";
-import { messageOf } from "../../util/errors.ts";
 import {
 	CODEX_CLIENT_METHODS,
 	CODEX_INITIALIZED_NOTIFICATION,

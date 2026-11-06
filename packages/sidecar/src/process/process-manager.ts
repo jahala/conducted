@@ -25,9 +25,9 @@
  */
 
 import type { Clock } from "@conducted/shared";
+import { messageOf } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
 import type { AgentSession } from "../runners/runner.ts";
-import { messageOf } from "../util/errors.ts";
 import {
 	type ProcessEntryView,
 	type Retention,

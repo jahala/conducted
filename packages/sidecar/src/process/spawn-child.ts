@@ -13,9 +13,8 @@
  * helper, so the stderr, exit and stop rules exist once.
  */
 import type { AppError, Result } from "@conducted/shared";
-import { appError, err, ok } from "@conducted/shared";
+import { appError, err, messageOf, ok } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
-import { messageOf } from "../util/errors.ts";
 
 /** How long a child gets to leave after SIGTERM before SIGKILL. */
 export const CHILD_KILL_GRACE_MS = 2_000;

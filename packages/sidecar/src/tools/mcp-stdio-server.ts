@@ -22,9 +22,9 @@
 import { createConnection } from "node:net";
 import type { Readable, Writable } from "node:stream";
 import { APP_TOOL_SERVER } from "@conducted/protocol";
+import { messageOf } from "@conducted/shared";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { messageOf } from "../util/errors.ts";
 import { zBridgeResponse } from "./bridge-protocol.ts";
 import type { AppToolsMcpArgs } from "./mcp-launch.ts";
 import { enabledTools } from "./registry.ts";

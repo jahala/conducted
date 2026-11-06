@@ -22,11 +22,10 @@
  */
 import type { SlashCommand } from "@conducted/protocol";
 import type { AcpAgent, AgentKind } from "@conducted/shared";
-import { type AppError, appError, err, ok, type Result } from "@conducted/shared";
+import { type AppError, appError, asAppError, err, ok, type Result } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
 import { type RunnerRegistry, selectorKey } from "../runners/registry.ts";
 import type { McpServerView, RunnerSlashCommand } from "../runners/runner.ts";
-import { asAppError } from "../util/errors.ts";
 
 /** The runner could not list slash commands. */
 export const SLASH_COMMANDS_FAILED = "slash_commands_failed";

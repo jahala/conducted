@@ -39,6 +39,7 @@ import {
 	type Clock,
 	err,
 	type IdSource,
+	messageOf,
 	ok,
 	type Result,
 	type SessionId,
@@ -1108,7 +1109,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 					})
 					.catch((cause: unknown) => {
 						quitPromptOpen = false;
-						const message = cause instanceof Error ? cause.message : String(cause);
+						const message = messageOf(cause);
 						log("warn", `Could not ask whether to quit: ${message}`);
 					});
 			}),
@@ -1154,7 +1155,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 					log("warn", `Stopping ${name} failed: ${outcome.error.message}`);
 				}
 			} catch (cause) {
-				const message = cause instanceof Error ? cause.message : String(cause);
+				const message = messageOf(cause);
 				log("warn", `Stopping ${name} failed: ${message}`);
 			}
 		};
@@ -1216,7 +1217,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 			},
 			(cause) => {
 				quitting = false;
-				const message = cause instanceof Error ? cause.message : String(cause);
+				const message = messageOf(cause);
 				log("warn", `Could not quit: ${message}`);
 			},
 		);

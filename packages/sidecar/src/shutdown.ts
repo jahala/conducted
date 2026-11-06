@@ -15,8 +15,9 @@
  * Our design choice: the step list lives in the composition root (sidecar-mode.ts), next to the
  * ports it closes; this module only runs a list it is given.
  */
+
+import { messageOf } from "@conducted/shared";
 import type { Logger } from "./logging/logger.ts";
-import { messageOf } from "./util/errors.ts";
 
 export interface ShutdownStep {
 	name: string;

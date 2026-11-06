@@ -80,7 +80,7 @@ import type {
 	SessionId,
 	TurnId,
 } from "@conducted/shared";
-import { appError, err, ok } from "@conducted/shared";
+import { appError, err, isAppError, messageOf, ok } from "@conducted/shared";
 import type { CheckpointService } from "../checkpoints/checkpoint-service.ts";
 import type { Logger } from "../logging/logger.ts";
 import type { ModelCatalog } from "../models/catalog.ts";
@@ -115,7 +115,6 @@ import type {
 	TurnOutcome,
 } from "../runners/runner.ts";
 import type { CapturedShellEnv, ShellEnvProvider } from "../shell-env/capture.ts";
-import { isAppError, messageOf } from "../util/errors.ts";
 import type { DuplicateGuard } from "./duplicate-guard.ts";
 import { DuplicateGuard as Guard } from "./duplicate-guard.ts";
 import type { EventPublisher } from "./event-batcher.ts";

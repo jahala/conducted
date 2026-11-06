@@ -21,8 +21,8 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import { APP_TOOL_SERVER, type SessionConfig } from "@conducted/protocol";
 import type { SessionId } from "@conducted/shared";
+import { messageOf } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
-import { messageOf } from "../util/errors.ts";
 import type { AppToolBackend } from "./backend.ts";
 import { enabledTools } from "./registry.ts";
 
