@@ -72,7 +72,7 @@
 	"description:M3799728": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-map 4. Left sidebar"
+		"screen": "inventory-ui-text Terminal, run and files"
 	},
 	"description:M3847184": {
 		"status": "gap",
@@ -87,7 +87,7 @@
 	"description:R629105": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Platform"
 	},
 	"description:R1717331": {
 		"status": "gap",
@@ -95,24 +95,33 @@
 		"screen": "Unplaced"
 	},
 	"description:R2030149": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "create-project",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(5) > div:nth-of-type(1) > fieldset > div > button:nth-of-type(1) > span:nth-of-type(2) > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R2030220": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "create-project",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(5) > div:nth-of-type(1) > fieldset > div > button:nth-of-type(2) > span:nth-of-type(2) > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R2030308": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "create-project",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(5) > div:nth-of-type(1) > fieldset > div > button:nth-of-type(3) > span:nth-of-type(3) > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R2129942": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"description:R2668060": {
 		"status": "gap",
@@ -122,37 +131,37 @@
 	"description:R2990279": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R4406017": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R4407497": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R4407633": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R4409379": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R4409969": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R4410270": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R5493845": {
 		"status": "gap",
@@ -412,87 +421,87 @@
 	"description:R8679569": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 4. Lists and rows"
+		"screen": "Unplaced"
 	},
 	"description:R8684406": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 4. Lists and rows"
+		"screen": "Unplaced"
 	},
 	"description:R8846048": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Composer"
 	},
 	"description:R8846191": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Composer"
 	},
 	"description:R8846351": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Composer"
 	},
 	"description:R8846498": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Composer"
 	},
 	"description:R8846651": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Composer"
 	},
 	"description:R8846805": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Composer"
 	},
 	"description:R8846942": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Composer"
 	},
 	"description:R8847082": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Composer"
 	},
 	"description:R8847208": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Composer"
 	},
 	"description:R8847334": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Composer"
 	},
 	"description:R8847466": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Composer"
 	},
 	"description:R8847599": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Composer"
 	},
 	"description:R8847728": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Composer"
 	},
 	"description:R8847864": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Composer"
 	},
 	"description:R9608898": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "ui-dimensions 5. Chat and composer"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R9949297": {
 		"status": "gap",
@@ -502,22 +511,28 @@
 	"description:R10062116": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "ui-dimensions 1.6 Layers (z-index)"
+		"screen": "Unplaced"
 	},
 	"description:R10065346": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 1.6 Layers (z-index)"
+		"screen": "Unplaced"
 	},
 	"description:R10584497": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "onboarding",
+		"via": "text",
+		"role": "span",
+		"selector": "div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > ol > li:nth-of-type(1) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10584662": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "onboarding",
+		"via": "text",
+		"role": "span",
+		"selector": "div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1) > ol > li:nth-of-type(2) > button > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R10584822": {
 		"status": "gap",
@@ -527,102 +542,102 @@
 	"description:R10678507": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 4. Lists and rows"
+		"screen": "Unplaced"
 	},
 	"description:R10708838": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings"
 	},
 	"description:R10708911": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings"
 	},
 	"description:R10708982": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings"
 	},
 	"description:R10709071": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings"
 	},
 	"description:R10709163": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings"
 	},
 	"description:R10709245": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings"
 	},
 	"description:R10709343": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings"
 	},
 	"description:R10709429": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings"
 	},
 	"description:R10709509": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings"
 	},
 	"description:R10709605": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings"
 	},
 	"description:R10709703": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings"
 	},
 	"description:R10709805": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings"
 	},
 	"description:R10709909": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings"
 	},
 	"description:R10710015": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings"
 	},
 	"description:R10710098": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings"
 	},
 	"description:R10710192": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings"
 	},
 	"description:R10710274": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings"
 	},
 	"description:R10710371": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings"
 	},
 	"description:R10719274": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings"
 	},
 	"description:R10890728": {
 		"status": "gap",
@@ -647,17 +662,17 @@
 	"description:R10910914": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings: Agents"
 	},
 	"description:R10921020": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings: Agents"
 	},
 	"description:R11006930": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Settings and agents"
 	},
 	"description:R11026691": {
 		"status": "gap",
@@ -672,252 +687,279 @@
 	"description:R11028884": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Settings and agents"
 	},
 	"description:R11092256": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11095863": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-general",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(14) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11096491": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-account",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(3) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11097928": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11098377": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11098700": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11099014": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11099331": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11099596": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11099855": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11100138": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11101588": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11103142": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11103551": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11104267": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11104634": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11105073": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11105437": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11105807": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11106268": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11107159": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11107602": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11108043": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11108561": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11108953": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11109235": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11109658": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"description:R11110037": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings: General"
 	},
 	"description:R11110399": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings: General"
 	},
 	"description:R11116968": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-general",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(1) > div > div > p:nth-of-type(1)",
+		"by": "seed"
 	},
 	"description:R11117839": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-general",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div > p:nth-of-type(1)",
+		"by": "seed"
 	},
 	"description:R11118583": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-general",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(3) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11118889": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings: General"
 	},
 	"description:R11119185": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-general",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(4) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11119794": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-general",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(5) > div:nth-of-type(1) > p:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R11120692": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-general",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(7) > div > div > p",
+		"by": "seed"
 	},
 	"description:R11121418": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings: General"
 	},
 	"description:R11121812": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings: General"
 	},
 	"description:R11122227": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings: General"
 	},
 	"description:R11123526": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Settings and agents"
 	},
 	"description:R11124023": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-general",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(15) > div > p:nth-of-type(2)",
+		"by": "seed"
 	},
 	"description:R11134746": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings: General"
 	},
 	"description:R11135262": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings: General"
 	},
 	"description:R11136046": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings: General"
 	},
 	"description:R11137902": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings: General"
 	},
 	"description:R11140194": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings: General"
 	},
 	"description:R11141608": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings: General"
 	},
 	"description:R11142411": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings: General"
 	},
 	"description:R11143310": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings: General"
 	},
 	"description:R11160020": {
 		"status": "gap",
@@ -1047,197 +1089,197 @@
 	"description:R11262744": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11263033": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11263695": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11264866": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11265371": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11266434": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11266620": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11266812": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11267037": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11267246": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11267436": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11295038": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11295423": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11296071": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11297407": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11297883": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11298888": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11299131": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11299318": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11299568": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11299822": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11300055": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11300296": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11300514": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11300742": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11300941": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11301175": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11301393": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11301758": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11301958": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11302151": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11302430": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11302764": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11302999": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11303228": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11303436": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11303660": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11303886": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11304246": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11334566": {
 		"status": "gap",
@@ -1247,27 +1289,27 @@
 	"description:R11400022": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11415794": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Settings and agents"
 	},
 	"description:R11415928": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Settings and agents"
 	},
 	"description:R11416057": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Settings and agents"
 	},
 	"description:R11533583": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Composer"
 	},
 	"description:R11539515": {
 		"status": "gap",
@@ -1277,102 +1319,102 @@
 	"description:R11624015": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11624220": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11624419": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"description:R11632319": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Platform"
 	},
 	"description:R11632466": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Platform"
 	},
 	"description:R11632861": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Platform"
 	},
 	"description:R11633125": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Platform"
 	},
 	"description:R11633250": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Platform"
 	},
 	"description:R11634706": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Platform"
 	},
 	"description:R11634951": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Platform"
 	},
 	"description:R11637139": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Platform"
 	},
 	"description:R11637518": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Platform"
 	},
 	"description:R11637630": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Platform"
 	},
 	"description:R11638444": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Platform"
 	},
 	"description:R11652399": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls App shell"
 	},
 	"description:R11660399": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls App shell"
 	},
 	"description:R11660558": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls App shell"
 	},
 	"description:R11709576": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"description:R11709706": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"description:R11709825": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"description:R11725533": {
 		"status": "gap",

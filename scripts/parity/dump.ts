@@ -18,7 +18,7 @@ import { CATALOGUE_NOW } from "../../apps/desktop/src/catalogue/time.ts";
 import { listStates, startServer, stopServer } from "../catalogue/shots.ts";
 import { collectState, type LayoutProbe } from "./collect.ts";
 import { DATA, type Dump, type DumpState, normalise, ROOT, readJson } from "./lib.ts";
-import { sourceStrings } from "./spec.ts";
+import { sourceStrings, uiSourceFiles } from "./spec.ts";
 
 const VIEWPORT = { width: 1440, height: 900 };
 /** Catches a page that hangs. It is not a way to wait. */
@@ -42,17 +42,34 @@ export interface LayoutSpec {
 
 export const BOX_KEYS = new Set(["height", "width"]);
 
-/** The string literals of a catalogue folder's source files: what its seeds write. */
-export function sampleStrings(dir: string): string[] {
+/** The text a state's ready and after steps look for: it quotes our UI, so it is not sample data. */
+const CATALOGUE_CHECKS = /\b(?:shows|has|click)\([^)]*\)/g;
+
+/**
+ * The sample data an app's catalogue writes: the string literals of its `src/catalogue/` files,
+ * without its ready checks and without any string our UI source also holds, which is our wording.
+ */
+export function sampleStrings(src: string): string[] {
+	const ours = new Set<string>();
+	for (const path of uiSourceFiles(src)) {
+		for (const text of sourceStrings(readFileSync(path, "utf8"))) ours.add(normalise(text));
+	}
+	const dir = join(src, "catalogue");
 	const found = new Set<string>();
 	const read = (folder: string): void => {
 		for (const entry of readdirSync(folder, { withFileTypes: true })) {
 			const path = join(folder, entry.name);
 			if (entry.isDirectory()) read(path);
 			else if (/\.tsx?$/.test(entry.name)) {
-				for (const text of sourceStrings(readFileSync(path, "utf8"))) {
+				const source = readFileSync(path, "utf8").replace(CATALOGUE_CHECKS, "");
+				for (const text of sourceStrings(source)) {
 					const clean = normalise(text);
-					if (/\p{L}/u.test(clean)) found.add(clean);
+					if (!/\p{L}/u.test(clean) || ours.has(clean)) continue;
+					found.add(clean);
+					// A sample path's file and folder names show on their own too.
+					if (/^[\w.-]+(\/[\w.-]+)+$/.test(clean)) {
+						for (const part of clean.split("/")) if (part.length >= 3) found.add(part);
+					}
 				}
 			}
 		}
@@ -168,7 +185,7 @@ async function main(options: Options): Promise<number> {
 		const dump: Dump = {
 			commit: options.commit,
 			viewport: VIEWPORT,
-			sample: sampleStrings(join(options.app, "src/catalogue")),
+			sample: sampleStrings(join(options.app, "src")),
 			states: dumped,
 		};
 		writeFileSync(join(options.out, "dump.json"), `${JSON.stringify(dump, null, "\t")}\n`);

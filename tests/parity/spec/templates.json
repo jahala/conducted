@@ -1,0 +1,1115 @@
+{
+	"source": "the bundle: template literals where the inventories read strings",
+	"entries": [
+		{
+			"id": "template:M1567903",
+			"text": "[codex-mcp-consent] {}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 1567903
+		},
+		{
+			"id": "template:M3219365",
+			"text": "Failed to cancel: {}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3219365
+		},
+		{
+			"id": "template:M3235411",
+			"text": "Couldn't switch PR: {}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3235411
+		},
+		{
+			"id": "template:M3582908",
+			"text": "Added @{}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3582908
+		},
+		{
+			"id": "template:M3586311",
+			"text": "Failed to send message: {}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3586311
+		},
+		{
+			"id": "template:M3640686",
+			"text": "Fork of {}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3640686
+		},
+		{
+			"id": "template:M3651139",
+			"text": "Failed to reset chat: {}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3651139
+		},
+		{
+			"id": "template:M3654219",
+			"text": "Failed to update reviewers: {}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3654219
+		},
+		{
+			"id": "template:M3657072",
+			"text": "Checkout failed: {}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3657072
+		},
+		{
+			"id": "template:M3684585",
+			"text": "Pulling latest from remote failed: {}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3684585
+		},
+		{
+			"id": "template:M3686803",
+			"text": "Failed to resolve comment: {}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3686803
+		},
+		{
+			"id": "template:M3689166",
+			"text": "Failed to create PR: {}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3689166
+		},
+		{
+			"id": "template:M3691476",
+			"text": "Failed to rename branch: {}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3691476
+		},
+		{
+			"id": "template:M3692018",
+			"text": "Failed to revert file: {}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3692018
+		},
+		{
+			"id": "template:M3695743",
+			"text": "Failed to fix checks: {}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3695743
+		},
+		{
+			"id": "template:M3697325",
+			"text": "Failed to re-run checks: {}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3697325
+		},
+		{
+			"id": "template:M3699748",
+			"text": "Failed to create review session: {}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3699748
+		},
+		{
+			"id": "template:M3701433",
+			"text": "Failed to start review: {}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3701433
+		},
+		{
+			"id": "template:M3707772",
+			"text": "Failed to update working directories: {}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3707772
+		},
+		{
+			"id": "template:M3727733",
+			"text": "Couldn't switch branch: {}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3727733
+		},
+		{
+			"id": "template:M3740932",
+			"text": "Failed to update workspace access: {}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3740932
+		},
+		{
+			"id": "template:M3744449",
+			"text": "Failed to stop setup: {}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3744449
+		},
+		{
+			"id": "template:M3745997",
+			"text": "Failed to create workspace: {}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3745997
+		},
+		{
+			"id": "template:M3748713",
+			"text": "Failed to retry workspace: {}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3748713
+		},
+		{
+			"id": "template:M3748996",
+			"text": "Failed to delete workspace: {}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3748996
+		},
+		{
+			"id": "template:M3750615",
+			"text": "Couldn’t close PR #{}: {}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3750615
+		},
+		{
+			"id": "template:M3757822",
+			"text": "Failed to delete folder: {}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3757822
+		},
+		{
+			"id": "template:M3856873",
+			"text": "Preview {}",
+			"file": "main-BE1h_1MP.js",
+			"offset": 3856873
+		},
+		{
+			"id": "template:R104822",
+			"text": "Always allow {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 104822
+		},
+		{
+			"id": "template:R104991",
+			"text": "Yes, and don't ask again for: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 104991
+		},
+		{
+			"id": "template:R225636",
+			"text": "Only the first {} files were attached",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 225636
+		},
+		{
+			"id": "template:R225774",
+			"text": "File \"{}\" is too large",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 225774
+		},
+		{
+			"id": "template:R629602",
+			"text": "{} failed to start",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 629602
+		},
+		{
+			"id": "template:R629684",
+			"text": "The bundled {} binary could not be verified. Try restarting",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 629684
+		},
+		{
+			"id": "template:R677400",
+			"text": "Copied {} to clipboard",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 677400
+		},
+		{
+			"id": "template:R1876085",
+			"text": ".{}{scrollbar-width:none}.{}::-webkit-scrollbar{display:none}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 1876085
+		},
+		{
+			"id": "template:R2138255",
+			"text": "The current GitHub connection can’t access {}.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2138255
+		},
+		{
+			"id": "template:R2141368",
+			"text": "Behind by {} commit{}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2141368
+		},
+		{
+			"id": "template:R2141496",
+			"text": "Ahead by {} commit{}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2141496
+		},
+		{
+			"id": "template:R2202561",
+			"text": "Stack #{} branch",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2202561
+		},
+		{
+			"id": "template:R2205612",
+			"text": "Switch to {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2205612
+		},
+		{
+			"id": "template:R2476975",
+			"text": "Linear issue: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2476975
+		},
+		{
+			"id": "template:R2477138",
+			"text": "GitHub issue: #{}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2477138
+		},
+		{
+			"id": "template:R2488806",
+			"text": "Unknown app: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2488806
+		},
+		{
+			"id": "template:R2493095",
+			"text": "Failed to open in {}: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 2493095
+		},
+		{
+			"id": "template:R3020426",
+			"text": "Couldn’t read {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3020426
+		},
+		{
+			"id": "template:R3020499",
+			"text": "{} is larger than 25 MB",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3020499
+		},
+		{
+			"id": "template:R3020641",
+			"text": "{} is a reserved Conductor file name",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3020641
+		},
+		{
+			"id": "template:R3021551",
+			"text": "Failed to upload {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3021551
+		},
+		{
+			"id": "template:R3023967",
+			"text": "Failed to open localhost:{}: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3023967
+		},
+		{
+			"id": "template:R3028908",
+			"text": "Failed to update port forwarding: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3028908
+		},
+		{
+			"id": "template:R3989478",
+			"text": "Failed to open preview URL: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 3989478
+		},
+		{
+			"id": "template:R4633554",
+			"text": "Select {} icon",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4633554
+		},
+		{
+			"id": "template:R4989936",
+			"text": "Couldn't save action: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4989936
+		},
+		{
+			"id": "template:R4995109",
+			"text": "Couldn't import actions: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4995109
+		},
+		{
+			"id": "template:R4995353",
+			"text": "Unable to open {}: repository remote is unavailable",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4995353
+		},
+		{
+			"id": "template:R4999287",
+			"text": "Maximum {} terminals allowed",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 4999287
+		},
+		{
+			"id": "template:R5000290",
+			"text": "Failed to run setup: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5000290
+		},
+		{
+			"id": "template:R5000688",
+			"text": "Failed to send setup request: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5000688
+		},
+		{
+			"id": "template:R5006197",
+			"text": "Failed to open port {}: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5006197
+		},
+		{
+			"id": "template:R5006519",
+			"text": "Failed to open {}: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5006519
+		},
+		{
+			"id": "template:R5008033",
+			"text": "Task \"{}\" has no command",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5008033
+		},
+		{
+			"id": "template:R5013763",
+			"text": "Focus {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5013763
+		},
+		{
+			"id": "template:R5431826",
+			"text": "Port {} forwarded to localhost:{}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5431826
+		},
+		{
+			"id": "template:R5431908",
+			"text": "Failed to forward port {}: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5431908
+		},
+		{
+			"id": "template:R5436738",
+			"text": "Failed to turn off preview URL: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5436738
+		},
+		{
+			"id": "template:R5436811",
+			"text": "Failed to create preview URL: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5436811
+		},
+		{
+			"id": "template:R5438913",
+			"text": "Failed to update auto-forwarding: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5438913
+		},
+		{
+			"id": "template:R5441373",
+			"text": "Remove port {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5441373
+		},
+		{
+			"id": "template:R5453719",
+			"text": "Failed to check forwarded ports: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5453719
+		},
+		{
+			"id": "template:R5454389",
+			"text": "Open localhost:{}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5454389
+		},
+		{
+			"id": "template:R5502667",
+			"text": "Make available to {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5502667
+		},
+		{
+			"id": "template:R5529388",
+			"text": "Remove #{}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5529388
+		},
+		{
+			"id": "template:R5530025",
+			"text": "Couldn’t remove PR: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5530025
+		},
+		{
+			"id": "template:R5583231",
+			"text": "Failed to update sync preference: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5583231
+		},
+		{
+			"id": "template:R5663356",
+			"text": "Failed to rename branch: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5663356
+		},
+		{
+			"id": "template:R5663421",
+			"text": "Branch renamed to {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5663421
+		},
+		{
+			"id": "template:R5664004",
+			"text": "Failed to link GitHub issue: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 5664004
+		},
+		{
+			"id": "template:R8149292",
+			"text": "Question {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8149292
+		},
+		{
+			"id": "template:R8720601",
+			"text": "{} actions",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 8720601
+		},
+		{
+			"id": "template:R9064515",
+			"text": "Folder \"{}\" is too large to attach",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9064515
+		},
+		{
+			"id": "template:R9064564",
+			"text": "Maximum size is {}MB.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9064564
+		},
+		{
+			"id": "template:R9064980",
+			"text": "Couldn't attach folder \"{}\"",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9064980
+		},
+		{
+			"id": "template:R9167529",
+			"text": "height {}, width {}, margin {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9167529
+		},
+		{
+			"id": "template:R9266654",
+			"text": "Unlink workspace {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9266654
+		},
+		{
+			"id": "template:R9297105",
+			"text": "Restarted {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9297105
+		},
+		{
+			"id": "template:R9297203",
+			"text": "Failed to restart {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9297203
+		},
+		{
+			"id": "template:R9299568",
+			"text": "/{} is not available for {}.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9299568
+		},
+		{
+			"id": "template:R9952489",
+			"text": "Failed to save file: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 9952489
+		},
+		{
+			"id": "template:R10000030",
+			"text": "Go to code — {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10000030
+		},
+		{
+			"id": "template:R10045926",
+			"text": "Behind {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10045926
+		},
+		{
+			"id": "template:R10075079",
+			"text": "Failed to copy {} transcript",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10075079
+		},
+		{
+			"id": "template:R10076000",
+			"text": "Close chat {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10076000
+		},
+		{
+			"id": "template:R10086079",
+			"text": "Maximum of {} tabs allowed",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10086079
+		},
+		{
+			"id": "template:R10199131",
+			"text": "Couldn't save description: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10199131
+		},
+		{
+			"id": "template:R10282725",
+			"text": "Couldn't poke {}. Try again.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10282725
+		},
+		{
+			"id": "template:R10282826",
+			"text": "Poked {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10282826
+		},
+		{
+			"id": "template:R10282851",
+			"text": "{} didn't get the poke",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10282851
+		},
+		{
+			"id": "template:R10303014",
+			"text": "{} tokens on {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10303014
+		},
+		{
+			"id": "template:R10425870",
+			"text": "Copy {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10425870
+		},
+		{
+			"id": "template:R10510822",
+			"text": "Failed to remove repository: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10510822
+		},
+		{
+			"id": "template:R10572396",
+			"text": "Diagnostics failed: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10572396
+		},
+		{
+			"id": "template:R10572921",
+			"text": "Failed to copy logs: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10572921
+		},
+		{
+			"id": "template:R10573691",
+			"text": "Failed to create session: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10573691
+		},
+		{
+			"id": "template:R10692492",
+			"text": "Remove {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10692492
+		},
+		{
+			"id": "template:R10698224",
+			"text": "Copied {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10698224
+		},
+		{
+			"id": "template:R10698268",
+			"text": "Failed to copy {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10698268
+		},
+		{
+			"id": "template:R10701459",
+			"text": "Set {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10701459
+		},
+		{
+			"id": "template:R10701618",
+			"text": "Edit {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10701618
+		},
+		{
+			"id": "template:R10701941",
+			"text": "Delete {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10701941
+		},
+		{
+			"id": "template:R10797182",
+			"text": "Couldn't activate build #{}: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10797182
+		},
+		{
+			"id": "template:R10802425",
+			"text": "Couldn't restart the build: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10802425
+		},
+		{
+			"id": "template:R10802490",
+			"text": "Couldn't cancel the build: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10802490
+		},
+		{
+			"id": "template:R10813978",
+			"text": "{} selected",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10813978
+		},
+		{
+			"id": "template:R10842031",
+			"text": "Disconnect {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10842031
+		},
+		{
+			"id": "template:R10858121",
+			"text": "Couldn't start the snapshot build: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10858121
+		},
+		{
+			"id": "template:R10862836",
+			"text": "Couldn't create the admin workspace: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10862836
+		},
+		{
+			"id": "template:R10868948",
+			"text": "Couldn't start the rebuild: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10868948
+		},
+		{
+			"id": "template:R10874116",
+			"text": "No KEY=VALUE lines found in {}. Check that it's a .env file.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10874116
+		},
+		{
+			"id": "template:R10874221",
+			"text": "Couldn't read {}.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10874221
+		},
+		{
+			"id": "template:R10936833",
+			"text": "Copied {}.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10936833
+		},
+		{
+			"id": "template:R10936873",
+			"text": "Failed to copy {}.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10936873
+		},
+		{
+			"id": "template:R10939107",
+			"text": "Failed to save {}: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10939107
+		},
+		{
+			"id": "template:R10939306",
+			"text": "Failed to remove {}: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10939306
+		},
+		{
+			"id": "template:R10956899",
+			"text": "Failed to update API key: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10956899
+		},
+		{
+			"id": "template:R10969089",
+			"text": "Select {} executable",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10969089
+		},
+		{
+			"id": "template:R10982650",
+			"text": "Installed {}.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10982650
+		},
+		{
+			"id": "template:R10982783",
+			"text": "Failed to install {}: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10982783
+		},
+		{
+			"id": "template:R10985959",
+			"text": "Failed to open install location: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 10985959
+		},
+		{
+			"id": "template:R11155646",
+			"text": "Remote port {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11155646
+		},
+		{
+			"id": "template:R11155821",
+			"text": "Local port for remote port {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11155821
+		},
+		{
+			"id": "template:R11155962",
+			"text": "Remove override for remote port {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11155962
+		},
+		{
+			"id": "template:R11170968",
+			"text": "Couldn't revoke access for {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11170968
+		},
+		{
+			"id": "template:R11199153",
+			"text": "Failed to open app log viewer: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11199153
+		},
+		{
+			"id": "template:R11199688",
+			"text": "Failed to start app log viewer: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11199688
+		},
+		{
+			"id": "template:R11200345",
+			"text": "Failed to get app logger URL: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11200345
+		},
+		{
+			"id": "template:R11205254",
+			"text": "Removed {} binary from disk.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11205254
+		},
+		{
+			"id": "template:R11205499",
+			"text": "Re-downloading {}.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11205499
+		},
+		{
+			"id": "template:R11205970",
+			"text": "Failed to trigger download: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11205970
+		},
+		{
+			"id": "template:R11206039",
+			"text": "Failed to start re-download: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11206039
+		},
+		{
+			"id": "template:R11206109",
+			"text": "Failed to set injection: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11206109
+		},
+		{
+			"id": "template:R11209277",
+			"text": "Failed to trigger {} {} test",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11209277
+		},
+		{
+			"id": "template:R11209408",
+			"text": "Triggered {} {} test",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11209408
+		},
+		{
+			"id": "template:R11242614",
+			"text": "Delete loadout {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11242614
+		},
+		{
+			"id": "template:R11325843",
+			"text": "Copied @{}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11325843
+		},
+		{
+			"id": "template:R11325881",
+			"text": "Couldn't copy @{}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11325881
+		},
+		{
+			"id": "template:R11417457",
+			"text": "{} MCP server{} could not be synced: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11417457
+		},
+		{
+			"id": "template:R11417656",
+			"text": "{} item{} failed to sync",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11417656
+		},
+		{
+			"id": "template:R11421511",
+			"text": "Sync failed: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11421511
+		},
+		{
+			"id": "template:R11434938",
+			"text": "Show {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11434938
+		},
+		{
+			"id": "template:R11564688",
+			"text": "Failed to load {}.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11564688
+		},
+		{
+			"id": "template:R11614729",
+			"text": "Couldn't save your computer color: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11614729
+		},
+		{
+			"id": "template:R11618065",
+			"text": "Failed to start building your computer: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11618065
+		},
+		{
+			"id": "template:R11633981",
+			"text": "Enabled setting: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11633981
+		},
+		{
+			"id": "template:R11635219",
+			"text": "Could not find Linear issue {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11635219
+		},
+		{
+			"id": "template:R11636915",
+			"text": "Could not create workspace for Linear issue {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11636915
+		},
+		{
+			"id": "template:R11637352",
+			"text": "Could not find repository \"{}\". Using first available repository instead.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11637352
+		},
+		{
+			"id": "template:R11641941",
+			"text": "The URL format is invalid — {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11641941
+		},
+		{
+			"id": "template:R11674365",
+			"text": "Couldn't start the annotation overlay, showing the page without it: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11674365
+		},
+		{
+			"id": "template:R11723391",
+			"text": "Couldn't save actions: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11723391
+		},
+		{
+			"id": "template:R11728938",
+			"text": "Couldn't save default branch: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11728938
+		},
+		{
+			"id": "template:R11729009",
+			"text": "Couldn't save setup script: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11729009
+		},
+		{
+			"id": "template:R11752184",
+			"text": "Failed to create migration PR: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11752184
+		},
+		{
+			"id": "template:R11916724",
+			"text": "Run {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11916724
+		},
+		{
+			"id": "template:R11918157",
+			"text": "{} avatar",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11918157
+		},
+		{
+			"id": "template:R11930662",
+			"text": "Couldn't {} routine: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11930662
+		},
+		{
+			"id": "template:R11931606",
+			"text": "Couldn't run routine: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11931606
+		},
+		{
+			"id": "template:R11931666",
+			"text": "Couldn't delete routine: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11931666
+		},
+		{
+			"id": "template:R11943996",
+			"text": "Time ({})",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11943996
+		},
+		{
+			"id": "template:R11945183",
+			"text": "Next run {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11945183
+		},
+		{
+			"id": "template:R11993194",
+			"text": "Routine isn't ready: {}.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 11993194
+		},
+		{
+			"id": "template:R12003062",
+			"text": "Couldn't create webhook URL: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12003062
+		},
+		{
+			"id": "template:R12006452",
+			"text": "{} at {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12006452
+		},
+		{
+			"id": "template:R12013226",
+			"text": "Reverted to version {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12013226
+		},
+		{
+			"id": "template:R12017561",
+			"text": "Couldn't rotate webhook secret: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12017561
+		},
+		{
+			"id": "template:R12017682",
+			"text": "Couldn't restore routine: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12017682
+		},
+		{
+			"id": "template:R12017745",
+			"text": "Couldn't archive routine: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12017745
+		},
+		{
+			"id": "template:R12017870",
+			"text": "Couldn't revert routine: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12017870
+		},
+		{
+			"id": "template:R12017932",
+			"text": "Couldn't save routine: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12017932
+		},
+		{
+			"id": "template:R12029134",
+			"text": "Couldn't create routine: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12029134
+		},
+		{
+			"id": "template:R12095925",
+			"text": "Update available: v{}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12095925
+		},
+		{
+			"id": "template:R12097311",
+			"text": "{} city visited: {}!",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12097311
+		},
+		{
+			"id": "template:R12097355",
+			"text": "You've visited {}/{} {} cities",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12097355
+		},
+		{
+			"id": "template:R12098232",
+			"text": "Failed to unarchive: {}",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12098232
+		},
+		{
+			"id": "template:R12098314",
+			"text": "The folder at {} already exists.",
+			"file": "renderApp-DeUrsznk.js",
+			"offset": 12098314
+		}
+	]
+}

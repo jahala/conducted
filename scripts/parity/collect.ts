@@ -111,13 +111,19 @@ export function collectState(probes: LayoutProbe[]): Collected {
 	};
 
 	const units = new Map<Element, string>();
+	// Text from different elements of one unit is joined with a space; two text nodes of one element
+	// are joined as they are.
+	const lastParent = new Map<Element, Element>();
 	const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
 	for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
 		const parent = node.parentElement;
 		if (parent === null || ["SCRIPT", "STYLE", "NOSCRIPT"].includes(parent.tagName)) continue;
 		if (!/[\p{L}\p{N}]/u.test(node.textContent ?? "")) continue;
+		if (!parent.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) continue;
 		const unit = unitOf(parent);
-		units.set(unit, (units.get(unit) ?? "") + (node.textContent ?? ""));
+		const gap = lastParent.has(unit) && lastParent.get(unit) !== parent ? " " : "";
+		lastParent.set(unit, parent);
+		units.set(unit, (units.get(unit) ?? "") + gap + (node.textContent ?? ""));
 	}
 	for (const [unit, text] of units) if (shown(unit)) add(unit, text, "text");
 	for (const element of document.body.querySelectorAll("*")) {

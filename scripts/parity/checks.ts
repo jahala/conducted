@@ -46,6 +46,8 @@ export interface Inputs {
 	states: Set<string> | null;
 	oursOnly: OursOnly[];
 	strayMaps: string[];
+	/** Conductor's wording with values in it (`tests/parity/spec/templates.json`). */
+	templates: string[];
 	screenFor: (file: string, offset: number | null) => string;
 }
 
@@ -200,7 +202,7 @@ export function matchedTexts(inputs: Pick<Inputs, "specs" | "maps">): Set<string
 
 /** Numbers, sizes, durations, times, counts and the punctuation around them. */
 const FORMATTED =
-	/[+\-−]?\d+(?:[.,:]\d+)*\s*(?:%|k|K|M|ms|s|m|h|d|w|mo|y|AM|PM|KB|MB|GB|B)?\b|[+\-−·•/×()#@,.:;|<>=~*_[\]{}'"`!?&]/g;
+	/[+\-−]?\d+(?:[.,:]\d+)*\s*(?:%|k|K|M|ms|s|m|h|d|w|mo|y|AM|PM|KB|MB|GB|B)?\b|\b(?:now|ago|just now|yesterday|today)\b|[+\-−·•/×()#@,.:;|<>=~*_[\]{}'"`!?&]/g;
 
 /** True when nothing with two letters is left once sample data, matched texts and formatting go. */
 export function accountedFor(text: string, removable: string[]): boolean {
@@ -212,6 +214,33 @@ export function accountedFor(text: string, removable: string[]): boolean {
 	}
 	rest = rest.replace(FORMATTED, " ");
 	return !/\p{L}{2,}/u.test(rest);
+}
+
+/** Letters and digits only: a value split over several elements still reads as one. */
+export const squash = (text: string): string => text.replace(/[^\p{L}\p{N}]/gu, "");
+
+/** A piece this long can be part of a sample value; a shorter one must be all of it. */
+const SAMPLE_PIECE = 12;
+
+/**
+ * True when the name is a sample value, however the screen split or punctuated it: all of one, or a
+ * long piece of one (a path split into folder and file, a line of a sample reply). A short word is
+ * never taken as part of a sample sentence, so a label of ours cannot hide inside sample prose.
+ */
+export function isSample(text: string, squashedSample: string[]): boolean {
+	const piece = squash(text);
+	if (piece.length < 4) return false;
+	return squashedSample.some(
+		(sample) => sample === piece || (piece.length >= SAMPLE_PIECE && sample.includes(piece)),
+	);
+}
+
+/** A Conductor template ("{} tool calls") as a pattern a whole name must match. */
+export function templatePattern(template: string): RegExp {
+	const parts = normalise(template)
+		.split("{}")
+		.map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+	return new RegExp(`^${parts.join(".+?")}$`, "u");
 }
 
 /** Check b: per state, every matched entry is on screen, and every string of ours is accounted for. */
@@ -293,6 +322,8 @@ function oursOnlyGaps(inputs: Inputs, dump: Dump): Finding[] {
 	const matched = matchedTexts(inputs);
 	const removable = [...new Set([...dump.sample, ...matched])].sort((a, b) => b.length - a.length);
 	const kept = inputs.oursOnly.filter((item) => item.inventory === undefined);
+	const templates = inputs.templates.map(templatePattern);
+	const squashedSample = dump.sample.map(squash).filter((text) => text.length >= 4);
 	for (const state of dump.states) {
 		if (state.error !== null) continue;
 		for (const name of state.names) {
@@ -305,6 +336,8 @@ function oursOnlyGaps(inputs: Inputs, dump: Dump): Finding[] {
 			) {
 				continue;
 			}
+			if (templates.some((template) => template.test(name.text))) continue;
+			if (isSample(name.text, squashedSample)) continue;
 			if (accountedFor(name.text, removable)) continue;
 			findings.push({
 				check: "b",

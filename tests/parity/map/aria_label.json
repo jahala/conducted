@@ -2,77 +2,89 @@
 	"aria_label:R511358": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+		"screen": "Unplaced"
 	},
 	"aria_label:R1875559": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+		"status": "matched",
+		"state": "settings-general",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(1) > div > fieldset > button > span",
+		"by": "seed"
 	},
 	"aria_label:R1898003": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 1.7 Motion"
+		"screen": "Unplaced"
 	},
 	"aria_label:R1898585": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "ui-dimensions 1.7 Motion"
+		"screen": "Unplaced"
 	},
 	"aria_label:R1959218": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+		"screen": "inventory-ui-text Projects and workspaces"
 	},
 	"aria_label:R2049152": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "command-palette",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(5) > div:nth-of-type(2) > div:nth-of-type(7) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"aria_label:R2248531": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "ui-dimensions 3. App shell"
+		"status": "matched",
+		"state": "chat-finished",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(1) > div > button",
+		"by": "seed"
 	},
 	"aria_label:R2269190": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"aria_label:R2623047": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "ui-dimensions 4. Lists and rows"
+		"screen": "Unplaced"
 	},
 	"aria_label:R2623631": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 4. Lists and rows"
+		"screen": "Unplaced"
 	},
 	"aria_label:R2637434": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "ui-dimensions 4. Lists and rows"
+		"screen": "Unplaced"
 	},
 	"aria_label:R2765026": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "git-files",
+		"via": "aria-label",
+		"role": "textbox",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > div:nth-of-type(1) > input",
+		"by": "seed"
 	},
 	"aria_label:R2990489": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"aria_label:R2991910": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"aria_label:R2996778": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"aria_label:R3015261": {
 		"status": "gap",
@@ -80,39 +92,45 @@
 		"screen": "Unplaced"
 	},
 	"aria_label:R3015628": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "chat-finished",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"composer-send-button\"]",
+		"by": "seed"
 	},
 	"aria_label:R3983288": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Git, review and files"
 	},
 	"aria_label:R3991063": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Git, review and files"
 	},
 	"aria_label:R4004238": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Git, review and files"
 	},
 	"aria_label:R4419387": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "chat-finished",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(2) > div > div:nth-of-type(1) > div > button:nth-of-type(2)",
+		"by": "seed"
 	},
 	"aria_label:R4421044": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"aria_label:R4421815": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"aria_label:R4632115": {
 		"status": "gap",
@@ -125,49 +143,58 @@
 		"screen": "Unplaced"
 	},
 	"aria_label:R5011963": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "ui-dimensions 3. App shell"
+		"status": "matched",
+		"state": "chat-finished",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(1) > button:nth-of-type(2)",
+		"by": "seed"
 	},
 	"aria_label:R5016246": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "ui-dimensions 3. App shell"
+		"status": "matched",
+		"state": "chat-finished",
+		"via": "aria-label",
+		"role": "combobox",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(2) > div:nth-of-type(2) > div > div:nth-of-type(1) > button:nth-of-type(1)",
+		"by": "seed"
 	},
 	"aria_label:R5017441": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"aria_label:R5434122": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 1.7 Motion"
+		"screen": "Unplaced"
 	},
 	"aria_label:R5434782": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 1.7 Motion"
+		"screen": "Unplaced"
 	},
 	"aria_label:R5444519": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 1.7 Motion"
+		"screen": "Unplaced"
 	},
 	"aria_label:R5445011": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 1.7 Motion"
+		"screen": "Unplaced"
 	},
 	"aria_label:R5446340": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 1.7 Motion"
+		"screen": "Unplaced"
 	},
 	"aria_label:R5477936": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-general",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > aside > button > span",
+		"by": "seed"
 	},
 	"aria_label:R5501496": {
 		"status": "gap",
@@ -185,34 +212,46 @@
 		"screen": "Unplaced"
 	},
 	"aria_label:R5521072": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "chat-finished",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(1) > div > div > div:nth-of-type(4) > button",
+		"by": "seed"
 	},
 	"aria_label:R5625996": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "chat-finished",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(1) > div > div > div:nth-of-type(2) > button:nth-of-type(1)",
+		"by": "seed"
 	},
 	"aria_label:R5627430": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "backlog",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > main > div > ul > li:nth-of-type(1) > div > button:nth-of-type(4)",
+		"by": "seed"
 	},
 	"aria_label:R5628168": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "git-checks",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"git-panel\"] > div > div > div > div:nth-of-type(3) > div > section:nth-of-type(1) > div:nth-of-type(1) > button:nth-of-type(1) > span",
+		"by": "seed"
 	},
 	"aria_label:R8060854": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Chat and tool cards"
 	},
 	"aria_label:R8075890": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Chat and tool cards"
 	},
 	"aria_label:R8082977": {
 		"status": "gap",
@@ -232,27 +271,27 @@
 	"aria_label:R8147878": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"aria_label:R8148495": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"aria_label:R8700214": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 4. Lists and rows"
+		"screen": "Unplaced"
 	},
 	"aria_label:R8717346": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "ui-dimensions 4. Lists and rows"
+		"screen": "Unplaced"
 	},
 	"aria_label:R8842839": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Composer"
 	},
 	"aria_label:R8874837": {
 		"status": "gap",
@@ -260,24 +299,33 @@
 		"screen": "Unplaced"
 	},
 	"aria_label:R8880898": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-agents",
+		"via": "text",
+		"role": "heading",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > section > div > div > h2",
+		"by": "seed"
 	},
 	"aria_label:R8881675": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-agents",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > section > div > button > span",
+		"by": "seed"
 	},
 	"aria_label:R8906778": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "ui-dimensions 5. Chat and composer"
+		"status": "matched",
+		"state": "new-workspace",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "div:nth-of-type(3) > form > footer > button:nth-of-type(2)",
+		"by": "seed"
 	},
 	"aria_label:R9068829": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"aria_label:R9222951": {
 		"status": "gap",
@@ -290,59 +338,77 @@
 		"screen": "Unplaced"
 	},
 	"aria_label:R9227258": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "chat-working",
+		"via": "aria-label",
+		"role": "img",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(5) > section > div:nth-of-type(2) > div > div:nth-of-type(1) > span",
+		"by": "seed"
 	},
 	"aria_label:R9234010": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "composer-model-picker",
+		"via": "aria-label",
+		"role": "textbox",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > label > input",
+		"by": "seed"
 	},
 	"aria_label:R9246234": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "composer-model-picker",
+		"via": "aria-label",
+		"role": "section",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div > section:nth-of-type(5)",
+		"by": "seed"
 	},
 	"aria_label:R9323764": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "ui-dimensions 5. Chat and composer"
+		"status": "matched",
+		"state": "chat-working",
+		"via": "aria-label",
+		"role": "listbox",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(5) > section > div:nth-of-type(2)",
+		"by": "seed"
 	},
 	"aria_label:R9327423": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "ui-dimensions 5. Chat and composer"
+		"screen": "Unplaced"
 	},
 	"aria_label:R9340087": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "chat-working",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(5) > section > div:nth-of-type(2) > div > div:nth-of-type(2) > button:nth-of-type(3) > span",
+		"by": "seed"
 	},
 	"aria_label:R9387590": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Composer"
 	},
 	"aria_label:R9413717": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Chat view"
 	},
 	"aria_label:R9494117": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Chat and tool cards"
 	},
 	"aria_label:R9500541": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "ui-dimensions 1.7 Motion"
+		"status": "matched",
+		"state": "command-palette",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(5) > div:nth-of-type(2) > div:nth-of-type(4) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"aria_label:R9523816": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 5. Chat and composer"
+		"screen": "inventory-controls Chat view"
 	},
 	"aria_label:R9573518": {
 		"status": "gap",
@@ -352,42 +418,48 @@
 	"aria_label:R9605986": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "ui-dimensions 5. Chat and composer"
+		"screen": "Unplaced"
 	},
 	"aria_label:R9627873": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 5. Chat and composer"
+		"screen": "inventory-controls Chat view"
 	},
 	"aria_label:R9629615": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "ui-dimensions 5. Chat and composer"
+		"status": "matched",
+		"state": "git-diff",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > button:nth-of-type(2)",
+		"by": "seed"
 	},
 	"aria_label:R9637465": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Chat view"
 	},
 	"aria_label:R9637821": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Chat view"
 	},
 	"aria_label:R9643573": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "git-diff",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > fieldset > button:nth-of-type(4)",
+		"by": "seed"
 	},
 	"aria_label:R9734762": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "ui-dimensions 5. Chat and composer"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"aria_label:R9735022": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "ui-dimensions 5. Chat and composer"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"aria_label:R9964533": {
 		"status": "gap",
@@ -412,22 +484,31 @@
 	"aria_label:R10145652": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "inventory-controls Workspaces"
 	},
 	"aria_label:R10149394": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "new-workspace",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > form > footer > button:nth-of-type(3) > span",
+		"by": "seed"
 	},
 	"aria_label:R10188365": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "ui-dimensions 3. App shell"
+		"status": "matched",
+		"state": "settings-general",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > div:nth-of-type(14) > div > div > div > span",
+		"by": "seed"
 	},
 	"aria_label:R10224337": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "ui-dimensions 3. App shell"
+		"status": "matched",
+		"state": "first-run-home",
+		"via": "aria-label",
+		"role": "combobox",
+		"selector": "[data-testid=\"main-content\"] > div > main > div > header > div > button:nth-of-type(2)",
+		"by": "seed"
 	},
 	"aria_label:R10247681": {
 		"status": "gap",
@@ -437,27 +518,27 @@
 	"aria_label:R10276677": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"aria_label:R10289853": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 1.6 Layers (z-index)"
+		"screen": "Unplaced"
 	},
 	"aria_label:R10292173": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"aria_label:R10295355": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"aria_label:R10311628": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"aria_label:R10329806": {
 		"status": "gap",
@@ -467,52 +548,61 @@
 	"aria_label:R10374081": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-controls App shell"
 	},
 	"aria_label:R10374710": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "first-run",
+		"via": "aria-label",
+		"role": "link",
+		"selector": "[data-testid=\"sidebar\"] > div > aside > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > a",
+		"by": "seed"
 	},
 	"aria_label:R10375692": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls App shell"
 	},
 	"aria_label:R10381913": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls App shell"
 	},
 	"aria_label:R10424742": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 4. Lists and rows"
+		"screen": "inventory-controls Sidebar"
 	},
 	"aria_label:R10432418": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "ui-dimensions 4. Lists and rows"
+		"status": "matched",
+		"state": "composer-draft",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"workspace-draft-indicator\"]",
+		"by": "seed"
 	},
 	"aria_label:R10433438": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "ui-dimensions 4. Lists and rows"
+		"status": "matched",
+		"state": "command-palette",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(3) > div > div:nth-of-type(4) > div:nth-of-type(2) > div:nth-of-type(15) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"aria_label:R10434319": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 4. Lists and rows"
+		"screen": "inventory-controls Sidebar"
 	},
 	"aria_label:R10434919": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 4. Lists and rows"
+		"screen": "inventory-controls Sidebar"
 	},
 	"aria_label:R10464425": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "ui-dimensions 4. Lists and rows"
+		"screen": "Unplaced"
 	},
 	"aria_label:R10504137": {
 		"status": "gap",
@@ -520,9 +610,12 @@
 		"screen": "Unplaced"
 	},
 	"aria_label:R10506740": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "new-workspace",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "div:nth-of-type(3) > form > footer > div > button",
+		"by": "seed"
 	},
 	"aria_label:R10515645": {
 		"status": "gap",
@@ -530,29 +623,38 @@
 		"screen": "Unplaced"
 	},
 	"aria_label:R10537138": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "ui-dimensions 3. App shell"
+		"status": "matched",
+		"state": "first-run",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "div > div > div:nth-of-type(1) > button:nth-of-type(2)",
+		"by": "seed"
 	},
 	"aria_label:R10537547": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "ui-dimensions 3. App shell"
+		"status": "matched",
+		"state": "first-run",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "div > div > div:nth-of-type(1) > button:nth-of-type(3)",
+		"by": "seed"
 	},
 	"aria_label:R10549112": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"aria_label:R10551711": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "ui-dimensions 3. App shell"
+		"status": "matched",
+		"state": "chat-finished",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(1) > button:nth-of-type(1)",
+		"by": "seed"
 	},
 	"aria_label:R10693791": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "ui-dimensions 4. Lists and rows"
+		"screen": "inventory-controls Settings"
 	},
 	"aria_label:R10770111": {
 		"status": "gap",
@@ -570,9 +672,12 @@
 		"screen": "Unplaced"
 	},
 	"aria_label:R10831131": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-general",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > aside > div:nth-of-type(1) > button > span",
+		"by": "seed"
 	},
 	"aria_label:R10844512": {
 		"status": "gap",
@@ -592,17 +697,17 @@
 	"aria_label:R10928433": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings: Agents"
 	},
 	"aria_label:R10948284": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings: Agents"
 	},
 	"aria_label:R10948372": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings: Agents"
 	},
 	"aria_label:R11022769": {
 		"status": "gap",
@@ -620,34 +725,43 @@
 		"screen": "Unplaced"
 	},
 	"aria_label:R11029463": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-agents",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > section > div:nth-of-type(2) > div:nth-of-type(1) > span:nth-of-type(2)",
+		"by": "seed"
 	},
 	"aria_label:R11029622": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-account",
+		"via": "text",
+		"role": "p",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div > section:nth-of-type(2) > div:nth-of-type(2) > p",
+		"by": "seed"
 	},
 	"aria_label:R11083786": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"aria_label:R11085226": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "command-palette",
+		"via": "text",
+		"role": "button",
+		"selector": "div:nth-of-type(3) > div > button",
+		"by": "seed"
 	},
 	"aria_label:R11088269": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"aria_label:R11090623": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"aria_label:R11147513": {
 		"status": "gap",
@@ -697,32 +811,32 @@
 	"aria_label:R11269882": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"aria_label:R11270077": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"aria_label:R11270292": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"aria_label:R11276904": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings: Repository"
 	},
 	"aria_label:R11281401": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings: Repository"
 	},
 	"aria_label:R11293940": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"aria_label:R11319788": {
 		"status": "gap",
@@ -735,39 +849,48 @@
 		"screen": "Unplaced"
 	},
 	"aria_label:R11329571": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "chat-finished",
+		"via": "title",
+		"role": "button",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(3) > span > button:nth-of-type(2)",
+		"by": "seed"
 	},
 	"aria_label:R11462165": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"aria_label:R11487348": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "git-scope-menu",
+		"via": "text",
+		"role": "span",
+		"selector": "div:nth-of-type(2) > div > div:nth-of-type(1) > div:nth-of-type(4) > span:nth-of-type(1)",
+		"by": "seed"
 	},
 	"aria_label:R11510611": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Composer"
 	},
 	"aria_label:R11513606": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Composer"
 	},
 	"aria_label:R11515814": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Composer"
 	},
 	"aria_label:R11538389": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "settings-agents",
+		"via": "text",
+		"role": "dt",
+		"selector": "[data-testid=\"settings-screen\"] > main > div:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2) > section > div:nth-of-type(2) > dl > div:nth-of-type(1) > dt",
+		"by": "seed"
 	},
 	"aria_label:R11560462": {
 		"status": "gap",
@@ -777,32 +900,32 @@
 	"aria_label:R11613952": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"aria_label:R11676490": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"aria_label:R11676943": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"aria_label:R11677566": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"aria_label:R11703477": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"aria_label:R11703813": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"aria_label:R11725915": {
 		"status": "gap",
@@ -817,12 +940,12 @@
 	"aria_label:R11762034": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+		"screen": "Unplaced"
 	},
 	"aria_label:R11762597": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+		"screen": "Unplaced"
 	},
 	"aria_label:R11914392": {
 		"status": "gap",
@@ -840,14 +963,20 @@
 		"screen": "Unplaced"
 	},
 	"aria_label:R11924271": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "chat-finished",
+		"via": "text",
+		"role": "tab",
+		"selector": "[data-testid=\"scripts-panel\"] > div > div > div > div:nth-of-type(1) > div > button:nth-of-type(2)",
+		"by": "seed"
 	},
 	"aria_label:R11924758": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "command-palette",
+		"via": "text",
+		"role": "tab",
+		"selector": "div:nth-of-type(3) > div > div:nth-of-type(2) > button:nth-of-type(4)",
+		"by": "seed"
 	},
 	"aria_label:R11940002": {
 		"status": "gap",
@@ -900,9 +1029,12 @@
 		"screen": "Unplaced"
 	},
 	"aria_label:R11983451": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "backlog",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"main-content\"] > div > main > div > ul > li:nth-of-type(1) > div > button:nth-of-type(4) > span",
+		"by": "seed"
 	},
 	"aria_label:R11995698": {
 		"status": "gap",

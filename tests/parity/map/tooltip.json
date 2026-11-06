@@ -17,32 +17,32 @@
 	"tooltip:R2973448": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 1.1 Fonts"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"tooltip:R5588285": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"tooltip:R5591578": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"tooltip:R5592527": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"tooltip:R5608488": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"tooltip:R8048058": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Chat and tool cards"
 	},
 	"tooltip:R8414164": {
 		"status": "gap",
@@ -52,27 +52,30 @@
 	"tooltip:R8800031": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Chat and tool cards"
 	},
 	"tooltip:R8821619": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "home-archived",
+		"via": "text",
+		"role": "span",
+		"selector": "[data-testid=\"home-workspace-card\"] > div:nth-of-type(2) > button:nth-of-type(4) > span",
+		"by": "seed"
 	},
 	"tooltip:R8843427": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Composer"
 	},
 	"tooltip:R8922004": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 5. Chat and composer"
+		"screen": "Unplaced"
 	},
 	"tooltip:R8925669": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 5. Chat and composer"
+		"screen": "Unplaced"
 	},
 	"tooltip:R8966854": {
 		"status": "gap",
@@ -82,27 +85,33 @@
 	"tooltip:R9523634": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "ui-dimensions 5. Chat and composer"
+		"screen": "inventory-controls Chat view"
 	},
 	"tooltip:R9525824": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "ui-dimensions 5. Chat and composer"
+		"screen": "inventory-controls Chat view"
 	},
 	"tooltip:R9535913": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 5. Chat and composer"
+		"screen": "inventory-controls Chat view"
 	},
 	"tooltip:R9587964": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "ui-dimensions 5. Chat and composer"
+		"status": "matched",
+		"state": "chat-finished",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"virtuoso-item-list\"] > div > div > div:nth-of-type(3) > span > button:nth-of-type(1)",
+		"by": "seed"
 	},
 	"tooltip:R9642788": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "git-diff",
+		"via": "aria-label",
+		"role": "button",
+		"selector": "[data-testid=\"main-content\"] > div > div > div:nth-of-type(2) > div > div > div:nth-of-type(2) > div > div:nth-of-type(1) > div > div:nth-of-type(2) > button:nth-of-type(1)",
+		"by": "seed"
 	},
 	"tooltip:R10033594": {
 		"status": "gap",
@@ -112,12 +121,12 @@
 	"tooltip:R10720405": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings"
 	},
 	"tooltip:R11579984": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Settings and agents"
 	},
 	"tooltip:R11916650": {
 		"status": "gap",

@@ -1,28 +1,37 @@
 {
 	"test_id:R2597888": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "Unplaced"
+		"status": "matched",
+		"state": "chat-finished",
+		"via": "testid",
+		"role": "div",
+		"selector": "[data-testid=\"virtuoso-scroller\"]",
+		"by": "seed"
 	},
 	"test_id:R2608648": {
-		"status": "gap",
-		"reason": "missing",
-		"screen": "ui-dimensions 4. Lists and rows"
+		"status": "matched",
+		"state": "chat-finished",
+		"via": "testid",
+		"role": "div",
+		"selector": "[data-testid=\"virtuoso-item-list\"]",
+		"by": "seed"
 	},
 	"test_id:R2987806": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"test_id:R5587249": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"test_id:R8915522": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "ui-dimensions 5. Chat and composer"
+		"status": "matched",
+		"state": "chat-finished",
+		"via": "testid",
+		"role": "button",
+		"selector": "[data-testid=\"composer-send-button\"]",
+		"by": "seed"
 	},
 	"test_id:R9050252": {
 		"status": "gap",
@@ -37,7 +46,7 @@
 	"test_id:R10139472": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "inventory-controls Workspaces"
 	},
 	"test_id:R10242215": {
 		"status": "gap",
@@ -60,24 +69,27 @@
 		"screen": "Unplaced"
 	},
 	"test_id:R10432376": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "ui-dimensions 4. Lists and rows"
+		"status": "matched",
+		"state": "composer-draft",
+		"via": "testid",
+		"role": "button",
+		"selector": "[data-testid=\"workspace-draft-indicator\"]",
+		"by": "seed"
 	},
 	"test_id:R10434951": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 4. Lists and rows"
+		"screen": "inventory-controls Sidebar"
 	},
 	"test_id:R10441458": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 4. Lists and rows"
+		"screen": "inventory-controls Sidebar"
 	},
 	"test_id:R10441716": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 4. Lists and rows"
+		"screen": "inventory-controls Sidebar"
 	},
 	"test_id:R11550278": {
 		"status": "gap",

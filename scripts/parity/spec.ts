@@ -143,6 +143,51 @@ export function bundleLiterals(code: string): Map<string, number> {
 	return literals;
 }
 
+/**
+ * Reads the template literal that starts at `start` (a backtick) into wording with `{}` for each
+ * value: static text kept, every `${...}` replaced. Null when it is not closed or holds no value.
+ */
+export function readTemplate(code: string, start: number): string | null {
+	let text = "";
+	let holes = 0;
+	for (let index = start + 1; index < code.length && index < start + 400; index++) {
+		const char = code[index];
+		if (char === "\\") {
+			const next = code[index + 1] ?? "";
+			text += next === "n" ? " " : next;
+			index++;
+		} else if (char === "`") {
+			return holes > 0 ? text : null;
+		} else if (char === "$" && code[index + 1] === "{") {
+			let depth = 1;
+			index += 2;
+			while (index < code.length && depth > 0) {
+				if (code[index] === "{") depth++;
+				else if (code[index] === "}") depth--;
+				if (depth > 0) index++;
+			}
+			text += "{}";
+			holes++;
+		} else text += char;
+	}
+	return null;
+}
+
+/** Conductor's on-screen wording written as templates, in the places the inventories read strings. */
+export function bundleTemplates(code: string, toasts: Set<string>): Map<string, number> {
+	const found = new Map<string, number>();
+	const places =
+		/(?:children|label|title|description|placeholder|tooltip|content|"aria-label"):`|([A-Za-z_$][\w$]*)\.(?:success|error|info|warning|message)\(`/g;
+	for (const match of code.matchAll(places)) {
+		if (match[1] !== undefined && !toasts.has(match[1])) continue;
+		const text = readTemplate(code, match.index + match[0].length - 1);
+		if (text === null || found.has(text)) continue;
+		if (!/\p{L}{2,}/u.test(text.replace(/\{\}/g, "")) || /[<>]|className|=>/.test(text)) continue;
+		found.set(text, match.index);
+	}
+	return found;
+}
+
 function walk(dir: string, keep: (path: string) => boolean): string[] {
 	const files: string[] = [];
 	for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -154,8 +199,7 @@ function walk(dir: string, keep: (path: string) => boolean): string[] {
 }
 
 /** Our UI source: the desktop's screens, without tests, the test kit or the catalogue's sample data. */
-export function uiSourceFiles(): string[] {
-	const src = join(ROOT, "apps/desktop/src");
+export function uiSourceFiles(src: string = join(ROOT, "apps/desktop/src")): string[] {
 	return walk(src, (path) => {
 		const rel = relative(src, path);
 		if (!/\.tsx?$/.test(rel) || /\.test\.tsx?$/.test(rel)) return false;
@@ -252,6 +296,16 @@ function main(): void {
 		entries: [...literals.values()],
 	});
 
+	// Conductor's wording with values in it ("{} tool calls"): not an inventory, a recogniser for
+	// check b, so a string of ours written the same way is not reported as ours only.
+	const templates: SpecEntry[] = [];
+	for (const [file, code] of bundle) {
+		for (const [text, offset] of bundleTemplates(code, toastNames.get(file) ?? new Set())) {
+			templates.push({ id: entryId("template", file, offset), text, file, offset });
+		}
+	}
+	templates.sort((a, b) => a.file.localeCompare(b.file) || (a.offset ?? 0) - (b.offset ?? 0));
+
 	const calls = JSON.parse(
 		readFileSync(join(reference, "call-inventory.json"), "utf8"),
 	) as CallInventory;
@@ -339,6 +393,13 @@ function main(): void {
 	writeJsonFiles([
 		...specs.map((spec) => ({ path: join(SPEC_DIR, `${spec.inventory}.json`), value: spec })),
 		{
+			path: join(SPEC_DIR, "templates.json"),
+			value: {
+				source: "the bundle: template literals where the inventories read strings",
+				entries: templates,
+			},
+		},
+		{
 			path: join(SPEC_DIR, "excluded.json"),
 			value: {
 				rules: {
@@ -351,6 +412,7 @@ function main(): void {
 	]);
 	for (const spec of specs) console.log(`${spec.inventory.padEnd(22)} ${spec.entries.length}`);
 	console.log(`excluded               ${excluded.length}`);
+	console.log(`templates              ${templates.length}`);
 	if (missingKeys.length > 0) {
 		console.log(`Settings keys the bundle does not hold, left out: ${missingKeys.join(", ")}`);
 	}

@@ -32,7 +32,7 @@ The `conductor-code` guard holds the rule that the spec carries no code: it runs
 - An entry whose normalised text equals a name in exactly one place of the dump is matched there, marked `"by": "seed"`. Normalising trims, collapses white space, and writes `…` as `...` and curly quotes as straight ones.
 - An entry that matches only after case folding or with its end punctuation dropped, or that matches in several states with different roles, is matched with `"by": "seed-unsure"`. Each of those is checked by hand, then marked `"by": "hand"` or turned into a gap.
 - Decisions are written by hand or by a named rule in `scripts/parity/rules.ts` (`"by": "rule:<name>"`). A rule names its decision and matches on what the entry is for, never on one odd string.
-- Every other entry is a gap. A gap says whether our UI source holds the same string (**unshown**: no catalogue state draws it yet) or not (**missing**), and the screen it belongs to: the `ui-map.md` or `ui-dimensions.md` section that cites the nearest bundle offset, within 20,000 characters.
+- Every other entry is a gap. A gap says whether our UI source holds the same string (**unshown**: no catalogue state draws it yet) or not (**missing**), and the screen it belongs to: the section of `ui-map.md` or of a coverage audit in `docs/coverage/` that cites the nearest bundle offset, within 20,000 characters.
 - The seeder never overwrites a `hand` entry or a decision.
 
 A gap is closed in step 5 of the goal in one of two ways: fix our screen (and add the catalogue state that shows it, for an unshown gap), or add a decision to `docs/decisions.md` and name it in the map. Removing or hiding anything people see needs the owner's yes per item.

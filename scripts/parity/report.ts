@@ -117,7 +117,18 @@ export function renderReport(report: Report): string {
 	for (const [screen, list] of [...screens].sort(([a], [b]) => a.localeCompare(b))) {
 		lines.push(`### ${screen} (${list.length})`, "");
 		lines.push("| Check | Code | Where | Text | Detail |", "| --- | --- | --- | --- | --- |");
-		for (const finding of list) {
+		// One row per string of ours, naming every state that shows it.
+		const oursOnly = new Map<string, Finding[]>();
+		for (const finding of list.filter((item) => item.code === "ours-only")) {
+			const same = oursOnly.get(finding.text ?? "") ?? [];
+			same.push(finding);
+			oursOnly.set(finding.text ?? "", same);
+		}
+		for (const [text, same] of oursOnly) {
+			const states = same.map((finding) => finding.state).join(", ");
+			lines.push(`| b | ours-only | ${cell(states)} | ${cell(text)} | ${cell(same[0]?.detail)} |`);
+		}
+		for (const finding of list.filter((item) => item.code !== "ours-only")) {
 			lines.push(
 				`| ${finding.check} | ${finding.code} | ${cell(finding.id ?? finding.state)} | ${cell(finding.text)} | ${cell(finding.detail)} |`,
 			);

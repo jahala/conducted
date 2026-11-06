@@ -130,9 +130,9 @@
 		"screen": "Unplaced"
 	},
 	"route:R1713000": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"ours": "/create",
+		"by": "seed"
 	},
 	"route:R1714453": {
 		"status": "gap",
@@ -140,49 +140,49 @@
 		"screen": "Unplaced"
 	},
 	"route:R1715305": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"ours": "/",
+		"by": "seed"
 	},
 	"route:R1864102": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+		"screen": "Unplaced"
 	},
 	"route:R1960039": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 6.2 Inputs and selection controls"
+		"screen": "inventory-ui-text Projects and workspaces"
 	},
 	"route:R2049956": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"ours": "/all-workspaces",
+		"by": "seed"
 	},
 	"route:R2960849": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 1.1 Fonts"
+		"screen": "Unplaced"
 	},
 	"route:R2960925": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 1.1 Fonts"
+		"screen": "Unplaced"
 	},
 	"route:R2961215": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 1.1 Fonts"
+		"screen": "Unplaced"
 	},
 	"route:R2983757": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"route:R2986285": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Cloud (research only, no planned row yet)"
 	},
 	"route:R3034458": {
 		"status": "gap",
@@ -192,7 +192,7 @@
 	"route:R5008856": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R9253487": {
 		"status": "gap",
@@ -202,37 +202,37 @@
 	"route:R9524664": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 5. Chat and composer"
+		"screen": "inventory-controls Chat view"
 	},
 	"route:R9542870": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Chat view"
 	},
 	"route:R10181173": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "Unplaced"
+		"screen": "inventory-ui-text Projects and workspaces"
 	},
 	"route:R10198052": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R10407696": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "ui-dimensions 4. Lists and rows"
+		"screen": "Unplaced"
 	},
 	"route:R10410820": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 4. Lists and rows"
+		"screen": "Unplaced"
 	},
 	"route:R10411413": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 4. Lists and rows"
+		"screen": "Unplaced"
 	},
 	"route:R10854854": {
 		"status": "gap",
@@ -242,12 +242,12 @@
 	"route:R10912759": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Settings: Agents"
 	},
 	"route:R11216772": {
-		"status": "gap",
-		"reason": "unshown",
-		"screen": "Unplaced"
+		"status": "matched",
+		"ours": "/first-run-onboarding",
+		"by": "seed"
 	},
 	"route:R11216830": {
 		"status": "gap",
@@ -262,7 +262,7 @@
 	"route:R11298182": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-messages-sidecar Gap and Research only: toast messages and behaviours"
 	},
 	"route:R11312381": {
 		"status": "gap",
@@ -272,12 +272,12 @@
 	"route:R11641644": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "Unplaced"
+		"screen": "inventory-controls Platform"
 	},
 	"route:R11704796": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11732135": {
 		"status": "gap",
@@ -297,142 +297,142 @@
 	"route:R11768782": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 4. Lists and rows"
+		"screen": "Unplaced"
 	},
 	"route:R11779761": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11783496": {
 		"status": "gap",
 		"reason": "unshown",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11783578": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11783949": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11784032": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11784112": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11784178": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11784222": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11784338": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11784428": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11784537": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11784600": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11785462": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11785714": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11785937": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11785995": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11786057": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11786119": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11786178": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11786352": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11786413": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11786475": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11786604": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11786662": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11786702": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11786789": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11786851": {
 		"status": "gap",
 		"reason": "missing",
-		"screen": "ui-dimensions 3. App shell"
+		"screen": "Unplaced"
 	},
 	"route:R11929822": {
 		"status": "gap",

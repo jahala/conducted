@@ -82,7 +82,14 @@ export type MapEntry =
 			note?: string;
 	  }
 	| { status: "decided"; decision: string; note: string; by: string }
-	| { status: "gap"; reason: "missing" | "unshown"; screen: string; note?: string };
+	| {
+			status: "gap";
+			reason: "missing" | "unshown";
+			screen: string;
+			note?: string;
+			/** "hand" when a person checked it; the seeder then keeps it. */
+			by?: "hand";
+	  };
 
 export type MapFile = Record<string, MapEntry>;
 

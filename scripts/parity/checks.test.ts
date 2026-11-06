@@ -6,6 +6,9 @@ import {
 	checkLayout,
 	checkText,
 	type Inputs,
+	isSample,
+	squash,
+	templatePattern,
 } from "./checks.ts";
 import type { LayoutSpec } from "./dump.ts";
 import type { BackendInventory, Dump, DumpState, Inventory, MapFile, SpecFile } from "./lib.ts";
@@ -48,6 +51,7 @@ function inputs(overrides: Partial<Inputs> = {}): Inputs {
 		states: new Set(["sidebar", "composer-model-picker"]),
 		oursOnly: [],
 		strayMaps: [],
+		templates: ["{} tool calls, {} messages"],
 		screenFor: () => "ui-map 4. Left sidebar",
 		...overrides,
 	};
@@ -127,10 +131,13 @@ describe("check b, text and controls both ways", () => {
 					["+36 -1", "text"],
 					["52s · 9:15 AM", "text"],
 					["Copy summary", "text"],
+					["3 tool calls, 2 messages", "text"],
+					["src/auth sign-in.ts", "text"],
+					["just now", "text"],
 				]),
 				state("composer-model-picker", [["Search models", "placeholder"]]),
 			],
-			["sam/rate-limit-api"],
+			["sam/rate-limit-api", "src/auth/sign-in.ts"],
 		);
 		const kept = inputs({
 			oursOnly: [{ text: "Copy summary", decision: "D004", note: "kept as ours" }],
@@ -146,6 +153,21 @@ describe("check b, text and controls both ways", () => {
 			dumpOf([failed, state("composer-model-picker", [["Search models", "text"]])]),
 		);
 		expect(findings.map((f) => [f.code, f.severity])).toEqual([["state-failed", "broken"]]);
+	});
+
+	test("a template must match the whole name, and a sample piece needs four letters or digits", () => {
+		expect(templatePattern("{} tool calls, {} messages").test("6 tool calls, 4 messages")).toBe(
+			true,
+		);
+		expect(templatePattern("{} tool calls").test("6 tool calls hidden")).toBe(false);
+		expect(templatePattern("Open (beta) {}").test("Open (beta) x")).toBe(true);
+		expect(isSample("docs redirects.md", [squash("docs/redirects.md")])).toBe(true);
+		expect(isSample("Write something ...", [squash("Write a test first")])).toBe(false);
+		expect(isSample("ok", [squash("ok then")])).toBe(false);
+		expect(isSample("Sidebar", [squash("Sidebar: two projects")])).toBe(false);
+		expect(
+			isSample("safeNext accepts only paths", [squash("`safeNext` accepts only paths here")]),
+		).toBe(true);
 	});
 
 	test("accountedFor leaves nothing with two letters once sample and formatting go", () => {

@@ -3,9 +3,10 @@
  * that state and element, each backend name we also have is matched to ours, a named rule writes a
  * decision, and everything else becomes a gap with its screen and whether our UI source has it.
  * Behaviour: docs/plans/parity-harness.md section 2.
- * Must handle: a `hand` entry or a decision is never overwritten; a match that needs case folding
- * or dropped end punctuation is `seed-unsure`, for a person to check; the first state in catalogue
- * order wins when several show the same text, and the seed is the same on every run for one dump.
+ * Must handle: an entry a person checked (`"by": "hand"`, a match or a gap) or a decision is never
+ * overwritten; a match that needs case folding or dropped end punctuation is `seed-unsure`, for a
+ * person to check; the first state in catalogue order wins when several show the same text, and the
+ * seed is the same on every run for one dump.
  *
  * Usage: bun scripts/parity/seed.ts <dump.json>
  */
@@ -49,8 +50,7 @@ export interface SeedInputs {
 }
 
 const kept = (entry: MapEntry | undefined): boolean =>
-	entry !== undefined &&
-	(entry.status === "decided" || (entry.status === "matched" && entry.by === "hand"));
+	entry !== undefined && (entry.status === "decided" || entry.by === "hand");
 
 interface Hit {
 	state: string;

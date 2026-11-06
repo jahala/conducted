@@ -112,6 +112,9 @@ function main(options: Options): number {
 		states,
 		oursOnly: readJson<OursOnly[]>(join(DATA, "ours-only.json")),
 		strayMaps: strayMapFiles(),
+		templates: readJson<{ entries: { text: string }[] }>(
+			join(DATA, "spec/templates.json"),
+		).entries.map((entry) => entry.text),
 		screenFor: researchScreens(ROOT),
 	};
 	const findings: Finding[] = [...checkCompleteness(inputs)];
