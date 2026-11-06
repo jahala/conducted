@@ -13,19 +13,23 @@
 //! Test first: `plat_32_reports_the_running_macos_version` reads the version `sw_vers` reports.
 //!
 //! @feature PLAT-27 Startup hardening: file limit, panics in the log, one instance
-//! Owns: the three things `run` does before the window opens: raise the open-file limit, send Rust
-//! panics to the app log, and allow one running copy of the app.
+//! Owns: the startup steps `run` takes before the window is usable: set the login-shell PATH, raise
+//! the open-file limit, send Rust panics to the app log, allow one running copy of the app, and end
+//! every terminal when the app closes.
 //! Behaviour: docs/research/conductor/native-and-sidecar-map.md A2 (`lib.rs` raises the
-//! file-descriptor limit and installs a panic hook) and A5 ("Failed to raise file descriptor
-//! limit").
+//! file-descriptor limit and installs a panic hook), A4 (closing the app ends its terminals), A5
+//! ("Failed to raise file descriptor limit") and A6 (the login-shell PATH is repaired before the
+//! runtime starts).
 //! Must handle: a limit that cannot be raised (a logged warning, the app still starts); a limit
 //! already above the wanted one (left alone); a panic on any thread (message, location and a
 //! backtrace go to the log before the process ends; with `panic = "abort"` in release builds the
 //! hook is the only record); a second launch (the first window comes to the front and the second
-//! process exits, which needs `tauri-plugin-single-instance` in Cargo.toml and in `run`); a panic
-//! while the log is not ready (printed to stderr).
-//! Our design choice: the research shows no single-instance guard in Conductor. We add one because
-//! two copies would share one database and one sidecar socket folder.
+//! process exits); a panic while the log is not ready (printed to stderr).
+//! Our design choice: the soft limit rises to `WANTED_SOFT_LIMIT` (10,240) when it is lower, capped
+//! by the hard limit. A higher limit is left alone.
+//! Our design choice: the research shows no single-instance guard in Conductor. We add one with a
+//! lock file in the app data folder because two copies would share one database and one sidecar
+//! socket folder. The lock is our own, so no extra crate is needed.
 //! Test first: `raise_file_limit` returns a soft limit at least as high as the one before the call.
 
 pub mod attachments;
@@ -42,6 +46,7 @@ pub mod menu;
 pub mod navigation;
 pub mod notifications;
 pub mod open_with;
+pub mod permissions;
 mod process_group;
 pub mod pty;
 pub mod resource_usage;
@@ -50,24 +55,277 @@ pub mod sidecar;
 pub mod speech;
 pub mod terminal_history;
 pub mod updater;
+pub mod window;
+
+use std::fs::{self, File, OpenOptions};
+use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::io::AsRawFd;
+use std::path::Path;
+use std::sync::atomic::Ordering;
+use std::sync::mpsc::TrySendError;
 
 use error::{CommandError, CommandResult};
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
 
+/// The soft open-file limit the app asks for. A higher limit is left alone.
+const WANTED_SOFT_LIMIT: u64 = 10_240;
+
+#[cfg(target_os = "macos")]
+const RLIMIT_NOFILE: i32 = 8;
+#[cfg(not(target_os = "macos"))]
+const RLIMIT_NOFILE: i32 = 7;
+
+/// `struct rlimit` on macOS and 64-bit Unix: two unsigned 64-bit fields.
+#[repr(C)]
+struct FileLimit {
+    soft: u64,
+    hard: u64,
+}
+
+unsafe extern "C" {
+    fn getrlimit(resource: i32, limits: *mut FileLimit) -> i32;
+    fn setrlimit(resource: i32, limits: *const FileLimit) -> i32;
+}
+
+/// The soft and hard open-file limits of this process.
+fn read_file_limit() -> CommandResult<(u64, u64)> {
+    let mut limits = FileLimit { soft: 0, hard: 0 };
+    // SAFETY: getrlimit fills one `struct rlimit` and reads nothing else.
+    if unsafe { getrlimit(RLIMIT_NOFILE, &mut limits) } != 0 {
+        return Err(CommandError::Io(std::io::Error::last_os_error()));
+    }
+    Ok((limits.soft, limits.hard))
+}
+
+/// The soft limit to set, or `None` when the current limit is already high enough. A requested
+/// limit above the hard limit is capped by the hard limit.
+fn next_soft_limit(current: u64, hard: u64, wanted: u64) -> Option<u64> {
+    if current >= wanted {
+        return None;
+    }
+    let target = wanted.min(hard);
+    (target > current).then_some(target)
+}
+
 /// Raises the soft limit of open files towards the hard limit. Returns the new soft limit.
 pub fn raise_file_limit() -> CommandResult<u64> {
-    not_implemented!("PLAT-27")
+    let (current, hard) = read_file_limit()?;
+    let Some(target) = next_soft_limit(current, hard, WANTED_SOFT_LIMIT) else {
+        return Ok(current);
+    };
+    let limits = FileLimit { soft: target, hard };
+    // SAFETY: setrlimit reads one `struct rlimit`; the new soft limit is at most the hard limit.
+    if unsafe { setrlimit(RLIMIT_NOFILE, &limits) } != 0 {
+        return Err(CommandError::Io(std::io::Error::last_os_error()));
+    }
+    Ok(target)
+}
+
+/// The login-shell PATH, when the capture produced one.
+fn apply_login_path<F: FnOnce(&str)>(login: &shell::LoginEnv, set_path: F) -> bool {
+    let Some(path) = (!login.path.is_empty()).then_some(login.path.as_str()) else {
+        return false;
+    };
+    set_path(path);
+    true
+}
+
+/// A shell state that already holds the startup capture, so the first later call reuses it and
+/// does not write the process environment after the runtime has started.
+fn shell_state_with_login(login: shell::LoginEnv) -> shell::ShellState {
+    let state = shell::ShellState::default();
+    *state.login_env.blocking_lock() = Some(login);
+    state
+}
+
+/// Captures the login-shell PATH and applies it before the Tauri runtime starts. The capture is
+/// kept in the shell state, so no later call repeats the environment write.
+fn prepare_shell_state() -> shell::ShellState {
+    match shell::capture_login_env() {
+        Ok(login) => {
+            apply_login_path(&login, |path| {
+                // SAFETY: this runs before the Tauri runtime starts, so no other thread reads or
+                // writes the process environment while PATH changes.
+                unsafe { std::env::set_var("PATH", path) };
+            });
+            shell_state_with_login(login)
+        }
+        Err(error) => {
+            eprintln!("could not read the login-shell PATH: {error}");
+            shell::ShellState::default()
+        }
+    }
+}
+
+/// Queues one Rust log record through the writer that `logger.rs` owns. Returns false when the
+/// writer is not running, so the caller can fall back to stderr.
+fn queue_rust_log(state: &logger::LoggerState, level: &str, message: &str) -> bool {
+    let Some(allowed) = logger::level_allows(state.level.load(Ordering::Relaxed), level) else {
+        return false;
+    };
+    if !allowed {
+        return true;
+    }
+    let sender = match state.sender.lock() {
+        Ok(sender) => sender.clone(),
+        Err(_) => return false,
+    };
+    let Some(sender) = sender else {
+        return false;
+    };
+    let record = logger::LogRecord {
+        level: level.to_string(),
+        message: message.to_string(),
+        data: None,
+    };
+    match sender.try_send(record) {
+        Ok(()) => true,
+        Err(TrySendError::Full(_)) => {
+            state.dropped.fetch_add(1, Ordering::Relaxed);
+            true
+        }
+        Err(TrySendError::Disconnected(_)) => false,
+    }
+}
+
+/// One line for a panic: the message, where it happened and a backtrace.
+fn panic_log_message(payload: &str, location: Option<(&str, u32, u32)>, backtrace: &str) -> String {
+    let place = location
+        .map(|(file, line, column)| format!("{file}:{line}:{column}"))
+        .unwrap_or_else(|| "an unknown location".to_string());
+    format!("panic at {place}: {payload}\nbacktrace:\n{backtrace}")
 }
 
 /// Sends panics to the app log (`logger.rs`) instead of only to stderr.
-pub fn install_panic_hook(_app: &AppHandle) -> CommandResult<()> {
-    not_implemented!("PLAT-27")
+pub fn install_panic_hook(app: &AppHandle) -> CommandResult<()> {
+    let app = app.clone();
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let payload = info.payload();
+        let text = payload
+            .downcast_ref::<&str>()
+            .copied()
+            .or_else(|| payload.downcast_ref::<String>().map(String::as_str))
+            .unwrap_or("the panic had no text");
+        let location = info
+            .location()
+            .map(|location| (location.file(), location.line(), location.column()));
+        let backtrace = std::backtrace::Backtrace::force_capture().to_string();
+        let message = panic_log_message(text, location, &backtrace);
+        let state = app.state::<logger::LoggerState>();
+        if !queue_rust_log(&state, "error", &message) {
+            eprintln!("{message}");
+        }
+        previous(info);
+    }));
+    Ok(())
+}
+
+const LOCK_EX: i32 = 2;
+const LOCK_NB: i32 = 4;
+
+unsafe extern "C" {
+    fn flock(fd: i32, operation: i32) -> i32;
+}
+
+/// The file whose lock proves this process is the one running copy. The lock is released when the
+/// file is dropped or the process exits.
+struct InstanceLock {
+    _file: File,
+}
+
+/// Takes the instance lock, or returns `None` when another process holds it.
+fn try_instance_lock(path: &Path) -> CommandResult<Option<InstanceLock>> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| CommandError::Failed {
+            code: "instance_lock_failed",
+            message: format!("Could not create {}: {error}", parent.display()),
+        })?;
+    }
+    let file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .mode(0o600)
+        .open(path)
+        .map_err(|error| CommandError::Failed {
+            code: "instance_lock_failed",
+            message: format!("Could not open {}: {error}", path.display()),
+        })?;
+    // SAFETY: flock reads only the open file descriptor and the operation flags.
+    if unsafe { flock(file.as_raw_fd(), LOCK_EX | LOCK_NB) } == 0 {
+        return Ok(Some(InstanceLock { _file: file }));
+    }
+    let error = std::io::Error::last_os_error();
+    if error.kind() == std::io::ErrorKind::WouldBlock {
+        return Ok(None);
+    }
+    Err(CommandError::Io(error))
+}
+
+/// Asks macOS to bring the running copy of the app to the front.
+fn focus_running_instance(identifier: &str) {
+    match std::process::Command::new("/usr/bin/open")
+        .args(["-b", identifier])
+        .status()
+    {
+        Ok(status) if status.success() => {}
+        Ok(status) => {
+            eprintln!("could not bring the running copy to the front: open exited with {status}")
+        }
+        Err(error) => eprintln!("could not bring the running copy to the front: {error}"),
+    }
 }
 
 /// Makes a second launch focus the first window and exit.
-pub fn guard_single_instance(_app: &AppHandle) -> CommandResult<()> {
-    not_implemented!("PLAT-27")
+pub fn guard_single_instance(app: &AppHandle) -> CommandResult<()> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| CommandError::Failed {
+            code: "instance_lock_failed",
+            message: format!("Could not find the app data folder: {error}"),
+        })?;
+    let path = dir.join("conducted.instance.lock");
+    match try_instance_lock(&path)? {
+        Some(lock) => {
+            app.manage(lock);
+            Ok(())
+        }
+        None => {
+            focus_running_instance(app.config().identifier.as_str());
+            std::process::exit(0);
+        }
+    }
+}
+
+/// SIGHUP ends a terminal's foreground process group.
+const SIGHUP: i32 = 1;
+
+/// Ends every terminal the app started. Returns one line per terminal that could not be killed.
+fn terminate_terminals(state: &pty::PtyState) -> Vec<String> {
+    let sessions: Vec<std::sync::Arc<pty::PtySession>> = {
+        let table = state
+            .sessions
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        table.values().cloned().collect()
+    };
+    let mut failures = Vec::new();
+    for session in sessions {
+        session.flow.close();
+        if let Some(pid) = session.pid {
+            process_group::signal_group(pid, SIGHUP);
+        }
+        let mut killer = session
+            .killer
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Err(error) = killer.kill() {
+            failures.push(format!("{}: {error}", session.id));
+        }
+    }
+    failures
 }
 
 /// Liveness check used by the UI at startup and by the scaffold's smoke test.
@@ -269,6 +527,10 @@ fn window_toggle_inspector(app: AppHandle) -> CommandResult<()> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    if let Err(error) = raise_file_limit() {
+        eprintln!("could not raise the open-file limit: {error}");
+    }
+    let shell_state = prepare_shell_state();
     tauri::Builder::default()
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(
@@ -283,7 +545,7 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
-        .manage(shell::ShellState::default())
+        .manage(shell_state)
         .manage(pty::PtyState::default())
         .manage(sidecar::SidecarState::default())
         .manage(notifications::NotificationState::default())
@@ -306,6 +568,10 @@ pub fn run() {
         .manage(binaries::BinariesState::default())
         .manage(binaries::ProgramsState::default())
         .setup(|app| {
+            if let Err(error) = guard_single_instance(app.handle()) {
+                eprintln!("could not check for another running copy: {error}");
+            }
+            install_panic_hook(app.handle())?;
             let logger_state = app.state::<logger::LoggerState>();
             logger::start_writer(app.handle(), &logger_state)?;
             navigation::install_guard(app.handle())?;
@@ -319,9 +585,13 @@ pub fn run() {
             health,
             app_info,
             system_info,
+            permissions::full_disk_access_check,
+            permissions::full_disk_access_open_settings,
             app_quit,
             set_quit_handler_ready,
             window_toggle_inspector,
+            window::window_set_vibrancy,
+            window::window_set_traffic_lights,
             db::db_version_check,
             logger::log_write,
             logger::log_set_level,
@@ -388,6 +658,14 @@ pub fn run() {
             if let tauri::RunEvent::Exit = event {
                 // Agent program downloads stop, also those waiting to retry (PLAT-28).
                 app.state::<binaries::ProgramsState>().cancel_all();
+                // Terminals run in their own process groups, so they would outlive the app.
+                let terminal_failures = terminate_terminals(&app.state::<pty::PtyState>());
+                if !terminal_failures.is_empty() {
+                    eprintln!(
+                        "could not end every terminal on exit: {}",
+                        terminal_failures.join(", ")
+                    );
+                }
                 // Commands started with `shell_start` run in their own process groups, so they
                 // would outlive the app. End them before the sidecar.
                 shell::terminate_all(
@@ -566,5 +844,198 @@ mod system_info_tests {
             .collect();
 
         assert_eq!(missing, vec!["forgotten".to_string()]);
+    }
+}
+
+#[cfg(test)]
+mod startup_tests {
+    use super::*;
+    use std::collections::HashMap;
+    use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+    fn unique_temp_dir() -> std::path::PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or(0);
+        std::env::temp_dir().join(format!("conducted-plat-27-{}-{nanos}", std::process::id()))
+    }
+
+    #[test]
+    fn plat_27_raise_file_limit_returns_a_soft_limit_at_least_as_high() {
+        let (before, _) = read_file_limit().expect("the open-file limit can be read");
+        let after = raise_file_limit().expect("the open-file limit is raised");
+        assert!(
+            after >= before,
+            "the soft limit went from {before} to {after}"
+        );
+    }
+
+    #[test]
+    fn plat_27_a_low_soft_limit_rises_to_the_wanted_limit() {
+        assert_eq!(next_soft_limit(256, 65_536, 10_240), Some(10_240));
+    }
+
+    #[test]
+    fn plat_27_a_soft_limit_already_above_the_wanted_one_is_left_alone() {
+        assert_eq!(next_soft_limit(10_240, 65_536, 10_240), None);
+        assert_eq!(next_soft_limit(1_048_576, u64::MAX, 10_240), None);
+    }
+
+    #[test]
+    fn plat_27_the_hard_limit_caps_the_raise() {
+        assert_eq!(next_soft_limit(256, 4_096, 10_240), Some(4_096));
+        assert_eq!(next_soft_limit(4_096, 4_096, 10_240), None);
+    }
+
+    #[test]
+    fn plat_27_the_login_path_is_applied_before_the_runtime_starts() {
+        let login = shell::LoginEnv {
+            shell: "/bin/zsh".to_string(),
+            path: "/opt/homebrew/bin:/usr/bin".to_string(),
+            vars: HashMap::new(),
+        };
+        let mut applied = None;
+        assert!(apply_login_path(&login, |path| {
+            applied = Some(path.to_string());
+        }));
+        assert_eq!(applied.as_deref(), Some("/opt/homebrew/bin:/usr/bin"));
+
+        let empty = shell::LoginEnv {
+            path: String::new(),
+            ..login
+        };
+        assert!(!apply_login_path(&empty, |_| panic!(
+            "an empty PATH must not replace the process one"
+        )));
+    }
+
+    #[test]
+    fn plat_27_the_startup_capture_is_reused_by_later_callers() {
+        let login = shell::LoginEnv {
+            shell: "/bin/zsh".to_string(),
+            path: "/usr/local/bin:/usr/bin".to_string(),
+            vars: HashMap::new(),
+        };
+        let expected = login.path.clone();
+        let state = shell_state_with_login(login);
+        let cached = state.login_env.blocking_lock();
+        assert_eq!(
+            cached.as_ref().map(|login| login.path.as_str()),
+            Some(expected.as_str())
+        );
+    }
+
+    #[test]
+    fn plat_27_a_panic_record_names_the_message_place_and_backtrace() {
+        let message = panic_log_message("boom", Some(("src/lib.rs", 12, 3)), "0: frame");
+        assert!(message.contains("src/lib.rs:12:3"), "was {message:?}");
+        assert!(message.contains("boom"), "was {message:?}");
+        assert!(message.contains("backtrace:"), "was {message:?}");
+        assert!(message.contains("0: frame"), "was {message:?}");
+
+        let without_place = panic_log_message("boom", None, "0: frame");
+        assert!(
+            without_place.contains("an unknown location"),
+            "was {without_place:?}"
+        );
+    }
+
+    #[test]
+    fn plat_27_a_panic_message_reaches_the_log_queue() {
+        let state = logger::LoggerState::default();
+        let (sender, receiver) = std::sync::mpsc::sync_channel(4);
+        *state.sender.lock().expect("the sender lock is usable") = Some(sender);
+
+        assert!(queue_rust_log(
+            &state,
+            "error",
+            "panic at src/lib.rs:1:1: boom"
+        ));
+
+        let record = receiver.recv().expect("the panic record is queued");
+        assert_eq!(record.level, "error");
+        assert!(record.message.contains("boom"), "was {:?}", record.message);
+    }
+
+    #[test]
+    fn plat_27_a_panic_before_the_log_starts_is_not_queued() {
+        let state = logger::LoggerState::default();
+        assert!(!queue_rust_log(
+            &state,
+            "error",
+            "panic before the log is ready"
+        ));
+    }
+
+    #[test]
+    fn plat_27_a_second_copy_cannot_take_the_instance_lock() {
+        let dir = unique_temp_dir();
+        let path = dir.join("conducted.instance.lock");
+        let first = try_instance_lock(&path)
+            .expect("the lock can be opened")
+            .expect("the first copy takes the lock");
+        let second = try_instance_lock(&path).expect("the second lock call runs");
+        assert!(second.is_none(), "a second copy must not take the lock");
+
+        drop(first);
+        let third = try_instance_lock(&path)
+            .expect("the lock can be taken again")
+            .expect("the lock is free after the first copy ends");
+        drop(third);
+
+        fs::remove_file(&path).expect("the lock file is removed");
+        fs::remove_dir(&dir).expect("the lock folder is removed");
+    }
+
+    #[test]
+    fn plat_27_closing_the_app_ends_every_terminal() {
+        let state = pty::PtyState::default();
+        let request = pty::PtySpawnRequest {
+            cwd: std::env::temp_dir().to_string_lossy().into_owned(),
+            cols: 80,
+            rows: 24,
+            command: Some(pty::PtyCommand {
+                program: "/bin/sh".to_string(),
+                args: vec!["-c".to_string(), "sleep 30".to_string()],
+            }),
+            env: None,
+        };
+        let mut spawned = pty::spawn_terminal(
+            &request,
+            "/bin/sh",
+            &HashMap::new(),
+            "plat-27-terminal".to_string(),
+        )
+        .expect("a terminal starts");
+        let id = spawned.session.id.clone();
+        state
+            .sessions
+            .lock()
+            .expect("the session table is usable")
+            .insert(id, std::sync::Arc::clone(&spawned.session));
+
+        let failures = terminate_terminals(&state);
+        assert!(failures.is_empty(), "failed to end: {failures:?}");
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let status = loop {
+            if let Some(status) = spawned
+                .child
+                .try_wait()
+                .expect("the terminal can be polled")
+            {
+                break status;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the terminal still runs after the app closes"
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        };
+        assert!(
+            !status.success(),
+            "a terminal ended by the close must not succeed"
+        );
     }
 }

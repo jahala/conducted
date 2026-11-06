@@ -36,6 +36,7 @@ function fakeWindow(focused = true): FakeWindow {
 			listen: async () => () => {},
 			window: {
 				isFocused: async () => state.focused,
+				setTheme: async () => {},
 				listen: async <T>(event: string, handler: (payload: T) => void) => {
 					listened.push(event);
 					let handlers = listeners.get(event);
@@ -134,6 +135,7 @@ describe("PLAT-31 Tauri window focus", () => {
 			listen: async () => () => {},
 			window: {
 				isFocused: async () => true,
+				setTheme: async () => {},
 				listen: <T>(event: string, _handler: (payload: T) => void) =>
 					new Promise<() => void>((resolve) => {
 						late.push(() => resolve(() => stopped.push(event)));

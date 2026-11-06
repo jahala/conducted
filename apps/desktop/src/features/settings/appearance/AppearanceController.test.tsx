@@ -40,12 +40,12 @@ function mount(values: Record<string, string | number | boolean>) {
 }
 
 describe("SET-06 AppearanceController", () => {
-	it("writes the stored theme and zoom to the document with no settings page open", () => {
-		mount({ theme: "dark", color_vision: "tritanopia", zoom_level_v2: 1.5 });
+	it("writes the stored theme to the document and the zoom to the window", () => {
+		const test = mount({ theme: "dark", color_vision: "tritanopia", zoom_level_v2: 1.5 });
 
 		expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
 		expect(document.documentElement.getAttribute("data-color-vision")).toBe("tritanopia");
-		expect(document.documentElement.style.getPropertyValue("zoom")).toBe("1.5");
+		expect(test.memory.controls.windowZoom).toBe(1.5);
 	});
 
 	it("switches to light first when the theme follows a dark Mac", async () => {
