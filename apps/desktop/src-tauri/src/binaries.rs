@@ -28,7 +28,8 @@
 //! fails and leaves no file in the bin folder.
 //!
 //! @feature PLAT-28 Agent program manager: download, verify, update, prune
-//! Owns: the managed programs `claude`, `codex`, `gh` and `watchexec`: reading the pinned release
+//! Owns: the managed programs `claude`, `codex`, `gh` and `watchexec` (and Cursor's SDK tree,
+//! AGENT-09 above): reading the pinned release
 //! feed, downloading a program with a SHA-256 and progress, unpacking it from the vendor's
 //! compressed file, clearing its quarantine flag, writing its install metadata, pointing its link
 //! in the app's bin folder at it, moving old versions to the Trash, and retrying a failed
@@ -76,6 +77,24 @@
 //! decoders (ruzstd, zip, tar, lzma-rust2) instead of the system's `zstd` and `gzip`.
 //! Test first: installing a program writes its metadata, points the bin shim at it and prunes the
 //! old version.
+//!
+//! @feature AGENT-09 Cursor: SDK in process (installing the SDK on demand)
+//! Owns: Cursor's SDK as a managed program (`cursor`): the pinned tree of npm packages in the
+//! release feed, downloading each tarball from registry.npmjs.org with its SHA-256 checked,
+//! unpacking it into `agent-binaries/cursor/<version>/node_modules/<name>/`, and the
+//! `agent-binaries/cursor/current` link the sidecar loads the SDK through.
+//! Behaviour: the owner's rulings for AGENT-09 and PLAT-28: the SDK installs on demand through
+//! this manager and is never bundled (D010, D078); each tarball is pinned by exact version, size
+//! and SHA-256 from the vendors' official release host.
+//! Must handle: a tarball with a wrong checksum, a broken tarball or an entry outside its package
+//! (nothing is installed: the tree is unpacked into a staging folder that is removed, and only a
+//! complete tree is renamed into place and linked); the launch (Cursor's SDK is never installed
+//! without the user asking: `ManagedProgram::installs_at_launch`); remove (the whole tree and its
+//! link go to the Trash); the native package of this Mac's CPU only.
+//! Our design choice: the tree is one install with one status, one progress bar over the sum of
+//! the tarball sizes, and one metadata record kept on the SDK's `package.json`.
+//! Test first: installing Cursor's SDK tree unpacks every package, keeps ripgrep's execute bit and
+//! points `current` at the version.
 //!
 //! @feature PLAT-34 Check the bundled helper programs at launch
 //! Owns: the launch check: copying the bundled bin folder into the app data folder, running each
@@ -156,15 +175,19 @@ pub enum ManagedProgram {
     Codex,
     Gh,
     Watchexec,
+    /// Cursor's SDK: a tree of npm packages the sidecar loads in process (AGENT-09), not a program
+    /// that runs on its own.
+    Cursor,
 }
 
 impl ManagedProgram {
-    /// Every program the launch check knows.
-    pub const ALL: [ManagedProgram; 4] = [
+    /// Every program the manager knows.
+    pub const ALL: [ManagedProgram; 5] = [
         ManagedProgram::Claude,
         ManagedProgram::Codex,
         ManagedProgram::Gh,
         ManagedProgram::Watchexec,
+        ManagedProgram::Cursor,
     ];
 
     /// The agent programs, whose path the user may choose in settings instead (SET-13). The program
@@ -178,7 +201,15 @@ impl ManagedProgram {
             ManagedProgram::Codex => "codex",
             ManagedProgram::Gh => "gh",
             ManagedProgram::Watchexec => "watchexec",
+            ManagedProgram::Cursor => "cursor",
         }
+    }
+
+    /// True when the launch installs the program without being asked. Cursor's SDK installs only
+    /// when the user asks for it (the owner's ruling for AGENT-09), so nothing of it is downloaded
+    /// at app start.
+    pub fn installs_at_launch(self) -> bool {
+        self != ManagedProgram::Cursor
     }
 }
 
@@ -674,6 +705,10 @@ pub fn pinned_version(program: ManagedProgram) -> &'static str {
         ManagedProgram::Codex => "0.164.0",
         ManagedProgram::Gh => "2.100.0",
         ManagedProgram::Watchexec => "2.3.2",
+        // The latest @cursor/sdk on registry.npmjs.org on 2026-11-06, which the owner ruled is
+        // installed on demand (AGENT-09). Conductor bundles its own copy; its version is not in the
+        // research.
+        ManagedProgram::Cursor => "1.3.1",
     }
 }
 
@@ -768,6 +803,49 @@ pub struct ProgramRelease {
     pub darwin_x64: ReleaseAsset,
 }
 
+/// One npm package of a package tree: its exact version and the tarball registry.npmjs.org
+/// publishes for it, with the tarball's size and SHA-256.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackageTarball {
+    /// The package name, such as `@cursor/sdk`. It names the folder under `node_modules`.
+    pub name: String,
+    pub version: String,
+    pub url: String,
+    pub sha256: String,
+    pub size: u64,
+}
+
+/// A pinned tree of npm packages: the packages every Mac needs, and the native package of each
+/// CPU. Cursor's SDK is one (AGENT-09).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackageTreeRelease {
+    pub version: String,
+    pub packages: Vec<PackageTarball>,
+    pub darwin_arm64: Vec<PackageTarball>,
+    pub darwin_x64: Vec<PackageTarball>,
+}
+
+impl PackageTreeRelease {
+    /// Every tarball this Mac installs, the shared packages first.
+    fn tarballs(&self) -> Vec<&PackageTarball> {
+        let native = if cfg!(target_arch = "aarch64") {
+            &self.darwin_arm64
+        } else {
+            &self.darwin_x64
+        };
+        self.packages.iter().chain(native.iter()).collect()
+    }
+
+    fn tarballs_mut(&mut self) -> impl Iterator<Item = &mut PackageTarball> {
+        self.packages
+            .iter_mut()
+            .chain(self.darwin_arm64.iter_mut())
+            .chain(self.darwin_x64.iter_mut())
+    }
+}
+
 /// The release feed the program manager reads: one pinned release per managed program. The app
 /// ships it as a resource (`RELEASE_FEED_RESOURCE`), so each app version pins its own programs.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
@@ -777,15 +855,18 @@ pub struct ReleaseManifest {
     pub codex: Option<ProgramRelease>,
     pub gh: Option<ProgramRelease>,
     pub watchexec: Option<ProgramRelease>,
+    pub cursor: Option<PackageTreeRelease>,
 }
 
 impl ReleaseManifest {
+    /// The release of a program that is one file. Cursor's SDK is a package tree, so it has none.
     fn release(&self, program: ManagedProgram) -> Option<&ProgramRelease> {
         match program {
             ManagedProgram::Claude => self.claude.as_ref(),
             ManagedProgram::Codex => self.codex.as_ref(),
             ManagedProgram::Gh => self.gh.as_ref(),
             ManagedProgram::Watchexec => self.watchexec.as_ref(),
+            ManagedProgram::Cursor => None,
         }
     }
 
@@ -827,8 +908,24 @@ impl ProgramDirs {
         self.binaries.join(program.as_str())
     }
 
+    /// The installed file a version is known by: the program itself, or for Cursor's SDK the
+    /// SDK's own `package.json`, which the sidecar reads to load it.
     fn binary(&self, program: ManagedProgram, version: &str) -> PathBuf {
-        self.program(program).join(version).join(program.as_str())
+        match program {
+            ManagedProgram::Cursor => self
+                .program(program)
+                .join(version)
+                .join("node_modules")
+                .join(CURSOR_SDK_PACKAGE)
+                .join("package.json"),
+            _ => self.program(program).join(version).join(program.as_str()),
+        }
+    }
+
+    /// Where a package tree is unpacked before it is renamed to its version folder. The name
+    /// starts with a dot, so no version is ever called that.
+    fn staging(&self, program: ManagedProgram, version: &str) -> PathBuf {
+        self.program(program).join(format!(".{version}.partial"))
     }
 
     /// Where a compressed release file is downloaded before its program is unpacked beside it.
@@ -844,10 +941,23 @@ impl ProgramDirs {
             .join(format!("{}-{version}.json", program.as_str()))
     }
 
+    /// The link that says which version is ready. A program's link is in the bin folder, which is
+    /// on PATH. Cursor's SDK is no program to run, so its link is `cursor/current` beside its
+    /// versions, where the sidecar looks for it.
     fn shim(&self, program: ManagedProgram) -> PathBuf {
-        self.bin.join(program.as_str())
+        match program {
+            ManagedProgram::Cursor => self.program(program).join(CURSOR_CURRENT_LINK),
+            _ => self.bin.join(program.as_str()),
+        }
     }
 }
+
+/// The npm package of Cursor's SDK inside its tree.
+pub const CURSOR_SDK_PACKAGE: &str = "@cursor/sdk";
+
+/// The name of the link to the ready version of Cursor's SDK. The sidecar's
+/// `runners/cursor/load-sdk.ts` reads the same name.
+pub const CURSOR_CURRENT_LINK: &str = "current";
 
 /// How often a failed download is tried, and how long the manager waits between tries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1126,13 +1236,19 @@ pub fn read_release_manifest(path: &Path) -> CommandResult<ReleaseManifest> {
             code: "program_release_invalid",
             message: format!("The program release feed could not be understood: {error}"),
         })?;
+    let bad_hash = |error: CommandError| CommandError::Failed {
+        code: "program_release_invalid",
+        message: format!("The program release feed has a bad hash: {error}"),
+    };
     for release in manifest.releases_mut().into_iter().flatten() {
         for asset in [&mut release.darwin_arm64, &mut release.darwin_x64] {
-            asset.sha256 =
-                crate::http::parse_sha256(&asset.sha256).map_err(|error| CommandError::Failed {
-                    code: "program_release_invalid",
-                    message: format!("The program release feed has a bad hash: {error}"),
-                })?;
+            asset.sha256 = crate::http::parse_sha256(&asset.sha256).map_err(bad_hash)?;
+        }
+    }
+    if let Some(tree) = manifest.cursor.as_mut() {
+        for tarball in tree.tarballs_mut() {
+            tarball.sha256 = crate::http::parse_sha256(&tarball.sha256).map_err(bad_hash)?;
+            check_package_name(&tarball.name)?;
         }
     }
     Ok(manifest)
@@ -1266,20 +1382,26 @@ fn remove_link(link: &Path, code: &'static str) -> CommandResult<()> {
 }
 
 fn install_bin_shim(bin_dir: &Path, program: ManagedProgram, binary: &Path) -> CommandResult<()> {
-    fs::create_dir_all(bin_dir).map_err(|error| CommandError::Failed {
-        code: "program_bin_dir_failed",
-        message: format!("Could not make {}: {error}", bin_dir.display()),
-    })?;
-    let link = bin_dir.join(program.as_str());
-    remove_if_present(&link, "program_bin_shim_failed", |link| {
+    point_link(&bin_dir.join(program.as_str()), binary)
+}
+
+/// Makes `link` point at `target`, replacing whatever link was there, and makes its folder first.
+fn point_link(link: &Path, target: &Path) -> CommandResult<()> {
+    if let Some(folder) = link.parent() {
+        fs::create_dir_all(folder).map_err(|error| CommandError::Failed {
+            code: "program_bin_dir_failed",
+            message: format!("Could not make {}: {error}", folder.display()),
+        })?;
+    }
+    remove_if_present(link, "program_bin_shim_failed", |link| {
         remove_link(link, "program_bin_shim_failed")
     })?;
-    symlink(binary, &link).map_err(|error| CommandError::Failed {
+    symlink(target, link).map_err(|error| CommandError::Failed {
         code: "program_bin_shim_failed",
         message: format!(
             "Could not point {} at {}: {error}",
             link.display(),
-            binary.display()
+            target.display()
         ),
     })
 }
@@ -1404,6 +1526,22 @@ pub fn finish_install(
             message: format!("Could not make {} runnable: {error}", binary.display()),
         }
     })?;
+    write_metadata(dirs, program, version, binary, sha256)?;
+    install_bin_shim(&dirs.bin, program, binary)?;
+    Ok(Installed {
+        prune_error: prune_versions(&dirs.program(program), version, trash).err(),
+    })
+}
+
+/// Records an installed version: the SHA-256 it was checked against, and the size and modified
+/// time of the file it is known by, so a later launch can tell the file has not changed.
+fn write_metadata(
+    dirs: &ProgramDirs,
+    program: ManagedProgram,
+    version: &str,
+    binary: &Path,
+    sha256: &str,
+) -> CommandResult<()> {
     let metadata_path = dirs.metadata(program, version);
     if let Some(metadata_dir) = metadata_path.parent() {
         fs::create_dir_all(metadata_dir).map_err(|error| CommandError::Failed {
@@ -1426,10 +1564,6 @@ pub fn finish_install(
     fs::write(&metadata_path, metadata.to_string()).map_err(|error| CommandError::Failed {
         code: "program_metadata_failed",
         message: format!("Could not write {}: {error}", metadata_path.display()),
-    })?;
-    install_bin_shim(&dirs.bin, program, binary)?;
-    Ok(Installed {
-        prune_error: prune_versions(&dirs.program(program), version, trash).err(),
     })
 }
 
@@ -1686,6 +1820,10 @@ async fn download_and_finish(
     cancel: &CancellationToken,
 ) -> CommandResult<ProgramStatus> {
     let manifest = read_release_manifest(&ctx.feed)?;
+    if program == ManagedProgram::Cursor {
+        return download_tree_and_finish(ctx, &manifest, state, sink, program, status, cancel)
+            .await;
+    }
     let release = manifest
         .release(program)
         .ok_or_else(|| CommandError::Failed {
@@ -1774,6 +1912,329 @@ async fn download_and_finish(
         next_attempt_at: None,
         error: installed.prune_error.map(|error| error.to_string()),
         path: Some(target.to_string_lossy().into_owned()),
+    })
+}
+
+/// Refuses a package name that is not `name` or `@scope/name`, so a feed entry cannot point a
+/// folder outside `node_modules`.
+fn check_package_name(name: &str) -> CommandResult<()> {
+    let parts: Vec<&str> = name.split('/').collect();
+    let plain = |part: &str| {
+        !part.is_empty()
+            && part != "."
+            && part != ".."
+            && part.chars().all(|character| {
+                character.is_ascii_lowercase()
+                    || character.is_ascii_digit()
+                    || matches!(character, '-' | '_' | '.' | '~')
+            })
+    };
+    let valid = match parts.as_slice() {
+        [single] => plain(single),
+        [scope, package] => scope.strip_prefix('@').is_some_and(plain) && plain(package),
+        _ => false,
+    };
+    if valid {
+        return Ok(());
+    }
+    Err(CommandError::Failed {
+        code: "program_release_invalid",
+        message: format!("The program release feed names a package {name:?} that is not valid."),
+    })
+}
+
+/// Unpacks one npm tarball into `folder`. An npm tarball keeps every file under `package/`; that
+/// first part is dropped. Only folders and regular files are written, a file keeps its execute
+/// bit, and an entry that would land outside `folder` refuses the whole tarball.
+pub fn unpack_npm_tarball(source: &Path, folder: &Path) -> CommandResult<()> {
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::Component;
+
+    let file = fs::File::open(source).map_err(|error| unpack_failed(source, &error))?;
+    let mut archive =
+        tar::Archive::new(flate2::read::GzDecoder::new(std::io::BufReader::new(file)));
+    for entry in archive
+        .entries()
+        .map_err(|error| unpack_failed(source, &error))?
+    {
+        let mut entry = entry.map_err(|error| unpack_failed(source, &error))?;
+        let path = entry
+            .path()
+            .map_err(|error| unpack_failed(source, &error))?
+            .into_owned();
+        let mut components = path.components();
+        let first = components.next();
+        let rest: PathBuf = components.collect();
+        let inside = matches!(first, Some(Component::Normal(_)))
+            && rest
+                .components()
+                .all(|component| matches!(component, Component::Normal(_)));
+        if !inside {
+            return Err(unpack_failed(
+                source,
+                &format!("the entry {} is outside the package", path.display()),
+            ));
+        }
+        let target = folder.join(&rest);
+        let kind = entry.header().entry_type();
+        if kind.is_dir() {
+            fs::create_dir_all(&target).map_err(|error| unpack_failed(source, &error))?;
+            continue;
+        }
+        if !kind.is_file() {
+            return Err(unpack_failed(
+                source,
+                &format!("the entry {} is not a file or a folder", path.display()),
+            ));
+        }
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent).map_err(|error| unpack_failed(source, &error))?;
+        }
+        let mode = entry
+            .header()
+            .mode()
+            .map_err(|error| unpack_failed(source, &error))?;
+        let mut written =
+            fs::File::create(&target).map_err(|error| unpack_failed(source, &error))?;
+        std::io::copy(&mut entry, &mut written).map_err(|error| unpack_failed(source, &error))?;
+        let permissions = if mode & 0o111 != 0 { 0o755 } else { 0o644 };
+        fs::set_permissions(&target, fs::Permissions::from_mode(permissions))
+            .map_err(|error| unpack_failed(source, &error))?;
+    }
+    Ok(())
+}
+
+/// Clears the quarantine flag from every file in `folder`, so the native parts of a package tree
+/// (ripgrep, the sandbox helper, Node addons) can run.
+fn strip_quarantine_tree(folder: &Path) -> CommandResult<()> {
+    let output = Command::new("xattr")
+        .arg("-d")
+        .arg("-r")
+        .arg("com.apple.quarantine")
+        .arg(folder)
+        .output()
+        .map_err(|error| CommandError::Failed {
+            code: "program_quarantine_failed",
+            message: format!(
+                "Could not clear the quarantine flag in {}: {error}",
+                folder.display()
+            ),
+        })?;
+    // xattr reports "No such xattr" for each file without the flag and still exits 0 with -r on
+    // some macOS versions and 1 on others; only another message is a failure.
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let other = stderr
+        .lines()
+        .filter(|line| !line.trim().is_empty() && !line.contains("No such xattr"))
+        .collect::<Vec<_>>();
+    if output.status.success() || other.is_empty() {
+        return Ok(());
+    }
+    Err(CommandError::Failed {
+        code: "program_quarantine_failed",
+        message: format!(
+            "Could not clear the quarantine flag in {}: {}",
+            folder.display(),
+            other.join(" ")
+        ),
+    })
+}
+
+/// Removes a staging folder this install made. A folder that stays is reported on stderr,
+/// because the caller is already returning the error that matters.
+fn remove_staging(staging: &Path) {
+    if let Err(error) = fs::remove_dir_all(staging)
+        && error.kind() != std::io::ErrorKind::NotFound
+    {
+        eprintln!(
+            "could not remove the staging folder {}: {error}",
+            staging.display()
+        );
+    }
+}
+
+/// One attempt at a package tree (Cursor's SDK): downloads each pinned tarball with its SHA-256
+/// checked, unpacks it into a staging folder, and only when every package is in place renames the
+/// folder to its version, records it and points `current` at it. Any failure leaves no version
+/// folder and no link, and removes the staging folder.
+async fn download_tree_and_finish(
+    ctx: &InstallContext,
+    manifest: &ReleaseManifest,
+    state: &ProgramsState,
+    sink: &dyn StatusSink,
+    program: ManagedProgram,
+    status: &ProgramStatus,
+    cancel: &CancellationToken,
+) -> CommandResult<ProgramStatus> {
+    let release = manifest
+        .cursor
+        .as_ref()
+        .ok_or_else(|| CommandError::Failed {
+            code: "program_release_missing",
+            message: format!("The release feed has no {program} package tree."),
+        })?;
+    let pinned = pinned_version(program);
+    if release.version != pinned {
+        return Err(CommandError::Failed {
+            code: "program_version_not_pinned",
+            message: format!(
+                "The release feed offers {program} {}, but this app pins {pinned}.",
+                release.version
+            ),
+        });
+    }
+    let tarballs = release.tarballs();
+    let sdk_sha256 = tarballs
+        .iter()
+        .find(|tarball| tarball.name == CURSOR_SDK_PACKAGE)
+        .map(|tarball| tarball.sha256.clone())
+        .ok_or_else(|| CommandError::Failed {
+            code: "program_release_invalid",
+            message: format!("The release feed's {program} tree has no {CURSOR_SDK_PACKAGE}."),
+        })?;
+    let total: u64 = tarballs.iter().map(|tarball| tarball.size).sum();
+
+    let staging = ctx.dirs.staging(program, pinned);
+    // A staging folder left by an install the app did not finish is moved to the Trash first.
+    remove_if_present(&staging, "program_install_failed", |folder| {
+        (ctx.trash)(folder)
+    })?;
+    let modules = staging.join("node_modules");
+    fs::create_dir_all(&modules).map_err(|error| CommandError::Failed {
+        code: "program_install_failed",
+        message: format!("Could not make {}: {error}", modules.display()),
+    })?;
+
+    let attempt = async {
+        let mut downloading = ProgramStatus {
+            state: ProgramState::Downloading,
+            version: Some(pinned.to_string()),
+            bytes_downloaded: 0,
+            bytes_total: Some(total),
+            next_attempt_at: None,
+            error: None,
+            ..status.clone()
+        };
+        state.publish(sink, downloading.clone())?;
+        let mut done: u64 = 0;
+        for (index, tarball) in tarballs.iter().enumerate() {
+            let downloaded = staging.join(format!("{index}.tgz"));
+            let outcome = crate::http::download_request(
+                ctx.allowed_hosts,
+                &tarball.url,
+                &downloaded,
+                Some(tarball.sha256.as_str()),
+                ctx.stall_timeout,
+                cancel.clone(),
+                |received, _total| {
+                    downloading.bytes_downloaded = done.saturating_add(received);
+                    state.publish(sink, downloading.clone())
+                },
+            )
+            .await?;
+            done = done.saturating_add(outcome.size_bytes);
+            let folder = modules.join(&tarball.name);
+            crate::error::blocking("program_unpack_failed", move || {
+                let unpacked = unpack_npm_tarball(&downloaded, &folder);
+                let removed = fs::remove_file(&downloaded).map_err(|error| CommandError::Failed {
+                    code: "program_unpack_failed",
+                    message: format!(
+                        "Could not remove the downloaded file {}: {error}",
+                        downloaded.display()
+                    ),
+                });
+                unpacked?;
+                removed
+            })
+            .await?;
+        }
+        state.publish(
+            sink,
+            ProgramStatus {
+                state: ProgramState::Verifying,
+                bytes_downloaded: done,
+                ..downloading
+            },
+        )?;
+
+        let dirs = ctx.dirs.clone();
+        let trash = Arc::clone(&ctx.trash);
+        let staged = staging.clone();
+        let installed = crate::error::blocking("program_install_failed", move || {
+            finish_tree_install(program, pinned, &staged, &sdk_sha256, &dirs, &*trash)
+        })
+        .await?;
+        Ok::<_, CommandError>((done, installed))
+    };
+    let (done, installed) = match attempt.await {
+        Ok(finished) => finished,
+        Err(error) => {
+            remove_staging(&staging);
+            return Err(error);
+        }
+    };
+
+    Ok(ProgramStatus {
+        program,
+        state: ProgramState::Ready,
+        version: Some(pinned.to_string()),
+        bytes_downloaded: done,
+        bytes_total: Some(done),
+        attempt: 0,
+        next_attempt_at: None,
+        error: installed.prune_error.map(|error| error.to_string()),
+        path: Some(
+            ctx.dirs
+                .binary(program, pinned)
+                .to_string_lossy()
+                .into_owned(),
+        ),
+    })
+}
+
+/// Makes a staged package tree the current version: clears quarantine, moves an installed copy of
+/// the same version to the Trash (a re-download), renames the staging folder into place, records
+/// the SDK's `package.json` in the metadata, points `current` at the version and removes older
+/// versions.
+fn finish_tree_install(
+    program: ManagedProgram,
+    version: &str,
+    staging: &Path,
+    sha256: &str,
+    dirs: &ProgramDirs,
+    trash: &dyn Fn(&Path) -> CommandResult<()>,
+) -> CommandResult<Installed> {
+    strip_quarantine_tree(staging)?;
+    let entry_in_staging = staging
+        .join("node_modules")
+        .join(CURSOR_SDK_PACKAGE)
+        .join("package.json");
+    if !entry_in_staging.is_file() {
+        return Err(CommandError::Failed {
+            code: "program_install_failed",
+            message: format!("The {program} tree has no {}.", entry_in_staging.display()),
+        });
+    }
+    let target = dirs.program(program).join(version);
+    remove_if_present(&target, "program_install_failed", trash)?;
+    fs::rename(staging, &target).map_err(|error| CommandError::Failed {
+        code: "program_install_failed",
+        message: format!(
+            "Could not move {} to {}: {error}",
+            staging.display(),
+            target.display()
+        ),
+    })?;
+    write_metadata(
+        dirs,
+        program,
+        version,
+        &dirs.binary(program, version),
+        sha256,
+    )?;
+    point_link(&dirs.shim(program), &target)?;
+    Ok(Installed {
+        prune_error: prune_versions(&dirs.program(program), version, trash).err(),
     })
 }
 
@@ -1881,8 +2342,9 @@ pub async fn remove_program(
     state.publish(sink, ProgramStatus::missing(program))
 }
 
-/// Shows the installed copies, then starts an install of every managed program that is not ready.
-/// Returns the tasks it started.
+/// Shows the installed copies, then starts an install of every managed program that is not ready
+/// and installs at launch: Cursor's SDK waits until the user installs it. Returns the tasks it
+/// started.
 fn prefetch(
     ctx: &InstallContext,
     state: &ProgramsState,
@@ -1891,7 +2353,7 @@ fn prefetch(
     hydrate_from_disk(&ctx.dirs, state, sink.as_ref())?;
     let mut started = Vec::new();
     for program in ManagedProgram::ALL {
-        if state.status(program).state == ProgramState::Ready {
+        if !program.installs_at_launch() || state.status(program).state == ProgramState::Ready {
             continue;
         }
         if let Some(task) = start_install(
@@ -2542,6 +3004,7 @@ mod tests {
                 (ManagedProgram::Codex, ProgramState::Missing),
                 (ManagedProgram::Gh, ProgramState::Missing),
                 (ManagedProgram::Watchexec, ProgramState::Missing),
+                (ManagedProgram::Cursor, ProgramState::Missing),
             ]
         );
     }
@@ -3034,6 +3497,7 @@ mod tests {
             ManagedProgram::Codex => manifest.codex = release,
             ManagedProgram::Gh => manifest.gh = release,
             ManagedProgram::Watchexec => manifest.watchexec = release,
+            ManagedProgram::Cursor => unreachable!("Cursor's SDK is a package tree, not one file"),
         }
         fs::create_dir_all(ctx.feed.parent().expect("a feed folder"))
             .expect("make the feed folder");
@@ -3714,10 +4178,13 @@ mod tests {
 
         assert_eq!(
             ManagedProgram::ALL.len(),
-            4,
-            "claude, codex, gh and watchexec"
+            5,
+            "claude, codex, gh, watchexec and Cursor's SDK"
         );
         for program in ManagedProgram::ALL {
+            if program == ManagedProgram::Cursor {
+                continue;
+            }
             let release = feed
                 .release(program)
                 .unwrap_or_else(|| panic!("the feed offers {program}"));
@@ -4095,6 +4562,355 @@ mod tests {
         assert_eq!(
             version_folder_names(&ctx, ManagedProgram::Watchexec),
             Vec::<String>::new()
+        );
+    }
+
+    // ------------------------------------------------------------ AGENT-09 Cursor's SDK tree
+
+    #[test]
+    fn agent_09_the_shipped_feed_pins_cursors_sdk_tree_from_the_npm_registry() {
+        let feed = shipped_feed();
+        let tree = feed.cursor.expect("the feed offers Cursor's SDK");
+
+        assert_eq!(tree.version, pinned_version(ManagedProgram::Cursor));
+        let names: Vec<&str> = tree
+            .packages
+            .iter()
+            .map(|tarball| tarball.name.as_str())
+            .collect();
+        assert_eq!(
+            names,
+            vec![
+                "@cursor/sdk",
+                "@bufbuild/protobuf",
+                "@connectrpc/connect",
+                "@connectrpc/connect-web",
+                "@statsig/js-client",
+                "@statsig/client-core",
+                "zod",
+            ]
+        );
+        assert_eq!(tree.darwin_arm64[0].name, "@cursor/sdk-darwin-arm64");
+        assert_eq!(tree.darwin_x64[0].name, "@cursor/sdk-darwin-x64");
+        for tarball in tree
+            .packages
+            .iter()
+            .chain(&tree.darwin_arm64)
+            .chain(&tree.darwin_x64)
+        {
+            let url = crate::http::check_url(&tarball.url, crate::http::ALLOWED_HOSTS)
+                .unwrap_or_else(|error| panic!("{} is refused: {error}", tarball.url));
+            assert_eq!(
+                url.host_str(),
+                Some("registry.npmjs.org"),
+                "{}",
+                tarball.url
+            );
+            assert!(
+                tarball.url.ends_with(&format!("-{}.tgz", tarball.version)),
+                "{} is the tarball of {} {}",
+                tarball.url,
+                tarball.name,
+                tarball.version
+            );
+            assert!(tarball.size > 0, "{} has a size", tarball.url);
+        }
+    }
+
+    /// One npm tarball: every file under `package/`, as the registry serves it.
+    fn npm_tarball(files: &[(&str, &[u8], u32)]) -> Vec<u8> {
+        use std::io::Write;
+        let mut builder = tar::Builder::new(Vec::new());
+        for (name, body, mode) in files {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(body.len() as u64);
+            header.set_mode(*mode);
+            header.set_cksum();
+            builder
+                .append_data(&mut header, format!("package/{name}"), *body)
+                .expect("add a tar entry");
+        }
+        let tar = builder.into_inner().expect("finish the tar");
+        let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        encoder.write_all(&tar).expect("compress the tar");
+        encoder.finish().expect("finish the gzip")
+    }
+
+    fn tarball_entry(name: &str, url: &str, body: &[u8]) -> PackageTarball {
+        PackageTarball {
+            name: name.to_string(),
+            version: "1.0.0".to_string(),
+            url: url.to_string(),
+            sha256: sha_hex(body),
+            size: body.len() as u64,
+        }
+    }
+
+    /// A feed whose Cursor tree is the SDK and one dependency, plus the native package of this
+    /// Mac's CPU, all served from `url` in that order.
+    fn write_cursor_feed(ctx: &InstallContext, url: &str, bodies: [&[u8]; 3]) {
+        let native = tarball_entry("@cursor/sdk-native", url, bodies[2]);
+        let manifest = ReleaseManifest {
+            cursor: Some(PackageTreeRelease {
+                version: pinned_version(ManagedProgram::Cursor).to_string(),
+                packages: vec![
+                    tarball_entry("@cursor/sdk", url, bodies[0]),
+                    tarball_entry("zod", url, bodies[1]),
+                ],
+                darwin_arm64: vec![native.clone()],
+                darwin_x64: vec![native],
+            }),
+            ..ReleaseManifest::default()
+        };
+        fs::create_dir_all(ctx.feed.parent().expect("a feed folder"))
+            .expect("make the feed folder");
+        fs::write(
+            &ctx.feed,
+            serde_json::to_string(&manifest).expect("serialise the feed"),
+        )
+        .expect("write the feed");
+    }
+
+    fn cursor_bodies() -> [&'static [u8]; 3] {
+        [
+            served(npm_tarball(&[
+                (
+                    "package.json",
+                    br#"{"name":"@cursor/sdk","version":"1.3.1"}"#,
+                    0o644,
+                ),
+                ("dist/bundled/index.js", b"export const sdk = 1;", 0o644),
+            ])),
+            served(npm_tarball(&[("index.js", b"export const z = 1;", 0o644)])),
+            served(npm_tarball(&[("bin/rg", b"#!/bin/sh\nexit 0\n", 0o755)])),
+        ]
+    }
+
+    fn install_cursor(ctx: &InstallContext, state: &ProgramsState, sink: &dyn StatusSink) {
+        tauri::async_runtime::block_on(run_install(
+            ctx,
+            state,
+            sink,
+            ManagedProgram::Cursor,
+            InstallMode::Install,
+            &CancellationToken::new(),
+        ))
+        .expect("every status was sent");
+    }
+
+    #[test]
+    fn agent_09_installs_cursors_sdk_tree_and_points_current_at_it() {
+        use std::os::unix::fs::PermissionsExt;
+        let folder = TempDir::new();
+        let ctx = install_context(&folder, NO_WAIT);
+        let bodies = cursor_bodies();
+        let (url, server) = serve(bodies.iter().map(|body| Answer::Body(200, body)).collect());
+        write_cursor_feed(&ctx, &url, bodies);
+        let (recorder, _arrivals) = Recorder::new();
+        let state = ProgramsState::default();
+
+        install_cursor(&ctx, &state, recorder.as_ref());
+
+        assert_eq!(server.join().expect("the server ends"), 3);
+        assert_eq!(
+            recorder.states(ManagedProgram::Cursor),
+            vec![
+                ProgramState::Downloading,
+                ProgramState::Verifying,
+                ProgramState::Ready
+            ]
+        );
+        let version = pinned_version(ManagedProgram::Cursor);
+        let tree = ctx.dirs.program(ManagedProgram::Cursor).join(version);
+        let modules = tree.join("node_modules");
+        assert_eq!(
+            fs::read_to_string(modules.join("@cursor/sdk/dist/bundled/index.js")).expect("the SDK"),
+            "export const sdk = 1;"
+        );
+        assert!(modules.join("zod/index.js").is_file());
+        let rg = modules.join("@cursor/sdk-native/bin/rg");
+        let mode = fs::metadata(&rg).expect("ripgrep").permissions().mode();
+        assert_eq!(mode & 0o777, 0o755, "ripgrep keeps its execute bit");
+        assert_eq!(
+            fs::read_link(ctx.dirs.shim(ManagedProgram::Cursor)).expect("the current link"),
+            tree
+        );
+        assert!(
+            fs::symlink_metadata(ctx.dirs.bin.join("cursor")).is_err(),
+            "the SDK is no program on PATH"
+        );
+        let ready = recorder.first(ManagedProgram::Cursor, ProgramState::Ready);
+        let total: u64 = bodies.iter().map(|body| body.len() as u64).sum();
+        assert_eq!(ready.bytes_total, Some(total));
+        assert_eq!(
+            ready.path.as_deref(),
+            Some(
+                modules
+                    .join("@cursor/sdk/package.json")
+                    .to_string_lossy()
+                    .as_ref()
+            )
+        );
+        assert!(!ctx.dirs.staging(ManagedProgram::Cursor, version).exists());
+        assert!(
+            fs::read_dir(modules.join("@cursor/sdk"))
+                .expect("the SDK folder")
+                .all(|entry| !entry
+                    .expect("an entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .ends_with(".tgz")),
+            "no tarball is left behind"
+        );
+
+        // A second install finds the recorded copy and downloads nothing.
+        let (again, _again_arrivals) = Recorder::new();
+        install_cursor(&ctx, &state, again.as_ref());
+        assert_eq!(
+            again.states(ManagedProgram::Cursor),
+            vec![ProgramState::Ready]
+        );
+    }
+
+    #[test]
+    fn agent_09_a_tarball_with_a_wrong_checksum_installs_nothing() {
+        let folder = TempDir::new();
+        let ctx = install_context(
+            &folder,
+            RetryPolicy {
+                attempts: 1,
+                first_delay_ms: 0,
+            },
+        );
+        let bodies = cursor_bodies();
+        let tampered: &'static [u8] = served(npm_tarball(&[("index.js", b"evil", 0o644)]));
+        let (url, server) = serve(vec![
+            Answer::Body(200, bodies[0]),
+            Answer::Body(200, tampered),
+        ]);
+        write_cursor_feed(&ctx, &url, bodies);
+        let (recorder, _arrivals) = Recorder::new();
+        let state = ProgramsState::default();
+
+        install_cursor(&ctx, &state, recorder.as_ref());
+
+        assert_eq!(server.join().expect("the server ends"), 2);
+        let failed = recorder.first(ManagedProgram::Cursor, ProgramState::Failed);
+        assert!(
+            failed
+                .error
+                .as_deref()
+                .is_some_and(|error| error.contains("checksum") || error.contains("SHA-256")),
+            "{failed:?}"
+        );
+        let program = ctx.dirs.program(ManagedProgram::Cursor);
+        let left: Vec<String> = fs::read_dir(&program)
+            .map(|entries| {
+                entries
+                    .map(|entry| {
+                        entry
+                            .expect("an entry")
+                            .file_name()
+                            .to_string_lossy()
+                            .into_owned()
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        assert_eq!(
+            left,
+            Vec::<String>::new(),
+            "no version, link or staging folder"
+        );
+    }
+
+    #[test]
+    fn agent_09_a_tarball_entry_outside_its_package_is_refused() {
+        let folder = TempDir::new();
+        let source = folder.path().join("evil.tgz");
+        let mut header = tar::Header::new_gnu();
+        header.set_size(4);
+        header.set_mode(0o644);
+        {
+            let name = &mut header.as_old_mut().name;
+            let path = b"package/../../escaped";
+            name[..path.len()].copy_from_slice(path);
+        }
+        header.set_cksum();
+        let mut builder = tar::Builder::new(Vec::new());
+        builder
+            .append(&header, &b"evil"[..])
+            .expect("add the entry");
+        let tar = builder.into_inner().expect("finish the tar");
+        let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        std::io::Write::write_all(&mut encoder, &tar).expect("compress");
+        fs::write(&source, encoder.finish().expect("finish")).expect("write the tarball");
+        let target = folder.folder("modules").join("pkg");
+
+        let refused = unpack_npm_tarball(&source, &target).expect_err("refused");
+
+        assert_eq!(error_code(refused), "program_unpack_failed");
+        assert!(!folder.path().join("escaped").exists());
+        assert!(!folder.path().join("modules").join("escaped").exists());
+    }
+
+    #[test]
+    fn agent_09_the_launch_installs_every_program_but_cursors_sdk() {
+        let folder = TempDir::new();
+        let ctx = install_context(&folder, NO_WAIT);
+        let (recorder, _arrivals) = Recorder::new();
+        let state = ProgramsState::default();
+
+        let started = prefetch(&ctx, &state, recorder.clone()).expect("prefetch starts");
+        assert_eq!(started.len(), 4, "every program but Cursor's SDK");
+        for task in started {
+            tauri::async_runtime::block_on(task).expect("the install task ends");
+        }
+
+        assert_eq!(recorder.sent(ManagedProgram::Cursor), Vec::new());
+        assert_eq!(
+            state.status(ManagedProgram::Cursor).state,
+            ProgramState::Missing
+        );
+        for program in [
+            ManagedProgram::Claude,
+            ManagedProgram::Codex,
+            ManagedProgram::Gh,
+            ManagedProgram::Watchexec,
+        ] {
+            assert_eq!(
+                recorder.states(program).first(),
+                Some(&ProgramState::Queued),
+                "{program} starts at launch"
+            );
+        }
+    }
+
+    #[test]
+    fn agent_09_removing_cursors_sdk_trashes_its_tree_and_its_link() {
+        let folder = TempDir::new();
+        let ctx = install_context(&folder, NO_WAIT);
+        let bodies = cursor_bodies();
+        let (url, server) = serve(bodies.iter().map(|body| Answer::Body(200, body)).collect());
+        write_cursor_feed(&ctx, &url, bodies);
+        let (recorder, _arrivals) = Recorder::new();
+        let state = ProgramsState::default();
+        install_cursor(&ctx, &state, recorder.as_ref());
+        server.join().expect("the server ends");
+
+        tauri::async_runtime::block_on(remove_program(
+            &ctx,
+            &state,
+            recorder.as_ref(),
+            ManagedProgram::Cursor,
+        ))
+        .expect("removed");
+
+        assert!(!ctx.dirs.program(ManagedProgram::Cursor).exists());
+        assert!(folder.path().join("trash").join("cursor").is_dir());
+        assert_eq!(
+            state.status(ManagedProgram::Cursor).state,
+            ProgramState::Missing
         );
     }
 
