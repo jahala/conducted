@@ -36,7 +36,7 @@ export function AttachmentViewer({ path, fileName, kind, onClose }: AttachmentVi
 			}}
 		>
 			<DialogContent title={fileName} size="4xl" className="max-h-[92vh]">
-				<div className="flex min-h-0 flex-1 items-center justify-center overflow-auto rounded-md bg-black">
+				<div className="flex min-h-0 flex-1 items-center justify-center overflow-auto rounded-md bg-media">
 					{kind === "image" ? (
 						<img src={url} alt={fileName} className="max-h-[65vh] max-w-full object-contain" />
 					) : (
