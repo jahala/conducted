@@ -757,7 +757,12 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 		makeTempDir: ports.makeTempDir,
 	});
 
-	const runners = createRunnerRegistry({ ports, appTools: backend, bridge });
+	const runners = createRunnerRegistry({
+		ports,
+		appTools: backend,
+		bridge,
+		skillPluginDir: config.skillPluginDir,
+	});
 	const models = new RunnerModelCatalog({ runners, logger, clock });
 	const shellEnv = ports.shellEnv;
 	const utilityPrompt = new AgentUtilityPromptRunner({
@@ -977,6 +982,8 @@ function createRunnerRegistry(input: {
 	ports: SidecarPorts;
 	appTools: RpcAppToolBackend;
 	bridge: AppToolsBridge;
+	/** The app's bundled skill plugin folder, when the build has one (AGENT-18). */
+	skillPluginDir: string | undefined;
 }): RunnerRegistry {
 	const { ports, bridge } = input;
 	const { logger } = ports;
@@ -1046,6 +1053,7 @@ function createRunnerRegistry(input: {
 				...common,
 				query: ports.query,
 				appTools: input.appTools,
+				skillPluginDir: input.skillPluginDir,
 				translator: () => new ClaudeTranslator({ logger }),
 				hasTranscript: ports.hasTranscript,
 				realPath,

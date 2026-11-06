@@ -1,0 +1,8 @@
+{
+	"name": "conducted",
+	"version": "0.1.0",
+	"description": "Teaches an agent how to work inside a Conducted workspace.",
+	"author": {
+		"name": "Conducted"
+	}
+}

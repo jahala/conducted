@@ -17,6 +17,7 @@
  *  - permissionMode: always "bypassPermissions" at start, then set live (permissions.ts)
  *  - systemPrompt: preset claude_code, plus the progress guidance when progressUpdates is on
  *  - settingSources, maxTurns, disallowedTools, toolAliases: constants.ts
+ *  - plugins: the app's bundled skill plugin, when the build has one (AGENT-18)
  *  - mcpServers: the in-process app tools server (tools/in-process-server.ts)
  *  - hooks: one PreToolUse hook that awaits TurnCallbacks.beforeFirstWrite for writing tools
  *  - canUseTool: the permission handler
@@ -55,6 +56,8 @@ export interface ClaudeOptionsInput {
 	viaRuntime: boolean;
 	/** True when ~/.claude/projects/<cwd>/<sessionId>.jsonl exists and holds a conversation. */
 	hasTranscript: boolean;
+	/** The app's bundled skill plugin, when the build has one (AGENT-18). */
+	plugins?: Options["plugins"];
 	// The callbacks and servers below are built by claude-session.ts and passed in whole.
 	canUseTool: NonNullable<Options["canUseTool"]>;
 	hooks: NonNullable<Options["hooks"]>;
@@ -86,6 +89,7 @@ export function buildClaudeOptions(input: ClaudeOptionsInput): Options {
 			`${APP_TOOL_NAME_PREFIX}UpdateProgress`,
 		),
 		settingSources: [...CLAUDE_SETTING_SOURCES],
+		...(input.plugins === undefined ? {} : { plugins: input.plugins }),
 		maxTurns: CLAUDE_MAX_TURNS,
 		additionalDirectories: [...config.additionalDirectories],
 		disallowedTools: [...CLAUDE_DISALLOWED_TOOLS],

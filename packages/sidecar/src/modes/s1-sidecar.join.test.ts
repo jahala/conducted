@@ -1,5 +1,5 @@
 /**
- * @feature SIDE-13, SIDE-21, AGENT-16, AGENT-17 the s1-sidecar batch joined
+ * @feature SIDE-13, SIDE-21, AGENT-16, AGENT-17, AGENT-18 the s1-sidecar batch joined
  * Owns: the integration tests of the batch, driven through `composeSidecar`, the function the
  * sidecar's composition root (`startSidecarHost`) builds the host with. They prove that the chat
  * options, the launch settings, the ACP choices and the app tools bridge reach the live path, for
@@ -152,7 +152,11 @@ interface Harness {
  */
 async function harness(
 	folder: string,
-	options: { acpOptions?: SessionConfigOption[]; files?: Map<string, string> } = {},
+	options: {
+		acpOptions?: SessionConfigOption[];
+		files?: Map<string, string>;
+		skillPluginDir?: string;
+	} = {},
 ): Promise<Harness> {
 	const app = new FakeApp();
 	const home = path.join(folder, "home");
@@ -172,7 +176,12 @@ async function harness(
 		providerSecrets: {},
 	};
 	const host = composeSidecar(
-		{ binDir: BIN_DIR, outboxRoot: path.join(folder, "outbox"), logDir: path.join(folder, "log") },
+		{
+			binDir: BIN_DIR,
+			outboxRoot: path.join(folder, "outbox"),
+			logDir: path.join(folder, "log"),
+			skillPluginDir: options.skillPluginDir,
+		},
 		{
 			app,
 			query: scriptedQuery(seen.claudeOptions),
@@ -392,6 +401,48 @@ describe("s1-sidecar join the batch through the composition root", () => {
 		} finally {
 			await h.host.sessions.shutdown("app_quit");
 		}
+	});
+
+	describe("AGENT-18 the bundled skill plugin reaches Claude", () => {
+		test("AGENT-18 the bundled skill plugin reaches the Claude session", async () => {
+			const folder = await workspaceFolder();
+			const skillDir = path.join(folder, "conducted-skill");
+			await mkdir(skillDir, { recursive: true });
+			const h = await harness(folder, { skillPluginDir: skillDir });
+			try {
+				await h.handlers.warmAgent({
+					sessionId: "session-1" as SessionId,
+					config: baseConfig(),
+					workspace: workspaceFor(folder),
+					launch: { env: {}, providerKeys: {} },
+				});
+
+				const options = sessionOptions(h.seen.claudeOptions);
+				expect(options).toHaveLength(1);
+				expect(options[0]?.plugins).toEqual([{ type: "local", path: skillDir }]);
+			} finally {
+				await h.host.sessions.shutdown("app_quit");
+			}
+		});
+
+		test("AGENT-18 a build without a skill folder starts Claude without plugins", async () => {
+			const folder = await workspaceFolder();
+			const h = await harness(folder);
+			try {
+				await h.handlers.warmAgent({
+					sessionId: "session-1" as SessionId,
+					config: baseConfig(),
+					workspace: workspaceFor(folder),
+					launch: { env: {}, providerKeys: {} },
+				});
+
+				const options = sessionOptions(h.seen.claudeOptions);
+				expect(options).toHaveLength(1);
+				expect(options[0]?.plugins).toBeUndefined();
+			} finally {
+				await h.host.sessions.shutdown("app_quit");
+			}
+		});
 	});
 
 	test("AGENT-17 the ACP chat options are listed and set through the handlers", async () => {
