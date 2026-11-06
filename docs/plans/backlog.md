@@ -157,7 +157,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | NAV-14 | Shortcut and menu dispatcher                                             | D/app                                   | ui-map 5.4, 8                                  | 1   | done   | NAV-07, DATA-05                |
 | NAV-15 | Terminals and previews that survive tab switches                         | D/app                                   | ui-map 1.1, 8                                  | 2   | done   | NAV-10, RUN-06                 |
 | NAV-16 | Draft markers on the Create row and on workspaces                        | D/features/sidebar, D/features/composer | ui-map 4.3                                     | 3   | stub   | NAV-03, COMP-01, WS-01         |
-| NAV-17 | Deep-link routes: settings, browser tab, create with a prompt            | D/core/services, D/app                  | native-and-sidecar-map A8; services-map 5B.2.5 | 3   | stub   | PLAT-16, WS-01, SET-02         |
+| NAV-17 | Deep-link routes: settings, browser tab, create with a prompt            | D/core/services, D/app                  | native-and-sidecar-map A8; services-map 5B.2.5 | 3   | done   | PLAT-16, WS-01, SET-02         |
 
 ## Chat (CHAT)
 
