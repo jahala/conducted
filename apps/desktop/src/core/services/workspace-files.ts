@@ -80,8 +80,6 @@ export interface WorkspaceFilesServiceDeps {
 	rootsOf: (workspaceId: WorkspaceId) => Promise<Result<string[]>>;
 	/** Reveals a file in Finder and opens one in another app, for the file viewer. */
 	opener: Pick<Opener, "revealInFinder" | "openWith">;
-	/** The app chosen as the default for "Open in" (the `default_open_in` setting). Empty: none. */
-	defaultOpenInApp: () => string;
 }
 
 /** One request from the Git panel or a shortcut to show a file in the centre. */
@@ -479,20 +477,14 @@ export class WorkspaceFilesService {
 	}
 
 	/**
-	 * Backs `Actions.files.openInApp`: opens the file in the app chosen as the default for "Open
-	 * in". With no default chosen it fails with "open_in_no_default_app", the error Conductor shows
-	 * as "No default app configured".
+	 * Backs `Actions.files.openInApp`: opens the file in the named app. The "Open in" menu's rule
+	 * chooses the app (features/open-in), since only the screen knows which apps it lists.
 	 */
-	async openInApp(workspaceId: WorkspaceId, relativePath: string): Promise<Result<void>> {
-		const appName = this.#deps.defaultOpenInApp().trim();
-		if (appName === "") {
-			return err(
-				appError(
-					"open_in_no_default_app",
-					"Choose a default app in the Open in menu of the workspace first.",
-				),
-			);
-		}
+	async openInApp(
+		workspaceId: WorkspaceId,
+		relativePath: string,
+		appName: string,
+	): Promise<Result<void>> {
 		const resolved = await this.#resolve(workspaceId, relativePath);
 		if (!resolved.ok) return resolved;
 		return this.#deps.opener.openWith(appName, resolved.value.absolute);

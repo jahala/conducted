@@ -112,17 +112,16 @@ describe("REV-08 WorkspaceFilesService open and read", () => {
 		}
 	});
 
-	it("opens a workspace file in the default Open in app", async () => {
+	it("opens a workspace file in the app the Open in menu chose", async () => {
 		const test = createTestContainer();
 		try {
 			const workspace = await seedWorkspace(test.container, { path: "/code/workspaces/open-in" });
 			test.memory.controls.files.set(`${workspace.path}/clip.mov`, "video");
 			const openWith = vi.spyOn(test.container.platform.opener, "openWith");
-			expect((await test.container.actions.settings.set("default_open_in", "Cursor")).ok).toBe(
-				true,
-			);
 
-			expect(await test.container.actions.files.openInApp(workspace.id, "clip.mov")).toEqual({
+			expect(
+				await test.container.actions.files.openInApp(workspace.id, "clip.mov", "Cursor"),
+			).toEqual({
 				ok: true,
 				value: undefined,
 			});
@@ -132,16 +131,20 @@ describe("REV-08 WorkspaceFilesService open and read", () => {
 		}
 	});
 
-	it("says no default app is configured when Open in has none", async () => {
+	it("opens nothing for a path outside the workspace", async () => {
 		const test = createTestContainer();
 		try {
 			const workspace = await seedWorkspace(test.container, { path: "/code/workspaces/no-app" });
 			const openWith = vi.spyOn(test.container.platform.opener, "openWith");
 
-			const opened = await test.container.actions.files.openInApp(workspace.id, "clip.mov");
+			const opened = await test.container.actions.files.openInApp(
+				workspace.id,
+				"../other/clip.mov",
+				"Cursor",
+			);
 
 			expect(opened.ok).toBe(false);
-			if (!opened.ok) expect(opened.error.code).toBe("open_in_no_default_app");
+			if (!opened.ok) expect(opened.error.code).not.toBe("open_in_no_default_app");
 			expect(openWith).not.toHaveBeenCalled();
 		} finally {
 			test.close();

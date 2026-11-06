@@ -596,11 +596,8 @@ export interface Actions {
 		resolveConflicts: Act<[workspaceId: WorkspaceId, path: string, choices: ConflictChoice[]]>;
 		/** Shows a workspace file selected in a Finder window. */
 		reveal: Act<[workspaceId: WorkspaceId, path: string]>;
-		/**
-		 * Opens a workspace file in the app chosen as the default for "Open in". Fails with code
-		 * "open_in_no_default_app" when none is chosen.
-		 */
-		openInApp: Act<[workspaceId: WorkspaceId, path: string]>;
+		/** Opens a workspace file in the named app, the one the "Open in" menu opens by default. */
+		openInApp: Act<[workspaceId: WorkspaceId, path: string, appName: string]>;
 	};
 	artifacts: {
 		/** Loads the next page of the Artifacts tab. */

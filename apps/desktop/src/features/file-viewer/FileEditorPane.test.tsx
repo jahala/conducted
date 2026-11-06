@@ -195,6 +195,7 @@ describe("REV-08 FileEditorPane", () => {
 				ok: true,
 				value: { kind: "binary", sizeBytes: 4, modifiedAt: 0, previewUrl: null },
 			});
+			vi.spyOn(test.container.platform.opener, "installedApps").mockResolvedValue(["Zed"]);
 			expect((await test.container.actions.settings.set("default_open_in", "Zed")).ok).toBe(true);
 			const openWith = vi.spyOn(test.container.platform.opener, "openWith");
 			render(<FileEditorPane workspaceId={workspace.id} path="a.ts" />, {

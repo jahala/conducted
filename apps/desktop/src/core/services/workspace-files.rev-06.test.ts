@@ -12,7 +12,6 @@ function serviceFor(test: ReturnType<typeof createTestContainer>) {
 		search: test.memory.platform.fileSearch,
 		shell: test.memory.platform.shell,
 		opener: test.memory.platform.opener,
-		defaultOpenInApp: () => "",
 		rootsOf: async () => ok([root]),
 	});
 }
@@ -99,7 +98,6 @@ describe("REV-06 workspace files service", () => {
 				search: test.memory.platform.fileSearch,
 				shell: test.memory.platform.shell,
 				opener: test.memory.platform.opener,
-				defaultOpenInApp: () => "",
 				rootsOf: async () => ok([]),
 			});
 			const tree = await service.tree(workspaceId);

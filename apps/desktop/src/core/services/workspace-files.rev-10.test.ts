@@ -222,7 +222,6 @@ describe("REV-10 workspace artifacts service", () => {
 				search: test.memory.platform.fileSearch,
 				shell: test.memory.platform.shell,
 				opener: test.memory.platform.opener,
-				defaultOpenInApp: () => "",
 				rootsOf: async () => {
 					calls += 1;
 					return calls === 1 ? oldRoot : ok([`${root}-new`]);

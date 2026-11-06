@@ -87,6 +87,7 @@ describe("REV-08 FilePreviewPane", () => {
 			vi.spyOn(test.container.services.workspaceFiles, "readContent").mockResolvedValue(
 				ok({ kind: "too_large", sizeBytes: 64 * 1024 * 1024 }),
 			);
+			vi.spyOn(test.container.platform.opener, "installedApps").mockResolvedValue(["Zed"]);
 			expect((await test.container.actions.settings.set("default_open_in", "Zed")).ok).toBe(true);
 			const openWith = vi.spyOn(test.container.platform.opener, "openWith");
 			render(<FilePreviewPane workspaceId={workspace.id} path="big.log" onOpenFile={vi.fn()} />, {
@@ -104,7 +105,7 @@ describe("REV-08 FilePreviewPane", () => {
 		}
 	});
 
-	it("shows 'No default app configured' when Open in has no default app", async () => {
+	it("opens in the first app of the Open in menu when no default is chosen, as Conductor does", async () => {
 		const test = createTestContainer();
 		try {
 			const workspace = await seedWorkspace(test.container, {
@@ -114,6 +115,7 @@ describe("REV-08 FilePreviewPane", () => {
 				ok({ kind: "too_large", sizeBytes: 64 * 1024 * 1024 }),
 			);
 			const toasted = vi.spyOn(toast, "error").mockReturnValue("t");
+			const openWith = vi.spyOn(test.container.platform.opener, "openWith");
 			render(<FilePreviewPane workspaceId={workspace.id} path="big.log" onOpenFile={vi.fn()} />, {
 				wrapper: wrapper(test.container),
 			});
@@ -121,7 +123,34 @@ describe("REV-08 FilePreviewPane", () => {
 			fireEvent.click(await screen.findByRole("button", { name: "Open in another app" }));
 
 			await waitFor(() =>
-				expect(toasted).toHaveBeenCalledWith("No default app configured", expect.anything()),
+				expect(openWith).toHaveBeenCalledWith("Finder", `${workspace.path}/big.log`),
+			);
+			expect(toasted).not.toHaveBeenCalledWith("No default app configured", expect.anything());
+		} finally {
+			test.close();
+		}
+	});
+
+	it("opens in the first app of the Open in menu when the stored default is not on this Mac", async () => {
+		const test = createTestContainer();
+		try {
+			const workspace = await seedWorkspace(test.container, {
+				path: "/code/workspaces/preview-missing-default",
+			});
+			vi.spyOn(test.container.services.workspaceFiles, "readContent").mockResolvedValue(
+				ok({ kind: "too_large", sizeBytes: 64 * 1024 * 1024 }),
+			);
+			vi.spyOn(test.container.platform.opener, "installedApps").mockResolvedValue(["Cursor"]);
+			expect((await test.container.actions.settings.set("default_open_in", "Zed")).ok).toBe(true);
+			const openWith = vi.spyOn(test.container.platform.opener, "openWith");
+			render(<FilePreviewPane workspaceId={workspace.id} path="big.log" onOpenFile={vi.fn()} />, {
+				wrapper: wrapper(test.container),
+			});
+
+			fireEvent.click(await screen.findByRole("button", { name: "Open in another app" }));
+
+			await waitFor(() =>
+				expect(openWith).toHaveBeenCalledWith("Finder", `${workspace.path}/big.log`),
 			);
 		} finally {
 			test.close();
