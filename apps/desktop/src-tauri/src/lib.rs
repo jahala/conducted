@@ -40,6 +40,7 @@ pub mod keychain;
 pub mod logger;
 pub mod menu;
 pub mod navigation;
+pub mod network;
 pub mod notifications;
 pub mod open_with;
 mod process_group;
@@ -291,6 +292,7 @@ pub fn run() {
         .manage(updater::UpdaterState::default())
         .manage(resource_usage::ResourceUsageState::default())
         .manage(menu::MenuState::default())
+        .manage(network::NetworkState::default())
         .manage(logger::LoggerState::default())
         .manage(http::HttpState::default())
         .menu(|app| {
@@ -310,6 +312,7 @@ pub fn run() {
             logger::start_writer(app.handle(), &logger_state)?;
             navigation::install_guard(app.handle())?;
             shell::start_background_capture(app.handle().clone());
+            network::start_watcher(app.handle().clone())?;
             binaries::start_verification(app.handle().clone());
             binaries::prepare_on_launch(app.handle());
             Ok(())
@@ -319,6 +322,7 @@ pub fn run() {
             app_info,
             system_info,
             app_quit,
+            network::network_status,
             set_quit_handler_ready,
             window_toggle_inspector,
             db::db_version_check,

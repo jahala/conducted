@@ -106,6 +106,8 @@ export interface MemoryPlatformControls {
 	emitQuitRequested(): void;
 	/** Changes the window's focus and tells every focus listener. */
 	emitWindowFocus(focused: boolean): void;
+	/** Changes the network state and tells every network listener. */
+	emitNetworkChanged(online: boolean): void;
 	/** Delivers one file drag event to every file drop listener. */
 	emitFileDrop(event: FileDropEvent): void;
 	/** Notifications shown and the last dock badge. */
@@ -306,6 +308,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	let systemInfo: SystemInfo = { osVersion: "15.0", machineArch: "arm64", buildArch: "arm64" };
 	let systemInfoFailure: string | null = null;
 	let windowFocused = true;
+	let networkOnline = true;
 
 	const sidecarLineListeners = new Set<ValueListener<string>>();
 	const sidecarRestartListeners = new Set<ValueListener<void>>();
@@ -832,7 +835,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			if (systemInfoFailure !== null) throw new Error(systemInfoFailure);
 			return systemInfo;
 		},
-		isOnline: async () => true,
+		isOnline: async () => networkOnline,
 		onNetworkChanged: (listener) => listen(networkListeners, listener),
 		hasFullDiskAccess: async () => true,
 		openFullDiskAccessSettings: async () => ok(undefined),
@@ -978,6 +981,10 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		emitWindowFocus: (focused) => {
 			windowFocused = focused;
 			emit(focusListeners, focused);
+		},
+		emitNetworkChanged: (online) => {
+			networkOnline = online;
+			emit(networkListeners, online);
 		},
 		emitFileDrop: (event) => emit(fileDropListeners, event),
 		get notificationsShown() {
