@@ -1,7 +1,9 @@
 /**
  * @feature SIDE-02 JSON-RPC over a Unix socket
+ * @feature SIDE-22 Slash command cache that works before a chat starts
  * Owns: wiring the method tables to the modules that implement them. This is the one place that
- * knows which module answers which request.
+ * knows which module answers which request. For `listSlashCommands`, a request with no
+ * `workspacePath` answers from the saved list, and a request with one refreshes it (SIDE-22).
  * Behaviour: research/conductor/sessions.md section 10 (Conductor registers every method in one
  * setup function on each connection).
  * eventPersisted acknowledges the event in the write-ahead log (outbox/); setLogLevel changes the
@@ -14,9 +16,11 @@
  * Our design choice: the methods owned by other features call notImplemented with that feature's
  * id, so an unbuilt method answers -32001 instead of pretending to work.
  */
-import { notImplemented, ok } from "@conducted/shared";
+import { err, notImplemented, ok } from "@conducted/shared";
+import type { Logger } from "../logging/logger.ts";
 import type { AgentDetector } from "../models/agent-detection.ts";
 import type { ModelCatalog } from "../models/catalog.ts";
+import type { CompletionsCache } from "../models/completions-cache.ts";
 import type { McpServerLister, SlashCommandLister } from "../models/slash-and-mcp.ts";
 import type { UsageReader } from "../models/usage.ts";
 import type { EventOutbox } from "../outbox/event-outbox.ts";
@@ -32,12 +36,15 @@ export interface HandlerDeps {
 	models: ModelCatalog;
 	agents: AgentDetector;
 	slashCommands: SlashCommandLister;
+	/** Saved slash-command lists for a repository, used before a workspace exists (SIDE-22). */
+	completions: CompletionsCache;
 	mcpServers: McpServerLister;
 	usage: UsageReader;
 	shellEnv: ShellEnvProvider;
 	utilityPrompt: UtilityPromptRunner;
 	/** Applies setLogLevel to the root logger. */
 	setLogLevel(level: "error" | "warn" | "info" | "debug"): void;
+	logger: Logger;
 }
 
 export function buildHandlers(deps: HandlerDeps): {
@@ -56,13 +63,47 @@ export function buildHandlers(deps: HandlerDeps): {
 			answerInteraction: (params) => deps.sessions.answerInteraction(params),
 			getContextUsage: (params) => deps.usage.contextUsage(params.sessionId),
 			listSlashCommands: async (params) => {
-				if (params.workspacePath === undefined) return notImplemented("SIDE-22");
+				const key = {
+					repoRootPath: params.repoRootPath,
+					agent: params.agent,
+					acpAgent: params.acpAgent,
+				};
+				if (params.workspacePath === undefined) {
+					const cached = await deps.completions.read(key);
+					if (!cached.ok) {
+						deps.logger.warn("Could not read the slash command cache", {
+							code: cached.error.code,
+						});
+						return err(cached.error);
+					}
+					return ok({ commands: cached.value?.commands ?? [], fromCache: true });
+				}
 				const listed = await deps.slashCommands.list(
 					params.agent,
 					params.acpAgent,
 					params.workspacePath,
 				);
-				if (!listed.ok) return listed;
+				if (!listed.ok) {
+					deps.logger.warn("Could not refresh the slash command cache; keeping the last list", {
+						code: listed.error.code,
+					});
+					const cached = await deps.completions.read(key);
+					if (cached.ok && cached.value !== null) {
+						return ok({ commands: cached.value.commands, fromCache: true });
+					}
+					if (!cached.ok) {
+						deps.logger.warn("Could not read the last slash command list", {
+							code: cached.error.code,
+						});
+					}
+					return listed;
+				}
+				const saved = await deps.completions.write(key, listed.value);
+				if (!saved.ok) {
+					deps.logger.warn("Could not save the slash command cache; keeping the last list", {
+						code: saved.error.code,
+					});
+				}
 				return ok({ commands: listed.value, fromCache: false });
 			},
 			listMcpServers: async (params) => {

@@ -4,6 +4,7 @@ import { parseSidecarConfig } from "./config.ts";
 const good = {
 	CONDUCTED_BIN_DIR: "/app/bin",
 	CONDUCTED_OUTBOX_ROOT: "/data/outbox",
+	CONDUCTED_COMPLETIONS_DIR: "/data/completions",
 	CONDUCTED_LOG_DIR: "/data/logs",
 	CONDUCTED_APP_VERSION: "1.2.3",
 	CONDUCTED_LOG_LEVEL: "info",
@@ -17,9 +18,14 @@ describe("SIDE-01 sidecar settings", () => {
 			value: {
 				binDir: "/app/bin",
 				outboxRoot: "/data/outbox",
+<<<<<<< HEAD
 				logDir: "/data/logs",
 				appVersion: "1.2.3",
 				logLevel: "info",
+=======
+				completionsDir: "/data/completions",
+				logDir: "/data/logs",
+>>>>>>> b4a6951929ba98e7d41acdc123993e987fe8afaf
 			},
 		});
 	});
@@ -37,6 +43,7 @@ describe("SIDE-01 sidecar settings", () => {
 		if (!result.ok) {
 			expect(result.error.message).toContain("CONDUCTED_BIN_DIR");
 			expect(result.error.message).toContain("CONDUCTED_OUTBOX_ROOT");
+			expect(result.error.message).toContain("CONDUCTED_COMPLETIONS_DIR");
 			expect(result.error.message).toContain("CONDUCTED_LOG_DIR");
 		}
 	});
@@ -83,5 +90,18 @@ describe("SIDE-18 sidecar log settings", () => {
 		const result = parseSidecarConfig(rest);
 		expect(result.ok).toBe(false);
 		if (!result.ok) expect(result.error.message).toContain("CONDUCTED_APP_VERSION");
+	});
+});
+
+describe("SIDE-22 slash-command cache folder setting", () => {
+	test("SIDE-22 reads the completions folder from its own variable", () => {
+		const result = parseSidecarConfig(good);
+		expect(result.ok && result.value.completionsDir).toBe("/data/completions");
+	});
+
+	test("SIDE-22 a relative completions folder is refused", () => {
+		const result = parseSidecarConfig({ ...good, CONDUCTED_COMPLETIONS_DIR: "completions" });
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.message).toContain("CONDUCTED_COMPLETIONS_DIR");
 	});
 });

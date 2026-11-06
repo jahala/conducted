@@ -1,7 +1,9 @@
 /**
  * @feature SIDE-01 Entry point and modes: the "sidecar" mode
+ * @feature SIDE-22 Slash command cache that works before a chat starts
  * Owns: starting the agent host. It is the composition root: the one place that creates every
- * real port (processes, files, sockets, clocks) and passes them to the modules.
+ * real port (processes, files, sockets, clocks) and passes them to the modules. That includes the
+ * slash-command cache, built over the folder from `config.ts` (SIDE-22).
  * Behaviour: research/conductor/native-and-sidecar-map.md A6 and B1 and sessions.md sections 0, 5
  * and 8. Startup order:
  *  1. read the settings from the environment (config.ts); a bad value prints a message and exits 64
@@ -75,6 +77,7 @@ import { EXIT_START_FAILED, EXIT_USAGE } from "../exit-codes.ts";
 import { createLogger, type Logger, type LogSink } from "../logging/logger.ts";
 import { type AgentDetector, DefaultAgentDetector } from "../models/agent-detection.ts";
 import { RunnerModelCatalog } from "../models/catalog.ts";
+import { createNodeCompletionsFiles, FileCompletionsCache } from "../models/completions-cache.ts";
 import { RunnerMcpServerLister, RunnerSlashCommandLister } from "../models/slash-and-mcp.ts";
 import { SessionUsageReader } from "../models/usage.ts";
 import { FileEventOutbox } from "../outbox/event-outbox.ts";
@@ -737,6 +740,7 @@ export interface SidecarComposition {
 	publisher: BatchingEventPublisher;
 	processes: AgentProcessManager;
 	agents: DefaultAgentDetector;
+	completions: FileCompletionsCache;
 }
 
 /** Builds every module of the host from the ports, in dependency order. Starts nothing. */
@@ -817,19 +821,37 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 		ids,
 		logger,
 	});
+	const completions = new FileCompletionsCache({
+		dir: config.completionsDir,
+		files: createNodeCompletionsFiles(),
+		clock,
+		logger,
+	});
 	const handlers = buildHandlers({
 		sessions,
 		outbox,
 		models,
 		agents,
 		slashCommands: new RunnerSlashCommandLister({ runners, logger }),
+		completions,
 		mcpServers: new RunnerMcpServerLister({ runners, logger }),
 		usage: new SessionUsageReader({ logger, sessions }),
 		shellEnv,
 		utilityPrompt,
 		setLogLevel: (level) => logger.setLevel(level),
+		logger,
 	});
-	return { runners, sessions, handlers, bridge, outbox, publisher, processes, agents };
+	return {
+		runners,
+		sessions,
+		handlers,
+		bridge,
+		outbox,
+		publisher,
+		processes,
+		agents,
+		completions,
+	};
 }
 
 function parentPidFrom(env: Readonly<Record<string, string | undefined>>): number {

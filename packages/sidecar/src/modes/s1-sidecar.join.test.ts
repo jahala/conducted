@@ -179,6 +179,7 @@ async function harness(
 		{
 			binDir: BIN_DIR,
 			outboxRoot: path.join(folder, "outbox"),
+<<<<<<< HEAD
 			logDir: path.join(folder, "log"),
 <<<<<<< HEAD
 			skillPluginDir: options.skillPluginDir,
@@ -186,6 +187,10 @@ async function harness(
 			appVersion: "0.0.0",
 			logLevel: "info",
 >>>>>>> 855fd49e8f408c81a5c1bf4c4fd81b1039a05b13
+=======
+			completionsDir: path.join(folder, "completions"),
+			logDir: path.join(folder, "log"),
+>>>>>>> b4a6951929ba98e7d41acdc123993e987fe8afaf
 		},
 		{
 			app,

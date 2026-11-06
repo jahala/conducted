@@ -28,8 +28,9 @@
  *   review.ts     useDiffComments
  *   terminals.ts  useTerminals, useRunState, useTerminalConnection, useRepoTerminals
  *   settings.ts   useSetting, useEnvVars, useMcpServers
- *   agents.ts     useAgentInstalls, useModels, useSlashCommands, useProviderKeys,
- *                 useAgentProviders, useAcpConfigOptions, useAgentConfigFile, useConfigSyncPreview
+ *   agents.ts     useAgentInstalls, useModels, useSlashCommands, usePreWorkspaceSlashCommands,
+ *                 useProviderKeys, useAgentProviders, useAcpConfigOptions, useAgentConfigFile,
+ *                 useConfigSyncPreview
  *   commands.ts   useShortcutOverrides, useCommands, useLiveShortcut
  *   system.ts     useUpdateStatus, useDiagnostics, useAgentPrograms, useSystemInfo,
  *                 useFullDiskAccess
