@@ -5,7 +5,7 @@
  * Behaviour: research/conductor/sessions.md section 10 (Conductor registers every method in one
  * setup function on each connection).
  * eventPersisted acknowledges the event in the write-ahead log (outbox/); setLogLevel changes the
- * root logger.
+ * root logger; compact asks the session manager to start a Codex `/compact` turn (AGENT-14).
  * Must handle: every key of appToSidecarRequests and appToSidecarNotifications has a handler (the
  * type enforces it), a module's Result error is passed through so the peer can answer with its
  * JSON-RPC code, and a session request goes straight to the session manager, which decides whether
@@ -97,7 +97,7 @@ export function buildHandlers(deps: HandlerDeps): {
 			getGoal: async () => notImplemented("AGENT-13"),
 			setGoal: async () => notImplemented("AGENT-13"),
 			changeGoal: async () => notImplemented("AGENT-13"),
-			compact: async () => notImplemented("AGENT-14"),
+			compact: (params) => deps.sessions.compact(params),
 			listAcpConfigOptions: (params) => deps.sessions.listAcpConfigOptions(params),
 			setAcpConfigOption: (params) => deps.sessions.setAcpConfigOption(params),
 		},

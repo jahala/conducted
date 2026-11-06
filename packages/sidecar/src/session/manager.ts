@@ -2,7 +2,8 @@
  * @feature SIDE-03 Session manager: per-session queue, duplicate guard, idle after flush
  * Owns: every chat the sidecar knows about, and the app's requests about them: sendMessage,
  * cancel, warmAgent, resetAgent, updateConfig, setAutoApproveEdits, getSessionStatus,
- * answerInteraction, and the ACP chat options of a live chat (AGENT-17). It also builds each
+ * answerInteraction, the Codex compact turn (AGENT-14), and the ACP chat options of a live chat
+ * (AGENT-17). It also builds each
  * agent's environment from the chat's launch settings, hands the runner the program the launch
  * names, and restarts an agent whose launch changed once no turn and no background task runs
  * (SIDE-21, `decideLaunchChange` in process/launch-fingerprint.ts).
@@ -26,6 +27,8 @@
  *    or a background task runs leaves the agent alone, and a launch changed back to the running one
  *    restarts nothing
  *  - getSessionStatus for a chat the sidecar does not know: known false (it restarted)
+ *  - compact starts a `/compact` turn for a Codex chat, answers started false while a turn runs,
+ *    and refuses a chat the sidecar does not know or a chat run by another agent
  *  - the first message adds the workspace instruction block (prompt/); later ones do not
  *  - cancel drops queued messages, withdraws interactions, asks the running turn to take the end
  *    checkpoint, and reports wasWorking
@@ -140,6 +143,13 @@ export interface SessionManager {
 	resetAgent(
 		params: AppToSidecarRequestParams<"resetAgent">,
 	): Promise<AppToSidecarHandlerValue<"resetAgent">>;
+	/**
+	 * Codex only (AGENT-14): start a turn whose text is `/compact`, which the runner sends to
+	 * `thread/compact/start` instead of `turn/start`. The answer says whether it started.
+	 */
+	compact(
+		params: AppToSidecarRequestParams<"compact">,
+	): Promise<AppToSidecarHandlerValue<"compact">>;
 	updateConfig(
 		params: AppToSidecarRequestParams<"updateConfig">,
 	): Promise<AppToSidecarHandlerValue<"updateConfig">>;
@@ -427,6 +437,34 @@ export class DefaultSessionManager implements SessionManager {
 			this.deps.liveState.drop(state.sessionId);
 			this.sessions.delete(state.sessionId);
 			return ok({});
+		});
+	}
+
+	compact(
+		params: AppToSidecarRequestParams<"compact">,
+	): Promise<AppToSidecarHandlerValue<"compact">> {
+		return this.deps.queue.run(queueKey(params.sessionId), async () => {
+			const state = this.sessions.get(params.sessionId);
+			if (state === undefined) {
+				return err(appError("session_unknown", "The sidecar has no state for this chat."));
+			}
+			if (state.config.agent !== "codex") {
+				return err(appError("compact_unsupported", "Only a Codex chat can compact its history."));
+			}
+			if (state.activeTurn !== null) return ok({ started: false });
+			const request: TurnRequest = {
+				sessionId: state.sessionId,
+				messageId: this.deps.ids.uuid() as MessageId,
+				turnId: this.deps.ids.uuid() as TurnId,
+				text: "/compact",
+				agentText: "/compact",
+				attachmentPaths: [],
+				config: state.config,
+				workspace: state.workspace,
+			};
+			const started = await this.startTurn(state, request);
+			if (!started.ok) return started;
+			return ok({ started: true });
 		});
 	}
 

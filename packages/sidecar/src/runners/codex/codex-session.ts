@@ -20,6 +20,8 @@
  *  - the turn ends with status interrupted: outcome cancelled; failed: error outcome with the
  *    turn error message, retryable only for rate-limit errors
  *  - the thread id is reported through onAgentSessionId as soon as thread/started arrives
+ *  - a message that is `/compact` (AGENT-14) runs `thread/compact/start` instead of `turn/start`;
+ *    its notice is emitted when `thread/compacted` arrives, which also ends the compact run
  *  - applyConfig: model, effort, approval policy and personality are per-turn overrides (live);
  *    an approval policy, sandbox or personality change re-opens the thread with the new settings;
  *    additional directories or app-tool changes need a new thread config, so they return
@@ -53,6 +55,7 @@ import { CodexApprovalBridge } from "./approval-bridge.ts";
 import {
 	CODEX_CLIENT_METHODS,
 	CODEX_SERVER_NOTIFICATIONS,
+	type CodexThreadCompactParams,
 	type CodexThreadResumeParams,
 	type CodexThreadStartParams,
 	type CodexThreadTokenUsage,
@@ -95,6 +98,8 @@ interface PendingTurn {
 	callbacks: TurnCallbacks;
 	completion: Deferred<CodexTurn>;
 	cancellation: Deferred<void>;
+	/** True when this turn is a `/compact` run rather than a model turn. */
+	compacting: boolean;
 }
 
 type ThreadResult = { ok: true; threadId: string } | { ok: false; outcome: TurnOutcome };
@@ -135,6 +140,11 @@ export function friendlyCodexError(message: string): string {
 		return "Codex is busy right now. Try again in a moment.";
 	}
 	return message;
+}
+
+/** True when a message asks Codex to compact the thread instead of starting a turn. */
+export function isCompactCommand(text: string): boolean {
+	return /^\/compact(?:\s|$)/.test(text.trim());
 }
 
 export class CodexSession implements AgentSession {
@@ -186,22 +196,28 @@ export class CodexSession implements AgentSession {
 		if (!thread.ok) return thread.outcome;
 		if (this.stopGeneration !== generation) return { kind: "cancelled" };
 
+		const compacting = isCompactCommand(input.text);
 		const pending: PendingTurn = {
 			id: null,
 			generation,
 			callbacks,
 			completion: createDeferred<CodexTurn>(),
 			cancellation: createDeferred<void>(),
+			compacting,
 		};
 		this.activeTurn = pending;
 		this.serverActiveTurnId = null;
 
 		try {
-			const started = await this.requestWithRetries<{ turn?: CodexTurn; turnId?: unknown }>(
-				client,
-				CODEX_CLIENT_METHODS.turnStart,
-				this.turnStartParams(thread.threadId, input, effort.value),
-			);
+			const started = compacting
+				? await this.requestWithRetries<unknown>(client, CODEX_CLIENT_METHODS.threadCompactStart, {
+						threadId: thread.threadId,
+					} satisfies CodexThreadCompactParams)
+				: await this.requestWithRetries<{ turn?: CodexTurn; turnId?: unknown }>(
+						client,
+						CODEX_CLIENT_METHODS.turnStart,
+						this.turnStartParams(thread.threadId, input, effort.value),
+					);
 			if (!started.ok) {
 				return {
 					kind: "error",
@@ -209,7 +225,7 @@ export class CodexSession implements AgentSession {
 					retryable: isCodexRateLimitError(started.error.message),
 				};
 			}
-			const startedId = readTurnId(started.value);
+			const startedId = compacting ? null : readTurnId(started.value);
 			if (startedId !== null) pending.id = startedId;
 
 			if (this.stopGeneration !== generation) {
@@ -392,6 +408,11 @@ export class CodexSession implements AgentSession {
 		});
 		client.onNotification(CODEX_SERVER_NOTIFICATIONS.threadCompacted, (params) => {
 			this.translateNotification(client, CODEX_SERVER_NOTIFICATIONS.threadCompacted, params);
+			const active = this.activeTurn;
+			if (active === null || !active.compacting) return;
+			const turnId = readTurnId(params) ?? active.id ?? "";
+			if (active.id === null) active.id = turnId;
+			active.completion.resolve({ id: turnId, status: "completed", error: null });
 		});
 		client.onNotification(CODEX_SERVER_NOTIFICATIONS.error, (params) => {
 			this.translateNotification(client, CODEX_SERVER_NOTIFICATIONS.error, params);

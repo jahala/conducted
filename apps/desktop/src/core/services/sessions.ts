@@ -62,6 +62,7 @@
  * chat's agent with its launch and resume token for the ACP options and for a chat the sidecar
  * lost (`sidecar/resume.ts`).
  * COMP-06 owns `restartAgent`: reset the sidecar's session and warm the agent again with resume.
+ * AGENT-14 owns `compact`: warm the Codex agent, then ask the sidecar to compact its thread.
  */
 import {
 	type AcpConfigOption,
@@ -1787,8 +1788,23 @@ export class SessionsService implements AgentMessenger {
 		return ok(undefined);
 	}
 
-	compact(_id: SessionId): Promise<Result<void>> {
-		return notImplemented("AGENT-14");
+	/** /compact: warm the chat's Codex agent, then ask the sidecar to compact its thread. */
+	async compact(id: SessionId): Promise<Result<void>> {
+		const found = await this.#session(id);
+		if (!found.ok) return found;
+		if (found.value.config.agent !== "codex") {
+			return err(appError("compact_unsupported", "Only a Codex chat can compact its history."));
+		}
+		const warmed = await this.#warm(found.value);
+		if (!warmed.ok) return warmed;
+		const compacted = await this.#deps.sidecar.request("compact", { sessionId: id });
+		if (!compacted.ok) return compacted;
+		if (!compacted.value.started) {
+			return err(
+				appError("compact_not_started", "The chat could not start compacting its history."),
+			);
+		}
+		return ok(undefined);
 	}
 
 	async setAutoApproveEdits(id: SessionId, enabled: boolean): Promise<Result<void>> {

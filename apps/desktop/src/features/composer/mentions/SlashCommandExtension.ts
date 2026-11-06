@@ -10,9 +10,9 @@
  * command. Only a '/' at the start of the message opens the menu. Choosing a command with an
  * argument hint writes '/name ' into the composer, so the user types the arguments and sends the
  * message; any other command runs at once through `onRun`. What it runs is `slashCommandAction`:
- * /clear, /restart, /plan, /fast and the terminal-effect commands act on the app; a command the
- * agent lists is sent to it as text; a built-in whose app action is not built yet and that the
- * agent does not list says "This command isn't available in this workspace."
+ * /clear, /restart, /compact (Codex), /plan, /fast and the terminal-effect commands act on the
+ * app; a command the agent lists is sent to it as text; a built-in whose app action is not built
+ * yet and that the agent does not list says "This command isn't available in this workspace."
  * Must handle: a command the agent does not offer (hidden from the list, and a typed one shows
  * "This command isn't available in this workspace."); /plan on an agent without plan mode ("Plan
  * mode is not available in this chat."); an argument hint (shown after the name, and the command
@@ -255,6 +255,7 @@ export function slashCommandProblem(query: string, agent: AgentKind | undefined)
 export type SlashAction =
 	| { kind: "clear" }
 	| { kind: "restart" }
+	| { kind: "compact" }
 	| { kind: "screen"; commandId: "chat.togglePlanMode" | "chat.toggleFastMode" }
 	| { kind: "terminal" }
 	| { kind: "send"; text: string }
@@ -276,6 +277,10 @@ export function slashCommandAction(
 			return { kind: "clear" };
 		case "restart":
 			return { kind: "restart" };
+		case "compact":
+			// Codex has its own compact call (AGENT-14); Claude takes /compact as message text.
+			if (agent === "codex") return { kind: "compact" };
+			break;
 		case "plan":
 			return agent !== undefined && !PLAN_AGENTS.has(agent)
 				? { kind: "unavailable", message: PLAN_MODE_UNAVAILABLE }

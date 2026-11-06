@@ -128,6 +128,11 @@ export interface CodexTurnInterruptParams {
 	turnId: string;
 }
 
+/** `thread/compact/start` takes only the thread: Codex summarises the thread's history. */
+export interface CodexThreadCompactParams {
+	threadId: string;
+}
+
 export interface CodexTokenUsageBreakdown {
 	totalTokens: number;
 	inputTokens: number;
