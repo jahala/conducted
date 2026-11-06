@@ -1,5 +1,6 @@
 /**
  * @feature DATA-01 Query hook contract for screens
+ * @feature REV-08 File content query for the viewer
  * Owns: the file hooks: trees, file text, searches and the artifact pages.
  * Behaviour: services-map.md 2.5 (queries for file data); core/hooks.ts states the contract. The
  * file tree is a query with its own key, polled every 30 s while shown, and stale after 15 s
@@ -11,6 +12,7 @@ import { type AppError, notImplemented } from "@conducted/shared";
 import { useQuery } from "@tanstack/react-query";
 import type { ContentMatch, FileEntry, Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
+import type { FileContent } from "../model.ts";
 
 /** Search in files shows this many matches; the service returns one more when the list was cut. */
 export { CONTENT_SEARCH_LIMIT } from "../services/workspace-files.ts";
@@ -36,7 +38,22 @@ export const useFileTree: Queries["useFileTree"] = (workspaceId) => {
 	if (query.data === undefined) return { state: "loading" };
 	return { state: "ready", data: query.data };
 };
-export const useFileContent: Queries["useFileContent"] = () => notImplemented("REV-08");
+export const useFileContent: Queries["useFileContent"] = (workspaceId, path) => {
+	const service = useServices().services.workspaceFiles;
+	const query = useQuery<FileContent, AppError>({
+		queryKey: ["files", "content", workspaceId, path],
+		queryFn: async () => {
+			const result = await service.readContent(workspaceId, path);
+			if (!result.ok) throw result.error;
+			return result.value;
+		},
+		staleTime: 0,
+		refetchInterval: 5_000,
+	});
+	if (query.isError && query.error !== null) return { state: "error", error: query.error };
+	if (query.data === undefined) return { state: "loading" };
+	return { state: "ready", data: query.data };
+};
 export const useFileSearch: Queries["useFileSearch"] = (workspaceId, query) => {
 	const workspaceFiles = useServices().services.workspaceFiles;
 	const trimmed = query.trim();

@@ -92,7 +92,13 @@ function TabBody({
 		case "file":
 			return (
 				<NotBuiltYet area="File" resetKey={key}>
-					<FileTab workspaceId={workspaceId} path={tab.path} mode={tab.mode} scope={tab.scope} />
+					<FileTab
+						workspaceId={workspaceId}
+						path={tab.path}
+						mode={tab.mode}
+						scope={tab.scope}
+						onOpenFile={(path, fileMode) => onSearchChange({ tab: "file", path, fileMode })}
+					/>
 				</NotBuiltYet>
 			);
 		case "comment":
