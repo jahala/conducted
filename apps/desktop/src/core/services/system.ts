@@ -12,7 +12,8 @@
  * points at a path of their own is shown as theirs and never downloaded over; a message to Claude
  * or Codex while its managed copy is still being made ready waits, unless the user chose a
  * program of their own (`holdsSend`; the container holds the follow-up queue with it); gh and
- * watchexec are managed too but stay off the agent programs list (PLAT-35); copying an image
+ * watchexec are managed too but stay off the agent programs list (PLAT-35); Cursor's SDK is on
+ * that list and holds a send to Cursor while it installs (AGENT-09); copying an image
  * that is not an image file fails with a plain message; a save the user cancels is `ok(null)`;
  * System Settings that will not open says where to grant Full Disk Access by hand; feedback opens
  * the project's issue page with the text filled in, adding recent logs only when the user asks;
@@ -100,9 +101,10 @@ export interface SystemServiceDeps {
 
 /**
  * The programs the Advanced page lists. gh and watchexec are managed too (PLAT-35) but stay off
- * it, as Conductor lists only its agent programs there (ui-map 7.4).
+ * it, as Conductor lists only its agent programs there (ui-map 7.4). Cursor's SDK is listed: it
+ * installs only from there, because it is never bundled (AGENT-09, D083).
  */
-const AGENT_PROGRAMS: readonly ManagedProgram[] = ["claude", "codex"];
+const AGENT_PROGRAMS: readonly ManagedProgram[] = ["claude", "codex", "cursor"];
 
 /** The states in which the program manager is still getting a program ready. */
 const PREPARING: ReadonlySet<ProgramState> = new Set([
@@ -206,7 +208,7 @@ export class SystemService {
 	 * instead (D021).
 	 */
 	holdsSend(agent: AgentKind): boolean {
-		if (agent !== "claude" && agent !== "codex") return false;
+		if (agent !== "claude" && agent !== "codex" && agent !== "cursor") return false;
 		if (this.#userPath(agent) !== null) return false;
 		const status = this.#statuses.get(agent);
 		return status !== undefined && PREPARING.has(status.state);
@@ -576,11 +578,12 @@ function parseEnvironment(text: string): Record<string, string> {
 	return env;
 }
 
-/** Claude first, then Codex, so the Agents page keeps a stable order. */
+/** Claude first, then Codex, then Cursor's SDK, so the Advanced page keeps a stable order. */
 function orderOf(program: ManagedProgram): number {
 	if (program === "claude") return 0;
 	if (program === "codex") return 1;
-	return 2;
+	if (program === "cursor") return 2;
+	return 3;
 }
 
 /** The issue title: the message's first line, cut when it is too long for a title. */

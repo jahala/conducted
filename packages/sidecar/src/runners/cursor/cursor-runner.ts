@@ -12,25 +12,26 @@
  * `mcpServers` option under APP_TOOL_SERVER, and they win over a user server of that name.
  * Must handle:
  *  - detect(): the `cursor-agent` program on PATH is optional; the runner works through the SDK,
- *    so detect() reports the SDK's presence when it can load, else null. It reports no version:
- *    the narrow interface has no call that reads one, and none is invented
- *  - listModels(): a static list owned by this file, taken from Cursor's published model list
+ *    so detect() reports the installed SDK's folder and version (load-sdk.ts `locate`, which reads
+ *    its package.json and imports nothing), else null
+ *  - listModels(): a static list owned by this file: Conductor's own Cursor catalog
  *  - the user's MCP files: a missing file is fine, a broken file is logged and skipped; ${env:NAME},
  *    ${NAME} and ${NAME:-default} are filled from the environment; a server without a command or a
  *    url is dropped with a warning naming it, and the rest stay; remote fields such as headers, an
  *    OAuth client and a CA bundle are kept as they are
  *  - the local run store: the root folder comes from `config.ts` (CONDUCTED_CURSOR_STORE_DIR, which
  *    the Rust launcher sets to <app data>/cursor-sdk-store and creates), and each workspace gets
- *    its own folder <root>/<hash of the workspace path>
+ *    its own folder <root>/<hash of the workspace path>, which the session opens the SDK's
+ *    platform on (its `stateRoot`)
  *  - the app tools: each start registers the chat's bridge token through `appToolsServer`, and the
  *    session's dispose gives it back; a bridge that is down fails the start
  *  - capabilities: steer true (when the run supports it), interrupt true, everything else false
  * Test first: capabilities.resumeAt is false and slashCommands is false.
  * Our design choice: the app tools reach Cursor as the same stdio MCP server Codex and ACP get
- * (tools/mcp-launch.ts), in the `{ command, args, env }` shape of Cursor's own mcp.json. Conductor
- * passes SDK tool objects instead; the research does not describe that object API and the SDK is
- * not installed (D010), so we use the shape the research does give. AskUserQuestion is not among
- * them, as in Conductor (the bridge never offers it).
+ * (tools/mcp-launch.ts), in the `{ command, args, env }` shape of the SDK's McpServerConfig.
+ * Conductor passes SDK tool objects instead (the SDK's `local.customTools`); one server for three
+ * runners keeps one home for the tools. AskUserQuestion is not among them, as in Conductor (the
+ * bridge never offers it).
  */
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -41,14 +42,14 @@ import type { Logger } from "../../logging/logger.ts";
 import { isRecord } from "../../util/records.ts";
 import type { RunnerCommonDeps } from "../deps.ts";
 import type { AgentSession, Runner, RunnerCapabilities, StartOptions } from "../runner.ts";
-import type { LoadCursorSdk } from "./cursor-sdk.ts";
+import type { CursorSdkLoader } from "./cursor-sdk.ts";
 import { CURSOR_LOG_TAG, CursorSession } from "./cursor-session.ts";
 import type { EnvLock } from "./env-lock.ts";
-import { CURSOR_SDK_PACKAGE } from "./load-sdk.ts";
 import { CursorTranslator } from "./translate.ts";
 
 export type CursorRunnerDeps = RunnerCommonDeps & {
-	loadSdk: LoadCursorSdk;
+	/** Finds and loads the SDK the program manager installed (load-sdk.ts). */
+	sdk: CursorSdkLoader;
 	envLock: EnvLock;
 	/** The root of the Cursor local run stores, from `config.ts`. */
 	storeRoot: string;
@@ -72,62 +73,45 @@ export interface CursorAppTools {
 	release(): void;
 }
 
-/** The effort levels Cursor accepts, from other-runners.md section 5. */
-const CURSOR_EFFORTS: readonly Effort[] = ["low", "medium", "high", "xhigh"];
+/** Cursor's effort levels: Conductor's `bz` (low to xhigh) and `fie` (low to high). */
+const EFFORTS_TO_XHIGH: readonly Effort[] = ["low", "medium", "high", "xhigh"];
+const EFFORTS_TO_HIGH: readonly Effort[] = ["low", "medium", "high"];
+
+function cursorModel(
+	id: string,
+	label: string,
+	efforts: readonly Effort[],
+	extra: Partial<ModelInfo> = {},
+): ModelInfo {
+	return {
+		id,
+		label,
+		status: "picker",
+		isNew: false,
+		isDefault: false,
+		efforts: [...efforts],
+		// Conductor's Cursor catalog sets "high" as its default effort level.
+		defaultEffort: "high",
+		effortAxis: "effort",
+		liveEffortChange: false,
+		// Conductor's model helper marks every Cursor model as able to run in fast mode.
+		supportsFastMode: true,
+		...extra,
+	};
+}
 
 /**
- * Cursor has no model-list call. These entries come from Cursor's published model list
- * (docs.cursor.com/models), read on 2026-11-06; the ids are the page slugs.
+ * Cursor has no model-list call (other-runners.md 5), so the catalog is static. These are the
+ * entries of Conductor 0.92.1's own Cursor catalog, in its order, read from its bundle
+ * (main-*.js, the cursor harness config): Grok 4.7 is new and the default. Its deprecated
+ * "Test Model (Cursor)" entry, which maps to "auto", is left out.
  */
 export const CURSOR_MODELS: readonly ModelInfo[] = [
-	{
-		id: "cursor-composer-2-5",
-		label: "Composer 2.5",
-		status: "picker",
-		isNew: false,
-		isDefault: true,
-		efforts: [...CURSOR_EFFORTS],
-		defaultEffort: "medium",
-		effortAxis: "effort",
-		liveEffortChange: false,
-		supportsFastMode: true,
-	},
-	{
-		id: "claude-sonnet-5-5",
-		label: "Claude Sonnet 5.5",
-		status: "picker",
-		isNew: false,
-		isDefault: false,
-		efforts: [...CURSOR_EFFORTS],
-		defaultEffort: "medium",
-		effortAxis: "effort",
-		liveEffortChange: false,
-		supportsFastMode: false,
-	},
-	{
-		id: "gpt-5-6-sol",
-		label: "GPT-5.6 Sol",
-		status: "picker",
-		isNew: false,
-		isDefault: false,
-		efforts: [...CURSOR_EFFORTS],
-		defaultEffort: "medium",
-		effortAxis: "effort",
-		liveEffortChange: false,
-		supportsFastMode: false,
-	},
-	{
-		id: "gemini-3-1-pro",
-		label: "Gemini 3.1 Pro",
-		status: "picker",
-		isNew: false,
-		isDefault: false,
-		efforts: [...CURSOR_EFFORTS],
-		defaultEffort: "medium",
-		effortAxis: "effort",
-		liveEffortChange: false,
-		supportsFastMode: false,
-	},
+	cursorModel("grok-4.7", "Grok 4.7", EFFORTS_TO_XHIGH, { isNew: true, isDefault: true }),
+	cursorModel("grok-4.6", "Grok 4.6", EFFORTS_TO_XHIGH),
+	cursorModel("auto", "Auto", []),
+	cursorModel("composer-2.5", "Composer 2.5", []),
+	cursorModel("grok-4.5", "Grok 4.5", EFFORTS_TO_HIGH),
 ];
 
 const ENV_PLACEHOLDER =
@@ -265,16 +249,19 @@ export class CursorRunner implements Runner {
 		this.log = deps.logger.child(CURSOR_LOG_TAG);
 	}
 
-	async detect(_env: Readonly<Record<string, string>>): Promise<{ path: string } | null> {
-		const loaded = await this.deps.loadSdk();
-		if (!loaded.ok) {
-			this.log.debug("Cursor's SDK is not available", {
-				code: loaded.error.code,
-				reason: loaded.error.message,
+	async detect(
+		_env: Readonly<Record<string, string>>,
+	): Promise<{ path: string; version: string } | null> {
+		const located = await this.deps.sdk.locate();
+		if (!located.ok) {
+			this.log.warn("Cursor's SDK could not be read", {
+				code: located.error.code,
+				reason: located.error.message,
 			});
 			return null;
 		}
-		return { path: CURSOR_SDK_PACKAGE };
+		if (located.value === null) return null;
+		return { path: located.value.folder, version: located.value.version };
 	}
 
 	async start(options: StartOptions): Promise<AgentSession> {
@@ -287,7 +274,7 @@ export class CursorRunner implements Runner {
 		const appTools = await this.deps.appToolsServer(options);
 		return new CursorSession(
 			{
-				loadSdk: this.deps.loadSdk,
+				loadSdk: () => this.deps.sdk.load(),
 				envLock: this.deps.envLock,
 				translator: new CursorTranslator({ logger: this.log }),
 				apiKey: options.env.CURSOR_API_KEY,

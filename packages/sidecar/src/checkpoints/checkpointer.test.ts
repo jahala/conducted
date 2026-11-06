@@ -134,6 +134,31 @@ function diverge(): void {
 	commitAll("main change");
 }
 
+/** Whether any process of the group led by `pid` is still running. */
+function groupRuns(pid: number): boolean {
+	try {
+		process.kill(-pid, 0);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+/** Waits until no process of the group led by `pid` runs, or the deadline passes. */
+async function groupEnds(pid: number, withinMs: number): Promise<boolean> {
+	const deadline = Date.now() + withinMs;
+	while (groupRuns(pid)) {
+		if (Date.now() > deadline) return false;
+		await Bun.sleep(10);
+	}
+	return true;
+}
+
+/** Stops whatever is left of the group led by `pid`, so no process outlives its test. */
+function stopGroup(pid: number): void {
+	if (groupRuns(pid)) process.kill(-pid, "SIGKILL");
+}
+
 /**
  * Start a save that blocks in `git add`, then send `signal` to its process group, or only to the
  * script itself (as the sidecar does), whose git steps must then be stopped by the script.
@@ -172,9 +197,16 @@ esac`,
 		await Bun.sleep(10);
 	}
 
-	process.kill(target === "group" ? -child.pid : child.pid, signal);
-	expect(await child.exited).toBe(143);
-	expect(refExists("slow")).toBe(false);
+	try {
+		process.kill(target === "group" ? -child.pid : child.pid, signal);
+		expect(await child.exited).toBe(143);
+		expect(refExists("slow")).toBe(false);
+		// The script's git step runs in the script's process group; once the script is gone, nothing
+		// of that group may still run, or it keeps writing into the repository after the test.
+		expect(await groupEnds(child.pid, 2_000)).toBe(true);
+	} finally {
+		stopGroup(child.pid);
+	}
 
 	const tmpRoot = join(gitOk(repo, "rev-parse", "--absolute-git-dir"), "conducted-checkpoint-tmp");
 	expect(existsSync(tmpRoot) ? readdirSync(tmpRoot) : []).toEqual([]);

@@ -310,20 +310,24 @@ export async function notariseDiskImage(
 
 /**
  * Mounts the shipped disk image and verifies the app inside it, so the file a person downloads is
- * the one that was checked, not a fresh app on disk.
+ * the one that was checked, not a fresh app on disk. The image's own ticket is required only when
+ * the release notarises; a signed-only release has none.
  */
 export async function verifyDiskImage(
 	run: RunTool,
 	dmgPath: string,
 	appName: string,
+	release: Pick<ExpectedBundle, "notarised">,
 ): Promise<Result<BundleReport>> {
-	const imageStaple = await runChecked(
-		run,
-		"xcrun",
-		["stapler", "validate", dmgPath],
-		"release_disk_image_not_notarised",
-	);
-	if (!imageStaple.ok) return imageStaple;
+	if (release.notarised) {
+		const imageStaple = await runChecked(
+			run,
+			"xcrun",
+			["stapler", "validate", dmgPath],
+			"release_disk_image_not_notarised",
+		);
+		if (!imageStaple.ok) return imageStaple;
+	}
 
 	const mountPoint = mkdtempSync(join(tmpdir(), "conducted-release-"));
 	const attached = await runChecked(

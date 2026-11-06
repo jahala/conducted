@@ -238,7 +238,10 @@ const runs: Record<ReleaseStepId, () => void | Promise<void>> = {
 		await must(createDiskImage(runTool, appPath, dmgPath));
 		if (notarise) await must(notariseDiskImage(runTool, dmgPath, env));
 		notarised = notarise;
-		rejectProblems(await must(verifyDiskImage(runTool, dmgPath, basename(appPath))), expected);
+		rejectProblems(
+			await must(verifyDiskImage(runTool, dmgPath, basename(appPath), expected)),
+			expected,
+		);
 	},
 	updaterArchive: () => {
 		if (updaterKey === null) throw new Error("The updater key was not read by the build step.");

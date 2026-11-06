@@ -388,6 +388,38 @@ describe("PLAT-25 release bundle", () => {
 		expect(calls[2]?.args).toEqual(["stapler", "validate", dmgPath]);
 	});
 
+	it("PLAT-25 a signed-only release checks the disk image without asking for its ticket", async () => {
+		const { run, calls } = scripted((program, args) => {
+			if (program === "xcrun" && args.includes("validate")) {
+				return ok({ stdout: "", stderr: "does not have a ticket stapled to it", exitCode: 65 });
+			}
+			if (program === "hdiutil") return ok({ stdout: "", stderr: "", exitCode: 0 });
+			if (program === "plutil")
+				return ok({ stdout: JSON.stringify(INFO), stderr: "", exitCode: 0 });
+			if (program === "file") {
+				return ok({ stdout: "Mach-O 64-bit executable arm64\n", stderr: "", exitCode: 0 });
+			}
+			if (program === "ls") return ok({ stdout: "MacOS\nResources\n", stderr: "", exitCode: 0 });
+			if (program === "codesign") {
+				return ok({ stdout: "", stderr: completeSignature(REQUIRED_ENTITLEMENTS), exitCode: 0 });
+			}
+			return err(appError("unexpected_tool", `Unexpected tool ${program}.`));
+		});
+
+		const signedOnly = await verifyDiskImage(run, DMG, basename(APP), { notarised: false });
+
+		expect(signedOnly.ok).toBe(true);
+		expect(
+			calls.some(
+				(call) => call.program === "xcrun" && call.args.join(" ") === `stapler validate ${DMG}`,
+			),
+		).toBe(false);
+
+		const notarised = await verifyDiskImage(run, DMG, basename(APP), { notarised: true });
+
+		expect(notarised.ok).toBe(false);
+	});
+
 	it("PLAT-25 verifies the app inside the shipped disk image", async () => {
 		const dmgPath = DMG;
 		const { run, calls } = scripted((program) => {
@@ -416,7 +448,7 @@ describe("PLAT-25 release bundle", () => {
 			return err(appError("unexpected_tool", `Unexpected tool ${program}.`));
 		});
 
-		const result = await verifyDiskImage(run, dmgPath, basename(APP));
+		const result = await verifyDiskImage(run, dmgPath, basename(APP), { notarised: true });
 
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;

@@ -166,8 +166,9 @@ async function harness(): Promise<{
 				return ok(child satisfies JsonRpcChild);
 			},
 			spawnAcp: async () => err(appError("acp_unused", "No ACP chat runs in this test.")),
-			loadCursorSdk: async () =>
-				err(appError("cursor_sdk_missing", "Cursor's SDK is not installed.")),
+			importCursorSdk: async () => {
+				throw new Error("No Cursor chat runs in this test.");
+			},
 			probe: async () => ok({ stdout: "1.0.0", stderr: "", exitCode: 0 }),
 			findExecutable: async (name) => `/usr/bin/${name}`,
 			shellEnv: { get: async () => ok(captured), refresh: async () => ok(captured) },

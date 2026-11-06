@@ -46,6 +46,22 @@ describe("SET-03 AgentCard", () => {
 		expect(screen.getByText("Signed in")).toBeTruthy();
 	});
 
+	it("AGENT-09 points a missing Cursor to the Advanced page, where the app installs its SDK", () => {
+		renderCard(
+			install({
+				agent: "cursor",
+				installed: false,
+				path: undefined,
+				version: undefined,
+				authenticated: undefined,
+			}),
+		);
+
+		expect(
+			screen.getByText("Install the Cursor SDK on the Advanced page, then choose Refresh."),
+		).toBeTruthy();
+	});
+
 	it("shows install help and no Sign in button when the program is missing", () => {
 		renderCard(
 			install({ installed: false, path: undefined, version: undefined, authenticated: undefined }),

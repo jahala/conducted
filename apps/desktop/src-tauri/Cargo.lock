@@ -672,6 +672,7 @@ dependencies = [
  "base64 0.22.1",
  "core-foundation 0.9.4",
  "dirs",
+ "flate2",
  "futures-util",
  "globset",
  "grep-matcher",
