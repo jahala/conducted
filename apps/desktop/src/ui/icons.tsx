@@ -210,6 +210,7 @@ export const FlaskIcon = (p: P) => (
 	<Icon d="M6.5 2.5h3M7 2.5v4L3.5 12.5a.7.7 0 0 0 .6 1h7.8a.7.7 0 0 0 .6-1L9 6.5v-4" {...p} />
 );
 export const ChevronsUpDownIcon = (p: P) => <Icon d="M5 6l3-3 3 3M5 10l3 3 3-3" {...p} />;
+export const PinIcon = (p: P) => <Icon d="M6 2.5h4M7 2.5v4L4.5 9h7L9 6.5v-4M8 9v4.5" {...p} />;
 export const SlashIcon = (p: P) => <Icon d="M11 2.5L5 13.5" {...p} />;
 export const SendIcon = (p: P) => <Icon d="M14 2L7 9M14 2l-4.5 12-2.5-5-5-2.5z" {...p} />;
 export const SquareCheckIcon = (p: P) => <Icon d="M2.5 2.5h11v11h-11zM5.5 8l2 2 3.5-4" {...p} />;

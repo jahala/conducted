@@ -174,8 +174,12 @@ describe("routes", () => {
 
 	it("/first-run-onboarding renders without the sidebar", async () => {
 		await openApp("/first-run-onboarding");
+		// Conductor's first slide, as the current step of the onboarding list.
 		expect(
-			await screen.findByRole("heading", { name: "Get coding agents working in parallel" }),
+			await screen.findByRole("button", {
+				name: /^Get coding agents working in parallel/,
+				current: "step",
+			}),
 		).toBeTruthy();
 		expect(screen.queryByRole("complementary", { name: "Sidebar" })).toBeNull();
 	});

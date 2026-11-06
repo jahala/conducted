@@ -18,7 +18,7 @@ import { useActions, useRepos, useSetting } from "../../core/hooks.ts";
 import type { Workspace } from "../../core/model.ts";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../ui/Collapsible.tsx";
 import { cn } from "../../ui/cn.ts";
-import { ChevronRightIcon } from "../../ui/icons.tsx";
+import { ChevronRightIcon, PinIcon } from "../../ui/icons.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { useNow } from "./use-now.ts";
 import {
@@ -122,8 +122,9 @@ export function PinnedSection({
 				</div>
 				<CollapsibleContent>
 					{workspaces.length === 0 ? (
-						<p className="flex h-9 items-center gap-2 pl-3 text-xs text-sidebar-fg-muted">
-							Drag a workspace here
+						<p className="flex h-9 items-center gap-2 pl-3 text-sm text-sidebar-fg-muted">
+							<PinIcon className="size-3.5 shrink-0" />
+							<span className="min-w-0 truncate">Drag a workspace here</span>
 						</p>
 					) : (
 						<div className="flex flex-col gap-1">

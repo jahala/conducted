@@ -50,20 +50,32 @@ function setup() {
 	return test;
 }
 
+// Conductor's slide titles; the current step is the list entry marked aria-current="step".
 describe("APP-02 first-run onboarding", () => {
 	it("Continue advances one step", async () => {
 		const test = setup();
 		try {
 			await renderGuide(test);
 			expect(
-				await screen.findByRole("heading", { name: "Get coding agents working in parallel" }),
+				await screen.findByRole("button", {
+					name: /^Get coding agents working in parallel/,
+					current: "step",
+				}),
 			).toBeTruthy();
 			fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 			expect(
-				await screen.findByRole("heading", { name: "See which agents are ready" }),
+				await screen.findByRole("button", {
+					name: /^See at a glance what each agent is working on/,
+					current: "step",
+				}),
 			).toBeTruthy();
 			fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-			expect(await screen.findByRole("heading", { name: "Add your first project" })).toBeTruthy();
+			expect(
+				await screen.findByRole("button", {
+					name: /^Review changes and create PRs/,
+					current: "step",
+				}),
+			).toBeTruthy();
 		} finally {
 			test.close();
 		}
@@ -73,18 +85,32 @@ describe("APP-02 first-run onboarding", () => {
 		const test = setup();
 		try {
 			await renderGuide(test);
-			await screen.findByRole("heading", { name: "Get coding agents working in parallel" });
+			await screen.findByRole("button", {
+				name: /^Get coding agents working in parallel/,
+				current: "step",
+			});
 			expect(document.querySelector("svg[data-step]")?.getAttribute("data-step")).toBe("0");
 			fireEvent.keyDown(window, { key: "Enter" });
 			expect(
-				await screen.findByRole("heading", { name: "See which agents are ready" }),
+				await screen.findByRole("button", {
+					name: /^See at a glance what each agent is working on/,
+					current: "step",
+				}),
 			).toBeTruthy();
 			expect(document.querySelector("svg[data-step]")?.getAttribute("data-step")).toBe("1");
 			fireEvent.keyDown(window, { key: "ArrowDown" });
-			expect(await screen.findByRole("heading", { name: "Add your first project" })).toBeTruthy();
+			expect(
+				await screen.findByRole("button", {
+					name: /^Review changes and create PRs/,
+					current: "step",
+				}),
+			).toBeTruthy();
 			fireEvent.keyDown(window, { key: "ArrowDown" });
 			expect(
-				await screen.findByRole("heading", { name: "Get coding agents working in parallel" }),
+				await screen.findByRole("button", {
+					name: /^Get coding agents working in parallel/,
+					current: "step",
+				}),
 			).toBeTruthy();
 		} finally {
 			test.close();

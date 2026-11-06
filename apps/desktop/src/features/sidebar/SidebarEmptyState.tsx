@@ -17,13 +17,14 @@ import { AddProjectButton } from "./AddProjectButton.tsx";
 
 export function SidebarEmptyState({ kind }: { kind: "no-projects" | "no-workspaces" }) {
 	if (kind === "no-projects") {
+		// Conductor's block at the top of the empty list (renderApp @10534600): one muted sentence. The
+		// button below it is ours.
 		return (
-			<EmptyState
-				compact
-				title="No projects yet"
-				body="Add a project to get started."
-				action={<AddProjectButton variant="secondary" size="sm" />}
-			/>
+			<div className="flex w-full flex-col items-start gap-2 rounded-md px-3 py-2.5 text-sidebar-fg-muted">
+				<h2 className="text-sm font-medium text-sidebar-fg">No projects yet</h2>
+				<p className="text-sm">Add a project to get started.</p>
+				<AddProjectButton variant="secondary" size="sm" />
+			</div>
 		);
 	}
 	return (

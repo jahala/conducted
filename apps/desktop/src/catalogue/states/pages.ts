@@ -6,7 +6,7 @@
  * Test first: not applicable; the screenshot run opens every state.
  */
 import { animateCast, seedCast } from "../cast.ts";
-import { click, shows } from "../dom.ts";
+import { click, shows, typeInto } from "../dom.ts";
 import { CLAUDE_CONFIG, must } from "../seeds.ts";
 import type { CatalogueState } from "../state.ts";
 
@@ -21,6 +21,20 @@ export const PAGE_STATES: CatalogueState[] = [
 				route: "/all-workspaces",
 				after: ({ app }) => animateCast(world, cast, app),
 				ready: (document) => shows(document, "sam/rate-limit-api"),
+			};
+		},
+	},
+	{
+		id: "home-no-match",
+		group: "Pages",
+		title: "Home with a search that matches no workspace",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/all-workspaces",
+				after: ({ document }) =>
+					typeInto(document, "input", "Search workspaces", "no such workspace"),
+				ready: (document) => shows(document, "No matching workspaces"),
 			};
 		},
 	},
