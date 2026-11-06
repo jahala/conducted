@@ -117,7 +117,7 @@ import type { Scheduler } from "../runners/claude/turn-tracker.ts";
 import type { JsonRpcChild, SpawnJsonRpcChild } from "../runners/codex/app-server-client.ts";
 import { type CodexAppTools, CodexRunner } from "../runners/codex/codex-runner.ts";
 import { type CursorAppTools, CursorRunner } from "../runners/cursor/cursor-runner.ts";
-import type { LoadCursorSdk } from "../runners/cursor/cursor-sdk.ts";
+import type { CursorSdkLoader } from "../runners/cursor/cursor-sdk.ts";
 import { EnvLock } from "../runners/cursor/env-lock.ts";
 import { createCursorSdkLoader } from "../runners/cursor/load-sdk.ts";
 import type { FindExecutable, ProbeCommand, RunnerCommonDeps } from "../runners/deps.ts";
@@ -156,6 +156,7 @@ import {
 	type McpStdioEntry,
 } from "../tools/mcp-launch.ts";
 import { AppToolsBridge } from "../tools/socket-bridge.ts";
+import { readTextIfPresent } from "../util/read-text.ts";
 import { ParentWatchdog } from "../watchdog.ts";
 
 export { EXIT_START_FAILED };
@@ -611,8 +612,8 @@ export async function startSidecarHost(input: SidecarHostInput): Promise<number>
 		query: (params) => sdkQuery(params as Parameters<typeof sdkQuery>[0]),
 		spawnCodex: (options) => spawnJsonRpcChild(options, logger),
 		spawnAcp: (options) => spawnAcpChild(options, logger),
-		// Cursor cannot run until its SDK is bundled, and D010 keeps it out (runners/cursor/load-sdk.ts).
-		loadCursorSdk: createCursorSdkLoader((specifier) => import(specifier)),
+		// Cursor's SDK is imported from app data at the first Cursor chat (runners/cursor/load-sdk.ts).
+		importCursorSdk: (entry) => import(entry),
 		probe: probeCommand,
 		findExecutable: createFindExecutable(env),
 		shellEnv: createShellEnvProvider(env, logger, (failure) => {
@@ -746,7 +747,11 @@ export interface SidecarPorts {
 	query: ClaudeRunnerDeps["query"];
 	spawnCodex: SpawnJsonRpcChild;
 	spawnAcp: SpawnAcpChild;
-	loadCursorSdk: LoadCursorSdk;
+	/**
+	 * Imports Cursor's SDK from the file the program manager installed (D078). Called at the first
+	 * Cursor chat, never at startup.
+	 */
+	importCursorSdk(entry: string): Promise<unknown>;
 	probe: ProbeCommand;
 	findExecutable: FindExecutable;
 	shellEnv: ShellEnvProvider;
@@ -818,12 +823,19 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 		agentBinariesDir: config.agentBinariesDir,
 		files: nodeManagedProgramFiles,
 	});
+	const cursorSdk = createCursorSdkLoader({
+		agentBinariesDir: config.agentBinariesDir,
+		cpu: process.arch,
+		readText: ports.readText,
+		importModule: ports.importCursorSdk,
+	});
 	const runners = createRunnerRegistry({
 		ports,
 		appTools: backend,
 		bridge,
 		skillPluginDir: config.skillPluginDir,
 		cursorStoreDir: config.cursorStoreDir,
+		cursorSdk,
 		findManagedProgram,
 	});
 	const models = new RunnerModelCatalog({ runners, shellEnv, logger, clock });
@@ -846,8 +858,14 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 		ids,
 		probe: ports.probe,
 		clock,
-		findManagedProgram: async (selector) =>
-			MANAGED_AGENTS.has(selector.agent) ? findManagedProgram(selector.agent) : null,
+		findManagedProgram: async (selector) => {
+			if (MANAGED_AGENTS.has(selector.agent)) return findManagedProgram(selector.agent);
+			if (selector.agent !== "cursor") return null;
+			// Cursor's SDK is the app's own copy when the program manager installed it (D078).
+			const located = await cursorSdk.locate();
+			if (!located.ok || located.value === null) return null;
+			return { path: located.value.folder, version: located.value.version };
+		},
 	});
 	const checkpointer = path.join(config.binDir, "checkpointer.sh");
 	const sessions = new DefaultSessionManager({
@@ -1041,18 +1059,6 @@ async function isExecutableFile(candidate: string): Promise<boolean> {
 	}
 }
 
-/** Reads a text file; a missing file is `null`, any other failure an error value. */
-async function readTextIfPresent(target: string): Promise<Result<string | null, AppError>> {
-	try {
-		return ok(await readFile(target, "utf8"));
-	} catch (cause) {
-		if ((cause as NodeJS.ErrnoException).code === "ENOENT") return ok(null);
-		return err(
-			appError("file_read_failed", `Could not read ${target}: ${messageOf(cause)}`, cause),
-		);
-	}
-}
-
 /** The Codex config files a Codex chat reads: the user's own, and the repository's. */
 function codexConfigFiles(options: StartOptions): string[] {
 	const files: string[] = [];
@@ -1071,6 +1077,8 @@ function createRunnerRegistry(input: {
 	skillPluginDir: string | undefined;
 	/** The root of the Cursor SDK's local run stores (AGENT-09). */
 	cursorStoreDir: string;
+	/** Finds and loads the Cursor SDK the program manager installed (AGENT-09). */
+	cursorSdk: CursorSdkLoader;
 	/** The app's managed copies of the agent programs (PLAT-28). */
 	findManagedProgram: FindManagedProgram;
 }): RunnerRegistry {
@@ -1174,7 +1182,7 @@ function createRunnerRegistry(input: {
 			selector: { agent: "cursor" },
 			runner: new CursorRunner({
 				...common,
-				loadSdk: ports.loadCursorSdk,
+				sdk: input.cursorSdk,
 				envLock: new EnvLock({ queue: queueForCursor, target: process.env }),
 				storeRoot: input.cursorStoreDir,
 				appToolsServer: cursorAppTools,
