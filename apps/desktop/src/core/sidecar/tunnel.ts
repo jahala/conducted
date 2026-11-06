@@ -20,6 +20,7 @@
  * tables in the protocol package, so a rename there is a type error here.
  * Test first: a request whose result does not match its schema returns Err with code rpc_invalid.
  */
+
 import {
 	type AppToSidecarNotification,
 	type AppToSidecarRequest,
@@ -33,7 +34,7 @@ import {
 	sidecarToAppNotifications,
 	sidecarToAppRequests,
 } from "@conducted/protocol";
-import { appError, type Clock, err, ok, type Result } from "@conducted/shared";
+import { appError, type Clock, err, messageOf, ok, type Result } from "@conducted/shared";
 import {
 	createJSONRPCErrorResponse,
 	createJSONRPCNotification,
@@ -330,7 +331,7 @@ export class SidecarTunnel implements SidecarClient {
 					? { code: error.code, message: error.message, data: error.data }
 					: {
 							code: RPC_ERRORS.internalError,
-							message: error instanceof Error ? error.message : String(error),
+							message: messageOf(error),
 							data: undefined,
 						};
 			return createJSONRPCErrorResponse(id, failure.code, failure.message, failure.data);

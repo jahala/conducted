@@ -100,7 +100,11 @@ export const zWorkspaceContext = z.object({
 	workspaceName: z.string(),
 	/** The worktree folder the agent works in. */
 	workspacePath: z.string(),
-	/** The main clone of the repository. Agents must not write there. */
+	/**
+	 * The main clone of the repository: its main worktree, the `mainWorktreePath` of Conductor's
+	 * query options (frontend.md 3c). Agents must not write there. Every runner gets it in
+	 * `StartOptions.workspace`, and agents see it as CONDUCTED_ROOT_PATH.
+	 */
 	repoRootPath: z.string(),
 	/** For example "origin/main". */
 	targetBranch: z.string(),

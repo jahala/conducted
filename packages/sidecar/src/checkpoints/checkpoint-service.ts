@@ -33,8 +33,8 @@
  */
 import type { FileChange } from "@conducted/protocol";
 import type { CheckpointId, SessionId, TurnId } from "@conducted/shared";
+import { messageOf } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
-import { messageOf } from "../util/errors.ts";
 import {
 	type CheckpointPhase,
 	checkpointIdFor,

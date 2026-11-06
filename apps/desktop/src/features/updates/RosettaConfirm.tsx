@@ -17,6 +17,7 @@
  * Test first: with machineArch "arm64" and buildArch "x86_64" the dialog opens and offers the download;
  * with equal values it renders nothing.
  */
+import { messageOf } from "@conducted/shared";
 import { useState } from "react";
 import { useServices } from "../../core/context.tsx";
 import type { SystemInfo } from "../../core/model.ts";
@@ -60,7 +61,7 @@ export function useOpenDownload(downloadUrl: string | null): {
 			opened?.();
 		} catch (cause) {
 			toastError("Couldn't open the download page", {
-				message: cause instanceof Error ? cause.message : String(cause),
+				message: messageOf(cause),
 			});
 		} finally {
 			setOpening(false);

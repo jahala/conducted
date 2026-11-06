@@ -11,9 +11,10 @@
  * returns a copy, so a caller cannot change the catalogue.
  * Our design choice: OpenCode and Pi share this list, because both read provider keys from the
  * environment the same way (SIDE-21).
+ * The agent-provider table (agent-providers.ts) lists it as the ACP agents' config providers.
  * Test first: the catalogue holds Conductor's 97 entries, from 302.AI to Z.AI, in its order.
  */
-import type { AgentProvider } from "@conducted/protocol";
+import type { AgentProvider } from "./rpc.ts";
 
 const PROVIDERS: readonly AgentProvider[] = [
 	{ id: "302ai", label: "302.AI", keyEnvVars: ["302AI_API_KEY"] },

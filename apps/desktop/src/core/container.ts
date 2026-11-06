@@ -32,14 +32,17 @@
  * the `Services` interface, and builds without calling any placeholder.
  */
 
-import type { AgentLaunch } from "@conducted/protocol";
+import { AGENT_PROVIDER_TABLE, type AgentLaunch, signInEnvVars } from "@conducted/protocol";
 import {
+	type AcpAgent,
 	type AgentKind,
 	appError,
 	type Clock,
 	err,
 	type IdSource,
+	messageOf,
 	ok,
+	type RepoId,
 	type Result,
 	type SessionId,
 	type WorkspaceId,
@@ -95,6 +98,7 @@ import {
 import { UPDATE_CHECK_INTERVAL_MS, UpdatesService } from "./services/updates.ts";
 import { type PlaceNames, WorkspaceService } from "./services/workspace.ts";
 import { WorkspaceFilesService } from "./services/workspace-files.ts";
+import { chosenAgentPrograms, followAgentPrograms } from "./sidecar/agent-programs.ts";
 import {
 	createSidecarNotificationHandlers,
 	createSidecarRequestHandlers,
@@ -224,20 +228,44 @@ export function createArchiveOnMerged(
 	};
 }
 
-/** Builds everything. Does no I/O. */
-/**
- * The provider key variables a sign-in choice leaves out of an agent's launch (SET-09), by agent and by the
- * stored provider setting. Claude's standard sign-in (an empty `claude_provider`) is the Claude Code
- * subscription, so its API key stays out; the "anthropic" choice is the API key, so the subscription token
- * stays out. Codex's standard sign-in is the ChatGPT account, so the OpenAI API key stays out. Only the
- * credential the user chose reaches the agent.
- */
-const LEFT_OUT_BY_SIGN_IN: Partial<Record<AgentKind, Readonly<Record<string, readonly string[]>>>> =
-	{
-		claude: { "": ["ANTHROPIC_API_KEY"], anthropic: ["CLAUDE_CODE_OAUTH_TOKEN"] },
-		codex: { "": ["OPENAI_API_KEY"] },
-	};
+/** The setting that holds the program the user chose for an agent, when the agent has one. */
+function programPathSetting(
+	agent: AgentKind,
+	acpAgent: AcpAgent | undefined,
+): "claude_executable_path" | "codex_executable_path" | "opencode_executable_path" | null {
+	if (agent === "claude") return "claude_executable_path";
+	if (agent === "codex") return "codex_executable_path";
+	if (agent === "acp" && acpAgent === "opencode") return "opencode_executable_path";
+	return null;
+}
 
+/**
+ * Whether a stored provider key goes into an agent's launch (SET-09, D033). Only the credential of the
+ * chosen sign-in reaches the agent: the keys of its provider that the agent-provider table lists for
+ * that sign-in. Claude's standard sign-in (an empty `claude_provider`) is the Claude Code
+ * subscription, so its API key stays out; Codex's is the ChatGPT account, so the OpenAI API key stays
+ * out. An agent without a provider setting takes its one sign-in. OpenCode and Pi choose a provider in
+ * their own config, so every stored key may apply. A setting value the table does not list (set in a
+ * settings file) takes the keys stored under a provider of that name.
+ */
+function launchTakesKey(
+	agent: AgentKind,
+	chosenProvider: string | undefined,
+	key: { provider: string; envVar: string },
+): boolean {
+	const facts = AGENT_PROVIDER_TABLE[agent];
+	if (facts.configProviders !== undefined) return true;
+	const signIn =
+		chosenProvider === undefined
+			? facts.signIns[0]
+			: facts.signIns.find((entry) => entry.launchProvider === chosenProvider);
+	if (signIn === undefined) return key.provider.toLowerCase() === chosenProvider;
+	return (
+		key.provider.toLowerCase() === signIn.provider && signInEnvVars(signIn).includes(key.envVar)
+	);
+}
+
+/** Builds everything. Does no I/O. */
 export function createContainer(inputs: ContainerInputs): Container {
 	const { platform, clock, ids } = inputs;
 	const repositoryDeps = { clock, ids };
@@ -394,6 +422,11 @@ export function createContainer(inputs: ContainerInputs): Container {
 			const repo = lookups.repoOf(ws.value.id);
 			return ready(repo.ok ? ok(repo.value.rootPath) : repo);
 		},
+		launchFor: (agent, acpAgent, sessionId) => {
+			if (sessionId === null) return launchForAgent(agent, acpAgent, null);
+			const ws = lookups.workspaceOfSession(sessionId);
+			return ws.ok ? launchForAgent(agent, acpAgent, ws.value.repoId) : ready(ws);
+		},
 		providerKeys: repositories.providerKeys,
 		keychain: platform.keychain,
 	});
@@ -408,39 +441,22 @@ export function createContainer(inputs: ContainerInputs): Container {
 	 * Builds how one chat's agent starts (SIDE-21): the program the user chose, the provider and its
 	 * region or project, the Environment page's variables (a repository's replacing the global one
 	 * of the same name) and the provider keys that belong to that agent and its sign-in choice
-	 * (LEFT_OUT_BY_SIGN_IN). Secrets come from the Keychain; a key chosen from the Mac goes as a marker
+	 * (`launchTakesKey`). Secrets come from the Keychain; a key chosen from the Mac goes as a marker
 	 * the sidecar fills from the login shell it captured. A list that
 	 * cannot be read, or a saved value the Keychain cannot give back, fails the launch with a message
 	 * that names it, so the send or warm that asked shows it instead of starting without it.
 	 */
-	const launchFor = async (session: Session): Promise<Result<AgentLaunch>> => {
+	const launchForAgent = async (
+		agent: AgentKind,
+		acpAgent: AcpAgent | undefined,
+		repoId: RepoId | null,
+	): Promise<Result<AgentLaunch>> => {
 		const env: Record<string, string> = {};
 		const providerKeys: AgentLaunch["providerKeys"] = {};
-		const workspace = lookups.workspace(session.workspaceId);
-		if (!workspace.ok) return workspace;
 		const providerSetting =
-			session.config.agent === "claude"
-				? "claude_provider"
-				: session.config.agent === "codex"
-					? "codex_provider"
-					: null;
+			agent === "claude" ? "claude_provider" : agent === "codex" ? "codex_provider" : null;
 		const chosenProvider =
 			providerSetting === null ? undefined : setting<string>(providerSetting).trim().toLowerCase();
-		const defaultProvider =
-			session.config.agent === "claude"
-				? "anthropic"
-				: session.config.agent === "codex"
-					? "openai"
-					: session.config.agent === "cursor"
-						? "cursor"
-						: null;
-		const providerAllowed = (provider: string): boolean => {
-			if (chosenProvider !== undefined && chosenProvider !== "") {
-				return provider.toLowerCase() === chosenProvider;
-			}
-			// OpenCode and Pi choose a provider in their own config, so every stored key may apply.
-			return defaultProvider === null || provider.toLowerCase() === defaultProvider;
-		};
 		const readSecret = async (ref: string, name: string): Promise<Result<string>> => {
 			const read = await platform.keychain.get(ref);
 			if (!read.ok) {
@@ -464,22 +480,20 @@ export function createContainer(inputs: ContainerInputs): Container {
 		};
 		// Claude reads its Bedrock region and Vertex project from these variables. They go in first,
 		// so a variable of the same name on the Environment page wins.
-		if (session.config.agent === "claude" && chosenProvider === "bedrock") {
+		if (agent === "claude" && chosenProvider === "bedrock") {
 			const region = setting<string>("bedrock_region").trim();
 			if (region !== "") env.AWS_REGION = region;
 		}
-		if (session.config.agent === "claude" && chosenProvider === "vertex") {
+		if (agent === "claude" && chosenProvider === "vertex") {
 			const project = setting<string>("vertex_project_id").trim();
 			if (project !== "") env.ANTHROPIC_VERTEX_PROJECT_ID = project;
 		}
-		// The Environment page's variables, by the one rule the repository scripts also use.
-		const variables = await settings.environmentFor(workspace.value.repoId);
+		// The Environment page's variables, by the one rule the repository scripts also use. Without a
+		// repository (a model list), only the global ones.
+		const variables = await settings.environmentFor(repoId);
 		if (!variables.ok) return variables;
 		Object.assign(env, variables.value);
-		const keys = await repositories.providerKeys.listForAgent(
-			session.config.agent,
-			session.config.acpAgent ?? null,
-		);
+		const keys = await repositories.providerKeys.listForAgent(agent, acpAgent ?? null);
 		if (!keys.ok) {
 			return err(
 				appError(
@@ -489,13 +503,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 				),
 			);
 		}
-		const leftOut =
-			chosenProvider === undefined
-				? []
-				: (LEFT_OUT_BY_SIGN_IN[session.config.agent]?.[chosenProvider] ?? []);
 		for (const key of keys.value) {
-			if (!providerAllowed(key.provider)) continue;
-			if (leftOut.includes(key.envVar)) continue;
+			if (!launchTakesKey(agent, chosenProvider, key)) continue;
 			if (key.source === "this_mac") {
 				// The app cannot read the Mac's environment. The sidecar fills the value in from the login
 				// shell it captured, and fails the launch when that variable is not set there.
@@ -507,14 +516,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 			if (!value.ok) return value;
 			providerKeys[key.envVar] = { value: value.value, source: "entered" };
 		}
-		const executableKey =
-			session.config.agent === "claude"
-				? "claude_executable_path"
-				: session.config.agent === "codex"
-					? "codex_executable_path"
-					: session.config.agent === "acp" && session.config.acpAgent === "opencode"
-						? "opencode_executable_path"
-						: null;
+		const executableKey = programPathSetting(agent, acpAgent);
 		const executablePath = executableKey === null ? "" : setting<string>(executableKey).trim();
 		const provider =
 			chosenProvider === undefined || chosenProvider === "" ? undefined : chosenProvider;
@@ -524,6 +526,11 @@ export function createContainer(inputs: ContainerInputs): Container {
 			...(executablePath === "" ? {} : { executablePath }),
 			...(provider === undefined ? {} : { provider }),
 		});
+	};
+	const launchFor = async (session: Session): Promise<Result<AgentLaunch>> => {
+		const workspace = lookups.workspace(session.workspaceId);
+		if (!workspace.ok) return workspace;
+		return launchForAgent(session.config.agent, session.config.acpAgent, workspace.value.repoId);
 	};
 	const chatTitles = new ChatTitleService({
 		sidecar: client,
@@ -1047,6 +1054,21 @@ export function createContainer(inputs: ContainerInputs): Container {
 		// `stop` ran during the heal and already cleaned what was wired above. Wire nothing more.
 		if (stopped) return;
 
+		// The sidecar's agent list reports the program paths chosen in Settings (SIDE-21).
+		cleanups.push(
+			followAgentPrograms({
+				programs: () =>
+					chosenAgentPrograms((agent, acpAgent) => {
+						const key = programPathSetting(agent, acpAgent);
+						return key === null ? "" : setting<string>(key);
+					}),
+				onSettingsChanged: (listener) => settings.store.subscribe(listener),
+				onReconnected: (listener) => tunnel.onReconnected(listener),
+				send: (params) => client.notify("setAgentPrograms", params),
+				log: (message) => log("warn", message),
+			}),
+		);
+
 		// Keep-awake follows the setting and the chats' work, and re-checks every scan so a
 		// battery that falls low or a caffeinate that exited by itself is handled. A scan reads
 		// the live setting and chats, so a change made before it runs is already covered: only one
@@ -1129,7 +1151,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 					})
 					.catch((cause: unknown) => {
 						quitPromptOpen = false;
-						const message = cause instanceof Error ? cause.message : String(cause);
+						const message = messageOf(cause);
 						log("warn", `Could not ask whether to quit: ${message}`);
 					});
 			}),
@@ -1175,7 +1197,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 					log("warn", `Stopping ${name} failed: ${outcome.error.message}`);
 				}
 			} catch (cause) {
-				const message = cause instanceof Error ? cause.message : String(cause);
+				const message = messageOf(cause);
 				log("warn", `Stopping ${name} failed: ${message}`);
 			}
 		};
@@ -1237,7 +1259,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 			},
 			(cause) => {
 				quitting = false;
-				const message = cause instanceof Error ? cause.message : String(cause);
+				const message = messageOf(cause);
 				log("warn", `Could not quit: ${message}`);
 			},
 		);

@@ -26,6 +26,7 @@
 import {
 	type AppError,
 	appError,
+	createKeyedQueue,
 	err,
 	notImplemented,
 	ok,
@@ -45,7 +46,6 @@ import {
 	draftsDir,
 	isInsideFolder,
 } from "../app-paths.ts";
-import { createKeyedQueue } from "../async/serial-queue.ts";
 import type { Repositories } from "../db/repositories.ts";
 import { trashIfPresent } from "../fs-helpers.ts";
 import type { Attachment, Snippet } from "../model.ts";

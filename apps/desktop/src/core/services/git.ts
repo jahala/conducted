@@ -77,13 +77,20 @@
  * interval has passed.
  */
 import type { FileChange } from "@conducted/protocol";
-import { type AppError, appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
+import {
+	type AppError,
+	appError,
+	createKeyedQueue,
+	err,
+	ok,
+	type Result,
+	type WorkspaceId,
+} from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { FileSystem, Unsubscribe } from "../../platform/platform.ts";
 import type { ChangedFile, DiffScope } from "../api.ts";
 import { viewedFilesFile } from "../app-paths.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
-import { createKeyedQueue } from "../async/serial-queue.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
 import {
 	branchDeleteForce,

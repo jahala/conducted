@@ -54,8 +54,8 @@ import {
 	type CanonicalTool,
 } from "@conducted/protocol";
 import type { ToolUseId } from "@conducted/shared";
+import { messageOf } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
-import { messageOf } from "../../util/errors.ts";
 import { asRecord, readString } from "../../util/records.ts";
 import { contentToText, truncateOutput } from "../output.ts";
 import type { CodexThreadTokenUsage } from "./protocol.ts";

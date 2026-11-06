@@ -44,6 +44,7 @@ import {
 import type { Options, Query, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import type {
 	AcpConfigOption,
+	AgentInstall,
 	AgentLaunch,
 	SessionConfig,
 	SlashCommand,
@@ -1058,6 +1059,71 @@ describe("s1-sidecar join the batch through the composition root", () => {
 				data: expect.objectContaining({ appVersion: "9.9.9", logLevel: "debug" }),
 			}),
 		);
+	});
+
+	test("SIDE-21 model, slash command and MCP lists run the program and keys of the app's launch", async () => {
+		const folder = await workspaceFolder();
+		const h = await harness(folder);
+		const launch: AgentLaunch = {
+			executablePath: "/opt/claude/bin/claude",
+			env: { HTTPS_PROXY: "http://proxy" },
+			providerKeys: {
+				CLAUDE_CODE_OAUTH_TOKEN: { value: "oauth-token", source: "entered" },
+				OPENAI_API_KEY: { value: "sk-codex", source: "entered" },
+			},
+		};
+		try {
+			unwrap(await h.handlers.listModels({ agent: "claude", launch }));
+			unwrap(
+				await h.handlers.listSlashCommands({
+					agent: "claude",
+					workspacePath: folder,
+					repoRootPath: folder,
+					launch,
+				}),
+			);
+			unwrap(await h.handlers.listMcpServers({ agent: "claude", workspacePath: folder, launch }));
+
+			expect(h.seen.claudeOptions).toHaveLength(3);
+			for (const { options } of h.seen.claudeOptions) {
+				expect(options.pathToClaudeCodeExecutable).toBe("/opt/claude/bin/claude");
+				expect(options.env?.CLAUDE_CODE_OAUTH_TOKEN).toBe("oauth-token");
+				expect(options.env?.HTTPS_PROXY).toBe("http://proxy");
+				expect(options.env?.OPENAI_API_KEY).toBeUndefined();
+			}
+		} finally {
+			await h.host.sessions.shutdown("app_quit");
+		}
+	});
+
+	test("SIDE-21 the agent list reports the program paths the app sends with setAgentPrograms", async () => {
+		const folder = await workspaceFolder();
+		const h = await harness(folder);
+		try {
+			const before = unwrap<{ agents: AgentInstall[] }>(await h.handlers.getAgentInstalls({}));
+			expect(before.agents.find((install) => install.agent === "claude")).toMatchObject({
+				path: "/usr/bin/claude",
+				source: "login_path",
+			});
+
+			await h.host.handlers.notifications.setAgentPrograms({
+				programs: [{ agent: "claude", path: "/opt/claude/bin/claude" }],
+			});
+
+			const after = unwrap<{ agents: AgentInstall[] }>(await h.handlers.getAgentInstalls({}));
+			expect(after.agents.find((install) => install.agent === "claude")).toMatchObject({
+				path: "/opt/claude/bin/claude",
+				source: "user",
+			});
+			// The change reached the app without it asking (agentInstallsChanged).
+			expect(
+				h.app
+					.notified("agentInstallsChanged")
+					.some((sent) => sent.agents.some((install) => install.path === "/opt/claude/bin/claude")),
+			).toBe(true);
+		} finally {
+			await h.host.sessions.shutdown("app_quit");
+		}
 	});
 
 	test("SIDE-22 the slash command cache answers before a chat starts", async () => {

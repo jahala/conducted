@@ -42,6 +42,7 @@ import { formatFileMention } from "@conducted/protocol";
 import {
 	appError,
 	type CommentId,
+	createKeyedQueue,
 	err,
 	ok,
 	type Result,
@@ -52,7 +53,6 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import type { FileSystem } from "../../platform/platform.ts";
 import type { CommentDetails, CommentSuggestion } from "../api.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
-import { createKeyedQueue } from "../async/serial-queue.ts";
 import type { Repositories } from "../db/repositories.ts";
 import type { GitRunner } from "../git/runner.ts";
 import type { DiffComment, Session } from "../model.ts";

@@ -23,14 +23,22 @@
  * Test first: a repo shared value beats the user file for a repo-scoped key, and is ignored for a
  * user-only key.
  */
-import { type AppError, appError, err, ok, type RepoId, type Result } from "@conducted/shared";
+import {
+	type AppError,
+	appError,
+	createKeyedQueue,
+	err,
+	type KeyedQueue,
+	ok,
+	type RepoId,
+	type Result,
+} from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform } from "../../platform/platform.ts";
 import type { Loadable } from "../api.ts";
 import { localSettingsFile, sharedSettingsFile, userSettingsFile } from "../app-paths.ts";
 import { fireAndForget } from "../async/fire-and-forget.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
-import { createKeyedQueue, type KeyedQueue } from "../async/serial-queue.ts";
 import type { EnvVar } from "../db/env-vars.ts";
 import type { RepoRepository } from "../db/repos.ts";
 import type { Repositories } from "../db/repositories.ts";
@@ -1211,11 +1219,15 @@ export class SettingsService {
 	/**
 	 * The Environment page's variables for one repository, the one rule both its scripts and its agents'
 	 * launch use. Rows come in name order with the global row before the repository's (env-vars.ts), so
-	 * a repository's value replaces the global one of the same name. A value the Keychain cannot give
-	 * back fails the whole read with a message that names the variable, never the global value instead.
+	 * a repository's value replaces the global one of the same name. Without a repository (an agent's
+	 * model list), the global variables only. A value the Keychain cannot give back fails the whole read
+	 * with a message that names the variable, never the global value instead.
 	 */
-	async environmentFor(repoId: RepoId): Promise<Result<Record<string, string>>> {
-		const listed = await this.#deps.repos.envVars.listForRepo(repoId);
+	async environmentFor(repoId: RepoId | null): Promise<Result<Record<string, string>>> {
+		const listed =
+			repoId === null
+				? await this.#deps.repos.envVars.listGlobal()
+				: await this.#deps.repos.envVars.listForRepo(repoId);
 		if (!listed.ok) {
 			return err(
 				appError(

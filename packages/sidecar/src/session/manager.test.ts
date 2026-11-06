@@ -17,7 +17,7 @@ import type {
 	SessionId,
 	TurnId,
 } from "@conducted/shared";
-import { appError, ok } from "@conducted/shared";
+import { appError, createKeyedQueue, ok } from "@conducted/shared";
 import type {
 	CheckpointOutcome,
 	CheckpointRequest,
@@ -55,7 +55,6 @@ import {
 	type TurnFactory,
 } from "./manager.ts";
 import type { RunNumber } from "./run-guard.ts";
-import { KeyedSerialQueue } from "./serial-queue.ts";
 import type { TurnDeps, TurnRequest } from "./turn.ts";
 
 const sid = (value: string) => value as SessionId;
@@ -430,7 +429,7 @@ function harness(
 	} = {},
 ): Harness {
 	const app = new FakeApp();
-	const queue = new KeyedSerialQueue();
+	const queue = createKeyedQueue();
 	let realPublisher: BatchingEventPublisher | null = null;
 	const liveState = options.liveState?.(app) ?? new TestLiveState(app);
 	let pipelineLiveState: LiveStateStore | null = null;
@@ -491,7 +490,12 @@ function harness(
 		liveState: pipelineLiveState ?? liveState,
 		interactions,
 		queue,
-		models: new RunnerModelCatalog({ runners: registry, logger, clock: { now: () => 1000 } }),
+		models: new RunnerModelCatalog({
+			runners: registry,
+			shellEnv: fakeShellEnv(options.macSecrets),
+			logger,
+			clock: { now: () => 1000 },
+		}),
 		clock: { now: () => 1000 },
 		ids: { uuid: () => `event-${++nextId}` },
 		logger,

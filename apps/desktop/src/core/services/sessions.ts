@@ -96,9 +96,11 @@ import {
 	type AppError,
 	appError,
 	type CheckpointId,
+	createKeyedQueue,
 	type EventId,
 	err,
 	type InteractionId,
+	type KeyedQueue,
 	type MessageId,
 	notImplemented,
 	ok,
@@ -112,7 +114,6 @@ import type { Database, FileSystem } from "../../platform/platform.ts";
 import type { Draft, Loadable, NewWorkspaceInput } from "../api.ts";
 import { fireAndForget } from "../async/fire-and-forget.ts";
 import { createLatestWins, type LatestWins } from "../async/latest-wins.ts";
-import { createKeyedQueue, type KeyedQueue } from "../async/serial-queue.ts";
 import { interruptedTurnEvent } from "../db/repair.ts";
 import type { Repositories } from "../db/repositories.ts";
 import { executeStatement, inTransaction, selectRows, stringifyJson } from "../db/row-codec.ts";

@@ -43,6 +43,7 @@
 import {
 	type AppError,
 	appError,
+	createKeyedQueue,
 	err,
 	notImplemented,
 	ok,
@@ -55,7 +56,6 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform, PtyHandle } from "../../platform/platform.ts";
 import type { Loadable } from "../api.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
-import { createKeyedQueue } from "../async/serial-queue.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
 import type { Repositories } from "../db/repositories.ts";
 import type { Terminal, TerminalConnection, TerminalUnsubscribe, Workspace } from "../model.ts";

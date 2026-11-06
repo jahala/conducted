@@ -21,7 +21,9 @@
  * Test first: with a PR that has one failed check, the tab shows the failed check and a "Re-run
  * failed checks" button.
  */
+
 import type { CommentId, WorkspaceId } from "@conducted/shared";
+import { messageOf } from "@conducted/shared";
 import { useState } from "react";
 import { useStore } from "zustand";
 import { useServices } from "../../../core/context.tsx";
@@ -99,7 +101,7 @@ export function ChecksTab({ workspaceId }: ChecksTabProps) {
 			}
 			return result.ok;
 		} catch (cause) {
-			toastError(title, { message: cause instanceof Error ? cause.message : String(cause) });
+			toastError(title, { message: messageOf(cause) });
 			return false;
 		}
 	};

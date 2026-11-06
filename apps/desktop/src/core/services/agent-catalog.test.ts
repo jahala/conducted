@@ -13,6 +13,7 @@ const claude = (changes: Partial<AgentInstall> = {}): AgentInstall => ({
 function serviceWith(request: SidecarClient["request"]): AgentCatalogService {
 	return new AgentCatalogService({
 		sidecar: { request },
+		launchFor: async () => ok({ env: {}, providerKeys: {} }),
 		workspacePathOf: async () => ok("/workspace"),
 		repoRootPathOf: async () => ok("/repo"),
 	});
@@ -100,7 +101,8 @@ describe("SET-03 agent catalogue model lists", () => {
 
 		const first = service.loadModels("acp", "opencode");
 		const second = service.loadModels("acp", "opencode");
-		expect(pending).toHaveLength(2);
+		// Each list builds the agent's launch first, so the requests go out once it is built.
+		await vi.waitFor(() => expect(pending).toHaveLength(2));
 
 		pending[1]?.(ok({ models: newer }));
 		expect(await second).toEqual(ok(newer));

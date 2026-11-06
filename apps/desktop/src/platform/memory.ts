@@ -28,7 +28,7 @@
  */
 
 import type { AppError, Clock, IdSource, ManagedProgram } from "@conducted/shared";
-import { appError, err, ok, type Result } from "@conducted/shared";
+import { appError, err, messageOf, ok, type Result } from "@conducted/shared";
 import { globToRegExp } from "./glob.ts";
 import type {
 	AppInfo,
@@ -668,7 +668,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			if (grepOptions.wholeWord) pattern = `\\b(?:${pattern})\\b`;
 			expression = new RegExp(pattern, grepOptions.caseSensitive ? "" : "i");
 		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
+			const message = messageOf(error);
 			return err(appError("invalid_pattern", `Invalid pattern: ${message}`));
 		}
 		const base = normalizePath(root);

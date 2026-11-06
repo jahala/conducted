@@ -81,6 +81,7 @@ import {
 	type AppError,
 	appError,
 	err,
+	messageOf,
 	notImplemented,
 	ok,
 	type Result,
@@ -1422,7 +1423,7 @@ const NO_REQUIRED_CHECKS: ReadonlySet<string> = new Set();
 
 /** Turns a thrown poll error into a value, so the timer is re-armed and the user sees the failure. */
 function pollCrashError(cause: unknown): AppError {
-	return appError("github_poll_crashed", cause instanceof Error ? cause.message : String(cause));
+	return appError("github_poll_crashed", messageOf(cause));
 }
 
 /** The GraphQL budget out of `gh api rate_limit`. Null means the host does not rate limit. */

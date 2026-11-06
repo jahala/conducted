@@ -212,7 +212,7 @@ describe("AGENT-02 Claude runner", () => {
 			}),
 		);
 
-		expect(await rejectionOf(runner.listModels())).toMatchObject({
+		expect(await rejectionOf(runner.listModels({ env: {} }))).toMatchObject({
 			code: "agent_not_installed",
 		});
 		expect(queried).toBe(false);
@@ -259,7 +259,7 @@ describe("AGENT-02 Claude runner", () => {
 			}),
 		);
 
-		const listed = await runner.listModels();
+		const listed = await runner.listModels({ env: {} });
 
 		expect(listed[0]).toMatchObject({
 			id: "claude-a",
@@ -277,6 +277,33 @@ describe("AGENT-02 Claude runner", () => {
 			liveEffortChange: false,
 		});
 		expect(signal?.aborted).toBe(true);
+	});
+
+	test("SIDE-21 a listing runs the program and environment of the app's launch", async () => {
+		let seen: Options | undefined;
+		const checked: string[] = [];
+		const runner = new ClaudeRunner(
+			makeDeps({
+				findExecutable: async (name) => {
+					checked.push(name);
+					return name.startsWith("/") ? name : null;
+				},
+				query: metadataQuery({
+					onOptions: (options) => {
+						seen = options;
+					},
+				}),
+			}),
+		);
+
+		await runner.listModels({
+			env: { PATH: "/bin", ANTHROPIC_API_KEY: "sk-chosen" },
+			executablePath: "/opt/my/claude",
+		});
+
+		expect(seen?.pathToClaudeCodeExecutable).toBe("/opt/my/claude");
+		expect(seen?.env?.ANTHROPIC_API_KEY).toBe("sk-chosen");
+		expect(checked).toContain("/opt/my/claude");
 	});
 
 	test("listSlashCommands maps the list and ends the throwaway query on error", async () => {
@@ -305,7 +332,7 @@ describe("AGENT-02 Claude runner", () => {
 			}),
 		);
 
-		expect(await runner.listSlashCommands("/work/app")).toEqual([
+		expect(await runner.listSlashCommands("/work/app", { env: {} })).toEqual([
 			{
 				name: "review",
 				description: "Review the diff",
@@ -347,7 +374,9 @@ describe("AGENT-02 Claude runner", () => {
 				}),
 			}),
 		);
-		await expect(failing.listSlashCommands("/work/app")).rejects.toThrow("commands failed");
+		await expect(failing.listSlashCommands("/work/app", { env: {} })).rejects.toThrow(
+			"commands failed",
+		);
 		expect(failedSignal?.aborted).toBe(true);
 	});
 });
@@ -394,7 +423,7 @@ describe("SIDE-16 Claude MCP server listing", () => {
 			}),
 		);
 
-		expect(await runner.listMcpServers("/work/app")).toEqual([
+		expect(await runner.listMcpServers("/work/app", { env: {} })).toEqual([
 			{
 				name: "github",
 				status: "connected",
@@ -435,7 +464,7 @@ describe("SIDE-16 Claude MCP server listing", () => {
 			}),
 		);
 
-		await expect(runner.listMcpServers("/work/app")).rejects.toMatchObject({
+		await expect(runner.listMcpServers("/work/app", { env: {} })).rejects.toMatchObject({
 			code: "agent_not_installed",
 		});
 	});
@@ -453,7 +482,7 @@ describe("SIDE-16 Claude MCP server listing", () => {
 			}),
 		);
 
-		await expect(failing.listMcpServers("/work/app")).rejects.toThrow("mcp failed");
+		await expect(failing.listMcpServers("/work/app", { env: {} })).rejects.toThrow("mcp failed");
 		expect(signal?.aborted).toBe(true);
 	});
 });
