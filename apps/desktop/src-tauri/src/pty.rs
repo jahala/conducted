@@ -460,13 +460,8 @@ pub fn build_command(
         for (key, value) in env {
             builder.env(key, value);
         }
-        if let Some(prefix) = env.get("CONDUCTED_PATH_PREFIX") {
-            let path = env
-                .get("PATH")
-                .or_else(|| base_env.get("PATH"))
-                .map(String::as_str)
-                .unwrap_or("");
-            builder.env("PATH", crate::shell::path_with_prefix(prefix, path));
+        if let Some(path) = crate::shell::prefixed_path(env, base_env) {
+            builder.env("PATH", path);
         }
     }
     Ok(builder)

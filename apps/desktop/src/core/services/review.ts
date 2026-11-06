@@ -22,8 +22,9 @@
  * repository's review prompt when it has one; a GitHub sync loads threads and general comments
  * in parallel, keeps the other list when one fetch fails, deletes only GitHub rows of the scope
  * that answered, and treats a repository that is not GitHub or a workspace with no PR as a
- * normal skip; resolving a thread on GitHub marks every local comment of that thread resolved
- * only after GitHub accepted it.
+ * normal skip; a failed sync stays in `syncErrors` until a sync answers, so the screen can say
+ * the list may be out of date; resolving a thread on GitHub marks every local comment of that
+ * thread resolved only after GitHub accepted it, and unresolving a GitHub thread here is refused.
  * Our design choice: sending to chat asks the active chat through AgentMessenger, because the
  * composer's attachment pipeline belongs to COMP-01. AgentMessenger answers with the chat but not
  * the message, so the attachment rows name the chat and leave the message id empty. A GitHub
@@ -57,6 +58,11 @@ import type { AgentMessenger } from "./sessions.ts";
 export interface ReviewState {
 	byWorkspace: Readonly<Record<string, readonly DiffComment[]>>;
 	errors: Readonly<Record<string, { code: string; message: string }>>;
+	/**
+	 * The last failed GitHub sync per workspace. While it is set, the GitHub comments shown may be
+	 * out of date. A sync that answers, or finds nothing to sync, clears it.
+	 */
+	syncErrors: Readonly<Record<string, { code: string; message: string }>>;
 }
 
 /** The GitHub reads and write a review-comment sync needs, kept narrow for the review service. */
@@ -258,6 +264,13 @@ function isGithubSyncSkip(result: Result<unknown>): boolean {
 	);
 }
 
+/** The first failure that is not a normal skip, else the first failure, else ok. */
+function firstRealFailure(...results: Result<unknown>[]): Result<void> {
+	const failures = results.filter((result) => !result.ok);
+	const failure = failures.find((result) => !isGithubSyncSkip(result)) ?? failures[0];
+	return failure === undefined || failure.ok ? ok(undefined) : failure;
+}
+
 function githubUnavailable(): Result<never> {
 	return err(
 		appError(
@@ -275,7 +288,7 @@ export class ReviewService {
 
 	constructor(deps: ReviewServiceDeps) {
 		this.#deps = deps;
-		this.store = createStore<ReviewState>(() => ({ byWorkspace: {}, errors: {} }));
+		this.store = createStore<ReviewState>(() => ({ byWorkspace: {}, errors: {}, syncErrors: {} }));
 	}
 
 	/** Loads the comments of a workspace into the store, once. */
@@ -364,11 +377,25 @@ export class ReviewService {
 		});
 	}
 
+	/**
+	 * Backs `Actions.comments.setResolved`. A comment of a GitHub review thread is resolved on
+	 * GitHub first, so the next sync agrees with the screen. Unresolving such a thread is refused:
+	 * GitHub would still say resolved, and the next sync would flip the row back.
+	 */
 	async setResolved(id: CommentId, resolved: boolean): Promise<Result<void>> {
 		const found = await this.#deps.repos.diffComments.get(id);
 		if (!found.ok) return found;
 		if (found.value === null)
 			return err(appError("db.not_found", "That comment no longer exists."));
+		if (found.value.author.kind === "github" && found.value.threadId !== null) {
+			if (resolved) return this.resolveOnGithub(id);
+			return err(
+				appError(
+					"review_github_unresolve",
+					"Unresolve this thread on GitHub. The next sync shows the change here.",
+				),
+			);
+		}
 		const workspaceId = found.value.workspaceId;
 		return this.#writes.run(workspaceId, async () => {
 			const written = await this.#deps.repos.diffComments.setResolved(id, resolved);
@@ -526,14 +553,33 @@ export class ReviewService {
 	 */
 	async syncFromGithub(workspaceId: WorkspaceId): Promise<Result<void>> {
 		const github = this.#deps.githubComments;
-		if (github === undefined) return githubUnavailable();
+		const synced =
+			github === undefined ? githubUnavailable() : await this.#sync(workspaceId, github);
+		this.#recordSyncResult(workspaceId, synced);
+		return synced;
+	}
+
+	/** Keeps a failed sync in `syncErrors`, so the screen can say the list may be out of date. */
+	#recordSyncResult(workspaceId: WorkspaceId, result: Result<void>): void {
+		this.store.setState((state) => {
+			const syncErrors = { ...state.syncErrors };
+			if (result.ok || isGithubSyncSkip(result)) {
+				delete syncErrors[workspaceId];
+			} else {
+				syncErrors[workspaceId] = { code: result.error.code, message: result.error.message };
+			}
+			return { syncErrors };
+		});
+	}
+
+	async #sync(workspaceId: WorkspaceId, github: GithubReviewCommentsPort): Promise<Result<void>> {
 		return this.#writes.run(workspaceId, async () => {
 			const [threadsRead, generalRead] = await Promise.all([
 				github.readReviewThreads(workspaceId),
 				github.readGeneralComments(workspaceId),
 			]);
 			if (isGithubSyncSkip(threadsRead) && isGithubSyncSkip(generalRead)) return ok(undefined);
-			if (!threadsRead.ok && !generalRead.ok) return threadsRead;
+			if (!threadsRead.ok && !generalRead.ok) return firstRealFailure(threadsRead, generalRead);
 
 			const existing = await this.#deps.repos.diffComments.listByWorkspace(workspaceId);
 			if (!existing.ok) return existing;
@@ -558,9 +604,7 @@ export class ReviewService {
 			if (!synced.ok) return synced;
 			const refreshed = await this.#read(workspaceId);
 			if (!refreshed.ok) return refreshed;
-			if (!threadsRead.ok) return threadsRead;
-			if (!generalRead.ok) return generalRead;
-			return ok(undefined);
+			return firstRealFailure(threadsRead, generalRead);
 		});
 	}
 

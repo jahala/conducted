@@ -248,3 +248,93 @@ describe("REV-04 GitHub comment sync over the real container", () => {
 		expect(review.store.getState().byWorkspace[workspace.id]?.[0]?.resolved).toBe(false);
 	});
 });
+
+describe("REV-04 a failed sync and GitHub thread resolves", () => {
+	it("keeps a failed sync in syncErrors until a sync answers", async () => {
+		test = createTestContainer();
+		const workspace = await seedWorkspace(test.container);
+		const review = test.container.services.review;
+		vi.spyOn(test.container.services.github, "readGeneralComments").mockResolvedValue(ok([]));
+		const threads = vi
+			.spyOn(test.container.services.github, "readReviewThreads")
+			.mockResolvedValue(err(appError("github_failed", "gh is not signed in.")));
+
+		const failed = await review.syncFromGithub(workspace.id);
+
+		expect(failed).toEqual(err(appError("github_failed", "gh is not signed in.")));
+		expect(review.store.getState().syncErrors[workspace.id]).toEqual({
+			code: "github_failed",
+			message: "gh is not signed in.",
+		});
+
+		threads.mockResolvedValue(ok([thread()]));
+		expect(await review.syncFromGithub(workspace.id)).toEqual(ok(undefined));
+		expect(review.store.getState().syncErrors[workspace.id]).toBeUndefined();
+	});
+
+	it("returns the real failure when the other list is a normal skip", async () => {
+		test = createTestContainer();
+		const workspace = await seedWorkspace(test.container);
+		const review = test.container.services.review;
+		vi.spyOn(test.container.services.github, "readReviewThreads").mockResolvedValue(
+			err(appError("github_pr_missing", "No pull request.")),
+		);
+		vi.spyOn(test.container.services.github, "readGeneralComments").mockResolvedValue(
+			err(appError("github_failed", "GitHub timed out.")),
+		);
+
+		const result = await review.syncFromGithub(workspace.id);
+
+		expect(result).toEqual(err(appError("github_failed", "GitHub timed out.")));
+		expect(review.store.getState().syncErrors[workspace.id]?.code).toBe("github_failed");
+	});
+
+	it("resolves a GitHub thread on GitHub when the comment action resolves it", async () => {
+		test = createTestContainer();
+		const workspace = await seedWorkspace(test.container);
+		vi.spyOn(test.container.services.github, "readGeneralComments").mockResolvedValue(ok([]));
+		vi.spyOn(test.container.services.github, "readReviewThreads").mockResolvedValue(
+			ok([thread({ isResolved: false })]),
+		);
+		expect(await test.container.services.review.syncFromGithub(workspace.id)).toEqual(
+			ok(undefined),
+		);
+		const resolve = vi
+			.spyOn(test.container.services.github, "resolveReviewThread")
+			.mockResolvedValue(ok(undefined));
+
+		const result = await test.container.actions.comments.setResolved(
+			"github-PRT_1-101" as CommentId,
+			true,
+		);
+
+		expect(result).toEqual(ok(undefined));
+		expect(resolve).toHaveBeenCalledWith(workspace.id, "PRT_1");
+		expect(
+			test.container.services.review.store.getState().byWorkspace[workspace.id]?.[0]?.resolved,
+		).toBe(true);
+	});
+
+	it("refuses to unresolve a GitHub thread here and keeps the row resolved", async () => {
+		test = createTestContainer();
+		const workspace = await seedWorkspace(test.container);
+		vi.spyOn(test.container.services.github, "readGeneralComments").mockResolvedValue(ok([]));
+		vi.spyOn(test.container.services.github, "readReviewThreads").mockResolvedValue(
+			ok([thread({ isResolved: true })]),
+		);
+		expect(await test.container.services.review.syncFromGithub(workspace.id)).toEqual(
+			ok(undefined),
+		);
+
+		const result = await test.container.actions.comments.setResolved(
+			"github-PRT_1-101" as CommentId,
+			false,
+		);
+
+		expect(result.ok).toBe(false);
+		expect(result.ok ? null : result.error.code).toBe("review_github_unresolve");
+		expect(
+			test.container.services.review.store.getState().byWorkspace[workspace.id]?.[0]?.resolved,
+		).toBe(true);
+	});
+});

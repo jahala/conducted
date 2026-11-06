@@ -39,8 +39,8 @@ export function BacklogScreen(_props: Record<string, never>) {
 	const repos = useRepos();
 	const [selected, setSelected] = useState<WorkspaceId | null>(null);
 	const flight = useRef(createSingleFlight()).current;
-	// The internal switch Conductor uses for this feature. An absent value means on (WS-11).
-	const enabled = useSetting<boolean | undefined>("unstarted_workspaces_enabled") !== false;
+	// The switch Conductor uses for this feature, from the settings registry (WS-11).
+	const enabled = useSetting<boolean>("unstarted_workspaces_enabled");
 
 	const entries = backlog.state === "ready" ? backlog.data : [];
 	const repoName = (id: BacklogWorkspace["repoId"]): string =>

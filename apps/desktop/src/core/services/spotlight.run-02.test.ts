@@ -4,13 +4,26 @@
  * Tests healing a repository root after a crash, the root preflight, starting and stopping
  * Spotlight, and reaching the service through the real container.
  */
-import { ok, type RepoId, type Result, type TerminalId, type WorkspaceId } from "@conducted/shared";
+import {
+	appError,
+	err,
+	ok,
+	type RepoId,
+	type Result,
+	type TerminalId,
+	type WorkspaceId,
+} from "@conducted/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTestContainer, seedRepo, seedWorkspace } from "../../test/container.ts";
 import { FakeGitRunner, gitOutput, gitUnscripted } from "../../test/fake-git-runner.ts";
 import { checkpointRef, PRE_SPOTLIGHT_CHECKPOINT_ID } from "../git/refs.ts";
 import type { Repo, RepoConfig, Terminal, Workspace } from "../model.ts";
-import { SpotlightService, type SpotlightServiceDeps } from "./spotlight.ts";
+import {
+	runListFor,
+	SPOTLIGHT_ACTION_ID,
+	SpotlightService,
+	type SpotlightServiceDeps,
+} from "./spotlight.ts";
 
 const WORKSPACE_ID = "w1" as WorkspaceId;
 const OTHER_WORKSPACE_ID = "w2" as WorkspaceId;
@@ -527,5 +540,94 @@ describe("RUN-02 the real container reaches Spotlight", () => {
 		} finally {
 			test.close();
 		}
+	});
+});
+
+describe("RUN-02 a stop that is not confirmed, and a sync that ends by itself", () => {
+	it("restores nothing and keeps Spotlight on when the stop is not confirmed", async () => {
+		const unconfirmed = err(
+			appError("run_stop_unconfirmed", "The process did not stop within 20 seconds."),
+		);
+		const { service, git, control } = harness({ stop: vi.fn(async () => unconfirmed) });
+		await service.start(WORKSPACE_ID);
+		const startedAt = git.commands.length;
+
+		const stopped = await service.stop(WORKSPACE_ID);
+
+		expect(stopped).toEqual(unconfirmed);
+		expect(git.commands.slice(startedAt)).toHaveLength(0);
+		expect(control.refs.has(REF)).toBe(true);
+		expect(service.store.getState().active[WORKSPACE_ID]).toEqual({
+			active: true,
+			terminalId: TERMINAL_ID,
+		});
+	});
+
+	it("restores the root and turns Spotlight off when the sync loop exits by itself", async () => {
+		let exit: (code: number | null) => void = () => {};
+		const { service, control, stop } = harness({
+			runScript: vi.fn(async () =>
+				ok({
+					terminalId: TERMINAL_ID,
+					exit: new Promise<number | null>((resolve) => {
+						exit = resolve;
+					}),
+				}),
+			),
+		});
+		await service.start(WORKSPACE_ID);
+		expect(control.refs.has(REF)).toBe(true);
+
+		exit(64);
+
+		await vi.waitFor(() => expect(service.store.getState().active[WORKSPACE_ID]).toBeUndefined());
+		expect(control.refs.has(REF)).toBe(false);
+		expect(stop).not.toHaveBeenCalled();
+		expect(service.store.getState().problems[WORKSPACE_ID]).toBeUndefined();
+	});
+
+	it("keeps the checkpoint and records the problem when the restore after an exit fails", async () => {
+		let exit: (code: number | null) => void = () => {};
+		const { service, control } = harness({
+			runScript: vi.fn(async () =>
+				ok({
+					terminalId: TERMINAL_ID,
+					exit: new Promise<number | null>((resolve) => {
+						exit = resolve;
+					}),
+				}),
+			),
+		});
+		await service.start(WORKSPACE_ID);
+		control.restoreExit = 1;
+
+		exit(1);
+
+		await vi.waitFor(() =>
+			expect(service.store.getState().problems[WORKSPACE_ID]?.code).toBe(
+				"spotlight_restore_failed",
+			),
+		);
+		expect(control.refs.has(REF)).toBe(true);
+		expect(service.store.getState().active[WORKSPACE_ID]).toBeUndefined();
+	});
+});
+
+describe("RUN-02 the run list", () => {
+	it("adds the synthetic Spotlight entry only while Spotlight testing is on", () => {
+		expect(runListFor(baseConfig({ spotlightTesting: false }))).toEqual([]);
+		expect(runListFor(baseConfig({ spotlightTesting: true }))).toEqual([
+			{
+				id: SPOTLIGHT_ACTION_ID,
+				label: "Spotlight",
+				command: "",
+				args: [],
+				cwd: null,
+				isDefault: false,
+				hidden: false,
+				icon: "lamp-desk",
+				origin: "local",
+			},
+		]);
 	});
 });

@@ -10,6 +10,7 @@ import { useEffect, useMemo } from "react";
 import { useStore } from "zustand";
 import type { Loadable, Queries, RunState } from "../api.ts";
 import { useServices } from "../context.tsx";
+import { runListFor } from "../services/spotlight.ts";
 
 export const useTerminals: Queries["useTerminals"] = (workspaceId) => {
 	const service = useServices().services.terminals;
@@ -27,9 +28,11 @@ export const useRunState: Queries["useRunState"] = (workspaceId) => {
 	const workspaceStore = container.services.workspace.store;
 	const repoStore = container.services.repo.store;
 	const runStore = container.services.runScripts.store;
+	const spotlightStore = container.services.spotlight.store;
 	const loaded = useStore(workspaceStore, (state) => state.loaded);
 	const workspace = useStore(workspaceStore, (state) => state.workspacesById[workspaceId]);
 	const run = useStore(runStore, (state) => state.byWorkspace[workspaceId]);
+	const spotlight = useStore(spotlightStore, (state) => state.active[workspaceId]);
 	const config = useStore(repoStore, (state) =>
 		workspace === undefined ? undefined : state.configs[workspace.repoId],
 	);
@@ -61,8 +64,17 @@ export const useRunState: Queries["useRunState"] = (workspaceId) => {
 			spotlight: { active: false, terminalId: null },
 			detectedPorts: [],
 		};
-		return { state: "ready", data: { ...current, actions: config.runScripts } };
-	}, [loaded, workspace, config, configError, run]);
+		// RUN-02: the run list carries the synthetic Spotlight entry while the setting is on, and
+		// the Spotlight state comes from the Spotlight service.
+		return {
+			state: "ready",
+			data: {
+				...current,
+				actions: runListFor(config),
+				spotlight: spotlight ?? { active: false, terminalId: null },
+			},
+		};
+	}, [loaded, workspace, config, configError, run, spotlight]);
 };
 export const useTerminalConnection: Queries["useTerminalConnection"] = (id) => {
 	const service = useServices().services.terminals;

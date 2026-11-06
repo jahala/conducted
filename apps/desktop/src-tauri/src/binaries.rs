@@ -107,7 +107,7 @@
 //! `codex` executables in a shim folder and returns the folder to put first on PATH.
 //! Behaviour: services-map.md 5A.8.2 (a shim folder `bin-overrides/<16-hex hash>/` with a link per
 //! chosen program, whose folder is prepended through one PATH prefix variable).
-//! Must handle: no chosen paths (the copied bundled bin folder is returned); an empty setting; a
+//! Must handle: no chosen paths (`path_override_none`; the caller never asks then); an empty setting; a
 //! path that is missing or not executable (a named error, and no shim is written); a program name
 //! this app does not manage; a second sync with the same paths (the same folder, links rewritten);
 //! a changed path (a new folder, and the old shim folders are moved to the Trash).
@@ -561,9 +561,9 @@ pub fn path_with_helpers(_bin_dir: &Path, _path: &str) -> CommandResult<String> 
 // ------------------------------------------------------------------ SET-13 path overrides
 
 /// Writes the shim folder for the user's chosen program paths and returns the folder to put first
-/// on PATH. With nothing chosen it returns the copied bundled bin folder. Each chosen executable
-/// must exist and be runnable; otherwise the command fails and the caller falls back to the plain
-/// bundled folder. The shim folder's name is a hash of the chosen names and paths, so the same
+/// on PATH. With nothing chosen it fails with `path_override_none`: the caller owns the bundled
+/// folder and asks only when something is chosen. Each chosen executable must exist and be
+/// runnable; otherwise the command fails and the caller tells the user. The shim folder's name is a hash of the chosen names and paths, so the same
 /// choice reuses one folder. Older shim folders are moved to the Trash.
 pub fn stage_path_overrides(
     app_data: &Path,
@@ -617,7 +617,10 @@ pub fn stage_path_overrides(
     chosen.sort_by_key(|(program, _)| program.as_str());
 
     if chosen.is_empty() {
-        return Ok(app_data.join("bin"));
+        return Err(CommandError::Failed {
+            code: "path_override_none",
+            message: "No program path was chosen, so there is no shim folder to write.".to_string(),
+        });
     }
 
     let mut hasher = Sha256::new();
@@ -3443,14 +3446,15 @@ mod tests {
     }
 
     #[test]
-    fn set_13_with_no_chosen_paths_returns_the_bundled_bin_folder() {
+    fn set_13_with_no_chosen_paths_is_refused_and_writes_nothing() {
         let folder = TempDir::new();
         let data = folder.folder("data");
 
-        let returned =
-            stage_path_overrides(&data, &HashMap::new(), &no_trash).expect("the plain prefix");
+        let error = stage_path_overrides(&data, &HashMap::new(), &no_trash)
+            .expect_err("nothing chosen has no shim folder");
 
-        assert_eq!(returned, data.join("bin"));
+        assert_eq!(error_code(error), "path_override_none");
+        assert!(!data.join("bin-overrides").exists());
     }
 
     #[test]

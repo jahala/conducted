@@ -196,9 +196,13 @@ function makeBacklogRepository(rows: BacklogWorkspace[]) {
 		async setSection() {
 			return ok(undefined);
 		},
-		async delete(id: WorkspaceId) {
+		async delete(id: WorkspaceId): Promise<Result<void>> {
 			const index = rows.findIndex((row) => row.id === id);
 			if (index >= 0) rows.splice(index, 1);
+			return ok(undefined);
+		},
+		async restore(entry: BacklogWorkspace): Promise<Result<void>> {
+			rows.push({ ...entry });
 			return ok(undefined);
 		},
 	};
@@ -984,6 +988,36 @@ describe("WS-11 backlog workspaces", () => {
 		if (!started.ok) {
 			expect(started.error.message).toBe("No ready repository. Pick one to start this workspace.");
 		}
+	});
+
+	it("starts nothing when the backlog entry cannot be removed, so a second Start cannot duplicate it", async () => {
+		const { service, rows, backlogRows, backlog, calls } = makeHarness();
+		const saved = await service.addToBacklog(newInput);
+		expect(saved.ok).toBe(true);
+		if (!saved.ok) return;
+		vi.spyOn(backlog, "delete").mockResolvedValue(err(appError("db_failed", "The disk is full.")));
+
+		const started = await service.startFromBacklog(saved.value.id);
+
+		expect(started).toEqual(err(appError("db_failed", "The disk is full.")));
+		expect(rows).toHaveLength(0);
+		expect(calls.some((call) => call.command.args[0] === "worktree")).toBe(false);
+		expect(backlogRows.map((row) => row.id)).toEqual([saved.value.id]);
+	});
+
+	it("puts the entry back with its own id when the create fails before it makes a workspace", async () => {
+		const { service, rows, backlogRows } = makeHarness({ repoConfigError: true });
+		const saved = await service.addToBacklog(newInput);
+		expect(saved.ok).toBe(true);
+		if (!saved.ok) return;
+
+		const started = await service.startFromBacklog(saved.value.id);
+
+		expect(started.ok).toBe(false);
+		if (!started.ok) expect(started.error.code).toBe("settings_invalid");
+		expect(rows).toHaveLength(0);
+		expect(backlogRows).toEqual([saved.value]);
+		expect(service.store.getState().backlogById[saved.value.id]).toEqual(saved.value);
 	});
 
 	it("removes a saved workspace without touching any worktree", async () => {
