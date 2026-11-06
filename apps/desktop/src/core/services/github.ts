@@ -18,8 +18,8 @@
  * (merge, auto-merge on and off, mark ready, edit title and body, request and remove reviewers,
  * approve), the Fix errors instruction that sends failing checks to the agent, PR-03's polling of
  * watched pull requests, PR-11's REST reads, PRJ-02's clone pickers, PRJ-03's repository-name check,
- * GIT-08's base move, PR-08's stack read and stack sync, and REV-04's review-thread and general
- * comment reads and thread resolve.
+ * GIT-08's base move, PR-08's stack read, stack sync and stack merge, and REV-04's review-thread
+ * and general comment reads and thread resolve.
  * Behaviour: services-map.md 3.9 (auth probes, method resolution, health), 5B.1.11 (failure
  * classes; only unauthorized breaks access), 3.7.5 and 5B.1.7 (the write actions, the merge
  * method cached per repo, and one call at a time for each action), 3.7.6 (fixing CI errors goes to
@@ -38,9 +38,11 @@
  * and refused when HEAD cannot be read, and a head mismatch gets a blocked message instead of the
  * raw `gh` error; auto-merge on is the same merge pinned to HEAD, and auto-merge off is
  * `--disable-auto`; mark ready, edit, reviewer and approve calls refuse a workspace with no PR;
- * an approval is pinned to the pull request's head commit; the merge method follows the repo's
- * allowed methods (squash, then rebase, then merge) and is cached per repository; each action runs
- * once while it is in flight, and the pending action state in the store names it; a write that
+ * an approval is pinned to the pull request's head commit; mark ready can take the number of
+ * another pull request of the stack, so the stack view marks the row clicked; the merge method
+ * follows the repo's allowed methods (squash, then rebase, then merge) and is cached per
+ * repository; each action runs once while it is in flight, and the pending action state in the
+ * store names it; a write that
  * succeeded polls the workspace before its pending state clears, so the header shows GitHub's new
  * state without waiting for the next timed poll; every write and the base move share one `gh`
  * runner, so their failures are mapped alike; Fix errors refuses when no check failed, reads each
@@ -54,9 +56,12 @@
  * workspace and leaves its last entry alone; a failed budget probe pauses polling and is reported
  * on the workspace; only the newest poll writes a workspace's entry; `dispose` stops every timer;
  * a stack read with no pull request or no stack is an empty answer, an unknown `stackEntry` field
- * is retried without and remembered per repository, a stack sync that sees the extension missing
- * or a cross mark is an error, never a success, and a stack merge runs `gh stack merge` with the
- * repository's first allowed merge method; a review-comment read needs a pull request
+ * is retried without and remembered per repository, each stack entry carries the restack flag
+ * the Graphite service last read for its branch (false before that repository was ever read), a
+ * stack sync or stack merge that `gh` answers with an unknown command gets the install message
+ * naming that action, a stack sync that prints a cross mark or its abort notice is an error, never
+ * a success, and a stack merge runs `gh stack merge` with the repository's first allowed merge
+ * method; a review-comment read needs a pull request
  * and an owner/name GitHub remote, follows every thread page and every thread's extra comment
  * page, and a resolve sends the raw thread id as a variable.
  * Our design choice: access is the user's own `gh auth login`, or the personal access token the
@@ -66,8 +71,9 @@
  * their repository (the git common dir) so siblings share one `gh api graphql` call. Required
  * check names are not part of the poll answer, so no check is marked required (NO_REQUIRED_CHECKS);
  * the Checks tab's required marks need the branch-protection read. The stack catch-up belongs to
- * PR-12; re-running failed checks belongs to PR-04, which owns the Checks tab's button. Graphite
- * (`gt state`, `gt checkout`) is not read here. The
+ * PR-12; re-running failed checks belongs to PR-04, which owns the Checks tab's button.
+ * `gt state` and `gt checkout` run in graphite.ts; the stack read only asks that service for a
+ * restack flag. The
  * sidebar and selected workspace subscriptions belong to the screens that own them; this file
  * calls `onMerged` and the workspace service archives the workspace, and calls
  * `onPullRequestChanged` when an open pull request's `updatedAt` changes so review comments sync.
@@ -640,9 +646,13 @@ export function parsePrStackEntry(text: string): Result<PrStackInfo | null> {
 	});
 }
 
-/** The message shown when `gh stack` is not installed (services-map 3.8.2). */
-export const STACK_EXTENSION_MESSAGE =
-	"GitHub's stack extension is needed. Install it with `gh extension install github/gh-stack`.";
+/** The stack commands, named as the install message names them. */
+export type StackAction = "Syncing" | "Merging";
+
+/** The message shown when `gh stack` is not installed, naming what needed it (services-map 3.8.2). */
+export function stackExtensionMessage(action: StackAction): string {
+	return `${action} a stack needs GitHub's stack extension. Install it with \`gh extension install github/gh-stack\`.`;
+}
 
 /** Whether `gh` said it does not know the `stack` command. */
 export function isStackExtensionMissing(text: string): boolean {
@@ -2728,13 +2738,22 @@ export class GithubService {
 		return ok(oid);
 	}
 
-	/** Backs `Actions.pullRequests.markReady`: `gh pr ready` (services-map 3.7.5). */
-	markReady(workspaceId: WorkspaceId): Promise<Result<void>> {
-		return this.#writeAction("markReady", "marking_ready", workspaceId, async () => {
+	/**
+	 * Backs `Actions.pullRequests.markReady`: `gh pr ready` (services-map 3.7.5). The stack view
+	 * passes the number of the entry it shows, which may be another pull request of the stack than
+	 * the workspace's own (PR-08). Each pull request runs one mark at a time.
+	 */
+	markReady(workspaceId: WorkspaceId, prNumber?: number): Promise<Result<void>> {
+		const key = prNumber === undefined ? "markReady" : `markReady#${prNumber}`;
+		return this.#writeAction(key, "marking_ready", workspaceId, async () => {
 			const prepared = await this.#preparePullRequestWrite(workspaceId);
 			if (!prepared.ok) return err(prepared.error);
-			const { found, prNumber, runOptions } = prepared.value;
-			return this.#runPullRequestCommand(found, runOptions, prReady(prNumber));
+			const { found, runOptions } = prepared.value;
+			return this.#runPullRequestCommand(
+				found,
+				runOptions,
+				prReady(prNumber ?? prepared.value.prNumber),
+			);
 		});
 	}
 
@@ -2846,13 +2865,38 @@ export class GithubService {
 			const { found, prNumber, runOptions } = prepared.value;
 			const method = await this.#mergeMethodFor(found, runOptions);
 			if (!method.ok) return err(method.error);
-			return this.#runPullRequestCommand(
-				found,
-				runOptions,
-				stackMerge(prNumber, method.value),
-				true,
-			);
+			return this.#deps.git.withWorktreeLock(found.workspacePath, async () => {
+				const merged = await this.#runStackCommand(
+					stackMerge(prNumber, method.value),
+					runOptions,
+					"Merging",
+				);
+				return merged.ok ? ok(undefined) : err(merged.error);
+			});
 		});
+	}
+
+	/**
+	 * Runs one `gh stack` command and records its health answer. A command `gh` does not know means
+	 * the stack extension is missing, which gets the install message for this action instead of the
+	 * raw `gh` error. Any other failed exit is the write error.
+	 */
+	async #runStackCommand(
+		command: GitCommand,
+		runOptions: GitRunOptions,
+		action: StackAction,
+	): Promise<Result<{ text: string }>> {
+		const result = await this.#deps.git.run(command, runOptions);
+		if (!result.ok) return err(result.error);
+		await this.recordGhResult(result.value);
+		const text = `${result.value.stderr}\n${result.value.stdout}`;
+		if (isStackExtensionMissing(text)) {
+			return err(appError("github_stack_extension_missing", stackExtensionMessage(action)));
+		}
+		if (!isSuccessfulExit(command, result.value.exitCode)) {
+			return err(this.#writeError(command, result.value));
+		}
+		return ok({ text });
 	}
 
 	/**
@@ -2876,18 +2920,9 @@ export class GithubService {
 			const settings = await this.#ghSettings();
 			if (!settings.ok) return err(settings.error);
 			const runOptions = this.#runOptions(settings.value, context.value.workspacePath);
-			const command = stackSync();
-			const result = await this.#deps.git.run(command, runOptions);
-			if (!result.ok) return err(result.error);
-			await this.recordGhResult(result.value);
-			const text = `${result.value.stderr}\n${result.value.stdout}`;
-			if (isStackExtensionMissing(text)) {
-				return err(appError("github_stack_extension_missing", STACK_EXTENSION_MESSAGE));
-			}
-			if (!isSuccessfulExit(command, result.value.exitCode)) {
-				return err(this.#writeError(command, result.value));
-			}
-			if (hasStackSyncAbort(text)) {
+			const synced = await this.#runStackCommand(stackSync(), runOptions, "Syncing");
+			if (!synced.ok) return err(synced.error);
+			if (hasStackSyncAbort(synced.value.text)) {
 				return err(
 					appError(
 						"github_stack_sync_aborted",

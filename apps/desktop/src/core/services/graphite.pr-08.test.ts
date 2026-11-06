@@ -1,7 +1,8 @@
 /**
  * @feature PR-08 Read-only Graphite stacks
- * Owns: tests for the state parser, the install probe, the poll and its switch, the parent and
- * restack answers, the newest-answer rule, and the one checkout call.
+ * Owns: tests for the state parser, the install probe (a failed probe is asked again), the poll and
+ * its switch, reads that start no poll, the parent and restack answers, the newest-answer rule, and
+ * the one checkout call.
  * Behaviour: services-map.md 3.8.1, 3.0.2, 3.0.5.
  * Test first: two branches of a parsed state keep their parent and restack flag.
  */
@@ -165,6 +166,37 @@ describe("PR-08 Graphite poll", () => {
 		expect(await service.installed(repo)).toEqual(ok(false));
 		expect(await service.refresh(repo)).toEqual(ok(undefined));
 		expect(git.commands).toHaveLength(1);
+	});
+
+	it("starts no poll when a caller only reads the state", async () => {
+		vi.useFakeTimers();
+		const { service, git } = makeService(defaultHandler);
+
+		expect(service.stateOf(repo)).toBeNull();
+		expect(service.parentBranchOf(repo, "feature/two")).toBeNull();
+		expect(service.needsRestackOf(repo, "feature/two")).toBe(false);
+		expect(service.containsBranch(repo, "feature/two")).toBe(false);
+		await vi.advanceTimersByTimeAsync(GRAPHITE_POLL_INTERVAL_MS * 2);
+
+		expect(git.commands).toHaveLength(0);
+	});
+
+	it("asks again after a probe that failed, instead of keeping the failure", async () => {
+		let probes = 0;
+		const { service } = makeService((command) => {
+			if (command.program === "gt" && command.args[0] === "--version") {
+				probes += 1;
+				if (probes === 1) return { ok: false, error: { code: "process_timeout", message: "slow" } };
+				return gitOutput("gt 1.0.0");
+			}
+			return gitOutput();
+		});
+
+		const first = await service.installed(repo);
+		expect(first.ok).toBe(false);
+		expect(await service.installed(repo)).toEqual(ok(true));
+		expect(await service.installed(repo)).toEqual(ok(true));
+		expect(probes).toBe(2);
 	});
 
 	it("keeps a parse failure on the repository instead of showing a partial stack", async () => {
