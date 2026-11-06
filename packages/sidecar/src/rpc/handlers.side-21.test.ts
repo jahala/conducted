@@ -70,7 +70,14 @@ describe("SIDE-21 agent providers request", () => {
 
 		expect(answered).toEqual(
 			ok({
-				providers: [{ id: "openai", label: "OpenAI API key", keyEnvVars: ["OPENAI_API_KEY"] }],
+				providers: [
+					{ id: "openai", label: "OpenAI API key", keyEnvVars: ["OPENAI_API_KEY"] },
+					{
+						id: "custom",
+						label: "Custom provider",
+						keyEnvVars: ["OPENAI_API_KEY", "OPENAI_ORG_ID"],
+					},
+				],
 			}),
 		);
 	});
