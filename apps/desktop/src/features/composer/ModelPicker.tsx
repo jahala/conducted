@@ -6,12 +6,17 @@
  * submenus Agent, Model, Effort, toggle Fast (Cmd+Shift+E), search 'Search models', 'No models
  * found'; switching agent or model in a started chat shows 'Opens in new chat'; Cmd+Shift+/ cycles
  * effort), claude-runner.md 7.
- * Measured from Conductor 0.92.1 (the composer's model picker and the owner's capture): the trigger reads
- * "<model> <effort>" with the effort muted and a chevron; the popover opens upward from it, with
- * "Search models" on top, the favourite models as 40px rows, then "Effort" with its value and a submenu,
- * "Fast" with its shortcut and a switch, and a footer naming the cycle-effort shortcut.
- * Our design choice: the agent list stays under the models (Conductor reaches other agents through search
- * and favourites), and the effort submenu opens in place under its row.
+ * Measured from Conductor 0.92.1 (renderApp @9236012-9246900, the composer's model menu, and the owner's
+ * capture): the trigger reads "<model> <effort>" with the effort muted and a chevron. The menu opens
+ * upward, 352px wide, on a muted frame with 4px padding. Inside it a raised card holds "Search models"
+ * over a rule, the favourites as 32px rows, a rule, then the flyout rows (label, muted value, chevron,
+ * opening a 256px submenu 6px to the right) and "Fast" with its shortcut and a 40 by 20px switch. Under
+ * the card, the footer reads "Edit" with a gear on the left and the cycle-effort key and "Cycle effort"
+ * on the right. Search lists matching models with their agent as the muted value. Fast stays in the
+ * menu, disabled, when the model lacks it.
+ * Our design choice: "Agent" and "Model" are flyout rows under the rule, as in Conductor's other model
+ * menus (the composer's own menu leaves them out and reaches other models through favourites and
+ * search). Search also lists matching agents.
  * Our design choice: A started chat keeps its agent: picking another agent opens a new chat. A
  * model change in a started chat is applied live when the agent allows it (the sidecar decides) and
  * warns that the next reply may be slower and cost more.
@@ -28,7 +33,7 @@
 
 import type { Effort, ModelInfo, SessionConfig } from "@conducted/protocol";
 import type { SessionId } from "@conducted/shared";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { createLatestWins } from "../../core/async/latest-wins.ts";
@@ -37,10 +42,16 @@ import { useActions, useLiveShortcut, useModels, useSetting } from "../../core/h
 import { agentDisplayName, agentKey } from "../../core/services/agent-catalog.ts";
 import { Button } from "../../ui/Button.tsx";
 import { cn } from "../../ui/cn.ts";
-import { CheckIcon, ChevronDownIcon, ChevronRightIcon, SearchIcon } from "../../ui/icons.tsx";
+import {
+	CheckIcon,
+	ChevronDownIcon,
+	ChevronRightIcon,
+	GearIcon,
+	SearchIcon,
+} from "../../ui/icons.tsx";
 import { Popover } from "../../ui/Popover.tsx";
 import { toast, toastError } from "../../ui/Toast.tsx";
-import { FavoriteModels } from "./FavoriteModels.tsx";
+import { FavoriteModels, isFavoriteSelected } from "./FavoriteModels.tsx";
 
 export interface ModelPickerProps {
 	sessionId: SessionId;
@@ -317,8 +328,18 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 			? null
 			: (currentModel.effortLabels?.[config.effort] ?? EFFORT_LABELS[config.effort]);
 	const cycleShortcut = useLiveShortcut("chat.cycleEffort");
-	const [effortOpen, setEffortOpen] = useState(false);
+	const [flyout, setFlyout] = useState<string | null>(null);
+	const [editing, setEditing] = useState(false);
 	const searching = search.trim().length > 0;
+	const labelFor = (choice: Choice & { model: string }): string => {
+		const entry =
+			config !== undefined && sameChoice(config, choice)
+				? models
+				: services.agentCatalog.store.getState().models[agentKey(choice.agent, choice.acpAgent)];
+		const model =
+			entry?.state === "ready" ? entry.data.find((item) => item.id === choice.model) : undefined;
+		return model?.shortLabel ?? model?.label ?? choice.model;
+	};
 
 	const isInstalled = (choice: Choice): boolean => {
 		if (installs.state !== "ready") return true;
@@ -330,38 +351,104 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 		return install?.installed === true && install.authenticated !== false;
 	};
 
-	const modelRow = (model: ModelInfo) => {
+	const flyoutRow =
+		"flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-fg outline-none hover:bg-hover focus-visible:bg-hover disabled:cursor-not-allowed disabled:opacity-50";
+	const started = session?.lastUserMessageAt !== null && session?.lastUserMessageAt !== undefined;
+
+	const modelRow = (model: ModelInfo, value?: string) => {
 		const selected = config?.model === model.id;
 		return (
 			<button
 				key={model.id}
 				type="button"
 				aria-pressed={selected}
-				onClick={() => chooseModel(model)}
-				className="flex h-10 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-fg outline-none hover:bg-hover focus-visible:bg-hover"
+				onClick={() => {
+					chooseModel(model);
+					setFlyout(null);
+				}}
+				className={flyoutRow}
 			>
 				<span className="truncate">{model.shortLabel ?? model.label}</span>
 				{model.isNew ? (
 					<span className="text-2xs uppercase tracking-wider text-accent">New</span>
 				) : null}
-				<span className="flex-1" />
-				{selected ? <CheckIcon className="size-3.5" /> : null}
+				{value === undefined ? null : (
+					<span className="ml-auto min-w-0 truncate text-fg-muted">{value}</span>
+				)}
+				{selected ? <CheckIcon className="ml-auto size-3.5 shrink-0" /> : null}
 			</button>
 		);
 	};
+
+	const agentRow = (choice: Choice) => {
+		const selected = config !== undefined && sameChoice(config, choice);
+		return (
+			<button
+				key={`${choice.agent}:${choice.acpAgent ?? ""}`}
+				type="button"
+				disabled={!isInstalled(choice)}
+				aria-pressed={selected}
+				title={!selected && started ? "Opens in new chat" : undefined}
+				onClick={() => {
+					setFlyout(null);
+					void chooseAgent(choice);
+				}}
+				className={flyoutRow}
+			>
+				<span className="flex-1 truncate">{agentDisplayName(choice)}</span>
+				{selected ? <CheckIcon className="size-3.5 shrink-0" /> : null}
+			</button>
+		);
+	};
+
+	const flyoutMenu = (label: string, value: string | null, children: ReactNode) => (
+		<Popover
+			side="right"
+			align="start"
+			open={flyout === label}
+			onOpenChange={(open) => setFlyout(open ? label : null)}
+			className="grid max-h-80 w-64 gap-0.5 overflow-y-auto p-1! ring-1 ring-popover-ring"
+			trigger={
+				<button type="button" aria-label={label} className={flyoutRow}>
+					<span className="shrink-0">{label}</span>
+					<span className="ml-auto min-w-0 truncate text-fg-muted">{value}</span>
+					<ChevronRightIcon className="size-3.5 shrink-0 text-fg-muted" />
+				</button>
+			}
+		>
+			{children}
+		</Popover>
+	);
+
+	const query = search.trim().toLowerCase();
+	const matchingAgents = AGENT_CHOICES.filter((choice) =>
+		agentDisplayName(choice).toLowerCase().includes(query),
+	);
+	const agentName = agentDisplayName(config ?? { agent: "claude" });
+	const currentIsFavorite =
+		config !== undefined &&
+		favorites.some((favorite) => isFavoriteSelected(favorite.config, config));
+	const fastSupported = currentModel?.supportsFastMode === true;
+	const effortSupported = effortName !== null;
 
 	return (
 		<Popover
 			side="top"
 			align="start"
-			className="w-[22rem] p-0!"
+			className="flex max-h-[min(28rem,calc(100vh-120px))] w-[22rem] flex-col overflow-hidden bg-muted! p-1!"
+			onOpenChange={(open) => {
+				if (!open) {
+					setSearch("");
+					setFlyout(null);
+				}
+			}}
 			trigger={
 				<Button
 					ref={triggerRef}
 					variant="ghost"
 					size="sm"
 					aria-label="Model picker"
-					title={`${agentDisplayName(config ?? { agent: "claude" })}: change agent`}
+					title={`${agentName}: change agent`}
 					className="max-w-64 gap-1 px-2 font-normal"
 				>
 					<span className="truncate text-fg">{modelName}</span>
@@ -373,141 +460,164 @@ export function ModelPicker({ sessionId }: ModelPickerProps) {
 				</Button>
 			}
 		>
-			<div className="flex max-h-[32rem] flex-col">
-				<label className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3">
-					<SearchIcon className="size-4 shrink-0 text-fg-muted" />
+			<div className="flex min-h-0 flex-col rounded-md bg-raised p-1 ring-1 ring-popover-ring">
+				<label className="mb-1 flex shrink-0 items-center gap-2 border-b border-border px-2 pt-0.5 pb-2">
+					<SearchIcon className="size-3.5 shrink-0 text-fg-muted" />
 					<input
 						aria-label="Search models"
 						placeholder="Search models"
 						value={search}
+						autoComplete="off"
+						spellCheck={false}
 						onChange={(event) => setSearch(event.target.value)}
-						className="min-w-0 flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-subtle"
+						className="min-w-0 flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-muted"
 					/>
 				</label>
-				<div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-1">
-					{searching ? null : (
-						<FavoriteModels
-							config={config}
-							isAvailable={isFavoriteAvailable}
-							onPick={(favorite) => void applyConfig(favorite)}
-						/>
-					)}
-					<section aria-label="Model" className="space-y-0.5">
-						{models.state === "loading" ? (
-							<p className="px-2 py-1.5 text-sm text-fg-muted">Loading models…</p>
-						) : null}
-						{models.state === "error" ? (
-							<p className="px-2 py-1.5 text-sm text-fg-muted">Couldn't load models.</p>
-						) : null}
-						{models.state === "ready" && filteredModels.length === 0 ? (
-							<p className="px-2 py-1.5 text-sm text-fg-muted">No models found</p>
-						) : null}
-						{filteredModels.map(modelRow)}
-					</section>
-					<section aria-label="Agent" className="space-y-0.5 border-t border-border pt-1">
-						{AGENT_CHOICES.filter(
-							(choice) =>
-								!searching ||
-								agentDisplayName(choice).toLowerCase().includes(search.trim().toLowerCase()),
-						).map((choice) => {
-							const selected = config !== undefined && sameChoice(config, choice);
-							const available = isInstalled(choice);
-							return (
-								<button
-									key={`${choice.agent}:${choice.acpAgent ?? ""}`}
-									type="button"
-									disabled={!available}
-									aria-pressed={selected}
-									onClick={() => void chooseAgent(choice)}
-									className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-fg outline-none hover:bg-hover focus-visible:bg-hover disabled:cursor-not-allowed disabled:opacity-50"
-								>
-									<span className="flex-1 truncate">{agentDisplayName(choice)}</span>
-									{selected ? <CheckIcon className="size-3.5" /> : null}
-								</button>
-							);
-						})}
-					</section>
-				</div>
-				<div className="shrink-0 border-t border-border p-1">
-					<section aria-label="Effort">
-						<button
-							type="button"
-							aria-expanded={effortOpen}
-							onClick={() => setEffortOpen(!effortOpen)}
-							className="flex h-10 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-fg outline-none hover:bg-hover focus-visible:bg-hover"
-						>
-							<span className="flex-1">
-								{currentModel?.effortAxis === "thinking" ? "Thinking" : "Effort"}
-							</span>
-							{effortName === null ? null : <span className="text-fg-muted">{effortName}</span>}
-							<ChevronRightIcon className="size-3.5 text-fg-muted" />
-						</button>
-						{effortOpen ? (
-							models.state === "ready" && currentModel === undefined ? (
-								<p className="px-2 py-1 text-sm text-fg-muted">Not supported for this model</p>
-							) : currentModel === undefined ? null : (
-								<div className="pl-3">
-									{config !== undefined && !currentModel.efforts.includes(config.effort) ? (
-										<p className="px-2 py-1 text-xs text-fg-muted">Not supported for this model</p>
-									) : null}
-									{currentModel.efforts.map((effort) => {
-										const selected = config?.effort === effort;
-										return (
-											<button
-												key={effort}
-												type="button"
-												aria-pressed={selected}
-												onClick={() => chooseEffort(effort)}
-												className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-fg outline-none hover:bg-hover focus-visible:bg-hover"
-											>
-												<span className="flex-1 truncate">
-													{currentModel.effortLabels?.[effort] ?? EFFORT_LABELS[effort]}
-												</span>
-												{selected ? <CheckIcon className="size-3.5" /> : null}
-											</button>
-										);
-									})}
-								</div>
-							)
-						) : null}
-					</section>
-					{currentModel?.supportsFastMode === true ? (
-						<section aria-label="Fast mode">
-							<button
-								type="button"
-								aria-pressed={config?.fastMode === true}
-								onClick={toggleFast}
-								className="flex h-10 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-fg outline-none hover:bg-hover focus-visible:bg-hover"
-							>
-								<span className="flex-1 truncate">Fast</span>
-								{fastShortcut === null ? null : (
-									<span className="text-xs tracking-widest text-fg-muted">{fastShortcut}</span>
-								)}
-								<span
-									aria-hidden="true"
-									className={cn(
-										"flex h-5 w-10 items-center rounded-full p-0.5 transition-colors",
-										config?.fastMode === true ? "bg-switch-on" : "bg-border-strong",
-									)}
-								>
-									<span
-										className={cn(
-											"size-4 rounded-full bg-switch-thumb shadow-dialog transition-transform",
-											config?.fastMode === true && "translate-x-5",
-										)}
-									/>
-								</span>
-							</button>
+				<div className="grid min-h-0 content-start gap-1 overflow-y-auto">
+					{searching ? (
+						<section aria-label="Model" className="grid gap-1">
+							{models.state === "loading" ? (
+								<p className="px-2 py-1.5 text-center text-sm text-fg-muted">Loading models…</p>
+							) : null}
+							{models.state === "ready" &&
+							filteredModels.length === 0 &&
+							matchingAgents.length === 0 ? (
+								<p className="px-2 py-1.5 text-center text-sm text-fg-muted">No models found</p>
+							) : null}
+							{filteredModels.map((model) => modelRow(model, agentName))}
+							{matchingAgents.map(agentRow)}
 						</section>
-					) : null}
+					) : (
+						<>
+							<FavoriteModels
+								config={config}
+								editing={editing}
+								isAvailable={isFavoriteAvailable}
+								labelFor={labelFor}
+								effortLabelFor={(choice) => EFFORT_LABELS[choice.effort]}
+								opensNewChat={(choice) =>
+									started && config !== undefined && !sameChoice(config, choice)
+								}
+								onPick={(favorite) => void applyConfig(favorite)}
+							/>
+							{currentIsFavorite || config === undefined || currentModel === undefined ? null : (
+								<div className="flex items-center gap-2 rounded-md bg-hover px-2 py-1.5 text-sm text-fg">
+									<span className="min-w-0 truncate">{modelName}</span>
+									{effortName === null ? null : (
+										<span className="text-xs text-fg-muted">{effortName}</span>
+									)}
+									<CheckIcon className="ml-auto size-3.5 shrink-0" />
+								</div>
+							)}
+							<div className="border-t border-border" />
+							<section aria-label="Agent">
+								{flyoutMenu("Agent", agentName, AGENT_CHOICES.map(agentRow))}
+							</section>
+							<section aria-label="Model">
+								{flyoutMenu(
+									"Model",
+									modelName,
+									<>
+										{models.state === "loading" ? (
+											<p className="px-2 py-1.5 text-sm text-fg-muted">Loading models…</p>
+										) : null}
+										{models.state === "error" ? (
+											<p className="px-2 py-1.5 text-sm text-fg-muted">Couldn't load models.</p>
+										) : null}
+										{models.state === "ready" && pickerModels.length === 0 ? (
+											<p className="px-2 py-1.5 text-sm text-fg-muted">No models found</p>
+										) : null}
+										{pickerModels.map((model) => modelRow(model))}
+									</>,
+								)}
+							</section>
+							<section aria-label="Effort">
+								{flyoutMenu(
+									currentModel?.effortAxis === "thinking" ? "Thinking" : "Effort",
+									effortSupported ? effortName : "Not supported",
+									currentModel === undefined ||
+										(config !== undefined && !currentModel.efforts.includes(config.effort)) ? (
+										<p className="px-2 py-1.5 text-sm text-fg-muted">
+											Not supported for this model
+										</p>
+									) : (
+										currentModel.efforts.map((effort) => {
+											const selected = config?.effort === effort;
+											return (
+												<button
+													key={effort}
+													type="button"
+													aria-pressed={selected}
+													onClick={() => {
+														chooseEffort(effort);
+														setFlyout(null);
+													}}
+													className={flyoutRow}
+												>
+													<span className="flex-1 truncate">
+														{currentModel.effortLabels?.[effort] ?? EFFORT_LABELS[effort]}
+													</span>
+													{selected ? <CheckIcon className="size-3.5 shrink-0" /> : null}
+												</button>
+											);
+										})
+									),
+								)}
+							</section>
+							<section aria-label="Fast mode">
+								<button
+									type="button"
+									aria-pressed={config?.fastMode === true}
+									disabled={!fastSupported}
+									title={fastSupported ? undefined : "Not supported for this model"}
+									onClick={toggleFast}
+									className={flyoutRow}
+								>
+									<span className="flex-1 truncate">Fast</span>
+									{fastShortcut === null || !fastSupported ? null : (
+										<span aria-hidden="true" className="text-xs tracking-widest text-fg-muted">
+											{fastShortcut}
+										</span>
+									)}
+									<span
+										aria-hidden="true"
+										className={cn(
+											"flex h-5 w-10 shrink-0 items-center rounded-full p-0.5 transition-colors",
+											fastSupported && config?.fastMode === true
+												? "bg-switch-on"
+												: "bg-border-strong",
+										)}
+									>
+										<span
+											className={cn(
+												"size-4 rounded-full bg-switch-thumb shadow-dialog transition-transform",
+												fastSupported && config?.fastMode === true && "translate-x-5",
+											)}
+										/>
+									</span>
+								</button>
+							</section>
+						</>
+					)}
 				</div>
+			</div>
+			<div className="flex shrink-0 items-center gap-1.5 px-2 pt-2 pb-1 text-xs text-fg-muted">
+				<button
+					type="button"
+					aria-pressed={editing}
+					onClick={() => setEditing(!editing)}
+					className="flex items-center gap-1 rounded-sm px-1 py-0.5 outline-none hover:text-fg focus-visible:ring-1 focus-visible:ring-focus"
+				>
+					<GearIcon className="size-3" />
+					{editing ? "Done" : "Edit"}
+				</button>
 				{cycleShortcut === null ? null : (
-					<div className="flex h-9 shrink-0 items-center justify-end gap-2 border-t border-border px-3 text-xs text-fg-muted">
-						<span className="rounded-sm border border-border px-1 font-mono text-3xs">
+					<>
+						<span className="ml-auto rounded-sm border border-border bg-raised px-1.5 py-px">
 							{cycleShortcut}
 						</span>
 						<span>Cycle effort</span>
-					</div>
+					</>
 				)}
 			</div>
 		</Popover>

@@ -111,7 +111,8 @@ describe("COMP-02 favourite models list", () => {
 			favorite("d", "m4", 3),
 			favorite("e", "m5", 4),
 		]);
-		render(<FavoriteModels config={choice("m6")} onPick={() => {}} />, { wrapper });
+		// "Add models" shows under three favourites or in edit mode, as Conductor shows it under three.
+		render(<FavoriteModels config={choice("m6")} onPick={() => {}} editing />, { wrapper });
 		fireEvent.click(screen.getByRole("button", { name: "Add models" }));
 		await waitFor(() =>
 			expect(toastSpy).toHaveBeenCalledWith(
@@ -148,8 +149,8 @@ describe("COMP-02 favourite models list", () => {
 			favorite("b", "m2", 1),
 			favorite("c", "m3", 2),
 		]);
-		render(<FavoriteModels onPick={() => {}} />, { wrapper });
-		fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+		// "Edit" moved to the model picker's footer, as in Conductor; the list takes edit mode as a prop.
+		render(<FavoriteModels onPick={() => {}} editing />, { wrapper });
 		fireEvent.click(screen.getByRole("button", { name: "Move Claude Code · m2 up" }));
 		await waitFor(() =>
 			expect(service.store.getState().favorites.map((model) => model.id)).toEqual(["b", "a", "c"]),
@@ -159,8 +160,7 @@ describe("COMP-02 favourite models list", () => {
 
 	it("removes the last favourite", async () => {
 		const { repo, service, wrapper } = await harness([favorite("a", "m1", 0)]);
-		render(<FavoriteModels onPick={() => {}} />, { wrapper });
-		fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+		render(<FavoriteModels onPick={() => {}} editing />, { wrapper });
 		fireEvent.click(screen.getByRole("button", { name: "Remove Claude Code · m1" }));
 		await waitFor(() => expect(service.store.getState().favorites).toHaveLength(0));
 		expect(repo.state.deleteCalls).toEqual(["a"]);

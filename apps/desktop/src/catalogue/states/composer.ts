@@ -80,8 +80,21 @@ export const COMPOSER_STATES: CatalogueState[] = [
 		seed: (world) =>
 			newChat(
 				world,
-				({ document }) => click(document, "button", "Model picker"),
-				(document) => shows(document, "Favourites"),
+				async ({ app, document }) => {
+					// Four favourites, as on the owner's capture of Conductor's menu.
+					const favorites = app.container.services.favoriteModels;
+					for (const [agent, model] of [
+						["claude", "default"],
+						["claude", "sonnet"],
+						["codex", "gpt-5.5"],
+						["claude", "haiku"],
+					] as const) {
+						const added = await favorites.add({ agent, model, effort: "high", fastMode: false });
+						if (!added.ok) throw new Error(`Adding a favourite failed: ${added.error.message}`);
+					}
+					await click(document, "button", "Model picker");
+				},
+				(document) => shows(document, "Cycle effort"),
 			),
 	},
 ];
