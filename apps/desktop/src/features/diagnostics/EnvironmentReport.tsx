@@ -5,8 +5,8 @@
  * sidecar status.
  * Behaviour: ui-map.md 2, `/diagnostics`.
  * Must handle: the redacted and full views (full only after the user confirms), a long PATH
- * (collapsed behind a summary), a very long variable list (a filter box), and sections that failed
- * to capture (each shows its own error and Retry).
+ * (collapsed behind a summary), the same folder twice in PATH (both shown), and a very long
+ * variable list (a filter box). A capture is whole or failed; the screen shows a failure with Retry.
  * Our design choice: the redacted capture arrives already hashed, so this component never holds a
  * raw value in the redacted view. It renders what it is given.
  * Test first: the redacted view never renders a value that is not on the safe list.
@@ -14,35 +14,15 @@
 import { useState } from "react";
 import type { DiagnosticsCapture } from "../../core/model.ts";
 import { Badge } from "../../ui/Badge.tsx";
-import { Button } from "../../ui/Button.tsx";
 import { Input } from "../../ui/Input.tsx";
+import { withKeys } from "../chat/tools/ToolCardFrame.tsx";
 
 export interface EnvironmentReportProps {
 	capture: DiagnosticsCapture;
 	view: "redacted" | "full";
-	failedSections: readonly string[];
-	onRetrySection: (section: string) => void;
 }
 
-const SECTION_LABELS: Readonly<Record<string, string>> = {
-	shell: "login shell",
-	path: "PATH",
-	environment: "environment variables",
-	system: "system information",
-	agents: "agent programs",
-	sidecar: "sidecar",
-};
-
-function sectionLabel(section: string): string {
-	return SECTION_LABELS[section] ?? section;
-}
-
-export function EnvironmentReport({
-	capture,
-	view,
-	failedSections,
-	onRetrySection,
-}: EnvironmentReportProps) {
+export function EnvironmentReport({ capture, view }: EnvironmentReportProps) {
 	const [filter, setFilter] = useState("");
 	const pathEntries = capture.path.split(":").filter((entry) => entry.trim() !== "");
 	const names = Object.keys(capture.env).sort();
@@ -51,22 +31,6 @@ export function EnvironmentReport({
 
 	return (
 		<div className="flex flex-col gap-6">
-			{failedSections.length > 0 ? (
-				<div className="flex flex-col gap-2" role="alert">
-					{failedSections.map((section) => (
-						<div
-							key={section}
-							className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface px-3 py-2"
-						>
-							<p className="text-sm text-fg">Could not capture the {sectionLabel(section)}.</p>
-							<Button variant="outline" size="sm" onClick={() => onRetrySection(section)}>
-								Retry
-							</Button>
-						</div>
-					))}
-				</div>
-			) : null}
-
 			<section className="flex flex-col gap-2" aria-labelledby="diagnostics-app-system">
 				<div className="flex items-center gap-2">
 					<h2 id="diagnostics-app-system" className="text-sm font-medium text-fg">
@@ -109,9 +73,9 @@ export function EnvironmentReport({
 							{pathEntries.length} {pathEntries.length === 1 ? "entry" : "entries"}
 						</summary>
 						<ol className="flex flex-col gap-1 border-t border-border px-3 py-2 font-mono text-xs text-fg-muted">
-							{pathEntries.map((entry) => (
-								<li key={entry} className="break-all">
-									{entry}
+							{withKeys(pathEntries, (entry) => entry, "path").map(({ key, item }) => (
+								<li key={key} className="break-all">
+									{item}
 								</li>
 							))}
 						</ol>

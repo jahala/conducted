@@ -18,10 +18,12 @@
  * Test first: with a capture that holds a variable named TOKEN, the redacted view shows a hash and
  * never the value.
  */
+import { appError, err, messageOf, ok, type Result } from "@conducted/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "zustand";
+import type { Loadable } from "../../core/api.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions, useDiagnostics } from "../../core/hooks.ts";
 import type { DiagnosticsCapture } from "../../core/model.ts";
@@ -52,17 +54,43 @@ export function DiagnosticsScreen() {
 	)[0];
 	const agentsWorking = Object.values(liveStates).some((live) => live.status === "working");
 	const capture = diagnostics.state === "ready" ? diagnostics.data : null;
-	const redacted = useMemo(
-		() =>
-			capture === null
-				? null
-				: redactCapture(capture, {
-						safeEnvNames: SAFE_ENV_NAMES,
-						hash: shortSha256,
-						homeDir: platform.fs.paths.home,
-					}),
-		[capture, platform.fs.paths.home],
-	);
+	const home = platform.fs.paths.home;
+	const [redaction, setRedaction] = useState<{
+		from: DiagnosticsCapture;
+		result: Result<DiagnosticsCapture>;
+	} | null>(null);
+
+	// Hashing is async (Web Crypto). Only the redaction of the capture on screen is kept, so a
+	// slower redaction of an earlier capture never replaces a newer one.
+	useEffect(() => {
+		if (capture === null) return;
+		let current = true;
+		const options = { safeEnvNames: SAFE_ENV_NAMES, hash: shortSha256, homeDir: home };
+		void redactCapture(capture, options).then(
+			(value) => {
+				if (current) setRedaction({ from: capture, result: ok(value) });
+			},
+			(cause: unknown) => {
+				if (!current) return;
+				const failure = appError("diagnostics_redaction_failed", messageOf(cause), cause);
+				setRedaction({ from: capture, result: err(failure) });
+			},
+		);
+		return () => {
+			current = false;
+		};
+	}, [capture, home]);
+
+	const settled = redaction !== null && redaction.from === capture ? redaction.result : null;
+	const redacted = settled?.ok === true ? settled.value : null;
+	const report: Loadable<DiagnosticsCapture> =
+		diagnostics.state !== "ready"
+			? diagnostics
+			: settled === null
+				? { state: "loading" }
+				: settled.ok
+					? diagnostics
+					: { state: "error", error: settled.error };
 
 	const retry = () => void queryClient.invalidateQueries({ queryKey: DIAGNOSTICS_QUERY_KEY });
 
@@ -167,7 +195,7 @@ export function DiagnosticsScreen() {
 				</header>
 
 				<LoadableView
-					value={diagnostics}
+					value={report}
 					loadingLabel="Capturing diagnostics"
 					errorTitle="Couldn't capture diagnostics"
 					onRetry={retry}
@@ -191,12 +219,7 @@ export function DiagnosticsScreen() {
 										</Button>
 									</div>
 								) : null}
-								<EnvironmentReport
-									capture={view === "redacted" ? redacted : capture}
-									view={view}
-									failedSections={[]}
-									onRetrySection={() => retry()}
-								/>
+								<EnvironmentReport capture={view === "redacted" ? redacted : capture} view={view} />
 							</div>
 						)
 					}

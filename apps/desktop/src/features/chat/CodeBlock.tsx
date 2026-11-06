@@ -8,11 +8,15 @@
  * Our design choice: Shell means bash, sh, shell, zsh, fish, ksh or dash. Run goes through
  * Actions.terminals.runCommand, which starts the block's text as a run terminal in the workspace.
  * The block shows the terminal's live stream as plain text with ANSI codes removed. Run is hidden
- * when the workspace is archived or not ready, and when the block is not a shell block.
+ * when the workspace is archived or not ready, when the block is not a shell block, and while a
+ * long block is cut (Run appears after Show all, so the user only runs text they have seen). The
+ * output keeps its newest 262,144 characters and says "Earlier output cut" when it drops older
+ * output.
  * Must handle: Unknown language (plain text); a very large block (cut off with 'Show all');
- * streaming code (re-highlight without flicker, memoised on the text); copy confirms with a short
- * 'Copied' label; horizontal scroll, no wrapping; an empty command (no Run action); a run that
- * fails (Failed with its exit code); a stopped run (Stopped); clearing the output.
+ * streaming code (re-highlight without flicker: the old colours stay and the new tail shows
+ * plain); copy confirms with a short 'Copied' label; horizontal scroll, no wrapping; an empty
+ * command (no Run action); a run that fails (Failed with its exit code); a stopped run (Stopped);
+ * clearing the output; a command that prints megabytes (only the newest output is kept).
  * Test first: Renders the code text for an unknown language and the copy button copies exactly that
  * text.
  */
@@ -27,6 +31,24 @@ import { useThemeType } from "../../ui/use-theme-type.ts";
 import { stripAnsi } from "./tools/ToolCardFrame.tsx";
 
 const LARGE_BLOCK = 4000;
+
+/** The most run output a block keeps, in characters. Older output is dropped first. */
+const MAX_OUTPUT_LENGTH = 256 * 1024;
+
+interface RunOutput {
+	text: string;
+	/** Older output was dropped to stay under MAX_OUTPUT_LENGTH. */
+	cut: boolean;
+}
+
+const NO_OUTPUT: RunOutput = { text: "", cut: false };
+
+/** Adds a chunk and keeps only the newest MAX_OUTPUT_LENGTH characters. */
+function appendOutput(previous: RunOutput, chunk: string): RunOutput {
+	const text = `${previous.text}${chunk}`;
+	if (text.length <= MAX_OUTPUT_LENGTH) return { text, cut: previous.cut };
+	return { text: text.slice(text.length - MAX_OUTPUT_LENGTH), cut: true };
+}
 
 const COMMAND_LANGUAGES = new Set(["bash", "sh", "shell", "zsh", "fish", "ksh", "dash"]);
 
@@ -66,7 +88,7 @@ interface CommandRunViewProps {
 function CommandRunView({ terminalId, onEnded }: CommandRunViewProps) {
 	const actions = useActions();
 	const connection = useTerminalConnection(terminalId);
-	const [output, setOutput] = useState("");
+	const [output, setOutput] = useState<RunOutput>(NO_OUTPUT);
 	const [ended, setEnded] = useState<{ exitCode: number | null } | null>(null);
 	const [stopped, setStopped] = useState(false);
 	const [stopping, setStopping] = useState(false);
@@ -79,7 +101,7 @@ function CommandRunView({ terminalId, onEnded }: CommandRunViewProps) {
 		if (source.ended !== null) onEnded();
 		const unsubscribeData = source.onData((chunk) => {
 			const text = decoder.decode(chunk, { stream: true });
-			setOutput((previous) => `${previous}${stripAnsi(text)}`);
+			setOutput((previous) => appendOutput(previous, stripAnsi(text)));
 		});
 		const unsubscribeExit = source.onExit((exitCode) => {
 			setEnded({ exitCode });
@@ -133,10 +155,10 @@ function CommandRunView({ terminalId, onEnded }: CommandRunViewProps) {
 							Stop command
 						</button>
 					) : null}
-					{output.length > 0 ? (
+					{output.text.length > 0 ? (
 						<button
 							type="button"
-							onClick={() => setOutput("")}
+							onClick={() => setOutput(NO_OUTPUT)}
 							className="font-medium text-fg-muted hover:text-fg"
 						>
 							Clear output
@@ -144,10 +166,13 @@ function CommandRunView({ terminalId, onEnded }: CommandRunViewProps) {
 					) : null}
 				</div>
 			</div>
-			{output.length > 0 ? (
+			{output.text.length > 0 ? (
 				<div className="overflow-x-auto border-t border-border bg-canvas">
+					{output.cut ? (
+						<p className="px-3 pt-2 text-xs text-fg-muted">Earlier output cut</p>
+					) : null}
 					<pre className="m-0 max-h-60 overflow-y-auto p-3 font-mono text-code text-fg">
-						{output}
+						{output.text}
 					</pre>
 				</div>
 			) : null}
@@ -185,7 +210,9 @@ export function CodeBlock({ code, language, workspaceId, canRun }: CodeBlockProp
 	const [running, setRunning] = useState(false);
 	const tooLarge = code.length > LARGE_BLOCK && !showAll;
 	const shown = tooLarge ? code.slice(0, LARGE_BLOCK) : code;
+	// A block cut for length offers Run only after Show all, so the user never runs text they have not seen.
 	const runnable =
+		!tooLarge &&
 		canRun === true &&
 		workspaceId !== undefined &&
 		isShellLanguage(language) &&

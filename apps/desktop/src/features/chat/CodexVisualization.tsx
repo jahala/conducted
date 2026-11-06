@@ -9,7 +9,9 @@
  * folder from the Platform for a path that starts with "~".
  * Must handle: a path outside the workspace root (absolute, climbing with "..", or "~") shows the
  * notice and loads nothing; a missing file shows the load failure and loads when the file appears;
- * a page that runs scripts is sandboxed without same-origin access and cannot reach the network;
+ * a page that runs scripts is sandboxed without same-origin access, and its policy blocks loads,
+ * fetches and form posts for every script, even one before `<head>` (a script that points the frame
+ * itself at a web address is outside the frame's policy; only the app's own policy covers that);
  * the frame follows its content up to a maximum height, then scrolls; the file changing on disk
  * reloads the frame.
  * Our design choice: the frame is isolated from the app by an opaque origin, so a visualization can
@@ -44,19 +46,23 @@ const MAX_FRAME_HEIGHT = 480;
 const HEIGHT_MESSAGE = "conducted-visualization";
 
 const FRAME_POLICY =
-	"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:";
+	"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; form-action 'none'";
+
+/** A doctype at the start of the page, with any whitespace and comments before it. */
+const LEADING_DOCTYPE = /^\uFEFF?(?:\s|<!--[\s\S]*?-->)*<!doctype[^>]*>/i;
 
 /**
- * The document the frame loads. It blocks network access, then reports its height as the content
+ * The document the frame loads. Its policy comes first, right after a leading doctype, so it
+ * applies to every script of the page, even one written before `<head>`. A doctype stays first,
+ * so the page keeps its standards mode. The document then reports its height as the content
  * changes so the frame can follow it. The page keeps its own markup and scripts.
  */
 const HEIGHT_SCRIPT = `<script>(function(){function report(){parent.postMessage({type:"${HEIGHT_MESSAGE}",height:Math.ceil(document.documentElement.scrollHeight)},"*")}addEventListener("load",report);if(typeof ResizeObserver==="function"){new ResizeObserver(report).observe(document.documentElement)}report()})();</script>`;
 
 function frameDocument(html: string): string {
 	const policy = `<meta http-equiv="Content-Security-Policy" content="${FRAME_POLICY}">`;
-	const withPolicy = /<head[\s>]/i.test(html)
-		? html.replace(/<head([^>]*)>/i, (head) => `${head}${policy}`)
-		: `${policy}${html}`;
+	const doctype = LEADING_DOCTYPE.exec(html)?.[0] ?? "";
+	const withPolicy = `${doctype}${policy}${html.slice(doctype.length)}`;
 	return /<\/body>/i.test(withPolicy)
 		? withPolicy.replace(/<\/body>/i, (body) => `${HEIGHT_SCRIPT}${body}`)
 		: `${withPolicy}${HEIGHT_SCRIPT}`;

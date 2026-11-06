@@ -20,14 +20,7 @@ const capture = (changes: Partial<DiagnosticsCapture> = {}): DiagnosticsCapture 
 
 describe("APP-03 environment report", () => {
 	it("renders only the values the redacted capture holds", () => {
-		render(
-			<EnvironmentReport
-				capture={capture()}
-				view="redacted"
-				failedSections={[]}
-				onRetrySection={() => {}}
-			/>,
-		);
+		render(<EnvironmentReport capture={capture()} view="redacted" />);
 
 		expect(screen.getByText("API_TOKEN")).toBeTruthy();
 		expect(screen.getByText("4a5b6c7d")).toBeTruthy();
@@ -40,8 +33,6 @@ describe("APP-03 environment report", () => {
 			<EnvironmentReport
 				capture={capture({ env: { LANG: "en_AU.UTF-8", PWD: "/Users/me" } })}
 				view="redacted"
-				failedSections={[]}
-				onRetrySection={() => {}}
 			/>,
 		);
 
@@ -57,36 +48,32 @@ describe("APP-03 environment report", () => {
 		expect(screen.getByText("No variables match your filter.")).toBeTruthy();
 	});
 
-	it("names a failed section and offers Retry for it", () => {
-		const retry = vi.fn();
-		render(
-			<EnvironmentReport
-				capture={capture()}
-				view="redacted"
-				failedSections={["shell"]}
-				onRetrySection={retry}
-			/>,
-		);
-
-		expect(screen.getByRole("alert").textContent).toContain("Could not capture the login shell.");
-		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-		expect(retry).toHaveBeenCalledWith("shell");
-	});
-
 	it("lists each PATH entry and collapses a long one", () => {
 		const path = Array.from({ length: 12 }, (_, index) => `/entry-${index}`).join(":");
-		render(
-			<EnvironmentReport
-				capture={capture({ path })}
-				view="redacted"
-				failedSections={[]}
-				onRetrySection={() => {}}
-			/>,
-		);
+		render(<EnvironmentReport capture={capture({ path })} view="redacted" />);
 
 		expect(screen.getByText("12 entries")).toBeTruthy();
 		expect(screen.getByText("/entry-0")).toBeTruthy();
 		expect(screen.getByText("/entry-11")).toBeTruthy();
+	});
+
+	it("lists a folder PATH names twice as two entries without a duplicate key", () => {
+		const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+		try {
+			render(
+				<EnvironmentReport
+					capture={capture({ path: "/usr/local/bin:/usr/bin:/usr/local/bin" })}
+					view="redacted"
+				/>,
+			);
+
+			expect(screen.getByText("3 entries")).toBeTruthy();
+			expect(screen.getAllByText("/usr/local/bin")).toHaveLength(2);
+			const duplicateKey = errors.mock.calls.filter((call) => String(call[0]).includes("same key"));
+			expect(duplicateKey).toEqual([]);
+		} finally {
+			errors.mockRestore();
+		}
 	});
 
 	it("shows missing agents and a stopped sidecar", () => {
@@ -97,8 +84,6 @@ describe("APP-03 environment report", () => {
 					sidecar: { running: false, logPath: null },
 				})}
 				view="full"
-				failedSections={[]}
-				onRetrySection={() => {}}
 			/>,
 		);
 

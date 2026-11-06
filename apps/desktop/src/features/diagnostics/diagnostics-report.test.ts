@@ -24,11 +24,11 @@ const capture = (changes: Partial<DiagnosticsCapture> = {}): DiagnosticsCapture 
 	...changes,
 });
 
-const hash = (value: string): string => `hashed(${value})`;
+const hash = async (value: string): Promise<string> => `hashed(${value})`;
 
 describe("APP-03 diagnostics report redaction", () => {
-	it("hashes a variable named API_TOKEN even when the safe list names it and keeps LANG", () => {
-		const redacted = redactCapture(capture(), {
+	it("hashes a variable named API_TOKEN even when the safe list names it and keeps LANG", async () => {
+		const redacted = await redactCapture(capture(), {
 			safeEnvNames: new Set([...SAFE_ENV_NAMES, "API_TOKEN"]),
 			hash,
 			homeDir: "/Users/me",
@@ -39,8 +39,8 @@ describe("APP-03 diagnostics report redaction", () => {
 		expect(redacted.env.PATH).toBe("hashed(/Users/me/bin)");
 	});
 
-	it("keeps the home folder out of the redacted PATH", () => {
-		const redacted = redactCapture(capture(), {
+	it("keeps the home folder out of the redacted PATH", async () => {
+		const redacted = await redactCapture(capture(), {
 			safeEnvNames: SAFE_ENV_NAMES,
 			hash,
 			homeDir: "/Users/me",
@@ -49,8 +49,8 @@ describe("APP-03 diagnostics report redaction", () => {
 		expect(redactHome("/Users/me/project", "/Users/me")).toBe("~/project");
 	});
 
-	it("leaves a value alone when a safe name does not look secret", () => {
-		const redacted = redactCapture(capture({ env: { TERM: "xterm-256color" } }), {
+	it("leaves a value alone when a safe name does not look secret", async () => {
+		const redacted = await redactCapture(capture({ env: { TERM: "xterm-256color" } }), {
 			safeEnvNames: SAFE_ENV_NAMES,
 			hash,
 			homeDir: "/Users/me",
@@ -58,10 +58,50 @@ describe("APP-03 diagnostics report redaction", () => {
 		expect(redacted.env.TERM).toBe("xterm-256color");
 	});
 
-	it("is stable for the same value and different for another", () => {
-		expect(shortSha256("super-secret")).toBe(shortSha256("super-secret"));
-		expect(shortSha256("super-secret")).not.toBe(shortSha256("another-secret"));
-		expect(shortSha256("super-secret")).toHaveLength(8);
+	it("keeps the home folder out of the shell, the agent paths and the sidecar log", async () => {
+		const redacted = await redactCapture(
+			capture({
+				shell: "/Users/me/.nix-profile/bin/zsh",
+				agents: [
+					{
+						name: "claude",
+						installed: true,
+						version: "2.1.0",
+						path: "/Users/me/.local/bin/claude",
+					},
+					{ name: "codex", installed: false, version: null, path: null },
+				],
+				sidecar: { running: true, logPath: "/Users/me/Library/Logs/conducted/sidecar.log" },
+			}),
+			{ safeEnvNames: SAFE_ENV_NAMES, hash: shortSha256, homeDir: "/Users/me" },
+		);
+
+		expect(redacted.shell).toBe("~/.nix-profile/bin/zsh");
+		expect(redacted.agents).toEqual([
+			{ name: "claude", installed: true, version: "2.1.0", path: "~/.local/bin/claude" },
+			{ name: "codex", installed: false, version: null, path: null },
+		]);
+		expect(redacted.sidecar).toEqual({
+			running: true,
+			logPath: "~/Library/Logs/conducted/sidecar.log",
+		});
+		expect(renderReport(redacted)).not.toContain("/Users/me");
+	});
+
+	it("is stable for the same value and different for another", async () => {
+		expect(await shortSha256("super-secret")).toBe(await shortSha256("super-secret"));
+		expect(await shortSha256("super-secret")).not.toBe(await shortSha256("another-secret"));
+		expect(await shortSha256("super-secret")).toHaveLength(8);
+	});
+
+	it("takes the first eight hex characters of Web Crypto's SHA-256", async () => {
+		// The FIPS 180-2 test vector: SHA-256("abc") starts ba7816bf.
+		await expect(shortSha256("abc")).resolves.toBe("ba7816bf");
+		const digest = new Uint8Array(
+			await crypto.subtle.digest("SHA-256", new TextEncoder().encode("super-secret")),
+		);
+		const expected = Array.from(digest.slice(0, 4), (byte) => byte.toString(16).padStart(2, "0"));
+		await expect(shortSha256("super-secret")).resolves.toBe(expected.join(""));
 	});
 });
 

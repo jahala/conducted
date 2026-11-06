@@ -47,6 +47,17 @@ describe("CHAT-24 mermaid diagram", () => {
 		expect(screen.getByText(/graph TD/)).toBeTruthy();
 	});
 
+	it("logs why a diagram could not be drawn", async () => {
+		state.render.mockRejectedValue(new Error("Parse error on line 1"));
+		mount(<MermaidDiagram source={"graph TD\nA --> B"} streaming={false} />);
+
+		await screen.findByText("This diagram could not be drawn. The source is shown below.");
+		expect(test.memory.controls.logs).toContainEqual({
+			level: "warn",
+			message: "The Mermaid diagram could not be drawn: Parse error on line 1",
+		});
+	});
+
 	it("says Rendering diagram... while it works and then offers Expand diagram", async () => {
 		let release: ((value: { svg: string }) => void) | undefined;
 		state.render.mockImplementation(
@@ -83,6 +94,17 @@ describe("CHAT-24 mermaid diagram", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
 		fireEvent.click(screen.getByRole("button", { name: "Reset" }));
 		expect(expanded.getAttribute("data-zoom")).toBe("1");
+	});
+
+	it("zooms the expanded diagram from its top left corner, so scrolling reaches every edge", async () => {
+		state.render.mockResolvedValue({ svg: svgWith("flow") });
+		mount(<MermaidDiagram source={"graph TD\nA --> B"} streaming={false} />);
+
+		fireEvent.click(await screen.findByRole("button", { name: "Expand diagram" }));
+		fireEvent.click(await screen.findByRole("button", { name: "Zoom in" }));
+		const expanded = screen.getByTestId("mermaid-expanded");
+		expect(expanded.style.transform).toBe("scale(1.25)");
+		expect(expanded.style.transformOrigin).toBe("top left");
 	});
 
 	it("gives two diagrams in one reply different element ids", async () => {

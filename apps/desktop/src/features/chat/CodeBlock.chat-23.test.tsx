@@ -53,6 +53,32 @@ describe("CHAT-23 shell code block in the real container", () => {
 		});
 	});
 
+	it("offers Run on a long block only once the whole command is shown, then runs all of it", async () => {
+		const test = createTestContainer();
+		containers.push(test);
+		const workspace = await readyWorkspace(test);
+		const code = `echo start\n${"echo filler-line\n".repeat(300)}echo hidden-tail`;
+		expect(code.length).toBeGreaterThan(5_000);
+
+		render(
+			<ServicesProvider container={test.container}>
+				<CodeBlock code={code} language={"bash"} workspaceId={workspace.id} canRun />
+			</ServicesProvider>,
+		);
+
+		expect(screen.queryByText(/hidden-tail/)).toBeNull();
+		expect(screen.queryByRole("button", { name: "Run" })).toBeNull();
+
+		fireEvent.click(screen.getByRole("button", { name: "Show all" }));
+		expect(screen.getByText(/hidden-tail/)).toBeTruthy();
+		fireEvent.click(screen.getByRole("button", { name: "Run" }));
+
+		await waitFor(() => expect(screen.getByText("Done")).toBeTruthy());
+		expect(test.memory.controls.ptySpawns.at(-1)).toMatchObject({
+			command: { program: "/bin/zsh", args: ["-l", "-c", code] },
+		});
+	});
+
 	it("offers Run only for a shell block the workspace allows", async () => {
 		const test = createTestContainer();
 		containers.push(test);
