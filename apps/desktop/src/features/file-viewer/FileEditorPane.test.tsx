@@ -1,7 +1,8 @@
 /**
  * @feature REV-08 File editor pane
- * Tests the dirty draft, the disk-change banner, Discard and Save over the real container, with a
- * textarea in place of the CodeMirror surface so a test can type.
+ * Tests the dirty draft, the disk-change banner, Discard, Save and a binary file's "Open in another
+ * app" over the real container, with a textarea in place of the CodeMirror surface so a test can
+ * type.
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -36,7 +37,10 @@ vi.mock("./editor/EditorSurface.tsx", () => ({
 	),
 }));
 
-afterEach(cleanup);
+afterEach(() => {
+	cleanup();
+	vi.restoreAllMocks();
+});
 
 function wrapper(
 	container: ReturnType<typeof createTestContainer>["container"],
@@ -178,6 +182,28 @@ describe("REV-08 FileEditorPane", () => {
 				expect(test.memory.controls.files.get(`${workspace.path}/a.ts`)).toBe("two"),
 			);
 			await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(false));
+		} finally {
+			client.clear();
+			test.close();
+		}
+	});
+
+	it("opens a binary file in the default Open in app instead of editing it", async () => {
+		const { test, client, workspace } = await setup("/code/workspaces/editor-binary");
+		try {
+			vi.spyOn(test.container.services.workspaceFiles, "readContent").mockResolvedValue({
+				ok: true,
+				value: { kind: "binary", sizeBytes: 4, modifiedAt: 0, previewUrl: null },
+			});
+			expect((await test.container.actions.settings.set("default_open_in", "Zed")).ok).toBe(true);
+			const openWith = vi.spyOn(test.container.platform.opener, "openWith");
+			render(<FileEditorPane workspaceId={workspace.id} path="a.ts" />, {
+				wrapper: wrapper(test.container, client),
+			});
+
+			fireEvent.click(await screen.findByRole("button", { name: "Open in another app" }));
+
+			await waitFor(() => expect(openWith).toHaveBeenCalledWith("Zed", `${workspace.path}/a.ts`));
 		} finally {
 			client.clear();
 			test.close();

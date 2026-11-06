@@ -56,6 +56,7 @@ import type {
 	FileStat,
 	FileSystem,
 	GrepMatch,
+	Opener,
 	Shell,
 	TreeEntry,
 } from "../../platform/platform.ts";
@@ -77,6 +78,10 @@ export interface WorkspaceFilesServiceDeps {
 	shell: Pick<Shell, "run">;
 	/** Workspace folder plus linked folders that are allowed. */
 	rootsOf: (workspaceId: WorkspaceId) => Promise<Result<string[]>>;
+	/** Reveals a file in Finder and opens one in another app, for the file viewer. */
+	opener: Pick<Opener, "revealInFinder" | "openWith">;
+	/** The app chosen as the default for "Open in" (the `default_open_in` setting). Empty: none. */
+	defaultOpenInApp: () => string;
 }
 
 /** One request from the Git panel or a shortcut to show a file in the centre. */
@@ -455,6 +460,38 @@ export class WorkspaceFilesService {
 		};
 		for (const listener of this.#openListeners) listener(request);
 		return ok(undefined);
+	}
+
+	/** Backs `Actions.files.reveal`: shows the file selected in a Finder window. */
+	async reveal(workspaceId: WorkspaceId, relativePath: string): Promise<Result<void>> {
+		const resolved = await this.#resolve(workspaceId, relativePath);
+		if (!resolved.ok) return resolved;
+		try {
+			await this.#deps.opener.revealInFinder(resolved.value.absolute);
+			return ok(undefined);
+		} catch (cause) {
+			return err(appError("reveal_failed", "Finder could not show the file.", cause));
+		}
+	}
+
+	/**
+	 * Backs `Actions.files.openInApp`: opens the file in the app chosen as the default for "Open
+	 * in". With no default chosen it fails with "open_in_no_default_app", the error Conductor shows
+	 * as "No default app configured".
+	 */
+	async openInApp(workspaceId: WorkspaceId, relativePath: string): Promise<Result<void>> {
+		const appName = this.#deps.defaultOpenInApp().trim();
+		if (appName === "") {
+			return err(
+				appError(
+					"open_in_no_default_app",
+					"Choose a default app in the Open in menu of the workspace first.",
+				),
+			);
+		}
+		const resolved = await this.#resolve(workspaceId, relativePath);
+		if (!resolved.ok) return resolved;
+		return this.#deps.opener.openWith(appName, resolved.value.absolute);
 	}
 
 	/** Backs `Actions.files.write`. Fails with code "changed_on_disk" when the file moved on. */

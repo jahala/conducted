@@ -185,6 +185,8 @@ export function createActions(
 				services.workspaceFiles.open(workspaceId, path, mode, scope),
 			resolveConflicts: (workspaceId, path, choices) =>
 				services.workspaceFiles.resolveConflicts(workspaceId, path, choices),
+			reveal: (workspaceId, path) => services.workspaceFiles.reveal(workspaceId, path),
+			openInApp: (workspaceId, path) => services.workspaceFiles.openInApp(workspaceId, path),
 		},
 		artifacts: {
 			loadMore: (workspaceId) => services.workspaceFiles.loadMoreArtifacts(workspaceId),

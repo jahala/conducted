@@ -806,6 +806,8 @@ export function createContainer(inputs: ContainerInputs): Container {
 		search: platform.fileSearch,
 		shell: platform.shell,
 		rootsOf: (id) => ready(lookups.allowedRoots(id)),
+		opener: platform.opener,
+		defaultOpenInApp: () => settings.get<string>("default_open_in"),
 	});
 	const review = new ReviewService({
 		repos: repositories,
