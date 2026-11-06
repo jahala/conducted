@@ -1,8 +1,8 @@
 /**
  * @feature NAV-08 Global overlay host
  * Owns: mounting whichever window-level overlay is open (command palette, shortcuts dialog, Passport, quick
- * open, search in files), once, at the root of the app, and registering the Cmd+P and Cmd+Shift+F
- * commands that show quick open and search in files.
+ * open, search in files), once, at the root of the app, and registering the Cmd+P, Cmd+Shift+F and
+ * Cmd+Alt+/ commands that show quick open, search in files and the shortcuts dialog.
  * Behaviour: ui-map.md 5.1 (the palette is a dialog mounted once), 3.10 (quick open and search in files),
  * 1.1 (global overlays are mounted once at the root).
  * Our design choice: an overlay is mounted only while it is open. Its state resets on every open, and an
@@ -56,6 +56,10 @@ export function GlobalOverlays() {
 	});
 	useCommandHandler("app.commandPalette", "base", () => {
 		show("palette");
+		return true;
+	});
+	useCommandHandler("app.showShortcuts", "base", () => {
+		show("shortcuts");
 		return true;
 	});
 	if (open === null) return null;
