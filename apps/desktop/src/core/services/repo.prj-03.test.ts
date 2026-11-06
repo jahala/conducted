@@ -43,6 +43,10 @@ const must = <T>(result: Result<T>): T => {
 	return result.value;
 };
 
+/** The first push of the new repository, with gh as the credential helper for github.com. */
+const PUSH =
+	"git -c credential.https://github.com.helper=!gh auth git-credential push -u origin HEAD";
+
 const called = (fragment: string): boolean =>
 	test.memory.controls.shellCalls.some((command) => commandKey(command).includes(fragment));
 
@@ -197,7 +201,7 @@ describe("PRJ-03 creating a private GitHub repository", () => {
 		test.memory.controls.scriptShell((command) => {
 			const key = commandKey(command);
 			if (key === "git remote get-url -- origin") {
-				return called("git push -u origin HEAD")
+				return called(PUSH)
 					? answer(0, "git@github.com:acme/app.git\n")
 					: answer(0, "git@gitlab.com:me/app.git\n");
 			}
@@ -210,7 +214,7 @@ describe("PRJ-03 creating a private GitHub repository", () => {
 			) {
 				return answer(0);
 			}
-			if (key === "git push -u origin HEAD") return answer(0);
+			if (key === PUSH) return answer(0);
 			if (key === "gh repo view acme/app --json url -q .url") {
 				return answer(0, "https://github.com/acme/app\n");
 			}
@@ -232,7 +236,7 @@ describe("PRJ-03 creating a private GitHub repository", () => {
 				"gh repo create acme/app --description A repository for app --private --source . --remote origin",
 			),
 		);
-		expect(calls).toContain("git push -u origin HEAD");
+		expect(calls).toContain(PUSH);
 		expect(test.container.services.repo.store.getState().reposById[repo.id]?.remoteUrl).toBe(
 			"git@github.com:acme/app.git",
 		);
@@ -275,8 +279,14 @@ describe("PRJ-03 creating a private GitHub repository", () => {
 			) {
 				return answer(0);
 			}
-			if (key === "git push -u origin HEAD") return answer(1, "", "fatal: push rejected");
-			if (key === "git remote rename upstream origin") return answer(0);
+			if (key === PUSH) return answer(1, "", "fatal: push rejected");
+			if (key === "git remote remove origin") return answer(0);
+			// Like real git: gh added a new origin, and a rename onto a taken name is refused.
+			if (key === "git remote rename upstream origin") {
+				return called("git remote remove origin")
+					? answer(0)
+					: answer(3, "", "error: remote origin already exists.");
+			}
 			return null;
 		});
 
@@ -287,8 +297,18 @@ describe("PRJ-03 creating a private GitHub repository", () => {
 		});
 
 		expect(result.ok).toBe(false);
-		if (!result.ok) expect(result.error.code).toBe("github_repo_push_failed");
+		if (!result.ok) {
+			expect(result.error.code).toBe("github_repo_push_failed");
+			expect(result.error.message).toContain(
+				"The repository acme/app was created on GitHub and is still there.",
+			);
+		}
 		expect(called("git remote rename upstream origin")).toBe(true);
+		const calls = test.memory.controls.shellCalls.map(commandKey);
+		expect(calls.indexOf("git remote remove origin")).toBeGreaterThan(-1);
+		expect(calls.indexOf("git remote remove origin")).toBeLessThan(
+			calls.indexOf("git remote rename upstream origin"),
+		);
 	});
 
 	it("initializes Git and makes the first commit when the folder has none", async () => {
@@ -306,7 +326,7 @@ describe("PRJ-03 creating a private GitHub repository", () => {
 			if (key === "git init") return answer(0);
 			if (key === "git rev-parse --verify --quiet HEAD") return answer(1, "", "no HEAD");
 			if (key === "git status --porcelain=v1 --untracked-files=all") return answer(0, "");
-			if (key === "git add -A") return answer(0);
+			if (key === "git add -- .gitkeep") return answer(0);
 			if (key === "git commit -m Initial commit") return answer(0);
 			if (
 				key ===
@@ -314,7 +334,7 @@ describe("PRJ-03 creating a private GitHub repository", () => {
 			) {
 				return answer(0);
 			}
-			if (key === "git push -u origin HEAD") return answer(0);
+			if (key === PUSH) return answer(0);
 			if (key === "gh repo view acme/app --json url -q .url") {
 				return answer(0, "https://github.com/acme/app\n");
 			}
@@ -332,6 +352,48 @@ describe("PRJ-03 creating a private GitHub repository", () => {
 		expect(called("git init")).toBe(true);
 		expect(test.memory.controls.files.get("/code/app/.gitkeep")).toBe("");
 		expect(called("git commit -m Initial commit")).toBe(true);
+		expect(called("git add -- .gitkeep")).toBe(true);
+		expect(called("git add -A")).toBe(false);
+	});
+
+	it("refuses to make a first commit of files the user never chose, and puts origin back", async () => {
+		await test.container.platform.fs.mkdirp("/code/app/.git");
+		const repo = await seedRepo(test.container, { name: "app", rootPath: "/code/app" });
+		test.memory.controls.scriptShell((command) => {
+			const key = commandKey(command);
+			if (key === "git remote get-url -- origin") {
+				return called("git remote rename origin upstream")
+					? answer(1, "", "no origin")
+					: answer(0, "git@gitlab.com:me/app.git\n");
+			}
+			if (key === "git remote get-url -- upstream") return answer(1, "", "no upstream");
+			if (key === "git remote rename origin upstream") return answer(0);
+			if (key === "git remote rename upstream origin") return answer(0);
+			if (key === "git rev-parse --verify --quiet HEAD") return answer(1, "", "no HEAD");
+			if (key === "git status --porcelain=v1 --untracked-files=all") {
+				return answer(0, "?? .env\n?? src/app.ts\n");
+			}
+			return null;
+		});
+
+		const result = await test.container.actions.projects.createGitHubRepo(repo.id, {
+			owner: "acme",
+			name: "app",
+			isPrivate: true,
+		});
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error.code).toBe("github_repo_no_commits");
+			expect(result.error.message).toBe(
+				"This project has files but no commits yet. Commit the files you want on GitHub, then try again.",
+			);
+		}
+		expect(called("git add")).toBe(false);
+		expect(called("git commit")).toBe(false);
+		expect(called("gh repo create")).toBe(false);
+		expect(called("git remote rename upstream origin")).toBe(true);
+		expect(test.memory.controls.files.has("/code/app/.gitkeep")).toBe(false);
 	});
 
 	it("reports a missing project before it runs a command", async () => {

@@ -10,12 +10,19 @@
  * Must handle: a missing file is a cache miss (`ok(null)`); a damaged file or one from another
  * version is a cache miss after it is moved to the Trash, and a Trash that fails is returned; a
  * read error other than a missing file is returned; an entry for a branch other than the
- * workspace's current one is a miss and is left for the next save; a write whose content equals
- * the stored content is skipped; writes are atomic; one entry that alone exceeds its limit is an
+ * workspace's current one is a miss and is left for the next save; a write whose branch and value
+ * equal the stored ones is skipped and keeps the stored `observedAt`, so a poll that saw nothing
+ * new writes nothing; writes are atomic; one entry that alone exceeds its limit is an
  * error and is not stored; a write that would go over the limit moves the oldest other files to
- * the Trash first; removing a workspace moves both of its files to the Trash; the entry carries
- * `observedAt` so a caller can show the cached value as old until a poll replaces it; saves and
- * removes of one cache run one at a time, so two writes cannot evict the same file twice.
+ * the Trash first; deleting a workspace moves both of its files to the Trash (the workspace
+ * service calls `remove`); the entry carries `observedAt` so a caller can show the cached value as
+ * old until a poll replaces it; saves and removes of one cache run one at a time, so two writes
+ * cannot evict the same file twice.
+ * Callers: `connectGitCache` saves each full git poll that changed a workspace's changes and each
+ * pull request answer that changed (the GitHub service's store), and the startup step "git cache"
+ * paints every active workspace from the files before its first poll answers.
+ * Our design choice: a failed save is logged and nothing else changes, because the cache only
+ * makes a restart paint sooner; the next poll that changes the value tries the save again.
  * Our design choice: files under the app data folder (`git-cache/changes` and `git-cache/pr-info`,
  * named by `changesCacheFile` and `prInfoCacheFile` below), one JSON file per workspace, because
  * decision D038 has no `cache.db`. The limits count the bytes of the files. An entry carries
@@ -228,7 +235,18 @@ class FileGitCache implements GitCache {
 		}
 		const existing = await this.#fs.readText(file);
 		if (!existing.ok && existing.error.code !== "fs_not_found") return existing;
-		if (existing.ok && existing.value === text) return ok(undefined);
+		// The same branch and value is no change, whenever it was seen: the stored entry and its
+		// `observedAt` stay. A file that cannot be read as an entry is replaced.
+		if (existing.ok) {
+			const stored = parseEntry<T>(existing.value, String(entry.workspaceId));
+			if (
+				stored.kind === "hit" &&
+				stored.entry.branch === entry.branch &&
+				JSON.stringify(stored.entry.value) === JSON.stringify(entry.value)
+			) {
+				return ok(undefined);
+			}
+		}
 		const folder = parentFolder(file);
 		const made = await this.#fs.mkdirp(folder);
 		if (!made.ok) return made;
@@ -257,4 +275,145 @@ class FileGitCache implements GitCache {
 
 export function createGitCache(deps: GitCacheDeps): GitCache {
 	return new FileGitCache(deps);
+}
+
+/** The part of a service store the cache reads: one entry per workspace id. */
+interface WatchedStore<Entry> {
+	getState(): { byWorkspace: Readonly<Record<string, Entry>> };
+	subscribe(
+		listener: (
+			state: { byWorkspace: Readonly<Record<string, Entry>> },
+			previous: { byWorkspace: Readonly<Record<string, Entry>> },
+		) => void,
+	): () => void;
+}
+
+export interface GitCacheConnectionDeps {
+	cache: GitCache;
+	/** The git service: its polled changes, and the door that paints a cached snapshot. */
+	changes: {
+		store: WatchedStore<{ snapshot: ChangesSnapshot | null }>;
+		paintCached(workspaceId: WorkspaceId, snapshot: ChangesSnapshot): void;
+	};
+	/** The GitHub service: its pull request info, and the door that paints a cached entry. */
+	pullRequests: {
+		store: WatchedStore<WorkspacePrEntry>;
+		paintCached(workspaceId: WorkspaceId, entry: WorkspacePrEntry): void;
+	};
+	/** The branch a workspace has checked out now, or null for a workspace the app no longer has. */
+	branchOf: (workspaceId: WorkspaceId) => string | null;
+	now: () => number;
+	/** Where a failed cache write goes. The cache only speeds up a restart, so nothing else waits. */
+	log: (level: "warn" | "info", message: string) => void;
+}
+
+export interface GitCacheConnection {
+	/**
+	 * Paints the cached changes and pull request info of these workspaces before their first poll
+	 * answers. A workspace that already has a polled value keeps it. Every workspace is tried, and
+	 * the read failures come back together.
+	 */
+	paint(workspaces: readonly { id: WorkspaceId; branch: string }[]): Promise<Result<void>>;
+	/** Stops saving. The container's `stop()` calls it. */
+	stop(): void;
+}
+
+/** Pull request info worth keeping: an answer from GitHub, not a missing or failed read. */
+const isAnsweredPrInfo = (entry: WorkspacePrEntry): boolean =>
+	entry.unavailable === "none" || entry.unavailable === "no_pr";
+
+/**
+ * Connects the cache to the git and GitHub services (DATA-07). Each full poll that changed a
+ * workspace's changes, and each pull request answer that changed, is saved; the cache itself skips
+ * a value it already holds. `paint` reads the files back at startup.
+ */
+export function connectGitCache(deps: GitCacheConnectionDeps): GitCacheConnection {
+	const report = (what: string, workspaceId: string) => (saved: Result<void>) => {
+		if (!saved.ok) {
+			deps.log(
+				"warn",
+				`Couldn't cache the ${what} of workspace ${workspaceId}: ${saved.error.message}`,
+			);
+		}
+	};
+	const stopChanges = deps.changes.store.subscribe((state, previous) => {
+		for (const [key, entry] of Object.entries(state.byWorkspace)) {
+			const snapshot = entry.snapshot;
+			const before = previous.byWorkspace[key]?.snapshot ?? null;
+			if (snapshot === null || snapshot === before) continue;
+			// A shallower poll leaves counts unknown, so only a full snapshot is worth a restart.
+			if (snapshot.depth !== "full") continue;
+			// A poll every few seconds mostly sees the same state; that needs no file read at all.
+			if (before !== null && JSON.stringify(before) === JSON.stringify(snapshot)) continue;
+			const workspaceId = key as WorkspaceId;
+			const branch = deps.branchOf(workspaceId);
+			if (branch === null) continue;
+			void deps.cache
+				.saveChanges({
+					version: GIT_CACHE_VERSION,
+					workspaceId,
+					branch,
+					observedAt: deps.now(),
+					value: snapshot,
+				})
+				.then(report("changes", key));
+		}
+	});
+	const stopPullRequests = deps.pullRequests.store.subscribe((state, previous) => {
+		for (const [key, entry] of Object.entries(state.byWorkspace)) {
+			const before = previous.byWorkspace[key];
+			if (entry === before || !isAnsweredPrInfo(entry)) continue;
+			// `fetchedAt` changes with every poll; only the pull request and its state are content.
+			if (
+				before !== undefined &&
+				before.unavailable === entry.unavailable &&
+				JSON.stringify(before.pullRequest) === JSON.stringify(entry.pullRequest)
+			) {
+				continue;
+			}
+			const workspaceId = key as WorkspaceId;
+			const branch = deps.branchOf(workspaceId);
+			if (branch === null) continue;
+			void deps.cache
+				.savePrInfo({
+					version: GIT_CACHE_VERSION,
+					workspaceId,
+					branch,
+					observedAt: deps.now(),
+					value: entry,
+				})
+				.then(report("pull request info", key));
+		}
+	});
+
+	return {
+		paint: async (workspaces) => {
+			const failures: string[] = [];
+			for (const workspace of workspaces) {
+				const changes = await deps.cache.loadChanges(workspace.id, workspace.branch);
+				if (!changes.ok) failures.push(`${workspace.id}: ${changes.error.message}`);
+				else if (changes.value !== null) {
+					deps.changes.paintCached(workspace.id, changes.value.value);
+				}
+				const prInfo = await deps.cache.loadPrInfo(workspace.id, workspace.branch);
+				if (!prInfo.ok) failures.push(`${workspace.id}: ${prInfo.error.message}`);
+				else if (prInfo.value !== null) {
+					deps.pullRequests.paintCached(workspace.id, prInfo.value.value);
+				}
+			}
+			if (failures.length === 0) return ok(undefined);
+			return err(
+				appError(
+					"git_cache_read_failed",
+					`The cached git state could not be read for ${failures.length} workspace${
+						failures.length === 1 ? "" : "s"
+					}. ${failures.join("; ")}`,
+				),
+			);
+		},
+		stop: () => {
+			stopChanges();
+			stopPullRequests();
+		},
+	};
 }

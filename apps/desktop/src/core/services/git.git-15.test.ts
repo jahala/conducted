@@ -43,7 +43,6 @@ function harness(
 	const runner = new FakeGitRunner(answer);
 	const service = new GitService({
 		git: runner,
-		cache: {} as never,
 		contextOf: async () => options.contextOf?.() ?? ok(context()),
 		agent: {} as never,
 		renameWorkspaceBranch: async () => ok(undefined),
@@ -198,6 +197,8 @@ describe("GIT-15 external diff tool", () => {
 			if (command.args[0] === "-c" && command.args[1]?.startsWith("difftool.ksdiff.cmd=")) {
 				return ok(output(""));
 			}
+			// git tracks every file these cases name, so it lists none of them as untracked.
+			if (command.args[0] === "ls-files" && command.args[1] === "--others") return ok(output(""));
 			return err(appError("git_unscripted", `unexpected command: ${command.args.join(" ")}`));
 		};
 
@@ -230,6 +231,37 @@ describe("GIT-15 external diff tool", () => {
 		const result = await h.service.openInDiffTool(workspaceId, "src/a.ts");
 
 		expect(result).toEqual(ok(undefined));
+		expect(h.runner.commands.some((command) => command.args[0] === "-c")).toBe(false);
+	});
+
+	it("says a new, untracked file has nothing to compare instead of opening nothing", async () => {
+		const h = harness((command) => {
+			if (command.args[0] === "diff" && command.args[1] === "--quiet") return ok(output(""));
+			if (command.args[0] === "ls-files" && command.args[1] === "--others") {
+				return ok(output("src/new.ts\0"));
+			}
+			return err(appError("git_unscripted", `unexpected command: ${command.args.join(" ")}`));
+		});
+
+		const result = await h.service.openInDiffTool(workspaceId, "src/new.ts");
+
+		expect(result).toEqual(
+			err(
+				appError(
+					"diff_tool_untracked",
+					"src/new.ts is a new file, so there is no earlier version to compare it with.",
+				),
+			),
+		);
+		const listed = h.runner.commands.find((command) => command.args[0] === "ls-files");
+		expect(listed?.args).toEqual([
+			"ls-files",
+			"--others",
+			"--exclude-standard",
+			"-z",
+			"--",
+			":(literal)src/new.ts",
+		]);
 		expect(h.runner.commands.some((command) => command.args[0] === "-c")).toBe(false);
 	});
 

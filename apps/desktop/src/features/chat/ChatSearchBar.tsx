@@ -4,10 +4,13 @@
  * Behaviour: ui-map.md 3.3 (Search in chat: Cmd+F, next Cmd+G, previous Cmd+Shift+G, 'Scroll to
  * current match' Cmd+Alt+J), 5.1 (chat history search).
  * Must handle: No matches ('0 results'); matches in thinking and tool output (included); the match
- * is in a virtualised-out turn (scroll it into view first); Escape closes and returns focus to the
- * composer; the query is kept while switching chats.
- * Our design choice: matches are counted over the chat view's turns, not DOM text, and scrolling
- * names the turn by its `data-turn` attribute so a virtualised turn is brought into view first.
+ * is in a virtualised-out turn (the list scrolls to that turn's index); Escape closes and returns
+ * focus to the composer; the query is kept while switching chats (the chat pane keeps one bar
+ * across chats); an answer streaming in while the bar is open never moves the view.
+ * Our design choice: matches are counted over the chat view's turns, not DOM text. A turn the list
+ * has mounted is found by its `data-turn` attribute and scrolled into view; a turn the list has
+ * virtualised out is reached through `onRevealTurn`, which scrolls the list to its index. The view
+ * moves only when the user acts (typing, next, previous, Cmd+Alt+J), never when the turns change.
  * Test first: Typing 'foo' with three matches shows '1 of 3' and Cmd+G moves to '2 of 3'.
  */
 
@@ -23,6 +26,8 @@ export interface ChatSearchBarProps {
 	sessionId: SessionId;
 	open: boolean;
 	onClose: () => void;
+	/** Scrolls the message list to the turn at this index, for a turn it has not mounted. */
+	onRevealTurn: (index: number) => void;
 }
 
 /** One place the query occurs, named by the turn that shows it. */
@@ -94,7 +99,7 @@ function turnElement(turnId: TurnId): HTMLElement | null {
 	return null;
 }
 
-export function ChatSearchBar({ sessionId, open, onClose }: ChatSearchBarProps) {
+export function ChatSearchBar({ sessionId, open, onClose, onRevealTurn }: ChatSearchBarProps) {
 	const chat = useChat(sessionId);
 	const [query, setQuery] = useState("");
 	const [current, setCurrent] = useState(0);
@@ -110,29 +115,31 @@ export function ChatSearchBar({ sessionId, open, onClose }: ChatSearchBarProps) 
 		if (composer instanceof HTMLElement) composer.focus();
 	};
 
-	const go = (direction: 1 | -1) => {
-		if (matches.length === 0) return;
-		setCurrent((value) => {
-			const base = Math.min(value, matches.length - 1);
-			return (base + direction + matches.length) % matches.length;
-		});
+	/** Brings the turn of one match into view: a mounted turn directly, any other by its index. */
+	const reveal = (found: readonly ChatSearchMatch[], at: number) => {
+		const match = found[at];
+		if (match === undefined) return;
+		const element = turnElement(match.turnId);
+		if (element !== null) {
+			element.scrollIntoView?.({ block: "center" });
+			return;
+		}
+		const turnIndex = turns.findIndex((turn) => turn.turnId === match.turnId);
+		if (turnIndex >= 0) onRevealTurn(turnIndex);
 	};
 
-	const scrollToMatch = () => {
-		const match = matches[index];
-		if (match === undefined) return;
-		turnElement(match.turnId)?.scrollIntoView?.({ block: "center" });
+	const go = (direction: 1 | -1) => {
+		if (matches.length === 0) return;
+		const next = (index + direction + matches.length) % matches.length;
+		setCurrent(next);
+		reveal(matches, next);
 	};
+
+	const scrollToMatch = () => reveal(matches, index);
 
 	useEffect(() => {
 		if (open) inputRef.current?.focus();
 	}, [open]);
-
-	useEffect(() => {
-		if (!open) return;
-		const match = matches[index];
-		if (match !== undefined) turnElement(match.turnId)?.scrollIntoView?.({ block: "center" });
-	}, [open, matches, index]);
 
 	useCommandHandler("chat.findNext", "area", () => {
 		if (!open || matches.length === 0) return false;
@@ -163,8 +170,10 @@ export function ChatSearchBar({ sessionId, open, onClose }: ChatSearchBarProps) 
 				aria-label="Find in messages and thinking"
 				value={query}
 				onChange={(event) => {
-					setQuery(event.target.value);
+					const next = event.target.value;
+					setQuery(next);
 					setCurrent(0);
+					reveal(findChatMatches(turns, next), 0);
 				}}
 				onKeyDown={(event) => {
 					if (event.key === "Enter") {

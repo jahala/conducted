@@ -101,7 +101,6 @@ function harness(options: {
 	};
 	const service = new GitService({
 		git: runner,
-		cache: {} as never,
 		contextOf: async () => ok(context()),
 		agent: {
 			sendInstruction: async (id: WorkspaceId, text: string) => {

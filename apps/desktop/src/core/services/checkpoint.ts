@@ -21,7 +21,8 @@
  * or repository does not stop the archive prune for the others, and their failures come back
  * together in one error; pruning one chat never touches another chat's refs, even when ids share
  * a prefix. The archive prune runs from the startup checkpoint-pruning step; the chat prune runs
- * when the chat is deleted.
+ * when the chat is deleted. A fork (CHAT-16) copies the refs it keeps under its own chat's ids in
+ * one transaction, leaving out refs that are already gone.
  * The per-turn change list is read with the checkpointer's own diff, so it includes untracked
  * files and honours the repository's ignore rules like the checkpoint itself. It is cached per
  * chat and turn; every caller gets its own copy of the list, so one caller's change cannot reach
@@ -54,6 +55,7 @@ import {
 	forEachRefNames,
 	showRefVerify,
 	updateRefDelete,
+	updateRefStdin,
 } from "../git/commands.ts";
 import {
 	CHECKPOINT_REF_PREFIX,
@@ -271,6 +273,34 @@ export class CheckpointService {
 			if (!deleted.ok) return deleted;
 			this.#forgetTurnChanges(sessionId);
 			return deleted;
+		});
+	}
+
+	/**
+	 * Copies checkpoint refs under new ids in one `update-ref --stdin` transaction, for a forked
+	 * chat (CHAT-16). Each pair names a checkpoint id and the id of its copy. A source ref that is
+	 * gone (pruned, or skipped when the turn ran) is left out, so the fork has the restore points
+	 * the origin still has. Returns how many refs were copied.
+	 */
+	copyRefs(
+		repoRootPath: string,
+		pairs: readonly (readonly [from: string, to: string])[],
+	): Promise<Result<number>> {
+		if (pairs.length === 0) return Promise.resolve(ok(0));
+		return this.#withRepoLock(repoRootPath, async () => {
+			const listed = await this.#deps.git.runChecked(forEachRefNames(CHECKPOINT_REF_PREFIX), {
+				cwd: repoRootPath,
+			});
+			if (!listed.ok) return listed;
+			const existing = new Set(parseRefNames(listed.value.stdout));
+			const instructions = pairs
+				.filter(([from]) => existing.has(checkpointRef(from)))
+				.map(([from, to]) => `create ${checkpointRef(to)} ${checkpointRef(from)}`);
+			if (instructions.length === 0) return ok(0);
+			const copied = await this.#deps.git.runChecked(updateRefStdin(instructions), {
+				cwd: repoRootPath,
+			});
+			return copied.ok ? ok(instructions.length) : copied;
 		});
 	}
 

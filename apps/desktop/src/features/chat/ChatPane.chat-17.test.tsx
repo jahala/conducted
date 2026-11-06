@@ -1,13 +1,14 @@
 /**
  * @feature CHAT-17 Chat search bar
  * Owns: tests for the find bar over the real chat pane and container: the match count, next and
- * previous from the root dispatcher, scroll to the current match, Escape, and the copy-transcript
- * shortcut.
+ * previous from the root dispatcher, scroll to the current match (also in a turn the list has not
+ * mounted), no scrolling while an answer streams in, the query kept across a chat switch, Escape,
+ * and the copy-transcript shortcut.
  * Behaviour: ui-map.md 3.3, 5.4.
  * Test first: Typing 'foo' with three matches shows '1 of 3' and Cmd+G moves to '2 of 3'.
  */
 import type { SessionConfig, SessionEvent } from "@conducted/protocol";
-import type { EventId, MessageId, TurnId } from "@conducted/shared";
+import type { EventId, MessageId, SessionId, TurnId, WorkspaceId } from "@conducted/shared";
 import {
 	createMemoryHistory,
 	createRootRoute,
@@ -15,8 +16,8 @@ import {
 	createRouter,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { type ReactNode, useEffect, useState } from "react";
 import { VirtuosoMockContext } from "react-virtuoso";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearCommandHandlers, useCommandDispatcher } from "../../app/command-dispatcher.ts";
@@ -24,6 +25,7 @@ import { ServicesProvider } from "../../core/context.tsx";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
 import "../../test/dom-polyfills.ts";
 import { ChatPane } from "./ChatPane.tsx";
+import { ChatSearchBar } from "./ChatSearchBar.tsx";
 
 const CONFIG: SessionConfig = {
 	agent: "claude",
@@ -129,6 +131,33 @@ async function mountChatWithMatches() {
 	return { container: test.container, chat };
 }
 
+const userMessage = (turn: string, text: string, at: number): SessionEvent => ({
+	at,
+	turnId: turn as TurnId,
+	eventId: `user-${turn}` as EventId,
+	type: "user_message",
+	messageId: `message-${turn}` as MessageId,
+	text,
+	attachmentPaths: [],
+	delivery: "new_turn",
+	config: CONFIG,
+});
+
+/** Shows one chat pane whose chat the test can switch, as a tab switch does. */
+function SwitchablePane({
+	workspaceId,
+	first,
+	onReady,
+}: {
+	workspaceId: WorkspaceId;
+	first: SessionId;
+	onReady: (switchTo: (id: SessionId) => void) => void;
+}) {
+	const [sessionId, setSessionId] = useState(first);
+	useEffect(() => onReady(setSessionId), [onReady]);
+	return <ChatPane workspaceId={workspaceId} sessionId={sessionId} />;
+}
+
 function openFindBar() {
 	const messages = document.querySelector('[data-region="messages"]');
 	if (messages === null) throw new Error("The chat pane has no message region.");
@@ -183,6 +212,133 @@ describe("CHAT-17 chat search bar", () => {
 		fireEvent.keyDown(input, { key: "j", metaKey: true, altKey: true });
 
 		expect(scrollIntoView).toHaveBeenCalled();
+	});
+
+	it("does not move the view while an answer streams in with the bar open", async () => {
+		const scrolledTurns: string[] = [];
+		vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(function (this: Element) {
+			if (this instanceof HTMLElement && this.dataset.turn !== undefined) {
+				scrolledTurns.push(this.dataset.turn);
+			}
+		});
+		const { container, chat } = await mountChatWithMatches();
+		await waitFor(() =>
+			expect(container.services.sessions.store.getState().viewingSessionId).not.toBeNull(),
+		);
+		const input = await openFindBar();
+		fireEvent.change(input, { target: { value: "foo" } });
+		expect(screen.getByText("1 of 3")).toBeTruthy();
+		scrolledTurns.length = 0;
+
+		act(() => {
+			container.services.sessions.applyStoredEvent(
+				chat.id,
+				3,
+				{
+					at: 2_000,
+					turnId: "t2" as TurnId,
+					eventId: "e4" as EventId,
+					type: "agent",
+					message: { agent: "claude", items: [{ kind: "text", text: "A streamed foo" }] },
+				},
+				2_000,
+			);
+		});
+
+		await waitFor(() => expect(screen.getByText("1 of 4")).toBeTruthy());
+		expect(scrolledTurns).toEqual([]);
+	});
+
+	it("keeps the query when the pane switches to another chat", async () => {
+		test = createTestContainer();
+		const workspace = await seedWorkspace(test.container);
+		const sessions = test.container.services.sessions;
+		const first = must(await sessions.create(workspace.id, CONFIG));
+		const second = must(await sessions.create(workspace.id, CONFIG));
+		must(await sessions.start());
+		sessions.applyStoredEvent(first.id, 0, userMessage("t1", "The foo case", 1_000), 1_000);
+		sessions.applyStoredEvent(second.id, 0, userMessage("t9", "Another foo", 1_000), 1_000);
+
+		let switchTo: (id: SessionId) => void = () => {
+			throw new Error("The pane is not mounted yet.");
+		};
+		const rootRoute = createRootRoute();
+		const route = createRoute({
+			getParentRoute: () => rootRoute,
+			path: "/",
+			component: () => (
+				<SwitchablePane
+					workspaceId={workspace.id}
+					first={first.id}
+					onReady={(next) => {
+						switchTo = next;
+					}}
+				/>
+			),
+		});
+		const router = createRouter({
+			routeTree: rootRoute.addChildren([route]),
+			history: createMemoryHistory({ initialEntries: ["/"] }),
+		});
+		render(
+			<ServicesProvider container={test.container}>
+				<VirtuosoMockContext.Provider value={{ viewportHeight: 800, itemHeight: 200 }}>
+					<Dispatcher>
+						<RouterProvider router={router} />
+					</Dispatcher>
+				</VirtuosoMockContext.Provider>
+			</ServicesProvider>,
+		);
+		await router.load();
+		await waitFor(() => expect(sessions.store.getState().viewingSessionId).toBe(first.id));
+
+		const input = await openFindBar();
+		fireEvent.change(input, { target: { value: "foo" } });
+		expect(screen.getByText("1 of 1")).toBeTruthy();
+
+		act(() => switchTo(second.id));
+		await waitFor(() => expect(sessions.store.getState().viewingSessionId).toBe(second.id));
+
+		const kept = screen.getByRole("textbox", { name: "Find in messages and thinking" });
+		expect((kept as HTMLInputElement).value).toBe("foo");
+		expect(screen.getByText("1 of 1")).toBeTruthy();
+	});
+
+	it("asks the list to scroll to a matching turn it has not mounted", async () => {
+		test = createTestContainer();
+		const workspace = await seedWorkspace(test.container);
+		const sessions = test.container.services.sessions;
+		const chat = must(await sessions.create(workspace.id, CONFIG));
+		must(await sessions.start());
+		// A long chat: only turns 3 and 57 mention the needle, and the list mounts neither of them.
+		for (let turn = 0; turn < 60; turn += 1) {
+			const text = turn === 3 || turn === 57 ? `Turn ${turn} has the needle` : `Turn ${turn}`;
+			sessions.applyStoredEvent(chat.id, turn, userMessage(`t${turn}`, text, turn), turn);
+		}
+		const revealed: number[] = [];
+
+		render(
+			<ServicesProvider container={test.container}>
+				<Dispatcher>
+					<div data-command-scope="chat-input">
+						<ChatSearchBar
+							sessionId={chat.id}
+							open
+							onClose={() => {}}
+							onRevealTurn={(index) => revealed.push(index)}
+						/>
+					</div>
+				</Dispatcher>
+			</ServicesProvider>,
+		);
+		const input = await screen.findByRole("textbox", { name: "Find in messages and thinking" });
+		fireEvent.change(input, { target: { value: "needle" } });
+		expect(screen.getByText("1 of 2")).toBeTruthy();
+		fireEvent.keyDown(input, { key: "Enter" });
+		expect(screen.getByText("2 of 2")).toBeTruthy();
+		fireEvent.keyDown(input, { key: "j", metaKey: true, altKey: true });
+
+		expect(revealed).toEqual([3, 57, 57]);
 	});
 
 	it("closes on Escape and copies the concise transcript with Cmd+Alt+C", async () => {

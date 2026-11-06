@@ -7,8 +7,11 @@
  * menu: 'Fork to new tab', 'Fork to new workspace', 'Reset chat', copy options).
  * Our design choice (CHAT-14): with the Experimental setting 'Show agent cost' on, the hover card
  * also shows the cost the agent reported for this turn. Conductor shows cost only for cloud runs.
- * Fork to a new tab copies the chat up to this turn and opens the new chat (CHAT-16). Fork to a new
- * workspace is CHAT-21 and stays disabled until it is built.
+ * Fork to a new tab copies the chat up to this turn and opens the new chat (CHAT-16). It is always
+ * in this menu: the Experimental setting 'Fork chat to new tab' gates only the chat tab menu item
+ * and Cmd+Alt+Enter, as its text says (ui-map.md 3.3 lists the turn menu's fork without it, 6 names
+ * the tab menu and the shortcut). Fork to a new workspace is CHAT-21 and stays disabled until it
+ * is built.
  * Must handle: A running turn (no footer, TurnItem shows the spinner instead); no usage reported (the hover card
  * says so); an agent that does not report fast mode or cost (that line is left out); no checkpoint (Fork and Reset disabled with a reason); a cancelled or errored turn (footer still
  * copies); a copy or fork that fails (a toast, "Unable to fork chat" when the turn has no checkpoint);

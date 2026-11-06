@@ -60,7 +60,7 @@ import {
 	PULL_UP_TO_DATE_MESSAGE,
 	PULLED_LATEST_MESSAGE,
 } from "../../core/services/git.ts";
-import { isGithubRemoteUrl } from "../../core/services/github.ts";
+import { forgeForRemoteUrl } from "../../core/services/github.ts";
 import { capabilitiesFor } from "../../core/services/local-git-forge.ts";
 import {
 	computeGitHeader,
@@ -161,7 +161,7 @@ export function GitPanel({
 	const localForgeActive =
 		localForgeEnabled &&
 		repoRemoteUrl !== undefined &&
-		(repoRemoteUrl === null || !isGithubRemoteUrl(repoRemoteUrl));
+		forgeForRemoteUrl(repoRemoteUrl) === "local";
 	const localForgeEntry = useStore(localGitForge.store, (state) => state.byWorkspace[workspaceId]);
 	const localForgeInfo = localForgeActive ? (localForgeEntry?.info ?? null) : undefined;
 	const localForgeError = localForgeActive ? (localForgeEntry?.error ?? null) : undefined;

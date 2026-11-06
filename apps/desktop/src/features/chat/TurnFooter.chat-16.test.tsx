@@ -1,7 +1,8 @@
 /**
  * @feature CHAT-16 Fork a chat from a turn
  * Tests the turn footer's Fork to new tab action over the real container: a fork opens the copied
- * chat in a new tab, and a turn with no checkpoint shows "Unable to fork chat".
+ * chat in a new tab, also with the Experimental setting off (the setting gates only the tab menu
+ * and Cmd+Alt+Enter), and a turn with no checkpoint shows "Unable to fork chat".
  * Test first: choosing Fork to new tab opens a different chat than the one on screen.
  */
 import type { SessionConfig } from "@conducted/protocol";
@@ -69,6 +70,11 @@ afterEach(() => {
 	toastError.mockReset();
 });
 
+const must = <T,>(result: { ok: true; value: T } | { ok: false; error: unknown }): T => {
+	if (!result.ok) throw new Error(JSON.stringify(result.error));
+	return result.value;
+};
+
 async function seedChat(): Promise<{
 	container: ReturnType<typeof createTestContainer>;
 	workspaceId: string;
@@ -122,6 +128,41 @@ describe("CHAT-16 fork from the turn footer", () => {
 				test.container.services.sessions.store.getState().byWorkspace[workspaceId],
 			).toHaveLength(2);
 			expect(toastError).not.toHaveBeenCalled();
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("forks from the turn menu with the Experimental 'Fork chat to new tab' setting off", async () => {
+		const { container: test, workspaceId, sessionId } = await seedChat();
+		try {
+			must(await test.container.services.settings.set("experimental_fork_to_new_tab", false));
+			expect(test.container.services.settings.get<boolean>("experimental_fork_to_new_tab")).toBe(
+				false,
+			);
+			await appendChatEvents(test.container, sessionId, [
+				userMessageEvent("u1", "t1", 10),
+				checkpointEvent("c1", "t1", 11, "start", "start-1"),
+				agentEvent("a1", "t1", 12, [{ kind: "text", text: "First answer" }]),
+				checkpointEvent("c2", "t1", 13, "end", "end-1"),
+				turnEndedEvent("e1", "t1", 14),
+			]);
+
+			render(
+				<ServicesProvider container={test.container}>
+					<TurnFooter turn={turn()} sessionId={sessionId} />
+				</ServicesProvider>,
+			);
+			await openMenu();
+			const item = await screen.findByRole("menuitem", { name: "Fork to new tab" });
+			expect(item.getAttribute("aria-disabled")).not.toBe("true");
+			fireEvent.click(item);
+
+			await waitFor(() => expect(navigate).toHaveBeenCalledTimes(1));
+			expect(
+				test.container.services.sessions.store.getState().byWorkspace[workspaceId],
+			).toHaveLength(2);
 		} finally {
 			await test.container.stop();
 			test.close();

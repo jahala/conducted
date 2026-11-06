@@ -45,7 +45,6 @@ function makeService(
 ): GitService {
 	return new GitService({
 		git: runner,
-		cache: {} as never,
 		contextOf: over.contextOf ?? (async () => ok(context())),
 		agent: {} as never,
 		setIntendedTargetBranch: async () => ok(undefined),
