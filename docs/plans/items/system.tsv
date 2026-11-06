@@ -170,7 +170,7 @@ SIDE-03	rule	Cancel reasons config_change and shutdown; ours has shutdown only, 
 AGENT-02	rule	A turn ends on the SDK result message; results from other turns and mini results are ignored.	sessions 2 turn boundary	covered
 AGENT-02	timeout	Claude turn settlement watchdog of 120 seconds.	sessions 2 turn boundary	covered
 AGENT-02	rule	The session state event flag is set at launch and session_state_changed events drive the turn tracker.	sessions 2 turn boundary	covered
-AGENT-15	rule	Turns the Claude CLI starts by itself (background task wake-ups) flip the chat to working and back to idle.	sessions 2 turn boundary	missing
+AGENT-15	rule	Turns the Claude CLI starts by itself (background task wake-ups) flip the chat to working and back to idle.	sessions 2 turn boundary	covered
 AGENT-02	rule	One live Claude generator per session.	sessions 3 Claude	covered
 AGENT-02	rule	Claude SDK options: bypass mode, approval callback, max turns, setting sources, preset prompt, disallowed tool, in-process MCP server, session store.	sessions 3 Claude	covered
 AGENT-02	rule	A new Claude session passes a session id; an existing one resumes if a transcript exists; an empty transcript is renamed so the id can be reused.	sessions 3 Claude	partly
@@ -367,7 +367,7 @@ AGENT-03	rule	Stream deltas, thinking tokens and task progress messages are drop
 AGENT-03	rule	Compact boundary and rate limit events pass through as notices	claude-runner 2.8	covered
 AGENT-03	rule	Autocompact state, post-turn summary, session metadata and active goal messages are passed on; ours ignores them	claude-runner 2.8	partly
 AGENT-03	rule	Transcript mirror, control request and keep-alive messages are not forwarded	claude-runner 2.8	covered
-AGENT-15	rule	Host callbacks cover message, in-progress, background tasks, fast mode, plan, question, approval, diff, comments, terminal; ours lacks the in-progress callback	claude-runner 2.9	partly
+AGENT-15	rule	Host callbacks cover message, in-progress, background tasks, fast mode, plan, question, approval, diff, comments, terminal; ours lacks the in-progress callback	claude-runner 2.9	covered
 SIDE-18	rule	A debug tap logs every SDK message in both directions	claude-runner 2.9	partly
 AGENT-04	rule	The permission mode follows the approvals setting and plan mode	claude-runner 3.1	covered
 AGENT-04	rule	Permission prompts use the stdio prompt tool and the SDK adds no timeout	claude-runner 3.1	covered
@@ -477,7 +477,7 @@ SIDE-20	rule	Callback onEnterPlanMode tells the host the agent entered plan mode
 SIDE-12	rule	Callbacks for diff, diff comments, adding a comment and terminal output are served by the tool backend	other-runners 1	covered
 AGENT-02	rule	Callback onBackgroundTasksChanged reports the background task list	other-runners 1	covered
 AGENT-02	rule	Callback onFastModeUnavailable reports a fast mode refusal	other-runners 1	covered
-AGENT-15	rule	Callback onInProgressChanged tells the host when the agent starts or stops working by itself	other-runners 1	missing
+AGENT-15	rule	Callback onInProgressChanged tells the host when the agent starts or stops working by itself	other-runners 1	covered
 AGENT-01	message	Cancelled, no active turn and revert-to-follow-up are typed outcomes or errors	other-runners 1	covered
 SIDE-03	rule	Runners do not own queueing, dedupe, status, checkpoints, ids, log or notifications; the session manager does	other-runners 1	covered
 AGENT-01	state	Session config fields cover collaboration mode, model, harness, thinking, fast mode, ACP agent, approvals and directories	other-runners 1	covered
@@ -3022,8 +3022,8 @@ SIDE-25	rule	createRunnerRegistry passes appToolsServers into AcpRunner (modes/s
 AGENT-06	rule	codex-session.ts uses the shared createDeferred instead of its own copy (moved from AGENT-11 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
 AGENT-06	rule	codex-session.ts uses the shared sameStrings instead of its own copy (moved from AGENT-11 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
 AGENT-02	rule	claude-session.ts uses the shared createDeferred instead of its own copy (deferred) (moved from AGENT-11 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
-AGENT-02	rule	claude-session.ts builds SelfStartedTurnTracker (ownTurnOpen: () => this.turnOpen, the session translator, the host callbacks) and feeds it every SDK message (moved from AGENT-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
-SIDE-03	rule	session/manager.ts owns a SelfStartedTurns per chat, passes its callbacks into that chat's Claude session, and drains queued messages from onSettled (moved from AGENT-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
+AGENT-02	rule	claude-session.ts builds SelfStartedTurnTracker (ownTurnOpen: () => this.turnOpen, the session translator, the host callbacks) and feeds it every SDK message the turn tracker does not hold back (moved from AGENT-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	covered
+SIDE-03	rule	session/manager.ts gives every agent start the callbacks of its own SelfStartedTurns, passed into that chat's Claude session, and drains queued messages from onSettled (moved from AGENT-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	covered
 SIDE-03	rule	session/manager.ts keeps the chat's process busy through a turn (the lease release marks it busy), calls processes.markIdle when a turn ends, is cancelled or fails to start, and calls processes.setBackgroundTasks from the turn's onBackgroundTasks (moved from SIDE-07 by the slice 2 step 1 audit; tests in session/manager.process-lifetime.test.ts).	docs/reports/audits/s2-step-1	covered
 SIDE-02	rule	buildHandlers has tests for the listSlashCommands and listMcpServers handlers (moved from SIDE-16 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
 AGENT-06	rule	Codex primary and secondary rate-limit windows (used percent, window length, reset time) come from the Codex app-server protocol and session (moved from SIDE-17 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing

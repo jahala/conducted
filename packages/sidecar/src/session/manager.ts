@@ -54,6 +54,10 @@
  *  - a plan answer the broker accepts with feedback is stored as a user_message with delivery
  *    plan_feedback in the running turn, so the chat keeps what the user asked for (CHAT-12,
  *    claude-runner 3.5); an approval, a denial with no feedback and a refused answer store nothing
+ *  - work the agent starts by itself (AGENT-15): every agent start gets the callbacks of its own
+ *    SelfStartedTurns, which shows the chat working, stores the work's messages under a turn of
+ *    its own and returns to idle; when it ends, the queued messages start (the same drain as after
+ *    a turn). A report while a turn of ours is open is dropped: that turn owns the chat
  * Test first: two sendMessage calls with the same messageId start one turn; the second answer
  * repeats the first deliveredAs.
  * Our design choice: queued messages live in memory only. The app owns the persistent follow-up
@@ -113,6 +117,7 @@ import type {
 	AgentSession,
 	Runner,
 	RunnerCapabilities,
+	StartOptions,
 	TurnOutcome,
 } from "../runners/runner.ts";
 import type { CapturedShellEnv, ShellEnvProvider } from "../shell-env/capture.ts";
@@ -126,6 +131,7 @@ import type { QueuedMessages } from "./queued-messages.ts";
 import { QueuedMessages as Queue } from "./queued-messages.ts";
 import type { RunNumber } from "./run-guard.ts";
 import { RunGuard } from "./run-guard.ts";
+import { SelfStartedTurns } from "./self-started-turns.ts";
 import { chooseDelivery, resolveSteerFailure, type SteerFailure } from "./steering.ts";
 import { Turn, type TurnDeps, type TurnRequest } from "./turn.ts";
 
@@ -1252,6 +1258,7 @@ export class DefaultSessionManager implements SessionManager {
 			...(resume === undefined ? {} : { resume }),
 			onConfigChanged: (next, reason) => this.applyAgentConfig(state, next, reason),
 			onGoalEvent: (event) => this.goals.onServerGoalEvent(state.sessionId, event),
+			selfStartedTurns: this.selfStartedTurns(state, config),
 		});
 		state.agent = agent;
 		state.agentConfig = config;
@@ -1259,6 +1266,43 @@ export class DefaultSessionManager implements SessionManager {
 		state.agentLaunchFingerprint = launchFingerprint(state.launch);
 		if (state.autoApproveEdits) agent.setAutoApproveEdits?.(true);
 		return agent;
+	}
+
+	/**
+	 * The host side of work this agent process starts by itself (AGENT-15). Its end drains the queue
+	 * the same way a turn's end does. A turn of ours that is open or starting owns the chat, so a report
+	 * that arrives meanwhile is dropped instead of starting a second run over it.
+	 */
+	private selfStartedTurns(
+		state: SessionState,
+		config: SessionConfig,
+	): NonNullable<StartOptions["selfStartedTurns"]> {
+		const turns = new SelfStartedTurns({
+			liveState: this.deps.liveState,
+			publisher: this.deps.publisher,
+			processes: this.deps.processes,
+			runGuard: state.runGuard,
+			clock: this.deps.clock,
+			ids: this.deps.ids,
+			logger: this.deps.logger,
+			processKey: processKey(config.agent, config.acpAgent, state.sessionId),
+			onSettled: (run) => this.turnSettled(state, run),
+		});
+		return {
+			onInProgressChanged: (inProgress, end) => {
+				if (inProgress && state.activeTurn !== null) return;
+				void turns.onInProgressChanged(state.sessionId, inProgress, end);
+			},
+			onMessage: (message) => {
+				if (state.activeTurn !== null) {
+					this.deps.logger.debug("Dropped a message the agent sent by itself during a turn", {
+						sessionId: state.sessionId,
+					});
+					return;
+				}
+				turns.onMessage(state.sessionId, message);
+			},
+		};
 	}
 
 	/** Stores a config the agent changed by itself and tells the app, so its stored config agrees. */

@@ -11,6 +11,8 @@
  * through `findAgentProgram` in launch-env.ts. The listing calls take the same choice and the
  * environment built from the app's launch (`ListingContext`), so a model list runs the program
  * and keys a chat would.
+ * AGENT-15 adds the host callbacks for work the agent starts by itself (`StartOptions.selfStartedTurns`),
+ * which the Claude runner reports.
  * Our design choices: messages arrive already translated into the neutral AgentMessage format,
  * and capabilities are declared up front instead of discovered by catching "not supported".
  */
@@ -26,6 +28,7 @@ import type {
 	WorkspaceContext,
 } from "@conducted/protocol";
 import type { AgentKind, AppError, Result, SessionId } from "@conducted/shared";
+import type { SelfStartedTurnCallbacks } from "./claude/self-started-turns.ts";
 import type { CodexGoalClient } from "./codex/goals.ts";
 
 /** What a runner can do. The session manager checks this before calling optional methods. */
@@ -96,6 +99,11 @@ export interface StartOptions {
 	onConfigChanged?: (config: SessionConfig, reason: AgentConfigChangeReason) => void;
 	/** Codex only: a goal changed by the agent or by a `/goal` message (AGENT-13). */
 	onGoalEvent?: (event: GoalEvent) => void;
+	/**
+	 * Claude only: work the agent starts by itself, outside runTurn, for example when a background task
+	 * finished and woke it (AGENT-15). The session manager passes them for every chat.
+	 */
+	selfStartedTurns?: SelfStartedTurnCallbacks;
 }
 
 /** One goal notification of the agent: which one it was, and its payload as the agent sent it. */

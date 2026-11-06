@@ -5,21 +5,22 @@
  * Behaviour: ui-map.md 3.2 (tab content by type; empty group shows New chat, Browser, Local terminal; error
  * cards "This chat tab failed to render").
  * Our design choice: each tab is mounted under its own identity and sits in its own boundary, so a
- * crash in one tab clears when the user opens another and no state carries from one chat or terminal
- * to the next. Long-lived DOM (terminals, browser previews) should move to a surface
- * layer outside tab content (ui-map.md 8); until then switching tabs remounts them.
+ * crash in one tab clears when the user opens another and no state carries from one chat to the next.
+ * A terminal tab renders only an empty slot: the app shell's surface layer draws the terminal over it and
+ * keeps it mounted while another tab is open (NAV-15, app/surface-registry.tsx, ui-map.md 8). The browser
+ * tab is still RUN-04's placeholder, so it has no surface yet.
  * Must handle: no tab open (EmptyTabGroup); a file tab without a path (treated as no tab, see active-tab.ts);
  * a terminal that has exited; a browser tab with an unreachable URL (BrowserTab's own state).
  * Test first: search { tab: "pr" } renders the PR tab area; {} renders the empty tab group.
  */
 import type { WorkspaceId } from "@conducted/shared";
+import { TerminalTabSlot } from "../../app/surface-registry.tsx";
 import { ErrorBoundary } from "../../ui/ErrorBoundary.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { BrowserTab } from "../browser-preview/BrowserTab.tsx";
 import { ChatPane } from "../chat/ChatPane.tsx";
 import { FileTab } from "../file-viewer/FileTab.tsx";
 import { PrTab } from "../pr/PrTab.tsx";
-import { TerminalView } from "../terminal/TerminalView.tsx";
 import { type ActiveTab, activeTabKey, resolveActiveTab } from "./active-tab.ts";
 import { CommentTab } from "./CommentTab.tsx";
 import { EmptyTabGroup } from "./EmptyTabGroup.tsx";
@@ -34,8 +35,9 @@ export interface TabContentProps {
 }
 
 /**
- * Each tab is mounted under its own identity, so switching from one chat or terminal to another
- * starts it fresh and nothing typed, scrolled or ended in the first one shows in the second.
+ * Each tab is mounted under its own identity, so switching from one chat to another starts it fresh and
+ * nothing typed or scrolled in the first one shows in the second. A terminal keeps its own view in the
+ * shell's surface layer, so its slot here is all that remounts.
  */
 export function TabContent({
 	workspaceId,
@@ -86,7 +88,7 @@ function TabBody({
 		case "terminal":
 			return (
 				<NotBuiltYet area="Terminal" resetKey={key}>
-					<TerminalView terminalId={tab.terminalId} workspaceId={workspaceId} />
+					<TerminalTabSlot terminalId={tab.terminalId} workspaceId={workspaceId} />
 				</NotBuiltYet>
 			);
 		case "file":
