@@ -68,6 +68,8 @@
  * lost (`sidecar/resume.ts`).
  * COMP-06 owns `restartAgent`: reset the sidecar's session and warm the agent again with resume.
  * AGENT-14 owns `compact`: warm the Codex agent, then ask the sidecar to compact its thread.
+ * WS-07 owns `applyLinkedPaths`: a workspace's new linked folders reach every open chat's config,
+ * ready for its next message.
  */
 import {
 	type AcpConfigOption,
@@ -1157,10 +1159,39 @@ export class SessionsService implements AgentMessenger {
 	 * first cannot land after the user's newer choice.
 	 */
 	async updateConfig(id: SessionId, config: SessionConfig): Promise<Result<void>> {
-		return this.#configWrites.run(id, () => this.#persistConfig(id, config));
+		return this.#configWrites.run(id, () => this.#persistConfig(id, config, true));
 	}
 
-	#persistConfig(id: SessionId, config: SessionConfig): Promise<Result<void>> {
+	/**
+	 * WS-07: gives every chat open in a workspace the workspace's new linked folders. The config
+	 * is stored now and travels with the chat's next message (D032), so no agent is restarted for
+	 * a folder it will only need at the next turn.
+	 */
+	async applyLinkedPaths(
+		workspaceId: WorkspaceId,
+		paths: readonly string[],
+	): Promise<Result<void>> {
+		for (const id of [...(this.store.getState().byWorkspace[workspaceId] ?? [])]) {
+			const current = this.store.getState().sessions[id];
+			if (current === undefined) continue;
+			const config: SessionConfig = {
+				...current.config,
+				additionalDirectories: [...paths],
+			};
+			if (sameConfig(current.config, config)) continue;
+			const written = await this.#configWrites.run(id, () =>
+				this.#persistConfig(id, config, false),
+			);
+			if (!written.ok) return written;
+		}
+		return ok(undefined);
+	}
+
+	#persistConfig(
+		id: SessionId,
+		config: SessionConfig,
+		notifySidecar: boolean,
+	): Promise<Result<void>> {
 		return (async () => {
 			const found = await this.#session(id);
 			if (!found.ok) return found;
@@ -1219,6 +1250,7 @@ export class SessionsService implements AgentMessenger {
 			}
 
 			this.#setConfig(id, config, at);
+			if (!notifySidecar) return ok(undefined);
 			const applied = await this.#deps.sidecar.request("updateConfig", {
 				sessionId: id,
 				config,
@@ -2003,7 +2035,7 @@ export class SessionsService implements AgentMessenger {
 				...session.config,
 				acpConfig: { ...(session.config.acpConfig ?? {}), [optionId]: value },
 			};
-			return this.#persistConfig(id, nextConfig);
+			return this.#persistConfig(id, nextConfig, true);
 		});
 	}
 
