@@ -536,3 +536,15 @@ Why: the user reads that line in the chat like any label.
 Context: the owner's cap of three agents at once covered the DeepSeek builders too, so with Opus fixers and builds holding two slots, a batch's eight features built one after another (53 minutes for s1-ui-1, about 7 minutes each). The builders do not use the Claude subscription, and their gates are about 15 seconds of type-check, lint and guards.
 Chosen by the owner: DeepSeek builders run outside the cap, in parallel as needed. The cap of three still holds for Claude agents (Opus and Sonnet). The lead runs at most two batch plans at once with three builders each, and still lands one batch at a time; Rust builds and full test suites stay one at a time.
 Why: the builders were the bottleneck, and they cost the owner's subscription nothing.
+
+## D078. PR-07's activity list gets review and status entries through the pull request model (2026-11-06)
+
+Context: PR-07's checklist asks for commits, reviews, comments and status changes in the PR activity list (ui-map 3.2). The finisher built commits and comments only, because reviews and merged or closed changes need new fields on the pull request model, which about 30 test fixtures build.
+Chosen: the fields are added to the pull request model as part of PR-07, and every fixture that builds a pull request is updated in the same change. The change serves one feature, so it is no contract change in D069's sense.
+Why: the checklist item is Conductor's behaviour, and the data the list needs has one home, the model.
+
+## D079. App updates use the Tauri updater plugin with our own signing key (2026-11-06)
+
+Context: PLAT-13's builder wrote a release-feed check, a download and minisign checking by hand in about 1,500 lines of Rust, and left replacing the app bundle to "the Tauri updater plugin when it is added", because no signing key or feed existed. An update could therefore be fetched and never applied. Conductor's updater is a release feed with minisign signatures (native-and-sidecar-map A9).
+Chosen: PLAT-13 uses `tauri-plugin-updater`, which checks, downloads, verifies and replaces the bundle. The hand-written download and verification code goes. The signing key pair was made on this Mac with `tauri signer generate`: the private key and its password are in the keychain (services `conducted-updater-key` and `conducted-updater-key-password`), and the public key is committed in the Tauri config. The feed is a `latest.json` on the public repository's GitHub releases, written by `pnpm release`.
+Why: the plugin is the maintained implementation of exactly this job, and a second copy of it cannot be kept correct.
