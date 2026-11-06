@@ -10,8 +10,11 @@
  * Our design choice: the centre has a minimum width so the chat stays usable. The window uses an overlay title
  * bar, so the top 40px of the sidebar is an empty drag strip under the floating window controls. The sidebar's
  * open state and width are kept in the settings table (`left_panel_visible`, `left_panel_width`), in pixels, so
- * a restart restores both. Workspace panel groups keep their own layout through layout-persistence.ts, and the
- * shell removes a workspace's saved layout when the workspace is deleted or archived.
+ * a restart restores both. The shell also mounts the zen-mode provider (zen-mode.ts): it registers the sidebar
+ * with that provider, writes the right panel's open state to `right_panel_visible`, and registers Cmd+B,
+ * Cmd+Alt+B, Cmd+J and Cmd+. against it on every route. Workspace panel groups keep their own layout through
+ * layout-persistence.ts, and the shell removes a workspace's saved layout when the workspace is deleted or
+ * archived.
  * The shell creates the surface layout registry and mounts its surface layer once, above the routes, so a
  * terminal tab's terminal stays alive across tab and route switches (NAV-15, surface-registry.tsx).
  * Must handle: the saved sidebar state is applied only after the settings have loaded (the shell shows an empty
@@ -40,7 +43,7 @@ import {
 	usePanelRef,
 } from "../ui/resizable.tsx";
 import { setCurrentWorkspace, toastError } from "../ui/Toast.tsx";
-import { isTextEntry } from "./command-dispatcher.ts";
+import { isTextEntry, useCommandHandler } from "./command-dispatcher.ts";
 import {
 	clearLayoutsOfClosedWorkspaces,
 	loadPanelLayout,
@@ -56,6 +59,7 @@ import {
 	SurfaceRegistryProvider,
 } from "./surface-registry.tsx";
 import { XcodeLicenseNotice } from "./xcode-license-notice.ts";
+import { useZenModeControls, useZenPanel, ZenModeProvider } from "./zen-mode.ts";
 
 /**
  * Draws the shell once the saved settings are loaded. The sidebar panel takes its open state and width when it
@@ -64,15 +68,28 @@ import { XcodeLicenseNotice } from "./xcode-license-notice.ts";
 export function AppShell() {
 	const { settings } = useServices().services;
 	const settingsLoaded = useStore(settings.store, (state) => state.loaded);
+	const rightVisible = useSetting<boolean>("right_panel_visible");
 	if (!settingsLoaded) {
 		return <div data-tauri-drag-region className="h-full bg-surface" />;
 	}
-	return <LoadedShell />;
+	return (
+		<ZenModeProvider
+			rightInitialOpen={rightVisible}
+			onRightOpenChange={(open) => {
+				void settings.set("right_panel_visible", open).then((saved) => {
+					if (!saved.ok) toastError("Couldn't save the right panel layout", saved.error);
+				});
+			}}
+		>
+			<LoadedShell />
+		</ZenModeProvider>
+	);
 }
 
 function LoadedShell() {
 	const sidebarRef = usePanelRef();
 	const { settings, workspace } = useServices().services;
+	const zen = useZenModeControls();
 	const savedVisible = useSetting<boolean>("left_panel_visible");
 	const [sidebarOpen, setSidebarOpen] = useState(savedVisible);
 	const [initialSidebarWidth] = useState(() => shellSidebarWidth(settings));
@@ -108,10 +125,19 @@ function LoadedShell() {
 		saveSidebar(panel.getSize());
 	};
 
-	const toggleSidebar = () => {
+	const sidebarPanelOpen = () => sidebarOpen;
+
+	const applySidebarOpen = (open: boolean) => {
 		const panel = sidebarRef.current;
-		if (!panel) return;
-		if (panel.isCollapsed()) {
+		if (panel === null) {
+			setSidebarOpen(open);
+			return;
+		}
+		if (open === !panel.isCollapsed()) {
+			setSidebarOpen(open);
+			return;
+		}
+		if (open) {
 			const width = shellSidebarWidth(settings);
 			panel.resize(`${width}px`);
 			saveSidebar({ inPixels: width });
@@ -119,6 +145,34 @@ function LoadedShell() {
 			panel.collapse();
 			saveSidebar({ inPixels: 0 });
 		}
+		setSidebarOpen(open);
+	};
+
+	useZenPanel("left", { isOpen: sidebarPanelOpen, setOpen: applySidebarOpen });
+
+	useCommandHandler("view.toggleLeftSidebar", "base", () => {
+		zen?.togglePanel("left");
+		return true;
+	});
+	useCommandHandler("view.toggleRightSidebar", "base", () => {
+		zen?.togglePanel("right");
+		return true;
+	});
+	useCommandHandler("view.toggleTerminalPanel", "base", () => {
+		zen?.togglePanel("terminal");
+		return true;
+	});
+	useCommandHandler("view.toggleZenMode", "base", () => {
+		zen?.toggleZen();
+		return true;
+	});
+
+	const toggleSidebar = () => {
+		if (zen !== null) {
+			zen.togglePanel("left");
+			return;
+		}
+		applySidebarOpen(!sidebarPanelOpen());
 	};
 
 	useEffect(() => {
