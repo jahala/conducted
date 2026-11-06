@@ -22,7 +22,6 @@
 		"apps/desktop/src/core/hooks/git.ts": 1,
 		"apps/desktop/src/core/registries/commands.ts": 1,
 		"apps/desktop/src/core/registries/settings.ts": 3,
-		"apps/desktop/src/core/services/composer.ts": 2,
 		"apps/desktop/src/core/services/pr-mapping.ts": 1,
 		"apps/desktop/src/core/services/settings.ts": 2,
 		"apps/desktop/src/core/services/workspace.ts": 1,

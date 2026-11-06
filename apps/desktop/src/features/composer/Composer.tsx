@@ -25,7 +25,8 @@
  * toggles of the toolbar, a command the agent lists is sent to it, and any other says it is not
  * available. A terminal-effect command opens a terminal that runs it and shows the terminal
  * command bar above the composer; the bar follows that terminal (closed, finished, failed) and
- * restarts the agent when the user clicks Done.
+ * restarts the agent when the user clicks Done. Attachments are added from the '+' menu, a drop or
+ * a paste by the COMP-07 hook, shown in AttachmentBar, and materialised when the message is sent.
  * Moved: 'Save edit' belongs to the queued-message editor (CHAT-04); the composer minimising while
  * a content tab is open belongs to the tab strip (NAV-10); the new-workspace form reusing this
  * editor belongs to workspace creation (WS-01). The archived bar (ArchivedComposerBar) is not
@@ -51,6 +52,7 @@ import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { toast, toastError } from "../../ui/Toast.tsx";
 import { ContextWheel } from "../chat/ContextWheel.tsx";
 import { AcpOptions } from "./AcpOptions.tsx";
+import { AttachmentBar } from "./AttachmentBar.tsx";
 import { ComposerEditor } from "./ComposerEditor.tsx";
 import { buildComposerExtensions } from "./composer-extensions.ts";
 import { ModeChips } from "./ModeChips.tsx";
@@ -67,6 +69,7 @@ import { PlusMenu } from "./PlusMenu.tsx";
 import { SendButton, type SendButtonState } from "./SendButton.tsx";
 import type { SendIntent, SendWith } from "./send-key.ts";
 import { TerminalCommandBar } from "./TerminalCommandBar.tsx";
+import { useAttachments } from "./use-attachments.ts";
 import { useDraftSync } from "./use-draft-sync.ts";
 
 export interface ComposerProps {
@@ -173,6 +176,12 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 	const [attachments, setAttachments] = useState<string[]>([]);
 	const [text, setText] = useState("");
 	const [busy, setBusy] = useState(false);
+	const attachmentsController = useAttachments({
+		sessionId,
+		editor,
+		attachmentPaths: attachments,
+		onPathsChange: setAttachments,
+	});
 	const live = useStore(services.sessions.store, (state) => state.liveStates[sessionId]);
 	const draftError = useStore(services.composer.store, (state) => state.errors[sessionId]);
 	const sendKey = useStore(
@@ -437,9 +446,10 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 			)}
 			<div className="flex items-center gap-1 px-2 pt-2">
 				<div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
-					<NotBuiltYet area="Attachments" variant="inline" resetKey={sessionId}>
-						<PlusMenu sessionId={sessionId} />
-					</NotBuiltYet>
+					<PlusMenu
+						sessionId={sessionId}
+						onAddAttachment={() => void attachmentsController.pick()}
+					/>
 					<NotBuiltYet area="Model" variant="inline" resetKey={sessionId}>
 						<ModelPicker sessionId={sessionId} />
 					</NotBuiltYet>
@@ -464,6 +474,12 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 					)}
 				</div>
 			</div>
+			<AttachmentBar
+				sessionId={sessionId}
+				attachmentPaths={attachments}
+				busy={attachmentsController.busy}
+				onRemove={(path) => void attachmentsController.remove(path)}
+			/>
 			<ComposerEditor
 				sessionId={sessionId}
 				disabled={busy}
