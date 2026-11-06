@@ -101,6 +101,15 @@ function ModalRegistration({ handler }: { handler: CommandHandlerFn }) {
 	return null;
 }
 
+function ConfirmingDialog({ handler }: { handler: CommandHandlerFn }) {
+	useCommandHandler("dialog.confirm", "modal", handler);
+	return (
+		<div role="dialog" aria-label="Start workspace">
+			<input aria-label="Branch name" />
+		</div>
+	);
+}
+
 function HandlerHarness({
 	registry,
 	modalOpen,
@@ -244,6 +253,67 @@ describe("NAV-14 useCommandDispatcher", () => {
 		});
 
 		expect(event.defaultPrevented).toBe(false);
+		expect(run).not.toHaveBeenCalled();
+	});
+
+	it("leaves Cmd+Enter alone in a dialog that has no confirm action", async () => {
+		const { container, wrapper } = buildHarness();
+		const run = vi.spyOn(container.services.commands, "run");
+		render(
+			<>
+				<Toaster />
+				<CommandDispatcher>
+					<div role="dialog" aria-label="Quick open">
+						<input aria-label="Search files" />
+					</div>
+				</CommandDispatcher>
+			</>,
+			{ wrapper },
+		);
+		const field = screen.getByLabelText("Search files");
+		field.focus();
+
+		const event = new KeyboardEvent("keydown", {
+			key: "Enter",
+			metaKey: true,
+			bubbles: true,
+			cancelable: true,
+		});
+		act(() => {
+			field.dispatchEvent(event);
+		});
+
+		expect(event.defaultPrevented).toBe(false);
+		expect(run).not.toHaveBeenCalled();
+		await act(async () => {});
+		expect(screen.queryByText(/confirm the open dialog/i)).toBeNull();
+	});
+
+	it("runs the open dialog's confirm handler on Cmd+Enter", () => {
+		const { container, wrapper } = buildHarness();
+		const run = vi.spyOn(container.services.commands, "run");
+		const confirm = vi.fn(() => true);
+		render(
+			<CommandDispatcher>
+				<ConfirmingDialog handler={confirm} />
+			</CommandDispatcher>,
+			{ wrapper },
+		);
+		const field = screen.getByLabelText("Branch name");
+		field.focus();
+
+		const event = new KeyboardEvent("keydown", {
+			key: "Enter",
+			metaKey: true,
+			bubbles: true,
+			cancelable: true,
+		});
+		act(() => {
+			field.dispatchEvent(event);
+		});
+
+		expect(confirm).toHaveBeenCalledTimes(1);
+		expect(event.defaultPrevented).toBe(true);
 		expect(run).not.toHaveBeenCalled();
 	});
 
