@@ -31,11 +31,14 @@
  *  - every app server it connects answers Codex's approval, question, permission and form requests
  *    through a CodexApprovalBridge (AGENT-08) that asks the running turn's callbacks; the bridge of
  *    a replaced or closed server is disposed, so its waiting requests are withdrawn
+ *  - a goal call uses the chat's thread, starting or resuming it when needed, and goal
+ *    notifications from the server are forwarded through onGoalEvent whether or not a turn runs
+ *    (AGENT-13)
  * Test first: with a fake client, runTurn sends thread/start then turn/start and resolves success
  * when turn/completed with status completed arrives.
  */
 import type { SessionConfig } from "@conducted/protocol";
-import type { AppError, Result, SessionId } from "@conducted/shared";
+import { type AppError, appError, err, ok, type Result, type SessionId } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
 import { createDeferred, type Deferred } from "../../util/deferred.ts";
 import { asAppError } from "../../util/errors.ts";
@@ -50,6 +53,7 @@ import type {
 } from "../runner.ts";
 import type { CodexAppServerClient } from "./app-server-client.ts";
 import { CodexApprovalBridge } from "./approval-bridge.ts";
+import { CODEX_GOAL_NOTIFICATIONS, type CodexGoalClient, CodexThreadGoalClient } from "./goals.ts";
 import {
 	CODEX_CLIENT_METHODS,
 	CODEX_SERVER_NOTIFICATIONS,
@@ -87,6 +91,8 @@ export interface CodexSessionDeps {
 	sleep(ms: number): Promise<void>;
 	/** Runs once when the session is disposed: the runner gives the app tools token back. */
 	onDispose?: () => void;
+	/** A goal change from a `/goal` steer or from the app server (AGENT-13). */
+	onGoalEvent?: (event: unknown) => void;
 }
 
 interface PendingTurn {
@@ -182,7 +188,7 @@ export class CodexSession implements AgentSession {
 		const client = connected.value;
 		if (this.stopGeneration !== generation) return { kind: "cancelled" };
 
-		const thread = await this.ensureThread(client, callbacks, generation);
+		const thread = await this.ensureThread(client, callbacks.onAgentSessionId, generation);
 		if (!thread.ok) return thread.outcome;
 		if (this.stopGeneration !== generation) return { kind: "cancelled" };
 
@@ -261,6 +267,29 @@ export class CodexSession implements AgentSession {
 			throw new Error(friendlyCodexError(steered.error.message));
 		}
 		return { consumed: Promise.resolve() };
+	}
+
+	/** The chat's thread and its goal calls, starting or resuming the thread when needed. */
+	async goalClient(
+		onAgentSessionId: (agentSessionId: string) => void = () => {},
+	): Promise<Result<{ threadId: string; goals: CodexGoalClient }, AppError>> {
+		const connected = await this.ensureClient();
+		if (!connected.ok) return connected;
+		const client = connected.value;
+		const thread = await this.ensureThread(client, onAgentSessionId, this.stopGeneration);
+		if (!thread.ok) {
+			const outcome = thread.outcome;
+			return err(
+				appError(
+					"codex_goal_thread_failed",
+					outcome.kind === "error" ? outcome.message : "The Codex thread did not start.",
+				),
+			);
+		}
+		return ok({
+			threadId: thread.threadId,
+			goals: new CodexThreadGoalClient({ rpc: client, logger: this.deps.logger }),
+		});
 	}
 
 	async cancel(): Promise<void> {
@@ -396,6 +425,12 @@ export class CodexSession implements AgentSession {
 		client.onNotification(CODEX_SERVER_NOTIFICATIONS.error, (params) => {
 			this.translateNotification(client, CODEX_SERVER_NOTIFICATIONS.error, params);
 		});
+		client.onNotification(CODEX_GOAL_NOTIFICATIONS.updated, (params) => {
+			if (this.client === client) this.deps.onGoalEvent?.(params);
+		});
+		client.onNotification(CODEX_GOAL_NOTIFICATIONS.cleared, (params) => {
+			if (this.client === client) this.deps.onGoalEvent?.(params);
+		});
 		client.onNotification(CODEX_SERVER_NOTIFICATIONS.itemStarted, (params) => {
 			this.translateItem(client, "started", params);
 		});
@@ -451,7 +486,7 @@ export class CodexSession implements AgentSession {
 
 	private async ensureThread(
 		client: CodexAppServerClient,
-		callbacks: TurnCallbacks,
+		onAgentSessionId: (agentSessionId: string) => void,
 		generation: number,
 	): Promise<ThreadResult> {
 		if (this.threadId !== null && this.threadClient === client) {
@@ -469,7 +504,7 @@ export class CodexSession implements AgentSession {
 				const threadId = readThreadId(resumed.value) ?? resumeId;
 				this.threadId = threadId;
 				this.threadClient = client;
-				callbacks.onAgentSessionId(threadId);
+				onAgentSessionId(threadId);
 				return { ok: true, threadId };
 			}
 			if (isCodexAuthError(resumed.error)) {
@@ -519,7 +554,7 @@ export class CodexSession implements AgentSession {
 		}
 		this.threadId = threadId;
 		this.threadClient = client;
-		callbacks.onAgentSessionId(threadId);
+		onAgentSessionId(threadId);
 		return { ok: true, threadId };
 	}
 

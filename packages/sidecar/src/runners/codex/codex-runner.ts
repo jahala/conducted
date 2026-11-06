@@ -151,6 +151,7 @@ export class CodexRunner implements Runner {
 				random: () => this.deps.random(),
 				sleep: (ms) => this.deps.sleep(ms),
 				onDispose: () => appTools.release(),
+				...(options.onGoalEvent === undefined ? {} : { onGoalEvent: options.onGoalEvent }),
 			},
 			options,
 		);

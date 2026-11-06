@@ -33,6 +33,11 @@ function deps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
 			answerInteraction: async () => ({ accepted: true, superseded: false }),
 			listAcpConfigOptions: async () => ({ options: [] }),
 			setAcpConfigOption: async () => ({ options: [] }),
+			getGoal: async () => ({ goal: null }),
+			setGoal: async (params) => ({
+				goal: { objective: params.objective, status: "active" as const },
+			}),
+			changeGoal: async () => ({ goal: null }),
 			onAppAttached: () => {},
 			shutdown: async () => {},
 		},

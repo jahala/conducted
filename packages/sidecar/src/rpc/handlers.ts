@@ -94,9 +94,9 @@ export function buildHandlers(deps: HandlerDeps): {
 				return ok({ shell: captured.value.shell, path: captured.value.path });
 			},
 			runUtilityPrompt: (params) => deps.utilityPrompt.run(params),
-			getGoal: async () => notImplemented("AGENT-13"),
-			setGoal: async () => notImplemented("AGENT-13"),
-			changeGoal: async () => notImplemented("AGENT-13"),
+			getGoal: (params) => deps.sessions.getGoal(params),
+			setGoal: (params) => deps.sessions.setGoal(params),
+			changeGoal: (params) => deps.sessions.changeGoal(params),
 			compact: async () => notImplemented("AGENT-14"),
 			listAcpConfigOptions: (params) => deps.sessions.listAcpConfigOptions(params),
 			setAcpConfigOption: (params) => deps.sessions.setAcpConfigOption(params),
