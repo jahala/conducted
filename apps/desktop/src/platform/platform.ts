@@ -158,6 +158,11 @@ export interface PtySpawn {
 	/** Run this program instead of an interactive login shell (setup and run scripts). */
 	command?: { program: string; args: readonly string[] };
 	env?: Readonly<Record<string, string>>;
+	/**
+	 * Most bytes of output kept for the terminal's saved history: the Advanced setting "terminal
+	 * scrollback limit" (PLAT-08). Rust never keeps more than 20 MiB for one terminal.
+	 */
+	scrollbackLimitBytes?: number;
 }
 
 export interface PtyHandle {
@@ -169,7 +174,11 @@ export interface PtyHandle {
 	onData(listener: (chunk: Uint8Array) => void): Unsubscribe;
 	/** An Err means the shell did not hear it, so output may stay paused. */
 	ack(bytes: number): Promise<Result<void>>;
-	onExit(listener: (exitCode: number | null) => void): Unsubscribe;
+	/**
+	 * The process ended. `historyError` says why its saved history could not be written, and is
+	 * null when it was written or there was nothing to save (PLAT-08).
+	 */
+	onExit(listener: (exitCode: number | null, historyError: AppError | null) => void): Unsubscribe;
 	/** Plain text of the visible screen plus scrollback, for the GetTerminalOutput tool. */
 	screenText(maxLines: number): Promise<string>;
 	/** The full screen state, so a tab or a restored terminal redraws on the right screen. */

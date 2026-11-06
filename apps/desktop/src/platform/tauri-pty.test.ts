@@ -124,6 +124,29 @@ describe("PLAT-07 Tauri terminals", () => {
 		expect(h.active(EVENTS.ptyExit)).toBe(0);
 	});
 
+	it("PLAT-08 hands the exit event's history error to early and late listeners", async () => {
+		const h = harness({ onInvoke: () => ({ id: "pty-1", pid: 10 }) });
+		const spawned = await createTauriPty(h.bindings).spawn(SPAWN);
+		if (!spawned.ok) throw new Error("spawn failed");
+		const heard: (string | null)[] = [];
+		spawned.value.onExit((_code, historyError) => heard.push(historyError?.code ?? null));
+		h.emit(EVENTS.ptyExit, {
+			id: "pty-1",
+			exitCode: 0,
+			historyError: { code: "history_write_failed", message: "The disk is full." },
+		});
+		spawned.value.onExit((_code, historyError) => heard.push(historyError?.message ?? null));
+		await Promise.resolve();
+		expect(heard).toEqual(["history_write_failed", "The disk is full."]);
+	});
+
+	it("PLAT-08 passes the scrollback limit to the Rust shell", async () => {
+		const h = harness({ onInvoke: () => ({ id: "pty-1", pid: 10 }) });
+		await createTauriPty(h.bindings).spawn({ ...SPAWN, scrollbackLimitBytes: 2_000_000 });
+		const request = h.calls.find((call) => call.command === COMMANDS.ptySpawn)?.args?.request;
+		expect(request).toMatchObject({ scrollbackLimitBytes: 2_000_000 });
+	});
+
 	it("returns an Err, and spawns nothing, when the exit listener cannot be set up", async () => {
 		const h = harness({
 			listen: () => Promise.reject(new Error("no event bus")),

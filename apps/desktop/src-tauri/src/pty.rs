@@ -48,8 +48,9 @@
 //!   screen state is not built yet.
 //! - Saving history is PLAT-08. The reader collects output into `HistoryRecorder`; the exit
 //!   watcher saves it to the history folder, and `save_live_histories` saves every running
-//!   terminal when the app quits. A failed save is written to the app log. The UI cannot show it
-//!   yet: `PtyHandle.onExit` in platform.ts carries only the exit code.
+//!   terminal when the app quits. A failed save is written to the app log and sent on
+//!   `pty://exit` as `historyError`, which `PtyHandle.onExit` hands to the UI. The request's
+//!   `scrollbackLimitBytes` caps what the recorder keeps.
 //! - `pty-ready` is dropped by design: `pty_spawn` returns once the process exists.
 //!
 //! Our design choice: ids are made in Rust and are unique across restarts (start time plus a
@@ -126,6 +127,10 @@ pub struct PtySpawnRequest {
     /// default to `xterm-256color` and `truecolor` unless set here.
     #[serde(default)]
     pub env: Option<HashMap<String, String>>,
+    /// Most bytes of output kept for the saved history (PLAT-08), capped by
+    /// `terminal_history::MAX_ENTRY_BYTES`.
+    #[serde(default)]
+    pub scrollback_limit_bytes: Option<u64>,
 }
 
 /// Returned by `pty_spawn`.
@@ -148,6 +153,13 @@ pub struct PtyChunk {
     pub byte_length: usize,
 }
 
+/// Why a terminal's history could not be saved, as `{ code, message }`.
+#[derive(Debug, Clone, Serialize)]
+pub struct PtyHistoryError {
+    pub code: String,
+    pub message: String,
+}
+
 /// Payload of `pty://exit`.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -157,6 +169,25 @@ pub struct PtyExit {
     pub exit_code: Option<i32>,
     /// Signal number when a signal ended the process.
     pub signal: Option<i32>,
+    /// Why the terminal's history could not be saved, when it could not (PLAT-08).
+    pub history_error: Option<PtyHistoryError>,
+}
+
+/// The exit event of a terminal, with the outcome of its history save.
+fn exit_event(
+    id: String,
+    (exit_code, signal): (Option<i32>, Option<i32>),
+    saved: CommandResult<()>,
+) -> PtyExit {
+    PtyExit {
+        id,
+        exit_code,
+        signal,
+        history_error: saved.err().map(|error| PtyHistoryError {
+            code: error.code().to_string(),
+            message: error.to_string(),
+        }),
+    }
 }
 
 /// The full screen state of a terminal, so a tab can redraw it.
@@ -559,7 +590,10 @@ pub fn spawn_terminal(
         killer: Mutex::new(killer),
         mirror: Arc::new(Mutex::new(ScreenMirror::new(request.cols, request.rows))),
         flow: Arc::new(FlowControl::new()),
-        history: Arc::new(Mutex::new(HistoryRecorder::new(id))),
+        history: Arc::new(Mutex::new(HistoryRecorder::new(
+            id,
+            request.scrollback_limit_bytes,
+        ))),
     });
 
     Ok(SpawnedTerminal {
@@ -614,10 +648,10 @@ pub fn start_io_threads(
         // A background process can hold the PTY open after the child ends. Wait for the reader
         // only briefly, then report the exit regardless.
         let _ = reader_done_rx.recv_timeout(Duration::from_millis(DRAIN_AFTER_EXIT_MS));
-        let (exit_code, signal) = exit_details(status);
+        let details = exit_details(status);
 
         let saved = history_dir(&app).and_then(|dir| lock(&session.history).save(&dir));
-        if let Err(error) = saved {
+        if let Err(error) = &saved {
             let message = format!(
                 "could not save the history of terminal {}: {error}",
                 session.id
@@ -628,14 +662,7 @@ pub fn start_io_threads(
         let state = app.state::<PtyState>();
         lock(&state.sessions).remove(&session.id);
 
-        let _ = app.emit(
-            EVENT_EXIT,
-            PtyExit {
-                id: session.id.clone(),
-                exit_code,
-                signal,
-            },
-        );
+        let _ = app.emit(EVENT_EXIT, exit_event(session.id.clone(), details, saved));
     });
 
     Ok(())
@@ -914,6 +941,36 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn plat_08_a_spawn_request_carries_its_scrollback_limit() {
+        let request: PtySpawnRequest = serde_json::from_str(
+            r#"{"cwd":"/tmp","cols":80,"rows":24,"scrollbackLimitBytes":1048576}"#,
+        )
+        .expect("the request parses");
+        assert_eq!(request.scrollback_limit_bytes, Some(1_048_576));
+    }
+
+    #[test]
+    fn plat_08_a_failed_history_save_reaches_the_exit_event() {
+        let failed = exit_event(
+            "pty-1".to_string(),
+            (Some(0), None),
+            Err(CommandError::Failed {
+                code: "history_write_failed",
+                message: "The disk is full.".to_string(),
+            }),
+        );
+        let saved = exit_event("pty-2".to_string(), (None, Some(15)), Ok(()));
+
+        let failed = serde_json::to_value(&failed).expect("the event serialises");
+        let saved = serde_json::to_value(&saved).expect("the event serialises");
+        assert_eq!(failed["historyError"]["code"], "history_write_failed");
+        assert_eq!(failed["historyError"]["message"], "The disk is full.");
+        assert_eq!(failed["exitCode"], 0);
+        assert!(saved["historyError"].is_null());
+        assert_eq!(saved["signal"], 15);
+    }
+
     fn temp_cwd() -> String {
         std::env::temp_dir().to_string_lossy().into_owned()
     }
@@ -1089,6 +1146,7 @@ mod tests {
             rows: 24,
             command: None,
             env: None,
+            scrollback_limit_bytes: None,
         };
         let command = build_command(&request, "/bin/zsh", &captured_env()).unwrap();
         assert_eq!(command.get_argv()[0], OsString::from("/bin/zsh"));
@@ -1136,6 +1194,7 @@ mod tests {
                 ("TERM".to_string(), "screen".to_string()),
                 ("FOO".to_string(), "bar".to_string()),
             ])),
+            scrollback_limit_bytes: None,
         };
         let command = build_command(&request, "/bin/zsh", &captured_env()).unwrap();
         assert_eq!(command.get_argv()[0], OsString::from("/bin/sh"));
@@ -1168,6 +1227,7 @@ mod tests {
                 "CONDUCTED_PATH_PREFIX".to_string(),
                 "/data/bin-overrides/abc".to_string(),
             )])),
+            scrollback_limit_bytes: None,
         };
         let command = build_command(&request, "/bin/zsh", &captured_env()).unwrap();
 
@@ -1194,6 +1254,7 @@ mod tests {
                 "CONDUCTED_PATH_PREFIX".to_string(),
                 "/data/bin-overrides/abc".to_string(),
             )])),
+            scrollback_limit_bytes: None,
         };
         let command = build_command(&request, "/bin/zsh", &captured_env()).unwrap();
 
@@ -1216,6 +1277,7 @@ mod tests {
                 args: vec!["-c".to_string(), "printf hi".to_string()],
             }),
             env: None,
+            scrollback_limit_bytes: None,
         };
         let command = build_command(&request, "/bin/zsh", &empty_env()).unwrap();
         assert_eq!(
@@ -1253,6 +1315,7 @@ mod tests {
                 args: vec!["-c".to_string(), "printf hello".to_string()],
             }),
             env: None,
+            scrollback_limit_bytes: None,
         };
         let mut spawned =
             spawn_terminal(&request, "/bin/zsh", &empty_env(), "spawn-test".to_string()).unwrap();
@@ -1275,6 +1338,7 @@ mod tests {
                 args: Vec::new(),
             }),
             env: None,
+            scrollback_limit_bytes: None,
         };
         let mut spawned =
             spawn_terminal(&request, "/bin/zsh", &empty_env(), "io-test".to_string()).unwrap();
@@ -1327,6 +1391,7 @@ mod tests {
                 args: vec!["-c".to_string(), "sleep 30".to_string()],
             }),
             env: None,
+            scrollback_limit_bytes: None,
         };
         let mut spawned =
             spawn_terminal(&request, "/bin/zsh", &empty_env(), "kill-test".to_string()).unwrap();

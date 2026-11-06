@@ -12,7 +12,8 @@
 //!   each file mode 0600.
 //! - A terminal that never received user input is not saved: a finished setup script has its log
 //!   file already. The recorder tracks `has_received_input`.
-//! - Each file holds at most `MAX_ENTRY_BYTES`, the newest bytes. The cut moves forward to just
+//! - Each file holds at most the terminal's scrollback limit, and never more than
+//!   `MAX_ENTRY_BYTES`, the newest bytes. The cut moves forward to just
 //!   after the first newline in the kept bytes, so it does not start inside an escape sequence or
 //!   a character. Without a newline it moves to the first escape character, which starts a
 //!   sequence. With neither it moves to the next UTF-8 character start; then the first kept bytes
@@ -35,9 +36,11 @@
 //!
 //! Our design choice: one record holds at most 20 MiB and the whole folder at most 50 MiB, so the
 //! 60 MiB test below evicts the oldest terminal.
-//! Not built yet: the Advanced setting "terminal scrollback limit" does not reach this file, so
-//! it does not cap saved history. That needs a scrollback limit in `PtySpawn` (platform.ts),
-//! which is a shared contract.
+//! - The Advanced setting "terminal scrollback limit" arrives as `PtySpawn.scrollbackLimitBytes`
+//!   and caps one terminal's record; the record never holds more than `MAX_ENTRY_BYTES` whatever
+//!   the setting says (services-map.md 5A.4.8, ui-map.md 6 Advanced).
+//! - A save that fails when a terminal ends is written to the app log and reaches the UI on
+//!   `pty://exit` as `historyError` (pty.rs).
 //!
 //! Our design choice: output is appended as it arrives and written when the child exits or the
 //! app quits, so there is no debounce timer and no UI persist call.
@@ -75,24 +78,31 @@ pub struct HistoryRecorder {
     terminal_id: String,
     bytes: Vec<u8>,
     has_received_input: bool,
+    /// Most bytes kept: the terminal's scrollback limit, never above `MAX_ENTRY_BYTES`.
+    limit: usize,
 }
 
 impl HistoryRecorder {
-    /// An empty recorder for the given terminal id.
-    pub fn new(terminal_id: String) -> Self {
+    /// An empty recorder for the given terminal id. `limit_bytes` is the scrollback limit the
+    /// terminal was started with; without one, or above it, `MAX_ENTRY_BYTES` holds.
+    pub fn new(terminal_id: String, limit_bytes: Option<u64>) -> Self {
+        let limit = limit_bytes
+            .map(|limit| usize::try_from(limit).unwrap_or(usize::MAX))
+            .map_or(MAX_ENTRY_BYTES, |limit| limit.min(MAX_ENTRY_BYTES));
         Self {
             terminal_id,
             bytes: Vec::new(),
             has_received_input: false,
+            limit,
         }
     }
 
-    /// Appends output, dropping the oldest bytes past `MAX_ENTRY_BYTES`.
+    /// Appends output, dropping the oldest bytes past the limit.
     pub fn push_output(&mut self, bytes: &[u8]) {
         self.bytes.extend_from_slice(bytes);
-        if self.bytes.len() > MAX_ENTRY_BYTES {
+        if self.bytes.len() > self.limit {
             let keep_from = {
-                let kept = newest_bytes(&self.bytes, MAX_ENTRY_BYTES);
+                let kept = newest_bytes(&self.bytes, self.limit);
                 self.bytes.len() - kept.len()
             };
             self.bytes.drain(..keep_from);
@@ -111,7 +121,7 @@ impl HistoryRecorder {
         }
         ensure_private_dir(dir)?;
         let path = entry_path(dir, &self.terminal_id)?;
-        let bytes = newest_bytes(&self.bytes, MAX_ENTRY_BYTES);
+        let bytes = newest_bytes(&self.bytes, self.limit);
         write_atomic(&path, bytes)?;
         evict(dir, now_ms()?)?;
         Ok(())
@@ -473,7 +483,7 @@ mod tests {
     }
 
     fn recorder(terminal_id: &str, bytes: &[u8]) -> HistoryRecorder {
-        let mut recorder = HistoryRecorder::new(terminal_id.to_string());
+        let mut recorder = HistoryRecorder::new(terminal_id.to_string(), None);
         recorder.mark_input();
         recorder.push_output(bytes);
         recorder
@@ -488,7 +498,7 @@ mod tests {
 
         for index in 0..3 {
             let id = format!("terminal-{index}");
-            let mut recorder = HistoryRecorder::new(id.clone());
+            let mut recorder = HistoryRecorder::new(id.clone(), None);
             recorder.mark_input();
             for _ in 0..20 {
                 recorder.push_output(&block);
@@ -512,7 +522,7 @@ mod tests {
     #[test]
     fn plat_08_a_terminal_without_input_is_not_saved() {
         let folder = TempDir::new("quiet");
-        let mut quiet = HistoryRecorder::new("pty-quiet".to_string());
+        let mut quiet = HistoryRecorder::new("pty-quiet".to_string(), None);
         quiet.push_output(b"setup output\n");
         quiet.save(folder.path()).expect("save history");
         assert!(!folder.entry("pty-quiet").exists());
@@ -593,8 +603,40 @@ mod tests {
     }
 
     #[test]
+    fn plat_08_the_scrollback_limit_caps_the_saved_history() {
+        let folder = TempDir::new("limit");
+        let mut recorder = HistoryRecorder::new("pty-limited".to_string(), Some(1024 * 1024));
+        recorder.mark_input();
+        let line = b"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcde\n";
+        for _ in 0..(3 * 1024 * 1024 / line.len()) {
+            recorder.push_output(line);
+        }
+
+        recorder.save(folder.path()).expect("save history");
+
+        let saved = fs::metadata(folder.entry("pty-limited"))
+            .expect("the entry")
+            .len();
+        assert!(saved <= 1024 * 1024, "the entry holds {saved} bytes");
+        assert!(
+            saved > 1024 * 1024 - 2 * line.len() as u64,
+            "the entry holds {saved} bytes"
+        );
+    }
+
+    #[test]
+    fn plat_08_a_limit_above_the_record_cap_keeps_the_record_cap() {
+        let mut recorder = HistoryRecorder::new("pty-huge".to_string(), Some(1024 * 1024 * 1024));
+        let chunk = vec![b'a'; 1024 * 1024];
+        for _ in 0..21 {
+            recorder.push_output(&chunk);
+        }
+        assert!(recorder.bytes.len() <= MAX_ENTRY_BYTES);
+    }
+
+    #[test]
     fn plat_08_push_output_keeps_at_most_one_entry_limit() {
-        let mut recorder = HistoryRecorder::new("pty-big".to_string());
+        let mut recorder = HistoryRecorder::new("pty-big".to_string(), None);
         let chunk = vec![b'a'; 1024 * 1024];
         for _ in 0..21 {
             recorder.push_output(&chunk);

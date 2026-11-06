@@ -121,6 +121,7 @@ function serviceWith(input: {
 			},
 		},
 		maxPerWorkspace: () => 5,
+		scrollbackLimitBytes: () => 10_000_000,
 		now: () => 2000,
 	} as unknown as TerminalsServiceDeps;
 	return new TerminalsService(deps);
@@ -339,7 +340,7 @@ describe("RUN-07 outputFor falls back for an ended run", () => {
 					fakeHandle({
 						screenText: async () => "kept in memory",
 						onExit: (listener) => {
-							exit = listener;
+							exit = (code) => listener(code, null);
 							return () => {};
 						},
 					}),

@@ -1162,6 +1162,7 @@ mod startup_tests {
                 args: vec!["-c".to_string(), "sleep 30".to_string()],
             }),
             env: None,
+            scrollback_limit_bytes: None,
         };
         let mut spawned = pty::spawn_terminal(
             &request,
@@ -1216,6 +1217,7 @@ mod startup_tests {
                 args: vec!["-c".to_string(), "sleep 30".to_string()],
             }),
             env: None,
+            scrollback_limit_bytes: None,
         };
         let spawned = pty::spawn_terminal(&request, "/bin/sh", &HashMap::new(), id.to_string())
             .expect("a terminal starts");

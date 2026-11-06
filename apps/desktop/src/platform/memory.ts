@@ -52,6 +52,7 @@ import type {
 	Programs,
 	Pty,
 	PtyHandle,
+	PtySpawn,
 	RunningCommand,
 	ScreenSnapshot,
 	Shell,
@@ -97,6 +98,10 @@ export interface MemoryPlatformControls {
 	queuePtyExit(code: number | null): void;
 	/** Makes every terminal's `ack` fail with this message; null makes them succeed again. */
 	failPtyAcks(message: string | null): void;
+	/** Makes saving a terminal's history fail with this message when it ends; null undoes it. */
+	failPtyHistory(message: string | null): void;
+	/** Every terminal start request, in order. */
+	readonly ptySpawns: readonly PtySpawn[];
 	/** The app's processes `app.resourceUsage` reports, each with its working folder. */
 	setProcesses(processes: readonly MemoryProcess[]): void;
 	/** Changes what `system.info` reports, for a test about a Mac other than the default. */
@@ -374,6 +379,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	let clipboardText: string | null = null;
 	let clipboardFilePaths: string[] = [];
 	let ptyAckFailure: string | null = null;
+	let ptyHistoryFailure: string | null = null;
+	const ptySpawns: PtySpawn[] = [];
 	let processes: MemoryProcess[] = [];
 	let holdNextStart = false;
 	let systemInfo: SystemInfo = { osVersion: "15.0", machineArch: "arm64", buildArch: "arm64" };
@@ -708,27 +715,28 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		rows: number;
 		output: string;
 		dataListeners: Set<ValueListener<Uint8Array>>;
-		exitListeners: Set<ValueListener<number | null>>;
+		exitListeners: Set<ValueListener<{ code: number | null; historyError: AppError | null }>>;
 		exited: boolean;
 		exitCode: number | null;
+		historyError: AppError | null;
 	}
 
 	const finishPty = (state: PtyState, code: number | null): void => {
 		if (state.exited) return;
 		state.exited = true;
 		state.exitCode = code;
-		ptyHistory.set(state.id, new TextEncoder().encode(state.output));
-		for (const listener of [...state.exitListeners]) listener(code);
+		if (ptyHistoryFailure === null) {
+			ptyHistory.set(state.id, new TextEncoder().encode(state.output));
+		} else {
+			state.historyError = appError("history_write_failed", ptyHistoryFailure);
+		}
+		for (const listener of [...state.exitListeners]) {
+			listener({ code, historyError: state.historyError });
+		}
 		state.exitListeners.clear();
 	};
 
-	const spawnPty = async (spawnOptions: {
-		cwd: string;
-		cols: number;
-		rows: number;
-		command?: { program: string; args: readonly string[] };
-		env?: Readonly<Record<string, string>>;
-	}): Promise<Result<PtyHandle>> => {
+	const spawnPty = async (spawnOptions: PtySpawn): Promise<Result<PtyHandle>> => {
 		const state: PtyState = {
 			id: ids.uuid(),
 			cols: spawnOptions.cols,
@@ -738,7 +746,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			exitListeners: new Set(),
 			exited: false,
 			exitCode: null,
+			historyError: null,
 		};
+		ptySpawns.push(spawnOptions);
 		const handle: PtyHandle = {
 			id: state.id,
 			write: async (data) => {
@@ -759,10 +769,10 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 				ptyAckFailure === null ? ok(undefined) : err(appError("pty_ack_failed", ptyAckFailure)),
 			onExit: (listener) => {
 				if (state.exited) {
-					queueMicrotask(() => listener(state.exitCode));
+					queueMicrotask(() => listener(state.exitCode, state.historyError));
 					return () => {};
 				}
-				return listen(state.exitListeners, listener);
+				return listen(state.exitListeners, (exit) => listener(exit.code, exit.historyError));
 			},
 			screenText: async (maxLines) => {
 				const lines = stripAnsi(state.output).split("\n");
@@ -1122,6 +1132,12 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		},
 		failPtyAcks: (message) => {
 			ptyAckFailure = message;
+		},
+		failPtyHistory: (message) => {
+			ptyHistoryFailure = message;
+		},
+		get ptySpawns() {
+			return ptySpawns;
 		},
 		setProcesses: (next) => {
 			processes = [...next];

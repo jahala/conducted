@@ -791,24 +791,37 @@ function decodeBase64(value: string): Uint8Array {
 	return bytes;
 }
 
+/** Payload of `pty://exit`, as pty.rs sends it. */
+interface PtyExitPayload {
+	id: string;
+	exitCode: number | null;
+	historyError?: { code: string; message: string } | null;
+}
+
 /** `pty_spawn { request, onOutput: Channel }`, `pty_write { id, data }`, `pty_resize`, `pty_kill`, `pty_ack { id, bytes }`, `pty_screen_text { id, maxLines }`, `pty_screen_snapshot { id }`, `pty_load_history { terminalId }`, event `pty://exit`. */
 export function createTauriPty(bindings: TauriBindings): Pty {
 	return {
 		spawn: async (options: PtySpawn) => {
 			const dataListeners = new Set<(chunk: Uint8Array) => void>();
-			const exitListeners = new Set<(exitCode: number | null) => void>();
+			const exitListeners = new Set<
+				(exitCode: number | null, historyError: AppError | null) => void
+			>();
 			const early: Uint8Array[] = [];
 			let resolved = false;
-			let exitCode: number | null | undefined;
+			let ended: { code: number | null; historyError: AppError | null } | undefined;
 			let handleId: string | null = null;
 			// Exits seen before the spawn answer named the id. A short-lived command can end first.
-			const earlyExits = new Map<string, number | null>();
+			const earlyExits = new Map<string, PtyExitPayload>();
 			let stopExitListener: (() => void) | null = null;
 
-			const finishExit = (code: number | null): void => {
-				if (exitCode !== undefined) return;
-				exitCode = code;
-				for (const listener of [...exitListeners]) listener(code);
+			const finishExit = (payload: PtyExitPayload): void => {
+				if (ended !== undefined) return;
+				const historyError =
+					payload.historyError === null || payload.historyError === undefined
+						? null
+						: appError(payload.historyError.code, payload.historyError.message);
+				ended = { code: payload.exitCode, historyError };
+				for (const listener of [...exitListeners]) listener(payload.exitCode, historyError);
 				exitListeners.clear();
 				stopExitListener?.();
 				stopExitListener = null;
@@ -833,16 +846,13 @@ export function createTauriPty(bindings: TauriBindings): Pty {
 			// Listen before the spawn, so an exit that arrives before the answer is not lost.
 			let stopListening: UnlistenFn;
 			try {
-				stopListening = await bindings.listen<{ id: string; exitCode: number | null }>(
-					EVENTS.ptyExit,
-					(payload) => {
-						if (handleId === null) {
-							earlyExits.set(payload.id, payload.exitCode);
-						} else if (payload.id === handleId) {
-							finishExit(payload.exitCode);
-						}
-					},
-				);
+				stopListening = await bindings.listen<PtyExitPayload>(EVENTS.ptyExit, (payload) => {
+					if (handleId === null) {
+						earlyExits.set(payload.id, payload);
+					} else if (payload.id === handleId) {
+						finishExit(payload);
+					}
+				});
 			} catch (error) {
 				return err(toAppError(error));
 			}
@@ -862,10 +872,9 @@ export function createTauriPty(bindings: TauriBindings): Pty {
 			const spawnedId = spawned.value.id;
 			handleId = spawnedId;
 			resolved = true;
-			const exitedEarly = earlyExits.has(spawnedId);
-			const earlyCode = earlyExits.get(spawnedId) ?? null;
+			const earlyExit = earlyExits.get(spawnedId);
 			earlyExits.clear();
-			if (exitedEarly) finishExit(earlyCode);
+			if (earlyExit !== undefined) finishExit(earlyExit);
 
 			const handle: PtyHandle = {
 				id: spawnedId,
@@ -899,9 +908,9 @@ export function createTauriPty(bindings: TauriBindings): Pty {
 				},
 				ack: (bytes) => invokeResult<void>(bindings, COMMANDS.ptyAck, { id: spawnedId, bytes }),
 				onExit: (listener) => {
-					if (exitCode !== undefined) {
-						const code = exitCode;
-						queueMicrotask(() => listener(code));
+					if (ended !== undefined) {
+						const { code, historyError } = ended;
+						queueMicrotask(() => listener(code, historyError));
 						return () => {};
 					}
 					exitListeners.add(listener);

@@ -135,6 +135,7 @@ function serviceWith(input: {
 			},
 		},
 		maxPerWorkspace: () => input.max ?? 5,
+		scrollbackLimitBytes: () => 10_000_000,
 		now: () => 2000,
 	} as unknown as TerminalsServiceDeps;
 	return new TerminalsService(deps);
@@ -182,6 +183,7 @@ describe("RUN-06 terminals service", () => {
 				workspaces: { get: async () => ok({ ...workspace, state: "initializing" }) },
 			},
 			maxPerWorkspace: () => 5,
+			scrollbackLimitBytes: () => 10_000_000,
 			now: () => 2000,
 		} as unknown as TerminalsServiceDeps;
 		const result = await new TerminalsService(deps).create(workspace.id);
@@ -320,7 +322,7 @@ describe("RUN-06 terminals service hardening", () => {
 				ok(
 					fakeHandle([], {
 						onExit: (listener) => {
-							exit = listener;
+							exit = (code) => listener(code, null);
 							return () => {};
 						},
 					}),
@@ -341,7 +343,7 @@ describe("RUN-06 terminals service hardening", () => {
 				ok(
 					fakeHandle([], {
 						onExit: (listener) => {
-							exit = listener;
+							exit = (code) => listener(code, null);
 							return () => {};
 						},
 					}),

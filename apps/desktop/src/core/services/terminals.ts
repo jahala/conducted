@@ -6,8 +6,10 @@
  * kinds of terminals), 5A.1.2 and 5A.1.3 (setup and run scripts as terminals; the agent tool
  * bridge and its error texts), 5A.1.2 (the environment variables), ui-map.md 3.7.
  * Must handle: a terminal whose folder is gone (clear error, no spawn); output flow control (ack
- * after rendering, owned by the view; an ack the shell did not hear is the terminal's error, since
- * its output may stay paused); a script terminal ends with an exit code that is stored;
+ * after rendering, owned by the view; an ack the shell did not hear is kept as the terminal's
+ * error, since its output may stay paused); a history the shell could not save when the terminal
+ * ended is kept as the terminal's error (PLAT-08); every terminal starts with the scrollback limit
+ * from settings; a script terminal ends with an exit code that is stored;
  * the app quits while terminals run (kill all, mark them ended with no exit code); at most the
  * configured number of terminals per workspace; `getTerminalOutput` source "auto" picks the
  * Spotlight terminal, then the run terminal, then the newest interactive one, and says which it
@@ -241,6 +243,8 @@ export interface TerminalsServiceDeps {
 	repos: Pick<Repositories, "terminals" | "workspaces" | "repos">;
 	/** Maximum interactive terminals per workspace, from settings. */
 	maxPerWorkspace: () => number;
+	/** Most bytes of saved history per terminal, from the Advanced setting (PLAT-08). */
+	scrollbackLimitBytes: () => number;
 	now: () => number;
 	/** Runs `callback` after `ms`; returns a function that cancels it. Injected so tests control time. */
 	setTimer?: (callback: () => void, ms: number) => () => void;
@@ -435,7 +439,7 @@ export class TerminalsService {
 			ack: (bytes) => {
 				const handle = record.handle;
 				if (handle === null) return;
-				// A lost acknowledgement can leave the terminal's output paused, so the view hears it.
+				// A lost acknowledgement can leave the terminal's output paused; keep why.
 				void handle.ack(bytes).then((acked) => {
 					if (!acked.ok) this.#setError(`t:${terminal.id}`, acked.error);
 				});
@@ -484,6 +488,7 @@ export class TerminalsService {
 			cwd: terminal.cwd,
 			cols: DEFAULT_COLS,
 			rows: DEFAULT_ROWS,
+			scrollbackLimitBytes: this.#deps.scrollbackLimitBytes(),
 			...(options?.command === undefined ? {} : { command: options.command }),
 			...(options?.env === undefined ? {} : { env: options.env }),
 		});
@@ -497,9 +502,11 @@ export class TerminalsService {
 		record.rendered = null;
 		record.screenTicket += 1;
 		record.unsubscribeData = spawned.value.onData((chunk) => this.#emit(record, chunk));
-		record.unsubscribeExit = spawned.value.onExit((exitCode) =>
-			this.#finish(terminal.id, exitCode),
-		);
+		record.unsubscribeExit = spawned.value.onExit((exitCode, historyError) => {
+			// The shell could not save the scrollback, so a reopened terminal will not show it.
+			if (historyError !== null) this.#setError(`t:${terminal.id}`, historyError);
+			this.#finish(terminal.id, exitCode);
+		});
 		this.#setConnection(terminal.id, { state: "ready", data: record.connection });
 		return ok(undefined);
 	}

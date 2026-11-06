@@ -544,6 +544,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		platform,
 		repos: repositories,
 		maxPerWorkspace: () => terminalLimit(setting<boolean>("experimental_tab_freak_mode")),
+		scrollbackLimitBytes: () => setting<number>("terminal_scrollback_limit_bytes"),
 		now: () => clock.now(),
 		pathPrefixFor: () => system.pathPrefix(),
 	});

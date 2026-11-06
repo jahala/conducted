@@ -35,7 +35,7 @@ Dialogs, clipboard text and images, opening URLs, notifications permission and t
 | `fileSearch.fuzzyMatch`                          | `search_fuzzy`                                                               | file_search.rs      |                                        |
 | `fileSearch.grep`                                | `search_grep`                                                                | file_search.rs      |                                        |
 | `fileSearch.listArtifacts`                       | `search_list_artifacts`                                                      | file_search.rs      |                                        |
-| `pty.spawn`                                      | `pty_spawn` (takes a Channel for output)                                     | pty.rs              | `pty://exit`                           |
+| `pty.spawn`                                      | `pty_spawn` (takes a Channel for output)                                     | pty.rs              | `pty://exit` (with `historyError`)     |
 | `PtyHandle.write`                                | `pty_write`                                                                  | pty.rs              |                                        |
 | `PtyHandle.resize`                               | `pty_resize`                                                                 | pty.rs              |                                        |
 | `PtyHandle.kill`                                 | `pty_kill`                                                                   | pty.rs              |                                        |

@@ -72,7 +72,7 @@ function harness() {
 		onData: () => () => {},
 		ack: async () => ok(undefined),
 		onExit: (listener) => {
-			exitListener = listener;
+			exitListener = (code) => listener(code, null);
 			return () => {};
 		},
 		screenText: async () => "",
@@ -102,6 +102,7 @@ function harness() {
 			},
 		},
 		maxPerWorkspace: () => 5,
+		scrollbackLimitBytes: () => 10_000_000,
 		now: () => 2000,
 		setTimer: (callback: () => void) => {
 			timer = callback;
