@@ -15,9 +15,8 @@
  * Test first: adding an existing configuration returns the existing favourite.
  */
 import type { SessionConfig } from "@conducted/protocol";
-import { appError, err, ok, type Result } from "@conducted/shared";
+import { appError, createKeyedQueue, err, ok, type Result } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
-import { createKeyedQueue } from "../async/serial-queue.ts";
 import type { Repositories } from "../db/repositories.ts";
 
 export interface FavoriteModel {

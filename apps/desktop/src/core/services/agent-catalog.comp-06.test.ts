@@ -25,6 +25,7 @@ function serviceWith(
 ): AgentCatalogService {
 	return new AgentCatalogService({
 		sidecar: { request },
+		launchFor: async () => ok({ env: {}, providerKeys: {} }),
 		workspacePathOf,
 		repoRootPathOf: async () => ok("/repo"),
 	});
@@ -45,6 +46,7 @@ describe("COMP-06 slash commands are loaded", () => {
 			acpAgent: undefined,
 			workspacePath: "/workspace",
 			repoRootPath: "/repo",
+			launch: { env: {}, providerKeys: {} },
 		});
 		expect(service.store.getState().slashCommands["chat-1"]).toEqual({
 			state: "ready",
@@ -139,6 +141,7 @@ describe("COMP-06 slash commands through the app container", () => {
 				acpAgent: undefined,
 				workspacePath: workspace.path,
 				repoRootPath: repo.rootPath,
+				launch: { env: {}, providerKeys: {} },
 			});
 			expect(
 				test.container.services.agentCatalog.store.getState().slashCommands[created.value.id],

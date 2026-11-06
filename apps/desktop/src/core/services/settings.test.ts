@@ -4,6 +4,7 @@ import type { FileSystem, Platform } from "../../platform/platform.ts";
 import type { Setting, SettingsRepository } from "../db/settings.ts";
 import type { GitCommand } from "../git/commands.ts";
 import type { GitRunner } from "../git/runner.ts";
+import type { Repo } from "../model.ts";
 import { getSettingDef } from "../registries/settings.ts";
 import {
 	actionIdsEqual,
@@ -81,6 +82,12 @@ const fakeFs = (home = "/home/user"): FakeFs => {
 		async trash() {
 			return ok(undefined);
 		},
+		async registerRoot() {
+			return ok(undefined);
+		},
+		assetUrl(path: string) {
+			return `asset://localhost/${encodeURIComponent(path)}`;
+		},
 		paths: { home, appData: "/app", temp: "/tmp", resources: "/resources" },
 	};
 	fake.fs = fs;
@@ -136,8 +143,31 @@ interface Harness {
 	git: { calls: GitCommand[]; answer: (command: GitCommand) => Result<string> | null };
 }
 
+/** Projects by id, answering the two reads the settings service makes of the repository table. */
+function fakeRepoList(
+	roots: Readonly<Record<string, string>>,
+): NonNullable<SettingsServiceDeps["repos"]["repos"]> {
+	const repoOf = (id: string, rootPath: string) =>
+		({ id, rootPath, name: id, hidden: false }) as unknown as Repo;
+	return {
+		async list() {
+			return ok(Object.entries(roots).map(([id, rootPath]) => repoOf(id, rootPath)));
+		},
+		async get(id) {
+			const rootPath = roots[id];
+			return ok(rootPath === undefined ? null : repoOf(id, rootPath));
+		},
+	};
+}
+
 const harness = (
-	options: { home?: string; withWindow?: boolean; withGit?: boolean } = {},
+	options: {
+		home?: string;
+		withWindow?: boolean;
+		withGit?: boolean;
+		/** Projects the service can look up by id, with their folders. */
+		repoRoots?: Readonly<Record<string, string>>;
+	} = {},
 ): Harness => {
 	const fs = fakeFs(options.home);
 	const settings = fakeSettings();
@@ -193,6 +223,7 @@ const harness = (
 		repos: {
 			settings,
 			envVars: {} as SettingsServiceDeps["repos"]["envVars"],
+			...(options.repoRoots === undefined ? {} : { repos: fakeRepoList(options.repoRoots) }),
 		},
 		toml: tomlCodec,
 		...(options.withGit === true ? { git: gitRunner } : {}),
@@ -732,16 +763,25 @@ describe("DATA-05 writing settings", () => {
 	});
 
 	it("resets a repo value so the shared repository settings win again", async () => {
-		const test = harness();
+		const test = harness({ repoRoots: { r1: "/repo" } });
 		test.fs.files.set("/repo/.conducted/settings.toml", "[git]\ndelete_branch_on_archive = true\n");
 		expect((await test.service.setForRepo("/repo", "delete_branch_on_archive", false)).ok).toBe(
 			true,
 		);
 		const before = await test.service.getForRepo("delete_branch_on_archive", "/repo", null);
 		expect(before.ok && before.value).toMatchObject({ value: false, source: "repo-local" });
-		expect((await test.service.resetForRepo("/repo", "delete_branch_on_archive")).ok).toBe(true);
+		expect((await test.service.resetForRepo("r1" as RepoId, "delete_branch_on_archive")).ok).toBe(
+			true,
+		);
 		const after = await test.service.getForRepo("delete_branch_on_archive", "/repo", null);
 		expect(after.ok && after.value).toMatchObject({ value: true, source: "repo-shared" });
+	});
+
+	it("refuses a reset for a project that no longer exists", async () => {
+		const test = harness({ repoRoots: {} });
+		const reset = await test.service.resetForRepo("gone" as RepoId, "delete_branch_on_archive");
+		expect(reset.ok).toBe(false);
+		if (!reset.ok) expect(reset.error.code).toBe("repo_unknown");
 	});
 
 	it("keeps the local file and warns when the git exclude write fails", async () => {

@@ -19,6 +19,7 @@ import {
 	RULES,
 	runQuickChecks,
 	selectFeatures,
+	setStatus,
 } from "./drive.ts";
 import type { Batch } from "./plan-batches.ts";
 
@@ -108,6 +109,17 @@ test("mark-done flips only the named rows and refuses a row that is not a stub",
 	expect(next).toContain("| CHAT-04 | Cancel | D/core | r | 1 | stub |  |");
 	expect(() => markDone(next, ["CHAT-03"])).toThrow("CHAT-03 has no stub row");
 	expect(() => markDone(BACKLOG, ["CHAT-.*"])).toThrow("is not a feature id");
+});
+
+test("set-status changes only the named row's status and refuses an unknown id or status", () => {
+	const table =
+		"| ID    | P   | Status  | Needs |\n| PR-08 | 3   | planned | PR-03 |\n| PR-09 | 3   | stub    |       |\n";
+	const stubbed = setStatus(table, "PR-08", "stub");
+	expect(stubbed).toContain("| PR-08 | 3   | stub | PR-03 |");
+	expect(stubbed).toContain("| PR-09 | 3   | stub    |       |");
+	expect(setStatus(stubbed, "PR-09", "planned")).toContain("| PR-09 | 3   | planned    |       |");
+	expect(() => setStatus(table, "PR-07", "done")).toThrow("PR-07 has no backlog row");
+	expect(() => setStatus(table, "PR-08", "finished")).toThrow("not a backlog status");
 });
 
 test("the balance call fails on a missing key, a refusal and a missing USD entry", async () => {

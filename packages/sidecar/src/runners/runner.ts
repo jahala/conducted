@@ -8,7 +8,11 @@
  * AGENT-17 adds two ACP-only optional methods for a chat's config options beyond the model.
  * AGENT-13 adds a Codex-only optional goal accessor and a goal-change callback.
  * SIDE-21 adds the program the user chose (`StartOptions.executablePath`), which each runner starts
- * through `findAgentProgram` in launch-env.ts.
+ * through `findAgentProgram` in launch-env.ts. The listing calls take the same choice and the
+ * environment built from the app's launch (`ListingContext`), so a model list runs the program
+ * and keys a chat would.
+ * AGENT-15 adds the host callbacks for work the agent starts by itself (`StartOptions.selfStartedTurns`),
+ * which the Claude runner reports.
  * Our design choices: messages arrive already translated into the neutral AgentMessage format,
  * and capabilities are declared up front instead of discovered by catching "not supported".
  */
@@ -24,6 +28,7 @@ import type {
 	WorkspaceContext,
 } from "@conducted/protocol";
 import type { AgentKind, AppError, Result, SessionId } from "@conducted/shared";
+import type { SelfStartedTurnCallbacks } from "./claude/self-started-turns.ts";
 import type { CodexGoalClient } from "./codex/goals.ts";
 
 /** What a runner can do. The session manager checks this before calling optional methods. */
@@ -94,6 +99,11 @@ export interface StartOptions {
 	onConfigChanged?: (config: SessionConfig, reason: AgentConfigChangeReason) => void;
 	/** Codex only: a goal changed by the agent or by a `/goal` message (AGENT-13). */
 	onGoalEvent?: (event: GoalEvent) => void;
+	/**
+	 * Claude only: work the agent starts by itself, outside runTurn, for example when a background task
+	 * finished and woke it (AGENT-15). The session manager passes them for every chat.
+	 */
+	selfStartedTurns?: SelfStartedTurnCallbacks;
 }
 
 /** One goal notification of the agent: which one it was, and its payload as the agent sent it. */
@@ -171,6 +181,17 @@ export interface RunnerSlashCommand {
 	kind?: "command" | "skill";
 }
 
+/**
+ * How a listing call (models, slash commands, MCP servers) starts the agent program: the captured
+ * login-shell environment with the launch's variables and keys added, and the program the user
+ * chose. Built by `listingContext` in launch-env.ts.
+ */
+export interface ListingContext {
+	env: Readonly<Record<string, string>>;
+	/** Missing: the managed copy, then the login-shell PATH copy (`findAgentProgram`). */
+	executablePath?: string;
+}
+
 /** The factory for one agent kind. */
 export interface Runner {
 	readonly agent: AgentKind;
@@ -181,13 +202,13 @@ export interface Runner {
 	 */
 	detect(env: Readonly<Record<string, string>>): Promise<{ path: string; version?: string } | null>;
 	start(options: StartOptions): Promise<AgentSession>;
-	listModels(): Promise<ModelInfo[]>;
-	listSlashCommands(workspacePath: string): Promise<RunnerSlashCommand[]>;
+	listModels(context: ListingContext): Promise<ModelInfo[]>;
+	listSlashCommands(workspacePath: string, context: ListingContext): Promise<RunnerSlashCommand[]>;
 	/**
 	 * The agent's MCP servers and their status. Only runners whose capabilities.mcpServers is
 	 * true need it; the models/slash-and-mcp.ts lister calls it when it is present.
 	 */
-	listMcpServers?(workspacePath: string): Promise<McpServerView[]>;
+	listMcpServers?(workspacePath: string, context: ListingContext): Promise<McpServerView[]>;
 }
 
 /** One MCP server's status: the protocol's own listMcpServers server shape. */

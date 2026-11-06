@@ -15,7 +15,9 @@
  * Messages of such work are translated and handed to `onMessage`, so the host stores them. Work
  * that starts before its first state report starts on its first translated message instead.
  * Our design choice: `onInProgressChanged` is a separate callback object, not a new field of
- * `TurnCallbacks`, because it is called outside `runTurn`, when no turn callbacks exist.
+ * `TurnCallbacks`, because it is called outside `runTurn`, when no turn callbacks exist. The host
+ * passes it as `StartOptions.selfStartedTurns`, and `ClaudeSession` feeds this tracker every SDK
+ * message its turn tracker does not hold back.
  * Test first: a scripted stream that reports running, then idle, with no turn open gives
  * `onInProgressChanged(true)` then `onInProgressChanged(false, {outcome:"success"})`.
  */

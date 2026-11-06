@@ -1,9 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import type { SessionEvent, SessionEventEnvelope } from "@conducted/protocol";
 import type { AppError, EventId, Result, SessionId, TurnId } from "@conducted/shared";
-import { appError, err, ok } from "@conducted/shared";
+import { appError, createKeyedQueue, err, ok } from "@conducted/shared";
 import { createLogger, type LogRecord } from "../logging/logger.ts";
-import { KeyedSerialQueue } from "../session/serial-queue.ts";
 import { FakeApp } from "../test-support/fake-app.ts";
 import { MemoryStorage } from "../test-support/memory-storage.ts";
 import { FileEventOutbox } from "./event-outbox.ts";
@@ -34,7 +33,7 @@ async function harness() {
 	const storage = new MemoryStorage();
 	const outbox = new FileEventOutbox({
 		storage,
-		queue: new KeyedSerialQueue(),
+		queue: createKeyedQueue(),
 		clock: { now: () => 1_000 },
 		logger: createLogger({
 			sink: () => {},

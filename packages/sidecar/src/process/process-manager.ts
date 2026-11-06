@@ -11,7 +11,7 @@
  *  - claimActive sets retention "active"; ensureWarm sets "warm" but never downgrades an active one
  *  - release() on a lease: the process stays; only markIdle starts the idle clock
  *  - markIdle stamps lastIdleAt; the session manager calls it when a chat has no turn running.
- *    markBusy has no caller yet: AGENT-15's self-started turns will mark busy when they begin
+ *    markBusy is called when the agent starts work by itself (AGENT-15, session/self-started-turns.ts)
  *  - holds(key, agent): whether an agent the session manager remembers is still this key's
  *    process, so a chat never reuses an agent the idle stop or the warm cap ended
  *  - race: markIdle then markBusy before the sweep runs: the sweep must see busy (idle
@@ -25,9 +25,9 @@
  */
 
 import type { Clock } from "@conducted/shared";
+import { messageOf } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
 import type { AgentSession } from "../runners/runner.ts";
-import { messageOf } from "../util/errors.ts";
 import {
 	type ProcessEntryView,
 	type Retention,

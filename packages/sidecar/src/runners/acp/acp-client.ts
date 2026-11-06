@@ -52,9 +52,16 @@ import {
 	type SessionNotification,
 	type StopReason,
 } from "@agentclientprotocol/sdk";
-import { type AppError, appError, err, ok, type Result } from "@conducted/shared";
+import {
+	type AppError,
+	appError,
+	err,
+	isMissingFile,
+	messageOf,
+	ok,
+	type Result,
+} from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
-import { isMissingFile, messageOf } from "../../util/errors.ts";
 import type { AcpAdapter } from "./adapters/adapter.ts";
 import { ACP_AGENT_METHODS, ACP_CLIENT_METHODS } from "./methods.ts";
 

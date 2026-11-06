@@ -11,7 +11,7 @@
  * back as an error Result.
  * Test first: parseJsonColumn on the text "{" returns an error with code db.invalid_json.
  */
-import { type AppError, appError, err, ok, type Result } from "@conducted/shared";
+import { type AppError, appError, err, messageOf, ok, type Result } from "@conducted/shared";
 import { type ZodType, z } from "zod";
 import type { Database } from "../../platform/platform.ts";
 
@@ -67,16 +67,6 @@ export function collectResults<T, E = AppError>(results: readonly Result<T, E>[]
 
 export const toFlag = (value: boolean): 0 | 1 => (value ? 1 : 0);
 export const fromFlag = (value: number): boolean => value !== 0;
-
-const messageOf = (cause: unknown): string => {
-	if (typeof cause === "string") return cause;
-	if (cause instanceof Error) return cause.message;
-	if (cause !== null && typeof cause === "object" && "message" in cause) {
-		const message = (cause as { message: unknown }).message;
-		if (typeof message === "string") return message;
-	}
-	return "";
-};
 
 /** Maps a thrown database error to the stable code services and screens depend on. */
 export function databaseError(cause: unknown, what: string): AppError {

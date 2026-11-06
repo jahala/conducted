@@ -31,6 +31,7 @@ function session(changes: Partial<Session> = {}): Session {
 			appTools: { diffComments: false, progressUpdates: false, setTargetBranch: false },
 		},
 		agentSessionId: null,
+		forkResumeNativeMessageId: null,
 		unreadCount: 0,
 		contextUsedTokens: null,
 		contextWindowTokens: null,

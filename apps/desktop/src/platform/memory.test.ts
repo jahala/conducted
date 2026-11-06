@@ -32,11 +32,14 @@ runPlatformContract(
 			appData: `/memory/${caseNumber}/app-data`,
 			temp: `/memory/${caseNumber}/temp`,
 			resources: `/memory/${caseNumber}/resources`,
+			enforceFileScope: true,
 		});
 		return {
 			platform: memory.platform,
 			controls: memory.controls,
-			root: `/memory/${caseNumber}/root`,
+			// The default workspaces folder, so the cases write inside the default file scope.
+			root: `/memory/${caseNumber}/home/conducted`,
+			outside: `/memory/${caseNumber}/outside`,
 			cleanup: async () => {
 				try {
 					expect(memory.controls.dispose()).toBe(0);

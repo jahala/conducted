@@ -12,6 +12,7 @@ import path from "node:path";
 import type { SessionConfig } from "@conducted/protocol";
 import {
 	appError,
+	createKeyedQueue,
 	cryptoIds,
 	err,
 	ok,
@@ -21,7 +22,6 @@ import {
 } from "@conducted/shared";
 import { createLogger, type LogRecord } from "../../logging/logger.ts";
 import { composeSidecar, type SidecarPorts } from "../../modes/sidecar-mode.ts";
-import { KeyedSerialQueue } from "../../session/serial-queue.ts";
 import { FakeCursorRun, FakeCursorSdk } from "../../test-support/cursor-fakes.ts";
 import { FakeApp } from "../../test-support/fake-app.ts";
 import { MemoryStorage } from "../../test-support/memory-storage.ts";
@@ -105,7 +105,7 @@ function runner(
 			sdk === null
 				? { ok: false, error: { code: "cursor_sdk_missing", message: "No SDK." } }
 				: ok(sdk),
-		envLock: new EnvLock({ queue: new KeyedSerialQueue(), target }),
+		envLock: new EnvLock({ queue: createKeyedQueue(), target }),
 		storeRoot: "/app-data/cursor-sdk-store",
 		appToolsServer: async () => ({
 			server: { command: "/bin/sidecar", args: ["app-tools-mcp"], env: {} },

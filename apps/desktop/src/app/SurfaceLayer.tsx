@@ -5,9 +5,10 @@
  * Behaviour: ui-map.md 8 ("Surface/anchor system places long-lived DOM (terminals, browser webviews) over
  * layout anchors so they survive tab switches"), 1.1.
  * Our design choice: the placements (a rectangle per surface id) and the focus request are passed in,
- * because the layout registry is the caller's store. The layer draws what it is given and measures
- * nothing; the anchor is the part that measures, and it reports at most once per animation frame. A tab
- * that closes has its surface removed from the list, which unmounts that surface's content.
+ * because the layout registry is the caller's store: the app shell's, in surface-registry.tsx. The layer
+ * draws what it is given and measures nothing; the anchor is the part that measures, and it reports at
+ * most once per animation frame. A tab that closes has its surface removed from the list, which unmounts
+ * that surface's content.
  * Must handle: a tab switch (the surface stays mounted, hidden, with its scrollback and page state);
  * a layout that moves (split drag, sidebar resize, window resize, zen mode) so the surface follows when
  * the anchor resizes, the window resizes or the page scrolls; an anchor that is not on screen (the
@@ -53,7 +54,7 @@ const FOCUSABLE =
 	"textarea, input, select, [contenteditable='true'], [tabindex]:not([tabindex='-1'])";
 
 /** A slot is a real box on screen. A missing, null or empty box is not shown. */
-function usableRect(rect: SurfaceRect | null | undefined): rect is SurfaceRect {
+export function usableRect(rect: SurfaceRect | null | undefined): rect is SurfaceRect {
 	return rect !== null && rect !== undefined && rect.width > 0 && rect.height > 0;
 }
 

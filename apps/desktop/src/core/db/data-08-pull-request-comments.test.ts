@@ -54,6 +54,7 @@ describe("DATA-08 a review comment on the pull request itself", () => {
 				threadId: null,
 				replyToId: null,
 				suggestion: null,
+				suggestionBaseCode: null,
 			}),
 		);
 		expect(comment.filePath).toBeNull();

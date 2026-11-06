@@ -62,11 +62,18 @@ import type {
 	InteractionAnswer,
 	SessionConfig,
 } from "@conducted/protocol";
-import { type AppError, appError, err, ok, type Result, type SessionId } from "@conducted/shared";
+import {
+	type AppError,
+	appError,
+	err,
+	messageOf,
+	ok,
+	type Result,
+	type SessionId,
+} from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
 import { AsyncQueue } from "../../util/async-queue.ts";
 import { createDeferred } from "../../util/deferred.ts";
-import { messageOf } from "../../util/errors.ts";
 import { sameStrings } from "../../util/string-set.ts";
 import { SteerNotSupportedError } from "../errors.ts";
 import type {

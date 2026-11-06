@@ -17,8 +17,7 @@
  * `createAgentPlatform({ localStore, eventNotifier, workspaceRef })`, whose options it does not give
  * in full. Check this against the SDK's type definitions when it is added (cursor-sdk.ts).
  */
-import { type AppError, appError, err, ok, type Result } from "@conducted/shared";
-import { messageOf } from "../../util/errors.ts";
+import { type AppError, appError, err, messageOf, ok, type Result } from "@conducted/shared";
 import type { CursorSdk, LoadCursorSdk } from "./cursor-sdk.ts";
 
 export const CURSOR_SDK_PACKAGE = "@cursor/sdk";

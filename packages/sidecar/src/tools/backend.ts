@@ -19,7 +19,7 @@
 
 import type { SidecarToAppRequest } from "@conducted/protocol";
 import type { AppError, Result, SessionId } from "@conducted/shared";
-import { appError, err, ok } from "@conducted/shared";
+import { appError, asAppError, err, messageOf, ok } from "@conducted/shared";
 import type { Logger } from "../logging/logger.ts";
 import type {
 	SidecarToApp,
@@ -27,7 +27,6 @@ import type {
 	SidecarToAppRequestResult,
 } from "../rpc/types.ts";
 import type { InteractionBroker } from "../session/interactions.ts";
-import { asAppError, messageOf } from "../util/errors.ts";
 import type { DiffCommentInput, DiffCommentView, ProgressUpdate, Question } from "./types.ts";
 
 export interface AppToolBackend {

@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { createKeyedQueue } from "@conducted/shared";
 import { createLogger } from "../logging/logger.ts";
-import { KeyedSerialQueue } from "../session/serial-queue.ts";
 import { FileEventOutbox } from "./event-outbox.ts";
 import { createOutboxStorage } from "./node-storage.ts";
 import { fileNameFor } from "./outbox-file.ts";
@@ -98,7 +98,7 @@ describe("SIDE-06 node outbox storage", () => {
 		});
 		const outbox = new FileEventOutbox({
 			storage,
-			queue: new KeyedSerialQueue(),
+			queue: createKeyedQueue(),
 			clock: { now: () => 1 },
 			logger: createLogger({
 				sink: () => {},

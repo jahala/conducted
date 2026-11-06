@@ -5,7 +5,7 @@
  * original value afterwards.
  */
 import { describe, expect, test } from "bun:test";
-import { KeyedSerialQueue } from "../../session/serial-queue.ts";
+import { createKeyedQueue } from "@conducted/shared";
 import { createDeferred } from "../../util/deferred.ts";
 import { EnvLock } from "./env-lock.ts";
 
@@ -15,7 +15,7 @@ describe("AGENT-09 Cursor environment lock", () => {
 			KEEP: "original",
 			CURSOR_API_KEY: "from-the-mac",
 		};
-		const lock = new EnvLock({ queue: new KeyedSerialQueue(), target });
+		const lock = new EnvLock({ queue: createKeyedQueue(), target });
 		const firstStarted = createDeferred<void>();
 		const releaseFirst = createDeferred<void>();
 		const order: string[] = [];
@@ -53,7 +53,7 @@ describe("AGENT-09 Cursor environment lock", () => {
 
 	test("a function that throws still puts every variable back", async () => {
 		const target: Record<string, string | undefined> = { PRESENT: "before" };
-		const lock = new EnvLock({ queue: new KeyedSerialQueue(), target });
+		const lock = new EnvLock({ queue: createKeyedQueue(), target });
 
 		await expect(
 			lock.withEnv({ PRESENT: "during", ABSENT: "added" }, async () => {

@@ -14,7 +14,7 @@ Status: scaffold. Most bodies are placeholders that throw a named error. The pla
   - `packages/sidecar`: runs the agents.
 - **Shared contracts:**
   - `packages/protocol`: every message between the UI and the sidecar.
-  - `packages/shared`: ids, `Result`, `notImplemented`, `Clock`.
+  - `packages/shared`: ids, `Result`, `notImplemented`, `Clock`, the error helpers, the keyed serial queue.
   - `apps/desktop/src/platform/platform.ts`: the one door to Rust.
   - `apps/desktop/src/core/model.ts` and `api.ts`: domain types and the screen-to-service API.
     Every package depends on these, so change them deliberately.

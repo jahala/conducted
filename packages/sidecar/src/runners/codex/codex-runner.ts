@@ -15,6 +15,8 @@
  *  - start() runs the program the chat's launch names (SIDE-21, `findAgentProgram`): the user's
  *    path, else the copy on the login-shell PATH; a user path that cannot run is an error that
  *    names it
+ *  - the listing calls run the program and environment of their `ListingContext` (the app's
+ *    launch), by the same rule as start()
  *  - listSlashCommands(): from `skills/list`; names are shown with the leading slash by the UI,
  *    each entry is a skill, and its scope (user, repo, system) and plugin id give its source
  *  - listMcpServers(): pages `mcpServerStatus/list`; its connection state, tool names, scope and
@@ -32,6 +34,7 @@ import type { RunnerCommonDeps } from "../deps.ts";
 import { findAgentProgram } from "../launch-env.ts";
 import type {
 	AgentSession,
+	ListingContext,
 	McpServerView,
 	Runner,
 	RunnerCapabilities,
@@ -87,21 +90,13 @@ export class CodexRunner implements Runner {
 		contextUsage: true,
 	};
 
-	private lastEnv: Readonly<Record<string, string>> = {};
-	private detectedPath: string | null = null;
-
 	constructor(protected readonly deps: CodexRunnerDeps) {}
 
 	async detect(
 		env: Readonly<Record<string, string>>,
 	): Promise<{ path: string; version: string } | null> {
-		this.lastEnv = env;
 		const path = await this.deps.findExecutable("codex", env);
-		if (path === null) {
-			this.detectedPath = null;
-			return null;
-		}
-		this.detectedPath = path;
+		if (path === null) return null;
 		const probed = await this.deps.probe(path, ["--version"], {
 			env,
 			timeoutMs: VERSION_PROBE_TIMEOUT_MS,
@@ -159,12 +154,12 @@ export class CodexRunner implements Runner {
 		);
 	}
 
-	async listModels(): Promise<ModelInfo[]> {
-		const codexPath = await this.requirePath(this.lastEnv);
+	async listModels(context: ListingContext): Promise<ModelInfo[]> {
+		const codexPath = await this.requirePath(context);
 		const client = this.createClient({
 			codexPath,
 			cwd: process.cwd(),
-			env: this.lastEnv,
+			env: context.env,
 			extraArgs: [],
 		});
 		const connected = await client.connect();
@@ -191,12 +186,15 @@ export class CodexRunner implements Runner {
 		}
 	}
 
-	async listSlashCommands(workspacePath: string): Promise<RunnerSlashCommand[]> {
-		const codexPath = await this.requirePath(this.lastEnv);
+	async listSlashCommands(
+		workspacePath: string,
+		context: ListingContext,
+	): Promise<RunnerSlashCommand[]> {
+		const codexPath = await this.requirePath(context);
 		const client = this.createClient({
 			codexPath,
 			cwd: workspacePath,
-			env: this.lastEnv,
+			env: context.env,
 			extraArgs: [],
 		});
 		const connected = await client.connect();
@@ -214,12 +212,12 @@ export class CodexRunner implements Runner {
 		}
 	}
 
-	async listMcpServers(workspacePath: string): Promise<McpServerView[]> {
-		const codexPath = await this.requirePath(this.lastEnv);
+	async listMcpServers(workspacePath: string, context: ListingContext): Promise<McpServerView[]> {
+		const codexPath = await this.requirePath(context);
 		const client = this.createClient({
 			codexPath,
 			cwd: workspacePath,
-			env: this.lastEnv,
+			env: context.env,
 			extraArgs: [],
 		});
 		const connected = await client.connect();
@@ -287,10 +285,17 @@ export class CodexRunner implements Runner {
 		});
 	}
 
-	private async requirePath(env: Readonly<Record<string, string>>): Promise<string> {
-		const path = this.detectedPath ?? (await this.deps.findExecutable("codex", env));
-		if (path === null) throw codexNotInstalled();
-		return path;
+	/** The program a listing runs, by the rule a chat's start uses (`findAgentProgram`). */
+	private async requirePath(context: ListingContext): Promise<string> {
+		const program = await findAgentProgram({
+			agent: "codex",
+			name: "codex",
+			executablePath: context.executablePath,
+			env: context.env,
+			findExecutable: this.deps.findExecutable,
+		});
+		if (!program.ok) throw program.error;
+		return program.value.path;
 	}
 }
 

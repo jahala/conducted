@@ -17,7 +17,7 @@ import type {
 	SessionId,
 	TurnId,
 } from "@conducted/shared";
-import { appError, ok } from "@conducted/shared";
+import { appError, createKeyedQueue, ok } from "@conducted/shared";
 import type {
 	CheckpointOutcome,
 	CheckpointRequest,
@@ -55,7 +55,6 @@ import {
 	type TurnFactory,
 } from "./manager.ts";
 import type { RunNumber } from "./run-guard.ts";
-import { KeyedSerialQueue } from "./serial-queue.ts";
 import type { TurnDeps, TurnRequest } from "./turn.ts";
 
 const sid = (value: string) => value as SessionId;
@@ -430,7 +429,7 @@ function harness(
 	} = {},
 ): Harness {
 	const app = new FakeApp();
-	const queue = new KeyedSerialQueue();
+	const queue = createKeyedQueue();
 	let realPublisher: BatchingEventPublisher | null = null;
 	const liveState = options.liveState?.(app) ?? new TestLiveState(app);
 	let pipelineLiveState: LiveStateStore | null = null;
@@ -491,7 +490,12 @@ function harness(
 		liveState: pipelineLiveState ?? liveState,
 		interactions,
 		queue,
-		models: new RunnerModelCatalog({ runners: registry, logger, clock: { now: () => 1000 } }),
+		models: new RunnerModelCatalog({
+			runners: registry,
+			shellEnv: fakeShellEnv(options.macSecrets),
+			logger,
+			clock: { now: () => 1000 },
+		}),
 		clock: { now: () => 1000 },
 		ids: { uuid: () => `event-${++nextId}` },
 		logger,
@@ -889,6 +893,27 @@ describe("SIDE-03 cancel, reset and status", () => {
 		h.manager.onAppAttached();
 		await until(() => h.app.requests.length === 1, "the interaction to be resent");
 		expect(h.app.requests[0]?.method).toBe("requestInteraction");
+	});
+});
+
+describe("AGENT-15 work the agent starts by itself", () => {
+	test("AGENT-15 a report while a turn of ours starts leaves that turn current and stores nothing", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams());
+		const turn = h.turns.last();
+		const run = turn.run;
+		if (run === null) throw new Error("The turn did not start");
+		const callbacks = h.runners.get("claude")?.started[0]?.selfStartedTurns;
+		if (callbacks === undefined) throw new Error("The agent got no callbacks for its own work");
+		// The window before the turn's working mark lands: the chat still reads idle.
+		h.liveState.set(sid("session-1"), idleLiveState);
+
+		callbacks.onInProgressChanged(true);
+		callbacks.onMessage({ agent: "claude", items: [{ kind: "text", text: "on my own" }] });
+
+		// Both calls act at once: a run taken over the turn, or a stored message, would show here.
+		expect(turn.deps.runGuard.isCurrent(run)).toBe(true);
+		expect(h.publisher.events.filter((entry) => entry.event.type === "agent")).toEqual([]);
 	});
 });
 

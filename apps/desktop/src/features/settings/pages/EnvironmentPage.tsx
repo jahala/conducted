@@ -8,7 +8,9 @@
  * Data: useEnvVars(scope), useActions().settings.setEnvVar and removeEnvVar, useSetting for the
  * dismissed banner. The environment file list belongs to the scope: "All repositories" reads and
  * writes the user's list (useSetting, Actions.settings.set); a repository reads the list that applies
- * to it (SettingsService.getForRepo) and writes its own local settings file (setForRepo).
+ * to it (SettingsService.getForRepo) and writes its own local settings file (setForRepo). When the
+ * repository's own file holds the list, "Reset to shared settings" removes it there
+ * (Actions.settings.resetForRepo, SET-02), so the shared settings.toml or the user's list applies.
  * Children: environment/EnvVarTable, environment/AddEnvVarForm, environment/EnvFilesList.
  * Our design choice: values live in the Keychain; the database holds names only (SET-04). The page
  * has a scope switch: all repositories, or one repository whose values override the global ones.
@@ -53,7 +55,14 @@ export function EnvironmentPage({ focusSettingKey = null }: { focusSettingKey?: 
 	const [files, setFiles] = useState<{ path: string; exists: boolean }[]>([]);
 	const [candidates, setCandidates] = useState<string[]>([]);
 	const [importing, setImporting] = useState(false);
-	const [repoFiles, setRepoFiles] = useState<{ root: string; paths: string[] } | null>(null);
+	const [repoFiles, setRepoFiles] = useState<{
+		root: string;
+		paths: string[];
+		/** The repository's own local settings file holds the list, so it can be reset. */
+		ownValue: boolean;
+	} | null>(null);
+	// Bumped after a reset, so the repository's list is read again from its layers.
+	const [repoFilesVersion, setRepoFilesVersion] = useState(0);
 
 	const repoList = repos.state === "ready" ? repos.data : [];
 	const selectedRepo = repoList.find((repo) => repo.id === repoChoice) ?? null;
@@ -74,6 +83,7 @@ export function EnvironmentPage({ focusSettingKey = null }: { focusSettingKey?: 
 	const existingNames = vars.state === "ready" ? vars.data.map((row) => row.name) : [];
 
 	// A repository's list: its own local file, else the layers above it. Only the newest read is kept.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: a reset bumps repoFilesVersion so the list is read again.
 	useEffect(() => {
 		if (repoRoot === null) return;
 		let cancelled = false;
@@ -88,13 +98,17 @@ export function EnvironmentPage({ focusSettingKey = null }: { focusSettingKey?: 
 			const paths = Array.isArray(value)
 				? value.filter((entry): entry is string => typeof entry === "string")
 				: [];
-			setRepoFiles({ root: repoRoot, paths });
+			setRepoFiles({
+				root: repoRoot,
+				paths,
+				ownValue: resolved.value.source === "repo-local",
+			});
 		};
 		void read();
 		return () => {
 			cancelled = true;
 		};
-	}, [repoRoot, services.settings]);
+	}, [repoRoot, services.settings, repoFilesVersion]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -148,8 +162,19 @@ export function EnvironmentPage({ focusSettingKey = null }: { focusSettingKey?: 
 			return false;
 		}
 		// The repository's own file is the top layer, so what was written is now its list.
-		if (repoRoot !== null) setRepoFiles({ root: repoRoot, paths: next });
+		if (repoRoot !== null) setRepoFiles({ root: repoRoot, paths: next, ownValue: true });
 		return true;
+	};
+
+	/** Drops the repository's own list, so its shared settings (or the user's list) apply again. */
+	const resetFiles = async (): Promise<void> => {
+		if (selectedRepo === null) return;
+		const reset = await actions.settings.resetForRepo(selectedRepo.id, ENV_FILES_KEY);
+		if (!reset.ok) {
+			toastError(ENV_FILES_FAILED_MESSAGE, reset.error);
+			return;
+		}
+		setRepoFilesVersion((version) => version + 1);
 	};
 
 	const addFile = async (path: string): Promise<boolean> => {
@@ -344,6 +369,11 @@ export function EnvironmentPage({ focusSettingKey = null }: { focusSettingKey?: 
 							Dotenv files found in {selectedRepo === null ? "your home folder" : selectedRepo.name}
 							. A path is listed here and its names can be imported into the variables above.
 						</p>
+						{repoRoot !== null && repoFiles?.root === repoRoot && repoFiles.ownValue ? (
+							<Button variant="link" size="sm" onClick={() => void resetFiles()}>
+								Reset to shared settings
+							</Button>
+						) : null}
 					</div>
 					<EnvFilesList
 						files={files}

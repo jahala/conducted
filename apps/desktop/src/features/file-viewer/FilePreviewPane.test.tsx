@@ -1,7 +1,8 @@
 /**
  * @feature REV-08 File preview pane
- * Tests the preview chosen for a file, a too-large file with no dead "Open in another app", and a
- * Markdown file's relative link and image, over the real container and the in-memory file system.
+ * Tests the preview chosen for a file, "Open in another app" and "Reveal in Finder" for a file the
+ * tab cannot show, and a Markdown file's relative link and image, over the real container and the
+ * in-memory file system.
  */
 import { ok } from "@conducted/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -10,9 +11,13 @@ import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../core/context.tsx";
 import { createTestContainer, seedWorkspace } from "../../test/container.ts";
+import { toast } from "../../ui/Toast.tsx";
 import { FilePreviewPane } from "./FilePreviewPane.tsx";
 
-afterEach(cleanup);
+afterEach(() => {
+	cleanup();
+	vi.restoreAllMocks();
+});
 
 function wrapper(container: ReturnType<typeof createTestContainer>["container"]) {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -72,7 +77,7 @@ describe("REV-08 FilePreviewPane", () => {
 		}
 	});
 
-	it("offers no Open in another app for a file too large to show", async () => {
+	it("opens a file too large to show in the default Open in app", async () => {
 		const test = createTestContainer();
 		try {
 			const workspace = await seedWorkspace(test.container, {
@@ -82,11 +87,95 @@ describe("REV-08 FilePreviewPane", () => {
 			vi.spyOn(test.container.services.workspaceFiles, "readContent").mockResolvedValue(
 				ok({ kind: "too_large", sizeBytes: 64 * 1024 * 1024 }),
 			);
+			vi.spyOn(test.container.platform.opener, "installedApps").mockResolvedValue(["Zed"]);
+			expect((await test.container.actions.settings.set("default_open_in", "Zed")).ok).toBe(true);
+			const openWith = vi.spyOn(test.container.platform.opener, "openWith");
 			render(<FilePreviewPane workspaceId={workspace.id} path="big.log" onOpenFile={vi.fn()} />, {
 				wrapper: wrapper(test.container),
 			});
 			expect(await screen.findByText("File is too large")).toBeTruthy();
-			expect(screen.queryByRole("button", { name: "Open in another app" })).toBeNull();
+
+			fireEvent.click(screen.getByRole("button", { name: "Open in another app" }));
+
+			await waitFor(() =>
+				expect(openWith).toHaveBeenCalledWith("Zed", `${workspace.path}/big.log`),
+			);
+		} finally {
+			test.close();
+		}
+	});
+
+	it("opens in the first app of the Open in menu when no default is chosen, as Conductor does", async () => {
+		const test = createTestContainer();
+		try {
+			const workspace = await seedWorkspace(test.container, {
+				path: "/code/workspaces/preview-no-app",
+			});
+			vi.spyOn(test.container.services.workspaceFiles, "readContent").mockResolvedValue(
+				ok({ kind: "too_large", sizeBytes: 64 * 1024 * 1024 }),
+			);
+			const toasted = vi.spyOn(toast, "error").mockReturnValue("t");
+			const openWith = vi.spyOn(test.container.platform.opener, "openWith");
+			render(<FilePreviewPane workspaceId={workspace.id} path="big.log" onOpenFile={vi.fn()} />, {
+				wrapper: wrapper(test.container),
+			});
+
+			fireEvent.click(await screen.findByRole("button", { name: "Open in another app" }));
+
+			await waitFor(() =>
+				expect(openWith).toHaveBeenCalledWith("Finder", `${workspace.path}/big.log`),
+			);
+			expect(toasted).not.toHaveBeenCalledWith("No default app configured", expect.anything());
+		} finally {
+			test.close();
+		}
+	});
+
+	it("opens in the first app of the Open in menu when the stored default is not on this Mac", async () => {
+		const test = createTestContainer();
+		try {
+			const workspace = await seedWorkspace(test.container, {
+				path: "/code/workspaces/preview-missing-default",
+			});
+			vi.spyOn(test.container.services.workspaceFiles, "readContent").mockResolvedValue(
+				ok({ kind: "too_large", sizeBytes: 64 * 1024 * 1024 }),
+			);
+			vi.spyOn(test.container.platform.opener, "installedApps").mockResolvedValue(["Cursor"]);
+			expect((await test.container.actions.settings.set("default_open_in", "Zed")).ok).toBe(true);
+			const openWith = vi.spyOn(test.container.platform.opener, "openWith");
+			render(<FilePreviewPane workspaceId={workspace.id} path="big.log" onOpenFile={vi.fn()} />, {
+				wrapper: wrapper(test.container),
+			});
+
+			fireEvent.click(await screen.findByRole("button", { name: "Open in another app" }));
+
+			await waitFor(() =>
+				expect(openWith).toHaveBeenCalledWith("Finder", `${workspace.path}/big.log`),
+			);
+		} finally {
+			test.close();
+		}
+	});
+
+	it("reveals a file with no preview in Finder", async () => {
+		const test = createTestContainer();
+		try {
+			const workspace = await seedWorkspace(test.container, {
+				path: "/code/workspaces/preview-binary",
+			});
+			test.memory.controls.files.set(`${workspace.path}/data.bin`, "bytes");
+			vi.spyOn(test.container.services.workspaceFiles, "readContent").mockResolvedValue(
+				ok({ kind: "binary", sizeBytes: 5, modifiedAt: 0, previewUrl: null }),
+			);
+			const reveal = vi.spyOn(test.container.platform.opener, "revealInFinder");
+			render(<FilePreviewPane workspaceId={workspace.id} path="data.bin" onOpenFile={vi.fn()} />, {
+				wrapper: wrapper(test.container),
+			});
+
+			fireEvent.click(await screen.findByRole("button", { name: "Reveal in Finder" }));
+
+			await waitFor(() => expect(reveal).toHaveBeenCalledWith(`${workspace.path}/data.bin`));
+			expect(screen.getByRole("button", { name: "Open in another app" })).toBeTruthy();
 		} finally {
 			test.close();
 		}

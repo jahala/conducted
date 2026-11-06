@@ -14,7 +14,7 @@
  * through NAV-17's deep-link opener, the same one Platform deep links use.
  * Test first: mounting the entry builds a container, runs the startup sequence and renders the router.
  */
-import { cryptoIds, type Result, systemClock } from "@conducted/shared";
+import { cryptoIds, messageOf, type Result, systemClock } from "@conducted/shared";
 import type { QueryClient } from "@tanstack/react-query";
 import { StrictMode, useState, useSyncExternalStore } from "react";
 import { createRoot } from "react-dom/client";
@@ -158,10 +158,6 @@ function createStartupChannel(initial: StartupView): StartupChannel {
 			return () => listeners.delete(listener);
 		},
 	};
-}
-
-function messageOf(cause: unknown): string {
-	return cause instanceof Error ? cause.message : String(cause);
 }
 
 /** Checks for an update, and shows the failure instead of leaving the button silent. */

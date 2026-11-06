@@ -1,6 +1,7 @@
 /**
  * @feature REV-03 Comment card
- * Tests the author label and the actions each author kind gets.
+ * Tests the author label, the actions each author kind gets, and a suggested change shown and
+ * edited against the lines it replaces.
  */
 import type { CommentId, WorkspaceId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -27,6 +28,7 @@ function comment(over: Partial<DiffComment> = {}): DiffComment {
 		threadId: null,
 		replyToId: null,
 		suggestion: null,
+		suggestionBaseCode: null,
 		remoteUrl: null,
 		resolved: false,
 		outdated: false,
@@ -84,8 +86,49 @@ describe("REV-03 CommentCard", () => {
 		});
 		fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-		await waitFor(() => expect(onSaveEdit).toHaveBeenCalledWith("Please rename this to parse."));
+		await waitFor(() =>
+			expect(onSaveEdit).toHaveBeenCalledWith("Please rename this to parse.", undefined),
+		);
 		expect(await screen.findByText("The comment could not be saved.")).toBeTruthy();
 		expect(screen.getByRole("button", { name: "Save" })).toBeTruthy();
+	});
+
+	it("shows a suggested change against the lines it replaces", () => {
+		render(
+			<CommentCard
+				comment={comment({ suggestion: "const b = 2;", suggestionBaseCode: "let b = 2;" })}
+				{...props}
+			/>,
+		);
+
+		expect(screen.getByText("let b = 2;")).toBeTruthy();
+		expect(screen.getByText("const b = 2;")).toBeTruthy();
+	});
+
+	it("edits the suggested change together with the text", async () => {
+		const onSaveEdit = vi.fn(async () => true);
+		render(
+			<CommentCard
+				comment={comment({ suggestion: "const b = 2;", suggestionBaseCode: "let b = 2;" })}
+				{...props}
+				editing
+				onSaveEdit={onSaveEdit}
+			/>,
+		);
+
+		expect(
+			(screen.getByRole("checkbox", { name: "Suggest a change" }) as HTMLInputElement).checked,
+		).toBe(true);
+		fireEvent.change(screen.getByRole("textbox", { name: "Suggested code" }), {
+			target: { value: "const b = 3;" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() =>
+			expect(onSaveEdit).toHaveBeenCalledWith("Please rename this.", {
+				code: "const b = 3;",
+				baseCode: "let b = 2;",
+			}),
+		);
 	});
 });

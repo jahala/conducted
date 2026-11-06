@@ -10,6 +10,7 @@
  * unmounting while the timer runs (it is cleared); a caller that styles the button or gives it a name.
  * Test first: clicking calls onCopy with the button's text, shows "Copied", then returns to "Copy".
  */
+import { messageOf } from "@conducted/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, type ButtonProps } from "./Button.tsx";
 import { toastError } from "./Toast.tsx";
@@ -61,7 +62,7 @@ export function CopyButton({
 		try {
 			failure = copyFailure(await onCopy(text));
 		} catch (cause) {
-			failure = { message: cause instanceof Error ? cause.message : String(cause) };
+			failure = { message: messageOf(cause) };
 		}
 		if (failure !== null) {
 			setCopied(false);

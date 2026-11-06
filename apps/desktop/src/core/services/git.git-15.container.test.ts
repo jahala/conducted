@@ -1,11 +1,11 @@
 // @vitest-environment node
 /**
  * @feature GIT-15 Sparse checkout and the external diff tool
- * Owns: the composition-root tests that opening a file's diff and editing a workspace's sparse
- * checkout run through the real container's actions and GitService.
+ * Owns: the composition-root tests that opening a file's diff and reading and editing a
+ * workspace's sparse checkout run through the real container's actions and GitService.
  * Behaviour: services-map.md 3.11 (sparse checkout and the external diff tool) and 5A.5.3.
- * Test first: the real action opens a changed file in Kaleidoscope, and the real service edits a
- * workspace's sparse checkout and reads the result back.
+ * Test first: the real action opens a changed file in Kaleidoscope, and the real actions edit a
+ * workspace's sparse checkout and read the result back.
  */
 import { ok, type Result } from "@conducted/shared";
 import { describe, expect, it } from "vitest";
@@ -58,7 +58,7 @@ describe("GIT-15 through the real container", () => {
 		}
 	});
 
-	it("edits and reads back a workspace's sparse checkout through the real service", async () => {
+	it("edits and reads back a workspace's sparse checkout through the real actions", async () => {
 		const harness = createTestContainer();
 		try {
 			const repo = await seedRepo(harness.container, { rootPath: "/code/projects/git-15-sparse" });
@@ -88,7 +88,7 @@ describe("GIT-15 through the real container", () => {
 				if (args[0] === "ls-tree") return output("apps\npackages\n");
 				return null;
 			});
-			const git = harness.container.services.git;
+			const git = harness.container.actions.git;
 
 			expect(await git.setSparseCheckoutDirectories(workspace.id, ["apps"])).toEqual(ok(undefined));
 			expect(commands).toEqual([
@@ -99,7 +99,8 @@ describe("GIT-15 through the real container", () => {
 			expect(await git.sparseCheckoutSettings(workspace.id)).toEqual(
 				ok({ enabled: true, directories: ["apps"], topLevelDirectories: ["apps", "packages"] }),
 			);
-			expect(await git.disableSparseCheckout(workspace.id)).toEqual(ok(undefined));
+			// An empty list turns sparse checkout off, so the whole tree is back.
+			expect(await git.setSparseCheckoutDirectories(workspace.id, [])).toEqual(ok(undefined));
 			expect(enabled).toBe(false);
 		} finally {
 			await harness.container.stop();

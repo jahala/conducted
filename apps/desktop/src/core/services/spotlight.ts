@@ -33,6 +33,7 @@
  */
 import {
 	appError,
+	createKeyedQueue,
 	err,
 	ok,
 	type RepoId,
@@ -42,7 +43,6 @@ import {
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { RunState } from "../api.ts";
-import { createKeyedQueue } from "../async/serial-queue.ts";
 import type { GitCommand } from "../git/commands.ts";
 import {
 	branchShowCurrent,

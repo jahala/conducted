@@ -1,23 +1,23 @@
 /**
- * @feature SIDE-01 Entry point and modes: error helpers
- * Owns: one spelling for the message of a thrown value, the check that a value is an AppError, and
- * the wrap of a thrown value into one, and the check for a missing file.
- * Behaviour: `Result` carries expected failures (docs/engineering.md), so this module only reads
- * values that reached a catch or an error callback.
+ * Error helpers for both runtimes: one spelling for the message of a thrown value, the check that
+ * a value is an AppError, the wrap of a thrown value into one, and the check for a missing file.
+ * `Result` carries expected failures (docs/engineering.md), so this module only reads values that
+ * reached a catch or an error callback.
  * Must handle: an Error, a thrown AppError (a plain object: its message, never "[object Object]"),
- * any other thrown value, and a plain object that only looks like an AppError (a code and a
- * message, both strings).
- * Test first: messageOf(new Error("boom")) is "boom" and isAppError({ code, message }) is true.
- * Our design choice: the helpers live in one file because four modules had their own copy, and the
- * copies could drift.
+ * a thrown object with only a string message (the database plugin's errors), any other thrown
+ * value, and a plain object that only looks like an AppError (a code and a message, both strings).
+ * Our design choice: the helpers live here because the desktop had 19 copies of the message rule
+ * and the sidecar four, and the copies had drifted apart.
  */
-import type { AppError } from "@conducted/shared";
-import { appError } from "@conducted/shared";
+import { type AppError, appError } from "./result.ts";
 
-/** The message of a thrown value, in one spelling for every module. */
+/** The message of a thrown value, in one spelling for every module of both runtimes. */
 export function messageOf(cause: unknown): string {
 	if (cause instanceof Error) return cause.message;
-	if (isAppError(cause)) return cause.message;
+	if (typeof cause === "object" && cause !== null && "message" in cause) {
+		const message = (cause as { message: unknown }).message;
+		if (typeof message === "string") return message;
+	}
 	return String(cause);
 }
 

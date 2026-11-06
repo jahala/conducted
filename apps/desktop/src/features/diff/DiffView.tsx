@@ -10,7 +10,10 @@
  * with FileDiff.patch otherwise. Options come from diff-options.ts.
  * Comments: the comment layer (REV-03) computes the line annotations and supplies
  * `renderAnnotation`, which draws a thread under its line. DiffView only places the slots. The
- * gutter's add-comment control comes in as `renderGutterUtility`.
+ * gutter's add-comment control comes in as `renderGutterUtility`. Given stored comments and their
+ * handlers, DiffView also draws the threads itself, and the gutter's add-comment button opens a
+ * composer under the hovered line, on its side, offering that line's text as the starting point
+ * for a suggested change (REV-03). Switching to another file closes an unsent composer.
  * Children: DiffWarnings.
  * Must handle: binary file (warning, no render), huge diff (guard from FileDiff.tooLarge: warning
  * with "Render anyway"), only-whitespace changes (warning with "Show whitespace changes"), file
@@ -26,6 +29,7 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { FileDiff } from "../../core/api.ts";
 import type { DiffComment } from "../../core/model.ts";
 import { ErrorBoundary } from "../../ui/ErrorBoundary.tsx";
+import { CommentComposer } from "./CommentComposer.tsx";
 import { CommentThread } from "./CommentThread.tsx";
 import { DiffWarning, type DiffWarningKind } from "./DiffWarnings.tsx";
 import { type CommentAnnotation, commentsToAnnotations } from "./diff-annotations.ts";
@@ -69,6 +73,32 @@ export function isWhitespaceOnlyChange(oldText: string | null, newText: string |
 	return oldText.replace(/\s+/g, "") === newText.replace(/\s+/g, "");
 }
 
+/** The text of one line on one side of the diff, or null when that side has no such line. */
+function lineTextOf(diff: FileDiff, side: DiffSide, lineNumber: number): string | null {
+	const text = side === "additions" ? diff.newText : diff.oldText;
+	if (text === null || lineNumber < 1) return null;
+	return text.split("\n")[lineNumber - 1] ?? null;
+}
+
+/** The line annotations with the new comment's composer slot added, sharing a line's slot if any. */
+function withDraft(
+	annotations: DiffLineAnnotation<CommentAnnotation>[] | undefined,
+	draft: { side: DiffSide; lineNumber: number },
+): DiffLineAnnotation<CommentAnnotation>[] {
+	const list = annotations ?? [];
+	const at = list.findIndex(
+		(annotation) => annotation.side === draft.side && annotation.lineNumber === draft.lineNumber,
+	);
+	if (at === -1) {
+		return [...list, { ...draft, metadata: { threadIds: [], commentIds: [], draft: true } }];
+	}
+	return list.map((annotation, index) =>
+		index === at
+			? { ...annotation, metadata: { ...annotation.metadata, draft: true } }
+			: annotation,
+	);
+}
+
 /** A small content fingerprint, so a dismissed warning returns when the file's text changes. */
 function contentHash(text: string | null): number {
 	if (text === null) return 0;
@@ -103,14 +133,24 @@ export function DiffView({
 		diff.binary ? "binary" : "text"
 	}:${diff.tooLarge ? "large" : "small"}`;
 	const [dismissed, setDismissed] = useState<{ key: string; kind: DiffWarningKind } | null>(null);
+	// The line a new comment is being written on, for the file it was opened in.
+	const [draft, setDraft] = useState<{
+		path: string;
+		side: DiffSide;
+		lineNumber: number;
+	} | null>(null);
+	// The built-in comment layer: stored comments with their handlers and no layer of the caller's.
+	const ownLayer =
+		comments !== undefined && commentHandlers !== undefined && renderAnnotation === undefined;
+	const openDraft = draft !== null && draft.path === diff.path && ownLayer ? draft : null;
 
 	const options = useMemo(() => toDiffOptions(preferences, theme), [preferences, theme]);
-	const lineAnnotations = useMemo(
-		() =>
+	const lineAnnotations = useMemo(() => {
+		const base =
 			annotations ??
-			(comments === undefined ? undefined : commentsToAnnotations(comments, diff.path)),
-		[annotations, comments, diff.path],
-	);
+			(comments === undefined ? undefined : commentsToAnnotations(comments, diff.path));
+		return openDraft === null ? base : withDraft(base, openDraft);
+	}, [annotations, comments, diff.path, openDraft]);
 	const annotationRenderer =
 		renderAnnotation ??
 		(comments === undefined || commentHandlers === undefined
@@ -118,14 +158,56 @@ export function DiffView({
 			: (annotation: DiffLineAnnotation<CommentAnnotation>) => {
 					const ids = new Set(annotation.metadata.commentIds);
 					const thread = comments.filter((comment) => ids.has(comment.id));
-					return <CommentThread comments={thread} handlers={commentHandlers} />;
+					const composing = annotation.metadata.draft === true ? openDraft : null;
+					const base =
+						composing === null ? null : lineTextOf(diff, composing.side, composing.lineNumber);
+					return (
+						<>
+							{thread.length === 0 ? null : (
+								<CommentThread comments={thread} handlers={commentHandlers} />
+							)}
+							{composing === null ? null : (
+								<CommentComposer
+									mode="new"
+									initialBody=""
+									suggestionBase={base}
+									onCancel={() => setDraft(null)}
+									onSubmit={async (body, suggestion) => {
+										const added = await commentHandlers.onAdd(
+											{
+												filePath: diff.path,
+												side: composing.side,
+												line: composing.lineNumber,
+												endLine: null,
+											},
+											body,
+											{
+												side: composing.side,
+												suggestion:
+													suggestion === null || base === null
+														? null
+														: { code: suggestion, baseCode: base },
+											},
+										);
+										if (added) setDraft(null);
+										return added;
+									}}
+								/>
+							)}
+						</>
+					);
 				});
+	const addComment =
+		onAddComment ??
+		(ownLayer
+			? (line: { lineNumber: number; side: DiffSide }) => setDraft({ path: diff.path, ...line })
+			: undefined);
 	const gutterRenderer =
 		renderGutterUtility ??
-		(onAddComment === undefined
+		(addComment === undefined
 			? undefined
 			: (getHoveredLine: () => { lineNumber: number; side: DiffSide } | undefined) => (
-					<GutterCommentButton getHoveredLine={getHoveredLine} onAdd={onAddComment} />
+					<GutterCommentButton getHoveredLine={getHoveredLine} onAdd={addComment} />
 				));
 
 	useEffect(() => {

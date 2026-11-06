@@ -4,12 +4,14 @@
  * actions.
  * Behaviour: ui-map.md 3.6 ("Comment card: author You, Edit comment, Delete comment, Suggested
  * change block"; "Discard comment?" dialog).
- * Must handle: edit mode swapping the body for a CommentComposer, an edit that fails to save (the
- * composer stays open and says so), comments from GitHub having no
+ * Must handle: edit mode swapping the body for a CommentComposer (with the suggested change, when
+ * its original lines are known), an edit that fails to save (the composer stays open and says
+ * so), a suggested change shown against the lines it replaces, comments from GitHub having no
  * Edit or Delete (they are synced, not owned), an agent comment (label, no Edit), a long body that
  * wraps, and unresolved versus resolved styling.
  * Test first: a comment by the user shows Edit and Delete, one from GitHub shows neither.
  */
+import type { CommentSuggestion } from "../../core/api.ts";
 import type { DiffComment } from "../../core/model.ts";
 import { Badge } from "../../ui/Badge.tsx";
 import { Button } from "../../ui/Button.tsx";
@@ -20,8 +22,12 @@ export interface CommentCardProps {
 	comment: DiffComment;
 	editing: boolean;
 	onStartEdit: () => void;
-	/** Resolves true when the edit was saved; false keeps the editor open with the error. */
-	onSaveEdit: (body: string) => Promise<boolean>;
+	/**
+	 * Resolves true when the edit was saved; false keeps the editor open with the error. The
+	 * suggestion is undefined when the comment's suggested change cannot be edited (its original
+	 * lines are unknown), so it stays as it is.
+	 */
+	onSaveEdit: (body: string, suggestion: CommentSuggestion | null | undefined) => Promise<boolean>;
 	onCancelEdit: () => void;
 	onDelete: () => void;
 }
@@ -49,6 +55,8 @@ export function CommentCard({
 }: CommentCardProps) {
 	const owned = comment.author.kind === "user";
 	const deletable = comment.author.kind !== "github";
+	// The suggested change can be edited only against the lines it replaces.
+	const base = comment.suggestionBaseCode;
 
 	return (
 		<article
@@ -69,16 +77,26 @@ export function CommentCard({
 				<CommentComposer
 					mode="edit"
 					initialBody={comment.body}
-					suggestionBase={null}
+					suggestionBase={base}
+					initialSuggestion={comment.suggestion}
 					onCancel={onCancelEdit}
-					onSubmit={(body) => onSaveEdit(body)}
+					onSubmit={(body, suggestion) =>
+						onSaveEdit(
+							body,
+							base === null
+								? undefined
+								: suggestion === null
+									? null
+									: { code: suggestion, baseCode: base },
+						)
+					}
 				/>
 			) : (
 				<p className="whitespace-pre-wrap break-words text-sm text-fg">{comment.body}</p>
 			)}
 			{comment.suggestion !== null && !editing ? (
 				<SuggestionBlock
-					original=""
+					original={comment.suggestionBaseCode ?? ""}
 					suggestion={comment.suggestion}
 					filePath={comment.filePath ?? ""}
 				/>

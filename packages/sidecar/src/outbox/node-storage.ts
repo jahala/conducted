@@ -17,8 +17,7 @@
  */
 import { mkdir, open, readdir, readFile, rename, rm } from "node:fs/promises";
 import path from "node:path";
-import { appError, err, ok, type Result } from "@conducted/shared";
-import { isMissingFile, messageOf } from "../util/errors.ts";
+import { appError, err, isMissingFile, messageOf, ok, type Result } from "@conducted/shared";
 import type { OutboxStorage } from "./outbox-file.ts";
 
 /** How this storage runs a file through the Trash. Returns the command's exit code. */

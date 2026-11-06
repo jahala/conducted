@@ -2,7 +2,7 @@
  * @feature REV-04 Sync review comments with GitHub
  * Tests the Checks tab's GitHub resolve: it resolves the thread on GitHub and shows
  * "Comment resolved on GitHub" only after GitHub accepted it, refuses an unresolve, and says when
- * the last sync failed.
+ * the last sync failed. Also PR-04's Hide over a synced comment.
  * Behaviour: services-map.md 5A.7.3 (resolve on GitHub) and inventory:toast main row 455.
  * Test first: clicking Resolve on a GitHub comment shows "Comment resolved on GitHub".
  */
@@ -85,7 +85,7 @@ function thread(): GithubReviewThread {
 async function mountWithComment(
 	container: TestContainer,
 	threads: GithubReviewThread[] = [thread()],
-): Promise<void> {
+): Promise<WorkspaceId> {
 	const workspace = await seedWorkspace(container.container);
 	container.container.services.git.store.setState((state) => ({
 		...state,
@@ -132,6 +132,7 @@ async function mountWithComment(
 			</QueryClientProvider>
 		</ServicesProvider>,
 	);
+	return workspace.id;
 }
 
 describe("REV-04 Checks tab resolve on GitHub", () => {
@@ -197,5 +198,19 @@ describe("REV-04 Checks tab resolve on GitHub", () => {
 			),
 		).toBeTruthy();
 		expect(screen.getByText("Please rename this.")).toBeTruthy();
+	});
+
+	it("PR-04: Hide takes a GitHub comment off the list, and it stays hidden after the next sync", async () => {
+		test = createTestContainer();
+		const workspaceId = await mountWithComment(test);
+		expect(await screen.findByText("Please rename this.")).toBeTruthy();
+
+		fireEvent.click(screen.getByRole("button", { name: "Hide" }));
+
+		await waitFor(() => expect(screen.queryByText("Please rename this.")).toBeNull());
+		await act(async () => {
+			await test?.container.services.review.syncFromGithub(workspaceId);
+		});
+		expect(screen.queryByText("Please rename this.")).toBeNull();
 	});
 });

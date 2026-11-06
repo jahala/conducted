@@ -102,6 +102,12 @@ function fakeFs(initial: Record<string, string> = {}) {
 		async trash() {
 			return ok(undefined);
 		},
+		async registerRoot() {
+			return ok(undefined);
+		},
+		assetUrl(path: string) {
+			return `asset://localhost/${encodeURIComponent(path)}`;
+		},
 		paths: { home: "/Users/test", appData: "/app", temp: "/tmp", resources: "/res" },
 	} satisfies FileSystem;
 	return { fs, made, written, texts };

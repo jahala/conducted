@@ -54,7 +54,7 @@ use reqwest::{Client, Method, Url};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tauri::ipc::Channel;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 use tokio::io::AsyncWriteExt;
 use tokio_util::sync::CancellationToken;
 
@@ -573,7 +573,8 @@ pub async fn http_download(
     expected_sha256: Option<String>,
     on_progress: Channel<DownloadProgress>,
 ) -> CommandResult<DownloadOutcome> {
-    let roots = crate::files::allowed_roots(&app)?;
+    let scope = app.state::<crate::files::FsScopeState>();
+    let roots = crate::files::allowed_roots(&app, &scope)?;
     let destination = crate::files::check_path_in_scope(&destination_path, &roots)?;
     let progress = |received: u64, total: Option<u64>| -> CommandResult<()> {
         on_progress

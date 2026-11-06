@@ -21,7 +21,7 @@
  * Test first: a command that fails once with "index.lock: File exists" is retried and then
  * returns its second result.
  */
-import { type AppError, appError, err, ok, type Result } from "@conducted/shared";
+import { type AppError, appError, err, messageOf, ok, type Result } from "@conducted/shared";
 import type { RunningCommand, Shell, ShellCommand, ShellOutput } from "../../platform/platform.ts";
 import type { GitCommand } from "./commands.ts";
 import { type KeyedMutex, repoLockKey, worktreeLockKey } from "./locks.ts";
@@ -279,7 +279,7 @@ export class ShellGitRunner implements GitRunner {
 			(env) => env.path,
 			(cause: unknown) => {
 				this.#loginPath = undefined;
-				const message = cause instanceof Error ? cause.message : String(cause);
+				const message = messageOf(cause);
 				this.#deps.log("warn", `Could not read the login-shell PATH: ${message}`);
 				return null;
 			},
@@ -299,7 +299,7 @@ export class ShellGitRunner implements GitRunner {
 					if (!acquired) this.#deps.log("warn", LOCK_WARM_TIMEOUT_MESSAGE);
 				},
 				(cause: unknown) => {
-					const message = cause instanceof Error ? cause.message : String(cause);
+					const message = messageOf(cause);
 					this.#deps.log("warn", `Could not time a lock wait: ${message}`);
 				},
 			);

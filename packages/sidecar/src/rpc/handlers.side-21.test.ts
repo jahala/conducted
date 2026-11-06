@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { ModelInfo } from "@conducted/protocol";
 import { ok } from "@conducted/shared";
 import { createLogger } from "../logging/logger.ts";
+import { AgentProgramChoices } from "../models/agent-programs.ts";
 import { buildHandlers, type HandlerDeps } from "./handlers.ts";
 
 const testLogger = createLogger({
@@ -62,6 +63,7 @@ const deps = (): HandlerDeps => ({
 		finishLogin: async () => ok({ outcome: "signed_in" }),
 		cancelLogin: async () => ok(undefined),
 	},
+	agentPrograms: new AgentProgramChoices(),
 	slashCommands: { list: async () => ok([]) },
 	completions: { read: async () => ok(null), write: async () => ok(undefined) },
 	mcpServers: { list: async () => ok([]) },

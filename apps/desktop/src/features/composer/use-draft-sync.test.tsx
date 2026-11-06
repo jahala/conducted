@@ -50,6 +50,12 @@ const fakeFs = () => {
 			files.delete(path);
 			return ok(undefined);
 		},
+		async registerRoot() {
+			return ok(undefined);
+		},
+		assetUrl(path: string) {
+			return `asset://localhost/${encodeURIComponent(path)}`;
+		},
 		paths,
 	};
 	return { fs, files };

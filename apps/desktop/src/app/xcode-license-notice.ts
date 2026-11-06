@@ -12,6 +12,7 @@
  * Test first: a blocked probe shows the toast with "Run for me", and the action runs the accept
  * command in Terminal.
  */
+import { messageOf } from "@conducted/shared";
 import { useEffect } from "react";
 import { useServices } from "../core/context.tsx";
 import { xcodeLicenseToast } from "../core/git/runner.ts";
@@ -28,7 +29,7 @@ export function XcodeLicenseNotice(): null {
 		let current = true;
 
 		const logProbeFailure = (cause: unknown): void => {
-			const message = cause instanceof Error ? cause.message : String(cause);
+			const message = messageOf(cause);
 			platform.app.writeLog("warn", "Could not check the Xcode license", { message });
 		};
 
@@ -37,7 +38,7 @@ export function XcodeLicenseNotice(): null {
 				const fixed = await actions.app.runXcodeLicenseFix();
 				if (!fixed.ok) toastError(FIX_FAILED_TITLE, fixed.error);
 			} catch (cause) {
-				const message = cause instanceof Error ? cause.message : String(cause);
+				const message = messageOf(cause);
 				toastError(FIX_FAILED_TITLE, { message });
 			}
 		};

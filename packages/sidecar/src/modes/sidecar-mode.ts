@@ -61,9 +61,11 @@ import {
 	type AppError,
 	appError,
 	type Clock,
+	createKeyedQueue,
 	cryptoIds,
 	err,
 	type IdSource,
+	messageOf,
 	ok,
 	type Result,
 	type SessionId,
@@ -78,6 +80,7 @@ import { parseSidecarConfig, type SidecarConfig } from "../config.ts";
 import { EXIT_START_FAILED, EXIT_USAGE } from "../exit-codes.ts";
 import { createLogger, type Logger, type LogSink, redactRecord } from "../logging/logger.ts";
 import { type AgentDetector, DefaultAgentDetector } from "../models/agent-detection.ts";
+import { AgentProgramChoices } from "../models/agent-programs.ts";
 import { RunnerModelCatalog } from "../models/catalog.ts";
 import { createNodeCompletionsFiles, FileCompletionsCache } from "../models/completions-cache.ts";
 import { RunnerMcpServerLister, RunnerSlashCommandLister } from "../models/slash-and-mcp.ts";
@@ -131,7 +134,6 @@ import {
 	type SessionManager,
 	type ShutdownReason,
 } from "../session/manager.ts";
-import { KeyedSerialQueue } from "../session/serial-queue.ts";
 import { AgentUtilityPromptRunner } from "../session/utility-prompt.ts";
 import {
 	FALLBACK_SHELL,
@@ -150,7 +152,6 @@ import {
 	type McpStdioEntry,
 } from "../tools/mcp-launch.ts";
 import { AppToolsBridge } from "../tools/socket-bridge.ts";
-import { messageOf } from "../util/errors.ts";
 import { ParentWatchdog } from "../watchdog.ts";
 
 export { EXIT_START_FAILED };
@@ -779,7 +780,7 @@ const MANAGED_AGENTS: ReadonlySet<string> = new Set(["claude", "codex"]);
 /** Builds every module of the host from the ports, in dependency order. Starts nothing. */
 export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): SidecarComposition {
 	const { app, clock, ids, logger } = ports;
-	const queue = new KeyedSerialQueue();
+	const queue = createKeyedQueue();
 	const outbox = new FileEventOutbox({ storage: ports.outboxStorage, queue, clock, logger });
 	const processes = new AgentProcessManager({ clock, logger });
 	const publisher = new BatchingEventPublisher({
@@ -818,7 +819,7 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 		cursorStoreDir: config.cursorStoreDir,
 		findManagedProgram,
 	});
-	const models = new RunnerModelCatalog({ runners, logger, clock });
+	const models = new RunnerModelCatalog({ runners, shellEnv, logger, clock });
 	const utilityPrompt = new AgentUtilityPromptRunner({
 		runners,
 		shellEnv,
@@ -826,9 +827,11 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 		ids,
 		logger,
 	});
+	const agentPrograms = new AgentProgramChoices();
 	const agents = new DefaultAgentDetector({
 		runners,
 		shellEnv,
+		executablePath: (selector) => agentPrograms.pathFor(selector),
 		onChanged: (installs) => {
 			announceAgentInstalls({ models, app, logger }, installs);
 		},
@@ -875,9 +878,10 @@ export function composeSidecar(config: SidecarConfig, ports: SidecarPorts): Side
 		outbox,
 		models,
 		agents,
-		slashCommands: new RunnerSlashCommandLister({ runners, logger }),
+		agentPrograms,
+		slashCommands: new RunnerSlashCommandLister({ runners, shellEnv, logger }),
 		completions,
-		mcpServers: new RunnerMcpServerLister({ runners, logger }),
+		mcpServers: new RunnerMcpServerLister({ runners, shellEnv, logger }),
 		usage: new SessionUsageReader({ logger, sessions }),
 		shellEnv,
 		utilityPrompt,
@@ -1074,7 +1078,7 @@ function createRunnerRegistry(input: {
 		findManagedProgram: input.findManagedProgram,
 	};
 	const scheduler = createScheduler();
-	const queueForCursor = new KeyedSerialQueue();
+	const queueForCursor = createKeyedQueue();
 	/**
 	 * Registers the chat's token and builds the helper entry. The release ends the token when the
 	 * agent session is disposed. A bridge that is not listening is an error, never an agent that

@@ -13,7 +13,9 @@
  * Test first: Choosing Pin calls workspaces.setPinned(id, true); for a pinned workspace the item
  * reads Unpin.
  */
+
 import type { Result, WorkspaceId } from "@conducted/shared";
+import { messageOf } from "@conducted/shared";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { useStore } from "zustand";
@@ -72,7 +74,7 @@ export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActions
 			const result = await action();
 			if (!result.ok) toastError(title, result.error);
 		} catch (caught) {
-			toastError(title, caught instanceof Error ? caught : { message: String(caught) });
+			toastError(title, { message: messageOf(caught) });
 		}
 	};
 

@@ -73,6 +73,30 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0004_review_states_backlog_snippets_keys.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 5,
+            description: "diff_comment_suggestion_base",
+            sql: include_str!("../migrations/0005_diff_comment_suggestion_base.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 6,
+            description: "model_context_windows",
+            sql: include_str!("../migrations/0006_model_context_windows.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 7,
+            description: "session_fork_resume",
+            sql: include_str!("../migrations/0007_session_fork_resume.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 8,
+            description: "backlog_repo_optional",
+            sql: include_str!("../migrations/0008_backlog_repo_optional.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

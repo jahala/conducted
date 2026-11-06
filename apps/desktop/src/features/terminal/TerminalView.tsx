@@ -6,10 +6,10 @@
  * terminal" Cmd+W) and 3.2 (terminals can sit in the center, setting "Big terminal mode").
  * Data: useTerminalConnection(terminalId) gives the PTY stream, input, resize and saved history.
  * Children: TerminalSurface, TerminalFindBar, TerminalEndedBanner.
- * Our design choice: the xterm instance outlives React tab switches. The surface layer from
- * ui-map.md 8 ("long-lived DOM outside React tab content") is a platform concern; this component
- * must tolerate being unmounted and mounted again by replaying saved history, not by relying on
- * staying mounted.
+ * Our design choice: in a centre terminal tab the view is drawn by the app shell's surface layer
+ * (NAV-15, app/surface-registry.tsx, ui-map.md 8), so it stays mounted while another tab is open. The
+ * Scripts panel mounts it directly. Either way it still tolerates being unmounted and mounted again
+ * (a workspace switch in the Scripts panel, a restart) by replaying saved history.
  * Must handle: a terminal that has ended (history shown, banner with exit code), a terminal that
  * cannot be found, the PTY failing to spawn, output arriving before the view is ready (buffer it),
  * output faster than rendering (acknowledge bytes only after they are written, for flow control),

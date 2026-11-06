@@ -170,6 +170,9 @@ function makePlatform(options: { dirs?: readonly string[] } = {}): FakePlatform 
 		async trash() {
 			return ok(undefined);
 		},
+		async registerRoot() {
+			return ok(undefined);
+		},
 		paths: { home: "/home/me", appData: "/app", temp: "/tmp", resources: "/resources" },
 	} as unknown as FileSystem;
 	const dialogs = {
@@ -191,7 +194,7 @@ function makeService(options: { dirs?: readonly string[] } = {}) {
 		git: git.git,
 		repos: { repos: repos.api } as RepoServiceDeps["repos"],
 		settings: {} as RepoServiceDeps["settings"],
-		removal: { removeWorkspacesOf },
+		removal: { removeWorkspacesOf, releaseBacklogOf: () => {} },
 	});
 	return { service, repos, git };
 }

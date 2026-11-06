@@ -28,7 +28,9 @@
  * failed (a failed setup keeps the workspace, with a retry; a second retry while one runs is
  * ignored); creations run one at a time; a repository config that cannot be read for the remote
  * name stops creation with its error, while a failed read of the file list or the default config
- * is shown as a warning.
+ * is shown as a warning; the file commands reach a folder outside `~/conducted` only once it is
+ * registered (PLAT-02), so a start registers the workspaces folder and every saved workspace's
+ * folder, and a create or unarchive registers the workspaces folder before it looks in it.
  * Built now (WS-04): the first-message rename runs only when `auto_rename_new_branches` is on and
  * the workspace still has its placeholder branch. It is skipped when a pull request is linked,
  * the branch has already changed (in the row or in git), the suggestion is empty or failed, or
@@ -64,8 +66,9 @@
  * every existing chat stores the folders so its next message carries them.
  * Built now (WS-11): a backlog workspace keeps its repository, first message, attachments, chat
  * config and section without a worktree or branch. Starting one runs the normal creation flow and
- * removes the saved entry; removing one deletes only the entry. Starting with no repository left
- * returns the message the create flow shows.
+ * removes the saved entry; removing one deletes only the entry. Removing its repository keeps the
+ * entry with no repository, and starting it then returns the message the create flow shows until
+ * the user picks another (`setBacklogRepo`).
  * Not built yet (placeholders): the kanban status (NAV-06).
  * Our design choice: creation is split in two so the sidebar shows the workspace at once
  * (`initializing`) and the slow git work happens after the row exists. Place names come from our
@@ -85,6 +88,7 @@ import type { SessionConfig } from "@conducted/protocol";
 import {
 	type AppError,
 	appError,
+	createKeyedQueue,
 	err,
 	notImplemented,
 	ok,
@@ -100,7 +104,6 @@ import { globToRegExp } from "../../platform/glob.ts";
 import type { Platform } from "../../platform/platform.ts";
 import type { Draft, NewWorkspaceInput, UnarchiveOutcome } from "../api.ts";
 import { setupLogFile, viewedFilesFile } from "../app-paths.ts";
-import { createKeyedQueue } from "../async/serial-queue.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
 import type { ArchivingWorkspace } from "../db/repair.ts";
 import type { Repositories } from "../db/repositories.ts";
@@ -864,6 +867,16 @@ export class WorkspaceService {
 			this.store.setState((state) => ({ ...state, loaded: true }));
 			return listed;
 		}
+		// The file commands reach a workspace folder only once it is registered, on every start.
+		// A workspace made before the workspaces folder setting changed lives under the old one.
+		const reachable = await this.#registerFolders([
+			this.#worktreesRoot(),
+			...listed.value.map((workspace) => workspace.path),
+		]);
+		if (!reachable.ok) {
+			this.store.setState((state) => ({ ...state, loaded: true }));
+			return reachable;
+		}
 		const workspacesById: Record<string, Workspace> = {};
 		const setupRuns: Record<string, SetupRun> = {};
 		let logError: AppError | null = null;
@@ -905,6 +918,23 @@ export class WorkspaceService {
 			setupRuns,
 		}));
 		return logError === null ? ok(undefined) : err(logError);
+	}
+
+	/** The folder new worktrees go to: the `conducted_root_path` setting, with `~` expanded. */
+	#worktreesRoot(): string {
+		return expandHome(
+			this.#deps.setting<string>("conducted_root_path"),
+			this.#deps.platform.fs.paths.home,
+		);
+	}
+
+	/** Lets the file commands reach each folder (PLAT-02). Stops at the first refusal. */
+	async #registerFolders(folders: readonly string[]): Promise<Result<void>> {
+		for (const folder of folders) {
+			const registered = await this.#deps.platform.fs.registerRoot(folder);
+			if (!registered.ok) return registered;
+		}
+		return ok(undefined);
 	}
 
 	/** Backs `Actions.workspaces.create`: row first, then worktree, setup, and the first chat. */
@@ -962,10 +992,9 @@ export class WorkspaceService {
 			baseWarning = resolved.value.warning;
 		}
 
-		const root = expandHome(
-			this.#deps.setting<string>("conducted_root_path"),
-			this.#deps.platform.fs.paths.home,
-		);
+		const root = this.#worktreesRoot();
+		const reachable = await this.#registerFolders([root]);
+		if (!reachable.ok) return reachable;
 		const names = await this.#deps.repos.workspaces.listDirectoryNames(repo.id);
 		if (!names.ok) return names;
 		const taken = new Set(names.value);
@@ -1693,10 +1722,9 @@ export class WorkspaceService {
 		const listed = await this.#deps.repos.workspaces.listByRepo(repo.id);
 		if (!listed.ok) return listed;
 		const others = listed.value.filter((row) => row.id !== id);
-		const root = expandHome(
-			this.#deps.setting<string>("conducted_root_path"),
-			this.#deps.platform.fs.paths.home,
-		);
+		const root = this.#worktreesRoot();
+		const reachable = await this.#registerFolders([root]);
+		if (!reachable.ok) return reachable;
 		let directoryName = workspace.directoryName;
 		let worktreePath = workspace.path;
 		const pathFree = !(await this.#deps.platform.fs.exists(worktreePath));
@@ -2190,7 +2218,11 @@ export class WorkspaceService {
 		if (entry === null) {
 			return err(appError("workspace_unknown", "That backlog workspace no longer exists."));
 		}
-		const repo = await this.#deps.repos.repos.get(entry.repoId);
+		if (entry.repoId === null) {
+			return err(appError("repo_unknown", WorkspaceService.NO_READY_REPOSITORY_MESSAGE));
+		}
+		const repoId = entry.repoId;
+		const repo = await this.#deps.repos.repos.get(repoId);
 		if (!repo.ok) return repo;
 		if (repo.value === null) {
 			return err(appError("repo_unknown", WorkspaceService.NO_READY_REPOSITORY_MESSAGE));
@@ -2202,7 +2234,7 @@ export class WorkspaceService {
 		this.#forgetBacklog(id);
 		const failedBefore = this.store.getState().lastFailedCreate;
 		const created = await this.create({
-			repoId: entry.repoId,
+			repoId,
 			from: { kind: "default" },
 			prompt: entry.prompt,
 			attachmentPaths: [...entry.attachmentPaths],
@@ -2228,6 +2260,44 @@ export class WorkspaceService {
 		}
 		this.#upsertBacklog(entry);
 		return created;
+	}
+
+	/**
+	 * Backs `Actions.workspaces.setBacklogRepo`: the repository a backlog workspace starts in, for
+	 * one whose repository was removed (WS-11).
+	 */
+	async setBacklogRepo(id: WorkspaceId, repoId: RepoId): Promise<Result<void>> {
+		const repo = await this.#deps.repos.repos.get(repoId);
+		if (!repo.ok) return repo;
+		if (repo.value === null) {
+			return err(appError("repo_unknown", "That project no longer exists."));
+		}
+		const written = await this.#deps.repos.backlogWorkspaces.setRepo(id, repoId);
+		if (!written.ok) return written;
+		const current = this.store.getState().backlogById[id];
+		if (current !== undefined)
+			this.#upsertBacklog({ ...current, repoId, updatedAt: this.#deps.now() });
+		return ok(undefined);
+	}
+
+	/**
+	 * Called after a repository row was deleted: the database set its backlog workspaces' repository
+	 * to null (migration 0008), and the store follows, so the backlog asks for a repository.
+	 */
+	releaseBacklogOf(repoId: RepoId): void {
+		this.store.setState((state) => {
+			let changed = false;
+			const backlogById: Record<string, BacklogWorkspace> = {};
+			for (const [id, entry] of Object.entries(state.backlogById)) {
+				if (entry.repoId === repoId) {
+					changed = true;
+					backlogById[id] = { ...entry, repoId: null };
+				} else {
+					backlogById[id] = entry;
+				}
+			}
+			return changed ? { ...state, backlogById } : state;
+		});
 	}
 
 	/** Backs `Actions.workspaces.removeFromBacklog`. */

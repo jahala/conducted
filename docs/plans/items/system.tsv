@@ -170,7 +170,7 @@ SIDE-03	rule	Cancel reasons config_change and shutdown; ours has shutdown only, 
 AGENT-02	rule	A turn ends on the SDK result message; results from other turns and mini results are ignored.	sessions 2 turn boundary	covered
 AGENT-02	timeout	Claude turn settlement watchdog of 120 seconds.	sessions 2 turn boundary	covered
 AGENT-02	rule	The session state event flag is set at launch and session_state_changed events drive the turn tracker.	sessions 2 turn boundary	covered
-AGENT-15	rule	Turns the Claude CLI starts by itself (background task wake-ups) flip the chat to working and back to idle.	sessions 2 turn boundary	missing
+AGENT-15	rule	Turns the Claude CLI starts by itself (background task wake-ups) flip the chat to working and back to idle.	sessions 2 turn boundary	covered
 AGENT-02	rule	One live Claude generator per session.	sessions 3 Claude	covered
 AGENT-02	rule	Claude SDK options: bypass mode, approval callback, max turns, setting sources, preset prompt, disallowed tool, in-process MCP server, session store.	sessions 3 Claude	covered
 AGENT-02	rule	A new Claude session passes a session id; an existing one resumes if a transcript exists; an empty transcript is renamed so the id can be reused.	sessions 3 Claude	partly
@@ -367,7 +367,7 @@ AGENT-03	rule	Stream deltas, thinking tokens and task progress messages are drop
 AGENT-03	rule	Compact boundary and rate limit events pass through as notices	claude-runner 2.8	covered
 AGENT-03	rule	Autocompact state, post-turn summary, session metadata and active goal messages are passed on; ours ignores them	claude-runner 2.8	partly
 AGENT-03	rule	Transcript mirror, control request and keep-alive messages are not forwarded	claude-runner 2.8	covered
-AGENT-15	rule	Host callbacks cover message, in-progress, background tasks, fast mode, plan, question, approval, diff, comments, terminal; ours lacks the in-progress callback	claude-runner 2.9	partly
+AGENT-15	rule	Host callbacks cover message, in-progress, background tasks, fast mode, plan, question, approval, diff, comments, terminal; ours lacks the in-progress callback	claude-runner 2.9	covered
 SIDE-18	rule	A debug tap logs every SDK message in both directions	claude-runner 2.9	partly
 AGENT-04	rule	The permission mode follows the approvals setting and plan mode	claude-runner 3.1	covered
 AGENT-04	rule	Permission prompts use the stdio prompt tool and the SDK adds no timeout	claude-runner 3.1	covered
@@ -477,7 +477,7 @@ SIDE-20	rule	Callback onEnterPlanMode tells the host the agent entered plan mode
 SIDE-12	rule	Callbacks for diff, diff comments, adding a comment and terminal output are served by the tool backend	other-runners 1	covered
 AGENT-02	rule	Callback onBackgroundTasksChanged reports the background task list	other-runners 1	covered
 AGENT-02	rule	Callback onFastModeUnavailable reports a fast mode refusal	other-runners 1	covered
-AGENT-15	rule	Callback onInProgressChanged tells the host when the agent starts or stops working by itself	other-runners 1	missing
+AGENT-15	rule	Callback onInProgressChanged tells the host when the agent starts or stops working by itself	other-runners 1	covered
 AGENT-01	message	Cancelled, no active turn and revert-to-follow-up are typed outcomes or errors	other-runners 1	covered
 SIDE-03	rule	Runners do not own queueing, dedupe, status, checkpoints, ids, log or notifications; the session manager does	other-runners 1	covered
 AGENT-01	state	Session config fields cover collaboration mode, model, harness, thinking, fast mode, ACP agent, approvals and directories	other-runners 1	covered
@@ -1763,8 +1763,8 @@ AGENT-08	interaction	Codex MCP consent and elicitation are shown as cards, and a
 PR-09	rule	Linear GraphQL is called straight from the client.	services-map 5B.8.1	covered
 PR-09	rule	The Linear token comes from the user's account and is refreshed on 401; ours uses a personal API key and reports "key rejected".	services-map 5B.8.1	covered
 PR-09	operation	Linear queries cover my active issues, search, by id and team ids.	services-map 5B.8.1	covered
-PR-09	operation	A Linear query suggests repositories for an issue.	services-map 5B.8.1	missing
-PR-09	rule	Linear issues carry comments, createdAt, updatedAt and team fields.	services-map 5B.8.1	partly
+PR-09	operation	A Linear query suggests repositories for an issue.	services-map 5B.8.1	partly
+PR-09	rule	Linear issues carry comments, createdAt, updatedAt and team fields.	services-map 5B.8.1	covered
 PR-09	timeout	Linear cache times are 15 s, 60 s and 600 s, with an identifier regex.	services-map 5B.8.1	covered
 PR-11	operation	The GitHub issues list shows open issues, 50 newest, through REST.	services-map 5B.8.2	missing
 PR-11	rule	The issues tab is disabled when there is no GitHub remote or no access.	services-map 5B.8.2	missing
@@ -2038,7 +2038,7 @@ WS-02	message	Creating from a pull request that is not in the loaded list shows 
 PR-09	message	Creating a workspace from an issue that gives no branch name shows "Cannot create workspace from this issue".	inventory:toast row 921	missing
 WS-02	message	Creating a workspace from a PR or issue with no repository chosen shows "No repository selected".	inventory:toast row 922	missing
 WS-11	message	"Added to backlog" confirms a workspace saved without a worktree.	ui-map 3.9, inventory:toast row 923	missing
-WS-11	message	Starting a backlog workspace with no ready repository shows "No ready repository. Pick one to start this workspace."	ui-map 3.9, inventory:toast row 634	missing
+WS-11	message	Starting a backlog workspace with no ready repository shows "No ready repository. Pick one to start this workspace."; removing a repository keeps its drafts (migration 0008) and the row's "Switch repo" picker gives one a repository.	ui-map 3.9, inventory:toast row 634	covered
 COMP-07	rule	Sending while an attachment is still being copied or shrunk is refused with "Wait for attachments to finish processing."	inventory:toast row 726	missing
 COMP-06	message	A typed slash command the agent or workspace does not offer shows "This command isn't available in this workspace."	inventory:toast row 729	missing
 COMP-06	message	Typing /plan for an agent without plan mode shows "Plan mode is not available in this chat."	inventory:toast row 730	missing
@@ -2354,7 +2354,7 @@ PR-04	operation	Check logs open from a check row, with messages for logs that ca
 PR-04	operation	Queue checks is offered on the checks list; what it does is not yet known.	ui-map 3.6	partly
 PR-03	state	Deployments show states Deployed, Failed, Deploying, Pending and Inactive for known providers.	ui-map 3.6	covered
 PR-04	git	PR comments show Resolved and Outdated markers and can be resolved.	ui-map 3.6	covered
-PR-04	operation	PR comments can be hidden; there is no stored flag or API action for it.	ui-map 3.6	partly
+PR-04	operation	PR comments can be hidden: the stored comment state is hidden, set with Actions.comments.setHidden.	ui-map 3.6	covered
 PR-03	state	Reviewers show Approved, Changes requested, Commented, Dismissed or Awaiting review.	ui-map 3.6	covered
 PR-06	git	Request review asks GitHub for a review from a reviewer; the API has no such action.	ui-map 3.6	partly
 CLOUD-16	capability	The git panel can have a Desktop tab with the cloud desktop stream.	ui-map 3.6	missing
@@ -2394,13 +2394,13 @@ WS-09	state	Conductor's Local workspace and Ready (has branch) labels are replac
 PLAT-16	integration	A deep link can open the create page with path, branch and prompt filled in; the create page reads no parameters.	ui-map 3.9	partly
 WS-02	git	Create from Pull requests lists the repository's PRs; the API has no list hook.	ui-map 3.9	partly
 GIT-12	git	Create from Branches lists the repository's branches.	ui-map 3.9	covered
-PR-09	operation	Create from Issues lists Linear and GitHub issues; the API has no issue hook.	ui-map 3.9	partly
+PR-09	operation	Create from Issues lists Linear and GitHub issues.	ui-map 3.9	covered
 WS-01	git	After submit the app fetches, creates the worktree, picks names and runs setup.	ui-map 3.9, frontend 6	covered
 WS-01	operation	Recover prompt restores the draft of a failed workspace creation.	ui-map 3.9	covered
 PRJ-02	git	The Clone GitHub repo dialog takes a repository URL and a location; the service exists but the dialog does not.	ui-map 3.9	missing
 PRJ-03	operation	The Create project dialog takes a project name, a parent folder and a template.	ui-map 3.9	missing
 PRJ-03	git	Quick start can ask whether to create a private GitHub repo for the new project.	ui-map 3.9	missing
-PR-09	operation	Link issue connects Linear, searches issues and shows No open issues found; no dialog file exists.	ui-map 3.10	missing
+PR-09	operation	Link issue connects Linear, searches issues and shows No open issues found.	ui-map 3.10	covered
 WS-07	operation	Link workspaces and directories lets the agent work in other folders; the dialog has no file.	ui-map 3.10	missing
 SIDE-16	rpc	The MCP status dialog lists servers, shows No MCP servers configured, refreshes status and shows logs.	ui-map 3.10	covered
 CLOUD-16	capability	A Cloud desktop dialog exists for cloud workspaces.	ui-map 3.10	missing
@@ -2614,7 +2614,7 @@ REV-12	state	A comment that a message carried shows as added to the chat.	invent
 REV-13	store	A comment can sit on the pull request itself, with no file (location pr, file_path may be empty).	inventory:sql diff_comments	missing
 REV-13	store	A GitHub comment keeps its author's avatar, shown beside it.	inventory:sql diff_comments	missing
 REV-13	view	Pull request comments without a file show in the PR tab.	inventory:sql diff_comments	missing
-REV-03	store	A suggestion keeps the base code it applies to (suggestion_base_code); check the apply-suggestion path before adding it.	inventory:sql diff_comments	missing
+REV-03	store	A suggestion keeps the base code it applies to (diff_comments.suggestion_base_code, migration 0005); the card shows the suggestion against it. No apply-suggestion path exists yet.	inventory:sql diff_comments	covered
 DATA-08	store	Migration 0004 also holds the review comment state and link (the state replaces a dismissed flag), a nullable comment file path, the author avatar, active_session_id, the attachment loading flag, the pdf and review kinds, and the terminal screen modes.	inventory:sql	missing
 SIDE-15	rule	Agent detection prefers the app's managed copy (agent binaries folder, <name>/<version>/<name>), then the PATH copy chosen in Settings.	inventory:sidecar @48288	missing
 AGENT-11	rule	ACP provider programs are looked up in the ACP providers folder, then the bundled bin folder.	inventory:sidecar @48291	missing
@@ -2836,7 +2836,7 @@ COMP-01	rule	Add sendWithFromSetting to features/composer/send-key.ts and use it
 NAV-17	rule	CommandForDeepLink duplicates NAV-17's parseDeepLinkRoute and the entry's openWorkspaceLink; the dispatcher should call parseDeepLinkRoute and open the returned route (moved from NAV-14 by the step-5 audit).	docs/reports/audits/step-5	missing
 NAV-11	rule	Replace their hand-written or default shortcut text with CommandHint/useLiveShortcut so every hint follows a rebind (moved from NAV-14 by the step-5 audit).	docs/reports/audits/step-5	missing
 REV-08	rule	Mount DiffView and DiffToolbar from the File tab's diff pane and header so the viewer exists in the app (moved from REV-02 by the step-5 audit).	docs/reports/audits/step-5	missing
-REV-03	rule	Compute annotations and supply renderAnnotation/renderGutterUtility, including outdated comments at the file top (moved from REV-02 by the step-5 audit).	docs/reports/audits/step-5	missing
+REV-03	rule	Compute annotations and supply renderAnnotation/renderGutterUtility, including outdated comments at the file top; the gutter button opens a new comment's composer in the file tab's diff (moved from REV-02 by the step-5 audit).	docs/reports/audits/step-5	covered
 REV-01	rule	Pass onToggleViewed from ChangesTab to ChangedFileList using Actions.git.setViewed (moved from REV-02 by the step-5 audit).	docs/reports/audits/step-5	missing
 REV-08	rule	Register handlers for review.previousFile, review.nextFile and review.toggleViewed in the file tab (moved from REV-02 by the step-5 audit).	docs/reports/audits/step-5	missing
 REV-09	rule	Restore one file from a checkpoint tree (moved from REV-02 by the step-5 audit).	docs/reports/audits/step-5	missing
@@ -2867,7 +2867,7 @@ WS-09	rule	Show the Archive workspace badge from workspace archive state (moved 
 WS-09	rule	Animate the row icon when internal_workspace_status_matrix is on (moved from NAV-03 by the step-6 audit).	docs/reports/audits/step-6	missing
 NAV-11	rule	Mark the hovered workspace read or unread (moved from NAV-03 by the step-6 audit).	docs/reports/audits/step-6	missing
 NAV-04	rule	Pin or unpin the hovered workspace (moved from NAV-03 by the step-6 audit).	docs/reports/audits/step-6	missing
-PR-04	rule	Add Actions.pullRequests.openOnGithub (contract change in core/api.ts and mapping in core/actions.ts) and wire the button in PrSummaryHeader.tsx / PrTab.tsx (moved from PR-02 by the step-6 audit).	docs/reports/audits/step-6	missing
+PR-04	rule	Actions.pullRequests.openOnGithub opens GitHub's new pull request page; the Checks tab's Create PR calls it (PrTab is PR-07's) (moved from PR-02 by the step-6 audit).	docs/reports/audits/step-6	covered
 SIDE-06	rule	Compare apps/desktop/src/core/git/refs.ts with packages/sidecar/src/checkpoints/checkpoint-id.ts (prefix, phase, exit codes, id format) (moved from SIDE-06 by the step-6 audit).	docs/reports/audits/step-6	missing
 RUN-01	rule	TerminalsService.runScript, TerminalsService.outputFor and RunScriptsService.stopWorkspace are still notImplemented, so creating a workspace with a setup script and Cancel cannot run the real path; add RUN-01 and RUN-07 to WS-03's blockers and build them there, including the real TerminalsService test with a fake PTY (moved from WS-03 by the step-6 audit).	docs/reports/audits/step-6	missing
 PR-02	rule	Move SETUP_FIX_PROMPT, ADD_SETUP_PROMPT and the log-tail wording into agent-instructions.ts; PR-02 owns that file and is being edited in parallel (moved from WS-03 by the step-6 audit).	docs/reports/audits/step-6	missing
@@ -3006,7 +3006,7 @@ CHAT-19	rule	Two notification rules: the dock-badge count rule and the newest-li
 PLAT-11	rule	notifications.rs (PLAT-11) and lib.rs (PLAT-27) log through logger.rs instead of eprintln!, which needs a process-wide sink in logger.rs (moved from PLAT-18 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
 SIDE-18	rule	The sidecar reads its log level and the app version from the environment the launcher sets (packages/sidecar/src/config.ts, modes/sidecar-mode.ts) (moved from PLAT-18 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
 PLAT-13	rule	When updater artifacts are configured, the release build creates and signs the .app.tar.gz from the verified app (moved from PLAT-25 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
-PLAT-02	rule	FileSystem.registerRoot(path) in platform.ts, fs_register_root and managed root state in files.rs registered in lib.rs, called from repo.ts addLocal, workspace.ts create and open, file-diff.ts and git/worktree.ts (PRJ-01, WS-01, REV-02); until then a repository outside ~/conducted is refused (PLAT-29) (moved from PLAT-29 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
+PLAT-02	rule	FileSystem.registerRoot(path) in platform.ts, fs_register_root and managed root state in files.rs registered in lib.rs, called from repo.ts addLocal, workspace.ts create and open, file-diff.ts and git/worktree.ts (PRJ-01, WS-01, REV-02); until then a repository outside ~/conducted is refused (PLAT-29) (moved from PLAT-29 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	covered
 PLAT-07	rule	pty_spawn calls check_program_allowed on command.program (pty.rs); shell.rs now states that the terminal is out of its scope (moved from PLAT-29 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
 PLAT-02	rule	Programs.onVerificationErrors in platform.ts, implemented with onEvent in platform/tauri.ts and with a listener set plus dispose in platform/memory.ts, tested with a real emit of programs://verification-errors (moved from PLAT-34 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
 PLAT-33	rule	createTauriMenu.setShortcuts and onCommand deliver menu accelerators and menu clicks in the live app; both still call notImplemented("PLAT-33") (moved from PLAT-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
@@ -3022,8 +3022,8 @@ SIDE-25	rule	createRunnerRegistry passes appToolsServers into AcpRunner (modes/s
 AGENT-06	rule	codex-session.ts uses the shared createDeferred instead of its own copy (moved from AGENT-11 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
 AGENT-06	rule	codex-session.ts uses the shared sameStrings instead of its own copy (moved from AGENT-11 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
 AGENT-02	rule	claude-session.ts uses the shared createDeferred instead of its own copy (deferred) (moved from AGENT-11 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
-AGENT-02	rule	claude-session.ts builds SelfStartedTurnTracker (ownTurnOpen: () => this.turnOpen, the session translator, the host callbacks) and feeds it every SDK message (moved from AGENT-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
-SIDE-03	rule	session/manager.ts owns a SelfStartedTurns per chat, passes its callbacks into that chat's Claude session, and drains queued messages from onSettled (moved from AGENT-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
+AGENT-02	rule	claude-session.ts builds SelfStartedTurnTracker (ownTurnOpen: () => this.turnOpen, the session translator, the host callbacks) and feeds it every SDK message the turn tracker does not hold back (moved from AGENT-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	covered
+SIDE-03	rule	session/manager.ts gives every agent start the callbacks of its own SelfStartedTurns, passed into that chat's Claude session, and drains queued messages from onSettled (moved from AGENT-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	covered
 SIDE-03	rule	session/manager.ts keeps the chat's process busy through a turn (the lease release marks it busy), calls processes.markIdle when a turn ends, is cancelled or fails to start, and calls processes.setBackgroundTasks from the turn's onBackgroundTasks (moved from SIDE-07 by the slice 2 step 1 audit; tests in session/manager.process-lifetime.test.ts).	docs/reports/audits/s2-step-1	covered
 SIDE-02	rule	buildHandlers has tests for the listSlashCommands and listMcpServers handlers (moved from SIDE-16 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
 AGENT-06	rule	Codex primary and secondary rate-limit windows (used percent, window length, reset time) come from the Codex app-server protocol and session (moved from SIDE-17 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
@@ -3044,5 +3044,6 @@ SET-04	integration	The Environment page's variables reach a running agent: SET-0
 SIDE-21	integration	The managed agent copy joins the program order (Settings path, managed copy, then PATH) when PLAT-28 installs it; until then the order is Settings path, then PATH.	other-runners 5	missing
 SIDE-21	integration	The desktop composition root (core/container.ts) passes launchFor to SessionsService and ChatTitlesService, built from the saved settings: program paths, provider and base URL, and provider keys from the Keychain. Accepted by a test over createTestContainer that sends one message and sees the launch in the sidecar request, with no chat_launch_missing (D054).	claude-runner 1.2	missing
 CHAT-15	rule	After a revert the agent forgets the reverted turns: revertTo asks the sidecar to resetAgent, and the chat's next send resumes the agent at the chosen turn with resume.atNativeMessageId. Until then the agent keeps them in memory although the chat hides them (moved by the s2-2 core-1 audit).	sessions 2	missing
-PR-09	operation	Linear requests go through Platform.http (http_fetch) instead of curl (moved from PLAT-30 by the slice 2 step 2 audit).	native-and-sidecar-map A2; services-map 1.1	missing
+PR-09	operation	Linear requests go through Platform.http (http_fetch) instead of curl (moved from PLAT-30 by the slice 2 step 2 audit).	native-and-sidecar-map A2; services-map 1.1	covered
 PLAT-28	operation	Agent and helper program downloads go through Platform.http.download with a SHA-256 and cancel (moved from PLAT-30 by the slice 2 step 2 audit).	native-and-sidecar-map A2	covered
+SET-05	rpc	McpService.refresh sends the chat's launch with listMcpServers (the container's launchFor), so MCP status runs the program and keys the user chose; the sidecar already lists with it (moved from the SIDE-21 contract change).	docs/reports/slice-2	missing
