@@ -6,9 +6,15 @@
  * Test first: not applicable; the screenshot run opens every state.
  */
 import type { CatalogueState } from "../state.ts";
+import { CHAT_STATES } from "./chat.ts";
+import { PAGE_STATES } from "./pages.ts";
 import { SHELL_STATES } from "./shell.ts";
 
-export const CATALOGUE_STATES: readonly CatalogueState[] = [...SHELL_STATES];
+export const CATALOGUE_STATES: readonly CatalogueState[] = [
+	...SHELL_STATES,
+	...PAGE_STATES,
+	...CHAT_STATES,
+];
 
 const seen = new Set<string>();
 for (const state of CATALOGUE_STATES) {

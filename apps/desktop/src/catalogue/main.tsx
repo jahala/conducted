@@ -24,7 +24,7 @@ import { type StartedApp, startApp } from "../main.tsx";
 import { CatalogueIndex } from "./CatalogueIndex.tsx";
 import { CATALOGUE_MARKER } from "./marker.ts";
 import { setSetting } from "./seeds.ts";
-import type { CatalogueState, Theme } from "./state.ts";
+import type { CatalogueState, Scene, Theme } from "./state.ts";
 import { CATALOGUE_STATES } from "./states/index.ts";
 import { createWorld } from "./world.ts";
 
@@ -43,6 +43,21 @@ async function waitFor(what: string, holds: () => boolean): Promise<void> {
 		await nextFrame();
 	}
 	throw new Error(`The screen never settled: ${what}.`);
+}
+
+/** Fails with `what` when `work` has not finished after MAX_FRAMES frames. */
+async function withinFrames<T>(what: string, work: Promise<T>): Promise<T> {
+	let finished = false;
+	const timeout = (async (): Promise<never> => {
+		for (let frame = 0; frame < MAX_FRAMES && !finished; frame++) await nextFrame();
+		throw new Error(`The screen never settled: ${what} did not finish.`);
+	})();
+	try {
+		return await Promise.race([work, timeout]);
+	} finally {
+		finished = true;
+		timeout.catch(() => {});
+	}
 }
 
 /** Waits until nothing on the page changed for QUIET_FRAMES frames in a row. */
@@ -66,15 +81,15 @@ async function waitForQuiet(root: Node): Promise<void> {
 	}
 }
 
-async function settle(state: CatalogueState, app: StartedApp): Promise<void> {
+async function settle(state: CatalogueState, scene: Scene, app: StartedApp): Promise<void> {
 	await waitFor("the router is loading", () => app.router.state.status === "idle");
 	await waitFor(
 		"a query or mutation is still running",
 		() => app.queryClient.isFetching() === 0 && app.queryClient.isMutating() === 0,
 	);
 	await document.fonts.ready;
-	if (state.ready !== undefined) {
-		const ready = state.ready;
+	if (scene.ready !== undefined) {
+		const ready = scene.ready;
 		await waitFor(`"${state.id}" never showed what it is about`, () => ready(document));
 	}
 	await waitForQuiet(document.body);
@@ -98,19 +113,21 @@ async function mountState(
 ): Promise<void> {
 	const world = await createWorld();
 	await setSetting(world, "theme", theme);
-	const route = await state.seed(world);
+	const scene = await state.seed(world);
 	const app = startApp({
 		root: element,
 		platform: world.memory.platform,
 		clock: world.clock,
 		ids: world.ids,
-		history: createMemoryHistory({ initialEntries: [route] }),
+		history: createMemoryHistory({ initialEntries: [scene.route] }),
 	});
 	const started = await app.started;
 	if (!started.ok) throw new Error(`The app did not start: ${started.error.message}`);
 	await waitFor("the router is loading", () => app.router.state.status === "idle");
-	if (state.after !== undefined) await state.after({ world, app, document });
-	await settle(state, app);
+	if (scene.after !== undefined) {
+		await withinFrames("the state's after-step", scene.after({ world, app, document }));
+	}
+	await settle(state, scene, app);
 	const location = app.router.state.location;
 	mark("ready", { route: `${location.pathname}${location.searchStr}` });
 }

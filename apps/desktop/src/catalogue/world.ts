@@ -25,12 +25,7 @@ import { createRepositories, type Repositories } from "../core/db/repositories.t
 import { createMemoryPlatform, type MemoryPlatform, type ShellScript } from "../platform/memory.ts";
 import { createTestIds } from "../test/ids.ts";
 import { openCatalogueDatabase } from "./sqlite.ts";
-
-/** Monday 2 November 2026, 09:30 UTC. Every timestamp a seed writes is counted back from here. */
-export const CATALOGUE_NOW = Date.UTC(2026, 10, 2, 9, 30);
-export const MINUTE = 60_000;
-export const HOUR = 60 * MINUTE;
-export const DAY = 24 * HOUR;
+import { CATALOGUE_NOW } from "./time.ts";
 
 /** The home folder of the catalogue's made-up Mac user. */
 export const HOME = "/Users/sam";

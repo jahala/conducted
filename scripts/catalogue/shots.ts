@@ -7,7 +7,8 @@
  * - Reads the list of states from the catalogue's index page, so the list has one home
  *   (apps/desktop/src/catalogue/states/index.ts).
  * - Opens each state in Playwright's Chromium, the build already in Playwright's cache (nothing is
- *   downloaded), with reduced motion, and waits for the page to mark itself settled
+ *   downloaded), with reduced motion and `Date` fixed to the catalogue's moment
+ *   (apps/desktop/src/catalogue/time.ts), and waits for the page to mark itself settled
  *   (`data-catalogue` on <html>; see apps/desktop/src/catalogue/main.tsx). A state that fails or never
  *   settles is listed with its reason, and the run exits 1.
  * - Writes `.context/shots/ours/<state-id>-<light|dark>.png` and `.context/shots/ours/index.json`.
@@ -20,6 +21,7 @@ import { type ChildProcess, spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { type Browser, chromium } from "playwright-core";
+import { CATALOGUE_NOW } from "../../apps/desktop/src/catalogue/time.ts";
 
 const ROOT = resolve(import.meta.dir, "../..");
 const DESKTOP = join(ROOT, "apps/desktop");
@@ -112,6 +114,8 @@ async function capture(browser: Browser, url: string, id: string, theme: Theme):
 		reducedMotion: "reduce",
 	});
 	const page = await context.newPage();
+	// The sidebar and Home read `Date.now`, not the app's clock; fix it to the catalogue's moment.
+	await page.clock.setFixedTime(CATALOGUE_NOW);
 	const errors: string[] = [];
 	page.on("pageerror", (error) => errors.push(error.message));
 	try {

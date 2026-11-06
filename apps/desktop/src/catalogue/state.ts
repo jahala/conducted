@@ -17,8 +17,14 @@ export interface CatalogueState {
 	/** The heading the index page lists it under. */
 	group: string;
 	title: string;
-	/** Writes what the screen needs and returns the app route to open. Runs before the app starts. */
-	seed(world: World): Promise<string>;
+	/** Writes what the screen needs before the app starts, and says what to open. */
+	seed(world: World): Promise<Scene>;
+}
+
+/** What a seeded state opens, and what it does once the app is up. */
+export interface Scene {
+	/** The app route to open. */
+	route: string;
 	/**
 	 * Runs once the app has started and the route has loaded: deliver sidecar lines, open a menu, type
 	 * into the composer. Returns when the step is done; the page then waits for the screen to settle.
