@@ -19,6 +19,7 @@ import type { WorkspaceId } from "@conducted/shared";
 import { type ReactNode, useState } from "react";
 import { useActions, useSetting } from "../../core/hooks.ts";
 import { cn } from "../../ui/cn.ts";
+import { ArrowUpRightIcon } from "../../ui/icons.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { ChatVideo, isVideoSource } from "./ChatVideo.tsx";
 import { CodeBlock } from "./CodeBlock.tsx";
@@ -52,6 +53,22 @@ const HEADING_TAGS = { 1: "h1", 2: "h2", 3: "h3", 4: "h4", 5: "h5", 6: "h6" } as
 /** Stable key for content that can repeat: the item's position inside its block. */
 function positionKey(prefix: string, index: number): string {
 	return `${prefix}#${index}`;
+}
+
+/** Conductor's callout title and edge colours, one per kind (measured from its Markdown quote). */
+const CALLOUT_CLASS = {
+	note: "border-l-callout-note [&>div]:text-callout-note",
+	tip: "border-l-callout-tip [&>div]:text-callout-tip",
+	important: "border-l-callout-important [&>div]:text-callout-important",
+	warning: "border-l-callout-warning [&>div]:text-callout-warning",
+	caution: "border-l-callout-caution [&>div]:text-callout-caution",
+} as const;
+
+function calloutKind(label: string): keyof typeof CALLOUT_CLASS {
+	const kind = label.toLowerCase();
+	return kind === "tip" || kind === "important" || kind === "warning" || kind === "caution"
+		? kind
+		: "note";
 }
 
 /** Conductor hides a habitual opening phrase so the reply starts with its substance. */
@@ -236,8 +253,9 @@ function MarkdownImage({
 	const label = alt.length > 0 ? alt : src;
 	if (REMOTE_IMAGE.test(src) && !INLINE_IMAGE.test(src)) {
 		return (
-			<ExternalLink url={src} className="text-link underline-offset-2 hover:underline">
+			<ExternalLink url={src}>
 				{label}
+				<ArrowUpRightIcon className="ml-1 inline size-3 align-[-0.125em]" />
 			</ExternalLink>
 		);
 	}
@@ -264,7 +282,7 @@ function MarkdownImage({
 			src={src}
 			alt={alt}
 			onError={() => setFailed(true)}
-			className="my-2 max-h-96 max-w-full rounded-md border border-border object-contain"
+			className="max-h-96 max-w-full object-contain"
 		/>
 	);
 }
@@ -292,16 +310,13 @@ function renderInline(text: string, keyPrefix: string, workspaceId?: WorkspaceId
 			const inner = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(token);
 			const url = inner?.[2] ?? "";
 			nodes.push(
-				<ExternalLink key={key} url={url} className="text-link underline-offset-2 hover:underline">
+				<ExternalLink key={key} url={url}>
 					{inner?.[1] ?? token}
+					<ArrowUpRightIcon className="ml-1 inline size-3 align-[-0.125em]" />
 				</ExternalLink>,
 			);
 		} else if (token.startsWith("`")) {
-			nodes.push(
-				<code key={key} className="rounded-xs bg-muted px-1 py-0.5 font-mono text-code">
-					{token.slice(1, -1)}
-				</code>,
-			);
+			nodes.push(<code key={key}>{token.slice(1, -1)}</code>);
 		} else if (token.startsWith("**") || token.startsWith("__")) {
 			nodes.push(<strong key={key}>{token.slice(2, -2)}</strong>);
 		} else {
@@ -341,10 +356,7 @@ export function AssistantText({
 		<div
 			data-markdown-style={tufte ? "tufte" : "default"}
 			data-conducted-reply=""
-			className={cn(
-				"flex select-text flex-col gap-2 text-sm leading-relaxed text-fg",
-				tufte && "max-w-[65ch] leading-loose",
-			)}
+			className={cn("markdown select-text", tufte && "max-w-[65ch] leading-loose")}
 		>
 			{blocks.map((block, blockIndex) => {
 				const key = `block-${blockIndex}`;
@@ -364,30 +376,12 @@ export function AssistantText({
 						);
 					case "heading": {
 						const Tag = HEADING_TAGS[block.level];
-						return (
-							<Tag
-								key={key}
-								className={cn(
-									"font-medium text-fg",
-									block.level === 1 && "text-xl",
-									block.level === 2 && "text-lg",
-									block.level >= 3 && "text-base",
-								)}
-							>
-								{renderInline(block.text, key, workspaceId)}
-							</Tag>
-						);
+						return <Tag key={key}>{renderInline(block.text, key, workspaceId)}</Tag>;
 					}
 					case "list": {
 						const Tag = block.ordered ? "ol" : "ul";
 						return (
-							<Tag
-								key={key}
-								className={cn(
-									"ml-5 flex flex-col gap-1",
-									block.ordered ? "list-decimal" : "list-disc",
-								)}
-							>
+							<Tag key={key}>
 								{block.items.map((item, itemIndex) => (
 									<li key={positionKey(`${key}-item`, itemIndex)}>
 										{renderInline(item, `${key}-${itemIndex}`, workspaceId)}
@@ -398,15 +392,12 @@ export function AssistantText({
 					}
 					case "table":
 						return (
-							<div key={key} className="overflow-x-auto">
-								<table className="w-full border-collapse text-sm">
+							<div key={key} className="w-full overflow-x-auto">
+								<table>
 									<thead>
 										<tr>
 											{block.header.map((cell, cellIndex) => (
-												<th
-													key={positionKey(`${key}-h`, cellIndex)}
-													className="border-b border-border-strong px-2 py-1 text-left font-medium text-fg"
-												>
+												<th key={positionKey(`${key}-h`, cellIndex)}>
 													{renderInline(cell, `${key}-h-${cellIndex}`, workspaceId)}
 												</th>
 											))}
@@ -416,10 +407,7 @@ export function AssistantText({
 										{block.rows.map((row, rowIndex) => (
 											<tr key={positionKey(`${key}-r`, rowIndex)}>
 												{row.map((cell, cellIndex) => (
-													<td
-														key={positionKey(`${key}-r-${rowIndex}`, cellIndex)}
-														className="border-b border-border px-2 py-1 text-fg-muted"
-													>
+													<td key={positionKey(`${key}-r-${rowIndex}`, cellIndex)}>
 														{renderInline(cell, `${key}-r-${rowIndex}-${cellIndex}`, workspaceId)}
 													</td>
 												))}
@@ -431,24 +419,25 @@ export function AssistantText({
 						);
 					case "callout":
 						return (
-							<div key={key} className="rounded-md border border-border bg-surface px-3 py-2">
-								<p className="text-xs font-medium text-fg">{block.label}</p>
-								<p className="text-sm text-fg-muted">
-									{renderInline(block.text, key, workspaceId)}
-								</p>
-							</div>
+							<blockquote
+								key={key}
+								className={cn("text-fg", CALLOUT_CLASS[calloutKind(block.label)])}
+							>
+								<div className="mb-1 flex items-center gap-2 font-medium">{block.label}</div>
+								<p>{renderInline(block.text, key, workspaceId)}</p>
+							</blockquote>
 						);
 					case "quote":
 						return (
-							<blockquote key={key} className="border-l-2 border-border-strong pl-3 text-fg-muted">
-								{renderInline(block.text, key, workspaceId)}
+							<blockquote key={key}>
+								<p>{renderInline(block.text, key, workspaceId)}</p>
 							</blockquote>
 						);
 					case "hr":
-						return <hr key={key} className="border-border" />;
+						return <hr key={key} />;
 					case "paragraph":
 						return (
-							<p key={key} className="whitespace-pre-wrap break-words">
+							<p key={key} className="whitespace-pre-wrap">
 								{renderInline(block.text, key, workspaceId)}
 							</p>
 						);

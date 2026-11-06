@@ -174,6 +174,19 @@ export const textPairs: [string, string][] = [
 	...on("success", ["canvas", "surface", "panel", "raised"]),
 	...on("git-added", ["canvas", "surface", "panel"]),
 	...on("git-removed", ["canvas", "surface", "panel"]),
+	...on("code-fg", ["muted"]),
+	...on("code-comment", ["muted"]),
+	...on("code-keyword", ["muted"]),
+	...on("code-string", ["muted"]),
+	...on("code-number", ["muted"]),
+	...on("code-function", ["muted"]),
+	...on("code-class", ["muted"]),
+	...on("code-tag", ["muted"]),
+	...on("callout-note", ["canvas"]),
+	...on("callout-tip", ["canvas"]),
+	...on("callout-important", ["canvas"]),
+	...on("callout-warning", ["canvas"]),
+	...on("callout-caution", ["canvas"]),
 ];
 
 export const markPairs: [string, string][] = [

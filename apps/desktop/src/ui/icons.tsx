@@ -156,6 +156,7 @@ export const ClipboardListIcon = (p: P) => (
 	/>
 );
 export const PromptIcon = (p: P) => <Icon d="M3 4.5l4 3.5-4 3.5M8.5 12h4.5" {...p} />;
+export const PlayIcon = (p: P) => <Icon d="M5 3.5l7.5 4.5L5 12.5z" {...p} />;
 export const SlashIcon = (p: P) => <Icon d="M11 2.5L5 13.5" {...p} />;
 export const SendIcon = (p: P) => <Icon d="M14 2L7 9M14 2l-4.5 12-2.5-5-5-2.5z" {...p} />;
 export const SquareCheckIcon = (p: P) => <Icon d="M2.5 2.5h11v11h-11zM5.5 8l2 2 3.5-4" {...p} />;
