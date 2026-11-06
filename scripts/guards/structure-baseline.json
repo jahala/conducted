@@ -20,7 +20,6 @@
 		"apps/desktop/src/core/git/commands.ts": 11,
 		"apps/desktop/src/core/git/gh-commands.ts": 1,
 		"apps/desktop/src/core/hooks/git.ts": 1,
-		"apps/desktop/src/core/hooks/system.ts": 1,
 		"apps/desktop/src/core/registries/commands.ts": 1,
 		"apps/desktop/src/core/registries/settings.ts": 3,
 		"apps/desktop/src/core/services/composer.ts": 2,

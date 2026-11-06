@@ -16,6 +16,7 @@
 import { Link } from "@tanstack/react-router";
 import { WrenchIcon } from "../../ui/icons.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
+import { MacosVersionWarningNotice } from "../updates/MacosVersionWarning.tsx";
 import { UpdateNotice } from "../updates/UpdateNotice.tsx";
 import { AddProjectButton } from "./AddProjectButton.tsx";
 import { ResourceUsageTable } from "./ResourceUsageTable.tsx";
@@ -41,6 +42,7 @@ export function Sidebar() {
 					</span>
 					<span className="truncate">Settings</span>
 				</Link>
+				<MacosVersionWarningNotice />
 				<NotBuiltYet area="Update notice" variant="inline">
 					<UpdateNotice />
 				</NotBuiltYet>

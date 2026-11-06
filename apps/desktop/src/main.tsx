@@ -7,26 +7,30 @@
  * Our design choice: `startApp` takes the already-built Platform, so a test can mount the entry on the
  * in-memory Platform. The module wires the Tauri Platform and calls it once when `index.html` has a
  * `#root`; importing the module in a test does not start a second app.
- * Must handle: a Platform that cannot be built (logged, no root mounted); a startup state that is
- * blocked or failed (logged with its phase and sidecar log path; the designed screens are APP-08);
- * query and mutation failures, React render failures and unhandled errors all reaching the app log;
+ * Must handle: a Platform that cannot be built (logged, no root mounted); the loading, blocked, failed and
+ * wrong-CPU states drawn by APP-08's StartupScreen and StartupFailure (the blocked and failed states are also
+ * logged); query and mutation failures, React render failures and unhandled errors all reaching the app log;
  * the toast host inside the providers; one query client for the whole app.
  * Test first: mounting the entry builds a container, runs the startup sequence and renders the router.
  */
 import { cryptoIds, type Result, systemClock } from "@conducted/shared";
 import type { QueryClient } from "@tanstack/react-query";
-import { StrictMode } from "react";
+import { StrictMode, useState, useSyncExternalStore } from "react";
 import { createRoot } from "react-dom/client";
 import { AppProviders, createQueryClient, createRootErrorHandlers } from "./app/providers.tsx";
 import { AppRoutes, createAppRouter } from "./app/router.tsx";
+import { type StartupBlocker, StartupFailure } from "./app/StartupFailure.tsx";
+import { StartupScreen } from "./app/StartupScreen.tsx";
 import { runStartup, type StartupState } from "./app/startup.ts";
 import { type Container, type ContainerInputs, createContainer } from "./core/container.ts";
 import { ServicesProvider } from "./core/context.tsx";
+import { useSystemInfo } from "./core/hooks.ts";
 import { parseDeepLink, type SoundPlayer } from "./core/services/notifications.ts";
 import { tomlCodec } from "./core/services/toml-codec.ts";
 import type { PlaceNames } from "./core/services/workspace.ts";
-import type { Platform } from "./platform/platform.ts";
+import type { Platform, SystemInfo } from "./platform/platform.ts";
 import { createTauriPlatform } from "./platform/tauri.ts";
+import { toastError } from "./ui/Toast.tsx";
 import "./styles.css";
 
 /** Our own place names for new workspaces. A name already used gets the next one in the list. */
@@ -151,6 +155,139 @@ function openWorkspaceLink(
 	});
 }
 
+/** The start-up screen state, plus the wrong-CPU blocker that needs the machine facts. */
+type StartupView = StartupState | { kind: "wrong_cpu_build"; system: SystemInfo };
+
+interface StartupChannel {
+	read(): StartupView;
+	write(state: StartupView): void;
+	subscribe(listener: () => void): () => void;
+}
+
+/** A tiny store bridge, so the start-up sequence outside React can drive the screen inside it. */
+function createStartupChannel(initial: StartupView): StartupChannel {
+	let current = initial;
+	const listeners = new Set<() => void>();
+	return {
+		read: () => current,
+		write: (state) => {
+			current = state;
+			for (const listener of listeners) listener();
+		},
+		subscribe: (listener) => {
+			listeners.add(listener);
+			return () => listeners.delete(listener);
+		},
+	};
+}
+
+function messageOf(cause: unknown): string {
+	return cause instanceof Error ? cause.message : String(cause);
+}
+
+/** Checks for an update, and shows the failure instead of leaving the button silent. */
+function checkForUpdates(container: Container): void {
+	let checking: Promise<Result<void>>;
+	try {
+		checking = container.actions.app.checkForUpdates();
+	} catch (cause) {
+		toastError("Couldn't check for updates", { message: messageOf(cause) });
+		return;
+	}
+	void checking
+		.then((outcome) => {
+			if (!outcome.ok) toastError("Couldn't check for updates", outcome.error);
+		})
+		.catch((cause: unknown) => {
+			toastError("Couldn't check for updates", { message: messageOf(cause) });
+		});
+}
+
+/** The text "Copy diagnostics" writes. It never leaves the Mac by itself. */
+function blockerDiagnostics(blocker: StartupBlocker, appVersion: string): string {
+	const lines = [`Conducted ${appVersion}`];
+	if (blocker.kind === "blocked") {
+		lines.push(
+			`The database schema is ${blocker.databaseVersion}; this app supports up to ${blocker.appVersion}.`,
+			"The database was created by a newer version of Conducted.",
+		);
+	}
+	if (blocker.kind === "failed") {
+		lines.push(
+			`Start-up failed during ${blocker.phase}: ${blocker.message}`,
+			blocker.logPath === null ? "No log file path was available." : `Log file: ${blocker.logPath}`,
+		);
+	}
+	if (blocker.kind === "wrong_cpu_build") {
+		lines.push(
+			`macOS ${blocker.system.osVersion}; Mac ${blocker.system.machineArch}; build ${blocker.system.buildArch}.`,
+		);
+	}
+	return lines.join("\n");
+}
+
+function copyDiagnostics(container: Container, blocker: StartupBlocker): void {
+	const text = blockerDiagnostics(blocker, container.platform.app.version);
+	void container.actions.app.copyText(text).then((outcome) => {
+		if (!outcome.ok) toastError("Couldn't copy diagnostics", outcome.error);
+	});
+}
+
+/**
+ * Draws the start-up screen, the blocker screen, or the router, from the same channel. A wrong-CPU build gets
+ * the full-screen blocker once the machine facts are known; "Continue anyway" mounts the app for this run.
+ */
+function StartupRoot({
+	channel,
+	container,
+	router,
+}: {
+	channel: StartupChannel;
+	container: Container;
+	router: ReturnType<typeof createAppRouter>;
+}) {
+	const state = useSyncExternalStore(channel.subscribe, channel.read, channel.read);
+	const system = useSystemInfo();
+	const [continuedWrongCpu, setContinuedWrongCpu] = useState(false);
+
+	if (state.kind === "running") return <StartupScreen phase={state.phase} />;
+	if (state.kind === "ready") {
+		if (
+			!continuedWrongCpu &&
+			system.state === "ready" &&
+			system.data.machineArch === "arm64" &&
+			system.data.buildArch === "x86_64"
+		) {
+			const blocker: StartupBlocker = { kind: "wrong_cpu_build", system: system.data };
+			return (
+				<StartupFailure
+					blocker={blocker}
+					onUpdate={() => checkForUpdates(container)}
+					onRetry={() => window.location.reload()}
+					onCopyDiagnostics={() => copyDiagnostics(container, blocker)}
+					onQuit={() => {
+						void container.platform.app.quit();
+					}}
+					onContinueAnyway={() => setContinuedWrongCpu(true)}
+				/>
+			);
+		}
+		return <AppRoutes router={router} />;
+	}
+	const blocker = state;
+	return (
+		<StartupFailure
+			blocker={blocker}
+			onUpdate={() => checkForUpdates(container)}
+			onRetry={() => window.location.reload()}
+			onCopyDiagnostics={() => copyDiagnostics(container, blocker)}
+			onQuit={() => {
+				void container.platform.app.quit();
+			}}
+		/>
+	);
+}
+
 export interface StartAppOptions {
 	root: HTMLElement;
 	platform: Platform;
@@ -193,7 +330,9 @@ export function startApp(options: StartAppOptions): StartedApp {
 	const container = createAppContainer({ platform, openLink });
 	openedContainer = container;
 
+	const startupChannel = createStartupChannel({ kind: "running", phase: "database" });
 	const report = (state: StartupState): void => {
+		startupChannel.write(state);
 		if (state.kind === "blocked") {
 			log("Startup blocked: the database is newer than this app", {
 				databaseVersion: state.databaseVersion,
@@ -213,7 +352,7 @@ export function startApp(options: StartAppOptions): StartedApp {
 		<StrictMode>
 			<AppProviders client={queryClient}>
 				<ServicesProvider container={container}>
-					<AppRoutes router={router} />
+					<StartupRoot channel={startupChannel} container={container} router={router} />
 				</ServicesProvider>
 			</AppProviders>
 		</StrictMode>,
