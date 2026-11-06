@@ -792,6 +792,7 @@ pub fn run() {
             updater::updater_check,
             updater::updater_install,
             updater::updater_relaunch,
+            updater::updater_installed_update,
             attachments::attachment_materialize,
             attachments::image_resize,
             attachments::attachment_write_bytes,

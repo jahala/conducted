@@ -1218,6 +1218,17 @@ export function createContainer(inputs: ContainerInputs): Container {
 		keepAwakeTimer = setInterval(runKeepAwakeScan, KEEP_AWAKE_SCAN_MS);
 		(keepAwakeTimer as unknown as { unref?: () => void }).unref?.();
 
+		// An update that is staged and allowed to restart waits for the last working chat.
+		let chatsWereWorking = anyChatWorking();
+		cleanups.push(
+			sessions.store.subscribe(() => {
+				const working = anyChatWorking();
+				if (working === chatsWereWorking) return;
+				chatsWereWorking = working;
+				updates.onActivityChanged();
+			}),
+		);
+
 		updateTimer = setInterval(() => {
 			void updates.check().then((outcome) => {
 				if (!outcome.ok) log("warn", `Update check failed: ${outcome.error.message}`);

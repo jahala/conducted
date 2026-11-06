@@ -31,27 +31,8 @@ const TAURI_SKIPS: Readonly<Record<string, string>> = {
 	"speech.stop-ends": `${NEEDS_RUST}: Apple dictation over a real speech recognizer`,
 	"system.info": `${NEEDS_RUST}: the macOS version and CPU`,
 	"app.resource-usage": `${NEEDS_RUST}: reads the process table (resource_usage.rs tests own it)`,
-};
-
-/**
- * Cases whose method is still a placeholder in the Tauri adapter, because the feature that builds
- * it is not done. They are skipped, not marked as failing (D055). The test below checks that each
- * method still throws for its feature, so the day a feature lands, that test fails and its entry
- * must come off this list. `pnpm stubs` already fails a done feature that keeps a placeholder.
- */
-const NOT_BUILT: Readonly<Record<string, { feature: string; method: string }>> = {
-	"updater.check": { feature: "PLAT-13", method: "updater.check" },
-	"updater.installed-update": { feature: "PLAT-13", method: "updater.installedUpdate" },
-};
-
-const TAURI_RUN_SKIPS: Readonly<Record<string, string>> = {
-	...TAURI_SKIPS,
-	...Object.fromEntries(
-		Object.entries(NOT_BUILT).map(([id, { feature, method }]) => [
-			id,
-			`not built: ${feature} (${method} is a placeholder in tauri.ts)`,
-		]),
-	),
+	"updater.check": `${NEEDS_RUST}: reads the release feed (updater.rs tests own it)`,
+	"updater.installed-update": `${NEEDS_RUST}: reads the installed update record (updater.rs tests own it)`,
 };
 
 runPlatformContract(
@@ -80,7 +61,7 @@ runPlatformContract(
 			throw error;
 		}
 	},
-	{ controls: true, skips: TAURI_RUN_SKIPS },
+	{ controls: true, skips: TAURI_SKIPS },
 );
 
 describe("PLAT-02 Tauri platform contract run", () => {
@@ -100,35 +81,6 @@ describe("PLAT-02 Tauri platform contract run", () => {
 			if (!tauri.ok) throw new Error(tauri.error.message);
 			const memory = memoryPlatformForShape();
 			expect(platformMethods(tauri.value).sort()).toEqual(platformMethods(memory).sort());
-		} finally {
-			await run.dispose();
-			rmSync(dir, { recursive: true, force: true });
-		}
-	});
-
-	it("skips a not-built case only while its method is still a placeholder", async () => {
-		const dir = mkdtempSync(join(tmpdir(), "conducted-contract-"));
-		const run = createNodeTauriBindings(dir);
-		try {
-			const tauri = await createTauriPlatform(run.bindings);
-			if (!tauri.ok) throw new Error(tauri.error.message);
-			const ids = new Set(PLATFORM_CONTRACT_CASES.map((testCase) => testCase.id));
-			expect(Object.keys(NOT_BUILT).length).toBeGreaterThan(0);
-			for (const [id, { feature, method }] of Object.entries(NOT_BUILT)) {
-				expect(ids.has(id), `${id} is not a case`).toBe(true);
-				const [group, name] = method.split(".") as [string, string];
-				const member = (tauri.value as unknown as Record<string, Record<string, unknown>>)[group]?.[
-					name
-				];
-				expect(typeof member, `${method} exists on the Tauri platform`).toBe("function");
-				const call = (member as () => unknown).bind(
-					(tauri.value as unknown as Record<string, object>)[group],
-				);
-				await expect(
-					Promise.resolve().then(call),
-					`${method} is built now: take ${id} off NOT_BUILT`,
-				).rejects.toThrow(feature);
-			}
 		} finally {
 			await run.dispose();
 			rmSync(dir, { recursive: true, force: true });
