@@ -73,7 +73,7 @@ describe("GIT-04 git header state machine", () => {
 				input: inputs({ git: gitState({ pullRequest: pullRequest({ state: "merged" }) }) }),
 				kind: "merged",
 				title: "Merged",
-				action: null,
+				action: "continue",
 			},
 			{
 				name: "in merge queue",
@@ -97,6 +97,13 @@ describe("GIT-04 git header state machine", () => {
 				kind: "conflicts",
 				title: "Merge conflicts",
 				action: "resolve",
+			},
+			{
+				name: "detached",
+				input: inputs({ git: gitState({ branch: "", uncommittedFiles: 1 }) }),
+				kind: "detached",
+				title: "Detached HEAD",
+				action: "continue",
 			},
 			{
 				name: "uncommitted",
@@ -546,6 +553,12 @@ describe("GIT-04 git header state machine", () => {
 			}),
 		);
 		expect(header.kind).toBe("merged");
-		expect(header.action).toBeNull();
+		expect(header.action?.id).toBe("continue");
+	});
+
+	it("shows a rebase on a detached HEAD as conflicts, not as a place to continue", () => {
+		const header = computeGitHeader(inputs({ git: gitState({ branch: "", operation: "rebase" }) }));
+		expect(header.kind).toBe("conflicts");
+		expect(header.action?.id).toBe("resolve");
 	});
 });

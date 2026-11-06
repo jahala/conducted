@@ -350,21 +350,23 @@ describe("s1-core join", () => {
 					.byWorkspace[workspace.id]?.map((comment) => comment.state),
 			).toEqual(["reviewed", "reviewed"]);
 
+			// sendToChat recorded which chat received each comment.
 			const repositories = createRepositories(test.database, {
 				clock: { now: () => 1_000 },
 				ids: { uuid: () => crypto.randomUUID() },
 			});
-			const attachment = must(
-				await repositories.attachments.addDraft({
-					sessionId: chat.id,
-					kind: "review",
-					originalName: "comment.md",
-					path: "/data/draft-attachments/chat/comment.md",
-					commentId: first.id,
-				}),
-			);
+			const attachment = expect.objectContaining({
+				sessionId: chat.id,
+				kind: "review",
+				originalName: `${encodeURIComponent(first.id)}.md`,
+				isDraft: false,
+				commentId: first.id,
+			});
 
 			expect(await repositories.attachments.listByComment(first.id)).toEqual(ok([attachment]));
+			expect(await repositories.attachments.listByComment(second.id)).toEqual(
+				ok([expect.objectContaining({ sessionId: chat.id, commentId: second.id })]),
+			);
 		} finally {
 			await test.container.stop();
 			test.close();
