@@ -226,7 +226,7 @@ export function SplitPanes({ workspaceId, search, onSearchChange }: SplitPanesPr
 		// biome-ignore lint/a11y/noStaticElementInteractions: the group is the drop target for a tab dragged from its strip.
 		<div
 			data-testid="split-centre"
-			className="flex min-w-0 flex-1 flex-col"
+			className="flex h-full min-w-0 flex-1 flex-col"
 			onDragOver={(event) => {
 				if (isDrag(event)) event.preventDefault();
 			}}
@@ -235,7 +235,8 @@ export function SplitPanes({ workspaceId, search, onSearchChange }: SplitPanesPr
 			{mainPaneBody}
 		</div>
 	) : (
-		<div className="flex min-w-0 flex-1 flex-col">{mainPaneBody}</div>
+		// h-full as well as flex-1: with one group the parent (WorkspaceLayout) is a block, not a flex row.
+		<div className="flex h-full min-w-0 flex-1 flex-col">{mainPaneBody}</div>
 	);
 
 	const renderGroup = (group: TabGroup): ReactNode => {
