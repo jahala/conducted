@@ -5,6 +5,7 @@
  * Behaviour: services-map.md 5B.6 (per-session availability; local agents read their own native
  * config files, Conducted stores nothing for local MCP), ui-map.md 3.10 (MCP status popover).
  * Must handle: a server that needs sign-in (`needs_auth`) is shown with that state, not hidden;
+ * a server the agent reports without a scope or transport (null, never a guess);
  * a failing agent start returns an Err, not an empty list; the list is per workspace and agent,
  * and refreshing replaces it; only the newest answer for a key wins.
  * Our design choice: the cloud parts (organisation servers, catalogue, import scan) are out. This
@@ -58,16 +59,15 @@ export const mcpKey = (workspacePath: string, agent: AgentKind, acpAgent?: AcpAg
 	`${workspacePath}|${agentKey(agent, acpAgent)}`;
 
 /**
- * A listed server as the list and dialog show it. A server the agent does not label with a scope
- * is shown as user-level, the place an agent finds it when no project config names it. MCP runs a
- * server given as a command over stdio, which is the only transport an unlabelled server can have.
+ * A listed server as the list and dialog show it. The scope and transport are the agent's own
+ * words, and null when it gives none: the app does not guess where a server came from.
  */
 function toView(server: ListedServer): McpServerView {
 	const error = server.error ?? null;
 	return {
 		name: server.name,
-		source: server.scope === "project" || server.scope === "local" ? "project" : "user",
-		transport: server.transport ?? "stdio",
+		source: server.scope ?? null,
+		transport: server.transport ?? null,
 		status: server.status,
 		toolCount: server.toolCount ?? (server.tools === undefined ? null : server.tools.length),
 		error,
