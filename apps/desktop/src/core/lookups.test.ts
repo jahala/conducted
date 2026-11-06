@@ -334,6 +334,17 @@ describe("defaultSessionConfig", () => {
 		expect(result.value.codexApprovalPolicy).toBeUndefined();
 	});
 
+	it("RC-04 a new chat takes its Remote Control switch from settings", () => {
+		const on = defaultSessionConfig(
+			"w1" as WorkspaceId,
+			makeLookups(),
+			settingsOf({ remote_control_new_chats: true }),
+		);
+		expect(on).toMatchObject({ ok: true, value: { remoteControl: true } });
+		const off = defaultSessionConfig("w1" as WorkspaceId, makeLookups(), settingsOf({}));
+		expect(off.ok && off.value.remoteControl).toBeFalsy();
+	});
+
 	it("AGENT-16 refuses an output style no chat can use instead of dropping it", () => {
 		const result = defaultSessionConfig(
 			"w1" as WorkspaceId,

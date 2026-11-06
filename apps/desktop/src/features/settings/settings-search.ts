@@ -38,6 +38,7 @@ const USER_PAGE_OF: Partial<Record<SettingPage, UserSettingsPageId>> = {
 	environment: "environment",
 	experimental: "experimental",
 	advanced: "advanced",
+	"remote-control": "remote-control",
 };
 
 const REPO_PAGE_OF: Partial<Record<SettingPage, RepoSettingsPageId>> = {
