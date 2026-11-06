@@ -31,6 +31,7 @@ function deps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
 			setAutoApproveEdits: async () => ({}),
 			getSessionStatus: async () => ({ known: true }),
 			answerInteraction: async () => ({ accepted: true, superseded: false }),
+			compact: async () => ({ started: true }),
 			listAcpConfigOptions: async () => ({ options: [] }),
 			setAcpConfigOption: async () => ({ options: [] }),
 			getGoal: async () => ({ goal: null }),
@@ -254,11 +255,31 @@ describe("SIDE-02 handler wiring", () => {
 	test("SIDE-02 a method owned by another feature answers not implemented", async () => {
 		const handlers = buildHandlers(deps());
 		await expect(
-			handlers.requests.compact({ sessionId: "session-1" as SessionId }),
+			handlers.requests.getGoal({ sessionId: "session-1" as SessionId }),
 		).rejects.toMatchObject({
 			name: "NotImplemented",
-			featureId: "AGENT-14",
+			featureId: "AGENT-13",
 		});
+	});
+
+	test("AGENT-14 compact is answered by the session manager", async () => {
+		const asked: SessionId[] = [];
+		const handlers = buildHandlers(
+			deps({
+				sessions: {
+					...deps().sessions,
+					compact: async (params) => {
+						asked.push(params.sessionId);
+						return { started: true };
+					},
+				},
+			}),
+		);
+
+		await expect(
+			handlers.requests.compact({ sessionId: "session-1" as SessionId }),
+		).resolves.toEqual({ started: true });
+		expect(asked).toEqual(["session-1" as SessionId]);
 	});
 });
 
