@@ -56,13 +56,6 @@ const KNOWN_UNUSED_SETTINGS: readonly string[] = [
 /** Commands of a done feature that no handler or caller names yet. */
 const KNOWN_UNUSED_COMMANDS: readonly string[] = [
 	"app.quit",
-	"chat.approveTool",
-	"chat.approveToolAlternate",
-	"chat.denyTool",
-	"chat.question.focusOther",
-	"chat.question.next",
-	"chat.question.previous",
-	"chat.question.selectOption",
 	"dialog.confirm",
 	"terminal.clear",
 	"terminal.close",
