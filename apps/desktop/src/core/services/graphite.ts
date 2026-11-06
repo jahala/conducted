@@ -5,13 +5,17 @@
  * Behaviour: services-map.md 3.8.1 (the install probe, the 5 s local poll with its switch, and the
  * only mutating `gt` call), 3.0.2 (the 30 s timeout), 3.0.5 (the state JSON and its branch names),
  * 5B.1.8 (read-only plus checkout), ui-map.md 6 Experimental (the inverted `graphite_disabled` key).
- * Must handle: `gt` missing (the probe says so and no poll runs), the switch read on every use so
- * turning it off stops the commands at once, invalid JSON or a branch name outside the allowed
- * characters (an error, never a partial stack), a failed state read kept on the repository, two
- * overlapping reads where only the newest may write, and a checkout refused while Graphite is off.
- * Our design choice: the state is keyed by the repository's main worktree. A screen or the git
- * service that reads a repository starts its 5 s poll, so the poll follows what is on screen
- * without a startup subscription (services-map.md 6). `dispose` stops every timer.
+ * Must handle: `gt` missing (the probe says so and no poll runs), a probe that failed (not kept, so
+ * the next read asks again), the switch read on every use so turning it off stops the commands at
+ * once, invalid JSON or a branch name outside the allowed characters (an error, never a partial
+ * stack), a `gt state` that could not run or printed what the parser refuses (the error is kept on
+ * the repository), two overlapping reads where only the newest may write, and a checkout refused
+ * while Graphite is off. A `gt state` that exits non-zero reads as no stack with no error, as the
+ * research's `|| echo "{}"` does, so a broken `gt` install looks like a repository without a stack.
+ * Our design choice: the state is keyed by the repository's main worktree. The git panel watches
+ * the repository of the workspace it shows and releases it when it unmounts, so only the visible
+ * repository polls, and nothing subscribes at startup (services-map.md 6). The reads only read the
+ * store; they never start a poll. `dispose` stops every timer.
  * Test first: two branches of a parsed state keep their parent and restack flag.
  */
 import { type AppError, appError, err, ok, type Result } from "@conducted/shared";
@@ -105,7 +109,6 @@ export class GraphiteService {
 	readonly #deps: GraphiteServiceDeps;
 	readonly #latest = createLatestWins<string>();
 	readonly #watchers = new Map<string, WatchEntry>();
-	readonly #readers = new Map<string, Unsubscribe>();
 	#installed: Promise<Result<boolean>> | undefined;
 
 	constructor(deps: GraphiteServiceDeps) {
@@ -113,10 +116,16 @@ export class GraphiteService {
 		this.store = createStore<GraphiteState>(() => ({ byRepo: {} }));
 	}
 
-	/** Whether the `gt` program can run. Read once and kept, as the research caches it. */
-	installed(cwd: string): Promise<Result<boolean>> {
+	/**
+	 * Whether the `gt` program can run. An answer is read once and kept, as the research caches it.
+	 * A probe that failed is not kept, so one passing error does not hide Graphite until a restart.
+	 */
+	async installed(cwd: string): Promise<Result<boolean>> {
 		this.#installed ??= this.#probe(cwd);
-		return this.#installed;
+		const pending = this.#installed;
+		const result = await pending;
+		if (!result.ok && this.#installed === pending) this.#installed = undefined;
+		return result;
 	}
 
 	async #probe(cwd: string): Promise<Result<boolean>> {
@@ -129,7 +138,6 @@ export class GraphiteService {
 
 	/** The Graphite state of a repository, or null before the first read answered. */
 	stateOf(repoRootPath: string): GraphiteRepoState | null {
-		this.ensureWatching(repoRootPath);
 		return this.store.getState().byRepo[repoRootPath] ?? null;
 	}
 
@@ -170,12 +178,6 @@ export class GraphiteService {
 		};
 		void tick();
 		return () => this.#unwatch(repoRootPath);
-	}
-
-	/** Starts one poller for a repository the first time something reads it. */
-	ensureWatching(repoRootPath: string): void {
-		if (this.#readers.has(repoRootPath)) return;
-		this.#readers.set(repoRootPath, this.watch(repoRootPath));
 	}
 
 	#unwatch(repoRootPath: string): void {
@@ -254,8 +256,6 @@ export class GraphiteService {
 
 	/** Stops every poller and drops its timer. The container's `stop()` calls it. */
 	dispose(): void {
-		for (const stop of this.#readers.values()) stop();
-		this.#readers.clear();
 		for (const [key, entry] of this.#watchers) {
 			entry.stopped = true;
 			if (entry.timer !== null) clearTimeout(entry.timer);

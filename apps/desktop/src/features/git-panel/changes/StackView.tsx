@@ -5,7 +5,8 @@
  * branch, Ready for review"); services-map.md 3.8 (a stack is read-only plus checkout; a ready
  * action only marks a draft), ui-map.md 5.2 ("Switch branch?" with "Switch anyway").
  * Data: the props. The Changes tab supplies entries from useStack(workspaceId), the trunk from the
- * workspace's target branch, Checkout through switch branch and Ready through mark ready.
+ * workspace's target branch without its remote, Checkout through switch branch, and Ready through
+ * mark ready for the entry's own pull request number.
  * Must handle: no stack (renders nothing, so the parent does not offer the view), an entry whose
  * `needsRestack` is true (shows the `gt restack` hint, never runs it), a draft entry with a Ready
  * for review action, the current branch (marked, with no checkout action), and a checkout while an
