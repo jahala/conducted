@@ -7,7 +7,8 @@
  * Our design choice: the control is passed in as children, so one row serves toggles, selects,
  * text fields and custom blocks. `RegistrySettingRows` renders a page's settings from the registry
  * so every page uses one control implementation.
- * Must handle: a long description (wraps, no truncation), a disabled setting with a reason (the
+ * Must handle: a long description (wraps, no truncation), a switch whose stored key says the
+ * opposite of its title (shown and saved inverted), a disabled setting with a reason (the
  * fieldset disables the control), a setting that is highlighted after a search jump, and a save
  * error line when saving fails (a typed number, text or list that was not saved goes back to the
  * stored value, so the field never shows a value the app does not hold).
@@ -284,12 +285,15 @@ export function SettingControl({
 	onChange: SaveField<SettingValue>;
 }) {
 	if (def.type === "bool") {
+		// A key that says the opposite of its title (`graphite_disabled`, "Graphite stack support")
+		// is shown and saved inverted.
+		const inverted = def.shownInverted === true;
 		return (
 			<Switch
 				aria-label={def.title}
-				checked={value === true}
+				checked={inverted ? value !== true : value === true}
 				disabled={disabled}
-				onCheckedChange={(checked) => void onChange(checked)}
+				onCheckedChange={(checked) => void onChange(inverted ? !checked : checked)}
 			/>
 		);
 	}

@@ -1,7 +1,8 @@
 /**
  * @feature PR-08 Stack view in the Changes tab
  * Owns: the container test that the Changes tab shows the stack from `useStack`, hides it while
- * stacked pull requests are off, and reaches switch branch and mark ready.
+ * stacked pull requests are off, names the trunk without cutting a slash out of it, reaches switch
+ * branch, and marks the clicked draft ready, not the workspace's own pull request.
  * Behaviour: ui-map.md 3.6, 6 Git ("Use GitHub stacked PRs" enables the stack view).
  * Test first: the Changes tab draws the stack's three entries over the real container.
  */
@@ -37,8 +38,8 @@ const stackAnswer = JSON.stringify({
 	data: {
 		repository: {
 			pullRequest: {
-				number: 12,
-				stackEntry: { position: 2, stack: { number: 5, size: 3, baseRefName: "main" } },
+				number: 11,
+				stackEntry: { position: 1, stack: { number: 5, size: 3, baseRefName: "main" } },
 			},
 		},
 	},
@@ -52,7 +53,10 @@ const membersAnswer = JSON.stringify({
 	],
 });
 
-async function seedDashboard(enabled: boolean): Promise<{
+async function seedDashboard(
+	enabled: boolean,
+	targetBranch?: string,
+): Promise<{
 	harness: TestContainer;
 	workspaceId: string;
 }> {
@@ -67,9 +71,11 @@ async function seedDashboard(enabled: boolean): Promise<{
 		repoId: repo.id,
 		path: "/code/workspaces/pr-08-changes",
 		branch: "feat-b",
+		...(targetBranch === undefined ? {} : { targetBranch }),
 	});
+	// The workspace's own pull request is #11, the current entry; the draft is #12 above it.
 	await seedPullRequest(test.container, workspace.id, {
-		number: 12,
+		number: 11,
 		title: "Use the parser",
 		description: null,
 	});
@@ -118,9 +124,7 @@ describe("PR-08 Changes tab stack view", () => {
 		const switchBranch = vi
 			.spyOn(harness.container.services.git, "switchBranch")
 			.mockResolvedValue(ok(undefined));
-		const markReady = vi
-			.spyOn(harness.container.services.github, "markReady")
-			.mockResolvedValue(ok(undefined));
+		const markReady = vi.spyOn(harness.container.services.github, "markReady");
 
 		renderTab(harness, workspaceId);
 
@@ -135,8 +139,23 @@ describe("PR-08 Changes tab stack view", () => {
 		);
 		await waitFor(() => expect(switchBranch).toHaveBeenCalledWith(workspaceId, "feat-a"));
 
+		// The only draft is #12, which is not the workspace's own pull request (#11).
 		fireEvent.click(screen.getByRole("button", { name: "Ready for review" }));
-		await waitFor(() => expect(markReady).toHaveBeenCalledWith(workspaceId));
+		await waitFor(() => expect(markReady).toHaveBeenCalledWith(workspaceId, 12));
+		const ready = () =>
+			harness.memory.controls.shellCalls
+				.filter((command) => command.program === "gh" && command.args[1] === "ready")
+				.map((command) => command.args);
+		await waitFor(() => expect(ready()).toEqual([["pr", "ready", "12"]]));
+	});
+
+	it("names a trunk with a slash in full", async () => {
+		const { harness, workspaceId } = await seedDashboard(true, "release/1.0");
+
+		renderTab(harness, workspaceId);
+
+		await waitFor(() => expect(screen.getByText("Stack PRs")).toBeTruthy());
+		expect(screen.getByTestId("stack-trunk").textContent).toBe("release/1.0(trunk)");
 	});
 
 	it("hides the stack while stacked pull requests are off", async () => {

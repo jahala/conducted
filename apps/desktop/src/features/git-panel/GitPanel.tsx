@@ -5,13 +5,17 @@
  * @feature PR-06 Cmd+Shift+M merges the pull request
  * @feature GIT-17 Continue after a merge or from a detached HEAD
  * @feature GIT-14 Local-git forge: header state and the merge request to the agent
- * @feature PR-08 the stack size the header reads for its "Merge stack" action
+ * @feature PR-08 the stack size the header reads for its "Merge stack" action, which runs the stack
+ * merge, and the Graphite poll for the repository of the workspace on screen
  * Owns: right panel, top half. A header (status chip and main action), a tab strip, and the
  * active tab: Artifacts (when its setting is on), All files, Changes or Checks. Entry point
  * embedded by the workspace screen.
  * Behaviour: ui-map.md 3.6 (tab strip, header, tabs), 5.4 (Cmd+Shift+X fix errors); frontend
  * layout in structure-map.md 3.2.
- * Data: useGitState, useWorkspaceStatus (agent working), useActions().
+ * Data: useGitState, useWorkspaceStatus (agent working), useStack (the stack size), useActions().
+ * While mounted, the panel watches its workspace's repository with the Graphite service and
+ * releases the watch on unmount or when the workspace moves to another repository, so `gt state`
+ * runs only for the repository on screen (services-map.md 3.8.1).
  * Children: GitHeader, GitPanelTabs, artifacts/ArtifactsTab, changes/ChangesTab, files/FilesTab,
  * checks/ChecksTab. Each unbuilt tab body sits in its own NotBuiltYet boundary, keyed by the tab,
  * so a tab that is not built or fails shows which feature it is while the header and the tab strip
@@ -140,6 +144,15 @@ export function GitPanel({
 			? (state.reposById[workspace.data.repoId]?.remoteUrl ?? null)
 			: undefined,
 	);
+	const repoRootPath = useStore(services.repo.store, (state) =>
+		workspace.state === "ready" ? (state.reposById[workspace.data.repoId]?.rootPath ?? null) : null,
+	);
+	const graphite = services.graphite;
+	// Graphite polls only the repository of the workspace on screen (services-map.md 3.8.1).
+	useEffect(() => {
+		if (repoRootPath === null) return;
+		return graphite.watch(repoRootPath);
+	}, [graphite, repoRootPath]);
 	const automergeEnabled = useSetting<boolean>("automerge_enabled");
 	const optionalChecksBlocking = useSetting<boolean>("treat_optional_checks_as_blocking");
 	const artifactsTabEnabled = useSetting<boolean>("artifacts_tab_enabled");
@@ -293,7 +306,6 @@ export function GitPanel({
 			case "approve":
 				return run(actions.pullRequests.approve(workspaceId), "Couldn't approve the pull request");
 			case "merge":
-			case "merge_stack":
 				// Only the GitHub forge can merge on the remote. A repository without a GitHub remote
 				// has the agent merge in the main worktree, like commit and push (GIT-14).
 				return run(
@@ -304,6 +316,9 @@ export function GitPanel({
 						? "Couldn't merge the pull request"
 						: "Couldn't ask the agent to merge",
 				);
+			case "merge_stack":
+				// A stack is read from GitHub, so only the GitHub forge offers this action.
+				return run(actions.pullRequests.mergeStack(workspaceId), "Couldn't merge the stack");
 			case "toggle_automerge": {
 				const pr = git.state === "ready" ? git.data.pullRequest : null;
 				return run(
