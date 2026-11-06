@@ -46,7 +46,7 @@ import {
 	worktreeRemove,
 } from "./commands.ts";
 import { archiveCheckpointId, archiveRef, CHECKPOINTER_EXIT } from "./refs.ts";
-import type { GitRunner } from "./runner.ts";
+import { failedCommandError, type GitRunner } from "./runner.ts";
 
 export const MAX_NAME_SUFFIX_TRIES = 1000;
 
@@ -77,16 +77,20 @@ const join = (left: string, right: string): string =>
 
 /**
  * Returns `base`, or `base-v1`, `base-v2`, ... until `isTaken` says the name is free.
- * Gives up with an error after 1000 tries.
+ * A check that fails ends the search with its error. Gives up with an error after 1000 tries.
  */
 export async function nextFreeName(
 	base: string,
-	isTaken: (candidate: string) => Promise<boolean>,
+	isTaken: (candidate: string) => Promise<Result<boolean>>,
 ): Promise<Result<string>> {
-	if (!(await isTaken(base))) return ok(base);
+	const first = await isTaken(base);
+	if (!first.ok) return first;
+	if (!first.value) return ok(base);
 	for (let n = 1; n <= MAX_NAME_SUFFIX_TRIES; n++) {
 		const candidate = `${base}-v${n}`;
-		if (!(await isTaken(candidate))) return ok(candidate);
+		const taken = await isTaken(candidate);
+		if (!taken.ok) return taken;
+		if (!taken.value) return ok(candidate);
 	}
 	return err(appError("name_exhausted", `No free name found for "${base}".`));
 }
@@ -589,18 +593,20 @@ export function removeWorktree(
 
 /**
  * True when the name exists as a local branch or a remote-tracking branch (services-map 3.1).
- * Pull requests are not part of this check in the research.
+ * Pull requests are not part of this check in the research. `show-ref --verify --quiet` exits 0
+ * for a ref that exists and 1 for one that does not; a command that cannot run, or any other exit
+ * code, is an error, so a name is never called free when git could not tell.
  */
 export async function branchNameIsTaken(
 	runner: GitRunner,
 	input: { repoRootPath: string; remote: string; name: string },
-): Promise<boolean> {
-	const local = await runner.run(showRefVerify(`refs/heads/${input.name}`), {
-		cwd: input.repoRootPath,
-	});
-	if (local.ok && local.value.exitCode === 0) return true;
-	const remote = await runner.run(showRefVerify(`refs/remotes/${input.remote}/${input.name}`), {
-		cwd: input.repoRootPath,
-	});
-	return remote.ok && remote.value.exitCode === 0;
+): Promise<Result<boolean>> {
+	for (const ref of [`refs/heads/${input.name}`, `refs/remotes/${input.remote}/${input.name}`]) {
+		const command = showRefVerify(ref);
+		const shown = await runner.run(command, { cwd: input.repoRootPath });
+		if (!shown.ok) return shown;
+		if (shown.value.exitCode === 0) return ok(true);
+		if (shown.value.exitCode !== 1) return err(failedCommandError(command, shown.value));
+	}
+	return ok(false);
 }

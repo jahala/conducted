@@ -868,8 +868,8 @@ export class WorkspaceService {
 		const taken = new Set(names.value);
 		const picked = this.#deps.placeNames.pick(taken);
 		const folder = await nextFreeName(picked, async (candidate) => {
-			if (taken.has(candidate)) return true;
-			return this.#deps.platform.fs.exists(worktreeFolderFor(root, repo.name, candidate));
+			if (taken.has(candidate)) return ok(true);
+			return ok(await this.#deps.platform.fs.exists(worktreeFolderFor(root, repo.name, candidate)));
 		});
 		if (!folder.ok) return folder;
 
@@ -1602,8 +1602,10 @@ export class WorkspaceService {
 			const taken = new Set(others.map((row) => row.directoryName));
 			if (!pathFree) taken.add(directoryName);
 			const picked = await nextFreeName(directoryName, async (candidate) => {
-				if (taken.has(candidate)) return true;
-				return this.#deps.platform.fs.exists(worktreeFolderFor(root, repo.name, candidate));
+				if (taken.has(candidate)) return ok(true);
+				return ok(
+					await this.#deps.platform.fs.exists(worktreeFolderFor(root, repo.name, candidate)),
+				);
 			});
 			if (!picked.ok) return picked;
 			directoryName = picked.value;

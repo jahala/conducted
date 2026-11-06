@@ -191,6 +191,21 @@ describe("COMP-01 drafts", () => {
 		);
 	});
 
+	it("writes a draft still waiting for its pause when flushed, so a quit keeps the last edit", async () => {
+		const { service, clock, files } = harness();
+		service.saveDraft(sessionId, { text: "last words", attachmentPaths: [] });
+		expect(files.size).toBe(0);
+
+		await service.flush();
+
+		expect(JSON.parse(files.get(file()) ?? "")).toEqual({
+			text: "last words",
+			attachmentPaths: [],
+		});
+		// The debounce timer was cancelled, so it cannot write a second time after the stop.
+		expect(clock.callbacks.size).toBe(0);
+	});
+
 	it("removes the file when the draft becomes empty", async () => {
 		const { service, clock, files } = harness();
 		service.saveDraft(sessionId, { text: "draft", attachmentPaths: [] });

@@ -56,7 +56,7 @@ use image::{
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
-use crate::error::{CommandError, CommandResult};
+use crate::error::{CommandError, CommandResult, blocking};
 
 /// Longest edge, in pixels, an image may have.
 pub const MAX_PIXEL_DIMENSION: u32 = 7_800;
@@ -110,7 +110,10 @@ pub async fn attachment_materialize(
     let draft_root = draft_root(&app)?;
     let source = PathBuf::from(source_path);
     let destination = PathBuf::from(destination_path);
-    blocking(move || materialize_into(&source, &destination, resize_image, &draft_root)).await
+    blocking("attachment_task_failed", move || {
+        materialize_into(&source, &destination, resize_image, &draft_root)
+    })
+    .await
 }
 
 /// Shrinks an image to fit the limits and writes the result to `destination_path`.
@@ -123,7 +126,10 @@ pub async fn image_resize(
     let draft_root = draft_root(&app)?;
     let source = PathBuf::from(source_path);
     let destination = PathBuf::from(destination_path);
-    blocking(move || materialize_into(&source, &destination, true, &draft_root)).await
+    blocking("attachment_task_failed", move || {
+        materialize_into(&source, &destination, true, &draft_root)
+    })
+    .await
 }
 
 /// The folder every attachment destination must sit under.
@@ -136,21 +142,6 @@ fn draft_root(app: &AppHandle) -> CommandResult<PathBuf> {
             message: error.to_string(),
         })?;
     Ok(data.join("draft-attachments"))
-}
-
-/// Runs blocking file and image work off the async runtime.
-async fn blocking<T, F>(work: F) -> CommandResult<T>
-where
-    T: Send + 'static,
-    F: FnOnce() -> CommandResult<T> + Send + 'static,
-{
-    match tauri::async_runtime::spawn_blocking(work).await {
-        Ok(result) => result,
-        Err(error) => Err(CommandError::Failed {
-            code: "attachment_task_failed",
-            message: error.to_string(),
-        }),
-    }
 }
 
 fn failed(code: &'static str, message: impl Into<String>) -> CommandError {

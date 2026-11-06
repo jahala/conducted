@@ -76,7 +76,7 @@ use std::time::UNIX_EPOCH;
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
-use crate::error::{CommandError, CommandResult};
+use crate::error::{CommandError, CommandResult, blocking};
 
 #[cfg(target_os = "macos")]
 unsafe extern "C" {
@@ -267,21 +267,6 @@ fn home_roots(home: &Path) -> Vec<PathBuf> {
             .join("claude_desktop_config.json"),
         home.join("conducted"),
     ]
-}
-
-/// Runs a blocking file operation off the async runtime.
-async fn blocking<T, F>(work: F) -> CommandResult<T>
-where
-    T: Send + 'static,
-    F: FnOnce() -> CommandResult<T> + Send + 'static,
-{
-    match tauri::async_runtime::spawn_blocking(work).await {
-        Ok(result) => result,
-        Err(error) => Err(CommandError::Failed {
-            code: "fs_task_failed",
-            message: error.to_string(),
-        }),
-    }
 }
 
 /// Rejects a relative path, so a command can never resolve one against the process folder.
@@ -627,7 +612,7 @@ fn checked_link_target(path: &str, roots: &[PathBuf]) -> CommandResult<PathBuf> 
 
 /// Read a text file after the scope check.
 async fn read_text_checked(path: String, roots: Vec<PathBuf>) -> CommandResult<String> {
-    blocking(move || {
+    blocking("fs_task_failed", move || {
         let path = checked_target(&path, &roots)?;
         read_text_limited(&path)
     })
@@ -640,7 +625,7 @@ async fn write_text_atomic_checked(
     text: String,
     roots: Vec<PathBuf>,
 ) -> CommandResult<()> {
-    blocking(move || {
+    blocking("fs_task_failed", move || {
         let path = checked_target(&path, &roots)?;
         write_text_atomic_with(&path, &text, rename_file)
     })
@@ -649,7 +634,7 @@ async fn write_text_atomic_checked(
 
 /// Read facts about a path after the scope check.
 async fn stat_checked(path: String, roots: Vec<PathBuf>) -> CommandResult<Option<FileStat>> {
-    blocking(move || {
+    blocking("fs_task_failed", move || {
         let path = checked_link_target(&path, &roots)?;
         Ok(stat_at(&path)?)
     })
@@ -658,7 +643,7 @@ async fn stat_checked(path: String, roots: Vec<PathBuf>) -> CommandResult<Option
 
 /// Create a folder after the scope check.
 async fn mkdirp_checked(path: String, roots: Vec<PathBuf>) -> CommandResult<()> {
-    blocking(move || {
+    blocking("fs_task_failed", move || {
         let path = checked_target(&path, &roots)?;
         fs::create_dir_all(path)?;
         Ok(())
@@ -668,7 +653,7 @@ async fn mkdirp_checked(path: String, roots: Vec<PathBuf>) -> CommandResult<()> 
 
 /// List a folder after the scope check.
 async fn read_dir_checked(path: String, roots: Vec<PathBuf>) -> CommandResult<Vec<FileStat>> {
-    blocking(move || {
+    blocking("fs_task_failed", move || {
         let path = checked_target(&path, &roots)?;
         read_dir_at(&path)
     })
@@ -677,7 +662,7 @@ async fn read_dir_checked(path: String, roots: Vec<PathBuf>) -> CommandResult<Ve
 
 /// Move a path to the Trash after the scope check.
 async fn trash_checked(path: String, roots: Vec<PathBuf>) -> CommandResult<()> {
-    blocking(move || {
+    blocking("fs_task_failed", move || {
         let path = checked_target(&path, &roots)?;
         let trash = trash_dir_for(&path)?;
         trash_into(&path, &trash)

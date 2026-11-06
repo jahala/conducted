@@ -867,8 +867,15 @@ fn exit_details(status: std::io::Result<portable_pty::ExitStatus>) -> (Option<i3
     }
 }
 
-fn signal_number(name: &str) -> Option<i32> {
-    let name = name.strip_prefix("SIG").unwrap_or(name);
+/// The signal number in portable-pty's signal text. On macOS that text comes from `strsignal`, for
+/// example "Terminated: 15", or reads "Signal 15" when the system has no description. A plain
+/// name such as "SIGTERM" is read too.
+fn signal_number(text: &str) -> Option<i32> {
+    let last_word = text.rsplit([':', ' ']).next().unwrap_or(text);
+    if let Ok(number) = last_word.trim().parse() {
+        return Some(number);
+    }
+    let name = text.strip_prefix("SIG").unwrap_or(text);
     match name {
         "HUP" => Some(1),
         "INT" => Some(2),
@@ -1313,5 +1320,27 @@ mod tests {
         assert_eq!(encode_base64(b"fo"), "Zm8=");
         assert_eq!(encode_base64(b"foo"), "Zm9v");
         assert_eq!(encode_base64(b"hello"), "aGVsbG8=");
+    }
+
+    #[test]
+    fn plat_07_a_signal_exit_reports_the_signal_number() {
+        use std::os::unix::process::CommandExt;
+
+        // A real child ended by SIGTERM, read through portable-pty's own exit status.
+        let mut child = std::process::Command::new("/bin/sleep")
+            .arg("30")
+            .process_group(0)
+            .spawn()
+            .expect("start sleep");
+        assert!(process_group::signal_group(
+            child.id(),
+            process_group::SIGTERM
+        ));
+        let status = child.wait().expect("the child ends");
+
+        let (exit_code, signal) = exit_details(Ok(portable_pty::ExitStatus::from(status)));
+
+        assert_eq!(exit_code, None);
+        assert_eq!(signal, Some(15));
     }
 }

@@ -12,12 +12,14 @@
  * starting is fatal, because without it no chat can run (the failed state carries the sidecar log
  * path in `app/startup.ts`); `start` runs once (a second call returns the first result); after the
  * steps it wires the dock badge, notification clicks, the hourly update check, the keep-awake scan
- * and its 10-second timer, the quit guard and the Spotlight heal; deep links have one subscriber,
+ * and its 10-second timer, the quit guard and the Spotlight heal; a quit (asked for, or confirmed
+ * while agents work) runs `stop` first and then quits, because the Rust shell exits at once; editor
+ * drafts of a workspace that left the store are dropped; deep links have one subscriber,
  * the command dispatcher (NAV-14), which is mounted with the app root, so this file does not
  * listen for them a second time; `stop` removes those listeners, stops the settings reload
  * listener and its timer, stops the update and keep-awake timers, cancels `caffeinate`, disposes
- * the repo service, stops every git poll and branch watcher, kills terminals and runs, waits for
- * chat events that are being stored, and
+ * the repo service, stops every git poll and branch watcher, writes composer drafts still waiting
+ * for their debounce, kills terminals and runs, waits for chat events that are being stored, and
  * detaches from the sidecar; every stop step runs even when an earlier one
  * fails (the failure is logged), and a `stop` that comes during `start` lets the running
  * step finish, ends the start before it wires anything new, and then tears down; the
@@ -101,6 +103,12 @@ import { EventIngest } from "./sidecar/ingest.ts";
 import { SessionResume } from "./sidecar/resume.ts";
 import { type SidecarClient, SidecarTunnel } from "./sidecar/tunnel.ts";
 
+/**
+ * How long a quit waits for the container to stop before the app quits anyway. Our choice (D064):
+ * the research gives no limit, and a hung step must not leave Cmd+Q doing nothing.
+ */
+export const QUIT_STOP_LIMIT_MS = 5_000;
+
 export interface ContainerInputs {
 	platform: Platform;
 	clock: Clock;
@@ -167,8 +175,9 @@ export interface Container {
 	 */
 	start(onProgress?: (progress: StartProgress) => void): Promise<Result<StartReport>>;
 	/**
-	 * Stops listeners and timers, kills terminals and runs, lets stored-event writes finish and
-	 * detaches from the sidecar. Every step runs; a step that fails is logged. Safe to call twice.
+	 * Stops listeners and timers, writes pending composer drafts, kills terminals and runs, lets
+	 * stored-event writes finish and detaches from the sidecar. Every step runs; a step that fails
+	 * is logged. Safe to call twice. A quit request runs it before the app quits.
 	 */
 	stop(): Promise<void>;
 }
@@ -882,6 +891,13 @@ export function createContainer(inputs: ContainerInputs): Container {
 			}
 		}),
 	);
+	// An editor draft lives until it is saved or discarded, or its workspace is removed. An archived
+	// workspace keeps its drafts, because Restore brings the same folder back.
+	cleanups.push(
+		workspace.store.subscribe((state) => {
+			workspaceFiles.dropDraftsExcept((id) => state.workspacesById[id] !== undefined);
+		}),
+	);
 	let updateTimer: ReturnType<typeof setInterval> | null = null;
 	let keepAwakeTimer: ReturnType<typeof setInterval> | null = null;
 	let wired = false;
@@ -989,7 +1005,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		cleanups.push(
 			platform.app.onQuitRequested(() => {
 				if (updates.isSafeToQuit()) {
-					void platform.app.quit();
+					stopThenQuit();
 					return;
 				}
 				// Agents are still working. Ask before quitting, and only one prompt at a time.
@@ -1003,7 +1019,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 					})
 					.then((confirmed) => {
 						quitPromptOpen = false;
-						if (confirmed) void platform.app.quit();
+						if (confirmed) stopThenQuit();
 					})
 					.catch((cause: unknown) => {
 						quitPromptOpen = false;
@@ -1042,6 +1058,84 @@ export function createContainer(inputs: ContainerInputs): Container {
 		return ok({ warnings });
 	};
 
+	const stop = async (): Promise<void> => {
+		stopped = true;
+		// Every step runs, in this order, even when an earlier one fails: a half-stopped app
+		// would keep listeners and the sidecar connection alive.
+		const step = async (name: string, run: () => unknown): Promise<void> => {
+			try {
+				const outcome = await run();
+				if (isFailedResult(outcome)) {
+					log("warn", `Stopping ${name} failed: ${outcome.error.message}`);
+				}
+			} catch (cause) {
+				const message = cause instanceof Error ? cause.message : String(cause);
+				log("warn", `Stopping ${name} failed: ${message}`);
+			}
+		};
+		// A start in progress finishes its current step and then ends (it checks `stopped`). The
+		// teardown below waits for that, so what the step registered is released too.
+		await step("the start in progress", () => started?.then(noop, noop));
+		await step("the reconnect listener", () => {
+			detachReconnect?.();
+			detachReconnect = null;
+		});
+		for (const cleanup of cleanups.splice(0)) await step("a listener", cleanup);
+		await step("settings", () => settings.stop());
+		await step("the update timer", () => {
+			if (updateTimer !== null) clearInterval(updateTimer);
+			updateTimer = null;
+		});
+		await step("the keep-awake timer", () => {
+			if (keepAwakeTimer !== null) clearInterval(keepAwakeTimer);
+			keepAwakeTimer = null;
+		});
+		await step("keep-awake", () => keepAwake.stop());
+		await step("notifications", () => notifications.stop());
+		await step("agent programs", () => system.dispose());
+		await step("the repo service", () => repo.dispose());
+		await step("git polling", () => git.dispose());
+		await step("GitHub polling", () => github.dispose());
+		await step("composer drafts", () => composer.flush());
+		await step("terminals", () => terminals.killAll());
+		await step("run scripts", () => runScripts.stopAll());
+		// Events the sidecar sent before the tunnel closes are written first, so none is lost.
+		await step("chat event writes", () => ingest.idle());
+		await step("the sidecar connection", () => tunnel.stop());
+	};
+
+	// The Rust shell quits at once when asked (`app_quit`), so the work in flight is flushed first:
+	// composer drafts, chat events being stored, terminals and runs. A second request while that
+	// runs is ignored. A stop step that hangs must not keep the app open, so the quit goes ahead
+	// after QUIT_STOP_LIMIT_MS whatever the stop has reached.
+	let quitting = false;
+	const stopThenQuit = (): void => {
+		if (quitting) return;
+		quitting = true;
+		fireAndForget(
+			async () => {
+				let limit: ReturnType<typeof setTimeout> | undefined;
+				const elapsed = new Promise<void>((resolve) => {
+					limit = setTimeout(() => {
+						log("warn", `Quitting before every stop step ended (${QUIT_STOP_LIMIT_MS} ms).`);
+						resolve();
+					}, QUIT_STOP_LIMIT_MS);
+				});
+				try {
+					await Promise.race([stop(), elapsed]);
+				} finally {
+					clearTimeout(limit);
+				}
+				await platform.app.quit();
+			},
+			(cause) => {
+				quitting = false;
+				const message = cause instanceof Error ? cause.message : String(cause);
+				log("warn", `Could not quit: ${message}`);
+			},
+		);
+	};
+
 	return {
 		platform,
 		services,
@@ -1052,50 +1146,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 			started ??= runSteps(onProgress);
 			return started;
 		},
-		async stop() {
-			stopped = true;
-			// Every step runs, in this order, even when an earlier one fails: a half-stopped app
-			// would keep listeners and the sidecar connection alive.
-			const step = async (name: string, run: () => unknown): Promise<void> => {
-				try {
-					const outcome = await run();
-					if (isFailedResult(outcome)) {
-						log("warn", `Stopping ${name} failed: ${outcome.error.message}`);
-					}
-				} catch (cause) {
-					const message = cause instanceof Error ? cause.message : String(cause);
-					log("warn", `Stopping ${name} failed: ${message}`);
-				}
-			};
-			// A start in progress finishes its current step and then ends (it checks `stopped`). The
-			// teardown below waits for that, so what the step registered is released too.
-			await step("the start in progress", () => started?.then(noop, noop));
-			await step("the reconnect listener", () => {
-				detachReconnect?.();
-				detachReconnect = null;
-			});
-			for (const cleanup of cleanups.splice(0)) await step("a listener", cleanup);
-			await step("settings", () => settings.stop());
-			await step("the update timer", () => {
-				if (updateTimer !== null) clearInterval(updateTimer);
-				updateTimer = null;
-			});
-			await step("the keep-awake timer", () => {
-				if (keepAwakeTimer !== null) clearInterval(keepAwakeTimer);
-				keepAwakeTimer = null;
-			});
-			await step("keep-awake", () => keepAwake.stop());
-			await step("notifications", () => notifications.stop());
-			await step("agent programs", () => system.dispose());
-			await step("the repo service", () => repo.dispose());
-			await step("git polling", () => git.dispose());
-			await step("GitHub polling", () => github.dispose());
-			await step("terminals", () => terminals.killAll());
-			await step("run scripts", () => runScripts.stopAll());
-			// Events the sidecar sent before the tunnel closes are written first, so none is lost.
-			await step("chat event writes", () => ingest.idle());
-			await step("the sidecar connection", () => tunnel.stop());
-		},
+		stop,
 	};
 }
 
