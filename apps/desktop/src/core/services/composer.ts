@@ -11,7 +11,8 @@
  * failed write, a failed room-making pass or an oversized draft is kept in `store.errors` so a
  * screen can tell the user it did not save; the drafts folder is capped at 5 MiB by trashing the
  * oldest other drafts.
- * Dropped or picked files are copied into the chat's staging folder and get an attachment row; a
+ * Dropped or picked files, and the bytes of a pasted image (`addBytes`, COMP-07), are copied into
+ * the chat's staging folder and get an attachment row; a
  * file named like one of the app's own context files is attached under another name. A
  * send copies each staged file into the workspace's `.context/attachments/<id>/<name>`, moves the
  * staging copy to the Trash and flips its row from draft to sent. `flush` writes every draft
