@@ -1,30 +1,72 @@
 /**
  * @feature REV-13 Pull request comments without a file
- * Owns: the list in the PR tab of comments that sit on the pull request itself, not on a file or a line,
- * each with its author's avatar.
- * Behaviour: coverage/inventory-system-native-data.md (Conductor stores a comment on the pull request itself
- * with no file, id prefix `github-general-`, and keeps the author's avatar beside a GitHub comment);
- * services-map.md 3.7.4 (general comments come from `pullRequest.comments` and are upserted into diff
- * comments) and 5A.7 (the diff comment table). The model type is `DiffComment` in core/model.ts: its
- * `filePath` is null for these.
- * Data: useDiffComments(workspaceId) from core/hooks.ts, filtered to `filePath === null` and a GitHub
- * author. The caller passes the list so the PR tab loads it once.
- * Our design choice: these comments are read-only here. Replying and resolving stay in the Activity list
- * (PrActivityList), so one comment has one home. Order is oldest first, like the Activity list.
- * Must handle: no such comments (the section is hidden, not an empty box); an author without an avatar (a
- * letter on a neutral circle); an avatar that fails to load (the same letter); a comment hidden or
- * superseded (not shown); a very long body (collapsed with "Show more"); Markdown in the body (rendered
- * with the same renderer as chat text, links open outside the app); 500 comments (virtualised).
+ * Owns: the list in the PR tab of comments that sit on the pull request itself, each with its
+ * author's avatar.
+ * Behaviour: services-map.md 3.7.4 and 5A.7.3 (general pull request comments come from
+ * `pullRequest.comments`, keep ids that start with `github-general-`, and carry the author's
+ * avatar); ui-map.md 3.2 (the PR tab).
+ * Data: the caller passes the PR activity entries; this keeps the comment entries whose file path
+ * is null. The PR tab shows those here instead of in the Activity list, so each comment has one home.
+ * Must handle: no such comments (the section is hidden, not an empty box); an author without an
+ * avatar (a letter on a neutral circle); an avatar that fails to load (the same letter); a long
+ * body (wraps).
  * Test first: three comments, one with a file path, show two entries, and the file one is absent.
  */
-import { notImplemented } from "@conducted/shared";
-import type { DiffComment } from "../../core/model.ts";
+import { useState } from "react";
+import type { PrActivityEntry } from "../../core/model.ts";
 
 export interface PrLevelCommentsProps {
-	/** All comments of the workspace. The component keeps only those with no file. */
-	comments: readonly DiffComment[];
+	/** The workspace's PR activity; this keeps the comment entries with no file. */
+	entries: readonly PrActivityEntry[];
 }
 
-export function PrLevelComments(_props: PrLevelCommentsProps): never {
-	return notImplemented("REV-13");
+function AuthorAvatar({ login, avatarUrl }: { login: string; avatarUrl: string | null }) {
+	const [failed, setFailed] = useState(false);
+	const letter = login.trim().slice(0, 1).toUpperCase() || "?";
+	if (avatarUrl !== null && !failed) {
+		return (
+			<img
+				src={avatarUrl}
+				alt=""
+				className="size-4 shrink-0 rounded-full bg-muted"
+				onError={() => setFailed(true)}
+			/>
+		);
+	}
+	return (
+		<span
+			aria-hidden="true"
+			className="flex size-4 shrink-0 items-center justify-center rounded-full bg-hover text-3xs font-medium text-fg-muted"
+		>
+			{letter}
+		</span>
+	);
+}
+
+export function PrLevelComments({ entries }: PrLevelCommentsProps) {
+	const comments = entries.filter(
+		(entry): entry is Extract<PrActivityEntry, { kind: "comment" }> =>
+			entry.kind === "comment" && entry.filePath === null,
+	);
+
+	if (comments.length === 0) return null;
+
+	return (
+		<section aria-label="Comments" className="border-b border-separator py-2">
+			<h3 className="px-2 pb-1 text-sm font-medium text-fg">Comments</h3>
+			<ul aria-label="Pull request comments" className="m-0 list-none space-y-2 p-0 px-2">
+				{comments.map((comment) => (
+					<li key={comment.id} className="flex items-start gap-2">
+						<AuthorAvatar login={comment.authorLogin} avatarUrl={comment.authorAvatarUrl} />
+						<div className="min-w-0 flex-1">
+							<span className="block text-sm font-medium text-fg">{comment.authorLogin}</span>
+							<p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-fg">
+								{comment.body}
+							</p>
+						</div>
+					</li>
+				))}
+			</ul>
+		</section>
+	);
 }
