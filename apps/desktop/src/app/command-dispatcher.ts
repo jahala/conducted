@@ -37,7 +37,9 @@
  * container owning that registry is APP-01's change.
  * Our design choice: menu accelerators are the live first binding in Tauri's syntax, so a rebind changes
  * the menu bar without a second table. A deep link that names a settings page opens settings; links
- * that open a route stay with NAV-17, and the caller can pass `onDeepLink` to take them.
+ * that open a route stay with NAV-17, and the caller can pass `onDeepLink` to take them. A link the
+ * Rust shell refused before any parser saw it (over 64 KiB, PLAT-16) shows "Invalid deep link", the
+ * toast Conductor shows for a link it cannot read, and the reason goes to the app log.
  * Our design choice: `CommandHint` is the one keycap component. It reads the live binding, so a hint
  * follows a rebind instead of showing the shipped key.
  * Test first: with a `base` and a `modal` handler registered for "palette.open", the dispatcher runs only
@@ -69,7 +71,7 @@ import {
 import { resolveSendKey, type SendIntent, type SendWith } from "../features/composer/send-key.ts";
 import type { MenuShortcut } from "../platform/platform.ts";
 import { Kbd } from "../ui/Kbd.tsx";
-import { toastError } from "../ui/Toast.tsx";
+import { toast, toastError } from "../ui/Toast.tsx";
 import { useOverlayStore } from "./overlay-store.ts";
 
 export type HandlerPriority = "base" | "area" | "modal";
@@ -782,6 +784,16 @@ export function useCommandDispatcher(
 				dispatchCommand(commandId, deps);
 			}),
 		[deps, onDeepLink, platform],
+	);
+
+	// A link the Rust shell refused (over 64 KiB) is shown the way Conductor shows a refused link.
+	useEffect(
+		() =>
+			platform.app.onDeepLinkRejected((rejection) => {
+				platform.app.writeLog("warn", `A deep link was refused: ${rejection.message}`);
+				toast.error("Invalid deep link");
+			}),
+		[platform],
 	);
 
 	return dispatchKey;

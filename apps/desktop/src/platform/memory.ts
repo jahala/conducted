@@ -130,6 +130,8 @@ export interface MemoryPlatformControls {
 	/** Delivers a notification click and a deep link. */
 	emitNotificationClick(deepLink: string): void;
 	emitDeepLink(url: string): void;
+	/** Delivers a link the Rust shell refused, such as one over 64 KiB. */
+	emitDeepLinkRejected(rejection: AppError): void;
 	emitQuitRequested(): void;
 	/** Changes the window's focus and tells every focus listener. */
 	emitWindowFocus(focused: boolean): void;
@@ -399,6 +401,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	const sidecarRestartListeners = new Set<ValueListener<void>>();
 	const notificationClickListeners = new Set<ValueListener<string>>();
 	const deepLinkListeners = new Set<ValueListener<string>>();
+	const deepLinkRejectedListeners = new Set<ValueListener<AppError>>();
 	const quitListeners = new Set<ValueListener<void>>();
 	const focusListeners = new Set<ValueListener<boolean>>();
 	const fileDropListeners = new Set<ValueListener<FileDropEvent>>();
@@ -1100,6 +1103,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		health: async () => ok(undefined),
 		dbVersionWarning: async () => ok(null),
 		onDeepLink: (listener) => listen(deepLinkListeners, listener),
+		onDeepLinkRejected: (listener) => listen(deepLinkRejectedListeners, listener),
 		onQuitRequested: (listener) => listen(quitListeners, listener),
 		quit: async () => {},
 		resourceUsage: async (workspacePaths) =>
@@ -1177,6 +1181,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		emitSidecarRestart: () => emit(sidecarRestartListeners, undefined),
 		emitNotificationClick: (deepLink) => emit(notificationClickListeners, deepLink),
 		emitDeepLink: (url) => emit(deepLinkListeners, url),
+		emitDeepLinkRejected: (rejection) => emit(deepLinkRejectedListeners, rejection),
 		emitQuitRequested: () => emit(quitListeners, undefined),
 		emitWindowFocus: (focused) => {
 			windowFocused = focused;

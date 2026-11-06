@@ -31,7 +31,10 @@ vi.mock("../../core/hooks.ts", () => ({
 	}),
 }));
 
-vi.mock("../../ui/Toast.tsx", () => ({ toastError: state.toastError }));
+vi.mock("../../ui/Toast.tsx", async (importOriginal) => ({
+	...(await importOriginal<typeof import("../../ui/Toast.tsx")>()),
+	toastError: state.toastError,
+}));
 
 vi.mock("./UserMessage.tsx", () => ({
 	UserMessage: ({ turn }: { turn: ChatTurn }) => {

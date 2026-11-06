@@ -95,6 +95,7 @@ import type {
 	SystemFacts,
 	SystemInfo,
 	TreeEntry,
+	Unsubscribe,
 	Updater,
 } from "./platform.ts";
 import {
@@ -334,6 +335,7 @@ export const COMMANDS = {
 	fsTrash: "fs_trash",
 	fsPaths: "fs_paths",
 	fsRegisterRoot: "fs_register_root",
+	deepLinkLaunch: "deep_link_launch",
 	searchListTree: "search_list_tree",
 	searchFuzzy: "search_fuzzy",
 	searchGrep: "search_grep",
@@ -389,6 +391,7 @@ export const EVENTS = {
 	windowBlur: "tauri://blur",
 	quitRequested: "app://quit-requested",
 	deepLink: "app://deep-link",
+	deepLinkRejected: "app://deep-link-rejected",
 	shellDone: "shell://done",
 	ptyExit: "pty://exit",
 	sidecarLine: "sidecar://line",
@@ -401,8 +404,11 @@ export const EVENTS = {
 	programsVerificationErrors: "programs://verification-errors",
 } as const;
 
-/** The deep-link plugin's command that returns the URLs which launched the app. */
-const DEEP_LINK_CURRENT = "plugin:deep-link|get_current";
+/** The answer of `deep_link_launch`: the links that launched the app, sorted by deep_link.rs. */
+interface LaunchLinks {
+	urls: string[];
+	rejected: { code: string; message: string }[];
+}
 
 // ---------------------------------------------------------------- errors (real)
 
@@ -454,7 +460,7 @@ interface DbVersionCheck {
 	message: string | null;
 }
 
-/** `app_info` -> `{ version, channel }`; `app_quit`; `resource_usage { workspacePaths }`; `log_write`; `log_set_level { level }`; `logs_export`; `set_quit_handler_ready`; `db_version_check`. Events: quit, deep link. */
+/** `app_info` -> `{ version, channel }`; `app_quit`; `resource_usage { workspacePaths }`; `log_write`; `log_set_level { level }`; `logs_export`; `set_quit_handler_ready`; `db_version_check`; `deep_link_launch`. Events: quit, deep link, refused deep link. */
 export function createTauriAppInfo(
 	bindings: TauriBindings,
 	info: { version: string; channel: "dev" | "release" },
@@ -488,25 +494,20 @@ export function createTauriAppInfo(
 			}
 			return ok(null);
 		},
-		onDeepLink: (listener) => {
-			let active = true;
-			const stop = onEvent<string>(bindings, EVENTS.deepLink, (url) => {
-				if (active) listener(url);
-			});
-			void bindings
-				.invoke<string[] | null>(DEEP_LINK_CURRENT)
-				.then((urls) => {
-					if (!active || urls === null) return;
-					for (const url of urls) listener(url);
-				})
-				.catch((error: unknown) => {
-					console.error("Could not read the launch deep link", error);
-				});
-			return () => {
-				active = false;
-				stop();
-			};
-		},
+		onDeepLink: (listener) =>
+			onLaunchAndEvent<string>(
+				bindings,
+				EVENTS.deepLink,
+				(links) => links.urls,
+				(url) => listener(url),
+			),
+		onDeepLinkRejected: (listener) =>
+			onLaunchAndEvent<{ code: string; message: string }>(
+				bindings,
+				EVENTS.deepLinkRejected,
+				(links) => links.rejected,
+				(rejection) => listener(appError(rejection.code, rejection.message)),
+			),
 		onQuitRequested: (listener) => onEvent(bindings, EVENTS.quitRequested, () => listener()),
 		quit: async () => {
 			await invokeResult(bindings, COMMANDS.appQuit);
@@ -534,6 +535,34 @@ export function createTauriAppInfo(
 			const result = await invokeResult(bindings, COMMANDS.setQuitHandlerReady);
 			if (!result.ok) throw result.error;
 		},
+	};
+}
+
+/**
+ * Listens for a deep-link event and also hands the listener the matching links that launched the
+ * app, read from `deep_link_launch`, so a cold-start link is not missed.
+ */
+function onLaunchAndEvent<T>(
+	bindings: TauriBindings,
+	event: string,
+	pick: (links: LaunchLinks) => readonly T[],
+	listener: (value: T) => void,
+): Unsubscribe {
+	let active = true;
+	const stop = onEvent<T>(bindings, event, (value) => {
+		if (active) listener(value);
+	});
+	void invokeResult<LaunchLinks>(bindings, COMMANDS.deepLinkLaunch).then((links) => {
+		if (!links.ok) {
+			console.error("Could not read the launch deep link", links.error);
+			return;
+		}
+		if (!active) return;
+		for (const value of pick(links.value)) listener(value);
+	});
+	return () => {
+		active = false;
+		stop();
 	};
 }
 

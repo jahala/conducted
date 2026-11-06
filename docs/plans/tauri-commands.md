@@ -12,7 +12,8 @@ Dialogs, clipboard text and images, opening URLs, notifications permission and t
 | `app.dbVersionWarning`                           | `db_version_check`                                                           | db.rs               |                                        |
 | `app.version`, `app.channel`                     | `app_info`                                                                   | lib.rs              |                                        |
 | `app.onQuitRequested`, `app.quit`                | `app_quit`                                                                   | lib.rs              | `app://quit-requested`                 |
-| `app.onDeepLink`                                 | (plugin)                                                                     | deep_link.rs        | `app://deep-link`                      |
+| `app.onDeepLink`                                 | `deep_link_launch` (the launch links)                                        | deep_link.rs        | `app://deep-link`                      |
+| `app.onDeepLinkRejected`                         | `deep_link_launch` (the refused launch links)                                | deep_link.rs        | `app://deep-link-rejected`             |
 | `app.resourceUsage`                              | `resource_usage`                                                             | resource_usage.rs   |                                        |
 | `app.writeLog`                                   | `log_write`                                                                  | logger.rs           |                                        |
 | `app.setLogLevel`                                | `log_set_level`                                                              | logger.rs           |                                        |

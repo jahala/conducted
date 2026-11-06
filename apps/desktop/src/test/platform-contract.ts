@@ -340,6 +340,13 @@ export const PLATFORM_CONTRACT_CASES: readonly ContractCase[] = [
 		"A process in a folder inside two given workspace paths reports the inner one, a process in none reports no workspace, and the call is Ok.",
 		"controls",
 	),
+	c(
+		"app",
+		"deep-link-rejected",
+		"onDeepLinkRejected reports a refused link",
+		"A link the shell refused reaches a listener once, as an AppError with its code; a listener that unsubscribed hears nothing more.",
+		"controls",
+	),
 	c("app", "health", "health is Ok", "health() returns Ok when the shell is up."),
 	c(
 		"app",
@@ -513,6 +520,7 @@ export interface ContractControls {
 	emitNotificationClick?(deepLink: string): void | Promise<void>;
 	emitWindowFocus?(focused: boolean): void | Promise<void>;
 	emitNetworkChanged?(online: boolean): void | Promise<void>;
+	emitDeepLinkRejected?(rejection: { code: string; message: string }): void | Promise<void>;
 	/** Puts files on the clipboard, as if copied in Finder. */
 	setClipboardFilePaths?(paths: readonly string[]): void;
 	/** The app's processes the process table lists, each with its working folder. */
@@ -1463,6 +1471,31 @@ const STEPS: Record<string, ContractStep> = {
 		);
 	},
 
+	"app.deep-link-rejected": async (ctx) => {
+		const heard: string[] = [];
+		const first = await waitForEvent<string>(
+			ctx,
+			(listener) => {
+				const stop = ctx.platform.app.onDeepLinkRejected((rejection) => {
+					heard.push(rejection.code);
+					listener(rejection.code);
+				});
+				return stop;
+			},
+			async () => {
+				await ctx.controls?.emitDeepLinkRejected?.({
+					code: "deep_link_too_long",
+					message: "A deep link was too long.",
+				});
+			},
+			"a refused deep link",
+		);
+		ctx.assert(first === "deep_link_too_long", `the refusal had code ${first}`);
+		await ctx.controls?.emitDeepLinkRejected?.({ code: "late", message: "after unsubscribe" });
+		await oneMacrotask();
+		ctx.assert(heard.join(",") === "deep_link_too_long", `the listener heard ${heard.join(",")}`);
+	},
+
 	"app.health": async (ctx) => {
 		expectOk(ctx, await ctx.platform.app.health(), "health");
 	},
@@ -1858,6 +1891,7 @@ export const CASE_METHODS: Readonly<Record<string, readonly string[]>> = {
 	"clipboard.write-text": ["clipboard.writeText"],
 	"clipboard.read-file-paths": ["clipboard.readFilePaths"],
 	"app.health": ["app.health"],
+	"app.deep-link-rejected": ["app.onDeepLinkRejected"],
 	"app.resource-usage": ["app.resourceUsage"],
 	"app.write-log-never-throws": ["app.writeLog"],
 	"app.version": [],
@@ -1925,7 +1959,8 @@ export const UNCOVERED_METHODS: Readonly<Record<string, string>> = {
 	"updater.install": "Downloads and installs an update; needs a signed release feed.",
 	"updater.relaunch": "Restarts the app; cannot run inside a test.",
 	"app.dbVersionWarning": "PLAT-17 builds it.",
-	"app.onDeepLink": "PLAT-16 builds it.",
+	"app.onDeepLink":
+		"The deep-link adapter test owns the event and the launch links; the plugin delivers them in Rust.",
 	"app.onQuitRequested": "Needs the Rust quit hook; the Rust job owns it.",
 	"app.quit": "Quits the app; cannot run inside a test.",
 	"app.setLogLevel": "Changes the Rust logger; the Rust logger tests own it.",

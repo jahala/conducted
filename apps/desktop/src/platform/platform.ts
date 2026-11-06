@@ -303,6 +303,11 @@ export interface AppInfo {
 	 */
 	dbVersionWarning(): Promise<Result<{ databaseVersion: number; appVersion: number } | null>>;
 	onDeepLink(listener: (url: string) => void): Unsubscribe;
+	/**
+	 * A link the Rust shell refused before the UI's parser saw it, such as one over 64 KiB
+	 * (PLAT-16). The links that launched the app are checked when this subscribes.
+	 */
+	onDeepLinkRejected(listener: (rejection: AppError) => void): Unsubscribe;
 	onQuitRequested(listener: () => void): Unsubscribe;
 	quit(): Promise<void>;
 	/**

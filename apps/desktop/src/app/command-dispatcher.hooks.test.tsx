@@ -339,6 +339,25 @@ describe("NAV-14 useCommandDispatcher", () => {
 		expect(run).toHaveBeenCalledWith("app.openSettings");
 	});
 
+	it("PLAT-16 shows 'Invalid deep link' for a link the shell refused", async () => {
+		const { memory, wrapper } = buildHarness();
+		render(
+			<>
+				<Toaster />
+				<CommandDispatcher>{null}</CommandDispatcher>
+			</>,
+			{ wrapper },
+		);
+
+		act(() => {
+			memory.controls.emitDeepLinkRejected(
+				appError("deep_link_too_long", "A deep link longer than 65536 bytes was dropped."),
+			);
+		});
+
+		expect(await screen.findByText("Invalid deep link")).toBeTruthy();
+	});
+
 	it("reports a deep link that no command opens", () => {
 		const { container, deepLinkListeners, memory, wrapper } = buildHarness();
 		const run = vi.spyOn(container.services.commands, "run").mockResolvedValue(ok(undefined));

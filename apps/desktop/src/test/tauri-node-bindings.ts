@@ -339,6 +339,8 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 					resized: false,
 				};
 			}
+			case COMMANDS.deepLinkLaunch:
+				return { urls: [], rejected: [] };
 			case COMMANDS.clipboardReadFilePaths:
 				return [...clipboardFilePaths];
 			case COMMANDS.attachmentMaterialize:
@@ -537,6 +539,9 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 		emitNetworkChanged: (online) => {
 			networkOnline = online;
 			events.emit(EVENTS.networkChanged, online);
+		},
+		emitDeepLinkRejected: (rejection) => {
+			events.emit(EVENTS.deepLinkRejected, rejection);
 		},
 		get dockBadge() {
 			return dockBadge;
