@@ -77,6 +77,8 @@ const makeLookups = (
 		workspaces: () =>
 			createStore<WorkspaceState>(() => ({
 				loaded: true,
+				backlogLoaded: true,
+				backlogById: {},
 				workspacesById: { [row.id]: row },
 				setup: {},
 				archiving: {},

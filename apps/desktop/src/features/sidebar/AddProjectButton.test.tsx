@@ -14,9 +14,14 @@ const state = vi.hoisted(() => ({
 
 vi.mock("../../core/hooks.ts", () => ({
 	useActions: () => ({ projects: { addLocal: state.addLocal }, app: { pickFolder: state.pick } }),
+	useGitHubOwners: () => ({ state: "loading" }),
+	useRepoNameCheck: () => ({ state: "loading" }),
 	useRepos: () => state.repos,
 }));
-vi.mock("../../ui/Toast.tsx", () => ({ toastError: state.toastError }));
+vi.mock("../../ui/Toast.tsx", () => ({
+	toast: { success: vi.fn() },
+	toastError: state.toastError,
+}));
 
 const { AddProjectButton } = await import("./AddProjectButton.tsx");
 

@@ -1193,7 +1193,8 @@ export function createTauriPrograms(bindings: TauriBindings): Programs {
 			if (!result.ok) throw result.error;
 			return result.value;
 		},
-		syncPathOverrides: () => notImplemented("SET-13"),
+		syncPathOverrides: (overrides) =>
+			invokeResult<string>(bindings, COMMANDS.programsSyncPathOverrides, { overrides }),
 	};
 }
 

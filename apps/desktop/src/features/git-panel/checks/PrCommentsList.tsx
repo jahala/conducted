@@ -5,10 +5,9 @@
  * Behaviour: ui-map.md 3.6, "Checks" paragraph (per comment: Resolved, Outdated, "Add to chat",
  * "Hide", "Resolve"; "Add all to chat"); services-map.md 3.7.4 (sync into diff_comments, resolve a
  * thread with a GraphQL mutation).
- * Not built here: nothing syncs comments from GitHub yet (REV-04), so in the app the section shows
- * only comments some other path stored with a GitHub author; "Resolve" changes the local comment
- * only, and resolving on GitHub is REV-04's. "Hide" shows only when the caller can hide a comment;
- * the Checks tab leaves it out until comment states are built (REV-12).
+ * Comments are synced from GitHub by REV-04; "Resolve" on a thread is handled by the caller, which
+ * resolves it on GitHub. "Hide" shows only when the caller can hide a comment; the Checks tab
+ * leaves it out until comment states are built (REV-12).
  * Must handle: no comments, a thread with replies (grouped), outdated comments (muted, kept),
  * resolved comments hidden until "Show resolved", a comment on a file that no longer exists, and
  * no way to hide a comment (no Hide button).

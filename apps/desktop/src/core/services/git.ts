@@ -6,6 +6,7 @@
  * @feature GIT-07 Resolve conflicts, done by the agent on request
  * @feature GIT-12 Branch lists, branch commits and switch branch
  * @feature GIT-17 Continue after a merge or from a detached HEAD
+ * @feature GIT-15 Sparse checkout and the external diff tool
  * Owns: the repository's local branch list for the create-from picker; polling each shown
  * workspace's git state at the requested depth, the four-slot limiter, and the last error per
  * workspace. Also the write actions that move a branch across the remote:
@@ -48,8 +49,8 @@
  * built; they need the platform file operations, a movable workspace path and a header message.
  * Our design choice: this class exposes snapshots and actions only. The Git header state machine
  * and the merge with pull request info belong to GIT-04, the other git actions belong to their
- * own features, and the restart cache belongs to DATA-07. Their placeholders stay here until those
- * features build them.
+ * own features, and the restart cache belongs to DATA-07 (`git-cache.ts` saves the snapshots this
+ * store holds and paints them back through `paintCached`).
  * Changing the target branch is here (GIT-08): it stores the intended branch, moves an open pull
  * request's base, or fetches and resets a clean branch still at the old target.
  * GIT-12: lists a repository's local and remote branches and the branches its worktrees have
@@ -66,19 +67,17 @@
  * itself stays. A failed save of the new branch on the workspace checks the old branch (or the
  * detached commit) out again and removes the new branch. The time of each continue is kept, so a
  * merged pull request read before it no longer shows for the new branch (`stateOf`).
+ * GIT-15: reads and edits a workspace's sparse checkout in cone mode, and lists the top-level
+ * folders to choose from. It opens one file's changes in Kaleidoscope only when that file has
+ * changes, says so when the file is new and untracked (nothing to compare), and refuses a path
+ * that leaves the workspace. Our design choice: the change check is per file, where Conductor
+ * checks the whole tree (services-map 3.11), because the action names one file. Git stores the sparse settings itself,
+ * so editing them is the edit; the next poll shows the new file list.
  * Test first: a workspace watched at depth full runs its poll immediately and again once the
  * interval has passed.
  */
 import type { FileChange } from "@conducted/protocol";
-import {
-	type AppError,
-	appError,
-	err,
-	notImplemented,
-	ok,
-	type Result,
-	type WorkspaceId,
-} from "@conducted/shared";
+import { type AppError, appError, err, ok, type Result, type WorkspaceId } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { FileSystem, Unsubscribe } from "../../platform/platform.ts";
 import type { ChangedFile, DiffScope } from "../api.ts";
@@ -96,12 +95,16 @@ import {
 	configGet,
 	configPullFf,
 	configPullRebase,
+	diffQuietHead,
+	diffToolKsdiff,
 	diffWorkingTree,
 	fetch,
 	fetchBranchRefspec,
 	firstPushSteps,
 	forEachRefRemoteBranches,
 	isAncestor,
+	lsFilesUntrackedPath,
+	lsTreeTopLevelDirectories,
 	mergeBase,
 	mergeFastForwardOnly,
 	pull as pullCommand,
@@ -118,6 +121,11 @@ import {
 	showCommitNameStatus,
 	showCommitNumstat,
 	showRefVerify,
+	sparseCheckoutConfig,
+	sparseCheckoutDisable,
+	sparseCheckoutInitCone,
+	sparseCheckoutList,
+	sparseCheckoutSet,
 	statusPorcelainAll,
 	symbolicRefHead,
 	upstreamName,
@@ -151,7 +159,6 @@ import {
 	reconcileInstruction,
 	resolveConflictsInstruction,
 } from "./agent-instructions.ts";
-import type { GitCache } from "./git-cache.ts";
 import type { WorkspacePrEntry } from "./github.ts";
 import type { AgentMessenger } from "./sessions.ts";
 import { isSafeRefName } from "./workspace.ts";
@@ -177,6 +184,39 @@ export function workspaceRelativePath(path: string): Result<string> {
 export function checkedCommitId(sha: string): Result<string> {
 	const clean = sha !== "" && !sha.startsWith("-") && !/\s/.test(sha) && !sha.includes("\u0000");
 	return clean ? ok(sha) : err(appError("git_bad_revision", `"${sha}" is not a commit id.`));
+}
+
+/** The lines `git sparse-checkout list` and `git ls-tree` print, without blanks. */
+function parseSparseCheckoutDirectories(text: string): string[] {
+	return text
+		.split("\n")
+		.map((line) => line.trim())
+		.filter((line) => line.length > 0);
+}
+
+/**
+ * The directories a user chose for a workspace's sparse checkout. Each must stay inside the
+ * workspace, and repeats collapse to the first one.
+ */
+function checkedSparseCheckoutDirectories(directories: readonly string[]): Result<string[]> {
+	const clean: string[] = [];
+	for (const raw of directories) {
+		const path = raw.trim();
+		if (path === "") continue;
+		const checked = workspaceRelativePath(path);
+		if (!checked.ok) return checked;
+		if (!clean.includes(checked.value)) clean.push(checked.value);
+	}
+	return ok(clean);
+}
+
+/** What a workspace's sparse checkout settings hold (services-map 3.11, 5A.5.3). */
+interface SparseCheckoutSettings {
+	enabled: boolean;
+	/** The directories git includes, empty when sparse checkout is off. */
+	directories: string[];
+	/** The top-level folders of the checked-out commit, the choices to offer the user. */
+	topLevelDirectories: string[];
 }
 
 /** What `git cat-file -e` prints when the path is not in the base commit. */
@@ -495,8 +535,6 @@ export function decideFetch(
 
 export interface GitServiceDeps {
 	git: GitRunner;
-	/** The last snapshot of each workspace, shown before the first poll answers (DATA-07). */
-	cache: GitCache;
 	/** Looks up folders and branch names for a workspace. Fails for unknown ids. */
 	contextOf: (workspaceId: WorkspaceId) => Promise<Result<WorkspaceGitContext>>;
 	agent: AgentMessenger;
@@ -611,6 +649,19 @@ export class GitService {
 		};
 		void tick();
 		return () => this.#unwatch(key);
+	}
+
+	/**
+	 * Shows a snapshot cached before the last restart until the first poll answers (DATA-07). A
+	 * workspace that already has an entry keeps it, so a poll that answered first wins. The entry
+	 * has no refresh time, so the next poll runs at once.
+	 */
+	paintCached(workspaceId: WorkspaceId, snapshot: ChangesSnapshot): void {
+		const key = String(workspaceId);
+		if (this.store.getState().byWorkspace[key] !== undefined) return;
+		this.store.setState((state) => ({
+			byWorkspace: { ...state.byWorkspace, [key]: { snapshot, error: null, refreshedAt: null } },
+		}));
 	}
 
 	refresh(workspaceId: WorkspaceId, depth: PollDepth): Promise<Result<void>> {
@@ -1940,8 +1991,114 @@ export class GitService {
 		return this.#deps.fs.writeTextAtomic(`${folder}/${CONTINUE_NOTE_FILE_NAME}`, text);
 	}
 
-	/** Backs `Actions.git.openInDiffTool`. */
-	openInDiffTool(_workspaceId: WorkspaceId, _path: string): Promise<Result<void>> {
-		return notImplemented("GIT-15");
+	/**
+	 * Reads a workspace's sparse checkout settings. Git keeps them, so nothing is stored in our
+	 * database. When sparse checkout is off, the directory list is empty.
+	 */
+	async sparseCheckoutSettings(workspaceId: WorkspaceId): Promise<Result<SparseCheckoutSettings>> {
+		const found = await this.#deps.contextOf(workspaceId);
+		if (!found.ok) return found;
+		const cwd = found.value.workspacePath;
+
+		const enabled = await this.#sparseCheckoutEnabled(cwd);
+		if (!enabled.ok) return enabled;
+		const directories = enabled.value
+			? await this.#deps.git.stdout(sparseCheckoutList(), { cwd })
+			: ok("");
+		if (!directories.ok) return directories;
+		const topLevel = await this.#deps.git.stdout(lsTreeTopLevelDirectories(), { cwd });
+		if (!topLevel.ok) return topLevel;
+
+		return ok({
+			enabled: enabled.value,
+			directories: enabled.value ? parseSparseCheckoutDirectories(directories.value) : [],
+			topLevelDirectories: parseSparseCheckoutDirectories(topLevel.value),
+		});
+	}
+
+	/**
+	 * Edits a workspace's sparse checkout. An empty list turns sparse checkout off; otherwise the
+	 * chosen directories are set in cone mode, initialising it first when it was off. The change
+	 * waits for the worktree lock, because git rewrites the worktree's index and files.
+	 */
+	async setSparseCheckoutDirectories(
+		workspaceId: WorkspaceId,
+		directories: readonly string[],
+	): Promise<Result<void>> {
+		const checked = checkedSparseCheckoutDirectories(directories);
+		if (!checked.ok) return checked;
+		if (checked.value.length === 0) return this.disableSparseCheckout(workspaceId);
+
+		const found = await this.#deps.contextOf(workspaceId);
+		if (!found.ok) return found;
+		const cwd = found.value.workspacePath;
+		return this.#deps.git.withWorktreeLock(cwd, async () => {
+			const enabled = await this.#sparseCheckoutEnabled(cwd);
+			if (!enabled.ok) return enabled;
+			if (!enabled.value) {
+				const initialised = await this.#deps.git.runChecked(sparseCheckoutInitCone(), { cwd });
+				if (!initialised.ok) return initialised;
+			}
+			const set = await this.#deps.git.runChecked(sparseCheckoutSet(checked.value), { cwd });
+			return set.ok ? ok(undefined) : set;
+		});
+	}
+
+	/** Turns a workspace's sparse checkout off, so the whole tree is present again. */
+	async disableSparseCheckout(workspaceId: WorkspaceId): Promise<Result<void>> {
+		const found = await this.#deps.contextOf(workspaceId);
+		if (!found.ok) return found;
+		const cwd = found.value.workspacePath;
+		return this.#deps.git.withWorktreeLock(cwd, async () => {
+			const disabled = await this.#deps.git.runChecked(sparseCheckoutDisable(), { cwd });
+			return disabled.ok ? ok(undefined) : disabled;
+		});
+	}
+
+	/** True when git's `core.sparseCheckout` is on. A missing key means off, not a failure. */
+	async #sparseCheckoutEnabled(cwd: string): Promise<Result<boolean>> {
+		const result = await this.#deps.git.run(sparseCheckoutConfig(), { cwd });
+		if (!result.ok) return result;
+		if (result.value.exitCode === 1) return ok(false);
+		if (result.value.exitCode !== 0) {
+			return err(
+				appError(
+					"git_failed",
+					result.value.stderr.trim() || `git config exited with code ${result.value.exitCode}`,
+				),
+			);
+		}
+		const value = result.value.stdout.trim().toLowerCase();
+		return ok(value === "true" || value === "1" || value === "yes" || value === "on");
+	}
+
+	/**
+	 * Backs `Actions.git.openInDiffTool`: opens the file's changes in Kaleidoscope when the file
+	 * has any. A file with no changes opens nothing and is not an error. A new file git does not
+	 * track yet has no earlier version, so `git diff --quiet` calls it unchanged and difftool would
+	 * show nothing; that is an error that says so, never a silent success.
+	 */
+	async openInDiffTool(workspaceId: WorkspaceId, path: string): Promise<Result<void>> {
+		const checked = workspaceRelativePath(path);
+		if (!checked.ok) return checked;
+		const found = await this.#deps.contextOf(workspaceId);
+		if (!found.ok) return found;
+		const cwd = found.value.workspacePath;
+
+		const changed = await this.#deps.git.runChecked(diffQuietHead(checked.value), { cwd });
+		if (!changed.ok) return changed;
+		if (changed.value.exitCode === 0) {
+			const untracked = await this.#deps.git.stdout(lsFilesUntrackedPath(checked.value), { cwd });
+			if (!untracked.ok) return untracked;
+			if (untracked.value.length === 0) return ok(undefined);
+			return err(
+				appError(
+					"diff_tool_untracked",
+					`${checked.value} is a new file, so there is no earlier version to compare it with.`,
+				),
+			);
+		}
+		const opened = await this.#deps.git.runChecked(diffToolKsdiff(checked.value), { cwd });
+		return opened.ok ? ok(undefined) : opened;
 	}
 }

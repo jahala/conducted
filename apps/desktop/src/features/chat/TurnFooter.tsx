@@ -1,5 +1,5 @@
 /**
- * @feature CHAT-06 Turn footer
+ * @feature CHAT-06 Turn footer; CHAT-16 Fork a chat from a turn
  * Owns: The footer under a finished turn: copy actions, token and time details and the fork and reset
  * menu. The files the turn changed are listed above it by TurnChanges.
  * Behaviour: ui-map.md 3.3 (Turn footer: 'Copy final message', 'Copy summary', hover card with
@@ -7,24 +7,31 @@
  * menu: 'Fork to new tab', 'Fork to new workspace', 'Reset chat', copy options).
  * Our design choice (CHAT-14): with the Experimental setting 'Show agent cost' on, the hover card
  * also shows the cost the agent reported for this turn. Conductor shows cost only for cloud runs.
- * Our design choice: Fork to a new workspace is not in the scaffold backlog beyond CHAT-16; its
- * item is shown disabled with the reason until built.
+ * Fork to a new tab copies the chat up to this turn and opens the new chat (CHAT-16). It is always
+ * in this menu: the Experimental setting 'Fork chat to new tab' gates only the chat tab menu item
+ * and Cmd+Alt+Enter, as its text says (ui-map.md 3.3 lists the turn menu's fork without it, 6 names
+ * the tab menu and the shortcut). Fork to a new workspace is CHAT-21 and stays disabled until it
+ * is built.
  * Must handle: A running turn (no footer, TurnItem shows the spinner instead); no usage reported (the hover card
  * says so); an agent that does not report fast mode or cost (that line is left out); no checkpoint (Fork and Reset disabled with a reason); a cancelled or errored turn (footer still
- * copies); a copy or fork that fails (a toast); Reset opens the confirmation dialog instead of changing
- * anything at once. The More menu repeats the copy actions; the row wraps at a narrow width instead of
- * collapsing into the menu.
+ * copies); a copy or fork that fails (a toast, "Unable to fork chat" when the turn has no checkpoint);
+ * Reset opens the confirmation dialog instead of changing anything at once. The More menu repeats
+ * the copy actions; the row wraps at a narrow width instead of collapsing into the menu.
  * Test first: A finished turn with usage shows token counts in the hover card; without a checkpoint
  * Reset is disabled.
  */
+
 import type { SessionId } from "@conducted/shared";
-import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { useRef, useState } from "react";
+import { createSingleFlight } from "../../core/async/single-flight.ts";
 import { useActions, useSetting } from "../../core/hooks.ts";
 import type { ChatTurn } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
 import { CopyButton } from "../../ui/CopyButton.tsx";
 import { ChevronDownIcon, ClockIcon } from "../../ui/icons.tsx";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "../../ui/Menu.tsx";
+import { toastError } from "../../ui/Toast.tsx";
 import { Tooltip } from "../../ui/Tooltip.tsx";
 import { formatCost } from "./ContextWheel.tsx";
 import { ResetChatDialog } from "./ResetChatDialog.tsx";
@@ -79,8 +86,10 @@ function detailsOf(turn: ChatTurn, showCost: boolean): string {
 
 export function TurnFooter({ turn, sessionId }: TurnFooterProps) {
 	const actions = useActions();
+	const navigate = useNavigate();
 	const showCost = useSetting<boolean>("experimental_show_agent_cost") === true;
 	const [resetOpen, setResetOpen] = useState(false);
+	const forkFlight = useRef(createSingleFlight()).current;
 	const finalMessage = finalMessageOf(turn);
 	const summary = summaryOf(turn, finalMessage);
 	const canReset = turn.startCheckpointId !== null;
@@ -88,6 +97,22 @@ export function TurnFooter({ turn, sessionId }: TurnFooterProps) {
 	const copy = (text: string) => actions.app.copyText(text);
 	const copyFromMenu = (text: string) => {
 		void reportFailure(copy(text), "Couldn't copy the text");
+	};
+	const fork = () => {
+		void forkFlight.run(`chat:${sessionId}:fork:${turn.turnId}`, async () => {
+			const result = await actions.sessions.forkFrom(sessionId, turn.turnId);
+			if (!result.ok) {
+				toastError("Unable to fork chat", result.error);
+				return;
+			}
+			void navigate({
+				search: ((previous: Record<string, unknown>) => ({
+					...previous,
+					tab: "session",
+					sessionId: result.value.id,
+				})) as never,
+			});
+		});
 	};
 
 	return (
@@ -116,16 +141,11 @@ export function TurnFooter({ turn, sessionId }: TurnFooterProps) {
 					<MenuItem
 						disabled={!canFork}
 						title={canFork ? undefined : "This turn has no checkpoint to fork from."}
-						onSelect={() => {
-							void reportFailure(
-								actions.sessions.forkFrom(sessionId, turn.turnId),
-								"Couldn't fork the chat",
-							);
-						}}
+						onSelect={fork}
 					>
 						Fork to new tab
 					</MenuItem>
-					<MenuItem disabled title="Fork to a new workspace is built by CHAT-16.">
+					<MenuItem disabled title="Fork to a new workspace is built by CHAT-21.">
 						Fork to new workspace
 					</MenuItem>
 					<MenuItem

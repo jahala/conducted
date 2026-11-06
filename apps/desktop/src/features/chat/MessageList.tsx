@@ -8,7 +8,8 @@
  * Our design choice: Built on react-virtuoso's Virtuoso (MIT) instead of the commercial
  * VirtuosoMessageList. Use data + computeItemKey (turn id), increaseViewportBy, followOutput
  * (follow only while the user is at the bottom, via atBottomStateChange), components.Header and
- * components.Footer, and a ref to scrollToIndex. Only the newest turn changes while streaming:
+ * components.Footer, and a ref to scrollToIndex, which the chat pane may own so its find bar can
+ * scroll to a turn the list has not mounted. Only the newest turn changes while streaming:
  * TurnItem is memoised on the turn object, and the service (CHAT-07) keeps unchanged turns
  * referentially equal.
  * Must handle: Loading (skeleton turns); an error card and the running turn's retry line (their
@@ -21,7 +22,7 @@
  * last turn re-renders only that item.
  */
 import type { SessionId, WorkspaceId } from "@conducted/shared";
-import { useRef, useState } from "react";
+import { type RefObject, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { useActions, useChat, useDraft, useSetting, useWorkspace } from "../../core/hooks.ts";
@@ -36,6 +37,11 @@ import { TurnItem } from "./TurnItem.tsx";
 export interface MessageListProps {
 	sessionId: SessionId;
 	workspaceId: WorkspaceId;
+	/**
+	 * The list's handle, when the parent scrolls it too (the chat pane's find bar, CHAT-17). Without
+	 * one, the list keeps its own handle for the Scroll to bottom button.
+	 */
+	listRef?: RefObject<VirtuosoHandle | null>;
 }
 
 function LoadingTurns() {
@@ -60,14 +66,15 @@ function ListFooter() {
 	return <div data-region="list-footer" className="h-3" aria-hidden="true" />;
 }
 
-export function MessageList({ sessionId, workspaceId }: MessageListProps) {
+export function MessageList({ sessionId, workspaceId, listRef: parentListRef }: MessageListProps) {
 	const chat = useChat(sessionId);
 	const workspace = useWorkspace(workspaceId);
 	const archived = workspace.state === "ready" && workspace.data.state === "archived";
 	const draft = useDraft(sessionId);
 	const actions = useActions();
 	const expandAll = useSetting<boolean>("expand_tool_calls");
-	const listRef = useRef<VirtuosoHandle>(null);
+	const ownListRef = useRef<VirtuosoHandle>(null);
+	const listRef = parentListRef ?? ownListRef;
 	const [atBottom, setAtBottom] = useState(true);
 
 	useCommandHandler("chat.expandAllToolCalls", "area", () => {

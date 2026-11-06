@@ -8,6 +8,7 @@
  *                                /repository/$repositoryId/workspace/$workspaceId   workspace, tab state in search
  *                                /all-workspaces                                       Home
  *                                /dashboard                                            Kanban board
+ *                                /backlog                                              workspaces saved to start later
  *                                /create                                               new workspace page
  *   (no sidebar)                 /settings, /settings/$page, /diagnostics, /first-run-onboarding
  * Our design choices: `/settings` redirects to `/settings/general` (Conductor redirects /settings/user to
@@ -50,6 +51,7 @@ import { HomeScreen } from "../features/home/HomeScreen.tsx";
 import { OnboardingScreen } from "../features/onboarding/OnboardingScreen.tsx";
 import { AppearanceController } from "../features/settings/appearance/AppearanceController.tsx";
 import { SettingsScreen } from "../features/settings/SettingsScreen.tsx";
+import { BacklogScreen } from "../features/workspace/BacklogScreen.tsx";
 import { WorkspaceScreen } from "../features/workspace/WorkspaceScreen.tsx";
 import { type WorkspaceSearch, zWorkspaceSearch } from "../features/workspace/workspace-search.ts";
 import { NotBuiltYet } from "../ui/not-built-yet.tsx";
@@ -315,10 +317,22 @@ const dashboardRoute = createRoute({
 	),
 });
 
-/** /create opens with a project or a section already chosen when a + action sent the user here. */
+/** /backlog lists workspaces saved to start later (WS-11). */
+const backlogRoute = createRoute({
+	getParentRoute: () => mainLayoutRoute,
+	path: "/backlog",
+	component: () => (
+		<NotBuiltYet area="Backlog">
+			<BacklogScreen />
+		</NotBuiltYet>
+	),
+});
+
+/** /create opens with a project, a section or a backlog workspace already chosen (WS-11). */
 const zCreateWorkspaceSearch = z.object({
 	repo: z.string().optional().catch(undefined),
 	section: z.string().optional().catch(undefined),
+	backlog: z.string().optional().catch(undefined),
 });
 
 const createWorkspaceRoute = createRoute({
@@ -402,6 +416,7 @@ const routeTree = rootRoute.addChildren([
 		workspaceRoute,
 		homeRoute,
 		dashboardRoute,
+		backlogRoute,
 		createWorkspaceRoute,
 	]),
 	settingsIndexRoute,

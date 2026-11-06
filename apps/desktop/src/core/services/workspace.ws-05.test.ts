@@ -196,7 +196,11 @@ function harness(options: HarnessOptions = {}) {
 	const deps = {
 		platform: { fs, opener: { openWith: vi.fn() }, shell: { run: vi.fn() } },
 		git,
-		repos: { repos: { get: async () => ok(baseRepo) }, workspaces },
+		repos: {
+			repos: { get: async () => ok(baseRepo) },
+			workspaces,
+			backlogWorkspaces: { list: async () => ok([]) },
+		},
 		placeNames: { pick: () => "oslo" },
 		sessions: {
 			createFirstChat: vi.fn(),

@@ -1,10 +1,11 @@
 /**
- * @feature NAV-10 Tab strip
+ * @feature NAV-10 Tab strip; CHAT-16 Fork a chat from a turn
  * Owns: The row of tabs above the content: chats, terminals, files, review comments, the PR and
  * browser previews, with the '+' menu and chat history.
  * Behaviour: ui-map.md 3.2 (tab types with icon and close button; middle click closes; chat tab
  * fixed width with status icon, title and unread dot; '+' menu 'New chat', 'Browser', 'Local
- * terminal'; the tab limit; 'View chat history'), 5.4 (previous, next, close and reopen shortcuts).
+ * terminal'; the tab limit; 'View chat history'; chat tab menu 'Fork to new tab'), 5.4 (previous,
+ * next, close, reopen and fork shortcuts).
  * Our design choice: The open chats and workspace terminals are the tabs. A file, comment, PR or
  * browser tab is the tab the URL names, so the URL stays the one source of truth for the open tab.
  * The tab limit is five, or ten with Tab Freak Mode. A browser URL that does not parse is shown as-is.
@@ -16,7 +17,7 @@
  * menu is disabled.
  */
 import { idleLiveState } from "@conducted/protocol";
-import type { WorkspaceId } from "@conducted/shared";
+import { appError, type SessionId, type WorkspaceId } from "@conducted/shared";
 import { useRef, useState } from "react";
 import { useStore } from "zustand";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
@@ -192,6 +193,7 @@ export function TabStrip({ workspaceId, search, onSearchChange, excludeRefs }: T
 	const terminals = useTerminals(workspaceId);
 	const workspace = useWorkspace(workspaceId);
 	const tabFreakMode = useSetting<boolean>("experimental_tab_freak_mode");
+	const forkEnabled = useSetting<boolean>("experimental_fork_to_new_tab") === true;
 	const liveStates = useStore(services.services.sessions.store, (state) => state.liveStates);
 	const cancelling = useStore(services.services.sessions.store, (state) => state.cancelling);
 	const comments = useStore(
@@ -201,6 +203,7 @@ export function TabStrip({ workspaceId, search, onSearchChange, excludeRefs }: T
 	const lastClosed = useRef<TabDescriptor | null>(null);
 	const [retrying, setRetrying] = useState(false);
 	const retryFlight = useRef(createSingleFlight()).current;
+	const forkFlight = useRef(createSingleFlight()).current;
 	const newTab = useNewTab({ workspaceId, onSearchChange });
 
 	const limit = tabFreakMode ? 10 : 5;
@@ -289,6 +292,39 @@ export function TabStrip({ workspaceId, search, onSearchChange, excludeRefs }: T
 		return true;
 	};
 
+	/**
+	 * Forks a chat from its latest checkpointed turn and opens the new tab (CHAT-16). A finished
+	 * turn is preferred so the copy ends on a whole turn; a chat with only a running turn forks
+	 * from that turn. No checkpoint at all is reported as "Unable to fork chat".
+	 */
+	const fork = (sessionId: SessionId): void => {
+		void forkFlight.run(`workspace:${workspaceId}:fork:${sessionId}`, async () => {
+			const opened = await services.services.sessions.open(sessionId);
+			if (!opened.ok) {
+				toastError("Unable to fork chat", opened.error);
+				return;
+			}
+			const turns = services.services.sessions.chatView(sessionId)?.turns ?? [];
+			const reversed = [...turns].reverse();
+			const turn =
+				reversed.find((candidate) => candidate.endCheckpointId !== null) ??
+				reversed.find((candidate) => candidate.startCheckpointId !== null);
+			if (turn === undefined) {
+				toastError(
+					"Unable to fork chat",
+					appError("chat_fork_no_checkpoint", "Checkpoint not found for this turn."),
+				);
+				return;
+			}
+			const forked = await actions.sessions.forkFrom(sessionId, turn.turnId);
+			if (!forked.ok) {
+				toastError("Unable to fork chat", forked.error);
+				return;
+			}
+			onSearchChange({ tab: "session", sessionId: forked.value.id });
+		});
+	};
+
 	const active = tabs.find((tab) => tab.ref === activeRef) ?? null;
 	const closable = openSessions.length + terminalTabs(openTerminals).length;
 	const atTabLimit = closable >= limit;
@@ -314,6 +350,14 @@ export function TabStrip({ workspaceId, search, onSearchChange, excludeRefs }: T
 	});
 	useCommandHandler("tab.reopenClosed", "base", () => {
 		void reopen();
+		return true;
+	});
+	useCommandHandler("chat.fork", "base", () => {
+		if (!forkEnabled) return false;
+		if (active === null || active.kind !== "session" || active.sessionId === undefined) {
+			return false;
+		}
+		fork(active.sessionId);
 		return true;
 	});
 
@@ -391,6 +435,8 @@ export function TabStrip({ workspaceId, search, onSearchChange, excludeRefs }: T
 						workspaceId={workspaceId}
 						onClose={() => void close(tab)}
 						onCloseOthers={hasOtherClosable ? () => void closeOthers(tab) : undefined}
+						forkEnabled={forkEnabled}
+						onFork={() => fork(session.id)}
 					>
 						<div className="flex shrink-0">{item}</div>
 					</TabContextMenu>

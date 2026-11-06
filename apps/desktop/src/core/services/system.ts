@@ -20,6 +20,18 @@
  * Privacy & Security pane for Full Disk Access. The other Mac-level actions are placeholders
  * owned by CHAT-29, APP-09 and APP-03.
  * Test first: install while a download of the same program runs starts no second download.
+ *
+ * @feature SET-13 Chosen program paths reach terminals and scripts
+ * Owns: the folder to put first on PATH, built from the executable paths chosen in Advanced
+ * settings through the `programs_sync_path_overrides` command.
+ * Behaviour: services-map.md 5A.8.2 (the shim folder and the plain bundled prefix it falls back
+ * to when staging fails).
+ * Must handle: no chosen path (the plain bundled folder, without asking the command); a staging
+ * failure (the plain bundled folder, so a terminal still opens, and `pathOverrideProblem`, which
+ * app/path-override-notice.ts shows, so the user knows the chosen program is not the one running).
+ * Our design choice: Conductor only logs the failure; we also tell the user, because a silent
+ * switch to another program breaks the rule against silent failures.
+ * Test first: the chosen Claude and Codex paths reach the command, and its folder is returned.
  */
 import {
 	appError,
@@ -32,18 +44,25 @@ import {
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { Platform } from "../../platform/platform.ts";
 import type { FeedbackInput, Loadable } from "../api.ts";
+import { binDir } from "../app-paths.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
 import { openXcodeLicenseTerminal } from "../git/xcode-license.ts";
 import type { AgentProgramView } from "../model.ts";
 
 export interface SystemState {
 	programs: Loadable<AgentProgramView[]>;
+	/**
+	 * The last time the chosen program paths could not be staged (SET-13). `serial` grows with
+	 * each failure, so the notice shows again for the next terminal or script. Null once staging
+	 * works again.
+	 */
+	pathOverrideProblem: { serial: number; message: string } | null;
 }
 
 export interface SystemServiceDeps {
 	platform: Pick<
 		Platform,
-		"programs" | "clipboard" | "dialogs" | "opener" | "system" | "sidecar" | "shell" | "fs"
+		"programs" | "clipboard" | "dialogs" | "opener" | "system" | "sidecar" | "shell" | "fs" | "app"
 	>;
 	setting: <T>(key: string) => T;
 }
@@ -67,7 +86,10 @@ export class SystemService {
 
 	constructor(deps: SystemServiceDeps) {
 		this.#deps = deps;
-		this.store = createStore<SystemState>(() => ({ programs: { state: "loading" } }));
+		this.store = createStore<SystemState>(() => ({
+			programs: { state: "loading" },
+			pathOverrideProblem: null,
+		}));
 	}
 
 	/** Loads the program statuses and follows their changes. */
@@ -114,6 +136,44 @@ export class SystemService {
 	/** Backs `Actions.programs.remove`. */
 	removeProgram(program: ManagedProgram): Promise<Result<void>> {
 		return this.#run(program, () => this.#deps.platform.programs.remove(program));
+	}
+
+	/**
+	 * Stages the executable paths chosen in Advanced settings and returns the folder to put first
+	 * on PATH for terminals and scripts. A staging failure goes into `pathOverrideProblem`, which
+	 * the app shows as a notice, and the plain bundled folder is used, so the terminal still opens
+	 * and the user knows it runs the bundled program instead of the chosen one.
+	 */
+	async pathPrefix(): Promise<Result<string>> {
+		const bundled = binDir(this.#deps.platform.fs.paths);
+		const overrides: Partial<Record<ManagedProgram, string>> = {};
+		for (const program of ["claude", "codex"] as const) {
+			const key = PROGRAM_PATH_SETTING[program];
+			if (key === undefined) continue;
+			const value = this.#deps.setting<string>(key);
+			const chosen = typeof value === "string" ? value.trim() : "";
+			if (chosen !== "") overrides[program] = chosen;
+		}
+		if (Object.keys(overrides).length === 0) return ok(bundled);
+
+		const synced = await this.#deps.platform.programs.syncPathOverrides(overrides);
+		if (synced.ok) {
+			if (this.store.getState().pathOverrideProblem !== null) {
+				this.store.setState({ pathOverrideProblem: null });
+			}
+			return ok(`${synced.value}:${bundled}`);
+		}
+		this.#deps.platform.app.writeLog(
+			"warn",
+			`Failed to stage agent PATH override shims: ${synced.error.message}`,
+		);
+		this.store.setState((state) => ({
+			pathOverrideProblem: {
+				serial: (state.pathOverrideProblem?.serial ?? 0) + 1,
+				message: synced.error.message,
+			},
+		}));
+		return ok(bundled);
 	}
 
 	/** Stops following the program statuses. The container calls it when the app stops. */

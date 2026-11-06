@@ -3,7 +3,8 @@
  * Owns: one pure function per git (or helper script) invocation, each returning a `GitCommand`
  * value. Nothing here runs a process. The runner (runner.ts) executes the value.
  * Behaviour: services-map.md part 3 (3.1 create, 3.3 polling, 3.4 diffs, 3.6 push and pull,
- * 3.10 archive, 3.11 rename and retarget, 3.12 checkpoints, 3.13 worktree config, 3.15 minimal set).
+ * 3.10 archive, 3.11 rename, retarget, sparse checkout and external diff, 3.12 checkpoints,
+ * 3.13 worktree config, 3.15 minimal set).
  * Must handle: arguments are an array and are never joined into a shell string, so a name cannot
  * add shell syntax; remote and branch names for fetch, push, remote and branch commands come after
  * `--`, so a name that looks like an option is read as a name; revision arguments (checkout,
@@ -12,8 +13,10 @@
  * paths passed to `diff` use the `:(literal)` pathspec; exit codes that carry meaning (1 from
  * `--verify --quiet`, 1 from `--no-index`) are listed in `okExitCodes`.
  * Our design choice: the app never runs `commit`, `rebase`, `merge` (except fast-forward) or
- * conflict repair itself. The agent does that on request (see services/agent-instructions.ts).
- * The only `reset --hard` is `resetHard` for the retarget case in services-map 3.11.
+ * conflict repair itself, except the first commit of a folder Quick start creates or turns into a
+ * GitHub repository (PRJ-03, services-map 3.2). The agent does every later commit on request (see
+ * services/agent-instructions.ts). The only `reset --hard` is `resetHard` for the retarget case in
+ * services-map 3.11.
  * Test first: revParseVerify("refs/heads/x") lists exit codes 0 and 1 as success.
  */
 
@@ -67,6 +70,9 @@ export const remoteGetUrl = (remote: string): GitCommand =>
 	git(["remote", "get-url", "--", remote]);
 export const remoteSetUrl = (remote: string, url: string): GitCommand =>
 	git(["remote", "set-url", "--", remote, url]);
+export const remoteRename = (oldName: string, newName: string): GitCommand =>
+	git(["remote", "rename", oldName, newName]);
+export const remoteRemove = (name: string): GitCommand => git(["remote", "remove", name]);
 export const symbolicRefRemoteHead = (remote: string): GitCommand =>
 	git(["symbolic-ref", `refs/remotes/${remote}/HEAD`], { okExitCodes: [0, 128] });
 export const catFileCommit = (ref: string): GitCommand => git(["cat-file", "commit", ref]);
@@ -77,6 +83,10 @@ export const catFileExists = (object: string): GitCommand =>
 
 export const commitEmptyInitial = (): GitCommand =>
 	git(["commit", "--allow-empty", "-m", "Initial commit"]);
+export const commitAll = (message: string): GitCommand => git(["commit", "-m", message]);
+export const addAll = (): GitCommand => git(["add", "-A"]);
+/** Stages one path, and nothing else. */
+export const addPath = (path: string): GitCommand => git(["add", "--", path]);
 export const initRepository = (): GitCommand => git(["init"]);
 export const cloneWithProgress = (url: string, destination: string): GitCommand =>
 	git(["clone", "--progress", "--", url, destination], { network: true, retryOnLock: false });
@@ -336,6 +346,22 @@ export const pushHeadTo = (remote: string, remoteBranch: string): GitCommand =>
 	git(["push", "--", remote, `HEAD:${remoteBranch}`], { network: true });
 export const pushHeadSetUpstream = (remote: string, remoteBranch: string): GitCommand =>
 	git(["push", "-u", "--", remote, `HEAD:${remoteBranch}`], { network: true });
+/**
+ * The first push of a repository just made with `gh repo create`, with gh as the credential helper
+ * for github.com, so it works without a helper of the user's own (services-map 3.2).
+ */
+export const pushSetUpstreamHeadWithGh = (remote: string): GitCommand =>
+	git(
+		[
+			"-c",
+			"credential.https://github.com.helper=!gh auth git-credential",
+			"push",
+			"-u",
+			remote,
+			"HEAD",
+		],
+		{ network: true },
+	);
 export const pushPlain = (): GitCommand => git(["push"], { network: true });
 export const pull = (): GitCommand => git(["pull"], { network: true });
 export const mergeFastForwardOnly = (ref: string): GitCommand => git(["merge", "--ff-only", ref]);
@@ -357,6 +383,53 @@ export const firstPushSteps = (
 	configSet(`branch.${localBranch}.merge`, `refs/heads/${remoteBranch}`),
 	fetchBranchRefspec(remote, remoteBranch),
 ];
+
+// ---------------------------------------------------------------- git extras (3.11)
+
+/**
+ * `git diff --quiet HEAD` exits 1 when the file has changes. The path is a literal pathspec, so
+ * a name git could read as an option stays a name.
+ */
+export const diffQuietHead = (path?: string): GitCommand =>
+	git(["diff", "--quiet", "HEAD", ...(path === undefined ? [] : ["--", `:(literal)${path}`])], {
+		okExitCodes: PROBE,
+	});
+
+/**
+ * Lists the path when git does not track it yet (a new file), and prints nothing otherwise. NUL
+ * separated, with a literal pathspec, like `diffQuietHead`.
+ */
+export const lsFilesUntrackedPath = (path: string): GitCommand =>
+	git(["ls-files", "--others", "--exclude-standard", "-z", "--", `:(literal)${path}`]);
+
+/** The Kaleidoscope diff command Conductor configures for `git difftool` (services-map 3.11). */
+const KSDIFF_DIFF_COMMAND =
+	'ksdiff --partial-changeset --relative-path "$MERGED" -- "$LOCAL" "$REMOTE"';
+
+/** Opens the file's changes, or the whole working tree, in Kaleidoscope. */
+export const diffToolKsdiff = (path?: string): GitCommand =>
+	git(
+		[
+			"-c",
+			`difftool.ksdiff.cmd=${KSDIFF_DIFF_COMMAND}`,
+			"difftool",
+			"--tool=ksdiff",
+			"--no-prompt",
+			"HEAD",
+			...(path === undefined ? [] : ["--", `:(literal)${path}`]),
+		],
+		{ retryOnLock: false },
+	);
+
+export const sparseCheckoutConfig = (): GitCommand => configGet("core.sparseCheckout");
+export const sparseCheckoutInitCone = (): GitCommand => git(["sparse-checkout", "init", "--cone"]);
+export const sparseCheckoutList = (): GitCommand => git(["sparse-checkout", "list"]);
+export const sparseCheckoutSet = (directories: readonly string[]): GitCommand =>
+	git(["sparse-checkout", "set", "--", ...directories]);
+export const sparseCheckoutDisable = (): GitCommand => git(["sparse-checkout", "disable"]);
+/** The top-level folders of the checked-out commit, the choices a cone-mode sparse checkout has. */
+export const lsTreeTopLevelDirectories = (): GitCommand =>
+	git(["ls-tree", "-d", "--name-only", "HEAD"]);
 
 // ---------------------------------------------------------------- restoring files (3.11)
 

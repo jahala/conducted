@@ -97,7 +97,6 @@ function fakeFs(options: { slowFirstWrite?: boolean } = {}) {
 const makeService = (fs: ReturnType<typeof fakeFs>["fs"]): GitService =>
 	new GitService({
 		git: runner(),
-		cache: {} as never,
 		contextOf: async () => ({ ok: true, value: context }),
 		agent: {} as never,
 		renameWorkspaceBranch: async () => ok(undefined),

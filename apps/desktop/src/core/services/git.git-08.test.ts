@@ -82,7 +82,6 @@ function makeService(
 	const stored = options.stored ?? [];
 	const service = new GitService({
 		git,
-		cache: {} as never,
 		contextOf: async () => ok(context),
 		agent: {} as never,
 		now: () => 0,

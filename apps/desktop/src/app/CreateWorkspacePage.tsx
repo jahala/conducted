@@ -2,21 +2,29 @@
  * @feature WS-01 Create-workspace page
  * @feature WS-02 Create from a branch, PR or issue
  * @feature SIDE-22 Slash command cache that works before a chat starts
+ * @feature WS-11 Backlog workspaces: save now, start later
  * Owns: the full-page "new workspace" flow at /create: repository picker, the toggleable "create from"
  * picker (default branch, an existing local branch, a pull request or an issue), first message editor with a
  * model field and plan mode, section picker, and the "Create workspace" button. Typing '@' in the
  * first message offers the chosen repository's own files before any workspace exists (SIDE-22).
+ * A draft can be saved to the backlog, and a saved backlog workspace opens with a Start button.
  * Behaviour: ui-map.md 3.9 (New workspace flow; "Draft the first message, then create and send it."), 5.4
- * (Cmd+I toggles the create-from picker).
+ * (Cmd+I toggles the create-from picker, Alt+Enter adds the draft to the backlog, and Cmd+Enter
+ * starts a backlog workspace).
+ * Our design choice: the page marks itself as a dialog scope, so inside it Cmd+Enter arrives as
+ * "Confirm the open dialog"; in start mode Start answers that command as well as its own.
  * Our design choice: the page keeps the first message in a plain textarea until the composer editor can be
  * reused outside a chat; attachments wait for COMP-07.
  * Must handle: no project yet (point to "Add a project"); a failed create keeps the draft with Retry setup
  * and Recover prompt; creation warnings are toasted; an empty prompt creates the workspace without a chat;
  * "Create from" a branch with no branch name is refused with a message under the field; a pull request that
- * was not loaded and an issue that was not picked are refused with a message; a second press while a create
- * or a retry runs does nothing.
+ * was not loaded and an issue that was not picked are refused with a message; a second press while a create,
+ * a backlog save or a start runs does nothing; "Add to backlog" is hidden when unstarted workspaces are off;
+ * in start mode every field shows the saved row and is locked, because Start creates from that row, and
+ * Alt+Enter does not save a second copy.
  * Test first: submitting with a repository and a prompt calls workspaces.create with that input and navigates to
- * the new workspace; a failed create offers Retry setup and Recover prompt.
+ * the new workspace; a failed create offers Retry setup and Recover prompt; Alt+Enter saves the draft to
+ * the backlog.
  */
 import type { SessionConfig } from "@conducted/protocol";
 import type { RepoId, SectionId, WorkspaceId } from "@conducted/shared";
@@ -28,6 +36,7 @@ import { createSingleFlight } from "../core/async/single-flight.ts";
 import { useServices } from "../core/context.tsx";
 import {
 	useActions,
+	useBacklogWorkspaces,
 	useBranches,
 	useIssues,
 	usePreWorkspaceSlashCommands,
@@ -147,17 +156,25 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	const repos = useRepos();
 	const services = useServices();
 	const navigate = useNavigate();
-	const search = useSearch({ strict: false }) as { section?: string };
+	const search = useSearch({ strict: false }) as { section?: string; backlog?: string };
 
 	const defaultModel = useSetting<string>("default_model");
 	const defaultEffort = useSetting<string>("default_claude_effort_level");
 	const defaultFastMode = useSetting<boolean>("default_fast_mode");
 	const defaultPlanMode = useSetting<boolean>("default_plan_mode");
 	const toolApprovals = useSetting<boolean>("tool_approvals_enabled");
+	// Conductor gates the backlog behind its unstarted-workspaces switch (the settings registry).
+	const backlogEnabled = useSetting<boolean>("unstarted_workspaces_enabled");
 	const sections: readonly Section[] = useStore(
 		services.services.sections.store,
 		(state) => state.sections,
 	);
+	const backlog = useBacklogWorkspaces();
+	const startMode = search.backlog !== undefined;
+	const backlogEntry =
+		search.backlog === undefined || backlog.state !== "ready"
+			? undefined
+			: backlog.data.find((entry) => entry.id === search.backlog);
 
 	const [repoId, setRepoId] = useState<RepoId | null>(null);
 	const [fromKind, setFromKind] = useState<FromKind>("default");
@@ -177,6 +194,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	const [failedId, setFailedId] = useState<WorkspaceId | null>(null);
 	const [branchTouched, setBranchTouched] = useState(false);
 	const flight = useRef(createSingleFlight()).current;
+	const backfilled = useRef<string | null>(null);
 
 	const readyRepos = repos.state === "ready" ? repos.data : [];
 	const selectedRepo = readyRepos.find((repo) => repo.id === repoId) ?? readyRepos[0];
@@ -195,6 +213,34 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	useEffect(() => {
 		if (sectionFromSearch !== "") setSectionId(sectionFromSearch);
 	}, [sectionFromSearch]);
+
+	// A backlog workspace opens this page with its saved draft, once.
+	useEffect(() => {
+		if (backlogEntry === undefined || backfilled.current === backlogEntry.id) return;
+		backfilled.current = backlogEntry.id;
+		setRepoId(backlogEntry.repoId);
+		setFromKind("default");
+		setPrompt(backlogEntry.prompt);
+		setModel(backlogEntry.config.model);
+		setPlanMode(backlogEntry.config.planMode);
+		setSectionId(backlogEntry.sectionId ?? "");
+	}, [backlogEntry]);
+
+	useCommandHandler("workspace.addToBacklog", "modal", () => {
+		if (!backlogEnabled || busy || startMode) return false;
+		void saveToBacklog();
+		return true;
+	});
+	// The page is a dialog scope, where Cmd+Enter is "Confirm the open dialog" before it is the
+	// global "Start the backlog workspace". In start mode, Start is this page's confirm, so it
+	// answers both: the first from a field on the page, the second from anywhere else.
+	const startFromKey = () => {
+		if (!startMode || backlogEntry === undefined || busy) return false;
+		void submit();
+		return true;
+	};
+	useCommandHandler("workspace.startFromBacklog", "modal", startFromKey);
+	useCommandHandler("dialog.confirm", "modal", startFromKey);
 
 	if (repos.state === "loading") {
 		return (
@@ -239,54 +285,98 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	};
 
 	const branchMissing = fromKind === "branch" && branchName.trim() === "";
+	// A backlog workspace starts from its saved row, so the fields show it and cannot be edited.
+	// The text fields are read-only rather than disabled, so focus and Cmd+Enter still work.
+	const fieldsLocked = busy || startMode;
 
-	const submit = async () => {
-		if (selectedRepo === undefined) {
+	function makeInput(repo: typeof selectedRepo): NewWorkspaceInput | null {
+		if (repo === undefined) {
 			toast.error("No repository selected");
-			return;
+			return null;
 		}
 		if (branchMissing) {
 			setBranchTouched(true);
-			return;
+			return null;
 		}
 		let from: NewWorkspaceInput["from"] = { kind: "default" };
 		if (fromKind === "branch") from = { kind: "branch", name: branchName.trim() };
 		if (fromKind === "pull_request") {
 			if (selectedPullRequest === null) {
 				toast.error("Could not load that pull request");
-				return;
+				return null;
 			}
 			from = { kind: "pull_request", number: selectedPullRequest.number };
 		}
 		if (fromKind === "issue") {
 			if (selectedIssue === null) {
 				toast.error("Could not load that issue");
-				return;
+				return null;
 			}
 			from = { kind: "issue", provider: selectedIssue.provider, id: selectedIssue.id };
 		}
+		const config: SessionConfig = {
+			agent: "claude",
+			model: model.trim() === "" ? "default" : model.trim(),
+			effort: (defaultEffort === "" ? "high" : defaultEffort) as SessionConfig["effort"],
+			fastMode: defaultFastMode,
+			planMode,
+			requireToolApproval: toolApprovals,
+			additionalDirectories: [],
+			appTools: FIRST_CHAT_APP_TOOLS,
+		};
+		return {
+			repoId: repo.id,
+			from,
+			prompt,
+			attachmentPaths: [],
+			config,
+			sectionId: sectionId === "" ? null : (sectionId as SectionId),
+		};
+	}
+
+	async function saveToBacklog() {
+		const input = makeInput(selectedRepo);
+		if (input === null) return;
+		await flight.run("backlog", async () => {
+			setBusy(true);
+			const result = await actions.workspaces.addToBacklog(input);
+			setBusy(false);
+			if (!result.ok) {
+				toastError("Couldn't add to backlog", result.error);
+				return;
+			}
+			toast.success("Added to backlog");
+			void navigate({ to: "/backlog" });
+		});
+	}
+
+	async function submit() {
+		if (startMode) {
+			if (backlogEntry === undefined) {
+				toast.error("That backlog workspace no longer exists");
+				return;
+			}
+			await flight.run("start", async () => {
+				setBusy(true);
+				const progress = toast("Starting workspace…");
+				const result = await actions.workspaces.startFromBacklog(backlogEntry.id);
+				toast.dismiss(progress);
+				setBusy(false);
+				if (!result.ok) {
+					toastError("Failed to start workspace", result.error);
+					return;
+				}
+				toastWarnings(result.value.id);
+				openWorkspace(result.value.repoId, result.value.id);
+			});
+			return;
+		}
+		const input = makeInput(selectedRepo);
+		if (input === null) return;
 		await flight.run("create", async () => {
 			setFailedId(null);
 			setBusy(true);
 			const progress = toast("Creating workspace…");
-			const config: SessionConfig = {
-				agent: "claude",
-				model: model.trim() === "" ? "default" : model.trim(),
-				effort: (defaultEffort === "" ? "high" : defaultEffort) as SessionConfig["effort"],
-				fastMode: defaultFastMode,
-				planMode,
-				requireToolApproval: toolApprovals,
-				additionalDirectories: [],
-				appTools: FIRST_CHAT_APP_TOOLS,
-			};
-			const input: NewWorkspaceInput = {
-				repoId: selectedRepo.id,
-				from,
-				prompt,
-				attachmentPaths: [],
-				config,
-				sectionId: sectionId === "" ? null : (sectionId as SectionId),
-			};
 			const result = await actions.workspaces.create(input);
 			toast.dismiss(progress);
 			setBusy(false);
@@ -299,7 +389,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 			toastWarnings(result.value.id);
 			openWorkspace(result.value.repoId, result.value.id);
 		});
-	};
+	}
 
 	const retry = async () => {
 		if (failedId === null || selectedRepo === undefined) return;
@@ -339,9 +429,20 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 			data-command-scope="dialog"
 			className="mx-auto flex h-full w-full max-w-2xl flex-col gap-6 overflow-y-auto p-8"
 		>
-			<header className="flex flex-col gap-1">
-				<h1 className="text-2xl font-medium text-fg">New workspace</h1>
-				<p className="text-sm text-fg-muted">Draft the first message, then create and send it.</p>
+			<header className="flex items-start justify-between gap-3">
+				<div className="flex flex-col gap-1">
+					<h1 className="text-2xl font-medium text-fg">New workspace</h1>
+					<p className="text-sm text-fg-muted">
+						{startMode
+							? "This workspace starts as it was saved to the backlog."
+							: "Draft the first message, then create and send it."}
+					</p>
+				</div>
+				{backlogEnabled ? (
+					<Button variant="ghost" size="sm" onClick={() => void navigate({ to: "/backlog" })}>
+						Backlog
+					</Button>
+				) : null}
 			</header>
 
 			<form
@@ -365,7 +466,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 							setMention(null);
 							setSlashMention(null);
 						}}
-						disabled={busy}
+						disabled={fieldsLocked}
 					/>
 				</div>
 
@@ -383,7 +484,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 							aria-label="Show or hide the create-from picker"
 							aria-expanded={pickerOpen}
 							aria-controls="create-from-picker"
-							disabled={busy}
+							disabled={fieldsLocked}
 							onClick={() => setPickerOpen((open) => !open)}
 						>
 							{pickerOpen ? "Hide sources" : "Show sources"}
@@ -402,7 +503,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 									{ value: "issue", label: "Issue" },
 								]}
 								onValueChange={setFromKind}
-								disabled={busy}
+								disabled={fieldsLocked}
 							/>
 
 							{fromKind === "branch" ? (
@@ -413,7 +514,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 										value={branchName}
 										onChange={(event) => setBranchName(event.target.value)}
 										placeholder={selectedRepo.defaultBranch}
-										disabled={busy}
+										disabled={fieldsLocked}
 										{...(branchTouched && branchMissing
 											? { error: "Enter the branch to start from." }
 											: {})}
@@ -424,7 +525,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 										size="sm"
 										aria-expanded={showBranchList}
 										aria-controls="create-branch-list"
-										disabled={busy}
+										disabled={fieldsLocked}
 										onClick={() => setShowBranchList((shown) => !shown)}
 									>
 										Browse branches
@@ -485,6 +586,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 						placeholder="What do you want to work on?"
 						rows={5}
 						disabled={busy}
+						readOnly={startMode}
 					/>
 					{mention !== null && mention.query.length >= 2 ? (
 						<RepoFileSuggestions
@@ -519,6 +621,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 							onChange={(event) => setModel(event.target.value)}
 							placeholder="default"
 							disabled={busy}
+							readOnly={startMode}
 						/>
 					</div>
 					<div className="flex flex-col gap-1.5">
@@ -528,7 +631,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 							value={sectionId}
 							options={sectionOptions}
 							onValueChange={setSectionId}
-							disabled={busy || sections.length === 0}
+							disabled={fieldsLocked || sections.length === 0}
 						/>
 					</div>
 				</div>
@@ -538,7 +641,7 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 						type="checkbox"
 						checked={planMode}
 						onChange={(event) => setPlanMode(event.target.checked)}
-						disabled={busy}
+						disabled={fieldsLocked}
 					/>
 					Plan mode
 				</label>
@@ -577,9 +680,26 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 					</div>
 				)}
 
-				<div className="flex justify-end">
+				<div className="flex items-center justify-between gap-2">
+					{startMode ? (
+						<Button variant="ghost" size="sm" onClick={() => void navigate({ to: "/backlog" })}>
+							Cancel
+						</Button>
+					) : backlogEnabled ? (
+						<Button
+							type="button"
+							variant="outline"
+							aria-label="Add to backlog"
+							disabled={busy}
+							onClick={() => void saveToBacklog()}
+						>
+							Add to backlog
+						</Button>
+					) : (
+						<span />
+					)}
 					<Button type="submit" loading={busy}>
-						Create workspace
+						{startMode ? "Start" : "Create workspace"}
 					</Button>
 				</div>
 			</form>

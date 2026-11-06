@@ -4,8 +4,9 @@
  * one later, with no worktree, branch or port yet).
  * Behaviour: services-map.md 2.2 and 2.3 (workspaces with a backlog state); migration 0004. Our
  * design choice: a backlog entry is its own table, so `workspaces` never holds a row without a
- * folder. Starting an entry inserts the `workspaces` row with the same id and deletes the entry,
- * in one transaction owned by the workspace service (WS-11).
+ * folder. Starting an entry deletes it first and then runs the normal create, which makes a
+ * workspace with a new id; a create that fails before it makes a workspace puts the entry back
+ * with `restore` (WS-11).
  * Must handle: a bad config or attachment list column returns an error Result; deleting a repo
  * cascades to its entries; deleting a section only clears `section_id`; every update sets
  * `updated_at`; ids and times come from `RepositoryDeps`.
@@ -140,6 +141,11 @@ export interface BacklogWorkspaceRepository {
 	setSection(id: WorkspaceId, sectionId: SectionId | null): Promise<Result<void>>;
 	/** BACKLOG_WORKSPACES_SQL.delete. Runs when the entry starts or the user deletes it. */
 	delete(id: WorkspaceId): Promise<Result<void>>;
+	/**
+	 * BACKLOG_WORKSPACES_SQL.insert with the entry's own id and times. Puts back an entry that was
+	 * removed for a start that then failed before it made a workspace.
+	 */
+	restore(entry: BacklogWorkspace): Promise<Result<void>>;
 }
 
 export function createBacklogWorkspaceRepository(
@@ -221,5 +227,15 @@ export function createBacklogWorkspaceRepository(
 			),
 		delete: (id) =>
 			executeVoid(db, BACKLOG_WORKSPACES_SQL.delete, [id], "Removing a backlog workspace"),
+		restore: async (entry) => {
+			const params = backlogWorkspaceToParams(entry);
+			if (!params.ok) return err(params.error);
+			return executeVoid(
+				db,
+				BACKLOG_WORKSPACES_SQL.insert,
+				params.value,
+				"Putting back a backlog workspace",
+			);
+		},
 	};
 }

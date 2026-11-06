@@ -3,12 +3,13 @@
  * @feature PR-05 Fix errors, done by the agent on request
  * @feature GIT-05 Commit and push, done by the agent on request
  * @feature GIT-07 Resolve conflicts, done by the agent on request
+ * @feature GIT-14 Local-git forge: merge into target as an agent request
  * Owns now: the text of the "create a pull request" request, the "reconcile with the target"
  * request (GIT-04), the "commit and push" request (GIT-05), the "resolve conflicts" request
- * (GIT-07), the "fix failing checks" request (PR-05), plus the `pull.rebase` choice between
- * rebasing and merging, and the AI code review request. The merge into the target request is a
- * placeholder owned by GIT-14. Renaming the branch is not a chat instruction here: WS-04 asks the
- * sidecar's utility prompt through ChatTitleService instead (D030).
+ * (GIT-07), the "fix failing checks" request (PR-05), the local-git "merge into target" request
+ * (GIT-14), plus the `pull.rebase` choice between rebasing and merging, and the AI code review
+ * request. Renaming the branch is not a chat instruction here: WS-04 asks the sidecar's utility
+ * prompt through ChatTitleService instead (D030).
  * Behaviour: structure-map.md section 6 pattern 5 (delegate risky git work to the agent),
  * services-map.md 3.5 (commit and push is an agent instruction), 3.6.4 (reconcile messages, and
  * rebase or merge by `pull.rebase`), 3.7.1 (create PR steps), 3.7.6 (conflict resolution and CI
@@ -33,7 +34,6 @@
  * replaces its default text with the repository's review prompt; fixErrorsInstruction names each
  * failing check with its log tail, and a repository prompt replaces its text.
  */
-import { notImplemented } from "@conducted/shared";
 import type { CheckRun } from "../model.ts";
 
 export interface InstructionBase {
@@ -295,5 +295,13 @@ export const reconcileInstruction = (input: {
  * "Merge into target" for a repository with no GitHub remote: ask the agent to merge the branch
  * into the target branch in the main clone, as a fast-forward when possible (GIT-14).
  */
-export const mergeIntoTargetInstruction = (_input: InstructionBase): string =>
-	notImplemented("GIT-14");
+export const mergeIntoTargetInstruction = (input: InstructionBase): string => {
+	const builtIn =
+		`Merge the branch \`${input.branch}\` into \`${input.targetBranch}\` in the main worktree. ` +
+		"Use a fast-forward merge when possible; otherwise create a merge commit. " +
+		"This repository has no GitHub remote, so keep the merge local and do not open a pull request.";
+	const custom = input.customPrompt?.trim() ?? "";
+	return custom.length === 0
+		? builtIn
+		: `${builtIn}\n\nRepository instructions for Merge into target:\n${custom}`;
+};

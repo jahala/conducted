@@ -15,6 +15,7 @@
  * The research default is `steering` with the other value `queued`.
  * Our design choice: settings that the research marks as cloud, hosted account, billing, organization, remote control,
  * analytics or internal are left out, as are secrets such as tokens and API keys, which belong in the Keychain.
+ * The one internal switch kept is `unstarted_workspaces_enabled`, because the backlog (WS-11) is built.
  */
 import { appError, err, ok, type Result } from "@conducted/shared";
 
@@ -1188,6 +1189,20 @@ const SETTINGS_TABLE = [
 		type: "string",
 		default: "",
 	},
+	// Our design choice: Conductor keeps this as an internal switch, off and hidden in release
+	// builds (services-map.md 4.2.3 and the defaults table). Here it is an Experimental switch and
+	// on by default, so the built backlog (WS-11) stays reachable. The owner decides the default.
+	{
+		key: "unstarted_workspaces_enabled",
+		page: "experimental",
+		scopes: ["user"],
+		title: "Unstarted workspaces",
+		description: "Save a new workspace to the backlog and start it later.",
+		searchTerms: ["backlog", "unstarted", "start later", "draft"],
+		feature: "WS-11",
+		type: "bool",
+		default: true,
+	},
 	{
 		key: "experimental_new_workspace_page",
 		page: "experimental",
@@ -1238,8 +1253,8 @@ const SETTINGS_TABLE = [
 		key: "experimental_fork_to_new_tab",
 		page: "experimental",
 		scopes: ["user"],
-		title: "Fork chat to a new tab",
-		description: "Fork a chat, even in the middle of a turn, from its tab menu.",
+		title: "Fork chat to new tab",
+		description: "Fork a chat, even mid-turn, from its tab's context menu or with Cmd+Alt+Enter.",
 		searchTerms: ["fork", "branch chat", "tab"],
 		feature: "CHAT-16",
 		type: "bool",

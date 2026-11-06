@@ -1,11 +1,13 @@
 /**
  * @feature REV-03 Review: diff comments and AI review
+ * @feature REV-04 syncing review threads and general comments from GitHub, and resolving a thread
  * @feature REV-12 comment states, and the attachment rows that say which chat received a comment
  * Owns: the review comments on a workspace's diff (load, add, edit, resolve, remove, send to
- * chat), the reads and writes behind the agent's GetDiffComments and DiffComment tools, and
- * starting an AI review chat.
- * Behaviour: services-map.md 5A.7.1 and 5A.7.2 (comment store, agent tools), 5A.6.4 (a comment
- * sent to chat is written as a file), ui-map.md 3.6 (inline comments), 5.1 ("Start review").
+ * chat), the reads and writes behind the agent's GetDiffComments and DiffComment tools, starting
+ * an AI review chat, and mapping GitHub review threads and general comments into the store.
+ * Behaviour: services-map.md 5A.7.1 and 5A.7.2 (comment store, agent tools), 5A.7.3 and 3.7.4
+ * (GitHub sync and resolving a thread), 5A.6.4 (a comment sent to chat is written as a file),
+ * ui-map.md 3.6 (inline comments), 5.1 ("Start review").
  * Must handle: every change writes the database first and then re-reads the workspace rows; a
  * load runs once per workspace and only the newest read writes the store; writes for one
  * workspace run in order, so an insert finishes before a later write; an inactive (outdated or
@@ -17,14 +19,19 @@
  * superseded comment is never hidden or brought back; every pending open comment can be made
  * ready in one step; editing a comment that was sent rewrites its file; the AI review
  * creates a new chat with the review model and sends the review instruction, using the
- * repository's review prompt when it has one.
- * Not built here: GitHub sync (REV-04). A comment's side, its suggested change and its place in a
- * reply thread are stored by the repositories but not yet taken by `add`, whose screen API
- * (core/api.ts) has no parameters for them.
+ * repository's review prompt when it has one; a GitHub sync loads threads and general comments
+ * in parallel, keeps the other list when one fetch fails, deletes only GitHub rows of the scope
+ * that answered, and treats a repository that is not GitHub or a workspace with no PR as a
+ * normal skip; a failed sync stays in `syncErrors` until a sync answers, so the screen can say
+ * the list may be out of date; resolving a thread on GitHub marks every local comment of that
+ * thread resolved only after GitHub accepted it, and unresolving a GitHub thread here is refused.
  * Our design choice: sending to chat asks the active chat through AgentMessenger, because the
  * composer's attachment pipeline belongs to COMP-01. AgentMessenger answers with the chat but not
- * the message, so the attachment rows name the chat and leave the message id empty.
+ * the message, so the attachment rows name the chat and leave the message id empty. A GitHub
+ * suggestion's replacement comes from its fenced `suggestion` block; our model has no separate
+ * base-code column.
  * Test first: create, edit, resolve and remove each write SQLite and re-read the workspace rows.
+ * REV-04 test first: a failed general-comment fetch keeps thread comments that vanished from GitHub.
  */
 import { join } from "node:path";
 import { formatFileMention } from "@conducted/protocol";
@@ -32,7 +39,6 @@ import {
 	appError,
 	type CommentId,
 	err,
-	notImplemented,
 	ok,
 	type Result,
 	type SessionId,
@@ -46,11 +52,24 @@ import type { Repositories } from "../db/repositories.ts";
 import type { GitRunner } from "../git/runner.ts";
 import type { DiffComment, Session } from "../model.ts";
 import { aiReviewInstruction } from "./agent-instructions.ts";
+import type { GithubGeneralComment, GithubReviewThread } from "./github.ts";
 import type { AgentMessenger } from "./sessions.ts";
 
 export interface ReviewState {
 	byWorkspace: Readonly<Record<string, readonly DiffComment[]>>;
 	errors: Readonly<Record<string, { code: string; message: string }>>;
+	/**
+	 * The last failed GitHub sync per workspace. While it is set, the GitHub comments shown may be
+	 * out of date. A sync that answers, or finds nothing to sync, clears it.
+	 */
+	syncErrors: Readonly<Record<string, { code: string; message: string }>>;
+}
+
+/** The GitHub reads and write a review-comment sync needs, kept narrow for the review service. */
+export interface GithubReviewCommentsPort {
+	readReviewThreads(workspaceId: WorkspaceId): Promise<Result<GithubReviewThread[]>>;
+	readGeneralComments(workspaceId: WorkspaceId): Promise<Result<GithubGeneralComment[]>>;
+	resolveReviewThread(workspaceId: WorkspaceId, threadId: string): Promise<Result<void>>;
 }
 
 export interface ReviewServiceDeps {
@@ -58,6 +77,11 @@ export interface ReviewServiceDeps {
 	git: GitRunner;
 	agent: AgentMessenger;
 	fs: Pick<FileSystem, "mkdirp" | "writeTextAtomic" | "exists">;
+	/**
+	 * GitHub access for REV-04. The container supplies it; a test that never syncs may leave it
+	 * out, and the sync then returns `review_github_unavailable` instead of guessing.
+	 */
+	githubComments?: GithubReviewCommentsPort;
 	/** Folder of the workspace, where `.context` and its comment files live. */
 	workspacePathOf: (workspaceId: WorkspaceId) => Promise<Result<string>>;
 	/** The repository's custom review prompt, or null when it has none. */
@@ -130,6 +154,132 @@ function inactiveComment(): Result<never> {
 	);
 }
 
+/** The id prefix general pull request comments get (services-map 5A.7.3). */
+export const GITHUB_GENERAL_PREFIX = "github-general-";
+
+/** A GitHub review comment's local id, from its thread and numeric id (or its node id). */
+function githubCommentId(threadId: string, databaseId: number | null, nodeId: string): CommentId {
+	return (
+		databaseId === null ? `github-${nodeId}` : `github-${threadId}-${databaseId}`
+	) as CommentId;
+}
+
+function githubReplyToId(
+	threadId: string,
+	replyToId: string | null,
+	replyToDatabaseId: number | null,
+): CommentId | null {
+	if (replyToId === null) return null;
+	return (
+		replyToDatabaseId === null ? `github-${replyToId}` : `github-${threadId}-${replyToDatabaseId}`
+	) as CommentId;
+}
+
+/** The replacement in a comment's fenced `suggestion` block, or null when it has none. */
+export function suggestionFromGithubBody(body: string): string | null {
+	const match = /```suggestion[^\n]*\r?\n([\s\S]*?)```/.exec(body);
+	if (match === null) return null;
+	const text = match[1] ?? "";
+	return text.endsWith("\n") ? text.slice(0, -1) : text;
+}
+
+/** Maps GitHub review threads into the comments our store and diff panel show. */
+export function diffCommentsFromGithubThreads(
+	workspaceId: WorkspaceId,
+	threads: readonly GithubReviewThread[],
+): DiffComment[] {
+	const comments: DiffComment[] = [];
+	for (const thread of threads) {
+		const start =
+			thread.startLine ?? thread.originalStartLine ?? thread.line ?? thread.originalLine;
+		const end = thread.line ?? thread.originalLine;
+		const ranged = thread.startLine !== null || thread.originalStartLine !== null;
+		const line = ranged ? start : (thread.line ?? thread.originalLine);
+		const endLine = ranged && start !== null && end !== null && end !== start ? end : null;
+		const side = (thread.diffSide ?? thread.startDiffSide) === "LEFT" ? "deletions" : "additions";
+		for (const comment of thread.comments) {
+			comments.push({
+				id: githubCommentId(thread.id, comment.databaseId, comment.id),
+				workspaceId,
+				filePath: thread.path,
+				line,
+				endLine,
+				body: comment.body,
+				author: {
+					kind: "github",
+					name: comment.authorLogin,
+					avatarUrl: comment.authorAvatarUrl,
+				},
+				state: "pending",
+				side,
+				threadId: thread.id,
+				replyToId: githubReplyToId(thread.id, comment.replyToId, comment.replyToDatabaseId),
+				suggestion: suggestionFromGithubBody(comment.body),
+				remoteUrl: comment.url,
+				resolved: thread.isResolved,
+				outdated: thread.isOutdated,
+				createdAt: comment.createdAt,
+				updatedAt: comment.updatedAt,
+			});
+		}
+	}
+	return comments;
+}
+
+/** Maps pull request conversation comments, which sit on no file, into our comment shape. */
+export function diffCommentsFromGithubGeneral(
+	workspaceId: WorkspaceId,
+	comments: readonly GithubGeneralComment[],
+): DiffComment[] {
+	return comments.map((comment) => ({
+		id: `${GITHUB_GENERAL_PREFIX}${comment.databaseId}` as CommentId,
+		workspaceId,
+		filePath: null,
+		line: null,
+		endLine: null,
+		body: comment.body,
+		author: {
+			kind: "github",
+			name: comment.authorLogin,
+			avatarUrl: comment.authorAvatarUrl,
+		},
+		state: "pending",
+		side: "additions",
+		threadId: null,
+		replyToId: null,
+		suggestion: null,
+		remoteUrl: comment.url,
+		resolved: false,
+		outdated: false,
+		createdAt: comment.createdAt,
+		updatedAt: comment.updatedAt,
+	}));
+}
+
+/** A workspace with no pull request, or a remote that is not GitHub, has nothing to sync. */
+function isGithubSyncSkip(result: Result<unknown>): boolean {
+	return (
+		!result.ok &&
+		(result.error.code === "github_not_github" || result.error.code === "github_pr_missing")
+	);
+}
+
+/** The first failure that is not a normal skip, else the first failure, else ok. */
+function firstRealFailure(...results: Result<unknown>[]): Result<void> {
+	const failures = results.filter((result) => !result.ok);
+	const failure = failures.find((result) => !isGithubSyncSkip(result)) ?? failures[0];
+	return failure === undefined || failure.ok ? ok(undefined) : failure;
+}
+
+function githubUnavailable(): Result<never> {
+	return err(
+		appError(
+			"review_github_unavailable",
+			"GitHub review comments are not available in this build.",
+		),
+	);
+}
+
 export class ReviewService {
 	readonly store: StoreApi<ReviewState>;
 	readonly #deps: ReviewServiceDeps;
@@ -138,7 +288,7 @@ export class ReviewService {
 
 	constructor(deps: ReviewServiceDeps) {
 		this.#deps = deps;
-		this.store = createStore<ReviewState>(() => ({ byWorkspace: {}, errors: {} }));
+		this.store = createStore<ReviewState>(() => ({ byWorkspace: {}, errors: {}, syncErrors: {} }));
 	}
 
 	/** Loads the comments of a workspace into the store, once. */
@@ -227,11 +377,25 @@ export class ReviewService {
 		});
 	}
 
+	/**
+	 * Backs `Actions.comments.setResolved`. A comment of a GitHub review thread is resolved on
+	 * GitHub first, so the next sync agrees with the screen. Unresolving such a thread is refused:
+	 * GitHub would still say resolved, and the next sync would flip the row back.
+	 */
 	async setResolved(id: CommentId, resolved: boolean): Promise<Result<void>> {
 		const found = await this.#deps.repos.diffComments.get(id);
 		if (!found.ok) return found;
 		if (found.value === null)
 			return err(appError("db.not_found", "That comment no longer exists."));
+		if (found.value.author.kind === "github" && found.value.threadId !== null) {
+			if (resolved) return this.resolveOnGithub(id);
+			return err(
+				appError(
+					"review_github_unresolve",
+					"Unresolve this thread on GitHub. The next sync shows the change here.",
+				),
+			);
+		}
 		const workspaceId = found.value.workspaceId;
 		return this.#writes.run(workspaceId, async () => {
 			const written = await this.#deps.repos.diffComments.setResolved(id, resolved);
@@ -381,14 +545,96 @@ export class ReviewService {
 		return reviewed.ok ? ok(undefined) : notRecorded(reviewed.error);
 	}
 
-	/** Pulls review threads and general comments of the workspace's PR into the table. */
-	syncFromGithub(_workspaceId: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("REV-04");
+	/**
+	 * Pulls review threads and general comments of the workspace's PR into the table
+	 * (services-map 5A.7.3). Both lists are asked for at once. A list that failed keeps every row
+	 * of its scope, so a failed general fetch cannot delete thread comments that vanished from
+	 * GitHub. The other scope is still written and read back.
+	 */
+	async syncFromGithub(workspaceId: WorkspaceId): Promise<Result<void>> {
+		const github = this.#deps.githubComments;
+		const synced =
+			github === undefined ? githubUnavailable() : await this.#sync(workspaceId, github);
+		this.#recordSyncResult(workspaceId, synced);
+		return synced;
+	}
+
+	/** Keeps a failed sync in `syncErrors`, so the screen can say the list may be out of date. */
+	#recordSyncResult(workspaceId: WorkspaceId, result: Result<void>): void {
+		this.store.setState((state) => {
+			const syncErrors = { ...state.syncErrors };
+			if (result.ok || isGithubSyncSkip(result)) {
+				delete syncErrors[workspaceId];
+			} else {
+				syncErrors[workspaceId] = { code: result.error.code, message: result.error.message };
+			}
+			return { syncErrors };
+		});
+	}
+
+	async #sync(workspaceId: WorkspaceId, github: GithubReviewCommentsPort): Promise<Result<void>> {
+		return this.#writes.run(workspaceId, async () => {
+			const [threadsRead, generalRead] = await Promise.all([
+				github.readReviewThreads(workspaceId),
+				github.readGeneralComments(workspaceId),
+			]);
+			if (isGithubSyncSkip(threadsRead) && isGithubSyncSkip(generalRead)) return ok(undefined);
+			if (!threadsRead.ok && !generalRead.ok) return firstRealFailure(threadsRead, generalRead);
+
+			const existing = await this.#deps.repos.diffComments.listByWorkspace(workspaceId);
+			if (!existing.ok) return existing;
+			const githubRows = existing.value.filter((comment) => comment.author.kind === "github");
+			const currentGeneral = githubRows.filter((comment) =>
+				comment.id.startsWith(GITHUB_GENERAL_PREFIX),
+			);
+			const currentThreads = githubRows.filter(
+				(comment) => !comment.id.startsWith(GITHUB_GENERAL_PREFIX),
+			);
+			const threads = threadsRead.ok
+				? diffCommentsFromGithubThreads(workspaceId, threadsRead.value)
+				: currentThreads;
+			const general = generalRead.ok
+				? diffCommentsFromGithubGeneral(workspaceId, generalRead.value)
+				: currentGeneral;
+
+			const synced = await this.#deps.repos.diffComments.syncRemote(workspaceId, [
+				...threads,
+				...general,
+			]);
+			if (!synced.ok) return synced;
+			const refreshed = await this.#read(workspaceId);
+			if (!refreshed.ok) return refreshed;
+			return firstRealFailure(threadsRead, generalRead);
+		});
 	}
 
 	/** Resolves a thread on GitHub and marks the local comments of the thread resolved. */
-	resolveOnGithub(_id: CommentId): Promise<Result<void>> {
-		return notImplemented("REV-04");
+	async resolveOnGithub(id: CommentId): Promise<Result<void>> {
+		const found = await this.#deps.repos.diffComments.get(id);
+		if (!found.ok) return found;
+		if (found.value === null)
+			return err(appError("db.not_found", "That comment no longer exists."));
+		const comment = found.value;
+		if (comment.threadId === null) {
+			return err(
+				appError("review_thread_missing", "That comment is not part of a GitHub review thread."),
+			);
+		}
+		const workspaceId = comment.workspaceId;
+		const threadId = comment.threadId;
+		const github = this.#deps.githubComments;
+		if (github === undefined) return githubUnavailable();
+		return this.#writes.run(workspaceId, async () => {
+			const resolved = await github.resolveReviewThread(workspaceId, threadId);
+			if (!resolved.ok) return resolved;
+			const marked = await this.#deps.repos.diffComments.setThreadResolved(
+				workspaceId,
+				threadId,
+				true,
+			);
+			if (!marked.ok) return marked;
+			return this.#read(workspaceId);
+		});
 	}
 
 	/** Rewrites the comment file when the comment was already sent to a chat. */

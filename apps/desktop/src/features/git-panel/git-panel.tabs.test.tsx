@@ -7,10 +7,13 @@
  * works again afterwards.
  */
 import type { WorkspaceId } from "@conducted/shared";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render as renderDom, screen, waitFor } from "@testing-library/react";
+import type { ReactElement, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Loadable } from "../../core/api.ts";
+import { ServicesProvider } from "../../core/context.tsx";
 import type { GitState } from "../../core/model.ts";
+import { createTestContainer, type TestContainer } from "../../test/container.ts";
 import "../../test/dom-polyfills.ts";
 
 const state = vi.hoisted(() => ({
@@ -18,7 +21,10 @@ const state = vi.hoisted(() => ({
 	requestAiReview: vi.fn(),
 }));
 
-vi.mock("../../core/hooks.ts", () => ({
+// The test drives the hooks named here. Every other hook, and every service the panel reads, is
+// the real container's, so a hook or service the panel starts to read later is already there.
+vi.mock("../../core/hooks.ts", async (importOriginal) => ({
+	...(await importOriginal<typeof import("../../core/hooks.ts")>()),
 	useGitState: () => state.git,
 	useWorkspaceStatus: () => null,
 	useSetting: () => false,
@@ -36,14 +42,25 @@ vi.mock("../../core/hooks.ts", () => ({
 	}),
 }));
 
-vi.mock("../../core/context.tsx", () => ({
-	useServices: () => ({ services: { git: { refresh: async () => ({ ok: true }) } } }),
-}));
-
 // The real header (GIT-04) is used here; an unbuilt tab must not take the rest of the panel down.
 vi.mock("./changes/ChangesTab.tsx", () => ({ ChangesTab: () => <div>changes body</div> }));
 
 const { GitPanel } = await import("./GitPanel.tsx");
+
+let test: TestContainer | undefined;
+
+beforeEach(() => {
+	test = createTestContainer();
+});
+
+/** Renders over the real container, which beforeEach builds for each test. */
+const render = (ui: ReactElement) =>
+	renderDom(ui, {
+		wrapper: ({ children }: { children: ReactNode }) => {
+			if (test === undefined) throw new Error("The test container is built in beforeEach.");
+			return <ServicesProvider container={test.container}>{children}</ServicesProvider>;
+		},
+	});
 
 const gitState: GitState = {
 	branch: "feat",
@@ -65,7 +82,11 @@ beforeEach(() => {
 	state.requestAiReview.mockReset();
 });
 
-afterEach(cleanup);
+afterEach(() => {
+	cleanup();
+	test?.close();
+	test = undefined;
+});
 
 const choose = (name: string | RegExp) =>
 	fireEvent.mouseDown(screen.getByRole("tab", { name }), { button: 0 });

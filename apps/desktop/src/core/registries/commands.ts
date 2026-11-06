@@ -1109,7 +1109,7 @@ export const COMMANDS = [
 	},
 	{
 		id: "chat.fork",
-		title: "Fork the chat into a new tab",
+		title: "Fork chat to new tab",
 		category: "Chat",
 		defaultShortcuts: ["Cmd+Alt+Enter"],
 		configurable: true,

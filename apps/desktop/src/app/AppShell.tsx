@@ -46,6 +46,7 @@ import {
 	saveShellSidebar,
 	shellSidebarWidth,
 } from "./layout-persistence.ts";
+import { PathOverrideNotice } from "./path-override-notice.ts";
 import { ShellControls } from "./ShellControls.tsx";
 import { XcodeLicenseNotice } from "./xcode-license-notice.ts";
 
@@ -138,6 +139,7 @@ function LoadedShell() {
 	return (
 		<div className="relative h-full bg-surface" style={style}>
 			<XcodeLicenseNotice />
+			<PathOverrideNotice />
 			<ShellControls sidebarOpen={sidebarOpen} onToggleSidebar={toggleSidebar} />
 			<PanelLayoutProvider store={layoutStore}>
 				<ResizableGroup

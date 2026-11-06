@@ -4,6 +4,7 @@
  * @feature PR-05 Cmd+Shift+X sends the failing checks to the agent
  * @feature PR-06 Cmd+Shift+M merges the pull request
  * @feature GIT-17 Continue after a merge or from a detached HEAD
+ * @feature GIT-14 Local-git forge: header state and the merge request to the agent
  * Owns: right panel, top half. A header (status chip and main action), a tab strip, and the
  * active tab: Artifacts (when its setting is on), All files, Changes or Checks. Entry point
  * embedded by the workspace screen.
@@ -41,17 +42,26 @@
  */
 import type { WorkspaceId } from "@conducted/shared";
 import { useEffect, useRef, useState } from "react";
+import { useStore } from "zustand";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import type { DiffScope } from "../../core/api.ts";
 import { createSingleFlight } from "../../core/async/single-flight.ts";
 import { useServices } from "../../core/context.tsx";
-import { useActions, useGitState, useSetting, useWorkspaceStatus } from "../../core/hooks.ts";
+import {
+	useActions,
+	useGitState,
+	useSetting,
+	useWorkspace,
+	useWorkspaceStatus,
+} from "../../core/hooks.ts";
 import type { GitPanelTab } from "../../core/model.ts";
 import {
 	CONTINUE_NOTE_FAILED_MESSAGE,
 	PULL_UP_TO_DATE_MESSAGE,
 	PULLED_LATEST_MESSAGE,
 } from "../../core/services/git.ts";
+import { forgeForRemoteUrl } from "../../core/services/github.ts";
+import { capabilitiesFor } from "../../core/services/local-git-forge.ts";
 import {
 	computeGitHeader,
 	type GitHeaderActionId,
@@ -118,7 +128,16 @@ export function GitPanel({
 	const git = useGitState(workspaceId);
 	const status = useWorkspaceStatus(workspaceId);
 	const actions = useActions();
-	const gitService = useServices().services.git;
+	const { services } = useServices();
+	const gitService = services.git;
+	const localGitForge = services.localGitForge;
+	const localForgeEnabled = useSetting<boolean>("local_git_forge_enabled") === true;
+	const workspace = useWorkspace(workspaceId);
+	const repoRemoteUrl = useStore(services.repo.store, (state) =>
+		workspace.state === "ready"
+			? (state.reposById[workspace.data.repoId]?.remoteUrl ?? null)
+			: undefined,
+	);
 	const automergeEnabled = useSetting<boolean>("automerge_enabled");
 	const optionalChecksBlocking = useSetting<boolean>("treat_optional_checks_as_blocking");
 	const artifactsTabEnabled = useSetting<boolean>("artifacts_tab_enabled");
@@ -137,12 +156,27 @@ export function GitPanel({
 	const artifactsVisible = artifactsTabEnabled === true && showArtifacts;
 	const view: GitPanelViewTab = artifactsVisible ? "artifacts" : tab;
 	const scope = scopeProp ?? ownScope;
+	// A repository without a GitHub remote gets the local-git forge when the switch is on. The
+	// forge reads its own git state; the panel only shows the newest answer it stored.
+	const localForgeActive =
+		localForgeEnabled &&
+		repoRemoteUrl !== undefined &&
+		forgeForRemoteUrl(repoRemoteUrl) === "local";
+	const localForgeEntry = useStore(localGitForge.store, (state) => state.byWorkspace[workspaceId]);
+	const localForgeInfo = localForgeActive ? (localForgeEntry?.info ?? null) : undefined;
+	const localForgeError = localForgeActive ? (localForgeEntry?.error ?? null) : undefined;
+	const gitSnapshot = git.state === "ready" ? git.data : null;
+	const forge: "github" | "local" =
+		localForgeActive || gitSnapshot?.pullRequestUnavailable === "not_github" ? "local" : "github";
+	const forgeCapabilities = capabilitiesFor(forge);
 	const headerInputs: GitHeaderInputs | null =
 		git.state === "ready"
 			? {
 					git: git.data,
 					agentWorking: status?.kind === "agent" && status.label === "working",
-					forge: git.data.pullRequestUnavailable === "not_github" ? "local" : "github",
+					forge,
+					localForge: localForgeInfo,
+					localForgeError,
 					automergeSettingOn: automergeEnabled,
 					treatOptionalChecksAsBlocking: optionalChecksBlocking,
 					stack: null,
@@ -181,6 +215,14 @@ export function GitPanel({
 	useEffect(() => {
 		setShowArtifacts(false);
 	}, [tabProp, urlScopeKey]);
+
+	// Each new git snapshot on a local-git repository asks the forge to read its own ahead and
+	// merge state. The service keeps only the newest answer, so a late one changes nothing.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: the snapshot reference is the trigger.
+	useEffect(() => {
+		if (!localForgeActive) return;
+		void localGitForge.refresh(workspaceId);
+	}, [gitSnapshot, localForgeActive, localGitForge, workspaceId]);
 
 	// Cmd+Alt+U (or the user's rebind) shows uncommitted changes while the panel is mounted.
 	useCommandHandler("review.showUncommitted", "area", () => {
@@ -246,7 +288,16 @@ export function GitPanel({
 				return run(actions.pullRequests.approve(workspaceId), "Couldn't approve the pull request");
 			case "merge":
 			case "merge_stack":
-				return run(actions.pullRequests.merge(workspaceId), "Couldn't merge the pull request");
+				// Only the GitHub forge can merge on the remote. A repository without a GitHub remote
+				// has the agent merge in the main worktree, like commit and push (GIT-14).
+				return run(
+					forgeCapabilities.merge
+						? actions.pullRequests.merge(workspaceId)
+						: localGitForge.mergeIntoTarget(workspaceId),
+					forgeCapabilities.merge
+						? "Couldn't merge the pull request"
+						: "Couldn't ask the agent to merge",
+				);
 			case "toggle_automerge": {
 				const pr = git.state === "ready" ? git.data.pullRequest : null;
 				return run(

@@ -35,6 +35,8 @@
 //!   reading or writing a terminal.
 //! - The child starts from the captured, stripped login-shell environment. The request's `env`
 //!   is layered last, and the app's own process environment is never inherited.
+//! - A request whose `env` carries `CONDUCTED_PATH_PREFIX` gets that folder first on its PATH, so
+//!   a terminal or script runs the programs the user chose (SET-13, services-map.md 5A.8.2).
 //!
 //! Not this module's work:
 //! - Closing the app kills every terminal. The app lifecycle lives in `lib.rs` (PLAT-27).
@@ -457,6 +459,9 @@ pub fn build_command(
     if let Some(env) = overlay {
         for (key, value) in env {
             builder.env(key, value);
+        }
+        if let Some(path) = crate::shell::prefixed_path(env, base_env) {
+            builder.env("PATH", path);
         }
     }
     Ok(builder)
@@ -1147,6 +1152,57 @@ mod tests {
             "a direct script keeps the exact captured PATH"
         );
         assert_eq!(command.get_env("HOME"), Some(OsStr::new("/Users/test")));
+    }
+
+    #[test]
+    fn set_13_a_direct_command_puts_the_chosen_path_shims_first() {
+        let request = PtySpawnRequest {
+            cwd: temp_cwd(),
+            cols: 80,
+            rows: 24,
+            command: Some(PtyCommand {
+                program: "/bin/sh".to_string(),
+                args: vec!["-c".to_string(), "printf hi".to_string()],
+            }),
+            env: Some(HashMap::from([(
+                "CONDUCTED_PATH_PREFIX".to_string(),
+                "/data/bin-overrides/abc".to_string(),
+            )])),
+        };
+        let command = build_command(&request, "/bin/zsh", &captured_env()).unwrap();
+
+        assert_eq!(
+            command.get_env("PATH"),
+            Some(OsStr::new(
+                "/data/bin-overrides/abc:/opt/homebrew/bin:/usr/bin:/bin"
+            ))
+        );
+        assert_eq!(
+            command.get_env("CONDUCTED_PATH_PREFIX"),
+            Some(OsStr::new("/data/bin-overrides/abc"))
+        );
+    }
+
+    #[test]
+    fn set_13_an_interactive_terminal_puts_the_shim_before_the_login_path() {
+        let request = PtySpawnRequest {
+            cwd: temp_cwd(),
+            cols: 80,
+            rows: 24,
+            command: None,
+            env: Some(HashMap::from([(
+                "CONDUCTED_PATH_PREFIX".to_string(),
+                "/data/bin-overrides/abc".to_string(),
+            )])),
+        };
+        let command = build_command(&request, "/bin/zsh", &captured_env()).unwrap();
+
+        assert_eq!(
+            command.get_env("PATH"),
+            Some(OsStr::new(
+                "/data/bin-overrides/abc:/opt/homebrew/bin:/usr/bin:/bin"
+            ))
+        );
     }
 
     #[test]

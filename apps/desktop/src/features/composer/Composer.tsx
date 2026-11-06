@@ -17,14 +17,16 @@
  * (error shown) or an older list arrives after a newer one (dropped); a terminal for a slash
  * command that cannot be created (shown on the bar, with Reopen terminal).
  * The editor loads the `@` trigger (COMP-04) and the `/` trigger (COMP-06) from this composer, so
- * both read the chat's service. The `@` menu lists the workspace's files, read again each time the
- * menu opens, and offers "Attach current terminal output". The `#` trigger is left out until
- * COMP-05 builds pull request search. A slash command the user picks does what
- * `slashCommandAction` says: /clear opens a new chat tab (the tab strip's own Cmd+T handler) and
- * closes this one, /restart restarts the agent, /compact asks a Codex chat to summarise its
- * history, /plan and /fast run the plan and fast mode toggles of the toolbar, a command the agent
- * lists is sent to it, and any other says it is not available. A terminal-effect command opens a
- * terminal that runs it and shows the terminal command bar above the composer; the bar follows
+ * both read the chat's service. The `@` menu lists the workspace's files and its linked folders,
+ * read again each time the menu opens, and offers "Attach current terminal output" and "Select
+ * working directories" (WS-07). The `#` trigger is left out until COMP-05 builds pull request
+ * search. A slash command the user picks does what `slashCommandAction` says: /clear opens a new
+ * chat tab (the tab strip's own Cmd+T handler) and closes this one, /restart restarts the agent,
+ * /compact asks a Codex chat to summarise its history, /add-dir opens the Link workspaces and
+ * directories dialog (WS-07), /plan and /fast run the plan and fast mode toggles of the toolbar,
+ * a command the agent lists is sent to it, and any other says it is not available. A
+ * terminal-effect command opens a terminal that runs it and shows the terminal command bar above
+ * the composer; the bar follows
  * that terminal (closed, finished, failed) and
  * restarts the agent when the user clicks Done. Attachments are added from the '+' menu, a drop or
  * a paste by the COMP-07 hook, shown in AttachmentBar, and materialised when the message is sent.
@@ -45,7 +47,7 @@ import { useStore } from "zustand";
 import { useCommandHandler, useRunCommandHandlers } from "../../app/command-dispatcher.ts";
 import type { Draft } from "../../core/api.ts";
 import { useServices } from "../../core/context.tsx";
-import { useActions, useSlashCommands } from "../../core/hooks.ts";
+import { useActions, useSlashCommands, useWorkspace } from "../../core/hooks.ts";
 import { IconButton } from "../../ui/IconButton.tsx";
 import { WrenchIcon } from "../../ui/icons.tsx";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "../../ui/Menu.tsx";
@@ -56,6 +58,7 @@ import { AcpOptions } from "./AcpOptions.tsx";
 import { AttachmentBar } from "./AttachmentBar.tsx";
 import { ComposerEditor } from "./ComposerEditor.tsx";
 import { buildComposerExtensions } from "./composer-extensions.ts";
+import { LinkDirectoriesDialog } from "./LinkDirectoriesDialog.tsx";
 import { ModeChips } from "./ModeChips.tsx";
 import { ModelPicker } from "./ModelPicker.tsx";
 import type { FileMentionItem } from "./mentions/FileMention.ts";
@@ -177,6 +180,7 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 	const [attachments, setAttachments] = useState<string[]>([]);
 	const [text, setText] = useState("");
 	const [busy, setBusy] = useState(false);
+	const [linkDialogOpen, setLinkDialogOpen] = useState(false);
 	const attachmentsController = useAttachments({
 		sessionId,
 		editor,
@@ -194,6 +198,11 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 		(state) => state.values.default_message_send_mode as string | undefined,
 	);
 	const session = useStore(services.sessions.store, (state) => state.sessions[sessionId]);
+	const workspaceRow = useWorkspace(workspaceId);
+	// Read through a ref, like the file list: a rename or pin replaces the row with new arrays, and
+	// the editor must not be rebuilt under the user each time (it would drop unsaved typing).
+	const linkedPaths = useRef<readonly string[]>([]);
+	linkedPaths.current = workspaceRow.state === "ready" ? workspaceRow.data.linkedPaths : [];
 	const slash = useSlashCommands(sessionId);
 	const working = live?.status === "working";
 	const sendWith: SendWith = sendKey === "cmd-enter" ? "mod_enter" : "enter";
@@ -294,6 +303,9 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 						if (!result.ok) toastError("Couldn't restart the agent", result.error);
 					});
 					return;
+				case "linkDirectories":
+					setLinkDialogOpen(true);
+					return;
 				case "compact":
 					void actions.sessions.compact(sessionId).then((result) => {
 						if (!result.ok) toastError("Couldn't compact the chat", result.error);
@@ -333,13 +345,21 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 		() =>
 			buildComposerExtensions({
 				files: {
-					search: () => files.current,
+					search: () => [
+						...linkedPaths.current.map((path) => ({ path, isDirectory: true })),
+						...files.current,
+					],
 					onOpen: () => void loadFiles(),
 					actions: [
 						{
 							id: "terminal-output",
 							label: "Attach current terminal output",
 							onChoose: () => void attachTerminalOutput(),
+						},
+						{
+							id: "working-directories",
+							label: "Select working directories",
+							onChoose: () => setLinkDialogOpen(true),
 						},
 					],
 				},
@@ -455,6 +475,7 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 					<PlusMenu
 						sessionId={sessionId}
 						onAddAttachment={() => void attachmentsController.pick()}
+						onLinkWorkspaces={() => setLinkDialogOpen(true)}
 					/>
 					<NotBuiltYet area="Model" variant="inline" resetKey={sessionId}>
 						<ModelPicker sessionId={sessionId} />
@@ -493,6 +514,11 @@ export function Composer({ workspaceId, sessionId, onEditorReady }: ComposerProp
 				sendWith={sendWith}
 				onEditorReady={setEditor}
 				extensions={extensions}
+			/>
+			<LinkDirectoriesDialog
+				open={linkDialogOpen}
+				onOpenChange={setLinkDialogOpen}
+				workspaceId={workspaceId}
 			/>
 			<div className="flex items-center justify-end gap-1 px-2 pb-2">
 				<SendButton

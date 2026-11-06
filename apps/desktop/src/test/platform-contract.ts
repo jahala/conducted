@@ -1788,7 +1788,8 @@ export const UNCOVERED_METHODS: Readonly<Record<string, string>> = {
 	"programs.prefetchForUpdate":
 		"Starts installs in the background with no answer to compare; the plugin's install path is covered.",
 	"programs.verificationErrors": "Reads the Rust launch check; the Rust job owns it.",
-	"programs.syncPathOverrides": "SET-13 builds it.",
+	"programs.syncPathOverrides":
+		"Creates the Rust shim folder; the SET-13 adapter test and the Rust shim tests own it.",
 	"http.download":
 		"Streams to a file in Rust; the Rust download tests own progress, checksum and cancel.",
 	"http.download.cancel": "Cancels the Rust download task by id; the Rust download tests own it.",

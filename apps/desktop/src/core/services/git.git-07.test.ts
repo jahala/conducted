@@ -71,7 +71,6 @@ function makeService(
 ): GitService {
 	return new GitService({
 		git,
-		cache: {} as never,
 		contextOf: options.contextOf ?? (async () => ok(context())),
 		agent,
 		...(options.omitPromptFor === true

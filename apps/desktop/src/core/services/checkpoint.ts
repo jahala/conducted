@@ -21,7 +21,8 @@
  * or repository does not stop the archive prune for the others, and their failures come back
  * together in one error; pruning one chat never touches another chat's refs, even when ids share
  * a prefix. The archive prune runs from the startup checkpoint-pruning step; the chat prune runs
- * when the chat is deleted.
+ * when the chat is deleted. A fork (CHAT-16) copies the refs it keeps under its own chat's ids in
+ * one transaction, leaving out refs that are already gone.
  * The per-turn change list is read with the checkpointer's own diff, so it includes untracked
  * files and honours the repository's ignore rules like the checkpoint itself. It is cached per
  * chat and turn; every caller gets its own copy of the list, so one caller's change cannot reach
@@ -31,8 +32,8 @@
  * Not built yet: the agent is not rewound. Its own transcript still holds the reverted turns, so
  * its next turn remembers them although the chat no longer shows them. Rewinding it (the sidecar's
  * `resetAgent`, then a resume at the chosen turn with `resume.atNativeMessageId`) is an open item
- * on CHAT-15's checklist. Fork from a turn (`forkFrom`) is CHAT-16's placeholder and fork to a
- * new workspace (`forkToWorkspace`) is CHAT-21's; neither is built here.
+ * on CHAT-15's checklist. Fork to a new workspace (`forkToWorkspace`) is CHAT-21's; the same-tab
+ * fork belongs to CHAT-16 and lives in the sessions service.
  * Test first: reverting to a turn without a start checkpoint returns an Err and changes nothing.
  */
 import type { FileChange } from "@conducted/protocol";
@@ -54,6 +55,7 @@ import {
 	forEachRefNames,
 	showRefVerify,
 	updateRefDelete,
+	updateRefStdin,
 } from "../git/commands.ts";
 import {
 	CHECKPOINT_REF_PREFIX,
@@ -63,7 +65,7 @@ import {
 } from "../git/refs.ts";
 import type { GitRunner } from "../git/runner.ts";
 import { mergeChanges, parseNameStatus, parseNumstat } from "../git/status.ts";
-import type { Session, Workspace } from "../model.ts";
+import type { Workspace } from "../model.ts";
 
 /** How long a finished turn's change list waits for its two checkpoint refs. */
 export const CHECKPOINT_READY_TIMEOUT_MS = 2_000;
@@ -275,6 +277,34 @@ export class CheckpointService {
 	}
 
 	/**
+	 * Copies checkpoint refs under new ids in one `update-ref --stdin` transaction, for a forked
+	 * chat (CHAT-16). Each pair names a checkpoint id and the id of its copy. A source ref that is
+	 * gone (pruned, or skipped when the turn ran) is left out, so the fork has the restore points
+	 * the origin still has. Returns how many refs were copied.
+	 */
+	copyRefs(
+		repoRootPath: string,
+		pairs: readonly (readonly [from: string, to: string])[],
+	): Promise<Result<number>> {
+		if (pairs.length === 0) return Promise.resolve(ok(0));
+		return this.#withRepoLock(repoRootPath, async () => {
+			const listed = await this.#deps.git.runChecked(forEachRefNames(CHECKPOINT_REF_PREFIX), {
+				cwd: repoRootPath,
+			});
+			if (!listed.ok) return listed;
+			const existing = new Set(parseRefNames(listed.value.stdout));
+			const instructions = pairs
+				.filter(([from]) => existing.has(checkpointRef(from)))
+				.map(([from, to]) => `create ${checkpointRef(to)} ${checkpointRef(from)}`);
+			if (instructions.length === 0) return ok(0);
+			const copied = await this.#deps.git.runChecked(updateRefStdin(instructions), {
+				cwd: repoRootPath,
+			});
+			return copied.ok ? ok(instructions.length) : copied;
+		});
+	}
+
+	/**
 	 * Removes checkpoint refs of chats whose workspace was archived more than `olderThanDays` ago.
 	 * The cutoff is counted from `workspaces.archived_at`, so a later note or pin does not restart
 	 * the clock. Runs from the startup checkpoint-pruning step. One broken workspace or repository
@@ -431,11 +461,6 @@ export class CheckpointService {
 		if (!marked.ok) return marked;
 		markViewReverted(sessionId, turnId, at);
 		return ok(undefined);
-	}
-
-	/** Backs `Actions.sessions.forkFrom`. */
-	forkFrom(_sessionId: SessionId, _turnId: TurnId): Promise<Result<Session>> {
-		return notImplemented("CHAT-16");
 	}
 
 	/** Backs `Actions.sessions.forkToWorkspace`. */

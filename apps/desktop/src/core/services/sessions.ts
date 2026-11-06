@@ -1,16 +1,19 @@
 /**
- * @feature CHAT-01 Sessions service: the chat list; CHAT-02 Send a message as a new turn; CHAT-05
- * Cancel a turn; CHAT-27 Retry a failed turn in a new chat; WS-10 Delete a workspace's chats
+ * @feature CHAT-01 Sessions service: the chat list; CHAT-02 Send a message as a new turn;
+ * CHAT-05 Cancel a turn; CHAT-16 Fork a chat from a turn; CHAT-17 Copy transcript and search chat
+ * history; CHAT-27 Retry a failed turn in a new chat; WS-10 Delete a workspace's chats
  * Owns: the list of chats per workspace, their stored live state and events in memory, the
  * create, close, reopen, rename, set-title-if-empty, delete (which also removes the chat's
  * checkpoint refs) and open paths, deleting every chat of a workspace with its attachment files
  * and drafts, starting a review chat with the review model, sending a user message as a new turn
  * or a steer, running the composition root's first-message hook (WS-04's branch rename),
- * cancelling a turn:
+ * forking a chat up to a checkpointed turn into a new chat and resuming its agent at that turn's
+ * last message, cancelling a turn:
  * pausing the follow-up queue, withdrawing the open interaction, removing only the pending sends
  * the sidecar dropped, and putting a send that was still in flight back in the composer draft,
- * and starting a failed turn's message again in a new chat of the same workspace, and handing a
- * plan to a chosen chat or a new one.
+ * and starting a failed turn's message again in a new chat of the same workspace, handing a
+ * plan to a chosen chat or a new one, copying a chat's concise or full transcript, and searching
+ * stored message text for the command palette.
  * Behaviour: services-map.md 2.3.1 (workspace delete deletes its chats), 2.3.3 (session
  * operations), 2.2 (the sessions table), 2.3.4 (composer outbox: restore to draft), ui-map.md
  * 3.2, sessions-and-chats.md "What happens when
@@ -34,7 +37,12 @@
  * a failed live-state write is returned; a review chat uses the review model, fast mode and effort
  * from settings,
  * falls back to the default chat model when no review model is set, and does not start when a
- * review setting cannot be used.
+ * review setting cannot be used; a fork copies the chat up to a checkpointed turn into a new chat
+ * of the same workspace and refuses a turn with no checkpoint with "Unable to fork chat"; a fork
+ * whose copied part holds no agent message to resume at is refused, so two chats never share one
+ * agent session; a fork copies the checkpoint refs it keeps under its own ids, so its revert works
+ * and survives the origin's deletion. Not yet held: the fork's resume point lives in memory until
+ * its first send, so a restart before that send loses it (CHAT-16 open item; it needs a column).
  * Our design choice: a chat starts with no title; the title generator fills it only once
  * (`setTitleIfEmpty`), so a name the user typed is never overwritten.
  * Our design choice: the pending send lives in memory until the sidecar stores its `user_message`
@@ -45,7 +53,8 @@
  * Test first: a send holds the pending message in memory before it reaches the sidecar, a late
  * config write leaves the newer stored choice in place, a cancel pauses the queue and returns
  * the dropped message to the draft, and a retry in a new chat sends the failed turn's message
- * there.
+ * there. For CHAT-16, a fork copies the events of the chosen turn and the turns before it into
+ * a new chat and resumes the agent at the turn's last message.
  *
  * The progress path lives in the same service but belongs to CHAT-13. The chat view (turns built
  * from stored events) belongs to CHAT-07. Cancel is CHAT-05's, and the interaction paths (answer,
@@ -63,6 +72,8 @@
  * lost (`sidecar/resume.ts`).
  * COMP-06 owns `restartAgent`: reset the sidecar's session and warm the agent again with resume.
  * AGENT-14 owns `compact`: warm the Codex agent, then ask the sidecar to compact its thread.
+ * WS-07 owns `applyLinkedPaths`: a workspace's new linked folders reach every open chat's config,
+ * ready for its next message.
  */
 import {
 	type AcpConfigOption,
@@ -80,6 +91,7 @@ import {
 import {
 	type AppError,
 	appError,
+	type CheckpointId,
 	type EventId,
 	err,
 	type InteractionId,
@@ -100,13 +112,21 @@ import { createKeyedQueue, type KeyedQueue } from "../async/serial-queue.ts";
 import { interruptedTurnEvent } from "../db/repair.ts";
 import type { Repositories } from "../db/repositories.ts";
 import { executeStatement, inTransaction, selectRows, stringifyJson } from "../db/row-codec.ts";
+import type { StoredSessionEvent } from "../db/session-events.ts";
 import { trashIfPresent } from "../fs-helpers.ts";
+import { turnCheckpointId } from "../git/refs.ts";
 import { parseEffortSetting } from "../lookups.ts";
 import type { ChatView, Session } from "../model.ts";
 import type { SidecarClient } from "../sidecar/tunnel.ts";
 import type { ComposerService } from "./composer.ts";
 import { agentCanSteer, chooseDelivery, type FollowUpQueue } from "./follow-up-queue.ts";
 import type { NotificationService } from "./notifications.ts";
+import {
+	createHistorySearch,
+	formatTranscript,
+	type HistoryHit,
+	searchHistory,
+} from "./transcript.ts";
 import { buildTurns, classifyTurnsChange, type StoredEvent } from "./turn-builder.ts";
 
 /**
@@ -283,6 +303,15 @@ export interface SessionsServiceDeps {
 	 * supplies it; a harness without it still deletes chats and leaves the refs alone.
 	 */
 	pruneCheckpoints?: (sessionId: SessionId, workspaceId: WorkspaceId) => Promise<Result<number>>;
+	/**
+	 * Copies checkpoint refs under new ids, for a fork (CHAT-16). Each pair is a checkpoint id the
+	 * origin's events name and the fork's own id for the same turn and phase. The composition root
+	 * supplies it; a fork with checkpoints to copy and no way to copy them is refused.
+	 */
+	copyCheckpoints?: (
+		workspaceId: WorkspaceId,
+		pairs: readonly (readonly [from: string, to: string])[],
+	) => Promise<Result<number>>;
 	/** Runs after a chat's first message is accepted. WS-04 uses it to rename the branch. */
 	onFirstMessage?: (session: Session, text: string) => Promise<void>;
 	/** Reports work that runs beside the send, such as the first-message branch rename. */
@@ -292,6 +321,8 @@ export interface SessionsServiceDeps {
 	/** Default config for a new chat, from settings and the last used model. */
 	defaultConfig: (workspaceId: WorkspaceId) => Promise<Result<SessionConfig>>;
 	setting: <T>(key: string) => T;
+	/** Writes text to the clipboard for a copied transcript. The composition root passes the SystemService's one copy path. */
+	copyText?: (text: string) => Promise<Result<void>>;
 	now: () => number;
 	newId: () => string;
 }
@@ -336,6 +367,13 @@ export class SessionsService implements AgentMessenger {
 	readonly #configWrites: KeyedQueue<SessionId> = createKeyedQueue<SessionId>();
 	/** The newest option-list request per chat. An older answer never changes the store. */
 	readonly #acpOptionRequests: LatestWins<string> = createLatestWins<string>();
+	/**
+	 * A forked chat's agent resume, used by its first send. The session id is the origin's, and
+	 * the native message id is the last agent message of the forked turn (CHAT-16).
+	 */
+	readonly #forkResumes = new Map<string, { agentSessionId: string; atNativeMessageId?: string }>();
+	/** The stored-history search over the event log. */
+	readonly #historySearch: (query: string, limit: number) => Promise<Result<HistoryHit[]>>;
 	/** Loads of stored events in progress, with the events that arrived meanwhile. */
 	readonly #opening = new Map<
 		string,
@@ -344,6 +382,7 @@ export class SessionsService implements AgentMessenger {
 
 	constructor(deps: SessionsServiceDeps) {
 		this.#deps = deps;
+		this.#historySearch = createHistorySearch(deps.db);
 		this.store = createStore<SessionsState>(() => ({
 			loaded: false,
 			loadError: null,
@@ -560,6 +599,7 @@ export class SessionsService implements AgentMessenger {
 		if (!removed.ok) return removed;
 		this.#turns.delete(id);
 		this.#cancelVersions.delete(id);
+		this.#forkResumes.delete(id);
 		// An open card would leave the sidecar's request waiting for an answer that never comes.
 		const openCard = this.store.getState().openInteractions[id];
 		if (openCard !== undefined)
@@ -719,6 +759,7 @@ export class SessionsService implements AgentMessenger {
 
 		const firstMessage = last.value === null;
 		this.#setSending(session.id, pending);
+		const resume = this.#resumeFor(session);
 		const result = await this.#deps.sidecar.request("sendMessage", {
 			sessionId: session.id,
 			messageId: pending.messageId,
@@ -730,9 +771,7 @@ export class SessionsService implements AgentMessenger {
 			config: session.config,
 			workspace: workspace.value,
 			launch: launch.value,
-			...(session.agentSessionId === null
-				? {}
-				: { resume: { agentSessionId: session.agentSessionId } }),
+			...(resume === null ? {} : { resume }),
 		});
 		if (this.#cancelVersionOf(session.id) !== cancelVersion) {
 			// A cancel that dropped this message already put it back in the draft and removed it from
@@ -749,6 +788,8 @@ export class SessionsService implements AgentMessenger {
 			this.#addFailed(session.id, { ...pending, error: result.error });
 			return result;
 		}
+		// The sidecar's session for a forked chat now exists, so the resume is no longer needed.
+		this.#forkResumes.delete(session.id);
 		if (firstMessage && this.#deps.onFirstMessage !== undefined) {
 			const onFirstMessage = this.#deps.onFirstMessage;
 			fireAndForget(
@@ -1133,10 +1174,39 @@ export class SessionsService implements AgentMessenger {
 	 * first cannot land after the user's newer choice.
 	 */
 	async updateConfig(id: SessionId, config: SessionConfig): Promise<Result<void>> {
-		return this.#configWrites.run(id, () => this.#persistConfig(id, config));
+		return this.#configWrites.run(id, () => this.#persistConfig(id, config, true));
 	}
 
-	#persistConfig(id: SessionId, config: SessionConfig): Promise<Result<void>> {
+	/**
+	 * WS-07: gives every chat open in a workspace the workspace's new linked folders. The config
+	 * is stored now and travels with the chat's next message (D032), so no agent is restarted for
+	 * a folder it will only need at the next turn.
+	 */
+	async applyLinkedPaths(
+		workspaceId: WorkspaceId,
+		paths: readonly string[],
+	): Promise<Result<void>> {
+		for (const id of [...(this.store.getState().byWorkspace[workspaceId] ?? [])]) {
+			const current = this.store.getState().sessions[id];
+			if (current === undefined) continue;
+			const config: SessionConfig = {
+				...current.config,
+				additionalDirectories: [...paths],
+			};
+			if (sameConfig(current.config, config)) continue;
+			const written = await this.#configWrites.run(id, () =>
+				this.#persistConfig(id, config, false),
+			);
+			if (!written.ok) return written;
+		}
+		return ok(undefined);
+	}
+
+	#persistConfig(
+		id: SessionId,
+		config: SessionConfig,
+		notifySidecar: boolean,
+	): Promise<Result<void>> {
 		return (async () => {
 			const found = await this.#session(id);
 			if (!found.ok) return found;
@@ -1195,6 +1265,7 @@ export class SessionsService implements AgentMessenger {
 			}
 
 			this.#setConfig(id, config, at);
+			if (!notifySidecar) return ok(undefined);
 			const applied = await this.#deps.sidecar.request("updateConfig", {
 				sessionId: id,
 				config,
@@ -1240,9 +1311,32 @@ export class SessionsService implements AgentMessenger {
 		return notImplemented("APP-03");
 	}
 
-	/** Backs `Actions.sessions.copyTranscript`. */
-	copyTranscript(_id: SessionId, _detail: "concise" | "full"): Promise<Result<void>> {
-		return notImplemented("CHAT-17");
+	/**
+	 * Backs `Actions.sessions.copyTranscript`: loads the chat's stored events if needed, builds its
+	 * turns and writes the concise or full text to the clipboard.
+	 */
+	async copyTranscript(id: SessionId, detail: "concise" | "full"): Promise<Result<void>> {
+		const found = await this.#session(id);
+		if (!found.ok) return found;
+		const opened = await this.open(id);
+		if (!opened.ok) return opened;
+		const state = this.store.getState();
+		const liveState = state.liveStates[id] ?? idleLiveState;
+		const pending = (state.sending[id] ?? []).map((send) => ({
+			...send,
+			messageId: send.messageId as MessageId,
+		}));
+		const text = formatTranscript(buildTurns(state.events[id] ?? [], liveState, pending), detail);
+		const copyText = this.#deps.copyText;
+		if (copyText === undefined) {
+			return err(appError("chat_copy_unavailable", "Copying is not available right now."));
+		}
+		return copyText(text);
+	}
+
+	/** Backs chat history search, newest matching stored text first. */
+	searchHistory(query: string, limit: number): Promise<Result<HistoryHit[]>> {
+		return searchHistory({ search: this.#historySearch }, query, limit);
 	}
 
 	// ---- the port the workspace service uses (WorkspaceSessionsPort) ----
@@ -1749,6 +1843,125 @@ export class SessionsService implements AgentMessenger {
 		);
 	}
 
+	/**
+	 * Backs `Actions.sessions.forkFrom` (CHAT-16): copies the chat up to and including the chosen
+	 * turn into a new chat of the same workspace. The new chat keeps the origin's title, config and
+	 * agent session id. Its first send resumes the agent at the turn's last message and asks for a
+	 * forked session, so the two chats continue apart. A turn with no checkpoint is refused and
+	 * nothing is created, and so is a fork of a chat with an agent session but no agent message to
+	 * resume at. The checkpoint refs the copied turns name are copied under the fork's own ids.
+	 */
+	async forkFrom(id: SessionId, turnId: TurnId): Promise<Result<Session>> {
+		const found = await this.#session(id);
+		if (!found.ok) return found;
+		const origin = found.value;
+
+		const stored = await this.#storedEvents(id);
+		if (!stored.ok) return stored;
+		const turnEvents = stored.value.filter((row) => row.event.turnId === turnId);
+		if (turnEvents.length === 0) {
+			return err(
+				appError("chat_fork_turn_unknown", "Unable to fork chat: that turn is no longer here."),
+			);
+		}
+		const checkpointed = turnEvents.some(
+			(row) => row.event.type === "checkpoint" && row.event.checkpointId !== undefined,
+		);
+		if (!checkpointed) {
+			return err(appError("chat_fork_no_checkpoint", "Checkpoint not found for this turn."));
+		}
+
+		const cutoff = turnEvents[turnEvents.length - 1]?.idx ?? -1;
+		// Resume at the last agent message the fork contains, so a turn with no answer of its
+		// own still never resumes past a later turn.
+		let nativeMessageId: string | undefined;
+		for (const row of stored.value) {
+			if (row.idx > cutoff) break;
+			if (row.event.type === "agent" && row.event.message.nativeId !== undefined) {
+				nativeMessageId = row.event.message.nativeId;
+			}
+		}
+		// Without a message to resume at, the agent would resume the origin's own session, and both
+		// chats would write to one agent history.
+		if (origin.agentSessionId !== null && nativeMessageId === undefined) {
+			return err(
+				appError(
+					"chat_fork_no_agent_message",
+					"Unable to fork chat: the agent has no message to fork from in this turn or before it.",
+				),
+			);
+		}
+
+		const created = await this.create(origin.workspaceId, origin.config);
+		if (!created.ok) return created;
+		const forked = created.value;
+		const discard = async (failure: AppError): Promise<Result<Session>> => {
+			const removed = await this.delete(forked.id);
+			return removed.ok
+				? { ok: false, error: failure }
+				: err(appError(failure.code, failure.message, removed.error));
+		};
+
+		if (origin.title !== null) {
+			const titled = await this.rename(forked.id, origin.title);
+			if (!titled.ok) return discard(titled.error);
+		}
+		if (origin.agentSessionId !== null) {
+			const saved = await this.setAgentSessionId(forked.id, origin.agentSessionId);
+			if (!saved.ok) return discard(saved.error);
+		}
+
+		// The fork gets its own copy of every checkpoint it keeps, named by its own id, so its revert
+		// and turn changes find them, and deleting the origin (which prunes the origin's refs) leaves
+		// the fork's restore points in place.
+		const copiedEvents: StoredSessionEvent[] = [];
+		const pairs: [from: string, to: string][] = [];
+		for (const row of stored.value) {
+			if (row.idx > cutoff) break;
+			const event = row.event;
+			if (event.type === "checkpoint" && event.checkpointId !== undefined) {
+				const own = turnCheckpointId(forked.id, event.turnId, event.phase);
+				pairs.push([event.checkpointId, own]);
+				copiedEvents.push({ ...row, event: { ...event, checkpointId: own as CheckpointId } });
+			} else {
+				copiedEvents.push(row);
+			}
+		}
+		if (pairs.length > 0) {
+			const copyCheckpoints = this.#deps.copyCheckpoints;
+			if (copyCheckpoints === undefined) {
+				return discard(
+					appError("chat_fork_unwired", "Unable to fork chat: checkpoints cannot be copied here."),
+				);
+			}
+			const copied = await copyCheckpoints(origin.workspaceId, pairs);
+			if (!copied.ok) return discard(copied.error);
+		}
+
+		const repository = this.#deps.repositories().sessionEvents;
+		for (const row of copiedEvents) {
+			const appended = await repository.append(forked.id, row.event, row.receivedAt);
+			if (!appended.ok) return discard(appended.error);
+		}
+
+		if (origin.agentSessionId !== null) {
+			this.#forkResumes.set(forked.id, {
+				agentSessionId: origin.agentSessionId,
+				...(nativeMessageId === undefined ? {} : { atNativeMessageId: nativeMessageId }),
+			});
+		}
+		return this.#session(forked.id);
+	}
+
+	/** Every stored event of a chat in log order. */
+	async #storedEvents(id: SessionId): Promise<Result<StoredSessionEvent[]>> {
+		const repository = this.#deps.repositories().sessionEvents;
+		const last = await repository.lastIdx(id);
+		if (!last.ok) return last;
+		if (last.value === null) return ok([]);
+		return repository.listFrom(id, 0, last.value + 1);
+	}
+
 	/** /restart: `resetAgent`, then warm the agent again with resume. */
 	async restartAgent(id: SessionId): Promise<Result<void>> {
 		const found = await this.#session(id);
@@ -1775,14 +1988,13 @@ export class SessionsService implements AgentMessenger {
 		}));
 		const built = await launchFor(session);
 		if (!built.ok) return built;
+		const resume = this.#resumeFor(session);
 		const warm = await this.#deps.sidecar.request("warmAgent", {
 			sessionId: id,
 			config: session.config,
 			workspace: workspace.value,
 			launch: built.value,
-			...(session.agentSessionId === null
-				? {}
-				: { resume: { agentSessionId: session.agentSessionId } }),
+			...(resume === null ? {} : { resume }),
 		});
 		if (!warm.ok) return warm;
 		return ok(undefined);
@@ -1875,7 +2087,7 @@ export class SessionsService implements AgentMessenger {
 				...session.config,
 				acpConfig: { ...(session.config.acpConfig ?? {}), [optionId]: value },
 			};
-			return this.#persistConfig(id, nextConfig);
+			return this.#persistConfig(id, nextConfig, true);
 		});
 	}
 
@@ -1910,16 +2122,22 @@ export class SessionsService implements AgentMessenger {
 		if (!workspace.ok) return workspace;
 		const launch = await launchFor(session);
 		if (!launch.ok) return launch;
+		const resume = this.#resumeFor(session);
 		const warmed = await this.#deps.sidecar.request("warmAgent", {
 			sessionId: session.id,
 			config: session.config,
 			workspace: workspace.value,
 			launch: launch.value,
-			...(session.agentSessionId === null
-				? {}
-				: { resume: { agentSessionId: session.agentSessionId } }),
+			...(resume === null ? {} : { resume }),
 		});
 		return warmed.ok ? ok(undefined) : warmed;
+	}
+
+	/** The resume a chat's next agent start carries: a fork's, or its own stored session id. */
+	#resumeFor(session: Session): { agentSessionId: string; atNativeMessageId?: string } | null {
+		const fork = this.#forkResumes.get(session.id);
+		if (fork !== undefined) return fork;
+		return session.agentSessionId === null ? null : { agentSessionId: session.agentSessionId };
 	}
 
 	/** The goal bar's Save. An empty objective is refused with "Enter a goal first." */

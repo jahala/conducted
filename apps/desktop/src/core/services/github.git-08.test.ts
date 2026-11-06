@@ -9,7 +9,6 @@ import { describe, expect, it } from "vitest";
 import type { ShellOutput } from "../../platform/platform.ts";
 import type { GitCommand } from "../git/commands.ts";
 import type { GitRunner, GitRunOptions } from "../git/runner.ts";
-import type { GitCache } from "./git-cache.ts";
 import { GithubService, type PrWorkspaceContext } from "./github.ts";
 import type { AgentMessenger } from "./sessions.ts";
 
@@ -67,7 +66,6 @@ const context = (prNumber: number | null): PrWorkspaceContext => ({
 function makeService(git: GitRunner, prNumber: number | null): GithubService {
 	return new GithubService({
 		git,
-		cache: {} as GitCache,
 		agent: {} as AgentMessenger,
 		contextOf: async () => ok(context(prNumber)),
 		onMerged: () => {},

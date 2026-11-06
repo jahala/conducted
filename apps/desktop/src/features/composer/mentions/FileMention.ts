@@ -6,9 +6,9 @@
  * 'Attach current terminal output'), sessions-and-chats.md (the sidecar expands file mentions).
  * Data: `search` is passed in and reads the workspace file list; `actions` are the extra rows the
  * composer supplies; `onOpen` lets the caller refresh that list each time the trigger opens. The
- * chip stores the relative path, and the sidecar expands it.
- * Not built here: '@' plans (no plan list exists yet, CHAT-26) and linked directories with
- * 'Select working directories' (WS-07).
+ * chip stores the path it was given.
+ * Not built here: '@' plans (no plan list exists yet, CHAT-26). Linked directories and the
+ * 'Select working directories' row are supplied as extra rows by the composer (WS-07).
  * Our design choice: the trigger is one ProseMirror plugin rather than TipTap's suggestion helper,
  * because the editor already carries no extra TipTap packages. The plugin holds the query, the
  * ranked rows and the selected row, and draws them with SuggestionPopup.

@@ -62,9 +62,8 @@
 //! Not built yet: nothing writes the release feed. The official download URL and SHA-256 of each
 //! pinned version are not in the repo, so every install fails with `program_release_missing`
 //! until a producer supplies them (an open PLAT-28 item). The shim is written, but putting the bin
-//! folder on PATH is PLAT-35 (`path_with_helpers`). User-chosen program paths are SET-13
-//! (`programs_sync_path_overrides`). The sidecar does not look for the managed copy yet, so
-//! `sidecar.rs` sets no agent binaries folder for it (open PLAT-28 items).
+//! folder on PATH is PLAT-35 (`path_with_helpers`). The sidecar does not look for the managed copy
+//! yet, so `sidecar.rs` sets no agent binaries folder for it (open PLAT-28 items).
 //! Our design choice: five attempts, one second after the first failure and doubling after each
 //! further one (`RetryPolicy::APP`). The research shows the retry state, not its numbers.
 //! Our design choice: the release feed is a JSON file at `agent-binaries/manifest.json` in the
@@ -102,6 +101,18 @@
 //! `programs://verification-errors`, as recorded in docs/plans/tauri-commands.md.
 //! Test first: a bundled `gh` that exits nonzero is copied, run again after a re-copy, and
 //! reported as a verification error.
+//!
+//! @feature SET-13 Chosen program paths reach terminals and scripts
+//! Owns: `programs_sync_path_overrides`, the command that stages the user's chosen `claude` and
+//! `codex` executables in a shim folder and returns the folder to put first on PATH.
+//! Behaviour: services-map.md 5A.8.2 (a shim folder `bin-overrides/<16-hex hash>/` with a link per
+//! chosen program, whose folder is prepended through one PATH prefix variable).
+//! Must handle: no chosen paths (`path_override_none`; the caller never asks then); an empty setting; a
+//! path that is missing or not executable (a named error, and no shim is written); a program name
+//! this app does not manage; a second sync with the same paths (the same folder, links rewritten);
+//! a changed path (a new folder, and the old shim folders are moved to the Trash).
+//! Test first: a chosen `claude` path becomes a link in a 16-hex shim folder whose name depends on
+//! the path.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -545,6 +556,162 @@ pub fn resolve_helper(
 /// Returns `path` with the helper bin folder in front, for terminals, scripts and agents.
 pub fn path_with_helpers(_bin_dir: &Path, _path: &str) -> CommandResult<String> {
     not_implemented!("PLAT-35")
+}
+
+// ------------------------------------------------------------------ SET-13 path overrides
+
+/// Writes the shim folder for the user's chosen program paths and returns the folder to put first
+/// on PATH. With nothing chosen it fails with `path_override_none`: the caller owns the bundled
+/// folder and asks only when something is chosen. Each chosen executable must exist and be
+/// runnable; otherwise the command fails and the caller tells the user. The shim folder's name is a hash of the chosen names and paths, so the same
+/// choice reuses one folder. Older shim folders are moved to the Trash.
+pub fn stage_path_overrides(
+    app_data: &Path,
+    overrides: &HashMap<String, String>,
+    trash: &dyn Fn(&Path) -> CommandResult<()>,
+) -> CommandResult<PathBuf> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let mut chosen: Vec<(ManagedProgram, PathBuf)> = Vec::new();
+    for (name, raw) in overrides {
+        let value = raw.trim();
+        if value.is_empty() {
+            continue;
+        }
+        let program = ManagedProgram::AGENTS
+            .iter()
+            .copied()
+            .find(|program| program.as_str() == name)
+            .ok_or_else(|| CommandError::Failed {
+                code: "path_override_unknown_program",
+                message: format!("There is no agent program this app manages named {name}."),
+            })?;
+        let path = PathBuf::from(value);
+        let metadata = fs::metadata(&path).map_err(|error| CommandError::Failed {
+            code: "path_override_invalid",
+            message: format!(
+                "The {program} program path {} cannot be used: {error}",
+                path.display()
+            ),
+        })?;
+        if !metadata.is_file() {
+            return Err(CommandError::Failed {
+                code: "path_override_invalid",
+                message: format!(
+                    "The {program} program path {} is not a file.",
+                    path.display()
+                ),
+            });
+        }
+        if metadata.permissions().mode() & 0o111 == 0 {
+            return Err(CommandError::Failed {
+                code: "path_override_invalid",
+                message: format!(
+                    "The {program} program path {} is not executable.",
+                    path.display()
+                ),
+            });
+        }
+        chosen.push((program, path));
+    }
+    chosen.sort_by_key(|(program, _)| program.as_str());
+
+    if chosen.is_empty() {
+        return Err(CommandError::Failed {
+            code: "path_override_none",
+            message: "No program path was chosen, so there is no shim folder to write.".to_string(),
+        });
+    }
+
+    let mut hasher = Sha256::new();
+    for (program, path) in &chosen {
+        hasher.update(program.as_str().as_bytes());
+        hasher.update([0u8]);
+        hasher.update(path.to_string_lossy().as_bytes());
+        hasher.update([0u8]);
+    }
+    let hash: String = format!("{:x}", hasher.finalize())
+        .chars()
+        .take(16)
+        .collect();
+    let root = app_data.join("bin-overrides");
+    let shim_dir = root.join(&hash);
+    fs::create_dir_all(&shim_dir).map_err(|error| CommandError::Failed {
+        code: "path_override_shim_failed",
+        message: format!("Could not make {}: {error}", shim_dir.display()),
+    })?;
+
+    for (program, path) in &chosen {
+        let link = shim_dir.join(program.as_str());
+        remove_if_present(&link, "path_override_shim_failed", |link| {
+            remove_link(link, "path_override_shim_failed")
+        })?;
+        symlink(path, &link).map_err(|error| CommandError::Failed {
+            code: "path_override_shim_failed",
+            message: format!(
+                "Could not point {} at {}: {error}",
+                link.display(),
+                path.display()
+            ),
+        })?;
+    }
+
+    prune_shim_folders(&root, &hash, trash)?;
+    Ok(shim_dir)
+}
+
+/// Moves every shim folder except `keep` to the Trash, so the folder cannot grow without bound.
+/// The prefix applies to terminals and scripts started after the choice; an older terminal keeps
+/// the command it already resolved.
+fn prune_shim_folders(
+    root: &Path,
+    keep: &str,
+    trash: &dyn Fn(&Path) -> CommandResult<()>,
+) -> CommandResult<()> {
+    let entries = match fs::read_dir(root) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => {
+            return Err(CommandError::Failed {
+                code: "path_override_prune_failed",
+                message: format!("Could not list {}: {error}", root.display()),
+            });
+        }
+    };
+    for entry in entries {
+        let entry = entry.map_err(|error| CommandError::Failed {
+            code: "path_override_prune_failed",
+            message: format!("Could not read an entry of {}: {error}", root.display()),
+        })?;
+        if entry.file_name().to_string_lossy() == keep {
+            continue;
+        }
+        trash(&entry.path())?;
+    }
+    Ok(())
+}
+
+/// One sync at a time, so two terminals opening together cannot remove each other's links.
+static PATH_OVERRIDES_SYNC: Mutex<()> = Mutex::new(());
+
+/// Writes the shims for the chosen agent program paths and returns the folder to put first on PATH.
+#[tauri::command]
+pub fn programs_sync_path_overrides(
+    app: AppHandle,
+    overrides: HashMap<String, String>,
+) -> CommandResult<String> {
+    let _guard = PATH_OVERRIDES_SYNC
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    let data = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| CommandError::Failed {
+            code: "path_override_data_dir_failed",
+            message: format!("Could not find the app data folder: {error}"),
+        })?;
+    let dir = stage_path_overrides(&data, &overrides, &files::trash_path)?;
+    Ok(dir.to_string_lossy().into_owned())
 }
 
 // ------------------------------------------------------------------ PLAT-28 agent programs
@@ -3272,5 +3439,145 @@ mod tests {
             Some(&ProgramState::Retrying)
         );
         assert!(!state.is_installing(ManagedProgram::Claude));
+    }
+
+    fn no_trash(_: &Path) -> CommandResult<()> {
+        Ok(())
+    }
+
+    #[test]
+    fn set_13_with_no_chosen_paths_is_refused_and_writes_nothing() {
+        let folder = TempDir::new();
+        let data = folder.folder("data");
+
+        let error = stage_path_overrides(&data, &HashMap::new(), &no_trash)
+            .expect_err("nothing chosen has no shim folder");
+
+        assert_eq!(error_code(error), "path_override_none");
+        assert!(!data.join("bin-overrides").exists());
+    }
+
+    #[test]
+    fn set_13_writes_a_link_for_each_chosen_program() {
+        let folder = TempDir::new();
+        let data = folder.folder("data");
+        let claude = write_script(folder.path(), "my-claude", "exit 0");
+        let codex = write_script(folder.path(), "my-codex", "exit 0");
+        let overrides = HashMap::from([
+            ("claude".to_string(), claude.to_string_lossy().into_owned()),
+            ("codex".to_string(), codex.to_string_lossy().into_owned()),
+        ]);
+
+        let returned = stage_path_overrides(&data, &overrides, &no_trash).expect("the shim folder");
+        let expected_parent = data.join("bin-overrides");
+
+        assert_eq!(returned.parent(), Some(expected_parent.as_path()));
+        let hash = returned
+            .file_name()
+            .and_then(|name| name.to_str())
+            .expect("the folder has a name");
+        assert_eq!(hash.len(), 16, "the folder name is a 16-hex hash");
+        assert!(hash.chars().all(|character| character.is_ascii_hexdigit()));
+        assert_eq!(
+            fs::read_link(returned.join("claude")).expect("the claude link"),
+            claude
+        );
+        assert_eq!(
+            fs::read_link(returned.join("codex")).expect("the codex link"),
+            codex
+        );
+    }
+
+    #[test]
+    fn set_13_the_same_paths_reuse_one_shim_folder() {
+        let folder = TempDir::new();
+        let data = folder.folder("data");
+        let claude = write_script(folder.path(), "my-claude", "exit 0");
+        let overrides =
+            HashMap::from([("claude".to_string(), claude.to_string_lossy().into_owned())]);
+
+        let first = stage_path_overrides(&data, &overrides, &no_trash).expect("the first sync");
+        let second = stage_path_overrides(&data, &overrides, &no_trash).expect("the second sync");
+
+        assert_eq!(first, second);
+    }
+
+    #[test]
+    fn set_13_a_missing_program_path_is_refused() {
+        let folder = TempDir::new();
+        let data = folder.folder("data");
+        let missing = folder.path().join("no-such-claude");
+        let overrides =
+            HashMap::from([("claude".to_string(), missing.to_string_lossy().into_owned())]);
+
+        let error = stage_path_overrides(&data, &overrides, &no_trash)
+            .expect_err("a missing path cannot be used");
+
+        assert_eq!(error_code(error), "path_override_invalid");
+        assert!(
+            !data.join("bin-overrides").exists(),
+            "nothing is written for a path that cannot run"
+        );
+    }
+
+    #[test]
+    fn set_13_a_program_the_app_does_not_manage_is_refused() {
+        let folder = TempDir::new();
+        let data = folder.folder("data");
+        let program = write_script(folder.path(), "something", "exit 0");
+        let overrides = HashMap::from([(
+            "something".to_string(),
+            program.to_string_lossy().into_owned(),
+        )]);
+
+        let error = stage_path_overrides(&data, &overrides, &no_trash)
+            .expect_err("the name is not a managed agent");
+
+        assert_eq!(error_code(error), "path_override_unknown_program");
+    }
+
+    #[test]
+    fn set_13_a_changed_path_replaces_the_old_shim_folder() {
+        let folder = TempDir::new();
+        let data = folder.folder("data");
+        let first_claude = write_script(folder.path(), "first-claude", "exit 0");
+        let second_claude = write_script(folder.path(), "second-claude", "exit 0");
+        let trashed: Arc<Mutex<Vec<PathBuf>>> = Arc::new(Mutex::new(Vec::new()));
+        let record = Arc::clone(&trashed);
+        let trash = move |path: &Path| {
+            record
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push(path.to_path_buf());
+            Ok(())
+        };
+        let first = stage_path_overrides(
+            &data,
+            &HashMap::from([(
+                "claude".to_string(),
+                first_claude.to_string_lossy().into_owned(),
+            )]),
+            &trash,
+        )
+        .expect("the first shim folder");
+        let second = stage_path_overrides(
+            &data,
+            &HashMap::from([(
+                "claude".to_string(),
+                second_claude.to_string_lossy().into_owned(),
+            )]),
+            &trash,
+        )
+        .expect("the second shim folder");
+
+        assert_ne!(first, second);
+        assert_eq!(
+            fs::read_link(second.join("claude")).expect("the new link"),
+            second_claude
+        );
+        assert_eq!(
+            *trashed.lock().unwrap_or_else(PoisonError::into_inner),
+            vec![first]
+        );
     }
 }
