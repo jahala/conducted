@@ -59,8 +59,9 @@ describe("APP-01 entry", () => {
 		expect(root.firstChild).not.toBeNull();
 		expect(app.container.platform).toBe(memory.platform);
 
-		await app.started;
-		expect(memory.controls.logs.some((line) => line.message.startsWith("Startup"))).toBe(true);
+		// Every step of the ordered start ran and none failed: no startup failure reached the log.
+		expect(await app.started).toEqual(ok(undefined));
+		expect(memory.controls.logs.filter((line) => line.message.startsWith("Startup"))).toEqual([]);
 
 		await stopApp(app, root);
 	});

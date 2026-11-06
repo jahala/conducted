@@ -31,6 +31,9 @@ describe("GIT-17 through the real container", () => {
 		const harness = createTestContainer();
 		try {
 			const repo = await seedRepo(harness.container, { rootPath: "/code/projects/git-17" });
+			// The open workspace screen loads its repository's settings (useSetupState) before the
+			// git panel can offer Continue; the remote name comes from them (DATA-09).
+			must(await harness.container.services.repo.loadConfig(repo.id));
 			const workspace = await seedWorkspace(harness.container, {
 				repoId: repo.id,
 				path: "/code/workspaces/git-17",

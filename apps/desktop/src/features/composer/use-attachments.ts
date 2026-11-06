@@ -24,10 +24,9 @@
 import type { SessionId } from "@conducted/shared";
 import type { Editor } from "@tiptap/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useStore } from "zustand";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { useServices } from "../../core/context.tsx";
-import { useActions } from "../../core/hooks.ts";
+import { useActions, useSetting } from "../../core/hooks.ts";
 import { convertsToAttachment } from "../../core/services/composer.ts";
 import { toast } from "../../ui/Toast.tsx";
 
@@ -71,10 +70,7 @@ export function useAttachments({
 	const [pending, setPending] = useState(0);
 	const pathsRef = useRef<readonly string[]>(attachmentPaths);
 	const chain = useRef<Promise<void>>(Promise.resolve());
-	const autoConvert = useStore(
-		services.settings.store,
-		(state) => state.values.auto_convert_long_text !== false,
-	);
+	const autoConvert = useSetting<boolean>("auto_convert_long_text");
 
 	useEffect(() => {
 		pathsRef.current = attachmentPaths;
