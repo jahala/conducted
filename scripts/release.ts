@@ -22,6 +22,7 @@ import {
 	bundleProblems,
 	createDiskImage,
 	diskImagePath,
+	type ExpectedBundle,
 	NOTARY_PROFILE_ENV,
 	notariseBundle,
 	notariseDiskImage,
@@ -59,8 +60,8 @@ async function must<T>(result: Promise<ToolResult<T>>): Promise<T> {
 	return value.value;
 }
 
-function rejectProblems(report: BundleReport): void {
-	const problems = bundleProblems(report);
+function rejectProblems(report: BundleReport, expected: ExpectedBundle): void {
+	const problems = bundleProblems(report, expected);
 	if (problems.length > 0) throw new Error(problems.join("\n"));
 }
 
@@ -164,7 +165,7 @@ const steps: Step[] = [
 		},
 	},
 	{
-		say: "Build the arm64 app alone, sign and notarise it, then make and verify the disk image",
+		say: "Install the locked packages, build the arm64 app alone, sign and notarise it, then make and verify the disk image",
 		undo: "git checkout -- . (drops the version bump); build output stays under apps/desktop/src-tauri/target",
 		run: async () => {
 			const env: Record<string, string | undefined> = {
@@ -173,6 +174,8 @@ const steps: Step[] = [
 			};
 			const notarise = Boolean(env[NOTARY_PROFILE_ENV]?.trim()) || notaryProfileExists();
 			if (notarise && !env[NOTARY_PROFILE_ENV]?.trim()) env[NOTARY_PROFILE_ENV] = NOTARY_PROFILE;
+			// The build uses exactly the packages main's lockfile names, whatever this checkout had installed.
+			sh(["pnpm", "install", "--frozen-lockfile"]);
 			sh(["pnpm", "--filter", "@conducted/sidecar", "build"]);
 			sh(appBuildArguments("aarch64-apple-darwin", "src-tauri/tauri.release.conf.json"));
 			const appPath = join(
@@ -186,13 +189,22 @@ const steps: Step[] = [
 			);
 			await must(signBundle(runTool, appPath, env));
 			if (notarise) await must(notariseBundle(runTool, appPath, env));
-			rejectProblems(await must(verifyBundle(runTool, appPath)));
+			// Read after step 2's bump: a copy loaded at start would still hold the old version.
+			const config = JSON.parse(readFileSync(join(tauriDir, "tauri.conf.json"), "utf8")) as {
+				identifier: string;
+			};
+			const expected: ExpectedBundle = {
+				identifier: config.identifier,
+				version,
+				notarised: notarise,
+			};
+			rejectProblems(await must(verifyBundle(runTool, appPath)), expected);
 
 			const dmgPath = diskImagePath(appPath);
 			await must(createDiskImage(runTool, appPath, dmgPath));
 			if (notarise) await must(notariseDiskImage(runTool, dmgPath, env));
 			notarised = notarise;
-			rejectProblems(await must(verifyDiskImage(runTool, dmgPath, basename(appPath))));
+			rejectProblems(await must(verifyDiskImage(runTool, dmgPath, basename(appPath))), expected);
 		},
 	},
 	{
