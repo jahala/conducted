@@ -1,6 +1,6 @@
 /**
  * @feature DATA-01 Query hook contract for screens
- * Owns: the GitHub hooks: access, checks, pull requests, issues and repository lists.
+ * Owns: the GitHub hooks: access, checks, pull requests, issues, repository lists and stacks.
  * Behaviour: services-map.md 2.5 (queries for GitHub data); core/hooks.ts states the contract.
  * Must handle: a GitHub token of unknown status, a check log that cannot be read.
  * Test first: the test for a hook body lives with the feature that implements it.
@@ -11,7 +11,13 @@ import { useMemo } from "react";
 import { useStore } from "zustand";
 import type { Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
-import type { GitHubOwner, GitHubRepoSummary, IssueView, PullRequestSummary } from "../model.ts";
+import type {
+	GitHubOwner,
+	GitHubRepoSummary,
+	IssueView,
+	PullRequestSummary,
+	StackEntryView,
+} from "../model.ts";
 import {
 	canListGithubIssues,
 	canListGithubPullRequests,
@@ -47,7 +53,23 @@ export const useCheckLog: Queries["useCheckLog"] = (workspaceId, checkName) => {
 };
 export const usePullRequestActivity: Queries["usePullRequestActivity"] = () =>
 	notImplemented("PR-07");
-export const useStack: Queries["useStack"] = () => notImplemented("PR-08");
+export const useStack: Queries["useStack"] = (workspaceId) => {
+	const { services } = useServices();
+	const result = useQuery<StackEntryView[], AppError>({
+		queryKey: ["github", "stack", workspaceId],
+		// Stack info is slow-changing; GitHub's own refresh interval for it is 60 seconds.
+		staleTime: 60_000,
+		refetchInterval: 60_000,
+		queryFn: async () => {
+			const found = await services.github.readStack(workspaceId);
+			if (!found.ok) throw found.error;
+			return found.value;
+		},
+	});
+	if (result.isError && result.error !== null) return { state: "error", error: result.error };
+	if (result.data === undefined) return { state: "loading" };
+	return { state: "ready", data: result.data };
+};
 export const useGitHubAccess: Queries["useGitHubAccess"] = () => {
 	const { github } = useServices().services;
 	const access = useStore(github.store, (s) => s.access);
