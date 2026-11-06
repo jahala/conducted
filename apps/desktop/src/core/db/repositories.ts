@@ -7,7 +7,7 @@
  * Must handle: building is cheap and does no I/O, so `db.transaction((tx) => createRepositories(
  * tx, deps))` is the normal way to touch two tables atomically; the handle passed in decides
  * which transaction the statements join.
- * Test first: createRepositories returns an object with all sixteen repositories.
+ * Test first: createRepositories returns an object with all seventeen repositories.
  */
 import type { Database } from "../../platform/platform.ts";
 import { type AttachmentRepository, createAttachmentRepository } from "./attachments.ts";
@@ -19,6 +19,10 @@ import type { RepositoryDeps } from "./deps.ts";
 import { createDiffCommentRepository, type DiffCommentRepository } from "./diff-comments.ts";
 import { createEnvVarRepository, type EnvVarRepository } from "./env-vars.ts";
 import { createFavoriteModelRepository, type FavoriteModelRepository } from "./favorite-models.ts";
+import {
+	createModelContextWindowRepository,
+	type ModelContextWindowRepository,
+} from "./model-context-windows.ts";
 import { createProviderKeyRepository, type ProviderKeyRepository } from "./provider-keys.ts";
 import { createQueuedMessageRepository, type QueuedMessageRepository } from "./queued-messages.ts";
 import { createRepoRepository, type RepoRepository } from "./repos.ts";
@@ -53,6 +57,7 @@ export interface Repositories {
 	backlogWorkspaces: BacklogWorkspaceRepository;
 	snippets: SnippetRepository;
 	providerKeys: ProviderKeyRepository;
+	modelContextWindows: ModelContextWindowRepository;
 }
 
 export function createRepositories(db: Database, deps: RepositoryDeps): Repositories {
@@ -73,5 +78,6 @@ export function createRepositories(db: Database, deps: RepositoryDeps): Reposito
 		backlogWorkspaces: createBacklogWorkspaceRepository(db, deps),
 		snippets: createSnippetRepository(db, deps),
 		providerKeys: createProviderKeyRepository(db, deps),
+		modelContextWindows: createModelContextWindowRepository(db, deps),
 	};
 }

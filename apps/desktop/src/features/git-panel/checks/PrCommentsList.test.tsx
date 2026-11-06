@@ -20,6 +20,7 @@ const comment = (id: string, body: string, over: Partial<DiffComment> = {}): Dif
 	threadId: id,
 	replyToId: null,
 	suggestion: null,
+	suggestionBaseCode: null,
 	remoteUrl: `https://github.com/o/r/pull/1#${id}`,
 	resolved: false,
 	outdated: false,

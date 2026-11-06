@@ -150,7 +150,7 @@ import {
 	type WorktreeEntry,
 } from "../git/status.ts";
 import { resolveBaseCommit } from "../git/worktree.ts";
-import type { GitState, PullRequestAction } from "../model.ts";
+import type { GitState, PullRequestAction, SparseCheckoutSettings } from "../model.ts";
 import {
 	type AgentPullStrategy,
 	commitAndPushInstruction,
@@ -208,15 +208,6 @@ function checkedSparseCheckoutDirectories(directories: readonly string[]): Resul
 		if (!clean.includes(checked.value)) clean.push(checked.value);
 	}
 	return ok(clean);
-}
-
-/** What a workspace's sparse checkout settings hold (services-map 3.11, 5A.5.3). */
-interface SparseCheckoutSettings {
-	enabled: boolean;
-	/** The directories git includes, empty when sparse checkout is off. */
-	directories: string[];
-	/** The top-level folders of the checked-out commit, the choices to offer the user. */
-	topLevelDirectories: string[];
 }
 
 /** What `git cat-file -e` prints when the path is not in the base commit. */
@@ -1992,8 +1983,9 @@ export class GitService {
 	}
 
 	/**
-	 * Reads a workspace's sparse checkout settings. Git keeps them, so nothing is stored in our
-	 * database. When sparse checkout is off, the directory list is empty.
+	 * Backs `Actions.git.sparseCheckoutSettings`. Reads a workspace's sparse checkout settings. Git
+	 * keeps them, so nothing is stored in our database. When sparse checkout is off, the directory
+	 * list is empty.
 	 */
 	async sparseCheckoutSettings(workspaceId: WorkspaceId): Promise<Result<SparseCheckoutSettings>> {
 		const found = await this.#deps.contextOf(workspaceId);
@@ -2017,7 +2009,8 @@ export class GitService {
 	}
 
 	/**
-	 * Edits a workspace's sparse checkout. An empty list turns sparse checkout off; otherwise the
+	 * Backs `Actions.git.setSparseCheckoutDirectories`. Edits a workspace's sparse checkout. An empty
+	 * list turns sparse checkout off; otherwise the
 	 * chosen directories are set in cone mode, initialising it first when it was off. The change
 	 * waits for the worktree lock, because git rewrites the worktree's index and files.
 	 */

@@ -75,6 +75,7 @@ const sampleSession: Session = {
 	title: null,
 	config: sampleConfig,
 	agentSessionId: null,
+	forkResumeNativeMessageId: null,
 	unreadCount: 0,
 	contextUsedTokens: null,
 	contextWindowTokens: null,

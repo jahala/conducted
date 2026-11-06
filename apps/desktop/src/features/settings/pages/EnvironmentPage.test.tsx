@@ -171,4 +171,30 @@ describe("SET-04 EnvironmentPage", () => {
 		});
 		await waitFor(() => expect(screen.queryByText(".env.local")).toBeNull());
 	});
+
+	it("SET-02: resets a repository's own env file list so the shared settings apply again", async () => {
+		const { container, repo } = await mountPage();
+		fireEvent.keyDown(screen.getByRole("combobox", { name: "Scope" }), { key: "Enter" });
+		fireEvent.keyDown(await screen.findByRole("option", { name: repo.name }), { key: "Enter" });
+		expect(screen.queryByRole("button", { name: "Reset to shared settings" })).toBeNull();
+		fireEvent.click(screen.getByRole("button", { name: "Add env file" }));
+		fireEvent.change(screen.getByLabelText("Environment file path"), {
+			target: { value: ".env.local" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Add" }));
+		expect(await screen.findByText(".env.local")).toBeTruthy();
+		const reset = vi.spyOn(container.actions.settings, "resetForRepo");
+
+		fireEvent.click(await screen.findByRole("button", { name: "Reset to shared settings" }));
+
+		await waitFor(() => expect(screen.queryByText(".env.local")).toBeNull());
+		expect(reset).toHaveBeenCalledWith(repo.id, "environment_variable_files");
+		const forRepo = await container.services.settings.getForRepo(
+			"environment_variable_files",
+			repo.rootPath,
+			null,
+		);
+		expect(forRepo.ok && forRepo.value.source).toBe("default");
+		expect(screen.queryByRole("button", { name: "Reset to shared settings" })).toBeNull();
+	});
 });

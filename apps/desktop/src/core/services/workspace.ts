@@ -66,8 +66,9 @@
  * every existing chat stores the folders so its next message carries them.
  * Built now (WS-11): a backlog workspace keeps its repository, first message, attachments, chat
  * config and section without a worktree or branch. Starting one runs the normal creation flow and
- * removes the saved entry; removing one deletes only the entry. Starting with no repository left
- * returns the message the create flow shows.
+ * removes the saved entry; removing one deletes only the entry. Removing its repository keeps the
+ * entry with no repository, and starting it then returns the message the create flow shows until
+ * the user picks another (`setBacklogRepo`).
  * Not built yet (placeholders): the kanban status (NAV-06).
  * Our design choice: creation is split in two so the sidebar shows the workspace at once
  * (`initializing`) and the slow git work happens after the row exists. Place names come from our
@@ -2217,7 +2218,11 @@ export class WorkspaceService {
 		if (entry === null) {
 			return err(appError("workspace_unknown", "That backlog workspace no longer exists."));
 		}
-		const repo = await this.#deps.repos.repos.get(entry.repoId);
+		if (entry.repoId === null) {
+			return err(appError("repo_unknown", WorkspaceService.NO_READY_REPOSITORY_MESSAGE));
+		}
+		const repoId = entry.repoId;
+		const repo = await this.#deps.repos.repos.get(repoId);
 		if (!repo.ok) return repo;
 		if (repo.value === null) {
 			return err(appError("repo_unknown", WorkspaceService.NO_READY_REPOSITORY_MESSAGE));
@@ -2229,7 +2234,7 @@ export class WorkspaceService {
 		this.#forgetBacklog(id);
 		const failedBefore = this.store.getState().lastFailedCreate;
 		const created = await this.create({
-			repoId: entry.repoId,
+			repoId,
 			from: { kind: "default" },
 			prompt: entry.prompt,
 			attachmentPaths: [...entry.attachmentPaths],
@@ -2255,6 +2260,44 @@ export class WorkspaceService {
 		}
 		this.#upsertBacklog(entry);
 		return created;
+	}
+
+	/**
+	 * Backs `Actions.workspaces.setBacklogRepo`: the repository a backlog workspace starts in, for
+	 * one whose repository was removed (WS-11).
+	 */
+	async setBacklogRepo(id: WorkspaceId, repoId: RepoId): Promise<Result<void>> {
+		const repo = await this.#deps.repos.repos.get(repoId);
+		if (!repo.ok) return repo;
+		if (repo.value === null) {
+			return err(appError("repo_unknown", "That project no longer exists."));
+		}
+		const written = await this.#deps.repos.backlogWorkspaces.setRepo(id, repoId);
+		if (!written.ok) return written;
+		const current = this.store.getState().backlogById[id];
+		if (current !== undefined)
+			this.#upsertBacklog({ ...current, repoId, updatedAt: this.#deps.now() });
+		return ok(undefined);
+	}
+
+	/**
+	 * Called after a repository row was deleted: the database set its backlog workspaces' repository
+	 * to null (migration 0008), and the store follows, so the backlog asks for a repository.
+	 */
+	releaseBacklogOf(repoId: RepoId): void {
+		this.store.setState((state) => {
+			let changed = false;
+			const backlogById: Record<string, BacklogWorkspace> = {};
+			for (const [id, entry] of Object.entries(state.backlogById)) {
+				if (entry.repoId === repoId) {
+					changed = true;
+					backlogById[id] = { ...entry, repoId: null };
+				} else {
+					backlogById[id] = entry;
+				}
+			}
+			return changed ? { ...state, backlogById } : state;
+		});
 	}
 
 	/** Backs `Actions.workspaces.removeFromBacklog`. */

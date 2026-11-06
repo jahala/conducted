@@ -69,19 +69,20 @@ export function FileDiffPane({ workspaceId, path, scope, preferences }: FileDiff
 		comments.state !== "ready"
 			? undefined
 			: {
-					onAdd: async (target, body) => {
+					onAdd: async (target, body, details) => {
 						const result = await actions.comments.add(
 							workspaceId,
 							target.filePath,
 							target.line,
 							target.endLine,
 							body,
+							details,
 						);
 						if (!result.ok) toastError("Couldn't add the comment", result.error);
 						return result.ok;
 					},
-					onEdit: async (id, body) => {
-						const result = await actions.comments.edit(id, body);
+					onEdit: async (id, body, details) => {
+						const result = await actions.comments.edit(id, body, details);
 						if (!result.ok) toastError("Couldn't edit the comment", result.error);
 						return result.ok;
 					},

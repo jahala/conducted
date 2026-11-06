@@ -192,7 +192,6 @@ export function UserMessage({
 				onOpenChange={setResetOpen}
 				sessionId={sessionId}
 				turnId={turn.turnId}
-				changedFileCount={turn.changes.length}
 				busy={turn.outcome === "running"}
 			/>
 		</div>

@@ -682,6 +682,7 @@ describe("DATA-01 diff comments repository", () => {
 				threadId: null,
 				replyToId: null,
 				suggestion: null,
+				suggestionBaseCode: null,
 			}),
 		);
 		expect(added).toMatchObject({
@@ -692,11 +693,17 @@ describe("DATA-01 diff comments repository", () => {
 		});
 		expect(must(await repositories.diffComments.countOpen(workspaceId))).toBe(1);
 
-		must(await repositories.diffComments.setBody(added.id, "Renamed", "const x = 1;"));
+		must(
+			await repositories.diffComments.setBody(added.id, "Renamed", {
+				suggestion: "const x = 1;",
+				suggestionBaseCode: "let x = 1;",
+			}),
+		);
 		must(await repositories.diffComments.setResolved(added.id, true));
 		expect(must(await repositories.diffComments.get(added.id))).toMatchObject({
 			body: "Renamed",
 			suggestion: "const x = 1;",
+			suggestionBaseCode: "let x = 1;",
 			resolved: true,
 		});
 		expect(must(await repositories.diffComments.countOpen(workspaceId))).toBe(0);
@@ -729,7 +736,11 @@ describe("DATA-01 missing rows and ordering in smaller repositories", () => {
 			() => repositories.sessions.setConfig("missing" as SessionId, sampleSession.config),
 			() => repositories.sessions.setAgentSessionId("missing" as SessionId, null),
 			() => repositories.sessions.reopen("missing" as SessionId),
-			() => repositories.diffComments.setBody("missing" as never, "b", null),
+			() =>
+				repositories.diffComments.setBody("missing" as never, "b", {
+					suggestion: null,
+					suggestionBaseCode: null,
+				}),
 			() => repositories.diffComments.setResolved("missing" as never, true),
 			() => repositories.diffComments.setOutdated("missing" as never, true),
 			() => repositories.diffComments.setRemoteUrl("missing" as never, null),

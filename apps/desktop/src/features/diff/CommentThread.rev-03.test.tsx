@@ -1,6 +1,6 @@
 /**
  * @feature REV-03 Comment thread
- * Tests the order of a thread and its collapsed resolved state.
+ * Tests the order of a thread, its collapsed resolved state, and a reply joining the thread.
  */
 import type { CommentId, WorkspaceId } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -28,6 +28,7 @@ function comment(id: string, body: string, createdAt: number, over: Partial<Diff
 		threadId: "t-1",
 		replyToId: null,
 		suggestion: null,
+		suggestionBaseCode: null,
 		remoteUrl: null,
 		resolved: false,
 		outdated: false,
@@ -97,5 +98,32 @@ describe("REV-03 CommentThread", () => {
 		await waitFor(() => expect(onSetResolved).toHaveBeenCalledTimes(2));
 		expect(onSetResolved).toHaveBeenNthCalledWith(1, "c-1", true);
 		expect(onSetResolved).toHaveBeenNthCalledWith(2, "c-2", true);
+	});
+
+	it("adds a reply to the thread's first comment, on its side and in its thread", async () => {
+		const onAdd = vi.fn(async () => true);
+		render(
+			<CommentThread
+				comments={[
+					comment("c-1", "first", 1000, { side: "deletions", line: 4, endLine: 5 }),
+					comment("c-2", "second", 2000, { side: "deletions", replyToId: "c-1" as CommentId }),
+				]}
+				handlers={{ ...handlers, onAdd }}
+			/>,
+		);
+
+		fireEvent.click(screen.getByRole("button", { name: "Reply" }));
+		fireEvent.change(screen.getByRole("textbox", { name: "Write a reply" }), {
+			target: { value: "Done" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Reply" }));
+
+		await waitFor(() =>
+			expect(onAdd).toHaveBeenCalledWith(
+				{ filePath: "src/a.ts", side: "deletions", line: 4, endLine: 5 },
+				"Done",
+				{ side: "deletions", replyToId: "c-1", threadId: "t-1" },
+			),
+		);
 	});
 });

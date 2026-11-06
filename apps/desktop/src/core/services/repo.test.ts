@@ -221,7 +221,7 @@ function makeService(options: Parameters<typeof makePlatform>[0] = {}) {
 		git: git.git,
 		repos: { repos: repos.api } as RepoServiceDeps["repos"],
 		settings: {} as RepoServiceDeps["settings"],
-		removal: { removeWorkspacesOf },
+		removal: { removeWorkspacesOf, releaseBacklogOf: () => {} },
 	});
 	return { service, repos, git, platform, removeWorkspacesOf };
 }

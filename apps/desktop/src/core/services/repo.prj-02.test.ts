@@ -194,7 +194,7 @@ function makeService(options: { dirs?: readonly string[] } = {}) {
 		git: git.git,
 		repos: { repos: repos.api } as RepoServiceDeps["repos"],
 		settings: {} as RepoServiceDeps["settings"],
-		removal: { removeWorkspacesOf },
+		removal: { removeWorkspacesOf, releaseBacklogOf: () => {} },
 	});
 	return { service, repos, git };
 }

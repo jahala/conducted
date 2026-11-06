@@ -30,6 +30,7 @@ vi.mock("../../core/hooks.ts", () => ({
 		settings: { set: state.setSetting },
 	}),
 	useSetting: () => false,
+	useChangedSinceTurn: () => ({ state: "ready", data: 0 }),
 }));
 
 const { UserMessage } = await import("./UserMessage.tsx");

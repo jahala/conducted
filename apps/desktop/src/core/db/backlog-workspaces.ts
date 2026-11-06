@@ -8,7 +8,8 @@
  * workspace with a new id; a create that fails before it makes a workspace puts the entry back
  * with `restore` (WS-11).
  * Must handle: a bad config or attachment list column returns an error Result; deleting a repo
- * cascades to its entries; deleting a section only clears `section_id`; every update sets
+ * keeps its entries with no repository (migration 0008), and `setRepo` gives one a repository
+ * again; deleting a section only clears `section_id`; every update sets
  * `updated_at`; ids and times come from `RepositoryDeps`.
  * Test first: backlogWorkspaceFromRow returns an error Result when config is not a valid
  * SessionConfig.
@@ -38,7 +39,7 @@ import {
 
 export interface BacklogWorkspaceRow {
 	id: WorkspaceId;
-	repo_id: RepoId;
+	repo_id: RepoId | null;
 	display_name: string | null;
 	prompt: string;
 	attachment_paths: string;
@@ -111,14 +112,19 @@ export const BACKLOG_WORKSPACES_SQL = {
 		SET display_name = $1, prompt = $2, attachment_paths = $3, config = $4, updated_at = $5
 		WHERE id = $6`,
 	setSection: "UPDATE backlog_workspaces SET section_id = $1, updated_at = $2 WHERE id = $3",
+	/** Gives an entry a repository, for one whose repository was removed (WS-11). */
+	setRepo: "UPDATE backlog_workspaces SET repo_id = $1, updated_at = $2 WHERE id = $3",
 	delete: "DELETE FROM backlog_workspaces WHERE id = $1",
 } as const;
 
-/** What a caller supplies to save a workspace to the backlog. The repository adds id and times. */
+/**
+ * What a caller supplies to save a workspace to the backlog. The repository adds id and times. A
+ * new entry always has a repository; only removing that repository leaves it without one.
+ */
 export type NewBacklogWorkspace = Pick<
 	BacklogWorkspace,
-	"repoId" | "displayName" | "prompt" | "attachmentPaths" | "config" | "sectionId"
->;
+	"displayName" | "prompt" | "attachmentPaths" | "config" | "sectionId"
+> & { repoId: RepoId };
 
 /** What the user can change on a saved entry. */
 export type BacklogWorkspacePatch = Pick<
@@ -139,6 +145,8 @@ export interface BacklogWorkspaceRepository {
 	update(id: WorkspaceId, patch: BacklogWorkspacePatch): Promise<Result<void>>;
 	/** BACKLOG_WORKSPACES_SQL.setSection. `null` takes the entry out of its section. */
 	setSection(id: WorkspaceId, sectionId: SectionId | null): Promise<Result<void>>;
+	/** BACKLOG_WORKSPACES_SQL.setRepo. A missing entry returns the error code `db.not_found`. */
+	setRepo(id: WorkspaceId, repoId: RepoId): Promise<Result<void>>;
 	/** BACKLOG_WORKSPACES_SQL.delete. Runs when the entry starts or the user deletes it. */
 	delete(id: WorkspaceId): Promise<Result<void>>;
 	/**
@@ -224,6 +232,13 @@ export function createBacklogWorkspaceRepository(
 				BACKLOG_WORKSPACES_SQL.setSection,
 				[sectionId, now(), id],
 				"Moving a backlog workspace",
+			),
+		setRepo: (id, repoId) =>
+			executeExisting(
+				db,
+				BACKLOG_WORKSPACES_SQL.setRepo,
+				[repoId, now(), id],
+				"Choosing a backlog workspace's repository",
 			),
 		delete: (id) =>
 			executeVoid(db, BACKLOG_WORKSPACES_SQL.delete, [id], "Removing a backlog workspace"),

@@ -28,8 +28,12 @@
  * Our design choice: sending to chat asks the active chat through AgentMessenger, because the
  * composer's attachment pipeline belongs to COMP-01. AgentMessenger answers with the chat but not
  * the message, so the attachment rows name the chat and leave the message id empty. A GitHub
- * suggestion's replacement comes from its fenced `suggestion` block; our model has no separate
- * base-code column.
+ * suggestion's replacement comes from its fenced `suggestion` block. Its base code is not read
+ * from the diff hunk yet (Conductor computes it there), so a synced suggestion has none.
+ * A user's comment keeps its side, its suggested change with the original lines it replaces
+ * (migration 0005), and its thread: a reply names the comment it answers, which must be in the
+ * same workspace. An edit changes the text and, when asked, the suggested change, never the side
+ * or the thread.
  * Test first: create, edit, resolve and remove each write SQLite and re-read the workspace rows.
  * REV-04 test first: a failed general-comment fetch keeps thread comments that vanished from GitHub.
  */
@@ -46,6 +50,7 @@ import {
 } from "@conducted/shared";
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { FileSystem } from "../../platform/platform.ts";
+import type { CommentDetails, CommentSuggestion } from "../api.ts";
 import { createLatestWins } from "../async/latest-wins.ts";
 import { createKeyedQueue } from "../async/serial-queue.ts";
 import type { Repositories } from "../db/repositories.ts";
@@ -175,6 +180,15 @@ function githubReplyToId(
 	) as CommentId;
 }
 
+/** The two stored columns of a suggested change. */
+function suggestionColumns(
+	suggestion: CommentSuggestion | null,
+): Pick<DiffComment, "suggestion" | "suggestionBaseCode"> {
+	return suggestion === null
+		? { suggestion: null, suggestionBaseCode: null }
+		: { suggestion: suggestion.code, suggestionBaseCode: suggestion.baseCode };
+}
+
 /** The replacement in a comment's fenced `suggestion` block, or null when it has none. */
 export function suggestionFromGithubBody(body: string): string | null {
 	const match = /```suggestion[^\n]*\r?\n([\s\S]*?)```/.exec(body);
@@ -215,6 +229,7 @@ export function diffCommentsFromGithubThreads(
 				threadId: thread.id,
 				replyToId: githubReplyToId(thread.id, comment.replyToId, comment.replyToDatabaseId),
 				suggestion: suggestionFromGithubBody(comment.body),
+				suggestionBaseCode: null,
 				remoteUrl: comment.url,
 				resolved: thread.isResolved,
 				outdated: thread.isOutdated,
@@ -248,6 +263,7 @@ export function diffCommentsFromGithubGeneral(
 		threadId: null,
 		replyToId: null,
 		suggestion: null,
+		suggestionBaseCode: null,
 		remoteUrl: comment.url,
 		resolved: false,
 		outdated: false,
@@ -324,14 +340,27 @@ export class ReviewService {
 	}
 
 	/** A null file makes a comment on the pull request itself (REV-13). */
+	/**
+	 * Backs `Actions.comments.add`: a comment by the user, on the side, with the suggested change
+	 * and in the thread the details name. A reply must answer a comment of the same workspace.
+	 */
 	async add(
 		workspaceId: WorkspaceId,
 		file: string | null,
 		line: number | null,
 		endLine: number | null,
 		body: string,
+		details: CommentDetails = {},
 	): Promise<Result<DiffComment>> {
 		return this.#writes.run(workspaceId, async () => {
+			const replyToId = details.replyToId ?? null;
+			if (replyToId !== null) {
+				const parent = await this.#deps.repos.diffComments.get(replyToId);
+				if (!parent.ok) return parent;
+				if (parent.value === null || parent.value.workspaceId !== workspaceId) {
+					return err(appError("db.not_found", "The comment this replies to no longer exists."));
+				}
+			}
 			const added = await this.#deps.repos.diffComments.add({
 				workspaceId,
 				filePath: file,
@@ -339,10 +368,10 @@ export class ReviewService {
 				endLine,
 				body,
 				author: { kind: "user", name: null, avatarUrl: null },
-				side: "additions",
-				threadId: null,
-				replyToId: null,
-				suggestion: null,
+				side: details.side ?? "additions",
+				threadId: details.threadId ?? null,
+				replyToId,
+				...suggestionColumns(details.suggestion ?? null),
 			});
 			if (!added.ok) return added;
 			const refreshed = await this.#read(workspaceId);
@@ -350,16 +379,28 @@ export class ReviewService {
 		});
 	}
 
-	async edit(id: CommentId, body: string): Promise<Result<void>> {
+	/**
+	 * Backs `Actions.comments.edit`. Without a `suggestion` in the details the suggested change
+	 * stays as it was; null removes it.
+	 */
+	async edit(
+		id: CommentId,
+		body: string,
+		details: Pick<CommentDetails, "suggestion"> = {},
+	): Promise<Result<void>> {
 		const found = await this.#deps.repos.diffComments.get(id);
 		if (!found.ok) return found;
 		if (found.value === null)
 			return err(appError("db.not_found", "That comment no longer exists."));
 		const comment = found.value;
+		const suggestion =
+			details.suggestion === undefined
+				? { suggestion: comment.suggestion, suggestionBaseCode: comment.suggestionBaseCode }
+				: suggestionColumns(details.suggestion);
 		return this.#writes.run(comment.workspaceId, async () => {
-			const written = await this.#deps.repos.diffComments.setBody(id, body, comment.suggestion);
+			const written = await this.#deps.repos.diffComments.setBody(id, body, suggestion);
 			if (!written.ok) return written;
-			const rewritten = await this.#rewriteCommentFile({ ...comment, body });
+			const rewritten = await this.#rewriteCommentFile({ ...comment, ...suggestion, body });
 			if (!rewritten.ok) return rewritten;
 			return this.#read(comment.workspaceId);
 		});
@@ -449,6 +490,7 @@ export class ReviewService {
 					threadId: null,
 					replyToId: null,
 					suggestion: null,
+					suggestionBaseCode: null,
 				});
 				if (!written.ok) return written;
 				added += 1;
