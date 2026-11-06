@@ -1320,6 +1320,40 @@ describe("s1-sidecar join the batch through the composition root", () => {
 		}
 	});
 
+	test("PLAT-28 SIDE-21 model, slash command and MCP lists with no chosen program run the managed copy, as a chat's start does", async () => {
+		const folder = await workspaceFolder();
+		const binDir = path.join(folder, "app-bin");
+		const agentBinariesDir = path.join(folder, "agent-binaries");
+		const version = path.join(agentBinariesDir, "claude", "2.1.0");
+		await mkdir(binDir, { recursive: true });
+		await mkdir(version, { recursive: true });
+		const managed = path.join(version, "claude");
+		await writeFile(managed, "#!/bin/sh\nexit 0\n");
+		await chmod(managed, 0o755);
+		await symlink(managed, path.join(binDir, "claude"));
+		const h = await harness(folder, { programs: { binDir, agentBinariesDir } });
+		const launch: AgentLaunch = { env: {}, providerKeys: {} };
+		try {
+			unwrap(await h.handlers.listModels({ agent: "claude" }));
+			unwrap(
+				await h.handlers.listSlashCommands({
+					agent: "claude",
+					workspacePath: folder,
+					repoRootPath: folder,
+					launch,
+				}),
+			);
+			unwrap(await h.handlers.listMcpServers({ agent: "claude", workspacePath: folder, launch }));
+
+			expect(h.seen.claudeOptions).toHaveLength(3);
+			for (const { options } of h.seen.claudeOptions) {
+				expect(options.pathToClaudeCodeExecutable).toBe(await realpath(managed));
+			}
+		} finally {
+			await h.host.sessions.shutdown("app_quit");
+		}
+	});
+
 	test("SIDE-21 the agent list reports the program paths the app sends with setAgentPrograms", async () => {
 		const folder = await workspaceFolder();
 		const h = await harness(folder);

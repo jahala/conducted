@@ -13,8 +13,8 @@
  *    the entry is built at start() from the bridge endpoint and token, and the session gives the
  *    token back when it is disposed (SIDE-13)
  *  - start() runs the program the chat's launch names (SIDE-21, `findAgentProgram`): the user's
- *    path, else the copy on the login-shell PATH; a user path that cannot run is an error that
- *    names it
+ *    path, else the managed copy (PLAT-28), else the copy on the login-shell PATH; a user path
+ *    that cannot run is an error that names it
  *  - the listing calls run the program and environment of their `ListingContext` (the app's
  *    launch), by the same rule as start()
  *  - listSlashCommands(): from `skills/list`; names are shown with the leading slash by the UI,
@@ -293,6 +293,7 @@ export class CodexRunner implements Runner {
 			executablePath: context.executablePath,
 			env: context.env,
 			findExecutable: this.deps.findExecutable,
+			findManagedProgram: this.deps.findManagedProgram,
 		});
 		if (!program.ok) throw program.error;
 		return program.value.path;

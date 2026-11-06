@@ -12,8 +12,8 @@
  *  - detect(): program missing gives null; a version below the adapter's minimum is logged with the
  *    adapter and its minimum (the real version is still returned, so the detector can report it)
  *  - start(): one child per chat through StdioAcpClient, running the program the chat's launch
- *    names (SIDE-21, `findAgentProgram`: the user's path, else the copy on the login-shell PATH; a
- *    user path that cannot run is an error that names it); an agent older than the adapter's
+ *    names (SIDE-21, `findAgentProgram`: the user's path, else the managed copy (PLAT-28), else
+ *    the copy on the login-shell PATH; a user path that cannot run is an error that names it); an agent older than the adapter's
  *    minimum is refused with an AgentUpdateNeededError before a child starts; the app tools MCP servers are
  *    passed to session/new when the caller supplies them, and the client keeps only the transports
  *    the agent advertised; the adapter's environment, session storage and prompt check are applied
@@ -331,6 +331,7 @@ export class AcpRunner implements Runner {
 			executablePath: context.executablePath,
 			env: context.env,
 			findExecutable: this.deps.findExecutable,
+			findManagedProgram: this.deps.findManagedProgram,
 		});
 		if (!program.ok) throw program.error;
 		return program.value.path;
