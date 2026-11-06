@@ -9,7 +9,8 @@
  * and drafts, starting a review chat with the review model, sending a user message as a new turn
  * or a steer, running the composition root's first-message hook (WS-04's branch rename),
  * forking a chat up to a checkpointed turn into a new chat of the same or another workspace and
- * resuming its agent at that turn's last message, cancelling a turn:
+ * resuming its agent at that turn's last message (one turn lookup names the checkpoint for both
+ * forks), cancelling a turn:
  * pausing the follow-up queue, withdrawing the open interaction, removing only the pending sends
  * the sidecar dropped, and putting a send that was still in flight back in the composer draft,
  * and starting a failed turn's message again in a new chat of the same workspace, handing a
@@ -1882,26 +1883,14 @@ export class SessionsService implements AgentMessenger {
 		if (!found.ok) return found;
 		const origin = found.value;
 
-		const stored = await this.#storedEvents(id);
-		if (!stored.ok) return stored;
-		const turnEvents = stored.value.filter((row) => row.event.turnId === turnId);
-		if (turnEvents.length === 0) {
-			return err(
-				appError("chat_fork_turn_unknown", "Unable to fork chat: that turn is no longer here."),
-			);
-		}
-		const checkpointed = turnEvents.some(
-			(row) => row.event.type === "checkpoint" && row.event.checkpointId !== undefined,
-		);
-		if (!checkpointed) {
-			return err(appError("chat_fork_no_checkpoint", "Checkpoint not found for this turn."));
-		}
+		const point = await this.#forkPoint(id, turnId);
+		if (!point.ok) return point;
+		const { stored, cutoff } = point.value;
 
-		const cutoff = turnEvents[turnEvents.length - 1]?.idx ?? -1;
 		// Resume at the last agent message the fork contains, so a turn with no answer of its
 		// own still never resumes past a later turn.
 		let nativeMessageId: string | undefined;
-		for (const row of stored.value) {
+		for (const row of stored) {
 			if (row.idx > cutoff) break;
 			if (row.event.type === "agent" && row.event.message.nativeId !== undefined) {
 				nativeMessageId = row.event.message.nativeId;
@@ -1942,7 +1931,7 @@ export class SessionsService implements AgentMessenger {
 		// the fork's restore points in place.
 		const copiedEvents: StoredSessionEvent[] = [];
 		const pairs: [from: string, to: string][] = [];
-		for (const row of stored.value) {
+		for (const row of stored) {
 			if (row.idx > cutoff) break;
 			const event = row.event;
 			if (event.type === "checkpoint" && event.checkpointId !== undefined) {
@@ -1977,6 +1966,47 @@ export class SessionsService implements AgentMessenger {
 			});
 		}
 		return this.#session(forked.id);
+	}
+
+	/**
+	 * Backs CHAT-21: the checkpoint a fork of this turn starts from, which the fork to a new
+	 * workspace restores there. It is the turn's newest checkpoint: its end checkpoint, or its start
+	 * when the turn has none. The refusals are the same as `forkFrom`'s, because both read
+	 * `#forkPoint`.
+	 */
+	async forkCheckpoint(id: SessionId, turnId: TurnId): Promise<Result<CheckpointId>> {
+		const point = await this.#forkPoint(id, turnId);
+		return point.ok ? ok(point.value.checkpointId) : point;
+	}
+
+	/**
+	 * The one turn lookup both forks use: the chat's stored events, the last index the fork copies,
+	 * and the turn's newest checkpoint. A turn that is not in the chat, or that has no checkpoint,
+	 * is refused.
+	 */
+	async #forkPoint(
+		id: SessionId,
+		turnId: TurnId,
+	): Promise<Result<{ stored: StoredSessionEvent[]; cutoff: number; checkpointId: CheckpointId }>> {
+		const stored = await this.#storedEvents(id);
+		if (!stored.ok) return stored;
+		const turnEvents = stored.value.filter((row) => row.event.turnId === turnId);
+		const last = turnEvents[turnEvents.length - 1];
+		if (last === undefined) {
+			return err(
+				appError("chat_fork_turn_unknown", "Unable to fork chat: that turn is no longer here."),
+			);
+		}
+		let checkpointId: CheckpointId | undefined;
+		for (const row of turnEvents) {
+			if (row.event.type === "checkpoint" && row.event.checkpointId !== undefined) {
+				checkpointId = row.event.checkpointId;
+			}
+		}
+		if (checkpointId === undefined) {
+			return err(appError("chat_fork_no_checkpoint", "Checkpoint not found for this turn."));
+		}
+		return ok({ stored: stored.value, cutoff: last.idx, checkpointId });
 	}
 
 	/** Every stored event of a chat in log order. */

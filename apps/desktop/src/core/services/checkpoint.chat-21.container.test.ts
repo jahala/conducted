@@ -22,6 +22,7 @@ import {
 	seedWorkspace,
 	type TestContainer,
 } from "../../test/container.ts";
+import { createRepositories } from "../db/repositories.ts";
 import { sampleSession } from "../db/test-fixtures.ts";
 import { checkpointRef } from "../git/refs.ts";
 
@@ -146,6 +147,18 @@ describe("CHAT-21 fork through the composition root", () => {
 			expect(copiedId).toBeDefined();
 			if (copiedId === undefined) return;
 			expect(forked.activeSessionId).toBe(copiedId);
+			// The copy is the workspace's active chat in the store and in its stored row, not only
+			// in the returned value.
+			expect(
+				test.container.services.workspace.store.getState().workspacesById[forked.id]
+					?.activeSessionId,
+			).toBe(copiedId);
+			const rows = createRepositories(test.database, {
+				clock: { now: () => 0 },
+				ids: { uuid: () => crypto.randomUUID() },
+			});
+			const storedRow = must(await rows.workspaces.get(forked.id));
+			expect(storedRow?.activeSessionId).toBe(copiedId);
 
 			const repositories = test.container.services.sessions;
 			const opened = must(await repositories.open(copiedId as SessionId));

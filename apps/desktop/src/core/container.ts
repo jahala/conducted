@@ -798,6 +798,9 @@ export function createContainer(inputs: ContainerInputs): Container {
 		forkSessionInto: (sessionId, turnId, workspaceId) =>
 			sessions.forkIntoWorkspace(sessionId, turnId, workspaceId),
 		removeWorkspace: (workspaceId) => workspace.remove(workspaceId),
+		forkCheckpointOf: (sessionId, turnId) => sessions.forkCheckpoint(sessionId, turnId),
+		setActiveSession: (workspaceId, sessionId) =>
+			workspace.setActiveSession(workspaceId, sessionId),
 		now: () => clock.now(),
 	});
 	const fileDiff = new FileDiffService({

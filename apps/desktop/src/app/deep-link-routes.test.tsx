@@ -3,7 +3,7 @@
  * Owns: tests for the URL parser, the route opener and the route the real app reaches from the
  * Platform's deep-link event.
  * Behaviour: native-and-sidecar-map.md A8; services-map.md 5B.2.5.
- * Test first: "conducted://settings-enable?key=big_terminal_mode" gives kind "enable-setting" with
+ * Test first: "conducted://settings-enable?key=experimental_big_terminal_mode" gives kind "enable-setting" with
  * that key, and "https://example.com" is an error.
  */
 import { ok, type RepoId, type SessionId, type WorkspaceId } from "@conducted/shared";
@@ -31,10 +31,12 @@ afterEach(() => {
 
 describe("NAV-17 parseDeepLinkRoute", () => {
 	it("turns a settings-enable link into the key it names", () => {
-		const route = parseDeepLinkRoute("conducted://settings-enable?key=big_terminal_mode");
+		const route = parseDeepLinkRoute(
+			"conducted://settings-enable?key=experimental_big_terminal_mode",
+		);
 		expect(route).toEqual({
 			ok: true,
-			value: { kind: "enable-setting", key: "big_terminal_mode" },
+			value: { kind: "enable-setting", key: "experimental_big_terminal_mode" },
 		});
 	});
 
@@ -90,7 +92,7 @@ describe("NAV-17 parseDeepLinkRoute", () => {
 		expect(route.ok).toBe(false);
 	});
 
-	it("opens a browser link with its workspace and navigate flag", () => {
+	it("opens a browser link with its workspace, and reads no navigate flag nothing would use", () => {
 		expect(
 			parseDeepLinkRoute(
 				"conducted://browser?url=https%3A%2F%2Fexample.com%2Fpath&workspace-id=w1&navigate=true",
@@ -101,7 +103,6 @@ describe("NAV-17 parseDeepLinkRoute", () => {
 				kind: "open-browser",
 				url: "https://example.com/path",
 				workspaceId: "w1" as WorkspaceId,
-				navigate: true,
 			},
 		});
 	});
@@ -165,6 +166,33 @@ describe("NAV-17 parseDeepLinkRoute", () => {
 		});
 	});
 
+	it("reports every host left out on purpose as unsupported, with its query ignored", () => {
+		for (const url of [
+			"conducted://auth?code=x&prompt=hi",
+			"conducted://gh-auth?token=t",
+			"conducted://automation?organizationId=o&id=1",
+			"conducted://loadout?d=abc",
+			"conducted://cloud-collab-onboarding",
+			"conducted://join-organization-onboarding",
+			"conducted://github-connected?organizationId=o&status=ok",
+			"conducted://__onboarding_add_repository",
+			"conducted://dev/workspaces",
+			"conducted://session/w1",
+		]) {
+			const route = parseDeepLinkRoute(url);
+			expect(route.ok, url).toBe(false);
+			if (route.ok) throw new Error(`${url} should be unsupported`);
+			expect(route.error.code, url).toBe("deep_link_unsupported");
+		}
+	});
+
+	it("refuses a host that is neither a route nor key=value text", () => {
+		const route = parseDeepLinkRoute("conducted://somewhere?prompt=hi");
+		expect(route.ok).toBe(false);
+		if (route.ok) throw new Error("the link should be refused");
+		expect(route.error.code).toBe("deep_link_invalid");
+	});
+
 	it("refuses another scheme and a string that is not a URL", () => {
 		expect(parseDeepLinkRoute("https://example.com").ok).toBe(false);
 		expect(parseDeepLinkRoute("not a url").ok).toBe(false);
@@ -193,7 +221,6 @@ function openerHarness(test: TestContainer) {
 			test.container.services.workspace.store.getState().workspacesById[workspaceId]?.repoId,
 		repoByName: (name) => repos().find((repo) => repo.name === name)?.id,
 		repoByPath: (path) => repos().find((repo) => repo.rootPath === path)?.id,
-		firstRepoId: () => test.container.services.repo.store.getState().order[0],
 		setSetting: (key, value) => test.container.services.settings.set(key, value),
 		createFromPlan,
 		navigate,
@@ -240,7 +267,7 @@ describe("NAV-17 openDeepLink", () => {
 		const { test } = await seededTest();
 		try {
 			const { deps, navigate, notify } = openerHarness(test);
-			await openDeepLink("conducted://settings-enable?key=big_terminal_mode", deps);
+			await openDeepLink("conducted://settings-enable?key=experimental_big_terminal_mode", deps);
 
 			expect(test.container.services.settings.get<boolean>("experimental_big_terminal_mode")).toBe(
 				true,
@@ -284,12 +311,7 @@ describe("NAV-17 openDeepLink", () => {
 				`conducted://browser?url=https%3A%2F%2Fexample.com&workspace-id=${workspace.id}&navigate=true`,
 				deps,
 			);
-			expect(navigate.browser).toHaveBeenCalledWith(
-				workspace.id,
-				repo.id,
-				"https://example.com",
-				true,
-			);
+			expect(navigate.browser).toHaveBeenCalledWith(workspace.id, repo.id, "https://example.com");
 		} finally {
 			test.close();
 		}
@@ -301,6 +323,36 @@ describe("NAV-17 openDeepLink", () => {
 			const { deps, createFromPlan } = openerHarness(test);
 			await openDeepLink(`conducted://async?repo=Project&plan=${btoa("Fix the parser")}`, deps);
 			expect(createFromPlan).toHaveBeenCalledWith(repo.id, "Fix the parser");
+		} finally {
+			test.close();
+		}
+	});
+
+	it("starts nothing when the plan names a repository that is not loaded", async () => {
+		const { test } = await seededTest();
+		try {
+			const { deps, createFromPlan, notify } = openerHarness(test);
+			await openDeepLink(`conducted://async?repo=Elsewhere&plan=${btoa("Fix the parser")}`, deps);
+			expect(createFromPlan).not.toHaveBeenCalled();
+			expect(notify.error).toHaveBeenCalledWith(
+				"Repository not found",
+				expect.objectContaining({ code: "deep_link_repo_not_found" }),
+			);
+		} finally {
+			test.close();
+		}
+	});
+
+	it("says so when a create link's path is no project, and chooses no project from it", async () => {
+		const { test } = await seededTest();
+		try {
+			const { deps, navigate, notify } = openerHarness(test);
+			await openDeepLink("conducted://?path=%2Fcode%2Felsewhere&prompt=Fix%20the%20login", deps);
+			expect(notify.error).toHaveBeenCalledWith(
+				"Repository not found",
+				expect.objectContaining({ code: "deep_link_repo_not_found" }),
+			);
+			expect(navigate.create).toHaveBeenCalledWith({ prompt: "Fix the login" });
 		} finally {
 			test.close();
 		}
@@ -340,8 +392,11 @@ describe("NAV-17 openDeepLink", () => {
 	});
 });
 
-async function renderApp(test: TestContainer) {
-	const router = createAppRouter(createMemoryHistory({ initialEntries: ["/all-workspaces"] }));
+/** Mounts the app's router over the container, after the settings load as the app's start does. */
+async function renderApp(test: TestContainer, path = "/all-workspaces") {
+	const settings = await test.container.services.settings.start();
+	if (!settings.ok) throw new Error(JSON.stringify(settings.error));
+	const router = createAppRouter(createMemoryHistory({ initialEntries: [path] }));
 	render(
 		<ServicesProvider container={test.container}>
 			<AppProviders client={createQueryClient(() => {})}>
@@ -375,7 +430,9 @@ describe("NAV-17 the app reaches deep links through its Platform event", () => {
 			await renderApp(test);
 
 			act(() => {
-				test.memory.controls.emitDeepLink("conducted://settings-enable?key=big_terminal_mode");
+				test.memory.controls.emitDeepLink(
+					"conducted://settings-enable?key=experimental_big_terminal_mode",
+				);
 			});
 
 			expect(await screen.findByText("Enabled setting: Big terminal mode")).toBeTruthy();
@@ -408,6 +465,66 @@ describe("NAV-17 the app reaches deep links through its Platform event", () => {
 				prompt: "Fix the parser",
 				from: { kind: "default" },
 			});
+		} finally {
+			test.close();
+		}
+	});
+
+	it("opens a browser tab at the link's URL in the workspace route", async () => {
+		const { test, repo, workspace } = await seededTest();
+		try {
+			const router = await renderApp(test);
+
+			act(() => {
+				test.memory.controls.emitDeepLink(
+					`conducted://browser?url=https%3A%2F%2Fexample.com%2Fdocs&workspace-id=${workspace.id}&navigate=true`,
+				);
+			});
+
+			await waitFor(() =>
+				expect(router.state.location.pathname).toBe(
+					`/repository/${repo.id}/workspace/${workspace.id}`,
+				),
+			);
+			expect(router.state.location.search).toEqual({
+				tab: "browser",
+				browserUrl: "https://example.com/docs",
+			});
+		} finally {
+			test.close();
+		}
+	});
+
+	it("starts no workspace when the plan's repository is not loaded", async () => {
+		const { test, workspace } = await seededTest();
+		try {
+			const create = vi
+				.spyOn(test.container.actions.workspaces, "create")
+				.mockResolvedValue(ok(workspace));
+			await renderApp(test);
+
+			act(() => {
+				test.memory.controls.emitDeepLink(
+					`conducted://async?repo=Elsewhere&plan=${btoa("Fix the parser")}`,
+				);
+			});
+
+			expect(await screen.findByText("Repository not found")).toBeTruthy();
+			expect(create).not.toHaveBeenCalled();
+		} finally {
+			test.close();
+		}
+	});
+
+	it("says Repository not found when /create names a project that is not loaded", async () => {
+		const { test, repo } = await seededTest();
+		try {
+			await renderApp(test, "/create?repo=missing-project&prompt=Hi");
+
+			expect(await screen.findByText("Repository not found")).toBeTruthy();
+			expect(screen.getByText('There is no project called "missing-project".')).toBeTruthy();
+			const repository = await screen.findByRole("combobox", { name: "Repository" });
+			expect(repository.textContent).toContain(repo.name);
 		} finally {
 			test.close();
 		}

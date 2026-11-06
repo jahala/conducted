@@ -60,6 +60,7 @@ interface Harness {
 	createCalls: { input: NewWorkspaceInput; baseSha: string }[];
 	forkCalls: { sessionId: SessionId; turnId: TurnId; workspaceId: WorkspaceId }[];
 	removed: WorkspaceId[];
+	activated: { workspaceId: WorkspaceId; sessionId: SessionId }[];
 	commands: GitCommand[];
 }
 
@@ -70,6 +71,7 @@ interface HarnessOptions {
 	restore?: ShellOutput;
 	createFails?: AppError;
 	forkFails?: AppError;
+	activateFails?: AppError;
 }
 
 let current: TestContainer | null = null;
@@ -109,6 +111,7 @@ async function harness(options: HarnessOptions): Promise<Harness> {
 	const createCalls: Harness["createCalls"] = [];
 	const forkCalls: Harness["forkCalls"] = [];
 	const removed: WorkspaceId[] = [];
+	const activated: Harness["activated"] = [];
 
 	const git = new FakeGitRunner((command) => {
 		if (command.program === SCRIPT) {
@@ -150,6 +153,12 @@ async function harness(options: HarnessOptions): Promise<Harness> {
 			removed.push(id);
 			return ok(undefined);
 		},
+		forkCheckpointOf: (originId, turnId) =>
+			test.container.services.sessions.forkCheckpoint(originId, turnId),
+		setActiveSession: async (workspaceId, activeId) => {
+			activated.push({ workspaceId, sessionId: activeId });
+			return options.activateFails === undefined ? ok(undefined) : err(options.activateFails);
+		},
 		now: () => 1_000,
 	};
 
@@ -163,6 +172,7 @@ async function harness(options: HarnessOptions): Promise<Harness> {
 		createCalls,
 		forkCalls,
 		removed,
+		activated,
 		commands: git.commands,
 	};
 }
@@ -200,6 +210,7 @@ describe("CHAT-21 fork a chat to a new workspace", () => {
 		expect(h.forkCalls).toEqual([
 			{ sessionId: h.sessionId, turnId: TURN, workspaceId: h.target.id },
 		]);
+		expect(h.activated).toEqual([{ workspaceId: h.target.id, sessionId: h.forkedId }]);
 		const restored = h.commands.filter(
 			(command) => command.program === SCRIPT && command.args[0] === "restore",
 		);
@@ -299,5 +310,62 @@ describe("CHAT-21 fork a chat to a new workspace", () => {
 		expect(result.ok).toBe(false);
 		if (!result.ok) expect(result.error).toEqual(failure);
 		expect(h.removed).toEqual([h.target.id]);
+	});
+
+	it("removes the new workspace when the copy cannot become its active chat", async () => {
+		const failure = appError("db", "The active chat could not be stored.");
+		const h = await harness({ events: checkpointedTurn(), activateFails: failure });
+
+		const result = await h.service.forkToWorkspace(h.sessionId, TURN);
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error).toEqual(failure);
+		expect(h.removed).toEqual([h.target.id]);
+	});
+});
+
+describe("CHAT-21 the turn checkpoint both forks start from", () => {
+	it("is the turn's end checkpoint, or its start when the turn has no end", async () => {
+		const h = await harness({
+			events: [
+				...checkpointedTurn(),
+				userMessageEvent("u2", "t2", 20),
+				checkpointEvent("c3", "t2", 21, "start", "start-2"),
+				turnEndedEvent("e2", "t2", 22),
+			],
+		});
+		const sessions = h.test.container.services.sessions;
+
+		expect(await sessions.forkCheckpoint(h.sessionId, TURN)).toEqual(ok("end-1"));
+		expect(await sessions.forkCheckpoint(h.sessionId, "t2" as TurnId)).toEqual(ok("start-2"));
+	});
+
+	it("refuses a turn that is not in the chat and a turn with no checkpoint, as forkFrom does", async () => {
+		const h = await harness({
+			events: [
+				userMessageEvent("u1", "t1", 10),
+				agentEvent("a1", "t1", 11, [{ kind: "text", text: "First answer" }]),
+				turnEndedEvent("e1", "t1", 12),
+			],
+		});
+		const sessions = h.test.container.services.sessions;
+
+		const missing = await sessions.forkCheckpoint(h.sessionId, "t9" as TurnId);
+		const sameTab = await sessions.forkFrom(h.sessionId, "t9" as TurnId);
+		expect(missing.ok).toBe(false);
+		expect(sameTab.ok).toBe(false);
+		if (!missing.ok && !sameTab.ok) {
+			expect(missing.error.code).toBe("chat_fork_turn_unknown");
+			expect(missing.error).toEqual(sameTab.error);
+		}
+
+		const bare = await sessions.forkCheckpoint(h.sessionId, TURN);
+		const bareSameTab = await sessions.forkFrom(h.sessionId, TURN);
+		expect(bare.ok).toBe(false);
+		expect(bareSameTab.ok).toBe(false);
+		if (!bare.ok && !bareSameTab.ok) {
+			expect(bare.error.code).toBe("chat_fork_no_checkpoint");
+			expect(bare.error).toEqual(bareSameTab.error);
+		}
 	});
 });

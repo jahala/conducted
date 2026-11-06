@@ -947,7 +947,10 @@ export class WorkspaceService {
 		let targetBranch: string;
 		let baseSha: string | null = presetBaseSha;
 		let baseWarning: string | null = null;
-		if (input.from.kind === "default") {
+		// A preset commit (a fork's checkpoint head) is already known, so its branch is only named.
+		// Resolving it would read or fetch the branch for nothing, and fail offline or when the
+		// branch is gone.
+		if (input.from.kind === "default" || presetBaseSha !== null) {
 			const target = baseBranchFor(repo.defaultBranch, input.from);
 			if (!target.ok) return target;
 			targetBranch = target.value;

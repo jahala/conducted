@@ -8,7 +8,8 @@
  * model field and plan mode, section picker, and the "Create workspace" button. Typing '@' in the
  * first message offers the chosen repository's own files before any workspace exists (SIDE-22).
  * A draft can be saved to the backlog, and a saved backlog workspace opens with a Start button. A deep
- * link may open the page with its project, branch and first message already filled.
+ * link may open the page with its project, branch and first message already filled; a project it names
+ * that is not loaded gives "Repository not found", and the page keeps its usual first project.
  * Behaviour: ui-map.md 3.9 (New workspace flow; "Draft the first message, then create and send it."), 5.4
  * (Cmd+I toggles the create-from picker, Alt+Enter adds the draft to the backlog, and Cmd+Enter
  * starts a backlog workspace).
@@ -58,6 +59,14 @@ import { useCommandHandler } from "./command-dispatcher.ts";
 
 type FromKind = "default" | "branch" | "pull_request" | "issue";
 type IssueProvider = IssueView["provider"];
+
+/** The loaded project a link names, by id or by name. */
+function namedRepo<T extends { id: RepoId; name: string }>(
+	repos: readonly T[],
+	named: string,
+): T | undefined {
+	return repos.find((repo) => repo.id === named || repo.name === named);
+}
 
 /** The '@' query under the caret in the first-message field. */
 interface FileMentionQuery {
@@ -182,8 +191,11 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 			? undefined
 			: backlog.data.find((entry) => entry.id === search.backlog);
 
-	const [repoId, setRepoId] = useState<RepoId | null>(
-		() => (search.repo as RepoId | undefined) ?? null,
+	// The project a link names is looked up in the loaded list, never taken from the URL as is.
+	const [repoId, setRepoId] = useState<RepoId | null>(() =>
+		repos.state === "ready" && search.repo !== undefined
+			? (namedRepo(repos.data, search.repo)?.id ?? null)
+			: null,
 	);
 	const [fromKind, setFromKind] = useState<FromKind>(
 		search.branch === undefined ? "default" : "branch",
@@ -214,15 +226,24 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	}, [repoId, readyRepos]);
 
 	// A link to /create names its project in the URL. Resolve it once the list has loaded, and again
-	// when a later link names another project while this page stays open.
+	// when a later link names another project while this page stays open. A project that is not
+	// loaded is reported once per link, so the user knows the page did not open on it.
 	const repoFromSearch = search.repo;
+	const reportedMissingRepo = useRef<string | null>(null);
+	const reposReady = repos.state === "ready";
 	useEffect(() => {
-		if (repoFromSearch === undefined) return;
-		const named = readyRepos.find(
-			(repo) => repo.id === repoFromSearch || repo.name === repoFromSearch,
-		);
-		if (named !== undefined) setRepoId(named.id);
-	}, [readyRepos, repoFromSearch]);
+		if (repoFromSearch === undefined || !reposReady) return;
+		const named = namedRepo(readyRepos, repoFromSearch);
+		if (named !== undefined) {
+			setRepoId(named.id);
+			return;
+		}
+		if (reportedMissingRepo.current === repoFromSearch) return;
+		reportedMissingRepo.current = repoFromSearch;
+		toastError("Repository not found", {
+			message: `There is no project called "${repoFromSearch}".`,
+		});
+	}, [readyRepos, repoFromSearch, reposReady]);
 
 	const promptFromSearch = search.prompt;
 	useEffect(() => {

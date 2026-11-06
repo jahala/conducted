@@ -1,14 +1,15 @@
 /**
  * @feature APP-01 Startup sequence
  * Owns: the web UI entry: it builds the container, runs the ordered start, hands the Platform log to
- * the query client's error hooks and mounts the router inside the providers.
+ * the query client's error hooks and mounts the router inside the providers. A notification click
+ * opens through NAV-17's deep-link opener, the same one Platform deep links use.
  * Behaviour: services-map.md part 6 (the Platform is built once, the root renders with React error
  * handlers, the gated start runs behind it).
  * Test first: mounting the entry builds a container, runs the startup sequence and renders the router.
  */
 
 import { ok } from "@conducted/shared";
-import { act, cleanup } from "@testing-library/react";
+import { act, cleanup, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { type StartedApp, startApp } from "./main.tsx";
 import { createMemoryPlatform } from "./platform/memory.ts";
@@ -100,5 +101,40 @@ describe("APP-01 entry", () => {
 
 		await app.started;
 		await stopApp(app, root);
+	});
+});
+
+describe("NAV-17 notification clicks from the entry", () => {
+	it("open through the deep-link opener: any route it knows, and its toast for a missing workspace", async () => {
+		const root = document.createElement("div");
+		document.body.appendChild(root);
+		const memory = createMemoryPlatform({
+			clock: { now: () => 1_000 },
+			ids: createTestIds(),
+			database: emptyDatabase(),
+		});
+		let app!: StartedApp;
+		act(() => {
+			app = startApp({ root, platform: memory.platform, installHandlers: false });
+		});
+		try {
+			expect(await app.started).toEqual(ok(undefined));
+
+			act(() => {
+				memory.controls.emitNotificationClick("conducted://settings/experimental");
+			});
+			await waitFor(() =>
+				expect(app.router.state.location.pathname).toBe("/settings/experimental"),
+			);
+
+			act(() => {
+				memory.controls.emitNotificationClick("conducted://workspace?id=gone&session=s1");
+			});
+			expect(await screen.findByText("Couldn't open workspace")).toBeTruthy();
+			expect(app.router.state.location.pathname).toBe("/settings/experimental");
+		} finally {
+			await stopApp(app, root);
+			window.history.replaceState(null, "", "/");
+		}
 	});
 });

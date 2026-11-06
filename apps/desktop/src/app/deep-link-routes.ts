@@ -3,17 +3,23 @@
  * Owns: the pure step from a `conducted://` URL to a typed route the app can open, and the one
  * opener that turns that route into navigation, a setting change or a notice. The Rust side only
  * checks the length and passes every link on, whatever its scheme (PLAT-16); this file owns the scheme
- * rule and the route table.
+ * rule and the route table. Platform deep links (through the command dispatcher) and notification
+ * clicks (through the app entry) both open through `createDeepLinkOpener` ("Notification clicks reuse
+ * the same router", A8).
  * Behaviour: native-and-sidecar-map.md A8 (the URL host selects the route: `workspace?id&session`,
  * `settings/...`, `settings-enable?key`, `browser?url&workspace-id&navigate`, `async?repo&plan=<base64>`;
- * any other host is split on `&` into `key=value` and creates a workspace with a prefilled prompt:
- * `path`, `branch`, `prompt`); services-map.md 5B.2.5 (the Platform delivers cold-start links and later
+ * a host made of `key=value` text, or an empty host with a query, creates a workspace with a prefilled
+ * prompt: `path`, `branch`, `prompt`); services-map.md 5B.2.5 (the Platform delivers cold-start links and later
  * events; PLAT-16 owns their delivery); coverage/inventory-controls.md (toasts "Invalid browser URL",
  * "Couldn't open browser tab",
  * "Setting cannot be enabled by link", "Failed to enable setting").
  * Left out on purpose: `auth`, `gh-auth` (GitHub App sign-in, D025), `automation`, `loadout`, the cloud
- * onboarding hosts and the dev hosts. They return an error result, so the caller can say the link is not
- * supported.
+ * onboarding hosts (`cloud-collab-onboarding`, `join-organization-onboarding`, `github-connected`,
+ * `__onboarding_add_repository`), the dev hosts (`dev`) and `session` (A8: "reported as unsupported").
+ * They return `deep_link_unsupported`, so the caller says the link is not supported. A host that is
+ * neither listed nor `key=value` text is an invalid link.
+ * Not read: the browser link's `navigate` parameter. A8 lists it without saying what it does, and the
+ * browser tab it would steer is RUN-04's and not built, so the link opens the tab at its URL.
  * Reuse: the `workspace` host is already parsed by `parseDeepLink` in core/services/notifications.ts; this
  * file calls it rather than parsing the host a second time. The scheme name is `DEEP_LINK_SCHEME` there.
  * Must handle: a scheme other than `conducted`; a missing or empty parameter; a percent-encoded value; a
@@ -21,11 +27,13 @@
  * `settings` page that does not exist (error, never a default page, see settings-pages.ts); a
  * `settings-enable` key that is not an experimental setting (refused, so a link can never switch on a
  * stored secret or a safety setting); a prompt of unlimited length (the Rust side drops links over its
- * size limit); a link for a workspace or repository that does not exist (the caller shows the error).
+ * size limit); a link for a workspace or repository that does not exist (the error is shown, and a plan
+ * link starts nothing rather than starting in another project; a create link whose `path` matches no
+ * project says so and opens the create page with no project chosen from the link).
  * Our design choice: the parse result is data. `openDeepLink` takes the navigation, setting and notice
  * edges as parameters, so the parser stays pure and the caller decides how a route is drawn.
- * Test first: "conducted://settings-enable?key=big_terminal_mode" gives kind "enable-setting" with that key;
- * "https://example.com" is an error.
+ * Test first: "conducted://settings-enable?key=experimental_big_terminal_mode" gives kind "enable-setting"
+ * with that key; "https://example.com" is an error.
  */
 import {
 	type AppError,
@@ -37,8 +45,9 @@ import {
 	type SessionId,
 	type WorkspaceId,
 } from "@conducted/shared";
-import { useNavigate } from "@tanstack/react-router";
-import { createElement, useCallback } from "react";
+import { type NavigateFn, useNavigate } from "@tanstack/react-router";
+import { createElement, useMemo } from "react";
+import type { Container } from "../core/container.ts";
 import { useServices } from "../core/context.tsx";
 import { getSettingDef } from "../core/registries/settings.ts";
 import { DEEP_LINK_SCHEME, parseDeepLink } from "../core/services/notifications.ts";
@@ -51,13 +60,7 @@ export type DeepLinkRoute =
 	| { kind: "open-workspace"; workspaceId: WorkspaceId; sessionId: SessionId | null }
 	| { kind: "open-settings"; target: SettingsTarget }
 	| { kind: "enable-setting"; key: string }
-	| {
-			kind: "open-browser";
-			url: string;
-			workspaceId: WorkspaceId | null;
-			/** Go to the address now, instead of only filling the address bar. */
-			navigate: boolean;
-	  }
+	| { kind: "open-browser"; url: string; workspaceId: WorkspaceId | null }
 	| { kind: "create-from-plan"; repoName: string; plan: string }
 	| {
 			kind: "create-with-prompt";
@@ -77,7 +80,7 @@ export interface DeepLinkCreateSearch {
 export interface DeepLinkNavigator {
 	workspace(workspaceId: WorkspaceId, repositoryId: RepoId, sessionId: SessionId | null): void;
 	settings(target: SettingsTarget): void;
-	browser(workspaceId: WorkspaceId, repositoryId: RepoId, url: string, navigate: boolean): void;
+	browser(workspaceId: WorkspaceId, repositoryId: RepoId, url: string): void;
 	create(search: DeepLinkCreateSearch): void;
 }
 
@@ -93,7 +96,6 @@ export interface DeepLinkDeps {
 	workspaceRepoId(workspaceId: WorkspaceId): RepoId | undefined;
 	repoByName(name: string): RepoId | undefined;
 	repoByPath(path: string): RepoId | undefined;
-	firstRepoId(): RepoId | undefined;
 	setSetting(key: string, value: unknown): Promise<Result<void>>;
 	/** Starts the workspace a plan link names. The composition root passes the workspace action. */
 	createFromPlan(repositoryId: RepoId, plan: string): Promise<Result<void>>;
@@ -102,6 +104,20 @@ export interface DeepLinkDeps {
 }
 
 const invalid = (code: string, message: string): Result<never> => err(appError(code, message));
+
+/** Hosts Conductor routes that Conducted leaves out on purpose (see the header). */
+const UNSUPPORTED_HOSTS: ReadonlySet<string> = new Set([
+	"auth",
+	"gh-auth",
+	"automation",
+	"loadout",
+	"cloud-collab-onboarding",
+	"join-organization-onboarding",
+	"github-connected",
+	"__onboarding_add_repository",
+	"dev",
+	"session",
+]);
 
 function readParam(params: URLSearchParams, key: string): string | null {
 	const value = params.get(key);
@@ -238,13 +254,7 @@ export function parseDeepLinkRoute(url: string): Result<DeepLinkRoute> {
 			if (workspaceId === null) {
 				return invalid("deep_link_workspace_missing", "The link does not name a workspace.");
 			}
-			const navigate = parsed.searchParams.get("navigate");
-			return ok({
-				kind: "open-browser",
-				url: urlText,
-				workspaceId: workspaceId as WorkspaceId,
-				navigate: navigate !== null && navigate !== "false" && navigate !== "0",
-			});
+			return ok({ kind: "open-browser", url: urlText, workspaceId: workspaceId as WorkspaceId });
 		}
 		case "async": {
 			const repoName = readParam(parsed.searchParams, "repo");
@@ -258,8 +268,14 @@ export function parseDeepLinkRoute(url: string): Result<DeepLinkRoute> {
 			const plan = decodePlan(encoded);
 			return plan.ok ? ok({ kind: "create-from-plan", repoName, plan: plan.value }) : plan;
 		}
-		default:
-			return parseCreateWithPrompt(url);
+		default: {
+			if (UNSUPPORTED_HOSTS.has(host)) {
+				return invalid("deep_link_unsupported", `Conducted does not open "${host}" links.`);
+			}
+			// Only `key=value` text after the scheme is a create link; any other host is unknown.
+			if (host === "" || host.includes("=")) return parseCreateWithPrompt(url);
+			return invalid("deep_link_invalid", "That is not a valid link.");
+		}
 	}
 }
 
@@ -343,12 +359,12 @@ export async function openDeepLink(url: string, deps: DeepLinkDeps): Promise<voi
 				);
 				return;
 			}
-			deps.navigate.browser(route.workspaceId, repositoryId, route.url, route.navigate);
+			deps.navigate.browser(route.workspaceId, repositoryId, route.url);
 			return;
 		}
 		case "create-from-plan": {
-			const named = deps.repoByName(route.repoName);
-			const repositoryId = named ?? deps.firstRepoId();
+			// A plan is meant for the project it names, so a missing project starts nothing.
+			const repositoryId = deps.repoByName(route.repoName);
 			if (repositoryId === undefined) {
 				deps.notify.error(
 					"Repository not found",
@@ -359,15 +375,6 @@ export async function openDeepLink(url: string, deps: DeepLinkDeps): Promise<voi
 				);
 				return;
 			}
-			if (named === undefined) {
-				deps.notify.error(
-					"Repository not found",
-					appError(
-						"deep_link_repo_not_found",
-						`There is no repository called "${route.repoName}". Using the first repository.`,
-					),
-				);
-			}
 			const started = await deps.createFromPlan(repositoryId, route.plan);
 			if (!started.ok) {
 				deps.notify.error("Couldn't start workspace", started.error);
@@ -376,6 +383,12 @@ export async function openDeepLink(url: string, deps: DeepLinkDeps): Promise<voi
 		}
 		case "create-with-prompt": {
 			const repositoryId = route.path === null ? undefined : deps.repoByPath(route.path);
+			if (route.path !== null && repositoryId === undefined) {
+				deps.notify.error(
+					"Repository not found",
+					appError("deep_link_repo_not_found", `There is no project at "${route.path}".`),
+				);
+			}
 			deps.navigate.create({
 				...(repositoryId === undefined ? {} : { repo: repositoryId }),
 				...(route.branch === null ? {} : { branch: route.branch }),
@@ -386,95 +399,105 @@ export async function openDeepLink(url: string, deps: DeepLinkDeps): Promise<voi
 	}
 }
 
-/** The real app's opener: its router, the loaded projects and the settings service. */
-export function useDeepLinkOpener(): (url: string) => void {
-	const { services, actions, platform } = useServices();
-	const navigate = useNavigate();
+/** What the app's opener reads: the services, the actions and the Platform log. */
+type DeepLinkContainer = Pick<Container, "services" | "actions" | "platform">;
 
-	return useCallback(
-		(url: string) => {
-			const repos = () => Object.values(services.repo.store.getState().reposById);
-			void openDeepLink(url, {
-				workspaceRepoId: (workspaceId) =>
-					services.workspace.store.getState().workspacesById[workspaceId]?.repoId,
-				repoByName: (name) => repos().find((repo) => repo.name === name)?.id,
-				repoByPath: (path) =>
-					repos().find(
-						(repo) => repo.rootPath === path || repo.rootPath === path.replace(/\/+$/, ""),
-					)?.id,
-				firstRepoId: () => services.repo.store.getState().order[0],
-				setSetting: (key, value) => actions.settings.set(key, value),
-				createFromPlan: async (repositoryId, plan) => {
-					const created = await actions.workspaces.create({
-						repoId: repositoryId,
-						from: { kind: "default" },
-						prompt: plan,
-						attachmentPaths: [],
-						config: newWorkspaceSessionConfig({
-							model: services.settings.get<string>("default_model"),
-							effort: services.settings.get<string>("default_claude_effort_level"),
-							fastMode: services.settings.get<boolean>("default_fast_mode"),
-							planMode: services.settings.get<boolean>("default_plan_mode"),
-							requireToolApproval: services.settings.get<boolean>("tool_approvals_enabled"),
-						}),
-						sectionId: null,
-					});
-					return created.ok ? ok(undefined) : created;
-				},
-				navigate: {
-					workspace: (workspaceId, repositoryId, sessionId) => {
-						void navigate({
-							to: "/repository/$repositoryId/workspace/$workspaceId",
-							params: { repositoryId, workspaceId },
-							search: sessionId === null ? {} : { sessionId },
-						});
-					},
-					settings: (target) => {
-						if (target.kind === "user") {
-							void navigate({ to: "/settings/$page", params: { page: target.page } });
-						} else {
-							void navigate({
-								to: "/settings/repos/$repoId/$page",
-								params: { repoId: target.repoId, page: target.page },
-							});
-						}
-					},
-					browser: (workspaceId, repositoryId, url) => {
-						void navigate({
-							to: "/repository/$repositoryId/workspace/$workspaceId",
-							params: { repositoryId, workspaceId },
-							search: { tab: "browser", browserUrl: url },
-						});
-					},
-					create: (search) => {
-						void navigate({ to: "/create", search });
-					},
-				},
-				notify: {
-					error: (title, error) => {
-						toastError(title, error);
-					},
-					enabledSetting: (settingKey, settingTitle, onGoToSetting) => {
-						toast.custom(
-							(id) =>
-								createElement(EnabledSettingNotice, {
-									settingKey,
-									settingTitle,
-									onGoToSetting: () => {
-										toast.dismiss(id);
-										onGoToSetting();
-									},
-									onDismiss: () => {
-										toast.dismiss(id);
-									},
-								}),
-							{ duration: Number.POSITIVE_INFINITY },
-						);
-					},
-					log: (message) => platform.app.writeLog("warn", message),
-				},
+/**
+ * The real app's opener: the router's navigate, the loaded projects and the settings service. The
+ * command dispatcher's deep links and the entry's notification clicks both open through it.
+ */
+export function createDeepLinkOpener(
+	container: DeepLinkContainer,
+	navigate: NavigateFn,
+): (url: string) => void {
+	const { services, actions, platform } = container;
+	const repos = () => Object.values(services.repo.store.getState().reposById);
+	const deps: DeepLinkDeps = {
+		workspaceRepoId: (workspaceId) =>
+			services.workspace.store.getState().workspacesById[workspaceId]?.repoId,
+		repoByName: (name) => repos().find((repo) => repo.name === name)?.id,
+		repoByPath: (path) =>
+			repos().find((repo) => repo.rootPath === path || repo.rootPath === path.replace(/\/+$/, ""))
+				?.id,
+		setSetting: (key, value) => actions.settings.set(key, value),
+		createFromPlan: async (repositoryId, plan) => {
+			const created = await actions.workspaces.create({
+				repoId: repositoryId,
+				from: { kind: "default" },
+				prompt: plan,
+				attachmentPaths: [],
+				config: newWorkspaceSessionConfig({
+					model: services.settings.get<string>("default_model"),
+					effort: services.settings.get<string>("default_claude_effort_level"),
+					fastMode: services.settings.get<boolean>("default_fast_mode"),
+					planMode: services.settings.get<boolean>("default_plan_mode"),
+					requireToolApproval: services.settings.get<boolean>("tool_approvals_enabled"),
+				}),
+				sectionId: null,
 			});
+			return created.ok ? ok(undefined) : created;
 		},
-		[actions, navigate, platform, services],
-	);
+		navigate: {
+			workspace: (workspaceId, repositoryId, sessionId) => {
+				void navigate({
+					to: "/repository/$repositoryId/workspace/$workspaceId",
+					params: { repositoryId, workspaceId },
+					search: sessionId === null ? {} : { sessionId },
+				});
+			},
+			settings: (target) => {
+				if (target.kind === "user") {
+					void navigate({ to: "/settings/$page", params: { page: target.page } });
+				} else {
+					void navigate({
+						to: "/settings/repos/$repoId/$page",
+						params: { repoId: target.repoId, page: target.page },
+					});
+				}
+			},
+			browser: (workspaceId, repositoryId, url) => {
+				void navigate({
+					to: "/repository/$repositoryId/workspace/$workspaceId",
+					params: { repositoryId, workspaceId },
+					search: { tab: "browser", browserUrl: url },
+				});
+			},
+			create: (search) => {
+				void navigate({ to: "/create", search });
+			},
+		},
+		notify: {
+			error: (title, error) => {
+				toastError(title, error);
+			},
+			enabledSetting: (settingKey, settingTitle, onGoToSetting) => {
+				toast.custom(
+					(id) =>
+						createElement(EnabledSettingNotice, {
+							settingKey,
+							settingTitle,
+							onGoToSetting: () => {
+								toast.dismiss(id);
+								onGoToSetting();
+							},
+							onDismiss: () => {
+								toast.dismiss(id);
+							},
+						}),
+					{ duration: Number.POSITIVE_INFINITY },
+				);
+			},
+			log: (message) => platform.app.writeLog("warn", message),
+		},
+	};
+	return (url) => {
+		void openDeepLink(url, deps);
+	};
+}
+
+/** The opener inside React, over the mounted container and router. */
+export function useDeepLinkOpener(): (url: string) => void {
+	const container = useServices();
+	const navigate = useNavigate();
+	return useMemo(() => createDeepLinkOpener(container, navigate), [container, navigate]);
 }

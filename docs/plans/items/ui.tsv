@@ -407,7 +407,7 @@ CHAT-17	control	Chat search 'Find in messages and thinking'	ui-map 3.3	covered
 CHAT-06	control	Turn footer 'Copy final message' and 'Copy summary'	ui-map 3.3	covered
 CHAT-14	region	Turn footer hover card: start to end time, Fast mode, tokens Input, Output, Cache read, Cache write	ui-map 3.3	partly
 CHAT-16	menu	Turn more menu: 'Fork to new tab'	ui-map 3.3	covered
-CHAT-21	menu	Turn more menu: 'Fork to new workspace'	ui-map 3.3	partly
+CHAT-21	menu	Turn more menu: 'Fork to new workspace'	ui-map 3.3	covered
 CHAT-15	menu	Turn more menu: 'Reset chat'	ui-map 3.3	covered
 CHAT-17	menu	Turn more menu: copy options	ui-map 3.3	covered
 REV-09	region	File-change summary with 'Open diff' under a turn	ui-map 3.3	covered
