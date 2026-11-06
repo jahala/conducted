@@ -10,7 +10,8 @@
  * Our design choice: the centre has a minimum width so the chat stays usable. The window uses an overlay title
  * bar, so the top 40px of the sidebar is an empty drag strip under the floating window controls. The sidebar's
  * open state and width are kept in the settings table (`left_panel_visible`, `left_panel_width`), in pixels, so
- * a restart restores both. Workspace panel groups keep their own layout through layout-persistence.ts.
+ * a restart restores both. Workspace panel groups keep their own layout through layout-persistence.ts, and the
+ * shell removes a workspace's saved layout when the workspace is deleted or archived.
  * Must handle: the saved sidebar state is applied only after the settings have loaded (the shell shows an empty
  * surface until then); collapsed sidebar (the `--shell-left-inset` variable tells headers to leave room for the
  * controls); sidebar and centre fail separately, each inside <NotBuiltYet>, and a route change clears the
@@ -39,6 +40,7 @@ import {
 import { setCurrentWorkspace, toastError } from "../ui/Toast.tsx";
 import { isTextEntry } from "./command-dispatcher.ts";
 import {
+	clearLayoutsOfClosedWorkspaces,
 	loadPanelLayout,
 	savePanelLayout,
 	saveShellSidebar,
@@ -62,7 +64,7 @@ export function AppShell() {
 
 function LoadedShell() {
 	const sidebarRef = usePanelRef();
-	const { settings } = useServices().services;
+	const { settings, workspace } = useServices().services;
 	const savedVisible = useSetting<boolean>("left_panel_visible");
 	const [sidebarOpen, setSidebarOpen] = useState(savedVisible);
 	const [initialSidebarWidth] = useState(() => shellSidebarWidth(settings));
@@ -125,6 +127,9 @@ function LoadedShell() {
 	useEffect(() => {
 		setCurrentWorkspace(workspaceId);
 	}, [workspaceId]);
+
+	// A deleted or archived workspace's panel sizes are never read again.
+	useEffect(() => clearLayoutsOfClosedWorkspaces(workspace.store), [workspace.store]);
 
 	const style = {
 		"--shell-left-inset": sidebarOpen ? "0px" : "var(--shell-controls-width)",

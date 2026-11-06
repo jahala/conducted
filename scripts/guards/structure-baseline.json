@@ -13,7 +13,6 @@
 	},
 	"test-only-exports": {
 		"apps/desktop/src/app/command-dispatcher.ts": 4,
-		"apps/desktop/src/app/layout-persistence.ts": 1,
 		"apps/desktop/src/app/SurfaceLayer.tsx": 2,
 		"apps/desktop/src/core/async/optimistic.ts": 1,
 		"apps/desktop/src/core/db/sections.ts": 1,

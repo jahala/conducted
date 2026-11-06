@@ -9,10 +9,12 @@ import {
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ServicesProvider } from "../core/context.tsx";
-import { createTestContainer } from "../test/container.ts";
+import { createTestContainer, seedWorkspace } from "../test/container.ts";
 import "../test/dom-polyfills.ts";
+import { workspaceLayoutGroupId } from "../ui/layout-sizes.ts";
 import { setCurrentWorkspace, toast, workspaceToast, workspaceToastIds } from "../ui/Toast.tsx";
 import { AppShell } from "./AppShell.tsx";
+import { loadPanelLayout, savePanelLayout } from "./layout-persistence.ts";
 import { AppProviders, createQueryClient } from "./providers.tsx";
 import { createAppRouter } from "./router.tsx";
 import { createShellContainer, type ShellFixture, saveSetting } from "./shell-test-support.ts";
@@ -118,6 +120,26 @@ describe("NAV-01 app shell", () => {
 		await waitFor(() =>
 			expect(shell.settingsWrites).toContainEqual({ key: "left_panel_visible", value: false }),
 		);
+	});
+
+	it("forgets a workspace's saved panel sizes when the workspace is deleted", async () => {
+		const seeded = createTestContainer();
+		try {
+			const workspace = await seedWorkspace(seeded.container);
+			const repo = seeded.container.services.repo.store.getState().reposById[workspace.repoId];
+			if (repo === undefined) throw new Error("The seeded workspace has no project.");
+			savePanelLayout(workspaceLayoutGroupId(workspace.id), { "main-content": 60 });
+			const { shell } = await openApp("/", { repos: [repo], workspaces: [workspace] });
+			await screen.findByRole("complementary", { name: "Sidebar" });
+
+			act(() => {
+				shell.container.services.workspace.store.setState({ workspacesById: {} });
+			});
+
+			expect(loadPanelLayout(workspaceLayoutGroupId(workspace.id))).toBeNull();
+		} finally {
+			seeded.close();
+		}
 	});
 
 	it("dismisses a workspace toast when the route leaves that workspace", async () => {
