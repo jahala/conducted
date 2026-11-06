@@ -1,7 +1,8 @@
 /**
  * @feature NAV-10 Workspace screen
  * Owns: assembling the workspace route: header, centre content, Git panel and Scripts panel inside the
- * workspace layout, and passing the URL search state down.
+ * workspace layout, and passing the URL search state down. It also opens PR-10's "Link pull request"
+ * dialog from the `pr.link` command while a workspace is open.
  * Behaviour: ui-map.md 3 (the workspace screen), 3.1 (header), 3.2 (tab strip and content), 3.6 (right panel
  * top), 3.7 (right panel bottom).
  * Our design choice: every region is its own <NotBuiltYet>, keyed by the workspace id, so a failing region
@@ -16,10 +17,13 @@
  * Test first: renders the header, centre content, Git panel and Scripts panel regions for a workspace id.
  */
 import type { RepoId, WorkspaceId } from "@conducted/shared";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { useCommandHandler } from "../../app/command-dispatcher.ts";
 import { useServices } from "../../core/context.tsx";
+import { useActions } from "../../core/hooks.ts";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { GitPanel } from "../git-panel/GitPanel.tsx";
+import { LinkPullRequestDialog } from "../pr/LinkPullRequestDialog.tsx";
 import { ScriptsPanel } from "../scripts-panel/ScriptsPanel.tsx";
 import { SplitPanes } from "./SplitPanes.tsx";
 import { WorkspaceGate } from "./WorkspaceGate.tsx";
@@ -41,6 +45,11 @@ export function WorkspaceScreen({
 	onSearchChange,
 }: WorkspaceScreenProps) {
 	const workspaceFiles = useServices().services.workspaceFiles;
+	const actions = useActions();
+	const [linkingPullRequest, setLinkingPullRequest] = useState(false);
+	useCommandHandler("pr.link", "area", () => {
+		setLinkingPullRequest(true);
+	});
 	useEffect(
 		() =>
 			workspaceFiles.onOpen((request) => {
@@ -58,37 +67,48 @@ export function WorkspaceScreen({
 	const gitScope =
 		search.scope === undefined ? undefined : (parseDiffScope(search.scope) ?? undefined);
 	return (
-		<WorkspaceLayout
-			workspaceId={workspaceId}
-			header={(controls) => (
-				<NotBuiltYet area="Workspace header" variant="inline" resetKey={workspaceId}>
-					<WorkspaceHeader repoId={repoId} workspaceId={workspaceId} controls={controls} />
-				</NotBuiltYet>
-			)}
-			content={
-				<NotBuiltYet area="Workspace" resetKey={workspaceId}>
-					<WorkspaceGate workspaceId={workspaceId}>
-						<SplitPanes workspaceId={workspaceId} search={search} onSearchChange={onSearchChange} />
-					</WorkspaceGate>
-				</NotBuiltYet>
-			}
-			gitPanel={
-				<NotBuiltYet area="Git panel" resetKey={workspaceId}>
-					<GitPanel
-						workspaceId={workspaceId}
-						tab={search.gitTab}
-						onTabChange={(gitTab) => onSearchChange({ gitTab })}
-						scope={gitScope}
-						onScopeChange={(scope) => onSearchChange({ scope: formatDiffScope(scope) })}
-						onOpenFile={(path, fileMode) => onSearchChange({ tab: "file", path, fileMode })}
-					/>
-				</NotBuiltYet>
-			}
-			scriptsPanel={
-				<NotBuiltYet area="Scripts" resetKey={workspaceId}>
-					<ScriptsPanel workspaceId={workspaceId} />
-				</NotBuiltYet>
-			}
-		/>
+		<>
+			<WorkspaceLayout
+				workspaceId={workspaceId}
+				header={(controls) => (
+					<NotBuiltYet area="Workspace header" variant="inline" resetKey={workspaceId}>
+						<WorkspaceHeader repoId={repoId} workspaceId={workspaceId} controls={controls} />
+					</NotBuiltYet>
+				)}
+				content={
+					<NotBuiltYet area="Workspace" resetKey={workspaceId}>
+						<WorkspaceGate workspaceId={workspaceId}>
+							<SplitPanes
+								workspaceId={workspaceId}
+								search={search}
+								onSearchChange={onSearchChange}
+							/>
+						</WorkspaceGate>
+					</NotBuiltYet>
+				}
+				gitPanel={
+					<NotBuiltYet area="Git panel" resetKey={workspaceId}>
+						<GitPanel
+							workspaceId={workspaceId}
+							tab={search.gitTab}
+							onTabChange={(gitTab) => onSearchChange({ gitTab })}
+							scope={gitScope}
+							onScopeChange={(scope) => onSearchChange({ scope: formatDiffScope(scope) })}
+							onOpenFile={(path, fileMode) => onSearchChange({ tab: "file", path, fileMode })}
+						/>
+					</NotBuiltYet>
+				}
+				scriptsPanel={
+					<NotBuiltYet area="Scripts" resetKey={workspaceId}>
+						<ScriptsPanel workspaceId={workspaceId} />
+					</NotBuiltYet>
+				}
+			/>
+			<LinkPullRequestDialog
+				open={linkingPullRequest}
+				onOpenChange={setLinkingPullRequest}
+				onSubmit={(urlOrNumber) => actions.pullRequests.link(workspaceId, urlOrNumber)}
+			/>
+		</>
 	);
 }

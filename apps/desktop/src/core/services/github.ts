@@ -14,14 +14,15 @@
  * @feature REV-04 GitHub review comment sync: reading review threads and general comments, and
  * resolving a review thread
  * @feature PR-12 the guarded automatic catch-up of a stack branch after GitHub rewrites it
+ * @feature PR-10 linking an existing pull request by its URL or number
  * Owns: probing `gh` access (`gh auth status`, the user's login, the git protocol), the access
  * health store, reading and writing the personal access token, every pull request write action
  * (merge, auto-merge on and off, mark ready, edit title and body, request and remove reviewers,
  * approve), the Fix errors instruction that sends failing checks to the agent, PR-03's polling of
  * watched pull requests, PR-11's REST reads, PRJ-02's clone pickers, PRJ-03's repository-name check,
  * GIT-08's base move, PR-08's stack read, stack sync and stack merge, REV-04's review-thread
- * and general comment reads and thread resolve, and PR-12's guarded catch-up rebase that runs
- * after a timed poll.
+ * and general comment reads and thread resolve, PR-12's guarded catch-up rebase that runs
+ * after a timed poll, and PR-10's link of an existing pull request by URL or number.
  * Behaviour: services-map.md 3.9 (auth probes, method resolution, health), 5B.1.11 (failure
  * classes; only unauthorized breaks access), 3.7.5 and 5B.1.7 (the write actions, the merge
  * method cached per repo, and one call at a time for each action), 3.7.6 (fixing CI errors goes to
@@ -111,13 +112,14 @@
  * as current.
  * PR-12 test first: a diverged stack branch whose local tip the upstream reflog once held is
  * rebased onto the rewritten upstream, and the baseline ref takes the new tip.
+ * PR-10 test first: a full pull request URL and a bare number both store the same pull request
+ * number on the workspace, and a URL for another repository is refused without asking GitHub.
  */
 import {
 	type AppError,
 	appError,
 	err,
 	messageOf,
-	notImplemented,
 	ok,
 	type Result,
 	type WorkspaceId,
@@ -488,6 +490,48 @@ function issueNumber(id: string): Result<number> {
 		return err(appError("github_issue_invalid", "That is not a GitHub issue number."));
 	}
 	return ok(parsed);
+}
+
+/** A pull request number typed by the user, and the repository a URL named when it gave one. */
+export interface PullRequestInput {
+	number: number;
+	/** The repository in a URL, or null for a bare number. */
+	repository: GithubRepository | null;
+}
+
+/**
+ * Reads a pull request number from the text of the Link pull request dialog: a bare number, `#123`,
+ * or a GitHub pull request URL. A URL keeps its repository so the caller can refuse a link from
+ * another repository before asking GitHub.
+ */
+export function pullRequestInput(text: string): Result<PullRequestInput> {
+	const trimmed = text.trim();
+	const bare = trimmed.startsWith("#") ? trimmed.slice(1) : trimmed;
+	if (/^\d+$/.test(bare)) {
+		const number = Number(bare);
+		if (!Number.isSafeInteger(number) || number <= 0) return err(invalidPullRequestInput());
+		return ok({ number, repository: null });
+	}
+	let url: URL;
+	try {
+		url = new URL(trimmed);
+	} catch {
+		return err(invalidPullRequestInput());
+	}
+	if (!isGithubHost(url.hostname)) return err(invalidPullRequestInput());
+	const parts = url.pathname.split("/").filter((part) => part.length > 0);
+	const [owner, name, kind, numberText] = parts;
+	if (owner === undefined || name === undefined || kind !== "pull" || numberText === undefined) {
+		return err(invalidPullRequestInput());
+	}
+	if (!/^\d+$/.test(numberText)) return err(invalidPullRequestInput());
+	const number = Number(numberText);
+	if (!Number.isSafeInteger(number) || number <= 0) return err(invalidPullRequestInput());
+	return ok({ number, repository: { owner, name } });
+}
+
+function invalidPullRequestInput(): AppError {
+	return appError("github_pr_invalid", "Enter a pull request number or a GitHub pull request URL.");
 }
 
 // ---------------------------------------------------------------- REST responses
@@ -1217,6 +1261,15 @@ export interface GithubServiceDeps {
 	 * always supplies it; tests that read no Graphite state may leave it out.
 	 */
 	graphite?: { needsRestackOf(repoRootPath: string, branch: string): boolean };
+	/**
+	 * Stores a linked pull request on the workspace (PR-10). The container supplies the workspace
+	 * service, which writes the row and its loaded copy. A test that never links may leave it out;
+	 * `linkPullRequest` refuses with an error instead of pretending the link was saved.
+	 */
+	linkPullRequestToWorkspace?: (
+		workspaceId: WorkspaceId,
+		pr: { number: number; title: string | null; description: string | null },
+	) => Promise<Result<void>>;
 }
 
 interface PollWatcher {
@@ -3583,9 +3636,56 @@ export class GithubService {
 		});
 	}
 
-	/** Backs `Actions.pullRequests.link`. */
-	linkPullRequest(_workspaceId: WorkspaceId, _urlOrNumber: string): Promise<Result<void>> {
-		return notImplemented("PR-10");
+	/**
+	 * Backs `Actions.pullRequests.link`: reads the pull request named by a URL or number from the
+	 * workspace's repository, then stores it on the workspace as its pull request. A URL that names
+	 * another repository is refused before GitHub is asked. One link runs at a time per workspace.
+	 */
+	linkPullRequest(workspaceId: WorkspaceId, urlOrNumber: string): Promise<Result<void>> {
+		return this.#flights.run(`linkPullRequest:${workspaceId}`, async () => {
+			const input = pullRequestInput(urlOrNumber);
+			if (!input.ok) return err(input.error);
+			const context = await this.#deps.contextOf(workspaceId);
+			if (!context.ok) return err(context.error);
+			const remoteUrl = await this.#deps.git.stdout(remoteGetUrl(context.value.remote), {
+				cwd: context.value.workspacePath,
+			});
+			if (!remoteUrl.ok) return err(remoteUrl.error);
+			const repository = githubRepositoryFromRemote(remoteUrl.value);
+			if (!repository.ok) return err(repository.error);
+			const named = input.value.repository;
+			if (
+				named !== null &&
+				(named.owner.toLowerCase() !== repository.value.owner.toLowerCase() ||
+					named.name.toLowerCase() !== repository.value.name.toLowerCase())
+			) {
+				return err(
+					appError(
+						"github_pr_wrong_repository",
+						"That pull request belongs to a different repository.",
+					),
+				);
+			}
+			const fetched = await this.pullRequestByNumber(remoteUrl.value, input.value.number);
+			if (!fetched.ok) return err(fetched.error);
+			const store = this.#deps.linkPullRequestToWorkspace;
+			if (store === undefined) {
+				return err(
+					appError(
+						"github_link_unavailable",
+						"Linking a pull request is not available in this window.",
+					),
+				);
+			}
+			const saved = await store(workspaceId, {
+				number: fetched.value.number,
+				title: fetched.value.title,
+				description: null,
+			});
+			if (!saved.ok) return err(saved.error);
+			await this.#refreshAfterWrite(workspaceId);
+			return ok(undefined);
+		});
 	}
 
 	/** Open issues, 50 newest, filtered by the picker's search text (services-map 5B.8.2). */
