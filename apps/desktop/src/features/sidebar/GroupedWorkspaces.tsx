@@ -25,7 +25,7 @@
 import type { Result, WorkspaceId } from "@conducted/shared";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { useCommandHandler } from "../../app/command-dispatcher.ts";
+import { useCommandHandler, useRunCommandHandlers } from "../../app/command-dispatcher.ts";
 import { useActions, useSetting } from "../../core/hooks.ts";
 import type { Repo, Section, Workspace } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
@@ -33,6 +33,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../ui/Co
 import { ContextMenu, ContextMenuItem } from "../../ui/ContextMenu.tsx";
 import { ChevronRightIcon, PlusIcon } from "../../ui/icons.tsx";
 import { toastError } from "../../ui/Toast.tsx";
+import { AddProjectMenu } from "./AddProjectButton.tsx";
 import { PinnedSection } from "./PinnedSection.tsx";
 import { RepoAvatar } from "./RepoAvatar.tsx";
 import { SectionDialog } from "./SectionDialog.tsx";
@@ -244,6 +245,7 @@ export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedW
 	const selectedId = (params as { workspaceId?: WorkspaceId }).workspaceId ?? null;
 	const now = useNow();
 	const [newSectionOpen, setNewSectionOpen] = useState(false);
+	const runCommand = useRunCommandHandlers();
 	const groupByMode = readGroupBySetting(groupBy);
 	const groupByView = groupByMode === "section" ? "project" : groupByMode;
 
@@ -399,8 +401,15 @@ export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedW
 			}
 		>
 			<div className="flex flex-col" data-sidebar-list="">
-				<div className="flex h-8 shrink-0 items-center justify-end px-2">
-					<ViewOptionsMenu view={view} repos={repos} onChange={changeView} />
+				<div className="relative flex h-8 shrink-0 items-center justify-end px-2">
+					<ViewOptionsMenu
+						view={view}
+						repos={repos}
+						onChange={changeView}
+						onNewSection={() => setNewSectionOpen(true)}
+						onAddProject={() => runCommand("project.add")}
+					/>
+					<AddProjectMenu />
 				</div>
 				<PinnedSection
 					workspaces={pinnedWorkspaces}

@@ -93,6 +93,12 @@ export const DotIcon = (p: P) => (
 export const CircleIcon = (p: P) => (
 	<Icon d="M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11z" {...p} />
 );
+export const HelpCircleIcon = (p: P) => (
+	<Icon
+		d="M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM6.4 6.4a1.65 1.65 0 0 1 3.2.55c0 1.1-1.6 1.4-1.6 2.3M8 10.9h.01"
+		{...p}
+	/>
+);
 export const ClockIcon = (p: P) => (
 	<Icon d="M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM8 5v3.5l2 1.5" {...p} />
 );

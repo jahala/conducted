@@ -85,6 +85,28 @@ export const PAGE_STATES: CatalogueState[] = [
 		},
 	},
 	{
+		id: "create-project",
+		group: "Pages",
+		title: "Quick start's Create project dialog, from the new-workspace project menu",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/create?repo=${cast.atlas.id}`,
+				after: async ({ document }) => {
+					await click(document, "button", "Project: atlas");
+					await click(document, '[role="menuitem"]', "Quick start");
+					await typeInto(
+						document,
+						'input[placeholder="my-awesome-project"]',
+						"",
+						"atlas-playground",
+					);
+				},
+				ready: (document) => shows(document, "Creates folder"),
+			};
+		},
+	},
+	{
 		id: "backlog",
 		group: "Pages",
 		title: "Backlog with saved workspaces",

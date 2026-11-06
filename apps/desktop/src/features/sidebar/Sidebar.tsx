@@ -1,14 +1,17 @@
 /**
  * @feature NAV-03 Sidebar
  * Owns: the left sidebar layout: navigation rows on top, the workspace list in the middle, and a footer with
- * update notice, resource usage, Settings and "Add project".
+ * the update notice and resource usage above one row holding Help and Settings.
  * Behaviour: ui-map.md 4 (top to bottom: window controls row, organization switcher, nav rows, Pinned, sections,
  * main list, footer). The window controls row is the floating <ShellControls> in app/. The organization
  * switcher is cloud only and is left out.
  * Our design choice: each region fails on its own inside <NotBuiltYet>, so a missing hook shows one line of text,
  * not a broken sidebar. A footer region whose feature is not built (the update notice, APP-06, and the
- * resource table, APP-07) shows its one-line "Not built yet" note until it is. Settings is in the footer
- * because the account menu that holds it in Conductor is a cloud feature we leave out.
+ * resource table, APP-07) shows its one-line "Not built yet" note until it is.
+ * Measured from Conductor 0.92.1 (renderApp @10375068): the footer row is 16px by 12px padding over a top
+ * rule; the plan badge sits at the left (left out, D025) and Help and Settings sit at the right, 20px apart,
+ * as 16px muted icons. Adding a project lives in the list header menu, the palette and Cmd+Alt+A, as in
+ * Conductor; its footer has no add-project button.
  * Must handle: sidebar narrower than a row's content (names truncate); no projects (empty state in the list
  * region); loading and error in the list region.
  * Test first: renders the navigation rows and, with no projects, the "No projects yet" empty state.
@@ -18,7 +21,7 @@ import { GearIcon } from "../../ui/icons.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { MacosVersionWarningNotice } from "../updates/MacosVersionWarning.tsx";
 import { UpdateNotice } from "../updates/UpdateNotice.tsx";
-import { AddProjectButton } from "./AddProjectButton.tsx";
+import { HelpMenu } from "./HelpMenu.tsx";
 import { ResourceUsageTable } from "./ResourceUsageTable.tsx";
 import { SidebarNav } from "./SidebarNav.tsx";
 import { WorkspaceList } from "./WorkspaceList.tsx";
@@ -32,28 +35,23 @@ export function Sidebar() {
 					<WorkspaceList />
 				</NotBuiltYet>
 			</div>
-			<div className="flex shrink-0 flex-col gap-1 border-t border-border px-2 py-2">
-				<MacosVersionWarningNotice />
-				<NotBuiltYet area="Update notice" variant="inline">
-					<UpdateNotice />
-				</NotBuiltYet>
-				<NotBuiltYet area="Resource usage" variant="inline">
-					<ResourceUsageTable />
-				</NotBuiltYet>
-				<div className="flex items-center gap-1">
-					<NotBuiltYet area="Add project" variant="inline">
-						<AddProjectButton
-							variant="ghost"
-							size="sm"
-							className="min-w-0 justify-start text-sidebar-fg-muted"
-						/>
+			<div className="flex shrink-0 flex-col">
+				<div className="flex flex-col gap-1 px-2 pb-2 empty:hidden">
+					<MacosVersionWarningNotice />
+					<NotBuiltYet area="Update notice" variant="inline">
+						<UpdateNotice />
 					</NotBuiltYet>
-					<span className="flex-1" />
+					<NotBuiltYet area="Resource usage" variant="inline">
+						<ResourceUsageTable />
+					</NotBuiltYet>
+				</div>
+				<div className="flex items-center justify-end gap-5 border-t border-border px-4 py-3">
+					<HelpMenu />
 					<Link
 						to="/settings"
 						aria-label="Settings"
 						title="Settings"
-						className="flex size-7 shrink-0 items-center justify-center rounded-md text-sidebar-fg-muted transition-colors hover:bg-hover hover:text-fg"
+						className="flex size-4 shrink-0 items-center justify-center rounded-sm text-sidebar-fg-muted transition-colors hover:text-fg"
 					>
 						<GearIcon />
 					</Link>

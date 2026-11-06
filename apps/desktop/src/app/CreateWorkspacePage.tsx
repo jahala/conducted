@@ -64,7 +64,11 @@ import { newWorkspaceSessionConfig } from "../core/services/workspace.ts";
 import { useNewWorkspaceDraft } from "../features/composer/draft-sources.ts";
 import { type ModelChoice, ModelMenu } from "../features/composer/ModelPicker.tsx";
 import { SuggestionPopup } from "../features/composer/mentions/SuggestionPopup.tsx";
-import { AddProjectButton, useAddProject } from "../features/sidebar/AddProjectButton.tsx";
+import {
+	AddProjectButton,
+	AddProjectItems,
+	useAddProject,
+} from "../features/sidebar/AddProjectButton.tsx";
 import { Button } from "../ui/Button.tsx";
 import { cn } from "../ui/cn.ts";
 import { Dialog, DialogContent } from "../ui/Dialog.tsx";
@@ -74,9 +78,7 @@ import {
 	ChevronDownIcon,
 	CircleIcon,
 	FolderIcon,
-	FolderPlusIcon,
 	GitBranchIcon,
-	GlobeIcon,
 	MoreHorizontalIcon,
 	PlusIcon,
 	PullRequestIcon,
@@ -1072,15 +1074,7 @@ function ProjectMenu({
 					</Button>
 				</MenuTrigger>
 				<MenuContent align="start" className="w-80">
-					<MenuItem icon={<FolderIcon />} onSelect={() => void add.addProject()}>
-						Open project
-					</MenuItem>
-					<MenuItem icon={<GlobeIcon />} onSelect={add.openClone}>
-						Open GitHub project
-					</MenuItem>
-					<MenuItem icon={<FolderPlusIcon />} onSelect={add.openQuickStart}>
-						Quick start
-					</MenuItem>
+					<AddProjectItems add={add} />
 					<MenuLabel>Recents</MenuLabel>
 					{repos.map((repo) => (
 						<MenuItem

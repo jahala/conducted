@@ -5,6 +5,16 @@
  * Behaviour: ui-map.md 2 (landing "Quick start"), 3.9 ("Create project": Project name, Parent
  * folder, Template; "Create a private GitHub repo?"), 5.2 (the dialog titles), services-map.md 3.2
  * (the GitHub repository steps) and 3.9 (name availability).
+ * Measured from Conductor 0.92.1 (renderApp @2035595): a 525px dialog; fields 24px apart, each label 8px
+ * above its control; "Creates folder and repo <name>" under the name with the name in a muted chip; the
+ * parent folder's field beside an outlined Browse; three template cards in a row (4px radius, a 40px
+ * bordered icon tile on the canvas, the name in 14px medium, the description in 10px muted; the chosen card
+ * outlined and tinted in the accent, the others on the muted fill; "New" on gstack); and one Create button
+ * at the right with its Cmd+Enter keys, reading "Creating..." while it works.
+ * Our design choice: Conductor's dialog also creates the GitHub repository and the first workspace in the
+ * same run. Ours creates the folder and project, then offers the private repository in the next dialog,
+ * so the description and the line under the name speak of the folder only. Conductor's logos for the
+ * templates are its assets (D002); ours are drawn letter marks. Cancel stays beside Create.
  * Must handle: an empty or unusable project name (Create stays disabled), a cancelled or failing
  * folder dialog, a template command that fails (its message stays in the dialog), a failed GitHub
  * repository (its message stays in the dialog), no GitHub sign-in (the repository dialog explains
@@ -21,18 +31,28 @@ import {
 	type ProjectTemplate,
 	projectFolderName,
 } from "../../core/services/project-templates.ts";
+import { Badge } from "../../ui/Badge.tsx";
 import { Button, type ButtonProps } from "../../ui/Button.tsx";
 import { cn } from "../../ui/cn.ts";
 import { Dialog, DialogContent, DialogFooter } from "../../ui/Dialog.tsx";
 import { Input, Label } from "../../ui/Input.tsx";
-import { FileIcon, FolderPlusIcon, GitBranchIcon } from "../../ui/icons.tsx";
+import { FileCodeIcon, FolderPlusIcon } from "../../ui/icons.tsx";
 import { Select } from "../../ui/Select.tsx";
 import { toast } from "../../ui/Toast.tsx";
 
-const templateIcons = {
-	empty: FolderPlusIcon,
-	nextjs: FileIcon,
-	gstack: GitBranchIcon,
+/** A drawn letter in a circle, our own mark for a template whose logo is someone else's. */
+function LetterMark({ letter }: { letter: string }) {
+	return (
+		<span className="flex size-6 items-center justify-center rounded-full bg-fg text-sm font-semibold leading-none text-canvas">
+			{letter}
+		</span>
+	);
+}
+
+const templateMarks = {
+	empty: <FileCodeIcon className="size-6 text-fg" />,
+	nextjs: <LetterMark letter="N" />,
+	gstack: <LetterMark letter="g" />,
 } as const;
 
 export interface CreateProjectDialogProps {
@@ -105,12 +125,13 @@ export function CreateProjectDialog({ open, onOpenChange, onCreated }: CreatePro
 				title="Create project"
 				description="Create a local folder from a template and add it as a project."
 				size="xl"
+				className="max-w-[525px]"
 				onConfirm={() => {
 					if (canCreate) void submit();
 				}}
 			>
-				<div className="flex flex-col gap-4">
-					<div className="flex flex-col gap-1.5">
+				<div className="mt-2 flex flex-col gap-6">
+					<div className="flex flex-col gap-2">
 						<Label htmlFor={nameId}>Project name</Label>
 						<Input
 							id={nameId}
@@ -129,18 +150,19 @@ export function CreateProjectDialog({ open, onOpenChange, onCreated }: CreatePro
 							<p className="text-xs text-danger">Name must include letters or numbers.</p>
 						) : folder !== "" ? (
 							<p className="text-xs text-fg-muted">
-								Creates folder <code className="font-mono">{folder}</code>
+								Creates folder{" "}
+								<code className="rounded-sm bg-muted px-1 py-0.5 font-mono">{folder}</code>
 							</p>
 						) : null}
 					</div>
 
-					<div className="flex flex-col gap-1.5">
+					<div className="flex flex-col gap-2">
 						<Label htmlFor={parentId}>Parent folder</Label>
-						<div className="flex gap-2">
+						<div className="flex items-center gap-2">
 							<Input
 								id={parentId}
 								value={parent}
-								placeholder="Enter a path or click Browse"
+								placeholder="Enter path or click to select"
 								className="flex-1"
 								onChange={(event) => {
 									setParent(event.target.value);
@@ -153,11 +175,10 @@ export function CreateProjectDialog({ open, onOpenChange, onCreated }: CreatePro
 						</div>
 					</div>
 
-					<div className="flex flex-col gap-2">
-						<span className="text-sm font-medium text-fg">Template</span>
+					<fieldset className="flex flex-col gap-2">
+						<legend className="mb-2 text-sm font-medium leading-none text-fg">Template</legend>
 						<div className="grid grid-cols-3 gap-2">
 							{PROJECT_TEMPLATES.map((choice) => {
-								const Icon = templateIcons[choice.value];
 								const selected = template === choice.value;
 								return (
 									<button
@@ -166,27 +187,36 @@ export function CreateProjectDialog({ open, onOpenChange, onCreated }: CreatePro
 										aria-pressed={selected}
 										onClick={() => setTemplate(choice.value)}
 										className={cn(
-											"flex flex-col items-center gap-2 rounded-md border px-2 py-4 text-center transition-colors",
+											"relative flex flex-col items-center gap-2 rounded-sm border px-2 py-4 text-center transition-colors",
 											selected
-												? "border-accent bg-accent/10"
-												: "border-transparent bg-surface hover:bg-hover",
+												? "border-accent bg-accent/20"
+												: "border-transparent bg-muted hover:bg-hover",
 										)}
 									>
-										<span className="flex size-10 items-center justify-center rounded border border-border bg-raised">
-											<Icon className="size-5 text-fg-muted" />
+										{choice.value === "gstack" ? (
+											<span className="absolute top-1.5 right-1.5">
+												<Badge>New</Badge>
+											</span>
+										) : null}
+										<span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-sm border border-border bg-canvas">
+											{templateMarks[choice.value]}
 										</span>
-										<span className="text-sm font-medium text-fg">{choice.label}</span>
-										<span className="text-[10px] text-fg-muted">{choice.description}</span>
+										<span className="flex min-w-0 flex-col text-center">
+											<span className="truncate text-sm font-medium text-fg">{choice.label}</span>
+											<span className="text-[10px] text-fg-muted">{choice.description}</span>
+										</span>
 									</button>
 								);
 							})}
 						</div>
-					</div>
+					</fieldset>
 
 					{error !== null ? (
-						<p role="alert" className="text-sm text-danger">
-							{error}
-						</p>
+						<div className="rounded-sm border border-danger/50 bg-danger/10 p-3">
+							<p role="alert" className="whitespace-pre-wrap break-words text-sm text-danger">
+								{error}
+							</p>
+						</div>
 					) : null}
 				</div>
 
@@ -194,8 +224,17 @@ export function CreateProjectDialog({ open, onOpenChange, onCreated }: CreatePro
 					<Button variant="ghost" disabled={busy} onClick={() => onOpenChange(false)}>
 						Cancel
 					</Button>
-					<Button loading={busy} disabled={!canCreate} onClick={() => void submit()}>
-						Create
+					<Button disabled={!canCreate} onClick={() => void submit()}>
+						{busy ? (
+							"Creating..."
+						) : (
+							<>
+								Create
+								<span aria-hidden="true" className="ml-1 opacity-60">
+									⌘↵
+								</span>
+							</>
+						)}
 					</Button>
 				</DialogFooter>
 			</DialogContent>
@@ -352,9 +391,11 @@ export function CreateGithubRepoDialog({
 						</p>
 					) : null}
 					{error !== null ? (
-						<p role="alert" className="text-sm text-danger">
-							{error}
-						</p>
+						<div className="rounded-sm border border-danger/50 bg-danger/10 p-3">
+							<p role="alert" className="whitespace-pre-wrap break-words text-sm text-danger">
+								{error}
+							</p>
+						</div>
 					) : null}
 				</div>
 
