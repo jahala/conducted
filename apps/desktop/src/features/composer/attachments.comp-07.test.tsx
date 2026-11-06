@@ -170,6 +170,31 @@ describe("COMP-07 attachments in the composer", () => {
 		}
 	});
 
+	it("leaves a dropped file to the chat on screen when another chat's composer is mounted too", async () => {
+		const { test, session, workspace, wrapper, close } = await setup();
+		try {
+			addFile(test, "/tmp/one.txt", "one");
+			const other = must(await test.container.services.sessions.create(workspace.id, CONFIG));
+			render(
+				<>
+					<Composer workspaceId={workspace.id} sessionId={session.id} />
+					<Composer workspaceId={workspace.id} sessionId={other.id} />
+				</>,
+				{ wrapper },
+			);
+			expect(test.container.services.sessions.store.getState().viewingSessionId).toBe(session.id);
+
+			test.memory.controls.emitFileDrop({ kind: "drop", paths: ["/tmp/one.txt"], x: 10, y: 10 });
+
+			const drafts = test.container.services.composer;
+			await waitFor(() => expect(drafts.draftOf(session.id).attachmentPaths).toHaveLength(1));
+			expect(screen.queryAllByRole("list", { name: "Attachments" })).toHaveLength(1);
+			expect(drafts.draftOf(other.id).attachmentPaths).toHaveLength(0);
+		} finally {
+			close();
+		}
+	});
+
 	it("removes one attachment and updates the draft", async () => {
 		const { test, session, workspace, wrapper, close } = await setup();
 		try {

@@ -25,7 +25,10 @@
  * ID, an OpenCode provider list that is loading or failed, and a model filter that cannot be saved.
  * Our design choice: the subscription token is saved under the Anthropic provider because both sign
  * Claude Code in; the Bedrock test model is saved as `ANTHROPIC_MODEL`; a custom workspace ID is
- * saved as the workspace variable its agent family uses.
+ * saved as the workspace variable its agent family uses. The Custom provider form is a group named
+ * "Custom provider" (ui-map.md 6, "Agents page"); under OpenCode's and Pi's provider list the name
+ * shows as its heading. Each Save key button's accessible name says which key it saves, so two in
+ * one dialog differ.
  * Test first: saving an Anthropic key stores it in the Keychain and removing it deletes the entry.
  */
 import type { AgentInstall } from "@conducted/protocol";
@@ -35,6 +38,7 @@ import { useActions, useAgentProviders, useProviderKeys, useSetting } from "../.
 import type { ProviderKeyView } from "../../../core/model.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { Checkbox } from "../../../ui/Checkbox.tsx";
+import { cn } from "../../../ui/cn.ts";
 import { Dialog, DialogContent, DialogFooter } from "../../../ui/Dialog.tsx";
 import { Input, Label } from "../../../ui/Input.tsx";
 import { Select } from "../../../ui/Select.tsx";
@@ -75,6 +79,14 @@ interface KeyFormProps {
 
 const hasKey = (keys: readonly ProviderKeyView[], provider: string, envVar: string): boolean =>
 	keys.some((key) => key.provider === provider && key.envVar === envVar);
+
+/**
+ * The accessible name of a Save key button: it names the key, so a screen reader can tell two Save
+ * buttons in one dialog apart. A field label that already ends in "key" or "token" is used as it is.
+ */
+function saveKeyName(label: string): string {
+	return /\b(key|token)$/i.test(label) ? `Save ${label}` : `Save ${label} key`;
+}
 
 /** One key field, with "Use the key from this Mac" and its Save and Remove actions. */
 function KeyForm({
@@ -127,7 +139,12 @@ function KeyForm({
 					className="w-80"
 					onChange={(event) => setValue(event.target.value)}
 				/>
-				<Button variant="secondary" loading={busy} onClick={() => void save()}>
+				<Button
+					variant="secondary"
+					loading={busy}
+					aria-label={saveKeyName(label)}
+					onClick={() => void save()}
+				>
 					Save key
 				</Button>
 				{saved ? (
@@ -526,6 +543,8 @@ function VertexForm({ agent, project, onSave }: VertexFormProps) {
 }
 
 interface CustomFormProps {
+	/** True when the form sits under another provider list (OpenCode, Pi), so it shows its own heading. */
+	heading: boolean;
 	agent: AgentKind;
 	acpAgent: AcpAgent | null;
 	keys: readonly ProviderKeyView[];
@@ -539,7 +558,7 @@ interface CustomFormProps {
 }
 
 /** Custom provider: the key and an optional workspace ID. */
-function CustomForm({ agent, acpAgent, keys, onSave, onRemove }: CustomFormProps) {
+function CustomForm({ heading, agent, acpAgent, keys, onSave, onRemove }: CustomFormProps) {
 	const provider = "custom";
 	const keyEnvVar = keyEnvVarFor(agent, "custom");
 	const workspaceEnvVar = workspaceIdEnvVarFor(agent);
@@ -568,7 +587,15 @@ function CustomForm({ agent, acpAgent, keys, onSave, onRemove }: CustomFormProps
 	const saved = keys.find((key) => key.provider === provider && key.envVar === keyEnvVar);
 
 	return (
-		<div className="flex flex-col gap-3">
+		<fieldset
+			className={cn(
+				"m-0 flex min-w-0 flex-col gap-3 border-0 p-0",
+				heading && "border-t border-separator pt-4",
+			)}
+		>
+			<legend className={heading ? "mb-3 text-sm font-medium text-fg" : "sr-only"}>
+				Custom provider
+			</legend>
 			<div className="flex flex-col gap-1.5">
 				<Label htmlFor={`${agent}-custom-key`}>API key</Label>
 				<Input
@@ -592,7 +619,12 @@ function CustomForm({ agent, acpAgent, keys, onSave, onRemove }: CustomFormProps
 				/>
 			</div>
 			<div className="flex gap-2">
-				<Button variant="secondary" loading={busy} onClick={() => void save()}>
+				<Button
+					variant="secondary"
+					loading={busy}
+					aria-label="Save custom provider key"
+					onClick={() => void save()}
+				>
 					Save key
 				</Button>
 				{keys.some((key) => key.provider === provider) ? (
@@ -601,7 +633,7 @@ function CustomForm({ agent, acpAgent, keys, onSave, onRemove }: CustomFormProps
 					</Button>
 				) : null}
 			</div>
-		</div>
+		</fieldset>
 	);
 }
 
@@ -888,6 +920,7 @@ export function AgentProvidersDialog({
 
 					{current?.id === "custom" ? (
 						<CustomForm
+							heading={isAcp}
 							agent={agent}
 							acpAgent={acpAgent}
 							keys={saved}

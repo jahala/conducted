@@ -11,13 +11,19 @@
  * caller may pass the storage it wants; the app uses the window's storage. The shell's facts are kept in the
  * settings table, so there is one home: this module never stores an "app-shell" entry.
  * Must handle: a saved layout for panels that no longer exist is ignored; a layout that fails to parse is ignored
- * (the defaults apply); a collapsed panel is saved at 0 so it comes back collapsed; the layout of a deleted
- * workspace is removed with `clearPanelLayout`, called by WS-05 when it deletes or archives a workspace.
+ * (the defaults apply); a collapsed panel is saved at 0 so it comes back collapsed; the layouts of a workspace
+ * the user deletes or archives are removed (`clearLayoutsOfClosedWorkspaces`, which the app shell runs while
+ * it is mounted). Data lifetime: an entry lives until its workspace is deleted or archived. Unarchiving
+ * starts from the default sizes.
  * Test first: saving then loading a layout for "workspace-right-panels-w1" returns the same sizes.
  */
 
 import { ok, type Result } from "@conducted/shared";
-import { sidebarSize } from "../ui/layout-sizes.ts";
+import {
+	sidebarSize,
+	workspaceLayoutGroupId,
+	workspaceRightPanelsGroupId,
+} from "../ui/layout-sizes.ts";
 import type { PanelLayout } from "../ui/resizable.tsx";
 
 export type { PanelLayout } from "../ui/resizable.tsx";
@@ -153,4 +159,42 @@ export function clearPanelLayout(
 	storage: PanelLayoutStorage | null = browserStorage(),
 ): void {
 	storage?.removeItem(panelLayoutStorageKey(groupId));
+}
+
+/** The workspace list as the layout cleanup reads it. */
+interface WorkspaceList {
+	workspacesById: Readonly<Record<string, { archivedAt: number | null }>>;
+}
+
+/** The workspace service's store, which tells each change with the state before it. */
+export interface WorkspaceListStore {
+	subscribe(listener: (state: WorkspaceList, previous: WorkspaceList) => void): () => void;
+}
+
+/** Workspaces that were open in `previous` and are deleted or archived in `next`. */
+export function workspacesClosed(previous: WorkspaceList, next: WorkspaceList): string[] {
+	const closed: string[] = [];
+	for (const [id, workspace] of Object.entries(previous.workspacesById)) {
+		if (workspace.archivedAt !== null) continue;
+		const now = next.workspacesById[id];
+		if (now === undefined || now.archivedAt !== null) closed.push(id);
+	}
+	return closed;
+}
+
+/**
+ * Removes the saved panel sizes of each workspace that is deleted or archived while it listens, so
+ * the browser storage does not grow with every workspace ever made. Returns the unsubscribe.
+ */
+export function clearLayoutsOfClosedWorkspaces(
+	workspaces: WorkspaceListStore,
+	storage: PanelLayoutStorage | null = browserStorage(),
+): () => void {
+	return workspaces.subscribe((state, previous) => {
+		if (state.workspacesById === previous.workspacesById) return;
+		for (const id of workspacesClosed(previous, state)) {
+			clearPanelLayout(workspaceLayoutGroupId(id), storage);
+			clearPanelLayout(workspaceRightPanelsGroupId(id), storage);
+		}
+	});
 }

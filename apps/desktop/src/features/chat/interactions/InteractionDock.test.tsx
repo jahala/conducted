@@ -18,6 +18,10 @@ vi.mock("../../../core/hooks.ts", () => ({
 	useActions: () => ({
 		sessions: { answer: state.answer, cancel: state.cancel },
 	}),
+	// The question card looks its keys up in the command registry with the user's rebinds.
+	useShortcutOverrides: () => ({ overrides: {}, error: null }),
+	useSetting: () => "enter",
+	useLiveShortcut: () => null,
 }));
 
 const { InteractionDock } = await import("./InteractionDock.tsx");

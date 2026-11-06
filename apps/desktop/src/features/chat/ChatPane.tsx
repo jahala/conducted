@@ -10,7 +10,8 @@
  * composer (see InteractionDock), so the user always looks at the same place for "the agent is waiting".
  * Each part is its own <NotBuiltYet>, keyed by session, so one failing part leaves the rest usable.
  * Must handle: switching chats (all parts reset); the composer is the only part that keeps focus; a narrow tab
- * (the list scrolls, the dock and composer never overflow).
+ * (the list scrolls, the dock and composer never overflow); a pane that closes after a split pane recorded its
+ * own chat (the other pane's chat stays recorded).
  * Test first: renders the list, progress, queue and composer regions for a session id.
  */
 import type { SessionId, WorkspaceId } from "@conducted/shared";
@@ -40,7 +41,13 @@ export function ChatPane({
 		void services.sessions.markAllRead(workspaceId).then((result) => {
 			if (!result.ok) toastError("Couldn't mark the workspace as read", result.error);
 		});
-		return () => services.sessions.setViewing(null);
+		// A split pane shows another chat beside this one. Closing this pane must not clear the chat that
+		// pane recorded since, or its new messages would count as unread while it is on screen.
+		return () => {
+			if (services.sessions.store.getState().viewingSessionId === sessionId) {
+				services.sessions.setViewing(null);
+			}
+		};
 	}, [services, sessionId, workspaceId]);
 
 	// The chat's stored messages load when it is shown. Nothing else opens a chat.

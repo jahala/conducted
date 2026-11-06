@@ -14,7 +14,10 @@
  * Must handle: One question (no previous or next); up to four questions; a multi-select question
  * with nothing ticked (skipped, allowed); 'Other' text empty (not accepted as an answer); the
  * interaction is withdrawn while open (card disappears, typed text is lost on purpose); Cancel
- * agent calls sessions.cancel; an option preview shown while the option is focused or picked.
+ * agent calls sessions.cancel; an option preview shown while the option is focused or picked; the
+ * user's rebinds of the chat-question commands on the Keyboard shortcuts page (the card looks each
+ * key up in the command registry, so "Pick an answer option by number" uses its n-th shortcut for
+ * option n), and the send-key setting, which moves Submit to Cmd+Enter.
  * Test first: Choosing option 2 on a single-select question and pressing Enter calls
  * sessions.answer with answers [['<label 2>']].
  */
@@ -22,6 +25,7 @@
 import type { Interaction } from "@conducted/protocol";
 import type { InteractionId, SessionId } from "@conducted/shared";
 import { type KeyboardEvent, useCallback, useRef, useState } from "react";
+import { fieldOwnsKey, keyPressOf, useScopedKeyMatch } from "../../../app/command-dispatcher.ts";
 import { useActions } from "../../../core/hooks.ts";
 import { Button } from "../../../ui/Button.tsx";
 import { cn } from "../../../ui/cn.ts";
@@ -46,6 +50,7 @@ export function QuestionCard({ sessionId, interactionId, questions }: QuestionCa
 	const [pending, setPending] = useState(false);
 	const [failed, setFailed] = useState<"answer" | "cancel" | null>(null);
 	const otherRefs = useRef<Array<HTMLInputElement | null>>([]);
+	const matchKey = useScopedKeyMatch("chat-question");
 	const busy = useRef(false);
 	/** Focuses a control when it mounts, so the wizard takes the keys as it opens. */
 	const focusOnMount = useCallback((node: HTMLElement | null) => {
@@ -130,9 +135,13 @@ export function QuestionCard({ sessionId, interactionId, questions }: QuestionCa
 	function onKeyDown(event: KeyboardEvent<HTMLFieldSetElement>): void {
 		const target = event.target as HTMLElement;
 		const typing = target.tagName === "INPUT" || target.tagName === "TEXTAREA";
+		const press = keyPressOf(event.nativeEvent);
+		// A field keeps its own typing, whatever the user bound the card's commands to.
+		if (typing && fieldOwnsKey(press, target)) return;
+		const match = matchKey(press);
+		if (match === null) return;
 
-		if (event.key === "Enter") {
-			if (event.nativeEvent.isComposing) return;
+		if (match.commandId === "chat.question.submit") {
 			const button = target.closest("button");
 			if (button !== null && !button.hasAttribute("data-question-option")) return;
 			event.preventDefault();
@@ -141,26 +150,26 @@ export function QuestionCard({ sessionId, interactionId, questions }: QuestionCa
 		}
 		if (typing) return;
 
-		if (event.key === "ArrowLeft") {
+		if (match.commandId === "chat.question.previous") {
 			event.preventDefault();
 			goToPage(page - 1);
 			return;
 		}
-		if (event.key === "ArrowRight") {
+		if (match.commandId === "chat.question.next") {
 			event.preventDefault();
 			goToPage(page + 1);
 			return;
 		}
-		if (event.key === "0") {
+		if (match.commandId === "chat.question.focusOther") {
 			event.preventDefault();
 			otherRefs.current[page]?.focus();
 			return;
 		}
-		if (/^[1-9]$/.test(event.key)) {
-			const option = current?.options[Number(event.key) - 1];
+		if (match.commandId === "chat.question.selectOption") {
+			const option = current?.options[match.index];
 			if (option === undefined) return;
 			event.preventDefault();
-			toggleOption(page, Number(event.key) - 1);
+			toggleOption(page, match.index);
 		}
 	}
 

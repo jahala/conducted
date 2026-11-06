@@ -339,7 +339,7 @@ describe("s1-ui join", () => {
 			fireEvent.change(await screen.findByLabelText("Anthropic API key"), {
 				target: { value: "sk-ant-join" },
 			});
-			fireEvent.click(screen.getByRole("button", { name: "Save key" }));
+			fireEvent.click(screen.getByRole("button", { name: "Save Anthropic API key" }));
 
 			const ref = providerKeychainRef({
 				agent: "claude",
@@ -537,10 +537,7 @@ describe("s1-ui join REV-10 and SET-10", () => {
 			fireEvent.change(await screen.findByLabelText("DeepSeek"), {
 				target: { value: "sk-deepseek-join" },
 			});
-			// The Custom provider form below the catalogue has a Save key button of its own.
-			const deepseekRow = screen.getByLabelText("DeepSeek").parentElement;
-			if (deepseekRow === null) throw new Error("no field row for DeepSeek");
-			fireEvent.click(within(deepseekRow).getByRole("button", { name: "Save key" }));
+			fireEvent.click(screen.getByRole("button", { name: "Save DeepSeek key" }));
 
 			const key = {
 				agent: "acp" as const,
