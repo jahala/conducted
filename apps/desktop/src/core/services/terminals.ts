@@ -28,8 +28,9 @@
  * Conductor keeps it on its terminal session (services-map.md 5A.4.6); the research names no screen
  * that shows it, so none does yet. The files are rewritten at every app start so an update reaches
  * existing installs; the shim reads the user's `.zshenv` from their home folder, and when that file
- * sets `ZDOTDIR` it reads their other dotfiles from that folder (a `ZDOTDIR` set only in the app's
- * own launch environment is not seen: `Shell.loginEnv` does not return it); a shell that is not
+ * sets `ZDOTDIR` it reads their other dotfiles from that folder; a `ZDOTDIR` the app itself was
+ * launched with (`Shell.loginEnv().zdotdir`) reaches the shim as `CONDUCTED_USER_ZDOTDIR`, and the
+ * shim reads every user dotfile from it, as zsh would, then unsets it; a shell that is not
  * zsh, and every script terminal, start without the shim; a marker split across two
  * output chunks is still read; output with a marker still reaches the screen unchanged. Our design
  * choice: the marker namespace is `Conducted`, so markers are ours and not Conductor's.
@@ -93,8 +94,10 @@ export function zshIntegrationFiles(): Readonly<
 	return {
 		".zshenv": `# Conducted shell integration. Zsh reads this file first, from the shim folder.
 _conducted_shim_zdotdir="\${ZDOTDIR:-$HOME}"
-# Zsh reads a user's .zshenv from their home folder, as it would without the shim.
-_conducted_user_zdotdir="$HOME"
+# Zsh reads a user's .zshenv from the ZDOTDIR the app was launched with, else their home folder,
+# as it would without the shim.
+_conducted_user_zdotdir="\${CONDUCTED_USER_ZDOTDIR:-$HOME}"
+unset CONDUCTED_USER_ZDOTDIR
 if [ "$_conducted_user_zdotdir" != "$_conducted_shim_zdotdir" ] && [ -f "$_conducted_user_zdotdir/.zshenv" ]; then
   source "$_conducted_user_zdotdir/.zshenv"
   # A .zshenv that sets ZDOTDIR names the folder that holds the user's other dotfiles.
@@ -146,11 +149,18 @@ fi
 }
 
 /**
- * Environment that starts zsh with the shim: `ZDOTDIR` is the shim folder. The shim finds the
- * user's own dotfiles itself: their home folder, or the `ZDOTDIR` their `.zshenv` sets.
+ * Environment that starts zsh with the shim: `ZDOTDIR` is the shim folder. `launchZdotdir` is the
+ * `ZDOTDIR` the app was launched with; the shim reads the user's dotfiles from it, else from their
+ * home folder, and follows a `ZDOTDIR` their `.zshenv` sets. With none, no hand-over variable is
+ * set, so an empty one never sends a user to the wrong folder.
  */
-export function shellIntegrationEnv(shimDir: string): Readonly<Record<string, string>> {
-	return { ZDOTDIR: shimDir };
+export function shellIntegrationEnv(
+	shimDir: string,
+	launchZdotdir: string | null,
+): Readonly<Record<string, string>> {
+	return launchZdotdir === null
+		? { ZDOTDIR: shimDir }
+		: { ZDOTDIR: shimDir, CONDUCTED_USER_ZDOTDIR: launchZdotdir };
 }
 
 const parseShellMarker = (payload: string): ShellIntegrationEvent | null => {
@@ -439,6 +449,8 @@ export class TerminalsService {
 	readonly #restarts = createSingleFlight<string>();
 	/** The zsh shim folder, or null when the login shell is not zsh. Set at app start. */
 	#shimDir: string | null = null;
+	/** The `ZDOTDIR` the app was launched with, read with the login shell at install (RUN-09). */
+	#launchZdotdir: string | null = null;
 
 	constructor(deps: TerminalsServiceDeps) {
 		this.#deps = deps;
@@ -620,7 +632,7 @@ export class TerminalsService {
 		// Only an interactive zsh terminal loads the shim. A script is not zsh and must not.
 		const env =
 			options?.command === undefined && terminal.kind === "terminal" && this.#shimDir !== null
-				? { ...(options?.env ?? {}), ...shellIntegrationEnv(this.#shimDir) }
+				? { ...(options?.env ?? {}), ...shellIntegrationEnv(this.#shimDir, this.#launchZdotdir) }
 				: options?.env;
 		const spawned = await this.#deps.platform.pty.spawn({
 			cwd: terminal.cwd,
@@ -828,8 +840,9 @@ export class TerminalsService {
 	/** Writes the zsh shim files into `zshIntegrationDir`. Runs at every app start. */
 	async installShellIntegration(): Promise<Result<void>> {
 		let shell: string;
+		let launchZdotdir: string | null;
 		try {
-			shell = (await this.#deps.platform.shell.loginEnv()).shell;
+			({ shell, zdotdir: launchZdotdir } = await this.#deps.platform.shell.loginEnv());
 		} catch (cause) {
 			return err(
 				appError("shell_unknown", "Couldn't find your login shell to set up the terminal.", cause),
@@ -845,6 +858,7 @@ export class TerminalsService {
 			if (!written.ok) return written;
 		}
 		this.#shimDir = /(?:^|\/)zsh$/.test(shell) ? dir : null;
+		this.#launchZdotdir = launchZdotdir;
 		return ok(undefined);
 	}
 
