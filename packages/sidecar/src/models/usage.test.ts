@@ -54,7 +54,7 @@ describe("SIDE-17 rate limits from the Claude SDK", () => {
 		);
 		expect(limits.map((limit) => [limit.label, limit.usedPercent, limit.resetsAt])).toEqual([
 			["5-hour limit", 10, Date.parse("2026-11-04T10:00:00Z")],
-			["Weekly limit", 60, Date.parse("2026-11-09T00:00:00Z")],
+			["7-day limit", 60, Date.parse("2026-11-09T00:00:00Z")],
 		]);
 	});
 

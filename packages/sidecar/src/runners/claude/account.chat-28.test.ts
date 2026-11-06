@@ -9,17 +9,13 @@ import type { CanUseTool, Options, Query, SDKMessage } from "@anthropic-ai/claud
 import type { SessionConfig, WorkspaceContext } from "@conducted/protocol";
 import type { SessionId, WorkspaceId } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
-import {
-	ClaudeSession,
-	type ClaudeSessionDeps,
-	type QueryFunction,
-} from "./claude-session.ts";
-import type { ClaudeTranslator } from "./translate.ts";
-import type { Scheduler } from "./turn-tracker.ts";
-import type { StartOptions } from "../runner.ts";
 import { countingIds } from "../../test-support/ids.ts";
 import type { AppToolBackend } from "../../tools/backend.ts";
 import { AsyncQueue } from "../../util/async-queue.ts";
+import type { StartOptions } from "../runner.ts";
+import { ClaudeSession, type ClaudeSessionDeps, type QueryFunction } from "./claude-session.ts";
+import type { ClaudeTranslator } from "./translate.ts";
+import type { Scheduler } from "./turn-tracker.ts";
 
 function fakeLogger(): Logger {
 	const logger: Logger = {
@@ -67,7 +63,10 @@ function start(): StartOptions {
 	};
 }
 
-function makeDeps(query: QueryFunction, overrides: Partial<ClaudeSessionDeps> = {}): ClaudeSessionDeps {
+function makeDeps(
+	query: QueryFunction,
+	overrides: Partial<ClaudeSessionDeps> = {},
+): ClaudeSessionDeps {
 	return {
 		query,
 		executablePath: "/bin/claude",
@@ -75,6 +74,7 @@ function makeDeps(query: QueryFunction, overrides: Partial<ClaudeSessionDeps> = 
 		logger: fakeLogger(),
 		translator: { translate: () => [] } as unknown as ClaudeTranslator,
 		hasTranscript: async () => false,
+		readUserMessageText: async () => null,
 		realPath: async (path) => path,
 		newUuid: countingIds("turn").uuid,
 		scheduler: { after: () => () => {} } as Scheduler,
@@ -126,10 +126,9 @@ describe("CHAT-28 the Claude account", () => {
 		await session.warm();
 
 		expect(await session.account()).toEqual({
-			loginMethod: "Claude subscription",
-			organization: "Anthropic",
-			email: "person@example.com",
 			plan: "Max",
+			loginMethod: "Claude account",
+			email: "person@example.com",
 		});
 		await session.dispose();
 	});
