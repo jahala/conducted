@@ -4,9 +4,17 @@
  * actions an archived card offers.
  * Behaviour: ui-map.md 2 (Home cards), 3.8 (status model), 4 (archived workspace actions:
  * "Unarchive workspace", "Clear & unarchive", "Open in Finder", "Copy path").
+ * Measured from Conductor 0.92.1 (renderApp @10254031, @10251109, @10230874): one 44px row with 16px
+ * sides, 12px gaps and a bottom rule: the status icon, the name (weight 450 in the muted colour, bold
+ * when unread, faint when archived), the line changes in a 96px column, the project (icon and name, 12px
+ * muted) in a 160px column and the age (12px muted) in a 40px column. A merged pull request tints the
+ * row and its text purple, a pull request ready to merge tints it green, one in the merge queue tints
+ * it yellow, and a 1.5px bar of the same colour marks the row's left edge.
  * Our design choice: an active card is one link to the workspace. An archived card is not a link;
  * it offers Unarchive, Clear & unarchive, Open in Finder and Copy path, because the router refuses
- * to open an archived workspace. Line changes wait for GIT-04, which supplies git state.
+ * to open an archived workspace. The status words and the branch stay as ours, in small muted text
+ * after the name. Line changes and the pull request are read from the git state the app already has;
+ * the row never starts a git read.
  * Must handle: an archived card (muted, with Unarchive instead of opening); a branch that is taken
  * or has moved (a dialog asks for a new branch name and keeps the "Clear & unarchive" choice); a
  * failure or lost uncommitted changes (the toasts from `runUnarchive`); a long name truncates;
@@ -19,14 +27,15 @@
 import type { Result } from "@conducted/shared";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { useActions, useWorkspaceStatus } from "../../core/hooks.ts";
-import type { Repo, Workspace } from "../../core/model.ts";
+import { useActions, useGitState, useSessions, useWorkspaceStatus } from "../../core/hooks.ts";
+import type { PullRequest, Repo, Workspace } from "../../core/model.ts";
 import { Badge } from "../../ui/Badge.tsx";
 import { Button } from "../../ui/Button.tsx";
 import { cn } from "../../ui/cn.ts";
 import { GitBranchIcon } from "../../ui/icons.tsx";
 import { toastError } from "../../ui/Toast.tsx";
-import { relativeTime } from "../sidebar/WorkspaceRow.tsx";
+import { RepoIconMark } from "../sidebar/RepoIcon.tsx";
+import { compactCount, relativeTime } from "../sidebar/WorkspaceRow.tsx";
 import { RenameDialog } from "../workspace/RenameDialog.tsx";
 import { STATUS_TONE_CLASS, statusText } from "../workspace/status-text.ts";
 import { WorkspaceStatusIcon } from "../workspace/WorkspaceStatusIcon.tsx";
@@ -122,41 +131,117 @@ function ArchivedActions({ workspace }: { workspace: Workspace }) {
 	);
 }
 
+type RowTone = "merged" | "ready" | "queued";
+
+/** Conductor's row tones by pull request state. A failing or pending check, or a conflict, is not ready. */
+export function rowTone(pullRequest: PullRequest | null): RowTone | null {
+	if (pullRequest === null) return null;
+	if (pullRequest.state === "merged") return "merged";
+	if (pullRequest.state !== "open") return null;
+	if (pullRequest.inMergeQueue) return "queued";
+	const checksPass = pullRequest.checks.every(
+		(check) => check.state === "success" || check.state === "skipped",
+	);
+	return pullRequest.mergeable === "mergeable" &&
+		checksPass &&
+		pullRequest.reviewDecision !== "changes_requested"
+		? "ready"
+		: null;
+}
+
+const TONE_CLASS: Record<RowTone, string> = {
+	merged: "bg-merged/10 text-merged hover:bg-merged/15",
+	ready: "bg-success/10 text-success hover:bg-success/15",
+	queued: "bg-status-progress/10 text-status-progress hover:bg-status-progress/15",
+};
+
+const TONE_BAR: Record<RowTone, string> = {
+	merged: "bg-merged",
+	ready: "bg-success",
+	queued: "bg-status-progress",
+};
+
 export function WorkspaceCard({ workspace, repo, now, display }: WorkspaceCardProps) {
 	const status = useWorkspaceStatus(workspace.id);
 	const archived = isArchived(workspace);
 	const subtitle = statusText(status);
+	// Read only: the row shows what the git state already knows and never starts a git read.
+	const git = useGitState(workspace.id);
+	const sessions = useSessions(workspace.id);
+	const unread =
+		sessions.state === "ready" && sessions.data.some((session) => session.unreadCount > 0);
+	const tone = archived || git.state !== "ready" ? null : rowTone(git.data.pullRequest);
+	const counts =
+		git.state === "ready" && (git.data.linesAdded > 0 || git.data.linesRemoved > 0)
+			? { added: git.data.linesAdded, removed: git.data.linesRemoved }
+			: null;
+	const showProject = display.has("repository") || display.has("repositoryIcon");
 
-	// Conductor's Home is a list: one row per workspace with the status, the title, the project and the
-	// age at the right; the branch and status words stay as ours under the title.
 	const body = (
 		<>
+			{tone === null ? null : (
+				<span
+					aria-hidden="true"
+					className={cn(
+						"absolute top-1/2 left-0 h-[18px] w-[1.5px] -translate-y-1/2 rounded-full",
+						TONE_BAR[tone],
+					)}
+				/>
+			)}
 			<span className="flex size-4 shrink-0 items-center justify-center">
 				{archived ? null : <WorkspaceStatusIcon status={status} decorative />}
 			</span>
-			<span className="flex min-w-0 flex-1 flex-col">
-				<span className="flex min-w-0 items-center gap-2">
-					<span className="min-w-0 truncate text-sm text-fg">{workspaceName(workspace)}</span>
-					{archived ? <Badge>Archived</Badge> : null}
+			<span className="flex min-w-0 flex-1 items-baseline gap-2">
+				<span
+					className={cn(
+						"min-w-0 truncate",
+						archived
+							? "font-book text-fg-subtle"
+							: unread
+								? cn("font-semibold", tone === null && "text-fg")
+								: cn("font-book", tone === null && "text-fg-muted"),
+					)}
+				>
+					{workspaceName(workspace)}
 				</span>
+				{archived ? <Badge>Archived</Badge> : null}
 				{subtitle.text === "" ? null : (
-					<span className={cn("truncate text-xs", STATUS_TONE_CLASS[subtitle.tone])}>
+					<span className={cn("shrink-0 text-xs", STATUS_TONE_CLASS[subtitle.tone])}>
 						{subtitle.text}
 					</span>
 				)}
-				<span className="flex min-w-0 items-center gap-1 text-xs text-fg-muted">
+				<span className="flex min-w-0 shrink items-center gap-1 text-xs text-fg-muted">
 					<GitBranchIcon className="size-3 shrink-0" />
 					<span className="truncate">{workspace.branch}</span>
 				</span>
 			</span>
-			{display.has("repository") ? (
-				<span className="w-40 shrink-0 truncate text-sm text-fg-muted">{repo.name}</span>
+			{display.has("lineChanges") ? (
+				<span className="flex w-24 shrink-0 justify-end gap-1 font-mono text-xs font-medium">
+					{counts === null ? null : (
+						<>
+							<span className="text-git-added">+{compactCount(counts.added)}</span>
+							{counts.removed > 0 ? (
+								<span className="text-git-removed">-{compactCount(counts.removed)}</span>
+							) : null}
+						</>
+					)}
+				</span>
+			) : null}
+			{showProject ? (
+				<span className="flex w-40 shrink-0 items-center gap-1.5 text-xs text-fg-muted">
+					{display.has("repositoryIcon") ? (
+						<span className="flex size-4 shrink-0 items-center justify-center overflow-hidden">
+							<RepoIconMark repo={repo} />
+						</span>
+					) : null}
+					{display.has("repository") ? <span className="truncate">{repo.name}</span> : null}
+				</span>
 			) : null}
 			{display.has("lastActive") ? (
 				<time
 					dateTime={new Date(workspace.lastActivityAt).toISOString()}
 					title={new Date(workspace.lastActivityAt).toLocaleString()}
-					className="w-10 shrink-0 text-right text-sm text-fg-muted"
+					className="w-10 shrink-0 text-right text-xs text-fg-muted"
 				>
 					{relativeTime(workspace.lastActivityAt, now)}
 				</time>
@@ -169,9 +254,9 @@ export function WorkspaceCard({ workspace, repo, now, display }: WorkspaceCardPr
 			<article
 				data-testid="home-workspace-card"
 				data-archived="true"
-				className="flex flex-col gap-2 border-b border-border px-4 py-3"
+				className="flex flex-col gap-2 border-b border-separator px-4 py-3 text-sm"
 			>
-				<div className="flex min-w-0 items-center gap-3">{body}</div>
+				<div className="relative flex min-w-0 items-center gap-3">{body}</div>
 				<ArchivedActions workspace={workspace} />
 			</article>
 		);
@@ -182,7 +267,11 @@ export function WorkspaceCard({ workspace, repo, now, display }: WorkspaceCardPr
 			to="/repository/$repositoryId/workspace/$workspaceId"
 			params={{ repositoryId: repo.id, workspaceId: workspace.id }}
 			data-testid="home-workspace-card"
-			className="flex min-w-0 items-center gap-3 border-b border-border px-4 py-3 text-left transition-colors hover:bg-hover"
+			data-tone={tone ?? undefined}
+			className={cn(
+				"relative flex h-11 min-w-0 items-center gap-3 border-b border-separator px-4 text-left text-sm transition-colors",
+				tone === null ? "hover:bg-hover" : TONE_CLASS[tone],
+			)}
 		>
 			{body}
 		</Link>

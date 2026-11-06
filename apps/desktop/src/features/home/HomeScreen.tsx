@@ -1,13 +1,13 @@
 /**
  * @feature NAV-05 Home
- * Owns: the Home route: a list of all workspaces (Conductor's full-width rows) with search, filters, sort, a Display menu,
- * a pinned group and paging.
+ * Owns: the Home route: a list of all workspaces (Conductor's full-width 44px rows) with the toolbar in
+ * the title strip (search, filters, sort, Display, "+ Create"), a pinned group and paging.
  * Behaviour: ui-map.md 2 (/all-workspaces: search, filters for projects and active or archived,
- * sort, "Display" card fields, pinned group, paging by 50; empty: "No matching workspaces"),
+ * sort, "Display" card fields, pinned group, paging by 50; empty: "No matching workspaces";
+ * renderApp @10272000-10278200: the toolbar sits in the title strip and the list has no heading),
  * 7.3 (loading skeleton with role="status"), 7.4 (error with retry).
  * Our design choice: owner filters, routine origin and team avatars are cloud features and are
- * left out. The Display menu offers only repository and last activity; line changes wait for
- * GIT-04. Filters and sort are screen state, not saved settings, so leaving Home resets them.
+ * left out. The "Home" title stays at the left of the strip (ours). Filters and sort are screen state, not saved settings, so leaving Home resets them.
  * Must handle: loading (skeleton cards with role="status"); error with retry; no workspaces;
  * filters that match nothing; Clear filters resets search, projects and the archived toggle while
  * leaving sort and Display alone; the archived filter (cards offer Unarchive, Open in Finder, Copy
@@ -39,8 +39,8 @@ import { WorkspaceCard } from "./WorkspaceCard.tsx";
 const INITIAL_FILTERS: HomeFilterState = {
 	search: "",
 	projects: [],
-	archivedOnly: false,
-	sortBy: "updated",
+	archive: "active",
+	sortBy: "lastActive",
 };
 
 function HomeSkeleton() {
@@ -91,8 +91,6 @@ interface HomeContentProps {
 	display: HomeDisplay;
 	now: number;
 	pageCount: number;
-	onFiltersChange: (filters: HomeFilterState) => void;
-	onDisplayChange: (display: HomeDisplay) => void;
 	onShowMore: () => void;
 	onClearFilters: () => void;
 }
@@ -104,8 +102,6 @@ function HomeContent({
 	display,
 	now,
 	pageCount,
-	onFiltersChange,
-	onDisplayChange,
 	onShowMore,
 	onClearFilters,
 }: HomeContentProps) {
@@ -119,22 +115,15 @@ function HomeContent({
 		[withProjects, repos, filters, pageCount],
 	);
 	const filtersActive =
-		filters.search.trim() !== "" || filters.projects.length > 0 || filters.archivedOnly;
+		filters.search.trim() !== "" || filters.projects.length > 0 || filters.archive !== "active";
 	const empty = page.pinned.length === 0 && page.items.length === 0;
 
 	return (
-		<div className="flex w-full flex-col gap-4 py-2">
-			<HomeFilters
-				filters={filters}
-				repos={repos}
-				display={display}
-				onChange={onFiltersChange}
-				onDisplayChange={onDisplayChange}
-			/>
+		<div className="flex w-full flex-col">
 			{empty ? (
 				<HomeEmptyState
 					filtersActive={filtersActive}
-					archivedOnly={filters.archivedOnly}
+					archivedOnly={filters.archive === "archived"}
 					onClearFilters={onClearFilters}
 				/>
 			) : (
@@ -152,12 +141,11 @@ function HomeContent({
 					)}
 					{page.items.length === 0 ? null : (
 						<section aria-label="All workspaces" className="flex flex-col">
-							<h2 className="px-4 py-2 text-xs font-medium text-fg-muted">All workspaces</h2>
 							<CardGrid workspaces={page.items} reposById={reposById} now={now} display={display} />
 						</section>
 					)}
 					{page.hasMore ? (
-						<div className="flex items-center gap-3 px-4">
+						<div className="flex items-center gap-3 px-4 py-3">
 							<Button variant="secondary" onClick={onShowMore}>
 								Show more
 							</Button>
@@ -188,7 +176,7 @@ export function HomeScreen() {
 	const changeDisplay = useCallback((next: HomeDisplay) => setDisplay(next), []);
 	const showMore = useCallback(() => setPageCount((count) => count + 1), []);
 	const clearFilters = useCallback(() => {
-		setFilters((current) => ({ ...current, search: "", projects: [], archivedOnly: false }));
+		setFilters((current) => ({ ...current, search: "", projects: [], archive: "active" }));
 		setPageCount(1);
 	}, []);
 
@@ -202,10 +190,19 @@ export function HomeScreen() {
 		<div className="flex h-full min-h-0 flex-col bg-canvas">
 			<header
 				data-tauri-drag-region
-				className="flex h-(--titlebar-height) shrink-0 items-center border-b border-border px-4"
+				className="flex h-(--titlebar-height) shrink-0 items-center gap-2 border-b border-border pr-2 pl-4"
 			>
 				<TitleBarInset />
-				<h1 className="text-sm font-medium text-fg">Home</h1>
+				<h1 className="shrink-0 text-sm font-medium text-fg">Home</h1>
+				{repos.state === "ready" ? (
+					<HomeFilters
+						filters={filters}
+						repos={repos.data}
+						display={display}
+						onChange={changeFilters}
+						onDisplayChange={changeDisplay}
+					/>
+				) : null}
 			</header>
 			<div className="min-h-0 flex-1 overflow-y-auto">
 				<LoadableView
@@ -231,8 +228,6 @@ export function HomeScreen() {
 									display={display}
 									now={now}
 									pageCount={pageCount}
-									onFiltersChange={changeFilters}
-									onDisplayChange={changeDisplay}
 									onShowMore={showMore}
 									onClearFilters={clearFilters}
 								/>

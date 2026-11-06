@@ -6,7 +6,7 @@
  * Test first: not applicable; the screenshot run opens every state.
  */
 import { animateCast, seedCast } from "../cast.ts";
-import { click, shows, typeInto } from "../dom.ts";
+import { click, find, shows, typeInto } from "../dom.ts";
 import { CLAUDE_CONFIG, must } from "../seeds.ts";
 import type { CatalogueState } from "../state.ts";
 
@@ -46,7 +46,15 @@ export const PAGE_STATES: CatalogueState[] = [
 			await seedCast(world);
 			return {
 				route: "/all-workspaces",
-				after: ({ document }) => click(document, "button", "Archived"),
+				after: async ({ document }) => {
+					await click(document, "button", "Archived workspaces");
+					// A select ignores a pointer release where the press began, so choose by keyboard.
+					const option = await find(document, "[role=option]", "Only archived");
+					option.focus();
+					option.dispatchEvent(
+						new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }),
+					);
+				},
 				ready: (document) => shows(document, "sam/old-search-experiment"),
 			};
 		},

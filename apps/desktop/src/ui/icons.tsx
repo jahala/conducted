@@ -41,6 +41,10 @@ export const ArrowLeftRightIcon = (p: P) => (
 );
 /** An arrow pointing up and right: a control that opens a page outside the app. */
 export const ArrowUpRightIcon = (p: P) => <Icon d="M5 11l6-6M6 5h5v5" {...p} />;
+export const ArchiveIcon = (p: P) => <Icon d="M2.5 3h11v3h-11zM3.5 6v7h9V6M6.5 8.5h3" {...p} />;
+export const ArrowUpDownIcon = (p: P) => (
+	<Icon d="M5 13V3M2.5 5.5L5 3l2.5 2.5M11 3v10M8.5 10.5L11 13l2.5-2.5" {...p} />
+);
 export const PlusIcon = (p: P) => <Icon d="M8 3v10M3 8h10" {...p} />;
 export const CloseIcon = (p: P) => <Icon d="M4 4l8 8M12 4l-8 8" {...p} />;
 export const ChevronDownIcon = (p: P) => <Icon d="M4 6l4 4 4-4" {...p} />;
