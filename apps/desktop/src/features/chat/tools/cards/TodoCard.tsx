@@ -8,7 +8,6 @@
  * shows the raw name and the output.
  * Test first: A todo call with two items renders two rows through TodoList.
  */
-import { ListTodoIcon } from "../../../../ui/icons.tsx";
 import { type TodoItems, TodoList } from "../../TodoList.tsx";
 import { asRecord, ToolCardFrame, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
@@ -55,7 +54,6 @@ export function TodoCard(props: ToolCardProps) {
 			<ToolCardFrame
 				title="No todos"
 				status={toolStatus(props.call)}
-				icon={<ListTodoIcon />}
 				expandAll={props.defaultExpanded}
 			/>
 		);
@@ -67,7 +65,6 @@ export function TodoCard(props: ToolCardProps) {
 			title={title}
 			summary={`${done} of ${items.length} done`}
 			status={toolStatus(props.call)}
-			icon={<ListTodoIcon />}
 			expandAll={props.defaultExpanded}
 			body={<TodoList items={items} />}
 		/>

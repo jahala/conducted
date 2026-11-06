@@ -122,6 +122,72 @@ export const WrenchIcon = (p: P) => (
 		{...p}
 	/>
 );
+export const BrainIcon = (p: P) => (
+	<Icon
+		d="M6.5 2.5a2 2 0 0 0-2 2 2 2 0 0 0-1.5 3.25A2 2 0 0 0 4.5 11a2 2 0 0 0 2 2.5V2.5zM9.5 2.5a2 2 0 0 1 2 2 2 2 0 0 1 1.5 3.25A2 2 0 0 1 11.5 11a2 2 0 0 1-2 2.5V2.5z"
+		{...p}
+	/>
+);
+export const FilePenIcon = (p: P) => (
+	<Icon d="M8 13.5H4V2.5h5l3 3v1.5M9 2.5v3h3M12.5 8.5l1.5 1.5-3.5 3.5H9V12z" {...p} />
+);
+export const FileSearchIcon = (p: P) => (
+	<Icon
+		d="M7 13.5H4V2.5h5l3 3v2.5M9 2.5v3h3M10.5 12.5a1.75 1.75 0 1 0 0-3.5 1.75 1.75 0 0 0 0 3.5zM11.75 11.75l1.75 1.75"
+		{...p}
+	/>
+);
+export const FileCodeIcon = (p: P) => (
+	<Icon d="M4 2.5h5l3 3v8H4zM9 2.5v3h3M7 8l-1.5 1.5L7 11M9 8l1.5 1.5L9 11" {...p} />
+);
+export const FileDiffIcon = (p: P) => (
+	<Icon d="M4 2.5h5l3 3v8H4zM9 2.5v3h3M8 6.5v3M6.5 8h3M6.5 11h3" {...p} />
+);
+export const ImageIcon = (p: P) => (
+	<Icon d="M2.5 2.5h11v11h-11zM6 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM13.5 10l-3-3-7 6.5" {...p} />
+);
+export const BotIcon = (p: P) => (
+	<Icon d="M3.5 5.5h9v7.5h-9zM8 5.5V3M6.5 3h3M1.5 9h2M12.5 9h2M6 8.5v1M10 8.5v1" {...p} />
+);
+export const ClipboardListIcon = (p: P) => (
+	<Icon
+		d="M5.5 3H3.5v10.5h9V3h-2M6 2h4v2H6zM7.5 7.5h3M7.5 10.5h3M5.5 7.5h.01M5.5 10.5h.01"
+		{...p}
+	/>
+);
+export const PromptIcon = (p: P) => <Icon d="M3 4.5l4 3.5-4 3.5M8.5 12h4.5" {...p} />;
+export const SlashIcon = (p: P) => <Icon d="M11 2.5L5 13.5" {...p} />;
+export const SendIcon = (p: P) => <Icon d="M14 2L7 9M14 2l-4.5 12-2.5-5-5-2.5z" {...p} />;
+export const SquareCheckIcon = (p: P) => <Icon d="M2.5 2.5h11v11h-11zM5.5 8l2 2 3.5-4" {...p} />;
+export const MessageSquareIcon = (p: P) => <Icon d="M2.5 2.5h11v8.5H6L2.5 13.5z" {...p} />;
+export const RadioIcon = (p: P) => (
+	<Icon
+		d="M8 9.25a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5zM5.5 5.5a3.5 3.5 0 0 0 0 5M10.5 5.5a3.5 3.5 0 0 1 0 5M3.5 3.5a6.5 6.5 0 0 0 0 9M12.5 3.5a6.5 6.5 0 0 1 0 9"
+		{...p}
+	/>
+);
+export const LaptopIcon = (p: P) => <Icon d="M3.5 4h9v6.5h-9zM1.5 12.5h13" {...p} />;
+export const BicepsIcon = (p: P) => (
+	<Icon
+		d="M3 13.5c2.5 0 7 .5 9.5-1.5s.5-6-2-5.5c-1 .2-1.5 1-2 2M3 13.5V7.5l2.5-5 2 1-1 3.5"
+		{...p}
+	/>
+);
+export const CopyIcon = (p: P) => <Icon d="M5.5 5.5h8v8h-8zM10.5 5.5v-3h-8v8h3" {...p} />;
+export const MoreHorizontalIcon = (p: P) => (
+	<Icon d="M3.5 8h.01M8 8h.01M12.5 8h.01" strokeWidth="2.25" {...p} />
+);
+export const ArrowUpRightIcon = (p: P) => <Icon d="M5 11l6-6M6 5h5v5" {...p} />;
+export const ArrowUpIcon = (p: P) => <Icon d="M8 13V3M4 7l4-4 4 4" {...p} />;
+export const UndoIcon = (p: P) => (
+	<Icon d="M5.5 9.5L2.5 6.5l3-3M2.5 6.5h7a3.5 3.5 0 0 1 0 7H7" {...p} />
+);
+export const SplitIcon = (p: P) => (
+	<Icon d="M8 13.5V9L3.5 4.5M3.5 8V4.5H7M8 9l4.5-4.5M12.5 8V4.5H9" {...p} />
+);
+export const MessageSquarePlusIcon = (p: P) => (
+	<Icon d="M2.5 2.5h11v8.5H6L2.5 13.5zM8 4.5v4M6 6.5h4" {...p} />
+);
 export const statusIcons = {
 	backlog: CircleIcon,
 	progress: ClockIcon,

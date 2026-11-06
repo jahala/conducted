@@ -9,7 +9,6 @@
  * Test first: A task_get result renders 'Task details' with its status and subject.
  */
 import { Fragment } from "react";
-import { ListTodoIcon } from "../../../../ui/icons.tsx";
 import { asRecord, ToolCardFrame, ToolOutput, textField, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
@@ -229,7 +228,6 @@ export function TaskGetCard({ call, defaultExpanded }: ToolCardProps) {
 			title="Task details"
 			summary={named.subject ?? named.id ?? undefined}
 			status={toolStatus(call)}
-			icon={<ListTodoIcon />}
 			expandAll={defaultExpanded}
 			body={
 				fields !== null ? (

@@ -35,17 +35,20 @@ export function WebFetchCard({ call, defaultExpanded }: ToolCardProps) {
 	return (
 		<ToolCardFrame
 			title="Web fetch"
-			summary={host}
-			status={toolStatus(call)}
-			expandAll={defaultExpanded}
-			body={excerpt.length === 0 ? null : <ToolOutput muted>{excerpt.join("\n")}</ToolOutput>}
-			footer={
+			summary={
 				address.length > 0 ? (
-					<ExternalLink url={address} className="truncate text-link hover:underline">
-						{address}
+					<ExternalLink
+						url={address}
+						className="block truncate rounded-md bg-muted px-1 py-0.5 font-mono text-xs font-medium text-link hover:underline"
+					>
+						{host.length > 0 ? host : address}
 					</ExternalLink>
 				) : undefined
 			}
+			keepSummary
+			status={toolStatus(call)}
+			expandAll={defaultExpanded}
+			body={excerpt.length === 0 ? null : <ToolOutput muted>{excerpt.join("\n")}</ToolOutput>}
 		/>
 	);
 }

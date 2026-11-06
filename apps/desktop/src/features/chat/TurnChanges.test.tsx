@@ -1,7 +1,8 @@
 /**
  * @feature REV-09 Turn change summary
- * Tests the list under a turn: five files then "and N more", the empty case, deleted, renamed and
- * binary rows, the reverted style, and the turn scope handed to Open diff.
+ * Tests the file chips in a turn's footer: two files then "+N more" (Conductor's footer), the empty case,
+ * deleted, renamed and binary files named in each chip's tooltip, the reverted style, and the turn scope
+ * handed to Open diff and to a chip.
  */
 import type { FileChange } from "@conducted/protocol";
 import type { TurnId } from "@conducted/shared";
@@ -44,19 +45,21 @@ function turn(changes: FileChange[], over: Partial<ChatTurn> = {}): ChatTurn {
 }
 
 describe("REV-09 turn changes", () => {
-	it("shows the first five files and how many more there are", () => {
+	it("shows the first two files and how many more there are, three more per click", () => {
+		// Conductor shows up to three chips; with more files, two chips and "+N more".
 		const files = Array.from({ length: 12 }, (_, index) => change(`src/file-${index}.ts`));
 		render(<TurnChanges turn={turn(files)} sessionId={sessionId} />);
 
-		for (let index = 0; index < 5; index += 1) {
-			expect(screen.getByText(`src/file-${index}.ts`)).toBeTruthy();
+		for (let index = 0; index < 2; index += 1) {
+			expect(screen.getByText(`file-${index}.ts`)).toBeTruthy();
 		}
-		expect(screen.queryByText("src/file-5.ts")).toBeNull();
-		expect(screen.getByText("and 7 more")).toBeTruthy();
+		expect(screen.queryByText("file-2.ts")).toBeNull();
+		expect(screen.getByText("+10 more")).toBeTruthy();
 
-		fireEvent.click(screen.getByText("and 7 more"));
-		expect(screen.getByText("src/file-11.ts")).toBeTruthy();
-		expect(screen.queryByText("and 7 more")).toBeNull();
+		fireEvent.click(screen.getByText("+10 more"));
+		expect(screen.getByText("file-4.ts")).toBeTruthy();
+		expect(screen.queryByText("+10 more")).toBeNull();
+		expect(screen.getByText("+7 more")).toBeTruthy();
 	});
 
 	it("renders nothing when the turn changed no files", () => {
@@ -76,18 +79,22 @@ describe("REV-09 turn changes", () => {
 			/>,
 		);
 
-		expect(screen.getByText("Renamed")).toBeTruthy();
-		expect(screen.getByText("from src/old.ts")).toBeTruthy();
-		expect(screen.getByText("Deleted")).toBeTruthy();
-		expect(screen.getByText("binary")).toBeTruthy();
-		expect(screen.queryByText("+0")).toBeNull();
+		// The change kind moved from a text column into each chip's tooltip, as Conductor's chips carry no
+		// status word.
+		expect(screen.getByTitle("Renamed from src/old.ts: src/new.ts")).toBeTruthy();
+		expect(screen.getByTitle("Renamed from src/old.ts: src/new.ts").textContent).toContain(
+			"new.ts",
+		);
+		expect(screen.getByTitle("Deleted: gone.ts")).toBeTruthy();
+		expect(screen.getByTitle("Modified: image.png (binary)")).toBeTruthy();
+		expect(screen.getAllByText("+0").length).toBe(2);
 	});
 
 	it("strikes through every row of a reverted turn", () => {
 		const { container } = render(
 			<TurnChanges turn={turn([change("a.ts")], { reverted: true })} sessionId={sessionId} />,
 		);
-		expect(container.querySelector("ul")?.className).toContain("line-through");
+		expect(container.querySelector("section")?.className).toContain("line-through");
 	});
 
 	it("hands Open diff the turn scope", () => {
@@ -97,6 +104,19 @@ describe("REV-09 turn changes", () => {
 		);
 		fireEvent.click(screen.getByRole("button", { name: "Open diff" }));
 		expect(onOpenDiff).toHaveBeenCalledWith({ kind: "turn", sessionId, turnId: "t1" });
+	});
+
+	it("hands a chip the file and the turn scope", () => {
+		const onOpenFile = vi.fn();
+		render(
+			<TurnChanges
+				turn={turn([change("src/a.ts")])}
+				sessionId={sessionId}
+				onOpenFile={onOpenFile}
+			/>,
+		);
+		fireEvent.click(screen.getByText("a.ts"));
+		expect(onOpenFile).toHaveBeenCalledWith("src/a.ts", { kind: "turn", sessionId, turnId: "t1" });
 	});
 
 	it("shows Open diff disabled when no caller can open the panel", () => {

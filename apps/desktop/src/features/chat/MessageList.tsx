@@ -13,6 +13,8 @@
  * scroll to a turn the list has not mounted. Only the newest turn changes while streaming:
  * TurnItem is memoised on the turn object, and the service (CHAT-07) keeps unchanged turns
  * referentially equal.
+ * The list opens at its end (the last turn's footer in view, as Conductor does), and its footer holds the
+ * working line while the agent works.
  * Must handle: Loading (skeleton turns); an error card and the running turn's retry line (their
  * actions live in TurnItem and ChatBanner); empty chat (EmptyChat with starters, or none in an
  * archived workspace; the composer bar says the workspace is read-only); a turn added while the
@@ -22,6 +24,7 @@
  * Test first: With 2000 turns only a small window of TurnItem is mounted; appending a block to the
  * last turn re-renders only that item.
  */
+import type { LiveState } from "@conducted/protocol";
 import type { SessionId, TurnId, WorkspaceId } from "@conducted/shared";
 import { type RefObject, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
@@ -35,6 +38,7 @@ import { reportFailure } from "./report-failure.ts";
 import { ScrollToBottomButton } from "./ScrollToBottomButton.tsx";
 import { TurnItem } from "./TurnItem.tsx";
 import { TurnOutline } from "./TurnOutline.tsx";
+import { WorkingLine } from "./WorkingLine.tsx";
 
 export interface MessageListProps {
 	sessionId: SessionId;
@@ -64,8 +68,32 @@ function HistoryHeader() {
 	return <div data-region="history-header" className="h-3" aria-hidden="true" />;
 }
 
-function ListFooter() {
-	return <div data-region="list-footer" className="h-3" aria-hidden="true" />;
+interface ListContext {
+	/** Set while the agent works: when the last turn's message was sent, and any background wait. */
+	working: {
+		since: number;
+		waiting?: { since: number; tasks: LiveState["backgroundTasks"] };
+	} | null;
+}
+
+/** The end of the list: the working line while the agent works, then 25px of room (Conductor's footer). */
+function ListFooter({ context }: { context?: ListContext }) {
+	const working = context?.working ?? null;
+	return (
+		<div data-region="list-footer" className="pb-6">
+			{working === null ? null : <WorkingLine since={working.since} waiting={working.waiting} />}
+		</div>
+	);
+}
+
+function workingOf(data: ChatView): ListContext["working"] {
+	if (data.liveState.status !== "working") return null;
+	const last = data.turns.at(-1);
+	const since = last?.userMessage?.at ?? last?.startedAt ?? Date.now();
+	const waitingSince = data.liveState.waitingSince;
+	return waitingSince === undefined
+		? { since }
+		: { since, waiting: { since: waitingSince, tasks: data.liveState.backgroundTasks } };
 }
 
 export function MessageList({ sessionId, workspaceId, listRef: parentListRef }: MessageListProps) {
@@ -122,9 +150,11 @@ export function MessageList({ sessionId, workspaceId, listRef: parentListRef }: 
 									workspaceId={workspaceId}
 									canRun={canRun}
 									retry={index === data.turns.length - 1 ? data.liveState.retry : undefined}
+									expandAll={expandAll === true}
 								/>
 							)}
-							initialTopMostItemIndex={Math.max(0, data.turns.length - 1)}
+							context={{ working: workingOf(data) }}
+							initialTopMostItemIndex={{ index: "LAST", align: "end" }}
 							increaseViewportBy={600}
 							followOutput={(isAtBottom) => (isAtBottom ? "smooth" : false)}
 							atBottomStateChange={setAtBottom}

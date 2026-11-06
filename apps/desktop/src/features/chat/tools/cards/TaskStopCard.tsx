@@ -6,7 +6,6 @@
  * frame shows Failed); an input that names only the task id.
  * Test first: A task_stop call renders 'Stop task' and the task's name.
  */
-import { XCircleIcon } from "../../../../ui/icons.tsx";
 import { asRecord, ToolCardFrame, ToolOutput, textField, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 
@@ -20,7 +19,6 @@ export function TaskStopCard({ call, defaultExpanded }: ToolCardProps) {
 			title="Stop task"
 			summary={name ?? id ?? undefined}
 			status={toolStatus(call)}
-			icon={<XCircleIcon />}
 			expandAll={defaultExpanded}
 			body={
 				output.length > 0 ? (

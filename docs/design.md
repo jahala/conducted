@@ -38,6 +38,7 @@ The values are Conductor 0.92.1's, measured in `research/conductor/ui-dimensions
 | Buttons                       | 24, 28, 32 (default) and 44px tall; icon buttons 24, 28 and 32px square                                                  |
 | Inputs                        | input and select 32px; textarea at least 60px; checkbox 16px; switch 40 by 20px with a 16px thumb                        |
 | Chat                          | column at most 896px with 28px side padding; user bubble at most 576px (768px on wide windows) with 12px by 16px padding |
+| Chat rows                     | tool call and thinking rows 32px (6px by 8px, pulled out 8px), 12px icon; a finished turn folds runs of three or more into one row; tool output in the `well` fill |
 | Composer                      | 12px radius, at least 152px tall; editor 88px to 188px; send button 24px                                                 |
 | Settings                      | 256px nav; content at most 896px with 40px side padding; rows split by a 1px line and 20px space                         |
 | Toasts                        | 356px wide                                                                                                               |

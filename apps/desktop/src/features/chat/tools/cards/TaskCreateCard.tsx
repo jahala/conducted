@@ -6,7 +6,6 @@
  * that carries no task (its raw text is shown).
  * Test first: A task_create call renders 'Task created' and the task subject.
  */
-import { ListTodoIcon } from "../../../../ui/icons.tsx";
 import { ToolCardFrame, ToolOutput, toolStatus } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 import { hasTaskFields, TaskFieldsBody, taskFieldsFrom } from "./TaskGetCard.tsx";
@@ -19,7 +18,6 @@ export function TaskCreateCard({ call, defaultExpanded }: ToolCardProps) {
 			title="Task created"
 			summary={fields.subject ?? fields.id ?? undefined}
 			status={toolStatus(call)}
-			icon={<ListTodoIcon />}
 			expandAll={defaultExpanded}
 			body={
 				hasTaskFields(fields) ? (

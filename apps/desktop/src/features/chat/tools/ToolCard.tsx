@@ -19,6 +19,7 @@ import { useSetting } from "../../../core/hooks.ts";
 import type { ToolCallView } from "../../../core/model.ts";
 import { NotBuiltYet } from "../../../ui/not-built-yet.tsx";
 import { toolCardFor } from "./registry.ts";
+import { ToolKindContext } from "./tool-icons.tsx";
 
 /**
  * Keeps one broken tool card from taking the turn down. It uses `NotBuiltYet`, not `ErrorBoundary`: the
@@ -39,7 +40,9 @@ export function ToolCard({ call, sessionId }: { call: ToolCallView; sessionId: S
 	const Card = toolCardFor(call.item.tool);
 	return (
 		<ToolCardBoundary call={call}>
-			<Card call={call} sessionId={sessionId} defaultExpanded={expandAll} />
+			<ToolKindContext.Provider value={call.item.tool}>
+				<Card call={call} sessionId={sessionId} defaultExpanded={expandAll} />
+			</ToolKindContext.Provider>
 		</ToolCardBoundary>
 	);
 }

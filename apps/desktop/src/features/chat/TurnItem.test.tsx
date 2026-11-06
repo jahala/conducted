@@ -84,7 +84,15 @@ describe("CHAT-06 chat turn", () => {
 		const value = turn({
 			blocks: [
 				{ kind: "text", text: "first" },
-				{ kind: "tool", call: {} as never },
+				{
+					kind: "tool",
+					call: {
+						toolUseId: "tu1",
+						item: { kind: "tool_call", toolUseId: "tu1", tool: "bash", rawName: "Bash", input: {} },
+						result: null,
+						children: [],
+					} as never,
+				},
 			],
 		});
 		render(<TurnItem turn={value} sessionId={sessionId} />);

@@ -141,7 +141,16 @@ export function contrastOn(
 	);
 }
 
-export const surfaces = ["canvas", "panel", "surface", "muted", "raised", "hover", "active"];
+export const surfaces = [
+	"canvas",
+	"panel",
+	"surface",
+	"muted",
+	"raised",
+	"well",
+	"hover",
+	"active",
+];
 export const on = (fg: string, bgs: string[]): [string, string][] => bgs.map((bg) => [fg, bg]);
 
 /** Text on a surface needs 4.5:1 (WCAG AA). Non-text marks such as input edges and the focus ring need 3:1. */

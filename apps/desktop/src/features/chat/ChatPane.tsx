@@ -92,14 +92,14 @@ export function ChatPane({
 					onClose={() => setFindOpen(false)}
 					onRevealTurn={(index) => listRef.current?.scrollToIndex({ index, align: "center" })}
 				/>
-				<div className="absolute right-3 top-2 z-10">
-					<NextUnreadButton currentSessionId={sessionId} />
-				</div>
 				<NotBuiltYet area="Messages" resetKey={sessionId}>
 					<MessageList sessionId={sessionId} workspaceId={workspaceId} listRef={listRef} />
 				</NotBuiltYet>
 			</div>
-			<div className="flex shrink-0 flex-col gap-2 px-3 pb-3">
+			<div className="relative mx-auto flex w-full max-w-[var(--chat-column-width)] shrink-0 flex-col gap-2 px-4 pb-4">
+				<div className="absolute -top-10 right-4 z-10">
+					<NextUnreadButton currentSessionId={sessionId} />
+				</div>
 				<NotBuiltYet area="Messages not sent" variant="inline" resetKey={sessionId}>
 					<FailedSends sessionId={sessionId} />
 				</NotBuiltYet>

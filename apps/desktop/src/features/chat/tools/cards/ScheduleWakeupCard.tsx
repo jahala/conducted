@@ -9,7 +9,6 @@
  * read would mark every old wake-up as past.
  * Test first: A schedule_wakeup call shows when the agent will wake up.
  */
-import { ClockIcon } from "../../../../ui/icons.tsx";
 import {
 	asRecord,
 	boolField,
@@ -72,7 +71,6 @@ export function ScheduleWakeupCard({ call, defaultExpanded }: ToolCardProps) {
 			title={cancelled ? "Wake-up cancelled" : "Schedule wakeup"}
 			summary={cancelled ? (reason ?? undefined) : (when ?? reason ?? undefined)}
 			status={toolStatus(call)}
-			icon={<ClockIcon />}
 			expandAll={defaultExpanded}
 			body={
 				<div className="flex flex-col gap-2">

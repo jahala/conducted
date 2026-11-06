@@ -141,7 +141,7 @@ describe("NAV-11 NextUnreadButton", () => {
 		}
 	});
 
-	it("shows the rebound key in the hint", async () => {
+	it("names the rebound key in the button's tooltip", async () => {
 		const test = setup();
 		try {
 			const workspace = await seedWorkspace(test.container);
@@ -150,7 +150,8 @@ describe("NAV-11 NextUnreadButton", () => {
 			await test.container.services.sessions.start();
 			setAttentionBinding(test.container, "Cmd+Alt+J");
 			test.render(<NextUnreadButton currentSessionId={current} />);
-			expect(await screen.findByText("⌥⌘J")).toBeTruthy();
+			// Conductor's button shows no key chip; ours names the shortcut in its tooltip.
+			expect(await screen.findByTitle("Next unread (⌥⌘J)")).toBeTruthy();
 		} finally {
 			await test.container.stop();
 			test.close();

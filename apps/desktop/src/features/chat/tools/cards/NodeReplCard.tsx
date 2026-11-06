@@ -6,7 +6,6 @@
  * Failed); input that is a plain code string instead of an object.
  * Test first: A node_repl call renders 'Node REPL' with the code and its output.
  */
-import { TerminalIcon } from "../../../../ui/icons.tsx";
 import {
 	asRecord,
 	formatJson,
@@ -30,7 +29,6 @@ export function NodeReplCard({ call, defaultExpanded }: ToolCardProps) {
 		<ToolCardFrame
 			title="Node REPL"
 			status={toolStatus(call)}
-			icon={<TerminalIcon />}
 			expandAll={defaultExpanded}
 			body={
 				<div className="flex flex-col gap-2">

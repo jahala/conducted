@@ -9,7 +9,6 @@
  */
 import { useState } from "react";
 import { useServices } from "../../../../core/context.tsx";
-import { EyeIcon } from "../../../../ui/icons.tsx";
 import {
 	asRecord,
 	fileNameOf,
@@ -38,7 +37,6 @@ export function ImageGenerationCard({ call, defaultExpanded }: ToolCardProps) {
 			title={status === "running" ? "Loading image" : "Preview image"}
 			summary={prompt ?? name ?? undefined}
 			status={status}
-			icon={<EyeIcon />}
 			expandAll={defaultExpanded}
 			body={
 				<div className="flex flex-col gap-2">

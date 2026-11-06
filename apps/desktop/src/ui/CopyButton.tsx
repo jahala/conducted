@@ -13,6 +13,7 @@
 import { messageOf } from "@conducted/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, type ButtonProps } from "./Button.tsx";
+import { CheckIcon, CopyIcon } from "./icons.tsx";
 import { toastError } from "./Toast.tsx";
 
 /** The error of a copy that failed, or null when it worked. The copy action may return a `Result`. */
@@ -32,6 +33,8 @@ export interface CopyButtonProps extends Omit<ButtonProps, "children" | "onClick
 	copiedLabel?: string;
 	/** How long "Copied" stays, in milliseconds. */
 	copiedMs?: number;
+	/** Shows a copy icon (a check once copied) instead of the words; the words become its name. */
+	iconOnly?: boolean;
 }
 
 export function CopyButton({
@@ -40,6 +43,7 @@ export function CopyButton({
 	label = "Copy",
 	copiedLabel = "Copied",
 	copiedMs = 1500,
+	iconOnly = false,
 	variant = "ghost",
 	size = "sm",
 	...rest
@@ -77,12 +81,21 @@ export function CopyButton({
 		<Button
 			variant={variant}
 			size={size}
+			{...(iconOnly ? { "aria-label": copied ? copiedLabel : label, title: label } : {})}
 			{...rest}
 			onClick={() => {
 				void handleCopy();
 			}}
 		>
-			<span aria-live="polite">{copied ? copiedLabel : label}</span>
+			{iconOnly ? (
+				copied ? (
+					<CheckIcon className="size-3.5" />
+				) : (
+					<CopyIcon className="size-3.5" />
+				)
+			) : (
+				<span aria-live="polite">{copied ? copiedLabel : label}</span>
+			)}
 		</Button>
 	);
 }

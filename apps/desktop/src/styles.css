@@ -70,6 +70,8 @@
 	--color-sidebar-translucent: light-dark(#fafaf999, #211e1c99);
 	--color-muted: light-dark(#fafaf9, #211e1c);
 	--color-raised: light-dark(#ffffff, #2c2826);
+	/* well: Conductor's neutral accent fill, behind tool output, inline code and other inset blocks. */
+	--color-well: light-dark(#fafaf9, #2c2826);
 	/* hover is a 5% tint, so it works on every surface. active is the selected segmented tab. */
 	--color-hover: light-dark(#14100f0d, #ffffff0d);
 	--color-active: light-dark(#eae9e8, #312e2c);
@@ -245,6 +247,7 @@
 	--color-sidebar-translucent: light-dark(#fafaf999, #29262399);
 	--color-muted: light-dark(#fafaf9, #2f2b28);
 	--color-raised: light-dark(#ffffff, #37322f);
+	--color-well: light-dark(#fafaf9, #37322f);
 	--color-active: light-dark(#eae9e8, #37322f);
 	--color-fg: light-dark(#2c2826, #c5c2be);
 	--color-fg-muted: light-dark(#6e6867, #ada9a5);
