@@ -9,12 +9,14 @@
  */
 
 import { ok } from "@conducted/shared";
+import { createMemoryHistory } from "@tanstack/react-router";
 import { act, cleanup, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { type StartedApp, startApp } from "./main.tsx";
 import { createMemoryPlatform } from "./platform/memory.ts";
 import type { Database } from "./platform/platform.ts";
 import { createTestIds } from "./test/ids.ts";
+import { openTestDatabase } from "./test/sqlite.ts";
 
 /** Stubs the run scripts and sidecar stop placeholders, then unmounts. */
 async function stopApp(app: StartedApp, root: HTMLElement): Promise<void> {
@@ -101,6 +103,40 @@ describe("APP-01 entry", () => {
 
 		await app.started;
 		await stopApp(app, root);
+	});
+});
+
+describe("APP-01 entry inputs", () => {
+	it("uses the clock, the ids and the history it is given", async () => {
+		const root = document.createElement("div");
+		document.body.appendChild(root);
+		const store = openTestDatabase();
+		const ids = createTestIds("entry");
+		const clock = { now: () => 1_234_000 };
+		const memory = createMemoryPlatform({ clock, ids, database: store.database });
+		let app!: StartedApp;
+		act(() => {
+			app = startApp({
+				root,
+				platform: memory.platform,
+				installHandlers: false,
+				clock,
+				ids,
+				history: createMemoryHistory({ initialEntries: ["/settings/general"] }),
+			});
+		});
+		try {
+			expect(await app.started).toEqual(ok(undefined));
+			await waitFor(() => expect(app.router.state.location.pathname).toBe("/settings/general"));
+
+			const section = await app.container.actions.sections.create("Review", null);
+			expect(section.ok && section.value.id.startsWith("entry-")).toBe(true);
+			const stored = store.raw.prepare("SELECT created_at FROM sections").all();
+			expect(stored).toEqual([{ created_at: 1_234_000 }]);
+		} finally {
+			await stopApp(app, root);
+			store.close();
+		}
 	});
 });
 

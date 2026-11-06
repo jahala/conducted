@@ -5,8 +5,10 @@
  * Behaviour: services-map.md part 6 (phase 1 builds the Platform; phase 2 renders the root with React
  * error handlers; phase 3 runs the gated bootstrap, with settings first and the sidecar last).
  * Our design choice: `startApp` takes the already-built Platform, so a test can mount the entry on the
- * in-memory Platform. The module wires the Tauri Platform and calls it once when `index.html` has a
- * `#root`; importing the module in a test does not start a second app.
+ * in-memory Platform. The clock, the id source and the router history default to the system's and may
+ * be passed in, so the states catalogue (src/catalogue) draws the same screen on every run. The module
+ * wires the Tauri Platform and calls it once when `index.html` has a `#root`; importing the module in a
+ * test does not start a second app.
  * Must handle: a Platform that cannot be built (logged, no root mounted); the loading, blocked, failed and
  * wrong-CPU states drawn by APP-08's StartupScreen and StartupFailure (the blocked and failed states are also
  * logged); query and mutation failures, React render failures and unhandled errors all reaching the app log;
@@ -14,8 +16,16 @@
  * through NAV-17's deep-link opener, the same one Platform deep links use.
  * Test first: mounting the entry builds a container, runs the startup sequence and renders the router.
  */
-import { cryptoIds, messageOf, type Result, systemClock } from "@conducted/shared";
+import {
+	type Clock,
+	cryptoIds,
+	type IdSource,
+	messageOf,
+	type Result,
+	systemClock,
+} from "@conducted/shared";
 import type { QueryClient } from "@tanstack/react-query";
+import type { RouterHistory } from "@tanstack/react-router";
 import { StrictMode, useState, useSyncExternalStore } from "react";
 import { createRoot } from "react-dom/client";
 import { createDeepLinkOpener } from "./app/deep-link-routes.ts";
@@ -120,12 +130,12 @@ const sound: SoundPlayer = {
 
 /** Builds one container from a Platform, with the real ports the entry owns. */
 export function createAppContainer(
-	options: Pick<StartAppOptions, "platform" | "openLink">,
+	options: Pick<StartAppOptions, "platform" | "openLink" | "clock" | "ids">,
 ): Container {
 	const inputs: ContainerInputs = {
 		platform: options.platform,
-		clock: systemClock,
-		ids: cryptoIds,
+		clock: options.clock ?? systemClock,
+		ids: options.ids ?? cryptoIds,
 		toml: tomlCodec,
 		placeNames,
 		sound,
@@ -272,6 +282,12 @@ export interface StartAppOptions {
 	openLink?: (url: string) => void;
 	/** Installs the process-wide error and drag-and-drop handlers. On unless a test says otherwise. */
 	installHandlers?: boolean;
+	/** The time source. The system clock unless a caller passes its own. */
+	clock?: Clock;
+	/** The id source. Random ids unless a caller passes its own. */
+	ids?: IdSource;
+	/** The router history. The browser's unless a caller passes its own, such as a memory history. */
+	history?: RouterHistory;
 }
 
 export interface StartedApp {
@@ -296,7 +312,7 @@ export function startApp(options: StartAppOptions): StartedApp {
 	const rootErrorHandlers = createRootErrorHandlers((message, data) =>
 		platform.app.writeLog("error", message, data),
 	);
-	const router = createAppRouter();
+	const router = createAppRouter(options.history);
 	let openedContainer: Container | null = null;
 	const openLink =
 		options.openLink ??
@@ -304,7 +320,12 @@ export function startApp(options: StartAppOptions): StartedApp {
 			if (openedContainer === null) return;
 			createDeepLinkOpener(openedContainer, router.navigate)(url);
 		});
-	const container = createAppContainer({ platform, openLink });
+	const container = createAppContainer({
+		platform,
+		openLink,
+		clock: options.clock,
+		ids: options.ids,
+	});
 	openedContainer = container;
 
 	const startupChannel = createStartupChannel({ kind: "running", phase: "database" });
