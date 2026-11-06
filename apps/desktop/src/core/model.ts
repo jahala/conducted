@@ -754,6 +754,8 @@ export interface PlanEntry {
 	sessionId: SessionId;
 	sessionTitle: string | null;
 	turnId: TurnId;
+	/** Which plan this is: `${eventId}:${callIndex}`, the agent event and the call's place in it. */
+	planId: string;
 	/** The plan's first heading or first line. */
 	title: string;
 	at: number;

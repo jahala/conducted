@@ -621,7 +621,7 @@ export interface Actions {
 		/** Attaches another chat's transcript as a file. Fails for a chat with no messages. */
 		addChatTranscript: Act<[sessionId: SessionId, fromSessionId: SessionId], string>;
 		/** Attaches a plan an agent proposed as a file. */
-		addPlan: Act<[sessionId: SessionId, plan: Pick<PlanEntry, "sessionId" | "turnId">], string>;
+		addPlan: Act<[sessionId: SessionId, plan: Pick<PlanEntry, "sessionId" | "planId">], string>;
 		/** Attaches the current output of the workspace's terminal as a file. */
 		addTerminalOutput: Act<[sessionId: SessionId], string>;
 		/** Attaches text as a file, for example a terminal selection. */
