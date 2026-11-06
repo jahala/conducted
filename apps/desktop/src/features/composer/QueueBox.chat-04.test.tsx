@@ -7,14 +7,18 @@
  * row and shows 'Failed to delete queued message'.
  */
 import type { SessionConfig } from "@conducted/protocol";
-import { appError, err, type MessageId, ok } from "@conducted/shared";
+import { appError, err, ok } from "@conducted/shared";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandDispatcher } from "../../app/command-dispatcher.ts";
 import { ServicesProvider } from "../../core/context.tsx";
-import { createRepositories } from "../../core/db/repositories.ts";
 import type { Session } from "../../core/model.ts";
-import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
+import {
+	createTestContainer,
+	seedFailedQueuedMessage,
+	seedWorkspace,
+	type TestContainer,
+} from "../../test/container.ts";
 import { toast } from "../../ui/Toast.tsx";
 import { QueueBox } from "./QueueBox.tsx";
 
@@ -74,25 +78,6 @@ async function add(
 			delivery: "queue",
 		}),
 	);
-	return row.id;
-}
-
-/** Stores a queued message that failed to send, as the queue leaves one after a failed send. */
-async function addFailed(test: TestContainer, sessionId: Session["id"], text: string) {
-	const repositories = createRepositories(test.container.platform.db, {
-		clock: { now: () => 1_700_000_000_000 },
-		ids: { uuid: () => crypto.randomUUID() },
-	});
-	const row = must(
-		await repositories.queuedMessages.enqueue({
-			id: crypto.randomUUID() as MessageId,
-			sessionId,
-			text,
-			attachmentPaths: [],
-			delivery: "queue",
-		}),
-	);
-	must(await repositories.queuedMessages.setState(row.id, "waiting", "failed", "offline"));
 	return row.id;
 }
 
@@ -224,7 +209,12 @@ describe("CHAT-04 queue box", () => {
 
 	it("retries a failed message through the action", async () => {
 		const { test, session } = await setup();
-		const id = await addFailed(test, session.id, "Send me again");
+		const id = await seedFailedQueuedMessage(
+			test.container,
+			session.id,
+			"Send me again",
+			"offline",
+		);
 		const retry = vi.spyOn(test.container.actions.sessions.queue, "retry");
 		renderBox(test, session.id);
 
@@ -237,7 +227,7 @@ describe("CHAT-04 queue box", () => {
 
 	it("shows 'Failed to retry message' when the retry fails", async () => {
 		const { test, session } = await setup();
-		await addFailed(test, session.id, "Still failing");
+		await seedFailedQueuedMessage(test.container, session.id, "Still failing", "offline");
 		vi.spyOn(test.container.actions.sessions.queue, "retry").mockResolvedValue(
 			err(appError("db", "The database is locked.")),
 		);
