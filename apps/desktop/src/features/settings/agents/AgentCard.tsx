@@ -1,7 +1,16 @@
 /**
  * @feature SET-03 Agent card
- * Owns: one agent program on the Agents page. Name, whether it is installed, version, path, the
- * sign-in state with its action, and the way into its provider forms.
+ * Owns: one agent program's tab panel on the Agents page. Whether it is installed, its version and
+ * path, the sign-in state with its action, and the way into its provider forms.
+ * Measured from Conductor 0.92.1 (the owner's capture of Settings > Agents, renderApp
+ * @10925048-11010000): an "Authentication" heading over two 124px choice cards, "CLI" with a terminal
+ * icon and "API key" with a key icon, the one in use filled and checked; a status line with a dot and
+ * "Connected" and a "Refresh" action at the right; a bordered two-column table of facts (a 170px label
+ * column in muted text); and an outlined sign-in button.
+ * Our design choice: the table lists the facts the install check returns (version, path, login method,
+ * source); Conductor's Provider, Organization and Email rows need account data the install check does
+ * not return. Choosing "CLI" starts the sign-in, and "API key" opens the provider forms, where keys are
+ * entered.
  * Behaviour: ui-map.md 6, "Agents page" (one card per provider; states "Loaded from env", "API key
  * configured", "Validation failed", "Recommended").
  * Data: the parent passes one AgentInstall from useAgentInstalls().
@@ -17,9 +26,12 @@
  * authenticated one shows the signed-in state without it.
  */
 import type { AgentInstall } from "@conducted/protocol";
+import type { ReactNode } from "react";
 import { agentDisplayName } from "../../../core/services/agent-catalog.ts";
 import { Badge, type BadgeTone } from "../../../ui/Badge.tsx";
 import { Button } from "../../../ui/Button.tsx";
+import { cn } from "../../../ui/cn.ts";
+import { CheckIcon, KeyIcon, TerminalIcon } from "../../../ui/icons.tsx";
 import { truncateMiddle } from "../../../ui/TruncatedText.tsx";
 
 /** Characters of a program path shown before the middle is cut. */
@@ -41,6 +53,8 @@ export interface AgentCardProps {
 	 * shows no update action on an agent card (an open PLAT-28 item).
 	 */
 	onUpdate?: () => void;
+	/** Agent-specific settings shown under the sign-in, such as Claude's Chrome switch. */
+	children?: ReactNode;
 }
 
 /** What the card calls the program's source, in Conductor's words (ui-map.md 6). */
@@ -72,6 +86,58 @@ const authMethodLabel = (method: string): string => {
 	return method;
 };
 
+function statusLine(install: AgentInstall): { label: string; dot: string } {
+	if (!install.installed) return { label: "Not installed", dot: "bg-fg-muted" };
+	if (install.authenticated === true) return { label: "Connected", dot: "bg-success" };
+	if (install.authenticated === false) return { label: "Not signed in", dot: "bg-warning" };
+	return { label: "Sign-in status unknown", dot: "bg-fg-muted" };
+}
+
+function AuthChoice({
+	label,
+	icon,
+	selected,
+	disabled,
+	onClick,
+}: {
+	label: string;
+	icon: ReactNode;
+	selected: boolean;
+	disabled: boolean;
+	onClick: () => void;
+}) {
+	return (
+		<button
+			type="button"
+			aria-pressed={selected}
+			disabled={disabled}
+			onClick={onClick}
+			className={cn(
+				"relative flex h-23 flex-col items-center justify-center gap-2 rounded-md border text-sm font-medium text-fg outline-none transition-colors",
+				"focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed disabled:opacity-50",
+				selected ? "border-transparent bg-active" : "border-border hover:bg-hover",
+			)}
+		>
+			{selected ? <CheckIcon className="absolute top-4 right-4 size-4 text-fg-muted" /> : null}
+			<span className="text-fg-muted">{icon}</span>
+			{label}
+		</button>
+	);
+}
+
+function FactRow({ label, children }: { label: string; children: ReactNode }) {
+	return (
+		<div className="flex min-h-12 items-center border-b border-border last:border-b-0">
+			<dt className="w-[170px] shrink-0 self-stretch border-r border-border px-4 py-3 text-sm text-fg-muted">
+				{label}
+			</dt>
+			<dd className="flex min-w-0 flex-1 items-center gap-2 px-4 py-2 text-sm text-fg">
+				{children}
+			</dd>
+		</div>
+	);
+}
+
 export function AgentCard({
 	install,
 	signInBusy,
@@ -81,95 +147,123 @@ export function AgentCard({
 	onCopyPath,
 	onUpdate,
 	configAction,
+	children,
 }: AgentCardProps) {
 	const name = agentDisplayName(install);
 	const state = agentState(install);
 	const notInstalled = !install.installed;
+	const status = statusLine(install);
+	const usesKey = install.authMethod === "api_key";
 
 	return (
-		<section
-			aria-label={name}
-			className="flex flex-col gap-3 rounded-md border border-border bg-raised p-4"
-		>
-			<div className="flex items-start justify-between gap-3">
-				<div className="min-w-0">
-					<div className="flex flex-wrap items-center gap-2">
-						<h3 className="text-sm font-medium text-fg">{name}</h3>
-						{state ? <Badge tone={state.tone}>{state.label}</Badge> : null}
-					</div>
-					{notInstalled ? (
-						<p className={`mt-1 text-sm ${install.warning ? "text-danger" : "text-fg-muted"}`}>
-							{install.warning ?? installHelp(install, name)}
-						</p>
-					) : (
-						<p className="mt-1 text-xs text-fg-muted">
-							{install.version === undefined ? "Version unknown" : `Version ${install.version}`}
-						</p>
-					)}
-				</div>
-				<div className="flex shrink-0 items-center gap-2">
-					{configAction ? (
-						<Button size="sm" variant="secondary" onClick={configAction.onClick}>
-							{configAction.label}
-						</Button>
-					) : null}
-					{!notInstalled && onProviders ? (
-						<Button size="sm" variant="secondary" onClick={onProviders}>
-							Providers
-						</Button>
-					) : null}
-					{!notInstalled && install.authenticated !== true ? (
-						<Button size="sm" variant="default" loading={signInBusy} onClick={onSignIn}>
-							Sign in
-						</Button>
-					) : null}
-					{notInstalled ? (
-						<Button size="sm" variant="secondary" onClick={onRefresh}>
-							Refresh
-						</Button>
-					) : null}
+		<section aria-label={name} className="flex flex-col gap-6">
+			<h3 className="sr-only">{name}</h3>
+			<div className="flex flex-col gap-3">
+				<h4 className="text-sm font-medium text-fg">Authentication</h4>
+				<div className="grid grid-cols-2 gap-3">
+					<AuthChoice
+						label="CLI"
+						icon={<TerminalIcon className="size-6" />}
+						selected={!notInstalled && !usesKey}
+						disabled={notInstalled || signInBusy}
+						onClick={() => {
+							if (install.authenticated !== true || usesKey) onSignIn();
+						}}
+					/>
+					<AuthChoice
+						label="API key"
+						icon={<KeyIcon className="size-6" />}
+						selected={!notInstalled && usesKey}
+						disabled={notInstalled || onProviders === undefined}
+						onClick={() => onProviders?.()}
+					/>
 				</div>
 			</div>
 
-			{!notInstalled && install.path !== undefined ? (
+			<div className="flex flex-col gap-3">
 				<div className="flex items-center gap-2">
-					<code
-						className="min-w-0 flex-1 truncate font-mono text-xs text-fg-muted"
-						title={install.path}
+					<span aria-hidden="true" className={cn("size-2 rounded-full", status.dot)} />
+					<span className="text-sm text-fg">{status.label}</span>
+					{state ? <Badge tone={state.tone}>{state.label}</Badge> : null}
+					<span className="flex-1" />
+					<Button size="sm" variant="ghost" onClick={onRefresh}>
+						Refresh
+					</Button>
+				</div>
+
+				{notInstalled ? (
+					<p className={cn("text-sm", install.warning ? "text-danger" : "text-fg-muted")}>
+						{install.warning ?? installHelp(install, name)}
+					</p>
+				) : (
+					<dl className="overflow-hidden rounded-md border border-border">
+						<FactRow label="Version">{install.version ?? "Unknown"}</FactRow>
+						{install.path !== undefined ? (
+							<FactRow label="Path">
+								<code className="min-w-0 flex-1 truncate font-mono text-xs" title={install.path}>
+									{truncateMiddle(install.path, PATH_LENGTH)}
+								</code>
+								{onCopyPath ? (
+									<Button size="xs" variant="ghost" onClick={() => onCopyPath(install.path ?? "")}>
+										Copy
+									</Button>
+								) : null}
+							</FactRow>
+						) : null}
+						<FactRow label="Login method">
+							{install.authenticated === true
+								? install.authMethod === undefined
+									? "Signed in"
+									: authMethodLabel(install.authMethod)
+								: install.authenticated === false
+									? "Not signed in"
+									: "Unknown"}
+						</FactRow>
+					</dl>
+				)}
+
+				{install.warning !== undefined && install.installed ? (
+					<div className="flex items-start justify-between gap-3">
+						<p className="text-sm text-danger">{install.warning}</p>
+						{onUpdate ? (
+							<Button size="sm" variant="secondary" onClick={onUpdate}>
+								Update
+							</Button>
+						) : null}
+					</div>
+				) : null}
+
+				{notInstalled ? null : (
+					<div className="flex flex-wrap items-center gap-2">
+						{install.authenticated !== true ? (
+							<Button size="sm" variant="outline" loading={signInBusy} onClick={onSignIn}>
+								Sign in
+							</Button>
+						) : null}
+						{onProviders ? (
+							<Button size="sm" variant="outline" onClick={onProviders}>
+								Providers
+							</Button>
+						) : null}
+					</div>
+				)}
+			</div>
+
+			{children === undefined ? null : (
+				<div className="border-t border-border pt-2">{children}</div>
+			)}
+
+			{configAction ? (
+				<div className="flex items-center justify-between gap-3 rounded-md border border-border px-5 py-4">
+					<span className="text-sm font-medium text-fg">{configAction.label}</span>
+					<Button
+						size="sm"
+						variant="outline"
+						aria-label={configAction.label}
+						onClick={configAction.onClick}
 					>
-						{truncateMiddle(install.path, PATH_LENGTH)}
-					</code>
-					{onCopyPath ? (
-						<Button size="xs" variant="ghost" onClick={() => onCopyPath(install.path ?? "")}>
-							Copy
-						</Button>
-					) : null}
-				</div>
-			) : null}
-
-			{!notInstalled ? (
-				<div className="flex flex-wrap items-center gap-2 text-xs">
-					{install.authenticated === true ? (
-						<span className="text-success">Signed in</span>
-					) : install.authenticated === false ? (
-						<span className="text-fg-muted">Not signed in</span>
-					) : (
-						<span className="text-fg-muted">Sign-in status unknown</span>
-					)}
-					{install.authenticated === true && install.authMethod !== undefined ? (
-						<span className="text-fg-muted">· {authMethodLabel(install.authMethod)}</span>
-					) : null}
-				</div>
-			) : null}
-
-			{install.warning !== undefined && install.installed ? (
-				<div className="flex items-start justify-between gap-3">
-					<p className="text-sm text-danger">{install.warning}</p>
-					{onUpdate ? (
-						<Button size="sm" variant="secondary" onClick={onUpdate}>
-							Update
-						</Button>
-					) : null}
+						Edit
+					</Button>
 				</div>
 			) : null}
 		</section>

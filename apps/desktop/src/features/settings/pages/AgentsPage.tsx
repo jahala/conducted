@@ -15,6 +15,12 @@
  * Children: agents/AgentCard, agents/AgentLoginDialog, agents/AgentProvidersDialog,
  * agents/AgentConfigDialog, and the MCP servers region (SET-05: agents/McpServersSection.tsx).
  * Other owners: the Advanced program paths are SET-02 with the path keys in SIDE-21.
+ * Measured from Conductor 0.92.1 (the owner's capture of Settings > Agents): the page title, then one
+ * underlined tab per agent (Claude Code, Codex, Cursor, OpenCode), and under it the chosen agent's panel
+ * (agents/AgentCard). "Use Claude Code with Chrome" sits in Claude Code's panel under a rule.
+ * Our design choice: "Search providers" filters the tabs and sits at the right of the tab row; the MCP
+ * servers region stays under the panel. Conductor's "Claude Code executable path" is our Advanced page's
+ * program path (SET-02).
  * Must handle: a retry after a failed sign-in (the first one is cancelled first), loading and error, a provider filter with no match ("No providers match your
  * search."), nothing installed (the page leads with install help), a program found but failing its
  * version check ("Validation failed" with its warning), a sign-in in progress, and a refresh after
@@ -31,6 +37,7 @@ import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { Input } from "../../../ui/Input.tsx";
 import { LoadableView } from "../../../ui/LoadableView.tsx";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../ui/Tabs.tsx";
 import { toast, toastError } from "../../../ui/Toast.tsx";
 import { AgentCard } from "../agents/AgentCard.tsx";
 import { AgentConfigDialog } from "../agents/AgentConfigDialog.tsx";
@@ -75,6 +82,7 @@ export function AgentsPage() {
 	const [login, setLogin] = useState<LoginState | null>(null);
 	const [providers, setProviders] = useState<AgentInstall | null>(null);
 	const [configAgent, setConfigAgent] = useState<"claude" | "codex" | null>(null);
+	const [tab, setTab] = useState<string | null>(null);
 	const announced = useRef<string | null>(null);
 
 	useEffect(() => {
@@ -210,26 +218,12 @@ export function AgentsPage() {
 	};
 
 	return (
-		<div className="flex flex-col gap-6">
+		<div className="flex flex-col gap-8">
 			<div className="flex flex-col gap-1">
 				<h1 className="text-2xl font-medium text-fg">Agents</h1>
 				<p className="text-sm text-fg-muted">
 					Install status, versions and sign-in for each agent program.
 				</p>
-			</div>
-
-			<div className="rounded-md border border-border bg-raised px-4">
-				<RegistrySettingRowByKey settingKey="chrome_mode_enabled" />
-			</div>
-
-			<div className="max-w-sm">
-				<Input
-					type="search"
-					aria-label="Search providers"
-					placeholder="Search providers"
-					value={query}
-					onChange={(event) => setQuery(event.target.value)}
-				/>
 			</div>
 
 			<LoadableView
@@ -253,56 +247,90 @@ export function AgentsPage() {
 							needle === "" ? true : agentDisplayName(install).toLowerCase().includes(needle),
 						);
 
-					if (filtered.length === 0) {
-						return (
-							<EmptyState
-								compact
-								title={
-									needle === "" ? "No agent programs found" : "No providers match your search."
-								}
-								body={
-									needle === ""
-										? "Install an agent program on this Mac, then choose Refresh."
-										: undefined
-								}
-								action={
-									needle === "" ? (
-										<Button variant="secondary" onClick={() => void actions.agents.refresh()}>
-											Refresh
-										</Button>
-									) : undefined
-								}
+					const searchBox = (
+						<div className="ml-auto flex shrink-0 items-center pb-1">
+							<Input
+								type="search"
+								aria-label="Search providers"
+								placeholder="Search providers"
+								value={query}
+								onChange={(event) => setQuery(event.target.value)}
+								className="h-7 w-44"
 							/>
-						);
-					}
+						</div>
+					);
 
 					const anyInstalled = agents.some((install) => install.installed);
+					const keys = filtered.map((install) => agentKey(install.agent, install.acpAgent));
+					const active = tab !== null && keys.includes(tab) ? tab : (keys[0] ?? "");
 					return (
-						<div className="flex flex-col gap-3">
-							{!anyInstalled ? (
+						<Tabs value={active} onValueChange={setTab} className="flex flex-col gap-6">
+							<div className="flex items-end gap-4 border-b border-separator">
+								<TabsList aria-label="Agents" className="gap-6 border-b-0 px-0">
+									{filtered.map((install) => (
+										<TabsTrigger
+											key={agentKey(install.agent, install.acpAgent)}
+											value={agentKey(install.agent, install.acpAgent)}
+											className="px-0! font-normal"
+										>
+											{agentDisplayName(install)}
+										</TabsTrigger>
+									))}
+								</TabsList>
+								{searchBox}
+							</div>
+							{filtered.length === 0 ? (
+								<EmptyState
+									compact
+									title={
+										needle === "" ? "No agent programs found" : "No providers match your search."
+									}
+									body={
+										needle === ""
+											? "Install an agent program on this Mac, then choose Refresh."
+											: undefined
+									}
+									action={
+										needle === "" ? (
+											<Button variant="secondary" onClick={() => void actions.agents.refresh()}>
+												Refresh
+											</Button>
+										) : undefined
+									}
+								/>
+							) : null}
+							{!anyInstalled && filtered.length > 0 ? (
 								<p className="text-sm text-fg-muted">
 									No agent programs were found. Install one below, then choose Refresh.
 								</p>
 							) : null}
 							{filtered.map((install) => (
-								<AgentCard
+								<TabsContent
 									key={agentKey(install.agent, install.acpAgent)}
-									install={install}
-									signInBusy={busyKey === agentKey(install.agent, install.acpAgent)}
-									onSignIn={() => void startLogin(install)}
-									onProviders={() => setProviders(install)}
-									onRefresh={() => void actions.agents.refresh()}
-									onCopyPath={(path) => void copy(path, "Copied the program path")}
-									configAction={
-										install.agent === "claude"
-											? { label: "Claude settings", onClick: () => setConfigAgent("claude") }
-											: install.agent === "codex"
-												? { label: "Codex config", onClick: () => setConfigAgent("codex") }
-												: undefined
-									}
-								/>
+									value={agentKey(install.agent, install.acpAgent)}
+								>
+									<AgentCard
+										install={install}
+										signInBusy={busyKey === agentKey(install.agent, install.acpAgent)}
+										onSignIn={() => void startLogin(install)}
+										onProviders={() => setProviders(install)}
+										onRefresh={() => void actions.agents.refresh()}
+										onCopyPath={(path) => void copy(path, "Copied the program path")}
+										configAction={
+											install.agent === "claude"
+												? { label: "Claude settings", onClick: () => setConfigAgent("claude") }
+												: install.agent === "codex"
+													? { label: "Codex config", onClick: () => setConfigAgent("codex") }
+													: undefined
+										}
+									>
+										{install.agent === "claude" ? (
+											<RegistrySettingRowByKey settingKey="chrome_mode_enabled" />
+										) : undefined}
+									</AgentCard>
+								</TabsContent>
 							))}
-						</div>
+						</Tabs>
 					);
 				}}
 			</LoadableView>
