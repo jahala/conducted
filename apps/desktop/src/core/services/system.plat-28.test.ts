@@ -210,6 +210,7 @@ describe("PLAT-28 send gate", () => {
 		const service = new SystemService({
 			platform: test.container.platform,
 			setting: <T>(key: string) => (settings[key] ?? "") as T,
+			now: () => 0,
 		});
 		expect((await service.start()).ok).toBe(true);
 		return { test, service };
