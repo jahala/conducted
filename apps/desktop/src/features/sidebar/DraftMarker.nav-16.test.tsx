@@ -190,7 +190,9 @@ describe("NAV-16 Create row marker", () => {
 		const input = await screen.findByLabelText("First message");
 		fireEvent.change(input, { target: { value: "fix the login" } });
 
-		expect(await screen.findByRole("img", { name: "Draft" })).toBeTruthy();
+		// The Create page is a modal dialog, as in Conductor, so the sidebar behind it is hidden from
+		// the accessibility tree while it is open; the marker is still drawn on the Create row.
+		expect(await screen.findByRole("img", { name: "Draft", hidden: true })).toBeTruthy();
 	});
 });
 

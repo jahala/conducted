@@ -23,8 +23,8 @@ import type {
 import type { Clock, IdSource } from "@conducted/shared";
 import { createRepositories, type Repositories } from "../core/db/repositories.ts";
 import { createMemoryPlatform, type MemoryPlatform, type ShellScript } from "../platform/memory.ts";
+import type { Database } from "../platform/platform.ts";
 import { createTestIds } from "../test/ids.ts";
-import { openCatalogueDatabase } from "./sqlite.ts";
 import { CATALOGUE_NOW } from "./time.ts";
 
 /** The home folder of the catalogue's made-up Mac user. */
@@ -144,11 +144,13 @@ const DEFAULT_ANSWERS: SidecarAnswers = {
 	listAcpConfigOptions: () => ({ options: [] }),
 };
 
-/** Builds a fresh world: a migrated database, the Platform over it, and empty scripts. */
-export async function createWorld(): Promise<World> {
+/**
+ * Builds a fresh world over a freshly migrated database: the Platform over it, and empty scripts. The
+ * caller opens the database (sqlite.ts in the browser), so Bun tools can build the same world.
+ */
+export function createWorld(database: Database): World {
 	const clock: Clock = { now: () => CATALOGUE_NOW };
 	const ids = createTestIds("c");
-	const database = await openCatalogueDatabase();
 	const memory = createMemoryPlatform({
 		clock,
 		ids,

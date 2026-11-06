@@ -205,6 +205,11 @@ export function FileTab({ workspaceId, path, mode, scope, onOpenFile }: FileTabP
 				onModeChange={changeMode}
 				editDisabledReason={editDisabledReason}
 				previewAvailable={previewAvailable}
+				diffAvailable={changedEntry !== undefined}
+				copyText={
+					content.state === "ready" && content.data.kind === "text" ? content.data.text : null
+				}
+				onCopy={(text) => actions.app.copyText(text)}
 				preferences={preferences}
 				onPreferencesChange={changePreferences}
 				dirty={draft !== undefined}

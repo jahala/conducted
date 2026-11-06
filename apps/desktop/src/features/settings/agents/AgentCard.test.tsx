@@ -36,14 +36,17 @@ describe("SET-03 AgentCard", () => {
 
 		expect(screen.getByRole("button", { name: "Sign in" })).toBeTruthy();
 		expect(screen.getByText("Loaded from env")).toBeTruthy();
-		expect(screen.getByText("Version 2.0.0")).toBeTruthy();
+		// The version is a row of Conductor's facts table now, not a "Version 2.0.0" line.
+		expect(screen.getByText("Version")).toBeTruthy();
+		expect(screen.getByText("2.0.0")).toBeTruthy();
 	});
 
 	it("shows the signed-in state without a Sign in button", () => {
 		renderCard(install({ authenticated: true }));
 
 		expect(screen.queryByRole("button", { name: "Sign in" })).toBeNull();
-		expect(screen.getByText("Signed in")).toBeTruthy();
+		// Conductor's status line says "Connected" for a signed-in agent.
+		expect(screen.getByText("Connected")).toBeTruthy();
 	});
 
 	it("AGENT-09 points a missing Cursor to the Advanced page, where the app installs its SDK", () => {

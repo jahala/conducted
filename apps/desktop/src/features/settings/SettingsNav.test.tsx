@@ -23,7 +23,7 @@ describe("SET-02 SettingsNav", () => {
 		expect(screen.getByRole("button", { name: "Account" }).getAttribute("aria-current")).toBeNull();
 	});
 
-	it("opens the picked repository's scripts page", () => {
+	it("lists each repository and opens its pages", () => {
 		const onNavigate = vi.fn();
 		render(
 			<SettingsNav
@@ -38,6 +38,25 @@ describe("SET-02 SettingsNav", () => {
 			/>,
 		);
 
+		// As in Conductor, every repository is its own entry; a click opens its first page.
+		fireEvent.click(screen.getByRole("button", { name: "Alpha" }));
+		expect(onNavigate).toHaveBeenCalledWith({ kind: "repo", repoId: "repo-1", page: "scripts" });
+	});
+
+	it("shows the open repository's pages under it", () => {
+		const onNavigate = vi.fn();
+		render(
+			<SettingsNav
+				active={{ kind: "repo", repoId: "repo-1" as never, page: "scripts" }}
+				repos={[
+					{ id: "repo-1", name: "Alpha" },
+					{ id: "repo-2", name: "Beta" },
+				]}
+				onNavigate={onNavigate}
+				onBack={() => undefined}
+				searchSlot={null}
+			/>,
+		);
 		fireEvent.click(screen.getByRole("button", { name: "Actions" }));
 		expect(onNavigate).toHaveBeenCalledWith({ kind: "repo", repoId: "repo-1", page: "actions" });
 	});

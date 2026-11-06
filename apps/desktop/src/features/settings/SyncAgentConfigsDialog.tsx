@@ -19,6 +19,7 @@ import { Button } from "../../ui/Button.tsx";
 import { Checkbox } from "../../ui/Checkbox.tsx";
 import { Dialog, DialogContent, DialogFooter } from "../../ui/Dialog.tsx";
 import { Label } from "../../ui/Input.tsx";
+import { ArrowLeftRightIcon } from "../../ui/icons.tsx";
 import { Select } from "../../ui/Select.tsx";
 import { Spinner } from "../../ui/Spinner.tsx";
 
@@ -39,15 +40,17 @@ const AGENT_OPTIONS: readonly { value: AgentChoice; label: string }[] = [
 export function SyncAgentConfigsRow() {
 	const [open, setOpen] = useState(false);
 	return (
-		<div className="flex items-start justify-between gap-6 border-t border-border py-4">
-			<div className="flex min-w-0 flex-col gap-1">
-				<p className="text-sm font-medium text-fg">Sync agent configs</p>
-				<p className="max-w-prose text-sm text-fg-muted">
+		<div className="flex items-center justify-between gap-8 border-t border-border py-5">
+			<div className="flex min-w-0 flex-col">
+				<p className="flex min-h-7 items-center text-sm font-medium text-fg">Sync agent configs</p>
+				<p className="mt-0.5 text-sm text-fg-muted">
 					Copy skills, slash commands, and MCP servers between Claude Code and Codex.
 				</p>
 			</div>
-			<Button variant="secondary" onClick={() => setOpen(true)}>
-				Sync…
+			{/* Conductor's button row: an outline button with the two-way arrow and "Sync". */}
+			<Button variant="outline" onClick={() => setOpen(true)}>
+				<ArrowLeftRightIcon className="size-4" />
+				Sync
 			</Button>
 			{open ? <SyncAgentConfigsDialog onClose={() => setOpen(false)} /> : null}
 		</div>

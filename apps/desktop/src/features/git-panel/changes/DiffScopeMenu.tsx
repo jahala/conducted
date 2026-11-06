@@ -142,7 +142,11 @@ export function DiffScopeMenu({ workspaceId, scope, onChange }: DiffScopeMenuPro
 					<ChevronDownIcon className="size-3 text-fg-muted" />
 				</Button>
 			</MenuTrigger>
-			<MenuContent className="max-h-96 w-80 overflow-y-auto" aria-label="Diff scope">
+			<MenuContent
+				align="end"
+				className="max-h-96 w-80 max-w-[calc(100vw-1rem)] overflow-y-auto"
+				aria-label="Diff scope"
+			>
 				<MenuRadioGroup value={scopeValue(scope)}>
 					<MenuLabel>
 						Current branch

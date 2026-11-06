@@ -18,32 +18,34 @@ The values are Conductor 0.92.1's, measured in `research/conductor/ui-dimensions
 - Type scale, with Conductor's names: `text-3xs` 10/12, `text-2xs` 11/14, `text-xs` 12/16, `text-sm` 14/20 (the body), `text-code` 13/20 (diff and file text), `text-base` 16/24, `text-lg` 18/28, `text-xl` 20/28, `text-2xl` 24/32 (size/line height in px). Each size carries Conductor's letter spacing.
 - Weights: `font-light` 350 (tab list, composer text), `font-normal` 400, `font-book` 450 (outline and ghost buttons, sidebar names), `font-medium` 500 (buttons, tabs, labels, headings), `font-semibold` 600 (unread names, rare headers).
 - Spacing: one step is 4px. Radii: `xs` 2, `sm` 4, `md` 6 (controls and rows), `lg` 8 (menus, popovers), `xl` 12 (composer, alert dialogs), `2xl` 16, `full`.
+- Markdown: chat replies and the file viewer's preview share the `.markdown` rules in `styles.css` (Conductor's small prose size: 14px on 24px lines, paragraphs 16px apart, headings 30, 20, 18 and 15px, inline code as a bordered chip). Code highlighting uses Conductor's Default code theme through the `code-*` tokens (`features/chat/code-theme.ts`).
 - Shadows: `xs` (chips, composer), `sm`, `popover` (menus, popovers, tooltips, with a 1px ring), `dialog`, `palette`, `toast`.
 - Motion: 150ms with `cubic-bezier(0.4, 0, 0.2, 1)` by default; popovers 100ms; dialogs 200ms; the palette 180ms in and 130ms out; the composer resize 200ms on `ease-spring`. Reduced motion turns it all off.
 - The primary button is Conductor's default button: the near-black fill (`primary-fill`), near-white in dark. The clay accent marks the one thing to look at: the active tab underline, the focused input edge, unread dots.
 
 ## Component dimensions
 
-| Part                          | Size                                                                                                                     |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Left sidebar                  | 256px default, 192px to 480px, collapses to 0; 8px resize rail                                                           |
-| Centre and right panel        | 65% and 35%, each at least 30%; the right panel collapses to 0 (Conductor asks for 70 and 35 and rescales)               |
-| Right panel split             | 50% and 50%; the scripts panel is at least 20% and collapses to its 32px tab strip                                       |
-| Title bar, headers, tab strip | 40px (`--titlebar-height`); scripts panel tabs 32px; traffic-light clearance 66px                                        |
-| Tabs                          | chat tab 176px; other tabs 128px (80px to 160px); 2px accent underline when active; close button 20px                    |
-| Sidebar rows                  | nav row 32px, workspace row 36px, section header 28px; 6px side padding and 6px radius                                   |
-| Lists                         | file tree row 28px with 20px indent; changes row 28px; commit row 32px                                                   |
-| Menus                         | item 32px (8px by 6px padding); content 4px padding, 8px radius, at least 128px wide                                     |
-| Command palette               | 576px wide, at most 500px tall; input 44px; items 44px                                                                   |
-| Dialogs                       | 512px default with 24px padding and 16px gap; sizes 384, 448, 512, 576, 672, 768, 896px                                  |
-| Buttons                       | 24, 28, 32 (default) and 44px tall; icon buttons 24, 28 and 32px square                                                  |
-| Inputs                        | input and select 32px; textarea at least 60px; checkbox 16px; switch 40 by 20px with a 16px thumb                        |
-| Chat                          | column at most 896px with 28px side padding; user bubble at most 576px (768px on wide windows) with 12px by 16px padding |
-| Composer                      | 12px radius, at least 152px tall; editor 88px to 188px; send button 24px                                                 |
-| Settings                      | 256px nav; content at most 896px with 40px side padding; rows split by a 1px line and 20px space                         |
-| Toasts                        | 356px wide                                                                                                               |
-| Terminal and diff             | terminal 12px text at 1.2 line height with 8px padding; diff 13px on 20px lines                                          |
-| Icons                         | 12px, 14px and 16px for nearly everything                                                                                |
+| Part                          | Size                                                                                                                                                                     |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Left sidebar                  | 256px default, 192px to 480px, collapses to 0; 8px resize rail                                                                                                           |
+| Centre and right panel        | 65% and 35%, each at least 30%; the right panel collapses to 0 (Conductor asks for 70 and 35 and rescales)                                                               |
+| Right panel split             | 50% and 50%; the scripts panel is at least 20% and collapses to its 32px tab strip                                                                                       |
+| Title bar, headers, tab strip | 40px (`--titlebar-height`); scripts panel tabs 32px; traffic-light clearance 66px                                                                                        |
+| Tabs                          | chat tab 176px; other tabs 128px (80px to 160px); 2px accent underline when active; close button 20px                                                                    |
+| Sidebar rows                  | nav row 32px, workspace row 36px, section header 28px; 6px side padding and 6px radius                                                                                   |
+| Lists                         | file tree row 28px with 20px indent; changes row 28px; commit row 32px                                                                                                   |
+| Menus                         | item 32px (8px by 6px padding); content 4px padding, 8px radius, at least 128px wide                                                                                     |
+| Command palette               | 672px wide as measured on the owner's capture (the bundle's research says 576px), at most 500px tall; input 44px; items 44px                                             |
+| Dialogs                       | 512px default with 24px padding and 16px gap; sizes 384, 448, 512, 576, 672, 768, 896px                                                                                  |
+| Buttons                       | 24, 28, 32 (default) and 44px tall; icon buttons 24, 28 and 32px square                                                                                                  |
+| Inputs                        | input and select 32px; textarea at least 60px; checkbox 16px; switch 40 by 20px with a 16px thumb                                                                        |
+| Chat                          | column at most 896px with 28px side padding; user bubble aligned right, at most 576px (768px on wide windows) with 12px by 16px padding, in the `highlight-surface` fill |
+| Chat rows                     | tool call and thinking rows 32px (6px by 8px, pulled out 8px), 12px icon; a finished turn folds runs of three or more into one row; tool output in the `well` fill       |
+| Composer                      | 12px radius, at least 152px tall; editor 88px to 188px; send button 24px                                                                                                 |
+| Settings                      | 256px nav; content at most 896px with 40px side padding; rows split by a 1px line and 20px space                                                                         |
+| Toasts                        | 356px wide                                                                                                                                                               |
+| Terminal and diff             | terminal 12px text at 1.2 line height with 8px padding; diff 13px on 20px lines                                                                                          |
+| Icons                         | 12px, 14px and 16px for nearly everything                                                                                                                                |
 
 ## AA adjustments
 
@@ -82,6 +84,10 @@ Each row changes one measured value so the pair meets 4.5:1 for text or 3:1 for 
 | `status-review`                                         | #16a249                  | #169e47               | 2.87 on the sidebar hover tint                                                                     |
 | `status-done`                                           | #cca694                  | #a2827d               | Status icon, 2.13 on the sidebar                                                                   |
 | `status-canceled`                                       | #a5a09c                  | #8f8884               | Status icon, 2.48 on the sidebar. It is now close to backlog grey; its icon shape tells them apart |
+| `code-comment`                                          | #a5a09c / #8e8885        | #78716d / #989390     | Code comments on the code fill, 2.48 light and 4.01 dark                                           |
+| `code-function`                                         | #cb00eb                  | #c200e0               | Function names in code, 4.24 light                                                                 |
+| `code-class`                                            | #e9560c                  | #c7490a               | Class and built-in names in code, 3.47 light                                                       |
+| `callout-tip`                                           | #16a34a                  | #12853c               | The Tip callout's title, 3.3 on canvas                                                             |
 | Tooltip fill                                            | popover at 50% with blur | solid `raised`        | A see-through fill cannot promise 4.5:1 over whatever is behind it                                 |
 
 The sixteen terminal colours draw text, so each one meets 4.5:1 on both terminal backgrounds (canvas and panel) in light, dark and low-contrast dark. The light ANSI slots that fell short take the nearest passing value in the same hue, and the dark black is raised for the same reason; every changed pair is in the table above. Search matches use the measured highlight pair (`search-highlight` and `search-highlight-fg`). The transparency setting switches the sidebar surfaces to `--color-sidebar-translucent` through `data-vibrancy="on"`.

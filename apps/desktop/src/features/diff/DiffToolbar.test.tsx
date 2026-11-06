@@ -1,11 +1,12 @@
 /**
  * @feature REV-02 Diff toolbar
- * Tests that each control changes only its own preference.
+ * Tests that each control changes only its own preference. The toolbar became Conductor's icon
+ * toggles plus a "View options" menu, so "Entire file" moved from a button into that menu.
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "../../test/dom-polyfills.ts";
-import { DiffToolbar, SPLIT_MIN_WIDTH } from "./DiffToolbar.tsx";
+import { DiffLayoutToggles, DiffViewOptions, SPLIT_MIN_WIDTH } from "./DiffToolbar.tsx";
 import type { DiffPreferences } from "./diff-types.ts";
 
 afterEach(cleanup);
@@ -22,8 +23,8 @@ describe("REV-02 DiffToolbar", () => {
 	it("gives each toolbar's checkboxes ids of their own, for two tabs side by side", async () => {
 		render(
 			<>
-				<DiffToolbar preferences={preferences} onChange={vi.fn()} disabled={false} />
-				<DiffToolbar preferences={preferences} onChange={vi.fn()} disabled={false} />
+				<DiffViewOptions preferences={preferences} onChange={vi.fn()} disabled={false} />
+				<DiffViewOptions preferences={preferences} onChange={vi.fn()} disabled={false} />
 			</>,
 		);
 		const buttons = screen.getAllByRole("button", { name: "View options" });
@@ -38,29 +39,65 @@ describe("REV-02 DiffToolbar", () => {
 
 	it("flips wrap lines and nothing else", async () => {
 		const onChange = vi.fn();
-		render(<DiffToolbar preferences={preferences} onChange={onChange} disabled={false} />);
+		render(<DiffViewOptions preferences={preferences} onChange={onChange} disabled={false} />);
 		fireEvent.click(screen.getByRole("button", { name: "View options" }));
 		const wrap = await screen.findByRole("checkbox", { name: "Wrap lines" });
 		fireEvent.click(wrap);
 		expect(onChange).toHaveBeenCalledWith({ ...preferences, wrapLines: true });
 	});
 
-	it("switches to the split layout", () => {
+	it("switches to the split layout and shows the diff", () => {
 		const onChange = vi.fn();
-		render(<DiffToolbar preferences={preferences} onChange={onChange} disabled={false} />);
+		const onShowDiff = vi.fn();
+		render(
+			<DiffLayoutToggles
+				preferences={preferences}
+				onChange={onChange}
+				disabled={false}
+				active={false}
+				onShowDiff={onShowDiff}
+			/>,
+		);
 		fireEvent.click(screen.getByRole("button", { name: "Split view" }));
 		expect(onChange).toHaveBeenCalledWith({ ...preferences, layout: "split" });
+		expect(onShowDiff).toHaveBeenCalledTimes(1);
 	});
 
-	it("toggles the entire file", () => {
+	it("marks the layout in use as pressed only while the diff is on show", () => {
+		const { rerender } = render(
+			<DiffLayoutToggles preferences={preferences} onChange={() => {}} disabled={false} />,
+		);
+		expect(screen.getByRole("button", { name: "Unified view" }).getAttribute("aria-pressed")).toBe(
+			"true",
+		);
+		rerender(
+			<DiffLayoutToggles
+				preferences={preferences}
+				onChange={() => {}}
+				disabled={false}
+				active={false}
+			/>,
+		);
+		expect(screen.getByRole("button", { name: "Unified view" }).getAttribute("aria-pressed")).toBe(
+			"false",
+		);
+	});
+
+	it("toggles the entire file from View options", async () => {
 		const onChange = vi.fn();
-		render(<DiffToolbar preferences={preferences} onChange={onChange} disabled={false} />);
-		fireEvent.click(screen.getByRole("button", { name: "Entire file" }));
+		render(<DiffViewOptions preferences={preferences} onChange={onChange} disabled={false} />);
+		fireEvent.click(screen.getByRole("button", { name: "View options" }));
+		fireEvent.click(await screen.findByRole("checkbox", { name: "Entire file" }));
 		expect(onChange).toHaveBeenCalledWith({ ...preferences, entireFile: true });
 	});
 
 	it("disables every control for a binary file", () => {
-		render(<DiffToolbar preferences={preferences} onChange={() => {}} disabled={true} />);
+		render(
+			<>
+				<DiffLayoutToggles preferences={preferences} onChange={() => {}} disabled={true} />
+				<DiffViewOptions preferences={preferences} onChange={() => {}} disabled={true} />
+			</>,
+		);
 		for (const button of screen.getAllByRole("button")) {
 			expect((button as HTMLButtonElement).disabled).toBe(true);
 		}
@@ -68,7 +105,7 @@ describe("REV-02 DiffToolbar", () => {
 
 	it("disables the split layout when the tab is too narrow", () => {
 		render(
-			<DiffToolbar
+			<DiffLayoutToggles
 				preferences={preferences}
 				onChange={() => {}}
 				disabled={false}
@@ -82,7 +119,7 @@ describe("REV-02 DiffToolbar", () => {
 
 	it("allows the split layout at the threshold width", () => {
 		render(
-			<DiffToolbar
+			<DiffLayoutToggles
 				preferences={preferences}
 				onChange={() => {}}
 				disabled={false}

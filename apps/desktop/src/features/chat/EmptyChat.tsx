@@ -55,7 +55,7 @@ export function EmptyChat({
 				</div>
 			)}
 			<div className="flex flex-col gap-1">
-				<h2 className="text-lg font-medium text-fg">No messages yet</h2>
+				<h2 className="text-sm text-fg-muted">No messages yet</h2>
 				<p className="max-w-prose text-sm text-fg-muted">
 					Ask the agent to change something, or start with one of these.
 				</p>

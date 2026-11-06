@@ -59,6 +59,8 @@ export interface SettingRowProps {
 	settingKey: string;
 	title: string;
 	description: string | null;
+	/** A small hint under the description. */
+	detail?: string | null;
 	scope: "user" | "repo";
 	disabledReason: string | null;
 	highlighted: boolean;
@@ -72,6 +74,7 @@ export function SettingRow({
 	settingKey,
 	title,
 	description,
+	detail = null,
 	scope,
 	disabledReason,
 	highlighted,
@@ -86,23 +89,24 @@ export function SettingRow({
 			data-setting-key={settingKey}
 			data-highlighted={highlighted ? "true" : undefined}
 			className={cn(
-				"flex flex-col gap-3 border-t border-border py-4 first:border-t-0 first:pt-0",
+				"flex flex-col gap-3 border-t border-border py-5 first:border-t-0 first:pt-0",
 				highlighted && "rounded-md bg-accent/10 px-3 ring-1 ring-accent",
 			)}
 		>
-			<div className="flex items-start justify-between gap-6">
-				<div className="flex min-w-0 flex-col gap-1">
-					<div className="flex flex-wrap items-center gap-2">
+			<div className="flex items-center justify-between gap-8">
+				<div className="flex min-w-0 flex-col">
+					<div className="flex min-h-7 flex-wrap items-center gap-2">
 						<p className="text-sm font-medium text-fg">{title}</p>
 						<span className="rounded-sm border border-border px-1.5 py-0.5 text-3xs text-fg-subtle">
 							{scope === "repo" ? "Repository" : "User"}
 						</span>
 					</div>
 					{description ? (
-						<p id={descriptionId} className="max-w-prose text-sm text-fg-muted">
+						<p id={descriptionId} className="mt-0.5 text-sm text-fg-muted">
 							{description}
 						</p>
 					) : null}
+					{detail ? <p className="mt-1 text-xs text-fg-muted">{detail}</p> : null}
 					{disabledReason ? <p className="text-xs text-fg-subtle">{disabledReason}</p> : null}
 					{saveError ? (
 						<p role="alert" className="text-xs text-danger">
@@ -304,6 +308,7 @@ export function SettingControl({
 				value={typeof value === "string" ? value : def.default}
 				options={def.options}
 				disabled={disabled}
+				className="w-[186px]"
 				onValueChange={(next) => void onChange(next)}
 			/>
 		);
@@ -361,6 +366,7 @@ function RegistrySettingRow({
 			settingKey={def.key}
 			title={def.title}
 			description={def.description}
+			detail={def.detail ?? null}
 			scope={def.scopes.includes("repo") ? "repo" : "user"}
 			disabledReason={null}
 			highlighted={focusSettingKey === def.key}

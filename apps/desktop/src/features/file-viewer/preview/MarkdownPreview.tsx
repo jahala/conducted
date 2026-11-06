@@ -2,6 +2,8 @@
  * @feature REV-08 Markdown preview
  * Owns: the rendered view of a Markdown file in the File tab.
  * Behaviour: ui-map.md 3.2 (previews) and 6 (Appearance: "Markdown Style", Default or Tufte).
+ * Looks: the shared `.markdown` rules in styles.css, the same as chat replies (Conductor's measured prose
+ * values); 16px padding, as Conductor's file view.
  * Our design choice: the renderer builds React elements instead of HTML, so scripts and raw HTML
  * in the file never run, and remote images (a scheme such as "https:" or a "//host" address) are
  * shown as links rather than loaded. An inline "data:image/" image is shown, as in the chat.
@@ -13,6 +15,7 @@
  */
 import type { ReactNode } from "react";
 import { cn } from "../../../ui/cn.ts";
+import { ArrowUpRightIcon } from "../../../ui/icons.tsx";
 
 export interface MarkdownPreviewProps {
 	text: string;
@@ -64,7 +67,7 @@ function renderImage(at: string, alt: string, target: string, links: LinkHandler
 			<button
 				key={at}
 				type="button"
-				className="text-link underline underline-offset-4"
+				className="text-link hover:underline"
 				onClick={() => links.onOpenLink(target)}
 			>
 				Image: {alt || target}
@@ -78,7 +81,7 @@ function renderImage(at: string, alt: string, target: string, links: LinkHandler
 			? null
 			: links.imageUrlFor(resolved);
 	if (src === null) return <span key={at}>{alt || target}</span>;
-	return <img key={at} src={src} alt={alt} loading="lazy" className="max-w-full rounded" />;
+	return <img key={at} src={src} alt={alt} loading="lazy" className="max-w-full" />;
 }
 
 function renderLink(at: string, label: string, target: string, links: LinkHandlers): ReactNode {
@@ -87,13 +90,14 @@ function renderLink(at: string, label: string, target: string, links: LinkHandle
 			<a
 				key={at}
 				href={target}
-				className="text-link underline underline-offset-4"
+				className="text-link hover:underline"
 				onClick={(event) => {
 					event.preventDefault();
 					links.onOpenLink(target);
 				}}
 			>
 				{label}
+				<ArrowUpRightIcon className="ml-1 inline size-3 align-[-0.125em]" />
 			</a>
 		);
 	}
@@ -103,7 +107,7 @@ function renderLink(at: string, label: string, target: string, links: LinkHandle
 		<a
 			key={at}
 			href={resolved}
-			className="text-link underline underline-offset-4"
+			className="text-link hover:underline"
 			onClick={(event) => {
 				event.preventDefault();
 				links.onOpenFile(resolved);
@@ -131,11 +135,7 @@ function renderInline(text: string, keyPrefix: string, links: LinkHandlers): Rea
 		} else if (match[3] !== undefined && match[4] !== undefined) {
 			nodes.push(renderLink(at, match[3], match[4], links));
 		} else if (match[5] !== undefined) {
-			nodes.push(
-				<code key={at} className="rounded-sm bg-muted px-1 py-0.5 font-mono text-code">
-					{match[5]}
-				</code>,
-			);
+			nodes.push(<code key={at}>{match[5]}</code>);
 		} else if (match[6] !== undefined) {
 			nodes.push(<strong key={at}>{match[6]}</strong>);
 		} else if (match[7] !== undefined) {
@@ -204,7 +204,7 @@ export function MarkdownPreview({
 			blocks.push(
 				<pre
 					key={at}
-					className="overflow-x-auto rounded-md border border-border bg-surface p-3 font-mono text-code"
+					className="my-4 overflow-x-auto rounded-md bg-muted px-3 py-2.5 font-mono text-sm"
 				>
 					<code data-language={language}>{body.join("\n")}</code>
 				</pre>,
@@ -217,20 +217,14 @@ export function MarkdownPreview({
 		if (headingMatch !== null) {
 			const level = headingMatch[1]?.length ?? 1;
 			const Tag = `h${Math.min(Math.max(level, 1), 6)}` as "h1";
-			const size =
-				level === 1 ? "text-xl" : level === 2 ? "text-lg" : level === 3 ? "text-base" : "text-sm";
-			blocks.push(
-				<Tag key={at} className={cn("mt-4 font-medium text-fg first:mt-0", size)}>
-					{inline(headingMatch[2] ?? "", at)}
-				</Tag>,
-			);
+			blocks.push(<Tag key={at}>{inline(headingMatch[2] ?? "", at)}</Tag>);
 			index += 1;
 			key += 1;
 			continue;
 		}
 
 		if (/^\s*([-*_])\1{2,}\s*$/.test(line)) {
-			blocks.push(<hr key={at} className="my-4 border-border" />);
+			blocks.push(<hr key={at} />);
 			index += 1;
 			key += 1;
 			continue;
@@ -246,24 +240,22 @@ export function MarkdownPreview({
 			}
 			blocks.push(
 				<div key={at} className="overflow-x-auto">
-					<table className="w-full text-sm">
+					<table>
 						<thead>
-							<tr className="border-b border-border">
+							<tr>
 								{headerCells.map((cell, cellIndex) => (
 									// biome-ignore lint/suspicious/noArrayIndexKey: the column order is the table's order.
-									<th key={`${at}-h-${cellIndex}`} className="px-2 py-1 text-left font-medium">
-										{inline(cell, `${at}-h-${cellIndex}`)}
-									</th>
+									<th key={`${at}-h-${cellIndex}`}>{inline(cell, `${at}-h-${cellIndex}`)}</th>
 								))}
 							</tr>
 						</thead>
 						<tbody>
 							{bodyRows.map((row, rowIndex) => (
 								// biome-ignore lint/suspicious/noArrayIndexKey: the row order is the table's order.
-								<tr key={`${at}-r-${rowIndex}`} className="border-b border-border last:border-0">
+								<tr key={`${at}-r-${rowIndex}`}>
 									{row.map((cell, cellIndex) => (
 										// biome-ignore lint/suspicious/noArrayIndexKey: the column order is the table's order.
-										<td key={`${at}-r-${rowIndex}-${cellIndex}`} className="px-2 py-1">
+										<td key={`${at}-r-${rowIndex}-${cellIndex}`}>
 											{inline(cell, `${at}-r-${rowIndex}-${cellIndex}`)}
 										</td>
 									))}
@@ -283,11 +275,7 @@ export function MarkdownPreview({
 				quoted.push((lines[index] ?? "").replace(/^\s*>\s?/, ""));
 				index += 1;
 			}
-			blocks.push(
-				<blockquote key={at} className="border-l-2 border-border-strong pl-3 text-fg-muted">
-					{inline(quoted.join(" "), at)}
-				</blockquote>,
-			);
+			blocks.push(<blockquote key={at}>{inline(quoted.join(" "), at)}</blockquote>);
 			key += 1;
 			continue;
 		}
@@ -299,7 +287,7 @@ export function MarkdownPreview({
 				index += 1;
 			}
 			blocks.push(
-				<ul key={at} className="list-disc space-y-1 pl-5">
+				<ul key={at}>
 					{items.map((item, itemIndex) => {
 						const task = /^\[([ xX])\]\s+(.*)$/.exec(item);
 						return (
@@ -335,7 +323,7 @@ export function MarkdownPreview({
 				index += 1;
 			}
 			blocks.push(
-				<ol key={at} className="list-decimal space-y-1 pl-5">
+				<ol key={at}>
 					{items.map((item, itemIndex) => (
 						// biome-ignore lint/suspicious/noArrayIndexKey: the item order is the list's order.
 						<li key={`${at}-${itemIndex}`}>{inline(item, `${at}-${itemIndex}`)}</li>
@@ -360,11 +348,7 @@ export function MarkdownPreview({
 			paragraph.push(lines[index] ?? "");
 			index += 1;
 		}
-		blocks.push(
-			<p key={at} className="leading-relaxed">
-				{inline(paragraph.join(" "), at)}
-			</p>,
-		);
+		blocks.push(<p key={at}>{inline(paragraph.join(" "), at)}</p>);
 		key += 1;
 	}
 
@@ -374,10 +358,7 @@ export function MarkdownPreview({
 
 	return (
 		<div
-			className={cn(
-				"mx-auto flex max-w-3xl flex-col gap-3 p-6 text-sm text-fg",
-				style === "tufte" && "max-w-2xl font-serif",
-			)}
+			className={cn("markdown select-text p-4", style === "tufte" && "max-w-2xl font-serif")}
 			data-markdown-style={style}
 			data-base-dir={baseDir}
 		>

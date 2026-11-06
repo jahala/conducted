@@ -42,6 +42,7 @@ Each one fails a check when it is broken.
 - **Every table states its lifetime** (`pnpm guards`).
 - **Version files agree** (`pnpm guards`).
 - **Files are trashed, never deleted with `rm`** in scripts (`pnpm guards`).
+- **Conductor's code never enters the repo** (D002): no bundle file, copy of one, or stretch of its code (`pnpm guards`; the reference run is in `docs/engineering.md`).
 - **The Rust command list, the program allowlist and the migration list match the TypeScript that uses them** (`pnpm guards`). A command with no handler carries its backlog id in a comment in `COMMANDS`.
 - **Structure baselines only shrink** (D055): `scripts/guards/structure-baseline.json` counts tests that assert placeholders, exports only tests use, and optional dependencies a composition root leaves out unmarked (`// unwired: <ID>`). A fix lowers the baseline in the same change.
 - **A run leaves nothing behind:** `pnpm test` fails if anything is left in the run's temp folder.

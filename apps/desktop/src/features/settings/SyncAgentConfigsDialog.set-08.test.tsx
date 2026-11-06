@@ -26,7 +26,7 @@ async function mountGeneral(): Promise<TestContainer> {
 }
 
 async function openDialog() {
-	fireEvent.click(screen.getByRole("button", { name: "Sync…" }));
+	fireEvent.click(screen.getByRole("button", { name: "Sync" }));
 	return within(await screen.findByRole("dialog"));
 }
 

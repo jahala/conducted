@@ -47,6 +47,8 @@ export function ExitPlanModeCard({ call, defaultExpanded }: ToolCardProps) {
 			<div>
 				<ToolCardFrame
 					title="Propose plan"
+					summary={<span className="text-xs text-fg-muted">{decision}</span>}
+					keepSummary
 					status={toolStatus(call)}
 					expandAll={defaultExpanded}
 					body={
@@ -72,7 +74,6 @@ export function ExitPlanModeCard({ call, defaultExpanded }: ToolCardProps) {
 							</div>
 						)
 					}
-					footer={decision}
 				/>
 			</div>
 		</ContextMenu>

@@ -5,9 +5,14 @@
  * Behaviour: ui-map.md 7.1 (first run at /first-run-onboarding: three selectable steps with title
  * and text, 'Exit onboarding' top right, 'Continue' (Enter), down arrow cycles; on finish it stores
  * the onboarding state and goes to '/'; error 'Couldn't finish setup. Please try again.').
- * Our design choice: Conductor plays three videos. We draw a static illustration per step in our own
- * SVG. The steps are what the app does, which agents were found, and adding a project. The accent is
- * on Continue only.
+ * Measured from Conductor 0.92.1 (renderApp @10584451 to 10588205): a centred two-column layout, the
+ * steps (560px at most) beside a 600px 16:9 media panel with a 4px progress bar under it; each step is a
+ * title, medium in the body colour when current and muted otherwise, with its text under it; Continue
+ * under the steps. The titles and texts are Conductor's.
+ * Our design choice: Conductor plays three videos, which are its assets (D002); we draw a static
+ * illustration per step in our own SVG instead. Ours also keep the agent check (step 2) and adding a
+ * project (step 3) on the screen, the "Welcome to Conducted" line, the step count and the note that
+ * settings can change later.
  * Must handle: Exit at any step (the state is stored so the guide is not shown again); no agent found
  * (the agents step explains how to install one and the user may continue); a project already exists
  * (the screen can be left from any step); finishing fails (a toast, and the step stays); Enter
@@ -27,18 +32,19 @@ interface OnboardingStep {
 	body: string;
 }
 
+/** Conductor's three slides, in its words; "Conducted" where the app names itself. */
 const STEPS: OnboardingStep[] = [
 	{
 		title: "Get coding agents working in parallel",
-		body: "Give each task its own workspace, and let several agents work at once.",
+		body: "Each agent you spin up gets an isolated workspace.",
 	},
 	{
-		title: "See which agents are ready",
-		body: "We checked the agent programs on this Mac. Sign in to one now, or later in Settings.",
+		title: "See at a glance what each agent is working on",
+		body: "See who's working, what needs attention, and what's planned.",
 	},
 	{
-		title: "Add your first project",
-		body: "Pick a folder to add as a project, then start a workspace from it.",
+		title: "Review changes and create PRs",
+		body: "Review, comment, and merge from Conducted.",
 	},
 ];
 
@@ -249,74 +255,68 @@ export function OnboardingScreen() {
 		return () => window.removeEventListener("keydown", onKeyDown);
 	}, [advance]);
 
-	const active = STEPS[step] ?? STEPS[0];
-
 	return (
-		<div className="flex h-full bg-canvas">
-			<section className="flex min-w-0 flex-1 flex-col px-8 py-6 lg:px-12">
-				<div className="flex items-center justify-between gap-4">
-					<p className="text-sm text-fg-muted">Welcome to Conducted</p>
-					<Button variant="ghost" size="sm" onClick={() => void finish()}>
-						Exit onboarding
-					</Button>
-				</div>
-
-				<div className="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center gap-7 py-8">
-					<div>
-						<p className="text-xs tracking-wider text-fg-muted uppercase">
+		<div className="relative flex h-full flex-col items-center overflow-y-auto bg-canvas px-8 pt-8 pb-24">
+			<div className="flex w-full max-w-7xl items-center justify-between gap-4">
+				<p className="text-sm text-fg-muted">Welcome to Conducted</p>
+				<Button variant="ghost" size="sm" onClick={() => void finish()}>
+					Exit onboarding
+				</Button>
+			</div>
+			<div className="mx-auto grid w-full max-w-7xl grid-cols-1 items-start justify-center gap-12 pt-16 lg:grid-cols-[minmax(0,560px)_600px]">
+				<div className="flex w-full min-w-0 flex-col gap-12">
+					<div className="flex flex-col gap-6">
+						<p className="text-xs text-fg-muted">
 							Step {step + 1} of {STEPS.length}
 						</p>
-						<h1 className="mt-1 text-2xl font-medium text-fg">{active?.title}</h1>
-						<p className="mt-2 text-sm text-fg-muted">{active?.body}</p>
-					</div>
-
-					<ol aria-label="Onboarding steps" className="flex flex-col gap-2">
-						{STEPS.map((item, index) => (
-							<li key={item.title}>
-								<button
-									type="button"
-									aria-current={index === step ? "step" : undefined}
-									onClick={() => setStep(index)}
-									className={
-										index === step
-											? "flex w-full items-start gap-3 rounded-md border border-border-strong bg-raised p-3 text-left"
-											: "flex w-full items-start gap-3 rounded-md border border-transparent p-3 text-left hover:bg-hover"
-									}
-								>
-									<span
-										aria-hidden="true"
-										className={
-											index === step
-												? "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-primary-fill text-xs font-medium text-canvas"
-												: "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-border-strong text-xs font-medium text-fg-muted"
-										}
+						<ol aria-label="Onboarding steps" className="flex flex-col gap-6">
+							{STEPS.map((item, index) => (
+								<li key={item.title}>
+									<button
+										type="button"
+										aria-current={index === step ? "step" : undefined}
+										onClick={() => setStep(index)}
+										className="flex w-full flex-col items-start gap-1 rounded-md text-left"
 									>
-										{index + 1}
-									</span>
-									<span className="min-w-0">
-										<span className="block text-sm font-medium text-fg">{item.title}</span>
-										<span className="mt-1 block text-xs text-fg-muted">{item.body}</span>
-									</span>
-								</button>
-							</li>
-						))}
-					</ol>
+										<span
+											className={
+												index === step
+													? "text-base font-medium text-fg"
+													: "text-base text-fg-muted hover:text-fg"
+											}
+										>
+											{item.title}
+										</span>
+										<span className="text-sm text-fg-muted">{item.body}</span>
+									</button>
+								</li>
+							))}
+						</ol>
+					</div>
 
 					{step === 1 ? <AgentStep /> : null}
 					{step === 2 ? <ProjectStep onFinish={() => void finish()} /> : null}
+
+					<div className="flex flex-col items-start gap-3">
+						<Button loading={finishing} onClick={advance} className="w-min">
+							Continue
+						</Button>
+						<p className="text-xs text-fg-muted">You can change these later in Settings.</p>
+					</div>
 				</div>
 
-				<div className="flex items-center justify-between gap-4">
-					<p className="text-xs text-fg-subtle">You can change these later in Settings.</p>
-					<Button loading={finishing} onClick={advance}>
-						Continue
-					</Button>
+				<div className="hidden w-[600px] flex-col gap-2 lg:flex">
+					<div className="aspect-video overflow-hidden rounded-lg bg-muted">
+						<StepIllustration step={step} />
+					</div>
+					<div className="h-1 w-full rounded-full bg-muted">
+						<div
+							className="h-1 rounded-full bg-fg transition-all duration-500 ease-linear"
+							style={{ width: `${((step + 1) / STEPS.length) * 100}%` }}
+						/>
+					</div>
 				</div>
-			</section>
-
-			<aside className="hidden w-[45%] border-l border-border bg-surface md:flex">
-				<StepIllustration step={step} />
-			</aside>
+			</div>
 		</div>
 	);
 }

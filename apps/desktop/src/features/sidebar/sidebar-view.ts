@@ -34,7 +34,7 @@ export interface SidebarView {
 export type SidebarGroupKey =
 	| { kind: "pinned" }
 	| { kind: "section"; sectionId: string }
-	| { kind: "status"; status: string }
+	| { kind: "status"; status: KanbanStatus }
 	| { kind: "project"; repoId: RepoId };
 
 export interface SidebarGroup {

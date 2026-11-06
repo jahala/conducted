@@ -25,17 +25,22 @@
 import type { Result, WorkspaceId } from "@conducted/shared";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { useCommandHandler } from "../../app/command-dispatcher.ts";
+import { useCommandHandler, useRunCommandHandlers } from "../../app/command-dispatcher.ts";
 import { useActions, useSetting } from "../../core/hooks.ts";
 import type { Repo, Section, Workspace } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../ui/Collapsible.tsx";
 import { ContextMenu, ContextMenuItem } from "../../ui/ContextMenu.tsx";
+import { cn } from "../../ui/cn.ts";
 import { ChevronDownIcon, ChevronRightIcon, PlusIcon } from "../../ui/icons.tsx";
 import { toastError } from "../../ui/Toast.tsx";
+import { KANBAN_STATUS_MARK } from "../dashboard/kanban.ts";
+import { AddProjectMenu } from "./AddProjectButton.tsx";
 import { PinnedSection } from "./PinnedSection.tsx";
+import { RepoAvatar } from "./RepoAvatar.tsx";
 import { SectionDialog } from "./SectionDialog.tsx";
 import { SectionList } from "./SectionList.tsx";
+import { HeaderChevron, HeaderCount } from "./section-header.tsx";
 import {
 	buildSidebarGroups,
 	orderedWorkspaceIds,
@@ -156,15 +161,31 @@ function GroupSection({
 		onError: toastError,
 	});
 	return (
-		<section aria-label={group.label} className="mb-1">
+		<section aria-label={group.label} className="px-1.5 pt-1.5 pb-3">
 			<Collapsible open={open} onOpenChange={onOpenChange}>
-				<div className="group/header flex items-center gap-1 px-2">
-					<CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-1 rounded-md px-1 py-1 text-xs font-medium text-sidebar-fg-muted hover:bg-hover hover:text-fg">
-						{open ? <ChevronDownIcon /> : <ChevronRightIcon />}
-						<span className="truncate">{group.label}</span>
-						{open ? null : (
-							<span className="ml-1 text-2xs text-fg-subtle">{group.workspaceIds.length}</span>
-						)}
+				<div className="group/header mt-0.5 mb-1 flex items-center gap-0.5">
+					<CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1.5 text-left text-sm font-semibold text-sidebar-fg-muted hover:bg-hover">
+						{repo !== null ? (
+							<span className="relative flex size-4 shrink-0 items-center justify-center">
+								<span className="group-hover/header:invisible">
+									<RepoAvatar repo={repo} />
+								</span>
+								<span className="invisible absolute inset-0 flex items-center justify-center group-hover/header:visible">
+									{open ? (
+										<ChevronDownIcon className="size-3" />
+									) : (
+										<ChevronRightIcon className="size-3" />
+									)}
+								</span>
+							</span>
+						) : group.key.kind === "status" ? (
+							<span aria-hidden="true" className="flex size-4 shrink-0 items-center justify-center">
+								<span className={cn("size-2 rounded-full", KANBAN_STATUS_MARK[group.key.status])} />
+							</span>
+						) : null}
+						<span className="min-w-0 truncate">{group.label}</span>
+						<HeaderCount open={open} count={group.workspaceIds.length} variant="group" />
+						{repo === null ? <HeaderChevron open={open} variant="group" /> : null}
 					</CollapsibleTrigger>
 					{repo === null ? null : (
 						<Link
@@ -172,14 +193,14 @@ function GroupSection({
 							search={{ repo: repo.id }}
 							aria-label={`Create workspace in ${repo.name}`}
 							title={`Create workspace in ${repo.name}`}
-							className="flex size-6 shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-hover hover:text-fg"
+							className="flex size-6 shrink-0 items-center justify-center rounded-md text-sidebar-fg-muted hover:bg-hover hover:text-fg"
 						>
-							<PlusIcon />
+							<PlusIcon className="size-4" />
 						</Link>
 					)}
 				</div>
 				<CollapsibleContent>
-					<div className="flex flex-col gap-0.5 py-0.5">
+					<div className="flex flex-col gap-1">
 						{group.workspaceIds.map((workspaceId) => {
 							const row = rows.get(workspaceId);
 							if (row === undefined) return null;
@@ -215,6 +236,8 @@ function GroupSection({
 										selected={selectedId === workspaceId}
 										shortcutIndex={shortcutIndexes.get(workspaceId) ?? null}
 										now={now}
+										showRepo={group.key.kind !== "project"}
+										indent="grouped"
 									/>
 								</div>
 							);
@@ -238,6 +261,7 @@ export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedW
 	const selectedId = (params as { workspaceId?: WorkspaceId }).workspaceId ?? null;
 	const now = useNow();
 	const [newSectionOpen, setNewSectionOpen] = useState(false);
+	const runCommand = useRunCommandHandlers();
 	const groupByMode = readGroupBySetting(groupBy);
 	const groupByView = groupByMode === "section" ? "project" : groupByMode;
 
@@ -393,8 +417,15 @@ export function GroupedWorkspaces({ repos, workspaces, sections = [] }: GroupedW
 			}
 		>
 			<div className="flex flex-col" data-sidebar-list="">
-				<div className="flex h-8 shrink-0 items-center justify-end px-2">
-					<ViewOptionsMenu view={view} repos={repos} onChange={changeView} />
+				<div className="relative flex h-8 shrink-0 items-center justify-end px-2">
+					<ViewOptionsMenu
+						view={view}
+						repos={repos}
+						onChange={changeView}
+						onNewSection={() => setNewSectionOpen(true)}
+						onAddProject={() => runCommand("project.add")}
+					/>
+					<AddProjectMenu />
 				</div>
 				<PinnedSection
 					workspaces={pinnedWorkspaces}

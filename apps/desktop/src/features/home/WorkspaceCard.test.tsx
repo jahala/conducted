@@ -9,7 +9,7 @@ import {
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../../core/context.tsx";
-import type { Repo, Workspace } from "../../core/model.ts";
+import type { PullRequest, Repo, Workspace } from "../../core/model.ts";
 import {
 	createTestContainer,
 	seedRepo,
@@ -18,7 +18,7 @@ import {
 } from "../../test/container.ts";
 import { toast } from "../../ui/Toast.tsx";
 import { defaultHomeDisplay, type HomeDisplay } from "./home-query.ts";
-import { WorkspaceCard } from "./WorkspaceCard.tsx";
+import { rowTone, WorkspaceCard } from "./WorkspaceCard.tsx";
 
 let test: TestContainer | undefined;
 
@@ -234,5 +234,32 @@ describe("WS-06 unarchive outcomes on the archived card", () => {
 		} finally {
 			warned.mockRestore();
 		}
+	});
+});
+
+describe("NAV-05 Home row tone, as Conductor tints rows by pull request", () => {
+	const pr = (overrides: Partial<PullRequest>): PullRequest =>
+		({
+			state: "open",
+			mergeable: "mergeable",
+			reviewDecision: null,
+			checks: [],
+			inMergeQueue: false,
+			...overrides,
+		}) as PullRequest;
+
+	it("tints merged purple, ready green and queued yellow", () => {
+		expect(rowTone(pr({ state: "merged" }))).toBe("merged");
+		expect(rowTone(pr({}))).toBe("ready");
+		expect(rowTone(pr({ inMergeQueue: true }))).toBe("queued");
+	});
+
+	it("leaves a row plain with no PR, a failing check, a conflict or a draft", () => {
+		expect(rowTone(null)).toBeNull();
+		expect(
+			rowTone(pr({ checks: [{ state: "failure" } as PullRequest["checks"][number]] })),
+		).toBeNull();
+		expect(rowTone(pr({ mergeable: "conflicting" }))).toBeNull();
+		expect(rowTone(pr({ state: "draft" }))).toBeNull();
 	});
 });

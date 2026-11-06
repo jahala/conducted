@@ -35,7 +35,8 @@ const workspace = (id: string, repoId: string, overrides: Partial<Workspace> = {
 	path: `/code/${id}`,
 	branch: `jahala/${id}`,
 	branchIsPlaceholder: false,
-	displayName: null,
+	// Rows are named as the sidebar names them; this fixture's name is its id.
+	displayName: id,
 	targetBranch: "origin/main",
 	state: "ready",
 	kanbanStatus: "in_progress",
@@ -324,5 +325,31 @@ describe("NAV-08 palette model", () => {
 		expect(nextPaletteTab("all", 1)).toBe("workspaces");
 		expect(nextPaletteTab("settings", 1)).toBe("all");
 		expect(nextPaletteTab("all", -1)).toBe("settings");
+	});
+});
+
+describe("NAV-08 palette workspace rows", () => {
+	it("names a workspace as the sidebar does and gives recent rows their age", () => {
+		const groups = buildPaletteGroups({
+			tab: "all",
+			query: "",
+			workspaces: [
+				workspace("w1", "r1", {
+					displayName: null,
+					prTitle: "Fix the login redirect",
+					lastActivityAt: 0,
+				}),
+			],
+			repos: [repo("r1", "conducted")],
+			commands: [],
+			currentWorkspaceId: null,
+			now: 86_400_000,
+		});
+		const [row] = groups.find((group) => group.heading === "Recent workspaces")?.items ?? [];
+		expect(row?.label).toBe("Fix the login redirect");
+		expect(row?.hint).toBe("1d");
+		expect(row?.avatar).toBe("C");
+		// All opens on the recent rows only, so a workspace is not listed twice.
+		expect(groups.some((group) => group.heading === "Workspaces")).toBe(false);
 	});
 });

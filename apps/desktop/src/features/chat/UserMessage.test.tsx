@@ -107,6 +107,17 @@ function turn(over: Partial<ChatTurn["userMessage"]> = {}): ChatTurn {
 }
 
 describe("CHAT-06 user message", () => {
+	// Conductor draws the user's own message as a compact bubble at the right of the column, in its
+	// highlight pair (renderApp @9519197, tone "current"); the muted fill is for queued messages.
+	it("draws the user's own message as a right-aligned bubble in the highlight fill", async () => {
+		await renderWithServices(<UserMessage turn={turn()} sessionId={sessionId} />);
+		const bubble = (await screen.findByText("Hello there")).parentElement;
+		expect(bubble?.className).toContain("bg-highlight-surface");
+		expect(bubble?.className).toContain("text-highlight-fg");
+		expect(bubble?.className).not.toContain("bg-muted");
+		expect(bubble?.parentElement?.className).toContain("items-end");
+	});
+
 	it("renders one item for each attachment path", async () => {
 		renderWithServices(
 			<UserMessage

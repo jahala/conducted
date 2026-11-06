@@ -74,8 +74,20 @@ The catalogue draws the real app in a browser, one screen state at a time, with 
 
 - `pnpm --dir apps/desktop catalogue` serves it on a free port and prints `Catalogue: <url>`. That page lists every state, with a link for light and for dark.
 - `bun scripts/catalogue/shots.ts [state-id ...]` starts the server, captures each state in light and dark at 1440 x 900 into `.context/shots/ours/<state-id>-<theme>.png`, writes `index.json` beside them, and stops the server. It uses the Chromium already in Playwright's cache and downloads nothing. It exits 1 when a state fails or never settles.
+- On a ready pull request that touches the desktop's screens, `.github/workflows/catalogue-shots.yml` runs the same script on GitHub and uploads the PNGs as the `catalogue-shots` artefact, kept 14 days. Screens can be read that way when no browser may run on the owner's Mac.
 - A state is registered once, in `apps/desktop/src/catalogue/states/`. Its seed writes rows through the repositories and scripts the shell (`git-repo.ts`, `github.ts`) and the sidecar (`world.ts`, `live.ts`); its after-step drives the app through its own actions and real DOM events. Most states share one cast of two projects (`cast.ts`).
 - The release build never contains it: `pnpm build` runs `scripts/catalogue/check-bundle.ts` on `dist`, and `scripts/catalogue/check-bundle.build.test.ts` builds the real bundle and checks it.
+
+### Conductor's frontend on the same states (the reference run)
+
+The owner's ruling: Conductor's own frontend runs on this Mac only, from the git-ignored `.context/` folder, with the network cut off, and is never committed, pushed or shipped. It shows each catalogue state as Conductor draws it, for a side-by-side parity check. Stage 1 answers its native calls from our catalogue's sample data; stage 2 will answer them from our real sidecar and Tauri commands.
+
+- Our tools live in `scripts/conductor-reference/`. The bundle, the call inventory and the sample-data mapping are drawn from Conductor's code, so they stay in the main checkout's `.context/day/` (`scripts/conductor-reference/paths.ts` finds it from any worktree).
+- `inventory.ts <bundle> <out.json>` lists every native call the frontend makes: Tauri commands, plugin commands, sidecar methods, events and SQL, with argument keys, the fields read from the answer and the bundle offset of each site.
+- `server.ts` serves the bundle on 127.0.0.1 with `standin.ts` injected before its first module. The stand-in is `window.__TAURI_INTERNALS__`; `backend.ts` answers through the SQL plugin over sql.js, the event plugin, the sidecar tunnel and the mapping's handlers. A call nobody answers is logged and answered with an error, never a made-up value.
+- `check.ts` needs no browser: it seeds every state (through `apps/desktop/src/catalogue/seeded.ts`), builds the mapped databases, prepares the frontend's own SQL on them and counts the calls the stand-in answers.
+- `run.ts [state-id ...]` is the browser run: one picture per state at 1440 by 900 in dark mode, into `.context/shots/conductor-run/`, with `index.json` and `unanswered.json`. Every request to another origin is refused and listed. It is a browser run, so on the owner's Mac it waits for 08:00.
+- `pnpm guards` fails when the repository holds a file named like a bundle chunk, a copy of a bundle code file, or any of the stretches of Conductor's code listed by hash in `scripts/guards/conductor-fingerprints.json` (`scripts/guards/conductor-code.ts`). `fingerprints.ts` rewrites that list from the bundle.
 
 ## A run leaves nothing behind
 

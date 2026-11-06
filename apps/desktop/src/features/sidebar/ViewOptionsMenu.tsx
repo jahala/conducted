@@ -1,9 +1,10 @@
 /**
  * @feature NAV-03 View options menu
  * Owns: The sort icon menu above the list: Group by (Status or Project), Filter by project, Sort by
- * (Updated or Created).
+ * (Updated or Created), then "New section…" and "Add project…".
  * Behaviour: ui-map.md 4 (View options menu; the project filter is searchable from 5 repos; Sort by
- * is hidden when manual order is on).
+ * is hidden when manual order is on). Measured from Conductor 0.92.1: the list header's actions menu ends,
+ * under a separator, with "New section…" and "Add project…" (renderApp @10467029, @10495160).
  * Our design choice: The user's drag order is saved, so Sort by goes away while manual order is on;
  * the saved order is the only order that applies then.
  * Must handle: Fewer than 5 repos (no search box in the filter); a filter that names a removed repo
@@ -18,11 +19,12 @@ import { useState } from "react";
 import type { Repo } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
 import { Input } from "../../ui/Input.tsx";
-import { ListTodoIcon } from "../../ui/icons.tsx";
+import { FolderPlusIcon, ListTodoIcon, PlusIcon } from "../../ui/icons.tsx";
 import {
 	Menu,
 	MenuCheckboxItem,
 	MenuContent,
+	MenuItem,
 	MenuLabel,
 	MenuRadioGroup,
 	MenuRadioItem,
@@ -38,9 +40,18 @@ export interface ViewOptionsMenuProps {
 	view: SidebarView;
 	repos: Repo[];
 	onChange: (view: SidebarView) => void;
+	onNewSection: () => void;
+	/** Runs the "Add project" command, which opens the add-project menu under this row. */
+	onAddProject: () => void;
 }
 
-export function ViewOptionsMenu({ view, repos, onChange }: ViewOptionsMenuProps) {
+export function ViewOptionsMenu({
+	view,
+	repos,
+	onChange,
+	onNewSection,
+	onAddProject,
+}: ViewOptionsMenuProps) {
 	const [query, setQuery] = useState("");
 	const existing = new Set(repos.map((repo) => repo.id));
 	const activeFilter = view.projectFilter.filter((repoId) => existing.has(repoId));
@@ -124,6 +135,13 @@ export function ViewOptionsMenu({ view, repos, onChange }: ViewOptionsMenuProps)
 						</MenuRadioGroup>
 					</>
 				)}
+				<MenuSeparator />
+				<MenuItem icon={<PlusIcon />} onSelect={onNewSection}>
+					New section…
+				</MenuItem>
+				<MenuItem icon={<FolderPlusIcon />} onSelect={onAddProject}>
+					Add project…
+				</MenuItem>
 			</MenuContent>
 		</Menu>
 	);

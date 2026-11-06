@@ -14,7 +14,8 @@ describe("APP-04 ChangesEmpty", () => {
 
 	it("says changes appear here when nothing has changed", () => {
 		render(<ChangesEmpty reason="no_changes" />);
-		expect(screen.getByRole("heading", { name: "Changes appear here" })).toBeTruthy();
+		// Conductor's empty Changes tab: "No file changes yet", then "Changes appear here."
+		expect(screen.getByRole("heading", { name: "No file changes yet" })).toBeTruthy();
 	});
 
 	it("names the git operation that is holding changes back", () => {

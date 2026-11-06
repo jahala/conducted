@@ -11,9 +11,12 @@ import {
 	asRecord,
 	boolField,
 	DiffLines,
+	FileBadge,
 	FileLink,
+	LineCounts,
 	ToolCardFrame,
 	textField,
+	textLines,
 	toolStatus,
 } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
@@ -30,8 +33,14 @@ export function EditCard({ call, defaultExpanded }: ToolCardProps) {
 	const failed = call.result?.isError === true;
 	return (
 		<ToolCardFrame
-			title="Edit"
-			summary={`${path}${replaceAll ? " · replace all" : ""}`}
+			title={replaceAll ? "Edit (replace all)" : "Edit"}
+			summary={
+				<span className="flex items-center gap-2">
+					<FileBadge path={path} />
+					<LineCounts added={textLines(newText).length} removed={textLines(oldText).length} />
+				</span>
+			}
+			keepSummary
 			status={toolStatus(call)}
 			expandAll={defaultExpanded}
 			body={

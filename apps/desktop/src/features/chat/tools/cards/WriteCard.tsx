@@ -14,6 +14,7 @@ import { CodexVisualizationForWrite, isVisualizationPath } from "../../CodexVisu
 import {
 	asRecord,
 	DiffLines,
+	FileBadge,
 	FileLink,
 	ToolCardFrame,
 	textField,
@@ -34,8 +35,9 @@ export function WriteCard({ call, sessionId, defaultExpanded }: ToolCardProps) {
 	return (
 		<>
 			<ToolCardFrame
-				title="Write"
-				summary={path}
+				title={`Write ${lines.length} lines`}
+				summary={<FileBadge path={path} />}
+				keepSummary
 				status={toolStatus(call)}
 				expandAll={defaultExpanded}
 				body={

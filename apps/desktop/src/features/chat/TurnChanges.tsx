@@ -1,16 +1,20 @@
 /**
  * @feature REV-09 Turn change summary
- * Owns: The list of files a turn changed, with line counts and an 'Open diff' action that hands the
+ * Owns: the files a turn changed, as small chips at the end of the turn's footer row, each with the file's
+ * name and its line counts; a "+N more" chip for the rest; and our "Open diff" action, which hands the
  * caller a `DiffScope` for this turn.
- * Behaviour: ui-map.md 3.3 (file-change summary with 'Open diff'), 3.3 checkpoint controls (diff
- * scope 'turn'), 3.6 (Changes list).
- * Must handle: No changes (renders nothing); many files (the first five, then 'and N more', which
- * expands the list); a deleted or renamed file (the old path is named); a binary file (no line
- * counts); a zero line count on one side (that side is left out); the turn is reverted (every row
- * is struck through); no handler for opening the diff (the 'Open diff' action is shown disabled).
- * Our design choice: the component cannot open the Changes view itself, so it hands the turn scope
- * to the optional `onOpenDiff` and the caller shows the view.
- * Test first: A turn with 12 changed files shows the first 5 and 'and 7 more'.
+ * Behaviour: ui-map.md 3.3 (file-change summary), measured from Conductor 0.92.1 (renderApp @9586422,
+ * file chips in the footer): up to three files show as chips; with more, the first two show and an outlined
+ * "+N more" chip with the rest's line counts opens three more at a time. A chip is an outlined 20px badge
+ * with a file icon, the name and "+a -r" in small monospace (zero counts shown). Clicking a chip opens that
+ * file's diff with the turn's changes in the Git panel.
+ * Our design choice: "Open diff" (the whole turn in the Changes tab) stays as a small ghost button after the
+ * chips; Conductor reaches the same view through a chip. A chip's tooltip names the change: "Modified",
+ * "Added", "Deleted", "Renamed from <old path>".
+ * Must handle: no changes (renders nothing); many files (two, then "+N more", three more per click); a
+ * deleted or renamed file (named in the tooltip); a binary file; the turn is reverted (every chip is struck
+ * through); no handler for opening the diff (Open diff is shown disabled).
+ * Test first: a turn with 12 changed files shows two chips and "+10 more"; one click shows three more.
  */
 
 import type { SessionId } from "@conducted/shared";
@@ -18,11 +22,20 @@ import { useState } from "react";
 import type { DiffScope } from "../../core/api.ts";
 import type { ChatTurn } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
+import { cn } from "../../ui/cn.ts";
+import { FileTextIcon } from "../../ui/icons.tsx";
+import { fileNameOf } from "./tools/ToolCardFrame.tsx";
 
-/** Most files shown before the list offers to expand. */
-export const TURN_CHANGES_PREVIEW = 5;
+/** Up to this many files show as chips at once. */
+export const TURN_CHANGES_ALL = 3;
+/** With more files than that, this many show before the "+N more" chip. */
+export const TURN_CHANGES_PREVIEW = TURN_CHANGES_ALL - 1;
+/** Each click on "+N more" shows this many more. */
+export const TURN_CHANGES_STEP = 3;
 
-const statusLabel: Record<ChatTurn["changes"][number]["status"], string> = {
+type Change = ChatTurn["changes"][number];
+
+const statusLabel: Record<Change["status"], string> = {
 	added: "Added",
 	modified: "Modified",
 	deleted: "Deleted",
@@ -30,103 +43,93 @@ const statusLabel: Record<ChatTurn["changes"][number]["status"], string> = {
 	copied: "Copied",
 };
 
-const statusClass: Record<ChatTurn["changes"][number]["status"], string> = {
-	added: "text-git-added",
-	modified: "text-fg-muted",
-	deleted: "text-git-removed",
-	renamed: "text-info",
-	copied: "text-info",
-};
+function changeTitle(file: Change): string {
+	const status = statusLabel[file.status];
+	const from = file.oldPath === undefined ? "" : ` from ${file.oldPath}`;
+	return `${status}${from}: ${file.path}${file.binary ? " (binary)" : ""}`;
+}
+
+const chipClass =
+	"inline-flex h-5 min-w-0 max-w-64 shrink-0 items-center gap-1 rounded-sm border border-border px-1.5 text-xs leading-none text-fg hover:bg-hover";
+
+function Counts({ added, removed }: { added: number; removed: number }) {
+	return (
+		<span className="flex shrink-0 items-center gap-1 font-mono text-3xs font-medium">
+			<span className="text-git-added">+{added}</span>
+			<span className="text-git-removed">-{removed}</span>
+		</span>
+	);
+}
 
 export interface TurnChangesProps {
 	turn: ChatTurn;
 	sessionId: SessionId;
 	/**
-	 * Shows the Changes view for this turn. The caller turns the scope into its own view. Without it
-	 * the action is shown disabled, because this component cannot open the panel itself.
+	 * Shows the Changes view for this turn. Without it, Open diff is shown disabled, because this
+	 * component cannot open the panel itself.
 	 */
 	onOpenDiff?: (scope: DiffScope) => void;
+	/** Opens one file's diff with the turn's changes in the Git panel. */
+	onOpenFile?: (path: string, scope: DiffScope) => void;
 }
 
-export function TurnChanges({ turn, sessionId, onOpenDiff }: TurnChangesProps) {
-	const [expanded, setExpanded] = useState(false);
+export function TurnChanges({ turn, sessionId, onOpenDiff, onOpenFile }: TurnChangesProps) {
+	const [extra, setExtra] = useState(0);
 	const changes = turn.changes;
 	if (changes.length === 0) return null;
 
-	const visible = expanded ? changes : changes.slice(0, TURN_CHANGES_PREVIEW);
-	const hidden = changes.length - TURN_CHANGES_PREVIEW;
+	const first = changes.length <= TURN_CHANGES_ALL ? changes.length : TURN_CHANGES_PREVIEW;
+	const visible = changes.slice(0, first + extra);
+	const rest = changes.slice(first + extra);
 	const scope: DiffScope = { kind: "turn", sessionId, turnId: turn.turnId };
-	const count = `${changes.length} file${changes.length === 1 ? "" : "s"} changed`;
+	const restAdded = rest.reduce((sum, file) => sum + file.linesAdded, 0);
+	const restRemoved = rest.reduce((sum, file) => sum + file.linesRemoved, 0);
+	const nextStep = Math.min(TURN_CHANGES_STEP, rest.length);
 
 	return (
 		<section
 			aria-label="Files changed in this turn"
-			className="flex flex-col gap-1 rounded-lg border border-border bg-surface px-3 py-2 text-xs"
+			className={cn(
+				"flex min-w-0 flex-wrap items-center gap-2",
+				turn.reverted && "line-through opacity-60",
+			)}
 		>
-			<div className="flex items-center gap-2 text-fg-subtle">
-				<span className="flex-1">{count}</span>
-				<Button
-					variant="ghost"
-					size="xs"
-					disabled={onOpenDiff === undefined}
-					title={
-						onOpenDiff === undefined
-							? "The Changes view cannot be opened from this chat."
-							: undefined
-					}
-					onClick={() => onOpenDiff?.(scope)}
+			{visible.map((file) => (
+				<button
+					key={`${file.oldPath ?? ""}\u0000${file.path}`}
+					type="button"
+					title={changeTitle(file)}
+					onClick={() => onOpenFile?.(file.path, scope)}
+					className={chipClass}
 				>
-					Open diff
-				</Button>
-			</div>
-			<ul
-				className={
-					turn.reverted ? "flex flex-col gap-0.5 line-through opacity-60" : "flex flex-col gap-0.5"
-				}
-			>
-				{visible.map((file) => (
-					<li
-						key={`${file.oldPath ?? ""}\u0000${file.path}`}
-						className="flex min-w-0 items-center gap-2"
-					>
-						<span
-							className={`w-16 shrink-0 text-2xs ${statusClass[file.status]}`}
-							title={file.status}
-						>
-							{statusLabel[file.status]}
-						</span>
-						<span className="min-w-0 flex-1 truncate text-fg" title={file.path}>
-							{file.path}
-						</span>
-						{file.oldPath === undefined ? null : (
-							<span className="max-w-40 truncate text-2xs text-fg-subtle" title={file.oldPath}>
-								from {file.oldPath}
-							</span>
-						)}
-						{file.binary ? (
-							<span className="shrink-0 text-2xs text-fg-subtle">binary</span>
-						) : (
-							<span className="flex shrink-0 items-center gap-1.5 font-mono text-2xs">
-								{file.linesAdded > 0 ? (
-									<span className="text-git-added">+{file.linesAdded}</span>
-								) : null}
-								{file.linesRemoved > 0 ? (
-									<span className="text-git-removed">-{file.linesRemoved}</span>
-								) : null}
-							</span>
-						)}
-					</li>
-				))}
-			</ul>
-			{hidden > 0 && !expanded ? (
+					<FileTextIcon className="size-3 shrink-0 text-fg-muted" />
+					<span className="truncate">{fileNameOf(file.path)}</span>
+					<Counts added={file.linesAdded} removed={file.linesRemoved} />
+				</button>
+			))}
+			{rest.length > 0 ? (
 				<button
 					type="button"
-					onClick={() => setExpanded(true)}
-					className="self-start rounded-sm px-1 text-2xs text-fg-muted hover:bg-hover hover:text-fg"
+					title={`Show ${nextStep} more changed ${nextStep === 1 ? "file" : "files"}`}
+					onClick={() => setExtra(extra + TURN_CHANGES_STEP)}
+					className={cn(chipClass, "tabular-nums")}
 				>
-					and {hidden} more
+					<FileTextIcon className="size-3 shrink-0 text-fg-muted" />
+					<span>+{rest.length} more</span>
+					<Counts added={restAdded} removed={restRemoved} />
 				</button>
 			) : null}
+			<Button
+				variant="ghost"
+				size="xs"
+				disabled={onOpenDiff === undefined}
+				title={
+					onOpenDiff === undefined ? "The Changes view cannot be opened from this chat." : undefined
+				}
+				onClick={() => onOpenDiff?.(scope)}
+			>
+				Open diff
+			</Button>
 		</section>
 	);
 }

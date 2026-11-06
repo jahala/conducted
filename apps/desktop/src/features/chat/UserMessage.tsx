@@ -13,6 +13,10 @@
  * attachment opens the same viewer; mention chips for
  * files and PRs open the file or PR tab; text is selectable and copyable; Revert opens the confirmation
  * dialog instead of changing anything at once.
+ * Measured from Conductor 0.92.1 (renderApp @9519197, @9520536): the user's own message is a bubble
+ * aligned to the right of the column, at most 576px (768px on windows 1024px and wider), 12px by 16px
+ * padding, 4px radius, in the highlight pair (`highlight-surface`, `highlight-fg`); a long message
+ * wraps inside it.
  * Test first: A message with two attachment paths renders two attachment items; a failed send shows
  * Retry and Discard; a PR chip opens the PR tab on that number; Revert opens the reset dialog.
  */
@@ -186,7 +190,7 @@ export function UserMessage({
 				: "Sent from another session";
 
 	return (
-		<div className="group flex flex-col items-end gap-1">
+		<div className="group relative flex flex-col items-end gap-1">
 			<ContextMenu
 				items={
 					<ContextMenuItem
@@ -198,7 +202,7 @@ export function UserMessage({
 					</ContextMenuItem>
 				}
 			>
-				<div className="max-w-[min(100%,36rem)] rounded-xl bg-surface px-4 py-3 text-sm text-fg shadow-xs">
+				<div className="relative max-w-[min(100%,var(--user-bubble-width))] overflow-hidden break-words rounded-sm bg-highlight-surface px-4 py-3 text-sm text-highlight-fg transition-colors duration-300 lg:max-w-[min(100%,var(--user-bubble-width-wide))]">
 					<p className="whitespace-pre-wrap break-words select-text">
 						{mentionChips(shown, openMention)}
 					</p>
@@ -220,19 +224,17 @@ export function UserMessage({
 					) : null}
 				</div>
 			</ContextMenu>
-			<div className="flex items-center gap-2 text-2xs text-fg-subtle">
-				{sender ? <span>{sender}</span> : null}
-				{failed === null ? (
-					<button
-						type="button"
-						onClick={() => setResetOpen(true)}
-						aria-label="Revert to before this message"
-						className="rounded-sm px-1 text-2xs text-fg-subtle opacity-0 hover:text-fg group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-					>
-						Revert
-					</button>
-				) : null}
-			</div>
+			{failed === null ? (
+				<button
+					type="button"
+					onClick={() => setResetOpen(true)}
+					aria-label="Revert to before this message"
+					className="absolute -top-2 right-2 rounded-sm bg-canvas/80 px-1 text-2xs text-fg-muted opacity-0 hover:text-fg group-hover:opacity-100 focus-visible:opacity-100"
+				>
+					Revert
+				</button>
+			) : null}
+			{sender ? <span className="text-2xs text-fg-muted">{sender}</span> : null}
 			{failed !== null ? (
 				<div className="flex flex-wrap items-center justify-end gap-2 rounded-md border border-danger bg-surface px-2 py-1.5 text-xs">
 					<span className="font-medium text-danger">{failed.message}</span>

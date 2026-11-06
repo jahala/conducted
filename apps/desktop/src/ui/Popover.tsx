@@ -26,6 +26,8 @@ export interface PopoverProps {
 	className?: string;
 	/** Told when the popover opens or closes, for content that is read on opening. */
 	onOpenChange?: (open: boolean) => void;
+	/** Set to control the open state from the caller (a flyout that closes after a choice). */
+	open?: boolean;
 }
 
 const contentClass = "z-50 rounded-lg bg-raised p-3 text-sm text-fg shadow-popover outline-none";
@@ -38,6 +40,7 @@ export function Popover({
 	hover = false,
 	className,
 	onOpenChange,
+	open,
 }: PopoverProps) {
 	if (hover) {
 		return (
@@ -57,7 +60,7 @@ export function Popover({
 		);
 	}
 	return (
-		<Radix.Root onOpenChange={onOpenChange}>
+		<Radix.Root open={open} onOpenChange={onOpenChange}>
 			<Radix.Trigger asChild>{trigger}</Radix.Trigger>
 			<Radix.Portal>
 				<Radix.Content

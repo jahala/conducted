@@ -4,6 +4,7 @@
  * Usage: bun scripts/guards/run.ts
  */
 import { join } from "node:path";
+import { checkConductorCode } from "./conductor-code.ts";
 import { checkDataModel } from "./data-model.ts";
 import { checkDocs } from "./docs.ts";
 import type { Problem } from "./lib.ts";
@@ -46,6 +47,7 @@ const guards: [string, (root: string) => Problem[] | Promise<Problem[]>][] = [
 	["placeholder-tests", checkPlaceholderTests],
 	["test-only-exports", checkTestOnlyExports],
 	["unwired-deps", checkUnwiredDeps],
+	["conductor-code", checkConductorCode],
 	["tests-cannot-fail", shape("tests-cannot-fail")],
 	["mocking-the-thing", shape("mocking-the-thing")],
 	["stand-in-home", shape("stand-in-home")],

@@ -200,8 +200,14 @@ const harness = (options: HarnessOptions = {}) => {
 	return { sessions, favoriteModels, updateConfig, create, wrapper, loadModelsLater };
 };
 
+/** Models and agents sit in flyouts, as in Conductor's model menu, so a test opens the flyout first. */
+const openFlyout = async (name: "Agent" | "Model") => {
+	fireEvent.click(await screen.findByRole("button", { name }));
+};
+
 const openPicker = async () => {
 	fireEvent.click(screen.getByRole("button", { name: "Model picker" }));
+	await openFlyout("Model");
 	return screen.findByRole("button", { name: /Model Two/ });
 };
 
@@ -245,6 +251,7 @@ describe("COMP-02 model picker", () => {
 			{ wrapper },
 		);
 		await openPicker();
+		await openFlyout("Agent");
 		fireEvent.click(screen.getByRole("button", { name: "Codex" }));
 		expect(await screen.findByText("No models found")).toBeTruthy();
 		expect(updateConfig).not.toHaveBeenCalled();
@@ -319,6 +326,8 @@ describe("COMP-02 model picker", () => {
 		});
 		render(<ModelPicker sessionId={sessionId} />, { wrapper });
 		await openPicker();
+		// Effort is a row with a submenu, as in Conductor's picker; its choices open under it.
+		fireEvent.click(screen.getByRole("button", { name: /^Effort/ }));
 		expect(await screen.findByText("Not supported for this model")).toBeTruthy();
 	});
 
@@ -387,7 +396,9 @@ describe("COMP-02 model picker", () => {
 		const { sessions, wrapper, loadModelsLater, updateConfig } = harness({ lateModels: true });
 		render(<ModelPicker sessionId={sessionId} />, { wrapper });
 		await openPicker();
+		await openFlyout("Agent");
 		fireEvent.click(screen.getByRole("button", { name: "Codex" }));
+		await openFlyout("Agent");
 		fireEvent.click(screen.getByRole("button", { name: "Cursor" }));
 		await waitFor(() => expect(loadModelsLater.calls.length).toBe(2));
 		loadModelsLater.calls[1]?.resolve([model({ id: "cursor-model", label: "Cursor Model" })]);
@@ -407,6 +418,7 @@ describe("COMP-02 model picker", () => {
 		const { wrapper } = harness();
 		render(<ModelPicker sessionId={sessionId} />, { wrapper });
 		await openPicker();
+		await openFlyout("Agent");
 		expect(screen.getByRole("button", { name: "OpenCode" })).toBeTruthy();
 		expect(screen.getByRole("button", { name: "Pi" })).toBeTruthy();
 	});

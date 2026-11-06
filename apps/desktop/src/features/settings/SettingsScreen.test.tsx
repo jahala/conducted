@@ -75,7 +75,7 @@ describe("SET-02 SettingsScreen", () => {
 		const input = await screen.findByRole("searchbox", { name: "Search settings" });
 		fireEvent.change(input, { target: { value: "send key" } });
 
-		fireEvent.click(await screen.findByRole("button", { name: /Send key/ }));
+		fireEvent.click(await screen.findByRole("button", { name: /Send messages with/ }));
 
 		expect(onNavigate).toHaveBeenCalledWith({ kind: "user", page: "general" });
 		await waitFor(() =>

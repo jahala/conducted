@@ -1,10 +1,16 @@
 /**
  * @feature CHAT-06 Code block; CHAT-23 Run button on shell code blocks
- * Owns: A highlighted code block with a language label and a copy button. A shell block in a
+ * Owns: A highlighted code block with a copy button (and our language label). A shell block in a
  * workspace that can take changes also gets a Run button, its live output, a status mark, its exit
  * code, Stop command and Clear output.
  * Behaviour: ui-map.md 3.3 (code blocks with copy), inventory text R@8061041 (Run on shell blocks),
- * 8 (Shiki for highlight; CodeBlockMemoized).
+ * 8 (Shiki for highlight; CodeBlockMemoized). Measured from Conductor 0.92.1 (renderApp @5779813): a
+ * borderless block in the muted fill with a 6px radius, at least 35px tall, 14px monospace text without
+ * ligatures, 12px by 10px padding, at most 500px tall before it scrolls; the copy and run icons sit 10px
+ * from the top right and show while the pointer is over the block (ours also when they have keyboard focus). Colours are Conductor's Default code
+ * theme (code-theme.ts).
+ * Our design choice: the language name stays visible at the top right, muted, as before; Conductor shows
+ * none.
  * Our design choice: Shell means bash, sh, shell, zsh, fish, ksh or dash. Run goes through
  * Actions.terminals.runCommand, which starts the block's text as a run terminal in the workspace.
  * The block shows the terminal's live stream as plain text with ANSI codes removed. Run is hidden
@@ -24,10 +30,10 @@ import type { TerminalId, WorkspaceId } from "@conducted/shared";
 import { useCallback, useEffect, useState } from "react";
 import { useActions, useTerminalConnection } from "../../core/hooks.ts";
 import { CopyButton } from "../../ui/CopyButton.tsx";
-import { CheckCircleIcon, CircleIcon, XCircleIcon } from "../../ui/icons.tsx";
+import { CheckCircleIcon, CircleIcon, PlayIcon, XCircleIcon } from "../../ui/icons.tsx";
 import { Spinner } from "../../ui/Spinner.tsx";
 import { toastError } from "../../ui/Toast.tsx";
-import { useThemeType } from "../../ui/use-theme-type.ts";
+import { CODE_THEME } from "./code-theme.ts";
 import { stripAnsi } from "./tools/ToolCardFrame.tsx";
 
 const LARGE_BLOCK = 4000;
@@ -183,6 +189,8 @@ function CommandRunView({ terminalId, onEnded }: CommandRunViewProps) {
 interface HighlightToken {
 	content: string;
 	color: string | undefined;
+	/** Shiki's font style bits: 1 italic, 2 bold. */
+	fontStyle: number;
 }
 
 export interface CodeBlockProps {
@@ -202,7 +210,6 @@ interface Highlighted {
 
 export function CodeBlock({ code, language, workspaceId, canRun }: CodeBlockProps) {
 	const actions = useActions();
-	const theme = useThemeType();
 	const [highlighted, setHighlighted] = useState<Highlighted | null>(null);
 	const [showAll, setShowAll] = useState(false);
 	const [run, setRun] = useState<{ terminalId: TerminalId } | null>(null);
@@ -245,13 +252,17 @@ export function CodeBlock({ code, language, workspaceId, canRun }: CodeBlockProp
 				const { codeToTokens } = await import("shiki");
 				const rendered = await codeToTokens(shown, {
 					lang: lang as never,
-					theme: theme === "dark" ? "github-dark" : "github-light",
+					theme: CODE_THEME,
 				});
 				if (!cancelled) {
 					setHighlighted({
 						source: shown,
 						lines: rendered.tokens.map((line) =>
-							line.map((token) => ({ content: token.content, color: token.color })),
+							line.map((token) => ({
+								content: token.content,
+								color: token.color,
+								fontStyle: token.fontStyle ?? 0,
+							})),
 						),
 					});
 				}
@@ -264,7 +275,7 @@ export function CodeBlock({ code, language, workspaceId, canRun }: CodeBlockProp
 		return () => {
 			cancelled = true;
 		};
-	}, [shown, language, theme]);
+	}, [shown, language]);
 
 	// While a reply streams, the text grows after the last highlight. The old colours stay and the new tail
 	// shows as plain text until the next highlight arrives, so the block never flashes back to plain.
@@ -281,7 +292,11 @@ export function CodeBlock({ code, language, workspaceId, canRun }: CodeBlockProp
 						return (
 							<span
 								key={key}
-								style={token.color === undefined ? undefined : { color: token.color }}
+								style={{
+									color: token.color,
+									fontStyle: (token.fontStyle & 1) === 1 ? "italic" : undefined,
+									fontWeight: (token.fontStyle & 2) === 2 ? 700 : undefined,
+								}}
 							>
 								{token.content}
 							</span>
@@ -298,35 +313,43 @@ export function CodeBlock({ code, language, workspaceId, canRun }: CodeBlockProp
 				});
 
 	return (
-		<div className="my-3 overflow-hidden rounded-lg border border-border bg-surface">
-			<div className="flex items-center justify-between gap-2 border-b border-border px-3 py-1.5">
-				<span className="font-mono text-2xs text-fg-muted">{language ?? "text"}</span>
-				<div className="flex items-center gap-2">
-					{runnable ? (
-						<button
-							type="button"
-							onClick={() => void start()}
-							disabled={starting || running}
-							className="h-6 rounded-sm px-2 text-2xs font-medium text-fg-muted hover:bg-muted hover:text-fg disabled:opacity-50"
-						>
-							Run
-						</button>
-					) : null}
-					<CopyButton
-						text={code}
-						onCopy={(text) => actions.app.copyText(text)}
-						label="Copy"
-						className="h-6 px-2 text-2xs"
-					/>
-				</div>
-			</div>
-			<div className="overflow-x-auto">
-				<pre className="m-0 p-3 font-mono text-code text-fg">
+		<div
+			data-code-surface=""
+			className="group/code-block relative my-4 min-h-[35px] w-full min-w-0 overflow-hidden rounded-md bg-muted text-sm text-fg"
+			style={{ fontVariantLigatures: "none" }}
+		>
+			<div className="max-h-[500px] overflow-auto">
+				<pre className="m-0 px-3 py-2.5 pr-24 font-mono text-sm text-code-fg">
 					<code>
 						{coloured ?? shown}
 						{tail}
 					</code>
 				</pre>
+			</div>
+			<div className="absolute right-2.5 top-2.5 flex items-center gap-2">
+				{language === null ? null : (
+					<span className="font-mono text-2xs text-fg-muted">{language}</span>
+				)}
+				{runnable ? (
+					<button
+						type="button"
+						aria-label="Run"
+						title="Run"
+						onClick={() => void start()}
+						disabled={starting || running}
+						className="inline-flex h-5 items-center text-fg-muted opacity-0 transition-colors hover:text-fg focus-visible:opacity-100 disabled:opacity-50 group-hover/code-block:opacity-100"
+					>
+						<PlayIcon className="size-3.5" />
+					</button>
+				) : null}
+				<CopyButton
+					text={code}
+					onCopy={(text) => actions.app.copyText(text)}
+					label="Copy"
+					iconOnly
+					size="xs"
+					className="h-5 px-0 text-fg-muted opacity-0 focus-visible:opacity-100 group-hover/code-block:opacity-100"
+				/>
 			</div>
 			{run !== null ? (
 				<CommandRunView key={run.terminalId} terminalId={run.terminalId} onEnded={endRun} />

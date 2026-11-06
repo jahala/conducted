@@ -6,7 +6,6 @@
  * the command and the agent's reason for watching it.
  * Test first: A monitor call renders 'Start monitor' and the watched command.
  */
-import { ClockIcon } from "../../../../ui/icons.tsx";
 import {
 	asRecord,
 	stripAnsi,
@@ -27,7 +26,6 @@ export function MonitorCard({ call, defaultExpanded }: ToolCardProps) {
 			title="Start monitor"
 			summary={command || undefined}
 			status={toolStatus(call)}
-			icon={<ClockIcon />}
 			expandAll={defaultExpanded}
 			body={
 				<div className="flex flex-col gap-2">

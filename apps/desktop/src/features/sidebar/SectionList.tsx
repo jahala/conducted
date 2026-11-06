@@ -25,10 +25,11 @@ import { AlertDialog, AlertDialogContent } from "../../ui/AlertDialog.tsx";
 import { Button } from "../../ui/Button.tsx";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../ui/Collapsible.tsx";
 import { cn } from "../../ui/cn.ts";
-import { ChevronDownIcon, ChevronRightIcon, PencilIcon, PlusIcon } from "../../ui/icons.tsx";
+import { ChevronRightIcon, PencilIcon, PlusIcon } from "../../ui/icons.tsx";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "../../ui/Menu.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { SectionDialog } from "./SectionDialog.tsx";
+import { HeaderChevron, HeaderCount } from "./section-header.tsx";
 import { useNow } from "./use-now.ts";
 import {
 	draggedSection,
@@ -261,7 +262,7 @@ function SectionGroup({
 	return (
 		<section
 			aria-label={section.name}
-			className={cn("rounded-md", over && "bg-hover")}
+			className={cn("rounded-md px-1.5 pt-1.5 pb-3", over && "bg-hover")}
 			onDragOver={(event) => {
 				if (draggingSection) return;
 				event.preventDefault();
@@ -273,7 +274,7 @@ function SectionGroup({
 			<Collapsible open={open} onOpenChange={changeOpen}>
 				{/* biome-ignore lint/a11y/noStaticElementInteractions: the header is the drop target that reorders sections. */}
 				<div
-					className="flex items-center gap-1 px-2"
+					className="group/header mt-0.5 mb-1 flex items-center gap-0.5"
 					onDragOver={(event) => {
 						if (!draggingSection) return;
 						event.preventDefault();
@@ -294,25 +295,28 @@ function SectionGroup({
 						draggable
 						onDragStart={onDragSectionStart}
 						onDragEnd={onDragSectionEnd}
-						className="flex min-w-0 flex-1 items-center gap-1 rounded-md px-1 py-1 text-xs font-medium text-sidebar-fg-muted hover:bg-hover hover:text-fg"
+						className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1.5 text-left text-xs font-medium text-sidebar-fg-muted hover:bg-hover"
 					>
-						{open ? <ChevronDownIcon /> : <ChevronRightIcon />}
 						{section.emoji === null ? null : (
-							<span aria-hidden="true" className="text-sm">
+							<span
+								aria-hidden="true"
+								className="flex size-4 shrink-0 items-center justify-center text-xs leading-none"
+							>
 								{section.emoji}
 							</span>
 						)}
-						<span className="truncate">{section.name}</span>
-						{open ? null : <span className="ml-1 text-2xs text-fg-subtle">{members.length}</span>}
+						<span className="min-w-0 truncate">{section.name}</span>
+						<HeaderCount open={open} count={members.length} />
+						<HeaderChevron open={open} />
 					</CollapsibleTrigger>
 					<Link
 						to="/create"
 						search={{ section: section.id }}
 						aria-label={`Create workspace in ${section.name}`}
 						title={`Create workspace in ${section.name}`}
-						className="flex size-6 shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-hover hover:text-fg"
+						className="flex size-6 shrink-0 items-center justify-center rounded-md text-sidebar-fg-muted opacity-0 hover:bg-hover hover:text-fg focus-visible:opacity-100 group-hover/header:opacity-100"
 					>
-						<PlusIcon />
+						<PlusIcon className="size-3.5" />
 					</Link>
 					<Menu>
 						<MenuTrigger asChild>
@@ -321,7 +325,7 @@ function SectionGroup({
 								size="xs"
 								aria-label={`Actions for ${section.name}`}
 								title={`Actions for ${section.name}`}
-								className="w-6 px-0 text-fg-muted"
+								className="w-6 px-0 text-sidebar-fg-muted opacity-0 focus-visible:opacity-100 group-hover/header:opacity-100 data-[state=open]:opacity-100"
 							>
 								⋯
 							</Button>
@@ -341,7 +345,7 @@ function SectionGroup({
 					</Menu>
 				</div>
 				<CollapsibleContent>
-					<div className="flex flex-col gap-0.5 py-0.5">
+					<div className="flex flex-col gap-1">
 						{members.map((workspace) => {
 							const repo = repoById.get(workspace.repoId);
 							return (
@@ -382,6 +386,7 @@ function SectionGroup({
 											selected={selectedId === workspace.id}
 											shortcutIndex={null}
 											now={now}
+											indent="flush"
 										/>
 									)}
 								</div>

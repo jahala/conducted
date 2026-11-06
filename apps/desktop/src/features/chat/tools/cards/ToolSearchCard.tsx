@@ -6,7 +6,6 @@
  * text.
  * Test first: A tool_search call renders 'Search tools' and the query.
  */
-import { SearchIcon } from "../../../../ui/icons.tsx";
 import {
 	asRecord,
 	ToolCardFrame,
@@ -27,7 +26,6 @@ export function ToolSearchCard({ call, defaultExpanded }: ToolCardProps) {
 			title="Search tools"
 			summary={query ?? undefined}
 			status={toolStatus(call)}
-			icon={<SearchIcon />}
 			expandAll={defaultExpanded}
 			body={
 				call.result === null ? (

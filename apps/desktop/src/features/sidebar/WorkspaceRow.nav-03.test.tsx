@@ -6,7 +6,7 @@ import {
 	createRouter,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Loadable } from "../../core/api.ts";
@@ -17,6 +17,7 @@ const hooks = vi.hoisted(() => ({
 	sessions: { state: "ready", data: [] } as Loadable<Session[]>,
 	markRead: vi.fn(),
 	markUnread: vi.fn(),
+	git: { state: "loading" } as Loadable<{ linesAdded: number; linesRemoved: number }>,
 }));
 
 vi.mock("../composer/draft-sources.ts", () => ({
@@ -26,13 +27,14 @@ vi.mock("../composer/draft-sources.ts", () => ({
 vi.mock("../../core/hooks.ts", () => ({
 	useWorkspaceStatus: () => hooks.status,
 	useSessions: () => hooks.sessions,
+	useGitState: () => hooks.git,
 	useLiveShortcut: (commandId: string) => (commandId === "workspace.switch2" ? "⌃2" : null),
 	useActions: () => ({
 		workspaces: { markRead: hooks.markRead, markUnread: hooks.markUnread },
 	}),
 }));
 
-const { WorkspaceRow, relativeTime } = await import("./WorkspaceRow.tsx");
+const { WorkspaceRow, relativeTime, compactCount } = await import("./WorkspaceRow.tsx");
 
 afterEach(cleanup);
 
@@ -134,15 +136,23 @@ describe("NAV-03 WorkspaceRow", () => {
 		expect(await screen.findByRole("img", { name: "Unread" })).toBeTruthy();
 	});
 
-	it("shows the status subtitle and marks the selected row", async () => {
+	// Conductor's row is one line: the status words sit on the status icon, not on a second line
+	// (renderApp @10437578). This test asserted the old subtitle and now asserts the icon's name.
+	it("names the status on its icon, with no second line, and marks the selected row", async () => {
 		hooks.status = { kind: "agent", label: "needs_permission" };
 		hooks.sessions = { state: "ready", data: [] };
 		renderRow(
 			<WorkspaceRow workspace={workspace()} repo={repo()} selected shortcutIndex={1} now={NOW} />,
 		);
-		expect(await screen.findByText("Need permission")).toBeTruthy();
+		const icon = await screen.findByRole("img", { name: "Need permission" });
+		expect(icon.getAttribute("title")).toBe("Need permission");
+		expect(screen.queryByText("Need permission")).toBeNull();
 		const link = screen.getByRole("link");
 		expect(link.getAttribute("aria-current")).toBe("page");
+		// Conductor marks the selected row by its fill only; the name keeps weight 450 (@10427352).
+		const name = within(link).getByText("fix-login");
+		expect(name.className).toContain("font-book");
+		expect(name.className).not.toContain("font-medium");
 	});
 
 	it("shows the live shortcut hint from the binding, not a hard-coded one", async () => {
@@ -162,8 +172,32 @@ describe("NAV-03 WorkspaceRow", () => {
 	});
 });
 
+describe("NAV-03 row padding", () => {
+	it("pads the row by where it sits: 20px in the groups, 12px in Pinned, 6px in sections", async () => {
+		hooks.status = null;
+		hooks.sessions = { state: "ready", data: [] };
+		const padding = { grouped: "pl-5", pinned: "pl-3", flush: "pl-1.5" } as const;
+		for (const [indent, expected] of Object.entries(padding) as [keyof typeof padding, string][]) {
+			const view = renderRow(
+				<WorkspaceRow
+					workspace={workspace()}
+					repo={repo()}
+					selected={false}
+					shortcutIndex={null}
+					now={NOW}
+					indent={indent}
+				/>,
+			);
+			const link = await screen.findByRole("link");
+			expect(link.className.split(" ")).toContain(expected);
+			view.unmount();
+		}
+	});
+});
+
 describe("NAV-03 row status", () => {
-	it("prints the status text and leaves the spinner out of the live regions", async () => {
+	// Was "prints the status text": the words moved from a second line to the icon's name (see above).
+	it("names the working status on its icon and leaves the spinner out of the live regions", async () => {
 		hooks.status = { kind: "agent", label: "working" };
 		hooks.sessions = { state: "ready", data: [] };
 		renderRow(
@@ -175,7 +209,8 @@ describe("NAV-03 row status", () => {
 				now={NOW}
 			/>,
 		);
-		expect(await screen.findByText("Working…")).toBeTruthy();
+		expect(await screen.findByRole("img", { name: "Working…" })).toBeTruthy();
+		expect(screen.queryByText("Working…")).toBeNull();
 		expect(screen.queryByRole("status")).toBeNull();
 	});
 });
@@ -204,5 +239,36 @@ describe("NAV-03 row helpers", () => {
 		expect(relativeTime(now - 5 * 60_000, now)).toBe("5m");
 		expect(relativeTime(now - 3 * 60 * 60_000, now)).toBe("3h");
 		expect(relativeTime(now - 3 * 24 * 60 * 60_000, now)).toBe("3d");
+	});
+});
+
+describe("NAV-03 row line counts", () => {
+	afterEach(() => {
+		hooks.git = { state: "loading" };
+	});
+
+	it("writes counts as Conductor does: 552, 4.1k, 16k", () => {
+		expect(compactCount(552)).toBe("552");
+		expect(compactCount(4_100)).toBe("4.1k");
+		expect(compactCount(1_000)).toBe("1k");
+		expect(compactCount(16_400)).toBe("16k");
+	});
+
+	it("shows the workspace's added and removed lines in place of the time", async () => {
+		hooks.status = null;
+		hooks.sessions = { state: "ready", data: [] };
+		hooks.git = { state: "ready", data: { linesAdded: 4_100, linesRemoved: 3 } };
+		renderRow(
+			<WorkspaceRow
+				workspace={workspace()}
+				repo={repo()}
+				selected={false}
+				shortcutIndex={null}
+				now={NOW}
+			/>,
+		);
+		expect(await screen.findByText("+4.1k")).toBeTruthy();
+		expect(screen.getByText("-3")).toBeTruthy();
+		expect(document.querySelector("time")).toBeNull();
 	});
 });

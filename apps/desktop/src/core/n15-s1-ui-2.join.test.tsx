@@ -262,17 +262,18 @@ describe("n15-s1-ui-2 join", () => {
 		expect(router.state.location.search).toMatchObject({ sessionId: session.id });
 	});
 
-	it("PRJ-05 shows the repository's chosen icon in the sidebar row and the workspace header", async () => {
+	// The sidebar follows Conductor: inside a project group the row leaves its avatar to the group's
+	// header, so the chosen icon shows there, beside the workspace header's own avatar.
+	it("PRJ-05 shows the repository's chosen icon in the sidebar group and the workspace header", async () => {
 		const test = await start();
 		const repo = await seedRepo(test.container, { name: "conducted", icon: "emoji:🦊" });
 		const workspace = await seedWorkspace(test.container, { repoId: repo.id });
 		await openApp(test.container, workspacePath(workspace));
 
 		await waitFor(() =>
-			expect(screen.getAllByRole("img", { name: "conducted icon" }).length).toBeGreaterThan(1),
+			expect(screen.getByRole("img", { name: "conducted icon" }).textContent).toBe("🦊"),
 		);
-		for (const icon of screen.getAllByRole("img", { name: "conducted icon" })) {
-			expect(icon.textContent).toBe("🦊");
-		}
+		const group = await screen.findByRole("region", { name: "conducted" });
+		expect(within(group).getByText("🦊")).toBeTruthy();
 	});
 });

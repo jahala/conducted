@@ -141,7 +141,13 @@ describe("NAV-05 HomeScreen", () => {
 		renderHome(test.container);
 		await screen.findByText("Active work");
 		expect(screen.queryByText("Old work")).toBeNull();
-		fireEvent.click(screen.getByRole("radio", { name: "Archived" }));
+		// The archive filter is Conductor's select now; "Only archived" replaces the Archived toggle.
+		fireEvent.keyDown(screen.getByRole("combobox", { name: "Archived workspaces" }), {
+			key: "Enter",
+		});
+		fireEvent.keyDown(await screen.findByRole("option", { name: "Only archived" }), {
+			key: "Enter",
+		});
 		expect(await screen.findByText("Old work")).toBeTruthy();
 		expect(screen.getByRole("button", { name: "Unarchive" })).toBeTruthy();
 	});

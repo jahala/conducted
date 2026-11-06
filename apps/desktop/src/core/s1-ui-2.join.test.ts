@@ -104,7 +104,8 @@ describe("s1-ui-2 join", () => {
 			expect(await screen.findByText("README.md")).toBeTruthy();
 			expect(await screen.findByRole("button", { name: "Expand src" })).toBeTruthy();
 
-			fireEvent.doubleClick(screen.getByText("README.md"));
+			// One click opens a file in All files, as in Conductor (bbabb14b).
+			fireEvent.click(screen.getByText("README.md"));
 
 			await waitFor(() =>
 				expect(router.state.location.search).toMatchObject({

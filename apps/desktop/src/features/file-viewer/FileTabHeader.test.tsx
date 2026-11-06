@@ -1,6 +1,7 @@
 /**
  * @feature REV-08 File tab header
- * Tests the mode toggle, the disabled reason and the diff toolbar.
+ * Tests the view toggles, the disabled reason, copy and the diff options. The text buttons Diff,
+ * Preview and Edit became Conductor's icon toggles; their names stay, so the tests find them by name.
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -28,6 +29,9 @@ const baseProps = {
 	saving: false,
 	saveError: null,
 	onSave: () => {},
+	diffAvailable: true,
+	copyText: "const a = 1;\n",
+	onCopy: () => {},
 	width: 900,
 };
 
@@ -55,13 +59,46 @@ describe("REV-08 FileTabHeader", () => {
 		expect(onModeChange).toHaveBeenCalledWith("preview");
 	});
 
-	it("shows the diff toolbar only in diff mode", () => {
+	it("offers the diff layouts for a changed file and View options only with the diff", () => {
+		const onModeChange = vi.fn();
 		const { rerender } = render(
-			<FileTabHeader {...baseProps} mode="diff" onModeChange={() => {}} />,
+			<FileTabHeader {...baseProps} mode="diff" onModeChange={onModeChange} />,
 		);
-		expect(screen.getByRole("button", { name: "Unified view" })).toBeTruthy();
-		rerender(<FileTabHeader {...baseProps} mode="edit" onModeChange={() => {}} />);
+		expect(screen.getByRole("button", { name: "View options" })).toBeTruthy();
+		rerender(<FileTabHeader {...baseProps} mode="edit" onModeChange={onModeChange} />);
+		expect(screen.queryByRole("button", { name: "View options" })).toBeNull();
+		fireEvent.click(screen.getByRole("button", { name: "Unified view" }));
+		expect(onModeChange).toHaveBeenCalledWith("diff");
+		rerender(
+			<FileTabHeader
+				{...baseProps}
+				diffAvailable={false}
+				mode="edit"
+				onModeChange={onModeChange}
+			/>,
+		);
 		expect(screen.queryByRole("button", { name: "Unified view" })).toBeNull();
+	});
+
+	it("follows Conductor's header: copy, then the toggles in one group, no text buttons", () => {
+		const onCopy = vi.fn();
+		render(<FileTabHeader {...baseProps} mode="edit" onModeChange={() => {}} onCopy={onCopy} />);
+		const group = screen.getByRole("group", { name: "View" });
+		expect(group.textContent).toBe("");
+		expect(
+			Array.from(group.querySelectorAll("button")).map((button) =>
+				button.getAttribute("aria-label"),
+			),
+		).toEqual(["Unified view", "Split view", "Edit", "Preview"]);
+		fireEvent.click(screen.getByRole("button", { name: "Copy file contents" }));
+		expect(onCopy).toHaveBeenCalledWith("const a = 1;\n");
+	});
+
+	it("disables Copy file contents until the text is loaded", () => {
+		render(<FileTabHeader {...baseProps} mode="edit" onModeChange={() => {}} copyText={null} />);
+		expect(
+			(screen.getByRole("button", { name: "Copy file contents" }) as HTMLButtonElement).disabled,
+		).toBe(true);
 	});
 
 	it("shows a Save button and the unsaved mark while there are edits", () => {

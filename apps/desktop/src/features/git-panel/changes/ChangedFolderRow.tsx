@@ -34,8 +34,8 @@ export function ChangedFolderRow({
 			type="button"
 			aria-expanded={!collapsed}
 			onClick={onToggle}
-			className="flex h-7 w-full items-center gap-1.5 rounded-sm pr-2 text-left text-sm text-fg hover:bg-hover"
-			style={{ paddingLeft: 8 + depth * changesRowIndent }}
+			className="mx-2 flex h-7 w-[calc(100%-1rem)] items-center gap-1.5 rounded-md pr-3 text-left text-sm text-fg hover:bg-hover"
+			style={{ paddingLeft: 12 + depth * changesRowIndent }}
 		>
 			<span className="text-fg-muted">
 				{collapsed ? <ChevronRightIcon /> : <ChevronDownIcon />}

@@ -6,7 +6,6 @@
  * form, and one that carries no task list (its raw text is shown).
  * Test first: A task_list result with no tasks renders 'No tasks'.
  */
-import { ListTodoIcon } from "../../../../ui/icons.tsx";
 import { ToolCardFrame, ToolOutput, toolStatus, withKeys } from "../ToolCardFrame.tsx";
 import type { ToolCardProps } from "../tool-card-props.ts";
 import { readTasks } from "./TaskGetCard.tsx";
@@ -45,7 +44,6 @@ export function TaskListCard({ call, defaultExpanded }: ToolCardProps) {
 					: undefined
 			}
 			status={toolStatus(call)}
-			icon={<ListTodoIcon />}
 			expandAll={defaultExpanded}
 			body={body}
 		/>

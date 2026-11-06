@@ -18,8 +18,9 @@ import { useActions, useRepos, useSetting } from "../../core/hooks.ts";
 import type { Workspace } from "../../core/model.ts";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../ui/Collapsible.tsx";
 import { cn } from "../../ui/cn.ts";
-import { ChevronDownIcon, ChevronRightIcon } from "../../ui/icons.tsx";
+import { ChevronRightIcon, PinIcon } from "../../ui/icons.tsx";
 import { toastError } from "../../ui/Toast.tsx";
+import { HeaderChevron, HeaderCount } from "./section-header.tsx";
 import { useNow } from "./use-now.ts";
 import {
 	draggedWorkspace,
@@ -98,7 +99,7 @@ export function PinnedSection({
 			aria-label="Pinned workspaces"
 			data-workspace-pinned-drop=""
 			className={cn(
-				"mb-1 rounded-md",
+				"rounded-md px-1.5 pt-1.5 pb-3",
 				isDragging && drag.state.overTarget === "pinned" && "bg-hover",
 			)}
 			onDragOver={(event) => {
@@ -109,20 +110,21 @@ export function PinnedSection({
 			onDrop={drop}
 		>
 			<Collapsible open={open} onOpenChange={setOpen}>
-				<div className="flex items-center gap-1 px-2">
-					<CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-1 rounded-md px-1 py-1 text-xs font-medium text-sidebar-fg-muted hover:bg-hover hover:text-fg">
-						{open ? <ChevronDownIcon /> : <ChevronRightIcon />}
-						<span className="truncate">Pinned</span>
-						{open ? null : (
-							<span className="ml-1 text-2xs text-fg-subtle">{workspaces.length}</span>
-						)}
+				<div className="group/header mt-0.5 mb-1 flex items-center gap-0.5">
+					<CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 rounded-md p-1.5 text-left text-xs font-semibold text-sidebar-fg-muted hover:bg-hover">
+						<span className="min-w-0 truncate">Pinned</span>
+						<HeaderCount open={open} count={workspaces.length} />
+						<HeaderChevron open={open} />
 					</CollapsibleTrigger>
 				</div>
 				<CollapsibleContent>
 					{workspaces.length === 0 ? (
-						<p className="px-3 py-2 text-xs text-fg-subtle">Drag a workspace here</p>
+						<p className="flex h-9 items-center gap-2 pl-3 text-sm text-sidebar-fg-muted">
+							<PinIcon className="size-3.5 shrink-0" />
+							<span className="min-w-0 truncate">Drag a workspace here</span>
+						</p>
 					) : (
-						<div className="flex flex-col gap-0.5 py-0.5">
+						<div className="flex flex-col gap-1">
 							{workspaces.map((workspace) => {
 								const repo = repoById.get(workspace.repoId);
 								return (
@@ -165,6 +167,7 @@ export function PinnedSection({
 												selected={selectedId === workspace.id}
 												shortcutIndex={null}
 												now={now}
+												indent="pinned"
 											/>
 										)}
 									</div>

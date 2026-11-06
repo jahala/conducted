@@ -48,16 +48,31 @@ export function GrepCard({ call, defaultExpanded }: ToolCardProps) {
 	const path = textField(input, "path", "glob");
 	const output = call.result?.output ?? "";
 	const groups = groupMatches(output);
-	const filters = path === null ? null : <span className="text-fg-subtle">in {path}</span>;
+	// Conductor counts the non-empty lines of the result.
+	const matchCount = textLines(output).filter((line) => line.trim().length > 0).length;
+	const title = (
+		<>
+			grep for '{pattern}'
+			{path === null ? null : (
+				<>
+					{" in "}
+					<code className="font-mono text-xs">{path}</code>
+				</>
+			)}
+		</>
+	);
 	return (
 		<ToolCardFrame
-			title="Grep"
-			summary={pattern}
+			title={title}
+			summary={
+				call.result === null ? undefined : (
+					<span className="text-xs text-fg-muted">{matchCount} matches</span>
+				)
+			}
 			status={toolStatus(call)}
 			expandAll={defaultExpanded}
 			body={
 				<div className="flex flex-col gap-2">
-					{filters}
 					{groups.length === 0 ? (
 						<p className="text-xs text-fg-subtle">No matches</p>
 					) : (

@@ -31,6 +31,7 @@ import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { useStore } from "zustand";
 import { useServices } from "../core/context.tsx";
 import { useSetting } from "../core/hooks.ts";
+import { ResourceUsageTable } from "../features/sidebar/ResourceUsageTable.tsx";
 import { Sidebar } from "../features/sidebar/Sidebar.tsx";
 import { appShellGroupId, centreMinSize, sidebarSize } from "../ui/layout-sizes.ts";
 import { NotBuiltYet } from "../ui/not-built-yet.tsx";
@@ -202,7 +203,11 @@ function LoadedShell() {
 		<div className="relative h-full bg-surface" style={style}>
 			<XcodeLicenseNotice />
 			<PathOverrideNotice />
-			<ShellControls sidebarOpen={sidebarOpen} onToggleSidebar={toggleSidebar} />
+			<ShellControls
+				sidebarOpen={sidebarOpen}
+				onToggleSidebar={toggleSidebar}
+				resources={<ResourceUsageTable />}
+			/>
 			<SurfaceRegistryProvider registry={surfaces}>
 				<PanelLayoutProvider store={layoutStore}>
 					<ResizableGroup

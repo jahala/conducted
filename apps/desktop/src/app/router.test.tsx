@@ -130,11 +130,13 @@ describe("routes", () => {
 		expect(screen.getByRole("complementary", { name: "Sidebar" })).toBeTruthy();
 	});
 
-	it("/create renders the new-workspace page inside the shell", async () => {
+	it("/create opens the new-workspace dialog over the shell", async () => {
+		// Conductor creates a workspace from a modal over the current screen, not a full page.
 		await openApp("/create", [repo("r1")]);
-		const main = await screen.findByRole("main");
-		expect(await within(main).findByRole("heading", { name: "New workspace" })).toBeTruthy();
-		expect(screen.getByRole("complementary", { name: "Sidebar" })).toBeTruthy();
+		const dialog = await screen.findByRole("dialog", { name: "New workspace" });
+		expect(within(dialog).getByLabelText("First message")).toBeTruthy();
+		// The modal hides the shell from assistive technology while it is open; the shell is still drawn.
+		expect(screen.getByRole("complementary", { name: "Sidebar", hidden: true })).toBeTruthy();
 	});
 
 	it("shows the workspace screen with its regions", async () => {
@@ -176,8 +178,12 @@ describe("routes", () => {
 
 	it("/first-run-onboarding renders without the sidebar", async () => {
 		await openApp("/first-run-onboarding");
+		// Conductor's first slide, as the current step of the onboarding list.
 		expect(
-			await screen.findByRole("heading", { name: "Get coding agents working in parallel" }),
+			await screen.findByRole("button", {
+				name: /^Get coding agents working in parallel/,
+				current: "step",
+			}),
 		).toBeTruthy();
 		expect(screen.queryByRole("complementary", { name: "Sidebar" })).toBeNull();
 	});

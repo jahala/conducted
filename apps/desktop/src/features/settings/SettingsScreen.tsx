@@ -22,7 +22,7 @@ import type { RepoId } from "@conducted/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useCommandHandler } from "../../app/command-dispatcher.ts";
-import { useRepos } from "../../core/hooks.ts";
+import { useLiveShortcut, useRepos } from "../../core/hooks.ts";
 import { Button } from "../../ui/Button.tsx";
 import { EmptyState } from "../../ui/EmptyState.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
@@ -157,6 +157,7 @@ export function SettingsScreen({ page, onNavigate, onBack }: SettingsScreenProps
 		void navigate({ to: "/" });
 	};
 
+	const searchShortcut = useLiveShortcut("settings.search");
 	useCommandHandler("settings.search", "modal", () => {
 		searchInput.current?.focus();
 		return true;
@@ -246,11 +247,19 @@ export function SettingsScreen({ page, onNavigate, onBack }: SettingsScreenProps
 				onNavigate={go}
 				onBack={leave}
 				searchSlot={
-					<SettingsSearch index={index} onOpen={openSearchResult} inputRef={searchInput} />
+					<SettingsSearch
+						index={index}
+						onOpen={openSearchResult}
+						inputRef={searchInput}
+						searchShortcut={searchShortcut}
+					/>
 				}
 			/>
 			<main className="min-h-0 flex-1 overflow-y-auto">
-				<div className="mx-auto w-full max-w-3xl px-8 py-8">{content}</div>
+				<div className="h-10 border-b border-border" />
+				<div className="w-full max-w-[var(--settings-content-width)] px-10 pt-6 pb-8">
+					{content}
+				</div>
 			</main>
 		</div>
 	);

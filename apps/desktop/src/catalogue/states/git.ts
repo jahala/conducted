@@ -16,7 +16,7 @@ import {
 	seedCast,
 	workspaceRoute,
 } from "../cast.ts";
-import { click, shows } from "../dom.ts";
+import { click, has, shows } from "../dom.ts";
 import type { PrKind } from "../github.ts";
 import type { AfterContext, CatalogueState, Scene } from "../state.ts";
 import { CATALOGUE_NOW, DAY } from "../time.ts";
@@ -82,7 +82,8 @@ export const GIT_STATES: CatalogueState[] = [
 		title: "A file's diff",
 		seed: arborScene({
 			search: { tab: "file", path: "src/auth/sign-in.ts", fileMode: "diff", scope: "branch" },
-			ready: (document) => shows(document, "Unified view"),
+			// The layout toggles are icons since the file header took Conductor's look: read their names.
+			ready: (document) => has(document, "button", "Unified view"),
 		}),
 	},
 	{
@@ -109,7 +110,7 @@ export const GIT_STATES: CatalogueState[] = [
 		title: "Changes tab, nothing changed (empty)",
 		seed: arborScene({
 			git: { arborFiles: [] },
-			ready: (document) => shows(document, "Changes appear here"),
+			ready: (document) => shows(document, "No file changes yet"),
 		}),
 	},
 	{

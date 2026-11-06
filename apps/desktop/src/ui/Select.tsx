@@ -9,8 +9,9 @@
  * Test first: choosing an option from the keyboard calls onValueChange with its value.
  */
 import { Select as Radix } from "radix-ui";
+import type { ReactNode } from "react";
 import { cn } from "./cn.ts";
-import { CheckIcon, ChevronDownIcon } from "./icons.tsx";
+import { CheckIcon, ChevronDownIcon, ChevronsUpDownIcon } from "./icons.tsx";
 import { menuContentClass } from "./Menu.tsx";
 
 export interface SelectOption<T extends string> {
@@ -28,7 +29,25 @@ export interface SelectProps<T extends string> {
 	id?: string;
 	disabled?: boolean;
 	size?: "sm" | "md";
+	/** Extra classes on the trigger, such as a fixed width. */
+	className?: string;
+	/**
+	 * "ghost" is Conductor's toolbar select (Home's archive filter and sort): no border, muted text, an
+	 * optional leading icon and a small down chevron.
+	 */
+	variant?: "outline" | "ghost";
+	/** A leading icon, drawn by the ghost variant. */
+	icon?: ReactNode;
 }
+
+/**
+ * Radix reserves the empty string for "nothing chosen", so an option whose value is "" (Automatic, No
+ * section) would show a blank trigger and could not be picked. Inside the control it travels as this
+ * marker instead; callers still see "".
+ */
+const EMPTY_VALUE = "\u0000empty";
+const encode = (value: string) => (value === "" ? EMPTY_VALUE : value);
+const decode = (value: string) => (value === EMPTY_VALUE ? "" : value);
 
 export function Select<T extends string>({
 	value,
@@ -38,29 +57,53 @@ export function Select<T extends string>({
 	id,
 	disabled = false,
 	size = "md",
+	className,
+	variant = "outline",
+	icon,
 }: SelectProps<T>) {
 	const selected = options.find((option) => option.value === value);
 
 	return (
 		<Radix.Root
-			value={value}
+			value={encode(value)}
 			disabled={disabled}
-			onValueChange={(next) => onValueChange(next as T)}
+			onValueChange={(next) => onValueChange(decode(next) as T)}
 		>
-			<Radix.Trigger
-				id={id}
-				aria-label={ariaLabel}
-				className={cn(
-					"inline-flex items-center justify-between gap-1 rounded-md border border-border-strong bg-transparent text-fg transition-colors",
-					"hover:bg-hover focus:border-accent disabled:cursor-not-allowed disabled:opacity-50",
-					size === "sm" ? "h-7 pl-2.5 pr-2 text-xs" : "h-8 pl-3 pr-2.5 text-sm",
-				)}
-			>
-				<Radix.Value>{selected?.label ?? value}</Radix.Value>
-				<Radix.Icon asChild>
-					<ChevronDownIcon className="size-3 shrink-0 text-fg-muted" />
-				</Radix.Icon>
-			</Radix.Trigger>
+			{variant === "ghost" ? (
+				<Radix.Trigger
+					id={id}
+					aria-label={ariaLabel}
+					className={cn(
+						"inline-flex h-7 max-w-48 min-w-0 items-center gap-1.5 rounded-md bg-transparent px-2 text-sm text-fg-muted outline-none transition-colors",
+						"hover:text-fg focus-visible:ring-2 focus-visible:ring-focus data-[state=open]:text-fg disabled:cursor-not-allowed disabled:opacity-50",
+						className,
+					)}
+				>
+					{icon}
+					<span className="truncate">
+						<Radix.Value>{selected?.label ?? value}</Radix.Value>
+					</span>
+					<Radix.Icon asChild>
+						<ChevronDownIcon className="size-3 shrink-0" />
+					</Radix.Icon>
+				</Radix.Trigger>
+			) : (
+				<Radix.Trigger
+					id={id}
+					aria-label={ariaLabel}
+					className={cn(
+						"inline-flex items-center justify-between gap-1 rounded-md border border-border-strong bg-transparent text-fg transition-colors",
+						"hover:bg-hover focus:border-accent disabled:cursor-not-allowed disabled:opacity-50",
+						size === "sm" ? "h-7 pl-2.5 pr-2 text-xs" : "h-8 pl-3 pr-2.5 text-sm",
+						className,
+					)}
+				>
+					<Radix.Value>{selected?.label ?? value}</Radix.Value>
+					<Radix.Icon asChild>
+						<ChevronsUpDownIcon className="size-3 shrink-0 text-fg-muted" />
+					</Radix.Icon>
+				</Radix.Trigger>
+			)}
 			<Radix.Portal>
 				<Radix.Content
 					position="popper"
@@ -77,7 +120,7 @@ export function Select<T extends string>({
 						{options.map((option) => (
 							<Radix.Item
 								key={option.value}
-								value={option.value}
+								value={encode(option.value)}
 								disabled={option.disabled}
 								className={cn(
 									"relative flex w-full items-center rounded-md py-1.5 pl-2 pr-8 text-sm outline-none",

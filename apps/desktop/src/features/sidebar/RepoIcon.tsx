@@ -70,16 +70,20 @@ function FileRepoIcon({ path, letter }: { path: string; letter: string }) {
 	);
 }
 
-export function RepoIconAvatar({ repo, className }: { repo: Repo; className?: string }) {
-	const [pickerOpen, setPickerOpen] = useState(false);
+/** The repository's mark drawn from its saved source; only an uploaded file needs the services. */
+export function RepoIconMark({ repo }: { repo: Repo }) {
 	const source = repoIconSource(repo);
 	const letter = repoLetter(repo.name);
-	const view =
-		source.kind === "file" ? (
-			<FileRepoIcon path={source.path} letter={letter} />
-		) : (
-			<RepoIconView source={source} letter={letter} />
-		);
+	return source.kind === "file" ? (
+		<FileRepoIcon path={source.path} letter={letter} />
+	) : (
+		<RepoIconView source={source} letter={letter} />
+	);
+}
+
+export function RepoIconAvatar({ repo, className }: { repo: Repo; className?: string }) {
+	const [pickerOpen, setPickerOpen] = useState(false);
+	const view = <RepoIconMark repo={repo} />;
 
 	return (
 		<>

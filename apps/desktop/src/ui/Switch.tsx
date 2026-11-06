@@ -40,7 +40,7 @@ export function Switch({
 			className={cn(
 				"relative inline-flex h-5 w-10 shrink-0 cursor-pointer items-center rounded-full border transition-colors",
 				"data-[state=checked]:border-switch-on data-[state=checked]:bg-switch-on",
-				"data-[state=unchecked]:border-border-strong data-[state=unchecked]:bg-transparent",
+				"data-[state=unchecked]:border-border-strong data-[state=unchecked]:bg-chip-border",
 				"disabled:cursor-not-allowed disabled:opacity-50",
 			)}
 		>

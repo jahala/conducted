@@ -1,12 +1,17 @@
 /**
  * @feature CHAT-06 Turn footer; CHAT-16 Fork a chat from a turn; CHAT-21 Fork a chat to a new
  * workspace
- * Owns: The footer under a finished turn: copy actions, token and time details and the fork and reset
- * menu. The files the turn changed are listed above it by TurnChanges.
- * Behaviour: ui-map.md 3.3 (Turn footer: 'Copy final message', 'Copy summary', hover card with
- * start and end time, Fast mode state and Input, Output, Cache read, Cache write tokens; More
- * menu: 'Fork to new tab', 'Fork to new workspace', 'Reset chat', copy options).
- * Our design choice (CHAT-14): with the Experimental setting 'Show agent cost' on, the hover card
+ * Owns: The footer row under a finished turn: how long the turn took and when it ended (with the token and
+ * time details on hover), a copy icon, the "···" menu with fork, reset and copy actions, then the files the
+ * turn changed (TurnChanges).
+ * Behaviour: ui-map.md 3.3 (Turn footer: 'Copy final message', hover card with start and end time, Fast
+ * mode state and Input, Output, Cache read, Cache write tokens; More menu: 'Fork to new tab', 'Fork to new
+ * workspace', 'Reset chat', copy options). Measured from Conductor 0.92.1 (renderApp @9582374): one
+ * wrapping row of text-xs muted text, 8px gaps, 2px above; "3s · 5:20 pm" first (duration without tenths,
+ * then the end time: the time alone today, the weekday within a week, else the date), then a 20px copy
+ * icon button, then a 20px "···" button, then the file chips.
+ * Our design choice: "Copy summary" is ours (Conductor's "Copy summary" belongs to compacted history); it
+ * sits in the "···" menu next to "Copy final message". Our design choice (CHAT-14): with the Experimental setting 'Show agent cost' on, the hover card
  * also shows the cost the agent reported for this turn. Conductor shows cost only for cloud runs.
  * Fork to a new tab copies the chat up to this turn and opens the new chat (CHAT-16). It is always
  * in this menu: the Experimental setting 'Fork chat to new tab' gates only the chat tab menu item
@@ -17,8 +22,8 @@
  * says so); an agent that does not report fast mode or cost (that line is left out); no checkpoint
  * (both fork actions and Reset disabled with a reason); a cancelled or errored turn (footer still
  * copies); a copy or fork that fails (a toast, "Unable to fork chat" when the turn has no checkpoint);
- * Reset opens the confirmation dialog instead of changing anything at once. The More menu repeats
- * the copy actions; the row wraps at a narrow width instead of collapsing into the menu.
+ * Reset opens the confirmation dialog instead of changing anything at once. The row wraps at a narrow
+ * width instead of collapsing into the menu.
  * Test first: A finished turn with usage shows token counts in the hover card; without a checkpoint
  * Reset and both fork actions are disabled; Fork to new workspace opens the new workspace.
  */
@@ -26,26 +31,71 @@
 import type { SessionId } from "@conducted/shared";
 import { useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
+import type { DiffScope } from "../../core/api.ts";
 import { createSingleFlight } from "../../core/async/single-flight.ts";
 import { useActions, useSetting } from "../../core/hooks.ts";
 import type { ChatTurn } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
 import { CopyButton } from "../../ui/CopyButton.tsx";
-import { ChevronDownIcon, ClockIcon } from "../../ui/icons.tsx";
+import { MoreHorizontalIcon } from "../../ui/icons.tsx";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "../../ui/Menu.tsx";
 import { toastError } from "../../ui/Toast.tsx";
 import { Tooltip } from "../../ui/Tooltip.tsx";
+import { MINUTE_MS, useNow } from "../sidebar/use-now.ts";
 import { formatCost } from "./ContextWheel.tsx";
 import { ResetChatDialog } from "./ResetChatDialog.tsx";
 import { reportFailure } from "./report-failure.ts";
+import { TurnChanges } from "./TurnChanges.tsx";
 
 export interface TurnFooterProps {
 	turn: ChatTurn;
 	sessionId: SessionId;
+	/** Shows the whole turn in the Changes tab. */
+	onOpenDiff?: (scope: DiffScope) => void;
+	/** Opens one changed file's diff in the turn's scope. */
+	onOpenFile?: (path: string, scope: DiffScope) => void;
+	/** The current time, for the end time's wording. Defaults to the clock at this edge. */
+	now?: number;
 }
 
 function clock(at: number): string {
 	return new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+/** How long a turn took, as Conductor writes it: "3s", "2m, 4s". */
+export function formatTurnDuration(ms: number): string {
+	const seconds = Math.floor(Math.max(0, ms) / 1000);
+	const minutes = Math.floor(seconds / 60);
+	const rest = `${seconds % 60}s`;
+	return minutes > 0 ? `${minutes}m, ${rest}` : rest;
+}
+
+const DAY_MS = 86_400_000;
+
+function startOfDay(at: number): number {
+	const date = new Date(at);
+	return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
+/** When a turn ended: "5:20 PM" today, "Tue 5:20 PM" within a week, else "Oct 12, 3:20 PM". */
+export function formatTurnTime(at: number, now: number): string {
+	const date = new Date(at);
+	const time = date.toLocaleTimeString(undefined, {
+		hour: "numeric",
+		minute: "2-digit",
+		hour12: true,
+	});
+	const days = Math.round((startOfDay(now) - startOfDay(at)) / DAY_MS);
+	if (days === 0) return time;
+	if (days > 0 && days < 7)
+		return `${date.toLocaleDateString(undefined, { weekday: "short" })} ${time}`;
+	const sameYear = date.getFullYear() === new Date(now).getFullYear();
+	const day = date.toLocaleDateString(undefined, {
+		month: "short",
+		day: "numeric",
+		...(sameYear ? {} : { year: "numeric" }),
+	});
+	return `${day}, ${time}`;
 }
 
 function finalMessageOf(turn: ChatTurn): string {
@@ -86,7 +136,9 @@ function detailsOf(turn: ChatTurn, showCost: boolean): string {
 	return lines.join("\n");
 }
 
-export function TurnFooter({ turn, sessionId }: TurnFooterProps) {
+export function TurnFooter({ turn, sessionId, onOpenDiff, onOpenFile, now }: TurnFooterProps) {
+	const clockNow = useNow(Date.now, MINUTE_MS);
+	const today = now ?? clockNow;
 	const actions = useActions();
 	const navigate = useNavigate();
 	const showCost = useSetting<boolean>("experimental_show_agent_cost") === true;
@@ -134,60 +186,80 @@ export function TurnFooter({ turn, sessionId }: TurnFooterProps) {
 		});
 	};
 
+	const endedAt = turn.endedAt ?? turn.startedAt;
 	return (
-		<div className="flex flex-wrap items-center gap-1 text-2xs text-fg-subtle">
-			<CopyButton
-				text={finalMessage}
-				onCopy={copy}
-				label="Copy final message"
-				size="xs"
-				disabled={finalMessage.length === 0}
-			/>
-			<CopyButton text={summary} onCopy={copy} label="Copy summary" size="xs" />
+		<div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-2 text-xs text-fg-muted">
 			<Tooltip content={detailsOf(turn, showCost)}>
-				<Button variant="ghost" size="xs" aria-label="Turn details" className="gap-1">
-					<ClockIcon />
-					<span>{clock(turn.startedAt)}</span>
-				</Button>
+				<button
+					type="button"
+					aria-label="Turn details"
+					className="shrink-0 rounded-sm hover:text-fg"
+				>
+					{formatTurnDuration(endedAt - turn.startedAt)} · {formatTurnTime(endedAt, today)}
+				</button>
 			</Tooltip>
-			<Menu>
-				<MenuTrigger asChild>
-					<Button variant="ghost" size="xs" aria-label="More turn actions">
-						<ChevronDownIcon />
-					</Button>
-				</MenuTrigger>
-				<MenuContent>
-					<MenuItem
-						disabled={!canFork}
-						title={canFork ? undefined : "This turn has no checkpoint to fork from."}
-						onSelect={fork}
-					>
-						Fork to new tab
-					</MenuItem>
-					<MenuItem
-						disabled={!canFork}
-						title={canFork ? undefined : "This turn has no checkpoint to fork from."}
-						onSelect={forkToWorkspace}
-					>
-						Fork to new workspace
-					</MenuItem>
-					<MenuItem
-						disabled={!canReset}
-						title={canReset ? undefined : "This turn has no checkpoint to reset to."}
-						onSelect={() => setResetOpen(true)}
-					>
-						Reset chat
-					</MenuItem>
-					<MenuSeparator />
-					<MenuItem
-						disabled={finalMessage.length === 0}
-						onSelect={() => copyFromMenu(finalMessage)}
-					>
-						Copy final message
-					</MenuItem>
-					<MenuItem onSelect={() => copyFromMenu(summary)}>Copy summary</MenuItem>
-				</MenuContent>
-			</Menu>
+			<span className="flex shrink-0 items-center gap-1">
+				{finalMessage.length === 0 ? null : (
+					<CopyButton
+						text={finalMessage}
+						onCopy={copy}
+						label="Copy final message"
+						iconOnly
+						size="xs"
+						className="size-5 px-0 text-fg-muted"
+					/>
+				)}
+				<Menu>
+					<MenuTrigger asChild>
+						<Button
+							variant="ghost"
+							size="xs"
+							aria-label="More turn actions"
+							title="More actions"
+							className="size-5 px-0 text-fg-muted"
+						>
+							<MoreHorizontalIcon className="size-3.5" />
+						</Button>
+					</MenuTrigger>
+					<MenuContent align="start">
+						<MenuItem
+							disabled={!canFork}
+							title={canFork ? undefined : "This turn has no checkpoint to fork from."}
+							onSelect={fork}
+						>
+							Fork to new tab
+						</MenuItem>
+						<MenuItem
+							disabled={!canFork}
+							title={canFork ? undefined : "This turn has no checkpoint to fork from."}
+							onSelect={forkToWorkspace}
+						>
+							Fork to new workspace
+						</MenuItem>
+						<MenuItem
+							disabled={!canReset}
+							title={canReset ? undefined : "This turn has no checkpoint to reset to."}
+							onSelect={() => setResetOpen(true)}
+						>
+							Reset chat
+						</MenuItem>
+						<MenuSeparator />
+						<MenuItem
+							disabled={finalMessage.length === 0}
+							onSelect={() => copyFromMenu(finalMessage)}
+						>
+							Copy final message
+						</MenuItem>
+						<MenuItem onSelect={() => copyFromMenu(summary)}>Copy summary</MenuItem>
+					</MenuContent>
+				</Menu>
+			</span>
+			<TurnChanges
+				turn={turn}
+				sessionId={sessionId}
+				onOpenDiff={onOpenDiff}
+				onOpenFile={onOpenFile}
+			/>
 			<ResetChatDialog
 				open={resetOpen}
 				onOpenChange={setResetOpen}

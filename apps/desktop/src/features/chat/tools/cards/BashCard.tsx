@@ -26,19 +26,20 @@ export function BashCard({ call, defaultExpanded }: ToolCardProps) {
 	const [raw, setRaw] = useState(false);
 	const input = asRecord(call.item.input);
 	const command = textField(input, "command", "cmd") ?? "";
+	const description = textField(input, "description");
 	const output = stripAnsi(call.result?.output ?? "");
 	const background = boolField(input, "run_in_background");
 	const hasOutput = output.length > 0 && !cleared;
 	return (
 		<ToolCardFrame
-			title="Bash"
+			title={description !== null && description.length > 0 ? description : "Bash"}
 			summary={command}
 			status={toolStatus(call)}
 			expandAll={defaultExpanded}
 			body={
 				<div className="flex flex-col gap-2">
 					<span className="text-xs font-medium text-fg-subtle">Input:</span>
-					<pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-sm bg-surface p-2 font-mono text-xs text-fg-muted">
+					<pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-sm bg-canvas p-2 font-mono text-xs text-fg-muted">
 						{raw ? formatJson(input) : command}
 					</pre>
 					{background ? (

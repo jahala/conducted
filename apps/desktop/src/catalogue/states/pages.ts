@@ -6,7 +6,7 @@
  * Test first: not applicable; the screenshot run opens every state.
  */
 import { animateCast, seedCast } from "../cast.ts";
-import { click, shows } from "../dom.ts";
+import { click, find, shows, typeInto } from "../dom.ts";
 import { CLAUDE_CONFIG, must } from "../seeds.ts";
 import type { CatalogueState } from "../state.ts";
 
@@ -25,6 +25,20 @@ export const PAGE_STATES: CatalogueState[] = [
 		},
 	},
 	{
+		id: "home-no-match",
+		group: "Pages",
+		title: "Home with a search that matches no workspace",
+		seed: async (world) => {
+			await seedCast(world);
+			return {
+				route: "/all-workspaces",
+				after: ({ document }) =>
+					typeInto(document, "input", "Search workspaces", "no such workspace"),
+				ready: (document) => shows(document, "No matching workspaces"),
+			};
+		},
+	},
+	{
 		id: "home-archived",
 		group: "Pages",
 		title: "Home, archived workspaces",
@@ -32,7 +46,15 @@ export const PAGE_STATES: CatalogueState[] = [
 			await seedCast(world);
 			return {
 				route: "/all-workspaces",
-				after: ({ document }) => click(document, "button", "Archived"),
+				after: async ({ document }) => {
+					await click(document, "button", "Archived workspaces");
+					// A select ignores a pointer release where the press began, so choose by keyboard.
+					const option = await find(document, "[role=option]", "Only archived");
+					option.focus();
+					option.dispatchEvent(
+						new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }),
+					);
+				},
 				ready: (document) => shows(document, "sam/old-search-experiment"),
 			};
 		},
@@ -40,12 +62,47 @@ export const PAGE_STATES: CatalogueState[] = [
 	{
 		id: "new-workspace",
 		group: "Pages",
-		title: "New workspace page, project chosen",
+		title: "New workspace dialog, project chosen",
 		seed: async (world) => {
 			const cast = await seedCast(world);
 			return {
 				route: `/create?repo=${cast.atlas.id}`,
-				ready: (document) => shows(document, "atlas"),
+				ready: (document) => document.querySelector('[role="dialog"] textarea') !== null,
+			};
+		},
+	},
+	{
+		id: "new-workspace-project-menu",
+		group: "Pages",
+		title: "New workspace dialog with its project menu open",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/create?repo=${cast.atlas.id}`,
+				after: ({ document }) => click(document, "button", "Project: atlas"),
+				ready: (document) => shows(document, "Recents"),
+			};
+		},
+	},
+	{
+		id: "create-project",
+		group: "Pages",
+		title: "Quick start's Create project dialog, from the new-workspace project menu",
+		seed: async (world) => {
+			const cast = await seedCast(world);
+			return {
+				route: `/create?repo=${cast.atlas.id}`,
+				after: async ({ document }) => {
+					await click(document, "button", "Project: atlas");
+					await click(document, '[role="menuitem"]', "Quick start");
+					await typeInto(
+						document,
+						'input[placeholder="my-awesome-project"]',
+						"",
+						"atlas-playground",
+					);
+				},
+				ready: (document) => shows(document, "Creates folder"),
 			};
 		},
 	},

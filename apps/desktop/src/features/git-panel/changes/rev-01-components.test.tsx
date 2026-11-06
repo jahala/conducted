@@ -276,6 +276,8 @@ describe("REV-01 changes toolbar", () => {
 				onScopeChange={vi.fn()}
 			/>,
 		);
+		// The filter opens from a search icon, as in Conductor's Changes tab.
+		fireEvent.click(screen.getByRole("button", { name: "Search changed files" }));
 		const input = screen.getByRole("textbox", { name: "Filter changed files" });
 		fireEvent.change(input, { target: { value: "src/a" } });
 		expect(onFilterChange).toHaveBeenCalledWith("src/a");
