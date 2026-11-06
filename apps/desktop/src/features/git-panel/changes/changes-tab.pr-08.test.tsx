@@ -137,6 +137,7 @@ function renderTab(
 		<ServicesProvider container={harness.container}>
 			<AppProviders client={createQueryClient(() => {})}>
 				<ChangesTab
+					graphiteStack={{ isInStack: false, branches: [] }}
 					workspaceId={workspaceId as never}
 					scope={scope}
 					onScopeChange={onScopeChange}

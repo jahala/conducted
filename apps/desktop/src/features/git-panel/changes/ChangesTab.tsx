@@ -5,14 +5,23 @@
  * Behaviour: ui-map.md 3.6, "Changes" paragraph; services-map.md 3.3 (what the list is made of)
  * and 3.4.1 (the diff scopes).
  * Data: useChangedFiles(workspaceId, scope), useGitState (conflicts, rebase underway),
- * useStack (the stacked pull requests), useSetting("github_stacked_prs_enabled"), useWorkspace and
- * useRepoConfig (the trunk is the target branch without its remote), useActions().git.discardFile,
- * and the GitHub service's mark ready for a stack entry's own pull request number.
+ * useStack (the stacked pull requests), the Graphite stack of the branch git reports (a prop
+ * from the git panel), useSetting("github_stacked_prs_enabled"), useWorkspace and
+ * useRepoConfig (the trunk is the target branch without its remote), useActions().git.discardFile
+ * and switchBranch, and the GitHub service's mark ready for a stack entry's own pull request
+ * number.
  * @feature PR-08 The range view: choosing stack pull requests in the stack view sets the range
  * scope (stack-selection.ts), and the list shows that run's files, or why it cannot (not adjacent,
  * commits missing), or "No changes in the selected PRs" (services-map.md 3.4.1, 3.4.5; the words
  * are Conductor's).
- * Children: ChangesToolbar, StackView, ScopeBackBar, ChangedFileList, ChangesEmpty.
+ * @feature PR-08 The Graphite stack list: when the checked-out branch is in a Graphite stack
+ * (git-panel/use-graphite-stack.ts), the stack takes the file list's place, with the branch's
+ * files under its row, and the GitHub stack view is hidden, as in Conductor's Changes tab. Its
+ * "Checkout this branch" runs switch branch (`gt checkout` for a branch Graphite knows), one at a time, and a
+ * failure says "Checkout failed: <reason>" in Conductor's words. Our design choice: the toolbar's
+ * filter, which this tab always shows, also narrows the files under the branch.
+ * Children: ChangesToolbar, StackView, GraphiteStackView, ScopeBackBar, ChangedFileList,
+ * ChangesEmpty.
  * Keyboard: ArrowUp and ArrowDown move the selected file (in ChangedFileList). The command
  * "Open the diff view" (Cmd+Shift+D, or the user's rebind) opens the selected file's diff through
  * the command dispatcher. Moving between comments (Cmd+Alt+J and K) belongs to REV-03.
@@ -46,6 +55,7 @@ import {
 	useWorkspaceStatus,
 } from "../../../core/hooks.ts";
 import { branchNameWithoutRemote } from "../../../core/services/git.ts";
+import type { GraphiteStack } from "../../../core/services/graphite.ts";
 import { remoteNameFromConfig } from "../../../core/services/workspace.ts";
 import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
@@ -54,6 +64,7 @@ import { ChangedFileList } from "./ChangedFileList.tsx";
 import { ChangesEmpty } from "./ChangesEmpty.tsx";
 import { ChangesToolbar } from "./ChangesToolbar.tsx";
 import { buildChangedTree, filterChangedFiles } from "./changed-file-tree.ts";
+import { GraphiteStackView } from "./GraphiteStackView.tsx";
 import { ScopeBackBar } from "./ScopeBackBar.tsx";
 import { StackView } from "./StackView.tsx";
 import {
@@ -68,6 +79,8 @@ export interface ChangesTabProps {
 	onScopeChange: (scope: DiffScope) => void;
 	/** Opens a file tab in diff mode for the file, using the current scope. */
 	onOpenFile: (path: string) => void;
+	/** The Graphite stack of the checked-out branch, read by the git panel (use-graphite-stack.ts). */
+	graphiteStack: GraphiteStack;
 }
 
 const NO_FOLDERS: ReadonlySet<string> = new Set();
@@ -166,7 +179,13 @@ function StackSection({
 	);
 }
 
-export function ChangesTab({ workspaceId, scope, onScopeChange, onOpenFile }: ChangesTabProps) {
+export function ChangesTab({
+	workspaceId,
+	scope,
+	onScopeChange,
+	onOpenFile,
+	graphiteStack: graphite,
+}: ChangesTabProps) {
 	const files = useChangedFiles(workspaceId, scope);
 	const git = useGitState(workspaceId);
 	const commits = useBranchCommits(workspaceId);
@@ -174,6 +193,12 @@ export function ChangesTab({ workspaceId, scope, onScopeChange, onOpenFile }: Ch
 	const workspace = useWorkspace(workspaceId);
 	const status = useWorkspaceStatus(workspaceId);
 	const actions = useActions();
+	// The branch whose Graphite checkout is running, kept with its workspace so another workspace's
+	// list is never held by it.
+	const [checkout, setCheckout] = useState<{ workspaceId: WorkspaceId; branch: string } | null>(
+		null,
+	);
+	const checkingOut = checkout?.workspaceId === workspaceId ? checkout.branch : null;
 
 	const [filter, setFilter] = useState("");
 	const [view, setView] = useState<"flat" | "folders">("flat");
@@ -217,6 +242,19 @@ export function ChangesTab({ workspaceId, scope, onScopeChange, onOpenFile }: Ch
 		});
 	};
 
+	// Every checkout waits for the one running, as Conductor's list does. A branch Graphite knows
+	// is switched with `gt checkout` (GitService.switchBranch).
+	const checkoutBranch = (branch: string) => {
+		if (checkingOut !== null) return;
+		setCheckout({ workspaceId, branch });
+		void actions.git.switchBranch(workspaceId, branch).then((result) => {
+			setCheckout((current) =>
+				current?.workspaceId === workspaceId && current.branch === branch ? null : current,
+			);
+			if (!result.ok) toast.error(`Checkout failed: ${result.error.message}`);
+		});
+	};
+
 	const narrowed = scope.kind === "commit" || scope.kind === "turn";
 	const operation = git.state === "ready" ? git.data.operation : "none";
 	// The polling snapshot's untracked flag only fits scopes that include the working tree.
@@ -236,6 +274,25 @@ export function ChangesTab({ workspaceId, scope, onScopeChange, onOpenFile }: Ch
 				rangeProblem(files.error.code, files.error.message) ?? (
 					<ChangesEmpty reason="no_git_status" message={files.error.message} />
 				)
+			);
+		}
+		// A branch in a Graphite stack shows the stack, with its own files under it, in place of
+		// the list (Conductor's Changes tab does the same, also when the branch has no changes).
+		if (graphite.isInStack && git.state === "ready") {
+			return (
+				<GraphiteStackView
+					branches={graphite.branches}
+					currentBranch={git.data.branch}
+					files={filtered}
+					selectedPath={selected}
+					onOpenFile={(path) => {
+						setSelectedPath(path);
+						onOpenFile(path);
+					}}
+					onDiscard={scope.kind === "commit" || scope.kind === "range" ? undefined : discard}
+					checkingOut={checkingOut}
+					onCheckout={checkoutBranch}
+				/>
 			);
 		}
 		if (allFiles.length === 0) {
@@ -273,7 +330,7 @@ export function ChangesTab({ workspaceId, scope, onScopeChange, onOpenFile }: Ch
 				scope={scope}
 				onScopeChange={onScopeChange}
 			/>
-			{stacksEnabled === true && workspace.state === "ready" ? (
+			{stacksEnabled === true && workspace.state === "ready" && !graphite.isInStack ? (
 				<StackSection
 					workspaceId={workspaceId}
 					repoId={workspace.data.repoId}

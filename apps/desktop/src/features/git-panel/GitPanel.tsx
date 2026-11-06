@@ -17,7 +17,8 @@
  * workspace's pull request by core/status/stack-readiness.ts), useActions().
  * While mounted, the panel watches its workspace's repository with the Graphite service and
  * releases the watch on unmount or when the workspace moves to another repository, so `gt state`
- * runs only for the repository on screen (services-map.md 3.8.1).
+ * runs only for the repository on screen (services-map.md 3.8.1). It reads the stack of the
+ * checked-out branch from that poll (use-graphite-stack.ts) and hands it to the Changes tab.
  * Children: GitHeader, GitPanelTabs, artifacts/ArtifactsTab, changes/ChangesTab, files/FilesTab,
  * checks/ChecksTab. Each unbuilt tab body sits in its own NotBuiltYet boundary, keyed by the tab,
  * so a tab that is not built or fails shows which feature it is while the header and the tab strip
@@ -88,6 +89,7 @@ import { FilesTab } from "./files/FilesTab.tsx";
 import { GitHeader } from "./GitHeader.tsx";
 import { GitPanelTabs, type GitPanelViewTab } from "./GitPanelTabs.tsx";
 import { ReviewPromptDialog } from "./ReviewPromptDialog.tsx";
+import { useGraphiteStack } from "./use-graphite-stack.ts";
 
 export interface GitPanelProps {
 	workspaceId: WorkspaceId;
@@ -156,6 +158,10 @@ export function GitPanel({
 		if (repoRootPath === null) return;
 		return graphite.watch(repoRootPath);
 	}, [graphite, repoRootPath]);
+	const graphiteStack = useGraphiteStack(
+		repoRootPath,
+		git.state === "ready" ? git.data.branch : null,
+	);
 	const automergeEnabled = useSetting<boolean>("automerge_enabled");
 	const optionalChecksBlocking = useSetting<boolean>("treat_optional_checks_as_blocking");
 	const artifactsTabEnabled = useSetting<boolean>("artifacts_tab_enabled");
@@ -495,6 +501,7 @@ export function GitPanel({
 						scope={scope}
 						onScopeChange={setScope}
 						onOpenFile={(path) => openFile(path, "diff")}
+						graphiteStack={graphiteStack}
 					/>
 				) : (
 					<NotBuiltYet area="Checks" resetKey={`${workspaceId}:checks`}>
