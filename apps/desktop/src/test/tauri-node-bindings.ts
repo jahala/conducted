@@ -266,6 +266,10 @@ export function createNodeTauriBindings(dir: string): NodeTauriRun {
 				return { version: "0.0.0-contract", channel: "dev" };
 			case COMMANDS.networkStatus:
 				return networkOnline;
+			case COMMANDS.fullDiskAccessCheck:
+				return true;
+			case COMMANDS.fullDiskAccessOpenSettings:
+				return undefined;
 			case COMMANDS.fsPaths:
 				return paths;
 			case COMMANDS.logWrite:

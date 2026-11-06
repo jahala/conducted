@@ -322,14 +322,11 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	let fullDiskAccessFailure: string | null = null;
 	let fullDiskAccessOpenFailure: string | null = null;
 	let windowFocused = true;
-<<<<<<< HEAD
 	let windowZoom: number | null = null;
 	let windowTheme: "light" | "dark" | null = null;
 	let vibrancy: boolean | null = null;
 	let trafficLightPosition: { x: number; y: number } | null = null;
-=======
 	let networkOnline = true;
->>>>>>> node/plat.26
 
 	const sidecarLineListeners = new Set<ValueListener<string>>();
 	const sidecarRestartListeners = new Set<ValueListener<void>>();

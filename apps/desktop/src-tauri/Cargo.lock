@@ -680,11 +680,8 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
-<<<<<<< HEAD
  "sysinfo",
-=======
  "system-configuration",
->>>>>>> node/plat.26
  "tauri",
  "tauri-build",
  "tauri-plugin-clipboard-manager",
