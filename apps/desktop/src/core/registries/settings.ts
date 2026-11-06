@@ -1663,6 +1663,18 @@ const SETTINGS_TABLE = [
 		type: "string",
 		default: "",
 	},
+	// Our design choice: one list for every callout, so "Reset callout dismissals" clears one value.
+	{
+		key: "dismissed_callouts",
+		page: "state",
+		scopes: ["user"],
+		title: "Dismissed callouts",
+		description: "Ids of the hints you dismissed, so they stay hidden.",
+		searchTerms: ["callout", "hint", "coach mark", "dismiss"],
+		feature: "APP-10",
+		type: "string-list",
+		default: [],
+	},
 	{
 		key: "local_env_vars_import_banner_dismissed",
 		page: "state",
