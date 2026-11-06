@@ -16,6 +16,7 @@
  * useActions().agents.setProviderKey and removeProviderKey, and Actions.settings for the Bedrock
  * region, the Vertex project and the model filter.
  * Must handle: a key already saved (shown as configured, never its value), saving over one key,
+ * an OpenCode variable two providers share (shown as saved under both, one value for both),
  * removing a key, "use the key from this Mac" (the sidecar reads it from the login shell), a missing
  * required Bedrock field, the region included ("Enter all required Bedrock fields."), Bedrock
  * credentials of the other mode left from an earlier save (removed), a saved test model the user
@@ -63,6 +64,11 @@ interface KeyFormProps {
 	label: string;
 	description: string;
 	keys: readonly ProviderKeyView[];
+	/**
+	 * OpenCode and Pi: the variable is the key, whichever provider saved it, because the agent reads
+	 * every stored key and several providers share one variable.
+	 */
+	sharedVariable?: boolean;
 	onSave: (key: KeyRef, value: string | null, fromMac: boolean) => Promise<void>;
 	onRemove: (key: KeyRef) => Promise<void>;
 }
@@ -79,10 +85,13 @@ function KeyForm({
 	label,
 	description,
 	keys,
+	sharedVariable = false,
 	onSave,
 	onRemove,
 }: KeyFormProps) {
-	const saved = keys.find((key) => key.provider === provider && key.envVar === envVar);
+	const saved = keys.find(
+		(key) => key.envVar === envVar && (sharedVariable || key.provider === provider),
+	);
 	const [value, setValue] = useState("");
 	const [fromMac, setFromMac] = useState(saved?.source === "this_mac");
 	const [busy, setBusy] = useState(false);
@@ -139,7 +148,9 @@ function KeyForm({
 				<p className="text-xs text-fg-muted">
 					{saved.source === "this_mac"
 						? "Using the key from this Mac's environment."
-						: "A key is saved for this provider."}
+						: saved.provider === provider
+							? "A key is saved for this provider."
+							: `A key saved for another provider fills ${envVar}, so it is used here too.`}
 				</p>
 			) : null}
 		</div>
@@ -224,6 +235,7 @@ function AcpProviderKeys({ agent, acpAgent, keys, onSave, onRemove }: AcpProvide
 							}
 							description={`The key is stored in the Keychain as ${envVar}.`}
 							keys={keys}
+							sharedVariable
 							onSave={onSave}
 							onRemove={onRemove}
 						/>

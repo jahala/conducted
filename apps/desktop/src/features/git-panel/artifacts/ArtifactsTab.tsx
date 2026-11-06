@@ -1,14 +1,17 @@
 /**
  * @feature REV-10 Artifacts tab
  * Owns: the Artifacts tab body. A list of the files the agent left in the workspace's `.context`
- * folder, in pages, with an "Upload files" button and an "Attach to chat" action on each file.
+ * folder (files only, no folders), in pages, with an "Upload files" button and an "Attach to chat"
+ * action on each file. The file's absolute path comes from the workspace files service.
  * Cards for a running preview URL and for each detected port sit in the same list.
  * Behaviour: services-map.md 5A.5.1 and 5A.6.2 (the artifacts command, the exclusions), ui-map.md
  * 3.6 ("Artifacts"). The setting "Show Artifacts tab" decides whether the tab is offered (REV-10).
- * Data: useArtifacts, useWorkspace, useActions, the run store's URLs and ports.
+ * Data: useArtifacts, useWorkspace, useActions, the workspace files service (an artifact's absolute
+ * path), the run store's URLs and ports.
  * Must handle: the first page loading ("Loading artifacts..."), a failed first page with Try
  * again, an empty `.context` folder, an omitted-file notice, a next page on demand, an upload the
- * user cancels, an upload that fails, an attach with no workspace folder, an archived workspace
+ * user cancels, an upload that fails (a name already in `.context` included), a file picker that
+ * fails to open (its error is shown), an attach with no workspace folder, an archived workspace
  * (the notice instead of a read), and a workspace switch while a read is in flight (the service
  * keeps only the newest answer).
  * Our design choice: the list draws the preview cards before the files, so the two things a user
@@ -28,13 +31,11 @@ import { EmptyState } from "../../../ui/EmptyState.tsx";
 import { FileIcon, GlobeIcon } from "../../../ui/icons.tsx";
 import { LoadableView } from "../../../ui/LoadableView.tsx";
 import { Skeleton } from "../../../ui/Skeleton.tsx";
-import { toast, toastError } from "../../../ui/Toast.tsx";
+import { toastError } from "../../../ui/Toast.tsx";
 
 export interface ArtifactsTabProps {
 	workspaceId: WorkspaceId;
 }
-
-const trimRoot = (path: string): string => path.replace(/\/+$/, "");
 
 const sizeLabel = (bytes: number): string => {
 	if (bytes < 1024) return `${bytes} B`;
@@ -87,9 +88,7 @@ function FileCard({ entry, onAttach }: FileCardProps) {
 				<p className="truncate text-sm text-fg" title={entry.path}>
 					{entry.path}
 				</p>
-				<p className="text-xs text-fg-subtle">
-					{entry.isDirectory ? "Folder" : sizeLabel(entry.sizeBytes)}
-				</p>
+				<p className="text-xs text-fg-subtle">{sizeLabel(entry.sizeBytes)}</p>
 			</div>
 			<Button
 				size="xs"
@@ -103,15 +102,7 @@ function FileCard({ entry, onAttach }: FileCardProps) {
 	);
 }
 
-function ArtifactsBody({
-	workspaceId,
-	workspacePath,
-	view,
-}: {
-	workspaceId: WorkspaceId;
-	workspacePath: string | null;
-	view: ArtifactsView;
-}) {
+function ArtifactsBody({ workspaceId, view }: { workspaceId: WorkspaceId; view: ArtifactsView }) {
 	const actions = useActions();
 	const services = useServices();
 	const run = useStore(
@@ -134,15 +125,12 @@ function ArtifactsBody({
 		});
 	};
 
-	const attach = (entry: ArtifactEntry) => {
-		if (workspacePath === null) {
-			toast.error("Couldn't attach the file to the chat");
-			return;
-		}
-		const absolute = `${trimRoot(workspacePath)}/.context/${entry.path}`;
-		void actions.files.attachToChat(workspaceId, [absolute]).then((result) => {
-			if (!result.ok) toastError("Couldn't attach the file to the chat", result.error);
-		});
+	const attach = async (entry: ArtifactEntry) => {
+		const absolute = await services.services.workspaceFiles.artifactPath(workspaceId, entry.path);
+		const result = absolute.ok
+			? await actions.files.attachToChat(workspaceId, [absolute.value])
+			: absolute;
+		if (!result.ok) toastError("Couldn't attach the file to the chat", result.error);
 	};
 
 	const loadMore = async () => {
@@ -190,7 +178,7 @@ function ArtifactsBody({
 				))}
 				{view.entries.map((entry) => (
 					<li key={`file:${entry.path}`}>
-						<FileCard entry={entry} onAttach={attach} />
+						<FileCard entry={entry} onAttach={(picked) => void attach(picked)} />
 					</li>
 				))}
 			</ul>
@@ -210,15 +198,10 @@ function ArtifactsBody({
 	);
 }
 
-function LiveArtifactsTab({
-	workspaceId,
-	workspacePath,
-}: {
-	workspaceId: WorkspaceId;
-	workspacePath: string | null;
-}) {
+function LiveArtifactsTab({ workspaceId }: { workspaceId: WorkspaceId }) {
 	const artifacts = useArtifacts(workspaceId);
 	const services = useServices();
+	const actions = useActions();
 	const [uploading, setUploading] = useState(false);
 
 	const upload = async () => {
@@ -230,12 +213,14 @@ function LiveArtifactsTab({
 					title: "Upload files",
 					multiple: true,
 				});
-			} catch {
-				toast.error("Couldn't open the file picker");
+			} catch (error) {
+				toastError("Couldn't open the file picker", {
+					message: error instanceof Error ? error.message : String(error),
+				});
 				return;
 			}
 			if (picked.length === 0) return;
-			const result = await services.actions.artifacts.upload(workspaceId, picked);
+			const result = await actions.artifacts.upload(workspaceId, picked);
 			if (!result.ok) toastError("Couldn't upload the files", result.error);
 		} finally {
 			setUploading(false);
@@ -259,9 +244,7 @@ function LiveArtifactsTab({
 					onRetry={() => void services.services.workspaceFiles.loadArtifacts(workspaceId)}
 					compact
 				>
-					{(view) => (
-						<ArtifactsBody workspaceId={workspaceId} workspacePath={workspacePath} view={view} />
-					)}
+					{(view) => <ArtifactsBody workspaceId={workspaceId} view={view} />}
 				</LoadableView>
 			</div>
 		</div>
@@ -279,10 +262,5 @@ export function ArtifactsTab({ workspaceId }: ArtifactsTabProps) {
 			/>
 		);
 	}
-	return (
-		<LiveArtifactsTab
-			workspaceId={workspaceId}
-			workspacePath={workspace.state === "ready" ? workspace.data.path : null}
-		/>
-	);
+	return <LiveArtifactsTab workspaceId={workspaceId} />;
 }

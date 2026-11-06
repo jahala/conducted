@@ -19,7 +19,10 @@
  * cancelLogin. A key an agent hands back (Cursor) is refused: the user enters it in the provider
  * forms instead. A provider key typed on the page goes into the Keychain and its row into
  * `provider_keys`; "use the key from this Mac" stores only the choice. Removing a key removes both
- * the row and its Keychain entry.
+ * the row and its Keychain entry. OpenCode and Pi read every stored key at once, and OpenCode's
+ * catalogue gives one variable to several providers (ZHIPU_API_KEY for Z.AI and Zhipu AI), so
+ * for an ACP agent a variable has one row: saving it under one provider replaces the rows of the
+ * same variable under the others, and removing it removes it for every provider.
  * Our design choice: the catalogue caches per agent key in memory only. Nothing about models is
  * saved to disk. A provider key's Keychain name is built from the agent, ACP agent, provider and
  * variable, so saving the same key twice replaces one entry. OpenCode and Pi use OpenCode's own
@@ -84,6 +87,12 @@ export interface AgentCatalogServiceDeps {
 	/** Where a typed provider key is kept. Absent only in tests that do not use provider keys. */
 	keychain?: Pick<Keychain, "get" | "set" | "delete">;
 }
+
+/**
+ * Whether every stored key of the agent reaches its launch, whatever the provider. True for the
+ * ACP agents: they pick a provider in their own config, so the container passes them all.
+ */
+export const keysShareVariables = (agent: AgentKind): boolean => agent === "acp";
 
 /** The Keychain entry for one provider key. Stable, so saving twice replaces one entry. */
 export function providerKeychainRef(key: ProviderKeyRef): string {
@@ -390,8 +399,41 @@ export class AgentCatalogService {
 				if (!removed.ok) return err(removed.error);
 			}
 		}
+		if (keysShareVariables(key.agent)) {
+			const others = await this.#removeVariable(key, (provider) => provider !== key.provider);
+			if (!others.ok) return others;
+		}
 		const loaded = await this.loadProviderKeys(key.agent, key.acpAgent ?? undefined);
 		return loaded.ok ? ok(undefined) : err(loaded.error);
+	}
+
+	/**
+	 * Removes the agent's rows of `key.envVar` whose provider `matches`, with their Keychain entries.
+	 * Stops at the first failure.
+	 */
+	async #removeVariable(
+		key: ProviderKeyRef,
+		matches: (provider: string) => boolean,
+	): Promise<Result<void>> {
+		const repository = this.#deps.providerKeys;
+		const keychain = this.#deps.keychain;
+		if (repository === undefined || keychain === undefined) {
+			return err(
+				appError("agent_key_store_unavailable", "The provider key store is not available."),
+			);
+		}
+		const listed = await repository.listForAgent(key.agent, key.acpAgent);
+		if (!listed.ok) return err(listed.error);
+		for (const row of listed.value) {
+			if (row.envVar !== key.envVar || !matches(row.provider)) continue;
+			const deleted = await repository.delete(row);
+			if (!deleted.ok) return err(deleted.error);
+			if (row.keychainRef !== null) {
+				const removed = await keychain.delete(row.keychainRef);
+				if (!removed.ok) return err(removed.error);
+			}
+		}
+		return ok(undefined);
 	}
 
 	/** Backs `Actions.agents.removeProviderKey`. Also removes the Keychain entry. */
@@ -409,14 +451,19 @@ export class AgentCatalogService {
 			provider: key.provider,
 			envVar: key.envVar,
 		};
-		const existing = await repository.get(name);
-		if (!existing.ok) return err(existing.error);
-		const deleted = await repository.delete(name);
-		if (!deleted.ok) return err(deleted.error);
-		const ref = existing.value?.keychainRef;
-		if (ref !== null && ref !== undefined) {
-			const removed = await keychain.delete(ref);
-			if (!removed.ok) return err(removed.error);
+		if (keysShareVariables(key.agent)) {
+			const removedAll = await this.#removeVariable(key, () => true);
+			if (!removedAll.ok) return removedAll;
+		} else {
+			const existing = await repository.get(name);
+			if (!existing.ok) return err(existing.error);
+			const deleted = await repository.delete(name);
+			if (!deleted.ok) return err(deleted.error);
+			const ref = existing.value?.keychainRef;
+			if (ref !== null && ref !== undefined) {
+				const removed = await keychain.delete(ref);
+				if (!removed.ok) return err(removed.error);
+			}
 		}
 		const loaded = await this.loadProviderKeys(key.agent, key.acpAgent ?? undefined);
 		return loaded.ok ? ok(undefined) : err(loaded.error);
