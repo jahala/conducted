@@ -222,7 +222,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | REV-07 | Quick open and search in files                                         | D/features/palette                      | ui-map 3.10                     | 2   | done   | PLAT-06                          |
 | REV-08 | File viewer and editor with previews (Markdown, images, SVG, PDF, CSV) | D/features/file-viewer                  | ui-map 3.2                      | 2   | done   | PLAT-05, REV-06                  |
 | REV-09 | Changes per turn, from checkpoints                                     | D/core/services                         | services-map 3.12               | 2   | done   | SIDE-08, CHAT-07                 |
-| REV-10 | Artifacts tab for the workspace `.context` folder                      | D/features/git-panel, R/files.rs        | services-map 5A.5.1; ui-map 3.6 | 2   | stub   | REV-06, PLAT-06, COMP-07, SET-01 |
+| REV-10 | Artifacts tab for the workspace `.context` folder                      | D/features/git-panel, R/files.rs        | services-map 5A.5.1; ui-map 3.6 | 2   | done   | REV-06, PLAT-06, COMP-07, SET-01 |
 | REV-11 | Resolve conflicts inline: current, incoming or both                    | D/features/diff, D/features/file-viewer | ui-map 3.6                      | 3   | stub   | REV-02, REV-08, GIT-07           |
 | REV-12 | Review comment states, and which messages carried them                 | D/core/services, D/core/db              | services-map 2.2, 2.3           | 2   | done   | REV-03, DATA-08                  |
 | REV-13 | Pull request comments without a file, with author avatars              | D/core/services, D/features/pr          | services-map 5B                 | 3   | stub   | REV-04, PR-07, DATA-08           |
@@ -288,7 +288,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | SET-07 | Repo pages: scripts, actions, prompts                             | D/features/settings                | ui-map 6                  | 2   | done    | SET-01, DATA-05, APP-12, PRJ-04           |
 | SET-08 | Sync agent configs between Claude Code and Codex                  | D/features/settings, S/models      | ui-map 5.2, 6             | 3   | stub    | SET-01, SET-02, SIDE-16, PLAT-05          |
 | SET-09 | Agent sign-in and API key forms                                   | D/features/settings, S/runners     | ui-map 6                  | 2   | done    | SET-03, APP-12, PLAT-10, SIDE-10, SIDE-21 |
-| SET-10 | OpenCode providers and their keys                                 | D/features/settings, S/runners/acp | ui-map 6                  | 2   | stub    | SET-09, AGENT-12                          |
+| SET-10 | OpenCode providers and their keys                                 | D/features/settings, S/runners/acp | ui-map 6                  | 2   | done    | SET-09, AGENT-12                          |
 | SET-11 | Suggested variable names in the Environment form                  | D/features/settings                | ui-map 6                  | 3   | stub    | SET-04                                    |
 | SET-12 | Claude settings and Codex config editors, Claude in Chrome switch | D/features/settings                | ui-map 6; claude-runner 1 | 3   | stub    | SET-03, APP-12, AGENT-16                  |
 | SET-13 | Chosen program paths reach terminals and scripts                  | D/core/services, R/shell.rs        | services-map 5A.8.2       | 3   | stub    | SET-03, PLAT-04, PLAT-07                  |
