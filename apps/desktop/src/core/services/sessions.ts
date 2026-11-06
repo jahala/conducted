@@ -121,7 +121,7 @@ import type { StoredSessionEvent } from "../db/session-events.ts";
 import { trashIfPresent } from "../fs-helpers.ts";
 import { turnCheckpointId } from "../git/refs.ts";
 import { parseEffortSetting } from "../lookups.ts";
-import type { ChatView, Session } from "../model.ts";
+import type { ChatView, DiagnosticsCapture, Session } from "../model.ts";
 import type { SidecarClient } from "../sidecar/tunnel.ts";
 import type { ComposerService } from "./composer.ts";
 import { agentCanSteer, chooseDelivery, type FollowUpQueue } from "./follow-up-queue.ts";
@@ -328,9 +328,16 @@ export interface SessionsServiceDeps {
 	setting: <T>(key: string) => T;
 	/** Writes text to the clipboard for a copied transcript. The composition root passes the SystemService's one copy path. */
 	copyText?: (text: string) => Promise<Result<void>>;
+	/** APP-03: captures the diagnostics facts for a report. */
+	captureDiagnostics?: () => Promise<Result<DiagnosticsCapture>>;
+	/** APP-03: writes the redacted report and returns the file's path. */
+	writeDiagnosticsReport?: (capture: DiagnosticsCapture) => Promise<Result<string>>;
 	now: () => number;
 	newId: () => string;
 }
+
+/** The message that carries the diagnostics report into the new chat. Our words. */
+const DIAGNOSTICS_CHAT_PROMPT = "Here is my Conducted diagnostics report.";
 
 /**
  * Reuses the turns that did not change, so a memoised list item sees the same object while a
@@ -1309,8 +1316,40 @@ export class SessionsService implements AgentMessenger {
 	}
 
 	/** Backs `Actions.app.createDiagnosticsChat`: saves the redacted report and starts a chat with it attached. */
-	createDiagnosticsChat(_workspaceId: WorkspaceId): Promise<Result<void>> {
-		return notImplemented("APP-03");
+	async createDiagnosticsChat(workspaceId: WorkspaceId): Promise<Result<void>> {
+		const capture = this.#deps.captureDiagnostics;
+		const write = this.#deps.writeDiagnosticsReport;
+		if (capture === undefined || write === undefined) {
+			return err(
+				appError(
+					"diagnostics_unavailable",
+					"The diagnostics report cannot be written because the report writer was not provided.",
+				),
+			);
+		}
+		const captured = await capture();
+		if (!captured.ok) return captured;
+		const written = await write(captured.value);
+		if (!written.ok) return written;
+		const config = await this.#deps.defaultConfig(workspaceId);
+		if (!config.ok) return config;
+		const created = await this.create(workspaceId, config.value);
+		if (!created.ok) return created;
+		// A new chat has no draft, so the attachment path is put there for materializeForSend.
+		this.#deps.composer.saveDraft(created.value.id, {
+			text: "",
+			attachmentPaths: [written.value],
+		});
+		const sent = await this.send(
+			created.value.id,
+			DIAGNOSTICS_CHAT_PROMPT,
+			[written.value],
+			"auto",
+		);
+		if (sent.ok) return ok(undefined);
+		const removed = await this.delete(created.value.id);
+		if (!removed.ok) return err(appError(sent.error.code, sent.error.message, removed.error));
+		return sent;
 	}
 
 	/**

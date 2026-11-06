@@ -30,6 +30,7 @@ import { useSystemInfo } from "./core/hooks.ts";
 import type { SoundPlayer } from "./core/services/notifications.ts";
 import { tomlCodec } from "./core/services/toml-codec.ts";
 import type { PlaceNames } from "./core/services/workspace.ts";
+import { writeRedactedReport } from "./features/diagnostics/diagnostics-report.ts";
 import { isWrongCpuBuild } from "./features/updates/RosettaConfirm.tsx";
 import type { Platform, SystemInfo } from "./platform/platform.ts";
 import { createTauriPlatform } from "./platform/tauri.ts";
@@ -130,6 +131,8 @@ export function createAppContainer(
 		sound,
 		windowFocused: () => document.hasFocus(),
 		...(options.openLink === undefined ? {} : { openLink: options.openLink }),
+		writeDiagnosticsReport: (capture, fileName) =>
+			writeRedactedReport(options.platform, capture, fileName),
 	};
 	return createContainer(inputs);
 }

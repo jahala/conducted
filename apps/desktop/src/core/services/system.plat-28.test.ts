@@ -150,6 +150,7 @@ describe("PLAT-28 SystemService programs", () => {
 			const service = new SystemService({
 				platform: test.container.platform,
 				setting: <T>(key: string) => (key === "claude_executable_path" ? "/opt/claude" : "") as T,
+				now: () => 0,
 			});
 			await service.start();
 			await test.container.platform.programs.install("claude");

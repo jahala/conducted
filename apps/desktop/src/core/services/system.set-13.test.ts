@@ -16,6 +16,7 @@ function serviceWith(
 	return new SystemService({
 		platform,
 		setting: <T>(key: string) => (settings[key] ?? "") as T,
+		now: () => 0,
 	});
 }
 

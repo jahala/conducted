@@ -58,7 +58,7 @@ import { createRepositories } from "./db/repositories.ts";
 import { KeyedMutex } from "./git/locks.ts";
 import { ShellGitRunner } from "./git/runner.ts";
 import { createLookups, defaultSessionConfig, type Lookups } from "./lookups.ts";
-import type { Session } from "./model.ts";
+import type { DiagnosticsCapture, Session } from "./model.ts";
 import { AgentCatalogService, agentKey } from "./services/agent-catalog.ts";
 import { ChatTitleService } from "./services/chat-titles.ts";
 import { CHECKPOINT_PRUNE_AFTER_DAYS, CheckpointService } from "./services/checkpoint.ts";
@@ -127,6 +127,14 @@ export interface ContainerInputs {
 	windowFocused: () => boolean;
 	/** Opens a notification click or deep link in the app. The app entry passes its router opener. */
 	openLink?: (url: string) => void;
+	/**
+	 * Writes the redacted diagnostics report for a new chat and returns its path (APP-03). The app
+	 * entry passes the writer, because redaction lives with the diagnostics screen.
+	 */
+	writeDiagnosticsReport?: (
+		capture: DiagnosticsCapture,
+		fileName: string,
+	) => Promise<Result<string>>;
 }
 
 export interface Services {
@@ -283,6 +291,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 	const ready = <T>(result: Result<T>): Promise<Result<T>> => Promise.resolve(result);
 	const setting = <T>(key: string): T => settings.get(key);
 	const paths = platform.fs.paths;
+	const writeDiagnosticsReport = inputs.writeDiagnosticsReport;
 
 	// ---- sidecar side: built first, with closures into services that come later ----
 	const client: SidecarClient = {
@@ -438,7 +447,15 @@ export function createContainer(inputs: ContainerInputs): Container {
 		toml: inputs.toml,
 		git: gitRunner,
 	});
-	const system = new SystemService({ platform, setting });
+	const system = new SystemService({
+		platform,
+		setting,
+		now: () => clock.now(),
+		agentInstalls: () => {
+			const installs = agentCatalog.store.getState().installs;
+			return installs.state === "ready" ? installs.data : [];
+		},
+	});
 	/**
 	 * Builds how one chat's agent starts (SIDE-21): the program the user chose, the provider and its
 	 * region or project, the Environment page's variables (a repository's replacing the global one
@@ -674,6 +691,11 @@ export function createContainer(inputs: ContainerInputs): Container {
 		log,
 		setting,
 		copyText: (text) => system.copyText(text),
+		captureDiagnostics: () => system.captureDiagnostics(),
+		writeDiagnosticsReport:
+			writeDiagnosticsReport === undefined
+				? undefined
+				: (capture) => writeDiagnosticsReport(capture, ids.uuid()),
 		now: () => clock.now(),
 		newId: () => ids.uuid(),
 	});
@@ -891,6 +913,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		handlers: () =>
 			createCommandHandlers(services, {
 				pickFolder: (title) => platform.dialogs.pickFolder({ title }),
+				toggleInspector: () => platform.window.toggleInspector(),
 			}),
 		context: () => {
 			const workspaces = workspace.store.getState().workspacesById;

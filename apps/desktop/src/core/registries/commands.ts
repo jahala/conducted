@@ -163,6 +163,15 @@ export const COMMANDS = [
 		feature: "APP-03",
 	},
 	{
+		id: "app.openDiagnostics",
+		title: "Open diagnostics",
+		category: "General",
+		defaultShortcuts: [],
+		configurable: true,
+		scope: "global",
+		feature: "APP-03",
+	},
+	{
 		id: "app.closeDiagnostics",
 		title: "Close the diagnostics page",
 		category: "General",

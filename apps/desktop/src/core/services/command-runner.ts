@@ -37,6 +37,8 @@ export type CommandServices = Pick<Services, "repo" | "updates" | "system">;
 export interface CommandPorts {
 	/** Shows the folder dialog for `project.add`. Null means the user cancelled. */
 	pickFolder?: (title: string) => Promise<string | null>;
+	/** Opens or closes the web inspector for `app.openDebugTools`. */
+	toggleInspector?: () => Promise<void>;
 }
 
 export interface CommandRunnerDeps {
@@ -140,7 +142,21 @@ export function createCommandHandlers(
 	const handlers: CommandHandlers = {
 		"app.checkForUpdates": () => services.updates.check(),
 		"app.openSidecarLogs": () => services.system.openSidecarLogs(),
+		"app.openLogViewer": () => services.system.openAppLogs(),
 	};
+	const toggleInspector = ports.toggleInspector;
+	if (toggleInspector !== undefined) {
+		handlers["app.openDebugTools"] = async () => {
+			try {
+				await toggleInspector();
+				return ok(undefined);
+			} catch (cause) {
+				return err(
+					appError("debug_tools_failed", "The developer tools could not be opened.", cause),
+				);
+			}
+		};
+	}
 	const pickFolder = ports.pickFolder;
 	if (pickFolder !== undefined) {
 		handlers["project.add"] = async () => {
