@@ -2,6 +2,7 @@
  * @feature REV-01 GitPanel
  * @feature GIT-06 Cmd+Shift+L and the pull outcome toasts
  * @feature PR-06 Cmd+Shift+M merges the pull request
+ * @feature GIT-17 Continue after a merge or from a detached HEAD
  * Owns: right panel, top half. A header (status chip and main action), a tab strip, and the
  * active tab: All files, Changes or Checks. Entry point embedded by the workspace screen.
  * Behaviour: ui-map.md 3.6 (tab strip, header, tabs); frontend layout in structure-map.md 3.2.
@@ -24,7 +25,8 @@
  * workspace switch mid-request (the old request's result does not touch the new workspace's
  * dialog), and one header action at a time per workspace and action: the header button and the
  * Cmd+Shift+P, Cmd+Shift+Y, Cmd+Shift+L and Cmd+Shift+M shortcuts share one single-flight guard, so a second
- * key press or click while the action runs is ignored.
+ * key press or click while the action runs is ignored, and a merged pull request or a detached HEAD
+ * gets the Continue header instead of the computed header.
  * Test first: with a GitState of two uncommitted files the header reads "Uncommitted changes" and
  * the main action is "Commit and push".
  */
@@ -36,7 +38,11 @@ import { createSingleFlight } from "../../core/async/single-flight.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions, useGitState, useSetting, useWorkspaceStatus } from "../../core/hooks.ts";
 import type { GitPanelTab } from "../../core/model.ts";
-import { PULL_UP_TO_DATE_MESSAGE, PULLED_LATEST_MESSAGE } from "../../core/services/git.ts";
+import {
+	CONTINUE_NOTE_FAILED_MESSAGE,
+	PULL_UP_TO_DATE_MESSAGE,
+	PULLED_LATEST_MESSAGE,
+} from "../../core/services/git.ts";
 import {
 	computeGitHeader,
 	type GitHeaderActionId,
@@ -46,6 +52,7 @@ import { Button } from "../../ui/Button.tsx";
 import { NotBuiltYet } from "../../ui/not-built-yet.tsx";
 import { Skeleton } from "../../ui/Skeleton.tsx";
 import { toast, toastError } from "../../ui/Toast.tsx";
+import { ContinueHeader, continueHeaderFor } from "./ContinueHeader.tsx";
 import { ChangesTab } from "./changes/ChangesTab.tsx";
 import { ChecksTab } from "./checks/ChecksTab.tsx";
 import { summarizeChecks } from "./checks/checks-summary.ts";
@@ -110,11 +117,18 @@ export function GitPanel({
 	const [ownScope, setOwnScope] = useState<DiffScope>(DEFAULT_SCOPE);
 	const [reviewPromptOpen, setReviewPromptOpen] = useState(false);
 	const [reviewingFor, setReviewingFor] = useState<WorkspaceId | null>(null);
+	const [continuingFor, setContinuingFor] = useState<WorkspaceId | null>(null);
+	const [continuedPr, setContinuedPr] = useState<{
+		workspaceId: WorkspaceId;
+		number: number;
+		updatedAt: number;
+	} | null>(null);
 	const [reviewFlight] = useState(() => createSingleFlight());
 	const [actionFlight] = useState(() => createSingleFlight());
 	const currentWorkspace = useRef(workspaceId);
 	currentWorkspace.current = workspaceId;
 	const reviewBusy = reviewingFor === workspaceId;
+	const continueBusy = continuingFor === workspaceId;
 	const tab = tabProp ?? ownTab;
 	const scope = scopeProp ?? ownScope;
 	const headerInputs: GitHeaderInputs | null =
@@ -230,6 +244,39 @@ export function GitPanel({
 	const runGuarded = (action: GitHeaderActionId): Promise<void> =>
 		actionFlight.run(`${workspaceId}:${action}`, () => runAction(action));
 
+	// Continue shares the panel's single-flight guard with the other header actions. A success
+	// hides the Continue header until the merged pull request is re-read, so a second click cannot
+	// start another branch while the old merged state is still in the store.
+	const runContinue = (): void => {
+		const key = `${workspaceId}:continue`;
+		if (actionFlight.isRunning(key)) return;
+		setContinuingFor(workspaceId);
+		void actionFlight
+			.run(key, () => actions.git.continueOnNewBranch(workspaceId, null))
+			.then(async (result) => {
+				if (!result.ok) {
+					if (result.error.code === "continue_note_failed") {
+						toastError(CONTINUE_NOTE_FAILED_MESSAGE, result.error);
+					} else {
+						toastError("Couldn't continue on a new branch", result.error);
+					}
+					return;
+				}
+				// Remember which merged pull request this continue used, so the same closed state
+				// cannot offer Continue a second time before the next GitHub read.
+				const merged = git.state === "ready" ? git.data.pullRequest : null;
+				if (merged?.state === "merged") {
+					setContinuedPr({
+						workspaceId,
+						number: merged.number,
+						updatedAt: merged.updatedAt,
+					});
+				}
+				await refresh();
+			})
+			.finally(() => setContinuingFor((current) => (current === workspaceId ? null : current)));
+	};
+
 	// Cmd+Shift+P. The panel knows the active workspace, so the shortcut reaches the same action
 	// as the header's Create PR button instead of a service that has no workspace to act on.
 	useCommandHandler("git.createPr", "area", () => {
@@ -304,6 +351,22 @@ export function GitPanel({
 			);
 		}
 		if (headerInputs === null) return null;
+		const continuedThisPr =
+			continuedPr !== null &&
+			continuedPr.workspaceId === workspaceId &&
+			continuedPr.number === git.data.pullRequest?.number &&
+			continuedPr.updatedAt === git.data.pullRequest?.updatedAt;
+		const continueModel = continuedThisPr ? null : continueHeaderFor(git.data);
+		if (continueModel !== null) {
+			return (
+				<ContinueHeader
+					key={workspaceId}
+					model={continueModel}
+					busy={continueBusy}
+					onContinue={runContinue}
+				/>
+			);
+		}
 		return <ComputedHeader key={workspaceId} inputs={headerInputs} onAction={runGuarded} />;
 	})();
 

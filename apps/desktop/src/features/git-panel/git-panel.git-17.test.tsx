@@ -1,0 +1,192 @@
+/**
+ * @feature GIT-17 Continue after a merge or from a detached HEAD
+ * Owns: the Git panel's Continue header: a merged pull request and a detached HEAD both offer
+ * Continue, the button reaches `git.continueOnNewBranch`, and a note failure shows the Conductor
+ * message.
+ * Behaviour: inventory-ui-text.md "Continue after merge"; services-map.md 3.1; inventory:toast row
+ * 578 ("Failed to attach continue context").
+ * Test first: a merged pull request shows a Continue button, and clicking it continues on a new
+ * branch with no typed name.
+ */
+import { appError, ok } from "@conducted/shared";
+import {
+	createMemoryHistory,
+	createRootRoute,
+	createRoute,
+	createRouter,
+	RouterProvider,
+} from "@tanstack/react-router";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { AppProviders, createQueryClient } from "../../app/providers.tsx";
+import { ServicesProvider } from "../../core/context.tsx";
+import type { PullRequest, Workspace } from "../../core/model.ts";
+import { CONTINUE_NOTE_FAILED_MESSAGE } from "../../core/services/git.ts";
+import {
+	createTestContainer,
+	seedRepo,
+	seedWorkspace,
+	type TestContainer,
+} from "../../test/container.ts";
+import { GitPanel } from "./GitPanel.tsx";
+
+const state = vi.hoisted(() => ({
+	toast: vi.fn(),
+	toastError: vi.fn(),
+}));
+
+vi.mock("../../ui/Toast.tsx", () => ({
+	toast: { success: state.toast },
+	toastError: state.toastError,
+}));
+
+let test: TestContainer | null = null;
+
+afterEach(async () => {
+	cleanup();
+	vi.restoreAllMocks();
+	state.toast.mockReset();
+	state.toastError.mockReset();
+	if (test !== null) {
+		await test.container.stop();
+		test.close();
+	}
+	test = null;
+});
+
+const pullRequest = (overrides: Partial<PullRequest> = {}): PullRequest => ({
+	number: 12,
+	url: "https://github.com/me/project/pull/12",
+	title: "A change",
+	body: "",
+	state: "open",
+	mergeable: "mergeable",
+	reviewDecision: null,
+	checks: [],
+	inMergeQueue: false,
+	autoMergeEnabled: false,
+	baseBranch: "main",
+	authorLogin: "octocat",
+	viewerDidAuthor: true,
+	viewerCanMerge: true,
+	mergeMethod: "squash",
+	reviewers: [],
+	deployments: [],
+	updatedAt: 0,
+	...overrides,
+});
+
+/** A workspace with the given branch, git snapshot and pull request in the stores. */
+async function seedPanel(options: {
+	branch: string;
+	pullRequest: PullRequest | null;
+}): Promise<{ test: TestContainer; workspace: Workspace }> {
+	test = createTestContainer();
+	const repo = await seedRepo(test.container);
+	const workspace = await seedWorkspace(test.container, {
+		repoId: repo.id,
+		branch: options.branch === "" ? "feat" : options.branch,
+	});
+	test.container.services.git.store.setState({
+		byWorkspace: {
+			[workspace.id]: {
+				snapshot: {
+					depth: "full",
+					branch: options.branch,
+					mergeBase: "abc123",
+					mergeBaseError: null,
+					files: [],
+					conflictedPaths: [],
+					untrackedTruncated: false,
+					uncommittedFiles: 0,
+					changedFiles: 0,
+					operation: "none",
+					commits: [],
+					sync: { ahead: 0, behind: 0, rewritten: false, hasUpstream: true },
+					behindTarget: 0,
+				},
+				error: null,
+				refreshedAt: 1,
+			},
+		},
+	});
+	test.container.services.github.store.setState({
+		byWorkspace: {
+			[workspace.id]: {
+				pullRequest: options.pullRequest,
+				unavailable: "none",
+				fetchedAt: 1,
+			},
+		},
+	});
+	return { test, workspace };
+}
+
+/** Mounts the panel under the providers the workspace screen uses. */
+async function renderPanel(harness: TestContainer, workspace: Workspace): Promise<void> {
+	const rootRoute = createRootRoute();
+	const route = createRoute({
+		getParentRoute: () => rootRoute,
+		path: "/",
+		component: () => <GitPanel workspaceId={workspace.id} />,
+	});
+	const router = createRouter({
+		routeTree: rootRoute.addChildren([route]),
+		history: createMemoryHistory({ initialEntries: ["/"] }),
+	});
+	render(
+		<ServicesProvider container={harness.container}>
+			<AppProviders client={createQueryClient(() => {})}>
+				<RouterProvider router={router} />
+			</AppProviders>
+		</ServicesProvider>,
+	);
+	await router.load();
+}
+
+describe("GIT-17 Continue header", () => {
+	it("offers Continue after a merge and starts a branch with no typed name", async () => {
+		const { test: harness, workspace } = await seedPanel({
+			branch: "feat",
+			pullRequest: pullRequest({ state: "merged" }),
+		});
+		const continueBranch = vi
+			.spyOn(harness.container.services.git, "continueOnNewBranch")
+			.mockResolvedValue(ok(undefined));
+		vi.spyOn(harness.container.services.git, "refresh").mockResolvedValue(ok(undefined));
+		await renderPanel(harness, workspace);
+
+		fireEvent.click(await screen.findByRole("button", { name: /Continue/ }));
+
+		await waitFor(() => expect(continueBranch).toHaveBeenCalledWith(workspace.id, null));
+	});
+
+	it("offers Continue when HEAD is detached", async () => {
+		const { test: harness, workspace } = await seedPanel({
+			branch: "",
+			pullRequest: null,
+		});
+		await renderPanel(harness, workspace);
+
+		expect(await screen.findByRole("button", { name: /Continue/ })).toBeTruthy();
+	});
+
+	it("shows the attach message when the continuation note cannot be written", async () => {
+		const { test: harness, workspace } = await seedPanel({
+			branch: "feat",
+			pullRequest: pullRequest({ state: "merged" }),
+		});
+		const failure = appError("continue_note_failed", CONTINUE_NOTE_FAILED_MESSAGE);
+		vi.spyOn(harness.container.services.git, "continueOnNewBranch").mockResolvedValue({
+			ok: false,
+			error: failure,
+		});
+		await renderPanel(harness, workspace);
+
+		fireEvent.click(await screen.findByRole("button", { name: /Continue/ }));
+
+		await waitFor(() =>
+			expect(state.toastError).toHaveBeenCalledWith(CONTINUE_NOTE_FAILED_MESSAGE, failure),
+		);
+	});
+});

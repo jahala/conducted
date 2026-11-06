@@ -5,6 +5,7 @@
  * @feature GIT-05 Commit and push, done by the agent on request
  * @feature GIT-07 Resolve conflicts, done by the agent on request
  * @feature GIT-12 Branch lists, branch commits and switch branch
+ * @feature GIT-17 Continue after a merge or from a detached HEAD
  * Owns: the repository's local branch list for the create-from picker; polling each shown
  * workspace's git state at the requested depth, the four-slot limiter, and the last error per
  * workspace. Also the write actions that move a branch across the remote:
@@ -58,8 +59,11 @@
  * from the other git actions. The branch commits the diff scope lists come from the workspace poll
  * above. `dispose` stops every workspace and branch watcher, and the container's `stop()` calls
  * it, so no poll outlives the app even when a caller never unsubscribed.
- * The branch picker hooks, the "Switch branch?" confirmation and "Continue" from a detached HEAD
- * belong to WS-02, the screen that shows the dialog and GIT-17; they are not built here.
+ * GIT-17: Continue creates a branch in the same worktree and keeps the chats. After a merge it
+ * starts from the target branch; from a detached HEAD it starts from the current commit. It writes
+ * a "Branch continued" note, saves the new branch on the workspace, and sends the note to the open
+ * chat. A note or chat failure is reported as "Failed to attach continue context"; the branch
+ * itself stays.
  * Test first: a workspace watched at depth full runs its poll immediately and again once the
  * interval has passed.
  */
@@ -82,8 +86,10 @@ import { createKeyedQueue } from "../async/serial-queue.ts";
 import { createSingleFlight } from "../async/single-flight.ts";
 import {
 	branchListLocal,
+	branchShowCurrent,
 	catFileExists,
 	checkout,
+	checkoutNewBranch,
 	configGet,
 	configPullFf,
 	configPullRebase,
@@ -116,7 +122,7 @@ import {
 } from "../git/commands.ts";
 import { type ComparisonContext, resolveComparison } from "../git/diff.ts";
 import { checkpointRef, turnCheckpointId } from "../git/refs.ts";
-import { renameBranchInWorktree } from "../git/rename.ts";
+import { freeBranchName, renameBranchInWorktree } from "../git/rename.ts";
 import type { GitRunner } from "../git/runner.ts";
 import {
 	type ChangesSnapshot,
@@ -132,6 +138,7 @@ import {
 	remoteTargetRef,
 	type WorktreeEntry,
 } from "../git/status.ts";
+import { resolveBaseCommit } from "../git/worktree.ts";
 import type { GitState, PullRequestAction } from "../model.ts";
 import {
 	type AgentPullStrategy,
@@ -259,6 +266,23 @@ export function parseCheckedOutBranches(text: string): string[] {
 export const PULL_UP_TO_DATE_MESSAGE = "Pulled latest changes. You're up to date!";
 /** Shown after a pull brings in new commits (services-map 3.6.4 step 4). */
 export const PULLED_LATEST_MESSAGE = "Pulled latest changes.";
+
+/** Shown when the "Branch continued" note or its chat message cannot be attached. */
+export const CONTINUE_NOTE_FAILED_MESSAGE = "Failed to attach continue context";
+
+/** The note a continued workspace leaves for its agent (inventory:toast row 578). */
+const CONTINUE_NOTE_FILE_NAME = "Branch continued.md";
+const CONTINUE_NOTE_FOLDER = ".context";
+
+function continueNoteText(input: {
+	previousBranch: string;
+	newBranch: string;
+	startRef: string;
+}): string {
+	const from =
+		input.previousBranch.trim() === "" ? "a detached HEAD" : `branch ${input.previousBranch}`;
+	return `# Branch continued\n\nThe workspace moved from ${from} to the new branch ${input.newBranch}, started from ${input.startRef}.\nContinue the work on ${input.newBranch}.\n\nThis note is saved as ${CONTINUE_NOTE_FOLDER}/${CONTINUE_NOTE_FILE_NAME}.\n`;
+}
 
 /** What a pull did: nothing new, a fast-forward, git's plain pull, or an agent hand-off. */
 export type PullOutcome = "up_to_date" | "fast_forwarded" | "plain" | "handed_to_agent";
@@ -1749,9 +1773,108 @@ export class GitService {
 		return this.#refreshNow(workspaceId, "full");
 	}
 
-	/** Backs `Actions.git.continueOnNewBranch`, and tells the open chat that the branch changed. */
-	continueOnNewBranch(_workspaceId: WorkspaceId, _name: string | null): Promise<Result<void>> {
-		return notImplemented("GIT-17");
+	/**
+	 * Backs `Actions.git.continueOnNewBranch`: creates a branch in the same worktree and keeps the
+	 * chats. After a merge it starts from the target; from a detached HEAD it starts from HEAD. The
+	 * note tells the open chat that the branch changed.
+	 */
+	async continueOnNewBranch(workspaceId: WorkspaceId, name: string | null): Promise<Result<void>> {
+		const found = await this.#deps.contextOf(workspaceId);
+		if (!found.ok) return found;
+		const context = found.value;
+		const requested = name?.trim() ?? "";
+		if (requested !== "" && !isSafeRefName(requested)) {
+			return err(
+				appError("workspace_branch_invalid", `"${requested}" can't be used as a Git branch name.`),
+			);
+		}
+
+		return this.#deps.git.withWorktreeLock(
+			context.workspacePath,
+			async (): Promise<Result<void>> => {
+				const current = await this.#deps.git.stdout(branchShowCurrent(), {
+					cwd: context.workspacePath,
+				});
+				if (!current.ok) return current;
+				const previousBranch = current.value.trim();
+				const detached = previousBranch === "";
+
+				const start = detached
+					? await this.#detachedStart(context.workspacePath)
+					: await this.#targetStart(context);
+				if (!start.ok) return start;
+
+				const base = requested !== "" ? requested : previousBranch || "continue";
+				const free = await freeBranchName(this.#deps.git, {
+					repoRootPath: context.repoRootPath,
+					remote: context.remote.trim(),
+					base,
+				});
+				if (!free.ok) return free;
+				const newBranch = free.value;
+
+				const checkedOut = await this.#deps.git.runChecked(
+					checkoutNewBranch(newBranch, start.value.sha),
+					{ cwd: context.workspacePath },
+				);
+				if (!checkedOut.ok) return checkedOut;
+
+				const saved = await this.#deps.renameWorkspaceBranch(workspaceId, newBranch);
+				if (!saved.ok) return saved;
+
+				const text = continueNoteText({
+					previousBranch,
+					newBranch,
+					startRef: start.value.ref,
+				});
+				const written = await this.#writeContinueNote(context.workspacePath, text);
+				if (!written.ok) {
+					return err(appError("continue_note_failed", CONTINUE_NOTE_FAILED_MESSAGE, written.error));
+				}
+				const sent = await this.#deps.agent.sendInstruction(workspaceId, text);
+				return sent.ok
+					? ok(undefined)
+					: err(appError("continue_note_failed", CONTINUE_NOTE_FAILED_MESSAGE, sent.error));
+			},
+		);
+	}
+
+	/** A detached HEAD continues from the commit it points at. */
+	async #detachedStart(workspacePath: string): Promise<Result<{ sha: string; ref: string }>> {
+		const head = await this.#deps.git.stdout(revParseHead(), { cwd: workspacePath });
+		return head.ok ? ok({ sha: head.value, ref: "HEAD" }) : head;
+	}
+
+	/** A merged branch continues from the target branch, fetched first when there is a remote. */
+	async #targetStart(context: WorkspaceGitContext): Promise<Result<{ sha: string; ref: string }>> {
+		const remote = context.remote.trim();
+		const baseBranch = targetBranchName(context.targetBranch, remote);
+		if (baseBranch === "") {
+			return err(
+				appError("git_base_missing", "This workspace has no target branch to continue from."),
+			);
+		}
+		if (remote === "") {
+			const local = await this.#deps.git.stdout(revParse(`refs/heads/${baseBranch}`), {
+				cwd: context.workspacePath,
+			});
+			return local.ok ? ok({ sha: local.value, ref: baseBranch }) : local;
+		}
+		const resolved = await resolveBaseCommit(this.#deps.git, {
+			repoRootPath: context.repoRootPath,
+			remote,
+			baseBranch,
+			allowLocalBase: false,
+		});
+		return resolved.ok ? ok({ sha: resolved.value.baseSha, ref: baseBranch }) : resolved;
+	}
+
+	/** Writes the note under the workspace's `.context` folder, which git leaves alone. */
+	async #writeContinueNote(workspacePath: string, text: string): Promise<Result<void>> {
+		const folder = `${workspacePath.replace(/\/+$/, "")}/${CONTINUE_NOTE_FOLDER}`;
+		const made = await this.#deps.fs.mkdirp(folder);
+		if (!made.ok) return made;
+		return this.#deps.fs.writeTextAtomic(`${folder}/${CONTINUE_NOTE_FILE_NAME}`, text);
 	}
 
 	/** Backs `Actions.git.openInDiffTool`. */
