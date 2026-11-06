@@ -5,6 +5,7 @@
  * @feature PR-05 sending failing checks and their log tails to the agent
  * @feature PR-11 REST reads for issues and pull requests, and the context files they write
  * @feature PRJ-02 the owners and repositories the clone picker lists
+ * @feature PRJ-03 the repository-name check the Create project dialog shows
  * @feature GIT-08 moving an open pull request's base when the target branch changes
  * @feature PR-04 the Checks tab's calls: one job's log (an expired log has its own error) and
  * re-running the failed workflow runs, one `gh run rerun --failed` per run
@@ -12,7 +13,8 @@
  * health store, reading and writing the personal access token, every pull request write action
  * (merge, auto-merge on and off, mark ready, edit title and body, request and remove reviewers,
  * approve), the Fix errors instruction that sends failing checks to the agent, PR-03's polling of
- * watched pull requests, PR-11's REST reads, PRJ-02's clone pickers, and GIT-08's base move.
+ * watched pull requests, PR-11's REST reads, PRJ-02's clone pickers, PRJ-03's repository-name check,
+ * and GIT-08's base move.
  * Behaviour: services-map.md 3.9 (auth probes, method resolution, health), 5B.1.11 (failure
  * classes; only unauthorized breaks access), 3.7.5 and 5B.1.7 (the write actions, the merge
  * method cached per repo, and one call at a time for each action), 3.7.6 (fixing CI errors goes to
@@ -103,6 +105,7 @@ import {
 	prViewState,
 	pullRequestByNumber as pullRequestByNumberCommand,
 	recentRepositories,
+	repoCanView,
 	repoMergeMethodsQuery,
 	repositoryIssues,
 	repositoryPullRequests,
@@ -122,6 +125,7 @@ import type {
 	PullRequest,
 	PullRequestAction,
 	PullRequestSummary,
+	RepoNameCheck,
 } from "../model.ts";
 import {
 	createPrInstruction,
@@ -156,6 +160,7 @@ import {
 	requestedInterval,
 	shouldQueryPr,
 } from "./pr-polling.ts";
+import { projectFolderName } from "./project-templates.ts";
 import type { AgentMessenger } from "./sessions.ts";
 
 /** The paths GitHub reads a pull request template from, in the order the research lists them. */
@@ -1327,6 +1332,32 @@ export class GithubService {
 		const parsed = parseGithubRepositories(result.value);
 		if (!parsed.ok) return parsed;
 		return ok(filterGithubRepositories(parsed.value, query));
+	}
+
+	/**
+	 * Backs `useRepoNameCheck`: asks `gh repo view` whether an owner already has this repository.
+	 * A name with no letters or numbers is invalid before GitHub is asked. A 404 answer means the
+	 * name is free; any other failure is reported rather than turned into "available".
+	 */
+	async checkRepoName(owner: string, name: string): Promise<Result<RepoNameCheck>> {
+		const folder = projectFolderName(name);
+		if (folder === "") return ok("invalid");
+		const trimmedOwner = owner.trim();
+		if (trimmedOwner === "") {
+			return err(appError("github_owner_missing", "Choose a GitHub account or organisation."));
+		}
+		const settings = await this.#ghSettings();
+		if (!settings.ok) return err(settings.error);
+		const command = repoCanView(`${trimmedOwner}/${folder}`);
+		const result = await this.#deps.git.run(command, this.#runOptions(settings.value));
+		if (!result.ok) return err(result.error);
+		await this.recordGhResult(result.value);
+		if (result.value.exitCode === 0) return ok("taken");
+		const text = `${result.value.stderr}\n${result.value.stdout}`.toLowerCase();
+		if (/not found|http 404|could not resolve to a repository/.test(text)) {
+			return ok("available");
+		}
+		return err(ghCommandError(command, result.value));
 	}
 
 	/**

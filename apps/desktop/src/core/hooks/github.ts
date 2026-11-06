@@ -1,5 +1,6 @@
 /**
  * @feature DATA-01 Query hook contract for screens
+ * @feature PRJ-03 The repository-name check hook the Create project dialog shows
  * Owns: the GitHub hooks: access, checks, pull requests, issues and repository lists.
  * Behaviour: services-map.md 2.5 (queries for GitHub data); core/hooks.ts states the contract.
  * Must handle: a GitHub token of unknown status, a check log that cannot be read.
@@ -11,12 +12,19 @@ import { useMemo } from "react";
 import { useStore } from "zustand";
 import type { Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
-import type { GitHubOwner, GitHubRepoSummary, IssueView, PullRequestSummary } from "../model.ts";
+import type {
+	GitHubOwner,
+	GitHubRepoSummary,
+	IssueView,
+	PullRequestSummary,
+	RepoNameCheck,
+} from "../model.ts";
 import {
 	canListGithubIssues,
 	canListGithubPullRequests,
 	toGitHubAccessView,
 } from "../services/github.ts";
+import { projectFolderName } from "../services/project-templates.ts";
 
 export const useCheckLog: Queries["useCheckLog"] = (workspaceId, checkName) => {
 	const { services } = useServices();
@@ -184,4 +192,36 @@ export const useGitHubRepos: Queries["useGitHubRepos"] = (owner, query) => {
 	if (result.data === undefined) return { state: "loading" };
 	return { state: "ready", data: result.data };
 };
-export const useRepoNameCheck: Queries["useRepoNameCheck"] = () => notImplemented("PRJ-03");
+export const useRepoNameCheck: Queries["useRepoNameCheck"] = (owner, name) => {
+	const { services } = useServices();
+	const access = useStore(services.github.store, (state) => state.access);
+	const loading = access.status === "unknown" && access.reason === undefined;
+	const available = access.status === "ok";
+	const trimmedOwner = owner.trim();
+	const folder = projectFolderName(name);
+	const invalid = name.trim() !== "" && folder === "";
+	const result = useQuery<RepoNameCheck, AppError>({
+		queryKey: ["github", "repo-name", trimmedOwner, folder],
+		enabled: available && trimmedOwner !== "" && folder !== "" && !invalid,
+		queryFn: async () => {
+			const found = await services.github.checkRepoName(trimmedOwner, folder);
+			if (!found.ok) throw found.error;
+			return found.value;
+		},
+	});
+	if (invalid) return { state: "ready", data: "invalid" };
+	if (loading) return { state: "loading" };
+	if (!available) {
+		return {
+			state: "error",
+			error: appError(
+				"github_repo_name_unavailable",
+				"Sign in to GitHub to check a repository name.",
+			),
+		};
+	}
+	if (trimmedOwner === "" || folder === "") return { state: "loading" };
+	if (result.isError && result.error !== null) return { state: "error", error: result.error };
+	if (result.data === undefined) return { state: "loading" };
+	return { state: "ready", data: result.data };
+};
