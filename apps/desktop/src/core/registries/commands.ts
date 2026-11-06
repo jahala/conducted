@@ -132,7 +132,7 @@ export const COMMANDS = [
 		defaultShortcuts: ["Cmd+Alt+F"],
 		configurable: false,
 		scope: "global",
-		feature: "APP-03",
+		feature: "APP-09",
 	},
 	{
 		id: "app.openDebugTools",
