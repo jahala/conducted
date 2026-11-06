@@ -150,7 +150,10 @@ describe("REV-08 FileEditorPane", () => {
 			);
 			const editor = await screen.findByRole("textbox", { name: "Editor" });
 			fireEvent.keyDown(editor, { key: "f", metaKey: true });
-			expect(await screen.findByRole("search", { name: "Find in file" })).toBeTruthy();
+			// The bar is a <search> landmark. aria-query 5.3.0, which Testing Library reads roles
+			// from, maps no element to the search role, so the bar is found by its name instead.
+			const bar = await screen.findByLabelText("Find in file");
+			expect(bar.tagName).toBe("SEARCH");
 		} finally {
 			client.clear();
 			test.close();

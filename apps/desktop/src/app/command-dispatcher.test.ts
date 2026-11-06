@@ -310,6 +310,31 @@ describe("NAV-14 scopesForTarget", () => {
 		expect(scopesForTarget(diffChild)).toEqual(["diff", "global"]);
 	});
 
+	it("keeps a text field inside the file viewer or a diff area out of the chat input", () => {
+		const viewer = document.createElement("div");
+		viewer.setAttribute("data-file-viewer", "");
+		const editor = document.createElement("div");
+		editor.setAttribute("contenteditable", "true");
+		viewer.appendChild(editor);
+		document.body.appendChild(viewer);
+
+		const comments = document.createElement("div");
+		comments.setAttribute("data-command-scope", "diff");
+		const reply = document.createElement("textarea");
+		comments.appendChild(reply);
+		document.body.appendChild(comments);
+
+		expect(scopesForTarget(editor)).toEqual(["diff", "global"]);
+		expect(scopesForTarget(reply)).toEqual(["diff", "global"]);
+		expect(
+			commandForKeyPress(
+				press({ key: "f", metaKey: true }),
+				scopesForTarget(editor),
+				keyBindings(),
+			),
+		).toBe("review.findInFile");
+	});
+
 	it("returns global when there is no element", () => {
 		expect(scopesForTarget(null)).toEqual(["global"]);
 	});

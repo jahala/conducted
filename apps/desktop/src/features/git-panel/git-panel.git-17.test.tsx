@@ -29,25 +29,15 @@ import {
 	seedWorkspace,
 	type TestContainer,
 } from "../../test/container.ts";
+import { toast } from "../../ui/Toast.tsx";
 import { GitPanel } from "./GitPanel.tsx";
-
-const state = vi.hoisted(() => ({
-	toast: vi.fn(),
-	toastError: vi.fn(),
-}));
-
-vi.mock("../../ui/Toast.tsx", () => ({
-	toast: { success: state.toast },
-	toastError: state.toastError,
-}));
 
 let test: TestContainer | null = null;
 
 afterEach(async () => {
 	cleanup();
+	toast.dismiss();
 	vi.restoreAllMocks();
-	state.toast.mockReset();
-	state.toastError.mockReset();
 	if (test !== null) {
 		await test.container.stop();
 		test.close();
@@ -159,6 +149,20 @@ function scriptContinue(harness: TestContainer): { checkouts: () => number } {
 	return { checkouts: () => checkouts };
 }
 
+/**
+ * Waits for the app's toast host to show an error toast with this title, and returns its
+ * description. Other toasts, such as a failed git read, may show beside it.
+ */
+async function errorToastDescription(title: string): Promise<string> {
+	return waitFor(() => {
+		const shown = [...document.querySelectorAll("[data-sonner-toast][data-type='error']")].find(
+			(element) => element.querySelector("[data-title]")?.textContent === title,
+		);
+		if (shown === undefined) throw new Error(`No error toast titled "${title}" is shown.`);
+		return shown.querySelector("[data-description]")?.textContent ?? "";
+	});
+}
+
 /** Mounts the panel under the providers the workspace screen uses. */
 async function renderPanel(harness: TestContainer, workspace: Workspace): Promise<void> {
 	const rootRoute = createRootRoute();
@@ -222,9 +226,7 @@ describe("GIT-17 Continue header", () => {
 
 		fireEvent.click(await screen.findByRole("button", { name: /Continue/ }));
 
-		await waitFor(() =>
-			expect(state.toastError).toHaveBeenCalledWith(CONTINUE_NOTE_FAILED_MESSAGE, failure),
-		);
+		expect(await errorToastDescription(CONTINUE_NOTE_FAILED_MESSAGE)).toBe(failure.message);
 	});
 
 	it("stops offering Continue once the branch changed, even when the note failed", async () => {
@@ -240,11 +242,9 @@ describe("GIT-17 Continue header", () => {
 
 		fireEvent.click(await screen.findByRole("button", { name: /^Continue/ }));
 
-		await waitFor(() =>
-			expect(state.toastError).toHaveBeenCalledWith(
-				CONTINUE_NOTE_FAILED_MESSAGE,
-				expect.objectContaining({ code: "continue_note_failed" }),
-			),
+		// GitPanel titles the toast with this message only for a `continue_note_failed` error.
+		expect(await errorToastDescription(CONTINUE_NOTE_FAILED_MESSAGE)).toBe(
+			CONTINUE_NOTE_FAILED_MESSAGE,
 		);
 		await waitFor(() => expect(screen.queryByRole("button", { name: /^Continue/ })).toBeNull());
 		expect(
