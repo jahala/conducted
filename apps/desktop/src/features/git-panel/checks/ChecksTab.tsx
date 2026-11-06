@@ -8,7 +8,8 @@
  * comments), useActions().pullRequests (rerunFailedChecks, fixErrors) and comments. The check rows
  * load their own logs through useCheckLog. Reviewers and deployments are fields of PullRequest.
  * "Open on GitHub" opens the pull request's own page; with no pull request, "Create PR" opens
- * GitHub's new pull request page. The comments offer no "Hide" until comment states are built
+ * GitHub's new pull request page. Resolving a GitHub thread calls REV-04's resolve and shows
+ * "Comment resolved on GitHub"; the comments offer no "Hide" until comment states are built
  * (REV-12).
  * Children: PrSummaryHeader, ChecksList, DeploymentsList, PrCommentsList, ReviewersList.
  * Must handle: no PR yet (explain, offer Create PR), PR info loading, offline, no GitHub access
@@ -134,6 +135,17 @@ export function ChecksTab({ workspaceId }: ChecksTabProps) {
 	};
 
 	const resolveComment = (id: CommentId, resolved: boolean) => {
+		const comment = githubComments.find((entry) => entry.id === id);
+		if (resolved && comment?.threadId != null) {
+			void services.review.resolveOnGithub(id).then((result) => {
+				if (!result.ok) {
+					toastError("Couldn't resolve the comment", result.error);
+					return;
+				}
+				toast.success("Comment resolved on GitHub");
+			});
+			return;
+		}
 		void runAction("Couldn't resolve the comment", () =>
 			actions.comments.setResolved(id, resolved),
 		);

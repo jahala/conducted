@@ -2,11 +2,14 @@
  * @feature PR-01 Catalogue of every gh (GitHub CLI) invocation the app makes
  * @feature PRJ-03 The repository-name check and repository creation Quick start uses
  * @feature PR-06 the pull request write actions: merge, auto-merge, ready, edit, reviewers, approve
+ * @feature REV-04 the review-comment queries and the resolve-thread mutation
  * Owns: one pure function per `gh` call (and the read-only `gt` Graphite calls), each returning a
  * `GitCommand` value. The runner executes it, in the workspace folder, so `gh` finds the repo.
- * Also owns the clone picker calls and `gh repo clone` for cloning from GitHub (PRJ-02), and the
- * repository-name check and creation calls Quick start uses (PRJ-03).
- * Behaviour: services-map.md 3.2 (cloning), 3.7 (PR create, read, write actions), 3.8 (stacks,
+ * Also owns the clone picker calls and `gh repo clone` for cloning from GitHub (PRJ-02), the
+ * repository-name check and creation calls Quick start uses (PRJ-03), and the review-thread,
+ * general-comment and resolve-thread GraphQL calls (REV-04).
+ * Behaviour: services-map.md 3.2 (cloning), 3.7 (PR create, read, write actions), 3.7.4 (review
+ * threads, their extra comment pages, general comments and resolving a thread), 3.8 (stacks,
  * Graphite), 3.9 (auth probes, org list), 5B.1 (fields, batching, rate-limit gate).
  * Must handle: every value reaches `gh` as its own argument; GraphQL variables go through
  * `-F`/`-f` flags, never string-built into the query; a merge is pinned to the local HEAD with
@@ -20,6 +23,7 @@
  * login-shell PATH.
  * Test first: prMerge(12, "squash", "abc", false) pins the merge with --match-head-commit.
  * PR-06 test first: prEdit(3, { addReviewers: ["octocat"] }) adds a reviewer.
+ * REV-04 test first: a thread's second comment page asks with the thread id as a variable.
  */
 import type { GitCommand } from "./commands.ts";
 
@@ -182,17 +186,87 @@ ${PR_FIELDS_FRAGMENT}`;
 };
 
 export const reviewThreadsQuery = (prNumber: number, cursor: string | null): GitCommand => {
-	const query = `query($owner: String!, $repo: String!, $prNumber: Int!, $cursor: String) {
+	const query = `query ReviewThreads($owner: String!, $repo: String!, $prNumber: Int!, $cursor: String) {
   rateLimit { cost }
   repository(owner: $owner, name: $repo) {
     pullRequest(number: $prNumber) {
       reviewThreads(first: 100, after: $cursor) {
         pageInfo { hasNextPage endCursor }
         nodes {
-          id isOutdated isResolved path line startLine originalLine diffSide
-          comments(first: 50) {
-            nodes { id databaseId body diffHunk url createdAt updatedAt author { login } replyTo { databaseId } }
+          id isOutdated isResolved path line startLine originalLine originalStartLine
+          startDiffSide diffSide
+          comments(first: 100) {
+            pageInfo { hasNextPage endCursor }
+            nodes {
+              id databaseId body diffHunk url createdAt updatedAt lastEditedAt
+              author { login avatarUrl }
+              replyTo { id databaseId }
+            }
           }
+        }
+      }
+    }
+  }
+}`;
+	return gh(
+		[
+			"api",
+			"graphql",
+			"-F",
+			"owner={owner}",
+			"-F",
+			"repo={repo}",
+			"-F",
+			`prNumber=${prNumber}`,
+			...(cursor === null ? [] : ["-f", `cursor=${cursor}`]),
+			"-f",
+			`query=${query}`,
+		],
+		{ timeoutMs: GH_GRAPHQL_TIMEOUT_MS },
+	);
+};
+
+/** The rest of one review thread's comments, after its first page (services-map 3.7.4). */
+export const reviewThreadCommentsQuery = (threadId: string, cursor: string | null): GitCommand => {
+	const query = `query ReviewThreadComments($threadId: ID!, $cursor: String) {
+  node(id: $threadId) {
+    ... on PullRequestReviewThread {
+      comments(first: 100, after: $cursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          id databaseId body diffHunk url createdAt updatedAt lastEditedAt
+          author { login avatarUrl }
+          replyTo { id databaseId }
+        }
+      }
+    }
+  }
+}`;
+	return gh(
+		[
+			"api",
+			"graphql",
+			"-f",
+			`threadId=${threadId}`,
+			...(cursor === null ? [] : ["-f", `cursor=${cursor}`]),
+			"-f",
+			`query=${query}`,
+		],
+		{ timeoutMs: GH_GRAPHQL_TIMEOUT_MS },
+	);
+};
+
+/** The pull request's conversation comments, which are not on a file (services-map 3.7.4). */
+export const generalCommentsQuery = (prNumber: number, cursor: string | null): GitCommand => {
+	const query = `query PullRequestComments($owner: String!, $repo: String!, $prNumber: Int!, $cursor: String) {
+  rateLimit { cost }
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $prNumber) {
+      comments(first: 100, after: $cursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          id databaseId body url createdAt updatedAt lastEditedAt
+          author { login avatarUrl }
         }
       }
     }

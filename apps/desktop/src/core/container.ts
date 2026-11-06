@@ -728,6 +728,17 @@ export function createContainer(inputs: ContainerInputs): Container {
 			notify: (input) => platform.notifications.notify(input),
 			reportError: (message) => log("warn", message),
 		}),
+		onPullRequestChanged: (id) => {
+			fireAndForget(
+				async () => {
+					const synced = await review.syncFromGithub(id);
+					if (!synced.ok) {
+						log("warn", `Could not sync review comments: ${synced.error.message}`);
+					}
+				},
+				(error) => log("warn", `Could not sync review comments: ${String(error)}`),
+			);
+		},
 		now: () => clock.now(),
 		keychain: platform.keychain,
 		setting,
@@ -772,6 +783,11 @@ export function createContainer(inputs: ContainerInputs): Container {
 		git: gitRunner,
 		agent: sessions,
 		fs: platform.fs,
+		githubComments: {
+			readReviewThreads: (id) => github.readReviewThreads(id),
+			readGeneralComments: (id) => github.readGeneralComments(id),
+			resolveReviewThread: (id, threadId) => github.resolveReviewThread(id, threadId),
+		},
 		workspacePathOf: async (id) => {
 			const found = lookups.workspace(id);
 			return found.ok ? ok(found.value.path) : found;

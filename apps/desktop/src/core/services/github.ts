@@ -10,17 +10,21 @@
  * @feature PR-04 the Checks tab's calls: one job's log (an expired log has its own error) and
  * re-running the failed workflow runs, one `gh run rerun --failed` per run
  * @feature PR-08 GitHub stacks: reading a pull request's stack and running the stack sync
+ * @feature REV-04 GitHub review comment sync: reading review threads and general comments, and
+ * resolving a review thread
  * Owns: probing `gh` access (`gh auth status`, the user's login, the git protocol), the access
  * health store, reading and writing the personal access token, every pull request write action
  * (merge, auto-merge on and off, mark ready, edit title and body, request and remove reviewers,
  * approve), the Fix errors instruction that sends failing checks to the agent, PR-03's polling of
  * watched pull requests, PR-11's REST reads, PRJ-02's clone pickers, PRJ-03's repository-name check,
- * GIT-08's base move, and PR-08's stack read and stack sync.
+ * GIT-08's base move, PR-08's stack read and stack sync, and REV-04's review-thread and general
+ * comment reads and thread resolve.
  * Behaviour: services-map.md 3.9 (auth probes, method resolution, health), 5B.1.11 (failure
  * classes; only unauthorized breaks access), 3.7.5 and 5B.1.7 (the write actions, the merge
  * method cached per repo, and one call at a time for each action), 3.7.6 (fixing CI errors goes to
  * the agent as an instruction), 3.8.2 (the stack members, the optional `stackEntry` field, and
- * `gh stack sync`), 3.7.2 and 5B.1.2 to 5B.1.4
+ * `gh stack sync`), 3.7.4 and 5A.7.3 (review threads, their extra comment pages, general comments
+ * and `resolveReviewThread`), 3.7.2 and 5B.1.2 to 5B.1.4
  * (the PR poll: batched queries per repository, adaptive batch size, cadence, skip rules and
  * rate-limit gate), 2.5.2 and 5B.1.10 (GitHub reads for the workspace pickers), 5B.8.2 (open
  * issues, 50 newest), 5B.8.3 (an issue becomes `[GITHUB]-<n>.md`, a pull request
@@ -49,7 +53,9 @@
  * on the workspace; only the newest poll writes a workspace's entry; `dispose` stops every timer;
  * a stack read with no pull request or no stack is an empty answer, an unknown `stackEntry` field
  * is retried without and remembered per repository, and a stack sync that sees the extension
- * missing or a cross mark is an error, never a success.
+ * missing or a cross mark is an error, never a success; a review-comment read needs a pull request
+ * and an owner/name GitHub remote, follows every thread page and every thread's extra comment
+ * page, and a resolve sends the raw thread id as a variable.
  * Our design choice: access is the user's own `gh auth login`, or the personal access token the
  * user saved on the Account page (D029). The token is kept in the Keychain and given to `gh` as
  * GH_TOKEN; nothing is brokered per session. The poll schedule and gate are pure functions in
@@ -60,7 +66,8 @@
  * PR-12; re-running failed checks belongs to PR-04, which owns the Checks tab's button. Graphite
  * (`gt state`, `gt checkout`) is not read here. The
  * sidebar and selected workspace subscriptions belong to the screens that own them; this file
- * calls `onMerged` and the workspace service archives the workspace.
+ * calls `onMerged` and the workspace service archives the workspace, and calls
+ * `onPullRequestChanged` when an open pull request's `updatedAt` changes so review comments sync.
  * Test first: two merge calls at once send one `gh pr merge`.
  * PR-03 test first: two watched workspaces of one repository ask GitHub in one batched query.
  * PR-05 test first: two failing checks send one instruction with both log tails.
@@ -97,6 +104,7 @@ import {
 	apiUserLogin,
 	authStatus,
 	configGetGitProtocol,
+	generalCommentsQuery,
 	githubOwnerRepositories,
 	githubUserOrganizations,
 	issueByNumber as issueByNumberCommand,
@@ -117,6 +125,9 @@ import {
 	repoMergeMethodsQuery,
 	repositoryIssues,
 	repositoryPullRequests,
+	resolveReviewThread as resolveReviewThreadCommand,
+	reviewThreadCommentsQuery,
+	reviewThreadsQuery,
 	stackMembers,
 	stackSync,
 } from "../git/gh-commands.ts";
@@ -1036,6 +1047,11 @@ export interface GithubServiceDeps {
 	contextOf: (workspaceId: WorkspaceId) => Promise<Result<PrWorkspaceContext>>;
 	/** Called when a PR becomes merged, so the workspace service can archive on merge. */
 	onMerged: (workspaceId: WorkspaceId, prNumber: number) => void;
+	/**
+	 * Called when an open pull request's `updatedAt` changes, so review comments can be synced
+	 * (REV-04). The container always supplies it; tests that never poll may leave it out.
+	 */
+	onPullRequestChanged?: (workspaceId: WorkspaceId) => void;
 	now: () => number;
 	/** The Keychain the Account page's token is kept in (D029). */
 	keychain?: Pick<Keychain, "get" | "set" | "delete">;
@@ -1162,6 +1178,241 @@ export function parsePrBatchAnswers(text: string, count: number): Result<PrBatch
 		viewerCanMerge: facts.value.viewerCanMerge,
 		mergeMethod: facts.value.mergeMethod,
 		cost: typeof cost === "number" ? cost : null,
+	});
+}
+
+export interface GithubReviewThreadComment {
+	/** GraphQL node id, used when GitHub gives no numeric database id. */
+	id: string;
+	databaseId: number | null;
+	body: string;
+	url: string | null;
+	authorLogin: string | null;
+	authorAvatarUrl: string | null;
+	createdAt: number;
+	updatedAt: number;
+	lastEditedAt: number | null;
+	diffHunk: string | null;
+	replyToId: string | null;
+	replyToDatabaseId: number | null;
+}
+
+export interface GithubReviewThread {
+	id: string;
+	isOutdated: boolean;
+	isResolved: boolean;
+	path: string;
+	line: number | null;
+	startLine: number | null;
+	originalLine: number | null;
+	originalStartLine: number | null;
+	startDiffSide: "LEFT" | "RIGHT" | null;
+	diffSide: "LEFT" | "RIGHT" | null;
+	comments: readonly GithubReviewThreadComment[];
+	commentsHasNextPage: boolean;
+	commentsEndCursor: string | null;
+}
+
+export interface GithubGeneralComment {
+	id: string;
+	databaseId: number;
+	body: string;
+	url: string | null;
+	authorLogin: string | null;
+	authorAvatarUrl: string | null;
+	createdAt: number;
+	updatedAt: number;
+	lastEditedAt: number | null;
+}
+
+export interface GithubThreadPage {
+	threads: readonly GithubReviewThread[];
+	hasNextPage: boolean;
+	endCursor: string | null;
+	cost: number | null;
+}
+
+export interface GithubReviewCommentPage {
+	comments: readonly GithubReviewThreadComment[];
+	hasNextPage: boolean;
+	endCursor: string | null;
+}
+
+export interface GithubGeneralCommentPage {
+	comments: readonly GithubGeneralComment[];
+	hasNextPage: boolean;
+	endCursor: string | null;
+	cost: number | null;
+}
+
+function graphqlData(text: string): Result<Record<string, unknown>> {
+	const json = parseJson(text);
+	if (!json.ok) return err(json.error);
+	if (!isRecord(json.value)) return err(responseInvalid());
+	const data = json.value.data;
+	if (!isRecord(data)) return err(responseInvalid());
+	return ok(data);
+}
+
+function pullRequestNode(data: Record<string, unknown>): Result<Record<string, unknown>> {
+	const repository = data.repository;
+	if (!isRecord(repository)) return err(responseInvalid());
+	const pullRequest = repository.pullRequest;
+	if (!isRecord(pullRequest)) return err(responseInvalid());
+	return ok(pullRequest);
+}
+
+function pageInfoOf(connection: Record<string, unknown>): {
+	hasNextPage: boolean;
+	endCursor: string | null;
+} {
+	const pageInfo = isRecord(connection.pageInfo) ? connection.pageInfo : {};
+	return {
+		hasNextPage: pageInfo.hasNextPage === true,
+		endCursor: stringField(pageInfo, "endCursor"),
+	};
+}
+
+function numericField(record: Record<string, unknown>, key: string): number | null {
+	const value = record[key];
+	return typeof value === "number" && Number.isSafeInteger(value) ? value : null;
+}
+
+function diffSideOf(value: string | null): "LEFT" | "RIGHT" | null {
+	return value === "LEFT" || value === "RIGHT" ? value : null;
+}
+
+function parseThreadComment(raw: unknown): Result<GithubReviewThreadComment> {
+	if (!isRecord(raw)) return err(responseInvalid());
+	const id = stringField(raw, "id");
+	const body = stringField(raw, "body");
+	const createdAt = parseTimestamp(stringField(raw, "createdAt"));
+	if (id === null || body === null || createdAt === null) return err(responseInvalid());
+	const updatedAt = parseTimestamp(stringField(raw, "updatedAt")) ?? createdAt;
+	const author = isRecord(raw.author) ? raw.author : null;
+	const replyTo = isRecord(raw.replyTo) ? raw.replyTo : null;
+	return ok({
+		id,
+		databaseId: numericField(raw, "databaseId"),
+		body,
+		url: stringField(raw, "url"),
+		authorLogin: author === null ? null : stringField(author, "login"),
+		authorAvatarUrl: author === null ? null : stringField(author, "avatarUrl"),
+		createdAt,
+		updatedAt,
+		lastEditedAt: parseTimestamp(stringField(raw, "lastEditedAt")),
+		diffHunk: stringField(raw, "diffHunk"),
+		replyToId: replyTo === null ? null : stringField(replyTo, "id"),
+		replyToDatabaseId: replyTo === null ? null : numericField(replyTo, "databaseId"),
+	});
+}
+
+function parseThreadComments(connection: unknown): Result<GithubReviewCommentPage> {
+	if (!isRecord(connection)) return err(responseInvalid());
+	const nodes = connection.nodes;
+	if (!Array.isArray(nodes)) return err(responseInvalid());
+	const comments: GithubReviewThreadComment[] = [];
+	for (const node of nodes) {
+		const parsed = parseThreadComment(node);
+		if (!parsed.ok) return parsed;
+		comments.push(parsed.value);
+	}
+	return ok({ comments, ...pageInfoOf(connection) });
+}
+
+/** Reads one `reviewThreads` page (services-map 3.7.4). */
+export function parseReviewThreadsAnswer(text: string): Result<GithubThreadPage> {
+	const data = graphqlData(text);
+	if (!data.ok) return err(data.error);
+	const pullRequest = pullRequestNode(data.value);
+	if (!pullRequest.ok) return err(pullRequest.error);
+	const connection = pullRequest.value.reviewThreads;
+	if (!isRecord(connection)) return err(responseInvalid());
+	const nodes = connection.nodes;
+	if (!Array.isArray(nodes)) return err(responseInvalid());
+	const threads: GithubReviewThread[] = [];
+	for (const node of nodes) {
+		if (!isRecord(node)) return err(responseInvalid());
+		const id = stringField(node, "id");
+		const path = stringField(node, "path");
+		const comments = parseThreadComments(node.comments);
+		if (id === null || path === null) return err(responseInvalid());
+		if (!comments.ok) return err(comments.error);
+		const page = pageInfoOf(node.comments as Record<string, unknown>);
+		threads.push({
+			id,
+			isOutdated: node.isOutdated === true,
+			isResolved: node.isResolved === true,
+			path,
+			line: numericField(node, "line"),
+			startLine: numericField(node, "startLine"),
+			originalLine: numericField(node, "originalLine"),
+			originalStartLine: numericField(node, "originalStartLine"),
+			startDiffSide: diffSideOf(stringField(node, "startDiffSide")),
+			diffSide: diffSideOf(stringField(node, "diffSide")),
+			comments: comments.value.comments,
+			commentsHasNextPage: page.hasNextPage,
+			commentsEndCursor: page.endCursor,
+		});
+	}
+	const cost = data.value.rateLimit;
+	return ok({
+		threads,
+		...pageInfoOf(connection),
+		cost: isRecord(cost) ? numericField(cost, "cost") : null,
+	});
+}
+
+/** Reads the follow-up page of one thread's comments (services-map 3.7.4). */
+export function parseReviewThreadCommentsAnswer(text: string): Result<GithubReviewCommentPage> {
+	const json = parseJson(text);
+	if (!json.ok) return err(json.error);
+	if (!isRecord(json.value)) return err(responseInvalid());
+	const data = json.value.data;
+	if (!isRecord(data)) return err(responseInvalid());
+	const node = data.node;
+	if (!isRecord(node)) return err(responseInvalid());
+	return parseThreadComments(node.comments);
+}
+
+/** Reads one `pullRequest.comments` page, the comments not on a file (services-map 3.7.4). */
+export function parseGeneralCommentsAnswer(text: string): Result<GithubGeneralCommentPage> {
+	const data = graphqlData(text);
+	if (!data.ok) return err(data.error);
+	const pullRequest = pullRequestNode(data.value);
+	if (!pullRequest.ok) return err(pullRequest.error);
+	const connection = pullRequest.value.comments;
+	if (!isRecord(connection)) return err(responseInvalid());
+	const nodes = connection.nodes;
+	if (!Array.isArray(nodes)) return err(responseInvalid());
+	const comments: GithubGeneralComment[] = [];
+	for (const node of nodes) {
+		if (!isRecord(node)) return err(responseInvalid());
+		const id = stringField(node, "id");
+		const databaseId = numericField(node, "databaseId");
+		const body = stringField(node, "body");
+		const createdAt = parseTimestamp(stringField(node, "createdAt"));
+		if (id === null || databaseId === null || body === null || createdAt === null) {
+			return err(responseInvalid());
+		}
+		const author = isRecord(node.author) ? node.author : null;
+		comments.push({
+			id,
+			databaseId,
+			body,
+			url: stringField(node, "url"),
+			authorLogin: author === null ? null : stringField(author, "login"),
+			authorAvatarUrl: author === null ? null : stringField(author, "avatarUrl"),
+			createdAt,
+			updatedAt: parseTimestamp(stringField(node, "updatedAt")) ?? createdAt,
+			lastEditedAt: parseTimestamp(stringField(node, "lastEditedAt")),
+		});
+	}
+	const cost = data.value.rateLimit;
+	return ok({
+		comments,
+		...pageInfoOf(connection),
+		cost: isRecord(cost) ? numericField(cost, "cost") : null,
 	});
 }
 
@@ -2012,6 +2263,9 @@ export class GithubService {
 		if (state === "merged" && previous?.state !== "merged") {
 			this.#deps.onMerged(found.workspaceId, raw.number);
 		}
+		if (state === "open" && (previous === null || previous.updatedAt !== updatedAt)) {
+			this.#deps.onPullRequestChanged?.(found.workspaceId);
+		}
 		return ok({ pullRequest: pr, unavailable: "none", fetchedAt: now });
 	}
 
@@ -2625,6 +2879,112 @@ export class GithubService {
 				needsRestack: false,
 			})),
 		);
+	}
+
+	/**
+	 * Reads every review thread of the workspace's pull request, following both the thread pages
+	 * and each thread's comment pages (REV-04, services-map 3.7.4). A repository without a GitHub
+	 * remote, or a workspace without a pull request, is refused with its own code so the caller can
+	 * treat it as a normal skip.
+	 */
+	async readReviewThreads(workspaceId: WorkspaceId): Promise<Result<GithubReviewThread[]>> {
+		const target = await this.#reviewSyncTarget(workspaceId);
+		if (!target.ok) return err(target.error);
+		const { prNumber, workspacePath } = target.value;
+		const threads: GithubReviewThread[] = [];
+		let cursor: string | null = null;
+		do {
+			const page = await this.#readGh(reviewThreadsQuery(prNumber, cursor), workspacePath);
+			if (!page.ok) return err(page.error);
+			const parsed = parseReviewThreadsAnswer(page.value);
+			if (!parsed.ok) return err(parsed.error);
+			for (const thread of parsed.value.threads) {
+				const comments = [...thread.comments];
+				let commentCursor = thread.commentsHasNextPage ? thread.commentsEndCursor : null;
+				if (thread.commentsHasNextPage && commentCursor === null) {
+					return err(
+						appError("github_bad_answer", "GitHub did not say where its comment page ends."),
+					);
+				}
+				while (commentCursor !== null) {
+					const rest = await this.#readGh(
+						reviewThreadCommentsQuery(thread.id, commentCursor),
+						workspacePath,
+					);
+					if (!rest.ok) return err(rest.error);
+					const restPage = parseReviewThreadCommentsAnswer(rest.value);
+					if (!restPage.ok) return err(restPage.error);
+					comments.push(...restPage.value.comments);
+					commentCursor = restPage.value.hasNextPage ? restPage.value.endCursor : null;
+					if (restPage.value.hasNextPage && commentCursor === null) {
+						return err(
+							appError("github_bad_answer", "GitHub did not say where its comment page ends."),
+						);
+					}
+				}
+				threads.push({ ...thread, comments });
+			}
+			const next = parsed.value.hasNextPage ? parsed.value.endCursor : null;
+			if (parsed.value.hasNextPage && next === null) {
+				return err(appError("github_bad_answer", "GitHub did not say where its thread page ends."));
+			}
+			cursor = next;
+		} while (cursor !== null);
+		return ok(threads);
+	}
+
+	/** Reads every conversation comment on the pull request itself, following its pages (REV-04). */
+	async readGeneralComments(workspaceId: WorkspaceId): Promise<Result<GithubGeneralComment[]>> {
+		const target = await this.#reviewSyncTarget(workspaceId);
+		if (!target.ok) return err(target.error);
+		const { prNumber, workspacePath } = target.value;
+		const comments: GithubGeneralComment[] = [];
+		let cursor: string | null = null;
+		do {
+			const page = await this.#readGh(generalCommentsQuery(prNumber, cursor), workspacePath);
+			if (!page.ok) return err(page.error);
+			const parsed = parseGeneralCommentsAnswer(page.value);
+			if (!parsed.ok) return err(parsed.error);
+			comments.push(...parsed.value.comments);
+			const next = parsed.value.hasNextPage ? parsed.value.endCursor : null;
+			if (parsed.value.hasNextPage && next === null) {
+				return err(
+					appError("github_bad_answer", "GitHub did not say where its comment page ends."),
+				);
+			}
+			cursor = next;
+		} while (cursor !== null);
+		return ok(comments);
+	}
+
+	/** Resolves one review thread on GitHub (REV-04, services-map 3.7.4). */
+	async resolveReviewThread(workspaceId: WorkspaceId, threadId: string): Promise<Result<void>> {
+		const context = await this.#deps.contextOf(workspaceId);
+		if (!context.ok) return err(context.error);
+		const result = await this.#readGh(
+			resolveReviewThreadCommand(threadId),
+			context.value.workspacePath,
+		);
+		return result.ok ? ok(undefined) : err(result.error);
+	}
+
+	/** The PR number and folder a review-comment sync reads, after checking the remote is GitHub. */
+	async #reviewSyncTarget(
+		workspaceId: WorkspaceId,
+	): Promise<Result<{ prNumber: number; workspacePath: string }>> {
+		const context = await this.#deps.contextOf(workspaceId);
+		if (!context.ok) return err(context.error);
+		const found = context.value;
+		if (found.prNumber === null) {
+			return err(appError("github_pr_missing", "This workspace has no pull request yet."));
+		}
+		const remoteUrl = await this.#deps.git.stdout(remoteGetUrl(found.remote), {
+			cwd: found.workspacePath,
+		});
+		if (!remoteUrl.ok) return err(remoteUrl.error);
+		const repository = githubRepositoryFromRemote(remoteUrl.value);
+		if (!repository.ok) return err(repository.error);
+		return ok({ prNumber: found.prNumber, workspacePath: found.workspacePath });
 	}
 
 	/**
