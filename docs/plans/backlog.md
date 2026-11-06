@@ -256,7 +256,7 @@ Needs: the ids a feature waits for. The issue sync turns them into GitHub "block
 | PR-06  | Merge, auto-merge, ready for review, approve                      | D/core/services                              | services-map 3.7                | 2   | done    | PR-03                   |
 | PR-07  | PR tab: title, description, activity                              | D/features/pr                                | ui-map 3.2                      | 3   | stub    | PR-03                   |
 | PR-08  | Stacked PRs and read-only Graphite                                | D/core/services                              | services-map 3.8                | 3   | stub    | PR-03                   |
-| PR-09  | Linear issues: list, link, attach as context                      | D/core/services                              | services-map 5B                 | 3   | planned | PLAT-10                 |
+| PR-09  | Linear issues: list, link, attach as context                      | D/core/services                              | services-map 5B                 | 3   | done    | PLAT-10                 |
 | PR-10  | Link a pull request by URL or number                              | D/features/pr, D/core/services               | ui-map 3.1, 3.10                | 3   | stub    | PR-01, PR-07            |
 | PR-11  | List and attach GitHub issues and pull requests                   | D/core/services                              | services-map 5B.1.10, 5B.8      | 2   | done    | PR-01, GIT-01           |
 | PR-12  | Catch up a stack branch after GitHub rewrites it                  | D/core/services                              | services-map 3.8.3              | 3   | stub    | PR-08                   |

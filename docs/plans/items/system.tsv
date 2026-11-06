@@ -1763,8 +1763,8 @@ AGENT-08	interaction	Codex MCP consent and elicitation are shown as cards, and a
 PR-09	rule	Linear GraphQL is called straight from the client.	services-map 5B.8.1	covered
 PR-09	rule	The Linear token comes from the user's account and is refreshed on 401; ours uses a personal API key and reports "key rejected".	services-map 5B.8.1	covered
 PR-09	operation	Linear queries cover my active issues, search, by id and team ids.	services-map 5B.8.1	covered
-PR-09	operation	A Linear query suggests repositories for an issue.	services-map 5B.8.1	missing
-PR-09	rule	Linear issues carry comments, createdAt, updatedAt and team fields.	services-map 5B.8.1	partly
+PR-09	operation	A Linear query suggests repositories for an issue.	services-map 5B.8.1	partly
+PR-09	rule	Linear issues carry comments, createdAt, updatedAt and team fields.	services-map 5B.8.1	covered
 PR-09	timeout	Linear cache times are 15 s, 60 s and 600 s, with an identifier regex.	services-map 5B.8.1	covered
 PR-11	operation	The GitHub issues list shows open issues, 50 newest, through REST.	services-map 5B.8.2	missing
 PR-11	rule	The issues tab is disabled when there is no GitHub remote or no access.	services-map 5B.8.2	missing
@@ -2394,13 +2394,13 @@ WS-09	state	Conductor's Local workspace and Ready (has branch) labels are replac
 PLAT-16	integration	A deep link can open the create page with path, branch and prompt filled in; the create page reads no parameters.	ui-map 3.9	partly
 WS-02	git	Create from Pull requests lists the repository's PRs; the API has no list hook.	ui-map 3.9	partly
 GIT-12	git	Create from Branches lists the repository's branches.	ui-map 3.9	covered
-PR-09	operation	Create from Issues lists Linear and GitHub issues; the API has no issue hook.	ui-map 3.9	partly
+PR-09	operation	Create from Issues lists Linear and GitHub issues.	ui-map 3.9	covered
 WS-01	git	After submit the app fetches, creates the worktree, picks names and runs setup.	ui-map 3.9, frontend 6	covered
 WS-01	operation	Recover prompt restores the draft of a failed workspace creation.	ui-map 3.9	covered
 PRJ-02	git	The Clone GitHub repo dialog takes a repository URL and a location; the service exists but the dialog does not.	ui-map 3.9	missing
 PRJ-03	operation	The Create project dialog takes a project name, a parent folder and a template.	ui-map 3.9	missing
 PRJ-03	git	Quick start can ask whether to create a private GitHub repo for the new project.	ui-map 3.9	missing
-PR-09	operation	Link issue connects Linear, searches issues and shows No open issues found; no dialog file exists.	ui-map 3.10	missing
+PR-09	operation	Link issue connects Linear, searches issues and shows No open issues found.	ui-map 3.10	covered
 WS-07	operation	Link workspaces and directories lets the agent work in other folders; the dialog has no file.	ui-map 3.10	missing
 SIDE-16	rpc	The MCP status dialog lists servers, shows No MCP servers configured, refreshes status and shows logs.	ui-map 3.10	covered
 CLOUD-16	capability	A Cloud desktop dialog exists for cloud workspaces.	ui-map 3.10	missing
@@ -3044,6 +3044,6 @@ SET-04	integration	The Environment page's variables reach a running agent: SET-0
 SIDE-21	integration	The managed agent copy joins the program order (Settings path, managed copy, then PATH) when PLAT-28 installs it; until then the order is Settings path, then PATH.	other-runners 5	missing
 SIDE-21	integration	The desktop composition root (core/container.ts) passes launchFor to SessionsService and ChatTitlesService, built from the saved settings: program paths, provider and base URL, and provider keys from the Keychain. Accepted by a test over createTestContainer that sends one message and sees the launch in the sidecar request, with no chat_launch_missing (D054).	claude-runner 1.2	missing
 CHAT-15	rule	After a revert the agent forgets the reverted turns: revertTo asks the sidecar to resetAgent, and the chat's next send resumes the agent at the chosen turn with resume.atNativeMessageId. Until then the agent keeps them in memory although the chat hides them (moved by the s2-2 core-1 audit).	sessions 2	missing
-PR-09	operation	Linear requests go through Platform.http (http_fetch) instead of curl (moved from PLAT-30 by the slice 2 step 2 audit).	native-and-sidecar-map A2; services-map 1.1	missing
+PR-09	operation	Linear requests go through Platform.http (http_fetch) instead of curl (moved from PLAT-30 by the slice 2 step 2 audit).	native-and-sidecar-map A2; services-map 1.1	covered
 PLAT-28	operation	Agent and helper program downloads go through Platform.http.download with a SHA-256 and cancel (moved from PLAT-30 by the slice 2 step 2 audit).	native-and-sidecar-map A2	missing
 SET-05	rpc	McpService.refresh sends the chat's launch with listMcpServers (the container's launchFor), so MCP status runs the program and keys the user chose; the sidecar already lists with it (moved from the SIDE-21 contract change).	docs/reports/slice-2	missing
