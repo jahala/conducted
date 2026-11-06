@@ -79,6 +79,7 @@ import type {
 	Notifications,
 	Opener,
 	Platform,
+	ProcessUsage,
 	ProgramStatus,
 	Programs,
 	Pty,
@@ -470,7 +471,13 @@ export function createTauriAppInfo(
 		quit: async () => {
 			await invokeResult(bindings, COMMANDS.appQuit);
 		},
-		resourceUsage: () => notImplemented("PLAT-14"),
+		resourceUsage: async () => {
+			const result = await invokeResult<ProcessUsage[]>(bindings, COMMANDS.resourceUsage, {
+				workspacePaths: [],
+			});
+			if (!result.ok) throw result.error;
+			return result.value;
+		},
 		writeLog: (level, message, data) => {
 			const safe = serialisableLogData(data);
 			const args =
