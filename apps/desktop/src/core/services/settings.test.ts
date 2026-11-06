@@ -81,6 +81,12 @@ const fakeFs = (home = "/home/user"): FakeFs => {
 		async trash() {
 			return ok(undefined);
 		},
+		async registerRoot() {
+			return ok(undefined);
+		},
+		assetUrl(path: string) {
+			return `asset://localhost/${encodeURIComponent(path)}`;
+		},
 		paths: { home, appData: "/app", temp: "/tmp", resources: "/resources" },
 	};
 	fake.fs = fs;

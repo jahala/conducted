@@ -34,7 +34,7 @@
 //! - Two `shell_start` calls with the same id: the second fails with `shell_duplicate_id`.
 //! - The table of running processes is shared by many commands at once. It sits behind a mutex
 //!   that is never held across an await or a blocking wait.
-//! - The first `shell_login_env` call and the startup warm-up share one capture.
+//! - The first app-wide `shell_login_env` call and the startup warm-up share one capture.
 //! - The capture picks flags by shell name (`-ilc` for zsh and bash, `-i -l -c` for fish), reads
 //!   the environment between a delimiter, and retries once with a plain login zsh (5 s, then 3 s).
 //!   When both fail, the error names the cause of each.
@@ -60,10 +60,14 @@
 //! base of every run and `ShellCommandRequest::env` is layered on top, as the Platform comment says.
 //! Only the login shell and its PATH reach the UI; the rest of the captured environment stays in
 //! Rust for the children.
-//! Our design choice: the capture runs once, in the folder the app process started in, and every
-//! later call reuses it. Conductor caches per working folder (services-map 5A.8.3), so direnv and
-//! mise settings are not picked up per workspace. Keying the cache by folder needs a `cwd` on the
-//! `loginEnv` contract, which it does not have.
+//! - Captures are kept per working folder too (PLAT-07, services-map 5A.8.3): `shell_login_env`
+//!   with a `cwd`, and a command whose `env_from_cwd` is set, start from the login shell as it sees
+//!   that folder, so direnv and mise settings of a workspace apply. Callers for one folder share one
+//!   capture; a failed one is not kept. A relative folder fails with `shell_bad_cwd`.
+//!
+//! Our design choice: the app-wide capture runs once, in the folder the app process started in,
+//! and is the base of every command that does not ask for its folder's environment, git included,
+//! as Conductor prepends one captured PATH to its git calls.
 //!
 //! Test first: starting `sleep 30` then calling `shell_cancel` ends the process and its child
 //! within the grace period and delivers `shell://done` with the code `shell_cancelled`.
@@ -133,6 +137,9 @@ pub struct ShellCommandRequest {
     /// Kill the process group after this many milliseconds. No limit when absent.
     #[serde(default)]
     pub timeout_ms: Option<u64>,
+    /// Start from the login environment captured in `cwd` instead of the app-wide one (PLAT-07).
+    #[serde(default)]
+    pub env_from_cwd: bool,
 }
 
 /// What a finished run produced. Mirrors `ShellOutput` in platform.ts.
@@ -189,6 +196,55 @@ pub struct ShellState {
     /// Result of the one login-shell capture. The async mutex is held while capturing, so
     /// concurrent first callers wait for the same result.
     pub login_env: tauri::async_runtime::Mutex<Option<LoginEnv>>,
+    /// Captures made in one working folder (PLAT-07), for `shell_login_env { cwd }` and for a
+    /// command that asks for its folder's environment.
+    pub folder_envs: FolderEnvs,
+}
+
+/// Login-shell captures by working folder, so direnv and mise settings of a folder reach the
+/// programs run there (services-map.md 5A.8.3 caches by folder). Concurrent first callers for one
+/// folder share one capture. A failed capture is not kept, so the next call tries again.
+#[derive(Default)]
+pub struct FolderEnvs {
+    cells: Mutex<HashMap<PathBuf, Arc<tokio::sync::OnceCell<LoginEnv>>>>,
+}
+
+impl FolderEnvs {
+    /// The capture for `folder`, running `capture` only when none is kept.
+    pub async fn get_or_capture<F, Fut>(&self, folder: &Path, capture: F) -> CommandResult<LoginEnv>
+    where
+        F: FnOnce(PathBuf) -> Fut,
+        Fut: std::future::Future<Output = CommandResult<LoginEnv>>,
+    {
+        let cell = {
+            let mut cells = crate::error::lock(&self.cells);
+            Arc::clone(cells.entry(folder.to_path_buf()).or_default())
+        };
+        cell.get_or_try_init(|| capture(folder.to_path_buf()))
+            .await
+            .cloned()
+    }
+}
+
+/// The login environment as captured in `cwd` with `shell`, kept per folder.
+pub async fn capture_in_folder(
+    envs: &FolderEnvs,
+    cwd: &str,
+    shell: String,
+) -> CommandResult<LoginEnv> {
+    let folder = PathBuf::from(cwd);
+    if !folder.is_absolute() {
+        return Err(CommandError::Failed {
+            code: "shell_bad_cwd",
+            message: format!("The working folder must be an absolute path: {cwd}"),
+        });
+    }
+    envs.get_or_capture(&folder, |folder| {
+        blocking("login_env_failed", move || {
+            capture_with_shell(&shell, &folder)
+        })
+    })
+    .await
 }
 
 /// Bytes a reader thread kept and whether it stopped at the limit.
@@ -745,9 +801,17 @@ fn shell_done(
     }
 }
 
-/// Returns the environment a new process starts from.
-async fn captured_env(state: &State<'_, ShellState>) -> CommandResult<HashMap<String, String>> {
-    let login = shell_login_env(state.clone()).await?;
+/// Returns the environment a new process starts from: the capture made in the command's folder
+/// when it asks for one, the app-wide capture otherwise.
+async fn captured_env(
+    state: &ShellState,
+    command: &ShellCommandRequest,
+) -> CommandResult<HashMap<String, String>> {
+    let login = if command.env_from_cwd {
+        capture_in_folder(&state.folder_envs, &command.cwd, login_shell()).await?
+    } else {
+        app_login_env(state).await?
+    };
     Ok(login.vars)
 }
 
@@ -1039,7 +1103,7 @@ fn repair_process_path(login: &LoginEnv) {
 pub fn start_background_capture(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         let state = app.state::<ShellState>();
-        let _ = shell_login_env(state).await;
+        let _ = app_login_env(&state).await;
     });
 }
 
@@ -1179,7 +1243,7 @@ pub async fn shell_run(
     state: State<'_, ShellState>,
     command: ShellCommandRequest,
 ) -> CommandResult<ShellOutput> {
-    let base_env = captured_env(&state).await?;
+    let base_env = captured_env(&state, &command).await?;
     let roots = program_roots(&app);
     let timeout_ms = command.timeout_ms;
     let joined = blocking("shell_wait_failed", move || {
@@ -1198,7 +1262,7 @@ pub async fn shell_start(
     id: String,
     mut command: ShellCommandRequest,
 ) -> CommandResult<()> {
-    let base_env = captured_env(&state).await?;
+    let base_env = captured_env(&state, &command).await?;
     let roots = program_roots(&app);
     // Reserve the id first. A duplicate must fail before any process with side effects starts.
     let (child, cancelled_now) = begin_running(&state.running, &id, || {
@@ -1238,10 +1302,22 @@ pub async fn shell_cancel(state: State<'_, ShellState>, id: String) -> CommandRe
     .await
 }
 
-/// Returns the login shell and its PATH, capturing them on the first call. Later calls reuse the
-/// same answer, so the UI and the startup warm-up never run the shell twice.
+/// Returns the login shell and its PATH. With `cwd`, as the login shell sees them in that folder,
+/// captured once per folder (PLAT-07). Without it, the app-wide capture from startup.
 #[tauri::command]
-pub async fn shell_login_env(state: State<'_, ShellState>) -> CommandResult<LoginEnv> {
+pub async fn shell_login_env(
+    state: State<'_, ShellState>,
+    cwd: Option<String>,
+) -> CommandResult<LoginEnv> {
+    match cwd {
+        Some(cwd) => capture_in_folder(&state.folder_envs, &cwd, login_shell()).await,
+        None => app_login_env(&state).await,
+    }
+}
+
+/// The app-wide capture, made on the first call. Later calls reuse the same answer, so the UI and
+/// the startup warm-up never run the shell twice.
+pub async fn app_login_env(state: &ShellState) -> CommandResult<LoginEnv> {
     let mut cached = state.login_env.lock().await;
     if let Some(login) = cached.as_ref() {
         return Ok(login.clone());
@@ -1507,6 +1583,113 @@ mod tests {
     }
 
     #[test]
+    fn plat_07_a_folder_is_captured_once_and_another_folder_on_its_own() {
+        let envs = FolderEnvs::default();
+        let runs = std::sync::atomic::AtomicUsize::new(0);
+        let capture = |folder: PathBuf| {
+            runs.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            async move {
+                Ok(LoginEnv {
+                    shell: "/bin/zsh".to_string(),
+                    path: folder.to_string_lossy().into_owned(),
+                    vars: HashMap::new(),
+                })
+            }
+        };
+
+        let first = tauri::async_runtime::block_on(envs.get_or_capture(Path::new("/a"), capture))
+            .expect("the first capture");
+        let again = tauri::async_runtime::block_on(envs.get_or_capture(Path::new("/a"), capture))
+            .expect("the cached capture");
+        let other = tauri::async_runtime::block_on(envs.get_or_capture(Path::new("/b"), capture))
+            .expect("the other folder");
+
+        assert_eq!((first.path.as_str(), again.path.as_str()), ("/a", "/a"));
+        assert_eq!(other.path, "/b");
+        assert_eq!(runs.load(std::sync::atomic::Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn plat_07_a_failed_folder_capture_is_tried_again() {
+        let envs = FolderEnvs::default();
+        let failed = tauri::async_runtime::block_on(envs.get_or_capture(Path::new("/a"), |_| {
+            std::future::ready(Err(login_env_error("first try".to_string())))
+        }));
+        assert!(failed.is_err());
+
+        let second = tauri::async_runtime::block_on(envs.get_or_capture(Path::new("/a"), |_| {
+            std::future::ready(Ok(LoginEnv {
+                shell: "/bin/zsh".to_string(),
+                path: "/second".to_string(),
+                vars: HashMap::new(),
+            }))
+        }))
+        .expect("the second try runs");
+        assert_eq!(second.path, "/second");
+    }
+
+    #[test]
+    fn plat_07_a_folder_capture_sees_that_folder() {
+        let dir = TempProgramDir::new();
+        let folder = dir.path().join("project");
+        std::fs::create_dir(&folder).expect("the project folder");
+        let shell = write_script(dir.path(), "zsh", FIXTURE_SHELL);
+        let envs = FolderEnvs::default();
+
+        let login = tauri::async_runtime::block_on(capture_in_folder(
+            &envs,
+            folder.to_str().expect("the path is UTF-8"),
+            shell.to_str().expect("the path is UTF-8").to_string(),
+        ))
+        .expect("the fixture shell prints the environment");
+
+        let pwd = login.vars.get("PWD").expect("the shell reports its folder");
+        assert_eq!(
+            std::fs::canonicalize(pwd).expect("PWD exists"),
+            std::fs::canonicalize(&folder).expect("the folder exists")
+        );
+    }
+
+    #[test]
+    fn plat_07_a_command_that_asks_starts_from_its_folder_capture() {
+        let state = ShellState::default();
+        let mut command = request("/usr/bin/env", &[]);
+        command.env_from_cwd = true;
+        let folder = PathBuf::from(&command.cwd);
+        tauri::async_runtime::block_on(state.folder_envs.get_or_capture(&folder, |_| {
+            std::future::ready(Ok(LoginEnv {
+                shell: "/bin/zsh".to_string(),
+                path: "/folder/bin".to_string(),
+                vars: HashMap::from([("FROM_FOLDER".to_string(), "yes".to_string())]),
+            }))
+        }))
+        .expect("the folder capture is kept");
+
+        let env = tauri::async_runtime::block_on(captured_env(&state, &command))
+            .expect("the command's base environment");
+
+        assert_eq!(env.get("FROM_FOLDER").map(String::as_str), Some("yes"));
+    }
+
+    #[test]
+    fn plat_07_a_relative_folder_is_refused() {
+        let envs = FolderEnvs::default();
+        let error = tauri::async_runtime::block_on(capture_in_folder(
+            &envs,
+            "relative/folder",
+            "/bin/zsh".to_string(),
+        ))
+        .expect_err("a relative folder is refused");
+        assert!(matches!(
+            error,
+            CommandError::Failed {
+                code: "shell_bad_cwd",
+                ..
+            }
+        ));
+    }
+
+    #[test]
     fn plat_04_captures_the_login_shell_path_and_environment() {
         let dir = fixture_dir();
         let shell = write_script(&dir, "zsh", FIXTURE_SHELL);
@@ -1657,6 +1840,7 @@ mod tests {
             env: None,
             stdin: None,
             timeout_ms: Some(10_000),
+            env_from_cwd: false,
         }
     }
 

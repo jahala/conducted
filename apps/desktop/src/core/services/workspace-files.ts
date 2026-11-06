@@ -138,11 +138,15 @@ const workspaceOfDraftKey = (key: string): WorkspaceId =>
 	key.slice(0, key.indexOf("\u0000")) as WorkspaceId;
 
 /**
- * The URL the webview loads a file's preview from. The modified time changes the URL when the file
- * changes, so an image, PDF or video loads again.
+ * The URL the webview loads a file's preview from (`fs.assetUrl`). The modified time changes the
+ * URL when the file changes, so an image, PDF or video loads again.
  */
-export const previewUrlOf = (absolutePath: string, modifiedAt: number | null): string => {
-	const url = `asset://localhost/${encodeURIComponent(absolutePath)}`;
+export const previewUrlOf = (
+	fs: Pick<FileSystem, "assetUrl">,
+	absolutePath: string,
+	modifiedAt: number | null,
+): string => {
+	const url = fs.assetUrl(absolutePath);
 	return modifiedAt === null ? url : `${url}?v=${modifiedAt}`;
 };
 
@@ -310,7 +314,7 @@ export class WorkspaceFilesService {
 				kind: "binary",
 				sizeBytes,
 				modifiedAt,
-				previewUrl: previewUrlOf(absolute, modifiedAt),
+				previewUrl: previewUrlOf(this.#deps.fs, absolute, modifiedAt),
 			});
 		}
 		if (read.error.code === "fs_file_too_large") return ok({ kind: "too_large", sizeBytes });

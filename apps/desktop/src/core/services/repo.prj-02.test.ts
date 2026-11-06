@@ -170,6 +170,9 @@ function makePlatform(options: { dirs?: readonly string[] } = {}): FakePlatform 
 		async trash() {
 			return ok(undefined);
 		},
+		async registerRoot() {
+			return ok(undefined);
+		},
 		paths: { home: "/home/me", appData: "/app", temp: "/tmp", resources: "/resources" },
 	} as unknown as FileSystem;
 	const dialogs = {

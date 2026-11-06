@@ -8,7 +8,9 @@ import {
 } from "@tanstack/react-router";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ServicesProvider } from "../../core/context.tsx";
 import type { ChatTurn } from "../../core/model.ts";
+import { createTestContainer, type TestContainer } from "../../test/container.ts";
 import { renderWithRouter } from "../../test/render-with-router.tsx";
 
 const state = vi.hoisted(() => ({
@@ -32,8 +34,25 @@ vi.mock("../../core/hooks.ts", () => ({
 
 const { UserMessage } = await import("./UserMessage.tsx");
 
-afterEach(() => {
+let services: TestContainer | null = null;
+
+/** The message reads file URLs from the real container's platform. */
+function withServices(ui: React.ReactNode): React.ReactNode {
+	services ??= createTestContainer();
+	return <ServicesProvider container={services.container}>{ui}</ServicesProvider>;
+}
+
+function renderWithServices(ui: React.ReactNode) {
+	return renderWithRouter(withServices(ui));
+}
+
+afterEach(async () => {
 	cleanup();
+	if (services !== null) {
+		await services.container.stop();
+		services.close();
+		services = null;
+	}
 	state.copyText.mockReset();
 	state.cancel.mockReset();
 	state.revertTo.mockReset();
@@ -47,7 +66,7 @@ async function renderInRouter(ui: React.ReactNode) {
 	const route = createRoute({
 		getParentRoute: () => rootRoute,
 		path: "/",
-		component: () => <>{ui}</>,
+		component: () => <>{withServices(ui)}</>,
 	});
 	const router = createRouter({
 		routeTree: rootRoute.addChildren([route]),
@@ -88,7 +107,7 @@ function turn(over: Partial<ChatTurn["userMessage"]> = {}): ChatTurn {
 
 describe("CHAT-06 user message", () => {
 	it("renders one item for each attachment path", async () => {
-		renderWithRouter(
+		renderWithServices(
 			<UserMessage
 				turn={turn({ attachmentPaths: ["/tmp/shot.png", "/tmp/notes.txt"] })}
 				sessionId={sessionId}
@@ -99,10 +118,18 @@ describe("CHAT-06 user message", () => {
 		expect(screen.getAllByTestId("attachment")).toHaveLength(2);
 	});
 
+	it("loads an image attachment's thumbnail through the platform's file URL", async () => {
+		renderWithServices(
+			<UserMessage turn={turn({ attachmentPaths: ["/tmp/my shot.png"] })} sessionId={sessionId} />,
+		);
+		const image = await screen.findByRole("img", { name: "my shot.png" });
+		expect(image.getAttribute("src")).toBe("asset://localhost/%2Ftmp%2Fmy%20shot.png");
+	});
+
 	it("shows Retry and Discard after a failed send", async () => {
 		const onRetry = vi.fn();
 		const onDiscard = vi.fn();
-		renderWithRouter(
+		renderWithServices(
 			<UserMessage
 				turn={turn()}
 				sessionId={sessionId}
@@ -119,7 +146,7 @@ describe("CHAT-06 user message", () => {
 	});
 
 	it("marks a message sent from another session", async () => {
-		renderWithRouter(
+		renderWithServices(
 			<UserMessage
 				turn={turn({ sender: { kind: "other_chat", sessionId: "s2" as never } })}
 				sessionId={sessionId}
@@ -129,7 +156,7 @@ describe("CHAT-06 user message", () => {
 	});
 
 	it("marks a message sent from Claude", async () => {
-		renderWithRouter(
+		renderWithServices(
 			<UserMessage turn={turn({ sender: { kind: "claude_ai" } })} sessionId={sessionId} />,
 		);
 		expect(await screen.findByText("Sent via Claude")).toBeTruthy();
@@ -137,14 +164,14 @@ describe("CHAT-06 user message", () => {
 
 	it("copies the message from the right-click menu", async () => {
 		state.copyText.mockResolvedValue({ ok: true, value: undefined });
-		renderWithRouter(<UserMessage turn={turn()} sessionId={sessionId} />);
+		renderWithServices(<UserMessage turn={turn()} sessionId={sessionId} />);
 		fireEvent.contextMenu(await screen.findByText("Hello there"));
 		fireEvent.click(await screen.findByRole("menuitem", { name: "Copy message" }));
 		expect(state.copyText).toHaveBeenCalledWith("Hello there");
 	});
 
 	it("turns mention tokens into chips", async () => {
-		renderWithRouter(
+		renderWithServices(
 			<UserMessage
 				turn={turn({ text: "Look at ⟦file:src/app.ts⟧ and ⟦pr:12⟧" })}
 				sessionId={sessionId}
@@ -179,7 +206,7 @@ describe("CHAT-06 user message", () => {
 	});
 
 	it("opens the reset dialog from the Revert action", async () => {
-		renderWithRouter(<UserMessage turn={turn()} sessionId={sessionId} />);
+		renderWithServices(<UserMessage turn={turn()} sessionId={sessionId} />);
 		fireEvent.click(await screen.findByRole("button", { name: "Revert to before this message" }));
 		expect(await screen.findByRole("heading", { name: "Reset chat?" })).toBeTruthy();
 		expect(state.revertTo).not.toHaveBeenCalled();
@@ -188,7 +215,7 @@ describe("CHAT-06 user message", () => {
 	it("reverts to the turn when the dialog is confirmed", async () => {
 		state.revertTo.mockResolvedValue(ok(undefined));
 		state.setSetting.mockResolvedValue(ok(undefined));
-		renderWithRouter(<UserMessage turn={turn()} sessionId={sessionId} />);
+		renderWithServices(<UserMessage turn={turn()} sessionId={sessionId} />);
 		fireEvent.click(await screen.findByRole("button", { name: "Revert to before this message" }));
 		fireEvent.click(await screen.findByRole("button", { name: "Reset" }));
 		await waitFor(() => expect(state.revertTo).toHaveBeenCalledWith(sessionId, "t1"));
@@ -198,7 +225,7 @@ describe("CHAT-06 user message", () => {
 	it("tells the user when the message could not be copied", async () => {
 		const error = appError("clipboard", "The clipboard is busy.");
 		state.copyText.mockResolvedValue(err(error));
-		renderWithRouter(<UserMessage turn={turn()} sessionId={sessionId} />);
+		renderWithServices(<UserMessage turn={turn()} sessionId={sessionId} />);
 		fireEvent.contextMenu(await screen.findByText("Hello there"));
 		fireEvent.click(await screen.findByRole("menuitem", { name: "Copy message" }));
 		await waitFor(() =>

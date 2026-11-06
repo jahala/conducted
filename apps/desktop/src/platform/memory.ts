@@ -18,13 +18,16 @@
  * `listArtifacts` cursor is an Err, and `listArtifacts` leaves out the reserved `.context` files
  * and counts them in `omitted` the way file_search.rs does (the contract cases hold both);
  * `app.writeLog` keeps the level and message, not the data; the file system keeps text only, with
- * folders as path prefixes, and resolves `.` and `..` in a path the way the real one does.
+ * folders as path prefixes, and resolves `.` and `..` in a path the way the real one does; with
+ * `enforceFileScope` the file commands refuse a path outside the default roots and the registered
+ * ones with `fs_out_of_scope`, as files.rs does (the contract case "fs.register-root" holds it),
+ * and without it every path is reachable, so a service test can seed files anywhere.
  * Our design choice: the stand-in is a factory returning the Platform together with its controls,
  * so production code cannot reach the controls through the Platform type.
  * Test first: the contract case "fs: write then read returns the same text" passes on it.
  */
 
-import type { Clock, IdSource, ManagedProgram } from "@conducted/shared";
+import type { AppError, Clock, IdSource, ManagedProgram } from "@conducted/shared";
 import { appError, err, ok, type Result } from "@conducted/shared";
 import { globToRegExp } from "./glob.ts";
 import type {
@@ -49,6 +52,7 @@ import type {
 	Programs,
 	Pty,
 	PtyHandle,
+	PtySpawn,
 	RunningCommand,
 	ScreenSnapshot,
 	Shell,
@@ -78,6 +82,11 @@ export interface MemoryPlatformOptions {
 	appData?: string;
 	temp?: string;
 	resources?: string;
+	/**
+	 * Refuse paths outside the default roots and the registered ones with `fs_out_of_scope`, as
+	 * files.rs does. Off by default, so a service test can seed files anywhere.
+	 */
+	enforceFileScope?: boolean;
 }
 
 export interface MemoryPlatformControls {
@@ -87,6 +96,14 @@ export interface MemoryPlatformControls {
 	holdNextStart(): void;
 	/** The exit code of the next PTY spawned with a `command`. Null means a signal ended it. */
 	queuePtyExit(code: number | null): void;
+	/** Makes every terminal's `ack` fail with this message; null makes them succeed again. */
+	failPtyAcks(message: string | null): void;
+	/** Makes saving a terminal's history fail with this message when it ends; null undoes it. */
+	failPtyHistory(message: string | null): void;
+	/** Every terminal start request, in order. */
+	readonly ptySpawns: readonly PtySpawn[];
+	/** The app's processes `app.resourceUsage` reports, each with its working folder. */
+	setProcesses(processes: readonly MemoryProcess[]): void;
 	/** Changes what `system.info` reports, for a test about a Mac other than the default. */
 	setSystemInfo(info: SystemInfo): void;
 	/** Makes the next `system.info` calls fail with this message. */
@@ -101,6 +118,10 @@ export interface MemoryPlatformControls {
 	readonly shellCalls: readonly ShellCommand[];
 	/** Text files by absolute path. Reading and writing through `fs` use this map. */
 	readonly files: Map<string, string>;
+	/** Folders registered with `fs.registerRoot`, in order, as stored. */
+	readonly registeredRoots: readonly string[];
+	/** Makes a folder and its parents exist on the user's disk, outside the app's file scope. */
+	addFolder(path: string): void;
 	/** Lines the app sent to the sidecar, in order. */
 	readonly sidecarSent: readonly string[];
 	/** Delivers a line to `sidecar.onLine` listeners. */
@@ -109,6 +130,8 @@ export interface MemoryPlatformControls {
 	/** Delivers a notification click and a deep link. */
 	emitNotificationClick(deepLink: string): void;
 	emitDeepLink(url: string): void;
+	/** Delivers a link the Rust shell refused, such as one over 64 KiB. */
+	emitDeepLinkRejected(rejection: AppError): void;
 	emitQuitRequested(): void;
 	/** Changes the window's focus and tells every focus listener. */
 	emitWindowFocus(focused: boolean): void;
@@ -126,6 +149,8 @@ export interface MemoryPlatformControls {
 	readonly dockBadge: number | null;
 	/** The last text written to the clipboard. */
 	readonly clipboardText: string | null;
+	/** Puts files on the clipboard, as if copied in Finder. */
+	setClipboardFilePaths(paths: readonly string[]): void;
 	/** Answers for dialogs, consumed in order. */
 	queueDialogAnswers(answers: {
 		folder?: string | null;
@@ -138,6 +163,16 @@ export interface MemoryPlatformControls {
 	readonly logs: readonly { level: string; message: string }[];
 	/** Returns the number of listeners handed out by the Platform that were never unsubscribed. */
 	dispose(): number;
+}
+
+/** One process of the app, as the process table lists it. */
+export interface MemoryProcess {
+	pid: number;
+	name: string;
+	cpuPercent: number;
+	memoryBytes: number;
+	/** Its working folder, which places it in a workspace. */
+	cwd: string;
 }
 
 export interface MemoryPlatform {
@@ -286,6 +321,34 @@ const fuzzyScore = (path: string, query: string): number => {
 	return score - haystack.length * 0.01;
 };
 
+/**
+ * The folders the file commands reach without a registration, as files.rs `allowed_roots` lists
+ * them: the app's own folders, the Claude configuration and the default workspaces folder.
+ */
+export const defaultFileRoots = (paths: FileSystem["paths"]): string[] => [
+	paths.appData,
+	paths.temp,
+	paths.resources,
+	`${paths.home}/.claude.json`,
+	`${paths.home}/.claude`,
+	`${paths.home}/.conducted`,
+	`${paths.home}/Library/Application Support/Claude/claude_desktop_config.json`,
+	`${paths.home}/conducted`,
+];
+
+/**
+ * The URL Tauri's `convertFileSrc` gives on macOS: the asset protocol with the whole path
+ * percent-encoded as one segment.
+ */
+export const assetUrlOf = (path: string): string => `asset://localhost/${encodeURIComponent(path)}`;
+
+/** True when `path` is `root` or lies below it, compared by spelling after `.` and `..`. */
+export const isWithinRoot = (path: string, root: string): boolean => {
+	const target = normalizePath(path);
+	const base = normalizePath(root);
+	return target === base || target.startsWith(base === "/" ? "/" : `${base}/`);
+};
+
 // ---------------------------------------------------------------- the stand-in
 
 export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlatform {
@@ -301,6 +364,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 
 	const files = new Map<string, string>();
 	const directories = new Set<string>(["/"]);
+	const registeredRoots: string[] = [];
 	const modified = new Map<string, number>();
 	const trashed = new Map<string, string>();
 	const secrets = new Map<string, string>();
@@ -315,6 +379,11 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	const ptyExitCodes: (number | null)[] = [];
 	let dockBadge: number | null = null;
 	let clipboardText: string | null = null;
+	let clipboardFilePaths: string[] = [];
+	let ptyAckFailure: string | null = null;
+	let ptyHistoryFailure: string | null = null;
+	const ptySpawns: PtySpawn[] = [];
+	let processes: MemoryProcess[] = [];
 	let holdNextStart = false;
 	let systemInfo: SystemInfo = { osVersion: "15.0", machineArch: "arm64", buildArch: "arm64" };
 	let systemInfoFailure: string | null = null;
@@ -332,6 +401,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	const sidecarRestartListeners = new Set<ValueListener<void>>();
 	const notificationClickListeners = new Set<ValueListener<string>>();
 	const deepLinkListeners = new Set<ValueListener<string>>();
+	const deepLinkRejectedListeners = new Set<ValueListener<AppError>>();
 	const quitListeners = new Set<ValueListener<void>>();
 	const focusListeners = new Set<ValueListener<boolean>>();
 	const fileDropListeners = new Set<ValueListener<FileDropEvent>>();
@@ -379,7 +449,32 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		for (const ancestor of ancestors(path)) directories.add(ancestor);
 	};
 
+	/** The files.rs scope check, when the test asked for it. Null means the path may be used. */
+	const outOfScope = (path: string): AppError | null => {
+		if (options.enforceFileScope !== true) return null;
+		if (!path.startsWith("/")) {
+			return appError("fs_relative_path", `Path must be absolute: ${path}`);
+		}
+		const roots = [...defaultFileRoots(paths), ...registeredRoots];
+		if (roots.some((root) => isWithinRoot(path, root))) return null;
+		return appError(
+			"fs_out_of_scope",
+			`Path is outside the folders this window may reach: ${path}`,
+		);
+	};
+
+	const registerRoot = async (path: string): Promise<Result<void>> => {
+		if (!path.startsWith("/")) {
+			return err(appError("fs_relative_path", `Path must be absolute: ${path}`));
+		}
+		const root = normalizePath(path);
+		if (!registeredRoots.includes(root)) registeredRoots.push(root);
+		return ok(undefined);
+	};
+
 	const writeTextAtomic = async (path: string, text: string): Promise<Result<void>> => {
+		const refused = outOfScope(path);
+		if (refused !== null) return err(refused);
 		const target = normalizePath(path);
 		for (const ancestor of ancestors(target)) {
 			if (files.has(ancestor)) {
@@ -396,6 +491,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	};
 
 	const readText = async (path: string): Promise<Result<string>> => {
+		const refused = outOfScope(path);
+		if (refused !== null) return err(refused);
 		const target = normalizePath(path);
 		const text = files.get(target);
 		return text === undefined
@@ -404,11 +501,14 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	};
 
 	const exists = async (path: string): Promise<boolean> => {
+		if (outOfScope(path) !== null) return false;
 		const target = normalizePath(path);
 		return files.has(target) || directories.has(target);
 	};
 
 	const stat = async (path: string): Promise<Result<FileStat>> => {
+		const refused = outOfScope(path);
+		if (refused !== null) return err(refused);
 		const target = normalizePath(path);
 		if (files.has(target)) return ok(statForFile(target));
 		if (directories.has(target)) return ok(statForFolder(target));
@@ -416,6 +516,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	};
 
 	const mkdirp = async (path: string): Promise<Result<void>> => {
+		const refused = outOfScope(path);
+		if (refused !== null) return err(refused);
 		const target = normalizePath(path);
 		for (const folder of [...ancestors(target), target]) {
 			if (files.has(folder)) {
@@ -432,6 +534,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	};
 
 	const readDir = async (path: string): Promise<Result<FileStat[]>> => {
+		const refused = outOfScope(path);
+		if (refused !== null) return err(refused);
 		const folder = normalizePath(path);
 		if (!directories.has(folder)) {
 			return err(appError("fs_not_found", `${folder} is not a folder.`));
@@ -448,6 +552,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	};
 
 	const trash = async (path: string): Promise<Result<void>> => {
+		const refused = outOfScope(path);
+		if (refused !== null) return err(refused);
 		const target = normalizePath(path);
 		const text = files.get(target);
 		if (text !== undefined) {
@@ -597,6 +703,8 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		mkdirp,
 		readDir,
 		trash,
+		registerRoot,
+		assetUrl: assetUrlOf,
 		paths,
 	};
 
@@ -610,27 +718,28 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		rows: number;
 		output: string;
 		dataListeners: Set<ValueListener<Uint8Array>>;
-		exitListeners: Set<ValueListener<number | null>>;
+		exitListeners: Set<ValueListener<{ code: number | null; historyError: AppError | null }>>;
 		exited: boolean;
 		exitCode: number | null;
+		historyError: AppError | null;
 	}
 
 	const finishPty = (state: PtyState, code: number | null): void => {
 		if (state.exited) return;
 		state.exited = true;
 		state.exitCode = code;
-		ptyHistory.set(state.id, new TextEncoder().encode(state.output));
-		for (const listener of [...state.exitListeners]) listener(code);
+		if (ptyHistoryFailure === null) {
+			ptyHistory.set(state.id, new TextEncoder().encode(state.output));
+		} else {
+			state.historyError = appError("history_write_failed", ptyHistoryFailure);
+		}
+		for (const listener of [...state.exitListeners]) {
+			listener({ code, historyError: state.historyError });
+		}
 		state.exitListeners.clear();
 	};
 
-	const spawnPty = async (spawnOptions: {
-		cwd: string;
-		cols: number;
-		rows: number;
-		command?: { program: string; args: readonly string[] };
-		env?: Readonly<Record<string, string>>;
-	}): Promise<Result<PtyHandle>> => {
+	const spawnPty = async (spawnOptions: PtySpawn): Promise<Result<PtyHandle>> => {
 		const state: PtyState = {
 			id: ids.uuid(),
 			cols: spawnOptions.cols,
@@ -640,7 +749,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			exitListeners: new Set(),
 			exited: false,
 			exitCode: null,
+			historyError: null,
 		};
+		ptySpawns.push(spawnOptions);
 		const handle: PtyHandle = {
 			id: state.id,
 			write: async (data) => {
@@ -657,13 +768,14 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 				finishPty(state, 143);
 			},
 			onData: (listener) => listen(state.dataListeners, listener),
-			ack: () => {},
+			ack: async () =>
+				ptyAckFailure === null ? ok(undefined) : err(appError("pty_ack_failed", ptyAckFailure)),
 			onExit: (listener) => {
 				if (state.exited) {
-					queueMicrotask(() => listener(state.exitCode));
+					queueMicrotask(() => listener(state.exitCode, state.historyError));
 					return () => {};
 				}
-				return listen(state.exitListeners, listener);
+				return listen(state.exitListeners, (exit) => listener(exit.code, exit.historyError));
 			},
 			screenText: async (maxLines) => {
 				const lines = stripAnsi(state.output).split("\n");
@@ -732,7 +844,12 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			};
 			return running;
 		},
-		loginEnv: async () => ({ shell: "/bin/zsh", path: "/opt/homebrew/bin:/usr/bin:/bin" }),
+		loginEnv: async (cwd) => {
+			if (cwd !== undefined && !cwd.startsWith("/")) {
+				throw appError("shell_bad_cwd", `The working folder must be an absolute path: ${cwd}`);
+			}
+			return { shell: "/bin/zsh", path: "/opt/homebrew/bin:/usr/bin:/bin" };
+		},
 	};
 
 	// ---------------------------------------------------------------- sidecar
@@ -806,6 +923,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			clipboardText = text;
 		},
 		writeImage: async () => {},
+		readFilePaths: async () => ok([...clipboardFilePaths]),
 	};
 
 	let speechListener: ((event: SpeechEvent) => void) | null = null;
@@ -899,6 +1017,19 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 	const attachments: AttachmentFiles = {
 		materialize: async (sourcePath, destinationPath) => materialize(sourcePath, destinationPath),
 		resizeImage: async (sourcePath, destinationPath) => materialize(sourcePath, destinationPath),
+		writeBytes: async (bytes, destinationPath) => {
+			// The stand-in keeps text only, so the bytes are kept as UTF-8 text.
+			const written = await writeTextAtomic(destinationPath, new TextDecoder().decode(bytes));
+			if (!written.ok) return written;
+			return ok({
+				path: normalizePath(destinationPath),
+				sizeBytes: bytes.length,
+				isImage: false,
+				width: null,
+				height: null,
+				resized: false,
+			});
+		},
 	};
 
 	const statusFor = (program: ManagedProgram): ProgramStatus =>
@@ -972,9 +1103,18 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		health: async () => ok(undefined),
 		dbVersionWarning: async () => ok(null),
 		onDeepLink: (listener) => listen(deepLinkListeners, listener),
+		onDeepLinkRejected: (listener) => listen(deepLinkRejectedListeners, listener),
 		onQuitRequested: (listener) => listen(quitListeners, listener),
 		quit: async () => {},
-		resourceUsage: async () => [],
+		resourceUsage: async (workspacePaths) =>
+			ok(
+				processes.map(({ cwd, ...usage }) => {
+					const owner = workspacePaths
+						.filter((path) => isWithinRoot(cwd, path))
+						.sort((left, right) => right.length - left.length)[0];
+					return owner === undefined ? usage : { ...usage, workspacePath: owner };
+				}),
+			),
 		// The data argument is not kept, so a value that cannot be serialised cannot break logging.
 		writeLog: (level, message) => {
 			logs.push({ level, message });
@@ -993,6 +1133,18 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		},
 		queuePtyExit: (code) => {
 			ptyExitCodes.push(code);
+		},
+		failPtyAcks: (message) => {
+			ptyAckFailure = message;
+		},
+		failPtyHistory: (message) => {
+			ptyHistoryFailure = message;
+		},
+		get ptySpawns() {
+			return ptySpawns;
+		},
+		setProcesses: (next) => {
+			processes = [...next];
 		},
 		setSystemInfo: (info) => {
 			systemInfo = info;
@@ -1014,6 +1166,14 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 			return shellCalls;
 		},
 		files,
+		get registeredRoots() {
+			return registeredRoots;
+		},
+		addFolder: (path) => {
+			const target = normalizePath(path);
+			addParentFolders(target);
+			directories.add(target);
+		},
 		get sidecarSent() {
 			return sidecarSent;
 		},
@@ -1021,6 +1181,7 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		emitSidecarRestart: () => emit(sidecarRestartListeners, undefined),
 		emitNotificationClick: (deepLink) => emit(notificationClickListeners, deepLink),
 		emitDeepLink: (url) => emit(deepLinkListeners, url),
+		emitDeepLinkRejected: (rejection) => emit(deepLinkRejectedListeners, rejection),
 		emitQuitRequested: () => emit(quitListeners, undefined),
 		emitWindowFocus: (focused) => {
 			windowFocused = focused;
@@ -1051,6 +1212,9 @@ export function createMemoryPlatform(options: MemoryPlatformOptions): MemoryPlat
 		},
 		get clipboardText() {
 			return clipboardText;
+		},
+		setClipboardFilePaths: (paths) => {
+			clipboardFilePaths = [...paths];
 		},
 		queueDialogAnswers: (answers) => {
 			dialogAnswers.push(answers);

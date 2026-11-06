@@ -148,7 +148,12 @@ describe("PLAT-01 platform contract method coverage", () => {
 		runPlatformContract(
 			harness,
 			"memory",
-			async () => ({ platform: memoryPlatformForShape(), root: "/root", cleanup: async () => {} }),
+			async () => ({
+				platform: memoryPlatformForShape(),
+				root: "/root",
+				outside: "/outside",
+				cleanup: async () => {},
+			}),
 			{ controls: true, methods: { "app.version": ["app.health"] } },
 		);
 		expect(bodies).toHaveLength(1);

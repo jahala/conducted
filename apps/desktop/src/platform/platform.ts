@@ -41,6 +41,12 @@ export interface ShellCommand {
 	stdin?: string;
 	/** Kill the whole process group after this many milliseconds. Catches hangs, not slowness. */
 	timeoutMs?: number;
+	/**
+	 * Start from the login-shell environment as captured in `cwd`, so direnv and mise settings of
+	 * that folder apply, instead of the app-wide capture. The first command in a folder waits for
+	 * that folder's capture.
+	 */
+	envFromCwd?: boolean;
 }
 
 export interface ShellOutput {
@@ -58,8 +64,12 @@ export interface RunningCommand {
 export interface Shell {
 	run(command: ShellCommand): Promise<Result<ShellOutput>>;
 	start(command: ShellCommand): RunningCommand;
-	/** The user's login shell and PATH, captured once at startup by the Rust shell. */
-	loginEnv(): Promise<{ shell: string; path: string }>;
+	/**
+	 * The user's login shell and PATH. With `cwd`, as the login shell sees them in that folder,
+	 * captured once per folder; without it, the app-wide capture made at startup. A relative `cwd`
+	 * fails with `shell_bad_cwd`.
+	 */
+	loginEnv(cwd?: string): Promise<{ shell: string; path: string }>;
 }
 
 // ---------------------------------------------------------------- files
@@ -82,6 +92,20 @@ export interface FileSystem {
 	readDir(path: string): Promise<Result<FileStat[]>>;
 	/** Moves to the macOS Trash. The app never deletes user files for good. */
 	trash(path: string): Promise<Result<void>>;
+	/**
+	 * Lets the file commands reach `path` and everything below it until the app quits (PLAT-02).
+	 * Without it they reach only the app's own folders, the Claude configuration and
+	 * `~/conducted`, and refuse anything else with `fs_out_of_scope`. The project and workspace
+	 * services register their folders whenever they add or load them. The folder need not exist
+	 * yet. A relative path is an Err with `fs_relative_path`.
+	 */
+	registerRoot(path: string): Promise<Result<void>>;
+	/**
+	 * A URL the web view can load a local file from, for image, PDF and video previews. The Rust
+	 * shell serves only files under a registered folder or the attachment draft folder; any other
+	 * file fails to load the way a missing one does.
+	 */
+	assetUrl(path: string): string;
 	paths: { home: string; appData: string; temp: string; resources: string };
 }
 
@@ -99,11 +123,14 @@ export interface GrepMatch {
 
 /** Fast, gitignore-aware search done in Rust (file_search.rs). */
 export interface ArtifactPage {
-	/** Files and folders of the workspace's `.context` folder, relative to it. */
+	/** Files (never folders) of the workspace's `.context` folder, as absolute paths. */
 	entries: FileStat[];
 	/** Pass back to get the next page. Null on the last page. */
 	nextCursor: string | null;
-	/** How many entries the exclusions left out (build output, dependency folders, large files). */
+	/**
+	 * How many files of the whole folder the list leaves out: the `.context` files the app keeps
+	 * for itself (file_search.rs). Every page carries the same total.
+	 */
 	omitted: number;
 }
 
@@ -131,6 +158,11 @@ export interface PtySpawn {
 	/** Run this program instead of an interactive login shell (setup and run scripts). */
 	command?: { program: string; args: readonly string[] };
 	env?: Readonly<Record<string, string>>;
+	/**
+	 * Most bytes of output kept for the terminal's saved history: the Advanced setting "terminal
+	 * scrollback limit" (PLAT-08). Rust never keeps more than 20 MiB for one terminal.
+	 */
+	scrollbackLimitBytes?: number;
 }
 
 export interface PtyHandle {
@@ -140,8 +172,13 @@ export interface PtyHandle {
 	kill(): Promise<void>;
 	/** Output arrives in chunks. Call `ack` with the byte count once rendered (flow control). */
 	onData(listener: (chunk: Uint8Array) => void): Unsubscribe;
-	ack(bytes: number): void;
-	onExit(listener: (exitCode: number | null) => void): Unsubscribe;
+	/** An Err means the shell did not hear it, so output may stay paused. */
+	ack(bytes: number): Promise<Result<void>>;
+	/**
+	 * The process ended. `historyError` says why its saved history could not be written, and is
+	 * null when it was written or there was nothing to save (PLAT-08).
+	 */
+	onExit(listener: (exitCode: number | null, historyError: AppError | null) => void): Unsubscribe;
 	/** Plain text of the visible screen plus scrollback, for the GetTerminalOutput tool. */
 	screenText(maxLines: number): Promise<string>;
 	/** The full screen state, so a tab or a restored terminal redraws on the right screen. */
@@ -212,6 +249,8 @@ export interface Opener {
 export interface Clipboard {
 	writeText(text: string): Promise<void>;
 	writeImage(pngBytes: Uint8Array): Promise<void>;
+	/** The files copied in Finder, as absolute paths in order. Empty when none are copied. */
+	readFilePaths(): Promise<Result<string[]>>;
 }
 
 /** One message from dictation, as speech.rs sends it. `ended` is always the last one. */
@@ -264,9 +303,18 @@ export interface AppInfo {
 	 */
 	dbVersionWarning(): Promise<Result<{ databaseVersion: number; appVersion: number } | null>>;
 	onDeepLink(listener: (url: string) => void): Unsubscribe;
+	/**
+	 * A link the Rust shell refused before the UI's parser saw it, such as one over 64 KiB
+	 * (PLAT-16). The links that launched the app are checked when this subscribes.
+	 */
+	onDeepLinkRejected(listener: (rejection: AppError) => void): Unsubscribe;
 	onQuitRequested(listener: () => void): Unsubscribe;
 	quit(): Promise<void>;
-	resourceUsage(): Promise<ProcessUsage[]>;
+	/**
+	 * CPU and memory of the app's own processes (PLAT-14). A process belongs to the longest of
+	 * `workspacePaths` its working folder lies in; one in none of them has no `workspacePath`.
+	 */
+	resourceUsage(workspacePaths: readonly string[]): Promise<Result<ProcessUsage[]>>;
 	writeLog(level: "error" | "warn" | "info" | "debug", message: string, data?: unknown): void;
 	/** Changes how much the Rust shell writes to the log, at run time. */
 	setLogLevel(level: "error" | "warn" | "info" | "debug"): Promise<void>;
@@ -363,6 +411,16 @@ export interface AttachmentFiles {
 		options: { resizeImage: boolean },
 	): Promise<Result<MaterializedFile>>;
 	resizeImage(sourcePath: string, destinationPath: string): Promise<Result<MaterializedFile>>;
+	/**
+	 * Writes bytes the web view holds, such as a pasted image, to `destinationPath`. The same rules
+	 * as `materialize` apply: the destination lies in the attachment draft folder and is new, and
+	 * an image is shrunk when `resizeImage` is set.
+	 */
+	writeBytes(
+		bytes: Uint8Array,
+		destinationPath: string,
+		options: { resizeImage: boolean },
+	): Promise<Result<MaterializedFile>>;
 }
 
 // ---------------------------------------------------------------- programs the app manages (D021, D024)

@@ -282,7 +282,7 @@ REV-01	shortcut	Cmd+Alt+U show uncommitted changes	ui-map 5.4	covered
 CHAT-01	shortcut	Cmd+T new chat tab	ui-map 5.4	covered
 COMP-01	shortcut	Enter submits, Shift+Enter inserts a new line	ui-map 5.4	covered
 CHAT-03	shortcut	Cmd+Enter submits with the opposite follow-up behaviour	ui-map 5.4	covered
-COMP-07	shortcut	Cmd+Shift+V pastes copied files as paths (needs Clipboard.readFilePaths in platform.ts and its Rust command)	ui-map 5.4	missing
+COMP-07	shortcut	Cmd+Shift+V pastes copied files as paths (needs Clipboard.readFilePaths in platform.ts and its Rust command)	ui-map 5.4	covered
 COMP-01	shortcut	Cmd+L focuses the chat input	ui-map 5.4	covered
 COMP-03	shortcut	Shift+Tab toggles plan mode while typing	ui-map 5.4	covered
 CHAT-12	shortcut	Cmd+Shift+Enter approves the plan	ui-map 5.4	covered
@@ -530,8 +530,8 @@ COMP-08	control	Speech to text: waveform, 'Stop recording', 'Transcribing...', s
 COMP-01	menu	'More composer actions' menu on narrow layouts	ui-map 3.5	covered
 COMP-01	control	Send, Queue and Save button	ui-map 3.5	covered
 CHAT-05	control	Stop button (tooltip 'Cancel')	ui-map 3.5	covered
-COMP-07	action	Attachments by file picker, drag and drop, and paste (a pasted image needs AttachmentFiles.writeBytes in platform.ts and its Rust command)	ui-map 3.5	partly
-COMP-07	action	'Paste copied files as paths' (needs Clipboard.readFilePaths)	ui-map 3.5	missing
+COMP-07	action	Attachments by file picker, drag and drop, and paste (a pasted image needs AttachmentFiles.writeBytes in platform.ts and its Rust command)	ui-map 3.5	covered
+COMP-07	action	'Paste copied files as paths' (needs Clipboard.readFilePaths)	ui-map 3.5	covered
 COMP-07	setting	Pasted text over 5000 characters becomes an attachment (setting)	ui-map 3.5	covered
 COMP-07	rule	Images over 5MB fail with a message	ui-map 3.5	covered
 COMP-07	rule	Sending waits until the workspace is initialised and says so	services-map 5A.6.2	partly

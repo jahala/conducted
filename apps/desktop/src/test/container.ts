@@ -39,7 +39,10 @@ const createTestPlaceNames = (): PlaceNames => ({
 	},
 });
 
-export type TestContainerOptions = Partial<Omit<ContainerInputs, "platform">>;
+export type TestContainerOptions = Partial<Omit<ContainerInputs, "platform">> & {
+	/** The in-memory file commands refuse paths outside the app's file scope, as files.rs does. */
+	enforceFileScope?: boolean;
+};
 
 export interface TestContainer {
 	container: Container;
@@ -59,6 +62,7 @@ export function createTestContainer(options: TestContainerOptions = {}): TestCon
 		database: store.database,
 		version: "0.0.0-test",
 		channel: "dev",
+		enforceFileScope: options.enforceFileScope,
 	});
 	const container = createContainer({
 		platform: memory.platform,

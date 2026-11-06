@@ -37,11 +37,18 @@
 //! - A path outside every root fails with `fs_out_of_scope` and names the path.
 //! - `fs_stat` resolves only the parent folder and then reads the link itself, so a link is
 //!   described as a link even when it points to another name.
-//! - The roots are a parameter, so a caller with a workspace outside the default folder can pass
-//!   its own list. The `fs_*` commands use `allowed_roots`, which cannot add a folder the user
-//!   picked: a repository outside `~/conducted` is out of scope. Registering it needs a method
-//!   on the shared `FileSystem` contract and a caller in the project and workspace services, so it
-//!   is not built here.
+//! - The folders registered with `fs_register_root` while the app runs (PLAT-02). The project
+//!   and workspace services register every project folder and workspace folder they load or add,
+//!   so a repository outside `~/conducted` is reachable. A registration lasts until the app quits;
+//!   the UI registers again on every start. A relative path fails with `fs_relative_path`.
+//!
+//! - A registered folder is also added to the asset protocol's scope, so the web view can load
+//!   previews from it through `Platform.fs.assetUrl`. The static scope in `tauri.conf.json` is
+//!   empty; `lib.rs` adds the attachment draft folder at startup (`attachments::DRAFT_FOLDER`).
+//!
+//! Our design choice: the web view registers the folders, so a page that runs code in the web
+//! view could register any folder. The scope narrows accidents, as the program list in shell.rs
+//! does; it is not a sandbox. A folder the user picks in a dialog is the normal case.
 //!
 //! Our design choice: the web view's file scope covers the folders the UI already uses, not all of
 //! the home folder. The whole app data folder and the whole temp folder are roots because drafts,
@@ -70,13 +77,14 @@ use std::ffi::OsString;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Component, Path, PathBuf};
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::UNIX_EPOCH;
 
 use serde::Serialize;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Runtime, State};
 
-use crate::error::{CommandError, CommandResult, blocking};
+use crate::error::{CommandError, CommandResult, blocking, lock};
 
 #[cfg(target_os = "macos")]
 unsafe extern "C" {
@@ -235,9 +243,44 @@ fn is_within(path: &Path, root: &Path) -> bool {
     path == root || path.starts_with(root)
 }
 
-/// The roots the web view may reach without a further registration: the folders Tauri owns, the
-/// Claude configuration files, the app's own settings folder, and the default workspaces folder.
-pub fn allowed_roots(app: &AppHandle) -> CommandResult<Vec<PathBuf>> {
+/// Folders the UI added to the file scope while the app runs (PLAT-02): the project and workspace
+/// folders it loaded or added. Registered once with `.manage(FsScopeState::default())`.
+#[derive(Default)]
+pub struct FsScopeState {
+    registered: Mutex<Vec<PathBuf>>,
+}
+
+impl FsScopeState {
+    /// Adds a folder to the scope and returns it as stored: `.` and `..` resolved by spelling,
+    /// without a trailing slash. A relative path fails with `fs_relative_path`. A folder that is
+    /// already registered is kept once. The folder need not exist yet.
+    pub fn register(&self, path: &str) -> CommandResult<PathBuf> {
+        let root = normalise_lexically(&absolute_path(path)?);
+        let mut registered = lock(&self.registered);
+        if !registered.contains(&root) {
+            registered.push(root.clone());
+        }
+        Ok(root)
+    }
+
+    /// `base` followed by every registered folder.
+    pub fn roots_with(&self, mut base: Vec<PathBuf>) -> Vec<PathBuf> {
+        base.extend(lock(&self.registered).iter().cloned());
+        base
+    }
+}
+
+/// The roots the web view may reach: the folders Tauri owns, the Claude configuration files, the
+/// app's own settings folder, the default workspaces folder, and every registered folder.
+pub fn allowed_roots(app: &AppHandle, scope: &FsScopeState) -> CommandResult<Vec<PathBuf>> {
+    let mut roots = scope.roots_with(default_roots(app)?);
+    roots.sort();
+    roots.dedup();
+    Ok(roots)
+}
+
+/// The roots the web view may reach without a registration.
+fn default_roots(app: &AppHandle) -> CommandResult<Vec<PathBuf>> {
     let resolver = app.path();
     let to_error = |error: tauri::Error| CommandError::Failed {
         code: "fs_scope_failed",
@@ -250,8 +293,6 @@ pub fn allowed_roots(app: &AppHandle) -> CommandResult<Vec<PathBuf>> {
         resolver.resource_dir().map_err(to_error)?,
     ];
     roots.extend(home_roots(&home));
-    roots.sort();
-    roots.dedup();
     Ok(roots)
 }
 
@@ -672,38 +713,99 @@ async fn trash_checked(path: String, roots: Vec<PathBuf>) -> CommandResult<()> {
 
 /// Reads a whole file as UTF-8 text.
 #[tauri::command]
-pub async fn fs_read_text(app: AppHandle, path: String) -> CommandResult<String> {
-    read_text_checked(path, allowed_roots(&app)?).await
+pub async fn fs_read_text(
+    app: AppHandle,
+    scope: State<'_, FsScopeState>,
+    path: String,
+) -> CommandResult<String> {
+    read_text_checked(path, allowed_roots(&app, &scope)?).await
 }
 
 /// Writes text through a temp file and a rename.
 #[tauri::command]
-pub async fn fs_write_text_atomic(app: AppHandle, path: String, text: String) -> CommandResult<()> {
-    write_text_atomic_checked(path, text, allowed_roots(&app)?).await
+pub async fn fs_write_text_atomic(
+    app: AppHandle,
+    scope: State<'_, FsScopeState>,
+    path: String,
+    text: String,
+) -> CommandResult<()> {
+    write_text_atomic_checked(path, text, allowed_roots(&app, &scope)?).await
 }
 
 /// Returns facts about a path, or `None` when it does not exist.
 #[tauri::command]
-pub async fn fs_stat(app: AppHandle, path: String) -> CommandResult<Option<FileStat>> {
-    stat_checked(path, allowed_roots(&app)?).await
+pub async fn fs_stat(
+    app: AppHandle,
+    scope: State<'_, FsScopeState>,
+    path: String,
+) -> CommandResult<Option<FileStat>> {
+    stat_checked(path, allowed_roots(&app, &scope)?).await
 }
 
 /// Creates a folder and any missing parents. Succeeds when it already exists.
 #[tauri::command]
-pub async fn fs_mkdirp(app: AppHandle, path: String) -> CommandResult<()> {
-    mkdirp_checked(path, allowed_roots(&app)?).await
+pub async fn fs_mkdirp(
+    app: AppHandle,
+    scope: State<'_, FsScopeState>,
+    path: String,
+) -> CommandResult<()> {
+    mkdirp_checked(path, allowed_roots(&app, &scope)?).await
 }
 
 /// Lists the direct children of a folder.
 #[tauri::command]
-pub async fn fs_read_dir(app: AppHandle, path: String) -> CommandResult<Vec<FileStat>> {
-    read_dir_checked(path, allowed_roots(&app)?).await
+pub async fn fs_read_dir(
+    app: AppHandle,
+    scope: State<'_, FsScopeState>,
+    path: String,
+) -> CommandResult<Vec<FileStat>> {
+    read_dir_checked(path, allowed_roots(&app, &scope)?).await
 }
 
 /// Moves a file or folder to the Trash.
 #[tauri::command]
-pub async fn fs_trash(app: AppHandle, path: String) -> CommandResult<()> {
-    trash_checked(path, allowed_roots(&app)?).await
+pub async fn fs_trash(
+    app: AppHandle,
+    scope: State<'_, FsScopeState>,
+    path: String,
+) -> CommandResult<()> {
+    trash_checked(path, allowed_roots(&app, &scope)?).await
+}
+
+/// Adds a folder to the scope of the file commands and of the asset protocol until the app quits
+/// (PLAT-02).
+#[tauri::command]
+pub async fn fs_register_root(
+    app: AppHandle,
+    scope: State<'_, FsScopeState>,
+    path: String,
+) -> CommandResult<()> {
+    register_root(&app, &scope, &path)
+}
+
+/// Registers `path` with the file commands, then lets the web view load files below it through
+/// the asset protocol, so image, PDF and video previews of a project load.
+pub fn register_root<R: Runtime>(
+    app: &AppHandle<R>,
+    scope: &FsScopeState,
+    path: &str,
+) -> CommandResult<()> {
+    let root = scope.register(path)?;
+    allow_assets_under(app, &root)
+}
+
+/// Lets the web view load files below `folder` through the asset protocol. The static scope in
+/// tauri.conf.json is empty, so only the folders added here can be loaded.
+pub fn allow_assets_under<R: Runtime>(app: &AppHandle<R>, folder: &Path) -> CommandResult<()> {
+    app.asset_protocol_scope()
+        .allow_directory(folder, true)
+        .map_err(|error| CommandError::Failed {
+            code: "fs_asset_scope_failed",
+            message: format!(
+                "Could not let previews load from {}: {error}",
+                folder.display()
+            ),
+        })
 }
 
 /// Moves an app-managed file or folder to the Trash without the web view's path scope.
@@ -1356,6 +1458,97 @@ mod tests {
             tauri::async_runtime::block_on(stat_checked(as_string(&escaping_link), roots.clone()))
                 .expect_err("a link that leaves the roots is refused");
         assert_out_of_scope(stat_link);
+    }
+
+    #[test]
+    fn plat_02_a_registered_root_is_in_scope_and_an_unregistered_one_is_not() {
+        let folder = TempDir::new();
+        let project = folder.path().join("project");
+        let other = folder.path().join("other");
+        fs::create_dir(&project).expect("project folder");
+        fs::create_dir(&other).expect("other folder");
+        let note = project.join("note.txt");
+        fs::write(&note, "x").expect("seed file");
+        let base = vec![folder.path().join("app-data")];
+        let scope = FsScopeState::default();
+
+        let before = check_path_in_scope(&as_string(&note), &scope.roots_with(base.clone()))
+            .expect_err("an unregistered folder is out of scope");
+        assert_out_of_scope(before);
+
+        scope
+            .register(&as_string(&project))
+            .expect("an absolute folder registers");
+        let roots = scope.roots_with(base);
+        check_path_in_scope(&as_string(&note), &roots)
+            .expect("a file in a registered folder is in scope");
+        let elsewhere = check_path_in_scope(&as_string(&other.join("x.txt")), &roots)
+            .expect_err("a folder nobody registered stays out of scope");
+        assert_out_of_scope(elsewhere);
+    }
+
+    fn mock_app() -> tauri::App<tauri::test::MockRuntime> {
+        tauri::test::mock_builder()
+            .manage(FsScopeState::default())
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .expect("build a mock app")
+    }
+
+    #[test]
+    fn plat_02_a_registered_folder_can_be_loaded_as_an_asset_and_another_cannot() {
+        let folder = TempDir::new();
+        let project = folder.path().join("project");
+        let other = folder.path().join("other");
+        fs::create_dir_all(project.join("shots")).expect("project folder");
+        fs::create_dir(&other).expect("other folder");
+        let image = project.join("shots").join("a.png");
+        let elsewhere = other.join("b.png");
+        fs::write(&image, "png").expect("seed image");
+        fs::write(&elsewhere, "png").expect("seed other image");
+        let app = mock_app();
+        let scope = app.state::<FsScopeState>();
+
+        assert!(!app.asset_protocol_scope().is_allowed(&image));
+        register_root(app.handle(), &scope, &as_string(&project)).expect("registers");
+
+        assert!(app.asset_protocol_scope().is_allowed(&image));
+        assert!(!app.asset_protocol_scope().is_allowed(&elsewhere));
+    }
+
+    #[test]
+    fn plat_02_the_asset_protocol_has_no_static_scope() {
+        let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json"))
+            .expect("tauri.conf.json is JSON");
+        let asset = &config["app"]["security"]["assetProtocol"];
+        assert_eq!(asset["enable"], serde_json::Value::Bool(true));
+        assert_eq!(asset["scope"], serde_json::json!([]));
+    }
+
+    #[test]
+    fn plat_02_a_relative_root_is_refused() {
+        let scope = FsScopeState::default();
+        let error = scope
+            .register("projects/mine")
+            .expect_err("a relative folder is refused");
+        assert!(matches!(
+            error,
+            CommandError::Failed {
+                code: "fs_relative_path",
+                ..
+            }
+        ));
+        assert!(scope.roots_with(Vec::new()).is_empty());
+    }
+
+    #[test]
+    fn plat_02_a_root_registered_twice_is_kept_once_and_spelled_plainly() {
+        let scope = FsScopeState::default();
+        scope.register("/code/./mine/").expect("first registration");
+        scope.register("/code/mine").expect("second registration");
+        assert_eq!(
+            scope.roots_with(Vec::new()),
+            vec![PathBuf::from("/code/mine")]
+        );
     }
 
     fn assert_out_of_scope(error: CommandError) {

@@ -119,6 +119,12 @@ function makeHarness(options: HarnessOptions = {}) {
 		async trash() {
 			return ok(undefined);
 		},
+		async registerRoot() {
+			return ok(undefined);
+		},
+		assetUrl(path: string) {
+			return `asset://localhost/${encodeURIComponent(path)}`;
+		},
 		paths: { home: "/Users/test", appData: "/app", temp: "/tmp", resources: "/res" },
 	} satisfies FileSystem;
 	const workspaces = {

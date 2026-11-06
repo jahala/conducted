@@ -55,6 +55,7 @@ pub mod navigation;
 pub mod network;
 pub mod notifications;
 pub mod open_with;
+pub mod pasteboard;
 pub mod permissions;
 mod process_group;
 pub mod pty;
@@ -702,6 +703,7 @@ pub fn run() {
         .manage(network::NetworkState::default())
         .manage(logger::LoggerState::default())
         .manage(http::HttpState::default())
+        .manage(files::FsScopeState::default())
         .menu(|app| {
             let state = app.state::<menu::MenuState>();
             menu::build_menu(app, state.inner())
@@ -719,6 +721,7 @@ pub fn run() {
             logger::start_writer(app.handle(), &logger_state)?;
             navigation::install_guard(app.handle())?;
             deep_link::register(app.handle())?;
+            attachments::allow_draft_assets(app.handle())?;
             shell::start_background_capture(app.handle().clone());
             network::start_watcher(app.handle().clone())?;
             binaries::start_verification(app.handle().clone());
@@ -753,6 +756,8 @@ pub fn run() {
             files::fs_read_dir,
             files::fs_trash,
             files::fs_paths,
+            files::fs_register_root,
+            deep_link::deep_link_launch,
             http::http_fetch,
             http::http_download,
             http::http_cancel,
@@ -789,6 +794,8 @@ pub fn run() {
             updater::updater_relaunch,
             attachments::attachment_materialize,
             attachments::image_resize,
+            attachments::attachment_write_bytes,
+            pasteboard::clipboard_read_file_paths,
             menu::menu_set_shortcuts,
             binaries::programs_verification_errors,
             binaries::programs_state,
@@ -1156,6 +1163,7 @@ mod startup_tests {
                 args: vec!["-c".to_string(), "sleep 30".to_string()],
             }),
             env: None,
+            scrollback_limit_bytes: None,
         };
         let mut spawned = pty::spawn_terminal(
             &request,
@@ -1210,6 +1218,7 @@ mod startup_tests {
                 args: vec!["-c".to_string(), "sleep 30".to_string()],
             }),
             env: None,
+            scrollback_limit_bytes: None,
         };
         let spawned = pty::spawn_terminal(&request, "/bin/sh", &HashMap::new(), id.to_string())
             .expect("a terminal starts");

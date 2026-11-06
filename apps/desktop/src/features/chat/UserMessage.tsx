@@ -5,8 +5,8 @@
  * another session'; hover actions include revert; 'Message not sent' with Retry and Discard).
  * Must handle: Not sent (the `failed` prop draws the error state with Retry and Discard, and offers no Revert,
  * because a message that was never sent has nothing to revert to; FailedSends passes it); a very long
- * message collapses with 'Show more'; an image attachment tries a thumbnail from its path and a missing file shows
- * its name (a local path does not load in the webview until the Platform hands out file URLs); mention chips for
+ * message collapses with 'Show more'; an image attachment loads its thumbnail through `Platform.fs.assetUrl`, and a
+ * file that does not load (gone, or outside the folders the shell serves) shows its name; mention chips for
  * files and PRs open the file or PR tab; text is selectable and copyable; Revert opens the confirmation
  * dialog instead of changing anything at once.
  * Test first: A message with two attachment paths renders two attachment items; a failed send shows
@@ -15,6 +15,7 @@
 import { MENTION_TOKEN, type MentionKind } from "@conducted/protocol";
 import type { SessionId } from "@conducted/shared";
 import { type ReactNode, useState } from "react";
+import { useServices } from "../../core/context.tsx";
 import { useActions } from "../../core/hooks.ts";
 import type { ChatTurn } from "../../core/model.ts";
 import { Button } from "../../ui/Button.tsx";
@@ -38,6 +39,7 @@ export interface UserMessageProps {
 }
 
 function AttachmentItem({ path }: { path: string }) {
+	const { platform } = useServices();
 	const [failed, setFailed] = useState(false);
 	const name = fileNameOf(path);
 	const image = IMAGE.test(path);
@@ -48,7 +50,7 @@ function AttachmentItem({ path }: { path: string }) {
 		>
 			{image && !failed ? (
 				<img
-					src={path}
+					src={platform.fs.assetUrl(path)}
 					alt={name}
 					onError={() => setFailed(true)}
 					className="size-8 rounded-sm object-cover"

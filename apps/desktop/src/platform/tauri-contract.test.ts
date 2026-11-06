@@ -30,6 +30,7 @@ const TAURI_SKIPS: Readonly<Record<string, string>> = {
 	"speech.available": `${NEEDS_RUST}: Apple dictation over a real speech recognizer`,
 	"speech.stop-ends": `${NEEDS_RUST}: Apple dictation over a real speech recognizer`,
 	"system.info": `${NEEDS_RUST}: the macOS version and CPU`,
+	"app.resource-usage": `${NEEDS_RUST}: reads the process table (resource_usage.rs tests own it)`,
 };
 
 /**
@@ -67,7 +68,13 @@ runPlatformContract(
 			mkdirSync(run.root, { recursive: true });
 			const created = await createTauriPlatform(run.bindings);
 			if (!created.ok) throw new Error(`createTauriPlatform failed: ${created.error.message}`);
-			return { platform: created.value, root: run.root, controls: run.controls, cleanup };
+			return {
+				platform: created.value,
+				root: run.root,
+				outside: run.outside,
+				controls: run.controls,
+				cleanup,
+			};
 		} catch (error) {
 			await cleanup();
 			throw error;
