@@ -500,3 +500,15 @@ Why: D020, checked against Conductor itself where the research is silent.
 Context: the contract PR's CI failed in `composer-shell.test.tsx`: the context wheel now reads the new `contextWindows` service, and the test hands the app a partial container cast as `Container`, so the service was missing. 17 desktop test files build such a container; the slice-2 tests hardening listed 15 of them for `createTestContainer` (APP-16).
 Chosen: the failing test's container gets the service now, so the contract PR can land. Moving every hand-built container to `createTestContainer` is the tests-and-scripts hardening's job today (APP-16), where the whole set is changed and checked at once.
 Why: the cause is the hand-built container, and fixing the set belongs in one change with a guard, not in a contract PR.
+
+## D074. Remote Control goes ahead on path A (2026-11-06)
+
+Context: the Remote Control spike (RC-01, docs/plans/cloud-and-remote.md Part 2) passed all three checks with the owner on claude.ai: the chat appears, a message typed there starts a turn in our stream, and an approval answered there settles our own. It works through the query object's `enableRemoteControl`, which the SDK ships but does not put in its public types; the documented `remoteControlAtStartup` setting does nothing for an SDK chat.
+Chosen: RC-02 to RC-04 are built on path A. The Agent SDK stays pinned to an exact version, and a contract test fails when `enableRemoteControl` or the shape of its answer changes. A message typed on claude.ai is shown from the agent's transcript (the stream carries only its id). An approval aborted by an answer on claude.ai closes the app's card as answered elsewhere.
+Why: the kill criterion drops the feature only when it needs a reverse-engineered protocol; one SDK method outside the types, pinned and tested, is the alpha-API case the criterion allows.
+
+## D075. Cloud workspaces go ahead (2026-11-06)
+
+Context: the cloud spike (CLOUD-02, docs/plans/cloud-and-remote.md Part 1) passed all four kill criteria on the owner's Cloudflare account: warm start 2.3 to 8.8 s, cold start 14.5 s, about 0.02 US dollars per active hour (0.11 at worst on `standard-1`), and work kept across a restart through an R2 backup. Every `conducted-spike-*` resource was deleted and the lead confirmed none is left.
+Chosen: the cloud rows are scaffolded and built through the loop, starting with the host seam (CLOUD-01). The build takes from the spike: the sidecar runs unchanged behind a WebSocket bridge, the Rust shell owns the cloud connection, the backup runs at each turn end, and an uninstall deletes the container application with the Worker.
+Why: the spike's own criteria decide (D018); all four passed with margin.
