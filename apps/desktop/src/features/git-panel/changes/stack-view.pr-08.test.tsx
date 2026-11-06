@@ -117,6 +117,12 @@ describe("PR-08 Stack view", () => {
 		fireEvent.click(within(first).getByRole("button", { name: "Checkout this branch" }));
 		expect(onCheckout).not.toHaveBeenCalled();
 		expect(screen.getByText("Switch branch?")).toBeTruthy();
+		expect(
+			screen.getByText(
+				"An agent is running in this workspace. Switching to feature/parser will change the files it's working on.",
+			),
+		).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy();
 
 		fireEvent.click(screen.getByRole("button", { name: "Switch anyway" }));
 		expect(onCheckout).toHaveBeenCalledWith("feature/parser");

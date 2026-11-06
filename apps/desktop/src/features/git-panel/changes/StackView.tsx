@@ -7,7 +7,8 @@
  * Behaviour: ui-map.md 3.6 ("Stack view: Stack PRs, Current, (trunk), gt restack, Checkout this
  * branch, Ready for review"); services-map.md 3.8 (a stack is read-only plus checkout; a ready
  * action only marks a draft; readiness per stack entry, whose rules and words live in
- * core/status/stack-readiness.ts), ui-map.md 5.2 ("Switch branch?" with "Switch anyway").
+ * core/status/stack-readiness.ts), ui-map.md 5.2 ("Switch branch?" with "Switch anyway"; its body
+ * names the branch, in Conductor's words).
  * Data: the props. The Changes tab supplies entries from useStack(workspaceId), the trunk from the
  * workspace's target branch without its remote, Checkout through switch branch, Ready through
  * mark ready for the entry's own pull request number, and the chosen pull requests from the diff
@@ -148,7 +149,7 @@ export function StackView({
 			>
 				<AlertDialogContent
 					title="Switch branch?"
-					description="An agent is working in this workspace. Switching branches may interrupt it."
+					description={`An agent is running in this workspace. Switching to ${pendingBranch ?? ""} will change the files it's working on.`}
 					confirmLabel="Switch anyway"
 					onConfirm={() => {
 						if (pendingBranch !== null) onCheckout(pendingBranch);
