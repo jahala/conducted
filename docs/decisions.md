@@ -483,7 +483,7 @@ Context: slice 3's parts 1a and 1b each took about three hours from start to mer
 Chosen: the night ends at 07:00 UTC for starting work. A part that would start after that does not start. The remaining batches wait for the next run, from `bun scripts/overnight/drive.ts step 1 --priority 3`.
 Why: a part started at 07:41 would still be building, half audited, when the owner wakes, which is the half-built state D065 avoids.
 
-## D069. Rewriting a settings file keeps the user's comments (2026-11-06)
+## D072. Rewriting a settings file keeps the user's comments (2026-11-06)
 
 Context: Conductor rewrites a whole settings file on every save. It sorts the keys and drops every comment (services-map 4.2.1, main @290816). SET-14 asks that a rewrite keep the user's comments, or warn before the first rewrite that would drop them.
 Chosen: an existing settings file is patched in place with `@decimalturn/toml-patch` (MIT, no dependencies, released monthly). Only entries whose values change are rewritten; comments, blank lines and key order stay. A new file is written whole and sorted, as before. A comment beside or directly above an entry that the save removes goes with that entry. When a save would drop any other comment (a legacy `[tasks]` table moved to `scripts.run`, or a file the patch cannot edit), the first such save is refused with a warning that quotes the comments, and the next save that would drop the same ones goes ahead. The warning's wording is ours: the research has none, because Conductor drops comments without a word.
