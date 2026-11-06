@@ -171,6 +171,8 @@ const harness = (options: HarnessOptions = {}) => {
 			workspace,
 			commands,
 			agentCatalog,
+			// The context wheel reads the sizes agents reported (CHAT-14); this chat has none.
+			contextWindows: { store: createStore(() => ({ byModel: {} })) },
 		},
 		actions: {
 			sessions: {
