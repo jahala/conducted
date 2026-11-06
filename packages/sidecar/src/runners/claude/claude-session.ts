@@ -41,6 +41,11 @@
  *  - the bundled skill plugin folder is passed to the options when the build has one; a missing
  *    folder is logged, the chat starts without it, and the first turn after that start tells the
  *    user in a notice, once per chat (AGENT-18)
+ *  - work the CLI starts by itself while no turn of ours is open (AGENT-15): every SDK message the
+ *    turn tracker does not hold back goes to a SelfStartedTurnTracker over the same translator, which
+ *    reports it through StartOptions.selfStartedTurns; a stream that ends or throws ends that work,
+ *    and dispose stops the reports. A late result of a cancelled turn is held back, so it never
+ *    looks like new work
  * Test first: with a scripted query function that yields init, assistant text and a result for
  * the pushed uuid, runTurn emits the text message and resolves with success.
  * Our design choice: the SDK's query function is a constructor parameter (Conductor does this
@@ -81,6 +86,7 @@ import { claudeEffortOption } from "./launch-settings.ts";
 import { buildClaudeOptions } from "./options.ts";
 import type { PermissionHandlerDeps } from "./permission-handler.ts";
 import { permissionModeFor } from "./permissions.ts";
+import { SelfStartedTurnTracker } from "./self-started-turns.ts";
 import { createMirrorStore } from "./session-mirror.ts";
 import { bundledSkillPlugins } from "./skill-plugin.ts";
 import { SteerReceipts } from "./steer-receipts.ts";
@@ -128,6 +134,8 @@ export class ClaudeSession implements AgentSession {
 	private readonly receipts = new SteerReceipts();
 	private readonly tracker: ClaudeTurnTracker;
 	private readonly backgroundTasks = new ClaudeBackgroundTasks();
+	/** Work the CLI starts by itself. Null when the host passed no callbacks for it. */
+	private readonly selfStarted: SelfStartedTurnTracker | null;
 	private config: SessionConfig;
 	private input: AsyncQueue<SDKUserMessage> | null = null;
 	private query: Query | null = null;
@@ -174,6 +182,15 @@ export class ClaudeSession implements AgentSession {
 			scheduler: deps.scheduler,
 			onSettle: (outcome) => this.settleTurn(outcome),
 		});
+		const callbacks = start.selfStartedTurns;
+		this.selfStarted =
+			callbacks === undefined
+				? null
+				: new SelfStartedTurnTracker({
+						callbacks,
+						ownTurnOpen: () => this.turnOpen,
+						translate: (message) => this.deps.translator.translate(message),
+					});
 	}
 
 	/** Spawns the process (query() with an open input stream) so the first message starts fast. */
@@ -372,6 +389,7 @@ export class ClaudeSession implements AgentSession {
 		if (this.disposed) return;
 		this.disposed = true;
 		this.generation += 1;
+		this.selfStarted?.dispose();
 		this.settleCancelled();
 		const input = this.input;
 		const abort = this.abortController;
@@ -499,7 +517,11 @@ export class ClaudeSession implements AgentSession {
 				this.debugTap("downstream", message);
 				this.handleMessage(message);
 			}
-			if (this.query === query) this.tracker.onStreamEnded(this.streamEndedError());
+			if (this.query === query) {
+				this.tracker.onStreamEnded(this.streamEndedError());
+				// A clean end in the middle of work the CLI started is an interruption, not a failure.
+				this.selfStarted?.onStreamEnded();
+			}
 		} catch (cause) {
 			const error = cause instanceof Error ? cause : new Error(String(cause));
 			this.deps.logger.error(
@@ -507,7 +529,9 @@ export class ClaudeSession implements AgentSession {
 				errorDetails(error, this.stderrTail),
 			);
 			if (this.query === query) {
-				this.tracker.onStreamEnded(new Error(streamErrorMessage(error, this.stderrTail)));
+				const failed = new Error(streamErrorMessage(error, this.stderrTail));
+				this.tracker.onStreamEnded(failed);
+				this.selfStarted?.onStreamEnded(failed);
 			}
 		} finally {
 			input.close();
@@ -528,7 +552,10 @@ export class ClaudeSession implements AgentSession {
 		const tasks = this.backgroundTasks.handle(message);
 		if (tasks !== null) callbacks?.onBackgroundTasks(tasks);
 		const decision = this.tracker.onSdkMessage(message);
-		if (decision.action === "hold_back" || callbacks === null) return;
+		if (decision.action === "hold_back") return;
+		// With no turn of ours open, the message belongs to work the CLI started by itself.
+		this.selfStarted?.onSdkMessage(message);
+		if (callbacks === null) return;
 		for (const agentMessage of this.deps.translator.translate(message)) {
 			callbacks.onMessage(agentMessage);
 		}

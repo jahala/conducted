@@ -14,7 +14,7 @@ NAV-12	shortcut	Cmd+B toggles the left sidebar, Cmd+Alt+B toggles the right side
 NAV-12	action	Zen mode closes both panels and restores them	ui-map 1.1	covered
 APP-05	region	One toast area mounted once at the root	ui-map 1.1	covered
 NAV-14	rule	Root listeners for menu events and deep links feed the command dispatcher	ui-map 1.1	partly
-NAV-15	rule	Terminals and browser previews stay alive when the user switches tabs	ui-map 1.1, 8	missing
+NAV-15	rule	Terminals and browser previews stay alive when the user switches tabs	ui-map 1.1, 8	partly
 NAV-01	rule	Cmd+A selects only inside text fields, never the whole UI	ui-map 5.4	missing
 NAV-03	control	Sidebar nav 'Dashboard' row, shown only with the Dashboard setting	ui-map 1.2, 4.3	partly
 NAV-03	control	Sidebar nav 'Home' row	ui-map 4.3	covered
@@ -1023,8 +1023,8 @@ REV-01	rule	The target branch picker filters branches with the shared rankFuzzy 
 SET-03	rule	The Agents page provider search ranks providers with the shared rankFuzzy matcher; no live caller yet (moved from APP-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
 SET-11	rule	Suggested variable names in the Environment form are ranked with the shared rankFuzzy matcher (features/settings/environment/EnvVarSuggestions.tsx), or the file header's claim is cut (moved from APP-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
 NAV-10	message	After a branch rename the workspace header (features/workspace/WorkspaceHeader.tsx) warns that the old remote branch remains and toasts the final -vN name; Actions.git.renameBranch returns Result<void>, so the final name has to reach the header (moved from GIT-09 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
-NAV-10	rule	Terminal and browser tabs render SurfaceAnchor (features/workspace/TabContent.tsx, TabStrip.tsx, SplitPanes.tsx) and app/AppShell.tsx (NAV-01) owns the placements store and mounts SurfaceLayer; nothing calls them yet (moved from NAV-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
-NAV-01	rule	A surface layout registry in app/AppShell.tsx holds anchors, surface configs, placements and the requested focus surface (moved from NAV-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
+NAV-10	rule	Terminal tabs render a surface anchor (features/workspace/TabContent.tsx, through app/surface-registry.tsx) and app/AppShell.tsx (NAV-01) owns the placements store and mounts the surface layer; browser tabs follow once RUN-04 draws a preview (moved from NAV-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	partly
+NAV-01	rule	A surface layout registry, created by app/AppShell.tsx (app/surface-registry.tsx), holds the surface configs, placements and the requested focus surface (moved from NAV-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	covered
 NAV-08	rule	A dialog manager (app/overlay-store.ts, app/GlobalOverlays.tsx) tracks the active dialog and opens it by id; the overlay store already keeps one window-level overlay open at a time (moved from NAV-15 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
 NAV-03	rule	The sidebar row and the selected workspace subscribe to GithubService.watch and stop on unmount or archive (this also stops polling inactive workspaces); no screen calls watch or pollNow yet (moved from PR-03 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing
 CHAT-06	rule	TurnChanges renders under a turn in place of TurnFooter and TurnItem's own "N files changed" text, and the workspace URL writer in WorkspaceScreen (NAV-10) records the turn scope (moved from REV-09 by the slice 2 step 1 audit).	docs/reports/audits/s2-step-1	missing

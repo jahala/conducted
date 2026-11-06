@@ -10,16 +10,18 @@
  * @feature SIDE-22 Slash command cache that works before a chat starts
  * @feature AGENT-16 Claude chat options
  * @feature AGENT-17 ACP chat options
+ * @feature AGENT-15 Turns the Claude program starts by itself
  * Owns: the integration tests of the joined sidecar batches, driven through `composeSidecar`, the
  * function the sidecar's composition root (`startSidecarHost`) builds the host with, and through
  * `runSidecarMode`. They prove that the Cursor SDK and its translation, the Codex goals and compact
  * turn, the bundled skill plugin, the slash-command cache, the log settings, the chat options, the
- * launch settings and the app tools bridge all reach the live path.
+ * launch settings, the app tools bridge and the turns Claude starts by itself all reach the live path.
  * Behaviour: modes/sidecar-mode.ts (composeSidecar and the runner registry it builds),
  * runners/cursor/cursor-session.ts and translate.ts, runners/codex/goals.ts and codex-session.ts,
  * runners/claude/options.ts, runners/claude/skill-plugin.ts, models/completions-cache.ts,
  * runners/acp/acp-session.ts, runners/launch-env.ts, process/launch-fingerprint.ts,
- * tools/socket-bridge.ts, tools/mcp-launch.ts.
+ * tools/socket-bridge.ts, tools/mcp-launch.ts, runners/claude/self-started-turns.ts and
+ * session/self-started-turns.ts.
  * Test first: this file.
  * Our design choice: everything the composition root builds is real; only the outside world is
  * scripted through `SidecarPorts`: the Claude SDK's query, the Cursor SDK, the Codex and ACP child
@@ -41,7 +43,7 @@ import {
 	ndJsonStream,
 	type SessionConfigOption,
 } from "@agentclientprotocol/sdk";
-import type { Options, Query, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
+import type { Options, Query, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import type {
 	AcpConfigOption,
 	AgentLaunch,
@@ -74,6 +76,7 @@ import { RpcAppToolBackend } from "../tools/backend.ts";
 import { appToolsMcpEntry, BRIDGE_TOKEN_ENV } from "../tools/mcp-launch.ts";
 import { callBridgeOverSocket } from "../tools/mcp-stdio-server.ts";
 import { AppToolsBridge } from "../tools/socket-bridge.ts";
+import { AsyncQueue } from "../util/async-queue.ts";
 import {
 	composeSidecar,
 	PARENT_PID_ENV,
@@ -198,6 +201,8 @@ async function harness(
 		files?: Map<string, string>;
 		skillPluginDir?: string;
 		cursorSdk?: CursorSdk;
+		/** A Claude that answers each message and can speak by itself. Default: one that never answers. */
+		claude?: TalkingClaude;
 	} = {},
 ): Promise<Harness> {
 	const app = new FakeApp();
@@ -230,7 +235,7 @@ async function harness(
 		},
 		{
 			app,
-			query: scriptedQuery(seen.claudeOptions),
+			query: (options.claude?.query ?? scriptedQuery)(seen.claudeOptions),
 			spawnCodex: async (spawned) => {
 				seen.codexSpawns.push(spawned);
 				const child = scriptedCodex();
@@ -300,6 +305,98 @@ function scriptedQuery(
 			usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET: async () => ({}),
 		} as unknown as Query;
 	};
+}
+
+/**
+ * A Claude SDK stream that answers each message the chat pushes with a reply and a result for that
+ * message, and stays open until the session is stopped. `say` adds a message as if the CLI sent it on
+ * its own, for example when a background task finished and woke it.
+ */
+interface TalkingClaude {
+	query(
+		captured: { options: Options }[],
+	): (params: { prompt: AsyncIterable<SDKUserMessage>; options?: Options }) => Query;
+	say(message: SDKMessage): void;
+}
+
+function talkingClaude(): TalkingClaude {
+	let current: AsyncQueue<SDKMessage> | null = null;
+	return {
+		query: (captured) => (params) => {
+			const options = params.options ?? {};
+			captured.push({ options });
+			const out = new AsyncQueue<SDKMessage>();
+			current = out;
+			options.abortController?.signal.addEventListener("abort", () => out.close(), {
+				once: true,
+			});
+			void (async () => {
+				for await (const pushed of params.prompt) {
+					out.push(claudeText("hello back"));
+					out.push(claudeResult(pushed.uuid ?? ""));
+				}
+				out.close();
+			})();
+			return {
+				[Symbol.asyncIterator]: () => out[Symbol.asyncIterator](),
+				interrupt: async () => {},
+				setModel: async () => {},
+				setPermissionMode: async () => {},
+				applyFlagSettings: async () => {},
+				supportedModels: async () => [],
+				supportedCommands: async () => [],
+				mcpServerStatus: async () => [],
+				getContextUsage: async () => ({ totalTokens: 0, maxTokens: 0 }),
+				usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET: async () => ({}),
+			} as unknown as Query;
+		},
+		say: (message) => {
+			if (current === null) throw new Error("No Claude session is running.");
+			current.push(message);
+		},
+	};
+}
+
+function claudeText(text: string): SDKMessage {
+	return {
+		type: "assistant",
+		message: { role: "assistant", content: [{ type: "text", text }] },
+		parent_tool_use_id: null,
+		session_id: "claude-session-1",
+		uuid: randomBytes(8).toString("hex"),
+	} as unknown as SDKMessage;
+}
+
+/** A result that answers the user message with `uuid`, or a turn the CLI ran for itself. */
+function claudeResult(uuid: string): SDKMessage {
+	return {
+		type: "result",
+		subtype: "success",
+		is_error: false,
+		num_turns: 1,
+		user_message_uuid: uuid,
+		duration_ms: 1,
+		duration_api_ms: 1,
+		stop_reason: "end_turn",
+		total_cost_usd: 0,
+		usage: {},
+		modelUsage: {},
+		permission_denials: [],
+		errors: [],
+		result: "",
+		uuid: randomBytes(8).toString("hex"),
+		session_id: "claude-session-1",
+	} as unknown as SDKMessage;
+}
+
+function claudeState(state: "running" | "idle"): SDKMessage {
+	return {
+		type: "system",
+		subtype: "session_state_changed",
+		state,
+		uuid: randomBytes(8).toString("hex"),
+		session_id: "claude-session-1",
+	} as unknown as SDKMessage;
 }
 
 /** The options of the chat's own session, not the metadata query warmAgent runs first. */
@@ -826,6 +923,98 @@ describe("s1-sidecar join the batch through the composition root", () => {
 		expect(
 			h.seen.logs.some((record) => String(record.data?.message).includes("app tools bridge")),
 		).toBe(true);
+	});
+
+	test("AGENT-15 work the Claude program starts by itself shows working, is stored and ends idle", async () => {
+		const folder = await workspaceFolder();
+		const claude = talkingClaude();
+		const h = await harness(folder, { claude });
+		const sessionId = "session-1" as SessionId;
+		try {
+			const sent = await h.handlers.sendMessage(sendParams(folder, baseConfig()));
+			expect(unwrap<{ deliveredAs: string }>(sent)).toEqual({ deliveredAs: "new_turn" });
+			await waitForIdle(h, sessionId);
+			const statusesBefore = h.app.notified("liveState").length;
+			const eventsBefore = h.app.notified("sessionEvent").length;
+
+			// A background task finished and woke the CLI: it works with no message from the user.
+			claude.say(claudeState("running"));
+			claude.say(claudeText("The background build finished."));
+			claude.say(claudeResult("a-message-the-cli-sent-itself"));
+			claude.say(claudeState("idle"));
+			await waitForIdle(h, sessionId);
+
+			const statuses = h.app
+				.notified("liveState")
+				.slice(statusesBefore)
+				.filter((entry) => entry.sessionId === sessionId)
+				.map((entry) => entry.liveState.status);
+			expect(statuses[0]).toBe("working");
+			expect(statuses.at(-1)).toBe("idle");
+
+			const events = h.app
+				.notified("sessionEvent")
+				.slice(eventsBefore)
+				.filter((entry) => entry.sessionId === sessionId)
+				.map((entry) => entry.event);
+			const texts = events.flatMap((event) =>
+				event.type === "agent"
+					? event.message.items.flatMap((item) => (item.kind === "text" ? [item.text] : []))
+					: [],
+			);
+			expect(texts).toEqual(["The background build finished."]);
+			const ended = events.filter((event) => event.type === "turn_ended");
+			expect(ended).toHaveLength(1);
+			expect(ended[0]).toMatchObject({ outcome: "success" });
+			const turnId = ended[0]?.type === "turn_ended" ? ended[0].turnId : undefined;
+			expect(turnId).not.toBe("turn-1");
+			expect(events.every((event) => event.type !== "user_message")).toBe(true);
+			expect(events.every((event) => !("turnId" in event) || event.turnId === turnId)).toBe(true);
+		} finally {
+			await h.host.sessions.shutdown("app_quit");
+		}
+	});
+
+	test("AGENT-15 a message sent while Claude works by itself waits and starts when that work ends", async () => {
+		const folder = await workspaceFolder();
+		const claude = talkingClaude();
+		const h = await harness(folder, { claude });
+		const sessionId = "session-1" as SessionId;
+		try {
+			await h.handlers.sendMessage(sendParams(folder, baseConfig()));
+			await waitForIdle(h, sessionId);
+
+			claude.say(claudeState("running"));
+			await waitFor(
+				() => h.app.notified("liveState").at(-1)?.liveState.status === "working",
+				"the chat to show working",
+			);
+			const queued = await h.handlers.sendMessage({
+				...sendParams(folder, baseConfig()),
+				messageId: "message-2" as MessageId,
+				turnId: "turn-2" as TurnId,
+				text: "and then?",
+			});
+			expect(unwrap<{ deliveredAs: string }>(queued)).toEqual({ deliveredAs: "queued" });
+
+			claude.say(claudeState("idle"));
+			await waitFor(
+				() =>
+					h.app
+						.notified("sessionEvent")
+						.some(
+							(entry) =>
+								entry.event.type === "turn_ended" && entry.event.turnId === ("turn-2" as TurnId),
+						),
+				"the queued message's turn to end",
+			);
+			const userMessages = h.app
+				.notified("sessionEvent")
+				.flatMap((entry) => (entry.event.type === "user_message" ? [entry.event.text] : []));
+			expect(userMessages).toEqual(["hello", "and then?"]);
+		} finally {
+			await h.host.sessions.shutdown("app_quit");
+		}
 	});
 
 	test("SIDE-21 a Claude chat runs the program its launch names", async () => {
