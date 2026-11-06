@@ -149,6 +149,8 @@ export function createActions(
 				services.github.removeReviewRequest(workspaceId, login),
 			link: (workspaceId, urlOrNumber) => services.github.linkPullRequest(workspaceId, urlOrNumber),
 			openOnGithub: (workspaceId) => services.github.openOnGithub(workspaceId),
+			syncStack: (workspaceId) => services.github.syncStack(workspaceId),
+			mergeStack: (workspaceId) => services.github.mergeStack(workspaceId),
 		},
 		issues: {
 			attachToWorkspace: (workspaceId, issue) =>

@@ -516,6 +516,10 @@ export interface Actions {
 		link: Act<[workspaceId: WorkspaceId, urlOrNumber: string]>;
 		/** Opens GitHub's page for creating a pull request from the workspace branch. */
 		openOnGithub: Act<[workspaceId: WorkspaceId]>;
+		/** Brings every branch of the workspace's GitHub stack up to date (`gh stack sync`). */
+		syncStack: Act<[workspaceId: WorkspaceId]>;
+		/** Merges the workspace's GitHub stack ("Merge stack"). */
+		mergeStack: Act<[workspaceId: WorkspaceId]>;
 	};
 	issues: {
 		/** Writes the issue as a context file in the workspace and returns its path. */
