@@ -122,7 +122,7 @@ function harness(options: { pathPrefixFor?: () => Promise<Result<string>> } = {}
 		terminals: {
 			runScript,
 			stop: async () => ok(undefined),
-			close: async () => ok(undefined),
+			end: async () => ok(undefined),
 			outputFor: async () => ok({ output: "", source: "setup", running: false }),
 		},
 		configFor: async () => ok(baseConfig),

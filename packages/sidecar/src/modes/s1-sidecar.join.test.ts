@@ -318,11 +318,15 @@ interface TalkingClaude {
 		captured: { options: Options }[],
 	): (params: { prompt: AsyncIterable<SDKUserMessage>; options?: Options }) => Query;
 	say(message: SDKMessage): void;
+	/** How many interrupts the session sent. Each one makes the CLI stop its work and go idle. */
+	interrupts(): number;
 }
 
 function talkingClaude(): TalkingClaude {
 	let current: AsyncQueue<SDKMessage> | null = null;
+	let interrupts = 0;
 	return {
+		interrupts: () => interrupts,
 		query: (captured) => (params) => {
 			const options = params.options ?? {};
 			captured.push({ options });
@@ -340,7 +344,10 @@ function talkingClaude(): TalkingClaude {
 			})();
 			return {
 				[Symbol.asyncIterator]: () => out[Symbol.asyncIterator](),
-				interrupt: async () => {},
+				interrupt: async () => {
+					interrupts += 1;
+					out.push(claudeState("idle"));
+				},
 				setModel: async () => {},
 				setPermissionMode: async () => {},
 				applyFlagSettings: async () => {},
@@ -1013,6 +1020,49 @@ describe("s1-sidecar join the batch through the composition root", () => {
 				.notified("sessionEvent")
 				.flatMap((entry) => (entry.event.type === "user_message" ? [entry.event.text] : []));
 			expect(userMessages).toEqual(["hello", "and then?"]);
+		} finally {
+			await h.host.sessions.shutdown("app_quit");
+		}
+	});
+
+	test("AGENT-15 cancel while Claude works by itself stops that work and stores it as cancelled", async () => {
+		const folder = await workspaceFolder();
+		const claude = talkingClaude();
+		const h = await harness(folder, { claude });
+		const sessionId = "session-1" as SessionId;
+		try {
+			await h.handlers.sendMessage(sendParams(folder, baseConfig()));
+			await waitForIdle(h, sessionId);
+			const eventsBefore = h.app.notified("sessionEvent").length;
+
+			claude.say(claudeState("running"));
+			claude.say(claudeText("Rebuilding after the background task."));
+			await waitFor(
+				() => h.app.notified("liveState").at(-1)?.liveState.status === "working",
+				"the chat to show working",
+			);
+			const cancelled = await h.handlers.cancel({ sessionId });
+
+			expect(unwrap<{ wasWorking: boolean }>(cancelled)).toMatchObject({ wasWorking: true });
+			expect(claude.interrupts()).toBe(1);
+			await waitFor(
+				() =>
+					h.app
+						.notified("sessionEvent")
+						.slice(eventsBefore)
+						.some((entry) => entry.event.type === "turn_ended"),
+				"the cancelled work to be stored",
+			);
+			const ended = h.app
+				.notified("sessionEvent")
+				.slice(eventsBefore)
+				.flatMap((entry) => (entry.event.type === "turn_ended" ? [entry.event] : []));
+			expect(ended).toHaveLength(1);
+			expect(ended[0]).toMatchObject({ outcome: "cancelled" });
+			expect(h.app.notified("liveState").at(-1)?.liveState).toMatchObject({
+				status: "idle",
+				error: "aborted by user",
+			});
 		} finally {
 			await h.host.sessions.shutdown("app_quit");
 		}

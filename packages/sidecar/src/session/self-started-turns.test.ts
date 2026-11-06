@@ -244,6 +244,61 @@ describe("AGENT-15 self-started turns host side", () => {
 		expect(h.processes.idle).toEqual([]);
 	});
 
+	test("AGENT-15 cancel stops the agent first, then stores the work as cancelled and ends idle", async () => {
+		const h = harness();
+		const sessionId = sid("s1");
+		await h.turns.onInProgressChanged(sessionId, true);
+		h.turns.onMessage(sessionId, agentMessage("building"));
+
+		const cancelled = await h.turns.cancel(sessionId, async () => {
+			h.order.push("stop-agent");
+		});
+
+		expect(cancelled).toBe(true);
+		expect(h.order.indexOf("stop-agent")).toBeGreaterThanOrEqual(0);
+		expect(h.order.indexOf("event:turn_ended")).toBeGreaterThan(h.order.indexOf("stop-agent"));
+		const events = h.publisher.events.map((entry) => entry.event);
+		expect(events.map((event) => event.type)).toEqual(["agent", "turn_ended"]);
+		expect(events[1]).toMatchObject({ type: "turn_ended", outcome: "cancelled" });
+		expect(h.liveState.get(sessionId)).toMatchObject({ status: "idle", error: "aborted by user" });
+		expect(h.processes.idle).toEqual(["claude:s1"]);
+	});
+
+	test("AGENT-15 what the stopping agent still reports after a cancel stores nothing", async () => {
+		const h = harness();
+		const sessionId = sid("s1");
+		await h.turns.onInProgressChanged(sessionId, true);
+
+		await h.turns.cancel(sessionId, async () => {
+			// The agent answers the interrupt while it stops: a last message, then its own end.
+			h.turns.onMessage(sessionId, agentMessage("stopping"));
+			await h.turns.onInProgressChanged(sessionId, false, { outcome: "success" });
+		});
+		const published = h.publisher.events.length;
+		await h.turns.onInProgressChanged(sessionId, false, { outcome: "success" });
+
+		const events = h.publisher.events.map((entry) => entry.event);
+		expect(events.map((event) => event.type)).toEqual(["turn_ended"]);
+		expect(events[0]).toMatchObject({ outcome: "cancelled" });
+		expect(h.publisher.events.length).toBe(published);
+		// The cancelled run is stale, so the manager's end-of-turn step ignores it.
+		expect(h.settled.some((run) => h.runGuard.isCurrent(run))).toBe(false);
+	});
+
+	test("AGENT-15 cancel with no work of the agent's own stops nothing", async () => {
+		const h = harness();
+		const sessionId = sid("s1");
+		let stopped = false;
+
+		const cancelled = await h.turns.cancel(sessionId, async () => {
+			stopped = true;
+		});
+
+		expect(cancelled).toBe(false);
+		expect(stopped).toBe(false);
+		expect(h.publisher.events).toEqual([]);
+	});
+
 	test("AGENT-15 live state extras of the chat are kept", async () => {
 		const h = harness();
 		const sessionId = sid("s1");

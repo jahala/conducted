@@ -143,7 +143,7 @@ export interface SetupRunResult {
 }
 
 export interface RunScriptsServiceDeps {
-	terminals: Pick<TerminalsService, "runScript" | "close" | "stop" | "outputFor">;
+	terminals: Pick<TerminalsService, "runScript" | "end" | "stop" | "outputFor">;
 	/** Config of the repository a workspace belongs to. */
 	configFor: (workspaceId: WorkspaceId) => Promise<Result<RepoConfig>>;
 	/** The workspace and its project, for the folder and the script variables. */
@@ -350,7 +350,7 @@ export class RunScriptsService {
 
 		const old = this.#lastTerminal.get(workspaceId);
 		if (old !== undefined) {
-			await this.#deps.terminals.close(old);
+			await this.#deps.terminals.end(old);
 			this.#lastTerminal.delete(workspaceId);
 		}
 
@@ -529,7 +529,7 @@ export class RunScriptsService {
 	}
 
 	/**
-	 * Closes every terminal this service started: the setup and run terminals, without the stop
+	 * Ends every terminal this service started: the setup and run terminals, without the stop
 	 * watchdog. The container calls this when the app stops.
 	 */
 	async stopAll(): Promise<Result<void>> {
@@ -543,7 +543,7 @@ export class RunScriptsService {
 			this.#stopPortPolling(workspaceId, false);
 		}
 		for (const workspaceId of this.#attempts.keys()) this.#nextAttempt(workspaceId);
-		const closed = await Promise.all(terminalIds.map((id) => this.#deps.terminals.close(id)));
+		const closed = await Promise.all(terminalIds.map((id) => this.#deps.terminals.end(id)));
 		for (const result of closed) {
 			if (!result.ok) return result;
 		}

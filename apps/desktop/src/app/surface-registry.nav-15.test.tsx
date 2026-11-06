@@ -14,8 +14,13 @@ import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesProvider } from "../core/context.tsx";
-import type { Workspace } from "../core/model.ts";
-import { createTestContainer, seedWorkspace, type TestContainer } from "../test/container.ts";
+import type { RunAction, Workspace } from "../core/model.ts";
+import {
+	createTestContainer,
+	seedRepo,
+	seedWorkspace,
+	type TestContainer,
+} from "../test/container.ts";
 import { toast } from "../ui/Toast.tsx";
 import { AppProviders, createQueryClient } from "./providers.tsx";
 import { createAppRouter } from "./router.tsx";
@@ -173,9 +178,8 @@ describe("NAV-15 terminal tabs draw through the shell's surface layer", () => {
 		fireEvent.click(centreTab("Alpha chat"));
 		await waitFor(() => expect(surfaceOf(terminalId).dataset.surfaceVisible).toBe("false"));
 
-		// The terminal ends and its row is removed, as the lifetime job does; the strip reloads.
+		// Closed while hidden: the close removes its row, and the strip reloads from the database.
 		must(await test.container.actions.terminals.close(terminalId));
-		await test.database.execute("DELETE FROM terminals WHERE id = $1", [terminalId]);
 		await act(async () => {
 			must(await test.container.services.terminals.loadWorkspace(workspace.id as WorkspaceId));
 		});
@@ -186,6 +190,27 @@ describe("NAV-15 terminal tabs draw through the shell's surface layer", () => {
 		);
 		expect(terminalElement(terminalId)).toBeNull();
 		expect(document.querySelector("[data-surface-id]")).toBeNull();
+	});
+
+	it("closing the terminal tab removes the tab and unmounts its terminal", async () => {
+		const { test, terminalId } = await openTerminalTab();
+		await waitFor(() => expect(surfaceOf(terminalId).dataset.surfaceVisible).toBe("true"));
+		const strip = screen.getByRole("tablist", { name: "Workspace tabs" });
+
+		fireEvent.click(within(strip).getByRole("button", { name: "Close Terminal 1" }));
+
+		await waitFor(() =>
+			expect(within(strip).queryByRole("tab", { name: "Terminal 1" })).toBeNull(),
+		);
+		expect(terminalElement(terminalId)).toBeNull();
+		expect(document.querySelector("[data-surface-id]")).toBeNull();
+		// The Scripts panel lists the same terminals; the closed one is gone there too.
+		expect(document.querySelector(`[data-terminal-tab="${terminalId}"]`)).toBeNull();
+		const rows = await test.database.select<{ id: string }>(
+			"SELECT id FROM terminals WHERE id = $1",
+			[terminalId],
+		);
+		expect(rows).toEqual([]);
 	});
 
 	it("unmounts the terminal when its workspace is archived", async () => {
@@ -202,5 +227,121 @@ describe("NAV-15 terminal tabs draw through the shell's surface layer", () => {
 
 		await waitFor(() => expect(terminalElement(terminalId)).toBeNull());
 		expect(document.querySelector("[data-surface-id]")).toBeNull();
+	});
+});
+
+const DEV_ACTION: RunAction = {
+	id: "dev",
+	label: "Dev server",
+	command: "bun dev",
+	args: [],
+	cwd: null,
+	isDefault: true,
+	hidden: false,
+	icon: null,
+	origin: "local",
+};
+
+/** Two ready workspaces of one repository with a "Dev server" action, opened on the first. */
+async function openRunWorkspace() {
+	const test = createTestContainer();
+	open = test;
+	const { container } = test;
+	const repo = await seedRepo(container);
+	const first = await seedWorkspace(container, { repoId: repo.id });
+	const second = await seedWorkspace(container, { repoId: repo.id });
+	for (const seeded of [first, second]) {
+		await container.platform.fs.mkdirp(seeded.path);
+		await test.database.execute("UPDATE workspaces SET state = 'ready' WHERE id = $1", [seeded.id]);
+	}
+	must(await container.services.workspace.start());
+	must(await container.services.settings.start());
+	const config = must(await container.services.repo.loadConfig(repo.id));
+	must(
+		await container.services.repo.updateConfig(repo.id, { ...config, runScripts: [DEV_ACTION] }),
+	);
+	const realSpawn = container.platform.pty.spawn.bind(container.platform.pty);
+	// seam: NAV-15 the memory PTY ends a script at once; a dev server keeps running until stopped.
+	const spawns = vi
+		.spyOn(container.platform.pty, "spawn")
+		.mockImplementation(({ command: _script, ...shell }) => realSpawn(shell));
+	giveAnchorsABox();
+
+	const router = createAppRouter(
+		createMemoryHistory({
+			initialEntries: [`/repository/${repo.id}/workspace/${first.id}`],
+		}),
+	);
+	render(
+		<ServicesProvider container={container}>
+			<AppProviders client={createQueryClient(() => {})}>
+				<RouterProvider router={router} />
+			</AppProviders>
+		</ServicesProvider>,
+	);
+	await router.load();
+	return { test, router, repoId: repo.id, first, second, spawns };
+}
+
+describe("NAV-15 the Run tab's terminal draws through the shell's surface layer", () => {
+	it("keeps the running action's terminal mounted while another workspace is open", async () => {
+		const { test, router, repoId, first, second, spawns } = await openRunWorkspace();
+		await screen.findByRole("button", { name: "Run Dev server" });
+
+		must(await test.container.actions.run.start(first.id as WorkspaceId, "dev"));
+		const running = test.container.services.runScripts.store.getState().byWorkspace[first.id];
+		const terminalId = running?.running[0]?.terminalId;
+		if (terminalId === undefined) throw new Error("The action did not start.");
+		await waitFor(() => expect(terminalElement(terminalId)).not.toBeNull());
+		const shown = terminalElement(terminalId);
+		expect(screen.getByRole("main").contains(shown)).toBe(false);
+		await waitFor(() => expect(surfaceOf(terminalId).dataset.surfaceVisible).toBe("true"));
+
+		await act(async () => {
+			await router.navigate({
+				to: "/repository/$repositoryId/workspace/$workspaceId",
+				params: { repositoryId: repoId, workspaceId: second.id },
+			});
+		});
+		await waitFor(() => expect(surfaceOf(terminalId).dataset.surfaceVisible).toBe("false"));
+		expect(terminalElement(terminalId)).toBe(shown);
+
+		await act(async () => {
+			await router.navigate({
+				to: "/repository/$repositoryId/workspace/$workspaceId",
+				params: { repositoryId: repoId, workspaceId: first.id },
+			});
+		});
+		await waitFor(() => expect(surfaceOf(terminalId).dataset.surfaceVisible).toBe("true"));
+		expect(terminalElement(terminalId)).toBe(shown);
+		expect(spawns).toHaveBeenCalledTimes(1);
+	});
+
+	it("shows the stopped action's output again after a workspace switch", async () => {
+		const { test, router, repoId, first, second } = await openRunWorkspace();
+		await screen.findByRole("button", { name: "Run Dev server" });
+		must(await test.container.actions.run.start(first.id as WorkspaceId, "dev"));
+		const running = test.container.services.runScripts.store.getState().byWorkspace[first.id];
+		const terminalId = running?.running[0]?.terminalId;
+		if (terminalId === undefined) throw new Error("The action did not start.");
+		await waitFor(() => expect(surfaceOf(terminalId).dataset.surfaceVisible).toBe("true"));
+		const shown = terminalElement(terminalId);
+		must(await test.container.actions.run.stop(first.id as WorkspaceId, "dev"));
+		await waitFor(() =>
+			expect(test.container.services.runScripts.store.getState().phases[first.id]).toBe("stopped"),
+		);
+
+		for (const workspaceId of [second.id, first.id]) {
+			await act(async () => {
+				await router.navigate({
+					to: "/repository/$repositoryId/workspace/$workspaceId",
+					params: { repositoryId: repoId, workspaceId },
+				});
+			});
+		}
+
+		await waitFor(() => expect(surfaceOf(terminalId).dataset.surfaceVisible).toBe("true"));
+		expect(terminalElement(terminalId)).toBe(shown);
+		expect(screen.queryByText("Run output appears here.")).toBeNull();
 	});
 });
