@@ -2,7 +2,8 @@
  * @feature NAV-10 Workspace actions menu
  * Owns: The dropdown menu behind the header's 'Workspace actions' button.
  * Behaviour: ui-map.md 3.1 ('Workspace actions' menu: mark as read or unread, pin or unpin, set
- * status, move to section, rename, copy link, archive or unarchive).
+ * status, move to section, rename, copy link, link a pull request, archive or unarchive), 3.10
+ * ('Link pull request' dialog).
  * Our design choice: One list for the header. Cloud items (follow, reassign, share) are left out.
  * Shortcut hints come from the command registry. The sidebar's right-click surface belongs to
  * NAV-03's workspace row, which is not wired yet.
@@ -15,10 +16,11 @@
  */
 
 import type { Result, WorkspaceId } from "@conducted/shared";
-import { messageOf } from "@conducted/shared";
+import { messageOf, ok } from "@conducted/shared";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { useStore } from "zustand";
+import { useRunCommandHandlers } from "../../app/command-dispatcher.ts";
 import { useServices } from "../../core/context.tsx";
 import { useActions, useLiveShortcut, useSessions, useWorkspace } from "../../core/hooks.ts";
 import type { KanbanStatus, Section } from "../../core/model.ts";
@@ -50,12 +52,14 @@ export interface WorkspaceActionsMenuProps {
 
 export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActionsMenuProps) {
 	const actions = useActions();
+	const runCommand = useRunCommandHandlers();
 	const workspace = useWorkspace(workspaceId);
 	const sessions = useSessions(workspaceId);
 	const sections = useStore(useServices().services.sections.store, (state) => state.sections);
 	const readShortcut = useLiveShortcut("sidebar.toggleRead");
 	const pinShortcut = useLiveShortcut("sidebar.togglePin");
 	const copyLinkShortcut = useLiveShortcut("workspace.copyLink");
+	const linkPullRequestShortcut = useLiveShortcut("pr.link");
 	const archiveShortcut = useLiveShortcut("workspace.archive");
 	const [renaming, setRenaming] = useState(false);
 	const [newSection, setNewSection] = useState(false);
@@ -94,6 +98,13 @@ export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActions
 				if (result.ok && result.value.needsBranchName) setBranchPrompt(true);
 			},
 		);
+
+	// The dialog's handler is registered by the workspace screen, so a menu pick runs it the
+	// same way the key press would. Only a command with no screen handler goes to the service.
+	const linkPullRequest = async (): Promise<Result<void>> => {
+		if (runCommand("pr.link")) return ok(undefined);
+		return actions.app.runCommand("pr.link");
+	};
 
 	return (
 		<>
@@ -169,6 +180,12 @@ export function WorkspaceActionsMenu({ workspaceId, children }: WorkspaceActions
 								}
 							>
 								Copy link
+							</MenuItem>
+							<MenuItem
+								shortcut={linkPullRequestShortcut ?? undefined}
+								onSelect={() => void run("Couldn't link the pull request", linkPullRequest)}
+							>
+								Link pull request
 							</MenuItem>
 							<MenuSeparator />
 							<MenuItem

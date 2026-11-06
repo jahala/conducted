@@ -892,6 +892,7 @@ export function createContainer(inputs: ContainerInputs): Container {
 		probeCwd: platform.fs.paths.home,
 		fs: platform.fs,
 		graphite,
+		linkPullRequestToWorkspace: (id, pr) => workspace.setLinkedPullRequest(id, pr),
 	});
 	const gitCacheConnection = connectGitCache({
 		cache: gitCache,

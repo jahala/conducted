@@ -6,6 +6,8 @@
  * @feature WS-04 Rename the placeholder branch after the first message
  * @feature WS-07 Linked workspaces and extra folders
  * @feature WS-11 Backlog workspaces: save now, start later
+ * @feature PR-10 Link a pull request by URL or number: storing the linked pull request on the
+ * workspace.
  * Owns: the list of workspaces and their lifecycle as far as it is built: creating a worktree and
  * its first chat from the default branch, an existing local branch, a pull request or an issue,
  * creating one at a commit another feature resolved (CHAT-21), running the setup script,
@@ -13,7 +15,7 @@
  * repository's workspaces, storing the intended target branch (GIT-08), saving a renamed branch
  * (GIT-09), renaming the placeholder branch from a suggested name after the first message, saving
  * a workspace's linked folders (WS-07), and saving, starting and removing backlog workspaces
- * (WS-11).
+ * (WS-11), and storing a linked pull request (PR-10).
  * Behaviour: frontend.md 6 (creation, naming, setup, archive), services-map.md 2.3.1 (workspace
  * delete), 2.4.1 (state machine), 3.1 (create), 3.2 and 5A.1.2 (setup), 3.10 (archive, unarchive
  * and delete), 3.11 (branch rename, the first-message rename and the stored target branch),
@@ -1842,6 +1844,31 @@ export class WorkspaceService {
 				lastFailedCreate: state.lastFailedCreate?.id === id ? null : state.lastFailedCreate,
 			};
 		});
+	}
+
+	/**
+	 * PR-10: stores the pull request the user linked by URL or number and keeps the loaded row in
+	 * step, so the next poll and every screen read the new number.
+	 */
+	async setLinkedPullRequest(
+		id: WorkspaceId,
+		pr: { number: number; title: string | null; description: string | null },
+	): Promise<Result<void>> {
+		const found = await this.#deps.repos.workspaces.get(id);
+		if (!found.ok) return found;
+		if (found.value === null) {
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		}
+		const written = await this.#deps.repos.workspaces.setPullRequest(id, pr);
+		if (!written.ok) return written;
+		this.#upsert({
+			...found.value,
+			prNumber: pr.number,
+			prTitle: pr.title,
+			prDescription: pr.description,
+			updatedAt: this.#deps.now(),
+		});
+		return ok(undefined);
 	}
 
 	/**
