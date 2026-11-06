@@ -8,6 +8,8 @@ import type { RepoId, WorkspaceId } from "@conducted/shared";
 import { cleanup, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ServicesProvider } from "../../core/context.tsx";
+import { createTestContainer, type TestContainer } from "../../test/container.ts";
 import "../../test/dom-polyfills.ts";
 
 vi.mock("./WorkspaceHeader.tsx", () => ({
@@ -28,17 +30,27 @@ vi.mock("./WorkspaceGate.tsx", () => ({
 
 const { WorkspaceScreen } = await import("./WorkspaceScreen.tsx");
 
-afterEach(cleanup);
+let open: TestContainer | null = null;
+
+afterEach(() => {
+	cleanup();
+	open?.close();
+	open = null;
+});
 
 describe("NAV-10 WorkspaceScreen", () => {
 	it("renders every region for a workspace", () => {
+		// The screen listens for files opened from the Git panel (REV-08), through the container.
+		open = createTestContainer();
 		render(
-			<WorkspaceScreen
-				repoId={"r1" as RepoId}
-				workspaceId={"w1" as WorkspaceId}
-				search={{}}
-				onSearchChange={vi.fn()}
-			/>,
+			<ServicesProvider container={open.container}>
+				<WorkspaceScreen
+					repoId={"r1" as RepoId}
+					workspaceId={"w1" as WorkspaceId}
+					search={{}}
+					onSearchChange={vi.fn()}
+				/>
+			</ServicesProvider>,
 		);
 		expect(screen.getByText("header region")).toBeTruthy();
 		expect(screen.getByText("tabs and content region")).toBeTruthy();

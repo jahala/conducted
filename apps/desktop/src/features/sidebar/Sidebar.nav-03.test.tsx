@@ -1,53 +1,45 @@
+/**
+ * @feature NAV-03 Sidebar
+ * Owns: tests that the live sidebar, over the real container and the app's providers, shows the
+ * navigation rows, the no-projects empty state and Settings in its footer.
+ * Test first: renders the navigation rows and, with no projects, the "No projects yet" empty state.
+ */
 import { cleanup, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Loadable } from "../../core/api.ts";
-import type { Repo, Workspace } from "../../core/model.ts";
+import { afterEach, describe, expect, it } from "vitest";
+import { AppProviders, createQueryClient } from "../../app/providers.tsx";
+import { ServicesProvider } from "../../core/context.tsx";
+import { createTestContainer, type TestContainer } from "../../test/container.ts";
 import { renderWithRouter } from "../../test/render-with-router.tsx";
+import { Sidebar } from "./Sidebar.tsx";
 
-const hooks = vi.hoisted(() => {
-	// A zustand store returns the same snapshot until state changes; a fresh object here
-	// makes useSyncExternalStore loop forever.
-	const snapshot = { loaded: true, sections: [] };
-	return {
-		repos: { state: "ready", data: [] } as Loadable<Repo[]>,
-		workspaces: { state: "ready", data: [] } as Loadable<Workspace[]>,
-		sectionsStore: {
-			getState: () => snapshot,
-			getInitialState: () => snapshot,
-			subscribe: () => () => {},
-			setState: () => {},
-		},
-	};
+let open: TestContainer | null = null;
+
+afterEach(() => {
+	cleanup();
+	open?.close();
+	open = null;
 });
 
-vi.mock("../../core/hooks.ts", () => ({
-	useRepos: () => hooks.repos,
-	useWorkspaces: () => hooks.workspaces,
-	useSetting: () => false,
-	useLiveShortcut: () => null,
-}));
-
-vi.mock("../../core/context.tsx", () => ({
-	useServices: () => ({
-		services: {
-			repo: { start: vi.fn() },
-			workspace: { start: vi.fn() },
-			sections: { store: hooks.sectionsStore },
-		},
-	}),
-}));
-
-vi.mock("./AddProjectButton.tsx", () => ({
-	AddProjectButton: () => <button type="button">Add a project</button>,
-}));
-
-const { Sidebar } = await import("./Sidebar.tsx");
-
-afterEach(cleanup);
+/**
+ * Mounts the sidebar as main.tsx does: the app's providers around the container. The projects are
+ * read first, as the startup's "repos" step does, so an empty database means no projects.
+ */
+async function renderSidebar(): Promise<void> {
+	open = createTestContainer();
+	const started = await open.container.services.repo.start();
+	if (!started.ok) throw new Error(started.error.message);
+	renderWithRouter(
+		<AppProviders client={createQueryClient(() => {})}>
+			<ServicesProvider container={open.container}>
+				<Sidebar />
+			</ServicesProvider>
+		</AppProviders>,
+	);
+}
 
 describe("NAV-03 Sidebar", () => {
 	it("shows the navigation rows and the no-projects empty state", async () => {
-		renderWithRouter(<Sidebar />);
+		await renderSidebar();
 		expect(await screen.findByRole("link", { name: /Home/ })).toBeTruthy();
 		expect(screen.getByRole("link", { name: /Create/ })).toBeTruthy();
 		expect(screen.getByRole("button", { name: /Search/ })).toBeTruthy();
@@ -55,7 +47,7 @@ describe("NAV-03 Sidebar", () => {
 	});
 
 	it("makes Settings reachable from the footer", async () => {
-		renderWithRouter(<Sidebar />);
+		await renderSidebar();
 		const settings = await screen.findByRole("link", { name: /Settings/ });
 		expect(settings.getAttribute("href")).toBe("/settings");
 	});

@@ -43,6 +43,9 @@ async function setup(config: SessionConfig = CONFIG): Promise<{
 	open = test;
 	const workspace = await seedWorkspace(test.container);
 	const session = must(await test.container.services.sessions.create(workspace.id, config));
+	// The box lives in ChatPane, which marks its chat as the one on screen when it mounts. The queue
+	// keys are chat commands, and a chat command runs only while a chat is open (command-runner.ts).
+	test.container.services.sessions.setViewing(session.id);
 	return { test, session };
 }
 

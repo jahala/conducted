@@ -512,7 +512,7 @@ export function AgentProvidersDialog({
 	}, [open]);
 
 	const saved = keys.state === "ready" ? keys.data : [];
-	const choice = selected ?? initialProviderChoice(agent, setting);
+	const choice = selected ?? initialProviderChoice(agent, settingKey === null ? null : setting);
 	const current = choices.find((entry) => entry.id === choice) ?? choices[0];
 
 	const choose = (id: ProviderChoiceId) => {

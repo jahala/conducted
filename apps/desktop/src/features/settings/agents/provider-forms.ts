@@ -98,13 +98,17 @@ export function workspaceIdEnvVarFor(agent: AgentKind): string {
 	return "OPENAI_ORG_ID";
 }
 
-/** Which choice to show first: the one the provider setting stores. */
-export function initialProviderChoice(agent: AgentKind, setting: string): ProviderChoiceId {
-	const chosen = setting.trim().toLowerCase();
-	const stored = providerChoices(agent).find((choice) => choice.settingValue === chosen);
-	if (stored !== undefined) return stored.id;
+/**
+ * Which choice to show first. Cursor and ACP agents offer one choice and store no provider setting,
+ * so their `setting` is null (providerSettingKey). Claude and Codex show the choice their provider
+ * setting stores.
+ */
+export function initialProviderChoice(agent: AgentKind, setting: string | null): ProviderChoiceId {
 	if (agent === "cursor") return "cursor";
 	if (agent === "acp") return "custom";
+	const chosen = setting?.trim().toLowerCase();
+	const stored = providerChoices(agent).find((choice) => choice.settingValue === chosen);
+	if (stored !== undefined) return stored.id;
 	// A value the dialog does not offer (set in a settings file) shows the standard sign-in.
 	return agent === "claude" ? "subscription" : "chatgpt";
 }
