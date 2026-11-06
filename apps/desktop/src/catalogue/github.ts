@@ -46,7 +46,7 @@ const checkRun = (
 });
 
 /** The GraphQL node GitHub returns for a pull request in the given state. */
-export function pullRequestNode(pr: ScriptedPr): Record<string, unknown> {
+function pullRequestNode(pr: ScriptedPr): Record<string, unknown> {
 	const merged = pr.kind === "merged";
 	const at = pr.createdAt;
 	const checks =

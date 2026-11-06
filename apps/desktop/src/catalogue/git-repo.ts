@@ -64,7 +64,7 @@ function lineCounts(file: ScriptedFile): { added: number; removed: number } {
 }
 
 /** A unified diff of one file: one hunk covering the whole file. */
-export function unifiedPatch(file: ScriptedFile): string {
+function unifiedPatch(file: ScriptedFile): string {
 	const before = lines(file.before);
 	const after = lines(file.after);
 	const oldName =
