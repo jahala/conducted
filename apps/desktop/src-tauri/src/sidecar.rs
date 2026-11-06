@@ -48,7 +48,8 @@
 //!   scans the process table for an orphan (parent pid 1) whose executable is the sidecar binary
 //!   and kills it with SIGKILL. A sidecar that still has a live parent belongs to another running
 //!   app and is left alone.
-//! - stdout and stderr go to a log file: `<app data>/logs/sidecar-<pid>.log`, mode 0600. The
+//! - stdout and stderr go to a log file: `<app data>/logs/sidecar-<pid>.log`, mode 0600. Each line
+//!   passes through the app log's redaction first, because the log export bundles this file. The
 //!   logger (PLAT-18) owns the file's lifetime: at start the launcher removes logs by age and size
 //!   and keeps the five newest, and it cuts a log to its newest third when it reaches its cap.
 //!   `sidecar_log_path` returns the current one. D026 routes these lines into the app log files
@@ -831,6 +832,8 @@ fn log_line_with_cap(log: &Arc<Mutex<File>>, stream: &str, line: &str, max_bytes
         eprintln!("sidecar: the log lock is poisoned");
         return;
     };
+    // The export bundles this file for a bug report, so key shapes are cut out as the app log does.
+    let line = logger::redact_text(line);
     if let Err(error) = writeln!(file, "[{stream}] {line}") {
         eprintln!("sidecar: could not write its log: {error}");
         return;
@@ -1812,6 +1815,25 @@ mod tests {
         assert_eq!(spawned.socket_path, socket);
         process_group::terminate_group(spawned.pid, Duration::from_millis(500));
         let _ = spawned.child.wait();
+    }
+
+    #[test]
+    fn plat_09_a_sidecar_log_line_is_redacted_before_it_reaches_disk() {
+        let folder = TempDir::new();
+        let path = folder.path().join("sidecar-1.log");
+        let log = Arc::new(Mutex::new(open_log_file(&path).expect("create log")));
+
+        log_line(
+            &log,
+            "stderr",
+            "agent said: invalid key sk-fake for task-queue",
+        );
+
+        let written = fs::read_to_string(&path).expect("read log");
+        assert_eq!(
+            written,
+            "[stderr] agent said: invalid key sk-[redacted] for task-queue\n"
+        );
     }
 
     #[test]

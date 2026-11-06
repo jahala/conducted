@@ -39,7 +39,8 @@
 //!
 //! Our design choice: Rust writes the files directly. Conductor runs a separate logger process
 //! with an in-memory buffer and an HTTP port; a local-only app does not need either. The sidecar
-//! keeps its own log (sidecar.rs), and the export includes it.
+//! keeps its own log (sidecar.rs), which redacts each line with `redact_text` as it writes, and the
+//! export includes it.
 //! Not built here: routing the sidecar's stdout and stderr into these files belongs to the
 //! sidecar launcher (PLAT-09, D026). This file only caps those logs, cleans them at start and
 //! includes the newest one in an export.
