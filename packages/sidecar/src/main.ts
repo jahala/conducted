@@ -1,11 +1,11 @@
 /**
  * @feature SIDE-01 Entry point and modes
- * Owns: choosing the mode from argv and running it. Modes: "sidecar" (the agent host), "logger"
- * (the log collector) and "app-tools-mcp" (the helper that gives Codex and ACP agents the app
- * tools).
+ * Owns: choosing the mode from argv and running it. Modes: "sidecar" (the agent host) and
+ * "app-tools-mcp" (the helper that gives Codex and ACP agents the app tools).
  * Behaviour: research/conductor/native-and-sidecar-map.md B1. Conductor also has cli, actions,
- * internal and codex-mcp modes; cli and internal are cloud features and are left out, actions is
- * an internal-user test bridge, and codex-mcp is our app-tools-mcp.
+ * internal, logger and codex-mcp modes; cli and internal are cloud features and are left out,
+ * actions is an internal-user test bridge, the logger mode is removed (D026), and codex-mcp is
+ * our app-tools-mcp.
  * Must handle: no mode or an unknown mode (usage on stderr, exit 64), a mode that rejects
  * (the error is printed to stderr and the exit code is 1), and `--version` as the first argument
  * (prints the version and exits 0; SIDE-23, in packaging.ts).
@@ -17,7 +17,7 @@ import { EXIT_USAGE } from "./exit-codes.ts";
 import { printVersion, VERSION_FLAG } from "./packaging.ts";
 import { messageOf } from "./util/errors.ts";
 
-export const MODES = ["sidecar", "logger", "app-tools-mcp"] as const;
+export const MODES = ["sidecar", "app-tools-mcp"] as const;
 export type Mode = (typeof MODES)[number];
 
 export function parseMode(argv: readonly string[]): Mode | null {
@@ -61,8 +61,6 @@ if (import.meta.main) {
 		{
 			sidecar: async (env, args) =>
 				(await import("./modes/sidecar-mode.ts")).runSidecarMode(env, args),
-			logger: async (env, args) =>
-				(await import("./modes/logger-mode.ts")).runLoggerMode(env, args),
 			"app-tools-mcp": async (env, args) =>
 				(await import("./modes/app-tools-mcp-mode.ts")).runAppToolsMcpMode(env, args),
 		},

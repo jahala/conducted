@@ -160,7 +160,7 @@ export type StartSidecarHost = (input: SidecarHostInput) => Promise<number>;
 export interface SidecarModeIo {
 	writeError(text: string): void;
 	writeOut(text: string): void;
-	createLogger(): Logger;
+	createLogger(config: SidecarConfig): Logger;
 	/** Checks that the host can write where it must. A failure names the folder. */
 	preflight(config: SidecarConfig): Promise<Result<void, AppError>>;
 	/** Installs the process error handlers and returns the function that removes them. */
@@ -174,10 +174,12 @@ export const PARENT_PID_ENV = "CONDUCTED_PARENT_PID";
 /**
  * Checks the folders the sidecar writes to. A missing bin folder or an unwritable outbox is a
  * startup failure: there is no silent fallback to a default path under the user's home (D027,
- * native-and-sidecar-map D2). The log folder is required by config.ts but is not probed here:
- * nothing writes it yet, and SIDE-18 will own the log file.
+ * native-and-sidecar-map D2). The log folder is required by config.ts but is not probed here: the
+ * Rust launcher creates it and writes the sidecar's stderr there (D026).
  */
-export async function preflightDirectories(config: SidecarConfig): Promise<Result<void, AppError>> {
+export async function preflightDirectories(
+	config: Pick<SidecarConfig, "binDir" | "outboxRoot">,
+): Promise<Result<void, AppError>> {
 	const bin = await directoryExists(config.binDir);
 	if (!bin) {
 		return err(
@@ -368,7 +370,7 @@ export interface ShutdownEffects {
  * The production shutdown steps in the order the sidecar runs them: stop the agents (no
  * checkpoint), flush the events the app has not confirmed, close the socket, then the app tools
  * bridge. Flushing is the outbox's only shutdown work: our write-ahead log has no handle to close
- * (D007, SIDE-06). There is no HTTP server (D028) and no logger close.
+ * (D007, SIDE-06). There is no HTTP server (D028); the mode flushes the logger after the host ends.
  */
 export function createShutdownSteps(
 	reason: ShutdownReason,
@@ -431,12 +433,14 @@ export class ShutdownCoordinator {
 const defaultIo: SidecarModeIo = {
 	writeError: (text) => process.stderr.write(text),
 	writeOut: (text) => process.stdout.write(text),
-	createLogger: () =>
+	createLogger: (config) =>
 		createLogger({
 			sink: stderrLogSink((text) => process.stderr.write(text)),
 			clock: systemClock,
-			level: "info",
+			level: config.logLevel,
 			scope: "sidecar",
+			foldRepeats: true,
+			rerouteConsole: true,
 		}),
 	preflight: preflightDirectories,
 	installErrorHandlers: (logger) => installErrorHandlers(logger),
@@ -462,7 +466,11 @@ export async function runSidecarMode(
 		io.writeError(`${ready.error.message}\n`);
 		return EXIT_START_FAILED;
 	}
-	const logger = io.createLogger();
+	const logger = io.createLogger(parsed.value);
+	logger.info("The sidecar is starting", {
+		appVersion: parsed.value.appVersion,
+		logLevel: parsed.value.logLevel,
+	});
 	const removeErrorHandlers = io.installErrorHandlers(logger);
 	try {
 		return await io.startHost({
@@ -474,6 +482,7 @@ export async function runSidecarMode(
 		});
 	} finally {
 		removeErrorHandlers();
+		logger.dispose?.();
 	}
 }
 

@@ -180,7 +180,12 @@ async function harness(
 			binDir: BIN_DIR,
 			outboxRoot: path.join(folder, "outbox"),
 			logDir: path.join(folder, "log"),
+<<<<<<< HEAD
 			skillPluginDir: options.skillPluginDir,
+=======
+			appVersion: "0.0.0",
+			logLevel: "info",
+>>>>>>> 855fd49e8f408c81a5c1bf4c4fd81b1039a05b13
 		},
 		{
 			app,
@@ -770,6 +775,8 @@ describe("s1-sidecar join the batch through the composition root", () => {
 				CONDUCTED_BIN_DIR: BIN_DIR,
 				CONDUCTED_OUTBOX_ROOT: path.join(folder, "outbox"),
 				CONDUCTED_LOG_DIR: path.join(folder, "log"),
+				CONDUCTED_APP_VERSION: "0.0.0",
+				CONDUCTED_LOG_LEVEL: "info",
 				[PARENT_PID_ENV]: String(process.pid),
 			},
 			stdio: ["ignore", "pipe", "pipe"],
