@@ -5,7 +5,7 @@
  * Must handle: a system service that has not answered yet.
  * Test first: the test for a hook body lives with the feature that implements it.
  */
-import { type AppError, appError, notImplemented } from "@conducted/shared";
+import { type AppError, appError } from "@conducted/shared";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useStore } from "zustand";
@@ -13,7 +13,11 @@ import type { Loadable, Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
 import type { DiagnosticsCapture, SystemInfo } from "../model.ts";
 
-export const useUpdateStatus: Queries["useUpdateStatus"] = () => notImplemented("APP-06");
+/** APP-06: the update notice follows the updates service's store. */
+export const useUpdateStatus: Queries["useUpdateStatus"] = () => {
+	const { services } = useServices();
+	return useStore(services.updates.store, (state) => state);
+};
 
 const DIAGNOSTICS_KEY = ["system", "diagnostics"] as const;
 
