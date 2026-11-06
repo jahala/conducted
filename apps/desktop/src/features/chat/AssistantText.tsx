@@ -316,23 +316,20 @@ function renderInline(text: string, keyPrefix: string, workspaceId?: WorkspaceId
 
 export interface AssistantTextProps {
 	text: string;
-<<<<<<< HEAD
-	/** The workspace a shell code block's command runs in. */
+	/** The workspace a relative file or video target, or a shell command, belongs to. */
 	workspaceId?: WorkspaceId;
-	/** The workspace is ready and not archived. */
+	/** The workspace is ready and not archived, so a shell block can run its command. */
 	canRun?: boolean;
-}
-
-export function AssistantText({ text, workspaceId, canRun }: AssistantTextProps) {
-=======
-	/** The workspace a relative file or video target belongs to. */
-	workspaceId?: WorkspaceId;
 	/** The reply's text is still arriving from the agent. */
 	streaming?: boolean;
 }
 
-export function AssistantText({ text, workspaceId, streaming = false }: AssistantTextProps) {
->>>>>>> node/chat.24
+export function AssistantText({
+	text,
+	workspaceId,
+	canRun,
+	streaming = false,
+}: AssistantTextProps) {
 	const style = useSetting<string>("markdown_style");
 	const stripFiller = useSetting<boolean>("not_absolutely_right");
 	const cleaned = stripFiller ? stripLeadingFiller(text) : text;
@@ -353,7 +350,9 @@ export function AssistantText({ text, workspaceId, streaming = false }: Assistan
 				const key = `block-${blockIndex}`;
 				switch (block.kind) {
 					case "code":
-<<<<<<< HEAD
+						if ((block.language ?? "").toLowerCase() === "mermaid") {
+							return <MermaidDiagram key={key} source={block.code} streaming={streaming} />;
+						}
 						return (
 							<CodeBlock
 								key={key}
@@ -363,12 +362,6 @@ export function AssistantText({ text, workspaceId, streaming = false }: Assistan
 								canRun={canRun}
 							/>
 						);
-=======
-						if ((block.language ?? "").toLowerCase() === "mermaid") {
-							return <MermaidDiagram key={key} source={block.code} streaming={streaming} />;
-						}
-						return <CodeBlock key={key} code={block.code} language={block.language} />;
->>>>>>> node/chat.24
 					case "heading": {
 						const Tag = HEADING_TAGS[block.level];
 						return (

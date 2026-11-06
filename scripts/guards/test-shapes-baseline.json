@@ -223,7 +223,6 @@
 	},
 	"tests-cannot-pass": {
 		"apps/desktop/src/features/chat/MessageList.chat-27.test.tsx": 2,
-		"apps/desktop/src/features/chat/tools/ToolCard.test.tsx": 1,
 		"apps/desktop/src/features/git-panel/changes/rev-01-hooked.test.tsx": 1,
 		"apps/desktop/src/features/sidebar/GroupedWorkspaces.nav-03.test.tsx": 1,
 		"apps/desktop/src/features/workspace/SplitPanes.nav-10.test.tsx": 2,

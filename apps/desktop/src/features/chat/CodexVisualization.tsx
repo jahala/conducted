@@ -13,16 +13,18 @@
  * the frame follows its content up to a maximum height, then scrolls; the file changing on disk
  * reloads the frame.
  * Our design choice: the frame is isolated from the app by an opaque origin, so a visualization can
- * never read the app's storage or call Tauri commands.
+ * never read the app's storage or call Tauri commands. `CodexVisualizationForWrite` mounts it under a
+ * Codex chat's write card when the written path is an HTML file.
  * Test first: a path outside the workspace root renders "Visualization is outside the workspace:"
  * with the path and loads no frame.
  */
-import type { WorkspaceId } from "@conducted/shared";
+import type { SessionId, WorkspaceId } from "@conducted/shared";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useServices } from "../../core/context.tsx";
-import { useFileContent, useWorkspace } from "../../core/hooks.ts";
+import { useChat, useFileContent, useWorkspace } from "../../core/hooks.ts";
 import { workspaceRelativePath } from "../../core/services/git.ts";
 import { Button } from "../../ui/Button.tsx";
+import { useWorkspaceLinks } from "./workspace-links.ts";
 
 export interface CodexVisualizationProps {
 	workspaceId: WorkspaceId;
@@ -208,5 +210,33 @@ export function CodexVisualization({ workspaceId, path, onOpen }: CodexVisualiza
 	if (!resolved.ok) return <OutsideFrame path={path} />;
 	return (
 		<LoadedVisualization workspaceId={workspaceId} relative={resolved.relative} onOpen={onOpen} />
+	);
+}
+
+/** True when a written path names an HTML file, which is what Codex writes as a visualization. */
+export function isVisualizationPath(path: string): boolean {
+	return /\.(?:html?|xhtml)$/i.test(path);
+}
+
+export interface CodexVisualizationForWriteProps {
+	sessionId: SessionId;
+	/** The path from the write call, absolute or relative to the workspace root. */
+	path: string;
+}
+
+/**
+ * The frame under a Codex chat's write of an HTML file. It finds the workspace through the
+ * session, so the write card can show the file without taking a workspace prop it does not get.
+ */
+export function CodexVisualizationForWrite({ sessionId, path }: CodexVisualizationForWriteProps) {
+	const chat = useChat(sessionId);
+	const links = useWorkspaceLinks();
+	if (chat.state !== "ready" || chat.data.session.config.agent !== "codex") return null;
+	return (
+		<CodexVisualization
+			workspaceId={chat.data.session.workspaceId}
+			path={path}
+			onOpen={(relative) => links.openFile(relative, "edit")}
+		/>
 	);
 }

@@ -23,7 +23,7 @@ import {
 	createRouter,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { Editor } from "@tiptap/react";
 import { createElement, Fragment, type ReactNode } from "react";
 import { VirtuosoMockContext } from "react-virtuoso";
@@ -39,14 +39,21 @@ import { createAppRouter } from "../app/router.tsx";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
 import { ChatPane } from "../features/chat/ChatPane.tsx";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
+import { MessageList } from "../features/chat/MessageList.tsx";
+// biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
 import { ToolCard } from "../features/chat/tools/ToolCard.tsx";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
 import { Composer } from "../features/composer/Composer.tsx";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
 import { GitPanel } from "../features/git-panel/GitPanel.tsx";
 // biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
+import { GeneralPage } from "../features/settings/pages/GeneralPage.tsx";
+// biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
+import { Sidebar } from "../features/sidebar/Sidebar.tsx";
+// biome-ignore lint/style/noRestrictedImports: the join test mounts the real screens and the app route exactly as the app does
 import { TabContent } from "../features/workspace/TabContent.tsx";
 import type { ShellCommand } from "../platform/platform.ts";
+import { agentEvent, userMessageEvent } from "../test/chat-events.ts";
 import {
 	createTestContainer,
 	seedRepo,
@@ -836,5 +843,284 @@ describe("s1-ui-1 join", () => {
 			await test.container.stop();
 			test.close();
 		}
+	});
+});
+
+const batchOpen: TestContainer[] = [];
+
+function batchContainer(): TestContainer {
+	const test = createTestContainer();
+	batchOpen.push(test);
+	return test;
+}
+
+async function renderBatchUi(test: TestContainer, ui: ReactNode) {
+	const rootRoute = createRootRoute();
+	const route = createRoute({
+		getParentRoute: () => rootRoute,
+		path: "/",
+		component: () => ui,
+	});
+	const router = createRouter({
+		routeTree: rootRoute.addChildren([route]),
+		history: createMemoryHistory({ initialEntries: ["/"] }),
+	});
+	render(
+		createElement(
+			App,
+			{ client: createQueryClient(() => {}) },
+			withServices(
+				test,
+				createElement(
+					Virtuoso,
+					{ value: { viewportHeight: 800, itemHeight: 200 } },
+					createElement(RouterProvider, { router }),
+				),
+			),
+		),
+	);
+	await router.load();
+	return router;
+}
+
+async function readyBatchWorkspace(test: TestContainer, path?: string) {
+	const workspace = await seedWorkspace(test.container, path === undefined ? {} : { path });
+	await test.container.platform.fs.mkdirp(workspace.path);
+	await test.database.execute("UPDATE workspaces SET state = 'ready' WHERE id = $1", [
+		workspace.id,
+	]);
+	must(await test.container.services.workspace.start());
+	return workspace;
+}
+
+async function batchChat(
+	test: TestContainer,
+	workspaceId: WorkspaceId,
+	events: readonly SessionEvent[],
+	config: SessionConfig = CONFIG,
+) {
+	const session = must(await test.container.services.sessions.create(workspaceId, config));
+	must(await test.container.services.sessions.start());
+	for (const [idx, event] of events.entries()) {
+		test.container.services.sessions.applyStoredEvent(session.id, idx, event, event.at);
+	}
+	return session;
+}
+
+const BATCH_ENVIRONMENT = [
+	"LANG=en_AU.UTF-8",
+	"API_TOKEN=super-secret",
+	"HOME=/Users/conducted",
+	"PATH=/Users/conducted/bin:/usr/bin:/bin",
+].join("\n");
+
+describe("s1-ui-1 join batch features", () => {
+	afterEach(async () => {
+		for (const test of batchOpen.splice(0)) {
+			await test.container.stop();
+			test.close();
+		}
+	});
+
+	it("APP-03 opens the diagnostics route and shows the redacted environment", async () => {
+		const test = batchContainer();
+		test.memory.controls.scriptShell((command) =>
+			command.program === "/bin/zsh"
+				? ok({ exitCode: 0, stdout: BATCH_ENVIRONMENT, stderr: "" })
+				: null,
+		);
+		must(await test.container.services.settings.start());
+		const router = createAppRouter(createMemoryHistory({ initialEntries: ["/diagnostics"] }));
+		render(
+			withServices(
+				test,
+				createElement(
+					App,
+					{ client: createQueryClient(() => {}) },
+					createElement(RouterProvider, { router }),
+				),
+			),
+		);
+		await router.load();
+
+		expect(await screen.findByRole("heading", { name: "Diagnostics" })).toBeTruthy();
+		expect(await screen.findByText("API_TOKEN")).toBeTruthy();
+		expect(screen.queryByText("super-secret")).toBeNull();
+		expect(screen.getByText("LANG")).toBeTruthy();
+	});
+
+	it("APP-07 shows the resource table in the sidebar footer", async () => {
+		const test = batchContainer();
+		const workspace = await seedWorkspace(test.container, {
+			branch: "alpha",
+			path: "/code/workspaces/alpha",
+		});
+		test.memory.controls.setProcesses([
+			{
+				pid: 1,
+				name: "node",
+				cpuPercent: 12.5,
+				memoryBytes: 50 * 1024 * 1024,
+				cwd: workspace.path,
+			},
+		]);
+		test.container.services.settings.store.setState((state) => ({
+			...state,
+			values: { ...state.values, sidebar_resource_usage: true },
+		}));
+		await renderBatchUi(test, createElement(Sidebar));
+
+		fireEvent.click(await screen.findByRole("button", { name: "Resources" }));
+		const table = await screen.findByRole("table", { name: "Resources" });
+		expect(within(table).getByText("node")).toBeTruthy();
+		expect(within(table).getByText("alpha")).toBeTruthy();
+	});
+
+	it("APP-10 dismisses a hint on the General page and brings it back with Reset callout dismissals", async () => {
+		const test = batchContainer();
+		must(await test.container.services.settings.start());
+		await renderBatchUi(test, createElement(GeneralPage));
+
+		expect(await screen.findByText(/Hints explain a control once/)).toBeTruthy();
+		fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+		await waitFor(() =>
+			expect(test.container.services.settings.get("dismissed_callouts")).toEqual([
+				"callout-dismissals-hint",
+			]),
+		);
+		await waitFor(() => expect(screen.queryByText(/Hints explain a control once/)).toBeNull());
+
+		fireEvent.click(await screen.findByRole("button", { name: "Reset callout dismissals" }));
+		await waitFor(() =>
+			expect(test.container.services.settings.get("dismissed_callouts")).toEqual([]),
+		);
+		expect(await screen.findByText(/Hints explain a control once/)).toBeTruthy();
+	});
+
+	it("CHAT-13 shows the progress tracker above the composer", async () => {
+		const test = batchContainer();
+		const workspace = await seedWorkspace(test.container);
+		const session = must(await test.container.services.sessions.create(workspace.id, CONFIG));
+		must(await test.container.services.sessions.start());
+		test.container.services.sessions.setProgress(session.id, {
+			blocks: [
+				{
+					kind: "steps",
+					steps: [
+						{ label: "Plan", status: "done" },
+						{ label: "Build", status: "in_progress" },
+						{ label: "Ship", status: "pending" },
+					],
+				},
+			],
+		});
+		await renderBatchUi(
+			test,
+			createElement(ChatPane, { workspaceId: workspace.id, sessionId: session.id }),
+		);
+
+		const progress = screen.getByRole("region", { name: "Progress" });
+		expect(within(progress).getByText("Build")).toBeTruthy();
+		expect(within(progress).getByText("2/3")).toBeTruthy();
+	});
+
+	it("CHAT-22 shows a Codex HTML write as a sandboxed visualization in the chat", async () => {
+		const test = batchContainer();
+		const workspace = await readyBatchWorkspace(test, "/code/workspaces/viz");
+		await test.container.platform.fs.writeTextAtomic(
+			`${workspace.path}/viz/chart.html`,
+			"<h1>Revenue chart</h1>",
+		);
+		const session = await batchChat(
+			test,
+			workspace.id,
+			[
+				userMessageEvent("e1", "t1", 1_000),
+				agentEvent("e2", "t1", 2_000, [
+					{
+						kind: "tool_call",
+						toolUseId: "tu-1" as ToolCallView["toolUseId"],
+						tool: "write",
+						rawName: "write",
+						input: { file_path: "viz/chart.html", content: "<h1>Revenue chart</h1>" },
+					},
+					{
+						kind: "tool_result",
+						toolUseId: "tu-1" as ToolCallView["toolUseId"],
+						output: "Wrote viz/chart.html",
+						isError: false,
+						truncated: false,
+					},
+				]),
+			],
+			{ ...CONFIG, agent: "codex" },
+		);
+		await renderBatchUi(
+			test,
+			createElement(MessageList, { sessionId: session.id, workspaceId: workspace.id }),
+		);
+
+		const frame = (await screen.findByTitle("Visualization")) as HTMLIFrameElement;
+		expect(frame.getAttribute("srcdoc") ?? "").toContain("<h1>Revenue chart</h1>");
+		expect(frame.getAttribute("sandbox") ?? "").toContain("allow-scripts");
+		expect(frame.getAttribute("sandbox") ?? "").not.toContain("allow-same-origin");
+	});
+
+	it("CHAT-23 runs a shell block from the chat's Run button", async () => {
+		const test = batchContainer();
+		const workspace = await readyBatchWorkspace(test);
+		const session = await batchChat(test, workspace.id, [
+			userMessageEvent("e1", "t1", 1_000),
+			agentEvent("e2", "t1", 2_000, [{ kind: "text", text: "```bash\necho hello\n```" }]),
+		]);
+		await renderBatchUi(
+			test,
+			createElement(MessageList, { sessionId: session.id, workspaceId: workspace.id }),
+		);
+
+		fireEvent.click(await screen.findByRole("button", { name: "Run" }));
+
+		await waitFor(() => expect(screen.getByText("Done")).toBeTruthy());
+		expect(screen.getByText("Exit code 0")).toBeTruthy();
+		expect(test.memory.controls.ptySpawns.at(-1)).toMatchObject({
+			cwd: workspace.path,
+			command: { program: "/bin/zsh", args: ["-l", "-c", "echo hello"] },
+		});
+	});
+
+	it("CHAT-24 plays a video that a reply names in Markdown", async () => {
+		const test = batchContainer();
+		const workspace = await seedWorkspace(test.container, {
+			path: "/code/workspaces/video-demo",
+		});
+		const session = await batchChat(test, workspace.id, [
+			userMessageEvent("e1", "t1", 1_000),
+			agentEvent("e2", "t1", 2_000, [{ kind: "text", text: "![Clip](media/clip.mp4)" }]),
+		]);
+		await renderBatchUi(
+			test,
+			createElement(MessageList, { sessionId: session.id, workspaceId: workspace.id }),
+		);
+
+		const video = (await screen.findByLabelText("Clip")) as HTMLVideoElement;
+		expect(video.getAttribute("src")).toBe(
+			`asset://localhost/${encodeURIComponent(`${workspace.path}/media/clip.mp4`)}`,
+		);
+	});
+
+	it("CHAT-25 shows the turn outline beside the message list", async () => {
+		const test = batchContainer();
+		const workspace = await seedWorkspace(test.container);
+		const session = await batchChat(test, workspace.id, [
+			userMessageEvent("e1", "t1", 1_000),
+			userMessageEvent("e2", "t2", 2_000),
+		]);
+		await renderBatchUi(
+			test,
+			createElement(MessageList, { sessionId: session.id, workspaceId: workspace.id }),
+		);
+
+		expect(await screen.findByRole("button", { name: "Table of contents" })).toBeTruthy();
+		expect(screen.getAllByTestId("turn-outline-tick")).toHaveLength(2);
 	});
 });
