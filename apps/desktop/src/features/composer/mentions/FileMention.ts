@@ -13,8 +13,9 @@
  * because the editor already carries no extra TipTap packages. The plugin holds the query, the
  * ranked rows and the selected row, and draws them with SuggestionPopup.
  * Must handle: no matches ('No files found', the popup stays open); at most 20 file rows; Escape
- * closes the popup and keeps the typed '@'; Arrow keys wrap; Enter and Tab choose; a trigger inside
- * a word does not open; a chosen action runs instead of inserting a chip.
+ * closes the popup and keeps the typed '@'; Arrow keys wrap; Enter and Tab choose, and do nothing
+ * while no row matches (the composer's send key leaves them to the open menu, trigger-menu.ts); a
+ * trigger inside a word does not open; a chosen action runs instead of inserting a chip.
  * Test first: Typing '@rea' offers 'README.md' first; choosing it inserts a chip with the path.
  */
 import type { EditorState, Transaction } from "@tiptap/pm/state";
@@ -25,6 +26,7 @@ import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { rankFuzzy } from "../../../core/fuzzy.ts";
 import { SuggestionPopup, type SuggestionRow } from "./SuggestionPopup.tsx";
+import type { TriggerMenuSpec } from "./trigger-menu.ts";
 
 export interface FileMentionItem {
 	path: string;
@@ -247,7 +249,11 @@ class MentionPopupView {
 }
 
 function createMentionPlugin(deps: FileMentionDeps): Plugin<FileMentionState> {
+	const spec: TriggerMenuSpec = {
+		triggerMenuOpen: (state) => mentionPluginKey.getState(state)?.active === true,
+	};
 	return new Plugin<FileMentionState>({
+		...spec,
 		key: mentionPluginKey,
 		state: {
 			init: (_config, state) => stateAtEditor(state, deps),
@@ -299,8 +305,10 @@ function createMentionPlugin(deps: FileMentionDeps): Plugin<FileMentionState> {
 					);
 					return true;
 				}
-				if ((event.key === "Enter" || event.key === "Tab") && count > 0) {
-					return chooseSuggestion(view, state, state.selectedIndex);
+				if (event.key === "Enter" || event.key === "Tab") {
+					// With no matching row the key does nothing, so Enter never sends a half-typed '@'.
+					chooseSuggestion(view, state, state.selectedIndex);
+					return true;
 				}
 				return false;
 			},

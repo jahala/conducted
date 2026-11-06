@@ -1,6 +1,6 @@
 /**
  * @feature COMP-01 Composer editor
- * Owns: how the composer's send key learns that a trigger menu ('#', '§') is open, so Enter and
+ * Owns: how the composer's send key learns that a trigger menu ('@', '/', '#', '§') is open, so Enter and
  * Tab go to the menu instead of sending the message.
  * Behaviour: ui-map.md 3.5 (the triggers' menus choose a row with Enter), 5.4 (Enter sends).
  * Our design choice: a trigger plugin says so in its own spec (`triggerMenuOpen`), so the editor

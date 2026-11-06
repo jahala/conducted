@@ -20,7 +20,8 @@
  * available in this chat."; Our design choice: Conductor sends a typed '/goal' to such an agent as
  * text); an argument hint (shown after the name, and the command
  * waits for its arguments); the agent's list still loading or failed to load (the menu says so and
- * still offers the built-ins); choosing by click, Enter or Tab, and moving with the arrow keys;
+ * still offers the built-ins); choosing by click, Enter or Tab (the composer's send key leaves them
+ * to the open menu, trigger-menu.ts, and with no row they send nothing), and moving with the arrow keys;
  * removing the typed command from the composer; removing the menu when the editor unmounts.
  * Test first: Typing '/co' lists '/compact' for Claude and not for an agent that lacks it.
  */
@@ -33,6 +34,7 @@ import { createElement } from "react";
 import { GOAL_UNAVAILABLE } from "../../../core/services/sessions.ts";
 import { toast } from "../../../ui/Toast.tsx";
 import { SuggestionPopup, type SuggestionRow } from "./SuggestionPopup.tsx";
+import type { TriggerMenuSpec } from "./trigger-menu.ts";
 
 /** Where the agent's own list stands. The built-ins are offered whatever it says. */
 export type SlashListState =
@@ -440,7 +442,11 @@ export function createSlashCommands(deps: SlashCommandDeps): Extension {
 			const rowsOf = (state: SlashState): SuggestionRow[] =>
 				slashCommandRows(deps.commands, deps.agent, state.query);
 
+			const spec: TriggerMenuSpec = {
+				triggerMenuOpen: (state) => slashKey.getState(state)?.open === true,
+			};
 			const plugin = new Plugin<SlashState>({
+				...spec,
 				key: slashKey,
 				state: {
 					init: (_config, state) => stateFor(state),
@@ -479,9 +485,9 @@ export function createSlashCommands(deps: SlashCommandDeps): Extension {
 							choose(entry.command);
 							return true;
 						}
+						// With no row the key never sends the half-typed command; a known problem is said.
 						const problem = slashCommandProblem(current.query, deps.agent);
-						if (problem === null) return false;
-						toast.error(problem);
+						if (problem !== null) toast.error(problem);
 						return true;
 					},
 				},

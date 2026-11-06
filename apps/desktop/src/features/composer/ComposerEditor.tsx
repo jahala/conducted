@@ -6,8 +6,8 @@
  * Our design choice: Plain text with no marks; headings, lists and other marks from StarterKit are
  * switched off because the agent receives plain text. Send keys come from resolveSendKey
  * (send-key.ts). Use useEditor and EditorContent from @tiptap/react.
- * Must handle: IME composition (Enter must not send); an open '#' or '§' menu (Enter goes to the
- * menu, mentions/trigger-menu.ts); Shift+Enter line break; undo and redo
+ * Must handle: IME composition (Enter must not send); an open '@', '/', '#' or '§' menu (Enter goes
+ * to the menu, mentions/trigger-menu.ts); Shift+Enter line break; undo and redo
  * (StarterKit's UndoRedo); the draft text is saved on a short pause (use-draft-sync.ts); screen
  * reader name 'composer'.
  * The composer passes the trigger extensions here: `@` file mentions (COMP-04), `#` PR and issue
