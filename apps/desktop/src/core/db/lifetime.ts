@@ -5,8 +5,9 @@
  * draft files.
  * Behaviour: services-map.md 2.7 (data lifetime and cleanup; Conductor has no time-based
  * deletes, so these limits are ours) and the lifetime comments in migration 0001.
- * Must handle: runs at startup after repair (repair.ts) and then at most once per day, with the
- * last run time kept in the settings table; each step is independent, so one failing step does
+ * Must handle: runs as a startup step after repair (repair.ts), and is skipped when the last run,
+ * kept in the settings table, was less than a day ago; an app that stays open does not run it
+ * again until the next start; each step is independent, so one failing step does
  * not stop the next and the report lists every outcome; steps never block the UI because they
  * work in batches (`LIMIT` on every delete and update) and yield between batches; user files
  * only go to the Trash through `fs.trash`, and a file is trashed before its row is deleted so a
@@ -35,7 +36,10 @@ import {
 } from "./row-codec.ts";
 import { SETTINGS_SQL } from "./settings.ts";
 
-/** The limits come from settings. Days count from the event, row or file time. */
+/**
+ * The job's limits. The container passes DEFAULT_LIFETIME_LIMITS; no setting changes them. Days
+ * count from the event, row or file time.
+ */
 export interface LifetimeLimits {
 	/** Tool outputs of events older than this many days may be cut. */
 	toolOutputMaxAgeDays: number;
