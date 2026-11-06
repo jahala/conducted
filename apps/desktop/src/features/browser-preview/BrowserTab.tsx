@@ -1,11 +1,14 @@
 /**
  * @feature RUN-04 BrowserTab
+ * @feature RUN-05 Annotation overlay in the browser tab
  * Owns: a center tab with an in-app browser preview of the workspace's dev server. Entry point
- * embedded by the workspace tab strip.
+ * embedded by the workspace tab strip. It holds the annotations made on the page and sends them
+ * to the workspace's open chat as one message.
  * Behaviour: ui-map.md 3.2, "Tab content: Browser" ("Reload", "Open in browser", "Port and path"
  * picker, "Starting preview..."; setting "In-app browser preview").
- * Children: BrowserToolbar, PreviewFrame, BrowserState.
- * Data: useRunState (is the dev server running, detected ports), useWorkspace, useSetting.
+ * Children: BrowserToolbar, PreviewFrame, BrowserState, AnnotationOverlay.
+ * Data: useRunState (is the dev server running, detected ports), useWorkspace, useSessions,
+ * useSetting.
  * Our design choice: the tab draws the page it was opened with. A typed address on another origin
  * opens in the system browser, and a failure to open there shows the "Couldn't open browser tab"
  * toast. The workspace gate hides this tab for an archived workspace.
@@ -13,14 +16,24 @@
  * probes the address, then after the timeout the failed state with a Retry; the frame keeps
  * probing and shows the page without a click once the server answers), the page failing to load,
  * a navigation to another origin opening outside the app, the setting being off (the tab says
- * previews open in the system browser and offers that), and a system-browser failure.
+ * previews open in the system browser and offers that), a system-browser failure, and sending
+ * annotations: they stay in the tab across a page change and go to the workspace's open chat as
+ * one message, and a failed send is toasted while the annotations stay.
  * Test first: with the server not listening the tab shows "Starting preview" and, after the
  * timeout, a Retry action.
  */
 import type { WorkspaceId } from "@conducted/shared";
 import { useEffect, useState } from "react";
-import { useActions, useRunState, useSetting, useWorkspace } from "../../core/hooks.ts";
+import {
+	useActions,
+	useRunState,
+	useSessions,
+	useSetting,
+	useWorkspace,
+} from "../../core/hooks.ts";
 import { toastError } from "../../ui/Toast.tsx";
+import { AnnotationOverlay } from "./AnnotationOverlay.tsx";
+import type { PageAnnotation } from "./annotation-format.ts";
 import { BrowserState, type BrowserStateKind } from "./BrowserState.tsx";
 import { BrowserToolbar, parseBrowserAddress } from "./BrowserToolbar.tsx";
 import { PreviewFrame, type PreviewLoadState } from "./PreviewFrame.tsx";
@@ -28,13 +41,25 @@ import { PreviewFrame, type PreviewLoadState } from "./PreviewFrame.tsx";
 export function BrowserTab({ workspaceId, url }: { workspaceId: WorkspaceId; url: string }) {
 	const actions = useActions();
 	const workspace = useWorkspace(workspaceId);
+	const sessions = useSessions(workspaceId);
 	const runState = useRunState(workspaceId);
 	const previewEnabled = useSetting<boolean>("experimental_in_app_browser_preview");
 	const [history, setHistory] = useState<string[]>([url]);
 	const [index, setIndex] = useState(0);
 	const [reloadToken, setReloadToken] = useState(0);
 	const [loadState, setLoadState] = useState<PreviewLoadState>({ kind: "loading" });
+	const [annotations, setAnnotations] = useState<PageAnnotation[]>([]);
 	const currentUrl = history[index] ?? url;
+	const openSessions = sessions.state === "ready" ? sessions.data : [];
+	const activeSessionId = workspace.state === "ready" ? workspace.data.activeSessionId : null;
+	const archived =
+		workspace.state === "ready" &&
+		(workspace.data.state === "archived" || workspace.data.state === "archiving");
+	const activeSession =
+		activeSessionId === null
+			? openSessions[0]
+			: (openSessions.find((session) => session.id === activeSessionId) ?? openSessions[0]);
+	const canSendToChat = !archived && activeSession !== undefined;
 
 	useEffect(() => {
 		setHistory([url]);
@@ -106,6 +131,17 @@ export function BrowserTab({ workspaceId, url }: { workspaceId: WorkspaceId; url
 			: "load_failed";
 	const failureDetail = loadState.kind === "failed" ? detailFor(loadState, targetPort) : null;
 
+	const sendAnnotations = (message: string): void => {
+		if (activeSession === undefined) return;
+		void actions.sessions.send(activeSession.id, message, [], "auto").then((result) => {
+			if (!result.ok) {
+				toastError("Couldn't add the annotations to the chat", result.error);
+				return;
+			}
+			setAnnotations([]);
+		});
+	};
+
 	return (
 		<div className="flex h-full flex-col bg-canvas" data-browser-tab="">
 			<BrowserToolbar
@@ -138,6 +174,18 @@ export function BrowserTab({ workspaceId, url }: { workspaceId: WorkspaceId; url
 							<div className="absolute inset-0 bg-canvas">
 								<BrowserState kind={failedKind} detail={failureDetail} onAction={reload} />
 							</div>
+						) : null}
+						{loadState.kind === "ready" ? (
+							<AnnotationOverlay
+								annotations={annotations}
+								canSendToChat={canSendToChat}
+								onAdd={(annotation) => setAnnotations((current) => [...current, annotation])}
+								onRemove={(id) =>
+									setAnnotations((current) => current.filter((item) => item.id !== id))
+								}
+								onSendToChat={sendAnnotations}
+								onClear={() => setAnnotations([])}
+							/>
 						) : null}
 					</>
 				) : (
