@@ -40,7 +40,7 @@ import { PrActivityList } from "./PrActivityList.tsx";
 import { PrChecksSummary } from "./PrChecksSummary.tsx";
 import { PrDescriptionEditor } from "./PrDescriptionEditor.tsx";
 import { type PrEmptyKind, PrEmptyState } from "./PrEmptyState.tsx";
-import { PrLevelComments } from "./PrLevelComments.tsx";
+import { isPrLevelComment, PrLevelComments } from "./PrLevelComments.tsx";
 import { PrMergeBar } from "./PrMergeBar.tsx";
 import { PrNumberLink } from "./PrNumberLink.tsx";
 import { PrReviewSection } from "./PrReviewSection.tsx";
@@ -284,9 +284,7 @@ export function PrTab({ workspaceId }: { workspaceId: WorkspaceId }) {
 					</p>
 				) : (
 					<PrActivityList
-						entries={activity.data.filter(
-							(entry) => entry.kind !== "comment" || entry.filePath !== null,
-						)}
+						entries={activity.data.filter((entry) => !isPrLevelComment(entry))}
 						order={activityOrder}
 						onOpenEntry={openActivity}
 					/>
