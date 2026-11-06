@@ -1,7 +1,10 @@
 /**
  * @feature COMP-01 Composer data: drafts that survive restarts and attachments
- * Owns: the unsent text and attachments of each chat, saved as one JSON file per chat, and the
- * staging of attachments until a message is sent.
+ * @feature COMP-09 Prompt snippets
+ * Owns: the unsent text and attachments of each chat, saved as one JSON file per chat, the
+ * staging of attachments until a message is sent, and the saved snippets the composer inserts.
+ * The snippet list lives in this service's store and is read through `loadSnippets`, so the picker,
+ * the editor trigger and the palette share one copy.
  * Behaviour: services-map.md 5A.6 (attachment kinds, local pipeline, paste rule, sweep of old
  * staging folders), 2.7.2 (drafts have a size limit), ui-map.md 3.5 (composer).
  * Must handle: saving is debounced and the newest text wins (an older write that finishes late
@@ -49,6 +52,7 @@ import {
 import type { Repositories } from "../db/repositories.ts";
 import { trashIfPresent } from "../fs-helpers.ts";
 import type { Attachment, Snippet } from "../model.ts";
+import { createSnippetCache } from "./snippets-cache.ts";
 
 export const PASTE_ATTACHMENT_MIN_LINES = 90;
 export const PASTE_ATTACHMENT_MIN_CHARS = 5_000;
@@ -206,11 +210,15 @@ export interface ComposerState {
 	drafts: Readonly<Record<string, Draft>>;
 	/** The last failed write of each chat, so a screen can tell the user the draft did not save. */
 	errors: Readonly<Record<string, AppError>>;
+	/** The saved snippets read so far. Null until the first read answers. */
+	snippets: Snippet[] | null;
+	/** The last failed read of the snippet list. */
+	snippetError: AppError | null;
 }
 
 export interface ComposerServiceDeps {
 	platform: Pick<Platform, "fs" | "dialogs" | "clipboard"> & Partial<Pick<Platform, "attachments">>;
-	repos: Pick<Repositories, "attachments">;
+	repos: Pick<Repositories, "attachments" | "snippets">;
 	setDebounce: (callback: () => void, ms: number) => () => void;
 	/** The chat tab open in a workspace, for "Attach in chat" (REV-06). */
 	activeSessionOf?: (workspaceId: WorkspaceId) => Result<SessionId | null>;
@@ -233,10 +241,21 @@ export class ComposerService {
 	readonly #inFlight = new Set<Promise<Result<void>>>();
 	/** How many copies are running for each chat. A send waits until the count is zero. */
 	readonly #busy = new Map<string, number>();
+	/** Reads the snippet list, keeping only the newest answer. */
+	readonly #snippets: ReturnType<typeof createSnippetCache<ComposerState>>;
 
 	constructor(deps: ComposerServiceDeps) {
 		this.#deps = deps;
-		this.store = createStore<ComposerState>(() => ({ drafts: {}, errors: {} }));
+		this.store = createStore<ComposerState>(() => ({
+			drafts: {},
+			errors: {},
+			snippets: null,
+			snippetError: null,
+		}));
+		this.#snippets = createSnippetCache({
+			store: this.store,
+			list: () => this.#deps.repos.snippets.list(),
+		});
 	}
 
 	/** The draft currently in the store, or an empty one before it is loaded. */
@@ -780,18 +799,39 @@ export class ComposerService {
 		return ok(path);
 	}
 
+	/** Reads the user's snippets into the store, keeping only the newest answer. */
+	async loadSnippets(): Promise<void> {
+		await this.#snippets.load();
+	}
+
 	/** Backs `Actions.snippets.create`. A keyword another snippet uses is refused. */
-	createSnippet(_input: SnippetInput): Promise<Result<Snippet>> {
-		return notImplemented("COMP-09");
+	async createSnippet(input: SnippetInput): Promise<Result<Snippet>> {
+		const created = await this.#deps.repos.snippets.create(normalizedSnippet(input));
+		if (created.ok) await this.#snippets.load();
+		return created;
 	}
 
 	/** Backs `Actions.snippets.update`. */
-	updateSnippet(_id: SnippetId, _input: SnippetInput): Promise<Result<void>> {
-		return notImplemented("COMP-09");
+	async updateSnippet(id: SnippetId, input: SnippetInput): Promise<Result<void>> {
+		const updated = await this.#deps.repos.snippets.update(id, normalizedSnippet(input));
+		if (updated.ok) await this.#snippets.load();
+		return updated;
 	}
 
 	/** Backs `Actions.snippets.remove`. */
-	removeSnippet(_id: SnippetId): Promise<Result<void>> {
-		return notImplemented("COMP-09");
+	async removeSnippet(id: SnippetId): Promise<Result<void>> {
+		const removed = await this.#deps.repos.snippets.delete(id);
+		if (removed.ok) await this.#snippets.load();
+		return removed;
 	}
+}
+
+/** Trims the name and keyword the way the repository expects; a blank keyword means none. */
+function normalizedSnippet(input: SnippetInput): SnippetInput {
+	const keyword = input.keyword?.trim() ?? "";
+	return {
+		name: input.name.trim(),
+		keyword: keyword === "" ? null : keyword,
+		prompt: input.prompt,
+	};
 }

@@ -153,6 +153,8 @@ describe("NAV-08 palette model", () => {
 			"Create workspace",
 			"Create section",
 			"Add project",
+			"Create snippet",
+			"Edit snippets",
 			"Toggle theme",
 			"Toggle left sidebar",
 			"Toggle right sidebar",
