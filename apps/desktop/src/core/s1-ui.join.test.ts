@@ -4,13 +4,23 @@
  * REV-08 the file viewer, REV-10 the Artifacts tab, SET-04 environment variables, SET-09 provider keys
  * and SET-10 OpenCode providers, plus the launch a chat sends: the variables the repository scripts
  * get, only the chosen sign-in's keys, and one value for an OpenCode variable two providers share.
+ * Also joins APP-06 the update notice and the restart when the last chat is idle, PR-10 linking a
+ * pull request by URL or number, and RUN-05 page annotations sent to the chat.
  * Each test builds the real container with createTestContainer, then mounts the app's own route
  * tree or the screen the app mounts, and drives the feature the way a user does.
  * Behaviour: D054 (a feature is reachable from the composition root).
  * Test first: each test fails when its feature's container wiring or mount is removed.
  */
+import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
 import { EditorView } from "@codemirror/view";
-import type { AgentInstall, AgentLaunch, AgentProvider, SessionConfig } from "@conducted/protocol";
+import {
+	type AgentInstall,
+	type AgentLaunch,
+	type AgentProvider,
+	idleLiveState,
+	type SessionConfig,
+} from "@conducted/protocol";
 import { ok } from "@conducted/shared";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -28,7 +38,13 @@ import { createAppRouter } from "../app/router.tsx";
 import { Composer } from "../features/composer/Composer.tsx";
 import type { StartedApp } from "../main.tsx";
 import { startApp } from "../main.tsx";
-import { createTestContainer, seedWorkspace, type TestContainer } from "../test/container.ts";
+import {
+	createTestContainer,
+	seedRepo,
+	seedWorkspace,
+	type TestContainer,
+} from "../test/container.ts";
+import { answerSidecar, deliveredAsAsked } from "../test/sidecar-answers.ts";
 import type { Container } from "./container.ts";
 import { ServicesProvider } from "./context.tsx";
 import { providerKeychainRef } from "./services/agent-catalog.ts";
@@ -625,6 +641,205 @@ describe("s1-ui join REV-10 and SET-10", () => {
 		} finally {
 			await test.container.stop();
 			test.close();
+		}
+	});
+});
+
+const WORKING_LIVE_STATE = { ...idleLiveState, status: "working" as const };
+
+/** A local page for the preview frame to load with a scriptable document. */
+function servePreviewPage(): Promise<{ server: Server; url: string }> {
+	return new Promise((resolve, reject) => {
+		const server = createServer((_request, response) => response.end("<p>preview</p>"));
+		server.once("error", reject);
+		server.listen(0, "127.0.0.1", () => {
+			const address = server.address() as AddressInfo;
+			resolve({ server, url: `http://127.0.0.1:${address.port}` });
+		});
+	});
+}
+
+function closeServer(server: Server): Promise<void> {
+	return new Promise((resolve) => {
+		if (!server.listening) {
+			resolve();
+			return;
+		}
+		server.close(() => resolve());
+	});
+}
+
+describe("s1-ui join APP-06 update notice", () => {
+	it("shows the idle restart in the sidebar and restarts once the last working chat goes idle", async () => {
+		const test = createTestContainer();
+		try {
+			await test.container.services.settings.start();
+			must(await test.container.services.settings.set("auto_restart_on_update_when_idle", true));
+			vi.spyOn(test.container.platform.updater, "check").mockResolvedValue(
+				ok({ version: "9.9.9", notes: "Faster diffs." }),
+			);
+			vi.spyOn(test.container.platform.updater, "install").mockResolvedValue(ok(undefined));
+			const relaunch = vi
+				.spyOn(test.container.platform.updater, "relaunch")
+				.mockResolvedValue(undefined);
+
+			must(await test.container.start());
+			await openApp(test.container, "/all-workspaces");
+			must(await test.container.actions.app.checkForUpdates());
+			test.container.services.sessions.store.setState({
+				liveStates: { "chat-1": WORKING_LIVE_STATE },
+			});
+			must(await test.container.actions.app.installUpdate());
+
+			expect(test.container.services.updates.store.getState().state).toBe("ready_when_idle");
+			expect(relaunch).not.toHaveBeenCalled();
+			expect(
+				await screen.findByText("Will automatically restart when all agents are idle"),
+			).toBeTruthy();
+
+			test.container.services.sessions.store.setState({ liveStates: {} });
+
+			await waitFor(() => expect(relaunch).toHaveBeenCalledTimes(1));
+			await waitFor(() =>
+				expect(
+					screen.queryByText("Will automatically restart when all agents are idle"),
+				).toBeNull(),
+			);
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+});
+
+describe("s1-ui join PR-10 link a pull request", () => {
+	it("links a pull request from the workspace screen through the pr.link command", async () => {
+		const remoteUrl = "https://github.com/octo/repo.git";
+		const prJson = JSON.stringify({
+			number: 123,
+			title: "Link me",
+			html_url: "https://github.com/octo/repo/pull/123",
+			state: "open",
+			draft: false,
+			merged_at: null,
+			updated_at: "2026-11-05T09:00:00Z",
+			body: "The pull request body",
+			user: { login: "ada", avatar_url: "https://avatars.example/ada.png" },
+			head: { ref: "feature/link" },
+		});
+		const test = createTestContainer();
+		try {
+			await test.container.services.settings.start();
+			must(
+				await test.container.services.settings.set(
+					"keybinding_overrides_v1",
+					JSON.stringify({ "pr.link": ["Cmd+Shift+9"] }),
+				),
+			);
+			const repo = await seedRepo(test.container, {
+				rootPath: "/join/pr-10",
+				remoteUrl,
+			});
+			must(await test.container.services.repo.loadConfig(repo.id));
+			const workspace = await seedWorkspace(test.container, {
+				repoId: repo.id,
+				path: "/code/workspaces/join-pr-10",
+				branch: "feature/link",
+			});
+			test.memory.controls.scriptShell((command) => {
+				if (command.program === "git" && command.args.includes("get-url")) {
+					return ok({ exitCode: 0, stdout: `${remoteUrl}\n`, stderr: "" });
+				}
+				if (
+					command.program === "gh" &&
+					command.args[0] === "api" &&
+					command.args[1]?.endsWith("/pulls/123") === true
+				) {
+					return ok({ exitCode: 0, stdout: prJson, stderr: "" });
+				}
+				return ok({ exitCode: 0, stdout: "", stderr: "" });
+			});
+
+			await openApp(test.container, `/repository/${repo.id}/workspace/${workspace.id}`);
+			fireEvent.keyDown(document, { key: "9", metaKey: true, shiftKey: true });
+
+			fireEvent.change(await screen.findByLabelText("PR URL or number"), {
+				target: { value: "https://github.com/octo/repo/pull/123" },
+			});
+			fireEvent.click(screen.getByRole("button", { name: "Link" }));
+
+			await waitFor(() => {
+				const stored =
+					test.container.services.workspace.store.getState().workspacesById[workspace.id];
+				expect(stored?.prNumber).toBe(123);
+				expect(stored?.prTitle).toBe("Link me");
+			});
+		} finally {
+			await test.container.stop();
+			test.close();
+		}
+	});
+});
+
+describe("s1-ui join RUN-05 page annotations", () => {
+	it("sends annotations made in the workspace's browser tab to its chat", async () => {
+		const test = createTestContainer();
+		const preview = await servePreviewPage();
+		try {
+			await test.container.services.settings.start();
+			must(await test.container.services.settings.set("experimental_in_app_browser_preview", true));
+			const workspace = await seedWorkspace(test.container, {
+				path: "/code/workspaces/join-run-05",
+				port: 5173,
+			});
+			const session = must(await test.container.services.sessions.create(workspace.id, CONFIG));
+			must(await test.container.services.sessions.start());
+			must(await test.container.services.workspace.setActiveSession(workspace.id, session.id));
+			must(await test.container.sidecar.start());
+			const calls = answerSidecar(test, deliveredAsAsked);
+
+			await openApp(
+				test.container,
+				`/repository/${workspace.repoId}/workspace/${workspace.id}?tab=browser&browserUrl=${encodeURIComponent(preview.url)}`,
+			);
+
+			const frame = (await screen.findByTitle("Preview")) as HTMLIFrameElement;
+			frame.removeAttribute("src");
+			const page = frame.contentDocument;
+			if (page === null) throw new Error("the preview is not scriptable");
+			page.body.innerHTML = '<button id="first">First</button><button id="second">Second</button>';
+			fireEvent.load(frame);
+
+			fireEvent.click(await screen.findByRole("button", { name: "Annotate" }));
+			const first = page.querySelector("#first");
+			if (first === null) throw new Error("the preview has no first button");
+			fireEvent.click(first);
+			fireEvent.change(screen.getByLabelText("Note"), { target: { value: "First note" } });
+			fireEvent.click(screen.getByRole("button", { name: "Save annotation" }));
+			await screen.findByText("First note");
+
+			const second = page.querySelector("#second");
+			if (second === null) throw new Error("the preview has no second button");
+			fireEvent.click(second);
+			fireEvent.change(screen.getByLabelText("Note"), { target: { value: "Second note" } });
+			fireEvent.click(screen.getByRole("button", { name: "Save annotation" }));
+			await screen.findByText("Second note");
+
+			fireEvent.click(screen.getByRole("button", { name: "Add to chat" }));
+
+			await waitFor(() =>
+				expect(calls.filter((call) => call.method === "sendMessage")).toHaveLength(1),
+			);
+			const message = String(
+				calls.find((call) => call.method === "sendMessage")?.params.text ?? "",
+			);
+			expect(message).toContain("First note");
+			expect(message).toContain("Second note");
+			expect(message.indexOf("First note")).toBeLessThan(message.indexOf("Second note"));
+		} finally {
+			await test.container.stop();
+			test.close();
+			await closeServer(preview.server);
 		}
 	});
 });
