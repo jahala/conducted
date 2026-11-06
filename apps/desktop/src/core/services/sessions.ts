@@ -41,8 +41,9 @@
  * of the same workspace and refuses a turn with no checkpoint with "Unable to fork chat"; a fork
  * whose copied part holds no agent message to resume at is refused, so two chats never share one
  * agent session; a fork copies the checkpoint refs it keeps under its own ids, so its revert works
- * and survives the origin's deletion. Not yet held: the fork's resume point lives in memory until
- * its first send, so a restart before that send loses it (CHAT-16 open item; it needs a column).
+ * and survives the origin's deletion. The fork's resume point is stored on its chat row
+ * (sessions.fork_resume_native_message_id, migration 0007), so a restart before its first send
+ * still resumes at the forked turn; recording that first message clears it.
  * Our design choice: a chat starts with no title; the title generator fills it only once
  * (`setTitleIfEmpty`), so a name the user typed is never overwritten.
  * Our design choice: the pending send lives in memory until the sidecar stores its `user_message`
@@ -367,11 +368,6 @@ export class SessionsService implements AgentMessenger {
 	readonly #configWrites: KeyedQueue<SessionId> = createKeyedQueue<SessionId>();
 	/** The newest option-list request per chat. An older answer never changes the store. */
 	readonly #acpOptionRequests: LatestWins<string> = createLatestWins<string>();
-	/**
-	 * A forked chat's agent resume, used by its first send. The session id is the origin's, and
-	 * the native message id is the last agent message of the forked turn (CHAT-16).
-	 */
-	readonly #forkResumes = new Map<string, { agentSessionId: string; atNativeMessageId?: string }>();
 	/** The stored-history search over the event log. */
 	readonly #historySearch: (query: string, limit: number) => Promise<Result<HistoryHit[]>>;
 	/** Loads of stored events in progress, with the events that arrived meanwhile. */
@@ -599,7 +595,6 @@ export class SessionsService implements AgentMessenger {
 		if (!removed.ok) return removed;
 		this.#turns.delete(id);
 		this.#cancelVersions.delete(id);
-		this.#forkResumes.delete(id);
 		// An open card would leave the sidecar's request waiting for an answer that never comes.
 		const openCard = this.store.getState().openInteractions[id];
 		if (openCard !== undefined)
@@ -788,8 +783,11 @@ export class SessionsService implements AgentMessenger {
 			this.#addFailed(session.id, { ...pending, error: result.error });
 			return result;
 		}
-		// The sidecar's session for a forked chat now exists, so the resume is no longer needed.
-		this.#forkResumes.delete(session.id);
+		// The sidecar's session for a forked chat now exists, so the resume point is used up. The
+		// stored copy is cleared when the ingest records this message (recordUserMessage).
+		if (session.forkResumeNativeMessageId !== null) {
+			this.#storeForkResume(session.id, null);
+		}
 		if (firstMessage && this.#deps.onFirstMessage !== undefined) {
 			const onFirstMessage = this.#deps.onFirstMessage;
 			fireAndForget(
@@ -1944,11 +1942,13 @@ export class SessionsService implements AgentMessenger {
 			if (!appended.ok) return discard(appended.error);
 		}
 
-		if (origin.agentSessionId !== null) {
-			this.#forkResumes.set(forked.id, {
-				agentSessionId: origin.agentSessionId,
-				...(nativeMessageId === undefined ? {} : { atNativeMessageId: nativeMessageId }),
-			});
+		// Stored, so a restart before the fork's first send still resumes at the forked turn.
+		if (origin.agentSessionId !== null && nativeMessageId !== undefined) {
+			const saved = await this.#deps
+				.repositories()
+				.sessions.setForkResume(forked.id, nativeMessageId);
+			if (!saved.ok) return discard(saved.error);
+			this.#storeForkResume(forked.id, nativeMessageId);
 		}
 		return this.#session(forked.id);
 	}
@@ -2133,11 +2133,32 @@ export class SessionsService implements AgentMessenger {
 		return warmed.ok ? ok(undefined) : warmed;
 	}
 
-	/** The resume a chat's next agent start carries: a fork's, or its own stored session id. */
+	/** Mirrors a fork's resume point in the chat store, after the database holds it. */
+	#storeForkResume(id: SessionId, nativeMessageId: string | null): void {
+		this.store.setState((state) => {
+			const current = state.sessions[id];
+			if (current === undefined || current.forkResumeNativeMessageId === nativeMessageId) return {};
+			return {
+				sessions: {
+					...state.sessions,
+					[id]: { ...current, forkResumeNativeMessageId: nativeMessageId },
+				},
+			};
+		});
+	}
+
+	/**
+	 * The resume a chat's next agent start carries: its stored agent session id, and for a fork
+	 * whose first send has not gone yet, the message to resume at (CHAT-16).
+	 */
 	#resumeFor(session: Session): { agentSessionId: string; atNativeMessageId?: string } | null {
-		const fork = this.#forkResumes.get(session.id);
-		if (fork !== undefined) return fork;
-		return session.agentSessionId === null ? null : { agentSessionId: session.agentSessionId };
+		if (session.agentSessionId === null) return null;
+		return session.forkResumeNativeMessageId === null
+			? { agentSessionId: session.agentSessionId }
+			: {
+					agentSessionId: session.agentSessionId,
+					atNativeMessageId: session.forkResumeNativeMessageId,
+				};
 	}
 
 	/** The goal bar's Save. An empty objective is refused with "Enter a goal first." */

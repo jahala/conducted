@@ -278,6 +278,7 @@ describe("NAV-08 palette model", () => {
 					title: "Fix the login form",
 					config: {} as never,
 					agentSessionId: null,
+					forkResumeNativeMessageId: null,
 					unreadCount: 0,
 					contextUsedTokens: null,
 					contextWindowTokens: null,

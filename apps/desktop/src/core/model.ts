@@ -152,6 +152,11 @@ export interface Session {
 	title: string | null;
 	config: SessionConfig;
 	agentSessionId: string | null;
+	/**
+	 * A chat forked from a turn: the agent's own id of the last message the fork keeps, where its
+	 * first send resumes the origin's agent session (CHAT-16). Null once that send is recorded.
+	 */
+	forkResumeNativeMessageId: string | null;
 	unreadCount: number;
 	contextUsedTokens: number | null;
 	contextWindowTokens: number | null;

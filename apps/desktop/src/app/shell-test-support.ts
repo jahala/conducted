@@ -78,6 +78,7 @@ function session(row: { id: string; workspaceId: string }): Session {
 			appTools: { diffComments: true, progressUpdates: true, setTargetBranch: true },
 		},
 		agentSessionId: null,
+		forkResumeNativeMessageId: null,
 		unreadCount: 0,
 		contextUsedTokens: null,
 		contextWindowTokens: null,

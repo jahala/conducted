@@ -166,6 +166,7 @@ describe("sessions", () => {
 		"last_user_message_at",
 		"created_at",
 		"updated_at",
+		"fork_resume_native_message_id",
 	];
 
 	it("round-trips the config", () => {

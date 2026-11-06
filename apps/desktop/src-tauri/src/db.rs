@@ -85,6 +85,12 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0006_model_context_windows.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 7,
+            description: "session_fork_resume",
+            sql: include_str!("../migrations/0007_session_fork_resume.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

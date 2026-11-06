@@ -92,6 +92,7 @@ export const sampleSession: Session = {
 	title: "First chat",
 	config: sessionConfig,
 	agentSessionId: "agent-abc",
+	forkResumeNativeMessageId: null,
 	unreadCount: 3,
 	contextUsedTokens: 1200,
 	contextWindowTokens: 200000,
