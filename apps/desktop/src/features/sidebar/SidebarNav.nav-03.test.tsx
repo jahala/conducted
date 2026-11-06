@@ -6,6 +6,15 @@ import { SidebarNav } from "./SidebarNav.tsx";
 
 const settings = vi.hoisted(() => ({ dashboard: false }));
 
+vi.mock("../composer/draft-sources.ts", () => ({
+	useNewWorkspaceDraft: () => ({
+		draft: { text: "", attachmentPaths: [] },
+		loaded: true,
+		save: vi.fn(),
+		clear: vi.fn(),
+	}),
+}));
+
 vi.mock("../../core/hooks.ts", () => ({
 	useSetting: () => settings.dashboard,
 	useLiveShortcut: (commandId: string) =>
