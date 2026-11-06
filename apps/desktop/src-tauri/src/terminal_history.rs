@@ -465,7 +465,8 @@ mod tests {
     fn plat_08_saving_sixty_mib_over_three_terminals_evicts_the_oldest() {
         let folder = TempDir::new("evict");
         let mut block = vec![b'x'; 1024 * 1024];
-        block[block.len() - 1] = b'\n';
+        let last = block.len() - 1;
+        block[last] = b'\n';
 
         for index in 0..3 {
             let id = format!("terminal-{index}");

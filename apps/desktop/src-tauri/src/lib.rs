@@ -247,6 +247,8 @@ fn try_instance_lock(path: &Path) -> CommandResult<Option<InstanceLock>> {
     let file = OpenOptions::new()
         .create(true)
         .write(true)
+        // The lock is the file's flock, not its contents, so an open never truncates it.
+        .truncate(false)
         .mode(0o600)
         .open(path)
         .map_err(|error| CommandError::Failed {

@@ -787,8 +787,10 @@ mod tests {
             .position(|window| window == b"data".as_slice())
             .expect("the fixture has a data chunk");
         bytes[position + 8..]
-            .chunks_exact(2)
-            .map(|pair| i16::from_le_bytes([pair[0], pair[1]]) as f32 / i16::MAX as f32)
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| i16::from_le_bytes(*pair) as f32 / i16::MAX as f32)
             .collect()
     }
 

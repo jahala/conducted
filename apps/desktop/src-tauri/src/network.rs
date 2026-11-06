@@ -196,9 +196,8 @@ mod tests {
         let (sender, events) = std::sync::mpsc::channel::<bool>();
         app.handle().listen(EVENT_NETWORK_CHANGED, move |event| {
             if let Ok(online) = serde_json::from_str::<bool>(event.payload()) {
-                if sender.send(online).is_err() {
-                    return;
-                }
+                // A test that already stopped reading has dropped the receiver; nothing to do then.
+                let _ = sender.send(online);
             }
         });
         (app, events)
