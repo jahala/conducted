@@ -8,10 +8,7 @@
 import type { CodexGoal } from "@conducted/protocol";
 import type { SessionId } from "@conducted/shared";
 import { describe, expect, it, vi } from "vitest";
-import {
-	createSidecarNotificationHandlers,
-	type SidecarHandlerPorts,
-} from "./handlers.ts";
+import { createSidecarNotificationHandlers, type SidecarHandlerPorts } from "./handlers.ts";
 
 const sessionId = "s1" as SessionId;
 const goal: CodexGoal = { objective: "Ship the importer", status: "active" };

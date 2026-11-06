@@ -1,17 +1,21 @@
 /**
  * @feature COMP-10 Codex goal bar and `/goal`
- * Owns: the join test that choosing /goal in a Codex chat, through the real composer and the
- * container's sessions service, opens the goal bar's field.
- * Behaviour: D054 (a feature is reachable from the composition root) and ui-map.md 3.5.
- * Test first: choosing /goal focuses the Goal field.
+ * Owns: the test that choosing /goal in a Codex chat, through the real composer and the
+ * container's sessions service, puts the composer in goal mode: the editor says "Set a goal" and
+ * sending sets the goal ('/goal <text>') instead of sending a message.
+ * Behaviour: D054 (a feature is reachable from the composition root), ui-map.md 3.5, and
+ * Conductor's composer (its goal mode, from the frontend bundle).
+ * Test first: choosing /goal shows "Set a goal", and Enter sends '/goal <text>'.
  */
 import type { SessionConfig } from "@conducted/protocol";
+import type { SessionId, WorkspaceId } from "@conducted/shared";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Editor } from "@tiptap/react";
 import { createElement, Fragment, type ReactNode } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import { ServicesProvider } from "../../core/context.tsx";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
+import { answerSidecar, deliveredAsAsked } from "../../test/sidecar-answers.ts";
 import { Composer } from "./Composer.tsx";
 
 const CONFIG: SessionConfig = {
@@ -35,8 +39,8 @@ const Services = ServicesProvider as unknown as LooseComponent;
 
 async function mountComposer(
 	test: TestContainer,
-	workspaceId: string,
-	sessionId: string,
+	workspaceId: WorkspaceId,
+	sessionId: SessionId,
 ): Promise<Editor> {
 	let editor: Editor | null = null;
 	render(
@@ -60,39 +64,17 @@ async function mountComposer(
 	return editor as unknown as Editor;
 }
 
-/** Answers the goal reads and writes the sidecar cannot answer in this container. */
-function answerGoalCalls(test: TestContainer): void {
-	const transport = test.memory.platform.sidecar;
-	const original = transport.send.bind(transport);
-	transport.send = async (line) => {
-		const answered = await original(line);
-		const parsed = JSON.parse(line) as { id?: number; method?: string };
-		if (
-			parsed.method === "getGoal" ||
-			parsed.method === "setGoal" ||
-			parsed.method === "changeGoal"
-		) {
-			queueMicrotask(() =>
-				test.memory.controls.emitSidecarLine(
-					JSON.stringify({ jsonrpc: "2.0", id: parsed.id, result: { goal: null } }),
-				),
-			);
-		}
-		return answered;
-	};
-}
-
 afterEach(cleanup);
 
 describe("COMP-10 /goal from the composer", () => {
-	it("focuses the goal bar's Goal field when /goal is chosen", async () => {
+	it("puts the composer in goal mode and sends the text as the goal", async () => {
 		const test = createTestContainer();
 		try {
 			const workspace = await seedWorkspace(test.container);
 			const session = must(await test.container.services.sessions.create(workspace.id, CONFIG));
 			const started = await test.container.sidecar.start();
 			if (!started.ok) throw new Error(JSON.stringify(started.error));
-			answerGoalCalls(test);
+			const calls = answerSidecar(test, deliveredAsAsked);
 			const editor = await mountComposer(test, workspace.id, session.id);
 			act(() => {
 				editor.commands.insertContent("/go");
@@ -100,9 +82,17 @@ describe("COMP-10 /goal from the composer", () => {
 
 			fireEvent.click(await screen.findByText("/goal"));
 
+			expect(await screen.findByText("Set a goal")).toBeTruthy();
+			act(() => {
+				editor.commands.insertContent("Ship the importer");
+			});
+			fireEvent.keyDown(screen.getByRole("textbox", { name: "composer" }), { key: "Enter" });
 			await waitFor(() =>
-				expect(document.activeElement).toBe(screen.getByPlaceholderText("Goal")),
+				expect(
+					calls.filter((call) => call.method === "sendMessage").map((call) => call.params.text),
+				).toEqual(["/goal Ship the importer"]),
 			);
+			await waitFor(() => expect(screen.queryByText("Set a goal")).toBeNull());
 		} finally {
 			await test.container.stop();
 			test.close();

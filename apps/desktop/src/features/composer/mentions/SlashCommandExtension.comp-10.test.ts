@@ -9,7 +9,6 @@ import type { SlashCommand } from "@conducted/protocol";
 import { describe, expect, it } from "vitest";
 import {
 	builtinSlashCommands,
-	GOAL_UNAVAILABLE,
 	slashCommandAction,
 	slashCommandProblem,
 } from "./SlashCommandExtension.ts";
@@ -36,7 +35,9 @@ describe("COMP-10 /goal", () => {
 			kind: "unavailable",
 			message: "Codex goals are not available in this chat.",
 		});
-		expect(slashCommandProblem("goal", "claude")).toBe(GOAL_UNAVAILABLE);
+		expect(slashCommandProblem("goal", "claude")).toBe(
+			"Codex goals are not available in this chat.",
+		);
 		expect(slashCommandProblem("goal", "codex")).toBeNull();
 	});
 });

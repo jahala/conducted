@@ -10,6 +10,7 @@ import type { CodexGoal, SessionConfig } from "@conducted/protocol";
 import type { SessionId } from "@conducted/shared";
 import { afterEach, describe, expect, it } from "vitest";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
+import { answerSidecar, deliveredAsAsked } from "../../test/sidecar-answers.ts";
 
 const CODEX: SessionConfig = {
 	agent: "codex",
@@ -28,43 +29,6 @@ const must = <T>(result: { ok: true; value: T } | { ok: false; error: unknown })
 	if (!result.ok) throw new Error(JSON.stringify(result.error));
 	return result.value;
 };
-
-interface SidecarCall {
-	id: number;
-	method: string;
-	params: Record<string, unknown>;
-}
-
-/**
- * Records every request the container sends to the sidecar and answers it. `answer` returns the
- * result, or a promise the test settles later; a method it does not know gets an empty result.
- */
-function sidecarAnswers(
-	test: TestContainer,
-	answer: (call: SidecarCall) => unknown | Promise<unknown>,
-): SidecarCall[] {
-	const transport = test.memory.platform.sidecar;
-	const original = transport.send.bind(transport);
-	const calls: SidecarCall[] = [];
-	transport.send = async (line) => {
-		const sent = await original(line);
-		const parsed = JSON.parse(line) as Partial<SidecarCall>;
-		if (parsed.method !== undefined && parsed.id !== undefined) {
-			const call = { id: parsed.id, method: parsed.method, params: parsed.params ?? {} };
-			calls.push(call);
-			void Promise.resolve(answer(call)).then((result) =>
-				test.memory.controls.emitSidecarLine(
-					JSON.stringify({ jsonrpc: "2.0", id: call.id, result }),
-				),
-			);
-		}
-		return sent;
-	};
-	return calls;
-}
-
-const deliveredNow = (call: SidecarCall): unknown =>
-	call.method === "sendMessage" ? { deliveredAs: call.params.delivery } : {};
 
 async function codexChat(
 	config: Partial<SessionConfig> = {},
@@ -91,7 +55,7 @@ describe("COMP-10 Codex goal calls", () => {
 	it("saves a goal by sending '/goal <text>' as the chat's steer", async () => {
 		const { test, sessionId } = await codexChat();
 		opened = test;
-		const calls = sidecarAnswers(test, deliveredNow);
+		const calls = answerSidecar(test, deliveredAsAsked);
 
 		const result = await test.container.actions.sessions.goal.set(
 			sessionId,
@@ -107,7 +71,7 @@ describe("COMP-10 Codex goal calls", () => {
 	it("refuses empty text with 'Enter a goal first.' and sends nothing", async () => {
 		const { test, sessionId } = await codexChat();
 		opened = test;
-		const calls = sidecarAnswers(test, deliveredNow);
+		const calls = answerSidecar(test, deliveredAsAsked);
 
 		const result = await test.container.actions.sessions.goal.set(sessionId, "   ");
 
@@ -121,7 +85,7 @@ describe("COMP-10 Codex goal calls", () => {
 	it("refuses a chat that cannot do goals with Conductor's message", async () => {
 		const { test, sessionId } = await codexChat({ agent: "claude", model: "default" });
 		opened = test;
-		const calls = sidecarAnswers(test, deliveredNow);
+		const calls = answerSidecar(test, deliveredAsAsked);
 
 		const set = await test.container.actions.sessions.goal.set(sessionId, "Ship it");
 		const paused = await test.container.actions.sessions.goal.change(sessionId, "pause");
@@ -141,7 +105,7 @@ describe("COMP-10 Codex goal calls", () => {
 	it("pauses, resumes and clears the goal with '/goal pause', '/goal resume' and '/goal clear'", async () => {
 		const { test, sessionId } = await codexChat();
 		opened = test;
-		const calls = sidecarAnswers(test, deliveredNow);
+		const calls = answerSidecar(test, deliveredAsAsked);
 		const goal = test.container.actions.sessions.goal;
 
 		expect((await goal.change(sessionId, "pause")).ok).toBe(true);
@@ -160,7 +124,7 @@ describe("COMP-10 loading a goal", () => {
 		opened = test;
 		const sessions = test.container.services.sessions;
 		must(await sessions.setAgentSessionId(sessionId, "thread-1"));
-		const calls = sidecarAnswers(test, (call) =>
+		const calls = answerSidecar(test, (call) =>
 			call.method === "getGoal" ? { goal: activeGoal } : {},
 		);
 
@@ -173,7 +137,7 @@ describe("COMP-10 loading a goal", () => {
 	it("does not start the agent of a chat that has no Codex thread yet", async () => {
 		const { test, sessionId } = await codexChat();
 		opened = test;
-		const calls = sidecarAnswers(test, () => ({ goal: activeGoal }));
+		const calls = answerSidecar(test, () => ({ goal: activeGoal }));
 
 		must(await test.container.services.sessions.loadGoal(sessionId));
 
@@ -187,7 +151,7 @@ describe("COMP-10 loading a goal", () => {
 		const sessions = test.container.services.sessions;
 		must(await sessions.setAgentSessionId(sessionId, "thread-1"));
 		const reads: ((goal: CodexGoal) => void)[] = [];
-		sidecarAnswers(test, (call) =>
+		answerSidecar(test, (call) =>
 			call.method === "getGoal"
 				? new Promise((resolve) => reads.push((goal) => resolve({ goal })))
 				: {},
@@ -212,7 +176,7 @@ describe("COMP-10 loading a goal", () => {
 		const sessions = test.container.services.sessions;
 		must(await sessions.setAgentSessionId(sessionId, "thread-1"));
 		const reads: ((goal: CodexGoal) => void)[] = [];
-		sidecarAnswers(test, (call) =>
+		answerSidecar(test, (call) =>
 			call.method === "getGoal"
 				? new Promise((resolve) => reads.push((goal) => resolve({ goal })))
 				: {},

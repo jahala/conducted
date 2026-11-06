@@ -1,22 +1,25 @@
 /**
  * @feature COMP-10 Codex goal bar and `/goal`
- * Owns: tests of the Codex goal bar over the real container: the Goal field, Save goal, Pause
- * goal, Resume goal, Edit goal and Clear goal, the two messages, a goal the sidecar reports, and
- * Cmd+Enter saving through the mounted command dispatcher.
+ * Owns: tests of the Codex goal bar over the real container: a reported goal with its status,
+ * Pause goal, Resume goal, Edit goal and Clear goal, the 'Goal' field and Save goal, the
+ * "Enter a goal first." refusal, a goal read on mount, a chat that is not Codex, and Cmd+Enter
+ * saving through the mounted command dispatcher.
  * Behaviour: ui-map.md 3.5 and 5.4.
  * Test first: Save with empty text shows "Enter a goal first."
  */
 import type { CodexGoal, SessionConfig } from "@conducted/protocol";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { SessionId } from "@conducted/shared";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import { CommandDispatcher } from "../../app/command-dispatcher.ts";
 import { ServicesProvider } from "../../core/context.tsx";
 import { createTestContainer, seedWorkspace, type TestContainer } from "../../test/container.ts";
-import { toast, Toaster } from "../../ui/Toast.tsx";
+import { answerSidecar, deliveredAsAsked, type SidecarCall } from "../../test/sidecar-answers.ts";
+import { Toaster, toast } from "../../ui/Toast.tsx";
 import { GoalBar } from "./GoalBar.tsx";
 
-const CONFIG: SessionConfig = {
+const CODEX: SessionConfig = {
 	agent: "codex",
 	model: "gpt-5",
 	effort: "medium",
@@ -35,213 +38,149 @@ const must = <T,>(result: { ok: true; value: T } | { ok: false; error: unknown }
 	return result.value;
 };
 
-interface GoalRequest {
-	method: string;
-	params: Record<string, unknown>;
-}
+let opened: TestContainer | null = null;
 
-type Responder = (method: string, params: Record<string, unknown>) => unknown;
-
-/** Answers the goal calls the sidecar cannot answer in this container. */
-function answerGoalCalls(test: TestContainer, respond: Responder): GoalRequest[] {
-	const transport = test.memory.platform.sidecar;
-	const original = transport.send.bind(transport);
-	const requests: GoalRequest[] = [];
-	transport.send = async (line) => {
-		const answered = await original(line);
-		const parsed = JSON.parse(line) as {
-			id?: number;
-			method?: string;
-			params?: Record<string, unknown>;
-		};
-		if (
-			parsed.method === "getGoal" ||
-			parsed.method === "setGoal" ||
-			parsed.method === "changeGoal"
-		) {
-			const params = parsed.params ?? {};
-			requests.push({ method: parsed.method, params });
-			queueMicrotask(() =>
-				test.memory.controls.emitSidecarLine(
-					JSON.stringify({
-						jsonrpc: "2.0",
-						id: parsed.id,
-						result: respond(parsed.method ?? "", params),
-					}),
-				),
-			);
-		}
-		return answered;
-	};
-	return requests;
-}
-
-async function setup(options: { dispatcher?: boolean } = {}) {
+async function setup(
+	options: { config?: Partial<SessionConfig>; answer?: (call: SidecarCall) => unknown } = {},
+) {
 	const test = createTestContainer();
+	opened = test;
 	const workspace = await seedWorkspace(test.container);
-	const session = must(await test.container.services.sessions.create(workspace.id, CONFIG));
-	const started = await test.container.sidecar.start();
-	if (!started.ok) throw new Error(JSON.stringify(started.error));
-	test.container.services.sessions.setViewing(session.id);
-	const wrapper = ({ children }: { children: ReactNode }) => (
-		<ServicesProvider container={test.container}>{children}</ServicesProvider>
+	const session = must(
+		await test.container.services.sessions.create(workspace.id, { ...CODEX, ...options.config }),
 	);
-	const renderBar = () =>
-		options.dispatcher === true
-			? render(
-					<CommandDispatcher>
-						<GoalBar sessionId={session.id} editSignal={0} />
-						<Toaster />
-					</CommandDispatcher>,
-					{ wrapper },
-				)
-			: render(
-					<>
-						<GoalBar sessionId={session.id} editSignal={0} />
-						<Toaster />
-					</>,
-					{ wrapper },
-				);
-	return { test, session, renderBar };
+	must(await test.container.sidecar.start());
+	// The chat tab records the chat on screen, which the chat shortcuts need.
+	test.container.services.sessions.setViewing(session.id);
+	const calls = answerSidecar(test, options.answer ?? deliveredAsAsked);
+	return { test, sessionId: session.id, calls };
 }
 
-async function teardown(test: TestContainer): Promise<void> {
-	await test.container.stop();
-	test.close();
+function renderBar(test: TestContainer, sessionId: SessionId) {
+	return render(
+		<ServicesProvider container={test.container}>
+			<CommandDispatcher>
+				<GoalBar sessionId={sessionId} />
+				<Toaster />
+			</CommandDispatcher>
+		</ServicesProvider>,
+		{ wrapper: ({ children }: { children: ReactNode }) => <>{children}</> },
+	);
 }
 
-afterEach(() => {
+function reportGoal(test: TestContainer, sessionId: SessionId, goal: CodexGoal | null): void {
+	act(() => {
+		test.memory.controls.emitSidecarLine(
+			JSON.stringify({ jsonrpc: "2.0", method: "goalChanged", params: { sessionId, goal } }),
+		);
+	});
+}
+
+const sentTexts = (calls: SidecarCall[]) =>
+	calls.filter((call) => call.method === "sendMessage").map((call) => call.params.text);
+
+afterEach(async () => {
 	cleanup();
 	toast.dismiss();
+	if (opened === null) return;
+	await opened.container.stop();
+	opened.close();
+	opened = null;
 });
 
 describe("COMP-10 Codex goal bar", () => {
-	it("shows the Goal field and Save goal for a Codex chat", async () => {
-		const { test, renderBar } = await setup();
-		try {
-			answerGoalCalls(test, () => ({ goal: null }));
-			renderBar();
-			expect(screen.getByPlaceholderText("Goal")).toBeTruthy();
-			expect(screen.getByRole("button", { name: "Save goal" })).toBeTruthy();
-		} finally {
-			await teardown(test);
-		}
+	it("shows nothing for a Codex chat with no goal", async () => {
+		const { test, sessionId } = await setup();
+		renderBar(test, sessionId);
+		expect(screen.queryByRole("button", { name: "Edit goal" })).toBeNull();
+		expect(screen.queryByPlaceholderText("Goal")).toBeNull();
 	});
 
-	it("shows 'Enter a goal first.' when Save has empty text", async () => {
-		const { test, renderBar } = await setup();
-		try {
-			const requests = answerGoalCalls(test, () => ({ goal: null }));
-			renderBar();
-			fireEvent.click(screen.getByRole("button", { name: "Save goal" }));
-			expect(await screen.findByText("Enter a goal first.")).toBeTruthy();
-			expect(requests.some((request) => request.method === "setGoal")).toBe(false);
-		} finally {
-			await teardown(test);
-		}
+	it("shows a goal the sidecar reports, with Pause goal, Edit goal and Clear goal", async () => {
+		const { test, sessionId } = await setup();
+		renderBar(test, sessionId);
+		reportGoal(test, sessionId, { ...activeGoal, tokenBudget: 50_000, tokensUsed: 12_000 });
+		expect(await screen.findByText("Pursuing goal")).toBeTruthy();
+		expect(screen.getByText("Ship the importer")).toBeTruthy();
+		expect(screen.getByText("12,000 / 50,000")).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Pause goal" })).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Edit goal" })).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Clear goal" })).toBeTruthy();
+		expect(screen.queryByRole("button", { name: "Resume goal" })).toBeNull();
 	});
 
-	it("saves the goal and shows Pause goal, Edit goal and Clear goal", async () => {
-		const { test, renderBar } = await setup();
-		try {
-			const requests = answerGoalCalls(test, (method) =>
-				method === "setGoal" ? { goal: activeGoal } : { goal: null },
-			);
-			renderBar();
-			fireEvent.change(screen.getByPlaceholderText("Goal"), {
-				target: { value: "Ship the importer" },
-			});
-			fireEvent.click(screen.getByRole("button", { name: "Save goal" }));
-			await waitFor(() =>
-				expect(requests.find((request) => request.method === "setGoal")?.params).toEqual({
-					sessionId: expect.any(String),
-					objective: "Ship the importer",
-				}),
-			);
-			expect(await screen.findByText("Ship the importer")).toBeTruthy();
-			expect(screen.getByRole("button", { name: "Pause goal" })).toBeTruthy();
-			expect(screen.getByRole("button", { name: "Edit goal" })).toBeTruthy();
-			expect(screen.getByRole("button", { name: "Clear goal" })).toBeTruthy();
-		} finally {
-			await teardown(test);
-		}
+	it("shows 'Enter a goal first.' when Save goal has empty text, and sends nothing", async () => {
+		const { test, sessionId, calls } = await setup();
+		renderBar(test, sessionId);
+		reportGoal(test, sessionId, activeGoal);
+		fireEvent.click(await screen.findByRole("button", { name: "Edit goal" }));
+		fireEvent.change(screen.getByPlaceholderText("Goal"), { target: { value: "   " } });
+		fireEvent.click(screen.getByRole("button", { name: "Save goal" }));
+		expect(await screen.findByText("Enter a goal first.")).toBeTruthy();
+		expect(screen.getByPlaceholderText("Goal")).toBeTruthy();
+		expect(sentTexts(calls)).toEqual([]);
 	});
 
-	it("pauses, resumes and clears an existing goal", async () => {
-		const { test, renderBar } = await setup();
-		try {
-			answerGoalCalls(test, (method, params) => {
-				if (method !== "changeGoal") return { goal: activeGoal };
-				const action = params.action;
-				if (action === "pause") return { goal: pausedGoal };
-				if (action === "resume") return { goal: activeGoal };
-				return { goal: null };
-			});
-			renderBar();
-			expect(await screen.findByText("Ship the importer")).toBeTruthy();
-			fireEvent.click(screen.getByRole("button", { name: "Pause goal" }));
-			expect(await screen.findByRole("button", { name: "Resume goal" })).toBeTruthy();
-			fireEvent.click(screen.getByRole("button", { name: "Resume goal" }));
-			expect(await screen.findByRole("button", { name: "Pause goal" })).toBeTruthy();
-			fireEvent.click(screen.getByRole("button", { name: "Clear goal" }));
-			expect(await screen.findByPlaceholderText("Goal")).toBeTruthy();
-		} finally {
-			await teardown(test);
-		}
+	it("opens the field with the goal's text and saves the edit as '/goal <text>'", async () => {
+		const { test, sessionId, calls } = await setup();
+		renderBar(test, sessionId);
+		reportGoal(test, sessionId, activeGoal);
+		fireEvent.click(await screen.findByRole("button", { name: "Edit goal" }));
+		const field = screen.getByPlaceholderText("Goal") as HTMLTextAreaElement;
+		expect(field.value).toBe("Ship the importer");
+		fireEvent.change(field, { target: { value: "Ship the exporter" } });
+		fireEvent.click(screen.getByRole("button", { name: "Save goal" }));
+		await waitFor(() => expect(sentTexts(calls)).toEqual(["/goal Ship the exporter"]));
+		expect(screen.queryByPlaceholderText("Goal")).toBeNull();
 	});
 
-	it("opens the field with the goal's text when Edit goal is clicked", async () => {
-		const { test, renderBar } = await setup();
-		try {
-			answerGoalCalls(test, () => ({ goal: activeGoal }));
-			renderBar();
-			expect(await screen.findByText("Ship the importer")).toBeTruthy();
-			fireEvent.click(screen.getByRole("button", { name: "Edit goal" }));
-			const field = screen.getByPlaceholderText("Goal") as HTMLInputElement;
-			expect(field.value).toBe("Ship the importer");
-		} finally {
-			await teardown(test);
-		}
+	it("pauses, resumes and clears the goal", async () => {
+		const { test, sessionId, calls } = await setup();
+		renderBar(test, sessionId);
+		reportGoal(test, sessionId, activeGoal);
+		fireEvent.click(await screen.findByRole("button", { name: "Pause goal" }));
+		await waitFor(() => expect(sentTexts(calls)).toEqual(["/goal pause"]));
+		reportGoal(test, sessionId, pausedGoal);
+		expect(await screen.findByText("Paused goal")).toBeTruthy();
+		fireEvent.click(screen.getByRole("button", { name: "Resume goal" }));
+		await waitFor(() => expect(sentTexts(calls)).toEqual(["/goal pause", "/goal resume"]));
+		fireEvent.click(screen.getByRole("button", { name: "Clear goal" }));
+		await waitFor(() =>
+			expect(sentTexts(calls)).toEqual(["/goal pause", "/goal resume", "/goal clear"]),
+		);
+		reportGoal(test, sessionId, null);
+		await waitFor(() => expect(screen.queryByText("Paused goal")).toBeNull());
 	});
 
 	it("saves with Cmd+Enter through the command dispatcher", async () => {
-		const { test, renderBar } = await setup({ dispatcher: true });
-		try {
-			const requests = answerGoalCalls(test, (method) =>
-				method === "setGoal" ? { goal: activeGoal } : { goal: null },
-			);
-			renderBar();
-			const field = screen.getByPlaceholderText("Goal");
-			fireEvent.change(field, { target: { value: "Ship from keyboard" } });
-			fireEvent.keyDown(field, { key: "Enter", metaKey: true });
-			await waitFor(() =>
-				expect(requests.find((request) => request.method === "setGoal")?.params).toEqual({
-					sessionId: expect.any(String),
-					objective: "Ship from keyboard",
-				}),
-			);
-			expect(await screen.findByText("Ship from keyboard")).toBeTruthy();
-		} finally {
-			await teardown(test);
-		}
+		const { test, sessionId, calls } = await setup();
+		renderBar(test, sessionId);
+		reportGoal(test, sessionId, activeGoal);
+		fireEvent.click(await screen.findByRole("button", { name: "Edit goal" }));
+		const field = screen.getByPlaceholderText("Goal");
+		field.focus();
+		fireEvent.change(field, { target: { value: "Ship from the keyboard" } });
+		fireEvent.keyDown(field, { key: "Enter", metaKey: true });
+		await waitFor(() => expect(sentTexts(calls)).toEqual(["/goal Ship from the keyboard"]));
 	});
 
-	it("shows a goal the sidecar reports", async () => {
-		const { test, session, renderBar } = await setup();
-		try {
-			answerGoalCalls(test, () => ({ goal: null }));
-			renderBar();
-			test.memory.controls.emitSidecarLine(
-				JSON.stringify({
-					jsonrpc: "2.0",
-					method: "goalChanged",
-					params: { sessionId: session.id, goal: activeGoal },
-				}),
-			);
-			expect(await screen.findByText("Ship the importer")).toBeTruthy();
-			expect(screen.getByRole("button", { name: "Pause goal" })).toBeTruthy();
-		} finally {
-			await teardown(test);
-		}
+	it("reads the goal of a chat with a Codex thread when it is shown", async () => {
+		const { test, sessionId } = await setup({
+			answer: (call) => (call.method === "getGoal" ? { goal: pausedGoal } : {}),
+		});
+		must(await test.container.services.sessions.setAgentSessionId(sessionId, "thread-1"));
+		renderBar(test, sessionId);
+		expect(await screen.findByText("Paused goal")).toBeTruthy();
+		expect(screen.getByRole("button", { name: "Resume goal" })).toBeTruthy();
+	});
+
+	it("shows nothing for a chat that is not Codex", async () => {
+		const { test, sessionId } = await setup({ config: { agent: "claude", model: "default" } });
+		renderBar(test, sessionId);
+		reportGoal(test, sessionId, activeGoal);
+		await waitFor(() =>
+			expect(test.container.services.sessions.chatView(sessionId)?.goal).toEqual(activeGoal),
+		);
+		expect(screen.queryByText("Pursuing goal")).toBeNull();
 	});
 });
