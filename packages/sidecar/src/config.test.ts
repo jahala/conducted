@@ -4,6 +4,7 @@ import { parseLoggerConfig, parseSidecarConfig } from "./config.ts";
 const good = {
 	CONDUCTED_BIN_DIR: "/app/bin",
 	CONDUCTED_OUTBOX_ROOT: "/data/outbox",
+	CONDUCTED_COMPLETIONS_DIR: "/data/completions",
 	CONDUCTED_LOG_DIR: "/data/logs",
 };
 
@@ -12,7 +13,12 @@ describe("SIDE-01 sidecar and logger settings", () => {
 		const result = parseSidecarConfig(good);
 		expect(result).toEqual({
 			ok: true,
-			value: { binDir: "/app/bin", outboxRoot: "/data/outbox", logDir: "/data/logs" },
+			value: {
+				binDir: "/app/bin",
+				outboxRoot: "/data/outbox",
+				completionsDir: "/data/completions",
+				logDir: "/data/logs",
+			},
 		});
 	});
 
@@ -29,6 +35,7 @@ describe("SIDE-01 sidecar and logger settings", () => {
 		if (!result.ok) {
 			expect(result.error.message).toContain("CONDUCTED_BIN_DIR");
 			expect(result.error.message).toContain("CONDUCTED_OUTBOX_ROOT");
+			expect(result.error.message).toContain("CONDUCTED_COMPLETIONS_DIR");
 			expect(result.error.message).toContain("CONDUCTED_LOG_DIR");
 		}
 	});
@@ -56,5 +63,18 @@ describe("SIDE-01 sidecar and logger settings", () => {
 		expect(
 			parseLoggerConfig({ CONDUCTED_LOGGER_TOKEN: "t", CONDUCTED_LOGGER_DIR: "/var/logs" }),
 		).toEqual({ ok: true, value: { token: "t", persistDir: "/var/logs" } });
+	});
+});
+
+describe("SIDE-22 slash-command cache folder setting", () => {
+	test("SIDE-22 reads the completions folder from its own variable", () => {
+		const result = parseSidecarConfig(good);
+		expect(result.ok && result.value.completionsDir).toBe("/data/completions");
+	});
+
+	test("SIDE-22 a relative completions folder is refused", () => {
+		const result = parseSidecarConfig({ ...good, CONDUCTED_COMPLETIONS_DIR: "completions" });
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.message).toContain("CONDUCTED_COMPLETIONS_DIR");
 	});
 });

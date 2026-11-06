@@ -61,11 +61,11 @@
 //! connected is healthy, and the socket is private to the user (mode 0600 in a 0700 folder).
 //! Our design choice: environment variables are fixed here and must match packages/sidecar and
 //! docs/plans/tauri-commands.md ("Sidecar launch"). We set the variables the sidecar reads today
-//! (the parent pid, the outbox root, the log folder and the bin folder) plus the app version and
-//! log level its logger reads (SIDE-18). Agent binary folders, ACP provider folder and Cursor
-//! store arrive with the features that read them (PLAT-28, SIDE-15, AGENT-09). SIDE-22
-//! (`CONDUCTED_COMPLETIONS_DIR`) and AGENT-18 (`CONDUCTED_SKILL_PLUGIN_DIR`) add theirs when their
-//! resolvers stop being placeholders. There is no database path (the app owns the database) and no
+//! (the parent pid, the outbox root, the slash-command cache folder, the log folder and the bin
+//! folder) plus the app version and log level its logger reads (SIDE-18). Agent binary folders,
+//! ACP provider folder and Cursor store arrive with the features that read them (PLAT-28,
+//! SIDE-15, AGENT-09). AGENT-18 (`CONDUCTED_SKILL_PLUGIN_DIR`) adds its folder when its resolver
+//! stops being a placeholder. There is no database path (the app owns the database) and no
 //! logger token or folder (D026, D028).
 //! Packaging the sidecar needs `bundle.externalBin` in tauri.conf.json, which requires the
 //! compiled file to exist at build time. In development `CONDUCTED_SIDECAR_BIN` points at a
@@ -116,6 +116,8 @@ pub const MAX_RESTARTS_PER_WINDOW: u32 = 5;
 pub const RESTART_WINDOW_MS: u64 = 60_000;
 /// Sidecar log files kept.
 pub const LOGS_KEPT: usize = 5;
+/// Folder inside the app data dir that holds the slash-command snapshots.
+pub const COMPLETIONS_FOLDER: &str = "sidecar-v2-completions";
 /// Environment variable that names a binary or wrapper script instead of the bundled program.
 pub const ENV_SIDECAR_BIN: &str = "CONDUCTED_SIDECAR_BIN";
 /// Environment variable that tells the sidecar where to keep its slash-command snapshots.
@@ -199,9 +201,15 @@ impl Default for SidecarState {
     }
 }
 
-/// The folder for the sidecar's saved slash-command lists. Created when missing.
-pub fn completions_dir(_app: &AppHandle) -> CommandResult<PathBuf> {
-    not_implemented!("SIDE-22")
+/// The folder name for the sidecar's saved slash-command lists, inside the app data folder.
+pub fn completions_folder_under(data_dir: &Path) -> PathBuf {
+    data_dir.join(COMPLETIONS_FOLDER)
+}
+
+/// The folder for the sidecar's saved slash-command lists. Created at mode 0700 when missing.
+pub fn completions_dir<R: Runtime>(app: &AppHandle<R>) -> CommandResult<PathBuf> {
+    let folder = completions_folder_under(&app_data_dir(app)?);
+    ensure_dir(&folder, 0o700)
 }
 
 /// The bundled skill folder, or `None` when the build has none (a dev run).
@@ -519,18 +527,21 @@ pub fn plan_restart(recent: &mut Vec<i64>, now_ms: i64) -> RestartPlan {
     }
 }
 
-/// The folders the sidecar reads at start: the parent pid, the outbox root, the log folder and the
-/// bin folder. The launcher creates each folder before the spawn, and `launch_environment` adds the
-/// app version and log level. Agent binaries, ACP providers and the Cursor store wait for the
-/// features that read them. There is no database path and no logger token or folder (D026, D028).
+/// The folders the sidecar reads at start: the parent pid, the outbox root, the slash-command cache
+/// folder, the log folder and the bin folder. The launcher creates each folder before the spawn,
+/// and `launch_environment` adds the app version and log level. Agent binaries, ACP providers and
+/// the Cursor store wait for the features that read them. There is no database path and no logger
+/// token or folder (D026, D028).
 pub fn sidecar_environment(pid: u32, data_dir: &Path) -> Vec<(String, String)> {
     let log_dir = data_dir.join("logs");
     let bin_dir = data_dir.join("bin");
     let outbox_root = data_dir.join("sidecar-v2-session-event-outbox");
+    let completions_dir = completions_folder_under(data_dir);
     let text = |path: &Path| path.to_string_lossy().into_owned();
     vec![
         ("CONDUCTED_PARENT_PID".to_string(), pid.to_string()),
         ("CONDUCTED_OUTBOX_ROOT".to_string(), text(&outbox_root)),
+        (ENV_COMPLETIONS_DIR.to_string(), text(&completions_dir)),
         ("CONDUCTED_LOG_DIR".to_string(), text(&log_dir)),
         ("CONDUCTED_BIN_DIR".to_string(), text(&bin_dir)),
     ]
@@ -1599,6 +1610,10 @@ mod tests {
             map.get("CONDUCTED_OUTBOX_ROOT"),
             Some(&"/tmp/conducted-data/sidecar-v2-session-event-outbox")
         );
+        assert_eq!(
+            map.get("CONDUCTED_COMPLETIONS_DIR"),
+            Some(&"/tmp/conducted-data/sidecar-v2-completions")
+        );
         assert!(!map.contains_key("CONDUCTED_DB_PATH"));
         assert!(!map.contains_key("CONDUCTED_LOGGER_TOKEN"));
         assert!(!map.contains_key("CONDUCTED_LOGGER_DIR"));
@@ -1629,6 +1644,7 @@ mod tests {
         for key in [
             "CONDUCTED_PARENT_PID",
             "CONDUCTED_OUTBOX_ROOT",
+            "CONDUCTED_COMPLETIONS_DIR",
             "CONDUCTED_LOG_DIR",
             "CONDUCTED_BIN_DIR",
         ] {
@@ -1640,6 +1656,41 @@ mod tests {
                 "the launcher sets {key}, but packages/sidecar never reads it"
             );
         }
+    }
+
+    #[test]
+    fn side_22_the_completions_folder_lives_in_the_app_data_folder() {
+        assert_eq!(
+            completions_folder_under(Path::new("/tmp/conducted-data")),
+            PathBuf::from("/tmp/conducted-data/sidecar-v2-completions")
+        );
+    }
+
+    #[test]
+    fn side_22_the_completions_folder_is_created_owner_only() {
+        let folder = TempDir::new();
+        let path = completions_folder_under(folder.path());
+        let created = ensure_dir(&path, 0o700).expect("create the completions folder");
+        assert_eq!(created, path);
+        assert!(path.is_dir());
+        let mode = fs::metadata(&path)
+            .expect("stat the completions folder")
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o700);
+    }
+
+    #[test]
+    fn side_22_the_completions_folder_is_in_the_launch_environment() {
+        let environment = sidecar_environment(42, Path::new("/tmp/conducted-data"));
+        let map: HashMap<&str, &str> = environment
+            .iter()
+            .map(|(key, value)| (key.as_str(), value.as_str()))
+            .collect();
+        assert_eq!(
+            map.get(ENV_COMPLETIONS_DIR),
+            Some(&"/tmp/conducted-data/sidecar-v2-completions")
+        );
     }
 
     #[test]

@@ -1,7 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import type { ModelInfo } from "@conducted/protocol";
 import { ok } from "@conducted/shared";
+import { createLogger } from "../logging/logger.ts";
 import { buildHandlers, type HandlerDeps } from "./handlers.ts";
+
+const testLogger = createLogger({
+	sink: () => {},
+	clock: { now: () => 0 },
+	level: "error",
+	scope: "test",
+});
 
 const model: ModelInfo = {
 	id: "claude-sonnet",
@@ -51,6 +59,7 @@ const deps = (): HandlerDeps => ({
 		cancelLogin: async () => ok(undefined),
 	},
 	slashCommands: { list: async () => ok([]) },
+	completions: { read: async () => ok(null), write: async () => ok(undefined) },
 	mcpServers: { list: async () => ok([]) },
 	usage: { contextUsage: async () => ok({ usedTokens: 0, windowTokens: 1, rateLimits: [] }) },
 	shellEnv: {
@@ -59,6 +68,7 @@ const deps = (): HandlerDeps => ({
 	},
 	utilityPrompt: { run: async () => ok({ text: "" }) },
 	setLogLevel: () => {},
+	logger: testLogger,
 });
 
 describe("SIDE-21 agent providers request", () => {

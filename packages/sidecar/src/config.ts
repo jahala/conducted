@@ -1,9 +1,11 @@
 /**
  * @feature SIDE-01 Entry point and modes
+ * @feature SIDE-22 Slash command cache that works before a chat starts
  * Owns: reading the sidecar and logger startup settings from the environment the Rust shell sets, and
  * nothing else. Every other module receives plain values from here, never process.env.
  * Behaviour: research/conductor/native-and-sidecar-map.md A6 steps 6 and 7 and B4 (Rust passes the
- * bin dir, the outbox root and a log location through environment variables).
+ * bin dir, the outbox root, the slash-command cache folder and a log location through environment
+ * variables).
  * Must handle: a missing or empty variable (return an error that names it, no silent default), a
  * relative path (refused: every path must be absolute), and unknown variables (ignored).
  * Test first: an environment without CONDUCTED_BIN_DIR returns an error naming that variable.
@@ -18,6 +20,8 @@ export const SIDECAR_ENV = {
 	binDir: "CONDUCTED_BIN_DIR",
 	/** Folder for the write-ahead event log, one file per chat. */
 	outboxRoot: "CONDUCTED_OUTBOX_ROOT",
+	/** Folder for the saved slash-command lists the new-workspace composer reads (SIDE-22). */
+	completionsDir: "CONDUCTED_COMPLETIONS_DIR",
 	/**
 	 * Folder for the sidecar's log files, which SIDE-18 writes. Today the sidecar writes log
 	 * lines to stderr, which the Rust launcher stores in the app log files (D026), so this folder
@@ -34,6 +38,7 @@ const absolutePath = z
 const zSidecarConfig = z.object({
 	binDir: absolutePath,
 	outboxRoot: absolutePath,
+	completionsDir: absolutePath,
 	logDir: absolutePath,
 });
 export type SidecarConfig = z.infer<typeof zSidecarConfig>;
@@ -44,6 +49,7 @@ export function parseSidecarConfig(
 	const parsed = zSidecarConfig.safeParse({
 		binDir: env[SIDECAR_ENV.binDir],
 		outboxRoot: env[SIDECAR_ENV.outboxRoot],
+		completionsDir: env[SIDECAR_ENV.completionsDir],
 		logDir: env[SIDECAR_ENV.logDir],
 	});
 	if (parsed.success) return ok(parsed.data);

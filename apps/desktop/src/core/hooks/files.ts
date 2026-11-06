@@ -2,8 +2,11 @@
  * @feature DATA-01 Query hook contract for screens
  * @feature REV-08 File content query and the editor's draft for the viewer
  * @feature REV-10 Artifact pages query
- * Owns: the file hooks: trees, file text, searches and the artifact pages; and, outside the
- * Queries contract, `useFileDraft` (the editor's unsaved draft of one file) and `fileQueryKey`.
+ * @feature SIDE-22 Slash command cache that works before a chat starts
+ * Owns: the file hooks: trees, file text, workspace and repository searches, and the artifact
+ * pages; and, outside the Queries contract, `useFileDraft` (the editor's unsaved draft of one file)
+ * and `fileQueryKey`. `useRepoFileSearch` searches a repository's main clone before a workspace
+ * exists, for the new-workspace composer's `@` menu (SIDE-22).
  * Behaviour: services-map.md 2.5 (queries for file data), 2.5.2 (an open file's modified time is
  * polled every 5 s); core/hooks.ts states the contract. The file tree is a query with its own key,
  * polled every 30 s while shown, and stale after 15 s (services-map.md 5A.5.3). It is not the git
@@ -16,13 +19,7 @@
  * because the disk moved on (the file is read again so the banner shows).
  * Test first: the test for a hook body lives with the feature that implements it.
  */
-import {
-	type AppError,
-	notImplemented,
-	ok,
-	type Result,
-	type WorkspaceId,
-} from "@conducted/shared";
+import { type AppError, ok, type Result, type WorkspaceId } from "@conducted/shared";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { useStore } from "zustand";
@@ -191,7 +188,28 @@ export const useContentSearch: Queries["useContentSearch"] = (workspaceId, query
 	if (result.data === undefined) return { state: "loading" };
 	return { state: "ready", data: result.data };
 };
-export const useRepoFileSearch: Queries["useRepoFileSearch"] = () => notImplemented("SIDE-22");
+export const useRepoFileSearch: Queries["useRepoFileSearch"] = (repoId, query) => {
+	const { services } = useServices();
+	const workspaceFiles = services.workspaceFiles;
+	const repo = useStore(services.repo.store, (state) => state.reposById[repoId]);
+	const trimmed = query.trim();
+	const enabled = trimmed.length >= MIN_QUERY_LENGTH && repo !== undefined;
+	const result = useQuery<FileEntry[], AppError>({
+		queryKey: ["files", "repo-quick-open", repoId, trimmed],
+		queryFn: async () => {
+			if (repo === undefined) return [];
+			const found = await workspaceFiles.quickOpenRoot(repo.rootPath, trimmed, QUICK_OPEN_LIMIT);
+			if (!found.ok) throw found.error;
+			return found.value;
+		},
+		enabled,
+		staleTime: 0,
+	});
+	if (!enabled) return { state: "ready", data: [] };
+	if (result.isError) return { state: "error", error: result.error };
+	if (result.data === undefined) return { state: "loading" };
+	return { state: "ready", data: result.data };
+};
 export const useArtifacts: Queries["useArtifacts"] = (workspaceId) => {
 	const service = useServices().services.workspaceFiles;
 	const page = useStore(service.artifactsStore, (state) => state.byWorkspace[workspaceId]);

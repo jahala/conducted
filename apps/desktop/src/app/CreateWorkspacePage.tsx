@@ -1,9 +1,11 @@
 /**
  * @feature WS-01 Create-workspace page
  * @feature WS-02 Create from a branch, PR or issue
+ * @feature SIDE-22 Slash command cache that works before a chat starts
  * Owns: the full-page "new workspace" flow at /create: repository picker, the toggleable "create from"
  * picker (default branch, an existing local branch, a pull request or an issue), first message editor with a
- * model field and plan mode, section picker, and the "Create workspace" button.
+ * model field and plan mode, section picker, and the "Create workspace" button. Typing '@' in the
+ * first message offers the chosen repository's own files before any workspace exists (SIDE-22).
  * Behaviour: ui-map.md 3.9 (New workspace flow; "Draft the first message, then create and send it."), 5.4
  * (Cmd+I toggles the create-from picker).
  * Our design choice: the page keeps the first message in a plain textarea until the composer editor can be
@@ -28,12 +30,15 @@ import {
 	useActions,
 	useBranches,
 	useIssues,
+	usePreWorkspaceSlashCommands,
 	usePullRequestList,
+	useRepoFileSearch,
 	useRepos,
 	useSetting,
 } from "../core/hooks.ts";
 import type { IssueView, PullRequestSummary, Section } from "../core/model.ts";
 import { FIRST_CHAT_APP_TOOLS } from "../core/services/workspace.ts";
+import { SuggestionPopup } from "../features/composer/mentions/SuggestionPopup.tsx";
 import { AddProjectButton } from "../features/sidebar/AddProjectButton.tsx";
 import { Button } from "../ui/Button.tsx";
 import { EmptyState } from "../ui/EmptyState.tsx";
@@ -44,6 +49,98 @@ import { useCommandHandler } from "./command-dispatcher.ts";
 
 type FromKind = "default" | "branch" | "pull_request" | "issue";
 type IssueProvider = IssueView["provider"];
+
+/** The '@' query under the caret in the first-message field. */
+interface FileMentionQuery {
+	query: string;
+	/** Document position of the typed '@'. */
+	start: number;
+	/** Document position just after the query. */
+	end: number;
+}
+
+/** Reads a mention that ends at the caret, or null when the text has none. */
+function mentionAt(text: string, caret: number, trigger: "@" | "/"): FileMentionQuery | null {
+	const before = text.slice(0, caret);
+	const escaped = trigger === "@" ? "@" : "/";
+	const match = new RegExp(`(?:^|[\\s([{])${escaped}([^\\s${escaped}]*)$`).exec(before);
+	if (match === null) return null;
+	const query = match[1] ?? "";
+	return { query, start: caret - query.length - 1, end: caret };
+}
+
+/** Reads an '@' mention that ends at the caret, or null when the text has none. */
+export function fileMentionAt(text: string, caret: number): FileMentionQuery | null {
+	return mentionAt(text, caret, "@");
+}
+
+/** Reads a '/' command mention that ends at the caret, or null when the text has none. */
+export function slashMentionAt(text: string, caret: number): FileMentionQuery | null {
+	return mentionAt(text, caret, "/");
+}
+
+/** The repository's saved slash commands and skills, before a workspace exists (SIDE-22). */
+function RepoSlashSuggestions(props: {
+	repoRootPath: string;
+	query: string;
+	onPick: (command: { name: string; kind: "command" | "skill" }) => void;
+}) {
+	const listed = usePreWorkspaceSlashCommands(props.repoRootPath, "claude");
+	const query = props.query.toLowerCase();
+	const rows =
+		listed.state === "ready"
+			? listed.data
+					.filter((command) => command.name.toLowerCase().includes(query))
+					.map((command) => ({
+						id: `${command.kind}:${command.name}`,
+						label: `/${command.name}`,
+						detail: command.kind === "skill" ? "Skills" : "Commands",
+					}))
+			: [];
+	return (
+		<SuggestionPopup
+			rows={rows}
+			selectedIndex={0}
+			state={listed.state}
+			emptyText="No commands or skills found"
+			label="Slash commands and skills"
+			onPick={(row) => {
+				const [kind, ...rest] = row.id.split(":");
+				props.onPick({
+					name: rest.join(":"),
+					kind: kind === "skill" ? "skill" : "command",
+				});
+			}}
+		/>
+	);
+}
+
+/** The repository's files under an '@' query, before a workspace exists (SIDE-22). */
+function RepoFileSuggestions(props: {
+	repoId: RepoId;
+	query: string;
+	onPick: (path: string) => void;
+}) {
+	const files = useRepoFileSearch(props.repoId, props.query);
+	const rows =
+		files.state === "ready"
+			? files.data.map((entry) => ({
+					id: `file:${entry.path}`,
+					label: entry.path,
+					detail: entry.isDirectory ? "Directory" : undefined,
+				}))
+			: [];
+	return (
+		<SuggestionPopup
+			rows={rows}
+			selectedIndex={0}
+			state={files.state}
+			emptyText="No files found"
+			label="Repository files"
+			onPick={(row) => props.onPick(row.label)}
+		/>
+	);
+}
 
 export function CreateWorkspacePage(_props: Record<string, never>) {
 	const actions = useActions();
@@ -71,6 +168,8 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 	const [issueProvider, setIssueProvider] = useState<IssueProvider>("github");
 	const [selectedIssue, setSelectedIssue] = useState<IssueView | null>(null);
 	const [prompt, setPrompt] = useState("");
+	const [mention, setMention] = useState<FileMentionQuery | null>(null);
+	const [slashMention, setSlashMention] = useState<FileMentionQuery | null>(null);
 	const [model, setModel] = useState(defaultModel);
 	const [planMode, setPlanMode] = useState(defaultPlanMode);
 	const [sectionId, setSectionId] = useState(() => search.section ?? "");
@@ -263,6 +362,8 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 							setSelectedPullRequest(null);
 							setSelectedIssue(null);
 							setShowBranchList(false);
+							setMention(null);
+							setSlashMention(null);
 						}}
 						disabled={busy}
 					/>
@@ -369,11 +470,44 @@ export function CreateWorkspacePage(_props: Record<string, never>) {
 						id="create-workspace-prompt"
 						aria-label="First message"
 						value={prompt}
-						onChange={(event) => setPrompt(event.target.value)}
+						onChange={(event) => {
+							const caret = event.target.selectionStart ?? event.target.value.length;
+							setPrompt(event.target.value);
+							setMention(fileMentionAt(event.target.value, caret));
+							setSlashMention(slashMentionAt(event.target.value, caret));
+						}}
+						onKeyDown={(event) => {
+							if (event.key === "Escape") {
+								setMention(null);
+								setSlashMention(null);
+							}
+						}}
 						placeholder="What do you want to work on?"
 						rows={5}
 						disabled={busy}
 					/>
+					{mention !== null && mention.query.length >= 2 ? (
+						<RepoFileSuggestions
+							repoId={selectedRepo.id}
+							query={mention.query}
+							onPick={(path) => {
+								setPrompt(`${prompt.slice(0, mention.start)}@${path} ${prompt.slice(mention.end)}`);
+								setMention(null);
+							}}
+						/>
+					) : null}
+					{slashMention !== null ? (
+						<RepoSlashSuggestions
+							repoRootPath={selectedRepo.rootPath}
+							query={slashMention.query}
+							onPick={(command) => {
+								setPrompt(
+									`${prompt.slice(0, slashMention.start)}/${command.name} ${prompt.slice(slashMention.end)}`,
+								);
+								setSlashMention(null);
+							}}
+						/>
+					) : null}
 				</div>
 
 				<div className="grid grid-cols-2 gap-4">

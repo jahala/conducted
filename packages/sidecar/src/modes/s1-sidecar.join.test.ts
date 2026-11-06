@@ -172,7 +172,12 @@ async function harness(
 		providerSecrets: {},
 	};
 	const host = composeSidecar(
-		{ binDir: BIN_DIR, outboxRoot: path.join(folder, "outbox"), logDir: path.join(folder, "log") },
+		{
+			binDir: BIN_DIR,
+			outboxRoot: path.join(folder, "outbox"),
+			completionsDir: path.join(folder, "completions"),
+			logDir: path.join(folder, "log"),
+		},
 		{
 			app,
 			query: scriptedQuery(seen.claudeOptions),

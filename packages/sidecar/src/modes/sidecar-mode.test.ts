@@ -43,6 +43,7 @@ function envFor(config: SidecarConfig): Record<string, string> {
 	return {
 		CONDUCTED_BIN_DIR: config.binDir,
 		CONDUCTED_OUTBOX_ROOT: config.outboxRoot,
+		CONDUCTED_COMPLETIONS_DIR: config.completionsDir,
 		CONDUCTED_LOG_DIR: config.logDir,
 	};
 }
@@ -86,6 +87,7 @@ describe("SIDE-01 sidecar mode", () => {
 		const config = {
 			binDir: path.join(base, "bin"),
 			outboxRoot: path.join(base, "outbox"),
+			completionsDir: path.join(base, "completions"),
 			logDir: path.join(base, "logs"),
 		};
 		const io = fakeIo();
@@ -100,6 +102,7 @@ describe("SIDE-01 sidecar mode", () => {
 		const config = {
 			binDir: path.join(base, "bin"),
 			outboxRoot: path.join(base, "outbox"),
+			completionsDir: path.join(base, "completions"),
 			logDir: path.join(base, "logs"),
 		};
 		await mkdir(config.binDir, { recursive: true });
@@ -362,6 +365,7 @@ describe("SIDE-01 startup error handler wiring", () => {
 		const config = {
 			binDir: path.join(base, "bin"),
 			outboxRoot: path.join(base, "outbox"),
+			completionsDir: path.join(base, "completions"),
 			logDir: path.join(base, "logs"),
 		};
 		const events: string[] = [];
@@ -384,6 +388,7 @@ describe("SIDE-01 startup error handler wiring", () => {
 		const config = {
 			binDir: path.join(base, "bin"),
 			outboxRoot: path.join(base, "outbox"),
+			completionsDir: path.join(base, "completions"),
 			logDir: path.join(base, "logs"),
 		};
 		const events: string[] = [];
@@ -420,6 +425,7 @@ describe("SIDE-01 startup folders", () => {
 		const config = {
 			binDir: path.join(base, "bin"),
 			outboxRoot: path.join(base, "outbox"),
+			completionsDir: path.join(base, "completions"),
 			logDir: path.join(base, "logs"),
 		};
 		await mkdir(config.binDir, { recursive: true });

@@ -1,7 +1,9 @@
 /**
  * @feature SIDE-01 Entry point and modes: the "sidecar" mode, started as a real process
+ * @feature SIDE-22 Slash command cache that works before a chat starts
  * Owns: proof that the real host starts the way the Rust shell starts it, prints the handshake
- * line, answers one request on its socket and exits 0 on SIGTERM.
+ * line, answers one request on its socket and exits 0 on SIGTERM, and that a saved slash-command
+ * list answers a request made before any workspace exists.
  * Test first: this file. Before the app tools bridge start-up step was removed, the host exited
  * with "Not implemented: SIDE-13" before it printed the handshake line.
  */
@@ -13,6 +15,8 @@ import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createLogger } from "../logging/logger.ts";
+import { createNodeCompletionsFiles, FileCompletionsCache } from "../models/completions-cache.ts";
 import { encodeLine, LineDecoder } from "../rpc/ndjson.ts";
 import { handshakeLine } from "../rpc/server.ts";
 import { PARENT_PID_ENV } from "./sidecar-mode.ts";
@@ -51,6 +55,7 @@ async function ownedFolder(): Promise<string> {
  */
 async function startHost(folder: string): Promise<HostRun> {
 	const outboxRoot = path.join(folder, "outbox");
+	const completionsDir = path.join(folder, "completions");
 	const logDir = path.join(folder, "log");
 	const home = path.join(folder, "home");
 	await mkdir(home);
@@ -62,6 +67,7 @@ async function startHost(folder: string): Promise<HostRun> {
 			TMPDIR: folder,
 			CONDUCTED_BIN_DIR: BIN_DIR,
 			CONDUCTED_OUTBOX_ROOT: outboxRoot,
+			CONDUCTED_COMPLETIONS_DIR: completionsDir,
 			CONDUCTED_LOG_DIR: logDir,
 			[PARENT_PID_ENV]: String(process.pid),
 		},
@@ -169,6 +175,52 @@ describe("SIDE-01 the real sidecar host", () => {
 			await expect(stat(host.socketPath)).rejects.toMatchObject({ code: "ENOENT" });
 			const remaining = (await readdir(folder)).filter((name) => name.startsWith("cmcp-"));
 			expect(remaining).toEqual([]);
+		},
+		HANG_LIMIT_MS,
+	);
+});
+
+describe("SIDE-22 the real sidecar host and the saved slash-command cache", () => {
+	test(
+		"SIDE-22 lists a saved repository's slash commands before a workspace exists",
+		async () => {
+			const folder = await ownedFolder();
+			const cache = new FileCompletionsCache({
+				dir: path.join(folder, "completions"),
+				files: createNodeCompletionsFiles(),
+				clock: { now: () => Date.now() },
+				logger: createLogger({
+					sink: () => {},
+					clock: { now: () => 0 },
+					level: "error",
+					scope: "test",
+				}),
+			});
+			const commands = [
+				{
+					name: "review",
+					description: "Review the working tree",
+					source: "project" as const,
+					kind: "command" as const,
+				},
+			];
+			const saved = await cache.write({ repoRootPath: "/code/app", agent: "claude" }, commands);
+			expect(saved.ok).toBe(true);
+
+			const host = await startHost(folder);
+			const reply = await callOnce(host.socketPath, {
+				jsonrpc: "2.0",
+				id: 2,
+				method: "listSlashCommands",
+				params: { agent: "claude", repoRootPath: "/code/app" },
+			});
+			expect(reply).toEqual({
+				jsonrpc: "2.0",
+				id: 2,
+				result: { commands, fromCache: true },
+			});
+			host.child.kill("SIGTERM");
+			await host.exited;
 		},
 		HANG_LIMIT_MS,
 	);

@@ -5,7 +5,15 @@ import {
 	type ModelInfo,
 } from "@conducted/protocol";
 import { appError, type EventId, err, ok, type SessionId } from "@conducted/shared";
+import { createLogger } from "../logging/logger.ts";
 import { buildHandlers, type HandlerDeps } from "./handlers.ts";
+
+const testLogger = createLogger({
+	sink: () => {},
+	clock: { now: () => 0 },
+	level: "error",
+	scope: "test",
+});
 
 const model: ModelInfo = {
 	id: "claude-sonnet",
@@ -56,6 +64,7 @@ function deps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
 			cancelLogin: async () => ok(undefined),
 		},
 		slashCommands: { list: async () => ok([]) },
+		completions: { read: async () => ok(null), write: async () => ok(undefined) },
 		mcpServers: { list: async () => ok([]) },
 		usage: {
 			contextUsage: async () => ok({ usedTokens: 1, windowTokens: 2, rateLimits: [] }),
@@ -67,6 +76,7 @@ function deps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
 		},
 		utilityPrompt: { run: async () => ok({ text: "" }) },
 		setLogLevel: () => {},
+		logger: testLogger,
 		...overrides,
 	};
 }

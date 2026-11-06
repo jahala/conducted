@@ -249,11 +249,13 @@ function handlerDeps(manager: DefaultSessionManager, logger: Logger): HandlerDep
 		models: catalog,
 		agents,
 		slashCommands,
+		completions: { read: async () => ok(null), write: async () => ok(undefined) },
 		mcpServers,
 		usage: new SessionUsageReader({ logger, sessions: manager }),
 		shellEnv: fakeShellEnv(),
 		utilityPrompt,
 		setLogLevel: () => {},
+		logger,
 	};
 }
 

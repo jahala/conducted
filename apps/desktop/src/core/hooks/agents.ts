@@ -1,18 +1,22 @@
 /**
  * @feature DATA-01 Query hook contract for screens; SET-10 OpenCode providers and their keys
- * Owns: the agent-catalog hooks: installs, models, slash commands, providers and config files,
- * and the ACP chat options hook (AGENT-17).
+ * @feature SIDE-22 Slash command cache that works before a chat starts
+ * Owns: the agent-catalog hooks: installs, models, slash commands, the saved slash commands of a
+ * repository before a workspace exists, providers and config files, and the ACP chat options hook
+ * (AGENT-17).
  * Behaviour: services-map.md 2.5; core/hooks.ts states the contract.
  * Must handle: a model list that has not loaded, a catalog entry that is missing.
  * Test first: the test for a hook body lives with the feature that implements it. SET-10's
  * provider hook loads the catalogue through the agent catalogue service.
  */
+import type { SlashCommand } from "@conducted/protocol";
+import type { AcpAgent, AgentKind } from "@conducted/shared";
 import { notImplemented } from "@conducted/shared";
 import { useEffect } from "react";
 import { useStore } from "zustand";
-import type { Queries } from "../api.ts";
+import type { Loadable, Queries } from "../api.ts";
 import { useServices } from "../context.tsx";
-import { agentKey } from "../services/agent-catalog.ts";
+import { agentKey, preWorkspaceSlashKey } from "../services/agent-catalog.ts";
 
 export const useAgentInstalls: Queries["useAgentInstalls"] = () => {
 	const store = useServices().services.agentCatalog.store;
@@ -40,6 +44,23 @@ export const useSlashCommands: Queries["useSlashCommands"] = (sessionId) => {
 	}, [service, sessionId, agent, acpAgent]);
 	return commands ?? { state: "loading" };
 };
+/** The saved slash commands and skills of a repository, before any workspace exists (SIDE-22). */
+export const usePreWorkspaceSlashCommands = (
+	repoRootPath: string,
+	agent: AgentKind,
+	acpAgent?: AcpAgent,
+): Loadable<SlashCommand[]> => {
+	const service = useServices().services.agentCatalog;
+	const key = preWorkspaceSlashKey(repoRootPath, agent, acpAgent);
+	const commands = useStore(service.store, (state) => state.preWorkspaceSlashCommands?.[key]);
+	useEffect(() => {
+		if (commands === undefined) {
+			void service.loadPreWorkspaceSlashCommands(repoRootPath, agent, acpAgent);
+		}
+	}, [service, repoRootPath, agent, acpAgent, commands]);
+	return commands ?? { state: "loading" };
+};
+
 export const useProviderKeys: Queries["useProviderKeys"] = (agent, acpAgent) => {
 	const service = useServices().services.agentCatalog;
 	const key = agentKey(agent, acpAgent);
