@@ -18,7 +18,9 @@
  * While mounted, the panel watches its workspace's repository with the Graphite service and
  * releases the watch on unmount or when the workspace moves to another repository, so `gt state`
  * runs only for the repository on screen (services-map.md 3.8.1). It reads the stack of the
- * checked-out branch from that poll (use-graphite-stack.ts) and hands it to the Changes tab.
+ * checked-out branch from that poll (use-graphite-stack.ts) and hands it to the Changes tab. In a
+ * Graphite stack the header reads "N branches stacked" (the branches above the trunk) with no pull
+ * request action, and Cmd+Shift+L passes on, as Conductor's panel does.
  * Children: GitHeader, GitPanelTabs, artifacts/ArtifactsTab, changes/ChangesTab, files/FilesTab,
  * checks/ChecksTab. Each unbuilt tab body sits in its own NotBuiltYet boundary, keyed by the tab,
  * so a tab that is not built or fails shows which feature it is while the header and the tab strip
@@ -396,8 +398,10 @@ export function GitPanel({
 		return true;
 	});
 
-	// Cmd+Shift+L reaches the same action as the header's Pull latest button.
+	// Cmd+Shift+L reaches the same action as the header's Pull latest button. A branch in a
+	// Graphite stack follows its Graphite parent, so the shortcut passes on, as in Conductor.
 	useCommandHandler("git.pullLatest", "area", () => {
+		if (graphiteStack.isInStack) return false;
 		void runGuarded("pull");
 		return true;
 	});
@@ -457,6 +461,18 @@ export function GitPanel({
 					<Button size="sm" variant="outline" onClick={refresh}>
 						Retry
 					</Button>
+				</div>
+			);
+		}
+		// In a Graphite stack the header says how big the stack is and offers no pull request
+		// action: Graphite owns submitting and merging its stack (Conductor does the same).
+		if (graphiteStack.isInStack) {
+			const count = graphiteStack.branches.filter((branch) => !branch.trunk).length;
+			return (
+				<div className="flex h-10 items-center gap-2 border-b border-separator px-3">
+					<p className="min-w-0 flex-1 truncate text-sm font-medium text-fg-muted">
+						{count} {count === 1 ? "branch" : "branches"} stacked
+					</p>
 				</div>
 			);
 		}

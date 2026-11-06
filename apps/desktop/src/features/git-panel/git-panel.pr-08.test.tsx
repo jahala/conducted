@@ -330,6 +330,32 @@ describe("PR-08 Graphite stack in the Changes tab", () => {
 		expect(checkouts()[0]?.cwd).toBe("/code/workspaces/pr-08-panel");
 	});
 
+	it("heads the panel with the stack's size and no pull request actions in a Graphite stack", async () => {
+		const { harness, workspace } = await seedPanel("CLEAN", { graphiteState, git: changes });
+		await renderPanel(harness, workspace);
+
+		expect(await screen.findByText("3 branches stacked")).toBeTruthy();
+		expect(screen.queryByRole("button", { name: /Merge stack/ })).toBeNull();
+		expect(screen.queryByText("Ready to merge")).toBeNull();
+	});
+
+	it("leaves Cmd+Shift+L alone in a Graphite stack, and pulls outside one", async () => {
+		const { harness, workspace } = await seedPanel("CLEAN", { graphiteState, git: changes });
+		const pull = vi
+			.spyOn(harness.container.services.git, "pull")
+			.mockResolvedValue(ok("up_to_date"));
+		await renderPanel(harness, workspace);
+		await screen.findByText("3 branches stacked");
+
+		fireEvent.keyDown(document.body, { key: "l", metaKey: true, shiftKey: true });
+		expect(pull).not.toHaveBeenCalled();
+
+		await harness.container.actions.settings.set("graphite_disabled", true);
+		await waitFor(() => expect(screen.queryByText("3 branches stacked")).toBeNull());
+		fireEvent.keyDown(document.body, { key: "l", metaKey: true, shiftKey: true });
+		await waitFor(() => expect(pull).toHaveBeenCalledWith(workspace.id));
+	});
+
 	it("keeps the GitHub stack when Graphite has no stack for the branch", async () => {
 		const { harness, workspace } = await seedPanel();
 		await renderPanel(harness, workspace);
