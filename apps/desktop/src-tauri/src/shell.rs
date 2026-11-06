@@ -30,6 +30,7 @@
 //! - The first `shell_login_env` call and the startup warm-up share one capture.
 //! - The capture picks flags by shell name (`-ilc` for zsh and bash, `-i -l -c` for fish), reads
 //!   the environment between a delimiter, and retries once with a plain login zsh (5 s, then 3 s).
+//!   When both fail, the error names the cause of each.
 //! - Provider keys and exported shell functions are removed from the captured environment.
 //!
 //! Scope (PLAT-29, native-and-sidecar-map.md A3): `shell_run` and `shell_start` first call
@@ -936,17 +937,29 @@ fn capture_with_timeouts(
         Some("zsh" | "bash" | "fish")
     );
 
-    if known {
+    let primary_error = if known {
         let marker = new_marker();
         let command = capture_command_for(shell_path, &marker);
-        if let Ok(vars) = run_capture(&command, cwd, &marker, primary) {
-            return Ok(login_env_from(shell_path.to_string(), vars));
+        match run_capture(&command, cwd, &marker, primary) {
+            Ok(vars) => return Ok(login_env_from(shell_path.to_string(), vars)),
+            Err(error) => Some(error),
         }
-    }
+    } else {
+        None
+    };
 
     let marker = new_marker();
     let command = fallback_capture_command_at(fallback_shell, &marker);
-    let vars = run_capture(&command, cwd, &marker, fallback)?;
+    // When both shells fail, the error names both causes: the user's own shell is the one to fix.
+    let vars =
+        run_capture(&command, cwd, &marker, fallback).map_err(
+            |fallback_error| match primary_error {
+                Some(primary_error) => login_env_error(format!(
+                    "{shell_path}: {primary_error} Then {fallback_shell}: {fallback_error}"
+                )),
+                None => fallback_error,
+            },
+        )?;
     Ok(login_env_from(fallback_shell.to_string(), vars))
 }
 
@@ -1488,6 +1501,33 @@ mod tests {
         assert_eq!(login.shell, fallback.to_str().expect("the path is UTF-8"));
         assert!(!login.path.is_empty());
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn plat_04_a_failed_capture_names_why_both_shells_failed() {
+        let dir = TempProgramDir::new();
+        let broken = write_script(dir.path(), "zsh", "#!/bin/sh\nprintf 'no marker'\n");
+        let silent = write_script(dir.path(), "fallback-shell", "#!/bin/sh\nsleep 30\n");
+
+        let error = capture_with_timeouts(
+            broken.to_str().expect("the path is UTF-8"),
+            dir.path(),
+            silent.to_str().expect("the path is UTF-8"),
+            Duration::from_secs(30),
+            Duration::from_millis(150),
+        )
+        .expect_err("neither shell prints an environment");
+
+        let message = error.to_string();
+        assert!(
+            message.contains("printed no environment marker"),
+            "the user's shell is named: {message}"
+        );
+        assert!(
+            message.contains("did not finish within 150 ms"),
+            "the fallback is named: {message}"
+        );
+        assert_eq!(error_code(error), "login_env_failed");
     }
 
     #[test]
