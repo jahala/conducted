@@ -7,6 +7,7 @@ vi.mock("shiki", () => ({ codeToTokens: state.highlight }));
 
 vi.mock("../../core/hooks.ts", () => ({
 	useActions: () => ({ app: { copyText: state.copyText } }),
+	useTerminalConnection: () => ({ state: "loading" }),
 }));
 
 const { CodeBlock } = await import("./CodeBlock.tsx");

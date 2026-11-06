@@ -1,7 +1,9 @@
 /**
- * @feature RUN-07 Terminals: tabs, script runs and output for the GetTerminalOutput tool
- * Owns: creating and closing terminal tabs, starting setup, run and Spotlight scripts in a
- * terminal, keeping the live handles, saving history, and reading a terminal's text for agents.
+ * @feature RUN-07 Terminals: tabs, script runs and output for the GetTerminalOutput tool; CHAT-23
+ * Run button on shell code blocks
+ * Owns: creating and closing terminal tabs, starting setup, run and Spotlight scripts and chat
+ * code block commands in a terminal, keeping the live handles, saving history, and reading a
+ * terminal's text for agents.
  * Behaviour: services-map.md 5A.4 (terminal layers, launch request, history and cold restore,
  * kinds of terminals), 5A.1.2 and 5A.1.3 (setup and run scripts as terminals; the agent tool
  * bridge and its error texts), 5A.1.2 (the environment variables), ui-map.md 3.7.
@@ -16,7 +18,8 @@
  * used; a request for output when nothing matches returns a plain sentence the agent can read
  * ("No action process active"), not an error; an ended terminal falls back to the text kept when it
  * ended, then to its saved screen, then to a plain sentence when neither exists; script files are
- * never written to disk (the command goes to the shell as arguments).
+ * never written to disk (the command goes to the shell as arguments); a chat command with no text,
+ * or a workspace that is archived or not ready, is refused with a reason and no spawn.
  * Shell integration (RUN-09, native-and-sidecar-map.md A5 and D1, services-map.md 5A.4.6): an
  * interactive terminal starts zsh with `ZDOTDIR` pointing at a folder of four small files
  * (`.zshenv`, `.zprofile`, `.zshrc`, `.zlogin`) that source the user's own dotfiles first and then
@@ -30,11 +33,13 @@
  * `<login shell> -l -c <script>` with the captured login environment, not from a temp file, and
  * with the PATH the login shell sees in the script's folder (PLAT-07, services-map.md 5A.8.3), so
  * direnv and mise settings of a workspace apply; a PATH the script's own variables set wins.
- * Built now (RUN-06, RUN-07, RUN-01): tabs, the live connection, restart, repo terminal, limit,
- * folder check, kill on quit, `buildScriptEnv`, `outputFor`, `runScript` and `stop`. `outputFor`
- * reads the live screen, keeps the text of a finished terminal in memory, and falls back to the
- * saved screen for an older one. A run or spotlight script never saves its screen, so its output
- * stays off disk. Still a placeholder: the shell integration (RUN-09).
+ * Built now (RUN-06, RUN-07, RUN-01, CHAT-23): tabs, the live connection, restart, repo terminal,
+ * limit, folder check, kill on quit, `buildScriptEnv`, `outputFor`, `runScript`, `stop` and
+ * `runCommand`. `runCommand` starts a chat code block's command as a `run` terminal in the
+ * workspace and returns its row; the chat shows its live stream, status, exit code, Stop and
+ * Clear. `outputFor` reads the live screen, keeps the text of a finished terminal in memory, and
+ * falls back to the saved screen for an older one. A run or spotlight script never saves its
+ * screen, so its output stays off disk. Still a placeholder: the shell integration (RUN-09).
  * SET-13: every terminal and script gets `CONDUCTED_PATH_PREFIX`, the shim folder for the program
  * paths chosen in settings (or the bundled bin folder), so a chosen `claude` or `codex` is the one
  * the shell runs. A script that already carries the variable keeps it.
@@ -286,6 +291,12 @@ export function nextTerminalTitle(terminals: readonly Terminal[]): string {
 		const title = `Terminal ${number}`;
 		if (!used.has(title)) return title;
 	}
+}
+
+/** A terminal title for a chat command: its first line, short enough to scan. */
+function commandTitle(command: string): string {
+	const firstLine = command.split(/\r?\n/, 1)[0] ?? command;
+	return firstLine.length > 60 ? `${firstLine.slice(0, 57)}...` : firstLine;
 }
 
 const withoutKey = <T>(record: Readonly<Record<string, T>>, key: string): Record<string, T> => {
@@ -1069,7 +1080,47 @@ export class TerminalsService {
 	}
 
 	/** Backs `Actions.terminals.runCommand`: the Run button on a chat code block. */
-	runCommand(_workspaceId: WorkspaceId, _command: string): Promise<Result<Terminal>> {
-		return notImplemented("CHAT-23");
+	async runCommand(workspaceId: WorkspaceId, command: string): Promise<Result<Terminal>> {
+		const trimmed = command.trim();
+		if (trimmed.length === 0) {
+			return err(appError("command_empty", "There is no command to run."));
+		}
+		const workspace = await this.#deps.repos.workspaces.get(workspaceId);
+		if (!workspace.ok) return workspace;
+		if (workspace.value === null) {
+			return err(appError("workspace_unknown", "That workspace no longer exists."));
+		}
+		if (workspace.value.state === "archived" || workspace.value.archivedAt !== null) {
+			return err(appError("workspace_archived", "This workspace is archived."));
+		}
+		if (workspace.value.state !== "ready") {
+			return err(appError("workspace_not_ready", "This workspace is not ready to run commands."));
+		}
+		const repo = await this.#deps.repos.repos.get(workspace.value.repoId);
+		if (!repo.ok) return repo;
+		if (repo.value === null) {
+			return err(appError("repo_unknown", "That repository no longer exists."));
+		}
+		const env = buildScriptEnv({
+			workspace: workspace.value,
+			repoRootPath: repo.value.rootPath,
+			defaultBranch: repo.value.defaultBranch,
+			userEnv: {},
+		});
+		const started = await this.runScript({
+			workspaceId,
+			kind: "run",
+			title: commandTitle(trimmed),
+			command: trimmed,
+			cwd: workspace.value.path,
+			env,
+		});
+		if (!started.ok) return started;
+		const terminal = await this.#deps.repos.terminals.get(started.value.terminalId);
+		if (!terminal.ok) return terminal;
+		if (terminal.value === null) {
+			return err(appError("terminal_unknown", "That terminal no longer exists."));
+		}
+		return ok(terminal.value);
 	}
 }
