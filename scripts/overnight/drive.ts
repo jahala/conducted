@@ -12,6 +12,9 @@
  *   bun scripts/overnight/drive.ts step <n> [--priority <p>]               list the step's batch ids
  *   bun scripts/overnight/drive.ts preflight              the quick gate on the step branch itself,
  *                                                         before any worker starts from it
+ *   bun scripts/overnight/drive.ts set-status <tree> <ID> <stub|done|planned>
+ *                                                         set one backlog row's status and format the
+ *                                                         file (never edit a status by hand)
  *   bun scripts/overnight/drive.ts mark-done <tree> <ID...>
  *                                                         set rows to done in <tree>'s backlog,
  *                                                         refusing an id with placeholders left,
@@ -275,14 +278,51 @@ export function runQuickChecks(
 	return null;
 }
 
+const STATUSES = ["stub", "done", "planned"] as const;
+
+/**
+ * Sets one row's status in backlog text. Refuses an unknown id and an unknown status. The table's
+ * column widths are Biome's job: the set-status and mark-done commands format the file after
+ * writing it, so a status is never edited by hand.
+ */
+export function setStatus(text: string, id: string, status: string): string {
+	if (!/^[A-Z]+-\d{2}$/.test(id)) throw new Error(`${id} is not a feature id`);
+	if (!(STATUSES as readonly string[]).includes(status)) {
+		throw new Error(`${status} is not a backlog status (${STATUSES.join(", ")})`);
+	}
+	const row = new RegExp(
+		`^(\\| ${id}\\s+\\|.*\\| )(?:${STATUSES.join("|")})( *\\|[^|\\n]*\\|\\s*)$`,
+		"m",
+	);
+	if (!row.test(text)) throw new Error(`${id} has no backlog row`);
+	return text.replace(row, `$1${status}$2`);
+}
+
+/** Writes backlog text and formats it, so its tables stay aligned whatever width a status has. */
+function writeBacklog(tree: string, text: string): void {
+	const path = join(tree, "docs/plans/backlog.md");
+	writeFileSync(path, text);
+	const formatted = Bun.spawnSync(
+		["pnpm", "exec", "biome", "format", "--write", "--vcs-use-ignore-file=false", path],
+		{
+			cwd: tree,
+			stdout: "pipe",
+			stderr: "pipe",
+		},
+	);
+	if (formatted.exitCode !== 0) {
+		throw new Error(`biome could not format ${path}: ${formatted.stderr.toString()}`);
+	}
+}
+
 /** Sets stub rows to done in backlog text. Refuses an id with no stub row. */
 export function markDone(text: string, ids: string[]): string {
 	let next = text;
 	for (const id of ids) {
 		if (!/^[A-Z]+-\d{2}$/.test(id)) throw new Error(`${id} is not a feature id`);
-		const row = new RegExp(`^(\\| ${id}\\s+\\|.*\\|\\s*)stub(\\s*\\|[^\\n]*)$`, "m");
+		const row = new RegExp(`^\\| ${id}\\s+\\|.*\\| stub\\s*\\|[^|\\n]*\\|\\s*$`, "m");
 		if (!row.test(next)) throw new Error(`${id} has no stub row`);
-		next = next.replace(row, "$1done$2");
+		next = setStatus(next, id, "done");
 	}
 	return next;
 }
@@ -373,6 +413,15 @@ async function main(command: string | undefined, args: string[]): Promise<void> 
 			process.exit(1);
 		}
 		console.log(`ok   ${QUICK_CHECKS.join(", ")}`);
+	} else if (command === "set-status") {
+		const [tree, id, status] = args;
+		if (!tree || !id || !status)
+			throw new Error("Usage: set-status <tree> <ID> <stub|done|planned>");
+		writeBacklog(
+			tree,
+			setStatus(readFileSync(join(tree, "docs/plans/backlog.md"), "utf8"), id, status),
+		);
+		console.log(`${id}: ${status}`);
 	} else if (command === "mark-done") {
 		const [tree, ...ids] = args;
 		if (!tree || ids.length === 0) throw new Error("Usage: mark-done <tree> <ID...>");
@@ -380,8 +429,7 @@ async function main(command: string | undefined, args: string[]): Promise<void> 
 		for (const id of ids) {
 			if (placeholdersFor(id, files).length > 0) throw new Error(`${id} still has placeholders`);
 		}
-		const path = join(tree, "docs/plans/backlog.md");
-		writeFileSync(path, markDone(readFileSync(path, "utf8"), ids));
+		writeBacklog(tree, markDone(readFileSync(join(tree, "docs/plans/backlog.md"), "utf8"), ids));
 		console.log(`Marked done: ${ids.join(", ")}`);
 		// Done rows bring their files into the guards' scope, so a guard can go red only now.
 		const failed = runQuickChecks((script) => pnpmScript(tree, script), ["guards"]);
@@ -418,7 +466,7 @@ async function main(command: string | undefined, args: string[]): Promise<void> 
 		console.log(fixerPrompt(ids.split(","), readFileSync(logFile, "utf8")));
 	} else {
 		console.error(
-			"Usage: drive.ts issues | plan <batch> --night <n> [--only IDS] [--max <m>] | step <n> | preflight | mark-done <tree> <IDS> | balance | audit-prompt <ids-file> <file> | closes <IDS> | fixer-prompt <IDS> <log>",
+			"Usage: drive.ts issues | plan <batch> --night <n> [--only IDS] [--max <m>] | step <n> | preflight | set-status <tree> <ID> <status> | mark-done <tree> <IDS> | balance | audit-prompt <ids-file> <file> | closes <IDS> | fixer-prompt <IDS> <log>",
 		);
 		process.exit(64);
 	}
