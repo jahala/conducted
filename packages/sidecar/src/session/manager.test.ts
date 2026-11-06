@@ -892,6 +892,27 @@ describe("SIDE-03 cancel, reset and status", () => {
 	});
 });
 
+describe("AGENT-15 work the agent starts by itself", () => {
+	test("AGENT-15 a report while a turn of ours starts leaves that turn current and stores nothing", async () => {
+		const h = harness();
+		await h.manager.sendMessage(sendParams());
+		const turn = h.turns.last();
+		const run = turn.run;
+		if (run === null) throw new Error("The turn did not start");
+		const callbacks = h.runners.get("claude")?.started[0]?.selfStartedTurns;
+		if (callbacks === undefined) throw new Error("The agent got no callbacks for its own work");
+		// The window before the turn's working mark lands: the chat still reads idle.
+		h.liveState.set(sid("session-1"), idleLiveState);
+
+		callbacks.onInProgressChanged(true);
+		callbacks.onMessage({ agent: "claude", items: [{ kind: "text", text: "on my own" }] });
+
+		// Both calls act at once: a run taken over the turn, or a stored message, would show here.
+		expect(turn.deps.runGuard.isCurrent(run)).toBe(true);
+		expect(h.publisher.events.filter((entry) => entry.event.type === "agent")).toEqual([]);
+	});
+});
+
 describe("CHAT-12 plan feedback is kept in the chat", () => {
 	const planAnswer = (approved: boolean, feedback?: string) => ({
 		sessionId: sid("session-1"),

@@ -10,7 +10,9 @@
  * with the outcome the runner reports); a chat that was reset (a late report is dropped, by the run
  * guard); the process manager (`markBusy` and `markIdle` follow the live state).
  * A user message that arrives during such work belongs to the manager's queue (SIDE-03); this class
- * does not receive it or start anything from it.
+ * does not receive it or start anything from it. The session manager makes one per agent start and
+ * hands its callbacks to the runner (`StartOptions.selfStartedTurns`); `onSettled` is the manager's
+ * own end-of-turn step, which drains that queue.
  * Our design choice: the stored events of such a turn end with `turn_ended` like any turn (D008),
  * and have no `user_message` before them. A stream that ends without a result is `interrupted`; a
  * stream that throws is `error` with the message; only a real result is `success`.
