@@ -521,10 +521,10 @@ pub fn plan_restart(recent: &mut Vec<i64>, now_ms: i64) -> RestartPlan {
     }
 }
 
-/// The environment the sidecar reads at start. Folder values are created by the launcher before
-/// the spawn. Only variables the sidecar reads today are set; the app version, agent binaries,
-/// ACP providers and Cursor store wait for the features that read them. There is no database path
-/// and no logger token or folder (D026, D028).
+/// The folders the sidecar reads at start: the parent pid, the outbox root, the log folder and the
+/// bin folder. The launcher creates each folder before the spawn, and `launch_environment` adds the
+/// app version and log level. Agent binaries, ACP providers and the Cursor store wait for the
+/// features that read them. There is no database path and no logger token or folder (D026, D028).
 pub fn sidecar_environment(pid: u32, data_dir: &Path) -> Vec<(String, String)> {
     let log_dir = data_dir.join("logs");
     let bin_dir = data_dir.join("bin");
