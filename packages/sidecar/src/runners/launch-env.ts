@@ -30,6 +30,10 @@
  * the launch in any log line.
  * Our design choice: a launch's base URL wins over a user variable of the same name, because it is
  * the dedicated setting for it.
+ * Our design choice: one table per agent (`AGENT_LAUNCH_FACTS`) holds its name, its base URL
+ * variable and its providers with their key and routing variables; the provider list, the key
+ * filter, the Claude routing and the error texts all read it. The desktop keeps its own copies of
+ * the key variables until the protocol carries one shared table.
  * Test first: for a Codex chat whose launch holds an `ANTHROPIC_API_KEY`, the built environment
  * has no `ANTHROPIC_API_KEY`.
  */
@@ -148,7 +152,7 @@ export function buildAgentEnvironment(
 	const ownKeyNames =
 		input.launch.provider?.trim().toLowerCase() === "custom"
 			? null
-			: agentProviders(input.agent, input.acpAgent).flatMap((provider) => provider.keyEnvVars);
+			: AGENT_LAUNCH_FACTS[input.agent].providers.flatMap((provider) => provider.keyEnvVars);
 	const ownKeys: Record<string, string> = {};
 	for (const [name, key] of Object.entries(input.launch.providerKeys)) {
 		if (ownKeyNames !== null && !ownKeyNames.includes(name)) continue;
@@ -222,7 +226,7 @@ export function baseUrlEnvironment(
 ): Result<Record<string, string>> {
 	const value = baseUrl?.trim();
 	if (value === undefined || value === "") return ok({});
-	const variable = BASE_URL_VARIABLES[agent];
+	const variable = AGENT_LAUNCH_FACTS[agent].baseUrlEnvVar;
 	if (variable === undefined) {
 		return err(
 			appError(
@@ -239,113 +243,132 @@ export function claudeProviderEnvironment(
 	provider: string | undefined,
 ): Result<Record<string, string>> {
 	const name = provider?.trim().toLowerCase();
-	if (name === undefined || name === "" || name === "anthropic" || name === "custom") return ok({});
-	const variable = CLAUDE_PROVIDER_VARIABLES[name];
-	if (variable === undefined) {
+	if (name === undefined || name === "") return ok({});
+	const claude = AGENT_LAUNCH_FACTS.claude;
+	const routes = [...claude.providers, ...(claude.routingOnly ?? [])];
+	const known = routes.find((route) => route.id === name);
+	if (known === undefined) {
 		return err(
 			appError(
 				"claude_provider_unknown",
-				`Claude has no provider called "${provider}". Choose Anthropic, Bedrock, Vertex, Foundry or Mantle.`,
+				`Claude has no provider called "${provider}". Choose one of: ${routes.map((route) => route.id).join(", ")}.`,
 			),
 		);
 	}
-	return ok({ [variable]: "1" });
+	return ok(known.routingEnvVar === undefined ? {} : { [known.routingEnvVar]: "1" });
 }
 
-/** The providers an agent can use and the variables their keys go to. */
+/** The providers an agent can use and the variables their keys go to, as a fresh copy. */
 export function agentProviders(agent: AgentKind, _acpAgent?: AcpAgent): AgentProvider[] {
-	if (agent === "acp") return [...ACP_PROVIDERS];
-	return [...AGENT_PROVIDERS[agent]];
+	return AGENT_LAUNCH_FACTS[agent].providers.map((provider) => ({
+		id: provider.id,
+		label: provider.label,
+		keyEnvVars: [...provider.keyEnvVars],
+	}));
 }
 
-const BASE_URL_VARIABLES: Readonly<Partial<Record<AgentKind, string>>> = {
-	claude: "ANTHROPIC_BASE_URL",
-	codex: "OPENAI_BASE_URL",
-};
+/** A provider an agent can use. */
+interface LaunchProvider extends AgentProvider {
+	/** Claude only: the variable set to "1" to route Claude through this provider. */
+	routingEnvVar?: string;
+}
 
-const CLAUDE_PROVIDER_VARIABLES: Readonly<Record<string, string>> = {
-	bedrock: "CLAUDE_CODE_USE_BEDROCK",
-	vertex: "CLAUDE_CODE_USE_VERTEX",
-	foundry: "CLAUDE_CODE_USE_FOUNDRY",
-	mantle: "CLAUDE_CODE_USE_MANTLE",
-};
+/**
+ * Everything the launch needs to know about one agent, in one place: its name in messages, the
+ * variable its base URL goes to, and its providers with their key and routing variables. The
+ * provider list, the key filter (D033), the Claude routing and the error texts all read this.
+ */
+interface AgentLaunchFacts {
+	name: string;
+	/** Missing when the agent has no base URL setting. */
+	baseUrlEnvVar?: string;
+	/** Listed by `listAgentProviders`; their key variables are the only keys the agent receives. */
+	providers: readonly LaunchProvider[];
+	/**
+	 * Claude only: providers Claude can be routed to that have no key form of their own (Foundry and
+	 * Mantle, native-and-sidecar-map B4). The research names no key variables for them, so none is
+	 * listed; their keys arrive through a custom provider.
+	 */
+	routingOnly?: readonly { id: string; routingEnvVar: string }[];
+}
 
-const AGENT_PROVIDERS: Readonly<Record<Exclude<AgentKind, "acp">, AgentProvider[]>> = {
-	claude: [
-		{
-			id: "anthropic",
-			label: "Anthropic API key",
-			// The subscription token signs a Claude Code subscription in through the same provider.
-			keyEnvVars: ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"],
-		},
-		{
-			id: "bedrock",
-			label: "Amazon Bedrock",
-			keyEnvVars: [
-				"AWS_ACCESS_KEY_ID",
-				"AWS_SECRET_ACCESS_KEY",
-				"AWS_SESSION_TOKEN",
-				"AWS_BEARER_TOKEN_BEDROCK",
-				"ANTHROPIC_MODEL",
-			],
-		},
-		{
-			id: "vertex",
-			label: "Google Vertex AI",
-			keyEnvVars: ["GOOGLE_APPLICATION_CREDENTIALS"],
-		},
-		// The Providers dialog's "Custom provider" (SET-09): the key and the optional workspace ID
-		// go where the app's provider forms put them (keyEnvVarFor, workspaceIdEnvVarFor).
-		{
-			id: "custom",
-			label: "Custom provider",
-			keyEnvVars: ["ANTHROPIC_API_KEY", "ANTHROPIC_WORKSPACE_ID"],
-		},
-	],
-	codex: [
-		{
-			id: "openai",
-			label: "OpenAI API key",
-			keyEnvVars: ["OPENAI_API_KEY"],
-		},
-		{
-			id: "custom",
-			label: "Custom provider",
-			keyEnvVars: ["OPENAI_API_KEY", "OPENAI_ORG_ID"],
-		},
-	],
-	cursor: [
-		{
-			id: "cursor",
-			label: "Cursor API key",
-			keyEnvVars: ["CURSOR_API_KEY"],
-		},
-	],
-};
-
-/** The providers OpenCode and Pi both read: the OpenCode catalogue (SET-10) and a custom one. */
-const ACP_PROVIDERS: AgentProvider[] = [
-	...opencodeProviders(),
-	{
-		id: "custom",
-		label: "Custom provider",
-		keyEnvVars: ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_ORG_ID", "OPENCODE_WORKSPACE_ID"],
+const AGENT_LAUNCH_FACTS: Readonly<Record<AgentKind, AgentLaunchFacts>> = {
+	claude: {
+		name: "Claude Code",
+		baseUrlEnvVar: "ANTHROPIC_BASE_URL",
+		providers: [
+			{
+				id: "anthropic",
+				label: "Anthropic API key",
+				// The subscription token signs a Claude Code subscription in through the same provider.
+				keyEnvVars: ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"],
+			},
+			{
+				id: "bedrock",
+				label: "Amazon Bedrock",
+				keyEnvVars: [
+					"AWS_ACCESS_KEY_ID",
+					"AWS_SECRET_ACCESS_KEY",
+					"AWS_SESSION_TOKEN",
+					"AWS_BEARER_TOKEN_BEDROCK",
+					"ANTHROPIC_MODEL",
+				],
+				routingEnvVar: "CLAUDE_CODE_USE_BEDROCK",
+			},
+			{
+				id: "vertex",
+				label: "Google Vertex AI",
+				keyEnvVars: ["GOOGLE_APPLICATION_CREDENTIALS"],
+				routingEnvVar: "CLAUDE_CODE_USE_VERTEX",
+			},
+			// The Providers dialog's "Custom provider" (SET-09): the key and the optional workspace ID
+			// go where the app's provider forms put them (keyEnvVarFor, workspaceIdEnvVarFor).
+			{
+				id: "custom",
+				label: "Custom provider",
+				keyEnvVars: ["ANTHROPIC_API_KEY", "ANTHROPIC_WORKSPACE_ID"],
+			},
+		],
+		routingOnly: [
+			{ id: "foundry", routingEnvVar: "CLAUDE_CODE_USE_FOUNDRY" },
+			{ id: "mantle", routingEnvVar: "CLAUDE_CODE_USE_MANTLE" },
+		],
 	},
-];
+	codex: {
+		name: "Codex",
+		baseUrlEnvVar: "OPENAI_BASE_URL",
+		providers: [
+			{ id: "openai", label: "OpenAI API key", keyEnvVars: ["OPENAI_API_KEY"] },
+			{ id: "custom", label: "Custom provider", keyEnvVars: ["OPENAI_API_KEY", "OPENAI_ORG_ID"] },
+		],
+	},
+	cursor: {
+		name: "Cursor",
+		providers: [{ id: "cursor", label: "Cursor API key", keyEnvVars: ["CURSOR_API_KEY"] }],
+	},
+	acp: {
+		name: "The OpenCode or Pi program",
+		// OpenCode and Pi both read the OpenCode catalogue (SET-10), plus a custom provider.
+		providers: [
+			...opencodeProviders(),
+			{
+				id: "custom",
+				label: "Custom provider",
+				keyEnvVars: [
+					"OPENAI_API_KEY",
+					"ANTHROPIC_API_KEY",
+					"OPENAI_ORG_ID",
+					"OPENCODE_WORKSPACE_ID",
+				],
+			},
+		],
+	},
+};
 
 function runsThroughRuntime(programPath: string): boolean {
 	return programPath.toLowerCase().endsWith(".js");
 }
 
 function agentName(agent: AgentKind): string {
-	switch (agent) {
-		case "claude":
-			return "Claude Code";
-		case "codex":
-			return "Codex";
-		case "cursor":
-			return "Cursor";
-		case "acp":
-			return "The OpenCode or Pi program";
-	}
+	return AGENT_LAUNCH_FACTS[agent].name;
 }
