@@ -222,6 +222,7 @@ async function harness(
 			binDir: BIN_DIR,
 			outboxRoot: path.join(folder, "outbox"),
 			completionsDir: path.join(folder, "completions"),
+			cursorStoreDir: path.join(folder, "cursor-sdk-store"),
 			logDir: path.join(folder, "log"),
 			skillPluginDir: options.skillPluginDir,
 			appVersion: "0.0.0",
@@ -885,6 +886,45 @@ describe("s1-sidecar join the batch through the composition root", () => {
 		}
 	});
 
+	test("AGENT-09 a Cursor chat gets the app tools and its run store folder from the root", async () => {
+		const folder = await workspaceFolder();
+		const run = new FakeCursorRun();
+		run.finish();
+		const sdk = new FakeCursorSdk(run);
+		const h = await harness(folder, { cursorSdk: sdk });
+		const sessionId = "session-1" as SessionId;
+		try {
+			await h.handlers.sendMessage(
+				sendParams(folder, baseConfig({ agent: "cursor", model: "cursor-composer-2-5" }), {
+					env: { CURSOR_API_KEY: "cursor-key" },
+					providerKeys: {},
+				}),
+			);
+			await waitForIdle(h, sessionId);
+
+			const options = sdk.resumeCalls[0]?.options;
+			expect(options?.local.storeDir?.startsWith(path.join(folder, "cursor-sdk-store"))).toBe(true);
+			const server = options?.mcpServers?.conducted as {
+				command: string;
+				args: string[];
+				env: Record<string, string>;
+			};
+			expect(server.command).toBe("/Applications/Conducted.app/Contents/MacOS/sidecar");
+			expect(server.args.slice(0, 3)).toEqual(["app-tools-mcp", "--session-id", sessionId]);
+			const token = server.env[BRIDGE_TOKEN_ENV] ?? "";
+			expect(await callTool(h.host, sessionId, token)).toMatchObject({ ok: true });
+
+			await h.handlers.resetAgent({ sessionId });
+
+			expect(await callTool(h.host, sessionId, token)).toEqual({
+				ok: false,
+				error: "Unauthorized",
+			});
+		} finally {
+			await h.host.sessions.shutdown("app_quit");
+		}
+	});
+
 	test("AGENT-13 a Codex chat sets, reads, pauses, resumes and clears its goal", async () => {
 		const folder = await workspaceFolder();
 		const h = await harness(folder);
@@ -969,6 +1009,7 @@ describe("s1-sidecar join the batch through the composition root", () => {
 			binDir: BIN_DIR,
 			outboxRoot: path.join(folder, "outbox"),
 			completionsDir: path.join(folder, "completions"),
+			cursorStoreDir: path.join(folder, "cursor-sdk-store"),
 			logDir: path.join(folder, "log"),
 			appVersion: "9.9.9",
 			logLevel: "debug",
@@ -980,6 +1021,7 @@ describe("s1-sidecar join the batch through the composition root", () => {
 				CONDUCTED_BIN_DIR: config.binDir,
 				CONDUCTED_OUTBOX_ROOT: config.outboxRoot,
 				CONDUCTED_COMPLETIONS_DIR: config.completionsDir,
+				CONDUCTED_CURSOR_STORE_DIR: config.cursorStoreDir,
 				CONDUCTED_LOG_DIR: config.logDir,
 				CONDUCTED_APP_VERSION: config.appVersion,
 				CONDUCTED_LOG_LEVEL: config.logLevel,
@@ -1054,6 +1096,7 @@ describe("s1-sidecar join the batch through the composition root", () => {
 				CONDUCTED_BIN_DIR: BIN_DIR,
 				CONDUCTED_OUTBOX_ROOT: path.join(folder, "outbox"),
 				CONDUCTED_COMPLETIONS_DIR: path.join(folder, "completions"),
+				CONDUCTED_CURSOR_STORE_DIR: path.join(folder, "cursor-sdk-store"),
 				CONDUCTED_LOG_DIR: path.join(folder, "log"),
 				CONDUCTED_APP_VERSION: "0.0.0",
 				CONDUCTED_LOG_LEVEL: "info",

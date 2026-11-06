@@ -92,8 +92,14 @@ export interface StartOptions {
 	 * not a separate onEnterPlanMode callback.
 	 */
 	onConfigChanged?: (config: SessionConfig, reason: AgentConfigChangeReason) => void;
-	/** Codex only: a goal changed by the agent or by a `/goal` steer (AGENT-13). */
-	onGoalEvent?: (event: unknown) => void;
+	/** Codex only: a goal changed by the agent or by a `/goal` message (AGENT-13). */
+	onGoalEvent?: (event: GoalEvent) => void;
+}
+
+/** One goal notification of the agent: which one it was, and its payload as the agent sent it. */
+export interface GoalEvent {
+	notification: "updated" | "cleared";
+	params: unknown;
 }
 
 export interface TurnInput {
@@ -169,8 +175,11 @@ export interface RunnerSlashCommand {
 export interface Runner {
 	readonly agent: AgentKind;
 	readonly capabilities: RunnerCapabilities;
-	/** Finds the agent program on the user's PATH and reports its version. */
-	detect(env: Readonly<Record<string, string>>): Promise<{ path: string; version: string } | null>;
+	/**
+	 * Finds the agent program on the user's PATH and reports its version. The version is absent when
+	 * the agent has no way to report one (Cursor's SDK), never an invented value.
+	 */
+	detect(env: Readonly<Record<string, string>>): Promise<{ path: string; version?: string } | null>;
 	start(options: StartOptions): Promise<AgentSession>;
 	listModels(): Promise<ModelInfo[]>;
 	listSlashCommands(workspacePath: string): Promise<RunnerSlashCommand[]>;

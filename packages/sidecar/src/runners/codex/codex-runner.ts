@@ -27,6 +27,7 @@ import type { Effort, ModelInfo } from "@conducted/protocol";
 import { type AppError, appError, err, ok, type Result } from "@conducted/shared";
 import { parseVersion, VERSION_PROBE_TIMEOUT_MS } from "../../models/agent-detection.ts";
 import { AGENT_NOT_INSTALLED } from "../../models/catalog.ts";
+import { asRecord, isRecord } from "../../util/records.ts";
 import type { RunnerCommonDeps } from "../deps.ts";
 import { findAgentProgram } from "../launch-env.ts";
 import type {
@@ -464,10 +465,6 @@ function isString(value: string | undefined): value is string {
 	return value !== undefined;
 }
 
-function isRecord(value: Record<string, unknown> | null): value is Record<string, unknown> {
-	return value !== null;
-}
-
 function readAccount(value: unknown): CodexAccount {
 	const root = asRecord(value);
 	if (root === null) return { authenticated: false };
@@ -478,8 +475,4 @@ function readAccount(value: unknown): CodexAccount {
 		authenticated: true,
 		...(typeof method === "string" ? { authMethod: method } : {}),
 	};
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-	return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
 }

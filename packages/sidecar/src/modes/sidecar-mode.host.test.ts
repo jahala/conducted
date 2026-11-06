@@ -68,6 +68,7 @@ async function startHost(folder: string): Promise<HostRun> {
 			CONDUCTED_BIN_DIR: BIN_DIR,
 			CONDUCTED_OUTBOX_ROOT: outboxRoot,
 			CONDUCTED_COMPLETIONS_DIR: completionsDir,
+			CONDUCTED_CURSOR_STORE_DIR: path.join(folder, "cursor-sdk-store"),
 			CONDUCTED_LOG_DIR: logDir,
 			CONDUCTED_APP_VERSION: "0.0.0",
 			CONDUCTED_LOG_LEVEL: "info",

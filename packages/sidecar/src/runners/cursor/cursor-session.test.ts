@@ -1,13 +1,14 @@
 /**
  * @feature AGENT-09 Cursor: SDK in process
  * Owns: tests for one chat's Cursor agent: loading the SDK lazily, resume and create, one run at a
- * time, streaming, waiting, steer, cancel, config changes, usage and dispose.
+ * time, streaming, waiting, steer, cancel, config changes, usage, dispose, the translator flush at
+ * every end of a turn and the sign-in check.
  * Test first: with a fake SDK whose run streams one text message and finishes, runTurn emits one
  * text message and resolves success.
  */
 import { describe, expect, test } from "bun:test";
 import type { AgentMessage, SessionConfig } from "@conducted/protocol";
-import type { SessionId, WorkspaceId } from "@conducted/shared";
+import type { SessionId, ToolUseId, WorkspaceId } from "@conducted/shared";
 import { ok } from "@conducted/shared";
 import { createLogger, type LogRecord } from "../../logging/logger.ts";
 import { KeyedSerialQueue } from "../../session/serial-queue.ts";
@@ -16,12 +17,13 @@ import {
 	FakeCursorSdk,
 	FakeCursorTranslator,
 } from "../../test-support/cursor-fakes.ts";
+import { createDeferred } from "../../util/deferred.ts";
 import { NoActiveTurnError, SteerNotSupportedError, SteerRevertedError } from "../errors.ts";
 import type { StartOptions, TurnCallbacks, TurnInput } from "../runner.ts";
 import type { CursorSdk } from "./cursor-sdk.ts";
-import { CursorSession } from "./cursor-session.ts";
+import { CursorSession, isCursorAuthError } from "./cursor-session.ts";
 import { EnvLock } from "./env-lock.ts";
-import type { CursorTranslator } from "./translate.ts";
+import { CursorTranslator } from "./translate.ts";
 
 const baseConfig: SessionConfig = {
 	agent: "cursor",
@@ -51,6 +53,8 @@ function startOptions(overrides: Partial<StartOptions> = {}): StartOptions {
 		...overrides,
 	};
 }
+
+const CALL_ID = "call-1" as ToolUseId;
 
 const turnInput = (overrides: Partial<TurnInput> = {}): TurnInput => ({
 	text: "hello",
@@ -98,12 +102,15 @@ function makeSession(
 		start?: StartOptions;
 		loadError?: boolean;
 		records?: LogRecord[];
+		/** Use the real translator, for tests about what a turn emits. */
+		realTranslator?: boolean;
 	} = {},
 ) {
 	const translator = new FakeCursorTranslator();
 	const target: Record<string, string | undefined> = {};
 	const envLock = new EnvLock({ queue: new KeyedSerialQueue(), target });
 	let loads = 0;
+	let disposals = 0;
 	const session = new CursorSession(
 		{
 			loadSdk: async () => {
@@ -117,10 +124,16 @@ function makeSession(
 				return ok(sdk as CursorSdk);
 			},
 			envLock,
-			translator: translator as unknown as CursorTranslator,
+			translator:
+				options.realTranslator === true
+					? new CursorTranslator({ logger: makeLogger() })
+					: (translator as unknown as CursorTranslator),
 			apiKey: "apiKey" in options ? options.apiKey : "cursor-key",
 			mcpServers: {},
-			...(options.storeDir === undefined ? {} : { storeDir: options.storeDir }),
+			storeDir: options.storeDir ?? "/app-data/cursor-sdk-store/workspace-one",
+			onDispose: () => {
+				disposals += 1;
+			},
 			logger: makeLogger(options.records),
 		},
 		options.start ?? startOptions(),
@@ -130,6 +143,7 @@ function makeSession(
 		translator,
 		target,
 		loads: () => loads,
+		disposals: () => disposals,
 	};
 }
 
@@ -422,6 +436,7 @@ describe("AGENT-09 Cursor session", () => {
 				apiKey: "cursor-key",
 				mcpServers: {},
 				storeDir: "/app-data/cursor-sdk-store/abc",
+				onDispose: () => {},
 				logger: makeLogger(),
 			},
 			startOptions(),
@@ -457,5 +472,126 @@ describe("AGENT-09 Cursor session", () => {
 		expect(messages).toContain("run started");
 		expect(messages).toContain("steer delivered");
 		expect(messages).toContain("cancel");
+	});
+
+	test("a cancelled turn emits its buffered text, and the next turn starts with no text or calls of it", async () => {
+		const first = new FakeCursorRun();
+		first.messages.push(
+			{ type: "tool_call", call_id: "call-1", name: "shell", status: "running", args: {} },
+			{ type: "assistant", content: [{ type: "text", text: "partial" }] },
+		);
+		const second = new FakeCursorRun();
+		second.messages.push(
+			{ type: "assistant", content: [{ type: "text", text: "fresh" }] },
+			{ type: "tool_call", call_id: "call-1", name: "shell", status: "running", args: {} },
+		);
+		second.finish();
+		const sdk = new FakeCursorSdk(first);
+		sdk.agent.nextRuns.push(first, second);
+		const { session } = makeSession(sdk, { realTranslator: true });
+
+		const cancelled = callbacks();
+		const outcome = session.runTurn(turnInput(), cancelled);
+		await waitFor(() => first.consumed === 2, "both messages of the first run");
+		await session.cancel();
+		expect(await outcome).toEqual({ kind: "cancelled" });
+		expect(cancelled.messages.map((message) => message.items)).toEqual([
+			[{ kind: "tool_call", toolUseId: CALL_ID, tool: "bash", rawName: "shell", input: {} }],
+			[{ kind: "text", text: "partial" }],
+		]);
+
+		const next = callbacks();
+		expect(await session.runTurn(turnInput({ text: "again" }), next)).toEqual({
+			kind: "success",
+		});
+		expect(next.messages.map((message) => message.items)).toEqual([
+			[{ kind: "text", text: "fresh" }],
+			[{ kind: "tool_call", toolUseId: CALL_ID, tool: "bash", rawName: "shell", input: {} }],
+		]);
+	});
+
+	test("a turn that fails after streaming still emits its buffered text", async () => {
+		const run = new FakeCursorRun();
+		run.messages.push({ type: "assistant", content: [{ type: "text", text: "half done" }] });
+		run.waitError = new Error("The run stopped on the server");
+		run.finish();
+		const sdk = new FakeCursorSdk(run);
+		const { session } = makeSession(sdk, { realTranslator: true });
+		const recorded = callbacks();
+
+		const outcome = await session.runTurn(turnInput(), recorded);
+
+		expect(outcome).toEqual({
+			kind: "error",
+			message: "The run stopped on the server",
+			retryable: false,
+		});
+		expect(recorded.messages.map((message) => message.items)).toEqual([
+			[{ kind: "text", text: "half done" }],
+		]);
+	});
+
+	test("dispose while the send is pending cancels the run it hands back and starts nothing", async () => {
+		const run = new FakeCursorRun();
+		run.messages.push({ type: "text", text: "should not stream" });
+		run.finish();
+		const sdk = new FakeCursorSdk(run);
+		const gate = createDeferred<void>();
+		sdk.agent.sendGate = gate.promise;
+		const { session, translator, disposals } = makeSession(sdk);
+
+		const outcome = session.runTurn(turnInput(), callbacks());
+		await waitFor(() => sdk.agent.sent.length === 1, "the send");
+		await session.dispose();
+		gate.resolve();
+
+		expect(await outcome).toEqual({ kind: "cancelled" });
+		expect(run.cancelCalls).toBe(1);
+		expect(translator.pushed).toEqual([]);
+		expect(disposals()).toBe(1);
+	});
+
+	test("dispose gives the app tools token back once", async () => {
+		const { session, disposals } = makeSession(new FakeCursorSdk(new FakeCursorRun()));
+		await session.dispose();
+		await session.dispose();
+		expect(disposals()).toBe(1);
+	});
+
+	test("a sign-in failure is told by whole words, never by a substring", () => {
+		for (const message of [
+			"401 unauthorized: bad api key",
+			"Invalid API key",
+			"Not signed in to Cursor",
+			"Authentication failed",
+			"Request failed with status code 403",
+		]) {
+			expect({ message, auth: isCursorAuthError(new Error(message)) }).toEqual({
+				message,
+				auth: true,
+			});
+		}
+		for (const message of [
+			"author not found",
+			"No agent with id agent-4012",
+			"No agent with id agent-401",
+			"Could not read /Users/me/login-notes.md",
+		]) {
+			expect({ message, auth: isCursorAuthError(new Error(message)) }).toEqual({
+				message,
+				auth: false,
+			});
+		}
+	});
+
+	test("a resume that fails with a message that only contains 'author' creates a new agent", async () => {
+		const run = new FakeCursorRun();
+		run.finish();
+		const sdk = new FakeCursorSdk(run);
+		sdk.resumeError = new Error("author not found for this agent");
+		const { session } = makeSession(sdk);
+
+		expect(await session.runTurn(turnInput(), callbacks())).toEqual({ kind: "success" });
+		expect(sdk.createCalls).toHaveLength(1);
 	});
 });

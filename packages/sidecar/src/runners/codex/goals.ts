@@ -14,7 +14,9 @@
  * thread first); a status the app server sends that we do not know (kept as `blocked`, logged);
  * the server's statuses `usageLimited` and `budgetLimited` map to `usage_limited` and
  * `budget_limited`; a goal changed by the agent while no turn runs (the notification still goes
- * out); the feature flag `codex_goals_disabled` (the app hides the bar; the sidecar still answers).
+ * out); an update notification that carries no goal (logged and dropped; only the cleared
+ * notification clears). The session manager routes a `/goal` message here on an idle chat and on a
+ * working one alike.
  * The method and notification names below were checked against the TypeScript bindings that
  * `codex app-server generate-ts` writes for codex-cli 0.154.0. Re-generate them when the Codex
  * version changes.
@@ -24,6 +26,8 @@
 import type { CodexGoal } from "@conducted/protocol";
 import { type AppError, appError, err, ok, type Result, type SessionId } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
+import { asRecord } from "../../util/records.ts";
+import type { GoalEvent } from "../runner.ts";
 
 /** The app server's goal calls. Requests we send to it. */
 const CODEX_GOAL_METHODS = {
@@ -38,7 +42,7 @@ export const CODEX_GOAL_NOTIFICATIONS = {
 	cleared: "thread/goal/cleared",
 } as const;
 
-/** How long a goal call may take. It is one of the app server's cheap calls. */
+/** How long a goal call may take. Our design choice: one of the app server's cheap calls. */
 const CODEX_GOAL_CALL_TIMEOUT_MS = 30_000;
 
 export type GoalCommand =
@@ -255,32 +259,21 @@ export class CodexGoalController {
 		}
 	}
 
-	/** Called for each goal notification of the app server. */
-	onServerGoalEvent(sessionId: SessionId, event: unknown): void {
-		const root = asRecord(event);
-		if (root === null) {
-			this.deps.logger.warn("Ignored a Codex goal event that is not an object", {
-				sessionId,
-			});
-			return;
-		}
-		if ("goal" in root) {
-			const goal = readCodexGoal(root, this.deps.logger);
-			if (goal === null) {
-				this.deps.logger.warn("Ignored a Codex goal update with no goal", { sessionId });
-				return;
-			}
-			this.deps.announce(sessionId, goal);
-			return;
-		}
-		if (typeof root.threadId === "string") {
+	/**
+	 * Called for each goal notification of the app server. The notification's name decides between
+	 * an update and a clear, never the payload's shape: an update without a goal is logged and
+	 * dropped, and only `thread/goal/cleared` clears the bar.
+	 */
+	onServerGoalEvent(sessionId: SessionId, event: GoalEvent): void {
+		if (event.notification === "cleared") {
 			this.deps.announce(sessionId, null);
 			return;
 		}
-		this.deps.logger.warn("Ignored a Codex goal event with no goal and no thread", { sessionId });
+		const goal = readCodexGoal(event.params, this.deps.logger);
+		if (goal === null) {
+			this.deps.logger.warn("Ignored a Codex goal update with no goal", { sessionId });
+			return;
+		}
+		this.deps.announce(sessionId, goal);
 	}
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-	return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
 }

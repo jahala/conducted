@@ -8,18 +8,17 @@
  * Ours is a separate folder with our own text (D002). The Rust launcher sets
  * `CONDUCTED_SKILL_PLUGIN_DIR` (`sidecar::skill_plugin_dir`).
  * Must handle: the variable missing (no plugin, no error: a dev run has no bundle); a folder that
- * does not exist (an error value that names it, and Claude starts without the plugin); a relative
- * path (refused: the path must be absolute); the skill text only names `CONDUCTED_*` variables (D027).
- * Our design choice: `config.ts` (SIDE-01) reads the variable when this is built, and the value
- * comes in as a parameter, so this file never reads `process.env`.
+ * does not exist (an error value that names it; the Claude session starts without the plugin and
+ * tells the user once per chat); a relative path (refused: the path must be absolute; config.ts
+ * refuses one at startup too, and this function checks the value it is given whoever calls it); the
+ * skill text only names `CONDUCTED_*` variables (D027).
+ * Our design choice: `config.ts` (SIDE-01) reads the variable (`SIDECAR_ENV.skillPluginDir`, the one
+ * home of its name), and the value comes in as a parameter, so this file never reads `process.env`.
  * Test first: with a folder path, the result holds one local plugin with that path; with no
  * folder, it holds none.
  */
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { appError, err, ok, type Result } from "@conducted/shared";
-
-/** Name of the environment variable that holds the bundled skill folder. */
-export const SKILL_PLUGIN_ENV = "CONDUCTED_SKILL_PLUGIN_DIR";
 
 /** The `plugins` option for `buildClaudeOptions`. Undefined when there is no bundled skill. */
 export function bundledSkillPlugins(

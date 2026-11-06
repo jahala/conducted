@@ -2,7 +2,7 @@
 import type { SlashCommand } from "@conducted/protocol";
 import { appError, err, ok, type Result } from "@conducted/shared";
 import { describe, expect, it, vi } from "vitest";
-import { createTestContainer, seedWorkspace } from "../../test/container.ts";
+import { createTestContainer, seedRepo, seedWorkspace } from "../../test/container.ts";
 import type { SidecarClient } from "../sidecar/tunnel.ts";
 import { AgentCatalogService } from "./agent-catalog.ts";
 
@@ -26,6 +26,7 @@ function serviceWith(
 	return new AgentCatalogService({
 		sidecar: { request },
 		workspacePathOf,
+		repoRootPathOf: async () => ok("/repo"),
 	});
 }
 
@@ -43,7 +44,7 @@ describe("COMP-06 slash commands are loaded", () => {
 			agent: "claude",
 			acpAgent: undefined,
 			workspacePath: "/workspace",
-			repoRootPath: "/workspace",
+			repoRootPath: "/repo",
 		});
 		expect(service.store.getState().slashCommands["chat-1"]).toEqual({
 			state: "ready",
@@ -110,7 +111,8 @@ describe("COMP-06 slash commands through the app container", () => {
 	it("loads the chat agent's commands from the real service", async () => {
 		const test = createTestContainer();
 		try {
-			const workspace = await seedWorkspace(test.container);
+			const repo = await seedRepo(test.container);
+			const workspace = await seedWorkspace(test.container, { repoId: repo.id });
 			const created = await test.container.services.sessions.create(workspace.id, {
 				agent: "claude",
 				model: "default",
@@ -136,7 +138,7 @@ describe("COMP-06 slash commands through the app container", () => {
 				agent: "claude",
 				acpAgent: undefined,
 				workspacePath: workspace.path,
-				repoRootPath: workspace.path,
+				repoRootPath: repo.rootPath,
 			});
 			expect(
 				test.container.services.agentCatalog.store.getState().slashCommands[created.value.id],
@@ -144,6 +146,17 @@ describe("COMP-06 slash commands through the app container", () => {
 				state: "ready",
 				data: [compact],
 			});
+
+			// SIDE-22: the new-workspace composer asks with the same key the open chat saved under.
+			await test.container.services.agentCatalog.loadPreWorkspaceSlashCommands(
+				repo.rootPath,
+				"claude",
+			);
+			const keys = request.mock.calls.map(
+				(call) => (call[1] as { repoRootPath?: string }).repoRootPath,
+			);
+			expect(keys).toEqual([repo.rootPath, repo.rootPath]);
+			expect(repo.rootPath).not.toBe(workspace.path);
 		} finally {
 			test.close();
 		}

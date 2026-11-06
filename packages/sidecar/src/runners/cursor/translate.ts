@@ -5,7 +5,8 @@
  * calls and tool results plus an error message type; Conductor buffers text and thinking chunks
  * (`pendingText`, `pendingThinking`) and flushes them as one message at tool boundaries or at the
  * end of the turn; tool names are renamed (see tool-names.ts); a plan is shown as the exit-plan
- * tool. The message fields are the SDK's (cursor-sdk.ts, checked against @cursor/sdk 1.0.11):
+ * tool. The message fields below are the ones this file reads. The SDK is not installed (D010), so
+ * no recorded sample of its messages checks them; cursor-sdk.ts says how to check them once it is:
  *  - assistant: a text-delta chunk is an assistant message with one text block; a tool_use block
  *    carries the id, name and input of a call
  *  - thinking: a thinking chunk (`text`), including the empty text of a thinking-completed message
@@ -23,7 +24,8 @@
  *    false
  *  - system, user, status, task and request messages carry no item of their own
  * Must handle:
- *  - flush() at the end of the turn and before a tool call
+ *  - flush() before a tool call, and at every end of a turn: success, cancel and error (the session
+ *    calls it, so text buffered before a cancel or a failure still reaches the chat)
  *  - a tool call that arrives already completed: emit its call first, then its result
  *  - a result that arrives twice for one call: emit only the first
  *  - an unknown message type or content block: debug log, no throw
@@ -32,14 +34,13 @@
  * Test first: two text chunks followed by a shell tool call yield [text("ab")] then
  * [tool_call(bash)] in order.
  * Our design choice: the SDK's result value is read as text (a string, content blocks, a shell
- * result's stdout and stderr, or JSON) so the chat card always has plain text. A buffer that
- * switches between text and thinking is emitted as one message holding both items, which keeps
- * their order. flush() also clears the per-turn call state, so one translator can serve the next
- * turn of the same chat.
+ * result's stdout and stderr, or JSON) so the chat card always has plain text. flush() also clears
+ * the per-turn call state, so one translator can serve the next turn of the same chat.
  */
 import type { AgentItem, AgentMessage } from "@conducted/protocol";
 import type { ToolUseId } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
+import { asRecord, readString } from "../../util/records.ts";
 import { contentToText, truncateOutput } from "../output.ts";
 import type { CursorSdkMessage } from "./cursor-sdk.ts";
 import { canonicalToolForCursor } from "./tool-names.ts";
@@ -83,7 +84,7 @@ export class CursorTranslator {
 		}
 	}
 
-	/** Emits whatever is still buffered. Call at the end of the turn. */
+	/** Emits whatever is still buffered and forgets this turn's calls. Call at every end of a turn. */
 	flush(): AgentMessage[] {
 		const messages = this.drain();
 		this.seenCalls.clear();
@@ -264,15 +265,6 @@ function isTerminal(status: string): boolean {
 	return status === "completed" || status === "error";
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-	return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
-}
-
-function readString(record: Record<string, unknown>, key: string): string | null {
-	const value = record[key];
-	return typeof value === "string" ? value : null;
-}
-
 function readText(value: unknown): string | null {
 	const text = contentToText(value);
 	return text === "" ? null : text;
@@ -293,6 +285,7 @@ function outputText(value: unknown): string {
 	if (typeof value === "string") return value;
 	const text = contentToText(value);
 	if (text !== "") return text;
+	if (Array.isArray(value)) return JSON.stringify(value);
 	const record = asRecord(value);
 	if (record !== null) {
 		const stdout = typeof record.stdout === "string" ? record.stdout : "";

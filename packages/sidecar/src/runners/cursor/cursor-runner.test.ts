@@ -34,6 +34,7 @@ import {
 	cursorStoreFolder,
 	expandCursorEnv,
 	readCursorMcpServers,
+	withAppToolsServer,
 } from "./cursor-runner.ts";
 import type { CursorSdk } from "./cursor-sdk.ts";
 import { EnvLock } from "./env-lock.ts";
@@ -105,6 +106,11 @@ function runner(
 				? { ok: false, error: { code: "cursor_sdk_missing", message: "No SDK." } }
 				: ok(sdk),
 		envLock: new EnvLock({ queue: new KeyedSerialQueue(), target }),
+		storeRoot: "/app-data/cursor-sdk-store",
+		appToolsServer: async () => ({
+			server: { command: "/bin/sidecar", args: ["app-tools-mcp"], env: {} },
+			release: () => {},
+		}),
 	};
 	return new CursorRunner(deps);
 }
@@ -132,10 +138,9 @@ describe("AGENT-09 Cursor runner", () => {
 		expect(subject.capabilities.interrupt).toBe(true);
 	});
 
-	test("detect reports the SDK it can load, and null when it cannot", async () => {
+	test("detect reports the SDK it can load, with no invented version, and null when it cannot", async () => {
 		expect(await runner(new FakeCursorSdk()).detect({})).toEqual({
 			path: "@cursor/sdk",
-			version: "",
 		});
 		expect(await runner(null).detect({})).toBeNull();
 	});
@@ -160,8 +165,8 @@ describe("AGENT-09 Cursor runner", () => {
 	});
 
 	test("a workspace gets its own run store folder under the root", () => {
-		const one = cursorStoreFolder("/app-data", "/workspaces/one");
-		const two = cursorStoreFolder("/app-data", "/workspaces/two");
+		const one = cursorStoreFolder("/app-data/cursor-sdk-store", "/workspaces/one");
+		const two = cursorStoreFolder("/app-data/cursor-sdk-store", "/workspaces/two");
 		expect(one).not.toBe(two);
 		expect(one.startsWith(path.join("/app-data", "cursor-sdk-store"))).toBe(true);
 		expect(path.basename(one)).toMatch(/^[0-9a-f]{16}$/);
@@ -243,6 +248,23 @@ describe("AGENT-09 Cursor runner", () => {
 		).toBe(true);
 	});
 
+	test("the app tools join the user's servers and replace one that has their name", () => {
+		const records: LogRecord[] = [];
+		const appTools = { command: "/bin/sidecar", args: ["app-tools-mcp"], env: { T: "token" } };
+		const servers = withAppToolsServer(
+			{ local: { command: "node" }, conducted: { url: "https://example.test/mcp" } },
+			appTools,
+			logger(records),
+		);
+		expect(servers).toEqual({ local: { command: "node" }, conducted: appTools });
+		expect(
+			records.some(
+				(record) =>
+					record.message.includes("app tools replace it") && record.data?.server === "conducted",
+			),
+		).toBe(true);
+	});
+
 	test("a missing MCP file is fine and a broken one is skipped with a warning", async () => {
 		const home = await folder("cursor-home-");
 		const workspace = await folder("cursor-workspace-");
@@ -261,7 +283,7 @@ describe("AGENT-09 Cursor runner", () => {
 		expect(records.some((record) => record.message.includes("not valid JSON"))).toBe(true);
 	});
 
-	test("start forwards the MCP servers and the per-workspace store to the SDK", async () => {
+	test("start forwards the MCP servers, the app tools and the per-workspace store to the SDK", async () => {
 		const home = await folder("cursor-home-");
 		const workspace = await folder("cursor-workspace-");
 		await mkdir(path.join(workspace, ".cursor"), { recursive: true });
@@ -311,43 +333,62 @@ describe("AGENT-09 Cursor runner", () => {
 			logger: logger(),
 		};
 
-		try {
-			process.env.CONDUCTED_CURSOR_STORE_DIR = root;
-			const host = composeSidecar(
-				{
-					binDir: root,
-					outboxRoot: path.join(root, "outbox"),
-					completionsDir: path.join(root, "completions"),
-					logDir: path.join(root, "log"),
-					appVersion: "0.0.0",
-					logLevel: "info",
-				},
-				ports,
-			);
-			const found = host.runners.get({ agent: "cursor" });
-			expect(found.ok).toBe(true);
-			if (!found.ok) throw new Error(found.error.message);
-			const session = await found.value.start(
-				startOptions({ HOME: home, CURSOR_API_KEY: "cursor-key" }, workspace),
-			);
-			const expected = cursorStoreFolder(root, workspace);
-			const resumed = createDeferred<void>();
-			sdk.onResume = () => {
-				expect(process.env.CONDUCTED_CURSOR_STORE_DIR).toBe(expected);
-				resumed.resolve();
-			};
-			const outcome = session.runTurn(turnInput(), callbacks());
-			await resumed.promise;
-			await session.cancel();
-			expect(await outcome).toEqual({ kind: "cancelled" });
+		const storeRoot = path.join(root, "cursor-sdk-store");
+		const host = composeSidecar(
+			{
+				binDir: root,
+				outboxRoot: path.join(root, "outbox"),
+				completionsDir: path.join(root, "completions"),
+				cursorStoreDir: storeRoot,
+				logDir: path.join(root, "log"),
+				appVersion: "0.0.0",
+				logLevel: "info",
+			},
+			ports,
+		);
+		const bridge = await host.bridge.start();
+		if (!bridge.ok) throw new Error(bridge.error.message);
+		cleanups.push(() => host.bridge.stop());
+		const endpoint = host.bridge.currentEndpoint;
+		if (endpoint === null) throw new Error("The bridge is not listening.");
 
-			expect(sdk.resumeCalls[0]?.options.mcpServers).toEqual({
-				local: { command: "node" },
-			});
-			expect(sdk.resumeCalls[0]?.options.local.storeDir).toBe(expected);
-		} finally {
-			if (previous === undefined) delete process.env.CONDUCTED_CURSOR_STORE_DIR;
-			else process.env.CONDUCTED_CURSOR_STORE_DIR = previous;
-		}
+		const found = host.runners.get({ agent: "cursor" });
+		expect(found.ok).toBe(true);
+		if (!found.ok) throw new Error(found.error.message);
+		const session = await found.value.start(
+			startOptions({ HOME: home, CURSOR_API_KEY: "cursor-key" }, workspace),
+		);
+		const expected = cursorStoreFolder(storeRoot, workspace);
+		const resumed = createDeferred<void>();
+		sdk.onResume = () => {
+			expect(process.env.CONDUCTED_CURSOR_STORE_DIR).toBe(expected);
+			resumed.resolve();
+		};
+		const outcome = session.runTurn(turnInput(), callbacks());
+		await resumed.promise;
+		await session.cancel();
+		expect(await outcome).toEqual({ kind: "cancelled" });
+		await session.dispose();
+
+		// The user's server and the app tools reach the SDK, with the token only in the environment.
+		expect(sdk.resumeCalls[0]?.options.mcpServers).toEqual({
+			local: { command: "node" },
+			conducted: {
+				command: "/bin/sidecar",
+				args: [
+					"app-tools-mcp",
+					"--session-id",
+					"session-1",
+					"--socket",
+					endpoint.socketPath,
+					"--workspace-dir",
+					workspace,
+				],
+				env: { CONDUCTED_APP_TOOLS_TOKEN: "token" },
+			},
+		});
+		expect(sdk.resumeCalls[0]?.options.local.storeDir).toBe(expected);
+		expect(expected.startsWith(storeRoot)).toBe(true);
+		expect(process.env.CONDUCTED_CURSOR_STORE_DIR).toBe(previous);
 	});
 });

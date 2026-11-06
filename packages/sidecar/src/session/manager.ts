@@ -28,7 +28,8 @@
  *    restarts nothing
  *  - getSessionStatus for a chat the sidecar does not know: known false (it restarted)
  *  - compact starts a `/compact` turn for a Codex chat, answers started false while a turn runs,
- *    and refuses a chat the sidecar does not know or a chat run by another agent
+ *    and refuses a chat the sidecar does not know or a chat run by another agent; a typed `/compact`
+ *    that would be steered into a running Codex turn is queued instead (AGENT-14)
  *  - the first message adds the workspace instruction block (prompt/); later ones do not
  *  - cancel drops queued messages, withdraws interactions, asks the running turn to take the end
  *    checkpoint, and reports wasWorking
@@ -47,7 +48,9 @@
  *  - a config the agent changes by itself (plan mode) updates the chat's state and is sent to the
  *    app with the reason, so the app's stored config agrees
  *  - a goal call on a chat that is not Codex answers invalid_params, and a goal call starts or
- *    resumes the chat's Codex thread and announces every change to the app (AGENT-13)
+ *    resumes the chat's Codex thread and announces every change to the app (AGENT-13); a Codex
+ *    message that starts with `/goal` becomes the goal call whether the chat is idle or working,
+ *    and `/goal` alone answers a usage error
  *  - a plan answer the broker accepts with feedback is stored as a user_message with delivery
  *    plan_feedback in the running turn, so the chat keeps what the user asked for (CHAT-12,
  *    claude-runner 3.5); an approval, a denial with no feedback and a refused answer store nothing
@@ -90,6 +93,7 @@ import type {
 	AppToSidecarRequestParams,
 	SidecarToApp,
 } from "../rpc/types.ts";
+import { isCompactCommand } from "../runners/codex/codex-session.ts";
 import {
 	CodexGoalController,
 	type CodexGoalHandle,
@@ -335,11 +339,40 @@ export class DefaultSessionManager implements SessionManager {
 				const capabilities: RunnerCapabilities = agentDiffers
 					? { ...runnerResult.value.capabilities, steer: false }
 					: (state.runner ?? runnerResult.value).capabilities;
+				// A `/goal` message to a Codex chat changes the goal on every path, idle or working; it
+				// never reaches Codex as the text of a turn or a steer (AGENT-13).
+				if (params.config.agent === "codex") {
+					const command = parseGoalCommand(prepared.value.text);
+					if (!command.ok) {
+						state.duplicates.forget(params.messageId);
+						return err(command.error);
+					}
+					if (command.value !== null) {
+						const working = state.activeTurn !== null || status === "working";
+						return this.deliverGoalCommand(
+							state,
+							prepared.value,
+							command.value,
+							working ? "steer" : "new_turn",
+						);
+					}
+				}
+
 				const choice = chooseDelivery({
 					requested: params.delivery,
 					status,
 					capabilities,
 				});
+				// `/compact` runs through thread/compact/start as a turn of its own. Steered into a running
+				// turn it would reach Codex as plain text, so it waits for that turn to end (AGENT-14).
+				if (
+					choice === "steer" &&
+					params.config.agent === "codex" &&
+					isCompactCommand(prepared.value.text)
+				) {
+					this.enqueue(state, prepared.value);
+					return ok({ deliveredAs: "queued" });
+				}
 
 				switch (choice) {
 					case "new_turn": {
@@ -995,14 +1028,6 @@ export class DefaultSessionManager implements SessionManager {
 		request: TurnRequest,
 		signal: AbortSignal,
 	): Promise<AppToSidecarHandlerValue<"sendMessage">> {
-		const command = parseGoalCommand(request.text);
-		if (!command.ok) {
-			state.duplicates.forget(request.messageId);
-			return err(command.error);
-		}
-		if (command.value !== null && request.config.agent === "codex") {
-			return this.deliverGoalCommand(state, request, command.value);
-		}
 		const runnerResult = this.runnerFor(request.config);
 		if (!runnerResult.ok) {
 			state.duplicates.forget(request.messageId);
@@ -1076,11 +1101,17 @@ export class DefaultSessionManager implements SessionManager {
 		}
 	}
 
-	/** A `/goal` steer changes the chat's Codex goal instead of reaching the running turn. */
+	/**
+	 * A `/goal` message changes the chat's Codex goal instead of reaching Codex as text. While a turn
+	 * runs it is answered as a steer into that turn. On an idle chat no agent turn starts: it is
+	 * answered as a new turn and stored as a user message whose turn ended at once, so the chat shows
+	 * the message as done, the way publishUnstarted stores a queued message that could not start.
+	 */
 	private async deliverGoalCommand(
 		state: SessionState,
 		request: TurnRequest,
 		command: GoalCommand,
+		delivery: "new_turn" | "steer",
 	): Promise<AppToSidecarHandlerValue<"sendMessage">> {
 		const changed =
 			command.action === "set"
@@ -1091,10 +1122,19 @@ export class DefaultSessionManager implements SessionManager {
 			return err(changed.error);
 		}
 		state.duplicates.markHandled(request.messageId);
-		state.duplicates.rememberDelivery(request.messageId, "steer");
+		state.duplicates.rememberDelivery(request.messageId, delivery);
 		this.deps.interactions.withdrawAll(state.sessionId);
-		this.publishUserMessage(request, "steer");
-		return ok({ deliveredAs: "steer" });
+		this.publishUserMessage(request, delivery);
+		if (delivery === "new_turn") {
+			this.deps.publisher.publish(request.sessionId, {
+				type: "turn_ended",
+				eventId: this.deps.ids.uuid() as EventId,
+				at: this.deps.clock.now(),
+				turnId: request.turnId,
+				outcome: "success",
+			});
+		}
+		return ok({ deliveredAs: delivery });
 	}
 
 	private async steerFailed(
@@ -1398,7 +1438,7 @@ export class DefaultSessionManager implements SessionManager {
 		});
 	}
 
-	private publishUserMessage(request: TurnRequest, delivery: "steer"): void {
+	private publishUserMessage(request: TurnRequest, delivery: "new_turn" | "steer"): void {
 		const event: SessionEvent = {
 			type: "user_message",
 			eventId: this.deps.ids.uuid() as EventId,

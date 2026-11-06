@@ -2,9 +2,11 @@ import { describe, expect, test } from "bun:test";
 import {
 	createLogger,
 	createRepeatFolder,
+	isSecretName,
 	type LogRecord,
 	type RepeatScheduler,
-	redactEnv,
+	redactRecord,
+	redactSecrets,
 	rerouteConsole,
 } from "./logger.ts";
 
@@ -50,13 +52,67 @@ describe("SIDE-18 Logger", () => {
 		expect(() => logger.info("x")).not.toThrow();
 	});
 
-	test("SIDE-18 redactEnv hides secret-looking values and keeps others", () => {
-		const out = redactEnv({ ANTHROPIC_API_KEY: "abcd", PATH: "/bin", GH_TOKEN: "t" });
+	test("SIDE-18 redaction hides secret-looking values and keeps others", () => {
+		const out = redactSecrets({ ANTHROPIC_API_KEY: "abcd", PATH: "/bin", GH_TOKEN: "t" });
 		expect(out).toEqual({
 			ANTHROPIC_API_KEY: "<redacted:4>",
 			PATH: "/bin",
 			GH_TOKEN: "<redacted:1>",
 		});
+	});
+
+	test("SIDE-18 redaction reaches nested data and keeps the key names", () => {
+		const record: LogRecord = {
+			at: 1,
+			level: "debug",
+			scope: "runner:claude",
+			message: "workspace <> SDK",
+			data: {
+				direction: "upstream",
+				data: {
+					options: { env: { OPENAI_API_KEY: "sk-secret", HOME: "/Users/me" } },
+					headers: [{ authorization: "Bearer abc" }],
+					apiKey: 42,
+				},
+			},
+		};
+		expect(redactRecord(record).data).toEqual({
+			direction: "upstream",
+			data: {
+				options: { env: { OPENAI_API_KEY: "<redacted:9>", HOME: "/Users/me" } },
+				headers: [{ authorization: "<redacted:10>" }],
+				apiKey: "<redacted>",
+			},
+		});
+		// The record the caller holds is not changed.
+		expect(record.data?.data).toMatchObject({ apiKey: 42 });
+	});
+
+	test("SIDE-18 the secret-name rule, with names that must and must not match", () => {
+		for (const name of [
+			"ANTHROPIC_API_KEY",
+			"STRIPE_KEY",
+			"GH_TOKEN",
+			"GH_PAT",
+			"AUTHORIZATION",
+			"COOKIE",
+			"apiKey",
+			"authToken",
+			"clientSecret",
+			"DB_PASSWORD",
+			"CONDUCTED_INTERNAL_X",
+		]) {
+			expect({ name, secret: isSecretName(name) }).toEqual({ name, secret: true });
+		}
+		for (const name of ["PATH", "REACT_COMPAT", "key", "monkey", "tokens", "tokenBudget", "HOME"]) {
+			expect({ name, secret: isSecretName(name) }).toEqual({ name, secret: false });
+		}
+	});
+
+	test("SIDE-18 a circular value is written as a marker, not an endless walk", () => {
+		const loop: Record<string, unknown> = { name: "loop" };
+		loop.self = loop;
+		expect(redactSecrets(loop)).toEqual({ name: "loop", self: "[circular]" });
 	});
 });
 

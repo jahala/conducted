@@ -380,6 +380,12 @@ export function createContainer(inputs: ContainerInputs): Container {
 	const agentCatalog = new AgentCatalogService({
 		sidecar: client,
 		workspacePathOf: (sessionId) => ready(lookups.workspacePathOfSession(sessionId)),
+		repoRootPathOf: (sessionId) => {
+			const ws = lookups.workspaceOfSession(sessionId);
+			if (!ws.ok) return ready(ws);
+			const repo = lookups.repoOf(ws.value.id);
+			return ready(repo.ok ? ok(repo.value.rootPath) : repo);
+		},
 		providerKeys: repositories.providerKeys,
 		keychain: platform.keychain,
 	});

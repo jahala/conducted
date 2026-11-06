@@ -92,6 +92,11 @@ export interface AgentCatalogServiceDeps {
 	sidecar: Pick<SidecarClient, "request">;
 	/** Workspace folder of a chat, for slash commands. */
 	workspacePathOf: (sessionId: SessionId) => Promise<Result<string>>;
+	/**
+	 * Root folder of a chat's repository. The sidecar saves an open chat's slash commands under it,
+	 * which is the key the new-workspace composer reads before any workspace exists (SIDE-22).
+	 */
+	repoRootPathOf: (sessionId: SessionId) => Promise<Result<string>>;
 	/** The provider key rows. Absent only in tests that do not use provider keys. */
 	providerKeys?: ProviderKeyRepository;
 	/** Where a typed provider key is kept. Absent only in tests that do not use provider keys. */
@@ -206,26 +211,26 @@ export class AgentCatalogService {
 		this.store.setState((state) => ({
 			slashCommands: { ...state.slashCommands, [sessionId]: { state: "loading" } },
 		}));
-		const workspacePath = await this.#deps.workspacePathOf(sessionId);
-		if (!workspacePath.ok) {
+		const folders = await this.#chatFolders(sessionId);
+		if (!folders.ok) {
 			if (this.#slashRequests.isLatest(ticket)) {
 				this.#slashRequests.settle(ticket);
 				this.store.setState((state) => ({
 					slashCommands: {
 						...state.slashCommands,
-						[sessionId]: { state: "error", error: workspacePath.error },
+						[sessionId]: { state: "error", error: folders.error },
 					},
 				}));
 			}
-			return err(workspacePath.error);
+			return err(folders.error);
 		}
 		const result = await this.#deps.sidecar.request("listSlashCommands", {
 			agent,
 			acpAgent,
-			workspacePath: workspacePath.value,
-			// The sidecar lists from `workspacePath`; `repoRootPath` keys its pre-workspace cache,
-			// which an open chat does not use (SIDE-22).
-			repoRootPath: workspacePath.value,
+			// The sidecar lists from `workspacePath` and saves the list under `repoRootPath`, the key
+			// the new-workspace composer reads before a workspace exists (SIDE-22).
+			workspacePath: folders.value.workspacePath,
+			repoRootPath: folders.value.repoRootPath,
 		});
 		if (!this.#slashRequests.isLatest(ticket)) {
 			this.#slashRequests.settle(ticket);
@@ -248,6 +253,17 @@ export class AgentCatalogService {
 			},
 		}));
 		return ok(result.value.commands);
+	}
+
+	/** A chat's workspace folder and its repository's root folder. */
+	async #chatFolders(
+		sessionId: SessionId,
+	): Promise<Result<{ workspacePath: string; repoRootPath: string }>> {
+		const workspacePath = await this.#deps.workspacePathOf(sessionId);
+		if (!workspacePath.ok) return workspacePath;
+		const repoRootPath = await this.#deps.repoRootPathOf(sessionId);
+		if (!repoRootPath.ok) return repoRootPath;
+		return ok({ workspacePath: workspacePath.value, repoRootPath: repoRootPath.value });
 	}
 
 	/**

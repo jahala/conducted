@@ -8,16 +8,19 @@
  * `workspacePath`, which answers with `fromCache: true`.
  * Must handle: a missing file or folder (an empty cache, not an error); a file that is not valid
  * JSON or has the wrong shape (logged, treated as empty, replaced by the next write); an entry
- * older than 30 days (dropped on read and on write); more than 500 entries (the oldest are
- * dropped); a file that would pass 5 MiB (the oldest entries are dropped until it fits); two
- * writers (compare-and-set on the file's revision, one retry); a refresh that fails (log only,
- * the last good list stays); the file written through a temp file at mode 0600 in a folder at
- * mode 0700.
+ * older than 30 days (dropped on read and on write); a refresh with an unchanged list (the entry
+ * is written again with a new save time, so a list that never changes stays cached while it is
+ * refreshed); more than 500 entries (the oldest are dropped); a file that would pass 5 MiB (the
+ * oldest entries are dropped until it fits); two writers in the sidecar (writes to one file run one
+ * at a time, so neither loses the other's entry); a writer in another process (a best-effort check
+ * before the rename: the file must still hold the text this write read, else one retry; a writer
+ * that renames between that check and ours still wins, because there is no lock); a refresh that
+ * fails (log only, the last good list stays); the file written through a temp file at mode 0600
+ * in a folder at mode 0700.
  * Our design choice: the folder arrives as a parameter read from `CONDUCTED_COMPLETIONS_DIR`
- * (`COMPLETIONS_ENV`). `config.ts` (SIDE-01) reads it; the Rust launcher sets it
+ * (`SIDECAR_ENV.completionsDir`). `config.ts` (SIDE-01) reads it; the Rust launcher sets it
  * (`sidecar::completions_dir`). Entries are keyed by repository root and agent (and ACP adapter)
- * with a hash of the source list, so an unchanged list is not rewritten. `createNodeCompletionsFiles`
- * is the production file edge.
+ * with a hash of the source list. `createNodeCompletionsFiles` is the production file edge.
  * Test first: after `write`, `read` for the same key returns the commands; a `read` 31 days later
  * returns null.
  */
@@ -37,9 +40,9 @@ import {
 } from "@conducted/shared";
 import { z } from "zod";
 import type { Logger } from "../logging/logger.ts";
+import { KeyedSerialQueue } from "../session/serial-queue.ts";
+import { messageOf } from "../util/errors.ts";
 
-/** Name of the environment variable that holds the cache folder. */
-export const COMPLETIONS_ENV = "CONDUCTED_COMPLETIONS_DIR";
 export const COMPLETIONS_FILE_NAME = "slash-command-snapshots.json";
 export const COMPLETIONS_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 export const COMPLETIONS_MAX_ENTRIES = 500;
@@ -101,6 +104,7 @@ export interface CompletionsFiles {
 	/**
 	 * Writes through a temp file, creates the folder at 0700 and the file at 0600, and only when
 	 * the file still holds `expected` (null means it is absent). False means another writer won.
+	 * The check runs before the rename and takes no lock, so it is best effort across processes.
 	 */
 	compareAndSet(
 		path: string,
@@ -162,9 +166,12 @@ function isUnexpired(entry: CompletionsEntry, now: number): boolean {
 }
 
 export class FileCompletionsCache implements CompletionsCache {
+	/** Writes to the cache file run one at a time, so two chats refreshing at once both land. */
+	private readonly writes = new KeyedSerialQueue();
+
 	constructor(
 		protected readonly deps: {
-			/** Absolute folder from `COMPLETIONS_ENV`. */
+			/** Absolute folder from `SIDECAR_ENV.completionsDir` (config.ts). */
 			dir: string;
 			files: CompletionsFiles;
 			clock: Clock;
@@ -188,7 +195,14 @@ export class FileCompletionsCache implements CompletionsCache {
 		});
 	}
 
-	async write(key: CompletionsKey, commands: SlashCommand[]): Promise<Result<void, AppError>> {
+	write(key: CompletionsKey, commands: SlashCommand[]): Promise<Result<void, AppError>> {
+		return this.writes.run(this.filePath(), () => this.writeNow(key, commands));
+	}
+
+	private async writeNow(
+		key: CompletionsKey,
+		commands: SlashCommand[],
+	): Promise<Result<void, AppError>> {
 		const normalised: CompletionsKey = {
 			...key,
 			repoRootPath: normaliseRepoRoot(key.repoRootPath),
@@ -199,9 +213,8 @@ export class FileCompletionsCache implements CompletionsCache {
 			if (!loaded.ok) return loaded;
 			const now = this.deps.clock.now();
 			const live = loaded.value.entries.filter((entry) => isUnexpired(entry, now));
-			const existing = newestFor(live, normalised);
-			if (existing !== null && existing.sourceHash === sourceHash) return ok(undefined);
-
+			// An unchanged list is written again too: its new save time keeps it from expiring while
+			// the repository is still in use.
 			const entries = live.filter((entry) => !sameKey(entry, normalised));
 			entries.push({
 				repoRootPath: normalised.repoRootPath,
@@ -268,7 +281,7 @@ export class FileCompletionsCache implements CompletionsCache {
 			parsed = JSON.parse(read.value);
 		} catch (cause) {
 			this.deps.logger.warn("The slash command cache is not valid JSON", {
-				reason: cause instanceof Error ? cause.message : String(cause),
+				reason: messageOf(cause),
 			});
 			return ok({ revision: 0, entries: [], raw: read.value });
 		}
@@ -335,8 +348,4 @@ export function createNodeCompletionsFiles(): CompletionsFiles {
 			}
 		},
 	};
-}
-
-function messageOf(cause: unknown): string {
-	return cause instanceof Error ? cause.message : String(cause);
 }

@@ -56,6 +56,7 @@ import {
 import type { ToolUseId } from "@conducted/shared";
 import type { Logger } from "../../logging/logger.ts";
 import { messageOf } from "../../util/errors.ts";
+import { asRecord, readString } from "../../util/records.ts";
 import { contentToText, truncateOutput } from "../output.ts";
 import type { CodexThreadTokenUsage } from "./protocol.ts";
 import { codexUsageItem, toolForCodexItem } from "./tool-names.ts";
@@ -542,15 +543,6 @@ function summariseAgents(value: unknown): string {
 		);
 	}
 	return lines.join("\n");
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-	return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
-}
-
-function readString(record: Record<string, unknown>, key: string): string | null {
-	const value = record[key];
-	return typeof value === "string" ? value : null;
 }
 
 function readNumber(record: Record<string, unknown>, key: string): number | null {

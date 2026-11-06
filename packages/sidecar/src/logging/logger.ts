@@ -1,15 +1,22 @@
 /**
  * @feature SIDE-18 Logger
  * Owns: the Logger interface every module receives as a parameter, a level filter, folding for
- * repeated error lines, secret redaction for environment dumps, and the console reroute.
+ * repeated error lines, secret redaction of log data, and the console reroute.
  * Behaviour: research/conductor/native-and-sidecar-map.md B3 "Logging", A6 step 10 and D026: the
- * sidecar writes one JSON object per line to stderr and the Rust launcher stores those lines in
- * the app log files.
+ * sidecar writes one JSON object per line to stderr. The Rust launcher (PLAT-09) writes that
+ * stderr to `<app data>/logs/sidecar-<pid>.log`, and the log export includes the file. Routing
+ * these lines into the app log files with a sidecar tag, as D026 plans, is not built yet; that
+ * item stays open on SIDE-18.
  * Must handle: the level can change at runtime (setLogLevel notification), a sink that throws must
- * not break the caller, redaction hides values but keeps key names, no module logs a raw secret,
- * an error line repeated many times is written once with its count after 5 s of quiet (60 s at
- * most or 1000 repeats), at most 1000 distinct error messages are tracked, and console calls reach
- * the logger instead of stderr.
+ * not break the caller, redaction hides values but keeps key names, at any depth of a record's
+ * data (the composition root's stderr sink redacts every record, so no module's line leaves the
+ * process with a raw secret under a secret-looking name), an error line repeated many times is
+ * written once with its count after 5 s of quiet (60 s at most or 1000 repeats), at most 1000
+ * distinct error messages are tracked, and console calls reach the logger instead of stderr.
+ * Our design choice: a name is secret-looking when its last word (split at `_`, `-`, `.` and
+ * camelCase) is token, secret, password, passwd, credential(s), authorization, cookie or apikey, or
+ * is key or pat after another word (ANTHROPIC_API_KEY, GH_PAT), or when it starts with
+ * CONDUCTED_INTERNAL_. A bare `key` (a process key, a cache key) and REACT_COMPAT stay visible.
  * Test first: with level "warn", info calls reach no sink and error calls reach it once.
  * Our design choice: the sink is a parameter, so modules never touch the file system to log. The
  * composition root asks for folding and the console reroute; a test can pass its own clock and
@@ -322,14 +329,67 @@ function formatConsoleArg(value: unknown): string {
 	}
 }
 
-/** Names that look like secrets. Matched case-insensitively against environment variable names. */
-const SECRET_NAME = /(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|PAT)$|^CONDUCTED_INTERNAL_/i;
+/** Last words that mark a name as a secret on their own. */
+const SECRET_WORDS = new Set([
+	"token",
+	"secret",
+	"password",
+	"passwd",
+	"credential",
+	"credentials",
+	"authorization",
+	"cookie",
+	"apikey",
+]);
+/** Last words that mark a name as a secret only after another word. */
+const QUALIFIED_SECRET_WORDS = new Set(["key", "pat"]);
 
-/** Replaces the values of secret-looking variables with a marker that keeps only the length. */
-export function redactEnv(env: Readonly<Record<string, string>>): Record<string, string> {
-	const out: Record<string, string> = {};
-	for (const [name, value] of Object.entries(env)) {
-		out[name] = SECRET_NAME.test(name) ? `<redacted:${value.length}>` : value;
+/** True when a variable or data key name looks like it holds a secret (see the header). */
+export function isSecretName(name: string): boolean {
+	if (/^CONDUCTED_INTERNAL_/i.test(name)) return true;
+	const words = name
+		.replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+		.split(/[\s_.-]+/)
+		.filter((word) => word !== "")
+		.map((word) => word.toLowerCase());
+	const last = words.at(-1);
+	if (last === undefined) return false;
+	if (SECRET_WORDS.has(last)) return true;
+	return QUALIFIED_SECRET_WORDS.has(last) && words.length > 1;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+	if (typeof value !== "object" || value === null) return false;
+	const prototype = Object.getPrototypeOf(value);
+	return prototype === Object.prototype || prototype === null;
+}
+
+/**
+ * Replaces the values under secret-looking names, at any depth of plain objects and arrays, with a
+ * marker that keeps only a string's length. Other values are kept as they are.
+ */
+export function redactSecrets(value: unknown, seen: WeakSet<object> = new WeakSet()): unknown {
+	if (Array.isArray(value)) {
+		if (seen.has(value)) return "[circular]";
+		seen.add(value);
+		return value.map((entry) => redactSecrets(entry, seen));
+	}
+	if (!isPlainObject(value)) return value;
+	if (seen.has(value)) return "[circular]";
+	seen.add(value);
+	const out: Record<string, unknown> = {};
+	for (const [name, entry] of Object.entries(value)) {
+		if (isSecretName(name)) {
+			out[name] = typeof entry === "string" ? `<redacted:${entry.length}>` : "<redacted>";
+		} else {
+			out[name] = redactSecrets(entry, seen);
+		}
 	}
 	return out;
+}
+
+/** The record with its data redacted, for a sink whose lines leave the process. */
+export function redactRecord(record: LogRecord): LogRecord {
+	if (record.data === undefined) return record;
+	return { ...record, data: redactSecrets(record.data) as Record<string, unknown> };
 }
